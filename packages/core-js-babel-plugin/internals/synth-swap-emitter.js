@@ -64,14 +64,18 @@ import {
   navHasUnresolvableProxyHop, navValueCanShortCircuit, PROXY_HOP_VALUE_CARRIERS, proxyGlobalMemberCtorPure,
   resolveSynthKeys,
   peelChainAssignment,
+  peelReceiverSequenceTail,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { patternComputedKeysSynthSafe } from './synth-key-utils.js';
 
-// does the run swallow a hop pure cannot back that reads a KEPT WRITE? that read is the environment
-// probe off the STORE (`(v = ga.window?.self)?.window`), and folding it answers the ponyfill where
-// the source reads the host - but only where the store holds a navigation of its OWN: a store of the
-// bare root hands on the very surface the run navigates, so hops over it collapse like any other.
-// hops BELOW the write live inside its own value and keep their own verdict, which the store canon spells
+// does the run swallow a hop pure cannot back that reads a KEPT WRITE whose value the collapse
+// cannot serve? a store whose value ends on a hop pure cannot back (`v = globalThis.window`) hands
+// on the raw host read - the probe itself - and folding the run over it answers the ponyfill where
+// the source reads the host. a store of the bare root, or of a navigation whose LEAF a pure entry
+// backs (`v = ga.window?.self` - the collapse renders it as the guarded ponyfill), hands on a value
+// the doctrine speaks for, and the hops over it fold like any other - whichever spelling roots the
+// probe. hops BELOW the write live inside its own value and keep their own verdict, which the
+// store canon spells (the unplugin leg's `proxyStoreIsSpellable` is this rule on its renders)
 function runSwallowsStoreProbe(runNode, resolvePure) {
   for (let hop = runNode; hop?.type === 'MemberExpression' || hop?.type === 'OptionalMemberExpression';) {
     const inner = unwrapRuntimeExpr(hop.object);
@@ -79,8 +83,14 @@ function runSwallowsStoreProbe(runNode, resolvePure) {
       hop = inner;
       continue;
     }
-    return unwrapRuntimeExpr(inner.right)?.type !== 'Identifier'
-      && proxyHopLacksPureEntry(staticMemberKeyName(hop), resolvePure);
+    if (!proxyHopLacksPureEntry(staticMemberKeyName(hop), resolvePure)) return false;
+    // definedness of a sequence value is decided by its TAIL - the store canon's own peel
+    const value = unwrapRuntimeExpr(peelReceiverSequenceTail(peelChainAssignment(inner).value ?? inner.right));
+    if (value?.type === 'Identifier') return false;
+    if (value?.type === 'MemberExpression' || value?.type === 'OptionalMemberExpression') {
+      return proxyHopLacksPureEntry(staticMemberKeyName(value), resolvePure);
+    }
+    return true;
   }
   return false;
 }
@@ -357,21 +367,27 @@ export default function createSynthSwapEmitter({
   // types every link from the first `?.` upward as `Optional*`. the printed text and the
   // downstream optional-chaining lowering are the same either way (both were measured): the
   // wrapper is what makes the canonical render CONVERTIBLE, not a spelling choice
-  function renderCollapsePlan(plan) {
+  function renderCollapsePlan(plan, { carrySource = false } = {}) {
     const rendered = renderProxyReceiverPlan(plan, {
       injectImport: (entry, hintName) => injectPureImport(entry, hintName).name,
       embed: hostSlot,
+      carrySource,
     });
     if (!rendered) return null;
     return estreeToBabel(plan.kind === 'member' || plan.optional ? chainExpression(rendered) : rendered);
   }
 
-  function collapseProxyGlobalReceiver(receiver, { aliasCtx = null, isWriteTarget = false,
-    throughChainAssign = false, hopsOnly = false } = {}) {
+  function collapseProxyGlobalReceiver(receiver, {
+    aliasCtx = null,
+    isWriteTarget = false,
+    throughChainAssign = false,
+    hopsOnly = false,
+    carrySource = false,
+  } = {}) {
     const plan = planProxyReceiver(receiver, { aliasCtx, isWriteTarget, throughChainAssign, resolvePure });
     if (!plan) return null;
     if (hopsOnly && plan.rootBinding?.pure) return null;
-    return renderCollapsePlan(plan);
+    return renderCollapsePlan(plan, { carrySource });
   }
 
   // the global-usage rewrite reaches a proxy-global ROOT identifier (`globalThis`) that is the base
@@ -516,7 +532,11 @@ export default function createSynthSwapEmitter({
       && !navCarriesChainAssign(recPath.node);
     if (isWriteTarget && !deleteHost
       && !navHasUnresolvableProxyHop(recPath.node.object, resolvePure)) return false;
-    const collapsed = collapseProxyGlobalReceiver(recPath.node, { aliasCtx, isWriteTarget, throughChainAssign: true });
+    // this drive REPLACES the receiver subtree, so the render carries the kept user nodes by
+    // identity - a cloned kept write stranded the scope tracker's violation records on the
+    // detached original, and every later placement-gated trust ask about its alias failed
+    const collapsed = collapseProxyGlobalReceiver(recPath.node,
+      { aliasCtx, isWriteTarget, throughChainAssign: true, carrySource: true });
     if (!collapsed) return false;
     recPath.replaceWith(collapsed);
     // the replacement is a FINISHED render of the outer member (root substituted, hops dropped) -
@@ -533,8 +553,8 @@ export default function createSynthSwapEmitter({
   }
 
   // a proxy-global PONYFILL import at the chain root ends the collapse: the hop above it is one a
-  // guard render deliberately kept (`_self.window.X` - the alternate of a probe), and folding it drops
-  // the throw that read owes on a host without the hop. asked of the SHAPE, never of a per-pass
+  // guard render deliberately kept (a computed key and its effects - the alternate of a probe), and
+  // folding it drops the effects that read owes. asked of the SHAPE, never of a per-pass
   // registry: re-run over its own output this emitter has no memory of what it rendered, and the fold
   // then ran once more each pass - a user's own import of the same entry reads the same way
   function proxyPureImportRoot(root, aliasCtx) {

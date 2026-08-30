@@ -33,7 +33,12 @@ import {
 } from './ast-shapes.js';
 import { isAmbientFunctionNode } from './name-resolution.js';
 import {
-  getTypeArgs, isMemberWriteHost, memberKeyName, peelSkippableWrapperPath, unwrapRuntimeExpr,
+  getTypeArgs,
+  isMemberWriteHost,
+  memberKeyName,
+  nodeHoldsChild,
+  peelSkippableWrapperPath,
+  unwrapRuntimeExpr,
 } from '../helpers/ast-patterns.js';
 import { memberWriteTargetPath } from './class-member-shapes.js';
 import { staticMemberKeyName } from '../helpers/class-walk.js';
@@ -791,19 +796,6 @@ export function createMemberResolve({
   const ELEMENT_SAFE_METHODS = new Set(Object.entries(ARRAY_METHOD_HINTS)
     .filter(([, hint]) => hint !== null && typeof hint === 'object' && !hint.mutatesElements)
     .map(([key]) => key));
-
-  // does `parent` still physically hold `node` in one of its slots? an in-place rewrite
-  // (a folded call, an optional-chain lowering) reuses parent nodes and swaps their slots,
-  // leaving cached reference chains pointing at parents that no longer contain the member
-  function nodeHoldsChild(parent, node) {
-    // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
-    for (const key in parent) {
-      const slot = parent[key];
-      if (slot === node) return true;
-      if (Array.isArray(slot) && slot.includes(node)) return true;
-    }
-    return false;
-  }
 
   // descend a member chain to the identifier it is rooted at; anything else returns as-is
   function memberChainRootPath(path) {

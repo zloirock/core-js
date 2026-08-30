@@ -32,7 +32,7 @@ export const unguardedWindowValue = _flatMaybeArray((n = _globalThis.window).Arr
 // tail read) exactly like the unguarded twin
 const arr = [1];
 let p;
-export const guardedSeqPrefixValue = null == (p = (_atMaybeArray(arr).call(arr, 0), _self).window) ? void 0 : _Map;
+export const guardedSeqPrefixValue = null == (p = (_atMaybeArray(arr).call(arr, 0), _self)) ? void 0 : _Map;
 
 // a guarded seq-rooted value whose unresolvable hop sits BELOW the ponyfillable leaf renders
 // the nested-guard canon exactly like the unguarded twin: the value's test keeps the prefix

@@ -7031,3 +7031,58 @@ export function aliasTargetName(parent) {
   return parent?.type === 'AssignmentExpression' && VALUE_FLOW_ASSIGN_OPS.has(parent.operator)
     && parent.left?.type === 'Identifier' ? parent.left.name : null;
 }
+
+// does `parent` still physically hold `child` in one of its slots? one level only - an in-place
+// rewrite (a folded call, a chain lowering, a carried-write replace) reuses parent nodes and swaps
+// their slots, leaving cached reference chains pointing at parents that no longer contain the child;
+// the ancestor walks verify each edge in turn, so a deep search would hide exactly the broken link
+export function nodeHoldsChild(parent, child) {
+  // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
+  for (const key in parent) {
+    const slot = parent[key];
+    if (slot === child) return true;
+    if (Array.isArray(slot) && slot.includes(child)) return true;
+  }
+  return false;
+}
+
+// is a cached path's ancestor chain no longer the live tree's? two stale shapes, one detector:
+// a parent whose node was nulled by a removal, and a CHIMERA chain - a replace reuses the path
+// object for the new subtree, so a cached child path climbs into a parent whose live node no
+// longer holds it (a render that replaces a subtree while CARRYING a kept user write leaves the
+// write's cached chain walking edges that left the tree). both emitters' adapters ask it before
+// judging a write's placement over such a chain
+export function ancestorChainDetached(path) {
+  for (let cur = path?.parentPath, child = path; cur; child = cur, cur = cur.parentPath) {
+    if (cur.node === null || cur.node === undefined) return true;
+    if (!nodeHoldsChild(cur.node, child.node)) return true;
+    if (cur.node.type === 'Program') return false;
+  }
+  return false;
+}
+
+// the LIVE ancestry of `targetNode` under `rootNode`, as a minimal path-shaped chain
+// (`{ node, parentPath }` links, root outward-null): the re-anchor for a placement judgment whose
+// cached path went stale. node-identity DFS - a carried node has exactly one live position. the
+// chain carries no scope and no traversal, so it serves ONLY the walks that read `.node` and
+// `.parentPath` (the placement climb); a consumer needing a real path keeps its own re-anchor
+export function syntheticNodeAncestry(rootNode, targetNode) {
+  function descend(node, parentPath) {
+    if (!isASTNode(node)) return null;
+    const self = { node, parentPath };
+    if (node === targetNode) return self;
+    for (const value of Object.values(node)) {
+      if (Array.isArray(value)) {
+        for (const el of value) {
+          const found = descend(el, self);
+          if (found) return found;
+        }
+      } else {
+        const found = descend(value, self);
+        if (found) return found;
+      }
+    }
+    return null;
+  }
+  return rootNode === targetNode ? null : descend(rootNode, null);
+}

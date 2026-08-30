@@ -77,6 +77,8 @@ import {
   assignmentHoldsValue,
   dropTailPristineProxyHops,
   emitNestedGuardNavValue,
+  foldRealmHopOverCarriedValue,
+  foldUnbackedRealmHopsAbove,
   insideMemoClone,
   instanceTailMemoTest,
   isDeleteOperand,
@@ -523,12 +525,16 @@ export default function createProxySpineChannel(ctx) {
     const id = injectPureImport(entry, hintName);
     markRewrite();
     replaceGuardedHop({
-      hopPath: metaPath, test: nullFirstGuardTest(test),
-      built: identifier(id), skippedNodes, alwaysDefined: true, deleteHostTail: deleteHost,
+      hopPath: metaPath,
+      test: nullFirstGuardTest(test),
+      built: identifier(id),
+      skippedNodes,
+      alwaysDefined: true,
+      deleteHostTail: deleteHost,
       // the ORIGINAL key-effect nodes ride by IDENTITY: a claim inside them fires later in
       // the walk and lands in place (the keep-live carve above the consumed mark)
       leafKeySe: plan.liveKeySeExprs().slice(plan.testKeySeCount),
-      unbackedHopKey: hop => unbackedProxyHopKey(hop, resolveHere),
+      resolveHere,
     });
     return true;
   }
@@ -644,7 +650,12 @@ export default function createProxySpineChannel(ctx) {
       const built = renderNavCollapseTail(plan, leaf, { cloneHost: cloneNode });
       markRewrite();
       replaceGuardedHop({
-        hopPath: leafPath, test: nullFirstGuardTest(test), built, skippedNodes, alwaysDefined: true,
+        hopPath: leafPath,
+        test: nullFirstGuardTest(test),
+        built,
+        skippedNodes,
+        alwaysDefined: true,
+        resolveHere: m => resolvePure(m, metaPath),
       });
       return true;
     }
@@ -884,11 +895,15 @@ export default function createProxySpineChannel(ctx) {
       const test = nullFirstGuardTest(instanceTailMemoTest(probeClone, metaPath, node, seKeyReadCtx));
       const tailAbove = climbTransparentWrapperPath(metaPath).parentPath?.node;
       replaceGuardedHop({
-        hopPath: metaPath, test, built: identifier(id), skippedNodes,
+        hopPath: metaPath,
+        test,
+        built: identifier(id),
+        skippedNodes,
         // the NAV route: the alternate is the claim's own pure over the collapsed spine, and the
         // source read THROUGH it - so an optional tail rides the branch with its `?.` kept
         // (`p()?.window?.Promise.resolve(4)?.then?.(f)`), exactly as a plain tail already does
         navAlternate: true,
+        resolveHere: m => resolvePure(m, metaPath),
         prefixSe: prefixSe.length ? prefixSe.map(effect => cloneNode(effect)) : null,
         leafKeySe: keySe?.length ? keySe.map(effect => cloneNode(effect)) : null,
       });
@@ -898,6 +913,12 @@ export default function createProxySpineChannel(ctx) {
         for (const hop of vestigialNavOptionals(tailAbove, m => resolvePure(m, metaPath),
           { scope: metaPath.scope, adapter, path: metaPath })) hop.optional = false;
       }
+      // a realm hop reading the guarded value THROUGH a store keeps the probe but not the hop:
+      // the defined branch is the ponyfill the hop folds onto, and the void branch still
+      // short-circuits on the `?.` that slides one member up, whichever spelling roots the probe
+      // (`(v = ga.window?.self)?.window.X` -> `(v = <guard>)?.X`); the fold's own climb gates on
+      // the kept store
+      foldRealmHopOverCarriedValue(metaPath, { adapter, resolvePure: m => resolvePure(m, metaPath) });
       return true;
     }
     return false;
@@ -959,7 +980,10 @@ export default function createProxySpineChannel(ctx) {
     // (`delete (d = globalThis.window).self.k` -> `delete (d = _globalThis.window, _self).k`)
     // ... but only where the STORE holds a navigation of its OWN: `(v = globalThis)` hands on the
     // very surface the root binding spells, so re-reading it there is the plain fold
-    if (keptWrite && isDeleteOperand(navHost)
+    // ... and only while nothing stands ABOVE the store: a kept REALM tail over it is a read the
+    // delete performs nothing through, so the whole navigation folds and the base is the root the
+    // collapse landed (`delete (g = globalThis, v = g.self)?.window.X` deletes off `g`)
+    if (keptWrite && isDeleteOperand(navHost) && !keptTail.length
       && unwrapRuntimeExpr(keptWrite.right)?.type !== 'Identifier') return { navigated: false, mutatedAbove: false };
     // a WRITE TARGET keeps the VALUE spelling - except over a KEPT TAIL, which the value
     // render would respell off the ponyfill (`_self.window.WeakSet = f` reads `.window` on
@@ -996,6 +1020,7 @@ export default function createProxySpineChannel(ctx) {
     keptTail,
     outerHopName,
     outerEffects,
+    seqPrefixEffects = [],
     collapsed,
     entry,
     hintName,
@@ -1005,27 +1030,65 @@ export default function createProxySpineChannel(ctx) {
     if (navigated) for (const kept of keptTail) outerEffects.push(...kept.keySe);
     const innerBase = innerKeptTail.reduce(respellKeptHop, identifier(injectPureImport(entry, hintName)));
     const outerPure = resolveGlobalPolyfill(navigated || !outerHopName ? collapsed.hintName : outerHopName);
+    // an ALIAS root spells the base with its own binding, exactly as the write-less collapse does
+    // (`(g = globalThis, v = g.self)?.window.X` re-reads `g`); a base neither the alias nor the pure
+    // build can spell has no render here, and the ordinary claim swap owns that shape
+    // ... and only where the stored value carries NO effects of its own: with one in it the source
+    // sequence is what runs them, and re-reading the root beside it is a second spelling of the
+    // same run - THERE the store itself stays the value the source hands on: the folded hop drops
+    // in place, the sequence's own tail keeps the read, and the dropped hop's probe rides onto the
+    // consumer above (`(g = globalThis, v = g[(eff(), 'window')].self)?.window.X` ->
+    // `(g = _globalThis, v = (eff(), _self))?.X` - the other emitter's spelling of this fold).
+    // a folded KEY effect has no slot in this shape and keeps the ordinary decline
+    if (navigated && collapsed.aliasRoot && collapsed.effects?.length && !outerEffects.length) {
+      const consumer = target.parentPath?.node;
+      if (consumer?.type !== 'MemberExpression' || unwrapRuntimeExpr(consumer.object) !== target.node) return false;
+      if (target.node.optional) consumer.optional = true;
+      const inPlaceWrite = assignmentExpression('=',
+        cloneNode(writeStep.left), withSideEffects(innerBase, collapsed.effects));
+      // the sequence prefix is CARRIED, not cloned: this render replaces the source subtree, and a
+      // cloned kept write (`g = globalThis`) is a node the write-origin census never saw - the
+      // alias's later reads then lost their agreement and the twin of this very source kept its hop
+      target.replaceWith(sequenceExpression([...seqPrefixEffects, inPlaceWrite]));
+      markSubtreeSkipped(skippedNodes, consumed);
+      skippedNodes.add(target.node);
+      return true;
+    }
+    const outerBase = collapsed.aliasRoot && !collapsed.effects?.length ? cloneNode(collapsed.aliasRoot)
+      : outerPure && identifier(injectPureImport(outerPure.entry, outerPure.hintName));
+    if (!outerBase) return false;
     // an unresolvable tail respells over the base only in VALUE position - a navigation
     // folds it away, exactly as the plain (write-less) collapse does
-    const base = (navigated ? [] : keptTail).reduce(respellKeptHop,
-      identifier(injectPureImport(outerPure.entry, outerPure.hintName)));
+    const base = (navigated ? [] : keptTail).reduce(respellKeptHop, outerBase);
     const write = assignmentExpression('=', cloneNode(writeStep.left), withSideEffects(innerBase, collapsed.effects));
     // an unbacked TAIL in VALUE position reads off the WRITE itself: re-reading it off the
     // ponyfill root would spell a `.window` the engine may not have, and the value the source
     // yields is the one the write stored (`(k = globalThis.self).window` -> `(k = _self).window`)
     const readsOffWrite = !navigated && keptTail.length && !outerEffects.length;
+    // a SEQUENCE the climb stepped over is replaced WHOLE, so its prefix re-emits ahead of the
+    // write - where the source ran it
+    const prefix = seqPrefixEffects.map(effect => cloneNode(effect));
     target.replaceWith(readsOffWrite
-      ? keptTail.reduce(respellKeptHop, write)
-      : sequenceExpression([write, ...outerEffects.map(effect => cloneNode(effect)), base]));
+      ? keptTail.reduce(respellKeptHop, withSideEffects(write, prefix))
+      : sequenceExpression([...prefix, write, ...outerEffects.map(effect => cloneNode(effect)), base]));
     markSubtreeSkipped(skippedNodes, consumed);
     skippedNodes.add(target.node);
   }
 
   // the collapse render of a possible-global hop claim, extracted for its size: the
   // upward extension, the navigation verdict and the base spelling live here
+
+  // a `?.` the shared vestigial verdict calls DEAD reads the always-defined binding this claim
+  // substitutes, so the run over it is the plain twin. ONE reading for every collapse route - the
+  // root claim's own run and the hop claim's spine ask it the same way
+  function deadOptionalHopAt(metaPath) {
+    return hop => vestigialNavOptionals(hop, m => resolvePure(m, metaPath),
+      { scope: metaPath.scope, adapter, path: metaPath }).includes(hop);
+  }
+
   // the collapse EXTENDS UP through enclosing pristine hops and, once, over a kept WRITE:
   // it returns the widened target plus what the climb collected
-  function extendCollapseUpward(metaPath, { allowOptional }) {
+  function extendCollapseUpward(metaPath, { allowOptional, deadOptionalHop = null }) {
     let target = metaPath;
     const outerEffects = [];
     // an enclosing SEQUENCE whose TAIL the spine is: its prefix evaluates ahead of everything
@@ -1044,7 +1107,7 @@ export default function createProxySpineChannel(ctx) {
     let outerHopName = null;
     for (let up = target.parentPath; up?.node; up = target.parentPath) {
       if (!writeStep) {
-        const over = stepOverKeptWrite(up, target, { allowOptional, metaPath, proxyHopKey });
+        const over = stepOverKeptWrite(up, target, { allowOptional, metaPath, proxyHopKey, deadOptionalHop });
         if (over) {
           writeStep = up.node;
           innerKeptTail = keptTail;
@@ -1087,7 +1150,7 @@ export default function createProxySpineChannel(ctx) {
       }
       if (up.node.object !== target.node) break;
       // a `?.` over the ALWAYS-DEFINED collapsed prefix is vestigial and erases with the
-      // respell (`(k = globalThis.self?.window)` -> `k = _self.window`); once a kept
+      // respell (`(k = globalThis.self?.window)` -> `k = _self`); once a kept
       // unresolvable hop sits below, the base is undefinable and the `?.` stands
       const hop = proxyHopKey(up.node, { allowOptional: allowOptional || !keptTail.length });
       if (!hop) break;
@@ -1110,12 +1173,19 @@ export default function createProxySpineChannel(ctx) {
     return { target, outerEffects, seqPrefixEffects, keptTail, writeStep, innerKeptTail, outerHopName };
   }
 
-  function renderProxySpineCollapse({ metaPath, collapsed, entry, hintName, allowOptional = false }) {
+  function renderProxySpineCollapse({
+    metaPath,
+    collapsed,
+    entry,
+    hintName,
+    allowOptional = false,
+    deadOptionalHop = null,
+  }) {
     // the collapse EXTENDS UP through enclosing pristine hops: an outer `['window']`
     // step has no pure claim of its own, yet its key effect folds into the same root
     // sequence, after the inner ones (evaluation order)
     const { target, outerEffects, seqPrefixEffects, keptTail, writeStep, innerKeptTail, outerHopName } =
-      extendCollapseUpward(metaPath, { allowOptional });
+      extendCollapseUpward(metaPath, { allowOptional, deadOptionalHop });
     // a `?.` the VALUE canon calls dead is dead here too: over a nav whose value cannot be absent,
     // the kept tail folds exactly as it does under a `delete` - one rule, not a delete-only
     // exception (`globalThis.self.window?.WeakRef` IS the realm's read), and the `?.` the fold
@@ -1139,8 +1209,8 @@ export default function createProxySpineChannel(ctx) {
     // source spelling whole (`(0, globalThis.self).Map = f` -> `(0, _self).Map = f`)
     const collectedEffects = [...seqPrefixEffects, ...collapsed.effects, ...outerEffects];
     // in NAVIGATION the root binding spells the base; a VALUE position substitutes the claim's OWN
-    // pure, unresolvable swallowed hops respelled above it (`(v = globalThis.self.window)` ->
-    // `v = _self.window`). the canon owns the question - the key SPELLING is not part of it, so a
+    // pure, the swallowed hops a fold does not take respelled above it (`(v = globalThis[(e++,
+    // 'self')].window)`). the canon owns the question - the key SPELLING is not part of it, so a
     // folded key's effects ride ahead of the binding here exactly as they do for a quiet twin
     const foldedKeyEffects = [...collapsed.keyEffects, ...outerEffects];
     const valuePosition = proxyNavSpellsClaimPure({ navigated });
@@ -1182,6 +1252,7 @@ export default function createProxySpineChannel(ctx) {
         keptTail,
         outerHopName,
         outerEffects,
+        seqPrefixEffects,
         collapsed,
         entry,
         hintName,
@@ -1225,8 +1296,8 @@ export default function createProxySpineChannel(ctx) {
       ? cloneNode(collapsed.aliasRoot)
       : identifier(valuePosition || mutatedAbove ? injectPureImport(entry, hintName)
         : injectPureImport(collapsed.entry, collapsed.hintName));
-    // the harvested effects wrap the ROOT, and an unresolvable tail respells OVER that wrap
-    // (`(q = (eff(), globalThis).self.window)` -> `q = (eff(), _self).window`): the read
+    // the harvested effects wrap the ROOT, and a tail the fold does not take respells OVER that
+    // wrap (`(q = (eff(), globalThis).self.window)` -> `q = (eff(), _self)`): the read
     // happens past the effects either way, and this is the spelling babel prints
     let replacement = withSideEffects(rootSpelling, foldedEffects);
     if (valuePosition) {
@@ -1241,6 +1312,13 @@ export default function createProxySpineChannel(ctx) {
     // ?.customZ`) - only where no guard was owed, which is what allowOptional marks
     if (deadOptional && rootSpelling.type === 'Identifier' && !foldedEffects.length) {
       deoptionalizeOverSubstituted({ metaPath: target, node: consumed, replacement: rootSpelling, proxyRoot: true });
+    }
+    // a VALUE render landing inside a kept store hands the always-defined ponyfill on through it:
+    // a realm hop reading the store folds onto that value, its `?.` sliding one member up
+    // (`(v = globalThis.self?.window?.self)?.window.X` -> `(v = _self)?.X`); the fold's own
+    // climb gates on the crossed store
+    if (valuePosition) {
+      foldRealmHopOverCarriedValue(replaceAt, { adapter, resolvePure: m => resolvePure(m, metaPath) });
     }
   }
 
@@ -1394,7 +1472,14 @@ export default function createProxySpineChannel(ctx) {
       }
       connector = connectorPath?.node ?? above;
     }
-    if (renderProxySpineCollapse({ metaPath, collapsed, entry, hintName, allowOptional: deleteHost }) === false) {
+    if (renderProxySpineCollapse({
+      metaPath,
+      collapsed,
+      entry,
+      hintName,
+      allowOptional: deleteHost,
+      deadOptionalHop: deadOptionalHopAt(metaPath),
+    }) === false) {
       return false;
     }
     // the collapse lands the root's own binding, so a `?.` left standing on the SURVIVING
@@ -1446,9 +1531,13 @@ export default function createProxySpineChannel(ctx) {
     // a POSSIBLE-GLOBAL hop claim under a TERMINAL unbacked tail stands down whole - the
     // root identifier's own swap spells the base, every hop stays a real read. NOT inside a
     // kept-write VALUE though: the store canon deliberately lands the ponyfill there
-    // (`(k = globalThis.self.window)` stores `_self.window`, runtime-locked without self)
+    // (`(k = globalThis.self.window)` stores `_self`, runtime-locked without self)
+    // ... nor where a PROBE stands below the claim: the nav has a guarded collapse to render, whose
+    // alternate is the ponyfill, and the realm hops above it fold onto that - there is no raw read
+    // left for the stand-down to preserve (`(rt()?.window?.self.window).X`)
     if (node.type === 'MemberExpression' && kind === 'global' && POSSIBLE_GLOBAL_OBJECTS.has(hintName)
       && !storedUserAssignmentOf(metaPath)
+      && !navHasUnresolvableProxyHop(node.object, m => resolvePure(m, metaPath))
       && unbackedTailRidesAbove(metaPath, resolveGlobalPolyfill)) return;
     // a POSSIBLE-GLOBAL hop claim over a pristine proxy spine collapses to the spine's
     // ROOT binding, the hops' computed-key effects folding in evaluation order - the
@@ -1484,14 +1573,22 @@ export default function createProxySpineChannel(ctx) {
       // a bare ROOT navigated through PLAIN hops pure cannot back takes the same spine
       // render: the hops fold away under navigation and respell in value position
       // (`globalThis.window.Array` -> `_globalThis.Array`, `globalThis.window` kept). a
-      // live `?.` anywhere in that run keeps every hop - it IS the environment probe the
-      // source asked for, and folding it away would drop the test
-      const proxyRun = plainProxyHopRunAbove(metaPath, proxyHopKey, { allowOptional: rootDeleteHost });
+      // LIVE `?.` anywhere in that run keeps every hop - it IS the environment probe the
+      // source asked for, and folding it away would drop the test; a `?.` the vestigial
+      // verdict calls dead guards the substituted binding and leaves the run plain
+      const deadOptionalHop = deadOptionalHopAt(metaPath);
+      const proxyRun = plainProxyHopRunAbove(metaPath, proxyHopKey, { allowOptional: rootDeleteHost, deadOptionalHop });
       // ... and the same stand-down as the hop claim's: a value-observing carrier over a
       // destructure source keeps every hop the source wrote
       if (proxyRun && !valueObservingDestructureSource(metaPath, destructureEmit)
-        && renderProxySpineCollapse({ metaPath, collapsed: { entry, hintName, effects: [], keyEffects: [] },
-          entry, hintName, allowOptional: rootDeleteHost }) !== false) {
+        && renderProxySpineCollapse({
+          metaPath,
+          collapsed: { entry, hintName, effects: [], keyEffects: [] },
+          entry,
+          hintName,
+          allowOptional: rootDeleteHost,
+          deadOptionalHop,
+        }) !== false) {
         // ... and no `?.` on the read ABOVE the run is load-bearing either - but only where the
         // collapse landed the ROOT BINDING itself. an UNBACKED hop left spelled off it
         // (`_globalThis.window`, a sealed run's stop) is still the environment probe, and the
@@ -1573,6 +1670,17 @@ export default function createProxySpineChannel(ctx) {
     target.replaceWith(replacement);
     markSubtreeSkipped(skippedNodes, consumed);
     skippedNodes.add(replacement);
+    // a nav route that BAILED leaves the source's realm hops standing over the ponyfill this swap
+    // put in (`delete <dead probe>?.self?.window.X` claims `self` alone) - they fold here, where
+    // the plan's own render would have truncated them.
+    // only over a HOP claim: a bare root spelling is the nav's own beginning, and the read above it
+    // is the environment PROBE the collapse tests (`_globalThis.window` in a guard) - folding that
+    // would erase the very question the guard asks
+    if (node.type === 'MemberExpression' && POSSIBLE_GLOBAL_OBJECTS.has(redirected?.hintName ?? hintName)) {
+      foldUnbackedRealmHopsAbove(target, replacement, { adapter, resolvePure: m => resolvePure(m, metaPath) });
+    }
+    // ... and BEFORE the `?.` verdict below: that one drops the chain wrapper the folded hop still
+    // sits under, and a path whose container it detached writes into nothing
     // walk up from TARGET: a consumed TS wrapper sat between the claim and its `?.` parent
     // (`(Map as any)?.()` - the call reads the replacement directly after the climb)
     deoptionalizeOverSubstituted({
@@ -1610,6 +1718,9 @@ export default function createProxySpineChannel(ctx) {
     // that tail is the always-defined binding (`(n++, _Symbol)?.iterator` reads plainly)
     const substituted = replacement.type === 'SequenceExpression'
       ? unwrapRuntimeExpr(replacement.expressions.at(-1)) : replacement;
+    // a kept WRITE hands its VALUE on, so a `?.` reading the write reads the substituted binding and
+    // is as vestigial as one reading it directly (`(v = _self)?.window`) - the same rule the
+    // sequence arm below spells for a prefix
     if (upNode?.type === 'MemberExpression' && upNode.optional && unwrapRuntimeExpr(upNode.object) === replacement
       && substituted?.type === 'Identifier') {
       // a SEAL below a live `?.` keeps the memo's source spelling whole - the dead `?.`
