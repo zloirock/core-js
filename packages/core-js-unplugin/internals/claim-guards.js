@@ -3,6 +3,7 @@
 import {
   aliasHeldClaimProbe,
   callYieldCanBeUndefined,
+  guaranteedRealmObjectName,
   inlineCallProxyGlobalRoot,
   navHasUnresolvableProxyHop,
   peelChainAssignmentDeep,
@@ -495,12 +496,15 @@ export function guardProbeUndefinable(probe, {
   if (storeObserved
     && (navHasUnresolvableProxyHop(probeValue, m => resolvePure(m, metaPath))
       || aliasHoldsUnbackedHopNav(probeValue, metaPath, adapter))) return true;
-  // a bare ALIAS of a proxy surface is spelled, not read: the binding holds what the source
-  // stored and the `?.` over it is as dead as the direct spelling's - even where the surface is
-  // one pure cannot back (`const { window: w } = globalThis; w?.Object.values(...)`)
+  // a bare ALIAS of an ENTRY-BACKED surface is spelled, not read: the binding holds the realm
+  // object however it was reached (`globalThis` by the language, `self` by its ponyfill), so the
+  // `?.` over it is as dead as the direct spelling's. an entry-less name (`window` / `global`)
+  // can only have entered the alias through a probe-hop READ - the held value is exactly the
+  // undefinable thing the guard tests, and the nav spelling of the same value keeps its guard
+  // (`const { window: w } = globalThis; w?.X` guards like `globalThis.window?.X` does)
   if (probeValue === peeledProbe && probeValue?.type === 'Identifier') {
     const aliased = resolveObjectName({ objectNode: probeValue, scope: metaPath.scope, adapter, path: metaPath });
-    if (aliased && POSSIBLE_GLOBAL_OBJECTS.has(aliased) && isPristineProxyGlobal(adapter, aliased)) return false;
+    if (aliased && guaranteedRealmObjectName(aliased) && isPristineProxyGlobal(adapter, aliased)) return false;
   }
   return proxyReceiverValueCanBeUndefined(
     probeValue, m => resolvePure(m, metaPath),
