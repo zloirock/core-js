@@ -1,7 +1,11 @@
 // SE-carrying emission forms: dispatches and reads that replay harvested side effects
 // ahead of (or inside) the spelling they guard
 import { resolveKey } from '@core-js/polyfill-provider/detect-usage/resolve';
-import { mayHaveSideEffects, unwrapRuntimeExpr } from '@core-js/polyfill-provider/helpers/ast-patterns';
+import {
+  mayHaveSideEffects,
+  subtreeContainsNode,
+  unwrapRuntimeExpr,
+} from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { remapInheritedStaticMeta } from '@core-js/polyfill-provider/helpers/class-walk';
 import {
   assignmentExpression,
@@ -24,7 +28,6 @@ import {
   markSubtreeSkipped,
   receiverMintsSpelling,
   sourceSpanKey,
-  subtreeContainsNode,
 } from './nav-spine.js';
 
 // the harvested effects a THROW PROBE does not already run: the ones it consumed, and the ones its

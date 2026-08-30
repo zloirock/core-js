@@ -1,4 +1,4 @@
-import { discardRescueNodes, vestigialNavOptionals } from '@core-js/polyfill-provider/detect-usage/resolve';
+import { discardRescueNodes, navValueCanShortCircuit, vestigialNavOptionals } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { planInExpression } from '@core-js/polyfill-provider/helpers/in-expression';
 import {
   SYMBOL_ITERATOR_PURE_RESULT,
@@ -19,6 +19,7 @@ import {
   receiverCarriesLiveOptional,
   unwrapRuntimeExpr,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
+  subtreeContainsNode,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { remapInheritedStaticMeta } from '@core-js/polyfill-provider/helpers/class-walk';
 import { ownEmittedNavClaim, ownOutputTests } from '@core-js/polyfill-provider/detect-usage/own-output';
@@ -50,7 +51,6 @@ import {
   noteUnbackedHopAliasInit,
   optionalsAreSealed,
   sourceSpanKey,
-  subtreeContainsNode,
 } from './nav-spine.js';
 import { collapseSymbolProxyRoot, emitSealedKeySeConsume, isSealedDirectSymbolCall } from './se-dispatch.js';
 import createProxySpineChannel from './proxy-spine.js';
@@ -74,7 +74,7 @@ function claimIsMoot(metaPath, node, { isDisabled, skippedNodes, isInTypeAnnotat
   return claimIsInert({ node, path: metaPath, isDisabled, skippedNodes, isInTypeAnnotation });
 }
 
-function markDeleteHostedSpine(node, marks) {
+function markDeleteHostedSpine(node, marks, storeKeepsShortCircuit) {
   for (let cur = unwrapRuntimeExpr(node); cur;) {
     const key = sourceSpanKey(cur);
     if (key) marks.add(key);
@@ -86,7 +86,12 @@ function markDeleteHostedSpine(node, marks) {
       case 'NewExpression':
         cur = unwrapRuntimeExpr(cur.callee);
         break;
+      // a WRITE stores what stands below it. the navigation ABOVE the write folds freely - the
+      // store keeps its own value and the fold only re-reads it - but a stored value with its
+      // OWN short-circuit is the source's act: folding that hands the user's variable the
+      // ponyfill where native stores undefined, so the erase verdict stops there
       case 'AssignmentExpression':
+        if (storeKeepsShortCircuit(unwrapRuntimeExpr(cur.right))) return;
         cur = unwrapRuntimeExpr(cur.right);
         break;
       default:
@@ -238,6 +243,8 @@ export default function createAstUsagePureCallback({
   const {
     buildNavGuardTest,
     collapseProxyHopSpine,
+    deleteHostForClaim,
+    deoptionalizeOverSubstituted,
     emitGuardedDestructureNarrow,
     emitGuardedStaticNarrow,
     emitOwnOptionalGuardedClaim,
@@ -657,7 +664,8 @@ export default function createAstUsagePureCallback({
       || (node.type === 'MemberExpression' && ownEmittedNavClaim(node, metaPath, ownOutputTests(injectorState)))) return;
     if (node.type === 'MemberExpression' && !deleteHostedSpines.has(sourceSpanKey(node))
       && deleteHostAboveChain(metaPath, node, unwrapRuntimeExpr)) {
-      markDeleteHostedSpine(node, deleteHostedSpines);
+      markDeleteHostedSpine(node, deleteHostedSpines, value => navValueCanShortCircuit(value,
+        m => resolvePure(m, metaPath), { scope: metaPath.scope, adapter, path: metaPath }));
     }
     const parent = semanticParentNode(metaPath);
 
@@ -867,11 +875,20 @@ export default function createAstUsagePureCallback({
     if (optionalReader?.type === 'MemberExpression' && optionalReader.optional
       && unwrapRuntimeExpr(optionalReader.object) === node) return;
     if (node.type === 'MemberExpression' && !meta.sideEffects?.length && !meta.receiverEffectCount) {
+      // an OPTIONAL hop joins the fold in two shapes. a `delete` reads nothing over its
+      // navigation, so the hop the source wrote optionally folds with the spine below it, exactly
+      // as the claim channels fold theirs (`delete ga.window.self?.window.k` -> `delete ga.k`);
+      // and over a nav the VALUE canon says cannot short-circuit, the optional hop is the plain
+      // one's twin - leaving it out of the fold kept a hop the rest of the run drops
+      // (`ga.window.self?.window.k` -> `ga.k`)
+      const optionalFolds = deleteHostForClaim(metaPath, node, { forFold: true })
+        || !navValueCanShortCircuit(node, m => resolvePure(m, metaPath),
+          { scope: metaPath.scope, adapter, path: metaPath });
       // the node that is ITSELF a pristine hop (`g.self.window`, `.window` claimless)
       // collapses whole; a dead leaf (`.Array`) collapses its object spine under it
-      const spineNode = proxyHopKey(node, { metaPath }) ? node
+      const spineNode = proxyHopKey(node, { metaPath, allowOptional: optionalFolds }) ? node
         : node.object?.type === 'MemberExpression' ? node.object : null;
-      const collapsed = spineNode && collapseProxyHopSpine(spineNode, metaPath);
+      const collapsed = spineNode && collapseProxyHopSpine(spineNode, metaPath, { allowOptional: optionalFolds });
       // ... and only where something READS through the hop: in VALUE position the drop would
       // change what the expression yields (`t = g.window` stores the window object, not `g`).
       // a dead leaf above the spine is that reader itself
@@ -879,8 +896,13 @@ export default function createAstUsagePureCallback({
       if (collapsed?.aliasRoot && !collapsed.effects.length && navigatedSpine) {
         markRewrite();
         const consumed = spineNode;
-        (spineNode === node ? metaPath : metaPath.get('object')).replaceWith(cloneNode(collapsed.aliasRoot));
+        const dropped = spineNode === node ? metaPath : metaPath.get('object');
+        const aliasNode = cloneNode(collapsed.aliasRoot);
+        dropped.replaceWith(aliasNode);
         markSubtreeSkipped(skippedNodes, consumed);
+        // the alias binding the drop lands is always defined, so a `?.` reading directly off it
+        // guards nothing - the vestigial verdict every substitution channel takes
+        deoptionalizeOverSubstituted({ metaPath: dropped, node: consumed, replacement: aliasNode, proxyRoot: true });
       }
     }
   }

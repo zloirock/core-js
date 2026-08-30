@@ -27,7 +27,8 @@ import {
   hasRealBinding,
   peelTransparentWrapperPath,
   computedKeyHasSideEffects,
-  dropDeadSequenceTail,
+  dropDeadSequenceElements,
+  observableSequenceElements,
   hasRestSiblingExcept,
   forOfHeadElements,
   invalidateScopeVarIndex,
@@ -193,12 +194,12 @@ function descendArrayWrapperToSE(declaratorNode) {
   return { prefix, tail, arr: lastArray, unwrappedInit: firstArray, consumedLevels };
 }
 
-// build per-SE-expr ExpressionStatements (one per peeled prefix expr) for `insertBefore`.
-// matches the unplugin drain, which emits each SE as a standalone
-// `se();` segment - multi-SE chains land as `se1(); se2(); ...` in both pipelines.
+// per-SE-expr ExpressionStatements for `insertBefore` - the grouping this channel and the unplugin
+// drain both print, filtered through the shared canon so an element with nothing to observe leaves
+// no statement behind.
 // cloning preserves sibling visitors' path references through AST sub-tree relocation
 function buildSEPrefixStatements(t, prefix) {
-  return prefix.map(e => t.expressionStatement(t.cloneNode(e)));
+  return observableSequenceElements(prefix).map(expression => t.expressionStatement(t.cloneNode(expression)));
 }
 
 // the VariableDeclaration that hosts this prop, or null when the host is an assignment target
@@ -268,6 +269,32 @@ function reanchorBlockWrappedDeclaration(declaration, declaratorNode) {
 // see it. the wrapper is discarded by the flatten, so lift the nested-element SE and swap the
 // element to its bare tail (stops a multi-prop host re-visit from re-lifting). no wrapper ->
 // the plain top-level `liftSEPrefixSwap`
+// the ONE expression a lifted prefix becomes, through the shared trim canon: the value slot is
+// gone, so a trailing effect-free element is a read nobody performs, and a prefix left with no
+// observable at all is not a statement the source ran (`({ Map: m } = (0, globalThis))`)
+function liftedPrefixExpression(t, prefix) {
+  const kept = dropDeadSequenceElements(prefix);
+  const lifted = kept.length === 1 ? kept[0] : t.sequenceExpression(kept);
+  return mayHaveSideEffects(lifted) ? lifted : null;
+}
+
+// a SURVIVING residual keeps the receiver, so the extraction lands AHEAD of it - but the source
+// ran the receiver's sequence prefix before either. lift the prefix to where the source ran it,
+// or the effect observes the write the extraction has already made (`var { Map: m, other } =
+// (eff(), globalThis)` had `eff` read the polyfilled `m`). the swap makes it idempotent: a
+// sibling prop reaching the same host finds the slot already collapsed to its tail
+function liftSurvivingResidualPrefix(t, node, key, hostPath) {
+  // only a statement LIST takes the lift: a bodyless control slot would have to brace first (the
+  // insert's own wrap lands the prefix in a block of its own, past the extraction), and a for-init
+  // hosts no statement at all - both keep the shape they had
+  if (!statementListOf(hostPath?.parentPath?.node)) return;
+  const { prefix, tail } = peelNestedSequenceExpressions(node[key]);
+  if (!prefix.length) return;
+  const statements = buildSEPrefixStatements(t, prefix);
+  if (statements.length) hostPath.insertBefore(statements);
+  node[key] = tail;
+}
+
 function liftDeclaratorInitSE(t, declaratorNode, hostPath) {
   const descended = descendArrayWrapperToSE(declaratorNode);
   if (!descended) return liftSEPrefixSwap(t, declaratorNode, 'init', hostPath);
@@ -1997,8 +2024,12 @@ export default function createDestructureEmitter({
     const id = injectPureImport(entry, hintName);
     const extracted = t.variableDeclaration(declarationKind,
       [t.variableDeclarator(t.cloneNode(localId), t.cloneNode(id))]);
-    (isExport ? declaration.parentPath : declaration)
-      .insertBefore(isExport ? t.exportNamedDeclaration(extracted, []) : extracted);
+    const anchor = isExport ? declaration.parentPath : declaration;
+    // the residual keeps the wrapper literal, and the source ran the receiver's sequence prefix
+    // before the pattern bound anything - it lifts ahead of this extraction like every other host's
+    const wrappedDeclarator = prop.findParent(pp => pp.isVariableDeclarator())?.node ?? null;
+    if (wrappedDeclarator) liftSurvivingResidualPrefix(t, wrappedDeclarator, 'init', anchor);
+    anchor.insertBefore(isExport ? t.exportNamedDeclaration(extracted, []) : extracted);
     // rename the consumed key to `_unused`: the residual array destructure keeps its shape
     // (siblings / holes / the init array survive) and the new `const <local>` shadows it
     prop.get('value').replaceWith(generateUnusedId());
@@ -2176,6 +2207,37 @@ export default function createDestructureEmitter({
     const wrapper = arrayWrapperLevels(prop, declaration);
     return !!wrapper && wrapper.levels.some(level => wrapperLevelTail(level).some(mayHaveSideEffects)
       || wrapperLevelHead(level).some(mayHaveSideEffects));
+  }
+
+  // the extraction lands AHEAD of the residual, and the receiver's sequence prefix has to land
+  // ahead of BOTH: the source ran it before the pattern bound anything, and the residual keeping it
+  // lets the effect read the binding this extraction just wrote. a MULTI-declarator host cannot
+  // take the pair above its pre-siblings, so it splits at the slot and the two land inside that split
+  function insertExtractionAheadOfResidual({
+    residualDecl, anchor, node, isExport, declaratorNode, extractedDeclarators,
+  }) {
+    const decls = residualDecl.node?.declarations;
+    const idx = declaratorNode && Array.isArray(decls) ? decls.indexOf(declaratorNode) : -1;
+    // only an EFFECTFUL pre-sibling forces the split: the pair may not hoist over an init the source
+    // runs first. quiet ones (this pipeline's own extractions among them) are free to follow it
+    const pinnedBySibling = idx > 0 && decls.slice(0, idx).some(declarator => mayHaveSideEffects(declarator.init));
+    if (pinnedBySibling && !isExport && !isForInitDeclaration(residualDecl.parentPath?.node, residualDecl.node)
+      && statementListOf(residualDecl.parentPath?.node)) {
+      const { prefix, tail } = peelNestedSequenceExpressions(declaratorNode.init);
+      const lifted = prefix.length ? liftedPrefixExpression(t, prefix) : null;
+      if (prefix.length) declaratorNode.init = tail;
+      splitDeclarationAtSlot({
+        declaration: residualDecl, idx, keepSlot: true,
+        sePrefix: lifted ? [lifted] : [],
+        extractedDeclarators,
+      });
+      return;
+    }
+    // a bodyless control slot is braced first, so the lift has a list to land in and the effect
+    // stays conditional - the brace the plain declaration route performs for the same reason
+    const host = statementListOf(anchor.parentPath?.node) ? anchor : ensureExprStmtInBlock(anchor);
+    liftSurvivingResidualPrefix(t, declaratorNode, 'init', host);
+    host.insertBefore(node);
   }
 
   // keep a destructure key IN the residual pattern (its value renamed to `_unused`) and extract the
@@ -2364,7 +2426,13 @@ export default function createDestructureEmitter({
         // previously inserted statement, not on the residual (which would reverse them)
         const [inserted] = (afterResidualAnchors.get(residualDecl.node) ?? anchor).insertAfter(node);
         afterResidualAnchors.set(residualDecl.node, inserted);
-      } else anchor.insertBefore(node);
+      } else {
+        insertExtractionAheadOfResidual({
+          residualDecl, anchor, node, isExport,
+          declaratorNode: prop.findParent(pp => pp.isVariableDeclarator())?.node ?? null,
+          extractedDeclarators: extracted.declarations,
+        });
+      }
     }
     // a TYPED user nav is spelled by the extraction itself, so the consumed leaf has no reason to
     // stay: a `_unused` sentinel there would READ the hop a second time and fire its getter twice.
@@ -3728,7 +3796,7 @@ export default function createDestructureEmitter({
     // the canonical peel flattens nested sequence layers, so the dead-tail pop can drop a
     // final no-op parked under an inner SE wrapper too
     const { prefix, tail } = peelNestedSequenceExpressions(node);
-    const flat = dropDeadSequenceTail([...prefix, tail]);
+    const flat = dropDeadSequenceElements([...prefix, tail]);
     if (flat.length === 1) return flat[0];
     const sameShape = flat.length === node.expressions.length
       && flat.every((e, i) => e === node.expressions[i]);
@@ -4028,23 +4096,36 @@ export default function createDestructureEmitter({
         // declarator split happens in the post-traverse `splitFlatMultiDecls` drain
         return parent.replaceWith(t.variableDeclarator(localBinding, value));
       case STRATEGIES.INSERT_BEFORE_DECLARATOR: {
+        // the prefix cannot lift over the whole declaration - a preceding declarator's own init
+        // runs first - so it rides the SPLIT this host takes after the traverse, as the statement
+        // that opens this declarator's group. a for-init never splits and keeps its shape
         // `parent.insertBefore` (VariableDeclarator-level) keeps babel-traverse path.key of
         // queued sibling declarators in sync. `declaration.insertBefore` would wrap a
         // for-init in an arrow-IIFE and lose the loop-header shape
         const extractedDeclarator = t.variableDeclarator(localBinding, value);
-        if (ctx.isForInit) forInitExtractionDecls.add(extractedDeclarator);
+        if (ctx.isForInit) {
+          forInitExtractionDecls.add(extractedDeclarator);
+          // the carry waits for the finished shape: whether a residual SURVIVES this host, and what
+          // it looks like, is only known once every prop of the pattern has been through
+          if (!forInitCarries.has(parent.node)) forInitCarries.set(parent.node, extractedDeclarator);
+        } else recordSplitLiftedPrefix(parent.node, localBinding, extractedDeclarator);
         const insertedDeclarator = parent.insertBefore(extractedDeclarator);
         recordHostInsert(parent.node, insertedDeclarator[0]);
         return insertedDeclarator;
       }
       case STRATEGIES.INSERT_BEFORE_EXPORT: {
+        liftSurvivingResidualPrefix(t, parent.node, 'init', declaration.parentPath);
         const insertedExport = declaration.parentPath.insertBefore(t.exportNamedDeclaration(extractedDeclaration));
         recordHostInsert(declaration.node, insertedExport[0]);
         return insertedExport;
       }
       case STRATEGIES.INSERT_BEFORE_DECLARATION: {
-        const insertedDeclaration = declaration.insertBefore(extractedDeclaration);
-        recordHostInsert(declaration.node, insertedDeclaration[0]);
+        // a bodyless control slot is braced first, for the reason the assignment host braces
+        const host = statementListOf(declaration.parentPath?.node)
+          ? declaration : ensureExprStmtInBlock(declaration);
+        liftSurvivingResidualPrefix(t, parent.node, 'init', host);
+        const insertedDeclaration = host.insertBefore(extractedDeclaration);
+        recordHostInsert(host.node, insertedDeclaration[0]);
         return insertedDeclaration;
       }
       default:
@@ -4105,14 +4186,18 @@ export default function createDestructureEmitter({
   // between the pre and post halves so sibling evaluation order survives. consumers:
   //   - `trySplitAroundConsumedDeclarator` (nested-proxy cascade, pre-peeled SE prefix)
   //   - `spliceAndLiftSideEffect` (DEFER_SE_AND_SPLICE, single-element SE array or empty)
-  function splitDeclarationAtSlot({ declaration, idx, sePrefix, extractedDeclarators }) {
+  function splitDeclarationAtSlot({
+    declaration, idx, sePrefix, extractedDeclarators, sePrefixAt = idx, keepSlot = false,
+  }) {
     const { kind } = declaration.node;
     const isExport = declaration.parentPath?.isExportNamedDeclaration();
     const decls = declaration.node.declarations;
     const stmts = [
-      ...splitDeclarators(decls.slice(0, idx), kind, isExport),
+      ...splitDeclarators(decls.slice(0, sePrefixAt), kind, isExport),
       ...sePrefix.map(e => t.expressionStatement(t.cloneNode(e))),
-      ...splitDeclarators([...extractedDeclarators, ...decls.slice(idx + 1)], kind, isExport),
+      ...splitDeclarators([
+        ...decls.slice(sePrefixAt, idx), ...extractedDeclarators, ...decls.slice(keepSlot ? idx : idx + 1),
+      ], kind, isExport),
     ];
     const newPaths = declaration.replaceWithMultiple(stmts);
     // re-mark grouped products for the post-traverse split drain: `splitDeclarators` keeps
@@ -4134,13 +4219,20 @@ export default function createDestructureEmitter({
   // declaration body index, so after a strategy-time sibling shift, the lifted
   // SE landed BEFORE pre-siblings (observable when both halves carry effects)
   function spliceAndLiftSideEffect({ declaration, parent, localBinding, value }) {
-    const idx = declaration.node.declarations.indexOf(parent.node);
+    const decls = declaration.node.declarations;
+    const idx = decls.indexOf(parent.node);
     if (idx === -1) return;
     const sePrefix = mayHaveSideEffects(parent.node.init)
       ? [trimSideEffectTail(parent.node.init)]
       : [];
+    // natively the init runs before the pattern binds anything, so the lift belongs ahead of every
+    // artifact this host has already emitted - an EARLIER prop's extraction among them, which the
+    // per-prop order had put between the pre-siblings and this slot
+    const firstInsert = hostFirstInsert.get(parent.node);
+    const insertedAt = firstInsert ? decls.indexOf(firstInsert.node ?? firstInsert) : -1;
     splitDeclarationAtSlot({
       declaration, idx, sePrefix,
+      sePrefixAt: insertedAt >= 0 ? Math.min(idx, insertedAt) : idx,
       extractedDeclarators: [t.variableDeclarator(localBinding, value)],
     });
   }
@@ -4207,8 +4299,14 @@ export default function createDestructureEmitter({
         return assignmentTarget.replaceWith(assignment);
       case STRATEGIES.REPLACE_ASSIGNMENT:
         return assignmentTarget.replaceWith(assignment);
-      case STRATEGIES.INSERT_BEFORE_ASSIGNMENT:
-        return assignmentTarget.insertBefore(assignment);
+      case STRATEGIES.INSERT_BEFORE_ASSIGNMENT: {
+        // a bodyless control slot hosts no statement list of its own: brace it first, and both the
+        // lifted prefix and the extraction land inside that block, where the effect stays conditional
+        const host = statementListOf(assignmentTarget.parentPath?.node)
+          ? assignmentTarget : blockWrappedHostStatement(parent);
+        liftSurvivingResidualPrefix(t, parent.node, 'right', host);
+        return host.insertBefore(assignment);
+      }
       default:
         throw new Error(`[core-js] destructure-emitter: unhandled destructure strategy ${ strategy }`);
     }
@@ -4235,6 +4333,60 @@ export default function createDestructureEmitter({
     return declaration.node.declarations.filter(d => !memoDeclarators.has(d) && !attachToPrevDeclarator.has(d));
   }
 
+  // a for-init hosts no statement of its own, so the prefix of a SURVIVING residual's receiver
+  // rides the FIRST extraction's value, which the loop header evaluates where the source ran it
+  // (`for (var m = (eff(), _Map), { other } = _globalThis; ...)`). a nested hop or a rest sibling
+  // re-reads the receiver THROUGH that residual, and there the whole read stays with it
+  const forInitCarries = new Map();
+
+  function flushForInitCarries() {
+    for (const [residual, extracted] of forInitCarries) {
+      const props = residual.id?.properties;
+      if (!props?.length || !extracted.init) continue;
+      if (props.some(prop => prop.type === 'RestElement' || prop.value?.type === 'ObjectPattern')) continue;
+      const { prefix, tail } = peelNestedSequenceExpressions(residual.init);
+      if (!prefix.length) continue;
+      const lifted = liftedPrefixExpression(t, prefix);
+      residual.init = tail;
+      carryPrefixIntoValue(lifted, extracted);
+    }
+    forInitCarries.clear();
+  }
+
+  // the prefix rides an extraction's VALUE, where the declarator list evaluates it in the place the
+  // source ran it - the shape a loop header takes, having no statement slot of its own
+
+  // the prefix a multi-declarator host lifted, keyed by the EXTRACTION that opens its group: the
+  // split emits it as the statement ahead of that group, which is where the source ran it
+  const splitLiftedPrefixes = new Map();
+
+  function recordSplitLiftedPrefix(residual, localBinding, extractedDeclarator) {
+    if (!splitLiftedPrefixes.has(localBinding)) {
+      splitLiftedPrefixes.set(localBinding, { residual, extractedDeclarator });
+    }
+  }
+
+  // the peel waits for the traverse to finish, for the reason the other leg re-derives its prefix
+  // live: a claim INSIDE the prefix renders by replacing its node, and a copy taken at record time
+  // is the pre-swap original - lifting that ships the source read with its polyfill lost
+  function prepareSplitLiftedPrefixes() {
+    for (const entry of splitLiftedPrefixes.values()) {
+      // only a residual that SURVIVED still owns its receiver: an emptied one left its init to the
+      // rescue channel, which re-emits it whole where the source read it
+      if (!entry.residual.id?.properties?.length) continue;
+      const { prefix, tail } = peelNestedSequenceExpressions(entry.residual.init);
+      if (!prefix.length) continue;
+      entry.residual.init = tail;
+      entry.statements = buildSEPrefixStatements(t, prefix);
+    }
+  }
+
+  function carryPrefixIntoValue(lifted, declarator) {
+    if (!lifted || !declarator?.init) return;
+    const carried = lifted.type === 'SequenceExpression' ? lifted.expressions : [lifted];
+    declarator.init = t.sequenceExpression([...carried.map(expression => t.cloneNode(expression)), declarator.init]);
+  }
+
   function splitFlatMultiDecls() {
     for (const declaration of flatTouchedMultiDecls) {
       if (!declaration.node || !declaration.parentPath || !declaration.isVariableDeclaration()) continue;
@@ -4250,15 +4402,20 @@ export default function createDestructureEmitter({
       const isExport = declaration.parentPath.isExportNamedDeclaration();
       const target = isExport ? declaration.parentPath : declaration;
       const slotParent = target.parentPath?.node;
-      const stmts = groups.map(g => g.length === 1 && memoDeclarators.has(g[0])
-        ? t.variableDeclaration('const', g)
-        : wrapAsExportIf(t.variableDeclaration(declaration.node.kind, g), isExport));
+      const stmts = groups.flatMap(g => {
+        const entry = splitLiftedPrefixes.get(g[0]?.id);
+        const statement = g.length === 1 && memoDeclarators.has(g[0])
+          ? t.variableDeclaration('const', g)
+          : wrapAsExportIf(t.variableDeclaration(declaration.node.kind, g), isExport);
+        return entry?.statements?.length ? [...entry.statements, statement] : [statement];
+      });
       // an unbraced control slot takes exactly one statement - block-wrap the splits there
       // (the unplugin canon); plain statement lists splice in place
       if (isBodylessStatementSlot(slotParent, target.node)) target.replaceWith(t.blockStatement(stmts));
       else if (Array.isArray(slotParent?.body) || Array.isArray(slotParent?.consequent)) target.replaceWithMultiple(stmts);
     }
     flatTouchedMultiDecls.clear();
+    splitLiftedPrefixes.clear();
   }
 
   // an object property whose value the consume emptied binds nothing, yet reading it fires the
@@ -4341,7 +4498,8 @@ export default function createDestructureEmitter({
 
   return {
     deferredSideEffects, retainedForInitHosts, extractCatchClause, extractLoopLeft, handleObjectPropertyResult,
-    flushProbedAnchorSwaps, splitFlatMultiDecls, tryFlattenProxyHopHost, pruneArrayResiduals,
+    flushProbedAnchorSwaps, splitFlatMultiDecls, flushForInitCarries, prepareSplitLiftedPrefixes,
+    tryFlattenProxyHopHost, pruneArrayResiduals,
     flushDiscardedElementSentinels,
   };
 }
