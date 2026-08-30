@@ -1958,3 +1958,45 @@ testUnlessDetectLowered('global-proxy: an alias write is trusted for the read in
   }
   assert.same(typeof new WithField().f, 'function', 'and a class-field initializer');
 });
+
+// a `??` / `||` DEFAULT over a guaranteed realm name is dead on its right side - `globalThis` by
+// the language, `self` by its own ponyfill entry - so a static read THROUGH the carrier collapses
+// to its polyfill and answers on a realm without the native. `window` has no entry and stays the
+// probe: its spelling is raw, so a window-less realm throws on the bare name exactly like the
+// source, and a SHADOWED name is the user's binding with a genuinely live right side
+QUnit.test('global-proxy: a logical default over a guaranteed realm name is dead', assert => {
+  assert.same((globalThis ?? {}).Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER, 'the realm spelling reads the polyfilled static');
+  // the `self` rows read statics the stripped realm removes, so a missed collapse fails there
+  // instead of riding the surviving native
+  // eslint-disable-next-line no-restricted-globals, unicorn/prefer-global-this -- the `self` alias is the case under test
+  assert.true((self ?? {}).Number.isInteger(5), 'the ponyfill-backed `self` reads the polyfilled static');
+  // eslint-disable-next-line no-restricted-globals, unicorn/prefer-global-this -- the `self` alias is the case under test
+  assert.deepEqual((self ?? {}).Array.from('ab'), ['a', 'b'], '... a second static family too');
+  // eslint-disable-next-line no-restricted-globals, unicorn/prefer-global-this -- the `self` alias is the case under test
+  assert.true((self || {}).Object.hasOwn({ k: 1 }, 'k'), '... under the `||` spelling too');
+  // eslint-disable-next-line no-restricted-globals, unicorn/prefer-global-this -- the `self` alias is the case under test
+  assert.deepEqual(((self ?? {}) || {}).Array.of(9), [9], '... and at a nested level of the default');
+  // eslint-disable-next-line no-restricted-globals, unicorn/prefer-global-this -- the `self` alias is the case under test
+  const map = new (self ?? {}).Map([['k', 1]]);
+  assert.same(map.get('k'), 1, 'and a ctor claim through the carrier constructs the ponyfill');
+  const marker = {};
+  // eslint-disable-next-line no-restricted-globals, unicorn/prefer-global-this -- the `self` alias is the case under test
+  const weak = new (self ?? {}).WeakSet([marker]);
+  assert.true(weak.has(marker), '... including a ctor the stripped realm removes whole');
+});
+
+QUnit.test('global-proxy: a logical default keeps its boundaries', assert => {
+  const hasWindow = globalThis.window !== undefined;
+  if (hasWindow) {
+    // eslint-disable-next-line unicorn/prefer-global-this -- the raw `window` probe is the case under test
+    assert.same(typeof (window ?? {}).Math.floor, 'function', 'a window host answers the raw probe natively');
+  } else {
+    // eslint-disable-next-line unicorn/prefer-global-this -- the raw `window` probe is the case under test
+    assert.throws(() => (window ?? {}).Math, ReferenceError, 'a window-less realm throws on the raw probe');
+  }
+  function shadowed(self) {
+    return (self ?? { Number: { MAX_SAFE_INTEGER: 'dead-arm' } }).Number.MAX_SAFE_INTEGER;
+  }
+  assert.same(shadowed({ Number: { MAX_SAFE_INTEGER: 'user' } }), 'user', 'a shadowed name reads the user binding');
+  assert.same(shadowed(null), 'dead-arm', '... and its right side is genuinely live');
+});
