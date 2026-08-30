@@ -813,34 +813,24 @@ function isPureImportBinderPosition(parent, node) {
   return parent?.type === 'VariableDeclarator' && parent.id === node && isRequireCall(parent.init);
 }
 
-// the nested write-only guard-memo shape, matched top-down from the OUTER null-compare:
-// `null == (_refOUTER = null == (_refX = root) ? void 0 : ...)`. an inner guard memo whose
-// ref nothing reads is write-only - the outer test already owns the one evaluation - and the
-// deadness only exists AFTER composition, so it is decided at flush from the census counts
-// (`unwrapWriteOnlyGuardMemos`); a TOP-LEVEL guard keeps its memo (the locked kept-swap canon)
-function collectNestedGuardMemoCandidate(node, mintedRefNames, out) {
+// the write-only guard-memo shape, matched at every null-compare: our own memo in a guard TEST
+// serves the reads spelled off it, so a ref nothing reads is a write no one consumes and the test
+// can hold the value itself. deadness only exists AFTER composition - a receiver-independent claim
+// reads no base, a nested test already owns the one evaluation - so it is decided at flush from the
+// census counts (`unwrapWriteOnlyGuardMemos`). one candidate per test: a NESTED guard is a
+// null-compare of its own and the walk reaches it there, so this asks only about THIS test's memo
+function collectWriteOnlyGuardMemoCandidate(node, mintedRefNames, out) {
   if (node.type !== 'BinaryExpression' || node.operator !== '==') return;
   // every slot peels transparent wrappers: the minted composition carries none, but the two
   // paren spellings (babel's `extra` flag, an estree parser's node) owe the same answer
-  const outerWrite = isNullLiteralNode(unwrapRuntimeExpr(node.left)) ? unwrapRuntimeExpr(node.right)
-    : isNullLiteralNode(unwrapRuntimeExpr(node.right)) ? unwrapRuntimeExpr(node.left) : null;
-  if (outerWrite?.type !== 'AssignmentExpression' || outerWrite.operator !== '='
-    || outerWrite.left?.type !== 'Identifier' || !isGeneratedSlotShapedName(outerWrite.left.name)) return;
-  const cond = unwrapRuntimeExpr(outerWrite.right);
-  if (cond?.type !== 'ConditionalExpression' || unwrapRuntimeExpr(cond.consequent)?.type !== 'UnaryExpression'
-    || unwrapRuntimeExpr(cond.consequent).operator !== 'void') return;
-  const test = unwrapRuntimeExpr(cond.test);
-  if (test?.type !== 'BinaryExpression' || test.operator !== '==') return;
-  const left = unwrapRuntimeExpr(test.left);
-  const right = unwrapRuntimeExpr(test.right);
-  const side = left?.type === 'AssignmentExpression' ? 'left'
-    : right?.type === 'AssignmentExpression' ? 'right' : null;
-  if (!side || !isNullLiteralNode(side === 'left' ? right : left)) return;
-  const write = side === 'left' ? left : right;
-  if (write.operator !== '=' || write.left?.type !== 'Identifier' || !mintedRefNames.has(write.left.name)) return;
-  // `write` rides along: `test[side]` may be a paren NODE over the write, and the unwrap
+  const side = isNullLiteralNode(unwrapRuntimeExpr(node.left)) ? 'right'
+    : isNullLiteralNode(unwrapRuntimeExpr(node.right)) ? 'left' : null;
+  const write = side ? unwrapRuntimeExpr(node[side]) : null;
+  if (write?.type !== 'AssignmentExpression' || write.operator !== '='
+    || write.left?.type !== 'Identifier' || !mintedRefNames.has(write.left.name)) return;
+  // `write` rides along: `node[side]` may be a paren NODE over the write, and the unwrap
   // replaces that whole slot with the write's RHS
-  out.push({ test, side, write, name: write.left.name });
+  out.push({ test: node, side, write, name: write.left.name });
 }
 
 // answers every liveness / slot question the emitters flush and prune by: which spellings
@@ -911,7 +901,7 @@ export function collectInjectorCensus(program, { mintedRefNames = EMPTY_NAME_SET
       if (key !== null) memberReads.add(`${ node.object.name }.${ key }`);
     }
     memberKeys.visit(node);
-    collectNestedGuardMemoCandidate(node, mintedRefNames, nestedGuardMemoCandidates);
+    collectWriteOnlyGuardMemoCandidate(node, mintedRefNames, nestedGuardMemoCandidates);
   } });
   // an id-rooted member KEY reserves its name too - a slot-shaped spelling there is source
   // text, and the renumber must keep avoiding it

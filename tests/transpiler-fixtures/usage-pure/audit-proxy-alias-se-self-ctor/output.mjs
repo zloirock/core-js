@@ -10,9 +10,10 @@ function effect() {
   return 0;
 }
 const g = _globalThis;
+effect();
 const groupBy = _Map$groupBy;
 const {
   groupBy: _unused,
   ...rest
-} = (effect(), _Map);
+} = _Map;
 groupBy([], item => item);

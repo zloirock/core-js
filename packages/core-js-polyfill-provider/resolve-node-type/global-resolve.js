@@ -19,6 +19,7 @@
 import { MAX_DEPTH, $Object } from './base.js';
 import { globalProxyMemberName, isProxyGlobalIdentifierNode, staticMemberKeyName } from '../helpers/class-walk.js';
 import {
+  definedBranchOfGuardConditional,
   isMutatedGlobalSlot,
   isTopLevelThisContext,
   getSuperTypeArgs,
@@ -87,11 +88,53 @@ export function createGlobalResolve({
   }
 
   function isGlobalProxy(objectPath) {
-    // peel transparent wrappers up front - oxc preserves ParenthesizedExpression around
-    // shapes like `(((() => globalThis) as any)()).Map` where the inner shape IS a
-    // proxy-global call. babel strips parens at AST build so this is a no-op for it
-    objectPath = peelSkippableWrapperPath(objectPath);
-    if (!objectPath?.node) return false;
+    // peel to the VALUE the path denotes, alternating the three forwarding shapes:
+    //  - transparent wrappers - oxc preserves ParenthesizedExpression around shapes like
+    //    `(((() => globalThis) as any)()).Map` where the inner shape IS a proxy-global call;
+    //    babel strips parens at AST build so this step is a no-op for it
+    //  - a SequenceExpression `(eff(), globalThis.self)` evaluates to its tail, so the proxy-global
+    //    root IS the tail (mirrors the IIFE-callee SE peel below and the runtime value path) - else
+    //    `(c++, globalThis.self).Array.prototype` under-narrows its receiver type (generic instance
+    //    helper / over-injected es.string.* in the destructure)
+    //  - the RENDERED probe guard (`null == g.window ? void 0 : _self`) holds the collapsed surface
+    //    in its DEFINED branch. an emitter that re-visits its own output asks this question a second
+    //    time, and reading the ternary as an opaque value lost the receiver's type between the two
+    //    passes - a generic instance helper over a provably Array receiver, on one leg only
+    for (;;) {
+      objectPath = peelSkippableWrapperPath(objectPath);
+      if (!objectPath?.node) return false;
+      if (objectPath.node.type === 'SequenceExpression') {
+        const exprs = objectPath.get('expressions');
+        if (!exprs.length) return false;
+        objectPath = exprs.at(-1);
+        continue;
+      }
+      //  - a `??` / `||` over `globalThis` ITSELF always yields that left operand: the language
+      //    guarantees the binding, and an object is neither nullish nor falsy - the right side is dead
+      //    code the reader wrote defensively (`(globalThis ?? {}).Number.MAX_SAFE_INTEGER` is a
+      //    number). the name matters: `self` / `window` are the environment PROBES this codebase
+      //    guards everywhere, and a nav that can short-circuit (`f()?.window?.self ?? { Array }`)
+      //    makes the right side live - reading through it there collapses a real union.
+      //    a CONDITIONAL keeps its refusal for the same reason: two arms, no dead one
+      const logicalLeft = objectPath.node.type === 'LogicalExpression'
+        && (objectPath.node.operator === '??' || objectPath.node.operator === '||')
+        ? peelSkippableWrapperPath(objectPath.get('left')) : null;
+      if (logicalLeft?.node && t.isIdentifier(logicalLeft.node) && logicalLeft.node.name === 'globalThis'
+        && !hasRuntimeBinding(logicalLeft.scope, 'globalThis', logicalLeft)) {
+        objectPath = logicalLeft;
+        continue;
+      }
+      //  - a chain-ASSIGN hands the stored value on for the same reason a sequence hands its tail on
+      //    (`(v = globalThis.self).Number.MAX_SAFE_INTEGER` reads the realm's `Number`) - reading the
+      //    store as opaque lost the static's own type and injected an instance helper over a number
+      if (objectPath.node.type === 'AssignmentExpression' && objectPath.node.operator === '=') {
+        objectPath = objectPath.get('right');
+        continue;
+      }
+      const defined = definedBranchOfGuardConditional(objectPath.node);
+      if (!defined) break;
+      objectPath = objectPath.get(defined === objectPath.node.alternate ? 'alternate' : 'consequent');
+    }
     if (t.isIdentifier(objectPath.node)) {
       // delegate to the node-based resolver so the path- and node-level proxy-global checks agree on a
       // const-alias / destructure binding (`const g = globalThis; g.Array...`) AND on a post-rewrite
@@ -118,14 +161,6 @@ export function createGlobalResolve({
       return !!buried && isProxyGlobalIdentifierNode({
         node: buried, scope: objectPath.scope, adapter: babelBindingAdapter, path: objectPath,
       });
-    }
-    // a SequenceExpression `(eff(), globalThis.self)` evaluates to its tail; the proxy-global root IS the
-    // tail. peel transparent-to-tail (mirrors the IIFE-callee SE peel above and the runtime value-path) so a
-    // SE-wrapped receiver resolves its TYPE like the bare chain - else `(c++, globalThis.self).Array.prototype`
-    // under-narrows its receiver type (generic instance helper / over-injected es.string.* in the destructure)
-    if (objectPath.node.type === 'SequenceExpression') {
-      const exprs = objectPath.get('expressions');
-      return exprs.length ? isGlobalProxy(exprs.at(-1)) : false;
     }
     return false;
   }

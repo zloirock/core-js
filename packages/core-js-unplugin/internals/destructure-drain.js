@@ -36,10 +36,12 @@ import {
   isPristineProxyGlobal,
   isMutatedGlobalSlot,
   mayHaveSideEffects,
+  observableSequenceElements,
   receiverCarriesLiveOptional,
   statementListOf,
   unwrapRuntimeExpr,
   peelTransparentExpr,
+  subtreeContainsNode,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { walkAstNodes } from './plugin-helpers.js';
 import { memberFromKeyName, renderProxyReceiverPlan, replaceNodeInTree } from './emit-shared.js';
@@ -77,7 +79,11 @@ import {
   sourceSpanCovers,
   groupExtractionBesideResidual,
   discardedSinkSlot,
+  carryForInitPrefixIntoFirst,
   drainBodylessAssignment,
+  liftSurvivingInitPrefix,
+  liftedPrefixStatements,
+  liveTailOf,
   drainBodylessMultiMemo,
   drainBodylessWrapKinds,
   drainSequenceAssignments,
@@ -127,7 +133,7 @@ import {
   trailingSeKeyProps,
   withoutCtorHopJobsWithLiveSiblings,
 } from './destructure-helpers.js';
-import { cloneStamped, markSubtreeSkipped, nodeSite, subtreeContainsNode } from './nav-spine.js';
+import { cloneStamped, markSubtreeSkipped, nodeSite } from './nav-spine.js';
 
 // the ref a memo route declared for a declarator, so that declarator's OTHER jobs read that one
 // rather than minting a name nobody binds. keyed by AST nodes, which are fresh per parse
@@ -1072,6 +1078,18 @@ export default function createDestructureDrains(ctx) {
     if (declJobs.length === 1 && soleJob.kind !== 'instance' && soleJob.prop.value?.type === 'ObjectPattern') {
       return emitCtorPatternReanchor({ hostNode, declarator, soleJob, rescues, statements, exported });
     }
+    // the discarded init READ that a kept write sits under: the whole member chain when the write
+    // is its root, else null (a write that IS the init has no read of its own to keep)
+    function discardedReadOverWrite(initNode, write) {
+      const init = peelTransparentExpr(initNode);
+      if (init?.type !== 'MemberExpression' || !write || write.type !== 'AssignmentExpression') return null;
+      for (let probe = peelTransparentExpr(init.object); probe; probe = peelTransparentExpr(probe.object)) {
+        if (probe === write) return init;
+        if (probe.type !== 'MemberExpression') return null;
+      }
+      return null;
+    }
+
     // a KEPT WRITE of a pure NAV rides the first extraction's own seq (`const from =
     // (a = _globalThis, _Array$from)` - babel's rescue slot); every other effect,
     // fallback writes included, lifts ahead - joined into ONE comma statement
@@ -1089,7 +1107,13 @@ export default function createDestructureDrains(ctx) {
       // ... and only a SPELLABLE store rides it: a window-terminated value has no pure of its
       // own, so the write is its own statement and the extraction reads nothing off it
       // (`const { of } = (d = globalThis.window).self.Array` lifts `d = _globalThis.window;`)
-      const ridesTheValue = keptWriteRidesValue(rescueAssign, { adapter, injectorState, resolveGlobalPolyfill })
+      // ... and only where the write IS the whole discarded init: a READ standing over it is one
+      // the source performed, so it lifts WITH the write - which still runs exactly once, inside
+      // it (`const { fromEntries } = (u = globalThis).Object` -> `(u = _globalThis).Object;`, the
+      // babel leg's shape). riding the value there dropped that read
+      const spellableStore = keptWriteRidesValue(rescueAssign, { adapter, injectorState, resolveGlobalPolyfill });
+      const readOverWrite = spellableStore ? discardedReadOverWrite(declarator.init, rescueAssign) : null;
+      const ridesTheValue = (!readOverWrite && spellableStore)
         || (rescueAssign?.type === 'CallExpression' && rescueAssign === peelTransparentExpr(declarator.init)
           && inlineCallHasObservableEffects({
             callNode: rescueAssign,
@@ -1099,7 +1123,7 @@ export default function createDestructureDrains(ctx) {
           }))
         || declJobs.some(job => job.buriedKeyEffect && job.chain?.length);
       if (ridesTheValue) seqRescues.push(rescue);
-      else liftedRescues.push(rescue);
+      else liftedRescues.push(readOverWrite ?? rescue);
     }
     // the CHANNEL decides the grouping: the nested-flatten chain lifts per statement
     // (`new _Set(arr); new _Map();`), the chainless consume joins as one comma
@@ -1522,7 +1546,8 @@ export default function createDestructureDrains(ctx) {
     const rescueStatements = [];
     for (const [declarator, job] of byDeclarator) {
       if (hasRealBinding(declarator.id, sentinelNames)) {
-        rescueStatements.push(...liftArrayWrapperPrefixes(declarator).map(expr => expressionStatement(expr)));
+        rescueStatements.push(...observableSequenceElements(liftArrayWrapperPrefixes(declarator))
+          .map(expr => expressionStatement(expr)));
         continue;
       }
       // an element this drain did NOT claim still coerces its own value, and nothing else repeats
@@ -1629,8 +1654,10 @@ export default function createDestructureDrains(ctx) {
             adapter,
             path: job.metaPath,
           }));
+      // ... and what is rescued is what can be OBSERVED: a quiet element of the discarded init is a
+      // comma the source wrote, not work it did, and a statement of its own for it is dead output
       if (intoSeq) rescueExprs.push(...exprs);
-      else rescueStatements.push(...exprs.map(expr => expressionStatement(expr)));
+      else rescueStatements.push(...observableSequenceElements(exprs).map(expr => expressionStatement(expr)));
     }
     if (rescueExprs.length && extracted.length) {
       // an EXPORTED extraction carries its declaration under the export wrapper
@@ -1707,25 +1734,20 @@ export default function createDestructureDrains(ctx) {
       const peeledInit = peelTransparentExpr(declarator.init);
       const seqTail = peeledInit?.type === 'SequenceExpression'
         ? peelTransparentExpr(peeledInit.expressions.at(-1)) : null;
-      // ... and only a STATIC extraction lifts it: a GLOBAL claim leaves the whole read to the
-      // residual, prefix included (`{ parseInt } = (eff(), _globalThis)`). a KEY effect the
-      // collapse folded out of the spine stays there too - the surviving residual re-reads that
-      // hop, and the source ran the key inside the read
+      // ... a residual that evaluates its own KEY effects keeps the read those effects were
+      // written around, prefix included - the source ordered the two inside that one read
       // (`{ Promise: { resolve }, other } = globalThis[(d++, 'self')]` keeps `(d++, _self)`)
       // ... and not off a RE-ANCHORED residual: that init is one the drain rebuilt onto the hop's
       // own pure, and the prefix rides the rebuild where the source wrote it
       // (`{ Promise: { try: tryFn, customP } } = (eff(), globalThis)` -> `const tryFn =
       // _Promise$try; const { customP } = (eff(), _Promise);`). a residual left at the SOURCE
       // level re-reads the receiver the prefix fed, and there the lift is the single run
-      // ... and an INSTANCE extraction lifts it the same way once a residual SURVIVES: that residual
-      // re-reads the init, so the prefix cannot ride the dispatch (it would run twice) and the lift
-      // is the single run both legs print
-      const init = seqTail?.type === 'Identifier' && declarator.init === initBeforeReanchor
-        && declJobs.every(job => (job.kind === 'static' || job.kind === 'instance')
-          && !(job.buriedKeyEffect && job.chain?.length))
+      const init = seqTail && declarator.init === initBeforeReanchor
+        && declJobs.every(job => !(job.buriedKeyEffect && job.chain?.length))
         ? peeledInit : null;
       if (init?.type === 'SequenceExpression') {
-        for (const expr of init.expressions.slice(0, -1)) statements.push(expressionStatement(expr));
+        statements.push(...observableSequenceElements(init.expressions.slice(0, -1))
+          .map(expr => expressionStatement(expr)));
         declarator.init = init.expressions.at(-1);
       }
       statements.push(...extracted);
@@ -1827,7 +1849,10 @@ export default function createDestructureDrains(ctx) {
           declarations.push(...interleavedSeKeySegments(declarator, orderDeclaratorJobs(declJobs), null));
         } else if (declJobs.some(job => (job.sentinel && job.seKey) || (job.chain?.length && job.readsReceiver))) {
           declarations.push(declarator, ...extracted);
-        } else declarations.push(...extracted, declarator);
+        } else {
+          carryForInitPrefixIntoFirst(declarator, declJobs, extracted);
+          declarations.push(...extracted, declarator);
+        }
         continue;
       }
       // ... unless the init needs no slot of its own: it already RIDES its own extraction (the
@@ -2372,6 +2397,11 @@ export default function createDestructureDrains(ctx) {
         extractedHere.push(exportWrap(variableDeclaration(hostNode.kind, declarators), exported));
       }
       if (!emptied) {
+        // the residual SURVIVES, so it keeps the receiver and the extraction stands ahead of it -
+        // but the source ran the receiver's sequence prefix before either. lift it to where the
+        // source ran it, or the effect observes the write the extraction has already made
+        const survivingPrefix = initPrefix.length || hostNode.declarations.length > 1 ? []
+          : liftSurvivingInitPrefix(declarator, declJobsHere);
         // the re-anchor serves a residual the extraction LEFT BEHIND; an untouched
         // sibling declarator keeps its raw pattern (babel anchors only what it consumed)
         // ... and it keeps its own SOURCE slot: a hop written before every consumed one is
@@ -2382,11 +2412,12 @@ export default function createDestructureDrains(ctx) {
         if (anchored) touched = true;
         const residual = exportWrap(variableDeclaration(hostNode.kind, [declarator]), exported);
         // only an ANCHORED residual re-homes: a raw one stays where the extraction left it
-        if (residualFirst && anchored) statements.push(residual, ...extractedHere);
-        else statements.push(...extractedHere, residual);
+        if (residualFirst && anchored) statements.push(...survivingPrefix, residual, ...extractedHere);
+        else statements.push(...survivingPrefix, ...extractedHere, residual);
       } else {
         statements.push(
-          ...initPrefix.length && !carryIntoFirst ? initPrefix.map(expr => expressionStatement(expr)) : [],
+          ...initPrefix.length && !carryIntoFirst
+            ? observableSequenceElements(initPrefix).map(expr => expressionStatement(expr)) : [],
           ...extractedHere,
         );
         if (declJobsHere.length && !containerPrefix.length) {
@@ -2399,6 +2430,9 @@ export default function createDestructureDrains(ctx) {
     body.splice(at, 1, ...anchorLeadingStatement(statements, hostNode));
   }
 
+  // the ONE statement a lifted prefix becomes, through the shared trim canon: the value slot is
+  // gone, so a trailing effect-free element is a read nobody performs, and a prefix left with no
+  // observable at all is not a statement the source ran (`({ Map: m } = (0, globalThis))`)
   // a residual whose SOLE prop is a ctor hop over the surface re-anchors on the pure ctor
   // (`{ Promise: { customZ } } = _globalThis` -> `{ customZ } = _Promise`); pristine proxy
   // KEYS peel first (`{ globalThis: { Map: { g } } }` anchors at Map). a sibling key at the
@@ -2639,8 +2673,15 @@ export default function createDestructureDrains(ctx) {
       && jobs[0].prop?.value?.type === 'ObjectPattern' ? rhsExprs.slice(0, -1) : null;
     const stmtSeqPrefix = anchorRhsPrefix ? []
       : wholeRhsLift ? [expressionStatement(assignment.right)]
-      : rhsExprs ? rhsExprs.slice(0, -1).map(expr => expressionStatement(expr)) : [];
-    if (rhsExprs && stmtSeqPrefix.length && assignment.left.properties.length !== 0) {
+      // a FULLY consumed pattern discards its receiver, and what stays of it is ONE expression - the
+      // shape the other leg's defer-SE route prints there; a SURVIVING residual takes the per-element
+      // prefix both legs print for the lift
+      : rhsExprs ? (assignment.left.properties?.length === 0
+        ? liftedPrefixStatements(rhsExprs.slice(0, -1))
+        : observableSequenceElements(rhsExprs.slice(0, -1)).map(expr => expressionStatement(expr))) : [];
+    // the tail moves into the residual whether or not the prefix left a statement behind: a prefix
+    // with nothing to observe still gave up its slot (`({ Map: m, other } = (0, globalThis))`)
+    if (rhsExprs && !anchorRhsPrefix && !wholeRhsLift && assignment.left.properties.length !== 0) {
       assignment.right = rhsExprs.at(-1);
     }
     if (assignment.left.properties.length === 0) {
@@ -2763,10 +2804,12 @@ export default function createDestructureDrains(ctx) {
         values[0].arguments[0] = sequenceExpression([
           ...livePrefixOf(declarator, seqPrefix), values[0].arguments[0],
         ]);
-      } else for (const expr of livePrefixOf(declarator, seqPrefix)) statements.push(expressionStatement(expr));
+      } else statements.push(...observableSequenceElements(livePrefixOf(declarator, seqPrefix))
+        .map(expr => expressionStatement(expr)));
       const [{ initHost }] = jobs;
-      if (arrayWrapped && initHost) replaceNodeInTree(declarator.init, initHost, initTail);
-      else declarator.init = initTail;
+      const liveTail = liveTailOf(declarator, seqPrefix, initTail);
+      if (arrayWrapped && initHost) replaceNodeInTree(declarator.init, initHost, liveTail);
+      else declarator.init = liveTail;
     }
     if (memoRef) {
       // the memo is the synthetic block's own binding, and its kind follows the SE-KEY
