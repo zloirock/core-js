@@ -14,7 +14,7 @@ export const {
 } = (null == _globalThis.window ? void 0 : _self).window;
 export const {
   zzz: viaOptional
-} = null == _globalThis.window ? void 0 : _self.window;
+} = null == _globalThis.window ? void 0 : _self;
 export const [viaArrayPattern] = (null == _globalThis.window ? void 0 : _self).window;
 
 // NEGATIVE: an ALL-PLAIN deep nav carries no short-circuit and keeps collapsing to the root - the
