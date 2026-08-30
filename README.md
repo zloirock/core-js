@@ -2841,9 +2841,11 @@ core-js/proposals/iterator-join
 core-js(-pure)/actual|full/iterator/join
 ```
 ```js
+/* eslint-disable unicorn/require-array-join-separator -- example */
 [1, 2, 3].values().join();     // => '1,2,3'
 [1, 2, 3].values().join('-');  // => '1-2-3'
 [1, null, 3].values().join();  // => '1,,3'
+/* eslint-enable unicorn/require-array-join-separator -- example */
 ```
 
 ##### [Await dictionary](https://github.com/tc39/proposal-await-dictionary)[⬆](#index)
