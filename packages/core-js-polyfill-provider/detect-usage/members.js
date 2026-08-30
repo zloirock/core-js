@@ -1426,12 +1426,14 @@ function markInlinedProxyGlobalRoot({ callNode, scope, adapter, path, handledObj
   // the output and must still be visitor-rewritten - same reasoning as the observable-effects bail below
   if (keepCallInner) return;
   let current = callNode;
-  const seen = new Set();
+  let seen = new Set();
   while (isCallShape(current)) {
     if (inlineCallHasObservableEffects({ callNode: current, scope, adapter, path })) return;
     const inlined = inlineCallReturnExpression({ callNode: current, scope, adapter, path, seen });
     if (!inlined) return;
-    current = markChainLinksAndProxyLeaf(inlined, handledObjects);
+    // the nested call sits in the callee's body - the next unroll step resolves there
+    current = markChainLinksAndProxyLeaf(inlined.node, handledObjects);
+    ({ scope, seen } = inlined);
   }
 }
 

@@ -25,6 +25,12 @@ const counts = { passed: 0, failed: 0, skipped: 0 };
 async function writeIfChanged(directory, file, content) {
   const previous = await pathExists(file) ? await readFile(file, UTF8) : null;
   if (previous === content) return false;
+  // every comparator here reads both sides through `normalize`, which trims - an edge-whitespace
+  // delta (a checked-in trailing newline against the trimmed regenerate) never changes a verdict,
+  // so rewriting it only churns the same file on every sweep. narrower than `normalize` on
+  // purpose: a machine-path delta is also verdict-invisible, but rewriting it is what makes a
+  // fixture portable
+  if (previous !== null && content !== null && previous.trim() === content.trim()) return false;
   if (content === null) await rm(file, { force: true });
   else await writeFile(file, content, UTF8);
   echo`${ cyan(label(directory)) } ${ yellow(content === null ? 'removed' : 'rewritten') } ${ cyan(basename(file)) }`;
