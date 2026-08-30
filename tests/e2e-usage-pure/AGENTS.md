@@ -8,7 +8,7 @@ Tests are written in modern syntax and transpiled to ES5. They run both in Node 
 
 A browser is not a modern browser: the karma matrix floor is IE11, where `window` is present and `WeakSet`, `WeakRef`, `Promise` and `Symbol` are not. So a window-present branch may not assume a slot the floor lacks - read such a leaf only where the value comes from a ponyfill, or pick one every matrix cell has. The combination is unreachable in Node, so only the karma run says no.
 
-The suite rebuilds its bundles itself; only the inner `*-run` scripts reuse prebuilt ones.
+The suite rebuilds its bundles itself; only the inner scripts (`test-e2e-usage-pure-node`, `test-e2e-usage-pure-karma-run`) reuse prebuilt ones.
 
 ## Coverage axis
 
@@ -24,7 +24,7 @@ TypedArrays are not polyfilled in pure at all and need no coverage here.
 
 ## Stripped realms
 
-The babel bundle and unplugin's `pre+post` - on BOTH engines, the text one and the AST one (`e2e-usage-pure-unplugin-ast-pre-post`) - are also run in realms with the native built-ins removed. That leg is the primary guard against vacuous tests, the ones that pass on the native implementation without any polyfill being involved. The remaining legs stay full-environment on purpose. It models an engine with nothing, never a browser with old natives - which is why the strip set carries the constructors the karma floor is missing, and why a wrong expectation about a window-present host still shows up in karma alone.
+The babel bundle and unplugin's `pre+post` bundle are also run in realms with the native built-ins removed. That leg is the primary guard against vacuous tests, the ones that pass on the native implementation without any polyfill being involved. Unplugin's `pre` and `post` legs stay full-environment on purpose: each side of the babel sandwich is blind to what the other side introduces, and in a stripped realm that blindness fails wholesale by design. It models an engine with nothing, never a browser with old natives - which is why the strip set carries the constructors the karma floor is missing, and why a wrong expectation about a window-present host still shows up in karma alone.
 
 `Object.assign` is the static the lowered outputs call themselves, so a bundle carrying that lowering cannot lose it - the `pre`-only leg. Neither stripped bundle does, so the broad legs strip it too (`E2E_STRIP_STATIC`), and an expectation resting on its absence is answered here rather than by the karma floor alone.
 
