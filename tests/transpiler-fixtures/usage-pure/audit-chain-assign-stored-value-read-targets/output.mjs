@@ -18,14 +18,14 @@ export const storedUnread = (k2 = _self)?.Object.getPrototypeOf({});
 // a READ target with a claiming read: the write collapses AND the read still resolves the
 // static through the stored conditional, typed dispatch included
 let k9;
-k9 = null == _globalThis.window ? void 0 : _self.window;
+k9 = null == _globalThis.window ? void 0 : _self;
 export const viaStoredReadClaim = k9 == null ? void 0 : _atMaybeArray(_ref = _Array$of(3)).call(_ref, 0);
 
 // reads of the stored target claim through the RENDERED conditional in every guard form -
 // and, because the render IS the navigation it replaced, in unguarded forms too (a braced
 // `if` body, a later function body) exactly like the raw source classifies them
 let k13;
-k13 = null == _globalThis.window ? void 0 : _self.window;
+k13 = null == _globalThis.window ? void 0 : _self;
 export let viaBracedIfRead;
 if (k13) {
   viaBracedIfRead = _Array$from('ab');
@@ -37,12 +37,12 @@ export function viaFunctionBodyRead() {
 // a claim ABSENT from the definitions (`BigInt` has no pure entry) rides the stored canon
 // like the target-declined twin, and the plain-nav ride without an assignment guards the same
 let k10;
-export const viaAbsentClaimRide = (k10 = _self.window)?.BigInt;
+export const viaAbsentClaimRide = (k10 = _self)?.BigInt;
 export const viaPlainAbsentRide = _globalThis.BigInt;
 
 // the RIDELESS init spelling stores through the same root-hook channel as the statement form
 let k14;
-export const viaInitStored = k14 = _self.window;
+export const viaInitStored = k14 = _self;
 
 // an ALIAS-rooted stored value collapses off the root's visit like the ident-rooted twin
 const galias = _globalThis;
@@ -53,7 +53,7 @@ export const viaAliasRootStored = (k11 = _self)?.Object.isExtensible({});
 // same canon instead of freezing raw hops into what the binding stores
 let k12;
 export const viaDestructureLift = (() => {
-  k12 = _self.window;
+  k12 = _self;
   const M = _Map;
   return typeof M;
 })();

@@ -210,27 +210,35 @@ export function synthEntryKey({ keyNode, dedupKey, slotKey, lookupKey, computedK
 // which hops drop, whether the root is swapped, kept or aliased, where harvested effects
 // ride, whether an erased hop's guard re-hangs). `embed` wraps the plan's carried nodes,
 // which are in the CALLER's dialect: identity where that dialect is canonical, `hostSlot`
-// for the babel binding, whose converter passes such a subtree through unconverted
-export function renderProxyReceiverPlan(plan, { injectImport, embed = node => node }) {
+// for the babel binding, whose converter passes such a subtree through unconverted.
+// `carrySource`: a render whose caller REPLACES the source subtree embeds the carried nodes
+// by IDENTITY instead of cloning - a kept user write (`g = globalThis` riding as harvested SE)
+// is the node the scope tracker's violation records point at, and a clone in its place
+// stranded those records on the detached original, so every later placement-gated trust ask
+// about the alias failed and two identical sources in one file rendered differently. a caller
+// whose source STAYS in the tree (a memo re-read target, a synth argument) keeps the clone -
+// one node in two tree positions aliases every later mutation across both
+export function renderProxyReceiverPlan(plan, { injectImport, embed = node => node, carrySource = false }) {
+  const carry = carrySource ? node => node : cloneNode;
   if (plan.kind === 'member') {
-    const inner = renderProxyReceiverPlan(plan.inner, { injectImport, embed });
-    return inner ? memberExpression(inner, embed(cloneNode(plan.property)), { computed: plan.computed }) : null;
+    const inner = renderProxyReceiverPlan(plan.inner, { injectImport, embed, carrySource });
+    return inner ? memberExpression(inner, embed(carry(plan.property)), { computed: plan.computed }) : null;
   }
-  // a `keep` root is cloned like an alias - the substrate re-visits the clone, so its own
+  // a `keep` root is carried like an alias - the substrate re-visits it, so its own
   // proxy root still earns the pure rewrite there
   const keepOrAlias = plan.rootBinding.alias ?? plan.rootBinding.keep;
-  const rootBinding = keepOrAlias ? embed(cloneNode(keepOrAlias))
+  const rootBinding = keepOrAlias ? embed(carry(keepOrAlias))
     : identifier(injectImport(plan.rootBinding.pure.entry, plan.rootBinding.pure.hintName));
   const rootNode = plan.harvestedSE.length
-    ? sequenceExpression([...plan.harvestedSE.map(expr => embed(cloneNode(expr))), rootBinding])
+    ? sequenceExpression([...plan.harvestedSE.map(expr => embed(carry(expr))), rootBinding])
     : rootBinding;
   // dropped-hop KEY effects fold into the surviving leaf key - where the native order
   // evaluates them (after the root and its guard, before the read)
   const keyPrefix = plan.keyPrefixSE ?? [];
   const property = keyPrefix.length
-    ? sequenceExpression([...keyPrefix.map(expr => embed(cloneNode(expr))),
-      plan.computed ? embed(cloneNode(plan.property)) : literal(plan.property.name)])
-    : embed(cloneNode(plan.property));
+    ? sequenceExpression([...keyPrefix.map(expr => embed(carry(expr))),
+      plan.computed ? embed(carry(plan.property)) : literal(plan.property.name)])
+    : embed(carry(plan.property));
   const computed = plan.computed || keyPrefix.length > 0;
   return memberExpression(rootNode, property, { computed, optional: !!plan.optional });
 }

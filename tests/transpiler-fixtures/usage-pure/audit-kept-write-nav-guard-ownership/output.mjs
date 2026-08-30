@@ -20,16 +20,17 @@ export const claimLeads = null == (leads = _globalThis).window ? void 0 : _Numbe
 export const ctorComputedTail = null == (computed = null == _globalThis.window ? void 0 : _self) ? void 0 : _Promise[key];
 export const ctorPrototypeTail = null == (proto = null == _globalThis.window ? void 0 : _self) ? void 0 : _Map.prototype.noSuchMethod;
 
-// a STACKED unresolvable prefix: the test reads the DEEPEST one off the collapsed leaf
-export const stackedPrefix = (stacked = null == _self.window ? void 0 : _self, _Number$MAX_SAFE_INTEGER);
+// a STACKED unresolvable prefix under its own `?.` probes: every hop past the backed `.self`
+// is a realm self-reference the fold takes whole - the store holds the always-defined leaf
+export const stackedPrefix = (stacked = _self, _Number$MAX_SAFE_INTEGER);
 
 // the write inside a SEQUENCE, over a root the bare-alias walk leaves unproven: the root question
 // is which global the identifier names, and the trusted-write resolver answers it
 export const sequenceRoot = null == (alias = _globalThis, kept = null == alias.window ? void 0 : _self) ? void 0 : _Promise.noSuchStatic;
 
-// a hop pure cannot back reading the STORE is the environment probe off it, not a redundant step:
-// the run that swallowed it answered the ponyfill where the source reads the host
-export const probeOverStore = (tail = null == alias.window ? void 0 : _self)?.window.noSuchStatic;
+// a hop pure cannot back reading the STORE folds onto the guarded value the store hands on -
+// the probe's `?.` slides one member up and the void branch still short-circuits there
+export const probeOverStore = (tail = null == alias.window ? void 0 : _self)?.noSuchStatic;
 // ... and a ctor claim over such a store keeps the guard whose test spells that very write
 export const ctorOverStore = null == (folded = _globalThis).window ? void 0 : _Promise.noSuchStatic;
 

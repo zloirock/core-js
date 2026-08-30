@@ -13,7 +13,7 @@ var _ref, _ref2;
 // the render keeps the source's throw semantics. distinct methods per line
 let c = 0;
 export const bareNonNullHop = null == _globalThis.window ? void 0 : (c++, _self).Number;
-export const bareNonNullMidChain = null == (null == _globalThis.window ? void 0 : _self.window) ? void 0 : _flatMaybeArray(_ref = _Array$of(2)).call(_ref);
+export const bareNonNullMidChain = null == _globalThis.window ? void 0 : _flatMaybeArray(_ref = _Array$of(2)).call(_ref);
 export const castSealValueUse = (null == _globalThis.window ? void 0 : _self).Math;
 export const parenSealPlainRead = (null == _globalThis.window ? void 0 : _self).JSON;
 export const castSealDelete = delete (_globalThis.customProp as any);
@@ -36,8 +36,8 @@ export { c2 };
 // wrapper neither seals nor unlocks a collapse). its VALUE twin has no write to keep, so the
 // short-circuit render owns it and the hop resolves to its ponyfill instead of being read raw
 let kv;
-export const bareNonNullKeptAssign = (kv = null == _globalThis.window ? void 0 : _self.window)?.BigInt;
-export const bareNonNullKeptValue = null == _globalThis.window ? void 0 : _self.window;
+export const bareNonNullKeptAssign = (kv = null == _globalThis.window ? void 0 : _self)?.BigInt;
+export const bareNonNullKeptValue = null == _globalThis.window ? void 0 : _self;
 export { c };
 
 // a CAST-sealed SE-key destructure source: the wrapper peels transparently, the residual

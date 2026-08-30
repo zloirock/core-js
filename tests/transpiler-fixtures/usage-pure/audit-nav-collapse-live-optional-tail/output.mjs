@@ -9,8 +9,8 @@ import _self from "@core-js/pure/actual/self";
 // ponyfill leaf it is vestigial and drops. one claim per row, so a row that stops resolving leaves
 // a hole in the import set.
 let plainTail, computedTail, liveOptionalTail, vestigialOptionalTail, mixedTail;
-export const plain = (plainTail = _self.window, _Number$MAX_SAFE_INTEGER);
+export const plain = (plainTail = _self, _Number$MAX_SAFE_INTEGER);
 export const computed = (computedTail = _self['window'], _Number$MIN_SAFE_INTEGER);
 export const liveOptional = (liveOptionalTail = _globalThis.top).Number.EPSILON;
-export const vestigialOptional = (vestigialOptionalTail = _self.window).Number.MAX_VALUE;
+export const vestigialOptional = (vestigialOptionalTail = _self).Number.MAX_VALUE;
 export const mixed = (mixedTail = _globalThis.top).Number.MIN_VALUE;
