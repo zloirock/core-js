@@ -5890,9 +5890,10 @@ runBoth('the subclass own namespace export outranks the parent one',
     ['const src = { from: 1 }; Object.assign(Array, src);', ['Array.from'], []],
     ['const src2 = { from: 1 }; const b2 = src2; Object.assign(Array, b2);', ['Array.from'], []],
     ['const { T } = { T: Array }; T.from = 1;', ['Array.from'], []],
-    // boundary: a DESTRUCTURED alias feeding a pattern write is outside the alias fan in both
-    // eras (the slot union cannot type a container bound through another destructure)
-    ['const [arr2] = [[Map]]; let A2 = Array; [A2] = arr2; A2.groupBy = 1;', ['Array.groupBy'], ['Map.groupBy']],
+    // a DESTRUCTURED alias feeding a pattern write fans through the pattern-slot pairing: the
+    // container bound through another destructure types its unique slot, so the write reaches
+    // the value the runtime actually mutates (`A2` holds `Map`) beside the pre-write init
+    ['const [arr2] = [[Map]]; let A2 = Array; [A2] = arr2; A2.groupBy = 1;', ['Array.groupBy', 'Map.groupBy'], []],
     // a destructure declarator fans ONLY its selected slot - the whole-init fan would smuggle
     // the container name and record a spurious STATIC beside the correct prototype pair
     ['const { prototype: P8 } = Array; P8.of = function () {};', ['Array.prototype.of'], ['Array.of']],

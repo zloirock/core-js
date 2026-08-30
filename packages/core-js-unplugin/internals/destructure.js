@@ -527,7 +527,7 @@ export default function createAstDestructureEmitter({
       });
       // an IDENTITY call hands back its ARGUMENT: the literal lands on that value's own tail,
       // so a sequence prefix keeps running where the source wrote it
-      let value = returned && peelTransparentExpr(returned);
+      let value = returned && peelTransparentExpr(returned.node);
       while (value?.type === 'SequenceExpression') value = peelTransparentExpr(value.expressions.at(-1));
       // ... and only the shapes whose yield is ONE surface: a bare proxy root, or an `&&` GATE
       // whose right operand is that root (`() => m && globalThis`). a selection between two
@@ -3067,7 +3067,7 @@ export default function createAstDestructureEmitter({
       // ... and only where the yielded value carries an EFFECT the extraction would drop: the
       // call evaluation runs its argument, and the harvest has no channel for argument effects.
       // a quiet identity call discards cleanly and keeps the ordinary extraction
-      let value = returned && peelTransparentExpr(returned);
+      let value = returned && peelTransparentExpr(returned.node);
       let effectful = false;
       while (value?.type === 'SequenceExpression') {
         effectful ||= value.expressions.slice(0, -1).some(expr => mayHaveSideEffects(expr));

@@ -15,3 +15,13 @@ export const keyEffectMigrates = globalThis.window?.[(seq++, 'self')].Array.of(9
 export const noEffect = (1, globalThis.window?.self)?.Array.of(10);
 // NEGATIVE: the plain (unguarded) claim keeps its own probe spelling
 export const plainClaim = (seq++, globalThis.window?.self).Array.of(11);
+
+// the ALIAS spelling of the same regions: the probe is the alias binding itself, and a dropped
+// key effect still runs only INSIDE the branch (native short-circuits past the key), while a
+// leading prefix stays ahead of the whole ternary
+const { window: W } = globalThis;
+export const aliasKeyMigrates = W?.[(seq++, 'Array')].of(12);
+export const aliasLeading = (seq++, W)?.Array.of(13);
+// a KEPT WRITE anchors the prefix - the sequence stays whole inside the test beside it
+let q;
+export const aliasAnchored = (seq++, q = W)?.Array.of(14);

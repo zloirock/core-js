@@ -149,4 +149,58 @@ for (const position of found.keys().toArray().sort()) {
     'the corpus puts an object literal here but no equivalence row does - add a row for it');
 }
 
+// --- Calling-convention convergence of `positionDisposition` ---
+// two conventions are live at the call sites: a caller that climbed a reference to its outermost
+// transparent wrapper hands the WRAPPER as `node`, one that did not hands the RAW node under an
+// unpeeled slot. every slot-comparing arm must answer both alike - a raw identity compare answered
+// each convention on a different half of the arms, and the misses fell on different defaults
+// (a WRAPPED sequence tail read as consumes kept a narrow on a value that flows on)
+{
+  const { positionDisposition } = await import('@core-js/polyfill-provider/helpers/ast-patterns');
+  function inner() {
+    return { type: 'Identifier', name: 'x' };
+  }
+  function wrap(node) {
+    return { type: 'ParenthesizedExpression', expression: node };
+  }
+  const other = { type: 'Identifier', name: 'other' };
+  // [label, makeParent(slotNode), expected disposition of the slot]
+  const ARMS = [
+    ['ForInStatement.right', slot => ({ type: 'ForInStatement', left: other, right: slot, body: null }), 'consumes'],
+    ['SwitchStatement.discriminant', slot => ({ type: 'SwitchStatement', discriminant: slot, cases: [] }), 'consumes'],
+    ['SwitchCase.test', slot => ({ type: 'SwitchCase', test: slot, consequent: [] }), 'consumes'],
+    ['IfStatement.test', slot => ({ type: 'IfStatement', test: slot, consequent: null }), 'consumes'],
+    ['WhileStatement.test', slot => ({ type: 'WhileStatement', test: slot, body: null }), 'consumes'],
+    ['DoWhileStatement.test', slot => ({ type: 'DoWhileStatement', test: slot, body: null }), 'consumes'],
+    ['ConditionalExpression.test', slot => ({ type: 'ConditionalExpression', test: slot, consequent: other, alternate: other }), 'consumes'],
+    ['ConditionalExpression.consequent', slot => ({ type: 'ConditionalExpression', test: other, consequent: slot, alternate: other }), 'forwards'],
+    ['SequenceExpression tail', slot => ({ type: 'SequenceExpression', expressions: [other, slot] }), 'forwards'],
+    ['SequenceExpression prefix', slot => ({ type: 'SequenceExpression', expressions: [slot, other] }), 'consumes'],
+    ['ObjectProperty.value', slot => ({ type: 'ObjectProperty', key: other, value: slot, computed: false }), 'forwards'],
+    ['ObjectProperty computed key', slot => ({ type: 'ObjectProperty', key: slot, value: other, computed: true }), 'consumes'],
+    ['CallExpression argument', slot => ({ type: 'CallExpression', callee: other, arguments: [slot] }), 'inspects'],
+    ['CallExpression callee', slot => ({ type: 'CallExpression', callee: slot, arguments: [other] }), 'consumes'],
+  ];
+  for (const [label, makeParent, expected] of ARMS) {
+    const raw = inner();
+    // convention A: raw node under an UNPEELED (wrapped) slot
+    const wrappedSlotParent = makeParent(wrap(raw));
+    checkTruthy(`${ label }: raw node under a wrapped slot -> ${ expected }`,
+      positionDisposition(wrappedSlotParent, raw, null) === expected,
+      `got ${ positionDisposition(wrappedSlotParent, raw, null) }`);
+    // convention B: the outermost WRAPPER handed as the node
+    const wrapped = wrap(inner());
+    const plainSlotParent = makeParent(wrapped);
+    checkTruthy(`${ label }: wrapper handed as the node -> ${ expected }`,
+      positionDisposition(plainSlotParent, wrapped, null) === expected,
+      `got ${ positionDisposition(plainSlotParent, wrapped, null) }`);
+    // control: the unwrapped convention pair agrees too
+    const bare = inner();
+    const bareParent = makeParent(bare);
+    checkTruthy(`${ label }: bare pair -> ${ expected }`,
+      positionDisposition(bareParent, bare, null) === expected,
+      `got ${ positionDisposition(bareParent, bare, null) }`);
+  }
+}
+
 finish();
