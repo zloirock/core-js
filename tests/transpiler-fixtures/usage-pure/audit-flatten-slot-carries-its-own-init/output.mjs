@@ -26,10 +26,11 @@ const {
     [(k++, 'flat')]: _unused
   } = _ref2,
   fl = _flatMaybeArray(_ref2);
+eff();
 var of4 = _Array$of;
 var f4 = _Object$entries;
 var {
   [(k4++, 'of')]: _unused2,
   other4
-} = (eff(), Array);
+} = Array;
 export { from, at, concat, of, indexOf, fl, f4, of4, other4 };

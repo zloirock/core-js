@@ -17,4 +17,4 @@ export const of2 = _Array$of;
 export const {
   of: _unused,
   ...rest
-} = (0, Array);
+} = Array;

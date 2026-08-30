@@ -15,6 +15,8 @@
 import { entryToGlobalHint } from '../index.js';
 import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
 import {
+  VALUE_FLOW_ASSIGN_OPS,
+  MUTATED_MEMBERS_UNKNOWN,
   kebabToCamel,
   pureImportEntryOf,
   plainSynthKeyName,
@@ -760,7 +762,7 @@ export function mutationShapesReducer(packages = null) {
           // plain and logical assigns install the right operand verbatim, while an arithmetic
           // compound DERIVES its value, so no candidate is known for it
           if (writeRoot?.type === 'Identifier') {
-            const value = IDENTITY_PRESERVING_ASSIGN_OPS.has(node.operator) ? node.right : null;
+            const value = VALUE_FLOW_ASSIGN_OPS.has(node.operator) ? node.right : null;
             rawSlotWrites.push([writeRoot.name, memberKeyName(left) ?? '*', value]);
           }
           pushTarget(gateMemberTarget(left));
@@ -1218,11 +1220,6 @@ function memberMutationEntry(slot, ctx, operator = null) {
   return [{ targetNode: member.object, keys: key !== null ? [key] : null }];
 }
 
-// assignment operators under which an identity self-copy stays a value no-op: plain assignment
-// and the logical forms (either keep the current value or install the same slot's value).
-// arithmetic compounds (`X += globalThis.X`) DERIVE a new value - a real mutation
-const IDENTITY_PRESERVING_ASSIGN_OPS = new Set(['=', '||=', '&&=', '??=']);
-
 // logical-INSTALL writes (`globalThis[k] ||= {}` - the namespace-init idiom) can never replace
 // a LIVE value, so an unreadable key does not deopt the receiver whole; the absent-slot install
 // stays the accepted precision limit the logical-assign warning gate documents. replacing
@@ -1245,7 +1242,7 @@ function classifyMutationSite(node, parent, grandparent, ctx) {
   if (node.type === 'AssignmentExpression') {
     const entries = memberMutationEntry(node.left, ctx, node.operator);
     if (entries.length) return entries;
-    const rhs = IDENTITY_PRESERVING_ASSIGN_OPS.has(node.operator) ? unwrapRuntimeExpr(node.right) : null;
+    const rhs = VALUE_FLOW_ASSIGN_OPS.has(node.operator) ? unwrapRuntimeExpr(node.right) : null;
     return bareSlotWriteEntries(unwrapRuntimeExpr(node.left), ctx, rhs);
   }
   // a bare for-x LHS (`for (Promise of xs)`, `for ([Promise] of xs)`) assigns the slot on
@@ -1379,8 +1376,14 @@ function mintedMutatorPair(name, ctx) {
 // logical-install carve-out
 function addReceiverDeopt(mutated, name) {
   if (POSSIBLE_GLOBAL_OBJECTS.has(name)) return;
-  const base = name.endsWith('.prototype') ? name.slice(0, -'.prototype'.length) : name;
-  mutated.add(mutatedStaticKey('globalThis', base));
+  // a PROTOTYPE receiver keeps the whole-NAME deopt: the realm's own prototype is what carries
+  // the patch, and a ponyfilled ctor would hand back its own. the object's OWN members are the
+  // other fact - they are unknown, which is not the same as "this binding is not the built-in"
+  if (name.endsWith('.prototype')) {
+    mutated.add(mutatedStaticKey('globalThis', name.slice(0, -'.prototype'.length)));
+    return;
+  }
+  mutated.add(mutatedStaticKey(name, MUTATED_MEMBERS_UNKNOWN));
 }
 
 // --- the per-site collector callback (shared by both plugins' traversals) ---
@@ -1558,6 +1561,9 @@ export function enrichMutatedStatics({ mutatedStatics, resolvePure, injectPureIm
     // substituted, so there is no ponyfill to pin; skip without enrichment
     if (POSSIBLE_GLOBAL_OBJECTS.has(ctorName)) continue;
     if (!resolvePure({ kind: 'global', name: ctorName })) continue;
+    // an UNREADABLE key names no member, so there is none to pin here - the ctor's own claim
+    // resolves to the NAMESPACE entry instead, which carries the statics with it
+    if (mutatedKey.slice(dot + 1) === MUTATED_MEMBERS_UNKNOWN) continue;
     const pure = resolvePure({
       kind: 'property', object: ctorName, key: mutatedKey.slice(dot + 1), placement: 'static',
     });

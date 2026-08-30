@@ -32,6 +32,7 @@ import {
   walkPatternIdentifiers,
   withoutValuelessDeclarationViolations,
   isDestructurePattern,
+  POSSIBLE_GLOBAL_OBJECTS,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   aliasSpanDominatesUse,
@@ -483,7 +484,14 @@ export function createEstreeAdapter(options = {}) {
       // serve (out there the name is a different binding or the real global)
       if (hasRuntimeBinding(scope, name, path)) return true;
       const minted = getInjector()?.getBindingInfo?.(name, path?.node?.start ?? null);
-      return !!(minted?.hint && minted.source && !minted.userNamed);
+      // ... and so does a plugin-MINTED blind alias holding a CONSTRUCTOR (a guard memo ref): its
+      // `var _ref` is real but the scope registry lags the mid-traversal insertion, and reading it as
+      // unbound sent `resolveObjectName` down the would-be-global branch, where `_ref` names nothing -
+      // the static claim rebuilt onto the ref then died into a raw read off the ponyfill.
+      // a memo holding the SURFACE keeps the unbound reading: this leg's own surface routes resolve it
+      // (`proxySurfaceNameOf`), and answering here folds an SE-keyed hop the reference emitter keeps
+      return !!(minted?.hint
+        && ((minted.minted && !POSSIBLE_GLOBAL_OBJECTS.has(minted.hint)) || (minted.source && !minted.userNamed)));
     },
     getBinding(scope, name, path = null) {
       const { native: b, synth } = resolveClosestBinding(scope, name, path);
@@ -589,12 +597,15 @@ export function createEstreeAdapter(options = {}) {
       });
       // guarded registration = flow-trust refused: the member read stays native. the dominance
       // gate keeps a use textually BEFORE its trusted write / declaration native too.
-      // a plugin-MINTED memo (a guard ref) is binding-less and serves through the
-      // synthetic branch above, so this native-binding disjunct still has no minted arm
+      // a plugin-MINTED memo (a guard ref) reaches here once its `var _ref` IS in the scope
+      // registry - the synthetic branch above serves it only while that lags. the minted arm is
+      // the babel twin's: the ref is allocator-owned (user code cannot rebind it) and its hint was
+      // set from a resolved surface, so a claim rebuilt onto it resolves through the ref
       // an in-file `require` binding shadows the CJS import - the require-style arm only
       // fires for the real module function (the node-local view cannot see the shadow)
       const requireBindingLive = isRequireBinding && !adapter.hasBinding(scope, 'require', path);
-      const polyfillHint = usableAliasInfo(info) && (isAliasBindingShape || isImportBinding || requireBindingLive)
+      const polyfillHint = usableAliasInfo(info)
+        && (isAliasBindingShape || isImportBinding || requireBindingLive || info.minted)
         && aliasSpanDominatesUse({ info, useStart: path?.node?.start ?? null }) ? info.hint : null;
       // a destructured Symbol.X alias (`const { iterator } = Symbol`) is a PATTERN binding with no
       // `importSource` and a UID hint; surface the registered module source so `bindingSymbolKey`

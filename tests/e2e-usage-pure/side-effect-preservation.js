@@ -719,3 +719,130 @@ QUnit.test('side effect: computed-member receiver SE lifts once beside a flatten
   assert.deepEqual(m1([1, 2]), [1, 2], 'consumed declarator got the static polyfill');
   assert.deepEqual(of2(3), [3], 'flatten sibling got its polyfill');
 });
+
+// SE: an effectful SEQUENCE receiver whose residual SURVIVES the destructure. natively the prefix
+// runs before the pattern binds anything, so an effect that READS one of those bindings sees the
+// value it had before - the extraction may not be emitted ahead of the read that feeds it
+QUnit.test('side effect: sequence-receiver prefix runs before an assignment destructure binds', assert => {
+  let seen = 'unset';
+  let picked = 'before';
+  let other;
+  function eff() {
+    seen = typeof picked;
+  }
+  ({ Map: picked, other } = (eff(), globalThis));
+  assert.strictEqual(seen, 'string', 'the prefix ran while the target still held its own value');
+  assert.strictEqual(typeof picked, 'function', 'the extraction bound the polyfilled constructor');
+  assert.strictEqual(typeof other, 'undefined', 'the surviving residual still reads the receiver');
+});
+
+QUnit.test('side effect: sequence-receiver prefix runs before a var destructure binds', assert => {
+  let seen = 'unset';
+  function eff() {
+    seen = typeof hoisted;
+  }
+  // eslint-disable-next-line no-var -- the hoisted binding the prefix reads is the point
+  var { Map: hoisted, other } = (eff(), globalThis);
+  assert.strictEqual(seen, 'undefined', 'the prefix ran while the hoisted binding was still empty');
+  assert.strictEqual(typeof hoisted, 'function', 'the extraction bound the polyfilled constructor');
+  assert.strictEqual(typeof other, 'undefined', 'the surviving residual still reads the receiver');
+});
+
+// SE: the same order where the host has no statement slot - a bodyless control slot, a
+// multi-declarator host whose sibling init runs first, and a for-init header. each carries the
+// prefix its own way (bracing, splitting, riding the first extraction's value) and none of them
+// may let the effect observe a binding the destructure has already written
+QUnit.test('side effect: sequence-receiver prefix runs first in a bodyless control slot', assert => {
+  let seen = 'unset';
+  function eff() {
+    seen = typeof slotted;
+  }
+  // eslint-disable-next-line no-var -- the bodyless slot is the host under test
+  if (assert) var { Map: slotted, other } = (eff(), globalThis);
+  assert.strictEqual(seen, 'undefined', 'the prefix ran while the hoisted binding was still empty');
+  assert.strictEqual(typeof slotted, 'function', 'the extraction bound the polyfilled constructor');
+  assert.strictEqual(typeof other, 'undefined', 'the surviving residual still reads the receiver');
+});
+
+QUnit.test('side effect: sequence-receiver prefix runs after a preceding declarator init', assert => {
+  const order = [];
+  function pre() {
+    order.push('pre');
+    return 'first';
+  }
+  function eff() {
+    order.push(typeof sibling);
+  }
+  // eslint-disable-next-line no-var, @stylistic/one-var-declaration-per-line -- the multi-declarator host is under test
+  var first = pre(), { Set: sibling, other } = (eff(), globalThis);
+  assert.deepEqual(order, ['pre', 'undefined'], 'the sibling init ran first, then the prefix');
+  assert.strictEqual(first, 'first', 'the preceding declarator kept its own binding');
+  assert.strictEqual(typeof sibling, 'function', 'the extraction bound the polyfilled constructor');
+  assert.strictEqual(typeof other, 'undefined', 'the surviving residual still reads the receiver');
+});
+
+QUnit.test('side effect: sequence-receiver prefix runs first in a for-init header', assert => {
+  let seen = 'unset';
+  function eff() {
+    // eslint-disable-next-line block-scoped-var -- the loop header declares it; reading it here is the point
+    seen = typeof header;
+  }
+  let spins = 0;
+  // eslint-disable-next-line no-var -- the loop header is the host under test
+  for (var { WeakMap: header, other } = (eff(), globalThis); spins < 2; spins++);
+  assert.strictEqual(seen, 'undefined', 'the prefix ran while the hoisted binding was still empty');
+  assert.strictEqual(spins, 2, 'the header ran its loop, and the init exactly once');
+  /* eslint-disable block-scoped-var -- same header-declared bindings, read after the loop */
+  assert.strictEqual(typeof header, 'function', 'the extraction bound the polyfilled constructor');
+  assert.strictEqual(typeof other, 'undefined', 'the surviving residual still reads the receiver');
+  /* eslint-enable block-scoped-var -- back to the file's own scoping */
+});
+
+// SE: the extracted prop's OWN computed key carries an effect, and the receiver sits behind a
+// sequence prefix. natively the prefix runs first, the key second, and the binding only then - so
+// the extraction may not be emitted ahead of either. the key is a SEQUENCE ending in a literal:
+// that is the shape the emitter can fold, and a call-valued key would leave the row native and
+// vacuous. the multi-declarator twin adds a sibling init the prefix may not hoist over
+QUnit.test('side effect: extracted-key effect keeps its place behind the receiver prefix', assert => {
+  const order = [];
+  function prefix() {
+    order.push(typeof keyed);
+  }
+  // eslint-disable-next-line no-var -- the hoisted binding the prefix reads is the point
+  var { [(order.push('key'), 'from')]: keyed, other } = (prefix(), Array);
+  assert.deepEqual(order, ['undefined', 'key'], 'prefix first, key second, binding last');
+  assert.strictEqual(typeof keyed, 'function', 'the extraction bound the polyfilled static');
+  assert.strictEqual(typeof other, 'undefined', 'the surviving residual still reads the receiver');
+});
+
+QUnit.test('side effect: extracted-key effect stays behind an effectful sibling init', assert => {
+  const order = [];
+  function sibling() {
+    order.push('sibling');
+    return 1;
+  }
+  function prefix() {
+    order.push(typeof picked);
+  }
+  // eslint-disable-next-line no-var, @stylistic/one-var-declaration-per-line -- the multi-declarator host is under test
+  var lead = sibling(), { [(order.push('key'), 'of')]: picked, other } = (prefix(), Array);
+  assert.deepEqual(order, ['sibling', 'undefined', 'key'], 'sibling init, prefix, key - source order');
+  assert.strictEqual(lead, 1, 'the preceding declarator kept its own binding');
+  assert.strictEqual(typeof picked, 'function', 'the extraction bound the polyfilled static');
+  assert.strictEqual(typeof other, 'undefined', 'the surviving residual still reads the receiver');
+});
+
+// SE: the receiver behind a sequence prefix, destructured through an ARRAY WRAPPER. the wrapper's
+// literal stays in the residual, so the extraction lands ahead of it - and the prefix ahead of both,
+// where the source ran it
+QUnit.test('side effect: sequence-receiver prefix runs before an array-wrapped extraction binds', assert => {
+  let seen = 'unset';
+  function eff() {
+    seen = typeof wrapped;
+  }
+  // eslint-disable-next-line no-var -- the hoisted binding the prefix reads is the point
+  var [{ Map: wrapped }, neighbour] = (eff(), [globalThis, 7]);
+  assert.strictEqual(seen, 'undefined', 'the prefix ran while the hoisted binding was still empty');
+  assert.strictEqual(typeof wrapped, 'function', 'the extraction bound the polyfilled constructor');
+  assert.strictEqual(neighbour, 7, 'the wrapper neighbour still binds its own element');
+});

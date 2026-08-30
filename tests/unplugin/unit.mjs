@@ -2578,11 +2578,15 @@ function checkCollectMutatedStaticMembers() {
   // (staticMemberKey normalizes the literal bracket key to its dot form for write detection)
   check('collectMutatedStaticMembers/computed string-literal key tracked',
     collect('Array["from"] = X;').has('Array.from'), true);
-  // NON-literal computed key (`Array[k] = X`) could have hit ANY member - the receiver deopts
-  // whole through the slot channel; no exact pair is fabricated
+  // NON-literal computed key (`Array[k] = X`) could have hit ANY member - every member of the
+  // receiver deopts, under its OWN wildcard key; no exact pair is fabricated. NOT the slot key
+  // (`globalThis.Array`): that one says the binding holds the user's object, which would leave
+  // every read of the name verbatim and drop the polyfill with them
   const dynamicKey = collect('Array[k] = X;');
-  check('collectMutatedStaticMembers/dynamic computed key deopts receiver whole',
-    dynamicKey.has('globalThis.Array'), true);
+  check('collectMutatedStaticMembers/dynamic computed key deopts receiver members',
+    dynamicKey.has('Array.*'), true);
+  check('collectMutatedStaticMembers/dynamic computed key is not a slot write',
+    dynamicKey.has('globalThis.Array'), false);
   check('collectMutatedStaticMembers/dynamic computed key fabricates no exact pair',
     dynamicKey.has('Array.from'), false);
   // `Object.assign(Builtin, { ...source })` copies each own key onto Builtin - method shorthand,
@@ -2593,8 +2597,8 @@ function checkCollectMutatedStaticMembers() {
   check('collectMutatedStaticMembers/assign second-source data', assigned.has('Array.isArray'), true);
   // a dynamic source (Identifier) / a computed key in an object source can carry ANY key -
   // the receiver deopts whole instead of guessing exact pairs
-  check('collectMutatedStaticMembers/assign dynamic + computed sources deopt receiver whole',
-    [...collect('Object.assign(Map, src, { [k]: 1 });')].join(','), 'globalThis.Map');
+  check('collectMutatedStaticMembers/assign dynamic + computed sources deopt receiver members',
+    [...collect('Object.assign(Map, src, { [k]: 1 });')].join(','), 'Map.*');
   // Reflect call-forms monkey-patch a named static slot like the Object.* / assignment forms:
   // defineProperty / deleteProperty / set (set is the call-form of `T.k = v` and the [[Set]] twin
   // of Object.assign). setPrototypeOf is out of scope - it swaps [[Prototype]], not a named key
@@ -2606,8 +2610,8 @@ function checkCollectMutatedStaticMembers() {
     collect("Reflect.set(Array, 'from', fn);").has('Array.from'), true);
   check('collectMutatedStaticMembers/Reflect.setPrototypeOf not tracked',
     [...collect('Reflect.setPrototypeOf(Array, proto);')].length, 0);
-  check('collectMutatedStaticMembers/Reflect.set dynamic key deopts receiver whole',
-    [...collect('Reflect.set(Array, k, fn);')].join(','), 'globalThis.Array');
+  check('collectMutatedStaticMembers/Reflect.set dynamic key deopts receiver members',
+    [...collect('Reflect.set(Array, k, fn);')].join(','), 'Array.*');
   // identity self-copies: a BARE proxy receiver is exempt, a bound same-named local is not
   // (over-record - the safe direction), and a file that replaces the trusted receiver's own
   // slot re-records the skipped copy in either textual order

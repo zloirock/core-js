@@ -179,6 +179,10 @@ export function createUsageHandlerCore({
     checkTypeAnnotation,
     annotationDeclVisitors,
     isHandled: node => handledObjects.has(node),
+    // the marking's premise is that the claim's render OWNS the receiver's hops. an emitter that
+    // re-emits the receiver by node identity keeps that premise from holding, and only it knows -
+    // so it releases the marks and the hops claim for themselves on the re-visit
+    releaseHandled: node => handledObjects.delete(node),
     reset,
   };
 }

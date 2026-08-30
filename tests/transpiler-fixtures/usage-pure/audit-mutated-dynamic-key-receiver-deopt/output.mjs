@@ -1,3 +1,5 @@
+import _Iterator from "@core-js/pure/actual/iterator";
+import _Map from "@core-js/pure/actual/map";
 import _Promise$try from "@core-js/pure/actual/promise/try";
 // a mutation key the canons cannot read could have replaced ANY member - the receiver
 // deopts whole and its reads stay on the live global
@@ -8,10 +10,10 @@ Array[key] = function patched() {
 export const assigned = Array.from('ab');
 // the in-check and a destructure read consult the same deopt - no fold, no ponyfill binding
 export const probedIn = 'from' in Array;
-delete Map[key];
-export const deleted = Map.groupBy([1], x => x);
-[Iterator[key]] = [1];
-export const destructured = Iterator.range(0, 3);
+delete _Map[key];
+export const deleted = _Map.groupBy([1], x => x);
+[_Iterator[key]] = [1];
+export const destructured = _Iterator.range(0, 3);
 // a for-in member head assigns the slot per iteration - same unreadable-key deopt
 for (String[key] in obj);
 export const iterated = String.raw({
