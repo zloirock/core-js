@@ -404,8 +404,13 @@ export default function createPlugin(options) {
   });
   const typeResolvers = createResolveNodeType(nodeType, types, {
     // guarded alias hints must not feed the type channel - see the babel twin
-    getPolyfillBindingEntry: (scope, name) => usableAliasInfo(currentInjector?.getBindingInfo?.(name))?.entry ?? null,
-    getPolyfillBindingHint: (scope, name) => usableAliasInfo(currentInjector?.getBindingInfo?.(name))?.hint ?? null,
+    // `useStart` anchors the injector's name-keyed view positionally - see the babel twin
+    getPolyfillBindingEntry(scope, name, useStart = null) {
+      return usableAliasInfo(currentInjector?.getBindingInfo?.(name, useStart))?.entry ?? null;
+    },
+    getPolyfillBindingHint(scope, name, useStart = null) {
+      return usableAliasInfo(currentInjector?.getBindingInfo?.(name, useStart))?.hint ?? null;
+    },
     isReassignedBinding: (name, binding) => currentInjector?.isReassignedBinding?.(name, binding) ?? false,
     // a monkey-patched static no longer returns its known type - drop the static-call return narrow
     // to generic so a patched `Array.from(x).at(0)` isn't type-locked to `_atMaybeArray`

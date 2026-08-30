@@ -46,6 +46,7 @@ import {
   isMemberAccessNode,
   isReusableReceiver,
   markRenderedStoredValue,
+  mayHaveSideEffects,
   memberKeyName,
   memberProxyHopName,
   migratableClaimSe,
@@ -61,6 +62,7 @@ import {
   staticMemberKeyName,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   TS_EXPR_WRAPPERS,
+  unwrapCollectingSePrefixes,
   unwrapRuntimeExpr,
   hasDeferredContextAncestor,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
@@ -624,8 +626,31 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     // a kept chain-assign VALUE with collapsible pony hops spells through the shared plan
     // (`v = _globalThis.self.window` -> `v = _self.window`) before the test freezes it
     collapseKeptNavValueNode(guardObject, path);
+    // the probe is the VALUE that can be absent, not the effects the source spelled ahead of it:
+    // peel the guard object's own sequence prefix so the canon classifies those effects as
+    // LEADING (ahead of the whole ternary) and the test reads the bare probe - the spelling the
+    // unplugin nav walk lands on by construction (`(seq++, W)?.X` -> `(seq++, null == W ? ...)`).
+    // only a prefix the harvest already carries may peel: an unaccounted observable element keeps
+    // the source spelling, where the test still runs it exactly once
+    const harvestedSpans = new Set((sideEffects ?? [])
+      .map(se => nodeSpan(se)).filter(Boolean).map(span => `${ span.start }:${ span.end }`));
+    function prefixAccounted(node) {
+      if (!mayHaveSideEffects(node)) return true;
+      const span = nodeSpan(node);
+      return !!span && harvestedSpans.has(`${ span.start }:${ span.end }`);
+    }
+    // ... two carve-outs, both the other leg's kept-root canon: a KEPT WRITE anchors the prefix -
+    // the sequence stays whole inside the test beside it (`null == (seq++, q = W) ? ...`) - and a
+    // NESTED sequence keeps its whole spelling too, because the value canon stops there
+    const seqSource = unwrapRuntimeExpr(guardObject);
+    const seqTail = seqSource?.type === 'SequenceExpression'
+      ? unwrapRuntimeExpr(seqSource.expressions.at(-1)) : null;
+    const anchoredSeq = seqTail?.type === 'AssignmentExpression' || seqTail?.type === 'SequenceExpression';
+    const peeledPrefix = [];
+    let probeObject = anchoredSeq ? guardObject : unwrapCollectingSePrefixes(guardObject, peeledPrefix);
+    if (probeObject !== guardObject && !peeledPrefix.every(prefixAccounted)) probeObject = guardObject;
     const claimSe = migratableClaimSe({
-      sideEffects, receiverEffectCount, rootNode: guardObject, end: nodeSpan(path.node)?.end,
+      sideEffects, receiverEffectCount, rootNode: probeObject, end: nodeSpan(path.node)?.end,
     });
     if (!claimSe) return false;
     const { leading: leadingSe, migrated: migratedSe } = claimSe;
@@ -643,7 +668,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     // caller via `undefinableOptionalGuard`): `globalThis.window?.self.X` -> `globalThis.window`, a
     // hop the always-defined descended root does not cover. left in the AST so the identifier visitor
     // substitutes its proxy-global root in place (`_globalThis.window`)
-    let rootNode = guardObject;
+    let rootNode = probeObject;
     // the kept test still holds the chain's ROOT proxy-global (a bare `globalThis.window`
     // prefix or one BURIED in an inline-provable call arg): the member visitor's subtree-skip
     // means the identifier visitor never reaches it, and the claim freezes the kept text - a
@@ -662,7 +687,10 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
         if (sub) buried.name = sub.name;
       }
     }
-    rootNode = navGuardTestNode(rootNode, path, null, guardObject);
+    // the peeled probe rides both slots: a top-level prefix now has a slot of its own (leading),
+    // so the test-spelling exception must not re-freeze it - only hop-buried sequences remain
+    // inside the probe and keep riding the source spelling
+    rootNode = navGuardTestNode(rootNode, path, null, probeObject);
     // the test is a RENDER, and which of the two shapes it takes is the shared seal
     // question: under a seal keep the navigation (its read throws where the source does) and
     // mark it so nothing re-reads it; without one take the plan's BASE, or the test keeps a native

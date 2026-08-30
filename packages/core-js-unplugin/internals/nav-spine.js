@@ -191,9 +191,8 @@ export function unbackedTailRidesAbove(metaPath, resolveGlobalPolyfill) {
   return sawUnbacked;
 }
 
-// pristine possible-global hops navigate into the SAME surface - they drop, and the root
-// binding stands for the read (`globalThis.self` tests `_globalThis`, not the `self` ponyfill
-// the hop's own claim would substitute)
+// pristine possible-global hops navigate into the SAME surface - above a PROBE they drop, so
+// the test reads at most the probe hop itself and never dereferences past it
 export function peelPristineProxyHops(node, { adapter, resolveGlobalPolyfill }) {
   let base = node;
   while (base?.type === 'MemberExpression' && !base.computed
@@ -205,8 +204,11 @@ export function peelPristineProxyHops(node, { adapter, resolveGlobalPolyfill }) 
   return base;
 }
 
-// ... and a KEPT sequence navigates just the same: its TAIL drops them in place
-export function dropTailPristineProxyHops(node, ctx) {
+// ... and a KEPT sequence's tail navigates the same surface as a VALUE: a chain the peel erases
+// WHOLE folds onto its outermost hop's own ponyfill (`(c++, globalThis.self)` tests `_self` -
+// a read through the ponyfill folds onto it, the realm-fold canon and the babel leg's plan
+// spelling), while a tail whose peel stops on an unresolvable hop keeps that PROBE read in place
+export function foldTailPristineProxyHops(node, ctx) {
   for (let seq = node; seq?.type === 'SequenceExpression';) {
     const tail = unwrapRuntimeExpr(seq.expressions.at(-1));
     if (tail?.type === 'SequenceExpression') {
@@ -214,7 +216,10 @@ export function dropTailPristineProxyHops(node, ctx) {
       continue;
     }
     const peeled = peelPristineProxyHops(tail, ctx);
-    if (peeled !== tail) seq.expressions[seq.expressions.length - 1] = peeled;
+    if (peeled === tail) return;
+    const erasedWhole = peeled.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(peeled.name)
+      && isPristineProxyGlobal(ctx.adapter, peeled.name) && !!ctx.resolveGlobalPolyfill(peeled.name);
+    seq.expressions[seq.expressions.length - 1] = erasedWhole ? ctx.mintPonyfill(tail.property.name) : peeled;
     return;
   }
 }

@@ -52,6 +52,7 @@ import {
   POSITION_CONSUMES,
   propertyKeyName,
   unwrapRuntimeExpr,
+  useAnchorStart,
   walkPatternIdentifiers,
   isDestructurePattern,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
@@ -252,8 +253,14 @@ export function createBindingAnalysis({
   // FIXED pair (`Object.create`, `Reflect.construct`) are the hot ones. the identifier spelling
   // (a post-rewrite alias like `_Object$create`) carries no readable name, so it still resolves
   // in full and the caller compares as before
-  function resolveStaticCalleePair(callee, scope, method = null) {
+  // `anchorPath` recovers the positional anchor for a callee an emitter re-emitted (a clone
+  // carries no span): the injector's name-keyed lookup is span-disciplined, and a null anchor
+  // is refused outright - the nearest positioned ancestor still sits inside every hosting span
+  function resolveStaticCalleePair(callee, scope, { method = null, anchorPath = null } = {}) {
     if (!callee) return null;
+    function anchorOf(node) {
+      return node.start ?? (anchorPath ? useAnchorStart(anchorPath) : null);
+    }
     if (callee.type === 'MemberExpression' || callee.type === 'OptionalMemberExpression') {
       if (callee.computed) return null;
       if (callee.property?.type !== 'Identifier') return null;
@@ -264,7 +271,7 @@ export function createBindingAnalysis({
         // is consulted before the scope lookup - scope registration of a freshly injected
         // import can lag behind the AST substitution (babel); user bindings are unknown to
         // the registry and fall through to the shadow bail exactly as before
-        const aliased = namespaceFromPolyfillBinding(scope, callee.object.name);
+        const aliased = namespaceFromPolyfillBinding(scope, callee.object.name, anchorOf(callee.object));
         if (aliased) return { constructor: aliased, method: callee.property.name };
         // RAW existence check on purpose: a user shadow must bail even when the funnel's
         // twin filter would drop a namespace-local binding for a pathless lookup
@@ -286,7 +293,7 @@ export function createBindingAnalysis({
     // the alias spelling carries no readable method name, so the filter applies to the RESOLVED
     // pair here. it is the whole contract either way: with `method` given, a returned pair always
     // names it, and a caller matching a fixed pair only has to compare the constructor
-    const pair = staticPairFromPolyfillEntry(scope, callee.name);
+    const pair = staticPairFromPolyfillEntry(scope, callee.name, anchorOf(callee));
     return method !== null && pair?.method !== method ? null : pair;
   }
 
@@ -294,7 +301,7 @@ export function createBindingAnalysis({
   // return-type hint, ...). null when callee is not a known static or the (constructor,
   // method) pair has no registered entry
   function resolveKnownStaticEntry(callee, refPath) {
-    const pair = resolveStaticCalleePair(callee, refPath?.scope);
+    const pair = resolveStaticCalleePair(callee, refPath?.scope, { anchorPath: refPath });
     return pair ? lookupNested(KNOWN_STATIC_METHOD_RETURN_TYPES, pair.constructor, pair.method) : null;
   }
 
@@ -302,7 +309,7 @@ export function createBindingAnalysis({
   // `resolveKnownStaticEntry` (member / proxy-global / post-rewrite alias) - the pair just
   // gates on a fixed `(Reflect, construct)` match instead of a registry lookup
   function isReflectConstructCallee(callee, scope) {
-    return resolveStaticCalleePair(callee, scope, 'construct')?.constructor === 'Reflect';
+    return resolveStaticCalleePair(callee, scope, { method: 'construct' })?.constructor === 'Reflect';
   }
 
   // is `refNode` at a non-mutating slot of a known call? SpreadElement is unwrapped first:
@@ -642,7 +649,7 @@ export function createBindingAnalysis({
     if (parent?.type !== 'CallExpression' && parent?.type !== 'OptionalCallExpression') return false;
     // `refNode` is the walker-peeled OUTERMOST wrapper - the argument node itself
     if (!parent.arguments?.includes(refNode)) return false;
-    const pair = resolveStaticCalleePair(parent.callee, refPath?.scope);
+    const pair = resolveStaticCalleePair(parent.callee, refPath?.scope, { anchorPath: refPath });
     if (!pair) return false;
     const key = `${ pair.constructor }.${ pair.method }`;
     const retains = ARGUMENT_HOLDING_STATIC_CALLEES.has(key)
@@ -761,7 +768,7 @@ export function createBindingAnalysis({
   }
 
   function isProtoSetterCallee(calleePath) {
-    const pair = resolveStaticCalleePair(calleePath.node, calleePath.scope);
+    const pair = resolveStaticCalleePair(calleePath.node, calleePath.scope, { anchorPath: calleePath });
     return pair?.method === 'setPrototypeOf' && (pair.constructor === 'Object' || pair.constructor === 'Reflect');
   }
 

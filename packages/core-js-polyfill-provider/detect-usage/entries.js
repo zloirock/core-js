@@ -62,7 +62,7 @@ export function getEntrySource(node, adapter, scope) {
   // that preserve `ParenthesizedExpression` would otherwise miss these entry patterns
   const expr = unwrapTransparentSeq(node.expression);
   // require('core-js/...') (incl. webpack `(0, require)(...)`, TS-wrapped, optional `require?.()`)
-  const required = requireCallSource(expr, adapter, scope);
+  const required = requireCallSource(expr, { adapter, scope });
   if (required !== null) return required;
   // await import('core-js/...') as a top-level statement (ESM top-level await).
   // bare `import('...')` without await is intentionally ignored: it discards the returned
@@ -205,7 +205,7 @@ export function scanExistingCoreJSImports(ast, {
       if (onPureImport && mainPkgs && modePrefix) {
         for (const decl of node.declarations ?? []) {
           if (decl.id?.type !== 'Identifier') continue;
-          const required = requireCallSource(decl.init, adapter, shadowScope);
+          const required = requireCallSource(decl.init, { adapter, scope: shadowScope });
           if (required === null) continue;
           const match = matchEntrySubpath(required, mainPkgs, modePrefix);
           if (match) onPureImport(match.entry, decl.id.name);
