@@ -43,11 +43,15 @@ const PRELUDE = [
   // FUNCTION runs whenever that function does, so it folds whatever its source position says
   'const nbWriteInFn = { y: [1, [2]] };',
   'const poisonNb = () => { nbWriteInFn.y = "str"; };',
-  // the ALIAS-write neighbour is NOT here on purpose: a `const al = o; al.y = 2;` anywhere in the
-  // module makes one leg fold an unrelated computed key-alias whose key is reassigned in a loop
-  // (`Array[k]`), which is a wrong VALUE, not a lost narrow - the row that catches it is
-  // `assign-alias-reassign/loop-test-alias-rerun`, and re-adding these two lines is its fail-before.
-  // its root is the anchor/dominance cluster the queue already owns, not this family
+  // the ALIAS-write neighbour: a `const al = o; al.y = 2;` anywhere in the module once made one leg
+  // fold an unrelated computed key-alias whose key is reassigned in a loop (`Array[k]`) - a wrong
+  // VALUE, not a lost narrow. the mutation census these lines switch on re-visits emitter-swapped
+  // subtrees, and a stale parent index then answered the loop-rerun question "not inside" for the
+  // attached clone. these lines are the fail-before for that class, paired with the row
+  // `assign-alias-reassign/loop-test-alias-rerun` - removing them re-opens the hole silently
+  'const alWriteHeld = { y: 1 };',
+  'const alWriteAlias = alWriteHeld;',
+  'alWriteAlias.y = 2;',
 ];
 
 // absolute URL: the harness materializes snippets in a tmp dir, so a relative specifier
@@ -3854,6 +3858,50 @@ const ASSIGN_ALIAS_REASSIGN = [
   { id: 'flat', decl: 'let M; ({ Map: M } = globalThis); M = { groupBy: () => "U" };' },
   { id: 'array-wrapped', decl: 'let M; [{ Map: M }] = [globalThis]; M = { groupBy: () => "U" };' },
 ];
+// a value resolved through an alias walk re-anchors in the alias's OWN declaration scope: a
+// use-site shadow of a name the value reads must not capture it (the walks used to resolve the
+// returned node at the use site, and a shadowing parameter silently dropped the injection or
+// captured the wrong value). axes: the VALUE CHANNEL the walk returns through x a use-site
+// SHADOW of the read name; every cell carries an unshadowed control in the same family
+// `strip` per channel by what the PURE legs owe: a const-bound factory and a wrapper slot FOLD
+// in pure, so their stripped run proves the fold; a REASSIGNED alias and a diverging ternary
+// DECLINE in pure by design (bail-safe), so those rows' oracle is the usage-global leg
+// (import parity + the armed stripped run of the global output), never the pure stripped realm
+const ALIAS_SCOPE_SHADOW = [
+  { id: 'inline-callee', decl: 'const mk = () => Array;', use: 'mk().from([6, 7]).length', strip: true },
+  { id: 'write-rhs', decl: 'let h = Object; h = Array;', use: 'h.from([8]).length', strip: false },
+  { id: 'reaching-closure', decl: 'let rc = Object; rc = Array;', use: '(() => rc.from([9]).length)()', strip: false },
+  { id: 'branching-alias', decl: 'const br = [].length === 0 ? Array : Object;', use: 'typeof br.from', strip: false },
+];
+function * generateAliasScopeShadow() {
+  for (const c of ALIAS_SCOPE_SHADOW) {
+    for (const shadow of [false, true]) {
+      const fn = shadow ? 'function g(Array) { return ' : 'function g(unused) { return ';
+      const body = `(() => { ${ c.decl } ${ fn }${ c.use }; } return g("x"); })()`;
+      yield { ...snippet(`alias-scope-shadow/${ c.id }${ shadow ? '-shadowed' : '' }`, body), strip: c.strip };
+    }
+  }
+  // the wrapper-slot channel destructures, so it spells its own pair of cells; the SPELLING axis
+  // covers the effective-value judging - a paren (a NODE on oxc alone), a paren on the slot
+  // element and a sequence tail must all follow like the bare literal, and a spread hidden by
+  // the paren must still decline (the negative rides the global leg's import parity)
+  const WRAPPER_DECLS = [
+    { id: 'wrapper-slot', decl: 'const [w] = [[globalThis]];' },
+    { id: 'wrapper-slot-paren-init', decl: 'const [w] = ([[globalThis]]);' },
+    { id: 'wrapper-slot-paren-element', decl: 'const [w] = [([globalThis])];' },
+    { id: 'wrapper-slot-seq-init', decl: 'let e = 0; const [w] = (e++, [[globalThis]]);' },
+    { id: 'wrapper-slot-paren-spread', decl: 'const xs = []; const [w] = ([...xs, [globalThis]]);', strip: false },
+  ];
+  for (const c of WRAPPER_DECLS) {
+    for (const shadow of [false, true]) {
+      const param = shadow ? 'Object' : 'unused';
+      const body = `(() => { ${ c.decl } function g(${ param }) { `
+        + 'const [{ Object: { fromEntries: wf } }] = w; return wf([["d", 4]]).d; } return g("x"); })()';
+      yield { ...snippet(`alias-scope-shadow/${ c.id }${ shadow ? '-shadowed' : '' }`, body), strip: c.strip ?? true };
+    }
+  }
+}
+
 function * generateAssignAliasReassign() {
   for (const c of ASSIGN_ALIAS_REASSIGN) {
     const body = `(() => { ${ c.decl } return String(M.groupBy([1], x => x)); })()`;
@@ -7507,6 +7555,7 @@ export function * generate() {
   yield * generateNestedInstanceReceiver();
   yield * generateParamDefaultInstance();
   yield * generateAssignAliasReassign();
+  yield * generateAliasScopeShadow();
   yield * generateClosureReassignedKey();
   yield * generateSealedReads();
   yield * generateProtoInstall();

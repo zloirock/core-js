@@ -1932,6 +1932,19 @@ function ownerParentIndex(ownerNode) {
   return parents;
 }
 
+// the cached index goes stale when an emitter swaps a subtree AFTER the first query built it: a
+// claim re-visited on the attached clone then misses in the map, and a containment climb reads
+// the miss as "not inside" - flipping a loop-rerun / guard verdict to the unsound pole (a pure
+// fold of a loop-reassigned key rode exactly this). rebuild once on a miss before answering: a
+// genuinely outside target misses in the fresh index too and keeps the honest answer, while a
+// post-mutation subtree is re-indexed and located
+function ownerParentIndexLocating(ownerNode, target) {
+  const parents = ownerParentIndex(ownerNode);
+  if (target === ownerNode || parents.has(target)) return parents;
+  ownerParentIndexCache.delete(ownerNode);
+  return ownerParentIndex(ownerNode);
+}
+
 // the first of `fields` on `parent` holding `child` (direct or as an array element), or null.
 // the candidate list comes from the caller's own per-type table - scanning `Object.entries(parent)`
 // allocated an entries array per spine step to find a key that could only ever be one of those few
@@ -1949,7 +1962,7 @@ function parentFieldOf(parent, child, fields) {
 // the usage-pure reachability gate - a use re-run by a loop back-edge can observe a
 // textually-later write
 const nodeSitsInLoopRerunWithin = memoizeByNodePair((ownerNode, target) => {
-  const parents = ownerParentIndex(ownerNode);
+  const parents = ownerParentIndexLocating(ownerNode, target);
   for (let child = target; child !== ownerNode;) {
     const parent = parents.get(child);
     if (!parent) return false;
@@ -2014,7 +2027,7 @@ function isLogicalAssignReassignment(node, ownerNode) {
 // order comes from reversing the climb. array-valued branch fields (a switch-case body has no
 // wrapper node) record the parent as the guard, object-valued ones the branch node itself
 const collectVarGuardsToDeclarator = memoizeByNodePair((ownerNode, target) => {
-  const parents = ownerParentIndex(ownerNode);
+  const parents = ownerParentIndexLocating(ownerNode, target);
   if (target !== ownerNode && !parents.has(target)) return null;
   const guards = [];
   for (let child = target; child !== ownerNode;) {
@@ -2348,6 +2361,36 @@ function bindingDeclaratorName(binding) {
   return id?.type === 'Identifier' ? id.name : null;
 }
 
+// the init a declarator ties to the NAME itself - null for a destructuring declarator (it binds
+// the name to a SLOT of the init, not the init: following the whole init there smuggles the
+// container - the wrong-value fold the binding-follow canon rejects) and for non-declarator /
+// init-less bindings. every "binding -> its init" follow asks this accessor; a hand-spelled
+// `binding.node?.init` skips the pattern gate and re-opens that fold
+export function identifierDeclaratorInit(binding) {
+  const node = bindingDeclaratorNode(binding);
+  return node?.type === 'VariableDeclarator' && node.id?.type === 'Identifier' ? node.init ?? null : null;
+}
+
+// the pattern complement of `identifierDeclaratorInit`: the value a PATTERN declarator ties to
+// `name`, through the canon slot pairing (`const [wrapper] = [[globalThis]]` holds `[globalThis]`).
+// null unless the pairing is UNIQUE and its union COMPLETE: the union is an over-approximation
+// (a pair the enumerator cannot read contributes NOTHING), so a several-value union, a slot
+// DEFAULT (a lone resolved default wrongly reads as certain - the runtime may pair a value the
+// enumerator could not see, `{ wrapper = [A] } = { ...src }`) and a spread-shifted slot all
+// decline. `maybe` (inject-if-might classification only) lifts the completeness gates: a lone
+// enumerable candidate may follow there, because a wrong guess over-injects - the safe
+// direction - while pure precision substituting a value the runtime may not hold is not.
+// `ctx` is the pairing's `{ scope, adapter, path, resolveKey }`, anchored at the DECLARATION's
+// scope by the caller
+export function patternBoundAliasSlotInit(binding, name, ctx, { maybe = false } = {}) {
+  const decl = bindingDeclaratorNode(binding);
+  if (decl?.type !== 'VariableDeclarator' || decl.id?.type === 'Identifier' || !decl.init) return null;
+  const values = patternSlotValues(decl.id, decl.init, name, ctx);
+  if (values.length !== 1) return null;
+  return maybe || (!patternSlotHasDefault(decl.id, name)
+    && !patternSlotSpreadShifted(decl.id, decl.init, name, ctx)) ? values[0] : null;
+}
+
 export function reachingReassignmentValueNode({ binding, usagePath, ctx = null, usageNode = null, requireSingleObservation = false }) {
   if (!usagePath) return null;
   const owner = findNearestVarScopeOwner(usagePath);
@@ -2555,25 +2598,33 @@ export function findObjectKeyBeforeSpread(properties, matches) {
 // follow a const-bound identifier to its literal init (`const arr = [Map]` -> the ArrayExpression,
 // `const src = { from: f }` -> the ObjectExpression) so a variable-sourced literal resolves like an
 // inline one. a const aliased to another const (`const src = base; const base = { from: f }`) follows
-// the whole chain. only an UNREASSIGNED binding's init is authoritative - a reassigned binding or a
-// non-literal init passes the ORIGINAL node through unchanged. ctx: `{ scope, adapter, path }`; the
-// depth bound stops a const cycle (`const a = b; const b = a` is a TDZ error anyway)
+// the whole chain, and a PATTERN-bound alias (`const [wrapper] = [[globalThis]]`) follows its slot's
+// unique, spread-complete pairing. only an UNREASSIGNED binding's init is authoritative - a
+// reassigned binding or a non-literal init passes the ORIGINAL node through unchanged. ctx:
+// `{ scope, adapter, path }`; the depth bound stops a const cycle (`const a = b; const b = a` is a
+// TDZ error anyway), and it rides through the pattern pairing (`aliasFollowDepth`) because a cycle
+// spelled ACROSS two pattern declarators re-enters this walk via `patternSlotValues` without
+// spinning any single loop
 export function followConstLiteralAlias(node, ctx) {
   let cur = node;
-  for (let depth = 0; depth <= 16; depth++) {
-    if (!ctx || cur?.type !== 'Identifier' || !ctx.adapter.hasBinding(ctx.scope, cur.name, ctx.path)) break;
-    const binding = ctx.adapter.getBinding(ctx.scope, cur.name, ctx.path);
+  let scope = ctx?.scope;
+  for (let depth = ctx?.aliasFollowDepth ?? 0; depth <= 16; depth++) {
+    if (!ctx?.adapter || cur?.type !== 'Identifier' || !ctx.adapter.hasBinding(scope, cur.name, ctx.path)) break;
+    const binding = ctx.adapter.getBinding(scope, cur.name, ctx.path);
+    if (!binding) break;
     // a reassigned alias follows only on the method-aware flow proof (for pure: no write can
     // reach this read) - the flat break kept a later `w = []` blocking a read it provably
     // does not touch; adapters without a method keep the conservative flat bail
-    if (binding?.constantViolations?.length
+    if (binding.constantViolations?.length
       && reassignBailApplies({ binding, adapter: ctx.adapter, path: ctx.path, usageNode: cur })) break;
-    const decl = binding?.path?.node ?? binding?.node;
-    // only a PLAIN declarator binds the name to its init: a destructure declarator binds a
-    // SELECTED slot, so blindly returning the whole init would smuggle the container in place
-    // of the slot value (pattern pairing is `patternSlotValues`' job)
-    if (decl?.type === 'VariableDeclarator' && decl.id?.type !== 'Identifier') break;
-    const init = decl?.init;
+    // the next hop's name was spelled at THIS binding's declaration, so it resolves there - in the
+    // use scope a shadow of that name would smuggle in the wrong binding
+    scope = aliasDeclScope(binding, scope);
+    // the hop's value is judged EFFECTIVE, like the detect-side follow judges it: a paren (an oxc
+    // NODE), a TS cast or a sequence tail hand the same runtime value, and the raw spelling split
+    // the legs (`const w = ([Map])` followed on babel, broke here)
+    const init = unwrapExpressionChain(identifierDeclaratorInit(binding)
+      ?? patternBoundAliasSlotInit(binding, cur.name, { ...ctx, scope, aliasFollowDepth: depth + 1 }));
     if (init?.type === 'ArrayExpression' || init?.type === 'ObjectExpression') return init;
     if (init?.type !== 'Identifier') break;
     cur = init;
@@ -2600,8 +2651,10 @@ export function patternSlotValues(pattern, rhs, name, ctx) {
     return target?.type === 'AssignmentPattern' ? target.left : target;
   }
   // a const-identifier rhs bound to a literal (`const arr = [Map]; [A] = arr`) - follow it so the
-  // pairing sees the underlying array / object, like the direct-literal form
-  rhs = followConstLiteralAlias(rhs, ctx);
+  // pairing sees the underlying array / object, like the direct-literal form. the EFFECTIVE value
+  // peel comes first: a paren (an oxc NODE), a TS cast or a sequence tail all hand the same
+  // runtime value, and judging the raw spelling split the legs on `([[globalThis]])`
+  rhs = followConstLiteralAlias(unwrapExpressionChain(rhs), ctx);
   function propKey(prop) {
     return patternPropKey(prop, ctx, pattern);
   }
@@ -2678,6 +2731,10 @@ export function patternSlotValues(pattern, rhs, name, ctx) {
 // into its slots: a shifted array sits just as well under a key (`{ x: [, A] } = { x: [...xs, V] }`).
 // mirrors `patternSlotHasDefault` / `patternSlotValues`, which walk both pattern kinds
 export function patternSlotSpreadShifted(pattern, rhs, name, ctx = null) {
+  // the SAME head normalization as `patternSlotValues`, or the two answer about DIFFERENT nodes:
+  // values enumerated through a followed / peeled rhs with completeness judged on the raw spelling
+  // would read a lone candidate as certain while an alias or a paren hides the shift
+  rhs = followConstLiteralAlias(unwrapExpressionChain(rhs), ctx);
   if (pattern?.type === 'ObjectPattern') {
     for (const prop of pattern.properties) {
       if (prop.type !== 'Property' && prop.type !== 'ObjectProperty') continue;
@@ -2891,6 +2948,19 @@ export function isReassignedBeyondDeclarator(binding) {
 // phantoms. recompute from the AST by declaration kind, then strip the valueless-redeclaration
 // self-records, so both adapters hand the resolver one list for identical source; a path-less
 // lookup (no use anchor) and a kind outside the recompute keep the tracker's raw list
+// the positional anchor of a use: the node's own start, else the nearest POSITIONED ancestor's.
+// a subtree an emitter re-emitted carries clones with no spans, and a name-keyed positional
+// lookup asked with `null` there is refused outright (the span discipline cannot run) - losing
+// the fold on our own rebuilt spans. an ancestor's start still sits inside every scope span that
+// contains the use, so the span discipline serves the same record; the order proofs only get an
+// EARLIER anchor, which declines more, never less
+export function useAnchorStart(path) {
+  for (let p = path; p; p = p.parentPath) {
+    if (typeof p.node?.start === 'number') return p.node.start;
+  }
+  return null;
+}
+
 export function recomputedBindingWrites({ kind, bindingPath, usePath, name, fallback }) {
   return withoutValuelessDeclarationViolations(!usePath ? fallback
     : kind === 'var' ? collectFunctionScopeVarReassignments(usePath, name)
@@ -2918,14 +2988,19 @@ function importBindingKind(bindingNode, bindingParent) {
 // the import-binding fields of the adapter contract, off the binding's declaration slot:
 // `importSource` feeds the provider's symbol-import recognition, and `importKind` is the
 // EFFECTIVE kind - `import { type X }` carries it on the specifier, `import type X` on the
-// declaration - so the erasure canon reads one field covering both spellings
-export function importBindingView(bindingNode, bindingParent) {
+// declaration - so the erasure canon reads one field covering both spellings.
+// `shadowCtx` ({ adapter, scope, path }) carries the require-source canon's shadow discipline
+// into the require arm: a `var require` hoisted anywhere in scope makes the call the USER's
+// function, so the binding carries NO module source - recognised by NAME alone, a shadowed
+// require minted an importSource every consumer then trusted (a pure fold over an opaque value)
+export function importBindingView(bindingNode, bindingParent, shadowCtx = null) {
   const isImportBinding = IMPORT_SPECIFIER_TYPES.has(bindingNode?.type);
   // the require-style twin (`var _x = require('...')`) is its own flag: consumers that mean
   // "an ES import specifier" keep their gate, the polyfill-hint gate accepts both spellings
   const isRequireBinding = !isImportBinding && bindingNode?.type === 'VariableDeclarator'
     && bindingNode.init?.type === 'CallExpression' && bindingNode.init.callee?.name === 'require'
-    && typeof bindingNode.init.arguments?.[0]?.value === 'string';
+    && typeof bindingNode.init.arguments?.[0]?.value === 'string'
+    && !(shadowCtx && shadowCtx.adapter?.hasBinding?.(shadowCtx.scope, 'require', shadowCtx.path ?? null));
   return {
     isImportBinding,
     isRequireBinding,
@@ -4487,14 +4562,22 @@ export function tsImportEqualsProxyName(node, adapter, packages = null) {
 }
 
 // the proxy-global name an import BINDING stands for, or null when it is not such an import.
-// covers BOTH import forms one surface serves: the ES default/namespace specifier and the TS
-// `import g = require(...)` declaration - a consumer branching on just one goes blind to the
-// other's receiver (the member-read channel missed the TS twin exactly that way)
+// covers the THREE import forms one surface serves: the ES default/namespace specifier, the TS
+// `import g = require(...)` declaration, and the bare-CJS `var g = require('.../global-this')`
+// (the adapters surface its source on the binding like an import's, and `module.exports` of a
+// pure global-proxy entry IS the global object with no `.default` hop between). a consumer
+// branching on just one form goes blind to the others' receiver - the member-read channel missed
+// the TS twin exactly that way, and the guard channels erased over the require twin's probe
 export function importedGlobalProxyName(binding, packages, adapter = null) {
   if (binding?.node?.type === 'TSImportEqualsDeclaration') {
     return tsImportEqualsProxyName(binding.node, adapter, packages);
   }
-
+  // reassignment gate mirrors the require-source recogniser's: a rebound name no longer provably
+  // holds the module object; the Identifier-id gate is the declarator-slot canon
+  if (binding?.node?.type === 'VariableDeclarator' && binding.importSource
+    && binding.node.id?.type === 'Identifier' && !isReassignedBeyondDeclarator(binding)) {
+    return globalProxyNameFromImportSource(binding.importSource, packages);
+  }
   return bindsModuleDefault(binding?.node) && !importBindingIsTypeOnly(binding)
     ? globalProxyNameFromImportSource(binding?.importSource, packages) : null;
 }
@@ -6900,6 +6983,17 @@ export const POSITION_INSPECTS = 'inspects';
 const POSITION_HANDS_OUT = 'hands-out';
 
 export function positionDisposition(parent, node, parentNodePath) {
+  // BOTH calling conventions are live: one caller climbs a reference to its outermost transparent
+  // wrapper and hands the WRAPPER as `node` (with the parent above it), another hands the raw node
+  // under an unpeeled slot. normalize ONCE at the head - the node and every compared slot go
+  // through the runtime-expression peel - so the two conventions answer alike on every arm; a raw
+  // identity compare answered each convention on a different half of the arms, and the misses fell
+  // on DIFFERENT defaults (a sequence tail read as CONSUMES kept a narrow on a value that flows
+  // on; a test slot read as its else-arm over-bailed)
+  node = unwrapRuntimeExpr(node);
+  function inSlot(slot) {
+    return unwrapRuntimeExpr(slot) === node;
+  }
   switch (parent?.type) {
     // evaluated and dropped: a statement, a `for (;;)` head slot, an update that stores a NUMBER back
     case 'ExpressionStatement':
@@ -6913,30 +7007,38 @@ export function positionDisposition(parent, node, parentNodePath) {
       return POSITION_CONSUMES;
     case 'BinaryExpression':
       return parent.operator === 'instanceof' ? POSITION_HANDS_OUT : POSITION_CONSUMES;
-    // a `for...in` head enumerates KEYS without ever calling into the value. `for...of` is NOT here:
+    // a `for...in` head enumerates the RIGHT slot's KEYS without ever calling into the value
+    // (CONSUMES); the LEFT is a write target this question does not model. `for...of` is NOT here:
     // it invokes the value's own iterator, which is free to yield `this` - the walks gate that
     case 'ForInStatement':
-      return parent.right === node ? POSITION_CONSUMES : POSITION_HANDS_OUT;
+      return inSlot(parent.right) ? POSITION_CONSUMES : POSITION_HANDS_OUT;
+    // the DISCRIMINANT / case TEST is compared by identity and reachable nowhere else (CONSUMES)
     case 'SwitchStatement':
-      return parent.discriminant === node ? POSITION_CONSUMES : POSITION_HANDS_OUT;
+      return inSlot(parent.discriminant) ? POSITION_CONSUMES : POSITION_HANDS_OUT;
     case 'SwitchCase':
-      return parent.test === node ? POSITION_CONSUMES : POSITION_HANDS_OUT;
-    // a branch / loop head takes only the truthiness; a conditional's BRANCHES forward instead
+      return inSlot(parent.test) ? POSITION_CONSUMES : POSITION_HANDS_OUT;
+    // a branch / loop head TEST takes only the truthiness (CONSUMES); a conditional's BRANCHES
+    // forward instead - the ternary's own position decides
     case 'DoWhileStatement':
     case 'IfStatement':
     case 'WhileStatement':
-      return parent.test === node ? POSITION_CONSUMES : POSITION_HANDS_OUT;
+      return inSlot(parent.test) ? POSITION_CONSUMES : POSITION_HANDS_OUT;
     case 'ConditionalExpression':
-      return parent.test === node ? POSITION_CONSUMES : POSITION_FORWARDS;
+      return inSlot(parent.test) ? POSITION_CONSUMES : POSITION_FORWARDS;
     // an untagged template string-coerces the value; a TAGGED one hands the raw value to the tag
     case 'TemplateLiteral':
       return parentNodePath?.parentPath?.node?.type === 'TaggedTemplateExpression'
         ? POSITION_HANDS_OUT : POSITION_CONSUMES;
-    // every element of a sequence but the LAST is evaluated and dropped; the last one IS the value
+    // every element of a sequence but the LAST is evaluated and dropped (CONSUMES); the TAIL is the
+    // sequence's own value and flows on (FORWARDS) - a raw compare against a wrapped tail read it
+    // as CONSUMES, keeping a narrow on a value that escapes
     case 'SequenceExpression':
-      return parent.expressions?.at(-1) === node ? POSITION_FORWARDS : POSITION_CONSUMES;
-    // containers and binders the value flows THROUGH - the walk that can follow it continues there,
-    // the walk that cannot treats an unfollowable forward as a hand-out
+      return inSlot(parent.expressions?.at(-1)) ? POSITION_FORWARDS : POSITION_CONSUMES;
+    // containers and binders the value flows THROUGH, whatever slot it stands in - an array element,
+    // either side of `=` (the RIGHT is the stored/whole value; a reference standing as the WRITE
+    // TARGET is the callers' own pre-filter, not a value position this question models), a default's
+    // right, a logical operand, a spread argument, a declarator init. the walk that can follow the
+    // value continues there; the walk that cannot treats an unfollowable forward as a hand-out
     case 'ArrayExpression':
     case 'AssignmentExpression':
     case 'AssignmentPattern':
@@ -6944,20 +7046,18 @@ export function positionDisposition(parent, node, parentNodePath) {
     case 'SpreadElement':
     case 'VariableDeclarator':
       return POSITION_FORWARDS;
-    // a property stores its VALUE; standing in the computed KEY slot instead coerces the value to a
-    // string and keeps nothing of it. shorthand (`{ x }`) puts one node in both slots - it stores
+    // a property stores its VALUE (FORWARDS); standing in the computed KEY slot instead coerces the
+    // value to a string and keeps nothing of it (CONSUMES). shorthand (`{ x }`) puts one node in
+    // both slots - it stores
     case 'ObjectProperty':
     case 'Property':
-      // BOTH sides through the peel: a caller may hand a reference already climbed to its outermost
-      // transparent wrapper, and peeling only the slot compares an inner value against that wrapper -
-      // the position then reads as CONSUMES and a leaked value keeps a narrow it must not keep
-      return unwrapRuntimeExpr(parent.value) === unwrapRuntimeExpr(node) ? POSITION_FORWARDS : POSITION_CONSUMES;
-    // the CALLEE slot is a read of the value, not a hand-out of it; an ARGUMENT is the callee's call
+      return inSlot(parent.value) ? POSITION_FORWARDS : POSITION_CONSUMES;
+    // an ARGUMENT is the callee's call - the CALLEE decides, per slot (INSPECTS); the callee slot
+    // itself is a read of the value, not a hand-out of it (CONSUMES)
     case 'CallExpression':
     case 'NewExpression':
     case 'OptionalCallExpression':
-      return parent.arguments?.some(arg => unwrapRuntimeExpr(arg) === unwrapRuntimeExpr(node))
-        ? POSITION_INSPECTS : POSITION_CONSUMES;
+      return parent.arguments?.some(arg => inSlot(arg)) ? POSITION_INSPECTS : POSITION_CONSUMES;
     // reading a member OFF the value yields the member, not the value; standing in the computed KEY
     // slot coerces the value to a string. which member, and whether reading it hands a re-bindable
     // method out, is the walks' own business
@@ -6970,11 +7070,12 @@ export function positionDisposition(parent, node, parentNodePath) {
 }
 
 // the NAME a forwarding position binds the value to: a declarator id (`const b = a`) or a simple
-// assignment target (`b = a`, `b ||= a`). NOT a default's target: a reference standing in a default
-// VALUE slot is an escaping read both walks report as such, so that the value cannot be narrowed as
-// a trusted object while the default's holder may still have mutated it the value stays reachable through that one name, so both
-// walks keep tracking it there. a coercing compound operator is excluded by the shared value-flow op
-// set - it stores a converted value, not the reference
+// assignment target (`b = a`, `b ||= a`). NOT a default's target: the default-VALUE slot is the ONE
+// position where the two escape walks legitimately part - an object written INLINE there is
+// reachable only through the default's holder, which the anonymous-holder walk follows, while a
+// NAMED value keeps its own binding beside the holder, so the named walk reports the reference as
+// an escaping read instead of binding it here. a coercing compound operator is excluded by the
+// shared value-flow op set - it stores a converted value, not the reference
 // the chain END a kept probe nav feeds, or null when nothing is owed there. both emitters ask the
 // same two questions - how far the member chain runs above the nav, and whether its end is the
 // CALLEE of a polyfilled dispatch (that receiver belongs to the instance channel, which renders it
