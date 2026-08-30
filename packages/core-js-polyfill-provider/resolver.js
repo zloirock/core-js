@@ -2,6 +2,7 @@
 // "is the receiver a proxy global?" to avoid recursing on `globalThis.X` -> `globalThis.X.X`.
 // abstracting this would require an extra adapter layer for one Set lookup - kept inline
 import {
+  MUTATED_MEMBERS_UNKNOWN,
   kebabToPascal,
   POSSIBLE_GLOBAL_OBJECTS,
   proxyNavEffectsHarvestable,
@@ -151,7 +152,7 @@ function pureImportName(kind, name, importEntry) {
 // high-level polyfill resolver factory.
 // validates options, resolves targets, creates resolver + debug output.
 export function createPolyfillResolver(options, {
-  typeResolvers, astPredicates, getBabelTargets,
+  typeResolvers, astPredicates, getBabelTargets, isMutatedStatic = null,
 } = {}) {
   const { resolvePropertyObjectType, resolveGuardHints, resolvePropertyUnionHints, toHint, isString, isObject } = typeResolvers;
   const { isMemberLike, isCallee, isSpreadElement } = astPredicates;
@@ -337,7 +338,12 @@ export function createPolyfillResolver(options, {
     // unresolvable, so it must carry the ctor's statics itself - the constructor entry
     // answered `undefined` for `w.k.groupBy` where every target engine with the ctor
     // answers the member, and keeping the reference RAW instead broke the stripped realm
-    if (entry.endsWith('/constructor') && escapedCtorClaim(path)) {
+    // ... and so does a ctor whose MEMBERS the mutation census could not name (`delete Map[k]`):
+    // reads through it are unresolvable for the same reason, and every one of them lands on this
+    // binding, so it has to bring the statics itself. the bare constructor entry installs none,
+    // which a realm without the native answers with `undefined`
+    if (entry.endsWith('/constructor')
+      && (escapedCtorClaim(path) || isMutatedStatic?.(resolved.name, MUTATED_MEMBERS_UNKNOWN))) {
       entry = entry.replace(/\/constructor$/u, '');
     }
     return {

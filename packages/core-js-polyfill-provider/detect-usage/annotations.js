@@ -15,6 +15,7 @@ import {
 import { globalProxyMemberName, isProxyGlobalIdentifierNode } from '../helpers/class-walk.js';
 import {
   maximalProxyGlobalPrefix, navHasUnresolvableProxyHop, peelChainAssignment, peelReceiverSequenceTail,
+  peelChainRootValue,
   proxyReceiverValueCanBeUndefined, resolveKey, resolveObjectName, undefinableProxyRootValue,
   unwrapTransparentSeq,
 } from './resolve.js';
@@ -481,7 +482,24 @@ export function isPolyfillableOptional({
   const objName = objCore?.type === 'Identifier'
     ? (adapter.hasBinding(scope, objCore.name, path) ? null : objCore.name)
     : globalProxyMemberName({ node: objCore, scope, adapter, path });
-  if (!objName) return false;
+  // a CTOR read off proxy navigation names the STATIC HOST below: `globalProxyMemberName` answers for
+  // a proxy HOP only, so `(v = globalThis.self).Number?.MAX_SAFE_INTEGER.name` found no name at all,
+  // kept the guard live, and the claim under it died into a raw read off the ponyfill. asked of the
+  // HOST - it has to be proxy navigation - because that is what makes the read a real constructor off
+  // the realm. it feeds the STATIC arm only: the global early-return reasons about the receiver being
+  // the always-defined realm, which a constructor read is not
+  const ctorRead = !objName && member === node
+    && (objCore?.type === 'MemberExpression' || objCore?.type === 'OptionalMemberExpression')
+    // the host is read through its CARRIERS - a store, a sequence tail, the wrappers around either,
+    // nested in any order - which is the chain-root peel's own fixpoint
+    && POSSIBLE_GLOBAL_OBJECTS.has(resolveObjectName({
+      objectNode: peelChainRootValue(objCore.object), scope, adapter, path,
+    }) ?? '')
+    ? resolveObjectName({ objectNode: objCore, scope, adapter, path }) : null;
+  // a PROXY hop is not a constructor read: it names the realm again, and the arms that reason about
+  // the realm are the ones above - answering here would deopt a probe's own guard
+  const ctorHost = ctorRead && !POSSIBLE_GLOBAL_OBJECTS.has(ctorRead) ? ctorRead : null;
+  if (!objName && !ctorHost) return false;
   // the global early-return applies ONLY to the member shape (`Global?.member`), where the `?.`
   // guards the always-defined global itself. for the call shape (`Global.member?.()`) the `?.`
   // guards the MEMBER, so the deopt is sound only when that member is a real static (the property
@@ -492,9 +510,10 @@ export function isPolyfillableOptional({
   // pure root, so the `?.` over a multi-hop proxy receiver is as dead as over a single-hop one. a non-alias
   // member (`globalThis.self.foo?.x`) stays guarded (`foo` may be undefined) - globalProxyMemberName returns
   // the raw last-hop name without an alias check, so the POSSIBLE_GLOBAL_OBJECTS gate distinguishes the two
-  if (member === node && !undefinableReceiver
+  if (objName && member === node && !undefinableReceiver
     && (resolve({ kind: 'global', name: objName }) || POSSIBLE_GLOBAL_OBJECTS.has(objName))) return true;
-  const resolved = memberKey && resolve({ kind: 'property', object: objName, key: memberKey, placement: 'static' });
+  const staticHost = objName ?? ctorHost;
+  const resolved = memberKey && resolve({ kind: 'property', object: staticHost, key: memberKey, placement: 'static' });
   if (resolved?.kind !== 'static' && resolved?.kind !== 'global') return false;
   // the resolved-member deopt leans on the same collapse claim as the arms above: an
   // undefinable receiver VALUE keeps the `?.` (the branch must not run where native
@@ -504,7 +523,7 @@ export function isPolyfillableOptional({
   // defined: usage-pure bailed the substitution and kept the native member, so dropping the `?.`
   // would call a deleted slot unconditionally (throws) where the native chain short-circuits to
   // undefined. `mutatedSet` is null outside usage-pure, so this never changes global-mode deopts
-  return !isMutatedStaticMeta({ kind: 'property', object: objName, key: memberKey }, mutatedSet);
+  return !isMutatedStaticMeta({ kind: 'property', object: staticHost, key: memberKey }, mutatedSet);
 }
 
 export function checkTypeAnnotations(node, onGlobal) {

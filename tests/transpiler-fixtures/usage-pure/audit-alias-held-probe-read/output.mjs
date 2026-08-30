@@ -13,7 +13,7 @@ export const plainRead = (held.from, _Array$from);
 export const optionalRead = null == held ? void 0 : _Array$of(2);
 let assigned;
 assigned = _globalThis.window?.Array;
-export const singleWriteRead = (assigned === Array ? _Array$of : assigned.of.bind(assigned))(3);
+export const singleWriteRead = (assigned.of, _Array$of)(3);
 const chained = held;
 export const chainAliasRead = (chained.of, _Array$of)(4);
 // NEGATIVES: defined held values and the all-plain collapse keep today's renders

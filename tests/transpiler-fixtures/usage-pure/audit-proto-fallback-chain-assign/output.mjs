@@ -5,7 +5,6 @@ import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Set from "@core-js/pure/actual/set/constructor";
 import _WeakMap from "@core-js/pure/actual/weak-map/constructor";
 import _WeakSet from "@core-js/pure/actual/weak-set/constructor";
-var _ref;
 // a prototype-placement ctor claim over a CHAIN-ASSIGN root harvests the kept assignment
 // exactly like a sequence prefix (`(k++, _Map).prototype`): the fallback used to bail on the
 // assignment and strand the raw proxy hop (`.self` unponyfilled off-engine). distinct
@@ -19,7 +18,7 @@ export const seSequenceControl = _nameMaybeFunction((k++, _WeakMap).prototype.ge
 // the OPTIONAL twin keeps its root guard; the ctor claim rides the receiver-independent
 // body verbatim (`_Map.prototype.has`) - the kept assign lives once, in the guard memo
 let o;
-export const optionalKept = null == (_ref = o = _globalThis.window) ? void 0 : _nameMaybeFunction(_Map.prototype.has);
+export const optionalKept = null == (o = _globalThis.window) ? void 0 : _nameMaybeFunction(_Map.prototype.has);
 // a call tail with NO polyfillable meta above the fallback still keeps the root guard: the
 // fold ate it before (`(c = gw, _Set).prototype.has.call(x)` returned a live value where
 // native short-circuits to undefined on the absent window)

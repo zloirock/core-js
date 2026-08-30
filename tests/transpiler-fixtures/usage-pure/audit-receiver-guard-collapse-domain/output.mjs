@@ -1,6 +1,6 @@
 import _Array$from from "@core-js/pure/actual/array/from";
+import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _globalThis from "@core-js/pure/actual/global-this";
-import _at from "@core-js/pure/actual/instance/at";
 import _JSON$stringify from "@core-js/pure/actual/json/stringify";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Math$hypot from "@core-js/pure/actual/math/hypot";
@@ -11,7 +11,7 @@ import _Reflect$ownKeys from "@core-js/pure/actual/reflect/own-keys";
 import _self from "@core-js/pure/actual/self";
 import _String$fromCodePoint from "@core-js/pure/actual/string/from-code-point";
 import _endsWithMaybeString from "@core-js/pure/actual/string/instance/ends-with";
-var _ref, _ref2, _ref3;
+var _ref, _ref2;
 // what the receiver-guard channel keeps in the KEPT chain-assign value, by hop kind: a navigation
 // that IS the value collapses to its last ponyfillable hop, one whose last hop has no pure entry
 // keeps the root and reads that hop off it, and one whose UNRESOLVABLE hop sits in the middle
@@ -23,11 +23,11 @@ export const lastHopStatic = (selfPlain = _self, _Map$groupBy)([1, 2], v => v % 
 export const lastHopValue = (selfPlainB = _self, _Object$entries)({
   a: 1
 });
-export const lastHopCallTail = _at(_ref = (selfPlainC = _self, _Array$from)([1])).call(_ref, 0);
+export const lastHopCallTail = _atMaybeArray(_ref = (selfPlainC = _self, _Array$from)([1])).call(_ref, 0);
 let unponyfilled, unponyfilledB, unponyfilledC;
 export const rootOnlyStatic = null == (unponyfilled = _globalThis.window) ? void 0 : _Math$hypot(3, 4);
 export const rootOnlyValue = null == (unponyfilledB = _globalThis.window) ? void 0 : _Number$parseFloat('1.5');
-export const rootOnlyCallTail = null == (_ref2 = unponyfilledC = _globalThis.window) ? void 0 : _endsWithMaybeString(_ref3 = _String$fromCodePoint(99)).call(_ref3, 'c');
+export const rootOnlyCallTail = null == (unponyfilledC = _globalThis.window) ? void 0 : _endsWithMaybeString(_ref2 = _String$fromCodePoint(99)).call(_ref2, 'c');
 let midHop, midHopB;
 export const guardedPlanStatic = null == (midHop = null == _globalThis.window ? void 0 : _self) ? void 0 : _Reflect$ownKeys({
   b: 2

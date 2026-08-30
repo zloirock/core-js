@@ -1,4 +1,7 @@
 import {
+  memberProxyHopName,
+  asProxyGlobalName,
+  deleteHostAboveChain,
   claimIsInert,
   ESM_MARKER_TYPES,
   detectCommonJS,
@@ -36,6 +39,7 @@ import {
   memberChainEndPath,
   peelParenAndTSSlotPath,
   peelSkippableWrapperPath,
+  subtreeContainsNode,
   isDestructurePattern,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
@@ -88,7 +92,11 @@ import {
 import { chainNavigatesIntoMutatedStatic, isPolyfillableOptional } from '@core-js/polyfill-provider/detect-usage/annotations';
 import { scanExistingCoreJSImports } from '@core-js/polyfill-provider/detect-usage/entries';
 import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
-import createASTHelpers, { deoptionalizeAstNode, isOptionalNode } from './internals/babel-compat.js';
+import createASTHelpers, {
+  deoptionalizeAstNode,
+  destructuredValueAbove,
+  isOptionalNode,
+} from './internals/babel-compat.js';
 import ImportInjector from './internals/import-injector.js';
 import {
   collectMutationPrePass,
@@ -100,6 +108,7 @@ import {
   restoreParenCompensations,
   rebuildLaggedScopeBinding,
   USAGE_VISITORS_IS_HANDLED,
+  USAGE_VISITORS_RELEASE_HANDLED,
   USAGE_VISITORS_RESET,
 } from './internals/detect-usage.js';
 import runEntryDetection from './internals/detect-entry.js';
@@ -190,6 +199,9 @@ export default function plugin(api, options) {
   const { types: t, caller } = api;
   // set at program entry, read by the late-bound compat callbacks below
   let currentSynthSwap = null;
+  // late-bound like `currentSynthSwap`: the usage visitors exist only inside the program visit,
+  // and the emitters reach their handled-marks release through here
+  let currentUsageVisitors = null;
 
   // `getPolyfillBindingEntry` / `getPolyfillBindingHint` read `injector` lazily (assigned in
   // Program enter, declared below) - same late-binding closure pattern as `createASTHelpers`
@@ -222,6 +234,10 @@ export default function plugin(api, options) {
 
   const { resolver, createDebugOutput } = createPolyfillResolver(options, {
     typeResolvers,
+    // the per-file mutation census the ENTRY choice consults (a ctor whose members cannot be
+    // named carries its own statics); `adapter` is built below, so the closure defers like the
+    // type layer's twin above
+    isMutatedStatic: (object, key) => adapter.isMutatedStatic(object, key),
     astPredicates: {
       isMemberLike: path => path.isMemberExpression() || path.isOptionalMemberExpression(),
       // peel parens + TS expression wrappers from `parent.callee` before identity-checking
@@ -293,6 +309,7 @@ export default function plugin(api, options) {
     collapseClaimlessCallRootedNav,
     collapseShortCircuitNavInPlace,
     probedNavGuardValueNode,
+    renderWriteHostProbeGuard,
     sealedClaimThrowProbeNode,
     flushKeptNavCollapseAt,
     keptNavHopClaimSuppressed,
@@ -315,6 +332,9 @@ export default function plugin(api, options) {
     resolvePureGlobalEntry(name, path = null) {
       return resolvePure({ kind: 'global', name }, path);
     },
+    resolvePureStaticEntry(object, key, path = null) {
+      return resolvePure({ kind: 'property', object, key, placement: 'static' }, path);
+    },
     // late-bound like getInjector: the per-file injector exists only inside the program visit
     injectPureGlobal(entry, hintName) {
       debugOutput?.add(entry);
@@ -323,6 +343,12 @@ export default function plugin(api, options) {
     // late-bound like the injector - the synth-swap emitter exists only inside the program visit.
     // only its receiver-collapse half is wanted here, for a chain the guard channel found no real
     // probe on
+    // the detector marks a claimed receiver's hops handled because the claim's render owns them.
+    // an emitter that re-emits the receiver BY IDENTITY breaks that premise, so it says so here and
+    // the hops claim for themselves on the re-visit
+    releaseHandledNode(node) {
+      currentUsageVisitors?.[USAGE_VISITORS_RELEASE_HANDLED]?.(node);
+    },
     collapseReceiverHops(receiver, path, { hopsOnly = false } = {}) {
       const swap = currentSynthSwap?.();
       return swap && path?.scope
@@ -1075,7 +1101,9 @@ export default function plugin(api, options) {
           const guardAssigns = allEffects.filter(effect => !ordered.includes(effect));
           // re-hang the swapped receiver + its raw tail INSIDE a `null == <test> ? void 0 : ...`
           // guard: the swap alone eats the `?.` short-circuit, so the guarded value rides the test
-          function emitReceiverGuard(guardTest) {
+          // `detached`: the test this render lifts out is a node no visitor reaches again - a kept
+          // WRITE stays live (the funnel below collapses it in place), a sequence prefix does not
+          function emitReceiverGuard(guardTest, { detached = false } = {}) {
             receiverPath.replaceWith(t.cloneNode(fallbackId()));
             normalizeOptionalChain(path, false);
             retypeDeadOptionalLinks(path);
@@ -1097,9 +1125,17 @@ export default function plugin(api, options) {
             // funnel: this channel builds its own guard, and skipping the collapse left the
             // intermediate pony hops raw off a root that does not carry them
             collapseKeptNavValueNode(guardTest, path);
-            tip.replaceWith(estreeToBabel(renderShortCircuitGuard(
-              nullFirstGuardTest(navGuardTestNode(guardTest, path), { embed: hostSlot }),
-              hostSlot(tip.node))));
+            const guarded = estreeToBabel(renderShortCircuitGuard(
+              nullFirstGuardTest(navGuardTestNode(guardTest, path, null, null, { detached }),
+                { embed: hostSlot }),
+              hostSlot(tip.node)));
+            // effects the swap would have carried ride AHEAD of the guard: the source runs them
+            // before the probe read, and the guard render has no slot for them inside its test.
+            // an effect standing INSIDE the guard object is not one of those - the test evaluates
+            // that object, so re-emitting it here ran it twice
+            const guardSe = allEffects.filter(effect => !guardAssigns.includes(effect)
+              && !subtreeContainsNode(guardTest, effect));
+            tip.replaceWith(guardSe.length ? withSideEffects(guarded, guardSe) : guarded);
           }
           if (guardAssigns.length === 1 && allEffects.length === 1
             && !staticMayEraseReceiver(path.node, resolveBuiltIn,
@@ -1110,12 +1146,26 @@ export default function plugin(api, options) {
           // a mid-chain `?.` over a plain proxy nav (no SE to fold into the kept sequence): the swap
           // would eat the guard. re-hang inside the undefinable hop's OBJECT; a multi-undefinable
           // chain stands down (keeps the raw source, no single test expresses the union)
-          if (!allEffects.length) {
+          // ... and where the ONLY effect is the kept WRITE: the guard render re-emits that write
+          // inside its own null test, so it is not an erasure the swap has to carry - dropping the
+          // guard there lost the source's short-circuit on the very shape the test spells
+          // ... and where the ONLY effect is the kept WRITE: the guard render re-emits that write
+          // inside its own null test, so it is not an erasure the swap has to carry - dropping the
+          // guard there lost the source's short-circuit on the very shape the test spells
+          // ... and where the ONLY effect is one this render owns itself - the kept WRITE its test
+          // spells, or a prefix it re-emits ahead of the guard
+          {
             const eraseGuard = undefinableOptionalGuard(path.node, resolveBuiltIn,
               path.scope ? { scope: path.scope, adapter, path } : null);
-            if (eraseGuard.kind === 'standdown') return;
-            if (eraseGuard.kind === 'guard') {
-              emitReceiverGuard(eraseGuard.object);
+            if (eraseGuard.kind === 'standdown' && allEffects.length <= 1) return;
+            // the effect COUNT was the gate, and it asks the wrong question: what the guard render
+            // owes is that every effect still runs exactly once, and an effect standing INSIDE the
+            // guard object rides the test itself (`(g = _globalThis, v = <nav>)` IS the test). the
+            // count bound erased the source's short-circuit on every receiver carrying two of them
+            if (eraseGuard.kind === 'guard'
+              && (allEffects.length <= 1
+                || allEffects.every(effect => subtreeContainsNode(eraseGuard.object, effect)))) {
+              emitReceiverGuard(eraseGuard.object, { detached: !hadChainAssign });
               return;
             }
           }
@@ -1165,6 +1215,11 @@ export default function plugin(api, options) {
           // ponyfill is the point, and the unplugin leg collapsed the same source through its own
           // suppressed-hop callback (its visitor reaches the hops this leg's subtree-skip hides)
           if (collapseClaimlessCallRootedNav(path)) return;
+          // a WRITE host consumes the nav without claiming it, so no claim channel leads a render
+          // here - and the receiver's own probe still owes the guard that every READING consumer of
+          // the same nav gets, on both emitters (`(eff(), null == _globalThis.window ? void 0 :
+          // _self).Array.prototype.at = 1`). the write target itself is untouched
+          if (renderWriteHostProbeGuard(path)) return;
           if (synthSwap && isAliasProxyHopChain(path.node, aliasCtx, true)) {
             let rootPath = path;
             while (rootPath.isMemberExpression() || rootPath.isOptionalMemberExpression()) rootPath = rootPath.get('object');
@@ -1174,7 +1229,13 @@ export default function plugin(api, options) {
             // the hop collapse refuses a short-circuitable nav (the probe canon) - render the
             // kept-nav plan in place there, or a raw polyfillable hop key strands off a
             // defined receiver (`window['self']` - the web.self class miss)
-            if (!synthSwap.collapseProxyHopRoot(rootPath, aliasCtx)) collapseShortCircuitNavInPlace(path);
+            // ... but never where the value flows into a DESTRUCTURING pattern: that read is the
+            // claim channel's, and it memoizes the probe (`null == (_ref = ga.window) ? void 0 :
+            // _at(_ref.Array.prototype)`) exactly as it does for a BARE root and for a plain read
+            // off this same alias. collapsing here preempted it and spelled the alias branch's fold
+            // instead - one receiver, two spellings, chosen by which channel got there first
+            if (!synthSwap.collapseProxyHopRoot(rootPath, aliasCtx)
+              && !destructuredValueAbove(path)) collapseShortCircuitNavInPlace(memberChainEndPath({ path, unwrap: unwrapRuntimeExpr }));
           }
           return;
         }
@@ -1214,6 +1275,29 @@ export default function plugin(api, options) {
           // semantics by node type)
           const chainEnd = memberChainEndPath({ path, unwrap: unwrapRuntimeExpr });
           if (chainEnd !== path && collapseShortCircuitNavInPlace(chainEnd)) return;
+          // a proxy-HOP claim whose navigation a `delete` folds WHOLE reaches its slot off the ROOT
+          // binding, not off the hop's own ponyfill - that is the base every other spelling of this
+          // source lands on, and the drive that spells it cannot fire from the hop itself
+          if (memberProxyHopName(path.node) && chainRootPath.isIdentifier()
+            && deleteHostAboveChain(path, path.node, unwrapRuntimeExpr)) {
+            // the `?.` the source wrote over the folded nav guards a read that never happens: the
+            // fold landed the root binding, and the canon has spoken for the whole navigation -
+            // the shared dangling-optional rule spells it, carriers and all
+            function landFoldedRoot(base) {
+              path.replaceWith(base);
+              deoptionalizeDanglingOptionalParent(path);
+            }
+            const rootName = asProxyGlobalName(chainRootPath.node.name);
+            const rootPure = rootName ? resolvePure({ kind: 'global', name: rootName }, path) : null;
+            if (rootPure) {
+              landFoldedRoot(injectPureImport(rootPure.entry, rootPure.hintName));
+              return;
+            }
+            if (!rootName && isAliasProxyHopChain(path.node, path.scope ? { scope: path.scope, adapter, path } : null)) {
+              landFoldedRoot(t.cloneNode(chainRootPath.node));
+              return;
+            }
+          }
         }
 
         if (path.isObjectProperty()) {
@@ -1257,7 +1341,14 @@ export default function plugin(api, options) {
               while (recvRoot.isMemberExpression() || recvRoot.isOptionalMemberExpression()) {
                 recvRoot = peelSkippableWrapperPath(recvRoot.get('object'));
               }
-              synthSwap.collapseProxyHopRoot(recvRoot, { scope: path.scope, adapter, path });
+              // ... and where the hop collapse refuses the nav (a live `?.` over the probe), the
+              // guard render owns it: the dispatch memoizes this receiver, and a raw hop frozen in
+              // that memo is the very read the ponyfill exists for
+              // ... and where a SEQUENCE stands around that nav the hop drive cannot reach it at
+              // all (its climb walks members): the guard render lands in the sequence's own tail,
+              // and a raw hop frozen in this dispatch's memo is the read the ponyfill exists for
+              if (!synthSwap.collapseProxyHopRoot(recvRoot, { scope: path.scope, adapter, path })
+                && recvRoot.isSequenceExpression()) collapseShortCircuitNavInPlace(memberChainEndPath({ path, unwrap: unwrapRuntimeExpr }));
             }
             const innerChain = findInnerPolyChain(path);
             if (innerChain) {
@@ -1433,6 +1524,13 @@ export default function plugin(api, options) {
       // hops the detector suppressed while the meta KEEPS its receiver path: they survive into the
       // output, so this emitter still renders them (the marking only guards the unplugin emitter)
       const keptProxyHops = new WeakSet();
+      // the kept-nav hooks render AHEAD of the claim channel - they fire from the detector's own
+      // suppression points, so the inert test every claim runs never reaches them and the file's
+      // opt-out has to be asked here. without it `core-js-disable-next-line` over a STORED nav was
+      // honoured by the other emitter and ignored by this one
+      function keptNavHookOptedOut(path) {
+        return isDisabled(path.node);
+      }
       const usageVisitors = method !== 'entry-global' ? createUsageVisitors({
         ...commonVisitorOptions,
         keptProxyHops: isPure ? keptProxyHops : undefined,
@@ -1441,6 +1539,7 @@ export default function plugin(api, options) {
         // and nothing else would spell the kept value (`(k = ((globalThis.window.self)))?.X`
         // renders `k = null == _globalThis.window ? void 0 : _self` like its claimed twin)
         suppressKeptNavHop: isPure ? path => {
+          if (keptNavHookOptedOut(path)) return false;
           const owned = keptNavHopClaimSuppressed(path);
           if (owned && owned !== 'plan') collapseKeptNavValueNode(owned, path, { immediate: true });
           return !!owned;
@@ -1448,13 +1547,31 @@ export default function plugin(api, options) {
         // the same stored canon from the nav's proxy-global ROOT (the identifier visit is the
         // one place the member subtree-skip cannot hide): the funnel plans the kept value and
         // reports whether it rendered - every other shape falls through to the normal claim
+        // EVERY store on the value spine, not only the innermost: a nav can be kept twice
+        // (`ntm = (ntw = globalThis).window?.self`), and the inner write - whose value is the bare
+        // root - carries no navigation for the plan to render, so stopping there left the outer
+        // store's hops raw
         suppressKeptNavRoot: isPure ? path => {
-          const stored = storedUserAssignmentOf(path);
-          if (!stored) return false;
-          return !!collapseKeptNavValueNode(stored, path, { immediate: true });
+          if (keptNavHookOptedOut(path)) return false;
+          const seen = new Set();
+          let rendered = false;
+          for (let at = path; at?.parentPath;) {
+            const stored = storedUserAssignmentOf(at);
+            if (!stored || seen.has(stored)) break;
+            seen.add(stored);
+            rendered = !!collapseKeptNavValueNode(stored, path, { immediate: true }) || rendered;
+            while (at?.node && at.node !== stored) at = at.parentPath;
+            at = at?.parentPath;
+          }
+          return rendered;
         } : undefined,
         onSuppressedProxyHop: isPure ? path => {
-          if (isRenderedPlanTail(path.parentPath?.node)) return;
+          if (keptNavHookOptedOut(path)) return;
+          // the node ITSELF as well as its parent: a render whose alternate ends in a tail hop
+          // (`_self.window` under the guard) is re-entered ON that hop, and the drive then folded
+          // a hop the plan deliberately kept - our own output, re-collapsed one step further than
+          // the other leg ever spells it
+          if (isRenderedPlanTail(path.node) || isRenderedPlanTail(path.parentPath?.node)) return;
           // the chain walk and the two verdicts it carries - the nav must be CONSUMED by a step
           // above it, and a POLYFILLED dispatch there owns the receiver itself (it memoized and
           // rebuilt the call, so a render over its callee would strip the invocation's receiver) -
@@ -1487,6 +1604,7 @@ export default function plugin(api, options) {
         // replacement (usage-pure only - usage-global never suppresses proxy receivers)
         resolveMeta: isPure ? resolvePure : undefined,
       }) : null;
+      currentUsageVisitors = usageVisitors;
       // usage-pure already has walkAnnotations=false, matching the helper-pass config;
       // usage-global diverges (annotations needed for usage, not helpers) and needs its own
       const helperVisitors = isPure ? usageVisitors
@@ -1857,7 +1975,9 @@ export default function plugin(api, options) {
         destructureEmit.pruneArrayResiduals();
         // multi-decl split canon AFTER the SE drain - deferred indices were captured
         // against the pre-split body
+        destructureEmit.prepareSplitLiftedPrefixes();
         destructureEmit.splitFlatMultiDecls();
+        destructureEmit.flushForInitCarries();
         // the sentinel `var`s a discarded-element render owes, asked of the finished tree
         destructureEmit.flushDiscardedElementSentinels();
         // AFTER the split canon: a host that renders its declarator late (the retained `for`
@@ -2012,7 +2132,9 @@ export default function plugin(api, options) {
         processDeferredSideEffects(path);
         // helper-body re-traversal may have touched fresh multi-decl declarations
         destructureEmit.pruneArrayResiduals();
+        destructureEmit.prepareSplitLiftedPrefixes();
         destructureEmit.splitFlatMultiDecls();
+        destructureEmit.flushForInitCarries();
         // the sentinel `var`s a discarded-element render owes, asked of the finished tree
         destructureEmit.flushDiscardedElementSentinels();
         rewalkRetainedForInits();

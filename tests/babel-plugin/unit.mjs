@@ -13,4 +13,5 @@ import './transform-idempotence.mjs';
 import './transform-idempotence-pure.mjs';
 import './post-sweep-introduced-global.mjs';
 import './late-paren-compensation-gate.mjs';
+import './parser-dialect-equivalence.mjs';
 import './per-file-teardown.mjs';
