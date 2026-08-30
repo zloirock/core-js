@@ -260,4 +260,21 @@ function makeInjector() {
   checkTruthy('registry/rehydrated sentinel re-arms the idempotency skip', fresh.hasGeneratedUnusedName(sentinel));
 }
 
+{
+  // a USER-named record (body-extract alias) is span-disciplined: a positional ask inside the
+  // hosting span serves it, one outside declines, and a POSITION-BLIND ask never serves it -
+  // without a position the discipline cannot run, and a single record answered file-wide for
+  // every same-named binding (the wrong-Maybe over-resolve the span exists to prevent). the
+  // plugin-minted record stays file-wide: the allocator owns its name, no user shadow exists
+  const injector = makeInjector();
+  injector.registerBodyExtractAlias('from', 'array/from',
+    { kind: 'const', scope: { block: { type: 'FunctionDeclaration', start: 100, end: 200 } } });
+  check('registry/user record serves inside its span', injector.getBindingInfo('from', 150)?.entry, 'array/from');
+  check('registry/user record declines outside its span', injector.getBindingInfo('from', 300), null);
+  check('registry/user record declines a position-blind ask', injector.getBindingInfo('from', null), null);
+  const minted = makeInjector();
+  const uid = minted.addPureImport('array/from', 'Array.from');
+  check('registry/minted record stays file-wide', minted.getBindingInfo(uid, null)?.entry, 'array/from');
+}
+
 finish();
