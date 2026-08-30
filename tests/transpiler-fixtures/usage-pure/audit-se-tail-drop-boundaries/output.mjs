@@ -14,9 +14,10 @@ if (cond) {
 for (var _ref = (effF(), Array), of = _Array$of;;) break;
 // an instance entry needs the receiver at runtime
 const at = _atMaybeArray((effI(), [1, 2])); // a rest element consumes the whole object
+effR();
 const keys = _Object$keys;
 const {
   keys: _unused,
   ...rest
-} = (effR(), _globalThis.Object);
+} = _globalThis.Object;
 export const r = [from, of, at, keys, rest];

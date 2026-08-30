@@ -442,6 +442,8 @@ export default function createPlugin(options) {
   const snapshots = new SnapshotCache({ debug: !!providerOptions.debug });
   const { resolver, createDebugOutput } = createPolyfillResolver(providerOptions, {
     typeResolvers,
+    // the per-file mutation census the ENTRY choice consults - see the babel twin
+    isMutatedStatic: (object, key) => estreeAdapter.isMutatedStatic(object, key),
     astPredicates: {
       isMemberLike: path => path.node?.type === 'MemberExpression',
       // `isCallee` peels parens / TS wrappers / ChainExpression from `parent.callee` before the
