@@ -31,6 +31,7 @@ import {
   isMutatedGlobalSlot,
   isPristineProxyGlobal,
   mayHaveSideEffects,
+  migratableClaimSe,
   peelParenAndTSParentPath,
   peelParenAndTSSlotChild,
   POSSIBLE_GLOBAL_OBJECTS,
@@ -75,7 +76,7 @@ import {
 } from './claim-guards.js';
 import {
   assignmentHoldsValue,
-  dropTailPristineProxyHops,
+  foldTailPristineProxyHops,
   emitNestedGuardNavValue,
   foldRealmHopOverCarriedValue,
   foldUnbackedRealmHopsAbove,
@@ -772,16 +773,6 @@ export default function createProxySpineChannel(ctx) {
       cur = unwrapRuntimeExpr(cur.object);
     }
     if (!probe && cur?.type === 'CallExpression' && cur.optional) probe = cur;
-    // the harvested receiver effect may BE the probe (the chain-root call detection
-    // collected) - it moves into the test, not a seq prefix
-    // a SEQ-prefixed computed KEY spells effects the substitution drops - the harvest
-    // re-emits them around the alternate, where the native order runs them: past the
-    // guard, before the leaf read (`... ? void 0 : (k++, _Object$values({ b: 2 }))`)
-    const keySe = mayHaveSideEffects(node.property) ? (effects ?? []).slice(receiverEffectCount ?? 0) : null;
-    const navSe = keySe ? (effects ?? []).slice(0, receiverEffectCount ?? 0) : effects;
-    const effectsAreProbe = !navSe?.length
-            || (navSe.length === 1
-              && (navSe[0] === probe || unwrapRuntimeExpr(navSe[0]) === unwrapRuntimeExpr(probe ?? {})));
     // a claim NAVIGATED further reads a value THROUGH the probe, and a nested sequence
     // leaves that value unproven (`(d++, (c++, globalThis))?.Map.name` keeps its guard);
     // a whole-swap leaf reads nothing through it (`....Array.of` erases)
@@ -832,6 +823,26 @@ export default function createProxySpineChannel(ctx) {
     const descended = descendIntoOwnGuard(probe, { metaPath, adapter, resolvePure });
     const sealedDescent = !!descended;
     if (descended) probe = descended;
+    // the harvested receiver effect may BE the probe (the chain-root call detection
+    // collected) - it moves into the test, not a seq prefix
+    // the claim-SE migration canon positions every harvested effect against the FINAL probe
+    // (post-descent: an inner `?.` hop or a seal moves it, and the outer wrapper's prefix must
+    // not swallow a leading effect): one BEFORE it (a receiver prefix) runs ahead of the whole
+    // ternary, one BETWEEN the probe and the claim - a dropped hop's computed key
+    // (`W?.[(n++, 'Array')].from`) as much as the claim's own key - runs INSIDE the alternate,
+    // where native reaches it only past the short-circuit. the local split by the claim's own
+    // key was blind to the dropped-hop key and ran it on the nullish path; an effect INSIDE the
+    // probe stays with the cloned test spelling. a position-less input (a rebuilt subtree)
+    // cannot be placed - stand down to the raw claim
+    const migration = probe
+      ? migratableClaimSe({ sideEffects: effects ?? [], receiverEffectCount, rootNode: probe, end: node.end })
+      : { leading: effects ?? [], migrated: [] };
+    if (!migration && effects?.length) return false;
+    const keySe = migration?.migrated?.length ? migration.migrated : null;
+    const navSe = migration ? migration.leading : effects;
+    const effectsAreProbe = !navSe?.length
+            || (navSe.length === 1
+              && (navSe[0] === probe || unwrapRuntimeExpr(navSe[0]) === unwrapRuntimeExpr(probe ?? {})));
     if (probe && probeUndefinable && plainHops && (!keySe || keySe.length)) {
       const id = injectPureImport(entry, hintName);
       markRewrite();
@@ -882,9 +893,15 @@ export default function createProxySpineChannel(ctx) {
         ...droppedSeqPrefix.filter(effect => mayHaveSideEffects(effect) && !(navSe ?? []).includes(effect)),
       ];
       const probeInner = cloneNode(probeSource);
-      // a sequence KEPT whole still navigates: its tail drops the same pristine hops the peeled
-      // spelling does, so the test reads the root binding and not the hop's own ponyfill
-      if (keepSeqInTest) dropTailPristineProxyHops(probeInner, hopPeelCtx);
+      // a sequence KEPT whole still navigates: a tail the peel erases whole folds onto its
+      // outermost hop's own ponyfill (`(c++, globalThis.self)` tests `_self` - the realm-fold
+      // canon, the spelling the babel leg's plan lands too), a probe below keeps its read
+      if (keepSeqInTest) {
+        foldTailPristineProxyHops(probeInner, { ...hopPeelCtx, mintPonyfill(name) {
+          const pure = resolveGlobalPolyfill(name);
+          return identifier(injectPureImport(pure.entry, pure.hintName));
+        } });
+      }
       // the clone IS the guard test: a claim re-visited inside it renders the read the test
       // performs, so an unbacked hop in it stays load-bearing instead of folding away
       probeTestClones.add(probeInner);

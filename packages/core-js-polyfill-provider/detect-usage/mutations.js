@@ -24,6 +24,7 @@ import {
   canHoldBuiltIn,
   collectFileCensus,
   followConstLiteralAlias,
+  identifierDeclaratorInit,
   peelNestedSequenceExpressions,
   unwrapRuntimeExpr,
   isMemberMutationContext,
@@ -47,6 +48,7 @@ import {
   requireBoundProxyGlobalName,
   bindsModuleDefault,
   globalProxyNameFromImportSource,
+  isStaticPlacement,
   resolveKey,
   resolveObjectName,
   tsImportEqualsProxyName,
@@ -623,10 +625,10 @@ export function mutationShapesReducer(packages = null) {
   // SHAPE rather than by helper name so every bundler's spelling is covered
   function requiredSourceOfInit(value) {
     const node = unwrapRuntimeExpr(value);
-    const direct = requireCallSource(node, null, null);
+    const direct = requireCallSource(node);
     if (direct) return direct;
     const inner = node?.type === 'CallExpression' && node.arguments?.length === 1 ? node.arguments[0] : null;
-    return inner ? requireCallSource(inner, null, null) : null;
+    return inner ? requireCallSource(inner) : null;
   }
 
   function recordValueSource(id, rawValue) {
@@ -1667,8 +1669,12 @@ function resolveLeafName(leaf, ctx) {
     // `window.self.String.prototype.x`) name the same prototype through the global object
     if (parts.keys.at(-1) === 'prototype') {
       if (parts.keys.length === 1) {
+        // the binding-less fallback passes the same name admission every direct spelling gets
+        // (`isStaticPlacement`) - a free lowercase root is no global, and recording
+        // `<lowercase>.prototype` minted a deopt key no read-side canon ever asks for
         const root = resolveObjectName({ objectNode: parts.rootNode, scope, adapter, path })
-          ?? (!adapter.hasBinding(scope, parts.rootNode.name, path) ? parts.rootNode.name : null);
+          ?? (!adapter.hasBinding(scope, parts.rootNode.name, path) && isStaticPlacement(parts.rootNode.name)
+            ? parts.rootNode.name : null);
         if (root) return `${ root }.prototype`;
       } else if (POSSIBLE_GLOBAL_OBJECTS.has(parts.rootNode.name)
         && parts.keys.slice(0, -2).every(key => POSSIBLE_GLOBAL_OBJECTS.has(key))
@@ -1794,8 +1800,15 @@ function resolveMutationSite({ targetNode, scope, adapter, path }) {
       if (!adapter.hasBinding(scope, rootNode.name, path)) return [];
       const binding = adapter.getBinding(scope, rootNode.name, path);
       if (!binding) return [];
-      const init = binding.path?.node?.init ?? binding.node?.init;
-      rootValues = [init, ...reassignmentValueNodes({
+      // pattern declarator: the name holds a SLOT of the init - fan the paired slot values,
+      // never the container (the `visitBinding` discipline; the raw init smuggled the
+      // container name into the deopt census)
+      const decl = binding.path?.node ?? binding.node;
+      const patternDeclarator = decl?.type === 'VariableDeclarator' && decl.id && decl.id.type !== 'Identifier';
+      const initValues = patternDeclarator
+        ? patternSlotValues(decl.id, decl.init, rootNode.name, { scope, adapter, path, resolveKey })
+        : [identifierDeclaratorInit(binding)];
+      rootValues = [...initValues, ...reassignmentValueNodes({
         binding, usagePath: path, name: rootNode.name, ctx: { scope, adapter, path, resolveKey },
       }) ?? []];
     } else rootValues = [rootNode];
