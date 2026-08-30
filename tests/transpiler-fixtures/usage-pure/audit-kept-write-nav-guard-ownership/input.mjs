@@ -14,15 +14,16 @@ export const claimLeads = (leads = globalThis).window?.self.Number.MAX_SAFE_INTE
 export const ctorComputedTail = (computed = globalThis.window?.self)?.Promise[key];
 export const ctorPrototypeTail = (proto = globalThis.window?.self)?.Map.prototype.noSuchMethod;
 
-// a STACKED unresolvable prefix: the test reads the DEEPEST one off the collapsed leaf
+// a STACKED unresolvable prefix under its own `?.` probes: every hop past the backed `.self`
+// is a realm self-reference the fold takes whole - the store holds the always-defined leaf
 export const stackedPrefix = (stacked = globalThis.self?.window?.self).Number.MAX_SAFE_INTEGER;
 
 // the write inside a SEQUENCE, over a root the bare-alias walk leaves unproven: the root question
 // is which global the identifier names, and the trusted-write resolver answers it
 export const sequenceRoot = (alias = globalThis, kept = alias.window?.self)?.Promise.noSuchStatic;
 
-// a hop pure cannot back reading the STORE is the environment probe off it, not a redundant step:
-// the run that swallowed it answered the ponyfill where the source reads the host
+// a hop pure cannot back reading the STORE folds onto the guarded value the store hands on -
+// the probe's `?.` slides one member up and the void branch still short-circuits there
 export const probeOverStore = (tail = alias.window?.self)?.window.noSuchStatic;
 // ... and a ctor claim over such a store keeps the guard whose test spells that very write
 export const ctorOverStore = (folded = globalThis).window?.self?.Promise.noSuchStatic;

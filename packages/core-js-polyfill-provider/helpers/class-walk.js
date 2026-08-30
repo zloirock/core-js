@@ -2,6 +2,11 @@ import { subsume } from './subsumption.js';
 import { isKnownGlobalName } from '../detect-usage/globals.js';
 import { matchSelfDefaultTernarySlot } from '../resolve-node-type/value-ops.js';
 import {
+  CLASS_FIELD_TYPES,
+  FUNCTION_LIKE_NODE_TYPES,
+  LET_SCOPE_HOST_TYPES,
+  POSSIBLE_GLOBAL_OBJECTS,
+  SKIPPABLE_WRAPPER_TYPES,
   VALUE_FLOW_ASSIGN_OPS,
   aliasDeclScope,
   aliasReadGuardedAgainstNullish,
@@ -10,7 +15,6 @@ import {
   collectFileCensus,
   definedBranchOfGuardConditional,
   findVarOwnerDeclaring,
-  FUNCTION_LIKE_NODE_TYPES,
   importedGlobalProxyName,
   isASTNode,
   isDeclaratorSelfViolation,
@@ -20,7 +24,6 @@ import {
   isPristineProxyGlobal,
   isRenderedStoredValue,
   isVarScopeBoundary,
-  LET_SCOPE_HOST_TYPES,
   memberKeyName,
   objectPatternLiteralKeyPath,
   pairedArrayWrapInitElement,
@@ -30,11 +33,9 @@ import {
   peelArrayWrapBindingLayers,
   peelSequenceTail,
   peelZeroArgIifeReturn,
-  POSSIBLE_GLOBAL_OBJECTS,
   propertyKeyName,
   reachingReassignmentValueNode,
   reassignmentBlocksGlobalResolve,
-  SKIPPABLE_WRAPPER_TYPES,
   staticMemberKeyName,
   tsImportEqualsProxyName,
   unwrapRuntimeExpr,
@@ -135,6 +136,13 @@ export function usableAliasInfo(info) {
 // const aliases (`const g = globalThis`) pass through via init-peel
 export function proxyGlobalRootName({ node, scope, adapter, path, seen, binding = null, usageNode = null, readNode = null }) {
   if (node?.type !== 'Identifier') return null;
+  // the identifier being classified IS the read: anchor the order proofs (the trusted write's span
+  // gate, the reaching-definition cut) at its own span when the caller brought no anchor. the PATH
+  // node the gates otherwise fall back to is the consumer above the read, whose span STARTS before
+  // a write inside it - a same-sequence read (`(g = globalThis, v = g.self)?.X`) then resolved only
+  // when an EARLIER statement happened to write the alias, so two identical sources in one file
+  // rendered differently. a rebuilt node carries no span and keeps declining, as the gates intend
+  if (readNode === null && typeof node.start === 'number') readNode = node;
   // a ctx with no binding lookup answers by NAME, like the one with no adapter at all: the alias
   // arms below all read the binding, and a caller that cannot supply one (the unit harnesses, a
   // node-only predicate call) asks the same question the name alone can answer
@@ -273,7 +281,7 @@ export function trustedIdentifierAliasWrite({ scope, name, adapter, path, readNo
   // runs on one path, and a textual accept there would mask the native throw
   if (adapter.method === 'usage-pure' && !readsAfterWriteStructurally(path?.parentPath ? path : null, write)
     && !(typeof readNode?.start === 'number' && readNode.start >= write.end
-      && adapter.findTrustedAliasWrite(scope, name) === write)) return null;
+      && adapter.findTrustedAliasWrite(scope, name, { readNode }) === write)) return null;
   return write;
 }
 
@@ -648,25 +656,53 @@ export function soleAliasWrite({ binding, assignNode }) {
   });
 }
 
+// what the SOURCE spelled into each proxy-global write, keyed by the assignment node: the plugin
+// rewrites a write's RHS in place (`g = globalThis` -> `g = _globalThis`), and the agreement test
+// below reads the live tree - mid-pass, an already-rewritten write then disagreed with its raw
+// twin and the alias lost its trust for every read that followed, so two identical sources in one
+// file rendered differently. the census walks the PRISTINE tree, so the record IS the source
+// spelling; the rewrite swaps only the RHS child, never the assignment node, so the key survives
+const PROXY_WRITE_ORIGINS = new WeakMap();
+
+// census-reducer form, from the shared file-census walk both emitters run before any rewrite
+export function proxyWriteOriginsReducer() {
+  return {
+    visit(node) {
+      if (node.type !== 'AssignmentExpression' || node.operator !== '='
+        || node.left?.type !== 'Identifier') return;
+      let cur = node.right;
+      while (cur?.type === 'AssignmentExpression' && cur.operator === '=') cur = cur.right;
+      if (cur?.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(cur.name)) {
+        PROXY_WRITE_ORIGINS.set(node, cur.name);
+      }
+    },
+    result() { return {}; },
+  };
+}
+
 // the possible-global NAME an alias write stores WHOLE, through a chain of `=` steps
 // (`a = b = globalThis`), or null when the write stores anything else. the agreement test above is a
 // NAME comparison on purpose: two writes of the same global are one value, and no order proof is owed
 // between them. a PATTERN left stores a property of that global, never the global (`({ Map: M } =
 // globalThis)`), so it never agrees - two such writes are two different constructors
+// the live tree answers first; a write whose RHS this plugin already re-spelled answers from the
+// census record - the mint stores the same global the source did, and without the fallback the
+// verdict depended on which statements a pass had already visited
 function agreedProxyGlobalWrite(assignNode, name) {
   if (assignNode?.type !== 'AssignmentExpression' || assignNode.operator !== '='
     || assignNode.left?.type !== 'Identifier' || assignNode.left.name !== name) return null;
   let cur = assignNode.right;
   while (cur?.type === 'AssignmentExpression' && cur.operator === '=') cur = cur.right;
-  return cur?.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(cur.name) ? cur.name : null;
+  if (cur?.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(cur.name)) return cur.name;
+  return PROXY_WRITE_ORIGINS.get(assignNode) ?? null;
 }
 
 // the full trust predicate behind the checked registration AND the resolver's lazy write
 // lookup for POSITIONAL consumers: sole value source + unconditional placement
-export function assignmentAliasWriteTrusted({ binding, assignNode, stmtPath }) {
+export function assignmentAliasWriteTrusted({ binding, assignNode, stmtPath, readNode = null }) {
   if (!soleAliasWrite({ binding, assignNode })) return false;
   const declarator = binding?.node ?? binding?.path?.node;
-  return unconditionalStatementPlacement(stmtPath, declarator);
+  return unconditionalStatementPlacement(stmtPath, declarator, readNode);
 }
 
 // plan-level trust registration for ctor-alias extractions (`kind: 'global'`): run the checked
@@ -851,7 +887,7 @@ const CONTROL_TEST_HOSTS = new Set([
   'ForOfStatement',
   'ForInStatement',
 ]);
-function unconditionalStatementPlacement(stmtPath, withinNode = null) {
+function unconditionalStatementPlacement(stmtPath, withinNode = null, readNode = null) {
   // callers pass paths at different depths (a declarator, the assignment, its statement) -
   // normalize by climbing to the hosting statement first, judging every EDGE on the way: a
   // conditional expression container (`c ? ({ Map: M } = g) : 0`, `c && ({ Map: M } = g)`) or a
@@ -880,7 +916,14 @@ function unconditionalStatementPlacement(stmtPath, withinNode = null) {
       break;
     }
     if (parentType && !STATEMENT_HOST_TYPES.has(parentType)) {
-      if (FUNCTION_LIKE_NODE_TYPES.has(parentType)) return false;
+      // a function boundary makes the write run on an unknown call - UNLESS the read this trust is
+      // asked for stands inside that same function: then either both run or neither does, and the
+      // edges below have already proven the write unconditional within it. a class FIELD initializer
+      // defers the same way (it runs per instantiation), and answers to the same rule
+      if (FUNCTION_LIKE_NODE_TYPES.has(parentType) || CLASS_FIELD_TYPES.has(parentType)) {
+        return typeof readNode?.start === 'number' && typeof parent.node.start === 'number'
+          && readNode.start >= parent.node.start && readNode.end <= parent.node.end;
+      }
       if (parentType === 'ConditionalExpression' && parent.node.test !== stmt.node) return false;
       if (parentType === 'LogicalExpression' && parent.node.left !== stmt.node) return false;
       const isMemberOrCall = parentType === 'OptionalMemberExpression' || parentType === 'OptionalCallExpression'
@@ -912,8 +955,12 @@ function unconditionalStatementPlacement(stmtPath, withinNode = null) {
     if (isVarScopeBoundary(type)) {
       // `withinNode` (the alias declarator) must live in THIS terminator's span - else the
       // statement sits in a nested function relative to the binding and may never execute
+      // ... or the READ this trust is asked for stands inside that same unit: then either both run
+      // or neither does, and the walk has already proven the write unconditional within it
       return !withinNode || type === 'Program'
-        || (withinNode.start >= cur.node.start && withinNode.end <= cur.node.end);
+        || (withinNode.start >= cur.node.start && withinNode.end <= cur.node.end)
+        || (typeof readNode?.start === 'number' && typeof cur.node.start === 'number'
+          && readNode.start >= cur.node.start && readNode.end <= cur.node.end);
     }
     // an export wrapper around the hosting statement (`export const r = (_g = g) == null ? ...`)
     // runs exactly when its module body does - transparent for placement, and so is a LABEL: it

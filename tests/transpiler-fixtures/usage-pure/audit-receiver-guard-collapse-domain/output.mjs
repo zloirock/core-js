@@ -34,6 +34,6 @@ export const guardedPlanStatic = null == (midHop = null == _globalThis.window ? 
 });
 export const guardedPlanValue = null == (midHopB = null == _globalThis.window ? void 0 : _self) ? void 0 : _Promise$resolve(1);
 let nested;
-export const nestedNav = null == (nested = _self.window) ? void 0 : _JSON$stringify({
+export const nestedNav = null == (nested = _self) ? void 0 : _JSON$stringify({
   c: 3
 });

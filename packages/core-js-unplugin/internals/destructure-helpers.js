@@ -17,6 +17,7 @@ import { shouldDropRescueReceiver } from '@core-js/polyfill-provider/detect-usag
 import {
   discardRescueNodes,
   findProxyGlobal,
+  foldableRealmHopKey,
   peelChainRootValue,
   peelReceiverSequenceTail,
   proxyGlobalMemberCtorPure,
@@ -930,9 +931,9 @@ export function planSealedNavProbe(receiver, metaPath, ctx) {
     return { boundary, key, passthrough: true };
   }
   // a leaf pure CANNOT back is not a global of its own: it reads off the collapsed base the
-  // guard proved (`(globalThis.window?.self.window)` -> `_self.window`), where a bare spelling
-  // would be a ReferenceError on an engine without it
+  // guard proved, where a bare spelling would be a ReferenceError on an engine without it
   const leafBase = leafPlan.leafPure ? null : unwrapRuntimeExpr(boundary.inner)?.object;
+  const basePure = leafBase && proxyGlobalMemberCtorPure({ receiver: leafBase, aliasCtx, resolvePure: resolveHere });
   // the effect nodes this plan will RE-EMIT stay claim-live: a claim inside the kept key
   // (`log.push('k')`) fires later in the walk and must land on the (soon detached) original,
   // which the render-time harvest off `effectsHost` then picks up rewritten
@@ -941,7 +942,11 @@ export function planSealedNavProbe(receiver, metaPath, ctx) {
     boundary,
     key,
     leafPlan,
-    basePure: leafBase && proxyGlobalMemberCtorPure({ receiver: leafBase, aliasCtx, resolvePure: resolveHere }),
+    basePure,
+    // ... and over a ponyfill base that read FOLDS: the leaf names the realm the ponyfill already
+    // is, and off-browser the ponyfill cannot answer it (`(globalThis.window?.self.window)` reads
+    // `_self`) - the canon's verdict, the same one the nav plan reaches for a hop read through
+    foldLeafOntoBase: !!basePure && foldableRealmHopKey(leafPlan.leafName, { adapter: ctx.adapter, resolvePure: resolveHere }),
     guardObject: cloneStamped(leafPlan.guardObject),
     effectsHost: boundary.inner,
   };
@@ -955,11 +960,12 @@ export function renderSealedNavProbe(plan, metaPath, ctx) {
   else {
     const probe = cloneStamped(plan.guardObject);
     substituteProxyRootsInClone(probe, metaPath, ctx);
+    const baseId = plan.basePure
+      && identifier(ctx.injectPureImport(plan.basePure.entry, plan.basePure.hintName));
     let leaf = plan.leafPlan.leafPure
       ? identifier(ctx.injectPureImport(plan.leafPlan.leafPure.entry, plan.leafPlan.leafPure.hintName))
-      : plan.basePure
-        ? memberExpression(identifier(ctx.injectPureImport(plan.basePure.entry, plan.basePure.hintName)),
-          identifier(plan.leafPlan.leafName))
+      : baseId
+        ? plan.foldLeafOntoBase ? baseId : memberExpression(baseId, identifier(plan.leafPlan.leafName))
         : identifier(plan.leafPlan.leafName);
     const liveEffects = sealedLeafKeyEffects(plan.effectsHost).map(expr => cloneNode(expr));
     if (liveEffects.length) leaf = sequenceExpression([...liveEffects, leaf]);

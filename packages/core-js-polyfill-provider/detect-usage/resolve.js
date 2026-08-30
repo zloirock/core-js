@@ -9,8 +9,8 @@ import {
   assignmentAliasHintSoundAtRead,
   bindingPolyfillHint,
   isAliasProxyRoot, globalProxyMemberName, isProxyGlobalIdentifierNode, memberKeyName,
-  symbolKeyToEntry,
   proxyGlobalRootName,
+  symbolKeyToEntry,
   trustedIdentifierAliasWrite,
 } from '../helpers/class-walk.js';
 import {
@@ -1976,6 +1976,47 @@ function storedValueCore(value, descend) {
   return { node, descended: node !== value };
 }
 
+// does this navigation fold WHOLE because it stands in a caller-correct fallback slot? the slot rule
+// (provider AGENTS.md) keeps the always-defined literal there rather than reproducing the absent-host
+// throw - but only over a PLAIN nav, the doctrine's own wording: a live `?.` in the navigation is a
+// branch the SOURCE wrote, and no slot rule erases one
+function navFoldsInFallbackSlot(hops, path) {
+  return hops.every(hop => !hop.optional) && inCallerCorrectFallbackSlot(path);
+}
+
+// a hop earns a GUARD only when its own read can genuinely be undefined - the positional rule the
+// value canon owns (`globalThis.window` is the environment probe; a DEEPER unresolvable hop is a
+// realm self-reference the collapse assumes present). keying on name-resolution alone built a
+// test for a value the same canon calls defined, and split the emitters on their own boundary
+// ... and in a caller-correct FALLBACK SLOT no hop earns one at all: the slot keeps the
+// always-defined literal, so the whole nav folds onto its leaf. only for a PLAIN nav - that is the
+// doctrine's own wording, and a live `?.` in the navigation is a branch the SOURCE wrote
+function lastGuardEarningHopIdx(hops, { collapseIdx, path, resolvePure }) {
+  let idx = -1;
+  for (let i = 0; i < collapseIdx && !navFoldsInFallbackSlot(hops, path); i++) {
+    if (!resolvePure({ kind: 'global', name: hops[i].name })) idx = i;
+  }
+  return idx;
+}
+
+// the realm hops a ponyfill is READ THROUGH fold away before anything is indexed. a hop the pure
+// build cannot back names a realm self-reference; standing over a ponyfill it is a read that
+// ponyfill cannot answer off-browser (`_self.window.X` throws where the source, written for a
+// browser, read a value), and the collapse assumes the realm present anyway. what STAYS is the
+// environment PROBE - the unbacked prefix reading off the source root, where the `?.` the source
+// wrote is load-bearing. a COMPUTED key stays too: folding it would fold its effect away with it,
+// and the value above it is then no longer a ponyfill
+function foldReadThroughRealmHops(hops, { adapter, resolvePure }) {
+  let overPure = false;
+  return hops.filter(hop => {
+    if (!foldableRealmHopKey(hop.name, { adapter, resolvePure })) {
+      overPure = !!resolvePure({ kind: 'global', name: hop.name });
+      return true;
+    }
+    return !(overPure && !hop.node.computed && !hop.keySeExprs?.length);
+  });
+}
+
 // PLAN a proven-nav guard collapse: the shared semantics both emitters render. a navigation
 // over a PROVEN root (an inline-provable call, a pristine proxy-global identifier), optionally
 // wrapped in a kept chain-assign, whose hops are all pristine proxy-global names splits into:
@@ -1990,14 +2031,6 @@ function storedValueCore(value, descend) {
 // kinds: 'nested' (a prefix test survives), 'sequence' (no prefix, but the root or its arg
 // carries effects the collapse must keep), 'bare' (everything provably drops). null = not this
 // shape; the callers keep their own canons there
-// does this navigation fold WHOLE because it stands in a caller-correct fallback slot? the slot rule
-// (provider AGENTS.md) keeps the always-defined literal there rather than reproducing the absent-host
-// throw - but only over a PLAIN nav, the doctrine's own wording: a live `?.` in the navigation is a
-// branch the SOURCE wrote, and no slot rule erases one
-function navFoldsInFallbackSlot(hops, path) {
-  return hops.every(hop => !hop.optional) && inCallerCorrectFallbackSlot(path);
-}
-
 export function planProvenNavGuardCollapse({
   rootNode, scope, adapter, path, resolvePure, unwrap = unwrapTransparentSeq, allowSequenceRoot = false,
   throughKeptAssign = false, descendSequenceTail = false, storedValueSequenceTail = false,
@@ -2091,6 +2124,7 @@ export function planProvenNavGuardCollapse({
   const rootName = identRootName
     ?? (rootId && (asProxyGlobalName(rootId.name) ?? bareProxyGlobalAliasName(rootId, aliasCtx)));
   if (!rootName || !isPristineProxyGlobal(adapter, rootName)) return null;
+  hops.splice(0, hops.length, ...foldReadThroughRealmHops(hops, { adapter, resolvePure }));
   let collapseIdx = -1;
   // proving WHICH global a call root yields is not proving it yields a DEFINED one: a body reaching
   // the environment probe (`() => globalThis.window`) is undefined off-window. every render this plan
@@ -2119,17 +2153,7 @@ export function planProvenNavGuardCollapse({
   // a TAIL hop's key effects ride WITH the hop: the render re-hangs every hop above the collapse in
   // the source's own spelling, key node included, so the effect stays where the source runs it -
   // after the collapsed value, before the read it keys
-  // a hop earns a GUARD only when its own read can genuinely be undefined - the positional rule the
-  // value canon owns (`globalThis.window` is the environment probe; a DEEPER unresolvable hop is a
-  // realm self-reference the collapse assumes present). keying on name-resolution alone built a
-  // test for a value the same canon calls defined, and split the emitters on their own boundary
-  // ... and in a caller-correct FALLBACK SLOT no hop earns one at all: the slot keeps the
-  // always-defined literal, so the whole nav folds onto its leaf. only for a PLAIN nav - that is the
-  // doctrine's own wording, and a live `?.` in the navigation is a branch the SOURCE wrote
-  let lastUnresolvableIdx = -1;
-  for (let i = 0; i < collapseIdx && !navFoldsInFallbackSlot(hops, path); i++) {
-    if (!resolvePure({ kind: 'global', name: hops[i].name })) lastUnresolvableIdx = i;
-  }
+  const lastUnresolvableIdx = lastGuardEarningHopIdx(hops, { collapseIdx, path, resolvePure });
   // per-hop `?.` verdict for the TAIL, the spelling both emitters read off the plan: an optional
   // is load-bearing only over a value that can short-circuit, and above the collapse that value
   // starts as the always-defined ponyfill leaf (`_self.window?.global`). the KEPT prefix's own
@@ -2813,11 +2837,13 @@ export function chainReadsThroughSeal(node, resolvePure, aliasCtx = null) {
 
 // the BASE a nav-guard test reads its probe hop off, as a decision both emitters render their own
 // way. by default the test is the source slice with only the root substituted (`_globalThis.self
-// .window` - a native `self` read where its ponyfill is the point); the hops below the probe are
-// resolvable by construction, so the deepest of them supplies the base and the test becomes
-// `_self.window`. the price is deliberate and owner-decided: that base is always defined, so a host
-// missing `self` gets the guard's `void 0` where the source threw. null keeps the source slice -
-// no resolvable hop below the probe, a computed probe key, or a key effect the slice evaluates
+// [(e++, 'window')]` - a native `self` read where its ponyfill is the point); the hops below the
+// probe are resolvable by construction, so the deepest of them supplies the base. the price is
+// deliberate and owner-decided: that base is always defined, so a host missing `self` gets the
+// guard's `void 0` where the source threw. null keeps the source slice - no resolvable hop below
+// the probe, a computed probe key, or a key effect the slice evaluates.
+// a PLAIN probe hop over a resolvable one no longer reaches here at all: the plan folds it onto
+// that ponyfill (the realm-hop canon), so what still asks is a COMPUTED probe key
 export function navGuardTestBase(plan) {
   const idx = plan.lastUnresolvableIdx;
   const below = idx > 0 ? plan.hops[idx - 1] : null;
@@ -2985,6 +3011,11 @@ export function proxyReceiverValueCanBeUndefined(node, resolvePure, aliasCtx = n
     while (rootObj?.type === 'MemberExpression' || rootObj?.type === 'OptionalMemberExpression') {
       const hopName = staticMemberKeyName(rootObj);
       if (!hopName || !POSSIBLE_GLOBAL_OBJECTS.has(hopName)) break;
+      // ... and a hop the pure build CAN back ENDS the walk: the plan folds the unbacked hops above
+      // such a hop onto its ponyfill, so what the read observes is that ponyfill and no `?.` is owed
+      // (`(v = globalThis.self.window)?.Map` observes `_self`). only a spine with no backed hop
+      // under the probe is the environment read this peel was written for
+      if (!proxyHopLacksPureEntry(hopName, resolvePure)) return false;
       rootObj = unwrapRuntimeExpr(peelReceiverSequenceTail(rootObj.object));
     }
   }
@@ -3115,7 +3146,9 @@ export function vestigialNavOptionals(navNode, resolvePure, aliasCtx = null) {
     // a KEPT WRITE holds its VALUE, and the write makes the read observable - a proxy
     // spine below the probe hop counts as one surface (`(w = globalThis.window)?.X`
     // keeps its guard, `(w = globalThis)?.X` is dead)
-    const value = peelChainAssignmentDeep(object);
+    // a SEQUENCE hands its tail on, so a store standing there is the value this `?.` reads
+    // (`(eff(), t = globalThis.window)?.self` guards the probe the write kept)
+    const value = peelChainAssignmentDeep(peelReceiverSequenceTail(object));
     const undefinable = isCallShape(value)
       ? callValueCanBeUndefined(value, aliasCtx, resolvePure)
       : proxyReceiverValueCanBeUndefined(value, resolvePure, aliasCtx,
@@ -3125,13 +3158,24 @@ export function vestigialNavOptionals(navNode, resolvePure, aliasCtx = null) {
   return dead;
 }
 
-// true when ANY hop of a proxy-nav is a proxy-global name WITHOUT a pure entry (`globalThis.window` -
-// no `_window`): the natural visitor leaves it raw off the pure root (`_globalThis.window`, undefined
-// off-engine). both emitters' hop-collapse drives gate WRITE targets on this: a nav whose every hop
-// resolves stays with the natural per-hop rewrite (`(a = globalThis).self.Set = v` -> `(a = _globalThis,
-// _self).Set = v`), and claiming it here would conflict with that already-queued rewrite.
-// `staticMemberKeyName` folds a SE-bearing computed hop key (`globalThis[(e++, 'window')]`) so it is
-// detected
+// does this nav hop FOLD onto the ponyfill below it? a hop the pure build cannot back names a realm
+// SELF-REFERENCE the collapse assumes present, and standing over a ponyfill it is a read that
+// ponyfill cannot answer off-browser - so it folds, the way a whole nav folds in a fallback slot.
+// PRISTINE, because a slot the source itself wrote holds the user's own object; and never a
+// COMPUTED key, whose effects would fold away with it. the positional half - which hops stand over
+// a ponyfill - belongs to the caller: the nav plan for a planned collapse, the emitters' own tail
+// walks for the hops a plan does not reach
+export function foldableRealmHopKey(key, { adapter, resolvePure }) {
+  return proxyHopLacksPureEntry(key, resolvePure) && isPristineProxyGlobal(adapter, key);
+}
+
+// the node-shaped ask of the same verdict: a plain member key only - the computed-key refusal
+// lives here, where the KEY form has no node to refuse on
+export function foldableRealmHop(node, ctx) {
+  if (node?.type !== 'MemberExpression' && node?.type !== 'OptionalMemberExpression') return false;
+  return !node.computed && foldableRealmHopKey(staticMemberKeyName(node), ctx);
+}
+
 // is this proxy-hop key one the pure package cannot back at all (`window` - there is no `_window`)?
 // the question is about the ENTRY EXISTING, never about the target asking for it: a hop the target
 // already has natively (`self` on a modern browserslist) is still a name pure can spell, and reading
@@ -3148,13 +3192,14 @@ export function proxyHopLacksPureEntry(hop, resolvePure) {
     && !resolveBuiltInMeta({ kind: 'global', name: hop });
 }
 
+// true when ANY hop of a proxy-nav is a proxy-global name WITHOUT a pure entry (`globalThis.window` -
+// no `_window`): the natural visitor leaves it raw off the pure root (`_globalThis.window`, undefined
+// off-engine). both emitters' hop-collapse drives gate WRITE targets on this: a nav whose every hop
+// resolves stays with the natural per-hop rewrite (`(a = globalThis).self.Set = v` -> `(a = _globalThis,
+// _self).Set = v`), and claiming it here would conflict with that already-queued rewrite.
+// `staticMemberKeyName` folds a SE-bearing computed hop key (`globalThis[(e++, 'window')]`) so it is
+// detected
 export function navHasUnresolvableProxyHop(navNode, resolvePure) {
-  // peel transparent wrappers / SE tails at entry and at every hop, mirroring the sibling
-  // walkers (`maximalProxyGlobalPrefix` / `findProxyGlobal`): a TS cast or a sequence
-  // between the write host and its proxy sub-nav (`(globalThis.window as any).Set = fn`,
-  // `(0, globalThis.window).Set = fn`) otherwise hides the unresolvable hop, the collapse
-  // gate wrongly reports "all hops resolve" and the raw `.window` survives to an
-  // off-engine write throw
   let cur = peelReceiverSequenceTail(navNode);
   while (cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression') {
     const hop = staticMemberKeyName(cur);
@@ -3293,12 +3338,18 @@ export function symbolSourcedFoldedKey({ key, keyNode, scope, adapter, path }) {
 
 // is `node` a member chain rooted at an ALIAS of a proxy-global (NOT a proxy-global NAME) carrying a REAL
 // proxy hop (`g.self.X` where `const g = globalThis`)? such a chain with a non-polyfilled leaf gets no leaf
-// usage and no `kind:'global'` trigger on the alias root, so both emitters drive the hop collapse off this
-// predicate. the hop key resolves binding-aware - a computed `g[k]` (`const k = 'self'`) or string-literal
-// `g['self']` is caught like the dotted `g.self`; a side-effecting computed key bails (uncollapsible). a
+// usage and no `kind:'global'` trigger on the alias root, so the babel emitter drives its hop
+// collapse off this predicate (the unplugin's own visitor reaches such hops through its
+// suppressed-hop callback). the hop key resolves binding-aware - a computed `g[k]` (`const k =
+// 'self'`) or string-literal `g['self']` is caught like the dotted `g.self`; a side-effecting
+// computed key bails (uncollapsible). a
 // proxy-NAME root (`globalThis.self.X`) is EXCLUDED (it collapses via its own `kind:'global'` trigger, so
-// this never double-fires). the cheap dotted check screens before any binding resolve. the caller peels to
-// the root path and runs its per-emitter `collapseProxyHopRoot` (which self-gates on the hop again)
+// this never double-fires) - UNLESS the chain passes THROUGH a kept store: there the name's own trigger
+// renders the STORE, never the hops above it (`(v = globalThis.window?.self)?.window.X` guards the store
+// and leaves the tail unasked), so the double-fire the exclusion prevents cannot happen and the drive is
+// this chain's only route - whichever spelling roots the probe. the cheap dotted check screens before
+// any binding resolve. the caller peels to the root path and runs its per-emitter
+// `collapseProxyHopRoot` (which self-gates on the hop, the root's shadowing and the store again)
 export function isAliasProxyHopChain(node, aliasCtx, allowSideEffectKeys = false) {
   if (!aliasCtx) return false;
   // peel the file's chain-walk canon at the entry AND at every hop (transparent wrappers +
@@ -3307,6 +3358,7 @@ export function isAliasProxyHopChain(node, aliasCtx, allowSideEffectKeys = false
   let cur = peelChainRootValue(node);
   if (cur?.type !== 'MemberExpression' && cur?.type !== 'OptionalMemberExpression') return false;
   let hasProxyHopKey = false;
+  let throughStore = false;
   while (cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression') {
     const { computed, property: key } = cur;
     // `allowSideEffectKeys`: recognize a SE-bearing hop key too (`g[(eff(), 'self')].X`); the collapse driver
@@ -3315,9 +3367,13 @@ export function isAliasProxyHopChain(node, aliasCtx, allowSideEffectKeys = false
       ? resolveKey({ node: key, computed: true, bailOnSideEffectKey: !allowSideEffectKeys, ...aliasCtx })
       : key?.type === 'Identifier' && key.name;
     if (hopName && POSSIBLE_GLOBAL_OBJECTS.has(hopName)) hasProxyHopKey = true;
+    if (peelChainAssignment(peelReceiverSequenceTail(cur.object)).outer) throughStore = true;
     cur = peelChainRootValue(cur.object);
   }
-  return hasProxyHopKey && cur?.type === 'Identifier' && isAliasProxyRoot(cur, aliasCtx);
+  if (!hasProxyHopKey || cur?.type !== 'Identifier') return false;
+  return isAliasProxyRoot(cur, aliasCtx)
+    || (throughStore && POSSIBLE_GLOBAL_OBJECTS.has(cur.name)
+      && !aliasCtx.adapter?.hasBinding?.(aliasCtx.scope, cur.name, aliasCtx.path));
 }
 
 // transparent value-position wrappers between a proxy-global receiver and its binding context. the
