@@ -34,6 +34,14 @@ QUnit.test('mutated proxy root: an ALIAS of the name reads it too', assert => {
   }), 'USER-FROM');
 });
 
+QUnit.test('mutated proxy root: a logical default over the name keeps the user value', assert => {
+  assert.same(withMutatedSelf(() => {
+    // eslint-disable-next-line no-restricted-globals, unicorn/prefer-global-this -- the BARE name is the subject: it is what the mutated slot replaces
+    const { from } = (self ?? {}).Array;
+    return from();
+  }), 'USER-FROM');
+});
+
 QUnit.test('mutated proxy root: a param default over the name keeps the user value', assert => {
   assert.same(withMutatedSelf(() => {
     // eslint-disable-next-line no-restricted-globals, unicorn/prefer-global-this -- the BARE name is the subject: it is what the mutated slot replaces

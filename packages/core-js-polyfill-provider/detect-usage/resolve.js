@@ -1436,6 +1436,18 @@ export function patternBindingName(node) {
   return node?.type === 'Identifier' ? node.name : null;
 }
 
+// a bare proxy-global NAME whose read is guaranteed to yield the realm object, making the right
+// side of a defensive `??` / `||` over it dead code: the language guarantees the `globalThis`
+// binding in every realm, and a name with a pure ENTRY (`self`) is guaranteed by the transform
+// itself - the very read the logical guards resolves through the ponyfill, which always answers
+// the realm object. `window` / `global` have no entry and stay the environment probes a
+// defensive default genuinely tests. entry existence is the same target-independent question
+// `proxyHopLacksPureEntry` asks of a hop; a SHADOWED or mutated-slot spelling still declines
+// downstream, at the identifier checks the peel hands the name to
+export function guaranteedRealmObjectName(name) {
+  return !!name && POSSIBLE_GLOBAL_OBJECTS.has(name) && !!resolveBuiltInMeta({ kind: 'global', name });
+}
+
 // walks a chain of proxy-global links (`globalThis.self.window.X`) to its root identifier;
 // returns true when the root is a proxy global and every intermediate link is also one.
 // IIFE-at-root (`(() => globalThis).Array.from(x)`) is inlined via `inlineCallReturnExpression`
@@ -1444,17 +1456,23 @@ export function patternBindingName(node) {
 // binding's own visitor does not rewrite `globalThis -> _globalThis` a second time inside a
 // span the outer polyfill replacement already owns
 // the chain-root peel plus one more carrier only this walk may read through: a `??` / `||` over
-// `globalThis` ITSELF yields that left operand - the language guarantees the binding and an object is
-// neither nullish nor falsy, so the defensive right side is dead code
+// a guaranteed realm name ITSELF yields that left operand - the binding is guaranteed (by the
+// language for `globalThis`, by the ponyfill entry for `self`) and an object is neither nullish
+// nor falsy, so the defensive right side is dead code
 // (`(globalThis ?? {}).Number.MAX_SAFE_INTEGER` reads the realm's static and owes its polyfill).
-// the NAME is the gate: `self` / `window` are the environment probes this codebase guards, and a
-// navigation that can short-circuit makes the right side live. a SHADOWED `globalThis` still declines
-// downstream - the peel only decides which node the identifier check is asked about
+// the NAME is the gate: `window` / `global` are the environment probes this codebase guards, and a
+// navigation that can short-circuit makes the right side live. the walk descends nested defaults
+// (`((self ?? {}) ?? {})`) - the same guarantee kills the right side at every level - and hands
+// back the UNTOUCHED core when the innermost left proves nothing
 function peelRealmLogicalDefault(node) {
   const core = peelChainRootValue(node);
-  if (core?.type !== 'LogicalExpression' || (core.operator !== '??' && core.operator !== '||')) return core;
-  const left = peelChainRootValue(core.left);
-  return left?.type === 'Identifier' && left.name === 'globalThis' ? left : core;
+  let current = core;
+  while (current?.type === 'LogicalExpression' && (current.operator === '??' || current.operator === '||')) {
+    const left = peelChainRootValue(current.left);
+    if (left?.type === 'Identifier' && guaranteedRealmObjectName(left.name)) return left;
+    current = left;
+  }
+  return core;
 }
 
 function resolveProxyGlobalRoot({ receiver, scope, adapter, seen, path, usageNode = null }) {
@@ -1519,14 +1537,18 @@ export function resolveObjectName({ objectNode, scope, adapter, seen, path, usag
   // problem - resolveObjectName only classifies receiver shape
   objectNode = peelChainAssignmentDeep(objectNode);
   // the receiver ITSELF spelled as a logical default over the realm: the same rule the proxy-root
-  // walk reads for a receiver BELOW it (`peelRealmLogicalDefault`) - `globalThis` is guaranteed and
+  // walk reads for a receiver BELOW it (`peelRealmLogicalDefault`) - a guaranteed realm name is
   // an object, so the defensive right side is dead and `(globalThis ?? {}).Map` names the realm's
-  // constructor. without it a ctor claim through this carrier stayed a native read
-  if (objectNode.type === 'LogicalExpression'
-    && (objectNode.operator === '??' || objectNode.operator === '||')) {
-    const left = peelChainAssignmentDeep(objectNode.left);
-    if (left?.type === 'Identifier' && left.name === 'globalThis'
-      && !adapter.hasBinding(scope, left.name, path)) objectNode = left;
+  // constructor, at every nesting level (`((self ?? {}) ?? {}).Map` too). without it a ctor claim
+  // through this carrier stayed a native read
+  for (let left = objectNode; left?.type === 'LogicalExpression'
+    && (left.operator === '??' || left.operator === '||');) {
+    left = peelChainAssignmentDeep(left.left);
+    if (left?.type === 'Identifier' && guaranteedRealmObjectName(left.name)
+      && !adapter.hasBinding(scope, left.name, path)) {
+      objectNode = left;
+      break;
+    }
   }
   if (objectNode.type === 'Identifier') {
     if (adapter.hasBinding(scope, objectNode.name, path)) {
