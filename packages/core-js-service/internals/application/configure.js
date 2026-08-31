@@ -1,5 +1,5 @@
 import targetsParser from '@core-js/compat/targets-parser';
-import { COMPRESSION, ENCODING_PREFERENCE, RETAIN } from '../../config.js';
+import { COMPRESSION, ENCODING_PREFERENCE, RETAIN, ROUTE } from '../../config.js';
 
 // which representations of every bundle are stored, and with what. an encoding is named by the
 // token it carries on the wire, so what a developer writes here is what a client asks for and what
@@ -37,6 +37,15 @@ function resolveCompression(option) {
   return Object.freeze(resolved);
 }
 
+// down to the empty string, `'/'` included: the route is pasted in front of `/<id>.js`, so a
+// route that is nothing but slashes would produce `//<id>.js` - a protocol-relative URL, which
+// sends the browser to a HOST named after the bundle instead of to us
+function withoutTrailingSlashes(path) {
+  let end = path.length;
+  while (end > 0 && path[end - 1] === '/') end--;
+  return path.slice(0, end);
+}
+
 // the options of the service, resolved into one structure with every field filled: nothing
 // downstream has to wonder whether a path is absolute or a version is a range
 export default function configure(options, { warn, resolveVersions }) {
@@ -52,6 +61,7 @@ export default function configure(options, { warn, resolveVersions }) {
     directory = null,
     retain = RETAIN,
     compression = COMPRESSION,
+    route = ROUTE,
     ...unknown
   } = options;
 
@@ -72,6 +82,10 @@ export default function configure(options, { warn, resolveVersions }) {
   if (!Array.isArray(exclude)) throw new TypeError('[core-js] `exclude` has to be an array');
   if (typeof minify != 'boolean') throw new TypeError('[core-js] `minify` has to be a boolean');
 
+  if (typeof route != 'string' || !route.startsWith('/')) {
+    throw new TypeError('[core-js] `route` has to be a path starting with `/`');
+  }
+
   if (directory !== null && typeof directory != 'string') {
     throw new TypeError('[core-js] `directory` has to be a path or `null`');
   }
@@ -82,7 +96,7 @@ export default function configure(options, { warn, resolveVersions }) {
     throw new TypeError('[core-js] `retain` has to be a number of generations or `null`');
   }
 
-  const lookup = {
+  const browserslistLookup = {
     ...configPath === undefined ? null : { configPath },
     ...browserslistEnv === undefined ? null : { browserslistEnv },
     ignoreBrowserslistConfig,
@@ -92,13 +106,13 @@ export default function configure(options, { warn, resolveVersions }) {
 
   if (targets !== null && targets !== undefined) {
     declaration = typeof targets == 'object' && !Array.isArray(targets)
-      ? { ...targets, ...lookup }
-      : { browsers: targets, ...lookup };
+      ? { ...targets, ...browserslistLookup }
+      : { browsers: targets, ...browserslistLookup };
   } else if (!ignoreBrowserslistConfig) {
     // resolved here rather than left to compat: with no declaration the plan covers the whole
     // floor of core-js, and compat left to itself would find the project browserslist config when
     // building the BASELINE alone - a baseline narrower than the plan it belongs to
-    const fromConfig = targetsParser(lookup);
+    const fromConfig = targetsParser(browserslistLookup);
     if (fromConfig.size) declaration = Object.fromEntries(fromConfig);
   }
 
@@ -110,6 +124,7 @@ export default function configure(options, { warn, resolveVersions }) {
     directory,
     retain,
     compression: resolveCompression(compression),
+    route: withoutTrailingSlashes(route),
     versions: resolveVersions(version),
   };
 }

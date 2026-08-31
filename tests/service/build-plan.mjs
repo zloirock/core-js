@@ -62,11 +62,26 @@ const CHROME = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KH
 const IE = 'Mozilla/5.0 (Windows NT 10.0; WOW64; Trident/7.0; rv:11.0) like Gecko';
 
 ok(built.has(match(resolve({ 'user-agent': CHROME }))), 'build-plan #8');
+
+// who the service takes the visitor for is public, and it is the same answer the bundle choice is
+// made on: a page that shows one and is served by the other would be a lie with no way to notice
+deepStrictEqual(service.identify({ 'user-agent': CHROME }), { engine: 'chrome', version: '143.0.0.0' },
+  'build-plan #20');
+strictEqual(service.identify({ 'user-agent': 'x' }), null, 'build-plan #21');
+strictEqual(match(service.identify({ 'user-agent': CHROME })), service.chooseBundle({ 'user-agent': CHROME }),
+  'build-plan #22');
+strictEqual(service.chooseBundle({ 'user-agent': 'x' }), service.plan.baseline.bundleId, 'build-plan #23');
 ok(built.has(match(resolve({ 'user-agent': IE }))), 'build-plan #9');
 // the two ends of the floor do not share a bundle: a current Chrome needs less than IE 11
 ok(match(resolve({ 'user-agent': CHROME })) !== match(resolve({ 'user-agent': IE })), 'build-plan #10');
 // an unrecognized visitor gets the baseline, which is what the project would have shipped anyway
 strictEqual(match(resolve({ 'user-agent': 'x' })), service.plan.baseline.bundleId, 'build-plan #11');
+
+// the address that goes into the tag, at the edge form of the route: one slash, never two
+const mounted = createService({ scope, route: '/', warn: noop });
+
+ok(/^\/[\da-f]+\.js$/.test(mounted.urlOf(mounted.plan.baseline.bundleId)), 'build-plan #17');
+ok(/^\/__core-js\/[\da-f]+\.js$/.test(service.urlOf(service.plan.baseline.bundleId)), 'build-plan #18');
 
 // two generations left by deploys that are gone, planted before anything is built
 const previous = join(kept, '0123456789abcdef');

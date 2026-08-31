@@ -37,12 +37,12 @@ throws(() => resolve({ scope: [], minify: 'yes' }), /`minify`/, 'configure #2');
 // `null` is "keep every generation", `0` is "keep only the one being served": both ends of the
 // range are reachable, because the difference is a directory that grows forever against a page that
 // loses its polyfills the moment it is deployed over
-strictEqual(resolve({ scope: [] }).config.retain, 1, 'configure #8');
-strictEqual(resolve({ scope: [], retain: null }).config.retain, null, 'configure #9');
-strictEqual(resolve({ scope: [], retain: 0 }).config.retain, 0, 'configure #10');
-throws(() => resolve({ scope: [], retain: -1 }), /`retain` has to be/, 'configure #11');
-throws(() => resolve({ scope: [], retain: '1' }), /`retain` has to be/, 'configure #12');
-throws(() => resolve({ scope: [], retain: 1.5 }), /`retain` has to be/, 'configure #13');
+strictEqual(resolve({ scope: [] }).config.retain, 1, 'configure #14');
+strictEqual(resolve({ scope: [], retain: null }).config.retain, null, 'configure #15');
+strictEqual(resolve({ scope: [], retain: 0 }).config.retain, 0, 'configure #16');
+throws(() => resolve({ scope: [], retain: -1 }), /`retain` has to be/, 'configure #17');
+throws(() => resolve({ scope: [], retain: '1' }), /`retain` has to be/, 'configure #18');
+throws(() => resolve({ scope: [], retain: 1.5 }), /`retain` has to be/, 'configure #19');
 
 // nothing downstream has to finish the resolving. the version request goes to the resolver as given,
 // and what comes back is what the bundle names are built from
@@ -59,6 +59,15 @@ deepStrictEqual(resolve({ scope: [], targets: { chrome: '110' }, configPath: '/a
   { chrome: '110', configPath: '/app', ignoreBrowserslistConfig: false }, 'configure #3');
 deepStrictEqual(resolve({ scope: [], targets: 'last 2 versions', browserslistEnv: 'production' }).config.targets,
   { browsers: 'last 2 versions', browserslistEnv: 'production', ignoreBrowserslistConfig: false }, 'configure #4');
+
+// the route is pasted in front of `/<id>.js`, so trailing slashes are stripped down to the empty
+// string: a route of `'/'` would otherwise produce `//<id>.js`, a protocol-relative URL that sends
+// the browser to a HOST named after the bundle instead of to us
+strictEqual(resolve({ scope: [], route: '/' }).config.route, '', 'configure #8');
+strictEqual(resolve({ scope: [], route: '//' }).config.route, '', 'configure #9');
+strictEqual(resolve({ scope: [], route: '/a/b/' }).config.route, '/a/b', 'configure #10');
+strictEqual(resolve({ scope: [] }).config.route, '/__core-js', 'configure #11');
+throws(() => resolve({ scope: [], route: 'core-js' }), /`route`/, 'configure #12');
 
 // with no declaration the project browserslist config becomes one, and it is resolved HERE:
 // compat left to find it on its own would find it while building the baseline alone, leaving a

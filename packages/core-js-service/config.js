@@ -1,4 +1,16 @@
-import { availableParallelism } from 'node:os';
+// a year and `immutable`, which the identifier has to be worth - it is the hash of everything that
+// decides the bytes
+export const CACHE_CONTROL = 'public, max-age=31536000, immutable';
+export const CONTENT_TYPE = 'text/javascript; charset=utf-8';
+
+// where the bundles are mounted. configurable, because a fixed path is a path that collides
+// with somebody else's
+export const ROUTE = '/__core-js';
+
+// how much of an HTML response is scanned for the place to put the tag. everything that decides
+// the place is at the very beginning, and the bound is what lets the rest of the response stream
+// through untouched
+export const HTML_PREFIX = 4096;
 
 // our preference when the client's q values tie
 export const ENCODING_PREFERENCE = ['br', 'gzip', 'identity'];
@@ -7,17 +19,6 @@ export const ENCODING_PREFERENCE = ['br', 'gzip', 'identity'];
 // it is 12% smaller than gzip and costs about as much again as building the bundle, so turning it
 // on roughly doubles the warm-up - every bundle of the plan pays it
 export const COMPRESSION = { identity: true, gzip: true };
-
-// how many bundles are built at once: half of what this process may use, and never less than one,
-// since no workers at all is a queue that never drains. `availableParallelism` rather than
-// `cpus().length` - it follows the CPU set the process is ALLOWED to use, so a container pinned to
-// two cores of a large host starts one builder rather than half the host. Halved because rolldown
-// and swc are multithreaded of their own
-export function concurrencyFor(cores) {
-  return Math.max(1, cores >> 1);
-}
-
-export const CONCURRENCY = concurrencyFor(availableParallelism());
 
 // how many generations of bundles stay on disk beside the one being served. one covers both cases
 // that matter: the page of the deploy just replaced is already in a browser and will ask for its

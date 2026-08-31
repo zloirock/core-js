@@ -36,6 +36,8 @@ interface Options {
   /** how many generations of bundles stay on disk beside the one being served, `1` by default.
    *  `0` keeps only the generation being served, `null` keeps every generation forever */
   retain?: number | null;
+  /** where the bundles are mounted, `'/__core-js'` by default */
+  route?: string;
   /** which representations of every bundle are stored, keyed by the content coding a client asks
    *  for. `{ identity: true, gzip: true }` by default; `true` enables an encoding with the
    *  defaults of `node:zlib`, an object enables it and configures the compressor. brotli is off
@@ -58,6 +60,7 @@ interface Configuration {
   directory: string | null;
   retain: number | null;
   compression: Readonly<Record<string, object>>;
+  route: string;
   versions: { coreJS: string, compat: string };
 }
 
@@ -91,11 +94,33 @@ interface Plan {
   buckets: Bucket[];
 }
 
+interface Target {
+  engine: string;
+  version: string;
+  /** another row the same visitor could be on: the Chromium a named build runs, or `ios` for a
+   *  Mac string, which is what an iPad sends. The bundle served covers both */
+  alternate?: { engine: string, version: string };
+}
+
 interface Service {
   config: Configuration;
   plan: Plan;
   bundles: Bundles;
   warn: Warn;
+  /** the address a bundle is served under */
+  urlOf(bundleId: string): string;
+  /** request headers to the engine and version the service takes the visitor for, `null` when it
+   *  recognizes none - which is an answer, not a failure: that visitor gets the baseline. Where the
+   *  string leaves two rows open - a named build and the Chromium under it, a Mac string that an
+   *  iPad may have sent - both travel, and the bundle served is the one that covers them both */
+  identify(headers: Record<string, string | string[] | undefined>): Target | null;
+  /** request headers to the name of the bundle for that visitor */
+  chooseBundle(headers: Record<string, string | string[] | undefined>): string;
+  /** the beginning of an HTML response, with the tag put where it runs before the application */
+  scriptTag(prefix: string, options: { src: string, csp?: string | null }): string;
+  /** answers one request for a bundle */
+  serve(request: { headers: Record<string, string | string[] | undefined> }, response: unknown,
+    bundleId: string): Promise<void>;
   /** starts the warm-up, idempotently. `ready` is the baseline, which requests wait for; `warmed`
    *  is the rest of the plan, which they do not - a miss goes to the baseline */
   start(): { ready: Promise<boolean>, warmed: Promise<{ built: string[], failed: string[] }> };

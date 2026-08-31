@@ -10,6 +10,8 @@ import './builder.mjs';
 import './bundles.mjs';
 import './warm.mjs';
 import './build-plan.mjs';
+import './serve.mjs';
+import './script-tag.mjs';
 import './warn.mjs';
 
 echo(chalk.green('service tested'));

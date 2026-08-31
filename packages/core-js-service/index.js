@@ -1,13 +1,19 @@
 import data from '@core-js/compat/data' with { type: 'json' };
 import buildPlan from './internals/application/build-plan.js';
+import createChooseBundle from './internals/application/choose-bundle.js';
 import configure from './internals/application/configure.js';
+import createGetBundle from './internals/application/get-bundle.js';
 import createWarm from './internals/application/warm.js';
+import createResolver from './internals/domain/resolver.js';
 import createBuilder from './internals/infrastructure/builder.js';
 import createBundles from './internals/infrastructure/bundles.js';
 import createListModules from './internals/infrastructure/compat-modules.js';
 import resolveVersions from './internals/infrastructure/resolve-versions.js';
 import trafficShares from './internals/infrastructure/traffic-shares.js';
+import parseUserAgent from './internals/infrastructure/ua-bowser.js';
 import createWarn from './internals/infrastructure/warn.js';
+import createScriptTag from './internals/ui/script-tag.js';
+import createServe from './internals/ui/serve.js';
 
 async function rest(ready, warm, bundles) {
   await ready;
@@ -48,7 +54,12 @@ export default function createService({ warn: warnSink, ...options } = {}) {
     retain: config.retain,
     warn,
   });
+  const identify = createResolver({ parseUserAgent });
   const warm = createWarm(plan, { bundles, build: createBuilder(config), warn });
+  const getBundle = createGetBundle(plan, { bundles });
+  function urlOf(bundleId) {
+    return `${ config.route }/${ bundleId }.js`;
+  }
 
   let started = null;
 
@@ -57,6 +68,20 @@ export default function createService({ warn: warnSink, ...options } = {}) {
     plan,
     bundles,
     warn,
+    urlOf,
+    // who the service takes the visitor for, which is the whole of what decides their bundle. it is
+    // public because the answer is otherwise unobservable: a page can be told which bundle it got,
+    // and no more than that
+    identify,
+    chooseBundle: createChooseBundle(plan, { resolve: identify }),
+    scriptTag: createScriptTag({ warn }),
+    serve: createServe({
+      getBundle,
+      encodings: bundles.encodings,
+      baselineId: plan.baseline.bundleId,
+      urlOf,
+      warn,
+    }),
 
     // started by whoever installs the service, and idempotently: `ready` is the baseline, which
     // requests wait for, and `warmed` is the rest of the plan, which nothing waits for
