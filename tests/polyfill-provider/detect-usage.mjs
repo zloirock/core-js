@@ -25,6 +25,7 @@ import {
   ownChainOptionalCount,
   proxyGlobalMemberCtorPureSwap,
   PROXY_HOP_VALUE_CARRIERS,
+  probeRenderedReceiver,
   receiverSideEffectsOnly,
   resolveKey,
   returnedReceiverHasEffects,
@@ -1580,6 +1581,27 @@ for (const [variant, code, hints, expected] of SYMBOL_REF_CASES) {
     const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.object?.type === 'Identifier');
     check(lbl, !!asSymbolRef({
       node: member.node.object, scope: member.scope, adapter: hintAdapter(hints), path: member,
+    }), expected);
+  });
+}
+
+// --- probeRenderedReceiver: our probe render in RECEIVER position survives a re-parse ---
+
+// a second pass's receiver swap over `(held.X, _Ponyfill).member` would eat the throw probe the
+// first pass kept; the recognition is the polyfillHint tail - the same side-channel the claim
+// twin (claimAlreadyRendered) reads - so a re-parsed probe still declines the swap, and a plain
+// user sequence keeps its ordinary route
+const PROBE_RECEIVER_CASES = [
+  ['probe sequence with a hinted tail', 'const _Promise = 1; use((held.Promise, _Promise).noSuchStatic);', { _Promise: 'Promise' }, true],
+  ['sequence with an unhinted tail', 'const plain = 1; use((held.Promise, plain).noSuchStatic);', {}, false],
+  ['plain member receiver', 'const _Promise = 1; use(_Promise.noSuchStatic);', { _Promise: 'Promise' }, false],
+  ['paren-wrapped probe sequence', 'const _Promise = 1; use(((held.Promise, _Promise)).noSuchStatic);', { _Promise: 'Promise' }, true],
+];
+for (const [variant, code, hints, expected] of PROBE_RECEIVER_CASES) {
+  runBoth(`probeRenderedReceiver/${ variant }`, `const held = globalThis.window; ${ code }`, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'noSuchStatic');
+    check(lbl, probeRenderedReceiver(member.node.object, {
+      scope: member.scope, adapter: hintAdapter(hints), path: member,
     }), expected);
   });
 }

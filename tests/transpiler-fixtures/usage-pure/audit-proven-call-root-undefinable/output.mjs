@@ -1,9 +1,11 @@
+import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
+import _at from "@core-js/pure/actual/instance/at";
 import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
 import _self from "@core-js/pure/actual/self";
-var _ref, _ref2;
+var _ref, _ref2, _ref3, _ref4, _ref5, _ref6;
 // proving WHICH global a call root yields is not proving it yields a DEFINED one: a body that
 // navigates to the environment probe is undefined off-window, so a `?.` over such a call is
 // load-bearing. erased, the collapse read the ponyfill where the source short-circuits - and the
@@ -35,3 +37,15 @@ export const sealedKeptWriteSeq = (n++, null == (w = _globalThis.window) ? void 
 let held;
 export const writeStoresRoot = null == (_ref2 = null == (held = (n++, _globalThis)).window ? void 0 : _self.callRootBox.list) ? void 0 : _flatMaybeArray(_ref2).call(_ref2);
 export { n, w, held };
+
+// the probe-yield DECOMPOSITION: one test, sourced from the call itself, and the realm hops
+// fold onto the tested value - never a nested guard-value memo with its own leaf import.
+// static tail, instance tail (the memo takes the CALL: `_ref = provenProbe()`), a value read
+// (the alternate folds `.window` onto the substituted realm leaf), and the seq-prefixed twins
+// whose buried effects ride the memo exactly once, in source order
+export const probeYieldStaticTail = null == provenProbe() ? void 0 : _Array$of(1);
+export const probeYieldChainTail = null == provenProbe() ? void 0 : _atMaybeArray(_ref3 = _Array$of(1)).call(_ref3, 0);
+export const probeYieldInstanceTail = null == (_ref4 = null == provenProbe() ? void 0 : _self.callRootBox.list) ? void 0 : _at(_ref4).call(_ref4, 0);
+export const probeYieldValueRead = null == provenProbe() ? void 0 : _self.Array;
+export const probeYieldSeqNested = null == (n++, n++, provenProbe()) ? void 0 : _atMaybeArray(_ref5 = _Array$of(2)).call(_ref5, 0);
+export const probeYieldSeqArg = null == (n++, provenProbe(n++)) ? void 0 : _atMaybeArray(_ref6 = _Array$of(3)).call(_ref6, 0);

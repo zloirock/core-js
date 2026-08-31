@@ -1,4 +1,4 @@
-import { isValidIdentifierName } from './helpers/ast-patterns.js';
+import { isValidIdentifierName, markRenderedStoredValue } from './helpers/ast-patterns.js';
 // the render canon's node factory - the one place emitted nodes take shape, in the
 // canonical ESTree dialect. unplugin inserts these nodes as is; the babel binding converts
 // them at the insertion boundary (its `internals/estree-to-babel.js`, total over exactly
@@ -309,9 +309,12 @@ export function composeNullGuardTest(checks, { embed = node => node } = {}) {
 }
 
 // the short-circuit itself: a nullish test yields `void 0`, everything else the live branch.
-// `test` arrives BUILT (the channels compose their own disjuncts and reuse rendered tests)
+// `test` arrives BUILT (the channels compose their own disjuncts and reuse rendered tests).
+// every guard minted here is OUR render, never a user ternary, so the factory marks it: an
+// alias whose init lands this shape classifies through the defined branch (the resolve arm
+// consults the mark), where an unmarked user conditional of the same spelling must decline
 export function renderShortCircuitGuard(test, alternate) {
-  return conditionalExpression(test, voidZero(), alternate);
+  return markRenderedStoredValue(conditionalExpression(test, voidZero(), alternate));
 }
 
 // the RENDER of an `in`-expression plan (`planInExpression` decides the kind): what each kind
@@ -339,12 +342,14 @@ export function renderInExpressionPlan(plan, { injectImport, embed = node => nod
 }
 
 // the alias-held claim PROBE read (`aliasHeldClaimProbe` decides there is one): the claim's own
-// member spelled verbatim off the alias binding - the source's own computed flag decides the
-// spelling, not the key's validity, because the probe reproduces a read the source performs
+// member spelled verbatim off the alias binding, the dotted run between them respelled with it -
+// the source's own computed flag decides the spelling, not the key's validity, because the probe
+// reproduces a read the source performs
 export function renderAliasHeldProbeRead(probe, object) {
+  const base = (probe.innerKeys ?? []).reduce((acc, key) => memberFromKeyName(acc, key), object);
   return probe.computed
-    ? memberExpression(object, literal(probe.key), { computed: true })
-    : memberExpression(object, identifier(probe.key));
+    ? memberExpression(base, literal(probe.key), { computed: true })
+    : memberExpression(base, identifier(probe.key));
 }
 
 // the nav-collapse LEAF: the collapsed run answers with its pure binding, wrapped in the leaf's
