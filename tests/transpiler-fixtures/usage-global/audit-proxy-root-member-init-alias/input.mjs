@@ -1,8 +1,8 @@
 // a proxy root can be captured through a MEMBER read (`const s = globalThis.self`), not only through a
-// bare name. the detection side follows that init; the class-walk root recogniser deliberately follows
-// an Identifier init only, and that is why the two cannot share one walk. the rows pin the capability:
-// an alias bound to a member read still names the proxy surface, so a mutation through it registers and
-// a plain read through it resolves. the second row is the Identifier-init twin both walks agree on
+// bare name. both sides follow that init through ONE walk - the proxy recogniser narrows the value
+// canon's answer to the realm names rather than re-deriving it. the rows pin the capability: an alias
+// bound to a member read still names the proxy surface, so a mutation through it registers and a plain
+// read through it resolves. the second row is the Identifier-init twin
 const viaMember = globalThis.self;
 const viaName = globalThis;
 
