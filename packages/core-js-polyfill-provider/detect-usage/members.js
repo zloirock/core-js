@@ -10,6 +10,7 @@ import {
   isMemberWriteHost,
   isMutatedGlobalSlot,
   isTaggedTemplateTagPosition,
+  nestedSequenceValueSpelling,
   peelSequenceTail,
   privateNameSpelling,
   proxyNavEffectsHarvestable,
@@ -261,7 +262,11 @@ export function planProxyReceiver(receiver, {
     && deleteHostAboveChain(aliasCtx.path, receiver, unwrapRuntimeExpr);
   if (!deleteConsumer && !keptAssignRoot && aliasCtx
     && (ownChainOptionalObjects(receiver)
-      .some(object => proxyReceiverValueCanBeUndefined(object, resolvePure, aliasCtx))
+      // a NESTED-sequence value stays unproven under the kept-sequence boundary, so the `?.`
+      // reading it is as load-bearing as one over a genuine probe - the kept-guard channels own
+      // the shape, and collapsing here erased the guard and re-rooted the memo the other leg keeps
+      .some(object => proxyReceiverValueCanBeUndefined(object, resolvePure, aliasCtx)
+        || nestedSequenceValueSpelling(object))
       // a SEALED SHORT-CIRCUIT under the chain (`((c++, globalThis.window)?.self).X` - the paren'd
       // sequence hides the `?.` from the own-chain walk) may not collapse either: the read/write host
       // is the short-circuited value, and dropping the hop erases the source throw. a seal over a

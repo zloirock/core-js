@@ -1176,7 +1176,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
 
   // one dug assignment's collapse: plan, then render - immediately in place, or deferred to
   // the assignment's own exit flush. true only when a render actually landed
-  function collapseKeptChainAssign(rootNode, anchorPath, { immediate = false } = {}) {
+  function collapseKeptChainAssign(rootNode, anchorPath, { immediate = false, observed = false } = {}) {
     const adapter = getAdapter?.();
     // the whole resolver-option family or nothing: this one omitted `injectPureGlobal` while
     // calling it at the tail, so a harness wired with only some of them would TypeError there
@@ -1237,7 +1237,10 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       // the stored-canon render is MARKED: for classification it IS the navigation it
       // replaced, so the provider's alias follows bypass the guarded-read gate on it (a
       // user-written conditional never gets the mark and keeps the gate)
-      landStoredValue(plan, plan.topAssignSteps.at(-1), markRenderedStoredValue(storedValueSpells
+      // the caller's own render may OBSERVE the store's absence (the null test it is about to
+      // spell is the store's only reader) - the same choice the flush makes off the tree,
+      // answered here by the flag because the test does not exist yet
+      landStoredValue(plan, plan.topAssignSteps.at(-1), markRenderedStoredValue(storedValueSpells && !observed
         ? navPlanValueAst(t, plan, injectPureGlobal(pure.entry, pure.hintName), renderedPlanTails)
         : renderNavCollapseAst(plan, injectPureGlobal(pure.entry, pure.hintName))));
       return true;
@@ -2068,8 +2071,13 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     if (!skipOptional?.(chainStart.node, path.scope, chainStart)) {
       // IMMEDIATE: this caller owns the emission - it is about to memoize or guard the very node,
       // and the deferred flush renders the guarded form unconditionally, where the value form is
-      // what a stored PLAIN nav owes (the fold verdict: that nav IS the realm)
-      collapseKeptNavValueNode(chainStart.node[key], chainStart, { immediate: true });
+      // what a stored PLAIN nav owes (the fold verdict: that nav IS the realm). OBSERVED when the
+      // optional hop is the claim's DIRECT object: the ctor's combined render rides the alternate
+      // receiver-independently and its test is the only reader of the kept store, so the store
+      // spells the guarded value - the shape the other leg renders inside its probe-test clone. a
+      // hop deeper below the claim is read on the live tree and keeps the value form (both legs)
+      collapseKeptNavValueNode(chainStart.node[key], chainStart,
+        { immediate: true, observed: unwrapRuntimeExpr(path.node.object) === chainStart.node });
       if (deoptDeadOptionalOverStore(chainStart, key, path)) return [null, node.object, throughTS];
       const memoType = pathType(chainStart.get(key));
       check = rewriteOptionalMethodCall(chainStart, key, path.scope, memoType);
