@@ -7,12 +7,14 @@ import {
   inlineCallHasObservableEffects,
   inlineCallProxyGlobalRoot,
   navHasUnresolvableProxyHop,
+  peelChainAssignment,
   peelChainAssignmentDeep,
   peelReceiverSequenceTail,
   proxyGlobalMemberCtorPureSwap,
   proxyReceiverValueCanBeUndefined,
   resolveKey,
   resolveObjectName,
+  unwrapParensCollectingEffects,
   vestigialNavOptionals,
   peelChainRootValue,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
@@ -110,6 +112,28 @@ export default function createOptionalDispatchChannel(ctx) {
     typeStampCtx,
   } = ctx;
 
+  // a dropped hop's base PROVEN always-defined makes the hop's `?.` dead: the memo folds
+  // straight onto the ponyfill, keeping only what the base observably did - the seq-prefix
+  // effects, and the call itself when its body or arguments carry any (`dh()?.self` memoizes
+  // `_self`, `(c++, dh(a++))?.self` memoizes `(c++, dh(a++), _self)`) - the other leg's
+  // spelling for this shape. proving WHICH global the call yields is not proving it yields a
+  // DEFINED one, so the probe-yield gate stands between; null = unproven, the caller keeps
+  // its guard render
+  function provenDroppedHopFoldedMemo(baseNode, dropped, metaPath) {
+    const effects = [];
+    const core = unwrapParensCollectingEffects(baseNode, effects);
+    const proven = core?.type === 'CallExpression' && !core.optional
+      && !!inlineCallProxyGlobalRoot({
+        callNode: core, scope: metaPath.scope, adapter, path: metaPath, rejectConditional: true,
+      })
+      && !guardProbeUndefinable(core, { metaPath, adapter, resolvePure });
+    if (!proven) return null;
+    if (inlineCallHasObservableEffects({ callNode: core, scope: metaPath.scope, adapter, path: metaPath })) {
+      effects.push(core);
+    }
+    return withSideEffects(identifier(injectPureImport(dropped.entry, dropped.hintName)), effects);
+  }
+
   // guard for the OBJECT of a chain's last optional hop: a reusable single token spells
   // `X == null` and is re-read; anything else memoizes - KEEPING its own inner `?.` (that
   // short-circuit routes into this guard), wrapped back into a chain of its own when the
@@ -143,11 +167,15 @@ export default function createOptionalDispatchChannel(ctx) {
         // holds that RENDER, not the bare probe below it (`window?.window?.self` memoizes
         // `null == _globalThis.window?.window ? void 0 : _self`). over a KEPT WRITE the memo
         // IS the stored value and the drop stands (`(v = gw)?.self` memoizes `v = _gw.window`)
+        // - asked as the canon's own `outer` answer: the identity spelling peeled an effect-free
+        // sequence tail along with the wrappers, so `(0, dh())?.self` read as a write and the
+        // plain drop lost both the short-circuit and the ponyfill
         const droppedBase = unwrapRuntimeExpr(peeledVal.object);
-        if (peeledVal.optional && peelChainAssignmentDeep(droppedBase) === droppedBase) {
+        if (peeledVal.optional && !peelChainAssignment(droppedBase).outer) {
           const dropped = resolveGlobalPolyfill(peeledVal.property.name);
-          memoSource = renderShortCircuitGuard(nullGuardTest(cloneNode(peeledVal.object)),
-            identifier(injectPureImport(dropped.entry, dropped.hintName)));
+          memoSource = provenDroppedHopFoldedMemo(peeledVal.object, dropped, metaPath)
+            ?? renderShortCircuitGuard(nullGuardTest(cloneNode(peeledVal.object)),
+              identifier(injectPureImport(dropped.entry, dropped.hintName)));
           break;
         }
         memoSource = peeledVal.object;
