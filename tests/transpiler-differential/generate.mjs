@@ -2036,12 +2036,20 @@ const PROVEN_CALL_GUARD_ROOTS = [
   ['se-prefix', 'const dh = () => globalThis;', '(log.push("p"), dh())'],
   ['se-callee', 'const dh = () => { log.push("c"); return globalThis; };', 'dh()'],
   ['se-arg', 'const dh = () => globalThis;', 'dh(log.push("a"))'],
+  // TWO buried effects: a nested seq level and an effectful argument under a prefix - the
+  // guard-test spelling must replay BOTH, and a per-level walk lost exactly the second one
+  ['se-nested', 'const dh = () => globalThis;', '(log.push("a"), (log.push("b"), dh()))'],
+  ['se-prefix-arg', 'const dh = () => globalThis;', '(log.push("a"), dh(log.push("b")))'],
+  ['probe-yield-se-nested', 'const dh = () => globalThis.window;',
+    '(log.push("a"), (log.push("b"), dh()))'],
+  ['probe-yield-se-arg', 'const dh = () => globalThis.window;',
+    '(log.push("a"), dh(log.push("b")))'],
   // the probe-yield negative: proving WHICH global a call yields is not proving it yields a
-  // DEFINED one - the guard stays, and under the rig the live `window` answers it. this row
-  // rides the OPTIONAL claim tail: the plain-tail twin diverges on the legs' vestigial-erase
-  // channels (a per-hop-verdict consumer, owned by its own cluster), which is not this
-  // family's claim - the family asserts the proven-base fold
-  ['probe-yield', 'const dh = () => globalThis.window;', 'dh()', { optionalTail: true }],
+  // DEFINED one - the guard stays (one test, sourced from the call itself; the realm hops
+  // fold onto the tested value), and under the rig the live `window` answers it. the
+  // optional-tail twin keeps the guard-composition arm covered
+  ['probe-yield', 'const dh = () => globalThis.window;', 'dh()'],
+  ['probe-yield-optional-tail', 'const dh = () => globalThis.window;', 'dh()', { optionalTail: true }],
 ];
 
 function * generateProvenCallGuardHops() {
@@ -2050,6 +2058,14 @@ function * generateProvenCallGuardHops() {
     const body = `(() => { ${ setup } return [String(${ root }${ claim }), log.length]; })()`;
     yield { ...snippet(`proven-call-guard/${ id }`, body, { rig: true }), strip: false };
   }
+  // a run of ONLY probe hops off a proven DEFINED yield keeps the probe read spelled - folding
+  // it answers the ponyfill where native throws on the absent host (positional fold canon)
+  yield {
+    ...snippet('proven-call-guard/probe-only-run',
+      '(() => { const dh = () => globalThis; try { return String(dh().window.customQ); } catch (error) { return "T:" + error.constructor.name; } })()',
+      { rig: true }),
+    strip: false,
+  };
 }
 
 // --- A destructured IIFE parameter owns its argument slot ---

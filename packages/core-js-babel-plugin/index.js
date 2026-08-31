@@ -44,6 +44,7 @@ import {
   isDestructurePattern,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   usableAliasInfo,
+  POSSIBLE_GLOBAL_OBJECTS,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   navHoldsMintedSeCall, ownEmittedNavClaim, ownOutputTests, restSentinelNamesReducer,
@@ -82,9 +83,18 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import { isKnownGlobalName } from '@core-js/polyfill-provider/detect-usage/globals';
 import {
+  aliasHeldClaimProbe,
+  aliasRootedReadMayThrow,
+  callValueCanBeUndefined,
+  inlineCallHasObservableEffects,
+  inlineCallProxyGlobalRoot,
+  resolveObjectName,
   isAliasProxyHopChain,
+  sealedChainBoundary,
   ownChainOptionalObjects,
   prependChainAssignmentEffect,
+  probeRenderedReceiver,
+  proxyReceiverValueCanBeUndefined,
   staticMayEraseReceiver,
   storedUserAssignmentOf,
   partitionEffectsAtProbe,
@@ -721,9 +731,7 @@ export default function plugin(api, options) {
       // the probe node between the effect halves the shared rule splits
       function probeOrderedEffects(throwProbe, effects) {
         // the probe READ is an already-decided render - the alias arm spells it from a RAW
-        // source read the member visitor would otherwise re-claim on insertion. the seed is
-        // NODE-level only: everything inside the probe stays live for re-entry (a key-SE
-        // claim, the guard test's root substitution)
+        // source read the member visitor would otherwise re-claim on insertion. the seed depth
         const { ahead, after } = partitionEffectsAtProbe(effects, throwProbe.navStart);
         skippedNodes.add(throwProbe.node);
         return [...ahead, throwProbe.node, ...after];
@@ -1066,6 +1074,9 @@ export default function plugin(api, options) {
           // a minted memo ref reads the substituted value off its own write the same way
           if (staticFallbackSwapRedundant(path.node.object, meta.sideEffects,
             { mintedAliasRef: name => injector?.getBindingInfo?.(name)?.minted === true })) return;
+          // a receiver that IS our probe render (a prior pass's, or this one's re-read) keeps
+          // its throw - the swap would eat it
+          if (path.scope && probeRenderedReceiver(path.node.object, { scope: path.scope, adapter, path })) return;
           // inject the pure ctor LAZILY - a multi-undefinable-hop chain stands down below (keeps the raw
           // chain), and an eager import there would be dead. every real use funnels through `fallbackId()`
           let fallbackImport = null;
@@ -1194,8 +1205,18 @@ export default function plugin(api, options) {
           // and this plain arm owns the assignment's emission the same way the claim channel does
           if (hadChainAssign) collapseKeptNavValueNode(receiverPath.node, path, { immediate: true });
           // a SEALED probe receiver: the swap drops the read the source performs on the sealed
-          // VALUE - re-emit it as a THROW probe (carrying the nav's key SE) ahead of the swap
-          const throwProbe = sealedClaimThrowProbeNode(path);
+          // VALUE - re-emit it as a THROW probe (carrying the nav's key SE) ahead of the swap.
+          // this swap replaces the RECEIVER, so the receiver read is what it erases and what the
+          // probe respells (`(a.Promise, _Promise).noSuchStatic`, the unplugin spelling - the
+          // surviving member still reads once); a shape only the whole-member walk can probe (a
+          // seal directly under the member) keeps that spelling
+          const throwProbe = sealedClaimThrowProbeNode(path, path.node.object)
+            ?? (sealedChainBoundary(path.node)?.member === path.node ? sealedClaimThrowProbeNode(path) : null);
+          // an ALIAS holding an absent-able value (its init is our minted guard): the receiver
+          // swap erases the member read that throws on the void branch, and the member itself
+          // owes no polyfill - stand down whole, the unplugin leg's twin verdict on this swap
+          if (!throwProbe && !path.node.optional && path.scope
+            && aliasRootedReadMayThrow(path.node.object, resolveBuiltIn, { scope: path.scope, adapter, path })) return;
           const probeSe = throwProbe && new Set(throwProbe.keySeExprs);
           const fbEffects = probeSe ? allEffects.filter(se => !probeSe.has(se)) : allEffects;
           receiverPath.replaceWith(withSideEffects(fallbackId(),
@@ -1288,6 +1309,55 @@ export default function plugin(api, options) {
             ? chainRootPath : path;
           if (synthSwap?.collapseProxyHopRoot(drivePath, path.scope ? { scope: path.scope, adapter, path } : null,
             { keptSeqHopFold: true })) return;
+          // a proxy-HOP claim whose navigation a `delete` folds WHOLE reaches its slot off the ROOT
+          // binding, not off the hop's own ponyfill - that is the base every other spelling of this
+          // source lands on, and the drive that spells it cannot fire from the hop itself
+          if (memberProxyHopName(path.node)
+            && (chainRootPath.isIdentifier() || chainRootPath.isCallExpression())
+            && deleteHostAboveChain(path, path.node, unwrapRuntimeExpr)) {
+            // the `?.` the source wrote over the folded nav guards a read that never happens: the
+            // fold landed the root binding, and the canon has spoken for the whole navigation -
+            // the shared dangling-optional rule spells it, carriers and all
+            function landFoldedRoot(base) {
+              path.replaceWith(base);
+              deoptionalizeDanglingOptionalParent(path);
+            }
+            // a PROVEN effect-free call yielding a DEFINED global is the identifier spelling's
+            // twin and folds onto the same root ponyfill; a probe yield keeps the per-hop
+            // channels (the leaf canon), an effectful call has no slot to replay what it did
+            function provenCallRootName() {
+              const callNode = chainRootPath.node;
+              if (callNode.optional || !path.scope) return null;
+              const callCtx = { scope: path.scope, adapter, path };
+              // a LIVE `?.` anywhere in the deleted navigation short-circuits what stands
+              // above it - the guard channels own that render (the locked `ut()` family);
+              // only a run whose every `?.` tests a proven-defined value folds whole
+              const chainEndNode = memberChainEndPath({ path, unwrap: unwrapRuntimeExpr }).node;
+              for (let scan = unwrapRuntimeExpr(chainEndNode);
+                scan?.type === 'MemberExpression' || scan?.type === 'OptionalMemberExpression';
+                scan = unwrapRuntimeExpr(scan.object)) {
+                if (scan.optional && proxyReceiverValueCanBeUndefined(unwrapRuntimeExpr(scan.object),
+                  resolveBuiltIn, callCtx)) return null;
+              }
+              const rootId = inlineCallProxyGlobalRoot({ callNode, ...callCtx, rejectConditional: true });
+              if (!rootId || callValueCanBeUndefined(callNode, callCtx, m => resolvePure(m, path))
+                || inlineCallHasObservableEffects({ callNode, ...callCtx })) return null;
+              return POSSIBLE_GLOBAL_OBJECTS.has(rootId.name) ? rootId.name
+                : resolveObjectName({ objectNode: rootId, ...callCtx, usageNode: rootId });
+            }
+            const rootName = chainRootPath.isIdentifier() ? asProxyGlobalName(chainRootPath.node.name)
+              : asProxyGlobalName(provenCallRootName());
+            const rootPure = rootName ? resolvePure({ kind: 'global', name: rootName }, path) : null;
+            if (rootPure) {
+              landFoldedRoot(injectPureImport(rootPure.entry, rootPure.hintName));
+              return;
+            }
+            if (!rootName && chainRootPath.isIdentifier()
+              && isAliasProxyHopChain(path.node, path.scope ? { scope: path.scope, adapter, path } : null)) {
+              landFoldedRoot(t.cloneNode(chainRootPath.node));
+              return;
+            }
+          }
           // the hop collapse refused a short-circuitable nav (the probe canon): render the
           // kept-nav plan in place at the chain END, or a raw polyfillable hop key strands
           // off a defined receiver (`window['self']` - the web.self class miss)
@@ -1297,29 +1367,6 @@ export default function plugin(api, options) {
           // semantics by node type)
           const chainEnd = memberChainEndPath({ path, unwrap: unwrapRuntimeExpr });
           if (chainEnd !== path && collapseShortCircuitNavInPlace(chainEnd)) return;
-          // a proxy-HOP claim whose navigation a `delete` folds WHOLE reaches its slot off the ROOT
-          // binding, not off the hop's own ponyfill - that is the base every other spelling of this
-          // source lands on, and the drive that spells it cannot fire from the hop itself
-          if (memberProxyHopName(path.node) && chainRootPath.isIdentifier()
-            && deleteHostAboveChain(path, path.node, unwrapRuntimeExpr)) {
-            // the `?.` the source wrote over the folded nav guards a read that never happens: the
-            // fold landed the root binding, and the canon has spoken for the whole navigation -
-            // the shared dangling-optional rule spells it, carriers and all
-            function landFoldedRoot(base) {
-              path.replaceWith(base);
-              deoptionalizeDanglingOptionalParent(path);
-            }
-            const rootName = asProxyGlobalName(chainRootPath.node.name);
-            const rootPure = rootName ? resolvePure({ kind: 'global', name: rootName }, path) : null;
-            if (rootPure) {
-              landFoldedRoot(injectPureImport(rootPure.entry, rootPure.hintName));
-              return;
-            }
-            if (!rootName && isAliasProxyHopChain(path.node, path.scope ? { scope: path.scope, adapter, path } : null)) {
-              landFoldedRoot(t.cloneNode(chainRootPath.node));
-              return;
-            }
-          }
         }
 
         if (path.isObjectProperty()) {
@@ -1335,6 +1382,12 @@ export default function plugin(api, options) {
             ? undefinableOptionalGuard(path.node, resolveBuiltIn, path.scope ? { scope: path.scope, adapter, path } : null)
             : null;
           if (staticEraseGuard?.kind === 'standdown') return;
+          // a swap that OWES a throw probe but cannot spell one (an SE computed key in the
+          // alias-rooted run - respelling would double its effect) stands down the same way,
+          // and before the import for the same reason - the unplugin leg's twin stand-down
+          if (kind !== 'instance' && !inheritedStatic && path.node.object && !path.node.optional && path.scope
+            && aliasRootedReadMayThrow(path.node.object, resolveBuiltIn, { scope: path.scope, adapter, path })
+            && !aliasHeldClaimProbe(path.node, resolveBuiltIn, { scope: path.scope, adapter, path })) return;
           const id = injectPureImport(entry, hintName);
           // a WRITE host is never a read: the member is being assigned, updated or DELETED, so swapping
           // it changes what the statement acts on - `delete X.flat.name` became `delete _nameMaybeFunction(...)`,
@@ -1432,6 +1485,7 @@ export default function plugin(api, options) {
             if (staticEraseGuard.kind === 'guard' && emitGuardedClaim({
               path, replacePath, id, guardObject: staticEraseGuard.object,
               sideEffects: meta.sideEffects, receiverEffectCount: meta.receiverEffectCount,
+              proxyRootClaim: kind === 'global' && POSSIBLE_GLOBAL_OBJECTS.has(hintName),
               substituteGlobal(name) {
                 const resolved = resolvePure({ kind: 'global', name }, path);
                 return resolved ? injectPureImport(resolved.entry, resolved.hintName) : null;
