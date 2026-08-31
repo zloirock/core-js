@@ -42,6 +42,7 @@ import {
   subtreeContainsNode,
   isDestructurePattern,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
+  usableAliasInfo,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   navHoldsMintedSeCall, ownEmittedNavClaim, ownOutputTests, restSentinelNamesReducer,
@@ -57,7 +58,6 @@ import {
   proxyWriteOriginsReducer,
   registerAliasPrePassSite,
   remapInheritedStaticMeta,
-  usableAliasInfo,
 } from '@core-js/polyfill-provider/helpers/class-walk';
 import { tagError } from '@core-js/polyfill-provider/helpers/error-tag';
 import {
@@ -94,7 +94,7 @@ import {
   planGuardedDestructureNarrow,
   isSourcedSymbolIteratorMeta, planGuardedStaticNarrow, resolveSymbolIteratorEntry, SYMBOL_ITERATOR_PURE_RESULT, symbolIteratorHint,
 } from '@core-js/polyfill-provider/detect-usage/members';
-import { chainNavigatesIntoMutatedStatic, isPolyfillableOptional } from '@core-js/polyfill-provider/detect-usage/annotations';
+import { isPolyfillableOptional, mutatedStaticLandingVerdict } from '@core-js/polyfill-provider/detect-usage/annotations';
 import { scanExistingCoreJSImports } from '@core-js/polyfill-provider/detect-usage/entries';
 import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
 import createASTHelpers, {
@@ -401,7 +401,6 @@ export default function plugin(api, options) {
     return isPolyfillableOptional({
       node, scope, path, adapter, resolve: resolveBuiltIn, resolveSuperStatic: resolveSuperStaticFn,
       mutatedSet: mutatedStatics, isShadowedByClassOwnMember: isShadowedByClassOwnMemberFn,
-      mutatedKeptRootAware: true,
     });
   }
 
@@ -1272,7 +1271,7 @@ export default function plugin(api, options) {
           // already IS the emitted leaf
           if (isRenderedPlanTail(chainRootPath.parentPath?.node)) return;
           const drivePath = chainRootPath.isIdentifier() && injector?.getMemoWrite?.(chainRootPath.node.name)
-            && chainNavigatesIntoMutatedStatic({ path, scope: path.scope, adapter, mutatedSet: mutatedStatics })
+            && mutatedStaticLandingVerdict({ path, scope: path.scope, adapter, mutatedSet: mutatedStatics }) === 'yes'
             ? chainRootPath : path;
           if (synthSwap?.collapseProxyHopRoot(drivePath, path.scope ? { scope: path.scope, adapter, path } : null)) return;
           // the hop collapse refused a short-circuitable nav (the probe canon): render the

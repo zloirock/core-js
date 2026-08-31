@@ -35,10 +35,14 @@ import {
   useAnchorStart,
   walkPatternIdentifiers,
   withoutValuelessDeclarationViolations,
+  aliasSpanDominatesUse,
+  usableAliasInfo,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
-  aliasSpanDominatesUse, assignmentAliasWriteTrusted, isPolyfillAliasBinding, isSymbolDestructureAliasBinding, soleAliasWrite,
-  usableAliasInfo,
+  assignmentAliasWriteTrusted,
+  isPolyfillAliasBinding,
+  isSymbolDestructureAliasBinding,
+  soleAliasWrite,
 } from '@core-js/polyfill-provider/helpers/class-walk';
 
 // shared `unwrapTransparentSeq` peels paren / TS expression wrappers / safe SequenceExpression so
