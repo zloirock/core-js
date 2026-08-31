@@ -2192,12 +2192,12 @@ export function storedNavHopClaimSuppressed(path, { scope, adapter, resolvePure 
 // key's prefix expressions onto the hop (`[(c++, 'self')]` re-emits the `c++` with the render);
 // false = a key that does not fold to a pristine name, or one whose effects have no re-emit
 // shape - the whole plan bails on it
-function resolveComputedHopKeys(hops, { scope, adapter, path, unwrap }) {
+function resolveComputedHopKeys(hops, { scope, adapter, path }) {
   for (const hop of hops) {
     if (hop.name !== null) continue;
     hop.name = resolveKey({ node: hop.node.property, computed: true, scope, adapter, seen: new Set(), path });
     if (!hop.name || !isPristineProxyGlobal(adapter, hop.name)) return false;
-    const prop = unwrap(hop.node.property);
+    const prop = unwrapTransparentSeq(hop.node.property);
     if (prop.type === 'SequenceExpression' && prop.expressions.length > 1
       && prop.expressions.slice(0, -1).some(mayHaveSideEffects)) {
       hop.keySeExprs = prop.expressions.slice(0, -1);
@@ -2213,10 +2213,10 @@ function resolveComputedHopKeys(hops, { scope, adapter, path, unwrap }) {
 // instead - one liveness rule for both emitters (babel's re-read at flush == the ast
 // engine's keep-live identity); the shape check falls back to the captured nodes when a
 // rewrite reshaped the container
-function liveHopKeySeExprs(hops, unwrap) {
+function liveHopKeySeExprs(hops) {
   return hops.flatMap(hop => {
     if (!hop.keySeExprs?.length) return [];
-    const prop = unwrap(hop.node.property);
+    const prop = unwrapTransparentSeq(hop.node.property);
     return prop?.type === 'SequenceExpression' && prop.expressions.length === hop.keySeExprs.length + 1
       ? prop.expressions.slice(0, -1) : hop.keySeExprs;
   });
@@ -2299,15 +2299,15 @@ function foldReadThroughRealmHops(hops, { adapter, resolvePure }) {
 // carries effects the collapse must keep), 'bare' (everything provably drops). null = not this
 // shape; the callers keep their own canons there
 export function planProvenNavGuardCollapse({
-  rootNode, scope, adapter, path, resolvePure, unwrap = unwrapTransparentSeq, allowSequenceRoot = false,
+  rootNode, scope, adapter, path, resolvePure, allowSequenceRoot = false,
   throughKeptAssign = false, descendSequenceTail = false, storedValueSequenceTail = false,
 }) {
-  let core = unwrap(rootNode);
+  let core = unwrapTransparentSeq(rootNode);
   const dug = digChainAssignSteps(core);
   const topAssign = dug?.steps[0] ?? null;
   const topAssignSteps = dug?.steps ?? [];
   const seqAroundPrefix = dug?.seqAroundPrefix ?? null;
-  if (topAssign) core = unwrap(storedValueCore(dug.value, storedValueSequenceTail).node);
+  if (topAssign) core = unwrapTransparentSeq(storedValueCore(dug.value, storedValueSequenceTail).node);
   if (core?.type !== 'MemberExpression' && core?.type !== 'OptionalMemberExpression') return null;
   const hops = [];
   // one hop of the descent: record it and hand back the object below, or null when the key is not
@@ -2318,7 +2318,7 @@ export function planProvenNavGuardCollapse({
     const dottedKey = node.computed ? null : memberKeyName(node);
     if (!node.computed && !isPristineProxyGlobal(adapter, dottedKey)) return null;
     hops.unshift({ name: dottedKey, node, optional: !!node.optional, keySeExprs: null });
-    return unwrap(node.object);
+    return unwrapTransparentSeq(node.object);
   }
   // one descent, used twice: for the nav itself and, under a live `?.`, for the nav a kept write
   // stores. returns the node below the hops, or null when a key is not a pristine proxy-global.
@@ -2349,7 +2349,7 @@ export function planProvenNavGuardCollapse({
   // the probe is that consumer; a kept-nav flush is not, and letting it own the shape cost first the
   // prefix effect and then the read's throw
   if (seqRootNode) {
-    n = descendSequenceTail ? descendHops(unwrap(peelReceiverSequenceTail(seqRootNode)))
+    n = descendSequenceTail ? descendHops(unwrapTransparentSeq(peelReceiverSequenceTail(seqRootNode)))
       : peelReceiverSequenceTail(seqRootNode);
     if (n === null) return null;
   }
@@ -2363,7 +2363,7 @@ export function planProvenNavGuardCollapse({
   function keptWriteRoot() {
     const host = throughKeptAssign ? peelReceiverSequenceTail(n) : n;
     const { outer, value } = peelChainAssignment(host);
-    const below = outer ? unwrap(value) : n;
+    const below = outer ? unwrapTransparentSeq(value) : n;
     if (!throughKeptAssign || !outer || !hops[0]?.optional) return { outer, below };
     return { outer, below: descendHops(below) };
   }
@@ -2383,7 +2383,7 @@ export function planProvenNavGuardCollapse({
     ? bareProxyGlobalAliasName(call, aliasCtx) ?? proxyGlobalRootName({ node: call, ...aliasCtx }) : null;
   const identRoot = identRootName ? call : null;
   if (!identRoot && call?.type !== 'CallExpression' && call?.type !== 'OptionalCallExpression') return null;
-  if (!resolveComputedHopKeys(hops, { scope, adapter, path, unwrap })) return null;
+  if (!resolveComputedHopKeys(hops, { scope, adapter, path })) return null;
   const rootId = identRoot ?? inlineCallProxyGlobalRoot({ callNode: call, scope, adapter, path });
   // an emitter may have already rewritten the proven root INSIDE the callee to its pure
   // import (`() => _globalThis`); the import binding names its source global through the
@@ -2463,7 +2463,7 @@ export function planProvenNavGuardCollapse({
     // the COLLAPSED hops only: their key nodes are discarded with them, so their effects have to be
     // replayed ahead of the leaf. a hop ABOVE the collapse survives as itself, key node included,
     // and replaying it here too would run the source's effect twice
-    liveKeySeExprs: () => liveHopKeySeExprs(hops.slice(0, collapseIdx + 1), unwrap), testKeySeCount,
+    liveKeySeExprs: () => liveHopKeySeExprs(hops.slice(0, collapseIdx + 1)), testKeySeCount,
     seqAroundPrefix,
     leafName: hops[collapseIdx].name, leafPure, rootValueNode: seqRootNode ?? n, seqRoot: !!seqRootNode,
     // the sequence's TAIL is part of what the hops navigate, so a render that descended past it
