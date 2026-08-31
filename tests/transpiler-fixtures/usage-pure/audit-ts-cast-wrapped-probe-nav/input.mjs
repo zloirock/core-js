@@ -48,6 +48,13 @@ export const castSealedTag = (globalThis.window?.self as any)`x`;
 export const sealedNonNullRead = (globalThis.window?.self)!.Symbol?.iterator;
 export const sealedCastRead = (globalThis.window?.self as any).Symbol?.iterator;
 export const sealedNonNullWriteRoot = ((held2 = globalThis).window?.self)!.Symbol?.iterator;
+
+// a TAG whose seal is spelled through a non-null wrapper: the lift must land its parens on the
+// wrapper (a bare optional-chain tag does not parse), and a tag the plugin never touches still
+// owes the reprint the parens the source wrote
+export const nonNullSealedTag = (globalThis.window?.self.someTag!)`x`;
+let userBox: any;
+export const keptUserTag = (userBox?.userTag!)`x`;
 export const sealedNonNullStaticCall = (globalThis.window?.self)!.Array.of(5);
 // NEGATIVE: no parens, so the `!` is chain-transparent and the whole chain short-circuits
 export const unsealedNonNull = globalThis.window?.self!.Symbol?.iterator;
