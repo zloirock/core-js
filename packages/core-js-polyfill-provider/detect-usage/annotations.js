@@ -1,9 +1,9 @@
 // TS / Flow type-annotation detection. exposes:
 //   - `isTypeAnnotationNodeType(type)` predicate (used to skip type-only positions during
 //     polyfill detection)
-//   - `walkTypeAnnotationGlobals(annotation, onGlobal)` walker (entry-global needs to pull
+//   - `walkTypeAnnotationGlobals(annotation, onGlobal, ctx)` walker (entry-global needs to pull
 //     `Foo` from `let x: Foo` so `es.foo.constructor` lands at file level)
-//   - `checkTypeAnnotations(node, onGlobal)` helper for class / function annotation slots
+//   - `checkTypeAnnotations(node, onGlobal, ctx)` helper for class / function annotation slots
 //   - `isPolyfillableOptional({ node, scope, adapter, resolve })` - the polyfill replacement
 //     consumes `?.`, so the receiver null-check is redundant. `node` may be the optional member
 //     OR the optional call wrapping it (`Array.from?.(...)`); a call unwraps to its callee
@@ -12,11 +12,17 @@ import {
   importBindingIsTypeOnly, isMutatedStaticMeta, memberKeyName, POSSIBLE_GLOBAL_OBJECTS,
   TRANSPARENT_EXPR_WRAPPER_TYPES, unwrapRuntimeExpr,
 } from '../helpers/ast-patterns.js';
-import { globalProxyMemberName, isProxyGlobalIdentifierNode } from '../helpers/class-walk.js';
 import {
-  maximalProxyGlobalPrefix, navHasUnresolvableProxyHop, peelChainAssignment, peelReceiverSequenceTail,
+  globalProxyMemberName,
+  proxyGlobalRootName,
+  maximalProxyGlobalPrefix,
+  peelChainAssignment,
   peelChainRootValue,
-  proxyReceiverValueCanBeUndefined, resolveKey, resolveObjectName, undefinableProxyRootValue,
+  peelReceiverSequenceTail,
+  proxyReceiverValueCanBeUndefined,
+  resolveKey,
+  resolveObjectName,
+  undefinableProxyRootValue,
   unwrapTransparentSeq,
 } from './resolve.js';
 
@@ -147,6 +153,16 @@ export function typeOnlyImportShadows({ adapter, scope, name, path, hostType }) 
   return importBindingIsTypeOnly(adapter.getBinding?.(scope, name, path));
 }
 
+// does a name read from a type position stand for the real global here? both shadow questions
+// together - a runtime binding and a type-only import. the usage sink asks it of every name the
+// walk hands it, and the walk itself asks it of a qualified chain's ROOT before promoting the
+// chain's further segments to globals: spelled once, so a user `const self = {...}` cannot make
+// `x: self.Reflect` report the global Reflect the way a name-only proxy test did
+export function annotationNameIsGlobal({ adapter, scope, name, path, hostType }) {
+  return !adapter.hasBinding(scope, name, path)
+    && !typeOnlyImportShadows({ adapter, scope, name, path, hostType });
+}
+
 // is `type` a TS/Flow type-only node? `Declare*` is a stable Flow prefix
 export function isTypeAnnotationNodeType(type) {
   if (!type) return false;
@@ -161,6 +177,7 @@ const TYPE_ANNOTATION_PARAM_HOSTS = new Set([
   'AssignmentPattern',
   'ObjectPattern',
   'ArrayPattern',
+  'TSParameterProperty',
 ]);
 
 // should the walker descend into `node` when walking a type annotation?
@@ -211,6 +228,12 @@ const TYPE_CHILD_KEYS = [
   // Flow function-type slots the `params` / `returnType` pair does not cover
   'rest',
   'this',
+  // the two peels a class / function node's own param list needs: a parameter PROPERTY wraps the
+  // annotated binding (`constructor(public m: Map<...>)`), and a defaulted parameter carries it on
+  // the pattern's left. spelled here rather than in a hand loop beside the walk, which is what the
+  // slot descent below already does for every other annotation key
+  'parameter',
+  'left',
 ];
 
 // per-node-type: which property holds the bare Identifier that names a type / runtime binding.
@@ -228,8 +251,11 @@ const TYPE_REFERENCE_SLOTS = {
 // walk a type annotation subtree, invoking `onGlobal(name, hostType)` for every bare type
 // reference. `hostType` is the node the name was read from - `typeof X` READS the runtime binding,
 // so a consumer asking a type-space question has to tell that host apart from a plain type reference.
-// `isTypeWalkable` keeps the walker out of runtime bodies; `seen` bounds cyclic inputs
-export function walkTypeAnnotationGlobals(annotation, onGlobal) {
+// `isTypeWalkable` keeps the walker out of runtime bodies; `seen` bounds cyclic inputs.
+// `ctx` (`{ scope, adapter, path }`) is what the qualified-chain arm resolves its ROOT against - a
+// proxy-global NAME is only the realm when nothing local shadows it, and the sink's own per-name
+// filter cannot answer for the chain's further segments
+export function walkTypeAnnotationGlobals(annotation, onGlobal, ctx) {
   if (!annotation) return;
   const seen = new WeakSet();
   const stack = [annotation];
@@ -257,7 +283,12 @@ export function walkTypeAnnotationGlobals(annotation, onGlobal) {
         else { segments.unshift(cur); break; }
       }
       const [root] = segments;
-      const rootIsProxy = root?.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(root.name);
+      // the root's proxy-ness is a SCOPE question, not a name one: `const self = { Reflect: {} };
+      // let x: self.Reflect` names the user's object, and promoting its segments reported the global
+      // Reflect. the sink filters the root itself by the same rule, but it is handed names one at a
+      // time and cannot tell a promoted segment from a bare reference
+      const rootIsProxy = root?.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(root.name)
+        && annotationNameIsGlobal({ ...ctx, name: root.name, hostType: node.type });
       if (node.type === 'TSTypeQuery' || rootIsProxy) {
         if (root?.type === 'Identifier') onGlobal(root.name, node.type);
         // when the root is a proxy-global, EACH subsequent segment is itself a real global reference for
@@ -288,25 +319,29 @@ export function walkTypeAnnotationGlobals(annotation, onGlobal) {
   }
 }
 
-// the polyfill replacement consumes `?.`, so the receiver null-check is redundant.
-// `unwrapTransparentSeq` peels ParenthesizedExpression (oxc preserves; babel strips) and the
-// SequenceExpression tail when preceding elements are SE-free (`(0, globalThis)?.Array`).
-// `unwrapRuntimeExpr` follow-up strips TS expression wrappers so `(globalThis as any)?.Array`
-// also reaches the Identifier check and the polyfill consumes the optional `?.`.
-// `path` (when provided) anchors the `adapter.hasBinding` lookup at the reference site,
-// catching TS-runtime shadows (`enum`, `namespace`, `import X = require()`) that babel's
-// raw scope index misses. extractCheck/replaceInstanceLike pass it through their
-// `skipOptional` callback hop; legacy callers without a path-aware adapter still work
-// because the third argument is optional on `hasBinding`
+// the static key of a member, dotted or computed: the literal name when the spelling carries one,
+// otherwise the canonical key resolver's fold (an SE-prefixed / concat / alias-bound computed key
+// names the same static as the dotted form). null when the key is genuinely dynamic. one spelling -
+// the three sites here differ only in which path anchors the fold
+function memberStaticKey(memberNode, { scope, adapter, path }) {
+  return memberKeyName(memberNode)
+    ?? (memberNode.computed ? resolveKey({ node: memberNode.property, computed: true, scope, adapter, path }) : null);
+}
+
 // walk the ENCLOSING chain from an optional proxy hop UP to its static landing: the first
 // member key outside the proxy-global family is the effective global (`.Array`), the next
 // member key is the static (`.of`). a MUTATED landing cancels the always-defined claim the
 // proxy-prefix deopt relies on - the substitution bails and the raw navigation really reads
 // through the guarded value, so the `?.` must keep its guard (the emit then memoizes the
 // chain ROOT, the unplugin emitter's canon). a chain that never reaches a second member has no
-// static landing to be mutated - the deopt stays
-export function chainNavigatesIntoMutatedStatic({ path, node = path?.node, scope, adapter, mutatedSet }) {
-  if (!mutatedSet?.size || !path) return false;
+// static landing to be mutated - the deopt stays.
+// THREE-valued (`yes` / `no` / `unknown`), because a key the walk cannot name is not a landing
+// verdict at all and the consumers owe it OPPOSITE defaults: the deopt must keep its `?.` on
+// `unknown` (dropping a guard over a value that can be undefined is unsound), the render-anchor
+// choice must keep its own path. a boolean forced both to read it as "no mutated landing"
+export function mutatedStaticLandingVerdict({ path, node = path?.node, scope, adapter, mutatedSet }) {
+  if (!mutatedSet?.size) return 'no';
+  if (!path) return 'unknown';
   let current = path;
   let globalName = null;
   // the walk may START at the landing's own member (`(v = gw)?.self?.Set` as an optional
@@ -318,38 +353,38 @@ export function chainNavigatesIntoMutatedStatic({ path, node = path?.node, scope
   // belong to members above the landing
   const ownNode = node;
   if (ownNode?.type === 'MemberExpression' || ownNode?.type === 'OptionalMemberExpression') {
-    const ownKey = memberKeyName(ownNode)
-      ?? (ownNode.computed ? resolveKey({ node: ownNode.property, computed: true, scope, adapter, path }) : null);
-    if (ownKey !== null && ownKey !== undefined && !POSSIBLE_GLOBAL_OBJECTS.has(ownKey)) globalName = ownKey;
+    const ownKey = memberStaticKey(ownNode, { scope, adapter, path });
+    if (ownKey === null || ownKey === undefined) return 'unknown';
+    if (!POSSIBLE_GLOBAL_OBJECTS.has(ownKey)) globalName = ownKey;
   }
   for (let guard = 0; guard < 64 && current; guard++) {
     const parent = current.parentPath;
     const parentNode = parent?.node;
-    if (!parentNode) return false;
+    if (!parentNode) return 'no';
     if (TRANSPARENT_EXPR_WRAPPER_TYPES.has(parentNode.type) && parentNode.expression === current.node) {
       current = parent;
       continue;
     }
     if ((parentNode.type === 'MemberExpression' || parentNode.type === 'OptionalMemberExpression')
       && parentNode.object === current.node) {
-      const key = memberKeyName(parentNode)
-        ?? (parentNode.computed
-          ? resolveKey({ node: parentNode.property, computed: true, scope, adapter, path: parent }) : null);
-      if (key === null || key === undefined) return false;
+      const key = memberStaticKey(parentNode, { scope, adapter, path: parent });
+      if (key === null || key === undefined) return 'unknown';
       if (globalName === null) {
         if (!POSSIBLE_GLOBAL_OBJECTS.has(key)) globalName = key;
         current = parent;
         continue;
       }
-      return isMutatedStaticMeta({ kind: 'property', object: globalName, key, placement: 'static' }, mutatedSet);
+      return isMutatedStaticMeta({ kind: 'property', object: globalName, key, placement: 'static' }, mutatedSet)
+        ? 'yes' : 'no';
     }
     // the chain ended right after the global (a helper call consumed the static member on a
     // re-visit): a SLOT-mutated constructor poisons every read through it, so the nav must
     // stay raw exactly like the explicit static landing
     return globalName !== null
-      && isMutatedStaticMeta({ kind: 'property', object: 'globalThis', key: globalName, placement: 'static' }, mutatedSet);
+      && isMutatedStaticMeta({ kind: 'property', object: 'globalThis', key: globalName, placement: 'static' }, mutatedSet)
+      ? 'yes' : 'no';
   }
-  return false;
+  return 'unknown';
 }
 
 // true when the guarded value of a chain-assign-rooted proxy nav can genuinely be undefined:
@@ -395,18 +430,35 @@ export function storedProxyNavProvesHop(storeNode, { scope, adapter, path, resol
   // the dead guard erases in step with that collapse, instead of a kept guard leaving babel a raw
   // static and unplugin a re-run of the call in the fold. the `POSSIBLE_GLOBAL_OBJECTS` gate below
   // discards any non-proxy resolution (an inlined ctor call)
+  // every arm answers with a RESOLVED name, the Identifier one included: pairing a boolean predicate
+  // with the raw spelling meant only a literal `globalThis` / `self` / `window` could pass the gate
+  // below, so an ALIAS store (`const gw = globalThis; (a = gw)?.self.X`) declined the erase its
+  // literal twin gets - and the recogniser's positive answer for aliases was dead weight
   const valueName = valueCore?.type === 'Identifier'
-    ? (isProxyGlobalIdentifierNode({ node: valueCore, scope, adapter, path }) ? valueCore.name : null)
+    ? proxyGlobalRootName({ node: valueCore, scope, adapter, path })
     : valueCore?.type === 'CallExpression' || valueCore?.type === 'OptionalCallExpression'
       ? resolveObjectName({ objectNode: valueCore, scope, adapter, path })
       : globalProxyMemberName({ node: valueCore, scope, adapter, path });
+  // definedness of the stored VALUE is the shared verdict's question, not a hop scan of the node:
+  // once the name resolves through an alias, the nav that could be undefined sits behind the
+  // binding (`const gw = globalThis.window; (a = gw)?.X`) where a hop scan of the bare identifier
+  // finds nothing at all and would erase a load-bearing guard
   return !!valueName && POSSIBLE_GLOBAL_OBJECTS.has(valueName)
-    && !navHasUnresolvableProxyHop(valueCore, resolve);
+    && !undefinableProxyRootValue(valueCore, resolve, { scope, adapter, path });
 }
 
+// the polyfill replacement consumes `?.`, so the receiver null-check is redundant.
+// `unwrapTransparentSeq` peels ParenthesizedExpression (oxc preserves; babel strips) and the
+// SequenceExpression tail when preceding elements are SE-free (`(0, globalThis)?.Array`).
+// `unwrapRuntimeExpr` follow-up strips TS expression wrappers so `(globalThis as any)?.Array`
+// also reaches the Identifier check and the polyfill consumes the optional `?.`.
+// `path` (when provided) anchors the `adapter.hasBinding` lookup at the reference site,
+// catching TS-runtime shadows (`enum`, `namespace`, `import X = require()`) that babel's
+// raw scope index misses. extractCheck/replaceInstanceLike pass it through their
+// `skipOptional` callback hop; legacy callers without a path-aware adapter still work
+// because the third argument is optional on `hasBinding`
 export function isPolyfillableOptional({
   node, scope, adapter, resolve, path, resolveSuperStatic, mutatedSet, isShadowedByClassOwnMember,
-  mutatedKeptRootAware = false,
 }) {
   // an optional CALL (`Array.from?.(...)`) carries the polyfillable target on its `callee`, not
   // `.object`; unwrap to the callee so a call-shaped optional resolves against the member below.
@@ -420,8 +472,7 @@ export function isPolyfillableOptional({
   // (the key text, incl. its SE, stays in place - the deopt only drops the dead `?.`, and the
   // static substitution re-emits the harvested key effects). a genuinely dynamic key stays
   // unresolved (the static visitor never collapses it) and keeps its guard
-  const memberKey = memberKeyName(member)
-    ?? (member.computed ? resolveKey({ node: member.property, computed: true, scope, adapter, path }) : null);
+  const memberKey = memberStaticKey(member, { scope, adapter, path });
   // `super.from?.()` / `this.from?.()` in a static method is an inherited static resolving to the
   // same always-defined polyfill as the bare form (`_Array$from`), so the `?.` deopts just like
   // `Array.from?.()`. resolveSuperStatic (wired with a path inside the static method) resolves it to
@@ -471,24 +522,34 @@ export function isPolyfillableOptional({
     && maximalProxyGlobalPrefix(objCore, { scope, adapter, path },
       { allowSideEffectKeys: true, throughChainAssign: true }) === objCore
     // MUTATED landing over an undefinable root: the claim this deopt leans on is cancelled,
-    // the raw nav reads through a value that can be undefined - the guard must survive.
-    // OPT-IN (`mutatedKeptRootAware`): only the babel emitter's skip-check arms its guard off
-    // this answer; the unplugin's guard-root locator walks past dead hops to the kept
-    // root its own machinery guards - flipping its answer stacked a SECOND guard with a
-    // re-evaluated root assignment
-    && !(mutatedKeptRootAware && proxyNavRootCanBeUndefined(objCore, resolve, { scope, adapter, path })
-      && chainNavigatesIntoMutatedStatic({ path, node: member, scope, adapter, mutatedSet }))) return true;
+    // the raw nav reads through a value that can be undefined - the guard must survive
+    // the landing verdict runs FIRST: it bails O(1) when the file mutates nothing, where the root
+    // descent below walks the whole nav for an answer that could not matter. `unknown` keeps the
+    // guard with `yes` - a key the walk could not name leaves the mutated landing unproven either way
+    && (mutatedStaticLandingVerdict({ path, node: member, scope, adapter, mutatedSet }) === 'no'
+      || !proxyNavRootCanBeUndefined(objCore, resolve, { scope, adapter, path }))) return true;
   // a chain-assign subject: the shared store verdict above owns whether the `?.` is dead. it is
   // deliberately INDEPENDENT of which member follows (the guard tests the receiver, not the member),
   // mirroring the static-call canon `undefinableOptionalGuard`, which erases off the same root value
   // with NO member-key gate: an earlier hop-key gate here kept a DEAD guard on a non-hop member
   // (`(q = globalThis)?.Array...`) that unplugin then double-ran the assign under (a receiver-
   // independent static collapse re-folding the chain-assign the kept guard already ran)
-  if (member === node && objCore?.type === 'AssignmentExpression' && memberKey
-    && storedProxyNavProvesHop(objCore, { scope, adapter, path, resolve })) return true;
+  // the store verdict is the WHOLE answer for this receiver, not one arm among several: what a
+  // chain-assign hands on is the value it stored, and the name-based arms below would read the
+  // stored nav as the realm it navigates (`(w = globalThis.window)?.Array` - `window` names a
+  // proxy global, the VALUE is undefined off-browser and its guard is load-bearing)
+  if (member === node && objCore?.type === 'AssignmentExpression') {
+    return storedProxyNavProvesHop(objCore, { scope, adapter, path, resolve });
+  }
+  // an IDENTIFIER receiver is classified by the canon the meta builder itself runs, never by the
+  // raw name: reading "bound means not a global" answered a question the static emitter answers
+  // differently, so an alias receiver (`const A = Array; A.from?.([1]).at(-1)`) read as
+  // non-polyfillable and kept its guard while the emitter substituted `_Array$from` under it.
+  // a member CHAIN keeps the proxy-hop recogniser: its narrower acceptance is load-bearing (the
+  // opaque-root canon - proving WHICH global a call yields is not proving it yields a defined one)
   const objName = objCore?.type === 'Identifier'
-    ? (adapter.hasBinding(scope, objCore.name, path) ? null : objCore.name)
-    : globalProxyMemberName({ node: objCore, scope, adapter, path });
+    ? resolveObjectName({ objectNode: objCore, scope, adapter, path })
+    : objCore && globalProxyMemberName({ node: objCore, scope, adapter, path });
   // a CTOR read off proxy navigation names the STATIC HOST below: `globalProxyMemberName` answers for
   // a proxy HOP only, so `(v = globalThis.self).Number?.MAX_SAFE_INTEGER.name` found no name at all,
   // kept the guard live, and the claim under it died into a raw read off the ponyfill. asked of the
@@ -533,22 +594,13 @@ export function isPolyfillableOptional({
   return !isMutatedStaticMeta({ kind: 'property', object: staticHost, key: memberKey }, mutatedSet);
 }
 
-export function checkTypeAnnotations(node, onGlobal) {
-  if (node.typeAnnotation) walkTypeAnnotationGlobals(node.typeAnnotation, onGlobal);
-  if (node.returnType) walkTypeAnnotationGlobals(node.returnType, onGlobal);
-  // babel spells a fn-TYPE signature's params `parameters` (`TSFunctionType` / `TSConstructorType` /
-  // `TSCall-` / `TSConstruct-` / `TSMethodSignature`), oxc spells them `params` - the same pair the
-  // child-key table above carries. unplugin dispatches this helper on those very node types.
-  // the per-param descent is the WALKER's: only the two peels it has no child key for are spelled
-  // here - `TSParameterProperty` wraps `constructor(public m: Map<...>)` (the annotation lives on
-  // `.parameter`, itself possibly an `AssignmentPattern` for a defaulted parameter property)
-  for (const param of node.params ?? node.parameters ?? []) {
-    const peeled = param.type === 'TSParameterProperty' ? param.parameter : param;
-    const p = peeled?.type === 'AssignmentPattern' ? peeled.left : peeled;
-    if (p) walkTypeAnnotationGlobals(p, onGlobal);
-  }
-  if (node.typeParameters) walkTypeAnnotationGlobals(node.typeParameters, onGlobal);
+// open the walk on a class / function node: every annotation slot such a node carries - its own
+// `typeAnnotation` / `returnType`, both parser spellings of the param list, `typeParameters` - is a
+// child key the walk already descends, so the descent is spelled ONCE. what stays here is the super
+// type-args, whose key differs per dialect and belongs to no annotation slot of the node itself
+export function checkTypeAnnotations(node, onGlobal, ctx) {
+  walkTypeAnnotationGlobals(node, onGlobal, ctx);
   // class `extends Foo<T>` - Babel: `superTypeParameters`, oxc TS-ESTree: `superTypeArguments`
   const superArgs = getSuperTypeArgs(node);
-  if (superArgs) walkTypeAnnotationGlobals(superArgs, onGlobal);
+  if (superArgs) walkTypeAnnotationGlobals(superArgs, onGlobal, ctx);
 }
