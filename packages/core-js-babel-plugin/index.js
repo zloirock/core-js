@@ -27,6 +27,7 @@ import {
   minifierShapesReducer,
   mutatedGlobalSlotNames,
   isTaggedTemplateTag,
+  nestedSequenceValueSpelling,
   peelNestedSequenceExpressions,
   unwrapRuntimeExpr,
   BRACE_STATEMENT_HOST_TYPES,
@@ -82,6 +83,7 @@ import {
 import { isKnownGlobalName } from '@core-js/polyfill-provider/detect-usage/globals';
 import {
   isAliasProxyHopChain,
+  ownChainOptionalObjects,
   prependChainAssignmentEffect,
   staticMayEraseReceiver,
   storedUserAssignmentOf,
@@ -1164,14 +1166,25 @@ export default function plugin(api, options) {
             const eraseGuard = undefinableOptionalGuard(path.node, resolveBuiltIn,
               path.scope ? { scope: path.scope, adapter, path } : null);
             if (eraseGuard.kind === 'standdown' && allEffects.length <= 1) return;
+            // a NESTED-sequence receiver stays unproven under the kept-sequence boundary, so its
+            // `?.` is as load-bearing as one over a genuine probe - invisible to the erase verdict,
+            // which proves the value through the fixpoint peel. the swap may not eat it: re-hang
+            // the guard with the sequence itself as the test, exactly like a named source. a guard
+            // SOURCE standing inside such a receiver widens to it for the same reason - the kept
+            // test reads what the source wrote, the probe riding the tail with the prefix beside it
+            const seqReceiver = ownChainOptionalObjects(path.node)
+              .find(object => nestedSequenceValueSpelling(object)) ?? null;
             // the effect COUNT was the gate, and it asks the wrong question: what the guard render
             // owes is that every effect still runs exactly once, and an effect standing INSIDE the
             // guard object rides the test itself (`(g = _globalThis, v = <nav>)` IS the test). the
             // count bound erased the source's short-circuit on every receiver carrying two of them
-            if (eraseGuard.kind === 'guard'
+            const guardObject = eraseGuard.kind === 'guard'
+              ? (seqReceiver && subtreeContainsNode(seqReceiver, eraseGuard.object) ? seqReceiver : eraseGuard.object)
+              : eraseGuard.kind === 'erase' ? seqReceiver : null;
+            if (guardObject
               && (allEffects.length <= 1
-                || allEffects.every(effect => subtreeContainsNode(eraseGuard.object, effect)))) {
-              emitReceiverGuard(eraseGuard.object, { detached: !hadChainAssign });
+                || allEffects.every(effect => subtreeContainsNode(guardObject, effect)))) {
+              emitReceiverGuard(guardObject, { detached: !hadChainAssign });
               return;
             }
           }
@@ -1242,7 +1255,7 @@ export default function plugin(api, options) {
             // _at(_ref.Array.prototype)`) exactly as it does for a BARE root and for a plain read
             // off this same alias. collapsing here preempted it and spelled the alias branch's fold
             // instead - one receiver, two spellings, chosen by which channel got there first
-            if (!synthSwap.collapseProxyHopRoot(rootPath, aliasCtx)
+            if (!synthSwap.collapseProxyHopRoot(rootPath, aliasCtx, { keptSeqHopFold: true })
               && !destructuredValueAbove(path)) collapseShortCircuitNavInPlace(memberChainEndPath({ path, unwrap: unwrapRuntimeExpr }));
           }
           return;
@@ -1273,7 +1286,8 @@ export default function plugin(api, options) {
           const drivePath = chainRootPath.isIdentifier() && injector?.getMemoWrite?.(chainRootPath.node.name)
             && mutatedStaticLandingVerdict({ path, scope: path.scope, adapter, mutatedSet: mutatedStatics }) === 'yes'
             ? chainRootPath : path;
-          if (synthSwap?.collapseProxyHopRoot(drivePath, path.scope ? { scope: path.scope, adapter, path } : null)) return;
+          if (synthSwap?.collapseProxyHopRoot(drivePath, path.scope ? { scope: path.scope, adapter, path } : null,
+            { keptSeqHopFold: true })) return;
           // the hop collapse refused a short-circuitable nav (the probe canon): render the
           // kept-nav plan in place at the chain END, or a raw polyfillable hop key strands
           // off a defined receiver (`window['self']` - the web.self class miss)
