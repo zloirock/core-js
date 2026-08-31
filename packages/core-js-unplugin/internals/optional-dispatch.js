@@ -55,6 +55,7 @@ import {
   memberFromKeyName,
   mintedProxyGlobalName,
   receiverCarriesOptional,
+  stampReplacementSpan,
   withSideEffects,
 } from './emit-shared.js';
 import { calleeParenWrapped, guardProbeUndefinable, optionalCallSegmentBelow, replaceGuardedHop } from './claim-guards.js';
@@ -181,10 +182,14 @@ export default function createOptionalDispatchChannel(ctx) {
         memoSource = peeledVal.object;
       }
       // a NAMED pure proven call at the bottom folds onto the surface's pure spelling
-      // (`dh().self` memoizes `_ref = _self`); a LITERAL IIFE keeps its source spelling
+      // (`dh().self` memoizes `_ref = _self`); a LITERAL IIFE keeps its source spelling.
+      // the probe-yield gate stands between, as in the dropped-hop fold above: a call
+      // yielding the PROBE is the one value the guard exists for, and folding it leaves an
+      // always-defined ponyfill under the null test - the memo keeps the raw call instead
       const bottomCall = unwrapRuntimeExpr(memoSource);
       if (bottomCall?.type === 'CallExpression' && !bottomCall.optional
         && unwrapRuntimeExpr(bottomCall.callee)?.type === 'Identifier'
+        && !guardProbeUndefinable(bottomCall, { metaPath, adapter, resolvePure })
         && !inlineCallHasObservableEffects({ callNode: bottomCall, scope: metaPath.scope, adapter, path: metaPath })) {
         const surfacePure = resolveGlobalPolyfill(surface);
         if (surfacePure) memoSource = identifier(injectPureImport(surfacePure.entry, surfacePure.hintName));
@@ -392,8 +397,8 @@ export default function createOptionalDispatchChannel(ctx) {
         const refRecv = injector.generateDeclaredRef(metaPath);
         refMethod = injector.generateDeclaredRef(metaPath);
         const recvClone = cloneReceiverValue();
-        const optRead = memberExpression(identifier(refRecv), cloneNode(callee.property),
-          { computed: callee.computed, optional: true });
+        const optRead = stampReplacementSpan(memberExpression(identifier(refRecv), cloneNode(callee.property),
+          { computed: callee.computed, optional: true }), callee);
         disjuncts = [sequenceExpression([
           assignmentExpression('=', identifier(refRecv),
             receiverCarriesOptional(callee.object) ? chainExpression(recvClone) : recvClone),
@@ -413,7 +418,8 @@ export default function createOptionalDispatchChannel(ctx) {
     // and the call keeps `this` through the shared base (`_ref2.call(_ref)`)
     const rootGuard = guardObject(callee.object, metaPath);
     const ref = injector.generateDeclaredRef(metaPath);
-    const methodRead = memberExpression(rootGuard.makeBase(), cloneNode(callee.property), { computed: callee.computed });
+    const methodRead = stampReplacementSpan(
+      memberExpression(rootGuard.makeBase(), cloneNode(callee.property), { computed: callee.computed }), callee);
     return {
       hopKind: 'call',
       disjuncts: [...rootGuard.disjuncts,
@@ -570,7 +576,8 @@ export default function createOptionalDispatchChannel(ctx) {
       // resolves its typed instance entry off it (`[].at?.(1)...` -> `_atMaybeArray`)
       const recvType = nodeTypeRefinement(unwrapRuntimeExpr(callee.object), metaPath.scope, resolveNodeType);
       if (recvType) resolvedType.set(recvIdForRead, recvType);
-      const methodRead = memberExpression(recvIdForRead, cloneNode(callee.property), { computed: callee.computed });
+      const methodRead = stampReplacementSpan(
+        memberExpression(recvIdForRead, cloneNode(callee.property), { computed: callee.computed }), callee);
       const methodAssign = assignmentExpression('=', identifier(refMethod), methodRead);
       let disjuncts;
       if (receiverCarriesLiveOptional(callee.object)) {
@@ -585,8 +592,8 @@ export default function createOptionalDispatchChannel(ctx) {
         if (!probe) {
           const optRecvId = identifier(refRecv);
           if (recvType) resolvedType.set(optRecvId, recvType);
-          const optRead = memberExpression(optRecvId, cloneNode(callee.property),
-            { computed: callee.computed, optional: true });
+          const optRead = stampReplacementSpan(memberExpression(optRecvId, cloneNode(callee.property),
+            { computed: callee.computed, optional: true }), callee);
           disjuncts = [sequenceExpression([
             assignmentExpression('=', identifier(refRecv), chainExpression(cloneReceiverValue())),
             assignmentExpression('=', identifier(refMethod), chainExpression(optRead)),
@@ -674,7 +681,7 @@ export default function createOptionalDispatchChannel(ctx) {
       return {
         hopKind: 'member',
         disjuncts: [],
-        receiver: memberExpression(base, cloneNode(node.property), { computed: node.computed }),
+        receiver: stampReplacementSpan(memberExpression(base, cloneNode(node.property), { computed: node.computed }), node),
       };
     }
     const surfaceHeld = holdsProxySurface(node.object, metaPath);
@@ -739,7 +746,8 @@ export default function createOptionalDispatchChannel(ctx) {
         receiver: identifier(injectPureImport(surfaceCtorPure.entry, surfaceCtorPure.hintName)),
       };
     }
-    const receiver = memberExpression(makeBase(), cloneNode(node.property), { computed: node.computed });
+    const receiver = stampReplacementSpan(
+      memberExpression(makeBase(), cloneNode(node.property), { computed: node.computed }), node);
     return { hopKind: 'member', disjuncts, receiver };
   }
 
@@ -890,7 +898,8 @@ export default function createOptionalDispatchChannel(ctx) {
         return {
           hopKind: inner.hopKind,
           disjuncts: inner.disjuncts,
-          receiver: memberExpression(spelled, cloneNode(node.property), { computed: node.computed }),
+          receiver: stampReplacementSpan(
+            memberExpression(spelled, cloneNode(node.property), { computed: node.computed }), node),
         };
       }
       if (inner.pendingKeySe?.length) {
@@ -910,16 +919,17 @@ export default function createOptionalDispatchChannel(ctx) {
         return {
           hopKind: inner.hopKind,
           disjuncts: inner.disjuncts,
-          receiver: memberExpression(inner.receiver,
+          receiver: stampReplacementSpan(memberExpression(inner.receiver,
             sequenceExpression([...inner.pendingKeySe.map(expr => cloneNode(expr)),
               ...surviving.type === 'SequenceExpression' ? surviving.expressions : [surviving]]),
-            { computed: true }),
+            { computed: true }), node),
         };
       }
       return {
         hopKind: inner.hopKind,
         disjuncts: inner.disjuncts,
-        receiver: memberExpression(inner.receiver, cloneNode(node.property), { computed: node.computed }),
+        receiver: stampReplacementSpan(
+          memberExpression(inner.receiver, cloneNode(node.property), { computed: node.computed }), node),
       };
     }
     return null;

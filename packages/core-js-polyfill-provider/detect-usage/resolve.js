@@ -42,6 +42,7 @@ import {
   mayHaveSideEffects,
   memberKeyName,
   memberProxyHopName,
+  nodeCarriesSourceSpan,
   paramReboundInBody,
   patternSlotHasDefault,
   patternSlotSpreadShifted,
@@ -156,7 +157,9 @@ export function receiverSequenceTailKeys(node) {
 // the sequence prefixes the hop OBJECTS of a sealed nav carry, in source-eval order. the guard
 // render unwraps them transparently, so the probe re-spells them ahead of itself - but only the
 // ones the render does not already re-emit from source, which is why the caller hands its own
-// rendered spans in. both emitters walk the same hops; the render shape is all that differs
+// rendered spans in. both emitters walk the same hops; the render shape is all that differs.
+// one level per hop object: a NESTED level is the plan renders' own business - their sequence
+// descent replays every level, and no caller reaches this walk with one still buried
 export function navHopSequencePrefixes(inner, { unwrap, renderedSpans = null }) {
   const all = [];
   for (let cur = unwrap(inner); cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression';
@@ -463,6 +466,41 @@ function seKeyFoldHasSurvivingKey(memberNode, aliasCtx) {
   return false;
 }
 
+// the `delete` fold's one exception, spelled once for every channel that folds a deleted
+// navigation: on a CALL-rooted run a LIVE `?.` decides whether the delete HAPPENS - it stays
+// on every emitter, the deleted member outside the ternary behind a `?.` of its own. LIVE
+// means the value under the `?.` can actually SHORT-CIRCUIT (the value canon's question): a
+// plain read off an absent-able base THROWS instead - dead-by-throw, folds with the run - and
+// a below-value proven defined folds too. an IDENTIFIER-rooted run folds whole regardless
+// (its own root claim drives the fold; the locked corpus splits exactly on the root shape),
+// and a seal over the below-value stays with the seal canon
+export function deleteGuardKeepingHop(node, resolvePure, aliasCtx) {
+  let root = unwrapRuntimeExpr(peelReceiverSequenceTail(node));
+  while (root?.type === 'MemberExpression' || root?.type === 'OptionalMemberExpression') {
+    root = unwrapRuntimeExpr(peelReceiverSequenceTail(root.object));
+  }
+  if (root?.type !== 'CallExpression' && root?.type !== 'OptionalCallExpression') return null;
+  // nullish-WITHOUT-throw, composed: the below-value short-circuits, or its LEAF is an
+  // unbacked probe read over a proven-defined base (reached, and absent exactly off-env) -
+  // a plain read off an absent-able base THROWS instead and its `?.` is dead-by-throw
+  function belowCanBeNullish(below) {
+    if (navValueCanShortCircuit(below, resolvePure, aliasCtx)) return true;
+    if (below?.type !== 'MemberExpression' && below?.type !== 'OptionalMemberExpression') return false;
+    const leaf = memberProxyHopName(below);
+    if (!leaf || resolvePure({ kind: 'global', name: leaf })) return false;
+    return !proxyReceiverValueCanBeUndefined(unwrapRuntimeExpr(peelReceiverSequenceTail(below.object)),
+      resolvePure, aliasCtx);
+  }
+  for (let cur = unwrapRuntimeExpr(node);
+    cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression';
+    cur = unwrapRuntimeExpr(peelReceiverSequenceTail(cur.object))) {
+    if (cur.optional
+      && !chainSealsAShortCircuit(cur.object, resolvePure, aliasCtx)
+      && belowCanBeNullish(unwrapRuntimeExpr(peelReceiverSequenceTail(cur.object)))) return cur;
+  }
+  return null;
+}
+
 // eslint-disable-next-line max-statements -- sequential guard-verdict steps of one chain
 export function undefinableOptionalGuard(memberNode, resolvePure, aliasCtx = null) {
   if (!memberNode || !resolvePure) return { kind: 'erase' };
@@ -471,7 +509,10 @@ export function undefinableOptionalGuard(memberNode, resolvePure, aliasCtx = nul
   // at the call sites instead, the two emitters answered the same source differently per claim kind. an
   // ALREADY-LOWERED input carries no `?.` for this to reach, and the pre / post legs then answer
   // differently - the second-pass class the area's AGENTS.md records
-  if (aliasCtx?.path && deleteHostAboveChain(aliasCtx.path, memberNode, unwrapRuntimeExpr)) return { kind: 'erase' };
+  // ... except the delete-DECIDING guard itself (`deleteGuardKeepingHop`): that `?.` stays,
+  // so the verdict falls through to the guard flavors below
+  if (aliasCtx?.path && deleteHostAboveChain(aliasCtx.path, memberNode, unwrapRuntimeExpr)
+    && !deleteGuardKeepingHop(memberNode, resolvePure, aliasCtx)) return { kind: 'erase' };
   const objects = ownChainOptionalObjects(memberNode);
   // the member's OWN live `?.` counts only when its key is SE-free: an SE-computed key rides the
   // fold's harvest canon (the key-SE migration IS the locked emit), while an SE-free leaf claim has
@@ -763,15 +804,53 @@ export function probedDestructureInitValue(initNode, resolvePure, aliasCtx) {
 // keeps its migration canon. returns `{ object, key, computed, navStart }` for the emitters'
 // renders, or null
 export function aliasHeldClaimProbe(member, resolvePure, aliasCtx) {
+  // through the wrapper canon: a paren or TS skin on the read is value-transparent, and a seal
+  // over a plain run is not load-bearing - the probe answers both spellings like the bare one
+  member = unwrapRuntimeExpr(member);
   if (member?.type !== 'MemberExpression' && member?.type !== 'OptionalMemberExpression') return null;
   if (member.optional) return null;
   const objectRaw = peelReceiverSequenceTail(member.object);
-  const object = unwrapRuntimeExpr(objectRaw);
+  let object = unwrapRuntimeExpr(objectRaw);
+  // dotted PLAIN links may stand between the claim and the alias (`a.Array.of` off
+  // `a = globalThis.window`): they are part of the read the swap erases - the first of them
+  // dereferences the held value, throwing exactly where the source throws - so the probe
+  // respells the whole run. a computed or `?.` link keeps the decline: its key effects and
+  // its guard are owned by other routes
+  const innerKeys = [];
+  while (object?.type === 'MemberExpression' && !object.optional && !object.computed) {
+    const innerKey = memberKeyName(object);
+    if (innerKey === null) break;
+    innerKeys.unshift(innerKey);
+    object = unwrapRuntimeExpr(peelReceiverSequenceTail(object.object));
+  }
   if (object?.type !== 'Identifier') return null;
   const key = memberKeyName(member);
   if (key === null) return null;
   if (!aliasHeldValueCanBeUndefined(object, resolvePure, aliasCtx)) return null;
-  return { object, key, computed: member.computed, navStart: objectRaw.start ?? member.object.start ?? null };
+  // a read the source already guards against the nullish branch (an enclosing null-test or a
+  // truthy `if` on the binding) cannot see the void - no probe is owed there, and the plain
+  // erase keeps the guarded branch byte-clean
+  if (aliasCtx?.path && aliasReadGuardedAgainstNullish(aliasCtx.path, object.name)) return null;
+  return { object, key, computed: member.computed, innerKeys, navStart: objectRaw.start ?? member.object.start ?? null };
+}
+
+// the OWE half of the alias-held probe: does the run a swap erases (or re-bases) root at an alias
+// BINDING whose held value can be absent? the binding makes the reads observable - native throws
+// where an always-defined spelling reads on - so a swap that cannot ride a throw probe
+// (`aliasHeldClaimProbe` answers null there: an SE computed key, a bare alias receiver) stands
+// down instead, the pure bias: declining only degrades, erasing loses the throw. a `?.` anywhere
+// in the run hands the question to the guard routes and answers false
+export function aliasRootedReadMayThrow(node, resolvePure, aliasCtx) {
+  let cur = unwrapRuntimeExpr(peelReceiverSequenceTail(node));
+  while (cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression') {
+    if (cur.optional) return false;
+    cur = unwrapRuntimeExpr(peelReceiverSequenceTail(cur.object));
+  }
+  if (cur?.type !== 'Identifier') return false;
+  if (!aliasHeldValueCanBeUndefined(cur, resolvePure, aliasCtx)) return false;
+  // the same guarded-read refinement the probe decision takes: a branch the source already
+  // gates on the binding cannot see the void, so nothing is owed there
+  return !(aliasCtx?.path && aliasReadGuardedAgainstNullish(aliasCtx.path, cur.name));
 }
 
 // OUR OWN render, read back: a claim whose probe fired leaves the source's read as a NON-FINAL element
@@ -788,6 +867,18 @@ export function claimAlreadyRendered(node, { scope, adapter, path }) {
   const index = parts.indexOf(node);
   if (index === -1 || index === parts.length - 1) return false;
   const tail = parts.at(-1);
+  return tail?.type === 'Identifier' && !!adapter?.getBinding?.(scope, tail.name, path)?.polyfillHint;
+}
+
+// the RECEIVER-position twin: a receiver spelled as our probe sequence (`(held.X, _Ponyfill)
+// .member`) already hands the ponyfill on, and a second pass's receiver swap over it would eat
+// the throw probe the first pass kept. recognized the way the claim twin above is - the tail is
+// a plugin-managed import binding - so the verdict survives a re-parse, and a hand-written twin
+// declines the same way: the shape already IS the answer
+export function probeRenderedReceiver(objectNode, { scope, adapter, path }) {
+  const receiver = unwrapRuntimeExpr(objectNode);
+  if (receiver?.type !== 'SequenceExpression') return false;
+  const tail = unwrapRuntimeExpr(receiver.expressions.at(-1));
   return tail?.type === 'Identifier' && !!adapter?.getBinding?.(scope, tail.name, path)?.polyfillHint;
 }
 
@@ -2157,7 +2248,7 @@ export function storedUserAssignmentOf(path, { throughReads = true } = {}) {
   for (let p = path; p?.parentPath; p = p.parentPath) {
     const parent = p.parentPath.node;
     if (parent?.type === 'AssignmentExpression' && parent.operator === '=') {
-      return parent.right === p.node && typeof parent.start === 'number' ? parent : null;
+      return parent.right === p.node && nodeCarriesSourceSpan(parent) ? parent : null;
     }
     if (parent?.type === 'SequenceExpression') {
       if (parent.expressions.at(-1) !== p.node) return null;
@@ -3335,7 +3426,10 @@ function callSourceName(callNode, aliasCtx, resolvePure) {
   return (body && deepestUnresolvableHopSource(body.node, { ...aliasCtx, scope: body.scope }, resolvePure)?.name) ?? '<call>';
 }
 
-function callValueCanBeUndefined(callNode, aliasCtx, resolvePure = null) {
+// can this call's VALUE be undefined at runtime - the probe-yield question of a proven call root
+// (`() => globalThis.window` yields the probe; `() => globalThis` never): the collapse and memo
+// channels of both legs gate on it before reading THROUGH the yield
+export function callValueCanBeUndefined(callNode, aliasCtx, resolvePure = null) {
   // an OPTIONAL call is a chain LINK, not a plain value: dropping the `?.` above it re-groups
   // the chain (dropping it means parenthesizing the link, `(oc?.()).window`, where the source's
   // `oc?.().window` reads as one chain). the source spelling is the one both
@@ -3434,6 +3528,19 @@ export function vestigialNavOptionals(navNode, resolvePure, aliasCtx = null) {
     if (cur.optional && !undefinable) dead.push(cur);
   }
   return dead;
+}
+
+// which `?.` decides a fold over a KEPT STORE: only the hop READING the store can see its void,
+// so its own `?.` slides onto whatever now reads the folded value, and a plain hop there erases
+// the `?.` above - a void store then throws on that member exactly where the source threw on the
+// hop. deeper hops read the realm object the first read already proved, so their `?.` never
+// travels. `navNode` is the folded span; the walk descends to the hop whose object is the store
+export function storeReadHopOptional(navNode) {
+  let hop = null;
+  for (let cur = unwrapRuntimeExpr(navNode);
+    cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression';
+    cur = unwrapRuntimeExpr(peelReceiverSequenceTail(cur.object))) hop = cur;
+  return hop?.optional === true;
 }
 
 // does this nav hop FOLD onto the ponyfill below it? a hop the pure build cannot back names a realm

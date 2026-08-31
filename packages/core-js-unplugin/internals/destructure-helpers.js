@@ -15,6 +15,7 @@ import {
 import { maybeRegisterAssignmentAliasWrite, registerBindinglessCtorAlias } from '@core-js/polyfill-provider/helpers/class-walk';
 import { shouldDropRescueReceiver } from '@core-js/polyfill-provider/detect-usage/members';
 import {
+  aliasHeldClaimProbe,
   discardRescueNodes,
   findProxyGlobal,
   foldableRealmHopKey,
@@ -80,6 +81,7 @@ import {
   variableDeclaration,
   variableDeclarator,
   nullFirstGuardTest,
+  renderAliasHeldProbeRead,
   renderInstanceDefaultGuard,
   renderShortCircuitGuard,
   renderStaticDefaultGuard,
@@ -996,8 +998,16 @@ export function planDiscardedInitProbe(initNode, metaPath, ctx) {
   if (!nav) return null;
   // `probeLeaf`: a full consume of the PROBE ITSELF has no hop to read off the guard - the test
   // operand doubles as the alternate (`{ Array: { of } } = globalThis.window`)
-  return sealedClaimLeafGuardPlan(nav, m => ctx.resolvePure(m, metaPath),
+  const plan = sealedClaimLeafGuardPlan(nav, m => ctx.resolvePure(m, metaPath),
     { scope: metaPath.scope, adapter: ctx.adapter, path: metaPath }, { probeLeaf: true });
+  if (plan) return plan;
+  // an alias BINDING holding an absent-able value makes the discarded read observable with no
+  // `?.` for the guard plan to key on (`{ of } = a.Array` off `a = globalThis.window` - native
+  // throws reading `.Array` where the extraction just binds): the alias arm's probe re-emits
+  // the init read verbatim, the other leg's spelling
+  const aliasProbe = aliasHeldClaimProbe(nav, m => ctx.resolvePure(m, metaPath),
+    { scope: metaPath.scope, adapter: ctx.adapter, path: metaPath });
+  return aliasProbe ? { aliasProbe } : null;
 }
 
 // ... and its emission: the planned guard, the slot key hanging back on
@@ -1012,6 +1022,11 @@ export function renderDiscardedInitProbe(jobs, ctx) {
     ?? sealedNavProbeRead(job.declarator?.init ?? job.assignment?.right, metaPath, ctx);
   if (sealed) return sealed;
   if (!plan) return null;
+  // the alias-arm probe is the init read spelled verbatim - no guard to build, nothing to
+  // substitute (the alias is the user's own binding, and the drain's inserts are not re-visited)
+  if (plan.aliasProbe) {
+    return renderAliasHeldProbeRead(plan.aliasProbe, identifier(plan.aliasProbe.object.name));
+  }
   const aliasCtx = { scope: metaPath.scope, adapter: ctx.adapter, path: metaPath };
   // a HOP chain reads its OUTERMOST key off the init - that is the read native performs
   // (`{ Math: { cbrt } } = (guard)` probes `(guard).Math`)
