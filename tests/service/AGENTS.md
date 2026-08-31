@@ -10,13 +10,17 @@ do not import them.
 ## Rules
 
 - **An assertion is named after the invariant it holds** - `matcher-2`, `adapter-1` - and the
-  invariant itself is stated in the package `AGENTS.md`. A trap that has no assertion is then
+  invariant itself is stated in the package `INVARIANTS.md`. A trap that has no assertion is then
   visible as a trap nobody checks
 - **Counts that come out of the compat data are not assertions.** How many buckets thirteen engines
   collapse into changes with every data update: a test that asserts the number goes red on somebody
   else's commit and says nothing about this package. Build the fixtures the domain tests need
   instead. The one exception is the module-list monotonicity the matcher's fallback stands on -
   that is a property of the data, and it is checked against the live data on purpose
+- **`invariants.mjs` reads the rule back the other way** - it walks every assertion label in this
+  directory and fails on one whose invariant is not written in the package `INVARIANTS.md`. The
+  half that rots silently is that one: nothing goes red when a rule is renamed, moved or dropped
+  from the document, and the labels then name nothing
 - **The user-agent corpus is a committed fixture, never a fetch.** `user-agents.json` holds real
   strings taken by hand from named sources, each row carrying the source it came from: a suite that
   reached for a service at run time would fail when that service does, and a string somebody typed

@@ -1,5 +1,6 @@
 import './target.mjs';
 import './user-agents.mjs';
+import './invariants.mjs';
 import './targets.mjs';
 import './buckets.mjs';
 import './matcher.mjs';
@@ -14,5 +15,6 @@ import './serve.mjs';
 import './script-tag.mjs';
 import './adapter-express.mjs';
 import './warn.mjs';
+import './types.mjs';
 
 echo(chalk.green('service tested'));
