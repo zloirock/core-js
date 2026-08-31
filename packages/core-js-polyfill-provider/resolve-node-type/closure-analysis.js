@@ -51,7 +51,9 @@ import {
   isDestructurePattern,
   aliasDeclScope,
 } from '../helpers/ast-patterns.js';
-import { globalProxyMemberName } from '../helpers/class-walk.js';
+import {
+  globalProxyMemberName,
+} from '../detect-usage/resolve.js';
 import { pushMultimap } from '../helpers/pattern-matching.js';
 import { walkStaticReceiverChain } from '../detect-usage/destructure.js';
 

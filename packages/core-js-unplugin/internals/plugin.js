@@ -24,6 +24,7 @@ import {
   sequenceHeadDirectiveHazard,
   SINGLE_STATEMENT_SLOTS,
   SKIPPABLE_WRAPPER_TYPES,
+  usableAliasInfo,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   enrichMutatedStatics,
@@ -34,7 +35,6 @@ import {
   createClassHelpers,
   ctorAliasShapesReducer,
   proxyWriteOriginsReducer,
-  usableAliasInfo,
 } from '@core-js/polyfill-provider/helpers/class-walk';
 import { tagError } from '@core-js/polyfill-provider/helpers/error-tag';
 import { isCoreJSFile } from '@core-js/polyfill-provider/helpers/path-normalize';

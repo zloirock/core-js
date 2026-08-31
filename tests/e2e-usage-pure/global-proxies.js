@@ -2035,3 +2035,72 @@ QUnit.test('global-proxy: a dropped key effect over a probe alias runs only past
     assert.deepEqual(value, [1], 'and answers the claim');
   }
 });
+
+// a proxy root captured through a CALL is the realm the callee returns, so a static read off the
+// alias resolves like the bare form. resolving the alias by name alone gave the read a `*/constructor`
+// binding - statics-free by construction - and every static off it threw where the source works
+QUnit.test('global-proxy: a call-captured realm alias serves its statics', assert => {
+  function makeRealm() { return globalThis; }
+  const viaCall = makeRealm();
+  assert.deepEqual(viaCall.Map.groupBy([1, 2, 3], x => x % 2).get(1), [1, 3], 'a static off a call-captured realm');
+  assert.deepEqual(viaCall.Array.from('ab'), ['a', 'b'], '... and a second static family');
+  function identity(value) { return value; }
+  const viaIdentity = identity(globalThis);
+  assert.deepEqual(viaIdentity.Map.groupBy([4, 5], x => x % 2).get(0), [4], 'an identity-call capture answers the same');
+  const marker = {};
+  const weak = new viaCall.WeakSet([marker]);
+  assert.true(weak.has(marker), 'and a ctor claim through the capture constructs the ponyfill');
+});
+
+// a namespace CONTAINER reached through an alias or a member hop indexes the same as the bare
+// literal: `super.<static>` off such a base resolves the inherited static, where a walk that
+// handed the alias init back verbatim indexed nothing and left the call native
+QUnit.test('global-proxy: a container reached through hops serves its inherited statics', assert => {
+  const direct = { Base: Map };
+  const viaAlias = direct;
+  const outer = { inner: { Base: Map } };
+  const viaMember = outer.inner;
+  class FromAlias extends viaAlias.Base {
+    static grouped() { return super.groupBy([1, 2], x => x % 2); }
+  }
+  class FromMember extends viaMember.Base {
+    static grouped() { return super.groupBy([3], x => x % 2); }
+  }
+  assert.deepEqual(FromAlias.grouped().get(1), [1], 'an alias hop to the container');
+  assert.deepEqual(FromMember.grouped().get(1), [3], '... and a member hop to it');
+  let effects = 0;
+  class FromEffectfulBase extends (effects++, direct.Base) {
+    static grouped() { return super.groupBy([6], x => x % 2); }
+  }
+  assert.deepEqual(FromEffectfulBase.grouped().get(0), [6], 'an effect-wrapped base names the same statics');
+  assert.same(effects, 1, '... and its effect ran exactly once');
+});
+
+// the `?.` over a store of a defined realm value is dead, so the guard erases and the store folds
+// into the collapsed receiver. what the emitted TEXT cannot say is that the fold keeps the effects:
+// the assignment - and any sequence prefix around it - must still run EXACTLY once, and the binding
+// must still end up holding the realm. the probe-valued twin keeps its guard and short-circuits
+QUnit.test('global-proxy: an erased store guard folds its effects exactly once', assert => {
+  const realm = globalThis;
+  let effects = 0;
+  let stored;
+  const named = (effects++, stored = realm)?.self.Set.prototype.add.name;
+  assert.same(effects, 1, 'the sequence prefix ran once');
+  assert.same(stored, globalThis, 'and the store left the realm in the binding');
+  assert.same(typeof named, 'string', '... while the read answered off the ponyfill');
+  let held;
+  assert.same((held = realm)?.Array.of(5).at(0), 5, 'a receiver-DEPENDENT tail erases the same way');
+  assert.same(held, globalThis, '... and its store is just as observable');
+  // the environment PROBE keeps its guard: where `window` is absent the whole chain short-circuits
+  // and the store never runs, and where it is present the read answers through it
+  const probe = globalThis.window;
+  let overProbe;
+  const probed = (overProbe = probe)?.self.Map.prototype.has.name;
+  if (probe === undefined) {
+    assert.same(overProbe, undefined, 'a probe-valued store short-circuits before assigning');
+    assert.same(probed, undefined, '... and yields undefined, as the source does');
+  } else {
+    assert.same(overProbe, probe, 'with a window present the store runs');
+    assert.same(typeof probed, 'string', '... and the read answers through it');
+  }
+});
