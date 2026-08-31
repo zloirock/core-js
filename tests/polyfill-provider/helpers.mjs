@@ -58,8 +58,8 @@ import {
   TS_EXPR_WRAPPERS,
   unwrapRuntimeExpr,
   zeroArgIifeSideEffectFree,
+  usableAliasInfo,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
-import { usableAliasInfo } from '../../packages/core-js-polyfill-provider/helpers/class-walk.js';
 import { tagError } from '../../packages/core-js-polyfill-provider/helpers/error-tag.js';
 import { subsume } from '../../packages/core-js-polyfill-provider/helpers/subsumption.js';
 import { createChecker } from './harness.mjs';

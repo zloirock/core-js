@@ -7,42 +7,40 @@ import {
   LET_SCOPE_HOST_TYPES,
   POSSIBLE_GLOBAL_OBJECTS,
   SKIPPABLE_WRAPPER_TYPES,
-  VALUE_FLOW_ASSIGN_OPS,
+  STATEMENT_HOST_TYPES,
   aliasDeclScope,
-  aliasReadGuardedAgainstNullish,
   arrayWrapSlotBindsName,
-  asProxyGlobalName,
+  assignmentAliasHintSoundAtRead,
+  bindingDeclaratorNode,
+  bindingPolyfillHint,
   collectFileCensus,
-  definedBranchOfGuardConditional,
   findVarOwnerDeclaring,
-  importedGlobalProxyName,
-  isASTNode,
   isDeclaratorSelfViolation,
   isDestructurePattern,
   isGuardedAliasingWrite,
   isMutatedGlobalSlot,
   isPristineProxyGlobal,
-  isRenderedStoredValue,
+  isReassignedBeyondDeclarator,
   isVarScopeBoundary,
   memberKeyName,
   objectPatternLiteralKeyPath,
   pairedArrayWrapInitElement,
-  patternSlotHasDefault,
-  patternSlotSpreadShifted,
-  patternSlotValues,
   peelArrayWrapBindingLayers,
-  peelSequenceTail,
+  peelProxyGlobalObject,
   peelZeroArgIifeReturn,
   propertyKeyName,
   reachingReassignmentValueNode,
   reassignmentBlocksGlobalResolve,
   staticMemberKeyName,
-  tsImportEqualsProxyName,
   unwrapRuntimeExpr,
   unwrapSafeSequenceTail,
   varInitDominatesUsage,
   withoutValuelessDeclarationViolations,
 } from './ast-patterns.js';
+// the proxy-global recogniser lives with the value canon it narrows ():
+// asking "does this binding hold a proxy global" is asking the canon what the binding holds and
+// keeping the proxy names - the copy that used to answer it here resolved fewer init spellings
+import { globalProxyMemberName, isProxyGlobalIdentifierNode } from '../detect-usage/resolve.js';
 
 // re-export so existing consumers (`global-resolve.js`, `member-resolve.js`) keep their
 // import path; canonical definitions live in `ast-patterns.js` next to `singleQuasiString`
@@ -76,365 +74,12 @@ function peelIifeReturnTarget(node) {
   return node;
 }
 
-// classify a root that `findProxyGlobal(node, aliasCtx)` matched: true when it resolved through a
-// const-alias (`g` in `const g = globalThis; g.X`) rather than by a direct global NAME. the emit-side
-// collapse KEEPS an alias root verbatim (its own declaration already rewrote it to the pure global)
-// and drops only the hops, whereas a direct root swaps to its pure binding. shared by both emitters
-// so the keep-vs-swap decision lives in one place
-export function isAliasProxyRoot(rootNode, aliasCtx) {
-  return !!aliasCtx && !!rootNode && !POSSIBLE_GLOBAL_OBJECTS.has(rootNode.name);
-}
-
-// BOTH cycle guards below answer with the shared narrow: on a cycle nothing is resolvable through
-// the binding, so the node NAME is all that is left - a self-referential PROXY name (`var self =
-// self`) stays a proxy, matching the node-only natural-global rewrite that already turns it into
-// `_self` so the hop collapse fires consistently in both emitters (unplugin has no AST re-visit to
-// recover it otherwise); a non-proxy self-cycle (`var Map = Map`) stays false
-
-// names whose binding lookup is IN FLIGHT, per scope. the adapter's own alias pre-pass re-enters
-// this resolver from inside `getBinding` (`isPolyfillAliasBinding` -> `declaratorInitResolvesForName`
-// -> `aliasInitResolvesToGlobal` -> `isProxyGlobalIdentifierNode`) and carries no `seen` across that
-// boundary, so the binding-keyed guard below - which only sees bindings `getBinding` already
-// RETURNED - never fires on that route: a self-referential alias init recursed until the stack blew.
-// keyed by scope + NAME because the binding is exactly what the in-flight lookup has yet to produce.
-// a WeakMap keyed by the scope object keeps concurrent transforms apart and leaks nothing; entry and
-// exit are synchronous around the one adapter call, so a released name is free to resolve again
-const inFlightBindingLookups = new WeakMap();
-
-function withBindingLookupGuard(scope, name, lookup) {
-  let names = inFlightBindingLookups.get(scope);
-  if (!names) inFlightBindingLookups.set(scope, names = new Set());
-  if (names.has(name)) return undefined;
-  names.add(name);
-  try {
-    return lookup();
-  } finally {
-    names.delete(name);
-  }
-}
-
-// the `polyfillHint` side-channel: the ORIGINAL global name of a binding this plugin minted in
-// place (`globalThis` -> `_globalThis`, `Symbol` -> `_Symbol`). it lives in two spellings that are
-// one channel - on the binding record where the scope tracker owns it, and behind the adapter hook
-// where an injector-managed alias has no scope entry at all - so both are always asked together.
-// the binding is the CALLER's to resolve - the lookup is guarded against re-entry at some sites
-// and skipped entirely at others, so this only joins the two spellings
-export function bindingPolyfillHint({ binding, scope, name, adapter }) {
-  return binding?.polyfillHint ?? adapter?.getBindingPolyfillHint?.(scope, name) ?? null;
-}
-
-// a GUARDED registration is one whose flow-trust the injector REFUSED - none of its fields may
-// reach a consumer, so every read of an injector record passes through here. the flag is written
-// at registration time; this is the read-time half, and the only place the rule is spelled
-export function usableAliasInfo(info) {
-  return info && !info.aliasGuarded ? info : null;
-}
-
-// direct proxy-global (`globalThis`) or plugin-managed alias (`_globalThis` via polyfillHint).
-// scope+adapter optional. shadow check (`function f(globalThis) {}`) bails unless polyfillHint
-// is set. `path` anchors TS-runtime shadow detection (`enum globalThis {}`).
-// const aliases (`const g = globalThis`) pass through via init-peel
-export function proxyGlobalRootName({ node, scope, adapter, path, seen, binding = null, usageNode = null, readNode = null }) {
-  if (node?.type !== 'Identifier') return null;
-  // the identifier being classified IS the read: anchor the order proofs (the trusted write's span
-  // gate, the reaching-definition cut) at its own span when the caller brought no anchor. the PATH
-  // node the gates otherwise fall back to is the consumer above the read, whose span STARTS before
-  // a write inside it - a same-sequence read (`(g = globalThis, v = g.self)?.X`) then resolved only
-  // when an EARLIER statement happened to write the alias, so two identical sources in one file
-  // rendered differently. a rebuilt node carries no span and keeps declining, as the gates intend
-  if (readNode === null && typeof node.start === 'number') readNode = node;
-  // a ctx with no binding lookup answers by NAME, like the one with no adapter at all: the alias
-  // arms below all read the binding, and a caller that cannot supply one (the unit harnesses, a
-  // node-only predicate call) asks the same question the name alone can answer
-  if (!scope || !adapter?.getBinding) return asProxyGlobalName(node.name);
-  // the default parameter already normalizes an absent argument to `null`, so this is exactly
-  // "the caller brought no binding" - the one case that has to consult the adapter
-  if (binding === null) {
-    // `undefined` (never `null`) marks the re-entrant lookup the guard refused - a resolved-but-absent
-    // binding is `null` and must keep flowing into the binding-less arms below
-    binding = withBindingLookupGuard(scope, node.name, () => adapter.getBinding(scope, node.name, path) ?? null);
-    if (binding === undefined) return asProxyGlobalName(node.name);
-  }
-  // hint side-channel runs FIRST and independently of scope binding presence: post-rewrite
-  // aliases like `_globalThis` are tracked by the injector's global-alias map but may have
-  // no entry in babel's scope chain, so the init-follow path never observes them
-  const hint = bindingPolyfillHint({ binding, scope, name: node.name, adapter });
-  // a mutated proxy SLOT (`window = fake`) is the user's replacement, not the global surface -
-  // neither the direct name nor a hint/alias resolving to it recognises as a proxy root (what
-  // an alias holds depends on capture order, which no span model covers). an assignment-form
-  // hint additionally needs its write to END before the read anchor - an alias hop captured
-  // pre-write holds undefined, and a hint narrow there would un-throw the native failure
-  if (hint) {
-    // `readNode` carries an alias hop's declarator NODE (babel bindings surface no path for it)
-    if (!assignmentAliasHintSoundAtRead({ binding, adapter, readNode: readNode ?? (usageNode ?? path)?.node ?? null })) return null;
-    return isPristineProxyGlobal(adapter, hint) ? hint : null;
-  }
-  // cycle guard keyed by the binding's DECLARATION node: a const-alias cycle (`const a = b; const
-  // b = a`) or a self-referential init (`var Map = Map`) would otherwise recurse forever through
-  // followLocalBindingToProxyGlobal. keying by `binding` directly fails for the detect-usage adapter,
-  // which returns a FRESH binding wrapper object per `getBinding` call - identity never matches; the
-  // declaration node is stable across calls. virtual (hint) bindings never reach here (handled above).
-  // this is the guard for the route that CARRIES `seen`; the adapter hop above guards the route that
-  // cannot, and both answer with `proxyRootNameOnly` so a cycle classifies the same on either route
-  // an IMPORT of a global-proxy entry binds the global object exactly like `const g = globalThis`.
-  // the read-side name resolver follows it; without the same step here a WRITE through that binding
-  // (`g.Object.create = shim`) never reaches the proxy-root check, so the slot stays untainted and
-  // the ponyfill is substituted over the user's patch
-  const imported = binding && importedGlobalProxyName(binding, adapter.packages, adapter);
-  if (imported) return isPristineProxyGlobal(adapter, imported) ? imported : null;
-  // estree-toolkit registers no binding for TSImportEquals - the dedicated adapter lookup
-  // surfaces the declaration node instead, mirroring the name-resolution canon's fallback
-  if (!binding && adapter.getTSImportEqualsNode) {
-    const tsImportNode = adapter.getTSImportEqualsNode(scope, node.name, path);
-    const viaTsImport = tsImportNode && tsImportEqualsProxyName(tsImportNode, adapter, adapter.packages);
-    if (viaTsImport) return isPristineProxyGlobal(adapter, viaTsImport) ? viaTsImport : null;
-  }
-  if (binding) return seen?.has(binding.node ?? binding) ? asProxyGlobalName(node.name)
-    : followLocalBindingToProxyGlobal({ binding, name: node.name, scope, adapter, path, seen, usageNode, readNode });
-  if (adapter.hasBinding?.(scope, node.name, path)) return null;
-  return isPristineProxyGlobal(adapter, node.name) ? node.name : null;
-}
-
-// boolean view for the call sites that only ask "is it a proxy root", not "which one"
-export function isProxyGlobalIdentifierNode(args) {
-  return proxyGlobalRootName(args) !== null;
-}
-
 // const-alias chain: `const g = globalThis` -> recurse into the init. reassigned bindings
 // bail (the init-time global identity is no longer guaranteed at the use site). two binding
 // shapes flow in: (a) detect-usage adapter pre-unwraps the VariableDeclarator onto
 // `binding.node`; (b) babelBindingAdapter (in resolve-node-type) passes the raw babel
 // binding where `.node` is the bound Identifier and the declarator lives at `.path.node`.
 // branch on `node.type` so a single predicate covers both shapes
-// does the subtree contain an `=`-assignment TO `name`? judged by the written NAME, not node
-// identity or positions: an AST emitter's re-visit walks REBUILT subtrees whose nodes are
-// clones (fresh identity, no positions), and the caller has already proven the binding has
-// exactly ONE real write - so any assignment to the name inside an earlier-evaluated slot IS
-// that write (injected helper code never assigns user bindings)
-function containsWriteTo(root, name) {
-  if (!isASTNode(root)) return false;
-  // the LOGICAL compounds count as the write too: `(_n ??= globalThis) == null ? ... : _n.self.X` is
-  // the shape a `?.`-lowering transpiler emits, and on the defined branch the binding holds exactly
-  // what the write stored - reading only `=` left that spelling unproven where its plain twin proved
-  if (root.type === 'AssignmentExpression' && VALUE_FLOW_ASSIGN_OPS.has(root.operator)
-    && root.left?.type === 'Identifier' && root.left.name === name) return true;
-  // `isASTNode` on BOTH sides: the array arm used to admit any object, so a non-node array member
-  // (`loc` / `range` shapes, a plugin's own stamp) was descended into while the object arm rejected
-  // it. the descent short-circuits on the first hit, so it stays a hand-written loop
-  // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
-  for (const key in root) {
-    const value = root[key];
-    if (Array.isArray(value)) {
-      for (const el of value) if (isASTNode(el) && containsWriteTo(el, name)) return true;
-    } else if (isASTNode(value) && containsWriteTo(value, name)) return true;
-  }
-  return false;
-}
-
-// structural read-after-write proof for a READ whose node carries no source positions (an AST
-// emitter re-visits rebuilt subtrees after mutation): the write provably evaluates first when
-// an ancestor step enters a ternary BRANCH or a logical RIGHT operand whose always-evaluated
-// GUARD slot contains the (single trusted) write - exactly the `?.`-lowering canon
-// (`(_g = g = globalThis) == null ? void 0 : _g.self.X`). deliberately NARROW: a same-sequence
-// slot proof would also re-follow the plugin's OWN guarded-alias emit on an idempotency
-// re-run (`c ? (_ref = _globalThis, Q = _ref.Promise, _ref) : 0` - the first pass reads the
-// member RAW under a ctor guard by design, and a second-pass claim would swap the ponyfill
-// into the alias slot, flipping the guard and swallowing the native detached-tag TypeError).
-// anything beyond the guard shapes stays unproven
-function readsAfterWriteStructurally(path, writeNode) {
-  const name = writeNode.left?.type === 'Identifier' ? writeNode.left.name : null;
-  if (!name) return false;
-  for (let cur = path; cur?.parentPath; cur = cur.parentPath) {
-    const parent = cur.parentPath.node;
-    const child = cur.node;
-    if (!parent) break;
-    if (parent.type === 'ConditionalExpression' && (parent.consequent === child || parent.alternate === child)
-      && containsWriteTo(parent.test, name)) return true;
-    if (parent.type === 'LogicalExpression' && parent.right === child && containsWriteTo(parent.left, name)) return true;
-    if (STATEMENT_HOST_TYPES.has(parent.type)) break;
-  }
-  return false;
-}
-
-// descend a trusted write's RHS to the stored value: alternate the local init-peel with
-// chain-assign steps (`_g = g = globalThis` stores `globalThis`; the assignment text stays
-// verbatim in source). the full chain-assign canon lives in resolve.js - unreachable from
-// here without an import cycle - and this alternation reaches the same fixpoint over the
-// shapes a single write's RHS can carry
-// the single canonical trust gate for a plain-Identifier alias write (`var _g; _g = g =
-// globalThis`): the adapter surfaces the sole trusted write, the shape gate rejects
-// destructure writes (they bind the name to a PROPERTY of the RHS - following the right side
-// would alias the name to the whole global), and the pure arm accepts ONLY the structural
-// read-after-write proof (read in a branch whose always-evaluated guard slot holds the write -
-// the `?.`-lowering canon; a positional accept would drift the emitters on the AST side's
-// position-less rebuilt re-visits). shared by the detection-side follow
-// (`resolveVariableBindingToGlobal`) and the class-walk follow - ONE predicate, not mirrors
-export function trustedIdentifierAliasWrite({ scope, name, adapter, path, readNode = null }) {
-  if (!adapter?.findTrustedAliasWrite) return null;
-  const write = adapter.findTrustedAliasWrite(scope, name, { requirePlacement: false });
-  if (!write || write.left?.type !== 'Identifier' || write.left.name !== name) return null;
-  // ... or the READ's own span proves it - the evidence the PATTERN arm of the same follow already
-  // accepts: a source read beginning past the write's end runs after it, which is what a sequence
-  // spells (`(g = globalThis, v = g.window.self)`). a rebuilt node carries no span and declines, so
-  // the AST leg's position-less re-visits stay out. the span says ORDER, never dominance, so it
-  // rides the adapter's own PLACEMENT gate - a branch-local write (`if (c) { var M = globalThis }`)
-  // runs on one path, and a textual accept there would mask the native throw
-  if (adapter.method === 'usage-pure' && !readsAfterWriteStructurally(path?.parentPath ? path : null, write)
-    && !(typeof readNode?.start === 'number' && readNode.start >= write.end
-      && adapter.findTrustedAliasWrite(scope, name, { readNode }) === write)) return null;
-  return write;
-}
-
-function trustedWriteValue(assignNode) {
-  let cur = assignNode.right;
-  for (;;) {
-    cur = unwrapInitForResolution(cur);
-    if (cur?.type !== 'AssignmentExpression' || cur.operator !== '=') return cur;
-    cur = cur.right;
-  }
-}
-
-// the definite value a trusted PATTERN-LHS write binds to `name` (`let W; [W] = [globalThis]`), or
-// null. the assignment-form mirror of the declarator container branch: same trust + read-after-write
-// gates as `trustedIdentifierAliasWrite`, same canonical slot pairing + three definiteness gates
-function trustedPatternWriteSlotValue({ scope, name, adapter, path }) {
-  if (!adapter?.findTrustedAliasWrite) return null;
-  const write = adapter.findTrustedAliasWrite(scope, name, { requirePlacement: false });
-  if (!write || !isDestructurePattern(write.left)) return null;
-  if (adapter.method === 'usage-pure'
-    && !readsAfterWriteStructurally(path?.parentPath ? path : null, write)) return null;
-  const container = unwrapInitForResolution(write.right);
-  const slotCtx = { scope, adapter, path };
-  const values = patternSlotValues(write.left, container, name, slotCtx);
-  return values.length === 1 && !patternSlotHasDefault(write.left, name)
-    && !patternSlotSpreadShifted(write.left, container, name, slotCtx) ? values[0] : null;
-}
-
-function followLocalBindingToProxyGlobal({ binding, name = null, scope, adapter, path, seen, usageNode = null, readNode = null }) {
-  const decl = binding.node?.type === 'VariableDeclarator' ? binding.node : binding.path?.node;
-  // assignment-form alias (`var _g; (_g = g = globalThis) == null ? void 0 : _g.self.X` - the
-  // shape `?.`-lowering transpilers emit ahead of this plugin): the binding's single TRUSTED
-  // write is its value source, not a flow hazard - resolve its RHS exactly like a declarator
-  // init. checked BEFORE the reassignment bail (the write IS the sole violation, mirroring the
-  // detection-side follow in `resolveVariableBindingToGlobal`); the pure arm additionally
-  // requires the READ to sit textually after the write (a pre-assignment read holds undefined)
-  let writeInit = null;
-  if (decl?.type === 'VariableDeclarator' && !decl.init && decl.id?.type === 'Identifier') {
-    const writeName = name ?? decl.id.name;
-    const write = trustedIdentifierAliasWrite({ scope, name: writeName, adapter, path,
-      readNode: readNode ?? usageNode });
-    // a plain-Identifier write carries its RHS directly; a PATTERN-LHS write binds `name` to a slot
-    // of a literal container it carries - both are the sole trusted value source for the binding
-    writeInit = write ? trustedWriteValue(write) : trustedPatternWriteSlotValue({ scope, name: writeName, adapter, path });
-  }
-  // dominance-aware - ONE reassignment policy with the extends-target gate: a reassignment
-  // that cannot reach the binding's READ does not block (the flat `constantViolations` bail
-  // dropped a const-captured alias whose upstream source is reassigned only after the capture)
-  // `readNode` (a multi-hop alias's declarator) anchors the dominance at the capture site, so an
-  // upstream write AFTER that read (`const g = A; A = self; g.X` - `A = self` follows `const g = A`)
-  // does not kill the value `g` captured. it overrides the plain use the caller carried
-  if (!writeInit && reassignmentBlocksGlobalResolve({ binding, adapter, path: usageNode ?? path, usageNode: readNode })) {
-    // a DOMINATING reassignment whose reaching value is ITSELF a proxy-global still names the surface
-    // (`let A = globalThis; A = self; A.X` - A holds self, a proxy, at the use). resolve that reaching
-    // write's value as the root; a non-proxy reaching value keeps the bail (native)
-    const reaching = reachingReassignmentValueNode({ binding, usagePath: usageNode ?? path, usageNode: readNode });
-    // peel the same wrappers the value-path (`resolveObjectName`) peels off a reaching write's RHS: a
-    // SE-prefix sequence (`A = (eff(), self)`) resolves through its tail and a zero-arg IIFE
-    // (`A = (() => self)()`) through its return - the effects stay in the kept write. a
-    // GUARD-shaped conditional (the stored kept-nav render - `null == _globalThis.window
-    // ? void 0 : _self.window`) classifies through its defined branch: the write stores either
-    // undefined or that nav, and the undefinable verdict keeps the alias guard live
-    let peeled = reaching && peelIifeReturnTarget(unwrapInitForResolution(reaching));
-    const definedPeeled = definedBranchOfGuardConditional(peeled);
-    if (definedPeeled) {
-      // only a GUARDED read follows the conditional (the void-0 arm is a real runtime value -
-      // an unguarded read observes it natively and the classification must not un-throw it);
-      // an emitter-RENDERED stored value bypasses the gate - it IS the navigation it replaced
-      if (!isRenderedStoredValue(peeled)
-        && !aliasReadGuardedAgainstNullish(path, name ?? decl?.id?.name)) return null;
-      peeled = peelIifeReturnTarget(unwrapInitForResolution(definedPeeled));
-    }
-    const reachSeen = new Set(seen).add(binding.node ?? binding);
-    const reachingRoot = peeled?.type === 'Identifier'
-      ? proxyGlobalRootName({ node: peeled, scope, adapter, path, seen: reachSeen })
-      : peeled?.type === 'MemberExpression' || peeled?.type === 'OptionalMemberExpression'
-        ? globalProxyMemberName({ node: peeled, scope, adapter, path, seen: reachSeen })
-        : null;
-    return isPristineProxyGlobal(adapter, reachingRoot) ? reachingRoot : null;
-  }
-  // a hoisted-var declarator assigned on ONE path (`if (c) { var g = globalThis }`) binds the
-  // name everywhere but holds the global only through that branch. the pure rewrites this follow
-  // feeds (proxy-hop collapse, receiver substitution, type narrows) would rescue the
-  // skipped-branch throw the source guarantees, so require the init to dominate the use - the
-  // same gate the detection-side follow (`resolveVariableBindingToGlobal`) applies. global /
-  // entry modes keep the call site and stay sound regardless. a trusted write carries its own
-  // proof (unconditional placement + the read-after-write gate above)
-  if (!writeInit && adapter?.method === 'usage-pure'
-    && !varInitDominatesUsage({ declaratorNode: decl, usagePath: usageNode ?? path, kind: binding.kind })) return null;
-  // a PATTERN id binds `name` to a KEY of the init, not the init itself: following the whole
-  // init would classify a plain slot as the proxy surface (`const { x } = globalThis; x.Array`
-  // reads `globalThis.x`, likely undefined - collapsing it un-throws the native failure).
-  // resolve through the literal key-path instead: proxy-global root, pristine proxy hops, and
-  // the LEAF itself must name a pristine proxy global (`{ self: s } = globalThis` re-enters)
-  let wrappedInit = null;
-  if (decl?.id && decl.id.type !== 'Identifier') {
-    if (!name) return null;
-    // peel the CONTAINER's own wrappers first (`([globalThis])`, `[globalThis] as any`): both pairings
-    // below match on the literal container node, and a paren survives on one parser but not the other
-    const containerInit = unwrapInitForResolution(decl.init);
-    const peeled = peelArrayWrapBindingLayers(decl.id, containerInit, name);
-    if (peeled?.id?.type === 'ObjectPattern') {
-      const keyPath = objectPatternLiteralKeyPath(peeled.id, name);
-      const leaf = destructuredGlobalKeyPathLeaf(peeled.init, keyPath, aliasDeclScope(binding, scope), adapter,
-        new Set(seen).add(binding.node ?? binding));
-      // claim the binding only when the key-path actually resolved: a pattern whose RHS is a literal
-      // container is not a key-path read at all, and falls through to the slot pairing below
-      if (leaf !== null && isPristineProxyGlobal(adapter, leaf)) return leaf;
-    }
-    // the key-path arm above reads a slot OFF a proxy-global root (`{ Promise: P } = globalThis`).
-    // a LITERAL container instead binds the name to a value it carries (`const [wrap] = [globalThis]`,
-    // `const { x: wrap } = { x: globalThis }`), which is an ordinary alias - ask the canonical slot
-    // pairing for that value and resolve it like an unwrapped declarator. the three gates are the
-    // shared idiom: an ambiguous union, a default or a spread-shifted pairing is not a definite value
-    const slotCtx = { scope: aliasDeclScope(binding, scope), adapter, path: binding.path ?? path };
-    const values = patternSlotValues(decl.id, containerInit, name, slotCtx);
-    if (values.length !== 1 || patternSlotHasDefault(decl.id, name)
-      || patternSlotSpreadShifted(decl.id, containerInit, name, slotCtx)) return null;
-    [wrappedInit] = values;
-  }
-  // a proxy-global bound through a zero-arg IIFE (`const g = (() => globalThis)(); g.X`) names the
-  // same surface as a bare alias (`const g = globalThis`), so peel the wrapper before classifying -
-  // the container / global-name resolvers peel the identical shape. a GUARD-shaped conditional
-  // (the stored kept-nav render) classifies through its defined branch, like the reaching-write
-  // arm above - the declarator-init and trusted-write spellings must not drift
-  let init = peelIifeReturnTarget(
-    wrappedInit ? unwrapInitForResolution(wrappedInit) : writeInit ?? unwrapInitForResolution(decl?.init));
-  const definedInit = definedBranchOfGuardConditional(init);
-  if (definedInit) {
-    // same guarded-read gate as the reaching-write arm - the two value sources must not drift
-    if (!isRenderedStoredValue(init)
-      && !aliasReadGuardedAgainstNullish(path, name ?? decl?.id?.name)) return null;
-    init = peelIifeReturnTarget(unwrapInitForResolution(definedInit));
-  }
-  // a root captured through a MEMBER read (`const s = globalThis.self`) names the proxy surface just
-  // as a bare alias does - the chain recogniser below already walks exactly that shape, so hand it
-  // over instead of bailing. only a chain whose LEAF is itself a proxy global is a root
-  if (init?.type === 'MemberExpression' || init?.type === 'OptionalMemberExpression') {
-    const leaf = globalProxyMemberName({
-      node: init, scope: aliasDeclScope(binding, scope), adapter, path: binding.path ?? path,
-      seen: new Set(seen).add(binding.node ?? binding),
-    });
-    return isPristineProxyGlobal(adapter, leaf) ? leaf : null;
-  }
-  if (init?.type !== 'Identifier') return null;
-  // the NEXT hop's value is read at THIS declarator - anchor its reassignment and hint
-  // order proofs there, not at the outer use the caller carried (`readNode` rides the
-  // declarator NODE for adapters whose bindings surface no path)
-  return proxyGlobalRootName({
-    node: init, scope: aliasDeclScope(binding, scope), adapter, path: binding.path ?? path,
-    seen: new Set(seen).add(binding.node ?? binding), usageNode: binding.path ?? usageNode, readNode: decl,
-  });
-}
 
 // a BRANCHING init (ternary / logical) is value-sound only when every completing path
 // yields the built-in. ternary: both branches resolve, or the SELF-DEFAULT shape
@@ -871,7 +516,6 @@ function spineHasOptionalHop(node) {
   return false;
 }
 
-const STATEMENT_HOST_TYPES = new Set(['ExpressionStatement', 'VariableDeclaration', 'ReturnStatement', 'ThrowStatement']);
 // control statements HOST an unconditional write only through their always-evaluated-on-entry
 // slot: the test (discriminant for switch) runs whenever the statement runs - a write there is
 // as unconditional as an expression statement's. branches / bodies stay refused (the ancestor
@@ -1009,24 +653,6 @@ function enclosingLexicalSpan(stmtPath) {
   return null;
 }
 
-export function aliasSpanDominatesUse({ info, useStart }) {
-  const span = info?.aliasWrite ?? info?.aliasDeclSpan;
-  return !span || useStart === null || useStart > span.end;
-}
-
-// pure only: an assignment-form alias hint is flow-sound at a read only when its registered
-// write ENDS before the read begins. registration verified the write's shape and placement,
-// not its order against every read - an alias hop captures its source at the hop declarator,
-// so a source written after that capture must not narrow it (`const S = T; ({ Symbol: T } =
-// globalThis)` captures undefined; the span gate at the OUTER use admits it). unknown positions
-// bail - pure resolves on proof. global / entry modes stay hint-sound regardless (side-effect
-// imports only, over-inject-safe)
-export function assignmentAliasHintSoundAtRead({ binding, adapter, readNode }) {
-  if (adapter?.method !== 'usage-pure' || !binding?.aliasWrite) return true;
-  const readStart = readNode?.start ?? null;
-  return readStart !== null && readStart > binding.aliasWrite.end;
-}
-
 export function registerDeclAliasIfSound({
   injector, adapter = null, kind, localName, hint, stmtPath, bindingNode = null, binding = null,
 }) {
@@ -1123,7 +749,7 @@ function userAliasBindingResolvesToSymbol(node, scope, adapter, injector, seen, 
   // consumer, a rewrite the unplugin emitter never performs, so this walker must accept the hint
   // or the two emitters desync on every assignment-form host
   if (binding?.polyfillHint === 'Symbol') return true;
-  const declarator = binding?.node?.type === 'VariableDeclarator' ? binding.node : binding?.path?.node;
+  const declarator = bindingDeclaratorNode(binding);
   if (declarator?.type !== 'VariableDeclarator' || !declarator.init) return false;
   const declNode = binding.node ?? declarator;
   if (seen?.has(declNode) || reassignmentBlocksGlobalResolve({ binding, adapter, path: null })) return false;
@@ -1324,51 +950,6 @@ function assignmentAliasWriteAssign(violation, boundName) {
 // unwrap paren / TS / SE wrappers AND a zero-arg IIFE returning a proxy-global: at runtime
 // `(function(){return globalThis})().Array` accesses `Array` on `globalThis` exactly like the
 // bare `globalThis.Array` chain. owns the unwrap so callers pass the raw `.object` node;
-// non-IIFE callees (`getGlobal().Array`) return unchanged and keep generic dispatch.
-// `peelZeroArgIifeReturn` already bails on async / generator / spread / control-flow bodies,
-// so only sound pass-through wrappers peel
-export function peelProxyGlobalObject(node) {
-  node = unwrapRuntimeExpr(node);
-  // SE tails peel for CLASSIFICATION only (`(eff(), globalThis).Array` - the prefix stays in
-  // the source and runs at evaluation), mirroring the detect-usage chain walks; without the
-  // peel an SE-buried extends target dropped its super statics
-  node = peelSequenceTail(node, { step: unwrapRuntimeExpr });
-  if (node?.type !== 'CallExpression' && node?.type !== 'OptionalCallExpression') return node;
-  const ret = peelZeroArgIifeReturn(node);
-  return ret ? unwrapRuntimeExpr(ret) : node;
-}
-
-// `globalThis.X` / `globalThis?.X` / `globalThis['X']` / `globalThis[(e++, 'X')]` / `globalThis.self.X`
-// -> 'X', else null. `staticMemberKeyName` folds a side-effecting computed key to its static tail so a
-// SE-bearing hop / leaf resolves the same as its plain form (the emitter replays / collapse-guards the SE).
-// walks intermediate proxy-global links so deeper chains resolve to the leaf key; peels a
-// zero-arg IIFE-return at each hop so `(()=>globalThis)().Array` resolves like `globalThis.Array`.
-// empty-string key returns null - no real global has empty name; keeps callers' `!== null` sound
-export function globalProxyMemberName({ node, scope, adapter, path, seen }) {
-  node = unwrapRuntimeExpr(node);
-  if (node?.type !== 'MemberExpression' && node?.type !== 'OptionalMemberExpression') return null;
-  let object = peelProxyGlobalObject(node.object);
-  while (object?.type === 'MemberExpression' || object?.type === 'OptionalMemberExpression') {
-    const linkName = staticMemberKeyName(object);
-    // a mutated hop slot holds the user's replacement - the chain no longer re-enters the
-    // global-object surface, so it must not resolve to the leaf global
-    if (!linkName || !POSSIBLE_GLOBAL_OBJECTS.has(linkName)
-      || isMutatedGlobalSlot(adapter, linkName)) return null;
-    object = peelProxyGlobalObject(object.object);
-  }
-  if (!isProxyGlobalIdentifierNode({ node: object, scope, adapter, path, seen })) return null;
-  // a mutated proxy ROOT (`window = fake; window.Promise`) reads through the user's
-  // replacement, same as a mutated intermediate hop - the chain must not resolve. aliases
-  // decline through the recognizers' own gates (capture order decides what an alias holds,
-  // which no span model covers)
-  if (object?.type === 'Identifier'
-    && isMutatedGlobalSlot(adapter, object.name)) return null;
-  const leaf = staticMemberKeyName(node) || null;
-  // a SLOT-mutated leaf (`globalThis.Map = Shim`) holds the user's replacement - the chain
-  // does not name the pristine global, so every READ consumer (pure-ctor swaps, deopts,
-  // typing) must fall back to its raw / generic path
-  return isMutatedGlobalSlot(adapter, leaf) ? null : leaf;
-}
 
 // strict: IIFE caller-arg overrides wrapper-default ONLY when it is a bare Identifier the
 // static layer can actually CLASSIFY - a known proxy global, a constructor-shaped
@@ -1464,7 +1045,10 @@ export function remapInheritedStaticMeta(injector, originalMeta, inheritedMeta) 
 // on the superClass node so `class C extends (Base as typeof Base)` resolves to Base
 export function buildSuperStaticMeta(classNode, key, resolveSuperType) {
   if (classNode?.type !== 'ClassDeclaration' && classNode?.type !== 'ClassExpression') return null;
-  const superClass = unwrapRuntimeExpr(classNode.superClass);
+  // the SE-aware peel, like every other entry into the name walk: an effect-wrapped base
+  // (`class C extends (n++, Map)`) names the same super statics as its plain twin, and the
+  // effect stays where the source ran it
+  const superClass = peelProxyGlobalObject(classNode.superClass);
   if (!superClass) return null;
   const resolved = resolveSuperType(superClass);
   // `inheritedStatic` marks this as a SYNTHETIC static meta for `super.X()` / `this.X()` in a static
@@ -1494,6 +1078,11 @@ function memberKeyVerdict(key, computed, scope, propName, adapter, resolveKey) {
 // ObjectMethod / a non-field ClassMethod, oxc a Property/MethodDefinition carrying `method` or a
 // non-`init` kind), else a data+getter duplicate key resolved the earlier data value on babel
 // [ObjectMethod skipped] but bailed on oxc [Property matched] -> wrong sub + cross-parser divergence
+// the node shapes `findNamespaceMemberValue` can index by name - what a container walk is after
+function isNamespaceContainer(node) {
+  return node?.type === 'ClassDeclaration' || node?.type === 'ClassExpression' || node?.type === 'ObjectExpression';
+}
+
 export function findNamespaceMemberValue(container, propName, scope, adapter, resolveKey) {
   if (container?.type === 'ClassDeclaration' || container?.type === 'ClassExpression') {
     const members = container.body?.body ?? [];
@@ -1687,7 +1276,7 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
         && !varInitDominatesUsage({ declaratorNode: decl, usagePath: classAnchor ?? path, kind: binding.kind })) return null;
       // upstream hops anchor their reassignment proofs at THIS declarator: the capture reads
       // the next binding here, so a reassignment AFTER the capture must not block (one
-      // dominance policy with followLocalBindingToProxyGlobal)
+      // dominance policy with the proxy-root recogniser's own binding follow)
       const captureAnchor = binding.path ?? classAnchor ?? path;
       const init = unwrapInitForResolution(decl.init);
       // every init hop resolves in the alias's OWN declaration scope, not the super site's -
@@ -1739,7 +1328,15 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
     // inject-safe; its anchor stays null, so dominance can't be proven and the inject-if-maybe-needed
     // bias wins). usage-pure resolves only when no reassignment reaches the class-definition capture
     // point - `classAnchor` (the class node) for the `class C extends NS.Base` path - else bails
-    if (!binding || reassignmentBlocksGlobalResolve({ binding, adapter, path: classAnchor })) return null;
+    if (!binding) return null;
+    if (reassignmentBlocksGlobalResolve({ binding, adapter, path: classAnchor })) {
+      // ONE reassignment policy with the super-class sibling: usage-global keeps resolving through
+      // the value the reassignment REACHES (the dominating write is the captured container), pure
+      // keeps the flat bail. the flat bail here read as "no container" for both
+      const reaching = adapter.method === 'usage-global' && classAnchor && isReassignedBeyondDeclarator(binding)
+        ? reachingReassignmentValueNode({ binding, usagePath: classAnchor, usageNode: classAnchor?.node ?? null }) : null;
+      return reaching ? resolveToContainer(reaching, scope, seen, classAnchor) : null;
+    }
     const declNode = binding.path?.node;
     if (declNode?.type === 'ClassDeclaration' || declNode?.type === 'ClassExpression') return declNode;
     // destructured container: `const { sub: NS } = lib` -> NS is `lib.sub`. resolve that member
@@ -1776,14 +1373,19 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
   // container literals. null when no static container is reachable
   function resolveToContainer(node, scope, seen, classAnchor = null) {
     const peeled = peelIifeReturnTarget(unwrapRuntimeExpr(node));
-    if (peeled?.type === 'Identifier') return bindingContainerValue(peeled.name, scope, seen, classAnchor);
+    if (peeled?.type === 'Identifier') {
+      // the binding's value may be another alias or member hop rather than the container itself
+      // (`const NS0 = { Base: Map }; const NS = NS0`) - re-enter, exactly like the member arm
+      // below. handing the init back verbatim left every such value indexed as nothing
+      const value = bindingContainerValue(peeled.name, scope, seen, classAnchor);
+      return !value || isNamespaceContainer(value) ? value : resolveToContainer(value, scope, seen, classAnchor);
+    }
     if (peeled?.type === 'MemberExpression' || peeled?.type === 'OptionalMemberExpression') {
       const value = resolveMemberAccess(peeled, scope, seen, classAnchor);
       return value ? resolveToContainer(value, scope, seen, classAnchor) : null;
     }
     // direct container - inline `({Promise}).Promise`. rare but free via the same path
-    if (peeled?.type === 'ClassExpression' || peeled?.type === 'ObjectExpression') return peeled;
-    return null;
+    return isNamespaceContainer(peeled) ? peeled : null;
   }
 
   // unified "what global name does this expression resolve to?" primitive. covers Identifier
@@ -1913,39 +1515,4 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
     isShadowedByClassOwnMember,
     reset,
   };
-}
-
-// Symbol.iterator `in`-fold canon entry (`Symbol.iterator in x` -> `_isIterable(x)`)
-export const IS_ITERABLE_ENTRY = 'is-iterable';
-// direct-fetch iterator canon entry (`node[Symbol.iterator]()` -> `_getIterator(node)`)
-export const GET_ITERATOR_ENTRY = 'get-iterator';
-
-// the resolution of a symbol-sourced `[Symbol.iterator]` member meta. the pure package has no
-// `symbol/instance/iterator` entry (the method form IS the canonical access, dispatched on its
-// own), so this constant IS the resolution - both emitters consume it wherever a kind-driven
-// gate or an extraction render needs the instance shape, instead of each synthesizing the
-// triple locally
-export const SYMBOL_ITERATOR_PURE_RESULT = { kind: 'instance', entry: 'get-iterator-method', hintName: 'getIteratorMethod' };
-
-// the `$helper` entries of the pure package that detection resolves to as the EMIT CANON itself
-// (`resolveSymbolIteratorEntry` / `resolveSymbolInEntry` + `SYMBOL_ITERATOR_PURE_RESULT`).
-// `isEntryNeeded` exempts them from a user `exclude`: filtering the entry must not flip the
-// canonical emit to a raw static-symbol read - the helper wraps native lookups and stays correct
-// with its polyfill modules filtered. the other `$helper` entries of the package
-// (`function/name`, `regexp/flags`) are NOT here: detection resolves those reads to the
-// instance-wrapper entries instead, so the plugins never inject them
-export const HELPER_CANON_ENTRIES = new Set([
-  GET_ITERATOR_ENTRY,
-  SYMBOL_ITERATOR_PURE_RESULT.entry,
-  IS_ITERABLE_ENTRY,
-]);
-
-// `Symbol.hasInstance` -> `symbol/has-instance`. pure string transform - caller must
-// validate the entry exists via the resolver. lowercase first char to filter malformed
-// inputs (`Symbol.XYZ` -> `symbol/-x-y-z` would silently miss the lookup)
-export function symbolKeyToEntry(key) {
-  if (!key?.startsWith('Symbol.')) return null;
-  const prop = key.slice(7);
-  if (!prop || prop[0] < 'a' || prop[0] > 'z') return null;
-  return `symbol/${ prop.replaceAll(/[A-Z]/g, c => `-${ c.toLowerCase() }`) }`;
 }

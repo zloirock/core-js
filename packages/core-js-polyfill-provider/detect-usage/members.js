@@ -18,19 +18,19 @@ import {
   POSSIBLE_GLOBAL_OBJECTS,
   deleteHostAboveChain,
   peelNestedSequenceExpressions,
+  isAliasProxyRoot,
   peelParenAndTSParentPath,
   SKIPPABLE_WRAPPER_TYPES,
 } from '../helpers/ast-patterns.js';
 import {
   GET_ITERATOR_ENTRY,
-  isAliasProxyRoot,
   IS_ITERABLE_ENTRY,
+  staticReceiverHint,
   SYMBOL_ITERATOR_PURE_RESULT,
   symbolKeyToEntry,
-} from '../helpers/class-walk.js';
+} from './globals.js';
 import { aliasWriteCtorNames, attachMemberUnionExtras, staticContainerReceiverName } from './destructure.js';
 import { resolve as resolveBuiltIn } from '../index.js';
-import { staticReceiverHint } from './globals.js';
 import {
   asSymbolRef,
   descendToChainRoot,
@@ -1106,9 +1106,10 @@ export function isSourcedSymbolIteratorMeta(meta) {
   return !!meta.symbolSourced && meta.key === 'Symbol.iterator';
 }
 
-// its pure resolution lives in class-walk (`SYMBOL_ITERATOR_PURE_RESULT`, single-sourced with
-// the emit-canon helper-entry set); re-exported here for the emitters' existing import surface
-export { HELPER_CANON_ENTRIES, SYMBOL_ITERATOR_PURE_RESULT } from '../helpers/class-walk.js';
+// its pure resolution lives beside the built-in name catalogue (`SYMBOL_ITERATOR_PURE_RESULT`,
+// single-sourced with the emit-canon helper-entry set); re-exported here for the emitters'
+// existing import surface
+export { HELPER_CANON_ENTRIES, SYMBOL_ITERATOR_PURE_RESULT } from './globals.js';
 
 // a computed destructure-prop key "hosts machinery" when the rewrite pipeline has work bound
 // to it: a real well-known-symbol reference (iterator-method / catch-passthrough handling) or a

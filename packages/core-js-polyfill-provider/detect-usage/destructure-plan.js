@@ -32,6 +32,7 @@ import {
   unwrapCollectingSePrefixes,
   unwrapExpressionChain,
   POSSIBLE_GLOBAL_OBJECTS,
+  createInstanceNodeCache,
 } from '../helpers/ast-patterns.js';
 import { resolve as resolveBuiltIn } from '../index.js';
 import { computedPropKeyHostsMachinery } from './members.js';
@@ -358,7 +359,7 @@ export function probedNavProbeKey(plan) {
   return first.extractions?.[0]?.synth === 'symbol-iterator' ? { symbolIterator: true } : null;
 }
 
-const planCache = new WeakMap();
+const planCache = createInstanceNodeCache();
 
 // classify a destructure declarator (`{ id, init }` - a real VariableDeclarator or the
 // cascade's synthetic assignment host) into the plan tree, or null when the init isn't a
@@ -380,7 +381,7 @@ export function buildNestedDestructurePlan({
   declarator, scope, adapter, path = null, resolvePure, resolveGlobalPolyfill,
   isDisabledProp = null,
 }) {
-  if (planCache.has(declarator)) return planCache.get(declarator);
+  if (planCache.has(adapter, declarator)) return planCache.get(adapter, declarator);
 
   // a disable directive on a LEAF prop's line blocks that leaf's extraction (the prop plans
   // verbatim - native semantics, the natural visitor honors the same directive on the
@@ -767,7 +768,7 @@ export function buildNestedDestructurePlan({
       }
     }
   }
-  planCache.set(declarator, plan);
+  planCache.set(adapter, declarator, plan);
   return plan;
 }
 

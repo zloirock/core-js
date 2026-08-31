@@ -2,8 +2,8 @@
 // read BARE, and a bare-window ctor.static must collapse without crashing:
 //   - bareCtorStatic: `globalThis.window?.Number.MAX_SAFE_INTEGER.toFixed(1)` - the whole proxy-root.ctor.static
 //     subsumes into one pure static (the bare root skipped), guard erased. before: a transform crash.
-//   - aliasStaticCall: `(w = g)?.Array.from([1])...` (g = globalThis alias) - the `.from` static reads bare
-//     `_Array$from([1])`, NOT `(w = g, _Array$from)` (which double-ran the assign under the `.at` guard).
+//   - aliasStaticCall: `(w = g)?.Array.from([1])...` (g = globalThis alias) - the store holds a defined
+//     realm value, so the guard erases and the assign folds ONCE into the collapsed receiver.
 //   - seqStaticCall: `(c++, v = globalThis.window)?.Array.of(5)...` - same, plus the seq guard root substitutes
 //     its buried `globalThis` (`(c++, v = _globalThis.window)`) and the `.of` reads bare `_Array$of(5)` (SE once).
 // an outer guard that memoizes+runs the root SE owns it; the static must not re-fold it. distinct method per line.

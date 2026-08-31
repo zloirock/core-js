@@ -1671,7 +1671,13 @@ function resolveLeafName(leaf, ctx) {
       if (parts.keys.length === 1) {
         // the binding-less fallback passes the same name admission every direct spelling gets
         // (`isStaticPlacement`) - a free lowercase root is no global, and recording
-        // `<lowercase>.prototype` minted a deopt key no read-side canon ever asks for
+        // `<lowercase>.prototype` minted a deopt key no read-side canon ever asks for.
+        // it is NOT a redundant repeat of the resolver above, and the one case where the two
+        // differ is the reason it stays: over a name whose SLOT this file overwrote the read canon
+        // declines (that name no longer stands for the pristine global), while the WRITE side owes
+        // the opposite bias - a key it fails to record is a deopt that never fires, so the patch
+        // loses to the polyfill. read asks "is this still the global", write asks "what does this
+        // taint", and only the first is a pristine question
         const root = resolveObjectName({ objectNode: parts.rootNode, scope, adapter, path })
           ?? (!adapter.hasBinding(scope, parts.rootNode.name, path) && isStaticPlacement(parts.rootNode.name)
             ? parts.rootNode.name : null);
