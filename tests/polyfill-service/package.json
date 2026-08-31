@@ -1,0 +1,9 @@
+{
+  "name": "tests/polyfill-service",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "compression": "^1.8.1",
+    "express": "^5.2.1"
+  }
+}

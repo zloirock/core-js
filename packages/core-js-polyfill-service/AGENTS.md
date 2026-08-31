@@ -13,7 +13,8 @@ The polyfill floor is held by what it serves, not by what it is: the bundles com
 
 ## Layout
 
-The package root holds the entry points only; `internals/` holds the layers, one directory each -
+The package root holds the entry points only - `index.js` for the service itself, `express.js` for
+the middleware, `config.js` for the constants; `internals/` holds the layers, one directory each -
 `domain/`, `application/`, `infrastructure/`, `ui/`.
 
 Dependencies point inward: UI to Application to Domain. Infrastructure implements what the layers
@@ -139,6 +140,24 @@ Delivery: everything that knows about the protocol. Only `adapter/express` knows
 - ⚠ The last-resort anchor, the first `<script`, can be inside a comment or a string, and the tag
   would go in there and never run. It is last for that reason - the anchors above it are the ones
   that matter in practice
+- **adapter-1** - the body has to be seen before it is compressed, so this middleware is
+  registered AFTER `compression`. ⚠ That reads backwards and is not: both replace `res.write`, and
+  the one that replaces it later ends up on the outside and sees the body first. The failure is
+  silent - gzipped bytes, nothing inserted, no polyfills anywhere - so the gzip magic number is
+  checked for and reported
+- **adapter-2** - `Content-Length` and `ETag` are removed exactly when something was inserted and
+  never otherwise. ⚠ The length no longer matches and cannot be recomputed - only the beginning of
+  the response is held - and Express computes the `ETag` from the body BEFORE the edit, so a client
+  would revalidate into a 304 and keep an address of a bundle that is no longer theirs
+- **adapter-3** - nothing on the HTML path waits. `res.write` cannot be made to, and making it wait
+  would mean buffering the whole response and taking over its backpressure, which is the
+  interception undone. The plan and the baseline are awaited BEFORE the interception is installed
+- ⚠ **The buffered prefix is read and written back as latin1, not utf8.** latin1 is byte-preserving,
+  so a multi-byte character split across two chunks survives; utf8 would replace the half we hold
+  with a replacement character. Every anchor and the tag itself are ASCII
+- A baseline that could not be built takes the page out of OUR hands, not out of the visitor's: the
+  response is served exactly as it would be without this middleware, and the developer is told
+  once. Failing the request instead would turn a missing bundle into a site-wide outage
 
 ## Infrastructure
 
