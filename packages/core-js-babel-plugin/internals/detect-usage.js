@@ -37,6 +37,7 @@ import {
   withoutValuelessDeclarationViolations,
   aliasSpanDominatesUse,
   usableAliasInfo,
+  CHAIN_HOP_WRAPPER_TYPES,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   assignmentAliasWriteTrusted,
@@ -714,15 +715,26 @@ const OPTIONAL_CHAIN_TAG_TYPES = new Set([
   'ChainExpression',
 ]);
 
+// does this TAG owe the seal a reprint drops? the chain may sit under TS wrappers the reprint
+// keeps (`(a?.b.tag!)`x``) - those peel on the way to the chain, while a paren that survived as
+// a NODE still seals and needs no second layer. ONE head for the pending counter and the
+// restoration itself - a counter spelling of its own left the late pass ungated on the
+// wrapped forms, and the raw print there is not parseable at all
+function tagOwesRestoredParens(tag) {
+  let core = tag;
+  while (CHAIN_HOP_WRAPPER_TYPES.has(core.type)) core = core.expression;
+  return core.type !== 'ParenthesizedExpression' && OPTIONAL_CHAIN_TAG_TYPES.has(core.type);
+}
+
 // the same @babel/generator drop for a TAGGED template's tag: `(a?.b.tag)`x`` reprints as
 // `a?.b.tag`x``, which is not parseable at all - a tagged template may not sit on an optional
 // chain, and the source parens are what ended that chain. reproduces on a plain parse/print
 // round-trip with no plugin, so restore the paren node wherever this plugin forces the reprint.
-// a tag that IS an optional chain can only have come from parenthesized source (the bare form
-// does not parse), so the restoration is unconditional on the shape
+// a tag whose chain core is optional can only have come from parenthesized source (the bare
+// form does not parse), so the restoration is unconditional past its own predicate
 function restoreOptionalTagParens(path) {
   const { tag } = path.node;
-  if (OPTIONAL_CHAIN_TAG_TYPES.has(tag.type)) {
+  if (tagOwesRestoredParens(tag)) {
     path.get('tag').replaceWith({ type: 'ParenthesizedExpression', expression: tag });
   }
 }
@@ -747,8 +759,8 @@ function compensationPass(programPath, originalBodyNodes, visitor) {
 // re-running is inert - a folded host no longer carries an instantiation node.
 // it also returns whether the LATE pass has anything to do: this walk sees every node anyway, so it
 // answers for free, and a file with nothing left to compensate skips the second walk entirely.
-// a tag counts only when the tag IS an optional chain, which is the whole of what the late pass does
-// to one - counting every tagged template instead would hand the full walk to any file that uses a
+// a tag counts only when it still owes restored parens (the restoration's own predicate, asked
+// here) - counting every tagged template instead would hand the full walk to any file that uses a
 // template tag at all. the shape cannot appear after this point either: lowerings only REMOVE
 // optional chains, and what a sibling adds at top level the gated descent still reaches.
 // an instantiation that survived the fold counts whether or not the restoration will act on it: the
@@ -762,7 +774,7 @@ export function foldInstantiationsPass(programPath, originalBodyNodes = null) {
       if (!foldInstantiationIntoTypeArgumentHost(path)) parensPending = true;
     },
     TaggedTemplateExpression(path) {
-      if (OPTIONAL_CHAIN_TAG_TYPES.has(path.node.tag.type)) parensPending = true;
+      if (tagOwesRestoredParens(path.node.tag)) parensPending = true;
     },
   });
   return parensPending;
