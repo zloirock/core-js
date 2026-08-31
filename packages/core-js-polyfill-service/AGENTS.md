@@ -56,6 +56,33 @@ trap below is named, and the suite names its assertions after them.
   only miss in the service that costs a broken page rather than extra bytes, and it holds because
   the compat data records the version a module is known to be CORRECT from - not because of any
   code here. That is why the suite checks it against the real data instead of a fixture
+- **resolver-1** - every failure to identify the visitor leads to the baseline, never past it.
+  There is no "probably Chrome 90" branch: a confident wrong answer costs a missing module and a
+  broken page, while "I do not know" costs a few kilobytes
+- **resolver-2** - a version the resolver reports is never HIGHER than the real one, whichever
+  token it came from. Apple froze the iOS token at 18_7 with iOS 26 and Chromium zeroes its own
+  minor (`Chrome/143.0.0.0`), so both read low, and the matcher's nearest-threshold-below turns
+  that into extra bytes rather than a missing module. ⚠ The rule is about the SOURCE, not the
+  number: a hard-coded "no `Version/` means iOS 18" would break an in-app WebView on a real iOS 15
+- **resolver-4** - an engine whose UA carries no authoritative version token does not get one
+  invented. ⚠ The case that matters is the in-app WKWebView, which carries no `Version/` at all;
+  a version built upwards there hands a thin bundle to what may be an old engine
+- **resolver-5** - on iOS the engine is WebKit whatever the browser calls itself. ⚠ Both parsers
+  answer `Chrome 140` to a `CriOS/` string, and handing that to compat as real Chrome builds a
+  bundle far thinner than WebKit needs. Chrome on iPhone is 2.84% of world traffic
+
+## Infrastructure
+
+- The UA parser is `bowser`, and the choice is about maintenance rather than accuracy: on
+  everything but in-app iOS browsers it and the MIT branch of `ua-parser-js` agree, and there
+  resolver-5 decides anyway. `ua-parser-js@2` is AGPL, and its `1.x` branch is marked legacy by its
+  author. ⚠ It throws on an empty user agent, which is a visitor, not an incident
+- Traffic shares come from `caniuse-lite`, not from `browserslist.coverage`. ⚠ That one answers
+  with the share of exactly the version asked about: zero for 85% of the thresholds, and mobile
+  Chrome carries all of its traffic on the single version browserslist knows - the warm-up queue
+  would come out backwards. Folded onto thresholds by nearest-below, the 13 visitor engines account
+  for about 96% of world traffic; the headset is not among the 19 agents `caniuse-lite` tracks, so
+  its buckets carry no traffic and are warmed last
 
 ## Notes
 
