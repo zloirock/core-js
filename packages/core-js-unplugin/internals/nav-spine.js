@@ -5,6 +5,7 @@ import {
   inlineCallProxyGlobalRoot,
   navHasUnresolvableProxyHop,
   planProvenNavGuardCollapse,
+  proxyGlobalRootName,
   proxyHopLacksPureEntry,
   resolveKey,
   resolveObjectName,
@@ -75,23 +76,6 @@ export function cloneSpinePeeled(node, inCallee = false) {
     return { ...cloneNode(cur), callee: cloneSpinePeeled(cur.callee, true) };
   }
   return cloneNode(cur ?? node);
-}
-
-// ONE sequence level's tail, the value a bare `(eff(), x)` root hands on. a NESTED sequence
-// returns null: that is where the baseline's own walk stops, keeping the whole root in its memo
-// the value a sequence hands on. ONE level by default: a NESTED sequence is where the value canon
-// stops for the routes that ask about a bare root, so its value stays unproven and the guard over
-// it lives (`(d++, (c++, globalThis))?.Map.name`). through a kept WRITE the store makes the value
-// known and the descent continues (`(k = (c++, (c++, globalThis.self)))?.self` erases)
-export function singleSequenceTail(node, { nested = false } = {}) {
-  const core = unwrapRuntimeExpr(node);
-  if (core?.type !== 'SequenceExpression' || !core.expressions?.length) return null;
-  let tail = unwrapRuntimeExpr(core.expressions.at(-1));
-  if (!nested) return tail?.type === 'SequenceExpression' ? null : tail;
-  while (tail?.type === 'SequenceExpression' && tail.expressions?.length) {
-    tail = unwrapRuntimeExpr(tail.expressions.at(-1));
-  }
-  return tail;
 }
 
 // an INSTANCE dispatch riding the absorbed tail (`....Set.name` -> `_nameMaybeFunction(_Set)`)
@@ -207,8 +191,16 @@ export function peelPristineProxyHops(node, { adapter, resolveGlobalPolyfill }) 
 // ... and a KEPT sequence's tail navigates the same surface as a VALUE: a chain the peel erases
 // WHOLE folds onto its outermost hop's own ponyfill (`(c++, globalThis.self)` tests `_self` -
 // a read through the ponyfill folds onto it, the realm-fold canon and the babel leg's plan
-// spelling), while a tail whose peel stops on an unresolvable hop keeps that PROBE read in place
+// spelling). a tail whose peel stops on the environment PROBE with the spine below it backed
+// takes the guarded value render instead - the observing test decides the branch on the probe and
+// reads the always-defined leaf past it (`(c++, globalThis.window.self)` tests
+// `null == _globalThis.window ? void 0 : _self`, the kept-store canon); any other stop keeps the
+// peel remainder as the probe read the test performs
 export function foldTailPristineProxyHops(node, ctx) {
+  function mintPonyfill(name) {
+    const pure = ctx.resolveGlobalPolyfill(name);
+    return identifier(ctx.injectPureImport(pure.entry, pure.hintName));
+  }
   for (let seq = node; seq?.type === 'SequenceExpression';) {
     const tail = unwrapRuntimeExpr(seq.expressions.at(-1));
     if (tail?.type === 'SequenceExpression') {
@@ -217,9 +209,30 @@ export function foldTailPristineProxyHops(node, ctx) {
     }
     const peeled = peelPristineProxyHops(tail, ctx);
     if (peeled === tail) return;
-    const erasedWhole = peeled.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(peeled.name)
-      && isPristineProxyGlobal(ctx.adapter, peeled.name) && !!ctx.resolveGlobalPolyfill(peeled.name);
-    seq.expressions[seq.expressions.length - 1] = erasedWhole ? ctx.mintPonyfill(tail.property.name) : peeled;
+    // the ROOT proof is binding-aware, never the file census alone: a shadowed realm name
+    // (`function f(self)`) holds the user's object, and the hop peel above is name-blind - an
+    // unproven root leaves the tail exactly as written. THE canon (`proxyGlobalRootName`) answers
+    // name and alias alike with the shadow bail built in; a DIRECT realm name needs no entry of
+    // its own (the mint is of the HOP's ponyfill, `window` roots included)
+    function realmRootKind(base) {
+      const name = base?.type === 'Identifier' && ctx.aliasCtx
+        ? proxyGlobalRootName({ node: base, ...ctx.aliasCtx }) : null;
+      if (!name || !POSSIBLE_GLOBAL_OBJECTS.has(name) || !isPristineProxyGlobal(ctx.adapter, name)) return null;
+      return POSSIBLE_GLOBAL_OBJECTS.has(base.name) ? 'direct' : 'alias';
+    }
+    const wholeKind = realmRootKind(peeled);
+    const probeStop = !wholeKind && unbackedProxyHopKey(peeled, meta => ctx.resolveGlobalPolyfill(meta.name))
+      && !!realmRootKind(peelPristineProxyHops(unwrapRuntimeExpr(peeled.object), ctx));
+    if (wholeKind === 'direct') seq.expressions[seq.expressions.length - 1] = mintPonyfill(tail.property.name);
+    else if (probeStop) {
+      seq.expressions[seq.expressions.length - 1] =
+        renderShortCircuitGuard(nullFirstGuardTest(peeled), mintPonyfill(tail.property.name));
+    } else if (wholeKind === 'alias') {
+      // every caller hands a VALUE slot (a guard test, a memo), where the alias root's kept
+      // value folds to the leaf ponyfill like the direct twin; a NAV-position claimless fold
+      // keeps the alias, but that render never routes here
+      seq.expressions[seq.expressions.length - 1] = mintPonyfill(tail.property.name);
+    }
     return;
   }
 }

@@ -7323,6 +7323,35 @@ function * generateKeptAssignHops() {
   }
 }
 
+// --- a KEPT SEQUENCE (nested - the boundary the value canon stops at) under a live `?.` ---
+// the guard survives and the tail slot takes the kept-value canon. rows are chosen for what this
+// oracle can SEE: values that agree with native (`?.Map.foo` reads undefined on both sides, a
+// `globalThis` hop is natively defined), the import set (a swallowed hop or a lost claim shifts
+// it), the effect log (each prefix runs exactly once), and the one runtime-live class - a
+// SHADOWED realm name, whose fold would read the ponyfill where the source reads the user's
+// object. the realm-fold half (claims running where a window-less native throws) is the accepted
+// divergence the fixtures and e2e carry
+const KEPT_SEQ_GUARDS = [
+  { id: 'static-tail-self-hop', code: '(log.push("r"), (log.push("i"), globalThis.self))?.Map.foo' },
+  { id: 'instance-nav-root-hop', code: '(log.push("r"), (log.push("i"), globalThis.globalThis))?.Array.prototype.at(0)' },
+  { id: 'claimless-fold', code: 'typeof (log.push("r"), (log.push("i"), globalThis.self))?.foo' },
+  { id: 'combined-probe', code: '(log.push("r"), (log.push("i"), globalThis.window))?.Map.name' },
+  { id: 'shadowed-root',
+    code: '(() => { const f = (self) => (log.push("s"), (log.push("t"), self.globalThis))?.foo; return f({ globalThis: { foo: 7 } }); })()' },
+  { id: 'alias-root',
+    code: '(() => { const g = globalThis; return (log.push("r"), (log.push("i"), g.self))?.Map.foo; })()' },
+  { id: 'alias-root-claimless',
+    code: '(() => { const g = globalThis; return typeof (log.push("r"), (log.push("i"), g.self))?.foo; })()' },
+  // a SHADOWED realm name is the user's binding: nothing folds, nothing claims - runtime-live
+  { id: 'shadowed-claim',
+    code: '(() => { const f = (self) => (log.push("s"), (log.push("t"), self.globalThis))?.Map; return typeof f({ globalThis: { Map: 7 } }); })()' },
+];
+function * generateKeptSeqGuards() {
+  for (const c of KEPT_SEQ_GUARDS) {
+    yield { ...snippet(`kept-seq-guard/${ c.id }`, `(() => ${ c.code })()`), strip: true };
+  }
+}
+
 // --- a polyfillable GET reading off a chain that already carries a polyfillable CALL ---
 // two channels render this shape and share one span. the guard test must keep the method-get as its
 // own claim; a stand-down in either channel leaves it native, which an emptied realm turns into a
@@ -7474,6 +7503,7 @@ export function * generate() {
   yield * generateLeadingEffectClaims();
   yield * generateDeclinedInitClaims();
   yield * generateKeptAssignHops();
+  yield * generateKeptSeqGuards();
   yield * generateChainTailGets();
   yield * generateChainMemberHops();
   yield * generateParenCallees();

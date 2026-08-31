@@ -531,6 +531,45 @@ testUnlessDetectLowered('global-proxy: static claim under a tail collapses the k
   assert.same(r, hasWindow ? globalThis : undefined);
 });
 
+// a NESTED sequence value stays unproven, so the `?.` reading it keeps its guard and the kept
+// slots follow the kept-value canon: a tail through the probe onto a backed hop takes the guarded
+// value render - the test decides on the probe, so the claim runs exactly where the environment
+// has `window` - while a backed-only tail folds to its own ponyfill and the claim runs everywhere.
+// each prefix effect runs exactly once, on both branches of the guard
+testUnlessDetectLowered('global-proxy: kept-sequence tail follows the kept-value canon', assert => {
+  const hasWindow = globalThis.window !== undefined;
+  let c = 0;
+  let d = 0;
+  // eslint-disable-next-line @stylistic/no-extra-parens -- the nested sequence shape is under test
+  const at = (d++, (c++, globalThis.window.self))?.Array.prototype.at;
+  assert.same(typeof at, hasWindow ? 'function' : 'undefined');
+  assert.same(c, 1);
+  assert.same(d, 1);
+  // eslint-disable-next-line @stylistic/no-extra-parens -- the nested sequence shape is under test
+  const backed = (d++, (c++, globalThis.self))?.Array.prototype.at;
+  assert.same(typeof backed, 'function');
+  assert.same(c, 2);
+  assert.same(d, 2);
+  // a static-FALLBACK tail over the sequence-carried probe: the guard decides on the probe, so
+  // the tail read runs exactly where the environment has `window` - erasing it ran the read on
+  // the branch native skips
+  // eslint-disable-next-line @stylistic/no-extra-parens -- the nested sequence shape is under test
+  const arity = (d++, (c++, globalThis.window))?.Map.length;
+  assert.same(typeof arity, hasWindow ? 'number' : 'undefined');
+  assert.same(c, 3);
+  assert.same(d, 3);
+  // a kept STORE in the probe tail spells the guarded value where the ctor claim's test is its
+  // only reader: off-window the store hands on `undefined` and the claim skips, exactly where
+  // the source's own read short-circuits the chain
+  let k;
+  // eslint-disable-next-line @stylistic/no-extra-parens -- the nested sequence shape is under test
+  const stored = (d++, (c++, k = globalThis.window.self))?.Map.name;
+  assert.same(k, hasWindow ? globalThis : undefined);
+  if (!hasWindow) assert.same(stored, undefined);
+  assert.same(c, 4);
+  assert.same(d, 4);
+});
+
 // the assigned VALUE of a chain-assign receiver follows the flat value rule: a fully ponyfilled
 // navigation stores the leaf's own ponyfill (the global object either way - what the assertion
 // checks is that the claim above it still resolves and the assignment still runs), a sequence
