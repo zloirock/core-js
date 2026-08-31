@@ -2174,6 +2174,16 @@ QUnit.test('global-proxy: a proven call root under a live optional folds onto th
   assert.same(effects, 2, '... running once as well');
   assert.same(foldedOrLowered((effects++, dh())?.self?.window.Array.of(1).at(0)), true, 'a live sequence prefix folds');
   assert.same(effects, 3, '... with the prefix running once');
+  // TWO buried effects: a nested prefix level, and an effectful argument under a prefix -
+  // the fold replays BOTH, in source order; a per-level walk lost exactly the second one
+  // eslint-disable-next-line @stylistic/no-extra-parens -- the nested sequence LEVEL is the case
+  assert.same(foldedOrLowered((effects++, (effects++, dh()))?.self?.window.Array.of(1).at(0)), true,
+    'a nested sequence prefix folds');
+  assert.same(effects, 5, '... with both levels running once');
+  // eslint-disable-next-line sonarjs/no-extra-arguments -- the effect in the unused argument slot is the case
+  assert.same(foldedOrLowered((effects++, dh(effects++))?.self?.window.Array.of(1).at(0)), true,
+    'an effectful argument under a prefix folds');
+  assert.same(effects, 7, '... with both effects running once');
   // the claimless deep receiver: folded it answers `undefined`, and a lowered-input leg
   // reproduces the native off-window throw instead - the fixture locks WHICH legs fold;
   // what no leg may produce is a third outcome (a leaked value off the raw hop)
@@ -2190,4 +2200,272 @@ QUnit.test('global-proxy: a proven call root under a live optional folds onto th
   const hasWindow = globalThis.window !== undefined;
   assert.same(dw()?.self?.window.Array.of(1)?.at(0), hasWindow ? 1 : undefined,
     'a probe-yielding call keeps its own guard');
+});
+
+// a kept write storing the environment probe hands its RAW value to the member above: a plain
+// realm hop between them folds away WITH the `?.` above it, so the read throws off-window exactly
+// where the source threw on the hop; a hop spelled `?.` slides its probe onto that member instead
+testUnlessDetectLowered('global-proxy: realm hop over a kept probe store hands its `?.` verdict up', assert => {
+  const hasWindow = globalThis.window !== undefined;
+  let c;
+  let plainHop;
+  try {
+    plainHop = String((c = globalThis.window).self?.customBox);
+  } catch {
+    plainHop = 'threw';
+  }
+  assert.same(plainHop, hasWindow ? 'undefined' : 'threw');
+  assert.same(c, globalThis.window);
+  let optionalHop;
+  try {
+    optionalHop = String((c = globalThis.window)?.self?.customBox);
+  } catch {
+    optionalHop = 'threw';
+  }
+  assert.same(optionalHop, 'undefined');
+});
+
+// a claimless nav on a DEFINED-yield call root collapses onto the ROOT ponyfill (the identifier
+// twin's canon), the probe-yield twin onto its leaf - one realm object either way, and the
+// plain-window fold answers the slot in EVERY realm (the accepted price the identifier twin
+// pays); the effects still run exactly once
+testUnlessDetectLowered('global-proxy: a defined-yield call root collapses like its identifier twin', assert => {
+  globalThis.callRootSlot = 'crs';
+  assert.same((() => globalThis)().window.self.callRootSlot, 'crs');
+  let seq = 0;
+  assert.same((seq++, (() => globalThis)()).window.self.callRootSlot, 'crs');
+  assert.same(seq, 1);
+  let eff = 0;
+  // eslint-disable-next-line unicorn/consistent-function-style -- the proven arrow callee IS the case
+  const dhEff = () => {
+    eff++;
+    return globalThis;
+  };
+  assert.same(dhEff().window.self.callRootSlot, 'crs');
+  assert.same(eff, 1);
+  // eslint-disable-next-line unicorn/consistent-function-style -- the probe-yielding arrow callee IS the case
+  const dhProbe = () => globalThis.window;
+  assert.same(dhProbe().self.callRootSlot, 'crs');
+  delete globalThis.callRootSlot;
+});
+
+// the probe-yield guard decomposition: ONE test on the call value, the realm hops folded onto
+// it - the value, the short-circuit and the buried effects all match native in every realm
+testUnlessDetectLowered('global-proxy: a probe-yield call root guards on the call itself', assert => {
+  const hasWindow = globalThis.window !== undefined;
+  // eslint-disable-next-line unicorn/consistent-function-style -- the probe-yielding arrow callee IS the case
+  const dhw = () => globalThis.window;
+  assert.same(dhw()?.self?.window.Array.of(1).at(0), hasWindow ? 1 : undefined);
+  globalThis.memoSlot = { arr: [7] };
+  assert.same(dhw()?.self?.window.memoSlot.arr?.at(0), hasWindow ? 7 : undefined);
+  delete globalThis.memoSlot;
+  let counted = 0;
+  assert.same(
+    // eslint-disable-next-line @stylistic/no-extra-parens -- the nested sequence LEVEL is the case
+    (counted++, (counted++, dhw()))?.self?.window.Array.of(2).at(0), hasWindow ? 2 : undefined);
+  assert.same(counted, 2);
+});
+
+// a seal DIRECTLY under the member on the fallback swap: the guarded read rides ahead of the
+// re-based member, so the void seal still throws where native does
+testUnlessDetectLowered('global-proxy: a sealed fallback receiver keeps the source throw', assert => {
+  const hasWindow = globalThis.window !== undefined;
+  let out;
+  try {
+    // eslint-disable-next-line no-unsafe-optional-chaining -- the SEALED short-circuit read IS the case
+    out = String((globalThis.window?.Promise).noSuchStatic);
+  } catch {
+    out = 'threw';
+  }
+  assert.same(out, hasWindow ? 'undefined' : 'threw');
+});
+
+// an alias HOLDING the probe makes every read through it observable: a static claim one dotted
+// run below the alias re-emits the erased reads as a throw probe, and an SE computed key in the
+// run - which no probe may respell without doubling its effect - stands the claim down whole
+QUnit.test('global-proxy: reads through a probe-holding alias keep the source throw', assert => {
+  const hasWindow = globalThis.window !== undefined;
+  const held = globalThis.window;
+  let claimed;
+  try {
+    claimed = held.Array.of(5).join('');
+  } catch {
+    claimed = 'threw';
+  }
+  assert.same(claimed, hasWindow ? '5' : 'threw');
+  let sealedClaimed;
+  try {
+    // eslint-disable-next-line @stylistic/no-extra-parens -- the SEAL spelling IS the case
+    sealedClaimed = (held.Array).of(6).join('');
+  } catch {
+    sealedClaimed = 'threw';
+  }
+  assert.same(sealedClaimed, hasWindow ? '6' : 'threw');
+});
+
+testUnlessDetectLowered('global-proxy: an SE-keyed run through a probe-holding alias declines the claim', assert => {
+  const hasWindow = globalThis.window !== undefined;
+  let k = 0;
+  const held = globalThis.window?.self;
+  let out;
+  try {
+    // eslint-disable-next-line no-sequences -- the SE computed key IS the case under test
+    out = held[k++, 'Object'].freeze({ a: 1 }).a;
+  } catch {
+    out = 'threw';
+  }
+  assert.same(out, hasWindow ? 1 : 'threw');
+  assert.same(k, 1);
+});
+
+// a destructure consuming the bare probe reads a value that is absent exactly off-env: the
+// residual keeps the raw kept hop (`_globalThis.window`), so the pattern throws where native
+// does instead of destructuring the always-defined root. the lowered-input leg sees no pattern
+// at all - a single-prop pattern lowers to a plain nav, whose window hop keeps the accepted
+// plain-hop collapse - so the fold legs alone lock this
+testUnlessDetectLowered('global-proxy: destructure off the bare probe keeps the source throw', assert => {
+  const hasWindow = globalThis.window !== undefined;
+  let flat;
+  try {
+    const { setTimeout: st } = globalThis.window;
+    flat = typeof st;
+  } catch {
+    flat = 'threw';
+  }
+  assert.same(flat, hasWindow ? 'function' : 'threw');
+  let withRest;
+  try {
+    const { Array: { of: ofX }, ...others } = globalThis.window;
+    withRest = `${ typeof ofX }:${ typeof others }`;
+  } catch {
+    withRest = 'threw';
+  }
+  assert.same(withRest, hasWindow ? 'function:object' : 'threw');
+});
+
+// the minted-guard alias chain: the alias holds our rendered guard, the claim classifies
+// through its marked defined branch on both legs and rides the throw probe - absent-env the
+// read throws exactly where native does, on-env the ponyfill answers
+testUnlessDetectLowered('global-proxy: a chain run through a minted-guard alias probes and polyfills', assert => {
+  const hasWindow = globalThis.window !== undefined;
+  const held = globalThis.window?.self;
+  let out;
+  try {
+    out = String(held.self?.window.Array.of(31).at(0));
+  } catch {
+    out = 'threw';
+  }
+  assert.same(out, hasWindow ? '31' : 'threw');
+});
+
+// a probe-yield call under a chain guard: the rendered test reads the PROBE (the call), never
+// a member of it - off-env the guard short-circuits where the raw member read would throw
+testUnlessDetectLowered('global-proxy: a probe-yield call root guards on the call value', assert => {
+  const hasWindow = globalThis.window !== undefined;
+  function dw() { return globalThis.window; }
+  let out;
+  try {
+    out = String(dw().self?.window.Array.of(32).at(0));
+  } catch {
+    out = 'threw';
+  }
+  // off-env the rendered guard reads the PROBE and short-circuits (the accepted price where
+  // native throws on the `.self` read); a test reading a MEMBER of the probe would have
+  // fabricated '32' there instead
+  assert.same(out, hasWindow ? '32' : 'undefined');
+});
+
+// the delete fold over a DEFINED-yield call root lands the root ponyfill - one slot on the one
+// realm object, whatever the spelling; the probe-yield twin lands the deepest backed spelling
+QUnit.test('global-proxy: delete through a defined-yield call root folds to the realm object', assert => {
+  function dh() { return globalThis; }
+  globalThis.customDelSlotA = 1;
+  const deleted = delete dh().self.window.customDelSlotA;
+  assert.true(deleted);
+  assert.same(globalThis.customDelSlotA, undefined);
+});
+
+// a probe-ONLY run off a defined-yield call keeps the window read: absent-env the member read
+// throws exactly where native does, instead of answering the root ponyfill's slot
+QUnit.test('global-proxy: a probe-only run off a defined-yield call keeps the probe read', assert => {
+  const hasWindow = globalThis.window !== undefined;
+  function dh() { return globalThis; }
+  let out;
+  try {
+    out = String(dh().window.customQ);
+  } catch {
+    out = 'threw';
+  }
+  assert.same(out, hasWindow ? 'undefined' : 'threw');
+});
+
+// the fallback receiver probe must survive the pre+post sandwich: a second pass recognizing
+// our own render (`(held.Promise, _Promise).member`) leaves it alone - eaten, the read stops
+// throwing exactly where native throws
+QUnit.test('global-proxy: the fallback receiver probe survives a second pass', assert => {
+  const hasWindow = globalThis.window !== undefined;
+  const held = globalThis.window;
+  let out;
+  try {
+    out = typeof held.Promise.noSuchStatic;
+  } catch {
+    out = 'threw';
+  }
+  assert.same(out, hasWindow ? 'undefined' : 'threw');
+});
+
+// the delete-deciding guard on a call-rooted run: a live short-circuit protecting the deleted
+// member survives the fold - off-env nothing is deleted exactly where native short-circuits,
+// on-env the delete reaches the realm slot
+QUnit.test('global-proxy: a live guard on a call-rooted delete decides the delete', assert => {
+  const hasWindow = globalThis.window !== undefined;
+  function ut() { return globalThis; }
+  globalThis.customDelSlotB = 1;
+  const deleted = delete ut()?.window?.self?.customDelSlotB;
+  assert.true(deleted);
+  assert.same(globalThis.customDelSlotB, hasWindow ? undefined : 1);
+  delete globalThis.customDelSlotB;
+});
+
+// a KEPT STORE of a seq-prefixed call nav takes the guarded value: off-env the variable holds
+// undefined where the fold would hand it the ponyfill; a key-SE store takes the value form
+// with the key's effect run exactly once
+QUnit.test('global-proxy: a kept store of a prefixed call nav stores the guarded value', assert => {
+  const hasWindow = globalThis.window !== undefined;
+  function ut() { return globalThis; }
+  let held;
+  let ticks = 0;
+  globalThis.customStoreSlotC = 5;
+  const read = (held = (ticks++, ut()).window.self)?.customStoreSlotC;
+  assert.same(ticks, 1, 'the store prefix ran exactly once');
+  assert.same(read, hasWindow ? 5 : undefined);
+  assert.same(typeof held, hasWindow ? 'object' : 'undefined');
+  const keyLog = [];
+  // eslint-disable-next-line @stylistic/no-extra-parens -- the parenthesized sequence KEY is the subject: its claim must stay live
+  const keyRead = (held = globalThis[(keyLog.push(1), 'window')].self)?.customStoreSlotC;
+  assert.same(keyLog.length, 1, 'the key effect ran exactly once');
+  // the key-SE store takes the VALUE form: the realm slot answers in every realm - the
+  // accepted collapse price where native, off-window, throws on the `.self` read
+  assert.same(keyRead, 5);
+  assert.same(held.customStoreSlotC, 5, 'the store held the realm object');
+  delete globalThis.customStoreSlotC;
+});
+
+// the same guard with a sequence buried at the call root: the prefix rides inside the
+// rendered test, running exactly once, and the guard still decides the delete / the read
+QUnit.test('global-proxy: a sequence prefix at a call root rides the guard once', assert => {
+  const hasWindow = globalThis.window !== undefined;
+  function ut() { return globalThis; }
+  let ticks = 0;
+  globalThis.customDelSlotC = 1;
+  const deleted = delete (ticks++, ut())?.window?.self?.customDelSlotC;
+  assert.true(deleted);
+  assert.same(ticks, 1, 'the delete prefix ran exactly once');
+  assert.same(globalThis.customDelSlotC, hasWindow ? undefined : 1);
+  delete globalThis.customDelSlotC;
+  globalThis.customReadSlotC = 7;
+  const read = (ticks++, ut())?.window?.self?.customReadSlotC;
+  assert.same(ticks, 2, 'the read prefix ran exactly once');
+  assert.same(read, hasWindow ? 7 : undefined);
+  delete globalThis.customReadSlotC;
 });

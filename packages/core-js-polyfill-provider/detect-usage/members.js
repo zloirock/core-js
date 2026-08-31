@@ -56,6 +56,7 @@ import {
   requireBoundProxyGlobalName,
   resolveKey,
   resolveObjectName,
+  storeReadHopOptional,
   unwrapTransparentSeq,
   unwrapParensCollectingEffects,
   chainReadsThroughSeal, chainSealsAShortCircuit, navValueCanShortCircuit, ownChainOptionalObjects,
@@ -332,17 +333,14 @@ export function planProxyReceiver(receiver, {
   // root swaps to its pure ctor
   const isAliasRoot = !!keptAssignRoot || isAliasProxyRoot(throughRoot, aliasCtx);
   if (!rootPure && !isAliasRoot) return null;
-  // the dropped hops of a kept root, walked leaf-to-root the way the prefix walker does: their computed
-  // keys carry the effects that migrate into the surviving leaf key (in source order), and their `?.`
-  // flags carry the guard that re-hangs onto it
+  // the dropped hops of a kept root, walked leaf-to-root the way the prefix walker does: their
+  // computed keys carry the effects that migrate into the surviving leaf key (in source order)
   const keyPrefixSE = [];
-  let droppedHopOptional = false;
   if (keptAssignRoot) {
     const hops = [];
     for (let cur = objectCore; cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression';
       cur = peelReceiverSequenceTail(cur.object)) hops.unshift(cur);
     for (const hop of hops) {
-      droppedHopOptional ||= !!hop.optional;
       if (hop.computed) keyPrefixSE.push(...collectFoldedReceiverSideEffects(hop.property));
     }
   }
@@ -358,10 +356,12 @@ export function planProxyReceiver(receiver, {
     harvestedSE: collectFoldedReceiverSideEffects(receiver.object)
       .filter(effect => effect !== keptAssignRoot && !keyPrefixSet.has(effect)),
     keyPrefixSE,
-    // the erased hop's own `?.` guarded the KEPT root, so it moves to the leaf that now reads off
-    // it - UNLESS a seal stands between them (`((q = gw)?.self).self.box`): there the source reads
-    // the sealed value PLAINLY and throws, and re-hanging the guard answers `undefined` instead
-    optional: !!(keptAssignRoot && (objectCore.optional || droppedHopOptional)
+    // the `?.` of the hop READING the kept root slides onto the leaf that now reads off it - the
+    // store-fold verdict: only that hop can see the store's void, a deeper `?.` guards a realm
+    // object the first read already proved and never travels. UNLESS a seal stands between them
+    // (`((q = gw)?.self).self.box`): there the source reads the sealed value PLAINLY and throws,
+    // and re-hanging the guard answers `undefined` instead
+    optional: !!(keptAssignRoot && storeReadHopOptional(objectCore)
       && !chainReadsThroughSeal(receiver, resolvePure, aliasCtx)),
     property: receiver.property,
     computed: receiver.computed,
