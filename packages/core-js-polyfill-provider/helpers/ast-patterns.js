@@ -5564,6 +5564,29 @@ export function unwrapSafeSequenceTail(node) {
   return peelSequenceTail(unwrapRuntimeExpr(node), { step: unwrapRuntimeExpr });
 }
 
+// ONE sequence level's tail, the value a bare `(eff(), x)` root hands on. a NESTED sequence
+// returns null: that is where the value canon stops for the routes that ask about a bare root,
+// so its value stays unproven and the guard over it lives (`(d++, (c++, globalThis))?.Map.name`).
+// through a kept WRITE the store makes the value known and the descent continues
+// (`(k = (c++, (c++, globalThis.self)))?.self` erases)
+export function singleSequenceTail(node, { nested = false } = {}) {
+  const core = unwrapRuntimeExpr(node);
+  if (core?.type !== 'SequenceExpression' || !core.expressions?.length) return null;
+  const tail = unwrapRuntimeExpr(core.expressions.at(-1));
+  if (!nested) return tail?.type === 'SequenceExpression' ? null : tail;
+  return peelSequenceTail(tail, { step: unwrapRuntimeExpr });
+}
+
+// the kept-sequence guard boundary that stop defines: a NESTED sequence value stays unproven, so
+// a live `?.` reading it keeps its guard - the kept-guard channels own the shape - while a
+// single-level spelling proves through the tail and erases like the bare twin. THE predicate an
+// erase / collapse verdict asks before consuming an optional over a sequence-spelled receiver
+export function nestedSequenceValueSpelling(node) {
+  const core = unwrapRuntimeExpr(node);
+  return core?.type === 'SequenceExpression' && !!core.expressions?.length
+    && singleSequenceTail(core) === null;
+}
+
 // true when the path's enclosing context is an UpdateExpression, after peeling transparent
 // wrappers upward. accepts the parent path (`path.parentPath` for babel / estree-toolkit).
 // callers gate on plugin method: usage-pure must skip (rewrite to frozen binding invalid),

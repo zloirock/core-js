@@ -31,6 +31,7 @@ import {
   isMutatedGlobalSlot,
   isPristineProxyGlobal,
   mayHaveSideEffects,
+  nestedSequenceValueSpelling,
   migratableClaimSe,
   peelParenAndTSParentPath,
   peelParenAndTSSlotChild,
@@ -860,7 +861,7 @@ export default function createProxySpineChannel(ctx) {
       // ... and a NESTED sequence keeps its whole spelling too: the value canon stopped there,
       // so the test reads what the source wrote (`(d++, (c++, globalThis))?.Map.name`)
       const keepSeqInTest = !sealedDescent
-              && (probeSeqTail?.type === 'AssignmentExpression' || probeSeqTail?.type === 'SequenceExpression');
+              && (probeSeqTail?.type === 'AssignmentExpression' || nestedSequenceValueSpelling(probeSource));
       const droppedSeqPrefix = [];
       for (;;) {
         if (probeSource?.type === 'SequenceExpression' && !keepSeqInTest) {
@@ -895,12 +896,16 @@ export default function createProxySpineChannel(ctx) {
       const probeInner = cloneNode(probeSource);
       // a sequence KEPT whole still navigates: a tail the peel erases whole folds onto its
       // outermost hop's own ponyfill (`(c++, globalThis.self)` tests `_self` - the realm-fold
-      // canon, the spelling the babel leg's plan lands too), a probe below keeps its read
+      // canon, the spelling the babel leg's plan lands too), a probe stopping the peel takes
+      // the guarded value render the fold owns
       if (keepSeqInTest) {
-        foldTailPristineProxyHops(probeInner, { ...hopPeelCtx, mintPonyfill(name) {
-          const pure = resolveGlobalPolyfill(name);
-          return identifier(injectPureImport(pure.entry, pure.hintName));
-        } });
+        foldTailPristineProxyHops(probeInner, {
+          ...hopPeelCtx,
+          injectPureImport,
+          aliasCtx: { scope: metaPath.scope, adapter, path: metaPath },
+          // the clone IS the guard test - a VALUE position, where an alias root's kept value
+          // folds to the leaf ponyfill like the direct twin
+        });
       }
       // the clone IS the guard test: a claim re-visited inside it renders the read the test
       // performs, so an unbacked hop in it stays load-bearing instead of folding away
