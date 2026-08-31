@@ -36,16 +36,16 @@ import {
   POSSIBLE_GLOBAL_OBJECTS,
   ancestorChainDetached,
   syntheticNodeAncestry,
+  aliasSpanDominatesUse,
+  usableAliasInfo,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
-  aliasSpanDominatesUse,
   assignmentAliasWriteTrusted,
   hasCtorAliasCandidateShapes,
   isPolyfillAliasBinding,
   soleAliasWrite,
   isSymbolDestructureAliasBinding,
   registerAliasPrePassSite,
-  usableAliasInfo,
 } from '@core-js/polyfill-provider/helpers/class-walk';
 import { is as estreeIs, traverse } from 'estree-toolkit';
 
@@ -1209,7 +1209,7 @@ export function createUsageVisitors({
   // guard. `getTypeArgs` reads babel `typeParameters` / oxc `typeArguments` uniformly
   function checkCallTypeArguments(path) {
     const typeArgs = getTypeArgs(path.node);
-    if (typeArgs) walkTypeAnnotationGlobals(typeArgs, core.annotationGlobal(path));
+    if (typeArgs) walkTypeAnnotationGlobals(typeArgs, core.annotationGlobal(path), core.annotationCtx(path));
   }
 
   // a class node and its field shapes carry type-only globals the FunctionExpression walk
