@@ -2644,6 +2644,7 @@ export default [
       '**/*.mjs',
       'packages/core-js-babel-plugin/**',
       'packages/core-js-polyfill-provider/**',
+      'packages/core-js-polyfill-service/**',
       'packages/core-js-unplugin/**',
       'packages/core-js-builder/**',
       'packages/core-js-compat/**',

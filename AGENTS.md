@@ -35,6 +35,7 @@ npm workspaces; the packages:
 | `core-js-babel-plugin/` | `@core-js/babel-plugin` | Babel plugin for automatic injection |
 | `core-js-unplugin/` | `@core-js/unplugin` | Universal bundler plugin (Vite, Webpack, Rollup, Rolldown, Rspack, Rsbuild, esbuild, Farm, Bun) |
 | `core-js-polyfill-provider/` | `@core-js/polyfill-provider` | Shared core of babel-plugin and unplugin: usage and syntax detection, type resolution, injection logic |
+| `core-js-polyfill-service/` | `@core-js/polyfill-service` | Runtime service: serves each visitor a bundle built for their browser |
 | `core-js-types/` | `@core-js/types` | TypeScript definitions for `core-js` and `@core-js/pure` |
 
 ## Conventions

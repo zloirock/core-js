@@ -23,6 +23,7 @@ Runners, harnesses and fixture tooling are Node `^22.18.0 || >=24.11.0`, mostly 
 | `entries/` | `npm run test-entries` | that every entry point loads and pulls exactly the modules the compat data claims |
 | `type-definitions/` | `npm run test-type-definitions`, `-all`, `npm run types-coverage` | `.d.ts` behavior and coverage |
 | `builder/` | `npm run test-builder` | `@core-js/builder` |
+| `polyfill-service/` | `npm run test-polyfill-service` | `@core-js/polyfill-service` - the runtime service, from the compat-data domain up to the Express adapter |
 | `promises/` | `npm run test-promises` | the Promises/A+ and ES6 promise conformance suites, in both flavors |
 | `test262/` | `npm run test262` | the official ECMAScript test suite |
 | `eslint/` | `npm run test-eslint` | the flat config itself lives here, in `eslint.config.js` |

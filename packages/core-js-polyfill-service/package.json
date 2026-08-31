@@ -1,0 +1,44 @@
+{
+  "name": "@core-js/polyfill-service",
+  "version": "4.0.0-alpha.1",
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "description": "core-js polyfill service - serves each visitor a core-js bundle built for their browser",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zloirock/core-js.git",
+    "directory": "packages/core-js-polyfill-service"
+  },
+  "homepage": "https://core-js.io",
+  "bugs": {
+    "url": "https://github.com/zloirock/core-js/issues"
+  },
+  "funding": {
+    "type": "opencollective",
+    "url": "https://opencollective.com/core-js"
+  },
+  "license": "SEE LICENSE IN LICENSE",
+  "author": {
+    "name": "Denis Pushkarev",
+    "email": "zloirock@zloirock.ru",
+    "url": "http://zloirock.ru"
+  },
+  "sideEffects": false,
+  "main": "index.js",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    },
+    "./index.js": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    }
+  },
+  "types": "index.d.ts",
+  "engines": {
+    "node": "^22.18.0 || >=24.11.0"
+  }
+}
