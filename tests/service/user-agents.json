@@ -1,0 +1,402 @@
+[
+  {
+    "browser": "Windows Chrome",
+    "source": "top-user-agents@2.1.134",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36",
+    "engine": "chrome",
+    "version": "153.0.0.0"
+  },
+  {
+    "browser": "macOS Chrome",
+    "source": "top-user-agents@2.1.134",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36",
+    "engine": "chrome",
+    "version": "152.0.0.0"
+  },
+  {
+    "browser": "Linux Chrome",
+    "source": "top-user-agents@2.1.134",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36",
+    "engine": "chrome",
+    "version": "152.0.0.0"
+  },
+  {
+    "browser": "Android Chrome",
+    "source": "top-user-agents@2.1.134",
+    "userAgent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Mobile Safari/537.36",
+    "engine": "chrome-android",
+    "version": "152.0.0.0"
+  },
+  {
+    "browser": "macOS Safari",
+    "source": "top-user-agents@2.1.134",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.0 Safari/605.1.15",
+    "engine": "safari",
+    "version": "27.0",
+    "note": "an iPad since iPadOS 13, and an iPhone asked for the desktop site, send exactly this - the two are not separable server-side, so they land on the `safari` row rather than on `ios`"
+  },
+  {
+    "browser": "iPhone Safari",
+    "source": "top-user-agents@2.1.134",
+    "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.0 Mobile/15E148 Safari/604.1",
+    "engine": "ios",
+    "version": "27.0"
+  },
+  {
+    "browser": "Windows Firefox",
+    "source": "top-user-agents@2.1.134",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:155.0) Gecko/20100101 Firefox/155.0",
+    "engine": "firefox",
+    "version": "155.0"
+  },
+  {
+    "browser": "macOS Firefox",
+    "source": "top-user-agents@2.1.134",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:155.0) Gecko/20100101 Firefox/155.0",
+    "engine": "firefox",
+    "version": "155.0"
+  },
+  {
+    "browser": "Firefox ESR on Windows 7",
+    "source": "top-user-agents@2.1.134",
+    "userAgent": "Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:109.0) Gecko/20100101 Firefox/115.0",
+    "engine": "firefox",
+    "version": "115.0"
+  },
+  {
+    "browser": "Windows Edge",
+    "source": "top-user-agents@2.1.134",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36 Edg/152.0.0.0",
+    "engine": "edge",
+    "version": "152.0.0.0"
+  },
+  {
+    "browser": "Windows Opera",
+    "source": "top-user-agents@2.1.134",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 OPR/135.0.0.0",
+    "engine": "opera",
+    "version": "135.0.0.0"
+  },
+  {
+    "browser": "Android Samsung Internet",
+    "source": "top-user-agents@2.1.134",
+    "userAgent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/30.0 Chrome/143.0.0.0 Mobile Safari/537.36",
+    "engine": "samsung",
+    "version": "30.0"
+  },
+  {
+    "browser": "iPhone Chrome (CriOS)",
+    "source": "top-user-agents@2.1.134",
+    "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 26_6_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/152.0.7977.64 Mobile/15E148 Safari/604.1",
+    "engine": "ios",
+    "version": "26.6.1",
+    "note": "no `Version/` token: the answer comes from the OS token, which Apple freezes - a lower bound"
+  },
+  {
+    "browser": "Android WebView",
+    "source": "top-user-agents@2.1.134",
+    "userAgent": "Mozilla/5.0 (Linux; Android 16; SM-S928B Build/BP4A.251205.006; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/151.0.7922.199 Mobile Safari/537.36 DibburitAPK/1.6",
+    "engine": "chrome-android",
+    "version": "151.0.7922.199",
+    "note": "an in-app WebView: the Chromium is the system WebView, and its own token is what says so"
+  },
+  {
+    "browser": "Office fetching a link preview",
+    "source": "top-user-agents@2.1.134",
+    "userAgent": "Mozilla/4.0 (compatible; ms-office; MSOffice 16)",
+    "engine": null,
+    "version": null,
+    "note": "not a browser: unrecognized is a full answer, and it means the baseline"
+  },
+  {
+    "browser": "iPad, mobile UA",
+    "source": "user-agents@2.1.177",
+    "userAgent": "Mozilla/5.0 (iPad; CPU OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.6.1 Mobile/15E148 Safari/604.1",
+    "engine": "ios",
+    "version": "26.6.1"
+  },
+  {
+    "browser": "iPhone Firefox (FxiOS)",
+    "source": "user-agents@2.1.177",
+    "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) FxiOS/155.0 Mobile/15E148 Safari/604.1",
+    "engine": "ios",
+    "version": "18.7"
+  },
+  {
+    "browser": "iPhone Edge (EdgiOS)",
+    "source": "user-agents@2.1.177",
+    "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 26_6_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) EdgiOS/152.0.4191.65 Version/26.0 Mobile/15E148 Safari/604.1",
+    "engine": "ios",
+    "version": "26.6.1",
+    "note": "EdgiOS DOES carry `Version/`, and it is WebKit's, not Edge's own version"
+  },
+  {
+    "browser": "Amazon Silk",
+    "source": "user-agents@2.1.177",
+    "userAgent": "Mozilla/5.0 (Linux; Android 11; KFSNWI) AppleWebKit/537.36 (KHTML, like Gecko) Silk/150.6.2 like Chrome/150.0.7871.253 Safari/537.36",
+    "engine": "chrome-android",
+    "version": "150.0.7871.253"
+  },
+  {
+    "browser": "Windows IE 11",
+    "source": "matomo device-detector fixtures",
+    "userAgent": "Mozilla/5.0 (Windows NT 6.1; Trident/7.0; rv:11.0) like Gecko",
+    "engine": "ie",
+    "version": "11.0"
+  },
+  {
+    "browser": "IE 11 in compatibility view",
+    "source": "matomo device-detector fixtures",
+    "userAgent": "Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 6.1; Win64; x64; Trident/7.0; .NET CLR 2.0.50727; SLCC2; .NET CLR 3.5.30729; .NET CLR 3.0.30729; Media Center PC 6.0; .NET4.0C; InfoPath.3; .NET CLR 1.1.4322; FDM; Tablet PC 2.0; .NET4.0E; Microsoft Outlook 14.0.7113; ms-office; MSOffice 14)",
+    "engine": "ie",
+    "version": "11",
+    "note": "IE 11 pretending to be IE 7; the answer lands near the floor, which is the safe direction"
+  },
+  {
+    "browser": "Edge Legacy (EdgeHTML), which claims a Chrome it never was",
+    "source": "matomo device-detector fixtures",
+    "userAgent": "Mozilla/5.0 (Windows Phone 10.0; Android 6.0.1; Microsoft; RM-1096) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/52.0.2743.116 Mobile Safari/537.36 Edge/15.15063",
+    "engine": "edge",
+    "version": "15.15063",
+    "note": "the `Chrome/52` token here is a compatibility lie - EdgeHTML was never Chromium, and reading that token would hand this engine a bundle built for a Chromium it does not have"
+  },
+  {
+    "browser": "Android Edge",
+    "source": "matomo device-detector fixtures",
+    "userAgent": "Mozilla/5.0 (Linux; Android 12; BLK-LX9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Mobile Safari/537.36 EdgA/138.0.0.0",
+    "engine": "edge",
+    "version": "138.0.0.0",
+    "note": "the compat data has no `edge-android` row, so an Android Edge lands on the desktop `edge` one"
+  },
+  {
+    "browser": "Android Opera",
+    "source": "matomo device-detector fixtures",
+    "userAgent": "Mozilla/5.0 (Linux; Android 14; V1916T) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.6167.140 Mobile Safari/537.36 OPR/107.0.5045.15",
+    "engine": "opera-android",
+    "version": "107.0.5045.15"
+  },
+  {
+    "browser": "Android UC Browser",
+    "source": "matomo device-detector fixtures",
+    "userAgent": "Mozilla/5.0 (Linux; U; Android 14; en-US; V2433 Build/UP1A.231005.007_MOD2) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/126.0.6478.71 UCBrowser/12.12.10.1228 Mobile Safari/537.36",
+    "engine": "chrome-android",
+    "version": "126.0.6478.71"
+  },
+  {
+    "browser": "Android Yandex Browser",
+    "source": "matomo device-detector fixtures",
+    "userAgent": "Mozilla/5.0 (Linux; Android 16; LNA-NX1 Build/HONORLNA-N32; wv) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.7871.46 YaBrowser/25.5.0.58 (lite) Mobile Safari/537.36",
+    "engine": "chrome-android",
+    "version": "150.0.7871.46"
+  },
+  {
+    "browser": "Android Huawei Browser",
+    "source": "matomo device-detector fixtures",
+    "userAgent": "Mozilla/5.0 (Linux; Android 12; HarmonyOS; ADY-AL10; HMSCore 6.14.0.322) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.5735.196 HuaweiBrowser/15.0.7.301 Mobile Safari/537.36",
+    "engine": "chrome-android",
+    "version": "114.0.5735.196"
+  },
+  {
+    "browser": "Android Facebook in-app browser",
+    "source": "matomo device-detector fixtures",
+    "userAgent": "Mozilla/5.0 (Linux; Android 16; RMX5131 Build/AP3A.240617.008) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/150.0.7871.94 Mobile Safari/537.36 [FB_IAB/FB4A;FBAV/569.0.0.42.72;IABMV/1;]",
+    "engine": "chrome-android",
+    "version": "150.0.7871.94"
+  },
+  {
+    "browser": "Android stock browser, 4.x",
+    "source": "matomo device-detector fixtures",
+    "userAgent": "Mozilla/5.0 (Linux; U; Android 4.4.4; zh-cn; m1 note Build/KTU84P) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Mobile Safari/537.36",
+    "engine": "android",
+    "version": "4.0"
+  },
+  {
+    "browser": "Samsung Internet in desktop mode",
+    "source": "matomo device-detector fixtures",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/29.0 Chrome/136.0.0.0 Safari/537.36",
+    "engine": "samsung",
+    "version": "29.0"
+  },
+  {
+    "browser": "Meta Quest",
+    "source": "matomo device-detector fixtures",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64; Quest 3) AppleWebKit/537.36 (KHTML, like Gecko) OculusBrowser/32.1.0.37.133.575621010 Chrome/122.0.6261.64 VR Safari/537.36",
+    "engine": "quest",
+    "version": "32.1.0.37.133.575621010"
+  },
+  {
+    "browser": "Samsung TV (Tizen)",
+    "source": "matomo device-detector fixtures",
+    "userAgent": "Mozilla/5.0 (SMART-TV; Linux; Tizen 2.3) AppleWebkit/538.1 (KHTML, like Gecko) SamsungBrowser/1.0 TV Safari/538.1",
+    "engine": "samsung",
+    "version": "1.0",
+    "note": "a TV browser on the Android `samsung` row - the wrong engine, but at a version so old that the bundle is the widest one there is"
+  },
+  {
+    "browser": "PlayStation",
+    "source": "matomo device-detector fixtures",
+    "userAgent": "Mozilla/5.0 (PlayStation; PlayStation 5/2.26) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0 Safari/605.1.15",
+    "engine": "safari",
+    "version": "13.0"
+  },
+  {
+    "browser": "a device named after a browser",
+    "source": "matomo device-detector fixtures",
+    "userAgent": "Mozilla/5.0 (Linux; Android 12; Razer Edge 5G) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36",
+    "engine": "chrome-android",
+    "version": "124.0.0.0",
+    "note": "the parser reads `Edge` out of the DEVICE name and answers Microsoft Edge with no version at all. A name with no version behind it cannot be placed on a threshold, so the Chromium token is what is left - without it this current Chrome was served the baseline"
+  },
+  {
+    "browser": "an Android phone named after an iPhone",
+    "source": "matomo device-detector fixtures",
+    "userAgent": "Mozilla/5.0 (Linux; Android 10; Iphone12 pro max) AppleWebKit/601.36 (KHTML, like Gecko) Chrome/105.0.0.0 Mobile Safari/537.36",
+    "engine": "chrome",
+    "version": "105.0.0.0",
+    "note": "the parser answers iOS to the device name; there is no iOS version anywhere in the string, and that is what says the string did not mean it"
+  },
+  {
+    "browser": "Sleipnir, a browser running Trident",
+    "source": "matomo device-detector fixtures",
+    "userAgent": "Mozilla/5.0 (compatible; MSIE 10.0; Windows NT 6.1; Trident/6.0; Sleipnir/2.9.18)",
+    "engine": "ie",
+    "version": "10",
+    "note": "a name nothing knows, on IE 10 - the engine is in the `Trident/` token and nowhere else"
+  },
+  {
+    "browser": "Apple News, writing its own version into `Version/`",
+    "source": "matomo device-detector fixtures",
+    "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 10_0 like Mac OS X) AppleWebKit/602.1.50 (KHTML, like Gecko) News/582.1 Version/2.0",
+    "engine": "ios",
+    "version": "10.0",
+    "note": "the `Version/` token is the app, not WebKit, and the OS token is what is left"
+  },
+  {
+    "browser": "an iOS string with a dotted OS token",
+    "source": "matomo device-detector fixtures",
+    "userAgent": "Mozilla/5.0 (iPhone; U; CPU iPhone OS 13.3.1; en_US; ) AppleWebKit/0.0 (KHTML, like Gecko) Version/0.0; GmmClient:google_ios/com.google.Maps/5.38.8/Mobile/ios:iPhone10,2/iOS-AppStore comdirect/1.0 (appVersion:20.3.0;deviceName:apple iphone;deviceType:mobile)",
+    "engine": "ios",
+    "version": "13.3.1",
+    "note": "the parser knows only the underscored form and loses this one entirely"
+  },
+  {
+    "browser": "DuckDuckGo on macOS",
+    "source": "user-agents@2.1.177",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.6.2 Safari/605.1.15 Ddg/26.6.2",
+    "engine": "safari",
+    "version": "26.6.2",
+    "note": "a name nothing knows, on a Mac: every browser Apple allows there is Safari's WebKit, and `Version/` beside `Safari/` is that engine's version - without the fallback this falls to the baseline"
+  },
+  {
+    "browser": "Chrome 52.0.6756.1378 on iOS",
+    "source": "user-agents@2.1.177",
+    "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 11_0 like Mac OS X) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/52.0.6756.1378 Mobile Safari/537.36",
+    "engine": "ios",
+    "version": "11.0",
+    "note": "one string for the path <ios ios-token chromium-token>, which stands for 326 in the corpora"
+  },
+  {
+    "browser": "Mozilla 5.0 on no system it knows",
+    "source": "matomo device-detector fixtures",
+    "userAgent": "Mozilla/5.0 (Nintendo 3DS; U; ; en) Version/1.7498.EU",
+    "engine": null,
+    "version": null,
+    "note": "one string for the path <baseline version-token>, which stands for 113 in the corpora"
+  },
+  {
+    "browser": "Opera 11.00 on Windows",
+    "source": "matomo device-detector fixtures",
+    "userAgent": "Opera/9.46.(Windows 95; lg-UG) Presto/2.9.172 Version/11.00",
+    "engine": "opera",
+    "version": "11.00",
+    "note": "one string for the path <opera version-token>, which stands for 88 in the corpora"
+  },
+  {
+    "browser": "Opera 44.1.2254.143214 on Android",
+    "source": "matomo device-detector fixtures",
+    "userAgent": "Mozilla/5.0 (Linux; U; Android 8.0.0; 5099D_RU Build/O00623; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/78.0.3904.96 Mobile Safari/537.36 OPR/44.1.2254.143214",
+    "engine": "opera-android",
+    "version": "44.1.2254.143214",
+    "note": "one string for the path <opera-android chromium-candidate version-token chromium-token webview>, which stands for 66 in the corpora"
+  },
+  {
+    "browser": "Internet Explorer 5.0 on no system it knows",
+    "source": "matomo device-detector fixtures",
+    "userAgent": "Mozilla/4.0 (compatible; MSIE 5.0; SunOS 5.10 sun4u; X11)",
+    "engine": "ie",
+    "version": "5.0",
+    "note": "one string for the path <ie>, which stands for 43 in the corpora"
+  },
+  {
+    "browser": "Opera 9.30 on no system it knows",
+    "source": "matomo device-detector fixtures",
+    "userAgent": "Opera/9.30 (Nintendo Wii; U; ; 3642; en)",
+    "engine": "opera",
+    "version": "9.30",
+    "note": "one string for the path <opera>, which stands for 32 in the corpora"
+  },
+  {
+    "browser": "Firefox 153.0 on Android",
+    "source": "user-agents@2.1.177",
+    "userAgent": "Mozilla/5.0 (Android 16; Mobile; rv:153.0) Gecko/153.0 Firefox/153.0",
+    "engine": "firefox-android",
+    "version": "153.0",
+    "note": "one string for the path <firefox-android>, which stands for 18 in the corpora"
+  },
+  {
+    "browser": "Opera 24.0.2254.115784 on Android",
+    "source": "matomo device-detector fixtures",
+    "userAgent": "Mozilla/5.0 (Linux; U; Android 4.2.2; TECNO S9 Build/JDQ39) AppleWebKit/534.30 (KHTML, like Gecko) Version/4.0 Safari/534.30 OPR/24.0.2254.115784",
+    "engine": "opera-android",
+    "version": "24.0.2254.115784",
+    "note": "one string for the path <opera-android version-token>, which stands for 8 in the corpora"
+  },
+  {
+    "browser": "CastBox 4.8.1 on no system it knows",
+    "source": "matomo device-detector fixtures",
+    "userAgent": "CastBox/4.8.1 (fm.castbox.audiobook.radio.podcast; build:2; iOS 11.2.5)",
+    "engine": null,
+    "version": null,
+    "note": "one string for the path <baseline ios-token>, which stands for 6 in the corpora"
+  },
+  {
+    "browser": "Internet Explorer 11.0 on Windows Phone",
+    "source": "matomo device-detector fixtures",
+    "userAgent": "Mozilla/5.0 (Mobile; Windows Phone 8.1; Android 4.0; ARM; Trident/7.0; Touch; rv:11.0; IEMobile/11.0; HISENSE; E260T+) like iPhone OS 7_0_3 Mac OS X AppleWebKit/537 (KHTML, like Gecko) Mobile Safari/537",
+    "engine": "ie",
+    "version": "11.0",
+    "note": "one string for the path <ie trident ios-token>, which stands for 5 in the corpora"
+  },
+  {
+    "browser": "Opera 43.2.2254.140293 on Android",
+    "source": "matomo device-detector fixtures",
+    "userAgent": "Mozilla/5.0 Linux; U; Android 6.0.1; SM-N916L Build/MMB29K; wv AppleWebKit/537.36 KHTML, like Gecko Version/4.0 Chrome/75.0.3770.101 Mobile Safari/537.36 OPR/43.2.2254.140293",
+    "engine": "opera-android",
+    "version": "43.2.2254.140293",
+    "note": "one string for the path <opera-android chromium-candidate version-token chromium-token>, which stands for 5 in the corpora"
+  },
+  {
+    "browser": "Safari 3.0 on no system it knows",
+    "source": "matomo device-detector fixtures",
+    "userAgent": "Mozilla/5.0 (SymbianOS/9.2;U; Series60/5.0 SonyEricssonU1i/1.00;Profile/MIDP-2.1 Configuration/ CLDC-1.1)AppleWebKit/525 (KHTML, like Gecko) version/3.0Safari/525",
+    "engine": "safari",
+    "version": "3.0",
+    "note": "one string for the path <safari>, which stands for 3 in the corpora"
+  },
+  {
+    "browser": "Chrome 83.0.4103.106 on Android",
+    "source": "matomo device-detector fixtures",
+    "userAgent": "mozilla/5.0 (linux; android 9; armor_7) applewebkit/537.36 (khtml, like gecko) chrome/83.0.4103.106 mobile safari/537.36",
+    "engine": "chrome-android",
+    "version": "83.0.4103.106",
+    "note": "one string for the path <chrome-android>, which stands for 3 in the corpora"
+  },
+  {
+    "browser": "com.google.ios.youtube 20.30.5 on iOS",
+    "source": "matomo device-detector fixtures",
+    "userAgent": "com.google.ios.youtube/20.30.5 (iPad13,19; U; CPU iPadOS 18_5 like Mac OS X; en_US)",
+    "engine": "ios",
+    "version": "18.5",
+    "note": "one string for the path <ios>, which stands for 1 in the corpora"
+  }
+]

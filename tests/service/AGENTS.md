@@ -17,5 +17,17 @@ do not import them.
   else's commit and says nothing about this package. Build the fixtures the domain tests need
   instead. The one exception is the module-list monotonicity the matcher's fallback stands on -
   that is a property of the data, and it is checked against the live data on purpose
+- **The user-agent corpus is a committed fixture, never a fetch.** `user-agents.json` holds real
+  strings taken by hand from named sources, each row carrying the source it came from: a suite that
+  reached for a service at run time would fail when that service does, and a string somebody typed
+  from memory produces findings that are only typos - an invented version pair looks exactly like a
+  browser that lies about itself
+- **What decides the SIZE of that corpus is path coverage, not a count.** Ten thousand strings would
+  pin ten thousand answers and prove one thing per branch anyway; the rows are chosen so that every
+  path through the resolver has one - the branch taken (iOS, Quest, Trident, a name, a bare Chromium
+  token), whether a Chromium candidate travelled, and which tokens the string carried. Rows named
+  after a browser are the classes worth reading; rows named after what the parser saw stand for a
+  path that nothing else reaches. A new branch in the resolver is a new row here, and a sweep of the
+  corpora is what says whether one is missing
 - **Suites that build real bundles use a scope of two or three modules and one or two targets.**
   A realistic warm-up costs seconds and megabytes and proves nothing that the small one does not
