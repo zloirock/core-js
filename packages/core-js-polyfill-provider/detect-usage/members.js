@@ -296,7 +296,10 @@ export function planProxyReceiver(receiver, {
   if (maximalProxyGlobalPrefix(receiver, aliasCtx, { allowSideEffectKeys: seKeysMigrate, throughChainAssign }) !== objectCore) {
     const callRooted = planCallRootedProxyReceiver(receiver, aliasCtx, resolvePure);
     if (callRooted) return callRooted;
-    if (!throughRoot) return null;
+    // the deeper nav decides for itself: the recursion re-asks every root form this plan owns
+    // (identifier, alias, call/IIFE), so no root pre-filter belongs here - an identifier-only
+    // gate left a call-rooted deep nav (`(() => globalThis)().window.foo[Symbol.iterator]`)
+    // un-collapsed on the leg that renders through this plan while the other leg folded it
     const inner = planProxyReceiver(objectCore, { aliasCtx, throughChainAssign, resolvePure });
     return inner ? { kind: 'member', inner, property: receiver.property, computed: receiver.computed } : null;
   }
