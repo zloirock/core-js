@@ -25,14 +25,14 @@ import {
   unwrapRuntimeExpr,
   isDestructurePattern,
   POSSIBLE_GLOBAL_OBJECTS,
+  bindingPolyfillHint,
+  trustedIdentifierAliasWrite,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   isClassifiableReceiverArg,
   isExpandedClassifiableReceiver,
   markReplacedReceiverSkipped,
   markSynthReceiverSkipped,
-  trustedIdentifierAliasWrite,
-  bindingPolyfillHint,
 } from '@core-js/polyfill-provider/helpers/class-walk';
 import {
   synthPropDedupKey,

@@ -17,7 +17,15 @@
 //   resolveClassInheritance(classPath)       - walk `extends` chain to the first known base
 //                                              constructor, with type-arg propagation
 import { MAX_DEPTH, $Object } from './base.js';
-import { globalProxyMemberName, isProxyGlobalIdentifierNode, staticMemberKeyName } from '../helpers/class-walk.js';
+import {
+  staticMemberKeyName,
+} from '../helpers/class-walk.js';
+import {
+  globalProxyMemberName,
+  guaranteedRealmObjectName,
+  inlineCallProxyGlobalRoot,
+  isProxyGlobalIdentifierNode,
+} from '../detect-usage/resolve.js';
 import {
   definedBranchOfGuardConditional,
   isMutatedGlobalSlot,
@@ -31,7 +39,6 @@ import {
   aliasDeclScope,
 } from '../helpers/ast-patterns.js';
 import { walkStaticReceiverChain } from '../detect-usage/destructure.js';
-import { guaranteedRealmObjectName, inlineCallProxyGlobalRoot } from '../detect-usage/resolve.js';
 
 export function createGlobalResolve({
   t,

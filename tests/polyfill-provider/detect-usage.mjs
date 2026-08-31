@@ -52,7 +52,9 @@ import {
 } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
 import { peelArrayWrapperPair } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
 import {
+  checkTypeAnnotations,
   isTypeAnnotationNodeType,
+  mutatedStaticLandingVerdict,
   typeOnlyImportShadows,
   walkTypeAnnotationGlobals,
 } from '../../packages/core-js-polyfill-provider/detect-usage/annotations.js';
@@ -88,12 +90,23 @@ const { check, checkDeep, checkTruthy, finish, runBoth } = createChecker('detect
 // oxc leg actually runs: estree-toolkit does not visit TS type-annotation nodes, so the old
 // `pickPath('TS...') ?? return` made the oxc leg a silent no-op. a missing node throws (loud fail
 // via runBoth's catch), never a vacuous skip
-function annotationGlobals(programNode, type) {
-  const node = findTypeNode(programNode, type);
+function annotationGlobals(prog, type) {
+  const node = findTypeNode(prog.node ?? prog, type);
   if (!node) throw new Error(`no ${ type } node found`);
   const found = [];
-  walkTypeAnnotationGlobals(node, name => found.push(name));
+  walkTypeAnnotationGlobals(node, name => found.push(name), annotationWalkCtx(prog));
   return found;
+}
+
+// the walk resolves a qualified chain's ROOT through the adapter (a proxy-global NAME is only the
+// realm when nothing local shadows it), so the harness supplies the same two lookups the plugins'
+// adapters do. a raw-AST caller (the Flow leg) passes no scope and every name reads as unbound
+const annotationWalkAdapter = {
+  hasBinding(scope, name) { return !!scope?.getBinding?.(name); },
+  getBinding(scope, name) { return scope?.getBinding?.(name) ?? null; },
+};
+function annotationWalkCtx(prog) {
+  return { scope: prog?.scope ?? null, adapter: annotationWalkAdapter, path: prog?.scope ? prog : null };
 }
 
 // minimal adapter contract for entries helpers - both parsers store the literal value
@@ -455,7 +468,7 @@ for (const [label, code, pick, expected] of [
 ]) {
   const found = [];
   walkTypeAnnotationGlobals(pick(babelParse(code, { sourceType: 'module', plugins: ['flow'] })),
-    name => found.push(name));
+    name => found.push(name), annotationWalkCtx(null));
   checkDeep(`walkTypeAnnotationGlobals/flow ${ label }`, found.sort(), [...expected].sort());
 }
 
@@ -542,27 +555,27 @@ check('isTypeAnnotationNodeType/CallExpression (not type)', isTypeAnnotationNode
 
 // walks `Promise<number>` reference, calls onGlobal with 'Promise' once
 runBoth('walkTypeAnnotationGlobals/Promise<number>', 'const x: Promise<number> = null!;', (adapter, prog, lbl) => {
-  checkDeep(lbl, annotationGlobals(prog.node, 'TSTypeReference'), ['Promise']);
+  checkDeep(lbl, annotationGlobals(prog, 'TSTypeReference'), ['Promise']);
 });
 
 // nested type references: Map<string, Set<number>> walks both Map and Set. the outermost
 // TSTypeReference (Map) is reached first, and its walk descends into the inner Set
 runBoth('walkTypeAnnotationGlobals/nested generic', 'const x: Map<string, Set<number>> = null!;', (adapter, prog, lbl) => {
-  const found = annotationGlobals(prog.node, 'TSTypeReference');
+  const found = annotationGlobals(prog, 'TSTypeReference');
   checkTruthy(lbl, found.includes('Map') && found.includes('Set'),
     `expected Map+Set in [${ found.join(',') }]`);
 });
 
 // Non-reference annotation (primitive): no global emitted
 runBoth('walkTypeAnnotationGlobals/primitive (no global)', 'const x: number = 1;', (adapter, prog, lbl) => {
-  checkDeep(lbl, annotationGlobals(prog.node, 'TSNumberKeyword'), []);
+  checkDeep(lbl, annotationGlobals(prog, 'TSNumberKeyword'), []);
 });
 
 // qualified `typeof` chain through an ALL-proxy root surfaces every link: each proxy member resolves
 // back to a global (`globalThis.self.Map` references globalThis AND self AND Map)
 runBoth('walkTypeAnnotationGlobals/typeof all-proxy chain surfaces every link',
   'let x: typeof globalThis.self.Map;', (adapter, prog, lbl) => {
-    const found = annotationGlobals(prog.node, 'TSTypeQuery');
+    const found = annotationGlobals(prog, 'TSTypeQuery');
     checkTruthy(lbl, found.includes('globalThis') && found.includes('self') && found.includes('Map'),
       `expected globalThis+self+Map, got [${ found.join(',') }]`);
   });
@@ -572,7 +585,7 @@ runBoth('walkTypeAnnotationGlobals/typeof all-proxy chain surfaces every link',
 // ReferencedIdentifier (which over-surfaces every segment). surfaces globalThis + Array, never Map
 runBoth('walkTypeAnnotationGlobals/typeof non-proxy mid-chain stops at non-proxy',
   'let x: typeof globalThis.Array.Map;', (adapter, prog, lbl) => {
-    const found = annotationGlobals(prog.node, 'TSTypeQuery');
+    const found = annotationGlobals(prog, 'TSTypeQuery');
     checkTruthy(lbl, found.includes('globalThis') && found.includes('Array') && !found.includes('Map'),
       `expected [globalThis, Array] without Map, got [${ found.join(',') }]`);
   });
@@ -582,7 +595,7 @@ runBoth('walkTypeAnnotationGlobals/typeof non-proxy mid-chain stops at non-proxy
 // babel's es.set.* + es.global-this. same proxy-chain precision as the typeof cases, on a type annotation
 runBoth('walkTypeAnnotationGlobals/qualified proxy-global root surfaces member',
   'let x: globalThis.Set<number>;', (adapter, prog, lbl) => {
-    const found = annotationGlobals(prog.node, 'TSTypeReference');
+    const found = annotationGlobals(prog, 'TSTypeReference');
     checkTruthy(lbl, found.includes('globalThis') && found.includes('Set'),
       `expected globalThis+Set, got [${ found.join(',') }]`);
   });
@@ -592,7 +605,7 @@ runBoth('walkTypeAnnotationGlobals/qualified proxy-global root surfaces member',
 // root IS a runtime binding). guards the proxy-root gate against over-surfacing type-only namespaces
 runBoth('walkTypeAnnotationGlobals/qualified type-only namespace stays silent',
   'let x: NS.Foo;', (adapter, prog, lbl) => {
-    checkDeep(lbl, annotationGlobals(prog.node, 'TSTypeReference'), []);
+    checkDeep(lbl, annotationGlobals(prog, 'TSTypeReference'), []);
   });
 
 // the proxy-chain precision applies to a plain qualified TSTypeReference too: in `globalThis.Array.Map`
@@ -600,23 +613,38 @@ runBoth('walkTypeAnnotationGlobals/qualified type-only namespace stays silent',
 // but never the global Map (same precision as the typeof variant, on a type annotation)
 runBoth('walkTypeAnnotationGlobals/qualified non-proxy mid-chain stops at non-proxy',
   'let x: globalThis.Array.Map<string, number>;', (adapter, prog, lbl) => {
-    const found = annotationGlobals(prog.node, 'TSTypeReference');
+    const found = annotationGlobals(prog, 'TSTypeReference');
     checkTruthy(lbl, found.includes('globalThis') && found.includes('Array') && !found.includes('Map'),
       `expected [globalThis, Array] without Map, got [${ found.join(',') }]`);
+  });
+
+// a LOCAL binding named like a proxy global owns the qualified chain: `const self = {...}` makes
+// `self.Reflect` a member of the user's object, so no segment of it is a global. the sink's own
+// per-name filter cannot answer this - it is handed the promoted segment with no chain to judge
+runBoth('walkTypeAnnotationGlobals/shadowed proxy root surfaces nothing',
+  'const self = { Reflect: 1 };\nlet x: self.Reflect;', (adapter, prog, lbl) => {
+    checkDeep(lbl, annotationGlobals(prog, 'TSTypeReference'), []);
+  });
+
+// ... and the same shadow answers for a `typeof` query, whose root is a runtime binding: the
+// promotion is off, so only the root reaches the sink (which drops it as bound)
+runBoth('walkTypeAnnotationGlobals/shadowed proxy root in typeof surfaces only the root',
+  'const self = { Reflect: 1 };\nlet x: typeof self.Reflect;', (adapter, prog, lbl) => {
+    checkDeep(lbl, annotationGlobals(prog, 'TSTypeQuery'), ['self']);
   });
 
 // fn-type signature param: `(items: Set<number>) => void` keeps its params under babel's
 // `parameters` key (oxc uses `params`). a global referenced ONLY in a fn-type param must
 // surface on both parsers - babel-side regression guard for the `parameters` child key
 runBoth('walkTypeAnnotationGlobals/fn-type param', 'let handler: (items: Set<number>) => void;', (adapter, prog, lbl) => {
-  const found = annotationGlobals(prog.node, 'TSFunctionType');
+  const found = annotationGlobals(prog, 'TSFunctionType');
   checkTruthy(lbl, found.includes('Set'), `expected Set in [${ found.join(',') }]`);
 });
 
 // method-signature param inside a type literal: walks members -> method signature -> its
 // `parameters`. structurally distinct host from TSFunctionType, same babel `parameters` key
 runBoth('walkTypeAnnotationGlobals/method-sig param', 'let o: { run(items: Set<number>): void };', (adapter, prog, lbl) => {
-  const found = annotationGlobals(prog.node, 'TSTypeLiteral');
+  const found = annotationGlobals(prog, 'TSTypeLiteral');
   checkTruthy(lbl, found.includes('Set'), `expected Set in [${ found.join(',') }]`);
 });
 
@@ -1681,22 +1709,22 @@ for (const [variant, code, , invisible] of STATEMENT_HEAD_CASES) {
 // a type-only import is elided by tsc, so the VALUE of that name is the global and must still be
 // polyfilled - but in a TYPE position the same import IS the shadow. the walker reports which host
 // a name came from so the two questions stay apart
-function annotationHosts(programNode, type) {
-  const node = findTypeNode(programNode, type);
+function annotationHosts(prog, type) {
+  const node = findTypeNode(prog.node ?? prog, type);
   if (!node) throw new Error(`no ${ type } node found`);
   const found = [];
-  walkTypeAnnotationGlobals(node, (name, hostType) => found.push(`${ name }@${ hostType }`));
+  walkTypeAnnotationGlobals(node, (name, hostType) => found.push(`${ name }@${ hostType }`), annotationWalkCtx(prog));
   return found;
 }
 
 runBoth('walkTypeAnnotationGlobals/reports a plain type reference host',
   'let x: Set<number>;', (adapter, prog, lbl) => {
-    checkDeep(lbl, annotationHosts(prog.node, 'TSTypeReference'), ['Set@TSTypeReference']);
+    checkDeep(lbl, annotationHosts(prog, 'TSTypeReference'), ['Set@TSTypeReference']);
   });
 
 runBoth('walkTypeAnnotationGlobals/reports a typeof query host apart',
   'let x: typeof Set;', (adapter, prog, lbl) => {
-    checkDeep(lbl, annotationHosts(prog.node, 'TSTypeQuery'), ['Set@TSTypeQuery']);
+    checkDeep(lbl, annotationHosts(prog, 'TSTypeQuery'), ['Set@TSTypeQuery']);
   });
 
 {
@@ -1720,6 +1748,78 @@ runBoth('walkTypeAnnotationGlobals/reports a typeof query host apart',
   check('typeOnlyImportShadows/no binding at all', typeOnlyImportShadows({
     adapter: { getBinding: () => null }, scope: null, name: 'Set', path: null, hostType: 'TSTypeReference',
   }), false);
+}
+
+// --- mutatedStaticLandingVerdict: three-valued, because its consumers owe `unknown` opposite defaults ---
+
+// the walk climbs from an optional proxy hop to the static it lands on and reports whether THAT static
+// is one the file replaced. a key it cannot name is no landing verdict at all: read as "no mutated
+// landing" it told the deopt to drop a guard over a value that can be undefined, and told the
+// render-anchor arm to keep its own path - the same bit standing for two opposite defaults
+{
+  const landingAdapter = {
+    isStringLiteral(node) { return node.type === 'StringLiteral' || (node.type === 'Literal' && typeof node.value === 'string'); },
+    getStringValue(node) { return node.value; },
+    hasBinding(scope, name) { return !!scope?.getBinding?.(name); },
+    getBinding(scope, name) { return scope?.getBinding?.(name) ?? null; },
+  };
+  // the walk anchors at the hop whose key names the global, and climbs to the static above it
+  function landingVerdict(adapter, prog, mutated) {
+    const hop = adapter.pickPath(prog, 'MemberExpression', p => p.node.object?.type === 'Identifier'
+      && p.node.object.name === 'g');
+    return mutatedStaticLandingVerdict({
+      path: hop, scope: hop.scope, adapter: landingAdapter, mutatedSet: new Set(mutated),
+    });
+  }
+  runBoth('mutatedStaticLandingVerdict/replaced landing answers yes',
+    'const g = globalThis;\nexport const r = g.Array.of(1);', (adapter, prog, lbl) => {
+      check(lbl, landingVerdict(adapter, prog, ['Array.of']), 'yes');
+    });
+  runBoth('mutatedStaticLandingVerdict/untouched landing answers no',
+    'const g = globalThis;\nexport const r = g.Array.of(1);', (adapter, prog, lbl) => {
+      check(lbl, landingVerdict(adapter, prog, ['Array.from']), 'no');
+    });
+  // an unnameable key is the case the boolean could not express: the landing may or may not be the
+  // replaced one, and every consumer has to hear that rather than a verdict
+  runBoth('mutatedStaticLandingVerdict/unnameable landing key answers unknown',
+    'const g = globalThis;\nconst k = String(Math.random());\nexport const r = g.Array[k](1);', (adapter, prog, lbl) => {
+      check(lbl, landingVerdict(adapter, prog, ['Array.of']), 'unknown');
+    });
+  // ... and a file that replaced nothing answers before any walk happens
+  runBoth('mutatedStaticLandingVerdict/no mutation at all answers no',
+    'const g = globalThis;\nconst k = String(Math.random());\nexport const r = g.Array[k](1);', (adapter, prog, lbl) => {
+      check(lbl, landingVerdict(adapter, prog, []), 'no');
+    });
+}
+
+// --- checkTypeAnnotations: the class / function annotation slots, descended by the walk's own table ---
+
+// the helper opens the walk on a node that is not itself an annotation; every slot such a node
+// carries is a child key the walk descends, so the peels a parameter list needs - a parameter
+// PROPERTY wrapping the annotated binding, a defaulted parameter carrying it on the pattern's left -
+// are table entries, not a loop beside the walk. these rows are what keeps them there
+{
+  function slotGlobals(adapter, prog, type) {
+    const host = adapter.pickPath(prog, type);
+    if (!host) throw new Error(`no ${ type } node found`);
+    const found = [];
+    checkTypeAnnotations(host.node, name => found.push(name), annotationWalkCtx(prog));
+    return [...new Set(found)].sort();
+  }
+  // babel spells a class method `ClassMethod`, oxc `MethodDefinition` over a FunctionExpression -
+  // the annotated parameter list is the same node either way
+  runBoth('checkTypeAnnotations/parameter property', 'class C { constructor(public m: Map<number>) {} }',
+    (adapter, prog, lbl) => {
+      checkDeep(lbl, slotGlobals(adapter, prog, adapter.name === 'babel' ? 'ClassMethod' : 'FunctionExpression'), ['Map']);
+    });
+  runBoth('checkTypeAnnotations/defaulted parameter', 'declare function f(x: Set<number>): void;',
+    (adapter, prog, lbl) => {
+      checkDeep(lbl, slotGlobals(adapter, prog, 'TSDeclareFunction'), ['Set']);
+    });
+  runBoth('checkTypeAnnotations/return type and type parameters',
+    'declare function h<T extends Promise<number>>(): Reflect;', (adapter, prog, lbl) => {
+      checkDeep(lbl, slotGlobals(adapter, prog, 'TSDeclareFunction'), ['Promise', 'Reflect']);
+    });
 }
 
 finish();
