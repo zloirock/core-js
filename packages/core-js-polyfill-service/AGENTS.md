@@ -71,12 +71,36 @@ trap below is named, and the suite names its assertions after them.
   answer `Chrome 140` to a `CriOS/` string, and handing that to compat as real Chrome builds a
   bundle far thinner than WebKit needs. Chrome on iPhone is 2.84% of world traffic
 
+## Application
+
+The scenarios: they coordinate the domain and the infrastructure and carry no rules of their own.
+
+- **configure-1** - a misspelled option does not pass silently. ⚠ Afterwards nothing can tell "not
+  set" from "set, spelled wrong", and the service runs on a default the developer did not ask for.
+  The list of known names is the destructuring in the signature and nothing else, so the two cannot
+  drift apart
+- **configure-2** - what comes out has no half-filled fields: nothing downstream has to decide
+  whether a path is absolute or a version is a range
+- **configure-3** - the scope is required. ⚠ Falling back to the whole of core-js would work - at
+  twice the buckets and several times the disk - and the developer would never hear about it
+- **build-plan-1** - the plan is ready before the first request is taken; without it the matcher
+  cannot name even the baseline. It is a step of its own for that reason: the warm-up reads it once
+  and may run later or from outside, the matcher reads it on every request and from the first one
+- ⚠ **`targets: null` does not mean "no targets" to compat** - it sends compat looking for a
+  browserslist config of its own. So the declaration is resolved once, in `configure`, where the
+  project config either becomes the declaration or nothing does; and "everything" is spelled out
+  (`ignoreBrowserslistConfig: true`) wherever a module list is asked for. Left to compat, the
+  BASELINE alone would pick the config up and come out narrower than the plan around it
+
 ## Infrastructure
 
 - The UA parser is `bowser`, and the choice is about maintenance rather than accuracy: on
   everything but in-app iOS browsers it and the MIT branch of `ua-parser-js` agree, and there
   resolver-5 decides anyway. `ua-parser-js@2` is AGPL, and its `1.x` branch is marked legacy by its
   author. ⚠ It throws on an empty user agent, which is a visitor, not an incident
+- The module-list port goes to `@core-js/compat`. It is a port, rather than a call from inside the
+  domain, so that the bucket logic can be exercised on fixtures: a test that asserts how many
+  buckets thirteen engines collapse into is a test that goes red on somebody else's commit
 - Traffic shares come from `caniuse-lite`, not from `browserslist.coverage`. ⚠ That one answers
   with the share of exactly the version asked about: zero for 85% of the thresholds, and mobile
   Chrome carries all of its traffic on the single version browserslist knows - the warm-up queue
