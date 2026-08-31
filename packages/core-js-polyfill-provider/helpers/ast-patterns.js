@@ -7380,3 +7380,13 @@ export function assignmentAliasHintSoundAtRead({ binding, adapter, readNode }) {
   const readStart = readNode?.start ?? null;
   return readStart !== null && readStart > binding.aliasWrite.end;
 }
+
+// does this node carry SOURCE provenance - a parser span, the `replacedSpan` a rebuilt
+// spelling is stamped with, or the `loc` a babel clone keeps where its `cloneNode` drops
+// `start`? a true MINT carries none of the three. this is the "the user wrote this" gate,
+// never a position - offset comparisons stay on raw `start`
+export function nodeCarriesSourceSpan(node) {
+  return typeof node?.start === 'number'
+    || Number.isInteger(node?.replacedSpan?.start)
+    || Number.isInteger(node?.loc?.start?.index);
+}
