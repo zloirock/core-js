@@ -1890,6 +1890,17 @@ export default function createDestructureEmitter({
         first.init = t.sequenceExpression([probeKeyReadNode(guarded.node, fullConsumeProbeKey), first.init]);
         probeOwnedCall = guarded.rootEffectCall;
       }
+    } else if (patternEmpties && extracted.length && plan.initElement) {
+      // the ALIAS-held flavor of the array-wrapped rule: no guard value to read the pattern
+      // key off - the ELEMENT read itself is the probe (`[{ of }] = [a.Array]` throws reading
+      // `.Array` where the extraction just binds), riding the first extraction once per
+      // pattern; the per-prop channel never sees the wrapper, so this is its only owner
+      const throwProbe = sealedClaimThrowProbeNode?.(declarator, unwrapRuntimeExpr(plan.initElement));
+      if (throwProbe) {
+        skippedNodes.add(throwProbe.node);
+        const [first] = extracted;
+        first.init = t.sequenceExpression([throwProbe.node, first.init]);
+      }
     }
     if (patternEmpties && plan.discardSe) {
       // the probe's guard test runs an effect-bearing CALL root exactly once - the discard
