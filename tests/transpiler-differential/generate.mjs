@@ -2023,6 +2023,35 @@ function * generateKeptValueCanon() {
   }
 }
 
+// --- Proven call root under a live optional realm hop ---
+// the base of a dropped backed hop can be a CALL the inline canon proves (`() => globalThis`):
+// the hop's `?.` is then dead and both legs fold onto the ponyfill, keeping the base's
+// observable work - a seq prefix, an effectful body or argument - exactly once. the class's
+// historical loss was the IMPORT (`actual/self` missing on one leg), so import parity is the
+// load-bearing oracle here; a window divergence is not expressible under the rig (its `window`
+// is live), so that half is locked by e2e and the fixtures, and the stripped leg adds nothing
+const PROVEN_CALL_GUARD_ROOTS = [
+  ['bare', 'const dh = () => globalThis;', 'dh()'],
+  ['seq', 'const dh = () => globalThis;', '(0, dh())'],
+  ['se-prefix', 'const dh = () => globalThis;', '(log.push("p"), dh())'],
+  ['se-callee', 'const dh = () => { log.push("c"); return globalThis; };', 'dh()'],
+  ['se-arg', 'const dh = () => globalThis;', 'dh(log.push("a"))'],
+  // the probe-yield negative: proving WHICH global a call yields is not proving it yields a
+  // DEFINED one - the guard stays, and under the rig the live `window` answers it. this row
+  // rides the OPTIONAL claim tail: the plain-tail twin diverges on the legs' vestigial-erase
+  // channels (a per-hop-verdict consumer, owned by its own cluster), which is not this
+  // family's claim - the family asserts the proven-base fold
+  ['probe-yield', 'const dh = () => globalThis.window;', 'dh()', { optionalTail: true }],
+];
+
+function * generateProvenCallGuardHops() {
+  for (const [id, setup, root, opts = {}] of PROVEN_CALL_GUARD_ROOTS) {
+    const claim = opts.optionalTail ? '?.self?.window.Array.of(1)?.at(0)' : '?.self?.window.Array.of(1).at(0)';
+    const body = `(() => { ${ setup } return [String(${ root }${ claim }), log.length]; })()`;
+    yield { ...snippet(`proven-call-guard/${ id }`, body, { rig: true }), strip: false };
+  }
+}
+
 // --- A destructured IIFE parameter owns its argument slot ---
 // a flatten sibling walks the declarators it re-emits and substitutes proxy-global reads in them, but
 // an argument the callee destructures in its own param pattern belongs to the synth swap instead:
@@ -7557,6 +7586,7 @@ export function * generate() {
   yield * generateProxyGlobalSEReceiver();
   yield * generateChainAssignValue();
   yield * generateKeptValueCanon();
+  yield * generateProvenCallGuardHops();
   yield * generateThisReceiverGuards();
   yield * generateIifeArgOwnership();
   yield * generateWrappedSiblingReceiver();

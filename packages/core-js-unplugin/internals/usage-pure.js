@@ -396,7 +396,10 @@ export default function createAstUsagePureCallback({
       aliasCtx: { scope: metaPath.scope, adapter, path: metaPath },
       throughChainAssign: true, resolvePure: m => resolvePure(m, metaPath),
     });
-    const rendered = proxyPlan?.kind === 'collapse'
+    // a 'member' plan is a deeper nav under a kept leaf chain (`(() => globalThis)().window
+    // .foo[Symbol.iterator]` - the collapse sits below the user hop): the render spells the
+    // inner collapse under the kept members, so its `.object` is the same collapsed base
+    const rendered = proxyPlan?.kind === 'collapse' || proxyPlan?.kind === 'member'
       ? renderProxyReceiverPlan(proxyPlan, { injectImport: injectPureImport }) : null;
     if (!rendered) return;
     let base = rendered.object;
@@ -407,9 +410,13 @@ export default function createAstUsagePureCallback({
     state.object = base;
     state.memberOptional ||= !!proxyPlan.optional;
     state.proxyPlanFired = true;
-    // effects the plan spelled into its render are consumed; the LEAF key's own effects
+    // effects the plan spelled into its render are consumed - a 'member' plan spells its
+    // inner levels' too, so the walk collects every level; the LEAF key's own effects
     // still route through the SE channel over the collapsed receiver
-    const planConsumed = new Set([...proxyPlan.keyPrefixSE ?? [], ...proxyPlan.harvestedSE ?? []]);
+    const planConsumed = new Set();
+    for (let level = proxyPlan; level; level = level.inner) {
+      for (const expr of [...level.keyPrefixSE ?? [], ...level.harvestedSE ?? []]) planConsumed.add(expr);
+    }
     state.pendingEffects = state.pendingEffects.filter(effect => !planConsumed.has(effect));
     state.pendingReceiverOnly = false;
   }

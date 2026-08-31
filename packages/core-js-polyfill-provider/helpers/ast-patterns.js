@@ -628,9 +628,8 @@ export function isMemberWriteHost(memberPath) {
 
 // tracking-free peel of `SKIPPABLE_WRAPPER_TYPES` (TS_EXPR_WRAPPERS + ParenthesizedExpression
 // + ChainExpression). used wherever a caller needs the semantically meaningful node and
-// doesn't care which wrappers were skipped. babel-plugin's `isCallee`, unplugin's `isCallee`,
-// and unplugin's `unwrapNode` share this one wrapper-set, so adding a future transparent
-// wrapper updates the single SKIPPABLE_WRAPPER_TYPES constant
+// doesn't care which wrappers were skipped. both legs' `isCallee` share this one wrapper-set,
+// so adding a future transparent wrapper updates the single SKIPPABLE_WRAPPER_TYPES constant
 export function unwrapRuntimeExpr(node) {
   while (node && SKIPPABLE_WRAPPER_TYPES.has(node.type)) node = node.expression;
   return node;
