@@ -2143,3 +2143,51 @@ QUnit.test('global-proxy: an erased store guard folds its effects exactly once',
     assert.same(typeof probed, 'string', '... and the read answers through it');
   }
 });
+
+// the base of a dropped backed hop can be a CALL the inline canon proves (`() => globalThis`):
+// the hop's `?.` is then dead and the collapse folds onto the ponyfill, keeping the base's
+// observable work - a sequence prefix, an effectful body or argument - exactly once. the value
+// is 1 where the fold ran and `undefined` on a leg whose input arrived already lowered (no `?.`
+// left for the rules to reach - the documented sandwich boundary); what no leg may do is THROW
+// on the raw realm hop, and the effects run exactly once everywhere. the claimless deep
+// receiver folds its raw `.window` hop away, so the read answers `undefined` on every host
+QUnit.test('global-proxy: a proven call root under a live optional folds onto the ponyfill', assert => {
+  function foldedOrLowered(value) {
+    return value === 1 || value === undefined;
+  }
+  // eslint-disable-next-line unicorn/consistent-function-style -- the proven arrow callee IS the case under test
+  const dh = () => globalThis;
+  assert.same(foldedOrLowered((0, dh())?.self?.window.Array.of(1).at(0)), true,
+    'the sequence-wrapped proven base folds, and never throws on the raw hop');
+  assert.same(foldedOrLowered(dh()?.self?.window.Array.of(1).at(0)), true,
+    'the bare proven base folds the same way');
+  let effects = 0;
+  // eslint-disable-next-line unicorn/consistent-function-style -- the proven arrow callee IS the case under test
+  const eff = () => {
+    effects++;
+    return globalThis;
+  };
+  assert.same(foldedOrLowered(eff()?.self?.window.Array.of(1).at(0)), true, 'an effectful body still folds');
+  assert.same(effects, 1, '... and runs exactly once');
+  // eslint-disable-next-line sonarjs/no-extra-arguments -- the effect in the unused argument slot is the case
+  assert.same(foldedOrLowered(dh(effects++)?.self?.window.Array.of(1).at(0)), true, 'an effectful argument folds too');
+  assert.same(effects, 2, '... running once as well');
+  assert.same(foldedOrLowered((effects++, dh())?.self?.window.Array.of(1).at(0)), true, 'a live sequence prefix folds');
+  assert.same(effects, 3, '... with the prefix running once');
+  // the claimless deep receiver: folded it answers `undefined`, and a lowered-input leg
+  // reproduces the native off-window throw instead - the fixture locks WHICH legs fold;
+  // what no leg may produce is a third outcome (a leaked value off the raw hop)
+  let deep;
+  try {
+    deep = typeof (() => globalThis)().window.foo?.[Symbol.iterator];
+  } catch {
+    deep = 'native-throw';
+  }
+  assert.same(deep === 'undefined' || deep === 'native-throw', true,
+    'the claimless deep receiver folds away or keeps the native throw');
+  // eslint-disable-next-line unicorn/consistent-function-style -- the probe-yielding arrow callee IS the case
+  const dw = () => globalThis.window;
+  const hasWindow = globalThis.window !== undefined;
+  assert.same(dw()?.self?.window.Array.of(1)?.at(0), hasWindow ? 1 : undefined,
+    'a probe-yielding call keeps its own guard');
+});
