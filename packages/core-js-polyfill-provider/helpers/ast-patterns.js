@@ -2347,10 +2347,12 @@ function patternBindsName(pattern, name) {
   return patternBindsIdentifier(pattern, id => id.name === name);
 }
 
-// the binding's own VariableDeclarator, across BOTH binding shapes this file is handed: the usage
-// adapters wrap the declarator on `.node`, while a raw parser binding carries only `.path`
-function bindingDeclaratorNode(binding) {
-  return binding.node?.type === 'VariableDeclarator' ? binding.node : binding.path?.node;
+// the binding's own VariableDeclarator, across BOTH binding shapes the resolvers are handed: the
+// usage adapters wrap the declarator on `.node`, while a raw parser binding carries only `.path`.
+// exported because the value canon and the class walk are handed the same pair - a resolver reading
+// one shape is blind exactly where the other sees
+export function bindingDeclaratorNode(binding) {
+  return binding?.node?.type === 'VariableDeclarator' ? binding.node : binding?.path?.node;
 }
 
 // the name a declarator binds, or null for a pattern / absent id. one accessor for every resolver
@@ -4600,6 +4602,25 @@ export function mutatedSlotLeftNativeWarning(name) {
   return `\`${ name }\` is written in this file (slot mutation) - the name is left native`;
 }
 
+// a node-keyed memo scoped to the plugin INSTANCE that asked. the verdicts cached behind it are
+// method- and resolver-dependent, so a plain node key lets two instances over ONE tree replay each
+// other's answers - and the replay direction that matters is the unsafe one: usage-global resolves
+// under "inject if it MIGHT be needed", which usage-pure must never inherit for a rewrite it can
+// only make on certainty. keyed by the adapter, the one per-instance object carrying both
+export function createInstanceNodeCache() {
+  const perAdapter = new WeakMap();
+  function forAdapter(adapter) {
+    let cache = perAdapter.get(adapter);
+    if (!cache) perAdapter.set(adapter, cache = new WeakMap());
+    return cache;
+  }
+  return {
+    get(adapter, node) { return forAdapter(adapter).get(node); },
+    has(adapter, node) { return forAdapter(adapter).has(node); },
+    set(adapter, node, value) { forAdapter(adapter).set(node, value); },
+  };
+}
+
 // the one question every proxy-root recogniser asks: does this NAME still stand for the pristine
 // global surface? the two halves must travel together - a name that is a known proxy but whose slot
 // the user overwrote (`window = fake`) holds the replacement, not the surface, so recognising it
@@ -4803,6 +4824,13 @@ function isTSTypeOnlyIdentifier(parent, parentKey, grandparent) {
   if ((parent.type === 'TSPropertySignature' || parent.type === 'TSMethodSignature')
     && parentKey === 'key' && !parent.computed) return true;
   if (parent.type === 'TSMappedType' && parentKey === 'key') return true;
+  // the member half of a qualified TYPE name (`x: NS.Promise`, `typeof NS.Promise`, and Flow's
+  // spelling) names a member OF that namespace, never the same-named global. WHICH segment of such
+  // a chain is a global is the annotation walk's rule - only an all-proxy chain re-enters the realm
+  // at every link - and babel's `isReferencedIdentifier` fires here, so without this the binding
+  // answered it a second time off the bare name and injected for `NS.Reflect`
+  if (parent.type === 'TSQualifiedName' && parentKey === 'right') return true;
+  if (parent.type === 'QualifiedTypeIdentifier' && parentKey === 'id') return true;
   if (parentKey !== 'id') return false;
   if (TS_TYPE_DECL_TYPES.has(parent.type)) return true;
   // `import type X = require(...)` - LHS of TSImportEqualsDeclaration with type modifier.
@@ -7186,4 +7214,147 @@ export function syntheticNodeAncestry(rootNode, targetNode) {
     return null;
   }
   return rootNode === targetNode ? null : descend(rootNode, null);
+}
+
+// the statement nodes an expression can be hosted by - where a placement / order walk stops
+export const STATEMENT_HOST_TYPES = new Set(['ExpressionStatement', 'VariableDeclaration', 'ReturnStatement', 'ThrowStatement']);
+
+// classify a root that `findProxyGlobal(node, aliasCtx)` matched: true when it resolved through a
+// const-alias (`g` in `const g = globalThis; g.X`) rather than by a direct global NAME. the emit-side
+// collapse KEEPS an alias root verbatim (its own declaration already rewrote it to the pure global)
+// and drops only the hops, whereas a direct root swaps to its pure binding. shared by both emitters
+// so the keep-vs-swap decision lives in one place
+export function isAliasProxyRoot(rootNode, aliasCtx) {
+  return !!aliasCtx && !!rootNode && !POSSIBLE_GLOBAL_OBJECTS.has(rootNode.name);
+}
+
+// the `polyfillHint` side-channel: the ORIGINAL global name of a binding this plugin minted in
+// place (`globalThis` -> `_globalThis`, `Symbol` -> `_Symbol`). it lives in two spellings that are
+// one channel - on the binding record where the scope tracker owns it, and behind the adapter hook
+// where an injector-managed alias has no scope entry at all - so both are always asked together.
+// the binding is the CALLER's to resolve - the lookup is guarded against re-entry at some sites
+// and skipped entirely at others, so this only joins the two spellings
+export function bindingPolyfillHint({ binding, scope, name, adapter }) {
+  return binding?.polyfillHint ?? adapter?.getBindingPolyfillHint?.(scope, name) ?? null;
+}
+
+// a GUARDED registration is one whose flow-trust the injector REFUSED - none of its fields may
+// reach a consumer, so every read of an injector record passes through here. the flag is written
+// at registration time; this is the read-time half, and the only place the rule is spelled
+export function usableAliasInfo(info) {
+  return info && !info.aliasGuarded ? info : null;
+}
+
+// does the subtree contain an `=`-assignment TO `name`? judged by the written NAME, not node
+// identity or positions: an AST emitter's re-visit walks REBUILT subtrees whose nodes are
+// clones (fresh identity, no positions), and the caller has already proven the binding has
+// exactly ONE real write - so any assignment to the name inside an earlier-evaluated slot IS
+// that write (injected helper code never assigns user bindings)
+function containsWriteTo(root, name) {
+  if (!isASTNode(root)) return false;
+  // the LOGICAL compounds count as the write too: `(_n ??= globalThis) == null ? ... : _n.self.X` is
+  // the shape a `?.`-lowering transpiler emits, and on the defined branch the binding holds exactly
+  // what the write stored - reading only `=` left that spelling unproven where its plain twin proved
+  if (root.type === 'AssignmentExpression' && VALUE_FLOW_ASSIGN_OPS.has(root.operator)
+    && root.left?.type === 'Identifier' && root.left.name === name) return true;
+  // `isASTNode` on BOTH sides: the array arm used to admit any object, so a non-node array member
+  // (`loc` / `range` shapes, a plugin's own stamp) was descended into while the object arm rejected
+  // it. the descent short-circuits on the first hit, so it stays a hand-written loop
+  // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
+  for (const key in root) {
+    const value = root[key];
+    if (Array.isArray(value)) {
+      for (const el of value) if (isASTNode(el) && containsWriteTo(el, name)) return true;
+    } else if (isASTNode(value) && containsWriteTo(value, name)) return true;
+  }
+  return false;
+}
+
+// structural read-after-write proof for a READ whose node carries no source positions (an AST
+// emitter re-visits rebuilt subtrees after mutation): the write provably evaluates first when
+// an ancestor step enters a ternary BRANCH or a logical RIGHT operand whose always-evaluated
+// GUARD slot contains the (single trusted) write - exactly the `?.`-lowering canon
+// (`(_g = g = globalThis) == null ? void 0 : _g.self.X`). deliberately NARROW: a same-sequence
+// slot proof would also re-follow the plugin's OWN guarded-alias emit on an idempotency
+// re-run (`c ? (_ref = _globalThis, Q = _ref.Promise, _ref) : 0` - the first pass reads the
+// member RAW under a ctor guard by design, and a second-pass claim would swap the ponyfill
+// into the alias slot, flipping the guard and swallowing the native detached-tag TypeError).
+// anything beyond the guard shapes stays unproven
+function readsAfterWriteStructurally(path, writeNode) {
+  const name = writeNode.left?.type === 'Identifier' ? writeNode.left.name : null;
+  if (!name) return false;
+  for (let cur = path; cur?.parentPath; cur = cur.parentPath) {
+    const parent = cur.parentPath.node;
+    const child = cur.node;
+    if (!parent) break;
+    if (parent.type === 'ConditionalExpression' && (parent.consequent === child || parent.alternate === child)
+      && containsWriteTo(parent.test, name)) return true;
+    if (parent.type === 'LogicalExpression' && parent.right === child && containsWriteTo(parent.left, name)) return true;
+    if (STATEMENT_HOST_TYPES.has(parent.type)) break;
+  }
+  return false;
+}
+
+// descend a trusted write's RHS to the stored value: alternate the local init-peel with
+// chain-assign steps (`_g = g = globalThis` stores `globalThis`; the assignment text stays
+// verbatim in source). the full chain-assign canon lives in resolve.js - unreachable from
+// here without an import cycle - and this alternation reaches the same fixpoint over the
+// shapes a single write's RHS can carry
+// the single canonical trust gate for a plain-Identifier alias write (`var _g; _g = g =
+// globalThis`): the adapter surfaces the sole trusted write, the shape gate rejects
+// destructure writes (they bind the name to a PROPERTY of the RHS - following the right side
+// would alias the name to the whole global), and the pure arm accepts ONLY the structural
+// read-after-write proof (read in a branch whose always-evaluated guard slot holds the write -
+// the `?.`-lowering canon; a positional accept would drift the emitters on the AST side's
+// position-less rebuilt re-visits). shared by the detection-side follow
+// (`resolveVariableBindingToGlobal`) and the class-walk follow - ONE predicate, not mirrors
+export function trustedIdentifierAliasWrite({ scope, name, adapter, path, readNode = null }) {
+  if (!adapter?.findTrustedAliasWrite) return null;
+  const write = adapter.findTrustedAliasWrite(scope, name, { requirePlacement: false });
+  if (!write || write.left?.type !== 'Identifier' || write.left.name !== name) return null;
+  // ... or the READ's own span proves it - the evidence the PATTERN arm of the same follow already
+  // accepts: a source read beginning past the write's end runs after it, which is what a sequence
+  // spells (`(g = globalThis, v = g.window.self)`). a rebuilt node carries no span and declines, so
+  // the AST leg's position-less re-visits stay out. the span says ORDER, never dominance, so it
+  // rides the adapter's own PLACEMENT gate - a branch-local write (`if (c) { var M = globalThis }`)
+  // runs on one path, and a textual accept there would mask the native throw
+  if (adapter.method === 'usage-pure' && !readsAfterWriteStructurally(path?.parentPath ? path : null, write)
+    && !(typeof readNode?.start === 'number' && readNode.start >= write.end
+      && adapter.findTrustedAliasWrite(scope, name, { readNode }) === write)) return null;
+  return write;
+}
+
+// non-IIFE callees (`getGlobal().Array`) return unchanged and keep generic dispatch.
+// `peelZeroArgIifeReturn` already bails on async / generator / spread / control-flow bodies,
+// so only sound pass-through wrappers peel
+export function peelProxyGlobalObject(node) {
+  node = unwrapRuntimeExpr(node);
+  // SE tails peel for CLASSIFICATION only (`(eff(), globalThis).Array` - the prefix stays in
+  // the source and runs at evaluation), mirroring the detect-usage chain walks; without the
+  // peel an SE-buried extends target dropped its super statics
+  node = peelSequenceTail(node, { step: unwrapRuntimeExpr });
+  if (node?.type !== 'CallExpression' && node?.type !== 'OptionalCallExpression') return node;
+  const ret = peelZeroArgIifeReturn(node);
+  return ret ? unwrapRuntimeExpr(ret) : node;
+}
+
+// does a REGISTERED alias's own span end before the use begins? the record carries either the
+// write's span or the declaration's, and a use ahead of it reads the binding before the alias
+// exists. an unknown position answers yes - the callers that need proof gate it themselves
+export function aliasSpanDominatesUse({ info, useStart }) {
+  const span = info?.aliasWrite ?? info?.aliasDeclSpan;
+  return !span || useStart === null || useStart > span.end;
+}
+
+// pure only: an assignment-form alias hint is flow-sound at a read only when its registered
+// write ENDS before the read begins. registration verified the write's shape and placement,
+// not its order against every read - an alias hop captures its source at the hop declarator,
+// so a source written after that capture must not narrow it (`const S = T; ({ Symbol: T } =
+// globalThis)` captures undefined; the span gate at the OUTER use admits it). unknown positions
+// bail - pure resolves on proof. global / entry modes stay hint-sound regardless (side-effect
+// imports only, over-inject-safe)
+export function assignmentAliasHintSoundAtRead({ binding, adapter, readNode }) {
+  if (adapter?.method !== 'usage-pure' || !binding?.aliasWrite) return true;
+  const readStart = readNode?.start ?? null;
+  return readStart !== null && readStart > binding.aliasWrite.end;
 }

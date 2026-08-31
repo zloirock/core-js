@@ -31,8 +31,8 @@ import {
   foldableRealmHop,
   resolveObjectName,
   vestigialNavOptionals,
+  proxyGlobalRootName,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
-import { proxyGlobalRootName } from '@core-js/polyfill-provider/helpers/class-walk';
 import {
   chainValueCarrier,
   isNullLiteralNode,

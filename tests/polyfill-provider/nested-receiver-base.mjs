@@ -3,6 +3,7 @@
 // `resolveNestedReceiverBase` (the base reference the chain reads through) is exercised
 // over a stub adapter - it consumes names, not AST, so the parsers have nothing to add
 import {
+  resolveNestedDestructureReceiver,
   resolveNestedReceiverBase,
   resolveNestedReceiverChain,
 } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
@@ -119,5 +120,36 @@ checkDeep('base/mutated ctor hop reads raw proxy member',
 
 // an unbound ctor ROOT reads through its pure constructor
 checkDeep('base/ctor root substitutes pure', base({ rootName: 'Map', keys: ['x'], adapter: stubAdapter() }), { pure: PURE.Map, path: ['x'] });
+
+// --- resolveNestedDestructureReceiver: the memo belongs to the plugin INSTANCE, not the node ---
+
+// the receiver verdict is method- and adapter-dependent, so a node-keyed memo lets a second plugin
+// instance over ONE tree replay the first one's answer. the direction that matters is the unsafe
+// one - a pure instance inheriting usage-global's "inject if it might be needed" for a rewrite that
+// may only be made on certainty - so the two adapters here differ in exactly what they may resolve
+{
+  function nestedAdapter(mutatedProxySlot) {
+    return {
+      method: 'usage-global',
+      isStringLiteral(node) { return node.type === 'StringLiteral' || (node.type === 'Literal' && typeof node.value === 'string'); },
+      getStringValue(node) { return node.value; },
+      hasBinding(scope, name) { return !!scope?.getBinding?.(name); },
+      getBinding(scope, name) { return scope?.getBinding?.(name) ?? null; },
+      getBindingNodeType(scope, name) { return scope?.getBinding?.(name)?.path?.node?.type ?? null; },
+      isMutatedStatic(object, key) { return object === 'globalThis' && key === mutatedProxySlot; },
+    };
+  }
+  runBoth('nested receiver/one tree, two instances answer apart',
+    'const { Array: { from } } = globalThis;', (adapter, prog, lbl) => {
+      const type = adapter.name === 'babel' ? 'ObjectProperty' : 'Property';
+      const outer = adapter.pickPath(prog, type, p => p.node.key?.name === 'Array');
+      // the pristine instance answers first and seeds any memo behind the call
+      check(`${ lbl } pristine instance`, resolveNestedDestructureReceiver(outer, nestedAdapter(null)), 'Array');
+      // ... and an instance for which the file overwrote that very slot must NOT be served it
+      check(`${ lbl } mutated-slot instance`, resolveNestedDestructureReceiver(outer, nestedAdapter('Array')), null);
+      // the first instance keeps its own answer after the second asked
+      check(`${ lbl } pristine instance again`, resolveNestedDestructureReceiver(outer, nestedAdapter(null)), 'Array');
+    });
+}
 
 finish();
