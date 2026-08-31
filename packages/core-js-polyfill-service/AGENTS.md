@@ -86,6 +86,13 @@ The scenarios: they coordinate the domain and the infrastructure and carry no ru
 - **build-plan-1** - the plan is ready before the first request is taken; without it the matcher
   cannot name even the baseline. It is a step of its own for that reason: the warm-up reads it once
   and may run later or from outside, the matcher reads it on every request and from the first one
+- **warm-1** - the baseline is built first and requests wait for it; everything else warms under
+  traffic, because a miss goes to the baseline. ⚠ A failure to build the baseline is a startup
+  failure: there is nothing to rise to, and holding requests with a 503 would need a retry policy
+  and a redirect that cannot loop back on itself
+- **warm-2** - building the same input twice is harmless, which is why there are no locks. The
+  identifier is the hash of the input, so a duplicate build writes the same bytes under the same
+  name; a stale lock would be a worse failure than the wasted CPU
 - ⚠ **`targets: null` does not mean "no targets" to compat** - it sends compat looking for a
   browserslist config of its own. So the declaration is resolved once, in `configure`, where the
   project config either becomes the declaration or nothing does; and "everything" is spelled out
@@ -98,6 +105,32 @@ The scenarios: they coordinate the domain and the infrastructure and carry no ru
   everything but in-app iOS browsers it and the MIT branch of `ua-parser-js` agree, and there
   resolver-5 decides anyway. `ua-parser-js@2` is AGPL, and its `1.x` branch is marked legacy by its
   author. ⚠ It throws on an empty user agent, which is a visitor, not an incident
+- **builder-1** - the whole target set of a bucket goes to the builder, never a representative.
+  ⚠ `targets` decides two things at once in there - which modules are kept AND whether the syntax
+  is downleveled - and there is no order between versions of different engines to pick a lowest
+  from. Of 201 buckets built without an application scope, 185 hold more than one engine
+- **builder-2** - an old bucket never receives syntax its engine cannot read. ⚠ This holds because
+  of `ModernSyntax` in `@core-js/builder`, not because of anything here: should rolldown start
+  emitting something newer, the engine fails to parse THE WHOLE FILE, which is a broken page rather
+  than extra weight
+- **bundles-1** - what comes out of the store is bytes, never a path. ⚠ A path would be shorter and
+  would pin the store to a local disk forever - not because Redis or S3 are hard to write, but
+  because every caller would already be built around a file
+- **bundles-2** - the contract is asynchronous even where the implementation is not, so that moving
+  to a networked store does not rewrite every caller
+- **bundles-3** - a reader never sees a half-written bundle: it is written under a temporary name
+  and renamed WITHIN THE SAME DIRECTORY. ⚠ A rename across a device boundary is not atomic and
+  throws, so the OS temporary directory cannot be used here; without atomicity a reader gets a
+  truncated file under a valid identifier, and `immutable` nails it into that cache for a year
+- **bundles-4** - the store is one directory per generation, and the sweep runs after the new
+  generation is warm, never before it. ⚠ A sweep that ran first would take the only bundles anything
+  could be served from if this build failed. It removes only directories shaped like a generation -
+  a store pointed at a path holding anything else loses nothing of it - never the generation being
+  served, and never one younger than `retain` (an hour by default; `0` keeps only the current one,
+  `null` sweeps nothing). Retention is what lets a page outlive the deploy that replaced it, and what
+  makes a rollback find its bundles where it left them
+- No disk is a working state, not a failure - no permission, no space, a read-only volume. It costs
+  another warm-up at the next restart and is reported once
 - The module-list port goes to `@core-js/compat`. It is a port, rather than a call from inside the
   domain, so that the bucket logic can be exercised on fixtures: a test that asserts how many
   buckets thirteen engines collapse into is a test that goes red on somebody else's commit

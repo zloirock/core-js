@@ -5,6 +5,9 @@ import './matcher.mjs';
 import './resolver.mjs';
 import './traffic-shares.mjs';
 import './configure.mjs';
+import './builder.mjs';
+import './bundles.mjs';
+import './warm.mjs';
 import './build-plan.mjs';
 import './warn.mjs';
 

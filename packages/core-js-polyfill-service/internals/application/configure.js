@@ -12,6 +12,9 @@ export default function configure(options, { warn, resolveVersions }) {
     ignoreBrowserslistConfig = false,
     exclude = [],
     minify = true,
+    directory = null,
+    retain = RETAIN,
+    brotli = false,
     ...unknown
   } = options;
 
@@ -31,6 +34,11 @@ export default function configure(options, { warn, resolveVersions }) {
 
   if (!Array.isArray(exclude)) throw new TypeError('`@core-js/polyfill-service`: `exclude` has to be an array');
   if (typeof minify != 'boolean') throw new TypeError('`@core-js/polyfill-service`: `minify` has to be a boolean');
+  if (typeof brotli != 'boolean') throw new TypeError('`@core-js/polyfill-service`: `brotli` has to be a boolean');
+
+  if (directory !== null && typeof directory != 'string') {
+    throw new TypeError('`@core-js/polyfill-service`: `directory` has to be a path or `null`');
+  }
 
   // ⚠ `null` is "keep every generation", not "keep none": the two ends of the range are told apart
   // because the difference is a directory that grows forever against a page that loses its polyfills
@@ -63,6 +71,9 @@ export default function configure(options, { warn, resolveVersions }) {
     exclude: Object.freeze([...exclude]),
     targets: declaration,
     minify,
+    directory,
+    retain,
+    brotli,
     versions: resolveVersions(version),
   };
 }

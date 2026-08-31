@@ -1,10 +1,33 @@
 import data from '@core-js/compat/data' with { type: 'json' };
 import buildPlan from './internals/application/build-plan.js';
 import configure from './internals/application/configure.js';
+import createWarm from './internals/application/warm.js';
+import createBuilder from './internals/infrastructure/builder.js';
+import createBundles from './internals/infrastructure/bundles.js';
 import createListModules from './internals/infrastructure/compat-modules.js';
 import resolveVersions from './internals/infrastructure/resolve-versions.js';
 import trafficShares from './internals/infrastructure/traffic-shares.js';
 import createWarn from './internals/infrastructure/warn.js';
+
+async function rest(ready, warm, bundles) {
+  await ready;
+
+  const warmed = await warm.buckets();
+
+  // ⚠ after the new generation is on disk, never before it: pruning first would take the
+  // only bundles anything can be served from if this build turns out to fail
+  await bundles.prune();
+
+  return warmed;
+}
+
+// ⚠ the caller is free to await neither promise, and an unobserved rejection takes the process down
+// on its own. the failure itself still reaches whoever does await `ready` or `warmed`
+async function markHandled(promise) {
+  try {
+    await promise;
+  } catch { /* the awaiter sees it */ }
+}
 
 // the composition root: the graph is assembled here and only here, so that every module below
 // takes what it needs as an argument instead of reaching for it. the layers are wired in as
@@ -18,6 +41,36 @@ export default function createService({ warn: warnSink, ...options } = {}) {
     listModules: createListModules(config),
     warn,
   });
+  const bundles = createBundles({
+    directory: config.directory,
+    generation: plan.generation,
+    brotli: config.brotli,
+    retain: config.retain,
+    warn,
+  });
+  const warm = createWarm(plan, { bundles, build: createBuilder(config), warn });
 
-  return { config, plan, warn };
+  let started = null;
+
+  return {
+    config,
+    plan,
+    bundles,
+    warn,
+
+    // started by whoever installs the service, and idempotently: `ready` is the baseline, which
+    // requests wait for, and `warmed` is the rest of the plan, which nothing waits for
+    start() {
+      if (started === null) {
+        const ready = warm.baseline();
+        const warmed = rest(ready, warm, bundles);
+
+        markHandled(ready);
+        markHandled(warmed);
+        started = { ready, warmed };
+      }
+
+      return started;
+    },
+  };
 }

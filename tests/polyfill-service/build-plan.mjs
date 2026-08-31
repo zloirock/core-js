@@ -67,3 +67,39 @@ ok(built.has(match(resolve({ 'user-agent': IE }))), 'build-plan #9');
 ok(match(resolve({ 'user-agent': CHROME })) !== match(resolve({ 'user-agent': IE })), 'build-plan #10');
 // an unrecognized visitor gets the baseline, which is what the project would have shipped anyway
 strictEqual(match(resolve({ 'user-agent': 'x' })), service.plan.baseline.bundleId, 'build-plan #11');
+
+// and the whole of it once more with the bundles actually built: the identifier a request resolves
+// to is one the warm-up has put bytes behind
+const { ready, warmed } = service.start();
+
+await ready;
+ok(Buffer.isBuffer(await service.bundles.get(service.plan.baseline.bundleId, 'identity')), 'build-plan #12');
+
+const { failed } = await warmed;
+
+deepStrictEqual(failed, [], 'build-plan #13');
+
+for (const bucket of service.plan.buckets) {
+  ok(await service.bundles.has(bucket.bundleId), `build-plan #14: ${ JSON.stringify(bucket.targets) }`);
+}
+
+const forChrome = await service.bundles.get(match(resolve({ 'user-agent': CHROME })), 'identity');
+const forIE = await service.bundles.get(match(resolve({ 'user-agent': IE })), 'identity');
+
+ok(forIE.length > forChrome.length, 'build-plan #15');
+// starting twice is starting once: the middleware may be installed on more than one router
+strictEqual(service.start().ready, ready, 'build-plan #16');
+
+// ⚠ the generations left behind are pruned once the new one is warm, and never before it: a prune
+// that ran first would take the only bundles anything could be served from if this build failed. one
+// stays - the page of the deploy just replaced is in a browser already
+deepStrictEqual((await readdir(kept)).toSorted(),
+  [service.plan.generation, '0123456789abcdef'].toSorted(), 'build-plan #19');
+
+try {
+  await rm(kept, { force: true, recursive: true });
+} catch (error) {
+  // a leftover temporary directory cannot break a run; a failure to remove it must not speak for
+  // the assertions above
+  console.warn(`could not remove ${ kept }: ${ error.message }`);
+}
