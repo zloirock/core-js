@@ -184,13 +184,17 @@ function deoptionalizeDanglingOptionalParent(replacePath) {
 // a `?.`: the chain must end at the parens, both to stay legal (a bare optional chain is not a
 // valid tag) and to keep the tag a REFERENCE, so the call still binds `this` to the last read
 function reparenthesizeTaggedTag(t, fromPath) {
-  for (let step = fromPath; step?.node; step = step.parentPath) {
-    const parent = step.parentPath;
-    if (parent?.isTaggedTemplateExpression() && parent.node.tag === step.node) {
-      step.replaceWith(t.parenthesizedExpression(step.node));
+  for (let step = fromPath; step?.node;) {
+    // the tag SLOT may hold a wrapper stack over the chain (`(nav.tag!)`x``) - the wrap lands on
+    // what the tagged template actually holds, and a seal that survived as a NODE needs no second
+    const slot = peelParenAndTSSlotPath(step);
+    const parent = slot.parentPath;
+    if (parent?.isTaggedTemplateExpression() && parent.node.tag === slot.node) {
+      if (!slot.isParenthesizedExpression()) slot.replaceWith(t.parenthesizedExpression(slot.node));
       return;
     }
     if (!parent?.isMemberExpression() && !parent?.isOptionalMemberExpression()) return;
+    step = parent;
   }
 }
 
@@ -1428,13 +1432,18 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
   function collapseShortCircuitNavInPlace(memberPath) {
     const adapter = getAdapter?.();
     if (!adapter || !memberPath?.scope || !resolvePureGlobalEntry || !injectPureGlobal) return false;
-    const parent = memberPath.parentPath;
+    // the consumer is read through the seal's NODE spelling: a sealed nav's member sits directly
+    // above it on the flag dialect and above a paren node on the other, and the raw parent read
+    // let the second spelling pass this gate - the claimless channel then rendered a nav whose
+    // chain end (and the whole-fold channel behind it) the decline exists to hand over to
+    const endSlot = peelParenAndTSSlotPath(memberPath);
+    const parent = endSlot.parentPath;
     // a MEMBER consumer means this is not the chain end (the caller climbs there); a CALL
     // consumer is fine - claims over the chain ran before the drive (they sit above the root
     // in traversal order), so a surviving call tail is claimless and rides the chain's own
     // short-circuit outside the render
     if ((parent?.isMemberExpression() || parent?.isOptionalMemberExpression())
-      && parent.node.object === memberPath.node) return false;
+      && parent.node.object === endSlot.node) return false;
     // this render spells a SHORT-CIRCUIT: a nav whose value cannot take one has no branch for it to
     // build, and the plain hop collapse owns the run instead (a chain-END member that is itself a
     // pristine proxy hop is the same question - it belongs to the alias / kept canons unless the
@@ -1485,15 +1494,19 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
         if (!hop.container) break;
         const isCall = hop.isOptionalCallExpression() || hop.isCallExpression();
         if (!isCall && !hop.isOptionalMemberExpression()) break;
-        if (isCall && hop.node.callee !== paths.at(-1)?.node) break;
+        if (isCall && unwrapRuntimeExpr(hop.node.callee) !== paths.at(-1)?.node) break;
         // PARENS between the callee and its call keep the chain's REFERENCE (`(w?.self.fn)()`
         // still binds `this`), while ending the short-circuit: folding either the call or the
         // member it reads leaves the callee with a bare value. hand the whole tail back to the
         // lifted spelling, which preserves both
         if (isCall && isWrappedInParens(hop.get('callee'))) return false;
         paths.push(hop);
-        const up = hop.parentPath;
-        hop = up?.node && (up.node.object === hop.node || up.node.callee === hop.node) ? up : null;
+        // the climb reads each consumer through the seal's NODE spelling - the flag dialect hangs
+        // no node between a step and its consumer, and stopping on one routed the same source
+        // around the declines above, folding a sealed tag's member into the alternate
+        const slot = peelParenAndTSSlotPath(hop);
+        const up = slot.parentPath;
+        hop = up?.node && (up.node.object === slot.node || up.node.callee === slot.node) ? up : null;
       }
       // no `foreign` step here: this emitter re-queues what it pulls, so a claim inside the
       // tail still gets its own rewrite
@@ -1512,7 +1525,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       // short-circuit (`delete` on a short-circuited chain is a no-op `true`).
       // (`new` reads only the VALUE, so it pulls freely)
       for (let step = paths.at(-1)?.parentPath; step?.node; step = step.parentPath) {
-        if (TS_EXPR_WRAPPERS.has(step.node.type)) continue;
+        if (TRANSPARENT_EXPR_WRAPPER_TYPES.has(step.node.type)) continue;
         if (step.isUnaryExpression({ operator: 'delete' })) taken = 0;
         if (!step.isOptionalMemberExpression() && !step.isMemberExpression()
           && !step.isOptionalCallExpression() && !step.isCallExpression()) break;
@@ -1521,7 +1534,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       // folded tail hands it a bare value - the receiver is lost exactly as under a
       // parenthesized callee. leave the whole tail outside and PLAIN: the source parens ended
       // the chain, so the read off `void 0` throws exactly where the source does
-      if (paths.some(path => path.parentPath?.isTaggedTemplateExpression())) {
+      if (paths.some(path => peelParenAndTSSlotPath(path).parentPath?.isTaggedTemplateExpression())) {
         taggedTemplateTails.add(paths[0].node);
         return false;
       }
