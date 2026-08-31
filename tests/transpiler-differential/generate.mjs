@@ -904,6 +904,13 @@ const PROXY_ALIAS = [
   { id: 'ident-over-array', setup: 'const M = [globalThis];', use: 'typeof M.resolve' },
   { id: 'bare-element', setup: 'const [g] = [globalThis];', use: 'typeof g.Map.groupBy' },
   { id: 'computed-key-root', setup: "const K = 'self'; const { [K]: s } = globalThis;", use: 'typeof s.Map.groupBy' },
+  // the CALL-captured spellings: what the binding holds is the callee's return, and a resolver that
+  // stops at "identifier or member chain" answers no-proxy here while the global read calls it the
+  // realm - the static then rides a `*/constructor` binding, which carries none, so `typeof` flips
+  { id: 'call-root', setup: 'const mk = () => globalThis;', use: 'typeof mk().Map.groupBy' },
+  { id: 'call-alias-root', setup: 'const mk = () => globalThis; const g = mk();', use: 'typeof g.Map.groupBy' },
+  { id: 'identity-call-root', setup: 'const id = x => x; const g = id(globalThis);', use: 'typeof g.Map.groupBy' },
+  { id: 'chain-assign-root', setup: 'let h; const g = h = globalThis;', use: 'typeof g.Map.groupBy' },
 ];
 
 function * generateProxyAliasCells() {
