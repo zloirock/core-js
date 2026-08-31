@@ -84,3 +84,28 @@ try {
     console.warn(`could not remove ${ directory }: ${ error.message }`);
   }
 }
+
+// which representations are stored is a whole setting, not a brotli switch: what it names is what
+// the store writes, what `bundles.encodings` reports and what a client can be answered with. every
+// encoding is resolved to the same shape - its compressor options - so nothing downstream branches
+deepStrictEqual(resolve({ scope: [] }).config.compression, { identity: {}, gzip: {} }, 'configure-4 #1');
+deepStrictEqual(resolve({ scope: [], compression: { identity: true, gzip: { level: 9 }, br: true } }).config.compression,
+  { identity: {}, gzip: { level: 9 }, br: {} }, 'configure-4 #2');
+// `false` drops an encoding rather than storing it disabled
+deepStrictEqual(resolve({ scope: [], compression: { identity: true, gzip: false } }).config.compression,
+  { identity: {} }, 'configure-4 #3');
+// the settings are frozen, like the rest of what the plan is built from
+ok(Object.isFrozen(resolve({ scope: [] }).config.compression), 'configure-4 #4');
+
+// a typo in an encoding name is a store that quietly holds less than asked
+throws(() => resolve({ scope: [], compression: { gzpi: true } }), /`compression.gzpi`/, 'configure-4 #5');
+throws(() => resolve({ scope: [], compression: [] }), /`compression`/, 'configure-4 #6');
+throws(() => resolve({ scope: [], compression: null }), /`compression`/, 'configure-4 #7');
+// nothing to store is one 406 per request, so it is refused at startup
+throws(() => resolve({ scope: [], compression: {} }), /at least one encoding/, 'configure-4 #8');
+throws(() => resolve({ scope: [], compression: { identity: false, gzip: false } }), /at least one encoding/,
+  'configure-4 #9');
+// the uncompressed form is the bytes themselves - there is nothing to configure about it
+throws(() => resolve({ scope: [], compression: { identity: { level: 9 } } }), /`compression.identity`/,
+  'configure-4 #10');
+throws(() => resolve({ scope: [], compression: { gzip: 9 } }), /`compression.gzip`/, 'configure-4 #11');

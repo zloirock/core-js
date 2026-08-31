@@ -13,5 +13,6 @@ export default function buildPlan(config, { data, trafficShares, listModules, wa
     minify: config.minify,
     scope: config.scope,
     exclude: config.exclude,
+    compression: config.compression,
   });
 }

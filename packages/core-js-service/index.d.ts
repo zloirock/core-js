@@ -30,6 +30,21 @@ interface Options {
   exclude?: readonly (string | RegExp)[];
   /** minify the bundles, `true` by default. part of the identity of a bundle */
   minify?: boolean;
+  /** where the built bundles are kept between restarts. `null` by default, which keeps them in
+   *  memory alone and warms up again on every start */
+  directory?: string | null;
+  /** how many generations of bundles stay on disk beside the one being served, `1` by default.
+   *  `0` keeps only the generation being served, `null` keeps every generation forever */
+  retain?: number | null;
+  /** which representations of every bundle are stored, keyed by the content coding a client asks
+   *  for. `{ identity: true, gzip: true }` by default; `true` enables an encoding with the
+   *  defaults of `node:zlib`, an object enables it and configures the compressor. brotli is off
+   *  because it costs about as much as building the bundle again for 12% over gzip */
+  compression?: {
+    identity?: boolean,
+    gzip?: boolean | Readonly<Record<string, unknown>>,
+    br?: boolean | Readonly<Record<string, unknown>>,
+  };
   /** where developer-facing warnings go, by default `console.warn`. deduplication is applied
    *  before the message reaches it, so an application logger can be passed as it is */
   warn?: ((message: string) => void) | null;
@@ -40,14 +55,32 @@ interface Configuration {
   exclude: readonly (string | RegExp)[];
   targets: Targets | null;
   minify: boolean;
+  directory: string | null;
+  retain: number | null;
+  compression: Readonly<Record<string, object>>;
   versions: { coreJS: string, compat: string };
 }
 
 interface Bucket {
   bundleId: string;
   modules: readonly string[];
-  targets: readonly { engine: string, version: string }[];
+  /** every engine of the bucket, at the lowest version of it that landed there */
+  targets: Record<string, string>;
   share: number;
+}
+
+/** the bundle store: bytes by identifier and encoding, never a path */
+interface Bundles {
+  encodings: readonly string[];
+  /** the generation being served: one directory of the store */
+  generation: string;
+  has(bundleId: string): Promise<boolean>;
+  get(bundleId: string, encoding: string): Promise<Buffer | null>;
+  modules(bundleId: string): Promise<readonly string[] | null>;
+  put(bundleId: string, bundle: { modules: readonly string[], script: string }): Promise<void>;
+  /** removes the generations that are neither served nor younger than `retain`, and answers with
+   *  the names of those it removed */
+  prune(): Promise<string[]>;
 }
 
 interface Plan {
@@ -61,7 +94,11 @@ interface Plan {
 interface Service {
   config: Configuration;
   plan: Plan;
+  bundles: Bundles;
   warn: Warn;
+  /** starts the warm-up, idempotently. `ready` is the baseline, which requests wait for; `warmed`
+   *  is the rest of the plan, which they do not - a miss goes to the baseline */
+  start(): { ready: Promise<boolean>, warmed: Promise<{ built: string[], failed: string[] }> };
 }
 
 declare function createService(options: Options): Service;
