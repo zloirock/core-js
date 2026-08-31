@@ -14,7 +14,7 @@ const alias = _globalThis;
 export const deletedBare = delete _Promise.noSuchStatic;
 export const deletedAlias = delete _Promise.noSuchStatic;
 // ... and on a proven call root, which drops with the fold
-export const deletedCallRoot = delete _self.noSuchStatic;
+export const deletedCallRoot = delete (null == (() => _globalThis)().window ? void 0 : _self)?.noSuchStatic;
 
 // a write AROUND the navigation: the ctor folds into the deleted member's spelling, the store keeps
 // the guard its own value spells

@@ -18,11 +18,11 @@ import {
 import {
   CHAIN_HOP_WRAPPER_TYPES,
   isPristineProxyGlobal,
-  markRenderedStoredValue,
   memberKeyName,
   parenSealedCalleeAbove,
   POSSIBLE_GLOBAL_OBJECTS,
   singleSequenceTail,
+  nodeCarriesSourceSpan,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   TS_EXPR_WRAPPERS,
   unwrapRuntimeExpr,
@@ -339,11 +339,8 @@ export function replaceGuardedHop({
   const keepLive = new Set([...leafKeySe ?? [], ...prefixSe ?? [], ...skippedNodes.keepLive ?? []]
     .filter(expr => subtreeContainsNode(consumed, expr)));
   if (target === hopPath) {
-    // the guard IS the stored nav's rendered value: a later read of the binding classifies
-    // through its defined branch, and without the mark the in-place collapse hides the nav
-    // from those reads and their claims die
     const replacement = test
-      ? markRenderedStoredValue(renderShortCircuitGuard(test, withLeafKeySe(built))) : built;
+      ? renderShortCircuitGuard(test, withLeafKeySe(built)) : built;
     if (test && returnType) resolvedType?.set(replacement, returnType);
     const inserted = withPrefixSe(replacement);
     target.replaceWith(inserted);
@@ -395,8 +392,7 @@ export function replaceGuardedHop({
     // tail) keeps chain semantics under a wrapper of its own once the guard consumed the
     // original one
     if (receiverCarriesOptional(alternate)) alternate = chainExpression(alternate);
-    const replacement = markRenderedStoredValue(
-      renderShortCircuitGuard(test, memberTail ? alternate : withLeafKeySe(alternate)));
+    const replacement = renderShortCircuitGuard(test, memberTail ? alternate : withLeafKeySe(alternate));
     if (returnType) resolvedType?.set(replacement, returnType);
     let wrapped = replacement;
     for (const wrapper of outerTsWrappers.toReversed()) wrapped = { ...wrapper, expression: wrapped };
@@ -622,7 +618,10 @@ export function sealedThrowRidesTheClaim(node, metaPath, ctx) {
 // the claim's own member read spelled verbatim - the alias binding IS the test, no guard needed.
 // a SYNTHETIC member is a render, not a source read, and probing one would loop the visitor
 export function aliasHeldClaimProbeNode(member, aliasCtx, { resolveGlobalPolyfill, skippedNodes }) {
-  if (!Number.isInteger(member?.start)) return null;
+  // source provenance admits the probe (a split's de-optionalized spine re-dispatches its
+  // claims - the read is still the source's); a true mint has no span at all, and probing OUR
+  // render would ponyfill what it stands ahead of
+  if (!nodeCarriesSourceSpan(member)) return null;
   const probe = aliasHeldClaimProbe(member, ({ name }) => resolveGlobalPolyfill(name), aliasCtx);
   if (!probe) return null;
   const read = renderAliasHeldProbeRead(probe, identifier(probe.object.name));
@@ -669,7 +668,11 @@ export function sealedClaimThrowProbe(node, metaPath, ctx) {
     return resolvePure(m, metaPath);
   }
   if (!proxyReceiverValueCanBeUndefined(boundary.inner, resolveHere, aliasCtx, { throughChainAssign: true })) {
-    return null;
+    // the sealed VALUE proves defined, but the seal may still wrap a run an alias BINDING makes
+    // observable (`(a.Array).of` off `a = globalThis.window` - reading `.Array` throws where the
+    // value canon sees no undefined): a seal over a plain navigation is not load-bearing, so the
+    // run probes exactly like its unsealed twin - the alias arm's own verdict decides
+    return aliasHeldClaimProbeNode(boundary.member, aliasCtx, { resolveGlobalPolyfill, skippedNodes });
   }
   const plan = planProvenNavGuardCollapse({
     rootNode: boundary.inner,

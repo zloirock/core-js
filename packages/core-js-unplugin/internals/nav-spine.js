@@ -87,7 +87,8 @@ export function cloneSpinePeeled(node, inCallee = false) {
 // the ident-rooted twin collapses whole through the plain swap - there the prefix read has no
 // other reason to exist; a SEQUENCE root re-emits its prefix regardless, so the honest hop read
 // stands and carries the guard the source's own semantics ask for. the prefix subtree is REUSED
-// in place, so the claims queued inside it still land in the re-emit
+// in place, so the claims queued inside it still land in the re-emit. a proven CALL root is
+// the identifier's twin here too: the kept slice re-reads the call exactly as written
 export function emitNestedGuardNavValue(metaPath, node, {
   adapter,
   resolvePure,
@@ -112,9 +113,11 @@ export function emitNestedGuardNavValue(metaPath, node, {
     resolvePure: resolveHere,
     allowSequenceRoot: true,
   });
-  if (plan?.kind !== 'nested' || !plan.seqRoot || plan.topAssign || !plan.rootId || !plan.leafPure) return false;
+  if (plan?.kind !== 'nested' || !plan.seqRoot || plan.topAssign || !plan.leafPure) return false;
+  // the proven root: an ident the substitution below reaches, or a call the slice re-reads
+  const provenRoot = plan.rootId ?? plan.call;
   const prefixNode = plan.hops[plan.lastUnresolvableIdx].node;
-  if (plan.rootId.start < prefixNode.start || plan.rootId.end > prefixNode.end) return false;
+  if (!provenRoot || provenRoot.start < prefixNode.start || provenRoot.end > prefixNode.end) return false;
   substituteProbeProxyRoot(prefixNode);
   let built = identifier(injectPureImport(plan.leafPure.entry, plan.leafPure.hintName));
   const leafKeySe = plan.liveKeySeExprs().slice(plan.testKeySeCount).map(expr => cloneNode(expr));
@@ -625,16 +628,17 @@ export function aliasHoldsUnbackedHopNav(value, metaPath, adapter) {
   return unbackedHopAliasDecls.has(binding?.node ?? binding?.path?.node);
 }
 
-// the sequence PREFIXES of every kept computed key in a probe spine - the effect nodes whose
-// claims must stay live inside the kept spelling
+// the sequence PREFIXES a probe spine keeps in its spelling - every kept computed key's, and
+// the spine ROOT's: the effect nodes whose claims must stay live inside the kept spelling
 export function navComputedKeyEffects(node) {
   const effects = [];
-  for (let cur = unwrapRuntimeExpr(node); cur?.type === 'MemberExpression';
-    cur = unwrapRuntimeExpr(cur.object)) {
+  let cur = unwrapRuntimeExpr(node);
+  for (; cur?.type === 'MemberExpression'; cur = unwrapRuntimeExpr(cur.object)) {
     if (!cur.computed) continue;
     const key = unwrapRuntimeExpr(cur.property);
     if (key?.type === 'SequenceExpression') effects.push(...key.expressions.slice(0, -1));
   }
+  if (cur?.type === 'SequenceExpression') effects.push(...cur.expressions.slice(0, -1));
   return effects;
 }
 

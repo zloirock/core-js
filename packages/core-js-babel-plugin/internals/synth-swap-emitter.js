@@ -63,6 +63,7 @@ import {
   proxyHopLacksPureEntry,
   descendToChainRoot, discardRescueNodes, findProxyGlobal, maximalProxyGlobalHop, maximalProxyGlobalPrefix,
   navHasUnresolvableProxyHop, navValueCanShortCircuit, ownChainOptionalObjects, PROXY_HOP_VALUE_CARRIERS, proxyGlobalMemberCtorPure,
+  proxyReceiverValueCanBeUndefined,
   resolveSynthKeys,
   peelChainAssignment,
   peelReceiverSequenceTail,
@@ -542,9 +543,11 @@ export default function createSynthSwapEmitter({
       : ctx?.type === 'AssignmentPattern' || ctx?.type === 'AssignmentExpression' ? ctx.left : null;
     if (target?.type === 'ObjectPattern' && claimedDestructurePatterns.has(target)) return false;
     // an ALL-proxy chain END (`globalThis.self.window`, no non-proxy leaf) collapses to the bare root ONLY as
-    // a DISCARDED destructure SOURCE - the receiver value is invariant of which global names it, safe to drop
-    // the hops (`{Object:OD} = _globalThis`). a value-USE (`const x = globalThis.self.window`) keeps the raw
-    // hops: it reads `window`, which throws off-browser exactly as the source does (finding-e faithful-throw)
+    // a DISCARDED destructure SOURCE whose value the canon calls DEFINED - a deep unresolvable hop is a
+    // realm self-reference, invariant of which global names it, safe to drop (`{Object:OD} = _globalThis`);
+    // an absent-able value is the environment PROBE and declines below. a value-USE (`const x =
+    // globalThis.self.window`) keeps the raw hops: it reads `window`, which throws off-browser exactly as
+    // the source does (finding-e faithful-throw)
     if (allProxyEnd && !isDestructurePattern(target)) return false;
     // the all-proxy chain's LAST hop is itself a proxy. only root-collapse when SOME hop is UNRESOLVABLE
     // (`.window`, no `_window` - `collapseProxyGlobalReceiver` keeps it as `_globalThis.window`, undefined
@@ -553,7 +556,12 @@ export default function createSynthSwapEmitter({
     // key may carry SE (`globalThis[(c++,'self')].window`) - out of scope for this bare drop, defer
     if (allProxyEnd) {
       if (valueObservingCarrier) return false;
-      if (!navHasUnresolvableProxyHop(recPath.node, resolvePure)) return false;
+      // ... and only where the value canon calls the nav DEFINED (a deep unresolvable hop is a
+      // realm self-reference): a value that can be absent is the environment PROBE, and the
+      // always-defined root would destructure where native throws - decline to the natural
+      // root swap, whose kept raw hop keeps the throw (`= _globalThis.window`)
+      if (!navHasUnresolvableProxyHop(recPath.node, resolvePure)
+        || proxyReceiverValueCanBeUndefined(recPath.node, resolvePure, aliasCtx)) return false;
       const rootIdent = findProxyGlobal(recPath.node, aliasCtx, true);
       const rootPure = rootIdent && resolvePure({ kind: 'global', name: rootIdent.name });
       if (!rootPure) return false;

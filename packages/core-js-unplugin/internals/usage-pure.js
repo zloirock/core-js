@@ -1,4 +1,11 @@
-import { discardRescueNodes, navValueCanShortCircuit, vestigialNavOptionals } from '@core-js/polyfill-provider/detect-usage/resolve';
+import {
+  aliasRootedReadMayThrow,
+  discardRescueNodes,
+  navValueCanShortCircuit,
+  probeRenderedReceiver,
+  sealedChainBoundary,
+  vestigialNavOptionals,
+} from '@core-js/polyfill-provider/detect-usage/resolve';
 import { planInExpression } from '@core-js/polyfill-provider/helpers/in-expression';
 import {
   SYMBOL_ITERATOR_PURE_RESULT,
@@ -783,6 +790,7 @@ export default function createAstUsagePureCallback({
     if (node.type === 'MemberExpression' && node.optional
       && optionalMemberStaysGuarded(node, { metaPath, adapter, resolvePure })
       && !sealedThrowRidesTheClaim(node, metaPath, sealedProbeCtx)
+      && !deleteHostForClaim(metaPath, node, { forFold: true })
       && emitOwnOptionalGuardedClaim({ meta, metaPath, node, parent, kind, entry, hintName })) return;
     // a guarded-nav static under an OPTIONAL call: the `?.()` rides the ternary outside
     // (`(null == (sp = _globalThis.window) ? void 0 : (c++, _Array$from))?.([3])`)
@@ -823,7 +831,9 @@ export default function createAstUsagePureCallback({
     // STAGED - raw source stays there, and the staging is recorded because a claim below reads
     // this consumer's fate to decide whether it owns its own render
     const fallbackSwappable = !!fallback && node.type === 'MemberExpression'
-      && node.object?.type !== 'Super' && meta.placement !== 'prototype';
+      && node.object?.type !== 'Super' && meta.placement !== 'prototype'
+      // a receiver that IS our probe render (a prior pass's) keeps its throw - the swap would eat it
+      && !probeRenderedReceiver(node.object, { scope: metaPath.scope, adapter, path: metaPath });
     // the object swap ERASES the receiver spelling - an observable buried in it (a
     // chain-assignment, an SE-bearing root call) has no slot in this shape yet
     const fallbackStaged = fallbackSwappable && (!!meta.sideEffects?.length || !!meta.receiverEffectCount
@@ -864,10 +874,22 @@ export default function createAstUsagePureCallback({
           return;
         }
       }
-      markRewrite();
       // the read a load-bearing SEAL made observable is the source's own, and this swap
       // erases the receiver spelling - it rides back as a throw probe ahead of the ponyfill.
-      const objectProbe = sealedClaimThrowProbe(node.object, metaPath, sealedProbeCtx);
+      // a seal DIRECTLY under the member leaves the object walk boundary-less (the object IS
+      // the sealed span) - only there the whole-member walk owns the probe, spelling the
+      // guarded read the swap erases; everywhere else the member read survives the swap and
+      // a whole-member probe would run it twice
+      let objectProbe = sealedClaimThrowProbe(node.object, metaPath, sealedProbeCtx);
+      if (!objectProbe && sealedChainBoundary(node)?.member === node) {
+        objectProbe = sealedClaimThrowProbe(node, metaPath, sealedProbeCtx);
+      }
+      // a swap that OWES a probe but cannot spell one (a bare alias receiver - no erased read
+      // to respell, the throw lives in the surviving member) stands down whole: the raw read
+      // keeps the throw the re-base loses, and declining only degrades - the pure bias
+      if (!objectProbe && !node.optional && aliasRootedReadMayThrow(node.object, m => resolvePure(m, metaPath),
+        { scope: metaPath.scope, adapter, path: metaPath })) return;
+      markRewrite();
       metaPath.get('object').replaceWith(objectProbe
         ? sequenceExpression([objectProbe.node, identifier(id)]) : identifier(id));
       return;
@@ -893,23 +915,31 @@ export default function createAstUsagePureCallback({
           { scope: metaPath.scope, adapter, path: metaPath });
       // the node that is ITSELF a pristine hop (`g.self.window`, `.window` claimless)
       // collapses whole; a dead leaf (`.Array`) collapses its object spine under it
+      const deleteFolds = deleteHostForClaim(metaPath, node, { forFold: true, canonOnly: true });
       const spineNode = proxyHopKey(node, { metaPath, allowOptional: optionalFolds }) ? node
         : node.object?.type === 'MemberExpression' ? node.object : null;
-      const collapsed = spineNode && collapseProxyHopSpine(spineNode, metaPath, { allowOptional: optionalFolds });
+      const collapsed = spineNode && collapseProxyHopSpine(spineNode, metaPath,
+        { allowOptional: optionalFolds, provenCallRoot: deleteFolds || !deleteHostForClaim(metaPath, node) });
       // ... and only where something READS through the hop: in VALUE position the drop would
       // change what the expression yields (`t = g.window` stores the window object, not `g`).
       // a dead leaf above the spine is that reader itself
       const navigatedSpine = spineNode !== node || spineIsNavigated(metaPath).navigated;
-      if (collapsed?.aliasRoot && !collapsed.effects.length && navigatedSpine) {
+      // a call-rooted spine under the `delete` fold lands the ROOT ponyfill - the base the
+      // identifier spelling of the same nav folds onto (`delete dh()?.window?.k` ->
+      // `delete _globalThis.k`); a value-position read keeps its own channels
+      const droppedBase = collapsed?.aliasRoot
+        ?? (deleteFolds && collapsed?.entry
+          ? identifier(injectPureImport(collapsed.entry, collapsed.hintName)) : null);
+      if (droppedBase && !collapsed.effects.length && navigatedSpine) {
         markRewrite();
         const consumed = spineNode;
         const dropped = spineNode === node ? metaPath : metaPath.get('object');
-        const aliasNode = cloneNode(collapsed.aliasRoot);
-        dropped.replaceWith(aliasNode);
+        const baseNode = cloneNode(droppedBase);
+        dropped.replaceWith(baseNode);
         markSubtreeSkipped(skippedNodes, consumed);
-        // the alias binding the drop lands is always defined, so a `?.` reading directly off it
+        // the binding the drop lands is always defined, so a `?.` reading directly off it
         // guards nothing - the vestigial verdict every substitution channel takes
-        deoptionalizeOverSubstituted({ metaPath: dropped, node: consumed, replacement: aliasNode, proxyRoot: true });
+        deoptionalizeOverSubstituted({ metaPath: dropped, node: consumed, replacement: baseNode, proxyRoot: true });
       }
     }
   }
