@@ -852,7 +852,7 @@ export function valueObservingDestructureSource(metaPath, destructureEmit) {
 
 // does the member chain read a MUTATED static anywhere (`globalThis.Array.of = patched`
 // above `...Array.of(5)`)? the deopt keeps every source `?.` spelled. node-DOWN spine twin
-// of the provider's path-UP `chainNavigatesIntoMutatedStatic` (annotations.js) - different
+// of the provider's path-UP `mutatedStaticLandingVerdict` (annotations.js) - different
 // anchor and direction, and the erase-verdict here asks it of a DETACHED object node the
 // path-up walk cannot reach
 export function chainContainsMutatedStatic(objectNode, { metaPath, adapter }) {

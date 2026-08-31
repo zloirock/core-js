@@ -3,20 +3,18 @@
 // binding-to-global resolution (`resolveBindingToGlobal` and friends), and the high-level
 // resolvers used by callers (`resolveKey`, `resolveObjectName`, `patternBindingName`,
 // `findProxyGlobal`, `createSelfRefVarGuard`). also hosts Symbol-ref helpers
-// (`resolvesToGlobalSymbol`, `asSymbolRef`) consumed by the members submodule
+// (`resolvesToGlobalSymbol`, `asSymbolRef`) consumed by the members submodule, and the
+// proxy-global recogniser (`proxyGlobalRootName` and its member twin) - asking which realm
+// name a binding stands for is asking this module what the binding holds and keeping the
+// realm names off the answer, so the narrow lives with the canon instead of forking it
 import { entryToGlobalHint, resolve as resolveBuiltInMeta } from '../index.js';
-import {
-  assignmentAliasHintSoundAtRead,
-  bindingPolyfillHint,
-  isAliasProxyRoot, globalProxyMemberName, isProxyGlobalIdentifierNode, memberKeyName,
-  proxyGlobalRootName,
-  symbolKeyToEntry,
-  trustedIdentifierAliasWrite,
-} from '../helpers/class-walk.js';
 import {
   aliasDeclScope,
   aliasReadGuardedAgainstNullish,
   asProxyGlobalName,
+  assignmentAliasHintSoundAtRead,
+  bindingDeclaratorNode,
+  bindingPolyfillHint,
   bindsModuleDefault,
   collectFoldedReceiverSideEffects,
   definedBranchOfGuardConditional,
@@ -26,7 +24,10 @@ import {
   identifierReferencedInSubtree,
   IMPORT_SPECIFIER_TYPES,
   importBindingIsTypeOnly,
+  importedGlobalProxyName,
   importSourceMatchesUserPackage,
+  inCallerCorrectFallbackSlot,
+  isAliasProxyRoot,
   isDestructurePattern,
   isDirectiveStatement,
   isMutatedGlobalSlot,
@@ -39,12 +40,14 @@ import {
   isVarDeclaratorInLoopRerun,
   kebabToCamel,
   mayHaveSideEffects,
+  memberKeyName,
   memberProxyHopName,
   paramReboundInBody,
   patternSlotHasDefault,
   patternSlotSpreadShifted,
   patternSlotValues,
   peelMemoizeWrappers,
+  peelProxyGlobalObject,
   peelSequenceTail,
   peelZeroArgIifeReturn,
   plainSynthKeyName,
@@ -60,9 +63,9 @@ import {
   singleReturnBodyExpression,
   SKIPPABLE_WRAPPER_TYPES,
   spreadAtOrBefore,
-  inCallerCorrectFallbackSlot,
   staticMemberKeyName,
   synthSwapPropKey,
+  trustedIdentifierAliasWrite,
   TS_EXPR_WRAPPERS,
   tsImportEqualsProxyName,
   tsImportEqualsRequireSource,
@@ -72,7 +75,7 @@ import {
   zeroArgIifeSideEffectFree,
 } from '../helpers/ast-patterns.js';
 import { nodeRangeContains } from '../resolve-node-type/ast-shapes.js';
-import { SYMBOL_STATIC_KEYS } from './globals.js';
+import { SYMBOL_STATIC_KEYS, symbolKeyToEntry } from './globals.js';
 
 // same ceiling as `resolve-node-type.MAX_DEPTH`; 10 is too low for cross-module alias chains.
 // exported so cohort recursive walkers (`isSymbolSourcedKey` in members.js) share the bound
@@ -692,8 +695,8 @@ export function claimReceiverEvaluationMayThrow(receiverObj, resolvePure, aliasC
 }
 
 // the statically-undefined value shape and the guard-conditional branch picker live in
-// `helpers/ast-patterns.js` (the class-walk follow needs them below this module's layer);
-// re-exported here so the destructure consumers keep their import path
+// `helpers/ast-patterns.js`, below this module's layer; re-exported here so the destructure
+// consumers keep their import path
 export { definedBranchOfGuardConditional, isUndefinedNode };
 
 export function undefinableProxyRootValue(value, resolvePure, aliasCtx = null) {
@@ -1087,6 +1090,178 @@ export function requireBoundProxyGlobalName({ node, scope, adapter, path }) {
   return required ? globalProxyNameFromImportSource(required, adapter.packages) : null;
 }
 
+// BOTH cycle guards below answer with the shared narrow: on a cycle nothing is resolvable through
+// the binding, so the node NAME is all that is left - a self-referential PROXY name (`var self =
+// self`) stays a proxy, matching the node-only natural-global rewrite that already turns it into
+// `_self` so the hop collapse fires consistently in both emitters (unplugin has no AST re-visit to
+// recover it otherwise); a non-proxy self-cycle (`var Map = Map`) stays false
+
+// names whose binding lookup is IN FLIGHT, per scope. the adapter's own alias pre-pass re-enters
+// this resolver from inside `getBinding` (`isPolyfillAliasBinding` -> `declaratorInitResolvesForName`
+// -> `aliasInitResolvesToGlobal` -> `isProxyGlobalIdentifierNode`) and carries no `seen` across that
+// boundary, so the binding-keyed guard below - which only sees bindings `getBinding` already
+// RETURNED - never fires on that route: a self-referential alias init recursed until the stack blew.
+// keyed by scope + NAME because the binding is exactly what the in-flight lookup has yet to produce.
+// a WeakMap keyed by the scope object keeps concurrent transforms apart and leaks nothing; entry and
+// exit are synchronous around the one adapter call, so a released name is free to resolve again
+const inFlightBindingLookups = new WeakMap();
+
+function withBindingLookupGuard(scope, name, lookup) {
+  let names = inFlightBindingLookups.get(scope);
+  if (!names) inFlightBindingLookups.set(scope, names = new Set());
+  if (names.has(name)) return undefined;
+  names.add(name);
+  try {
+    return lookup();
+  } finally {
+    names.delete(name);
+  }
+}
+
+// direct proxy-global (`globalThis`) or plugin-managed alias (`_globalThis` via polyfillHint).
+// scope+adapter optional. shadow check (`function f(globalThis) {}`) bails unless polyfillHint
+// is set. `path` anchors TS-runtime shadow detection (`enum globalThis {}`).
+// const aliases (`const g = globalThis`) pass through via init-peel
+export function proxyGlobalRootName({ node, scope, adapter, path, seen, binding = null, usageNode = null, readNode = null }) {
+  if (node?.type !== 'Identifier') return null;
+  // the identifier being classified IS the read: anchor the order proofs (the trusted write's span
+  // gate, the reaching-definition cut) at its own span when the caller brought no anchor. the PATH
+  // node the gates otherwise fall back to is the consumer above the read, whose span STARTS before
+  // a write inside it - a same-sequence read (`(g = globalThis, v = g.self)?.X`) then resolved only
+  // when an EARLIER statement happened to write the alias, so two identical sources in one file
+  // rendered differently. a rebuilt node carries no span and keeps declining, as the gates intend
+  if (readNode === null && typeof node.start === 'number') readNode = node;
+  // a ctx with no binding lookup answers by NAME, like the one with no adapter at all: the alias
+  // arms below all read the binding, and a caller that cannot supply one (the unit harnesses, a
+  // node-only predicate call) asks the same question the name alone can answer
+  if (!scope || !adapter?.getBinding) return asProxyGlobalName(node.name);
+  // the default parameter already normalizes an absent argument to `null`, so this is exactly
+  // "the caller brought no binding" - the one case that has to consult the adapter
+  if (binding === null) {
+    // `undefined` (never `null`) marks the re-entrant lookup the guard refused - a resolved-but-absent
+    // binding is `null` and must keep flowing into the binding-less arms below
+    binding = withBindingLookupGuard(scope, node.name, () => adapter.getBinding(scope, node.name, path) ?? null);
+    if (binding === undefined) return asProxyGlobalName(node.name);
+  }
+  // hint side-channel runs FIRST and independently of scope binding presence: post-rewrite
+  // aliases like `_globalThis` are tracked by the injector's global-alias map but may have
+  // no entry in babel's scope chain, so the init-follow path never observes them
+  const hint = bindingPolyfillHint({ binding, scope, name: node.name, adapter });
+  // a mutated proxy SLOT (`window = fake`) is the user's replacement, not the global surface -
+  // neither the direct name nor a hint/alias resolving to it recognises as a proxy root (what
+  // an alias holds depends on capture order, which no span model covers). an assignment-form
+  // hint additionally needs its write to END before the read anchor - an alias hop captured
+  // pre-write holds undefined, and a hint narrow there would un-throw the native failure
+  if (hint) {
+    // `readNode` carries an alias hop's declarator NODE (babel bindings surface no path for it)
+    if (!assignmentAliasHintSoundAtRead({ binding, adapter, readNode: readNode ?? (usageNode ?? path)?.node ?? null })) return null;
+    return isPristineProxyGlobal(adapter, hint) ? hint : null;
+  }
+  // cycle guard keyed by the binding's DECLARATION node: a const-alias cycle (`const a = b; const
+  // b = a`) or a self-referential init (`var Map = Map`) would otherwise recurse forever through
+  // the value canon below. keying by `binding` directly fails for the detect-usage adapter,
+  // which returns a FRESH binding wrapper object per `getBinding` call - identity never matches; the
+  // declaration node is stable across calls. virtual (hint) bindings never reach here (handled above).
+  // this is the guard for the route that CARRIES `seen`; the adapter hop above guards the route that
+  // cannot, and both answer with `proxyRootNameOnly` so a cycle classifies the same on either route
+  // an IMPORT of a global-proxy entry binds the global object exactly like `const g = globalThis`.
+  // the read-side name resolver follows it; without the same step here a WRITE through that binding
+  // (`g.Object.create = shim`) never reaches the proxy-root check, so the slot stays untainted and
+  // the ponyfill is substituted over the user's patch
+  const imported = binding && importedGlobalProxyName(binding, adapter.packages, adapter);
+  if (imported) return isPristineProxyGlobal(adapter, imported) ? imported : null;
+  // estree-toolkit registers no binding for TSImportEquals - the dedicated adapter lookup
+  // surfaces the declaration node instead, mirroring the name-resolution canon's fallback
+  if (!binding && adapter.getTSImportEqualsNode) {
+    const tsImportNode = adapter.getTSImportEqualsNode(scope, node.name, path);
+    const viaTsImport = tsImportNode && tsImportEqualsProxyName(tsImportNode, adapter, adapter.packages);
+    if (viaTsImport) return isPristineProxyGlobal(adapter, viaTsImport) ? viaTsImport : null;
+  }
+  // what a local binding HOLDS is the value canon's question, and the proxy surface is the only
+  // narrow this adds. the copy that used to answer it here walked the init itself and bottomed out
+  // on two terminals (a bare Identifier, a proxy member chain), so five init spellings the canon
+  // resolves - an inline CALL, a `require` entry, a CJS interop `.default`, a chain-assign store,
+  // a top-level-`this` member - read as "no proxy" HERE while the read-side resolver called the
+  // same binding the realm: the global read then substituted a pure ctor binding under a static
+  // the static channel had declined, and no `*/constructor` entry carries statics
+  if (binding) {
+    // the NAME guard alongside the binding-node one: the canon's own walk keys its cycle set by
+    // name, and this route enters it below its owner (`resolveBindingToGlobal`) - the binding is
+    // already in hand, and looking it up a second time re-enters the adapters' alias pre-pass
+    // outside the in-flight guard above, which is an unbounded recursion, not a cycle
+    if (seen?.has(binding.node ?? binding) || seen?.has(node.name)) return asProxyGlobalName(node.name);
+    const nextSeen = new Set(seen).add(node.name);
+    const held = resolveVariableBindingToGlobal({ name: node.name, binding, scope, adapter, seen: nextSeen, path, usageNode, readNode });
+    if (held) return isPristineProxyGlobal(adapter, held) ? held : null;
+    // the REALM narrow the value canon cannot make: the proxy globals are ONE object, so a
+    // reassignment the canon bails on still leaves the binding naming that surface when the value
+    // it reaches is itself a proxy global (`let A = globalThis; A = self; A.Array.from` collapses).
+    // for an ordinary alias the reaching value IS a different object - which is why the canon bails,
+    // and why this narrow lives with the proxy question instead of inside it
+    const reaching = isReassignedBeyondDeclarator(binding)
+      && reachingReassignmentValueNode({ binding, usagePath: usageNode ?? path, usageNode: readNode });
+    const reached = reaching && resolveAliasValueNode({
+      value: reaching, name: node.name, binding, scope, adapter, seen: nextSeen, path,
+    });
+    return isPristineProxyGlobal(adapter, reached) ? reached : null;
+  }
+  if (adapter.hasBinding?.(scope, node.name, path)) return null;
+  return isPristineProxyGlobal(adapter, node.name) ? node.name : null;
+}
+
+// boolean view for the call sites that only ask "is it a proxy root", not "which one"
+export function isProxyGlobalIdentifierNode(args) {
+  return proxyGlobalRootName(args) !== null;
+}
+
+// `globalThis.X` / `globalThis?.X` / `globalThis['X']` / `globalThis[(e++, 'X')]` / `globalThis.self.X`
+// -> 'X', else null. `staticMemberKeyName` folds a side-effecting computed key to its static tail so a
+// SE-bearing hop / leaf resolves the same as its plain form (the emitter replays / collapse-guards the SE).
+// walks intermediate proxy-global links so deeper chains resolve to the leaf key; peels a
+// zero-arg IIFE-return at each hop so `(()=>globalThis)().Array` resolves like `globalThis.Array`.
+// empty-string key returns null - no real global has empty name; keeps callers' `!== null` sound
+export function globalProxyMemberName({ node, scope, adapter, path, seen }) {
+  node = unwrapRuntimeExpr(node);
+  if (node?.type !== 'MemberExpression' && node?.type !== 'OptionalMemberExpression') return null;
+  let object = peelProxyGlobalObject(node.object);
+  while (object?.type === 'MemberExpression' || object?.type === 'OptionalMemberExpression') {
+    const linkName = staticMemberKeyName(object);
+    // a mutated hop slot holds the user's replacement - the chain no longer re-enters the
+    // global-object surface, so it must not resolve to the leaf global
+    if (!linkName || !POSSIBLE_GLOBAL_OBJECTS.has(linkName)
+      || isMutatedGlobalSlot(adapter, linkName)) return null;
+    object = peelProxyGlobalObject(object.object);
+  }
+  if (!isProxyGlobalIdentifierNode({ node: object, scope, adapter, path, seen })) return null;
+  // a mutated proxy ROOT (`window = fake; window.Promise`) reads through the user's
+  // replacement, same as a mutated intermediate hop - the chain must not resolve. aliases
+  // decline through the recognizers' own gates (capture order decides what an alias holds,
+  // which no span model covers)
+  if (object?.type === 'Identifier'
+    && isMutatedGlobalSlot(adapter, object.name)) return null;
+  const leaf = staticMemberKeyName(node) || null;
+  // a SLOT-mutated leaf (`globalThis.Map = Shim`) holds the user's replacement - the chain
+  // does not name the pristine global, so every READ consumer (pure-ctor swaps, deopts,
+  // typing) must fall back to its raw / generic path
+  return isMutatedGlobalSlot(adapter, leaf) ? null : leaf;
+}
+
+// the global a name stands for when NO scope binding backs it. a plugin-MINTED alias carries the
+// original through the injector's hint hook - `_globalThis` has no scope entry of its own after the
+// in-place rewrite, and reading the raw spelling called it no global at all - otherwise the spelling
+// itself must pass the direct read's admission (capitalised, or a known proxy). a mutated proxy SLOT
+// is the user's replacement whichever route reached the name
+function bindingLessGlobalName(name, { scope, adapter }) {
+  // only a PROXY hint is taken: the same hook also carries a `*/constructor` stub, whose hint is the
+  // constructor NAME (`_Map` hints `Map`) - and that binding serves no statics, so reading it as the
+  // global puts a static read back on the entry that cannot answer it
+  const held = asProxyGlobalName(bindingPolyfillHint({ binding: null, scope, name, adapter })) ?? name;
+  // a proxy name whose SLOT the file overwrote is the user's replacement - that pair is the pristine
+  // predicate's own question, asked here rather than re-spelled
+  if (asProxyGlobalName(held) && !isPristineProxyGlobal(adapter, held)) return null;
+  return isStaticPlacement(held) ? held : null;
+}
+
 // `path` (optional) - an AST path inside the lookup site so the adapter can anchor TS-runtime
 // shadow detection at a deeper scope than `scope.path`. estree-toolkit's scope tracker doesn't
 // register StaticBlock as its own scope owner, so a member visit `Map.Foo` inside
@@ -1118,7 +1293,11 @@ function resolveGuardedBindingToGlobal({ name, scope, adapter, seen, path, usage
   // plugin-managed pure-import mutation (`globalThis` -> `_globalThis` / `Symbol` -> `_Symbol`)
   // leaves a real import binding; adapter's `polyfillHint` carries the source global name so
   // downstream proxy-global / constructor recognition survives the rewrite
-  let hint = binding?.polyfillHint;
+  // the hint through its canonical JOINER: it lives in two spellings that are one channel - on the
+  // binding record where a scope tracker owns it, and behind the adapter hook where an
+  // injector-managed alias has no scope entry at all. reading the record alone left the type
+  // resolver's adapter (which only implements the hook) blind to every minted alias
+  let hint = bindingPolyfillHint({ binding, scope, name, adapter });
   // a PRE-EXISTING pure default import (a pass over an emitter's own output): the census
   // prepasses run before any injector registry exists, so the hint derives from the import
   // source itself - `_Iterator` bound by '.../actual/iterator/constructor' reads as Iterator
@@ -1193,6 +1372,10 @@ function reachingValueOverDeadInit({ binding, adapter, path, scope, usageNode = 
 }
 
 function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, path, usageNode = null, readNode = null }) {
+  // the declarator through the canonical view: the proxy-root recogniser hands this the raw babel
+  // scope Binding of the type-resolution adapter, whose `.node` is not the declarator
+  const declarator = bindingDeclaratorNode(binding);
+  if (!declarator) return null;
   // a real reassignment (a constantViolation beyond a loop-reinit declarator-self) makes the alias
   // flow-dependent. usage-pure bails on ANY reassignment (its receiver-dropping rewrite is unsound);
   // usage-global bails ONLY when a reassignment DOMINATES the use (init provably dead) - a
@@ -1206,7 +1389,7 @@ function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, p
   // declarator-init branches below. runs BEFORE the reassignment bail: the sole trusted write IS the
   // value source, not a flow hazard. works pre-registration too (a closure body visited before the
   // write's statement still resolves, matching the decl canon's static pattern walk)
-  if (!binding.node?.init && binding.node?.id?.type === 'Identifier' && adapter.findTrustedAliasWrite) {
+  if (!declarator.init && declarator.id?.type === 'Identifier' && adapter.findTrustedAliasWrite) {
     // strict (placement-checked) write serves the POSITIONAL destructure arms. pure only +
     // the READ must sit textually AFTER the write: a hoisted-var read, an earlier-defined
     // closure body, or an alias hop CAPTURED before the write (`const S = T; ({ Map: T } =
@@ -1251,7 +1434,7 @@ function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, p
   // native undefined-access on the skipped-branch path. global / entry modes keep the call site
   // (side-effect import only) and stay sound regardless, so the gate is pure-only
   if (adapter.method === 'usage-pure'
-    && !varInitDominatesUsage({ declaratorNode: binding.node, usagePath: path, usageNode, kind: binding.kind })) return null;
+    && !varInitDominatesUsage({ declaratorNode: declarator, usagePath: path, usageNode, kind: binding.kind })) return null;
   // dead-init across a closure: resolve the reaching value as the receiver instead of the dead init
   // (`let M = Object; M = Array; () => M.assign()` resolves to Array, not the unreachable Object).
   // the write's RHS was spelled where the binding lives, not at the use - resolve it in the
@@ -1260,8 +1443,8 @@ function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, p
   if (reaching) return resolveObjectName({
     objectNode: reaching, scope: aliasDeclScope(binding, scope), adapter, seen: new Set(seen).add(name), path, usageNode: reaching,
   });
-  const { init } = binding.node;
-  const pattern = binding.node.id;
+  const { init } = declarator;
+  const pattern = declarator.id;
   // the init/destructure RHS was written in the alias's OWN declaration scope, so its proxy-global
   // receiver resolves there, not at the use site - an inner shadow of the receiver name must not
   // capture it (mirror of the identifier-hop rule in `resolveAliasValueNode`; passing raw `scope`
@@ -1353,8 +1536,7 @@ function resolveAliasValueNode({ value, name, binding, scope, adapter, seen, pat
     // (`resolveObjectName`: capitalised or a known proxy) - without it an alias of any free
     // lowercase name reported a "global" receiver the direct read would never claim
     if (unwrapped.name === name || !adapter.hasBinding(initScope, unwrapped.name, path)) {
-      if (POSSIBLE_GLOBAL_OBJECTS.has(unwrapped.name) && isMutatedGlobalSlot(adapter, unwrapped.name)) return null;
-      return isStaticPlacement(unwrapped.name) ? unwrapped.name : null;
+      return bindingLessGlobalName(unwrapped.name, { scope: initScope, adapter });
     }
     return resolveBindingToGlobal({ name: unwrapped.name, scope: initScope, adapter, seen, path, usageNode: unwrapped });
   }
@@ -1586,8 +1768,7 @@ export function resolveObjectName({ objectNode, scope, adapter, seen, path, usag
     // a mutated proxy SLOT (`globalThis.self = fake`) is the user's replacement, not the
     // global - the bare name no longer roots a global surface (the recognizer and the
     // member-tail hop already decline it; this is the binding-less name's own spelling)
-    if (POSSIBLE_GLOBAL_OBJECTS.has(objectNode.name) && isMutatedGlobalSlot(adapter, objectNode.name)) return null;
-    return isStaticPlacement(objectNode.name) ? objectNode.name : null;
+    return bindingLessGlobalName(objectNode.name, { scope, adapter });
   }
   // call expression: inline the function-like callee's body return when it bottoms out on
   // a resolvable receiver. covers IIFE (`(() => Map)()`), function-expression IIFE, and

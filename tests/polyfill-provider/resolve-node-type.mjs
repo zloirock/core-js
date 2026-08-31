@@ -146,15 +146,17 @@ import {
   createClassHelpers,
   isSymbolDestructureAliasBinding,
   registerAliasPrePassSite,
-  globalProxyMemberName,
   isClassifiableReceiverArg,
   isExpandedClassifiableReceiver,
   markSynthReceiverSkipped,
-  proxyGlobalRootName,
   remapInheritedStaticMeta,
   resolveSuperImportName,
-  symbolKeyToEntry,
 } from '../../packages/core-js-polyfill-provider/helpers/class-walk.js';
+import {
+  globalProxyMemberName,
+  proxyGlobalRootName,
+} from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
+import { symbolKeyToEntry } from '../../packages/core-js-polyfill-provider/detect-usage/globals.js';
 
 const { check, checkDeep, checkTruthy, fail, finish, pass, runBoth, runBothAndAgree } = createChecker('resolve-node-type');
 
@@ -7013,24 +7015,24 @@ runBoth('the subclass own namespace export outranks the parent one',
     isExpandedClassifiableReceiver({ node: userBound }), false);
 
   // symbolKeyToEntry: Symbol.X -> symbol/<kebab>
-  check('class-walk: symbolKeyToEntry hasInstance',
+  check('globals: symbolKeyToEntry hasInstance',
     symbolKeyToEntry('Symbol.hasInstance'), 'symbol/has-instance');
-  check('class-walk: symbolKeyToEntry iterator',
+  check('globals: symbolKeyToEntry iterator',
     symbolKeyToEntry('Symbol.iterator'), 'symbol/iterator');
-  check('class-walk: symbolKeyToEntry asyncIterator',
+  check('globals: symbolKeyToEntry asyncIterator',
     symbolKeyToEntry('Symbol.asyncIterator'), 'symbol/async-iterator');
-  check('class-walk: symbolKeyToEntry toPrimitive',
+  check('globals: symbolKeyToEntry toPrimitive',
     symbolKeyToEntry('Symbol.toPrimitive'), 'symbol/to-primitive');
   // not a Symbol.X key -> null
-  check('class-walk: symbolKeyToEntry plain key',
+  check('globals: symbolKeyToEntry plain key',
     symbolKeyToEntry('Array.from'), null);
   // empty suffix -> null (Symbol. with nothing after)
-  check('class-walk: symbolKeyToEntry empty suffix',
+  check('globals: symbolKeyToEntry empty suffix',
     symbolKeyToEntry('Symbol.'), null);
   // uppercase first letter -> null (well-known symbols are lowercase)
-  check('class-walk: symbolKeyToEntry uppercase first',
+  check('globals: symbolKeyToEntry uppercase first',
     symbolKeyToEntry('Symbol.X'), null);
-  check('class-walk: symbolKeyToEntry null', symbolKeyToEntry(null), null);
+  check('globals: symbolKeyToEntry null', symbolKeyToEntry(null), null);
 
   // markSynthReceiverSkipped: walk down `.object` chain of proxy-global member chain
   const skipped = new Set();

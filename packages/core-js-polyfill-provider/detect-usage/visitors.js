@@ -4,7 +4,7 @@
 // handlers here, so the emission decisions stay single-sourced. spans several sibling modules'
 // domains (members, destructure, globals, annotations) on purpose: homing it in any one of them
 // would add a cross-import between siblings, and the emitters are its only consumers
-import { checkTypeAnnotations, typeOnlyImportShadows, walkTypeAnnotationGlobals } from './annotations.js';
+import { annotationNameIsGlobal, checkTypeAnnotations, walkTypeAnnotationGlobals } from './annotations.js';
 import { collectDestructureUnionCandidates, prepareDestructureUnion } from './destructure.js';
 import { isKnownGlobalName } from './globals.js';
 import { handleBinaryIn, handleMemberExpressionNode, tagSymbolSourcedMeta } from './members.js';
@@ -132,19 +132,17 @@ export function createUsageHandlerCore({
   // declarations (`enum Map`, `namespace Map`) DO shadow (resolved via path ancestor walk)
   function annotationGlobal(path) {
     return (name, hostType) => {
-      if (adapter.hasBinding(path.scope, name, path)) return;
-      // a TYPE position asks a different question than a value one, and `hasBinding` answers the
-      // value one: it deliberately drops a type-only import because tsc elides it, so a VALUE of
-      // that name really is the global. the same import is precisely what shadows the global as a
-      // TYPE - `import type { Set } from 'immutable'` makes `x: Set<number>` name immutable's Set,
-      // and pulling es.set.* in for it polyfills a global the annotation never named
-      if (typeOnlyImportShadows({ adapter, scope: path.scope, name, path, hostType })) return;
-      onUsage({ kind: 'global', name }, path);
+      if (annotationNameIsGlobal({ ...annotationCtx(path), name, hostType })) onUsage({ kind: 'global', name }, path);
     };
   }
 
+  // what the walk resolves a qualified chain's ROOT against, and what the sink filters each name by
+  function annotationCtx(path) {
+    return { scope: path.scope, adapter, path };
+  }
+
   function checkTypeAnnotation(path) {
-    checkTypeAnnotations(path.node, annotationGlobal(path));
+    checkTypeAnnotations(path.node, annotationGlobal(path), annotationCtx(path));
   }
 
   // the annotation hosts both parsers spell identically; the dialect-specific host lists
@@ -152,12 +150,12 @@ export function createUsageHandlerCore({
   const annotationDeclVisitors = {
     VariableDeclarator(path) {
       if (path.node.id?.typeAnnotation) {
-        walkTypeAnnotationGlobals(path.node.id.typeAnnotation, annotationGlobal(path));
+        walkTypeAnnotationGlobals(path.node.id.typeAnnotation, annotationGlobal(path), annotationCtx(path));
       }
     },
     CatchClause(path) {
       if (path.node.param?.typeAnnotation) {
-        walkTypeAnnotationGlobals(path.node.param.typeAnnotation, annotationGlobal(path));
+        walkTypeAnnotationGlobals(path.node.param.typeAnnotation, annotationGlobal(path), annotationCtx(path));
       }
     },
   };
@@ -176,6 +174,7 @@ export function createUsageHandlerCore({
     emitBinaryInUsage,
     emitDestructurePropUsage,
     annotationGlobal,
+    annotationCtx,
     checkTypeAnnotation,
     annotationDeclVisitors,
     isHandled: node => handledObjects.has(node),

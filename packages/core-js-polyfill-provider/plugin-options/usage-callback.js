@@ -11,7 +11,7 @@ import {
   peelParenAndTSParentPath, staticMemberKeyName, unwrapRuntimeExpr,
   POSSIBLE_GLOBAL_OBJECTS,
 } from '../helpers/ast-patterns.js';
-import { symbolKeyToEntry } from '../helpers/class-walk.js';
+import { symbolKeyToEntry } from '../detect-usage/globals.js';
 import { hasOwnStaticDefinition } from '../index.js';
 
 // bail when the usage is syntactically present but carries no runtime read - polyfilling

@@ -33,7 +33,9 @@ import {
   unwrapParens,
   unwrapRuntimeExpr,
 } from '../helpers/ast-patterns.js';
-import { globalProxyMemberName } from '../helpers/class-walk.js';
+import {
+  globalProxyMemberName,
+} from '../detect-usage/resolve.js';
 import { guardFromHint, instanceofGuard, isTypeofVar, typeofGuard, typeofVarName } from './guard-shapes.js';
 
 const EMPTY_ENTRIES = [];
