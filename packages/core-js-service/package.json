@@ -35,7 +35,16 @@
     "./index.js": {
       "types": "./index.d.ts",
       "default": "./index.js"
-    }
+    },
+    "./express": {
+      "types": "./express.d.ts",
+      "default": "./express.js"
+    },
+    "./express.js": {
+      "types": "./express.d.ts",
+      "default": "./express.js"
+    },
+    "./config.js": "./config.js"
   },
   "types": "index.d.ts",
   "dependencies": {
