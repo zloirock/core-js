@@ -53,9 +53,9 @@ function flattenSequences(node) {
 // the outputs are compared as programs, not as text: both are re-parsed on the DEFAULT dialect,
 // which drops source parens, so a paren that only survived the round trip is not a divergence -
 // a dropped effect, a surviving hop or a different guard is
-function structure(code) {
+function structure(code, parserPlugins = []) {
   // eslint-disable-next-line node/no-sync -- the checker is synchronous, and so is the compare it feeds
-  const { program } = parseSync(code, { configFile: false, babelrc: false });
+  const { program } = parseSync(code, { configFile: false, babelrc: false, parserOpts: { plugins: parserPlugins } });
   return JSON.stringify(flattenSequences(program));
 }
 
@@ -90,23 +90,36 @@ const CASES = [
     'let c = 0;\nlet v;\nexport const { trunc: r } = (v = (c++, globalThis.window?.self)).Math;'],
   ['paren layer over the nav', 'export const r = (globalThis.window?.self).Array.of(1);'],
   ['chain assign below the hops', 'let v;\nexport const r = (v = globalThis).window.self.Array.from([1]);'],
+  ['sealed tagged tag over the guarded nav', 'export const r = (globalThis.window?.self.someTag)`x`;'],
+  ['sealed callee over the guarded nav', 'export const r = (globalThis.window?.self.userFn)();'],
+  ['sealed callee, plain tail steps above the leaf', 'export const r = (globalThis.window?.self.aaa.bbb)();'],
+  ['whole-sealed probe chain under delete', 'export const r = delete (globalThis.window?.self?.window.zzz);'],
+  ['member off a sealed probe nav under delete', 'export const r = delete (globalThis.window?.self?.window).zzz;'],
+  ['member off a sealed probe nav with a tail, under delete', 'export const r = delete (globalThis.window?.self?.window.aaa).zzz;'],
+  ['call-rooted sealed chain under delete, unresolvable mid-hop',
+    'const dh = () => globalThis;\nexport const r = delete (dh().window?.window?.self.zzz);'],
+  // TS rows: the seal may be spelled through a wrapper stack, and a tag the plugin never touches
+  // still owes the reprint its parens - the output must stay parseable on top of equivalent
+  ['sealed tagged tag under a non-null wrapper', 'export const r = (globalThis.window?.self.someTag!)`x`;', ['typescript']],
+  ['untouched optional-chain tag under a non-null wrapper, reprint only',
+    'const q = [1].at(0);\nexport const r = (a?.b.tag!)`x`;', ['typescript']],
 ];
 
 for (const method of ['usage-pure', 'usage-global']) {
-  function config(parserOpts) {
+  function config(parserOpts, parserPlugins) {
     return {
       configFile: false,
       babelrc: false,
-      parserOpts,
+      parserOpts: { plugins: parserPlugins, ...parserOpts },
       plugins: [[babelPlugin, { method, version: '4.0', targets: { ie: 11 } }]],
-      filename: 'input.mjs',
+      filename: parserPlugins.length ? 'input.ts' : 'input.mjs',
     };
   }
 
-  for (const [label, source] of CASES) {
-    const flag = (await transformAsync(source, config({}))).code;
-    const node = (await transformAsync(source, config({ createParenthesizedExpressions: true }))).code;
-    check(`${ method }: one program, both paren dialects: ${ label }`, structure(node), structure(flag));
+  for (const [label, source, parserPlugins = []] of CASES) {
+    const flag = (await transformAsync(source, config({}, parserPlugins))).code;
+    const node = (await transformAsync(source, config({ createParenthesizedExpressions: true }, parserPlugins))).code;
+    check(`${ method }: one program, both paren dialects: ${ label }`, structure(node, parserPlugins), structure(flag, parserPlugins));
     check(`${ method }: same import set in both dialects: ${ label }`, imports(node), imports(flag));
   }
 }

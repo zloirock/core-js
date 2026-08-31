@@ -60,11 +60,12 @@ function makeSiblingPlanting(where, observed) {
   });
 }
 
-async function plant(where, source) {
+async function plant(where, source, parserPlugins = []) {
   const observed = {};
   const { code } = await transformAsync(source, {
     configFile: false,
     babelrc: false,
+    parserOpts: { plugins: parserPlugins },
     plugins: [
       ['@core-js', { method: 'usage-global', version: '4.0', targets: { ie: 11 } }],
       makeSiblingPlanting(where, observed),
@@ -104,6 +105,15 @@ async function plant(where, source) {
 {
   const { compensated } = await plant('in-existing-statement', 'var a = [1, 2].flat();\nvar b = String.raw`x`;');
   checkTruthy('a plain template tag does not owe parens, so the walk stays gated', !compensated);
+}
+
+// ... and the owing tag may sit under a TS wrapper the reprint keeps: the counter asks the
+// restoration's own predicate through it, or the wrapped spelling leaves the walk gated while the
+// tag prints bare - which does not parse at all
+{
+  const { compensated } = await plant('in-existing-statement',
+    'var a = [1, 2].flat();\nvar b = (o?.f!)`x`;', ['typescript']);
+  checkTruthy('a TS-wrapped optional-chain tag still owes parens, so the walk runs full', compensated);
 }
 
 // What the late pass DOES with what it reaches. The fold half runs early, ahead of the lowerings
