@@ -71,39 +71,40 @@ import {
   aliasDeclScope,
   identifierDeclaratorInit,
   patternBoundAliasSlotInit,
-} from '../helpers/ast-patterns.js';
-import {
   assignmentAliasHintSoundAtRead,
   bindingPolyfillHint,
-  findNamespaceMemberValue,
-  globalProxyMemberName,
-  isUsableFallbackReceiverArg,
   peelProxyGlobalObject,
-  proxyGlobalRootName,
+  createInstanceNodeCache,
+} from '../helpers/ast-patterns.js';
+import {
+  findNamespaceMemberValue,
+  isUsableFallbackReceiverArg,
 } from '../helpers/class-walk.js';
-import { identifier, memberFromKeyName, objectExpression, synthProperty } from '../render.js';
-import { entryToGlobalHint, resolve as resolveBuiltIn } from '../index.js';
-import { staticReceiverHint } from './globals.js';
 import {
   CAPITALISED_IDENT,
-  peelReceiverSequenceTail,
+  chainSealsAShortCircuit,
+  computedKeyWellKnownSymbolName,
   discardRescueNodes,
+  globalProxyMemberName,
   inlineCallReturnExpression,
   isCallShape,
   isStaticPlacement,
-  chainSealsAShortCircuit,
   isUndefinedNode,
   peelChainAssignmentDeep,
+  peelReceiverSequenceTail,
+  proxyGlobalRootName,
   proxyReceiverValueCanBeUndefined,
-  computedKeyWellKnownSymbolName,
-  resolveKey as sharedResolveKey,
-  resolveSynthKeys,
   reachableAliasValues,
+  resolveKey as sharedResolveKey,
   resolveObjectName,
+  resolveSynthKeys,
   seBearingChainRootCall,
   symbolSourcedFoldedKey,
   unwrapTransparentSeq,
 } from './resolve.js';
+import { identifier, memberFromKeyName, objectExpression, synthProperty } from '../render.js';
+import { entryToGlobalHint, resolve as resolveBuiltIn } from '../index.js';
+import { staticReceiverHint } from './globals.js';
 
 // build meta for a destructuring property given its resolved init node + key.
 // `receiverHint` lets resolveHint reject `const { includes } = Array` (instance method
@@ -3644,7 +3645,7 @@ export function applyNestedParamSynthPlan({ plan, renderTree, replaceTarget, ski
 // on `_globalThis` and the leaf walk bails), then a later visit on the same outerProp
 // resolves correctly; caching the null would lock in the bail. positive resolutions are
 // stable - once the chain bottoms out on a real global, AST mutations don't reverse it
-const nestedReceiverCache = new WeakMap();
+const nestedReceiverCache = createInstanceNodeCache();
 
 // the outer chain declined, but an inner DEFAULT carries a receiver of its own:
 // `{ inner: { from } = Array }` reads `Array.from` exactly when the outer slot is undefined, which
@@ -3668,12 +3669,12 @@ function innerDefaultReceiverName(outerProp, adapter) {
 export function resolveNestedDestructureReceiver(outerProp, adapter, unionSink = null) {
   // the cache entry carries the container-slot union beside the name, so a cache hit replays
   // the alternatives into the caller's sink instead of silently dropping them
-  const cached = nestedReceiverCache.get(outerProp.node);
+  const cached = nestedReceiverCache.get(adapter, outerProp.node);
   const union = cached ? cached.union : [];
   const result = cached ? cached.name
     : computeNestedDestructureReceiver(outerProp, adapter, union) ?? innerDefaultReceiverName(outerProp, adapter);
   if (unionSink) for (const name of union) if (!unionSink.includes(name)) unionSink.push(name);
-  if (!cached && result) nestedReceiverCache.set(outerProp.node, { name: result, union });
+  if (!cached && result) nestedReceiverCache.set(adapter, outerProp.node, { name: result, union });
   return result;
 }
 

@@ -28,10 +28,10 @@ import {
   receiverCarriesLiveOptional,
   unwrapRuntimeExpr,
   subtreeContainsNode,
+  bindingPolyfillHint,
+  isAliasProxyRoot,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
-  isAliasProxyRoot,
-  bindingPolyfillHint,
   remapInheritedStaticMeta,
   staticMemberKeyName,
 } from '@core-js/polyfill-provider/helpers/class-walk';
@@ -316,9 +316,7 @@ export default function createOptionalDispatchChannel(ctx) {
     // `_Array$from(x)`; the result's own `?.` still guards above)
     if (!callee.computed && callee.property?.type === 'Identifier') {
       const dCalleeObject = unwrapRuntimeExpr(callee.object);
-      const dObjName = dCalleeObject?.type === 'Identifier' && !adapter.getBinding?.(metaPath.scope, dCalleeObject.name)
-        ? dCalleeObject.name
-        : resolveObjectName({ objectNode: callee.object, scope: metaPath.scope, adapter, path: metaPath });
+      const dObjName = resolveObjectName({ objectNode: callee.object, scope: metaPath.scope, adapter, path: metaPath });
       if (dObjName && !proxyReceiverValueCanBeUndefined(dCalleeObject, m => resolvePure(m, metaPath),
         { scope: metaPath.scope, adapter, path: metaPath }, { throughChainAssign: true })) {
         const dClaim = resolvePure(
@@ -418,9 +416,13 @@ export default function createOptionalDispatchChannel(ctx) {
     // the `?.()` erases with it and babel keeps NO guard (`Array.from?.([1]).at(-1)` ->
     // `_atMaybeArray(_ref = _Array$from([1])).call(_ref, -1)`) - stand down, the memo
     // clone's descent claim owns the call
-    const calleeObjectName = calleeObject?.type === 'Identifier'
-      ? (adapter.getBinding?.(metaPath.scope, calleeObject.name) ? null : calleeObject.name)
-      : resolveObjectName({ objectNode: calleeObject, scope: metaPath.scope, adapter, path: metaPath });
+    // the receiver name comes from the canon, never from the raw spelling: a bound ALIAS of a
+    // global (`const A = Array; A.from?.([1]).at(-1)`) is the same always-defined static as the
+    // direct form, and reading "bound means not a global" kept a guard here that babel's own
+    // skip-check erased
+    const calleeObjectName = resolveObjectName({
+      objectNode: calleeObject, scope: metaPath.scope, adapter, path: metaPath,
+    });
     if (calleeObjectName) {
       // a SEQ-prefixed key folds to its literal tail - the claim's own render carries
       // the effects (`?.[(c++, 'from')]` stands down like `.from`)

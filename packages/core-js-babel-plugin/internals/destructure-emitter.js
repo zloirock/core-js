@@ -58,6 +58,7 @@ import {
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   unwrapRuntimeExpr,
   statementListOf,
+  peelProxyGlobalObject,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   synthPropDedupKey,
@@ -109,13 +110,22 @@ import {
   SYMBOL_ITERATOR_PURE_RESULT,
 } from '@core-js/polyfill-provider/detect-usage/members';
 import {
-  maximalProxyGlobalHop, patternBindingName, probedDestructureInitValue, resolveSynthKeys,
+  maximalProxyGlobalHop,
+  patternBindingName,
+  probedDestructureInitValue,
+  resolveSynthKeys,
   anchoredResidualSymbolKeyName,
+  globalProxyMemberName,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
-  globalProxyMemberName, maybeRegisterAssignmentAliasWrite, peelProxyGlobalObject,
-  registerBindinglessCtorAlias, registerCtorAliasExtractions, registerDeclAliasIfSound, symbolKeyToEntry,
+  maybeRegisterAssignmentAliasWrite,
+  registerBindinglessCtorAlias,
+  registerCtorAliasExtractions,
+  registerDeclAliasIfSound,
 } from '@core-js/polyfill-provider/helpers/class-walk';
+import {
+  symbolKeyToEntry,
+} from '@core-js/polyfill-provider/detect-usage/globals';
 import {
   classifyVariableDeclarationHost, isBodylessStatementSlot, isForInitDeclaration,
 } from '@core-js/polyfill-provider/destructure-host-shape';
