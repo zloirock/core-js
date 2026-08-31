@@ -36,6 +36,8 @@ interface Options {
   /** how many generations of bundles stay on disk beside the one being served, `1` by default.
    *  `0` keeps only the generation being served, `null` keeps every generation forever */
   retain?: number | null;
+  /** where the bundles are mounted, `'/__core-js'` by default */
+  route?: string;
   /** store a brotli encoding beside gzip, `false` by default: it costs several times the build
    *  itself for a modest win over gzip */
   brotli?: boolean;
@@ -52,6 +54,7 @@ interface Configuration {
   directory: string | null;
   retain: number | null;
   brotli: boolean;
+  route: string;
   versions: { coreJS: string, compat: string };
 }
 
@@ -90,6 +93,15 @@ interface Service {
   plan: Plan;
   bundles: Bundles;
   warn: Warn;
+  /** the address a bundle is served under */
+  urlOf(bundleId: string): string;
+  /** request headers to the name of the bundle for that visitor */
+  chooseBundle(headers: Record<string, string | string[] | undefined>): string;
+  /** the beginning of an HTML response, with the tag put where it runs before the application */
+  scriptTag(prefix: string, options: { src: string, csp?: string | null }): string;
+  /** answers one request for a bundle */
+  serve(request: { headers: Record<string, string | string[] | undefined> }, response: unknown,
+    bundleId: string): Promise<void>;
   /** starts the warm-up, idempotently. `ready` is the baseline, which requests wait for; `warmed`
    *  is the rest of the plan, which they do not - a miss goes to the baseline */
   start(): { ready: Promise<boolean>, warmed: Promise<{ built: string[], failed: string[] }> };

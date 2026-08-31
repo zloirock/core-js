@@ -45,7 +45,7 @@ const service = createService({ scope, directory: kept, warn: noop });
 ok(service.plan.buckets.length > 1, 'build-plan #5');
 ok(service.plan.baseline.modules.length >= service.plan.buckets[0].modules.length, 'build-plan #6');
 
-// what the matcher can name, the warm-up will have built. ⚠ two passes over the data could drift,
+// what the matcher can name, the warm-up will have built. two passes over the data could drift,
 // and a name the warm-up never heard of means a build on the request path
 const built = new Set([service.plan.baseline.bundleId, ...service.plan.buckets.map(it => it.bundleId)]);
 
@@ -67,6 +67,20 @@ ok(built.has(match(resolve({ 'user-agent': IE }))), 'build-plan #9');
 ok(match(resolve({ 'user-agent': CHROME })) !== match(resolve({ 'user-agent': IE })), 'build-plan #10');
 // an unrecognized visitor gets the baseline, which is what the project would have shipped anyway
 strictEqual(match(resolve({ 'user-agent': 'x' })), service.plan.baseline.bundleId, 'build-plan #11');
+
+// the address that goes into the tag, at the edge form of the route: one slash, never two
+const mounted = createService({ scope, route: '/', warn: noop });
+
+ok(/^\/[\da-f]+\.js$/.test(mounted.urlOf(mounted.plan.baseline.bundleId)), 'build-plan #17');
+ok(/^\/__core-js\/[\da-f]+\.js$/.test(service.urlOf(service.plan.baseline.bundleId)), 'build-plan #18');
+
+// two generations left by deploys that are gone, planted before anything is built
+const previous = join(kept, '0123456789abcdef');
+const older = join(kept, 'fedcba9876543210');
+
+await mkdir(previous, { recursive: true });
+await mkdir(older, { recursive: true });
+await utimes(older, new Date(Date.now() - 60_000), new Date(Date.now() - 60_000));
 
 // and the whole of it once more with the bundles actually built: the identifier a request resolves
 // to is one the warm-up has put bytes behind
@@ -90,7 +104,7 @@ ok(forIE.length > forChrome.length, 'build-plan #15');
 // starting twice is starting once: the middleware may be installed on more than one router
 strictEqual(service.start().ready, ready, 'build-plan #16');
 
-// ⚠ the generations left behind are pruned once the new one is warm, and never before it: a prune
+// the generations left behind are pruned once the new one is warm, and never before it: a prune
 // that ran first would take the only bundles anything could be served from if this build failed. one
 // stays - the page of the deploy just replaced is in a browser already
 deepStrictEqual((await readdir(kept)).toSorted(),

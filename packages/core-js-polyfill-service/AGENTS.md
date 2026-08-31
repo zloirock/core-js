@@ -98,6 +98,47 @@ The scenarios: they coordinate the domain and the infrastructure and carry no ru
   project config either becomes the declaration or nothing does; and "everything" is spelled out
   (`ignoreBrowserslistConfig: true`) wherever a module list is asked for. Left to compat, the
   BASELINE alone would pick the config up and come out narrower than the plan around it
+- **get-bundle-1** - under an identifier travel its own bytes and nothing else. ⚠ Substituting the
+  baseline while a bucket is still cold is the shortcut that must not be taken: the address is
+  served with `immutable` for a year, so that client keeps the wrong bundle for a year and the
+  warm-up finishing changes nothing for them. A cold bucket is a redirect, not a body
+- ⚠ **Unknown means the STORE does not have it**, not that the current plan does not name it. A page
+  from the deploy before this one is already in a browser and its tag is parser-blocking, so a bundle
+  the store still holds is served whoever planned it; how many deploys that survives is `retain`.
+  Both misses cost a lookup in memory and nothing else
+
+## UI
+
+Delivery: everything that knows about the protocol. Only `adapter/express` knows about a framework.
+
+- **serve-1** - the same file under the same address for a year, which is what the identifier has
+  to be worth. ⚠ The moment something fixed by a constant becomes an option and stays out of the
+  hash, one address serves the wrong file for a year, and nothing repairs it at the clients that
+  cached it
+- **serve-2** - the work done per request does not grow with what the client sent. An unknown
+  identifier is a 404 and nothing else, and the `Accept-Encoding` parser stops after a fixed number
+  of entries. ⚠ Otherwise the path is an amplifier: a cheap request against expensive work, and the
+  request is written by whoever sent it
+- ⚠ **`Accept-Encoding` is parsed, never searched.** Testing whether it contains `gzip` breaks on
+  exactly `gzip;q=0` - the case the uncompressed copy is stored for. The uncompressed form is
+  acceptable by default but ranked LAST: read as a full q=1 it would beat every coding the client
+  asked for with a q of its own
+- ⚠ **The ETag carries the encoding.** The gzip copy and the uncompressed one are different bytes
+  under one identifier, and a shared tag lets a cache hand one to a client that asked for the other
+- **script-tag-1** - the tag runs before the code that counts on it; arriving late is
+  indistinguishable from not arriving
+- **script-tag-2** - and never before the charset declaration, which is why that one is found by
+  scanning rather than by a pattern. ⚠ A browser decides the encoding of a document from its first
+  1024 bytes; a declaration pushed past that boundary stops working and the whole page is decoded
+  wrong. ⚠ For the same class of reason the tag never goes in at position 0 of a document with a
+  doctype: a doctype that is not first means quirks mode
+- **script-tag-3** - a policy that blocks the tag fails where nobody looks: modern browsers stay
+  quiet about it and the page breaks on the old ones the polyfills were for. A nonce is read from
+  the response policy; a policy of hashes alone, or `strict-dynamic` without a nonce, cannot be
+  fixed by anything we can put in the tag and is reported to the developer
+- ⚠ The last-resort anchor, the first `<script`, can be inside a comment or a string, and the tag
+  would go in there and never run. It is last for that reason - the anchors above it are the ones
+  that matter in practice
 
 ## Infrastructure
 

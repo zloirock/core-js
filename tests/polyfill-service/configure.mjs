@@ -15,7 +15,7 @@ function resolve(options) {
   return { config, warned };
 }
 
-// a misspelled option means the service runs on a default nobody asked for. ⚠ there is no way to
+// a misspelled option means the service runs on a default nobody asked for. there is no way to
 // tell "not set" from "set, spelled wrong" after the fact
 const misspelled = resolve({ scope: ['es.array.at'], targests: 'defaults' });
 
@@ -34,7 +34,7 @@ strictEqual(resolve({ scope: [] }).config.scope.length, 0, 'configure-3 #4');
 throws(() => resolve({ scope: [], exclude: 'es.array.at' }), /`exclude`/, 'configure #1');
 throws(() => resolve({ scope: [], minify: 'yes' }), /`minify`/, 'configure #2');
 
-// ⚠ `null` is "keep every generation", `0` is "keep only the one being served": both ends of the
+// `null` is "keep every generation", `0` is "keep only the one being served": both ends of the
 // range are reachable, because the difference is a directory that grows forever against a page that
 // loses its polyfills the moment it is deployed over
 strictEqual(resolve({ scope: [] }).config.retain, 1, 'configure #8');
@@ -60,7 +60,16 @@ deepStrictEqual(resolve({ scope: [], targets: { chrome: '110' }, configPath: '/a
 deepStrictEqual(resolve({ scope: [], targets: 'last 2 versions', browserslistEnv: 'production' }).config.targets,
   { browsers: 'last 2 versions', browserslistEnv: 'production', ignoreBrowserslistConfig: false }, 'configure #4');
 
-// ⚠ with no declaration the project browserslist config becomes one, and it is resolved HERE:
+// the route is pasted in front of `/<id>.js`, so trailing slashes are stripped down to the empty
+// string: a route of `'/'` would otherwise produce `//<id>.js`, a protocol-relative URL that sends
+// the browser to a HOST named after the bundle instead of to us
+strictEqual(resolve({ scope: [], route: '/' }).config.route, '', 'configure #8');
+strictEqual(resolve({ scope: [], route: '//' }).config.route, '', 'configure #9');
+strictEqual(resolve({ scope: [], route: '/a/b/' }).config.route, '/a/b', 'configure #10');
+strictEqual(resolve({ scope: [] }).config.route, '/__core-js', 'configure #11');
+throws(() => resolve({ scope: [], route: 'core-js' }), /`route`/, 'configure #12');
+
+// with no declaration the project browserslist config becomes one, and it is resolved HERE:
 // compat left to find it on its own would find it while building the baseline alone, leaving a
 // baseline narrower than the plan around it
 const directory = await mkdtemp(join(tmpdir(), 'core-js-polyfill-service-'));
