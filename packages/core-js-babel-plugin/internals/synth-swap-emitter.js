@@ -13,6 +13,7 @@
 // common ancestor remains unsupported
 import {
   staticMemberKeyName,
+  nestedSequenceValueSpelling,
   isRestProperty,
   peelTransparentWrapperPath,
   isMemberWriteHost,
@@ -61,7 +62,7 @@ import {
 import {
   proxyHopLacksPureEntry,
   descendToChainRoot, discardRescueNodes, findProxyGlobal, maximalProxyGlobalHop, maximalProxyGlobalPrefix,
-  navHasUnresolvableProxyHop, navValueCanShortCircuit, PROXY_HOP_VALUE_CARRIERS, proxyGlobalMemberCtorPure,
+  navHasUnresolvableProxyHop, navValueCanShortCircuit, ownChainOptionalObjects, PROXY_HOP_VALUE_CARRIERS, proxyGlobalMemberCtorPure,
   resolveSynthKeys,
   peelChainAssignment,
   peelReceiverSequenceTail,
@@ -390,6 +391,63 @@ export default function createSynthSwapEmitter({
     return renderCollapsePlan(plan, { carrySource });
   }
 
+  // the kept-sequence boundary refuses the whole-collapse (a `?.` reading a NESTED sequence
+  // stays live), but a backed all-proxy run in the sequence tail still owes its fold: drop
+  // the plain dotted hops onto the root pure binding in place - an ALIAS root keeps its
+  // identifier, the drive's alias rule - leaving the sequence and its `?.` alone: the
+  // kept-seq spelling of the plain fold, the unplugin leg's shape. through the PATH, so the
+  // replace requeues what survives; claim-consuming shapes never reach this - their outer
+  // claim renders first and detaches the chain
+  function foldKeptSeqHopRun(recPath, aliasCtx) {
+    if (ownChainOptionalObjects(recPath.node).every(object => !nestedSequenceValueSpelling(object))) return false;
+    // a chain still carrying a resolvable INSTANCE claim is not claim-less residue: that claim's
+    // route renders it - and MEMOIZES the sequence, whose value slot the kept-value canon then
+    // owns (an alias root folds to the leaf there, not to this fold's alias-keep). the claim
+    // sits ABOVE the member the climb stopped at, so the scan walks the member run up; a claim
+    // past a CALL needs no retreat - its own split re-renders the value slot either way
+    for (let up = recPath; up?.node;) {
+      const isMember = up.isMemberExpression?.() || up.isOptionalMemberExpression?.();
+      const key = isMember ? staticMemberKeyName(up.node) : null;
+      if (key && resolvePure({ kind: 'property', key, placement: 'prototype' })?.kind === 'instance') return false;
+      const parent = up.parentPath;
+      const cont = parent?.node
+        && (parent.isMemberExpression?.() || parent.isOptionalMemberExpression?.()) && parent.node.object === up.node;
+      if (!cont) break;
+      up = parent;
+    }
+    let runPath = recPath.get('object');
+    for (;;) {
+      const runNode = runPath.node;
+      if (runNode?.type === 'SequenceExpression' && runNode.expressions.length) {
+        runPath = runPath.get(`expressions.${ runNode.expressions.length - 1 }`);
+        continue;
+      }
+      if (runNode && unwrapRuntimeExpr(runNode) !== runNode) {
+        runPath = runPath.get('expression');
+        continue;
+      }
+      break;
+    }
+    if (!runPath.isMemberExpression()) return false;
+    // the single terminal probe reading directly off the root keeps its read - the `?.` is the
+    // environment test the source asked for; every LONGER all-proxy run folds whole under the
+    // navigation, probes included - the deep-nav canon the flat twins of this shape lock
+    if (unwrapRuntimeExpr(runPath.node.object)?.type === 'Identifier'
+      && proxyHopLacksPureEntry(staticMemberKeyName(runPath.node), resolvePure)) return false;
+    let rootNode = runPath.node;
+    while (rootNode?.type === 'MemberExpression') {
+      if (rootNode.computed || rootNode.optional || !POSSIBLE_GLOBAL_OBJECTS.has(rootNode.property?.name)) return false;
+      rootNode = rootNode.object;
+    }
+    if (rootNode?.type !== 'Identifier'
+      || maximalProxyGlobalPrefix(runPath.node, aliasCtx) !== runPath.node
+      || !findProxyGlobal(runPath.node, aliasCtx, true)) return false;
+    const runPure = resolvePure({ kind: 'global', name: rootNode.name });
+    runPath.replaceWith(runPure
+      ? injectPureImport(runPure.entry, runPure.hintName) : t.cloneNode(rootNode));
+    return true;
+  }
+
   // the global-usage rewrite reaches a proxy-global ROOT identifier (`globalThis`) that is the base
   // of a member chain carrying redundant proxy hops (`globalThis.self.Array`, where the leaf is NOT a
   // pure-substituted global). rewriting only the identifier leaves `_globalThis.self.Array`, which
@@ -397,7 +455,7 @@ export default function createSynthSwapEmitter({
   // member that consumes the maximal proxy-hop prefix and collapse it through the shared receiver
   // collapse - `_globalThis.Array`. returns true when it rewrote (the caller skips the bare swap);
   // false for a bare root (`globalThis.Array`, no hop) so the natural identifier swap handles it
-  function collapseProxyHopRoot(idPath, aliasCtx) {
+  function collapseProxyHopRoot(idPath, aliasCtx, { keptSeqHopFold = false } = {}) {
     // fire for a proxy-global NAME root (`globalThis` / `self` / ...) OR an alias of one (`const g =
     // globalThis; g.self.X` -> `g.X`): the alias-aware `findProxyGlobal` follows the binding so an
     // alias root collapses its hops too. a non-proxy global (`Map`) resolves to false (no hop); a
@@ -537,7 +595,10 @@ export default function createSynthSwapEmitter({
     // detached original, and every later placement-gated trust ask about its alias failed
     const collapsed = collapseProxyGlobalReceiver(recPath.node,
       { aliasCtx, isWriteTarget, throughChainAssign: true, carrySource: true });
-    if (!collapsed) return false;
+    if (!collapsed) {
+      return keptSeqHopFold && !isWriteTarget && !deleteHost
+        && foldKeptSeqHopRun(recPath, aliasCtx);
+    }
     recPath.replaceWith(collapsed);
     // the replacement is a FINISHED render of the outer member (root substituted, hops dropped) -
     // this drive only fires when the member's own callback declined the nav (a write target, a
