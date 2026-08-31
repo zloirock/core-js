@@ -15,19 +15,19 @@ import createWarn from './internals/infrastructure/warn.js';
 import createScriptTag from './internals/ui/script-tag.js';
 import createServe from './internals/ui/serve.js';
 
-async function rest(ready, warm, bundles) {
+async function warmAndPrune(ready, warm, bundles) {
   await ready;
 
   const warmed = await warm.buckets();
 
-  // ⚠ after the new generation is on disk, never before it: pruning first would take the
+  // after the new generation is on disk, never before it: pruning first would take the
   // only bundles anything can be served from if this build turns out to fail
   await bundles.prune();
 
   return warmed;
 }
 
-// ⚠ the caller is free to await neither promise, and an unobserved rejection takes the process down
+// the caller is free to await neither promise, and an unobserved rejection takes the process down
 // on its own. the failure itself still reaches whoever does await `ready` or `warmed`
 async function markHandled(promise) {
   try {
@@ -35,9 +35,8 @@ async function markHandled(promise) {
   } catch { /* the awaiter sees it */ }
 }
 
-// the composition root: the graph is assembled here and only here, so that every module below
-// takes what it needs as an argument instead of reaching for it. the layers are wired in as
-// they land - see AGENTS.md
+// the composition root: the only file that knows every module, and the only one where a port meets
+// its implementation
 export default function createService({ warn: warnSink, ...options } = {}) {
   const warn = createWarn(warnSink);
   const config = configure(options, { warn, resolveVersions });
@@ -83,7 +82,7 @@ export default function createService({ warn: warnSink, ...options } = {}) {
     start() {
       if (started === null) {
         const ready = warm.baseline();
-        const warmed = rest(ready, warm, bundles);
+        const warmed = warmAndPrune(ready, warm, bundles);
 
         markHandled(ready);
         markHandled(warmed);

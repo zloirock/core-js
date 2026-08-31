@@ -55,7 +55,7 @@ interface Configuration {
   retain: number | null;
   brotli: boolean;
   route: string;
-  versions: { coreJS: string, compat: string };
+  versions: { coreJS: string, compat: string, builder: string };
 }
 
 interface Bucket {
@@ -66,13 +66,15 @@ interface Bucket {
   share: number;
 }
 
-/** the bundle store: bytes by identifier and encoding, never a path */
+/** the bundle store: bytes by identifier and encoding, never a path.
+ *  the bytes are typed as `Uint8Array`, which is what a `Buffer` is: naming `Buffer` here would
+ *  make every consumer of these types need `@types/node` */
 interface Bundles {
   encodings: readonly string[];
   /** the generation being served: one directory of the store */
   generation: string;
   has(bundleId: string): Promise<boolean>;
-  get(bundleId: string, encoding: string): Promise<Buffer | null>;
+  get(bundleId: string, encoding: string): Promise<Uint8Array | null>;
   modules(bundleId: string): Promise<readonly string[] | null>;
   put(bundleId: string, bundle: { modules: readonly string[], script: string }): Promise<void>;
   /** removes the generations that are neither served nor younger than `retain`, and answers with

@@ -4,6 +4,7 @@
   "private": true,
   "devDependencies": {
     "compression": "^1.8.1",
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "typescript": "^6.0.3"
   }
 }

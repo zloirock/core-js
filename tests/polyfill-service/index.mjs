@@ -13,5 +13,6 @@ import './serve.mjs';
 import './script-tag.mjs';
 import './adapter-express.mjs';
 import './warn.mjs';
+import './types.mjs';
 
 echo(chalk.green('polyfill service tested'));
