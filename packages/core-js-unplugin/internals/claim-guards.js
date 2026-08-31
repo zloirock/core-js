@@ -8,6 +8,7 @@ import {
   navHasUnresolvableProxyHop,
   peelChainAssignmentDeep,
   planProvenNavGuardCollapse,
+  proxyGlobalRootName,
   proxyReceiverValueCanBeUndefined,
   resolveObjectName,
   sealedChainBoundary,
@@ -21,6 +22,7 @@ import {
   memberKeyName,
   parenSealedCalleeAbove,
   POSSIBLE_GLOBAL_OBJECTS,
+  singleSequenceTail,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   TS_EXPR_WRAPPERS,
   unwrapRuntimeExpr,
@@ -42,7 +44,6 @@ import {
   aliasHoldsUnbackedHopNav,
   markSubtreeSkipped,
   navComputedKeyEffects,
-  singleSequenceTail,
   unbackedProxyHopKey,
 } from './nav-spine.js';
 
@@ -420,6 +421,30 @@ export function sealedLayerAbove(metaPath, node) {
   return up?.node?.type === 'ParenthesizedExpression' || !!up?.node?.extra?.parenthesized;
 }
 
+// does a nav (or bare identifier) bottom out on a realm root the binding-aware canon proves -
+// a pristine proxy-global name or an alias of one, shadow bail included
+function realmRootProves(node, aliasCtx) {
+  let cur = unwrapRuntimeExpr(node);
+  for (;;) {
+    if (cur?.type === 'MemberExpression') {
+      cur = unwrapRuntimeExpr(cur.object);
+      continue;
+    }
+    if (cur?.type === 'SequenceExpression' && cur.expressions?.length) {
+      cur = unwrapRuntimeExpr(cur.expressions.at(-1));
+      continue;
+    }
+    if (cur?.type === 'AssignmentExpression') {
+      cur = unwrapRuntimeExpr(cur.right);
+      continue;
+    }
+    break;
+  }
+  if (cur?.type !== 'Identifier') return false;
+  const name = proxyGlobalRootName({ node: cur, ...aliasCtx });
+  return !!name && POSSIBLE_GLOBAL_OBJECTS.has(name);
+}
+
 export function guardProbeUndefinable(probe, {
   metaPath,
   adapter,
@@ -477,7 +502,11 @@ export function guardProbeUndefinable(probe, {
         const selfGuarded = receiverCarriesOptional(deepTail)
           || (deepTail?.type === 'ConditionalExpression' && deepTail.consequent?.type === 'UnaryExpression'
             && deepTail.consequent.operator === 'void');
-        if (nestedSeqUnproven && !selfGuarded) return true;
+        // ... and the boundary speaks only for a spine the realm canon owns: a root the
+        // binding-aware canon cannot prove (a SHADOWED realm name, a user binding) is the
+        // user's value, and this verdict may not call it a probe - the ordinary walk decides
+        if (nestedSeqUnproven && !selfGuarded
+          && realmRootProves(deepTail, { scope: metaPath.scope, adapter, path: metaPath })) return true;
         probeValue = deepTail;
         continue;
       }

@@ -26,6 +26,7 @@ import {
   isReusableReceiver,
   mayHaveSideEffects,
   receiverCarriesLiveOptional,
+  singleSequenceTail,
   unwrapRuntimeExpr,
   subtreeContainsNode,
   bindingPolyfillHint,
@@ -62,12 +63,12 @@ import {
   cloneSpinePeeled,
   cloneStamped,
   foldSeqKeyLiteralTail,
+  foldTailPristineProxyHops,
   foldedResolvedKey,
   isDeleteOperand,
   markSubtreeSkipped,
   memoizedCallResultType,
   nodeTypeRefinement,
-  singleSequenceTail,
   spineCarriesComputedHop,
   spineHoldsKeptWrite,
   stampSourceCallType,
@@ -162,6 +163,23 @@ export default function createOptionalDispatchChannel(ctx) {
       }
     }
     const peeled = bareMemo ? cloneNode(unwrapRuntimeExpr(memoSource)) : cloneSpinePeeled(memoSource);
+    // a memo holding a KEPT SEQUENCE observes its value by construction (the null test reads the
+    // ref), so the sequence tail takes the kept-value canon NOW - the ponyfill fold, or the guarded
+    // render over the probe - instead of the plain fold the clone's re-visit would land. a tail
+    // carrying its own live `?.` stands down: that short-circuit belongs to the composed-guard
+    // machinery, and the fold would erase the probe read the source wrote
+    const peeledCore = unwrapRuntimeExpr(peeled);
+    if (peeledCore?.type === 'SequenceExpression'
+      && !receiverCarriesLiveOptional(singleSequenceTail(peeledCore, { nested: true }))) {
+      foldTailPristineProxyHops(peeledCore, {
+        adapter,
+        resolveGlobalPolyfill,
+        injectPureImport,
+        aliasCtx: { scope: metaPath.scope, adapter, path: metaPath },
+        // the memo is a VALUE slot (its null test reads the ref): an alias root's kept value
+        // folds to the leaf ponyfill exactly like the guard test's
+      });
+    }
     // the nav under this memo COLLAPSES to a ponyfill under one probe (the kept-nav plan's own
     // verdict): memoizing it then spells a SECOND test over the guard that render builds, so
     // compose with it instead - the probe decides the branch and the claim reads the always-defined
@@ -281,8 +299,10 @@ export default function createOptionalDispatchChannel(ctx) {
       return surfaceKey;
     }
     if (value?.type === 'Identifier') {
+      // binding-aware: a SHADOWED realm name holds the user's object, not the surface
       if (POSSIBLE_GLOBAL_OBJECTS.has(value.name)) {
-        return isPristineProxyGlobal(adapter, value.name) ? value.name : null;
+        return isPristineProxyGlobal(adapter, value.name)
+          && !(metaPath && adapter.getBinding?.(metaPath.scope, value.name, metaPath)) ? value.name : null;
       }
       const minted = mintedProxyGlobalName(value.name, injectorState);
       if (minted) return minted;
@@ -936,7 +956,11 @@ export default function createOptionalDispatchChannel(ctx) {
       return !!called && POSSIBLE_GLOBAL_OBJECTS.has(called) && isPristineProxyGlobal(adapter, called);
     }
     if (value?.type !== 'Identifier') return false;
-    if (POSSIBLE_GLOBAL_OBJECTS.has(value.name)) return isPristineProxyGlobal(adapter, value.name);
+    // binding-aware: a SHADOWED realm name holds the user's object, not the surface
+    if (POSSIBLE_GLOBAL_OBJECTS.has(value.name)) {
+      return isPristineProxyGlobal(adapter, value.name)
+        && !(metaPath && adapter.getBinding?.(metaPath.scope, value.name, metaPath));
+    }
     // an ALIAS root resolves through the canon (`const w = globalThis.window; (a = w)`
     // holds the window surface exactly like the direct spelling)
     const aliased = metaPath && resolveObjectName({
@@ -1065,7 +1089,10 @@ export default function createOptionalDispatchChannel(ctx) {
         cur = peelChainAssignmentDeep(unwrapRuntimeExpr(cur.object));
       }
       if (cur?.type === 'Identifier') {
-        if (POSSIBLE_GLOBAL_OBJECTS.has(cur.name)) return isPristineProxyGlobal(adapter, cur.name);
+        // binding-aware like the ctor arm below: a SHADOWED realm name holds the user's object
+        if (POSSIBLE_GLOBAL_OBJECTS.has(cur.name)) {
+          return isPristineProxyGlobal(adapter, cur.name) && !adapter.getBinding?.(metaPath.scope, cur.name, metaPath);
+        }
         // an ALIAS binding answers the same as the direct spelling - but only as the BARE
         // root: neither a kept write nor a hop above it may sit in between, which is where
         // babel's own erase stops (`(e++, gw)?.` erases, `(a = gw)?.` and `(e++, g.self)?.` keep)
@@ -1349,6 +1376,18 @@ export default function createOptionalDispatchChannel(ctx) {
       return emitSeReadFormOverLiveOptional({ node, metaPath, entry, hintName },
         { splitOptionalReceiver, stagedSplit: STAGED_SPLIT, injectPureImport, markRewrite, composeGuardTest, skippedNodes });
     }
+    // a non-call instance READ over a live `?.` guarding a GENUINE probe, every harvested
+    // effect inside the receiver: the ordinary split owns it - the receiver spelling rides
+    // the guard test whole, the way a chain-assign receiver already does. the stand-down
+    // below is for claims a resolvable inner claim re-drives; over an unresolvable probe
+    // there is nobody, and standing down lost the claim outright (a raw `?.Map.name`)
+    if (!methodCall && !memberOptional && receiverCarriesLiveOptional(node.object)
+      && guardProbeUndefinable(node.object, { metaPath, adapter, resolvePure })
+      && (meta.sideEffects ?? []).every(effect => subtreeContainsNode(node.object, effect))) {
+      const id = injectPureImport(entry, hintName);
+      return replaceInstanceLike({ metaPath, id });
+    }
+
     if (!methodCall || (parent.optional && !memberOptional)) return;
     let receiver = unwrapRuntimeExpr(node.object);
     if (receiver?.type === 'SequenceExpression') receiver = receiver.expressions.at(-1);
