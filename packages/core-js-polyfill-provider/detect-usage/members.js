@@ -59,6 +59,7 @@ import {
   prependChainAssignmentEffect,
   peelReceiverSequenceTail,
   proxyHopLacksPureEntry,
+  realmRootIsSpellable,
   requireBoundProxyGlobalName,
   resolveKey,
   resolveObjectName,
@@ -301,7 +302,12 @@ export function planProxyReceiver(receiver, {
   // and, under a live guard, the key natively evaluates only PAST it. instead each dropped hop's key
   // effect MIGRATES into the surviving leaf key (`X?.[(c++, 'self')].Array` -> `X?.[(c++, 'Array')]`),
   // which reproduces the native order by construction: root, guard, key effects, read
-  const seKeysMigrate = isWriteTarget || !!keptAssignRoot;
+  // ... and a root this build cannot spell hands the run to the deepest backed span below it: that
+  // swap re-emits the dropped keys' effects the way the kept-root canon does, so an SE-bearing key is
+  // no barrier to the walk here either (a spellable root keeps the read channel's rule)
+  const rootUnspellable = !!throughRoot && POSSIBLE_GLOBAL_OBJECTS.has(throughRoot.name)
+    && !resolvePure({ kind: 'global', name: throughRoot.name });
+  const seKeysMigrate = isWriteTarget || !!keptAssignRoot || rootUnspellable;
   if (maximalProxyGlobalPrefix(receiver, aliasCtx, { allowSideEffectKeys: seKeysMigrate, throughChainAssign }) !== objectCore) {
     const callRooted = planCallRootedProxyReceiver(receiver, aliasCtx, resolvePure);
     if (callRooted) return callRooted;
@@ -340,7 +346,13 @@ export function planProxyReceiver(receiver, {
   // an ALIAS root (`const g = globalThis; g.self.X`) keeps its identifier and only drops the hops; a direct
   // root swaps to its pure ctor
   const isAliasRoot = !!keptAssignRoot || isAliasProxyRoot(throughRoot, aliasCtx);
-  if (!rootPure && !isAliasRoot) return null;
+  // a root THIS BUILD cannot spell (excluded, or a target that needs no entry) leaves the collapse
+  // nothing to land on - but the run above a span it CAN back still rides that span, the same verdict
+  // the call-rooted plan reaches: `globalThis.self.box` without the global-this entry is `_self.box`,
+  // where standing down left a raw realm read in pure output
+  const backedSpan = !rootPure && !isAliasRoot && aliasCtx
+    ? deepestBackedProxySpan(receiver.object, aliasCtx, resolvePure) : null;
+  if (!rootPure && !isAliasRoot && !backedSpan) return null;
   // the dropped hops of a kept root, walked leaf-to-root the way the prefix walker does: their
   // computed keys carry the effects that migrate into the surviving leaf key (in source order)
   const keyPrefixSE = [];
@@ -356,7 +368,9 @@ export function planProxyReceiver(receiver, {
   return {
     kind: 'collapse',
     rootBinding: keptAssignRoot ? { keep: keptAssignRoot }
-      : isAliasRoot ? { alias: throughRoot } : { pure: { entry: rootPure.entry, hintName: rootPure.hintName } },
+      : isAliasRoot ? { alias: throughRoot }
+        : { pure: rootPure ? { entry: rootPure.entry, hintName: rootPure.hintName }
+          : { entry: backedSpan.pure.entry, hintName: backedSpan.pure.hintName } },
     // a kept root re-emits ITSELF, so harvesting it too would run the assignment twice - but only IT is
     // exempt. effects the sequence around it carries (`(b++, (q = globalThis.window)).self.X`) are not the
     // assignment and still have to ride ahead, in source order. dropped-hop KEY effects are exempt too:
@@ -1207,7 +1221,13 @@ export function handleMemberExpressionNode({
     const declinedProbeRead = !subsumesReceiver && POSSIBLE_GLOBAL_OBJECTS.has(meta.object)
       && !!resolvePure && proxyHopLacksPureEntry(meta.key, resolvePure)
       && !(storedUserAssignmentOf(path) && !collectFoldedReceiverSideEffects(node.object).length);
-    if (!declinedProbeRead
+    // ... and the same rule for the OTHER render that may never come: the hops of a DECLINED claim
+    // are folded by the ROOT's own substitution, so a root this build cannot spell (an excluded
+    // entry) leaves nobody to own them - marking them handled stranded the whole run raw, where it
+    // still rides the deepest hop pure CAN back (`globalThis.self.Array` is `_self.Array` there)
+    const rootRendersTheSpan = !resolvePure || subsumesReceiver || !POSSIBLE_GLOBAL_OBJECTS.has(meta.object)
+      || realmRootIsSpellable(node, resolvePure);
+    if (!declinedProbeRead && rootRendersTheSpan
       && !(path && (node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression') && isMemberWriteHost(path))) {
       markHandledObjects({ node, handledObjects, suppressProxyGlobals, scope, adapter, path, resolvePure, subsumesReceiver,
         collapsesReceiver,
