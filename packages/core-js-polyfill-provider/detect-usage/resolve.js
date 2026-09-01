@@ -16,6 +16,7 @@ import {
   bindingDeclaratorNode,
   bindingPolyfillHint,
   bindsModuleDefault,
+  chainValueCarrier,
   collectFoldedReceiverSideEffects,
   definedBranchOfGuardConditional,
   deleteHostAboveChain,
@@ -473,8 +474,9 @@ function seKeyFoldHasSurvivingKey(memberNode, aliasCtx) {
 // on every emitter, the deleted member outside the ternary behind a `?.` of its own. LIVE
 // means the value under the `?.` can actually SHORT-CIRCUIT (the value canon's question): a
 // plain read off an absent-able base THROWS instead - dead-by-throw, folds with the run - and
-// a below-value proven defined folds too. an IDENTIFIER-rooted run folds whole regardless
-// (its own root claim drives the fold; the locked corpus splits exactly on the root shape),
+// a below-value proven defined folds too. a run rooted in a NAME - bare, or handed on by a carrier
+// standing there - folds whole regardless (its own root claim drives the fold; the split is between
+// a call root and a name root, never between a name and the carrier around it),
 // and a seal over the below-value stays with the seal canon
 export function deleteGuardKeepingHop(node, resolvePure, aliasCtx) {
   let root = unwrapRuntimeExpr(peelReceiverSequenceTail(node));
@@ -3670,12 +3672,50 @@ export function unbackedTailRidesAbove(path, resolvePure) {
 // for (the line the `delete` fold takes too), and unless a CONSUMER reads through the store, whose
 // read owns the value whatever the run carries. `effects` is the claim's own harvest, where a hop's
 // key effects reach this question - the run's own spelling carries the rest
-export function probeRunIsTheSourceValue(path, node, { resolvePure, effects = null }) {
-  if (!isMemberAccessNode(node) || !unbackedTailRidesAbove(path, resolvePure)) return false;
+export function probeRunIsTheSourceValue(path, { resolvePure, effects = null }) {
+  // off the claim's OWN member: a bare root claim navigates nothing, so no run of its own stands
+  // over it - the walk below would answer for a nav the claim is only the base of
+  if (!isMemberAccessNode(path.node) || !unbackedTailRidesAbove(path, resolvePure)) return false;
   const store = storedUserAssignmentOf(path);
   if (!store) return true;
   if (storedValueConsumedAbove(path)) return false;
   return !!effects?.length || !!collectFoldedReceiverSideEffects(store.right).length;
+}
+
+// ... and the same question asked from the CARRIER the base stands in: a store or a sequence INSIDE
+// the deleted navigation is a consumer the plain walk stops at (the value has another reader), while
+// the fold below still lands the base its carrier-less twin lands - a carrier decides what RUNS,
+// never what the delete lands on. one home for both emitters' root-driven folds
+export function deleteHostAboveCarriedChain(path) {
+  // only for the BASE of a run: a claim standing INSIDE a stored navigation is the store's own act
+  // (its value keeps whatever short-circuit it spells), and stepping out of the carrier there would
+  // hand the delete's fold the guards the source wrote inside the store
+  if (isMemberAccessNode(unwrapRuntimeExpr(path?.node))) return false;
+  let anchor = path;
+  for (let up = anchor.parentPath; up?.node; up = anchor.parentPath) {
+    // a wrapper the carrier HOLDS lies inside the stored value, not around it: the paren in
+    // `(w = (globalThis))` asserts nothing, and reading it as a consumer answered the delete
+    // question differently for two spellings of one source
+    const insideCarrier = unwrapRuntimeExpr(up.node) === unwrapRuntimeExpr(anchor.node)
+      && !!up.parentPath?.node && chainValueCarrier(up.parentPath.node, up.node);
+    if (!insideCarrier && !chainValueCarrier(up.node, anchor.node)) break;
+    anchor = up;
+  }
+  return deleteHostAboveChain(anchor, anchor.node, unwrapRuntimeExpr);
+}
+
+// can THIS BUILD spell the realm ROOT of a run - the base every fold lands on? a root with no entry
+// here (one the configuration excluded, one a target needs none of) leaves the fold nothing to land,
+// and the run rides the deepest span pure CAN back instead. asked by the marking gate and by the
+// channels whose render is root-anchored, so all of them read one answer
+export function realmRootIsSpellable(navNode, resolvePure) {
+  const { root } = descendToChainRoot(navNode, true);
+  // through the CARRIER standing at the root: what a sequence hands on is the root the plain twin
+  // has, and reading the carrier itself as the root answered "nothing to spell here" - the run then
+  // stood down and left a raw realm read where the deepest backed span was waiting for it
+  const core = unwrapRuntimeExpr(peelReceiverSequenceTail(root));
+  const name = core?.type === 'Identifier' ? asProxyGlobalName(core.name) : null;
+  return !name || !!resolvePure({ kind: 'global', name });
 }
 
 // ... and the RUN of them standing above a SUBSTITUTED proxy binding: each names the realm the
@@ -3689,7 +3729,13 @@ export function probeRunIsTheSourceValue(path, node, { resolvePure, effects = nu
 // because the base may arrive WRAPPED in the harvest a swap re-emitted (`(call(), _self)`).
 // a sequence wrapper observing nothing else goes WITH the fold rather than surviving around the
 // value (`(0, _self).window` is `_self`, the identifier twin's bytes)
-export function unbackedRealmHopFoldAbove(basePath, baseNode, ctx) {
+// a DELETEd navigation takes the same walk with a wider hop test: the operator reads no value over
+// the run, so every PRISTINE realm hop between the base and the deleted slot drops onto it - whether
+// or not pure can spell that hop - and the deleted member itself, a slot rather than a read, ends the
+// run. that is the verdict a hop claim's own fold reaches (`delete globalThis.self.window` is
+// `delete _globalThis.window` on both emitters); the flavor spells it for the ROOT claim, which a
+// build without the hop's entry leaves as the only driver
+export function unbackedRealmHopFoldAbove(basePath, baseNode, ctx, { deleted = false } = {}) {
   // what the level below hands on: the base itself, and then every hop the walk has already taken -
   // the fold erases them, so the hop above reads the base through them
   let carried = peelReceiverSequenceTail(baseNode);
@@ -3697,15 +3743,57 @@ export function unbackedRealmHopFoldAbove(basePath, baseNode, ctx) {
     return peelReceiverSequenceTail(node) === carried;
   }
   let fold = null;
+  let landing = null;
   let cursor = basePath;
   for (let up = cursor?.parentPath; up?.node; up = cursor.parentPath) {
     const { node } = up;
     if ((SKIPPABLE_WRAPPER_TYPES.has(node.type) && handsOnBase(node.expression))
-      || (node.type === 'SequenceExpression' && handsOnBase(node.expressions.at(-1)))) {
+      || (node.type === 'SequenceExpression' && handsOnBase(node.expressions.at(-1)))
+      // a value CARRIER holding the base ITSELF hands it on exactly as a paren does (`delete
+      // (w = globalThis).self.k`): what the run reads is what the carrier stored, and the write
+      // re-emits ahead of the base with the rest of the dropped span
+      || (deleted && !fold && chainValueCarrier(node, cursor.node))) {
+      // a carrier is not peeled by the value walk the way a paren is, so what the level above reads
+      // is the CARRIER's own node - the comparison follows it up, while what LANDS stays the value
+      // the carrier stored: the carrier itself rides out as an effect of the dropped span
+      if (!SKIPPABLE_WRAPPER_TYPES.has(node.type) && node.type !== 'SequenceExpression') {
+        // what lands is the BASE this swap put in, not the carrier's stored spelling: the carrier
+        // rides out whole as an effect, and landing its value re-ran whatever that value did
+        // (`delete (w = (e++, globalThis)).self.k` ran `e++` twice)
+        landing ??= carried;
+        carried = node;
+      }
       cursor = up;
       continue;
     }
-    if (!handsOnBase(node.object) || !foldableRealmHop(node, ctx)) break;
+    if (!handsOnBase(node.object)) break;
+    if (deleted) {
+      if (up.parentPath?.node?.type === 'UnaryExpression' && up.parentPath.node.operator === 'delete') break;
+      // a LOWERED guard scaffold's null test READS the run it memoizes (`null == (_ref = _globalThis
+      // .window) ? void 0 : _ref.x`): the source's `?.` survived the lowering as that test, so
+      // dropping the hop answers the probe instead of running it
+      const memo = up.parentPath?.node;
+      const test = up.parentPath?.parentPath?.node;
+      if (memo && test?.type === 'BinaryExpression' && chainValueCarrier(memo, node)
+        && chainValueCarrier(test, memo)) return null;
+      // a realm hop the run cannot drop - a live `?.` whose short-circuit decides whether the delete
+      // happens, a computed key whose effects would go with it, a MUTATED slot holding the user's own
+      // object - deopts the run WHOLE: the hops below it drop only together with the read above them,
+      // and dropping the base out from under a kept hop rewrites what that hop reads off
+      if (node.computed || node.optional
+        || !isPristineProxyGlobal(ctx.adapter, staticMemberKeyName(node))) {
+        return memberProxyHopName(node) || node.computed || node.optional ? null : fold;
+      }
+    } else if (!foldableRealmHop(node, ctx)) {
+      // a STRING-LITERAL computed key is the dotted hop in disguise - same name, nothing else
+      // observed - but only where something READS THROUGH it: standing terminal it is the probe the
+      // source asked for and keeps its slot, which is why the key question alone cannot answer here
+      const literalHop = node.computed && !mayHaveSideEffects(node.property)
+        && foldableRealmHopKey(staticMemberKeyName(node), ctx);
+      const readThrough = !!up.parentPath?.node && isMemberAccessNode(up.parentPath.node)
+        && unwrapRuntimeExpr(up.parentPath.node.object) === node;
+      if (!literalHop || !readThrough) break;
+    }
     // what lands is the object's CORE: the wrapper layers the fold's own operand carried are the
     // erased read's, not the value's (`((eff(), g.self) as any).window` lands `(eff(), _self)` -
     // the other leg's plan rebuilds the value the same way), while the sequence stays, because its
@@ -3716,7 +3804,14 @@ export function unbackedRealmHopFoldAbove(basePath, baseNode, ctx) {
     // the OUTERMOST folding hop is the one slot that lands, and what it lands is what the FIRST
     // fold reached: everything between is erased with the run, so a per-hop replacement would
     // only rewrite nodes the next one drops
-    fold = { path: up, node: fold ? fold.node : deadSeqWrapper ? objectCore.expressions.at(-1) : objectCore };
+    // ... and whether what lands still CARRIES what the dropped span did: the object's own core does
+    // (a live sequence prefix rides inside it), while a carrier's stored value does not - only that
+    // second case owes the caller a harvest, and harvesting the first re-ran the prefix twice
+    fold ??= {
+      node: landing ?? (deadSeqWrapper ? objectCore.expressions.at(-1) : objectCore),
+      carriesOwnEffects: !landing,
+    };
+    fold.path = up;
     carried = node;
     cursor = up;
   }
