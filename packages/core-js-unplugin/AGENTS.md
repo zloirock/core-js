@@ -16,7 +16,7 @@ At the package root, one `<bundler>.js` and `<bundler>.d.ts` pair per bundler - 
 
 - `plugin.js` - the core: parse with oxc-parser, walk with estree-toolkit, apply as body surgery, print through esrap; every pass shape (`pre` / `post` / `pre+post`) runs here. Detection-convenience tree mutations (`neutralizeUnwalkedParamPatterns`) record undo thunks the print replays first
 - `detect-entry.js`, `detect-usage.js` - the unplugin side of detection, on top of the provider; `entry.js` applies the entry plan as body surgery
-- `print.js` - the esrap printer adapter: loc synthesis, paren normalization to the minimal structural set, the corpus-measured esrap gap overrides, the sourcemap anchors of minted spellings
+- `print.js` - the esrap printer adapter: loc synthesis, paren normalization to the minimal structural set, the corpus-measured esrap gap overrides, the sourcemap anchors of minted spellings, the anchored-comment channel that prints a directive ahead of its node whatever the loc heuristics do
 - `import-injector.js` - the injector: import and generated-ref bookkeeping, name allocation, the pre-to-post snapshot shape, and the flush that sweeps, injects and retires dead memos
 - `builders.js` - a re-export of the core's render canon (`@core-js/polyfill-provider/render`); `emit-shared.js` - this leg's own render idioms plus the canon shapes its emitters read from one import
 - `estree-compat.js` - ESTree to Babel literal-type mapping, the seam between the two AST dialects
