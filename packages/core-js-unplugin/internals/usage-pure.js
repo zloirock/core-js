@@ -22,6 +22,7 @@ import {
   isNullLiteralNode,
   isReusableReceiver,
   isTaggedTemplateTag,
+  isPristineProxyGlobal,
   mayHaveSideEffects,
   memberProxyHopName,
   mutatedSlotLeftNativeWarning,
@@ -991,8 +992,11 @@ export default function createAstUsagePureCallback({
           planPath = up;
           continue;
         }
+        // ... and only through a hop the fold may actually DROP: a MUTATED slot holds the user's own
+        // object (`globalThis.self = ...`), so the run stops below it and its read stays spelled -
+        // climbing by the hop's NAME alone folded that read away with the rest of the run
         if (up.node.type === 'MemberExpression' && unwrapRuntimeExpr(up.node.object) === core
-          && memberProxyHopName(core)) {
+          && isPristineProxyGlobal(adapter, memberProxyHopName(core))) {
           planPath = up;
           continue;
         }
