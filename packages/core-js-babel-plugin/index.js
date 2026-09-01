@@ -95,6 +95,9 @@ import {
   sealedChainBoundary,
   ownChainOptionalObjects,
   prependChainAssignmentEffect,
+  descendToChainRoot,
+  deleteHostAboveCarriedChain,
+  peelReceiverSequenceTail,
   probeRenderedReceiver,
   probeRunIsTheSourceValue,
   proxyReceiverValueCanBeUndefined,
@@ -1319,13 +1322,29 @@ export default function plugin(api, options) {
           // asked through the wrappers one parser keeps as NODES (`((w = globalThis)).self...`
           // under createParenthesizedExpressions) - the raw-path test read only the flag dialect
           const chainRootCore = unwrapRuntimeExpr(chainRootPath.node);
-          const chainAssignRootValueName = chainRootCore?.type === 'AssignmentExpression'
-            && chainRootCore.operator === '='
+          // ... and a SEQUENCE at the root is a carrier like the store beside it: what it hands on is
+          // the root the plain twin lands, and its prefix re-emits ahead of that binding with the rest
+          // of the dropped span. a carrier decides what RUNS, never what the delete lands on - so the
+          // tail is peeled FIRST and the store question asked of what it hands on
+          const carriedRootCore = unwrapRuntimeExpr(peelReceiverSequenceTail(chainRootCore));
+          const chainAssignRootValueName = carriedRootCore?.type === 'AssignmentExpression'
+            && carriedRootCore.operator === '='
             ? asProxyGlobalName(resolveObjectName({
-              objectNode: chainRootCore, scope: path.scope, adapter, path,
+              objectNode: carriedRootCore, scope: path.scope, adapter, path,
             })) : null;
+          const seqRootName = carriedRootCore?.type === 'Identifier'
+            ? asProxyGlobalName(carriedRootCore.name) : null;
+          // ... and where the store's VALUE is itself a nav this build cannot spell (`(d = globalThis
+          // .window)?.self.k`), the base is that nav's own ROOT: the delete lands the root binding and
+          // the store keeps what the source put in it - the read channel's kept-store canon answers a
+          // different question (what a READ through the store sees)
+          const storedNavRootName = carriedRootCore?.type === 'AssignmentExpression'
+            && carriedRootCore.operator === '='
+            ? asProxyGlobalName(descendToChainRoot(carriedRootCore.right, true).root?.name) : null;
+          const carriedCallRoot = carriedRootCore?.type === 'CallExpression' ? carriedRootCore : null;
           if (memberProxyHopName(path.node)
-            && (chainRootPath.isIdentifier() || chainRootPath.isCallExpression() || chainAssignRootValueName)
+            && (chainRootPath.isIdentifier() || chainRootPath.isCallExpression()
+              || chainAssignRootValueName || seqRootName || storedNavRootName || carriedCallRoot)
             && deleteHostAboveChain(path, path.node, unwrapRuntimeExpr)) {
             // the `?.` the source wrote over the folded nav guards a read that never happens: the
             // fold landed the root binding, and the canon has spoken for the whole navigation -
@@ -1338,7 +1357,7 @@ export default function plugin(api, options) {
             // twin and folds onto the same root ponyfill; a probe yield keeps the per-hop
             // channels (the leaf canon), an effectful call has no slot to replay what it did
             function provenCallRootName() {
-              const callNode = chainRootPath.node;
+              const callNode = carriedCallRoot ?? chainRootPath.node;
               if (callNode.optional || !path.scope) return null;
               const callCtx = { scope: path.scope, adapter, path };
               // a LIVE `?.` anywhere in the deleted navigation short-circuits what stands
@@ -1358,8 +1377,14 @@ export default function plugin(api, options) {
                 : resolveObjectName({ objectNode: rootId, ...callCtx, usageNode: rootId });
             }
             const rootName = chainRootPath.isIdentifier() ? asProxyGlobalName(chainRootPath.node.name)
-              : chainAssignRootValueName ?? asProxyGlobalName(provenCallRootName());
-            const rootPure = rootName ? resolvePure({ kind: 'global', name: rootName }, path) : null;
+              : chainAssignRootValueName ?? seqRootName ?? storedNavRootName ?? asProxyGlobalName(provenCallRootName());
+            let rootPure = rootName ? resolvePure({ kind: 'global', name: rootName }, path) : null;
+            // ... and where the stored VALUE's own name is one pure cannot back (`window`), the base
+            // falls back to the nav's ROOT: the delete lands the root binding either way, and the
+            // store keeps what the source put in it
+            if (!rootPure && storedNavRootName && storedNavRootName !== rootName) {
+              rootPure = resolvePure({ kind: 'global', name: storedNavRootName }, path);
+            }
             if (rootPure) {
               const base = injectPureImport(rootPure.entry, rootPure.hintName);
               // the fold DROPS the whole receiver span, so what the source ran on the way in
@@ -1550,7 +1575,7 @@ export default function plugin(api, options) {
             // both halves of the verdict read the member this claim came in on
             const proxyHopClaim = kind === 'global' && POSSIBLE_GLOBAL_OBJECTS.has(hintName)
               && isMemberAccessNode(path.node);
-            const probeRunIsTheValue = proxyHopClaim && probeRunIsTheSourceValue(path, path.node,
+            const probeRunIsTheValue = proxyHopClaim && probeRunIsTheSourceValue(path,
               { resolvePure: m => resolvePure(m, path), effects: claimEffects });
             replacePath.replaceWith(withSideEffects(id,
               throwProbe ? probeOrderedEffects(throwProbe, claimEffects ?? []) : claimEffects));
@@ -1558,10 +1583,25 @@ export default function plugin(api, options) {
             // in read the realm it already is and fold onto it - the unplugin leg's fold-above twin,
             // the same core verdict. BEFORE the `?.` normalization below: that one reads the chain
             // this fold reshapes
-            if (proxyHopClaim && !probeRunIsTheValue) {
+            // ... and the ROOT claim drives the same fold under a `delete`: no hop claim can fire in a
+            // build without the hop's entry, and the run over the deleted slot reads no value either
+            // way. asked from the CARRIER the base stands in, not from the base itself - a store
+            // inside the deleted navigation is a consumer the plain walk stops at, while the fold
+            // below still lands the base the hop-claim twin lands
+            const deletedRun = !proxyHopClaim && kind === 'global' && POSSIBLE_GLOBAL_OBJECTS.has(hintName)
+              && deleteHostAboveCarriedChain(path);
+            if ((proxyHopClaim && !probeRunIsTheValue) || deletedRun) {
               const fold = unbackedRealmHopFoldAbove(replacePath, replacePath.node,
-                { adapter, resolvePure: m => resolvePure(m, path) });
-              if (fold) fold.path.replaceWith(fold.node);
+                { adapter, resolvePure: m => resolvePure(m, path) }, { deleted: deletedRun });
+              // the dropped span re-emits what it DID ahead of the base, where the source ran it -
+              // the user's own chain-assign, an effect buried in a hop's computed key: the delete
+              // fold's own harvest canon, asked of the span this fold drops
+              const dropped = fold && deletedRun && !fold.carriesOwnEffects
+                ? collectFoldedReceiverSideEffects(fold.path.node) : [];
+              if (fold) {
+                fold.path.replaceWith(dropped.length
+                  ? t.sequenceExpression([...dropped, fold.node]) : fold.node);
+              }
             }
             normalizeOptionalChain(replacePath, !wasOptional);
             if (wasOptional) deoptionalizeDanglingOptionalParent(replacePath);
