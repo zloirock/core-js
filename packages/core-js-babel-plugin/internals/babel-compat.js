@@ -2548,6 +2548,11 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     // plan recognises it. hops ONLY: resolving a pure root here injects an import this channel
     // never decided on, which is exactly what an earlier unrestricted attempt did
     const object = (check && collapseReceiverHops?.(extracted, path, { hopsOnly: true })) || extracted;
+    // a claim whose RECEIVER is already gone is a claim an earlier render superseded: the guard
+    // channel rebuilt this member (the memo now holds what it read), and the path we still hold
+    // points at the detached spelling. building an emit off it handed the helper `undefined` and
+    // crashed the pass - the surviving render is what the source gets
+    if (!object) return;
     if (isParenLookupOnly) {
       // build `(check == null ? void 0 : _id(_ref = obj)).call(_ref, ...args)` so:
       //   - throw-on-nullish preserved: ternary -> void 0, `.call` access on undefined throws
