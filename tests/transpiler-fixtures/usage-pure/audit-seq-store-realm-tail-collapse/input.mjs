@@ -18,6 +18,14 @@ export const deleted = delete (g2 = globalThis, v = g2.self)?.window.noSuchStati
 let g3;
 export const withKeyEffect = (g3 = globalThis, v = g3[(eff(), 'window')].self)?.window.noSuchStatic;
 
+// ... and the MIRROR of that shape - the sequence INSIDE the value the store holds: what the store
+// hands on is that sequence's tail, so the run over it proves exactly like its prefix-less twin. read
+// raw the proof found a sequence where it wanted a root, kept the `?.` and spelled the run RAW off
+// the ponyfill root - a host read that is undefined in the very realms the ponyfill serves
+let g7;
+export const seqInStoreClaim = (g7 = (eff(), globalThis)).self.window?.Map;
+export const seqInStoreNav = (g7 = (eff(), globalThis)).self.window?.noSuchStatic;
+
 // NEGATIVE: the store holding the PROBE keeps its `?.` - the sequence hands that value on, so the
 // optional guards a read that genuinely short-circuits and nothing above it folds
 let g5;
