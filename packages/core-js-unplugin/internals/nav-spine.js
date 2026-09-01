@@ -10,6 +10,7 @@ import {
   resolveKey,
   resolveObjectName,
   storedNavHopClaimSuppressed,
+  unbackedRealmHopFoldAbove,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
   chainValueCarrier,
@@ -20,7 +21,6 @@ import {
   nodeHoldsChild,
   isPristineProxyGlobal,
   mayHaveSideEffects,
-  memberProxyHopName,
   peelParenAndTSParentPath,
   peelParenAndTSSlotChild,
   peelParenAndTSSlotPath,
@@ -141,43 +141,6 @@ export function respellKeptHop(spelling, { keyName, keySe }) {
     : memberFromKeyName(spelling, keyName);
 }
 
-// does a TERMINAL run of unbacked pristine hops ride ABOVE the claim - `window` reads
-// that end the spine without another backed hop or claimable member folding them. the
-// reference emitters keep the WHOLE spine spelled there (`export const v =
-// globalThis.self.window` stays `_globalThis.self.window`): with no probe under it there is
-// no collapse to fold onto, and substituting the claim alone would leave a raw realm read
-// off the ponyfill. a backed hop above RESETS the run (deep-nav folds), and
-// a claimable member above collapses the receiver through its own plan either way
-export function unbackedTailRidesAbove(metaPath, resolveGlobalPolyfill) {
-  let sawUnbacked = false;
-  let cur = metaPath;
-  for (let up = cur.parentPath; up?.node; up = cur.parentPath) {
-    if (SKIPPABLE_WRAPPER_TYPES.has(up.node.type)) {
-      cur = up;
-      continue;
-    }
-    if (up.node.type !== 'MemberExpression' || up.node.object !== cur.node) {
-      // a NULL-PROBE test reading the run (`null == <run>`, a rendered guard or the
-      // source's own lowered spelling) is an environment probe: the below-probe collapse
-      // owns it (the owner-decided price - `undefined` where the raw read throws)
-      if (up.node.type === 'BinaryExpression' && (up.node.operator === '==' || up.node.operator === '!=')
-        && [up.node.left, up.node.right].some(side => side?.type === 'Literal' && side.value === null)) return false;
-      break;
-    }
-    // a LIVE `?.` anywhere in the run is the source's own environment probe - the guarded
-    // collapse channel owns that spine, not this stand-down
-    if (up.node.optional) return false;
-    const key = memberProxyHopName(up.node);
-    // a real member READ above NAVIGATES the run - the deep-nav collapse owns it
-    // (`globalThis.self.window.k` collapses whole); the stand-down is for a run whose
-    // VALUE flows out (a store, a bare read) with the unbacked hop terminal
-    if (key === null) return false;
-    sawUnbacked = !resolveGlobalPolyfill(key);
-    cur = up;
-  }
-  return sawUnbacked;
-}
-
 // pristine possible-global hops navigate into the SAME surface - above a PROBE they drop, so
 // the test reads at most the probe hop itself and never dereferences past it
 export function peelPristineProxyHops(node, { adapter, resolveGlobalPolyfill }) {
@@ -263,24 +226,11 @@ export function unbackedProxyHopKey(node, resolveHere) {
   return !!key && proxyHopLacksPureEntry(key, resolveHere);
 }
 
-// the realm hops standing above a SUBSTITUTED proxy binding: each names the realm the ponyfill
-// already is, and off-browser the ponyfill cannot answer it - so it folds onto the binding, the
-// same verdict the nav plan reaches by truncating its hops. a COMPUTED key stays: folding it would
-// fold its key effect away with it
+// this leg's surgery for the shared fold verdict: the core walks the realm hops standing above a
+// SUBSTITUTED proxy binding and names the slot they fold into, and the replacement lands here
 export function foldUnbackedRealmHopsAbove(basePath, baseNode, ctx) {
-  let cursor = basePath;
-  for (let up = cursor.parentPath; up?.node; up = cursor.parentPath) {
-    const { node } = up;
-    if (SKIPPABLE_WRAPPER_TYPES.has(node.type) && node.expression === baseNode) {
-      cursor = up;
-      continue;
-    }
-    // the base node is what the walk tracks, not the path's own: a path whose span was just
-    // replaced still answers with the SOURCE node, and a folded hop hands the same base on
-    if (unwrapRuntimeExpr(node.object) !== baseNode || !foldableRealmHop(node, ctx)) break;
-    up.replaceWith(node.object);
-    cursor = up;
-  }
+  const fold = unbackedRealmHopFoldAbove(basePath, baseNode, ctx);
+  if (fold) fold.path.replaceWith(fold.node);
 }
 
 // an unbacked realm hop reading a CARRIED value - a kept write's store, the sequence handing it

@@ -1,4 +1,5 @@
 import {
+  collectFoldedReceiverSideEffects,
   memberProxyHopName,
   asProxyGlobalName,
   deleteHostAboveChain,
@@ -44,6 +45,7 @@ import {
   isDestructurePattern,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   usableAliasInfo,
+  isMemberAccessNode,
   POSSIBLE_GLOBAL_OBJECTS,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
@@ -94,10 +96,12 @@ import {
   ownChainOptionalObjects,
   prependChainAssignmentEffect,
   probeRenderedReceiver,
+  probeRunIsTheSourceValue,
   proxyReceiverValueCanBeUndefined,
   staticMayEraseReceiver,
   storedUserAssignmentOf,
   partitionEffectsAtProbe,
+  unbackedRealmHopFoldAbove,
   undefinableOptionalGuard,
   receiverSideEffectsOnly,
   resolveKey as sharedResolveKey,
@@ -1358,11 +1362,13 @@ export default function plugin(api, options) {
             const rootPure = rootName ? resolvePure({ kind: 'global', name: rootName }, path) : null;
             if (rootPure) {
               const base = injectPureImport(rootPure.entry, rootPure.hintName);
-              // a CHAIN-ASSIGN root is the user's own write and survives the fold, running
-              // first exactly as the source runs it - the fold's base reads after it
-              // (`delete (w = globalThis).self.k` -> `delete (w = _globalThis, _globalThis).k`)
-              landFoldedRoot(chainAssignRootValueName
-                ? t.sequenceExpression([chainRootCore, base]) : base);
+              // the fold DROPS the whole receiver span, so what the source ran on the way in
+              // re-emits ahead of the base, where it ran: the user's own chain-assign (`delete
+              // (w = globalThis).self.k` -> `delete (w = _globalThis, _globalThis).k`) and the
+              // effect buried in a hop's computed KEY, which the deleted member's own key does
+              // not carry (`delete globalThis[(eff(), 'self')].k`)
+              const dropped = collectFoldedReceiverSideEffects(path.node);
+              landFoldedRoot(dropped.length ? t.sequenceExpression([...dropped, base]) : base);
               return;
             }
             if (!rootName && chainRootPath.isIdentifier()
@@ -1375,8 +1381,8 @@ export default function plugin(api, options) {
           // roots in an inline-resolvable call has no root-identifier visit to fold from, so the
           // claimless channel owns the run - fired at the chain END, and only where navigation
           // CONTINUES above this claim (`f().self.customUserSlot` with the slot mutated folds
-          // onto the root ponyfill, the identifier twin's bytes; a terminal hop keeps its own
-          // whole-swap, the claim canon)
+          // onto the root ponyfill, the identifier twin's bytes; a terminal PROBE keeps its slot
+          // over the deepest ponyfill the run hands it, the claim canon)
           if (chainRootCore?.type === 'CallExpression' && memberProxyHopName(path.node)) {
             // anchored at the member ABOVE the last consecutive proxy hop, not the chain top:
             // an ordinary mid-chain key (`...self.callRootBox.list` - the mutated slot) ends
@@ -1539,8 +1545,24 @@ export default function plugin(api, options) {
             const throwProbe = sealedClaimThrowProbeNode(path);
             const probeSe = throwProbe && new Set(throwProbe.keySeExprs);
             const claimEffects = probeSe ? (allEffects ?? []).filter(se => !probeSe.has(se)) : allEffects;
+            // is the probe run standing over this claim the value the SOURCE reads? asked HERE,
+            // while the spine is still standing - after the swap the path holds the ponyfill, and
+            // both halves of the verdict read the member this claim came in on
+            const proxyHopClaim = kind === 'global' && POSSIBLE_GLOBAL_OBJECTS.has(hintName)
+              && isMemberAccessNode(path.node);
+            const probeRunIsTheValue = proxyHopClaim && probeRunIsTheSourceValue(path, path.node,
+              { resolvePure: m => resolvePure(m, path), effects: claimEffects });
             replacePath.replaceWith(withSideEffects(id,
               throwProbe ? probeOrderedEffects(throwProbe, claimEffects ?? []) : claimEffects));
+            // ... and where it is not, the realm hops left standing over the ponyfill this swap put
+            // in read the realm it already is and fold onto it - the unplugin leg's fold-above twin,
+            // the same core verdict. BEFORE the `?.` normalization below: that one reads the chain
+            // this fold reshapes
+            if (proxyHopClaim && !probeRunIsTheValue) {
+              const fold = unbackedRealmHopFoldAbove(replacePath, replacePath.node,
+                { adapter, resolvePure: m => resolvePure(m, path) });
+              if (fold) fold.path.replaceWith(fold.node);
+            }
             normalizeOptionalChain(replacePath, !wasOptional);
             if (wasOptional) deoptionalizeDanglingOptionalParent(replacePath);
           }

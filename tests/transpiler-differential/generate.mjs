@@ -2008,6 +2008,59 @@ function * generateThisReceiverGuards() {
   }
 }
 
+// --- Terminal probe canon: a CLAIMLESS realm run the source itself reads ---
+// the complement the kept-value family excludes by design (there the value is STORED). here nothing
+// claims and nothing stores: what the source reads IS the run, and the canon it asserts is the one
+// the owner settled - a terminal hop pure cannot back keeps its slot over the deepest span pure CAN
+// back, while a `delete` reads nothing over the navigation and folds it whole onto the root. every
+// value row takes a different render path (bare / sealed / sequence-prefixed / call-rooted /
+// computed and SE-computed keys / a probe below the backed hop), every consumer a different
+// position, and the import set is the sharp half of the oracle: the two spellings differ by the
+// module they pull (`actual/self` against `actual/global-this`) while the realm object is one at
+// runtime. rigged: the hops need live slots natively
+const TPC_VALUES = [
+  ['bare', 'globalThis.self.window'],
+  ['sealed', '(globalThis.self.window)'],
+  ['seal-inner-hop', '(globalThis.self).window'],
+  ['seq-prefixed', '(log.push("v"), globalThis).self.window'],
+  ['call-rooted', 'dhr().self.window'],
+  ['call-rooted-prefixed', '(log.push("v"), dhr()).self.window'],
+  ['probe-below', 'globalThis.window.self.window'],
+  ['computed-key', "globalThis.self['window']"],
+  ['computed-key-se', 'globalThis.self[(log.push("k"), "window")]'],
+  ['se-keyed-hop', 'globalThis[(log.push("h"), "self")][(log.push("k"), "window")]'],
+];
+const TPC_CONSUMERS = [
+  ['read', value => `String(${ value })`],
+  ['typeof', value => `typeof ${ value }`],
+  ['argument', value => `String([${ value }].length)`],
+  ['delete-host', value => `String(delete ${ value })`],
+  // the STORE consumer: the value it hands on is the realm object, so an effect-free run folds
+  // the probe away while a run carrying one keeps it - both readbacks are asserted, and the log
+  // pins the effect to exactly one run either way
+  ['store', value => `(() => { let held; const read = String(held = ${ value }); return read + "|" + String(held); })()`],
+  // ... and the same store READ THROUGH: the read owns the value, so the probe folds there whatever
+  // the run carries. what the rig cannot show - the realm object is one at runtime either way - the
+  // effect log does: a fold that eats the run's prefix, or replays it, moves the count
+  ['store-claim', value => `(() => { let held; const read = String((held = ${ value }).Map.length); `
+    + 'return read + "|" + String(held === globalThis) + "|" + log.length; })()'],
+  ['store-guard', value => `(() => { let held; const read = String((held = ${ value })?.Map.length); `
+    + 'return read + "|" + String(held === globalThis) + "|" + log.length; })()'],
+  ['store-destructure', value => `(() => { let held; const { Map: M } = (held = ${ value }); `
+    + 'return String(M.length) + "|" + String(held === globalThis) + "|" + log.length; })()'],
+];
+
+function * generateTerminalProbeCanon() {
+  for (const [valueId, value] of TPC_VALUES) {
+    for (const [consumerId, build] of TPC_CONSUMERS) {
+      const expr = '(() => { const dhr = () => globalThis; try {'
+        + ` return [${ build(value) }, log.length]; }`
+        + ' catch (e) { return ["throw", log.length]; } })()';
+      yield { ...snippet(`terminal-probe-canon/${ valueId }-${ consumerId }`, expr, { rig: true }), strip: false };
+    }
+  }
+}
+
 function * generateKeptValueCanon() {
   for (const [valueId, value, valueOpts = {}] of KVC_VALUES) {
     for (const [claimId, build, claimOpts = {}] of KVC_CLAIMS) {
@@ -7602,6 +7655,7 @@ export function * generate() {
   yield * generateProxyGlobalSEReceiver();
   yield * generateChainAssignValue();
   yield * generateKeptValueCanon();
+  yield * generateTerminalProbeCanon();
   yield * generateProvenCallGuardHops();
   yield * generateThisReceiverGuards();
   yield * generateIifeArgOwnership();
