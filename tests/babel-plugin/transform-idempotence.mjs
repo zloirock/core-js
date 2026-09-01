@@ -63,6 +63,19 @@ const CASES = [
   // fold and the type arguments must not be taken for a second, nested instantiation
   ['instantiation folded into its call', 'export const r = ((Array.from as any)<any>)([1, [2]]);', true],
   ['instantiation over a loose slot', 'declare const c: boolean;\nexport const r = ((c ? Array.of : Array.from)<any>)([1]);', true],
+  // the pass's own reprint lays the nodes sharing a covered line one per line, and the second
+  // pass reads the directives off that text: every covered node has to be led by its own
+  // directive there, or the second pass injects for the reads the author opted out
+  ['directive over two statements', '// core-js-disable-next-line\nuse(a.at(0)); use(b.flat());\nexport const r = c.includes(0);'],
+  ['trailing -line over two statements', 'use(a.at(0)); use(b.flat()); // core-js-disable-line\nexport const r = c.includes(0);'],
+  ['trailing -line over a one-line block', 'if (q) { use(a.at(0)); use(b.flat()); } // core-js-disable-line\nexport const r = c.includes(0);'],
+  ['directive over two pattern properties', 'const {\n  // core-js-disable-next-line\n  at, flat,\n  includes,\n} = arr;\nexport const r = [at, flat, includes];'],
+  ['directive over two class members', 'class A {\n  // core-js-disable-next-line\n  m() { return a.at(0); } n() { return b.flat(); }\n}\nexport const r = A;'],
+  ['directive inside a switch', 'switch (x) {\n  // core-js-disable-next-line\n  case 1: use(a.at(0)); use(b.flat());\n}\nexport const r = c.includes(0);'],
+  ['directive inside the parens of a throw', 'export function f() {\n  throw (\n    // core-js-disable-next-line\n    a.at(0)\n  );\n}\nexport const r = c.includes(0);'],
+  // the comment under a hashbang is the hashbang's trailing copy too: the import block unshifted
+  // between them must not take the directive away from the statement it marks
+  ['directive under a hashbang', '#!/usr/bin/env node\n// core-js-disable-next-line\nuse(a.at(0));\nexport const r = c.includes(0);'],
 ];
 
 const OPTIONS = { method: 'usage-global', version: '4.0', targets: { ie: 11 } };

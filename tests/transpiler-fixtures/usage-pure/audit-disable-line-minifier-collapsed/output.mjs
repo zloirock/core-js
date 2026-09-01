@@ -4,6 +4,7 @@ import _Array$of from "@core-js/pure/actual/array/of";
 let from;
 // core-js-disable-next-line
 eff();
+// core-js-disable-next-line
 ({
   from
 } = Array);

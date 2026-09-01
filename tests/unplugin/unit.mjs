@@ -1279,12 +1279,19 @@ function checkPhaseSnapshotFlow() {
       '/sm-directive.mjs', 'pre');
     check(`phase/pre keeps the opt-out statement-anchored (${ engine })`,
       /\n\/\/ core-js-disable-next-line\nconst /.test(directive?.code ?? ''), true);
+    // ... and the statement anchor is the ONLY directive left: the hoisted statement is settled
+    // for the canon walk, so the in-pattern property owes no second one
+    function directiveCount(code) {
+      return (code?.match(/core-js-disable-next-line/g) ?? []).length;
+    }
+    check(`phase/pre hoists the in-pattern opt-out without a second anchor (${ engine })`, directiveCount(directive?.code), 1);
     // ... and the trailing `-line` spelling re-anchors as the same leading form
     const directiveLine = createPlugin(pureOpts).transform(
       'const {\n  Map: { groupBy },\n  Object: { groupBy: og }, // core-js-disable-line\n} = globalThis;\nuse(groupBy, og);',
       '/sm-directive-line.mjs', 'pre');
     check(`phase/pre re-anchors a trailing -line opt-out too (${ engine })`,
       /\n\/\/ core-js-disable-next-line\nconst /.test(directiveLine?.code ?? ''), true);
+    check(`phase/pre re-anchors a trailing -line opt-out once (${ engine })`, directiveCount(directiveLine?.code), 1);
     // a POSITIONED host - a statement no emission rebuilt - is adopted too: the in-pattern
     // comment dies in the sibling lowering all the same, so pre re-anchors it even though
     // the statement itself needed no rewrite (and, below, even when it is the file's ONLY
@@ -1299,6 +1306,71 @@ function checkPhaseSnapshotFlow() {
         positionedSrc, '/sm-directive-sole.mjs', 'pre');
       check(`phase/pre transforms for a sole disabled claim (${ method }, ${ engine })`,
         /\n\/\/ core-js-disable-next-line\nconst \{/.test(soleDisabled?.code ?? ''), true);
+      check(`phase/pre leads a positioned host once (${ method }, ${ engine })`, directiveCount(positioned?.code), 1);
+      check(`phase/pre leads a sole disabled claim once (${ method }, ${ engine })`, directiveCount(soleDisabled?.code), 1);
+    }
+
+    // the reprint lays the statements sharing a covered line one per line, so the pre output leads
+    // every one of them by its own directive - the author's moves into the deterministic channel
+    // verbatim, the rest take the canonical spelling - and post claims nothing more over it
+    for (const method of ['usage-pure', 'usage-global']) {
+      const siblingsSrc = 'use(x.at(1));\n// core-js-disable-next-line -- why\nuse(a.at(0)); use(b.flat());\n'
+        + 'use(c.includes(0)); use(d.fill(0)); // core-js-disable-line\n';
+      const siblings = createPlugin({ ...pureOpts, method });
+      const siblingsPre = siblings.transform(siblingsSrc, '/sm-directive-siblings.mjs', 'pre')?.code ?? siblingsSrc;
+      check(`phase/pre leads every covered statement (${ method }, ${ engine })`,
+        /\/\/ core-js-disable-next-line -- why\nuse\(a\.at\(0\)\);\n+\/\/ core-js-disable-next-line\nuse\(b\.flat\(\)\);\n/.test(siblingsPre)
+        && /\/\/ core-js-disable-next-line\nuse\(c\.includes\(0\)\);\n+\/\/ core-js-disable-next-line\nuse\(d\.fill\(0\)\); \/\/ core-js-disable-line/.test(siblingsPre),
+        true);
+      const siblingsPost = siblings.transform(siblingsPre, '/sm-directive-siblings.mjs', 'post')?.code ?? siblingsPre;
+      const postImports = siblingsPost.split('\n').filter(line => /^(?:import |var .*require\()/.test(line)).join('\n');
+      check(`phase/post keeps the live claim (${ method }, ${ engine })`, /\bat\b/.test(postImports), true);
+      check(`phase/post claims nothing the directives covered (${ method }, ${ engine })`, /fill|flat|includes/.test(postImports), false);
+    }
+    // a SOLE-prop chain hoists from any level: the opt-out on the inner leaf of `{ Object: {
+    // groupBy } }`, or on a multi-line sole outer prop, lands ahead of the statement as the only
+    // directive - inside the pattern babel's lowering between the passes would eat it
+    for (const [label, chainSrc] of [
+      ['inner leaf', 'const {\n  Object: {\n    // core-js-disable-next-line\n    groupBy: leafOptOut,\n  },\n} = globalThis;\nuse(leafOptOut, c.at(1));\n'],
+      ['multi-line outer prop', 'const {\n  // core-js-disable-next-line\n  Map: {\n    groupBy: hopOptOut,\n  },\n} = globalThis;\nuse(hopOptOut, c.at(1));\n'],
+    ]) {
+      const chainOut = createPlugin(pureOpts).transform(chainSrc, '/sm-directive-chain.mjs', 'pre')?.code ?? chainSrc;
+      check(`phase/pre hoists a sole-chain opt-out to the statement (${ label }, ${ engine })`,
+        /\n\/\/ core-js-disable-next-line\nconst \{/.test(chainOut) && directiveCount(chainOut) === 1, true);
+    }
+    // the hoist lands where the print reaches: above `export` for an exported declaration, and
+    // not at all for a declaration a loop head hosts - there the directive stays inside the
+    // pattern (the canon's in-place anchor) instead of vanishing from an inline-printed head
+    {
+      const exportedSrc = 'export const {\n  Object: {\n    // core-js-disable-next-line\n    groupBy: g,\n  },\n} = globalThis;\nuse(c.at(1));\n';
+      const exported = createPlugin(pureOpts).transform(exportedSrc, '/sm-directive-export.mjs', 'pre')?.code ?? '';
+      check(`phase/pre hoists an exported sole chain above the export (${ engine })`,
+        /\n\/\/ core-js-disable-next-line\nexport const \{/.test(exported) && directiveCount(exported) === 1, true);
+      const forHeadSrc = 'for (const {\n  Object: {\n    // core-js-disable-next-line\n    groupBy: g,\n  },\n} of xs) use(g, c.at(1));\n';
+      const forHead = createPlugin(pureOpts).transform(forHeadSrc, '/sm-directive-for-head.mjs', 'pre')?.code ?? '';
+      check(`phase/pre keeps a loop-head opt-out inside the pattern (${ engine })`,
+        /\/\/ core-js-disable-next-line\n\s*groupBy: g/.test(forHead) && directiveCount(forHead) === 1, true);
+    }
+    // the anchors are keyed by node and read off the RESTORED tree: a property of a PARAMETER
+    // pattern is blanked for the crawl and swapped back before the print, so an anchor computed
+    // against the blanked copy would never meet its node in the printer
+    {
+      const paramSrc = 'function f({\n  // core-js-disable-next-line\n  at, flat,\n  includes,\n}) { use(at, flat, includes); }\nuse(f, c.at(1));\n';
+      const paramOut = createPlugin(pureOpts).transform(paramSrc, '/sm-directive-param.mjs')?.code ?? paramSrc;
+      check(`single pass leads the second property of a parameter pattern (${ engine })`,
+        /\/\/ core-js-disable-next-line\n\s*flat,/.test(paramOut), true);
+    }
+    // a single pass is a fixed point over its own output on the same shapes, members included
+    {
+      const membersSrc = '// core-js-disable-next-line\nuse(a.at(0)); use(b.flat());\nconst o = {\n  // core-js-disable-next-line\n'
+        + '  k: c.includes(0), j: d.fill(0),\n  m: e.with(0, 1),\n};\nuse(o, f.at(1));\n';
+      for (const method of ['usage-pure', 'usage-global']) {
+        const once = createPlugin({ ...pureOpts, method }).transform(membersSrc, '/sm-directive-fixed.mjs')?.code ?? membersSrc;
+        const twice = createPlugin({ ...pureOpts, method }).transform(once, '/sm-directive-fixed.mjs')?.code ?? once;
+        check(`single pass over its own output is a fixed point with directives (${ method }, ${ engine })`, twice, once);
+        check(`single pass leads the second object member (${ method }, ${ engine })`,
+          /\/\/ core-js-disable-next-line\n\s*j: d\.fill\(0\)/.test(once), true);
+      }
     }
 
     // a pass over our own output must not re-extract the SE-key sentinel (`{ [k]: _unusedN }`,
@@ -1576,6 +1648,30 @@ async function checkAstPrintContracts() {
   }).code;
   check('print anchoredComments channel writes the text ahead of its statement',
     /\/\/ core-js-disable-next-line\nconst \{ flat \}/.test(anchoredOut), true);
+  // the channel reaches every node type esrap dispatches - a statement, an object property, a
+  // class member - not only a declaration
+  const membersSrc = 'use(a);\nconst o = { k: 1, j: 2 };\nclass A { m() {} }\n';
+  // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+  const membersParse = parseSync('/p.mjs', membersSrc, { sourceType: 'module' });
+  const [useStatement, objectDecl, classDecl] = membersParse.program.body;
+  const anchoredMembers = printProgram({
+    program: membersParse.program, comments: membersParse.comments, source: membersSrc, id: '/p.mjs',
+    anchoredComments: new Map([
+      [useStatement, ['// core-js-disable-next-line']],
+      [objectDecl.declarations[0].init.properties[1], ['// core-js-disable-next-line']],
+      [classDecl.body.body[0], ['// core-js-disable-next-line']],
+    ]),
+  }).code;
+  check('print anchoredComments channel leads a statement', anchoredMembers.startsWith('// core-js-disable-next-line\nuse(a);'), true);
+  check('print anchoredComments channel leads an object property', /\/\/ core-js-disable-next-line\n\s*j: 2/.test(anchoredMembers), true);
+  check('print anchoredComments channel leads a class member', /\/\/ core-js-disable-next-line\n\s*m\(\) \{/.test(anchoredMembers), true);
+  // a comment between `throw` / `yield` and the operand keeps the parens the peel drops elsewhere,
+  // and the operand opens on its own line: `throw // note` is a bare `throw;` by the grammar
+  const thrown = reprint('function f() {\n  throw (\n    // note\n    a.at(0)\n  );\n}\n');
+  check('print keeps the parens guarding a comment after throw', /throw \(\n\s*\/\/ note\n\s*a\.at\(0\)\n\s*\);/.test(thrown), true);
+  const yielded = reprint('function* g() {\n  yield (\n    // note\n    a\n  );\n}\n');
+  check('print keeps the parens guarding a comment after yield', /yield \(\n\s*\/\/ note\n\s*a\n\s*\);/.test(yielded), true);
+  check('print still peels the parens of a comment-free throw operand', reprint('function f() {\n  throw (a);\n}\n').includes('throw a;'), true);
 }
 await checkAstPrintContracts();
 
