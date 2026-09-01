@@ -3,6 +3,7 @@ import ts, { EXPRESSIONS_PRECEDENCE } from 'esrap/languages/ts';
 import tsx from 'esrap/languages/tsx';
 import { stripQueryHash } from '@core-js/polyfill-provider/helpers/path-normalize';
 import { buildOffsetToLoc } from '@core-js/polyfill-provider/helpers/source-scan';
+import { TRANSPARENT_EXPR_WRAPPER_TYPES } from '@core-js/polyfill-provider/helpers/ast-patterns';
 
 // TS postfix `!` binds at member/call level - `x?.a!.b` CONTINUES the optional chain -
 // but the upstream table ranks it below MemberExpression, so a member over a non-null
@@ -299,17 +300,18 @@ export function printProgram({ program, comments, source, id, jsx = false, inclu
   const ownComments = hashbangStart === undefined ? comments : comments.filter(comment => comment.start !== hashbangStart);
   // a ChainExpression whose every `?.` an emission erased is a dead wrapper: esrap prints
   // it transparently, so an assignment left inside loses its required parens and the
-  // output stops parsing - unwrap before printing (babel never emits the bare wrapper)
-  function chainHasLiveOptional(node) {
-    if (!node || typeof node !== 'object') return false;
-    if (node.optional === true) return true;
-    // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
-    for (const key in node) {
-      if (key === 'loc' || key === 'range') continue;
-      const value = node[key];
-      if (Array.isArray(value)) {
-        for (const item of value) if (chainHasLiveOptional(item)) return true;
-      } else if (chainHasLiveOptional(value)) return true;
+  // output stops parsing - unwrap before printing (babel never emits the bare wrapper).
+  // a wrapper owns exactly the links on its OWN spine (down through objects and callees,
+  // stopping at a nested wrapper, which owns its own): asking whether any `?.` sits ANYWHERE
+  // inside called a wrapper live off a chain it does not own - a store whose VALUE is a chain
+  // kept the wrapper the render had emptied, and `null == (q = g?.self)` printed unparenthesized
+  function chainOwnsLiveOptional(node) {
+    for (let cur = node; cur && typeof cur === 'object';) {
+      if (cur.optional === true) return true;
+      if (cur.type === 'MemberExpression') cur = cur.object;
+      else if (cur.type === 'CallExpression' || cur.type === 'NewExpression') cur = cur.callee;
+      else if (TRANSPARENT_EXPR_WRAPPER_TYPES.has(cur.type)) cur = cur.expression;
+      else return false;
     }
     return false;
   }
@@ -327,7 +329,7 @@ export function printProgram({ program, comments, source, id, jsx = false, inclu
       if (key === 'loc' || key === 'range') continue;
       const value = node[key];
       let child = value;
-      while (child?.type === 'ChainExpression' && !chainHasLiveOptional(child.expression)) {
+      while (child?.type === 'ChainExpression' && !chainOwnsLiveOptional(child.expression)) {
         child = child.expression;
       }
       if (child !== value) node[key] = child;
