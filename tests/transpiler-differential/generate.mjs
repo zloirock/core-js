@@ -2061,6 +2061,64 @@ function * generateTerminalProbeCanon() {
   }
 }
 
+// --- A local binding wearing a realm name ---
+// a parameter, a lexical or a catch binding named `globalThis` / `self` holds the USER's object, and
+// a delete through it acts on that object. every channel that walks a run's ROOT by name owes the
+// binding question first - one that skips it substitutes the ponyfill, and the delete then reaches
+// core-js instead of what the source named. the oracle is the pair of readbacks: the local slot the
+// delete was aimed at, and the realm slot it must not touch
+const SRN_HOSTS = [
+  ['param', 'const f = globalThis => [delete globalThis.self.slot, globalThis.self.slot];'],
+  ['hop-name', 'const f = self => [delete self.window.slot, self.window.slot];'],
+  ['lexical', 'const f = box => { const globalThis = box; return [delete globalThis.self.slot, globalThis.self.slot]; };'],
+  ['nested', 'const f = globalThis => (() => [delete globalThis.self.slot, globalThis.self.slot])();'],
+  ['navigated', 'const f = globalThis => [delete globalThis.self.box.slot, globalThis.self.box.slot];'],
+  ['read', 'const f = globalThis => [true, globalThis.self.slot];'],
+];
+
+// --- A carrier at the root of a deleted run ---
+// the `delete` lands the ROOT binding whatever stands at the run's root: a carrier there - a dead or
+// live sequence prefix, the user's own store - decides what RUNS, never what the delete acts on. the
+// rig gives the realm its `self` / `window` slots, so the row observes the deleted slot, the store's
+// readback and the prefix count together - a fold that drops or replays the carrier moves the log
+const CDB_ROOTS = [
+  ['bare', 'globalThis'],
+  ['dead-seq', '(0, globalThis)'],
+  ['live-seq', '(log.push("p"), globalThis)'],
+  ['store', '(ntw = globalThis)'],
+  ['store-seq', '(log.push("p"), ntw = globalThis)'],
+  ['seq-store', '(ntw = (log.push("p"), globalThis))'],
+];
+const CDB_RUNS = [
+  ['hop', root => `${ root }.self.carrierSlot`],
+  ['deep', root => `${ root }.self.window.self.carrierSlot`],
+  ['keyed', root => `${ root }[(log.push("k"), "self")].carrierSlot`],
+];
+
+function * generateCarrierDeleteBase() {
+  for (const [rootId, root] of CDB_ROOTS) {
+    for (const [runId, build] of CDB_RUNS) {
+      const expr = '(() => { let ntw; globalThis.carrierSlot = 1; try {'
+        + ` const gone = delete ${ build(root) };`
+        + ' return [String(gone), String(ntw === globalThis), String("carrierSlot" in globalThis), log.length].join("|"); }'
+        + ' catch (e) { return ["throw", log.length].join("|"); }'
+        + ' finally { delete globalThis.carrierSlot; } })()';
+      yield { ...snippet(`carrier-delete-base/${ rootId }-${ runId }`, expr, { rig: true }), strip: false };
+    }
+  }
+}
+
+function * generateShadowedRealmName() {
+  for (const [id, decl] of SRN_HOSTS) {
+    const expr = `(() => { ${ decl } globalThis.shadowedRealmSlot = 'realm';`
+      + ' const own = { self: { slot: 1, box: { slot: 3 } }, window: { slot: 2 } };'
+      + ' const out = f(own); const realm = globalThis.shadowedRealmSlot;'
+      + ' delete globalThis.shadowedRealmSlot;'
+      + " return [String(out[0]), String(out[1]), String(realm)].join('|'); })()";
+    yield { ...snippet(`shadowed-realm-name/${ id }`, expr), strip: false };
+  }
+}
+
 function * generateKeptValueCanon() {
   for (const [valueId, value, valueOpts = {}] of KVC_VALUES) {
     for (const [claimId, build, claimOpts = {}] of KVC_CLAIMS) {
@@ -7654,6 +7712,8 @@ export function * generate() {
   yield * generateTypeVarHoist();
   yield * generateProxyGlobalSEReceiver();
   yield * generateChainAssignValue();
+  yield * generateCarrierDeleteBase();
+  yield * generateShadowedRealmName();
   yield * generateKeptValueCanon();
   yield * generateTerminalProbeCanon();
   yield * generateProvenCallGuardHops();

@@ -15,6 +15,8 @@ var _ref, _ref2, _ref3, _ref4, _ref5;
 // as the root, its redundant proxy hops still drop - but each host reaches the collapse through its own
 // emit path, so each has to be pinned separately: a `new` callee, a write target, a logical operand, a
 // discarded for-x head, a template hole, and a spread argument. distinct methods / constructors per line.
+// the `delete` host is the one that reads the store differently: a READ through it sees what the store
+// hands on, while the delete names a SLOT and lands the run's ROOT binding whatever the store holds.
 let n;
 export const newCallee = new (n = _globalThis.window).Array(3);
 let w;
@@ -28,7 +30,7 @@ export const templateHole = `${null == (_ref2 = t = _globalThis.window) ? void 0
 let s;
 export const spreadArg = Math.max(...((null == (s = _globalThis.window) ? void 0 : _Array$from)?.([1, 2]) ?? [0]));
 let d;
-delete (d = _globalThis.window, _self).someUserKey;
+delete (d = _globalThis.window, _globalThis).someUserKey;
 export { w };
 
 // an IIFE-arg SYNTH over a kept+SE-key chain: the swap renders the whole receiver (its own harvest),
