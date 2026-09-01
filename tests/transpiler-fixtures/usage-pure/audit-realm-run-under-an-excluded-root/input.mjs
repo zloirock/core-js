@@ -25,6 +25,14 @@ let e = 0;
 export const seKeyedHop = globalThis[(e++, 'self')].box.list;
 export { e };
 
+// ... and a `?.` over such a run guards nothing once the run rides the span pure CAN back: the read
+// lands an always-defined binding, so the guard erases with the hops it was reading - whichever hop
+// of the run the source wrote it on
+export const guardedTail = globalThis.self.window?.customProp;
+export const guardedHop = globalThis.self?.window.customProp;
+export const guardedBoth = globalThis.self?.window?.customProp;
+export const guardedOverStore = (q = (globalThis)).self.window?.customProp;
+
 // NEGATIVE: the excluded root read on its own has nothing to ride - it stays the source's own read
 export const bareRoot = globalThis;
 export { q };
