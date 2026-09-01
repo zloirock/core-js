@@ -43,5 +43,6 @@ export const afterBare = _flatMapMaybeArray(n).call(n, h);
 // or the second statement's continuation line leaks
 // core-js-disable-next-line
 use(o.flat(2));
+// core-js-disable-next-line
 use(p.with(1, z));
 export const afterSiblings = _at(q).call(q, -1);

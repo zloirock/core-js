@@ -3,9 +3,10 @@
 // gate and the own-output sentinel census. All four were written twice - once per binding -
 // and a fixture only proves the two agreed on the shapes the corpus happens to carry
 import { planMemoReadTarget } from '../../packages/core-js-polyfill-provider/detect-usage/members.js';
-import { planCatchClauseExtraction } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
+import { buildNestedDestructurePlan, planCatchClauseExtraction } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
 import { sentinelAlreadyProcessed } from '../../packages/core-js-polyfill-provider/detect-usage/own-output.js';
 import { HOST_SLOT, hostSlot, renderProxyReceiverPlan } from '../../packages/core-js-polyfill-provider/render.js';
+import { buildOffsetToLine } from '../../packages/core-js-polyfill-provider/helpers/source-scan.js';
 import { createChecker } from './harness.mjs';
 
 const { check, checkTruthy, finish, runBoth } = createChecker('destructure-collapse');
@@ -280,5 +281,41 @@ runBoth('sentinel/a param sentinel with no body extraction is not processed',
       }),
     }), false);
   });
+
+// --- buildNestedDestructurePlan: the sole-constructor-hop anchor honours the opt-out ---
+// a `{ K: { leaf } }` pattern over the proxy root anchors its residual on K's ponyfill constructor;
+// with the directive on the hop line or on a leaf under it the plan has to decline the anchor -
+// the static the opt-out kept from being imported is missing on the ponyfill, so the residual
+// must stay the raw read off the realm object. the opt-out arrives as the per-prop predicate
+{
+  const code = 'const {\n  Map: {\n    groupBy,\n  },\n} = globalThis;\nuse(groupBy);';
+  const pureStubs = {
+    resolvePure: () => ({ entry: 'actual/map/group-by', hintName: 'Map$groupBy' }),
+    resolveGlobalPolyfill: name => name === 'Map' ? { entry: 'actual/map/constructor', hintName: 'Map' }
+      : name === 'globalThis' ? { entry: 'actual/global-this', hintName: 'globalThis' } : null,
+  };
+  // the plan asks the adapter the questions of a whole detection run (mutated slots, bindings,
+  // shadows); the harness adapters carry none of them, and every one answers "nothing" here.
+  // the undirected control below is what proves the shim reaches the anchor at all
+  function planFor(adapter, prog, isDisabledProp) {
+    const path = adapter.pickPath(prog, 'VariableDeclarator');
+    const planAdapter = new Proxy(adapter, { get: (target, key) => key in target ? target[key] : () => null });
+    return buildNestedDestructurePlan({ declarator: path.node, scope: path.scope, adapter: planAdapter, path, ...pureStubs, isDisabledProp });
+  }
+  // babel carries `loc`, oxc offsets only - the same two spellings the directive scan reads
+  const offsetToLine = buildOffsetToLine(code);
+  function lineOf(node) {
+    return node.loc?.start?.line ?? offsetToLine(node.start);
+  }
+  runBoth('plan/sole ctor hop anchors without an opt-out', code, (adapter, prog, lbl) => {
+    check(lbl, planFor(adapter, prog, null)?.anchor, 'Map');
+  });
+  runBoth('plan/an opt-out on the hop line declines the anchor', code, (adapter, prog, lbl) => {
+    check(lbl, planFor(adapter, prog, prop => lineOf(prop) === 2)?.anchor, undefined);
+  });
+  runBoth('plan/an opt-out on the leaf line declines the anchor', code, (adapter, prog, lbl) => {
+    check(lbl, planFor(adapter, prog, prop => lineOf(prop) === 3)?.anchor, undefined);
+  });
+}
 
 finish();
