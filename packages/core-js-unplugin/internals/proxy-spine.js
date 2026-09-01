@@ -19,7 +19,10 @@ import {
   callValueCanBeUndefined,
   inlineCallHasObservableEffects,
   inlineCallProxyGlobalRoot,
+  probeRunIsTheSourceValue,
   storedUserAssignmentOf,
+  unbackedRealmHopFoldAbove,
+  unbackedTailRidesAbove,
   storeReadHopOptional,
   vestigialNavOptionals,
   proxyNavSpellsClaimPure,
@@ -33,6 +36,7 @@ import {
   chainValueCarrier,
   CHAIN_HOP_WRAPPER_TYPES,
   climbTransparentWrapperPath,
+  collectFoldedReceiverSideEffects,
   deleteHostAboveChain,
   isDestructurePattern,
   isMutatedGlobalSlot,
@@ -109,7 +113,6 @@ import {
   stepOverKeptWrite,
   swallowDeadSeqWrapper,
   unbackedProxyHopKey,
-  unbackedTailRidesAbove,
   valueObservingDestructureSource,
 } from './nav-spine.js';
 import { effectsPastThrowProbe } from './se-dispatch.js';
@@ -1337,16 +1340,19 @@ export default function createProxySpineChannel(ctx) {
     // folded key's effects ride ahead of the binding here exactly as they do for a quiet twin
     const foldedKeyEffects = [...collapsed.keyEffects, ...outerEffects];
     const valuePosition = proxyNavSpellsClaimPure({ navigated });
-    // an UN-NAVIGATED spine whose kept tail SURVIVES declines the collapse WHOLE: the
-    // reference emitters keep every hop below an unbacked terminal spelled
-    // (`(v = globalThis.self.window)` stays `_globalThis.self.window`) - folding the backed
-    // run under it would erase the throw a self-less realm owes the read. the ordinary
-    // root swap takes the claim instead; the kept-root canon keeps only BACKED-terminal
-    // spines (`globalThis[(eff(), 'self')]` -> `(eff(), _globalThis)`, its tail empty)
-    // ... and never over a KEPT WRITE: the store canon deliberately lands the ponyfill in
-    // the assignment (`(k = globalThis.self).window` -> `(k = _self).window`, runtime-locked
-    // in a self-less Node) - the tail there reads off the STORE, not the realm
-    if (!writeStep && !collapsed.keptWrite && !navigated && keptTail.length) return false;
+    // an UN-NAVIGATED spine whose kept tail SURVIVES declines the collapse WHOLE unless that
+    // tail is the value the SOURCE reads: there the probe keeps its slots and respells over
+    // this claim's own pure below (`globalThis.self.window` -> `_self.window`), which is what
+    // keeps the read off a raw realm hop. a STORE holds the value instead - the store canon
+    // lands the ponyfill in the assignment (`(k = globalThis.self.window)` stores `_self`,
+    // runtime-locked in a self-less Node) - but only while the tail is effect-free: a tail whose
+    // KEY carries effects cannot fold at all, so standing down there would leave the probe reading
+    // off the ROOT while its own dotted twin reads the ponyfill; a LIVE short-circuit in the run
+    // belongs to the guard channels, and the walk turns that away itself
+    if (!writeStep && !collapsed.keptWrite && !navigated && keptTail.length
+      && (storedUserAssignmentOf(metaPath)
+        ? keptTail.every(kept => !kept.keySe.length)
+        : !unbackedTailRidesAbove(metaPath, m => resolvePure(m, metaPath)))) return false;
     markRewrite();
     const consumed = target.node;
     // a tail the render DROPS (navigation, a key-folded read) still owes its key effects -
@@ -1680,17 +1686,16 @@ export default function createProxySpineChannel(ctx) {
     // a `delete` whose whole navigation folds has no short-circuit for a guard render to
     // reproduce, and a guard built there hands `delete` a conditional, which deletes nothing
     const foldsUnderDelete = deleteHostForClaim(metaPath, node, { forFold: true });
-    // a POSSIBLE-GLOBAL hop claim under a TERMINAL unbacked tail stands down whole - the
-    // root identifier's own swap spells the base, every hop stays a real read. NOT inside a
-    // kept-write VALUE though: the store canon deliberately lands the ponyfill there
-    // (`(k = globalThis.self.window)` stores `_self`, runtime-locked without self)
-    // ... nor where a PROBE stands below the claim: the nav has a guarded collapse to render, whose
-    // alternate is the ponyfill, and the realm hops above it fold onto that - there is no raw read
-    // left for the stand-down to preserve (`(rt()?.window?.self.window).X`)
+    // a hop claim under a TERMINAL unbacked tail hosted by a `delete` stands down whole: the
+    // delete READS nothing over its navigation, so the fold takes the run to the ROOT binding
+    // and a swap here would substitute one span out of its middle (`delete _self.window` where
+    // the identifier twin deletes off the root). only where the run carries NOTHING to re-emit -
+    // an effect in it keeps the collapse's own spelling around it, and both legs land the
+    // claim's pure there (`delete (c++, globalThis).self.window`)
     if (node.type === 'MemberExpression' && kind === 'global' && POSSIBLE_GLOBAL_OBJECTS.has(hintName)
-      && !storedUserAssignmentOf(metaPath)
-      && !navHasUnresolvableProxyHop(node.object, m => resolvePure(m, metaPath))
-      && unbackedTailRidesAbove(metaPath, resolveGlobalPolyfill)) return;
+      && deleteHostAboveChain(metaPath, node, unwrapRuntimeExpr)
+      && !collectFoldedReceiverSideEffects(node.object).length
+      && unbackedTailRidesAbove(metaPath, m => resolvePure(m, metaPath))) return;
     // a POSSIBLE-GLOBAL hop claim over a pristine proxy spine collapses to the spine's
     // ROOT binding, the hops' computed-key effects folding in evaluation order - the
     // kept-root canon (`globalThis[(eff(), 'self')]` -> `(eff(), _globalThis)`)
@@ -1780,7 +1785,15 @@ export default function createProxySpineChannel(ctx) {
     // (`(a = _globalThis).self` -> `(a = _globalThis, _globalThis)`, babel's re-read canon)
     // - but only TERMINAL: navigated further, the hop keeps its OWN pure
     // (`(p = _globalThis).self.Set` -> `(p = _globalThis, _self).Set`)
-    const navigatedAbove = navigatedMemberAbove(metaPath);
+    // is the probe run standing over this claim the value the SOURCE reads? asked before the swap,
+    // while the spine still stands - and it answers TWICE here: the tail fold below reads it, and a
+    // realm hop that fold ERASES navigates nothing, so this claim stays in value position and spells
+    // its own pure where the kept-root canon would re-root it (`(v = g[(e(), 'self')].window).Map`)
+    const probeRunIsTheValue = probeRunIsTheSourceValue(metaPath, node,
+      { resolvePure: m => resolvePure(m, metaPath), effects });
+    const navigatedAbove = navigatedMemberAbove(metaPath)
+      && (probeRunIsTheValue
+        || !unbackedRealmHopFoldAbove(metaPath, node, { adapter, resolvePure: m => resolvePure(m, metaPath) }));
     let redirected = null;
     // a folded computed KEY's effects under NAVIGATION keep the ROOT binding - the
     // kept-root canon (`globalThis[(eff(), 'se') + 'lf'].Array` -> `(eff(),
@@ -1833,7 +1846,8 @@ export default function createProxySpineChannel(ctx) {
     // only over a HOP claim: a bare root spelling is the nav's own beginning, and the read above it
     // is the environment PROBE the collapse tests (`_globalThis.window` in a guard) - folding that
     // would erase the very question the guard asks
-    if (node.type === 'MemberExpression' && POSSIBLE_GLOBAL_OBJECTS.has(redirected?.hintName ?? hintName)) {
+    if (node.type === 'MemberExpression' && POSSIBLE_GLOBAL_OBJECTS.has(redirected?.hintName ?? hintName)
+      && !probeRunIsTheValue) {
       foldUnbackedRealmHopsAbove(target, replacement, { adapter, resolvePure: m => resolvePure(m, metaPath) });
     }
     // ... and BEFORE the `?.` verdict below: that one drops the chain wrapper the folded hop still

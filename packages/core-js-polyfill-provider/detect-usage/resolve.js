@@ -30,7 +30,9 @@ import {
   isAliasProxyRoot,
   isDestructurePattern,
   isDirectiveStatement,
+  isMemberAccessNode,
   isMutatedGlobalSlot,
+  isNullLiteralNode,
   isPristineProxyGlobal,
   isReassignedBeyondDeclarator,
   isRenderedStoredValue,
@@ -2262,6 +2264,57 @@ export function storedUserAssignmentOf(path, { throughReads = true } = {}) {
   return null;
 }
 
+// the slots a value LEAVES a host through, on its way to whatever reads that host: a sequence tail,
+// a further store's right, both arms of a branch and both operands of a logical (a `&&` left leaves
+// when falsy - still a value the reader receives), and the wrapper layers. what does NOT hand it on
+// is a TEST slot: the branch reads it and hands its arms out instead. the one home for the carrier
+// set - the climb below and the emitters' own descents ask it in their own directions
+export function handsValueOn(host, child) {
+  switch (host?.type) {
+    case 'SequenceExpression': return host.expressions.at(-1) === child;
+    case 'AssignmentExpression': return host.operator === '=' && host.right === child;
+    case 'ConditionalExpression': return host.consequent === child || host.alternate === child;
+    case 'LogicalExpression': return host.left === child || host.right === child;
+    default: return SKIPPABLE_WRAPPER_TYPES.has(host?.type);
+  }
+}
+
+// ... and WHO owns what such a store hands on. a store nothing reads through holds the value its own
+// spelling yields; a read THROUGH it (`(q = nav).Map`) is the CONSUMER's, and that read is the proof
+// the value must be the realm object - over a probe run the hop folds there whatever the run carries,
+// where a bare store keeps the collapse's own spelling. ONE home for a question every channel over a
+// stored nav asks, and each of them is asked in a DIFFERENT tree state: the consumer renders first
+// (outer claims before their receiver's hops), so by the time the run's own channel asks, the read
+// above may already be that render's minted sequence - which is why the discard verdict comes with
+// the question of whose discard it is
+export function storedValueConsumedAbove(path) {
+  const store = storedUserAssignmentOf(path);
+  if (!store) return false;
+  let storePath = path;
+  while (storePath?.node && storePath.node !== store) storePath = storePath.parentPath;
+  if (!storePath?.node) return false;
+  // READING the value is not yet reading THROUGH it: a `typeof`, an argument, a null test observe it
+  // without dereferencing, and only a dereference proves what the value must be. the carriers hand
+  // it on unchanged - the wrapper layers, a sequence whose tail it is, a further store
+  for (let up = storePath.parentPath, child = storePath.node; up?.node; child = up.node, up = up.parentPath) {
+    const { node: host } = up;
+    if (isMemberAccessNode(host) && host.object === child) return true;
+    if (host.type === 'VariableDeclarator' && host.init === child) return isDestructurePattern(host.id);
+    if (host.type === 'AssignmentExpression' && host.operator === '=' && host.right === child) {
+      if (isDestructurePattern(host.left)) return true;
+      continue;
+    }
+    if (host.type === 'SequenceExpression' && host.expressions.at(-1) !== child) {
+      // a sequence the SOURCE wrote holds the value beside its own expressions and reads nothing
+      // through it; a MINTED one is a render's rebuilt read of exactly this value (`(q = nav).Map`
+      // becomes `(q = nav, _Map)`), so the discard there IS the consumer
+      return !nodeCarriesSourceSpan(host);
+    }
+    if (!handsValueOn(host, child)) return false;
+  }
+  return false;
+}
+
 // a pristine PROXY-named hop on the VALUE spine of a user chain-assign target whose receiver
 // below is UNDEFINABLE: the hop collapse would change what the assignment STORES
 // (`(k = globalThis.window.self)` must not store the ponyfill where the source stores what the
@@ -2561,7 +2614,12 @@ export function planProvenNavGuardCollapse({
     // re-emits the PREFIX only: spelling the whole sequence puts the tail's ponyfill in twice
     // (`(k++, _globalThis, _self).window`)
     seqTailDescended: !!seqRootNode && descendSequenceTail,
-    storedValueSeqDescended: !!topAssign && storedValueCore(dug.value, storedValueSequenceTail).descended,
+    // asked of the RAW right, not of the dug value: the chain-assign walk hands the value with its
+    // transparent layers already peeled, so a render reading the flag off the peeled node landed OVER
+    // them and dropped an assertion the source wrote - and a runtime narrowing outranks the wider
+    // type it asserts, so the layers stay and the render lands inside them
+    storedValueSeqDescended: !!topAssign
+      && storedValueCore(topAssignSteps.at(-1)?.right, storedValueSequenceTail).descended,
     // the proven root identifier and its resolved global name: an IDENT root's own node (a
     // call root's inlined identifier lives off-span inside the callee and is not this), so a
     // piecewise render can substitute the root inside a kept source slice
@@ -3559,6 +3617,110 @@ export function foldableRealmHopKey(key, { adapter, resolvePure }) {
 export function foldableRealmHop(node, ctx) {
   if (node?.type !== 'MemberExpression' && node?.type !== 'OptionalMemberExpression') return false;
   return !node.computed && foldableRealmHopKey(staticMemberKeyName(node), ctx);
+}
+
+// does a TERMINAL run of unbacked pristine hops ride ABOVE the claim - `window` reads that end
+// the spine without another backed hop or claimable member folding them? that run is the value
+// the source itself reads, so it keeps its slots and respells over the claim's own pure
+// (`globalThis.self.window` -> `_self.window`), where folding it would answer the environment
+// probe with an always-defined ponyfill. a backed hop above RESETS the run (deep-nav folds), and
+// a claimable member above navigates it - both belong to the collapse, not here
+export function unbackedTailRidesAbove(path, resolvePure) {
+  let sawUnbacked = false;
+  let cur = path;
+  for (let up = cur.parentPath; up?.node; up = cur.parentPath) {
+    // every layer that hands the value UP is stepped, not just the wrapper kinds: a SEQUENCE
+    // whose tail the run is carries it exactly as a paren does, and stopping there answered
+    // "no run" for `(0, globalThis.self).window` while its unwrapped twin answered yes
+    if (SKIPPABLE_WRAPPER_TYPES.has(up.node.type)
+      || (up.node.type === 'SequenceExpression' && up.node.expressions.at(-1) === cur.node)
+      // a STORE hands the value on, so what reads the STORE decides for the run inside it: a claim
+      // above consumes it and folds the probe (`(q = (eff(), globalThis.self).window).Map`), a bare
+      // store keeps whatever the run spells
+      || (up.node.type === 'AssignmentExpression' && up.node.operator === '=' && up.node.right === cur.node)) {
+      cur = up;
+      continue;
+    }
+    if (!isMemberAccessNode(up.node) || up.node.object !== cur.node) {
+      // a NULL-PROBE test reading the run (`null == <run>`, a rendered guard or the
+      // source's own lowered spelling) is an environment probe: the below-probe collapse
+      // owns it (the owner-decided price - `undefined` where the raw read throws)
+      if (up.node.type === 'BinaryExpression' && (up.node.operator === '==' || up.node.operator === '!=')
+        && [up.node.left, up.node.right].some(isNullLiteralNode)) return false;
+      break;
+    }
+    // a LIVE `?.` anywhere in the run is the source's own environment probe - the guarded
+    // collapse channel owns that spine, and its test folds the probe onto the ponyfill
+    if (up.node.optional) return false;
+    const key = memberProxyHopName(up.node);
+    // a real member READ above NAVIGATES the run - the deep-nav collapse owns it
+    // (`globalThis.self.window.k` collapses whole); this walk answers for a run whose
+    // VALUE flows out (a bare read, an argument, a `typeof`) with the unbacked hop terminal
+    if (key === null) return false;
+    sawUnbacked = !resolvePure({ kind: 'global', name: key });
+    cur = up;
+  }
+  return sawUnbacked;
+}
+
+// ... and the verdict every channel over such a run asks before its swap, while the source spine is
+// still standing: is the run the value the SOURCE reads? then it keeps its slots over the ponyfill
+// the swap lands and nothing above folds it. a STORE is the other half: the value it hands on IS the
+// realm object, so the run folds there - unless it carries an effect the folded value has no slot
+// for (the line the `delete` fold takes too), and unless a CONSUMER reads through the store, whose
+// read owns the value whatever the run carries. `effects` is the claim's own harvest, where a hop's
+// key effects reach this question - the run's own spelling carries the rest
+export function probeRunIsTheSourceValue(path, node, { resolvePure, effects = null }) {
+  if (!isMemberAccessNode(node) || !unbackedTailRidesAbove(path, resolvePure)) return false;
+  const store = storedUserAssignmentOf(path);
+  if (!store) return true;
+  if (storedValueConsumedAbove(path)) return false;
+  return !!effects?.length || !!collectFoldedReceiverSideEffects(store.right).length;
+}
+
+// ... and the RUN of them standing above a SUBSTITUTED proxy binding: each names the realm the
+// ponyfill already is, and off-browser the ponyfill cannot answer it, so the whole run folds onto the
+// binding - the verdict the nav plan reaches by truncating its hops, spelled for the emitters' own
+// tail walks. path-shaped and dialect-neutral like the delete-host walk above: this answers WHERE the
+// fold lands and WHAT it lands, and each binding performs the replacement itself.
+// the base is tracked as a NODE, not by the path's own slot - a path whose span was just replaced
+// still answers with the source node - and every layer between hands the same value up: a chain of
+// wrappers and a sequence whose tail the base is, both peeled on either side of the comparison,
+// because the base may arrive WRAPPED in the harvest a swap re-emitted (`(call(), _self)`).
+// a sequence wrapper observing nothing else goes WITH the fold rather than surviving around the
+// value (`(0, _self).window` is `_self`, the identifier twin's bytes)
+export function unbackedRealmHopFoldAbove(basePath, baseNode, ctx) {
+  // what the level below hands on: the base itself, and then every hop the walk has already taken -
+  // the fold erases them, so the hop above reads the base through them
+  let carried = peelReceiverSequenceTail(baseNode);
+  function handsOnBase(node) {
+    return peelReceiverSequenceTail(node) === carried;
+  }
+  let fold = null;
+  let cursor = basePath;
+  for (let up = cursor?.parentPath; up?.node; up = cursor.parentPath) {
+    const { node } = up;
+    if ((SKIPPABLE_WRAPPER_TYPES.has(node.type) && handsOnBase(node.expression))
+      || (node.type === 'SequenceExpression' && handsOnBase(node.expressions.at(-1)))) {
+      cursor = up;
+      continue;
+    }
+    if (!handsOnBase(node.object) || !foldableRealmHop(node, ctx)) break;
+    // what lands is the object's CORE: the wrapper layers the fold's own operand carried are the
+    // erased read's, not the value's (`((eff(), g.self) as any).window` lands `(eff(), _self)` -
+    // the other leg's plan rebuilds the value the same way), while the sequence stays, because its
+    // prefix is what the run DID
+    const objectCore = unwrapRuntimeExpr(node.object);
+    const deadSeqWrapper = objectCore?.type === 'SequenceExpression'
+      && objectCore.expressions.slice(0, -1).every(expr => !mayHaveSideEffects(expr));
+    // the OUTERMOST folding hop is the one slot that lands, and what it lands is what the FIRST
+    // fold reached: everything between is erased with the run, so a per-hop replacement would
+    // only rewrite nodes the next one drops
+    fold = { path: up, node: fold ? fold.node : deadSeqWrapper ? objectCore.expressions.at(-1) : objectCore };
+    carried = node;
+    cursor = up;
+  }
+  return fold;
 }
 
 // is this proxy-hop key one the pure package cannot back at all (`window` - there is no `_window`)?

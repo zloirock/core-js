@@ -7,9 +7,9 @@ var _ref;
 // WHICH realm hop the collapse keeps is positional, not name-based. reading off the SOURCE ROOT a
 // hop pure cannot back is the environment probe and its `?.` is load-bearing; standing over a
 // ponyfill - a backed hop below it, or the leaf a collapse landed - the same hop is a read THROUGH
-// that ponyfill, which off-browser cannot answer it, so it folds onto the leaf with its `?.`. two
-// hops keep their slot either way: a computed key, whose effects would fold with it, and a spine
-// with no probe under it at all, where there is no collapse to fold onto
+// that ponyfill, which off-browser cannot answer it, so it folds onto the leaf with its `?.`. what
+// no position folds is a TERMINAL unbacked hop whose value the source itself reads: it rides off
+// the deepest ponyfill the run can hand it, keeping the slot a computed key keeps too
 let e = 0;
 let k;
 let v;
@@ -37,10 +37,13 @@ export const storeUnderProbe = (k = _globalThis, _globalThis).noSuchStatic;
 // NEGATIVE: a `?.` ON the probe hop stays, and so does the read it guards
 export const optionalOnProbe = _globalThis.window?.noSuchStatic;
 
-// NEGATIVE: a COMPUTED key keeps its slot - folding it would fold its effects away with it
-export const computedKeyStays = _globalThis.self[e++, 'window'];
+// NEGATIVE: a COMPUTED key keeps its slot - folding it would fold its effects away with it -
+// and the backed run under it still collapses, so the key reads off the ponyfill
+export const computedKeyStays = _self[e++, 'window'];
 
-// NEGATIVE: no probe under the run means no collapse to fold onto, and the whole spine stays
-export const standsDown = _globalThis.self.window;
+// NEGATIVE: the TERMINAL hop is the value the source reads, so it keeps its slot; the backed
+// run below it is what collapses, leaving the probe riding the ponyfill instead of a raw
+// realm read off the pure root
+export const terminalProbeRides = _self.window;
 export const keep = _atMaybeArray(_ref = [1]).call(_ref, 0);
 export { e, k, v };
