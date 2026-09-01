@@ -19,7 +19,6 @@ export function createUsageHandlerCore({
   resolvePure = null,
   suppressProxyGlobals = false,
   keptProxyHops = null,
-  keptDeclinedProxyMetaHops = false,
   onSuppressedProxyHop = null,
   suppressKeptNavRoot = null,
   selfRefBindingKind,
@@ -73,7 +72,7 @@ export function createUsageHandlerCore({
   function emitMemberUsage(path) {
     const meta = handleMemberExpressionNode({
       node: path.node, scope: path.scope, adapter, handledObjects, suppressProxyGlobals, path, resolveMeta, isEntryAvailable,
-      resolvePure, keptProxyHops, keptDeclinedProxyMetaHops,
+      resolvePure, keptProxyHops,
     });
     if (meta) {
       onUsage(meta, path);

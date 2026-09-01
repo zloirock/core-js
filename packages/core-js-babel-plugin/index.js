@@ -1312,8 +1312,16 @@ export default function plugin(api, options) {
           // a proxy-HOP claim whose navigation a `delete` folds WHOLE reaches its slot off the ROOT
           // binding, not off the hop's own ponyfill - that is the base every other spelling of this
           // source lands on, and the drive that spells it cannot fire from the hop itself
+          // asked through the wrappers one parser keeps as NODES (`((w = globalThis)).self...`
+          // under createParenthesizedExpressions) - the raw-path test read only the flag dialect
+          const chainRootCore = unwrapRuntimeExpr(chainRootPath.node);
+          const chainAssignRootValueName = chainRootCore?.type === 'AssignmentExpression'
+            && chainRootCore.operator === '='
+            ? asProxyGlobalName(resolveObjectName({
+              objectNode: chainRootCore, scope: path.scope, adapter, path,
+            })) : null;
           if (memberProxyHopName(path.node)
-            && (chainRootPath.isIdentifier() || chainRootPath.isCallExpression())
+            && (chainRootPath.isIdentifier() || chainRootPath.isCallExpression() || chainAssignRootValueName)
             && deleteHostAboveChain(path, path.node, unwrapRuntimeExpr)) {
             // the `?.` the source wrote over the folded nav guards a read that never happens: the
             // fold landed the root binding, and the canon has spoken for the whole navigation -
@@ -1346,10 +1354,15 @@ export default function plugin(api, options) {
                 : resolveObjectName({ objectNode: rootId, ...callCtx, usageNode: rootId });
             }
             const rootName = chainRootPath.isIdentifier() ? asProxyGlobalName(chainRootPath.node.name)
-              : asProxyGlobalName(provenCallRootName());
+              : chainAssignRootValueName ?? asProxyGlobalName(provenCallRootName());
             const rootPure = rootName ? resolvePure({ kind: 'global', name: rootName }, path) : null;
             if (rootPure) {
-              landFoldedRoot(injectPureImport(rootPure.entry, rootPure.hintName));
+              const base = injectPureImport(rootPure.entry, rootPure.hintName);
+              // a CHAIN-ASSIGN root is the user's own write and survives the fold, running
+              // first exactly as the source runs it - the fold's base reads after it
+              // (`delete (w = globalThis).self.k` -> `delete (w = _globalThis, _globalThis).k`)
+              landFoldedRoot(chainAssignRootValueName
+                ? t.sequenceExpression([chainRootCore, base]) : base);
               return;
             }
             if (!rootName && chainRootPath.isIdentifier()
@@ -1357,6 +1370,24 @@ export default function plugin(api, options) {
               landFoldedRoot(t.cloneNode(chainRootPath.node));
               return;
             }
+          }
+          // the call-rooted twin of the hop-collapse drive: a claim on a proxy HOP whose chain
+          // roots in an inline-resolvable call has no root-identifier visit to fold from, so the
+          // claimless channel owns the run - fired at the chain END, and only where navigation
+          // CONTINUES above this claim (`f().self.customUserSlot` with the slot mutated folds
+          // onto the root ponyfill, the identifier twin's bytes; a terminal hop keeps its own
+          // whole-swap, the claim canon)
+          if (chainRootCore?.type === 'CallExpression' && memberProxyHopName(path.node)) {
+            // anchored at the member ABOVE the last consecutive proxy hop, not the chain top:
+            // an ordinary mid-chain key (`...self.callRootBox.list` - the mutated slot) ends
+            // the all-proxy run the channel folds, and everything above it reads off the base
+            let callChainEnd = path;
+            for (let up = callChainEnd.parentPath;
+              (up?.isMemberExpression?.() || up?.isOptionalMemberExpression?.())
+              && unwrapRuntimeExpr(up.node.object) === callChainEnd.node
+              && memberProxyHopName(callChainEnd.node);
+              up = callChainEnd.parentPath) callChainEnd = up;
+            if (callChainEnd !== path && collapseClaimlessCallRootedNav(callChainEnd)) return;
           }
           // the hop collapse refused a short-circuitable nav (the probe canon): render the
           // kept-nav plan in place at the chain END, or a raw polyfillable hop key strands

@@ -1072,10 +1072,6 @@ export function createUsageVisitors({
   suppressKeptNavRoot = null,
   revisitDecorators = false,
 }) {
-  // hops the detector suppressed while the meta keeps its receiver PATH: the marking exists so no
-  // second rewrite lands inside the span that swallowed them, but the nav itself still owes a
-  // render - one that replaces the WHOLE chain span, which composes rather than collides
-  const keptProxyHops = new WeakSet();
   const core = createUsageHandlerCore({
     adapter,
     onUsage,
@@ -1084,10 +1080,6 @@ export function createUsageVisitors({
     resolveMeta,
     resolvePure,
     suppressProxyGlobals,
-    // hops a DECLINED proxy-rooted meta marked handled
-    // must stay recorded for the suppressed-hop callback, or nothing renders them
-    keptProxyHops,
-    keptDeclinedProxyMetaHops: true,
     onSuppressedProxyHop,
     suppressKeptNavRoot,
     // read `kind` off the parent VariableDeclaration via the binding path - works across
