@@ -9,8 +9,8 @@ export const backedThenProbeRead = String(dh().self.window.customQ);
 export const probeThenBackedRead = String(dh().window.self.customQ);
 // a sequence PREFIX around the folded run re-emits ahead of the base, where the source ran it
 // - nested prefixes flatten in source order, a computed-key effect stays in the surviving key,
-// and the `delete` fold takes the same slot; a probe LEAF keeps the run spelled and only the
-// call swaps, its prefix staying in place
+// and the `delete` fold takes the same slot; a probe LEAF keeps its own slot and rides the
+// deepest ponyfill the run hands it, the swapped span taking the call and the prefix with it
 // ... the deleted slot gets a name of its own: a `delete` is a slot MUTATION, and sharing the
 // read rows' key would move the whole file into the mutated family
 let counter = 0;
