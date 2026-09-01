@@ -330,6 +330,97 @@ QUnit.test('global-proxy: non-pure leaf collapses its .self / .window hop (runs 
   /* eslint-enable @stylistic/no-extra-parens -- restore after the deliberately parenthesized cases */
 });
 
+// the NEGATIVE twin of the collapse above: a realm hop pure cannot back, standing TERMINAL in a
+// value the source itself reads, is the environment probe - it keeps its slot over the deepest
+// ponyfill the run hands it (`globalThis.self.window` -> `_self.window`), so the read answers what
+// the environment holds instead of the always-defined realm object a fold would return. it runs at
+// all only because the `self` below it collapsed: a raw `.self` read throws in Node
+QUnit.test('global-proxy: a terminal probe hop keeps its read over the collapsed run', assert => {
+  const hasWindow = globalThis.window !== undefined;
+  assert.same(globalThis.self.window === globalThis, hasWindow);
+  assert.same(typeof globalThis.self.window, hasWindow ? 'object' : 'undefined');
+  assert.same(globalThis.window.self.window === globalThis, hasWindow);
+  // ... and off a CALL root, whose swapped span re-emits the sequence prefix exactly once
+  let counter = 0;
+  function dh() {
+    return globalThis;
+  }
+  assert.same((counter++, dh()).self.window === globalThis, hasWindow);
+  assert.same(counter, 1);
+  // NEGATIVE: something reading THROUGH the run folds it whole onto the root ponyfill, so the
+  // claim answers on every realm
+  assert.same(new globalThis.self.window.Array(2).length, 2);
+});
+
+// what a STORE hands on over the same run: the value IS the realm object, so an effect-free run
+// folds the probe away and the variable holds the realm on every host. a run carrying an effect has
+// no slot for it in that folded value, so the collapse keeps its own spelling and the store holds
+// what the environment holds - the effect still running exactly once, where the source ran it
+QUnit.test('global-proxy: a store folds the probe only over an effect-free run', assert => {
+  const hasWindow = globalThis.window !== undefined;
+  let held;
+  held = globalThis.self.window;
+  assert.same(held, globalThis);
+  // eslint-disable-next-line @stylistic/no-extra-parens -- the seal is the spelling under test
+  held = (globalThis.self).window;
+  assert.same(held, globalThis);
+  let counter = 0;
+  held = (counter++, globalThis.self).window;
+  assert.same(held === globalThis, hasWindow);
+  assert.same(counter, 1);
+  // ... and a claim reading THROUGH the store consumes the run, so the probe folds there whatever
+  // the run carries: the stored value is the realm object again
+  let q;
+  const size = (q = (counter++, globalThis).self.window).Map.length;
+  assert.same(size, globalThis.Map.length);
+  assert.same(q, globalThis);
+  assert.same(counter, 2);
+});
+
+// ... and every channel that reads THROUGH such a store answers the same way, whatever the run
+// carries: the read is the proof the value must be the realm object. a reader that never
+// dereferences it proves nothing, so there the collapse keeps its own spelling
+QUnit.test('global-proxy: every read through a store folds the probe', assert => {
+  const hasWindow = globalThis.window !== undefined;
+  let counter = 0;
+  let held;
+  function dh() {
+    return globalThis;
+  }
+  const size = (held = (counter++, globalThis.self).window).Map.length;
+  assert.same(size, globalThis.Map.length);
+  assert.same(held, globalThis, 'a claim reads through the store');
+  const ctor = (held = (counter++, globalThis.self).window)?.Map;
+  assert.same(ctor, globalThis.Map);
+  assert.same(held, globalThis, 'and so does its guard');
+  const last = (held = (counter++, dh()).self.window).Array.prototype.at.call([1, 2], -1);
+  assert.same(last, 2);
+  assert.same(held, globalThis, 'an instance dispatch off a proven call root reads through it too');
+  assert.true(delete (held = (counter++, globalThis.self).window).customDeleteSlot);
+  assert.same(held, globalThis, 'a delete reads nothing over its own navigation, but through this store it does');
+  // ... and a destructure reads through the run the same way - its STORE readback is left to the
+  // fixtures: a leg reading the ALREADY-LOWERED spelling takes the value through a temp binding,
+  // where the read is no longer part of the store's own syntax
+  const { Map: Destructured } = (counter++, globalThis.self).window;
+  assert.same(Destructured, globalThis.Map);
+  // ... and the assignment-PATTERN twin over the store itself: its slots must come from the
+  // polyfill, whatever the run carries - read raw off the realm object they are the native ones,
+  // absent in a stripped realm
+  let patterned;
+  // eslint-disable-next-line prefer-const -- the assignment pattern IS the write under test
+  ({ Map: patterned } = held = (counter++, globalThis.self).window);
+  assert.same(patterned, globalThis.Map);
+  // ... and the store beside it holds the realm object - or, on a leg reading the LOWERED spelling,
+  // what the environment holds: there the value reaches the pattern through a temp binding
+  const heldIsRealmOrEnvironment = held === globalThis || held === globalThis.window;
+  assert.true(heldIsRealmOrEnvironment);
+  // NEGATIVE: a `typeof` observes the value without dereferencing it, so the store keeps what the
+  // collapse spells and holds what the environment holds
+  assert.same(typeof (held = (counter++, globalThis.self).window), hasWindow ? 'object' : 'undefined');
+  assert.same(held === globalThis, hasWindow);
+  assert.same(counter, 7, 'and each run ran its effect exactly once');
+});
+
 // the same collapse for an ALIAS root (`const g = globalThis; g.self.Array` -> `g.Array`): the chain has
 // no `kind:'global'` trigger on the local `g`, so the hop must be dropped through the alias root, keeping
 // `g`. `self` / `window` do not exist in Node, so a surviving `g.self.Array` would read an undefined hop
