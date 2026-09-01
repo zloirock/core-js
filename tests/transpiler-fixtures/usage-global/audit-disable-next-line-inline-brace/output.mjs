@@ -51,5 +51,6 @@ export const afterBare = n.fill(0);
 // or the second statement's continuation line leaks its module
 // core-js-disable-next-line
 use(o.entries());
+// core-js-disable-next-line
 use(p.keys());
 export const afterSiblings = q.findIndex(f);

@@ -16,5 +16,6 @@ export const pinned = [1].at(0);
 export const adopted = [[1]].flat();
 
 // the comment travels with the statement it marks, whatever shape the entry takes
+// core-js-disable-next-line
 ([2].at(0), require)("core-js/modules/es.array.includes"); // core-js-disable-line
 export const viaRequire = [3].includes(3);

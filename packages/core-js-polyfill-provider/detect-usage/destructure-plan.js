@@ -674,7 +674,8 @@ export function buildNestedDestructurePlan({
       // member read - a user-installed replacement must win there, so `anchorPure` stays null and
       // the renders emit `<proxyBinding>.<K>` instead of the ctor binding. extractions stay
       // leaf-gated (a mutated LEAF already planned verbatim upstream). null when the key is not a
-      // static non-proxy constructor or the inner is not a non-empty ObjectPattern
+      // static non-proxy constructor, the inner is not a non-empty ObjectPattern, or an opt-out
+      // covers the hop or a leaf under it - that residual stays the user's raw read
       function planCtorKeyAnchor(hostPattern) {
         const prop = hostPattern.properties.length === 1 && isPropertyNode(hostPattern.properties[0])
           ? hostPattern.properties[0] : null;
@@ -682,6 +683,11 @@ export function buildNestedDestructurePlan({
         const inner = key && !POSSIBLE_GLOBAL_OBJECTS.has(key) && isStaticPlacement(key)
           ? peelInnerDefault(prop.value) : null;
         if (inner?.type !== 'ObjectPattern' || !inner.properties.length) return null;
+        // an opt-out on the hop or on any leaf under it keeps the residual the user's own raw read:
+        // anchored on the ponyfill constructor, a leaf the directive kept from importing its static
+        // reads `undefined` off it (`{ groupBy } = _Map` without `map/group-by`) where the realm
+        // object still carries the native - the unplugin's re-anchor render answers the same
+        if (leafDisabled(prop) || inner.properties.some(leafDisabled)) return null;
         // a SLOT-mutated anchor holds the user's replacement: its STATICS are the shim's own,
         // so static leaves stay verbatim on the raw residual instead of extracting pure
         // statics. a `[Symbol.iterator]` leaf still extracts - the synth is receiver-based
@@ -727,8 +733,8 @@ export function buildNestedDestructurePlan({
       // single-prop proxy hops like the member-chain prefix walk (`globalThis.self.x` ->
       // `_globalThis.x`), then re-try the ctor anchor on the peeled pattern (`{ globalThis:
       // { Map: { x } } }` -> `({ x } = _Map)`) or anchor the remainder on the receiver's own
-      // always-defined binding. a slot-mutated hop or an un-importable receiver keeps the raw
-      // residual (patch visibility / no binding to anchor on)
+      // always-defined binding. a slot-mutated hop, an opted-out one or an un-importable receiver
+      // keeps the raw residual (patch visibility / the user's own read / no binding to anchor on)
       function planPeeledProxyHop() {
         const receiverPure = resolveGlobalPolyfill(receiver);
         if (!receiverPure) return null;
@@ -737,7 +743,7 @@ export function buildNestedDestructurePlan({
         while (effPattern.properties.length === 1 && isPropertyNode(effPattern.properties[0])) {
           const [prop] = effPattern.properties;
           const key = propKeyNameScoped(prop);
-          if (!key || !POSSIBLE_GLOBAL_OBJECTS.has(key) || adapter.isMutatedStatic?.(receiver, key)) break;
+          if (!key || !POSSIBLE_GLOBAL_OBJECTS.has(key) || adapter.isMutatedStatic?.(receiver, key) || leafDisabled(prop)) break;
           const inner = peelInnerDefault(prop.value);
           if (inner?.type !== 'ObjectPattern' || !inner.properties.length
             || inner.properties.some(isRestProperty)) break;
