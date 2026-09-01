@@ -45,5 +45,13 @@ export const computedKeyStays = _self[e++, 'window'];
 // run below it is what collapses, leaving the probe riding the ponyfill instead of a raw
 // realm read off the pure root
 export const terminalProbeRides = _self.window;
+
+// ... and a root the collapse cannot spell changes none of it: what cannot be spelled is the root's
+// OWN read, while the run above it still rides the deepest span pure can back - terminal probe and
+// navigation alike. what stays raw is what nothing can spell: the bare root, and a run with no
+// backed hop under it at all
+export const probeRootedTerminal = _self.window;
+export const probeRootedNav = _self.Array;
+export const probeRootedUnbackedRun = window.window.customUserSlot;
 export const keep = _atMaybeArray(_ref = [1]).call(_ref, 0);
 export { e, k, v };
