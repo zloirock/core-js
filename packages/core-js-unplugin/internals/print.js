@@ -21,20 +21,27 @@ EXPRESSIONS_PRECEDENCE.TSNonNullExpression = EXPRESSIONS_PRECEDENCE.MemberExpres
 // minimal structural set, exactly like the babel leg: esrap re-derives every required paren
 // from precedence, and a kept `ParenthesizedExpression` would get wrapped a second time by
 // that same machinery - each reprint then grows a layer (`((0, require))(...)`) and
-// idempotency dies. the one paren esrap cannot re-derive is the one that KEEPS semantics
-// away: a paren-wrapped string at statement position is NOT a directive, so one layer stays
-// or the reprint would promote it into the directive prologue
-function peelParens(child, parent) {
+// idempotency dies. the parens esrap cannot re-derive are the ones that KEEP semantics away -
+// the three hosts named below, a paren-wrapped string at statement position the first: it is NOT
+// a directive, so one layer stays or the reprint would promote it into the directive prologue
+function peelParens(child, parent, commentBetween) {
   if (!child || child.type !== 'ParenthesizedExpression') return child;
   let inner = child.expression;
   while (inner.type === 'ParenthesizedExpression') inner = inner.expression;
-  // two hosts where the paren IS the grammar and esrap cannot re-derive it: a paren-wrapped
-  // string at statement position is NOT a directive, and a decorator admits only a
-  // LeftHandSideExpression bare (`@(<Map />)` reparses as garbage without its parens) -
-  // keep exactly one layer there
+  // three hosts where the paren IS the grammar and esrap cannot re-derive it: a paren-wrapped
+  // string at statement position is NOT a directive, a decorator admits only a
+  // LeftHandSideExpression bare (`@(<Map />)` reparses as garbage without its parens), and a
+  // comment between `throw` / `yield` and the operand they forbid a line terminator before
+  // flushes onto the keyword's line and pushes the operand under it - `throw // note` is
+  // `throw;` (esrap guards `return` this way itself, not these two) - keep exactly one layer
   if (parent?.type === 'Decorator'
     || (parent?.type === 'ExpressionStatement' && inner.type === 'Literal' && typeof inner.value === 'string')) {
     child.expression = inner;
+    return child;
+  }
+  if ((parent?.type === 'ThrowStatement' || parent?.type === 'YieldExpression') && commentBetween(child, inner)) {
+    child.expression = inner;
+    child.commentInside = true;
     return child;
   }
   return inner;
@@ -201,6 +208,22 @@ function withCorpusGapOverrides(language) {
     if (!WRAPPED_ASSIGN_TARGETS.has(node.left.type)) return baseAssignment(node, context);
     baseAssignment({ ...node, left: parenthesize(node.left) }, context);
   };
+  // the one paren layer the peel keeps around a commented `throw` / `yield` operand opens its
+  // operand on a fresh line, the way the author wrote it: esrap flushes the comment right after
+  // the `(` otherwise, and a line-bound directive that leaves its own line is what the roundtrip
+  // gate holds against. every other kept layer (the decorator, the string statement) has no
+  // comment inside and prints inline
+  const baseParenthesized = language.ParenthesizedExpression;
+  language.ParenthesizedExpression = (node, context) => {
+    if (!node.commentInside) return baseParenthesized(node, context);
+    context.write('(');
+    context.indent();
+    context.newline();
+    context.visit(node.expression);
+    context.dedent();
+    context.newline();
+    context.write(')');
+  };
   // an update over a compound operand prints unwrapped - `Map as any++` does not reparse
   const baseUpdate = language.UpdateExpression;
   language.UpdateExpression = (node, context) => {
@@ -231,6 +254,12 @@ function withCorpusGapOverrides(language) {
 // comments. `loc` values are skipped on re-entry via the `loc` key itself never carrying
 // a `type`. mutating the parsed program is deliberate - the parse is transform-local
 function synthesizeLocs(program, comments, source) {
+  // does a comment open inside `outer`'s span ahead of `inner`'s start? asked only of the two
+  // line-terminator-sensitive paren hosts, so the scan over the comment list stays off the walk
+  function commentBetween(outer, inner) {
+    return typeof outer.start === 'number' && typeof inner.start === 'number'
+      && comments.some(comment => comment.start >= outer.start && comment.end <= inner.start);
+  }
   const locate = buildOffsetToLoc(source);
   let hasChainExpression = false;
   (function walk(node, anchor) {
@@ -270,8 +299,8 @@ function synthesizeLocs(program, comments, source) {
       if (key === 'loc' || key === 'replacedSpan') continue;
       const value = node[key];
       if (Array.isArray(value)) {
-        for (let i = 0; i < value.length; i++) value[i] = peelParens(value[i], node);
-      } else node[key] = peelParens(value, node);
+        for (let i = 0; i < value.length; i++) value[i] = peelParens(value[i], node, commentBetween);
+      } else node[key] = peelParens(value, node, commentBetween);
       walk(node[key], anchor);
     }
   })(program, null);
@@ -339,21 +368,26 @@ export function printProgram({ program, comments, source, id, jsx = false, inclu
 
   const language = withCorpusGapOverrides((jsx ? tsx : ts)({ comments: printComments, boundaryTokens: true }));
   // explicitly ANCHORED leading comments (node -> texts): emitted verbatim ahead of the
-  // statement's own print, bypassing the loc heuristics entirely - the deterministic channel
+  // node's own print, bypassing the loc heuristics entirely - the deterministic channel
   // for a directive that must reach the NEXT pass on its own line whatever a sibling's
-  // reprint does to loc-attached comments
+  // reprint does to loc-attached comments. wrapped per node TYPE present in the map: esrap
+  // dispatches every printed node through its type's handler, and a type without one (a
+  // switch case, a template quasi) is printed inline by its parent and takes no anchor
   if (anchoredComments) {
-    const baseVariableDeclaration = language.VariableDeclaration;
-    language.VariableDeclaration = (node, context) => {
-      const lead = anchoredComments.get(node);
-      if (lead) {
-        for (const text of lead) {
-          context.write(text);
-          context.newline();
+    for (const type of new Set(anchoredComments.keys().map(node => node.type))) {
+      const base = language[type];
+      if (typeof base !== 'function') continue;
+      language[type] = (node, context) => {
+        const lead = anchoredComments.get(node);
+        if (lead) {
+          for (const text of lead) {
+            context.write(text);
+            context.newline();
+          }
         }
-      }
-      baseVariableDeclaration(node, context);
-    };
+        base(node, context);
+      };
+    }
   }
   const printed = print(program, language, {
     sourceMapSource: id,

@@ -84,6 +84,16 @@ const CASES = [
     'function f({ from, ...rest } = globalThis.self.Array) { return from([1]); }\nuse(f());'],
   ['proxy hops in the rendered guard alternate', 'globalThis.probeHost = { tag: "h", read() { return this.tag; } };\n'
     + 'export const r = String(globalThis.window?.self.window.probeHost.read());\nuse(r);'],
+  // the opt-outs the first pass honoured reach the second through its own reprint: every covered
+  // node that the reprint separates from the author's directive is led by one of its own
+  ['directive over two statements', '// core-js-disable-next-line\nuse(a.at(0)); use(b.flat());\nexport const r = c.includes(0);'],
+  ['trailing -line over two statements', 'use(a.at(0)); use(b.flat()); // core-js-disable-line\nexport const r = c.includes(0);'],
+  ['directive over two pattern properties', 'const {\n  // core-js-disable-next-line\n  at, flat,\n  includes,\n} = arr;\nexport const r = [at, flat, includes];'],
+  ['directive over two object properties', 'const o = {\n  // core-js-disable-next-line\n  k: a.at(0), j: b.flat(),\n  m: c.includes(0),\n};\nexport const r = o;'],
+  // the first pass leaves a sole constructor hop raw over its own proxy binding when the opt-out
+  // covers the hop or a leaf; the second pass reads that residual and must not anchor it either
+  ['opt-out on a sole ctor hop line', 'const {\n  // core-js-disable-next-line\n  Map: { groupBy: g },\n} = globalThis;\nexport const r = g;'],
+  ['opt-out on a sole ctor hop leaf', 'const {\n  Object: {\n    // core-js-disable-next-line\n    groupBy: g,\n  },\n} = globalThis;\nexport const r = g;'],
 ];
 
 for (const importStyle of ['import', 'require']) {
