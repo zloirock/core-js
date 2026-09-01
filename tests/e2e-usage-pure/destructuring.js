@@ -2143,6 +2143,29 @@ QUnit.test('destructuring: disable directive gates per leaf', assert => {
   assert.same(og, Object.groupBy);
 });
 
+// a SOLE constructor hop under the proxy root re-anchors its residual on the ponyfill constructor -
+// unless the opt-out sits on the hop line or on a leaf under it: the static the directive kept
+// from being imported is missing on the ponyfill, so the residual has to stay the raw read off the
+// realm object. both rows compare against an equally-raw read, absent natives staying absent. the
+// post-only leg detects on a pattern babel lowered before any pass of ours ran, where an in-pattern
+// opt-out is gone before there is an output to carry it - it skips
+testUnlessDetectLowered('destructuring: disable directive on a sole constructor hop keeps the raw read', assert => {
+  const {
+    // core-js-disable-next-line
+    Map: { groupBy: hopOptOut },
+  } = globalThis;
+  const {
+    Object: {
+      // core-js-disable-next-line
+      groupBy: leafOptOut,
+    },
+  } = globalThis;
+  // core-js-disable-next-line
+  assert.same(hopOptOut, Map.groupBy);
+  // core-js-disable-next-line
+  assert.same(leafOptOut, Object.groupBy);
+});
+
 // multi-declarator hosts keep sibling evaluation order around the extracted slot:
 // pre-sibling effects run first, post-sibling after, receiver SE between
 QUnit.test('destructuring: multi-decl extraction keeps sibling slot order', assert => {

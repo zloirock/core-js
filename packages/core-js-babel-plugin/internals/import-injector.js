@@ -654,8 +654,11 @@ export default class ImportInjector extends ImportInjectorState {
       const flushBody = this.#programPath.node.body;
       let prologueEnd = 0;
       while (prologueEnd < flushBody.length && this.#sourcePrologueNodes.has(flushBody[prologueEnd])) prologueEnd++;
+      // the anchor above an unshift is whatever babel printed last before the body: the last real
+      // directive, else the hashbang - both hold the shared copy of a comment on the line under them
+      const { directives, interpreter } = this.#programPath.node;
       this.#releaseAnchorComments(prologueEnd === 0
-        ? this.#programPath.node.directives?.at(-1) : flushBody[prologueEnd - 1], flushBody.slice(prologueEnd));
+        ? directives?.at(-1) ?? interpreter : flushBody[prologueEnd - 1], flushBody.slice(prologueEnd));
       if (prologueEnd === 0) this.#programPath.unshiftContainer('body', nodes);
       else this.#programPath.get('body')[prologueEnd - 1].insertAfter(nodes);
     }

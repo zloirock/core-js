@@ -997,6 +997,15 @@ export const SINGLE_STATEMENT_SLOTS = new Map([
   ['WithStatement', ['body']],
 ]);
 
+// does `node` stand in a STATEMENT position under `parent` - a member of its statement list or its
+// un-braced body - as opposed to a slot a statement-shaped node can also fill (a loop head's
+// declaration, an export's declaration)? by identity, for a caller that holds the node and its
+// parent but not the key; a walk that has the key answers the same off the two sets above
+export function isStatementPosition(node, parent) {
+  return !!statementListOf(parent)?.includes(node)
+    || (SINGLE_STATEMENT_SLOTS.get(parent?.type) ?? []).some(key => parent[key] === node);
+}
+
 // statement hosts whose numbered `.body` children are scanned in SOURCE ORDER for sibling / flow
 // analysis (a preceding sibling is guaranteed to run before the use site): the plain blocks plus
 // Program. the TS namespace body is intentionally excluded - these callers do not scan namespace
@@ -3760,15 +3769,16 @@ export function isMemberWriteOnlyContext(member, parent, grandparent) {
 // generic AST child-walker. covers single-child slots (`MemberExpression.object`) and
 // array-child slots (`ArrayExpression.elements`); reads `.type` on each candidate so
 // position metadata (`.start`, `.loc`, `.scope`) is ignored. parser-agnostic - both babel
-// and oxc shapes carry the same `.type` string on AST nodes
+// and oxc shapes carry the same `.type` string on AST nodes. `visit(child, key, listMember)`
+// hands the child's position along for the callers that decide by it
 export function walkAstChildren(node, visit) {
   if (!node || typeof node !== 'object') return;
   // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
   for (const key in node) {
     const value = node[key];
     if (Array.isArray(value)) {
-      for (const el of value) if (isASTNode(el)) visit(el);
-    } else if (isASTNode(value)) visit(value);
+      for (const el of value) if (isASTNode(el)) visit(el, key, true);
+    } else if (isASTNode(value)) visit(value, key, false);
   }
 }
 
