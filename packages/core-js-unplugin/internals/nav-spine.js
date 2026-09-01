@@ -228,9 +228,40 @@ export function unbackedProxyHopKey(node, resolveHere) {
 
 // this leg's surgery for the shared fold verdict: the core walks the realm hops standing above a
 // SUBSTITUTED proxy binding and names the slot they fold into, and the replacement lands here
+// where a SUBSTITUTED span really ends: a TRANSPARENT wrapper standing on it is consumed WITH it -
+// what is left is the binding, which needs neither the assertion nor the paren, and the other leg's
+// dialect has no node for either. the CHAIN marker between them is stepped but never landed on (it
+// spells the `?.` the substitution just took out and holds nothing else), and a wrapper the kept
+// WRITE holds ENDS the walk: that one is written around the VALUE the store hands on, the runtime
+// narrowing does not retire it, and landing on the paren above it would swallow it
+export function landingOverSubstitutedSpan(path) {
+  let landing = path;
+  for (let cursor = path, up = cursor.parentPath;
+    up?.node && SKIPPABLE_WRAPPER_TYPES.has(up.node.type) && up.node.expression === cursor.node;
+    up = cursor.parentPath) {
+    if (TRANSPARENT_EXPR_WRAPPER_TYPES.has(up.node.type)
+      && up.node.type !== 'ParenthesizedExpression' && assignmentHoldsValue(up)) break;
+    cursor = up;
+    if (TRANSPARENT_EXPR_WRAPPER_TYPES.has(up.node.type)) landing = up;
+  }
+  // ... and only where something READS THROUGH the span: in VALUE position the assertion is about the
+  // value this expression yields, and it stands over the binding exactly as the source wrote it
+  // (`window.self?.window!` is `_self!` on both legs) - consumed there, the two legs diverged
+  const above = landing.parentPath?.node;
+  const readsThrough = (above?.type === 'MemberExpression' && above.object === landing.node)
+    || (above?.type === 'CallExpression' && above.callee === landing.node);
+  return readsThrough ? landing : path;
+}
+
 export function foldUnbackedRealmHopsAbove(basePath, baseNode, ctx) {
   const fold = unbackedRealmHopFoldAbove(basePath, baseNode, ctx);
-  if (fold) fold.path.replaceWith(fold.node);
+  if (!fold) return null;
+  const landing = landingOverSubstitutedSpan(fold.path);
+  landing.replaceWith(fold.node);
+  // where the base now LIVES: the fold detaches the levels it sat under, and the `?.` verdict the
+  // caller runs next walks that parent chain - from the old path it read a hop out of the tree and
+  // left a guard standing over the substituted binding
+  return landing;
 }
 
 // an unbacked realm hop reading a CARRIED value - a kept write's store, the sequence handing it

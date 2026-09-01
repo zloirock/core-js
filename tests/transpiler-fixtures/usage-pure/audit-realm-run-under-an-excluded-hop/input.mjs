@@ -19,6 +19,9 @@ export const deleteAboveDispatch = delete globalThis.self.box.list.at.name;
 let e = 0;
 export const deleteLivePrefix = delete (e++, globalThis).self.window;
 export const deleteLivePrefixStore = delete (e++, w = globalThis).self.customProp;
+// ... and a sequence the store HOLDS runs inside the value it keeps, not ahead of the store: the
+// delete still lands the root binding, and the effect stays where the source put it - once
+export const deleteSeqInStore = delete (w = (e++, globalThis)).self.customProp;
 export { e };
 
 // NEGATIVE: a TERMINAL run is the value the source asked for and keeps every hop this build cannot
