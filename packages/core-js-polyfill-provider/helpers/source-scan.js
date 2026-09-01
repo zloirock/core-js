@@ -1,4 +1,4 @@
-import { isASTNode } from './ast-patterns.js';
+import { SINGLE_STATEMENT_SLOTS, isASTNode, statementListOf, walkAstChildren } from './ast-patterns.js';
 
 // ES spec LineTerminator: U+000A, U+000D (skip the LF half of CRLF), U+2028, U+2029
 function collectLineStarts(code) {
@@ -104,11 +104,25 @@ export function mergeVisitors(base, extra) {
   return merged;
 }
 
+// the directive the anchors below emit - one spelling, so a re-parse of our own output reads it
+// through the same scan as the author's
+export const DISABLE_NEXT_LINE_DIRECTIVE = 'core-js-disable-next-line';
+
+// the kind a comment's directive names - `file`, `line` or `next-line` - and null for a plain comment
+export function disableDirectiveKind(value) {
+  return DIRECTIVE.exec(value)?.groups.kind ?? null;
+}
+
 // a `-line` / `-next-line` directive pins its LINE association; consumers that reflow
 // text (the AST printer's roundtrip gate) need to know which comments carry one
 export function isLineBoundDisableDirective(value) {
-  const found = DIRECTIVE.exec(value);
-  return found ? found.groups.kind !== 'file' : false;
+  const kind = disableDirectiveKind(value);
+  return kind !== null && kind !== 'file';
+}
+
+// the leading spelling: a comment that covers the line under it, which is what an anchor is
+export function isNextLineDisableDirective(value) {
+  return disableDirectiveKind(value) === 'next-line';
 }
 
 // `firstStmtStart`: `disable-file` fires only above all code (eslint-style scope).
@@ -157,6 +171,11 @@ export function parseDisableDirectives({ comments, offsetToLine, firstStmtStart,
 // everything else that OPENS on the target line spans to its own end, brace hosts included
 const PROGRAM_WRAPPER_TYPES = new Set(['Program', 'File']);
 
+// text between JSX children and the quasis of a template: nodes by shape, never hosts of anything a
+// directive could cover. a whitespace run between two JSX children opens on one line and ends on the
+// next, so taking it for a host spans the directive over the child on the line below it
+const TEXT_NODE_TYPES = new Set(['JSXText', 'TemplateElement']);
+
 // the scan descends the SOURCE's own nesting, so a depth budget answers "the user nested deeply"
 // exactly as it answers a broken tree: the previous cap of 64 truncated at ~16 levels of nested
 // callbacks and the directive silently lost its multi-line span there, revoking the opt-out and
@@ -172,6 +191,7 @@ function findStatementEndLine({ node, targetLine, offsetToLine }) {
   let best = null;
   while (pending.length) {
     const cur = pending.pop();
+    if (TEXT_NODE_TYPES.has(cur.type)) continue;
     const lines = nodeLineSpan(cur, offsetToLine);
     if (!lines || lines.start > targetLine || lines.end < targetLine) continue;
     // a host OPENING on the target line spans the directive across its WHOLE body - decided BEFORE
@@ -184,16 +204,8 @@ function findStatementEndLine({ node, targetLine, offsetToLine }) {
     }
     if (descended.has(cur)) continue;
     descended.add(cur);
-    // `isASTNode` filters foreign stamps (babel `extra`, sibling-plugin caches) so iterating
-    // every own key stays safe even when plugins decorate the tree with non-AST values
-    // eslint-disable-next-line no-restricted-syntax -- AST walker, keys are own-properties only
-    for (const key in cur) {
-      const child = cur[key];
-      if (Array.isArray(child)) {
-        // element-wise, never a spread: a generated file's statement list can exceed the argument limit
-        for (const c of child) if (isASTNode(c)) pending.push(c);
-      } else if (isASTNode(child)) pending.push(child);
-    }
+    // element-wise, never a spread: a generated file's statement list can exceed the argument limit
+    walkAstChildren(cur, child => pending.push(child));
   }
   return best;
 }
@@ -205,4 +217,79 @@ function nodeLineSpan(node, offsetToLine) {
     return { start: offsetToLine(node.start), end: offsetToLine(node.end - 1) };
   }
   return null;
+}
+
+// the member lists both printers lay out one per line besides the statement lists
+const OWN_LINE_MEMBER_LISTS = new Map([
+  ['ClassBody', 'body'],
+  ['ObjectExpression', 'properties'],
+  ['ObjectPattern', 'properties'],
+]);
+
+// a line comment can open a line ahead of a node the printers lay out one per line - a statement
+// (a list member or an unbraced body), a class member, an object or pattern property - and nowhere
+// else: a template quasi and a JSX child are text, and the members of every other list (arguments,
+// array elements, declarators, template substitutions) share a line, where a comment dropped
+// between two of them covers whatever the printer puts after it. a node in any other position takes
+// its anchor from the nearest ancestor in one that qualifies
+function anchorsOwnLine(child, parent, key, listMember) {
+  if (child.type.startsWith('JSX') || parent.type.startsWith('JSX') || TEXT_NODE_TYPES.has(child.type)) return false;
+  // the keyed spelling of `isStatementPosition` - this walk holds the key, so no list scan
+  if (!listMember) return SINGLE_STATEMENT_SLOTS.get(parent.type)?.includes(key) ?? false;
+  return statementListOf(parent) === parent[key] || OWN_LINE_MEMBER_LISTS.get(parent.type) === key;
+}
+
+// the pass's own output has to carry every opt-out it honoured. coverage is decided by SOURCE LINES
+// (`parseDisableDirectives`), and a reprint lays the nodes that shared a covered line one per line -
+// two statements under a `-next-line`, two object or pattern properties, two class members, or the
+// one-line block a trailing `-line` closed, which expands and leaves the directive under its `}` -
+// so only the first of them stays under the directive and the NEXT pass over our output claims the
+// rest. the anchor is the node: every OUTERMOST node opening on a covered line is led by its own
+// `-next-line` directive, which covers it whole however the reprint lays it out (over a `-line` a
+// superset, harmless on a second pass: everything else inside it was already transformed). the
+// directive lands where a line comment may open a line (`anchorsOwnLine`), so a node anywhere else
+// hands it to the nearest such ancestor. `isLed(node)` is the binding's own answer whether its print
+// already puts such a directive directly above the node - babel reads the attached leading run, oxc
+// the flat comment list - and `settled` holds the nodes another channel already anchored, pruned
+// whole. a synthesized node without a position never anchors; its children are asked on their own.
+// the walk is a worklist, not a recursion, for the same reason as the span scan above: the depth is
+// the source's. returns the targets in tree order, each once
+export function disableDirectiveAnchors({ ast, disabledLines, offsetToLine, isLed, settled = null }) {
+  const anchors = [];
+  if (!(disabledLines instanceof Set) || !isASTNode(ast)) return anchors;
+  const claimed = new Set();
+  const descended = new Set();
+  // an entry carries the nearest anchorable ancestor-or-self, decided at the push, where the
+  // child's own position is known
+  const pending = [[ast, null]];
+  while (pending.length) {
+    const [node, host] = pending.pop();
+    if (settled?.has(node)) continue;
+    const line = nodeLineSpan(node, offsetToLine)?.start;
+    if (typeof line === 'number' && disabledLines.has(line) && !PROGRAM_WRAPPER_TYPES.has(node.type)) {
+      if (host !== null && !claimed.has(host)) {
+        claimed.add(host);
+        if (!isLed(host)) anchors.push(host);
+      }
+      continue;
+    }
+    if (descended.has(node)) continue;
+    descended.add(node);
+    const children = childEntries(node, host);
+    // pushed in reverse so the stack pops them in source order
+    for (let i = children.length - 1; i >= 0; i--) pending.push(children[i]);
+  }
+  return anchors;
+}
+
+// the worklist entries for a node's children, each with the anchorable ancestor-or-self it will
+// hand an anchor to. babel hangs its comments on the nodes, and a directive comment opens on the
+// very line it covers - never a child to look at
+function childEntries(node, host) {
+  const entries = [];
+  walkAstChildren(node, (child, key, listMember) => {
+    if (child.type.startsWith('Comment')) return;
+    entries.push([child, anchorsOwnLine(child, node, key, listMember) ? child : host]);
+  });
+  return entries;
 }

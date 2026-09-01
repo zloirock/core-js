@@ -13,4 +13,5 @@ import "core-js/modules/es.promise.try";
 import "core-js/modules/es.promise.with-resolvers";
 import "core-js/modules/es.array.iterator";
 import "core-js/modules/es.string.iterator";
+// core-js-disable-next-line
 import 'core-js/es/array'; // core-js-disable-line

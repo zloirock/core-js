@@ -603,6 +603,60 @@ function * generateSequencePrefixOrder() {
   }
 }
 
+// --- Disable-directive family (the opt-out as an axis of its own) ---
+// what a directive covers is decided per emitter from ITS parser's positions, and the legs agree
+// only when both read the same nodes off the covered line: the import set is the oracle here - a
+// leg that keeps a covered read raw while the other polyfills it lands on different imports - and
+// the runtime three-way holds the sole-constructor-hop rows, whose anchored residual reads a static
+// the opt-out kept from being imported (`_Map.groupBy` is `undefined` where the realm has the
+// native). `strip` stays off on purpose: a covered read left native throws in a stripped realm
+const DD_DIRECTIVES = [
+  { id: 'next-line', lead: '// core-js-disable-next-line\n', trail: '' },
+  { id: 'line', lead: '', trail: ' // core-js-disable-line' },
+  { id: 'block-next-line', lead: '/* core-js-disable-next-line */\n', trail: '' },
+  { id: 'reason', lead: '// core-js-disable-next-line -- reason\n', trail: '' },
+];
+// two covered reads share the line, a third stays live below it: the hosts are the positions a
+// reprint separates (statements, object and pattern properties, class members) plus the ones a
+// directive reaches only by spanning the host (arguments, a one-line block, a switch case)
+const DD_HOSTS = [
+  { id: 'statements', build: (d, a, b, c) => `${ d.lead }log.push(${ a }); log.push(${ b });${ d.trail }\nlog.push(${ c });` },
+  { id: 'object', build: (d, a, b, c) => `const o = {\n${ d.lead }  k: ${ a }, j: ${ b },${ d.trail }\n  m: ${ c },\n};\nlog.push(typeof o.k, typeof o.j, typeof o.m);` },
+  { id: 'class', build: (d, a, b, c) => `class K {\n${ d.lead }  m() { return ${ a }; } n() { return ${ b }; }${ d.trail }\n  o() { return ${ c }; }\n}\nconst k = new K(); log.push(k.m(), k.n(), k.o());` },
+  { id: 'args', build: (d, a, b, c) => `log.push([\n${ d.lead }  ${ a }, ${ b },${ d.trail }\n  ${ c },\n].length);` },
+  { id: 'unbraced', build: (d, a, b, c) => `if (cond)\n${ d.lead }  log.push(${ a }, ${ b });${ d.trail }\nlog.push(${ c });` },
+  { id: 'block', build: (d, a, b, c) => `${ d.lead }if (cond) { log.push(${ a }); log.push(${ b }); }${ d.trail }\nlog.push(${ c });` },
+  { id: 'switch', build: (d, a, b, c) => `switch (1) {\n${ d.lead }  case 1: log.push(${ a }); log.push(${ b });${ d.trail }\n  default: log.push(${ c });\n}` },
+];
+// the reads: a typed literal receiver, three methods a target may polyfill, distinct per slot so
+// a lost or a leaked injection names its row in the import set
+const DD_READS = [['[1, [2]].at(0)', '[1, [2]].flat().length', '[1, 2].includes(2)']];
+function * generateDisableDirectives() {
+  for (const host of DD_HOSTS) {
+    for (const directive of DD_DIRECTIVES) {
+      for (const [a, b, c] of DD_READS) {
+        yield {
+          ...snippet(`disable-directive/${ host.id }/${ directive.id }`,
+            `(() => { ${ host.build(directive, a, b, c) } return log.length; })()`),
+          fullEnv: true,
+        };
+      }
+    }
+  }
+  // the pattern rows: a covered property beside a live one, and the sole-constructor hop whose
+  // residual must stay the raw read - on the hop line and on the leaf line
+  const patterns = [
+    ['pattern-props', 'const {\n  // core-js-disable-next-line\n  at: x1, flat: x2,\n  includes: x3,\n} = [1, [2]];\nlog.push(typeof x1, typeof x2, typeof x3);'],
+    ['pattern-props-line', 'const {\n  at: x1, flat: x2, // core-js-disable-line\n  includes: x3,\n} = [1, [2]];\nlog.push(typeof x1, typeof x2, typeof x3);'],
+    ['ctor-hop-line', 'const {\n  // core-js-disable-next-line\n  Map: { groupBy: g },\n} = globalThis;\nlog.push(typeof g);'],
+    ['ctor-leaf-line', 'const {\n  Object: {\n    // core-js-disable-next-line\n    groupBy: g,\n  },\n} = globalThis;\nlog.push(typeof g);'],
+    ['ctor-leaf-beside-live', 'const {\n  Object: {\n    // core-js-disable-next-line\n    groupBy: g,\n    hasOwn: h,\n  },\n} = globalThis;\nlog.push(typeof g, typeof h);'],
+  ];
+  for (const [id, body] of patterns) {
+    yield { ...snippet(`disable-directive/${ id }`, `(() => { ${ body } return log.length; })()`), fullEnv: true };
+  }
+}
+
 function * generateDestructure() {
   for (const host of D_HOSTS) {
     for (const pat of D_PATTERNS) {
@@ -7799,6 +7853,7 @@ export function * generate() {
   yield * generateForXHeadKind();
   yield * generateProxyImportSlotWrite();
   yield * generateNestingDepth();
+  yield * generateDisableDirectives();
   for (const [family, exprs] of Object.entries(EXPR_FAMILIES)) {
     for (const expr of exprs) {
       const fullEnv = FULL_ENV_FAMILIES.has(family);
