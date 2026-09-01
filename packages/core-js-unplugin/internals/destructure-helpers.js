@@ -550,7 +550,8 @@ export function peelDeadChainMarker(node, guardCtx = null) {
 // they differ in what they READ off the chain, never in what counts as a hop. an ERASED `?.` is
 // transparent to the walk, its own hop carrying the marker's flag, so the guard verdict travels
 // with the node - a resolver that judged the flags alone answered the opposite for a marked twin
-export function navHopChain(node, guardCtx = null) {
+export function navHopChain(node, guardCtx = null, opts = null) {
+  const { throughSequenceTails = false } = opts ?? {};
   const peeled = peelDeadChainMarker(node, guardCtx);
   const deadOptionals = peeled !== node;
   const keys = [];
@@ -560,22 +561,22 @@ export function navHopChain(node, guardCtx = null) {
   let cur = peelTransparentExpr(peeled);
   while (hopIsNav(cur)) {
     keys.unshift(plainNavHopKey(cur));
-    cur = peelTransparentExpr(cur.object);
+    cur = peelTransparentExpr(throughSequenceTails ? peelReceiverSequenceTail(cur.object) : cur.object);
   }
   return { root: cur, keys };
 }
 
-export function isPureNavReceiver(node, guardCtx = null) {
-  const { root } = navHopChain(node, guardCtx);
+export function isPureNavReceiver(node, guardCtx = null, opts = null) {
+  const { root } = navHopChain(node, guardCtx, opts);
   return root?.type === 'Identifier' || root?.type === 'ThisExpression';
 }
 
 // the for-init variant keeps a side-effecting init alive in the `_unused` dummy, so only
 // the SEQUENCE TAIL has to be the provable nav
-export function isPureNavAfterSePrefix(node, guardCtx = null) {
+export function isPureNavAfterSePrefix(node, guardCtx = null, opts = null) {
   node = peelTransparentExpr(node);
   if (node?.type === 'SequenceExpression') node = node.expressions.at(-1);
-  return isPureNavReceiver(node, guardCtx);
+  return isPureNavReceiver(node, guardCtx, opts);
 }
 
 // the same SOURCE node seen through a rebuild that may have CLONED it: a clone carries the
@@ -627,8 +628,11 @@ export function chainAssignOverPureNav(node, guardCtx = null) {
   // the stored VALUE may carry its own SE prefix (`(q = (eff(), globalThis))`): only the TAIL is
   // the nav, and the prefix is an effect the lift re-emits - the sibling predicate that already
   // spells that rule is what answers here, else an SE-bearing write left the claim native
+  // ... and a sequence BELOW the hops rides along inside the write this lift re-emits VERBATIM, so
+  // here the nav question steps it through the canon peel: stopping at it called the stored value
+  // rootless, the lift declined, and the pattern then read its slots off the raw realm object
   return assign?.type === 'AssignmentExpression' && assign.operator === '='
-    && isPureNavAfterSePrefix(assign.right, guardCtx) ? assign : null;
+    && isPureNavAfterSePrefix(assign.right, guardCtx, { throughSequenceTails: true }) ? assign : null;
 }
 
 // the shared "conditional destructure left untouched" debug-warn, emitted where the per-branch
