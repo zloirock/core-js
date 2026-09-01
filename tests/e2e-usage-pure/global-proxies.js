@@ -2583,3 +2583,61 @@ QUnit.test('global-proxy: a sequence prefix at a call root rides the guard once'
   assert.same(read, hasWindow ? 7 : undefined);
   delete globalThis.customReadSlotC;
 });
+
+// a LOCAL binding wearing a realm name holds the USER's object: a delete through it must act on
+// that object, never on the ponyfill the collapse would substitute. the realm-named parameter and
+// the realm-named lexical are the same question - detection asks it of every claim, and the spine
+// that walks a run's root itself owes the same answer
+QUnit.test('global-proxy: a shadowed realm name is the user object, not the realm', assert => {
+  function viaParam(globalThis) {
+    const deleted = delete globalThis.self.customShadowSlot;
+    return [deleted, globalThis.self.customShadowSlot];
+  }
+  function viaHopName(self) {
+    return delete self.window.customShadowSlot;
+  }
+  function viaLexical() {
+    const globalThis = { self: { customShadowSlot: 3 } };
+    delete globalThis.self.customShadowSlot;
+    return globalThis.self.customShadowSlot;
+  }
+  const own = { self: { customShadowSlot: 1 }, window: { customShadowSlot: 2 } };
+  globalThis.customShadowSlot = 'realm';
+  const [deleted, after] = viaParam(own);
+  assert.true(deleted);
+  assert.same(after, undefined, 'the delete acted on the local object');
+  assert.true(viaHopName(own));
+  assert.same(own.window.customShadowSlot, undefined, 'and so did the hop-named twin');
+  assert.same(viaLexical(), undefined, 'a realm-named lexical is the user object too');
+  assert.same(globalThis.customShadowSlot, 'realm', 'nothing touched the realm slot');
+  // ... and the same shape off the REAL realm still reaches the realm object
+  assert.true(delete globalThis.self.customShadowSlot);
+  assert.same(globalThis.customShadowSlot, undefined);
+});
+
+// a `delete` lands the ROOT binding whatever stands at the run's root: a carrier there - a sequence
+// prefix, the user's own store - decides what RUNS, never what the delete acts on. the runtime half
+// of that rule is what this row holds: the carrier runs exactly once, in source order, the store
+// keeps the realm object the source put there, and the slot really leaves the realm
+QUnit.test('global-proxy: a carrier at the root runs once and the delete still lands the realm', assert => {
+  let ticks = 0;
+  let held;
+  globalThis.customCarrierSlot = 1;
+  assert.true(delete (ticks++, globalThis).self.customCarrierSlot);
+  assert.same(ticks, 1, 'the sequence prefix ran once');
+  assert.same('customCarrierSlot' in globalThis, false, 'and the delete reached the realm slot');
+  globalThis.customCarrierSlot = 2;
+  assert.true(delete (held = globalThis).self.customCarrierSlot);
+  assert.same(held, globalThis, 'the store kept the realm object');
+  assert.same('customCarrierSlot' in globalThis, false);
+  globalThis.customCarrierSlot = 3;
+  assert.true(delete (ticks++, held = globalThis).self.window.self.customCarrierSlot);
+  assert.same(ticks, 2, 'and the prefix beside a store still runs once');
+  assert.same(held, globalThis);
+  assert.same('customCarrierSlot' in globalThis, false, 'through a deep run as well');
+  // NEGATIVE: a DEAD prefix observes nothing, so the fold spells the bare twin and nothing re-runs
+  globalThis.customCarrierSlot = 4;
+  assert.true(delete (0, globalThis).self.customCarrierSlot);
+  assert.same(ticks, 2);
+  assert.same('customCarrierSlot' in globalThis, false);
+});
