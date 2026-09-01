@@ -26,6 +26,7 @@ import {
   inlineCallHasObservableEffects,
   navHopSequencePrefixes,
   storedNavHopClaimSuppressed,
+  storedUserAssignmentOf,
   navGuardTestBase,
   proxyReceiverValueCanBeUndefined,
   sealedChainBoundary,
@@ -35,6 +36,7 @@ import {
   vestigialNavOptionals,
   proxyGlobalRootName,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
+import { planClaimlessCallRootedNav } from '@core-js/polyfill-provider/detect-usage/members';
 import {
   chainValueCarrier,
   isNullLiteralNode,
@@ -281,17 +283,17 @@ export function destructuredValueAbove(path) {
   return false;
 }
 
-// a CLAIMLESS proxy nav rooted in an inline-resolvable CALL (`(() => globalThis)().window.self
-// .userSlot`): every claim channel here is driven by a claim, and there is none, so nothing
-// rendered the hops and they rode raw - a native `self` read where the ponyfill is the point,
-// while the unplugin leg collapses the same source through its own suppressed-hop callback. a
-// DEFINED-yield root collapses HERE onto the ROOT ponyfill (the identifier twin's canon, sequence
-// prefixes re-emitted ahead of the base); a probe-yield or guarded run climbs to the chain END and
-// hands to the collapse a claimed nav takes. an IDENTIFIER root is not this:
-// its own visitor substitutes the root and the hop drive owns the rest
+// the babel RENDER of the shared claimless call-rooted plan (`planClaimlessCallRootedNav` -
+// the verdicts live in the core): every claim channel here is driven by a claim, and a nav
+// with none would ride raw - a native `self` read where the ponyfill is the point. an
+// IDENTIFIER root is not this: its own visitor substitutes the root and the hop drive owns
+// the rest
 // descend the object spine to the CALL node itself - through members, sequence tails and the
-// transparent wrappers - and swap only it, leaving every hop spelled where the source wrote it
-function swapCallRootOnly(endPath, root, rootPureId) {
+// transparent wrappers - and swap only it, leaving every hop spelled where the source wrote it.
+// the kept members are THIS render's product: registered as plan tails so the hop claims inside
+// the span (`_globalThis.self` after the swap) stand down instead of re-collapsing one step
+// further than the identifier twin ever spells
+function swapCallRootOnly(endPath, root, rootPureId, markRenderedPlanTail) {
   let callPath = endPath.get('object');
   while (callPath?.node && callPath.node !== root) {
     if (callPath.isMemberExpression() || callPath.isOptionalMemberExpression()) {
@@ -304,10 +306,14 @@ function swapCallRootOnly(endPath, root, rootPureId) {
   }
   if (callPath?.node !== root) return false;
   callPath.replaceWith(rootPureId);
+  for (let kept = endPath.node; kept?.type === 'MemberExpression' || kept?.type === 'OptionalMemberExpression';
+    kept = kept.object) markRenderedPlanTail?.(kept);
   return true;
 }
 
-function collapseClaimlessCallRootedNav({ endPath, adapter, resolvePureGlobalEntry, injectPureGlobal, collapseNav, withSideEffects }) {
+function collapseClaimlessCallRootedNav({
+  endPath, adapter, resolvePureGlobalEntry, injectPureGlobal, collapseNav, withSideEffects, collapseKeptValue, markRenderedPlanTail,
+}) {
   if (!adapter || !endPath?.scope || !injectPureGlobal || !resolvePureGlobalEntry) return false;
   // a MEMBER consumer only - the same callback also fires for a destructure property, whose node
   // has no navigation at all
@@ -317,92 +323,41 @@ function collapseClaimlessCallRootedNav({ endPath, adapter, resolvePureGlobalEnt
   // leaving the hops above raw off the root (`delete dh().self.window.k` kept `.window`)
   const deleteFold = deleteHostAboveChain(endPath, endPath.node, unwrapRuntimeExpr);
   if (deleteFold) endPath = memberChainEndPath({ path: endPath, unwrap: unwrapRuntimeExpr });
-  // every step down to the call must be a dotted proxy hop: a computed or non-hop key is a claim's.
-  // a `?.` among them is the GUARD channel's shape - and with no claim leading a channel here, that
-  // render has to be driven from this entry too, or the hops ride raw with nobody owning them
-  // ... read through a SEQUENCE around the nav: its prefix runs beside the navigation, and the
-  // render lands in the tail's own slot, so the run below it is this same chain
-  let root = unwrapRuntimeExpr(peelReceiverSequenceTail(endPath.node.object));
-  if (root?.type !== 'MemberExpression' && root?.type !== 'OptionalMemberExpression') return false;
-  let guardedRun = false;
-  let anyBackedHop = false;
-  while (root?.type === 'MemberExpression' || root?.type === 'OptionalMemberExpression') {
-    if (root.computed || !memberProxyHopName(root)) return false;
-    guardedRun ||= !!root.optional;
-    anyBackedHop ||= !!resolvePureGlobalEntry(memberProxyHopName(root), endPath);
-    root = unwrapRuntimeExpr(peelReceiverSequenceTail(root.object));
-  }
-  if (guardedRun && !deleteFold) return collapseNav(endPath);
-  // under the delete fold a LIVE `?.` (the canon's delete-deciding guard) short-circuits
-  // everything above it - including the deleted member - and the GUARD channels own that
-  // render (the locked `ut()?.window?.self?.x` family): stand down so the claim route's
-  // guard flavor renders it - bounced into the short-circuit collapse it folded instead.
-  // dead `?.`s fold with the run
-  if (guardedRun && deleteFold && deleteGuardKeepingHop(endPath.node,
-    ({ name }) => resolvePureGlobalEntry(name, endPath),
-    { scope: endPath.scope, adapter, path: endPath })) return false;
-  if (root?.type !== 'CallExpression' && root?.type !== 'OptionalCallExpression' || root.optional) return false;
-  const ctx = { scope: endPath.scope, adapter, path: endPath };
-  const rootId = inlineCallProxyGlobalRoot({ callNode: root, ...ctx, rejectConditional: true });
-  if (!rootId) return false;
-  // the collapse drops the call with the nav and has no slot to replay what it DID on the way
-  if (inlineCallHasObservableEffects({ callNode: root, ...ctx })) return false;
-  function resolvePure({ name }) {
-    return resolvePureGlobalEntry(name, endPath);
-  }
-  // a call yielding a DEFINED global collapses onto the ROOT ponyfill, the canon every other
-  // spelling of that source takes - the walk above proved every hop a dotted pristine proxy hop
-  // and the call effect-free, so the navigation folds whole onto the root the yield names, the
-  // sequence prefixes the peel stepped over re-emitting ahead of the base (the unplugin bytes).
-  // one yielding the PROBE (`() => globalThis.window`) does not: its root names a global the
-  // value never reached, so the nav collapses onto the ponyfill of what it NAVIGATES instead -
-  // the leaf, which is what the unplugin leg spells for this shape
-  if (!proxyReceiverValueCanBeUndefined(root, resolvePure, ctx)) {
-    const rootName = POSSIBLE_GLOBAL_OBJECTS.has(rootId.name) ? rootId.name
-      : resolveObjectName({ objectNode: rootId, ...ctx });
-    const rootPure = rootName && POSSIBLE_GLOBAL_OBJECTS.has(rootName)
-      && resolvePureGlobalEntry(rootName, endPath);
-    // the positional half of the fold: a run of ONLY probe hops is the source root's own
-    // environment read and stays spelled - only the CALL swaps for the root ponyfill
-    // (`dh().window.customQ` -> `_globalThis.window.customQ`, the identifier twin's bytes and
-    // the throw native keeps); one BACKED hop anywhere makes the run a read THROUGH a
-    // ponyfill and the whole thing folds (`dh().window.self.userSlot` -> `_globalThis
-    // .userSlot`). a `delete` reads nothing, so its fold takes the run either way
-    if (!deleteFold && rootPure && !anyBackedHop) {
-      return swapCallRootOnly(endPath, root, injectPureGlobal(rootPure.entry, rootPure.hintName));
-    }
-    if (rootPure && withSideEffects) {
+  const stored = storedUserAssignmentOf(endPath);
+  const plan = planClaimlessCallRootedNav({
+    endNode: endPath.node,
+    deleteFold: !!deleteFold,
+    stored: !!stored,
+    scope: endPath.scope,
+    adapter,
+    path: endPath,
+    resolvePure: ({ name }) => resolvePureGlobalEntry(name, endPath),
+  });
+  if (!plan) return false;
+  switch (plan.verdict) {
+    case 'guard': return collapseNav(endPath);
+    case 'stand-down': return false;
+    case 'kept-value': return !!collapseKeptValue?.(stored, endPath);
+    case 'swap-call':
+      return swapCallRootOnly(endPath, plan.callNode,
+        injectPureGlobal(plan.rootPure.entry, plan.rootPure.hintName), markRenderedPlanTail);
+    case 'fold-whole': {
+      if (!withSideEffects) return collapseNav(endPath);
+      // the sequence prefixes the fold's peel stepped over re-emit ahead of the base
       const prefixes = collectFoldedReceiverSideEffects(endPath.node.object);
       const navPath = endPath.get('object');
-      navPath.replaceWith(withSideEffects(injectPureGlobal(rootPure.entry, rootPure.hintName), prefixes));
+      navPath.replaceWith(withSideEffects(injectPureGlobal(plan.rootPure.entry, plan.rootPure.hintName), prefixes));
       deoptionalizeDanglingOptionalParent(navPath);
       return true;
     }
-    return collapseNav(endPath);
-  }
-  const navPath = endPath.get('object');
-  const name = resolveObjectName({ objectNode: navPath.node, ...ctx });
-  let pure = name && POSSIBLE_GLOBAL_OBJECTS.has(name) && resolvePureGlobalEntry(name, endPath);
-  // the delete fold over a PROBE-yield root still takes the whole nav, but its base is the
-  // ponyfill of what the nav NAVIGATES - a window-terminated run hands the deepest BACKED
-  // spelling on (`delete dh().self.window.k` -> `delete _self.k`, the unplugin bytes); a run
-  // with nothing backed below the call keeps the raw read and its native throw
-  if (!pure && deleteFold) {
-    // the descend starts from the UNWRAPPED nav - a paren-node seal over the run (`delete
-    // (dw().self.window).x`) has no `.object` of its own, and reading it raw skipped the
-    // walk on exactly one dialect (the flag spelling peeled implicitly)
-    const nav = unwrapRuntimeExpr(peelReceiverSequenceTail(navPath.node));
-    for (let span = unwrapRuntimeExpr(peelReceiverSequenceTail(nav?.object));
-      !pure && (span?.type === 'MemberExpression' || span?.type === 'OptionalMemberExpression');
-      span = unwrapRuntimeExpr(peelReceiverSequenceTail(span.object))) {
-      const spanName = resolveObjectName({ objectNode: span, ...ctx });
-      pure = spanName && POSSIBLE_GLOBAL_OBJECTS.has(spanName) && resolvePureGlobalEntry(spanName, endPath);
+    case 'leaf-fold': {
+      const navPath = endPath.get('object');
+      navPath.replaceWith(injectPureGlobal(plan.pure.entry, plan.pure.hintName));
+      deoptionalizeDanglingOptionalParent(navPath);
+      return true;
     }
+    default: return false;
   }
-  if (!pure) return false;
-  navPath.replaceWith(injectPureGlobal(pure.entry, pure.hintName));
-  deoptionalizeDanglingOptionalParent(navPath);
-  return true;
 }
 
 // CLONE a guard-test operand and PRE-substitute its proxy root: guard renders may be
@@ -2796,7 +2751,9 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     keptNavHopClaimSuppressed,
     isRenderedPlanTail: node => renderedPlanTails.has(node),
     collapseClaimlessCallRootedNav: endPath => collapseClaimlessCallRootedNav({ endPath, adapter: getAdapter?.(),
-      resolvePureGlobalEntry, injectPureGlobal, collapseNav: collapseShortCircuitNavInPlace, withSideEffects }),
+      resolvePureGlobalEntry, injectPureGlobal, collapseNav: collapseShortCircuitNavInPlace, withSideEffects,
+      collapseKeptValue: (stored, path) => collapseKeptNavValueNode(stored, path, { immediate: true }),
+      markRenderedPlanTail: node => renderedPlanTails.add(node) }),
     collapseShortCircuitNavInPlace,
     probedNavGuardValueNode,
     renderWriteHostProbeGuard,
