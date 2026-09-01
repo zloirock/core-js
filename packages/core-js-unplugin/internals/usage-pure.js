@@ -4,7 +4,6 @@ import {
   navValueCanShortCircuit,
   probeRenderedReceiver,
   sealedChainBoundary,
-  storedUserAssignmentOf,
   vestigialNavOptionals,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { planInExpression } from '@core-js/polyfill-provider/helpers/in-expression';
@@ -18,7 +17,6 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/members';
 import {
   claimIsInert,
-  climbTransparentWrapperPath,
   deleteHostAboveChain,
   isDeoptedGlobalSlotRead,
   isNullLiteralNode,
@@ -144,17 +142,6 @@ function fallbackSwapsSequenceTail(node, meta) {
 
 function chainAssignStaged(meta) {
   return meta.chainAssignInsertAt !== null && meta.chainAssignInsertAt !== undefined;
-}
-
-// does the member chain CONTINUE above this claim? whatever reads through it - a claim, a
-// guard, a dispatch - owns the nav, and on this leg that owner may be STAGED, rendering only
-// after this hop already fired; the claimless call arms serve the flat consumers (an
-// argument, a `typeof`, a bare statement), where nobody else comes
-function chainContinuesAbove(metaPath) {
-  const carried = climbTransparentWrapperPath(metaPath);
-  const p = carried.parentPath?.node;
-  return (p?.type === 'MemberExpression' && unwrapRuntimeExpr(p.object) === carried.node)
-    || (p?.type === 'CallExpression' && p.callee === carried.node);
 }
 
 // is this claim inside a short-circuit guard's null TEST (`null == <nav> ? void 0 : ...`)?
@@ -991,37 +978,33 @@ export default function createAstUsagePureCallback({
         || insideMemoClone(metaPath, memoValueClones)
         || inShortCircuitGuardTest(metaPath);
       // the claimless call-rooted verdicts come from the shared plan - the identifier twin's
-      // bytes, cell for cell; the `delete` fold keeps its own base arm below. under the
-      // `delete` fold the plan anchors at the chain END (the deleted member itself
-      // write-bails on this leg, so the HOP claim below carries the fold - the other leg's
-      // own re-anchoring): the fold then takes the whole navigation, not the hop's slice
+      // bytes, cell for cell; the `delete` fold keeps its own base arm below. the plan reads
+      // the member ENDING the all-proxy run, and this claim fires where its own meta declined -
+      // one hop short of that end whenever navigation continues above - so the anchor climbs the
+      // consecutive proxy hops first, THROUGH the wrapper nodes one parser keeps (`delete
+      // ((c++, dh()).window).customUserSlot` - the seal is not load-bearing over a run the canon's
+      // own walk unwraps)
       let planPath = metaPath;
-      if (deleteFolds) {
-        // ... climbing THROUGH the wrapper nodes one parser keeps (`delete ((c++, dh())
-        // .window).customUserSlot` - the seal is not load-bearing under a delete, the canon's
-        // own walk unwraps it), and stopping where the run's hop ends
-        for (let up = planPath.parentPath; up?.node; up = planPath.parentPath) {
-          const core = unwrapRuntimeExpr(planPath.node);
-          if (up.node !== planPath.node && unwrapRuntimeExpr(up.node) === core) {
-            planPath = up;
-            continue;
-          }
-          if (up.node.type === 'MemberExpression' && unwrapRuntimeExpr(up.node.object) === core
-            && memberProxyHopName(core)) {
-            planPath = up;
-            continue;
-          }
-          break;
+      for (let up = planPath.parentPath; up?.node; up = planPath.parentPath) {
+        const core = unwrapRuntimeExpr(planPath.node);
+        if (up.node !== planPath.node && unwrapRuntimeExpr(up.node) === core) {
+          planPath = up;
+          continue;
         }
-        while (planPath.node && unwrapRuntimeExpr(planPath.node) !== planPath.node) {
-          planPath = planPath.get('expression');
+        if (up.node.type === 'MemberExpression' && unwrapRuntimeExpr(up.node.object) === core
+          && memberProxyHopName(core)) {
+          planPath = up;
+          continue;
         }
+        break;
+      }
+      while (planPath.node && unwrapRuntimeExpr(planPath.node) !== planPath.node) {
+        planPath = planPath.get('expression');
       }
       const callPlan = !testClone
         ? planClaimlessCallRootedNav({
           endNode: planPath.node,
           deleteFold: deleteFolds,
-          stored: !!storedUserAssignmentOf(metaPath),
           scope: metaPath.scope,
           adapter,
           path: metaPath,
@@ -1055,14 +1038,16 @@ export default function createAstUsagePureCallback({
         // the binding the drop lands is always defined, so a `?.` reading directly off it
         // guards nothing - the vestigial verdict every substitution channel takes
         deoptionalizeOverSubstituted({ metaPath: dropped, node: consumed, replacement: baseNode, proxyRoot: true });
-      } else if (callPlan?.verdict === 'swap-call' && !chainContinuesAbove(metaPath)) {
-        // the flat probe-leaf read keeps every hop - and the throw its leaf owes - spelled
-        // where the source wrote it, and swaps ONLY the call for the root ponyfill: the
-        // identifier twin's bytes (`f().self.window` -> `_globalThis.self.window`); a STORED
-        // value stays with the kept-value canon instead (`v = f().self.window` -> `v = _self`)
+      } else if (callPlan?.verdict === 'swap-call') {
+        // the flat probe-leaf read keeps the probe spelled where the source wrote it - it is the
+        // environment the read discriminates - and swaps the span below it for the deepest
+        // ponyfill the run can ride: the identifier twin's bytes (`f().self.window` ->
+        // `_self.window`); a STORED value stays with the kept-value canon (`v = f().self.window`
+        // -> `v = _self`)
         markRewrite();
-        replaceNodeInTree(node, callPlan.callNode,
-          identifier(injectPureImport(callPlan.rootPure.entry, callPlan.rootPure.hintName)));
+        const base = identifier(injectPureImport(callPlan.basePure.entry, callPlan.basePure.hintName));
+        for (const effect of callPlan.droppedSe) skippedNodes.keepLive?.add(effect);
+        replaceNodeInTree(node, callPlan.swapNode, withSideEffects(base, callPlan.droppedSe));
       }
     }
   }
