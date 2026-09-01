@@ -257,10 +257,26 @@ QUnit.test('AggregateError: constructor and errors', assert => {
   assert.same(err.errors.length, 2);
 });
 
-// disable directive - WeakMap.of is not native anywhere, so without polyfill it throws
+// disable directive - `String.dedent` is native nowhere, so without the polyfill it stays undefined
 QUnit.test('disable: core-js-disable-next-line prevents polyfill', assert => {
   // core-js-disable-next-line
   assert.same(typeof String.dedent, 'undefined');
+});
+
+// a reprint between two passes - the plugin's own, or babel's between unplugin's pre and post -
+// lays two statements sharing a covered line one per line; the first pass leads each of them by
+// its own directive in its output, so the later pass keeps both opted out. `String.cooked` is
+// native nowhere either. the post-only leg detects on text babel reprinted before any pass of
+// ours ran, so the association is gone before there is an output to carry it - it skips
+const testUnlessDetectLowered = typeof E2E_DETECT_LOWERED === 'undefined' ? QUnit.test : QUnit.skip;
+
+testUnlessDetectLowered('disable: a directive covers every statement sharing its line through a reprint', assert => {
+  // core-js-disable-next-line
+  assert.same(typeof String.dedent, 'undefined'); assert.same(typeof String.cooked, 'undefined');
+});
+
+testUnlessDetectLowered('disable: a trailing -line covers the statements ahead of it through a reprint', assert => {
+  assert.same(typeof String.cooked, 'undefined'); assert.same(typeof String.dedent, 'undefined'); // core-js-disable-line
 });
 
 // new on polyfilled constructor result

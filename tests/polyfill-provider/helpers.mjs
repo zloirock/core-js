@@ -24,6 +24,9 @@ import {
 import {
   buildOffsetToLine,
   buildOffsetToLineColumn,
+  disableDirectiveAnchors,
+  disableDirectiveKind,
+  isNextLineDisableDirective,
   mergeVisitors,
   parseDisableDirectives,
 } from '../../packages/core-js-polyfill-provider/helpers/source-scan.js';
@@ -38,6 +41,7 @@ import {
   forEachStatementPosition,
   importBindingView,
   isDirectiveStatement,
+  isStatementPosition,
   programPrologueEndIndex,
   prologueEndIndex,
   isFunctionParamDestructureParent,
@@ -653,6 +657,26 @@ check('parseDisableDirectives/empty array', parseDisableDirectives({ comments: [
   }
 }
 
+// a whitespace JSXText run between two children opens on the covered line and ends on the next: it is
+// text, not a host, so the directive stops at the covered line and the child below stays live
+{
+  function child(line) {
+    return { type: 'JSXExpressionContainer', loc: { start: { line }, end: { line } } };
+  }
+  const element = {
+    type: 'JSXElement',
+    loc: { start: { line: 2 }, end: { line: 5 } },
+    children: [child(3), { type: 'JSXText', loc: { start: { line: 3 }, end: { line: 4 } } }, child(4)],
+  };
+  const statement = { type: 'ExpressionStatement', expression: element, loc: { start: { line: 2 }, end: { line: 5 } } };
+  const result = parseDisableDirectives({
+    comments: [{ value: 'core-js-disable-next-line', loc: { start: { line: 2 }, end: { line: 2 } } }],
+    ast: { type: 'Program', body: [statement], loc: { start: { line: 1 }, end: { line: 5 } } },
+  });
+  checkTruthy('parseDisableDirectives/JSX text run does not span the directive onto the next child',
+    result instanceof Set && result.has(3) && !result.has(4));
+}
+
 // comment without directive: ignored
 check('parseDisableDirectives/foreign comment ignored',
   parseDisableDirectives({ comments: [{ value: ' just a regular comment', end: 10 }] }), null);
@@ -671,6 +695,161 @@ check('parseDisableDirectives/no loc no offsetToLine skipped',
   });
   checkTruthy('parseDisableDirectives/JSDoc continuation directive recognised',
     result instanceof Set && result.size > 0);
+}
+
+// --- isStatementPosition ---
+
+// a statement position is a statement list's member or an un-braced control body; a loop head's
+// declaration and an export's declaration are statement-shaped nodes in slots that are not
+{
+  const declaration = { type: 'VariableDeclaration', declarations: [] };
+  const statement = { type: 'ExpressionStatement', expression: { type: 'Identifier', name: 'x' } };
+  check('isStatementPosition/statement list member', isStatementPosition(declaration, { type: 'Program', body: [declaration] }), true);
+  check('isStatementPosition/block member', isStatementPosition(statement, { type: 'BlockStatement', body: [statement] }), true);
+  check('isStatementPosition/switch case consequent', isStatementPosition(statement, { type: 'SwitchCase', consequent: [statement] }), true);
+  check('isStatementPosition/un-braced if body', isStatementPosition(statement, { type: 'IfStatement', consequent: statement, alternate: null }), true);
+  check('isStatementPosition/loop head declaration', isStatementPosition(declaration, { type: 'ForOfStatement', left: declaration, body: statement }), false);
+  check('isStatementPosition/export declaration', isStatementPosition(declaration, { type: 'ExportNamedDeclaration', declaration }), false);
+  check('isStatementPosition/a sibling, not the node', isStatementPosition(declaration, { type: 'Program', body: [statement] }), false);
+  check('isStatementPosition/no parent', isStatementPosition(declaration, null), false);
+}
+
+// --- disableDirectiveKind / isNextLineDisableDirective ---
+
+check('disableDirectiveKind/file', disableDirectiveKind(' core-js-disable-file'), 'file');
+check('disableDirectiveKind/line', disableDirectiveKind(' core-js-disable-line'), 'line');
+check('disableDirectiveKind/next-line with a reason', disableDirectiveKind(' core-js-disable-next-line -- reason'), 'next-line');
+check('disableDirectiveKind/plain comment', disableDirectiveKind(' plain note'), null);
+check('isNextLineDisableDirective/line spelling is not', isNextLineDisableDirective(' core-js-disable-line'), false);
+check('isNextLineDisableDirective/JSDoc continuation', isNextLineDisableDirective('*\n * core-js-disable-next-line\n '), true);
+
+// --- disableDirectiveAnchors ---
+
+// babel-shaped locs: `at` stamps a node with its line span, `read` builds a one-read statement
+{
+  function at(node, line, endLine = line) {
+    return { ...node, loc: { start: { line }, end: { line: endLine } } };
+  }
+  function id(name, line) {
+    return at({ type: 'Identifier', name }, line);
+  }
+  function read(line, endLine = line) {
+    return at({ type: 'ExpressionStatement', expression: id('x', line) }, line, endLine);
+  }
+  function program(body, endLine) {
+    return at({ type: 'Program', body }, 1, endLine);
+  }
+  function notLed() {
+    return false;
+  }
+  function same(anchors, expected) {
+    return anchors.length === expected.length && anchors.every((node, i) => node === expected[i]);
+  }
+  function anchorsOf(body, lines, { endLine = 10, isLed = notLed, settled = null } = {}) {
+    return disableDirectiveAnchors({ ast: program(body, endLine), disabledLines: new Set(lines), isLed, settled });
+  }
+
+  // two statements sharing the covered line: the led one keeps its directive, the other takes an anchor
+  {
+    const first = read(2);
+    const second = read(2);
+    const anchors = anchorsOf([first, second, read(3)], [2], { isLed: node => node === first });
+    checkTruthy('disableDirectiveAnchors/the unled sibling on the covered line anchors', same(anchors, [second]));
+  }
+  // a covered host is one anchor: nothing under it is looked at
+  {
+    const block = at({ type: 'BlockStatement', body: [read(3), read(4)] }, 2, 5);
+    const host = at({ type: 'IfStatement', test: id('c', 2), consequent: block }, 2, 5);
+    checkTruthy('disableDirectiveAnchors/a covered host prunes its body', same(anchorsOf([host], [2, 3, 4, 5]), [host]));
+  }
+  // a covered line inside an uncovered statement is reached through it
+  {
+    const inner = [read(4), read(4)];
+    const fn = at({ type: 'FunctionExpression', params: [], body: at({ type: 'BlockStatement', body: inner }, 2, 5) }, 2, 5);
+    const callNode = at({ type: 'CallExpression', callee: id('f', 2), arguments: [fn] }, 2, 5);
+    const outer = at({ type: 'ExpressionStatement', expression: callNode }, 2, 5);
+    checkTruthy('disableDirectiveAnchors/nested covered siblings anchor themselves', same(anchorsOf([outer], [4]), inner));
+  }
+  // a covered node in a position the printers share a line on hands the anchor to its statement
+  {
+    const callNode = at({ type: 'CallExpression', callee: id('f', 2), arguments: [id('a', 3), id('b', 3)] }, 2, 3);
+    const outer = at({ type: 'ExpressionStatement', expression: callNode }, 2, 3);
+    checkTruthy('disableDirectiveAnchors/arguments hoist to their statement, once', same(anchorsOf([outer], [3]), [outer]));
+  }
+  // object and pattern properties and class members are their own anchors
+  {
+    function member(name, line) {
+      return at({ type: 'ObjectProperty', key: id(name, line) }, line);
+    }
+    function declare(target, init, line, endLine) {
+      const declarator = at({ type: 'VariableDeclarator', id: target, init }, line, endLine);
+      return at({ type: 'VariableDeclaration', declarations: [declarator] }, line, endLine);
+    }
+    const props = [member('k', 3), member('j', 3)];
+    const decl = declare(id('o', 2), at({ type: 'ObjectExpression', properties: props }, 2, 4), 2, 4);
+    const members = [at({ type: 'ClassMethod', key: id('m', 6) }, 6), at({ type: 'ClassMethod', key: id('n', 6) }, 6)];
+    const klass = at({ type: 'ClassDeclaration', id: id('A', 5), body: at({ type: 'ClassBody', body: members }, 5, 7) }, 5, 7);
+    const patternProps = [member('at', 9), member('flat', 9)];
+    const pattern = declare(at({ type: 'ObjectPattern', properties: patternProps }, 8, 10), id('arr', 10), 8, 10);
+    const anchors = anchorsOf([decl, klass, pattern], [3, 6, 9]);
+    checkTruthy('disableDirectiveAnchors/properties and members anchor themselves', same(anchors, [...props, ...members, ...patternProps]));
+  }
+  // a switch case is printed inline by its switch on one leg, so it hands the anchor to the switch
+  {
+    const kase = at({ type: 'SwitchCase', test: at({ type: 'NumericLiteral', value: 1 }, 3), consequent: [read(3)] }, 3);
+    const sw = at({ type: 'SwitchStatement', discriminant: id('x', 2), cases: [kase] }, 2, 4);
+    checkTruthy('disableDirectiveAnchors/a switch case hoists to its switch', same(anchorsOf([sw], [3]), [sw]));
+  }
+  // an unbraced body is a statement position of its own
+  {
+    const body = read(3);
+    const host = at({ type: 'IfStatement', test: id('c', 2), consequent: body }, 2, 3);
+    checkTruthy('disableDirectiveAnchors/an unbraced body anchors itself', same(anchorsOf([host], [3]), [body]));
+  }
+  // a JSX child and a template quasi are text: both hand the anchor up to the statement
+  {
+    const child = at({ type: 'JSXExpressionContainer', expression: id('x', 3) }, 3);
+    const jsx = at({ type: 'ExpressionStatement', expression: at({ type: 'JSXElement', children: [child] }, 2, 4) }, 2, 4);
+    const quasis = [at({ type: 'TemplateElement', value: { raw: '' } }, 5), at({ type: 'TemplateElement', value: { raw: 'text' } }, 6)];
+    const literal = at({ type: 'TemplateLiteral', quasis, expressions: [id('y', 6)] }, 5, 6);
+    const template = at({ type: 'ExpressionStatement', expression: literal }, 5, 6);
+    const anchors = anchorsOf([jsx, template], [3, 6]);
+    checkTruthy('disableDirectiveAnchors/JSX children and template parts hoist to the statement', same(anchors, [jsx, template]));
+  }
+  // a settled node is pruned whole; a comment hung on a node is never a candidate; Program never anchors
+  {
+    const settledRead = read(2, 3);
+    const plain = read(1);
+    plain.leadingComments = [at({ type: 'CommentLine', value: ' core-js-disable-line' }, 4)];
+    const anchors = anchorsOf([plain, settledRead], [1, 2, 3, 4], { endLine: 4, settled: new Set([settledRead]) });
+    checkTruthy('disableDirectiveAnchors/settled pruned, comments skipped, Program excluded', same(anchors, [plain]));
+  }
+  // a synthesized wrapper without a position is looked through
+  {
+    const inner = read(2);
+    checkTruthy('disableDirectiveAnchors/a positionless wrapper is looked through',
+      same(anchorsOf([{ type: 'BlockStatement', body: [inner] }], [2]), [inner]));
+  }
+  // the oxc dialect: offsets plus the line mapper
+  {
+    const code = 'a(); b();\nc();\n';
+    function span(type, start, end, extra = {}) {
+      return { type, start, end, ...extra };
+    }
+    function expressionAt(start, end) {
+      return span('ExpressionStatement', start, end, { expression: span('Identifier', start, end - 3, { name: 'x' }) });
+    }
+    const first = expressionAt(0, 4);
+    const second = expressionAt(5, 9);
+    const ast = span('Program', 0, code.length, { body: [first, second, expressionAt(10, 14)] });
+    const anchors = disableDirectiveAnchors({
+      ast, disabledLines: new Set([1]), offsetToLine: buildOffsetToLine(code), isLed: node => node === first,
+    });
+    checkTruthy('disableDirectiveAnchors/oxc offsets resolve through the line mapper', same(anchors, [second]));
+  }
+  check('disableDirectiveAnchors/no directive set means no anchors', anchorsOf([read(1)], [], { isLed: notLed }).length, 0);
+  check('disableDirectiveAnchors/a null directive set means no anchors',
+    disableDirectiveAnchors({ ast: program([read(1)], 1), disabledLines: null, isLed: notLed }).length, 0);
 }
 
 // --- tagError ---
