@@ -552,8 +552,12 @@ export function undefinableOptionalGuard(memberNode, resolvePure, aliasCtx = nul
     if (aliasCtx) {
       const { hopsInfo, root: walkedRoot, depth, sealedAt, crossedAssign } = walkGuardSourceHops(value, aliasCtx, resolvePure);
       let root = walkedRoot;
-      // a chain-assign wrapper at the bottom peels for the proof - the write is an emit concern
-      if (root) root = peelChainAssignment(root).value;
+      // a chain-assign wrapper at the bottom peels for the proof - the write is an emit concern, and
+      // so is the sequence PREFIX the store holds inside its value: what the store hands on is that
+      // sequence's tail (`(w = (e++, globalThis)).self` proves exactly like its prefix-less twin).
+      // read raw, the proof found a SequenceExpression where it wanted a root, called a proven realm
+      // run undefinable, and the guard it kept then spelled that run RAW off the ponyfill
+      if (root) root = peelReceiverSequenceTail(peelChainAssignment(root).value);
       let proven = provenRootCache.get(root);
       if (proven === undefined && (root?.type === 'CallExpression' || root?.type === 'OptionalCallExpression')) {
         proven = inlineCallProxyGlobalRoot({ callNode: root, ...aliasCtx }) ? 'call' : false;
@@ -2594,6 +2598,15 @@ export function planProvenNavGuardCollapse({
   const prefixHopNode = lastUnresolvableIdx === -1 ? null : hops[lastUnresolvableIdx].node;
   const assignWrap = chainAssign && prefixHopNode && chainAssign.start <= prefixHopNode.start
     && chainAssign.end >= prefixHopNode.end ? chainAssign : null;
+  // WHAT the two value verdicts below read - one shape, asked twice with different slots
+  const valueFormShape = {
+    kind: lastUnresolvableIdx !== -1 ? 'nested' : rootEffects ? 'sequence' : 'bare',
+    seqAroundPrefix,
+    rootEffectCall: !chainAssign && !identRoot && rootEffects ? call : null,
+    rootValueNode: seqRootNode ?? n,
+    call: identRoot ? null : call,
+    rootEffects,
+  };
   return {
     assignWrap: lastUnresolvableIdx !== -1 ? assignWrap : null,
     kind: lastUnresolvableIdx !== -1 ? 'nested' : rootEffects ? 'sequence' : 'bare',
@@ -2638,22 +2651,9 @@ export function planProvenNavGuardCollapse({
     // for a question the render channels used to answer apart: whichever of them reached the store
     // first decided it, and which one reaches depends on the POSITION (a deferred body, a repeated
     // statement, a fallback slot), so one source rendered differently by where it stood
-    valueFormSpells: planValueFormSpells({
-      kind: lastUnresolvableIdx !== -1 ? 'nested' : rootEffects ? 'sequence' : 'bare',
-      seqAroundPrefix,
-      rootEffectCall: !chainAssign && !identRoot && rootEffects ? call : null,
-      rootValueNode: seqRootNode ?? n,
-      call: identRoot ? null : call,
-      rootEffects,
-    }),
-    storedValueSpells: planValueFormSpells({
-      kind: lastUnresolvableIdx !== -1 ? 'nested' : rootEffects ? 'sequence' : 'bare',
-      seqAroundPrefix,
-      rootEffectCall: !chainAssign && !identRoot && rootEffects ? call : null,
-      rootValueNode: seqRootNode ?? n,
-      call: identRoot ? null : call,
-      rootEffects,
-    }) && !!topAssignSteps.at(-1)?.right
+    valueFormSpells: planValueFormSpells(valueFormShape),
+    storedValueSpells: planValueFormSpells(valueFormShape)
+      && !!topAssignSteps.at(-1)?.right
       && !navValueCanShortCircuit(topAssignSteps.at(-1).right, resolvePure, { scope, adapter, path },
         { observableRead: true }),
   };
@@ -3452,6 +3452,15 @@ export function proxyReceiverValueCanBeUndefined(node, resolvePure, aliasCtx = n
   // `f = () => globalThis` - the opaque-root canon guards it)
   return (rootObj?.type === 'CallExpression' || rootObj?.type === 'OptionalCallExpression')
     && !!aliasCtx && !!inlineCallProxyGlobalRoot({ callNode: rootObj, ...aliasCtx });
+}
+
+// the two halves an emitter asks TOGETHER wherever what it renders stands on the run's VALUE: the
+// run must be proxy-ROOTED - a nav the realm canon speaks for, where an opaque call root is
+// undefinable by its own canon - and that value must be proven. one reading of "proven", so a `?.`
+// verdict and a fold's landing cannot disagree about it
+export function proxyRunValueIsProven(node, resolvePure, aliasCtx = null) {
+  return !!findProxyGlobal(node, aliasCtx, true)
+    && !proxyReceiverValueCanBeUndefined(node, resolvePure, aliasCtx);
 }
 
 // can the VALUE of a CALL be undefined? an opaque call is a genuine guard (the opaque-root
