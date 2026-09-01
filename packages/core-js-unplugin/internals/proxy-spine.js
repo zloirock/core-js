@@ -664,7 +664,10 @@ export default function createProxySpineChannel(ctx) {
     }
     // the probe is a FINISHED spelling: a re-visited claim on it must not re-collapse the
     // load-bearing read (`null == g.window` keeps its hop) - only the kept computed keys'
-    // effect claims stay live and land in place
+    // effect claims stay live and land in place. registered as a TEST clone too: the keep-live
+    // carve leaves claims inside it visitable, and the call-rooted fold arms must see that
+    // this nav is the read the test performs (`null == dw()?.window` keeps its call spelled)
+    probeTestClones.add(probe);
     markSubtreeSkipped(skippedNodes, probe, skippedNodes.keepLive?.size ? skippedNodes.keepLive : null);
     return probe;
   }
@@ -1423,9 +1426,16 @@ export default function createProxySpineChannel(ctx) {
     const carriedStore = assignmentHoldsValue(metaPath) && insideMemoClone(metaPath.parentPath, memoValueClones);
     const sourceValuePosition = valuePosition && !mutatedAbove
       && (carriedStore || !insideMemoClone(metaPath, memoValueClones));
+    // a mutated landing above keeps this hop's own claim only while the spine below is fully
+    // backed (`globalThis.self.Set` -> `_self.Set`, the leaf-adjacent swap); an UNRESOLVABLE
+    // hop below forces the fold, and a forced fold lands the ROOT ponyfill - the core plan's
+    // rule (`globalThis.window.self.Set` -> `_globalThis.Set`, the other leg's bytes)
+    const mutatedForcedFold = mutatedAbove && navHasUnresolvableProxyHop(
+      metaPath.node.object, m => resolvePure(m, metaPath));
     const rootSpelling = collapsed.aliasRoot && !sourceValuePosition
       ? cloneNode(collapsed.aliasRoot)
-      : identifier(valuePosition || mutatedAbove ? injectPureImport(entry, hintName)
+      : identifier((valuePosition || mutatedAbove) && !mutatedForcedFold
+        ? injectPureImport(entry, hintName)
         : injectPureImport(collapsed.entry, collapsed.hintName));
     // the harvested effects wrap the ROOT, and a tail the fold does not take respells OVER that
     // wrap (`(q = (eff(), globalThis).self.window)` -> `q = (eff(), _self)`): the read
@@ -1497,9 +1507,18 @@ export default function createProxySpineChannel(ctx) {
       && navHasUnresolvableProxyHop(node.object, m => resolvePure(m, metaPath));
     if (probeTestUnbackedHop
       && emitStaticOverGuardedNav({ meta, metaPath, node, entry, hintName, planNode: node })) return true;
+    // a `?.` among the run's own hops is no barrier when the value canon proves the WHOLE
+    // nav - this hop's own `?.` included - cannot short-circuit (every `?.` reads an
+    // always-defined value: a realm name, a store holding one - `globalThis?.window.self.X`
+    // and `(w = globalThis)?.window.self.X` fold like their plain twins). asked THROUGH a
+    // chain-assign, the explicit value question: a store holding the PROBE keeps its `?.`
+    // live with the guard channels (`(held = globalThis.window)?.self` - the locked
+    // stored-probe canon), a store holding the realm is its plain twin
+    const deadSpineOptionals = !navValueCanShortCircuit(node, m => resolvePure(m, metaPath),
+      { scope: metaPath.scope, adapter, path: metaPath }, { throughChainAssign: true });
     let collapsed = sealedAbove ? null
       : collapseProxyHopSpine(node, metaPath,
-        { allowOptional: deleteHost || deadOwnOptional,
+        { allowOptional: deleteHost || deadOwnOptional || deadSpineOptionals,
           provenCallRoot: deleteHostForClaim(metaPath, node, { forFold: true, canonOnly: true }) || !deleteTail });
     if (collapsed?.unbackedRoot) {
       // navigated over a root pure cannot back: substituting here would read the ponyfill
