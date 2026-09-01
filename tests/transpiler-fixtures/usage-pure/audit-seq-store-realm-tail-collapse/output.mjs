@@ -1,5 +1,6 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _globalThis from "@core-js/pure/actual/global-this";
+import _Map from "@core-js/pure/actual/map/constructor";
 import _Number$MAX_SAFE_INTEGER from "@core-js/pure/actual/number/max-safe-integer";
 import _self from "@core-js/pure/actual/self";
 var _ref;
@@ -21,6 +22,14 @@ export const deleted = delete (g2 = _globalThis, v = _self, g2).noSuchStatic;
 // above still folds: the store hands its value on, and the dropped hop's `?.` slides one member up
 let g3;
 export const withKeyEffect = (g3 = _globalThis, v = (eff(), _self))?.noSuchStatic;
+
+// ... and the MIRROR of that shape - the sequence INSIDE the value the store holds: what the store
+// hands on is that sequence's tail, so the run over it proves exactly like its prefix-less twin. read
+// raw the proof found a sequence where it wanted a root, kept the `?.` and spelled the run RAW off
+// the ponyfill root - a host read that is undefined in the very realms the ponyfill serves
+let g7;
+export const seqInStoreClaim = (g7 = (eff(), _globalThis), _Map);
+export const seqInStoreNav = (g7 = (eff(), _globalThis), _globalThis).noSuchStatic;
 
 // NEGATIVE: the store holding the PROBE keeps its `?.` - the sequence hands that value on, so the
 // optional guards a read that genuinely short-circuits and nothing above it folds

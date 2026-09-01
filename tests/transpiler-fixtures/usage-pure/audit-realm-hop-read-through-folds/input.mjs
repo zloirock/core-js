@@ -22,6 +22,10 @@ export const stackedFolds = (v = globalThis.self?.window?.self)?.Number.MAX_SAFE
 // a stored value lands the ponyfill the fold leaves behind, not a raw realm read off it
 export const storedFolds = (k = globalThis.self.window)?.Map.length;
 
+// ... and a harvested effect PREFIX does not revive the guard such a fold leaves behind: the
+// sequence hands its tail on, and that tail is the binding the substitution landed
+export const foldedPrefixGuard = (e++, globalThis).self.window?.name;
+
 // a `?.` standing BELOW the probe hop guards the always-defined root, not the probe: the vestigial
 // verdict calls it dead, so the read above it is the plain twin and folds with it. only a `?.` ON
 // the probe hop is the branch the source asked for (the guarded rows above)
