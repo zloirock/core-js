@@ -2385,18 +2385,41 @@ QUnit.test('global-proxy: delete through a defined-yield call root folds to the 
   assert.same(globalThis.customDelSlotA, undefined);
 });
 
-// a probe-ONLY run off a defined-yield call keeps the window read: absent-env the member read
-// throws exactly where native does, instead of answering the root ponyfill's slot
-QUnit.test('global-proxy: a probe-only run off a defined-yield call keeps the probe read', assert => {
-  const hasWindow = globalThis.window !== undefined;
+// a sequence PREFIX around a folded call-rooted run re-emits where the source ran it: each
+// effect exactly once, in source order, on the read and on the `delete` alike
+QUnit.test('global-proxy: a prefixed call-rooted fold keeps its effects once and in order', assert => {
   function dh() { return globalThis; }
-  let out;
+  const log = [];
+  // the read and the delete take separate slots: a `delete` is a slot mutation, and sharing
+  // the key would move the read into the mutated family
+  const readValue = (log.push('a'), log.push('b'), dh()).window.customPrefixRead;
+  assert.same(readValue, undefined);
+  globalThis.customPrefixDel = 1;
+  const deleted = delete (log.push('c'), dh()).window.customPrefixDel;
+  assert.true(deleted);
+  assert.same(globalThis.customPrefixDel, undefined);
+  assert.same(log.join(''), 'abc');
+});
+
+// a probe-ONLY run off a defined-yield call folds like its identifier twin: an ordinary leaf
+// reads THROUGH the probe, so both spellings answer the root ponyfill's slot - the erased
+// off-env `.window` throw is the fold's owner-priced divergence, identical on both
+QUnit.test('global-proxy: a probe-only run off a defined-yield call folds like its identifier twin', assert => {
+  function dh() { return globalThis; }
+  let viaCall;
   try {
-    out = String(dh().window.customQ);
+    viaCall = String(dh().window.customQ);
   } catch {
-    out = 'threw';
+    viaCall = 'threw';
   }
-  assert.same(out, hasWindow ? 'undefined' : 'threw');
+  let viaIdent;
+  try {
+    viaIdent = String(globalThis.window.customQ);
+  } catch {
+    viaIdent = 'threw';
+  }
+  assert.same(viaCall, 'undefined');
+  assert.same(viaCall, viaIdent);
 });
 
 // the fallback receiver probe must survive the pre+post sandwich: a second pass recognizing
