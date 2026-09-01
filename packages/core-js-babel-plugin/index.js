@@ -74,7 +74,13 @@ import {
 } from '@core-js/polyfill-provider/render';
 import estreeToBabel from './internals/estree-to-babel.js';
 import { isCoreJSFile } from '@core-js/polyfill-provider/helpers/path-normalize';
-import { mergeVisitors, parseDisableDirectives } from '@core-js/polyfill-provider/helpers/source-scan';
+import {
+  DISABLE_NEXT_LINE_DIRECTIVE,
+  disableDirectiveAnchors,
+  isNextLineDisableDirective,
+  mergeVisitors,
+  parseDisableDirectives,
+} from '@core-js/polyfill-provider/helpers/source-scan';
 import { createResolveNodeType } from '@core-js/polyfill-provider/resolve-node-type';
 import { createPolyfillResolver } from '@core-js/polyfill-provider/resolver';
 import { createModuleInjectors } from '@core-js/polyfill-provider/plugin-options/inject';
@@ -456,6 +462,23 @@ export default function plugin(api, options) {
 
       function isDisabled(node) {
         return skipFile || (disabledLines !== null && disabledLines.has(node.loc?.start.line));
+      }
+      // the opt-outs this pass honoured reach the next pass through the printed tree: the canon
+      // (`disableDirectiveAnchors`) names every outermost covered node the reprint would leave
+      // without its directive, and this binding leads it the way babel's generator lays comments -
+      // as the NEAREST comment of the node's own leading run, which is also where it reads whether
+      // the author's directive already stands there. appended by hand: `t.addComment` prepends a
+      // leading comment, and a directive with a comment under it covers that comment's line.
+      // runs at the last reachable point (`post()`), on the tree the generator prints
+      function anchorDisableDirectives(programNode) {
+        if (!disabledLines || !programNode) return;
+        function isLed(node) {
+          const run = node.leadingComments;
+          return !!run?.length && isNextLineDisableDirective(run[run.length - 1].value);
+        }
+        for (const node of disableDirectiveAnchors({ ast: programNode, disabledLines, isLed })) {
+          (node.leadingComments ??= []).push({ type: 'CommentLine', value: ` ${ DISABLE_NEXT_LINE_DIRECTIVE }` });
+        }
       }
 
       const { injectModulesForEntry, injectModulesForModeEntry, outputDebug } = createModuleInjectors({
@@ -2330,6 +2353,7 @@ export default function plugin(api, options) {
         // later-ordered sibling inserted is compensated here or nowhere. ahead of the injector bail -
         // a skipped file is reprinted just the same
         restoreParenCompensations(this.file?.path, parensPending ? null : originalBodyNodes);
+        anchorDisableDirectives(this.file?.path?.node);
         if (!injector) return;
         // late style-switch is a safety-net for sibling plugins that strip all ESM markers
         // (e.g. `commonjs` rewriters) after our traversal. by post-phase our flush has
@@ -2446,6 +2470,7 @@ export default function plugin(api, options) {
             // the twin of `postHook`'s first line, for the same reasons spelled out there: last
             // reachable point, and ahead of every bail because a skipped file is reprinted too
             restoreParenCompensations(this.file?.path, parensPending ? null : originalBodyNodes);
+            anchorDisableDirectives(this.file?.path?.node);
             injector?.flush();
             // shared with the main `programExit` tail (`finalizeInjector`): canonical-sort
             // the import region across all flushes and lift trailing arrow-`_ref` params

@@ -189,6 +189,8 @@ Disables polyfill injection for the next statement. For a one-line statement tha
 line; when the statement spans several lines - a function or class declaration, a multi-line
 call - the whole statement is covered, its body included.
 
+The transformed output keeps the opt-outs it honored: every statement or member a directive covered is led by its own `// core-js-disable-next-line` there, so a later pass over that output - another build step, a pre-built library, the `post` pass of `@core-js/unplugin` after Babel - decides the same opt-outs. The reprint lays nodes that shared a line, like `a(); b();`, one per line, where only the first would still sit under the directive.
+
 Both `//` and `/* */` comment styles are supported. You can add a reason after ` -- `:
 ```ts
 // core-js-disable-next-line -- custom includes implementation

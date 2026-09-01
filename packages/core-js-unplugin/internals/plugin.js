@@ -3,6 +3,8 @@ import { traverse } from 'estree-toolkit';
 import { restSentinelNamesReducer } from '@core-js/polyfill-provider/detect-usage/own-output';
 import {
   BRACE_STATEMENT_HOST_TYPES,
+  SINGLE_STATEMENT_SLOTS,
+  SKIPPABLE_WRAPPER_TYPES,
   collectFileCensus,
   createTypeAnnotationChecker,
   detectCommonJS,
@@ -14,6 +16,7 @@ import {
   isMemberWriteHost,
   isMutatedStaticMeta,
   isMutatedStaticPair,
+  isStatementPosition,
   isThisReceiver,
   memberKeyNamesReducer,
   methodReadsUsageCensus,
@@ -22,8 +25,6 @@ import {
   peelParenAndTSParentPath,
   prologueEndIndex,
   sequenceHeadDirectiveHazard,
-  SINGLE_STATEMENT_SLOTS,
-  SKIPPABLE_WRAPPER_TYPES,
   usableAliasInfo,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
@@ -39,9 +40,12 @@ import {
 import { tagError } from '@core-js/polyfill-provider/helpers/error-tag';
 import { isCoreJSFile } from '@core-js/polyfill-provider/helpers/path-normalize';
 import {
+  DISABLE_NEXT_LINE_DIRECTIVE,
   buildOffsetToLine,
   buildOffsetToLineColumn,
+  disableDirectiveAnchors,
   isLineBoundDisableDirective,
+  isNextLineDisableDirective,
   mergeVisitors,
   parseDisableDirectives,
 } from '@core-js/polyfill-provider/helpers/source-scan';
@@ -283,47 +287,86 @@ function applyMinifierSequenceSplitPass(code, ast) {
   return chunks.join('');
 }
 
-// a disable directive attached INSIDE a destructuring pattern dies in a sibling pass's
-// lowering between `pre` and `post` (babel drops property-attached comments and reflows the
-// survivors), and post then re-claims the very read the user opted out. here
-// the directive re-anchors EXPLICITLY: the comment leaves the loc-attached channel and the
-// printer emits `// core-js-disable-next-line` verbatim on its own line ahead of the
-// statement (both source spellings - a leading `-next-line` and a trailing `-line` - land as
-// the leading form, whose covered line is the statement's first). meaning-preserving ONLY
-// for the sole-prop chain whose whole remainder sits on the directive's covered line:
-// everything the statement lowers to derives from that disabled prop, so statement scope IS
-// the directive's scope. wider shapes keep the author's placement (a hoist would widen or
-// lose the opt-out). the walk covers POSITIONED hosts too - statements no emission rebuilt -
-// because their in-pattern comment dies in the same lowering
-function hoistSoleDisabledPatternDirectives({ ast, comments, offsetToLine, disabledLines }) {
-  if (!comments?.length || !disabledLines || disabledLines === true) return null;
+// the opt-outs this pass honoured, re-anchored so they reach the NEXT pass - ours over our own
+// output, or `post` over what a sibling lowered between the passes. the printer emits every
+// anchored text verbatim on its own line ahead of its node, bypassing the loc heuristics (the
+// deterministic channel; see `printProgram`). two sources fill the map:
+// - the canon `disableDirectiveAnchors`: every outermost covered node the reprint would leave
+//   without its directive. every one of them goes through the channel: the loc channel is a
+//   heuristic cursor, and a rebuilt statement or an extraction drags the author's own directive
+//   away from its node - so the directive standing directly above a target (its last line the
+//   line above the node's first) moves into the channel verbatim, and a target without one
+//   takes the canonical spelling
+// - the hoist no line scan can express: a disable directive attached INSIDE a destructuring
+//   pattern dies in a sibling pass's lowering (babel drops property-attached comments and reflows
+//   the survivors), and post then re-claims the very read the user opted out. the comment leaves
+//   the loc-attached channel and lands ahead of the STATEMENT (both source spellings - a leading
+//   `-next-line` and a trailing `-line` - as the leading form, whose covered line is the
+//   statement's first). meaning-preserving ONLY for a SOLE-prop chain - one property at every
+//   level down to the covered one (`{ Object: { groupBy } }` with the directive on either line):
+//   everything the statement lowers to derives from that disabled prop, so statement scope IS the
+//   directive's scope. a level with siblings keeps the author's placement (a hoist would widen or
+//   lose the opt-out). POSITIONED hosts too - statements no emission rebuilt - because their
+//   in-pattern comment dies in the same lowering; a hoisted statement is settled for the canon
+//   walk, its pattern owing no second anchor
+function anchorDisableDirectives({ ast, comments, code, offsetToLine, disabledLines }) {
+  if (!disabledLines || disabledLines === true) return null;
   const anchored = new Map();
   const removed = new Set();
-  const nodeComments = new Map();
-  walkAstNodes({ root: ast, visit(node) {
+  const anchorText = `// ${ DISABLE_NEXT_LINE_DIRECTIVE }`;
+  // the covered line of a sole-prop chain, walking single-property patterns down from the
+  // declarator's id: the first level whose sole property opens on a covered line; null when a
+  // level has siblings or none is covered
+  function soleChainCoveredLine(pattern) {
+    for (let level = pattern; level?.type === 'ObjectPattern' && level.properties.length === 1;) {
+      const [prop] = level.properties;
+      if (typeof prop.start !== 'number') return null;
+      const line = offsetToLine(prop.start);
+      if (disabledLines.has(line)) return line;
+      level = prop.value?.type === 'AssignmentPattern' ? prop.value.left : prop.value;
+    }
+    return null;
+  }
+  // the statement the hoist lands on: the declaration itself in a statement position, the export
+  // wrapping it, and nothing for a declaration a loop head hosts - esrap prints such a head inline,
+  // so the channel would drop the directive and the print would carry none; there the canon walk
+  // below anchors the property in place, where the pattern's own print reaches it
+  function hoistTarget(node, parent) {
+    if (parent?.type === 'ExportNamedDeclaration' && parent.declaration === node) return parent;
+    return isStatementPosition(node, parent) ? node : null;
+  }
+  if (comments?.length) walkAstNodes({ root: ast, visit(node, parent) {
     if (node.type === 'VariableDeclaration' && node.declarations.length === 1) {
-      const [{ id }] = node.declarations;
-      const [prop = null] = id?.type === 'ObjectPattern' && id.properties.length === 1 ? id.properties : [];
-      const usable = prop && typeof prop.start === 'number' && typeof prop.end === 'number';
-      const line = usable ? offsetToLine(prop.start) : null;
-      if (usable && disabledLines.has(line) && offsetToLine(prop.end - 1) === line) {
+      const target = hoistTarget(node, parent);
+      const line = target ? soleChainCoveredLine(node.declarations[0].id) : null;
+      if (line !== null) {
         for (const comment of comments) {
           if (typeof comment.start !== 'number' || !isLineBoundDisableDirective(comment.value)) continue;
           const commentLine = offsetToLine(comment.end - 1);
-          const covers = comment.value.includes('next-line') ? commentLine + 1 === line : commentLine === line;
+          const covers = isNextLineDisableDirective(comment.value) ? commentLine + 1 === line : commentLine === line;
           if (!covers) continue;
-          if (!anchored.has(node)) {
-            anchored.set(node, []);
-            nodeComments.set(node, []);
-          }
-          anchored.get(node).push('// core-js-disable-next-line');
-          nodeComments.get(node).push(comment);
+          if (!anchored.has(target)) anchored.set(target, []);
+          anchored.get(target).push(anchorText);
           removed.add(comment);
         }
       }
     }
   } });
-  return anchored.size ? { anchored, removed, nodeComments } : null;
+  const leadingDirectives = (comments ?? []).filter(comment => typeof comment.start === 'number'
+    && typeof comment.end === 'number' && isNextLineDisableDirective(comment.value));
+  function ownDirectiveText(node) {
+    if (typeof node.start !== 'number') return anchorText;
+    const line = offsetToLine(node.start);
+    const own = leadingDirectives.find(comment => comment.end <= node.start
+      && code.slice(comment.end, node.start).trim() === '' && offsetToLine(comment.end - 1) + 1 === line);
+    if (!own) return anchorText;
+    removed.add(own);
+    return code.slice(own.start, own.end);
+  }
+  for (const node of disableDirectiveAnchors({ ast, disabledLines, offsetToLine, isLed: () => false, settled: anchored })) {
+    anchored.set(node, [ownDirectiveText(node)]);
+  }
+  return anchored.size ? { anchored, removed } : null;
 }
 
 // disable-directive state for a (code, ast, comments) snapshot: the offset->line mapper
@@ -935,15 +978,26 @@ export default function createPlugin(options) {
       // the print tail: the output does NOT re-emit a stripped BOM (babel's generator
       // carries none and bundlers strip it before the final artifact), but `sourcesContent`
       // keeps the user's ORIGINAL bytes - BOM included - because devtools compare it to disk
-      // the pre-pass directive re-anchor result (see `hoistSoleDisabledPatternDirectives`):
-      // the print emits the anchored texts verbatim and the loc-attached originals drop
+      // the directive re-anchor result (see `anchorDisableDirectives`): the print emits the
+      // anchored texts verbatim and the loc-attached originals drop. a `pre` pass computes it
+      // ahead of its no-op bail, every other print here - the anchors are keyed by node, so they
+      // are read off the RESTORED tree, never the neutralized one
       let directiveAnchors = null;
-      function finalizeAst() {
-        // undo the detection-convenience pattern neutralization (reverse order - the
-        // parameter-property unwrap nests blanking inside itself) so the print sees the
-        // author's tree
+      // undo the detection-convenience pattern neutralization (reverse order - the
+      // parameter-property unwrap nests blanking inside itself) so the print and the anchor
+      // walk see the author's tree; idempotent, so the pre paths may run it ahead of the print
+      function restoreNeutralizedPatterns() {
         for (let i = patternRestorations.length - 1; i >= 0; i--) patternRestorations[i]();
         patternRestorations.length = 0;
+      }
+      // the anchors, off the restored tree: a property of a PARAMETER pattern is blanked for the
+      // crawl, and an anchor keyed on the blanked copy would never meet its node in the printer
+      function computeDirectiveAnchors() {
+        restoreNeutralizedPatterns();
+        directiveAnchors = anchorDisableDirectives({ ast, comments, code, offsetToLine, disabledLines });
+      }
+      function finalizeAst() {
+        if (!directiveAnchors) computeDirectiveAnchors();
         const printed = printProgram({
           program: ast,
           comments: directiveAnchors ? comments.filter(comment => !directiveAnchors.removed.has(comment)) : comments,
@@ -1031,7 +1085,7 @@ export default function createPlugin(options) {
         if (pass !== 'pre') outputDebug();
         const surgeryChanged = !!astSweptImports || astNormalized;
         if (pass === 'pre') {
-          directiveAnchors = hoistSoleDisabledPatternDirectives({ ast, comments, offsetToLine, disabledLines });
+          computeDirectiveAnchors();
           const preChanged = surgeryChanged || !!directiveAnchors;
           storeAstPreSnapshot(preChanged);
           if (!preChanged) return null;
@@ -1238,8 +1292,9 @@ export default function createPlugin(options) {
         const collected = injector.pureImports.size || injector.globalImports.size || astRefNames.length;
         // the re-anchor is computed BEFORE the no-op bail: a file whose only core-js-relevant
         // content is the disabled claim still transforms, or the sibling lowering eats the
-        // in-pattern comment and post re-claims the very read the user opted out
-        if (pass === 'pre') directiveAnchors = hoistSoleDisabledPatternDirectives({ ast, comments, offsetToLine, disabledLines });
+        // in-pattern comment - or lays two covered siblings on separate lines - and post
+        // re-claims the very read the user opted out
+        if (pass === 'pre') computeDirectiveAnchors();
         if (!astRewrote && !collected && !astNormalized && !astSweptImports && !directiveAnchors) {
           if (pass === 'pre') storeAstPreSnapshot(false);
           return null;
