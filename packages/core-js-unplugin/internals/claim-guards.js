@@ -11,6 +11,7 @@ import {
   proxyGlobalRootName,
   proxyReceiverValueCanBeUndefined,
   resolveObjectName,
+  realmRootIsSpellable,
   sealedChainBoundary,
   sealedClaimLeafGuardPlan,
   vestigialNavOptionals,
@@ -646,6 +647,10 @@ export function sealedPristineHopCollapse(metaPath, node, { adapter, resolvePure
   // has no throw to keep and the ponyfill swap stands (`(bf()).self.Array` -> `_self.Array`)
   if (!proxyReceiverValueCanBeUndefined(boundary.inner, m => resolvePure(m, metaPath),
     { scope: metaPath.scope, adapter, path: metaPath }, { throughChainAssign: true })) return false;
+  // ... and never onto a RAW realm read this build cannot spell: with the root's entry out of the
+  // build nothing substitutes what the drop lands on, and the hop's own ponyfill was the one
+  // spelling available (`(globalThis).self.window` without the global-this entry is `_self.window`)
+  if (!realmRootIsSpellable(node, m => resolvePure(m, metaPath))) return false;
   // ... only where something READS through it: in value position the drop would hand back the
   // seal instead of the surface the hop named
   const above = metaPath.parentPath?.node;
