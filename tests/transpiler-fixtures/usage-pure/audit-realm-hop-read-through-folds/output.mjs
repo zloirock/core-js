@@ -28,6 +28,10 @@ export const stackedFolds = null == (v = _self) ? void 0 : _Number$MAX_SAFE_INTE
 // a stored value lands the ponyfill the fold leaves behind, not a raw realm read off it
 export const storedFolds = null == (k = _self) ? void 0 : _Map.length;
 
+// ... and a harvested effect PREFIX does not revive the guard such a fold leaves behind: the
+// sequence hands its tail on, and that tail is the binding the substitution landed
+export const foldedPrefixGuard = (e++, _globalThis).name;
+
 // a `?.` standing BELOW the probe hop guards the always-defined root, not the probe: the vestigial
 // verdict calls it dead, so the read above it is the plain twin and folds with it. only a `?.` ON
 // the probe hop is the branch the source asked for (the guarded rows above)
