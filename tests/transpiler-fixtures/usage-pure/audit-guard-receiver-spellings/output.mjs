@@ -70,9 +70,9 @@ export const destructuredWithDefault = _Promise$allSettled([]);
 
 // --- TS-wrapped spellings ---
 let k7;
-export const castInsideAssign = (k7 = _self, _Math$trunc)(6.7);
+export const castInsideAssign = (k7 = _self as any, _Math$trunc)(6.7);
 let k8;
-export const castAroundValue = (k8 = _self, _Number$parseInt)('7', 10);
+export const castAroundValue = (k8 = _self as any, _Number$parseInt)('7', 10);
 let k9;
 // the static stays raw here BY CONSTRUCTION, not by a miss: `Object.keys` only needs the
 // polyfill for a PRIMITIVE argument, and an object literal is filtered out of the injection.
@@ -81,7 +81,7 @@ export const nonNullOnUnponyfilled = (k9 = _globalThis.window!)?.Object.keys({
   e: 5
 });
 let k10;
-export const satisfiesOnPlainHop = (k10 = _self, _Object$assign)({}, {
+export const satisfiesOnPlainHop = (k10 = _self satisfies object, _Object$assign)({}, {
   f: 6
 });
 
