@@ -15,7 +15,6 @@ import {
   isInUpdateOperand,
   isMemberWriteHost,
   isThisReceiver,
-  getMinifierSequenceDestructureExpressions,
   isDeoptedGlobalSlotRead,
   mutatedSlotLeftNativeWarning,
   isMutatedStaticMeta,
@@ -24,18 +23,14 @@ import {
   methodReadsUsageCensus,
   memberKeyName,
   memberKeyNamesReducer,
-  minifierShapesReducer,
   mutatedGlobalSlotNames,
   isTaggedTemplateTag,
   nestedSequenceValueSpelling,
   peelNestedSequenceExpressions,
   unwrapRuntimeExpr,
-  BRACE_STATEMENT_HOST_TYPES,
-  forEachStatementPosition,
   TS_EXPR_WRAPPERS,
   staticFallbackSwapRedundant,
   resolveBatchDirectivePromotionPolicy,
-  sequenceHeadDirectiveHazard,
   keptNavChainEndPath,
   memberChainEndPath,
   peelParenAndTSSlotPath,
@@ -54,6 +49,7 @@ import {
   enrichMutatedStatics, escapedCtorReferencesReducer, mutationShapesReducer,
 } from '@core-js/polyfill-provider/detect-usage/mutations';
 import { isSymbolIteratorPatternProp } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
+import { planMinifierSequenceSplit } from '@core-js/polyfill-provider/destructure-host-shape';
 import { planInExpression } from '@core-js/polyfill-provider/helpers/in-expression';
 import {
   createClassHelpers,
@@ -145,84 +141,21 @@ import runEntryDetection from './internals/detect-entry.js';
 import createDestructureEmitter from './internals/destructure-emitter.js';
 import createSynthSwapEmitter from './internals/synth-swap-emitter.js';
 
-// minifier-shape pre-pass: `(prefixExpr, ..., ({pat} = R), ...);` collapses a destructure
-// assignment into ANY slot of a statement-position SequenceExpression (minified tail,
-// comma-joined statements, nested sequences) - the destructure-emitter gate would silently
-// bail without this split. shape detection is shared with unplugin's
-// pre-parse split via `getMinifierSequenceDestructureExpressions` (unplugin's symmetric
-// pre-pass routes through the same shared statement-position walk over the raw AST). walks every
-// Statement-list host - Program + descendant BlockStatement / StaticBlock / TSModuleBlock -
-// so function / loop / try / class-static / namespace bodies are covered too; a Program-only
-// walk would silently bail destructure-emitter inside non-Program statement lists
+// the minifier-sequence split, applied as body surgery ahead of the traversal: the plan is the
+// core's (`planMinifierSequenceSplit` - the shape, the products, their spans), this binding
+// converts the products, inherits the replaced statement's attached comments the way
+// `replaceWithMultiple` does, and splices them in by identity. a node splice, not a path
+// replacement: the products are visited like any other statement once the program's body is
+// walked, and there is nothing queued yet to re-queue. an un-braced control-flow slot is braced
+// around its products with the host's own block
 function splitMinifierSequenceDestructure(programPath, t) {
-  // a split product can ITSELF be a minifier-sequence nested in the SAME statement list (e.g.
-  // `(a, (b, ({x} = R)), ({y} = S))` - the middle operand is a sequence-destructure too). the
-  // post-split traverse only re-reaches NEW brace hosts, never the host's own statement list, so the
-  // fixpoint loop below re-runs over the LIVE body until none remain. each pass strictly reduces the
-  // remaining nesting, so this cap mirrors unplugin's split fixpoint as a safety backstop only
-  const MINIFIER_SPLIT_PASS_CAP = 64;
-  // returns true when at least one statement was split this pass, so the caller can loop to a fixpoint
-  function splitStatementList(statementPaths) {
-    let didSplit = false;
-    for (const bodyPath of statementPaths) {
-      const expressions = getMinifierSequenceDestructureExpressions(bodyPath.node);
-      if (!expressions) continue;
-      didSplit = true;
-      bodyPath.replaceWithMultiple(expressions.map((e, i) => {
-        // a leading StringLiteral operand promoted to its own statement at a prologue position
-        // (Program / function body[0]) re-parses as a Directive Prologue entry - flipping a sloppy
-        // script into strict mode (`"use strict"`), enabling asm.js (`"use asm"`), etc. - a semantic
-        // shift the original SequenceExpression operand never carried. wrap it in `(0, str)` so it
-        // stays a plain ExpressionStatement and the prologue ends before it; only the first operand
-        // can land in prologue position (a later string operand is already post-prologue)
-        const node = i === 0 && sequenceHeadDirectiveHazard(e)
-          ? t.sequenceExpression([t.numericLiteral(0), e]) : e;
-        const stmt = t.expressionStatement(node);
-        // carry the wrapped expression's source position onto the synthesized statement so split
-        // products read as genuine user code, not loc-less sibling-plugin synthesis. without it
-        // entry-global's loc gate skips a collapsed `require('core-js/...')` entry and the
-        // disable-directive boundary scan skips past a collapsed first statement
-        stmt.loc = e.loc;
-        stmt.start = e.start;
-        stmt.end = e.end;
-        return stmt;
-      }));
-    }
-    return didSplit;
+  for (const { statements, host, key, statement, products } of planMinifierSequenceSplit(programPath.node, { embed: hostSlot })) {
+    const converted = products.map(product => estreeToBabel(product));
+    t.inheritLeadingComments(converted[0], statement);
+    t.inheritTrailingComments(converted[converted.length - 1], statement);
+    if (statements) statements.splice(statements.indexOf(statement), 1, ...converted);
+    else host[key] = t.blockStatement(converted);
   }
-  // re-run over the LIVE statement list (re-read each pass, since replaceWithMultiple mutates it)
-  // until a pass splits nothing - so split products that are themselves minifier-sequences are caught
-  function splitListToFixpoint(getPaths) {
-    for (let pass = 0; pass < MINIFIER_SPLIT_PASS_CAP; pass++) {
-      if (!splitStatementList(getPaths())) break;
-    }
-  }
-  function splitInBody(blockPath) {
-    splitListToFixpoint(() => blockPath.get('body'));
-  }
-  // callers gate on the file census (`hasMinifierShapes`): real-world files rarely carry
-  // the minifier shape at all, and the path-materializing traverse below costs an order of
-  // magnitude more than the shared census recursion
-  // an un-braced control-flow body holds its statement in a single slot, so a split has nowhere to
-  // put the extra products. brace it first and the statement-list walk below takes it from there -
-  // a block around a sequence's operands declares nothing, so the added scope is unobservable
-  forEachStatementPosition(programPath.node, {
-    onUnbracedSlot(hostNode, key) {
-      if (getMinifierSequenceDestructureExpressions(hostNode[key]) === null) return;
-      hostNode[key] = t.blockStatement([hostNode[key]]);
-    },
-  });
-  splitInBody(programPath);
-  // the brace-delimited statement-list hosts as a babel-traverse union visitor key (Program is the
-  // traverse root, handled by the direct splitInBody(programPath) above). SwitchCase's `consequent`
-  // slot hosts the case body under a different slot name, so a separate visitor reaches it
-  const braceHostVisitorKey = [...BRACE_STATEMENT_HOST_TYPES].join('|');
-  programPath.traverse({
-    [braceHostVisitorKey]: splitInBody,
-    SwitchCase(path) {
-      splitListToFixpoint(() => path.get('consequent'));
-    },
-  });
 }
 
 export default function plugin(api, options) {
@@ -1813,22 +1746,20 @@ export default function plugin(api, options) {
 
       function initFile(path) {
         const isInternalCoreJS = !!path.hub.file.opts.filename && isCoreJSFile(path.hub.file.opts.filename);
-        // ONE raw walk answers every per-file census question (name reservation + the three
-        // shape gates) - the scans it replaces each re-walked the whole file. computed on the
+        // ONE raw walk answers every per-file census question (name reservation + the shape
+        // gates) - the scans it replaces each re-walked the whole file. computed on the
         // PRISTINE tree: every consumer either reads it at this same point, or (ctor-alias
         // gate, after the minifier split) is invariant to the split - the split only
-        // re-parents existing expression nodes into their own statements
-        // the census the usage lanes read is gated by the shared predicate; what stays for
-        // entry-global is the minifier-shape gate alone, because the split runs for it too
-        fileCensus = collectFileCensus(path.node, !methodReadsUsageCensus(method) ? [minifierShapesReducer()] : [
+        // re-parents existing expression nodes into their own statements. read by the usage
+        // lanes alone, so entry-global skips the walk (an empty reducer list would still pay it)
+        fileCensus = methodReadsUsageCensus(method) ? collectFileCensus(path.node, [
           memberKeyNamesReducer(),
-          minifierShapesReducer(),
           ctorAliasShapesReducer(),
           mutationShapesReducer(packages),
           escapedCtorReferencesReducer(),
           restSentinelNamesReducer(),
           proxyWriteOriginsReducer(),
-        ]);
+        ]) : {};
         // pre-walk for monkey-patches, consulted by `usagePureCallback` before substituting
         // `Object.key` reads - so the INJECTION-policy slot stays usage-pure only, exactly as
         // before: a global-flavor bail there would drop an import instead of adding one.
@@ -1923,14 +1854,13 @@ export default function plugin(api, options) {
         const fileDisabled = directives === true;
         skipFile = isInternalCoreJS || fileDisabled;
         disabledLines = fileDisabled ? null : directives;
-        // minifier-shape `(prefixExpr, ..., ({pat} = R), ...);` collapses a destructure assignment into
-        // any slot of an ExpressionStatement-wrapped SequenceExpression. `canTransformDestructuring`
-        // peels only Paren+TS so the rewrite silently bails on this shape; split it into consecutive
-        // ExpressionStatements before any usage / entry visitor sees the program (side-effecting prefix
-        // expressions stay in source order). gated below skipFile so a `core-js-disable-file` directive
-        // or internal core-js source is returned verbatim, not rewritten (entry-global needs it too,
-        // so the gate is `!skipFile`, not the narrower entry exclusion below)
-        if (!skipFile && fileCensus.hasMinifierShapes) splitMinifierSequenceDestructure(path, t);
+        // the minifier-sequence split lands before any usage / entry visitor sees the program, and
+        // after the directives were read: a `-next-line` over a collapsed statement spans the whole
+        // statement the author wrote, so every product stays covered. gated below skipFile so a
+        // `core-js-disable-file` directive or internal core-js source is returned verbatim, not
+        // rewritten (entry-global needs it too - a `require('core-js/...')` collapsed into a comma
+        // sequence - so the gate is `!skipFile`, not the narrower entry exclusion below)
+        if (!skipFile) splitMinifierSequenceDestructure(path, t);
         // entry-global handles re-emit via detectEntries
         if (!skipFile && method !== 'entry-global') {
           const removed = new Set();
