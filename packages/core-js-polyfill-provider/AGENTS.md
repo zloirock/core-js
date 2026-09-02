@@ -26,7 +26,7 @@ The mechanical half of that rule: before writing a function or a branch, search 
 
 ## Injection methods
 
-- `entry-global` - replaces a core-js entry import with the individual `core-js/modules/*` imports its targets need. All the shapes count, not just the bare `import`: `require`, dynamic `import()`, TypeScript's `import x = require(...)`, and any entry subpath
+- `entry-global` - replaces a core-js entry import with the individual `core-js/modules/*` imports its targets need. All the side-effect shapes count, not just the bare `import`: `require`, dynamic `import()`, a minifier-joined `require('core-js/...'), b()` in any slot, and any entry subpath. A BINDING import is never an entry, used or not - `import x from`, `const x = require()`, TypeScript's `import x = require()` alike stay where the author wrote them
 - `usage-global` - detects API usage and injects side-effect imports for the polyfills it needs
 - `usage-pure` - detects API usage and rewrites it into imports from `@core-js/pure`
 
