@@ -2310,7 +2310,12 @@ export function resolveArrayWrappedReceiver(patternPath, aliasCtx = null,
   let aliased = false;
   for (const step of indices) {
     const peeledElement = peelTransparentExpr(element);
-    aliased ||= (element = followConstLiteralAlias(peeledElement, aliasCtx)) !== peeledElement;
+    // EVERY level follows its alias: an alias inside an alias (`const inner = [Array]; const outer =
+    // [inner]; const [[{ from }]] = outer`) is followed at the second level exactly like the first -
+    // folding the follow into the `aliased ||=` update short-circuited it away once one level had
+    // aliased, and the leg stayed native where the babel plan flattened
+    element = followConstLiteralAlias(peeledElement, aliasCtx);
+    aliased ||= element !== peeledElement;
     if (element?.type === 'SequenceExpression') element = peelTransparentExpr(element.expressions.at(-1));
     if (step.key !== undefined) {
       const next = stepIntoLiteral(element, step);
