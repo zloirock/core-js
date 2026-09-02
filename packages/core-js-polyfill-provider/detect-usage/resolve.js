@@ -38,6 +38,7 @@ import {
   isReassignedBeyondDeclarator,
   isRenderedStoredValue,
   isTopLevelThisContext,
+  isTransparentWrapper,
   isUndefinedNode,
   isValidIdentifierName,
   isVarDeclaratorInLoopRerun,
@@ -50,6 +51,8 @@ import {
   patternSlotHasDefault,
   patternSlotSpreadShifted,
   patternSlotValues,
+  peelChainAssignment,
+  peelChainAssignmentDeep,
   peelMemoizeWrappers,
   peelProxyGlobalObject,
   peelSequenceTail,
@@ -75,6 +78,7 @@ import {
   tsImportEqualsRequireSource,
   unwrapParens,
   unwrapRuntimeExpr,
+  unwrapTransparentSeq,
   varInitDominatesUsage,
   zeroArgIifeSideEffectFree,
 } from '../helpers/ast-patterns.js';
@@ -84,26 +88,6 @@ import { SYMBOL_STATIC_KEYS, symbolKeyToEntry } from './globals.js';
 // same ceiling as `resolve-node-type.MAX_DEPTH`; 10 is too low for cross-module alias chains.
 // exported so cohort recursive walkers (`isSymbolSourcedKey` in members.js) share the bound
 const MAX_KEY_DEPTH = 64;
-
-// transparent expression wrappers (paren / optional-chain / TS) - single-sourced from the canon
-export function isTransparentWrapper(node) {
-  return SKIPPABLE_WRAPPER_TYPES.has(node.type);
-}
-
-// SequenceExpression bail mode: stop unwrapping when preceding elements carry side effects.
-// caller can't preserve them (inner resolveKey recursion, handleBinaryIn) - keep sequence intact
-export function unwrapTransparentSeq(node) {
-  while (node) {
-    if (isTransparentWrapper(node)) {
-      node = node.expression;
-    } else if (node.type === 'SequenceExpression') {
-      const preceding = node.expressions.slice(0, -1);
-      if (preceding.some(mayHaveSideEffects)) break;
-      node = node.expressions.at(-1);
-    } else break;
-  }
-  return node;
-}
 
 // SequenceExpression collect mode: push side-effect preceding elements into `effects` for
 // the caller to re-attach via a SequenceExpression wrap around the polyfill replacement.
@@ -228,36 +212,6 @@ export function receiverSideEffectsOnly(receiverEffectCount, sideEffects) {
 function sideEffectsPastOffset(offset, sideEffects) {
   if (!sideEffects?.length || typeof offset !== 'number') return [];
   return sideEffects.filter(effect => effect.start >= offset);
-}
-
-// peel chain-assignment `=` chain, returning the rhs-most non-assignment node + the
-// outermost assignment (evaluating it covers every nested `=` step in source). used by
-// static-method dispatch to recover the actual constructor identifier from a receiver like
-// `(a = Array)` / `(a = b = Array)` and to re-emit the assignment as a side effect.
-// instance dispatch captures it via the `_ref = (a = Array)` memoize shape so doesn't need
-// this. handles nested-with-parens shapes (`(a = (b = Array))`) by alternating paren/assign
-// peel internally - safe regardless of caller's pre-unwrap, robust to babel's
-// `createParenthesizedExpressions: true` option. returns null `outer` when input isn't a
-// chain-assign shape
-export function peelChainAssignment(node) {
-  const peeled = unwrapTransparentSeq(node);
-  if (peeled?.type !== 'AssignmentExpression' || peeled.operator !== '=') return { value: peeled, outer: null };
-  let cur = peeled.right;
-  // alternate paren-peel + chain-assign-descend to fixpoint; covers `(a = (b = X))` and
-  // multi-layer paren wraps around inner `=`
-  for (;;) {
-    cur = unwrapTransparentSeq(cur);
-    if (cur?.type !== 'AssignmentExpression' || cur.operator !== '=') break;
-    cur = cur.right;
-  }
-  return { value: cur, outer: peeled };
-}
-
-// back-compat alias: `peelChainAssignment` already does the alternating peel internally,
-// so deep-walking just extracts the value field. preserves the legacy two-function API
-// for external callers
-export function peelChainAssignmentDeep(node) {
-  return peelChainAssignment(node).value;
 }
 
 // fixpoint of the chain-root peel pair - transparent wrappers + sequence tails
@@ -954,17 +908,22 @@ const CORE_JS_SOURCE_PREFIX = /^(?:core-js(?:-pure)?\/|@core-js\/pure\/|(?:actua
 const SYMBOL_IMPORT_SOURCE = /(?:^|\/)symbol\/(?<name>[\w-]+)(?:\/index)?(?:\.js)?$/;
 
 // re-exported from the shared helper layer: the proxy-ROOT recogniser lives in a module this one
-// imports FROM, so the canon cannot sit here without a cycle
+// imports FROM, so the canon cannot sit here without a cycle; the transparent / chain-assignment
+// peels moved there for the same reason (the const-alias follow reads them), and keep this name
 export {
-  bindsModuleDefault, globalProxyNameFromImportSource, isTypeOnlyImportKind, pureCtorNameFromImportSource,
-  tsImportEqualsProxyName, tsImportEqualsRequireSource,
+  bindsModuleDefault, globalProxyNameFromImportSource, isTransparentWrapper, isTypeOnlyImportKind,
+  peelChainAssignment, peelChainAssignmentDeep, pureCtorNameFromImportSource, tsImportEqualsProxyName,
+  tsImportEqualsRequireSource, unwrapTransparentSeq,
 } from '../helpers/ast-patterns.js';
 
-// shared Identifier-binding gate for key-resolution walks: cycle guard via `seen`, fork
-// before recurse, reject reassigned bindings. precomputes `VariableDeclarator` init for
-// the common "follow alias" step so callsites converge on `entry.init ? recurse : fallback`.
-// returns `{ binding, init, nextSeen }` on success, null on miss
-function enterIdentifierBindingFollow({ node, scope, adapter, seen, path = null, usageNode = null }) {
+// shared Identifier-binding gate for key-resolution walks: cycle guard via the hop's `seen`, fork
+// before recurse, reject reassigned bindings. takes the hop standing on the identifier and returns
+// the hop standing on its binding's `VariableDeclarator` init (`node` null when the binding has
+// none to follow) with the `binding` beside it and `seen` advanced, so callsites converge on
+// `entry.node ? recurse : fallback`; null on miss
+function enterIdentifierBindingFollow(hop) {
+  const { node, readNode: usageNode = null, seen } = hop;
+  const { scope, adapter, path = null } = hop.ctx;
   if (seen?.has(node.name)) return null;
   const binding = adapter.getBinding(scope, node.name, path);
   // method-aware reassignment bail: usage-global keeps following a reassigned key/value alias when the
@@ -989,10 +948,10 @@ function enterIdentifierBindingFollow({ node, scope, adapter, seen, path = null,
   const bindingNode = binding.node ?? binding.path?.node;
   const init = bindingNode?.type === 'VariableDeclarator' && bindingNode.id?.type === 'Identifier'
     ? bindingNode.init : null;
-  // the returned scope anchors the NEXT hop: the init's identifiers resolve in the alias's OWN
+  // the returned `ctx.scope` anchors the NEXT hop: the init's identifiers resolve in the alias's OWN
   // declaration scope, not the use scope - a use-site shadow of an init name (`const k = j;
   // function f(j) { obj[k] }`) must not swallow the module-level value the alias actually holds
-  return { binding, init, nextSeen, scope: aliasDeclScope(binding, scope) };
+  return { ...hop, node: init, seen: nextSeen, binding, ctx: { ...hop.ctx, scope: aliasDeclScope(binding, scope) } };
 }
 
 // resolve a plugin-managed binding to its Symbol.X key if any. covers two markers:
@@ -1099,12 +1058,14 @@ export function extractStaticString(node, adapter) {
 // `require('core-js/...')` value-call -> source string, or null. peels webpack `(0, require)(...)`
 // (SequenceExpression callee tail) and paren / TS / chain wrappers (`(require as any)('...')`,
 // `require!('...')`); accepts optional `require?.(...)` on both parsers. a locally-shadowed
-// `require` (looked up via `scope` / `adapter`) is ignored - `path` reaches the adapter's
-// var-hoist / TS-runtime shadow recovery, so a `var require` hoisted out of a nested block
-// shadows on the estree leg exactly as babel's scope tracker sees it. the ONE require-source
-// canon: entry detection / existing-import scan (entries.js) and the proxy-import recognition
-// branches below all read through it
-export function requireCallSource(node, { adapter = null, scope = null, path = null } = {}) {
+// `require` (looked up via the alias context's `scope` / `adapter` - a hop's `ctx`) is ignored -
+// its `path` reaches the adapter's var-hoist / TS-runtime shadow recovery, so a `var require`
+// hoisted out of a nested block shadows on the estree leg exactly as babel's scope tracker sees
+// it; with no context the shadow check is skipped. the ONE require-source canon: entry
+// detection / existing-import scan (entries.js) and the proxy-import recognition branches below
+// all read through it
+export function requireCallSource(node, aliasCtx = {}) {
+  const { adapter = null, scope = null, path = null } = aliasCtx;
   // `var P = require?.('x')` wraps the call in a ChainExpression (estree / oxc); peel transparent
   // wrappers at the top so the type-gate sees the (Optional)CallExpression instead of rejecting it
   // and re-emitting a duplicate import for an already-provided module
@@ -1805,12 +1766,16 @@ function resolveProxyGlobalRoot({ receiver, scope, adapter, seen, path, usageNod
       obj = peelRealmLogicalDefault(obj.object);
     }
     if (obj.type === 'CallExpression' || obj.type === 'OptionalCallExpression') {
-      const inlined = inlineCallReturnExpression({ callNode: obj, scope, adapter, seen, path });
+      // the callee follow anchors its dominance at the hop's read site, like `resolveObjectName`'s
+      // own inline arm: a callee reassigned AFTER an alias captured its yield (`const G = mk().Array;
+      // mk = ...`) does not stand the capture down - anchored at the later use it did, and the
+      // static went uninjected on both legs
+      const inlined = inlineCallReturnExpression({ node: obj, readNode: usageNode, seen, ctx: { scope, adapter, path } });
       if (inlined) {
         // the inlined body re-anchors at the callee's own scope (and the advanced cycle set) -
         // resolving it at the use site let a use-scope shadow capture the body's identifiers
         receiver = inlined.node;
-        scope = inlined.scope;
+        scope = inlined.ctx.scope;
         seen = inlined.seen;
         continue;
       }
@@ -1881,13 +1846,13 @@ export function resolveObjectName({ objectNode, scope, adapter, seen, path, usag
   // separately (`resolveVariableBindingToGlobal`); direct member-receiver IIFE preserves
   // its AST shape so identifier-visitor's inner rewrite stays the single source of truth
   if (objectNode.type === 'CallExpression' || objectNode.type === 'OptionalCallExpression') {
-    const inlined = inlineCallReturnExpression({ callNode: objectNode, scope, adapter, seen, path, usageNode });
+    const inlined = inlineCallReturnExpression({ node: objectNode, readNode: usageNode, seen, ctx: { scope, adapter, path } });
     // an SE-arrow body inlines to a SEQUENCE (`() => (r++, globalThis)`) - classify through its
     // tail value like the proxy-root walk does; SE preservation stays the emit side's concern
     // (`inlineCallHasObservableEffects`), this is pure shape classification.
     // the recursion re-anchors at the callee's scope with the advanced cycle set
     return inlined ? resolveObjectName({
-      objectNode: peelReceiverSequenceTail(inlined.node), scope: inlined.scope, adapter, seen: inlined.seen, path, usageNode,
+      objectNode: peelReceiverSequenceTail(inlined.node), scope: inlined.ctx.scope, adapter, seen: inlined.seen, path, usageNode,
     }) : null;
   }
   if (objectNode.type !== 'MemberExpression' && objectNode.type !== 'OptionalMemberExpression') return null;
@@ -1916,10 +1881,10 @@ export function resolveObjectName({ objectNode, scope, adapter, seen, path, usag
 
 // the distinct values an alias can hold at the use for the usage-global union: the resolved primary
 // (declarator init) plus every reachable reassignment RHS that resolves, deduped. a non-Identifier
-// alias or one with no reassignment contributes only the primary. `resolve` maps a value node to its
-// receiver name / key string; its third argument re-anchors the resolution at the scope the value
+// alias or one with no reassignment contributes only the primary. `resolve` maps a value HOP to its
+// receiver name / key string: the hop's `ctx.scope` re-anchors the resolution at the scope the value
 // was SPELLED in (a write RHS / init resolves where the binding lives, not at the alias read - a
-// use-site shadow of an RHS name must not capture it)
+// use-site shadow of an RHS name must not capture it), its `readNode` at the site it was read
 export function reachableAliasValues({ aliasNode, primary, resolve, scope, adapter, path, seen, usageNode = null }) {
   const values = primary ? [primary] : [];
   // follow an Identifier alias SOURCE (a declarator init OR a reassignment value) to the aliased
@@ -1949,7 +1914,8 @@ export function reachableAliasValues({ aliasNode, primary, resolve, scope, adapt
     // already gets its declared value from the caller's primary, so re-resolving it would double-count
     // (and mis-anchor a dead init) - it stays null
     values.push(...reachableAliasValues({
-      aliasNode: recursed, primary: asCall ? resolve(recursed, node, sourceScope) : null, resolve,
+      aliasNode: recursed, resolve,
+      primary: asCall ? resolve({ node: recursed, readNode: node, ctx: { scope: sourceScope, adapter, path } }) : null,
       scope: sourceScope, adapter, path,
       seen: new Set(seen).add(currentName), usageNode: node,
     }));
@@ -1966,7 +1932,7 @@ export function reachableAliasValues({ aliasNode, primary, resolve, scope, adapt
         // the written value was READ at its write site - anchor its own resolution there, so a
         // cross-write (`a = b; b = x`) resolves b's value as captured BEFORE `b = x` overwrote it,
         // and in the binding's own scope, so a use-site shadow cannot swallow the RHS name
-        const value = resolve(rhs, rhs, declScope);
+        const value = resolve({ node: rhs, readNode: rhs, ctx: { scope: declScope, adapter, path } });
         if (value) values.push(value);
         pushAliasHop(rhs, aliasNode.name, false, declScope);
       }
@@ -1993,7 +1959,7 @@ export function reachableAliasValues({ aliasNode, primary, resolve, scope, adapt
         if ((fn.type === 'ArrowFunctionExpression' || fn.type === 'FunctionExpression')
           && !fn.params?.length && !fn.async && !fn.generator) {
           const ret = singleReturnBodyExpression(fn.body);
-          const value = ret && resolve(ret, null, declScope);
+          const value = ret && resolve({ node: ret, ctx: { scope: declScope, adapter, path } });
           if (value) values.push(value);
         } else pushAliasHop(rhs, callee.name, true, declScope); // a factory bound through an Identifier alias
       }
@@ -2012,66 +1978,81 @@ export function reachableAliasValues({ aliasNode, primary, resolve, scope, adapt
 // identifiers), async / generator fn (wrapped return value misrepresents the result type
 // for downstream `resolveObjectName` consumers - `(async()=>Map)().has(1)` tags the
 // receiver as Map and emits es.map.* polyfills for a Promise call site).
-// `seen` (caller-owned Set) tracks binding names already in the resolution chain for
-// cycle protection (`const f = () => g(); const g = () => f();`); pass an empty Set when
-// recursion isn't possible at the call site. the caller's set is never mutated - the walk
-// forks it (fork-before-recurse, the `enterIdentifierBindingFollow` discipline) and returns
-// the fork, so a name consumed while proving one branch cannot block the SAME name in a
-// SIBLING branch; a caller descending into the returned body threads the returned set.
-// returns `{ callee, scope, seen }` - `scope` anchors the callee's BODY: its identifiers
-// resolve where the callee was declared, not at the call site (a use-site shadow of a name
-// the body reads must not capture it)
-function resolveInlineCalleeFunction({ callNode, scope, adapter, path, seen, allowIdentityParam = false,
-  usageNode = null, rejectConditional = false }) {
-  seen = new Set(seen);
+// the hop's `seen` tracks binding names already in the resolution chain for cycle protection
+// (`const f = () => g(); const g = () => f();`); pass an empty Set when recursion isn't
+// possible at the call site. the caller's set is never mutated - the walk forks it
+// (fork-before-recurse, the `enterIdentifierBindingFollow` discipline) and returns the fork, so
+// a name consumed while proving one branch cannot block the SAME name in a SIBLING branch; a
+// caller descending into the returned body threads the returned set.
+// takes the hop standing on the CALL and returns the hop standing on the callee function: its
+// `ctx.scope` anchors the callee's BODY - identifiers resolve where the callee was declared, not
+// at the call site (a use-site shadow of a name the body reads must not capture it)
+function resolveInlineCalleeFunction(hop, { allowIdentityParam = false, rejectConditional = false } = {}) {
+  const { adapter, path } = hop.ctx;
+  const seen = new Set(hop.seen);
   // SE-bail (unwrapTransparentSeq), NOT peel-to-tail: recognizing a SE-callee IIFE (`(eff(), () => Array)()`)
   // makes the resolver inline it, but the emit layer has no receiver-less static spelling
   // over the SE-wrapped callee. the SE-bail keeps the shape unresolved (native call survives)
-  let callee = unwrapTransparentSeq(callNode.callee);
+  let callee = unwrapTransparentSeq(hop.node.callee);
   // identifier hops follow transitively (`const f = () => X; const q = f; q()`), each hop
   // re-anchored at the alias's own declaration scope (per-hop advance like the key/global
   // alias walks) with the seen-set guarding cycles
-  let hopScope = scope;
+  let hopScope = hop.ctx.scope;
   while (callee.type === 'Identifier') {
     const { name } = callee;
     if (!adapter.hasBinding(hopScope, name, path) || seen.has(name)) return null;
     const binding = adapter.getBinding(hopScope, name, path);
     if (!binding) return null;
-    if (adapter.getBindingNodeType(hopScope, name, path) === 'VariableDeclarator') {
-      // the shared accessor covers both binding shapes (detect adapters carry `.node`, the
-      // type-resolver channel only `.path`) AND gates on a plain-Identifier declarator: a
-      // pattern-bound name (`const { f } = g`) holds a SLOT of the init, so following the whole
-      // init inlined the CONTAINER as the callee (`f().from` ran where native throws)
-      const initNode = identifierDeclaratorInit(binding);
-      if (!initNode) {
-        // an init-less binding whose ONE write assigns a function literal (`let f; if (c) f =
-        // () => globalThis;`) proves through that write: on every path the value is either
-        // undefined or that literal. the CALL ITSELF becomes an observable effect (it may
-        // throw / short-circuit on the unassigned path), so the collapse must keep it - the
-        // marker feeds `inlineCallHasObservableEffects`, which every dropping caller consults
-        const write = binding.constantViolations?.length === 1
-          ? unwrapTransparentSeq(violationAssignment(binding.constantViolations[0])) : null;
-        const rhs = write?.type === 'AssignmentExpression' && write.operator === '='
-          && write.left?.type === 'Identifier' && write.left.name === name
-          ? unwrapTransparentSeq(write.right) : null;
-        if (rhs?.type !== 'ArrowFunctionExpression' && rhs?.type !== 'FunctionExpression') return null;
-        // callers asking whether the call's VALUE is defined get no proof from a conditional
-        // one: the unassigned path is exactly the value they must keep guarding
-        if (rejectConditional) return null;
-        conditionallyProvenCallees.add(rhs);
-        callee = rhs;
-        seen.add(name);
-        // the write's RHS resolves in the binding's own declaration scope, like a declarator init
-        return finishInlineCallee({ callee, allowIdentityParam, scope: aliasDeclScope(binding, hopScope), seen });
-      }
-      // method-aware reassignment bail: usage-global keeps inlining the IIFE-callee when the binding's
-      // reassignment does not dominate the use (init still live); pure / narrowing bail. `usageNode`
-      // anchors the dominance at an alias-hop's read site so a write AFTER the capture (`const f = f0;
-      // f0 = () => Map`) does not block the still-live declared init
-      if (reassignmentBlocksGlobalResolve({ binding, adapter, path, usageNode })) return null;
-      callee = unwrapTransparentSeq(initNode);
+    const isDeclarator = adapter.getBindingNodeType(hopScope, name, path) === 'VariableDeclarator';
+    // the shared accessor covers both binding shapes (detect adapters carry `.node`, the
+    // type-resolver channel only `.path`) AND gates on a plain-Identifier declarator: a
+    // pattern-bound name (`const { f } = g`) holds a SLOT of the init, so following the whole
+    // init inlined the CONTAINER as the callee (`f().from` ran where native throws)
+    const initNode = isDeclarator ? identifierDeclaratorInit(binding) : null;
+    if (isDeclarator && !initNode) {
+      // an init-less binding whose ONE write assigns a function literal (`let f; if (c) f =
+      // () => globalThis;`) proves through that write: on every path the value is either
+      // undefined or that literal. the CALL ITSELF becomes an observable effect (it may
+      // throw / short-circuit on the unassigned path), so the collapse must keep it - the
+      // marker feeds `inlineCallHasObservableEffects`, which every dropping caller consults
+      const write = binding.constantViolations?.length === 1
+        ? unwrapTransparentSeq(violationAssignment(binding.constantViolations[0])) : null;
+      const rhs = write?.type === 'AssignmentExpression' && write.operator === '='
+        && write.left?.type === 'Identifier' && write.left.name === name
+        ? unwrapTransparentSeq(write.right) : null;
+      if (rhs?.type !== 'ArrowFunctionExpression' && rhs?.type !== 'FunctionExpression') return null;
+      // callers asking whether the call's VALUE is defined get no proof from a conditional
+      // one: the unassigned path is exactly the value they must keep guarding
+      if (rejectConditional) return null;
+      conditionallyProvenCallees.add(rhs);
+      callee = rhs;
+      seen.add(name);
+      // the write's RHS resolves in the binding's own declaration scope, like a declarator init
+      return finishInlineCallee({ hop, callee, scope: aliasDeclScope(binding, hopScope), seen, allowIdentityParam });
+    }
+    // the dominance question anchors at THIS read - the callee identifier itself (a clone with no
+    // span falls back to the hop's read site): a write earlier in the same sequence (`(f = () =>
+    // globalThis, f().Array)`) precedes it and dominates, a write after an alias captured the call
+    // (`const G = mk().Array; mk = ...`) does not and leaves the init live. anchored at the outer
+    // expression both were misjudged - the in-sequence write read as "after" (the FC-144 lesson)
+    const anchor = typeof callee.start === 'number' ? callee : hop.readNode;
+    if (reassignmentBlocksGlobalResolve({ binding, adapter, path, usageNode: anchor })) {
+      // a dominating write replaced the callee, and its value IS the callee now: the enumerable
+      // reaching value for usage-global, the single observable one for usage-pure - the callee twin
+      // of `reachingContainerValueNode` (the init is dead, inlining it would name a callee the
+      // runtime never calls); a value neither can determine leaves the call unresolved
+      const { method } = adapter;
+      const reaching = method === 'usage-global' || method === 'usage-pure' ? reachingReassignmentValueNode({
+        binding, usagePath: path, ctx: { ...hop.ctx, resolveKey }, usageNode: anchor, requireSingleObservation: method === 'usage-pure',
+      }) : null;
+      if (!reaching) return null;
+      callee = unwrapTransparentSeq(reaching);
+    } else if (isDeclarator) {
+      // the init through the chain-assignment peel (`const mk = q = () => globalThis` binds the
+      // function to both names) - SE-bailing like the callee peel above: an effect in the init
+      // stays with the shape the emit layer has no receiver-less spelling for
+      callee = unwrapTransparentSeq(peelChainAssignmentDeep(initNode));
     } else {
-      if (reassignmentBlocksGlobalResolve({ binding, adapter, path, usageNode })) return null;
       // a zero-param FunctionDeclaration is the same inline shape (`function g() { return X; }
       // const B = g();`) - the declaration node IS the callee function
       const declNode = binding.path?.node ?? binding.node;
@@ -2081,15 +2062,16 @@ function resolveInlineCalleeFunction({ callNode, scope, adapter, path, seen, all
     seen.add(name);
     hopScope = aliasDeclScope(binding, hopScope);
   }
-  return finishInlineCallee({ callee, allowIdentityParam, scope: hopScope, seen });
+  return finishInlineCallee({ hop, callee, scope: hopScope, seen, allowIdentityParam });
 }
 
-// the shared callee-shape validation every proof arm funnels through
-function finishInlineCallee({ callee, allowIdentityParam, scope, seen }) {
+// the shared callee-shape validation every proof arm funnels through; on success the hop advanced
+// onto the callee, at `scope`
+function finishInlineCallee({ hop, callee, scope, seen, allowIdentityParam }) {
   if ((callee.type !== 'ArrowFunctionExpression' && callee.type !== 'FunctionExpression'
     && callee.type !== 'FunctionDeclaration')
     || (callee.params?.length && !identityParam({ callee, allowIdentityParam })) || callee.async || callee.generator) return null;
-  return { callee, scope, seen };
+  return { ...hop, node: callee, seen, ctx: { ...hop.ctx, scope } };
 }
 
 // the ASSIGNMENT a constant-violation records, across the parser duality: babel points the
@@ -2122,24 +2104,23 @@ function identityParam({ callee, allowIdentityParam }) {
 // isn't inlineable or the body has multiple returns / local bindings (see
 // `singleReturnBodyExpression`). prefix ExpressionStatements ARE allowed - their effects
 // are preserved at the call site via `inlineCallHasObservableEffects` + `meta.sideEffects`.
-// returns `{ node, scope, seen }`: `scope` is where the returned NODE's identifiers resolve -
-// the callee's declaration scope for a body return, the CALL site for an identity-arg return
-// (the argument evaluates there) - and `seen` is the advanced cycle-guard set a caller
-// descending into the node threads on (the caller's own set stays unmutated)
-export function inlineCallReturnExpression({ callNode, scope, adapter, seen, path, usageNode = null,
-  rejectConditional = false }) {
-  const resolved = resolveInlineCalleeFunction({ callNode, scope, adapter, path, seen, allowIdentityParam: true,
-    usageNode, rejectConditional });
+// takes the hop standing on the CALL and returns the hop standing on the returned expression: its
+// `ctx.scope` is where that expression's identifiers resolve - the callee's declaration scope for
+// a body return, the CALL site for an identity-arg return (the argument evaluates there) - and
+// its `seen` the advanced cycle-guard set a caller descending into the node threads on (the
+// caller's own set stays unmutated)
+export function inlineCallReturnExpression(hop, { rejectConditional = false } = {}) {
+  const resolved = resolveInlineCalleeFunction(hop, { allowIdentityParam: true, rejectConditional });
   if (!resolved) return null;
-  const { callee } = resolved;
+  const callee = resolved.node;
   const body = singleReturnBodyExpression(callee.body);
-  if (!callee.params?.length) return body ? { node: body, scope: resolved.scope, seen: resolved.seen } : null;
+  if (!callee.params?.length) return body ? { ...resolved, node: body } : null;
   // identity passthrough (`(x) => x` applied to one arg): the body IS the param, so the receiver is
   // the ARG - recovers a call/IIFE-rooted receiver (`((x)=>x)(globalThis).Symbol`, and the nested
   // `g(f()).Symbol` since the arg `f()` is itself resolved by the caller). an SE-bearing arg is
   // preserved by `inlineCallHasObservableEffects` (checks callNode.arguments), so return it as-is
   if (body?.type === 'Identifier' && body.name === callee.params[0].name) {
-    return callNode.arguments?.[0] ? { node: callNode.arguments[0], scope, seen: resolved.seen } : null;
+    return hop.node.arguments?.[0] ? { ...hop, node: hop.node.arguments[0], seen: resolved.seen } : null;
   }
   // a body that never READS the param yields the same value for every argument (`(x) => globalThis`),
   // so the call resolves to the body itself. bailing here on the param's mere PRESENCE left the shape
@@ -2147,7 +2128,7 @@ export function inlineCallReturnExpression({ callNode, scope, adapter, seen, pat
   // the memo. the param may still carry an effect in a prefix statement - that is the SE channel's
   // business, not the value's
   return !body || identifierReferencedInSubtree(body, callee.params[0].name)
-    ? null : { node: body, scope: resolved.scope, seen: resolved.seen };
+    ? null : { ...resolved, node: body };
 }
 
 export function isCallShape(node) {
@@ -2169,8 +2150,8 @@ function bareProxyGlobalAliasName(node, aliasCtx) {
     if (POSSIBLE_GLOBAL_OBJECTS.has(cur.name)) {
       return findProxyGlobal(subject, ctx) ? cur.name : null;
     }
-    const followed = enterIdentifierBindingFollow({ node: cur, ...ctx, seen: new Set() });
-    if (!followed?.init) {
+    const followed = enterIdentifierBindingFollow({ node: cur, seen: new Set(), ctx });
+    if (!followed?.node) {
       // an init-less binding a TRUSTED write reaches (`let g; (g = globalThis, g.window?.self)`)
       // holds exactly what that write stored - the same follow the binding resolver makes. asked
       // by the init alone the alias spelling answered "unproven" where its BARE twin answered the
@@ -2199,8 +2180,8 @@ function bareProxyGlobalAliasName(node, aliasCtx) {
       const hintName = asProxyGlobalName(hint);
       return guaranteedRealmObjectName(hintName) ? hintName : null;
     }
-    cur = unwrapTransparentSeq(followed.init);
-    if (followed.scope !== ctx.scope) ctx = { ...ctx, scope: followed.scope };
+    cur = unwrapTransparentSeq(followed.node);
+    ({ ctx } = followed);
   }
   return null;
 }
@@ -2675,14 +2656,12 @@ function planValueFormSpells(shape) {
 // wrappers (`const f = () => g(); const g = () => globalThis`) - each layer inlines through the
 // same canon; one `seen` set guards cycles across the whole walk
 export function inlineCallProxyGlobalRoot({ callNode, scope, adapter, path, rejectConditional = false }) {
-  let seen = new Set();
-  let value = callNode;
-  while (isCallShape(value)) {
-    const inlined = inlineCallReturnExpression({ callNode: value, scope, adapter, path, seen, rejectConditional });
-    if (!inlined) return null;
-    ({ node: value, scope, seen } = inlined);
+  let hop = { node: callNode, seen: new Set(), ctx: { scope, adapter, path } };
+  while (isCallShape(hop.node)) {
+    hop = inlineCallReturnExpression(hop, { rejectConditional });
+    if (!hop) return null;
   }
-  return findProxyGlobal(value, { scope, adapter, path });
+  return findProxyGlobal(hop.node, hop.ctx);
 }
 
 // does the inline-resolved call carry prefix statements that would be lost if the site is
@@ -2695,20 +2674,22 @@ export function inlineCallProxyGlobalRoot({ callNode, scope, adapter, path, reje
 // prefix statements - effects propagate up the chain so the OUTER call site SE-wraps,
 // preserving inner prefix execution. `seen` Set carries cycle protection across hops
 export function inlineCallHasObservableEffects({ callNode, scope, adapter, path }) {
-  return hasObservableEffectsRec({ callNode, scope, adapter, path, seen: new Set() });
+  return hasObservableEffectsRec({ node: callNode, seen: new Set(), ctx: { scope, adapter, path } });
 }
 
-function hasObservableEffectsRec({ callNode, scope, adapter, path, seen }) {
+// the walk behind `inlineCallHasObservableEffects`, over the hop standing on the call: it descends
+// nested single-return callees with the advanced hop until a returned value or an effect answers
+function hasObservableEffectsRec(hop) {
   while (true) {
     // the call's own ARGUMENTS run when the call runs; folding the call down to its inlined receiver
     // drops them, so a side-effecting argument (`(() => Array)(c++)`) must force SE preservation
-    if (callNode.arguments?.some(mayHaveSideEffects)) return true;
+    if (hop.node.arguments?.some(mayHaveSideEffects)) return true;
     // `allowIdentityParam` MUST mirror the fold (`inlineCallReturnExpression`): the fold inlines an
     // identity-param IIFE (`((x) => { g(); return x; })(Array)`), so the effect gate has to inspect its
     // block body too - a stricter gate here misses the `g()` prefix and drops it at the source
-    const resolved = resolveInlineCalleeFunction({ callNode, scope, adapter, path, seen, allowIdentityParam: true });
+    const resolved = resolveInlineCalleeFunction(hop, { allowIdentityParam: true });
     if (!resolved) return false;
-    const { callee } = resolved;
+    const callee = resolved.node;
     // a conditionally-proven callee makes the CALL itself observable: the unassigned path
     // must keep its native throw / short-circuit, so the collapse may not drop the call
     if (conditionallyProvenCallees.has(callee)) return true;
@@ -2731,9 +2712,7 @@ function hasObservableEffectsRec({ callNode, scope, adapter, path, seen }) {
     // recurse when the (peeled) target is an inline-resolvable call (`() => inner()` with its own effects)
     if (isCallShape(peeled)) {
       // the inner call sits in the callee's body - resolve it there, with the advanced cycle set
-      callNode = peeled;
-      scope = resolved.scope;
-      seen = resolved.seen;
+      hop = { ...resolved, node: peeled };
       continue;
     }
     // else the returned value IS the inlined receiver; it carries observable effects only when the
@@ -2846,14 +2825,14 @@ export function resolveKey({ node, computed, scope, adapter, seen, path, depth =
     // (`polyfillHint` in-place mutation / `core-js/.../symbol/X` import, incl. user-aliased
     // polyfill packages from `additionalPackages`)
     if (node.type === 'Identifier' && computed) {
-      const entry = enterIdentifierBindingFollow({ node, scope, adapter, seen, path, usageNode });
+      const entry = enterIdentifierBindingFollow({ node, readNode: usageNode, seen, ctx: { scope, adapter, path } });
       if (entry) {
         // a registered Symbol.X alias resolves the key regardless of the binding's (possibly mutated /
         // pattern) init: `const { iterator } = Symbol; obj[iterator]`. must run BEFORE the init branch -
         // following a destructure init resolves the WHOLE receiver (`Symbol`), losing the `.iterator` slot
         const aliasKey = bindingSymbolKey(entry.binding, adapter.packages);
         if (aliasKey) return aliasKey;
-        if (entry.init) {
+        if (entry.node) {
           // usage-pure: a conditionally-initialized key alias (`if (c) var K = 'fromEntries'`) holds
           // the literal only on the guarded path, so following it would rewrite `Builtin[K]()` to a
           // receiver-less polyfill and mask the native TypeError on the skipped path. gate on
@@ -2865,10 +2844,10 @@ export function resolveKey({ node, computed, scope, adapter, seen, path, depth =
           // that completes before a capturing closure is defined (`let K = 'of'; K = 'from'; () =>
           // Array[K]` can never dispatch Array.of). prefer the reaching value so the dead init does not
           // become the primary key; fall through to the init when no such value is determinable
-          const target = reachingValueOverDeadInit({ binding: entry.binding, adapter, path, scope, usageNode }) || entry.init;
+          const target = reachingValueOverDeadInit({ binding: entry.binding, adapter, path, scope, usageNode }) || entry.node;
           node = usageNode = target;
-          seen = entry.nextSeen;
-          scope = entry.scope;
+          ({ seen } = entry);
+          scope = entry.ctx.scope;
           depth += 1;
           continue;
         }
@@ -3472,27 +3451,24 @@ export function proxyRunValueIsProven(node, resolvePure, aliasCtx = null) {
 // (`let f; if (c) f = () => globalThis;`) proves no value at all - the unassigned path yields
 // undefined through the call's own `?.()`, exactly what the outer `?.` guards
 // the VALUE a proven inline call yields, walked through nested single-return wrappers - the shape
-// `callValueCanBeUndefined` tests. null when the call does not inline; on success `{ node, scope }`
-// so the caller's analysis re-anchors at the callee's own scope
+// `callValueCanBeUndefined` tests. null when the call does not inline; on success the hop standing
+// on the yielded value, its `ctx` re-anchored at the callee's own scope for the caller's analysis
 function inlineCallProxyGlobalNavValue(callNode, aliasCtx) {
   if (!aliasCtx) return null;
-  let seen = new Set();
-  let { scope } = aliasCtx;
-  let value = callNode;
-  while (isCallShape(value)) {
-    const next = inlineCallReturnExpression({ callNode: value, ...aliasCtx, scope, seen, rejectConditional: true });
+  let hop = { node: callNode, seen: new Set(), ctx: aliasCtx };
+  while (isCallShape(hop.node)) {
+    const next = inlineCallReturnExpression(hop, { rejectConditional: true });
     if (!next) return null;
-    value = unwrapRuntimeExpr(next.node);
-    ({ scope, seen } = next);
+    hop = { ...next, node: unwrapRuntimeExpr(next.node) };
   }
-  return { node: value, scope };
+  return hop;
 }
 
 // the NAME a proven-call source keys by: what makes its value undefinable, which is usually the same
 // probe the hop above it reads (`(() => globalThis.window?.self)()?.window` - one source, one test)
 function callSourceName(callNode, aliasCtx, resolvePure) {
   const body = inlineCallProxyGlobalNavValue(callNode, aliasCtx);
-  return (body && deepestUnresolvableHopSource(body.node, { ...aliasCtx, scope: body.scope }, resolvePure)?.name) ?? '<call>';
+  return (body && deepestUnresolvableHopSource(body.node, body.ctx, resolvePure)?.name) ?? '<call>';
 }
 
 // can this call's VALUE be undefined at runtime - the probe-yield question of a proven call root
@@ -3521,22 +3497,14 @@ export function callYieldCanBeUndefined(callNode, aliasCtx, resolvePure) {
   // threw where native answers undefined. a caller with no `resolvePure` cannot ask, and keeps the
   // older, narrower verdict
   if (!resolvePure) return false;
-  let seen = new Set();
-  let { scope } = aliasCtx;
-  let value = callNode;
-  while (isCallShape(value)) {
-    const next = inlineCallReturnExpression({ callNode: value, ...aliasCtx, scope, seen, rejectConditional: true });
-    if (!next) return false;
-    value = unwrapRuntimeExpr(next.node);
-    ({ scope, seen } = next);
-  }
+  const body = inlineCallProxyGlobalNavValue(callNode, aliasCtx);
+  if (!body) return false;
   // the same distinction one step further: a body that navigates PLAINLY to the environment probe
   // (`() => globalThis.window`) yields a value that is undefined off-window without short-circuiting
   // anywhere, so the `?.` above the call is the only thing standing between the collapse and a read
   // off `undefined` (`(() => globalThis.window)()?.self.window.Array` threw inside the ponyfill)
-  const bodyCtx = { ...aliasCtx, scope };
-  return navValueCanShortCircuit(value, resolvePure, bodyCtx)
-    || proxyReceiverValueCanBeUndefined(value, resolvePure, bodyCtx);
+  return navValueCanShortCircuit(body.node, resolvePure, body.ctx)
+    || proxyReceiverValueCanBeUndefined(body.node, resolvePure, body.ctx);
 }
 
 // how many TAIL steps above a guard render ride INSIDE its alternate, the one rule every guard
@@ -3894,9 +3862,9 @@ export function seBearingChainRootCall({ node, scope, adapter, path }) {
   // an UNRESOLVABLE callee is UNKNOWN, not pure - erasing the call would drop whatever it does.
   // `inlineCallHasObservableEffects` answers the opposite question (may I INLINE this call), where
   // a callee it cannot reach simply means there is nothing to inline, so it answers "no effects"
-  const callee = resolveInlineCalleeFunction({
-    callNode: rootCall, scope, adapter, path, seen: new Set(), allowIdentityParam: true,
-  });
+  const callee = resolveInlineCalleeFunction(
+    { node: rootCall, seen: new Set(), ctx: { scope, adapter, path } }, { allowIdentityParam: true },
+  );
   if (!callee) return rootCall;
   return inlineCallHasObservableEffects({ callNode: rootCall, scope, adapter, path }) ? rootCall : null;
 }
@@ -3957,7 +3925,7 @@ export function isSymbolSourcedKey({ node, scope, adapter, seen, path, depth = 0
       return true;
     }
     if (type !== 'Identifier') return false;
-    const entry = enterIdentifierBindingFollow({ node, scope, adapter, seen, path });
+    const entry = enterIdentifierBindingFollow({ node, seen, ctx: { scope, adapter, path } });
     if (!entry) return false;
     // a registered Symbol.X alias resolves regardless of the binding's init (`const { iterator } =
     // Symbol; iterator in X`) - run before the init branch, which would follow the destructure init
@@ -3966,10 +3934,9 @@ export function isSymbolSourcedKey({ node, scope, adapter, seen, path, depth = 0
     // alias indirection (`const k = Symbol.iterator; k in X`) else plugin-managed binding
     // (`polyfillHint` in-place mutation / real `core-js/.../symbol/X` import, incl.
     // user-aliased polyfill packages from `additionalPackages`)
-    if (entry.init) {
-      node = entry.init;
-      seen = entry.nextSeen;
-      scope = entry.scope;
+    if (entry.node) {
+      ({ node, seen } = entry);
+      scope = entry.ctx.scope;
       depth += 1;
       continue;
     }

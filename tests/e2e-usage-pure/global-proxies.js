@@ -139,6 +139,47 @@ QUnit.test('IIFE-proxy with intermediate hop: side effect runs once', assert => 
   assert.same(it, Symbol.iterator);
 });
 
+// a call-rooted alias captured BEFORE its callee is reassigned still holds the proxy global's
+// static: the callee follow anchors at the alias declarator, not at the later use, so the write
+// after the capture does not stand the polyfill down (the identifier-rooted alias already held)
+QUnit.test('global-proxy: call-rooted alias captured before the callee is reassigned polyfills', assert => {
+  let mk = () => globalThis;
+  const G = mk().Array;
+  // eslint-disable-next-line no-useless-assignment -- the write after the capture is the shape under test
+  mk = () => ({});
+  assert.deepEqual(G.from('ab'), ['a', 'b']);
+  // NEGATIVE: reassigned BEFORE the capture - the alias holds the replacement's slot, so nothing folds
+  // eslint-disable-next-line no-useless-assignment -- the dead init is the shape under test: the write before the capture wins
+  let mk2 = () => globalThis;
+  mk2 = () => ({ Array: { from: () => 'user' } });
+  const G2 = mk2().Array;
+  assert.same(G2.from('ab'), 'user');
+});
+
+// a callee alias written ONCE, unconditionally, before the call holds the written function: that
+// write is the only value the call can observe, so the static it yields polyfills - in an earlier
+// statement or earlier in the same sequence alike
+QUnit.test('global-proxy: call-rooted alias follows its dominating write', assert => {
+  // eslint-disable-next-line no-useless-assignment -- the dead init is the shape under test: the write before the call wins
+  let mk = () => ({});
+  mk = () => globalThis;
+  assert.deepEqual(mk().Array.from('ab'), ['a', 'b']);
+  // eslint-disable-next-line no-useless-assignment -- the dead init is the shape under test: the write before the call wins
+  let mk2 = () => ({});
+  assert.deepEqual((mk2 = () => globalThis, mk2().Array).of(3), [3]);
+  // a chain assignment installs its TAIL into every name - the callee's init and its later write alike
+  let q1;
+  const mk3 = q1 = () => globalThis;
+  assert.deepEqual(mk3().Array.from('cd'), ['c', 'd']);
+  assert.same(q1, mk3);
+  // eslint-disable-next-line no-useless-assignment -- the dead init is the shape under test: the chained write wins
+  let mk4 = () => ({});
+  let q2;
+  mk4 = q2 = () => globalThis;
+  assert.deepEqual(mk4().Array.of(4), [4]);
+  assert.same(q2, mk4);
+});
+
 // the same IIFE root under an UNPOLYFILLED hop (`window`): nothing collapses, so the guard test
 // KEEPS the call and the buried global has to carry its polyfill inside it - a raw one is a
 // reference to a binding the stripped realm does not have. the hop decides the value, so assert

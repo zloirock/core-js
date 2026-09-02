@@ -2253,25 +2253,37 @@ export function noReassignmentReachesUsage({
   return reassignmentNodes.every(node => nodeFollowsUsageInScope({ node, readNode, owner }));
 }
 
-// the RHS of the `=` assignment for a reassignment site, normalized across adapters: babel records
-// the AssignmentExpression node directly; estree-toolkit records the target Identifier (the LHS), so
-// locate the enclosing `name = <expr>` in `ownerNode` to read its right operand. null for a non-plain
-// write (`name++` / `name += x`) whose value isn't a simple replacement
+// the value a reassignment site INSTALLS (`installedWriteValue` of its `=` RHS), normalized across
+// adapters: babel records the AssignmentExpression node directly; estree-toolkit records the target
+// Identifier (the LHS), so locate the enclosing `name = <expr>` in `ownerNode` to read its right
+// operand. null for a non-plain write (`name++` / `name += x`) whose value isn't a simple replacement
 function reassignmentRhs(node, ownerNode) {
-  // the assignment's VALUE is its RHS tail: an SE-carrying sequence (`w = (se(), Map)`) installs
-  // the last operand, and every consumer here asks what the write INSTALLED - the prefix stays in
-  // the untouched write site, so peeling it costs nothing and loses nothing
-  if (node.type === 'AssignmentExpression') {
-    return node.operator === '=' ? peelNestedSequenceExpressions(node.right).tail : null;
-  }
+  if (node.type === 'AssignmentExpression') return node.operator === '=' ? installedWriteValue(node.right) : null;
   if (node.type !== 'Identifier') return null;
   // the shared owner index resolves the enclosing assignment; only a PLAIN `=` whose LHS is
   // this very identifier flows a recoverable RHS (a pattern-contained id maps to its
   // assignment too, but its value is a slot, not the whole RHS - the pattern-aware variant
   // below owns that shape)
   const assignment = ownerValueFlowIndex(ownerNode).assignment.get(node);
-  return assignment?.operator === '=' && assignment.left === node
-    ? peelNestedSequenceExpressions(assignment.right).tail : null;
+  return assignment?.operator === '=' && assignment.left === node ? installedWriteValue(assignment.right) : null;
+}
+
+// the VALUE a plain write installs, off its RHS: the tail of an SE-carrying sequence (`w = (se(),
+// Map)` installs `Map` - the prefix stays in the untouched write site, so peeling it costs nothing
+// and loses nothing) and the tail of a chain assignment (`w = q = Map` installs `Map` into both
+// names), alternated to a fixpoint (`w = (se(), q = Map)`). the ONE place every reader of a value
+// spelled at a WRITE gets it from - a reassignment's RHS, a pattern slot's paired value or default,
+// an arm of a branching write, a container slot's written value; a consumer peeling on its own is a
+// fork of this (`peelChainRootValue` in the detect layer is the same alternation over a receiver,
+// out of this layer's reach; `peelChainAssignmentDeep` alone bails on the effect a write
+// legitimately carries)
+export function installedWriteValue(rhs) {
+  let node = rhs;
+  for (;;) {
+    const { tail } = peelNestedSequenceExpressions(node);
+    if (tail?.type !== 'AssignmentExpression' || tail.operator !== '=') return tail;
+    node = tail.right;
+  }
 }
 
 // reaching-definition VALUE node of a reassigned variable at `usagePath`: the RHS of the last
@@ -2467,13 +2479,14 @@ export function reassignmentValueNodes({ binding, usagePath, name = null, ctx = 
 
 // a BRANCHING written value (`w = c ? A : B`, `w = A || B`) installs one of its ARM values -
 // flatten each arm into the enumeration (a wider value set is the safe direction for every
-// consumer, per the enumeration's own contract). arms peel their sequence tails the same way
-// the direct RHS readers do, and nested branching unfolds to a fixpoint under a step cap
+// consumer, per the enumeration's own contract). each arm is read through the write-value canon
+// (`installedWriteValue` - its sequence tail, its chain-assignment tail) the same way the direct
+// RHS readers read theirs, and nested branching unfolds to a fixpoint under a step cap
 function flattenBranchingValueNodes(nodes) {
   const out = [];
   const work = [...nodes];
   for (let step = 0; work.length && step < 64; step++) {
-    const { tail } = peelNestedSequenceExpressions(work.pop());
+    const tail = installedWriteValue(work.pop());
     const slots = getFallbackBranchSlots(tail);
     if (slots) work.push(...slots.map(slot => tail[slot]));
     else out.push(tail);
@@ -2605,41 +2618,107 @@ export function findObjectKeyBeforeSpread(properties, matches) {
   return null;
 }
 
-// follow a const-bound identifier to its literal init (`const arr = [Map]` -> the ArrayExpression,
-// `const src = { from: f }` -> the ObjectExpression) so a variable-sourced literal resolves like an
-// inline one. a const aliased to another const (`const src = base; const base = { from: f }`) follows
-// the whole chain, and a PATTERN-bound alias (`const [wrapper] = [[globalThis]]`) follows its slot's
-// unique, spread-complete pairing. only an UNREASSIGNED binding's init is authoritative - a
-// reassigned binding or a non-literal init passes the ORIGINAL node through unchanged. ctx:
-// `{ scope, adapter, path }`; the depth bound stops a const cycle (`const a = b; const b = a` is a
-// TDZ error anyway), and it rides through the pattern pairing (`aliasFollowDepth`) because a cycle
-// spelled ACROSS two pattern declarators re-enters this walk via `patternSlotValues` without
-// spinning any single loop
-export function followConstLiteralAlias(node, ctx) {
-  let cur = node;
-  let scope = ctx?.scope;
-  for (let depth = ctx?.aliasFollowDepth ?? 0; depth <= 16; depth++) {
-    if (!ctx?.adapter || cur?.type !== 'Identifier' || !ctx.adapter.hasBinding(scope, cur.name, ctx.path)) break;
-    const binding = ctx.adapter.getBinding(scope, cur.name, ctx.path);
+// the continuation for a binding hop whose flat resolve is blocked by a DOMINATING reassignment:
+// the reaching value (the bare binding-alias canon, lifted to container hops) keeps the walk
+// alive; null keeps the flat bail (an indeterminable value, or a method that resolves neither).
+// usage-global takes the enumerable reaching value; usage-pure substitutes on proof, so it takes
+// it only when that write is the ONLY value the read can observe (`requireSingleObservation`: an
+// unconditional dominating write with nothing written after the read - `let w = [Array]; w =
+// [Object]; const [{ fromEntries }] = w` holds Object and nothing else). a BRANCHING reaching
+// value (`w = c ? {...} : {...}`) is no SINGLE primary - null routes the hop to the union
+// continuation, whose enumeration flattens the arms. the hop's `ctx` is the pairing's context
+// (its `resolveKey`, when the detect layer injected one, reads computed keys)
+export function reachingContainerValueNode(binding, hop) {
+  const { adapter, path } = hop.ctx;
+  const { method } = adapter;
+  if (method !== 'usage-global' && method !== 'usage-pure') return null;
+  const reaching = reachingReassignmentValueNode({
+    binding, usagePath: path, ctx: hop.ctx, usageNode: hop.readNode, requireSingleObservation: method === 'usage-pure',
+  });
+  if (!reaching) return null;
+  return getFallbackBranchSlots(peelNestedSequenceExpressions(reaching).tail) ? null : reaching;
+}
+
+// the ONE const-alias follow: an Identifier through its binding's init at each hop, peeling parens /
+// chain / TS / chain-assignment between hops. takes the hop standing on the identifier and returns
+// the hop standing on the terminal node where the chain stops (non-Identifier, unbound name,
+// reassigned binding, or no init). `adapter.hasBinding(scope, name, path)` gates on user-declared
+// bindings so built-ins like `Array` exit the loop with the hop on `Array`. the returned
+// `ctx.scope` follows the binding's own scope (closure-captured outer bindings); the returned
+// `readNode` is the declarator the chain last dereferenced through - the value captured into a
+// wrapper is fixed at that point, so a downstream leaf resolution anchors its reassignment check
+// there (not the destructure host) - and stays the incoming one when nothing dereferenced (an
+// inline literal is captured where the hop was read). a PATTERN-bound alias (`const [wrapper] =
+// [[globalThis]]`) follows its slot's unique, spread-complete pairing; `maybe` (inject-if-might
+// classification only) lets that pairing lean on a spread-shifted slot's lone candidate. the hop's
+// `seen` guards cycles - seeded into the pairing's context too, because a cycle spelled ACROSS two
+// pattern declarators (`const [a] = [b]; const [b] = [a]`) re-enters this walk through
+// `patternSlotValues` without spinning any single loop. `onReassignedHop(binding, name, hopAt)`
+// fires for a REASSIGNED hop the walk stands on - a live init the write did not kill, or a blocked
+// hop no reaching value continues - so a usage-global caller can union the written values beside
+// the primary (the container walk's `collectReassignedHopUnion`; pure callers pass none)
+export function followConstIdentifierInit(hop, { maybe = false, onReassignedHop = null } = {}) {
+  const { adapter, path } = hop.ctx;
+  let { scope } = hop.ctx;
+  let cur = hop.node;
+  const visited = new Set(hop.seen);
+  // read site of the current hop - the host use for the first alias (a null `readNode`: the
+  // dominance checks read the use path there), then each prior hop's declarator (`const a = b`
+  // reads `b` there). a reassignment of an intermediate hop AFTER its read can't change the
+  // captured value, so the dominance check uses the read NODE (the adapter surfaces the declarator
+  // at `binding.node`), not the host use - else `const a = b; b = 0; { from } = a` wrongly bails `b`
+  let { readNode = null } = hop;
+  while (cur?.type === 'Identifier' && adapter.hasBinding(scope, cur.name, path) && !visited.has(cur.name)) {
+    visited.add(cur.name);
+    const binding = adapter.getBinding(scope, cur.name, path);
+    // method-aware reassignment bail: usage-global keeps following the const-init chain when the
+    // reassignment does not dominate the use, usage-pure when no write reaches the read;
+    // narrowing keeps the flat bail
     if (!binding) break;
-    // a reassigned alias follows only on the method-aware flow proof (for pure: no write can
-    // reach this read) - the flat break kept a later `w = []` blocking a read it provably
-    // does not touch; adapters without a method keep the conservative flat bail
-    if (binding.constantViolations?.length
-      && reassignBailApplies({ binding, adapter: ctx.adapter, path: ctx.path, usageNode: cur })) break;
-    // the next hop's name was spelled at THIS binding's declaration, so it resolves there - in the
-    // use scope a shadow of that name would smuggle in the wrong binding
+    const hopAt = { ...hop, node: cur, readNode, ctx: { ...hop.ctx, scope } };
+    if (reassignmentBlocksGlobalResolve({ binding, adapter, path, usageNode: readNode })) {
+      // a dominating reassignment replaced the hop's value - keep following the reaching value
+      // (enumerable for global, the single observable one for pure), like the container walk; the
+      // flat break stays otherwise, the written values handed to the union. the value was READ
+      // at its write site, so the next hop's proofs anchor there
+      const reaching = reachingContainerValueNode(binding, hopAt);
+      if (!reaching) {
+        onReassignedHop?.(binding, cur.name, hopAt);
+        break;
+      }
+      cur = unwrapExpressionChain(reaching);
+      scope = aliasDeclScope(binding, scope);
+      readNode = reaching;
+      continue;
+    }
+    onReassignedHop?.(binding, cur.name, hopAt);
+    // a pattern declarator binds the name to a SLOT of the init, not the init itself: the canon
+    // pairing follows only a unique slot value (`const [wrapper] = [[globalThis]]` holds
+    // `[[globalThis]]`'s element), and only `maybe` may lean on a spread-shifted lone candidate
+    const initNode = identifierDeclaratorInit(binding)
+      ?? patternBoundAliasSlotInit(binding, cur.name, { ...hop.ctx, scope, seen: visited }, { maybe });
+    if (!initNode) break;
+    cur = unwrapExpressionChain(peelChainAssignmentDeep(initNode));
     scope = aliasDeclScope(binding, scope);
-    // the hop's value is judged EFFECTIVE, like the detect-side follow judges it: a paren (an oxc
-    // NODE), a TS cast or a sequence tail hand the same runtime value, and the raw spelling split
-    // the legs (`const w = ([Map])` followed on babel, broke here)
-    const init = unwrapExpressionChain(identifierDeclaratorInit(binding)
-      ?? patternBoundAliasSlotInit(binding, cur.name, { ...ctx, scope, aliasFollowDepth: depth + 1 }));
-    if (init?.type === 'ArrayExpression' || init?.type === 'ObjectExpression') return init;
-    if (init?.type !== 'Identifier') break;
-    cur = init;
+    readNode = (binding.path?.node ?? binding.node) ?? readNode;
   }
-  return node;
+  // `ctx.scope` returns ADVANCED: the terminal node was spelled at the last followed binding's own
+  // declaration - a leaf resolution downstream must anchor there, not at the destructure host
+  return { ...hop, node: cur, readNode, ctx: { ...hop.ctx, scope } };
+}
+
+// the LITERAL view of the follow above: a const-bound identifier to its literal init (`const arr =
+// [Map]` -> the ArrayExpression, `const src = { from: f }` -> the ObjectExpression) so a
+// variable-sourced literal resolves like an inline one; a chain ending anywhere else passes the
+// ORIGINAL node through unchanged. the read anchors at the identifier itself - where an alias
+// inside a literal is spelled is where its value was captured. `ctx` is the pairing's `{ scope,
+// adapter, path, resolveKey?, seen? }` (`seen` rides in from an enclosing follow, see above); a
+// ctx-less caller keeps the node
+export function followConstLiteralAlias(node, ctx) {
+  if (!ctx?.adapter || node?.type !== 'Identifier') return node;
+  const followed = followConstIdentifierInit({ node, readNode: node, seen: ctx.seen, ctx });
+  const value = followed.node;
+  return value?.type === 'ArrayExpression' || value?.type === 'ObjectExpression' ? value : node;
 }
 
 // the canonical ARRAY-slot read: `container[key]` for a literal container, with the same guards
@@ -2694,8 +2773,10 @@ export function patternSlotValues(pattern, rhs, name, ctx) {
         continue;
       }
       if (slot?.type !== 'Identifier' || slot.name !== name) continue;
-      if (element.type === 'AssignmentPattern') out.push(element.right);
-      out.push(...candidates);
+      // a slot's paired value and its default are values spelled at a write - the write-value
+      // canon reads them (`[k] = [j = "from"]` installs `"from"`)
+      if (element.type === 'AssignmentPattern') out.push(installedWriteValue(element.right));
+      out.push(...candidates.map(installedWriteValue));
     }
   } else if (pattern?.type === 'ObjectPattern') {
     for (const prop of pattern.properties) {
@@ -2713,8 +2794,8 @@ export function patternSlotValues(pattern, rhs, name, ctx) {
         : null;
       if (descend(slot, prop.value, paired)) continue;
       if (slot?.type !== 'Identifier' || slot.name !== name) continue;
-      if (prop.value.type === 'AssignmentPattern') out.push(prop.value.right);
-      if (paired) out.push(paired);
+      if (prop.value.type === 'AssignmentPattern') out.push(installedWriteValue(prop.value.right));
+      if (paired) out.push(installedWriteValue(paired));
       // a destructure from a RECEIVER (`({ Promise: M } = globalThis)`): the slot's reaching
       // value is the receiver's member - synthesize it so the reaching resolution sees
       // `globalThis.Promise` exactly like the identifier-assignment form (`M = globalThis.Promise`).
@@ -2952,12 +3033,22 @@ export function isReassignedBeyondDeclarator(binding) {
   return !!binding.constantViolations?.some(v => violationNode(v) !== binding.node);
 }
 
-// the canonical write set for a binding whose scope tracker misreports it - babel attributes a
-// switch-discriminant write of a case-shadowed name to the INNER binding, estree-toolkit misses
-// nested-block `var` redeclarations and cross-boundary `let` writes and records namespace-twin
-// phantoms. recompute from the AST by declaration kind, then strip the valueless-redeclaration
-// self-records, so both adapters hand the resolver one list for identical source; a path-less
-// lookup (no use anchor) and a kind outside the recompute keep the tracker's raw list
+// --- Hop descriptor ---
+
+// the HOP every alias / callee / wrapper walk of the value canon carries in and hands back - one
+// literal, `{ node, readNode, seen, ctx }`, for all of them: `node` is the value the walk stands
+// on; `readNode` the node whose position anchors the dominance and span disciplines - null is the
+// use itself (`ctx.path.node`), then each followed declarator (a write after a read cannot change
+// what the read captured); `seen` the advanced cycle-guard set (a walk forks its caller's set,
+// never mutates it); `ctx` the alias context `{ scope, adapter, path }` the value resolves in,
+// its `scope` advanced to each followed binding's own declaration scope, its `adapter` and
+// `path` (the use) never - plus, where the detect layer injects it, the `resolveKey` canon the
+// pattern pairing reads computed keys with (this layer cannot import it without a cycle).
+// `ctx` is what a value-canon consumer takes as its `aliasCtx`; the hop
+// itself is never spread into one - its `node` / `seen` / `readNode` would land on the
+// consumer's own parameters. a walk option (`maybe`, `rejectConditional`, a method filter) is
+// not hop state and rides a separate options argument
+
 // the positional anchor of a use: the node's own start, else the nearest POSITIONED ancestor's.
 // a subtree an emitter re-emitted carries clones with no spans, and a name-keyed positional
 // lookup asked with `null` there is refused outright (the span discipline cannot run) - losing
@@ -2971,6 +3062,19 @@ export function useAnchorStart(path) {
   return null;
 }
 
+// the positional anchor of a hop: the value node's own start, else the use path's nearest
+// positioned ancestor - the ONE derivation of the number the injector's name-keyed view
+// (`getBindingInfo`) is asked with
+export function hopAnchorStart({ node = null, ctx = null }) {
+  return node?.start ?? useAnchorStart(ctx?.path);
+}
+
+// the canonical write set for a binding whose scope tracker misreports it - babel attributes a
+// switch-discriminant write of a case-shadowed name to the INNER binding, estree-toolkit misses
+// nested-block `var` redeclarations and cross-boundary `let` writes and records namespace-twin
+// phantoms. recompute from the AST by declaration kind, then strip the valueless-redeclaration
+// self-records, so both adapters hand the resolver one list for identical source; a path-less
+// lookup (no use anchor) and a kind outside the recompute keep the tracker's raw list
 export function recomputedBindingWrites({ kind, bindingPath, usePath, name, fallback }) {
   return withoutValuelessDeclarationViolations(!usePath ? fallback
     : kind === 'var' ? collectFunctionScopeVarReassignments(usePath, name)
@@ -6219,6 +6323,56 @@ export function isValidIdentifierName(name) {
 // drift between those three call sites
 export function isThisReceiver(node) {
   return unwrapRuntimeExpr(node)?.type === 'ThisExpression';
+}
+
+// transparent expression wrappers (paren / optional-chain / TS) - single-sourced from the canon
+export function isTransparentWrapper(node) {
+  return SKIPPABLE_WRAPPER_TYPES.has(node.type);
+}
+
+// SequenceExpression bail mode: stop unwrapping when preceding elements carry side effects.
+// caller can't preserve them (inner resolveKey recursion, handleBinaryIn) - keep sequence intact
+export function unwrapTransparentSeq(node) {
+  while (node) {
+    if (isTransparentWrapper(node)) {
+      node = node.expression;
+    } else if (node.type === 'SequenceExpression') {
+      const preceding = node.expressions.slice(0, -1);
+      if (preceding.some(mayHaveSideEffects)) break;
+      node = node.expressions.at(-1);
+    } else break;
+  }
+  return node;
+}
+
+// peel chain-assignment `=` chain, returning the rhs-most non-assignment node + the
+// outermost assignment (evaluating it covers every nested `=` step in source). used by
+// static-method dispatch to recover the actual constructor identifier from a receiver like
+// `(a = Array)` / `(a = b = Array)` and to re-emit the assignment as a side effect.
+// instance dispatch captures it via the `_ref = (a = Array)` memoize shape so doesn't need
+// this. handles nested-with-parens shapes (`(a = (b = Array))`) by alternating paren/assign
+// peel internally - safe regardless of caller's pre-unwrap, robust to babel's
+// `createParenthesizedExpressions: true` option. returns null `outer` when input isn't a
+// chain-assign shape
+export function peelChainAssignment(node) {
+  const peeled = unwrapTransparentSeq(node);
+  if (peeled?.type !== 'AssignmentExpression' || peeled.operator !== '=') return { value: peeled, outer: null };
+  let cur = peeled.right;
+  // alternate paren-peel + chain-assign-descend to fixpoint; covers `(a = (b = X))` and
+  // multi-layer paren wraps around inner `=`
+  for (;;) {
+    cur = unwrapTransparentSeq(cur);
+    if (cur?.type !== 'AssignmentExpression' || cur.operator !== '=') break;
+    cur = cur.right;
+  }
+  return { value: cur, outer: peeled };
+}
+
+// back-compat alias: `peelChainAssignment` already does the alternating peel internally,
+// so deep-walking just extracts the value field. preserves the legacy two-function API
+// for external callers
+export function peelChainAssignmentDeep(node) {
+  return peelChainAssignment(node).value;
 }
 
 // unwrap a declarator-init expression to its semantic value. SequenceExpression returns

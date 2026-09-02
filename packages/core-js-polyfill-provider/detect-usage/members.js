@@ -5,7 +5,6 @@ import {
   asProxyGlobalName,
   climbTransparentWrapperPath,
   collectFoldedReceiverSideEffects,
-  getFallbackBranchSlots,
   isForXWriteTarget,
   isMemberWriteHost,
   isMutatedGlobalSlot,
@@ -32,7 +31,7 @@ import {
   SYMBOL_ITERATOR_PURE_RESULT,
   symbolKeyToEntry,
 } from './globals.js';
-import { aliasWriteCtorNames, attachMemberUnionExtras, staticContainerReceiverName } from './destructure.js';
+import { aliasWriteCtorNames, attachMemberUnionExtras, staticContainerReceiverName, unionKeyedCarrierRides } from './destructure.js';
 import { resolve as resolveBuiltIn } from '../index.js';
 import {
   asSymbolRef,
@@ -660,6 +659,9 @@ export function harvestDiscardedReceiverSE(node, { scope, adapter, path }) {
   return prependChainAssignmentEffect(node, effects, chainAssignAt.at ?? effects.length);
 }
 
+// the meta of a MEMBER read: the resolved receiver (a global, a proxy chain, a static container, a
+// prototype navigation) crossed with the resolved key, its harvested side effects, and - for
+// usage-global - the reachable union of every other receiver x key pair the aliases can hold
 function buildMemberMeta({ node, scope, adapter, path }) {
   // collect side effects from both the receiver and the computed-key so a polyfill
   // replacement on this MemberExpression (which discards the whole subtree) can re-emit
@@ -693,14 +695,14 @@ function buildMemberMeta({ node, scope, adapter, path }) {
   const key = node.computed
     ? resolveKey({ node: computedKeyNode, computed: true, scope, adapter, path })
     : node.property.name || node.property.value;
-  // a BRANCHING computed key (`arr[cond ? "flat" : "at"]()`) resolves to no single dominating
-  // key, yet each literal arm is reachable at runtime. fall through with the null key so the
-  // union choke can enumerate the arm keys as usage-global injection extras; the null-key
-  // primary resolves to no module in every mode, and the carrier is dropped below when the
-  // enumeration produces nothing. pure mode keeps the plain bail - it cannot substitute a
+  // a computed key with no single dominating name - a BRANCHING literal (`arr[cond ? "flat" :
+  // "at"]()`), or a REASSIGNED alias whose only value sits in a pattern slot default - still reaches
+  // every written name at runtime: fall through with the null key so the union choke enumerates
+  // them as usage-global injection extras (the null-key primary resolves to no module in every mode,
+  // and the carrier is dropped below when the enumeration produces nothing). the destructure
+  // producer asks the same question; pure keeps the plain bail - it cannot substitute a
   // multi-valued key, and its union enumeration is empty by mode gate anyway
-  const branchKeyedOnly = !key && node.computed && adapter.method === 'usage-global'
-    && !!getFallbackBranchSlots(unwrapRuntimeExpr(computedKeyNode));
+  const branchKeyedOnly = !key && node.computed && unionKeyedCarrierRides({ computedKeyNode, scope, adapter, path });
   if ((!key && !branchKeyedOnly) || key === 'prototype') return null;
   let meta = key ? tryBuildPrototypeMeta({ obj, key, scope, adapter, path }) : null;
   // an effect-bearing ctor sub-receiver of a prototype-method read (`(c++, globalThis.self).Map.prototype
@@ -1599,15 +1601,13 @@ function markInlinedProxyGlobalRoot({ callNode, scope, adapter, path, handledObj
   // an optional `?.` guard memoizes the call and keeps it live (`_ref = call`), so its inner survives in
   // the output and must still be visitor-rewritten - same reasoning as the observable-effects bail below
   if (keepCallInner) return;
-  let current = callNode;
-  let seen = new Set();
-  while (isCallShape(current)) {
-    if (inlineCallHasObservableEffects({ callNode: current, scope, adapter, path })) return;
-    const inlined = inlineCallReturnExpression({ callNode: current, scope, adapter, path, seen });
+  let hop = { node: callNode, seen: new Set(), ctx: { scope, adapter, path } };
+  while (isCallShape(hop.node)) {
+    if (inlineCallHasObservableEffects({ callNode: hop.node, ...hop.ctx })) return;
+    const inlined = inlineCallReturnExpression(hop);
     if (!inlined) return;
     // the nested call sits in the callee's body - the next unroll step resolves there
-    current = markChainLinksAndProxyLeaf(inlined.node, handledObjects);
-    ({ scope, seen } = inlined);
+    hop = { ...inlined, node: markChainLinksAndProxyLeaf(inlined.node, handledObjects) };
   }
 }
 

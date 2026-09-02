@@ -1163,7 +1163,8 @@ export function createClosureAnalysis({
           // through the shared callee resolver, not a name match: by the time the census runs the
           // emitter may already have rewritten the call to its pure alias (`_Object$assign`), and
           // the resolver knows that spelling, the proxy-global one, and the user-shadow bail
-          if (resolveStaticCalleePair(p.node.callee, p.scope, { method: 'assign', anchorPath: p })?.constructor !== 'Object') return;
+          const calleePair = resolveStaticCalleePair({ node: p.node.callee, ctx: { scope: p.scope, path: p } }, { method: 'assign' });
+          if (calleePair?.constructor !== 'Object') return;
           const args = p.get('arguments');
           for (let i = 1; i < args.length; i++) {
             if (args[i].node?.type !== 'ObjectExpression') continue;

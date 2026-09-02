@@ -175,6 +175,9 @@ export function createUsageGlobalCallback({
         if (branchMeta.placement === 'static') dispatch(branchMeta, path);
       }
     }
+    // the super-class alias's own reachable union: the visitor dispatched the extras of the meta it
+    // built for `super.X` (a receiver it could not name), the inherited meta carries its own
+    for (const extra of superMeta?.extraCandidates ?? []) dispatch(extra, path);
     return dispatch(superMeta ?? meta, path);
   };
 }

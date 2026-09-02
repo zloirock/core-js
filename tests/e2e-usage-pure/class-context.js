@@ -365,3 +365,27 @@ QUnit.test('class: static method slot written via the class binding stays generi
   Static.swap();
   assert.same(Static.read(), 'e');
 });
+
+// the base alias is written ONCE, unconditionally, before the class captures it: that write is the
+// only value `extends` can observe, so the super static polyfills off the written constructor (a
+// conditional write leaves the base ambiguous and native)
+QUnit.test('class: super static off a base alias overwritten before the class', assert => {
+  // eslint-disable-next-line no-useless-assignment -- the dead init is the shape under test: the write before the class wins
+  let base = Object;
+  base = Array;
+  class Alias extends base {
+    static go() {
+      return super.from('ab');
+    }
+  }
+  assert.deepEqual(Alias.go(), ['a', 'b']);
+  // eslint-disable-next-line no-useless-assignment -- the dead init is the shape under test: the write before the class wins
+  let box = { B: Object };
+  box = { B: Array };
+  class Boxed extends box.B {
+    static go() {
+      return super.of(1, 2);
+    }
+  }
+  assert.deepEqual(Boxed.go(), [1, 2]);
+});
