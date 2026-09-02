@@ -522,9 +522,9 @@ export default function createAstDestructureEmitter({
     // that, so the call still runs and its body's effects stay where the source wrote them
     // (`c ? (() => { hits++; return globalThis; })() : ...`, `(() => m && globalThis)()`)
     if (inner.type === 'CallExpression' && !inner.optional) {
-      const returned = inlineCallReturnExpression({
-        callNode: inner, ...nodeSite(inner, metaPath), adapter, seen: new Set(), rejectConditional: true,
-      });
+      const returned = inlineCallReturnExpression(
+        { node: inner, seen: new Set(), ctx: { ...nodeSite(inner, metaPath), adapter } }, { rejectConditional: true },
+      );
       // an IDENTITY call hands back its ARGUMENT: the literal lands on that value's own tail,
       // so a sequence prefix keeps running where the source wrote it
       let value = returned && peelTransparentExpr(returned.node);
@@ -3061,9 +3061,9 @@ export default function createAstDestructureEmitter({
       }
       const init = host?.node?.type === 'VariableDeclarator' ? peelTransparentExpr(host.node.init) : null;
       if (init?.type !== 'CallExpression' || init.optional) return false;
-      const returned = inlineCallReturnExpression({
-        callNode: init, scope: metaPath.scope, adapter, seen: new Set(), path: metaPath, rejectConditional: true,
-      });
+      const returned = inlineCallReturnExpression(
+        { node: init, seen: new Set(), ctx: { scope: metaPath.scope, adapter, path: metaPath } }, { rejectConditional: true },
+      );
       // ... and only where the yielded value carries an EFFECT the extraction would drop: the
       // call evaluation runs its argument, and the harvest has no channel for argument effects.
       // a quiet identity call discards cleanly and keeps the ordinary extraction

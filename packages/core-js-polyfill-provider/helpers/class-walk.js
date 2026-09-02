@@ -26,6 +26,7 @@ import {
   objectPatternLiteralKeyPath,
   pairedArrayWrapInitElement,
   peelArrayWrapBindingLayers,
+  peelChainAssignmentDeep,
   peelProxyGlobalObject,
   peelZeroArgIifeReturn,
   propertyKeyName,
@@ -52,7 +53,9 @@ export { memberKeyName, staticMemberKeyName };
 // top-level prefix (peeled away here)
 function unwrapInitForResolution(node) {
   while (node) {
-    const peeled = unwrapRuntimeExpr(node);
+    // ... and the chain-assignment layers (`B = C = Array` writes the value into both names), so a
+    // reaching write is judged like the container follow judges its own
+    const peeled = unwrapRuntimeExpr(peelChainAssignmentDeep(node));
     if (peeled?.type === 'SequenceExpression') node = peeled.expressions.at(-1);
     else return peeled;
   }
@@ -1125,9 +1128,11 @@ export function findNamespaceMemberValue(container, propName, scope, adapter, re
 // - `t`: babel/types or estree-compat types
 // - `adapter`: scope/binding accessor (polyfillHint for plugin-managed imports)
 // - `resolveKey`: provider's key resolver, injected to avoid circular deps via helpers barrel
+// - `attachUnionExtras`: the usage-global union choke (`attachMemberUnionExtras`), injected for the
+//   same reason - a super-class alias with writes is a union producer like any member receiver
 // - `getInjector`: lazy accessor for the per-file ImportInjector (factory may run before pre())
 // caches on the closure - call once per file
-export function createClassHelpers({ t, adapter, resolveKey, getInjector = null }) {
+export function createClassHelpers({ t, adapter, resolveKey, getInjector = null, attachUnionExtras = null }) {
   function isClassMember(node) {
     return t.isClassMethod(node) || t.isClassPrivateMethod(node)
       || t.isClassProperty(node) || t.isClassPrivateProperty(node) || t.isClassAccessorProperty(node);
@@ -1244,11 +1249,14 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
       // (`classAnchor`), letting a reassignment after capture (post-class OR in-method, before the
       // super call) still resolve. fall back to the super site (`path`) only when no anchor was supplied
       if (reassignmentBlocksGlobalResolve({ binding, adapter, path: classAnchor ?? path })) {
-        // usage-global: the dominating reassignment IS the captured base - keep resolving through
-        // its enumerable value, like the container walk; pure keeps the flat bail
+        // the dominating reassignment IS the captured base - keep resolving through the value that
+        // reaches the class, like the container walk: the enumerable one for usage-global, the
+        // single observable one for usage-pure (an unconditional write with nothing written after
+        // the class definition - the only base `extends` can have evaluated)
         const anchor = classAnchor ?? path;
-        const reaching = adapter.method === 'usage-global' ? reachingReassignmentValueNode({
-          binding, usagePath: anchor, usageNode: anchor?.node ?? null,
+        const { method } = adapter;
+        const reaching = method === 'usage-global' || method === 'usage-pure' ? reachingReassignmentValueNode({
+          binding, usagePath: anchor, usageNode: anchor?.node ?? null, requireSingleObservation: method === 'usage-pure',
         }) : null;
         if (!reaching) return null;
         const reachingValue = unwrapInitForResolution(reaching);
@@ -1330,11 +1338,15 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
     // point - `classAnchor` (the class node) for the `class C extends NS.Base` path - else bails
     if (!binding) return null;
     if (reassignmentBlocksGlobalResolve({ binding, adapter, path: classAnchor })) {
-      // ONE reassignment policy with the super-class sibling: usage-global keeps resolving through
-      // the value the reassignment REACHES (the dominating write is the captured container), pure
-      // keeps the flat bail. the flat bail here read as "no container" for both
-      const reaching = adapter.method === 'usage-global' && classAnchor && isReassignedBeyondDeclarator(binding)
-        ? reachingReassignmentValueNode({ binding, usagePath: classAnchor, usageNode: classAnchor?.node ?? null }) : null;
+      // ONE reassignment policy with the super-class sibling: keep resolving through the value the
+      // reassignment REACHES (the dominating write is the captured container) - enumerable for
+      // usage-global, the single observable one for usage-pure. the flat bail here read as "no
+      // container" for both
+      const { method } = adapter;
+      const reaching = (method === 'usage-global' || method === 'usage-pure') && classAnchor && isReassignedBeyondDeclarator(binding)
+        ? reachingReassignmentValueNode({
+          binding, usagePath: classAnchor, usageNode: classAnchor?.node ?? null, requireSingleObservation: method === 'usage-pure',
+        }) : null;
       return reaching ? resolveToContainer(reaching, scope, seen, classAnchor) : null;
     }
     const declNode = binding.path?.node;
@@ -1431,12 +1443,25 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
     // of once per `super.X` / `this.X` site - it is a binding chase plus a global classification,
     // and a static-heavy class asks it for every member it reads. same per-file WeakMap lifetime
     // (and `reset()` entry) as the own-name cache below
-    return buildSuperStaticMeta(info.classNode, key, superClass => {
+    const meta = buildSuperStaticMeta(info.classNode, key, superClass => {
       if (superTypeCache.has(info.classNode)) return superTypeCache.get(info.classNode);
       const resolved = resolveBindingToGlobalName(superClass, classScope, new Set(), classAnchor ?? path, classAnchor);
       superTypeCache.set(info.classNode, resolved);
       return resolved;
     });
+    // a base alias the class may have captured under ANOTHER value - a conditional or closure write
+    // the dominance proof cannot settle - unions its written constructors' statics beside the
+    // primary, exactly as a member read off such an alias does (usage-global over-inject-safe;
+    // the union choke leaves pure metas untouched). anchored at the class node, where `extends`
+    // captured the base
+    const superClass = meta && attachUnionExtras ? peelProxyGlobalObject(info.classNode.superClass) : null;
+    if (superClass?.type === 'Identifier') {
+      attachUnionExtras(meta, {
+        objectNode: superClass, computedKeyNode: null, primaryObject: meta.object, primaryKey: key,
+        scope: classScope, adapter, path: classAnchor ?? path,
+      });
+    }
+    return meta;
   }
 
   let superTypeCache = new WeakMap();
