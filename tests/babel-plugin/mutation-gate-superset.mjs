@@ -19,6 +19,9 @@ const { parseAsync, traverse } = requireBabel('@babel/core');
 
 const { checkTruthy, finish } = createChecker('mutation-gate-superset');
 
+// a template hole spelled through a char code: written literally it would be a hole in THIS file
+const TEMPLATE_HOLE = `${ String.fromCharCode(36) }{ Object }`;
+
 // every channel the scoped pass understands, including the shapes that reach a namespace through a
 // wrapper, a value fan or a mutator call - the gate must name the namespace in all of them
 const CHANNELS = [
@@ -52,6 +55,42 @@ const CHANNELS = [
   ['two proxy hops', 'globalThis.globalThis.Object.create = x;'],
   ['mixed proxy hops', 'globalThis.self.Object.create = x;'],
   ['window-rooted hops', 'window.globalThis.Object.create = x;'],
+  // the SLOT of the global object, written in one hop: the key the write lands on is the whole
+  // namespace, and it is spelled nowhere else in the target's chain
+  ['single-hop slot write', 'window.Object = x;'],
+  ['single-hop slot delete', 'delete self.Object;'],
+  ['bare slot write', 'Object = x;'],
+  ['slot write through an alias', 'var g = globalThis; g.Object = x;'],
+  ['assign onto an aliased global object', 'var g = globalThis; Object.assign(g, { Object: x });'],
+  // a chain whose ROOT is an alias / a call: the namespace sits past a hop the naming walk has to
+  // follow the same way the scoped stage does
+  ['alias of the global object', 'var g = globalThis; g.Object.create = x;'],
+  ['hopped alias of the namespace', 'var M = globalThis.self.Object; M.create = x;'],
+  ['prototype through an alias', 'var p = Object.prototype; p.foo = x;'],
+  ['call-rooted receiver', 'function gg() { return globalThis; } gg().Object.create = x;'],
+  ['call-rooted namespace', 'function gn() { return Object; } gn().create = x;'],
+  ['call-bound alias', 'function gg() { return globalThis; } var g = gg(); g.Object.create = x;'],
+  ['iife-rooted receiver', '(function () { return globalThis; })().Object.create = x;'],
+  // the write's receiver is a PARAMETER, so the pairing between a call's argument and the
+  // parameter it lands in is the whole attribution - and the call spells the function it binds
+  // differently per host. every one of these is a channel the scoped pass records, so the cheap
+  // roots owe the namespace in every one of them
+  ['param through a plain call', 'function s(t) { t.create = x; } s(Object);'],
+  ['param through a class constructor', 'class I { constructor(t) { t.create = x; } } new I(Object);'],
+  ['param through an immediately-invoked literal', '(function (t) { t.create = x; })(Object);'],
+  ['param through a tagged template', `function tag(q, t) { t.create = x; } tag\`${ TEMPLATE_HOLE }\`;`],
+  ['param through f.call', 'function s(t) { t.create = x; } s.call(null, Object);'],
+  ['param through f.apply', 'function s(t) { t.create = x; } s.apply(null, [Object]);'],
+  ['param through Reflect.apply', 'function s(t) { t.create = x; } Reflect.apply(s, null, [Object]);'],
+  ['param through an immediate bind', 'function s(t) { t.create = x; } s.bind(null, Object)();'],
+  ['param through super', 'class B { constructor(t) { t.create = x; } }'
+    + ' class D extends B { constructor() { super(Object); } } new D();'],
+  ['param through a spread of an inline array', 'function s(t) { t.create = x; } s(...[Object]);'],
+  ['param through its own default', 'function s(t = Object) { t.create = x; } s();'],
+  // an unreadable key deopts its receiver whole, in both receiver spellings
+  ['unreadable key on a namespace', 'Object[k] = x;'],
+  ['unreadable key on a prototype', 'Object.prototype[k] = x;'],
+  ['unreadable key on a prototype alias', 'var p = Object.prototype; p[k] = x;'],
 ];
 
 async function programOf(code) {
@@ -66,10 +105,16 @@ async function programOf(code) {
   return programPath;
 }
 
-// the namespace a recorded key belongs to: the pass spells pairs `<namespace>.<key>` and receiver
-// deopts with a marker prefix the caller filters out before asking
-function namespaceOf(key) {
-  return String(key).split('.', 1)[0];
+// what the PRODUCT asks of the cheap roots, asked here the same way: an adapter in a method that
+// pays no scoped walk reads them through `isMutatedStaticSlot`. asking a re-derived question
+// instead - the namespace before the first dot - passed on every global-SLOT write without
+// checking anything, because the recorded pair `globalThis.Object` starts with a name the roots
+// held for an unrelated reason
+function coarseSaysMutated(recordedKey, roots) {
+  const key = String(recordedKey);
+  const dot = key.lastIndexOf('.');
+  const reader = createBabelAdapter({ method: 'usage-global', getMutationRoots: () => roots });
+  return reader.isMutatedStaticSlot(key.slice(0, dot), key.slice(dot + 1));
 }
 
 for (const [label, source] of CHANNELS) {
@@ -77,10 +122,7 @@ for (const [label, source] of CHANNELS) {
   const census = collectFileCensus(programPath.node, [mutationShapesReducer(null)]);
   const adapter = createBabelAdapter({ method: 'usage-pure', getMutatedStatics: () => null });
   const scoped = [...collectMutationPrePass(programPath, adapter, census).mutated ?? []];
-  const roots = census.mutationRoots;
-  const uncovered = scoped
-    .filter(key => !String(key).startsWith('*'))
-    .filter(key => !(roots?.open || roots?.names?.has(namespaceOf(key))));
+  const uncovered = scoped.filter(key => !coarseSaysMutated(key, census.mutationRoots));
   checkTruthy(`gate covers the scoped set: ${ label }`, uncovered.length === 0);
 }
 

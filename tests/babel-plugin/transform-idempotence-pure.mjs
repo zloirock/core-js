@@ -65,6 +65,12 @@ const CASES = [
   ['mutated-self standdown', 'globalThis.self = globalThis.self;\n'
     + 'export const r = (globalThis.window?.self).Object.entries;\n'
     + 'export const { keys: k } = (globalThis.window?.self).Object;'],
+  // a call HOST the pass rewrites into its own helper: the mutation census names the function a
+  // call binds by the host's SOURCE spelling, and `Reflect.apply` is the one host this flavor
+  // replaces with a minted import. without reading that import back the second pass no longer sees
+  // the write, substitutes the read it deopted, and the file's own patch stops being served
+  ['minted call host keeps its pairing', 'function install(t, v) { t.any = v; }\n'
+    + 'Reflect.apply(install, null, [Promise, () => 1]);\nexport const r = Promise.any([]);'],
   // the own-output census family (provider own-output.js): each shape below re-claimed and
   // grew the file per pass before its census/adoption arm - the same classes the unplugin
   // engines lock, spelled through THIS emitter's renders
