@@ -6,6 +6,7 @@ import {
   findFunctionScopeVarInPath,
   findVarOwnerDeclaring,
   getTypeArgs,
+  hopAnchorStart,
   isDestructurePattern,
   isNullLiteralNode,
   isTypeAnnotationWrapper,
@@ -1747,11 +1748,12 @@ function createResolveNodeType(babelNodeType, t, {
   // every capital, so the trailing segment resolves against the registry's own keys.
   // kept in factory (not in call-return cluster) because binding-analysis cluster
   // instantiated upstream consumes it as a service dep
-  // `useStart` anchors the injector's name-keyed lookup positionally: a USER-named body-extract
-  // record serves only inside its hosting scope span, so a position-blind ask cannot be served
-  // (a same-named binding elsewhere in the file would read the wrong entry - wrong-Maybe throw)
-  function staticPairFromPolyfillEntry(scope, name, useStart = null) {
-    const entry = getPolyfillBindingEntry(scope, name, useStart);
+  // the hop's anchor (`hopAnchorStart`) positions the injector's name-keyed lookup: a USER-named
+  // body-extract record serves only inside its hosting scope span, so a position-blind ask cannot
+  // be served (a same-named binding elsewhere in the file would read the wrong entry - wrong-Maybe
+  // throw). `hop` stands on the identifier spelling `name`
+  function staticPairFromPolyfillEntry(name, hop) {
+    const entry = getPolyfillBindingEntry(hop.ctx.scope, name, hopAnchorStart(hop));
     if (!entry) return null;
     const segments = entry.split('/');
     if (segments.length < 2) return null;
@@ -1769,8 +1771,8 @@ function createResolveNodeType(babelNodeType, t, {
   // `_Map` from 'map/constructor'): the import binding's entry path names the global it
   // carries, so member reads off the swapped value (`_Math.max(...)`) keep resolving in the
   // known-static analyses exactly like the original (`Math.max(...)`)
-  function namespaceFromPolyfillBinding(scope, name, useStart = null) {
-    const entry = getPolyfillBindingEntry(scope, name, useStart);
+  function namespaceFromPolyfillBinding(name, hop) {
+    const entry = getPolyfillBindingEntry(hop.ctx.scope, name, hopAnchorStart(hop));
     if (!entry) return null;
     const segments = entry.split('/');
     if (segments.length !== 2) return null;
