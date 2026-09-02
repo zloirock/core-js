@@ -6,6 +6,7 @@
 // (`canTransformDestructuring`)
 import {
   pureImportEntryOf,
+  requireCallSource,
   asProxyGlobalName,
   canHoldBuiltIn,
   findArrayWrappedDestructureHost,
@@ -2372,8 +2373,7 @@ function pluginRewrittenHopName(binding, hop) {
   if (binding?.importKind !== 'type' && (binding?.kind === 'module'
     // ... or the require-style pure binding: THIS binding's own declarator holds the
     // require call (a shadowed local of the same name has a different node and stays out)
-    || (binding?.node?.type === 'VariableDeclarator' && binding.node.init?.type === 'CallExpression'
-      && binding.node.init.callee?.name === 'require'))) {
+    || (binding?.node?.type === 'VariableDeclarator' && requireCallSource(binding.node.init) !== null))) {
     const entry = pureImportEntryOf(path, current.name);
     const hinted = entry ? entryToGlobalHint(entry) : null;
     if (hinted && hinted !== current.name) return hinted;
