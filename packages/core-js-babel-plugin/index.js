@@ -19,7 +19,6 @@ import {
   isDeoptedGlobalSlotRead,
   mutatedSlotLeftNativeWarning,
   isMutatedStaticMeta,
-  isMutatedStaticPair,
   isTSTypeOnlyIdentifierPath,
   collectFileCensus,
   methodReadsUsageCensus,
@@ -308,13 +307,14 @@ export default function plugin(api, options) {
   // typing asks a YES/NO about ONE namespace, and the cheap census the shared walk already produced
   // answers it: its target roots are a SUPERSET of what a scoped walk could attribute, so a namespace
   // none of them names is provably untouched, and an over-report only degrades a narrow (over-inject,
-  // the safe direction in usage-global). the scoped pre-pass stays where its completeness is required
+  // the safe direction in usage-global). the scoped pre-pass stays where its completeness is required.
+  // the READING of those roots is the provider's - `adapter.isMutatedStaticSlot`
   let mutationRoots = null;
-  function isTypingMutatedSlot(object, key) {
-    if (method === 'usage-pure') return isMutatedStaticPair(object, key, mutatedStatics);
-    if (!mutationRoots) return false;
-    return mutationRoots.open || mutationRoots.names.has(object);
-  }
+  // the census's container-slot record, held in its own per-file slot rather than read off the
+  // census: the mutation pre-pass shares the read canons, and those consult this record - so the
+  // window it runs in must not see it, or the walk that REGISTERS a patch through a written slot
+  // bails on the very record its own writes feed. the unplugin twin nulls the same pair
+  let writtenContainerSlots = null;
   let fileCensus = null;
   // a static the user monkey-patches must never bind to the frozen receiver-less import:
   // every pipeline (member emission, destructure props, param synth) resolves through this
@@ -329,7 +329,7 @@ export default function plugin(api, options) {
   function noteDeoptedGlobal(name) {
     if (deoptNotedNames.has(name)) return;
     deoptNotedNames.add(name);
-    debugOutput?.warn(mutatedSlotLeftNativeWarning(name));
+    debugOutput?.warn(mutatedSlotLeftNativeWarning(name, mutatedStatics));
   }
 
   const {
@@ -398,8 +398,8 @@ export default function plugin(api, options) {
     getInjector: () => injector,
     method,
     getMutatedStatics: () => mutatedStatics,
-    getWrittenContainerSlots: () => fileCensus?.writtenContainerSlots ?? null,
-    isTypingMutatedSlot,
+    getWrittenContainerSlots: () => writtenContainerSlots,
+    getMutationRoots: () => mutationRoots,
     getPackages: () => packages,
   });
 
@@ -1836,9 +1836,11 @@ export default function plugin(api, options) {
         // reset FIRST: the read canons the pre-pass shares consult the live slot through the
         // adapter, and the previous file's set must not gate this file's collection
         mutatedStatics = null;
+        writtenContainerSlots = null;
         mutatedStatics = method === 'usage-pure' && !isInternalCoreJS
           ? collectMutationPrePass(path, adapter, fileCensus).mutated : null;
         mutationRoots = isInternalCoreJS ? null : fileCensus.mutationRoots ?? null;
+        writtenContainerSlots = fileCensus.writtenContainerSlots ?? null;
         // source wins over sourceType: CJS-assign at top level of a `sourceType: "module"` file
         // would otherwise produce mixed `import` + `module.exports` output
         importStyle = importStyleOption ?? (!hasTopLevelESM(path.node)
@@ -2378,11 +2380,8 @@ export default function plugin(api, options) {
         injector = synthSwap = destructureEmit = skippedNodes = originalBodyNodes = debugOutput = null;
         // the census is AST-bearing too: `writtenContainerSlots` maps each written slot to the
         // VALUE nodes assigned to it, so keeping it would pin the file's tree just as the
-        // emitters do. its two derived slots go with it - they are read only during traversal
-        fileCensus = mutatedStatics = mutationRoots = null;
-        // the census is AST-bearing too: `writtenContainerSlots` maps each written slot to the
-        // VALUE nodes assigned to it, so keeping it would pin the file's tree just as the
-        // emitters do. its two derived slots go with it - they are read only during traversal
+        // emitters do. its derived slots go with it - they are read only during traversal
+        fileCensus = mutatedStatics = mutationRoots = writtenContainerSlots = null;
       }
 
       // per-file primitive-state reset: skipFile / disabledLines / importStyle /

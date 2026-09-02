@@ -15,7 +15,6 @@ import {
   isForXWriteTarget,
   isMemberWriteHost,
   isMutatedStaticMeta,
-  isMutatedStaticPair,
   isStatementPosition,
   isThisReceiver,
   memberKeyNamesReducer,
@@ -441,7 +440,7 @@ export default function createPlugin(options) {
     method: options.method,
     getMutatedStatics: () => currentMutatedStatics,
     getWrittenContainerSlots: () => currentWrittenContainerSlots,
-    isTypingMutatedSlot,
+    getMutationRoots: () => currentMutationRoots,
     // lazy: `packages` is destructured from the resolver below; transforms run after
     getPackages: () => packages,
   });
@@ -528,11 +527,6 @@ export default function createPlugin(options) {
   // the safe direction in usage-global). the scoped pre-pass stays where its completeness is required
   let currentMutationRoots = null;
   let currentWrittenContainerSlots = null;
-  function isTypingMutatedSlot(object, key) {
-    if (options.method === 'usage-pure') return isMutatedStaticPair(object, key, currentMutatedStatics);
-    if (!currentMutationRoots) return false;
-    return currentMutationRoots.open || currentMutationRoots.names.has(object);
-  }
   // a static the user monkey-patches must never bind to the frozen receiver-less import:
   // every pipeline (member emission, destructure props, param synth) resolves through this
   // filter, so the read keeps flowing through the substituted constructor instead
@@ -750,12 +744,19 @@ export default function createPlugin(options) {
     // INJECTION policy only, so usage-pure only: a global-flavor bail here would drop an import
     // instead of adding one. the typing side asks the same data separately and lazily (below)
     if (method === 'usage-pure') {
+      // BOTH per-file records the shared read canons consult are hidden for this window: the
+      // mutation set for the reason above, and the container-slot record because the walk that
+      // REGISTERS a patch through a written slot would otherwise bail on the very record its own
+      // writes feed. a re-entrant inner transform used to read the OUTER file's map here
       const outerMutatedStatics = currentMutatedStatics;
+      const outerWrittenContainerSlots = currentWrittenContainerSlots;
       currentMutatedStatics = null;
+      currentWrittenContainerSlots = null;
       try {
         mutationInfo = collectMutationPrePass(ast, estreeAdapter, fileCensus);
       } finally {
         currentMutatedStatics = outerMutatedStatics;
+        currentWrittenContainerSlots = outerWrittenContainerSlots;
       }
     }
     let mutatedStatics = mutationInfo?.mutated ?? null;
