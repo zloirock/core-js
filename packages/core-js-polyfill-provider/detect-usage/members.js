@@ -5,24 +5,26 @@ import {
   asProxyGlobalName,
   climbTransparentWrapperPath,
   collectFoldedReceiverSideEffects,
+  deleteHostAboveChain,
+  isAliasProxyRoot,
   isForXWriteTarget,
   isMemberWriteHost,
   isMutatedGlobalSlot,
   isPristineProxyGlobal,
   isTaggedTemplateTagPosition,
+  mayHaveSideEffects,
+  memberKeyName,
   memberProxyHopName,
   nestedSequenceValueSpelling,
+  peelNestedSequenceExpressions,
+  peelParenAndTSParentPath,
   peelSequenceTail,
+  POSSIBLE_GLOBAL_OBJECTS,
   privateNameSpelling,
   proxyNavEffectsHarvestable,
+  SKIPPABLE_WRAPPER_TYPES,
   staticMemberKeyName,
   unwrapRuntimeExpr,
-  POSSIBLE_GLOBAL_OBJECTS,
-  deleteHostAboveChain,
-  peelNestedSequenceExpressions,
-  isAliasProxyRoot,
-  peelParenAndTSParentPath,
-  SKIPPABLE_WRAPPER_TYPES,
 } from '../helpers/ast-patterns.js';
 import {
   GET_ITERATOR_ENTRY,
@@ -345,13 +347,20 @@ export function planProxyReceiver(receiver, {
   // an ALIAS root (`const g = globalThis; g.self.X`) keeps its identifier and only drops the hops; a direct
   // root swaps to its pure ctor
   const isAliasRoot = !!keptAssignRoot || isAliasProxyRoot(throughRoot, aliasCtx);
-  // a root THIS BUILD cannot spell (excluded, or a target that needs no entry) leaves the collapse
-  // nothing to land on - but the run above a span it CAN back still rides that span, the same verdict
-  // the call-rooted plan reaches: `globalThis.self.box` without the global-this entry is `_self.box`,
-  // where standing down left a raw realm read in pure output
-  const backedSpan = !rootPure && !isAliasRoot && aliasCtx
-    ? deepestBackedProxySpan(receiver.object, aliasCtx, resolvePure) : null;
-  if (!rootPure && !isAliasRoot && !backedSpan) return null;
+  // WHERE the collapse lands is the shared canon's answer, not this plan's: the deepest hop pure can
+  // back, the root only when nothing above it is (`globalThis.window.self.box` is `_self.box`, and a
+  // root this build cannot spell - excluded, or a target needing no entry - still leaves the run that
+  // span to ride, where standing down left a raw realm read in pure output). a `delete` folding this
+  // run is the exception the canon takes as a flag, and the consumer above answered it already
+  const landingPure = !isAliasRoot && aliasCtx
+    ? proxyRunLandingPure({
+      navNode: receiver.object,
+      ctx: aliasCtx,
+      resolvePure,
+      rootName: throughRoot?.name,
+      deleteFold: deleteConsumer,
+    }) : rootPure;
+  if (!isAliasRoot && !landingPure) return null;
   // the dropped hops of a kept root, walked leaf-to-root the way the prefix walker does: their
   // computed keys carry the effects that migrate into the surviving leaf key (in source order)
   const keyPrefixSE = [];
@@ -368,8 +377,7 @@ export function planProxyReceiver(receiver, {
     kind: 'collapse',
     rootBinding: keptAssignRoot ? { keep: keptAssignRoot }
       : isAliasRoot ? { alias: throughRoot }
-        : { pure: rootPure ? { entry: rootPure.entry, hintName: rootPure.hintName }
-          : { entry: backedSpan.pure.entry, hintName: backedSpan.pure.hintName } },
+        : { pure: { entry: landingPure.entry, hintName: landingPure.hintName } },
     // a kept root re-emits ITSELF, so harvesting it too would run the assignment twice - but only IT is
     // exempt. effects the sequence around it carries (`(b++, (q = globalThis.window)).self.X`) are not the
     // assignment and still have to ride ahead, in source order. dropped-hop KEY effects are exempt too:
@@ -479,20 +487,36 @@ export function planGuardedDestructureNarrow({
   };
 }
 
+// is this run rooted in a ref THIS PASS minted (a guard memo, a receiver memo)? such a root has no
+// source spelling behind it - the render that created it already answered for the value - so a
+// collapse reading it back is folding our own output rather than the program's
+function mintedRefRoot(receiver, aliasCtx) {
+  if (!aliasCtx?.adapter) return false;
+  const { root } = descendToChainRoot(receiver);
+  const core = unwrapRuntimeExpr(peelReceiverSequenceTail(root));
+  return core?.type === 'Identifier'
+    && !!aliasCtx.adapter.getBinding(aliasCtx.scope, core.name, aliasCtx.path)?.polyfillHint;
+}
+
 // call/IIFE-rooted proxy nav (`(() => globalThis)().self.Array`): `findProxyGlobal` validates only bare-Identifier
-// roots, so the main path bails. resolve the root global (inlining the call), drop the proxy hop, keep an
-// SE-bearing chain-root call as the harvested prefix
+// roots, so the main path bails. resolve the root global (inlining the call), drop the proxy hops onto the
+// binding the landing canon names, keep an SE-bearing chain-root call as the harvested prefix
 function planCallRootedProxyReceiver(receiver, aliasCtx, resolvePure) {
   if (!aliasCtx) return null;
   const plan = resolveCallRootedProxyCollapse({ receiver, ...aliasCtx });
   if (!plan) return null;
   const leafName = staticMemberKeyName(receiver);
   if (leafName && resolvePure({ kind: 'global', name: leafName })) return null;
-  const rootPure = resolvePure({ kind: 'global', name: plan.rootName });
-  if (!rootPure) return null;
+  // the landing canon answers WHERE such a run rides, but only for a run the SOURCE wrote: a
+  // receiver rooted in a ref THIS PASS minted is our own render read back, and folding it a second
+  // time rewrites a guard that already spelled the value (`_ref[(c++, 'self')].Array`)
+  const landingPure = mintedRefRoot(receiver, aliasCtx) ? null : proxyRunLandingPure({
+    navNode: receiver.object, ctx: aliasCtx, resolvePure, rootName: plan.rootName,
+  });
+  if (!landingPure) return null;
   return {
     kind: 'collapse',
-    rootBinding: { pure: { entry: rootPure.entry, hintName: rootPure.hintName } },
+    rootBinding: { pure: { entry: landingPure.entry, hintName: landingPure.hintName } },
     harvestedSE: plan.droppedSe,
     property: receiver.property,
     computed: receiver.computed,
@@ -565,7 +589,10 @@ export function planClaimlessCallRootedNav({ endNode, deleteFold = false, scope,
       if (backed) return { verdict: 'swap-call', swapNode, basePure: backed.pure, droppedSe };
       return rootPure ? { verdict: 'swap-call', swapNode, basePure: rootPure, droppedSe } : null;
     }
-    return rootPure ? { verdict: 'fold-whole', rootPure } : { verdict: 'guard' };
+    // the whole-nav fold lands where the shared canon says - a backed leaf IS the deepest span
+    // (`(() => globalThis)().self` rides `_self`); only the `delete` fold keeps the root base
+    const foldPure = proxyRunLandingPure({ navNode: endNode, ctx, resolvePure, rootName, deleteFold });
+    return foldPure ? { verdict: 'fold-whole', rootPure: foldPure } : { verdict: 'guard' };
   }
   const navName = resolveObjectName({ objectNode: endNode.object, ...ctx });
   let pure = navName && POSSIBLE_GLOBAL_OBJECTS.has(navName) && resolvePure({ kind: 'global', name: navName });
@@ -584,11 +611,75 @@ function deepestBackedProxySpan(navNode, ctx, resolvePure) {
   for (let span = unwrapRuntimeExpr(peelReceiverSequenceTail(navNode));
     span?.type === 'MemberExpression' || span?.type === 'OptionalMemberExpression';
     span = unwrapRuntimeExpr(peelReceiverSequenceTail(span.object))) {
-    const spanName = resolveObjectName({ objectNode: span, ...ctx });
-    const pure = spanName && POSSIBLE_GLOBAL_OBJECTS.has(spanName) && resolvePure({ kind: 'global', name: spanName });
+    // the run is a PROVEN proxy navigation, so a hop names its own value: the name walk is asked
+    // first, and its own HOP KEY answers where the walk declines. the two legs' scope shims part
+    // company exactly there (a self-cycle shadow `var globalThis = globalThis` reads as a local
+    // binding on one leg), and a landing that moved with the shim landed the run on two bindings
+    const spanName = resolveObjectName({ objectNode: span, ...ctx }) ?? memberProxyHopName(span);
+    // a MUTATED realm slot holds the user's own object, so the run may not ride its ponyfill - the
+    // hop stays spelled and the walk keeps looking below it
+    const pure = spanName && POSSIBLE_GLOBAL_OBJECTS.has(spanName)
+      && !isMutatedGlobalSlot(ctx.adapter, spanName) && resolvePure({ kind: 'global', name: spanName });
     if (pure) return { span, pure };
   }
   return null;
+}
+
+// does a DISPATCH consume this run? an instance claim above it renders one (`<run>.Array.prototype
+// .flat` becomes a helper call), so an operator standing over that claim acts on what the helper
+// returned - a `delete` there names no slot on the run and folds nothing. asked in both tenses,
+// because the claim may already have rendered by the time a later channel walks this chain: an
+// unrendered claim is a member whose key resolves to an instance polyfill, a rendered one is the
+// call taking the run as its ARGUMENT
+export function dispatchConsumesRun({ path, resolvePure, aliasCtx = null }) {
+  for (let up = path; up?.node;) {
+    const isMember = up.node.type === 'MemberExpression' || up.node.type === 'OptionalMemberExpression';
+    const key = isMember ? staticMemberKeyName(up.node) : null;
+    // ... and only where that claim RENDERS: a member the source writes to or deletes is the slot
+    // the operator names, and the claim channel stands down there instead of dispatching
+    if (key && !isMemberWriteHost(up)
+      && resolvePure({ kind: 'property', key, placement: 'prototype' })?.kind === 'instance') return true;
+    const parent = up.parentPath;
+    if (!parent?.node) return false;
+    if ((parent.node.type === 'CallExpression' || parent.node.type === 'OptionalCallExpression')
+      && parent.node.arguments?.includes(up.node)) return true;
+    // ... and a MEMO this pass minted is the rendered tense of the same answer: the render that
+    // stored the run owns what reads it, and the dispatch consuming that ref stands in a branch
+    // no upward walk crosses (`null == (_ref = <run>) ? void 0 : _flatMaybeArray(_ref.prototype)`)
+    if (parent.node.type === 'AssignmentExpression' && parent.node.right === up.node
+      && parent.node.left?.type === 'Identifier' && aliasCtx?.adapter
+      && aliasCtx.adapter.getBinding(aliasCtx.scope, parent.node.left.name, aliasCtx.path)?.polyfillHint) return true;
+    const steps = (parent.node.type === 'MemberExpression' || parent.node.type === 'OptionalMemberExpression')
+      && parent.node.object === up.node;
+    if (!steps) return false;
+    up = parent;
+  }
+  return false;
+}
+
+// WHERE a collapsed proxy run LANDS - one answer for every channel that collapses such a run (the
+// receiver plan, the call-rooted plan, and each leg's own spine walk), so the two legs cannot land
+// differently. the DEEPEST hop pure can back, because a hop standing over a ponyfill reads THROUGH
+// it and folds onto it (`globalThis.window.self` is `_self`, not `_globalThis`); the run's own ROOT
+// answers only where nothing above it is backed. a `delete` FOLDING the run is the one exception -
+// the operator names a slot rather than reading a value, so its base is the run's root binding
+// whatever the hops above spell. whether such a fold is what stands over the run is the consumer's
+// own question (a dispatch between them makes the run an ordinary read), so it rides in as a flag
+export function proxyRunLandingPure({ navNode, ctx, resolvePure, rootName = null, deleteFold = false }) {
+  function rootPure() {
+    return rootName && POSSIBLE_GLOBAL_OBJECTS.has(rootName)
+      ? resolvePure({ kind: 'global', name: rootName }) || null : null;
+  }
+  if (deleteFold) return rootPure();
+  let span = navNode ? deepestBackedProxySpan(navNode, ctx, resolvePure) : null;
+  // a STORE at the run's base hands its value on, so the read rides THROUGH it: the walk follows
+  // the stored value the same way (`(q = globalThis.self).window` lands `_self`), and the store
+  // itself keeps whatever the source put in it
+  if (!span && navNode) {
+    const stored = peelChainAssignment(descendToChainRoot(navNode).root)?.value;
+    span = stored ? deepestBackedProxySpan(stored, ctx, resolvePure) : null;
+  }
+  return span ? span.pure : rootPure();
 }
 
 // an inline-resolvable call at the root of a FOLDED chain (receiver collapsed into a static
@@ -629,9 +720,15 @@ function proxyGlobalChainRootName({ node, scope, adapter, path }) {
 // and so re-EXCLUDED a chain-root-CALL receiver the caller's `rescueSe` already covered, leaving the
 // `.self` hop verbatim (babel kept raw `.self`->throw, unplugin re-rooted `_self` + extra import).
 // single-hop (`globalThis[(eff(), 'Array')]`) has no undefined intermediate -> keep the verbatim re-emit.
+// a nav rooted at a KEPT STORE whose value can be ABSENT keeps its read whatever the hop count: the
+// source reads off that store and THROWS where the value is void, and the discard owes that throw -
+// dropping to the bare write answers `undefined` for a program that threw. asked only where a resolve
+// context reaches this canon (`ctx`), since the shape alone cannot see a VALUE; both emitters' discard
+// paths read the verdict from here rather than each weighing the store on its own
 // shared so both emitters make the SAME drop decision (else they desync)
-export function shouldDropRescueReceiver(inner) {
+export function shouldDropRescueReceiver(inner, ctx = null) {
   if (!inner) return false;
+  if (ctx && readStandsOverAbsentableStore(inner, ctx)) return false;
   // unwrap the object through transparent wrappers / a SE-sequence tail before the type check - parsers
   // differ on keeping paren nodes (babel strips `((e(), gt).self)`, oxc keeps it as a wrapper)
   let obj = inner.object;
@@ -642,7 +739,33 @@ export function shouldDropRescueReceiver(inner) {
       obj = obj.expressions.at(-1);
     } else break;
   }
-  return obj?.type === 'MemberExpression' || obj?.type === 'OptionalMemberExpression';
+  if (obj?.type === 'MemberExpression' || obj?.type === 'OptionalMemberExpression') return true;
+  // a kept STORE stands where a hop would: the read over it is the one the discard drops, and
+  // re-emitting it verbatim hands the collapse a nav to fold into a ponyfill read nothing uses
+  // (a dead import with it). the ctx arm above is what keeps the read where its throw is owed,
+  // and a KEY carrying effects keeps it too - that read is what evaluates the key, so it is not
+  // the dead weight this drop exists for
+  return obj?.type === 'AssignmentExpression' && obj.operator === '='
+    && !(inner.computed && mayHaveSideEffects(inner.property));
+}
+
+// does a READ stand over a kept store the realm may leave void - the shape whose discard owes a
+// throw? the run's ROOT is the store, so the walk is the chain descent every receiver question here
+// takes. a read a COLLAPSE would fold away buys nothing by being kept - it reaches the output as a
+// ponyfill read (and a dead import with it), never as the throw - so only a key the fold leaves
+// standing counts
+export function readStandsOverAbsentableStore(inner, { scope, adapter, path, resolvePure }) {
+  // through a SEQUENCE the source wrote around the read: it hands its TAIL on, and a peel of the
+  // runtime wrappers alone reads the wrapper as a non-member and answers no.
+  // the READ ITSELF comes back, not a flag: a leg whose collapse has already eaten the key by the
+  // time it lifts cannot spell that read from its own tree, and the source node is what says it
+  const read = unwrapRuntimeExpr(peelReceiverSequenceTail(inner));
+  if (!resolvePure || (read?.type !== 'MemberExpression' && read?.type !== 'OptionalMemberExpression')) return null;
+  if (!read.computed && isPristineProxyGlobal(adapter, memberKeyName(read))) return null;
+  const { root } = descendToChainRoot(read);
+  const store = root?.type === 'AssignmentExpression' && root.operator === '=' ? root : null;
+  return store && proxyReceiverValueCanBeUndefined(store.right, resolvePure, { scope, adapter, path })
+    ? read : null;
 }
 
 // COMPLETE side-effect harvest of a fully-discarded receiver, in source eval order: sequence
@@ -694,7 +817,7 @@ function buildMemberMeta({ node, scope, adapter, path }) {
   if (node.computed) collectFoldedReceiverSideEffects(node.property, keyEffects);
   const key = node.computed
     ? resolveKey({ node: computedKeyNode, computed: true, scope, adapter, path })
-    : node.property.name || node.property.value;
+    : memberKeyName(node);
   // a computed key with no single dominating name - a BRANCHING literal (`arr[cond ? "flat" :
   // "at"]()`), or a REASSIGNED alias whose only value sits in a pattern slot default - still reaches
   // every written name at runtime: fall through with the null key so the union choke enumerates
@@ -934,14 +1057,15 @@ function resolveSymbolReceiverProxyRoot({ node, receiverChain, receiverValueName
     };
   }
   let rootName = proxyGlobalChainRootName({ node: receiverChain, scope, adapter, path });
-  // the chain ROOT may be a proxy global with no ponyfill entry (`window.self[Symbol.iterator]`):
-  // an unvalidated name stranded each emitter in its own fallback (one kept a leaf `_self`,
-  // the other a raw `window.self` - undefined off-browser). fold to the
-  // nav's resolvable VALUE instead, the same fold the plain member channel applies; neither the
-  // root nor the value resolvable (`window.window`) -> null, the receiver is the genuine argument
-  if (rootName && (!resolvePure || !resolvePure({ kind: 'global', name: rootName }))) {
-    rootName = receiverValueName !== rootName && resolvePure
-      && resolvePure({ kind: 'global', name: receiverValueName }) ? receiverValueName : null;
+  // the run lands where the shared landing canon says - on the deepest hop pure can back, which
+  // for this strand is the nav's own VALUE (`globalThis.self[Symbol.iterator]` rides `_self`);
+  // the ROOT answers only where the value is a name pure cannot back (`window`), and neither
+  // resolvable (`window.window`) -> null, the receiver is the genuine argument
+  const valuePure = resolvePure && receiverValueName
+    && POSSIBLE_GLOBAL_OBJECTS.has(receiverValueName) && !isMutatedGlobalSlot(adapter, receiverValueName)
+    && resolvePure({ kind: 'global', name: receiverValueName });
+  if (rootName && (!resolvePure || valuePure || !resolvePure({ kind: 'global', name: rootName }))) {
+    rootName = valuePure ? receiverValueName : null;
   }
   if (!rootName) return null;
   const rescue = seedChainRootCallRescue({ node: node.object, scope, adapter, path });

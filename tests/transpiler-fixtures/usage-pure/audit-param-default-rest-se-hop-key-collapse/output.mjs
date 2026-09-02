@@ -1,8 +1,8 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$of from "@core-js/pure/actual/array/of";
-import _globalThis from "@core-js/pure/actual/global-this";
 import _Map from "@core-js/pure/actual/map/constructor";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
+import _self from "@core-js/pure/actual/self";
 import _Set from "@core-js/pure/actual/set/constructor";
 // a REST element forces the param-default fallback (no whole synth-swap), and a side-effecting
 // computed proxy-hop KEY cannot be single-hop-deleted (that would drop the effect): the shared
@@ -12,7 +12,7 @@ let eff = 0;
 function f({
   from: _unused,
   ...rest
-} = (eff++, _globalThis).Array) {
+} = (eff++, _self).Array) {
   let from = _Array$from;
   return [from, rest];
 }
@@ -22,7 +22,7 @@ f();
 function g({
   of: _unused2,
   ...rest
-} = (eff++, _globalThis).Array || _Set) {
+} = (eff++, _self).Array || _Set) {
   let of = _Array$of;
   return [of, rest];
 }
@@ -34,7 +34,7 @@ function m({
   from: _unused3,
   of: _unused4,
   ...rest
-} = (eff++, _globalThis).Array) {
+} = (eff++, _self).Array) {
   let from = _Array$from;
   let of = _Array$of;
   return [from, of, rest];
@@ -44,7 +44,7 @@ function n({
   isArray,
   from: _unused5,
   ...rest
-} = _globalThis.Array) {
+} = _self.Array) {
   let f2 = _Array$from;
   return [isArray, f2, rest];
 }
@@ -66,7 +66,7 @@ p();
 function h({
   isArray,
   ...rest
-} = _globalThis.Array) {
+} = _self.Array) {
   return [isArray, rest];
 }
 h();

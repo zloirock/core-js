@@ -41,7 +41,7 @@ export const seqPlainTail = (m = (c++, plain))?.self.Array.prototype.indexOf.cal
 
 // nested SE prefixes around a ponyfilled tail all survive, in source order, and the guard is dead
 let k;
-export const nestedSeqPony = _flatMapMaybeArray((k = (c++, c++, _self), _globalThis).Array.prototype).call([1], x => [x]);
+export const nestedSeqPony = _flatMapMaybeArray((k = (c++, c++, _self), _self).Array.prototype).call([1], x => [x]);
 
 // the UNGUARDED twin of the SE-bearing hop key: no guard, so the key evaluates right after the assignment
 // in the native order - the migrated key preserves exactly that (assignment, key effect, read), where a

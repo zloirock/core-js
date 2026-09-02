@@ -22,12 +22,12 @@ export function drop() {
 }
 export function loop(xs) {
   for (_self[_Symbol$iterator] of xs) {
-    void _globalThis[_Symbol$iterator];
+    void _self[_Symbol$iterator];
   }
 }
 // a tagged-template tag is a this-carrying invocation: the member survives with a key-only
 // rewrite and the receiver renders through the root drive (raw for an unresolvable root)
 export function tag(t) {
-  return _globalThis[_Symbol$iterator]`${t}`;
+  return _self[_Symbol$iterator]`${t}`;
 }
 export const inHas = _isIterable(_self);

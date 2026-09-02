@@ -10,5 +10,5 @@ out = (g = _globalThis, v = null == g.window ? void 0 : _self)?.noSuchStatic;
 out2 = (g = _globalThis, v = null == g.window ? void 0 : _self)?.noSuchStatic;
 out3 = (g = _globalThis, v = null == g.window ? void 0 : _self)?.noSuchStatic;
 let s1;
-export const singleWrite = (s1 = _globalThis, _globalThis).noSuchStatic;
+export const singleWrite = (s1 = _globalThis, _self).noSuchStatic;
 export const read = [out, out2, out3];

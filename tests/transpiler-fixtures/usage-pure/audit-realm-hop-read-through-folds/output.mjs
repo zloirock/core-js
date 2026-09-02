@@ -30,7 +30,7 @@ export const storedFolds = null == (k = _self) ? void 0 : _Map.length;
 
 // ... and a harvested effect PREFIX does not revive the guard such a fold leaves behind: the
 // sequence hands its tail on, and that tail is the binding the substitution landed
-export const foldedPrefixGuard = (e++, _globalThis).name;
+export const foldedPrefixGuard = (e++, _self).name;
 
 // a `?.` standing BELOW the probe hop guards the always-defined root, not the probe: the vestigial
 // verdict calls it dead, so the read above it is the plain twin and folds with it. only a `?.` ON
