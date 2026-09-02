@@ -887,63 +887,150 @@ const C_SLOTS = [
   { id: 'branchy-return-ctor', setup: 'let c = 1; function h() { if (c) return Map; return Set; }', use: 'typeof h().groupBy', strip: false, fullEnvSnippet: true },
   { id: 'method-return-ctor', setup: 'const o = { m() { return Map; } };', use: 'typeof o.m().groupBy', strip: false, fullEnvSnippet: true },
   { id: 'getter-return-ctor', setup: 'const o = { get m() { return Map; } };', use: 'typeof o.m.groupBy', strip: false, fullEnvSnippet: true },
-  { id: 'write-reaching-destructure', setup: 'const w = { k: Object }; w.k = Map; const { k: { groupBy: g } } = w;', use: 'typeof g', strip: false },
-  { id: 'write-reaching-dynamic-key', setup: 'const w = { k: Object }; const dk = "k"; w[dk] = Map; const { k: { groupBy: g } } = w;', use: 'typeof g', strip: false },
-  { id: 'write-reaching-nested', setup: 'const i = { g: Object }; const w = { k: i }; i.g = Map; const { k: { g: { groupBy: g } } } = w;', use: 'typeof g', strip: false },
+  { id: 'write-reaching-destructure', setup: 'void Map.groupBy; const w = { k: Object }; w.k = Map; const { k: { groupBy: g } } = w;', use: 'typeof g', strip: false },
+  {
+    id: 'write-reaching-dynamic-key',
+    setup: 'void Map.groupBy; const w = { k: Object }; const dk = "k"; w[dk] = Map; const { k: { groupBy: g } } = w;',
+    use: 'typeof g', strip: false,
+  },
+  {
+    id: 'write-reaching-nested',
+    setup: 'void Map.groupBy; const i = { g: Object }; const w = { k: i }; i.g = Map; const { k: { g: { groupBy: g } } } = w;',
+    use: 'typeof g', strip: false,
+  },
   { id: 'reposition-destructure-read', setup: 'const b = [{ q: 1 }, Array]; b.reverse(); const { 0: { of: o } } = b;', use: 'typeof o', strip: false },
   // the FLAT destructure spelling over a container member asks the same walk: clean extracts
   // (strippable - the pure static must be polyfill-backed), written unions in global and bails pure
   { id: 'flat-destructure-clean', setup: 'const w = { k: Array }; const { of: o } = w.k;', use: 'JSON.stringify(o(6))', strip: true },
-  { id: 'flat-destructure-written', setup: 'const w = { k: Object }; w.k = Map; const { groupBy: g } = w.k;', use: 'typeof g', strip: false },
+  { id: 'flat-destructure-written', setup: 'void Map.groupBy; const w = { k: Object }; w.k = Map; const { groupBy: g } = w.k;', use: 'typeof g', strip: false },
   // a REASSIGNED container binding: the dominating write's value is the reaching primary, a
   // conditional write joins the union, a wrapper chain follows the same hop canon. pure bails all
-  { id: 'reassigned-dominating', setup: 'let w = { k: Object }; w = { k: Map }; const { k: { groupBy: g } } = w;', use: 'typeof g', strip: false },
-  { id: 'reassigned-conditional', setup: 'let w = { k: Object }; if (Math.random() < 2) w = { k: Map }; const { groupBy: g } = w.k;', use: 'typeof g', strip: false },
-  { id: 'reassigned-wrapper', setup: 'let w = [{ p: Object }]; w = [{ p: Map }]; const [{ p: { groupBy: g } }] = w;', use: 'typeof g', strip: false },
+  { id: 'reassigned-dominating', setup: 'void Map.groupBy; let w = { k: Object }; w = { k: Map }; const { k: { groupBy: g } } = w;', use: 'typeof g', strip: false },
+  {
+    id: 'reassigned-conditional',
+    setup: 'void Map.groupBy; let w = { k: Object }; if (Math.random() < 2) w = { k: Map }; const { groupBy: g } = w.k;',
+    use: 'typeof g', strip: false,
+  },
+  { id: 'reassigned-wrapper', setup: 'void Map.groupBy; let w = [{ p: Object }]; w = [{ p: Map }]; const [{ p: { groupBy: g } }] = w;', use: 'typeof g', strip: false },
   // reassignment VALUE semantics: an identity self-assign is a no-op (pure still resolves -
   // strippable), an SE-carrying write installs its sequence tail, cross-writes capture at the
   // write site (`a = b` reads b BEFORE `b = a` overwrites it)
   { id: 'reassigned-self-noop', setup: 'let w = { k: Array }; w = w; const { k: { of: o } } = w;', use: 'JSON.stringify(o(6))', strip: true },
   {
     id: 'reassigned-se-tail',
-    setup: 'let n = 0; const eff = () => n++; let w = { k: Object }; w = (eff(), { k: Map }); const { k: { groupBy: g } } = w;',
+    setup: 'void Map.groupBy; let n = 0; const eff = () => n++; let w = { k: Object }; w = (eff(), { k: Map }); const { k: { groupBy: g } } = w;',
     use: 'typeof g + n', strip: false,
   },
-  { id: 'reassigned-cross-write', setup: 'let a = { k: Object }; let b = { k: Map }; a = b; b = a; const { k: { groupBy: g } } = a;', use: 'typeof g', strip: false },
+  {
+    id: 'reassigned-cross-write',
+    setup: 'void Map.groupBy; let a = { k: Object }; let b = { k: Map }; a = b; b = a; const { k: { groupBy: g } } = a;',
+    use: 'typeof g', strip: false,
+  },
   // an object-pattern key spelling an array index pairs cross-form - the written value reaches
-  { id: 'reassigned-pattern-obj-lhs', setup: 'let w = { k: Object }; ({ 0: w } = [{ k: Map }]); const { k: { groupBy: g } } = w;', use: 'typeof g', strip: false },
+  {
+    id: 'reassigned-pattern-obj-lhs',
+    setup: 'void Map.groupBy; let w = { k: Object }; ({ 0: w } = [{ k: Map }]); const { k: { groupBy: g } } = w;',
+    use: 'typeof g', strip: false,
+  },
   // a branching / ambiguous write installs one of its arm values - each arm joins the union
   {
     id: 'reassigned-branching-write',
-    setup: 'let w = { k: Object }; w = Math.random() < 2 ? { k: Map } : { k: Object }; const { k: { groupBy: g } } = w;',
+    setup: 'void Map.groupBy; let w = { k: Object }; w = Math.random() < 2 ? { k: Map } : { k: Object }; const { k: { groupBy: g } } = w;',
     use: 'typeof g', strip: false,
   },
   {
     id: 'reassigned-ambiguous-default',
-    setup: 'let w = { k: Object }; ({ 0: w = { k: Map } } = [{ k: Object }]); const { k: { groupBy: g } } = w;',
+    setup: 'void Map.groupBy; let w = { k: Object }; ({ 0: w = { k: Map } } = [{ k: Object }]); const { k: { groupBy: g } } = w;',
     use: 'typeof g', strip: false,
   },
   // a logical BINDING assign flows its RHS as a possible value
-  { id: 'reassigned-logical-binding', setup: 'let w = null; w ||= { k: Map }; const { k: { groupBy: g } } = w;', use: 'typeof g', strip: false },
+  { id: 'reassigned-logical-binding', setup: 'void Map.groupBy; let w = null; w ||= { k: Map }; const { k: { groupBy: g } } = w;', use: 'typeof g', strip: false },
 ];
 
-// rows whose observable is a static read off a WRITTEN container slot (`typeof g`) are green only by
-// chunk composition: the pure ponyfill carries that static only if some NEIGHBOUR in the same process
-// imported its module, so the value drifts with the shard order (measured: `map/constructor` alone
-// answers undefined, `function` once `map/group-by` is loaded). By themselves they are RED - they
-// encode the open write-reaching-slot defect (FC-19 / S223-2, prototype-patch pin), and the queue's
-// own rule is that a corpus row for an open defect does not belong here. Out until that fix lands;
-// the forms stay recorded in the cluster with their repro.
-const ORDER_DEPENDENT_SLOT_ROWS = new Set([
-  'write-reaching-destructure', 'write-reaching-dynamic-key', 'write-reaching-nested',
-  'flat-destructure-written', 'reassigned-dominating', 'reassigned-conditional', 'reassigned-wrapper',
-  'reassigned-cross-write', 'reassigned-pattern-obj-lhs', 'reassigned-branching-write',
-  'reassigned-ambiguous-default', 'reassigned-logical-binding',
-  'reassigned-se-tail',
-]);
+// --- A patch installed through a PARAMETER: the call is what says which object it lands on ---
+// the receiver of the write never spells the constructor, so the pairing between a call's argument
+// and the parameter it lands in IS the whole detection. the cross-product is the two halves of that
+// pairing: HOW the function is named (declaration, declarator-bound arrow, method key) x HOW the
+// value reaches the parameter (positional argument, inline-array spread, a later slot, the
+// parameter's own default). the restore travels through a parameter TOO, and that is load-bearing
+// twice over: it keeps the realm clean without leaving a flat write in the file, and a flat write
+// would deopt the read on its own - pinning every row green whether the pairing works or not. a
+// REST collection is the one spelling left out: the value lands in an array this pass does not
+// open, so a row on it would lock a divergence instead of the pairing
+const P_NAMED = [
+  { id: 'declaration', head: 'function install', call: 'install' },
+  { id: 'declarator-arrow', head: 'const install = ', arrow: true, call: 'install' },
+  { id: 'method-key', method: true, call: 'holder.install' },
+];
+const P_REACHES = [
+  { id: 'positional', params: 'target', args: 'Map' },
+  { id: 'spread-literal', params: 'target', args: '...[Map]' },
+  { id: 'second-slot', params: 'first, target', args: '0, Map' },
+  { id: 'own-default', params: 'target = Map', args: '' },
+];
+// NEGATIVES: no call hands the constructor over, so nothing is patched and nothing needs restoring
+const P_UNTOUCHED = [
+  { id: 'plain-object-arg', call: 'install({});' },
+  { id: 'never-called', call: '' },
+];
+function * generateParamInstalledPatch() {
+  const read = 'return String(Map.groupBy([1], x => x));';
+  const put = 'function put(t, v) { t.groupBy = v; }';
+  for (const named of P_NAMED) {
+    for (const reach of P_REACHES) {
+      const write = 'target.groupBy = function () { return "P"; }';
+      const body = named.method
+        ? `const holder = { install(${ reach.params }) { ${ write }; } };`
+        : named.arrow
+          ? `${ named.head }(${ reach.params }) => { ${ write }; };`
+          : `${ named.head }(${ reach.params }) { ${ write }; }`;
+      yield {
+        ...snippet(`param-installed-patch/${ named.id }-${ reach.id }`,
+          `(() => { ${ put } const _o = Map.groupBy; ${ body }`
+          + ` try { ${ named.call }(${ reach.args }); ${ read } } finally { put(Map, _o); } })()`),
+        strip: false,
+      };
+    }
+  }
+  for (const untouched of P_UNTOUCHED) {
+    yield {
+      ...snippet(`param-installed-patch/untouched-${ untouched.id }`,
+        '(() => { function install(target) { target.groupBy = function () { return "P"; }; }'
+        + ` ${ untouched.call } ${ read } })()`),
+      strip: false,
+    };
+  }
+}
+
+// ... and the same pairing asked of every call-like HOST, since not all of them spell the callee
+// the way a plain call does. one setter per row takes the receiver and the value, and the row calls
+// it twice through the host under test - patch, read, put back - so the host is the only thing in
+// the file that can name the write and the realm is clean either way
+const P_HOSTS = [
+  { id: 'plain-call', setter: 'function set(t, v) { t.groupBy = v; }', use: v => `set(Map, ${ v });` },
+  { id: 'class-constructor', setter: 'class Set_ { constructor(t, v) { t.groupBy = v; } }', use: v => `new Set_(Map, ${ v });` },
+  { id: 'immediate-literal', setter: '', use: v => `(function (t, v) { t.groupBy = v; })(Map, ${ v });` },
+  { id: 'tagged-template', setter: 'function set(s, t, v) { t.groupBy = v; }', use: v => `set\`\${ Map }\${ ${ v } }\`;` },
+  { id: 'dot-call', setter: 'function set(t, v) { t.groupBy = v; }', use: v => `set.call(null, Map, ${ v });` },
+  { id: 'dot-apply', setter: 'function set(t, v) { t.groupBy = v; }', use: v => `set.apply(null, [Map, ${ v }]);` },
+  { id: 'reflect-apply', setter: 'function set(t, v) { t.groupBy = v; }', use: v => `Reflect.apply(set, null, [Map, ${ v }]);` },
+  { id: 'immediate-bind', setter: 'function set(t, v) { t.groupBy = v; }', use: v => `set.bind(null, Map)(${ v });` },
+];
+function * generateParamInstalledPatchHosts() {
+  for (const host of P_HOSTS) {
+    yield {
+      ...snippet(`param-installed-patch/host-${ host.id }`,
+        `(() => { ${ host.setter } const _o = Map.groupBy;`
+        + ` try { ${ host.use('function () { return "P"; }') }`
+        + ' return String(Map.groupBy([1], x => x)); }'
+        + ` finally { ${ host.use('_o') } } })()`),
+      strip: false,
+    };
+  }
+}
+
 function * generateContainerSlots() {
   for (const s of C_SLOTS) {
-    if (ORDER_DEPENDENT_SLOT_ROWS.has(s.id)) continue;
     const body = `(() => { ${ s.setup } return ${ s.use }; })()`;
     yield { ...snippet(`container-slot/${ s.id }`, body), strip: s.strip, ...s.fullEnvSnippet ? { fullEnv: true } : {} };
   }
@@ -7815,6 +7902,8 @@ export function * generate() {
   yield * generateAnchorKeySpelling();
   yield * generateAnchorInnerShape();
   yield * generateDestructureAlias();
+  yield * generateParamInstalledPatch();
+  yield * generateParamInstalledPatchHosts();
   yield * generateContainerSlots();
   yield * generateDominatingWrites();
   yield * generateProxyAliasCells();
