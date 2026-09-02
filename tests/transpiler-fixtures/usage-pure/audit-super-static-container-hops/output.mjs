@@ -1,5 +1,5 @@
 import _Array$fromAsync from "@core-js/pure/actual/array/from-async";
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Object$groupBy from "@core-js/pure/actual/object/group-by";
 import _Promise from "@core-js/pure/actual/promise/constructor";

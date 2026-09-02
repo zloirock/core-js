@@ -385,3 +385,23 @@ testUnlessDetectLowered('mutated-slots: a delete through a probe nav reaches the
     else delete globalThis.WeakSet;
   }
 });
+
+// a LOWERCASE global is a slot like any other: the admission that decides which bare writes
+// replace one reads the compat catalogue, not the first letter. before the fix `structuredClone =
+// shim` was no slot write at all, so the ponyfill was substituted straight over the replacement
+// and the shim never ran
+QUnit.test('mutated-slots: a lowercase global slot write owns its reads', assert => {
+  const had = 'structuredClone' in globalThis;
+  const original = globalThis.structuredClone;
+  // pre-create the slot: a strict-mode bare write to a MISSING global ReferenceErrors, and the
+  // stripped realm is exactly the environment this name is absent in
+  if (!had) globalThis.structuredClone = function stub() { return null; };
+  // eslint-disable-next-line no-global-assign -- the bare slot write IS the case under test
+  structuredClone = function patched() { return 'LOWERCASE-SLOT'; };
+  try {
+    assert.same(structuredClone({}), 'LOWERCASE-SLOT');
+  } finally {
+    if (had) globalThis.structuredClone = original;
+    else delete globalThis.structuredClone;
+  }
+});

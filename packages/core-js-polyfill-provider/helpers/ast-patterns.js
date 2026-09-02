@@ -797,6 +797,10 @@ export function isTopLevelThisContext(path) {
     const type = current.node?.type;
     if (type === 'ClassBody') return false;
     if (type === 'Program') return true;
+    // a TS namespace / enum body compiles to an IIFE, so its `this` is the IIFE's, never the
+    // realm - the same boundary the census frame drops its top-level flag at, and the two are
+    // asked about the same `this`
+    if (type === 'TSModuleBlock' || type === 'TSModuleDeclaration' || type === 'TSEnumDeclaration') return false;
     if (type !== 'ArrowFunctionExpression' && FUNCTION_LIKE_NODE_TYPES.has(type)) return false;
   }
   return false;
@@ -2344,6 +2348,59 @@ export function patternSlotHasDefault(pattern, name) {
   })(pattern, false);
 }
 
+// the binding target under a pattern slot: a DEFAULT wraps it, and every walk that pairs slots
+// against values peels the same way
+export function patternSlotTarget(target) {
+  return target?.type === 'AssignmentPattern' ? target.left : target;
+}
+
+// the key PATH from the pattern's root down to `name` - the slots a container read walks through
+// (`{ a: { b: { groupBy: g } } }` reads `g` through `a`, then `b`, then `groupBy`). the whole path
+// and not just its head: a nested container has no binding name of its own, so only the path can
+// name the slot a write replaced. `null` where a slot on the way cannot be named - a computed
+// spelling the key canon cannot fold, or a rest target, which takes every remaining slot. several
+// paths where the pattern binds the name more than once
+export function patternRootKeyPathsFor(pattern, name, ctx) {
+  const paths = [];
+  let unnameable = false;
+  function leadsTo(node) {
+    return !!node && patternBindsIdentifier(node, id => id.name === name);
+  }
+  function collectPaths(node, prefix) {
+    if (node?.type === 'Identifier') {
+      paths.push(prefix);
+      return;
+    }
+    if (node?.type === 'AssignmentPattern') {
+      collectPaths(node.left, prefix);
+      return;
+    }
+    if (node?.type === 'ObjectPattern') {
+      for (const prop of node.properties ?? []) {
+        if (prop.type === 'RestElement' || prop.type === 'SpreadElement') {
+          if (leadsTo(prop.argument)) unnameable = true;
+          continue;
+        }
+        if (prop.type !== 'Property' && prop.type !== 'ObjectProperty') continue;
+        if (!leadsTo(prop.value)) continue;
+        const key = patternPropKey(prop, ctx, node);
+        if (key === null) unnameable = true;
+        else collectPaths(patternSlotTarget(prop.value), [...prefix, key]);
+      }
+      return;
+    }
+    if (node?.type === 'ArrayPattern') {
+      (node.elements ?? []).forEach((element, index) => {
+        if (!leadsTo(element)) return;
+        if (element.type === 'RestElement') unnameable = true;
+        else collectPaths(patternSlotTarget(element), [...prefix, String(index)]);
+      });
+    }
+  }
+  collectPaths(pattern, []);
+  return unnameable ? null : paths;
+}
+
 // the caller-correct FALLBACK SLOT the probe rule stops at: a value that runs ONLY when nothing was
 // passed - a parameter default and an inner destructure default, both spelled as an AssignmentPattern
 // right. the slot's doctrine lives in the provider's AGENTS.md: a PLAIN undefinable receiver keeps the
@@ -2736,9 +2793,6 @@ export function arrayLiteralSlotValue(node, key) {
 // side canon. ctx-less callers keep the node-only behaviour (literal rhs, static-name keys)
 export function patternSlotValues(pattern, rhs, name, ctx) {
   const out = [];
-  function slotFor(target) {
-    return target?.type === 'AssignmentPattern' ? target.left : target;
-  }
   // a const-identifier rhs bound to a literal (`const arr = [Map]; [A] = arr`) - follow it so the
   // pairing sees the underlying array / object, like the direct-literal form. the EFFECTIVE value
   // peel comes first: a paren (an oxc NODE), a TS cast or a sequence tail all hand the same
@@ -2759,7 +2813,7 @@ export function patternSlotValues(pattern, rhs, name, ctx) {
   if (pattern?.type === 'ArrayPattern') {
     for (let i = 0; i < pattern.elements.length; i++) {
       const element = pattern.elements[i];
-      const slot = slotFor(element);
+      const slot = patternSlotTarget(element);
       // a spread at or before slot i shifts every later position by the spread's runtime length,
       // so `rhs.elements[i]` is no longer THE value that lands in slot i. under the value-UNION
       // contract every static element from the first spread on is still a POSSIBLE slot value
@@ -2781,7 +2835,7 @@ export function patternSlotValues(pattern, rhs, name, ctx) {
   } else if (pattern?.type === 'ObjectPattern') {
     for (const prop of pattern.properties) {
       if (prop.type !== 'Property' && prop.type !== 'ObjectProperty') continue;
-      const slot = slotFor(prop.value);
+      const slot = patternSlotTarget(prop.value);
       const key = propKey(prop);
       // last matching key wins, but a trailing spread could override it -> bail (canonical helper)
       // an object-pattern key can spell a canonical ARRAY index (`({ 0: w } = [v])` reads
@@ -3297,7 +3351,9 @@ export function namespaceScopedBindingBlock(binding) {
 // top-level arg, else the position WITHIN the spread array) or null when undecidable: a non-inline-
 // array spread, OR a NESTED spread inside the inline array (`...[a, ...rest]`) - either makes the
 // expanded length variadic at compile time, so a later positional can't be statically located.
-// shared by the node lifter (`resolveCallArgument`) and the babel synth-swap path so they can't drift
+// shared by the node lifter (`resolveCallArgument`) and the babel synth-swap path so they can't drift.
+// a positional answer is not a whole-list one: the mutation census reads a spread's elements as a LIST
+// and refuses it entirely once any element is a spread, which is stricter than this walk on purpose
 export function resolveCallArgumentCoords(args, index) {
   let effective = 0;
   for (let argIndex = 0; argIndex < args.length; argIndex++) {
@@ -4052,6 +4108,14 @@ export function propertyKeyName(prop) {
   return staticStringKey(key);
 }
 
+// ... and the same key with the COMPUTED branch folded structurally - a sequence tail, a `+`
+// concat, a template with resolvable interpolations. the member side has had this pair as one
+// canon (`memberKeyName`) all along; every property-side caller spelled the ternary by hand, and
+// four copies of one rule drift the moment a fifth foldable shape is recognised
+export function foldedPropertyKeyName(prop) {
+  return prop.computed ? computedKeyStaticName(prop.key) : propertyKeyName(prop);
+}
+
 // `void <expr>` - the operator always evaluates to `undefined` whatever its operand, so the VALUE is
 // undefined even when the operand has effects (callers that also care about dropping the operand test
 // its effects separately). the narrower `void 0` spelling and the effect-free variant live with their
@@ -4710,9 +4774,14 @@ export function isDeoptedGlobalSlotRead(meta, adapter) {
 }
 
 // ... and the debug-warn that reports it, single-sourced beside the predicate so all three
-// emitters say the identical thing (it was spelled three times, once per emitter)
-export function mutatedSlotLeftNativeWarning(name) {
-  return `\`${ name }\` is written in this file (slot mutation) - the name is left native`;
+// emitters say the identical thing (it was spelled three times, once per emitter). WHY the name is
+// deopted comes from the set: a prototype receiver whose member could not be named taints the whole
+// name exactly as a slot write does, and reporting that one as a slot write named an edit the
+// source never made
+export function mutatedSlotLeftNativeWarning(name, mutatedSet = null) {
+  return mutatedSet?.has(`${ name }.prototype.${ MUTATED_MEMBERS_UNKNOWN }`)
+    ? `\`${ name }.prototype\` has a member written under a key this pass cannot read - the name is left native`
+    : `\`${ name }\` is written in this file (slot mutation) - the name is left native`;
 }
 
 // a node-keyed memo scoped to the plugin INSTANCE that asked. the verdicts cached behind it are
@@ -5013,8 +5082,13 @@ export function pureImportSourceEntry(source) {
 export function pureImportEntryOf(path, name) {
   let root = path;
   while (root?.parentPath?.node) root = root.parentPath;
+  return pureImportEntryOfProgram(root?.node, name);
+}
+
+// the same question asked of a program NODE, for the censuses that run before any path exists
+export function pureImportEntryOfProgram(root, name) {
   let source = null;
-  for (const decl of root?.node?.body ?? []) {
+  for (const decl of root?.body ?? []) {
     if (decl.type === 'ImportDeclaration'
       && decl.specifiers?.some(sp => sp.type === 'ImportDefaultSpecifier' && sp.local?.name === name)) {
       source = decl.source?.value ?? null;
@@ -5026,7 +5100,7 @@ export function pureImportEntryOf(path, name) {
         && declarator.init?.type === 'CallExpression' && declarator.init.callee?.name === 'require'
         && typeof declarator.init.arguments?.[0]?.value === 'string'
         // an in-file `require` binding shadows the CJS import - the alias stays opaque
-        && !declaresRequireBinding(root.node.body)) {
+        && !declaresRequireBinding(root.body)) {
         source = declarator.init.arguments[0].value;
         break;
       }
