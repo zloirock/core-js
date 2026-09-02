@@ -1,0 +1,9 @@
+core-js@4: `DEBUG` option
+
+Using targets: <RESOLVED>
+
+Using polyfills with `usage-pure` method:
+Based on your code and targets, the core-js@4 polyfill did not add any polyfill.
+
+Warnings:
+  `Number.prototype` has a member written under a key this pass cannot read - the name is left native
