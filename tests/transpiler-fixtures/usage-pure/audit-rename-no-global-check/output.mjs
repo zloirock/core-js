@@ -21,7 +21,7 @@ Object.defineProperty(_self, '_ref3', {
 });
 export const f = _flatMaybeArray(_ref7 = [4, [5]]).call(_ref7);
 // a proxy-HOP spelling names the same user slot through the alias - reserved the same way
-console.log(_globalThis._ref4);
+console.log(_self._ref4);
 export const g = _atMaybeArray(_ref8 = [6, 7]).call(_ref8, -1);
 // a computed STRING-key spelling folds to the same slot name - reserved too
 console.log(_globalThis['_ref5']);

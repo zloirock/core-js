@@ -1,7 +1,7 @@
 import _getIterator from "@core-js/pure/actual/get-iterator";
 import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
-import _globalThis from "@core-js/pure/actual/global-this";
 import _isIterable from "@core-js/pure/actual/is-iterable";
+import _self from "@core-js/pure/actual/self";
 import _Symbol$toStringTag from "@core-js/pure/actual/symbol/to-string-tag";
 // Excluding the iterator helper entries must NOT flip the emit canon: `obj[Symbol.iterator]`
 // still collapses to the get-iterator-method helper (the helper wraps native lookups and stays
@@ -13,7 +13,7 @@ import _Symbol$toStringTag from "@core-js/pure/actual/symbol/to-string-tag";
 let obj = {};
 const it = _getIteratorMethod(obj);
 const tag = obj[_Symbol$toStringTag];
-const strand = _getIteratorMethod(_globalThis);
+const strand = _getIteratorMethod(_self);
 // the sibling helper canons survive their entries' exclusion the same way: the zero-arg call
 // shape keeps the get-iterator helper, the `in` fold keeps is-iterable
 const called = _getIterator([1]);

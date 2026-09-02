@@ -1,16 +1,16 @@
-import _globalThis from "@core-js/pure/actual/global-this";
 import _Iterator from "@core-js/pure/actual/iterator/constructor";
 import _Map from "@core-js/pure/actual/map/constructor";
 import _Object$values from "@core-js/pure/actual/object/values";
 import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Reflect from "@core-js/pure/actual/reflect/namespace";
+import _self from "@core-js/pure/actual/self";
 // an UNCLAIMED object-pattern destructure (no polyfillable prop) has no owner in the
 // destructure pipeline, so its proxy-hop receiver collapses in place exactly like a
 // non-destructure receiver - deferring would strand a raw `_globalThis['self']...`
 // (undefined off-engine)
 const {
   qq1
-} = _globalThis.Array.prototype;
+} = _self.Array.prototype;
 export const r1 = typeof qq1;
 // dot-hop with a trailing member read
 const {
@@ -31,7 +31,7 @@ export const r4 = typeof qq4;
 // parameter default host
 function pf({
   qq5
-} = _globalThis.Number) {
+} = _self.Number) {
   return typeof qq5;
 }
 export const r5 = pf();
@@ -46,12 +46,12 @@ export const r6 = [typeof qq6, se1];
 const values = _Object$values;
 const {
   qq7
-} = _globalThis.Object;
+} = _self.Object;
 export const r7 = [typeof values, typeof qq7];
 // sequence-wrapped ROOT stays uncollapsed (root swap only, prefix effect in place) -
 // matches the non-destructure canon for wrapped roots
 let se2 = 0;
 const {
   qq8
-} = (se2++, _globalThis).JSON;
+} = (se2++, _self).JSON;
 export const r8 = [typeof qq8, se2];
