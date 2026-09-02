@@ -17,6 +17,8 @@ import {
   requireCallSource,
   rootProgramOf,
   statementListOf,
+  tsImportEqualsRequireSource,
+  unwrapExportedDeclaration,
   unwrapRuntimeExpr,
 } from '../helpers/ast-patterns.js';
 
@@ -41,12 +43,20 @@ export function ownOutputTests(injector) {
         let may = shapeByProgram.get(rootNode);
         if (may === undefined) {
           may = false;
-          for (const decl of rootNode?.body ?? []) {
-            if (decl.type === 'ImportDeclaration' && tests.isPureImportSource(decl.source?.value ?? '')) {
+          for (const stmt of rootNode?.body ?? []) {
+            // the export wrapper / modifier changes nothing about what the binding holds
+            const decl = unwrapExportedDeclaration(stmt);
+            if (decl?.type === 'ImportDeclaration' && tests.isPureImportSource(decl.source?.value ?? '')) {
               may = true;
               break;
             }
-            if (decl.type !== 'VariableDeclaration') continue;
+            // the TS `import x = require(...)` spelling of the same binding
+            if (decl?.type === 'TSImportEqualsDeclaration'
+              && tests.isPureImportSource(tsImportEqualsRequireSource(decl) ?? '')) {
+              may = true;
+              break;
+            }
+            if (decl?.type !== 'VariableDeclaration') continue;
             for (const declarator of decl.declarations) {
               if (declarator.id?.type !== 'Identifier') continue;
               if (!declarator.init && ORPHAN_REF_PATTERN.test(declarator.id.name)) {

@@ -19,6 +19,5 @@ export const viaDeeperChain = typeof (M2 === _Map ? _Map$groupBy : M2.groupBy);
 
 // an unconditional sequence-position write still folds
 let M3;
-0;
 M3 = _Map;
 export const viaUnconditional = typeof _Map$groupBy;

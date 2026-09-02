@@ -39,6 +39,7 @@ import {
   DISABLE_NEXT_LINE_DIRECTIVE,
   buildOffsetToLine,
   buildOffsetToLineColumn,
+  directiveCoveredLine,
   disableDirectiveAnchors,
   isLineBoundDisableDirective,
   isNextLineDisableDirective,
@@ -255,16 +256,23 @@ function anchorDisableDirectives({ ast, comments, code, offsetToLine, disabledLi
     if (parent?.type === 'ExportNamedDeclaration' && parent.declaration === node) return parent;
     return isStatementPosition(node, parent) ? node : null;
   }
-  if (comments?.length) walkAstNodes({ root: ast, visit(node, parent) {
+  // the line-bound directives by the line each one COVERS (the next line for `-next-line`, its own
+  // for `-line`), indexed once: both channels below ask "which directives cover this line" per
+  // node, and a scan of the comment list per node is quadratic on a file that opts out per statement
+  const coveringByLine = new Map();
+  for (const comment of comments ?? []) {
+    if (!isLineBoundDisableDirective(comment.value)) continue;
+    const covered = directiveCoveredLine(comment, offsetToLine);
+    if (covered === null) continue;
+    if (!coveringByLine.has(covered)) coveringByLine.set(covered, []);
+    coveringByLine.get(covered).push(comment);
+  }
+  if (coveringByLine.size) walkAstNodes({ root: ast, visit(node, parent) {
     if (node.type === 'VariableDeclaration' && node.declarations.length === 1) {
       const target = hoistTarget(node, parent);
       const line = target ? soleChainCoveredLine(node.declarations[0].id) : null;
       if (line !== null) {
-        for (const comment of comments) {
-          if (typeof comment.start !== 'number' || !isLineBoundDisableDirective(comment.value)) continue;
-          const commentLine = offsetToLine(comment.end - 1);
-          const covers = isNextLineDisableDirective(comment.value) ? commentLine + 1 === line : commentLine === line;
-          if (!covers) continue;
+        for (const comment of coveringByLine.get(line) ?? []) {
           if (!anchored.has(target)) anchored.set(target, []);
           anchored.get(target).push(anchorText);
           removed.add(comment);
@@ -272,13 +280,14 @@ function anchorDisableDirectives({ ast, comments, code, offsetToLine, disabledLi
       }
     }
   } });
-  const leadingDirectives = (comments ?? []).filter(comment => typeof comment.start === 'number'
-    && typeof comment.end === 'number' && isNextLineDisableDirective(comment.value));
   function ownDirectiveText(node) {
     if (typeof node.start !== 'number') return anchorText;
     const line = offsetToLine(node.start);
-    const own = leadingDirectives.find(comment => comment.end <= node.start
-      && code.slice(comment.end, node.start).trim() === '' && offsetToLine(comment.end - 1) + 1 === line);
+    // the directive standing directly above the node: a `-next-line` covering its line with nothing
+    // but whitespace between the two - the slice is at most the indent, the directive ends on the
+    // line above
+    const own = (coveringByLine.get(line) ?? []).find(comment => isNextLineDisableDirective(comment.value)
+      && comment.end <= node.start && code.slice(comment.end, node.start).trim() === '');
     if (!own) return anchorText;
     removed.add(own);
     return code.slice(own.start, own.end);
