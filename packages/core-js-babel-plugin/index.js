@@ -86,6 +86,7 @@ import { createPolyfillResolver } from '@core-js/polyfill-provider/resolver';
 import { createModuleInjectors } from '@core-js/polyfill-provider/plugin-options/inject';
 import { createUsageGlobalCallback } from '@core-js/polyfill-provider/plugin-options/usage-callback';
 import {
+  attachMemberUnionExtras,
   enumerateFallbackDestructureBranches,
   renameSplitPropsToSentinels,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
@@ -594,7 +595,9 @@ export default function plugin(api, options) {
         isInStaticContext,
         isShadowedByClassOwnMember,
         reset: resetClassHelpers,
-      } = createClassHelpers({ t, adapter, resolveKey: sharedResolveKey, getInjector: () => injector });
+      } = createClassHelpers({
+        t, adapter, resolveKey: sharedResolveKey, getInjector: () => injector, attachUnionExtras: attachMemberUnionExtras,
+      });
       // wire the forward references so the top-level optional-chain deopt check can resolve
       // supers and reject own-static shadows of `this.X`
       resolveSuperStaticFn = resolveStaticInheritedMember;
