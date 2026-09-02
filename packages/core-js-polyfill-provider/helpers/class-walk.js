@@ -368,7 +368,13 @@ export function assignmentAliasWriteTrusted({ binding, assignNode, stmtPath, rea
 // is false - the name is DEOPTED and its reads stay verbatim, so a pristine hint would
 // contradict the emit. ALL binding-less registration sites route through here
 export function registerBindinglessCtorAlias({ injector, adapter, localName, hint }) {
-  if (!isMutatedGlobalSlot(adapter, localName)) injector.registerGlobalAlias(localName, hint, { trusted: true });
+  // the assertion is about the HINT - "this name holds the pristine `<hint>`" - so the hint's own
+  // slot is what has to be untouched. asking only the LOCAL name covered the shorthand spelling
+  // (`({ Promise } = globalThis)`, where the two coincide) and nothing else: under a RENAME
+  // (`({ Promise: p } = globalThis)`) `p` names no global slot at all, so a replaced `Promise`
+  // registered as pristine and every read of `p` narrowed to the ponyfill
+  if (isMutatedGlobalSlot(adapter, hint) || isMutatedGlobalSlot(adapter, localName)) return;
+  injector.registerGlobalAlias(localName, hint, { trusted: true });
 }
 
 export function registerCtorAliasExtractions({ plan, declarator, scope, adapter, injector, path }) {
@@ -702,6 +708,9 @@ export function registerDeclAliasIfSound({
 // `_Symbol`, and the defaulted-ternary form; rejects any other object
 function aliasInitResolvesToSymbol(node, scope, adapter, injector, seen, followDestructured, keyCtx = null) {
   if (!node) return false;
+  // a SLOT-mutated `Symbol` is the user's replacement and its keys are not the well-known symbols -
+  // the half `resolvesToGlobalSymbol` asks before any name walk, owed by this fork too
+  if (isMutatedGlobalSlot(adapter, 'Symbol')) return false;
   if (node.type === 'ConditionalExpression' || node.type === 'LogicalExpression') {
     return branchingInitResolves(node, scope, adapter,
       branch => aliasInitResolvesToSymbol(branch, scope, adapter, injector, seen, followDestructured, keyCtx));
@@ -711,7 +720,7 @@ function aliasInitResolvesToSymbol(node, scope, adapter, injector, seen, followD
     // a bare `Symbol` counts only while unshadowed - a user binding (`const Symbol = Array`)
     // redirects the read to the user object, and folding its keys as well-known symbols
     // would substitute the wrong VALUE
-    if (peeled.name === 'Symbol') return !adapter?.hasBinding?.(scope, 'Symbol');
+    if (peeled.name === 'Symbol') return !adapter?.hasBinding?.(scope, 'Symbol', keyCtx?.path ?? null);
     // plugin-minted imports only (`_Symbol` after an in-place rewrite): a USER-named
     // body-extract record carries its binding NAME as the fallback hint, so a user binding
     // that happens to be NAMED `Symbol` (`const { iterator: Symbol } = ...`) would masquerade
