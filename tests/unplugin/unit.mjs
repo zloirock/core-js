@@ -1291,6 +1291,14 @@ function checkPhaseSnapshotFlow() {
     check(`phase/pre re-anchors a trailing -line opt-out too (${ engine })`,
       /\n\/\/ core-js-disable-next-line\nconst /.test(directiveLine?.code ?? ''), true);
     check(`phase/pre re-anchors a trailing -line opt-out once (${ engine })`, directiveCount(directiveLine?.code), 1);
+    // ... a `-line` in a block comment that closes LOWER covers the line it opens on - the same
+    // line the scan disables - so the hoist is anchored off that line, not off the closing one
+    const directiveBlock = createPlugin(pureOpts).transform(
+      'const {\n  Map: { groupBy },\n  Object: { groupBy: og }, /* note\n  core-js-disable-line */\n} = globalThis;\nuse(groupBy, og);',
+      '/sm-directive-block.mjs', 'pre');
+    check(`phase/pre re-anchors a block -line opt-out by the line it opens on (${ engine })`,
+      /\n\/\/ core-js-disable-next-line\nconst /.test(directiveBlock?.code ?? ''), true);
+    check(`phase/pre keeps the block -line opt-out off the claim (${ engine })`, /groupBy: og/.test(directiveBlock?.code ?? ''), true);
     // a POSITIONED host - a statement no emission rebuilt - is adopted too: the in-pattern
     // comment dies in the sibling lowering all the same, so pre re-anchors it even though
     // the statement itself needed no rewrite (and, below, even when it is the file's ONLY
@@ -1671,6 +1679,25 @@ async function checkAstPrintContracts() {
   const yielded = reprint('function* g() {\n  yield (\n    // note\n    a\n  );\n}\n');
   check('print keeps the parens guarding a comment after yield', /yield \(\n\s*\/\/ note\n\s*a\n\s*\);/.test(yielded), true);
   check('print still peels the parens of a comment-free throw operand', reprint('function f() {\n  throw (a);\n}\n').includes('throw a;'), true);
+  // a comment that opens AFTER the operand does not guard anything: the parens peel as usual
+  check('print peels the parens when the comment follows the throw operand', /throw \(/.test(reprint('function f() {\n  throw (a /* after */);\n}\n')), false);
+  // a multi-line block comment with the next statement on its closing line: the print opens that
+  // statement clean on the next line, and the print of the print is the same bytes
+  const closingLine = reprint('/* note\n */ arr.includes(x);\narr.at(0);\n');
+  check('print puts a follower of a multi-line block comment on its own clean line', /\*\/\narr\.includes\(x\);/.test(closingLine), true);
+  check('print of a multi-line block comment with a follower is a fixed point', reprint(closingLine), closingLine);
+  // a multi-line block comment inside a block: esrap indents its interior by the current indent and
+  // keeps the author's, so the author's has to come off first or the print gained a level per pass
+  const nested = 'if (a) {\n  /* a\n   */ foo();\n}\n';
+  const nestedOnce = reprint(nested);
+  check('print indents a nested multi-line block comment once', /\{\n\t\/\* a\n\t \*\/\n\tfoo\(\);\n\}/.test(nestedOnce), true);
+  check('print of a nested multi-line block comment is a fixed point', reprint(nestedOnce), nestedOnce);
+  check('print keeps the interior of a top-level block comment', reprint('/* a\n   b\n */\nfoo();\n').includes('/* a\n   b\n */'), true);
+  // the line's indent comes off, not the comment's column: a comment deeper in its line keeps the
+  // alignment of its interior past the line's indent
+  const cast = 'const foo = /**\n * @type {number}\n */ (1);\n';
+  check('print keeps the alignment of a block comment deeper in its line', reprint(cast).includes('/**\n * @type {number}\n */'), true);
+  check('print of a block comment deeper in its line is a fixed point', reprint(reprint(cast)), reprint(cast));
 }
 await checkAstPrintContracts();
 
@@ -2963,6 +2990,9 @@ function checkMinifierSplitSourceMap() {
       ['console.log(Object.entries(o))', '({ x } = o)', 'console.log(Object.assign({}, o))']],
     ['braced if-body', 'const o = { x: 1 }, c = 1;\nif (c) (Object.entries(o), ({ x } = o)); Object.assign({}, o);\n',
       ['Object.entries(o)', '({ x } = o)', 'Object.assign({}, o)']],
+    // a require slot splits the same way, and its product maps where the call was written
+    ['require slot', "const o = { x: 1 };\nconsole.log(Object.entries(o)), require('lib'), ({ x } = o);\n",
+      ['console.log(Object.entries(o))', "require('lib')", '({ x } = o)']],
   ];
   for (const [label, source, operands] of cases) {
     const out = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } }).transform(source, '/p.mjs');

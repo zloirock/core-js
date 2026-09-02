@@ -125,6 +125,23 @@ export function isNextLineDisableDirective(value) {
   return disableDirectiveKind(value) === 'next-line';
 }
 
+// the line a line-bound directive comment covers - ONE rule for the scan that decides coverage and
+// for every channel that re-anchors an honoured directive: `-line` covers the line the comment
+// OPENS on (the README's "current line"; a multi-line block that closes lower still covers where it
+// began), `-next-line` covers the line after the one it CLOSES on. babel carries `loc`, oxc offsets;
+// a comment with neither (a sibling plugin's synthesis) covers nothing
+export function directiveCoveredLine(comment, offsetToLine) {
+  let startLine, endLine;
+  if (comment.loc) {
+    startLine = comment.loc.start.line;
+    endLine = comment.loc.end.line;
+  } else if (offsetToLine && comment.start !== undefined && comment.end !== undefined) {
+    startLine = offsetToLine(comment.start);
+    endLine = offsetToLine(comment.end - 1);
+  } else return null;
+  return isNextLineDisableDirective(comment.value) ? endLine + 1 : startLine;
+}
+
 // `firstStmtStart`: `disable-file` fires only above all code (eslint-style scope).
 // `ast`: enables multi-line expansion for `disable-next-line` so directives cover the
 // whole following statement, not just its first line
@@ -142,24 +159,13 @@ export function parseDisableDirectives({ comments, offsetToLine, firstStmtStart,
       if (firstStmtStart === undefined || firstStmtStart === null || comment.end <= firstStmtStart) return true;
       continue;
     }
-    // synthetic comments (injected by sibling plugins) may lack `loc`/`start`/`end`
-    let startLine, endLine;
-    if (comment.loc) {
-      startLine = comment.loc.start.line;
-      endLine = comment.loc.end.line;
-    } else if (offsetToLine && comment.start !== undefined && comment.end !== undefined) {
-      startLine = offsetToLine(comment.start);
-      endLine = offsetToLine(comment.end - 1);
-    } else continue;
-    if (kind === 'line') {
-      lines.add(startLine);
-      continue;
-    }
-    const nextLine = endLine + 1;
-    lines.add(nextLine);
-    const stmtEndLine = ast ? findStatementEndLine({ node: ast, targetLine: nextLine, offsetToLine }) : null;
-    if (stmtEndLine > nextLine) {
-      for (let i = nextLine + 1; i <= stmtEndLine; i++) lines.add(i);
+    const covered = directiveCoveredLine(comment, offsetToLine);
+    if (covered === null) continue;
+    lines.add(covered);
+    if (kind === 'line') continue;
+    const stmtEndLine = ast ? findStatementEndLine({ node: ast, targetLine: covered, offsetToLine }) : null;
+    if (stmtEndLine > covered) {
+      for (let i = covered + 1; i <= stmtEndLine; i++) lines.add(i);
     }
   }
   return lines.size ? lines : null;
@@ -182,7 +188,10 @@ const TEXT_NODE_TYPES = new Set(['JSXText', 'TemplateElement']);
 // injecting on a line the user disabled. an explicit worklist keeps the depth off the JS stack, so
 // the walk needs no budget; `visited` covers the only unbounded case left, a cyclic foreign tree.
 // the recursion this replaces only ever propagated the MAX end-line upward, so one flat accumulator
-// over the whole frontier is the same answer
+// over the whole frontier is the same answer. the descent takes only the children that can hold
+// the line (`pushChildrenHolding`): pushing every member of every list walked made the scan pay
+// the whole top level per directive, (directives x top-level statements) - two line lookups per
+// member on the offset-carrying parser - and a file with an opt-out per statement went quadratic
 function findStatementEndLine({ node, targetLine, offsetToLine }) {
   const pending = isASTNode(node) ? [node] : [];
   // only nodes we DESCEND from need recording - the two `continue`s above are terminal, so a cycle
@@ -204,10 +213,52 @@ function findStatementEndLine({ node, targetLine, offsetToLine }) {
     }
     if (descended.has(cur)) continue;
     descended.add(cur);
-    // element-wise, never a spread: a generated file's statement list can exceed the argument limit
-    walkAstChildren(cur, child => pending.push(child));
+    pushChildrenHolding(cur, targetLine, offsetToLine, pending);
   }
   return best;
+}
+
+// the children of `cur` that can hold `targetLine`, pushed for the scan above. a single-slot child
+// goes as is - the pop filters it; a LIST child is a source-ordered run of non-overlapping siblings,
+// so the members holding the line are contiguous: a binary search over their start lines finds the
+// last one opening on or before it, and the run walks back while a member still reaches it. a list
+// the search cannot order - a hole, a non-node, a member without a position (a sibling plugin's
+// synthesis) at a probe - takes the element-wise push instead, which is the pop's own filter again
+function pushChildrenHolding(cur, targetLine, offsetToLine, pending) {
+  // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
+  for (const key in cur) {
+    const value = cur[key];
+    if (Array.isArray(value)) pushListMembersHolding(value, targetLine, offsetToLine, pending);
+    else if (isASTNode(value)) pending.push(value);
+  }
+}
+
+// the list half of the descent above: the search, the walk back, and the element-wise fallback
+function pushListMembersHolding(list, targetLine, offsetToLine, pending) {
+  let lo = 0;
+  let hi = list.length - 1;
+  let last = -1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    const span = isASTNode(list[mid]) ? nodeLineSpan(list[mid], offsetToLine) : null;
+    if (!span) {
+      // element-wise, never a spread: a generated file's statement list can exceed the argument limit
+      for (const member of list) if (isASTNode(member)) pending.push(member);
+      return;
+    }
+    if (span.start <= targetLine) {
+      last = mid;
+      lo = mid + 1;
+    } else hi = mid - 1;
+  }
+  for (let i = last; i >= 0; i--) {
+    const member = list[i];
+    const span = isASTNode(member) ? nodeLineSpan(member, offsetToLine) : null;
+    // a hole or a position-less member carries no order of its own; the members around it keep theirs
+    if (!span) continue;
+    if (span.end < targetLine) break;
+    pending.push(member);
+  }
 }
 
 // babel carries `node.loc.start/end.line`; oxc carries offsets only
