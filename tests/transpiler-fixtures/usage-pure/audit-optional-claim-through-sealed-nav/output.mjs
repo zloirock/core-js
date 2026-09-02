@@ -1,6 +1,6 @@
 import _Array$of from "@core-js/pure/actual/array/of";
-import _globalThis from "@core-js/pure/actual/global-this";
 import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
+import _self from "@core-js/pure/actual/self";
 // the guarded object of a live `?.` is found by walking DOWN to the hop whose value can be undefined,
 // and that walk stops only at a seal hiding a SHORT-CIRCUIT: a seal over a plain nav hides nothing the
 // value canon does not already answer, so the walk goes through it and the chain collapses like its
@@ -10,7 +10,7 @@ import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
 let n = 0;
 export const optionalCallThroughSeal = _Array$of(5);
 export const optionalCallDeeperSeal = _Array$of(5);
-export const optionalMemberThroughSeal = _globalThis.Array?.prototype;
+export const optionalMemberThroughSeal = _self.Array?.prototype;
 export const optionalCallSeqSeal = (n++, _Array$of)(5);
 // the TEST is a render, and the engine used to leave it in the tree for the visitors: a claim then
 // collapsed it to the leaf ponyfill (`null == _Promise`), erasing the read the seal makes observable

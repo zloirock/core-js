@@ -1,5 +1,5 @@
 import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
-import _globalThis from "@core-js/pure/actual/global-this";
+import _self from "@core-js/pure/actual/self";
 import _atMaybeString from "@core-js/pure/actual/string/instance/at";
 // A NESTED-SEQUENCE side-effecting computed proxy hop key (`globalThis[(e++, (d++, 'self'))].X`) must fold
 // to the tail name AND harvest EVERY buried effect in source order, dropping the redundant hop:
@@ -11,6 +11,6 @@ let e = 0,
   d = 0,
   f = 0,
   g = 0;
-const arr = _includesMaybeArray((e++, d++, _globalThis).Array.prototype).call([1], 1);
-const str = _atMaybeString((f++, g++, _globalThis).String.prototype).call('a', 0);
+const arr = _includesMaybeArray((e++, d++, _self).Array.prototype).call([1], 1);
+const str = _atMaybeString((f++, g++, _self).String.prototype).call('a', 0);
 export { arr, str, e, d, f, g };

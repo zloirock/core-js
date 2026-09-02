@@ -20,10 +20,10 @@ var _ref, _ref2, _ref3, _ref4;
 let q1, q2, q3, q4, q5, q6;
 let c = 0;
 let other;
-export const parenSubject = _findLastMaybeArray((q1 = _globalThis, _globalThis).Array.prototype);
-export const bareHopSubject = _flatMaybeArray((q2 = _globalThis, _globalThis).Array.prototype);
-export const seqPrefixSubject = _atMaybeArray((c++, q3 = _globalThis, _globalThis).Array.prototype);
-export const bareAssignSubject = _includesMaybeArray((q4 = _globalThis, _globalThis).Array.prototype);
+export const parenSubject = _findLastMaybeArray((q1 = _globalThis, _self).Array.prototype);
+export const bareHopSubject = _flatMaybeArray((q2 = _globalThis, _self).Array.prototype);
+export const seqPrefixSubject = _atMaybeArray((c++, q3 = _globalThis, _self).Array.prototype);
+export const bareAssignSubject = _includesMaybeArray((q4 = _globalThis, _self).Array.prototype);
 const g = _globalThis;
 export const aliasSubject = _findLastIndexMaybeArray(g.Array.prototype);
 export const nonProxyLeaf = null == (_ref = (q5 = _globalThis).foo) ? void 0 : _at(_ref2 = _ref.bar).call(_ref2, 1);
@@ -31,5 +31,5 @@ export const nonGlobalAssign = null == (_ref3 = (q6 = other).self) ? void 0 : _a
 // a SE-bearing computed hop key deopts too, its effect harvested into the collapsed sequence;
 // a LOGICAL subject keeps the guard (the right operand may be picked), collapsing per-operand
 let q7, q8;
-export const seKeyHopSubject = _findLastMaybeArray((q7 = _globalThis, c++, _globalThis).Array.prototype);
+export const seKeyHopSubject = _findLastMaybeArray((q7 = _globalThis, c++, _self).Array.prototype);
 export const logicalSubject = null == (_ref4 = (q8 = _globalThis, _self) || other) ? void 0 : _flatMaybeArray(_ref4.Array.prototype);

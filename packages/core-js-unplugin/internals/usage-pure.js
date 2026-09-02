@@ -9,6 +9,7 @@ import {
 import { planInExpression } from '@core-js/polyfill-provider/helpers/in-expression';
 import {
   SYMBOL_ITERATOR_PURE_RESULT,
+  dispatchConsumesRun,
   isSourcedSymbolIteratorMeta,
   planClaimlessCallRootedNav,
   planProxyReceiver,
@@ -305,6 +306,7 @@ export default function createAstUsagePureCallback({
     skippedNodes,
   });
   Object.assign(sealedProbeCtx, { buildNavGuardTest, substituteProbeProxyRoot });
+  Object.assign(destructureEmit.probeRenderCtx, { substituteProbeProxyRoot });
   Object.assign(nestedGuardCtx, { substituteProbeProxyRoot });
   const {
     composeGuardTest,
@@ -1008,15 +1010,25 @@ export default function createAstUsagePureCallback({
       const callPlan = !testClone
         ? planClaimlessCallRootedNav({
           endNode: planPath.node,
-          deleteFold: deleteFolds,
+          // the plan's BASE question, which a `delete` answers with the run's root only where it
+          // names a slot ON that run: a dispatch between them consumes the run as its receiver, so
+          // the read rule applies - the same gate the spine's own landing asks
+          deleteFold: deleteFolds && !dispatchConsumesRun({
+            path: metaPath,
+            resolvePure: m => resolvePure(m, metaPath),
+            aliasCtx: { scope: metaPath.scope, adapter, path: metaPath },
+          }),
           scope: metaPath.scope,
           adapter,
           path: metaPath,
           resolvePure: m => resolvePure(m, metaPath),
         }) : null;
+      // the shared plan spelled the base itself where it folded the nav whole - its own landing,
+      // the `delete` root arm included; the spine's landing answers the arms the plan declined
+      const planBase = callPlan?.verdict === 'fold-whole' ? callPlan.rootPure : null;
+      const foldBase = planBase ?? (deleteFolds && collapsed?.entry ? collapsed : null);
       const droppedBase = collapsed?.aliasRoot
-        ?? ((deleteFolds || callPlan?.verdict === 'fold-whole') && collapsed?.entry
-          ? identifier(injectPureImport(collapsed.entry, collapsed.hintName)) : null);
+        ?? (foldBase ? identifier(injectPureImport(foldBase.entry, foldBase.hintName)) : null);
       // a sequence PREFIX around the folded run re-emits ahead of the base by IDENTITY (the
       // keep-live carve keeps its inner claims landing in place), where the source ran it -
       // `(a(), (b(), dh())).window.slot` -> `(a(), b(), _globalThis).slot`, the other leg's

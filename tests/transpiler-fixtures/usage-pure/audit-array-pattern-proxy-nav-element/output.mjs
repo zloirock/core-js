@@ -28,7 +28,7 @@ getPrototypeOf = _Object$getPrototypeOf;
 export const freeze = _Object$freeze; // a pattern DEFAULT puts the nav in the slot the flatten rewrites rather than in the init
 export const [{
   seal
-} = _globalThis.Object] = [];
+} = _self.Object] = [];
 // NEGATIVE: a single-hop nav needs no receiver collapse, so nothing is queued inside
 export const [{
   isArray

@@ -1,5 +1,5 @@
 import _Array$of from "@core-js/pure/actual/array/of";
-import _globalThis from "@core-js/pure/actual/global-this";
+import _self from "@core-js/pure/actual/self";
 const of = _Array$of;
 // flat destructure off a NESTED proxy-global member (`globalThis.self.Array`) with one
 // polyfilled key (`of`) and one retained unpolyfilled key (`other`). the residual destructure
@@ -7,6 +7,6 @@ const of = _Array$of;
 // root (`_globalThis.Array`) - `_globalThis.self` is undefined on ie:11 pure / Node
 const {
   other
-} = _globalThis.Array;
+} = _self.Array;
 of(1, 2);
 console.log(other);

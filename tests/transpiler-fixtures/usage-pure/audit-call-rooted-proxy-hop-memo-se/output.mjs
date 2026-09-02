@@ -2,6 +2,7 @@ import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Map from "@core-js/pure/actual/map/constructor";
+import _self from "@core-js/pure/actual/self";
 // A destructure-default receiver rooted in an SE-bearing CALL through a proxy-global hop, forced through
 // the MEMO path by an unresolved sibling key (`length` is not a polyfilled static, so the pattern can't be
 // statically extracted). The collapse drops the `.self` hop and re-roots on the pure global, so EVERY effect
@@ -20,7 +21,7 @@ function rootCall({
 }(((() => {
   c++;
   return _globalThis;
-})(), _globalThis).Array)) {
+})(), _self).Array)) {
   return [of(1), length];
 }
 function hopAndRootCall({
@@ -34,7 +35,7 @@ function hopAndRootCall({
 }(((() => {
   c += 10;
   return _globalThis;
-})(), c++, _globalThis).Array)) {
+})(), c++, _self).Array)) {
   return [from([1]), name];
 }
 // BARE proxy-global root (no chain-root call) with a SE-bearing hop key: maximalProxyGlobalPrefix bails on
@@ -48,7 +49,7 @@ function bareRootNonPure({
     of: _Array$of,
     byteLength: _ref3.byteLength
   };
-}((c += 100, _globalThis).Array)) {
+}((c += 100, _self).Array)) {
   return [of(1), byteLength];
 }
 function bareRootCtor({

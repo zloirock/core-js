@@ -17,6 +17,7 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/members';
 import {
   discardRescueNodes,
+  partitionEffectsAtProbe,
   inlineCallHasObservableEffects,
   navValueCanShortCircuit,
   proxyGlobalMemberCtorPureSwap,
@@ -119,6 +120,8 @@ import {
   propBindingTarget,
   proxySurfaceIdentifier,
   reanchoredInit,
+  probeCarriesWrite,
+  probeNavStartOf,
   renderDiscardedInitProbe,
   renderSealedNavProbe,
   residualPrecedesExtractions,
@@ -982,12 +985,17 @@ export default function createDestructureDrains(ctx) {
     // the extraction's own probe re-emits the discarded READ whole, buried effects included, so a
     // lift of the same nodes would run them twice - babel spells the rule at its swap, where the
     // rescue keeps only what the probe does not already carry
-    const rescues = consumeProbe ? [] : discardRescueNodes({
+    // the probe re-emits the discarded READ whole, buried effects included, so a lift of the same
+    // nodes would run them twice - the rescue keeps only what the probe does NOT carry, split on
+    // the offset that read starts at. no offset means nothing precedes it: the harvest is not even
+    // asked, the way this channel has always answered a probe-carried init
+    const probeOffset = probeNavStartOf(consumeProbe);
+    const rescues = consumeProbe && !probeOffset ? [] : partitionEffectsAtProbe(discardRescueNodes({
       node: declarator.init,
       scope: metaPath.scope,
       adapter,
       path: metaPath,
-    });
+    }), consumeProbe ? probeOffset : null).ahead;
     // the collapse rewrote the init in place, so what the spine bottoms out on NOW is what
     // survived it: a call the nav read THROUGH but could not erase (`wrap(g()).Object`), or a
     // pure binding it folded onto (`mk().self.Array` -> `_self.Array`)
@@ -1081,10 +1089,20 @@ export default function createDestructureDrains(ctx) {
     // the discarded init READ that a kept write sits under: the whole member chain when the write
     // is its root, else null (a write that IS the init has no read of its own to keep)
     function discardedReadOverWrite(initNode, write) {
-      const init = peelTransparentExpr(initNode);
+      const init = unwrapRuntimeExpr(initNode);
       if (init?.type !== 'MemberExpression' || !write || write.type !== 'AssignmentExpression') return null;
-      for (let probe = peelTransparentExpr(init.object); probe; probe = peelTransparentExpr(probe.object)) {
+      // through a SEQUENCE carrying the write: the collapse spells a kept store as the prefix of the
+      // value the read stands on (`((w = _globalThis), _globalThis).Array`), and a peel that stops at
+      // the wrapper reads that as "no store below" - the verdict then flips on a spelling
+      for (let probe = unwrapRuntimeExpr(init.object); probe; probe = unwrapRuntimeExpr(probe.object)) {
         if (probe === write) return init;
+        if (probe.type === 'SequenceExpression') {
+          if (probe.expressions.some(expr => unwrapRuntimeExpr(expr) === write)) return init;
+          probe = unwrapRuntimeExpr(probe.expressions.at(-1));
+          if (probe === write) return init;
+          if (probe?.type !== 'MemberExpression') return null;
+          continue;
+        }
         if (probe.type !== 'MemberExpression') return null;
       }
       return null;
@@ -1112,11 +1130,26 @@ export default function createDestructureDrains(ctx) {
       // it (`const { fromEntries } = (u = globalThis).Object` -> `(u = _globalThis).Object;`, the
       // babel leg's shape). riding the value there dropped that read
       const spellableStore = keptWriteRidesValue(rescueAssign, { adapter, injectorState, resolveGlobalPolyfill });
-      const readOverWrite = spellableStore ? discardedReadOverWrite(declarator.init, rescueAssign) : null;
-      // ... and only where the extraction READS THROUGH the stored value: a property binding the
-      // ponyfill itself (`{ Map: M }` extracts `_Map`) reads nothing off the store, so the write is
-      // a statement of its own - the shape the babel leg spells for the same source
-      const ridesTheValue = (!readOverWrite && spellableStore && declJobs.some(job => job.kind !== 'global'))
+      // ... and the read standing over a store is the DISCARD PROBE's wherever that channel takes
+      // it - respelled from the seal boundary, carrying the holder - so lifting it here too would
+      // run the write twice. where the probe DECLINED, this lift carries that read instead
+      const storeRead = discardedReadOverWrite(declarator.init, rescueAssign);
+      // asked of what the probe this host RENDERED actually carries: a probe holding the store
+      // already spells this read, where one rendered from another arm carries no write at all and
+      // the read is still owed - the existence of a probe is not the question, its content is
+      // ... and where the collapse has already folded that key away, the read is rebuilt off the
+      // LIVE store (its own value is rewritten by now) plus the key the source spelled
+      const storeReadKey = declJobs.find(job => job.absentableStoreReadKey)?.absentableStoreReadKey ?? null;
+      const readOverWrite = !probeCarriesWrite(consumeProbe, rescueAssign) && storeReadKey !== null
+        ? storeRead ?? (rescueAssign?.type === 'AssignmentExpression'
+          ? memberFromKeyName(cloneNode(rescueAssign), storeReadKey) : null)
+        : null;
+      // ... and the write rides the extraction's own slot only where the init IS the store: nothing
+      // is read off it, so the write is the whole value the extraction takes (`{ Array: { from } }
+      // = (a = globalThis)`). with a read standing over it, that read is the discarded one and the
+      // write lifts as its own statement ahead of the extraction
+      const ridesTheValue = (!readOverWrite && !storeRead && spellableStore
+        && declJobs.some(job => job.kind !== 'global'))
         || (rescueAssign?.type === 'CallExpression' && rescueAssign === peelTransparentExpr(declarator.init)
           && inlineCallHasObservableEffects({
             callNode: rescueAssign,
@@ -1163,17 +1196,18 @@ export default function createDestructureDrains(ctx) {
     const needsValue = declJobs.some(job => job.kind === 'instance');
     let refName = null;
     const seqRescues = [];
-    // a chain-assignment init with a pure-nav RHS inlines: the assignment rescues as the
-    // extraction's own prefix and the read runs on the RHS value directly
-    // (`{ [S]: it } = (g = globalThis)` -> `const it = (g = _globalThis, _gim(_globalThis))`)
+    // a chain-assignment init with a pure-nav RHS inlines: the WRITE is the receiver the dispatch
+    // takes, so it rides inside the call and evaluates exactly once, where the source evaluated it
+    // (`{ [S]: it } = (g = globalThis)` -> `const it = _gim(g = _globalThis)`) - one rule with the
+    // hop-bearing spelling, whose receiver carries the write the same way
     const chainAssignInline = needsValue && declJobs.length === 1
       ? chainAssignOverPureNav(declarator.init) : null;
     if (chainAssignInline) {
       const [job] = declJobs;
       const id = injectPureImport(job.entry, job.hintName);
-      const read = callExpression(identifier(id), [cloneNode(peelTransparentExpr(chainAssignInline.right))]);
-      statements.push(exportWrap(variableDeclaration(hostNode.kind, [variableDeclarator(
-        memoJobBindingTarget(job), sequenceExpression([chainAssignInline, read]))]), exported));
+      const read = callExpression(identifier(id), [chainAssignInline]);
+      statements.push(exportWrap(variableDeclaration(hostNode.kind,
+        [variableDeclarator(memoJobBindingTarget(job), read)]), exported));
       markSubtreeSkipped(skippedNodes, job.prop);
       return 'consumed';
     }
@@ -1239,9 +1273,12 @@ export default function createDestructureDrains(ctx) {
       : consumeProbe ?? renderDiscardedInitProbe(declJobs, probeRenderCtx);
     for (const job of declJobs) {
       let value = memoJobValue({ job, refName, guardRefs });
-      if (seqRescues.length || (probePrefix && job === declJobs[0])) {
-        value = sequenceExpression([...seqRescues.map(expr => cloneNode(expr)),
-          ...probePrefix && job === declJobs[0] ? [probePrefix] : [], value]);
+      // a probe carrying the init's own sequence prefix joins this list FLAT: one comma run is what
+      // the source wrote and what the other leg prints, where a nested tuple is a shape of its own
+      const probeParts = probePrefix && job === declJobs[0]
+        ? (probePrefix.type === 'SequenceExpression' ? probePrefix.expressions : [probePrefix]) : [];
+      if (seqRescues.length || probeParts.length) {
+        value = sequenceExpression([...seqRescues.map(expr => cloneNode(expr)), ...probeParts, value]);
         seqRescues.length = 0;
       }
       statements.push(exportWrap(variableDeclaration(hostNode.kind,
@@ -2610,6 +2647,9 @@ export default function createDestructureDrains(ctx) {
     // statement ahead of the extractions (`({ any } = globalThis[(e++, 'Promise')])`)
     const discardedRead = assignment.left?.type === 'ObjectPattern' && !assignment.left.properties.length
             && jobs.some(job => job.rawKeyRootInit) ? assignment.right : null;
+    // the probe the full consume owes for the read it discards, decided BEFORE the prefix below:
+    // that read is the probe's, and lifting it as a statement too ran the write inside it twice
+    const probeLead = discardedRead ? null : renderDiscardedInitProbe(jobs, probeRenderCtx);
     // the receiver read by an extraction AND by the surviving residual memoizes once - the
     // verdict needs the residual as it survives, so the values re-render onto the ref here
     const memoRef = assignmentMemoRef(assignment, jobs, mintRefName);
@@ -2675,7 +2715,11 @@ export default function createDestructureDrains(ctx) {
     const anchorRhsPrefix = inSequence && !wholeRhsLift && rhsExprs && jobs.length === 1
       && jobs[0].prop?.value?.type === 'ObjectPattern' ? rhsExprs.slice(0, -1) : null;
     const stmtSeqPrefix = anchorRhsPrefix ? []
-      : wholeRhsLift ? [expressionStatement(assignment.right)]
+      : wholeRhsLift ? (probeLead
+        ? liftedPrefixStatements(partitionEffectsAtProbe(
+          discardRescueNodes({ node: assignment.right, scope: jobs[0].metaPath.scope, adapter, path: jobs[0].metaPath }),
+          probeNavStartOf(probeLead)).ahead)
+        : [expressionStatement(assignment.right)])
       // a FULLY consumed pattern discards its receiver, and what stays of it is ONE expression - the
       // shape the other leg's defer-SE route prints there; a SURVIVING residual takes the per-element
       // prefix both legs print for the lift
@@ -2700,7 +2744,6 @@ export default function createDestructureDrains(ctx) {
       // the consume DISCARDS the read the source performs off a guarded init: the first
       // extraction leads with it, rebuilt off the rendered guard (`v = ((null ==
       // _globalThis.window ? void 0 : _self).Math, _Math$sign)`) - the declaration's own rule
-      const probeLead = discardedRead ? null : renderDiscardedInitProbe(jobs, probeRenderCtx);
       if (probeLead && bySource.length) {
         bySource[0].expression.right = sequenceExpression([probeLead, bySource[0].expression.right]);
       }

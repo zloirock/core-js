@@ -12,17 +12,17 @@ var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _ref10, _ref11
 _globalThis.siblingBox = {
   list: ['ab', 'cd']
 };
-export const plainFirst = null == (_ref = (_globalThis.siblingBox.list, null == _globalThis.window ? void 0 : _self.siblingBox.list)) ? void 0 : _at(_ref).call(_ref, 0);
-export const optionalFirst = null == (_ref2 = (null == _globalThis.window ? void 0 : _self.siblingBox.list, _globalThis.siblingBox.list)) ? void 0 : _at(_ref2).call(_ref2, 0);
-export const bothPlain = null == (_ref3 = (_globalThis.siblingBox.list, _globalThis.siblingBox.list)) ? void 0 : _at(_ref3).call(_ref3, 0);
+export const plainFirst = null == (_ref = (_self.siblingBox.list, null == _globalThis.window ? void 0 : _self.siblingBox.list)) ? void 0 : _at(_ref).call(_ref, 0);
+export const optionalFirst = null == (_ref2 = (null == _globalThis.window ? void 0 : _self.siblingBox.list, _self.siblingBox.list)) ? void 0 : _at(_ref2).call(_ref2, 0);
+export const bothPlain = null == (_ref3 = (_self.siblingBox.list, _self.siblingBox.list)) ? void 0 : _at(_ref3).call(_ref3, 0);
 export const bothOptional = null == (_ref4 = (null == _globalThis.window ? void 0 : _self.siblingBox?.list, null == _globalThis.window ? void 0 : _self.siblingBox.list)) ? void 0 : _at(_ref4).call(_ref4, 0);
-export const prefixedPlainFirst = null == (_ref5 = ('x', _globalThis.siblingBox.list, null == _globalThis.window ? void 0 : _self.siblingBox.list)) ? void 0 : _at(_ref5).call(_ref5, 0);
-export const mixedTailOptional = null == (_ref6 = (_globalThis.siblingBox?.list, null == _globalThis.window ? void 0 : _self.siblingBox.list)) ? void 0 : _at(_ref6).call(_ref6, 0);
+export const prefixedPlainFirst = null == (_ref5 = ('x', _self.siblingBox.list, null == _globalThis.window ? void 0 : _self.siblingBox.list)) ? void 0 : _at(_ref5).call(_ref5, 0);
+export const mixedTailOptional = null == (_ref6 = (_self.siblingBox?.list, null == _globalThis.window ? void 0 : _self.siblingBox.list)) ? void 0 : _at(_ref6).call(_ref6, 0);
 
 // the SOURCE already spells the shape a render emits, so a slot search can meet its own output
 // coming the other way. the hand-written guard is user code and must survive untouched
-export const handWrittenGuardFirst = null == (_ref7 = (null == _globalThis.window ? void 0 : _globalThis.siblingBox.list, null == _globalThis.window ? void 0 : _self.siblingBox.list)) ? void 0 : _at(_ref7).call(_ref7, 0);
-export const handWrittenGuardSecond = null == (_ref8 = (null == _globalThis.window ? void 0 : _self.siblingBox.list, null == _globalThis.window ? void 0 : _globalThis.siblingBox.list)) ? void 0 : _at(_ref8).call(_ref8, 0);
+export const handWrittenGuardFirst = null == (_ref7 = (null == _globalThis.window ? void 0 : _self.siblingBox.list, null == _globalThis.window ? void 0 : _self.siblingBox.list)) ? void 0 : _at(_ref7).call(_ref7, 0);
+export const handWrittenGuardSecond = null == (_ref8 = (null == _globalThis.window ? void 0 : _self.siblingBox.list, null == _globalThis.window ? void 0 : _self.siblingBox.list)) ? void 0 : _at(_ref8).call(_ref8, 0);
 export const tripleRepeat = null == (_ref9 = (null == _globalThis.window ? void 0 : _self.siblingBox.list, null == _globalThis.window ? void 0 : _self.siblingBox.list, null == _globalThis.window ? void 0 : _self.siblingBox.list)) ? void 0 : _at(_ref9).call(_ref9, 0);
 
 // the dispatches above take a nav receiver, which carries no type, so they record the GENERIC

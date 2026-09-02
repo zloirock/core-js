@@ -55,6 +55,7 @@ export function createPatternBindings({
   resolveElementType,
   findTupleElement,
   resolveObjectMember,
+  resolveMemberOfObjectPath,
   walkObjectLiteralPropertyPath,
   isGetterFreshLiteral,
   resolveTypeAnnotation,
@@ -570,6 +571,9 @@ export function createPatternBindings({
     // writer as one below a binding named at the top. tracked as the walk descends, or the wrapper
     // spelling keeps the init's narrow where every other spelling of the same read folds the write
     let flowAware = sourcePath?.node?.type === 'Identifier';
+    // the UNRESOLVED path the current container was reached through - what a member read of it
+    // would stand on, for the step that has no literal to walk
+    let rawPath = sourcePath ?? objPath;
     while (true) {
       if (keyPath.length === 0) return resolveNodeType(objPath);
       const [step] = keyPath;
@@ -587,6 +591,7 @@ export function createPatternBindings({
         if (spreadAtOrBefore(objPath.node.elements, step)) return null;
         const elementPath = cachedContainerPaths(objPath, 'elements')[step];
         flowAware ||= elementPath?.node?.type === 'Identifier';
+        rawPath = elementPath;
         objPath = resolveRuntimeExpression(elementPath);
         keyPath = rest;
         continue;
@@ -600,7 +605,13 @@ export function createPatternBindings({
         keyPath = [asIndex, ...rest];
         continue;
       }
-      if (!t.isObjectExpression(objPath.node)) return null;
+      // no literal to walk: the container is a VALUE - a class instance, a call result, an annotated
+      // binding - and the hop reads its member exactly as the flat spelling `c.data` does, so the
+      // member canon answers for both. a hop PAST such a container has no path to descend and stays
+      // unresolved, which is the member spelling's own answer for its second hop
+      if (!t.isObjectExpression(objPath.node)) {
+        return rest.length || !rawPath?.node ? null : resolveMemberOfObjectPath(rawPath, step, null);
+      }
       // the FINAL slot read asks the flow-aware resolver, exactly as a member read of the same slot
       // does (`{ y: { at } } = box` reads what `box.y` reads): it folds every reachable write and
       // refuses a narrow the writer set makes unsound. reading the literal's own init here instead
@@ -618,6 +629,7 @@ export function createPatternBindings({
       const valuePath = walkObjectLiteralPropertyPath(objPath, step);
       if (!valuePath?.node) return null;
       flowAware ||= valuePath.node.type === 'Identifier';
+      rawPath = valuePath;
       objPath = resolveRuntimeExpression(valuePath);
       keyPath = rest;
     }

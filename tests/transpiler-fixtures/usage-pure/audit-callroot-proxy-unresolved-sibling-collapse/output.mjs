@@ -2,6 +2,7 @@ import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$fromAsync from "@core-js/pure/actual/array/from-async";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
+import _self from "@core-js/pure/actual/self";
 // a CALL/IIFE-rooted proxy navigation with an UNRESOLVED sibling key (`{ from, length } = (() =>
 // globalThis)().self.Array`): the resolved `from` synth-swaps to the polyfill, but the unresolved sibling
 // re-reads the receiver - and the proxy-global prefix/root validation accepts only bare-Identifier
@@ -14,7 +15,7 @@ function f({
   length
 } = {
   from: _Array$from,
-  length: _globalThis.Array.length
+  length: _self.Array.length
 }) {
   return [from([1]), length];
 }
@@ -34,7 +35,7 @@ function opt({
   name
 } = {
   fromAsync: _Array$fromAsync,
-  name: _globalThis.Array.name
+  name: _self.Array.name
 }) {
   return [fromAsync([1]), name];
 }

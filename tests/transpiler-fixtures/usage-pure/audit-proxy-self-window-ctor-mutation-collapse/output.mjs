@@ -7,4 +7,4 @@ import _self from "@core-js/pure/actual/self";
 // forces it. the pinned constructor import is the mutated-static routing target. distinct constructors per line.
 _globalThis.Set = function () {};
 _self.Map = function () {};
-_globalThis.WeakSet = function () {};
+_self.WeakSet = function () {};
