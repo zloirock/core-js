@@ -13,15 +13,13 @@ import {
   resolveNestedReceiverNode,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import { maybeRegisterAssignmentAliasWrite, registerBindinglessCtorAlias } from '@core-js/polyfill-provider/helpers/class-walk';
-import { shouldDropRescueReceiver } from '@core-js/polyfill-provider/detect-usage/members';
+import { readStandsOverAbsentableStore, shouldDropRescueReceiver } from '@core-js/polyfill-provider/detect-usage/members';
 import {
   aliasHeldClaimProbe,
   discardRescueNodes,
   findProxyGlobal,
-  foldableRealmHopKey,
   peelChainRootValue,
   peelReceiverSequenceTail,
-  proxyGlobalMemberCtorPure,
   proxyReceiverValueCanBeUndefined,
   resolveObjectName,
   resolveSynthKeys,
@@ -936,10 +934,6 @@ export function planSealedNavProbe(receiver, metaPath, ctx) {
   if (!leafPlan?.leafPure && !leafPlan?.leafName) {
     return { boundary, key, passthrough: true };
   }
-  // a leaf pure CANNOT back is not a global of its own: it reads off the collapsed base the
-  // guard proved, where a bare spelling would be a ReferenceError on an engine without it
-  const leafBase = leafPlan.leafPure ? null : unwrapRuntimeExpr(boundary.inner)?.object;
-  const basePure = leafBase && proxyGlobalMemberCtorPure({ receiver: leafBase, aliasCtx, resolvePure: resolveHere });
   // the effect nodes this plan will RE-EMIT stay claim-live: a claim inside the kept key
   // (`log.push('k')`) fires later in the walk and must land on the (soon detached) original,
   // which the render-time harvest off `effectsHost` then picks up rewritten
@@ -948,11 +942,10 @@ export function planSealedNavProbe(receiver, metaPath, ctx) {
     boundary,
     key,
     leafPlan,
-    basePure,
-    // ... and over a ponyfill base that read FOLDS: the leaf names the realm the ponyfill already
-    // is, and off-browser the ponyfill cannot answer it (`(globalThis.window?.self.window)` reads
-    // `_self`) - the canon's verdict, the same one the nav plan reaches for a hop read through
-    foldLeafOntoBase: !!basePure && foldableRealmHopKey(leafPlan.leafName, { adapter: ctx.adapter, resolvePure: resolveHere }),
+    // a leaf pure cannot back reads off the ponyfill base the guard proved - folded onto it or as
+    // its member - the plan's own verdict, shared with the other leg's render
+    basePure: leafPlan.leafBasePure ?? null,
+    foldLeafOntoBase: !!leafPlan.foldLeafOntoBase,
     guardObject: cloneStamped(leafPlan.guardObject),
     effectsHost: boundary.inner,
   };
@@ -993,7 +986,9 @@ export function sealedNavProbeRead(receiver, metaPath, ctx) {
 export function planDiscardedInitProbe(initNode, metaPath, ctx) {
   // an ARRAY-wrapped pattern reads its ELEMENT, and that read is the one native performs;
   // the chain wrapper an inner `?.` wears is transparent to the plan
-  const peeled = unwrapRuntimeExpr(initNode);
+  // a SEQUENCE around the init hands its TAIL on: that tail is the read the consume discards, and
+  // the prefix stays with the effect channel (`probeNavStartOf` is what splits them)
+  const peeled = unwrapRuntimeExpr(peelReceiverSequenceTail(initNode));
   let nav = peeled?.type === 'ArrayExpression' && peeled.elements.length === 1
     ? unwrapRuntimeExpr(peeled.elements[0]) : peeled;
   // an AGREEING ternary reads its arm whichever way the test goes - that read is the one the
@@ -1009,13 +1004,74 @@ export function planDiscardedInitProbe(initNode, metaPath, ctx) {
   // `?.` for the guard plan to key on (`{ of } = a.Array` off `a = globalThis.window` - native
   // throws reading `.Array` where the extraction just binds): the alias arm's probe re-emits
   // the init read verbatim, the other leg's spelling
-  const aliasProbe = aliasHeldClaimProbe(nav, m => ctx.resolvePure(m, metaPath),
-    { scope: metaPath.scope, adapter: ctx.adapter, path: metaPath });
+  // the consume DISCARDS the init whole, so an inline store holder is re-emitted exactly once -
+  // the claim channels, whose renders keep the store, take the named-binding arm alone.
+  // a SEAL the source wrote is where its observable read happens (`(w = nav).self.Array` reads
+  // `.self` off the sealed store), so the probe respells from that boundary, not from the run's end.
+  const probeMember = sealedChainBoundary(nav)?.member ?? nav;
+  // an ARRAY-wrapped init hands its element to the mirror channel, which re-emits that element's
+  // read itself: a store probe here would spell the read - and its write - a second time
+  const arrayWrapped = peeled?.type === 'ArrayExpression';
+  const aliasProbe = aliasHeldClaimProbe(probeMember, m => ctx.resolvePure(m, metaPath),
+    { scope: metaPath.scope, adapter: ctx.adapter, path: metaPath }, { allowStoreHolder: !arrayWrapped });
   return aliasProbe ? { aliasProbe } : null;
+}
+
+// the KEY a discarded read spells over a kept store the realm may leave void, or null: by drain time
+// the collapse may have folded that key into the extraction, and the lift rebuilds the read from
+// this name off the live store. the VERDICT is the shared canon's - this only names its answer
+export function absentableStoreReadKeyOf(initNode, ctx) {
+  const read = readStandsOverAbsentableStore(initNode, ctx);
+  return read ? memberKeyName(read) : null;
+}
+
+// where the READ a rendered probe reproduces begins - asked of the SOURCE spelling, at plan time:
+// by drain time the collapse has rebuilt the init and its minted nodes carry no span, so the split
+// would hand the probe's own read back to the effect channel and run it twice
+export function discardedInitProbeNavStart(initNode) {
+  const tail = peelReceiverSequenceTail(initNode);
+  // no SEQUENCE around the init means nothing precedes the read the probe reproduces: every effect
+  // the harvest found lives INSIDE that read, and the probe carries it. `0` says exactly that -
+  // the tail's own start would put the read's own effects ahead of it and run them twice
+  return tail && tail !== unwrapRuntimeExpr(initNode) ? tail.start ?? 0 : 0;
+}
+
+// ... and the same offset by probe NODE, for the drain that only sees the rendered probe
+const probeNavStarts = new WeakMap();
+
+export function probeNavStartOf(probe) {
+  // unknown means NOTHING precedes the read: the split then hands every harvested effect to the
+  // probe, which is the safe half - a wrong `ahead` re-emits effects the probe already carries
+  return probe ? probeNavStarts.get(probe) ?? 0 : 0;
+}
+
+// does a rendered probe already carry THIS write? the read a probe reproduces may hold the kept
+// store inside it, and then the effect channel owes nothing - but a probe rendered from another arm
+// (a sealed boundary, a guarded leaf) carries no write at all, and there the read is still owed.
+// asked of the write's TARGET: the walk rebuilds nodes, so identity cannot carry the answer
+export function probeCarriesWrite(probe, write) {
+  const target = write?.type === 'AssignmentExpression' && write.operator === '='
+    && write.left?.type === 'Identifier' ? write.left.name : null;
+  if (!probe || target === null) return false;
+  let carried = false;
+  walkAstNodes({ root: probe, visit(node) {
+    if (node.type === 'AssignmentExpression' && node.operator === '='
+      && node.left?.type === 'Identifier' && node.left.name === target) carried = true;
+  } });
+  return carried;
 }
 
 // ... and its emission: the planned guard, the slot key hanging back on
 export function renderDiscardedInitProbe(jobs, ctx) {
+  const [job] = jobs;
+
+  const navStart = job?.initProbeNavStart ?? null;
+  const rendered = renderDiscardedInitProbeRead(jobs, ctx);
+  if (rendered && Number.isInteger(navStart)) probeNavStarts.set(rendered, navStart);
+  return rendered;
+}
+
+function renderDiscardedInitProbeRead(jobs, ctx) {
   const [job] = jobs;
   const plan = job?.initProbePlan;
   const metaPath = job?.metaPath;
@@ -1029,7 +1085,12 @@ export function renderDiscardedInitProbe(jobs, ctx) {
   // the alias-arm probe is the init read spelled verbatim - no guard to build, nothing to
   // substitute (the alias is the user's own binding, and the drain's inserts are not re-visited)
   if (plan.aliasProbe) {
-    return renderAliasHeldProbeRead(plan.aliasProbe, identifier(plan.aliasProbe.object.name));
+    const read = renderAliasHeldProbeRead(plan.aliasProbe, cloneNode(plan.aliasProbe.object));
+    // a holder the source wrote INLINE carries a nav of its own, and this clone leaves the walk
+    // before its claim would land - the root substitutes here or a raw `globalThis` reaches the
+    // output. a named holder is the user's own binding and the walk answers nothing for it
+    ctx.substituteProbeProxyRoot?.(read);
+    return read;
   }
   const aliasCtx = { scope: metaPath.scope, adapter: ctx.adapter, path: metaPath };
   // a HOP chain reads its OUTERMOST key off the init - that is the read native performs
@@ -1093,6 +1154,21 @@ export function anchorLeadingStatement(statements, hostNode) {
     first.end = hostNode.start;
   }
   return statements;
+}
+
+// where a passthrough READ off a collapsed proxy run is based: the hops the collapse drops fall
+// away, and the deepest one pure can back carries the read - the root answering only where none of
+// them is (`globalThis.self.Array.other` reads `_self.Array.other`, `globalThis.window.Array.other`
+// reads off the root). an ALIAS root keeps its own identifier by the collapse's alias rule, which
+// its caller says with `landsDeep: false`
+export function proxyPassthroughBase({ rootName, keys, adapter, resolveGlobalPolyfill, landsDeep = true }) {
+  let baseName = rootName;
+  let rest = keys;
+  while (rest.length && isPristineProxyGlobal(adapter, rest[0])) {
+    if (landsDeep && resolveGlobalPolyfill?.(rest[0])) [baseName] = rest;
+    rest = rest.slice(1);
+  }
+  return { baseName, keys: rest };
 }
 
 // a cloned subtree the traversal will never revisit: every FREE pristine proxy global in
@@ -1821,7 +1897,7 @@ export function carryInitPrefix(value, prefix) {
 // re-runs ahead of the literal; only the OUTERMOST one may carry effects, a deeper prefix has no
 // slot in the render order. `?.` hops qualify like plain ones - the collapse anchors on
 // always-defined pure bindings, so the short-circuit is moot
-export function proxyNavSynthBase(receiver, { scope, adapter, path }) {
+export function proxyNavSynthBase(receiver, { scope, adapter, path, resolveGlobalPolyfill }) {
   if (receiver?.type !== 'MemberExpression' && receiver?.type !== 'SequenceExpression') return null;
   let keys = [];
   let cur = receiver;
@@ -1852,9 +1928,20 @@ export function proxyNavSynthBase(receiver, { scope, adapter, path }) {
   const proxyRoot = cur?.type === 'Identifier'
     && (POSSIBLE_GLOBAL_OBJECTS.has(cur.name) || findProxyGlobal(receiver, { scope, adapter, path }) === cur);
   if (!keys.length || !keys.every(Boolean) || !proxyRoot) return null;
-  while (keys.length && isPristineProxyGlobal(adapter, keys[0])) keys = keys.slice(1);
+  // the dropped hops land where every other collapse lands - on the deepest one pure can back,
+  // the root answering only where none of them is (`globalThis.self.Array` reads off `_self`)
+  // ... except off an ALIAS root, which keeps its own identifier by the collapse's alias rule -
+  // the hops drop onto the binding the source named (`const g = globalThis; g.self.Object`)
+  const base = proxyPassthroughBase({
+    rootName: cur.name,
+    keys,
+    adapter,
+    resolveGlobalPolyfill,
+    landsDeep: POSSIBLE_GLOBAL_OBJECTS.has(cur.name),
+  });
+  keys = base.keys;
   return {
-    baseIdent: cur,
+    baseIdent: base.baseName === cur.name ? cur : { type: 'Identifier', name: base.baseName },
     passthroughPrefix: keys,
     leadingEffects: seqPrefix?.expressions.slice(0, -1).some(expr => mayHaveSideEffects(expr)) ? seqPrefix : null,
   };

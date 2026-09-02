@@ -2,6 +2,7 @@ import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _at from "@core-js/pure/actual/instance/at";
+import _self from "@core-js/pure/actual/self";
 var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7;
 // the receiver of an INSTANCE dispatch is memoized, and the memo is where the nav's collapse has to
 // land: every row below reads (or deletes) a member off a proxy nav whose value the guard tests. the
@@ -17,11 +18,11 @@ export const keptAssignDelete = delete (null == (_ref2 = (w = _globalThis.window
 
 // no probe at all: every hop resolves, so the whole nav collapses onto the root ponyfill and the
 // memo holds the collapsed receiver
-export const resolvingNav = null == (_ref3 = _globalThis.Array) ? void 0 : _nameMaybeFunction(_flatMaybeArray(_ref3.prototype));
+export const resolvingNav = null == (_ref3 = _self.Array) ? void 0 : _nameMaybeFunction(_flatMaybeArray(_ref3.prototype));
 
 // a DEEP probe (`window` below a resolvable `self`): the nav collapses onto the hop's ponyfill and
 // keeps the probe read plus its live `?.` - the memo is that value, not the raw source
-export const deepProbeNav = null == (_ref4 = _globalThis.Array) ? void 0 : _flatMaybeArray(_ref4.prototype);
+export const deepProbeNav = null == (_ref4 = _self.Array) ? void 0 : _flatMaybeArray(_ref4.prototype);
 
 // the delete consumer collapses the navigation whole, through a SEQUENCE root and through the
 // guard scaffold this emit builds for the memo itself
@@ -37,6 +38,6 @@ export { w, n };
 _globalThis.box = {
   list: [[1]]
 };
-export const deleteAboveDispatch = delete _at(_globalThis.box.list).name;
+export const deleteAboveDispatch = delete _at(_self.box.list).name;
 export const deleteAboveDispatchProbe = delete (null == (_ref6 = _globalThis.window) ? void 0 : _at(_ref6.box.list).name);
 export const deleteAboveDispatchPlainTail = delete (null == (_ref7 = _globalThis.window) ? void 0 : _at(_ref7.box.list).customUserKey);

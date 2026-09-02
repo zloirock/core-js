@@ -15,6 +15,8 @@ const TYPE_HINTS = new Set([
   'boolean',
   'date',
   'domcollection',
+  'domexception',
+  'error',
   'function',
   'iterator',
   'number',
@@ -23,6 +25,8 @@ const TYPE_HINTS = new Set([
   'regexp',
   'string',
   'symbol',
+  'url',
+  'urlsearchparams',
 ]);
 
 const VALID_FILTERS = new Set([

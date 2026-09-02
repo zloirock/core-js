@@ -7,12 +7,13 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _findLastIndexMaybeArray from "@core-js/pure/actual/array/instance/find-last-index";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _globalThis from "@core-js/pure/actual/global-this";
+import _self from "@core-js/pure/actual/self";
 import _atMaybeString from "@core-js/pure/actual/string/instance/at";
 import _includesMaybeString from "@core-js/pure/actual/string/instance/includes";
 
 let y1 = {};
 
-switch (_flatMaybeArray(_globalThis.Array.prototype).call([1, [2]]).length) {
+switch (_flatMaybeArray(_self.Array.prototype).call([1, [2]]).length) {
 	case 1:
 		let globalThis = y1;
 		break;

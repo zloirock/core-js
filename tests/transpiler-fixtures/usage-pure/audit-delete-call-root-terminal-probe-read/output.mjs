@@ -4,4 +4,4 @@ import _self from "@core-js/pure/actual/self";
 // probe the source asked for, so every hop keeps its slot over the deepest span pure can back
 const dhRoot = () => _globalThis;
 export const readTerminalProbe = _self.window;
-export const readTerminalProbeNav = _globalThis.customQ;
+export const readTerminalProbeNav = _self.customQ;
