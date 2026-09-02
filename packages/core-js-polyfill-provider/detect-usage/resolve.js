@@ -48,6 +48,8 @@ import {
   memberProxyHopName,
   nodeCarriesSourceSpan,
   paramReboundInBody,
+  MUTATED_MEMBERS_UNKNOWN,
+  patternRootKeyPathsFor,
   patternSlotHasDefault,
   patternSlotSpreadShifted,
   patternSlotValues,
@@ -1201,7 +1203,11 @@ export function proxyGlobalRootName({ node, scope, adapter, path, seen, binding 
     // `undefined` (never `null`) marks the re-entrant lookup the guard refused - a resolved-but-absent
     // binding is `null` and must keep flowing into the binding-less arms below
     binding = withBindingLookupGuard(scope, node.name, () => adapter.getBinding(scope, node.name, path) ?? null);
-    if (binding === undefined) return asProxyGlobalName(node.name);
+    // the re-entrancy and cycle fallbacks name the proxy global like every other arm here, so they
+    // owe the SAME second half: a name whose slot the user overwrote holds the replacement, and
+    // answering it pristine only because the walk had to stop is the one shape where a cycle
+    // changes a VALUE verdict
+    if (binding === undefined) return isPristineProxyGlobal(adapter, node.name) ? node.name : null;
   }
   // hint side-channel runs FIRST and independently of scope binding presence: post-rewrite
   // aliases like `_globalThis` are tracked by the injector's global-alias map but may have
@@ -1249,7 +1255,9 @@ export function proxyGlobalRootName({ node, scope, adapter, path, seen, binding 
     // name, and this route enters it below its owner (`resolveBindingToGlobal`) - the binding is
     // already in hand, and looking it up a second time re-enters the adapters' alias pre-pass
     // outside the in-flight guard above, which is an unbounded recursion, not a cycle
-    if (seen?.has(binding.node ?? binding) || seen?.has(node.name)) return asProxyGlobalName(node.name);
+    if (seen?.has(binding.node ?? binding) || seen?.has(node.name)) {
+      return isPristineProxyGlobal(adapter, node.name) ? node.name : null;
+    }
     const nextSeen = new Set(seen).add(node.name);
     const held = resolveVariableBindingToGlobal({ name: node.name, binding, scope, adapter, seen: nextSeen, path, usageNode, readNode });
     if (held) return isPristineProxyGlobal(adapter, held) ? held : null;
@@ -1544,6 +1552,11 @@ function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, p
     if (adapter?.method === 'usage-pure'
       && (patternSlotHasDefault(pattern, name)
         || patternSlotSpreadShifted(pattern, init, name, { scope, adapter, path, resolveKey }))) return null;
+    // a slot the file REPLACED no longer holds what the container's literal spells (`const w = { k:
+    // Object }; w.k = Map; const { k } = w` binds Map) - the same rule the static receiver walk
+    // applies to the `w.k` spelling, owed here because this route reads the pairing directly and
+    // would otherwise resolve a DIFFERENT constructor's static: a wrong value, not a missed one
+    if (writtenSlotBlocksPatternRead({ pattern, init, name, scope, adapter, path })) return null;
     const globals = new Set();
     for (const value of patternSlotValues(pattern, init, name, { scope, adapter, path, resolveKey })) {
       const global = resolveObjectName({
@@ -1556,6 +1569,20 @@ function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, p
   if (pattern && pattern.type !== 'Identifier') return null;
   if (!init) return null;
   return resolveAliasValueNode({ value: init, name, binding, scope, adapter, seen, path });
+}
+
+// does a written container slot stand between this pattern and the value its literal spells?
+// method-aware like every other consult of that record: pure bails (a write anywhere in the file
+// may reach the read), global keeps resolving and over-injects, the safe direction there
+function writtenSlotBlocksPatternRead({ pattern, init, name, scope, adapter, path }) {
+  if (adapter?.method !== 'usage-pure' || !adapter.isWrittenContainerSlot) return false;
+  const container = unwrapRuntimeExpr(init);
+  if (container?.type !== 'Identifier') return false;
+  const paths = patternRootKeyPathsFor(pattern, name, { scope, adapter, path, resolveKey });
+  // a slot this walk cannot name reads an UNKNOWN one, so any write on the container reaches it
+  return paths === null
+    ? adapter.isWrittenContainerSlot(container.name, [MUTATED_MEMBERS_UNKNOWN])
+    : paths.some(keys => adapter.isWrittenContainerSlot(container.name, keys));
 }
 
 // resolve the VALUE an Identifier-pattern alias stores - the declarator init, or a trusted
@@ -3762,6 +3789,13 @@ export function unbackedRealmHopFoldAbove(basePath, baseNode, ctx, { deleted = f
         return memberProxyHopName(node) || node.computed || node.optional ? null : fold;
       }
     } else if (!foldableRealmHop(node, ctx)) {
+      // a MUTATED slot holds the user's own object, and the read flavor owes the same verdict the
+      // delete flavor gives it: the run deopts WHOLE. the hops BELOW such a hop fold only together
+      // with the read above them, so folding them out leaves the kept hop reading off a base the
+      // source never wrote. every OTHER reason a hop does not fold is positional - a backed hop
+      // ends the run without undoing what is already folded
+      if (!node.computed && memberProxyHopName(node)
+        && !isPristineProxyGlobal(ctx.adapter, staticMemberKeyName(node))) return null;
       // a STRING-LITERAL computed key is the dotted hop in disguise - same name, nothing else
       // observed - but only where something READS THROUGH it: standing terminal it is the probe the
       // source asked for and keeps its slot, which is why the key question alone cannot answer here
