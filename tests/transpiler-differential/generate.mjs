@@ -2709,6 +2709,50 @@ function * generateKeptProxyRoot() {
   }
 }
 
+// --- WHERE a collapsed realm run lands, by CONSUMER ---
+// the run under a realm navigation lands on the deepest hop the pure build can back, and every
+// consumer of that run has its own render channel: a dispatch memoizes, a `new` keeps its callee, a
+// `for-of` head opens a scope, `in` and a template hole read a value, the symbol strand keeps the
+// receiver as an argument. the axis crosses the three run shapes that decide the landing (a backed
+// hop, an unbacked one below it, an unbacked one above it) with the roots that carry it - so a
+// channel that lands its own way shows up as a leg divergence or a native mismatch rather than as
+// a shape only the fixtures see. rigged: `self` / `window` are absent in Node, so the rig aliases
+// them to the global and the observed value is the realm's own
+const RUN_CONSUMER_ROOTS = [
+  { id: 'bare', prelude: '', root: 'globalThis' },
+  { id: 'kept-write', prelude: 'let t;', root: '(t = globalThis)' },
+  { id: 'proven-call', prelude: 'const dh = () => globalThis;', root: 'dh()' },
+];
+const RUN_CONSUMER_RUNS = [
+  { id: 'backed', run: '.self' },
+  { id: 'below-unbacked', run: '.window.self' },
+  { id: 'above-unbacked', run: '.self.window' },
+];
+const RUN_CONSUMERS = [
+  { id: 'instance', use: x => `String(${ x }.Array.prototype.flat.call([1, [2]]))` },
+  { id: 'ctor-new', use: x => `String(new (${ x }.Map)([[1, 2]]).size)` },
+  { id: 'in-operator', use: x => `String('of' in ${ x }.Array)` },
+  { id: 'for-of-head', use: x => `(() => { let last; for (const v of ${ x }.Array.of(7)) last = v; return String(last); })()` },
+  { id: 'template-hole', use: x => `\`${ '${' } ${ x }.Array.of(1) }\`` },
+  { id: 'symbol-iter', use: x => `String(typeof ${ x }[Symbol.iterator])` },
+  // the `delete` pair: the operator naming a slot ON the run lands its ROOT binding, while one
+  // naming a slot on what a DISPATCH returned is an ordinary read of the run - the two answers
+  // must not swap with the root kind, which is what this row pins
+  { id: 'delete-run-slot', use: x => `String(delete ${ x }.customQ)` },
+  { id: 'delete-through-dispatch', use: x => `String(delete ${ x }.Array.prototype.flat.customQ)` },
+];
+function * generateRunLandingConsumers() {
+  for (const root of RUN_CONSUMER_ROOTS) {
+    for (const run of RUN_CONSUMER_RUNS) {
+      for (const consumer of RUN_CONSUMERS) {
+        const name = `run-landing/${ root.id }/${ run.id }/${ consumer.id }`;
+        const inner = `(() => { ${ root.prelude } return ${ consumer.use(root.root + run.run) }; })()`;
+        yield { ...snippet(name, inner, { rig: true }), strip: false };
+      }
+    }
+  }
+}
+
 // --- Bare proxy-root probe: pristine `globalThis.window?.<hop>` with NO assignment / call around
 // the root - the claimless value canon guards on the raw probe and serves the hop through the
 // ponyfill. UNRIGGED rows run with `window` ABSENT: the source `?.` short-circuits the WHOLE
@@ -7945,6 +7989,7 @@ export function * generate() {
   yield * generateCtorKeySpelling();
   yield * generateSeHopKeyGuarded();
   yield * generateKeptProxyRoot();
+  yield * generateRunLandingConsumers();
   yield * generateBareProxyProbe();
   yield * wrapperOutcomeRows('wrapped-composition', WRAPPED_COMPOSE_SHAPES);
   yield * wrapperOutcomeRows('chain-seals', CHAIN_SEAL_SHAPES);

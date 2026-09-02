@@ -56,7 +56,9 @@ import {
 import {
   SYMBOL_ITERATOR_PURE_RESULT,
   planMemoReadTarget,
+  dispatchConsumesRun,
   planProxyReceiver,
+  proxyRunLandingPure,
   shouldDropRescueReceiver,
 } from '@core-js/polyfill-provider/detect-usage/members';
 import {
@@ -401,21 +403,12 @@ export default function createSynthSwapEmitter({
   // claim renders first and detaches the chain
   function foldKeptSeqHopRun(recPath, aliasCtx) {
     if (ownChainOptionalObjects(recPath.node).every(object => !nestedSequenceValueSpelling(object))) return false;
-    // a chain still carrying a resolvable INSTANCE claim is not claim-less residue: that claim's
-    // route renders it - and MEMOIZES the sequence, whose value slot the kept-value canon then
-    // owns (an alias root folds to the leaf there, not to this fold's alias-keep). the claim
-    // sits ABOVE the member the climb stopped at, so the scan walks the member run up; a claim
-    // past a CALL needs no retreat - its own split re-renders the value slot either way
-    for (let up = recPath; up?.node;) {
-      const isMember = up.isMemberExpression?.() || up.isOptionalMemberExpression?.();
-      const key = isMember ? staticMemberKeyName(up.node) : null;
-      if (key && resolvePure({ kind: 'property', key, placement: 'prototype' })?.kind === 'instance') return false;
-      const parent = up.parentPath;
-      const cont = parent?.node
-        && (parent.isMemberExpression?.() || parent.isOptionalMemberExpression?.()) && parent.node.object === up.node;
-      if (!cont) break;
-      up = parent;
-    }
+    // a chain still carrying a claim that DISPATCHES off this run is not claim-less residue: that
+    // claim's route renders it - and MEMOIZES the sequence, whose value slot the kept-value canon
+    // then owns (an alias root folds to the leaf there, not to this fold's alias-keep). asked of
+    // the shared canon, which walks the member run up from here and answers in both tenses - the
+    // claim still spelled as a member, and the dispatch a claim already rendered around the run
+    if (dispatchConsumesRun({ path: recPath, resolvePure, aliasCtx })) return false;
     let runPath = recPath.get('object');
     for (;;) {
       const runNode = runPath.node;
@@ -443,7 +436,11 @@ export default function createSynthSwapEmitter({
     if (rootNode?.type !== 'Identifier'
       || maximalProxyGlobalPrefix(runPath.node, aliasCtx) !== runPath.node
       || !findProxyGlobal(runPath.node, aliasCtx, true)) return false;
-    const runPure = resolvePure({ kind: 'global', name: rootNode.name });
+    // an ALIAS root keeps its identifier (the drive's alias rule), so the deepest-landing canon is
+    // asked only where the root itself spells a realm name pure can back
+    const runPure = POSSIBLE_GLOBAL_OBJECTS.has(rootNode.name)
+      ? proxyRunLandingPure({ navNode: runPath.node, ctx: aliasCtx, resolvePure, rootName: rootNode.name })
+      : resolvePure({ kind: 'global', name: rootNode.name });
     runPath.replaceWith(runPure
       ? injectPureImport(runPure.entry, runPure.hintName) : t.cloneNode(rootNode));
     return true;
@@ -549,11 +546,13 @@ export default function createSynthSwapEmitter({
     // globalThis.self.window`) keeps the raw hops: it reads `window`, which throws off-browser exactly as
     // the source does (finding-e faithful-throw)
     if (allProxyEnd && !isDestructurePattern(target)) return false;
-    // the all-proxy chain's LAST hop is itself a proxy. only root-collapse when SOME hop is UNRESOLVABLE
+    // the all-proxy chain's LAST hop is itself a proxy. only collapse when SOME hop is UNRESOLVABLE
     // (`.window`, no `_window` - `collapseProxyGlobalReceiver` keeps it as `_globalThis.window`, undefined
-    // off-engine): drop EVERY hop to the root pure import (`_globalThis`). when every hop resolves (`.self`
-    // -> `_self`) keep the natural per-hop resolution (`{x} = globalThis.self` -> `_self`). a computed hop
-    // key may carry SE (`globalThis[(c++,'self')].window`) - out of scope for this bare drop, defer
+    // off-engine): drop every hop onto the binding the landing canon names - the deepest one pure can
+    // back, the root when none of them is (`{x} = globalThis.window.self` reads `_self`, `{x} =
+    // globalThis.window` reads `_globalThis`). when every hop resolves (`.self` -> `_self`) keep the
+    // natural per-hop resolution (`{x} = globalThis.self` -> `_self`). a computed hop key may carry SE
+    // (`globalThis[(c++,'self')].window`) - out of scope for this bare drop, defer
     if (allProxyEnd) {
       if (valueObservingCarrier) return false;
       // ... and only where the value canon calls the nav DEFINED (a deep unresolvable hop is a
@@ -563,7 +562,9 @@ export default function createSynthSwapEmitter({
       if (!navHasUnresolvableProxyHop(recPath.node, resolvePure)
         || proxyReceiverValueCanBeUndefined(recPath.node, resolvePure, aliasCtx)) return false;
       const rootIdent = findProxyGlobal(recPath.node, aliasCtx, true);
-      const rootPure = rootIdent && resolvePure({ kind: 'global', name: rootIdent.name });
+      const rootPure = rootIdent && proxyRunLandingPure({
+        navNode: recPath.node, ctx: aliasCtx, resolvePure, rootName: rootIdent.name,
+      });
       if (!rootPure) return false;
       for (let n = recPath.node; n?.type === 'MemberExpression' || n?.type === 'OptionalMemberExpression'; n = n.object) {
         if (n.computed) return false;

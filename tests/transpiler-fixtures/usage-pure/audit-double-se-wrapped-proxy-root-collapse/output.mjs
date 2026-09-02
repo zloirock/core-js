@@ -1,7 +1,7 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
-import _globalThis from "@core-js/pure/actual/global-this";
+import _self from "@core-js/pure/actual/self";
 import _includesMaybeString from "@core-js/pure/actual/string/instance/includes";
 // A DOUBLE side effect: one in the proxy-global ROOT wrapper `(eff(), globalThis)` AND one in the proxy HOP
 // key `[(eff(), 'self')]`, on an instance-method receiver. the root wrapper has no bare proxy-global identifier
@@ -16,7 +16,7 @@ function eff(tag) {
   _pushMaybeArray(log).call(log, tag);
   return 0;
 }
-const callInstance = _includesMaybeArray((eff('a'), eff('b'), _globalThis).Array.prototype).call([1, 2], 1);
-const at = _atMaybeArray((eff('c'), eff('d'), _globalThis).Array.prototype);
-const doubleHop = _includesMaybeString((eff('e'), eff('f'), eff('g'), _globalThis).String.prototype).call('abc', 'a');
+const callInstance = _includesMaybeArray((eff('a'), eff('b'), _self).Array.prototype).call([1, 2], 1);
+const at = _atMaybeArray((eff('c'), eff('d'), _self).Array.prototype);
+const doubleHop = _includesMaybeString((eff('e'), eff('f'), eff('g'), _self).String.prototype).call('abc', 'a');
 export { callInstance, at, doubleHop, log };
