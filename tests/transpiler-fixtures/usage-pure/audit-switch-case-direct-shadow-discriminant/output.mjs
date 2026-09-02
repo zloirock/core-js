@@ -2,6 +2,7 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _findLastIndexMaybeArray from "@core-js/pure/actual/array/instance/find-last-index";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _globalThis from "@core-js/pure/actual/global-this";
+import _self from "@core-js/pure/actual/self";
 import _atMaybeString from "@core-js/pure/actual/string/instance/at";
 import _includesMaybeString from "@core-js/pure/actual/string/instance/includes";
 // a case-DIRECT lexical (`case 1: let globalThis = ...`, no block braces) is scoped by
@@ -10,7 +11,7 @@ import _includesMaybeString from "@core-js/pure/actual/string/instance/includes"
 // emitters' shadow guards must judge the DISCRIMINANT use position-aware: the substitution
 // proceeds there (a raw hop read would throw off-engine), and only real in-cases uses shadow
 let y1 = {};
-switch (_flatMaybeArray(_globalThis.Array.prototype).call([1, [2]]).length) {
+switch (_flatMaybeArray(_self.Array.prototype).call([1, [2]]).length) {
   case 1:
     let globalThis = y1;
     break;
@@ -60,7 +61,7 @@ export { n };
 // declaration is already rewritten), while babel folds the whole receiver - cosmetic
 const g = _globalThis;
 let ya = {};
-switch (_findLastIndexMaybeArray(_globalThis.Array.prototype)) {
+switch (_findLastIndexMaybeArray(_self.Array.prototype)) {
   case 1:
     let g = ya;
     break;

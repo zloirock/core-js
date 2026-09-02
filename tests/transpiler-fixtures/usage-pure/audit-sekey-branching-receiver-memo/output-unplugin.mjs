@@ -12,10 +12,10 @@ import _keysMaybeArray from "@core-js/pure/actual/array/instance/keys";
 import _toSortedMaybeArray from "@core-js/pure/actual/array/instance/to-sorted";
 import _valuesMaybeArray from "@core-js/pure/actual/array/instance/values";
 import _Array$of from "@core-js/pure/actual/array/of";
-import _globalThis from "@core-js/pure/actual/global-this";
 import _keys from "@core-js/pure/actual/instance/keys";
 import _values from "@core-js/pure/actual/instance/values";
 import _Promise from "@core-js/pure/actual/promise/constructor";
+import _self from "@core-js/pure/actual/self";
 
 let k1 = 0;
 var _ref = _Promise.prototype ? [7, 8] : [];
@@ -181,7 +181,7 @@ export const r14 = [typeof f14, k14];
 // a proxy-hop member receiver collapses INSIDE the memo (the raw hop is undefined off-engine)
 let k15 = 0;
 
-var _ref15 = _globalThis.Array.prototype;
+var _ref15 = _self.Array.prototype;
 var a15 = _atMaybeArray(_ref15);
 var { [(k15++, 'at')]: _unused15, other15 } = _ref15;
 
@@ -191,7 +191,7 @@ export const r15 = [typeof a15, k15];
 // the memo captures prefix and receiver together, effects once in source order
 let k16 = 0, s16 = 0;
 
-var _ref16 = (s16++, _globalThis.Array.prototype);
+var _ref16 = (s16++, _self.Array.prototype);
 var f16 = _flatMaybeArray(_ref16);
 var { [(k16++, 'flat')]: _unused16, other16 } = _ref16;
 

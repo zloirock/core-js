@@ -21,17 +21,17 @@ export const castAroundPlainValue = _nameMaybeFunction((held = _self as any, _Ma
 // ... and the same two sides where what the wrapper sits on is a span a FOLD leaves behind: the
 // assertion over the folded run goes with it - what is left is the binding, which asserts nothing
 // less - while the one the store holds still describes the value the variable keeps
-export const castOverFold = _globalThis.customProp;
-export const nonNullOverFold = _globalThis.customProp;
-export const castOverGuardedFold = _globalThis.customProp;
+export const castOverFold = _self.customProp;
+export const nonNullOverFold = _self.customProp;
+export const castOverGuardedFold = _self.customProp;
 
 // ... and the same rule where the render is the STORE's own: the wrapper over the span it replaces
 // goes with it, in whatever host the run stands (the declarator answered it first, and the other
 // hosts reach this render through their own routes)
 let stored: any;
 export function inReturn() {
-  return (stored = _globalThis, _globalThis).customProp;
+  return (stored = _globalThis, _self).customProp;
 }
-export const inTemplate = `${(stored = _globalThis, _globalThis).customProp}`;
-export const inTernary = e ? (stored = (e++, _globalThis), _globalThis).customProp : 0;
+export const inTemplate = `${(stored = _globalThis, _self).customProp}`;
+export const inTernary = e ? (stored = (e++, _globalThis), _self).customProp : 0;
 export { e, held, stored };

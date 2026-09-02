@@ -1,5 +1,5 @@
-import _globalThis from "@core-js/pure/actual/global-this";
 import _Map from "@core-js/pure/actual/map/constructor";
+import _self from "@core-js/pure/actual/self";
 // optional proxy chains in a body-extracted param default collapse onto the substituted
 // root with exactly ONE connector: an optional ROOT connector belongs to the root rewrite
 // (it emits `_globalThis.`), so the hop deletion starts past it; a plain root re-establishes
@@ -8,25 +8,25 @@ import _Map from "@core-js/pure/actual/map/constructor";
 export function f({
   from,
   ...rest
-} = _globalThis.Array) {
+} = _self.Array) {
   return [from, rest];
 }
 export function g({
   of: o,
   ...r2
-} = _globalThis.Array) {
+} = _self.Array) {
   return [o, r2];
 }
 export function h({
   keys,
   ...r3
-} = _globalThis.Object) {
+} = _self.Object) {
   return [keys, r3];
 }
 export function k({
   entries,
   ...r4
-} = _globalThis['Object']) {
+} = _self['Object']) {
   return [entries, r4];
 }
 export function n({
