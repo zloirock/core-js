@@ -1,13 +1,17 @@
-import { SINGLE_STATEMENT_SLOTS } from './helpers/ast-patterns.js';
+import {
+  SINGLE_STATEMENT_SLOTS,
+  forEachStatementPosition,
+  getMinifierSequenceDestructureExpressions,
+  sequenceHeadDirectiveHazard,
+} from './helpers/ast-patterns.js';
+import { expressionStatement, literal, sequenceExpression } from './render.js';
 
 // shape classification for destructure hosts (VariableDeclaration / AssignmentExpression
-// inside ExpressionStatement). produces parser-agnostic booleans both plugins consume:
-// `isExport` / `isForInit` / `isBodyless` / `isMultiDecl`. classification operates on raw
-// AST nodes so callers can pass nodes from either babel paths or estree-toolkit paths.
-//
-// the strategy decision tree IS plugin-specific by design (babel uses per-prop AST mutation,
-// unplugin uses batched text-rewrite emitting one transform per declaration) so the planners
-// stay plugin-local. the underlying facts are the same, hence this shared classifier
+// inside ExpressionStatement): the parser-agnostic booleans both plugins consume -
+// `isExport` / `isForInit` / `isBodyless` / `isMultiDecl` - and the plan of the one host
+// rewrite both plugins owe ahead of detection, the minifier-sequence split. everything here
+// operates on raw AST nodes, so callers pass nodes from either babel paths or estree-toolkit
+// paths; the surgery that lands a plan in the host tree is each binding's own
 
 // is `host` the single-statement slot of `parent`? composed on the canonical slot table, which
 // already carries the two-slot IfStatement (`consequent` / `alternate`); the concise-body arrow is
@@ -70,4 +74,62 @@ export function classifyVariableDeclarationHost({ declaration, declarationParent
     isBodyless: isBodylessStatementSlot(declarationParent, declaration),
     isMultiDecl: declaration.declarations.length > 1,
   };
+}
+
+// --- the minifier-sequence split ---
+// `(prefixExpr, ..., ({pat} = R), ...);` collapses a destructure assignment into ANY slot of a
+// statement-position SequenceExpression (a minified tail, comma-joined statements, nested
+// sequences), a shape the destructure gates peel past only Paren+TS and so silently bail on. the
+// plan lists every such statement with the products that replace it: one ExpressionStatement per
+// operand, in source order (statement context discards every operand's value, so the split is
+// sound at any position). an operand that is itself a minifier sequence splits in the same plan,
+// so the tree is walked once and no fixpoint over it is needed. each product carries its operand's
+// own span - `start` / `end`, and the `loc` a parser gave it - so the products read as the
+// author's own statements to everything that asks a STATEMENT where it stands: the entry
+// detection, which takes a span-less statement for a sibling's synthesis and skips it (babel), and
+// asks the opt-out gate of the entry statement whole (unplugin); the print's own margins. a claim
+// inside a product is asked by its own node, spans or not. a statement-list member is
+// planned with its list; an un-braced control-flow slot (`if (c) (eff(), ({ at } = src));`) holds
+// ONE statement and is planned with its host and key, the binding bracing the slot around the
+// products (a block around a sequence's operands declares nothing, so the added scope is
+// unobservable). `embed` wraps each operand for the binding's dialect - `hostSlot` on babel,
+// identity where the tree already is canonical ESTree. the surgery is the binding's: babel
+// converts the products and inherits the replaced statement's attached comments, unplugin
+// splices as is. the entries hold nodes, so a binding applies them by identity and reads a
+// statement's index at apply time
+export function planMinifierSequenceSplit(root, { embed = node => node } = {}) {
+  const plan = [];
+  // one operand's products. a leading STRING operand promoted to its own statement at a prologue
+  // position re-parses as a Directive Prologue entry - `"use strict"` flipping a sloppy script
+  // strict, `"use asm"` - a semantic shift the operand never carried, so `(0, str)` keeps it a
+  // plain expression statement; only the first operand can land there (a later string operand is
+  // already post-prologue)
+  function operandProducts(operand, index) {
+    const nested = getMinifierSequenceDestructureExpressions(expressionStatement(operand));
+    if (nested) return nested.flatMap(operandProducts);
+    const node = index === 0 && sequenceHeadDirectiveHazard(operand)
+      ? sequenceExpression([literal(0), embed(operand)]) : embed(operand);
+    const product = expressionStatement(node);
+    product.start = operand.start;
+    product.end = operand.end;
+    product.loc = operand.loc;
+    return [product];
+  }
+  function statementProducts(statement) {
+    const expressions = getMinifierSequenceDestructureExpressions(statement);
+    return expressions ? expressions.flatMap(operandProducts) : null;
+  }
+  forEachStatementPosition(root, {
+    onList(statements) {
+      for (const statement of statements) {
+        const products = statementProducts(statement);
+        if (products) plan.push({ statements, statement, products });
+      }
+    },
+    onUnbracedSlot(host, key) {
+      const products = statementProducts(host[key]);
+      if (products) plan.push({ host, key, statement: host[key], products });
+    },
+  });
+  return plan;
 }

@@ -67,6 +67,7 @@ import {
   reassignBailApplies,
   reassignmentBlocksGlobalResolve,
   reassignmentValueNodes,
+  requireCallSource,
   sequencePrefixWithSideEffects,
   singleQuasiString,
   singleReturnBodyExpression,
@@ -913,9 +914,9 @@ const SYMBOL_IMPORT_SOURCE = /(?:^|\/)symbol\/(?<name>[\w-]+)(?:\/index)?(?:\.js
 // imports FROM, so the canon cannot sit here without a cycle; the transparent / chain-assignment
 // peels moved there for the same reason (the const-alias follow reads them), and keep this name
 export {
-  bindsModuleDefault, globalProxyNameFromImportSource, isTransparentWrapper, isTypeOnlyImportKind,
-  peelChainAssignment, peelChainAssignmentDeep, pureCtorNameFromImportSource, tsImportEqualsProxyName,
-  tsImportEqualsRequireSource, unwrapTransparentSeq,
+  bindsModuleDefault, extractStaticString, globalProxyNameFromImportSource, isTransparentWrapper,
+  isTypeOnlyImportKind, peelChainAssignment, peelChainAssignmentDeep, pureCtorNameFromImportSource,
+  requireCallSource, tsImportEqualsProxyName, tsImportEqualsRequireSource, unwrapTransparentSeq,
 } from '../helpers/ast-patterns.js';
 
 // shared Identifier-binding gate for key-resolution walks: cycle guard via the hop's `seen`, fork
@@ -1036,52 +1037,6 @@ function isInteropDefaultCallee(callee, scope, adapter, path) {
       ? requireCallSource(binding.node.init, { adapter, scope: aliasDeclScope(binding, scope), path }) : null)
     ?? tsImportEqualsRequireSource(binding.node, adapter);
   return typeof source === 'string' && INTEROP_HELPER_SOURCE.test(source);
-}
-
-// extract a static string from a node that's either a StringLiteral or a no-interpolation
-// TemplateLiteral. without TemplateLiteral support, `require(\`core-js/actual/promise\`)`
-// (any tagless single-quasi template) silently bypasses entry detection
-export function extractStaticString(node, adapter) {
-  if (!node) return null;
-  // peel paren / TS wrappers so `require((`core-js/...`))` (oxc keeps the ParenthesizedExpression
-  // that babel strips) and `require('core-js/...' as const)` reach the literal check on both
-  // parsers. SequenceExpression is deliberately NOT peeled here: `adapter.getStringValue` already
-  // resolves a side-effect-free SE tail (`require((0, 'core-js/...'))`) to its literal on BOTH
-  // parsers via the shared paren-unwrap, and a side-effecting prefix bails on both - detection
-  // stays parser-symmetric without peeling SE at this layer
-  const inner = unwrapRuntimeExpr(node);
-  if (inner?.type === 'TemplateLiteral') return singleQuasiString(inner);
-  // adapter-less callers (the node-level census gates, which have no scope machinery) still get the
-  // plain-literal answer - the adapter only adds const-folding on top
-  if (!adapter) return typeof inner?.value === 'string' ? inner.value : null;
-  return adapter.getStringValue(inner);
-}
-
-// `require('core-js/...')` value-call -> source string, or null. peels webpack `(0, require)(...)`
-// (SequenceExpression callee tail) and paren / TS / chain wrappers (`(require as any)('...')`,
-// `require!('...')`); accepts optional `require?.(...)` on both parsers. a locally-shadowed
-// `require` (looked up via the alias context's `scope` / `adapter` - a hop's `ctx`) is ignored -
-// its `path` reaches the adapter's var-hoist / TS-runtime shadow recovery, so a `var require`
-// hoisted out of a nested block shadows on the estree leg exactly as babel's scope tracker sees
-// it; with no context the shadow check is skipped. the ONE require-source canon: entry
-// detection / existing-import scan (entries.js) and the proxy-import recognition branches below
-// all read through it
-export function requireCallSource(node, aliasCtx = {}) {
-  const { adapter = null, scope = null, path = null } = aliasCtx;
-  // `var P = require?.('x')` wraps the call in a ChainExpression (estree / oxc); peel transparent
-  // wrappers at the top so the type-gate sees the (Optional)CallExpression instead of rejecting it
-  // and re-emitting a duplicate import for an already-provided module
-  node = unwrapTransparentSeq(node);
-  if ((node?.type !== 'CallExpression' && node?.type !== 'OptionalCallExpression')
-    || node.arguments?.length !== 1) return null;
-  // the callee sequence descends UNCONDITIONALLY - an effectful prefix does not hide the entry,
-  // it is preserved separately when the statement is removed - and at any depth: a single peel
-  // recognised `(spy(), require)('core-js/...')` but not `(a(), (b(), require))('core-js/...')`,
-  // and an unrecognised entry is left in place while its targets go uninjected
-  const callee = peelSequenceTail(unwrapTransparentSeq(node.callee), { step: unwrapTransparentSeq });
-  if (callee?.type !== 'Identifier' || callee.name !== 'require') return null;
-  if (scope && adapter?.hasBinding?.(scope, 'require', path)) return null;
-  return extractStaticString(node.arguments[0], adapter);
 }
 
 // `_interopRequireDefault(require('<pkg>/<mode>/global-this'))` call -> the proxy name its
@@ -1372,8 +1327,7 @@ function resolveGuardedBindingToGlobal({ name, scope, adapter, seen, path, usage
   if (!hint && binding?.importKind !== 'type' && (binding?.kind === 'module'
     // ... or the require-style pure binding: THIS binding's own declarator holds the
     // require call (a shadowed local of the same name has a different node and stays out)
-    || (binding?.node?.type === 'VariableDeclarator' && binding.node.init?.type === 'CallExpression'
-      && binding.node.init.callee?.name === 'require'))) {
+    || (binding?.node?.type === 'VariableDeclarator' && requireCallSource(binding.node.init) !== null))) {
     const entry = pureImportEntryOf(path, name);
     if (entry) hint = entryToGlobalHint(entry) ?? null;
   }
