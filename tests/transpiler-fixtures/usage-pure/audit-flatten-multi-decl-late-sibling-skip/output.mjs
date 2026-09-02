@@ -1,5 +1,5 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-import _Set from "@core-js/pure/actual/set/constructor";
+import _Set from "@core-js/pure/actual/set";
 // Sibling declarator is visited before the second declarator triggers a flatten, so its
 // `Set -> _Set` substitution is queued before the outer flatten registers its whole-
 // VariableDeclaration overwrite - the inner edit now sits inside the outer edit range.

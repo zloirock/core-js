@@ -758,7 +758,7 @@ function containerRepositionCandidates({ objectNode, scope, adapter, path, resol
   // or a member off it (`b[0].of`) - both dispatch on values the literal's elements supply
   const owner = member?.type === 'MemberExpression' || member?.type === 'OptionalMemberExpression'
     ? unwrapRuntimeExpr(member.object) : member;
-  if (owner?.type !== 'Identifier' || !adapter.isWrittenContainerSlot?.(owner.name, '*')) return [];
+  if (owner?.type !== 'Identifier' || !adapter.isWrittenContainerSlot?.(owner.name, ['*'])) return [];
   const binding = adapter.getBinding(scope, owner.name, path);
   const init = unwrapTransparentSeq(peelChainAssignmentDeep(binding?.path?.node?.init ?? binding?.node?.init ?? null) ?? null);
   if (init?.type !== 'ArrayExpression') return [];
@@ -2382,6 +2382,9 @@ function pluginRewrittenHopName(binding, hop) {
 }
 
 const CLEAR_HOP = Symbol('clear-hop');
+// the class-hop disposition said "the cursors moved, keep walking" - distinct from a `null` answer,
+// which is the walk's own verdict
+const CONTINUE_HOP = Symbol('continue-hop');
 // combines the dominance gate with the reaching continuation for a variable hop of the walk.
 // reassignment is read off `constantViolations`, not `binding.constant`: the latter is adapter-
 // dependent (babel computes it lazily, estree-toolkit does not expose it) while both adapters
@@ -2517,8 +2520,14 @@ export function staticContainerReceiverName({ node, scope, adapter, path, unionS
 }
 
 // the walk takes the hop standing on the receiver and the walk's OPTIONS beside it: `walkPath`
-// (the keys left to descend), `depth`, `ignoreWrittenSlots`, `unionSink` (see `walkStaticReceiverChain`)
-function walkStaticReceiverStep(hop, { walkPath, depth = 0, ignoreWrittenSlots = false, unionSink = null }) {
+// (the keys left to descend), `depth`, `ignoreWrittenSlots`, `unionSink` (see `walkStaticReceiverChain`),
+// plus where the walk stands relative to the CONTAINER it last dereferenced - the binding's name
+// and the keys consumed under it. those two ride the options rather than the step, or the
+// recursion into a nested literal would forget which container it is inside and the written-slot
+// consult could only ever fire on the first hop
+function walkStaticReceiverStep(hop, {
+  walkPath, depth = 0, ignoreWrittenSlots = false, unionSink = null, containerName: enteredName = null, containerPath = [],
+}) {
   if (depth > STATIC_WALK_DEPTH) return null;
   const { adapter, path = null } = hop.ctx;
   let current = unwrapTransparentSeq(hop.node);
@@ -2538,14 +2547,38 @@ function walkStaticReceiverStep(hop, { walkPath, depth = 0, ignoreWrittenSlots =
   // bounce between names until STATIC_WALK_DEPTH burns out. Set short-circuits at the
   // second visit with O(1) check, complementing the depth cap as a defensive lower bound
   const visited = hop.seen ?? new Set();
-  let containerName = null;
+  let containerName = enteredName;
+  // dereferencing a bound name puts the walk INSIDE that container: the keys consumed above
+  // belonged to whatever the name aliased, so the slot path restarts here
+  function enterContainer(name) {
+    containerName = name;
+    containerPath = [];
+  }
   // the hop the walk stands on right now, and the walk's options as they stand - for the per-hop
   // dispositions and the terminal
   function standing() {
     return {
       hop: { node: current, readNode, seen: visited, ctx: { scope: currentScope, adapter, path, resolveKey: sharedResolveKey } },
-      walk: { walkPath, depth, ignoreWrittenSlots, unionSink },
+      walk: { walkPath, depth, ignoreWrittenSlots, unionSink, containerName, containerPath },
     };
+  }
+  // the class-binding disposition, moved out whole: it advances the same three cursors the
+  // container arm does, and returns the walk's own answer when the class arm ends it
+  let classHopEnded = false;
+  function takeClassBindingHop(binding) {
+    const step = classBindingHop({ ...standing(), binding, name: current.name });
+    if (!step) return null;
+    if (step.leaf) return step.leaf;
+    if (step.follow) {
+      current = unwrapTransparentSeq(step.follow);
+      currentScope = aliasDeclScope(binding, currentScope);
+      readNode = step.follow;
+      return CONTINUE_HOP;
+    }
+    current = step.descend;
+    readNode = current;
+    classHopEnded = true;
+    return CONTINUE_HOP;
   }
   // dereference const-bound Identifier through its VariableDeclarator initializer,
   // chasing re-aliases (`const Foo = Array; const wrapper = { a: Foo }`) until we
@@ -2572,25 +2605,17 @@ function walkStaticReceiverStep(hop, { walkPath, depth = 0, ignoreWrittenSlots =
     // const NS = {Foo}; walkStaticReceiverChain(NS, ['Foo'])` to return 'Foo' (otherwise would bail
     // here since ClassDeclaration isn't VariableDeclarator)
     if (bindingType === 'ClassDeclaration') {
-      const step = classBindingHop({ ...standing(), binding, name: current.name });
-      if (!step) return null;
-      if (step.leaf) return step.leaf;
-      if (step.follow) {
-        current = unwrapTransparentSeq(step.follow);
-        currentScope = aliasDeclScope(binding, currentScope);
-        readNode = step.follow;
-        continue;
-      }
-      current = step.descend;
-      readNode = current;
-      break;
+      const step = takeClassBindingHop(binding);
+      if (step !== CONTINUE_HOP) return step;
+      if (classHopEnded) break;
+      continue;
     }
     if (bindingType !== 'VariableDeclarator') return null;
     if (!binding) return null;
     const blocked = blockedContainerHop({ ...standing(), binding, name: current.name });
     if (blocked !== CLEAR_HOP) {
       if (!blocked) return null;
-      containerName = current.name;
+      enterContainer(current.name);
       current = unwrapTransparentSeq(blocked);
       currentScope = aliasDeclScope(binding, currentScope);
       // the reaching value was READ at its write site - the next hop's dominance proofs anchor
@@ -2609,21 +2634,22 @@ function walkStaticReceiverStep(hop, { walkPath, depth = 0, ignoreWrittenSlots =
     if (!walkPath) return null;
     // the name this container is BOUND to: a write to one of its slots replaces what the literal
     // spells, and the descent has to consult that before trusting the initial member
-    containerName = current.name;
+    enterContainer(current.name);
     current = unwrapTransparentSeq(initNode);
     currentScope = aliasDeclScope(binding, currentScope);
     readNode = (binding.path?.node ?? binding.node) ?? readNode;
   }
-  return walkStaticReceiverTerminal(standing(), containerName);
+  return walkStaticReceiverTerminal(standing());
 }
 
 // post-dereference terminal: leaf extraction, proxy mid-chain lift, intermediate member
-// resolution, and the static-container descents (object literal / class statics). `containerName`
-// is the name the container the hop stands in is BOUND to, null off a literal
-function walkStaticReceiverTerminal({ hop, walk }, containerName = null) {
+// resolution, and the static-container descents (object literal / class statics). the container
+// the hop stands in rides `walk` - its bound NAME (null off a literal) and the keys consumed
+// under it, which together spell the slot this step is about to read
+function walkStaticReceiverTerminal({ hop, walk }) {
   const { node: current, readNode, seen: visited } = hop;
   const { scope: currentScope, adapter, path } = hop.ctx;
-  const { walkPath, depth, ignoreWrittenSlots, unionSink } = walk;
+  const { walkPath, depth, ignoreWrittenSlots, unionSink, containerName, containerPath } = walk;
   // leaf return: walkPath consumed - extract the leaf global name.
   // bare Identifier returns its name directly; proxy-global member access
   // (`globalThis.Array` / `_globalThis.Array` after polyfill-injected rewrite) routes
@@ -2685,7 +2711,7 @@ function walkStaticReceiverTerminal({ hop, walk }, containerName = null) {
   // its own writes feed would lose the patch (`const m = NS.M; m.groupBy = shim` must still route
   // reads through the injected constructor), so it opts out of the slot consult
   if (!ignoreWrittenSlots && containerName && adapter.method === 'usage-pure'
-    && adapter.isWrittenContainerSlot?.(containerName, walkPath[0])) return null;
+    && adapter.isWrittenContainerSlot?.(containerName, [...containerPath, walkPath[0]])) return null;
   // usage-global union of the slot's OTHER reaching values, collected beside the primary descent:
   // the values recorded as written to this slot (including unknown-slot writes, which may land
   // anywhere), and - once an in-place mutator repositioned the container - every literal element
@@ -2694,14 +2720,15 @@ function walkStaticReceiverTerminal({ hop, walk }, containerName = null) {
   // resolve through the same machinery and feed the same sink. over-inject-safe: the sink only
   // adds side-effect imports, and pure callers never pass one
   if (unionSink && containerName && adapter.method === 'usage-global') {
-    const alternatives = [...adapter.writtenContainerSlotValues?.(containerName, walkPath[0]) ?? []];
-    if (current?.type === 'ArrayExpression' && adapter.isWrittenContainerSlot?.(containerName, '*')) {
+    const slotPath = [...containerPath, walkPath[0]];
+    const alternatives = [...adapter.writtenContainerSlotValues?.(containerName, slotPath) ?? []];
+    if (current?.type === 'ArrayExpression' && adapter.isWrittenContainerSlot?.(containerName, [...containerPath, '*'])) {
       for (const element of current.elements) if (canHoldBuiltIn(element)) alternatives.push(element);
     }
     for (const alternative of alternatives) {
-      const resolved = walkStaticReceiverStep(
-        { ...hop, node: alternative, seen: new Set(visited) }, { ...walk, walkPath: walkPath.slice(1), depth: depth + 1 },
-      );
+      const resolved = walkStaticReceiverStep({ ...hop, node: alternative, seen: new Set(visited) }, {
+        ...walk, walkPath: walkPath.slice(1), depth: depth + 1, containerPath: slotPath,
+      });
       if (resolved && !unionSink.includes(resolved)) unionSink.push(resolved);
     }
   }
@@ -2716,8 +2743,9 @@ function walkStaticReceiverTerminal({ hop, walk }, containerName = null) {
   // consult above: global keeps resolving and over-injects, the safe direction there
   if (value && adapter.method === 'usage-pure' && proxyReceiverValueCanBeUndefined(
     unwrapTransparentSeq(value), ({ name }) => resolveBuiltIn({ kind: 'global', name }), hop.ctx)) return null;
-  return value
-    ? walkStaticReceiverStep({ ...hop, node: value }, { ...walk, walkPath: walkPath.slice(1), depth: depth + 1 }) : null;
+  return value ? walkStaticReceiverStep({ ...hop, node: value }, {
+    ...walk, walkPath: walkPath.slice(1), depth: depth + 1, containerPath: [...containerPath, walkPath[0]],
+  }) : null;
 }
 
 // find the source-key PATH in an ObjectPattern that produces the binding named `bindingName`.
@@ -3240,14 +3268,17 @@ export function buildNestedParamSynthPlan({ leafPatternPath, meta, resolvePure, 
 
   function resolveRootContext(node) {
     let n = node;
+    // a proxy hop is walked through only while it still stands for the pristine surface: a slot the
+    // user overwrote (`globalThis.window = fake`) holds the replacement, so descending it mirrors a
+    // ponyfill onto an object the source never reads - the two halves travel together everywhere
     while ((n?.type === 'MemberExpression' || n?.type === 'OptionalMemberExpression') && !n.computed
-      && n.property?.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(n.property.name)) n = n.object;
-    if (n?.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(n.name)) return { kind: 'proxy' };
+      && n.property?.type === 'Identifier' && isPristineProxyGlobal(adapter, n.property.name)) n = n.object;
+    if (n?.type === 'Identifier' && isPristineProxyGlobal(adapter, n.name)) return { kind: 'proxy' };
     // a const-aliased proxy (`const NS = globalThis; ... = NS`) is invisible to the raw-AST name check
     // above - dereference it through the SAME resolveObjectName walk mirrorReceiverDescriptor uses for
     // the emitted receiver, so the mirror CONTEXT and the receiver agree instead of stranding the alias
     const resolved = resolveObjectName({ objectNode: n, scope: leafPatternPath.scope, adapter, path: leafPatternPath });
-    if (resolved && POSSIBLE_GLOBAL_OBJECTS.has(resolved)) return { kind: 'proxy' };
+    if (resolved && isPristineProxyGlobal(adapter, resolved)) return { kind: 'proxy' };
     // a const-bound static-object wrapper (`const w = { a: Array }; ... = w`): each pattern key resolves
     // through the object literal to its constructor (`w.a` -> Array) via the SAME walkStaticReceiverChain
     // the declarator static path uses. distinct from a bare ctor by its ObjectExpression init - carry the
@@ -3283,7 +3314,7 @@ export function buildNestedParamSynthPlan({ leafPatternPath, meta, resolvePure, 
         // bail stranded the polyfill: the receiver fell back to raw `_globalThis` and the native read of
         // the polyfill-needing key threw / mis-valued on ie:11
         if (inner?.type === 'ObjectPattern') {
-          const child = mirrorPattern(inner, POSSIBLE_GLOBAL_OBJECTS.has(key) ? ctx : { kind: 'ctor', name: key });
+          const child = mirrorPattern(inner, isPristineProxyGlobal(adapter, key) ? ctx : { kind: 'ctor', name: key });
           // a nested subtree the mirror cannot synthesize (rest / unresolvable / duplicate key) is a
           // BAILED passthrough: its polyfillable leaves go to the leaf fallback, which needs the mirror
           // NOT to fire - so an injecting-ctor-passthrough sibling must not keep the mirror alive here
@@ -3303,7 +3334,7 @@ export function buildNestedParamSynthPlan({ leafPatternPath, meta, resolvePure, 
         });
         const inner = prop.value?.type === 'AssignmentPattern' ? prop.value.left : prop.value;
         const childCtx = resolved
-          ? POSSIBLE_GLOBAL_OBJECTS.has(resolved) ? { kind: 'proxy' } : { kind: 'ctor', name: resolved }
+          ? isPristineProxyGlobal(adapter, resolved) ? { kind: 'proxy' } : { kind: 'ctor', name: resolved }
           : { kind: 'static', receiverNode: ctx.receiverNode, walkPath: [...ctx.walkPath, key] };
         const child = inner?.type === 'ObjectPattern' ? mirrorPattern(inner, childCtx) : null;
         entries.push({ key, child: child ?? { kind: 'passthrough' } });
