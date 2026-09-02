@@ -69,6 +69,13 @@ function imports(code) {
 // the effect-bearing sequence around a nav, the same inside a store, and the seal shapes whose
 // decisions were already dialect-aware (they stay in the list as the negative half of the gate)
 const CASES = [
+  // the minifier-sequence split reads the statement through the paren the kept dialect adds around
+  // the whole sequence and around each operand: the products, their order and the demoted string
+  // head are one program on both dialects (a string operand PARENTHESIZED by the source is the
+  // one documented dialect difference and stays out of this row)
+  ['minifier sequence, nested operand and demoted head',
+    'const src = [1, [2]];\nlet at, flat;\n("use strict", ({ at } = src), (eff(), ({ flat } = src)), use(at, flat));'],
+  ['minifier sequence in an unbraced body', 'const src = [1, [2]];\nlet at;\nif (c) (eff(), ({ at } = src));'],
   ['sequence-prefixed nav, claimless leaf', 'let c = 0;\nexport const r = (c++, globalThis.window.self).noSuchStatic;'],
   ['sequence-prefixed nav, instance claim',
     'let c = 0;\nexport const r = (c++, globalThis.window.self).Array.prototype.at;'],

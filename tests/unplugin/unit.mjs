@@ -21,7 +21,6 @@ import { expressionStatement as mintStatement, literal as mintLiteral } from '..
 import { collapseWhitespace } from './collapse-whitespace.mjs';
 import {
   hasCoreJSImport,
-  injectionFusesLeft,
   isCallee,
   isChunkLoaderBundler,
   isTopLevelImportLike,
@@ -2947,6 +2946,50 @@ function checkGuardSourceMap() {
 }
 checkGuardSourceMap();
 
+// --- source map: minifier-split products map to their own operands ---
+
+// the split replaces one statement by one statement per operand, and each product carries its
+// operand's span: a product's first mapped token lands inside the operand the author wrote - on the
+// statement's line for a one-line sequence, on the operand's OWN line for a multi-line one, inside
+// the braced slot for an un-braced body. the pre-port text splice joined the products on the
+// statement's first line, so the statement AFTER a multi-line sequence mapped one line short
+function checkMinifierSplitSourceMap() {
+  // each case: the source, and the operands (plus the statement after the sequence) whose products
+  // are looked up in the output by their rewritten spelling
+  const cases = [
+    ['one-line', 'const o = { x: 1 };\nconsole.log(Object.entries(o)), ({ x } = o);\nconsole.log(Object.assign({}, o));\n',
+      ['console.log(Object.entries(o))', '({ x } = o)', 'console.log(Object.assign({}, o))']],
+    ['multi-line', 'const o = { x: 1 };\nconsole.log(Object.entries(o)),\n  ({ x } = o);\nconsole.log(Object.assign({}, o));\n',
+      ['console.log(Object.entries(o))', '({ x } = o)', 'console.log(Object.assign({}, o))']],
+    ['braced if-body', 'const o = { x: 1 }, c = 1;\nif (c) (Object.entries(o), ({ x } = o)); Object.assign({}, o);\n',
+      ['Object.entries(o)', '({ x } = o)', 'Object.assign({}, o)']],
+  ];
+  for (const [label, source, operands] of cases) {
+    const out = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } }).transform(source, '/p.mjs');
+    const tracer = new TraceMap({ ...out.map, sources: ['/p.mjs'], sourcesContent: [source] });
+    const locate = buildOffsetToLoc(source);
+    const outLines = out.code.split('\n');
+    for (const operand of operands) {
+      const start = locate(source.indexOf(operand));
+      const end = locate(source.indexOf(operand) + operand.length);
+      const spelled = `${ operand.replace('Object.entries', '_Object$entries').replace('Object.assign', '_Object$assign') };`;
+      const row = outLines.findIndex(text => text.trim() === spelled);
+      check(`sourcemap/split ${ label }: ${ operand } is printed`, row !== -1, true);
+      if (row === -1) continue;
+      const text = outLines[row];
+      let mapped = null;
+      for (let col = text.search(/\S/); col < text.length && !mapped; col++) {
+        const pos = originalPositionFor(tracer, { line: row + 1, column: col });
+        if (pos.line !== null && pos.line !== undefined) mapped = pos;
+      }
+      check(`sourcemap/split ${ label }: ${ operand } maps onto its own line`, mapped?.line, start.line);
+      check(`sourcemap/split ${ label }: ${ operand } maps inside its own span`,
+        mapped !== null && mapped.column >= start.column && mapped.column < end.column, true);
+    }
+  }
+}
+checkMinifierSplitSourceMap();
+
 // --- per-file isolation of the binding registry the composition consults ---
 
 // composition asks the file's injector which names it minted. a bundler reuses ONE plugin instance
@@ -3421,27 +3464,6 @@ checkWalkerMutationContract();
 const { passed, failed } = counts;
 echo`\nPassed: ${ green(passed) }, Failed: ${ failed ? red(failed) : green(failed) }`;
 if (failed) throw new Error('Some tests have failed');
-
-// --- injectionFusesLeft (shared left-boundary fusion predicate) ---
-// hazard-start firstChar fuses leftward into a value / postfix-update / `}` prev, but NOT into a `;`
-// terminator or a statement-list opener (`{` block, `:` switch-case / label - the injection is the first
-// statement of the list, so no prev value exists to fuse with)
-check('injectionFusesLeft/+ after a value (call close) fuses', injectionFusesLeft('+', ')'), true);
-check('injectionFusesLeft// after a value fuses', injectionFusesLeft('/', ']'), true);
-check('injectionFusesLeft/( after postfix-update tail fuses', injectionFusesLeft('(', '+'), true);
-check('injectionFusesLeft/` after a fn-or-class-expr } fuses', injectionFusesLeft('`', '}'), true);
-check('injectionFusesLeft/+ after ; terminator is safe', injectionFusesLeft('+', ';'), false);
-check('injectionFusesLeft/+ after { block-open is safe', injectionFusesLeft('+', '{'), false);
-check('injectionFusesLeft/( after : case-label is safe', injectionFusesLeft('(', ':'), false);
-// identifier / numeric / unary-bang starts ASI-split on their own - never in the hazard set
-check('injectionFusesLeft/identifier start never fuses', injectionFusesLeft('x', ')'), false);
-check('injectionFusesLeft/bang start never fuses', injectionFusesLeft('!', ')'), false);
-// the prev alphabet is the open one: a TS non-null `!`, an instantiation's `>`, a `?.`'s `.` all end
-// a statement a `(` continues - the deny-list reads them as fusing, where an allow-list of value
-// ends was caught short
-check('injectionFusesLeft/( after TS non-null ! fuses', injectionFusesLeft('(', '!'), true);
-check('injectionFusesLeft/( after instantiation > fuses', injectionFusesLeft('(', '>'), true);
-check('injectionFusesLeft/( after optional-call . fuses', injectionFusesLeft('(', '.'), true);
 
 // --- phase: 'pre+post' bundler-specific downgrade (PRE_POST_UNSAFE_BUNDLERS) ---
 // bun and esbuild can't honor sibling pre-then-post ordering (bun drops `enforce`; esbuild's

@@ -123,6 +123,53 @@ export function isRequireCall(expr) {
   return callee?.type === 'Identifier' && callee.name === 'require';
 }
 
+// extract a static string from a node that's either a StringLiteral or a no-interpolation
+// TemplateLiteral. without TemplateLiteral support, `require(\`core-js/actual/promise\`)`
+// (any tagless single-quasi template) silently bypasses entry detection
+export function extractStaticString(node, adapter) {
+  if (!node) return null;
+  // peel paren / TS wrappers so `require((`core-js/...`))` (oxc keeps the ParenthesizedExpression
+  // that babel strips) and `require('core-js/...' as const)` reach the literal check on both
+  // parsers. SequenceExpression is deliberately NOT peeled here: `adapter.getStringValue` already
+  // resolves a side-effect-free SE tail (`require((0, 'core-js/...'))`) to its literal on BOTH
+  // parsers via the shared paren-unwrap, and a side-effecting prefix bails on both - detection
+  // stays parser-symmetric without peeling SE at this layer
+  const inner = unwrapRuntimeExpr(node);
+  if (inner?.type === 'TemplateLiteral') return singleQuasiString(inner);
+  // adapter-less callers (the node-level census gates, which have no scope machinery) still get the
+  // plain-literal answer - the adapter only adds const-folding on top
+  if (!adapter) return typeof inner?.value === 'string' ? inner.value : null;
+  return adapter.getStringValue(inner);
+}
+
+// `require('core-js/...')` value-call -> source string, or null. peels webpack `(0, require)(...)`
+// (SequenceExpression callee tail) and paren / TS / chain wrappers (`(require as any)('...')`,
+// `require!('...')`); accepts optional `require?.(...)` on both parsers. a locally-shadowed
+// `require` (looked up via the alias context's `scope` / `adapter` - a hop's `ctx`) is ignored -
+// its `path` reaches the adapter's var-hoist / TS-runtime shadow recovery, so a `var require`
+// hoisted out of a nested block shadows on the estree leg exactly as babel's scope tracker sees
+// it; with no context the shadow check is skipped. the ONE require-source canon: entry
+// detection / existing-import scan (entries.js), the proxy-import recognition in
+// `detect-usage/resolve.js`, the import-binding table below and every binding's own
+// require-declarator test read through it
+export function requireCallSource(node, aliasCtx = {}) {
+  const { adapter = null, scope = null, path = null } = aliasCtx;
+  // `var P = require?.('x')` wraps the call in a ChainExpression (estree / oxc); peel transparent
+  // wrappers at the top so the type-gate sees the (Optional)CallExpression instead of rejecting it
+  // and re-emitting a duplicate import for an already-provided module
+  node = unwrapTransparentSeq(node);
+  if ((node?.type !== 'CallExpression' && node?.type !== 'OptionalCallExpression')
+    || node.arguments?.length !== 1) return null;
+  // the callee sequence descends UNCONDITIONALLY - an effectful prefix does not hide the entry,
+  // it is preserved separately when the statement is removed - and at any depth: a single peel
+  // recognised `(spy(), require)('core-js/...')` but not `(a(), (b(), require))('core-js/...')`,
+  // and an unrecognised entry is left in place while its targets go uninjected
+  const callee = peelSequenceTail(unwrapTransparentSeq(node.callee), { step: unwrapTransparentSeq });
+  if (callee?.type !== 'Identifier' || callee.name !== 'require') return null;
+  if (scope && adapter?.hasBinding?.(scope, 'require', path)) return null;
+  return extractStaticString(node.arguments[0], adapter);
+}
+
 // leading-import-region statement: ImportDeclaration, `export ... from 'mod'` re-export,
 // `export * [as ns] from 'mod'`, a top-level `require(...)` ExpressionStatement, or a
 // VariableDeclaration with at least one `require()` initializer. re-exports count because the
@@ -3165,15 +3212,13 @@ export function importBindingView(bindingNode, bindingParent, shadowCtx = null) 
   const isImportBinding = IMPORT_SPECIFIER_TYPES.has(bindingNode?.type);
   // the require-style twin (`var _x = require('...')`) is its own flag: consumers that mean
   // "an ES import specifier" keep their gate, the polyfill-hint gate accepts both spellings
-  const isRequireBinding = !isImportBinding && bindingNode?.type === 'VariableDeclarator'
-    && bindingNode.init?.type === 'CallExpression' && bindingNode.init.callee?.name === 'require'
-    && typeof bindingNode.init.arguments?.[0]?.value === 'string'
-    && !(shadowCtx && shadowCtx.adapter?.hasBinding?.(shadowCtx.scope, 'require', shadowCtx.path ?? null));
+  const requireSource = !isImportBinding && bindingNode?.type === 'VariableDeclarator'
+    ? requireCallSource(bindingNode.init, shadowCtx ?? {}) : null;
+  const isRequireBinding = requireSource !== null;
   return {
     isImportBinding,
     isRequireBinding,
-    importSource: isImportBinding ? bindingParent?.source?.value ?? null
-      : (isRequireBinding ? bindingNode.init.arguments[0].value : null),
+    importSource: isImportBinding ? bindingParent?.source?.value ?? null : requireSource,
     importKind: isImportBinding ? importBindingKind(bindingNode, bindingParent) : null,
   };
 }
@@ -4592,30 +4637,6 @@ export function memberKeyNamesReducer() {
   };
 }
 
-// does any statement list carry the minifier sequence-destructure shape? drives the split
-// pre-pass gate - most files have none and skip the path-materializing walk entirely
-export function minifierShapesReducer() {
-  let hasMinifierShapes = false;
-  function scanList(statements) {
-    if (!hasMinifierShapes && Array.isArray(statements)) {
-      hasMinifierShapes = statements.some(stmt => getMinifierSequenceDestructureExpressions(stmt) !== null);
-    }
-  }
-  return {
-    visit(node) {
-      if (hasMinifierShapes) return;
-      if (STATEMENT_LIST_HOST_TYPES.has(node.type)) scanList(node.body);
-      else if (node.type === 'SwitchCase') scanList(node.consequent);
-      // an un-braced control-flow body holds the shape in a single-statement slot, which no
-      // statement-list scan reaches - miss it here and the whole split pre-pass is gated off
-      else for (const key of SINGLE_STATEMENT_SLOTS.get(node.type) ?? []) {
-        if (getMinifierSequenceDestructureExpressions(node[key]) !== null) hasMinifierShapes = true;
-      }
-    },
-    result() { return { hasMinifierShapes }; },
-  };
-}
-
 // the plain slot names of a mutated set's `globalThis.<name>` keys - the user-owned
 // global-object properties an output-scope temp must never alias (a top-level `var <name>`
 // in script output IS the `globalThis.<name>` storage). prototype / ctor-static keys
@@ -5079,35 +5100,59 @@ export function pureImportSourceEntry(source) {
   const at = segments.findIndex(segment => PURE_IMPORT_FLAVOR_SEGMENTS.has(segment));
   return at === -1 || at === segments.length - 1 ? null : segments.slice(at + 1).join('/');
 }
-export function pureImportEntryOf(path, name) {
+
+// the Program node a path lives under: the climb ends where no parent path holds a node, and a
+// detached path answers null
+export function rootProgramOf(path) {
   let root = path;
   while (root?.parentPath?.node) root = root.parentPath;
-  return pureImportEntryOfProgram(root?.node, name);
+  return root?.node ?? null;
 }
 
-// the same question asked of a program NODE, for the censuses that run before any path exists
-export function pureImportEntryOfProgram(root, name) {
-  let source = null;
-  for (const decl of root?.body ?? []) {
-    if (decl.type === 'ImportDeclaration'
-      && decl.specifiers?.some(sp => sp.type === 'ImportDefaultSpecifier' && sp.local?.name === name)) {
-      source = decl.source?.value ?? null;
-      break;
-    }
-    if (decl.type !== 'VariableDeclaration') continue;
-    for (const declarator of decl.declarations) {
-      if (declarator.id?.type === 'Identifier' && declarator.id.name === name
-        && declarator.init?.type === 'CallExpression' && declarator.init.callee?.name === 'require'
-        && typeof declarator.init.arguments?.[0]?.value === 'string'
-        // an in-file `require` binding shadows the CJS import - the alias stays opaque
-        && !declaresRequireBinding(root.body)) {
-        source = declarator.init.arguments[0].value;
-        break;
+// name -> the module source of the first top-level declaration binding it, in body order: a
+// DEFAULT import specifier, or a `var`-style require declarator in any spelling the require canon
+// peels - none of those when an in-file `require` binding shadows the CJS import, every such alias
+// staying opaque. ONE table per program, built on the first ask and kept on the root: the coarse
+// census asks this for every call with a bare-name callee and the own-output censuses per name, and
+// a scan of the whole body per ask is quadratic in (asks x top-level statements). trusted only
+// while the body holds the length it was built over - the injectors splice imports into this same
+// body at flush, so an ask that ever came after one rebuilds rather than answering off a stale index
+const DEFAULT_IMPORT_SOURCES = new WeakMap();
+export function defaultImportSourcesOf(root) {
+  const body = root?.body ?? [];
+  const cached = root ? DEFAULT_IMPORT_SOURCES.get(root) : null;
+  if (cached && cached.length === body.length) return cached.sources;
+  const sources = new Map();
+  const requireShadowed = declaresRequireBinding(body);
+  for (const decl of body) {
+    if (decl.type === 'ImportDeclaration') {
+      for (const sp of decl.specifiers ?? []) {
+        if (sp.type === 'ImportDefaultSpecifier' && sp.local?.name && !sources.has(sp.local.name)) {
+          sources.set(sp.local.name, decl.source?.value ?? null);
+        }
       }
+      continue;
     }
-    if (source) break;
+    if (decl.type !== 'VariableDeclaration' || requireShadowed) continue;
+    for (const declarator of decl.declarations) {
+      if (declarator.id?.type !== 'Identifier' || sources.has(declarator.id.name)) continue;
+      const source = requireCallSource(declarator.init);
+      if (source !== null) sources.set(declarator.id.name, source);
+    }
   }
-  return pureImportSourceEntry(source);
+  if (root) DEFAULT_IMPORT_SOURCES.set(root, { length: body.length, sources });
+  return sources;
+}
+
+// the pure entry a name at the program root is bound to (`_Object$defineProperty` from
+// `@core-js/pure/actual/object/define-property`), asked of a PATH by the traversal stages
+export function pureImportEntryOf(path, name) {
+  return pureImportEntryOfProgram(rootProgramOf(path), name);
+}
+
+// the same question asked of the program NODE, for the censuses that run before any path exists
+export function pureImportEntryOfProgram(root, name) {
+  return pureImportSourceEntry(defaultImportSourcesOf(root).get(name) ?? null);
 }
 
 export const isDeleteTarget = parent => parent?.type === 'UnaryExpression' && parent.operator === 'delete';
@@ -7185,9 +7230,9 @@ export function walkPatternIdentifiers(node, visit, depth = 0) {
 
 // does a split-off leading sequence operand re-parse as a Directive Prologue entry? a bare
 // string literal does; TS casts vanish at type-strip so they don't protect it (`"use strict"
-// as any`), while explicit parens survive in a text emit and do (the babel AST drops parens at
-// parse, so its emit re-wraps regardless - both sides stay non-directive). covers babel
-// `StringLiteral` and estree `Literal`-string spellings
+// as any`), while explicit parens survive the reprint and do (the babel parser drops parens, so
+// that leg demotes regardless - both stay non-directive). covers babel `StringLiteral` and
+// estree `Literal`-string spellings
 export function sequenceHeadDirectiveHazard(expr) {
   let head = expr;
   while (head && head.type !== 'ParenthesizedExpression' && SKIPPABLE_WRAPPER_TYPES.has(head.type)) head = head.expression;
@@ -7200,8 +7245,8 @@ export function sequenceHeadDirectiveHazard(expr) {
 // SequenceExpression (`(0, ({pat} = R));` minified tail, `(({pat} = R), use());`
 // comma-joined statements) which the destructure-emitter gate would otherwise miss.
 // statement context discards every slot's value, so splitting is sound at any position.
-// returns the SequenceExpression's `expressions` array on match (callers split into per-expr
-// statements via adapter-specific mutation), null otherwise. peels both the outer wrapper and
+// returns the SequenceExpression's `expressions` array on match (`planMinifierSequenceSplit`
+// turns them into one statement per operand), null otherwise. peels both the outer wrapper and
 // each expression's wrapper - oxc preserves ParenthesizedExpression on both slots, babel
 // parser drops them, so the peel is required for cross-parser symmetry
 export function getMinifierSequenceDestructureExpressions(stmt) {
@@ -7213,8 +7258,8 @@ export function getMinifierSequenceDestructureExpressions(stmt) {
 }
 
 // a slot hosting a NESTED SequenceExpression (`((x(), ({p} = R)), use())`) carries the
-// destructure too: the split's fixpoint loop re-reaches the nested product once the outer
-// statement splits, so matching it here is what lets the outer split happen at all
+// destructure too: the split plan splits the nested operand in the same pass, so matching it
+// here is what lets the outer split happen at all
 function sequenceSlotsHaveDestructure(seq, depth) {
   if (depth >= MAX_DEPTH) return false;
   for (let slot of seq.expressions) {
