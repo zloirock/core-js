@@ -9,6 +9,7 @@ import {
   isForInitDeclaration,
   isLoopStatement,
   peelLabeledStatements,
+  planMinifierSequenceSplit,
 } from '../../packages/core-js-polyfill-provider/destructure-host-shape.js';
 import { createChecker } from './harness.mjs';
 
@@ -255,5 +256,89 @@ runBoth('isForInitDeclaration/init vs body slot', 'for (var { from } = Array; ;)
     check(`${ lbl }/init`, isForInitDeclaration(head.parentPath.node, head.node), true);
     check(`${ lbl }/body`, isForInitDeclaration(body.parentPath.node, body.node), false);
   });
+
+// --- planMinifierSequenceSplit ---
+// the plan both bindings apply: one entry per minifier-sequence statement, one product per
+// operand, each product carrying its operand's span. the two parsers differ in what reaches the
+// tree (oxc keeps the parens, babel drops them), so the plan is held to the same shape on both
+
+// a statement list: one entry with the list, the statement and its products in operand order,
+// every product an ExpressionStatement over the very operand node, spanned like it
+runBoth('planMinifierSequenceSplit/list entry', 'const src = [1];\n(eff(), ({ at } = src), use(at));\n', (adapter, prog, lbl) => {
+  const plan = planMinifierSequenceSplit(prog.node);
+  check(`${ lbl }: one entry`, plan.length, 1);
+  const [entry] = plan;
+  check(`${ lbl }: the entry names the list`, entry.statements, prog.node.body);
+  check(`${ lbl }: the entry names the statement`, entry.statement, prog.node.body[1]);
+  check(`${ lbl }: one product per operand`, entry.products.length, 3);
+  // oxc keeps the statement's parens as a node, babel drops them - the sequence sits under either
+  const sequence = entry.statement.expression.type === 'ParenthesizedExpression' ? entry.statement.expression.expression : entry.statement.expression;
+  check(`${ lbl }: products are expression statements`, entry.products.every(product => product.type === 'ExpressionStatement'), true);
+  check(`${ lbl }: products embed the operands themselves`,
+    entry.products.every((product, index) => product.expression === sequence.expressions[index]), true);
+  check(`${ lbl }: products carry their operands' spans`,
+    entry.products.every(product => product.start === product.expression.start && product.end === product.expression.end), true);
+  check(`${ lbl }: no host in a list entry`, entry.host, undefined);
+});
+
+// an un-braced control-flow slot: the entry names the host and the key, never a list
+runBoth('planMinifierSequenceSplit/slot entry', 'const src = [1];\nif (c) (eff(), ({ at } = src));\n', (adapter, prog, lbl) => {
+  const plan = planMinifierSequenceSplit(prog.node);
+  check(`${ lbl }: one entry`, plan.length, 1);
+  const [entry] = plan;
+  check(`${ lbl }: the entry names the host`, entry.host, prog.node.body[1]);
+  check(`${ lbl }: the entry names the key`, entry.key, 'consequent');
+  check(`${ lbl }: the entry names the slot statement`, entry.statement, prog.node.body[1].consequent);
+  check(`${ lbl }: no list in a slot entry`, entry.statements, undefined);
+  check(`${ lbl }: two products`, entry.products.length, 2);
+});
+
+// a nested minifier sequence flattens in the same plan - no second pass over the tree
+runBoth('planMinifierSequenceSplit/nested operand flattens', 'const src = [1];\n(a(), (b(), ({ at } = src)), ({ flat } = src));\n', (adapter, prog, lbl) => {
+  const plan = planMinifierSequenceSplit(prog.node);
+  check(`${ lbl }: one entry`, plan.length, 1);
+  const spelled = plan[0].products.map(product => {
+    const expression = product.expression.type === 'ParenthesizedExpression' ? product.expression.expression : product.expression;
+    return expression.type === 'CallExpression' ? expression.callee.name : expression.left.properties[0].key.name;
+  });
+  check(`${ lbl }: four products in source order`, spelled.join(','), 'a,b,at,flat');
+});
+
+// a leading string operand is demoted to `(0, str)` so it cannot become a directive; a later one
+// is not (already past the prologue), and a leading non-string operand keeps its bare spelling
+runBoth('planMinifierSequenceSplit/directive hazard', 'const src = [1];\n("use strict", ({ at } = src), "later");\n', (adapter, prog, lbl) => {
+  const [entry] = planMinifierSequenceSplit(prog.node);
+  const [head, , tail] = entry.products;
+  check(`${ lbl }: leading string demoted`, head.expression.type === 'SequenceExpression' && head.expression.expressions[0].value === 0, true);
+  check(`${ lbl }: demoted product keeps the string's span`, head.start, head.expression.expressions[1].start);
+  check(`${ lbl }: later string kept bare`, tail.expression.type === 'SequenceExpression', false);
+});
+
+// `embed` wraps every operand for the binding's dialect, the demoted head included
+runBoth('planMinifierSequenceSplit/embed wraps the operands', 'const src = [1];\n("use strict", ({ at } = src));\n', (adapter, prog, lbl) => {
+  const [entry] = planMinifierSequenceSplit(prog.node, { embed: node => ({ type: 'Wrapped', node }) });
+  check(`${ lbl }: the plain operand is wrapped`, entry.products[1].expression.type, 'Wrapped');
+  check(`${ lbl }: the demoted head is wrapped inside the sequence`, entry.products[0].expression.expressions[1].type, 'Wrapped');
+});
+
+// a statement list nested inside an operand is planned too, with its own list
+runBoth('planMinifierSequenceSplit/list inside an operand', 'const src = [1];\n(a(), ({ at } = src), () => { (b(), ({ flat } = src)); });\n', (adapter, prog, lbl) => {
+  const plan = planMinifierSequenceSplit(prog.node);
+  check(`${ lbl }: two entries`, plan.length, 2);
+  check(`${ lbl }: the inner entry names the arrow body`, plan[1].statements !== prog.node.body && Array.isArray(plan[1].statements), true);
+});
+
+// an un-braced slot nested inside an operand is planned too: the entries hold nodes, so the slot's
+// host stays reachable whatever the outer list's splice does around it
+runBoth('planMinifierSequenceSplit/slot inside an operand', 'const src = [1];\n(a(), ({ at } = src), () => { if (c) (b(), ({ flat } = src)); });\n', (adapter, prog, lbl) => {
+  const plan = planMinifierSequenceSplit(prog.node);
+  check(`${ lbl }: two entries`, plan.length, 2);
+  check(`${ lbl }: the inner entry is a slot of the if inside the arrow`, plan[1].host?.type === 'IfStatement' && plan[1].key === 'consequent', true);
+});
+
+// a statement without the shape plans nothing: a bare destructure, a sequence without one
+runBoth('planMinifierSequenceSplit/no shape, no entry', 'const src = [1];\n({ at } = src);\n(a(), b());\n', (adapter, prog, lbl) => {
+  check(lbl, planMinifierSequenceSplit(prog.node).length, 0);
+});
 
 finish();

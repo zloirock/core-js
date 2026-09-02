@@ -33,6 +33,7 @@ import {
 import {
   classOwnThisMethodInfo,
   directiveValue,
+  defaultImportSourcesOf,
   extractIndirectRequireSEPrefix,
   findFunctionScopeVarInPath,
   findObjectKeyBeforeSpread,
@@ -40,6 +41,9 @@ import {
   findVarOwnerDeclaring,
   forEachStatementPosition,
   importBindingView,
+  pureImportEntryOf,
+  pureImportEntryOfProgram,
+  rootProgramOf,
   isDirectiveStatement,
   isStatementPosition,
   programPrologueEndIndex,
@@ -66,7 +70,7 @@ import {
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { tagError } from '../../packages/core-js-polyfill-provider/helpers/error-tag.js';
 import { subsume } from '../../packages/core-js-polyfill-provider/helpers/subsumption.js';
-import { createChecker } from './harness.mjs';
+import { adapters, createChecker } from './harness.mjs';
 
 const { check, checkDeep, checkTruthy, finish, throwsWith } = createChecker('helpers');
 
@@ -1546,6 +1550,73 @@ for (const spelling of ['ClassAccessorProperty', 'AccessorProperty']) {
   const info = classOwnThisMethodInfo(accessorFieldClass(spelling), false);
   check(`classOwnThisMethodInfo/${ spelling } collects the accessor-held method`,
     [...info?.methodKeys ?? []].join(','), 'm');
+}
+
+// --- defaultImportSourcesOf / pureImportEntryOfProgram: the program's one import-binding index ---
+// name -> source of the first top-level declaration binding it, on both parsers: the censuses ask
+// it per name, so it is ONE table per program rather than a scan per ask, and it is trusted only
+// while the body keeps the length it was built over
+
+const PURE_FROM = '@core-js/pure/actual/array/from';
+for (const adapter of adapters) {
+  const label = `[${ adapter.name }]`;
+  // first-wins in body order; a named import binds no default; a plain library import is a source
+  // without a pure entry; a require declarator counts in every spelling the require canon peels
+  const program = adapter.parseAndScope([
+    `import _from from '${ PURE_FROM }';`,
+    "import { named } from '@core-js/pure/actual/array/of';",
+    "import fs from 'node:fs';",
+    "var _of = require('@core-js/pure/actual/array/of');",
+    "var _seq = (0, require)('@core-js/pure/actual/array/at');",
+    "var _opt = require?.('@core-js/pure/actual/array/flat');",
+    'var _tpl = require(`@core-js/pure/actual/array/includes`);',
+    "var _tail = require('@core-js/pure/actual/array/keys').default;",
+    "var _two = require('@core-js/pure/actual/array/values', 1);",
+    'var _later = 1;',
+    "_later = require('@core-js/pure/actual/array/entries');",
+  ].join('\n')).node;
+  const sources = defaultImportSourcesOf(program);
+  check(`defaultImportSourcesOf/default import ${ label }`, sources.get('_from'), PURE_FROM);
+  check(`defaultImportSourcesOf/named import binds no default ${ label }`, sources.has('named'), false);
+  check(`defaultImportSourcesOf/library import is a source ${ label }`, sources.get('fs'), 'node:fs');
+  check(`defaultImportSourcesOf/require declarator ${ label }`, sources.get('_of'), '@core-js/pure/actual/array/of');
+  check(`defaultImportSourcesOf/sequence-callee require ${ label }`, sources.get('_seq'), '@core-js/pure/actual/array/at');
+  check(`defaultImportSourcesOf/optional require ${ label }`, sources.get('_opt'), '@core-js/pure/actual/array/flat');
+  check(`defaultImportSourcesOf/template-literal require ${ label }`, sources.get('_tpl'), '@core-js/pure/actual/array/includes');
+  check(`defaultImportSourcesOf/member tail is not the module ${ label }`, sources.has('_tail'), false);
+  check(`defaultImportSourcesOf/two-argument call is not a require ${ label }`, sources.has('_two'), false);
+  check(`defaultImportSourcesOf/a later assignment binds nothing ${ label }`, sources.has('_later'), false);
+  check(`pureImportEntryOfProgram/pure source spells its entry ${ label }`, pureImportEntryOfProgram(program, '_from'), 'array/from');
+  check(`pureImportEntryOfProgram/library source has no entry ${ label }`, pureImportEntryOfProgram(program, 'fs'), null);
+  check(`pureImportEntryOfProgram/unbound name ${ label }`, pureImportEntryOfProgram(program, 'nope'), null);
+  check(`pureImportEntryOfProgram/no program ${ label }`, pureImportEntryOfProgram(null, '_from'), null);
+  // the same table serves the same node again
+  check(`defaultImportSourcesOf/same body, same table ${ label }`, defaultImportSourcesOf(program), sources);
+
+  // an in-file `require` binding makes every require alias opaque; the imports stay
+  const shadowed = adapter.parseAndScope([
+    `import _from from '${ PURE_FROM }';`,
+    "var _of = require('@core-js/pure/actual/array/of');",
+    'function require() {}',
+  ].join('\n')).node;
+  check(`defaultImportSourcesOf/shadowed require drops the alias ${ label }`, defaultImportSourcesOf(shadowed).has('_of'), false);
+  check(`defaultImportSourcesOf/shadowed require keeps the import ${ label }`, defaultImportSourcesOf(shadowed).get('_from'), PURE_FROM);
+
+  // the body is spliced by the split and the injectors: a body of another length rebuilds the
+  // table, so a binding added or removed after the first ask is answered from the live body
+  const grown = adapter.parseAndScope(`import _from from '${ PURE_FROM }';\nuse(_from);`).node;
+  check(`defaultImportSourcesOf/before the splice ${ label }`, defaultImportSourcesOf(grown).has('_at'), false);
+  const [added] = adapter.parseAndScope("import _at from '@core-js/pure/actual/array/at';").node.body;
+  grown.body.push(added);
+  check(`defaultImportSourcesOf/a spliced-in import is seen ${ label }`, defaultImportSourcesOf(grown).get('_at'), '@core-js/pure/actual/array/at');
+  grown.body.shift();
+  check(`defaultImportSourcesOf/a spliced-out import is gone ${ label }`, defaultImportSourcesOf(grown).has('_from'), false);
+
+  // the path form climbs to the program and answers the same
+  const nested = adapter.parseAndScope(`import _from from '${ PURE_FROM }';\nfunction f() { return _from([1]); }`);
+  const use = adapter.pickPath(nested, 'Identifier', p => p.node.name === '_from' && p.parentPath?.node?.type === 'CallExpression');
+  check(`rootProgramOf/climbs to the program ${ label }`, rootProgramOf(use), nested.node);
+  check(`pureImportEntryOf/path form answers like the node form ${ label }`, pureImportEntryOf(use, '_from'), 'array/from');
 }
 
 // --- forEachStatementPosition: the un-braced slot half ---
