@@ -632,6 +632,8 @@ export function createEstreeAdapter(options = {}) {
         // already sits in the scope the declarator was written in (a use that outruns the block
         // finds nothing here and takes the synthesized hoisted twin above instead)
         scope: b.scope,
+        // the declarator's own PATH - see the babel twin
+        declarationPath: b.path,
         polyfillHint,
         aliasSymbolSource,
         aliasWrite: polyfillHint ? info?.aliasWrite ?? null : null,

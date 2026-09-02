@@ -45,6 +45,7 @@ import {
   isDestructurePattern,
   isMutatedGlobalSlot,
   isPristineProxyGlobal,
+  memberProxyHopName,
   mayHaveSideEffects,
   nestedSequenceValueSpelling,
   migratableClaimSe,
@@ -456,6 +457,28 @@ export default function createProxySpineChannel(ctx) {
       { scope: metaPath.scope, adapter, path: metaPath });
   }
 
+  // does the navigation this claim sits in READ THROUGH a realm hop whose slot the source replaced?
+  // asked of the chain above the claim, which is the span a delete collapse would drop - minus the
+  // deleted member itself: that slot is the operator's own target, and a file deleting it is
+  // exactly why the census calls it mutated. counting it would stop every run in such a file
+  function deletedRunCarriesMutatedHop(metaPath) {
+    let top = metaPath;
+    for (let up = top.parentPath; up?.node; up = top.parentPath) {
+      const upType = up.node.type;
+      const topCore = top.node.type === 'ChainExpression' ? top.node.expression : top.node;
+      if (upType !== 'ChainExpression' && !TRANSPARENT_EXPR_WRAPPER_TYPES.has(upType)
+        && !(upType === 'MemberExpression' && unwrapRuntimeExpr(up.node.object) === topCore)) break;
+      top = up;
+    }
+    const readThrough = unwrapRuntimeExpr(top.node);
+    for (let cur = readThrough?.type === 'MemberExpression' ? unwrapRuntimeExpr(readThrough.object) : null;
+      cur?.type === 'MemberExpression'; cur = unwrapRuntimeExpr(cur.object)) {
+      const key = memberProxyHopName(cur);
+      if (key && !isPristineProxyGlobal(adapter, key)) return true;
+    }
+    return false;
+  }
+
   // the delete verdict for THIS claim: the live climb while the chain above is still the
   // source's, the spine mark once an earlier emit has rebuilt it
   // `forFold` asks the second half: may that consumer FOLD the navigation's guards? a `delete`
@@ -471,6 +494,10 @@ export default function createProxySpineChannel(ctx) {
     if (!(deleteHostedSpines.has(sourceSpanKey(node))
       || deleteHostAboveChain(metaPath, node, unwrapRuntimeExpr)
       || deleteHostAboveCarriedChain(metaPath))) return false;
+    // a MUTATED realm hop anywhere in the deleted navigation deopts the run WHOLE, exactly as the
+    // read flavor takes it: the hops BELOW such a hop fold only together with the read above them,
+    // so a collapse that drops them leaves the kept hop reading off a base the source never wrote
+    if (deletedRunCarriesMutatedHop(metaPath)) return false;
     if (!forFold) return true;
     // the FOLD-BASE arms ask the canon alone (a syntactic own-key `?.` whose value is proven
     // defined is dead and must not demote the root fold to the leaf); the guard stand-downs

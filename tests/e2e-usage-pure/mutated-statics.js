@@ -21,24 +21,25 @@ QUnit.test('mutated-statics: alias mutation wins over substitution', assert => {
   else delete A.of;
 });
 
-// a patch through a DESTRUCTURE-LEAF alias (`const { Iterator: I } = globalThis; I.range = ...`) names the same
+// a patch through a DESTRUCTURE-LEAF alias (`const { Iterator: I } = globalThis; I.zip = ...`) names the same
 // global static as a dotted patch - the pre-pass must follow the destructure KEY (I -> Iterator) via the read-side
 // canon, not the raw declarator init (`globalThis`). before the fix the patch was mis-keyed and the read of
-// `Iterator.range` routed to the injected polyfill, ignoring the user patch. uses Iterator.range: Iterator is not
-// ctor-slot-replaced here and `range` is patched by no sibling (the sibling tests patch Iterator.from), so the
+// `Iterator.zip` routed to the injected polyfill, ignoring the user patch. uses Iterator.zip: Iterator is not
+// ctor-slot-replaced here, `zip` is patched by no sibling (the sibling tests patch Iterator.from), and pure
+// substitutes a read of it - a static with no standalone ponyfill reads through the constructor either way, so the
 // static is only touched via the path under test and its destructure binding routes through the same pure ctor
 QUnit.test('mutated-statics: destructure-leaf alias mutation wins over substitution', assert => {
   const { Iterator: I } = globalThis;
-  const had = 'range' in I;
-  const original = I.range;
-  I.range = function patched() {
+  const had = 'zip' in I;
+  const original = I.zip;
+  I.zip = function patched() {
     return 'destructure-leaf-patched';
   };
   try {
-    assert.same(Iterator.range(0, 3), 'destructure-leaf-patched');
+    assert.same(Iterator.zip([[1], [2]]), 'destructure-leaf-patched');
   } finally {
-    if (had) I.range = original;
-    else delete I.range;
+    if (had) I.zip = original;
+    else delete I.zip;
   }
 });
 
@@ -640,3 +641,86 @@ QUnit.test('mutated-statics: patch through a held pure ctor import wins', assert
     HeldMap.groupBy = original;
   }
 });
+
+// a slot WRITTEN after the container literal no longer holds what the literal spells, and the
+// DESTRUCTURE-LEAF spelling reads it exactly like the member spelling does: `const { Array: A } =
+// box` after `box.Array = Fake` binds the replacement. before the fix only the member route
+// consulted the written-slot record, so this spelling substituted the ponyfill over the user's
+// object and `A.from` answered the polyfill instead of the replacement
+QUnit.test('mutated-statics: a written container slot wins on the destructure-leaf route', assert => {
+  const box = { Array };
+  box.Array = { from: () => 'WRITTEN-SLOT' };
+  const { Array: A } = box;
+  assert.same(A.from([1]), 'WRITTEN-SLOT');
+  // the member spelling of the same read agrees - one record, one answer
+  assert.same(box.Array.from([1]), 'WRITTEN-SLOT');
+});
+
+// a container RE-HOMED onto a member (`registry.ref = box`) hands its reference to a path whose
+// writes never spell the container's name, so the literal stops being trusted - the same escape a
+// call argument makes. before the fix only the argument spelling escaped, and a write through the
+// new path was invisible: the read substituted off the literal's initial member
+QUnit.test('mutated-statics: a container re-homed onto a member stops being trusted', assert => {
+  const box = { Array };
+  const registry = { ref: null };
+  registry.ref = box;
+  registry.ref.Array = { from: () => 'RE-HOMED' };
+  assert.same(box.Array.from([1]), 'RE-HOMED');
+});
+
+// ... and the same escape through a RETURN: the caller holds the reference, and its writes spell
+// nothing this file can see
+QUnit.test('mutated-statics: a container returned out of a function stops being trusted', assert => {
+  const box = { Array };
+  function hand() { return box; }
+  hand().Array = { from: () => 'RETURNED' };
+  assert.same(box.Array.from([1]), 'RETURNED');
+});
+
+// a patch installed THROUGH a parameter is the same patch: the call is what says which object the
+// write lands on, so `install(Map)` taints the Map static and the read has to serve the patch.
+// before the fix the receiver named no namespace, the write was invisible, and the ponyfill was
+// substituted straight over the replacement
+QUnit.test('mutated-statics: a patch installed through a parameter wins', assert => {
+  function install(target) {
+    target.groupBy = function patched() { return 'PARAM-INSTALLED'; };
+  }
+  const original = Map.groupBy;
+  const had = 'groupBy' in Map;
+  install(Map);
+  try {
+    assert.same(Map.groupBy([1], it => it), 'PARAM-INSTALLED');
+  } finally {
+    if (had) Map.groupBy = original;
+    else delete Map.groupBy;
+  }
+});
+
+// ... and the negative that pins the pairing: a call handing the installer a plain object taints
+// no built-in, so a sibling read keeps its substitution - asserted through a POLYFILLED result,
+// which is what a stripped realm can answer at all
+QUnit.test('mutated-statics: an installer called with a plain object taints nothing', assert => {
+  function install(target) {
+    target.from = function patched() { return 'NOT-A-BUILTIN'; };
+  }
+  const box = { from: null };
+  install(box);
+  assert.same(box.from(), 'NOT-A-BUILTIN');
+  // the sibling is an INSTANCE dispatch, and its receiver's own name is untouched by every patch
+  // in this file - a static patch of a sibling key would not deopt it, and the stripped realm
+  // answers it only through the polyfill
+  assert.same([1, 2, 3].at(-1), 3);
+});
+
+// `Object.assign` is the one call whose writes this file can name, so handing it a container does
+// not blind every other slot: the keys it installs are recorded one by one, and a sibling slot
+// keeps its substitution. before the fix the target escaped like an argument of any other call,
+// and the wildcard beside the precise records blocked the whole container
+QUnit.test('mutated-statics: Object.assign owns the slots it names', assert => {
+  const box = { patched: null, live: [1, 2, 3] };
+  Object.assign(box, { patched: () => 'ASSIGNED' });
+  assert.same(box.patched(), 'ASSIGNED');
+  // the sibling slot the call never names still resolves through the polyfill
+  assert.same(box.live.at(-1), 3);
+});
+
