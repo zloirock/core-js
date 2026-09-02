@@ -7,11 +7,9 @@ function dispatch(n) {
   let from, of;
   switch (n) {
     case 1:
-      0;
       from = _Array$from;
       return from;
     case 2:
-      0;
       of = _Array$of;
       return of;
     default:

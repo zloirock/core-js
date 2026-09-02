@@ -255,10 +255,19 @@ function withCorpusGapOverrides(language) {
 // a `type`. mutating the parsed program is deliberate - the parse is transform-local
 function synthesizeLocs(program, comments, source) {
   // does a comment open inside `outer`'s span ahead of `inner`'s start? asked only of the two
-  // line-terminator-sensitive paren hosts, so the scan over the comment list stays off the walk
+  // line-terminator-sensitive paren hosts. the comment list is source-ordered and its members do not
+  // overlap, so the first comment opening at or after `outer` is the only candidate: every later
+  // one closes later too, and a file dense in such hosts pays a binary search per host, not a scan
   function commentBetween(outer, inner) {
-    return typeof outer.start === 'number' && typeof inner.start === 'number'
-      && comments.some(comment => comment.start >= outer.start && comment.end <= inner.start);
+    if (typeof outer.start !== 'number' || typeof inner.start !== 'number') return false;
+    let lo = 0;
+    let hi = comments.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (comments[mid].start < outer.start) lo = mid + 1;
+      else hi = mid;
+    }
+    return lo < comments.length && comments[lo].end <= inner.start;
   }
   const locate = buildOffsetToLoc(source);
   let hasChainExpression = false;
@@ -312,10 +321,49 @@ function synthesizeLocs(program, comments, source) {
   if (program.loc && source.length && locate(source.length).column !== 0) {
     program.loc.end.column += 1;
   }
+  // esrap 2.3.6 gap: writing a MULTI-LINE block comment ends the line itself, and a follower on
+  // the closing line (`*/ foo();`) then takes the same-line pad at the head of the next line
+  // (`*/\n foo();`) - a spelling the re-parse drops, so the print was not a fixed point. the print
+  // copy of such a comment closes one line early: esrap takes its newline branch, which its own
+  // write already satisfied, and the follower opens the line clean. the copy is esrap's alone -
+  // the directive gates read the parsed comments
+  function printLoc(comment) {
+    const loc = { start: locate(comment.start), end: locate(comment.end) };
+    if (comment.type === 'Block' && comment.value.includes('\n') && followsOnLine(source, comment.end)) loc.end.line -= 1;
+    return loc;
+  }
+  // esrap indents every interior line of a block comment by the current indent and keeps the
+  // indent the author's line carried, so a comment inside a block gained one level per pass
+  // (`\t */` -> `\t\t */`). the print copy sheds up to that line's own indent from each interior
+  // line and the print's indent stands alone. the LINE's indent, not the comment's column: a
+  // comment deeper in its line (`const x = /**\n * @type {T}\n */ (v)`) keeps the alignment past it
+  function printValue(comment) {
+    if (comment.type !== 'Block' || !comment.value.includes('\n')) return comment.value;
+    const lineStart = source.lastIndexOf('\n', comment.start - 1) + 1;
+    let indent = 0;
+    while (lineStart + indent < comment.start && isIndentChar(source.charCodeAt(lineStart + indent))) indent++;
+    return indent ? comment.value.replace(new RegExp(`\\n[ \\t]{1,${ indent }}`, 'g'), '\n') : comment.value;
+  }
   return {
-    comments: comments.map(comment => ({ ...comment, loc: { start: locate(comment.start), end: locate(comment.end) } })),
+    comments: comments.map(comment => ({ ...comment, loc: printLoc(comment), value: printValue(comment) })),
     hasChainExpression,
   };
+}
+
+// horizontal whitespace - what an indent is made of and what a same-line scan steps over
+function isIndentChar(code) {
+  return code === 0x20 || code === 0x09;
+}
+
+// does a token follow `offset` on the same line? horizontal whitespace is skipped; a line
+// terminator or the end of the source says no
+function followsOnLine(source, offset) {
+  for (let i = offset; i < source.length; i++) {
+    const code = source.charCodeAt(i);
+    if (isIndentChar(code)) continue;
+    return code !== 0x0A && code !== 0x0D && code !== 0x2028 && code !== 0x2029;
+  }
+  return false;
 }
 
 // print a parsed program back to source. `jsx` picks the tsx language - the caller owns
