@@ -170,11 +170,18 @@ runBoth('mayBeEntryStatement/rejected types resolve to null',
       check(`${ lbl } ${ type } predicate`, mayBeEntryStatement(path.node), false);
       check(`${ lbl } ${ type } resolver`, getEntrySource(path.node, minimalAdapter, null), null);
     }
-    // and the three accepted types are exactly the ones the predicate admits
-    check(`${ lbl } accepted set`, ['ImportDeclaration', 'TSImportEqualsDeclaration', 'ExpressionStatement']
-      .every(type => mayBeEntryStatement({ type })), true);
+    // and the two accepted types are exactly the ones the predicate admits
+    check(`${ lbl } accepted set`, ['ImportDeclaration', 'ExpressionStatement'].every(type => mayBeEntryStatement({ type })), true);
     check(`${ lbl } nullish node`, mayBeEntryStatement(null), false);
   });
+
+// TS `import X = require('core-js/...')` binds a value like `import X from` and `const X = require()`
+// do - a binding import, never a side-effect entry: neither the predicate nor the resolver admits it
+runBoth('mayBeEntryStatement/TS import-equals is a binding import, not an entry', 'x;', (adapter, prog, lbl) => {
+  const [decl] = adapter.parseAndScope('import X = require("core-js/actual/array/at");', 'module', ['typescript']).node.body;
+  check(`${ lbl } predicate`, mayBeEntryStatement(decl), false);
+  check(`${ lbl } resolver`, getEntrySource(decl, minimalAdapter, null), null);
+});
 
 // bare side-effect import: `import 'core-js'`
 runBoth('getEntrySource/bare ImportDeclaration', 'import "core-js";', (adapter, prog, lbl) => {
@@ -266,10 +273,25 @@ runBoth('scanExistingCoreJSImports/finds pure TSImportEquals require', 'import p
     `expected entry='promise' name='promise', got ${ JSON.stringify(pures) }`);
 });
 
-// a NON-pure (global side-effect) `import X = require('<pkg>/modules/...')` must still reach the
-// global path - the pure-mode TSImportEquals arm only short-circuits on a pure-entry match, so a
-// modules-style require falls through to `getEntrySource` -> onGlobalImport (not silently dropped)
-runBoth('scanExistingCoreJSImports/global TSImportEquals require reaches onGlobalImport', 'import X = require("core-js/modules/es.array.at");', (adapter, prog, lbl) => {
+// the exported spelling registers the same binding: neither the wrapper nor the modifier changes
+// what the name holds
+runBoth('scanExistingCoreJSImports/exported pure TSImportEquals require registers', 'export import promise = require("core-js-pure/actual/promise");', (adapter, prog, lbl) => {
+  const pures = [];
+  scanExistingCoreJSImports(prog.node, {
+    packages: ['core-js-pure'],
+    pkg: 'core-js-pure',
+    mode: 'actual',
+    adapter: minimalAdapter,
+    onPureImport: (entry, name) => pures.push({ entry, name }),
+  });
+  checkTruthy(lbl, pures.length === 1 && pures[0].entry === 'promise' && pures[0].name === 'promise',
+    `expected entry='promise' name='promise', got ${ JSON.stringify(pures) }`);
+});
+
+// a NON-pure `import X = require('<pkg>/modules/...')` is a binding import like `import X from
+// '<pkg>/modules/...'`: not an existing global import to remove and re-emit, so it never reaches
+// onGlobalImport and stays where the author wrote it, binding intact
+runBoth('scanExistingCoreJSImports/global TSImportEquals require is a binding import', 'import X = require("core-js/modules/es.array.at");', (adapter, prog, lbl) => {
   const globals = [];
   scanExistingCoreJSImports(prog.node, {
     packages: ['core-js'],
@@ -278,8 +300,7 @@ runBoth('scanExistingCoreJSImports/global TSImportEquals require reaches onGloba
     adapter: minimalAdapter,
     onGlobalImport: mod => globals.push(mod),
   });
-  checkTruthy(lbl, globals.length === 1 && globals[0] === 'es.array.at',
-    `expected ['es.array.at'], got ${ JSON.stringify(globals) }`);
+  check(lbl, globals.length, 0);
 });
 
 // no matches: ignores user imports unrelated to core-js

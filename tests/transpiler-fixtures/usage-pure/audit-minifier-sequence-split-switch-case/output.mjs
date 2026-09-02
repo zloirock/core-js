@@ -7,7 +7,6 @@ function dispatch(n) {
   let from;
   switch (n) {
     case 1:
-      0;
       from = _Array$from;
       break;
     default:

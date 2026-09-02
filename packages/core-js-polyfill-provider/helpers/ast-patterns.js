@@ -5110,9 +5110,9 @@ export function rootProgramOf(path) {
 }
 
 // name -> the module source of the first top-level declaration binding it, in body order: a
-// DEFAULT import specifier, or a `var`-style require declarator in any spelling the require canon
-// peels - none of those when an in-file `require` binding shadows the CJS import, every such alias
-// staying opaque. ONE table per program, built on the first ask and kept on the root: the coarse
+// DEFAULT import specifier, a TS `import x = require(...)`, or a `var`-style require declarator in
+// any spelling the require canon peels - none of the latter when an in-file `require` binding
+// shadows the CJS import, every such alias staying opaque. ONE table per program, built on the first ask and kept on the root: the coarse
 // census asks this for every call with a bare-name callee and the own-output censuses per name, and
 // a scan of the whole body per ask is quadratic in (asks x top-level statements). trusted only
 // while the body holds the length it was built over - the injectors splice imports into this same
@@ -5124,8 +5124,12 @@ export function defaultImportSourcesOf(root) {
   if (cached && cached.length === body.length) return cached.sources;
   const sources = new Map();
   const requireShadowed = declaresRequireBinding(body);
-  for (const decl of body) {
-    if (decl.type === 'ImportDeclaration') {
+  for (const stmt of body) {
+    // `export const x = require(...)` / `export import x = require(...)`: neither the export
+    // wrapper (babel@8 / oxc) nor the modifier babel@7 flags on the node changes what the local
+    // binding holds, so the table reads the declaration the way the resolution canon does
+    const decl = unwrapExportedDeclaration(stmt);
+    if (decl?.type === 'ImportDeclaration') {
       for (const sp of decl.specifiers ?? []) {
         if (sp.type === 'ImportDefaultSpecifier' && sp.local?.name && !sources.has(sp.local.name)) {
           sources.set(sp.local.name, decl.source?.value ?? null);
@@ -5133,7 +5137,14 @@ export function defaultImportSourcesOf(root) {
       }
       continue;
     }
-    if (decl.type !== 'VariableDeclaration' || requireShadowed) continue;
+    // TS `import x = require('...')` - the CJS-interop spelling tsc and esbuild emit; the same
+    // binding question, through the canon that reads that form
+    if (decl?.type === 'TSImportEqualsDeclaration') {
+      const source = tsImportEqualsRequireSource(decl);
+      if (source !== null && !sources.has(decl.id.name)) sources.set(decl.id.name, source);
+      continue;
+    }
+    if (decl?.type !== 'VariableDeclaration' || requireShadowed) continue;
     for (const declarator of decl.declarations) {
       if (declarator.id?.type !== 'Identifier' || sources.has(declarator.id.name)) continue;
       const source = requireCallSource(declarator.init);
@@ -7228,43 +7239,63 @@ export function walkPatternIdentifiers(node, visit, depth = 0) {
   }
 }
 
-// does a split-off leading sequence operand re-parse as a Directive Prologue entry? a bare
-// string literal does; TS casts vanish at type-strip so they don't protect it (`"use strict"
-// as any`), while explicit parens survive the reprint and do (the babel parser drops parens, so
-// that leg demotes regardless - both stay non-directive). covers babel `StringLiteral` and
-// estree `Literal`-string spellings
-export function sequenceHeadDirectiveHazard(expr) {
+// the primitive-literal leaf types across BOTH parser spellings (babel's per-kind nodes and
+// estree's single `Literal`). enumerated once: the re-reference gate, the constant-literal
+// predicate, the inert-value set and the quiet-operand test below all need exactly this list,
+// and hand-synced copies drift on the next parser-shape addition
+export const PRIMITIVE_LITERAL_TYPES = new Set([
+  'StringLiteral',
+  'NumericLiteral',
+  'BooleanLiteral',
+  'NullLiteral',
+  'BigIntLiteral',
+  'RegExpLiteral',
+  'Literal',
+]);
+
+// a literal operand of a minifier sequence - the `0` a minifier pads with, a string, `null` - is
+// a value a statement position discards with nothing to run, so the split leaves no statement for
+// it; that is also what keeps a leading string out of the Directive Prologue, where `"use strict";`
+// promoted to a statement would flip a sloppy script strict. only a LITERAL is quiet here: a name
+// may throw, and a function or class expression carries code of the author's that the plugin has no
+// business deleting. reads through the wrappers a parse keeps (parens, TS casts, chain)
+export function isQuietLiteralOperand(expr) {
   let head = expr;
-  while (head && head.type !== 'ParenthesizedExpression' && SKIPPABLE_WRAPPER_TYPES.has(head.type)) head = head.expression;
-  return head?.type === 'StringLiteral' || (head?.type === 'Literal' && typeof head.value === 'string');
+  while (head && SKIPPABLE_WRAPPER_TYPES.has(head.type)) head = head.expression;
+  return PRIMITIVE_LITERAL_TYPES.has(head?.type);
 }
 
 // minifier-shape detection: `ExpressionStatement > [Paren?] > SequenceExpression > [...]`
 // where ANY slot (with optional Paren peel) is an `AssignmentExpression` targeting an
-// ObjectPattern or ArrayPattern. the shape collapses a destructure assignment into a
-// SequenceExpression (`(0, ({pat} = R));` minified tail, `(({pat} = R), use());`
-// comma-joined statements) which the destructure-emitter gate would otherwise miss.
-// statement context discards every slot's value, so splitting is sound at any position.
-// returns the SequenceExpression's `expressions` array on match (`planMinifierSequenceSplit`
-// turns them into one statement per operand), null otherwise. peels both the outer wrapper and
-// each expression's wrapper - oxc preserves ParenthesizedExpression on both slots, babel
-// parser drops them, so the peel is required for cross-parser symmetry
-export function getMinifierSequenceDestructureExpressions(stmt) {
+// ObjectPattern or ArrayPattern, or a `require(...)` call. the shape is a minifier's - statements
+// collapsed into one comma sequence: `(0, ({pat} = R));` (minified tail), `(({pat} = R), use());`
+// and `require("core-js/x"), b();` (comma-joined statements). the destructure-emitter gate and
+// entry detection read STATEMENTS, so each would miss its operand in a slot, and removing an entry
+// with its statement would drop the neighbours - the split is the one mechanism for the joined
+// shape, in any slot. statement context discards every slot's value, so splitting is sound at
+// any position. returns the SequenceExpression's `expressions` array on match
+// (`planMinifierSequenceSplit` turns them into one statement per operand), null otherwise. peels
+// both the outer wrapper and each expression's wrapper - oxc preserves ParenthesizedExpression on
+// both slots, babel parser drops them, so the peel is required for cross-parser symmetry
+export function getMinifierSequenceExpressions(stmt) {
   if (stmt?.type !== 'ExpressionStatement') return null;
   let expr = stmt.expression;
   while (expr?.type === 'ParenthesizedExpression') expr = expr.expression;
   if (expr?.type !== 'SequenceExpression') return null;
-  return sequenceSlotsHaveDestructure(expr, 0) ? expr.expressions : null;
+  return sequenceSlotsNeedSplit(expr, 0) ? expr.expressions : null;
 }
 
 // a slot hosting a NESTED SequenceExpression (`((x(), ({p} = R)), use())`) carries the
 // destructure too: the split plan splits the nested operand in the same pass, so matching it
-// here is what lets the outer split happen at all
-function sequenceSlotsHaveDestructure(seq, depth) {
+// here is what lets the outer split happen at all. the require slot reads through the entry
+// canon (`isRequireCall`: `(0, require)(...)`, `require?.()`, TS-wrapped), so what the split
+// promotes is exactly what `getEntrySource` then reads on its own line
+function sequenceSlotsNeedSplit(seq, depth) {
   if (depth >= MAX_DEPTH) return false;
   for (let slot of seq.expressions) {
     while (slot?.type === 'ParenthesizedExpression') slot = slot.expression;
-    if (slot?.type === 'SequenceExpression' && sequenceSlotsHaveDestructure(slot, depth + 1)) return true;
+    if (slot?.type === 'SequenceExpression' && sequenceSlotsNeedSplit(slot, depth + 1)) return true;
+    if (isRequireCall(slot)) return true;
     if (slot?.type !== 'AssignmentExpression') continue;
     const leftType = slot.left?.type;
     if (leftType === 'ObjectPattern' || leftType === 'ArrayPattern') return true;
