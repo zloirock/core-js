@@ -1,6 +1,7 @@
 // a native-constructor alias written through an UNCONDITIONAL sequence-expression statement
 // (`(0, ({ Array: A } = globalThis))`) is trusted, so its static member read folds. babel splits
-// the sequence in place (`0; ({ Array: A } = globalThis);`), which detaches the write's original
+// the sequence in place (`({ Array: A } = globalThis);` - the quiet `0` leaves no statement), which
+// detaches the write's original
 // SequenceExpression - re-anchoring the constantViolation to its fresh statement path keeps the
 // placement walk on the live tree, matching the estree side which never mutates in place
 let A;

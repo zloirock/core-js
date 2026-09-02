@@ -2,7 +2,7 @@
 // `import 'core-js/...'` / `require('core-js/...')` / `await import('core-js/...')` and
 // scans existing core-js imports in the file body so the resolver can dedup them against
 // plugin-injected ones
-import { declaresRequireBinding } from '../helpers/ast-patterns.js';
+import { declaresRequireBinding, tsImportEqualsRequireSource, unwrapExportedDeclaration } from '../helpers/ast-patterns.js';
 import { normalizeImportSource, packageRootPrefix } from '../helpers/path-normalize.js';
 import {
   bindsModuleDefault,
@@ -28,7 +28,7 @@ function importExpressionSource(node, adapter) {
 // the statement types `getEntrySource` can possibly accept - the ONE definition of that set.
 // a caller pre-filtering a body walk asks THIS, never a local copy: the copy is what silently
 // drops a newly accepted arm on one emitter only, and the two entry detectors then disagree
-const ENTRY_STATEMENT_TYPES = new Set(['ImportDeclaration', 'TSImportEqualsDeclaration', 'ExpressionStatement']);
+const ENTRY_STATEMENT_TYPES = new Set(['ImportDeclaration', 'ExpressionStatement']);
 
 // can this statement be an entry at all? `getEntrySource`'s own first-line bail, exported so a
 // caller that pre-filters a body walk skips the adapter / scope work on the same domain the
@@ -49,14 +49,10 @@ export function getEntrySource(node, adapter, scope) {
     && !isTypeOnlyImportKind(node.importKind)) {
     return extractStaticString(node.source, adapter);
   }
-  // TS `import X = require('core-js/...')` - tsc/esbuild emit this as CJS-style entry.
-  // moduleReference is TSExternalModuleReference wrapping the string literal; value-mode
-  // (no `type` modifier) is a runtime side-effect import. accept identically to bare
-  // `import 'core-js/...'` so config that targets TS-source projects registers the entry
-  if (node.type === 'TSImportEqualsDeclaration' && !node.isExport && node.importKind !== 'type'
-    && node.moduleReference?.type === 'TSExternalModuleReference') {
-    return extractStaticString(node.moduleReference.expression, adapter);
-  }
+  // TS `import X = require('core-js/...')` binds a value like `import X from` and `const X =
+  // require()` do - a binding import, never a side-effect entry, used or not: the minifier-joined
+  // `require('core-js/x'), b()` is not read here either - the minifier-sequence split lands ahead
+  // of every entry read and promotes the call to the statement this reads
   if (node.type !== 'ExpressionStatement') return null;
   // unwrap outer parens/TS wrappers: `(await import(...))` / `(require(...))` - parsers
   // that preserve `ParenthesizedExpression` would otherwise miss these entry patterns
@@ -182,28 +178,24 @@ export function scanExistingCoreJSImports(ast, {
     }
     // TS `import X = require('<pkg>/<mode>/...')` - the same pure require-import shape tsc/esbuild
     // emit; without recognising it the `phase: 'pre+post'` post re-scan misses it and re-emits a
-    // duplicate import. only the PURE-mode match short-circuits here - a non-pure (`modules/...`
-    // side-effect) TSImportEquals must still fall through to the global `getEntrySource` path below,
-    // which already handles this node shape. reads the source off the TSExternalModuleReference
-    if (node.type === 'TSImportEqualsDeclaration'
-      && onPureImport && mainPkgs && modePrefix && node.id?.type === 'Identifier'
-      && !node.isExport && node.importKind !== 'type'
-      && node.moduleReference?.type === 'TSExternalModuleReference') {
-      const required = extractStaticString(node.moduleReference.expression, adapter);
+    // duplicate import. a binding import like `import X from` - exported or not, since neither the
+    // wrapper nor the modifier changes the binding - and so never a global side-effect entry: a
+    // non-pure one is left where the author wrote it, its binding intact
+    const declaration = unwrapExportedDeclaration(node);
+    if (declaration?.type === 'TSImportEqualsDeclaration') {
+      const required = onPureImport && mainPkgs && modePrefix ? tsImportEqualsRequireSource(declaration, adapter) : null;
       const match = typeof required === 'string' ? matchEntrySubpath(required, mainPkgs, modePrefix) : null;
-      if (match) {
-        onPureImport(match.entry, node.id.name);
-        continue;
-      }
+      if (match) onPureImport(match.entry, declaration.id.name);
+      continue;
     }
     // `var X = require('<pkg>/<mode>/...')` - the require import style emits this for pure
     // substitution, so the post re-scan must recognise it as an existing pure import or
     // `phase: 'pre+post'` re-emits a duplicate `require` (double module-eval). a require-bound
     // var is never a global side-effect entry (those are bare ExpressionStatements), so this
     // branch always `continue`s
-    if (node.type === 'VariableDeclaration') {
+    if (declaration?.type === 'VariableDeclaration') {
       if (onPureImport && mainPkgs && modePrefix) {
-        for (const decl of node.declarations ?? []) {
+        for (const decl of declaration.declarations ?? []) {
           if (decl.id?.type !== 'Identifier') continue;
           const required = requireCallSource(decl.init, { adapter, scope: shadowScope });
           if (required === null) continue;

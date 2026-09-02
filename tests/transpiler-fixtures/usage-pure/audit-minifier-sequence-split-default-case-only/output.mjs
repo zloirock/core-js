@@ -8,7 +8,6 @@ function dispatch(n) {
       from = () => [];
       break;
     default:
-      0;
       from = _Array$from;
   }
   return from([1, 2]);
