@@ -24,6 +24,7 @@ import {
 import {
   buildOffsetToLine,
   buildOffsetToLineColumn,
+  directiveCoveredLine,
   disableDirectiveAnchors,
   disableDirectiveKind,
   isNextLineDisableDirective,
@@ -619,6 +620,23 @@ check('parseDisableDirectives/empty array', parseDisableDirectives({ comments: [
     result instanceof Set && result.has(2));
 }
 
+// a `-line` inside a block comment that closes lower covers the line the comment OPENS on: the
+// README's "current line" is where the directive stands, and the re-anchor channels read the same
+// line through the one rule
+{
+  const result = parseDisableDirectives({
+    comments: [{ value: ' note\n core-js-disable-line ', loc: { start: { line: 3 }, end: { line: 5 } } }],
+  });
+  checkTruthy('parseDisableDirectives/block -line covers the line it opens on',
+    result instanceof Set && result.has(3) && !result.has(5));
+  check('directiveCoveredLine/block -line', directiveCoveredLine({ value: ' note\n core-js-disable-line ', loc: { start: { line: 3 }, end: { line: 5 } } }), 3);
+  check('directiveCoveredLine/-next-line covers the line after it closes',
+    directiveCoveredLine({ value: ' core-js-disable-next-line', loc: { start: { line: 3 }, end: { line: 5 } } }), 6);
+  check('directiveCoveredLine/offsets',
+    directiveCoveredLine({ value: ' core-js-disable-line', start: 6, end: 30 }, buildOffsetToLine('abc\n\n// core-js-disable-line\nx')), 3);
+  check('directiveCoveredLine/no position', directiveCoveredLine({ value: ' core-js-disable-line' }, null), null);
+}
+
 // `core-js-disable-next-line`: adds the FOLLOWING line
 {
   const result = parseDisableDirectives({
@@ -659,6 +677,82 @@ check('parseDisableDirectives/empty array', parseDisableDirectives({ comments: [
     checkTruthy(`parseDisableDirectives/multi-line span at depth ${ depth } covers statement end`,
       result instanceof Set && result.has(depth + 3));
   }
+}
+
+// the scan descends a statement list through a binary search over the members' start lines, so it
+// has to find the same members the element-wise filter found: siblings SHARING the covered line (the
+// farthest end wins), a multi-line member deep in a long list, a block that merely CLOSES on the
+// covered line beside a member opening there, and a list the search cannot order - a hole, a member
+// without a position - which falls back to the element-wise push
+{
+  function spanStmt(start, end) {
+    return { type: 'ExpressionStatement', loc: { start: { line: start }, end: { line: end } } };
+  }
+  function scan(body, directiveLine) {
+    return parseDisableDirectives({
+      comments: [{ value: 'core-js-disable-next-line', loc: { start: { line: directiveLine }, end: { line: directiveLine } } }],
+      ast: { type: 'Program', body, loc: { start: { line: 1 }, end: { line: 100000 } } },
+    });
+  }
+  // two statements open on line 3; the second runs to line 6 - the span is 3..6, not 3
+  const shared = scan([spanStmt(1, 1), spanStmt(3, 3), spanStmt(3, 6), spanStmt(7, 7)], 2);
+  checkTruthy('parseDisableDirectives/siblings sharing the covered line: the farthest end wins',
+    shared instanceof Set && shared.has(3) && shared.has(6) && !shared.has(7));
+  // a multi-line member in the middle of a long list, and one at its very end
+  const long = [];
+  for (let line = 1; line <= 3000; line++) long.push(spanStmt(line, line));
+  long[1500] = spanStmt(1501, 1505);
+  for (let i = 1501; i < long.length; i++) long[i] = spanStmt(i + 5, i + 5);
+  const middle = scan(long, 1500);
+  checkTruthy('parseDisableDirectives/a multi-line member found deep in a long list',
+    middle instanceof Set && middle.has(1501) && middle.has(1505) && !middle.has(1506));
+  const tail = scan(long, long.at(-1).loc.start.line - 1);
+  checkTruthy('parseDisableDirectives/the last member of a long list is found',
+    tail instanceof Set && tail.has(long.at(-1).loc.start.line));
+  // a block closing on the covered line beside a statement opening there: only what OPENS there spans
+  const block = { type: 'BlockStatement', body: [spanStmt(2, 2)], loc: { start: { line: 1 }, end: { line: 4 } } };
+  const closing = scan([block, spanStmt(4, 5), spanStmt(6, 6)], 3);
+  checkTruthy('parseDisableDirectives/a block closing on the covered line does not widen the span',
+    closing instanceof Set && closing.has(4) && closing.has(5) && !closing.has(6) && !closing.has(2));
+  // a hole in a list the scan has to SEARCH (a sparse array literal opening a line above the covered
+  // one, the member opening on the covered line behind the hole): a probe landing on the hole cannot
+  // order the list, and the element-wise push still finds that member and its span
+  const holey = {
+    type: 'ArrayExpression',
+    elements: [null, { type: 'ObjectExpression', properties: [], loc: { start: { line: 3 }, end: { line: 5 } } }],
+    loc: { start: { line: 2 }, end: { line: 6 } },
+  };
+  const holeStmt = { type: 'ExpressionStatement', expression: holey, loc: { start: { line: 2 }, end: { line: 6 } } };
+  const withHole = scan([spanStmt(1, 1), holeStmt, spanStmt(7, 7)], 2);
+  checkTruthy('parseDisableDirectives/a sparse list still finds the member behind the hole',
+    withHole instanceof Set && withHole.has(3) && withHole.has(5) && !withHole.has(6) && !withHole.has(7));
+  const synthetic = { type: 'ExpressionStatement' };
+  const withSynthetic = scan([spanStmt(1, 1), synthetic, spanStmt(3, 6), synthetic, spanStmt(7, 7)], 2);
+  checkTruthy('parseDisableDirectives/position-less members do not hide the covered one',
+    withSynthetic instanceof Set && withSynthetic.has(3) && withSynthetic.has(6) && !withSynthetic.has(7));
+  // ... and one sitting between the members opening on the covered line and the block enclosing them
+  // from a line above: the walk back steps over it and still descends the block, whose own member
+  // opening on the covered line runs the farthest
+  const enclosing = { type: 'BlockStatement', body: [spanStmt(3, 6)], loc: { start: { line: 2 }, end: { line: 6 } } };
+  const between = scan([spanStmt(1, 1), enclosing, synthetic, spanStmt(3, 3), spanStmt(3, 3), spanStmt(3, 3), spanStmt(3, 3), spanStmt(7, 7), spanStmt(8, 8)], 2);
+  checkTruthy('parseDisableDirectives/a position-less member is stepped over on the way back',
+    between instanceof Set && between.has(3) && between.has(6) && !between.has(7));
+}
+
+// the offset-carrying parser: the same scan through `offsetToLine` on a real oxc program, the covered
+// statement sitting among many one-liners
+{
+  const lines = [];
+  for (let i = 0; i < 400; i++) lines.push(`use(${ i });`);
+  lines.splice(200, 0, '// core-js-disable-next-line', 'call(', '  a,', '  b);');
+  const code = lines.join('\n');
+  const oxc = adapters.find(adapter => adapter.name === 'oxc');
+  const program = oxc.parseAndScope(code).node;
+  const offsetToLine = buildOffsetToLine(code);
+  const comments = [{ value: ' core-js-disable-next-line', start: code.indexOf('// core-js'), end: code.indexOf('// core-js') + '// core-js-disable-next-line'.length }];
+  const result = parseDisableDirectives({ comments, offsetToLine, firstStmtStart: 0, ast: program });
+  checkTruthy('parseDisableDirectives/oxc offsets: the multi-line statement among many one-liners is spanned',
+    result instanceof Set && result.has(202) && result.has(204) && !result.has(205) && !result.has(200));
 }
 
 // a whitespace JSXText run between two children opens on the covered line and ends on the next: it is
@@ -1592,6 +1686,20 @@ for (const adapter of adapters) {
   check(`pureImportEntryOfProgram/no program ${ label }`, pureImportEntryOfProgram(null, '_from'), null);
   // the same table serves the same node again
   check(`defaultImportSourcesOf/same body, same table ${ label }`, defaultImportSourcesOf(program), sources);
+
+  // the TS `import x = require(...)` spelling binds like the ESM default import; a type-only one
+  // does not, and the export wrapper / modifier changes nothing about the binding, on either form
+  const tsEquals = adapter.parseAndScope([
+    `import _eq = require("${ PURE_FROM }");`,
+    'import type _typed = require("@core-js/pure/actual/array/of");',
+    'export import _exported = require("@core-js/pure/actual/array/at");',
+    'export const _exportedVar = require("@core-js/pure/actual/array/includes");',
+  ].join('\n'), 'module', ['typescript']).node;
+  check(`defaultImportSourcesOf/TS import-equals binds ${ label }`, defaultImportSourcesOf(tsEquals).get('_eq'), PURE_FROM);
+  check(`pureImportEntryOfProgram/TS import-equals spells its entry ${ label }`, pureImportEntryOfProgram(tsEquals, '_eq'), 'array/from');
+  check(`defaultImportSourcesOf/type-only import-equals binds nothing ${ label }`, defaultImportSourcesOf(tsEquals).has('_typed'), false);
+  check(`defaultImportSourcesOf/exported import-equals binds like the plain one ${ label }`, defaultImportSourcesOf(tsEquals).get('_exported'), '@core-js/pure/actual/array/at');
+  check(`defaultImportSourcesOf/exported require var binds like the plain one ${ label }`, defaultImportSourcesOf(tsEquals).get('_exportedVar'), '@core-js/pure/actual/array/includes');
 
   // an in-file `require` binding makes every require alias opaque; the imports stay
   const shadowed = adapter.parseAndScope([

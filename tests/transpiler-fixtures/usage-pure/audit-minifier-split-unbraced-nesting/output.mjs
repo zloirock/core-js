@@ -8,8 +8,8 @@ import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 // that the walk recurses past a slot instead of stopping at it, the third that the split still
 // reaches a fixpoint once the outer statement has been braced. the last row is the directive
 // boundary: a leading string operand promoted to its own statement would read as a prologue entry
-// in a statement list, so the split neutralises it - the brace path builds its products through the
-// same builder and must neutralise it too. distinct method per row
+// in a statement list, so the split leaves no statement for a quiet literal - the brace path builds
+// its products through the same builder and must leave none too. distinct method per row
 const src = [1];
 if (c) for (;;) {
   se();
@@ -28,6 +28,5 @@ while (e) {
   flatMap = _flatMapMaybeArray(src);
 }
 lbl: {
-  0, "use strict";
   entries = _entriesMaybeArray(src);
 }
