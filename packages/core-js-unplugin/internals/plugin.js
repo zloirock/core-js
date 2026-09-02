@@ -53,7 +53,7 @@ import { createResolveNodeType } from '@core-js/polyfill-provider/resolve-node-t
 import { createPolyfillResolver } from '@core-js/polyfill-provider/resolver';
 import { createModuleInjectors } from '@core-js/polyfill-provider/plugin-options/inject';
 import { createUsageGlobalCallback } from '@core-js/polyfill-provider/plugin-options/usage-callback';
-import { enumerateFallbackDestructureBranches } from '@core-js/polyfill-provider/detect-usage/destructure';
+import { attachMemberUnionExtras, enumerateFallbackDestructureBranches } from '@core-js/polyfill-provider/detect-usage/destructure';
 import { resolveKey as sharedResolveKey } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { isTypeAnnotationNodeType } from '@core-js/polyfill-provider/detect-usage/annotations';
 import { scanExistingCoreJSImports } from '@core-js/polyfill-provider/detect-usage/entries';
@@ -1040,7 +1040,10 @@ export default function createPlugin(options) {
         isInheritedStaticLookup,
         isInStaticContext,
         isShadowedByClassOwnMember,
-      } = createClassHelpers({ t: types, adapter: estreeAdapter, resolveKey: sharedResolveKey, getInjector: () => injector });
+      } = createClassHelpers({
+        t: types, adapter: estreeAdapter, resolveKey: sharedResolveKey, getInjector: () => injector,
+        attachUnionExtras: attachMemberUnionExtras,
+      });
 
       // usage-global mode
       function collectUsageGlobal() {

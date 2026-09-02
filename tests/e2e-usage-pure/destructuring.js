@@ -1218,6 +1218,58 @@ QUnit.test('destructuring: object-nested const-alias static leaf', assert => {
   assert.deepEqual(from([3, 4]), [3, 4]);
 });
 
+// an alias wrapper level captured BEFORE the aliased array is reassigned: the outer literal holds the
+// ORIGINAL inner array, so the leaf is still Array and `from` polyfills - the deeper level anchors its
+// reassignment check at the capture (the outer declarator), not at the destructure host
+QUnit.test('destructuring: two-level array-wrapper alias reassigned after capture keeps the leaf', assert => {
+  let inner = [Array];
+  const outer = [inner];
+  // eslint-disable-next-line no-useless-assignment -- the write after the capture is the shape under test
+  inner = [Set];
+  const [[{ from }]] = outer;
+  assert.deepEqual(from('xy'), ['x', 'y']);
+  // NEGATIVE: reassigned BEFORE the capture - the outer literal holds the replacement, and its leaf decides
+  // eslint-disable-next-line no-useless-assignment -- the dead init is the shape under test: the write before the capture wins
+  let inner2 = [Array];
+  inner2 = [{ from: () => 'user' }];
+  const outer2 = [inner2];
+  const [[{ from: from2 }]] = outer2;
+  assert.same(from2('xy'), 'user');
+  // ... and a replacement that IS a constructor polyfills through the dominating write: the one
+  // unconditional write before the capture is the only value the read can observe
+  // eslint-disable-next-line no-useless-assignment -- the dead init is the shape under test: the write before the capture wins
+  let inner3 = [Array];
+  inner3 = [Object];
+  const outer3 = [inner3];
+  const [[{ fromEntries }]] = outer3;
+  assert.deepEqual(fromEntries([['a', 1]]), { a: 1 });
+});
+
+// a chain assignment installs its TAIL into every name on the chain: a wrapper alias written as
+// `w = q = [Array]`, a pattern write whose slot is a chain (`[k] = [j = "from"]`), a computed key
+// written as `k = j = "from"` - each reads the tail's value, so the static polyfills
+QUnit.test('destructuring: chain assignments install their tail in every alias channel', assert => {
+  // eslint-disable-next-line no-useless-assignment -- the dead init is the shape under test: the chained write wins
+  let w = [Object];
+  let q;
+  w = q = [Array];
+  const [{ from }] = w;
+  assert.deepEqual(from('ab'), ['a', 'b']);
+  assert.same(q, w);
+  // eslint-disable-next-line no-useless-assignment -- the dead init is the shape under test: the chained slot write wins
+  let k = 'of';
+  let j;
+  [k] = [j = 'from'];
+  assert.deepEqual(Array[k]('cd'), ['c', 'd']);
+  assert.same(j, 'from');
+  // eslint-disable-next-line no-useless-assignment -- the dead init is the shape under test: the chained write wins
+  let key = 'of';
+  let key2;
+  key = key2 = 'from';
+  assert.deepEqual(Array[key]('ef'), ['e', 'f']);
+  assert.same(key2, 'from');
+});
+
 // an SE-bearing IIFE init in a flattenable destructure: the flatten harvests the discarded
 // init's chain-root call and re-emits it ahead of the extraction - the side effect runs exactly
 // once and the binding gets the polyfill
