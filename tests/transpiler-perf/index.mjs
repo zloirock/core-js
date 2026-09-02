@@ -101,6 +101,16 @@ function syntheticCallDenseTopLevel(sites) {
   return parts.join('\n');
 }
 
+// an opt-out directive per statement on a long top level: the directive scan spans each `-next-line`
+// over the statement it covers, and a scan that re-reads the whole top level per directive is
+// quadratic in (directives x statements) - the esrap leg pays it again in the channel that re-anchors
+// every honoured directive on the pass's output. no other case here carries a directive at all
+function syntheticDirectiveDense(optOuts) {
+  const parts = [];
+  for (let i = 0; i < optOuts; i++) parts.push('// core-js-disable-next-line', `var g${ i } = [${ i }];`, `g${ i }.at(0);`);
+  return parts.join('\n');
+}
+
 // the mutation census pairs a call's arguments with the parameters they land in, keyed by NAME -
 // so every function sharing a parameter name shares one fan, and a write through that parameter
 // walks the whole accumulated fan. real code shares those names constantly (`t`, `e`, `v`), which
@@ -176,6 +186,9 @@ const CASES = [
   } },
   { name: 'synthetic call-dense top level, 12000 sites', source: () => syntheticCallDenseTopLevel(12000), bounds: {
     'usage-global': { babel: 3, unplugin: 3 }, 'usage-pure': { babel: 5, unplugin: 5 },
+  } },
+  { name: 'synthetic directive-dense, 8000 opt-outs', source: () => syntheticDirectiveDense(8000), bounds: {
+    'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 4, unplugin: 3 },
   } },
   { name: 'synthetic lagged aliases, 1000 names', source: () => syntheticLaggedAliases(1000), bounds: {
     'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },

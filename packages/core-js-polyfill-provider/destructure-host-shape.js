@@ -1,10 +1,10 @@
 import {
   SINGLE_STATEMENT_SLOTS,
   forEachStatementPosition,
-  getMinifierSequenceDestructureExpressions,
-  sequenceHeadDirectiveHazard,
+  getMinifierSequenceExpressions,
+  isQuietLiteralOperand,
 } from './helpers/ast-patterns.js';
-import { expressionStatement, literal, sequenceExpression } from './render.js';
+import { expressionStatement } from './render.js';
 
 // shape classification for destructure hosts (VariableDeclaration / AssignmentExpression
 // inside ExpressionStatement): the parser-agnostic booleans both plugins consume -
@@ -99,24 +99,20 @@ export function classifyVariableDeclarationHost({ declaration, declarationParent
 // statement's index at apply time
 export function planMinifierSequenceSplit(root, { embed = node => node } = {}) {
   const plan = [];
-  // one operand's products. a leading STRING operand promoted to its own statement at a prologue
-  // position re-parses as a Directive Prologue entry - `"use strict"` flipping a sloppy script
-  // strict, `"use asm"` - a semantic shift the operand never carried, so `(0, str)` keeps it a
-  // plain expression statement; only the first operand can land there (a later string operand is
-  // already post-prologue)
-  function operandProducts(operand, index) {
-    const nested = getMinifierSequenceDestructureExpressions(expressionStatement(operand));
+  // one operand's products: every operand that is not a quiet literal (`isQuietLiteralOperand` -
+  // the minifier's `0`, a string that must not become a directive), in order
+  function operandProducts(operand) {
+    if (isQuietLiteralOperand(operand)) return [];
+    const nested = getMinifierSequenceExpressions(expressionStatement(operand));
     if (nested) return nested.flatMap(operandProducts);
-    const node = index === 0 && sequenceHeadDirectiveHazard(operand)
-      ? sequenceExpression([literal(0), embed(operand)]) : embed(operand);
-    const product = expressionStatement(node);
+    const product = expressionStatement(embed(operand));
     product.start = operand.start;
     product.end = operand.end;
     product.loc = operand.loc;
     return [product];
   }
   function statementProducts(statement) {
-    const expressions = getMinifierSequenceDestructureExpressions(statement);
+    const expressions = getMinifierSequenceExpressions(statement);
     return expressions ? expressions.flatMap(operandProducts) : null;
   }
   forEachStatementPosition(root, {

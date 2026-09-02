@@ -32,7 +32,6 @@ let T;
 } = _globalThis) ? 1 : 2;
 export const test = typeof _Map$groupBy;
 let Q;
-0;
 Q = _Promise;
 export const seq = typeof _Promise$try;
 export const r = [viaTernary(true), viaLogical(true)];
