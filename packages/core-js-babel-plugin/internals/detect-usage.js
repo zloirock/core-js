@@ -255,6 +255,11 @@ export function createBabelAdapter(options = {}) {
           // deliberately NOT `b.scope`: babel hoists a `var` and reports the FUNCTION scope there,
           // which reads past a shadow local to the block the declarator sits in
           scope: b.path.scope,
+          // ... and the declarator's own PATH, for the one question a node cannot answer: where in
+          // the tree the declaration SITS (`const g = this` is the realm object only at top level,
+          // and a write through `g` may sit in any function below). null where there is no
+          // declaration to point at - a minted memo, a scope-lag name view
+          declarationPath: b.path,
           polyfillHint, aliasSymbolSource, aliasWrite: polyfillHint ? info?.aliasWrite ?? null : null,
           // the hint of a registration whose static narrow did NOT apply at this use - a REFUSED
           // (guarded) registration or a use textually before its trusted write (dominance).

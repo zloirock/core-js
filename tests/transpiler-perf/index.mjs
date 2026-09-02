@@ -90,6 +90,22 @@ function syntheticVarDestructuredGlobals(pairs) {
   return parts.join('\n');
 }
 
+// the mutation census pairs a call's arguments with the parameters they land in, keyed by NAME -
+// so every function sharing a parameter name shares one fan, and a write through that parameter
+// walks the whole accumulated fan. real code shares those names constantly (`t`, `e`, `v`), which
+// makes this the one shape where the pre-pass, not the resolver, is the quadratic risk; no other
+// case here writes through a parameter at all. the fan is closed once per NAME rather than once per
+// write, so what is left grows with the fan's own length - this case is the discriminator for that
+// memo, and it is the shape that says so first
+function syntheticSharedParamWrites(installers) {
+  const parts = [];
+  for (let i = 0; i < installers; i++) {
+    parts.push(`function install${ i }(t, v) { t.k${ i } = v; }`,
+      `install${ i }(box${ i }, ${ i });`, `Map.groupBy([${ i }], x => x);`);
+  }
+  return parts.join('\n');
+}
+
 function threeBuild(file) {
   return readFile(join(HERE, `node_modules/three/build/${ file }`), 'utf8');
 }
@@ -142,6 +158,9 @@ const CASES = [
   // under @babel/generator's 500kb styling-deopt threshold, so the NORMAL codegen path is
   // gated too - the big twin above always runs the deoptimised one
   { name: 'synthetic single-scope, 640 reassigned names', source: () => syntheticSingleScope(640), bounds: {
+    'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
+  } },
+  { name: 'synthetic shared-param writes, 1200 installers', source: () => syntheticSharedParamWrites(1200), bounds: {
     'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
   } },
   { name: 'synthetic lagged aliases, 1000 names', source: () => syntheticLaggedAliases(1000), bounds: {
