@@ -6,6 +6,7 @@ import _globalThis from "@core-js/pure/actual/global-this";
 import _Map from "@core-js/pure/actual/map/constructor";
 import _Number$MAX_SAFE_INTEGER from "@core-js/pure/actual/number/max-safe-integer";
 import _Promise from "@core-js/pure/actual/promise/constructor";
+import _self from "@core-js/pure/actual/self";
 var _ref;
 // an emit that COLLAPSES a receiver replaces source it does not reproduce, so a polyfillable read
 // buried in the discarded region has to stand down with it - left queued it composes against text
@@ -25,10 +26,10 @@ export const staticCall = _Array$of(1);
 export const staticRead = _Number$MAX_SAFE_INTEGER;
 export const symbolKey = _getIteratorMethod([1, 2]);
 export const sealedProbe = _getIteratorMethod(_globalThis);
-export const instanceChain = _includesMaybeArray(_globalThis.Array.prototype).call([1], 1);
+export const instanceChain = _includesMaybeArray(_self.Array.prototype).call([1], 1);
 export const {
   noSuchStatic
-} = _globalThis.Number;
+} = _self.Number;
 export const objectPayload = _Array$of(2);
 // a fully-consumed destructure drops its init WHOLE, and the sequence prefix sits under the member
 // spine where the top-level peel never reaches it

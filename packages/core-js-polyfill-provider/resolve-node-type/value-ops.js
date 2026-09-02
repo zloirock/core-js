@@ -115,6 +115,23 @@ export function matchSelfDefaultTernarySlot(node, { isLocalUndefinedName = () =>
   return isInverse ? 'alternate' : 'consequent';
 }
 
+// shape-only matcher for the ctor-identity narrow the emitters render over a shadowed static read
+// (`h === Array ? _Array$from : h.from`): the consequent is the pure static's import binding, the
+// alternate the source's own member read off the tested host. answers the ALTERNATE - the read the
+// type layer asks about, exactly as the flat spelling `h.from(...)` would - or null. the
+// multi-branch render (an alternate that is itself such a guard) is a union receiver and stays
+// outside the match. `isPureStaticBinding(name, key)` answers whether the consequent names the pure
+// import of the static `key`; the shape alone must not vouch for a user-written ternary
+export function matchCtorIdentityNarrowAlternate(node, isPureStaticBinding) {
+  const { test, consequent, alternate } = node;
+  if (test?.type !== 'BinaryExpression' || test.operator !== '===') return null;
+  if (test.left?.type !== 'Identifier' || consequent?.type !== 'Identifier') return null;
+  if (alternate?.type !== 'MemberExpression' || alternate.computed) return null;
+  if (alternate.object?.type !== 'Identifier' || alternate.object.name !== test.left.name) return null;
+  if (alternate.property?.type !== 'Identifier') return null;
+  return isPureStaticBinding(consequent.name, alternate.property.name) ? alternate : null;
+}
+
 // equality has no operand order, and neither do the tools that emit these tests: a lowering writes
 // `_ref === void 0`, a hand-written or minified guard just as readily `void 0 === _ref`. one
 // directional predicate asked BOTH ways rather than a second set of arms - a missed spelling costs

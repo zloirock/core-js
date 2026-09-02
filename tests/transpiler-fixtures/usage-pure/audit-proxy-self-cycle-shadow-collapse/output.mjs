@@ -10,7 +10,7 @@ import _self from "@core-js/pure/actual/self";
 var self = _self;
 const sliced = new _self.Array(3);
 var globalThis = _globalThis;
-const isArr = _globalThis.Array.isArray([1]);
+const isArr = _self.Array.isArray([1]);
 var Map = _Map;
 const m = new _Map([['k', 1]]);
 export { sliced, isArr, m };

@@ -1,4 +1,5 @@
 import _globalThis from "@core-js/pure/actual/global-this";
+import _self from "@core-js/pure/actual/self";
 // the emit-side hop-collapse climbs UP from the root identifier while the detection canon walks
 // DOWN peeling transparent wrappers, sequence tails and chain-assignments - the two walks must
 // stay in lockstep. a wrapper the descent peels but the climb could not step over stranded the
@@ -14,11 +15,11 @@ let e = 0,
   s,
   t;
 const g = _globalThis;
-export const seqRoot = (e++, _globalThis).Math;
-export const seqInAssignRoot = (r = (e++, _globalThis), _globalThis).Intl;
+export const seqRoot = (e++, _self).Math;
+export const seqInAssignRoot = (r = (e++, _globalThis), _self).Intl;
 export const aliasSeqInAssign = (s = (f++, g), g).WeakRef;
-export const deepInterleaved = (t = q = (0, _globalThis), _globalThis).Math.max(1, 2);
-export const parenRoot = _globalThis.JSON;
-export const seqAssignRoot = (f++, q = _globalThis, _globalThis).Date;
+export const deepInterleaved = (t = q = (0, _globalThis), _self).Math.max(1, 2);
+export const parenRoot = _self.JSON;
+export const seqAssignRoot = (f++, q = _globalThis, _self).Date;
 export const aliasSeqRoot = (e++, g).Number;
 export const aliasParenRoot = g.Atomics;

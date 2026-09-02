@@ -3,14 +3,12 @@
 import {
   aliasHeldClaimProbe,
   callYieldCanBeUndefined,
-  guaranteedRealmObjectName,
   inlineCallProxyGlobalRoot,
   navHasUnresolvableProxyHop,
   peelChainAssignmentDeep,
   planProvenNavGuardCollapse,
   proxyGlobalRootName,
   proxyReceiverValueCanBeUndefined,
-  resolveObjectName,
   realmRootIsSpellable,
   sealedChainBoundary,
   sealedClaimLeafGuardPlan,
@@ -18,16 +16,17 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
   CHAIN_HOP_WRAPPER_TYPES,
+  claimDeleteOperand,
   isPristineProxyGlobal,
   memberKeyName,
+  nodeCarriesSourceSpan,
   parenSealedCalleeAbove,
   POSSIBLE_GLOBAL_OBJECTS,
   singleSequenceTail,
-  nodeCarriesSourceSpan,
+  subtreeContainsNode,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   TS_EXPR_WRAPPERS,
   unwrapRuntimeExpr,
-  subtreeContainsNode,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   chainExpression,
@@ -45,6 +44,7 @@ import {
   aliasHoldsUnbackedHopNav,
   markSubtreeSkipped,
   navComputedKeyEffects,
+  optionalHeirAbove,
   unbackedProxyHopKey,
 } from './nav-spine.js';
 
@@ -223,10 +223,9 @@ function liveOptionalAboveSeal(chainPath) {
 
 // the guard now yields `void 0` on the short-circuit branch, so the member left standing over it
 // reads through a `?.` - the source spelling of the very short-circuit the ternary reproduces
-function rehangGuardedTailOptional(target, inserted) {
-  const up = target.parentPath;
-  const above = up?.node;
-  if (above?.type !== 'MemberExpression' || unwrapRuntimeExpr(above.object) !== inserted) return;
+function rehangGuardedTailOptional(target, inserted, up = target.parentPath) {
+  const above = optionalHeirAbove(up?.node, inserted);
+  if (!above) return;
   above.optional = true;
   // the chain wrapper belongs at the TOP of the continuation, not on the hop that carries the
   // `?.`: sealed one step up it TERMINATES the chain and the tail above reads plainly
@@ -345,7 +344,24 @@ export function replaceGuardedHop({
     if (test && returnType) resolvedType?.set(replacement, returnType);
     const inserted = withPrefixSe(replacement);
     target.replaceWith(inserted);
-    if (deleteHostTail && test) rehangGuardedTailOptional(target, inserted);
+    if (deleteHostTail && test) {
+      // the realm hops between the guard and the deleted member read the always-defined alternate
+      // and fold like any read through a ponyfill - the tail climb's own fold, which a delete
+      // consumer skipped to keep its member outside, and with it the fold: spliced out, each parent
+      // reads what stood below (`delete (dh()?.self?.window).k` -> `delete (<guard>).k`). the
+      // deleted member itself stays outside and re-hangs the short-circuit off the guard
+      let up = target.parentPath;
+      if (alwaysDefined || navAlternate) {
+        while (up?.node?.type === 'MemberExpression' && up.node.object === inserted && !up.node.computed
+          && hopIsUnbacked?.(up.node) && !claimDeleteOperand(up)) {
+          const above = up.parentPath;
+          if (!above?.node) break;
+          replaceNodeInTree(above.node, up.node, inserted);
+          up = above;
+        }
+      }
+      rehangGuardedTailOptional(target, inserted, up);
+    }
   } else if (test) {
     // a tail (or the chain wrapper) was absorbed: swap the hop for its emission in place,
     // then wrap what the climb collected as the alternate
@@ -522,16 +538,13 @@ export function guardProbeUndefinable(probe, {
   if (storeObserved
     && (navHasUnresolvableProxyHop(probeValue, m => resolvePure(m, metaPath))
       || aliasHoldsUnbackedHopNav(probeValue, metaPath, adapter))) return true;
-  // a bare ALIAS of an ENTRY-BACKED surface is spelled, not read: the binding holds the realm
-  // object however it was reached (`globalThis` by the language, `self` by its ponyfill), so the
-  // `?.` over it is as dead as the direct spelling's. an entry-less name (`window` / `global`)
-  // can only have entered the alias through a probe-hop READ - the held value is exactly the
-  // undefinable thing the guard tests, and the nav spelling of the same value keeps its guard
-  // (`const { window: w } = globalThis; w?.X` guards like `globalThis.window?.X` does)
-  if (probeValue === peeledProbe && probeValue?.type === 'Identifier') {
-    const aliased = resolveObjectName({ objectNode: probeValue, scope: metaPath.scope, adapter, path: metaPath });
-    if (aliased && guaranteedRealmObjectName(aliased) && isPristineProxyGlobal(adapter, aliased)) return false;
-  }
+  // a bare ALIAS answers through the value canon like every other probe: an alias of an
+  // entry-backed surface (`const g = globalThis`) holds the realm object and proves defined
+  // there, an alias of a probe read (`const w = globalThis.window`) or of a rendered guard
+  // (`null == _globalThis.window ? void 0 : _self`) holds a value that can be absent and keeps
+  // its `?.`. asked of the NAME the alias resolves to instead, the guard render's alias read as
+  // `self` - the defined branch the value canon classifies through - and the guard over a value
+  // the other leg still tests was dropped
   return proxyReceiverValueCanBeUndefined(
     probeValue, m => resolvePure(m, metaPath),
     { scope: metaPath.scope, adapter, path: metaPath },
@@ -625,7 +638,7 @@ export function aliasHeldClaimProbeNode(member, aliasCtx, { resolveGlobalPolyfil
   if (!nodeCarriesSourceSpan(member)) return null;
   const probe = aliasHeldClaimProbe(member, ({ name }) => resolveGlobalPolyfill(name), aliasCtx);
   if (!probe) return null;
-  const read = renderAliasHeldProbeRead(probe, identifier(probe.object.name));
+  const read = renderAliasHeldProbeRead(probe, cloneNode(probe.object));
   // the probe IS the source read spelled verbatim - a re-visit claiming it would substitute the
   // very ponyfill it stands ahead of
   markSubtreeSkipped(skippedNodes, read);
@@ -708,6 +721,11 @@ export function sealedClaimThrowProbe(node, metaPath, ctx) {
       withSideEffects(identifier(injectPureImport(plan.leafPure.entry, plan.leafPure.hintName)),
         plan.liveKeySeExprs().slice(plan.testKeySeCount)))
     : leafPlan?.leafPure ? identifier(injectPureImport(leafPlan.leafPure.entry, leafPlan.leafPure.hintName))
+    // an unbacked leaf over a ponyfill base reads off that base - folded onto it where the plan says
+    // so, else as its member (the plan's verdict, shared with the destructure probe and the other leg)
+    : leafPlan?.leafBasePure ? (leafPlan.foldLeafOntoBase
+      ? identifier(injectPureImport(leafPlan.leafBasePure.entry, leafPlan.leafBasePure.hintName))
+      : memberFromKeyName(identifier(injectPureImport(leafPlan.leafBasePure.entry, leafPlan.leafBasePure.hintName)), leafPlan.leafName))
     : leafPlan?.leafName ? identifier(leafPlan.leafName) : null;
   // a seal the guard renders nothing for (a value-transparent layer over a bare alias -
   // `(held).of`) hides no short-circuit: the alias question stands

@@ -15,7 +15,7 @@ export const storeFoldPlainConsumer = (s6 = _globalThis.window).customBox;
 // a spellable store re-reads the ROOT after the write, and the sequence hands that always-
 // defined base on - the `?.` reading it erases with the fold
 let s7;
-export const storeFoldSpellableReRead = (s7 = _self, _globalThis).customBox;
+export const storeFoldSpellableReRead = (s7 = _self, _self).customBox;
 
 // the SE-keyed and multi-hop twins of the store-fold verdict: a computed key rides its own
 // spelling over the kept store, and a two-hop folded run answers by the same first-hop rule

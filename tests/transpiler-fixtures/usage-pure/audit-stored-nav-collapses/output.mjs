@@ -27,6 +27,6 @@ export { k1, k2, k3, k4, k5, n };
 // nav froze its hops raw (`v = (w = globalThis).window.self.X` used to keep `.window.self`
 // where every other consumer of the same source collapses)
 let bw, bv;
-bv = (bw = _globalThis, _globalThis).Array?.prototype;
+bv = (bw = _globalThis, _self).Array?.prototype;
 export const buriedWriteInLongerNav = typeof bv;
 export { bw, bv };

@@ -1,8 +1,8 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$fromAsync from "@core-js/pure/actual/array/from-async";
 import _Array$of from "@core-js/pure/actual/array/of";
-import _globalThis from "@core-js/pure/actual/global-this";
 import _Map from "@core-js/pure/actual/map/constructor";
+import _self from "@core-js/pure/actual/self";
 import _Set from "@core-js/pure/actual/set/constructor";
 // a lone-prop destructure whose init is RETAINED only for its side effect - the value is consumed by
 // the polyfilled binding, no surviving sibling or rest reads it. the proxy-global member chain in that
@@ -12,9 +12,9 @@ import _Set from "@core-js/pure/actual/set/constructor";
 let firstReads = 0;
 let secondReads = 0;
 let thirdReads = 0;
-(firstReads++, _globalThis.Array) || _Set;
+(firstReads++, _self.Array) || _Set;
 const arrayFrom = _Array$from;
-(secondReads++, _globalThis.Array) || _Map;
+(secondReads++, _self.Array) || _Map;
 const arrayOf = _Array$of; // no `||` fallback: the receiver TAIL is pure and unread, so the lift drops it to a bare side-effect
 // statement (`thirdReads++`). the proxy hop must NOT be collapsed here - the chain is already gone, and
 // editing the dropped region would race the drop (a compose crash). exercises the surviving-tail gate

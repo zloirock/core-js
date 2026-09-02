@@ -21,14 +21,14 @@ export const chainCombineArm = null == (_ref5 = _globalThis.window) ? void 0 : _
 // host environment, and the guard channel cannot tell the two apart because the discriminator
 // sits ABOVE it: a seal makes every short-circuit below observable. unsealed and deep, the chain
 // belongs to the same collapse
-export const deepHopNoProbe = _globalThis.Array;
-export const deepHopDispatch = _flatMaybeArray(_ref8 = _globalThis.box).call(_ref8, 3);
+export const deepHopNoProbe = _self.Array;
+export const deepHopDispatch = _flatMaybeArray(_ref8 = _self.box).call(_ref8, 3);
 
 // POSITIVE control: the FIRST hop off the root IS the probe, and its guard stays
 export const firstHopProbe = null == _globalThis.window ? void 0 : _self.Array;
 
 // POSITIVE control: a SEAL over the same deep chain makes the short-circuit observable again
-export const sealedDeepHop = _globalThis.Array;
+export const sealedDeepHop = _self.Array;
 
 // NEGATIVE: with no live `?.` the whole navigation collapses to the root, hops and all
-export const noOptionalHop = _flatMaybeArray(_ref9 = _globalThis.box).call(_ref9, 1);
+export const noOptionalHop = _flatMaybeArray(_ref9 = _self.box).call(_ref9, 1);

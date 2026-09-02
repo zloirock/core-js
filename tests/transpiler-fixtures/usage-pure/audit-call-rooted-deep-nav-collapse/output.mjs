@@ -19,14 +19,14 @@ typeof (null == (_ref4 = (c++, _globalThis)['foo-bar']) ? void 0 : _getIteratorM
 // identifier twin's canon - with a sequence prefix re-emitted ahead of the base; the
 // PROBE-yield twin keeps the leaf collapse (its value never reached the root), and an
 // effect-bearing call keeps the leaf too - the fold has no slot to replay what it did
-export const viaDefinedCallRoot = _globalThis.userSlot;
+export const viaDefinedCallRoot = _self.userSlot;
 export const viaDefinedCallRootClaim = _Array$of(3);
 let sq = 0;
-export const viaSeqDefinedCallRoot = (sq++, _globalThis).userSlot;
+export const viaSeqDefinedCallRoot = (sq++, _self).userSlot;
 export { sq };
 const dhProbeYield = () => _globalThis.window;
 export const viaProbeYieldPlainNav = _self.userSlot;
-export const viaIdentRootTwin = _globalThis.userSlot;
+export const viaIdentRootTwin = _self.userSlot;
 let se = 0;
 const dhSeYield = () => {
   se++;

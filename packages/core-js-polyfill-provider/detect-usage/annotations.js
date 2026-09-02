@@ -447,6 +447,25 @@ export function storedProxyNavProvesHop(storeNode, { scope, adapter, path, resol
     && !undefinableProxyRootValue(valueCore, resolve, { scope, adapter, path });
 }
 
+// the same navigation with the CARRIER at its root peeled away, so a name walk sees what the
+// carrier-less twin spells (`(t = globalThis).self.Array` names `globalThis.self.Array`). only a
+// store of an ALWAYS-DEFINED realm value is transparent this way: one holding a value that can be
+// absent (`v = globalThis.window`, an alias of one) IS the environment probe, and naming through it
+// would deopt a guard both legs keep. the rebuild is shallow - the copies are read for a name and
+// never emitted
+function navWithoutRootStore(nav, valueIsDefined) {
+  let core = nav;
+  for (;;) {
+    const stored = core?.type === 'AssignmentExpression' ? peelChainAssignment(core).value : null;
+    if (!stored || stored === core || !valueIsDefined(stored)) break;
+    core = stored;
+  }
+  if (core !== nav) return core;
+  if (nav?.type !== 'MemberExpression' && nav?.type !== 'OptionalMemberExpression') return nav;
+  const object = navWithoutRootStore(nav.object, valueIsDefined);
+  return object === nav.object ? nav : { ...nav, object };
+}
+
 // the polyfill replacement consumes `?.`, so the receiver null-check is redundant.
 // `unwrapTransparentSeq` peels ParenthesizedExpression (oxc preserves; babel strips) and the
 // SequenceExpression tail when preceding elements are SE-free (`(0, globalThis)?.Array`).
@@ -545,11 +564,16 @@ export function isPolyfillableOptional({
   // raw name: reading "bound means not a global" answered a question the static emitter answers
   // differently, so an alias receiver (`const A = Array; A.from?.([1]).at(-1)`) read as
   // non-polyfillable and kept its guard while the emitter substituted `_Array$from` under it.
-  // a member CHAIN keeps the proxy-hop recogniser: its narrower acceptance is load-bearing (the
-  // opaque-root canon - proving WHICH global a call yields is not proving it yields a defined one)
+  // a member CHAIN keeps the proxy-hop recogniser - its narrower acceptance is load-bearing (the
+  // opaque-root canon - proving WHICH global a call yields is not proving it yields a defined one) -
+  // and it is asked of the chain a CARRIER at the root peels down to, the same peel the ctor-host
+  // arm below runs: read as unnamed, `(t = globalThis).self.Array.from?.()` kept a guard over a
+  // callee the swap makes always-defined, while the other leg folded that receiver away entirely
+  const objCoreNamed = navWithoutRootStore(objCore,
+    value => !proxyReceiverValueCanBeUndefined(value, resolve, { scope, adapter, path }));
   const objName = objCore?.type === 'Identifier'
     ? resolveObjectName({ objectNode: objCore, scope, adapter, path })
-    : objCore && globalProxyMemberName({ node: objCore, scope, adapter, path });
+    : objCoreNamed && globalProxyMemberName({ node: objCoreNamed, scope, adapter, path });
   // a CTOR read off proxy navigation names the STATIC HOST below: `globalProxyMemberName` answers for
   // a proxy HOP only, so `(v = globalThis.self).Number?.MAX_SAFE_INTEGER.name` found no name at all,
   // kept the guard live, and the claim under it died into a raw read off the ponyfill. asked of the

@@ -1,4 +1,3 @@
-import _globalThis from "@core-js/pure/actual/global-this";
 import _Number$MAX_SAFE_INTEGER from "@core-js/pure/actual/number/max-safe-integer";
 import _Number$MIN_SAFE_INTEGER from "@core-js/pure/actual/number/min-safe-integer";
 import _self from "@core-js/pure/actual/self";
@@ -11,6 +10,6 @@ import _self from "@core-js/pure/actual/self";
 let plainTail, computedTail, liveOptionalTail, vestigialOptionalTail, mixedTail;
 export const plain = (plainTail = _self, _Number$MAX_SAFE_INTEGER);
 export const computed = (computedTail = _self['window'], _Number$MIN_SAFE_INTEGER);
-export const liveOptional = (liveOptionalTail = _globalThis.top).Number.EPSILON;
+export const liveOptional = (liveOptionalTail = _self.top).Number.EPSILON;
 export const vestigialOptional = (vestigialOptionalTail = _self).Number.MAX_VALUE;
-export const mixed = (mixedTail = _globalThis.top).Number.MIN_VALUE;
+export const mixed = (mixedTail = _self.top).Number.MIN_VALUE;

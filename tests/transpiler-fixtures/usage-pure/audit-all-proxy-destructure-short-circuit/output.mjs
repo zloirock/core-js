@@ -21,4 +21,4 @@ export const [viaArrayPattern] = (null == _globalThis.window ? void 0 : _self).w
 // accepted proxy boundary, where the output answers `undefined` and the source throws off-window
 export const {
   zzz: viaPlainDeepNav
-} = _globalThis;
+} = _self;

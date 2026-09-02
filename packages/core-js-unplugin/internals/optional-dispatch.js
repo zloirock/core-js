@@ -6,7 +6,7 @@ import {
   findProxyGlobal,
   inlineCallHasObservableEffects,
   inlineCallProxyGlobalRoot,
-  navHasUnresolvableProxyHop,
+  navValueCanShortCircuit,
   peelChainAssignment,
   peelChainAssignmentDeep,
   peelReceiverSequenceTail,
@@ -139,7 +139,7 @@ export default function createOptionalDispatchChannel(ctx) {
   // `X == null` and is re-read; anything else memoizes - KEEPING its own inner `?.` (that
   // short-circuit routes into this guard), wrapped back into a chain of its own when the
   // extraction strands it outside the original ChainExpression
-  function guardObject(objectNode, metaPath, { bareMemo = false } = {}) {
+  function guardObject(objectNode, metaPath, { bareMemo = false, mutatedLeaf = false } = {}) {
     if (isReusableReceiver(objectNode)) {
       return {
         disjuncts: [cloneNode(objectNode)],
@@ -220,7 +220,9 @@ export default function createOptionalDispatchChannel(ctx) {
     // where a written call yield proves definedness the composed test may not assume - it IS that
     // read, so the `?.` the source wrote stays. the babel binding asks the same plan at its own
     // memo site
-    const composed = composableNavGuardPlan(objectNode, {
+    // ... never under a MUTATED leaf: the read above must reach the user's patch through the
+    // memoized surface, and a composed ponyfill base would read the pristine slot instead
+    const composed = !mutatedLeaf && composableNavGuardPlan(objectNode, {
       scope: metaPath.scope, adapter, path: metaPath, resolvePure: meta => resolvePure(meta, metaPath),
     });
     if (composed) {
@@ -664,9 +666,12 @@ export default function createOptionalDispatchChannel(ctx) {
     // asked THROUGH the seal: a paren or a TS cast around the navigation is printer trivia here, and
     // reading the sealed node raw answered "no live `?.`" for a nav whose probe the read still owes -
     // the swap then handed back the always-defined ponyfill where the source yields undefined
+    // ... asked of the value canon, which sees the ROOT too: an alias holding a probe read short-
+    // circuits at its own `?.` with every hop above it backed (`w?.self?.WeakSet.name` off
+    // `w = globalThis.window`), and the hop census alone called that nav always-defined
     const probedNavObject = unwrapRuntimeExpr(node.object);
-    const probedNav = receiverCarriesLiveOptional(probedNavObject)
-      && navHasUnresolvableProxyHop(probedNavObject, m => resolvePure(m, metaPath));
+    const probedNav = navValueCanShortCircuit(probedNavObject, m => resolvePure(m, metaPath),
+      { scope: metaPath.scope, adapter, path: metaPath });
     if (deadCtorSwap && !deadCtorSwap.se.length && !probedNav) {
       // an ALIAS root keeps its OWN binding and only drops the hops (the alias canon): landing the
       // leaf ponyfill here would re-root the read on a binding the source never named, where every
@@ -686,7 +691,9 @@ export default function createOptionalDispatchChannel(ctx) {
     }
     const surfaceHeld = holdsProxySurface(node.object, metaPath);
     const surfaceHop = surfaceHeld ? proxyHopKey(node, { allowOptional: true }) : null;
-    const { disjuncts, makeBase } = guardObject(node.object, metaPath, { bareMemo: !!surfaceHop });
+    const leafKey = node.computed ? null : node.property?.name ?? null;
+    const { disjuncts, makeBase } = guardObject(node.object, metaPath,
+      { bareMemo: !!surfaceHop, mutatedLeaf: !!leafKey && isMutatedGlobalSlot(adapter, leafKey) });
     // a pristine hop read off a guarded PROXY-surface value drops - `(q = gw)?.self
     // .Array` reads `_ref.Array` (window.self is the same surface, babel's kept canon);
     // an SE-bearing key's effects MIGRATE into the next surviving key (native order:

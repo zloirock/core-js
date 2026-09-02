@@ -31,7 +31,7 @@ export const singleHop = null == (_ref9 = s = _globalThis.window) ? void 0 : _fl
 // an always-defined root keeps the deopt even under the mutated landing: the raw read
 // hangs off a defined object and cannot throw, so the dead guard stays dropped
 let d;
-export const resolvableRoot = _flatMaybeArray(_ref11 = (d = _globalThis, _globalThis).Array.of(1))?.call(_ref11);
+export const resolvableRoot = _flatMaybeArray(_ref11 = (d = _globalThis, _self).Array.of(1))?.call(_ref11);
 // an ALIAS value resolves through the same family walk: the aliased `window` is exactly as
 // undefinable as the spelled-out nav, so the guard survives here too
 const w = _globalThis.window;

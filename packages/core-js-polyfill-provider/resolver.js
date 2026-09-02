@@ -27,13 +27,21 @@ function descHasTypeHints(desc) {
   return false;
 }
 
-// look up a type-hint variant in `desc`, falling back to `rest`
-// when fallbackToCommon is true, fall back to `common` if `desc` has no type-hinted variants at all
-function lookupByTypeHint(desc, hint, fallbackToCommon) {
-  if (hasOwn(desc, hint)) return desc[hint];
+// the tail of the type-hint ladder, ONE home for every site that walks it: a receiver type the desc
+// does not specialise takes `rest`, and `common` only when the desc specialises no type at all - a
+// typed desc's `common` is the type-AWARE dispatcher for an unknown receiver, never the variant for
+// a known one. `allowCommon` = false stops at `rest`: a destructure-from-constructor receiver reads a
+// STATIC slot, where an instance-only `common` would answer for a member the constructor lacks.
+// a type that needs NO polyfill for the member is the data's to say - an empty variant, which the
+// lookup finds before this tail (`toString` on a `number`); the ladder never guesses ownership
+function typeLadderTail(desc, allowCommon = true) {
   if (hasOwn(desc, 'rest')) return desc.rest;
-  if (fallbackToCommon && !descHasTypeHints(desc) && hasOwn(desc, 'common')) return desc.common;
-  return null;
+  return allowCommon && !descHasTypeHints(desc) && hasOwn(desc, 'common') ? desc.common : null;
+}
+
+// look up a type-hint variant in `desc`, else walk the ladder's tail
+function lookupByTypeHint(desc, hint, fallbackToCommon) {
+  return hasOwn(desc, hint) ? desc[hint] : typeLadderTail(desc, fallbackToCommon);
 }
 
 function hasHintNotIn(hints, desc) {
@@ -95,13 +103,10 @@ function resolveHint(desc, meta, crossTypeBackstop = false) {
   // `desc` doesn't specialise for
   if (hasOwn(desc, 'rest') && (!includedHints || hasHintNotIn(includedHints, desc))) add(desc.rest);
 
-  // narrowing must still surface `common` when desc has no type variants.
-  // both `includedHints` (typeof-positive) and `excludedHints` (typeof-negative) trigger -
-  // `common` is type-agnostic. desc with type variants stays strict (types ruled out)
-  if (first === null) {
-    return (includedHints || excludedHints) && hasOwn(desc, 'common') && !descHasTypeHints(desc)
-      ? desc.common : null;
-  }
+  // no admitted variant: the same ladder tail a single known hint walks - `rest` where the desc has
+  // one, else `common` only for a desc without type variants (a typed desc stays strict, its types
+  // are ruled out)
+  if (first === null) return typeLadderTail(desc);
   if (rest === null) {
     // cross-type backstop: a single type-specific variant matched, but the narrowed hint-set still
     // admits types this method does NOT specialise - `typeof x === 'object'` keeps Array AND
@@ -178,7 +183,16 @@ export function createPolyfillResolver(options, {
     const hint = toHint(objType);
     if (hint) {
       if (TYPE_HINTS.has(hint)) return { ...meta, object: hint, placement: 'prototype', receiverHint: undefined };
-      return descHasTypeHints(desc) ? null : meta;
+      // a PRIMITIVE outside the hint domain is a nullish / never receiver: the read throws before
+      // any method could dispatch, so nothing is owed
+      if (objType.primitive) return null;
+      // a KNOWN object type outside the hint domain (an `Element`, a `Map`, a user class instance)
+      // rules every hinted variant out, and `resolveHint` then walks the same ladder tail a known
+      // hint does - `rest` for the receiver the desc does not specialise (an `Element`'s
+      // `toString` owes `object/to-string`), `common` for a desc without type variants, else
+      // nothing. spelled as the exclusion of the whole domain so the ladder has ONE walker;
+      // answering null here skipped its tail and left a typed receiver with no polyfill at all
+      return { ...meta, receiverHint: undefined, includedHints: undefined, excludedHints: new Set(TYPE_HINTS) };
     }
     if (descHasTypeHints(desc)) {
       // a cross-family union receiver (`number[] | string`) resolves to no single Type but
