@@ -3,6 +3,7 @@ import _Iterator from "@core-js/pure/actual/iterator/constructor";
 import _Iterator$from from "@core-js/pure/actual/iterator/from";
 import _Map from "@core-js/pure/actual/map/constructor";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
+import _Promise2 from "@core-js/pure/actual/promise";
 import _Promise$allSettled from "@core-js/pure/actual/promise/all-settled";
 import _Promise$any from "@core-js/pure/actual/promise/any";
 import _Promise from "@core-js/pure/actual/promise/constructor";
@@ -25,7 +26,7 @@ const r2 = _Iterator.from(src);
 const w = (h = _Promise).try = patchC;
 const r3 = _Promise.try(fn);
 const registry = {
-  Promise: _Promise
+  Promise: _Promise2
 };
 const k = "Promise";
 registry[k].allSettled = patchD;

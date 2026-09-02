@@ -16,12 +16,11 @@ import "core-js/modules/web.self";
 // dispatch spells the whole span itself - receiver memoized behind the guard, key effect migrated
 // out - so the global channel's claim over the nav inside it has nothing left to compose into. a
 // guard already queued over a root INSIDE the claim's span is what says the nav was consumed
-// NOTE on the entry set this file records: the setup below WRITES a globalThis slot, which puts the
-// whole file into the mutated-static deopt. after it no nav receiver is provably the native one, so
-// every `at` here resolves to the full family set rather than a narrowed one - `Array.of(1).at(0)`
-// included, which narrows on its own in a file without such a write. the subject here is claim
-// OWNERSHIP, not narrowing; the narrowing signal lives on literal receivers, which the deopt
-// does not touch
+// NOTE on the entry set this file records: the setup below writes ONE slot of the global object,
+// and the mutated-static deopt is keyed by that slot - `claimBox` is tainted and nothing else is,
+// so `Array.of(1).at(0)` narrows here exactly as it would in a file with no write at all. the
+// `at` family entries that do appear are owed by the receivers that are genuinely unknown or a
+// string. the subject of the file is claim OWNERSHIP, not narrowing
 globalThis.claimBox = {
   list: ['ab', 'cd'],
   get: function () {

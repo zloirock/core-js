@@ -121,7 +121,7 @@ function noteDeoptedSlotRead(meta, { getDebugOutput, adapter, noted }) {
   const debug = getDebugOutput?.();
   if (!debug || noted.has(meta?.name) || !isDeoptedGlobalSlotRead(meta, adapter)) return;
   noted.add(meta.name);
-  debug.warn?.(mutatedSlotLeftNativeWarning(meta.name));
+  debug.warn?.(mutatedSlotLeftNativeWarning(meta.name, adapter.mutatedStatics));
 }
 
 // does the receiver SPELL its own harvested effects - the prefix of a sequence whose tail

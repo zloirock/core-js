@@ -21,6 +21,7 @@ import {
   nodeHoldsChild,
   isPristineProxyGlobal,
   mayHaveSideEffects,
+  memberProxyHopName,
   peelParenAndTSParentPath,
   peelParenAndTSSlotChild,
   peelParenAndTSSlotPath,
@@ -517,6 +518,14 @@ export function foldPendingReceiverSpineRoot(object, metaPath, { collapseProxyHo
 // consumer reads it optionally, where the hop claim's guard render owns the shape
 // (`deadOptionalHop`: a `?.` the shared vestigial verdict already called dead is no probe and
 // does not end the run)
+// does anything READ THROUGH this member - a further hop off it, a call of it? a member nothing
+// reads through is the end of the navigation, whatever the operator above does with it
+function memberIsReadThrough(memberPath) {
+  const above = memberPath.parentPath?.node;
+  return (above?.type === 'MemberExpression' && above.object === memberPath.node)
+    || (above?.type === 'CallExpression' && above.callee === memberPath.node);
+}
+
 export function plainProxyHopRunAbove(metaPath, proxyHopKey, { allowOptional = false, deadOptionalHop = null } = {}) {
   // a source PAREN - and the chain wrapper an `?.` wears - is transparent to the run and to
   // the read above it (`(g.window?.self)?.Array` navigates exactly like the bare twin)
@@ -546,7 +555,16 @@ export function plainProxyHopRunAbove(metaPath, proxyHopKey, { allowOptional = f
   }
   while (up?.node?.type === 'MemberExpression' && up.node.object === child) {
     if (!plainEnough(up.node)) return null;
-    if (!proxyHopKey(up.node, { metaPath, allowOptional: true })) break;
+    if (!proxyHopKey(up.node, { metaPath, allowOptional: true })) {
+      // a hop the fold may not drop deopts the run WHOLE, and a MUTATED realm slot is one of
+      // them: the hops BELOW it fold only together with the READ above them, so folding them out
+      // leaves the kept hop reading off a base the source never wrote. only where something reads
+      // THROUGH it - a slot the source names to delete it is the operator's own target, and the
+      // file naming it is exactly why the census calls it mutated. every other stop is positional:
+      // the run ends there and what it collected still folds
+      if (memberProxyHopName(up.node) && memberIsReadThrough(up)) return null;
+      break;
+    }
     sawHop = true;
     [child, up] = stepWrappers(up.node, up.parentPath);
   }
