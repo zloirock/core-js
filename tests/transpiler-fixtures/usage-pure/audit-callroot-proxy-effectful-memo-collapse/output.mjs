@@ -1,5 +1,6 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _globalThis from "@core-js/pure/actual/global-this";
+import _self from "@core-js/pure/actual/self";
 // an EFFECTFUL call/IIFE-rooted proxy chain with an UNRESOLVED sibling key (`{ from, length } = (() => {
 // eff(); return globalThis; })().self.Array`): because the SE-bearing receiver has a key left unresolved,
 // it is MEMOIZED through a function-IIFE param (runs exactly once as the argument). the proxy hop `.self`
@@ -19,7 +20,7 @@ function f({
 }(((() => {
   eff();
   return _globalThis;
-})(), _globalThis).Array)) {
+})(), _self).Array)) {
   return [from([1]), length];
 }
 export { f };

@@ -2,7 +2,7 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
-import _globalThis from "@core-js/pure/actual/global-this";
+import _self from "@core-js/pure/actual/self";
 // A proxy-global receiver wrapped in NESTED sequences (`(c++, (d++, globalThis.self))`) must collapse to the
 // root the SAME way as a single sequence - the unplugin SE-tail substitution peeled only ONE level, grabbed
 // the inner sequence (not the proxy leaf) and bailed, leaving a raw `globalThis.self` (undefined off-engine)
@@ -14,8 +14,8 @@ let a = 0,
   b = 0,
   c = 0,
   d = 0;
-const memberDirect = _flatMaybeArray((c++, d++, _globalThis).Array.prototype).call([1, [2]]);
-const instanceAt = _atMaybeArray((c++, d++, _globalThis).Array.prototype).call([1], 0);
-const symbolIter = _getIteratorMethod((a++, b++, c++, _globalThis).Array.prototype);
-const single = _includesMaybeArray((d++, _globalThis).Array.prototype).call([1], 1);
+const memberDirect = _flatMaybeArray((c++, d++, _self).Array.prototype).call([1, [2]]);
+const instanceAt = _atMaybeArray((c++, d++, _self).Array.prototype).call([1], 0);
+const symbolIter = _getIteratorMethod((a++, b++, c++, _self).Array.prototype);
+const single = _includesMaybeArray((d++, _self).Array.prototype).call([1], 1);
 export { memberDirect, instanceAt, symbolIter, single, a, b, c, d };

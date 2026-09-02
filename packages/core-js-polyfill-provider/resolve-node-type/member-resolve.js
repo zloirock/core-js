@@ -684,7 +684,15 @@ export function createMemberResolve({
       if (path.node.computed) return resolveIndexSignatureMember(path, callPath);
       return null;
     }
-    const originalObjectPath = path.get('object');
+    return resolveMemberOfObjectPath(path.get('object'), name, callPath);
+  }
+
+  // the member `name` read off the OBJECT a path names - the one ladder every spelling of that
+  // read walks: a literal spine, a class instance or constructor, an ambient class, a merged
+  // namespace, a typed member, a structural predicate narrow. the member expression asks it for
+  // its object; the nested destructure walk asks it for the container a pattern hop reads off, so
+  // `const { data: { at } } = c` answers what `const { at } = c.data` and `c.data.at` answer
+  function resolveMemberOfObjectPath(originalObjectPath, name, callPath) {
     const objectPath = resolveRuntimeExpression(originalObjectPath);
     // `this.X` inside an object-method (possibly through arrow nesting): resolve `this`
     // to the parent ObjectExpression and route through the flow-aware field resolver.
@@ -1006,6 +1014,7 @@ export function createMemberResolve({
     findClassPathForTypeReference,
     resolveIndexSignatureMember,
     resolveFromMemberExpression,
+    resolveMemberOfObjectPath,
     resolveArrayIndexAccess,
     resolveEnumMemberAccess,
   };

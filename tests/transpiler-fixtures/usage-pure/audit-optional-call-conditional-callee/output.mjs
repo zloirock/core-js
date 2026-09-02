@@ -23,7 +23,7 @@ export const {
 } = condFn?.()?.Array ?? {};
 export const condCalleePlainCall = _globalThis.setTimeout ? null == condFn() ? void 0 : _Array$of(14) : null;
 export const condCalleeInstanceMemo = null == (_ref = condFn?.()) ? void 0 : _atMaybeArray(_ref.Array.prototype).call([7], 0);
-export const condCalleeDelete = delete (condFn?.(), _Map).groupBy;
+export const condCalleeDelete = delete (null == condFn?.() ? void 0 : _Map)?.groupBy;
 const condNavFn = () => _globalThis.window;
 export const optionalNavCalleeGuard = null == condNavFn?.() ? void 0 : _Array$of(15);
 
