@@ -8,6 +8,7 @@ import _Object$getOwnPropertyNames from "@core-js/pure/actual/object/get-own-pro
 import _Object$keys from "@core-js/pure/actual/object/keys";
 import _Object$values from "@core-js/pure/actual/object/values";
 import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
+import _self from "@core-js/pure/actual/self";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 // A fully-consumed static destructure whose receiver buries a side effect in a proxy-hop KEY
 // (`globalThis[(eff(), 'self')].Array`): the effect must run, so the consumed receiver survives as a
@@ -50,7 +51,7 @@ const assign = _Object$assign;
 assign({}, {
   a: 1
 });
-(g++, _globalThis).Object || Object;
+(g++, _self).Object || Object;
 const values = _Object$values;
 values({
   x: 1
@@ -71,7 +72,7 @@ const al = _globalThis;
 p++;
 const fromEntries = _Object$fromEntries;
 fromEntries([['k', 1]]);
-(q++, _globalThis).Object || Object;
+(q++, _self).Object || Object;
 const getOwnPropertyNames = _Object$getOwnPropertyNames;
 getOwnPropertyNames({
   z: 1

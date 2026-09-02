@@ -9,6 +9,7 @@ import {
   proxyHopLacksPureEntry,
   resolveKey,
   resolveObjectName,
+  sealedLayerBetween,
   storedNavHopClaimSuppressed,
   unbackedRealmHopFoldAbove,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
@@ -42,21 +43,7 @@ import {
   nullFirstGuardTest,
   renderShortCircuitGuard,
 } from './builders.js';
-import { memberFromKeyName } from './emit-shared.js';
-
-// is the node read as a member OBJECT above - asked THROUGH transparent wrappers and a
-// sequence TAIL: `(se(), g[fold]).Array` reads the hop exactly like the bare spelling
-export function navigatedMemberAbove(metaPath) {
-  let navUp = metaPath;
-  for (let up = navUp.parentPath; up?.node; up = navUp.parentPath) {
-    const upNode = up.node;
-    const wraps = TRANSPARENT_EXPR_WRAPPER_TYPES.has(upNode.type)
-      && upNode.expression === navUp.node;
-    if (!wraps && !(upNode.type === 'SequenceExpression' && upNode.expressions.at(-1) === navUp.node)) break;
-    navUp = up;
-  }
-  return navUp.parentPath?.node?.type === 'MemberExpression' && navUp.parentPath.node.object === navUp.node;
-}
+import { memberFromKeyName, receiverCarriesOptional } from './emit-shared.js';
 
 // clone a receiver with source parens peeled off its member/call SPINE: babel holds parens
 // as printer trivia, so a memo respells without them, while TS casts stay - babel memoizes
@@ -85,11 +72,12 @@ export function cloneSpinePeeled(node, inCallee = false) {
 // tail, and the dispatch above reads the same slot either way
 // the nested-guard VALUE spelling: a nav whose unresolvable hop sits BELOW the collapse point
 // (`(se(), globalThis).window.self` -> `null == (se(), _globalThis).window ? void 0 : _self`).
-// the ident-rooted twin collapses whole through the plain swap - there the prefix read has no
-// other reason to exist; a SEQUENCE root re-emits its prefix regardless, so the honest hop read
-// stands and carries the guard the source's own semantics ask for. the prefix subtree is REUSED
-// in place, so the claims queued inside it still land in the re-emit. a proven CALL root is
-// the identifier's twin here too: the kept slice re-reads the call exactly as written
+// WHICH form a kept store takes is the plan's verdict (`valueFormSpells`), read here as the other
+// leg reads it: the value form carries an ident root and an effect-free call root whole, so the
+// store collapses through the plain swap; a SEQUENCE prefix and an effectful CALL root have no
+// slot in it and re-emit inside the guarded render, where the honest hop read stands and carries
+// the guard the source's own semantics ask for. the prefix subtree is REUSED in place, so the
+// claims queued inside it still land in the re-emit; a call root is re-read exactly as written
 export function emitNestedGuardNavValue(metaPath, node, {
   adapter,
   resolvePure,
@@ -114,7 +102,7 @@ export function emitNestedGuardNavValue(metaPath, node, {
     resolvePure: resolveHere,
     allowSequenceRoot: true,
   });
-  if (plan?.kind !== 'nested' || !plan.seqRoot || plan.topAssign || !plan.leafPure) return false;
+  if (plan?.kind !== 'nested' || plan.valueFormSpells || plan.topAssign || !plan.leafPure) return false;
   // the proven root: an ident the substitution below reaches, or a call the slice re-reads
   const provenRoot = plan.rootId ?? plan.call;
   const prefixNode = plan.hops[plan.lastUnresolvableIdx].node;
@@ -254,15 +242,41 @@ export function landingOverSubstitutedSpan(path) {
   return readsThrough ? landing : path;
 }
 
+// the chain marker is this dialect's spelling of a `?.` somewhere inside it: once every optional
+// under it folded away, the marker is a husk - printed as nothing, yet a wrapper to every predicate
+// peeling only the runtime layers (`Chain(_self.Array)` hid a minted probe from the destructure
+// drain). the drop that erases the LAST `?.` owes the marker's removal; asked from any path inside
+// the chain, it climbs to the nearest marker and drops it when no `?.` survives under it. two
+// erasures may share one marker (a fold, then the `?.` verdict walking the pre-fold paths): the
+// second reaches the marker's DETACHED path and answers false - the marker is gone already
+export function dropChainMarkerWithoutOptional(path) {
+  let chainPath = path;
+  while (chainPath?.node && chainPath.node.type !== 'ChainExpression') chainPath = chainPath.parentPath;
+  if (!chainPath?.node || chainPath.removed || receiverCarriesOptional(chainPath.node)) return false;
+  chainPath.replaceWith(chainPath.node.expression);
+  return true;
+}
+
 export function foldUnbackedRealmHopsAbove(basePath, baseNode, ctx) {
   const fold = unbackedRealmHopFoldAbove(basePath, baseNode, ctx);
   if (!fold) return null;
   const landing = landingOverSubstitutedSpan(fold.path);
   landing.replaceWith(fold.node);
+  dropChainMarkerWithoutOptional(landing.parentPath);
   // where the base now LIVES: the fold detaches the levels it sat under, and the `?.` verdict the
   // caller runs next walks that parent chain - from the old path it read a hop out of the tree and
   // left a guard standing over the substituted binding
   return landing;
+}
+
+// the member ABOVE a dropped hop that may inherit its `?.`: one reading the hop's value through
+// the transparent wrappers but never through a SEAL - a paren between them ends the short-circuit,
+// so that read is plain and observes the void (`delete ((w = globalThis.window)?.self).k` throws
+// off-window where the unsealed spelling short-circuits). ONE rule for every drop that re-hangs
+// an optional; a site asking the peeled object alone slid the `?.` across the seal
+export function optionalHeirAbove(above, node) {
+  return above?.type === 'MemberExpression' && unwrapRuntimeExpr(above.object) === node
+    && !sealedLayerBetween(above.object, node) ? above : null;
 }
 
 // an unbacked realm hop reading a CARRIED value - a kept write's store, the sequence handing it
@@ -301,7 +315,7 @@ export function foldRealmHopOverCarriedValue(basePath, ctx) {
       && foldableRealmHop(node, ctx)) {
       const above = up.parentPath?.node;
       if (above?.type !== 'MemberExpression' || unwrapRuntimeExpr(above.object) !== node) return;
-      above.optional = node.optional === true;
+      above.optional = node.optional === true && optionalHeirAbove(above, node) !== null;
       up.replaceWith(node.object);
     }
     return;
@@ -855,6 +869,14 @@ export function valueObservingDestructureSource(metaPath, destructureEmit) {
       && !((type === 'MemberExpression' || type === 'OptionalMemberExpression') && up.node.object === child)) {
       return false;
     }
+    // ... and only where the pattern claims NOTHING: a claimed one re-renders its receiver
+    // through its own channel, and that render is the collapse - but it owns the run only when the
+    // pattern is consumed WHOLE. a surviving RESIDUAL re-reads that run, and the hops the source
+    // wrote stand there whatever carries the value
+    // ... and only where the pattern claims NOTHING: a claimed one re-renders its receiver
+    // through its own channel, and that render is the collapse - but it owns the run only when the
+    // pattern is consumed WHOLE. a surviving RESIDUAL re-reads that run, and the hops the source
+    // wrote stand there whatever carries the value
     // ... and only where the pattern claims NOTHING: a claimed one re-renders its receiver
     // through its own channel, and that render is the collapse
     if (pattern) {

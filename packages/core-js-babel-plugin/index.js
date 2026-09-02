@@ -306,6 +306,9 @@ export default function plugin(api, options) {
     resolvePureStaticEntry(object, key, path = null) {
       return resolvePure({ kind: 'property', object, key, placement: 'static' }, path);
     },
+    resolvePurePrototypeEntry(object, key, path = null) {
+      return resolvePure({ kind: 'property', object, key, placement: 'prototype' }, path);
+    },
     // late-bound like getInjector: the per-file injector exists only inside the program visit
     injectPureGlobal(entry, hintName) {
       debugOutput?.add(entry);

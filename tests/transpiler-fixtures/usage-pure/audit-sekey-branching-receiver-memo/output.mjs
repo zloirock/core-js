@@ -8,10 +8,10 @@ import _keysMaybeArray from "@core-js/pure/actual/array/instance/keys";
 import _toSortedMaybeArray from "@core-js/pure/actual/array/instance/to-sorted";
 import _valuesMaybeArray from "@core-js/pure/actual/array/instance/values";
 import _Array$of from "@core-js/pure/actual/array/of";
-import _globalThis from "@core-js/pure/actual/global-this";
 import _keys from "@core-js/pure/actual/instance/keys";
 import _values from "@core-js/pure/actual/instance/values";
 import _Promise from "@core-js/pure/actual/promise/constructor";
+import _self from "@core-js/pure/actual/self";
 // a side-effect-key instance destructure off a side-effect-free BRANCHING receiver (ternary /
 // logical) memoizes the receiver into a `_ref` read once - the branch selects exactly once,
 // like the native single read - and extracts the polyfill off the memo. the key effect stays
@@ -179,7 +179,7 @@ var _ref14 = holder14?.get14?.(),
 export const r14 = [typeof f14, k14];
 // a proxy-hop member receiver collapses INSIDE the memo (the raw hop is undefined off-engine)
 let k15 = 0;
-var _ref15 = _globalThis.Array.prototype,
+var _ref15 = _self.Array.prototype,
   {
     [(k15++, 'at')]: _unused15,
     other15
@@ -190,7 +190,7 @@ export const r15 = [typeof a15, k15];
 // the memo captures prefix and receiver together, effects once in source order
 let k16 = 0,
   s16 = 0;
-var _ref16 = (s16++, _globalThis.Array.prototype),
+var _ref16 = (s16++, _self.Array.prototype),
   {
     [(k16++, 'flat')]: _unused16,
     other16

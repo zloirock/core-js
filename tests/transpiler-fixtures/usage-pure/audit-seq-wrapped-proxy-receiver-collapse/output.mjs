@@ -4,6 +4,7 @@ import _flatMapMaybeArray from "@core-js/pure/actual/array/instance/flat-map";
 import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _globalThis from "@core-js/pure/actual/global-this";
+import _self from "@core-js/pure/actual/self";
 var _ref;
 // A proxy-global receiver wrapped in a side-effecting SequenceExpression: `(eff(), globalThis.self)`. the
 // redundant `.self` proxy hop collapses to the pure root and the prefix effect harvests ahead of it, both in a
@@ -15,8 +16,8 @@ let log = [];
 function eff(tag) {
   _pushMaybeArray(log).call(log, tag);
 }
-const nonOpt = _flatMaybeArray((eff('a'), _globalThis).Array.prototype).call([1, [2]]);
-const optInst = _includesMaybeArray((eff('b'), _globalThis).Array.prototype).call([1], 1);
+const nonOpt = _flatMaybeArray((eff('a'), _self).Array.prototype).call([1, [2]]);
+const optInst = _includesMaybeArray((eff('b'), _self).Array.prototype).call([1], 1);
 const optId = _atMaybeArray((eff('c'), _globalThis).Array.prototype).call([3, 4], 0);
 const optWin = null == (_ref = (eff('d'), _globalThis.window)) ? void 0 : _flatMapMaybeArray(_ref.Array.prototype).call([1], x => [x]);
 export { nonOpt, optInst, optId, optWin, log };

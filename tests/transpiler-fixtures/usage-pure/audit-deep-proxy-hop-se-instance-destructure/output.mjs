@@ -3,7 +3,7 @@ import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _flatMapMaybeArray from "@core-js/pure/actual/array/instance/flat-map";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
-import _globalThis from "@core-js/pure/actual/global-this";
+import _self from "@core-js/pure/actual/self";
 // A side-effecting proxy-global HOP key sitting DEEPER than an immediate static collapse - under
 // `.Array.prototype` on an instance-method receiver (`globalThis[(eff(), 'self')].Array.prototype.flat`).
 // the immediate-hop resolver only saw the native `.Array` directly above the hop, so it left a dead
@@ -16,8 +16,8 @@ function eff(tag) {
   _pushMaybeArray(log).call(log, tag);
   return 'self';
 }
-const callInstance = _flatMaybeArray((eff('a'), _globalThis).Array.prototype).call([1, [2]]);
-const flatMap = _flatMapMaybeArray((eff('b'), _globalThis).Array.prototype);
-const deepDouble = _atMaybeArray((eff('c'), eff('d'), _globalThis).Array.prototype).call([5, 6], 0);
-const noSe = _findLastMaybeArray(_globalThis.Array.prototype).call([7], Boolean);
+const callInstance = _flatMaybeArray((eff('a'), _self).Array.prototype).call([1, [2]]);
+const flatMap = _flatMapMaybeArray((eff('b'), _self).Array.prototype);
+const deepDouble = _atMaybeArray((eff('c'), eff('d'), _self).Array.prototype).call([5, 6], 0);
+const noSe = _findLastMaybeArray(_self.Array.prototype).call([7], Boolean);
 export { callInstance, flatMap, deepDouble, noSe, log };

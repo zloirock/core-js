@@ -1,6 +1,6 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-import _globalThis from "@core-js/pure/actual/global-this";
 import _Map from "@core-js/pure/actual/map/constructor";
+import _self from "@core-js/pure/actual/self";
 import _Set from "@core-js/pure/actual/set/constructor";
 // A proxy-global member chain with a redundant `.self` hop inside a LOGICAL-expression PARAM-DEFAULT
 // receiver must collapse the hop in each live non-pure operand, exactly as a const-init receiver does:
@@ -10,7 +10,7 @@ import _Set from "@core-js/pure/actual/set/constructor";
 function f({
   from: _unused,
   ...rest
-} = _globalThis.Array || _Set || _Map) {
+} = _self.Array || _Set || _Map) {
   let from = _Array$from;
   return from([1]);
 }

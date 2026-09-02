@@ -7,8 +7,8 @@ import _self from "@core-js/pure/actual/self";
 const dh = () => _globalThis;
 export const probeOnlyRead = String(_globalThis.customQ);
 export const probeOnlyValue = typeof _globalThis.Array;
-export const backedThenProbeRead = String(_globalThis.customQ);
-export const probeThenBackedRead = String(_globalThis.customQ);
+export const backedThenProbeRead = String(_self.customQ);
+export const probeThenBackedRead = String(_self.customQ);
 // a sequence PREFIX around the folded run re-emits ahead of the base, where the source ran it
 // - nested prefixes flatten in source order, a computed-key effect stays in the surviving key,
 // and the `delete` fold takes the same slot; a probe LEAF keeps its own slot and rides the

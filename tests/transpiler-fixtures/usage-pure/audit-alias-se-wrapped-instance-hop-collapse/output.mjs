@@ -17,8 +17,8 @@ var _ref;
 const g = _globalThis;
 let c = 0,
   d = 0;
-const single = _flatMaybeArray((c++, _globalThis).Array.prototype).call([1, [2]]);
-const nested = _atMaybeArray((c++, d++, _globalThis).Array.prototype).call([1], 0);
-const doubleHop = _includesMaybeArray((c++, _globalThis).Array.prototype).call([1], 1);
+const single = _flatMaybeArray((c++, _self).Array.prototype).call([1, [2]]);
+const nested = _atMaybeArray((c++, d++, _self).Array.prototype).call([1], 0);
+const doubleHop = _includesMaybeArray((c++, _self).Array.prototype).call([1], 1);
 const optional = null == (_ref = (c++, d++, _self)) ? void 0 : _mapMaybeArray(_ref.Array.prototype).call([1], x => x);
 export { single, nested, doubleHop, optional, c, d };

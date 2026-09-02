@@ -5,6 +5,7 @@ import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 import _Object$hasOwn from "@core-js/pure/actual/object/has-own";
 import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Promise$try from "@core-js/pure/actual/promise/try";
+import _self from "@core-js/pure/actual/self";
 // a MEMOIZED synth-swap receiver (SE-bearing, >=1 unpolyfilled key) takes the same canonical
 // re-read target as the direct path: pure-ctor leaf whole-swaps with the erased navigation's
 // effects harvested ahead of the binding; an alias root keeps its identifier and only drops
@@ -79,7 +80,7 @@ function directNonPure({
     hasOwn: _Object$hasOwn,
     extra: _ref5.extra
   };
-}((eff(), _globalThis.Object))) {
+}((eff(), _self.Object))) {
   return [hasOwn, extra];
 }
 directNonPure();

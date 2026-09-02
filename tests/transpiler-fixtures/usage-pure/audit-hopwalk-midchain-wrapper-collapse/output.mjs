@@ -1,6 +1,7 @@
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 import _globalThis from "@core-js/pure/actual/global-this";
+import _self from "@core-js/pure/actual/self";
 // a MID-CHAIN wrapper between the proxy hop and the consuming member - a paren or a TS cast
 // around the hop segment (`((a = globalThis).self).Array`) - must not break the collapse walks:
 // the receiver renderer rebuilds the surviving hops instead of a flat tail slice (which would
@@ -8,5 +9,5 @@ import _globalThis from "@core-js/pure/actual/global-this";
 // against the PEELED object (the raw `.object` is the wrapper node). the cast variant lives in
 // the TS twin fixture; distinct methods per line attribute a regressed form.
 let a, b;
-export const flat = _flatMaybeArray((a = _globalThis, _globalThis).Array.prototype);
-export const includes = _includesMaybeArray((b = _globalThis, _globalThis).Array.prototype);
+export const flat = _flatMaybeArray((a = _globalThis, _self).Array.prototype);
+export const includes = _includesMaybeArray((b = _globalThis, _self).Array.prototype);

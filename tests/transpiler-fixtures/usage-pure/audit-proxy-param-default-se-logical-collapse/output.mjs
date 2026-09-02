@@ -1,5 +1,5 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-import _globalThis from "@core-js/pure/actual/global-this";
+import _self from "@core-js/pure/actual/self";
 import _Set from "@core-js/pure/actual/set/constructor";
 // A side-effect SequenceExpression wrapping a LOGICAL proxy-global param default
 // (`= (effect(), globalThis.self.Array || Set)`) with a `...rest` sibling: the receiver survives as
@@ -10,7 +10,7 @@ function effect() {}
 function f({
   from: _unused,
   ...rest
-} = (effect(), _globalThis.Array || _Set)) {
+} = (effect(), _self.Array || _Set)) {
   let from = _Array$from;
   return from([1]);
 }

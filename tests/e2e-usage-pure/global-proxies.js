@@ -1041,17 +1041,61 @@ testUnlessDetectLowered('global-proxy: unguarded chain-assign over an unpolyfill
   assert.true((m = k = globalThis).self.Array.prototype.includes.call([7], 7));
   assert.same(m, globalThis);
   assert.same(k, globalThis);
-  // the DESTRUCTURE-source shape does NOT keep the root: the receiver value is never read, only the static
-  // `Array.of` is extracted - invariant of which global names it - so the whole nav drops and the chain-assign
-  // survives alone. unlike the value-use reads above there is nothing to throw off-browser; the dropped nav is
-  // dead weight and the static resolves the same in every environment. this is the one exception to the split
+  // the DESTRUCTURE-source shape drops the nav and keeps the static - which global named it does not matter
+  // - but the READ it discards is one the source performed on the stored value, and off-browser THAT is what
+  // throws. so the consume re-emits it beside the kept write, at any hop depth and in either spelling: the
+  // store's own value decides, never the run standing over it
   let d;
   function destructureWindowValued() {
     const { of } = (d = globalThis.window).self.Array;
     return of;
   }
-  assert.same(typeof destructureWindowValued(), 'function');
+  if (hasWindow) assert.same(typeof destructureWindowValued(), 'function');
+  else assert.throws(destructureWindowValued, TypeError, 'the discarded read throws where the source did');
   assert.same(d, globalThis.window);
+  let o;
+  function destructureOverOptionalHop() {
+    // eslint-disable-next-line no-unsafe-optional-chaining -- the short-circuit's own throw is the subject
+    const { of } = (o = globalThis.window).self?.window.Array;
+    return of;
+  }
+  if (hasWindow) assert.same(typeof destructureOverOptionalHop(), 'function');
+  else assert.throws(destructureOverOptionalHop, TypeError, 'and so does the optional spelling of the same run');
+  assert.same(o, globalThis.window);
+  // a store the realm ALWAYS fills has nothing to throw: the read over it is the vacuous one, and the
+  // extraction binds the ponyfill in every environment
+  let g;
+  function destructureOverDefinedStore() {
+    const { of } = (g = globalThis).self.Array;
+    return of;
+  }
+  assert.same(typeof destructureOverDefinedStore(), 'function');
+  assert.same(g, globalThis);
+  // an effect the source ran BEFORE the discarded read runs exactly ONCE, and so does the write the
+  // store performs: the channel re-emitting that read must double neither. whether the read itself
+  // survives beside a sequence prefix is a spelling the two emitters still differ on, so the count
+  // is what this locks
+  const prefixRuns = [];
+  let s1;
+  function discardOverSequencePrefix() {
+    const { of } = (prefixRuns.push('pre'), (s1 = globalThis.window).Array);
+    return of;
+  }
+  try {
+    discardOverSequencePrefix();
+  } catch { /* off-window the discarded read may throw - the counts below are the subject */ }
+  assert.same(prefixRuns.length, 1, 'the prefix effect ran exactly once');
+  assert.same(s1, globalThis.window, 'and the store holds what the source stored');
+  // ... and the same for a CONSTRUCTOR key, whose extraction reads nothing off the store at all:
+  // what the consume owes is the discarded read, not the binding it hands back
+  let c;
+  function destructureCtorKeyOverStore() {
+    const { Map: M } = (c = globalThis.window).self;
+    return M;
+  }
+  if (hasWindow) assert.same(typeof destructureCtorKeyOverStore(), 'function');
+  else assert.throws(destructureCtorKeyOverStore, TypeError, 'the constructor key owes the same read');
+  assert.same(c, globalThis.window);
   // an effect the sequence around a kept root carries is not the assignment: the root re-emits itself, but
   // that effect still has to run, exactly once, before the guard tests the value
   let count = 0;
@@ -2681,4 +2725,140 @@ QUnit.test('global-proxy: a carrier at the root runs once and the delete still l
   assert.true(delete (0, globalThis).self.customCarrierSlot);
   assert.same(ticks, 2);
   assert.same('customCarrierSlot' in globalThis, false);
+});
+
+// an ALIAS holding a rendered guard (`globalThis.window?.self` is `null == _globalThis.window ?
+// void 0 : _self` once rendered) holds a value that can be absent, and its own `?.` stays
+// load-bearing: the value canon reads the guard's defined branch to classify the alias, and a
+// second predicate that asked only WHICH name the alias resolves to called it always-defined and
+// erased the guard - a static answered where the source short-circuits, a member read answered
+// `undefined` where the source throws. lowered input carries no `?.` for the verdict to reach
+testUnlessDetectLowered('global-proxy: an alias holding a rendered guard keeps its own optional', assert => {
+  const hasWindow = globalThis.window !== undefined;
+  const A = globalThis.window?.self;
+  assert.same(A?.self.Array.of(1), hasWindow ? 1 : undefined, 'the static short-circuits with the alias');
+  assert.same(typeof A?.self.Array, hasWindow ? 'function' : 'undefined', 'and so does a value read');
+  function sealedRead() {
+    // eslint-disable-next-line no-unsafe-optional-chaining -- the seal's throw is the point
+    return (A?.self).customAliasSlot;
+  }
+  if (hasWindow) assert.same(sealedRead(), undefined, 'a sealed read off the alias reads the realm');
+  else assert.throws(sealedRead, TypeError, 'and throws off-window like the source');
+  // the chain through a second, vestigial `?.` tests the alias too, whichever leg memoizes it
+  assert.same(A?.self?.window.Array.of(1).at(0), hasWindow ? 1 : undefined, 'a memoized instance chain over the alias');
+});
+
+// a store whose value ends on an UNBACKED hop hands on the raw host read, and an unbacked hop
+// over it with no ponyfill to read through folds nowhere: re-reading the realm root there
+// answered a value where native throws off-window. through a backed hop the run folds as over
+// any ponyfill
+QUnit.test('global-proxy: an unbacked hop over a probe-valued store reads the stored value', assert => {
+  const hasWindow = globalThis.window !== undefined;
+  let w1, w2, w3;
+  function plainHop() {
+    return (w1 = globalThis.window).window.customStoreSlot;
+  }
+  function valueRead() {
+    return typeof (w2 = globalThis.window).window.Array;
+  }
+  function backedRun() {
+    return (w3 = globalThis.window).self.window.customStoreSlot;
+  }
+  if (hasWindow) {
+    assert.same(plainHop(), undefined, 'on a window host the hop reads the realm slot');
+    assert.same(valueRead(), 'function');
+    assert.same(backedRun(), undefined, 'and a run through a backed hop folds like any ponyfill read');
+  } else {
+    assert.throws(plainHop, TypeError, 'off-window the hop throws on the stored value');
+    assert.throws(valueRead, TypeError);
+    assert.throws(backedRun, TypeError, 'and the backed run throws at its first hop');
+  }
+  const expected = hasWindow ? globalThis : undefined;
+  assert.same(w1, expected, 'each store kept the value the source wrote');
+  assert.same(w2, expected);
+  assert.same(w3, expected);
+});
+
+// a full consume off a probe-valued store discards a read the source performs: native
+// destructuring throws on the absent value before any key is read, so the read lifts with the
+// write as the throw probe. dropping it bound the polyfill where native throws. the lowered
+// text hands the post leg a memo chain with no store read to lift, so that leg stays out
+testUnlessDetectLowered('global-proxy: a full consume off a probe store keeps the throw', assert => {
+  const hasWindow = globalThis.window !== undefined;
+  let w;
+  function consume() {
+    const { of } = (w = globalThis.window).Array;
+    return of;
+  }
+  if (hasWindow) assert.same(typeof consume(), 'function', 'on a window host the extraction binds the polyfill');
+  else assert.throws(consume, TypeError, 'off-window the discarded read still throws');
+  assert.same(w, hasWindow ? globalThis : undefined, 'and the store kept its value');
+});
+
+// a `delete` over a SEALED navigation: the seal ends the short-circuit inside it, so the deleted
+// member is read plainly off the sealed value - a void store or a probe-yielding call throws
+// there where the unsealed spelling deletes nothing and answers true. the `?.` the fold drops
+// may not slide across the seal, and the guard on a call yielding the probe decides the delete
+testUnlessDetectLowered('global-proxy: a delete over a sealed navigation keeps the seal\'s throw', assert => {
+  const hasWindow = globalThis.window !== undefined;
+  let w;
+  function dh() {
+    return globalThis.window;
+  }
+  globalThis.customSealedDeleteSlot = 1;
+  function overStore() {
+    // eslint-disable-next-line no-unsafe-optional-chaining -- the seal's throw is the point
+    return delete ((w = globalThis.window)?.self?.window).customSealedDeleteSlot;
+  }
+  function overCall() {
+    // eslint-disable-next-line no-unsafe-optional-chaining -- the seal's throw is the point
+    return delete (dh()?.self?.window).customSealedDeleteSlot;
+  }
+  if (hasWindow) {
+    assert.true(overStore(), 'on a window host the delete reaches the realm slot through the store');
+    assert.same('customSealedDeleteSlot' in globalThis, false);
+    globalThis.customSealedDeleteSlot = 2;
+    assert.true(overCall(), 'and through the call');
+    assert.same('customSealedDeleteSlot' in globalThis, false);
+  } else {
+    assert.throws(overStore, TypeError, 'off-window the sealed read throws before the delete');
+    assert.throws(overCall, TypeError, 'for a probe-yielding call as well');
+    assert.same(globalThis.customSealedDeleteSlot, 1, 'and nothing was deleted');
+    delete globalThis.customSealedDeleteSlot;
+  }
+  // NEGATIVE: the UNSEALED twin short-circuits the whole delete and answers true either way
+  assert.true(delete (w = globalThis.window)?.self?.window.customSealedDeleteSlot);
+  assert.same(w, hasWindow ? globalThis : undefined, 'the store kept its value on every spelling');
+});
+
+// a bare probe NAME at a run's root, and an alias holding a probe read, are the run's deepest
+// source of undefined: the `?.` over them tests the root itself, whichever hops fold above it and
+// however the instance chain over it is memoized. asked of the hops alone, the root counted as
+// no source and the collapse read the ponyfill where the source short-circuits
+testUnlessDetectLowered('global-proxy: a probe-holding root keeps its optional over folded hops', assert => {
+  const hasWindow = globalThis.window !== undefined;
+  const A = globalThis.window;
+  assert.same(A?.self?.window.Array.of(1), hasWindow ? 1 : undefined, 'the static over the alias root');
+  assert.same(A?.self?.window.Array.of(1).at(0), hasWindow ? 1 : undefined, 'and the memoized instance chain');
+  assert.same(typeof A?.self.Array, hasWindow ? 'function' : 'undefined', 'and a value read through the folded hop');
+  assert.same(A?.self?.Array.prototype.at.call([7], 0), hasWindow ? 7 : undefined, 'and an instance split over a constructor leaf');
+});
+
+// a `delete` naming a slot on what a DISPATCH returned is not a fold of the run under it: the run
+// is an ordinary read, so it rides the deepest hop the pure build can back, and only the operand
+// itself belongs to the operator. the two spellings of the root - an identifier and a proven call -
+// must answer the same, which is where they used to part company
+testUnlessDetectLowered('global-proxy: a delete past a dispatch reads the run, folds nothing', assert => {
+  function dh() {
+    return globalThis;
+  }
+  // the deleted slot never exists on the dispatch result, so the operator answers true and the
+  // realm keeps every slot the run navigates
+  assert.true(delete globalThis.self.Array.prototype.flat.customDispatchSlot, 'off an identifier root');
+  assert.true(delete dh().self.Array.prototype.flat.customDispatchSlot, 'and off a proven call root');
+  assert.same(globalThis.self.Array.prototype.flat.call([1, [2]]).length, 2, 'the dispatch still runs');
+  // ... while a slot named ON the run itself is the operator's own target
+  globalThis.customRunSlot = 5;
+  assert.true(delete dh().self.customRunSlot, 'a run slot deletes through the call root');
+  assert.same('customRunSlot' in globalThis, false, 'and it is gone from the realm');
 });
