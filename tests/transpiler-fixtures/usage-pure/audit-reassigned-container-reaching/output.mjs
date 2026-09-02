@@ -1,38 +1,41 @@
+import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$fromAsync from "@core-js/pure/actual/array/from-async";
+import _Array$of from "@core-js/pure/actual/array/of";
 import _entries from "@core-js/pure/actual/instance/entries";
 import _Map from "@core-js/pure/actual/map/constructor";
+import _Map$groupBy from "@core-js/pure/actual/map/group-by";
+import _Number$isInteger from "@core-js/pure/actual/number/is-integer";
 import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 import _Object$keys from "@core-js/pure/actual/object/keys";
 import _Object$values from "@core-js/pure/actual/object/values";
+import _Promise$allSettled from "@core-js/pure/actual/promise/all-settled";
 import _Promise from "@core-js/pure/actual/promise/constructor";
+import _Promise$race from "@core-js/pure/actual/promise/race";
+import _Promise$withResolvers from "@core-js/pure/actual/promise/with-resolvers";
 import _Reflect$has from "@core-js/pure/actual/reflect/has";
 import _Reflect from "@core-js/pure/actual/reflect/namespace";
+import _Reflect$ownKeys from "@core-js/pure/actual/reflect/own-keys";
 import _Symbol$asyncIterator from "@core-js/pure/actual/symbol/async-iterator";
 import _Symbol from "@core-js/pure/actual/symbol/constructor";
-// the pure flavor keeps its flat bail on every REASSIGNED container binding: the reaching
-// continuation and the union are usage-global-only over-inject axes, while pure resolves only
-// what provably reaches unmodified. every read below stays verbatim except the one whose init
-// provably survives (the write-after-read cell) - only bare constructor NAMES resolve
+// pure resolves a REASSIGNED container binding only on proof: a dominating write it follows when
+// that write is the ONLY value the read can observe (unconditional, nothing written after the
+// read) - the single-observation half of the reaching canon usage-global unions over. every other
+// write shape below (conditional, branching, cross, closure, logical, ambiguous pattern) leaves
+// the read verbatim; the union stays a usage-global-only over-inject axis
 let rw1 = {
   k: Object
 };
 rw1 = {
   k: _Map
 };
-const {
-  k: {
-    groupBy: viaDominating
-  }
-} = rw1;
-
-// the member-read spelling follows the same reaching value
+const viaDominating = _Map$groupBy; // the member-read spelling follows the same reaching value
 let rw2 = {
   s: Object
 };
 rw2 = {
   s: Array
 };
-export const viaDominatingMember = rw2.s.from([1]);
+export const viaDominatingMember = _Array$from([1]);
 
 // a CONDITIONAL reassignment keeps both candidates: the live init resolves as the primary
 // (its own marker) and the written value joins the union
@@ -63,18 +66,12 @@ let rw5 = [{
 rw5 = [{
   p: _Promise
 }];
-const [{
-  p: {
-    race: viaWrapper
-  }
-}] = rw5;
-
-// `extends` captures the base at class-definition time - the dominating reassignment IS the base
+const viaWrapper = _Promise$race; // `extends` captures the base at class-definition time - the dominating reassignment IS the base
 let base6 = Object;
 base6 = Array;
 class R6 extends base6 {
   static go() {
-    return super.of(1);
+    return _Array$of.call(this, 1);
   }
 }
 export const viaExtends = R6.go();
@@ -86,17 +83,14 @@ class R7 {
 R7 = {
   M: _Promise
 };
-const {
-  withResolvers: viaClassReassign
-} = R7.M;
-
-// an identity self-assign is a value NO-OP - it is NOT a reassignment, so pure RESOLVES the
+const viaClassReassign = _Promise$withResolvers; // an identity self-assign is a value NO-OP - it is NOT a reassignment, so pure RESOLVES the
 // container read (the only cell here whose walk stays alive besides the after-read one)
 let rw8 = {
   m: Object
 };
 rw8 = rw8;
-const viaSelfAssign = _Object$values; // an SE-carrying write is a real reassignment - pure bails
+const viaSelfAssign = _Object$values; // an SE-carrying write is a real reassignment, and an unconditional one: its value is the single
+// observable, so pure follows it - the effect stays where the source wrote it
 let effCount = 0;
 const eff9 = () => effCount++;
 let rw9 = {
@@ -105,13 +99,7 @@ let rw9 = {
 rw9 = (eff9(), {
   d: _Promise
 });
-const {
-  d: {
-    allSettled: viaSeWrite
-  }
-} = rw9;
-
-// cross-writes are real reassignments - pure bails both
+const viaSeWrite = _Promise$allSettled; // cross-writes are real reassignments whose values observe each other - pure bails both
 let ma = {
   x: Object
 };
@@ -126,7 +114,7 @@ const {
   }
 } = ma;
 
-// an identity write beside a REAL one keeps the pure bail - the real write is ambiguous as ever
+// an identity write beside a REAL one: the identity is a no-op, the real write dominates alone
 let wIR = {
   k: Object
 };
@@ -134,13 +122,7 @@ wIR = wIR;
 wIR = {
   k: _Reflect
 };
-const {
-  k: {
-    ownKeys: viaIdentityThenReal
-  }
-} = wIR;
-
-// a cross-form pattern write is a real reassignment - pure bails
+const viaIdentityThenReal = _Reflect$ownKeys; // a cross-form pattern write pairs its slot to one value - the single observable, so pure follows it
 let wPL = {
   n: Object
 };
@@ -149,13 +131,7 @@ let wPL = {
 } = [{
   n: Number
 }]);
-const {
-  n: {
-    isInteger: viaPatternObjLhs
-  }
-} = wPL;
-
-// a BRANCHING write is a real reassignment - pure bails
+const viaPatternObjLhs = _Number$isInteger; // a BRANCHING write is a real reassignment - pure bails
 let wBr = {
   b: Object
 };

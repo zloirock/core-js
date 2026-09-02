@@ -26,6 +26,7 @@ import {
   followConstLiteralAlias,
   identifierDeclaratorInit,
   peelNestedSequenceExpressions,
+  installedWriteValue,
   unwrapRuntimeExpr,
   isMemberMutationContext,
   isMutatedStaticPair,
@@ -1001,7 +1002,8 @@ export function mutationShapesReducer(packages = null) {
     for (const [name, key, value] of rawSlotWrites) {
       if (!containerBound.has(name)) continue;
       const values = writtenSlot(mutatedStaticKey(name, key));
-      if (value) values.push(value);
+      // the value the write INSTALLS (`w.k = q = Map` installs `Map`) - the write-value canon
+      if (value) values.push(installedWriteValue(value));
     }
     for (const [name, values] of rawRepositioned) {
       // a mutator invocation whose arguments can hold a built-in PROMOTES an inert array-literal

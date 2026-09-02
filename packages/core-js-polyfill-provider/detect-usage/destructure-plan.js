@@ -17,22 +17,19 @@
 // a 'rebuilt' node's `extractions` already aggregates its children's - consumers read
 // extractions at the OUTER level only and use child lists for residual rendering
 import {
-  aliasDeclScope,
   catchPropRewriteObservable,
-  identifierDeclaratorInit,
   isChainAssignment,
   isRestProperty,
   mayHaveSideEffects,
-  patternBoundAliasSlotInit,
   peelZeroArgIifeReturn,
   propBindingIdentifier,
   plainSynthKeyName,
   propertyKeyName,
-  reassignmentBlocksGlobalResolve,
   unwrapCollectingSePrefixes,
   unwrapExpressionChain,
   POSSIBLE_GLOBAL_OBJECTS,
   createInstanceNodeCache,
+  followConstIdentifierInit,
 } from '../helpers/ast-patterns.js';
 import { resolve as resolveBuiltIn } from '../index.js';
 import { computedPropKeyHostsMachinery } from './members.js';
@@ -137,7 +134,9 @@ function anchoredSeAccounting(declarator, peeledInit) {
 // const-bound Identifier init through its binding so `const wrapper = [Array]; const
 // [{x}] = wrapper` descends to the leaf via the wrapper's init
 export function peelArrayWrapperPair({ pattern, init, scope = null, adapter = null, path = null }) {
-  const visited = new Set();
+  // the capture the levels consumed so far anchor at - the host use first, then the innermost
+  // followed alias declarator (the detect side's `descendArrayWrapperInit` threads the same hop)
+  let readNode = null;
   // sequence prefixes peeled off CONSUMED wrapper levels, source order. the flatten discards
   // those levels, so their effects must surface to the caller's lift - silently peeling them
   // lost the outer effect on the unplugin (`(outer(), [(inner(), R)])` kept only `inner`)
@@ -184,29 +183,20 @@ export function peelArrayWrapperPair({ pattern, init, scope = null, adapter = nu
     // that reaches the use aborts (a `wrapper = []` strictly AFTER the read leaves the read's
     // value provably `[Array]`), instead of bailing on every constantViolation
     if (scope && adapter) {
-      // read site of the current hop (host use first, then each prior hop's declarator) so a write
-      // AFTER the read does not dominate - threaded as the NODE since the adapter has no per-binding path
-      let readNode = path?.node ?? null;
-      while (effectiveInit?.type === 'Identifier' && !visited.has(effectiveInit.name)) {
-        visited.add(effectiveInit.name);
-        const binding = adapter.getBinding(scope, effectiveInit.name, path);
-        if (!binding || reassignmentBlocksGlobalResolve({ binding, adapter, path, usageNode: readNode })) break;
-        // pattern-gated init follow, matching `followConstIdentifierInit`: a destructure
-        // declarator binds the name to a SLOT of its init - the canon pairing follows only a
-        // unique, spread-complete slot value (this plan feeds the pure flatten, so the
-        // inject-if-might relaxation never applies here)
-        const bindingInit = identifierDeclaratorInit(binding)
-          ?? patternBoundAliasSlotInit(binding, effectiveInit.name, { scope, adapter, path, resolveKey: sharedResolveKey });
-        if (!bindingInit) break;
-        // the followed value is judged EFFECTIVE, matching the detect-side follow: the alias's own
-        // paren / cast / sequence spelling evaluates at ITS declaration, so only the value flows here
-        effectiveInit = unwrapExpressionChain(bindingInit);
-        dereferenced = true;
-        readNode = (binding.path?.node ?? binding.node) ?? readNode;
-        // each hop re-anchors in the followed binding's own declaration scope - the next hop's
-        // name resolves there, not at the destructure host (an inner shadow must not swallow it)
-        scope = aliasDeclScope(binding, scope);
-      }
+      // the detect side's own alias follow, so the plan consumes exactly the levels detection
+      // classified: the pattern-gated init, each hop re-anchored in the followed binding's own
+      // declaration scope, and the read site carried from the capture the level above recorded (a
+      // write to the inner alias after that capture cannot change what the outer literal holds).
+      // this plan feeds the pure flatten, so the inject-if-might relaxation never applies. the
+      // followed value is EFFECTIVE - the alias's own paren / cast / sequence spelling evaluates at
+      // ITS declaration, so only the value flows here
+      const followed = followConstIdentifierInit({
+        node: effectiveInit, readNode, ctx: { scope, adapter, path, resolveKey: sharedResolveKey },
+      });
+      if (followed.node !== effectiveInit) dereferenced = true;
+      effectiveInit = followed.node;
+      ({ readNode } = followed);
+      scope = followed.ctx.scope;
     }
     if (effectiveInit?.type !== 'ArrayExpression') return { pattern, init, peeledPrefixes, firstArray, lastArray, consumedLevels };
     const [innerPattern] = pattern.elements;

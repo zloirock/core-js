@@ -98,6 +98,8 @@ export function createExpressionDispatch({
     return new $Object(name ?? null);
   }
 
+  // the type a CALL evaluates to: the known static / global / instance-method return tables, the
+  // `Object.create` prototype model, user functions and class constructors through their own resolvers
   function resolveCallExpressionType(path) {
     // resolvedTypeCache short-circuit handled at the top of resolveNodeTypeExpression
     const callee = path.get('callee');
@@ -120,7 +122,7 @@ export function createExpressionDispatch({
     // prototype the resolver does not follow, so the call stays unmodelled and keeps typeless dispatch
     // the inert verdict below models the NATIVE `Object.create`; a user-replaced static may return
     // anything, so a mutated slot keeps the call unmodelled (the mutated-static invariant)
-    const calleePair = resolveStaticCalleePair(callee.node, callee.scope, { method: 'create', anchorPath: callee });
+    const calleePair = resolveStaticCalleePair({ node: callee.node, ctx: { scope: callee.scope, path: callee } }, { method: 'create' });
     if (calleePair?.constructor === 'Object'
       && !isMutatedStatic('Object', 'create')
       && !prototypeValueMayDispatch(path.node.arguments?.[0], !!getScopeBinding(path.scope, 'undefined', path))) {
@@ -238,7 +240,7 @@ export function createExpressionDispatch({
   function createdPrototypeArgumentPath(path) {
     if (path.node?.type !== 'CallExpression' && path.node?.type !== 'OptionalCallExpression') return null;
     const callee = path.get('callee');
-    const pair = resolveStaticCalleePair(callee.node, callee.scope, { anchorPath: callee });
+    const pair = resolveStaticCalleePair({ node: callee.node, ctx: { scope: callee.scope, path: callee } });
     if (pair?.constructor !== 'Object' || pair.method !== 'create' || isMutatedStatic('Object', 'create')) return null;
     return path.get('arguments')?.[0] ?? null;
   }
@@ -253,7 +255,7 @@ export function createExpressionDispatch({
   // and the plugin's own injected static binding after usage-pure rewrites the call - so identity is
   // RESOLVED rather than name-matched at every one of them
   function isProtoSetterCallee(calleePath) {
-    const pair = resolveStaticCalleePair(calleePath.node, calleePath.scope, { anchorPath: calleePath });
+    const pair = resolveStaticCalleePair({ node: calleePath.node, ctx: { scope: calleePath.scope, path: calleePath } });
     return pair?.method === 'setPrototypeOf' && (pair.constructor === 'Object' || pair.constructor === 'Reflect');
   }
 

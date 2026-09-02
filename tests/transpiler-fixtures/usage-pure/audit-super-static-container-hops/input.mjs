@@ -2,7 +2,8 @@
 // walks: an alias to the container, a member read of it, an effect-wrapped base, and a dominating
 // reassignment whose reaching value is the live container. the subresolver handed a hop's init back
 // verbatim and indexed nothing, and it bailed flat where its super-class sibling kept resolving.
-// pure keeps the reassigned row native on purpose - its rewrite drops the receiver and needs certainty
+// pure follows the reassigned row too, on proof: the one unconditional write before the class is the
+// only container `extends` can have read, so its rewrite drops the receiver with certainty
 const mapNs = { Base: Map };
 const viaAlias = mapNs;
 class OverAlias extends viaAlias.Base {

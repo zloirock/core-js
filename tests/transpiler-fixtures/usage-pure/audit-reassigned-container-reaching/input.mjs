@@ -1,7 +1,8 @@
-// the pure flavor keeps its flat bail on every REASSIGNED container binding: the reaching
-// continuation and the union are usage-global-only over-inject axes, while pure resolves only
-// what provably reaches unmodified. every read below stays verbatim except the one whose init
-// provably survives (the write-after-read cell) - only bare constructor NAMES resolve
+// pure resolves a REASSIGNED container binding only on proof: a dominating write it follows when
+// that write is the ONLY value the read can observe (unconditional, nothing written after the
+// read) - the single-observation half of the reaching canon usage-global unions over. every other
+// write shape below (conditional, branching, cross, closure, logical, ambiguous pattern) leaves
+// the read verbatim; the union stays a usage-global-only over-inject axis
 let rw1 = { k: Object };
 rw1 = { k: Map };
 const { k: { groupBy: viaDominating } } = rw1;
@@ -47,27 +48,28 @@ let rw8 = { m: Object };
 rw8 = rw8;
 const { m: { values: viaSelfAssign } } = rw8;
 
-// an SE-carrying write is a real reassignment - pure bails
+// an SE-carrying write is a real reassignment, and an unconditional one: its value is the single
+// observable, so pure follows it - the effect stays where the source wrote it
 let effCount = 0;
 const eff9 = () => effCount++;
 let rw9 = { d: Object };
 rw9 = (eff9(), { d: Promise });
 const { d: { allSettled: viaSeWrite } } = rw9;
 
-// cross-writes are real reassignments - pure bails both
+// cross-writes are real reassignments whose values observe each other - pure bails both
 let ma = { x: Object };
 let mb = { x: String };
 ma = mb;
 mb = ma;
 const { x: { raw: viaCrossWrite } } = ma;
 
-// an identity write beside a REAL one keeps the pure bail - the real write is ambiguous as ever
+// an identity write beside a REAL one: the identity is a no-op, the real write dominates alone
 let wIR = { k: Object };
 wIR = wIR;
 wIR = { k: Reflect };
 const { k: { ownKeys: viaIdentityThenReal } } = wIR;
 
-// a cross-form pattern write is a real reassignment - pure bails
+// a cross-form pattern write pairs its slot to one value - the single observable, so pure follows it
 let wPL = { n: Object };
 ({ 0: wPL } = [{ n: Number }]);
 const { n: { isInteger: viaPatternObjLhs } } = wPL;

@@ -11,7 +11,6 @@ import {
   findArrayWrappedDestructureHost,
   propBindingIdentifier,
   plainSynthKeyName,
-  reachingReassignmentValueNode,
   unwrapRuntimeExpr,
   isReceiverShapedNode,
   objectPatternHasNestedValue,
@@ -69,8 +68,8 @@ import {
   isReassignedBeyondDeclarator,
   isDestructurePattern,
   aliasDeclScope,
-  identifierDeclaratorInit,
-  patternBoundAliasSlotInit,
+  followConstIdentifierInit,
+  reachingContainerValueNode,
   assignmentAliasHintSoundAtRead,
   bindingPolyfillHint,
   peelProxyGlobalObject,
@@ -474,9 +473,9 @@ export function flattenFallbackBranches({ node, key, scope, adapter, path, follo
   // contract (pure polyfills branch values in place - following the alias would double-handle).
   // `seen` threads through the whole flatten so mutually-aliased branches terminate
   if (!followAliasLeaves) return [];
-  const indirect = resolveIndirectBranchingReceiver({ node: inner, scope, adapter, path, seen });
+  const indirect = resolveIndirectBranchingReceiver({ node: inner, seen, ctx: { scope, adapter, path } });
   return indirect
-    ? flattenFallbackBranches({ node: indirect.node, key, scope: indirect.scope, adapter, path, followAliasLeaves, seen }) : [];
+    ? flattenFallbackBranches({ node: indirect.node, key, scope: indirect.ctx.scope, adapter, path, followAliasLeaves, seen }) : [];
 }
 
 // follow SAFE indirection from a receiver expression to a BRANCHING value the canonical
@@ -486,11 +485,14 @@ export function flattenFallbackBranches({ node, key, scope, adapter, path, follo
 // usage-global method-aware reassignment gate applies (a dominating reassignment bails,
 // a reassigned alias stays with the reachable-union machinery); `seen` guards binding
 // cycles. returns null for direct / non-branching / unsafe shapes - the caller keeps its
-// path; on success `{ node, scope }`, the branching value re-anchored at the scope the walk
-// advanced to (its branches resolve where the alias was declared, not at the receiver use).
+// path; on success the hop standing on the branching value, its `ctx` re-anchored at the scope
+// the walk advanced to (its branches resolve where the alias was declared, not at the receiver
+// use) and its `readNode` at the site that value was read.
 // consumed by the usage-global chokes only: the pure flavor polyfills the branch
 // values in place at the init / return site, so following the alias there would double-handle
-function resolveIndirectBranchingReceiver({ node, scope, adapter, path, seen = new Set() }) {
+function resolveIndirectBranchingReceiver({ node, seen = new Set(), ctx }) {
+  const { adapter, path } = ctx;
+  let { scope } = ctx;
   let cur = unwrapTransparentSeq(node);
   // where the CURRENT hop is read: the receiver use for the first alias, then each prior hop's
   // declarator init (`const captured = src` reads `src` there) - a write AFTER that read site
@@ -513,14 +515,14 @@ function resolveIndirectBranchingReceiver({ node, scope, adapter, path, seen = n
       // the receiver-use scope (an inner shadow of that name would swallow the branching value)
       scope = aliasDeclScope(binding, scope);
     } else if (isCallShape(cur)) {
-      const ret = inlineCallReturnExpression({ callNode: cur, scope, adapter, seen, path });
+      const ret = inlineCallReturnExpression({ node: cur, seen, ctx: { scope, adapter, path } });
       if (!ret) return null;
       cur = unwrapTransparentSeq(ret.node);
       // the inlined body lives at the callee's declaration site - later hops resolve there
-      scope = ret.scope;
+      scope = ret.ctx.scope;
       seen = ret.seen;
     } else return null;
-    if (getFallbackBranchSlots(peelFallbackReceiver(cur))) return { node: cur, scope };
+    if (getFallbackBranchSlots(peelFallbackReceiver(cur))) return { node: cur, readNode: readSite, seen, ctx: { ...ctx, scope } };
   }
   return null;
 }
@@ -628,11 +630,11 @@ export function enumerateFallbackDestructureBranches(meta, path, adapter, { reso
     // resolve it in the invoked function's inner scope. the resolved branching value then
     // re-anchors the flatten at the scope the alias walk advanced to
     const indirect = resolveIndirectBranchingReceiver({
-      node: receiverNode, scope: branchingScope, adapter, path: receiverPath ?? path,
+      node: receiverNode, ctx: { scope: branchingScope, adapter, path: receiverPath ?? path },
     });
     if (!indirect) return null;
     branching = indirect.node;
-    branchingScope = indirect.scope;
+    branchingScope = indirect.ctx.scope;
   }
   const out = flattenFallbackBranches({
     node: branching, key: meta.key, scope: branchingScope, adapter,
@@ -768,6 +770,10 @@ function containerRepositionCandidates({ objectNode, scope, adapter, path, resol
   return names;
 }
 
+// the usage-global reachable union of a member read as extra metas: every reachable receiver value
+// (the alias's writes, its branching values, the container walk's other slot values) crossed with
+// every reachable key value, minus the primary pair; each hop of the enumeration resolves at the site
+// its value was spelled (the hop's `ctx.scope`) and anchors dominance at its read (`readNode`)
 export function collectMemberUnionCandidates(options) {
   const {
     objectNode, computedKeyNode, primaryObject, primaryKey,
@@ -776,12 +782,13 @@ export function collectMemberUnionCandidates(options) {
   if (adapter.method !== 'usage-global') return [];
   const objects = reachableAliasValues({
     aliasNode: objectNode, primary: primaryObject, scope, adapter, path,
-    // `usageNode` anchors the reassignment-dominance check: an alias hop resolves a source binding's
-    // DECLARED value from the alias-read site, so a dead init (unconditionally overwritten before the
-    // read) is correctly excluded while a live conditional init survives. `valueScope` re-anchors a
-    // write RHS / hop init at the scope it was spelled in (a use-site shadow must not capture it)
-    resolve: (rhs, usageNode = null, valueScope = null) => resolveObjectName({
-      objectNode: rhs, scope: valueScope ?? scope, adapter, path, usageNode,
+    // the hop's `readNode` anchors the reassignment-dominance check: an alias hop resolves a source
+    // binding's DECLARED value from the alias-read site, so a dead init (unconditionally overwritten
+    // before the read) is correctly excluded while a live conditional init survives. its `ctx.scope`
+    // re-anchors a write RHS / hop init at the scope it was spelled in (a use-site shadow must not
+    // capture it)
+    resolve: ({ node, readNode, ctx }) => resolveObjectName({
+      objectNode: node, scope: ctx.scope, adapter, path, usageNode: readNode,
     }),
   });
   // an UNRESOLVED receiver (a local instance, an unclassifiable expression) still dispatches every
@@ -847,10 +854,11 @@ export function collectMemberUnionCandidates(options) {
   // re-enumerating the raw node would resurrect the dead branch it excluded
   if (objectNode && primaryObject === null) {
     const branching = getFallbackBranchSlots(peelFallbackReceiver(objectNode))
-      ? { node: objectNode, scope } : resolveIndirectBranchingReceiver({ node: objectNode, scope, adapter, path });
+      ? { node: objectNode, ctx: { scope, adapter, path } }
+      : resolveIndirectBranchingReceiver({ node: objectNode, ctx: { scope, adapter, path } });
     if (branching) {
       for (const branch of flattenFallbackBranches({
-        node: branching.node, key: primaryKey, scope: branching.scope, adapter, path, followAliasLeaves: true,
+        node: branching.node, key: primaryKey, scope: branching.ctx.scope, adapter, path, followAliasLeaves: true,
       })) {
         if (branch.object && branch.placement === 'static' && !objects.includes(branch.object)) {
           objects.push(branch.object);
@@ -865,8 +873,8 @@ export function collectMemberUnionCandidates(options) {
     // alias resolves its source binding from the binding's own site, so a write that lands AFTER
     // the key was captured (`if (c) k = base; base = "includes"`) both hides the reachable key
     // and offers one that never reaches - the object axis has threaded it all along
-    resolve: (rhs, usageNode = null, valueScope = null) => sharedResolveKey({
-      node: rhs, computed: true, scope: valueScope ?? scope, adapter, path, usageNode,
+    resolve: ({ node, readNode, ctx }) => sharedResolveKey({
+      node, computed: true, scope: ctx.scope, adapter, path, usageNode: readNode,
     }),
   });
   // a BRANCHING computed key feeds the key axis the way a branching receiver feeds the object
@@ -913,6 +921,20 @@ export function attachMemberUnionExtras(meta, options) {
   return meta;
 }
 
+// may a computed key that resolves to NO single name still ride a null-key carrier into the union?
+// usage-global only, for the two key shapes whose written names are enumerable without a primary:
+// a BRANCHING literal (`[cond ? "flat" : "at"]` - each arm is reachable) and a REASSIGNED alias with
+// no dominating value (a pattern slot default, `[k = "from"] = []`, is default-or-runtime). the
+// member producer and the destructure producer ask this ONE question - the carrier is dropped again
+// when the enumeration yields nothing
+export function unionKeyedCarrierRides({ computedKeyNode, scope, adapter, path }) {
+  if (adapter.method !== 'usage-global') return false;
+  const keyCore = unwrapRuntimeExpr(computedKeyNode);
+  if (getFallbackBranchSlots(keyCore)) return true;
+  return keyCore?.type === 'Identifier'
+    && isReassignedBeyondDeclarator(adapter.getBinding(scope, keyCore.name, path) ?? {});
+}
+
 // destructure twin of the member union: `const { [k]: v } = recv` reads the same reachable
 // receiver x key targets a member access does, so each earns its side-effect import too. `path`
 // is the ObjectProperty the funnels anchor at - the receiver alias comes from the declarator /
@@ -927,17 +949,17 @@ export function attachMemberUnionExtras(meta, options) {
 export function prepareDestructureUnion({
   meta, keyNode, computed, scope, adapter, path, resolvePure = null, containerWalkObjects = null,
 }) {
-  // a BRANCHING computed key resolves to no single key, so the producers build NO meta at all
-  // (`const { [cond ? "flat" : "at"]: m } = arr` bailed before any dispatch) - yet each literal
-  // arm is reachable exactly like the member-call form. synthesize the same null-key typeless
-  // carrier the member path rides so the arm keys enumerate as usage-global extras; every
-  // other null-meta call stays the no-op it always was
+  // a computed key with no single dominating name - a BRANCHING literal (`const { [cond ? "flat" :
+  // "at"]: m } = arr`), or a REASSIGNED alias whose only value sits in a pattern slot default - builds
+  // NO meta in the producers, yet each written name is reachable exactly like the member-call form.
+  // synthesize the same null-key typeless carrier the member path rides so those keys enumerate as
+  // usage-global extras (`unionKeyedCarrierRides` is the one gate both producers ask); every other
+  // null-meta call stays the no-op it always was
   // the member twin peels the key's sequence tail before it asks anything - both the carrier gate
   // below and the key axis read the peeled node, or an SE-wrapped branching key
   // (`{ [(se(), c ? "flat" : "at")]: f }`) resolves to nothing and not one arm reaches the axis
   const computedKeyNode = computed ? peelReceiverSequenceTail(keyNode) : null;
-  if (!meta && computed && adapter.method === 'usage-global'
-    && getFallbackBranchSlots(unwrapRuntimeExpr(computedKeyNode))) {
+  if (!meta && computed && unionKeyedCarrierRides({ computedKeyNode, scope, adapter, path })) {
     meta = { kind: 'property', object: null, key: null, placement: 'prototype' };
   }
   if (!meta || meta.kind !== 'property' || meta.fromFallback) return null;
@@ -2326,20 +2348,6 @@ export function canTransformDestructuring({ parentType, parentInit }) {
 
 const STATIC_WALK_DEPTH = 64;
 
-// the usage-global continuation for a binding hop whose flat resolve is blocked by a DOMINATING
-// reassignment: the enumerable reaching value (the bare binding-alias canon, lifted to container
-// hops) keeps the walk alive; null keeps the flat bail (pure, or an indeterminable value).
-// a BRANCHING reaching value (`w = c ? {...} : {...}`) is no SINGLE primary - null routes the
-// hop to the union continuation, whose enumeration flattens the arms
-function reachingContainerValueNode({ binding, adapter, path, readNode, scope }) {
-  if (adapter.method !== 'usage-global') return null;
-  const reaching = reachingReassignmentValueNode({
-    binding, usagePath: path, ctx: { scope, adapter, path, resolveKey: sharedResolveKey }, usageNode: readNode,
-  });
-  if (!reaching) return null;
-  return getFallbackBranchSlots(peelNestedSequenceExpressions(reaching).tail) ? null : reaching;
-}
-
 // plugin-rewritten hop substitutions, shared by both spellings the injector mints:
 // - a proxy-global alias (`_globalThis`): substitute to the SOURCE proxy-global name so the
 //   post-loop mid-chain lift can match - the import binding's init isn't an ObjectExpression
@@ -2349,8 +2357,10 @@ function reachingContainerValueNode({ binding, adapter, path, readNode, scope })
 //   hint so this prop's statics still resolve - without recovery the dereference bails and the
 //   binding silently extracts off the polyfill stub (unbound at runtime where native requires
 //   the constructor receiver). the hint's span gate ran against the HOST use; this hop READS at
-//   `readNode` - an assignment-form source written after that capture must not stub-narrow it
-function pluginRewrittenHopName({ current, binding, adapter, scope, readNode, path = null }) {
+//   its `readNode` - an assignment-form source written after that capture must not stub-narrow it
+function pluginRewrittenHopName(binding, hop) {
+  const { node: current, readNode } = hop;
+  const { scope, adapter, path = null } = hop.ctx;
   const proxyName = proxyGlobalRootName({ node: current, binding, adapter, scope, path: null });
   if (proxyName && proxyName !== current.name) return proxyName;
   const ctorHint = bindingPolyfillHint({ binding, scope, name: current.name, adapter });
@@ -2371,30 +2381,32 @@ function pluginRewrittenHopName({ current, binding, adapter, scope, readNode, pa
   return null;
 }
 
+const CLEAR_HOP = Symbol('clear-hop');
 // combines the dominance gate with the reaching continuation for a variable hop of the walk.
 // reassignment is read off `constantViolations`, not `binding.constant`: the latter is adapter-
 // dependent (babel computes it lazily, estree-toolkit does not expose it) while both adapters
 // surface the violation list, where empty / missing means the shape holds at the use site.
-// CLEAR_HOP when no dominating reassignment blocks the flat resolve (usage-global mirrors the
-// bare binding-alias canon on a reassigned CONTAINER binding - a dominating reassignment kills
-// the declared init, but the enumerable value that reaches the read still walks the remaining
-// path as the primary; pure keeps the flat bail), else the reaching node or null (dead end)
-const CLEAR_HOP = Symbol('clear-hop');
-function blockedContainerHop(hopCtx) {
-  const { binding, adapter, path, readNode } = hopCtx;
-  if (!reassignmentBlocksGlobalResolve({ binding, adapter, path, usageNode: readNode })) return CLEAR_HOP;
-  return blockedHopContinuation(hopCtx);
+// CLEAR_HOP when no dominating reassignment blocks the flat resolve (the bare binding-alias canon
+// on a reassigned CONTAINER binding - a dominating reassignment kills the declared init, but the
+// value that reaches the read still walks the remaining path as the primary: the enumerable one
+// for usage-global, the single observable one for usage-pure), else the reaching node or null
+// (dead end)
+// every per-hop disposition below takes `{ hop, binding, name, walk }`: the hop the walk stands on
+// (its `node` is the identifier `name` names, bound to `binding`) and the walk's options
+function blockedContainerHop({ hop, binding, name, walk }) {
+  const { adapter, path } = hop.ctx;
+  if (!reassignmentBlocksGlobalResolve({ binding, adapter, path, usageNode: hop.readNode })) return CLEAR_HOP;
+  return blockedHopContinuation({ hop, binding, name, walk });
 }
 
 // the blocked-hop continuation: the SINGLE reaching value keeps the walk alive; otherwise (an
 // ambiguous write - a pattern default, a spread-shifted slot, a branching RHS) the enumerable
 // written values still union beside the dead primary, mirroring the bare canon's
 // reachable-union (over-inject-safe; pure never passes a sink), and the hop dead-ends
-function blockedHopContinuation(hopCtx) {
-  const { binding, adapter, path, readNode, scope } = hopCtx;
-  const reaching = reachingContainerValueNode({ binding, adapter, path, readNode, scope });
+function blockedHopContinuation({ hop, binding, name, walk }) {
+  const reaching = reachingContainerValueNode(binding, hop);
   if (reaching) return reaching;
-  collectReassignedHopUnion(hopCtx);
+  collectReassignedHopUnion({ hop, binding, name, walk });
   return null;
 }
 
@@ -2404,14 +2416,14 @@ function blockedHopContinuation(hopCtx) {
 // class declaration is where those fields captured their values, so it becomes the read site
 // for the descent's reassignment checks (a field-value write after the class definition can't
 // change the captured static). null = dead end
-function classBindingHop(hopCtx) {
-  const { binding, adapter, path, readNode, walkPath, name } = hopCtx;
+function classBindingHop({ hop, binding, name, walk }) {
   if (!binding) return null;
-  if (reassignmentBlocksGlobalResolve({ binding, adapter, path, usageNode: readNode })) {
-    const reaching = blockedHopContinuation(hopCtx);
+  const { adapter, path } = hop.ctx;
+  if (reassignmentBlocksGlobalResolve({ binding, adapter, path, usageNode: hop.readNode })) {
+    const reaching = blockedHopContinuation({ hop, binding, name, walk });
     return reaching ? { follow: reaching } : null;
   }
-  if (walkPath.length === 0) return { leaf: name };
+  if (walk.walkPath.length === 0) return { leaf: name };
   return { descend: binding.path?.node ?? binding.node };
 }
 
@@ -2433,17 +2445,14 @@ function destructureLeafWalkPath({ binding, name, scope, adapter, walkPath }) {
 // init live (the primary keeps walking it), but the read may see any enumerable written value
 // too - each walks the SAME remaining path into the union sink (usage-global over-inject; the
 // sink is never passed by pure callers)
-function collectReassignedHopUnion({
-  binding, name, walkPath, scope, adapter, depth, path, visited, readNode, ignoreWrittenSlots, unionSink,
-}) {
+function collectReassignedHopUnion({ hop, binding, name, walk }) {
+  const { adapter, path } = hop.ctx;
+  const { unionSink } = walk;
   if (!unionSink || !binding || adapter.method !== 'usage-global' || !isReassignedBeyondDeclarator(binding)) return;
   for (const valueNode of reassignmentValueEnumeration({
-    binding, usagePath: path, name, ctx: { scope, adapter, path, resolveKey: sharedResolveKey }, usageNode: readNode,
+    binding, usagePath: path, name, ctx: { ...hop.ctx, resolveKey: sharedResolveKey }, usageNode: hop.readNode,
   }).nodes ?? []) {
-    const resolved = walkStaticReceiverStep({
-      node: valueNode, walkPath, scope, adapter, depth: depth + 1, path,
-      seen: new Set(visited), readNode, ignoreWrittenSlots, unionSink,
-    });
+    const resolved = walkStaticReceiverStep({ ...hop, node: valueNode, seen: new Set(hop.seen) }, { ...walk, depth: walk.depth + 1 });
     if (resolved && !unionSink.includes(resolved)) unionSink.push(resolved);
   }
 }
@@ -2465,9 +2474,9 @@ export function walkStaticReceiverChain({
 }) {
   // `usageNode` overrides the walk's initial read site (a wrapper's capture point); the step
   // otherwise anchors at the host `path` node
-  return walkStaticReceiverStep({
-    node: receiverNode, walkPath, scope, adapter, depth: 0, path, readNode: usageNode, ignoreWrittenSlots, unionSink,
-  });
+  return walkStaticReceiverStep(
+    { node: receiverNode, readNode: usageNode, ctx: { scope, adapter, path } }, { walkPath, ignoreWrittenSlots, unionSink },
+  );
 }
 
 // a receiver hidden inside a const-bound static CONTAINER (`const w = { k: Array }; w.k.from(...)`,
@@ -2493,12 +2502,11 @@ export function staticContainerReceiverName({ node, scope, adapter, path, unionS
   // unbound leaf name), while a user literal (`{ of: fn }`) still resolves to nothing. the
   // proof is the strict one - a conditionally-assigned forwarder proves no value
   if (isCallShape(root) && keys.length) {
-    const returned = inlineCallReturnExpression({
-      callNode: root, scope, adapter, path, seen: new Set(), rejectConditional: true,
-    });
-    return returned ? walkStaticReceiverStep({
-      node: returned.node, walkPath: keys, scope: returned.scope, adapter, depth: 0, path, readNode: root, unionSink,
-    }) : null;
+    const returned = inlineCallReturnExpression(
+      { node: root, seen: new Set(), ctx: { scope, adapter, path } }, { rejectConditional: true },
+    );
+    return returned
+      ? walkStaticReceiverStep({ node: returned.node, readNode: root, ctx: returned.ctx }, { walkPath: keys, unionSink }) : null;
   }
   if (root?.type !== 'Identifier' || !keys.length) return null;
   const binding = adapter.getBinding(scope, root.name, path);
@@ -2508,29 +2516,37 @@ export function staticContainerReceiverName({ node, scope, adapter, path, unionS
   return walkStaticReceiverChain({ receiverNode: root, walkPath: keys, scope, adapter, path, unionSink });
 }
 
-function walkStaticReceiverStep({
-  node, walkPath, scope, adapter, depth, path = null, seen = null, readNode: incomingReadNode = null,
-  ignoreWrittenSlots = false, unionSink = null,
-}) {
+// the walk takes the hop standing on the receiver and the walk's OPTIONS beside it: `walkPath`
+// (the keys left to descend), `depth`, `ignoreWrittenSlots`, `unionSink` (see `walkStaticReceiverChain`)
+function walkStaticReceiverStep(hop, { walkPath, depth = 0, ignoreWrittenSlots = false, unionSink = null }) {
   if (depth > STATIC_WALK_DEPTH) return null;
-  let current = unwrapTransparentSeq(node);
-  let currentScope = scope;
+  const { adapter, path = null } = hop.ctx;
+  let current = unwrapTransparentSeq(hop.node);
+  let currentScope = hop.ctx.scope;
   // where the CURRENT hop is read: the host use for the first alias, then each prior hop's declarator
   // (`const a = b` reads `b` there). the reassignment-dominance check must use this read site - a write
   // to an intermediate hop AFTER its read can't change the captured value (`const a = b; b = 0; { from }
   // = a` keeps Array). the adapter surfaces the declarator at `binding.node` (no path), so thread the
   // NODE; `path` (binding lookup / terminal / scope owner) stays the host so only the textual position moves.
-  // a recursive container descent (object-literal value / class static field) threads the CONTAINER's
-  // capture site as `incomingReadNode` - the value was captured when the container literal / class was
-  // evaluated, so a write AFTER that (but before the final host read) can't change it either; without this
-  // the recursion reset the read site to the host and over-bailed a reassign-after-capture value
-  let readNode = incomingReadNode ?? path?.node ?? null;
+  // a recursive container descent (object-literal value / class static field) hands the CONTAINER's
+  // capture site in as the hop's `readNode` - the value was captured when the container literal / class
+  // was evaluated, so a write AFTER that (but before the final host read) can't change it either; without
+  // this the recursion reset the read site to the host and over-bailed a reassign-after-capture value
+  let readNode = hop.readNode ?? path?.node ?? null;
   let hops = 0;
   // per-walk cycle guard: `const a = b; const b = a` (mutually-aliased identifiers) would
   // bounce between names until STATIC_WALK_DEPTH burns out. Set short-circuits at the
   // second visit with O(1) check, complementing the depth cap as a defensive lower bound
-  const visited = seen ?? new Set();
+  const visited = hop.seen ?? new Set();
   let containerName = null;
+  // the hop the walk stands on right now, and the walk's options as they stand - for the per-hop
+  // dispositions and the terminal
+  function standing() {
+    return {
+      hop: { node: current, readNode, seen: visited, ctx: { scope: currentScope, adapter, path, resolveKey: sharedResolveKey } },
+      walk: { walkPath, depth, ignoreWrittenSlots, unionSink },
+    };
+  }
   // dereference const-bound Identifier through its VariableDeclarator initializer,
   // chasing re-aliases (`const Foo = Array; const wrapper = { a: Foo }`) until we
   // either land on an unbound Identifier (the global - leaf name we return) or an
@@ -2541,7 +2557,7 @@ function walkStaticReceiverStep({
     if (++hops > STATIC_WALK_DEPTH || visited.has(current.name)) return null;
     visited.add(current.name);
     const binding = adapter.getBinding(currentScope, current.name, path);
-    const rewritten = pluginRewrittenHopName({ current, binding, adapter, scope: currentScope, readNode, path });
+    const rewritten = pluginRewrittenHopName(binding, standing().hop);
     if (rewritten) {
       current = { type: 'Identifier', name: rewritten };
       break;
@@ -2556,28 +2572,22 @@ function walkStaticReceiverStep({
     // const NS = {Foo}; walkStaticReceiverChain(NS, ['Foo'])` to return 'Foo' (otherwise would bail
     // here since ClassDeclaration isn't VariableDeclarator)
     if (bindingType === 'ClassDeclaration') {
-      const hop = classBindingHop({
-        binding, name: current.name, walkPath, scope: currentScope, adapter, depth, path, visited,
-        readNode, ignoreWrittenSlots, unionSink,
-      });
-      if (!hop) return null;
-      if (hop.leaf) return hop.leaf;
-      if (hop.follow) {
-        current = unwrapTransparentSeq(hop.follow);
+      const step = classBindingHop({ ...standing(), binding, name: current.name });
+      if (!step) return null;
+      if (step.leaf) return step.leaf;
+      if (step.follow) {
+        current = unwrapTransparentSeq(step.follow);
         currentScope = aliasDeclScope(binding, currentScope);
-        readNode = hop.follow;
+        readNode = step.follow;
         continue;
       }
-      current = hop.descend;
+      current = step.descend;
       readNode = current;
       break;
     }
     if (bindingType !== 'VariableDeclarator') return null;
     if (!binding) return null;
-    const blocked = blockedContainerHop({
-      binding, name: current.name, walkPath, scope: currentScope, adapter, depth, path, visited,
-      readNode, ignoreWrittenSlots, unionSink,
-    });
+    const blocked = blockedContainerHop({ ...standing(), binding, name: current.name });
     if (blocked !== CLEAR_HOP) {
       if (!blocked) return null;
       containerName = current.name;
@@ -2588,10 +2598,7 @@ function walkStaticReceiverStep({
       readNode = blocked;
       continue;
     }
-    collectReassignedHopUnion({
-      binding, name: current.name, walkPath, scope: currentScope, adapter, depth, path, visited,
-      readNode, ignoreWrittenSlots, unionSink,
-    });
+    collectReassignedHopUnion({ ...standing(), binding, name: current.name });
     // adapter divergence: babel exposes the VariableDeclarator at `binding.path.node`,
     // estree-toolkit at `binding.node` directly. fall through both shapes. chain-assignment
     // in init (`const wrapper = (x = {a: Array})`) evaluates to its right operand at runtime -
@@ -2607,17 +2614,16 @@ function walkStaticReceiverStep({
     currentScope = aliasDeclScope(binding, currentScope);
     readNode = (binding.path?.node ?? binding.node) ?? readNode;
   }
-  return walkStaticReceiverTerminal({
-    current, walkPath, currentScope, adapter, depth, path, visited, readNode, containerName, ignoreWrittenSlots, unionSink,
-  });
+  return walkStaticReceiverTerminal(standing(), containerName);
 }
 
 // post-dereference terminal: leaf extraction, proxy mid-chain lift, intermediate member
-// resolution, and the static-container descents (object literal / class statics)
-function walkStaticReceiverTerminal({
-  current, walkPath, currentScope, adapter, depth, path, visited, readNode = null, containerName = null,
-  ignoreWrittenSlots = false, unionSink = null,
-}) {
+// resolution, and the static-container descents (object literal / class statics). `containerName`
+// is the name the container the hop stands in is BOUND to, null off a literal
+function walkStaticReceiverTerminal({ hop, walk }, containerName = null) {
+  const { node: current, readNode, seen: visited } = hop;
+  const { scope: currentScope, adapter, path } = hop.ctx;
+  const { walkPath, depth, ignoreWrittenSlots, unionSink } = walk;
   // leaf return: walkPath consumed - extract the leaf global name.
   // bare Identifier returns its name directly; proxy-global member access
   // (`globalThis.Array` / `_globalThis.Array` after polyfill-injected rewrite) routes
@@ -2693,10 +2699,9 @@ function walkStaticReceiverTerminal({
       for (const element of current.elements) if (canHoldBuiltIn(element)) alternatives.push(element);
     }
     for (const alternative of alternatives) {
-      const resolved = walkStaticReceiverStep({
-        node: alternative, walkPath: walkPath.slice(1), scope: currentScope, adapter, depth: depth + 1, path,
-        seen: new Set(visited), readNode, ignoreWrittenSlots, unionSink,
-      });
+      const resolved = walkStaticReceiverStep(
+        { ...hop, node: alternative, seen: new Set(visited) }, { ...walk, walkPath: walkPath.slice(1), depth: depth + 1 },
+      );
       if (resolved && !unionSink.includes(resolved)) unionSink.push(resolved);
     }
   }
@@ -2710,12 +2715,9 @@ function walkStaticReceiverTerminal({
   // names no defined constructor - the source stays native. method-aware like the written-slot
   // consult above: global keeps resolving and over-injects, the safe direction there
   if (value && adapter.method === 'usage-pure' && proxyReceiverValueCanBeUndefined(
-    unwrapTransparentSeq(value), ({ name }) => resolveBuiltIn({ kind: 'global', name }),
-    { scope: currentScope, adapter, path })) return null;
-  return value ? walkStaticReceiverStep({
-    node: value, walkPath: walkPath.slice(1), scope: currentScope, adapter, depth: depth + 1, path,
-    seen: visited, readNode, ignoreWrittenSlots, unionSink,
-  }) : null;
+    unwrapTransparentSeq(value), ({ name }) => resolveBuiltIn({ kind: 'global', name }), hop.ctx)) return null;
+  return value
+    ? walkStaticReceiverStep({ ...hop, node: value }, { ...walk, walkPath: walkPath.slice(1), depth: depth + 1 }) : null;
 }
 
 // find the source-key PATH in an ObjectPattern that produces the binding named `bindingName`.
@@ -2845,7 +2847,7 @@ export function outerDestructureReceiver(leafPattern, scope = null, adapter = nu
   const receiverNode = destructureReceiverNode(host);
   if (!receiverNode) return null;
   const descended = indices.length
-    ? descendArrayWrapperInit({ receiverNode, indices, scope, adapter, path: host })
+    ? descendArrayWrapperInit({ node: receiverNode, ctx: { scope, adapter, path: host, resolveKey: sharedResolveKey } }, indices)?.node
     : receiverNode;
   return descended ? unwrapExpressionChain(peelNestedSequenceExpressions(descended).tail) : null;
 }
@@ -2868,79 +2870,42 @@ export function planArrayWrappedStaticExtract({ propNode, parentPath, scope, ada
   return { localId, declaration, isExport, declarationKind: declaration.node.kind };
 }
 
-// follow const-bound Identifier through its init at each hop, peeling parens / chain / TS /
-// chain-assignment between hops. `visited` Set guards against `const a = b; const b = a`
-// cycles. returns the terminal node when chain stops (non-Identifier, unbound name,
-// reassigned binding, or no init). `adapter.hasBinding(scope, name, path)` gates on
-// user-declared bindings so built-ins like `Array` exit the loop with cur = Array.
-// updates `scope` to follow the binding's own scope (closure-captured outer bindings).
-// `maybe` rides into the pattern-slot pairing: only inject-if-might classification may
-// follow a spread-shifted slot's lone candidate, matching the descend-level arm
-function followConstIdentifierInit(cur, { scope, adapter, path, maybe = false }) {
-  const visited = new Set();
-  // read site of the current hop - the host use for the first alias, then each prior hop's declarator
-  // (`const a = b` reads `b` there). a reassignment of an intermediate hop AFTER its read can't change
-  // the captured value, so the dominance check uses the read NODE (the adapter surfaces the declarator
-  // at `binding.node`), not the host use - else `const a = b; b = 0; { from } = a` wrongly bails `b`
-  let readNode = path?.node ?? null;
-  // the declarator this chain last dereferenced through - the value captured into the wrapper array is
-  // fixed at that point, so a downstream leaf resolution anchors its reassignment check there (not the
-  // destructure host). null when nothing dereferenced (an inline literal is captured at the host)
-  let captureSite = null;
-  while (cur?.type === 'Identifier' && adapter.hasBinding(scope, cur.name, path) && !visited.has(cur.name)) {
-    visited.add(cur.name);
-    const binding = adapter.getBinding(scope, cur.name, path);
-    // method-aware reassignment bail: usage-global keeps following the const-init chain
-    // when the reassignment does not dominate the use; usage-pure / narrowing keep the flat bail
-    if (!binding) break;
-    if (reassignmentBlocksGlobalResolve({ binding, adapter, path, usageNode: readNode })) {
-      // usage-global: a dominating reassignment replaced the hop's value - keep following the
-      // enumerable reaching value, like the container walk; the flat break stays otherwise.
-      // the value was READ at its write site, so the next hop's proofs anchor there
-      const reaching = reachingContainerValueNode({ binding, adapter, path, readNode, scope });
-      if (!reaching) break;
-      cur = unwrapExpressionChain(peelChainAssignmentDeep(reaching));
-      scope = aliasDeclScope(binding, scope);
-      readNode = reaching;
-      captureSite = readNode;
-      continue;
-    }
-    // a pattern declarator binds the name to a SLOT of the init, not the init itself: the canon
-    // pairing follows only a unique slot value (`const [wrapper] = [[globalThis]]` holds
-    // `[[globalThis]]`'s element), and only `maybe` may lean on a spread-shifted lone candidate
-    const initNode = identifierDeclaratorInit(binding)
-      ?? patternBoundAliasSlotInit(binding, cur.name, { scope, adapter, path, resolveKey: sharedResolveKey }, { maybe });
-    if (!initNode) break;
-    cur = unwrapExpressionChain(peelChainAssignmentDeep(initNode));
-    scope = aliasDeclScope(binding, scope);
-    readNode = (binding.path?.node ?? binding.node) ?? readNode;
-    captureSite = readNode;
-  }
-  // `scope` returns ADVANCED: the terminal node was spelled at the last followed binding's own
-  // declaration - a leaf resolution downstream must anchor there, not at the destructure host
-  return { node: cur, captureSite, scope };
-}
-
 // descend ArrayExpression layers following `indices` (outermost-first) to mirror the
 // ArrayPattern wrapper stack on the destructure side - the inner pattern need not sit at
 // index 0 of each wrapper (`const [, { from }] = [Set, Array]`). bail (return null) if any
 // level isn't an ArrayExpression, the target slot is a hole, or a spread at or before the
 // target index shifts runtime positions - any of these means the runtime structure won't
 // unwrap to the assumed slot and static resolution would lie.
-// when scope/adapter are passed, dereferences const-bound Identifier wrappers via
-// `followConstIdentifierInit` so `const wrapper = [Array]; [v] = wrapper` reaches Array
-function descendArrayWrapperInit({ receiverNode, indices, scope = null, adapter = null, path = null, captureRef = null, maybe = false }) {
-  for (const index of indices) {
+// takes the hop standing on the host's init and returns the hop standing on the paired slot, or
+// null. with a `ctx.scope` and `ctx.adapter`, dereferences const-bound Identifier wrappers via
+// `followConstIdentifierInit` so `const wrapper = [Array]; [v] = wrapper` reaches Array: the
+// followed scope re-anchors the next level's dereference and the leaf resolution, and the
+// returned `readNode` is the innermost followed declarator - the value captured there is what
+// the leaf reads, so its reassignment check anchors at that capture, not the destructure host.
+// `unionSink` (usage-global) collects the OTHER values a reassigned wrapper alias can hold: each
+// written value walks the remaining wrapper levels as a container path (the levels are its slot
+// keys), through the same union the container walk unions with - a closure or conditional write
+// to the wrapper is still a value the destructure may read
+function descendArrayWrapperInit(hop, indices, { maybe = false, unionSink = null } = {}) {
+  const { adapter } = hop.ctx;
+  let { scope } = hop.ctx;
+  let { node: receiverNode, readNode = null } = hop;
+  for (const [level, index] of indices.entries()) {
     let cur = unwrapExpressionChain(receiverNode);
     if (scope && adapter) {
-      const followed = followConstIdentifierInit(cur, { scope, adapter, path, maybe });
+      // a deeper level reads its element INSIDE the value the level above captured, so its
+      // dereference anchors at that capture (the followed declarator), not at the destructure host:
+      // a write to the inner alias between the capture and the host cannot change what was captured
+      // (anchored at the host it read as dominating, and the leaf classified as the written value)
+      const followed = followConstIdentifierInit({ ...hop, node: cur, readNode, ctx: { ...hop.ctx, scope } }, {
+        maybe,
+        onReassignedHop: unionSink ? (binding, name, hopAt) => collectReassignedHopUnion({
+          hop: hopAt, binding, name, walk: { walkPath: indices.slice(level), depth: 0, unionSink },
+        }) : null,
+      });
       cur = followed.node;
-      // record the wrapper binding's declarator so a leaf resolution anchors its reassignment check
-      // at the capture point, not the destructure host (each level overwrites - the innermost wins);
-      // the followed scope re-anchors the NEXT level's dereference and the leaf resolution there too
-      if (followed.captureSite && captureRef) captureRef.site = followed.captureSite;
-      if (captureRef) captureRef.scope = followed.scope;
-      scope = followed.scope;
+      scope = followed.ctx.scope;
+      ({ readNode } = followed);
     }
     if (cur?.type !== 'ArrayExpression') return null;
     receiverNode = pairedArrayWrapInitElement(cur.elements, index);
@@ -2954,7 +2919,7 @@ function descendArrayWrapperInit({ receiverNode, indices, scope = null, adapter 
     }
     if (!receiverNode) return null;
   }
-  return receiverNode;
+  return { ...hop, node: receiverNode, readNode, ctx: { ...hop.ctx, scope } };
 }
 
 // a RECEIVER-SHAPED inner default in an array wrapper (`[{ from } = Array] = [undefined]`): peeling
@@ -2968,7 +2933,9 @@ function resolveArrayInnerDefaultReceiver(innerDefaultHost, adapter) {
   if (indices.length === 0) return null;
   const receiverNode = destructureReceiverNode(host);
   if (!receiverNode) return null;
-  const slotNode = descendArrayWrapperInit({ receiverNode, indices, scope: host.scope, adapter, path: host });
+  const slotNode = descendArrayWrapperInit(
+    { node: receiverNode, ctx: { scope: host.scope, adapter, path: host, resolveKey: sharedResolveKey } }, indices,
+  )?.node;
   if (!isUndefinedNode(slotNode)) return null;
   const resolved = resolveObjectName({
     objectNode: unwrapExpressionChain(innerDefaultHost.node.right), scope: host.scope, adapter, path: host,
@@ -2980,7 +2947,7 @@ function resolveArrayInnerDefaultReceiver(innerDefaultHost, adapter) {
 // or chained `[[{from}]] = wrapper`. walks up ArrayPattern wrappers from the inner ObjectPattern
 // counting depth; descends the host's init slot through Identifier aliases and ArrayExpression
 // layers. returns the leaf constructor name when it's a recognised static placement
-function resolveArrayWrapperedDestructureReceiver(innerObjectPattern, adapter) {
+function resolveArrayWrapperedDestructureReceiver(innerObjectPattern, adapter, unionSink = null) {
   // peel ArrayPattern wrappers (and transparent inner-default AssignmentPattern / single-element
   // wrappers) up to the host, collecting each wrapper's element index outermost-first so the init
   // descent picks the matching slot, not a blind `[0]` - `const [, { from }] = [Set, Array]`
@@ -2992,13 +2959,13 @@ function resolveArrayWrapperedDestructureReceiver(innerObjectPattern, adapter) {
   // PAIR as the receiver, converging with the flatten plan's own defined-pair extraction
   if (peeled.indices.length === 0) {
     return resolveArrayInnerDefaultReceiver(peeled.parent, adapter)
-      ?? arrayWrapReceiverFromHost(peelDestructureWrappers(innerObjectPattern, true), adapter);
+      ?? arrayWrapReceiverFromHost(peelDestructureWrappers(innerObjectPattern, true), adapter, unionSink);
   }
-  return arrayWrapReceiverFromHost(peeled, adapter);
+  return arrayWrapReceiverFromHost(peeled, adapter, unionSink);
 }
 
 // the descent + leaf-resolution tail shared by the transparent peel and the dead-default resume
-function arrayWrapReceiverFromHost({ parent: host, indices }, adapter) {
+function arrayWrapReceiverFromHost({ parent: host, indices }, adapter, unionSink = null) {
   if (indices.length === 0) return null;
   // IDENTIFICATION uses the broad host predicate: an assignment-destructure in for-init / call-arg
   // / arrow-body position and a parameter DEFAULT (AssignmentPattern) all carry a real receiver
@@ -3006,16 +2973,15 @@ function arrayWrapReceiverFromHost({ parent: host, indices }, adapter) {
   // emit - identification gated on the EMIT predicate dropped the import
   const slotNode = destructureReceiverNode(host);
   if (!slotNode) return null;
-  const captureRef = {};
   // classification feeds usage-global injection AND the pure flatten extraction: only the former
   // may lean on a spread-shifted MAYBE pair (pure substituting a value the runtime may not hold
   // is the unsafe direction), so the maybe walk is flavor-gated
-  const descended = descendArrayWrapperInit({
-    receiverNode: slotNode, indices, scope: host.scope, adapter, path: host, captureRef,
-    maybe: adapter?.method === 'usage-global',
-  });
+  const descended = descendArrayWrapperInit(
+    { node: slotNode, ctx: { scope: host.scope, adapter, path: host, resolveKey: sharedResolveKey } }, indices,
+    { maybe: adapter?.method === 'usage-global', unionSink },
+  );
   if (!descended) return null;
-  const leaf = unwrapExpressionChain(descended);
+  const leaf = unwrapExpressionChain(descended.node);
   // any leaf that resolves to a static-placement constructor, through ONE branch: a bare global
   // (`[Array]`), a const-alias (`const A = Array; [A]`), a proxy-global member (`[globalThis.Array]`,
   // same as the non-wrappered `const { from } = globalThis.Array` path), or a babel in-place-
@@ -3032,7 +2998,7 @@ function arrayWrapReceiverFromHost({ parent: host, indices }, adapter) {
     // `resolveObjectName`'s own chain-assignment peel and is rescued WHOLE at emit - bailing it
     // instead would silently lose the polyfill
     const resolved = resolveObjectName({
-      objectNode: leaf, scope: captureRef.scope ?? host.scope, adapter, path: host, usageNode: captureRef.site ?? host.node,
+      objectNode: leaf, scope: descended.ctx.scope, adapter, path: host, usageNode: descended.readNode ?? host.node,
     });
     return resolved && isStaticPlacement(resolved) ? resolved : null;
   }
@@ -3105,9 +3071,9 @@ export function mirrorAcceptedKey({ prop, scope, adapter, path, seenKeys }) {
 function mirrorReceiverNodes({ receiverSources, originNode, indices, host, adapter }) {
   const receiverNodes = [];
   for (const receiverSource of receiverSources) {
-    const slotNode = descendArrayWrapperInit({
-      receiverNode: receiverSource, indices, scope: host.scope, adapter, path: host,
-    });
+    const slotNode = descendArrayWrapperInit(
+      { node: receiverSource, ctx: { scope: host.scope, adapter, path: host, resolveKey: sharedResolveKey } }, indices,
+    )?.node;
     if (!slotNode) return null;
     // a slot the wrapper descent dereferenced OUT of the host's own init (a const-alias element -
     // `[w, eff()]` where `const w = [globalThis]`) is a FOREIGN declaration: mirroring there would
@@ -3769,6 +3735,10 @@ export function destructureRightIsReceiver(node) {
   return allDestructureValueBranches(node, isReceiverShapedNode);
 }
 
+// the constructor a NESTED destructure leaf reads its static off, climbed from the outer property up
+// through pattern keys and array-wrapper levels to the host and resolved down through the init:
+// a proxy-global chain, a static container, or an array-wrapper alias followed to its literal
+// (`unionSink` collects the other constructors a reassigned alias may hold along the way)
 function computeNestedDestructureReceiver(outerProp, adapter, unionSink = null) {
   const keys = [];
   let cur = outerProp;
@@ -3795,20 +3765,20 @@ function computeNestedDestructureReceiver(outerProp, adapter, unionSink = null) 
     // (`[, { from }]` descends index 1, not a blind 0). thread scope/adapter/path so a const-bound
     // array-literal wrapper (`const wrapper = [{ a: Array }]; const [{ a: { from } }] = wrapper`)
     // dereferences to its init, mirroring resolveArrayWrapperedDestructureReceiver
-    // thread a captureRef exactly like `resolveArrayWrapperedDestructureReceiver`: a const-bound
-    // wrapper's leaf captured its value at the wrapper's declarator, so the leaf's reassignment
-    // check must anchor THERE, not at the destructure host (a source write between capture and
-    // destructure cannot change the captured value)
-    const captureRef = {};
-    const receiverNode = allIndices.length
+    // the descended hop's `readNode` is the capture, exactly as in `resolveArrayWrapperedDestructureReceiver`:
+    // a const-bound wrapper's leaf captured its value at the wrapper's declarator, so the leaf's
+    // reassignment check must anchor THERE, not at the destructure host (a source write between
+    // capture and destructure cannot change the captured value)
+    const descended = allIndices.length
       // thread the usage-global "inject-if-might" flag like the ArrayPattern-rooted sibling
       // (arrayWrapReceiverFromHost): a spread-shifted slot with one static candidate keeps the walk
       // going (over-inject, the safe direction) so this ObjectProperty-rooted nested path matches it
-      ? descendArrayWrapperInit({
-        receiverNode: slotNode, indices: allIndices, scope: parent.scope, adapter, path: parent, captureRef,
-        maybe: adapter?.method === 'usage-global',
-      })
-      : slotNode;
+      ? descendArrayWrapperInit(
+        { node: slotNode, ctx: { scope: parent.scope, adapter, path: parent, resolveKey: sharedResolveKey } }, allIndices,
+        { maybe: adapter?.method === 'usage-global', unionSink },
+      )
+      : null;
+    const receiverNode = allIndices.length ? descended?.node ?? null : slotNode;
     if (receiverNode !== null) {
       // peel parens / chain / TS wrappers AND SE tail to a fixpoint so `(se(), R) as any`
       // (and nested combinations like `(se(), (R as any))`) all reach the receiver. without
@@ -3864,8 +3834,8 @@ function computeNestedDestructureReceiver(outerProp, adapter, unionSink = null) 
         if (!receiver) return null;
       } else {
         receiver = resolveObjectName({
-          objectNode: init, scope: captureRef.scope ?? parent.scope, adapter, path: parent,
-          usageNode: captureRef.site ?? parent.node,
+          objectNode: init, scope: descended?.ctx.scope ?? parent.scope, adapter, path: parent,
+          usageNode: descended?.readNode ?? parent.node,
         });
       }
       if (receiver && POSSIBLE_GLOBAL_OBJECTS.has(receiver)
@@ -3882,8 +3852,8 @@ function computeNestedDestructureReceiver(outerProp, adapter, unionSink = null) 
       // adapter.hasBinding hits the TS-runtime lookup fallback for declare-bindings that
       // estree-toolkit's scope tracker doesn't register
       return walkStaticReceiverChain({
-        receiverNode: init, walkPath: keys, scope: captureRef.scope ?? parent.scope, adapter, path: parent,
-        usageNode: captureRef.site ?? null, unionSink,
+        receiverNode: init, walkPath: keys, scope: descended?.ctx.scope ?? parent.scope, adapter, path: parent,
+        usageNode: descended?.readNode ?? null, unionSink,
       });
     }
     const parentType = parent?.node?.type;
@@ -4019,7 +3989,7 @@ export function buildDestructureLeafMeta({ descriptor, key, adapter, resolvePure
     }
     case 'array': {
       if (!key) return null;
-      const constructor = resolveArrayWrapperedDestructureReceiver(descriptor.objectPattern, adapter);
+      const constructor = resolveArrayWrapperedDestructureReceiver(descriptor.objectPattern, adapter, unionSink);
       if (constructor && adapter.isMutatedStatic?.(constructor, key)) return null;
       return constructor
         ? { kind: 'property', object: constructor, key, placement: 'static' }

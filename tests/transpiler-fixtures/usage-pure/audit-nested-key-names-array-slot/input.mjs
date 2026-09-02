@@ -412,7 +412,8 @@ const nestedSeSlotKeepsEffect = (function () {
   const { 0: { 1: { entries } } } = [[(nestedSlotEffects += 1, 0), Object]];
   return entries;
 })();
-// the container REASSIGNED wholly before the read bails (the binding canon, not the slot record)
+// the container REASSIGNED wholly before the read follows that one dominating write (the binding
+// canon, not the slot record): its value is the single observable, so the leaf resolves off Map
 const containerWhollyReassigned = (function () {
   let swapped = { k: Object };
   swapped = { k: Map };
