@@ -12,6 +12,7 @@ import _values from "@core-js/pure/actual/instance/values";
 import _JSON$stringify from "@core-js/pure/actual/json/stringify";
 import _Map from "@core-js/pure/actual/map";
 import _Map2 from "@core-js/pure/actual/map/constructor";
+import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Object$assign from "@core-js/pure/actual/object/assign";
 import _Object$defineProperty from "@core-js/pure/actual/object/define-property";
 import _Object$entries from "@core-js/pure/actual/object/entries";
@@ -695,7 +696,8 @@ const nestedSeSlotKeepsEffect = function () {
   const entries = (nestedSlotEffects += 1, 0, _Object$entries);
   return entries;
 }();
-// the container REASSIGNED wholly before the read bails (the binding canon, not the slot record)
+// the container REASSIGNED wholly before the read follows that one dominating write (the binding
+// canon, not the slot record): its value is the single observable, so the leaf resolves off Map
 const containerWhollyReassigned = function () {
   let swapped = {
     k: Object
@@ -703,11 +705,7 @@ const containerWhollyReassigned = function () {
   swapped = {
     k: _Map2
   };
-  const {
-    k: {
-      groupBy
-    }
-  } = swapped;
+  const groupBy = _Map$groupBy;
   return groupBy;
 }();
 // a CONDITIONAL slot write still bails - reach is not disprovable without positions
