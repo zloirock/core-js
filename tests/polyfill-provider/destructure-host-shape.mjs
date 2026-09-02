@@ -304,21 +304,45 @@ runBoth('planMinifierSequenceSplit/nested operand flattens', 'const src = [1];\n
   check(`${ lbl }: four products in source order`, spelled.join(','), 'a,b,at,flat');
 });
 
-// a leading string operand is demoted to `(0, str)` so it cannot become a directive; a later one
-// is not (already past the prologue), and a leading non-string operand keeps its bare spelling
-runBoth('planMinifierSequenceSplit/directive hazard', 'const src = [1];\n("use strict", ({ at } = src), "later");\n', (adapter, prog, lbl) => {
+// a quiet LITERAL operand leaves no product: the minifier's `0`, a string in any slot (so a
+// leading one never reaches the Directive Prologue - cast-wrapped or not, the cast vanishes at
+// type-strip). a name may throw and a function carries the author's code: both stay, in order
+runBoth('planMinifierSequenceSplit/quiet operands', [
+  'const src = [1];',
+  '("use strict" as any, 0, null, true, 1n, /re/, ({ at } = src), "later", name, function () {}, use(at));',
+].join('\n'), (adapter, prog, lbl) => {
   const [entry] = planMinifierSequenceSplit(prog.node);
-  const [head, , tail] = entry.products;
-  check(`${ lbl }: leading string demoted`, head.expression.type === 'SequenceExpression' && head.expression.expressions[0].value === 0, true);
-  check(`${ lbl }: demoted product keeps the string's span`, head.start, head.expression.expressions[1].start);
-  check(`${ lbl }: later string kept bare`, tail.expression.type === 'SequenceExpression', false);
+  const spelled = entry.products.map(product => {
+    const expression = product.expression.type === 'ParenthesizedExpression' ? product.expression.expression : product.expression;
+    if (expression.type === 'CallExpression') return expression.callee.name;
+    if (expression.type === 'AssignmentExpression') return expression.left.properties[0].key.name;
+    return expression.type === 'Identifier' ? expression.name : expression.type;
+  });
+  check(`${ lbl }: every operand but the literals, in order`, spelled.join(','), 'at,name,FunctionExpression,use');
 });
 
-// `embed` wraps every operand for the binding's dialect, the demoted head included
-runBoth('planMinifierSequenceSplit/embed wraps the operands', 'const src = [1];\n("use strict", ({ at } = src));\n', (adapter, prog, lbl) => {
+// `embed` wraps every operand for the binding's dialect
+runBoth('planMinifierSequenceSplit/embed wraps the operands', 'const src = [1];\n(eff(), ({ at } = src));\n', (adapter, prog, lbl) => {
   const [entry] = planMinifierSequenceSplit(prog.node, { embed: node => ({ type: 'Wrapped', node }) });
-  check(`${ lbl }: the plain operand is wrapped`, entry.products[1].expression.type, 'Wrapped');
-  check(`${ lbl }: the demoted head is wrapped inside the sequence`, entry.products[0].expression.expressions[1].type, 'Wrapped');
+  check(`${ lbl }: every operand is wrapped`, entry.products.every(product => product.expression.type === 'Wrapped'), true);
+});
+
+// a `require(...)` slot is the destructure's twin: the minifier joins an entry statement with its
+// neighbours the same way, in any slot, and the split is what lets entry detection read the call
+// on its own line and keep the neighbours as statements. the entry canon reads the slot, so the
+// indirect and optional spellings split too; a sequence with neither shape is not a plan entry
+runBoth('planMinifierSequenceSplit/require slot', [
+  "(a(), require('core-js/x'), b());",
+  "(require('core-js/y'), c());",
+  "((0, require)('core-js/z'), d());",
+  "(require?.('core-js/w'), e());",
+  '(f(), g());',
+].join('\n'), (adapter, prog, lbl) => {
+  const plan = planMinifierSequenceSplit(prog.node);
+  check(`${ lbl }: one entry per statement with a require slot`, plan.length, 4);
+  check(`${ lbl }: middle slot splits into three`, plan[0].products.length, 3);
+  check(`${ lbl }: head slot splits into two`, plan[1].products.length, 2);
+  check(`${ lbl }: a plain call sequence is not planned`, plan.some(entry => entry.statement === prog.node.body[4]), false);
 });
 
 // a statement list nested inside an operand is planned too, with its own list

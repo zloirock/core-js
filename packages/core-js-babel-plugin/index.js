@@ -147,8 +147,13 @@ import createSynthSwapEmitter from './internals/synth-swap-emitter.js';
 // `replaceWithMultiple` does, and splices them in by identity. a node splice, not a path
 // replacement: the products are visited like any other statement once the program's body is
 // walked, and there is nothing queued yet to re-queue. an un-braced control-flow slot is braced
-// around its products with the host's own block
-function splitMinifierSequenceDestructure(programPath, t) {
+// around its products with the host's own block. accepted: a comment between two operands of a
+// ONE-LINE sequence prints inline before its product on this pass (`/* c */use(at);`) and on its
+// own line after a re-parse - the generator lays a leading block comment by the previous
+// statement's line, and the products share it by design (their spans are the entry gate's and the
+// opt-out's provenance). bytes differ between the first two passes, nothing else does: the import
+// set, the claims and the honoured opt-outs are the same on every pass
+function splitMinifierSequence(programPath, t) {
   for (const { statements, host, key, statement, products } of planMinifierSequenceSplit(programPath.node, { embed: hostSlot })) {
     const converted = products.map(product => estreeToBabel(product));
     t.inheritLeadingComments(converted[0], statement);
@@ -1860,7 +1865,7 @@ export default function plugin(api, options) {
         // `core-js-disable-file` directive or internal core-js source is returned verbatim, not
         // rewritten (entry-global needs it too - a `require('core-js/...')` collapsed into a comma
         // sequence - so the gate is `!skipFile`, not the narrower entry exclusion below)
-        if (!skipFile) splitMinifierSequenceDestructure(path, t);
+        if (!skipFile) splitMinifierSequence(path, t);
         // entry-global handles re-emit via detectEntries
         if (!skipFile && method !== 'entry-global') {
           const removed = new Set();
