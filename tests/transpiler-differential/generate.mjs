@@ -949,6 +949,83 @@ function * generateContainerSlots() {
   }
 }
 
+// --- dominating and reaching writes across the alias channels ---
+// the write a read can observe decides the value the emitters may substitute, and the answer has to
+// be ONE across the channels that follow an alias: a callee (`mk()`), an array-wrapper alias in a
+// destructure, a class base under `extends`. a write the read provably observes as its only value
+// (unconditional, before the capture / call / class, nothing written after) is followed by both
+// flavors - the pure ponyfill must back it, so the STRIPPED realm sees a miss; a write the read MAY
+// observe (conditional, closure, try) joins the usage-global union only, pure declines by design, and
+// the GLOBAL leg is the one that can see it (`strip: false`). the anchor of every proof is the read
+// itself: a write earlier in the same SEQUENCE counts as before the read, one after a capturing alias
+// does not, whatever the outer expression spans
+const W_DOMINATING = [
+  { id: 'callee-earlier-write', setup: 'let mk = () => ({}); mk = () => globalThis;', use: 'typeof mk().Array.from', strip: true },
+  { id: 'callee-in-sequence', setup: 'let mk = () => ({});', use: 'typeof (mk = () => globalThis, mk().Array).from', strip: true },
+  { id: 'callee-captured-in-sequence', setup: 'let mk = () => ({}); const G = (mk = () => globalThis, mk().Array);', use: 'typeof G.from', strip: true },
+  { id: 'callee-chain-assign', setup: 'let mk = () => ({}), q; mk = q = () => globalThis;', use: 'typeof mk().Array.from', strip: true },
+  { id: 'callee-write-after-capture', setup: 'let mk = () => globalThis; const G = mk().Array; mk = () => ({});', use: 'typeof G.from', strip: true },
+  { id: 'callee-conditional-write', setup: 'let mk = () => Object; if (Math.random() < 2) mk = () => Array;', use: 'typeof mk().from', strip: false },
+  // NEGATIVE: the dead init must not resolve either - the write's value is the runtime's
+  { id: 'callee-dead-init', setup: 'let mk = () => globalThis; const G = (mk = () => ({}), mk().Array);', use: 'typeof G', strip: false },
+  {
+    id: 'wrapper-two-levels-write-after-capture',
+    setup: 'let inner = [Array]; const outer = [inner]; inner = [Object]; const [[{ from }]] = outer;',
+    use: 'typeof from', strip: true,
+  },
+  {
+    id: 'wrapper-two-levels-write-before-capture',
+    setup: 'let inner = [Array]; inner = [Object]; const outer = [inner]; const [[{ fromEntries }]] = outer;',
+    use: 'typeof fromEntries', strip: true,
+  },
+  { id: 'wrapper-chain-assign', setup: 'let w = [Object], q; w = q = [Array]; const [{ from }] = w;', use: 'typeof from', strip: true },
+  { id: 'wrapper-closure-write', setup: 'let w = [Array]; const set = () => { w = [Object]; }; set(); const [{ fromEntries }] = w;', use: 'typeof fromEntries', strip: false },
+  { id: 'wrapper-conditional-write', setup: 'let w = [Object]; if (Math.random() < 2) w = [Array]; const [{ from }] = w;', use: 'typeof from', strip: false },
+  { id: 'wrapper-try-write', setup: 'let w = [Array]; try { w = [Object]; } catch (e) { void e; } const [{ fromEntries }] = w;', use: 'typeof fromEntries', strip: false },
+  { id: 'class-base-dominating', setup: 'let B = Object; B = Array; class R extends B { static go() { return super.from("ab"); } }', use: 'JSON.stringify(R.go())', strip: true },
+  {
+    id: 'class-base-chain-assign',
+    setup: 'let B = Object, C; B = C = Array; class R extends B { static go() { return super.of(1, 2); } }',
+    use: 'JSON.stringify(R.go())', strip: true,
+  },
+  {
+    id: 'class-base-conditional-write',
+    setup: 'let B = Object; if (Math.random() < 2) B = Array; class R extends B { static go() { return super.from("ab"); } }',
+    use: 'JSON.stringify(R.go())', strip: false,
+  },
+  {
+    id: 'class-container-dominating',
+    setup: 'let NS = { B: Object }; NS = { B: Array }; class R extends NS.B { static go() { return super.of(3); } }',
+    use: 'JSON.stringify(R.go())', strip: true,
+  },
+  // a chain assignment installs its TAIL into every name - one write-value canon for every channel
+  { id: 'key-chain-assign', setup: 'let k = "of", j; k = j = "from";', use: 'typeof Array[k]', strip: true },
+  {
+    id: 'class-container-chain-assign',
+    setup: 'let NS = { B: Object }, Q; NS = Q = { B: Array }; class R extends NS.B { static go() { return super.from("ab"); } }',
+    use: 'JSON.stringify(R.go())', strip: true,
+  },
+  { id: 'bare-chain-assign', setup: 'let M = Object, q; M = q = Array;', use: 'typeof M.from', strip: true },
+  { id: 'pattern-slot-chain-assign', setup: 'let k = "of", j; [k] = [j = "from"];', use: 'typeof Array[k]', strip: true },
+  { id: 'callee-init-chain-assign', setup: 'let q; const mk = q = () => globalThis;', use: 'typeof mk().Array.from', strip: true },
+  {
+    id: 'branching-arm-chain-assign',
+    setup: 'let w = [Object], q; w = Math.random() < 2 ? (q = [Array]) : [Object]; const [{ from }] = w;',
+    use: 'typeof from', strip: false,
+  },
+  { id: 'container-slot-chain-assign', setup: 'const w = { k: Object }; let q; w.k = q = Array; const { k: { from } } = w;', use: 'typeof from', strip: false },
+  // a pattern-slot DEFAULT leaves the key alias without a dominating value - the written keys still
+  // union (usage-global), pure keeps its bail
+  { id: 'key-slot-default', setup: 'let k = "of"; [k = "from"] = [];', use: 'typeof Array[k]', strip: false },
+  { id: 'key-slot-default-destructure', setup: 'let k = "of"; [k = "from"] = []; const { [k]: f } = Array;', use: 'typeof f', strip: false },
+];
+// one IIFE body per row, like the container slots: the setup declares, the use observes
+function * generateDominatingWrites() {
+  for (const s of W_DOMINATING) {
+    yield { ...snippet(`dominating-write/${ s.id }`, `(() => { ${ s.setup } return ${ s.use }; })()`), strip: s.strip };
+  }
+}
+
 // --- proxy-global alias-root arms ---
 // resolving an identifier to the global-proxy ROOT: the ARRAY-init negative is runtime-critical
 // (a named key off an array literal is undefined - `typeof` flips if pure wrongly substitutes),
@@ -7739,6 +7816,7 @@ export function * generate() {
   yield * generateAnchorInnerShape();
   yield * generateDestructureAlias();
   yield * generateContainerSlots();
+  yield * generateDominatingWrites();
   yield * generateProxyAliasCells();
   yield * generateFallbackArg();
   yield * generateIifeArgShadow();
