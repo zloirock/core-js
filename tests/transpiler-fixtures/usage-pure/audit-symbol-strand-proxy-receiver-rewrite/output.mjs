@@ -1,5 +1,4 @@
 import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
-import _globalThis from "@core-js/pure/actual/global-this";
 import _self from "@core-js/pure/actual/self";
 import _Symbol$asyncIterator from "@core-js/pure/actual/symbol/async-iterator";
 import _Symbol$toStringTag from "@core-js/pure/actual/symbol/to-string-tag";
@@ -10,6 +9,6 @@ import _Symbol$toStringTag from "@core-js/pure/actual/symbol/to-string-tag";
 // undefined read). a LIVE `Symbol.iterator` entry still collapses the whole read to the
 // get-iterator-method helper over the pure root.
 const bareSelf = _self[_Symbol$asyncIterator];
-const hop = _globalThis[_Symbol$toStringTag];
-const live = _getIteratorMethod(_globalThis);
+const hop = _self[_Symbol$toStringTag];
+const live = _getIteratorMethod(_self);
 export { bareSelf, hop, live };

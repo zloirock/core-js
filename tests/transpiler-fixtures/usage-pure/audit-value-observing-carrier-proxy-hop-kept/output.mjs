@@ -1,6 +1,7 @@
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Map from "@core-js/pure/actual/map/constructor";
 import _Promise from "@core-js/pure/actual/promise/constructor";
+import _self from "@core-js/pure/actual/self";
 import _Set from "@core-js/pure/actual/set/constructor";
 import _WeakMap from "@core-js/pure/actual/weak-map/constructor";
 import _WeakSet from "@core-js/pure/actual/weak-set/constructor";
@@ -28,4 +29,4 @@ export const {
 } = cond ? _WeakSet : _globalThis.self.Array;
 export const {
   passedThroughBySequence
-} = (0, _globalThis.Array);
+} = (0, _self.Array);

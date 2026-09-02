@@ -25,7 +25,7 @@ export const probeCallDispatch = null == (_ref = null == provenProbe() ? void 0 
 // a body that short-circuits internally reaches the same verdict through one test
 export const shortCircuitBody = null == (() => null == _globalThis.window ? void 0 : _self)() ? void 0 : _Promise$resolve(4);
 // NEGATIVE: the call yields the always-defined root, so its `?.` is dead text and the nav collapses
-export const definedCallRoot = _globalThis.callRootBox.list;
+export const definedCallRoot = _self.callRootBox.list;
 // NEGATIVE: a PLAIN read off the probe-yielding call throws natively, and erasing that throw is the
 // ordinary collapse - the guard question is only about a `?.` the emit would drop
 export const plainReadOffCall = _self.Array?.prototype;

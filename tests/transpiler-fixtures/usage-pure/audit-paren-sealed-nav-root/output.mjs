@@ -204,7 +204,7 @@ export const {
 } = (null == _globalThis.window ? void 0 : _self).Array;
 export const {
   [(c9++, 'isArray')]: viaDefinedHopSeKeyResidual
-} = _globalThis.Array;
+} = _self.Array;
 export { c9 };
 
 // ASSIGNMENT-host SE-key destructures keep the whole pattern in place (no declaration to

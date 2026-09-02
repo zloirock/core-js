@@ -29,7 +29,7 @@ export const withKeyEffect = (g3 = _globalThis, v = (eff(), _self))?.noSuchStati
 // the ponyfill root - a host read that is undefined in the very realms the ponyfill serves
 let g7;
 export const seqInStoreClaim = (g7 = (eff(), _globalThis), _Map);
-export const seqInStoreNav = (g7 = (eff(), _globalThis), _globalThis).noSuchStatic;
+export const seqInStoreNav = (g7 = (eff(), _globalThis), _self).noSuchStatic;
 
 // NEGATIVE: the store holding the PROBE keeps its `?.` - the sequence hands that value on, so the
 // optional guards a read that genuinely short-circuits and nothing above it folds

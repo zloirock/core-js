@@ -25,6 +25,7 @@ import {
   receiverSequenceTailKeys,
   inlineCallHasObservableEffects,
   navHopSequencePrefixes,
+  storedAbsenceObservedAbove,
   storedNavHopClaimSuppressed,
   storedUserAssignmentOf,
   navGuardTestBase,
@@ -37,11 +38,14 @@ import {
   vestigialNavOptionals,
   proxyGlobalRootName,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
-import { planClaimlessCallRootedNav } from '@core-js/polyfill-provider/detect-usage/members';
+import {
+  dispatchConsumesRun,
+  planClaimlessCallRootedNav,
+  proxyRunLandingPure,
+} from '@core-js/polyfill-provider/detect-usage/members';
 import {
   chainValueCarrier,
   isNullLiteralNode,
-  isUndefinedNode,
   isDeoptedGlobalSlotRead,
   createTypeAnnotationChecker,
   deleteHostAboveChain,
@@ -70,6 +74,8 @@ import {
   unwrapRuntimeExpr,
   hasDeferredContextAncestor,
   collectFoldedReceiverSideEffects,
+  definedBranchOfGuardConditional,
+  isRenderedStoredValue,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   chainExpression,
@@ -251,8 +257,20 @@ function navPlanValueAst(t, plan, pureId, renderedPlanTails) {
 // asked as the CLAIM channel asks it - a DEOPTED name reads verbatim there, so it owns nothing and
 // standing down for it leaves the nav unguarded. under a `delete` the fold owns the chain either
 // way, and the guard render would spell the value instead
-function claimBelowEndOwnsChain(memberPath, adapter, resolvePureGlobalEntry, resolvePureStaticEntry = null) {
+function claimBelowEndOwnsChain(memberPath, {
+  adapter,
+  resolvePureGlobalEntry,
+  resolvePureStaticEntry = null,
+  resolvePurePrototypeEntry = null,
+}) {
   const deleteFolds = deleteHostAboveChain(memberPath, memberPath.node, unwrapRuntimeExpr);
+  // does the nav's own short-circuit REACH the claim above it? a seal ends the chain, so the read
+  // over it is plain and observes the void - the instance channel below reads that receiver without
+  // guarding it, and this render owes the guard. unsealed, the claim's chain carries the same `?.`
+  // and its split spells the test
+  const sealedFromClaim = chainReadsThroughSeal(memberPath.node,
+    ({ name }) => resolvePureGlobalEntry(name, memberPath),
+    { scope: memberPath.scope, adapter, path: memberPath });
   for (let belowEnd = memberPath.node.object; belowEnd;) {
     while (belowEnd && TS_EXPR_WRAPPERS.has(belowEnd.type)) belowEnd = belowEnd.expression;
     if (belowEnd?.type !== 'MemberExpression' && belowEnd?.type !== 'OptionalMemberExpression') break;
@@ -267,10 +285,18 @@ function claimBelowEndOwnsChain(memberPath, adapter, resolvePureGlobalEntry, res
     // .name`): asked by GLOBAL name alone the key answered nothing, the guard render took the chain
     // and the static stayed native off the ponyfill - a lost polyfill leg parity cannot see. the HOST
     // must be a real constructor / namespace (a proxy-global hop hosts the realm, not a static), and
-    // an INSTANCE answer belongs to the instance channel, which renders its own receiver
+    // an INSTANCE answer off such a host belongs to the instance channel, which renders its own receiver
     const belowHost = belowKey ? staticMemberKeyName(belowEnd.object) : null;
     if (belowHost && belowKey && !POSSIBLE_GLOBAL_OBJECTS.has(belowHost)
       && resolvePureStaticEntry?.(belowHost, belowKey, memberPath)?.kind === 'static') return true;
+    // ... and a PROTOTYPE method read below the end (`<nav>.Array.prototype.at.call(...)`) is the
+    // instance channel's claim, and that channel splits its receiver and composes the nav's guard
+    // into its own test - the other leg's order, where the outer claim renders before the hops it
+    // reads through. the guard render taking the chain first spelled the same test by a second
+    // channel (`null == x` against the split's `x == null`), one source in two spellings
+    const belowCtor = !sealedFromClaim && belowHost === 'prototype'
+      ? staticMemberKeyName(unwrapRuntimeExpr(belowEnd.object).object) : null;
+    if (belowCtor && belowKey && resolvePurePrototypeEntry?.(belowCtor, belowKey, memberPath)) return true;
     belowEnd = belowEnd.object;
   }
   return false;
@@ -327,20 +353,32 @@ function swapProbeRunBase(endPath, swapNode, basePureId, markRenderedPlanTail) {
 // IDENTIFIER root is not this: its own visitor substitutes the root and the hop drive owns
 // the rest
 function collapseClaimlessCallRootedNav({
-  endPath, adapter, resolvePureGlobalEntry, injectPureGlobal, collapseNav, withSideEffects, collapseKeptValue, markRenderedPlanTail,
+  endPath, adapter, resolvePureGlobalEntry, resolvePurePrototypeEntry, injectPureGlobal, collapseNav, withSideEffects,
+  collapseKeptValue, markRenderedPlanTail,
 }) {
   if (!adapter || !endPath?.scope || !injectPureGlobal || !resolvePureGlobalEntry) return false;
   // a MEMBER consumer only - the same callback also fires for a destructure property, whose node
   // has no navigation at all
   if (!endPath.isMemberExpression?.() && !endPath.isOptionalMemberExpression?.()) return false;
-  // a `delete` reads nothing over its navigation, so the fold takes the WHOLE nav to the root
-  // binding (the identifier spelling's base): anchored at a hop claim it would stop mid-run,
-  // leaving the hops above raw off the root (`delete dh().self.window.k` kept `.window`)
-  const deleteFold = deleteHostAboveChain(endPath, endPath.node, unwrapRuntimeExpr);
+  // a `delete` naming a slot ON THIS RUN reads nothing over its navigation, so the fold takes the
+  // WHOLE nav to the root binding (the identifier spelling's base): anchored at a hop claim it would
+  // stop mid-run, leaving the hops above raw off the root (`delete dh().self.window.k` kept
+  // `.window`). a dispatch standing between the operator and the run makes it an ordinary read
+  // instead, riding the deepest hop pure can back - the same question the spine asks off an
+  // identifier root
+  const deleteFold = deleteHostAboveChain(endPath, endPath.node, unwrapRuntimeExpr)
+    && !dispatchConsumesRun({
+      path: endPath,
+      resolvePure: meta => meta.placement === 'prototype'
+        ? resolvePurePrototypeEntry?.(meta.object ?? null, meta.key, endPath)
+        : resolvePureGlobalEntry(meta.name, endPath),
+      aliasCtx: { scope: endPath.scope, adapter, path: endPath },
+    });
   // the plan reads the member ENDING the all-proxy run, and a claim channel fires wherever its own
   // meta declined - one hop short of that end whenever navigation continues above (`f().self
-  // .window.mutatedSlot`). a `delete` reads nothing over its navigation, so its fold takes the
-  // whole chain; every other consumer stops where the consecutive proxy hops do
+  // .window.mutatedSlot`). a fold reads nothing over its navigation, so it takes the whole chain;
+  // every other consumer - a run the fold above declined included - stops where the consecutive
+  // proxy hops do
   if (deleteFold) endPath = memberChainEndPath({ path: endPath, unwrap: unwrapRuntimeExpr });
   else {
     for (let up = endPath.parentPath;
@@ -417,14 +455,15 @@ function cloneWithSubstitutedProxyRoot(node, anchorPath, { t, resolvePureGlobalE
 // IS the test, no guard render needed. reached with NO sealed boundary and as the FALLBACK
 // of a sealed path that renders nothing (a value-transparent seal over the bare alias,
 // `(a as any).of` - it hides no short-circuit, so the alias question stands)
-function aliasHeldClaimProbeNode(memberPath, member, { t, adapter, resolvePureGlobalEntry, mintedEffectNodes }) {
+function aliasHeldClaimProbeNode(memberPath, member,
+  { t, adapter, resolvePureGlobalEntry, mintedEffectNodes, allowStoreHolder = false }) {
   // a SYNTHETIC member (no source span) is a render, not a source read - the probes this
   // arm spells are themselves such members (re-cloned by the SE wrap), and probing one
   // would loop the visitor
   if (!Number.isInteger(member?.start)) return null;
   const probe = aliasHeldClaimProbe(member,
     ({ name }) => resolvePureGlobalEntry(name, memberPath),
-    { scope: memberPath.scope, adapter, path: memberPath });
+    { scope: memberPath.scope, adapter, path: memberPath }, { allowStoreHolder });
   if (!probe) return null;
   const read = estreeToBabel(renderAliasHeldProbeRead(probe, hostSlot(t.cloneNode(probe.object))));
   mintedEffectNodes.add(read);
@@ -449,7 +488,7 @@ function collapseHopsBelowProbe({ probePath, anchorPath, adapter, resolvePure, i
 
 // eslint-disable-next-line max-statements -- per-transform channel factory wiring
 export default function (t, { getInjector, getAdapter, typeResolvers, resolvePureGlobalEntry,
-  resolvePureStaticEntry = null, injectPureGlobal,
+  resolvePureStaticEntry = null, resolvePurePrototypeEntry = null, injectPureGlobal,
   collapseReceiverHops = null, releaseHandledNode = null } = {}) {
   const { resolveNodeType, resolvedType } = typeResolvers ?? {};
   const isInTypeAnnotation = createTypeAnnotationChecker(isTypeAnnotationNodeType);
@@ -1274,7 +1313,21 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
   // and memoizing that spells a SECOND test over the first - the probe decides the branch and the
   // claim reads the always-defined leaf. the link and every optional above it deoptionalize with it
   function composeNavGuardCheck(chainStart, key, path, memoType) {
-    const composed = resolvePureGlobalEntry && composableNavGuardPlan(chainStart.node[key], {
+    const value = chainStart.node[key];
+    // the slot may already hold OUR root guard (`null == A ? void 0 : _self`, the hop claim's render
+    // over an undefinable root): memoizing it spells a second test over the first, so compose with
+    // it the same way - the guarded operand is the test, the defined branch is what the claim reads
+    const definedBranch = isRenderedStoredValue(value) ? definedBranchOfGuardConditional(value) : null;
+    if (definedBranch && value.test?.type === 'BinaryExpression' && isNullLiteralNode(value.test.left)) {
+      const probe = value.test.right;
+      chainStart.node[key] = seededRefClone(t.cloneNode(definedBranch), memoType);
+      deoptionalizeNode(chainStart);
+      for (let up = chainStart.parentPath; up && up !== path; up = up.parentPath) {
+        if (isOptionalNode(up.node)) deoptionalizeNode(up);
+      }
+      return t.cloneNode(probe);
+    }
+    const composed = resolvePureGlobalEntry && composableNavGuardPlan(value, {
       scope: path.scope, adapter: getAdapter?.(), path,
       resolvePure: ({ name }) => resolvePureGlobalEntry(name, path),
     });
@@ -1560,6 +1613,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     return true;
   }
 
+  // eslint-disable-next-line max-statements -- the plan, its declines and the render of one nav are one sequence
   function collapseShortCircuitNavInPlace(memberPath) {
     const adapter = getAdapter?.();
     if (!adapter || !memberPath?.scope || !resolvePureGlobalEntry || !injectPureGlobal) return false;
@@ -1587,7 +1641,8 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     if (!navValueCanShortCircuit(memberPath.node, ({ name }) => resolvePureGlobalEntry(name, memberPath),
       { scope: memberPath.scope, adapter, path: memberPath },
       { throughChainAssign: true, observableRead: navObserved })) return false;
-    if (claimBelowEndOwnsChain(memberPath, adapter, resolvePureGlobalEntry, resolvePureStaticEntry)) return false;
+    if (claimBelowEndOwnsChain(memberPath,
+      { adapter, resolvePureGlobalEntry, resolvePureStaticEntry, resolvePurePrototypeEntry })) return false;
     // TS wrappers on the object erase in the render (`nav!.X`, `(nav as any).X`); the seal
     // distinction lives in the MEMBER's own node type - a paren boundary parses the member
     // above it PLAIN, and the plain/optional render split keeps the source semantics
@@ -1598,11 +1653,13 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     function planFor(rawObject) {
       const navNode = peelTransparentExpr(rawObject);
       if (navNode?.type !== 'MemberExpression' && navNode?.type !== 'OptionalMemberExpression') return null;
+      // an undefinable ROOT (an alias holding a probe, a bare probe name) is this render's own
+      // test - asked for, and spelled ahead of the collapsed leaf below
       const plan = planProvenNavGuardCollapse({
         rootNode: navNode, scope: memberPath.scope, adapter, path: memberPath,
-        resolvePure: ({ name }) => resolvePureGlobalEntry(name, memberPath),
+        resolvePure: ({ name }) => resolvePureGlobalEntry(name, memberPath), allowUndefinableRoot: true,
       });
-      return plan && !plan.topAssign && plan.kind === 'nested' ? plan : null;
+      return plan && !plan.topAssign && (plan.kind === 'nested' || plan.rootUndefinable) ? plan : null;
     }
 
     // hops the plan does NOT cover (a non-proxy name - `...?.self?.chrome`) read off the value
@@ -1615,7 +1672,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     // gated on a nested plan with no tail of its own (a planned tail can be absent - the hop
     // above it genuinely guards) and on chain membership (a SEALED member keeps its throw)
     function pullUnplannedTail(pullFrom, plan, rendered) {
-      if (plan.kind !== 'nested') return false;
+      if (plan.kind !== 'nested' && !plan.rootUndefinable) return false;
       // collect the chain steps leaf-outwards, then let the shared rule say how many ride inside
       const paths = [];
       for (let hop = pullFrom; hop?.node;) {
@@ -1769,7 +1826,12 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     // the ROOT ponyfill, the same answer the bare-root spelling of this source gives
     if (definedCallRoot && plan.rootName && !plan.topAssign
       && !plan.keySeExprs.length && !plan.seqAroundPrefix?.length && !plan.rootEffectCall) {
-      const rootPure = plan.resolvePure({ kind: 'global', name: plan.rootName });
+      const rootPure = proxyRunLandingPure({
+        navNode: navSlotPath(target).node,
+        ctx: { scope: memberPath.scope, adapter, path: memberPath },
+        resolvePure: plan.resolvePure,
+        rootName: plan.rootName,
+      });
       if (rootPure) {
         navSlotPath(target).replaceWith(injectPureGlobal(rootPure.entry, rootPure.hintName));
         return true;
@@ -1797,7 +1859,14 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       if (target.node.optional) target.node.optional = false;
       return true;
     }
-    const rendered = renderNavCollapseAst(plan, injectPureGlobal(pure.entry, pure.hintName));
+    let rendered = renderNavCollapseAst(plan, injectPureGlobal(pure.entry, pure.hintName));
+    // the ROOT can be absent: the leaf the hops fold to rides a test on the root itself (`null == A
+    // ? void 0 : _self` for `A?.self` off `A = globalThis.window`), the shape the other leg spells
+    // from the claim verdict - the plan's own hops carry no probe for it
+    if (plan.rootUndefinable) {
+      rendered = estreeToBabel(renderShortCircuitGuard(
+        nullFirstGuardTest(t.cloneNode(plan.rootAssign ?? plan.rootId), { embed: hostSlot }), hostSlot(rendered)));
+    }
     // a SEQUENCE stands between the render's landing slot and the steps above it, so the tail pull
     // has no contiguous chain to walk there - the prefix keeps the tail outside, as the source spells it
     if (!peelSkippableWrapperPath(target.get('object')).isSequenceExpression()
@@ -1880,18 +1949,18 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
   // guard plan (probe test, ponyfill leaf), the member key re-spells the source read. an
   // SE-bearing computed key stays with its own migration canon (a re-read would double its
   // effect), and a defined sealed value (all-plain nav) has no throw to reproduce - both bail
-  function sealedClaimThrowProbeNode(memberPath, probeNode = null) {
+  function sealedClaimThrowProbeNode(memberPath, probeNode = null, { allowStoreHolder = false } = {}) {
     const adapter = getAdapter?.();
     if (!adapter || !memberPath?.scope || !resolvePureGlobalEntry || !injectPureGlobal) return null;
     const boundary = sealedChainBoundary(probeNode ?? memberPath.node);
     if (!boundary) {
       return aliasHeldClaimProbeNode(memberPath, probeNode ?? memberPath.node,
-        { t, adapter, resolvePureGlobalEntry, mintedEffectNodes });
+        { t, adapter, resolvePureGlobalEntry, mintedEffectNodes, allowStoreHolder });
     }
     const key = memberKeyName(boundary.member);
     if (key === null) {
       return aliasHeldClaimProbeNode(memberPath, boundary.member,
-        { t, adapter, resolvePureGlobalEntry, mintedEffectNodes });
+        { t, adapter, resolvePureGlobalEntry, mintedEffectNodes, allowStoreHolder });
     }
     const aliasCtx = { scope: memberPath.scope, adapter, path: memberPath };
     // the sealed VALUE proves defined, but the seal may still wrap a run an alias BINDING makes
@@ -1901,7 +1970,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     if (!proxyReceiverValueCanBeUndefined(boundary.inner,
       ({ name }) => resolvePureGlobalEntry(name, memberPath), aliasCtx, { throughChainAssign: true })) {
       return aliasHeldClaimProbeNode(memberPath, boundary.member,
-        { t, adapter, resolvePureGlobalEntry, mintedEffectNodes });
+        { t, adapter, resolvePureGlobalEntry, mintedEffectNodes, allowStoreHolder });
     }
     const plan = planProvenNavGuardCollapse({
       rootNode: boundary.inner, scope: memberPath.scope, adapter, path: memberPath,
@@ -1919,7 +1988,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     // `(a as any).of`) hides no short-circuit: the alias question stands, fall through to it
     if (!rendered) {
       return aliasHeldClaimProbeNode(memberPath, boundary.member,
-        { t, adapter, resolvePureGlobalEntry, mintedEffectNodes });
+        { t, adapter, resolvePureGlobalEntry, mintedEffectNodes, allowStoreHolder });
     }
     // the probe CARRIES the nav's key SE (native order: test, key effect, read) - hand the
     // plan's SE nodes back so the claim's own SE channel does not re-run them
@@ -1963,6 +2032,11 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       // the same slot, benign on the proxy globals every render here already reads freely)
       : plan.leafIsProbe ? cloneWithSubstitutedProxyRoot(plan.guardObject, anchorPath,
         { t, resolvePureGlobalEntry, injectPureGlobal })
+      // an unbacked leaf over a ponyfill base reads off that base - folded onto it where the plan
+      // says so, else as its member (the plan's verdict, shared with the other leg's render)
+      : plan.leafBasePure ? (plan.foldLeafOntoBase
+        ? injectPureGlobal(plan.leafBasePure.entry, plan.leafBasePure.hintName)
+        : t.memberExpression(injectPureGlobal(plan.leafBasePure.entry, plan.leafBasePure.hintName), t.identifier(plan.leafName)))
       : t.isValidIdentifier(plan.leafName) ? t.identifier(plan.leafName) : null;
     if (!alternate) return null;
     // the guard OBJECT is what the test spells, so it is handed over as one too: without it the
@@ -1975,49 +2049,6 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     return estreeToBabel(renderShortCircuitGuard(
       nullFirstGuardTest(navGuardTestNode(testObject, anchorPath, null, testObject), { embed: hostSlot }),
       hostSlot(alternate)));
-  }
-
-  // the LATE half of the store's guard verdict (`storeTakesGuard` is the early half): is the
-  // store's absence READ by flush time - a null test or another truth-reader standing over it,
-  // or a `?.` chain leading to a CLAIM, whose rendered guard test will read this store (the
-  // other leg re-visits the store inside that test's clone and keeps the probe the same way)?
-  // a `?.` no claim will guard observes nothing: over the always-defined value form it is the
-  // collapse's own vestigial class, and both legs hand such a store the value spelling.
-  // sequence: only the tail hands the value on
-  function storeNullTestObservedAbove(assignPath) {
-    for (let child = assignPath, up = child.parentPath; up?.node; child = up, up = up.parentPath) {
-      const { node } = up;
-      if (SKIPPABLE_WRAPPER_TYPES.has(node.type)) continue;
-      if (node.type === 'SequenceExpression') {
-        if (node.expressions.at(-1) !== child.node) return false;
-        continue;
-      }
-      if (node.type === 'OptionalMemberExpression' || node.type === 'OptionalCallExpression') {
-        // both resolution arms of `claimBelowEndOwnsChain`, asked of the chain ABOVE including
-        // its end: a global's own name, or a static off a named host. an unnameable key is a
-        // step, not a stop
-        for (let m = up; m?.node; m = m.parentPath) {
-          const mn = m.node;
-          if (SKIPPABLE_WRAPPER_TYPES.has(mn.type)) continue;
-          if (mn.type !== 'MemberExpression' && mn.type !== 'OptionalMemberExpression') break;
-          const key = mn.computed ? null : staticMemberKeyName(mn);
-          if (!key) continue;
-          if (resolvePureGlobalEntry?.(key, assignPath)) return true;
-          const host = staticMemberKeyName(mn.object);
-          if (host && !POSSIBLE_GLOBAL_OBJECTS.has(host)
-            && resolvePureStaticEntry?.(host, key, assignPath)?.kind === 'static') return true;
-        }
-        return false;
-      }
-      if (node.type === 'BinaryExpression') {
-        return (node.operator === '==' || node.operator === '!=' || node.operator === '===' || node.operator === '!==')
-          && (isNullLiteralNode(node.left) || isNullLiteralNode(node.right) || isUndefinedNode(node.left)
-            || isUndefinedNode(node.right));
-      }
-      return node.type === 'LogicalExpression' || node.type === 'ConditionalExpression'
-        || node.type === 'UnaryExpression';
-    }
-    return false;
   }
 
   // flush THIS assignment's kept nav-collapse at its own EXIT: every claim resolver over the
@@ -2041,7 +2072,10 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       // the VALUE / guard choice: the plan-time half (`storeTakesGuard`) plus the late half - an
       // observer that did not exist when the plan queued (the guard test a claim channel rendered
       // around this store) is in the tree NOW, and only this moment can see it
-      const rendered = storeTakesGuard || storeNullTestObservedAbove(assignPath)
+      const rendered = storeTakesGuard || storedAbsenceObservedAbove(assignPath, {
+        resolvePureGlobal: key => resolvePureGlobalEntry?.(key, assignPath),
+        resolvePureStatic: (object, key) => resolvePureStaticEntry?.(object, key, assignPath),
+      })
         ? renderNavCollapseAst(plan, pureId)
         : navPlanValueAst(t, plan, pureId, renderedPlanTails);
       if (host === assignPath.node) {
@@ -2796,7 +2830,8 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     keptNavHopClaimSuppressed,
     isRenderedPlanTail: node => renderedPlanTails.has(node),
     collapseClaimlessCallRootedNav: endPath => collapseClaimlessCallRootedNav({ endPath, adapter: getAdapter?.(),
-      resolvePureGlobalEntry, injectPureGlobal, collapseNav: collapseShortCircuitNavInPlace, withSideEffects,
+      resolvePureGlobalEntry, resolvePurePrototypeEntry, injectPureGlobal,
+      collapseNav: collapseShortCircuitNavInPlace, withSideEffects,
       collapseKeptValue: (stored, path) => collapseKeptNavValueNode(stored, path, { immediate: true }),
       markRenderedPlanTail: node => renderedPlanTails.add(node) }),
     collapseShortCircuitNavInPlace,

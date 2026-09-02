@@ -1,5 +1,5 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-import _globalThis from "@core-js/pure/actual/global-this";
+import _self from "@core-js/pure/actual/self";
 // parameter destructure default combining a COMPUTED proxy hop (`globalThis['self']`) with a
 // rest sibling on a DECLARED function: the retained default keeps its value-identical collapse
 // to `_globalThis.Array`. lossy emissions are sound here because the function is non-exported
@@ -7,7 +7,7 @@ import _globalThis from "@core-js/pure/actual/global-this";
 function f({
   from: _unused,
   ...rest
-} = _globalThis.Array) {
+} = _self.Array) {
   let from = _Array$from;
   return [from, rest];
 }

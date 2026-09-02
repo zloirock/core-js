@@ -47,8 +47,7 @@ export const guardedWindowHop = null == (_ref2 = _globalThis.window) ? void 0 : 
 // must swap the kept value's OWN raw root and nothing else, or the assignment leaks an
 // unpolyfilled `globalThis`
 let d;
-d = _globalThis.window;
-export const ofKeptRoot = _Array$of;
+export const ofKeptRoot = ((d = _globalThis.window).self, _Array$of);
 
 // the well-known-symbol strand reaches the same receiver through its OWN collapse: it too must keep the
 // assignment as the receiver rather than read the symbol off the pure root, which would silently discard

@@ -1,5 +1,5 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-import _globalThis from "@core-js/pure/actual/global-this";
+import _self from "@core-js/pure/actual/self";
 const from = _Array$from;
 // An optional connector directly on a proxy-global root is redundant once the root is substituted
 // to the always-defined `_globalThis` (the `?.` guarded against an undefined global, which the
@@ -8,5 +8,5 @@ const from = _Array$from;
 const {
   from: _unused,
   ...rest
-} = _globalThis.Array;
+} = _self.Array;
 from([1]);
