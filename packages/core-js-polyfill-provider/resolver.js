@@ -7,9 +7,9 @@ import {
   POSSIBLE_GLOBAL_OBJECTS,
   proxyNavEffectsHarvestable,
   unwrapRuntimeExpr,
+  rootProgramOf,
 } from './helpers/ast-patterns.js';
 import { ESCAPED_CTOR_REFS, nodePositionKey } from './detect-usage/mutations.js';
-import { rootProgramOf } from './detect-usage/own-output.js';
 import { TYPE_HINTS } from './resolve-node-type/base.js';
 import { initPluginOptions } from './plugin-options/init.js';
 import { createPolyfillContext, resolve } from './index.js';

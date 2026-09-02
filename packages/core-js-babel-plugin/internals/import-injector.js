@@ -5,6 +5,7 @@ import {
   isPrologueDirectiveStatement,
   isTopLevelImportLike,
   programPrologueEndIndex,
+  requireCallSource,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { renderInjectedImportNodes } from '@core-js/polyfill-provider/render';
 import estreeToBabel from './estree-to-babel.js';
@@ -405,8 +406,7 @@ export default class ImportInjector extends ImportInjectorState {
         && node.specifiers[0].type === 'ImportDefaultSpecifier' ? node.specifiers[0].local.name
         : node?.type === 'VariableDeclaration' && node.declarations?.length === 1
           && node.declarations[0].id?.type === 'Identifier'
-          && node.declarations[0].init?.type === 'CallExpression'
-          && node.declarations[0].init.callee?.name === 'require' ? node.declarations[0].id.name : null;
+          && requireCallSource(node.declarations[0].init) !== null ? node.declarations[0].id.name : null;
       if (!local || !nameBySource.has(local) || isLive(nameBySource.get(local), local)) continue;
       bodyPath.remove();
     }

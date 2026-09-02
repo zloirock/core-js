@@ -3,6 +3,7 @@ import {
   isDirectiveStatement,
   isTopLevelImportLike,
   prologueEndIndex,
+  requireCallSource,
   tsRuntimeBindingName,
   unwrapRuntimeExpr,
   walkPatternIdentifiers,
@@ -46,53 +47,6 @@ export function skipDirectivePrologue(statements, fallback) {
 // placement boundary), so they live in provider helpers; re-export the region predicate so
 // unplugin consumers + the unit tests keep importing it from here
 export { isTopLevelImportLike };
-
-// --- ASI at a statement boundary ---
-// ONE question, asked by every channel that puts text at the head of a statement slot - the queue's
-// `(`-leading replacements, the entry remover, the SE-prefix rewrite, the minifier-sequence split,
-// the destructure lifted-SE emit: "would the FIRST char of what now stands here fuse LEFTWARD into
-// the previous surviving statement?". two closed alphabets answer it, both on the FINAL text (the
-// previous surviving char, after every removal around it, and the emitted first char):
-//
-// statement-START chars that fuse LEFTWARD into a fusion-capable prev statement: `(` (call), `[`
-// (index), `/` (regex or division), `+` / `-` (binary), `` ` `` (tagged template), `<` (TS
-// TypeAssertion / JSX). `<` over-fires on a real `a < b`, but a statement can START with `<` only as
-// a TS type-assertion (`<T>x`) or JSX element - never a less-than continuation (`a; <b` is a
-// SyntaxError, not `a<b`) - so a spurious `;` only ever precedes those, harmless
-export const ASI_HAZARD_STARTS = new Set(['(', '[', '/', '+', '-', '`', '<']);
-
-// prev SURVIVING chars at a statement boundary that CANNOT fuse with a following hazard-start: `;`
-// (terminator) and the statement-list openers `{` (block / static block) and `:` (switch-case /
-// label) - after them the injection is the FIRST statement of a list, so there is no prev value to
-// fuse into. every other boundary char may fuse and is guarded conservatively: a value end, the
-// `}` of a function-or-class EXPRESSION (a block's `}` cannot be told apart by the char,
-// so it is guarded conservatively too), a postfix
-// `++` / `--` (the spec ASIs `x++ (y)` and `x++ [k]` itself - the `;` there is a harmless extra),
-// a TS non-null `!`, a `>` closing an instantiation expression. a deny-list because the fusing
-// set is the open one: every character class that can end a value fuses, and an allow-list of
-// those was caught short three times (`!`, `>`, the `.` of `?.`)
-const NON_FUSING_PREV = new Set([';', '{', ':']);
-
-// would emitting `firstChar` at statement position fuse LEFTWARD into the prev surviving char
-// `prevChar`? callers pass the prev SURVIVING char (they bail on start-of-file themselves)
-export function injectionFusesLeft(firstChar, prevChar) {
-  return !NON_FUSING_PREV.has(prevChar) && ASI_HAZARD_STARTS.has(firstChar);
-}
-
-// an expression emitted at STATEMENT position parses as a block / declaration (not an expression)
-// when its first token is `{` (ObjectExpression -> block), `function` / `function*` (-> function
-// declaration), `class` (-> class declaration), or `async function`. wrap such a verbatim slice in
-// parens so it stays an ExpressionStatement. babel's `t.expressionStatement` does this implicitly;
-// the unplugin emits raw source slices (entry SE-prefix removal + minifier-sequence split) and must
-// guard explicitly, else the slice reparses as a block / nameless declaration (SyntaxError or
-// silently dropped pass)
-const EXPR_STMT_HAZARD_START = /^\s*(?:\{|class\b|(?:async\s+)?function\b)/;
-function isExprStmtHazardStart(text) {
-  return EXPR_STMT_HAZARD_START.test(text);
-}
-export function parenthesizeExprStmtHazard(text) {
-  return isExprStmtHazardStart(text) ? `(${ text })` : text;
-}
 
 // RHS node types the plugin emits for `_ref = ...` memoization - used to classify a bare
 // `_ref = X` assignment as plugin leftover vs user sloppy-mode code.
@@ -262,26 +216,16 @@ export function bindingNamesReducer() {
   return { visit, result };
 }
 
-// source string (lowercased) of `require('@pkg/...')`, or null. covers both bare
-// side-effect form and `var X = require(...)` init form - the plugin emits either
-// depending on `importStyle`, and the fingerprint must catch both
-function requireCallSource(expr) {
-  if (expr?.type !== 'CallExpression') return null;
-  if (expr.callee?.type !== 'Identifier' || expr.callee.name !== 'require') return null;
-  const arg = expr.arguments?.[0];
-  return typeof arg?.value === 'string' ? arg.value.toLowerCase() : null;
-}
-
 // top-level statement mapped to the core-js source string it imports, else null.
 // dispatches ESM `import` and CJS `require`/var-require shapes to their extractors
 function pureImportSource(node) {
   switch (node?.type) {
     case 'ImportDeclaration': return node.source?.value?.toLowerCase() ?? null;
-    case 'ExpressionStatement': return requireCallSource(node.expression);
+    case 'ExpressionStatement': return requireCallSource(node.expression)?.toLowerCase() ?? null;
     case 'VariableDeclaration':
       for (const d of node.declarations) {
         const src = requireCallSource(d.init);
-        if (src) return src;
+        if (src) return src.toLowerCase();
       }
       return null;
     default: return null;

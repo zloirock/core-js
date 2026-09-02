@@ -9,8 +9,6 @@ import {
   createTypeAnnotationChecker,
   detectCommonJS,
   extractIndirectRequireSEPrefix,
-  forEachStatementPosition,
-  getMinifierSequenceDestructureExpressions,
   hasTopLevelESM,
   isForXWriteTarget,
   isMemberWriteHost,
@@ -23,7 +21,6 @@ import {
   namespaceScopedBindingBlock,
   peelParenAndTSParentPath,
   prologueEndIndex,
-  sequenceHeadDirectiveHazard,
   usableAliasInfo,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
@@ -55,6 +52,7 @@ import { createUsageGlobalCallback } from '@core-js/polyfill-provider/plugin-opt
 import { attachMemberUnionExtras, enumerateFallbackDestructureBranches } from '@core-js/polyfill-provider/detect-usage/destructure';
 import { resolveKey as sharedResolveKey } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { isTypeAnnotationNodeType } from '@core-js/polyfill-provider/detect-usage/annotations';
+import { planMinifierSequenceSplit } from '@core-js/polyfill-provider/destructure-host-shape';
 import { scanExistingCoreJSImports } from '@core-js/polyfill-provider/detect-usage/entries';
 import { nodeType, types } from './estree-compat.js';
 import { planEntries } from './detect-entry.js';
@@ -80,9 +78,7 @@ import {
   isChunkLoaderBundler,
   KNOWN_BUNDLERS,
   liftSfcLangSuffix,
-  parenthesizeExprStmtHazard,
   sourceDialectOf,
-  injectionFusesLeft,
   stripLeadingBOMs,
   isCallee,
   optionalCallInstantiationCallee,
@@ -209,81 +205,6 @@ function semanticParentNode(metaPath) {
 
 function nonEmptyString(value) {
   return typeof value === 'string' && value.length ? value : null;
-}
-
-// minifier-shape pre-pass: `(prefixExpr, ..., ({pat} = R), ...);` collapses a destructure
-// assignment into ANY slot of a statement-position SequenceExpression (minified tail,
-// comma-joined statements, nested sequences). the destructure-emitter gate peels only
-// Paren+TS so this shape silently bails. rewrite the ExpressionStatement's
-// SequenceExpression body as consecutive `;`-terminated statements in source text so
-// the standard destructure flow handles the inner assignment. side-effecting prefix
-// expressions stay in source order as preceding statements.
-// shares shape detection with babel-plugin's equivalent pre-pass, but can't reuse babel's
-// AST-level mutation: every census and claim downstream reads oxc source positions, so this
-// pass rewrites the TEXT and re-parses instead of mutating a tree the positions would desert.
-// walks Program body AND every descendant statement-list
-// host (BlockStatement / TSModuleBlock / StaticBlock) so function / loop / try / namespace
-// bodies are covered too - a Program-only walk would silently bail inside non-Program lists.
-// splits only the OUTERMOST matching statements per pass; the caller loops to a fixpoint to
-// reach nested matches (see the call site for why one pass can't take them all)
-function applyMinifierSequenceSplitPass(code, ast) {
-  const matches = [];
-  // an un-braced control-flow body holds its statement in a single slot, so its split products have
-  // nowhere to go until the slot is braced. both position kinds come from ONE walk, and the brace is
-  // emitted in this same pass - a block around a sequence's operands declares nothing, so the added
-  // scope is unobservable
-  function collect(stmt, brace, prevChar) {
-    const expressions = getMinifierSequenceDestructureExpressions(stmt);
-    if (expressions) matches.push({ start: stmt.start, end: stmt.end, expressions, brace, prevChar });
-  }
-  forEachStatementPosition(ast, {
-    onList(statements) {
-      // the prev SIGNIFICANT char at the seam is the LAST char of the previous list member
-      // (trivia between the two stays in place and separates nothing at parse level); a
-      // list-FIRST statement sits after a block opener / file start - nothing to fuse into
-      for (let i = 0; i < statements.length; i++) collect(statements[i], false, i > 0 ? code[statements[i - 1].end - 1] : null);
-    },
-    onUnbracedSlot(hostNode, key) {
-      collect(hostNode[key], true, null);
-    },
-  });
-  if (!matches.length) return null;
-  // a nested match (inner `(eff(), ({x}=obj))` within outer `(fn, ({y}=obj2))`) lives inside
-  // its enclosing statement's range. statement ranges nest cleanly (no partial overlap), so
-  // sorting by start ascending then walking once while skipping any match that begins before
-  // the last kept match's end yields exactly the outermost, non-overlapping set. skipped
-  // inner matches resurface on the next fixpoint pass
-  matches.sort((a, b) => a.start - b.start || b.end - a.end);
-  const chunks = [];
-  let cursor = 0;
-  let lastKeptEnd = -1;
-  for (const match of matches) {
-    if (match.start < lastKeptEnd) continue;
-    const splitText = match.expressions.map((expr, index) => {
-      const slice = code.slice(expr.start, expr.end);
-      // a bare leading string-literal operand, once split off, lands at Directive Prologue
-      // position and silently flips the enclosing block into strict mode; a TS cast vanishes at
-      // type-strip so it doesn't protect the string, while explicit parens survive this text
-      // emit and do. a `0,` sequence prefix keeps the hazardous form a plain expression
-      // statement (matches the babel-plugin split)
-      if (index === 0 && sequenceHeadDirectiveHazard(expr)) return `0, ${ slice };`;
-      return `${ parenthesizeExprStmtHazard(slice) };`;
-      // single-line join: every split product inherits the ORIGINAL statement's line, so a
-      // `core-js-disable-next-line` above the collapsed statement covers ALL of them
-      // (the babel split carries origin loc onto its products the same way)
-    }).join(' ');
-    // left-boundary ASI guard: the statement was detected separate against its ORIGINAL leading `(`
-    // (which ASI-splits a postfix `++` / `--` prev), but the split's FIRST product re-roots the line on a
-    // hazard char (`+eff()` / `/re/...`) that the prev no longer separates from - inject the `;` to keep
-    // them two statements (and so the re-parse below doesn't choke on the fused form and abandon the split)
-    chunks.push(code.slice(cursor, match.start));
-    if (!match.brace && match.prevChar !== null && injectionFusesLeft(splitText[0], match.prevChar)) chunks.push(';');
-    chunks.push(match.brace ? `{ ${ splitText } }` : splitText);
-    cursor = match.end;
-    lastKeptEnd = match.end;
-  }
-  chunks.push(code.slice(cursor));
-  return chunks.join('');
 }
 
 // the opt-outs this pass honoured, re-anchored so they reach the NEXT pass - ours over our own
@@ -598,10 +519,10 @@ export default function createPlugin(options) {
     // strip leading BOM(s) before parsing - oxc rejects BOM-prefixed shebangs, and
     // offsetting positions by 1 would corrupt every transform. the output does NOT carry a
     // BOM (babel alignment - bundlers strip it anyway); `hasBOM` survives only so
-    // `sourcesContent` can keep the user's original bytes. Reassign `code` so the minifier
-    // split AND the post-pass cache comparison use the BOM-stripped source (stored
-    // `postInput` is always BOM-stripped). `stripLeadingBOMs` drops the whole leading run
-    // so a sibling plugin's per-pass prepend doesn't leave residual BOM bytes mid-prefix
+    // `sourcesContent` can keep the user's original bytes. Reassign `code` so the post-pass
+    // cache comparison uses the BOM-stripped source (stored `postInput` is always
+    // BOM-stripped). `stripLeadingBOMs` drops the whole leading run so a sibling plugin's
+    // per-pass prepend doesn't leave residual BOM bytes mid-prefix
     const hasBOM = code.charCodeAt(0) === 0xFEFF;
     code = stripLeadingBOMs(code);
 
@@ -648,33 +569,25 @@ export default function createPlugin(options) {
       comments = parsed.comments;
     }
 
-    // minifier-shape pre-pass: rewrite `(prefix, ..., destructure);` shapes into
-    // `prefix; ... ; destructure;` consecutive statements before any visitor walks the tree,
-    // re-parsing after each rewrite so the text and AST positions line up.
-    // a single pass splits only the outermost matches (it can't touch a nested match without
-    // re-editing an already-split chunk), so a destructure-in-sequence buried inside another
-    // surfaces as a free-standing statement only after its enclosing statement has been
-    // rewritten and re-parsed. loop to a fixpoint: each pass strictly reduces the remaining
-    // nesting depth, so the loop is guaranteed to terminate on its own once no match remains.
-    // the iteration cap is a pure safety net - it bounds the worst case if a future parser
-    // change ever let a rewrite re-introduce a match instead of consuming one, so a malformed
-    // input can never spin the build forever. it is set far above any real nesting depth
-    const MINIFIER_SPLIT_PASS_CAP = 64;
-    let preSplitCode = null;
-    for (let splitPass = 0; splitPass < MINIFIER_SPLIT_PASS_CAP; splitPass++) {
-      const splitCode = applyMinifierSequenceSplitPass(code, ast);
-      if (!splitCode) break; // fixpoint reached: nothing left to split
-      // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
-      const reparsed = parseSync(cleanId, splitCode, { sourceType: isCJSFile ? 'script' : 'module' });
-      const [reparseFatal] = reparsed.errors?.filter(e => e.severity === 'Error') ?? [];
-      // reparse failure shouldn't happen (the initial parse already validated the source);
-      // keep the last good code+ast and let the destructure-emitter gate silently bail
-      if (reparseFatal) break;
-      if (preSplitCode === null) preSplitCode = code; // capture the original text once so the sourcemap can restore sourcesContent
-      code = splitCode;
-      ast = reparsed.program;
-      comments = reparsed.comments;
-      typeResolvers.reset();
+    // the disable directives are read off the PRISTINE tree, ahead of the minifier split below:
+    // a `-next-line` over a collapsed statement spans the whole statement the author wrote, so
+    // every product it splits into stays covered (the babel leg reads them in this order too)
+    const { offsetToLine, disabledLines } = parseDisableState(code, ast, comments);
+    if (disabledLines === true) return null; // entire file disabled
+    // commit the peeked snapshot now that disable-check passed. the entire-file-disabled bail
+    // and the fatal-parse bail both keep the snapshot in cache so a retry (sibling-plugin re-
+    // emit, watchChange re-run) can still consume it - `take()` only after both checks pass
+    if (pass === 'post') snapshots.take(id);
+
+    // the minifier-sequence split as body surgery: the plan is the core's
+    // (`planMinifierSequenceSplit` - the shape, the products, their spans), the splice is this
+    // binding's. a statement-list member is replaced in place by identity; an un-braced
+    // control-flow slot is braced around its products. the products carry their operands' own
+    // spans, so the disable gate, the entry loc gate and the sourcemap see them where the author
+    // wrote them, and the reprint separates the statements itself - no text, no re-parse
+    for (const { statements, host, key, statement, products } of planMinifierSequenceSplit(ast)) {
+      if (statements) statements.splice(statements.indexOf(statement), 1, ...products);
+      else host[key] = { type: 'BlockStatement', body: products };
     }
 
     // a binding pattern in a params list estree-toolkit never walks as a pattern - every
@@ -701,13 +614,6 @@ export default function createPlugin(options) {
     // option says, so it is the one signal neither the heuristic nor the option can override
     ast.sourceType = importStyle === 'require' && !/\.m[jt]s$/.test(cleanId) ? 'script' : 'module';
 
-    const { offsetToLine, disabledLines } = parseDisableState(code, ast, comments);
-    if (disabledLines === true) return null; // entire file disabled
-    // commit the peeked snapshot now that disable-check passed. the entire-file-disabled bail
-    // and the fatal-parse bail both keep the snapshot in cache so a retry (sibling-plugin re-
-    // emit, watchChange re-run) can still consume it - `take()` only after both checks pass
-    if (pass === 'post') snapshots.take(id);
-
     function isDisabled(node) {
       if (!disabledLines) return false;
       if (node.start === undefined) return false;
@@ -725,11 +631,9 @@ export default function createPlugin(options) {
     // slot for exactly the collection window
     // ONE raw walk answers every per-file census question (binding / member-key name
     // reservation + the mutation / ctor-alias shape gates) - the scans it replaces each
-    // re-walked the whole file. computed here, after the minifier split re-parse, so every
-    // consumer reads the same tree it scanned before
-    // gated by the shared predicate. here NOTHING survives the gate - unlike babel, this census
-    // carries no minifier-shape reducer (the split ran before it) - and an empty reducer list
-    // would still walk, so the whole census is skipped rather than narrowed
+    // re-walked the whole file. computed here, after the minifier split, so every consumer
+    // reads the tree the visitors walk. read by the usage lanes alone, so entry-global skips
+    // the walk (an empty reducer list would still pay it)
     const readsCensus = methodReadsUsageCensus(method);
     const fileCensus = readsCensus ? collectFileCensus(ast, [
       bindingNamesReducer(),
@@ -1010,10 +914,7 @@ export default function createPlugin(options) {
         const { map } = printed;
         const outCode = printed.code;
         const content = map?.sourcesContent?.[0];
-        if (content !== null && content !== undefined) {
-          const original = preSplitCode ?? content;
-          map.sourcesContent[0] = hasBOM ? `\uFEFF${ original }` : original;
-        }
+        if (hasBOM && content !== null && content !== undefined) map.sourcesContent[0] = `\uFEFF${ content }`;
         // pre+post chaining: the bundler chains through pre's content-bearing map, so the
         // post map omits sourcesContent - the `includeContent: !chainedFromPre` rule,
         // applied to the printer's map
