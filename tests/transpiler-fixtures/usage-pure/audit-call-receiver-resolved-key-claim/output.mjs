@@ -31,7 +31,7 @@ export const memberReceiverResolvedKey = null == (_ref5 = _globalThis.window) ? 
 
 // the same claim WITHOUT an enclosing guard keeps its own emission - the negative that pins the
 // consumed-nav condition rather than the mere presence of a claim
-export const unguardedCallReceiver = (_ref7 = _globalThis.claimBox.get(), k++, _at(_ref7).call(_ref7, 0));
+export const unguardedCallReceiver = (_ref7 = _self.claimBox.get(), k++, _at(_ref7).call(_ref7, 0));
 export { k };
 
 // STRONG negatives: a guard does sit over a root inside each claim's span, yet every claim below is

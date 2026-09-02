@@ -8,7 +8,7 @@ import _self from "@core-js/pure/actual/self";
 // resolves instead of reading raw off a ponyfill
 let g, v, key;
 export const backedLeafFolds = _Promise.noSuchStatic;
-export const deeperHopFolds = _globalThis.customKey;
+export const deeperHopFolds = _self.customKey;
 export const firstHopKeepsTheProbe = null == _globalThis.window ? void 0 : _Promise.noSuchStatic;
 export const seqRootProvesItsAlias = null == (g = _globalThis, v = null == g.window ? void 0 : _self) ? void 0 : _Promise.noSuchStatic;
 export const seqRootDelete = delete (g = _globalThis, v = null == g.window ? void 0 : _self, _Promise)[key];

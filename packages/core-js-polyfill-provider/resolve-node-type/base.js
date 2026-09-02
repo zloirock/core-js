@@ -48,11 +48,15 @@ export const TYPE_HINTS = new Set([
   'asynciterator',
   'date',
   'domcollection',
+  'domexception',
+  'error',
   'function',
   'iterator',
   'object',
   'promise',
   'regexp',
+  'url',
+  'urlsearchparams',
 ]);
 
 // lack of boxed primitives - acceptable assumption

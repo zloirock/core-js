@@ -7,6 +7,7 @@ import _at from "@core-js/pure/actual/instance/at";
 import _includes from "@core-js/pure/actual/instance/includes";
 import _Promise from "@core-js/pure/actual/promise/constructor";
 import _flagsMaybeRegexp from "@core-js/pure/actual/regexp/instance/flags";
+import _self from "@core-js/pure/actual/self";
 var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _ref10, _ref11, _ref12, _ref13, _ref14, _ref15;
 // nested instance dispatch: an inner instance-GET (`.name` / `.flags`) buried in the receiver of an
 // outer instance dispatch on a polyfillable-global chain - the outer receiver collapse must stay
@@ -14,10 +15,10 @@ var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _ref10, _ref11
 export const callOverGet = _at(_ref = _nameMaybeFunction(_globalThis.foo)).call(_ref, 0);
 export const plainRoot = _includes(_ref2 = _nameMaybeFunction(_globalThis.bar)).call(_ref2, 'x');
 export const ctorRoot = _at(_ref3 = _nameMaybeFunction(_Promise.foo)).call(_ref3, -1);
-export const hopRoot = _at(_ref4 = _flagsMaybeRegexp(_globalThis.foo)).call(_ref4, 0);
+export const hopRoot = _at(_ref4 = _flagsMaybeRegexp(_self.foo)).call(_ref4, 0);
 export const getOverGet = _nameMaybeFunction(_flagsMaybeRegexp(_globalThis.foo));
-export const protoChain = _nameMaybeFunction(_atMaybeArray(_globalThis.Array.prototype));
-export const wrapped = _nameMaybeFunction(_includesMaybeArray(_globalThis.Array.prototype));
+export const protoChain = _nameMaybeFunction(_atMaybeArray(_self.Array.prototype));
+export const wrapped = _nameMaybeFunction(_includesMaybeArray(_self.Array.prototype));
 export const doubleNested = _at(_ref5 = _nameMaybeFunction(_flagsMaybeRegexp(_globalThis.foo))).call(_ref5, 0);
 export const iifeRoot = null == (_ref6 = (() => _globalThis)()) ? void 0 : _at(_ref7 = _nameMaybeFunction(_ref6.foo)).call(_ref7, 0);
 // call-rooted guard memo: the root's inner proxy global substitutes INSIDE the guard text, and a

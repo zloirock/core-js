@@ -2,6 +2,7 @@ import _Array$from from "@core-js/pure/actual/array/from";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
+import _self from "@core-js/pure/actual/self";
 // A side effect buried in a fold of a proxy-global HOP key (`globalThis[(eff(), 'se') + 'lf']` is the `.self`
 // hop). usage-pure collapses the redundant hop to the proxy ROOT pure import and HARVESTS the buried `eff()`
 // as a sequence prefix: `(eff(), _globalThis).Array.isArray`. it must never leave a dead `_globalThis.self`
@@ -15,8 +16,8 @@ function eff(tag) {
   return 'se';
 }
 const g = _globalThis;
-const bareConcat = (eff('a'), _globalThis).Array.isArray([1]);
-const aliasTemplate = (eff('b'), _globalThis).Math.max(1, 2);
+const bareConcat = (eff('a'), _self).Array.isArray([1]);
+const aliasTemplate = (eff('b'), _self).Math.max(1, 2);
 const directSe = (eff('c'), _Array$from)([3]);
 const noSe = _Array$of(4);
 export { bareConcat, aliasTemplate, directSe, noSe, log };

@@ -1,5 +1,6 @@
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _globalThis from "@core-js/pure/actual/global-this";
+import _self from "@core-js/pure/actual/self";
 // A SE-wrapped proxy-global chain whose ctor is NOT pure-polyfilled (web-API `Headers` / `Element` / `Range`,
 // no `_Headers`): the ctor can't swap to a pure binding, but the proxy-global root must still rewrite to the
 // pure `_globalThis` - a bare `globalThis` is a ReferenceError in ie:11. The `.self` / `.window` hop resolves
@@ -10,7 +11,7 @@ function eff(tag) {
   _pushMaybeArray(log).call(log, tag);
   return tag;
 }
-const ctorRead = (eff('a'), _globalThis).Headers;
-const protoMethod = (eff('b'), _globalThis).Element.prototype.remove;
+const ctorRead = (eff('a'), _self).Headers;
+const protoMethod = (eff('b'), _self).Element.prototype.remove;
 const optionalProto = (eff('c'), _globalThis).Range?.prototype?.cloneRange;
 export { ctorRead, protoMethod, optionalProto, log };

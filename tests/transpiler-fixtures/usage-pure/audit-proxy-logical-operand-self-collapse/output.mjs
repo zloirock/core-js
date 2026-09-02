@@ -1,5 +1,5 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-import _globalThis from "@core-js/pure/actual/global-this";
+import _self from "@core-js/pure/actual/self";
 import _Set from "@core-js/pure/actual/set/constructor";
 const from = _Array$from;
 // A proxy-global member chain with a redundant `.self` hop inside a LOGICAL-expression destructure
@@ -9,5 +9,5 @@ const from = _Array$from;
 const {
   from: _unused,
   ...rest
-} = _globalThis.Array || _Set;
+} = _self.Array || _Set;
 from([1]);
