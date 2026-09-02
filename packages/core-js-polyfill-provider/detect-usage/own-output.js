@@ -11,9 +11,11 @@ import { isSourcedSymbolIteratorMeta } from './members.js';
 import {
   TS_EXPR_WRAPPERS,
   blocksUidSlot,
-  declaresRequireBinding,
+  defaultImportSourcesOf,
   kebabToCamel,
   pureImportSourceEntry,
+  requireCallSource,
+  rootProgramOf,
   statementListOf,
   unwrapRuntimeExpr,
 } from '../helpers/ast-patterns.js';
@@ -51,9 +53,8 @@ export function ownOutputTests(injector) {
                 may = true;
                 break;
               }
-              if (declarator.init?.type === 'CallExpression' && declarator.init.callee?.name === 'require'
-                && typeof declarator.init.arguments?.[0]?.value === 'string'
-                && tests.isPureImportSource(declarator.init.arguments[0].value)) {
+              const required = requireCallSource(declarator.init);
+              if (required !== null && tests.isPureImportSource(required)) {
                 may = true;
                 break;
               }
@@ -83,26 +84,10 @@ function pureImportSourceTest(pkg) {
 
 // is `name` bound by a DEFAULT import (or require binding) of the pure package at the
 // program root - the one spelling our own channels write. shared by the overwrite-rebind
-// and substituted-default censuses
+// and substituted-default censuses; the binding table is the program's one index of those
 function pureDefaultImportBinding(path, name, { isPureImportSource, isOwnPassBinding }) {
-  const rootNode = rootProgramOf(path);
-  for (const decl of rootNode?.body ?? []) {
-    if (decl.type === 'ImportDeclaration'
-      && decl.specifiers?.some(sp => sp.type === 'ImportDefaultSpecifier' && sp.local?.name === name)) {
-      return !isOwnPassBinding?.(name) && isPureImportSource(decl.source?.value ?? '');
-    }
-    if (decl.type !== 'VariableDeclaration') continue;
-    for (const declarator of decl.declarations) {
-      if (declarator.id?.type === 'Identifier' && declarator.id.name === name
-        && declarator.init?.type === 'CallExpression' && declarator.init.callee?.name === 'require'
-        && typeof declarator.init.arguments?.[0]?.value === 'string'
-        // an in-file `require` binding shadows the CJS import - the alias stays opaque
-        && !declaresRequireBinding(rootNode.body)) {
-        return !isOwnPassBinding?.(name) && isPureImportSource(declarator.init.arguments[0].value);
-      }
-    }
-  }
-  return false;
+  const source = defaultImportSourcesOf(rootProgramOf(path)).get(name) ?? null;
+  return source !== null && !isOwnPassBinding?.(name) && isPureImportSource(source);
 }
 
 // the SUBSTITUTED DEFAULT a prior pass left in place (`({ [(se, 'k')]: f = _X } = R)` -
@@ -452,12 +437,6 @@ function ownRenderedGuardAlternateClaim(path, tests) {
       || parent.type.endsWith('Declaration')) return false;
   }
   return false;
-}
-
-export function rootProgramOf(path) {
-  let root = path;
-  while (root?.parentPath?.node) root = root.parentPath;
-  return root?.node ?? null;
 }
 
 // the member funnel: every nav-position census in one gate, ahead of both emitters' member

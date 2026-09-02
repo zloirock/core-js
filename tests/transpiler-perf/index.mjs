@@ -90,6 +90,17 @@ function syntheticVarDestructuredGlobals(pairs) {
   return parts.join('\n');
 }
 
+// bare-name callees on a LONG top level: the coarse census pairs every call with the function it
+// names and asks, per call, whether that name is a minted pure import - a fact of the whole program.
+// re-deriving it per call by scanning the top-level statements is quadratic in (calls x top-level
+// statements) and invisible on every other shape here: the guard and reassignment synthetics keep
+// their call density low, the real bundles keep their top levels short
+function syntheticCallDenseTopLevel(sites) {
+  const parts = ['function make(n) { return [n]; }'];
+  for (let i = 0; i < sites; i++) parts.push(`var c${ i } = make(${ i });`, `c${ i }.at(0);`);
+  return parts.join('\n');
+}
+
 // the mutation census pairs a call's arguments with the parameters they land in, keyed by NAME -
 // so every function sharing a parameter name shares one fan, and a write through that parameter
 // walks the whole accumulated fan. real code shares those names constantly (`t`, `e`, `v`), which
@@ -162,6 +173,9 @@ const CASES = [
   } },
   { name: 'synthetic shared-param writes, 1200 installers', source: () => syntheticSharedParamWrites(1200), bounds: {
     'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
+  } },
+  { name: 'synthetic call-dense top level, 12000 sites', source: () => syntheticCallDenseTopLevel(12000), bounds: {
+    'usage-global': { babel: 3, unplugin: 3 }, 'usage-pure': { babel: 5, unplugin: 5 },
   } },
   { name: 'synthetic lagged aliases, 1000 names', source: () => syntheticLaggedAliases(1000), bounds: {
     'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
