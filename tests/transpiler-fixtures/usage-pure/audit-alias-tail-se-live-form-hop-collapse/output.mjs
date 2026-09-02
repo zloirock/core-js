@@ -1,5 +1,6 @@
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Map from "@core-js/pure/actual/map/constructor";
+import _self from "@core-js/pure/actual/self";
 import _Set from "@core-js/pure/actual/set/constructor";
 let c = 0;
 const g = _globalThis;
@@ -9,7 +10,7 @@ function id(a) {
 
 // live-read binding: an alias proxy nav with the side-effect buried in the hop TAIL is OWNERLESS (its value
 // is not consumed by a dispatched method), so the redundant `.self` hop still drops off the kept alias name
-const liveRead = (c++, _globalThis).Array;
+const liveRead = (c++, _self).Array;
 export const a = liveRead;
 
 // the same nav as a call ARGUMENT is ownerless too (argument, not callee) - the hop drops, ctor leaf whole-swaps

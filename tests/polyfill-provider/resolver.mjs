@@ -398,4 +398,50 @@ function makeCallExprPath({ arguments: args }) {
 // contract during build (entry data generation), where adding a new filter name without
 // updating the dispatch would fail the integration fixtures
 
+// --- enhanceMeta: a KNOWN receiver type outside the hint domain walks the ladder to `rest` ---
+
+// the type resolvers are stubbed to answer ONE receiver type per env - the ladder is under test,
+// not the type layer. `toString` is the rest-bearing instance desc; `at` carries only type variants,
+// so a receiver none of them names owes nothing there
+function makeTypedEnv(objType, hint) {
+  const env = makeFilterEnv();
+  env.typeResolvers.resolvePropertyObjectType = () => objType;
+  env.typeResolvers.toHint = () => hint;
+  env.typeResolvers.resolvePropertyUnionHints = () => null;
+  return env;
+}
+const typedMemberPath = { node: { type: 'MemberExpression' }, parent: {}, parentPath: null, get: () => null };
+const typedOptions = { method: 'usage-global', version: '4.0', targets: { ie: 11 } };
+{
+  const { resolver } = createPolyfillResolver(typedOptions, makeTypedEnv({ primitive: false, constructor: 'Element' }, 'element'));
+  check('enhanceMeta/a known type outside the hint domain takes the desc rest',
+    JSON.stringify(resolver.resolveUsage({ kind: 'property', placement: 'prototype', key: 'toString' }, typedMemberPath)),
+    JSON.stringify(['object/to-string']));
+  check('enhanceMeta/a known type outside the hint domain owes nothing to a typed desc without rest',
+    resolver.resolveUsage({ kind: 'property', placement: 'prototype', key: 'at' }, typedMemberPath), null);
+}
+{
+  const { resolver } = createPolyfillResolver(typedOptions, makeTypedEnv({ primitive: true, type: 'undefined' }, 'undefined'));
+  check('enhanceMeta/a nullish receiver owes nothing, whatever the desc carries',
+    resolver.resolveUsage({ kind: 'property', placement: 'prototype', key: 'toString' }, typedMemberPath), null);
+}
+{
+  const { resolver } = createPolyfillResolver(typedOptions, makeTypedEnv({ primitive: false, constructor: 'Map' }, 'map'));
+  check('enhanceMeta/a known type without the member takes the same rest',
+    JSON.stringify(resolver.resolveUsage({ kind: 'property', placement: 'prototype', key: 'toString' }, typedMemberPath)),
+    JSON.stringify(['object/to-string']));
+}
+// a type whose own member needs no polyfill says so in the DATA - an empty variant the lookup finds
+// before the ladder's tail (`number` on `toString`); a known type without any variant walks to `rest`
+{
+  const { resolver } = createPolyfillResolver(typedOptions, makeTypedEnv({ primitive: true, type: 'number' }, 'number'));
+  check('enhanceMeta/a hinted type with an empty variant takes nothing, not rest',
+    resolver.resolveUsage({ kind: 'property', placement: 'prototype', key: 'toString' }, typedMemberPath), null);
+}
+{
+  const { resolver } = createPolyfillResolver(typedOptions, makeTypedEnv({ primitive: false, constructor: 'Error' }, 'error'));
+  check('enhanceMeta/an owner brought into the hint domain takes its empty variant, not rest',
+    resolver.resolveUsage({ kind: 'property', placement: 'prototype', key: 'toString' }, typedMemberPath), null);
+}
+
 finish();

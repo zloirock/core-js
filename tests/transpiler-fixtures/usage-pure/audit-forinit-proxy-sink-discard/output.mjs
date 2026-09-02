@@ -6,6 +6,7 @@ import _Object$entries from "@core-js/pure/actual/object/entries";
 import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
 import _Promise$withResolvers from "@core-js/pure/actual/promise/with-resolvers";
+import _self from "@core-js/pure/actual/self";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 // a for-init destructure whose consumed receiver navigates proxy hops keeps its side effects
 // in a loop-header sink; a MULTI-hop receiver cannot sink verbatim (the raw hop reads an
@@ -49,7 +50,7 @@ export const r4 = [out4, q.length];
 // throw at loop init off-engine) - a pure-ctor leaf whole-swaps, a native-static leaf re-roots
 // at the pure global
 let out5;
-for (const _ref5 = _globalThis.Array, of = _Array$of; !out5;) {
+for (const _ref5 = _self.Array, of = _Array$of; !out5;) {
   out5 = typeof of;
 }
 export const r5 = [out5];

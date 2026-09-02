@@ -1,10 +1,10 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
-import _globalThis from "@core-js/pure/actual/global-this";
 import _at from "@core-js/pure/actual/instance/at";
 import _Map from "@core-js/pure/actual/map/constructor";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
+import _self from "@core-js/pure/actual/self";
 var _ref2, _ref4, _ref6;
 // a claim INSIDE the harvested se of a synth-swap memo argument lands during the walk, and
 // the DRAIN re-harvests the live container: a registration-captured ref goes stale the
@@ -48,7 +48,7 @@ function proxyBranch({
     from: _Array$from,
     nope: _ref5.nope
   };
-}((_pushMaybeArray(log).call(log, _atMaybeArray(_ref6 = [3]).call(_ref6, 0)), _globalThis).Array)) {
+}((_pushMaybeArray(log).call(log, _atMaybeArray(_ref6 = [3]).call(_ref6, 0)), _self).Array)) {
   return [typeof x, typeof y, log[0]];
 }
 use(proxyBranch());

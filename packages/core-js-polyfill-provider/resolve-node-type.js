@@ -90,7 +90,7 @@ import { createTypeResolveDispatch } from './resolve-node-type/type-resolve-disp
 import { createTypeSubst } from './resolve-node-type/type-subst.js';
 import { createTypeofGuards } from './resolve-node-type/typeof-guards.js';
 import { createUserTypeResolve } from './resolve-node-type/user-type-resolve.js';
-import { createValueOps } from './resolve-node-type/value-ops.js';
+import { createValueOps, matchCtorIdentityNarrowAlternate } from './resolve-node-type/value-ops.js';
 import { blockAlwaysExits, canFallThrough } from './resolve-node-type/exit-analysis.js';
 
 const {
@@ -620,6 +620,22 @@ function createResolveNodeType(babelNodeType, t, {
     findTypeParameter,
   } = nameResolutionCluster;
 
+  // the ALTERNATE read of an own ctor-identity narrow a prior render left in a declarator
+  // (`const from = G === Array ? _Array$from : G.from`): the type layer reads THROUGH its own guard
+  // to the source's member read, so a claim asked after that render answers as the flat spelling
+  // `G.from(...)` does. asked of the rendered conditional itself, the union of a pure import and a
+  // member read resolved to nothing, and one source typed differently by whether a sibling had
+  // rendered first. the consequent must be the pure import of exactly the static the alternate
+  // reads - the shape alone does not vouch for a user-written ternary
+  function ownCtorNarrowAlternatePath(path) {
+    if (path?.node?.type !== 'ConditionalExpression') return null;
+    const alternate = matchCtorIdentityNarrowAlternate(path.node, (name, key) => {
+      const hop = { node: path.node.consequent, ctx: { scope: anchorPathScope(path).scope, path } };
+      return staticPairFromPolyfillEntry(name, hop)?.method === key;
+    });
+    return alternate ? path.get('alternate') : null;
+  }
+
   // resolve variable references and unwrap transparent TS expression wrappers to reach the actual runtime value
   // iterates: after unwrapping a TS wrapper, the underlying expression may be another variable reference
   // `x as Type`, `x!`, `x satisfies Type`
@@ -631,6 +647,11 @@ function createResolveNodeType(babelNodeType, t, {
       const { type } = path.node;
       if (SKIPPABLE_WRAPPER_TYPES.has(type)) {
         path = path.get('expression');
+      // our own guard render is transparent to the value question - see `ownCtorNarrowAlternatePath`
+      } else if (type === 'ConditionalExpression') {
+        const alternate = ownCtorNarrowAlternatePath(path);
+        if (!alternate) break;
+        path = alternate;
       // chain-AssignmentExpression `(a = init)` evaluates to its right operand at runtime.
       // common shape: `const x = a = init` / `const x = a = b = init`. peel here so the
       // alias walker reaches the rightmost value through nested assignment chains
@@ -1839,6 +1860,8 @@ function createResolveNodeType(babelNodeType, t, {
     resolveObjectMember,
     resolveObjectFieldFlow,
     findObjectMember,
+    // forward-decl thunk: the member-resolve cluster is built after this one
+    resolveMemberOfObjectPath: (...args) => memberResolveCluster.resolveMemberOfObjectPath(...args),
     walkObjectLiteralPropertyPath,
     isGetterFreshLiteral,
     resolveTypeAnnotation: (...args) => resolveTypeAnnotation(...args),
@@ -2345,6 +2368,7 @@ function createResolveNodeType(babelNodeType, t, {
     resolveBinaryOperatorType,
     resolveUnionType,
     resolveDesugarDefaultTernary,
+    ownCtorNarrowAlternatePath,
     resolveNumericType,
     resolveTypeAnnotation,
     resolveAwaitExpressionType,

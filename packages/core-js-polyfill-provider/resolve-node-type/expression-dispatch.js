@@ -57,6 +57,7 @@ export function createExpressionDispatch({
   resolveBinaryOperatorType,
   resolveUnionType,
   resolveDesugarDefaultTernary,
+  ownCtorNarrowAlternatePath,
   resolveNumericType,
   resolveTypeAnnotation,
   resolveAwaitExpressionType,
@@ -401,7 +402,11 @@ export function createExpressionDispatch({
           default:
             return resolveBinaryOperatorType(path.node.operator.slice(0, -1), path.get('left'), path.get('right'));
         }
-      case 'ConditionalExpression':
+      case 'ConditionalExpression': {
+        // our own ctor-identity narrow reads as the member read it guards - see the runtime
+        // expression canon, which descends the same way
+        const ownNarrow = ownCtorNarrowAlternatePath(path);
+        if (ownNarrow) return resolveNodeType(ownNarrow);
         // transpilers desugar destructuring defaults to a self-ternary - positive
         // (`_ref === void 0 ? D : _ref`), inverse (`_ref !== void 0 ? _ref : D`),
         // and loose-eq (`_ref == null ? D : _ref`). when one branch is the same identifier as
@@ -409,6 +414,7 @@ export function createExpressionDispatch({
         // collapsing to the default only when the ref is statically nullish
         return resolveDesugarDefaultTernary(path)
           || resolveUnionType(path.get('consequent'), path.get('alternate'), '?:');
+      }
       case 'LogicalExpression':
         return resolveUnionType(path.get('left'), path.get('right'), path.node.operator);
       case 'TSAsExpression':

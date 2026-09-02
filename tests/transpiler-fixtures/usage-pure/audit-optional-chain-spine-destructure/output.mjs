@@ -43,15 +43,15 @@ const from = _Array$from;
 const {
   from: _unused,
   ...restOfArray
-} = _globalThis.Array;
+} = _self.Array;
 export const r8 = [typeof from, typeof restOfArray];
 let u;
-(u = _self).Object;
+u = _self;
 const fromEntries = _Object$fromEntries;
 export const r9 = [typeof fromEntries, typeof u];
 function mk() {
   return _globalThis;
 }
-_globalThis.Object;
+_self.Object;
 const assign = _Object$assign;
 export const r10 = typeof assign;

@@ -116,6 +116,9 @@ import {
   resolveSynthKeys,
   anchoredResidualSymbolKeyName,
   globalProxyMemberName,
+  peelChainAssignment,
+  descendToChainRoot,
+  partitionEffectsAtProbe,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
   maybeRegisterAssignmentAliasWrite,
@@ -180,8 +183,12 @@ function collapseRetainedProxyReceiver(synthSwap, hostNode, key, aliasCtx = null
   // .Array`) otherwise bails the gate to the bare root and leaves the operand RAW (a bare `globalThis` -
   // ie:11 ReferenceError - under a `|| {}` logical); collapseProxyGlobalReceiver routes the dropped key SE
   // through the call-rooted plan, matching the instance source gate and the unplugin operand collapse
-  if (!receiver || !maximalProxyGlobalHop(receiver, aliasCtx, { allowSideEffectKeys: true })) return;
-  const collapsed = synthSwap.collapseProxyGlobalReceiver(receiver, { aliasCtx });
+  // through a kept chain-ASSIGN too: a residual reading off a store rides the same landing every
+  // other run does - the shared plan keeps the store as its base where the stored value can be
+  // absent, and drops the redundant hops off it
+  if (!receiver || !maximalProxyGlobalHop(receiver, aliasCtx,
+    { allowSideEffectKeys: true, throughChainAssign: true })) return;
+  const collapsed = synthSwap.collapseProxyGlobalReceiver(receiver, { aliasCtx, throughChainAssign: true });
   if (collapsed) slotParent[slotKey] = collapsed;
 }
 
@@ -491,6 +498,12 @@ export default function createDestructureEmitter({
   // side-effect expressions from destructuring inits - drained at programExit
   // (re-traverse for nested polyfill detection then splice into the body in source order)
   const deferredSideEffects = [];
+  // kept writes a synth receiver render already carries - the discard replay skips them
+  const synthReceiverOwnedSe = new WeakSet();
+  // where the READ a rendered throw probe reproduces begins, by probe node: the init's own effects
+  // split on it, so what the source ran BEFORE that read still lifts while the read itself does not
+  // run twice - the shared `partitionEffectsAtProbe` rule, spelled at this host
+  const probeNavStarts = new WeakMap();
   // structural synth-eligibility of an ObjectPattern, judged on the shape it had when the FIRST of
   // its props reached the dispatch - later props see a spliced-down pattern
   const patternSynthEligibility = new WeakMap();
@@ -1608,8 +1621,31 @@ export default function createDestructureEmitter({
     const { tail } = peelNestedSequenceExpressions(initNode);
     const isAliasedIdentifier = tail?.type === 'Identifier' && tail.name !== plan.receiver;
     const pure = !isAliasedIdentifier && plan.receiver ? resolveGlobalPure(plan.receiver) : null;
-    if (pure) return t.cloneNode(injectPureImport(pure.entry, pure.hintName));
-    return t.cloneNode(tail);
+    if (!pure) return t.cloneNode(tail);
+    const pureId = t.cloneNode(injectPureImport(pure.entry, pure.hintName));
+    // a KEPT STORE inside the receiver stays inside it: the dispatch takes the receiver the source
+    // wrote, whole and evaluated once (`{ [S]: it } = (g = globalThis)` is `_gim(g = _globalThis)`,
+    // and with a hop above the store `_gim((g = _globalThis, _self))`). lifting the write out and
+    // re-reading the always-defined binding spells one receiver in two places, and which place it
+    // lands in is then decided by the route the KEY's spelling picked - never a receiver question.
+    // the store may BE the receiver (its value is what the dispatch takes) or sit at the ROOT of a
+    // run the hops collapsed to the leaf pure - there the write is that value's prefix, spelled
+    // with the store's own resolved root
+    const ownStore = peelChainAssignment(tail).outer;
+    if (ownStore) {
+      synthReceiverOwnedSe.add(ownStore);
+      const carried = t.cloneNode(ownStore, true);
+      carried.right = pureId;
+      return carried;
+    }
+    const rootStore = peelChainAssignment(descendToChainRoot(tail).root ?? tail).outer;
+    const rootName = rootStore?.right?.type === 'Identifier' ? rootStore.right.name : null;
+    const rootPure = rootName ? resolveGlobalPure(rootName) : null;
+    if (!rootPure) return pureId;
+    synthReceiverOwnedSe.add(rootStore);
+    const carried = t.cloneNode(rootStore, true);
+    carried.right = t.cloneNode(injectPureImport(rootPure.entry, rootPure.hintName));
+    return t.sequenceExpression([carried, pureId]);
   }
 
   // init for an ANCHORED (single-ctor-key proxy-hop) residual: the plan-resolved ctor
@@ -1904,12 +1940,12 @@ export default function createDestructureEmitter({
     }
     if (patternEmpties && plan.discardSe) {
       // the probe's guard test runs an effect-bearing CALL root exactly once - the discard
-      // replay must not re-run it (identity plus span symmetry with the harvested node)
-      const replayable = probeOwnedCall
-        ? plan.discardSe.filter(node => node !== probeOwnedCall
+      // replay must not re-run it (identity plus span symmetry with the harvested node).
+      // a WRITE the synth receiver carries is spelled there for the same reason
+      const replayable = plan.discardSe.filter(node => !synthReceiverOwnedSe.has(node)
+        && (!probeOwnedCall || (node !== probeOwnedCall
           && !(node.start >= probeOwnedCall.start && node.end <= probeOwnedCall.end)
-          && !(probeOwnedCall.start >= node.start && probeOwnedCall.end <= node.end))
-        : plan.discardSe;
+          && !(probeOwnedCall.start >= node.start && probeOwnedCall.end <= node.end))));
       if (replayable.length) {
         const last = extracted.at(-1);
         last.init = t.sequenceExpression([...replayable.map(node => cloneReplayedEffect(node, declarator)), last.init]);
@@ -3159,12 +3195,17 @@ export default function createDestructureEmitter({
     const props = prop.parentPath?.node?.properties;
     if (!props || props.length !== 1 || props[0] !== prop.node) return value;
     const sourceNode = destructureSourceNode(prop);
-    const throwProbe = sourceNode && sealedClaimThrowProbeNode?.(prop, sourceNode);
+    // the whole init is discarded here (one prop standing, no residual), so a store the source
+    // wrote inline is re-emitted exactly once - the claim channels keep theirs and take no store.
+    // a SEQUENCE around the init is no obstacle: the probe reproduces its TAIL and the effect
+    // channel keeps the prefix, split on the probe's own offset
+    const throwProbe = sourceNode && sealedClaimThrowProbeNode?.(prop, sourceNode, { allowStoreHolder: true });
     // the probe READ is an already-decided render - the alias arm spells it from a RAW source
     // read the member visitor would otherwise re-claim on insertion. NODE-level seed only:
     // everything inside the probe stays live for re-entry (a key-SE claim, the guard test)
     if (throwProbe) {
       skippedNodes.add(throwProbe.node);
+      if (Number.isInteger(throwProbe.navStart)) probeNavStarts.set(throwProbe.node, throwProbe.navStart);
       return t.sequenceExpression([throwProbe.node, value]);
     }
     // a BARE probed nav (`{ structuredClone } = (globalThis.window?.self)` - no member read
@@ -3723,7 +3764,8 @@ export default function createDestructureEmitter({
   function discardedReceiverSinkInit(initNode, path) {
     const leaf = unwrapRuntimeExpr(initNode);
     const { tail } = peelNestedSequenceExpressions(leaf);
-    if (!shouldDropRescueReceiver(tail !== leaf ? unwrapRuntimeExpr(tail) : leaf)) return null;
+    const dropCtx = path?.scope ? { scope: path.scope, adapter, path, resolvePure } : null;
+    if (!shouldDropRescueReceiver(tail !== leaf ? unwrapRuntimeExpr(tail) : leaf, dropCtx)) return null;
     const se = harvestDiscardedReceiverSE(leaf, { scope: path.scope, adapter, path });
     if (!se.length) return null;
     return se.length === 1 ? t.cloneDeep(se[0]) : t.sequenceExpression(se.map(node => t.cloneDeep(node)));
@@ -3824,8 +3866,24 @@ export default function createDestructureEmitter({
     return sameShape ? node : t.sequenceExpression(flat);
   }
 
-  function deferSideEffect(containerPath, initNode) {
+  function deferSideEffect(containerPath, initNode, probeNavStart = null) {
     if (!initNode || !mayHaveSideEffects(initNode)) return;
+    // a THROW PROBE riding the value already re-emits the READ this init performs, so only what the
+    // source ran BEFORE that read is still owed here - the shared partition rule, asked once and
+    // complemented so neither half is dropped
+    if (Number.isInteger(probeNavStart)) {
+      const { ahead } = partitionEffectsAtProbe(harvestDiscardedReceiverSE(initNode,
+        { scope: containerPath.scope, adapter, path: containerPath }), probeNavStart);
+      if (!ahead.length) return;
+      deferLiftedExpression(containerPath, ahead.length === 1
+        ? t.cloneNode(ahead[0], true) : t.sequenceExpression(ahead.map(node => t.cloneNode(node, true))));
+      return;
+    }
+    deferLiftedExpression(containerPath, null, initNode);
+  }
+
+  // the queueing half of the defer: one expression, lifted to the slot the source ran it in
+  function deferLiftedExpression(containerPath, expression, initNode = null) {
     const stmt = findStatementParent(containerPath);
     const parentNode = stmt.parentPath?.node;
     const body = parentNode?.body ?? parentNode?.consequent;
@@ -3850,7 +3908,8 @@ export default function createDestructureEmitter({
         // a fully-discarded proxy-nav receiver keeps only its harvested SE (the nav is dead and would throw
         // off-browser on an unponyfillable hop); otherwise the whole init lifts minus a dead
         // tail, a kept chain-assignment among it storing the value canon like its in-place twin
-        node: t.expressionStatement(discardedReceiverSinkInit(initNode, containerPath)
+        node: t.expressionStatement(expression
+          ?? discardedReceiverSinkInit(initNode, containerPath)
           ?? cloneReplayedEffect(trimSideEffectTail(initNode), containerPath)),
       });
     }
@@ -3905,8 +3964,14 @@ export default function createDestructureEmitter({
     // flat STATIC shapes render through the shared-plan renderer (see `tryRouteFlatStaticToPlan`)
     if (tryRouteFlatStaticToPlan(prop)) return;
     const propValue = prop.node.value;
-    // captured before default-value processing turns Identifier into ConditionalExpression
-    let isStaticValue = t.isIdentifier(value);
+    // captured before default-value processing turns Identifier into ConditionalExpression.
+    // a THROW PROBE this emitter minted ahead of the value leaves it static: the host classification
+    // routes the init's own effects by this flag, and reading the probe as "dynamic" dropped them.
+    // the key-SE prefix beside it is the opposite case - it FOLDS the effect into the value
+    const probeLed = t.isSequenceExpression(value) && probeNavStarts.has(value.expressions[0]);
+    const probeNavStart = probeLed ? probeNavStarts.get(value.expressions[0]) : null;
+    let isStaticValue = t.isIdentifier(value)
+      || (probeLed && value.expressions.length === 2 && t.isIdentifier(value.expressions[1]));
     // a computed key with side effects (`{ [(eff(), 'from')]: x }`) evaluates at destructure time;
     // the property is about to be removed (prop.remove), so harvest the key SE now and fold it into
     // the final emitted value so it still fires once (native evaluates the key after the source).
@@ -4020,9 +4085,11 @@ export default function createDestructureEmitter({
       isStaticValue = false;
     }
     if (parent.isVariableDeclarator()) {
-      emitVariableDeclaratorDestructure({ prop, parent, localBinding, value, isStaticValue, isEmpty, catchFoldedRef });
+      emitVariableDeclaratorDestructure({
+        prop, parent, localBinding, value, isStaticValue, isEmpty, catchFoldedRef, probeNavStart,
+      });
     } else {
-      emitAssignmentDestructure({ parent, localBinding, value, isStaticValue, isEmpty });
+      emitAssignmentDestructure({ parent, localBinding, value, isStaticValue, isEmpty, probeNavStart });
     }
   }
 
@@ -4069,7 +4136,9 @@ export default function createDestructureEmitter({
 
   // VariableDeclarator branch executor. classifies the host shape, asks the planner
   // for a strategy, then dispatches to the matching AST mutation
-  function emitVariableDeclaratorDestructure({ prop, parent, localBinding, value, isStaticValue, isEmpty, catchFoldedRef = null }) {
+  function emitVariableDeclaratorDestructure({
+    prop, parent, localBinding, value, isStaticValue, isEmpty, catchFoldedRef = null, probeNavStart = null,
+  }) {
     const declaration = resolveDeclarationPath(parent);
     // save original index before first insertBefore shifts it
     if (!originalDeclKeys.has(declaration.node)) {
@@ -4108,7 +4177,7 @@ export default function createDestructureEmitter({
       case STRATEGIES.DEFER_SE_AND_SPLICE:
         return spliceAndLiftSideEffect({ declaration, parent, localBinding, value });
       case STRATEGIES.DEFER_SE_AND_REPLACE:
-        deferSideEffect(declaration, parent.node.init);
+        deferSideEffect(declaration, parent.node.init, probeNavStart);
         return replaceWithAndRegister(declaration, extractedDeclaration);
       case STRATEGIES.SPLICE_AND_SPLIT:
         // path-API replaceWith (NOT a raw declarations.splice) keeps queued sibling-declarator
@@ -4290,7 +4359,7 @@ export default function createDestructureEmitter({
     return element.replaceWith(assign);
   }
 
-  function emitAssignmentDestructure({ parent, localBinding, value, isStaticValue, isEmpty }) {
+  function emitAssignmentDestructure({ parent, localBinding, value, isStaticValue, isEmpty, probeNavStart = null }) {
     const seqElement = assignmentInStatementPosition(parent) ? null : discardedSequenceElementPath(parent);
     if (seqElement) {
       return emitDiscardedSeqElementDestructure({ parent, element: seqElement, localBinding, value, isStaticValue, isEmpty });
@@ -4316,7 +4385,7 @@ export default function createDestructureEmitter({
           assignmentTarget, initNode: parent.node.right, assignment,
         });
       case STRATEGIES.DEFER_SE_AND_REPLACE_ASSIGN:
-        deferSideEffect(assignmentTarget, parent.node.right);
+        deferSideEffect(assignmentTarget, parent.node.right, probeNavStart);
         return assignmentTarget.replaceWith(assignment);
       case STRATEGIES.REPLACE_ASSIGNMENT:
         return assignmentTarget.replaceWith(assignment);

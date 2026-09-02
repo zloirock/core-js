@@ -1,9 +1,9 @@
-import _globalThis from "@core-js/pure/actual/global-this";
 import _Object$groupBy from "@core-js/pure/actual/object/group-by";
 import _Promise$allSettled from "@core-js/pure/actual/promise/all-settled";
 import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Promise$race from "@core-js/pure/actual/promise/race";
 import _Reflect from "@core-js/pure/actual/reflect/namespace";
+import _self from "@core-js/pure/actual/self";
 // a super-class alias destructured from a proxy-global MEMBER short-circuits to the key only
 // when the member's LEAF is itself a proxy-global (the chain re-enters the global surface);
 // any other leaf names an arbitrary member slot - dispatching its key as the pristine global
@@ -41,7 +41,7 @@ export const viaHopLeaf = QH.m(competitors);
 // deep hops resolve the same way
 const {
   Object: OD
-} = _globalThis;
+} = _self;
 class QD extends OD {
   static m(src) {
     return _Object$groupBy.call(this, src, tag2);

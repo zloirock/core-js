@@ -115,6 +115,8 @@ import {
   overwriteDefaultGuard,
   overwriteRebindEmitted,
   peelDeadChainMarker,
+  absentableStoreReadKeyOf,
+  discardedInitProbeNavStart,
   planDiscardedInitProbe,
   planLiftedRhsPrefix,
   planLiteralRoute,
@@ -135,6 +137,7 @@ import {
   staticallySelectedLeft,
   swapInlineDefaults,
   synthPlanFullyCovered,
+  proxyPassthroughBase,
   takesInlineDefault,
   warnConditionalFallbackUntouched,
 } from './destructure-helpers.js';
@@ -201,7 +204,15 @@ export default function createAstDestructureEmitter({
   // slot splits it back per element instead of joining the whole comma
   const seqDrainedSlots = new WeakSet();
   // what the module-scope probe rebuilders need from this closure
-  const probeRenderCtx = { adapter, resolvePure, resolveGlobalPolyfill, injectPureImport, keepLive: skippedNodes.keepLive };
+  // the probe holder may be a kept STORE the source wrote, and its cloned value still owes the
+  // root substitution every probe clone owes - the channel render joins after this object exists
+  const probeRenderCtx = {
+    adapter,
+    resolvePure,
+    resolveGlobalPolyfill,
+    injectPureImport,
+    keepLive: skippedNodes.keepLive,
+  };
 
   // the drain half rides the same per-transform state; `resolveProxyNavReceiver` is hoisted,
   // so handing it across at creation time is safe
@@ -330,7 +341,7 @@ export default function createAstDestructureEmitter({
     let baseIsProxy = false;
     const navBase = sePolicy.callBranch ? null
       : proxyNavSynthBase(receiver?.type === 'LogicalExpression' ? peelTransparentExpr(receiver.left) : receiver,
-        { ...nodeSite(receiver, metaPath), adapter });
+        { ...nodeSite(receiver, metaPath), adapter, resolveGlobalPolyfill });
     // a fallback LEFT takes the nav base only when it spells NO effect of its own: an
     // SE-bearing one routes through the callBranch memo, which owns the re-emission order
     if (navBase && !(receiver?.type === 'LogicalExpression' && navBase.leadingEffects)) {
@@ -649,7 +660,7 @@ export default function createAstDestructureEmitter({
     if (inner.type !== 'Identifier' && inner.type !== 'MemberExpression') return false;
     let branchBase = null;
     if (inner.type === 'MemberExpression') {
-      let hopKeys = [];
+      const hopKeys = [];
       let cur = inner;
       while (cur?.type === 'MemberExpression' && !cur.computed) {
         hopKeys.unshift(cur.property?.name);
@@ -668,8 +679,8 @@ export default function createAstDestructureEmitter({
         }
       }
       if (!rootName) return false;
-      while (hopKeys.length && isPristineProxyGlobal(adapter, hopKeys[0])) hopKeys = hopKeys.slice(1);
-      branchBase = { baseName: rootName, passthroughPrefix: hopKeys, baseIsProxy: true };
+      const base = proxyPassthroughBase({ rootName, keys: hopKeys, adapter, resolveGlobalPolyfill });
+      branchBase = { baseName: base.baseName, passthroughPrefix: base.keys, baseIsProxy: true };
     }
     let pending = pendingBranchSynths.get(inner);
     if (!pending) {
@@ -1381,6 +1392,7 @@ export default function createAstDestructureEmitter({
             bodylessWrap: wrapped.host?.bodyless === true,
             bindingTarget: propBindingTarget(prop), metaPath,
             initProbePlan: planDiscardedInitProbe(wrapped.declarator.init, metaPath, { adapter, resolvePure }),
+            initProbeNavStart: discardedInitProbeNavStart(wrapped.declarator.init),
             sealedProbePlan: planSealedNavProbe(wrapped.declarator.init, metaPath,
               { adapter, resolvePure, keepLive: skippedNodes.keepLive }),
           },
@@ -1803,8 +1815,17 @@ export default function createAstDestructureEmitter({
         keyClaimInit: buriedKeyClaimInit(declarator.init),
         seqDirectClaimInit: initSeqDirectClaim(declarator.init),
         rawKeyRootInit: initRawKeyOnRoot(declarator.init),
-        // ... and the same timing for the guard the discarded read renders through
+        // ... and the same timing for the guard the discarded read renders through, plus the offset
+        // that read starts at - the effect channel splits the init's effects on it
         initProbePlan: planDiscardedInitProbe(declarator.init, metaPath, { adapter, resolvePure }),
+        initProbeNavStart: discardedInitProbeNavStart(declarator.init),
+        // ... and whether a read stands over a store the realm may leave void: where the probe
+        // DECLINES that read (an effect inside the stored value keeps the whole init with the
+        // effect channel), this lift is what carries it, and with it the throw the consume erases
+        // ... kept as the KEY the read spells: by drain time the collapse may have folded that key
+        // into the extraction, and the lift rebuilds the read off the live store instead
+        absentableStoreReadKey: absentableStoreReadKeyOf(declarator.init,
+          { scope: metaPath.scope, adapter, path: metaPath, resolvePure: m => resolvePure(m, metaPath) }),
         // ... and the SEALED shape of the same read, for the same reason
         sealedProbePlan: planSealedNavProbe(declarator.init, metaPath, { adapter, resolvePure, keepLive: skippedNodes.keepLive }),
       },
@@ -2571,6 +2592,7 @@ export default function createAstDestructureEmitter({
         // the shape of the read a full consume discards, planned on the PRISTINE tree: by drain
         // time the walk has collapsed the nav and the probe's own question is unanswerable
         initProbePlan: planDiscardedInitProbe(declarator.init, metaPath, { adapter, resolvePure }),
+        initProbeNavStart: discardedInitProbeNavStart(declarator.init),
         sealedProbePlan: planSealedNavProbe(declarator.init, metaPath, { adapter, resolvePure, keepLive: skippedNodes.keepLive }),
         seKey: prop.computed && computedKeyHasSideEffects(prop),
         readsReceiver: kind === 'instance',
@@ -2791,6 +2813,9 @@ export default function createAstDestructureEmitter({
     // the read a full consume DISCARDS, planned on the PRISTINE tree: by drain time the
     // walk has rendered the guard and the probe's own question is unanswerable
     const initProbePlan = planDiscardedInitProbe(hostParent.node.right, metaPath, { adapter, resolvePure });
+    // ... and where the read that probe reproduces begins, off the SOURCE spelling: the effect
+    // channel of this host splits its lift on the same offset the declarator host does
+    const initProbeNavStart = discardedInitProbeNavStart(hostParent.node.right);
     // a BODYLESS host with an SE SEQUENCE init lifts its prefix into the wrapping block
     // (`if (x) ({ Map: { g } } = (eff(), globalThis));` -> `{ eff(); g = _Map$groupBy; }`);
     // the receiver is the quiet TAIL
@@ -2981,6 +3006,7 @@ export default function createAstDestructureEmitter({
       // the shape of the read a full consume DISCARDS, planned on the PRISTINE tree - the
       // declaration host's own pair, asked of the assignment's right
       initProbePlan,
+      initProbeNavStart,
       sealedProbePlan: planSealedNavProbe(hostParent.node.right, metaPath, { adapter, resolvePure, keepLive: skippedNodes.keepLive }),
       mintedSentinels: [],
       // an SE-keyed prop in an ASSIGNMENT host keeps its ORIGINAL binding in the residual -
@@ -3036,6 +3062,9 @@ export default function createAstDestructureEmitter({
   // effect-bearing consumed init stays live as an `_unused` dummy declarator
 
   return {
+    // the probe renders read their channel members off this object, and the channel that owns
+    // them is built after this one - the two cross-reference, like the sealed-probe context
+    probeRenderCtx,
     // the ONE unused-name minter of this leg: the guard render's rest residual mints its sentinels
     // through it too, so every `_unused` joins the same rename census and numbers with the rest
     mintUnusedName,

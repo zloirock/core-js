@@ -26,7 +26,7 @@ export const aliasStatic = null == (d++, c++, null == ga.window ? void 0 : _self
 export const aliasInstance = null == (_ref2 = (d++, c++, null == ga.window ? void 0 : _self)) ? void 0 : _atMaybeArray(_ref2.Array.prototype);
 
 // NEGATIVE: the flat spelling proves through the single level and collapses whole
-export const flatTwin = _atMaybeArray((d++, _globalThis).Array.prototype);
+export const flatTwin = _atMaybeArray((d++, _self).Array.prototype);
 // NEGATIVE: a claim consuming the whole spelling folds - nothing reads past the erased guard
 export const claimConsumes = (d++, c++, _Map);
 // NEGATIVE: the store below a deeper static keeps the value form - the live-tree read

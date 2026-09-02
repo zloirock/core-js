@@ -1,4 +1,3 @@
-import _globalThis from "@core-js/pure/actual/global-this";
 import _self from "@core-js/pure/actual/self";
 // what a proxy-global navigation spells is decided by POSITION, never by the key's spelling: a nav read
 // as a VALUE answers its own claim's ponyfill, and every key spelling names the same leaf. weighing the
@@ -13,6 +12,6 @@ export const viaEffectKey = (hits++, _self);
 
 // ... and a nav something reads THROUGH still rebuilds from the root, whatever the key spells: an
 // intermediate `self` would be undefined on a host that has none
-export const viaPlainKeyNavigated = _globalThis.Array;
-export const viaEffectKeyNavigated = (hits++, _globalThis).Array;
+export const viaPlainKeyNavigated = _self.Array;
+export const viaEffectKeyNavigated = (hits++, _self).Array;
 export { hits };

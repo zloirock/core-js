@@ -3,7 +3,7 @@ import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _flatMapMaybeArray from "@core-js/pure/actual/array/instance/flat-map";
 import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
-import _globalThis from "@core-js/pure/actual/global-this";
+import _self from "@core-js/pure/actual/self";
 // A proxy-global receiver carried as the TAIL of a side-effecting SequenceExpression, on instance-method and
 // destructure sources: `(eff(), globalThis.self).Array.prototype.flat`. babel and unplugin BOTH collapse the
 // proxy hop to the pure root and harvest the prefix effect ahead of it (`(eff(), _globalThis).Array.prototype`)
@@ -14,8 +14,8 @@ function eff(tag) {
   _pushMaybeArray(log).call(log, tag);
   return tag;
 }
-const callInst = _flatMaybeArray((eff('a'), _globalThis).Array.prototype).call([1, [2]]);
-const prefixRoot = _includesMaybeArray((eff('b'), _globalThis).Array.prototype).call([1], 1);
-const flatMap = _flatMapMaybeArray((eff('c'), _globalThis).Array.prototype);
-const doubleHop = _atMaybeArray((eff('d'), _globalThis).Array.prototype).call([5, 6], 0);
+const callInst = _flatMaybeArray((eff('a'), _self).Array.prototype).call([1, [2]]);
+const prefixRoot = _includesMaybeArray((eff('b'), _self).Array.prototype).call([1], 1);
+const flatMap = _flatMapMaybeArray((eff('c'), _self).Array.prototype);
+const doubleHop = _atMaybeArray((eff('d'), _self).Array.prototype).call([5, 6], 0);
 export { callInst, prefixRoot, flatMap, doubleHop, log };
