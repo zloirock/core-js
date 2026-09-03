@@ -2736,7 +2736,7 @@ QUnit.test('global-proxy: a carrier at the root runs once and the delete still l
 testUnlessDetectLowered('global-proxy: an alias holding a rendered guard keeps its own optional', assert => {
   const hasWindow = globalThis.window !== undefined;
   const A = globalThis.window?.self;
-  assert.same(A?.self.Array.of(1), hasWindow ? 1 : undefined, 'the static short-circuits with the alias');
+  assert.deepEqual(A?.self.Array.of(1), hasWindow ? [1] : undefined, 'the static short-circuits with the alias');
   assert.same(typeof A?.self.Array, hasWindow ? 'function' : 'undefined', 'and so does a value read');
   function sealedRead() {
     // eslint-disable-next-line no-unsafe-optional-chaining -- the seal's throw is the point
@@ -2838,7 +2838,7 @@ testUnlessDetectLowered('global-proxy: a delete over a sealed navigation keeps t
 testUnlessDetectLowered('global-proxy: a probe-holding root keeps its optional over folded hops', assert => {
   const hasWindow = globalThis.window !== undefined;
   const A = globalThis.window;
-  assert.same(A?.self?.window.Array.of(1), hasWindow ? 1 : undefined, 'the static over the alias root');
+  assert.deepEqual(A?.self?.window.Array.of(1), hasWindow ? [1] : undefined, 'the static over the alias root');
   assert.same(A?.self?.window.Array.of(1).at(0), hasWindow ? 1 : undefined, 'and the memoized instance chain');
   assert.same(typeof A?.self.Array, hasWindow ? 'function' : 'undefined', 'and a value read through the folded hop');
   assert.same(A?.self?.Array.prototype.at.call([7], 0), hasWindow ? 7 : undefined, 'and an instance split over a constructor leaf');
