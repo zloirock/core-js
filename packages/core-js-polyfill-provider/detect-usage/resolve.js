@@ -1270,12 +1270,20 @@ export function isProxyGlobalIdentifierNode(args) {
 // walks intermediate proxy-global links so deeper chains resolve to the leaf key; peels a
 // zero-arg IIFE-return at each hop so `(()=>globalThis)().Array` resolves like `globalThis.Array`.
 // empty-string key returns null - no real global has empty name; keeps callers' `!== null` sound
-export function globalProxyMemberName({ node, scope, adapter, path, seen }) {
+export function globalProxyMemberName({ node, scope, adapter, path, seen, resolveStaticKey = null }) {
+  // a link / leaf whose key the STRUCTURAL fold cannot name (a TS enum member spells one) is named
+  // by the same claim-safe resolver the key canon uses - without it the chain declined and the
+  // claim above an enum-spelled hop was lost while every other spelling of that key kept it
+  function keyOf(member) {
+    return staticMemberKeyName(member)
+      ?? (member.computed && resolveStaticKey
+        ? resolveKey({ node: member.property, computed: true, scope, adapter, path, resolveStaticKey }) : null);
+  }
   node = unwrapRuntimeExpr(node);
   if (node?.type !== 'MemberExpression' && node?.type !== 'OptionalMemberExpression') return null;
   let object = peelProxyGlobalObject(node.object);
   while (object?.type === 'MemberExpression' || object?.type === 'OptionalMemberExpression') {
-    const linkName = staticMemberKeyName(object);
+    const linkName = keyOf(object);
     // a mutated hop slot holds the user's replacement - the chain no longer re-enters the
     // global-object surface, so it must not resolve to the leaf global
     if (!linkName || !POSSIBLE_GLOBAL_OBJECTS.has(linkName)
@@ -1289,7 +1297,7 @@ export function globalProxyMemberName({ node, scope, adapter, path, seen }) {
   // which no span model covers)
   if (object?.type === 'Identifier'
     && isMutatedGlobalSlot(adapter, object.name)) return null;
-  const leaf = staticMemberKeyName(node) || null;
+  const leaf = keyOf(node) || null;
   // a SLOT-mutated leaf (`globalThis.Map = Shim`) holds the user's replacement - the chain
   // does not name the pristine global, so every READ consumer (pure-ctor swaps, deopts,
   // typing) must fall back to its raw / generic path
@@ -1749,7 +1757,7 @@ function peelRealmLogicalDefault(node) {
   return core;
 }
 
-function resolveProxyGlobalRoot({ receiver, scope, adapter, seen, path, usageNode = null }) {
+function resolveProxyGlobalRoot({ receiver, scope, adapter, seen, path, usageNode = null, resolveStaticKey = null }) {
   while (true) {
     // peel chain-assign AND SE-tail to fixpoint at every step: `((a = globalThis).Array).from(x)`
     // buries the assignment inside .object's .object, and `(eff(), globalThis).Map.groupBy` buries the
@@ -1760,7 +1768,7 @@ function resolveProxyGlobalRoot({ receiver, scope, adapter, seen, path, usageNod
       // carry `seen` into computed-key resolution so a shared alias chain across the
       // proxy-global walk and its intermediate member keys can't exceed the cycle guard
       const memberKey = obj.computed
-        ? resolveKey({ node: obj.property, computed: true, scope, adapter, seen, path, usageNode })
+        ? resolveKey({ node: obj.property, computed: true, scope, adapter, seen, path, usageNode, resolveStaticKey })
         : memberKeyName(obj);
       // a mutated hop slot (`window.self = fake`) is the user's replacement, not the global -
       // the chain no longer re-enters the pristine global-object surface.
@@ -1810,7 +1818,9 @@ function resolveProxyGlobalRoot({ receiver, scope, adapter, seen, path, usageNod
 // (`const a = b.x; const b = a.x;`) don't restart the cycle guard and stack-overflow.
 // initialize at entry so the cycle guard accumulates across recursion regardless of whether
 // the caller passed one - matches resolveBindingToGlobal's convention
-export function resolveObjectName({ objectNode, scope, adapter, seen, path, usageNode = null, readNode = null }) {
+export function resolveObjectName({
+  objectNode, scope, adapter, seen, path, usageNode = null, readNode = null, resolveStaticKey = null,
+}) {
   seen ??= new Set();
   // peel chain-assign rhs + parens to a fixpoint (`(a = Array)`, `(a = b = Array)`,
   // `(a = (b = Array))`, `((a = Array))` all resolve to Array). closes binding-init walks
@@ -1869,7 +1879,7 @@ export function resolveObjectName({ objectNode, scope, adapter, seen, path, usag
   const propertyName = objectNode.computed
     // `seen` shared with the receiver walk, matching the chain-root walker's convention (a shared
     // alias chain across the walk and its member keys must not restart the cycle guard)
-    ? resolveKey({ node: objectNode.property, computed: true, scope, adapter, seen, path, usageNode })
+    ? resolveKey({ node: objectNode.property, computed: true, scope, adapter, seen, path, usageNode, resolveStaticKey })
     : memberKeyName(objectNode);
   if (!propertyName) return null;
   // `X.default` of a CJS-interop-wrapped pure GLOBAL-PROXY require resolves to the proxy
@@ -1880,7 +1890,9 @@ export function resolveObjectName({ objectNode, scope, adapter, seen, path, usag
     const interopProxy = interopDefaultProxyName({ objectNode: objectNode.object, scope, adapter, path });
     if (interopProxy) return interopProxy;
   }
-  if (!resolveProxyGlobalRoot({ receiver: objectNode.object, scope, adapter, seen, path, usageNode })) return null;
+  if (!resolveProxyGlobalRoot({
+    receiver: objectNode.object, scope, adapter, seen, path, usageNode, resolveStaticKey,
+  })) return null;
   // a mutated ctor slot read THROUGH the global (`globalThis.Map = Shim; globalThis.Map.<...>`)
   // holds the user's replacement - the member chain no longer names the pristine built-in, so
   // property reads behind it must stay raw instead of resolving to pure statics

@@ -14,7 +14,7 @@ The suite rebuilds its bundles itself; only the inner scripts (`test-e2e-usage-p
 
 New coverage is keyed on **syntactic form** - destructuring, parameter defaults, optional chaining, class context, iterators, chaining, globals - not on which polyfill is involved. Ask which form is untested, not which method. Files named after a polyfill do exist here, but they are not the axis to extend.
 
-The `.ts` files are not decoration: the plugin sees a typed AST before the types are stripped, so they are the only runtime oracle for type-driven dispatch.
+The `.ts` files are not decoration: the plugin sees a typed AST before the types are stripped, so they are the only runtime oracle for type-driven dispatch. What they cannot host is a claim that depends on a TYPE the later phases no longer have: an enum-spelled key folds in `pre`, where the enum declaration is still there, and reads as an ordinary property in `post`, where it is lowered - so a lane asserting the polyfilled answer for such a form fails in the post and stripped legs by construction. Lock those byte-wise in a fixture and keep this suite to answers that hold whether the claim fired or not.
 
 Mutation tests live in their own modules, one per channel rather than one per kind: mutated statics, global-object slot writes, load-time slot writes, and the pure-import channel. The reason is contagion - a slot write of a name deoptimizes *that name* for the whole file, so a module that mutates one name cannot host the clean reads of another.
 

@@ -35,3 +35,43 @@ enum Aliased { MAP = 'map' }
 const aliasOfEnum = Aliased;
 Object.assign(aliasOfEnum, { MAP: 'filter' });
 export const r10 = arr.flat?.()[Aliased.MAP](f);
+// the same key spelling inside a PATTERN: a destructure names its slot through the same resolver a
+// member read does, so an enum-member key extracts exactly as its literal twin - and the patched
+// enum declines there too
+enum PatKeys { OF = 'of' }
+enum PatPatched { OF = 'of' }
+Object.assign(PatPatched, { OF: 'from' });
+const { [PatKeys.OF]: fromEnumKey } = Array;
+const { [PatPatched.OF]: fromPatchedKey } = Array;
+export const r11 = typeof fromEnumKey;
+export const r12 = typeof fromPatchedKey;
+// a WRITE whose key is spelled through an enum member names the slot it patches, exactly as the
+// four other spellings do: the patched member stops being substitutable while its NEIGHBOUR keeps
+// its claim. spelled as an unreadable key the census deopted the whole receiver, and the neighbour
+// lost its polyfill with it
+enum WriteKeys { OF = 'of' }
+Array[WriteKeys.OF] = function () { return [9]; };
+export const r13 = Array.of(1);
+export const r14 = Array.from([2]);
+// a REALM HOP whose key an enum member spells names the hop like every other spelling of that key,
+// so the claim above it fires: the run folds away and the static is substituted. named by the
+// structural fold alone the hop stayed unknown, the claim was lost, and the run kept a raw read
+enum HopName { SELF = 'self' }
+export const r15 = globalThis[HopName.SELF].Array.from([3]);
+export const r16 = globalThis[HopName.SELF].Map;
+// ... and the patched twin declines, exactly as it does on a member key
+enum HopPatched { SELF = 'self' }
+Object.assign(HopPatched, { SELF: 'window' });
+export const r17 = globalThis[HopPatched.SELF].Array.from([4]);
+// a `delete` over the same enum-spelled hop lands the operator's ROOT binding, as it does for every
+// other spelling of that key - the fold's own rule, not the run's landing
+export const r18 = delete globalThis[HopName.SELF].customQ;
+// ... and the same hop as a DESTRUCTURE init: the pattern extracts through the resolved receiver
+// exactly as the literal spelling does, and the patched twin keeps the raw read
+const { from: fromHop } = globalThis[HopName.SELF].Array;
+const { from: fromPatchedHop } = globalThis[HopPatched.SELF].Array;
+export const r19 = typeof fromHop;
+export const r20 = typeof fromPatchedHop;
+// ... and the INSTANCE split over the same hop: its receiver collapses like the static one, so the
+// dispatch reads the ponyfill instead of a realm slot the host may not have
+export const r21 = globalThis[HopName.SELF].Array.prototype.at.call([7, 8], -1);
