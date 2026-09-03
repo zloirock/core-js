@@ -110,6 +110,7 @@ import {
   undefinableOptionalGuard,
   receiverSideEffectsOnly,
   resolveKey as sharedResolveKey,
+  globalProxyMemberName,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
   planGuardedDestructureNarrow,
@@ -1311,7 +1312,20 @@ export default function plugin(api, options) {
             && carriedRootCore.operator === '='
             ? asProxyGlobalName(descendToChainRoot(carriedRootCore.right, true).root?.name) : null;
           const carriedCallRoot = carriedRootCore?.type === 'CallExpression' ? carriedRootCore : null;
-          if (memberProxyHopName(path.node)
+          // the hop is named STRUCTURALLY first and, for a computed key the structural fold cannot
+          // read (a TS enum member spells one), through the proxy-name canon carrying the claim-safe
+          // resolver - named only one way, this gate let an enum-spelled hop past the `delete` fold
+          // and the run landed on its deepest backed hop instead of the operator's root binding
+          const deleteHopName = memberProxyHopName(path.node) ?? (path.node.computed
+            ? asProxyGlobalName(globalProxyMemberName({
+              node: path.node,
+              scope: path.scope,
+              adapter,
+              path,
+              resolveStaticKey: (node, scope, keyPath) => resolveClaimableComputedKeyName(node, scope, keyPath),
+            }))
+            : null);
+          if (deleteHopName
             && (chainRootPath.isIdentifier() || chainRootPath.isCallExpression()
               || chainAssignRootValueName || seqRootName || storedNavRootName || carriedCallRoot)
             && deleteHostAboveChain(path, path.node, unwrapRuntimeExpr)) {
@@ -1453,7 +1467,15 @@ export default function plugin(api, options) {
               // ... and where a SEQUENCE stands around that nav the hop drive cannot reach it at
               // all (its climb walks members): the guard render lands in the sequence's own tail,
               // and a raw hop frozen in this dispatch's memo is the read the ponyfill exists for
-              if (!synthSwap.collapseProxyHopRoot(recvRoot, { scope: path.scope, adapter, path })
+              if (!synthSwap.collapseProxyHopRoot(recvRoot, {
+                scope: path.scope,
+                adapter,
+                path,
+                // the hop key is named by the same claim-safe resolver detection uses: without it a
+                // hop spelled by a TS enum member stays a RAW realm read here while every other
+                // spelling of that key collapses, and a stripped realm has no such slot to read
+                resolveStaticKey: (node, scope, keyPath) => resolveClaimableComputedKeyName(node, scope, keyPath),
+              })
                 && recvRoot.isSequenceExpression()) collapseShortCircuitNavInPlace(memberChainEndPath({ path, unwrap: unwrapRuntimeExpr }));
             }
             const innerChain = findInnerPolyChain(path);
@@ -1782,7 +1804,8 @@ export default function plugin(api, options) {
         mutatedStatics = null;
         writtenContainerSlots = null;
         mutatedStatics = method === 'usage-pure' && !isInternalCoreJS
-          ? collectMutationPrePass(path, adapter, fileCensus).mutated : null;
+          ? collectMutationPrePass(path, adapter, fileCensus,
+            (node, scope, keyPath) => resolveClaimableComputedKeyName(node, scope, keyPath)).mutated : null;
         mutationRoots = isInternalCoreJS ? null : fileCensus.mutationRoots ?? null;
         writtenContainerSlots = fileCensus.writtenContainerSlots ?? null;
         // source wins over sourceType: CJS-assign at top level of a `sourceType: "module"` file
