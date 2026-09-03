@@ -29,12 +29,11 @@
 // Service object passes factory helpers (`memoize`, `findProgramPath`, `getDeclaratorBindingName`,
 // `staticPairFromPolyfillEntry`, `lookupNested`, `KNOWN_STATIC_METHOD_RETURN_TYPES`) and the
 // Babel/ESTree type adapter `t`. Module-level state (`exportedNamesCache`) ships with `reset()`.
-import { PATTERN_WRAPPERS, PRIMITIVES } from './base.js';
+import { PRIMITIVES } from './base.js';
 import {
-  FUNCTION_LIKE_NODE_TYPES,
   POSSIBLE_GLOBAL_OBJECTS,
   TS_EXPR_WRAPPERS,
-  isBindingPosition,
+  isBindingDeclarationPath,
   isForXStatement,
   isMemberAccessNode,
   isMemberMutationContext,
@@ -45,6 +44,7 @@ import {
   isNonReferencePosition,
   isTSTypeOnlyIdentifierPath,
   memberReadKeyName,
+  patternSlotHost,
   objectOwnThisMethodInfo,
   ownThisMethodKeyMatches,
   peelTransparentExprAncestorPath,
@@ -57,46 +57,6 @@ import {
   isDestructurePattern,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
 } from '../helpers/ast-patterns.js';
-
-// walk up from an Identifier through destructuring pattern wrappers to the enclosing binding / assign
-// host. returns { host, node } where node is the outermost pattern reached (or the identifier itself
-// when not in a pattern); null when the identifier is a property KEY (esp. computed `{ [ref]: x }`, a
-// real reference) or has no parent. lets callers mirror what babel's `referencePaths` excludes -
-// declaration slots AND destructuring-write targets - which the estree-toolkit walk would otherwise
-// over-collect since patterns nest arbitrarily
-function patternSlotHost(refNode, refPath) {
-  if (!refPath) return null;
-  let node = refNode;
-  let cur = refPath.parentPath;
-  while (cur && PATTERN_WRAPPERS.has(cur.node.type)) {
-    const { node: w } = cur;
-    // only a property VALUE is a slot; a key (esp. computed `{ [ref]: x }`) is a reference
-    if ((w.type === 'Property' || w.type === 'ObjectProperty') && w.value !== node) return null;
-    // only the LEFT of a default is a slot; the default VALUE (`x = C` / `{ a = C }`) is a real
-    // reference (`C` is read when the slot is absent), which babel's referencePaths keeps - excluding
-    // it as a declaration would drop `C`'s escaping read and unsoundly narrow `C`'s type
-    if (w.type === 'AssignmentPattern' && w.right === node) return null;
-    node = w;
-    cur = cur.parentPath;
-  }
-  return cur ? { host: cur.node, node } : null;
-}
-
-// is this Identifier a binding DECLARATION rather than a reference? `isBindingPosition` covers the
-// simple slots (declarator / function-class id / catch param); destructuring-pattern slots and
-// function params nest arbitrarily, so walk to the binding host - a slot rooted at a declarator id,
-// catch param, or function param is a declaration. mirrors babel's `referencePaths` exclusion so a
-// param / destructure binding's own declaration is not mis-collected as a leak-classified reference
-function isBindingDeclarationPath(p) {
-  if (isBindingPosition(p.parent, p.node)) return true;
-  const slot = patternSlotHost(p.node, p);
-  if (!slot) return false;
-  const { host, node } = slot;
-  if (host.type === 'VariableDeclarator') return host.id === node;
-  if (host.type === 'CatchClause') return host.param === node;
-  if (FUNCTION_LIKE_NODE_TYPES.has(host.type)) return Array.isArray(host.params) && host.params.includes(node);
-  return false;
-}
 
 // eslint-disable-next-line max-statements -- factory of the binding / reference analysis
 export function createBindingAnalysis({

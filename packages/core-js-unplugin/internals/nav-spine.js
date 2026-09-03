@@ -27,7 +27,7 @@ import {
   peelParenAndTSSlotPath,
   POSSIBLE_GLOBAL_OBJECTS,
   SKIPPABLE_WRAPPER_TYPES,
-  chainValueCarrier,
+  stepOverChainWrappers,
   collectFoldedReceiverSideEffects,
   computedKeyStaticName,
   staticMemberKeyName,
@@ -543,21 +543,11 @@ function memberIsReadThrough(memberPath) {
 }
 
 export function plainProxyHopRunAbove(metaPath, proxyHopKey, { allowOptional = false, deadOptionalHop = null } = {}) {
-  // a source PAREN - and the chain wrapper an `?.` wears - is transparent to the run and to
-  // the read above it (`(g.window?.self)?.Array` navigates exactly like the bare twin)
-  // ... and so is a VALUE CARRIER standing at the ROOT (`(v = globalThis).window`): the first hop
-  // reads exactly what the carrier hands on. only at the root - a carrier above a hop holds the
-  // whole navigation's value, and what reads it consumes the store, not this run
-  function stepWrappers(child, up, atRoot = false) {
-    while (up?.node) {
-      if (!(SKIPPABLE_WRAPPER_TYPES.has(up.node.type) && up.node.expression === child)
-        && !(atRoot && chainValueCarrier(up.node, child))) break;
-      child = up.node;
-      up = up.parentPath;
-    }
-    return [child, up];
-  }
-  let [child, up] = stepWrappers(metaPath.node, metaPath.parentPath, true);
+  // a source PAREN - and the chain wrapper an `?.` wears - is transparent to the run and to the
+  // read above it (`(g.window?.self)?.Array` navigates exactly like the bare twin), and so is a
+  // VALUE CARRIER at the ROOT: `stepOverChainWrappers` is that whole rule, shared with the babel
+  // binding's chain walk rather than spelled again here
+  let [child, up] = stepOverChainWrappers(metaPath.node, metaPath.parentPath, true);
   let sawHop = false;
   // a `?.` the shared vestigial verdict calls DEAD is not the environment probe: its receiver is
   // the always-defined binding this claim substitutes, so the run reads exactly like its plain twin
@@ -582,7 +572,7 @@ export function plainProxyHopRunAbove(metaPath, proxyHopKey, { allowOptional = f
       break;
     }
     sawHop = true;
-    [child, up] = stepWrappers(up.node, up.parentPath);
+    [child, up] = stepOverChainWrappers(up.node, up.parentPath);
   }
   const consumer = up?.node ?? null;
   // the run's own consumer reading it OPTIONALLY keeps every hop spelled - that `?.` is the
