@@ -34,7 +34,7 @@ import {
   proxyWriteOriginsReducer,
 } from '@core-js/polyfill-provider/helpers/class-walk';
 import { tagError } from '@core-js/polyfill-provider/helpers/error-tag';
-import { isCoreJSFile } from '@core-js/polyfill-provider/helpers/path-normalize';
+import { isCoreJSFile, isDeclarationFile } from '@core-js/polyfill-provider/helpers/path-normalize';
 import {
   DISABLE_NEXT_LINE_DIRECTIVE,
   buildOffsetToLine,
@@ -52,7 +52,6 @@ import { createModuleInjectors } from '@core-js/polyfill-provider/plugin-options
 import { createUsageGlobalCallback } from '@core-js/polyfill-provider/plugin-options/usage-callback';
 import { attachMemberUnionExtras, enumerateFallbackDestructureBranches } from '@core-js/polyfill-provider/detect-usage/destructure';
 import { resolveKey as sharedResolveKey } from '@core-js/polyfill-provider/detect-usage/resolve';
-import { isTypeAnnotationNodeType } from '@core-js/polyfill-provider/detect-usage/annotations';
 import { planMinifierSequenceSplit } from '@core-js/polyfill-provider/destructure-host-shape';
 import { scanExistingCoreJSImports } from '@core-js/polyfill-provider/detect-usage/entries';
 import { nodeType, types } from './estree-compat.js';
@@ -490,6 +489,8 @@ export default function createPlugin(options) {
     // defensive guard for direct callers (bundlers always pass valid strings)
     if (typeof code !== 'string' || typeof id !== 'string') return null;
     if (isCoreJSFile(id)) return null;
+    // a declaration file emits nothing to polyfill - see `isDeclarationFile`
+    if (isDeclarationFile(id)) return null;
     // entry-global resolves `import 'core-js'` once per file; neither defer-imports nor
     // snapshot inheritance apply. wrapper only dispatches pass='single' for this method,
     // but defensively pin it here so direct callers (tests, bespoke integrations) can't
@@ -857,7 +858,7 @@ export default function createPlugin(options) {
         });
       }
 
-      const isInTypeAnnotation = createTypeAnnotationChecker(isTypeAnnotationNodeType);
+      const isInTypeAnnotation = createTypeAnnotationChecker();
 
       // write-position bails for a property member usage: a for-x head target, and every other
       // write host the shared predicate enumerates - assignment LHS (compound included: the read

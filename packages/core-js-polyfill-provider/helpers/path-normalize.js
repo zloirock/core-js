@@ -113,3 +113,16 @@ export function isCoreJSFile(filename) {
   const normalized = normalizeImportSource(filename);
   return CORE_JS_INTERNAL_FILE.test(normalized) || CORE_JS_BUNDLE.test(normalized);
 }
+
+// the suffix family TypeScript gives a declaration file, anchored at the end so a DIRECTORY
+// named like one (`/pkg/x.d.ts/inner.ts`) does not swallow the sources under it
+const DECLARATION_FILE = /\.d\.(?:cts|mts|ts)$/;
+
+// a TypeScript DECLARATION file emits no runtime code whatsoever: every declaration in it is
+// ambient whether or not it spells `declare`, so nothing written there is ever evaluated and a
+// polyfill for it is pure over-injection - in usage-pure, a rewrite of a read that never runs.
+// the other file-level question next to it asks about core-js internals, which is why this is
+// its own predicate rather than a disjunct of that one
+export function isDeclarationFile(filename) {
+  return typeof filename === 'string' && DECLARATION_FILE.test(normalizeImportSource(filename));
+}

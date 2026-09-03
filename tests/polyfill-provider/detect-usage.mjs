@@ -56,6 +56,7 @@ import {
   checkTypeAnnotations,
   isTypeAnnotationNodeType,
   mutatedStaticLandingVerdict,
+  annotationNameIsGlobal,
   typeOnlyImportShadows,
   walkTypeAnnotationGlobals,
 } from '../../packages/core-js-polyfill-provider/detect-usage/annotations.js';
@@ -69,7 +70,7 @@ import {
   findFunctionScopeVarDeclaratorInPath,
   findFunctionScopeVarInPath,
   findVarOwnerDeclaring,
-  synthVarHoistBinding,
+  synthHoistedBinding,
   isForXWriteTarget,
   LET_SCOPE_HOST_TYPES,
   noReassignmentReachesUsage,
@@ -572,6 +573,15 @@ check('isTypeAnnotationNodeType/TSStringKeyword', isTypeAnnotationNodeType('TSSt
 check('isTypeAnnotationNodeType/TSTypeReference', isTypeAnnotationNodeType('TSTypeReference'), true);
 check('isTypeAnnotationNodeType/Identifier (not type)', isTypeAnnotationNodeType('Identifier'), false);
 check('isTypeAnnotationNodeType/CallExpression (not type)', isTypeAnnotationNodeType('CallExpression'), false);
+// the heritage clause has three spellings across the dialects this stack parses, and a name in one
+// is as much a type reference as in the others. the babel 7 spelling is the one that went missing,
+// and its absence read as "an expression written inside an interface" - which erases the reference
+check('isTypeAnnotationNodeType/TSInterfaceHeritage', isTypeAnnotationNodeType('TSInterfaceHeritage'), true);
+check('isTypeAnnotationNodeType/TSClassImplements', isTypeAnnotationNodeType('TSClassImplements'), true);
+check('isTypeAnnotationNodeType/TSExpressionWithTypeArguments', isTypeAnnotationNodeType('TSExpressionWithTypeArguments'), true);
+// Flow spells the same two clauses its own way, and the census owes them the same answer
+check('isTypeAnnotationNodeType/InterfaceExtends', isTypeAnnotationNodeType('InterfaceExtends'), true);
+check('isTypeAnnotationNodeType/ClassImplements', isTypeAnnotationNodeType('ClassImplements'), true);
 
 // --- walkTypeAnnotationGlobals ---
 
@@ -1713,7 +1723,7 @@ for (const [variant, code, covered] of DECORATOR_VAR_CASES) {
   // emitted helper, which cannot tell them apart
   check(`decoratorVarFrame/${ variant } declarator [babel]`,
     !!findFunctionScopeVarDeclaratorInPath(use, 'Map'), covered);
-  check(`decoratorVarFrame/${ variant } synth twin [babel]`, !!synthVarHoistBinding(use, 'Map'), covered);
+  check(`decoratorVarFrame/${ variant } synth twin [babel]`, !!synthHoistedBinding(use, 'Map'), covered);
   check(`decoratorVarFrame/${ variant } var owner [babel]`, !!findVarOwnerDeclaring(use, 'Map'), covered);
 }
 
@@ -1862,6 +1872,42 @@ runBoth('walkTypeAnnotationGlobals/reports a typeof query host apart',
   runBoth('checkTypeAnnotations/return type and type parameters',
     'declare function h<T extends Promise<number>>(): Reflect;', (adapter, prog, lbl) => {
       checkDeep(lbl, slotGlobals(adapter, prog, 'TSDeclareFunction'), ['Promise', 'Reflect']);
+    });
+}
+
+// --- the annotation lane's shadow question: a type parameter in scope, an infer in its branch ---
+{
+  function slotGlobals(adapter, prog, type) {
+    const host = adapter.pickPath(prog, type);
+    if (!host) throw new Error(`no ${ type } node found`);
+    const found = [];
+    checkTypeAnnotations(host.node, name => found.push(name), annotationWalkCtx(prog));
+    return [...new Set(found)].sort();
+  }
+  // the walk hands every reference to the sink, the alias's own parameter `T` included - the
+  // sink is where a parameter in scope is filtered; the infer's name never reaches it at all
+  runBoth('walkTypeAnnotationGlobals/an infer covers the true branch', 'type U<T> = T extends Array<infer Set> ? Set : never;',
+    (adapter, prog, lbl) => {
+      checkDeep(lbl, slotGlobals(adapter, prog, 'TSTypeAliasDeclaration'), ['Array', 'T']);
+    });
+  runBoth('walkTypeAnnotationGlobals/the false branch reads the global', 'type U<T> = T extends Array<infer Set> ? 1 : Set<T>;',
+    (adapter, prog, lbl) => {
+      checkDeep(lbl, slotGlobals(adapter, prog, 'TSTypeAliasDeclaration'), ['Array', 'Set', 'T']);
+    });
+  runBoth('annotationNameIsGlobal/a type parameter of the host shadows', 'interface Box<Set> { v: Set }',
+    (adapter, prog, lbl) => {
+      const host = adapter.pickPath(prog, 'TSInterfaceDeclaration');
+      check(lbl, annotationNameIsGlobal({ ...annotationWalkCtx(prog), path: host, name: 'Set', hostType: 'TSTypeReference' }), false);
+    });
+  runBoth('annotationNameIsGlobal/an enclosing class parameter shadows the method annotation', 'class C<WeakMap> { m(v: WeakMap): void {} }',
+    (adapter, prog, lbl) => {
+      const method = adapter.pickPath(prog, adapter.name === 'babel' ? 'ClassMethod' : 'FunctionExpression');
+      check(lbl, annotationNameIsGlobal({ ...annotationWalkCtx(prog), path: method, name: 'WeakMap', hostType: 'TSTypeReference' }), false);
+    });
+  runBoth('annotationNameIsGlobal/no parameter, the global', 'interface Plain { v: Reflect }',
+    (adapter, prog, lbl) => {
+      const host = adapter.pickPath(prog, 'TSInterfaceDeclaration');
+      check(lbl, annotationNameIsGlobal({ ...annotationWalkCtx(prog), path: host, name: 'Reflect', hostType: 'TSTypeReference' }), true);
     });
 }
 
