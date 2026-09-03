@@ -27,11 +27,12 @@ import {
   namespaceScopedBindingBlock,
   peelTransparentExprAncestorPath,
   recomputedBindingWrites,
-  synthVarHoistBinding,
+  synthHoistedBinding,
   unwrapExportedDeclaration,
   useAnchorStart,
   walkPatternIdentifiers,
-  withoutValuelessDeclarationViolations,
+  cleanDestructureAliasWrites,
+  getDirectStatementBody,
   isDestructurePattern,
   POSSIBLE_GLOBAL_OBJECTS,
   ancestorChainDetached,
@@ -87,7 +88,7 @@ function isReferenced({ path, skipUpdateTargets }) {
   const parentKey = anchor.key;
   if (!parent) return true;
   // TS type-only positions: `type X = ...` ids, `export { type X }` specifiers
-  if (isTSTypeOnlyIdentifierPath({ parent, key: parentKey, parentPath })) return false;
+  if (isTSTypeOnlyIdentifierPath({ node, parent, key: parentKey, parentPath })) return false;
   // member NAME slots - object-literal and class keys (property, accessor and method shapes alike, in
   // value space and in type space) plus a non-computed member tail. one shared predicate with the babel
   // emitter, so a global-shaped key (`abstract Map: number`) is never rewritten to the polyfill import
@@ -149,8 +150,10 @@ function hasTSRuntimeBinding(scope, name, path = null) {
 // recognize a pure global-proxy require import (`import g = require('.../global-this')`)
 function findTSImportEqualsDeclaration(path, name) {
   for (let cur = path; cur; cur = cur.parentPath) {
-    const body = Array.isArray(cur.node?.body) ? cur.node.body : cur.node?.body?.body;
-    if (!Array.isArray(body)) continue;
+    // the statement list of a scope anchor, through the one reader of that question - a loop's
+    // block is that block's own, and reading it off the loop let a head see the body's declaration
+    const body = getDirectStatementBody(cur.node);
+    if (!body) continue;
     for (const stmt of body) {
       // peel the `export import X = require()` wrapper (ExportNamedDeclaration) - the runtime
       // declaration sits in `.declaration`. mirrors the shadow-binding walk (`getTSRuntimeBindings`);
@@ -441,7 +444,7 @@ export function closestVisibleNativeBinding(scope, name, path) {
 }
 
 // the synth var-hoist twin recovers a function-scoped `var` estree failed to hoist, so it only
-// exists for a lookup taken from INSIDE its owner function. `synthVarHoistBinding` walks the use
+// exists for a lookup taken from INSIDE its owner function. `synthHoistedBinding` walks the use
 // `path`, which can descend into a nested function whose `var name` is invisible from the lookup
 // `scope` a resolver explicitly threaded (an alias's own declaration scope, resolved with a
 // deeper use-site path). true when the owner sits STRICTLY BELOW the lookup scope in the scope
@@ -463,7 +466,7 @@ function synthOwnerStrictlyInsideScope(scope, synth) {
 // native resolution of the SAME declarator keeps the native view too (richer info channel)
 function resolveClosestBinding(scope, name, path) {
   const native = closestVisibleNativeBinding(scope, name, path);
-  const synth = path ? synthVarHoistBinding(path, name) : null;
+  const synth = path ? synthHoistedBinding(path, name) : null;
   if (!synth || synthOwnerStrictlyInsideScope(scope, synth)) return { native, synth: null };
   if (native && (native.path?.node === synth.node || pathContainedBy(native.path, synth.ownerNode))) {
     return { native, synth: null };
@@ -546,6 +549,7 @@ export function createEstreeAdapter(options = {}) {
         // reads it, and the lookup that never does must not pay for the search
         return {
           ...synth,
+          name,
           get scope() { return synth.resolveDeclarationScope(); },
           aliasSymbolSource,
           guardedAliasHint: synthIdentity?.hint ?? null,
@@ -599,7 +603,7 @@ export function createEstreeAdapter(options = {}) {
       // against its registered write span; the raw estree list carries phantoms) - so it runs after them
       // a VERIFIED identity hit needs no live shape verification - see the babel twin
       const isAliasBindingShape = !!identityInfo?.aliasVerified || isPolyfillAliasBinding({
-        info, binding: { path: b.path, constantViolations }, scope, adapter, injector: getInjector(), boundName: name,
+        info, binding: { path: b.path, constantViolations }, scope, adapter, injector: getInjector(), boundName: name, path,
       });
       // guarded registration = flow-trust refused: the member read stays native. the dominance
       // gate keeps a use textually BEFORE its trusted write / declaration native too.
@@ -624,6 +628,7 @@ export function createEstreeAdapter(options = {}) {
       return {
         node: b.path.node,
         kind: b.kind,
+        name,
         constantViolations,
         importSource,
         importKind,
@@ -656,11 +661,12 @@ export function createEstreeAdapter(options = {}) {
     findTrustedAliasWrite(scope, name, { requirePlacement = true, readNode = null } = {}) {
       const raw = scope?.getBinding?.(name);
       if (!raw || raw.path?.node?.type !== 'VariableDeclarator' || raw.path.node.init) return null;
-      // mirror the babel twin: strip valueless-redeclaration phantoms BEFORE the first-violation
+      // mirror the babel twin: count the writes the alias canon counts BEFORE the first-violation
       // pick - a trailing `var X;` lands in the raw list, the assignment climb dead-ends on its
       // declarator, and the trust predicate's every-violation span check fails, dropping the
-      // trusted write babel resolves (a usage-global under-inject)
-      const violations = withoutValuelessDeclarationViolations(raw.constantViolations);
+      // trusted write babel resolves (a usage-global under-inject); an identity self-assign is
+      // no second value source either
+      const violations = cleanDestructureAliasWrites(raw);
       const b = violations === raw.constantViolations ? raw : { ...raw, constantViolations: violations };
       let assignPath = violations?.[0];
       while (assignPath && assignPath.node?.type !== 'AssignmentExpression') assignPath = assignPath.parentPath;
@@ -689,7 +695,7 @@ export function createEstreeAdapter(options = {}) {
       // type-gates into resolveVariableBindingToGlobal with the null binding getBinding
       // returned), and a nested-block `var` shadowing an outer binding reports as a declarator
       const { native, synth } = resolveClosestBinding(scope, name, path);
-      return synth ? 'VariableDeclarator' : native?.path?.node?.type ?? null;
+      return synth ? synth.node.type : native?.path?.node?.type ?? null;
     },
     // estree-toolkit registers no binding for TSImportEquals at all (see hasTSRuntimeBinding) -
     // surface the declaration node through a dedicated lookup so the resolution canon can read

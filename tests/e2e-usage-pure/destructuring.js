@@ -5071,3 +5071,68 @@ QUnit.test('destructuring: alias values resolve where the alias lives, not at a 
   }
   assert.deepEqual(callSiteShadow('shadow'), [5, 6], 'an inline-callee return ignores the call-site shadow');
 });
+
+// a do-while TEST and a for UPDATE run only after a body / iteration that completed normally: a
+// `break` skips them, so the alias write standing there is not unconditional and the later read
+// takes the runtime guard, which reads the live value and throws where the native does
+QUnit.test('destructuring: alias written in a skipped do-while test throws like native', assert => {
+  function f(ready) {
+    let M;
+    do {
+      if (!ready) break;
+    // eslint-disable-next-line no-unmodified-loop-condition, @stylistic/no-extra-parens -- the test-slot write is the case under test
+    } while (({ Map: M } = globalThis));
+    return M.groupBy([1], x => x);
+  }
+  assert.throws(() => f(false), TypeError);
+});
+
+QUnit.test('destructuring: alias written in a skipped for update throws like native', assert => {
+  function f(ready) {
+    let M;
+    // eslint-disable-next-line no-unmodified-loop-condition, @stylistic/no-extra-parens -- the update-slot write is the case under test
+    for (let i = 0; i < 1; ({ Map: M } = globalThis)) {
+      if (!ready) break;
+    }
+    return M.groupBy([2], x => x);
+  }
+  assert.throws(() => f(false), TypeError);
+});
+
+// an identity self-assign writes the alias's own value back: the pattern-bound alias keeps its
+// static, which the stripped realm can only answer through the ponyfill
+QUnit.test('destructuring: identity self-assign keeps the pattern alias', assert => {
+  let { Map: M } = globalThis;
+  // eslint-disable-next-line no-self-assign -- the identity write is the case under test
+  M = M;
+  const grouped = M.groupBy([1, 2, 3], x => x % 2);
+  assert.deepEqual(grouped.get(1), [1, 3]);
+  let [A] = [globalThis.Array];
+  // eslint-disable-next-line no-self-assign -- the identity write is the case under test
+  A = A;
+  assert.deepEqual(A.from('ab'), ['a', 'b']);
+});
+
+// an assignment-form alias read in a LOOP BODY resolves its single write before the loop: the
+// back-edge re-runs the read, never the write
+QUnit.test('destructuring: loop-body read of an assignment alias', assert => {
+  /* eslint-disable prefer-const -- the assignment form of the alias is the case under test */
+  let w;
+  w = globalThis;
+  /* eslint-enable prefer-const -- end of the assignment-form alias */
+  let seen;
+  // eslint-disable-next-line no-unmodified-loop-condition, no-unreachable-loop -- a loop-body read of the alias is the case under test
+  while (w) {
+    seen = w.Array.of(1, 2);
+    break;
+  }
+  assert.deepEqual(seen, [1, 2]);
+  let nested;
+  for (let i = 1; i > 0; i--) {
+    while (i) {
+      nested = w.Array.of(3);
+      i--;
+    }
+  }
+  assert.deepEqual(nested, [3]);
+});

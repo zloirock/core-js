@@ -24,7 +24,12 @@ import {
   nodePathInScope,
 } from './base.js';
 import { collectQualifiedSegments, isInterfaceDeclaration, isTypeAlias, moduleStatements } from './ast-shapes.js';
-import { STATEMENT_LIST_HOST_TYPES, getDirectStatementBody, unwrapExportedDeclaration } from '../helpers/ast-patterns.js';
+import {
+  STATEMENT_LIST_HOST_TYPES,
+  getDirectStatementBody,
+  isAmbientTypeDeclaration,
+  unwrapExportedDeclaration,
+} from '../helpers/ast-patterns.js';
 
 // visitor-key list for recovering a real NodePath of a namespaced declaration via
 // `nodePathInScope` - the union of every node type `isFunctionOrClassDeclaration` /
@@ -38,18 +43,19 @@ function isGlobalAugmentation(decl) {
 }
 
 // TS `declare class X` is parsed as ClassDeclaration { declare: true }, not DeclareClass.
-// module-level functions so `ambientDeclCache` keys by identity stay stable across calls
+// module-level functions so `ambientDeclCache` keys by identity stay stable across calls.
+// both are the shared ambient fact (`isAmbientTypeDeclaration`) narrowed to one declaration
+// shape - these lanes look declarations up BY KIND, so they filter what that fact accepts
 export function isAmbientFunctionNode(node) {
   // estree/oxc parses `declare function` as FunctionDeclaration { declare: true } - the
   // function twin of the ClassDeclaration shape below; babel uses TSDeclareFunction.
-  // the third disjunct IS load-bearing: dropping it degrades oxc ambient-overload widening
+  // FunctionDeclaration IS load-bearing: dropping it degrades oxc ambient-overload widening
   // (the overload fixtures pin the widened generic emit)
-  return node?.type === 'TSDeclareFunction' || node?.type === 'DeclareFunction'
-    || (node?.type === 'FunctionDeclaration' && node.declare === true);
+  return isAmbientTypeDeclaration(node) && (node.type === 'TSDeclareFunction'
+    || node.type === 'DeclareFunction' || node.type === 'FunctionDeclaration');
 }
 export function isAmbientClassNode(node) {
-  return node?.type === 'DeclareClass'
-    || (node?.type === 'ClassDeclaration' && node.declare === true);
+  return isAmbientTypeDeclaration(node) && (node.type === 'DeclareClass' || node.type === 'ClassDeclaration');
 }
 export function isAmbientFunctionOrClassNode(node) {
   return isAmbientFunctionNode(node) || isAmbientClassNode(node);

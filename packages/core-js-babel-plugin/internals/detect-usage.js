@@ -11,7 +11,6 @@ import {
   createDetectionAdapter,
   mutationSiteVisitors,
 } from '@core-js/polyfill-provider/detect-usage/mutations';
-import { isTypeAnnotationNodeType, typeOnlyImportShadows } from '@core-js/polyfill-provider/detect-usage/annotations';
 import { createUsageHandlerCore } from '@core-js/polyfill-provider/detect-usage/visitors';
 import { createSyntaxPathHandlers } from '@core-js/polyfill-provider/detect-syntax';
 import {
@@ -21,6 +20,7 @@ import {
   findFunctionScopeVarInPath,
   findTSRuntimeBindingInPath,
   importBindingView,
+  isSloppyAtPath,
   isAmbientBindingShape,
   bareAssignmentPatternLeafPath,
   isAssignOrForXWriteTargetPath,
@@ -34,7 +34,7 @@ import {
   recomputedBindingWrites,
   useAnchorStart,
   walkPatternIdentifiers,
-  withoutValuelessDeclarationViolations,
+  cleanDestructureAliasWrites,
   aliasSpanDominatesUse,
   usableAliasInfo,
   CHAIN_HOP_WRAPPER_TYPES,
@@ -169,7 +169,7 @@ export function createBabelAdapter(options = {}) {
         const memoHint = memoTrusted && aliasSpanDominatesUse({ info: memoInfo, useStart: memoUseStart })
           ? memoInfo.hint : null;
         return {
-          node: memoDecl, kind: 'var', constantViolations: [], importSource: null, scope,
+          node: memoDecl, kind: 'var', name, constantViolations: [], importSource: null, scope,
           polyfillHint: memoHint, aliasSymbolSource: null, aliasWrite: memoInfo?.aliasWrite ?? null,
           guardedAliasHint: !memoHint ? memoInfo?.hint ?? null : null,
         };
@@ -226,7 +226,7 @@ export function createBabelAdapter(options = {}) {
         // since is our own mutation (the value swap), not user flow. decl-form entries stay
         // live-checked (their gate judged placement only - a redeclaration write must be caught)
         const isAliasBindingShape = !!identityInfo?.aliasVerified || isPolyfillAliasBinding({
-          info, binding: { path: b.path, constantViolations }, scope, adapter, injector: getInjector(), boundName: name,
+          info, binding: { path: b.path, constantViolations }, scope, adapter, injector: getInjector(), boundName: name, path,
         });
         // a GUARDED registration means flow-trust was REFUSED - the hint must never drive a
         // direct narrow (babel's mutated `var M = _Map` declarator is indistinguishable from a
@@ -248,7 +248,7 @@ export function createBabelAdapter(options = {}) {
           info, binding: b, scope, adapter, injector: getInjector(), boundName: name, keyCtx: { resolveKey: sharedResolveKey, path },
         }) ? info.source : null;
         return {
-          node: b.path.node, kind: b.kind, constantViolations, importSource, importKind,
+          node: b.path.node, kind: b.kind, name, constantViolations, importSource, importKind,
           // READ count of the binding (write positions excluded) - babel 7 counts, babel 8 keeps a Set
           references: b.references ?? b.referencesSet?.size ?? 0,
           // the scope the DECLARATOR is written in - the const-alias walkers advance to it per hop
@@ -318,7 +318,9 @@ export function createBabelAdapter(options = {}) {
         if (memoAssign) return memoAssign;
       }
       if (!b || b.path.node?.type !== 'VariableDeclarator' || b.path.node.init) return null;
-      const violations = withoutValuelessDeclarationViolations(b.constantViolations);
+      // the writes the alias canon counts: a valueless twin or an identity self-assign is no second
+      // value source
+      const violations = cleanDestructureAliasWrites(b);
       const first = violations?.[0];
       let assignPath = first?.isAssignmentExpression?.() ? first : first?.findParent?.(pp => pp.isAssignmentExpression());
       const assignNode = assignPath?.node;
@@ -437,7 +439,7 @@ export function rebuildLaggedScopeBinding(path, name) {
   if (!ownerCache) laggedBindingCache.set(ownerPath, ownerCache = { byName: new Map(), reassignIndex: null, writeIndex: null });
   if (ownerCache.byName.has(name)) return ownerCache.byName.get(name);
   // canonical write set mapped onto live paths - the same scan / owner index the estree
-  // twin (`synthVarHoistBinding`) reads, so the recovery mirrors a NATIVE binding's shape:
+  // twin (`synthHoistedBinding`) reads, so the recovery mirrors a NATIVE binding's shape:
   // for-x head writes and redecl-with-init declarators included, shadow boundaries scoped by
   // the canonical rules (a bare redecl carries no value and stays unrecorded - the phantom
   // filter would drop it anyway).
@@ -451,7 +453,7 @@ export function rebuildLaggedScopeBinding(path, name) {
   // the recovery - generic degrade beats handing the flow gates an unvouched write list
   function attempt() {
     if (!ownerCache.writeIndex) {
-      ownerCache.reassignIndex = buildScopeReassignmentIndex(ownerPath.node);
+      ownerCache.reassignIndex = buildScopeReassignmentIndex(ownerPath.node, isSloppyAtPath(ownerPath));
       ownerCache.writeIndex = buildOwnerWritePathIndex(ownerPath);
     }
     const declaratorPath = ownerCache.writeIndex.get(declaratorNode);
@@ -856,10 +858,6 @@ export function createUsageVisitors({
     // polyfilling is pure over-injection (and breaks TS output for exports / duplicates the
     // import LHS for TSImportEquals)
     if (isTSTypeOnlyIdentifierPath(path)) return;
-    // a type REFERENCE stays referenced on babel and so lands here rather than on the annotation
-    // walk - ask it the type-space shadow question the annotation lane asks
-    if (isTypeAnnotationNodeType(path.parent.type)
-      && typeOnlyImportShadows({ adapter, scope: path.scope, name: path.node.name, path, hostType: path.parent.type })) return;
     // `isReferencedIdentifier` is permissive on a BODYLESS method-shaped member key (an overload
     // signature `Map(): void;`, `abstract Map(): void`): it reports the key as referenced, so a
     // global-shaped member NAME would pull in that global's polyfill. the key names a member, never
