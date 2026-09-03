@@ -108,7 +108,7 @@ export const viaChainAssignSwap = null == (heldRoot = ca2())?.window ? void 0 : 
 // the window prefix and the branch reads the ponyfill leaf
 const ck = () => _globalThis;
 const hopKey = 'self';
-export const viaComputedMidHop = null == ck()?.window ? void 0 : _at(_ref16 = _Array$of(16)).call(_ref16, 0);
+export const viaComputedMidHop = null == ck()?.window ? void 0 : _atMaybeArray(_ref16 = _Array$of(16)).call(_ref16, 0);
 
 // NEGATIVE: a MAYBE-undefined callee (conditional assignment) is not provable - the chain
 // keeps the raw guarded read off the ref
