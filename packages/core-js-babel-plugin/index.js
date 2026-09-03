@@ -68,7 +68,7 @@ import {
   renderShortCircuitGuard,
 } from '@core-js/polyfill-provider/render';
 import estreeToBabel from './internals/estree-to-babel.js';
-import { isCoreJSFile } from '@core-js/polyfill-provider/helpers/path-normalize';
+import { isCoreJSFile, isDeclarationFile } from '@core-js/polyfill-provider/helpers/path-normalize';
 import {
   DISABLE_NEXT_LINE_DIRECTIVE,
   disableDirectiveAnchors,
@@ -1888,14 +1888,15 @@ export default function plugin(api, options) {
           comments, offsetToLine: undefined, firstStmtStart, ast: path.node,
         });
         const fileDisabled = directives === true;
-        skipFile = isInternalCoreJS || fileDisabled;
+        skipFile = isInternalCoreJS || fileDisabled || isDeclarationFile(path.hub.file.opts.filename);
         disabledLines = fileDisabled ? null : directives;
         // the minifier-sequence split lands before any usage / entry visitor sees the program, and
         // after the directives were read: a `-next-line` over a collapsed statement spans the whole
         // statement the author wrote, so every product stays covered. gated below skipFile so a
-        // `core-js-disable-file` directive or internal core-js source is returned verbatim, not
-        // rewritten (entry-global needs it too - a `require('core-js/...')` collapsed into a comma
-        // sequence - so the gate is `!skipFile`, not the narrower entry exclusion below)
+        // `core-js-disable-file` directive, internal core-js source or a declaration file is
+        // returned verbatim, not rewritten (entry-global needs it too - a `require('core-js/...')`
+        // collapsed into a comma sequence - so the gate is `!skipFile`, not the narrower entry
+        // exclusion below)
         if (!skipFile) splitMinifierSequence(path, t);
         // entry-global handles re-emit via detectEntries
         if (!skipFile && method !== 'entry-global') {

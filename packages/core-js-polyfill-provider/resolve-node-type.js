@@ -21,7 +21,7 @@ import {
   spreadAtOrBefore,
   staleVarRedeclNodes,
   staticMemberFromEntrySegment,
-  synthVarHoistBinding,
+  synthHoistedBinding,
   unwrapRuntimeExpr,
   varInitStaleByRedecl,
   wrapScopeBindingLookup,
@@ -152,7 +152,7 @@ function makeBabelBindingAdapter(getPolyfillBindingHint, babelNodeType, getScope
     hasBinding: (scope, name, path = null) => !!getScopeBinding(scope, name, path) || (!!path && !!findFunctionScopeVarInPath(path, name)),
     getBindingNodeType: (scope, name, path = null) => getScopeBinding(scope, name, path)?.path?.node?.type
       ?? (path && findFunctionScopeVarDeclaratorInPath(path, name) ? 'VariableDeclarator' : undefined),
-    getBinding: (scope, name, path = null) => getScopeBinding(scope, name, path) ?? synthVarHoistBinding(path, name),
+    getBinding: (scope, name, path = null) => getScopeBinding(scope, name, path) ?? synthHoistedBinding(path, name),
     // forward the raw hint verbatim (mirroring the unplugin estree adapter's `polyfillHint`):
     // it carries BOTH proxy-global aliases (`_globalThis` -> `globalThis`) AND pure-import
     // constructor stubs (`_Array$from` -> `Array`, `_Promise` -> `Promise`). each consumer
@@ -1176,13 +1176,10 @@ function createResolveNodeType(babelNodeType, t, {
   // is a redecl - a recorded reassignment reaching instead returns null, leaving the caller's
   // recorded-violation branch (which handles `=` + destructure-assignment slots) to take over
   function findReachingStaleRedecl(binding, usagePath, name) {
-    // declarator-shaped gap writes only: assignment-shaped writes already reach the race
-    // through the binding's (canonically merged) violations, and only a redecl declarator
-    // can win it (`reaching.node.type === 'VariableDeclarator'` below). without the filter
-    // every plain reassignment between decl and use paid the owner-wide write-path index
-    // build for a race the redecl could never win
-    const gapNodes = new Set(staleVarRedeclNodes(binding, usagePath, name)
-      .filter(node => node.type === 'VariableDeclarator'));
+    // declarator-shaped gap writes, as the canon hands them: assignment-shaped writes reach the
+    // race through the binding's (canonically merged) violations, and only a redecl declarator
+    // can win it (`reaching.node.type === 'VariableDeclarator'` below)
+    const gapNodes = new Set(staleVarRedeclNodes(binding, usagePath, name));
     if (!gapNodes.size) return null;
     // the SAME owner the node scan used (`staleVarRedeclNodes` -> `collectFunctionScopeVarWrites`
     // -> `findVarOwnerDeclaring`): a `var` hoists to the owner that DECLARES it, which is not

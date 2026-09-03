@@ -11918,4 +11918,30 @@ for (const [label, directives, hint] of [
   }
 }
 
+// --- the binding funnel's synthesized views: a parameter property, a sloppy block function ---
+// a constructor parameter PROPERTY is a binding neither tracker registers: the funnel stands a view
+// on the parameter itself, so its annotation types the body read, defaulted or not. in sloppy code a
+// block-level `function` hoists onto its function and shadows the global there: the type layer
+// resolves the name to that function, so a static call on it is no known static
+runBoth('parameter property: defaulted', 'class C { constructor(public a: number[] = [1]) { a; } }', (adapter, prog, lbl) => {
+  const use = adapter.pickPath(prog, 'Identifier', p => p.node.name === 'a' && p.parentPath?.node?.type === 'ExpressionStatement');
+  checkType(lbl, adapter.makeResolver().resolveNodeType(use), { primitive: false, ctor: 'Array' });
+});
+runBoth('parameter property: bare', 'class C { constructor(public a: number[]) { a; } }', (adapter, prog, lbl) => {
+  const use = adapter.pickPath(prog, 'Identifier', p => p.node.name === 'a' && p.parentPath?.node?.type === 'ExpressionStatement');
+  checkType(lbl, adapter.makeResolver().resolveNodeType(use), { primitive: false, ctor: 'Array' });
+});
+runBoth('parameter property: a body write reaches the read', 'class C { constructor(public a: number[] = [1]) { a = "s"; a; } }', (adapter, prog, lbl) => {
+  const use = adapter.pickPath(prog, 'Identifier', p => p.node.name === 'a' && p.parentPath?.node?.type === 'ExpressionStatement');
+  checkType(lbl, adapter.makeResolver().resolveNodeType(use), { primitive: true, kind: 'string' });
+});
+runBoth('sloppy block function shadows the static call', 'function h(x) { { function Array() {} } const r = Array.from(x); }', (adapter, prog, lbl) => {
+  const decl = adapter.pickPath(prog, 'VariableDeclarator');
+  check(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), null);
+}, [], 'script');
+runBoth('strict block function is block-scoped, the static call stays known', 'function h(x) { { function Array() {} } const r = Array.from(x); }', (adapter, prog, lbl) => {
+  const decl = adapter.pickPath(prog, 'VariableDeclarator');
+  checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+});
+
 finish();
