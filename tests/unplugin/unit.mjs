@@ -3300,15 +3300,14 @@ function checkAstPrintQuirks() {
   // esrap's statement-pad space would land INSIDE the comment token and grow it per reprint
   check('a comment-only file does not accrete the pad space', astPrint('// alone').code, '// alone');
   check('the pad trim reaches a fixed point', astPrint(astPrint('// alone').code).code, '// alone');
-  // the Property concise-method branch prints `key(` directly - the synthetic key node
-  // carries the type parameters through; the computed spelling has no seam after `]` and
-  // degrades to the equivalent function-expression property
+  // an object concise method keeps its type parameters in every spelling - plain, generator and
+  // computed alike; the printer writes them itself, so nothing here smuggles them past the key
   check('an object concise method keeps its type parameters',
     astPrint('const o = { m<T>(x: T): T { return x; } };').code, 'const o = {\n\tm<T>(x: T): T {\n\t\treturn x;\n\t}\n};');
   check('an async generator concise method keeps its type parameters',
     astPrint('const o = { async *g<T>(x: T) { yield x; } };').code, 'const o = {\n\tasync *g<T>(x: T) {\n\t\tyield x;\n\t}\n};');
-  check('a computed generic concise method degrades to a typed function property',
-    astPrint('const o = { [k]<T>(x: T): T { return x; } };').code, 'const o = {\n\t[k]: function <T>(x: T): T {\n\t\treturn x;\n\t}\n};');
+  check('a computed generic concise method keeps its own spelling',
+    astPrint('const o = { [k]<T>(x: T): T { return x; } };').code, 'const o = {\n\t[k]<T>(x: T): T {\n\t\treturn x;\n\t}\n};');
   check('a postfix JSDoc-nullable annotation prints', astPrint('function f(a: string?) {}').code, 'function f(a: string?) {}');
   check('hashbang is re-emitted', astPrint('#!/usr/bin/env node\nlet x = 1;').code, '#!/usr/bin/env node\nlet x = 1;');
   check('jsx prints under the tsx language',

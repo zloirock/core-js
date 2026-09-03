@@ -93,24 +93,26 @@ function withCorpusGapOverrides(language) {
     baseArrow({ ...node, body: parenthesize(node.body) }, context);
   };
   // `(M.g as any)<any>` prints as `M.g as any<any>` - no precedence row for the
-  // instantiation base; a synthetic paren node restores the grouping
+  // instantiation base; a synthetic paren node restores the grouping. upstream 2.3.7 groups a
+  // logical / ternary / await base on its own, but the paren NODE this writes is what the
+  // structural gate compares, so every non-bare base keeps taking it
   const BARE_INSTANTIATION_BASES = new Set(['Identifier', 'MemberExpression', 'CallExpression', 'ThisExpression', 'Super']);
   const baseInstantiation = language.TSInstantiationExpression;
   language.TSInstantiationExpression = (node, context) => {
     if (BARE_INSTANTIATION_BASES.has(node.expression.type)) return baseInstantiation(node, context);
     baseInstantiation({ ...node, expression: parenthesize(node.expression) }, context);
   };
-  // esrap prints a destructuring pattern's annotation (2.3.6; <= 2.3.5 forgot ArrayPattern's)
-  // but never its `?` (a declare-signature `([a]?: T[])` / `({ a }?: O)` param; Identifier
-  // carries its own upstream). strip both from what the base sees and print them ourselves,
-  // in source order - correct on either esrap side, and the tree stays unmutated
+  // esrap prints a destructuring pattern's annotation but never its `?` (a declare-signature
+  // `([a]?: T[])` / `({ a }?: O)` param; Identifier carries its own upstream). the annotation is
+  // stripped from what the base sees only so the marker can land BEFORE it, in source order -
+  // and the tree stays unmutated
   for (const type of ['ArrayPattern', 'ObjectPattern']) {
     const basePattern = language[type];
     language[type] = (node, context) => {
-      if (!node.typeAnnotation && !node.optional) return basePattern(node, context);
-      const { typeAnnotation, optional, ...bare } = node;
+      if (!node.optional) return basePattern(node, context);
+      const { typeAnnotation, ...bare } = node;
       basePattern(bare, context);
-      if (optional) context.write('?');
+      context.write('?');
       if (typeAnnotation) context.visit(typeAnnotation);
     };
   }
@@ -123,16 +125,6 @@ function withCorpusGapOverrides(language) {
       context.write(`}${ node.quasis[i + 1].value.raw }`);
     }
     context.write('`');
-  };
-  // not implemented upstream: the JSDoc-style `?T` / `T?` annotation oxc admits in TS
-  language.TSJSDocNullableType = (node, context) => {
-    if (node.postfix) {
-      context.visit(node.typeAnnotation);
-      context.write('?');
-    } else {
-      context.write('?');
-      context.visit(node.typeAnnotation);
-    }
   };
   // oxc spells the import source `source` where the handler expects ts-eslint's `argument`
   const baseImportType = language.TSImportType;
@@ -149,15 +141,6 @@ function withCorpusGapOverrides(language) {
       baseMethod(node, context);
     };
   }
-  // an object-literal concise method never prints its type parameters at all - the Property
-  // branch writes `key(` directly, consulting neither node. a synthetic key node smuggles
-  // them in after the key; the computed spelling has no seam between `]` and `(`, so it
-  // degrades to the equivalent function-expression property (a body leaning on `super`
-  // then fails the reparse LOUDLY - never a silent type drop)
-  language.CoreJSMethodKeyTypeParameters = (node, context) => {
-    context.visit(node.key);
-    context.visit(node.typeParameters);
-  };
   const baseProperty = language.Property;
   language.Property = (node, context) => {
     // esrap collapses `x: x` to shorthand on NAME equality alone, ignoring the parsed
@@ -173,23 +156,7 @@ function withCorpusGapOverrides(language) {
       context.visit(node.value);
       return;
     }
-    const typeParameters = node.value?.typeParameters;
-    if (!typeParameters || !node.method || node.value.type !== 'FunctionExpression') return baseProperty(node, context);
-    if (!node.computed) {
-      return baseProperty({ ...node, key: { type: 'CoreJSMethodKeyTypeParameters', key: node.key, typeParameters } }, context);
-    }
-    baseProperty({ ...node, method: false }, context);
-  };
-  // explicit type arguments on a tagged template (`tag<Set<number>>` `x``) are dropped
-  const baseTagged = language.TaggedTemplateExpression;
-  language.TaggedTemplateExpression = (node, context) => {
-    if (!node.typeArguments) return baseTagged(node, context);
-    const wrap = (EXPRESSIONS_PRECEDENCE[node.tag.type] ?? 0) < EXPRESSIONS_PRECEDENCE.CallExpression;
-    if (wrap) context.write('(');
-    context.visit(node.tag);
-    if (wrap) context.write(')');
-    context.visit(node.typeArguments);
-    context.visit(node.quasi);
+    return baseProperty(node, context);
   };
   // a ChainExpression under postfix `!` is SEALED and only parens spell that boundary:
   // `(a?.b)!.c` printed bare re-parses as one continuous chain and short-circuits past
