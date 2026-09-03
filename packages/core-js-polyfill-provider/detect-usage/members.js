@@ -880,7 +880,9 @@ function buildMemberMeta({ node, scope, adapter, path, resolveStaticKey = null }
     // same expression completes before it (`(g = globalThis, v = g.window.self).Promise`). the
     // anchor rides its OWN parameter - `usageNode` is a dominance ANCHOR PATH for the walks below,
     // and handing them a node silently passed the gate a conditional write must fail
-    const objectName = resolveObjectName({ objectNode: classifyTarget, scope, adapter, path, readNode: classifyTarget })
+    const objectName = resolveObjectName({
+      objectNode: classifyTarget, scope, adapter, path, readNode: classifyTarget, resolveStaticKey,
+    })
       ?? staticContainerReceiverName({ node: classifyTarget, scope, adapter, path, unionSink: containerUnion });
     // bail for plugin-injected polyfill bindings (`_flatMaybeArray`, `_Map`, ...) - they carry
     // `polyfillHint` and re-detection would chase the polyfill itself. user imports
