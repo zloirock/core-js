@@ -310,8 +310,10 @@ function hasRuntimeBinding(scope, name, path = null) {
 // scoped mutation pre-pass (estree side): the cheap shape gate first; only files that
 // actually monkey-patch pay for the scoped toolkit traverse + canonical receiver resolution.
 // shares every resolution step with the read side via `mutations` (provider)
-export function collectMutationPrePass(ast, adapter, census = null) {
-  const { mutated, handleSite, finalize } = beginMutationPrePass({ rootNode: ast, adapter, census });
+export function collectMutationPrePass(ast, adapter, census = null, resolveStaticKey = null) {
+  const { mutated, handleSite, finalize } = beginMutationPrePass(
+    { resolveStaticKey, rootNode: ast, adapter, census },
+  );
   if (!handleSite) return { mutated };
   const siteVisitors = mutationSiteVisitors(handleSite);
   // estree-toolkit omits `decorators` from the visitor keys of the DEFINED class / member node
@@ -1100,7 +1102,7 @@ export function createUsageVisitors({
   // pattern holding the key - the key EVALUATES there; a pathless call defaults the
   // dominance gate open and folds a conditionally-initialized key
   function resolveKey(node, computed, scope, path = null) {
-    return sharedResolveKey({ node, computed, scope, adapter, path });
+    return sharedResolveKey({ node, computed, scope, adapter, path, resolveStaticKey });
   }
 
   function extractPropertyKey(propNode, scope, path = null) {
@@ -1123,7 +1125,7 @@ export function createUsageVisitors({
     const scope = objectPattern.parentPath.scope || objectPattern.scope;
     const key = extractPropertyKey(propNode, scope, objectPattern);
     return buildDestructureLeafMeta({
-      descriptor, key, adapter, resolvePure, unionSink: containerUnionSink,
+      descriptor, key, adapter, resolvePure, unionSink: containerUnionSink, resolveStaticKey,
     });
   }
 

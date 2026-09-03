@@ -513,18 +513,17 @@ function createResolveNodeType(babelNodeType, t, {
   // passes an extractor that keeps the runtime type apart. only the leaves differ - the
   // alias / IIFE / enum-member folding above them is identical, so it is not duplicated
   // the same key NAME, for a consumer that will CLAIM a polyfill on it. the fold is the one above;
-  // what this adds is the gate the TYPE read already applies to an enum member - a slot the program
-  // REWRITES (`(E as any).A = 'flat'`) no longer holds the declared value, so the runtime key is not
-  // the folded one, and claiming on it would call a different method than the source does. asked of
-  // the same per-program write index, so the two consumers cannot drift apart
+  // what this adds is the shape gate a claim needs: a name the caller cannot attribute to a plain
+  // container, or one asked without a path to the program, declines rather than claims - over-
+  // resolving calls a method the source does not, under-resolving only degrades the read. the
+  // REWRITTEN member is gated here: a slot the program writes no longer holds the declared value,
+  // so the runtime key is not the folded one and claiming on it would call a different method.
+  // asked of the same per-program write index the TYPE read uses, so the two cannot drift apart
   function resolveClaimableComputedKeyName(key, scope, path) {
     const name = resolveComputedKeyName(key, scope);
     if (name === null) return null;
     const memberName = getMemberProperty(key);
     const objectName = key?.object?.type === 'Identifier' ? key.object.name : null;
-    // the gate cannot run without a path to the program, or without a plain-Identifier container
-    // (`N.E.A` names one this walk does not follow) - and a CLAIM that cannot be gated declines:
-    // over-resolving calls a method the source does not, under-resolving only degrades the read
     if (!path || !memberName || !objectName) return null;
     return memberResolveCluster.enumSlotExternallyWritten(path, [objectName], memberName) ? null : name;
   }
