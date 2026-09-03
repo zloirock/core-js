@@ -666,7 +666,8 @@ export default function createPlugin(options) {
       currentMutatedStatics = null;
       currentWrittenContainerSlots = null;
       try {
-        mutationInfo = collectMutationPrePass(ast, estreeAdapter, fileCensus);
+        mutationInfo = collectMutationPrePass(ast, estreeAdapter, fileCensus,
+          (node, scope, path) => typeResolvers.resolveClaimableComputedKeyName(node, scope, path));
       } finally {
         currentMutatedStatics = outerMutatedStatics;
         currentWrittenContainerSlots = outerWrittenContainerSlots;
