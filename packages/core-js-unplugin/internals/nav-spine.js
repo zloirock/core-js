@@ -14,7 +14,6 @@ import {
   unbackedRealmHopFoldAbove,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
-  chainValueCarrier,
   assignmentValueDiscarded,
   claimDeleteOperand,
   isDestructurePattern,
@@ -28,6 +27,9 @@ import {
   peelParenAndTSSlotPath,
   POSSIBLE_GLOBAL_OBJECTS,
   SKIPPABLE_WRAPPER_TYPES,
+  chainValueCarrier,
+  collectFoldedReceiverSideEffects,
+  computedKeyStaticName,
   staticMemberKeyName,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   TS_EXPR_WRAPPERS,
@@ -683,18 +685,16 @@ export function spineHoldsKeptWrite(objectNode) {
   return value?.type === 'AssignmentExpression';
 }
 
-// a SEQ-prefixed computed key folds to its literal-string tail, the prefix carried as
-// effects (`[(c++, 'values')]` -> `values` plus the prefix); null when the tail is not
-// a string literal
+// an EFFECT-bearing computed key folds to the static name it spells, the effects it carries coming
+// back for the caller to re-emit (`[(c++, 'values')]` -> `values` plus the prefix); null when the
+// key spells no static name. both halves are the canon's: the NAME through `computedKeyStaticName`,
+// which folds a sequence tail, a `+` concat and a template nested in any combination, and the
+// EFFECTS through the harvest that mirrors exactly those shapes. spelled here by hand it peeled one
+// sequence layer and declined everything deeper, so a nested key took a heavier route than its
+// single-layer twin - two rules for one question
 export function foldSeqKeyLiteralTail(property) {
-  let key = unwrapRuntimeExpr(property);
-  const effects = [];
-  if (key?.type === 'SequenceExpression') {
-    effects.push(...key.expressions.slice(0, -1));
-    key = unwrapRuntimeExpr(key.expressions.at(-1));
-  }
-  if (key?.type !== 'Literal' || typeof key.value !== 'string') return null;
-  return { key: key.value, effects };
+  const key = computedKeyStaticName(property);
+  return key === null ? null : { key, effects: collectFoldedReceiverSideEffects(property) };
 }
 
 export function noteMutatedCtorHopDestructure(metaPath, node, { adapter, destructureEmit }) {

@@ -512,6 +512,23 @@ function createResolveNodeType(babelNodeType, t, {
   // key (`obj[1]` and `obj['1']` index the same slot), while a caller comparing with `===`
   // passes an extractor that keeps the runtime type apart. only the leaves differ - the
   // alias / IIFE / enum-member folding above them is identical, so it is not duplicated
+  // the same key NAME, for a consumer that will CLAIM a polyfill on it. the fold is the one above;
+  // what this adds is the gate the TYPE read already applies to an enum member - a slot the program
+  // REWRITES (`(E as any).A = 'flat'`) no longer holds the declared value, so the runtime key is not
+  // the folded one, and claiming on it would call a different method than the source does. asked of
+  // the same per-program write index, so the two consumers cannot drift apart
+  function resolveClaimableComputedKeyName(key, scope, path) {
+    const name = resolveComputedKeyName(key, scope);
+    if (name === null) return null;
+    const memberName = getMemberProperty(key);
+    const objectName = key?.object?.type === 'Identifier' ? key.object.name : null;
+    // the gate cannot run without a path to the program, or without a plain-Identifier container
+    // (`N.E.A` names one this walk does not follow) - and a CLAIM that cannot be gated declines:
+    // over-resolving calls a method the source does not, under-resolving only degrades the read
+    if (!path || !memberName || !objectName) return null;
+    return memberResolveCluster.enumSlotExternallyWritten(path, [objectName], memberName) ? null : name;
+  }
+
   function resolveComputedKeyName(key, scope, literalValue = literalKeyValue) {
     // follow const-binding chains by looping instead of recursing - the Identifier branch
     // re-drives the whole resolution on the binding's init at an incremented depth
@@ -2778,6 +2795,8 @@ function createResolveNodeType(babelNodeType, t, {
     // non-escaping function whose every call leaves this param slot to its default
     paramDefaultNeverOverridden: patternBindingsCluster.defaultParamNeverOverridden,
     reset,
+    resolveClaimableComputedKeyName,
+    resolveComputedKeyName,
     resolveGuardHints,
     resolveNodeType,
     resolvePropertyObjectType,

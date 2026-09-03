@@ -1014,6 +1014,7 @@ export function createMemberResolve({
     findClassPathForTypeReference,
     resolveIndexSignatureMember,
     resolveFromMemberExpression,
+    enumSlotExternallyWritten,
     resolveMemberOfObjectPath,
     resolveArrayIndexAccess,
     resolveEnumMemberAccess,
