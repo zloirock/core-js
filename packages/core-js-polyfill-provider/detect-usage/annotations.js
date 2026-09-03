@@ -9,8 +9,8 @@
 //     OR the optional call wrapping it (`Array.from?.(...)`); a call unwraps to its callee
 import {
   getSuperTypeArgs,
-  importBindingIsTypeOnly, isMutatedStaticMeta, memberKeyName, POSSIBLE_GLOBAL_OBJECTS,
-  TRANSPARENT_EXPR_WRAPPER_TYPES, unwrapRuntimeExpr,
+  importBindingIsTypeOnly, inferTypeParameterNames, isMutatedStaticMeta, isTypeAnnotationNodeType, memberKeyName,
+  POSSIBLE_GLOBAL_OBJECTS, TRANSPARENT_EXPR_WRAPPER_TYPES, TYPE_REFERENCE_SLOTS, typeParameterInScope, unwrapRuntimeExpr,
 } from '../helpers/ast-patterns.js';
 import {
   globalProxyMemberName,
@@ -26,126 +26,18 @@ import {
   unwrapTransparentSeq,
 } from './resolve.js';
 
-// allow-list of TS type-only nodes - unknown `TS*` defaults to runtime (false positive is
-// louder than silent skip). runtime-carrying wrappers (TSAsExpression, ...) stay out
-const TS_TYPE_ONLY_NODES = new Set([
-  'TSTypeAnnotation',
-  'TSTypeParameterDeclaration',
-  'TSTypeParameterInstantiation',
-  'TSTypeParameter',
-  'TSStringKeyword',
-  'TSNumberKeyword',
-  'TSBooleanKeyword',
-  'TSBigIntKeyword',
-  'TSSymbolKeyword',
-  'TSVoidKeyword',
-  'TSUndefinedKeyword',
-  'TSNullKeyword',
-  'TSNeverKeyword',
-  'TSAnyKeyword',
-  'TSObjectKeyword',
-  'TSUnknownKeyword',
-  'TSIntrinsicKeyword',
-  'TSThisType',
-  'TSArrayType',
-  'TSTupleType',
-  'TSUnionType',
-  'TSIntersectionType',
-  'TSParenthesizedType',
-  'TSOptionalType',
-  'TSRestType',
-  'TSConditionalType',
-  'TSInferType',
-  'TSTypeOperator',
-  'TSIndexedAccessType',
-  'TSMappedType',
-  'TSNamedTupleMember',
-  'TSLiteralType',
-  'TSTemplateLiteralType',
-  'TSTypeReference',
-  'TSTypeQuery',
-  'TSTypePredicate',
-  'TSQualifiedName',
-  'TSImportType',
-  'TSFunctionType',
-  'TSConstructorType',
-  'TSTypeLiteral',
-  'TSInterfaceDeclaration',
-  'TSInterfaceBody',
-  'TSTypeAliasDeclaration',
-  'TSPropertySignature',
-  'TSMethodSignature',
-  'TSIndexSignature',
-  'TSCallSignatureDeclaration',
-  'TSConstructSignatureDeclaration',
-  'TSDeclareFunction',
-  'TSDeclareMethod',
-  // oxc-emitted nodes Babel doesn't surface (some are subtypes of TSExpressionWithTypeArguments
-  // / TSTypeReference under different names). leaving them out misses type-only contexts on
-  // oxc paths, causing false-positive polyfill detection inside `class C implements Foo` etc.
-  // NOTE: `TSEnumBody` is intentionally NOT here - enum members carry RUNTIME initializer
-  // expressions (`A = [1,2,3].at(0)`) that need polyfill detection. Same for
-  // `TSExternalModuleReference` (the `require(...)` in `import x = require(...)`)
-  'TSClassImplements',
-  'TSInterfaceHeritage',
-  'TSNamespaceExportDeclaration',
-  'TSJSDocNullableType',
-  'TSJSDocNonNullableType',
-  'TSJSDocUnknownType',
-]);
-
-// Flow type-only nodes (stable naming, no forward-compat concern)
-const FLOW_TYPE_ONLY_NODES = new Set([
-  'TypeAnnotation',
-  'InterfaceDeclaration',
-  'InterfaceTypeAnnotation',
-  'InterfaceExtends',
-  'TypeAlias',
-  'OpaqueType',
-  'TypeParameter',
-  'TypeParameterDeclaration',
-  'TypeParameterInstantiation',
-  'GenericTypeAnnotation',
-  'StringTypeAnnotation',
-  'NumberTypeAnnotation',
-  'BooleanTypeAnnotation',
-  'NullLiteralTypeAnnotation',
-  'VoidTypeAnnotation',
-  'EmptyTypeAnnotation',
-  'AnyTypeAnnotation',
-  'MixedTypeAnnotation',
-  'ExistsTypeAnnotation',
-  'SymbolTypeAnnotation',
-  'BigIntTypeAnnotation',
-  'UnionTypeAnnotation',
-  'IntersectionTypeAnnotation',
-  'NullableTypeAnnotation',
-  'ArrayTypeAnnotation',
-  'TupleTypeAnnotation',
-  'ObjectTypeAnnotation',
-  'ObjectTypeProperty',
-  'ObjectTypeSpreadProperty',
-  'ObjectTypeIndexer',
-  'ObjectTypeCallProperty',
-  'ObjectTypeInternalSlot',
-  'FunctionTypeAnnotation',
-  'FunctionTypeParam',
-  'TypeofTypeAnnotation',
-  'IndexedAccessType',
-  'OptionalIndexedAccessType',
-  'StringLiteralTypeAnnotation',
-  'NumberLiteralTypeAnnotation',
-  'BooleanLiteralTypeAnnotation',
-  'QualifiedTypeIdentifier',
-]);
+// the type-space node census lives with the AST canon (the type-only identifier rule reads it
+// there); this module keeps the annotation walks and re-exports the predicate for its consumers
+export { isTypeAnnotationNodeType };
 
 // a TYPE position and a VALUE position ask different shadow questions of the same name, and
 // `adapter.hasBinding` answers the value one: it deliberately ignores a type-only import because
 // tsc elides it, so a VALUE of that name really is the global. in a TYPE position that same import
 // IS the shadow - `import type { Set } from 'immutable'` makes `x: Set<number>` name immutable's
 // Set, and injecting es.set.* for it polyfills a global the annotation never named. both detection
-// lanes ask this: the shared annotation walk, and babel's identifier visitor, which reports a type
-// reference as a referenced identifier and so reaches type positions through the value path
+// lanes ask this: the shared annotation walk, and the shared identifier tail (`emitGlobalUsage`),
+// which BOTH parsers reach with a type reference - they report it as a referenced identifier, so a
+// heritage clause and a bare annotation name arrive through the value path alike
 export function typeOnlyImportShadows({ adapter, scope, name, path, hostType }) {
   // `typeof X` names the RUNTIME binding, so the elided import leaves the global exposed there -
   // the type-space answer applies to a plain type reference only
@@ -153,21 +45,16 @@ export function typeOnlyImportShadows({ adapter, scope, name, path, hostType }) 
   return importBindingIsTypeOnly(adapter.getBinding?.(scope, name, path));
 }
 
-// does a name read from a type position stand for the real global here? both shadow questions
-// together - a runtime binding and a type-only import. the usage sink asks it of every name the
-// walk hands it, and the walk itself asks it of a qualified chain's ROOT before promoting the
-// chain's further segments to globals: spelled once, so a user `const self = {...}` cannot make
-// `x: self.Reflect` report the global Reflect the way a name-only proxy test did
+// does a name read from a type position stand for the real global here? the three shadow
+// questions together - a runtime binding, a type-only import, a type parameter in scope. the
+// usage sink asks it of every name the walk hands it, and the walk itself asks it of a qualified
+// chain's ROOT before promoting the chain's further segments to globals: spelled once, so a user
+// `const self = {...}` cannot make `x: self.Reflect` report the global Reflect the way a
+// name-only proxy test did
 export function annotationNameIsGlobal({ adapter, scope, name, path, hostType }) {
   return !adapter.hasBinding(scope, name, path)
-    && !typeOnlyImportShadows({ adapter, scope, name, path, hostType });
-}
-
-// is `type` a TS/Flow type-only node? `Declare*` is a stable Flow prefix
-export function isTypeAnnotationNodeType(type) {
-  if (!type) return false;
-  if (TS_TYPE_ONLY_NODES.has(type) || FLOW_TYPE_ONLY_NODES.has(type)) return true;
-  return type.startsWith('Declare');
+    && !typeOnlyImportShadows({ adapter, scope, name, path, hostType })
+    && !typeParameterInScope(path, name);
 }
 
 // param positions (`(x: Foo) => Bar`) - pattern nodes hosting a child `typeAnnotation`
@@ -236,18 +123,6 @@ const TYPE_CHILD_KEYS = [
   'left',
 ];
 
-// per-node-type: which property holds the bare Identifier that names a type / runtime binding.
-// `TSTypeReference.typeName` / `GenericTypeAnnotation.id` - bare type names (Flow vs TS).
-// `TSTypeQuery.exprName` - `typeof X` in annotation pulls in the runtime binding `X` as a
-// real global reference. qualified names (TSQualifiedName) land on the Identifier `X` in
-// `typeof NS.X` through the object position - we deliberately take the root `NS` only when
-// it already matches the Identifier shape here
-const TYPE_REFERENCE_SLOTS = {
-  TSTypeReference: 'typeName',
-  GenericTypeAnnotation: 'id',
-  TSTypeQuery: 'exprName',
-};
-
 // walk a type annotation subtree, invoking `onGlobal(name, hostType)` for every bare type
 // reference. `hostType` is the node the name was read from - `typeof X` READS the runtime binding,
 // so a consumer asking a type-space question has to tell that host apart from a plain type reference.
@@ -255,17 +130,21 @@ const TYPE_REFERENCE_SLOTS = {
 // `ctx` (`{ scope, adapter, path }`) is what the qualified-chain arm resolves its ROOT against - a
 // proxy-global NAME is only the realm when nothing local shadows it, and the sink's own per-name
 // filter cannot answer for the chain's further segments
+// an `infer` parameter covers the conditional's true branch: the stack carries the names in
+// scope beside each node, and a reference naming one of them is that parameter, no global
 export function walkTypeAnnotationGlobals(annotation, onGlobal, ctx) {
   if (!annotation) return;
   const seen = new WeakSet();
-  const stack = [annotation];
+  const stack = [[annotation, null]];
   while (stack.length) {
-    const node = stack.pop();
+    const [node, inferred] = stack.pop();
     if (!node || typeof node !== 'object' || seen.has(node)) continue;
     seen.add(node);
-    const refSlot = TYPE_REFERENCE_SLOTS[node.type];
+    // WHICH slot of a type-space node holds a reference is the shared canon's answer - the same
+    // table the type-only identifier rule reads from the child's side
+    const refSlot = TYPE_REFERENCE_SLOTS.get(node.type);
     const ref = refSlot ? node[refSlot] : null;
-    if (ref?.type === 'Identifier') onGlobal(ref.name, node.type);
+    if (ref?.type === 'Identifier' && !inferred?.has(ref.name)) onGlobal(ref.name, node.type);
     // a qualified type name (`globalThis.Map.prototype`): `exprName` / `typeName` is a TSQualifiedName
     // whose leftmost `left` is the chain root. unplugin's estree-toolkit scope tracker does not visit
     // the chain, so surface the runtime globals here or the two pipelines diverge (babel reaches them
@@ -288,7 +167,7 @@ export function walkTypeAnnotationGlobals(annotation, onGlobal, ctx) {
       // Reflect. the sink filters the root itself by the same rule, but it is handed names one at a
       // time and cannot tell a promoted segment from a bare reference
       const rootIsProxy = root?.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(root.name)
-        && annotationNameIsGlobal({ ...ctx, name: root.name, hostType: node.type });
+        && !inferred?.has(root.name) && annotationNameIsGlobal({ ...ctx, name: root.name, hostType: node.type });
       if (node.type === 'TSTypeQuery' || rootIsProxy) {
         if (root?.type === 'Identifier') onGlobal(root.name, node.type);
         // when the root is a proxy-global, EACH subsequent segment is itself a real global reference for
@@ -308,12 +187,15 @@ export function walkTypeAnnotationGlobals(annotation, onGlobal, ctx) {
         }
       }
     }
+    const trueBranchScope = node.type === 'TSConditionalType' ? inferTypeParameterNames(node.extendsType) : null;
     for (const key of TYPE_CHILD_KEYS) {
       const child = node[key];
+      const scope = trueBranchScope && key === 'trueType'
+        ? new Set([...inferred ?? [], ...trueBranchScope]) : inferred;
       if (Array.isArray(child)) {
-        for (const c of child) if (isTypeWalkable(c)) stack.push(c);
+        for (const c of child) if (isTypeWalkable(c)) stack.push([c, scope]);
       } else if (isTypeWalkable(child)) {
-        stack.push(child);
+        stack.push([child, scope]);
       }
     }
   }
