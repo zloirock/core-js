@@ -681,6 +681,46 @@ runBoth('IIFE computed key on a string-enum member resolves the string value',
     checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { kind: 'string', primitive: true });
   });
 
+// --- computed member keys folded STRUCTURALLY, the canon's whole shape set ---
+// the type layer names a computed key through the same canon detection uses, so every spelling of one
+// key answers alike: a `+` concat and a multi-part template used to name nothing here, and the read
+// above such a member lost the narrow its dotted twin keeps (`Array['o' + 'f'](5).at(0)` dispatched
+// through the generic instance helper while `Array.of(5).at(0)` took the array-narrowed one)
+runBoth('concat computed key on a type-literal member resolves the member type',
+  "interface I { data: number[]; } declare const o: I; const t = o['da' + 'ta'];",
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+runBoth('multi-part template computed key resolves the member type',
+  // eslint-disable-next-line no-template-curly-in-string -- the source under test IS a template key
+  'interface I { data: number[]; } declare const o: I; const t = o[`${ \'da\' }${ \'ta\' }`];',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+runBoth('sequence-prefixed concat computed key resolves the member type',
+  "interface I { data: number[]; } declare const o: I; declare let n: number; const t = o[(n++, 'da') + 'ta'];",
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+runBoth('nested sequence computed key resolves the member type',
+  "interface I { data: number[]; } declare const o: I; declare let n: number; const t = o[(n++, (n++, 'data'))];",
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+// ... and a key nothing static resolves still names no member: the canon widens the SPELLINGS it
+// folds, never the question of whether a name is there at all
+runBoth('dynamic computed key still resolves no member type',
+  'interface I { data: number[]; } declare const o: I; declare const dyn: string; const t = o[dyn];',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor === 'Array', false);
+  });
+
 runBoth('ReturnType<typeof static getter> bails instead of returning the value type',
   'class X { static get sg(): () => number[] { return () => [1]; } } declare const v: ReturnType<typeof X.sg>; const t = v;',
   (adapter, prog, lbl) => {

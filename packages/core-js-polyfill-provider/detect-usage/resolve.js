@@ -84,6 +84,8 @@ import {
   unwrapTransparentSeq,
   varInitDominatesUsage,
   zeroArgIifeSideEffectFree,
+  ESCAPED_CONTAINER_NAMES,
+  rootProgramOf,
 } from '../helpers/ast-patterns.js';
 import { nodeRangeContains } from '../resolve-node-type/ast-shapes.js';
 import { SYMBOL_STATIC_KEYS, symbolKeyToEntry } from './globals.js';
@@ -2847,7 +2849,31 @@ function isNumericLiteralKeyNode(node) {
   return node.type === 'NumericLiteral' || (node.type === 'Literal' && typeof node.value === 'number');
 }
 
-export function resolveKey({ node, computed, scope, adapter, seen, path, depth = 0, bailOnSideEffectKey = false, usageNode = null }) {
+// a computed MEMBER key - `E.A` off a TS enum - named by the TYPE layer's own key-name resolver,
+// which already owns that fold (its shadowing gate, its merged-enum-block walk). asked as a
+// callback rather than re-derived here: one name must not have two resolvers, and detection had
+// none of its own, so `[3, 4][E.A](0)` stayed raw while every other spelling of that key claimed.
+// the key resolver's other arms keep their method-aware gates - this fills only the shape they
+// never answered
+function memberKeyThroughTypeLayer(node, computed, scope, path, resolveStaticKey) {
+  if (!computed || !resolveStaticKey) return null;
+  if (node?.type !== 'MemberExpression' && node?.type !== 'OptionalMemberExpression') return null;
+  const named = resolveStaticKey(node, scope, path);
+  if (typeof named !== 'string' || !named) return null;
+  // ... and only while the container itself stays in this file's hands: a call handed the enum
+  // object (`Object.assign(E, { A: 'flat' })`, `Reflect.defineProperty(E, ...)`) can rewrite the
+  // member the fold just read, and the write index behind the fold is keyed by ASSIGNED FIELD and
+  // never sees such a patch. asked of the escape census this pass already builds - it follows the
+  // alias hops a reference travels, which a local re-walk here would have to re-derive. the census
+  // is PER FILE, so an enum this module exports and ANOTHER module patches reads as untouched here -
+  // the same per-file horizon every mutation channel in this plugin has, not a hole of this gate
+  const container = node.object?.type === 'Identifier' ? node.object.name : null;
+  const program = path ? rootProgramOf(path) : null;
+  return container && program && ESCAPED_CONTAINER_NAMES.get(program)?.has(container) ? null : named;
+}
+
+export function resolveKey({ node, computed, scope, adapter, seen, path, depth = 0, bailOnSideEffectKey = false,
+  usageNode = null, resolveStaticKey = null }) {
   while (true) {
     // an over-deep chain and an ABSENT key answer alike: a mutator called with fewer arguments than it
     // takes (`Object.defineProperty(target)`) leaves the key slot empty - legal source that throws at
@@ -2882,7 +2908,7 @@ export function resolveKey({ node, computed, scope, adapter, seen, path, depth =
           // mirrors the fork pattern in the BinaryExpression `+` branch below
           const part = resolveKey({
             node: node.expressions[i], computed: true, scope, adapter, seen: new Set(seen),
-            path, depth: depth + 1, usageNode, bailOnSideEffectKey,
+            path, depth: depth + 1, resolveStaticKey, usageNode, bailOnSideEffectKey,
           });
           if (part === null) return null;
           out += part;
@@ -2945,10 +2971,12 @@ export function resolveKey({ node, computed, scope, adapter, seen, path, depth =
       // fork `seen` per branch so `a + a` (same binding both sides) doesn't mis-trigger the
       // cycle guard on the right branch after the left added `a` to the shared Set
       const left = resolveKey({
-        node: node.left, computed: true, scope, adapter, seen: new Set(seen), path, depth: depth + 1, usageNode, bailOnSideEffectKey,
+        node: node.left, computed: true, scope, adapter, seen: new Set(seen), path, depth: depth + 1,
+        resolveStaticKey, usageNode, bailOnSideEffectKey,
       });
       const right = resolveKey({
-        node: node.right, computed: true, scope, adapter, seen: new Set(seen), path, depth: depth + 1, usageNode, bailOnSideEffectKey,
+        node: node.right, computed: true, scope, adapter, seen: new Set(seen), path, depth: depth + 1,
+        resolveStaticKey, usageNode, bailOnSideEffectKey,
       });
       if (left !== null && right !== null) return left + right;
     }
@@ -2965,11 +2993,11 @@ export function resolveKey({ node, computed, scope, adapter, seen, path, depth =
       && asSymbolRef({ node: node.object, scope, adapter, seen: new Set(seen), path })) {
       const name = resolveKey({
         node: node.property, computed: node.computed, scope, adapter, seen: new Set(seen),
-        path, depth: depth + 1, usageNode, bailOnSideEffectKey,
+        path, depth: depth + 1, resolveStaticKey, usageNode, bailOnSideEffectKey,
       });
       if (name && !name.startsWith('Symbol.')) return `Symbol.${ name }`;
     }
-    return null;
+    return memberKeyThroughTypeLayer(node, computed, scope, path, resolveStaticKey);
   }
 }
 

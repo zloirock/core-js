@@ -2652,6 +2652,13 @@ const CKS_KEYS = [
   { id: 'seq-assign', src: k => `[(ntm = (ntm || 0) + 7, "${ k }")]` },
   { id: 'seq-call', src: k => `[(log.push("k"), "${ k }")]` },
   { id: 'iife', src: k => `[(() => "${ k }")()]` },
+  // the spellings the STRUCTURAL fold canon accepts beyond a single sequence layer: a `+` concat, a
+  // multi-part template, a sequence nested in a sequence. each names the same static, so each must
+  // answer like the dotted form - the type layer read them as no name at all and the instance read
+  // above such a member lost its narrow, a shift no leg comparison sees because both legs shared it
+  { id: 'concat', src: k => `["${ k.slice(0, 1) }" + "${ k.slice(1) }"]` },
+  { id: 'template-parts', src: k => `[\`\${ "${ k.slice(0, 1) }" }\${ "${ k.slice(1) }" }\`]` },
+  { id: 'seq-nested', src: k => `[(log.push("k"), (ntm = (ntm || 0) + 7, "${ k }"))]` },
 ];
 // every root takes its OWN channel to the same claim, measured one by one: a bare proxy name, a
 // redundant pristine hop, an ALIAS binding of the global, a chain-assign, a hop with no ponyfill
