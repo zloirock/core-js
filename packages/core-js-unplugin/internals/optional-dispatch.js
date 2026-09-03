@@ -33,6 +33,7 @@ import {
   subtreeContainsNode,
   bindingPolyfillHint,
   isAliasProxyRoot,
+  computedKeyStaticName,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   remapInheritedStaticMeta,
@@ -911,17 +912,18 @@ export default function createOptionalDispatchChannel(ctx) {
       }
       if (inner.pendingKeySe?.length) {
         // the migrated key effects respell the surviving key computed (`[c++, "Array"]`);
-        // a computed STRING-LITERAL key respells the same way - only a dynamic computed
-        // key (whose own read the prefix would reorder against) stays staged
+        // a computed key that spells a STATIC NAME respells the same way - only a dynamic one
+        // (whose own read the prefix would reorder against) stays staged. the name comes from the
+        // canon, which folds a sequence tail, a `+` concat and a template nested in any combination:
+        // spelled here as a one-layer sequence peel it staged a nested key its single-layer twin
+        // respelled. an EFFECT-bearing key keeps its own node - the effects run where they stand
         const computedTail = node.computed ? unwrapRuntimeExpr(node.property) : null;
+        const computedName = computedTail ? computedKeyStaticName(computedTail) : null;
         const surviving = !node.computed && node.property?.type === 'Identifier'
           ? literal(node.property.name)
-          : computedTail?.type === 'Literal' && typeof computedTail.value === 'string'
-            ? literal(computedTail.value)
-            : computedTail?.type === 'SequenceExpression'
-              && unwrapRuntimeExpr(computedTail.expressions.at(-1))?.type === 'Literal'
-              ? cloneNode(computedTail)
-              : null;
+          : computedName === null ? null
+            : computedTail.type === 'Literal' ? literal(computedTail.value)
+              : cloneNode(computedTail);
         if (!surviving) return STAGED_SPLIT;
         return {
           hopKind: inner.hopKind,
