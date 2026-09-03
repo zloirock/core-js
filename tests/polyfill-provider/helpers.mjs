@@ -20,6 +20,7 @@ import {
   normalizeImportSource,
   resolveImportPath,
   stripQueryHash,
+  isDeclarationFile,
 } from '../../packages/core-js-polyfill-provider/helpers/path-normalize.js';
 import {
   buildOffsetToLine,
@@ -32,7 +33,25 @@ import {
   parseDisableDirectives,
 } from '../../packages/core-js-polyfill-provider/helpers/source-scan.js';
 import {
+  bindingBoundName,
+  buildScopeReassignmentIndex,
+  isSloppyAtPath,
+  classDefinitionTimePaths,
   classOwnThisMethodInfo,
+  definitionTimeSlotOf,
+  functionScopeBindsVarOrFunction,
+  getDirectStatementBody,
+  identifierReferencedInSubtree,
+  inferTypeParameterNames,
+  isBindingDeclarationPath,
+  isConditionalExpressionSlot,
+  isAmbientTypeDeclaration,
+  isTSTypeOnlyIdentifierPath,
+  nonEmittedExpressionAncestor,
+  stepOverChainWrappers,
+  recomputedBindingWrites,
+  synthHoistedBinding,
+  typeParameterInScope,
   directiveValue,
   defaultImportSourcesOf,
   extractIndirectRequireSEPrefix,
@@ -71,7 +90,7 @@ import {
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { tagError } from '../../packages/core-js-polyfill-provider/helpers/error-tag.js';
 import { subsume } from '../../packages/core-js-polyfill-provider/helpers/subsumption.js';
-import { adapters, createChecker } from './harness.mjs';
+import { adapters, babelAdapter, createChecker, findTypeNode } from './harness.mjs';
 
 const { check, checkDeep, checkTruthy, finish, throwsWith } = createChecker('helpers');
 
@@ -2059,5 +2078,413 @@ check('methodReadsUsageCensus/entry-global does not', methodReadsUsageCensus('en
     shape(migratableClaimSe({ sideEffects: [after], rootNode: { loc: { start: { index: 10 }, end: { index: 20 } } }, end: 30 })),
     shape({ leading: [], migrated: [after] }));
 }
+
+// --- buildScopeReassignmentIndex: the target through its wrappers, the shadows the census owns ---
+// a write spelled through a TS wrapper or parens is a write neither tracker records; the census is
+// its only recorder and reads the target through the wrappers. an `export let` in a namespace body
+// shadows like the bare form; a switch discriminant is skipped at the switch's own root (its writes
+// target the OUTER binding, and the root's bindings are the case-level lexicals); in sloppy code a
+// nested function's block-level `function` is that function's own hoist, not a write to the outer
+for (const adapter of adapters) {
+  // the index is asked at the owner a binding is hosted by: for these `let`s the body block, which
+  // the function-level scan would shadow (a block's own lexicals are not the function's)
+  const wrapped = adapter.parseAndScope('function f() { let a = []; a! = 1; let b = []; (b as any) = 2; let c = []; c = 3; (d)++; }');
+  const wrappedIndex = buildScopeReassignmentIndex(adapter.pickPath(wrapped, 'BlockStatement').node);
+  check(`buildScopeReassignmentIndex/non-null target [${ adapter.name }]`, wrappedIndex.get('a')?.length ?? 0, 1);
+  check(`buildScopeReassignmentIndex/as-cast target [${ adapter.name }]`, wrappedIndex.get('b')?.length ?? 0, 1);
+  check(`buildScopeReassignmentIndex/bare target [${ adapter.name }]`, wrappedIndex.get('c')?.length ?? 0, 1);
+  check(`buildScopeReassignmentIndex/wrapped update target [${ adapter.name }]`, wrappedIndex.get('d')?.length ?? 0, 1);
+
+  const exported = adapter.parseAndScope('var X = 1; namespace N { export let X; X = 2; }');
+  check(`buildScopeReassignmentIndex/export-wrapped namespace lexical shadows [${ adapter.name }]`,
+    buildScopeReassignmentIndex(exported.node).get('X').length, 1);
+  const unshadowed = adapter.parseAndScope('var X = 1; namespace N { X = 2; }');
+  check(`buildScopeReassignmentIndex/a namespace write of the outer name counts [${ adapter.name }]`,
+    buildScopeReassignmentIndex(unshadowed.node).get('X').length, 2);
+
+  const switched = adapter.parseAndScope("function f() { var K = 'x'; switch (K = 'q') { case 'q': let K = 'a'; K = 'b'; } }");
+  const fn = adapter.pickPath(switched, 'FunctionDeclaration');
+  check(`buildScopeReassignmentIndex/discriminant writes the outer binding [${ adapter.name }]`,
+    buildScopeReassignmentIndex(fn.node).get('K').length, 2);
+  check(`buildScopeReassignmentIndex/at the switch root the discriminant is skipped [${ adapter.name }]`,
+    buildScopeReassignmentIndex(adapter.pickPath(switched, 'SwitchStatement').node).get('K').length, 1);
+
+  const annexB = adapter.parseAndScope('function h() { var A = 1; function inner() { { function A() {} } A = 2; } }');
+  const owner = adapter.pickPath(annexB, 'FunctionDeclaration').node;
+  check(`buildScopeReassignmentIndex/sloppy: the nested block function hoists and shadows [${ adapter.name }]`,
+    buildScopeReassignmentIndex(owner, true).get('A').length, 1);
+  check(`buildScopeReassignmentIndex/strict: the block function is block-scoped, the write reaches out [${ adapter.name }]`,
+    buildScopeReassignmentIndex(owner, false).get('A').length, 2);
+
+  // the catch PARAMETER anchors at its own clause: the outer binding's write is not its own, its
+  // body's write is
+  const caught = adapter.parseAndScope('function h() { let data = 1; data = 2; try {} catch (data) { data = 3; } }');
+  const clause = adapter.pickPath(caught, 'CatchClause');
+  const use = adapter.pickPath(caught, 'Identifier', p => p.node.name === 'data' && p.parentPath?.node?.type === 'AssignmentExpression'
+    && p.parentPath.node.right?.value === 3);
+  const writes = recomputedBindingWrites({ kind: 'let', bindingPath: clause, usePath: use, name: 'data', fallback: [] });
+  check(`recomputedBindingWrites/catch parameter: one write, its clause's own [${ adapter.name }]`, writes.length, 1);
+  check(`recomputedBindingWrites/catch parameter: the clause's write [${ adapter.name }]`, writes[0]?.right?.value, 3);
+}
+
+// --- isSloppyAtPath: ONE answer for the strictness every write index depends on ---
+// the index builder takes strictness as a FLAG, so two consumers answering that question
+// differently get different write sets for the same owner. the predicate is the single answer
+// both ask - the provider's cached lookup and babel's own fresh scan of a rewritten tree
+for (const [mode, sourceType, sloppy, writes] of [['sloppy script', 'script', true, 1], ['strict module', 'module', false, 2]]) {
+  const code = 'function h(x){ var A = Array; function inner() { { function A() {} } A = 1; } return A.from(x); }';
+  const prog = babelAdapter.parseAndScope(code, sourceType);
+  const owner = babelAdapter.pickPath(prog, 'FunctionDeclaration', p => p.node.id?.name === 'h');
+  check(`isSloppyAtPath/${ mode }`, isSloppyAtPath(owner), sloppy);
+  check(`buildScopeReassignmentIndex/${ mode }: writes recorded for the outer name`,
+    (buildScopeReassignmentIndex(owner.node, isSloppyAtPath(owner)).get('A') ?? []).length, writes);
+}
+
+// --- isConditionalExpressionSlot: the expression slots that run on some paths only ---
+{
+  const test = { type: 'Identifier', name: 't' };
+  const update = { type: 'Identifier', name: 'u' };
+  check('isConditionalExpressionSlot/do-while test', isConditionalExpressionSlot({ type: 'DoWhileStatement', test }, test), true);
+  check('isConditionalExpressionSlot/while test', isConditionalExpressionSlot({ type: 'WhileStatement', test }, test), false);
+  check('isConditionalExpressionSlot/for update', isConditionalExpressionSlot({ type: 'ForStatement', test, update }, update), true);
+  check('isConditionalExpressionSlot/for test', isConditionalExpressionSlot({ type: 'ForStatement', test, update }, test), false);
+  check('isConditionalExpressionSlot/for-of left', isConditionalExpressionSlot({ type: 'ForOfStatement', left: test, right: update }, test), true);
+  check('isConditionalExpressionSlot/for-of right', isConditionalExpressionSlot({ type: 'ForOfStatement', left: test, right: update }, update), false);
+  check('isConditionalExpressionSlot/case test', isConditionalExpressionSlot({ type: 'SwitchCase', test }, test), true);
+  check('isConditionalExpressionSlot/if test', isConditionalExpressionSlot({ type: 'IfStatement', test }, test), false);
+  check('isConditionalExpressionSlot/no child', isConditionalExpressionSlot({ type: 'DoWhileStatement', test }, null), false);
+}
+
+// --- definitionTimeSlotOf / classDefinitionTimePaths: the slots a class runs where it is defined ---
+{
+  const key = { type: 'Identifier', name: 'k' };
+  const dec = { type: 'Decorator', expression: key };
+  const sup = { type: 'Identifier', name: 'B' };
+  const value = { type: 'ArrayExpression', elements: [] };
+  check('definitionTimeSlotOf/class heritage', definitionTimeSlotOf({ type: 'ClassDeclaration', superClass: sup }, sup), 'superClass');
+  check('definitionTimeSlotOf/class decorator', definitionTimeSlotOf({ type: 'ClassDeclaration', decorators: [dec] }, dec), 'decorators');
+  check('definitionTimeSlotOf/member computed key', definitionTimeSlotOf({ type: 'MethodDefinition', computed: true, key }, key), 'key');
+  check('definitionTimeSlotOf/member plain key', definitionTimeSlotOf({ type: 'MethodDefinition', computed: false, key }, key), null);
+  check('definitionTimeSlotOf/field value', definitionTimeSlotOf({ type: 'PropertyDefinition', key, value }, value), null);
+  check('definitionTimeSlotOf/parameter decorator', definitionTimeSlotOf({ type: 'Identifier', name: 'x', decorators: [dec] }, dec), 'decorators');
+  check('definitionTimeSlotOf/missing child', definitionTimeSlotOf({ type: 'ClassDeclaration', superClass: sup }, null), null);
+}
+for (const adapter of adapters) {
+  // a decorated member and a computed-key member stay separate: `@d [k]()` reads as the call `d[k]()`
+  const prog = adapter.parseAndScope('@dec class C extends B { @d m() {} [k]() {} n(@p x) {} y = v; static z = w; }', 'module', ['decorators-legacy']);
+  const classPath = adapter.pickPath(prog, 'ClassDeclaration');
+  const slots = classDefinitionTimePaths(classPath);
+  const spelled = slots.map(p => p.node.type === 'Decorator' ? `@${ p.node.expression.name }` : p.node.name).sort();
+  checkDeep(`classDefinitionTimePaths/heritage, every decorator, the computed key - never a value [${ adapter.name }]`,
+    spelled, ['@d', '@dec', '@p', 'B', 'k']);
+}
+
+// --- getDirectStatementBody: only a scope anchor hosts a statement list ---
+{
+  const list = [{ type: 'EmptyStatement' }];
+  const block = { type: 'BlockStatement', body: list };
+  check('getDirectStatementBody/a function wraps its list', getDirectStatementBody({ type: 'FunctionDeclaration', body: block }), list);
+  check('getDirectStatementBody/a loop holds a block, not a list', getDirectStatementBody({ type: 'WhileStatement', body: block }), null);
+  check('getDirectStatementBody/a catch clause holds a block, not a list', getDirectStatementBody({ type: 'CatchClause', body: block }), null);
+  check('getDirectStatementBody/a block hosts directly', getDirectStatementBody(block), list);
+  checkDeep('getDirectStatementBody/a switch flattens its cases',
+    getDirectStatementBody({ type: 'SwitchStatement', cases: [{ consequent: [1] }, { consequent: [2, 3] }] }), [1, 2, 3]);
+}
+
+// --- findTSRuntimeBindingInPath: a parameter default never sees the body's declaration ---
+for (const adapter of adapters) {
+  const prog = adapter.parseAndScope('function f(a = Map) { enum Map { A } return a; } function g() { enum Map { B } Map; }');
+  const inDefault = adapter.pickPath(prog, 'Identifier', p => p.node.name === 'Map' && p.parentPath?.node?.type === 'AssignmentPattern');
+  const inBody = adapter.pickPath(prog, 'Identifier', p => p.node.name === 'Map' && p.parentPath?.node?.type === 'ExpressionStatement');
+  check(`findTSRuntimeBindingInPath/parameter default does not see the body enum [${ adapter.name }]`, findTSRuntimeBindingInPath(inDefault, 'Map'), false);
+  check(`findTSRuntimeBindingInPath/body use sees the body enum [${ adapter.name }]`, findTSRuntimeBindingInPath(inBody, 'Map'), true);
+}
+
+// --- synthHoistedBinding: a sloppy block function is a hoisted binding too ---
+for (const adapter of adapters) {
+  for (const [mode, sourceType, hoisted] of [['sloppy', 'script', true], ['strict', 'module', false]]) {
+    const prog = adapter.parseAndScope('function h() { { function Array() {} } Array; }', sourceType);
+    const use = adapter.pickPath(prog, 'Identifier', p => p.node.name === 'Array' && p.parentPath?.node?.type === 'ExpressionStatement');
+    const synth = synthHoistedBinding(use, 'Array');
+    check(`synthHoistedBinding/${ mode }: block function binding [${ adapter.name }]`, synth?.kind ?? null, hoisted ? 'hoisted' : null);
+    if (hoisted) check(`synthHoistedBinding/${ mode }: stands on the declaration [${ adapter.name }]`, synth.node.type, 'FunctionDeclaration');
+    check(`functionScopeBindsVarOrFunction/${ mode }: the body-extract bail follows Annex B [${ adapter.name }]`,
+      functionScopeBindsVarOrFunction(adapter.pickPath(prog, 'FunctionDeclaration'), 'Array'), hoisted);
+  }
+}
+
+// --- identifierReferencedInSubtree: a declaration of the name is no reference, nor is type space ---
+for (const adapter of adapters) {
+  const prog = adapter.parseAndScope([
+    'function f({ from } = Array) { var f = 1; return from([1]); }',
+    'function g() { let x: typeof g; }',
+    'function h() { return h; }',
+    'function m() { const [x = m] = []; }',
+    'function n() { class n {} }',
+  ].join('\n'));
+  const bodies = adapter.collectPaths(prog, 'FunctionDeclaration').map(p => [p.node.id.name, p.node.body]);
+  const expected = { f: false, g: false, h: true, m: true, n: false };
+  for (const [name, body] of bodies) {
+    check(`identifierReferencedInSubtree/${ name } [${ adapter.name }]`, identifierReferencedInSubtree(body, name), expected[name]);
+  }
+  check(`identifierReferencedInSubtree/every declaration probed [${ adapter.name }]`, bodies.length, Object.keys(expected).length);
+}
+
+// --- isBindingDeclarationPath: the complete declaration predicate, through pattern shells ---
+for (const adapter of adapters) {
+  // a non-shorthand property: its KEY is a name, its VALUE the binding, and a shorthand spells
+  // both with one identifier the pick could not tell apart
+  const prog = adapter.parseAndScope('function f({ k: a }, b = c) { let [d] = []; e; }');
+  const expected = { a: true, b: true, c: false, d: true, e: false, f: true };
+  for (const [name, declared] of Object.entries(expected)) {
+    const path = adapter.pickPath(prog, 'Identifier', p => p.node.name === name);
+    check(`isBindingDeclarationPath/${ name } [${ adapter.name }]`, isBindingDeclarationPath(path), declared);
+  }
+}
+
+// --- typeParameterInScope / inferTypeParameterNames ---
+// babel paths only: estree-toolkit opens no paths inside type annotations, so the climb from a
+// type reference has nothing to stand on there (the annotation lane asks from its host path instead)
+{
+  const prog = babelAdapter.parseAndScope([
+    'interface Box<Set> { v: Set }',
+    'function f<WeakSet>(v: WeakSet) {}',
+    'type Picked<T> = T extends Array<infer Promise> ? Promise : never;',
+    'type Fallen<T> = T extends Array<infer Symbol> ? 1 : Symbol;',
+    'interface Plain { v: Reflect }',
+  ].join('\n'));
+  function reference(name) {
+    return babelAdapter.collectPaths(prog, 'Identifier', p => p.node.name === name && p.parentPath?.node?.type === 'TSTypeReference').at(-1);
+  }
+  check('typeParameterInScope/interface parameter', typeParameterInScope(reference('Set'), 'Set'), true);
+  check('typeParameterInScope/function parameter', typeParameterInScope(reference('WeakSet'), 'WeakSet'), true);
+  check('typeParameterInScope/infer covers the true branch', typeParameterInScope(reference('Promise'), 'Promise'), true);
+  check('typeParameterInScope/infer does not cover the false branch', typeParameterInScope(reference('Symbol'), 'Symbol'), false);
+  check('typeParameterInScope/no parameter', typeParameterInScope(reference('Reflect'), 'Reflect'), false);
+}
+for (const adapter of adapters) {
+  const prog = adapter.parseAndScope('type P<T> = T extends Array<infer U> ? (T extends [infer V] ? U : V) : never; type Q = number;');
+  const [picked, plain] = adapter.collectPaths(prog, 'TSTypeAliasDeclaration').map(p => p.node);
+  checkDeep(`inferTypeParameterNames/every infer of the subtree [${ adapter.name }]`, [...inferTypeParameterNames(picked) ?? []].sort(), ['U', 'V']);
+  check(`inferTypeParameterNames/none [${ adapter.name }]`, inferTypeParameterNames(plain), null);
+  check(`inferTypeParameterNames/the extends clause alone [${ adapter.name }]`, [...inferTypeParameterNames(findTypeNode(picked, 'TSConditionalType').extendsType)].join(','), 'U');
+}
+
+// --- isTSTypeOnlyIdentifierPath: a name in type space reads nothing, a reference keeps injecting ---
+// babel paths, for the reason above; the structural rule reads the parent's type and the child's
+// slot, which the estree leg hands it through its own pared-down path
+{
+  const prog = babelAdapter.parseAndScope([
+    'interface Box<Set> { v: number }',
+    'type Fn = (WeakSet: number) => void;',
+    'declare function ambient(WeakMap: number): void;',
+    'class Overloaded { m(Symbol: number): void; m(Symbol: any) { return Symbol; } }',
+    'interface Keys { [ArrayBuffer: string]: number; Reflect: number; [Map.name]: number }',
+    'class Keyed { [Map.name] = 1; }',
+    'type Mapped = { [BigInt in "a"]: 1 };',
+    'declare namespace NS { type Uint8Array = number }',
+    'type Member = NS.Uint8Array;',
+    'declare const annotated: DisposableStack;',
+    'const cast = value as AggregateError;',
+    'class Impl implements Iterable<WeakRef> {}',
+    'interface Shadowed<Promise> { v: Promise }',
+    'interface Ext extends Date {}',
+  ].join('\n'));
+  function identifierIn(name, parentType = null) {
+    const [first] = babelAdapter.collectPaths(prog, 'Identifier', p => p.node.name === name
+      && (!parentType || p.parentPath?.node?.type === parentType));
+    return first;
+  }
+  const expected = {
+    Set: true, WeakSet: true, WeakMap: true, ArrayBuffer: true, Reflect: true, BigInt: true, Uint8Array: true,
+    DisposableStack: false, AggregateError: false, WeakRef: true, Date: false,
+  };
+  for (const [name, typeOnly] of Object.entries(expected)) {
+    check(`isTSTypeOnlyIdentifierPath/${ name }`, isTSTypeOnlyIdentifierPath(identifierIn(name)), typeOnly);
+  }
+  check('isTSTypeOnlyIdentifierPath/overload signature parameter', isTSTypeOnlyIdentifierPath(identifierIn('Symbol', 'TSDeclareMethod')), true);
+  check('isTSTypeOnlyIdentifierPath/implementation parameter is a binding, not type space',
+    isTSTypeOnlyIdentifierPath(identifierIn('Symbol', 'ClassMethod')), false);
+  check('isTSTypeOnlyIdentifierPath/reference to a type parameter in scope', isTSTypeOnlyIdentifierPath(identifierIn('Promise', 'TSTypeReference')), true);
+  check('isTSTypeOnlyIdentifierPath/qualified root is the reference', isTSTypeOnlyIdentifierPath(identifierIn('NS', 'TSQualifiedName')), false);
+  // a COMPUTED key is decided by its HOST, not by being computed: erased with an interface,
+  // evaluated by a class. the read is dispatched on the MEMBER, so the member is what is asked
+  const keyReads = babelAdapter.collectPaths(prog, 'MemberExpression', p => p.node.object?.name === 'Map');
+  check('isTSTypeOnlyIdentifierPath/computed key of an interface member is erased',
+    isTSTypeOnlyIdentifierPath(keyReads[0]), true);
+  check('isTSTypeOnlyIdentifierPath/the same key on a class field is a read',
+    isTSTypeOnlyIdentifierPath(keyReads[1]), false);
+  check('isTSTypeOnlyIdentifierPath/both key hosts were found', keyReads.length, 2);
+}
+
+// --- nonEmittedExpressionAncestor: a read inside a declaration that never reaches the emit ---
+// every shape TS erases whole is enumerated against its emitted twin, because the answer turns on
+// a FLAG (or, on the estree leg, a node type) rather than on the shape of the read itself
+{
+  const prog = babelAdapter.parseAndScope([
+    'declare class Ambient { [Map.name]: number }',
+    'abstract class Abstract { abstract [WeakMap.name]: number; }',
+    'class Declared { declare [Promise.name]: number; }',
+    'declare namespace NS { class Nested { [ArrayBuffer.name]: number } }',
+    'class Live { [Set.name] = 1; }',
+    'abstract class LiveMember { [WeakSet.name] = 2; }',
+    'declare const query: typeof Symbol;',
+    'declare class BareKey { [Date]: number }',
+    'declare class OptionalKey { [Uint8Array?.name]: number }',
+    'abstract class Decorated { @(Reflect.ownKeys({})) abstract accessor v: number; }',
+  ].join('\n'), 'module', ['decorators', 'decoratorAutoAccessors']);
+  function readOf(name) {
+    const [first] = babelAdapter.collectPaths(prog, 'MemberExpression', p => p.node.object?.name === name);
+    return first;
+  }
+  const erased = {
+    Map: 'ambient class',
+    WeakMap: 'abstract member',
+    Promise: 'declare member',
+    ArrayBuffer: 'class inside an ambient namespace',
+  };
+  for (const [name, label] of Object.entries(erased)) {
+    check(`nonEmittedExpressionAncestor/${ label }`, !!nonEmittedExpressionAncestor(readOf(name)), true);
+  }
+  const emitted = {
+    Set: 'plain field of a plain class',
+    WeakSet: 'concrete member of an abstract class',
+    Reflect: 'decorator on an erased member is still an expression',
+  };
+  for (const [name, label] of Object.entries(emitted)) {
+    check(`nonEmittedExpressionAncestor/${ label }`, nonEmittedExpressionAncestor(readOf(name)), null);
+  }
+  // the annotation lane dispatches from the DECLARATOR that holds the annotation, and its claim is
+  // an expectation about the environment rather than a read - the subject filter is what keeps it
+  const [declarator] = babelAdapter.collectPaths(prog, 'VariableDeclarator', p => p.node.id?.name === 'query');
+  check('nonEmittedExpressionAncestor/an ambient declarator is not a subject', nonEmittedExpressionAncestor(declarator), null);
+  const [typeofName] = babelAdapter.collectPaths(prog, 'Identifier', p => p.node.name === 'Symbol');
+  check('nonEmittedExpressionAncestor/a name under an annotation keeps its claim', nonEmittedExpressionAncestor(typeofName), null);
+  check('nonEmittedExpressionAncestor/no path', nonEmittedExpressionAncestor(null), null);
+  // the other two subject shapes a computed key is written with, each carrying a form of its own:
+  // a BARE global as the whole key, and a global read through an optional receiver
+  const [bareKey] = babelAdapter.collectPaths(prog, 'Identifier', p => p.node.name === 'Date');
+  check('nonEmittedExpressionAncestor/bare name as the whole key', !!nonEmittedExpressionAncestor(bareKey), true);
+  const [optionalKey] = babelAdapter.collectPaths(prog, 'OptionalMemberExpression', p => p.node.object?.name === 'Uint8Array');
+  check('nonEmittedExpressionAncestor/optional receiver in the key', !!nonEmittedExpressionAncestor(optionalKey), true);
+}
+
+// the emit question through BOTH parsers: the answer turns on a flag on one leg and on a node type
+// of its own on the other (`abstract` is `TSAbstractPropertyDefinition` under oxc), so a leg that
+// silently answered "runtime" here would inject into a member that never reaches the emit
+for (const adapter of adapters) {
+  const prog = adapter.parseAndScope([
+    'declare class Ambient { [Map.name]: number }',
+    'abstract class Abstract { abstract [WeakMap.name]: number; }',
+    'class Declared { declare [Promise.name]: number; }',
+    'declare namespace NS { class Nested { [ArrayBuffer.name]: number } }',
+    'class Live { [Set.name] = 1; }',
+  ].join('\n'));
+  function memberRead(name) {
+    const [first] = adapter.collectPaths(prog, 'MemberExpression', p => p.node.object?.name === name);
+    return first;
+  }
+  const erased = { Map: 'ambient class', WeakMap: 'abstract member', Promise: 'declare member', ArrayBuffer: 'ambient namespace' };
+  for (const [name, what] of Object.entries(erased)) {
+    check(`nonEmittedExpressionAncestor/${ what } [${ adapter.name }]`, !!nonEmittedExpressionAncestor(memberRead(name)), true);
+  }
+  check(`nonEmittedExpressionAncestor/plain field [${ adapter.name }]`, nonEmittedExpressionAncestor(memberRead('Set')), null);
+}
+
+// --- stepOverChainWrappers: the wrapper step both chain walks share ---
+// the two halves it reports are what a reader needs - the node the member above would see, and the
+// path that member sits at - and the ROOT flag is the whole difference between a value carrier
+// being transparent and being a consumer of the store
+for (const adapter of adapters) {
+  const prog = adapter.parseAndScope('const w = (v = globalThis).window.self;\nconst t = (nav as any).at;');
+  const [carried] = adapter.collectPaths(prog, 'Identifier', p => p.node.name === 'globalThis');
+  const atRoot = stepOverChainWrappers(carried.node, carried.parentPath, true);
+  check(`stepOverChainWrappers/carrier at the root is transparent [${ adapter.name }]`,
+    atRoot[1]?.node?.type, 'MemberExpression');
+  const notRoot = stepOverChainWrappers(carried.node, carried.parentPath, false);
+  check(`stepOverChainWrappers/the same carrier off the root is a consumer [${ adapter.name }]`,
+    notRoot[1]?.node?.type, 'AssignmentExpression');
+  check(`stepOverChainWrappers/off the root the child is unchanged [${ adapter.name }]`,
+    notRoot[0], carried.node);
+  const [wrapped] = adapter.collectPaths(prog, 'Identifier', p => p.node.name === 'nav');
+  const overCast = stepOverChainWrappers(wrapped.node, wrapped.parentPath);
+  check(`stepOverChainWrappers/a TS cast between hops is stepped over [${ adapter.name }]`,
+    overCast[1]?.node?.type, 'MemberExpression');
+  // the wrappers a cast wears differ by dialect (oxc keeps the source paren over the cast, babel
+  // drops it), so the claim is the INVARIANT: whatever the step returns is what the member reads
+  check(`stepOverChainWrappers/and the stepped-over wrapper is what the member reads [${ adapter.name }]`,
+    overCast[1]?.node?.object, overCast[0]);
+  const [plain] = adapter.collectPaths(prog, 'Identifier', p => p.node.name === 'w');
+  checkDeep(`stepOverChainWrappers/nothing to step over [${ adapter.name }]`,
+    stepOverChainWrappers(plain.node, plain.parentPath)[0], plain.node);
+}
+
+// --- isDeclarationFile: the file-level twin of the emit question ---
+{
+  const declaration = [
+    'a.d.ts', 'a.d.mts', 'a.d.cts', '/pkg/types/index.d.ts', 'C:\\pkg\\index.d.ts',
+    '/pkg/a.d.ts?v=2', '/pkg/a.d.ts#frag', 'file:///pkg/a.d.ts', 'A.D.TS',
+  ];
+  for (const name of declaration) check(`isDeclarationFile/${ name }`, isDeclarationFile(name), true);
+  // the suffix is the WHOLE claim, so every near-miss around it is spelled out
+  const source = [
+    'a.ts', 'a.mts', 'a.cts', 'a.js', 'a.d.js', 'declaration.ts', '/pkg/d.ts',
+    'a.d.ts.js', 'ad.ts', 'a.dts', '/pkg/x.d.ts/inner.ts',
+  ];
+  for (const name of source) check(`isDeclarationFile/${ name } is source`, isDeclarationFile(name), false);
+  check('isDeclarationFile/no name', isDeclarationFile(null), false);
+  check('isDeclarationFile/non-string', isDeclarationFile(42), false);
+}
+
+// --- isAmbientTypeDeclaration: one reading of `declare`, whatever the declaration ---
+// the Flow node types were added when the emit question started asking this predicate; the TS
+// shapes beside them are what the resolver lanes have always narrowed
+{
+  const prog = babelAdapter.parseAndScope([
+    'declare class C {}',
+    'declare function f(): void;',
+    'declare const v: number;',
+    'declare namespace N { const w: number }',
+    'declare enum E { X }',
+    'interface I { v: number }',
+    'type T = number;',
+    'class Plain {}',
+    'function g() {}',
+  ].join('\n'));
+  function first(type) { return babelAdapter.collectPaths(prog, type)[0]?.node; }
+  const ambient = {
+    ClassDeclaration: 'declare class',
+    TSDeclareFunction: 'declare function',
+    TSModuleDeclaration: 'declare namespace',
+    TSEnumDeclaration: 'declare enum',
+    TSInterfaceDeclaration: 'interface',
+    TSTypeAliasDeclaration: 'type alias',
+  };
+  for (const [type, label] of Object.entries(ambient)) {
+    check(`isAmbientTypeDeclaration/${ label }`, isAmbientTypeDeclaration(first(type)), true);
+  }
+  const [ambientVar, plainClass, plainFn] = [
+    babelAdapter.collectPaths(prog, 'VariableDeclaration')[0]?.node,
+    babelAdapter.collectPaths(prog, 'ClassDeclaration')[1]?.node,
+    babelAdapter.collectPaths(prog, 'FunctionDeclaration')[0]?.node,
+  ];
+  check('isAmbientTypeDeclaration/declare const', isAmbientTypeDeclaration(ambientVar), true);
+  check('isAmbientTypeDeclaration/plain class', isAmbientTypeDeclaration(plainClass), false);
+  check('isAmbientTypeDeclaration/plain function', isAmbientTypeDeclaration(plainFn), false);
+  check('isAmbientTypeDeclaration/no node', isAmbientTypeDeclaration(null), false);
+  // Flow writes the same two declarations as node types instead of a flag
+  const flow = babelAdapter.parseAndScope('declare class F {}\ndeclare function h(): void;', 'module', ['flow']);
+  check('isAmbientTypeDeclaration/DeclareClass', isAmbientTypeDeclaration(babelAdapter.collectPaths(flow, 'DeclareClass')[0]?.node), true);
+  check('isAmbientTypeDeclaration/DeclareFunction', isAmbientTypeDeclaration(babelAdapter.collectPaths(flow, 'DeclareFunction')[0]?.node), true);
+}
+
+// --- bindingBoundName: whichever shape the binding takes ---
+check('bindingBoundName/babel record', bindingBoundName({ identifier: { name: 'a' } }), 'a');
+check('bindingBoundName/estree record', bindingBoundName({ name: 'b' }), 'b');
+check('bindingBoundName/declarator id', bindingBoundName({ path: { node: { type: 'VariableDeclarator', id: { type: 'Identifier', name: 'c' } } } }), 'c');
+check('bindingBoundName/pattern declarator answers nothing', bindingBoundName({ path: { node: { type: 'VariableDeclarator', id: { type: 'ObjectPattern' } } } }), null);
+// the accessor is asked of whatever a lookup handed back, an ABSENT binding included
+check('bindingBoundName/no binding at all', bindingBoundName(null), null);
+check('bindingBoundName/an empty view', bindingBoundName({}), null);
 
 finish();

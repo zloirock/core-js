@@ -4,7 +4,13 @@
 // handlers here, so the emission decisions stay single-sourced. spans several sibling modules'
 // domains (members, destructure, globals, annotations) on purpose: homing it in any one of them
 // would add a cross-import between siblings, and the emitters are its only consumers
-import { annotationNameIsGlobal, checkTypeAnnotations, walkTypeAnnotationGlobals } from './annotations.js';
+import {
+  annotationNameIsGlobal,
+  checkTypeAnnotations,
+  isTypeAnnotationNodeType,
+  typeOnlyImportShadows,
+  walkTypeAnnotationGlobals,
+} from './annotations.js';
 import { collectDestructureUnionCandidates, prepareDestructureUnion } from './destructure.js';
 import { isKnownGlobalName } from './globals.js';
 import { handleBinaryIn, handleMemberExpressionNode, tagSymbolSourcedMeta } from './members.js';
@@ -36,6 +42,12 @@ export function createUsageHandlerCore({
   // the identifier tail every host runs after its own referenced-position gates
   function emitGlobalUsage(path) {
     const { node } = path;
+    // a TYPE reference reaches this lane rather than the annotation walk - both parsers report it
+    // as a referenced identifier - so the type-space shadow question belongs here, where every
+    // binding's identifier visitor already funnels. `hasBinding` below answers the VALUE question
+    // and deliberately ignores a type-only import, which in a type position IS the shadow
+    if (isTypeAnnotationNodeType(path.parent?.type)
+      && typeOnlyImportShadows({ adapter, scope: path.scope, name: node.name, path, hostType: path.parent.type })) return;
     // the ROOT of a nav stored by a USER assignment renders the stored canon from the root's
     // visit - the one place a member-channel skip or a declined claim cannot hide (a claim
     // that declines leaves no render owning the value's hops). ungated by name: an ALIAS root
