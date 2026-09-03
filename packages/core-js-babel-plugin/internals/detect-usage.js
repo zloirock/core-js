@@ -65,8 +65,10 @@ function stringLiteralValue(node) {
 // scoped mutation pre-pass: the cheap shape gate runs first; only files that actually
 // monkey-patch pay for the path traverse + canonical receiver resolution. shares every
 // resolution step with the read side via `mutations` (provider)
-export function collectMutationPrePass(programPath, adapter, census = null) {
-  const { mutated, handleSite, finalize } = beginMutationPrePass({ rootNode: programPath.node, adapter, census });
+export function collectMutationPrePass(programPath, adapter, census = null, resolveStaticKey = null) {
+  const { mutated, handleSite, finalize } = beginMutationPrePass(
+    { resolveStaticKey, rootNode: programPath.node, adapter, census },
+  );
   if (!handleSite) return { mutated };
   programPath.traverse({
     ...mutationSiteVisitors(handleSite),
@@ -829,7 +831,7 @@ export function createUsageVisitors({
   // threads the key's own path: the key EVALUATES there, so the canon's flow gates
   // (init-dominance, reaching-value) anchor at the capture instead of defaulting open
   function resolveKey(path, computed) {
-    return sharedResolveKey({ node: path.node, computed, scope: path.scope, adapter, path });
+    return sharedResolveKey({ node: path.node, computed, scope: path.scope, adapter, path, resolveStaticKey });
   }
 
   // `skipReferencedCheck` bypasses babel's `isReferencedIdentifier` for callers that have
@@ -916,7 +918,7 @@ export function createUsageVisitors({
     const key = resolveKey(path.get('key'), path.node.computed);
     const containerUnion = [];
     let meta = buildDestructureLeafMeta({
-      descriptor, key, adapter, resolvePure, unionSink: containerUnion,
+      descriptor, key, adapter, resolvePure, unionSink: containerUnion, resolveStaticKey,
     });
     // follow memoized reference type (e.g. `const _ref = [1, 2, 3]` after memoization) -
     // a binding-half post-step: the resolvedType cache is this leg's scope tracker's.
