@@ -230,3 +230,22 @@ QUnit.test('complex: inline IIFE receiver prefix side effect runs once', assert 
   assert.deepEqual(fromResult, [9], 'identity-param IIFE receiver still dispatches the static');
   assert.same(log, 1, 'its prefix effect runs exactly once (not dropped by the fold)');
 });
+
+// a read is proven to follow an alias write only when the write stands on the always-evaluated
+// spine of the guard slot: a write in a branch arm of the test may never have run when the read
+// does, so the read stays native and throws on the undefined alias exactly as the source does. the
+// spellings are a `?.`-lowering transpiler's, kept verbatim as the shape under test
+QUnit.test('complex: alias written in a branch arm of the guard test throws like native', assert => {
+  const c = false;
+  let inArm;
+  // eslint-disable-next-line @stylistic/no-extra-parens -- the parenthesized arm write is the shape under test
+  assert.throws(() => (c ? (inArm = globalThis) : 1) ? inArm.Promise.resolve(1) : 0, TypeError);
+  let onSpine;
+  // eslint-disable-next-line no-eq-null, no-void -- the lowered guard shape is the case under test
+  const settled = (onSpine = globalThis) == null ? void 0 : onSpine.Promise.resolve(3);
+  const async = assert.async();
+  settled.then(v => {
+    assert.same(v, 3);
+    async();
+  });
+});

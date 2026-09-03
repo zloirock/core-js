@@ -389,3 +389,14 @@ QUnit.test('class: super static off a base alias overwritten before the class', 
   }
   assert.deepEqual(Boxed.go(), [1, 2]);
 });
+
+// a class expression bound to a name resolves its own static field through the source parens
+// between the declarator and the class; the anonymous form answers like the named one
+QUnit.test('class: static field read through a wrapped class expression binding', assert => {
+  /* eslint-disable unicorn/no-static-only-class, @stylistic/no-extra-parens -- the wrapped static-only class expression is the shape under test */
+  const wrapped = (class Y { static list = [2]; });
+  const anonymous = class { static list = [4]; };
+  /* eslint-enable unicorn/no-static-only-class, @stylistic/no-extra-parens -- end of the class expressions under test */
+  assert.same(wrapped.list.at(0), 2);
+  assert.same(anonymous.list.at(0), 4);
+});

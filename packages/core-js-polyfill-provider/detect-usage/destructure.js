@@ -1359,7 +1359,7 @@ export function qualifiesForParamBodyExtract({ propPath, localId }) {
   const fnPath = findEnclosingFunctionLikePath(propPath);
   if (!fnPath || fnPath.node.body?.type !== 'BlockStatement') return null;
   if (paramListReadsName(fnPath.node.params, localId.name)) return null;
-  if (functionScopeBindsVarOrFunction(fnPath.node, localId.name)) return null;
+  if (functionScopeBindsVarOrFunction(fnPath, localId.name)) return null;
   return { fnPath };
 }
 
