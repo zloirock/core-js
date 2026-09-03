@@ -15,6 +15,9 @@ import {
   bindingPolyfillHint,
   collectFileCensus,
   findVarOwnerDeclaring,
+  cleanDestructureAliasWrites,
+  definitionTimeSlotOf,
+  isConditionalExpressionSlot,
   isDeclaratorSelfViolation,
   isDestructurePattern,
   isGuardedAliasingWrite,
@@ -98,14 +101,16 @@ function peelIifeReturnTarget(node) {
 // gate: a `const { k } = a0 || a1 || ...` init overflows the generic subtree walk (the
 // scope-reassignment index in `ast-patterns.js`) first, and both hosts' own traversal gives out
 // just past that - bounding this walker alone moves nothing
-function branchingInitResolves(node, scope, adapter, resolvesBranch) {
+// `ctx`: the `{ scope, adapter, path }` the shadow questions are asked with - the PATH included,
+// so a shadow local to a block the scope owner does not open (a static block's enum) is seen
+function branchingInitResolves(node, ctx, resolvesBranch) {
   if (node.type === 'ConditionalExpression') {
     const consequent = resolvesBranch(node.consequent);
     const alternate = resolvesBranch(node.alternate);
     if (consequent && alternate) return true;
     if (!consequent && !alternate) return false;
     const defaultSlot = matchSelfDefaultTernarySlot(node, {
-      isLocalUndefinedName: () => !!adapter?.getBinding?.(scope, 'undefined'),
+      isLocalUndefinedName: () => !!ctx.adapter?.getBinding?.(ctx.scope, 'undefined', ctx.path ?? null),
     });
     if (!defaultSlot) return false;
     return defaultSlot === 'consequent' ? alternate : consequent;
@@ -120,10 +125,15 @@ function branchingInitResolves(node, scope, adapter, resolvesBranch) {
 // rewrite leaves behind (`= _Promise`, or the defaulted `_Symbol === void 0 ? d : _Symbol` whose guard
 // ternary is walked). a user binding of the same name resolves to neither - uniqueName keeps injected
 // UIDs collision-free
-function aliasInitResolvesToGlobal(node, scope, adapter, injector) {
+// `ctx` is `{ scope, adapter, injector, path }`: every shadow question below is asked AT the use
+// path, never at the scope owner alone - a path-less lookup anchored at the owner missed a shadow
+// local to a block the owner does not open (a static block's `enum globalThis`), and the alias
+// registered over it
+function aliasInitResolvesToGlobal(node, ctx) {
   if (!node) return false;
+  const { scope, adapter, injector, path = null } = ctx;
   if (node.type === 'Identifier') {
-    if (isProxyGlobalIdentifierNode({ node, scope, adapter, path: null })) return true;
+    if (isProxyGlobalIdentifierNode({ node, scope, adapter, path })) return true;
     // plugin-minted UIDs only: a USER-named body-extract record shares the import table but is
     // scope-bound user code - serving it here would verify an alias shape against a coincident
     // name from another scope
@@ -131,28 +141,18 @@ function aliasInitResolvesToGlobal(node, scope, adapter, injector) {
     return !!imp && !imp.userNamed;
   }
   if (node.type === 'ConditionalExpression' || node.type === 'LogicalExpression') {
-    return branchingInitResolves(node, scope, adapter, branch => aliasInitResolvesToGlobal(branch, scope, adapter, injector));
+    return branchingInitResolves(node, ctx, branch => aliasInitResolvesToGlobal(branch, ctx));
   }
   // an array-wrapped alias (`const [{ Map: M }] = [globalThis]`) leaves an ArrayExpression init; an
   // element resolving to a global keeps the guard's established bar (receiver-is-global, key-blind).
   // needed post-consumption: babel's flatten empties the pattern slot before the member visit, so this
   // stale init is the only walkable evidence that the registered alias is THIS binding, not a shadow
   if (node.type === 'ArrayExpression') {
-    return node.elements.some(el => el && el.type !== 'SpreadElement'
-      && aliasInitResolvesToGlobal(el, scope, adapter, injector));
+    return node.elements.some(el => el && el.type !== 'SpreadElement' && aliasInitResolvesToGlobal(el, ctx));
   }
   return false;
 }
 
-// shared shadow guard for a `registerGlobalAlias` destructure-alias (`info.source === null`): the binding
-// must be an un-reassigned VariableDeclarator whose init resolves to the destructured global. used by both
-// plugin adapters (babel mutates the init in place, unplugin keeps the source init) so a proxy-global alias
-// re-polyfills its member reads regardless of declaration kind - a const-only gate dropped `let` / for-init
-// aliases. callers pass their parser-specific binding (`.path.node` declarator + `.constantViolations`).
-// an ASSIGNMENT-form alias (`let M; ({ Map: M } = globalThis)`) is accepted only through its REGISTERED
-// trusted write (`info.aliasWrite`, recorded when the registration verified cleanliness + unconditional
-// placement with the binding alive): the init-less declarator carries the global in that single write,
-// so every violation must fall inside its span - any OTHER write makes the value flow-dependent -> native
 // the init node the alias judge must resolve for a binding named `boundName`: an array-wrap
 // (`const [{ Set: A }, { Map: M }] = [userObj, globalThis]`) binds each ObjectPattern element to
 // the init element at the SAME index, so `A` reads `userObj.Set`, NOT the whole array. return that
@@ -181,6 +181,14 @@ function positionalArrayWrapInit(idPattern, init, boundName) {
   return null;
 }
 
+// an ArrayExpression init can only alias through an ArrayPattern's positional wrap: an
+// ObjectPattern (or a plain Identifier binding the whole array) reads NAMED keys off the array -
+// always undefined for the ctor-named keys this registry serves (numeric slot keys never register:
+// the known-global gate filters them), so the key-blind element scan must not accept it
+function arrayInitServesPattern(id, init) {
+  return unwrapInitForResolution(init)?.type !== 'ArrayExpression' || id?.type === 'ArrayPattern';
+}
+
 // judge ONE declarator (id pattern + init) as the alias source for `boundName`:
 //   - an array-wrap judges the POSITIONALLY-paired element, never the whole array - a `.some()`
 //     over all elements wrongly confirms a user-object slot (`{ Set: A } = userObj`)
@@ -192,28 +200,33 @@ function positionalArrayWrapInit(idPattern, init, boundName) {
 // shared by the init arm and the duplicate-var split anchor of `isPolyfillAliasBinding`, which
 // must apply IDENTICAL pattern rejections (the anchor judging `write.init` wholesale folded a
 // mispaired / nested shadow the init arm correctly rejected)
-// an ArrayExpression init can only alias through an ArrayPattern's positional wrap: an
-// ObjectPattern (or a plain Identifier binding the whole array) reads NAMED keys off the array -
-// always undefined for the ctor-named keys this registry serves (numeric slot keys never register:
-// the known-global gate filters them), so the key-blind element scan must not accept it
-function arrayInitServesPattern(id, init) {
-  return unwrapInitForResolution(init)?.type !== 'ArrayExpression' || id?.type === 'ArrayPattern';
-}
-
-function declaratorInitResolvesForName({ id, init, boundName, scope, adapter, injector }) {
+function declaratorInitResolvesForName({ id, init, boundName, ctx }) {
   if (!init) return false;
   const positional = positionalArrayWrapInit(id, init, boundName);
-  if (positional !== undefined) return !!positional && aliasInitResolvesToGlobal(positional, scope, adapter, injector);
+  if (positional !== undefined) return !!positional && aliasInitResolvesToGlobal(positional, ctx);
   if (id?.type === 'ObjectPattern' && patternBindsNameNested(id, boundName)) return false;
-  return arrayInitServesPattern(id, init) && aliasInitResolvesToGlobal(init, scope, adapter, injector);
+  return arrayInitServesPattern(id, init) && aliasInitResolvesToGlobal(init, ctx);
 }
 
-export function isPolyfillAliasBinding({ info, binding, scope, adapter, injector, boundName = null }) {
+// shared shadow guard for a `registerGlobalAlias` destructure-alias (`info.source === null`): the binding
+// must be an un-reassigned VariableDeclarator whose init resolves to the destructured global. used by both
+// plugin adapters (babel mutates the init in place, unplugin keeps the source init) so a proxy-global alias
+// re-polyfills its member reads regardless of declaration kind - a const-only gate dropped `let` / for-init
+// aliases. callers pass their parser-specific binding (`.path.node` declarator + `.constantViolations`).
+// an ASSIGNMENT-form alias (`let M; ({ Map: M } = globalThis)`) is accepted only through its REGISTERED
+// trusted write (`info.aliasWrite`, recorded when the registration verified cleanliness + unconditional
+// placement with the binding alive): the init-less declarator carries the global in that single write,
+// so every violation must fall inside its span - any OTHER write makes the value flow-dependent -> native
+export function isPolyfillAliasBinding({ info, binding, scope, adapter, injector, boundName = null, path = null }) {
   if (info?.source !== null || binding?.path?.node?.type !== 'VariableDeclarator') return false;
   const { id, init } = binding.path.node;
-  const violations = binding.constantViolations ?? [];
+  const ctx = { scope, adapter, injector, path };
+  // the writes that COUNT: a valueless twin, the declarator's own loop re-init and an identity
+  // self-assign (`M = M`) leave the alias holding what its declaration gave it. the callers hand
+  // a pared-down binding, so the name rides in beside it
+  const violations = cleanDestructureAliasWrites(boundName ? { ...binding, name: boundName } : binding);
   if (init) {
-    return !violations.length && declaratorInitResolvesForName({ id, init, boundName, scope, adapter, injector });
+    return !violations.length && declaratorInitResolvesForName({ id, init, boundName, ctx });
   }
   // duplicate-var SPLIT ANCHOR (`var M; var { Map: M } = g;`): the binding hangs off the bare
   // declarator while the value-writing same-name redeclaration carries the global - accept
@@ -222,7 +235,7 @@ export function isPolyfillAliasBinding({ info, binding, scope, adapter, injector
   if (!info.aliasWrite && violations.length === 1) {
     const write = violations[0]?.node ?? violations[0];
     if (write?.type === 'VariableDeclarator') {
-      return declaratorInitResolvesForName({ id: write.id, init: write.init, boundName, scope, adapter, injector });
+      return declaratorInitResolvesForName({ id: write.id, init: write.init, boundName, ctx });
     }
   }
   if (!info.aliasWrite || !violations.length) return false;
@@ -248,7 +261,13 @@ export function maybeRegisterAssignmentAliasWrite({ injector, adapter = null, bi
   // covers; decline like the binding-less form so reads stay on the live-value channels
   if (isMutatedGlobalSlot(adapter, hint)) return false;
   const bindingNode = binding?.node ?? binding?.path?.node ?? null;
-  const scopeSpan = enclosingFunctionSpan(stmtPath);
+  // the span the alias is VISIBLE in, by the binding's kind like the declaration form: a `var`
+  // reaches its whole function, a block-scoped binding its declaring block only - a function-wide
+  // span served the registration to a same-named read outside that block, where the binding does
+  // not exist and a narrow masks the ReferenceError
+  const declarationPath = binding?.path ?? binding?.declarationPath ?? null;
+  const scopeSpan = binding?.kind === 'var' || !declarationPath
+    ? enclosingFunctionSpan(stmtPath) : enclosingLexicalSpan(declarationPath);
   if (!assignmentAliasWriteTrusted({ binding, assignNode, stmtPath })) {
     // refused flow-trust: register the binding as GUARDED - its member reads get the runtime
     // ctor guard instead of a static narrow (the guard self-corrects on any actual flow).
@@ -411,9 +430,10 @@ export function registerCtorAliasExtractions({ plan, declarator, scope, adapter,
 // deeper array-wrap layers (`[[{ Map: M }], y] = [[globalThis], 0]`) - the registration walk must
 // agree on nesting with the alias judge and the receiver mirror, else a deep alias never gets its
 // hint and its static reads stay raw in babel only (unplugin's visitor re-derives them)
-function collectCtorAliasPairs({ pattern, init, scope, adapter, injector }) {
+function collectCtorAliasPairs({ pattern, init, ctx }) {
+  const { adapter } = ctx;
   if (!init || !arrayInitServesPattern(pattern, init)
-    || !aliasInitResolvesToGlobal(unwrapInitForResolution(init), scope, adapter, injector)) return [];
+    || !aliasInitResolvesToGlobal(unwrapInitForResolution(init), ctx)) return [];
   const pairs = [];
   function collectFromObjectPattern(pat) {
     for (const prop of pat.properties ?? []) {
@@ -447,13 +467,13 @@ function collectCtorAliasPairs({ pattern, init, scope, adapter, injector }) {
       if (slot?.type === 'ArrayPattern') {
         // deeper layer: recurse with the POSITIONALLY-paired init element (the top gate re-judges
         // it); no sound pairing (spread-shifted / absent / non-array init) registers nothing
-        if (initEl) pairs.push(...collectCtorAliasPairs({ pattern: slot, init: initEl, scope, adapter, injector }));
+        if (initEl) pairs.push(...collectCtorAliasPairs({ pattern: slot, init: initEl, ctx }));
         return;
       }
       if (slot?.type !== 'ObjectPattern') return;
       // no positional init evidence (a non-array / babel-emptied init) keeps the established
       // whole-init bar so a post-consumption confirmation still recognises the alias
-      if (!initEls || (initEl && aliasInitResolvesToGlobal(initEl, scope, adapter, injector))) collectFromObjectPattern(slot);
+      if (!initEls || (initEl && aliasInitResolvesToGlobal(initEl, ctx))) collectFromObjectPattern(slot);
     });
   }
   return pairs;
@@ -465,7 +485,7 @@ function collectCtorAliasPairs({ pattern, init, scope, adapter, injector }) {
 // still resolves the alias table instead of silently missing a registration that happens later
 // in visit order. `isKnownGlobalName` keeps the table's bar: only known global names register
 export function registerAliasPrePassSite({ pattern, init, declKind, assignNode, scope, adapter, injector, path }) {
-  for (const { localName, hint } of collectCtorAliasPairs({ pattern, init, scope, adapter, injector })) {
+  for (const { localName, hint } of collectCtorAliasPairs({ pattern, init, ctx: { scope, adapter, injector, path } })) {
     // the NAME domain, not "has a whole-ctor pure entry": statics-only globals (Object / Array /
     // Math) carry no global-kind entry, but their aliases register just the same - without the
     // hint a split-anchor / hoisted-var alias never resolves (pure keeps the static raw,
@@ -525,21 +545,24 @@ function spineHasOptionalHop(node) {
   return false;
 }
 
-// control statements HOST an unconditional write only through their always-evaluated-on-entry
-// slot: the test (discriminant for switch) runs whenever the statement runs - a write there is
-// as unconditional as an expression statement's. branches / bodies stay refused (the ancestor
-// walk already rejects a host nested under them)
 // the statements whose HEAD slot is an expression evaluated whenever the statement runs: the tests,
 // the switch discriminant, and the for-of / for-in subject. a climb over expressions can reach one of
-// these only from that head - every other slot is a statement, and the climb breaks at its own host
+// these only from that head - every other slot is a statement, and the climb breaks at its own host.
+// a do-while is NOT one: its test runs only after a body that completed normally, and a `for`
+// hosts one through its init / test - its update is the conditional slot refused below
 const CONTROL_TEST_HOSTS = new Set([
   'IfStatement',
   'WhileStatement',
-  'DoWhileStatement',
+  'ForStatement',
   'SwitchStatement',
   'ForOfStatement',
   'ForInStatement',
 ]);
+
+// control statements HOST an unconditional write only through their always-evaluated-on-entry
+// slot: the test (discriminant for switch) runs whenever the statement runs - a write there is
+// as unconditional as an expression statement's. branches / bodies stay refused (the ancestor
+// walk already rejects a host nested under them)
 function unconditionalStatementPlacement(stmtPath, withinNode = null, readNode = null) {
   // callers pass paths at different depths (a declarator, the assignment, its statement) -
   // normalize by climbing to the hosting statement first, judging every EDGE on the way: a
@@ -563,7 +586,10 @@ function unconditionalStatementPlacement(stmtPath, withinNode = null, readNode =
     // evaluates whenever the statement does - the statement itself is the host, stop here.
     // the slot is not re-tested against the child: a render REPLACES what stands in it, and the
     // climb from the detached node then ran past the statement, past the program, and answered
-    // "conditional" from a walk that had lost its terminator
+    // "conditional" from a walk that had lost its terminator. a slot that runs on SOME evaluations
+    // of its statement only - a loop update, a do-while test, a `case` test, a for-x head - is
+    // refused first: the statement runs, the write may not
+    if (isConditionalExpressionSlot(parent?.node, stmt.node)) return false;
     if (CONTROL_TEST_HOSTS.has(parentType)) {
       stmt = parent;
       break;
@@ -694,7 +720,7 @@ export function registerDeclAliasIfSound({
   // write beyond the registering declaration itself (a same-name redeclaration write / a later
   // assignment refuses). a verified entry may serve the scope-lag NAME fallback: any violation
   // appearing after registration is our own swap, and the declSpan dominance gate still applies
-  const violations = withoutValuelessDeclarationViolations(binding?.constantViolations) ?? [];
+  const violations = binding ? cleanDestructureAliasWrites({ ...binding, name: localName }) : [];
   const verified = violations.every(violation => {
     const node = violation?.node ?? violation;
     return node === bindingNode || (declSpan && node?.start >= declSpan.start && node?.end <= declSpan.end);
@@ -712,7 +738,7 @@ function aliasInitResolvesToSymbol(node, scope, adapter, injector, seen, followD
   // the half `resolvesToGlobalSymbol` asks before any name walk, owed by this fork too
   if (isMutatedGlobalSlot(adapter, 'Symbol')) return false;
   if (node.type === 'ConditionalExpression' || node.type === 'LogicalExpression') {
-    return branchingInitResolves(node, scope, adapter,
+    return branchingInitResolves(node, { scope, adapter, path: keyCtx?.path ?? null },
       branch => aliasInitResolvesToSymbol(branch, scope, adapter, injector, seen, followDestructured, keyCtx));
   }
   const peeled = peelProxyGlobalObject(node);
@@ -1084,17 +1110,18 @@ function memberKeyVerdict(key, computed, scope, propName, adapter, resolveKey) {
 
 // namespace container = class body (static properties) or object literal - anything we can
 // statically look up by name. methods / getters / static blocks skipped (runtime values). iterate
+// the node shapes `findNamespaceMemberValue` can index by name - what a container walk is after
+function isNamespaceContainer(node) {
+  return node?.type === 'ClassDeclaration' || node?.type === 'ClassExpression' || node?.type === 'ObjectExpression';
+}
+
+// the value a namespace-shaped container binds to `propName`, scanning its members
 // in REVERSE so the LAST member with the key wins, matching JS runtime semantics: `{ Base: Promise,
 // Base: Object }` evaluates `NS.Base` to Object. a method / getter / setter that wins the key is a
 // DYNAMIC value, not a static container, so bail on it - consistently on both parsers (babel emits
 // ObjectMethod / a non-field ClassMethod, oxc a Property/MethodDefinition carrying `method` or a
 // non-`init` kind), else a data+getter duplicate key resolved the earlier data value on babel
 // [ObjectMethod skipped] but bailed on oxc [Property matched] -> wrong sub + cross-parser divergence
-// the node shapes `findNamespaceMemberValue` can index by name - what a container walk is after
-function isNamespaceContainer(node) {
-  return node?.type === 'ClassDeclaration' || node?.type === 'ClassExpression' || node?.type === 'ObjectExpression';
-}
-
 export function findNamespaceMemberValue(container, propName, scope, adapter, resolveKey) {
   if (container?.type === 'ClassDeclaration' || container?.type === 'ClassExpression') {
     const members = container.body?.body ?? [];
@@ -1168,14 +1195,13 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null,
       // their fresh revisit
       if (!node) return null;
       if (enclosingCache.has(node)) return backfill(visited, enclosingCache.get(node));
-      // computed-key slot AND member decorators evaluate at class-def time in the OUTER scope
-      // (this !== the class) - skip the member when prev's node is the key or one of its
-      // decorators so `class C { [this.X]() {} }` / `class C { @(this.X) m() {} }` don't resolve
-      // `this` to C (mirrors resolveThisAnchor's Decorator bail). skip BEFORE the push so
-      // body-side walks reaching the same node fresh resolve to the class context instead of
-      // inheriting this walk's outer-null conclusion via the cache
-      if (isClassMember(node) && prev
-        && ((node.computed && node.key === prev.node) || node.decorators?.includes(prev.node))) {
+      // a definition-time slot of a member (its computed key, its decorators) evaluates in the
+      // OUTER scope (this !== the class) - skip the member when prev's node stands in one so
+      // `class C { [this.X]() {} }` / `class C { @(this.X) m() {} }` don't resolve `this` to C
+      // (mirrors resolveThisAnchor's Decorator bail). skip BEFORE the push so body-side walks
+      // reaching the same node fresh resolve to the class context instead of inheriting this
+      // walk's outer-null conclusion via the cache
+      if (isClassMember(node) && prev && definitionTimeSlotOf(node, prev.node)) {
         prev = cur;
         continue;
       }

@@ -31,6 +31,7 @@ import {
 import {
   cachedContainerPaths,
   classBodyMemberPaths,
+  classDefinitionTimePaths,
   forEachPatternWriteMember,
   hasDeferredContextAncestor,
   declaratorBindsName,
@@ -816,24 +817,14 @@ export function createClassFields({
     }
     // sub-paths of a skipped this-rebinding node that STILL evaluate in the outer `this`: a babel
     // `ObjectMethod` computed key (estree splits the method into Property + FunctionExpression, so
-    // its key is already reached by the normal walk), and a class's heritage (`extends (this.x=1,
-    // Base)`) + every member's computed key. field / method bodies and static-field values rebind
-    // `this`, so they stay pruned - only the keys / heritage carry an outer-`this` write
+    // its key is already reached by the normal walk), and a class's definition-time slots - its
+    // heritage (`extends (this.x=1, Base)`), every decorator (class, member and parameter alike)
+    // and every computed key, per the shared slot canon. field / method bodies and static-field
+    // values rebind `this`, so they stay pruned
     function outerThisKeyPaths(p) {
       const { node } = p;
       if (node.type === 'ObjectMethod') return node.computed ? [p.get('key')] : [];
-      if (node.type === 'ClassDeclaration' || node.type === 'ClassExpression') {
-        const out = node.superClass ? [p.get('superClass')] : [];
-        // decorators (class-level and member-level) evaluate in the enclosing scope with
-        // the OUTER `this`, exactly like heritage and computed keys (parameter decorators
-        // are out of surface - see the param-decorator note in the false-positive registry)
-        if (node.decorators?.length) out.push(...p.get('decorators'));
-        for (const member of classBodyMemberPaths(p)) {
-          if (member.node?.decorators?.length) out.push(...member.get('decorators'));
-          if (member.node?.computed) out.push(member.get('key'));
-        }
-        return out;
-      }
+      if (node.type === 'ClassDeclaration' || node.type === 'ClassExpression') return classDefinitionTimePaths(p);
       return [];
     }
     const visitors = {
