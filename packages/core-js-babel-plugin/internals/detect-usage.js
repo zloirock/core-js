@@ -809,13 +809,14 @@ export function createUsageVisitors({
   onUsage,
   resolveMeta,
   resolvePure = null,
+  resolveStaticKey = null,
   resolvedType,
   suppressProxyGlobals = false,
   toHint,
   walkAnnotations = true,
 }) {
   const core = createUsageHandlerCore({
-    adapter, onUsage, method, isEntryAvailable, resolveMeta, resolvePure, suppressProxyGlobals,
+    adapter, onUsage, method, isEntryAvailable, resolveMeta, resolvePure, resolveStaticKey, suppressProxyGlobals,
     keptProxyHops, onSuppressedProxyHop, suppressKeptNavRoot,
     // babel exposes the declaration kind directly on its Binding
     selfRefBindingKind: b => b.kind,

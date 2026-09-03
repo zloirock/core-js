@@ -8,8 +8,9 @@
 //                                                       `++` / `--` / `-` / `~`
 //   resolveMemberPropertyName(path)                   - cross-dialect member-key name from a
 //                                                       MemberExpression (non-computed +
-//                                                       literal-keyed + alias-to-literal +
-//                                                       enum-member access)
+//                                                       literal-keyed + the canon's structural
+//                                                       fold + alias-to-literal + enum-member
+//                                                       access)
 //   resolveUnionType(leftPath, rightPath, op)         - resolve `a OP b` for `||` / `&&` /
 //                                                       `??` / `?:` / `||=` / `&&=` / `??=`
 //   resolveDesugarDefaultTernary(path)                - recognise babel / swc / esbuild /
@@ -21,7 +22,7 @@
 //   resolveBinaryOperatorType(op, left, right)        - `+` / `-` / `*` / `/` / `%` / `**` /
 //                                                       bitwise / shift narrowing (number vs
 //                                                       bigint vs string disambiguation)
-import { isNullLiteralNode } from '../helpers/ast-patterns.js';
+import { computedKeyStaticName, isNullLiteralNode } from '../helpers/ast-patterns.js';
 import { $Primitive, primitiveTypeOf } from './base.js';
 import { isBareUndefinedIdentifier } from './ast-shapes.js';
 
@@ -198,8 +199,14 @@ export function createValueOps({
     const { property, computed } = path.node;
     if (!computed) return getKeyName(property);
     const resolved = resolveRuntimeExpression(path.get('property')).node;
+    // the STRUCTURAL fold is the canon's - a sequence tail, a `+` concat, a template, nested in any
+    // combination - so the type layer names a key exactly as the detection side does. spelled here
+    // as its own shorter list it answered `Array['o' + 'f'](5)` with no name at all, and the
+    // instance read above it lost the array narrow its dotted twin keeps. the SCOPE-dependent
+    // resolutions below are deliberately not part of that canon and stay this layer's own
     return literalKeyValue(property)
       ?? singleQuasiString(property)
+      ?? computedKeyStaticName(property)
       ?? literalKeyValue(resolved)
       ?? singleQuasiString(resolved)
       ?? resolveComputedKeyName(property, path.scope);
