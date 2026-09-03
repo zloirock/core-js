@@ -420,3 +420,38 @@ QUnit.test('typed dispatch: an overloaded member read through a destructure stay
   assert.same(pick(1).at(-1), 30);
   assert.same(pick('s').at(-1), 'c');
 });
+
+QUnit.test('typed dispatch: an enum-member key names its method like every other spelling', assert => {
+  // the key spells a method name through a TS enum, which only the type layer can fold. in a stripped
+  // realm the read has to be the POLYFILL - a missed claim leaves the native the realm does not have,
+  // so this asserts the injection itself, not just the value
+  enum Keys { AT = 'at', FLAT = 'flat' }
+  const arr = [1, [2, 3]];
+
+  assert.same(arr[Keys.FLAT]().at(-1), 3, 'the enum-keyed call and the dotted read after it');
+  assert.same([4, 5, 6][Keys.AT](-1), 6, 'and an enum-keyed instance method on a literal receiver');
+  // the negative that a STRIPPED realm can also answer: a member the enum does not declare names
+  // nothing, so the read is undefined and the call throws in either environment. the look-alike
+  // object key is a structural negative - it reads a NATIVE slot this realm may not have, so the
+  // fixture owns it and this lane stays on what the runtime can decide
+  assert.throws(() => ([7] as any)[(Keys as any).MISSING](0), TypeError, 'an undeclared member is undefined');
+});
+
+QUnit.test('typed dispatch: a PATCHED enum member keeps the call the source makes', assert => {
+  // the declared member says one method, the program rewrites the slot to another, and the runtime
+  // key is the rewritten one. a claim on the declared value would call a DIFFERENT method, so the
+  // read has to stay ordinary. both names here are ES3 members no realm strips, which is what lets
+  // this lane assert the difference in a stripped realm as well as a full one
+  enum Keys { M = 'at' }
+  (Keys as any).M = 'join';
+  const arr = [1, 2, 3];
+
+  // the DECLARED member names a polyfilled method and the rewritten one an ES3 method: a claim on
+  // the declared value would run the ponyfill (present in every realm) and answer 1, while the call
+  // the source makes joins. that keeps the discrimination realm-independent - the correct path
+  // touches nothing a stripped realm removes
+  assert.same(arr[Keys.M]('-'), '1-2-3', 'the rewritten key names the call that actually runs');
+  // ... and the twin whose slot nothing rewrites claims its member as usual
+  enum Clean { M = 'at' }
+  assert.same(arr[Clean.M](-1), 3, 'while an untouched member still dispatches through the polyfill');
+});

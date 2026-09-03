@@ -974,6 +974,9 @@ export default function createPlugin(options) {
 
         const usageVisitors = createUsageVisitors({
           adapter: estreeAdapter,
+          // detection names a computed member key through the TYPE layer's resolver rather than a
+          // copy of its enum fold - one name, one resolver
+          resolveStaticKey: (node, scope, path) => typeResolvers.resolveClaimableComputedKeyName(node, scope, path),
           onUsage: usageGlobalCallback,
           method,
           isEntryAvailable: isEntryNeeded,
@@ -1189,6 +1192,9 @@ export default function createPlugin(options) {
           ForInStatement(path) { destructureEmit.extractLoopLeft(path); },
         }, createUsageVisitors({
           adapter: estreeAdapter,
+          // detection names a computed member key through the TYPE layer's resolver rather than a
+          // copy of its enum fold - one name, one resolver
+          resolveStaticKey: (node, scope, path) => typeResolvers.resolveClaimableComputedKeyName(node, scope, path),
           onUsage: callback,
           method,
           walkAnnotations: false,
