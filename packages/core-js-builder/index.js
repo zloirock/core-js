@@ -70,16 +70,10 @@ export default async function ({
         await rm(tempDir, { force: true, recursive: true });
       }
 
-      const SWCOptions = {};
-
       // rolldown helpers / wrappers contain es2015 syntax
       const syntax = compat({ targets, configPath, ignoreBrowserslistConfig, modules: ModernSyntax, __external: true }).list;
 
-      if (syntax.length) Object.assign(SWCOptions, {
-        env: {
-          include: syntax.map(it => `transform-${ it }`),
-        },
-      });
+      const SWCOptions = { env: { include: syntax.map(it => `transform-${ it }`) } };
 
       if (minify) Object.assign(SWCOptions, MinifyOptions);
 
