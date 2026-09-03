@@ -1,6 +1,6 @@
 {
   "name": "scripts/canon",
   "devDependencies": {
-    "@probelabs/probe": "^0.6.0-rc332"
+    "@probelabs/probe": "^0.6.0-rc335"
   }
 }

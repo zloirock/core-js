@@ -6,13 +6,13 @@
     "@farmfe/core": "^1.7.11",
     "@rollup/plugin-commonjs": "^29.0.3",
     "@rollup/plugin-node-resolve": "^16.0.3",
-    "@rsbuild/core": "^2.2.1",
-    "@rspack/core": "^2.2.1",
+    "@rsbuild/core": "^2.2.3",
+    "@rspack/core": "^2.2.2",
     "core-js": "file:../../packages/core-js",
     "esbuild": "^0.28.2",
-    "rolldown": "^1.2.6",
+    "rolldown": "^1.2.7",
     "rollup": "^4.63.1",
     "vite": "^8.2.2",
-    "webpack": "^5.110.2"
+    "webpack": "^5.110.3"
   }
 }
