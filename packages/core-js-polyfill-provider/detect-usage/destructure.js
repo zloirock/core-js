@@ -128,8 +128,10 @@ export function aliasWriteCtorNames({ name, scope, adapter, path }) {
   return names;
 }
 
-export function buildDestructuringInitMeta({ initNode, key, scope, adapter, path = null, unionSink = null }) {
-  const meta = buildDestructuringInitMetaCore({ initNode, key, scope, adapter, path, unionSink });
+export function buildDestructuringInitMeta({
+  initNode, key, scope, adapter, path = null, unionSink = null, resolveStaticKey = null,
+}) {
+  const meta = buildDestructuringInitMetaCore({ initNode, key, scope, adapter, path, unionSink, resolveStaticKey });
   // a static the user monkey-patches is NOT a polyfillable destructure source: the prop
   // stays raw and the receiver substitutes through the identifier machinery, so the patch
   // and the extraction read the same object
@@ -140,7 +142,9 @@ export function buildDestructuringInitMeta({ initNode, key, scope, adapter, path
   return meta;
 }
 
-function buildDestructuringInitMetaCore({ initNode, key, scope, adapter, path = null, unionSink = null }) {
+function buildDestructuringInitMetaCore({
+  initNode, key, scope, adapter, path = null, unionSink = null, resolveStaticKey = null,
+}) {
   if (!initNode) return { kind: 'property', object: null, key, placement: null };
   // oxc-parser preserves ParenthesizedExpression (Babel strips them)
   const unwrapped = unwrapTransparentSeq(initNode);
@@ -151,17 +155,17 @@ function buildDestructuringInitMetaCore({ initNode, key, scope, adapter, path = 
   // estree-toolkit's scope tracker doesn't register)
   switch (unwrapped.type) {
     case 'LogicalExpression':
-      return resolveLogicalDestructureMeta({ node: unwrapped, key, scope, adapter, path });
+      return resolveLogicalDestructureMeta({ node: unwrapped, key, scope, adapter, path, resolveStaticKey });
     case 'SequenceExpression':
       // `(0, Array)`: sequence evaluates to its last expression
-      return buildDestructuringInitMeta({ initNode: unwrapped.expressions.at(-1), key, scope, adapter, path, unionSink });
+      return buildDestructuringInitMeta({ initNode: unwrapped.expressions.at(-1), key, scope, adapter, path, unionSink, resolveStaticKey });
     case 'ConditionalExpression':
-      return resolveConditionalDestructureMeta({ node: unwrapped, key, scope, adapter, path });
+      return resolveConditionalDestructureMeta({ node: unwrapped, key, scope, adapter, path, resolveStaticKey });
     case 'AssignmentExpression':
       // chain `const { from } = foo = cond ? Array : Iterator` evaluates AssignmentExpression
       // to its RHS - recurse on right so meta tracks the actual destructure receiver
       if (isChainAssignment(unwrapped)) {
-        return buildDestructuringInitMeta({ initNode: unwrapped.right, key, scope, adapter, path, unionSink });
+        return buildDestructuringInitMeta({ initNode: unwrapped.right, key, scope, adapter, path, unionSink, resolveStaticKey });
       }
       break;
     case 'CallExpression':
@@ -171,7 +175,7 @@ function buildDestructuringInitMetaCore({ initNode, key, scope, adapter, path = 
       // sees the conditional/logical inside. args-bearing calls preserve their semantics
       // (peel returns null, switch falls through to the `object: null` default)
       const iifeInner = peelZeroArgIifeReturn(unwrapped);
-      if (iifeInner) return buildDestructuringInitMeta({ initNode: iifeInner, key, scope, adapter, path, unionSink });
+      if (iifeInner) return buildDestructuringInitMeta({ initNode: iifeInner, key, scope, adapter, path, unionSink, resolveStaticKey });
       // an inline-resolvable call init (`(() => { c++; return Promise; })()`): classify through
       // resolveObjectName's call inlining, same as the direct flatten path. without this, the
       // conditional / fallback branch enumeration treats the branch as opaque and the per-branch
@@ -201,7 +205,7 @@ function buildDestructuringInitMetaCore({ initNode, key, scope, adapter, path = 
   // (`const { from } = w.k` over `const w = { k: Array }`) - the SAME walk fallback the member
   // and nested-destructure reads pair with, so the flat spelling stops under-resolving
   if (isReceiverShapedNode(unwrapped)) {
-    const objectName = resolveObjectName({ objectNode: unwrapped, scope, adapter, path })
+    const objectName = resolveObjectName({ objectNode: unwrapped, scope, adapter, path, resolveStaticKey })
       ?? staticContainerReceiverName({ node: unwrapped, scope, adapter, path, unionSink });
     const placement = objectName ? isStaticPlacement(objectName) : null;
     // an alias whose ctor-hint could not drive a STATIC narrow (a REFUSED registration - a
@@ -245,10 +249,10 @@ function buildDestructuringInitMetaCore({ initNode, key, scope, adapter, path = 
 // whole-init replacement - it does not disable the rewrite. `&&` is always conditional (primary
 // only when left truthy, else falsy left), so always flag; `??`/`||` flag only when the fallback
 // is the resolved side
-function resolveLogicalDestructureMeta({ node, key, scope, adapter, path }) {
+function resolveLogicalDestructureMeta({ node, key, scope, adapter, path, resolveStaticKey = null }) {
   return node.operator === '&&'
-    ? resolveAndDestructureMeta({ node, key, scope, adapter, path })
-    : resolveOrNullishDestructureMeta({ node, key, scope, adapter, path });
+    ? resolveAndDestructureMeta({ node, key, scope, adapter, path, resolveStaticKey })
+    : resolveOrNullishDestructureMeta({ node, key, scope, adapter, path, resolveStaticKey });
 }
 
 // `&&`: primary is the RIGHT branch. when both branches resolve to the SAME known object
@@ -256,13 +260,13 @@ function resolveLogicalDestructureMeta({ node, key, scope, adapter, path }) {
 // (`Array && Map` for `entries` -> `Array && _Map`, `Array && Promise` for `from` ->
 // `{from:_Array$from} && _Promise`). `fromFallback` always set when objects differ or left
 // doesn't resolve - runtime value depends on the left's truthiness
-function resolveAndDestructureMeta({ node, key, scope, adapter, path }) {
+function resolveAndDestructureMeta({ node, key, scope, adapter, path, resolveStaticKey = null }) {
   // a branch that resolves to a monkey-patched static yields a null meta - guard before reading
   // `.object` (null deref -> build crash), leaving the destructure raw exactly as the conditional
   // path does (the per-identifier receiver substitution handles the mutated static elsewhere)
-  const primaryMeta = buildDestructuringInitMeta({ initNode: node.right, key, scope, adapter, path });
+  const primaryMeta = buildDestructuringInitMeta({ initNode: node.right, key, scope, adapter, path, resolveStaticKey });
   if (!primaryMeta?.object) return primaryMeta;
-  const leftMeta = buildDestructuringInitMeta({ initNode: node.left, key, scope, adapter, path });
+  const leftMeta = buildDestructuringInitMeta({ initNode: node.left, key, scope, adapter, path, resolveStaticKey });
   if (leftMeta?.object === primaryMeta.object) return primaryMeta;
   if (fallbackArmsDisagreeOnType(primaryMeta, leftMeta)) return { kind: 'property', object: null, key, placement: null };
   return { ...primaryMeta, fromFallback: true };
@@ -284,9 +288,9 @@ function branchingProxySurfacePrimary(meta, adapter) {
     && isPristineProxyGlobal(adapter, meta.object);
 }
 
-function resolveOrNullishDestructureMeta({ node, key, scope, adapter, path }) {
+function resolveOrNullishDestructureMeta({ node, key, scope, adapter, path, resolveStaticKey = null }) {
   // null meta = monkey-patched static branch; null-guard before `.object` (build crash otherwise)
-  const primaryMeta = buildDestructuringInitMeta({ initNode: node.left, key, scope, adapter, path });
+  const primaryMeta = buildDestructuringInitMeta({ initNode: node.left, key, scope, adapter, path, resolveStaticKey });
   if (primaryMeta?.object && (resolveBuiltIn(primaryMeta) || branchingProxySurfacePrimary(primaryMeta, adapter))) {
     // the left is the unconditional value only while it cannot be nullish: an undefinable
     // probe nav (`globalThis.window?.Array ?? {}`) selects the FALLBACK exactly off-env, so
@@ -295,7 +299,7 @@ function resolveOrNullishDestructureMeta({ node, key, scope, adapter, path }) {
     return fallbackValueCanBeNullish(node.left, { scope, adapter, path })
       ? { ...primaryMeta, fromFallback: true } : primaryMeta;
   }
-  const fallbackMeta = buildDestructuringInitMeta({ initNode: node.right, key, scope, adapter, path });
+  const fallbackMeta = buildDestructuringInitMeta({ initNode: node.right, key, scope, adapter, path, resolveStaticKey });
   if (!fallbackMeta?.object) return fallbackMeta;
   if (fallbackArmsDisagreeOnType(fallbackMeta, primaryMeta)) return { kind: 'property', object: null, key, placement: null };
   return { ...fallbackMeta, fromFallback: true };
@@ -329,9 +333,9 @@ function fallbackValueCanBeNullish(node, aliasCtx) {
 // constructor name - the runtime values come from different AST paths (`Array` bare vs
 // `globalThis.Array` member access; user shim vs core-js import) and per-branch synth
 // rewrites each side independently to preserve original receiver semantics
-function resolveConditionalDestructureMeta({ node, key, scope, adapter, path }) {
-  const consequent = buildDestructuringInitMeta({ initNode: node.consequent, key, scope, adapter, path });
-  const alternate = buildDestructuringInitMeta({ initNode: node.alternate, key, scope, adapter, path });
+function resolveConditionalDestructureMeta({ node, key, scope, adapter, path, resolveStaticKey = null }) {
+  const consequent = buildDestructuringInitMeta({ initNode: node.consequent, key, scope, adapter, path, resolveStaticKey });
+  const alternate = buildDestructuringInitMeta({ initNode: node.alternate, key, scope, adapter, path, resolveStaticKey });
   // a branch may be null (a monkey-patched static) - the whole conditional stays raw then,
   // matching the single-receiver mutated path (receiver substitution happens per-identifier)
   if (!consequent || !alternate) return null;
@@ -3953,7 +3957,9 @@ export function classifyDestructureLeafHost({ objectPattern }) {
 // null`, the instance dispatcher's degrade - dropping the leaf instead lost the polyfill
 // on one leg), and a mutated static yields NO meta on every host shape (the receiver then
 // routes through the identifier machinery, so the patch and the read share one object)
-export function buildDestructureLeafMeta({ descriptor, key, adapter, resolvePure = null, unionSink = null }) {
+export function buildDestructureLeafMeta({
+  descriptor, key, adapter, resolvePure = null, unionSink = null, resolveStaticKey = null,
+}) {
   switch (descriptor.host) {
     case 'none':
       return null;
@@ -3963,6 +3969,7 @@ export function buildDestructureLeafMeta({ descriptor, key, adapter, resolvePure
       if (!key) return null;
       return buildDestructuringInitMeta({
         initNode: descriptor.initNode, key, scope: descriptor.scope, adapter, path: descriptor.path, unionSink,
+        resolveStaticKey,
       });
     case 'param-default': {
       if (!key) return null;

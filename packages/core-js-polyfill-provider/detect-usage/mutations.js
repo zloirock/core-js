@@ -206,7 +206,10 @@ function peeledNamespaceName(node, ctx) {
 // const-aliased (`const k = 'from'`) or comma-sequence (`[(eff(), 'from')]`) key tracks the
 // same `name.key` the resolver would otherwise substitute - the gate stays symmetric per method
 function mutationKeyName(keyNode, computed, ctx) {
-  return resolveKey({ node: keyNode, computed, scope: ctx.scope, adapter: ctx.adapter, path: ctx.path });
+  return resolveKey({
+    node: keyNode, computed, scope: ctx.scope, adapter: ctx.adapter, path: ctx.path,
+    resolveStaticKey: ctx.resolveStaticKey ?? null,
+  });
 }
 
 // the value positions that hand a reference OUT of this file's own frames, where a write through
@@ -2018,7 +2021,7 @@ function paramReachingValues({ identNode, binding, callArguments, ctx }) {
   return values;
 }
 
-function createMutationSiteHandler({ adapter, mutated, callArguments = null }) {
+function createMutationSiteHandler({ adapter, mutated, callArguments = null, resolveStaticKey = null }) {
   const pendingIdentitySkips = [];
   // one resolution per target NODE: the same site is classified twice by construction (the host
   // visitor accepts a bare `=` LHS that the member visitor also reaches), and a mutator whose
@@ -2027,12 +2030,12 @@ function createMutationSiteHandler({ adapter, mutated, callArguments = null }) {
   const resolved = new WeakMap();
   function resolveTargetOnce(targetNode, path) {
     if (resolved.has(targetNode)) return resolved.get(targetNode);
-    const names = resolveMutationSite({ targetNode, scope: path.scope, adapter, path, callArguments });
+    const names = resolveMutationSite({ targetNode, scope: path.scope, adapter, path, callArguments, resolveStaticKey });
     resolved.set(targetNode, names);
     return names;
   }
   function handleSite(path) {
-    const ctx = { scope: path.scope, adapter, path, pendingIdentitySkips };
+    const ctx = { scope: path.scope, adapter, path, pendingIdentitySkips, resolveStaticKey };
     for (const entry of classifyMutationSite(path.node, path.parent, path.parentPath?.parent, ctx)) {
       if (entry.globalSlotKey) {
         mutated.add(mutatedStaticKey('globalThis', entry.globalSlotKey));
@@ -2069,13 +2072,13 @@ function createMutationSiteHandler({ adapter, mutated, callArguments = null }) {
 // the cheap shape census gates the whole pass: only files that actually monkey-patch pay for
 // the scoped traverse + canonical receiver resolution. each plugin runs its own traversal
 // dialect over `handleSite` (null when the gate is closed) and calls `finalize` after it
-export function beginMutationPrePass({ rootNode, adapter, census = null }) {
+export function beginMutationPrePass({ rootNode, adapter, census = null, resolveStaticKey = null }) {
   const mutated = new Set();
   if (!(census ? census.hasMutationShapes : hasMutationCandidateShapes(rootNode, adapter.packages))) {
     return { mutated, handleSite: null, finalize: null };
   }
   const { handleSite, finalizeMutationSet } = createMutationSiteHandler({
-    adapter, mutated, callArguments: census?.callArguments ?? null,
+    adapter, mutated, callArguments: census?.callArguments ?? null, resolveStaticKey,
   });
   return { mutated, handleSite, finalize: finalizeMutationSet };
 }
@@ -2397,12 +2400,12 @@ function resolveLeafName(leaf, ctx) {
 // hop - `Array[k].x = v` could have patched anything under Array); the handler deopts them
 // whole. `thisPath` (alias fans only) anchors the top-level-`this` context check at the
 // declarator that captured the `this`, not the mutation site
-function resolveMutationSite({ targetNode, scope, adapter, path, callArguments = null }) {
+function resolveMutationSite({ targetNode, scope, adapter, path, callArguments = null, resolveStaticKey = null }) {
   const names = new Set();
   const receiverDeopts = new Set();
   const seenBindings = new Set();
   const chainParts = new WeakMap();
-  const siteCtx = { scope, adapter, path, chainParts };
+  const siteCtx = { scope, adapter, path, chainParts, resolveStaticKey };
   // a PARAMETER has no declarator to fan, and BOTH value-resolution entry points owe the same
   // answer about it - the one asking about the binding itself, and the one asking about a chain
   // ROOTED at it (`function install(t) { t.box.groupBy = shim }`, `(...rest) { rest[0].x = shim }`)
