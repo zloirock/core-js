@@ -1,7 +1,6 @@
 // babel-specific AST primitives + optional-chain handling. covers ref memoization,
 // optional-chain deoptionalization, instance-method replacement strategies, TS-wrapper
 // peeling. destructure emission moved out to `internals/destructure-emitter.js`.
-import { isTypeAnnotationNodeType } from '@core-js/polyfill-provider/detect-usage/annotations';
 import {
   aliasHeldClaimProbe,
   composableNavGuardPlan,
@@ -491,7 +490,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
   resolvePureStaticEntry = null, resolvePurePrototypeEntry = null, injectPureGlobal,
   collapseReceiverHops = null, releaseHandledNode = null } = {}) {
   const { resolveNodeType, resolvedType } = typeResolvers ?? {};
-  const isInTypeAnnotation = createTypeAnnotationChecker(isTypeAnnotationNodeType);
+  const isInTypeAnnotation = createTypeAnnotationChecker();
 
   function reset() {
     isInTypeAnnotation.reset();
