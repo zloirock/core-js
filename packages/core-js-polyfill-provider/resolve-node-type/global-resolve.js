@@ -85,7 +85,11 @@ export function createGlobalResolve({
   // mirror `globalProxyMemberName`'s walk but stays in resolve-node-type's path-based API
   function isProxyGlobalChainLink(objectPath) {
     if (!t.isMemberExpression(objectPath.node) && !t.isOptionalMemberExpression(objectPath.node)) return false;
-    const propName = staticMemberKeyName(objectPath.node);
+    // the structural fold first and, for a computed key it cannot read (a TS enum member spells
+    // one), this layer's own scope-aware key resolver - named only structurally, an enum-spelled
+    // hop left the read below it un-narrowed while every other spelling of that key narrowed
+    const propName = staticMemberKeyName(objectPath.node)
+      ?? (objectPath.node.computed ? resolveComputedKeyName(objectPath.node.property, objectPath.scope) : null);
     // a user-replaced hop slot (`globalThis.self = fake`) is the user's redirection - walking
     // through it would narrow to the pristine constructor's type on a foreign runtime value
     // (the detect-usage walk already honors the slot; this is its type-channel mirror)
