@@ -785,7 +785,7 @@ export function harvestDiscardedReceiverSE(node, { scope, adapter, path }) {
 // the meta of a MEMBER read: the resolved receiver (a global, a proxy chain, a static container, a
 // prototype navigation) crossed with the resolved key, its harvested side effects, and - for
 // usage-global - the reachable union of every other receiver x key pair the aliases can hold
-function buildMemberMeta({ node, scope, adapter, path }) {
+function buildMemberMeta({ node, scope, adapter, path, resolveStaticKey = null }) {
   // collect side effects from both the receiver and the computed-key so a polyfill
   // replacement on this MemberExpression (which discards the whole subtree) can re-emit
   // them via a SequenceExpression wrap in the plugin's emission path
@@ -816,7 +816,7 @@ function buildMemberMeta({ node, scope, adapter, path }) {
   const computedKeyNode = node.computed ? peelReceiverSequenceTail(node.property) : null;
   if (node.computed) collectFoldedReceiverSideEffects(node.property, keyEffects);
   const key = node.computed
-    ? resolveKey({ node: computedKeyNode, computed: true, scope, adapter, path })
+    ? resolveKey({ node: computedKeyNode, computed: true, scope, adapter, path, resolveStaticKey })
     : memberKeyName(node);
   // a computed key with no single dominating name - a BRANCHING literal (`arr[cond ? "flat" :
   // "at"]()`), or a REASSIGNED alias whose only value sits in a pattern slot default - still reaches
@@ -1081,7 +1081,7 @@ function resolveSymbolReceiverProxyRoot({ node, receiverChain, receiverValueName
 // eslint-disable-next-line max-statements -- per-form member dispatch sequence
 export function handleMemberExpressionNode({
   node, scope, adapter, handledObjects, suppressProxyGlobals, path, resolveMeta, isEntryAvailable,
-  resolvePure = null, keptProxyHops = null,
+  resolvePure = null, keptProxyHops = null, resolveStaticKey = null,
 }) {
   // our own render read back on a SECOND pass stands down whole - not just its probe half
   if (claimAlreadyRendered(node, { scope, adapter, path })) return null;
@@ -1189,7 +1189,7 @@ export function handleMemberExpressionNode({
     if (sideEffects.length) meta.sideEffects = sideEffects;
     return meta;
   }
-  const meta = buildMemberMeta({ node, scope, adapter, path });
+  const meta = buildMemberMeta({ node, scope, adapter, path, resolveStaticKey });
   // a static the user monkey-patches in this file is NOT a polyfillable static: binding the
   // read to the frozen receiver-less import would bypass the patch, and bailing whole leaves
   // code referencing a possibly-missing global. return no meta and leave the receiver
@@ -1463,7 +1463,9 @@ export function symbolIteratorHint(entry) {
 // MemberExpression-fallback path. without the predicate (legacy callers), seed on the
 // pure-string `symbolKeyToEntry` shape - older callers lose the fallback but stay
 // behaviour-compatible
-export function handleBinaryIn({ node, scope, adapter, handledObjects, isEntryAvailable, suppressProxyGlobals, path }) {
+export function handleBinaryIn({
+  node, scope, adapter, handledObjects, isEntryAvailable, suppressProxyGlobals, path, resolveStaticKey = null,
+}) {
   if (node.operator !== 'in') return null;
   const left = unwrapTransparentSeq(node.left);
   // peel SequenceExpression-tail on the receiver: `(fn(), Symbol).iterator in obj`
@@ -1518,7 +1520,7 @@ export function handleBinaryIn({ node, scope, adapter, handledObjects, isEntryAv
   // `` `Symbol.iterator` ``, `'Symbol.' + 'iterator'`) are NOT symbol refs - `isSymbolSourcedKey`
   // filters them out; they fall through to the string-key branch below.
   // single-`.` shape filters out double-prefixed `Symbol.Symbol.X` from nested `Symbol[Symbol.X]`
-  const resolvedLeft = resolveKey({ node: node.left, computed: true, scope, adapter, path });
+  const resolvedLeft = resolveKey({ node: node.left, computed: true, scope, adapter, path, resolveStaticKey });
   if (resolvedLeft?.startsWith('Symbol.') && !resolvedLeft.includes('.', 7)
     && isSymbolSourcedKey({ node: node.left, scope, adapter, path })) {
     return { kind: 'in', key: resolvedLeft, object: null, placement: null, symbolSourced: true };

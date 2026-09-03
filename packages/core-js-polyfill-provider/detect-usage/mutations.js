@@ -49,6 +49,7 @@ import {
   unwrapRuntimeExpr,
   walkAstChildren,
   walkPatternIdentifiers,
+  ESCAPED_CONTAINER_NAMES,
 } from '../helpers/ast-patterns.js';
 import {
   requireCallSource,
@@ -392,7 +393,9 @@ function stampEscapesFrom(programNode, node) {
   while (work.length) {
     const reached = new Set();
     stampEscapingLeaves(work.pop(), stamps, reached);
+    const names = ESCAPED_CONTAINER_NAMES.get(programNode);
     for (const name of reached) {
+      names?.add(name);
       if (seen.has(name)) continue;
       seen.add(name);
       const init = aliases?.get(name);
@@ -475,6 +478,7 @@ export function escapedCtorReferencesReducer() {
       programNode = node;
       ESCAPED_CTOR_REFS.set(node, stamps = new Set());
       CTOR_ALIAS_INITS.set(node, aliasInit);
+      ESCAPED_CONTAINER_NAMES.set(node, new Set());
     }
     if (frame?.underTypeAnnotation) return;
     switch (node.type) {

@@ -1,6 +1,12 @@
 import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
 import { canonicalArrayIndex, DESTRUCTURE_PATTERN_TYPES, MAX_DEPTH } from '../resolve-node-type/base.js';
 
+// the escape census, keyed by PROGRAM node -> the NAMES a value handed out (a call argument, a
+// member-assignment RHS, a throw / yield / export-default), alias hops followed. written by the
+// mutation pre-pass, read wherever a claim needs to know the container is still this file's own -
+// it lives here, at the bottom, so the census and its readers need no import of each other
+export const ESCAPED_CONTAINER_NAMES = new WeakMap();
+
 // `globalThis` / `self` / `window` etc. - proxy names aliasing the ONE global object
 export const POSSIBLE_GLOBAL_OBJECTS = new Set(knownBuiltInReturnTypes.globalProxies);
 // an already-resolved NAME narrowed to the proxy-global surface, or null. the closing step of every

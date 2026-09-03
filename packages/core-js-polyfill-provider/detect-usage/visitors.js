@@ -17,6 +17,9 @@ export function createUsageHandlerCore({
   isEntryAvailable,
   resolveMeta,
   resolvePure = null,
+  // the type layer's own key-name resolver, so a computed member key (`E.A` off a TS enum) is
+  // named by the one resolver that already folds it instead of a second copy living here
+  resolveStaticKey = null,
   suppressProxyGlobals = false,
   keptProxyHops = null,
   onSuppressedProxyHop = null,
@@ -72,7 +75,7 @@ export function createUsageHandlerCore({
   function emitMemberUsage(path) {
     const meta = handleMemberExpressionNode({
       node: path.node, scope: path.scope, adapter, handledObjects, suppressProxyGlobals, path, resolveMeta, isEntryAvailable,
-      resolvePure, keptProxyHops,
+      resolvePure, keptProxyHops, resolveStaticKey,
     });
     if (meta) {
       onUsage(meta, path);
@@ -84,6 +87,7 @@ export function createUsageHandlerCore({
   function emitBinaryInUsage(path) {
     const meta = handleBinaryIn({
       node: path.node, scope: path.scope, adapter, handledObjects, isEntryAvailable, suppressProxyGlobals, path,
+      resolveStaticKey,
     });
     if (!meta) return;
     onUsage(meta, path);

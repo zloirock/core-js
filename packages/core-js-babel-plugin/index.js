@@ -200,7 +200,9 @@ export default function plugin(api, options) {
     // traversal, after init, so the deferred reference is safe
     isMutatedStatic: (object, key) => adapter.isMutatedStaticSlot(object, key),
   });
-  const { resolvePropertyObjectType, resolveNodeType, resolvedType, toHint } = typeResolvers;
+  const {
+    resolveClaimableComputedKeyName, resolvePropertyObjectType, resolveNodeType, resolvedType, toHint,
+  } = typeResolvers;
 
   const { resolver, createDebugOutput } = createPolyfillResolver(options, {
     typeResolvers,
@@ -1656,6 +1658,9 @@ export default function plugin(api, options) {
         toHint,
         resolvedType,
         resolvePure,
+        // detection names a computed member key through the TYPE layer's resolver rather than a
+        // copy of its enum fold - one name, one resolver
+        resolveStaticKey: (node, scope, path) => resolveClaimableComputedKeyName(node, scope, path),
       };
       // hops the detector suppressed while the meta KEEPS its receiver path: they survive into the
       // output, so this emitter still renders them (the marking only guards the unplugin emitter)
