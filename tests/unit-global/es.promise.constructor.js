@@ -234,12 +234,13 @@ if (promise) QUnit.test('Native Promise, maybe patched', assert => {
   assert.isFunction(promise.then);
   assert.arity(promise.then, 2);
   assert.looksNative(promise.then);
-  assert.nonEnumerable(promise.constructor.prototype, 'then');
+  const $Promise = promise.constructor;
+  assert.nonEnumerable($Promise.prototype, 'then');
   function empty() { /* empty */ }
   assert.true(promise.then(empty) instanceof Promise, '`.then` returns `Promise` instance #1');
-  assert.true(new promise.constructor(empty).then(empty) instanceof Promise, '`.then` returns `Promise` instance #2');
+  assert.true(new $Promise(empty).then(empty) instanceof Promise, '`.then` returns `Promise` instance #2');
   assert.true(promise.catch(empty) instanceof Promise, '`.catch` returns `Promise` instance #1');
-  assert.true(new promise.constructor(empty).catch(empty) instanceof Promise, '`.catch` returns `Promise` instance #2');
+  assert.true(new $Promise(empty).catch(empty) instanceof Promise, '`.catch` returns `Promise` instance #2');
   assert.true(promise.finally(empty) instanceof Promise, '`.finally` returns `Promise` instance #1');
-  assert.true(new promise.constructor(empty).finally(empty) instanceof Promise, '`.finally` returns `Promise` instance #2');
+  assert.true(new $Promise(empty).finally(empty) instanceof Promise, '`.finally` returns `Promise` instance #2');
 });

@@ -2,7 +2,7 @@
   "name": "tests/transpiler-perf",
   "type": "module",
   "devDependencies": {
-    "@codemirror/state": "6.7.2",
+    "@codemirror/state": "6.7.4",
     "@lezer/common": "1.5.2",
     "@lezer/highlight": "1.2.3",
     "@lezer/javascript": "1.5.4",
