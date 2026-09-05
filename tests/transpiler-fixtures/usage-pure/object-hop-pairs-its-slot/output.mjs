@@ -842,19 +842,19 @@ function ctorBesideSibling(eff) {
 // spelling, dead text at runtime since the pure is always defined: a ctor or a static under a hop,
 // under a wrapper element, beside a sibling
 function defaultKeepsGuard() {
-  const dfMap = _Map === void 0 ? null : _Map;
+  const dfMap = _Map;
   const {
     z
   } = {
     w: _globalThis,
     z: 1
   };
-  const dfFrom = _Array$from === void 0 ? null : _Array$from;
-  const dfOf = _Array$of === void 0 ? null : _Array$of;
+  const dfFrom = _Array$from;
+  const dfOf = _Array$of;
   const [{
     of: _unused29
   }, y] = [Array, 2];
-  const dfDeep = _Array$from === void 0 ? null : _Array$from;
+  const dfDeep = _Array$from;
   return [dfMap, z, dfFrom, dfOf, y, dfDeep];
 }
 

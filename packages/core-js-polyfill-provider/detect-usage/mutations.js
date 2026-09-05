@@ -28,19 +28,21 @@ import {
   collectFileCensus,
   computedKeyStaticName,
   foldedPropertyKeyName,
+  forOfIterableElements,
   followConstLiteralAlias,
   identifierDeclaratorInit,
   installedWriteValue,
   isDestructurePattern,
+  isScopeRebinding,
   isMemberMutationContext,
   isMutatedStaticPair,
   isTopLevelThisContext,
   kebabToCamel,
+  memberChainKeys,
   memberKeyName,
   mutatedStaticKey,
   patternSlotTarget,
   patternSlotValues,
-  peelNestedSequenceExpressions,
   peelSequenceTail,
   plainSynthKeyName,
   propertyKeyName,
@@ -312,7 +314,7 @@ function spreadInstallValues(args) {
 // literal, so the keys this call writes are exactly the ones recorded here and the escape channel
 // owes no wildcard - the target is handed to a callee whose writes this census DOES spell, which
 // is the one thing the generic "a container handed to any call escapes" rule cannot say
-function recordAssignInstall(node, rawSlotWrites) {
+function recordAssignInstall(node, recordSlotWrite) {
   const callee = unwrapRuntimeExpr(node.callee);
   if (callee?.type !== 'MemberExpression' || callee.computed
     || unwrapRuntimeExpr(callee.object)?.name !== 'Object' || callee.property?.name !== 'assign') return false;
@@ -324,7 +326,7 @@ function recordAssignInstall(node, rawSlotWrites) {
     for (const prop of literal.properties) {
       if (prop?.type !== 'ObjectProperty' && prop?.type !== 'Property') continue;
       const key = foldedPropertyKeyName(prop);
-      rawSlotWrites.push([target.name, [key ?? '*'], prop.value]);
+      recordSlotWrite(target.name, [key ?? '*'], prop.value);
     }
   }
   // a source the walk cannot read carries keys it cannot name, and THEN the generic escape is the
@@ -335,7 +337,7 @@ function recordAssignInstall(node, rawSlotWrites) {
 // the `.call` / `.apply` hop spellings, recorded from the invocation itself (the member
 // read's frame cannot see its grandparent): value args past the receiver for `.call`, the
 // args-array's elements for `.apply`
-function recordHopInvocation(node, rawRepositioned) {
+function recordHopInvocation(node, recordRepositioned) {
   const hop = unwrapRuntimeExpr(node.callee);
   if ((hop?.type !== 'MemberExpression' && hop?.type !== 'OptionalMemberExpression') || hop.computed
     || (hop.property?.name !== 'call' && hop.property?.name !== 'apply')) return;
@@ -350,7 +352,7 @@ function recordHopInvocation(node, rawRepositioned) {
     const argsArray = unwrapRuntimeExpr(node.arguments?.[1]);
     if (argsArray?.type === 'ArrayExpression') values = argsArray.elements;
   }
-  rawRepositioned.push([owner.name, values]);
+  recordRepositioned(owner.name, values);
 }
 
 // --- escaped bare-ctor references (source-anchored) ---
@@ -557,6 +559,181 @@ export function escapedCtorReferencesReducer() {
   return { visit, result };
 }
 
+// the plain-alias family of the census (`aliasValues` in the reducer): a name that took ONE value
+// this census can follow - a bound name or a member nav with readable keys - stands for that path.
+// writes and escapes spelled through it canonicalize onto the path at publish time, so its own
+// declaration escapes nothing (`const a = r.w`; `var _r$w = r.w`, the spelling a destructure lowering
+// ahead of this plugin leaves) and the receiver walk keeps descending the literal for a read
+// through it. a name that took a second value, or one the census cannot follow, is no plain alias:
+// every followable value it held escapes as before
+const ALIAS_CHAIN_DEPTH = 64;
+// the path a value re-homes, or null where the census cannot follow it
+function plainAliasTarget(rawValue) {
+  const { root, keys } = memberChainKeys(rawValue);
+  return root?.type === 'Identifier' && !keys.includes(null) ? { root: root.name, keys } : null;
+}
+
+// the record keys are DECLARATION-qualified names (`r#3`): a name spelled in a scope chain resolves
+// to the innermost declaration the chain reaches, so records and containers pair by binding, never
+// by spelling alone. `containers` maps each qualified container to its literals; `containerSlotIndex`
+// is the reader's map from a declaring node (or a bare name, as the union of its declarations) to
+// the key
+function buildContainerIndex(declared, containerDeclarations) {
+  const scopeIds = new Map([[null, 0]]);
+  // a stable number per scope node, the module scope first
+  function scopeId(scope) {
+    if (!scopeIds.has(scope)) scopeIds.set(scope, scopeIds.size);
+    return scopeIds.get(scope);
+  }
+  // the declaration key a name resolves to in a scope chain, or null for an undeclared (global) name
+  function qualify(name, scopes) {
+    const entries = declared.get(name);
+    if (!entries) return null;
+    for (let at = scopes.length - 1; at >= -1; at--) {
+      const scope = at < 0 ? null : scopes[at];
+      if (entries.some(entry => entry.scope === scope)) return `${ name }#${ scopeId(scope) }`;
+    }
+    return null;
+  }
+  const containers = new Map();
+  const containerSlotIndex = { owners: new WeakMap(), byName: new Map() };
+  for (const declaration of containerDeclarations) {
+    const key = `${ declaration.name }#${ scopeId(declaration.scope) }`;
+    let entry = containers.get(key);
+    if (!entry) {
+      entry = { name: declaration.name, scopes: declaration.scopes, literals: [], arrayLiteral: false, container: false };
+      containers.set(key, entry);
+    }
+    entry.literals.push(declaration.literal);
+    if (declaration.arrayLiteral) entry.arrayLiteral = true;
+    else entry.container = true;
+    if (declaration.node) containerSlotIndex.owners.set(declaration.node, key);
+    let keys = containerSlotIndex.byName.get(declaration.name);
+    if (!keys) containerSlotIndex.byName.set(declaration.name, keys = []);
+    if (!keys.includes(key)) keys.push(key);
+  }
+  return { qualify, containers, containerSlotIndex };
+}
+
+// `qualify` resolves a name in its scope chain to its declaration key: the alias and its target
+// root are both keyed that way, so an alias declared in one function never stands for a target
+// declared in another under the same spelling
+function publishPlainAliases(aliasValues, recordEscaped, qualify) {
+  const plainAliases = new Map();
+  const grouped = new Map();
+  for (const [name, values] of aliasValues) {
+    for (const item of values) {
+      const key = qualify(name, item.scopes);
+      if (!key) continue;
+      let entries = grouped.get(key);
+      if (!entries) grouped.set(key, entries = []);
+      entries.push(item);
+    }
+  }
+  for (const [key, values] of grouped) {
+    const [only] = values;
+    const root = values.length === 1 && only.target ? qualify(only.target.root, only.scopes) : null;
+    if (root) plainAliases.set(key, { root, keys: only.target.keys });
+    else recordEscaped(values.filter(item => item.target).map(item => item.rawValue));
+  }
+  return plainAliases;
+}
+
+// what a WRAPPER literal hands out beyond the containers it holds by name: a nested literal is
+// walked the same way, and any other value position escapes (a spread, a member read, a call)
+function wrapperLiteralEscapes(literal) {
+  const escapes = [];
+  const work = [literal];
+  while (work.length) {
+    const node = unwrapRuntimeExpr(work.pop());
+    if (node?.type === 'ArrayExpression') {
+      for (const element of node.elements) if (element && unwrapRuntimeExpr(element)?.type !== 'Identifier') work.push(element);
+    } else if (node?.type === 'ObjectExpression') {
+      for (const prop of node.properties) {
+        const value = prop.type === 'SpreadElement' ? prop.argument : prop.value;
+        if (unwrapRuntimeExpr(value)?.type !== 'Identifier') work.push(value);
+      }
+    } else if (node) escapes.push(node);
+  }
+  return escapes;
+}
+
+// the slots of a wrapper literal that hold a container by NAME: `[keyPath, name]` pairs - a
+// property's readable key, an element's index (up to the first spread, which shifts the rest), a
+// nested literal's slots under the path that reaches it
+function literalIdentifierSlots(literal, prefix = []) {
+  const slots = [];
+  const entries = literal?.type === 'ArrayExpression'
+    ? literal.elements.map((element, index) => [String(index), element])
+    : literal?.type === 'ObjectExpression'
+      ? literal.properties.map(prop => [prop.type === 'SpreadElement' ? null : foldedPropertyKeyName(prop), prop.value])
+      : [];
+  for (const [key, raw] of entries) {
+    if (raw?.type === 'SpreadElement') break;
+    const value = raw && unwrapRuntimeExpr(raw);
+    if (key === null || !value) continue;
+    if (value.type === 'Identifier') slots.push([[...prefix, key], value.name]);
+    else slots.push(...literalIdentifierSlots(value, [...prefix, key]));
+  }
+  return slots;
+}
+
+// writes and escapes recorded against a WRAPPER reach the containers its slots hold by name
+// (`const box = [r]; box[0].w = X` replaces `r.w`; `f(box)` hands `r` out too): every record under a
+// wrapper slot re-homes onto the held container's own path, to a fixpoint through nested wrappers.
+// a record ON the slot itself (`box[0] = other`) replaces the wrapper's slot and touches nothing inside
+function propagateWrapperWrites(writtenContainerSlots, containers, writtenSlot, qualify) {
+  for (let round = 0; round < ALIAS_CHAIN_DEPTH; round++) {
+    let grew = false;
+    for (const [name, { scopes, literals }] of containers) {
+      for (const literal of literals) {
+        for (const [keyPath, innerName] of literalIdentifierSlots(literal)) {
+          // the held name is READ where the wrapper is declared: it resolves in that chain
+          const inner = qualify(innerName, scopes);
+          if (inner && containers.get(inner)?.container
+            && rehomeWrapperRecords({ writtenContainerSlots, writtenSlot, name, keyPath, inner })) grew = true;
+        }
+      }
+    }
+    if (!grew) return;
+  }
+}
+
+// the records under ONE wrapper slot, re-homed onto the container it holds; true when one landed
+function rehomeWrapperRecords({ writtenContainerSlots, writtenSlot, name, keyPath, inner }) {
+  const prefix = `${ [name, ...keyPath].join('.') }.`;
+  const wildcards = new Set(keyPath.map((key, at) => `${ [name, ...keyPath.slice(0, at)].join('.') }.*`));
+  let grew = false;
+  const records = Array.from(writtenContainerSlots);
+  for (const [record, values] of records) {
+    const target = wildcards.has(record) ? `${ inner }.*`
+      : record.startsWith(prefix) ? `${ inner }.${ record.slice(prefix.length) }` : null;
+    if (!target || writtenContainerSlots.has(target)) continue;
+    writtenSlot(target).push(...values);
+    grew = true;
+  }
+  return grew;
+}
+
+// the aliased path a name stands for, followed through alias-of-alias chains; a name that is no
+// plain alias answers for itself
+function canonicalSlotPath(plainAliases, name, keys) {
+  let root = name;
+  let path = keys;
+  for (let depth = 0; plainAliases.has(root) && depth < ALIAS_CHAIN_DEPTH; depth++) {
+    const target = plainAliases.get(root);
+    root = target.root;
+    path = [...target.keys, ...path];
+  }
+  return [root, path];
+}
+
+// the census of what this file WRITES and lets ESCAPE, collected in one walk: mutated statics and
+// instance slots, written container slots keyed by declaration, plain aliases and wrapper literals,
+// the containers a call hands out, and the ctor-escape stamps. one record per shape it collects;
+// the reader-side questions (`isWrittenContainerSlot`, `writtenContainerSlotValues`) are answered
+// from the published result, never from the walk in progress
+// eslint-disable-next-line max-statements -- the census hub: one record per shape it collects
 export function mutationShapesReducer(packages = null) {
   // the program node, for the ctor-escape stamps this reducer contributes at publish time: it is
   // the same census walk and the same stamp set, and the fact that decides them - which containers
@@ -632,10 +809,79 @@ export function mutationShapesReducer(packages = null) {
   // element list stops describing what a slot holds. `push` only appends and the `to*` / `with`
   // family returns copies, so neither disturbs an existing index
   const rawRepositioned = [];
+  // every raw record carries the SCOPE CHAIN it was spelled in (`frame.scopes`, kept current by
+  // `visit`): at publish time a name resolves to the declaration its chain reaches, so two
+  // functions each declaring `r` never pool their records - one test's `f(r)` does not write the
+  // other's container. a name no chain declares is a global, and no container of this file
+  let currentScopes = [];
+  // a slot write / escape record, stamped with the chain it was spelled in
+  function recordSlotWrite(name, keys, value = null) {
+    rawSlotWrites.push([name, keys, value, currentScopes]);
+  }
+  // a repositioning invocation's record, stamped the same way
+  function recordRepositioned(name, values) {
+    rawRepositioned.push([name, values, currentScopes]);
+  }
+  // the declarations this file makes, by name: each with the scope-rebinding node that owns it
+  // (null for the module scope), the chain enclosing it, and the declaring node - the binding
+  // identity the receiver walk hands back to ask about a container by DECLARATION, not by name
+  const declared = new Map();
+  // the scope a declaration of `kind` lands in: a `var` climbs to the nearest var-scope (the module
+  // where none encloses it), every other kind binds in the innermost frame
+  function declarationScope(kind) {
+    return kind === 'var' ? currentScopes.findLast(isScopeRebinding) ?? null : currentScopes.at(-1) ?? null;
+  }
+  // one declaration of `name`: in the innermost scope of the current chain unless the caller names it
+  function declare(name, node, scope = currentScopes.at(-1) ?? null) {
+    let entries = declared.get(name);
+    if (!entries) declared.set(name, entries = []);
+    entries.push({ scope, scopes: currentScopes, node });
+  }
+  const containerDeclarations = [];
+  // a container declaration: the literal (or class) a name is bound to, and whether it is an ARRAY
+  // literal - inert as data until a mutator installs a built-in, a container otherwise
+  function declareContainer(name, node, literal, { arrayLiteral = false, kind = null } = {}) {
+    containerDeclarations.push({
+      name, scope: declarationScope(kind), scopes: currentScopes, node, literal, arrayLiteral,
+    });
+  }
+  // the bindings a node DECLARES: a parameter in the scope the function opens, a catch parameter
+  // in its clause's, a function / class / import name in the scope around it (a class is a
+  // container of statics too)
+  function declareOwnBindings(node) {
+    if (FUNCTION_LIKE_NODE_TYPES.has(node.type)) {
+      for (const param of node.params ?? []) walkPatternIdentifiers(param, id => declare(id.name, node, node));
+    } else if (node.type === 'CatchClause' && node.param) {
+      walkPatternIdentifiers(node.param, id => declare(id.name, node, node));
+    } else if (node.type === 'ImportDeclaration') {
+      for (const specifier of node.specifiers ?? []) {
+        if (!specifier.local?.name) continue;
+        importBound.add(specifier.local.name);
+        declare(specifier.local.name, node);
+      }
+    }
+    if (node.id?.type !== 'Identifier') return;
+    if (node.type === 'FunctionDeclaration') {
+      functionBound.add(node.id.name);
+      declare(node.id.name, node);
+    } else if (node.type === 'ClassDeclaration') {
+      let nodes = containerBound.get(node.id.name);
+      if (!nodes) containerBound.set(node.id.name, nodes = []);
+      nodes.push(node);
+      declare(node.id.name, node);
+      declareContainer(node.id.name, node, node);
+    }
+  }
+  // a PLAIN ALIAS re-homes a value under a name this census can still follow: writes and escapes
+  // spelled through the alias canonicalize onto the aliased path at publish time, so the alias's
+  // own declaration is no escape of the slot (`const a = r.w`, and `var _r$w = r.w` - the spelling a
+  // destructure lowering ahead of this plugin leaves), and the receiver walk keeps descending the
+  // literal for a read through it. a name that takes a SECOND value is no plain alias: every value
+  // it held escapes as before. `aliasValues` collects per name, `plainAliases` is the publish-time verdict
+  const aliasValues = new Map();
   // the `Object.assign` targets whose written keys are recorded EXACTLY, so the generic
   // handed-to-a-call escape does not have to answer for them with its wildcard
   const assignInstallTargets = new Set();
-  const arrayLiteralBound = new Set();
   // an OBJECT PATTERN detaches a method exactly like a member read does (`const { reverse } = box`),
   // just without a MemberExpression node - record the source the same way. non-computed keys only:
   // a computed key resolves through the member-read guard when it is static, and a dynamic one
@@ -659,7 +905,7 @@ export function mutationShapesReducer(packages = null) {
       const node = unwrapRuntimeExpr(work.pop());
       if (!node) continue;
       switch (node.type) {
-        case 'Identifier': rawSlotWrites.push([node.name, ['*']]); break;
+        case 'Identifier': recordSlotWrite(node.name, ['*']); break;
         case 'SpreadElement': case 'RestElement': work.push(node.argument); break;
         case 'ArrayExpression': work.push(...node.elements); break;
         case 'ObjectExpression':
@@ -672,7 +918,7 @@ export function mutationShapesReducer(packages = null) {
           // slot M holds (writes through `m` are invisible under `NS.M`), while NS itself stays
           // put. an unreadable key leaks an unknown slot; a non-Identifier owner descends
           const owner = unwrapRuntimeExpr(node.object);
-          if (owner?.type === 'Identifier') rawSlotWrites.push([owner.name, [memberKeyName(node) ?? '*']]);
+          if (owner?.type === 'Identifier') recordSlotWrite(owner.name, [memberKeyName(node) ?? '*']);
           else work.push(node.object);
           break;
         }
@@ -748,7 +994,7 @@ export function mutationShapesReducer(packages = null) {
       // member-read guard does; a numeric key is a plain slot read and detaches nothing
       const detaches = key !== null ? ARRAY_REPOSITIONING_METHODS.has(key)
         : prop.computed && plainSynthKeyName(prop.key) === null;
-      if (detaches) rawRepositioned.push([source.name, []]);
+      if (detaches) recordRepositioned(source.name, []);
     }
   }
   // the alias-source roots of a value: EVERY leaf of the composite, not just the first one
@@ -791,7 +1037,13 @@ export function mutationShapesReducer(packages = null) {
     return inner ? requireCallSource(inner) : null;
   }
 
-  function recordValueSource(id, rawValue) {
+  // the value a binding takes - a declarator's init, an assignment's right side, a for-of head's
+  // sole element - classified once: alias, container, function, proxy-global; a pattern id re-homes
+  // the literal's slots instead
+  function recordValueSource(id, rawValue, declaratorNode = null, kind = null) {
+    // a declarator without an init stores nothing yet: it is neither an alias nor a container, and
+    // counting it as a value would make the for-of head's element a SECOND value of its binding
+    if (!rawValue) return;
     // a value RE-HOMED under another name escapes like a call argument does: an alias
     // (`const a = box`) takes writes the container's own name never sees, and a wrapper literal
     // (`const w = { ref: box }`) hands the same reference out through its member chain. the walk
@@ -799,16 +1051,26 @@ export function mutationShapesReducer(packages = null) {
     // (`const { k } = box` unpacks, it re-homes nothing) - escaping it would bail every clean
     // destructure in the file. an identity self-assign (`box = box`) re-homes nothing either -
     // the value stays under the ONE name the census already tracks
-    const selfTail = id?.type === 'Identifier' ? peelNestedSequenceExpressions(rawValue).tail : null;
-    const identitySelfAssign = selfTail?.type === 'Identifier' && selfTail.name === id.name;
-    if (id?.type === 'Identifier' && !identitySelfAssign) recordEscapedContainers([rawValue]);
-    else if (isDestructurePattern(id)) {
-      recordPatternLiteralReHomes(id, unwrapRuntimeExpr(rawValue));
+    // the value the binding HOLDS is the write-value canon's answer: an effect prefix ran at the
+    // declaration and a chain assignment installed its tail (`const a = (se(), r.w)`) - the reader
+    // walk follows the same value, so the two agree on what is an alias
+    const held = installedWriteValue(rawValue);
+    const identitySelfAssign = id?.type === 'Identifier' && held?.type === 'Identifier' && held.name === id.name;
+    if (id?.type === 'Identifier' && !identitySelfAssign) {
+      const target = plainAliasTarget(held);
+      // a container LITERAL bound to a name is a WRAPPER: a container it holds by NAME stays followable
+      // (writes through the wrapper reach it at publish time), everything else inside escapes
+      if (!target) recordEscapedContainers(wrapperLiteralEscapes(unwrapRuntimeExpr(held)));
+      const values = aliasValues.get(id.name) ?? [];
+      values.push({ rawValue: held, target, scopes: currentScopes });
+      aliasValues.set(id.name, values);
+    } else if (isDestructurePattern(id)) {
+      recordPatternLiteralReHomes(id, unwrapRuntimeExpr(held));
     }
     // classification reads the VALUE, not its wrapper: a TS cast / paren around a container init
     // (`const w = { k: Object } as T`) otherwise lands on the alias path and the binding never
     // registers as a container - the slot-write filter then drops its writes at publish time
-    const value = unwrapRuntimeExpr(rawValue);
+    const value = unwrapRuntimeExpr(held);
     if (id?.type === 'Identifier'
       && (value?.type === 'FunctionExpression' || value?.type === 'ArrowFunctionExpression')) {
       functionBound.add(id.name);
@@ -826,12 +1088,13 @@ export function mutationShapesReducer(packages = null) {
       const arrayContainer = value?.type === 'ArrayExpression' && value.elements.some(canHoldBuiltIn);
       // every array-literal binding, the inert ones included: a mutator invocation may INSTALL a
       // built-in into one later (`const b = []; b.push(Map)`), which promotes it at publish time
-      if (value?.type === 'ArrayExpression') arrayLiteralBound.add(id.name);
+      if (value?.type === 'ArrayExpression') declareContainer(id.name, declaratorNode, value, { arrayLiteral: true, kind });
       if (!arrayContainer && (!value || INERT_VALUE_TYPES.has(value.type))) return;
       if (arrayContainer || value.type === 'ObjectExpression' || value.type === 'ClassExpression') {
         let nodes = containerBound.get(id.name);
         if (!nodes) containerBound.set(id.name, nodes = []);
         nodes.push(value);
+        declareContainer(id.name, declaratorNode, value, { kind });
       } else {
         valueBound.add(id.name);
         // an alias stands for whatever its source value names (`const O = Object`, `const R =
@@ -906,17 +1169,10 @@ export function mutationShapesReducer(packages = null) {
   // single-key record could neither be written for it nor asked about it. an unreadable hop ends
   // the path in the wildcard - the write lands somewhere under the prefix that is readable
   function recordMemberSlotWrite(member, value = null) {
-    const keys = [];
-    for (let node = member; node?.type === 'MemberExpression' || node?.type === 'OptionalMemberExpression';) {
-      keys.unshift(memberKeyName(node));
-      node = unwrapRuntimeExpr(node.object);
-      if (node?.type !== 'MemberExpression' && node?.type !== 'OptionalMemberExpression') {
-        if (node?.type !== 'Identifier') return;
-        const unreadable = keys.indexOf(null);
-        rawSlotWrites.push([node.name, unreadable === -1 ? keys : [...keys.slice(0, unreadable), '*'], value]);
-        return;
-      }
-    }
+    const { root, keys } = memberChainKeys(member);
+    if (root?.type !== 'Identifier' || !keys.length) return;
+    const unreadable = keys.indexOf(null);
+    recordSlotWrite(root.name, unreadable === -1 ? keys : [...keys.slice(0, unreadable), '*'], value);
   }
 
   function recordCallArguments(node) {
@@ -971,9 +1227,6 @@ export function mutationShapesReducer(packages = null) {
     if (owner !== null) functionParams.set(owner, node.params);
   }
 
-  // a for-x head assigns its target once per iteration - the same write shapes the flat `=` form
-  // has, so it is classified through the same peel (`(NS.M) of xs`, `(NS.M as any) of xs`) rather
-  // than off the raw node type, which answered differently on the two parsers
   // the write-TARGET ladder, one for every host that has one: a member, a destructure pattern or
   // a bare name are the three shapes a target takes, and the hosts differ only in what the RIGHT
   // side IS - an assignment stores it in the target, a for-x head ITERATES it and stores its
@@ -1012,6 +1265,46 @@ export function mutationShapesReducer(packages = null) {
     if (left?.type === 'Identifier') pushTarget(left);
   }
 
+  // iterating hands each VALUE to the loop binding - writes through it never spell the source's
+  // name, so the iterable escapes like a call argument. a head binding a NAME over a LITERAL is the
+  // exception the receiver walk reads through: with ONE element the binding stands for it exactly
+  // as a declarator init would (`for (const item of [box])` re-homes `box` under `item`, `[{ w:
+  // Object }]` makes `item` the container); with several, the head is a container over every
+  // literal element - a write through it replaces a slot of each - while a named element escapes
+  function recordForOfIterable(node) {
+    const head = node.left?.type === 'VariableDeclaration' && node.left.declarations?.length === 1
+      ? node.left.declarations[0] : null;
+    const elements = forOfIterableElements(node);
+    if (head?.id?.type !== 'Identifier' || !elements) {
+      recordEscapedContainers([node.right]);
+      return;
+    }
+    // the head binds INSIDE the loop's own scope, the frame its declarator is visited in - the
+    // records made here, at the loop node, have to name that chain or the alias never pairs with
+    // its declaration
+    const outerScopes = currentScopes;
+    currentScopes = [...currentScopes, node];
+    if (elements.length === 1) recordValueSource(head.id, elements[0], head, node.left.kind);
+    else {
+      for (const element of elements) {
+        const value = unwrapRuntimeExpr(element);
+        if (value?.type === 'ObjectExpression' || value?.type === 'ArrayExpression') {
+          declareContainer(head.id.name, head, value, { kind: node.left.kind });
+        } else recordEscapedContainers([element]);
+      }
+    }
+    currentScopes = outerScopes;
+  }
+
+  // a declarator binds its names in the scope its declaration's KIND lands in (the declaration is
+  // the frame's parent node), and records the value it takes
+  function recordDeclarator(node, frame) {
+    const { kind = null } = frame?.parentNode ?? {};
+    walkPatternIdentifiers(node.id, id => declare(id.name, node, declarationScope(kind)));
+    recordPatternDetachedRepositioners(node.id, node.init);
+    recordValueSource(node.id, node.init, node, kind);
+  }
+
   // a for-x head assigns its target once per iteration - the same write shapes the flat `=` form
   // has, so it is classified through the same peel (`(NS.M) of xs`, `(NS.M as any) of xs`) rather
   // than off the raw node type, which answered differently on the two parsers. what it iterates is
@@ -1031,6 +1324,8 @@ export function mutationShapesReducer(packages = null) {
   function visit(node, frame) {
     programNode ??= node;
     markTopLevelThis = !!frame?.atThisTopLevel;
+    currentScopes = frame?.scopes ?? [];
+    declareOwnBindings(node);
     if ((node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression')
       && !frame?.underTypeAnnotation) {
       const owner = unwrapRuntimeExpr(node.object);
@@ -1055,14 +1350,14 @@ export function mutationShapesReducer(packages = null) {
         // spelling are visible from this frame; the `.call` / `.apply` hop spellings are
         // recorded at their invocation's own visit below. a read detached into a variable
         // records the reposition alone - its invocation is not statically attributable
-        rawRepositioned.push([owner.name, directInvocationValues(node, frame?.parentNode)]);
+        recordRepositioned(owner.name, directInvocationValues(node, frame?.parentNode));
       }
     }
     // the `.call` / `.apply` hop spellings of a mutator invocation (`b.push.call(b, v)`,
     // `b.push.apply(b, [v])`): the whole shape is visible only from the invocation itself
     if (node.type === 'CallExpression') {
-      recordHopInvocation(node, rawRepositioned);
-      assignInstallTargets.add(recordAssignInstall(node, rawSlotWrites) ? node.arguments[0] : null);
+      recordHopInvocation(node, recordRepositioned);
+      assignInstallTargets.add(recordAssignInstall(node, recordSlotWrite) ? node.arguments[0] : null);
     }
     recordCallArguments(node);
     recordFunctionParams(node, frame);
@@ -1095,9 +1390,7 @@ export function mutationShapesReducer(packages = null) {
         }
         break;
       case 'ForOfStatement':
-        // iterating hands each VALUE to the loop binding - writes through it never spell the
-        // source's name, so the iterable escapes like a call argument
-        recordEscapedContainers([node.right]);
+        recordForOfIterable(node);
         recordForXHead(node);
         break;
       case 'ForInStatement':
@@ -1106,13 +1399,10 @@ export function mutationShapesReducer(packages = null) {
         recordForXHead(node);
         break;
       case 'VariableDeclarator':
-        recordPatternDetachedRepositioners(node.id, node.init);
-        recordValueSource(node.id, node.init);
+        recordDeclarator(node, frame);
         break;
       case 'ImportDeclaration':
-        for (const specifier of node.specifiers ?? []) {
-          if (specifier.local?.name) importBound.add(specifier.local.name);
-        }
+
         // a default OR namespace binding of a pure GLOBAL-PROXY entry (`import g from
         // '.../global-this'` / `import * as g` - bundler interop hangs the global on the
         // namespace's `.default`) is a mutation-host candidate exactly like `const g =
@@ -1138,16 +1428,7 @@ export function mutationShapesReducer(packages = null) {
           proxyGlobalBound.add(node.id.name);
         }
         break;
-      case 'FunctionDeclaration':
-        if (node.id?.type === 'Identifier') functionBound.add(node.id.name);
-        break;
-      case 'ClassDeclaration':
-        if (node.id?.type === 'Identifier') {
-          let nodes = containerBound.get(node.id.name);
-          if (!nodes) containerBound.set(node.id.name, nodes = []);
-          nodes.push(node);
-        }
-        break;
+
       case 'ThrowStatement':
       case 'ReturnStatement':
       case 'YieldExpression':
@@ -1439,20 +1720,30 @@ export function mutationShapesReducer(packages = null) {
       if (!values) writtenContainerSlots.set(slotKey, values = []);
       return values;
     }
-    for (const [name, keys, value] of rawSlotWrites) {
-      if (!containerBound.has(name)) continue;
-      const values = writtenSlot([name, ...keys].join('.'));
+    const { qualify, containers, containerSlotIndex } = buildContainerIndex(declared, containerDeclarations);
+    const plainAliases = publishPlainAliases(aliasValues, recordEscapedContainers, qualify);
+    for (const [name, keys, value, scopes] of rawSlotWrites) {
+      const key = qualify(name, scopes);
+      if (!key) continue;
+      const [root, path] = canonicalSlotPath(plainAliases, key, keys);
+      if (!containers.get(root)?.container) continue;
+      const values = writtenSlot([root, ...path].join('.'));
       // the value the write INSTALLS (`w.k = q = Map` installs `Map`) - the write-value canon
       if (value) values.push(installedWriteValue(value));
     }
-    for (const [name, values] of rawRepositioned) {
+    for (const [name, values, scopes] of rawRepositioned) {
+      const key = qualify(name, scopes);
+      if (!key) continue;
+      const [root, path] = canonicalSlotPath(plainAliases, key, []);
       // a mutator invocation whose arguments can hold a built-in PROMOTES an inert array-literal
       // binding to a container - the install is what makes its slots worth walking
       const installsBuiltIn = values.some(value => canHoldBuiltIn(value));
-      if (!containerBound.has(name) && !(installsBuiltIn && arrayLiteralBound.has(name))) continue;
-      const sink = writtenSlot(`${ name }.*`);
+      const entry = containers.get(root);
+      if (!entry?.container && !(installsBuiltIn && entry?.arrayLiteral)) continue;
+      const sink = writtenSlot([root, ...path, '*'].join('.'));
       for (const value of values) if (value) sink.push(value);
     }
+    propagateWrapperWrites(writtenContainerSlots, containers, writtenSlot, qualify);
     // a container this file LOSES TRACK of - escaped, repositioned, written or read through a key
     // this pass cannot fold - hands its slots to reads no walk here resolves. every one of those
     // reads lands on whatever the literal spelled, so a bare constructor substituted into it has
@@ -1464,15 +1755,22 @@ export function mutationShapesReducer(packages = null) {
     // reaching-value walk does not connect back to it, so the base owes its statics for the same
     // reason. a base whose statics are read through `super` inside the class body resolves on its
     // own and is not stamped - the escalation costs the whole namespace entry
-    for (const [name, nodes] of containerBound) {
-      const opaque = writtenContainerSlots.has(`${ name }.*`) || opaquelyRead.has(name);
-      for (const node of nodes) {
+    for (const [key, { name, literals, container }] of containers) {
+      if (!container) continue;
+      const opaque = writtenContainerSlots.has(`${ key }.*`) || opaquelyRead.has(name);
+      for (const node of literals) {
         if (node.type === 'ClassDeclaration' || node.type === 'ClassExpression') {
           if (readsInheritedStaticOf(node, name)) stampEscapesFrom(programNode, node.superClass);
         } else if (opaque) stampEscapesFrom(programNode, node);
       }
     }
-    return { hasMutationShapes, mutationRoots: { names: rootNames, globalSlots, open }, writtenContainerSlots, callArguments };
+    return {
+      hasMutationShapes,
+      mutationRoots: { names: rootNames, globalSlots, open },
+      writtenContainerSlots,
+      containerSlotIndex,
+      callArguments,
+    };
   }
   return { visit, result };
 }
@@ -2128,8 +2426,17 @@ function slotPathPrefixes(object, keyPath) {
 // property descriptors - a spread would freeze the packages view at creation time
 export function createDetectionAdapter({
   method = null, getMutatedStatics = () => null, getWrittenContainerSlots = () => null,
-  getPackages = () => null, getMutationRoots = () => null,
+  getContainerSlotIndex = () => null, getPackages = () => null, getMutationRoots = () => null,
 }, buildHostMembers) {
+  // the record keys a container is asked by: its DECLARATION where the caller hands the declaring
+  // node (the receiver walk does), else every declaration of that name in the file - the
+  // conservative union a name-only question deserves
+  function containerKeys(object, ownerNode) {
+    const index = getContainerSlotIndex?.();
+    if (!index) return [object];
+    const owned = ownerNode ? index.owners.get(ownerNode) : null;
+    return owned ? [owned] : index.byName.get(object) ?? [];
+  }
   const adapter = {
     // the provider mode this adapter serves. only `usage-pure` rewrites a proxy-global alias to
     // a receiver-less helper (dropping the receiver), so the shared resolver gates the
@@ -2150,28 +2457,33 @@ export function createDetectionAdapter({
     // so it is deliberately NOT part of the mutated-static set - reporting it there would deopt every
     // namespace gate in the file. its ONE reader is the receiver walk's container descent, which must
     // stop trusting the literal's initial member once the slot has been replaced
-    isWrittenContainerSlot(object, keyPath) {
+    isWrittenContainerSlot(object, keyPath, ownerNode = null) {
       const slots = getWrittenContainerSlots?.();
       if (!slots) return false;
       // a write at any PREFIX of the path replaces the subtree the rest of it reads through, so
       // the whole ladder is asked: `w.a = X` and `w.a.b = X` both answer for a read of `w.a.b`,
       // while `w.a.b = X` leaves `w.c` alone. the wildcard at a prefix is "some slot under here"
-      for (const prefix of slotPathPrefixes(object, keyPath)) {
-        if (slots.has(prefix) || slots.has(`${ prefix }.*`)) return true;
+      for (const key of containerKeys(object, ownerNode)) {
+        for (const prefix of slotPathPrefixes(key, keyPath)) {
+          if (slots.has(prefix) || slots.has(`${ prefix }.*`)) return true;
+        }
       }
       return false;
     },
     // the KNOWN written value nodes reaching a slot: direct writes to the named slot plus
     // unknown-slot (dynamic-key) writes, which may land anywhere on the container
-    writtenContainerSlotValues(object, keyPath) {
+    writtenContainerSlotValues(object, keyPath, ownerNode = null) {
       const slots = getWrittenContainerSlots?.();
       if (!slots) return [];
-      const prefixes = slotPathPrefixes(object, keyPath);
-      const exact = prefixes.at(-1);
-      const values = [...slots.get(exact) ?? []];
-      // ... plus the unknown-slot writes at every prefix, which may land anywhere below it
-      for (const prefix of prefixes) {
-        if (prefix !== exact || exact.endsWith('.*')) values.push(...slots.get(`${ prefix }.*`) ?? []);
+      const values = [];
+      for (const key of containerKeys(object, ownerNode)) {
+        const prefixes = slotPathPrefixes(key, keyPath);
+        const exact = prefixes.at(-1);
+        values.push(...slots.get(exact) ?? []);
+        // ... plus the unknown-slot writes at every prefix, which may land anywhere below it
+        for (const prefix of prefixes) {
+          if (prefix !== exact || exact.endsWith('.*')) values.push(...slots.get(`${ prefix }.*`) ?? []);
+        }
       }
       return values;
     },
