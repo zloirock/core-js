@@ -5846,3 +5846,145 @@ QUnit.test('destructuring: a selecting receiver under a wrapper mirrors per bran
     assert.same(viaParam([userObj])(), 'user', 'a passed argument destructures natively');
   }
 });
+
+// a static leaf's user default is dead text - the binding is the polyfill, never the default -
+// and a hop value the name channel reads through a call's return type runs exactly once beside a
+// sibling the pattern keeps, whichever selection spells it
+QUnit.test('destructuring: static default is dead, call-valued hop runs once beside a sibling', assert => {
+  function fb() { return 'fallback'; }
+  const K = 'from';
+  const { from: viaAlias = fb } = Array;
+  const { [K]: viaComputed = fb } = Array;
+  const { Array: { from: viaHop = fb } } = globalThis;
+  const { w: { Array: { from: viaBesideSibling = fb } }, z } = { w: globalThis, z: 1 };
+  assert.deepEqual(viaAlias('ab'), ['a', 'b']);
+  assert.deepEqual(viaComputed('ab'), ['a', 'b']);
+  assert.deepEqual(viaHop('ab'), ['a', 'b']);
+  assert.deepEqual(viaBesideSibling('ab'), ['a', 'b']);
+  assert.same(z, 1);
+  const log = [];
+  function eff() {
+    log.push('eff');
+    return Object;
+  }
+  const { w: { keys: viaCall }, q: q1 } = { w: eff(), q: 1 };
+  const { w: { keys: viaNullish }, q: q2 } = { w: eff() ?? Object, q: 2 };
+  const { w: { keys: viaOr }, q: q3 } = { w: eff() || {}, q: 3 };
+  const { w: { keys: viaTernary }, q: q4 } = { w: q3 ? eff() : Object, q: 4 };
+  assert.deepEqual(viaCall({ a: 1 }), ['a']);
+  assert.deepEqual(viaNullish({ a: 1 }), ['a']);
+  assert.deepEqual(viaOr({ a: 1 }), ['a']);
+  assert.deepEqual(viaTernary({ a: 1 }), ['a']);
+  assert.deepEqual([q1, q2, q3, q4], [1, 2, 3, 4]);
+  assert.deepEqual(log, ['eff', 'eff', 'eff', 'eff']);
+});
+
+// a hop whose level keeps siblings splits out beside the host: the leaf still binds the polyfill,
+// the siblings still bind off the root, and a user root's getters fire in the source's order
+QUnit.test('destructuring: nested twin beside siblings of its level', assert => {
+  const { of: { name: hopFirst, foo: f1 }, from: F1 } = Array;
+  const { from: F2, of: { name: hopLast, foo: f2 }, isArray: I } = Array;
+  const { Array: { of: { name: viaProxy, foo: f3 }, junk }, more } = globalThis;
+  assert.same(hopFirst, 'of');
+  assert.same(hopLast, 'of');
+  assert.same(viaProxy, 'of');
+  assert.deepEqual([f1, f2, f3, junk, more], [undefined, undefined, undefined, undefined, undefined]);
+  assert.deepEqual(F1('ab'), ['a', 'b']);
+  assert.deepEqual(F2('ab'), ['a', 'b']);
+  assert.true(I([]));
+  const log = [];
+  const box = {};
+  Object.defineProperties(box, {
+    y: {
+      get() {
+        log.push('y');
+        return [1, 2];
+      },
+    },
+    junk: {
+      get() {
+        log.push('junk');
+        return 'j';
+      },
+    },
+  });
+  const { y: { at: yFirst, other: o1 }, junk: j1 } = box;
+  const { junk: j2, y: { at: yLast, other: o2 } } = box;
+  assert.same(yFirst.call([1, 2], -1), 2);
+  assert.same(yLast.call([1, 2], -1), 2);
+  assert.deepEqual([o1, o2, j1, j2], [undefined, undefined, 'j', 'j']);
+  assert.deepEqual(log, ['y', 'junk', 'junk', 'y']);
+});
+
+// an alias of a container slot binds the polyfilled static, whichever spelling declares it: the
+// source's own, the destructure lowering's (`var _r$w = r.w, values = _r$w.values`), an index into a
+// wrapper literal, the tail behind an effect prefix. the stripped realm has no native `Object.values`,
+// so only the ponyfill answers
+QUnit.test('destructuring: an alias of a container slot binds the static', assert => {
+  const r = { w: Object, y: [1] };
+  const alias = r.w;
+  const viaAlias = alias.values;
+  const loweredSlot = r.w;
+  const viaLowered = loweredSlot.values;
+  const loweredWrapper = [0, r];
+  // eslint-disable-next-line prefer-destructuring -- the lowering's own index read is the shape under test
+  const loweredElement = loweredWrapper[1];
+  const loweredElementSlot = loweredElement.w;
+  const viaLoweredWrapper = loweredElementSlot.values;
+  const box = [r];
+  const viaWrapper = box[0].w.values;
+  const { w: { values: viaDestructure } } = r;
+  let effects = 0;
+  const seqAlias = (effects++, r.w);
+  const viaSeqAlias = seqAlias.values;
+  assert.same(effects, 1);
+  for (const values of [viaAlias, viaLowered, viaLoweredWrapper, viaWrapper, viaDestructure, viaSeqAlias]) {
+    assert.same(typeof values, 'function');
+    assert.deepEqual(values({ a: 1, b: 2 }), [1, 2]);
+  }
+});
+
+// a container declared in one lexical scope and a same-named container WRITTEN in a sibling scope
+// are two bindings: the write taints its own, and the other's slot keeps binding the static - for a
+// loop head, a block, a branch and a catch parameter shadowing the name alike. the stripped realm has none of these
+// statics natively, so only the ponyfill answers
+QUnit.test('destructuring: a same-named container in a sibling scope keeps its slots', assert => {
+  const seen = [];
+  for (const item of [{ w: Object }]) {
+    const { values } = item.w;
+    seen.push(values);
+  }
+  for (const item of [{ w: Array }]) item.w = Map;
+  {
+    const item = { w: Object };
+    const { entries } = item.w;
+    seen.push(entries);
+  }
+  {
+    const item = { w: Array };
+    item.w = Map;
+  }
+  if (seen.length) {
+    const item = { w: Object };
+    const { is } = item.w;
+    seen.push(is);
+  }
+  if (seen.length) {
+    const item = { w: Array };
+    item.w = Map;
+  }
+  const holder = { w: Object };
+  try {
+    throw { w: Array };
+  // eslint-disable-next-line unicorn/catch-error-name, no-shadow -- the shadowing catch parameter is the shape under test
+  } catch (holder) {
+    holder.w = Map;
+  }
+  const { assign } = holder.w;
+  seen.push(assign);
+  assert.same(seen.map(fn => typeof fn).join(','), 'function,function,function,function');
+  assert.deepEqual(seen[0]({ a: 1 }), [1]);
+  assert.deepEqual(seen[1]({ a: 1 }), [['a', 1]]);
+  assert.true(seen[2](1, 1));
+  assert.deepEqual(seen[3]({}, { a: 1 }), { a: 1 });
+});

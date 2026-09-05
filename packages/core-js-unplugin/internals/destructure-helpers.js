@@ -141,9 +141,9 @@ export function overwriteRebindEmitted({ metaPath, injectorState }) {
 // dispatch delivers each prop claim on its own, while a fallback fires ONCE (sibling
 // claims die on the mirror-owned head gate) - a half-registered multi-hop plan emits nothing
 // a STATIC nested DEFAULTED sole leaf over a discardable receiver extracts as the overwrite
-// (`({ Array: { from = fb } } = _globalThis)` -> `from = _Array$from === void 0 ? fb : _Array$from;`):
-// the extraction always defines, so the user default is dead text - kept as the guard every depth
-// spells - and the receiver read - a pure nav or a statically-selected left - drops with it
+// (`({ Array: { from = fb } } = _globalThis)` -> `from = _Array$from;`): the extraction always
+// defines, so the user default is dead text and drops with the receiver read - a pure nav or a
+// statically-selected left
 export function emitAssignStaticDefaultOverwrite({ hostParent, prop, pattern, chain, kind, entry, hintName, metaPath }, ctx) {
   if (kind === 'instance' || !chain.length
     || prop.value?.type !== 'AssignmentPattern' || prop.value.left?.type !== 'Identifier'
@@ -161,9 +161,9 @@ export function emitAssignStaticDefaultOverwrite({ hostParent, prop, pattern, ch
   const id = ctx.injectPureImport(entry, hintName);
   ctx.markRewrite();
   ctx.markSubtreeSkipped(ctx.skippedNodes, hostParent.node);
-  // ... the default keeps its guard, the flat twin's spelling (dead text: the pure is always defined)
+  // ... the default is dead text over the pure (always defined) - the canon drops it
   hostParent.replaceWith(assignmentExpression('=', identifier(prop.value.left.name),
-    renderStaticDefaultGuard({ read: identifier(id), defaultValue: prop.value.right, reread: identifier(id) })));
+    renderStaticDefaultGuard({ read: identifier(id), defaultValue: prop.value.right, reread: identifier(id), alwaysDefined: true })));
   return true;
 }
 
@@ -1673,9 +1673,9 @@ export function isPlainConsumableProp(prop, { symbolProp = false, ctorPattern = 
   // memoized `=== void 0` test keeps the native-miss semantics)
   if (prop.computed) {
     return prop.value?.type === 'Identifier'
-      // a DEFAULTED SE-key prop extracts through the sentinel + guard-ternary channel
-      || (prop.value?.type === 'AssignmentPattern' && prop.value.left?.type === 'Identifier'
-        && (symbolProp || computedKeyHasSideEffects(prop)))
+      // a DEFAULTED SE-key prop extracts through the sentinel + guard-ternary channel; a key that
+      // FOLDS with no effect extracts like its dotted spelling, the default dead over the pure
+      || (prop.value?.type === 'AssignmentPattern' && prop.value.left?.type === 'Identifier')
       || (symbolProp && (prop.value?.type === 'ObjectPattern'
         || (prop.value?.type === 'AssignmentPattern' && prop.value.left?.type === 'ObjectPattern')));
   }
@@ -2247,7 +2247,9 @@ export function collectArrayDeclExtractions({ hostNode, jobs, sentinelNames, byD
     // its getter a second time, which native never does. a receiver-LESS static reads nothing,
     // so its slot keeps the sentinel (both legs' static canon). a REST gathers what the pattern
     // does not name, so a consumed key there stays excluded by its sentinel
-    if (!hasRestSibling(job.pattern) && !job.chain?.some(level => level.outerRest)
+    // ... an OUTER rest keeps the hop's key excluded only where this prop is the level's last: a
+    // sibling still binding holds the hop, and the last consumed one retires the level to a sentinel
+    if (!hasRestSibling(job.pattern) && !(job.chain?.some(level => level.outerRest) && job.pattern.properties.length <= 1)
     && topPattern?.type === 'ObjectPattern'
     // ... and never a prop whose KEY carries an effect: the key runs where it stands, so the
     // slot has to stay (renamed) or the effect leaves with it - and the removal takes the whole
@@ -3011,7 +3013,7 @@ export function guardedSlotValue(built, valueNode, guardRef) {
   // which of the canon's two default guards applies is the same question both of them answer by:
   // a plain binding re-reads for free, a dispatch result has to be memoized to be re-read
   return built.type === 'Identifier'
-    ? renderStaticDefaultGuard({ read: built, defaultValue: valueNode.right, reread: built })
+    ? renderStaticDefaultGuard({ read: built, defaultValue: valueNode.right, reread: built, alwaysDefined: true })
     : renderInstanceDefaultGuard({
       assignedRef: identifier(guardRef),
       call: built,

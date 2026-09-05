@@ -257,6 +257,7 @@ export default function plugin(api, options) {
   // window it runs in must not see it, or the walk that REGISTERS a patch through a written slot
   // bails on the very record its own writes feed. the unplugin twin nulls the same pair
   let writtenContainerSlots = null;
+  let containerSlotIndex = null;
   let fileCensus = null;
   // a static the user monkey-patches must never bind to the frozen receiver-less import:
   // every pipeline (member emission, destructure props, param synth) resolves through this
@@ -344,6 +345,7 @@ export default function plugin(api, options) {
     method,
     getMutatedStatics: () => mutatedStatics,
     getWrittenContainerSlots: () => writtenContainerSlots,
+    getContainerSlotIndex: () => containerSlotIndex,
     getMutationRoots: () => mutationRoots,
     getPackages: () => packages,
   });
@@ -1809,6 +1811,7 @@ export default function plugin(api, options) {
             (node, scope, keyPath) => resolveClaimableComputedKeyName(node, scope, keyPath)).mutated : null;
         mutationRoots = isInternalCoreJS ? null : fileCensus.mutationRoots ?? null;
         writtenContainerSlots = fileCensus.writtenContainerSlots ?? null;
+        containerSlotIndex = fileCensus.containerSlotIndex ?? null;
         // source wins over sourceType: CJS-assign at top level of a `sourceType: "module"` file
         // would otherwise produce mixed `import` + `module.exports` output
         importStyle = importStyleOption ?? (!hasTopLevelESM(path.node)
@@ -2354,7 +2357,7 @@ export default function plugin(api, options) {
         // the census is AST-bearing too: `writtenContainerSlots` maps each written slot to the
         // VALUE nodes assigned to it, so keeping it would pin the file's tree just as the
         // emitters do. its derived slots go with it - they are read only during traversal
-        fileCensus = mutatedStatics = mutationRoots = writtenContainerSlots = null;
+        fileCensus = mutatedStatics = mutationRoots = writtenContainerSlots = containerSlotIndex = null;
       }
 
       // per-file primitive-state reset: skipFile / disabledLines / importStyle /

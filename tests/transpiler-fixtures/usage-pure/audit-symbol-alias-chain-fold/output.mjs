@@ -16,7 +16,7 @@ export const b = _getIteratorMethod([3, 4]);
 // a DESTRUCTURED constructor alias folds through a DEFAULTED consumer (babel resolves the
 // destructured chain in place when the default drives an inline)
 const DestructuredSymbol = _Symbol;
-const viaDestructuredDefault = _Symbol$iterator === void 0 ? fb : _Symbol$iterator;
+const viaDestructuredDefault = _Symbol$iterator;
 export const c = _getIteratorMethod([5, 6]);
 
 // the same destructured alias with a NON-defaulted consumer folds through the registered
@@ -36,7 +36,7 @@ export const e = [9, 10][viaArray];
 // an array-wrapped destructured constructor alias (`const [{ Symbol: S }] = [globalThis]`) folds
 // through the same positional peel when the consumer is defaulted
 const ArrayWrapSymbol = _Symbol;
-const viaArrayWrap = _Symbol$iterator === void 0 ? fb : _Symbol$iterator;
+const viaArrayWrap = _Symbol$iterator;
 export const f = _getIteratorMethod([11, 12]);
 
 // a CONSTANT-RESOLVED computed-key destructured alias (`{ [k]: S }`, key = const-bound
@@ -44,7 +44,7 @@ export const f = _getIteratorMethod([11, 12]);
 // defaulted AND the plain consumer both fold
 const kc = 'Symbol';
 const ComputedSymbol = _Symbol;
-const viaComputedDefault = _Symbol$iterator === void 0 ? fb : _Symbol$iterator;
+const viaComputedDefault = _Symbol$iterator;
 export const g = _getIteratorMethod([13, 14]);
 const ComputedSymbol2 = _Symbol;
 const viaComputedPlain = _Symbol$iterator;
@@ -66,7 +66,7 @@ export const i = [17, 18][viaComputedArray];
 let kr = 'Array';
 kr = 'Symbol';
 const ReassignedSymbol = _Symbol;
-const viaReassigned = _Symbol$iterator === void 0 ? fb : _Symbol$iterator;
+const viaReassigned = _Symbol$iterator;
 export const j = _getIteratorMethod([19, 20]);
 
 // the key EVALUATES at the destructure - a later same-scope flip cannot reach the captured
@@ -75,7 +75,7 @@ let kb = 'Array';
 kb = 'Symbol';
 const BetweenSymbol = _Symbol;
 kb = 'Array';
-const viaBetween = _Symbol$iterator === void 0 ? fb : _Symbol$iterator;
+const viaBetween = _Symbol$iterator;
 export const l = _getIteratorMethod([21, 22]);
 
 // NEGATIVE: an indeterminable dominating VALUE (conditional expression) never resolves -
@@ -107,14 +107,14 @@ export const n = [25, 26][viaPostFlip];
 let kf = 'Symbol';
 const PreFlipSymbol = _Symbol;
 kf = 'Array';
-const viaPreFlip = _Symbol$iterator === void 0 ? fb : _Symbol$iterator;
+const viaPreFlip = _Symbol$iterator;
 export const o = _getIteratorMethod([27, 28]);
 
 // a CONDITIONAL post-capture flip cannot reach the captured binding either - still folds
 let kp = 'Symbol';
 const CondFlipSymbol = _Symbol;
 if (cond) kp = 'Array';
-const viaCondFlip = _Symbol$iterator === void 0 ? fb : _Symbol$iterator;
+const viaCondFlip = _Symbol$iterator;
 export const q = _getIteratorMethod([29, 30]);
 
 // NEGATIVE: a conditionally-initialized hoisted `var` key binds everywhere but holds the
@@ -143,14 +143,14 @@ export const v = [35, 36][viaHoistedKey];
 // an unconditional top-level `var` key dominates the capture like a `const` - folds
 var kw = 'Symbol';
 const VarKeySymbol = _Symbol;
-const viaVarKey = _Symbol$iterator === void 0 ? fb : _Symbol$iterator;
+const viaVarKey = _Symbol$iterator;
 export const w = _getIteratorMethod([37, 38]);
 
 // an ASSIGNMENT-FORM constructor alias (`({ Symbol: S } = globalThis)`) registers a verified
 // write; the consumer chain folds off the hint just like the declarator form on both emitters
 let AssignedSymbol;
 AssignedSymbol = _Symbol;
-const viaAssigned = _Symbol$iterator === void 0 ? fb : _Symbol$iterator;
+const viaAssigned = _Symbol$iterator;
 export const y = _getIteratorMethod([39, 40]);
 
 // NEGATIVE: the consumer READS the alias before the aliasing write runs - the capture holds

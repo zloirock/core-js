@@ -88,7 +88,11 @@ export const E2E_STRIP_GLOBALS = [
 // runs full-env), and an expectation resting on its absence would otherwise be answered by karma's
 // IE11 cell alone. the differential is deliberately NOT given this set: its snippets DO ship the
 // lowered spread
-export const E2E_STRIP_STATIC = { Object: ['assign'] };
+// ... and the ES2017 `Object` statics the karma floor (IE11) lacks: a read that lands on the native
+// static answers `undefined` there and a method here, so only their absence tells an unresolved
+// alias of a container slot (`var _r$w = r.w, values = _r$w.values` - the lowering's spelling) apart
+// from a resolved one
+export const E2E_STRIP_STATIC = { Object: ['assign', 'values', 'entries', 'is'] };
 
 // the composed global-strip set for the broad stripped-realm legs (e2e / unit-pure bundles)
 export const E2E_STRIP_REALM_GLOBALS = [...STRIP_GLOBALS, ...E2E_STRIP_GLOBALS];

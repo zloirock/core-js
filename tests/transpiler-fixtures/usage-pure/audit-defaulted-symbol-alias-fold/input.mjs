@@ -1,7 +1,7 @@
 // a DEFAULTED well-known-symbol destructure (`const { iterator = fb } = Symbol`) is extracted into a
-// plain `const iterator = _Symbol$iterator === void 0 ? fb : _Symbol$iterator` guard-ternary; the
-// polyfill import is always defined, so the binding IS the symbol and a computed read off it folds
-// to the iterator-method helper - the same result as the non-defaulted form
+// plain `const iterator = _Symbol$iterator`: the polyfill import is always defined, so the default is
+// dead text, the binding IS the symbol and a computed read off it folds to the iterator-method
+// helper - the same result as the non-defaulted form
 const { iterator = fallback } = Symbol;
 export const viaDefault = [1, 2][iterator];
 

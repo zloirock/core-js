@@ -22,21 +22,22 @@ const leafSiblings = function () {
   return [at, other];
 }();
 const hostSibling = function () {
+  const _ref2 = box.y;
+  const at = _atMaybeArray(_ref2);
   const {
-    y: {
-      at,
-      other
-    },
+    other
+  } = _ref2;
+  const {
     keep
   } = box;
   return [at, other, keep];
 }();
 const twoHops = function () {
-  const _ref2 = deep.a.b;
-  const at = _atMaybeArray(_ref2);
+  const _ref3 = deep.a.b;
+  const at = _atMaybeArray(_ref3);
   const {
     other
-  } = _ref2;
+  } = _ref3;
   return [at, other];
 }();
 export { leafSiblings, hostSibling, twoHops };
