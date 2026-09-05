@@ -12,11 +12,11 @@ var _ref = function () {
   var flat = _flatMaybeArray(src);
   return [flat];
 }();
-export var a = _atMaybeArray(_ref);
 export var {
-  [(k++, 'at')]: _unused,
-  other
-} = _ref;
+    [(k++, 'at')]: _unused,
+    other
+  } = _ref,
+  a = _atMaybeArray(_ref);
 try {
   risky();
 } catch (_ref2) {
