@@ -6,6 +6,7 @@ import {
   classifyCallBranchForSynth,
   consumedAssignmentSlotDropsHost,
   consumedAssignmentSlotPrunes,
+  destructureAssignmentValueIsCaptured,
   fallbackBranchSwapKeepsSelection,
   isBuiltInSurfaceNav,
   isConstantLiteralReceiver,
@@ -44,14 +45,14 @@ import {
   findProxyGlobal,
   inlineCallReturnExpression,
   isStaticPlacement,
-  resolveObjectName,
-  resolveSynthKeys,
+  navValueCanShortCircuit,
   peelChainRootValue,
   peelReceiverSequenceTail,
+  resolveObjectName,
+  resolveSynthKeys,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 
 import {
-  assignmentInStatementPosition,
   computedKeyHasSideEffects,
   computedKeysAllBound,
   forOfHeadElements,
@@ -63,11 +64,13 @@ import {
   mayHaveSideEffects,
   paramsHaveInvisibleCallers,
   patternBindingCount,
+  patternSlotTarget,
   peelFallbackBranchInner,
   peelTransparentExpr,
   POSSIBLE_GLOBAL_OBJECTS,
   prologueEndIndex,
   propBindingIdentifier,
+  receiverCarriesLiveOptional,
   relocatedCatchPropUnobservable,
   relocatedHostPattern,
   resolveFallbackReceiver,
@@ -500,13 +503,12 @@ export default function createAstDestructureEmitter({
     if (pattern?.type !== 'ObjectPattern') return;
     // the assignment's VALUE is the receiver itself: a branch swapped for a synth literal
     // would change what the expression yields, so a CONSUMED assignment declines the mirror
-    // (`const host = ({ assign: a } = shim || Object)` keeps `Object`)
-    if (patternPath.parentPath?.node?.type === 'AssignmentExpression'
-      && !assignmentInStatementPosition(patternPath.parentPath)) return;
-    // an ARRAY-WRAPPED pattern names no receiver slot of its own - the matching ELEMENT is
-    // the value it destructures, and a selecting element is the same per-branch shape
-    const desc = resolveFallbackReceiver(patternPath.parentPath, pattern)
-      ?? (element => element ? { rhsNode: element } : null)(resolveArrayWrappedReceiver(patternPath, null, { adapter })?.element);
+    // (`const host = ({ assign: a } = shim || Object)` keeps `Object`) - asked through the shared
+    // host climb, so a wrapped pattern (`host = ([{ p }] = [sel])`) answers like the flat one
+    if (destructureAssignmentValueIsCaptured(metaPath)) return;
+    // the receiver the pattern reads: its host's slot, the IIFE argument, or - under an ARRAY
+    // WRAPPER - the element the host's literal pairs it with, the shared resolver's own climb
+    const desc = resolveFallbackReceiver(patternPath.parentPath, pattern);
     if (!desc?.rhsNode) return;
     // the SECOND way a foreign-frame receiver enters the channel (the first is the arg detector):
     // the shared resolver hands back the call-ARG plus the site it evaluates at, so the subtree
@@ -515,7 +517,10 @@ export default function createAstDestructureEmitter({
     // a HOP prop (its value another pattern): the mirror descends into the leaf and
     // resolves each leaf slot as a static of the hop's constructor - the branch literal
     // then nests back up (`cond ? { Array: { from: _Array$from } } : userObj`)
-    if (prop.value?.type === 'ObjectPattern') {
+    // ... read through a hop's own DEFAULT (`{ Array: { from } = {} }`): the mirror fills the slot
+    // the default guards, and the pattern keeps the default where it stands - the provider's mirror
+    // plan peels it the same way
+    if (patternSlotTarget(prop.value)?.type === 'ObjectPattern') {
       // the mirror REPLACES the receiver and keeps the pattern, so a hop key stays spelled wherever
       // the source wrote it - a computed key that FOLDS names the same hop its dotted spelling does
       const keyCtx = { scope: metaPath.scope, adapter, path: metaPath };
@@ -524,15 +529,15 @@ export default function createAstDestructureEmitter({
       const mirrorable = pattern.properties.length === 1
         || pattern.properties.every(item => item.type === 'Property'
           && typeof resolveSynthKeys({ node: item, ...keyCtx }).lookupKey === 'string'
-          && item.value?.type === 'ObjectPattern');
+          && patternSlotTarget(item.value)?.type === 'ObjectPattern');
       const chainKeys = [];
       let hopProp = prop;
-      while (hopProp.value?.type === 'ObjectPattern') {
+      while (patternSlotTarget(hopProp.value)?.type === 'ObjectPattern') {
         const keyName = resolveSynthKeys({ node: hopProp, ...keyCtx }).lookupKey;
         if (typeof keyName !== 'string') return;
         chainKeys.push(keyName);
-        const innerPattern = hopProp.value;
-        if (innerPattern.properties.length === 1 && innerPattern.properties[0]?.value?.type === 'ObjectPattern') {
+        const innerPattern = patternSlotTarget(hopProp.value);
+        if (innerPattern.properties.length === 1 && patternSlotTarget(innerPattern.properties[0]?.value)?.type === 'ObjectPattern') {
           [hopProp] = innerPattern.properties;
           continue;
         }
@@ -2631,6 +2636,12 @@ export default function createAstDestructureEmitter({
     const literalRoute = planLiteralRoute({ metaPath, prop, sentinel, chain, declarator, declaration, pureNav, adapter });
     const { soleBinding, declaratorConsumedWhole, relaxedReceiver, carriedLive } = literalRoute;
     let { literalReceiver } = literalRoute;
+    // a STATIC extraction drops the slot's read, and a slot whose live `?.` can short-circuit is the
+    // probe channel's (the nested plan declines the same pair): no leg carries that probe through a
+    // literal hop, so the leaf stays native, where the source's own read keeps its throw
+    if (kind !== 'instance' && literalReceiver && receiverCarriesLiveOptional(literalReceiver)
+      && navValueCanShortCircuit(unwrapRuntimeExpr(literalReceiver), m => resolvePure(m, metaPath),
+        { scope: metaPath.scope, adapter, path: metaPath })) return;
     // ... and where the pairing keeps the LITERAL alive, the prefix it elides runs from that husk:
     // the receiver may be resolved THROUGH it, so the dispatch spells the value the read yields
     // (`{ w: (g(), globalThis) }` dispatches on `_globalThis` while the husk still runs `g()`).
@@ -3464,14 +3475,6 @@ export default function createAstDestructureEmitter({
         value = peelTransparentExpr(value.expressions.at(-1));
       }
       return effectful && value?.type === 'Identifier' && isPristineProxyGlobal(adapter, value.name);
-    },
-    // an ARRAY-WRAPPED pattern resolves no receiver of its own in the meta funnel - the
-    // element is positional, so a SELECTING one never reaches the mirror through the meta's
-    // fallback flag. the host shape answers instead (`[{ Array: { from } }] = [c ? gw : o]`)
-    arrayWrappedSelectingHost(metaPath) {
-      if (metaPath.parentPath?.node?.type !== 'ObjectPattern') return false;
-      const element = peelTransparentExpr(resolveArrayWrappedReceiver(metaPath.parentPath, null, { adapter })?.element);
-      return !!element && !!getFallbackBranchSlots(element);
     },
     noteMutatedCtorHopHost: declarator => hopHosts.set(declarator, { forceMutatedHop: true }),
     // a CTOR hop nothing extracted from re-anchors on its own member READ (`{ A$b: { from } }
