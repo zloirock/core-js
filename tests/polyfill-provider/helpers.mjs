@@ -35,6 +35,9 @@ import {
 import {
   bindingBoundName,
   buildScopeReassignmentIndex,
+  callArgumentPathAt,
+  effectiveArgsLength,
+  findIifeArgPath,
   isSloppyAtPath,
   classDefinitionTimePaths,
   classOwnThisMethodInfo,
@@ -48,6 +51,11 @@ import {
   isAmbientTypeDeclaration,
   isTSTypeOnlyIdentifierPath,
   nonEmittedExpressionAncestor,
+  peelTransparentWrapperPath,
+  positionalElementPath,
+  positionalElements,
+  resolveCallArgumentCoords,
+  resolveFallbackReceiverPath,
   stepOverChainWrappers,
   recomputedBindingWrites,
   synthHoistedBinding,
@@ -82,7 +90,9 @@ import {
   SINGLE_STATEMENT_SLOTS,
   SKIPPABLE_WRAPPER_TYPES,
   arrayLiteralSlotValue,
+  flattenInlineArraySpreads,
   objectLevelPairedProperty,
+  pairedArrayWrapInitElement,
   spreadAtOrBefore,
   staticMemberFromEntrySegment,
   TS_EXPR_WRAPPERS,
@@ -94,7 +104,7 @@ import { tagError } from '../../packages/core-js-polyfill-provider/helpers/error
 import { subsume } from '../../packages/core-js-polyfill-provider/helpers/subsumption.js';
 import { adapters, babelAdapter, createChecker, findTypeNode } from './harness.mjs';
 
-const { check, checkDeep, checkTruthy, finish, throwsWith } = createChecker('helpers');
+const { check, checkDeep, checkTruthy, finish, runBoth, throwsWith } = createChecker('helpers');
 
 // --- toStatelessRegExp ---
 
@@ -1641,6 +1651,85 @@ check('spreadAtOrBefore/no spread', spreadAtOrBefore([EL('a'), EL('b')], 1), fal
 check('spreadAtOrBefore/path form (.node)', spreadAtOrBefore([{ node: SP }, { node: EL('b') }], 1), true);
 check('spreadAtOrBefore/empty + null safe', spreadAtOrBefore([], 3) || spreadAtOrBefore(null, 0), false);
 
+// the positional pairing expands an INLINE-array spread (a longer literal) and still declines any
+// other spread at or before the slot; `flattenInlineArraySpreads` writes that expansion into the
+// literal, nested spreads staying (their length is variadic)
+check('pairedArrayWrapInitElement/inline spread expands', pairedArrayWrapInitElement([INLINE, EL('c')], 1)?.name, 'y');
+check('pairedArrayWrapInitElement/bare spread declines', pairedArrayWrapInitElement([SP, EL('c')], 1), null);
+check('pairedArrayWrapInitElement/parenthesized inline spread expands',
+  pairedArrayWrapInitElement([{ type: 'SpreadElement', argument: { type: 'ParenthesizedExpression', expression: INLINE.argument } }], 1)?.name, 'y');
+
+// --- callArgumentPathAt ---
+// the coordinate steps into the spread array through its wrappers on both legs: babel strips the
+// parens and keeps the cast node, oxc keeps a paren NODE and the cast
+for (const [label, code] of [['cast', 'f(...([[1, 2]] as any));'], ['parens', 'f(...([[1, 2]]));']]) {
+  runBoth(`callArgumentPathAt/${ label } spread array steps into the element`, code, (adapter, programPath, name) => {
+    const argPaths = programPath.get('body')[0].get('expression').get('arguments');
+    const coords = resolveCallArgumentCoords(argPaths.map(path => path.node), 0);
+    checkDeep(`${ name } coordinate`, coords, { argIndex: 0, elementIndex: 0 });
+    const path = callArgumentPathAt(argPaths, coords);
+    checkDeep(`${ name } element`, path?.node?.elements?.map(el => el.value), [1, 2]);
+  });
+}
+runBoth('callArgumentPathAt/spread of a wrapped binding has no coordinate', 'f(...(g as any));', (adapter, programPath, name) => {
+  const argPaths = programPath.get('body')[0].get('expression').get('arguments');
+  check(name, resolveCallArgumentCoords(argPaths.map(path => path.node), 0), null);
+});
+
+// --- positionalElementPath ---
+// an array literal is read at runtime positions: the inline spread expands, a hole is no element,
+// a spread of a binding leaves no static position at or past it
+runBoth('positionalElementPath/positions through an inline spread and a hole', '[...[[1, 2]], , x, ...g, y];', (adapter, programPath, name) => {
+  const arrayPath = programPath.get('body')[0].get('expression');
+  checkDeep(`${ name } types`, [0, 1, 2, 3, 4].map(i => positionalElementPath(arrayPath, i)?.node?.type ?? null),
+    ['ArrayExpression', null, 'Identifier', null, null]);
+  check(`${ name } length`, effectiveArgsLength(arrayPath.node.elements), null);
+  check(`${ name } length (static)`, effectiveArgsLength(arrayPath.node.elements.slice(0, 3)), 3);
+});
+check('positionalElements/inline spread expands, hole stays null',
+  positionalElements([INLINE, null, EL('c')]).map(el => el?.name ?? null).join(','), 'x,y,,c');
+check('positionalElements/spread of a binding has no list', positionalElements([EL('a'), SP]), null);
+
+// --- IIFE argument reads through a cast spread array (both adapters) ---
+// the per-branch mirror, the bare-pattern locator and the coordinate read all step into
+// `...([[x]] as any)` the way `unwrapRuntimeExpr` peels the node: a leg that read the raw argument
+// mirrored on one parser and bailed on the other
+runBoth('iife arg through a cast spread array: per-branch receiver path',
+  'const r = (([{ from: f }]) => f)(...([[pick ? Array : userObj]] as any));', (adapter, programPath, name) => {
+    const [declaration] = programPath.get('body');
+    const [declarator] = declaration.get('declarations');
+    const arrow = peelTransparentWrapperPath(declarator.get('init').get('callee'));
+    const [arrayPattern] = arrow.get('params');
+    const [objectPattern] = arrayPattern.get('elements');
+    check(`${ name } receiver`, resolveFallbackReceiverPath(arrayPattern, objectPattern.node)?.node?.type, 'ConditionalExpression');
+    check(`${ name } argument`, findIifeArgPath(arrow, arrayPattern.node)?.node?.type, 'ArrayExpression');
+  });
+runBoth('iife arg through a cast spread array: bare-pattern locator',
+  'const r = (({ at }) => at)(...([[1, 2]] as any));', (adapter, programPath, name) => {
+    const [declaration] = programPath.get('body');
+    const [declarator] = declaration.get('declarations');
+    const arrow = peelTransparentWrapperPath(declarator.get('init').get('callee'));
+    const [param] = arrow.get('params');
+    check(`${ name } argument`, findIifeArgPath(arrow, param.node)?.node?.elements?.map(el => el.value).join(','), '1,2');
+  });
+runBoth('call argument coordinates: cast spread, nested spread, later positional',
+  'f(...([a] as any), ...[b, ...c]); g(a, ...[b], c);', (adapter, programPath, name) => {
+    const [first, second] = programPath.get('body').map(statement => statement.get('expression'));
+    function nodes(callPath) {
+      return callPath.get('arguments').map(path => path.node);
+    }
+    checkDeep(`${ name } first slot inside the cast`, resolveCallArgumentCoords(nodes(first), 0), { argIndex: 0, elementIndex: 0 });
+    checkDeep(`${ name } ahead of a nested spread`, resolveCallArgumentCoords(nodes(first), 1), { argIndex: 1, elementIndex: 0 });
+    check(`${ name } past a nested spread`, resolveCallArgumentCoords(nodes(first), 2), null);
+    check(`${ name } nested spread has no length`, effectiveArgsLength(nodes(first)), null);
+    checkDeep(`${ name } later positional`, resolveCallArgumentCoords(nodes(second), 2), { argIndex: 2, elementIndex: -1 });
+    check(`${ name } length`, effectiveArgsLength(nodes(second)), 3);
+  });
+{
+  const elements = [INLINE, EL('c'), { type: 'SpreadElement', argument: { type: 'ArrayExpression', elements: [SP] } }];
+  flattenInlineArraySpreads(elements);
+  check('flattenInlineArraySpreads/inline spread spliced in place', elements.map(e => e.name ?? e.type).join(','), 'x,y,c,SpreadElement');
+}
 // findObjectKeyBeforeSpread: last matching data property, or null if a spread sits AFTER the match
 function prop(key, tag) { return { type: 'Property', key, tag }; }
 function matchA(p) { return p.key === 'a'; }
