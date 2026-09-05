@@ -1121,8 +1121,10 @@ export function createUsageVisitors({
   // `path` anchors the key canon's flow gates (init-dominance, reaching-value) at the
   // pattern holding the key - the key EVALUATES there; a pathless call defaults the
   // dominance gate open and folds a conditionally-initialized key
+  // ... and `keepsKeyNode`: the pattern KEEPS an effectful key where it stands, so a key spelled
+  // through a bound identity call (`[k('at')]`) may fold to its argument
   function resolveKey(node, computed, scope, path = null) {
-    return sharedResolveKey({ node, computed, scope, adapter, path, resolveStaticKey });
+    return sharedResolveKey({ node, computed, scope, adapter, path, resolveStaticKey, keepsKeyNode: true });
   }
 
   function extractPropertyKey(propNode, scope, path = null) {
