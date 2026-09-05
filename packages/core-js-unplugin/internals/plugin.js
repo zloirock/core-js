@@ -65,8 +65,8 @@ import { markSubtreeSkipped } from './nav-spine.js';
 import {
   closestVisibleNativeBinding,
   withoutPhantomDeclarationViolations,
-  collectAliasPrePass,
-  collectMutationPrePass,
+  collectPrePassSites,
+  registerAliasPrePassSites,
   createEstreeAdapter,
   createUsageVisitors,
   createSyntaxVisitors,
@@ -654,9 +654,21 @@ export default function createPlugin(options) {
       ctorAliasShapesReducer(),
       proxyWriteOriginsReducer(),
     ]) : {};
-    let mutationInfo = null;
-    // INJECTION policy only, so usage-pure only: a global-flavor bail here would drop an import
-    // instead of adding one. the typing side asks the same data separately and lazily (below)
+    // ONE scoped pre-pass walk carries both lanes: the mutation classification and the ctor-alias
+    // sites registered further below. the alias lane rides along for BOTH usage methods, so the
+    // walk runs whenever either lane has something to collect
+    const prePassArgs = {
+      ast,
+      adapter: estreeAdapter,
+      census: fileCensus,
+      resolveStaticKey: (node, scope, path) => typeResolvers.resolveClaimableComputedKeyName(node, scope, path),
+      collectMutations: method === 'usage-pure',
+      isDisabled: method === 'usage-pure' || method === 'usage-global' ? isDisabled : null,
+    };
+    let prePass = null;
+    // mutation collection is INJECTION policy only, so usage-pure only: a global-flavor bail here
+    // would drop an import instead of adding one. the typing side asks the same data separately
+    // and lazily (below)
     if (method === 'usage-pure') {
       // BOTH per-file records the shared read canons consult are hidden for this window: the
       // mutation set for the reason above, and the container-slot record because the walk that
@@ -667,14 +679,13 @@ export default function createPlugin(options) {
       currentMutatedStatics = null;
       currentWrittenContainerSlots = null;
       try {
-        mutationInfo = collectMutationPrePass(ast, estreeAdapter, fileCensus,
-          (node, scope, path) => typeResolvers.resolveClaimableComputedKeyName(node, scope, path));
+        prePass = collectPrePassSites(prePassArgs);
       } finally {
         currentMutatedStatics = outerMutatedStatics;
         currentWrittenContainerSlots = outerWrittenContainerSlots;
       }
-    }
-    let mutatedStatics = mutationInfo?.mutated ?? null;
+    } else if (prePassArgs.isDisabled) prePass = collectPrePassSites(prePassArgs);
+    let mutatedStatics = prePass?.mutated ?? null;
     // pre+post: union PRE's mutation set into post's own recompute. the keys are semantic
     // slot names, so they survive sibling rewrites of the receiver text that the prepass
     // cannot re-derive - babel's CJS lowering between the phases turns the pre-substituted
@@ -828,10 +839,10 @@ export default function createPlugin(options) {
         });
       }
       // early ctor-alias registration (visit-order independence) - see the babel twin. BOTH
-      // usage modes: pure folds through the hints, usage-global resolves its injections
-      if (method === 'usage-pure' || method === 'usage-global') {
-        collectAliasPrePass({ ast, adapter: estreeAdapter, injector, isDisabled, census: fileCensus });
-      }
+      // usage modes: pure folds through the hints, usage-global resolves its injections. the sites
+      // rode the pre-pass walk; registration waits for the injector it writes into and for the
+      // mutated-static enrichment above, which feeds the very hints it registers through
+      if (prePass) registerAliasPrePassSites(prePass.aliasSites, { adapter: estreeAdapter, injector });
 
       // one pass for every method, ahead of the emitters: a type instantiation sitting directly
       // under an optional call is the one shape whose SOURCE spelling a later lowering reads wrong,

@@ -1,10 +1,10 @@
+import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _copyWithinMaybeArray from "@core-js/pure/actual/array/instance/copy-within";
 import _fillMaybeArray from "@core-js/pure/actual/array/instance/fill";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _flatMapMaybeArray from "@core-js/pure/actual/array/instance/flat-map";
+import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 import _globalThis from "@core-js/pure/actual/global-this";
-import _at from "@core-js/pure/actual/instance/at";
-import _includes from "@core-js/pure/actual/instance/includes";
 // where the assignment-host OVERWRITE may take its slot with it, and where the slot has to stay. the
 // dispatch re-spells the receiver nav the raw pattern read, so a slot with no reader left simply
 // drops - and an emptied host drops too. the boundaries below each keep the slot for a reason of
@@ -27,7 +27,7 @@ kept = _flatMaybeArray(userNs.Array.prototype);
 } = _globalThis);
 // a REST keeps the emptied hop under a sentinel - the rest must go on excluding that key, so the
 // residual still reads `globalThis.Array` beside the dispatch
-sibling = _at(_globalThis.Array.prototype);
+sibling = _atMaybeArray(_globalThis.Array.prototype);
 let rest;
 var _unused;
 ({
@@ -45,5 +45,5 @@ wrapped = _flatMapMaybeArray(_globalThis.Array.prototype);
     [(effect(), 'includes')]: computed
   }
 } = _globalThis.Array);
-computed = _includes(_globalThis.Array.prototype);
+computed = _includesMaybeArray(_globalThis.Array.prototype);
 export { dropped, kept, sibling, other, rest, wrapped, computed, z };

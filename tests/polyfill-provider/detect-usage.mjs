@@ -50,8 +50,9 @@ import {
   isReReferenceableReceiver,
   isSeFreeBranchingReceiver,
   isSeFreeMemberReceiver,
+  resolvePositionalElementSlot,
 } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
-import { peelArrayWrapperPair } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
+import { hopNamesMissingAbleCtor, peelArrayWrapperPair } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
 import {
   checkTypeAnnotations,
   isTypeAnnotationNodeType,
@@ -1146,12 +1147,97 @@ runBoth('peelArrayWrapperPair/collects consumed wrapper-level SE prefixes in ord
     // babel strips the paren node, oxc keeps it around the leaf's sequence - both carry the prefix
     check(`${ lbl } leaf keeps its own prefix`, /^(?:Parenthesized|Sequence)Expression$/.test(init?.type), true);
   });
+// a pattern hop names a MISSING-ABLE ctor when the pure flavor ships that ctor as an entry of its own:
+// a sentinel or a raw residual read under such a hop would read the native ctor off the realm. an
+// always-present hop, a proxy-global name and a computed key never do
+runBoth('hopNamesMissingAbleCtor/asks the pure entry of a hop that spells a slot',
+  'const { Map: { groupBy }, Iterator: { from }, Object: { keys }, globalThis: { self }, [k]: { at }, ["Map"]: { has } } = globalThis;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    function resolve(name) {
+      return name === 'Map' || name === 'Iterator' ? { entry: `actual/${ name.toLowerCase() }/constructor` } : null;
+    }
+    const verdicts = decl.node.id.properties.map(hop => hopNamesMissingAbleCtor(hop, resolve));
+    checkDeep(lbl, verdicts, [true, true, false, false, false, true]);
+  });
+// the OBJECT level of the same peel: a sole-key hop pairs with the slot it names - a GETTER too,
+// where its body is one pure return. what the literal still OWES does not keep the claim native: an
+// effect-bearing sibling (and a spread ahead of the key) pairs and leaves the literal ALIVE, the way
+// a spread-bearing array wrapper does. what keeps the level whole is what makes the KEY unsure or the
+// read itself an effect: a spread that could override it, an unnameable key that could BE it at
+// runtime, a getter body that runs an effect, and a paired value whose own `?.` belongs to the probe
+// channel
+runBoth('peelArrayWrapperPair/object hop pairs the slot its sole key names',
+  'const { w: { Map: m } } = { z: 1, w: globalThis };', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const { pattern, init } = peelArrayWrapperPair({ pattern: decl.node.id, init: decl.node.init });
+    check(lbl, init?.type === 'Identifier' && init.name === 'globalThis', true);
+    check(`${ lbl } pattern descends`, pattern?.properties?.[0]?.key?.name, 'Map');
+  });
+runBoth('peelArrayWrapperPair/object hop keeps the level whole on every hazard',
+  `const a = { w: globalThis, z: eff() };
+   const b = { w: globalThis, ...extra };
+   const c = { Q: globalThis, [k]: other };
+   const d = { get w() { eff(); return globalThis; } };
+   const e = { w: globalThis.window?.Array };`, (adapter, prog, lbl) => {
+    const peeled = adapter.collectPaths(prog, 'VariableDeclarator').map(decl => {
+      const pattern = { type: 'ObjectPattern', properties: [{
+        type: 'ObjectProperty',
+        key: { type: 'Identifier', name: decl.node.init.properties[0].key?.name ?? 'w' },
+        computed: false,
+        value: { type: 'ObjectPattern', properties: [] },
+      }] };
+      return peelArrayWrapperPair({ pattern, init: decl.node.init });
+    });
+    // the sibling effect pairs and keeps its literal alive; every other hazard leaves the level whole
+    checkDeep(lbl, peeled.map((result, at) => result.init === adapter
+      .collectPaths(prog, 'VariableDeclarator')[at].node.init), [false, true, true, true, true]);
+    check(`${ lbl } sibling effect keeps the literal alive`, peeled[0].wrapperSurvives, true);
+  });
 runBoth('peelArrayWrapperPair/bail commits no prefixes',
   'const [{ y }] = (o(), notAnArray);', (adapter, prog, lbl) => {
     const decl = adapter.pickPath(prog, 'VariableDeclarator');
     const { init, peeledPrefixes } = peelArrayWrapperPair({ pattern: decl.node.id, init: decl.node.init });
     checkDeep(lbl, peeledPrefixes, []);
     check(`${ lbl } init unchanged`, init, decl.node.init);
+  });
+// an SE-bearing element the pattern does not bind keeps the level whole by default (its effect would
+// vanish with the consumed wrapper); a host that lifts statements takes it HARVESTED instead -
+// innermost level first, the order native runs them after the element - and a pure extra is never
+// harvested. a SPREAD is never harvested either (no statement re-emits an iteration): a lifting host
+// consumes the level and keeps its ARRAY alive instead, any other host bails
+runBoth('peelArrayWrapperPair/trailing effect bails unless the host lifts',
+  'const [[{ x }]] = [[(i(), globalThis), a(), 7], b()];', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const kept = peelArrayWrapperPair({ pattern: decl.node.id, init: decl.node.init });
+    check(`${ lbl } keeps the init`, kept.init, decl.node.init);
+    checkDeep(`${ lbl } harvests nothing`, kept.trailingEffects, []);
+    const lifted = peelArrayWrapperPair({ pattern: decl.node.id, init: decl.node.init, liftTrailing: true });
+    check(`${ lbl } reaches the leaf`, /^(?:Parenthesized|Sequence)Expression$/.test(lifted.init?.type), true);
+    checkDeep(`${ lbl } innermost first`, lifted.trailingEffects.map(e => e.callee?.name), ['a', 'b']);
+    check(`${ lbl } two levels consumed`, lifted.consumedLevels.length, 2);
+  });
+runBoth('peelArrayWrapperPair/spread extra keeps the wrapper alive for a lifting host, bails otherwise',
+  'const [{ x }] = [(e(), globalThis), a(), ...rest];', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const kept = peelArrayWrapperPair({ pattern: decl.node.id, init: decl.node.init });
+    check(`${ lbl } keeps the init`, kept.init, decl.node.init);
+    check(`${ lbl } no survivor flagged`, kept.wrapperSurvives, false);
+    const lifted = peelArrayWrapperPair({ pattern: decl.node.id, init: decl.node.init, liftTrailing: true });
+    check(`${ lbl } reaches the leaf`, /^(?:Parenthesized|Sequence)Expression$/.test(lifted.init?.type), true);
+    check(`${ lbl } wrapper survives`, lifted.wrapperSurvives, true);
+    checkDeep(`${ lbl } harvests nothing off that level`, lifted.trailingEffects, []);
+  });
+// a level reached through a const ALIAS lives in the alias's own declaration: its extras run there
+// and are never harvested, while an INLINE level above it still is
+runBoth('peelArrayWrapperPair/aliased level harvests nothing, the inline level above it does',
+  'const w = [globalThis, a()]; const [[{ x }]] = [w, b()];', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id.type === 'ArrayPattern');
+    const { init, trailingEffects } = peelArrayWrapperPair({
+      pattern: decl.node.id, init: decl.node.init, scope: decl.scope, adapter: unionAdapter, path: decl, liftTrailing: true,
+    });
+    check(`${ lbl } reaches the aliased element`, init?.type === 'Identifier' && init.name === 'globalThis', true);
+    checkDeep(`${ lbl } inline extra only`, trailingEffects.map(e => e.callee?.name), ['b']);
   });
 // a PATTERN-bound wrapper alias derefs through its slot's unique pairing, like the plain-const
 // spelling - the walk lands on the aliased literal's element
@@ -1912,3 +1998,21 @@ runBoth('walkTypeAnnotationGlobals/reports a typeof query host apart',
 }
 
 finish();
+
+// the positional element slot pairs a reading claim beside a SPREAD (the wrapper survives whole
+// there), and never a computed key carrying an EFFECT: the rename drops the pattern that spells
+// the key, and with it the effect the source runs
+runBoth('resolvePositionalElementSlot/spread-bearing init takes the plain leaf',
+  'const [{ y: { at: v } }] = [{ y: arr }, ...rest];', (adapter, prog, lbl) => {
+    const leaf = adapter.pickPath(prog, 'Property', p => p.node.key?.name === 'at')
+      ?? adapter.pickPath(prog, 'ObjectProperty', p => p.node.key?.name === 'at');
+    const slot = resolvePositionalElementSlot(leaf);
+    check(lbl, slot?.declarator?.node?.type, 'VariableDeclarator');
+    checkDeep(`${ lbl } keys`, slot?.keys, ['y']);
+  });
+runBoth('resolvePositionalElementSlot/effectful computed key declines even when sole',
+  'const [{ [(k(), "at")]: v }] = [arr, ...rest];', (adapter, prog, lbl) => {
+    const leaf = adapter.pickPath(prog, 'Property', p => p.node.computed)
+      ?? adapter.pickPath(prog, 'ObjectProperty', p => p.node.computed);
+    check(lbl, resolvePositionalElementSlot(leaf), null);
+  });

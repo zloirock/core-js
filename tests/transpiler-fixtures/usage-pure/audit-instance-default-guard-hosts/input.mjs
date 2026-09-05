@@ -24,7 +24,7 @@ for (const { [(e1(), 'findLastIndex')]: fli = dfltE(), [(e2(), 'toSorted')]: tso
 // export host: the split keeps every binding exported
 export const { [(e3(), 'toReversed')]: trv = dfltF(), [(e4(), 'flatMap')]: fm } = recvF;
 
-// bodyless control-slot host: the block-wrap and the split compose
+// bodyless control-slot host: the `var` join and the split compose
 if (cnd) var { [(e5(), 'with')]: w5 = dfltG(), [(e6(), 'toSpliced')]: tsp } = recvG;
 
 export { a, fl, inc, out1, w5, tsp };
