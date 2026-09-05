@@ -42,6 +42,7 @@ import {
   patternBindingCount,
   patternDead,
   patternKeepsEffectfulKey,
+  patternSlotTarget,
   peelNestedSequenceExpressions,
   peelTransparentExpr,
   POSSIBLE_GLOBAL_OBJECTS,
@@ -165,7 +166,7 @@ const prunedHosts = new WeakSet();
 // sentinels from one that still binds
 const sentinelLeaves = new WeakSet();
 function patternAllSentinels(node, minted) {
-  const pattern = node?.type === 'AssignmentPattern' ? node.left : node;
+  const pattern = patternSlotTarget(node);
   if (pattern?.type !== 'ObjectPattern' || !pattern.properties.length) return false;
   return pattern.properties.every(prop => prop.type === 'Property'
     && (minted.has(prop.value) || patternAllSentinels(prop.value, minted)));
@@ -2204,7 +2205,7 @@ export default function createDestructureDrains(ctx) {
       job.pattern.properties = job.pattern.properties.filter(item => item !== job.prop);
       markSubtreeSkipped(skippedNodes, job.prop);
       for (const { hopProp, outerPattern, outerRest } of job.chain ?? []) {
-        const hopPatternNode = hopProp.value?.type === 'AssignmentPattern' ? hopProp.value.left : hopProp.value;
+        const hopPatternNode = patternSlotTarget(hopProp.value);
         if (hopPatternNode.properties.length) break;
         if (outerRest) {
           markSubtreeSkipped(skippedNodes, hopProp.value);
@@ -2925,7 +2926,7 @@ export default function createDestructureDrains(ctx) {
       const [hop] = pattern.properties;
       // a slot DEFAULT on the hop is dead for a step that navigates the same surface - the
       // pattern under it is what binds (`{ self: { a } = {} }` anchors like `{ self: { a } }`)
-      const hopPattern = hop.value?.type === 'AssignmentPattern' ? hop.value.left : hop.value;
+      const hopPattern = patternSlotTarget(hop.value);
       if (hop.type !== 'Property' || hopPattern?.type !== 'ObjectPattern' || !hopPattern.properties.length) {
         return changed;
       }

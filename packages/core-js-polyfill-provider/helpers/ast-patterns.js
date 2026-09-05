@@ -3280,6 +3280,20 @@ export function objectPropertyReadValue(prop) {
   return pureReturnBodyValue(prop.type === 'ObjectMethod' ? prop.body : prop.value?.body);
 }
 
+// the property of an object LEVEL a key pairs with, or null when nothing pairs: no match ahead of a
+// spread (it could override the key), a key standing AFTER the match that `nameLater` cannot name
+// (last wins, so it could BE the slot at runtime), or an accessor / method (a read runs a body).
+// `nameLater` is the spelled name by default; a scope-aware caller hands over the consuming canon
+export function objectLevelPairedProperty(objectNode, key, nameLater = spelledSlotName) {
+  if (objectNode?.type !== 'ObjectExpression') return null;
+  const match = findObjectKeyBeforeSpread(objectNode.properties, prop => spelledSlotName(prop) === key);
+  const read = objectPropertyReadValue(match);
+  if (!read) return null;
+  if (objectNode.properties.slice(objectNode.properties.indexOf(match) + 1)
+    .some(prop => nameLater(prop) === null)) return null;
+  return { match, read };
+}
+
 // find the LAST own property (`Property` / `ObjectProperty`, plus babel's `ObjectMethod`) satisfying `matches` in an
 // ObjectExpression's `properties` array, scanning backward so duplicate keys resolve last-wins.
 // returns null when a SpreadElement sits AFTER a candidate (it could inject / override the key, so
@@ -3437,8 +3451,10 @@ export function followConstLiteralAlias(node, ctx) {
 export function arrayLiteralSlotValue(node, key) {
   if (node?.type !== 'ArrayExpression') return null;
   const index = key === null || key === undefined ? null : canonicalArrayIndex(key);
-  if (index === null || spreadAtOrBefore(node.elements, index)) return null;
-  return node.elements[index] ?? null;
+  // through the call-argument expansion: an INLINE-array spread (`[...[a, b]]`) is a longer literal,
+  // its positions static, while any other spread at or before the slot shifts them - the one
+  // rule for a positional read, shared with the argument lists
+  return index === null ? null : resolveCallArgument(node.elements, index);
 }
 
 // `ctx` (optional `{ scope, adapter, path, resolveKey }`) makes the pairing binding-aware: it
@@ -3555,7 +3571,7 @@ export function patternSlotSpreadShifted(pattern, rhs, name, ctx = null) {
     const element = pattern.elements[i];
     if (!element || !patternBindsName(element, name)) continue;
     if (rhs?.type === 'ArrayExpression' && spreadAtOrBefore(rhs.elements, i)) return true;
-    const slot = element.type === 'AssignmentPattern' ? element.left : element;
+    const slot = patternSlotTarget(element);
     const paired = rhs?.type === 'ArrayExpression' ? rhs.elements[i] : null;
     if (patternSlotSpreadShifted(slot, paired, name, ctx)) return true;
     if (element.type === 'AssignmentPattern'
@@ -4397,24 +4413,38 @@ export function objectPatternLiteralKeyPath(pattern, name, ctx = null) {
 // it? used to locate the positional array-wrap element (`const [{ Array: A }] = [globalThis]`) that
 // binds a leaf name before descending into it. peels an `= default` wrapper on the slot
 export function arrayWrapSlotBindsName(slot, name, ctx = null) {
-  slot = slot?.type === 'AssignmentPattern' ? slot.left : slot;
+  slot = patternSlotTarget(slot);
   if (slot?.type === 'ObjectPattern') return !!objectPatternLiteralKeyPath(slot, name, ctx);
   if (slot?.type === 'ArrayPattern') return (slot.elements ?? []).some(el => el && arrayWrapSlotBindsName(el, name, ctx));
   return false;
 }
 
-// destructure-receiver value bound to an ObjectPattern. unifies the two wrapper shapes
+// destructure-receiver value bound to an ObjectPattern. unifies the three wrapper shapes
 // that drive `meta.fromFallback` per-branch synth-swap:
 //   1. slot-bearing wrapper (VariableDeclarator / AssignmentExpression / AssignmentPattern):
 //      `const {p} = R`, `({p} = R)`, `function f({p} = D)` -> RHS read from slot
 //   2. function-like IIFE wrapper (Arrow / FunctionExpression invoked at the call site):
 //      `(({p}) => body)(R)` -> RHS is the call-arg at this param's index
+//   3. a WRAPPER level of either literal shape (ArrayPattern element, a pattern property's value,
+//      a transparent inner default around them): `[{p}] = [R]`, `{ w: {p} } = { w: R }` -> the
+//      host resolves through 1 / 2, and its literal pairs the level's slot with R
 // returns `{ rhsNode, slot, callPath, paramIndex }` (slot XOR callPath set) so node-form
-// callers consume `rhsNode`, path-form callers derive a NodePath via the path companion.
-// null when the wrapper is neither shape - synth-swap then warns and leaves code intact
+// callers consume `rhsNode`, path-form callers derive a NodePath via the path companion; a
+// wrapped answer adds `hostPath` (where `slot` reads) and `descend` (the literal steps below it).
+// null when the wrapper is none of the shapes - synth-swap then warns and leaves code intact
 export function resolveFallbackReceiver(wrapperPath, paramNode) {
   const wrapperNode = wrapperPath?.node;
   if (!wrapperNode) return null;
+  // a WRAPPED pattern names no slot of its own: the host's literal pairs its element with the
+  // pattern's position (`[{ p }] = [R]`) or its key (`{ w: { p } } = { w: R }`), through every
+  // wrapper level and the transparent inner default between (`[{ p } = {}] = [R]` reads R first,
+  // the default only where R is undefined) - so the pair is the receiver, and `descend` records
+  // the steps for the path companion
+  if (wrapperNode.type === 'ArrayPattern' || isPatternPropertyOf(wrapperNode, paramNode)
+    || (wrapperNode.type === 'AssignmentPattern' && wrapperNode.left === paramNode
+      && (wrapperPath.parentPath?.node?.type === 'ArrayPattern' || isPatternPropertyOf(wrapperPath.parentPath?.node, wrapperNode)))) {
+    return resolveWrappedFallbackReceiver(wrapperPath, paramNode);
+  }
   // an AssignmentPattern that is a function PARAM (`(({p} = D) => body)(R)`) carries the DEFAULT in
   // its `right` slot, but the live call-arg R is the real receiver (the default applies only when no
   // arg is passed). emit-side callers reach this with the AssignmentPattern as the wrapper, so resolve
@@ -4436,16 +4466,101 @@ export function resolveFallbackReceiver(wrapperPath, paramNode) {
   return rhsNode ? { rhsNode, slot: null, callPath: site.callPath, paramIndex: site.paramIndex } : null;
 }
 
+// is `node` the pattern property (either parser's spelling) whose value is `valueNode`?
+function isPatternPropertyOf(node, valueNode) {
+  return (node?.type === 'Property' || node?.type === 'ObjectProperty') && node.value === valueNode;
+}
+
+// the wrapped arm: climb the wrapper levels to the host, resolve the host's own receiver, then pair
+// it level by level - an ARRAY level by position (the canonical index read: an inline-array spread
+// expands, any other spread at or before the slot shifts it and the pairing bails), an OBJECT level
+// by its plainly spelled key (a computed hop key is no spelling to pair by)
+function resolveWrappedFallbackReceiver(wrapperPath, paramNode) {
+  const steps = [];
+  let cur = wrapperPath;
+  let slotNode = paramNode;
+  for (;;) {
+    const node = cur?.node;
+    // an INNER default is stepped through; a host default (a parameter's) is the host itself and
+    // answers below through its own arm
+    if (node?.type === 'AssignmentPattern' && node.left === slotNode
+      && (cur.parentPath?.node?.type === 'ArrayPattern' || isPatternPropertyOf(cur.parentPath?.node, node))) {
+      slotNode = node;
+      cur = cur.parentPath;
+      continue;
+    }
+    if (isPatternPropertyOf(node, slotNode)) {
+      const key = node.computed ? null : plainSynthKeyName(node.key);
+      if (key === null || cur.parentPath?.node?.type !== 'ObjectPattern') return null;
+      steps.unshift({ key });
+      slotNode = cur.parentPath.node;
+      cur = cur.parentPath.parentPath;
+      continue;
+    }
+    if (node?.type !== 'ArrayPattern') break;
+    const index = node.elements.indexOf(slotNode);
+    if (index === -1) return null;
+    steps.unshift({ index });
+    slotNode = node;
+    cur = cur.parentPath;
+  }
+  const host = steps.length ? resolveFallbackReceiver(cur, slotNode) : null;
+  if (!host) return null;
+  let { rhsNode } = host;
+  const descend = [];
+  for (const step of steps) {
+    const literal = unwrapRuntimeExpr(rhsNode);
+    if (literal?.type === 'ArrayExpression') {
+      // an OBJECT-pattern key can still name an array SLOT (`{ 0: { p } } = [R]` reads property '0'
+      // off the array, exactly as the language does): the one canonical index read, an INLINE-array
+      // spread expanded on the way (`[...[R]]` is a longer literal - `spreadIndex` says which item)
+      const index = step.key === undefined ? step.index : canonicalArrayIndex(step.key);
+      const coords = index === null ? null : resolveCallArgumentCoords(literal.elements, index);
+      if (!coords) return null;
+      rhsNode = resolveCallArgument(literal.elements, index);
+      if (!rhsNode) return null;
+      descend.push({ container: 'elements', index: coords.argIndex, spreadIndex: coords.elementIndex });
+    } else if (step.key === undefined || literal?.type !== 'ObjectExpression') {
+      return null;
+    } else {
+      // the LAST property spelling the key, a DATA one: the mirror swaps the value in place and keeps
+      // the level whole, so a spread or a key nothing names standing later overrides the mirrored slot
+      // exactly as it overrides the source's - only a getter's body is out of its reach
+      const match = literal.properties.findLast(prop => prop?.type !== 'SpreadElement' && spelledSlotName(prop) === step.key);
+      if (!match || objectPropertyReadValue(match) !== match.value) return null;
+      rhsNode = match.value;
+      descend.push({ container: 'properties', index: literal.properties.indexOf(match) });
+    }
+  }
+  return { ...host, rhsNode, hostPath: cur, descend };
+}
+
 // path-form companion of `resolveFallbackReceiver` for AST-mutation callers (babel's
 // synth-swap registers via NodePath). adapter-agnostic - both babel NodePath and
 // estree-toolkit Path expose `.get(key)` / `.get('arguments')[index]`
 export function resolveFallbackReceiverPath(wrapperPath, paramNode) {
   const desc = resolveFallbackReceiver(wrapperPath, paramNode);
   if (!desc) return null;
-  if (desc.slot) return wrapperPath.get(desc.slot);
-  // the descriptor's paramIndex counts EXPANDED positions - delegate the inline-array spread
-  // expansion to `resolveCallArgument` (the canonical semantics) and only LOCATE the resolved
-  // node's path here; raw `arguments[paramIndex]` indexed past the single SpreadElement and bailed
+  const hostReceiverPath = desc.slot ? (desc.hostPath ?? wrapperPath).get(desc.slot) : fallbackCallArgumentPath(desc);
+  let path = hostReceiverPath;
+  // a wrapped descriptor pairs level by level; the wrappers a level wears are stepped into on the
+  // way (the node form peeled them), so the path lands on the value the pair names - an array's
+  // element, or an object property's value (a getter's returned value is not a path this walk
+  // takes: the node form already declined to a plain data property)
+  for (const { container, index, spreadIndex = -1 } of desc.descend ?? []) {
+    while (path?.node && TRANSPARENT_EXPR_WRAPPER_TYPES.has(path.node.type)) path = path.get('expression');
+    if (path?.node?.type !== (container === 'elements' ? 'ArrayExpression' : 'ObjectExpression')) return null;
+    path = cachedContainerPaths(path, container)[index];
+    if (container === 'properties') path = path?.get('value');
+    else if (spreadIndex >= 0) path = cachedContainerPaths(path?.get('argument'), 'elements')[spreadIndex];
+  }
+  return path ?? null;
+}
+
+// the descriptor's paramIndex counts EXPANDED positions - delegate the inline-array spread
+// expansion to `resolveCallArgument` (the canonical semantics) and only LOCATE the resolved
+// node's path here; raw `arguments[paramIndex]` indexed past the single SpreadElement and bailed
+function fallbackCallArgumentPath(desc) {
   const target = resolveCallArgument(desc.callPath.node.arguments, desc.paramIndex);
   if (!target) return null;
   for (const argPath of desc.callPath.get('arguments')) {
@@ -7059,7 +7174,11 @@ export function isSynthSimpleObjectPattern(objectPattern) {
         walkPatternIdentifiers(objectPattern, n => bound.add(n.name));
       }
       if (bound.has(p.key.name)) return false;
-    } else if (computedKeyStaticName(p.key) === null && wksComputedKeyName(p.key) === null) {
+    // a key spelled through a bound identity CALL (`[k('at')]`) folds by scope, not by structure: the
+    // scoped plan names it or declines the pattern there, and an effect-bearing key is never replayed
+    // raw into the literal, so the shape passes here on its callee alone
+    } else if (computedKeyStaticName(p.key) === null && wksComputedKeyName(p.key) === null
+      && unwrapRuntimeExpr(p.key)?.callee?.type !== 'Identifier') {
       return false;
     }
   }
