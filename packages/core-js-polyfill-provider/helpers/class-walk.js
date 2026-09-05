@@ -5,6 +5,7 @@ import {
   CLASS_FIELD_TYPES,
   FUNCTION_LIKE_NODE_TYPES,
   LET_SCOPE_HOST_TYPES,
+  patternSlotTarget,
   POSSIBLE_GLOBAL_OBJECTS,
   SKIPPABLE_WRAPPER_TYPES,
   STATEMENT_HOST_TYPES,
@@ -463,7 +464,7 @@ function collectCtorAliasPairs({ pattern, init, ctx }) {
     (pattern.elements ?? []).forEach((el, i) => {
       // a slot default (`[{ Set: C } = f]`) unwraps like the alias judge's positional walk:
       // registration fires only off a known-global pair (always defined), so the default is dead
-      const slot = el?.type === 'AssignmentPattern' ? el.left : el;
+      const slot = patternSlotTarget(el);
       const initEl = initEls && pairedArrayWrapInitElement(initEls, i);
       if (slot?.type === 'ArrayPattern') {
         // deeper layer: recurse with the POSITIONALLY-paired init element (the top gate re-judges
@@ -861,7 +862,7 @@ function patternBindsNameNested(pattern, name) {
     }
     if (node?.type === 'ArrayPattern') {
       return (node.elements ?? []).some(el => {
-        const slot = el?.type === 'AssignmentPattern' ? el.left : el;
+        const slot = patternSlotTarget(el);
         if (slot?.type === 'RestElement') return walk(slot.argument, depth + 1);
         return slot?.type === 'Identifier' ? depth > 0 && slot.name === name : walk(slot, depth + 1);
       });
