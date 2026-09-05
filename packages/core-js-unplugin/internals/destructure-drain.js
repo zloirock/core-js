@@ -6,6 +6,7 @@ import {
   isInstanceSurfaceNav,
   isSeFreeMemberReceiver,
   firstPatternProp,
+  pruneHopFromLevels,
   resolveNestedReceiverBase,
   resolvePassthroughRef,
   staticHopPure,
@@ -384,6 +385,36 @@ function collectArrayDeclDrops({
   return carriedWrites;
 }
 
+// an uncovered STATIC slot off a CONSTRUCTOR receiver is that static's polyfill, not a raw read
+// (`{ [Symbol.iterator]: it, hasOwn }` over `Object` spells `hasOwn: _Object$hasOwn`, the other
+// leg's mirror): pushed where it resolves, so the fresh-read fallback never spells `Object.hasOwn`
+function pushConstructorStaticSlot({ receiverNode, key, metaPath, resolvePure, injectPureImport, pushSlot }) {
+  if (receiverNode?.type !== 'Identifier' || typeof key !== 'string') return false;
+  const pure = resolvePure({ kind: 'property', object: receiverNode.name, key, placement: 'static' }, metaPath);
+  if (pure?.kind !== 'static') return false;
+  pushSlot(identifier(injectPureImport(pure.entry, pure.hintName)));
+  return true;
+}
+
+// a host whose level keeps SIBLINGS (`hopSplitPlan`) stays where it is: the hop's prop leaves its
+// level, and the pair - memo, claims, and whatever the leaf kept, off the memo - stands beside the
+// statement: ahead of it where the hop led the host pattern, behind it otherwise. a host that
+// empties goes - nothing binds there any more, and its root is read nowhere else
+function splitHopOutOfHost({ job, kept, statements, body, at, declarators }) {
+  if (!job.split.chain[0].pattern.properties.includes(job.split.hopProp)) return false;
+  const hostEmptied = pruneHopFromLevels(job.split);
+  if (kept.length) {
+    job.leafPattern.properties = kept;
+    statements.push(variableDeclaration(job.declarationNode.kind, [variableDeclarator(job.leafPattern, identifier(job.refName))]));
+  }
+  if (hostEmptied) {
+    if (declarators.length > 1) declarators.splice(declarators.indexOf(job.declaratorNode), 1);
+    else body.splice(at, 1);
+    body.splice(at, 0, ...statements);
+  } else body.splice(job.split.placeBefore ? at : at + 1, 0, ...statements);
+  return true;
+}
+
 export default function createDestructureDrains(ctx) {
   const {
     adapter,
@@ -477,8 +508,8 @@ export default function createDestructureDrains(ctx) {
   }) {
     const defaulted = prop.value.type === 'AssignmentPattern';
     // the STATIC ponyfill an extraction binds is always defined, so a leaf's default is dead text at
-    // runtime - and keeps its guard at every depth all the same, the flat twin's spelling on both
-    // legs (`{ Array: { from = [] } } = globalThis` -> `_Array$from === void 0 ? [] : _Array$from`)
+    // runtime and drops at every depth (`{ Array: { from = [] } } = globalThis` -> `_Array$from`);
+    // the guard survives only where the read is a memo of a hop rather than the import itself
     const withDefault = defaulted;
     // the guard a DEFAULT owes wherever the dispatch spells its own receiver: the pure entry answers
     // `it.method` VERBATIM off a surface that is not the polyfilled one, so it may be undefined and the
@@ -544,11 +575,11 @@ export default function createDestructureDrains(ctx) {
         const leafId = injectPureImport(entry, hintName);
         const hopId = injectPureImport(typedHop.pure.entry, typedHop.pure.hintName);
         const { defaultHost } = typedHop;
-        // a STATIC outer step spells an import binding: always defined and free to re-read, so
-        // the static guard canon tests it in place - no memo, and no receiver to dispatch on
+        // a STATIC outer step spells an import binding: always defined, so its default is dead text
+        // and the leaf dispatches on the binding alone - no memo, and no receiver to dispatch on
         if (typedHop.pure.kind !== 'instance') {
           return () => callExpression(identifier(leafId), [renderStaticDefaultGuard({
-            read: identifier(hopId), defaultValue: defaultHost.right, reread: identifier(hopId),
+            read: identifier(hopId), defaultValue: defaultHost.right, reread: identifier(hopId), alwaysDefined: true,
           })]);
         }
         // a CATCH-BORN host cannot hoist a `var` past its own binding: the ref is block-scoped and
@@ -708,6 +739,7 @@ export default function createDestructureDrains(ctx) {
       read: identifier(id),
       defaultValue: staticValueNode.right,
       reread: identifier(id),
+      alwaysDefined: true,
     });
   }
 
@@ -794,6 +826,12 @@ export default function createDestructureDrains(ctx) {
         pushSlot(read);
         continue;
       }
+      // an uncovered STATIC slot off a constructor receiver is that static's polyfill, not a raw
+      // read (`{ [Symbol.iterator]: it, hasOwn }` over `Object` spells `hasOwn: _Object$hasOwn`,
+      // the other leg's mirror) - asked before the fresh-read fallback below
+      if (!computed && pushConstructorStaticSlot({
+        receiverNode: instanceReceiver, key: planEntry.lookupKey, metaPath, resolvePure, injectPureImport, pushSlot,
+      })) continue;
       // an INSTANCE-synth receiver is re-readable by construction, so an uncovered slot
       // reads through a clone of it (`other: [1, 2].other` - a fresh read, matching the
       // native fresh-value semantics)
@@ -1229,6 +1267,7 @@ export default function createDestructureDrains(ctx) {
       read: identifier(id),
       defaultValue: job.prop.value.right,
       reread: identifier(id),
+      alwaysDefined: true,
     });
   }
 
@@ -1625,7 +1664,7 @@ export default function createDestructureDrains(ctx) {
     // binding and keeps its kind
     const statements = [variableDeclaration('const', [memo]),
       ...claims.map(claim => variableDeclaration(kind, [claim]))];
-    if (!job.wrapperNode && kept.length) statements.push(variableDeclaration(kind, [job.declaratorNode]));
+    if (!job.wrapperNode && !job.split && kept.length) statements.push(variableDeclaration(kind, [job.declaratorNode]));
     // ... and the TRAILING twin spells that survivor itself: the wrapper's own declarator holds the
     // literal and stays, so what is kept takes a declarator of its own off the memo
     if (job.wrapperNode && job.trailResidual && kept.length) {
@@ -1647,6 +1686,11 @@ export default function createDestructureDrains(ctx) {
     if (!live) return;
     const { at } = live;
     const declarators = live.declaration?.declarations ?? job.declarationNode.declarations;
+    if (job.split) {
+      for (const item of jobs) markSubtreeSkipped(item.prop);
+      if (splitHopOutOfHost({ job, kept, statements, body, at, declarators })) markRewrite(hostNode);
+      return;
+    }
     rewriteFlattenResidual(job, kept, jobs);
     // a SIBLING declarator keeps the declaration NODE alive: another route may be rewriting one of
     // those siblings off this very node, and replacing it wholesale drains that rewrite onto a tree

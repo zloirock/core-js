@@ -32,7 +32,7 @@ export const nestedQuote = _includesMaybeString(_ref5 = _JSON$stringify({
 // default re-emitted from source can hold brackets and an ` = ` of its own
 let seCount = 0;
 seCount++;
-export const hypot = _Math$hypot === void 0 ? ')' : _Math$hypot;
+export const hypot = _Math$hypot;
 let seCount2 = 0;
 seCount2++;
-export const trunc = _Math$trunc === void 0 ? '} = x' : _Math$trunc;
+export const trunc = _Math$trunc;
