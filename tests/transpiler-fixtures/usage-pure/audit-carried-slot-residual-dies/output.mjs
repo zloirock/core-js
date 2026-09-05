@@ -45,11 +45,9 @@ let keptSibling, keptOther, keptKey, keptLen, twoEffects, twoEffectsZ;
 // lifting its own prefix into the residual, so dropping that residual would drop the lift while
 // keeping it would re-read what the dispatch spells
 let out, seqElement;
-[{
-  at: seqElement
-}] = [(out = 1, _flatMaybeArray(arr).call(arr))];
 // the assignment DISCARDED as a sequence element drops its residual by a route of its own, and it
 // owes the same pairing: the dispatch carries the init, so the element must not re-emit it
+seqElement = _atMaybeArray((out = 1, _flatMaybeArray(arr).call(arr)));
 let viaSeqElement, seqTail;
 seqTail = (viaSeqElement = _atMaybeArray(_flatMaybeArray(arr).call(arr)), 5);
 export { viaNestedCall, viaTwoSlots, viaBodylessCarried, out };

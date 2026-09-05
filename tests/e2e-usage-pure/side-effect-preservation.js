@@ -467,23 +467,22 @@ QUnit.test('SE-sequence init: prefix runs before the extraction reads the receiv
 // the native is absent. single-pass legs keep the bail-to-native contract
 const POST_LOWERED = typeof E2E_POST_LOWERED !== 'undefined';
 
-// NESTED fragment under an SE prefix bails to native (an extraction would reorder the prefix);
-// the prefix still runs exactly once
-QUnit.test('SE-sequence nested fragment: bails native, prefix runs once', assert => {
+// NESTED fragment under an SE prefix beside a surviving sibling: the slot memoizes ahead of the
+// declaration (`const _ref = (ran++, arr2)`), so the ponyfill lands, the sibling still binds and
+// the prefix runs exactly once
+QUnit.test('SE-sequence nested fragment: prefix runs once, the ponyfill lands', assert => {
   let ran = 0;
   const arr2 = [1, [2]];
   const { y: { flat: m }, q } = { y: (ran++, arr2), q: 1 };
-  // the bail keeps the NATIVE read: `m` mirrors native availability (undefined on engines
-  // without Array#flat - pure never mutates prototypes); the invariant is the SE count
-  const nativeFlat = POST_LOWERED || Object.getOwnPropertyDescriptor(Array.prototype, 'flat') ? 'function' : 'undefined';
-  assert.same(typeof m, nativeFlat);
+  assert.same(typeof m, 'function');
+  assert.deepEqual(m.call(arr2), [1, 2]);
   assert.same(q, 1);
   assert.same(ran, 1);
 });
 
 // a literal receiver nesting a member READ is never emitted twice: with a surviving residual
-// sibling the extraction backs off entirely, so the getter behind the read fires exactly once,
-// like the native single evaluation
+// sibling the slot memoizes and both readers take the ref, so the getter behind the read fires
+// exactly once, like the native single evaluation - and the ponyfill lands
 QUnit.test('literal receiver with member read: source getter fires once', assert => {
   let fires = 0;
   const holder = {
@@ -494,9 +493,7 @@ QUnit.test('literal receiver with member read: source getter fires once', assert
     },
   };
   const { y: { flat: m }, q } = { y: [holder.p], q: 1 };
-  // bail-to-native: `m` mirrors native availability; the invariant is the single getter fire
-  const nativeFlat = POST_LOWERED || Object.getOwnPropertyDescriptor(Array.prototype, 'flat') ? 'function' : 'undefined';
-  assert.same(typeof m, nativeFlat);
+  assert.same(typeof m, 'function');
   assert.same(q, 1);
   assert.same(fires, 1);
 });

@@ -3,13 +3,13 @@
 // drops - and an emptied host drops too. the boundaries below each keep the slot for a reason of
 // their own, and the residual then reads the nav BESIDE the dispatch, which is what the receiver
 // gate weighs
+import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _copyWithinMaybeArray from "@core-js/pure/actual/array/instance/copy-within";
 import _fillMaybeArray from "@core-js/pure/actual/array/instance/fill";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _flatMapMaybeArray from "@core-js/pure/actual/array/instance/flat-map";
+import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 import _globalThis from "@core-js/pure/actual/global-this";
-import _at from "@core-js/pure/actual/instance/at";
-import _includes from "@core-js/pure/actual/instance/includes";
 
 declare const userNs: { Array: { prototype: number[] } };
 
@@ -30,7 +30,7 @@ kept = _flatMaybeArray(userNs.Array.prototype);
 // a top-level SIBLING keeps the host, not the slot: what it reads is the assignment's own receiver
 ({ z } = _globalThis);
 
-sibling = _at(_globalThis.Array.prototype);
+sibling = _atMaybeArray(_globalThis.Array.prototype);
 
 // a REST keeps the emptied hop under a sentinel - the rest must go on excluding that key, so the
 // residual still reads `globalThis.Array` beside the dispatch
@@ -48,6 +48,6 @@ wrapped = _flatMapMaybeArray(_globalThis.Array.prototype);
 // SE-key channel's own question, not this one's
 ({ [(effect(), 'includes')]: computed } = _globalThis.Array.prototype);
 
-computed = _includes(_globalThis.Array.prototype);
+computed = _includesMaybeArray(_globalThis.Array.prototype);
 
 export { dropped, kept, sibling, other, rest, wrapped, computed, z };

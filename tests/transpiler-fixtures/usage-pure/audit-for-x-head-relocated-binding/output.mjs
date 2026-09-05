@@ -30,7 +30,7 @@ for (const _ref of [rows]) {
 for (const _ref3 of [nested]) {
   let [_ref2] = _ref3;
   let _ref4 = _ref2.y;
-  let at = _at(_ref4);
+  let at = _atMaybeArray(_ref4);
   let {
     at: _unused2,
     ...rest
@@ -94,7 +94,7 @@ for (const _ref9 of [{
   keep: 5
 }]) {
   const _ref10 = _ref9.y;
-  let viaSibling = _at(_ref10);
+  let viaSibling = _atMaybeArray(_ref10);
   let {
     keep
   } = _ref10;

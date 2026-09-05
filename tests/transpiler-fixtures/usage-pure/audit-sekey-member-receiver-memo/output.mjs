@@ -4,6 +4,7 @@ import _flatMapMaybeArray from "@core-js/pure/actual/array/instance/flat-map";
 import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 import _joinMaybeArray from "@core-js/pure/actual/array/instance/join";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
+var _ref5;
 // a side-effect-key destructure off a side-effect-free MEMBER receiver with a SURVIVING residual
 // memoizes the receiver: the residual and the extraction read the shared binding, so a getter
 // fires exactly once (like the native single read) and the polyfill lands. the memo joins a
@@ -47,11 +48,12 @@ const eff = [];
 const {
   q: qq,
   p: {
-    [(_pushMaybeArray(eff).call(eff, 'key'), 'flat')]: m2,
+    [(_pushMaybeArray(eff).call(eff, 'key'), 'flat')]: _unused5,
     other2
   }
 } = {
   q: (_pushMaybeArray(eff).call(eff, 'se'), 1),
-  p: holder.p
+  p: _ref5 = holder.p
 };
+const m2 = _flatMaybeArray(_ref5);
 export const r5 = [typeof m2, typeof other2, qq, _joinMaybeArray(eff).call(eff, ',')];

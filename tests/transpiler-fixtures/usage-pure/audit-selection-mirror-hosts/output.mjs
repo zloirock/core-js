@@ -56,7 +56,7 @@ export const t3 = (() => {
 })();
 export const t4 = (() => {
   let from;
-  from = _Array$from;
+  from = _Array$from === void 0 ? fb : _Array$from;
   return from([4]);
 })();
 use(t1, t2, t3, t4);

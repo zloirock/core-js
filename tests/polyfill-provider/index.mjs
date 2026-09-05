@@ -8,6 +8,7 @@ import './array-wrapper-drop.mjs';
 import './existing-imports.mjs';
 import './synth-wks-keys.mjs';
 import './destructure-collapse.mjs';
+import './fallback-branches.mjs';
 import './guard-canon.mjs';
 import './wrapper-peels.mjs';
 import './detect-syntax.mjs';

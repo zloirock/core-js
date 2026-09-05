@@ -84,7 +84,7 @@ export const viaSeKeySibling = [kf, nm];
 
 // host variants keep the deferred routing: a `var` kind threads into the memo hoist, a
 // multi-declarator declaration hosts the extraction beside its sibling declarators
-var _ref13 = [10, 11];
+const _ref13 = [10, 11];
 
 var {
 	next: varNext = _withMaybeArray(_ref12 = [1]).call(_ref12, 0, 2)
