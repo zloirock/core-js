@@ -16,6 +16,7 @@ import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Object$assign from "@core-js/pure/actual/object/assign";
 import _Object$defineProperty from "@core-js/pure/actual/object/define-property";
 import _Object$entries from "@core-js/pure/actual/object/entries";
+import _Object$getOwnPropertyDescriptor from "@core-js/pure/actual/object/get-own-property-descriptor";
 import _Object$getOwnPropertyNames from "@core-js/pure/actual/object/get-own-property-names";
 import _Object$getOwnPropertySymbols from "@core-js/pure/actual/object/get-own-property-symbols";
 import _Object$keys from "@core-js/pure/actual/object/keys";
@@ -158,13 +159,13 @@ const twoLevelContainer = function () {
 // destructure and member sides must not disagree about what a container holds
 const memberReadThroughSlot = function () {
   const box = [Object];
-  return box[0].getOwnPropertyNames({});
+  return _Object$getOwnPropertyNames({});
 }();
 const memberReadThroughObjectKey = function () {
   const w = {
     k: Object
   };
-  return w.k.getOwnPropertyDescriptor({}, 'a');
+  return _Object$getOwnPropertyDescriptor({}, 'a');
 }();
 // NEGATIVE: a hoisted `var` container declared on a path the read ESCAPES is not the value read
 // here, so the same dominance gate the key-alias fold uses keeps it native

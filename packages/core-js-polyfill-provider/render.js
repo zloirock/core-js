@@ -421,7 +421,11 @@ export function renderInstanceDefaultGuard({ assignedRef, call, defaultValue, re
 }
 
 // the static twin: the read needs no memo (an import binding or a plain ref re-reads for
-// free), so the guard tests it directly - `<read> === void 0 ? <default> : <reread>`
-export function renderStaticDefaultGuard({ read, defaultValue, reread }) {
+// free), so the guard tests it directly - `<read> === void 0 ? <default> : <reread>`.
+// `alwaysDefined`: the read is the polyfill's own import binding, which the guard can never see
+// undefined - the user's default is dead text there and the value is the binding alone
+// (`const { from: F = fb } = Array` -> `const F = _Array$from`), on both legs alike
+export function renderStaticDefaultGuard({ read, defaultValue, reread, alwaysDefined = false }) {
+  if (alwaysDefined) return reread;
   return conditionalExpression(binaryExpression('===', read, voidZero()), defaultValue, reread);
 }

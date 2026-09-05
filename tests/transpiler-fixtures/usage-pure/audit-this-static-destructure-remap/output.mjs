@@ -120,7 +120,7 @@ export const viaForInit = ForInit.m();
 // cannot mint a sentinel binding, so the declarator extraction canon is unavailable)
 class KeyDefault extends Array {
   static m() {
-    const from = _Array$from === void 0 ? 1 : _Array$from;
+    const from = _Array$from;
     return from;
   }
 }

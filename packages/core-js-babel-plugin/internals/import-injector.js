@@ -340,6 +340,13 @@ export default class ImportInjector extends ImportInjectorState {
         continue;
       }
       const declPath = binding.path.parentPath;
+      // a LOOP HEAD binding (the relocated for-x head's minted name, its pattern extracted whole
+      // below) is the loop's `left`: the loop still iterates, so the head stays, unread or not
+      const loop = declPath.parentPath?.node;
+      if ((loop?.type === 'ForOfStatement' || loop?.type === 'ForInStatement') && loop.left === declPath.node) {
+        survivor = true;
+        continue;
+      }
       if (declPath.node.declarations.length === 1) declPath.remove();
       else binding.path.remove();
     }

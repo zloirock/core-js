@@ -5,7 +5,7 @@ import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
 // destructure default in static destructure: `const { from = () => [] } = Array`. the
 // default is unreachable (Array is non-nullable), but the binding must still register
 // as an Array.from alias so subsequent instance methods narrow to array-specific entries
-const from = _Array$from === void 0 ? () => [] : _Array$from;
+const from = _Array$from;
 const arr = from('hi');
 _atMaybeArray(arr).call(arr, -1);
 _findLastMaybeArray(arr).call(arr, p => p);
