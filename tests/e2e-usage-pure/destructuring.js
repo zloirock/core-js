@@ -5791,3 +5791,26 @@ QUnit.test('destructuring: a constructor under a literal hop beside a sibling pr
   assert.same(navAssign.call([8], -1), 8, 'an assignment host navigating below a realm slot dispatches');
   assert.same(na, 4);
 });
+
+QUnit.test('destructuring: a selecting receiver under a wrapper mirrors per branch', assert => {
+  const userObj = { from: () => 'user', keys: () => 'user' };
+  for (const pick of [true, false]) {
+    const [{ from: viaElement }] = [pick ? Array : userObj];
+    const [{ from: viaDefault } = {}] = [pick ? Array : userObj];
+    const { w: { keys: viaKeyed } } = { w: pick ? Object : userObj };
+    function viaParam([{ from: f }] = [pick ? Array : userObj]) { return f; }
+    if (pick) {
+      assert.same(typeof viaElement, 'function', 'the element arm binds the polyfill');
+      assert.same(viaElement('ab').length, 2, '... and it works');
+      assert.same(viaDefault('ab').length, 2, 'the defaulted element binds the polyfill');
+      assert.same(viaKeyed({ a: 1 }).length, 1, 'the keyed level binds the polyfill');
+      assert.same(viaParam()('ab').length, 2, 'the parameter default binds the polyfill');
+    } else {
+      assert.same(viaElement(), 'user', 'the user arm keeps its own value');
+      assert.same(viaDefault(), 'user', '... under a defaulted element too');
+      assert.same(viaKeyed(), 'user', '... and under a keyed level');
+      assert.same(viaParam()(), 'user', '... and in a parameter default');
+    }
+    assert.same(viaParam([userObj])(), 'user', 'a passed argument destructures natively');
+  }
+});

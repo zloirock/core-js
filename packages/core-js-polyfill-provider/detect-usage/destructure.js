@@ -11,6 +11,7 @@ import {
   asProxyGlobalName,
   assignmentAliasHintSoundAtRead,
   bindingPolyfillHint,
+  cachedContainerPaths,
   canHoldBuiltIn,
   computedKeyHasSideEffects,
   createInstanceNodeCache,
@@ -74,6 +75,7 @@ import {
   statementListOf,
   staticMemberKeyName,
   synthSlotName,
+  synthSwapPropKey,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   unwrapCollectingSePrefixes,
   unwrapExpressionChain,
@@ -2193,7 +2195,16 @@ export function resolveNestedReceiverNode(leafPath,
   const segs = [];
   let pattern = leafPath.parentPath;
   while (isDestructurePattern(pattern?.node)) {
-    const owner = pattern.parentPath;
+    let owner = pattern.parentPath;
+    // the SLOT the owner pairs is the pattern, or the transparent inner default around it
+    // (`[{ at } = {}] = [g]`, `{ w: { at } = {} } = { w: g }`): the paired value is read first and
+    // the default fires only where it is undefined, so the pair stays the receiver the leaf reads -
+    // the step the array-wrap classification and the mirror host take over the same default
+    let slotNode = pattern.node;
+    if (owner?.node?.type === 'AssignmentPattern' && owner.node.left === slotNode && isInnerDestructureDefault(owner)) {
+      slotNode = owner.node;
+      owner = owner.parentPath;
+    }
     const ownerType = owner?.node?.type;
     if (ownerType === 'ObjectProperty' || ownerType === 'Property') {
       // through the canonical resolver on BOTH sides of the later match: a raw `.value` compares the
@@ -2208,20 +2219,20 @@ export function resolveNestedReceiverNode(leafPath,
       continue;
     }
     if (ownerType === 'ArrayPattern') {
-      const index = owner.node.elements.indexOf(pattern.node);
+      const index = owner.node.elements.indexOf(slotNode);
       if (index === -1) return null;
       segs.unshift({ index });
       pattern = owner;
       continue;
     }
     // the hosts whose value the pattern READS: a declarator, an assignment, a PARAMETER (its default,
-    // or the IIFE argument the canon prefers); an inner default (`{ k: { at } = {} }`) is a fallback the
-    // slot may never take, not a receiver, and stays with the routes that guard it
-    const paramOwner = (ownerType === 'AssignmentPattern' && owner.node.left === pattern.node
+    // or the IIFE argument the canon prefers); a RECEIVER-shaped inner default (`{ k: { at } = Array }`)
+    // is the routes' own guarded fallback, not a receiver, and stays with them
+    const paramOwner = (ownerType === 'AssignmentPattern' && owner.node.left === slotNode
       && FUNCTION_LIKE_NODE_TYPES.has(owner.parentPath?.node?.type))
-      || (FUNCTION_LIKE_NODE_TYPES.has(ownerType) && owner.node.params?.includes(pattern.node));
+      || (FUNCTION_LIKE_NODE_TYPES.has(ownerType) && owner.node.params?.includes(slotNode));
     const rhs = ownerType === 'VariableDeclarator' || ownerType === 'AssignmentExpression' || paramOwner
-      ? destructureReceiverNode(owner, pattern.node) : null;
+      ? destructureReceiverNode(owner, slotNode) : null;
     if (!rhs) return null;
     // a kept WRITE is a prefix like any other for a caller that keeps it: the residual still performs
     // it (the overwrite hosts) or the render lifts it (the extraction hosts), and the value it stores
@@ -3426,7 +3437,7 @@ function selfHostAllowed(cur, leafPatternPath) {
 export function mirrorAcceptedKey({ prop, scope, adapter, path, seenKeys }) {
   if (prop.type !== 'Property' && prop.type !== 'ObjectProperty') return null;
   const key = prop.computed
-    ? sharedResolveKey({ node: prop.key, computed: true, scope, adapter, bailOnSideEffectKey: false })
+    ? sharedResolveKey({ node: prop.key, computed: true, scope, adapter, bailOnSideEffectKey: false, keepsKeyNode: true })
     : prop.key?.name ?? prop.key?.value;
   if (typeof key !== 'string' || seenKeys.has(key)) return null;
   if (!isValidIdentifierName(key)) return null;
@@ -3948,7 +3959,10 @@ export function synthPropDedupKey(prop, { scope, path, adapter }) {
   if (wks !== null) return `[@@${ wks }]`;
   const { lookupKey, slotKey } = resolveSynthKeys({ node: prop, scope, adapter, path });
   if (!slotKey || (!lookupKey && !/^\[[$a-z_][\w$]*\]$/i.test(slotKey))) return null;
-  return synthSlotName(prop) ?? slotKey;
+  // ... a key named by SCOPE alone (no structural slot: a bound identity call) collapses onto the slot
+  // its resolved name spells, as a folded string spelling of that name does; a bound-identifier key
+  // keeps its own `[k]` slot beside the plain spelling, the literal carrying both
+  return synthSlotName(prop) ?? (synthSwapPropKey(prop) === null && typeof lookupKey === 'string' ? lookupKey : slotKey);
 }
 
 // the pattern's synth render plan, computed once per pending: one entry per distinct
@@ -4451,15 +4465,35 @@ export function classifyDestructureLeafHost({ objectPattern }) {
   }
 }
 
+// the pair the per-branch mirror reads for a wrapped leaf, kept only while it SELECTS: the mirror
+// swaps an arm in place and leaves the level whole, so a spread or a key nothing names standing
+// beside the slot cannot mislead it - where every other consumer of the pair would drop that level
+function selectingMirrorPair(objectPattern) {
+  const pair = resolveFallbackReceiver(objectPattern.parentPath, objectPattern.node)?.rhsNode;
+  const value = unwrapTransparentSeq(pair);
+  return value?.type === 'ConditionalExpression' || value?.type === 'LogicalExpression' ? pair : null;
+}
+
 // no constructor NAMED for a nested / array-wrapped leaf: the leaf reads the paired VALUE, and that
 // value answers through the flat canon - ONE meta for `{ at } = g` and `{ w: { at } } = { w: g }`
 // (the guarded-alias route with its write enumeration, the reachable union, the string literal's
 // own type) where a typeless carrier fabricated rows the flat spelling never made. an unpaired
 // slot keeps the typeless carrier: the type engine reads those downstream
+// the slot is read AS WRITTEN, prefix and all, the way the flat leaf hands its init over: the meta
+// funnel owns the selection inside (`[{ from }] = [c ? Array : o]` flags its fallback exactly as
+// `{ from } = c ? Array : o` does), and a walk that only answered a settled value left every
+// selecting slot typeless - and the mirror unreachable - on both legs
 function pairedBindingLeafMeta(objectPattern, { key, adapter, unionSink, resolveStaticKey }) {
-  // the resolver climbs from a LEAF's parent, and the pattern is every leaf's parent
-  const paired = objectPattern
-    ? resolveNestedReceiverNode({ parentPath: objectPattern, scope: objectPattern.scope }, { adapter }) : null;
+  // the resolver climbs from a LEAF's parent, and the pattern is every leaf's parent: any of its
+  // property paths is that leaf - a REAL path, since the key canon on the way asks the scope
+  // through it (a bare `{ parentPath }` stand-in crashed babel's binding rebuild)
+  const leaf = objectPattern ? cachedContainerPaths(objectPattern, 'properties')[0] : null;
+  // ... and where that walk declines a level a consumer that DROPS it could not take (a later spread
+  // or key), a SELECTING pair still names what the leaf may hold: its only consumer is the per-branch
+  // mirror, which keeps the level whole. a settled value stays typeless there - the extraction routes
+  // read a named meta as their pairing verdict, and the level is exactly what they would drop
+  const paired = (leaf ? resolveNestedReceiverNode(leaf, { adapter, allowInitCarriedEffects: true }) : null)
+    ?? (objectPattern ? selectingMirrorPair(objectPattern) : null);
   if (!paired) return { kind: 'property', object: null, key, placement: null };
   return buildDestructuringInitMeta({
     initNode: paired, key, scope: objectPattern.scope, adapter, path: objectPattern, unionSink, resolveStaticKey,
