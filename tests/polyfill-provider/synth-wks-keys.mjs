@@ -6,6 +6,8 @@ import {
   hasRealBinding,
   isReplayableSynthKey,
   isSynthSimpleObjectPattern,
+  spelledSlotName,
+  synthSlotName,
   synthSwapPropKey,
   wksComputedKeyName,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
@@ -25,6 +27,17 @@ function member(objectName, propertyName) {
     property: { type: 'Identifier', name: propertyName },
   };
 }
+// a computed key whose value is only reachable past an effect - the one shape the two namers split on
+function sequenceKey(value) {
+  return {
+    type: 'SequenceExpression',
+    expressions: [
+      { type: 'CallExpression', callee: { type: 'Identifier', name: 'eff' }, arguments: [] },
+      { type: 'StringLiteral', value },
+    ],
+  };
+}
+
 function prop(key, computed) {
   return { type: 'ObjectProperty', computed, key, value: { type: 'Identifier', name: 'v' } };
 }
@@ -197,6 +210,18 @@ runBoth('plan/se key drops its source spelling', 'const { [(eff(), "from")]: f }
   check(`${ lbl } lookup`, plan?.[0]?.lookupKey, 'from');
   check(`${ lbl } source key`, plan?.[0]?.keyNode, null);
 });
+
+// the SPELLED slot and the FOLDED one part company on exactly one axis: a key that evaluates
+// something. every consumer that CONSUMES a prop asks the spelled namer, so the fold may not
+// answer there - the effect would leave with the key
+check('spelled/identifier key', spelledSlotName(prop({ type: 'Identifier', name: 'from' }, false)), 'from');
+check('spelled/string key', spelledSlotName(prop({ type: 'StringLiteral', value: 'from' }, false)), 'from');
+check('spelled/numeric key', spelledSlotName(prop({ type: 'NumericLiteral', value: 0 }, false)), '0');
+check('spelled/computed string key', spelledSlotName(prop({ type: 'StringLiteral', value: 'from' }, true)), 'from');
+check('spelled/computed identifier key', spelledSlotName(prop({ type: 'Identifier', name: 'k' }, true)), null);
+check('spelled/computed wks key', spelledSlotName(prop(member('Symbol', 'iterator'), true)), null);
+check('spelled/se-folding key', spelledSlotName(prop(sequenceKey('from'), true)), null);
+check('folded/se-folding key', synthSlotName(prop(sequenceKey('from'), true)), 'from');
 
 // a REST prop has no slot to render - the whole plan declines
 runBoth('plan/rest declines', 'const { at, ...r } = o;', (adapter, prog, lbl) => {

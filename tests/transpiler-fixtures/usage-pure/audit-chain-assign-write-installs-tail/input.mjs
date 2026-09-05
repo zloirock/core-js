@@ -2,6 +2,8 @@
 // installs `V` whatever channel later reads the alias: a bare receiver, a computed key, a callee, an
 // array-wrapper alias, a class base and a class static container. one write-value canon answers
 // them all - a channel judging the raw `y = V` node resolves nothing and drops the polyfill
+// the bare receiver takes the tail as the ONE value its read observes: the dominating write is the
+// live value, so the static binds the ponyfill outright - no runtime ctor guard is owed
 
 let recv = Object, r2;
 recv = r2 = Array;

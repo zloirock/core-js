@@ -25,12 +25,11 @@ const {
   } = _ref3,
   viaCallRecv = _atMaybeArray(_ref3); // ... and the same pair on an EXPORTED host, where the undeclared name was a parse error
 const _ref4 = eff();
-export const viaExported = _atMaybeArray(_ref4);
 export const viaExportedSibling = _flatMaybeArray(_ref4);
 export const {
   [(_pushMaybeArray(log).call(log, 'k3'), 'at')]: _unused3
 } = _ref4;
-// ... while a lone SE-key claim and a pair without one already agreed
+export const viaExported = _atMaybeArray(_ref4); // ... while a lone SE-key claim and a pair without one already agreed
 const _ref5 = eff();
 const viaLoneSeKey = _atMaybeArray(_ref5);
 const {

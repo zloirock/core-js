@@ -22,8 +22,7 @@ export { at3, keys3, other3 };
 const [{ at: at4, ...rest }] = [arr];
 export { at4, rest };
 
-// NEGATIVE: a BODYLESS control slot has no statement list to plant the memo in - planting it
-// would block-wrap the body and re-point the declaration the strategy still reads, so the
-// element is spelled raw there
+// ... and a BODYLESS control slot takes the memo as the leading declarator of the one `var`
+// the slot holds, the reads following it
 if (cond) var [{ at: at5, keys: keys5 }] = [c ? arr : other];
 export { at5, keys5 };

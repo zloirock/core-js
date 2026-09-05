@@ -17,7 +17,7 @@ import {
   findVarOwnerDeclaring,
   cleanDestructureAliasWrites,
   definitionTimeSlotOf,
-  isConditionalExpressionSlot,
+  conditionalEvaluationEdge,
   isDeclaratorSelfViolation,
   isDestructurePattern,
   isGuardedAliasingWrite,
@@ -40,6 +40,7 @@ import {
   unwrapSafeSequenceTail,
   varInitDominatesUsage,
   withoutValuelessDeclarationViolations,
+  pureReturnBodyValue,
 } from './ast-patterns.js';
 // the proxy-global recogniser lives with the value canon it narrows ():
 // asking "does this binding hold a proxy global" is asking the canon what the binding holds and
@@ -372,15 +373,6 @@ export function assignmentAliasWriteTrusted({ binding, assignNode, stmtPath, rea
   return unconditionalStatementPlacement(stmtPath, declarator, readNode);
 }
 
-// plan-level trust registration for ctor-alias extractions (`kind: 'global'`): run the checked
-// registration once per plan (assignment host -> single trusted write; declaration host -> `var`-
-// placement rule; a BINDING-LESS name - `({ Promise } = globalThis)` writing the global itself -
-// registers trusted, there is no user binding whose writes could contradict the hint). a REFUSED
-// registration only withholds the member-narrow HINT: the value swap itself stays - it is value-
-// correct on every path (the polyfill lands exactly when the native write would run), and dropping
-// it would strip the polyfill from conditional forms (`while (c) var { Promise } = globalThis`).
-// registrations happen HERE (render sites must not re-register - a plain re-register would erase a
-// trusted write span); `aliasGated` makes the cached-plan re-entry a no-op
 // trusted registration for a BINDING-LESS ctor-alias name (`({ Promise } = globalThis)` -
 // writing the global itself, no user binding to contradict the hint). the hint asserts "this
 // name IS the pristine global"; once the name's own slot is recorded mutated, the assertion
@@ -396,6 +388,15 @@ export function registerBindinglessCtorAlias({ injector, adapter, localName, hin
   injector.registerGlobalAlias(localName, hint, { trusted: true });
 }
 
+// plan-level trust registration for ctor-alias extractions (`kind: 'global'`): run the checked
+// registration once per plan (assignment host -> single trusted write; declaration host -> `var`-
+// placement rule; a BINDING-LESS name - `({ Promise } = globalThis)` writing the global itself -
+// registers trusted, there is no user binding whose writes could contradict the hint). a REFUSED
+// registration only withholds the member-narrow HINT: the value swap itself stays - it is value-
+// correct on every path (the polyfill lands exactly when the native write would run), and dropping
+// it would strip the polyfill from conditional forms (`while (c) var { Promise } = globalThis`).
+// registrations happen HERE (render sites must not re-register - a plain re-register would erase a
+// trusted write span); `aliasGated` makes the cached-plan re-entry a no-op
 export function registerCtorAliasExtractions({ plan, declarator, scope, adapter, injector, path }) {
   if (!plan || plan.aliasGated) return plan;
   plan.aliasGated = true;
@@ -531,20 +532,6 @@ export function hasCtorAliasCandidateShapes(programNode) {
 // the way (if / loops / try / switch / labeled bodies) makes execution path-dependent -> false.
 // the walk starts at the statement's PARENT (the statement node itself - ExpressionStatement /
 // VariableDeclaration - is not judged)
-// does the member/call chain contain an optional hop AT `node` or on its spine BELOW it (toward
-// the chain root)? guards non-spine slot evaluation. both parser spellings covered: babel names
-// every post-`?.` node Optional* with per-hop `optional` flags; estree keeps plain Member/Call
-// with `optional: true` on the hop itself under a ChainExpression wrapper
-function spineHasOptionalHop(node) {
-  for (let cur = node; cur;) {
-    if (cur.optional === true) return true;
-    if (cur.type === 'MemberExpression' || cur.type === 'OptionalMemberExpression') cur = cur.object;
-    else if (cur.type === 'CallExpression' || cur.type === 'OptionalCallExpression') cur = cur.callee;
-    else break;
-  }
-  return false;
-}
-
 // the statements whose HEAD slot is an expression evaluated whenever the statement runs: the tests,
 // the switch discriminant, and the for-of / for-in subject. a climb over expressions can reach one of
 // these only from that head - every other slot is a statement, and the climb breaks at its own host.
@@ -589,28 +576,19 @@ function unconditionalStatementPlacement(stmtPath, withinNode = null, readNode =
     // "conditional" from a walk that had lost its terminator. a slot that runs on SOME evaluations
     // of its statement only - a loop update, a do-while test, a `case` test, a for-x head - is
     // refused first: the statement runs, the write may not
-    if (isConditionalExpressionSlot(parent?.node, stmt.node)) return false;
+    if (conditionalEvaluationEdge(parent?.node, stmt.node)) return false;
     if (CONTROL_TEST_HOSTS.has(parentType)) {
       stmt = parent;
       break;
     }
-    if (parentType && !STATEMENT_HOST_TYPES.has(parentType)) {
-      // a function boundary makes the write run on an unknown call - UNLESS the read this trust is
-      // asked for stands inside that same function: then either both run or neither does, and the
-      // edges below have already proven the write unconditional within it. a class FIELD initializer
-      // defers the same way (it runs per instantiation), and answers to the same rule
-      if (FUNCTION_LIKE_NODE_TYPES.has(parentType) || CLASS_FIELD_TYPES.has(parentType)) {
-        return typeof readNode?.start === 'number' && typeof parent.node.start === 'number'
-          && readNode.start >= parent.node.start && readNode.end <= parent.node.end;
-      }
-      if (parentType === 'ConditionalExpression' && parent.node.test !== stmt.node) return false;
-      if (parentType === 'LogicalExpression' && parent.node.left !== stmt.node) return false;
-      const isMemberOrCall = parentType === 'OptionalMemberExpression' || parentType === 'OptionalCallExpression'
-        || parentType === 'MemberExpression' || parentType === 'CallExpression';
-      if (isMemberOrCall) {
-        const spineSlot = parent.node.object === stmt.node || parent.node.callee === stmt.node;
-        if (!spineSlot && spineHasOptionalHop(parent.node)) return false;
-      }
+    // a function boundary makes the write run on an unknown call - UNLESS the read this trust is
+    // asked for stands inside that same function: then either both run or neither does, and the
+    // edges below have already proven the write unconditional within it. a class FIELD initializer
+    // defers the same way (it runs per instantiation), and answers to the same rule
+    if (parentType && !STATEMENT_HOST_TYPES.has(parentType)
+      && (FUNCTION_LIKE_NODE_TYPES.has(parentType) || CLASS_FIELD_TYPES.has(parentType))) {
+      return typeof readNode?.start === 'number' && typeof parent.node.start === 'number'
+        && readNode.start >= parent.node.start && readNode.end <= parent.node.end;
     }
     stmt = parent;
   }
@@ -1115,14 +1093,31 @@ function isNamespaceContainer(node) {
   return node?.type === 'ClassDeclaration' || node?.type === 'ClassExpression' || node?.type === 'ObjectExpression';
 }
 
-// the value a namespace-shaped container binds to `propName`, scanning its members
-// in REVERSE so the LAST member with the key wins, matching JS runtime semantics: `{ Base: Promise,
-// Base: Object }` evaluates `NS.Base` to Object. a method / getter / setter that wins the key is a
-// DYNAMIC value, not a static container, so bail on it - consistently on both parsers (babel emits
-// ObjectMethod / a non-field ClassMethod, oxc a Property/MethodDefinition carrying `method` or a
-// non-`init` kind), else a data+getter duplicate key resolved the earlier data value on babel
-// [ObjectMethod skipped] but bailed on oxc [Property matched] -> wrong sub + cross-parser divergence
-export function findNamespaceMemberValue(container, propName, scope, adapter, resolveKey) {
+// the value a READ of this static member yields, or null when the read is dynamic: a method
+// shorthand hands back a function the reader would read THROUGH, a setter-won key answers
+// `undefined`, and a getter answers whatever its body computes - so only a body that is ONE PURE
+// RETURN names a value this walk may hand on. babel spells accessors and method shorthands as
+// `ObjectMethod` / `ClassMethod`, ESTree as a `Property` / `MethodDefinition` carrying `kind` and
+// `method` - both spellings reach one reading, or the two legs answer differently about one source
+function staticMemberReadValue(member) {
+  const kind = member.type === 'ObjectMethod' || member.type === 'ClassMethod' || member.type === 'MethodDefinition'
+    ? member.kind : member.method ? 'method' : member.kind;
+  if (kind !== 'get') return kind === 'init' || kind === undefined ? member.value ?? null : null;
+  const body = member.type === 'ObjectMethod' || member.type === 'ClassMethod' ? member.body : member.value?.body;
+  return pureReturnBodyValue(body);
+}
+
+// the value a namespace-shaped container binds to `propName`, scanning its members in REVERSE so the
+// LAST member with the key wins, matching JS runtime semantics: `{ Base: Promise, Base: Object }`
+// evaluates `NS.Base` to Object. what a winning member HANDS BACK is `staticMemberReadValue`'s to
+// say - the cross-parser reading a data+getter duplicate key needs, since babel emits ObjectMethod /
+// a non-field ClassMethod where oxc emits a Property / MethodDefinition carrying `method` or a
+// non-`init` kind, and reading only one spelling resolved a stale data value on one leg.
+// `spreadVetoes` is the caller's promise about what it does with the answer: a spread reached in the
+// reverse scan sits AT OR AFTER the matched key and may redefine it, so a caller that REWRITES the
+// read keeps the veto, while one that only INJECTS off the answer turns it off and treats the
+// literal's own last-wins value as one more candidate to inject for
+export function findNamespaceMemberValue(container, propName, scope, adapter, resolveKey, { spreadVetoes = true } = {}) {
   if (container?.type === 'ClassDeclaration' || container?.type === 'ClassExpression') {
     const members = container.body?.body ?? [];
     for (let i = members.length - 1; i >= 0; i--) {
@@ -1136,8 +1131,9 @@ export function findNamespaceMemberValue(container, propName, scope, adapter, re
       const verdict = memberKeyVerdict(m.key, m.computed, scope, propName, adapter, resolveKey);
       if (verdict === 'bail') return null;
       if (verdict === 'skip') continue;
-      // a static method / accessor winning the key is dynamic - bail; a static field returns its init
-      if (m.type !== 'ClassProperty' && m.type !== 'PropertyDefinition') return null;
+      // a static method / setter winning the key is dynamic - bail; a static field returns its init,
+      // and a static GETTER of one pure return names its value the same way (the object twin below)
+      if (m.type !== 'ClassProperty' && m.type !== 'PropertyDefinition') return staticMemberReadValue(m);
       return m.value ?? null;
     }
   } else if (container?.type === 'ObjectExpression') {
@@ -1147,14 +1143,20 @@ export function findNamespaceMemberValue(container, propName, scope, adapter, re
       // a spread (`{ X: V, ...rest }`) reached in this reverse scan sits AT OR AFTER the matched
       // key, so its statically-unknown contents may redefine the key at runtime - bail. a spread
       // BEFORE the key is reached only after the key already returned, so it stays irrelevant
-      if (p.type === 'SpreadElement') return null;
+      // ... unless the caller only INJECTS off this answer: what a spread could add is then one more
+      // candidate to over-inject for, and skipping it keeps the literal's own last-wins answer
+      if (p.type === 'SpreadElement') {
+        if (spreadVetoes) return null;
+        continue;
+      }
       if (p.type !== 'Property' && p.type !== 'ObjectProperty' && p.type !== 'ObjectMethod') continue;
       const verdict = memberKeyVerdict(p.key, p.computed, scope, propName, adapter, resolveKey);
       if (verdict === 'bail') return null;
       if (verdict === 'skip') continue;
-      // a method shorthand / getter / setter winning the key is dynamic - bail; data returns its value
-      if (p.type === 'ObjectMethod' || (p.type === 'Property' && (p.method || p.kind !== 'init'))) return null;
-      return p.value;
+      // a method shorthand or a SETTER winning the key is dynamic - a function the reader would read
+      // through, or a key whose read answers undefined; a GETTER is dynamic only in its body, so one
+      // that RETURNS a pure expression names its value as plainly as a data property does
+      return staticMemberReadValue(p);
     }
   }
   return null;
