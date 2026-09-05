@@ -16,7 +16,7 @@
 // (resolveBindingType, type-query, plus various back-reference paths). `resolveNodeType`
 // is late-bound via thunk since the cluster recurses into the main resolver.
 import {
-  $Object, $Primitive, PATTERN_WRAPPERS, argIndexForParam, canonicalArrayIndex, dropLeadingThisParam, peelAssignmentPattern,
+  $Object, $Primitive, PATTERN_WRAPPERS, argIndexForParam, canonicalArrayIndex, dropLeadingThisParam,
 } from './base.js';
 import {
   collectQualifiedSegments, isBareUndefinedIdentifier, isFunctionTypeNode, withMemberModifiers,
@@ -24,6 +24,7 @@ import {
 import { assignLeft, assignRightKey, bindingCrossesLoopBackEdge } from './straight-line-flow.js';
 import {
   cachedContainerPaths, declaratorBindsName, isVoidExpression, objectLiteralPrototypeValue, spreadAtOrBefore,
+  patternSlotTarget,
   staleVarRedeclNodes, varInitStaleByRedecl,
   isDestructurePattern,
 } from '../helpers/ast-patterns.js';
@@ -123,7 +124,7 @@ export function createPatternBindings({
         }
         continue;
       }
-      const unwrapped = peelAssignmentPattern(el);
+      const unwrapped = patternSlotTarget(el);
       if (unwrapped?.type === 'Identifier' && unwrapped.name === name) return [i];
       const inner = findPatternKeyPath(unwrapped, name, scope);
       if (inner) return [i, ...inner];
@@ -138,7 +139,7 @@ export function createPatternBindings({
       if (babelNodeType(prop) !== 'ObjectProperty') continue;
       const key = prop.computed ? resolveComputedKeyName(prop.key, scope) : getKeyName(prop.key);
       if (key === null) continue;
-      const value = peelAssignmentPattern(prop.value);
+      const value = patternSlotTarget(prop.value);
       if (value?.type === 'Identifier' && value.name === name) return [key];
       const inner = findPatternKeyPath(value, name, scope);
       if (inner) return [key, ...inner];
@@ -300,7 +301,7 @@ export function createPatternBindings({
     for (let i = 0; i < elements.length; i++) {
       const element = elements[i];
       if (!element || element.type === 'RestElement') continue;
-      const id = peelAssignmentPattern(element);
+      const id = patternSlotTarget(element);
       if (id?.type === 'Identifier' && id.name === varName) return i;
     }
     return -1;
@@ -380,7 +381,7 @@ export function createPatternBindings({
           return new $Object('Object');
         }
         if (babelNodeType(prop) !== 'ObjectProperty') continue;
-        const nested = nestedRestType(peelAssignmentPattern(prop.value), varName);
+        const nested = nestedRestType(patternSlotTarget(prop.value), varName);
         if (nested) return nested;
       }
       return null;
@@ -393,7 +394,7 @@ export function createPatternBindings({
         if (restBindsNameDirectly(el, varName)) return new $Object('Array');
         nested = nestedRestType(el.argument, varName);
       } else {
-        nested = nestedRestType(peelAssignmentPattern(el), varName);
+        nested = nestedRestType(patternSlotTarget(el), varName);
       }
       if (nested) return nested;
     }

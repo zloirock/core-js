@@ -664,11 +664,10 @@ export default function createAstUsagePureCallback({
   // per-branch mirror; a chain-assignment splice point inside the harvested SE stays raw
   // (the effects must interleave at the recorded slot, not append)
   function earlyStagedBail(meta, metaPath) {
-    // a HOP prop whose ARRAY-WRAPPED element SELECTS: the meta funnel resolves no receiver
-    // for a positional element, so the mirror is reachable only by the host's own shape
+    // a HOP prop over an INLINE call yielding a proxy: the meta funnel marks no fallback there,
+    // so the mirror is reachable only by the host's own shape
     if (metaPath.node.type === 'Property' && metaPath.node.value?.type === 'ObjectPattern' && !meta.fromFallback
-      && (destructureEmit.arrayWrappedSelectingHost(metaPath)
-        || destructureEmit.inlineCallYieldingProxyHost(metaPath))) {
+      && destructureEmit.inlineCallYieldingProxyHost(metaPath)) {
       destructureEmit.handlePerBranch({ metaPath, meta });
       return true;
     }

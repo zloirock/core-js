@@ -25,10 +25,11 @@ const [{ Symbol: SM }, { Promise: MG }] = [globalThis, globalThis];
 export const viaMultiExtractFirst = SM.for(dedupeKey);
 export const viaMultiExtractSecond = MG.resolve(ready);
 
-// a computed LITERAL key registers like the plain form; an SE-bearing computed key keeps its
-// own slot verbatim (the effect runs once in the residual) while the SIBLING element still
-// narrows through its sound positional pairing; a slot write of ONE hint's global deopts only
-// that alias - the sibling keeps folding
+// a computed LITERAL key registers like the plain form; a CALL-spelled computed key keeps its
+// own slot verbatim (the call runs once in the residual) while its binding still names the
+// global the bound identity callee hands back, and the SIBLING element narrows through its sound
+// positional pairing; a slot write of ONE hint's global deopts only that alias - the sibling keeps
+// folding
 const [{ ['WeakSet']: WS }, { Promise: PR }] = [globalThis, globalThis];
 export const viaComputedLiteralKey = new WS();
 export const viaComputedSibling = PR.allSettled([]);

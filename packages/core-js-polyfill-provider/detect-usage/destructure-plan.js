@@ -21,15 +21,15 @@ import {
   aliasSlotWritten,
   catchPropRewriteObservable,
   createInstanceNodeCache,
-  findObjectKeyBeforeSpread,
   followConstIdentifierInit,
   isChainAssignment,
   isDestructurePattern,
   isRestProperty,
   mayHaveSideEffects,
   objectInitSpreadSurvives,
+  objectLevelPairedProperty,
   objectLiteralHoldsObservable,
-  objectPropertyReadValue,
+  patternSlotTarget,
   peelNestedSequenceExpressions,
   peelZeroArgIifeReturn,
   plainSynthKeyName,
@@ -251,7 +251,7 @@ export function peelArrayWrapperPair({ pattern, init, scope = null, adapter = nu
     const hopCandidates = pattern?.type === 'ObjectPattern' ? pattern.properties.filter(prop => !isRestProperty(prop)) : [];
     const hopRest = hopCandidates.length === 1 && pattern.properties.length === 2;
     const hopProp = hopCandidates.length === 1 && (pattern.properties.length === 1 || hopRest)
-      && isDestructurePattern(peelInnerDefault(hopCandidates[0].value))
+      && isDestructurePattern(patternSlotTarget(hopCandidates[0].value))
       && consumableHopSlotName(hopCandidates[0], hopKeyCtx) !== null ? hopCandidates[0] : null;
     if (!hopProp && (pattern?.type !== 'ArrayPattern' || pattern.elements.length !== 1)) {
       return done(pattern, init);
@@ -301,7 +301,7 @@ export function peelArrayWrapperPair({ pattern, init, scope = null, adapter = nu
       if (hopRest) restKeepsLevel = true;
       consumedLevels.push({ wrapper: init, array: effectiveInit });
       trailingByLevel.push([]);
-      pattern = peelInnerDefault(hopProp.value);
+      pattern = patternSlotTarget(hopProp.value);
       init = paired.read;
       continue;
     }
@@ -341,15 +341,12 @@ export function peelArrayWrapperPair({ pattern, init, scope = null, adapter = nu
 // the probe channel. a DEREFERENCED level skips the sibling rule: the alias's own declaration keeps
 // the literal, so its siblings were never at risk
 function objectHopPairedValue(objectNode, key, dereferenced, keyCtx) {
-  if (objectNode?.type !== 'ObjectExpression') return null;
-  const match = findObjectKeyBeforeSpread(objectNode.properties, prop => spelledSlotName(prop) === key);
-  const read = objectPropertyReadValue(match);
-  if (!read) return null;
   // ... a key standing after the match is dangerous only where NOTHING can name it: the same
   // scope-aware fold the hop's own key rides (`{ [K]: v }` with `const K = 'q'` names `q`), so a
   // bound key that provably spells another slot leaves the match standing
-  if (objectNode.properties.slice(objectNode.properties.indexOf(match) + 1)
-    .some(prop => consumableHopSlotName(prop, keyCtx) === null)) return null;
+  const paired = objectLevelPairedProperty(objectNode, key, prop => consumableHopSlotName(prop, keyCtx));
+  if (!paired) return null;
+  const { match, read } = paired;
   // ... a `?.` that cannot short-circuit is dead text (`globalThis?.globalThis` - the object is a
   // guaranteed realm name): the value canon that every seal-aware channel asks answers here too, so
   // the level pairs with the nav the way the walk already resolves it for a static claim
@@ -387,14 +384,6 @@ function objectHopPairedValue(objectNode, key, dereferenced, keyCtx) {
   return {
     match, read: realmNamed ?? read, survives: seqPrefixOwed || objectLiteralHoldsObservable(objectNode, match),
   };
-}
-
-// peel AssignmentPattern wrapping the inner pattern (`{ Foo: { x } = {} } = R`).
-// proxy-global / static-object receivers always defined, so default never fires;
-// transparent under "polyfill always wins". returns the bare value for non-wrapper
-// shapes unchanged
-function peelInnerDefault(value) {
-  return value?.type === 'AssignmentPattern' ? value.left : value;
 }
 
 // does the pattern subtree carry ANY slot default (`X = d`) at ANY depth? a residual leaf default
@@ -478,7 +467,7 @@ export function resolvePolyfillableStaticProp({ prop, receiverName, resolvePure,
 // source's `Symbol.iterator` a second time (a getter would fire twice). two leaves therefore need
 // a memo contract, which stays out of this plan
 export function symbolIteratorInstanceLeaf({ value, resolvePure, isDisabled, keyNameOf }) {
-  const inner = peelInnerDefault(value);
+  const inner = patternSlotTarget(value);
   if (inner?.type !== 'ObjectPattern' || inner.properties.length !== 1) return null;
   const [leaf] = inner.properties;
   if (!isPropertyNode(leaf) || leaf.computed || isDisabled?.(leaf)) return null;
@@ -676,7 +665,7 @@ export function buildNestedDestructurePlan({
     // flat-path meta gate. `planReceiverName` is the function-scope mirror of the block-scoped
     // receiver (canonical at every fold depth - the hops alias the one global object)
     if (adapter.isMutatedStatic?.(planReceiverName, name)) return { kind: 'verbatim', prop: outerProp };
-    const value = peelInnerDefault(outerProp.value);
+    const value = patternSlotTarget(outerProp.value);
     if (value?.type === 'ObjectPattern') {
       const planChild = POSSIBLE_GLOBAL_OBJECTS.has(name)
         ? planOuterProp
@@ -719,7 +708,7 @@ export function buildNestedDestructurePlan({
     if (adapter.isMutatedStatic?.(receiver, name)) return planned;
     const anchorPure = resolveGlobalPolyfill(name);
     if (!anchorPure) return planned;
-    const inner = peelInnerDefault(planned.prop.value);
+    const inner = patternSlotTarget(planned.prop.value);
     if (inner?.type !== 'ObjectPattern' || inner.properties.some(isRestProperty)) return planned;
     const residualProps = planned.kind === 'verbatim'
       ? inner.properties
@@ -745,7 +734,7 @@ export function buildNestedDestructurePlan({
   function planOuterPropStatic(outerProp, hostInit, walkPath) {
     const name = propKeyNameScoped(outerProp);
     if (name === null) return { kind: 'verbatim', prop: outerProp };
-    const value = peelInnerDefault(outerProp.value);
+    const value = patternSlotTarget(outerProp.value);
     if (value?.type !== 'ObjectPattern') return { kind: 'verbatim', prop: outerProp };
     const newPath = [...walkPath, name];
     // `path` (the declaration / assignment site) lets the usage-pure reassignment gate inside
@@ -874,7 +863,7 @@ export function buildNestedDestructurePlan({
           ? hostPattern.properties[0] : null;
         const key = prop ? propKeyNameScoped(prop) : null;
         const inner = key && !POSSIBLE_GLOBAL_OBJECTS.has(key) && isStaticPlacement(key)
-          ? peelInnerDefault(prop.value) : null;
+          ? patternSlotTarget(prop.value) : null;
         if (inner?.type !== 'ObjectPattern' || !inner.properties.length) return null;
         // an opt-out on the hop or on any leaf under it keeps the residual the user's own raw read:
         // anchored on the ponyfill constructor, a leaf the directive kept from importing its static
@@ -947,7 +936,7 @@ export function buildNestedDestructurePlan({
           const [prop] = effPattern.properties;
           const key = propKeyNameScoped(prop);
           if (!key || !POSSIBLE_GLOBAL_OBJECTS.has(key) || adapter.isMutatedStatic?.(receiver, key) || leafDisabled(prop)) break;
-          const inner = peelInnerDefault(prop.value);
+          const inner = patternSlotTarget(prop.value);
           if (inner?.type !== 'ObjectPattern' || !inner.properties.length
             || inner.properties.some(isRestProperty)) break;
           effPattern = inner;
@@ -1016,7 +1005,7 @@ function iterableElementNodes(node) {
 // default no arm to run - they decline it, so a pattern whose only claim carries one buys nothing
 // from the relocation. the direct hosts fold that arm with a test ref and keep counting it
 function patternHoldsClaim(node, resolvePure, undefaultedOnly = false) {
-  const pattern = node?.type === 'AssignmentPattern' ? node.left : node;
+  const pattern = patternSlotTarget(node);
   if (pattern?.type === 'ArrayPattern') {
     return (pattern.elements ?? []).some(element => patternHoldsClaim(element, resolvePure, undefaultedOnly));
   }

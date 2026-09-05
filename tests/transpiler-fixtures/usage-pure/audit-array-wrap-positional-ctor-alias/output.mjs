@@ -6,6 +6,7 @@ import _Map from "@core-js/pure/actual/map/constructor";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Math$cbrt from "@core-js/pure/actual/math/cbrt";
 import _Math$sumPrecise from "@core-js/pure/actual/math/sum-precise";
+import _Number$isFinite from "@core-js/pure/actual/number/is-finite";
 import _Number$parseFloat from "@core-js/pure/actual/number/parse-float";
 import _Number$parseInt from "@core-js/pure/actual/number/parse-int";
 import _Promise$allSettled from "@core-js/pure/actual/promise/all-settled";
@@ -71,10 +72,11 @@ const [{
 export const viaMultiExtractFirst = _Symbol$for(dedupeKey);
 export const viaMultiExtractSecond = _Promise$resolve(ready);
 
-// a computed LITERAL key registers like the plain form; an SE-bearing computed key keeps its
-// own slot verbatim (the effect runs once in the residual) while the SIBLING element still
-// narrows through its sound positional pairing; a slot write of ONE hint's global deopts only
-// that alias - the sibling keeps folding
+// a computed LITERAL key registers like the plain form; a CALL-spelled computed key keeps its
+// own slot verbatim (the call runs once in the residual) while its binding still names the
+// global the bound identity callee hands back, and the SIBLING element narrows through its sound
+// positional pairing; a slot write of ONE hint's global deopts only that alias - the sibling keeps
+// folding
 const WS = _WeakSet;
 const PR = _Promise;
 const [{
@@ -90,7 +92,7 @@ const [{
 }, {
   Math: MA
 }] = [_globalThis, _globalThis];
-export const viaSeKey = NU.isFinite(value);
+export const viaSeKey = _Number$isFinite(value);
 export const viaSeKeySibling = _Math$sumPrecise(values);
 const [{
   String: ST
