@@ -8,37 +8,40 @@ import { beginMutationPrePass, createDetectionAdapter, mutationSiteVisitors } fr
 import { resolveKey as sharedResolveKey, unwrapTransparentSeq } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { createUsageHandlerCore } from '@core-js/polyfill-provider/detect-usage/visitors';
 import { createSyntaxPathHandlers } from '@core-js/polyfill-provider/detect-syntax';
+import { mergeVisitors } from '@core-js/polyfill-provider/helpers/source-scan';
 import {
+  aliasSpanDominatesUse,
+  ancestorChainDetached,
   bareAssignmentPatternLeafPath,
   bindingInvisibleFromUseRegion,
+  cleanDestructureAliasWrites,
   climbJsxMemberChain,
   findFunctionScopeVarInPath,
   findTSRuntimeBindingInPath,
+  getDirectStatementBody,
   getTypeArgs,
   IMPORT_SPECIFIER_TYPES,
   importBindingView,
   isAmbientBindingShape,
   isASTNode,
+  isDestructurePattern,
   isIntrinsicJsxTagName,
   isInUpdateOperand,
   isMemberWriteOnlyContext,
   isNonReferencePosition,
   isTSTypeOnlyIdentifierPath,
+  memoizeBindingLookup,
   namespaceScopedBindingBlock,
+  pathContainedBy,
   peelTransparentExprAncestorPath,
+  POSSIBLE_GLOBAL_OBJECTS,
   recomputedBindingWrites,
+  syntheticNodeAncestry,
   synthHoistedBinding,
   unwrapExportedDeclaration,
+  usableAliasInfo,
   useAnchorStart,
   walkPatternIdentifiers,
-  cleanDestructureAliasWrites,
-  getDirectStatementBody,
-  isDestructurePattern,
-  POSSIBLE_GLOBAL_OBJECTS,
-  ancestorChainDetached,
-  syntheticNodeAncestry,
-  aliasSpanDominatesUse,
-  usableAliasInfo,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   assignmentAliasWriteTrusted,
@@ -173,15 +176,6 @@ function isAmbientBinding(binding) {
   return isAmbientBindingShape(binding?.path?.node, binding?.path?.parent);
 }
 
-// is `path` contained within `node` - i.e. does `node` sit on `path`'s ancestor chain (inclusive)?
-// tests whether a use-site is inside a given namespace block
-export function pathContainedBy(path, node) {
-  for (let cur = path; cur; cur = cur.parentPath) {
-    if (cur.node === node) return true;
-  }
-  return false;
-}
-
 // estree-toolkit over-hoists a binding declared inside `namespace N {}` / `declare global {}` (a
 // TSModuleBlock) - var/let/const, class, function alike - to the enclosing function / program
 // scope, so `scope.getBinding` surfaces it for a use OUTSIDE the namespace body. true when `native`
@@ -194,6 +188,20 @@ function isOverHoistedNamespaceBinding(native, path) {
   return !!block && !pathContainedBy(path, block);
 }
 
+// the switch a binding's case belongs to, or null: a fact of the binding, climbed once per binding object
+const caseBlockSwitchCache = new WeakMap();
+function caseBlockSwitchOf(native) {
+  if (caseBlockSwitchCache.has(native)) return caseBlockSwitchCache.get(native);
+  let p = native.path;
+  while (p?.node && p.node.type !== 'SwitchCase') {
+    if (FUNCTION_NODE_TYPES.has(p.node.type) || p.node.type === 'Program') break;
+    p = p.parentPath;
+  }
+  const switchNode = p?.node?.type === 'SwitchCase' ? p.parentPath?.node : null;
+  const result = switchNode?.type === 'SwitchStatement' ? switchNode : null;
+  caseBlockSwitchCache.set(native, result);
+  return result;
+}
 // estree-toolkit does not model the switch CaseBlock (the braces around the cases) as its own
 // lexical scope: a case-body `let` (`case 1: let globalThis = ...`) reports as in scope at the
 // DISCRIMINANT and even outside the switch - regions the CaseBlock never covers. a raw global in
@@ -203,13 +211,8 @@ function isOverHoistedNamespaceBinding(native, path) {
 // binding inside a nested block of a case is scoped by that block and never resolves out here
 function isCaseBlockBindingOutsideCases(native, path) {
   if (!native?.path || !path?.node) return false;
-  let p = native.path;
-  while (p?.node && p.node.type !== 'SwitchCase') {
-    if (FUNCTION_NODE_TYPES.has(p.node.type) || p.node.type === 'Program') return false;
-    p = p.parentPath;
-  }
-  const switchNode = p?.parentPath?.node;
-  if (switchNode?.type !== 'SwitchStatement') return false;
+  const switchNode = caseBlockSwitchOf(native);
+  if (!switchNode) return false;
   const pos = path.node.start;
   const casesStart = switchNode.cases?.[0]?.start ?? switchNode.end;
   return typeof pos === 'number' && !(pos >= casesStart && pos <= switchNode.end);
@@ -301,29 +304,36 @@ function hasRuntimeBinding(scope, name, path = null) {
   return true;
 }
 
-// factory: per-plugin-instance adapter closed over callbacks (an options bag mirroring the
-// babel twin) - keeps unplugin's adapter contract symmetric without leaning on module-level
-// state. `getInjector()` returns the active per-transform injector or null between
-// transforms; both consumers
-// (adapter.getBinding's polyfillHint AND typeResolvers' getPolyfillBindingEntry) read
-// through the same callback so user-imported polyfill UIDs (`import _Promise from
-// '@core-js/pure/.../promise/constructor'; _Promise.resolve(1)`) get recognised as
-// proxy-globals. re-entrancy is the caller's contract: plugin.js save/restore is the
-// runTransform try/finally - early-returns before the save leave the outer injector intact.
-// scoped mutation pre-pass (estree side): the cheap shape gate first; only files that
-// actually monkey-patch pay for the scoped toolkit traverse + canonical receiver resolution.
-// shares every resolution step with the read side via `mutations` (provider)
-export function collectMutationPrePass(ast, adapter, census = null, resolveStaticKey = null) {
-  const { mutated, handleSite, finalize } = beginMutationPrePass(
-    { resolveStaticKey, rootNode: ast, adapter, census },
-  );
-  if (!handleSite) return { mutated };
-  const siteVisitors = mutationSiteVisitors(handleSite);
+// the ONE scoped pre-pass walk (estree side): every registration that has to stand before the
+// usage pass meets a use rides it, and each lane brings its own cheap census gate - a file that
+// trips neither pays no walk at all. the mutation lane classifies its sites in place; the alias
+// lane only COLLECTS, because registration reads an injector this walk runs ahead of and has to
+// stay behind the mutated-static enrichment that feeds it. shares every resolution step with the
+// read side via `mutations` (provider)
+export function collectPrePassSites({
+  ast,
+  adapter,
+  census = null,
+  resolveStaticKey = null,
+  collectMutations = false,
+  isDisabled = null,
+}) {
+  const { mutated, handleSite, finalize } = collectMutations
+    ? beginMutationPrePass({ resolveStaticKey, rootNode: ast, adapter, census })
+    : { mutated: null, handleSite: null, finalize: null };
+  const wantsAliases = !!isDisabled
+    && (census ? census.hasCtorAliasShapes : hasCtorAliasCandidateShapes(ast));
+  const aliasSites = [];
+  if (!handleSite && !wantsAliases) return { mutated, aliasSites };
+  const siteVisitors = wantsAliases
+    ? mergeVisitors(handleSite ? mutationSiteVisitors(handleSite) : {}, aliasSiteVisitors(aliasSites, isDisabled))
+    : mutationSiteVisitors(handleSite);
   // estree-toolkit omits `decorators` from the visitor keys of the DEFINED class / member node
-  // types, so a monkey-patch hidden inside a `@decorator(...)` expression escapes the traverse and
-  // the static stays wrongly substitutable (the read side already compensates via walkDecorators).
-  // run the same site classifier over decorator subtrees; the guard inside walkDecorators skips any
-  // owner estree-toolkit already auto-walks, so no node is double-visited
+  // types, so a site hidden inside a `@decorator(...)` expression escapes the traverse (babel's
+  // Program traverse reaches it natively and the emitters would diverge): the monkey-patch stays
+  // wrongly substitutable and the alias write goes unregistered. run the same site visitors over
+  // decorator subtrees; the guard inside walkDecorators skips any owner estree-toolkit already
+  // auto-walks, so no node is double-visited
   function visitDecoratorSites(path) { walkDecorators(path, siteVisitors); }
   traverse(ast, {
     $: { scope: true },
@@ -336,27 +346,24 @@ export function collectMutationPrePass(ast, adapter, census = null, resolveStati
     TSAbstractPropertyDefinition: visitDecoratorSites,
     TSAbstractAccessorProperty: visitDecoratorSites,
   });
-  finalize();
-  return { mutated };
+  finalize?.();
+  return { mutated, aliasSites };
 }
 
-// early ctor-alias registration (estree side) - see the babel twin in the plugin's initFile:
-// pre-register every destructure-of-global site through the shared trust gates so a member use
-// textually BEFORE its alias write still reads a complete table when visited
-export function collectAliasPrePass({ ast, adapter, injector, isDisabled, census = null }) {
-  if (!(census ? census.hasCtorAliasShapes : hasCtorAliasCandidateShapes(ast))) return;
-  const siteVisitors = {
+// the ctor-alias lane's collectors: the destructure-of-global sites in document order, each
+// carrying what registration cannot read later - the host's declaration kind and the site's own
+// scope, both facts of where the walk stands
+function aliasSiteVisitors(sites, isDisabled) {
+  return {
     AssignmentExpression(path) {
       const { node } = path;
       if (node.operator !== '=' || isDisabled(node)
         || !isDestructurePattern(node.left)) return;
-      registerAliasPrePassSite({
+      sites.push({
         pattern: node.left,
         init: node.right,
         assignNode: node,
         scope: path.scope,
-        adapter,
-        injector,
         path,
       });
     },
@@ -364,33 +371,22 @@ export function collectAliasPrePass({ ast, adapter, injector, isDisabled, census
       const { node } = path;
       if (!node.init || isDisabled(node)
         || !isDestructurePattern(node.id)) return;
-      registerAliasPrePassSite({
+      sites.push({
         pattern: node.id,
         init: node.init,
         declKind: path.parent.kind,
         scope: path.scope,
-        adapter,
-        injector,
         path,
       });
     },
   };
-  // estree-toolkit omits `decorators` from the DEFINED class / member visitor keys, so an alias
-  // write inside a `@decorator(...)` expression escapes the traverse (babel's Program traverse
-  // reaches it natively and the emitters would diverge) - dispatch the same site visitors over
-  // decorator subtrees, mirroring the mutation pre-pass
-  function visitDecoratorSites(path) { walkDecorators(path, siteVisitors); }
-  traverse(ast, {
-    $: { scope: true },
-    ...siteVisitors,
-    ClassDeclaration: visitDecoratorSites,
-    ClassExpression: visitDecoratorSites,
-    MethodDefinition: visitDecoratorSites,
-    PropertyDefinition: visitDecoratorSites,
-    AccessorProperty: visitDecoratorSites,
-    TSAbstractPropertyDefinition: visitDecoratorSites,
-    TSAbstractAccessorProperty: visitDecoratorSites,
-  });
+}
+
+// early ctor-alias registration (estree side) - see the babel twin in the plugin's initFile:
+// pre-register every destructure-of-global site through the shared trust gates so a member use
+// textually BEFORE its alias write still reads a complete table when visited
+export function registerAliasPrePassSites(sites, { adapter, injector }) {
+  for (const site of sites) registerAliasPrePassSite({ ...site, adapter, injector });
 }
 
 // estree merges an over-hoisted namespace declaration with a REAL same-name declaration in the
@@ -465,6 +461,11 @@ function synthOwnerStrictlyInsideScope(scope, synth) {
 // declaration INSIDE the owner (a param, a nearer lexical shadow) keeps the native view. a
 // native resolution of the SAME declarator keeps the native view too (richer info channel)
 function resolveClosestBinding(scope, name, path) {
+  return memoizeBindingLookup(scope, name, path, () => resolveClosestBindingUncached(scope, name, path));
+}
+
+// ... the resolution itself, run once per (scope, name, use node) through the memo above
+function resolveClosestBindingUncached(scope, name, path) {
   const native = closestVisibleNativeBinding(scope, name, path);
   const synth = path ? synthHoistedBinding(path, name) : null;
   if (!synth || synthOwnerStrictlyInsideScope(scope, synth)) return { native, synth: null };
@@ -481,6 +482,15 @@ function resolveClosestBinding(scope, name, path) {
 // does - the two answer the SAME question, one through a dedicated lookup, one through its
 // native binding (the provider's consumer branches on the member's presence) per-transform state
 // lives in the instance closure - concurrent transforms each build their own
+// factory: per-plugin-instance adapter closed over callbacks (an options bag mirroring the
+// babel twin) - keeps unplugin's adapter contract symmetric without leaning on module-level
+// state. `getInjector()` returns the active per-transform injector or null between
+// transforms; both consumers
+// (adapter.getBinding's polyfillHint AND typeResolvers' getPolyfillBindingEntry) read
+// through the same callback so user-imported polyfill UIDs (`import _Promise from
+// '@core-js/pure/.../promise/constructor'; _Promise.resolve(1)`) get recognised as
+// proxy-globals. re-entrancy is the caller's contract: plugin.js save/restore is the
+// runTransform try/finally - early-returns before the save leave the outer injector intact.
 export function createEstreeAdapter(options = {}) {
   const { getInjector = () => null } = options;
   return createDetectionAdapter(options, adapter => ({
@@ -989,7 +999,11 @@ function walkSubtree({ node, parent, parentKey, parentPath, scope, visitors, lis
       ? makeFrameScope(scope, classExpressionNameLocals(node))
       : scope;
   const synthPath = makeSynthPath({ node, parent, parentKey, parentPath, scope: childScope, listKey, container });
-  visitors[node.type]?.(synthPath);
+  // the same two spellings the engine takes: a bare handler, or the `{ enter }` object every
+  // merged visitor set is normalized into - a manual walk that took only the first silently
+  // dropped every site under a merged map
+  const visit = visitors[node.type];
+  (typeof visit === 'function' ? visit : visit?.enter)?.(synthPath);
   forEachChildNode(node, (child, childKey, childListKey, childContainer) => {
     walkSubtree({
       node: child,
