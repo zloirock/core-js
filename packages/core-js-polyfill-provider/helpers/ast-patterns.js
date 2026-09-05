@@ -6548,6 +6548,34 @@ export function peelFallbackReceiver(node) {
   return node;
 }
 
+// a HOP prop whose key carries an effect (`{ [(eff(), 'Array')]: { from } }`): its level keeps it
+// the way a REST sibling keeps a consumed hop - the hop retires to a sentinel, so the key runs
+// exactly once where the source wrote it, and the claims below extract off the slot the folded key
+// names
+export function isEffectfulKeyHop(prop) {
+  return (prop?.type === 'Property' || prop?.type === 'ObjectProperty')
+    && isDestructurePattern(patternSlotTarget(prop.value)) && computedKeyHasSideEffects(prop);
+}
+
+// ... asked of ONE level: does this pattern hold such a hop among its own props?
+export function patternLevelKeepsEffectfulHop(pattern) {
+  return pattern?.type === 'ObjectPattern' && pattern.properties.some(isEffectfulKeyHop);
+}
+
+// does this LEVEL keep its consumed props as sentinels - a rest sibling gathers by exclusion, and a
+// key with an effect (a hop's or a leaf's own) has to run where it stands
+export function patternLevelKeepsSentinels(pattern) {
+  return !!pattern?.properties?.some(prop => isRestProperty(prop) || computedKeyHasSideEffects(prop));
+}
+
+// ... and of the HOST: does any level below carry such a hop?
+export function patternKeepsEffectfulHop(pattern) {
+  const node = patternSlotTarget(pattern);
+  if (node?.type === 'ArrayPattern') return node.elements.some(patternKeepsEffectfulHop);
+  if (node?.type !== 'ObjectPattern') return false;
+  return node.properties.some(prop => isEffectfulKeyHop(prop) || patternKeepsEffectfulHop(prop.value));
+}
+
 // side-effecting COMPUTED key of a destructure prop (`[(eff(), 'from')]`, `[(eff(), 'fr') + 'om']`).
 // the single gate both flatten emitters dispatch on, so the key-effect decision can't drift
 // between them; a non-computed key is a static name and never carries an effect
@@ -9008,6 +9036,14 @@ export function patternDead(node) {
   return false;
 }
 
+// does the pattern bind sentinels alone (`isSentinel(identifierNode)` - a minted node on one leg, a
+// minted NAME on the other), nothing the source still reads? an empty pattern binds nothing at all
+export function patternBindsOnlySentinels(pattern, isSentinel) {
+  let sentinelsOnly = true;
+  walkPatternIdentifiers(pattern, id => { sentinelsOnly &&= isSentinel(id); });
+  return sentinelsOnly;
+}
+
 // an object property whose value the consume emptied binds nothing, yet reading it fires the hop's
 // getter: drop such props, innermost first, until the shape is stable. a REST sibling keeps its
 // level (rest gathers what the pattern did not name) and binds a `mint`ed sentinel instead of an
@@ -9018,23 +9054,31 @@ export function patternDead(node) {
 // one keeps its shape - a source-written `{}` beside the claim still coerces its element. `onDrop` sees
 // every prop that leaves, for an emitter that seeds its skip set. distinct from a PLAN prune, which
 // removes what a flatten plan marked consumed: this is the AFTERMATH of props leaving one at a time
-export function pruneEmptiedHopProps(node, { mint, onDrop = null }) {
+// `isSentinel(id)`: under a hop keyed by an EFFECT, a pattern binding nothing but sentinels is as
+// dead as an empty one - that hop retires to ONE sentinel instead of reading the hop for a leaf
+// nobody reads; elsewhere a leaf sentinel is the residual the render meant to keep
+export function pruneEmptiedHopProps(node, { mint, onDrop = null, isSentinel = null }) {
   if (node?.type === 'ArrayPattern') {
-    for (const element of node.elements) pruneEmptiedHopProps(element, { mint, onDrop });
+    for (const element of node.elements) pruneEmptiedHopProps(element, { mint, onDrop, isSentinel });
     return;
   }
   if (node?.type !== 'ObjectPattern') return;
-  const hasRest = node.properties.some(isRestProperty);
+  const keepsSentinels = patternLevelKeepsSentinels(node);
   const kept = [];
   for (const prop of node.properties) {
     const defaulted = prop.value?.type === 'AssignmentPattern';
     const pattern = defaulted ? prop.value.left : prop.value;
-    pruneEmptiedHopProps(pattern, { mint, onDrop });
-    const emptied = (prop.type === 'Property' || prop.type === 'ObjectProperty') && !computedKeyHasSideEffects(prop)
+    pruneEmptiedHopProps(pattern, { mint, onDrop, isSentinel });
+    // ... an emptied hop under an EFFECTFUL key retires to a sentinel like one beside a rest: the
+    // level keeps it, so the key still runs once where the source wrote it
+    // ... but a sentinel under an EFFECTFUL key of its own keeps its prop: that key still has to run
+    const emptied = (prop.type === 'Property' || prop.type === 'ObjectProperty')
       && (pattern?.type === 'ObjectPattern' || (pattern?.type === 'ArrayPattern' && pattern.elements.length === 1))
-      && patternDead(pattern);
+      && (patternDead(pattern)
+        || (isEffectfulKeyHop(prop) && !!isSentinel && !patternKeepsEffectfulKey(pattern)
+          && patternBindsOnlySentinels(pattern, isSentinel)));
     if (!emptied) kept.push(prop);
-    else if (hasRest) {
+    else if (keepsSentinels) {
       if (defaulted) prop.value.left = mint();
       else prop.value = mint();
       kept.push(prop);
