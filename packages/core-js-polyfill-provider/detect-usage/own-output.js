@@ -9,6 +9,7 @@ import { entryToGlobalHint } from '../index.js';
 import { ORPHAN_REF_PATTERN, UNUSED_NAME_PATTERN } from '../injector-base.js';
 import { isSourcedSymbolIteratorMeta } from './members.js';
 import {
+  patternSlotTarget,
   TS_EXPR_WRAPPERS,
   blocksUidSlot,
   defaultImportSourcesOf,
@@ -470,7 +471,7 @@ export function ownEmittedPatternClaim(metaPath, tests) {
     || patternDefaultHoldsPureImport(metaPath, tests)
     || computedKeyIsMintedImport(metaPath.node, metaPath, tests)) return true;
   const value = metaPath.node?.value;
-  const local = value?.type === 'AssignmentPattern' ? value.left : value;
+  const local = patternSlotTarget(value);
   return local?.type === 'Identifier' && overwriteRebindSibling(metaPath, { localName: local.name, ...tests });
 }
 
