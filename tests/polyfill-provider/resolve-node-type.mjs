@@ -669,6 +669,28 @@ runBoth('IIFE computed key on a type-literal member resolves the member type',
     const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
     checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
   });
+// ... and a SEQUENCE key evaluates to its tail: the prefix's effect stays where it stands, the
+// tail is the runtime key, and the read-only classification names the member through it
+// ... and a transparent wrapper on the key (`o['data' as string]`, the tail of a sequence too) is
+// the key it wraps: a TS cast changes nothing at runtime
+runBoth('cast computed key on a type-literal member resolves the member type',
+  "interface I { data: number[]; } declare const o: I; const t = o['data' as string];",
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+runBoth('sequence computed key with a cast tail resolves the member type',
+  "interface I { data: number[]; } declare const o: I; declare const eff: () => void; const t = o[(eff(), 'data' as string)];",
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+runBoth('sequence computed key on a type-literal member resolves the member type',
+  "interface I { data: number[]; } declare const o: I; declare const eff: () => void; const t = o[(eff(), 'data')];",
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
 runBoth('nested IIFE computed key folds to the same member type',
   "interface I { data: number[]; } declare const o: I; const t = o[(() => (() => 'data')())()];",
   (adapter, prog, lbl) => {

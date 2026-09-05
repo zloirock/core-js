@@ -18,7 +18,6 @@ import {
   bindsModuleDefault,
   chainValueCarrier,
   collectFoldedReceiverSideEffects,
-  computedKeyHasSideEffects,
   definedBranchOfGuardConditional,
   deleteHostAboveChain,
   globalProxyNameFromImportSource,
@@ -3147,7 +3146,9 @@ export function resolveSynthKeys({ node, scope, adapter, path }) {
 // over a scope. a key that EVALUATES something answers null however it folds - consuming the prop
 // drops the key node, and the effect would go with it
 export function consumableHopSlotName(prop, keyCtx = null) {
-  if (prop.computed && computedKeyHasSideEffects(prop)) return null;
+  // ... a key with an EFFECT still names its slot: the level it stands on survives every render
+  // (`hostLevelSurvives` - the key runs once where the source wrote it, the leaves below retire to
+  // sentinels), so the fold keeps the key node and nothing drops the effect
   return spelledSlotName(prop)
     ?? (prop.computed && keyCtx?.adapter ? resolveSynthKeys({ node: prop, ...keyCtx }).lookupKey : null);
 }
