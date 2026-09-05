@@ -82,6 +82,7 @@ import {
   SINGLE_STATEMENT_SLOTS,
   SKIPPABLE_WRAPPER_TYPES,
   arrayLiteralSlotValue,
+  objectLevelPairedProperty,
   spreadAtOrBefore,
   staticMemberFromEntrySegment,
   TS_EXPR_WRAPPERS,
@@ -1632,6 +1633,10 @@ check('spreadAtOrBefore/spread after index', spreadAtOrBefore([EL('a'), EL('b'),
 check('arrayLiteralSlotValue/slot before a spread pairs', arrayLiteralSlotValue({ type: 'ArrayExpression', elements: [EL('a'), SP] }, 0)?.name, 'a');
 check('arrayLiteralSlotValue/slot past a spread declines', arrayLiteralSlotValue({ type: 'ArrayExpression', elements: [SP, EL('b')] }, 1), null);
 check('arrayLiteralSlotValue/slot at a spread declines', arrayLiteralSlotValue({ type: 'ArrayExpression', elements: [EL('a'), SP] }, 1), null);
+// ... an INLINE-array spread is a longer literal: its items pair by their expanded positions
+const INLINE = { type: 'SpreadElement', argument: { type: 'ArrayExpression', elements: [EL('x'), EL('y')] } };
+check('arrayLiteralSlotValue/inline spread expands', arrayLiteralSlotValue({ type: 'ArrayExpression', elements: [INLINE, EL('c')] }, 1)?.name, 'y');
+check('arrayLiteralSlotValue/slot past an inline spread pairs', arrayLiteralSlotValue({ type: 'ArrayExpression', elements: [INLINE, EL('c')] }, 2)?.name, 'c');
 check('spreadAtOrBefore/no spread', spreadAtOrBefore([EL('a'), EL('b')], 1), false);
 check('spreadAtOrBefore/path form (.node)', spreadAtOrBefore([{ node: SP }, { node: EL('b') }], 1), true);
 check('spreadAtOrBefore/empty + null safe', spreadAtOrBefore([], 3) || spreadAtOrBefore(null, 0), false);
@@ -1648,6 +1653,31 @@ check('findObjectKeyBeforeSpread/duplicate keys last-wins',
 check('findObjectKeyBeforeSpread/match after a mid spread wins',
   findObjectKeyBeforeSpread([prop('a', 1), SP, prop('a', 2)], matchA)?.tag, 2);
 check('findObjectKeyBeforeSpread/no match', findObjectKeyBeforeSpread([prop('b', 1)], matchA), null);
+
+// objectLevelPairedProperty: the property a plain key pairs with in an object LEVEL - last wins,
+// a spread after the match or a later key nothing can name declines, a getter is no data value,
+// and a scope-aware caller names the later key itself
+function dataProp(name, value, computed = false) {
+  return { type: 'Property', key: computed ? { type: 'CallExpression' } : { type: 'Identifier', name }, value: EL(value), computed };
+}
+function level(...properties) { return { type: 'ObjectExpression', properties }; }
+check('objectLevelPairedProperty/pairs the last spelling of the key',
+  objectLevelPairedProperty(level(dataProp('w', 'x'), dataProp('w', 'y')), 'w')?.read?.name, 'y');
+check('objectLevelPairedProperty/a spread after the match declines',
+  objectLevelPairedProperty(level(dataProp('w', 'x'), SP), 'w'), null);
+check('objectLevelPairedProperty/a later unnameable key declines',
+  objectLevelPairedProperty(level(dataProp('w', 'x'), dataProp('k', 'z', true)), 'w'), null);
+check('objectLevelPairedProperty/a caller naming the later key keeps the pair',
+  objectLevelPairedProperty(level(dataProp('w', 'x'), dataProp('k', 'z', true)), 'w', () => 'q')?.read?.name, 'x');
+const getterProp = {
+  type: 'Property',
+  kind: 'get',
+  key: { type: 'Identifier', name: 'w' },
+  value: { type: 'FunctionExpression', body: { type: 'BlockStatement', body: [] } },
+};
+check('objectLevelPairedProperty/a getter is no data value', objectLevelPairedProperty(level(getterProp), 'w'), null);
+check('objectLevelPairedProperty/a non-object level declines',
+  objectLevelPairedProperty({ type: 'ArrayExpression', elements: [] }, 'w'), null);
 
 // `privateNameSpelling` is the single canon for the private-name `#name`: babel nests the id under
 // `.id`, estree carries `.name` directly - both must spell identically, and a non-private node is null

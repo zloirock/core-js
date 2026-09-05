@@ -832,8 +832,10 @@ export function createUsageVisitors({
   // runs once) and adds an inline default `= _Array$from`, so the static is polyfilled, not bailed
   // threads the key's own path: the key EVALUATES there, so the canon's flow gates
   // (init-dominance, reaching-value) anchor at the capture instead of defaulting open
+  // ... and `keepsKeyNode`: the pattern KEEPS an effectful key where it stands, so a key spelled
+  // through a bound identity call (`[k('at')]`) may fold to its argument
   function resolveKey(path, computed) {
-    return sharedResolveKey({ node: path.node, computed, scope: path.scope, adapter, path, resolveStaticKey });
+    return sharedResolveKey({ node: path.node, computed, scope: path.scope, adapter, path, resolveStaticKey, keepsKeyNode: true });
   }
 
   // `skipReferencedCheck` bypasses babel's `isReferencedIdentifier` for callers that have
