@@ -231,11 +231,17 @@ const D_PATTERNS = [
   // where the source evaluates it, and the stripped realm is what sees a leaf left native. the
   // hosts a computed root cannot yet be spelled on are named beside the row, not carried red: the
   // wrapper family serves a nested claim only where the walk can follow the ELEMENT's own literal,
-  // and an opaque call has none - the flat host memoizes the init instead and keeps the claim
+  // and an opaque call has none - the flat host memoizes the init instead and keeps the claim. an
+  // INLINE-array spread in the wrapper reads as the flat literal it spells, so those hosts share
+  // the flat twin's gap (a sole slot beside a trailing effect included)
   { id: 'nested-computed-root', recv: '(v => v)({ data: arr })', lhs: '{ data: { at: ncr } }',
     names: ['ncr'], observe: 'typeof ncr', strip: true,
     skipHosts: [
       'array-wrap-effect-before-hole',
+      'array-wrap-sole-spread',
+      'array-wrap-inline-spread',
+      'array-wrap-inline-spread-shifted',
+      'array-wrap-inline-spread-cast',
       'array-wrap-sibling-trailing-effect', 'param-default', 'assign', 'assign-array-wrap-sole', 'assign-array-wrap-multi', 'assign-bodyless-skipped',
       'assign-bodyless-taken', 'assign-discarded-seq', 'array-wrap-sole', 'array-wrap-effect-neighbour',
       'array-wrap-pure-neighbour', 'array-wrap-effect-leading-sibling', 'array-wrap-trailing-sibling',
@@ -601,6 +607,15 @@ const D_HOSTS = [
     build: p => `(() => { const [${ p.lhs }] = [${ p.recv }], zTail = 1; return [zTail, ${ p.observe }]; })()` },
   { id: 'array-wrap-twin-declarators', strip: true,
     build: p => `(() => { const [${ p.lhs }] = [${ p.recv }], [{ at: zAt }] = [[1, 2]]; return [typeof zAt, ${ p.observe }]; })()` },
+  // an INLINE-array spread in the wrapper is a longer literal read at its static positions: the sole
+  // slot through it, a slot shifted behind a leading effect (the log pins that it still runs), and
+  // the spread array under a transparent wrapper the source spells - a cast, so TS rows only
+  { id: 'array-wrap-inline-spread', strip: true,
+    build: p => `(() => { const [${ p.lhs }] = [...[${ p.recv }]]; return ${ p.observe }; })()` },
+  { id: 'array-wrap-inline-spread-shifted', strip: true,
+    build: p => `(() => { const [, ${ p.lhs }] = [...[log.push("s"), ${ p.recv }]]; return ${ p.observe }; })()` },
+  { id: 'array-wrap-inline-spread-cast', strip: true, ts: true,
+    build: p => `(() => { const [${ p.lhs }] = [...([${ p.recv }] as any)]; return ${ p.observe }; })()` },
   // the POSITIONAL element claim (an array pattern element renamed to a minted binding) is fixture
   // work, not an axis here: every host in this table wraps the pattern in a literal of its own, and
   // over a literal the PAIRING routes own the element - so the axis would only ever measure their
@@ -737,8 +752,10 @@ function * generateDestructure() {
       // a row may name the hosts it does NOT cover: a cell both emitters leave native is a gap in
       // the product, and the corpus records it beside the row rather than carrying a standing red
       if (pat.skipHosts?.includes(host.id)) continue;
+      // a host spelled in TS serves only the rows the stripping reaches
+      if (host.ts && !pat.strip) continue;
       const name = `destructure-grammar/${ host.id }/${ pat.id }`;
-      yield { ...snippet(name, host.build(pat)), strip: host.strip && pat.strip };
+      yield { ...snippet(name, host.build(pat)), strip: host.strip && pat.strip, ...host.ts ? { ts: true } : {} };
     }
   }
 }

@@ -13,6 +13,7 @@ import {
   isTypeAnnotationWrapper,
   isVoidExpression,
   ownerWritePathIndex,
+  positionalElementPath,
   POSSIBLE_GLOBAL_OBJECTS,
   peelParenAndTSParentPath,
   peelParenAndTSSlotChild,
@@ -21,7 +22,6 @@ import {
   singleReturnBodyExpression,
   singleQuasiString,
   SKIPPABLE_WRAPPER_TYPES,
-  spreadAtOrBefore,
   staleVarRedeclNodes,
   staticMemberFromEntrySegment,
   synthHoistedBinding,
@@ -437,10 +437,7 @@ function createResolveNodeType(babelNodeType, t, {
   // without the branch the generic substitution falls back to T's constraint and yields `unknown`
   function arrayLiteralElementPath(argPath, key) {
     const index = canonicalArrayIndex(key);
-    if (index === null) return null;
-    const elements = cachedContainerPaths(argPath, 'elements');
-    if (spreadAtOrBefore(elements, index)) return null;
-    return elements[index]?.node ? elements[index] : null;
+    return index === null ? null : positionalElementPath(argPath, index);
   }
 
   // walk into an ObjectExpression / ArrayExpression argPath one key deep, returning the
@@ -1164,12 +1161,9 @@ function createResolveNodeType(babelNodeType, t, {
       if (typeof step === 'number') {
         // -1 marks rest-element ("whole tail" slice) - no single Path to surface
         if (step < 0) return null;
-        if (!t.isArrayExpression(cur.node) || cur.node.elements.length <= step) return null;
-        // a spread at or before `step` shifts the runtime position - the element at AST index `step`
-        // is not the value at runtime slot `step` (same guard the sibling array-literal walks use)
-        if (spreadAtOrBefore(cur.node.elements, step)) return null;
-        const next = cachedContainerPaths(cur, 'elements')[step];
-        if (!next?.node) return null;
+        if (!t.isArrayExpression(cur.node)) return null;
+        const next = positionalElementPath(cur, step);
+        if (!next) return null;
         cur = resolveRuntimeExpression(next);
       } else {
         if (!t.isObjectExpression(cur.node)) return null;
@@ -2533,9 +2527,8 @@ function createResolveNodeType(babelNodeType, t, {
       const [step] = keys;
       const node = receiver?.node;
       if (node?.type === 'ArrayExpression' && typeof step === 'number' && step >= 0) {
-        if (spreadAtOrBefore(node.elements, step)) return null;
-        const element = cachedContainerPaths(receiver, 'elements')[step];
-        if (!element?.node) return null;
+        const element = positionalElementPath(receiver, step);
+        if (!element) return null;
         receiver = resolveRuntimeExpression(element);
       } else if (node?.type === 'ObjectExpression' && typeof step === 'string') {
         const member = findObjectMember(receiver, step);
@@ -2663,10 +2656,8 @@ function createResolveNodeType(babelNodeType, t, {
       let slotPath = value;
       for (const [step, key] of keyPath.entries()) {
         if (typeof key === 'number') {
-          const elementsHere = t.isArrayExpression(slotPath?.node) && key >= 0
-            && !spreadAtOrBefore(slotPath.node.elements, key) ? cachedContainerPaths(slotPath, 'elements') : null;
-          const element = elementsHere?.[key];
-          if (!element?.node) {
+          const element = t.isArrayExpression(slotPath?.node) && key >= 0 ? positionalElementPath(slotPath, key) : null;
+          if (!element) {
             slotPath = null;
             break;
           }
