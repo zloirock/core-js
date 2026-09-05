@@ -26,9 +26,9 @@ const {
     [(k++, 'flat')]: _unused
   } = _ref2,
   fl = _flatMaybeArray(_ref2);
+var f4 = _Object$entries;
 eff();
 var of4 = _Array$of;
-var f4 = _Object$entries;
 var {
   [(k4++, 'of')]: _unused2,
   other4

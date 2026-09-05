@@ -17,29 +17,54 @@
 // a 'rebuilt' node's `extractions` already aggregates its children's - consumers read
 // extractions at the OUTER level only and use child lists for residual rendering
 import {
+  aliasEscaped,
+  aliasSlotWritten,
   catchPropRewriteObservable,
+  createInstanceNodeCache,
+  findObjectKeyBeforeSpread,
+  followConstIdentifierInit,
   isChainAssignment,
+  isDestructurePattern,
   isRestProperty,
   mayHaveSideEffects,
+  objectInitSpreadSurvives,
+  objectLiteralHoldsObservable,
+  objectPropertyReadValue,
+  peelNestedSequenceExpressions,
   peelZeroArgIifeReturn,
-  propBindingIdentifier,
   plainSynthKeyName,
+  POSSIBLE_GLOBAL_OBJECTS,
+  propBindingIdentifier,
   propertyKeyName,
+  receiverCarriesLiveOptional,
+  spelledSlotName,
   unwrapCollectingSePrefixes,
   unwrapExpressionChain,
-  POSSIBLE_GLOBAL_OBJECTS,
-  createInstanceNodeCache,
-  followConstIdentifierInit,
+  unwrapRuntimeExpr,
 } from '../helpers/ast-patterns.js';
 import { resolve as resolveBuiltIn } from '../index.js';
 import { computedPropKeyHostsMachinery } from './members.js';
 import {
-  chainSealsAShortCircuit, discardRescueNodes, isStaticPlacement, isUndefinedNode,
-  proxyReceiverValueCanBeUndefined, resolveKey as sharedResolveKey, resolveObjectName,
+  chainSealsAShortCircuit,
+  consumableHopSlotName,
+  discardRescueNodes,
+  guaranteedRealmObjectName,
+  isStaticPlacement,
+  isUndefinedNode,
+  navValueCanShortCircuit,
+  peelRealmLogicalDefault,
+  proxyReceiverValueCanBeUndefined,
+  resolveKey as sharedResolveKey,
+  resolveObjectName,
 } from './resolve.js';
 import {
   mirrorAcceptedKey,
-  buildDestructuringInitMeta, destructureRightIsReceiver, fallbackInitWhollyDiscardable, resolveBranchProxyName,
+  buildDestructuringInitMeta,
+  destructureHostInitNode,
+  destructurePatternHostPath,
+  destructureRightIsReceiver,
+  fallbackInitWhollyDiscardable,
+  resolveBranchProxyName,
   walkStaticReceiverChain,
 } from './destructure.js';
 
@@ -124,16 +149,37 @@ function anchoredSeAccounting(declarator, peeledInit) {
   return { accounted, anchorSe: accounted && prefixes.length ? prefixes : null };
 }
 
-// peel parallel transparent destructure wrappers:
+// does the literal this leaf reads THROUGH outlive the pairing? the walk that pairs the level owns
+// the answer, and a slot over a surviving literal stays NAMED: it leaves a sentinel instead of
+// dropping, so the husk keeps the key the residual still reads and every effect the literal owes
+export function destructureHostLiteralSurvives(leafPath) {
+  const host = destructurePatternHostPath(leafPath);
+  // a DECLARATION host only: an assignment keeps its literal as a statement of its own
+  // (`({ v: (se(), arr) });` - the pattern goes, the read stays), which is its own channel
+  const pattern = host?.node?.type === 'VariableDeclarator' ? host.node.id : null;
+  const init = destructureHostInitNode(leafPath);
+  // asked of an OBJECT init only: an array wrapper answers the same flag for its own spread, and the
+  // routes that own that shape already read it off the plan - re-deciding it here would move them
+  return !!pattern && init?.type === 'ObjectExpression'
+    && peelArrayWrapperPair({ pattern, init, liftTrailing: true }).wrapperSurvives;
+}
+
+// peel parallel transparent destructure wrappers - a level is a SINGLE-slot pair on both sides:
 //   - single-element ArrayPattern + matching ArrayExpression layer (`[{...}] = [globalThis]`,
 //     `[[{...}]] = [[globalThis]]`, etc.)
+//   - sole-property ObjectPattern + the literal slot its key names (`{ w: {...} } = { w: globalThis }`),
+//     whose own gates live in `objectHopPairedValue`
 //   - inner AssignmentPattern default (`[{...} = {}] = [globalThis]`) - default never fires
 //     for proxy-global receivers since runtime value is always defined under polyfill-wins
-// bail (stop iterating) on depth divergence or non-array intermediate - downstream shape
-// check will reject ambiguous shapes. when scope + adapter are passed, dereferences a
+// bail (stop iterating) on depth divergence or an intermediate of the other shape - downstream
+// shape check will reject ambiguous shapes. when scope + adapter are passed, dereferences a
 // const-bound Identifier init through its binding so `const wrapper = [Array]; const
-// [{x}] = wrapper` descends to the leaf via the wrapper's init
-export function peelArrayWrapperPair({ pattern, init, scope = null, adapter = null, path = null }) {
+// [{x}] = wrapper` descends to the leaf via the wrapper's init.
+// `liftTrailing`: the caller's host holds a statement slot ahead of the destructure, so an
+// SE-bearing element the pattern does not bind is HARVESTED into `trailingEffects` instead of
+// bailing the level - without it the level stays whole and every effect runs verbatim
+// eslint-disable-next-line max-statements -- the peel: one arm per wrapper shape a level may take
+export function peelArrayWrapperPair({ pattern, init, scope = null, adapter = null, path = null, liftTrailing = false }) {
   // the capture the levels consumed so far anchor at - the host use first, then the innermost
   // followed alias declarator (the detect side's `descendArrayWrapperInit` threads the same hop)
   let readNode = null;
@@ -151,12 +197,38 @@ export function peelArrayWrapperPair({ pattern, init, scope = null, adapter = nu
   // ArrayExpression after the unwrap. residual renders strip each INLINE level's wrapper down
   // to its array - a kept `(mid(), [R])` would re-run the lifted effect (double-exec)
   const consumedLevels = [];
+  // SE-bearing elements the pattern does not bind, per consumed INLINE level (outermost first).
+  // native evaluates them AFTER the paired element and everything below it, so a full consume
+  // re-emits them innermost level first, behind the element's own effects; a partial consume
+  // keeps the level's array, where they still stand
+  const trailingByLevel = [];
+  // a SPREAD extra iterates its argument, which no statement re-emits: the level is still consumed
+  // (the pattern below it plans), but its array has to SURVIVE the render - a sentinel keeps the
+  // consumed slot and the residual runs the iteration where the source did
+  let wrapperSurvives = false;
+  // ... and whether a REST beside a hop is what keeps it: the render then EMPTIES the consumed hop and
+  // binds the hop itself to a sentinel (`{ w: _unused, ...rest }`), the flat rest shape one level down,
+  // where a spread's survivor keeps the leaf sentinel inside the hop
+  let restKeepsLevel = false;
   let firstArray = null;
   let lastArray = null;
   // STICKY across levels: once a level dereferenced a const-bound alias, every DEEPER level
   // also lives in the alias's own init (outside the destructure host), so the trailing-extra
-  // bail below never applies to them either
+  // rule below never applies to them either
   let dereferenced = false;
+  // the context a HOP KEY folds in: the pattern never leaves the host, so its keys read in the
+  // host's scope however deep the INIT side has followed an alias out of it (the follow rebinds
+  // `scope` below to the alias declaration's - a shadowing `k` there must not answer for the
+  // pattern's own)
+  const hopKeyCtx = adapter ? { scope, adapter, path } : null;
+  // the peel's answer at whatever level the walk stopped: the pattern and init it reached plus
+  // everything the consumed levels committed
+  function done(peeledPattern, peeledInit) {
+    return {
+      pattern: peeledPattern, init: peeledInit, peeledPrefixes, firstArray, lastArray, consumedLevels,
+      trailingEffects: trailingByLevel.toReversed().flat(), wrapperSurvives, restKeepsLevel,
+    };
+  }
   for (;;) {
     // strip AssignmentPattern wrapper on the destructure side - init has no AssignmentPattern
     // equivalent (defaults sit on the LHS slot), so we only peel pattern here. EXCEPTION: a
@@ -164,14 +236,25 @@ export function peelArrayWrapperPair({ pattern, init, scope = null, adapter = nu
     // ITS right is the receiver (`[{ from } = Array] = [undefined]` -> from off Array) - surface it
     // (the identification's resolveArrayInnerDefaultReceiver agrees, so both emitters stay consistent)
     if (pattern?.type === 'AssignmentPattern') {
-      if (isUndefinedNode(init) && destructureRightIsReceiver(pattern.right)) {
-        return { pattern: pattern.left, init: pattern.right, peeledPrefixes, firstArray, lastArray, consumedLevels };
-      }
+      if (isUndefinedNode(init) && destructureRightIsReceiver(pattern.right)) return done(pattern.left, pattern.right);
       pattern = pattern.left;
       continue;
     }
-    if (pattern?.type !== 'ArrayPattern' || pattern.elements.length !== 1) {
-      return { pattern, init, peeledPrefixes, firstArray, lastArray, consumedLevels };
+    // a level is a single-slot wrapper on both sides: an array's SOLE element, or an object's SOLE
+    // property naming a slot whose value is one more pattern (`{ w: { Map } } = { w: globalThis }`
+    // pairs exactly as `[{ Map }] = [globalThis]` does). a wider level is the plan's own shape and
+    // stops the peel, and so does a leaf value - the flat routes own that. the slot is asked through
+    // the CONSUMING canon, so a bound computed key (`{ [k]: { Map } }`) names its level like a literal.
+    // a REST beside the hop (`{ w: { Map }, ...rest }`) pairs the same slot and keeps the level ALIVE
+    // exactly as a spread in the literal does: rest gathers what the pattern did not name, so the
+    // consumed hop stays as a sentinel keeping its key excluded, and the residual runs where it stood
+    const hopCandidates = pattern?.type === 'ObjectPattern' ? pattern.properties.filter(prop => !isRestProperty(prop)) : [];
+    const hopRest = hopCandidates.length === 1 && pattern.properties.length === 2;
+    const hopProp = hopCandidates.length === 1 && (pattern.properties.length === 1 || hopRest)
+      && isDestructurePattern(peelInnerDefault(hopCandidates[0].value))
+      && consumableHopSlotName(hopCandidates[0], hopKeyCtx) !== null ? hopCandidates[0] : null;
+    if (!hopProp && (pattern?.type !== 'ArrayPattern' || pattern.elements.length !== 1)) {
+      return done(pattern, init);
     }
     // peel SE-tail / paren / TS wrappers first (`(se(), [Array])` descends into the tail's
     // array); the crossed sequence prefixes are collected and committed only when this level's
@@ -193,33 +276,117 @@ export function peelArrayWrapperPair({ pattern, init, scope = null, adapter = nu
       const followed = followConstIdentifierInit({
         node: effectiveInit, readNode, ctx: { scope, adapter, path, resolveKey: sharedResolveKey },
       });
+      // a dereferenced alias is only as good as its SLOTS: a container this file writes into, or
+      // lets escape, may no longer hold what its literal spelled, and the level below binds a
+      // polyfill to that literal. asked of the OBJECT level alone: its key names the slot, so the
+      // question has an answer, while an array level's slot is positional and the census - keyed by
+      // NAME, per file - would bail every common wrapper name a file also uses elsewhere
+      if (followed.node !== effectiveInit && hopProp
+        && (aliasEscaped(effectiveInit, adapter, path)
+          || aliasSlotWritten(effectiveInit, spelledSlotName(hopProp), adapter))) return done(pattern, init);
       if (followed.node !== effectiveInit) dereferenced = true;
       effectiveInit = followed.node;
       ({ readNode } = followed);
       scope = followed.ctx.scope;
     }
-    if (effectiveInit?.type !== 'ArrayExpression') return { pattern, init, peeledPrefixes, firstArray, lastArray, consumedLevels };
+    if (hopProp) {
+      // the object level harvests nothing of its own - what keeps it whole is `objectHopPairedValue`'s
+      // to decide - so it commits an empty trailing list and rides the same level bookkeeping
+      // the hop key through the CONSUMING canon: a bound computed key folds to the slot it names
+      // (`{ [k]: { Map } }` with `const k = 'w'`), the way the other leg's consume already read it
+      const paired = objectHopPairedValue(effectiveInit, consumableHopSlotName(hopProp, hopKeyCtx), dereferenced,
+        adapter ? { scope, adapter, path } : null);
+      if (!paired) return done(pattern, init);
+      if (paired.survives || hopRest) wrapperSurvives = true;
+      if (hopRest) restKeepsLevel = true;
+      consumedLevels.push({ wrapper: init, array: effectiveInit });
+      trailingByLevel.push([]);
+      pattern = peelInnerDefault(hopProp.value);
+      init = paired.read;
+      continue;
+    }
+    if (effectiveInit?.type !== 'ArrayExpression') return done(pattern, init);
     const [innerPattern] = pattern.elements;
     const [innerInit] = effectiveInit.elements;
-    if (!innerPattern || !innerInit) return { pattern, init, peeledPrefixes, firstArray, lastArray, consumedLevels };
+    if (!innerPattern || !innerInit) return done(pattern, init);
     // an INLINE trailing init element is evaluated-then-discarded by the destructure at
-    // runtime; its effect would vanish with the consumed wrapper level, so an SE-bearing (or
-    // spread - iteration is observable) extra bails the consume: the init stays whole and
-    // every effect runs verbatim. a pure extra stays peelable - dropping a value-dead pure
-    // element is silent. a DEREFERENCED wrapper is exempt: the alias's own declaration keeps
-    // the whole array (only the VALUE flows here), so its effects were never at risk - and
-    // bailing mid-follow desynced the peel from the detect pass
-    if (!dereferenced && effectiveInit.elements.some((el, i) => i > 0 && el
-      && (el.type === 'SpreadElement' || mayHaveSideEffects(el)))) {
-      return { pattern, init, peeledPrefixes, firstArray, lastArray, consumedLevels };
-    }
+    // runtime; its effect would vanish with the consumed wrapper level, so an SE-bearing extra
+    // bails the consume - the init stays whole and every effect runs verbatim - unless the
+    // caller lifts, where it is harvested for the host to re-emit. a SPREAD extra iterates,
+    // which no statement re-emits: a lifting host keeps that level's ARRAY alive instead
+    // (`wrapperSurvives`), with nothing harvested off it, and any other host bails. a pure
+    // extra stays peelable - dropping a value-dead pure element is silent. a DEREFERENCED
+    // wrapper is exempt: the alias's own declaration keeps the whole array (only the VALUE
+    // flows here), so its effects were never at risk - and bailing mid-follow desynced the
+    // peel from the detect pass
+    const extras = dereferenced ? [] : effectiveInit.elements.slice(1).filter(Boolean);
+    const spread = extras.some(el => el.type === 'SpreadElement');
+    if (!liftTrailing && (spread || extras.some(mayHaveSideEffects))) return done(pattern, init);
+    if (spread) wrapperSurvives = true;
     peeledPrefixes.push(...levelPrefixes);
     consumedLevels.push({ wrapper: init, array: effectiveInit });
+    trailingByLevel.push(spread ? [] : extras.filter(mayHaveSideEffects));
     firstArray ??= effectiveInit;
     lastArray = effectiveInit;
     pattern = innerPattern;
     init = innerInit;
   }
+}
+
+// the value an object level's sole pattern property pairs with, or null when the level has to stay
+// whole: a SPREAD anywhere in the literal (it could override the key, and its read of the source's
+// own enumerable keys is an effect of its own), an unnameable key standing after the match that could
+// BE it at runtime (last wins), an accessor or method whose read runs a body the consumed level
+// would drop, a sibling effect with no re-emit channel here, and a value whose live `?.` belongs to
+// the probe channel. a DEREFERENCED level skips the sibling rule: the alias's own declaration keeps
+// the literal, so its siblings were never at risk
+function objectHopPairedValue(objectNode, key, dereferenced, keyCtx) {
+  if (objectNode?.type !== 'ObjectExpression') return null;
+  const match = findObjectKeyBeforeSpread(objectNode.properties, prop => spelledSlotName(prop) === key);
+  const read = objectPropertyReadValue(match);
+  if (!read) return null;
+  // ... a key standing after the match is dangerous only where NOTHING can name it: the same
+  // scope-aware fold the hop's own key rides (`{ [K]: v }` with `const K = 'q'` names `q`), so a
+  // bound key that provably spells another slot leaves the match standing
+  if (objectNode.properties.slice(objectNode.properties.indexOf(match) + 1)
+    .some(prop => consumableHopSlotName(prop, keyCtx) === null)) return null;
+  // ... a `?.` that cannot short-circuit is dead text (`globalThis?.globalThis` - the object is a
+  // guaranteed realm name): the value canon that every seal-aware channel asks answers here too, so
+  // the level pairs with the nav the way the walk already resolves it for a static claim
+  if (receiverCarriesLiveOptional(read) && (!keyCtx || navValueCanShortCircuit(
+    unwrapRuntimeExpr(read), ({ name }) => resolveBuiltIn({ kind: 'global', name }), keyCtx))) return null;
+  // ... and a value the level SELECTS between arms is not one value to pair with: which arm answers
+  // is the selecting-receiver channel's question, asked where the source wrote the branch
+  // ... EXCEPT the defensive realm default, where nothing selects: a guaranteed realm name is an
+  // object, so the right side is dead text and the level pairs with the name (`(globalThis ?? {})`
+  // names the realm, exactly as the flat spelling of the same receiver does)
+  // ... at every depth of the default (`(globalThis ?? {}) ?? {}`), the way the walk canon reads it -
+  // the discarding peel, since the level pairs with the name in place of the slot
+  const realmPeeled = read.type === 'LogicalExpression' ? peelRealmLogicalDefault(read, { discarding: true }) : null;
+  const realmNamed = realmPeeled?.type === 'Identifier' && guaranteedRealmObjectName(realmPeeled.name)
+    ? realmPeeled : null;
+  if (!realmNamed && (read.type === 'ConditionalExpression' || read.type === 'LogicalExpression')) return null;
+  if (dereferenced) return { match, read };
+  // a sibling's effect and a SPREAD's read of its source's own keys have no re-emit channel here -
+  // the array level's harvest rides `peeledPrefixes` / `trailingEffects`, which the renders read off
+  // the innermost consumed ARRAY - so a level holding either PAIRS AND SURVIVES, the way a
+  // spread-bearing array wrapper does: the claim is still spelled from the slot its key names, and
+  // the literal stays with its sentinels so every effect runs where the source wrote it
+  // ... and a SEQUENCE around a value the dispatch COLLAPSES owes its prefix: a realm name is
+  // re-spelled as its ponyfill (`_globalThis`), never as the comma run in front of it, so the
+  // literal keeps that prefix. every other value rides INSIDE the dispatch, prefix and all
+  // (`_at((log.push('c'), arr))`), which is the carry the corpus locks - asked through the wrappers
+  // a source may spell (one parser keeps parens as nodes), but never through the sequence itself
+  // ... read through the canon peel, so a NESTED run (`(f(), (g(), globalThis))`) and a realm default
+  // on the tail (`(f(), globalThis ?? {})`) owe their prefix exactly like the flat spelling - read by
+  // the outer level alone, the tail was no name, the level consumed, and the prefix vanished
+  const { prefix: readPrefix, tail: readTailRaw } = peelNestedSequenceExpressions(unwrapRuntimeExpr(read));
+  const readTail = readPrefix.length ? peelRealmLogicalDefault(unwrapRuntimeExpr(readTailRaw), { discarding: true }) : null;
+  const seqPrefixOwed = !!readTail && readPrefix.some(mayHaveSideEffects)
+    && readTail.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(readTail.name);
+  return {
+    match, read: realmNamed ?? read, survives: seqPrefixOwed || objectLiteralHoldsObservable(objectNode, match),
+  };
 }
 
 // peel AssignmentPattern wrapping the inner pattern (`{ Foo: { x } = {} } = R`).
@@ -351,6 +518,14 @@ export function probedNavProbeKey(plan) {
 
 const planCache = createInstanceNodeCache();
 
+// does a pattern HOP name a ctor the targets may lack - one the pure flavor ships as its own entry
+// (`Map`, `Iterator`, `AggregateError`)? a sentinel or a raw residual read under such a hop reads the
+// native ctor off the realm, which is what the stripped realm lacks; the anchor asks the same question
+export function hopNamesMissingAbleCtor(hopProp, resolveGlobalPolyfill) {
+  const name = propertyKeyName(hopProp);
+  return !!name && !POSSIBLE_GLOBAL_OBJECTS.has(name) && !!resolveGlobalPolyfill(name);
+}
+
 // classify a destructure declarator (`{ id, init }` - a real VariableDeclarator or the
 // cascade's synthetic assignment host) into the plan tree, or null when the init isn't a
 // recognisable receiver shape or nothing extracts. dispatches across three receiver shapes:
@@ -365,11 +540,15 @@ const planCache = createInstanceNodeCache();
 // stay native) - for BOTH the declarator and the cascade. `discardSe` harvests the observable node
 // the discard would drop (a chain assignment, an SE-bearing chain-root call) for the
 // emitters to re-run exactly once; `initElement` is the descended array element within
-// the original init's span a residual receiver swap must target
+// the original init's span a residual receiver swap must target. `liftsTrailingEffects`: the
+// host can re-emit, as statements ahead of the extraction, the SE-bearing elements an array
+// wrapper evaluates beside the consumed one - the peel harvests them into `trailingEffects`
+// (innermost level first, behind the element's own effects) instead of keeping the wrapper
+// whole; a host with no statement slot (a for-init head) leaves the option off and stays native
 // eslint-disable-next-line max-statements -- sequential plan-building steps of one pattern
 export function buildNestedDestructurePlan({
   declarator, scope, adapter, path = null, resolvePure, resolveGlobalPolyfill,
-  isDisabledProp = null,
+  isDisabledProp = null, liftsTrailingEffects = false,
 }) {
   if (planCache.has(adapter, declarator)) return planCache.get(adapter, declarator);
 
@@ -411,8 +590,18 @@ export function buildNestedDestructurePlan({
     if (!resolved) return { kind: 'verbatim', prop };
     return {
       kind: 'consumed', prop, keyName,
-      extractions: [{ entry: resolved.pure.entry, hint: resolved.pure.hintName, localName: resolved.localName }],
+      extractions: [{
+        entry: resolved.pure.entry, hint: resolved.pure.hintName, localName: resolved.localName,
+        defaultNode: leafDefaultNode(prop),
+      }],
     };
+  }
+
+  // the user's own default on a consumed leaf (`{ from: alias = d }`): the polyfill is always defined,
+  // so it is dead text at runtime, but the flat twin keeps its guard (`_Map === void 0 ? d : _Map`)
+  // and so does the extraction - the render canon's static guard, on both legs
+  function leafDefaultNode(prop) {
+    return prop.value?.type === 'AssignmentPattern' ? prop.value.right : null;
   }
 
   // fold an ObjectPattern-valued outer prop: plan each child, aggregate extractions, pick
@@ -504,7 +693,9 @@ export function buildNestedDestructurePlan({
         // reads through the local must keep resolving: `const { Symbol } = globalThis;
         // Symbol.iterator` -> `_Symbol$iterator`), unlike static-method extractions which
         // register a body-extract alias
-        extractions: [{ kind: 'global', entry: pure.entry, hint: pure.hintName, localName: value.name }],
+        extractions: [{
+          kind: 'global', entry: pure.entry, hint: pure.hintName, localName: value.name, defaultNode: leafDefaultNode(outerProp),
+        }],
       };
     }
     return { kind: 'verbatim', prop: outerProp };
@@ -567,6 +758,10 @@ export function buildNestedDestructurePlan({
     if (constructor && !POSSIBLE_GLOBAL_OBJECTS.has(constructor)) {
       return foldNestedPattern(outerProp, value, innerProp => planInnerProp(innerProp, constructor));
     }
+    // a slot holding the REALM itself (`{ w: globalThis }`) is a proxy level: its ctor leaves consume
+    // like the ones read off a proxy-global init (`{ w: { Map } } = { w: globalThis }` -> `const Map
+    // = _Map`), and its ctor hops descend the same way - the static walk's own proxy lift, one level up
+    if (constructor && POSSIBLE_GLOBAL_OBJECTS.has(constructor)) return foldNestedPattern(outerProp, value, planOuterProp);
     return foldNestedPattern(outerProp, value, innerProp => planOuterPropStatic(innerProp, hostInit, newPath));
   }
 
@@ -581,8 +776,16 @@ export function buildNestedDestructurePlan({
   }
   let plan = null;
   const originalId = declarator.id;
-  const peeled = peelArrayWrapperPair({ pattern: originalId, init: declarator.init, scope, adapter, path });
+  const peeled = peelArrayWrapperPair({
+    pattern: originalId, init: declarator.init, scope, adapter, path, liftTrailing: liftsTrailingEffects,
+  });
   const { pattern } = peeled;
+  // the harvested neighbours a FULL consume discards with the wrapper: the render re-emits them
+  // once, behind the element's own effects; a partial consume keeps the array they stand in
+  const trailingEffects = peeled.trailingEffects.length ? peeled.trailingEffects : null;
+  // a level a SPREAD keeps alive: the render keeps every consumed slot as a sentinel and the
+  // declarator with it, so the array still iterates where the source did
+  const { wrapperSurvives } = peeled;
   const arrayPeelHappened = pattern !== originalId;
   // the DESCENDED init element when an ArrayPattern wrapper was peeled WITHIN the original
   // init's span: a receiver swap in the residual render must target this element, not the
@@ -701,8 +904,18 @@ export function buildNestedDestructurePlan({
         // re-anchor missing-able ctor residuals only in the CLEAN case: an SE-free init where EVERY prop is
         // already consumed or anchorable. a verbatim sibling (always-present ctor / global alias / disabled
         // leaf) or an SE init routes through native-residual / proxy-hop handling that does not split per-
-        // ctor, so those stay on the native residual (current behavior - bounded, no regression)
-        const reanchored = mayHaveSideEffects(declarator.init)
+        // ctor, so those stay on the native residual (current behavior - bounded, no regression).
+        // the SE that matters is the init's TAIL: a sequence prefix lifts to its own statement on every
+        // host ahead of the render, so what the anchored residual would read is the quiet tail - the
+        // same init the prefix-less twin anchors on (`{ Array: { from }, Set: { union } } = (eff(),
+        // globalThis)` left `Set` on the proxy while its twin anchored `{ union } = _Set`). a chain
+        // ASSIGNMENT tail is accounted the same way the single-key anchor accounts it: the discard
+        // harvest rescues the write whole, and the residual reads the value it stored
+        // ... and a wrapper a SPREAD keeps alive changes nothing here: the anchored prop leaves the
+        // pattern for a declarator of its own like anywhere else, and the emitters keep the wrapper
+        // standing as a husk for the iteration (the native residual would read the missing ctor)
+        const initTail = unwrapCollectingSePrefixes(peeled.init, []);
+        const reanchored = mayHaveSideEffects(initTail) && !isChainAssignment(initTail)
           ? planned : planned.map(p => anchorMissingAbleResidual(p, pattern, receiver));
         // require at least one CONSUMED (extracting) prop alongside the anchored one: babel's flatten
         // dispatch is usage-driven (it fires on a polyfillable leaf), so an ALL-anchored multi-ctor
@@ -764,6 +977,9 @@ export function buildNestedDestructurePlan({
       }
     }
   }
+  if (plan && trailingEffects) plan.trailingEffects = trailingEffects;
+  if (plan && (wrapperSurvives || objectInitSpreadSurvives(declarator.init))) plan.wrapperSurvives = true;
+  if (plan && peeled.restKeepsLevel) plan.restKeepsLevel = true;
   planCache.set(adapter, declarator, plan);
   return plan;
 }
@@ -806,8 +1022,8 @@ function patternHoldsClaim(node, resolvePure, undefaultedOnly = false) {
   }
   if (pattern?.type !== 'ObjectPattern') return false;
   return (pattern.properties ?? []).some(prop => {
-    if (!isPropertyNode(prop) || prop.computed) return false;
-    const key = prop.key?.name ?? prop.key?.value ?? null;
+    if (!isPropertyNode(prop)) return false;
+    const key = spelledSlotName(prop);
     const defaulted = prop.value?.type === 'AssignmentPattern';
     const value = defaulted ? prop.value.left : prop.value;
     if (key !== null && value?.type === 'Identifier' && !(undefaultedOnly && defaulted)
@@ -837,8 +1053,10 @@ export function planCatchClauseExtraction({
   // and it survives a later for-of lowering, which the relocated shape does not
   const viaElement = [];
   const resolvableProps = paramNode.properties.filter(prop => {
-    if (!isPropertyNode(prop) || prop.computed) return false;
-    const key = prop.key?.name ?? prop.key?.value ?? null;
+    if (!isPropertyNode(prop)) return false;
+    // through the consuming canon: a bound computed key (`{ [k]: { at } }`) names the slot its
+    // fold spells, so the relocation buys that claim its host like the literal spelling's
+    const key = consumableHopSlotName(prop, adapter ? { scope, adapter, path } : null);
     if (key === null) return false;
     // `objectHint` is what the relocated value is KNOWN to be - a loop head can type its element
     // where a catch clause never can. asking with it keeps the relocation to claims that are
@@ -886,7 +1104,9 @@ export function planCatchClauseExtraction({
   // the relocation gives it one and its own route takes it from there (`catch ({ y: { flat } })`
   // stayed native while both its neighbours in this host - the flat prop and the array element -
   // claimed)
-  const nestedClaim = paramNode.properties.some(prop => isPropertyNode(prop) && !prop.computed
+  // ... under a key the consume can NAME: a bound computed one folds, an evaluating one stays out
+  const nestedClaim = paramNode.properties.some(prop => isPropertyNode(prop)
+    && consumableHopSlotName(prop, adapter ? { scope, adapter, path } : null) !== null
     && patternHoldsClaim(prop.value, resolvePure));
   if (!hasMachinery && !nestedClaim && !resolvableProps.length) return null;
   // ... so a pattern the mirror HOSTS, whose every claim came from the element channel and whose

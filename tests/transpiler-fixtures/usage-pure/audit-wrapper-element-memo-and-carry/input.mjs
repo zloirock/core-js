@@ -9,16 +9,15 @@ const [{ at: viaWrapOpaqueDefault = null }] = [arr.flat()];
 // ... and the memo may hoist only where no LATER declarator carries effects of its own: one that
 // does would have its element read before this declarator's own key
 const [{ at: viaWrapAheadOfPure }] = [arr.flat()], viaWrapPureTail = 1;
-// ... and a SURVIVING residual pins its extraction beside itself when the source wrote a declarator
-// BEHIND them: that trailing binding splits into a statement of its own, while a pattern left holding
-// nothing but a rest reads through the memo from a statement of its own instead
+// ... and a SURVIVING residual keeps its extraction beside itself in the one declaration, a declarator
+// the source wrote BEHIND them staying in that join (the memo ahead of it all), while a pattern left
+// holding nothing but a rest reads through the memo from a statement of its own instead
 const [{ at: viaKeptResidual, length: viaKeptLength }] = [hb.y], viaKeptTail = 1;
 // ... and a receiver carrying a CLAIM OF ITS OWN memoizes what the tree holds AFTER that claim
 // rendered, never the copy the plan captured - the rest below re-reads that one memo
 const [{ at: viaSharedMemo, ...viaSharedRest }] = [hb.y.slice()];
-// a wrapper element the PEEL reduces to a sequence TAIL: the residual keeps the whole sequence, so
-// spelling that tail again would evaluate it twice - the shape this leg's OWN output takes on a
-// second pass, where the prefix has been lifted to the top of the element
+// a wrapper element the PEEL reduces to a sequence TAIL: the claim consumes the level whole and the
+// dispatch carries the sequence as written, prefix included - one evaluation, in source order
 let viaPeeledTail;
 ([{ at: viaPeeledTail }] = [(out = 2, arr.flat())]);
 // a DECLARATION host reads its receiver once whatever keeps the DECLARATION alive: a consumed
