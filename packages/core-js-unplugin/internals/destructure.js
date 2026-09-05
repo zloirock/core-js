@@ -24,6 +24,7 @@ import {
   resolveNestedDestructureReceiver,
   resolveNestedNavDispatch,
   resolveNestedReceiverBase,
+  hopSplitPlan,
   resolveNestedReceiverChain,
   resolveNestedReceiverNode,
   resolvePassthroughRef,
@@ -807,9 +808,9 @@ export default function createAstDestructureEmitter({
     const keepsRaw = wrapped.bodyless || wrapped.multi;
     const chainKeys = hopChainKeys(chain);
     // the dead default peels out of the VALUE only - the raw prop keeps its own binding
-    // a STATIC leaf's default rides the value builder as the flat twin's guard (dead text: the pure is
-    // always defined); an INSTANCE leaf keeps the overwrite's own guard, which falls back to the raw
-    // slot the residual already defaulted - so its value peels the default out
+    // a STATIC leaf's default rides the value builder, where the canon drops it (dead text: the pure
+    // is always defined); an INSTANCE leaf keeps the overwrite's own guard, which falls back to the
+    // raw slot the residual already defaulted - so its value peels the default out
     const twinProp = kind === 'instance' && prop.value.type === 'AssignmentPattern' ? { ...prop, value: prop.value.left } : prop;
     // an INSTANCE claim resolves its receiver through the canonical NESTED walk - the
     // wrapper pairing proved the element, and a chain reads through the literal to the
@@ -1362,8 +1363,8 @@ export default function createAstDestructureEmitter({
       })) return;
       if (wrapped) {
         const chainKeys = hopChainKeys(chain);
-        // the leaf's default rides the value builder as the flat twin's static guard (dead text: the
-        // pure is always defined), so the source prop goes through whole
+        // the leaf's default rides the value builder, where the canon drops it (dead text: the pure
+        // is always defined), so the source prop goes through whole
         const valueProp = prop;
         // an INSTANCE claim resolves its receiver through the canonical NESTED walk - the
         // wrapper pairing proved the element, and a chain reads through the literal to the
@@ -2075,12 +2076,15 @@ export default function createAstDestructureEmitter({
   // a nested pattern whose LEAF level keeps siblings is the flat shape written the long way:
   // `{ y: { at, other } } = box` reads exactly what `{ at, other } = box.y` reads. the job below
   // rewrites it into that twin and hands the hop to a memo both the dispatch and the residual read,
-  // which is what this emitter already prints for the flat source. sole-host only: a host sibling
-  // names another key off the ROOT and would lose its binding when the declarator takes the leaf
+  // which is what this emitter already prints for the flat source. a level above the leaf that keeps
+  // SIBLINGS splits the hop out into a twin of its own beside the host (`hopSplitPlan`); the host
+  // goes on binding those siblings off the root
   function registerFlattenLeafJob({ metaPath, prop, kind, entry, hintName }) {
     const defaulted = prop.value.type === 'AssignmentPattern' && prop.value.left?.type === 'Identifier';
     if (kind !== 'instance' || (prop.value.type !== 'Identifier' && !defaulted)) return false;
-    const walk = resolveNestedReceiverChain(metaPath, { soleSlots: true, allowLeafSiblings: true, allowSlotDefault: true, adapter });
+    const walk = resolveNestedReceiverChain(metaPath, {
+      soleSlots: true, allowLeafSiblings: true, allowSlotDefault: true, siblingLevels: true, adapter,
+    });
     // a SOLE claim needs no normalizing - the extraction owns the whole leaf - unless its own KEY
     // carries an effect: that effect runs where the source wrote it, so the leaf has to survive,
     // and a surviving leaf is a second reader of the hop. the flat twin answers both (the memo the
@@ -2115,10 +2119,15 @@ export default function createAstDestructureEmitter({
     // but the hop: a sibling beside it binds a value that replacement drops, and the emitted code
     // then reads a name nothing declares. the flat spelling asks it of the declarator's own
     // pattern, the wrapped one of the ELEMENT that pairs with the literal
+    // ... unless the host stands in a STATEMENT LIST: there the hop LEAVES its level and the twin
+    // stands as a declaration of its own beside the host (`{ of: { name, foo }, junk } = Array` ->
+    // `const { junk } = Array; const _ref = _Array$of; ...`) - the level keeps reading the root for
+    // its siblings, on the terms `hopSplitPlan` sets
+    const siblingLevel = !wrapperNode && walk.climbed.slice(1).some(level => level.pattern.properties.length > 1);
     if (wrapperNode
       ? !navPlacement || walk.hostPattern?.node?.properties?.length !== 1
       : declaratorPath?.node?.id?.type !== 'ObjectPattern'
-        || declaratorPath.node.id.properties.length !== 1) return false;
+        || (declaratorPath.node.id.properties.length !== 1 && !siblingLevel)) return false;
     const declarationPath = declaratorPath.parentPath;
     if (declarationPath?.node?.type !== 'VariableDeclaration'
       || declarationPath.parentPath?.node?.type === 'ExportNamedDeclaration') return false;
@@ -2135,15 +2144,19 @@ export default function createAstDestructureEmitter({
       && declarationPath.parentPath.node.init === declarationPath.node;
     const bodylessWrap = !forInit && !statementListOf(declarationPath.parentPath?.node);
     if (bodylessWrap && !isBodylessStatementSlot(declarationPath.parentPath?.node, declarationPath.node)) return false;
+    if (siblingLevel && (forInit || bodylessWrap)) return false;
     // a SIBLING declarator is admitted only at an END of the list: the pair stands beside the
     // declaration rather than splitting it, and a declarator in the MIDDLE has no such side
     const declarators = declarationPath.node.declarations;
     const index = declarators.indexOf(declaratorPath.node);
     if (!forInit && index !== 0 && index !== declarators.length - 1) return false;
+    // ... and a SPLIT pair stands behind the declaration on the other leg, so its host is the LAST declarator
+    if (siblingLevel && index !== declarators.length - 1) return false;
+    const bound = !!adapter.getBinding(metaPath.scope, walk.root.name, metaPath);
     const ref = resolveNestedReceiverBase({
       rootName: walk.root.name,
       keys: walk.keys,
-      bound: !!adapter.getBinding(metaPath.scope, walk.root.name, metaPath),
+      bound,
       adapter,
       resolveGlobalPolyfill,
       // a nav ending on a polyfillable STATIC memoizes the static's own ponyfill: the twin reads
@@ -2152,6 +2165,8 @@ export default function createAstDestructureEmitter({
     });
     // a CTOR pure has no twin here - its statics are the anchored residual's business
     if (!ref || (ref.pure && !ref.static)) return false;
+    const split = siblingLevel ? hopSplitPlan(walk, { builtInRoot: !bound || !!(ref.pure || ref.static) }) : null;
+    if (siblingLevel && !split) return false;
     // ONE ref per declarator: every claim in this leaf reads the same memo, which is what keeps the
     // hop a single read. minted on the first claim, reused by its siblings
     // a DEFAULT on the SLOT folds into the memo itself: what the twin destructures is the slot's own
@@ -2182,8 +2197,15 @@ export default function createAstDestructureEmitter({
     }
     function navNode() {
       const navSpelling = ref.path.reduce(memberFromKeyName, navBase());
+      // ... a static the memo binds STRAIGHT off its import is always defined: the default is dead
+      // text there; a static read through a nav is the native slot and keeps the guard
       if (ref.static && walk.slotDefault) {
-        return renderStaticDefaultGuard({ read: navSpelling, defaultValue: walk.slotDefault, reread: cloneNode(navSpelling) });
+        return renderStaticDefaultGuard({
+          read: navSpelling,
+          defaultValue: walk.slotDefault,
+          reread: cloneNode(navSpelling),
+          alwaysDefined: !!ref.pure && !ref.path.length,
+        });
       }
       return slotGuardRef ? renderInstanceDefaultGuard({
         assignedRef: identifier(slotGuardRef),
@@ -2213,6 +2235,7 @@ export default function createAstDestructureEmitter({
         trailResidual: navPlacement === 'trail',
         elementIndex: walk.elementIndex,
         hostPatternNode: walk.hostPattern?.node ?? null,
+        split,
         bodylessWrap,
         forInit,
         value: defaulted ? renderInstanceDefaultGuard({

@@ -88,7 +88,7 @@ export const viaGuardedAssign = [][guardedAssign];
 
 // a for-init DESTRUCTURE host folds like the block-hosted twin: the per-iteration self-rebind
 // estree records for the head's own binding is the declaration, not a reassignment
-for (const viaForInitDestructure = _Symbol$iterator === void 0 ? 0 : _Symbol$iterator; Math.random() > 2;) {
+for (const viaForInitDestructure = _Symbol$iterator; Math.random() > 2;) {
   _pushMaybeArray(export_).call(export_, _getIteratorMethod([]));
   break;
 }
@@ -106,7 +106,7 @@ for (const {
 // NEGATIVE: a same-named UNBOUND read outside the alias's hosting scope is a runtime
 // ReferenceError - the file-wide name-keyed registration must not serve it
 function scopedAlias() {
-  const scopedIt = _Symbol$iterator === void 0 ? 0 : _Symbol$iterator;
+  const scopedIt = _Symbol$iterator;
   return _getIteratorMethod([]);
 }
 export const viaScoped = scopedAlias();

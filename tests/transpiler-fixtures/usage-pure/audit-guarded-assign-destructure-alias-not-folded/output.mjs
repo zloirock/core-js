@@ -7,7 +7,7 @@ import _Object$entries from "@core-js/pure/actual/object/entries";
 // raw. both the defaulted shorthand (AssignmentPattern) and the array-pattern slot (ArrayPattern) are
 // covered - the two LHS shapes an estree violation climbs through. distinct constructor per line
 let from;
-if (c) from = _Array$from === void 0 ? f0 : _Array$from;
+if (c) from = _Array$from;
 export const r = from("x");
 let entries;
 if (d) [entries] = [_Object$entries];

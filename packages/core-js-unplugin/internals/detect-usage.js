@@ -30,6 +30,7 @@ import {
   isMemberWriteOnlyContext,
   isNonReferencePosition,
   isTSTypeOnlyIdentifierPath,
+  LET_SCOPE_HOST_TYPES,
   memoizeBindingLookup,
   namespaceScopedBindingBlock,
   pathContainedBy,
@@ -872,18 +873,6 @@ function makeFrameScope(parentScope, localDecls) {
 // which the unplugin / babel-plugin pipeline doesn't do
 const LOCALS_CACHE = new WeakMap();
 
-// nodes that open a fresh lexical block scope. each entry inside one of these scopes its
-// `let`/`const` / class declarations / catch parameters to the block's source range so
-// shadow detection at a use-site uses position-aware containment. `var` and hoisted
-// FunctionDeclaration retain function-scope semantics (they get the fn body's range
-// passed through directly, ignoring intermediate block boundaries)
-const BLOCK_SCOPING_NODE_TYPES = new Set([
-  'BlockStatement',
-  'ForStatement',
-  'ForInStatement',
-  'ForOfStatement',
-]);
-
 // LIFO insertion: most-recently-added entry sits at index 0 so the no-position fallback
 // returns the innermost shadow (last-write-wins). entries carry their own block range so
 // position-aware lookup can pick the right shadow among same-name bindings in distinct scopes
@@ -966,8 +955,12 @@ function collectFunctionLocals(fnNode) {
       if (node.body) walk(node.body, catchStart, catchEnd);
       return;
     }
-    // block-shape nodes push a new block context for their descendants
-    const inBlock = BLOCK_SCOPING_NODE_TYPES.has(node.type);
+    // block-shape nodes push a new block context for their descendants: each entry inside one
+    // scopes its `let` / `const` / class declarations to the block's source range, so shadow
+    // detection at a use-site uses position-aware containment (`var` and a hoisted
+    // FunctionDeclaration keep the fn body's range). the provider's `let`-host lattice is the set:
+    // a case-level `let` scopes to the switch, not to whatever block holds the switch
+    const inBlock = LET_SCOPE_HOST_TYPES.has(node.type);
     const childStart = inBlock ? node.start : blockStart;
     const childEnd = inBlock ? node.end : blockEnd;
     forEachChildNode(node, child => walk(child, childStart, childEnd));
