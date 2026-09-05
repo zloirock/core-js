@@ -2138,6 +2138,7 @@ export default function plugin(api, options) {
         // traversal, since a second polyfilled prop is what kept the per-prop consume test from
         // firing. BEFORE the split, which replaces the host declaration this verdict is recorded against
         destructureEmit.pruneArrayResiduals();
+        destructureEmit.pruneEmptiedHostDeclarators();
         // multi-decl split canon AFTER the SE drain - deferred indices were captured
         // against the pre-split body
         destructureEmit.prepareSplitLiftedPrefixes();
@@ -2297,11 +2298,13 @@ export default function plugin(api, options) {
         processDeferredSideEffects(path);
         // helper-body re-traversal may have touched fresh multi-decl declarations
         destructureEmit.pruneArrayResiduals();
+        destructureEmit.pruneEmptiedHostDeclarators();
         destructureEmit.prepareSplitLiftedPrefixes();
         destructureEmit.splitFlatMultiDecls();
         destructureEmit.flushForInitCarries();
         // the sentinel `var`s a discarded-element render owes, asked of the finished tree
         destructureEmit.flushDiscardedElementSentinels();
+        destructureEmit.joinBodylessVarBlocks(path);
         rewalkRetainedForInits();
         postSweepIntroduced(path);
         // drain deferred synth-swap receivers via program walk - finds receivers via

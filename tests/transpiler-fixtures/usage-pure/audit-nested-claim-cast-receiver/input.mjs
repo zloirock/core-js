@@ -1,7 +1,7 @@
-// a CAST is what the source says the receiver IS, and the nested slot read honours it exactly as the
-// member spelling does: through `as any` the slot answers nothing and the claim takes the generic
-// dispatcher, through a declared shape it answers that shape. the spelled receiver keeps the cast,
-// so the memo reads what the source reads
+// a CAST narrows where it resolves and never blocks: what a leaf reads is the runtime VALUE, and an
+// annotation is one more way to learn its type. a declared shape answers from the shape; `as any`
+// names nothing, so the read answers from the value exactly as an uncast receiver does - a built-in
+// surface narrows whichever spelling the hop key wears, and the spelled receiver keeps the cast
 interface Box { y: number[] }
 const box = { y: [1, 2] };
 const widened = (function () {
@@ -9,7 +9,12 @@ const widened = (function () {
   return [at, other];
 })();
 const declared = (function () {
-  const { y: { at } } = box as Box;
-  return at;
+  const { y: { find } } = box as Box;
+  return find;
 })();
-export { widened, declared };
+const surface = (function () {
+  const { Array: { prototype: { includes } } } = globalThis as any;
+  const { ['Array']: { prototype: { map } } } = globalThis as any;
+  return [includes, map];
+})();
+export { widened, declared, surface };

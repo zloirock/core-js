@@ -9,6 +9,7 @@ import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 import _Object$keys from "@core-js/pure/actual/object/keys";
 import _Object$values from "@core-js/pure/actual/object/values";
 import _Promise$allSettled from "@core-js/pure/actual/promise/all-settled";
+import _Promise$any from "@core-js/pure/actual/promise/any";
 import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Promise$race from "@core-js/pure/actual/promise/race";
 import _Promise$withResolvers from "@core-js/pure/actual/promise/with-resolvers";
@@ -236,7 +237,9 @@ const {
   }
 } = wCl;
 
-// the BARE binding canon: the identity no-op resolves, real writes keep the pure bail
+// the BARE binding canon: the identity no-op resolves, and a real plain write resolves the same way
+// the container walk reads it - when it is the ONE value the read can observe (a dominating
+// unconditional write, nothing written after the read), the static binds that value's ponyfill
 let bs1 = Object;
 bs1 = bs1;
 export const bareSelfAssign = _Object$fromEntries([['a', 1]]);
@@ -244,8 +247,8 @@ let bm1 = Object;
 let bm2 = _Promise;
 bm1 = bm2;
 bm2 = bm1;
-export const bareCrossWrite = typeof bm1.any;
+export const bareCrossWrite = typeof _Promise$any;
 let bq1 = Object;
 bq1 = (eff9(), Array);
-export const bareSeWrite = typeof (bq1 === Array ? _Array$fromAsync : bq1.fromAsync);
+export const bareSeWrite = typeof _Array$fromAsync;
 export { viaDominating, viaConditionalWrite, viaLiveInit, beforeWrite, viaWrapper, viaClassReassign, viaSelfAssign, viaSeWrite, viaCrossWrite, viaIdentityThenReal, viaPatternObjLhs, viaBranchingWrite, viaAmbiguousDefault, viaLogicalBinding, viaNullishBinding, viaAndBinding, viaAndInit, viaForInLiteralOnly, viaShadowClean, viaClosureWrite };

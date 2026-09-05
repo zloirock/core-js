@@ -2,16 +2,16 @@ import _copyWithinMaybeArray from "@core-js/pure/actual/array/instance/copy-with
 import _fillMaybeArray from "@core-js/pure/actual/array/instance/fill";
 import _findLastIndexMaybeArray from "@core-js/pure/actual/array/instance/find-last-index";
 import _flatMapMaybeArray from "@core-js/pure/actual/array/instance/flat-map";
+import _keysMaybeArray from "@core-js/pure/actual/array/instance/keys";
 import _toSplicedMaybeArray from "@core-js/pure/actual/array/instance/to-spliced";
 import _globalThis from "@core-js/pure/actual/global-this";
-import _keys from "@core-js/pure/actual/instance/keys";
 // a kept WRITE as the receiver: it is a prefix of its own - the store happens ONCE and the nav then
 // reads what it stored. the placement parts by leg exactly like any other prefix (babel carries it
 // inside the dispatch, the other leg lifts it), and the STORE is observable, so every row exports the
 // written binding too
 let kept, keptSe, keptAssign, kwLoop, kwSlot, kwWrap, loopOut, slotOut;
 const overWrite = _fillMaybeArray((kept = _globalThis, _globalThis.Array.prototype)); // an SE prefix INSIDE the stored value travels with the write
-const overWriteSe = _keys((keptSe = (effect(), _globalThis), _globalThis.Array.prototype)); // the ASSIGNMENT host parts by ROUTE, not by placement: babel keeps the raw destructure with its
+const overWriteSe = _keysMaybeArray((keptSe = (effect(), _globalThis), _globalThis.Array.prototype)); // the ASSIGNMENT host parts by ROUTE, not by placement: babel keeps the raw destructure with its
 // post-statement overwrite, the other leg consumes it
 let overWriteAssign;
 keptAssign = _globalThis;

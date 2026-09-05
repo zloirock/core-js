@@ -16,7 +16,8 @@ export const viaCtorConstruct = new M([[1, 2]]);
 const [, [{ Promise: P }]] = [...tail, [{ Promise: globalThis.Promise }]];
 export const viaNestedShift = P.allSettled([]);
 
-// CONTROL: a slot strictly BEFORE the spread pairs exactly and still resolves
+// CONTROL: a slot strictly BEFORE the spread pairs exactly and still resolves - the residual stays,
+// since the spread ITERATES and no rescue re-emits that
 const [{ WeakSet: W }] = [globalThis, ...tail];
 export const viaPreSpreadExact = new W();
 

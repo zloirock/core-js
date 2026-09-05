@@ -7,8 +7,8 @@ import _Array$of from "@core-js/pure/actual/array/of";
 // value->sentinel rename into the residual slice. it used to float and swap, binding the sentinel to
 // the polyfill (`_unused = _Array$of`) and leaving the real binding native in the residual
 const effects = [];
-const of = _Array$of;
 const from = _Array$from;
+const of = _Array$of;
 const {
   [(_pushMaybeArray(effects).call(effects, 'k'), 'of')]: _unused
 } = Array;

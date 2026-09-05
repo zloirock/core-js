@@ -8,7 +8,7 @@ var _ref, _ref2;
 // its guard then spelling the default NODE. a SIBLING element keeps the destructure whole (it still
 // binds), and the slot that survives is what ran the default, so there the guard takes the BINDING
 let o;
-o = _Array$of;
+o = _Array$of === void 0 ? fb : _Array$of;
 use(o);
 let m;
 m = (_ref = _at(arr)) === void 0 ? fb : _ref;
