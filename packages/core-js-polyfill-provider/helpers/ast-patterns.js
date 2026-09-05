@@ -4380,9 +4380,11 @@ export function destructureReceiverSlot(node) {
 // the values a for-of HEAD declarator destructures. it carries no init of its own - what it binds is
 // an ELEMENT of the iterated value - and only a literal names its elements. a SOLE element names a
 // single value and answers for the whole loop. a longer literal binds a different one per iteration,
-// so it answers only when every element is a PROXY GLOBAL: those roots are one object graph to this
-// provider, which makes the head's claim resolve to the same static on every pass - while the RENDER
-// still mirrors each element on its own, so nothing is shared between the passes but the answer.
+// so it answers only when every element reads the SAME on every pass: one identifier (a proxy
+// global, a constructor, any binding - the same name under one iterable expression is one value),
+// or a literal container spelling the same keys and positions over such leaves - which
+// makes the head's claim resolve to the same static on every pass, while the RENDER still mirrors
+// each element on its own, so nothing is shared between the passes but the answer.
 // a HOLE has no element to read (its `undefined` must keep throwing natively) and a SPREAD hides
 // what the pattern will see; for-IN is out (it binds the key, never the element), and so is
 // for-await (the head awaits what the literal holds, which is not the node written there)
@@ -4390,7 +4392,57 @@ export function forOfHeadElements(declaratorPath) {
   const elements = forOfHeadIterableElements(declaratorPath);
   if (!elements) return null;
   if (elements.length === 1) return elements;
-  return elements.every(element => element.type === 'Identifier' && asProxyGlobalName(element.name)) ? elements : null;
+  return elements.every(element => sameHeadElement(element, elements[0])) ? elements : null;
+}
+
+// one element against the first: the same identifier (or a proxy-global pair), or a container of
+// the same shape over such leaves - data properties by spelled key, array slots by position
+function sameHeadElement(rawNode, rawFirst) {
+  // read through the transparent wrappers a source may spell (`(Object)`, `Object as any`)
+  const node = unwrapRuntimeExpr(rawNode);
+  const first = unwrapRuntimeExpr(rawFirst);
+  // a primitive slot carries no claim: a number beside a string reads the same to every static
+  // below (`{ w: Object, at: 1 }` beside `{ w: Object, at: 's' }`) - asked before the node types
+  // are compared, since one parser spells every primitive as `Literal` and the other by kind
+  if (PRIMITIVE_LITERAL_TYPES.has(node?.type) && PRIMITIVE_LITERAL_TYPES.has(first?.type)) return true;
+  if (node?.type !== first?.type) return false;
+  // the same NAME under one iterable expression is one binding, so it reads the same on every pass;
+  // two proxy globals are one object graph to this provider (`[globalThis, self]`)
+  if (node.type === 'Identifier') {
+    return node.name === first.name || !!(asProxyGlobalName(node.name) && asProxyGlobalName(first.name));
+  }
+  if (node.type === 'ArrayExpression') {
+    return node.elements.length === first.elements.length
+      && node.elements.every((element, index) => !!element && element.type !== 'SpreadElement'
+        && sameHeadElement(element, first.elements[index]));
+  }
+  if (node.type === 'ObjectExpression') {
+    return node.properties.length === first.properties.length && node.properties.every((prop, index) => {
+      const twin = first.properties[index];
+      return (prop.type === 'Property' || prop.type === 'ObjectProperty') && prop.type === twin.type
+        && !!objectPropertyReadValue(prop) && spelledSlotName(prop) !== null && spelledSlotName(prop) === spelledSlotName(twin)
+        && sameHeadElement(prop.value, twin.value);
+    });
+  }
+  return false;
+}
+
+// a RELOCATED loop head's element: the head binds a minted name and the pattern moved into the body
+// as `let <pattern> = <name>` (the body's first statement), so the NAME channel asking that declarator
+// for its receiver would read a bare identifier - the iterated literal's element is what the pattern
+// reads, exactly as before the move. the type ladder is handed the element's type the same way; this
+// is its identity twin, asked by the name channel alone (an emitter rewrite keys on the init as written)
+export function relocatedHeadElement(declaratorPath) {
+  const { init } = declaratorPath?.node ?? {};
+  if (declaratorPath?.node?.type !== 'VariableDeclarator' || init?.type !== 'Identifier') return null;
+  const declaration = declaratorPath.parentPath;
+  const loop = declaration?.parentPath?.parentPath;
+  const left = loop?.node?.left;
+  if ((loop?.node?.type !== 'ForOfStatement' && loop?.node?.type !== 'ForInStatement')
+    || left?.type !== 'VariableDeclaration' || left.declarations?.length !== 1
+    || left.declarations[0].id?.type !== 'Identifier' || left.declarations[0].id.name !== init.name
+    || loop.node.body?.body?.[0] !== declaration.node) return null;
+  return forOfHeadElements(loop.get('left').get('declarations')[0])?.[0] ?? null;
 }
 
 // ... and the same values as a BRANCH SET, making no claim that one receiver answers for the loop:
