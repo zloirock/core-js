@@ -1,0 +1,12008 @@
+// Unit tests for `@core-js/polyfill-provider`'s type-inference engine.
+// Cross-parser via shared harness: every snippet runs through BOTH babel (used by
+// babel-plugin) AND oxc (used by unplugin), so dispatch-shape regressions in either
+// adapter surface immediately
+import { adapters, createChecker } from './harness.mjs';
+import { transformSync as babelTransform } from '@babel/core';
+import { parseSync as parseSyncOxc } from 'oxc-parser';
+import {
+  collectMutationPrePass as collectBabelMutationPrePass,
+  createBabelAdapter,
+} from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
+import {
+  collectPrePassSites as collectEstreePrePassSites,
+  createEstreeAdapter,
+} from '../../packages/core-js-unplugin/internals/detect-usage.js';
+import { blockAlwaysExits, canFallThrough, nodeAlwaysExits, nodeAlwaysHardExits } from '../../packages/core-js-polyfill-provider/resolve-node-type/exit-analysis.js';
+import { matchSelfDefaultTernarySlot } from '../../packages/core-js-polyfill-provider/resolve-node-type/value-ops.js';
+import { createKnownGlobals } from '../../packages/core-js-polyfill-provider/resolve-node-type/known-globals.js';
+import {
+  isAmbientClassNode,
+  isAmbientFunctionNode,
+  isAmbientFunctionOrClassNode,
+} from '../../packages/core-js-polyfill-provider/resolve-node-type/name-resolution.js';
+import {
+  createPredicateGuards, guardFromHint, guardFromResolvedType, instanceofGuard, isTypeofVar, typeofGuard,
+} from '../../packages/core-js-polyfill-provider/resolve-node-type/guard-shapes.js';
+import {
+  $Object,
+  $Primitive,
+  AMBIENT_FN_OR_CLASS_DECLARATION_TYPES,
+  AMBIENT_FUNCTION_TYPES,
+  ASSIGN_LEFT_TYPES,
+  EXTENDS_CHILD_RESOLVERS,
+  GENERATOR_LIKE_NAMES,
+  INTRINSIC_STRING_TRANSFORMERS,
+  KEY_FILTERING_WRAPPERS,
+  MEMBER_ANNOTATION_SLOTS,
+  MODIFIER_WRAPPER_DELTAS,
+  NULLABLE_NEVER_ANNOTATIONS,
+  NUMBER_LITERAL_RE,
+  NUMERIC_KEY_SHAPE_RE,
+  PATTERN_WRAPPERS,
+  PLACEHOLDER_VALIDATORS,
+  PRIMITIVES,
+  PRIMITIVE_WRAPPERS,
+  PROMISE_SYNONYMS,
+  STRUCTURAL_WALK_SKIP_KEYS,
+  STRUCTURE_PRESERVING_WRAPPERS,
+  TRANSPARENT_WRAPPERS,
+  TYPEOF_HINT_GROUPS,
+  TYPE_HINTS,
+  UNBOXED_PRIMITIVES,
+  getOrInitMap,
+  intersectHintSets,
+  primitiveTypeOf,
+  quasiText,
+  toHint,
+} from '../../packages/core-js-polyfill-provider/resolve-node-type/base.js';
+import {
+  collectQualifiedSegments,
+  extendsId,
+  isFunctionTypeNode,
+  isInterfaceDeclaration,
+  isObjectTypeLiteral,
+  isQualifiedNameNode,
+  isTypeAlias,
+  isTypeReferenceNode,
+  literalTypeValueNode,
+  loopReExecRegionHasViolation,
+  synthInterfaceExtendsRef,
+  typeAliasBody,
+  typeRefName,
+  typeRefSegments,
+} from '../../packages/core-js-polyfill-provider/resolve-node-type/ast-shapes.js';
+import { bindingLoopAnchor } from '../../packages/core-js-polyfill-provider/resolve-node-type/straight-line-flow.js';
+import {
+  ESM_MARKER_TYPES,
+  FUNCTION_LIKE_NODE_TYPES,
+  IIFE_CALL_PATH_WRAPPERS,
+  TRANSPARENT_EXPR_WRAPPER_TYPES,
+  TS_EXPR_WRAPPERS,
+  blocksUidSlot,
+  createTypeAnnotationChecker,
+  declaresRequireBinding,
+  destructureReceiverSlot,
+  detectCommonJS,
+  getFallbackBranchSlots,
+  getSuperTypeArgs,
+  getTypeArgs,
+  hasRestSiblingExcept,
+  hasTopLevelESM,
+  isAmbientBindingShape,
+  isAmbientTypeDeclaration,
+  isASTNode,
+  isBindingPosition,
+  isChainAssignment,
+  isDeleteTarget,
+  isDirectiveStatement,
+  isIdentifierPropValue,
+  isMemberWriteOnlyContext,
+  isNonReferencePosition,
+  isRestProperty,
+  isSynthSimpleObjectPattern,
+  isTaggedTemplateTag,
+  isTypeAnnotationWrapper,
+  isThisReceiver,
+  isTransparentDestructureWrapper,
+  objectPatternLiteralKeyPath,
+  isTypeOnlyImportBinding,
+  isTypeOnlyImportKind,
+  isTypeOnlyImportEquals,
+  isUpdateTarget,
+  kebabToCamel,
+  kebabToPascal,
+  mayHaveSideEffects,
+  reEvaluationObservable,
+  objectPatternPropNeedsReceiverRewrite,
+  peelFallbackBranchInner,
+  peelFallbackReceiver,
+  peelNestedSequenceExpressions,
+  isCleanDestructureAliasBinding,
+  isGuardedAliasingWrite,
+  isTaggedTemplateTagPosition,
+  propBindingIdentifier,
+  resolveCallArgument,
+  singleQuasiString,
+  singleReturnBodyExpression,
+  unwrapExportedDeclaration,
+  unwrapExpressionChain,
+  unwrapInitValue,
+  unwrapParens,
+  unwrapReceiverLeaf,
+  paramReboundInBody,
+  paramsHaveInvisibleCallers,
+  arrayWrapSlotValueCandidates,
+  patternSlotSpreadShifted,
+  patternSlotValues,
+  unwrapRuntimeExpr,
+  unwrapSafeSequenceTail,
+  walkPatternIdentifiers,
+  POSSIBLE_GLOBAL_OBJECTS,
+  withoutValuelessDeclarationViolations,
+} from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import {
+  buildSuperStaticMeta,
+  createClassHelpers,
+  isSymbolDestructureAliasBinding,
+  findNamespaceMemberValue,
+  registerAliasPrePassSite,
+  isClassifiableReceiverArg,
+  isExpandedClassifiableReceiver,
+  markSynthReceiverSkipped,
+  remapInheritedStaticMeta,
+  resolveSuperImportName,
+} from '../../packages/core-js-polyfill-provider/helpers/class-walk.js';
+import {
+  globalProxyMemberName,
+  proxyGlobalRootName,
+} from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
+import { symbolKeyToEntry } from '../../packages/core-js-polyfill-provider/detect-usage/globals.js';
+
+const { check, checkDeep, checkTruthy, fail, finish, pass, runBoth, runBothAndAgree } = createChecker('resolve-node-type');
+
+// NOTE: `constructor` as a destructured key reads via prototype chain
+// (`Object.prototype.constructor` = the Object function), so a missing slot would
+// fall back to that and corrupt the comparison. use `ctor` instead
+const TYPE_EXPECTATION_KEYS = new Set(['primitive', 'kind', 'ctor', 'nullish']);
+function checkType(label, type, expected) {
+  // an expectation key this function does not read is silently satisfied - and the three it does
+  // read are all easy to mis-spell into a real field name (`constructor` for `ctor`, `type` for
+  // `kind`), which turns the whole case green while asserting nothing. reject the typo instead
+  const unknown = Object.keys(expected).filter(key => !TYPE_EXPECTATION_KEYS.has(key));
+  if (unknown.length) return fail(label, `unknown expectation key(s): ${ unknown.join(', ') }`);
+  if (!type) return fail(label, 'got null type');
+  const { primitive, kind, ctor, nullish } = expected;
+  if (primitive !== undefined && type.primitive !== primitive) {
+    return fail(label, `primitive=${ type.primitive }, want ${ primitive }`);
+  }
+  if (kind !== undefined && type.type !== kind) {
+    return fail(label, `type.type=${ type.type }, want ${ kind }`);
+  }
+  if (ctor !== undefined && type.constructor !== ctor) {
+    return fail(label, `type.constructor=${ type.constructor }, want ${ ctor }`);
+  }
+  // the optionality MARKER is part of the resolved type and had no way to be asserted, so every
+  // case that cared about it could only pin the family and silently accept either marker
+  if (nullish !== undefined && Boolean(type.mayBeNullish) !== nullish) {
+    return fail(label, `mayBeNullish=${ Boolean(type.mayBeNullish) }, want ${ nullish }`);
+  }
+  pass();
+}
+
+// --- TYPE_HINTS surface ---
+
+check('TYPE_HINTS is a Set', TYPE_HINTS instanceof Set, true);
+checkTruthy('TYPE_HINTS has primitives', TYPE_HINTS.has('string') && TYPE_HINTS.has('number'));
+checkTruthy('TYPE_HINTS has object kinds', TYPE_HINTS.has('object') && TYPE_HINTS.has('function'));
+
+// --- Primitive literal resolution ---
+
+runBoth('NumericLiteral -> number primitive', 'const x = 42;', (adapter, prog, lbl) => {
+  const decl = adapter.pickPath(prog, 'VariableDeclarator');
+  checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+    { primitive: true, kind: 'number' });
+});
+
+runBoth('StringLiteral -> string primitive', 'const x = "hi";', (adapter, prog, lbl) => {
+  const decl = adapter.pickPath(prog, 'VariableDeclarator');
+  checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+    { primitive: true, kind: 'string' });
+});
+
+runBoth('BooleanLiteral -> boolean primitive', 'const x = true;', (adapter, prog, lbl) => {
+  const decl = adapter.pickPath(prog, 'VariableDeclarator');
+  checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+    { primitive: true, kind: 'boolean' });
+});
+
+runBoth('BigIntLiteral -> bigint primitive', 'const x = 42n;', (adapter, prog, lbl) => {
+  const decl = adapter.pickPath(prog, 'VariableDeclarator');
+  checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+    { primitive: true, kind: 'bigint' });
+});
+
+runBoth('TemplateLiteral -> string primitive', 'const x = `tpl`;', (adapter, prog, lbl) => {
+  const decl = adapter.pickPath(prog, 'VariableDeclarator');
+  checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+    { primitive: true, kind: 'string' });
+});
+
+// --- Object literal -> constructor ---
+
+runBoth('ArrayExpression -> Array', 'const x = [];', (adapter, prog, lbl) => {
+  const decl = adapter.pickPath(prog, 'VariableDeclarator');
+  checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+    { primitive: false, ctor: 'Array' });
+});
+
+runBoth('ObjectExpression -> Object', 'const x = {};', (adapter, prog, lbl) => {
+  const decl = adapter.pickPath(prog, 'VariableDeclarator');
+  checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+    { primitive: false, ctor: 'Object' });
+});
+
+runBoth('RegExpLiteral -> RegExp', 'const x = /re/g;', (adapter, prog, lbl) => {
+  const decl = adapter.pickPath(prog, 'VariableDeclarator');
+  checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+    { primitive: false, ctor: 'RegExp' });
+});
+
+// --- TS annotation primary source ---
+
+runBoth('TS annotation: string', 'let x: string;', (adapter, prog, lbl) => {
+  const decl = adapter.pickPath(prog, 'VariableDeclarator');
+  checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('id')),
+    { primitive: true, kind: 'string' });
+});
+
+runBoth('TS annotation: number[] (Array)', 'let x: number[];', (adapter, prog, lbl) => {
+  const decl = adapter.pickPath(prog, 'VariableDeclarator');
+  checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('id')),
+    { primitive: false, ctor: 'Array' });
+});
+
+// --- Member-call return type from `known-built-in-return-types` ---
+
+runBoth('Array.from(...) -> Array', 'const x = Array.from([]);', (adapter, prog, lbl) => {
+  const call = adapter.pickPath(prog, 'CallExpression');
+  checkType(lbl, adapter.makeResolver().resolveNodeType(call),
+    { primitive: false, ctor: 'Array' });
+});
+
+// aliased static via assignment-destructure: the call-return type must resolve identically on
+// both adapters. estree-toolkit reports the constant-violation as the LHS Identifier, babel as
+// the AssignmentExpression - the destructure walk normalizes to the enclosing AE so both agree
+runBoth('aliased static via assignment-destructure -> Array', 'let x; ({ from: x } = Array); x([1]);', (adapter, prog, lbl) => {
+  const call = adapter.pickPath(prog, 'CallExpression');
+  checkType(lbl, adapter.makeResolver().resolveNodeType(call),
+    { primitive: false, ctor: 'Array' });
+});
+
+runBoth('String(...) (coerce) -> string primitive', 'const x = String(42);', (adapter, prog, lbl) => {
+  const call = adapter.pickPath(prog, 'CallExpression');
+  checkType(lbl, adapter.makeResolver().resolveNodeType(call),
+    { primitive: true, kind: 'string' });
+});
+
+runBoth('new Map() -> Map', 'const x = new Map();', (adapter, prog, lbl) => {
+  const call = adapter.pickPath(prog, 'NewExpression');
+  checkType(lbl, adapter.makeResolver().resolveNodeType(call),
+    { primitive: false, ctor: 'Map' });
+});
+
+// --- Binding-init propagation: alias resolves to source ---
+
+runBoth('aliased const binding -> Array', 'const a = []; const b = a;', (adapter, prog, lbl) => {
+  // collect declarators in order; second is `b = a` whose id-type should propagate
+  // from `a`'s init `[]` through the binding lookup
+  const decls = adapter.collectPaths(prog, 'VariableDeclarator');
+  checkType(lbl, adapter.makeResolver().resolveNodeType(decls[1].get('id')),
+    { primitive: false, ctor: 'Array' });
+});
+
+// --- Nullish init vs a shadowed `undefined` binding ---
+// `let x: T = undefined` treats the init as nullish so the annotation `T` wins - but only when
+// `undefined` is the global. A local `undefined` binding makes `= undefined` a real value init,
+// which must win over the annotation (matches the runtime value the polyfill sees).
+
+runBoth('shadowed `undefined` init is a real value - wins over the annotation',
+  'let undefined = [1, 2];\nlet x: string = undefined;\nx.at(0);',
+  (adapter, prog, lbl) => {
+    const recv = adapter.pickPath(prog, 'MemberExpression').get('object');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(recv), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('global `undefined` init is nullish - annotation wins',
+  'let x: string = undefined;\nx.at(0);',
+  (adapter, prog, lbl) => {
+    const recv = adapter.pickPath(prog, 'MemberExpression').get('object');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(recv), { primitive: true, kind: 'string' });
+  });
+
+// --- isString / isObject predicates ---
+
+runBoth('isString("hi" init) / isObject false', 'const s = "hi";', (adapter, prog, lbl) => {
+  const decl = adapter.pickPath(prog, 'VariableDeclarator');
+  const resolver = adapter.makeResolver();
+  check(`${ lbl } isString`, resolver.isString(decl.get('init')), true);
+  check(`${ lbl } isObject`, resolver.isObject(decl.get('init')), false);
+});
+
+runBoth('isObject([] init) / isString false', 'const a = [];', (adapter, prog, lbl) => {
+  const decl = adapter.pickPath(prog, 'VariableDeclarator');
+  const resolver = adapter.makeResolver();
+  check(`${ lbl } isObject`, resolver.isObject(decl.get('init')), true);
+  check(`${ lbl } isString`, resolver.isString(decl.get('init')), false);
+});
+
+// --- `toHint` round-trip (parser-agnostic; runs once on babel resolver) ---
+
+{
+  const resolver = adapters[0].makeResolver();
+  check('toHint(null) -> null', resolver.toHint(null), null);
+  check('toHint(string primitive) -> "string"',
+    resolver.toHint({ primitive: true, type: 'string' }), 'string');
+  // NOTE: `toHint` reads input.constructor (not `ctor`) - this is the resolver's
+  // internal Type-object shape, not the test-helper shorthand
+  check('toHint(Array object) -> "array"',
+    resolver.toHint({ primitive: false, constructor: 'Array' }), 'array');
+  check('toHint(unknown primitive) -> null',
+    resolver.toHint({ primitive: true, type: 'unknown' }), null);
+}
+
+// --- Per-file caching: `reset()` clears resolved-type WeakMap ---
+
+runBoth('reset() flushes cache', 'const x = 1;', (adapter, prog, lbl) => {
+  const decl = adapter.pickPath(prog, 'VariableDeclarator');
+  const resolver = adapter.makeResolver();
+  const initPath = decl.get('init');
+  const first = resolver.resolveNodeType(initPath);
+  resolver.resolvedType.set(initPath.node, { primitive: true, type: 'string' });
+  check(`${ lbl } cache hit returns stored`,
+    resolver.resolvedType.get(initPath.node)?.type, 'string');
+  resolver.reset();
+  const second = resolver.resolveNodeType(initPath);
+  check(`${ lbl } after reset: re-resolved fresh`, second?.type, first?.type);
+});
+
+// every cluster that owns a per-file cache has to publish a `reset` hook the factory calls, else
+// its entries survive across parses while the rest of the factory is rebuilt. the predicate-guard
+// cluster is the one that owned a cache without the hook - assert the surface, and that a reset
+// leaves the resolver working (a missing hook throws at the factory's reset())
+runBoth('reset() drives every cluster hook', 'function isS(x) { return typeof x === "string"; }', (adapter, prog, lbl) => {
+  const resolver = adapter.makeResolver();
+  const decl = adapter.pickPath(prog, 'FunctionDeclaration');
+  resolver.reset();
+  resolver.reset();
+  checkTruthy(`${ lbl } resolver still resolves after repeated reset`,
+    resolver.resolveNodeType(decl) !== undefined);
+});
+check('guard-shapes cluster publishes a reset hook',
+  typeof createPredicateGuards({}).reset, 'function');
+
+// --- Known built-in static-method return types ---
+
+runBoth('Object.keys([]) -> Array', 'const x = Object.keys([]);', (adapter, prog, lbl) => {
+  const call = adapter.pickPath(prog, 'CallExpression');
+  checkType(lbl, adapter.makeResolver().resolveNodeType(call),
+    { primitive: false, ctor: 'Array' });
+});
+
+runBoth('Math.max(...) -> number primitive', 'const x = Math.max(1, 2);', (adapter, prog, lbl) => {
+  const call = adapter.pickPath(prog, 'CallExpression');
+  checkType(lbl, adapter.makeResolver().resolveNodeType(call),
+    { primitive: true, kind: 'number' });
+});
+
+runBoth('JSON.stringify(...) -> string primitive', 'const x = JSON.stringify({});', (adapter, prog, lbl) => {
+  const call = adapter.pickPath(prog, 'CallExpression');
+  checkType(lbl, adapter.makeResolver().resolveNodeType(call),
+    { primitive: true, kind: 'string' });
+});
+
+runBoth('Number(x) coerce -> number primitive', 'const x = Number("3");', (adapter, prog, lbl) => {
+  const call = adapter.pickPath(prog, 'CallExpression');
+  checkType(lbl, adapter.makeResolver().resolveNodeType(call),
+    { primitive: true, kind: 'number' });
+});
+
+runBoth('Boolean(x) coerce -> boolean primitive', 'const x = Boolean(0);', (adapter, prog, lbl) => {
+  const call = adapter.pickPath(prog, 'CallExpression');
+  checkType(lbl, adapter.makeResolver().resolveNodeType(call),
+    { primitive: true, kind: 'boolean' });
+});
+
+// --- Known constructor invocations ---
+
+runBoth('new Set() -> Set', 'const x = new Set();', (adapter, prog, lbl) => {
+  const call = adapter.pickPath(prog, 'NewExpression');
+  checkType(lbl, adapter.makeResolver().resolveNodeType(call),
+    { primitive: false, ctor: 'Set' });
+});
+
+runBoth('new Promise(...) -> Promise', 'const x = new Promise(resolve => {});', (adapter, prog, lbl) => {
+  const call = adapter.pickPath(prog, 'NewExpression');
+  checkType(lbl, adapter.makeResolver().resolveNodeType(call),
+    { primitive: false, ctor: 'Promise' });
+});
+
+runBoth('new Date() -> Date', 'const x = new Date();', (adapter, prog, lbl) => {
+  const call = adapter.pickPath(prog, 'NewExpression');
+  checkType(lbl, adapter.makeResolver().resolveNodeType(call),
+    { primitive: false, ctor: 'Date' });
+});
+
+// --- Member-call return propagation through instance methods ---
+
+runBoth('"".split(" ") -> Array', 'const x = "a b".split(" ");', (adapter, prog, lbl) => {
+  const call = adapter.pickPath(prog, 'CallExpression');
+  checkType(lbl, adapter.makeResolver().resolveNodeType(call),
+    { primitive: false, ctor: 'Array' });
+});
+
+runBoth('[].join() -> string primitive', 'const x = [1, 2].join();', (adapter, prog, lbl) => {
+  const call = adapter.pickPath(prog, 'CallExpression');
+  checkType(lbl, adapter.makeResolver().resolveNodeType(call),
+    { primitive: true, kind: 'string' });
+});
+
+runBoth('Array.from(...).map(...) -> Array (chained)',
+  'const x = Array.from([]).map(v => v);', (adapter, prog, lbl) => {
+    // pick outermost CallExpression - babel and oxc both walk outermost-first per `enter`
+    const call = adapter.pickPath(prog, 'CallExpression');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(call),
+      { primitive: false, ctor: 'Array' });
+  });
+
+// --- TS interface members ---
+
+runBoth('TS interface annotation: method return -> Array',
+  'interface Foo { all(): number[]; } let x: Foo;', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
+    // annotation -> `Foo` -> interface lookup; reading the binding itself just resolves to object
+    // verify the BINDING type resolves (Foo interface members are looked up on demand)
+    const resolver = adapter.makeResolver();
+    const type = resolver.resolveNodeType(decl.get('id'));
+    // interface annotation should resolve to an object-shaped Type (no concrete constructor)
+    checkTruthy(`${ lbl } interface binding -> non-primitive`, type && type.primitive === false);
+  });
+
+// --- accessor member resolution (getter/setter typeof-bail) ---
+// an accessor member must NOT resolve as a Function object (`typeof obj.g` reads the GETTER'S
+// RETURN value; a Function resolution would drive a throwing Function-receiver Maybe downstream).
+// the bail lets the return-type resolution take over; a real method still resolves to Function
+
+runBoth('object getter member resolves the return type, not Function',
+  'const obj = { get g() { return 1; } }; const t = obj.g;', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: true, kind: 'number', ctor: null });
+  });
+
+runBoth('class static getter member resolves the return type, not Function',
+  'class C { static get sg() { return 1; } } const t = C.sg;', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: true, kind: 'number', ctor: null });
+  });
+
+// --- which member answers a READ: own field vs prototype accessor/method ---
+// a class FIELD is defined after the body's methods and accessors are installed, so it answers the
+// read whatever the source order. an INSTANCE field is an own property of the one instance, so it
+// also shadows accessors declared further along the prototype chain; a STATIC read instead walks the
+// constructor chain, where the nearest class declaring the name wins
+
+runBoth('instance field declared BEFORE a same-name getter still answers the read',
+  'class C { x = [1, 2]; get x() { return "s"; } } const t = new C().x;', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('static field declared BEFORE a same-name getter still answers the read',
+  'class C { static x = [1, 2]; static get x() { return "s"; } } const t = C.x;', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('instance field of a BASE class shadows a subclass getter',
+  'class A { x = [1, 2]; } class B extends A { get x() { return "s"; } } const t = new B().x;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: false, ctor: 'Array' });
+  });
+
+// the static counterpart must NOT follow the instance rule: an own accessor on the subclass
+// constructor shadows the field it inherits
+runBoth('static subclass getter shadows a base static field',
+  'class A { static x = [1, 2]; } class B extends A { static get x() { return "s"; } } const t = B.x;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: true, kind: 'string' });
+  });
+
+// object literals define their keys in source order on ONE object, so a data definition resets the
+// slot and the trailing setter leaves it setter-only - the earlier getter is dead and the read is
+// undecided, while a getter/setter PAIR still reads through the getter
+runBoth('data property between a getter and a setter kills the getter read',
+  'const o = { get x() { return [1]; }, x: 5, set x(v) {} }; const t = o.x;', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    check(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), null);
+  });
+
+runBoth('getter paired with a trailing setter still supplies the read',
+  'const o = { get x() { return [1]; }, set x(v) {} }; const t = o.x;', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: false, ctor: 'Array' });
+  });
+
+// the held prototype member may only be taken once the WHOLE chain has been walked. a cycle (and,
+// the same way, a chain past the depth cap) cuts the walk short, and an ancestor field could still
+// be out there - answering with the accessor would narrow to a type that field contradicts
+runBoth('cyclic superclass chain gives up instead of taking the accessor',
+  'class A extends B { get x() { return "s"; } } class B extends A {} const t = new A().x;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    check(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), null);
+  });
+
+// each parser spells an `abstract` field differently, and a member-shape list that names only one
+// of them resolves on that parser alone - the abstract METHOD twin was listed, the field twin was not
+runBoth('abstract field reached through a type reference resolves its annotation',
+  'abstract class C { abstract a: number[]; } declare const c: C; const t = c.a;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: false, ctor: 'Array' });
+  }, ['typescript']);
+
+// an instance `super.x` reads the parent PROTOTYPE, where instance fields never live - they are own
+// properties of the instance. so the field-wins rule inverts here: the field is invisible and the
+// read lands on the accessor, or on nothing at all. a STATIC `super.x` is the opposite case - the
+// parent constructor really does own its static field
+runBoth('instance super read skips a base field and takes the accessor',
+  'class A { get x() { return "s"; } } class B extends A { x = [1]; m() { return super.x; } } const t = new B().m();',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: true, kind: 'string' });
+  });
+
+runBoth('instance super read of a field-only base resolves to nothing',
+  'class A { x = [1]; } class B extends A { m() { return super.x; } } const t = new B().m();',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    check(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), null);
+  });
+
+runBoth('static super read still sees the base static field',
+  'class A { static x = [1]; } class B extends A { static m() { return super.x; } } const t = B.m();',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: false, ctor: 'Array' });
+  });
+
+// the prototype-routed read still walks the whole chain: a field on the immediate parent is skipped
+// and the grandparent's accessor answers, which is exactly what the runtime does
+runBoth('prototype-routed read skips a parent field and reaches a grandparent accessor',
+  'class G { get x() { return "s"; } } class P extends G { x = [1]; }'
+  + ' class C extends P { m() { return super.x; } } const t = new C().m();',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: true, kind: 'string' });
+  });
+
+// an anonymous object's `this.<field>` narrow survives only while the object stays local. a spread
+// decides by CONTAINER: into an object it copies the own properties out (the copy carries the method,
+// which can then run with a foreign field), into an array it only iterates and copies nothing - unless
+// the object can iterate ITSELF, where a computed key may be `Symbol.iterator` yielding `this`
+runBoth('array spread keeps an anonymous object local',
+  'const c = [...{ items: [1], read() { const t = this.items; return t; } }];',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('object spread lets an anonymous object escape',
+  'const c = { ...{ items: [1], read() { const t = this.items; return t; } } };',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    check(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), null);
+  });
+
+runBoth('array spread of a self-iterable anonymous object escapes',
+  'const c = [...{ items: [1], *[Symbol.iterator]() { yield this; }, read() { const t = this.items; return t; } }];',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    check(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), null);
+  });
+
+// an anonymous object reaching a for-of loop variable stays reachable through that variable, so a
+// write through it retypes the field. the alias has to be tracked for that write to fold - keeping
+// only a yes/no escape verdict made it invisible and left the array narrow standing over a string
+runBoth('write through a for-of loop variable widens the anonymous field',
+  'for (const w of [{ items: [1], read() { const t = this.items; return t; } }])'
+  + ' { w.items = "abc"; w.read(); }',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    check(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), null);
+  });
+
+runBoth('object method member still resolves to a Function object',
+  'const obj = { m() {} }; const t = obj.m;', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: false, ctor: 'Function' });
+  });
+
+// --- resolver bias: index-sig call-union widen / typeof accessor bail / keyof privacy ---
+
+runBoth('index-sig call union widens on an unresolvable arm return',
+  'type A = { [k: string]: () => number[]; }; type B = { [k: string]: () => UndeclaredT; }; declare const d: A | B; declare const k: string; const t = d[k]();',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor === 'Array', false);
+  });
+runBoth('index-sig call union keeps the narrow on convergent arms',
+  'type A = { [k: string]: () => number[]; }; type B = { [k: string]: () => number[]; }; declare const d: A | B; declare const k: string; const t = d[k]();',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+
+// --- computed member keys folded through a zero-arg IIFE ---
+// a zero-arg IIFE computed key evaluates to its return, so a member accessed through one classifies like
+// the literal-keyed form. read-only classification keeps the node in place - null before the peel
+
+runBoth('IIFE computed key on a type-literal member resolves the member type',
+  "interface I { data: number[]; } declare const o: I; const t = o[(() => 'data')()];",
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+// ... and a SEQUENCE key evaluates to its tail: the prefix's effect stays where it stands, the
+// tail is the runtime key, and the read-only classification names the member through it
+// ... and a transparent wrapper on the key (`o['data' as string]`, the tail of a sequence too) is
+// the key it wraps: a TS cast changes nothing at runtime
+runBoth('cast computed key on a type-literal member resolves the member type',
+  "interface I { data: number[]; } declare const o: I; const t = o['data' as string];",
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+runBoth('sequence computed key with a cast tail resolves the member type',
+  "interface I { data: number[]; } declare const o: I; declare const eff: () => void; const t = o[(eff(), 'data' as string)];",
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+runBoth('sequence computed key on a type-literal member resolves the member type',
+  "interface I { data: number[]; } declare const o: I; declare const eff: () => void; const t = o[(eff(), 'data')];",
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+runBoth('nested IIFE computed key folds to the same member type',
+  "interface I { data: number[]; } declare const o: I; const t = o[(() => (() => 'data')())()];",
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+runBoth('IIFE computed key on a string-enum member resolves the string value',
+  "enum E { A = 'x' } const t = E[(() => 'A')()];",
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { kind: 'string', primitive: true });
+  });
+
+// --- computed member keys folded STRUCTURALLY, the canon's whole shape set ---
+// the type layer names a computed key through the same canon detection uses, so every spelling of one
+// key answers alike: a `+` concat and a multi-part template used to name nothing here, and the read
+// above such a member lost the narrow its dotted twin keeps (`Array['o' + 'f'](5).at(0)` dispatched
+// through the generic instance helper while `Array.of(5).at(0)` took the array-narrowed one)
+runBoth('concat computed key on a type-literal member resolves the member type',
+  "interface I { data: number[]; } declare const o: I; const t = o['da' + 'ta'];",
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+runBoth('multi-part template computed key resolves the member type',
+  // eslint-disable-next-line no-template-curly-in-string -- the source under test IS a template key
+  'interface I { data: number[]; } declare const o: I; const t = o[`${ \'da\' }${ \'ta\' }`];',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+runBoth('sequence-prefixed concat computed key resolves the member type',
+  "interface I { data: number[]; } declare const o: I; declare let n: number; const t = o[(n++, 'da') + 'ta'];",
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+runBoth('nested sequence computed key resolves the member type',
+  "interface I { data: number[]; } declare const o: I; declare let n: number; const t = o[(n++, (n++, 'data'))];",
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+// ... and a key nothing static resolves still names no member: the canon widens the SPELLINGS it
+// folds, never the question of whether a name is there at all
+runBoth('dynamic computed key still resolves no member type',
+  'interface I { data: number[]; } declare const o: I; declare const dyn: string; const t = o[dyn];',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor === 'Array', false);
+  });
+
+runBoth('ReturnType<typeof static getter> bails instead of returning the value type',
+  'class X { static get sg(): () => number[] { return () => [1]; } } declare const v: ReturnType<typeof X.sg>; const t = v;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor === 'Function', false);
+  });
+runBoth('ReturnType<typeof static method> keeps the precise return',
+  'class X { static sm(): number[] { return [1]; } } declare const v: ReturnType<typeof X.sm>; const t = v;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('non-passthrough mapped keyof keeps a public string key spelled like a private',
+  "interface Src { '#weird': number[]; } type M = { [K in keyof Src]: readonly Src[K][]; }; declare const m: M; const t = m['#weird'];",
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+runBoth('non-passthrough mapped keyof still excludes a real private member',
+  'class P { #secret = 1; open = 2; } type M = { [K in keyof P]: number[]; }; declare const m: M; const t = m.open;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+// the exclusion itself: the private key probed via bracket must NOT resolve to the mapped
+// value type - a public-key probe alone passes whether or not the privacy filter leaks
+runBoth('non-passthrough mapped keyof private key probed via bracket stays unresolved',
+  "class P { #secret = 1; open = 2; } type M = { [K in keyof P]: number[]; }; declare const m: M; const t = m['#secret'];",
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor === 'Array', false);
+  });
+
+// --- class-fields shadow census: namespace pattern-merge + wrapped object writer ---
+// a namespace DESTRUCTURING export on a subclass binds the runtime static slot like the
+// identifier form - the inherited `this.<static>` narrow must drop; other-name patterns keep it
+
+runBoth('namespace pattern-merge on subclass drops the inherited static narrow',
+  'class Base { static list = [1, 2]; static m() { return this.list; } } class Sub extends Base {} namespace Sub { export const { list } = src(); }',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.object?.type === 'ThisExpression');
+    const type = adapter.makeResolver().resolveNodeType(member);
+    check(lbl, type?.constructor === 'Array', false);
+  });
+
+runBoth('namespace pattern-merge binding other names keeps the narrow',
+  'class Base { static list = [1, 2]; static m() { return this.list; } } class Sub extends Base {} namespace Sub { export const { other } = src(); }',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.object?.type === 'ThisExpression');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member), { primitive: false, ctor: 'Array' });
+  });
+
+// a TS-cast-wrapped FunctionExpression property owns an object-bound `this` - its writes
+// invalidate the field narrow; an arrow keeps the OUTER `this`, so the narrow survives
+
+runBoth('cast-wrapped object writer method invalidates the field narrow',
+  'const obj = { field: [1, 2], m: (function () { this.field = src(); }) as any }; const t = obj.field;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor === 'Array', false);
+  });
+
+runBoth('cast-wrapped arrow keeps the field narrow (outer this)',
+  'const obj = { field: [1, 2], m: (() => { this.field = src(); }) as any }; const t = obj.field;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+
+// --- assertion-guard own-arg slot (mutation invalidates the narrow) ---
+// a reassignment buried in the assertion's OWN call argument leaves the runtime value
+// post-mutation - the narrow must not survive; a clean assertion still narrows
+
+runBoth('assertion own-arg reassignment invalidates the narrow',
+  'function a(v: unknown): asserts v is string {} function f(x: unknown) { a((x = 5, x)); return x; }',
+  (adapter, prog, lbl) => {
+    const ret = adapter.pickPath(prog, 'ReturnStatement');
+    const type = adapter.makeResolver().resolveNodeType(ret.get('argument'));
+    check(lbl, type?.type === 'string', false);
+  });
+
+runBoth('clean assertion still narrows to string',
+  'function a(v: unknown): asserts v is string {} function f(x: unknown) { a(x); return x; }',
+  (adapter, prog, lbl) => {
+    const ret = adapter.pickPath(prog, 'ReturnStatement');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(ret.get('argument')),
+      { primitive: true, kind: 'string' });
+  });
+
+// --- typeof narrowing ---
+// the engine has two narrowing channels:
+//   - `resolveTypeGuardNarrowing` (internal) fires when typeof guard resolves to a
+//     concrete type - the main `resolveNodeType` entry point uses it transparently
+//   - `resolveGuardHints` (exported) returns hint sets for ambiguous typeofs
+//     (`typeof x === 'object'` spans null/array/object/etc.) so the resolver can
+//     filter without committing to one concrete type
+// the two are mutually exclusive: if the guard resolves to a concrete type,
+// `resolveGuardHints` returns null and narrowing flows through `resolveNodeType`
+
+// pick the `x` reference inside `return x;` body
+function pickReturnArg(adapter, prog, name) {
+  return adapter.collectPaths(prog, 'Identifier', p => {
+    if (p.node?.name !== name) return false;
+    let parent = p.parentPath;
+    while (parent) {
+      if (parent.node?.type === 'ReturnStatement') return true;
+      parent = parent.parentPath;
+    }
+    return false;
+  })[0];
+}
+
+runBoth('typeof guard: string narrowing via resolveNodeType',
+  'function f(x: unknown) { if (typeof x === "string") { return x; } }', (adapter, prog, lbl) => {
+    const ref = pickReturnArg(adapter, prog, 'x');
+    const resolver = adapter.makeResolver();
+    // the engine resolves `x` inside the typeof-string block to string primitive directly
+    checkType(lbl, resolver.resolveNodeType(ref), { primitive: true, kind: 'string' });
+  });
+
+runBoth('typeof guard hints: object spans group',
+  'function f(x: any) { if (typeof x === "object" && x) { return x; } }', (adapter, prog, lbl) => {
+    const ref = pickReturnArg(adapter, prog, 'x');
+    const resolver = adapter.makeResolver();
+    // `typeof x === "object"` doesn't fold to a single concrete type - the hint set
+    // is returned for the resolver to filter member-lookups against
+    const hints = resolver.resolveGuardHints(ref);
+    checkTruthy(`${ lbl } resolveGuardHints non-null`, hints);
+    checkTruthy(`${ lbl } includedHints non-empty`,
+      hints?.includedHints?.size && hints.includedHints.size > 0);
+  });
+
+// --- Scope-model quirk recovery: switch DISCRIMINANT writes under a case-level shadow ---
+// the discriminant evaluates in the OUTER env before the case-block scope exists, so a write
+// buried there targets the outer binding even when a case-level lexical shadows the name; the
+// native scope models attribute it to the inner binding and the canonical merge recovers it
+
+runBoth('canonical violations: discriminant closure write widens the outer narrow',
+  `function f(mk) {
+    let x = 'ab';
+    switch (mk(() => { x = [5]; })) {
+      case 1:
+        let x = 0;
+        mk(x);
+    }
+    return x;
+  }`, (adapter, prog, lbl) => {
+    const ref = pickReturnArg(adapter, prog, 'x');
+    const resolver = adapter.makeResolver();
+    check(lbl, resolver.resolveNodeType(ref), null);
+  });
+
+runBoth('canonical violations: case-level shadow alone keeps the outer narrow',
+  `function f(mk) {
+    let y = 'cd';
+    switch (mk(1)) {
+      case 1:
+        let y = 0;
+        mk(y);
+    }
+    return y;
+  }`, (adapter, prog, lbl) => {
+    const ref = pickReturnArg(adapter, prog, 'y');
+    const resolver = adapter.makeResolver();
+    checkType(lbl, resolver.resolveNodeType(ref), { primitive: true, kind: 'string' });
+  });
+
+// --- `T[keyof T]` value union: dropped members must not leave a container narrow ---
+
+runBoth('keyof-self union: method member folds to Function and bails the mixed union',
+  `interface Mixed { run(): void; xs: number[]; }
+   declare const v: Mixed[keyof Mixed];
+   const r = v;`, (adapter, prog, lbl) => {
+    const [decl] = adapter.collectPaths(prog, 'VariableDeclarator', p => p.node.id?.name === 'r');
+    const resolver = adapter.makeResolver();
+    check(lbl, resolver.resolveNodeType(decl.get('init')), null);
+  });
+
+runBoth('keyof-self union: untyped member poisons the union to generic',
+  `interface Loose { xs: number[]; blah; }
+   declare const w: Loose[keyof Loose];
+   const r = w;`, (adapter, prog, lbl) => {
+    const [decl] = adapter.collectPaths(prog, 'VariableDeclarator', p => p.node.id?.name === 'r');
+    const resolver = adapter.makeResolver();
+    check(lbl, resolver.resolveNodeType(decl.get('init')), null);
+  });
+
+runBoth('keyof-self union: class method member bails the mixed union like the interface form',
+  `class CM { run(): void {} xs: number[] = []; }
+   declare const v: CM[keyof CM];
+   const r = v;`, (adapter, prog, lbl) => {
+    const [decl] = adapter.collectPaths(prog, 'VariableDeclarator', p => p.node.id?.name === 'r');
+    const resolver = adapter.makeResolver();
+    check(lbl, resolver.resolveNodeType(decl.get('init')), null);
+  });
+
+runBoth('keyof-self union: homogeneous containers still narrow',
+  `interface Homo { xs: number[]; ys: boolean[]; }
+   declare const h: Homo[keyof Homo];
+   const r = h;`, (adapter, prog, lbl) => {
+    const [decl] = adapter.collectPaths(prog, 'VariableDeclarator', p => p.node.id?.name === 'r');
+    const resolver = adapter.makeResolver();
+    checkType(lbl, resolver.resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+
+// --- Member-access object-type resolution (`resolvePropertyObjectType`) ---
+
+runBoth('member object type: [].length -> Array',
+  'const a = []; const n = a.length;', (adapter, prog, lbl) => {
+    // pick the MemberExpression `a.length`
+    const member = adapter.pickPath(prog, 'MemberExpression');
+    const resolver = adapter.makeResolver();
+    const objType = resolver.resolvePropertyObjectType(member);
+    checkType(lbl, objType, { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('member object type: "".length -> string',
+  'const s = "hi"; const n = s.length;', (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression');
+    const resolver = adapter.makeResolver();
+    const objType = resolver.resolvePropertyObjectType(member);
+    checkType(lbl, objType, { primitive: true, kind: 'string' });
+  });
+
+// a zero-arg expression-body IIFE init is peeled to its body, so the binding narrows to the body type
+runBoth('member object type: sync zero-arg IIFE init narrows to body (Array)',
+  'const x = (() => [1, 2, 3])(); const n = x.at(-1);', (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression');
+    const resolver = adapter.makeResolver();
+    checkType(lbl, resolver.resolvePropertyObjectType(member), { primitive: false, ctor: 'Array' });
+  });
+
+// PP06-1: an ASYNC IIFE returns a Promise, not the body value - the peel must bail so the binding is NOT
+// narrowed to Array (else `Array#includes` would be injected on a Promise)
+runBoth('member object type: async zero-arg IIFE init is NOT narrowed to body (Array)',
+  'const x = (async () => [1, 2, 3])(); const n = x.includes(2);', (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression');
+    const resolver = adapter.makeResolver();
+    const objType = resolver.resolvePropertyObjectType(member);
+    check(`${ lbl } async-IIFE init not narrowed to Array`, !(objType && objType.constructor === 'Array'), true);
+  });
+
+// --- Conditional type resolution ---
+
+runBoth('TS conditional: `T extends string ? Array : Map` with concrete T -> Array',
+  'type Foo<T> = T extends string ? string[] : never; let x: Foo<"hi">;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const resolver = adapter.makeResolver();
+    const type = resolver.resolveNodeType(decl.get('id'));
+    checkType(lbl, type, { primitive: false, ctor: 'Array' });
+  });
+
+// `never extends X` is true for every X - never is the bottom type, assignable to everything - so
+// the check written DIRECTLY picks the true branch, and it must do so before the "primitive check vs
+// concrete-object extend" disjoint rule, which would otherwise answer false for any primitive check
+for (const [form, code] of [
+  ['primitive extend', 'type R = never extends string ? string[] : Map<string, number>; let r: R;'],
+  ['object extend', 'type R = never extends Array<number> ? string[] : Map<string, number>; let r: R;'],
+]) {
+  runBoth(`TS conditional: \`never extends X\` written directly picks the true branch: ${ form }`, code,
+    (adapter, prog, lbl) => {
+      const decl = adapter.pickPath(prog, 'VariableDeclarator');
+      checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('id')), { primitive: false, ctor: 'Array' });
+    });
+}
+
+// through a NAKED type parameter the same check reads the other way: the conditional is
+// distributive, and distributing over `never` yields `never`, so NO branch types the binding.
+// these two rows asserted the true branch and were wrong - real tsc answers `never` for both
+for (const [form, code] of [
+  ['primitive extend', 'type Box<T> = T extends string ? string[] : Map<string, number>; let r: Box<never>;'],
+  ['object extend', 'type Box<T> = T extends Array<number> ? string[] : Map<string, number>; let r: Box<never>;'],
+]) {
+  runBoth(`TS conditional: a naked parameter bound to never distributes to never: ${ form }`, code,
+    (adapter, prog, lbl) => {
+      const decl = adapter.pickPath(prog, 'VariableDeclarator');
+      const type = adapter.makeResolver().resolveNodeType(decl.get('id'));
+      check(`${ lbl } no branch types the binding`, !(type && type.constructor === 'Array'), true);
+    });
+}
+
+// --- bigint literal conditional types (canonicalized literal value, cross-parser) ---
+
+// `"1" extends 1n` is FALSE: a string literal is not assignable to a bigint literal. babel stores the
+// bigint magnitude as a digit STRING, so without canonicalization the value compared equal to the
+// string "1" and wrongly picked the true branch (oxc stores a real BigInt and decided correctly)
+runBoth('TS conditional: string literal does not extend bigint literal',
+  'type C = "1" extends 1n ? string[] : Map<string, number>; let x: C;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('id'));
+    checkType(lbl, type, { primitive: false, ctor: 'Map' });
+  });
+
+// `-1n extends -1` is FALSE: a negative bigint literal is a different family than a negative number.
+// the negation wraps a UnaryExpression - babel coerced the bigint magnitude string to a NUMBER (-1),
+// matching the number -1 and wrongly picking the true branch
+runBoth('TS conditional: negative bigint literal does not extend negative number literal',
+  'type C = -1n extends -1 ? string[] : Map<string, number>; let x: C;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('id'));
+    checkType(lbl, type, { primitive: false, ctor: 'Map' });
+  });
+
+// `-2n extends -1n` is FALSE: distinct negative bigint magnitudes. the check side is a type-param ref,
+// so the AST literal shortcut is skipped and the resolved-type path decides - negative bigint literals
+// stamped with no value collapsed to the same wide bigint and wrongly picked the true branch
+runBoth('TS conditional: distinct negative bigint literals via type-param do not extend',
+  'type A<N> = N extends -1n ? string[] : Map<string, number>; let x: A<-2n>;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('id'));
+    checkType(lbl, type, { primitive: false, ctor: 'Map' });
+  });
+
+// positive control: `1n extends 1n` is TRUE - identical bigint literals pick the true branch (locks
+// that canonicalization preserves equality, not just inequality)
+runBoth('TS conditional: identical bigint literals extend (true branch)',
+  'type C = 1n extends 1n ? string[] : Map<string, number>; let x: C;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('id'));
+    checkType(lbl, type, { primitive: false, ctor: 'Array' });
+  });
+
+// canonicalization compares by VALUE, not source text: `0x1n` and `1n` are the same bigint, so the
+// hex-form check extends the decimal-form literal and picks the true branch
+runBoth('TS conditional: hex bigint literal extends equal decimal bigint literal (true branch)',
+  'type C = 0x1n extends 1n ? string[] : Map<string, number>; let x: C;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('id'));
+    checkType(lbl, type, { primitive: false, ctor: 'Array' });
+  });
+
+// positive distinct bigints via a type-param check side (AST shortcut skipped, resolved-type path):
+// `2n extends 1n` is FALSE - the stamps must carry distinct positive magnitudes, not collapse to one
+// wide bigint (the negative-magnitude sibling of this is covered above)
+runBoth('TS conditional: distinct positive bigint literals via type-param do not extend',
+  'type A<N> = N extends 1n ? string[] : Map<string, number>; let x: A<2n>;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('id'));
+    checkType(lbl, type, { primitive: false, ctor: 'Map' });
+  });
+
+// non-bigint regression guards for the shared negation branch: a negative NUMBER literal (also a
+// UnaryExpression) must keep comparing by its numeric value - `-1 extends -1` true, `-2 extends -1`
+// false - so the bigint handling added to the shared extractor did not disturb the number path
+runBoth('TS conditional: identical negative number literals extend (true branch)',
+  'type C = -1 extends -1 ? string[] : Map<string, number>; let x: C;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('id'));
+    checkType(lbl, type, { primitive: false, ctor: 'Array' });
+  });
+runBoth('TS conditional: distinct negative number literals do not extend (false branch)',
+  'type C = -2 extends -1 ? string[] : Map<string, number>; let x: C;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('id'));
+    checkType(lbl, type, { primitive: false, ctor: 'Map' });
+  });
+
+// a nested conditional does not change the distribution rule: the OUTER check is the naked
+// parameter, so `Box<never>` is `never` whole and neither nesting level types the binding. the row
+// asserted the outermost true branch and was wrong - real tsc answers `never`
+runBoth('TS conditional: a naked parameter bound to never distributes to never: nested conditional',
+  `
+    type Box<T> = T extends string ? string[] : T extends number ? Map<string, number> : Set<string>;
+    let r: Box<never>;
+  `,
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('id'));
+    check(`${ lbl } no branch types the binding`, !(type && type.constructor === 'Array'), true);
+  });
+
+// --- Readonly array is NOT assignable to a mutable `Array<infer U>` infer pattern ---
+// TS picks the FALSE branch for a `readonly T[]` / `ReadonlyArray<T>` check side against an
+// `Array<infer U>` pattern. Binding U from a readonly check would key an array-only helper to the
+// false-branch receiver, throwing on it. A `ReadonlyArray<infer U>` pattern, and any mutable check,
+// still bind U.
+
+runBoth('readonly check vs mutable `Array<infer U>` pattern picks FALSE branch',
+  'type T = readonly number[] extends Array<infer U> ? U[] : string; let r: T;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('id'));
+    checkType(lbl, type, { primitive: true, kind: 'string' });
+  });
+
+runBoth('mutable check vs mutable `Array<infer U>` pattern binds U (TRUE branch)',
+  'type T = number[] extends Array<infer U> ? U[] : string; let r: T;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('id'));
+    checkType(lbl, type, { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('readonly check vs `ReadonlyArray<infer U>` pattern binds U (TRUE branch)',
+  'type T = readonly number[] extends ReadonlyArray<infer U> ? U[] : string; let r: T;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('id'));
+    checkType(lbl, type, { primitive: false, ctor: 'Array' });
+  });
+
+// the readonly-shape probe must peel parentheses so both parsers agree (oxc keeps `(readonly T[])`
+// / `(ReadonlyArray<U>)` as TSParenthesizedType where babel strips it)
+runBoth('parenthesized readonly check side still picks FALSE branch',
+  'type T = (readonly number[]) extends Array<infer U> ? U[] : string; let r: T;',
+  (adapter, prog, lbl) => {
+    const type = adapter.makeResolver().resolveNodeType(adapter.pickPath(prog, 'VariableDeclarator').get('id'));
+    checkType(lbl, type, { primitive: true, kind: 'string' });
+  });
+
+runBoth('parenthesized `(ReadonlyArray<infer U>)` pattern binds a readonly check (TRUE branch)',
+  'type T = readonly number[] extends (ReadonlyArray<infer U>) ? U[] : string; let r: T;',
+  (adapter, prog, lbl) => {
+    const type = adapter.makeResolver().resolveNodeType(adapter.pickPath(prog, 'VariableDeclarator').get('id'));
+    checkType(lbl, type, { primitive: false, ctor: 'Array' });
+  });
+
+// the FALSE gate is scoped to the MUTABLE `Array<infer U>` container: a readonly array is still
+// assignable to a non-mutable-array infer pattern (`Iterable<infer U>`) and binds U there
+runBoth('readonly check binds U against an `Iterable<infer U>` pattern (readonly arrays are iterable)',
+  'type T = readonly number[] extends Iterable<infer U> ? U[] : string; let r: T;',
+  (adapter, prog, lbl) => {
+    const type = adapter.makeResolver().resolveNodeType(adapter.pickPath(prog, 'VariableDeclarator').get('id'));
+    checkType(lbl, type, { primitive: false, ctor: 'Array' });
+  });
+
+// the readonly-not-assignable-to-mutable rule generalises across collection families: `ReadonlySet` is
+// not assignable to a mutable `Set<infer U>` pattern, `ReadonlyMap` not to `Map<infer K, infer V>`
+// (a multi-param container the single-element fast-path never matches). Mutable-to-either still binds.
+runBoth('readonly Set check picks FALSE against a mutable `Set<infer U>` pattern',
+  'type T = ReadonlySet<number> extends Set<infer U> ? U[] : string; let r: T;',
+  (adapter, prog, lbl) => {
+    const type = adapter.makeResolver().resolveNodeType(adapter.pickPath(prog, 'VariableDeclarator').get('id'));
+    checkType(lbl, type, { primitive: true, kind: 'string' });
+  });
+
+runBoth('readonly Map check picks FALSE against a mutable `Map<infer K, infer V>` pattern',
+  'type T = ReadonlyMap<string, number> extends Map<infer K, infer V> ? K[] : string; let r: T;',
+  (adapter, prog, lbl) => {
+    const type = adapter.makeResolver().resolveNodeType(adapter.pickPath(prog, 'VariableDeclarator').get('id'));
+    checkType(lbl, type, { primitive: true, kind: 'string' });
+  });
+
+runBoth('mutable Set check binds U against `Set<infer U>` (TRUE control)',
+  'type T = Set<number> extends Set<infer U> ? U[] : string; let r: T;',
+  (adapter, prog, lbl) => {
+    const type = adapter.makeResolver().resolveNodeType(adapter.pickPath(prog, 'VariableDeclarator').get('id'));
+    checkType(lbl, type, { primitive: false, ctor: 'Array' });
+  });
+
+// the `Readonly<X>` utility applied to a collection is that collection's readonly form (`Readonly<T[]>`
+// === `readonly T[]`), so it is not assignable to the mutable pattern either - array, tuple, Set and
+// Map spellings all take the FALSE branch; a `Readonly<{...}>` object is not a collection (unaffected)
+for (const [label, checkExpr, pattern, trueBranch] of [
+  ['Readonly array', 'Readonly<number[]>', 'Array<infer U>', 'U[]'],
+  ['Readonly tuple', 'Readonly<[number]>', 'Array<infer U>', 'U[]'],
+  ['Readonly Set', 'Readonly<Set<number>>', 'Set<infer U>', 'U[]'],
+  ['Readonly Map', 'Readonly<Map<string, number>>', 'Map<infer K, infer V>', 'K[]'],
+]) {
+  runBoth(`\`${ label }\` check picks FALSE against its mutable pattern`,
+    `type T = ${ checkExpr } extends ${ pattern } ? ${ trueBranch } : string; let r: T;`,
+    (adapter, prog, lbl) => {
+      const type = adapter.makeResolver().resolveNodeType(adapter.pickPath(prog, 'VariableDeclarator').get('id'));
+      checkType(lbl, type, { primitive: true, kind: 'string' });
+    });
+}
+
+runBoth('`Readonly<number[]>` still binds U against a non-mutable-array family (`Iterable<infer U>`)',
+  'type T = Readonly<number[]> extends Iterable<infer U> ? U[] : string; let r: T;',
+  (adapter, prog, lbl) => {
+    const type = adapter.makeResolver().resolveNodeType(adapter.pickPath(prog, 'VariableDeclarator').get('id'));
+    checkType(lbl, type, { primitive: false, ctor: 'Array' });
+  });
+
+// readonly-vs-mutable boundaries: a bare `Array` / empty readonly tuple / nested `Readonly` all take
+// FALSE; the REVERSE direction (a mutable check against a readonly pattern) still binds U because a
+// mutable collection IS assignable to its readonly view
+runBoth('readonly check against a bare (type-arg-less) `Array` pattern picks FALSE',
+  'type T = readonly number[] extends Array ? number[] : string; let r: T;',
+  (adapter, prog, lbl) => {
+    const type = adapter.makeResolver().resolveNodeType(adapter.pickPath(prog, 'VariableDeclarator').get('id'));
+    checkType(lbl, type, { primitive: true, kind: 'string' });
+  });
+
+runBoth('empty readonly tuple `readonly []` picks FALSE against `Array<infer U>`',
+  'type T = readonly [] extends Array<infer U> ? U[] : string; let r: T;',
+  (adapter, prog, lbl) => {
+    const type = adapter.makeResolver().resolveNodeType(adapter.pickPath(prog, 'VariableDeclarator').get('id'));
+    checkType(lbl, type, { primitive: true, kind: 'string' });
+  });
+
+runBoth('nested `Readonly<Readonly<number[]>>` still detected as readonly (FALSE)',
+  'type T = Readonly<Readonly<number[]>> extends Array<infer U> ? U[] : string; let r: T;',
+  (adapter, prog, lbl) => {
+    const type = adapter.makeResolver().resolveNodeType(adapter.pickPath(prog, 'VariableDeclarator').get('id'));
+    checkType(lbl, type, { primitive: true, kind: 'string' });
+  });
+
+runBoth('mutable check against a `ReadonlyArray<infer U>` pattern binds U (mutable IS-A readonly)',
+  'type T = number[] extends ReadonlyArray<infer U> ? U[] : string; let r: T;',
+  (adapter, prog, lbl) => {
+    const type = adapter.makeResolver().resolveNodeType(adapter.pickPath(prog, 'VariableDeclarator').get('id'));
+    checkType(lbl, type, { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('readonly conditional resolved through `Awaited<...>` keeps the FALSE branch (string)',
+  'type Inner = readonly number[] extends Array<infer U> ? U[] : string; type T = Awaited<Inner>; let r: T;',
+  (adapter, prog, lbl) => {
+    const type = adapter.makeResolver().resolveNodeType(adapter.pickPath(prog, 'VariableDeclarator').get('id'));
+    checkType(lbl, type, { primitive: true, kind: 'string' });
+  });
+
+runBoth('ReadonlySet check through a member-lookup conditional picks the FALSE branch (string)',
+  'type Box<X> = X extends Set<infer U> ? { v: U[] } : { v: string }; declare const c: Box<ReadonlySet<number>>; c.v;',
+  (adapter, prog, lbl) => {
+    const type = adapter.makeResolver().resolveNodeType(adapter.pickPath(prog, 'MemberExpression'));
+    checkType(lbl, type, { primitive: true, kind: 'string' });
+  });
+
+// readonly-ness is dropped when a type resolves (all readonly forms -> mutable Array/Set/Map ctor), so
+// a readonly collection reached through an ALIAS / a generic TYPE-PARAM / `Readonly<type-param>` is
+// re-detected via the resolved-Type `.readonly` marker - it still picks FALSE against the mutable pattern
+for (const [label, decls, checkExpr] of [
+  ['alias to ReadonlyArray', 'type RA = ReadonlyArray<number>;', 'RA'],
+  ['generic type-param bound to readonly array', 'type W<X> = X;', 'W<readonly number[]>'],
+  ['`Readonly<type-param>` over a collection', 'type W<X> = Readonly<X>;', 'W<number[]>'],
+]) {
+  runBoth(`readonly collection behind ${ label } still picks FALSE`,
+    `${ decls } type T = ${ checkExpr } extends Array<infer U> ? U[] : string; declare const r: T; r.at(0);`,
+    (adapter, prog, lbl) => {
+      const recv = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at').get('object');
+      checkType(lbl, adapter.makeResolver().resolveNodeType(recv), { primitive: true, kind: 'string' });
+    });
+}
+
+runBoth('`Readonly<type-param>` over a NON-collection object is not tagged readonly (no false FALSE)',
+  'type W<X> = Readonly<X>; type T = W<{ a: number }> extends Array<infer U> ? U[] : string; declare const r: T; r.at(0);',
+  (adapter, prog, lbl) => {
+    // a readonly object is not a readonly collection - the conditional is FALSE via the family check,
+    // not the readonly marker (string branch), and resolves cleanly rather than binding array U
+    const recv = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at').get('object');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(recv), { primitive: true, kind: 'string' });
+  });
+
+runBoth('readonly check through a member-lookup conditional picks the FALSE branch (string), not array U',
+  'type Box<X> = X extends Array<infer U> ? { v: U[] } : { v: string }; declare const c: Box<readonly number[]>; c.v;',
+  (adapter, prog, lbl) => {
+    const type = adapter.makeResolver().resolveNodeType(adapter.pickPath(prog, 'MemberExpression'));
+    checkType(lbl, type, { primitive: true, kind: 'string' });
+  });
+
+// higher-kinded apply (`type Wrap<F, X> = F<X>`) stamps type-param 0 as `.inner` only for
+// element-first containers (Set / Array / Promise); a key-first Map / WeakMap bound as F keeps
+// `.inner` null so this lane matches the direct-annotation lane, instead of recording the KEY
+// type where the element type belongs
+for (const [label, ctor, resolvedCtor, wantInnerKind] of [
+  ['Set keeps its element', 'Set', 'Set', 'string'],
+  ['Array keeps its element', 'Array', 'Array', 'string'],
+  ['Promise keeps its value', 'Promise', 'Promise', 'string'],
+  ['Map drops the key from inner', 'Map', 'Map', null],
+  ['WeakMap drops the key from inner', 'WeakMap', 'WeakMap', null],
+  // ReadonlyMap normalises to the mutable Map ctor and stays key-first (null inner)
+  ['ReadonlyMap drops the key from inner', 'ReadonlyMap', 'Map', null],
+]) {
+  runBoth(`HKT Wrap<${ ctor }, string> element-precision: ${ label }`,
+    `type Wrap<F, X> = F<X>; declare const m: Wrap<${ ctor }, string>;`,
+    (adapter, prog, lbl) => {
+      const type = adapter.makeResolver().resolveNodeType(adapter.pickPath(prog, 'VariableDeclarator').get('id'));
+      check(`${ lbl } ctor`, type?.constructor, resolvedCtor);
+      if (wantInnerKind === null) check(`${ lbl } inner`, type?.inner, null);
+      else check(`${ lbl } inner`, type?.inner?.type, wantInnerKind);
+    });
+}
+
+runBoth('mutable check through a member-lookup conditional binds array U',
+  'type Box<X> = X extends Array<infer U> ? { v: U[] } : { v: string }; declare const d: Box<number[]>; d.v;',
+  (adapter, prog, lbl) => {
+    const type = adapter.makeResolver().resolveNodeType(adapter.pickPath(prog, 'MemberExpression'));
+    checkType(lbl, type, { primitive: false, ctor: 'Array' });
+  });
+
+// the readonly rule also reaches the member-lookup path (findConditionalTypeMember -> the general
+// branch decider) for a multi-family check: a ReadonlyMap member-lookup picks the FALSE branch
+runBoth('ReadonlyMap check through a member-lookup conditional picks the FALSE branch (string)',
+  'type Box<X> = X extends Map<infer K, infer V> ? { v: K[] } : { v: string }; declare const c: Box<ReadonlyMap<string, number>>; c.v;',
+  (adapter, prog, lbl) => {
+    const type = adapter.makeResolver().resolveNodeType(adapter.pickPath(prog, 'MemberExpression'));
+    checkType(lbl, type, { primitive: true, kind: 'string' });
+  });
+
+// --- `Iterable<infer U>` pattern: array-like check sides match, Promise does not ---
+// An array is iterable, so `number[] extends Iterable<infer U>` fires the TRUE branch and binds U.
+// A Promise is NOT a plain iterable, so it must take the FALSE branch instead of binding U (which
+// would key an array-only helper to a Promise receiver).
+
+runBoth('array check side matches `Iterable<infer U>` pattern (TRUE branch)',
+  'type T = number[] extends Iterable<infer U> ? U[] : string;\ndeclare const r: T;\nr.at(0);',
+  (adapter, prog, lbl) => {
+    const recv = adapter.pickPath(prog, 'MemberExpression').get('object');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(recv), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('Promise check side does not match `Iterable<infer U>` pattern (FALSE branch)',
+  'type T = Promise<number> extends Iterable<infer U> ? U[] : string;\ndeclare const r: T;\nr.at(0);',
+  (adapter, prog, lbl) => {
+    const recv = adapter.pickPath(prog, 'MemberExpression').get('object');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(recv), { primitive: true, kind: 'string' });
+  });
+
+// A parenthesized extends-clause (`(Array<infer U>)`) must match the same as the unparenthesized
+// form. oxc keeps the parens as TSParenthesizedType where babel strips them - both must resolve.
+runBoth('parenthesized `(Array<infer U>)` pattern matches the same as unparenthesized',
+  'type T = number[] extends (Array<infer U>) ? U[] : string;\ndeclare const r: T;\nr.at(0);',
+  (adapter, prog, lbl) => {
+    const recv = adapter.pickPath(prog, 'MemberExpression').get('object');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(recv), { primitive: false, ctor: 'Array' });
+  });
+
+// --- Extract/Exclude fold distinct string literals into an undecidable literal union ---
+// `Extract<'a' | 'b', string>` is `'a' | 'b'`; a later `extends 'a'` is FALSE (a union is not
+// assignable to a single literal), so the conditional must NOT fire the true branch. Folding to the
+// first literal alone would wrongly decide it TRUE and key an array helper to a string receiver.
+
+runBoth('Extract of two string literals stays undecidable under `extends literal` (no array over-resolve)',
+  "type E = Extract<'a' | 'b', string>;\ntype C = E extends 'a' ? number[] : string;\ndeclare const r: C;\nr.at(0);",
+  (adapter, prog, lbl) => {
+    const recv = adapter.pickPath(prog, 'MemberExpression').get('object');
+    checkTruthy(lbl, adapter.makeResolver().resolveNodeType(recv)?.constructor !== 'Array',
+      'literal-union Extract must not resolve the true (array) branch');
+  });
+
+runBoth('Extract of a single string literal decides `extends literal` TRUE',
+  "type E = Extract<'a', string>;\ntype C = E extends 'a' ? number[] : string;\ndeclare const r: C;\nr.at(0);",
+  (adapter, prog, lbl) => {
+    const recv = adapter.pickPath(prog, 'MemberExpression').get('object');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(recv), { primitive: false, ctor: 'Array' });
+  });
+
+// --- Discriminant-union narrowing (`if (u.kind === 'a') { u.value }`) ---
+// covers the cluster: parseDiscriminantCheck / memberLiteralPair / pushDiscriminantClauses
+// / findDiscriminantGuards. each scenario sets up a union with two branches and verifies
+// the narrowed branch's element-type wins inside the guarded body
+
+runBoth('discriminant union: positive `kind === literal` narrows',
+  `
+    type U = { kind: 'a'; x: string } | { kind: 'b'; x: number[] };
+    function f(u: U) { if (u.kind === 'a') { return u.x; } }
+  `,
+  (adapter, prog, lbl) => {
+    // pick `u.x` inside the if-body via `return u.x`
+    const refs = adapter.collectPaths(prog, 'MemberExpression', p => {
+      let parent = p.parentPath;
+      while (parent) {
+        if (parent.node?.type === 'ReturnStatement') return true;
+        parent = parent.parentPath;
+      }
+      return false;
+    });
+    const resolver = adapter.makeResolver();
+    // discriminant narrows to `{kind: 'a', x: string}` so `u.x` is string primitive
+    checkType(lbl, resolver.resolveNodeType(refs[0]), { primitive: true, kind: 'string' });
+  });
+
+runBoth('discriminant union: else-branch narrows to alternate',
+  `
+    type U = { kind: 'a'; x: string } | { kind: 'b'; x: number[] };
+    function f(u: U) { if (u.kind === 'a') {} else { return u.x; } }
+  `,
+  (adapter, prog, lbl) => {
+    const refs = adapter.collectPaths(prog, 'MemberExpression', p => {
+      let parent = p.parentPath;
+      while (parent) {
+        if (parent.node?.type === 'ReturnStatement') return true;
+        parent = parent.parentPath;
+      }
+      return false;
+    });
+    const resolver = adapter.makeResolver();
+    // else-branch narrows to `{kind: 'b', x: number[]}` so `u.x` is Array
+    checkType(lbl, resolver.resolveNodeType(refs[0]), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('discriminant union: preceding early-exit narrows tail',
+  `
+    type U = { kind: 'a'; x: string } | { kind: 'b'; x: number[] };
+    function f(u: U) { if (u.kind !== 'a') return; return u.x; }
+  `,
+  (adapter, prog, lbl) => {
+    // pick the LAST `u.x` (the one after early-exit)
+    const refs = adapter.collectPaths(prog, 'MemberExpression');
+    const resolver = adapter.makeResolver();
+    // after `if (u.kind !== 'a') return;` the only surviving branch is `{kind:'a', x: string}`
+    checkType(lbl, resolver.resolveNodeType(refs[refs.length - 1]),
+      { primitive: true, kind: 'string' });
+  });
+
+runBoth('discriminant union: `&&` clause contributes',
+  `
+    type U = { kind: 'a'; x: string } | { kind: 'b'; x: number[] };
+    function f(u: U, ready: boolean) { if (ready && u.kind === 'a') { return u.x; } }
+  `,
+  (adapter, prog, lbl) => {
+    const refs = adapter.collectPaths(prog, 'MemberExpression', p => {
+      let parent = p.parentPath;
+      while (parent) {
+        if (parent.node?.type === 'ReturnStatement') return true;
+        parent = parent.parentPath;
+      }
+      return false;
+    });
+    const resolver = adapter.makeResolver();
+    checkType(lbl, resolver.resolveNodeType(refs[0]), { primitive: true, kind: 'string' });
+  });
+
+// a bigint discriminant must canonicalize by VALUE, not source radix: `0x1n` (union member) and
+// `1n` (guard) are the same bigint, so the guard narrows to the `{kind:1n,x:string}` branch and
+// `u.x` is `string`. keying the raw magnitude ("0x1n" != "1n") would drop the narrow and leave
+// `u.x` as the unrefined union (the babel/oxc parity divergence: oxc keeps a decimal magnitude,
+// babel a radix-prefixed one)
+runBoth('discriminant union: hex bigint guard narrows decimal bigint member',
+  `
+    type U = { kind: 0x1n; x: string } | { kind: 0x2n; x: number[] };
+    function f(u: U) { if (u.kind === 1n) { return u.x; } }
+  `,
+  (adapter, prog, lbl) => {
+    const refs = adapter.collectPaths(prog, 'MemberExpression', p => {
+      let parent = p.parentPath;
+      while (parent) {
+        if (parent.node?.type === 'ReturnStatement') return true;
+        parent = parent.parentPath;
+      }
+      return false;
+    });
+    const resolver = adapter.makeResolver();
+    checkType(lbl, resolver.resolveNodeType(refs[0]), { primitive: true, kind: 'string' });
+  });
+
+// matched-radix control: decimal member + decimal guard narrows (proves the canonicalization did
+// not over-widen the equality - same-value bigints still compare equal)
+runBoth('discriminant union: decimal bigint guard narrows decimal bigint member',
+  `
+    type U = { kind: 1n; x: string } | { kind: 2n; x: number[] };
+    function f(u: U) { if (u.kind === 1n) { return u.x; } }
+  `,
+  (adapter, prog, lbl) => {
+    const refs = adapter.collectPaths(prog, 'MemberExpression', p => {
+      let parent = p.parentPath;
+      while (parent) {
+        if (parent.node?.type === 'ReturnStatement') return true;
+        parent = parent.parentPath;
+      }
+      return false;
+    });
+    const resolver = adapter.makeResolver();
+    checkType(lbl, resolver.resolveNodeType(refs[0]), { primitive: true, kind: 'string' });
+  });
+
+// disjointedness control: a bigint guard must NOT match a same-DIGIT number member - `1n !== 1`, so
+// neither branch matches and the narrow yields the unrefined union (both sides resolve to their
+// real runtime values, and a BigInt never equals a Number)
+runBoth('discriminant union: bigint guard does not narrow same-digit number member',
+  `
+    type U = { kind: 1; x: string } | { kind: 2; x: number[] };
+    function f(u: U) { if (u.kind === 1n) { return u.x; } }
+  `,
+  (adapter, prog, lbl) => {
+    const refs = adapter.collectPaths(prog, 'MemberExpression', p => {
+      let parent = p.parentPath;
+      while (parent) {
+        if (parent.node?.type === 'ReturnStatement') return true;
+        parent = parent.parentPath;
+      }
+      return false;
+    });
+    const resolver = adapter.makeResolver();
+    // no branch matches the bigint guard, so `u.x` stays the union (`string | number[]`) - the
+    // resolver yields the union, not a single narrowed primitive / ctor
+    const resolved = resolver.resolveNodeType(refs[0]);
+    if (resolved && resolved.primitive === true && resolved.kind === 'string') {
+      throw new Error(`${ lbl }: bigint guard wrongly narrowed a same-digit NUMBER member to string`);
+    }
+  });
+
+// the guard's value side is a closed set of fold paths: a bare literal, a single-quasi template,
+// a literal-TYPED binding with no init, an enum member, and a const alias to a literal. every one
+// of them must yield the value's runtime TYPE, because `===` separates `1` from `'1'` where a
+// property key does not. each union below carries the same tag TEXT in both types, so a path that
+// coerced its value to a key would select the wrong member - and the pairs make the two selections
+// symmetric, so neither direction can pass by accident
+const DISCRIMINANT_FOLD_CASES = [
+  { label: 'bare numeric literal', prelude: '', guard: '1', member: 'number' },
+  { label: 'bare string literal', prelude: '', guard: '"1"', member: 'string' },
+  { label: 'single-quasi template', prelude: '', guard: '`1`', member: 'string' },
+  { label: 'literal-typed binding, numeric', prelude: 'declare const k: 1;', guard: 'k', member: 'number' },
+  { label: 'literal-typed binding, string', prelude: 'declare const k: "1";', guard: 'k', member: 'string' },
+  { label: 'enum member, numeric', prelude: 'enum E { A = 1 }', guard: 'E.A', member: 'number' },
+  { label: 'enum member, string', prelude: 'enum E { A = "1" }', guard: 'E.A', member: 'string' },
+  { label: 'const alias, numeric', prelude: 'const k = 1;', guard: 'k', member: 'number' },
+  { label: 'const alias, string', prelude: 'const k = "1";', guard: 'k', member: 'string' },
+];
+
+for (const { label, prelude, guard, member } of DISCRIMINANT_FOLD_CASES) {
+  // the numeric member carries `x: string`, the string member `x: number[]` - so the assertion
+  // names which branch the fold picked, not merely that something narrowed
+  const expected = member === 'number' ? { primitive: true, kind: 'string' } : { primitive: false, ctor: 'Array' };
+  runBoth(`discriminant fold: ${ label } -> ${ member } member`,
+    `
+      type U = { kind: 1; x: string } | { kind: "1"; x: number[] };
+      ${ prelude }
+      function f(u: U) { if (u.kind === ${ guard }) { return u.x; } }
+    `,
+    (adapter, prog, lbl) => {
+      const refs = adapter.collectPaths(prog, 'MemberExpression', p => {
+        let parent = p.parentPath;
+        while (parent) {
+          if (parent.node?.type === 'ReturnStatement') return true;
+          parent = parent.parentPath;
+        }
+        return false;
+      });
+      checkType(lbl, adapter.makeResolver().resolveNodeType(refs.at(-1)), expected);
+    });
+}
+
+// --- Mapped types ---
+// covers `parseMappedTypeShape` (`keyof` vs literal-union dispatch),
+// `expandMappedTypeMembers` (per-key body resolution), and
+// `unwrapMappedTypePassthrough` (`{[K in keyof T]: T[K]}` -> T fast-path).
+// the engine should be able to resolve member access through these synthesized
+// member tables - that's the user-observable contract these helpers exist to support
+
+runBoth('mapped type via keyof: `Pick<{a:string}, "a">.a` -> string',
+  'let x: Pick<{ a: string; b: number }, "a">; x.a;',
+  (adapter, prog, lbl) => {
+    const resolver = adapter.makeResolver();
+    // Pick is a structure-preserving wrapper: the binding keeps its object shape and the
+    // picked member `x.a` resolves through resolvePropertyObjectType to string
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    checkType(`${ lbl } binding`, resolver.resolveNodeType(decl.get('id')), { primitive: false, ctor: 'Object' });
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node?.property?.name === 'a');
+    checkType(`${ lbl } member`, resolver.resolveNodeType(member), { primitive: true, kind: 'string' });
+  });
+
+runBoth('passthrough mapped type: `{ [K in keyof T]: T[K] }` -> T',
+  `
+    type Pass<T> = { [K in keyof T]: T[K] };
+    let x: Pass<string[]>;
+  `,
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const resolver = adapter.makeResolver();
+    const type = resolver.resolveNodeType(decl.get('id'));
+    // passthrough should collapse to T = string[] (Array)
+    checkType(lbl, type, { primitive: false, ctor: 'Array' });
+  });
+
+// --- Class members ---
+
+runBoth('class instance method return -> Array',
+  `
+    class Box { items(): number[] { return []; } }
+    const b = new Box();
+    const v = b.items();
+  `,
+  (adapter, prog, lbl) => {
+    // pick `b.items()` CallExpression
+    const call = adapter.pickPath(prog, 'CallExpression',
+      p => p.node.callee?.type === 'MemberExpression' && p.node.callee.property?.name === 'items');
+    const resolver = adapter.makeResolver();
+    checkType(lbl, resolver.resolveNodeType(call), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('class static method return propagates',
+  `
+    class Factory { static make(): string { return ""; } }
+    const v = Factory.make();
+  `,
+  (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression');
+    const resolver = adapter.makeResolver();
+    checkType(lbl, resolver.resolveNodeType(call), { primitive: true, kind: 'string' });
+  });
+
+// --- Ambient `declare class` instance / static anchoring (cross-parser) ---
+// Babel doesn't register an ambient `declare class` in `scope.bindings`; estree-toolkit (oxc)
+// does. without the ambient-declaration fallback, every site that resolves a class reference
+// from a bare Identifier (`new K()`, `Reflect.construct(K)`, `typeof K.static`) diverged: oxc
+// resolved precisely while babel returned null / a foreign nominal. these pin both parsers to
+// the same precise resolution.
+
+runBoth('ambient declare-class instance method return -> Array (new K())',
+  `
+    declare class K { foo(): string[]; }
+    const v = new K().foo();
+  `,
+  (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression',
+      p => p.node.callee?.type === 'MemberExpression' && p.node.callee.property?.name === 'foo');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(call), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('ambient declare-class instance method return -> Array (Reflect.construct)',
+  `
+    declare class K { foo(): string[]; }
+    const v = Reflect.construct(K, []).foo();
+  `,
+  (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression',
+      p => p.node.callee?.type === 'MemberExpression' && p.node.callee.property?.name === 'foo');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(call), { primitive: false, ctor: 'Array' });
+  });
+
+// the instance's OWN method must win over a same-named built-in: `K.at` is user-declared, so the
+// call resolves to its declared return (string), NOT Array.prototype.at - this is the over-inject
+// guard (an unanchored receiver would treat `.at` as a possible Array method)
+runBoth('ambient declare-class own method shadows built-in name -> string',
+  `
+    declare class K { at(i: number): string; }
+    const v = new K().at(0);
+  `,
+  (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression',
+      p => p.node.callee?.type === 'MemberExpression' && p.node.callee.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(call), { primitive: true, kind: 'string' });
+  });
+
+// `new K()` where K extends a built-in: the bare instance type must walk inheritance to the
+// polyfill-relevant base (`Array`), not stop at the foreign nominal `$Object('K')`
+runBoth('ambient declare-class extends Array -> instance resolves to Array',
+  `
+    declare class MyArr extends Array<string> {}
+    const v = new MyArr();
+  `,
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'v');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+
+// `typeof K.staticField` where K is an ambient class: the static type flows through the
+// ambient-declaration index on babel, matching oxc's scope-binding lookup
+runBoth('ambient declare-class typeof static field -> Array',
+  `
+    declare class K { static rows: string[]; }
+    declare const v: typeof K.rows;
+    const y = v;
+  `,
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'y');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+
+// `new NS.Base()` qualified-namespace class: the shared class-path helper descends the namespace
+// segment list, so the instance anchors and its method return resolves (both parsers)
+runBoth('new NS.Base() qualified namespace class -> method return Array',
+  `
+    namespace NS { export class Base { foo(): string[] { return []; } } }
+    const y = new NS.Base().foo();
+  `,
+  (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression',
+      p => p.node.callee?.type === 'MemberExpression' && p.node.callee.property?.name === 'foo');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(call), { primitive: false, ctor: 'Array' });
+  });
+
+// regression guard: routing `new` through the shared class-path helper must NOT swallow the
+// construct-signature fallback - a `declare const Ctor: new () => T` binding (no class node, helper
+// returns null) still resolves its instance type via the call-return path
+runBoth('new Ctor() construct-signature binding still resolves -> Array',
+  `
+    declare const Ctor: new () => string[];
+    const y = new Ctor();
+  `,
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'y');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+
+// negative: a deeper `typeof K.a.b` ambient chain (member depth > 1) isn't resolved by the
+// single-level ambient-static fallback - must terminate gracefully (null), not throw
+runBoth('deep typeof K.a.b ambient static (depth > 1) -> null, no throw',
+  `
+    declare class K { static a: { b: string[] }; }
+    declare const v: typeof K.a.b;
+    const y = v;
+  `,
+  (adapter, prog, lbl) => {
+    check(`${ lbl } graceful null`, adapter.makeResolver().resolveNodeType(adapter
+      .pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'y').get('init')), null);
+  });
+
+// the class-path helper peels TS wrappers before the ambient lookup, so a wrapped ambient callee
+// (`new (K as any)()`) still anchors
+runBoth('TS-wrapped ambient callee new (K as any)().foo() -> Array',
+  `
+    declare class K { foo(): string[]; }
+    const y = new (K as any)().foo();
+  `,
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'y');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+
+// optional call on an ambient instance (`new K()?.foo()`) anchors through both parser shapes
+// (babel OptionalCallExpression vs oxc ChainExpression)
+runBoth('optional new K()?.foo() ambient -> Array',
+  `
+    declare class K { foo(): string[]; }
+    const y = new K()?.foo();
+  `,
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'y');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+
+// `Reflect.construct(target, args, newTarget)` 3-arg: the created instance is a `newTarget`, so the
+// ambient class is resolved from arguments[2], not arguments[0]. Base's method returns a primitive,
+// so an Array result proves Derived (arg[2]) was anchored rather than Base (arg[0])
+runBoth('Reflect.construct 3-arg resolves newTarget (ambient) -> Array',
+  `
+    declare class Base { foo(): string; }
+    declare class Derived { foo(): string[]; }
+    const y = Reflect.construct(Base, [], Derived).foo();
+  `,
+  (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression',
+      p => p.node.callee?.type === 'MemberExpression' && p.node.callee.property?.name === 'foo');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(call), { primitive: false, ctor: 'Array' });
+  });
+
+// a class-EXPRESSION callee (`new (class {...})()`) resolves through the same helper - the runtime
+// branch (`t.isClass`) matches ClassExpression as well as ClassDeclaration
+runBoth('new (class { foo(): string[] })().foo() class-expression -> Array',
+  `
+    const y = new (class { foo(): string[] { return []; } })().foo();
+  `,
+  (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression',
+      p => p.node.callee?.type === 'MemberExpression' && p.node.callee.property?.name === 'foo');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(call), { primitive: false, ctor: 'Array' });
+  });
+
+// a generic ambient `declare class MyList<T> extends Array<T>` instance still resolves the inherited
+// Array base across parsers (element stays unsubstituted, but the container is pinned, not divergent)
+runBoth('generic ambient declare-class extends Array<T> -> instance Array',
+  `
+    declare class MyList<T> extends Array<T> {}
+    const y = new MyList<string>();
+  `,
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'y');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+
+// --- Type-param substitution capture-avoidance ---
+// a type-arg whose name collides with a sibling type-param refers to an EXTERNAL declaration, but
+// transitive substitution would re-capture it through the param's own mapping. the capture-avoiding
+// builder resolves the external declaration eagerly (alias body / interface members), independent of
+// declaration kind and whether the arg is explicit or a default. these would all under-resolve (or
+// resolve to the wrong sibling type) without it.
+
+runBoth('capture-avoidance: interface collider Wrap<string, A> resolves external interface A',
+  `
+    interface A { rows(): string[]; }
+    interface Wrap<A, Q> { item: Q; }
+    declare const w: Wrap<string, A>;
+    const y = w.item.rows();
+  `,
+  (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression',
+      p => p.node.callee?.type === 'MemberExpression' && p.node.callee.property?.name === 'rows');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(call), { primitive: false, ctor: 'Array' });
+  });
+
+// a DEFAULT-valued colliding param is the OPPOSITE of an explicit collider: the default `Q = A`
+// lives in the DECLARATION scope, where the sibling type-param `A` SHADOWS the outer `type A`, so
+// `Q` binds to the param value (`Wrap<string>` sets `A = string`), NOT the external `type A`.
+// capture-avoidance must therefore NOT fire on defaults - only the transitive substitution binds it
+runBoth('capture-avoidance: default collider Wrap<A, Q = A> binds the SHADOWING sibling param',
+  `
+    type A = number[];
+    interface Wrap<A, Q = A> { item: Q; }
+    declare const w: Wrap<string>;
+    const y = w.item.at(0);
+  `,
+  (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression', p => p.node.callee?.property?.name === 'at');
+    // TS: w.item = Q = sibling param A = string (string `at`), NOT the outer number[]
+    checkType(lbl, adapter.makeResolver().resolveNodeType(call), { primitive: true, kind: 'string' });
+  });
+
+// flipped direction proves it binds the param value, not a fixed answer: outer `type A = string`,
+// sibling `A` bound to `number[]` -> `Q = A` is `number[]`. without the explicit-only gate the
+// resolver returned the EXTERNAL `string` here (the opposite of the case above), so this nails the
+// binding to the param regardless of which side carries the array type
+runBoth('capture-avoidance: default collider binds sibling param value (flipped) Wrap<number[]>',
+  `
+    type A = string;
+    interface Wrap<A, Q = A> { item: Q; }
+    declare const w: Wrap<number[]>;
+    const y = w.item.at(0);
+  `,
+  (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression', p => p.node.callee?.property?.name === 'at');
+    // TS: w.item = number[] -> array element narrowing
+    checkType(lbl, adapter.makeResolver().resolveNodeType(call), { primitive: true, kind: 'number' });
+  });
+
+// a default whose value NESTS the colliding sibling (`Q = { x: A }`) binds the nested `A` to the
+// sibling param too (decl scope), not the external `type A`. mirror of the explicit-nested case
+// below, in the opposite scope direction
+runBoth('capture-avoidance: default nests sibling Wrap<A, Q = { x: A }> binds the param',
+  `
+    type A = string;
+    interface Wrap<A, Q = { x: A }> { item: Q; }
+    declare const w: Wrap<number[]>;
+    const y = w.item.x.at(0);
+  `,
+  (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression', p => p.node.callee?.property?.name === 'at');
+    // TS: w.item.x = sibling A = number[] -> array element narrowing
+    checkType(lbl, adapter.makeResolver().resolveNodeType(call), { primitive: true, kind: 'number' });
+  });
+
+// an EXPLICIT collider nested inside a structural arg (`Wrap<string, { x: A }>`) must still resolve
+// the external `type A` - the structural arg is written in the CALLER scope where the decl's own
+// params are NOT in scope. without nested reach the inner `A` was recaptured to the sibling value
+runBoth('capture-avoidance: explicit collider nested in structural arg Wrap<string, { x: A }>',
+  `
+    type A = number[];
+    interface Wrap<A, Q> { item: Q; }
+    declare const w: Wrap<string, { x: A }>;
+    const y = w.item.x.at(0);
+  `,
+  (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression', p => p.node.callee?.property?.name === 'at');
+    // TS: w.item.x = external A = number[] -> array element narrowing
+    checkType(lbl, adapter.makeResolver().resolveNodeType(call), { primitive: true, kind: 'number' });
+  });
+
+// the same collision THROUGH an alias chain: the chain walker accumulates each hop via the shared
+// capture-avoiding builder, so the collider is resolved at the hop, not recaptured downstream
+runBoth('capture-avoidance: collider through alias chain type Mid<A,Q> = Wrap<A,Q>',
+  `
+    interface A { rows(): string[]; }
+    interface Wrap<X, Q> { item: Q; }
+    type Mid<A, Q> = Wrap<A, Q>;
+    declare const w: Mid<string, A>;
+    const y = w.item.rows();
+  `,
+  (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression',
+      p => p.node.callee?.type === 'MemberExpression' && p.node.callee.property?.name === 'rows');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(call), { primitive: false, ctor: 'Array' });
+  });
+
+// a colliding name with NO external declaration IS the param itself (intentional sibling reference)
+// and must stay transitively resolved - `Wrap<Array<Q>, string>` -> item is Array (Q -> string)
+runBoth('capture-avoidance NEG: intentional sibling ref Wrap<Array<Q>, string> stays Array',
+  `
+    interface Wrap<A, Q> { item: A; }
+    declare const w: Wrap<Array<Q>, string>;
+    const y = w.item;
+  `,
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'y');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+
+// a non-colliding external type-arg is unaffected (the common path)
+runBoth('capture-avoidance NEG: non-colliding arg Wrap<string, B> resolves normally',
+  `
+    interface B { rows(): string[]; }
+    interface Wrap<A, Q> { item: Q; }
+    declare const w: Wrap<string, B>;
+    const y = w.item.rows();
+  `,
+  (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression',
+      p => p.node.callee?.type === 'MemberExpression' && p.node.callee.property?.name === 'rows');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(call), { primitive: false, ctor: 'Array' });
+  });
+
+// a collider with no self-ref-free inline form (a GENERIC interface) collapses to `unknown` -
+// the recapture chain is still broken (safe under-resolve), and it must not throw
+runBoth('capture-avoidance: generic-interface collider -> safe under-resolve (no recapture, no throw)',
+  `
+    interface G<T> { rows(): string[]; }
+    interface Wrap<G, Q> { item: Q; }
+    declare const w: Wrap<string, G>;
+    const y = w.item.rows();
+  `,
+  (adapter, prog, lbl) => {
+    check(`${ lbl } safe null`, adapter.makeResolver().resolveNodeType(adapter.pickPath(prog, 'CallExpression',
+      p => p.node.callee?.type === 'MemberExpression' && p.node.callee.property?.name === 'rows')), null);
+  });
+
+// the capture-avoidance holds THROUGH a deep (3-hop) alias chain, not just one hop
+runBoth('capture-avoidance: collider through 3-hop alias chain resolves',
+  `
+    interface I { rows(): string[]; }
+    interface Wrap<X, Q> { item: Q; }
+    type C<A, Q> = Wrap<A, Q>;
+    type B<A, Q> = C<A, Q>;
+    type A<A, Q> = B<A, Q>;
+    declare const w: A<string, I>;
+    const y = w.item.rows();
+  `,
+  (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression',
+      p => p.node.callee?.type === 'MemberExpression' && p.node.callee.property?.name === 'rows');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(call), { primitive: false, ctor: 'Array' });
+  });
+
+// cross-hop collision: the outer alias forwards its param `A` into the inner hop's `Q` slot, where
+// `A` also names the inner hop's first param - the accumulated-subst builder must still resolve the
+// external `A`, not recapture across the hop boundary
+runBoth('capture-avoidance: cross-hop collision Outer<A> = Inner<string, A> resolves',
+  `
+    interface A { rows(): string[]; }
+    interface Inner<X, Q> { item: Q; }
+    type Outer<A> = Inner<string, A>;
+    declare const w: Outer<A>;
+    const y = w.item.rows();
+  `,
+  (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression',
+      p => p.node.callee?.type === 'MemberExpression' && p.node.callee.property?.name === 'rows');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(call), { primitive: false, ctor: 'Array' });
+  });
+
+// --- Type alias chains (multi-hop) ---
+
+runBoth('multi-hop type alias resolves through chain',
+  `
+    type A = number[];
+    type B = A;
+    type C = B;
+    let x: C;
+  `,
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const resolver = adapter.makeResolver();
+    // C -> B -> A -> number[] (Array)
+    checkType(lbl, resolver.resolveNodeType(decl.get('id')),
+      { primitive: false, ctor: 'Array' });
+  });
+
+// a NON-cyclic alias referenced 3+ times on one resolution walk must resolve every time, not
+// degrade. the walk marks a decl grey (open) before resolving and ungreys it on the way out; a
+// memo-hit early-return must not skip the ungrey, or the 3rd shared reference reads the leaked
+// grey membership as a cycle and folds the union to a generic (null) type. one arm per line
+runBoth('3+ shared alias references do not false-cycle to generic',
+  `
+    type P = number[];
+    type L = P | P | P | P;
+    let x: L;
+  `,
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    // every arm is the same Array alias, so the union resolves to Array; the 3rd/4th arm must not null
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('id')),
+      { primitive: false, ctor: 'Array' });
+  });
+
+// the grey-leak is decl-kind-agnostic (it precedes the alias / interface / class / namespace dispatch),
+// so a 3+-shared reference degrades the same way through each. these lock the breadth: an interface
+// whose extends resolves to a container, a namespace-qualified alias, and a multi-hop alias chain
+for (const [label, src] of [
+  ['interface extends', 'type P = number[];\ninterface A extends P {}\ntype L = A | A | A;\nlet x: L;'],
+  ['namespace alias', 'namespace N { export type P = number[]; }\ntype L = N.P | N.P | N.P;\nlet x: L;'],
+  ['multi-hop chain', 'type A = number[];\ntype B = A;\ntype C = B;\ntype L = C | C | C;\nlet x: L;'],
+  // a shared node that is ITSELF a shared-DAG node: each level memoizes while an ancestor is grey,
+  // so the leak would compound across levels - the fix must hold recursively
+  ['nested shared DAG', 'type Q = number[];\ntype P = Q | Q | Q;\ntype L = P | P | P;\nlet x: L;'],
+  // the class-as-type branch (extends a known container) - a distinct decl kind from the aliases above
+  ['class extends container', 'class A extends Array {}\ntype L = A | A | A;\nlet x: L;'],
+]) {
+  runBoth(`3+ shared references resolve through ${ label }`, src, (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('id')),
+      { primitive: false, ctor: 'Array' });
+  });
+}
+
+// --- Cyclic HKT alias termination ---
+
+// `type Apply<F> = F<0>` re-splices the SAME type-param ref into a fresh clone every hop;
+// each param name may splice at most once, then the walk bails (a repeat proves the chain
+// unproductive - no conditional types exist here to break a self-application). the resolver
+// must TERMINATE and yield no type (generic degrade) - it used to loop forever (build DoS)
+runBoth('cyclic HKT alias body terminates with no type',
+  `
+    type Apply<F> = F<0>;
+    function foo<F>(x: Apply<F>) { return x; }
+  `,
+  (adapter, prog, lbl) => {
+    // predicate pick (not `.get('params.0')`): the estree path API has no dotted array access
+    const param = adapter.pickPath(prog, 'Identifier', pp => pp.node.name === 'x' && pp.node.typeAnnotation);
+    const resolver = adapter.makeResolver();
+    check(lbl, resolver.resolveNodeType(param), null);
+  });
+
+// a generic return `T[(K)]` with a PARENTHESIZED type-param index resolves through the substituting
+// dispatcher on both parsers - oxc keeps the paren, so the type-param analysis must peel it
+runBoth('generic indexed-access return with parenthesized type-param index',
+  `
+    interface Store { rows: number[] }
+    declare function get<K extends keyof Store>(k: K): Store[(K)];
+    const x = get("rows").at(0);
+  `,
+  (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression', pp => pp.node.callee?.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(call), { primitive: true, kind: 'number' });
+  });
+
+runBoth('HKT alias self-application terminates with no type',
+  `
+    type Apply<F> = F<0>;
+    function h(x: Apply<Apply>) { return x; }
+  `,
+  (adapter, prog, lbl) => {
+    const param = adapter.pickPath(prog, 'Identifier', pp => pp.node.name === 'x' && pp.node.typeAnnotation);
+    const resolver = adapter.makeResolver();
+    check(lbl, resolver.resolveNodeType(param), null);
+  });
+
+// PRODUCTIVE splice control: one hop through the param reaches a real alias and types through
+// (also the NON-VACUITY anchor for the two null-expectation checks above: it proves this
+// selection + resolution path yields a real type when the chain is productive)
+runBoth('productive HKT splice still resolves through the param',
+  `
+    type Wrap<F, X> = F<X>;
+    type Boxed<T> = T[];
+    function f(x: Wrap<Boxed, string>) { return x; }
+  `,
+  (adapter, prog, lbl) => {
+    const param = adapter.pickPath(prog, 'Identifier', pp => pp.node.name === 'x' && pp.node.typeAnnotation);
+    const resolver = adapter.makeResolver();
+    checkType(lbl, resolver.resolveNodeType(param), { primitive: false, ctor: 'Array' });
+  });
+
+// --- Awaited<T> / Promise unwrapping ---
+
+runBoth('Awaited<Promise<string>> -> string',
+  'let x: Awaited<Promise<string>>;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const resolver = adapter.makeResolver();
+    checkType(lbl, resolver.resolveNodeType(decl.get('id')),
+      { primitive: true, kind: 'string' });
+  });
+
+runBoth('Awaited<number[]> passthrough (non-Promise)',
+  'let x: Awaited<number[]>;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const resolver = adapter.makeResolver();
+    // Awaited<T> where T is not Promise-like returns T directly
+    checkType(lbl, resolver.resolveNodeType(decl.get('id')),
+      { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('Awaited<indexed-access into a getter> peels the getter RETURN, not the getter fn',
+  'declare class C { get p(): Promise<number[]>; }\nlet x: Awaited<C["p"]>;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const resolver = adapter.makeResolver();
+    // `C['p']` is the getter's PROPERTY type (`Promise<number[]>`), not a callable - so
+    // Awaited peels through to `number[]`. Treating the getter as a method Function would
+    // leave Awaited<Function> = Function and drop the array narrow
+    checkType(lbl, resolver.resolveNodeType(decl.get('id')),
+      { primitive: false, ctor: 'Array' });
+  });
+
+// --- Generic-call return types ---
+
+runBoth('generic function: returns inferred type',
+  `
+    function id<T>(x: T): T { return x; }
+    const v = id("hi");
+  `,
+  (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression');
+    const resolver = adapter.makeResolver();
+    // `id<T>(x: T): T` called with string -> T binds to string, return is string
+    checkType(lbl, resolver.resolveNodeType(call),
+      { primitive: true, kind: 'string' });
+  });
+
+// --- TS string-transformer intrinsics ---
+
+runBoth('Uppercase<"hi"> resolves',
+  'let x: Uppercase<"hi">;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const resolver = adapter.makeResolver();
+    // string-transformer intrinsic - resolved to a string primitive type
+    checkType(lbl, resolver.resolveNodeType(decl.get('id')),
+      { primitive: true, kind: 'string' });
+  });
+
+// --- Predicate-guard narrowing (`function isFoo(x): x is Foo`) ---
+// TODO: user-predicate guards require additional setup (the function call's positive branch
+// needs to walk back to the predicate's `x is T` annotation). resolver returns null in this
+// test harness without further wiring - kept here as a stub for follow-up coverage when the
+// predicate-guards cluster is extracted
+
+runBoth('Array.isArray() built-in predicate narrows to Array',
+  `
+    function f(x: unknown) { if (Array.isArray(x)) { return x; } }
+  `,
+  (adapter, prog, lbl) => {
+    const ref = pickReturnArg(adapter, prog, 'x');
+    const resolver = adapter.makeResolver();
+    // built-in Array.isArray is in KNOWN_STATIC_TYPE_GUARDS - narrows x to Array in the
+    // positive branch; a typeguard-table regression would drop back to null/unknown
+    checkType(lbl, resolver.resolveNodeType(ref), { primitive: false, ctor: 'Array' });
+  });
+
+// --- Resolver precision: ternary nullable-fold, discriminants, predicate-to-interface ---
+
+runBoth('ternary return value folds nullable branch',
+  `
+    const arr: number[] = [1];
+    function f(c: boolean) { return c ? arr : null; }
+    const r = f(true);
+  `,
+  (adapter, prog, lbl) => {
+    const ref = adapter.pickPath(prog, 'Identifier', p => p.node?.name === 'r' && p.parentPath?.node?.type === 'VariableDeclarator');
+    const resolver = adapter.makeResolver();
+    const type = resolver.resolveNodeType(ref);
+    checkTruthy(lbl, type && type.primitive === false && type.constructor === 'Array');
+  });
+
+runBoth('boolean discriminant narrows union',
+  `
+    type U = { ok: true, xs: number[] } | { ok: false, xs: string };
+    function g(u: U) { if (u.ok === true) { return u.xs; } }
+  `,
+  (adapter, prog, lbl) => {
+    const ref = pickReturnArg(adapter, prog, 'u');
+    const resolver = adapter.makeResolver();
+    const type = resolver.resolveNodeType(ref.parentPath);
+    checkTruthy(lbl, type && type.primitive === false && type.constructor === 'Array');
+  });
+
+runBoth('nested-member discriminant narrows union',
+  `
+    type U = { m: { k: 'a' }, xs: number[] } | { m: { k: 'b' }, xs: string };
+    function g(u: U) { if (u.m.k === 'a') { return u.xs; } }
+  `,
+  (adapter, prog, lbl) => {
+    const ref = pickReturnArg(adapter, prog, 'u');
+    const resolver = adapter.makeResolver();
+    const type = resolver.resolveNodeType(ref.parentPath);
+    checkTruthy(lbl, type && type.primitive === false && type.constructor === 'Array');
+  });
+
+runBoth('user predicate narrowing to an interface feeds member resolution',
+  `
+    interface F { xs: number[] }
+    function isF(o: unknown): o is F { return true; }
+    function g(v: unknown) { if (isF(v)) { return v.xs; } }
+  `,
+  (adapter, prog, lbl) => {
+    const ref = pickReturnArg(adapter, prog, 'v');
+    const resolver = adapter.makeResolver();
+    const type = resolver.resolveNodeType(ref.parentPath);
+    checkTruthy(lbl, type && type.primitive === false && type.constructor === 'Array');
+  });
+
+// --- Switch-case typeof narrowing ---
+// covers typeof-guards.js `findSwitchCaseGuards` - `switch (typeof x) { case 'string': ... }`
+// narrows x to string inside that case body
+
+runBoth('switch (typeof x) case narrows',
+  `
+    function f(x: unknown) {
+      switch (typeof x) {
+        case "string": return x;
+      }
+    }
+  `,
+  (adapter, prog, lbl) => {
+    const [ref] = adapter.collectPaths(prog, 'Identifier', p => {
+      if (p.node?.name !== 'x') return false;
+      let parent = p.parentPath;
+      while (parent) {
+        if (parent.node?.type === 'ReturnStatement') return true;
+        parent = parent.parentPath;
+      }
+      return false;
+    });
+    const resolver = adapter.makeResolver();
+    checkType(lbl, resolver.resolveNodeType(ref), { primitive: true, kind: 'string' });
+  });
+
+// --- Tuple types ---
+
+runBoth('tuple element-type via index access: [string, number][0] -> string',
+  'let t: [string, number]; const v = t[0];',
+  (adapter, prog, lbl) => {
+    // pick the MemberExpression `t[0]`
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.computed);
+    const resolver = adapter.makeResolver();
+    const type = resolver.resolveNodeType(member);
+    // tuple element-type at index 0 should resolve to string primitive
+    checkType(lbl, type, { primitive: true, kind: 'string' });
+  });
+
+// --- Intersection types ---
+
+runBoth('intersection: `{x: string} & {y: number}` member access via x -> string',
+  `
+    type A = { x: string };
+    type B = { y: number };
+    function f(v: A & B) { return v.x; }
+  `,
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression');
+    const resolver = adapter.makeResolver();
+    checkType(lbl, resolver.resolveNodeType(member), { primitive: true, kind: 'string' });
+  });
+
+// --- Utility types: NonNullable<T>, ReturnType<F>, Parameters<F> ---
+
+runBoth('utility: NonNullable<string|null> -> string',
+  'let x: NonNullable<string | null>;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const resolver = adapter.makeResolver();
+    checkType(lbl, resolver.resolveNodeType(decl.get('id')),
+      { primitive: true, kind: 'string' });
+  });
+
+runBoth('utility: ReturnType<() => number[]> -> Array',
+  'declare function f(): number[]; let x: ReturnType<typeof f>;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
+    const resolver = adapter.makeResolver();
+    checkType(lbl, resolver.resolveNodeType(decl.get('id')),
+      { primitive: false, ctor: 'Array' });
+  });
+
+// --- Signature-local <T> shadowing before an enclosing type-substitution ---
+// a method / function's OWN `<T>` is bound by its CALL ARGS, not the enclosing generic's `T`. when a return
+// slot is EXTRACTED and then substituted (class method / `ReturnType<alias>` / fn-type member), the
+// signature-local `<T>` must be shadowed first, or the enclosing subst captures it and a bare T re-binds to
+// the receiver's concrete arg -> a foreign-type Maybe helper that throws on the real return at ie:11
+for (const [variant, code] of [
+  ['class method same-named <T> (resolveReturnType)', 'declare class C<T> { take<T>(x: T): T; }\ndeclare const c: C<string[]>;\ndeclare const n: number;\nc.take(n).at(0);'],
+  ['ReturnType<Fn<...>> alias fn-type <T>', 'type Fn<T> = <T>(x: T) => T;\ndeclare const r: ReturnType<Fn<string[]>>;\nr.at(0);'],
+  ['fn-type property <T> (member-call annotation)', 'type Box<T> = { take: <T>(x: T) => T };\ndeclare const b: Box<string[]>;\ndeclare const n: number;\nb.take(n).at(0);'],
+  ['interface method same-named <T>', 'interface Box<T> { take<T>(x: T): T }\ndeclare const b: Box<string[]>;\ndeclare const n: number;\nb.take(n).at(0);'],
+  ['indexed-access into alias method <T>', 'type Box<T> = { take<T>(x: T): T };\ndeclare const f: Box<string[]>["take"];\ndeclare const n: number;\nf(n).at(0);'],
+  ['ReturnType<Fn> structural-return member (getTypeMembers path)', 'type Fn<T> = <T>() => { x: T };\ndeclare const r: ReturnType<Fn<string[]>>;\nr.x.at(0);'],
+  ['standalone generic fn<T>(): T', 'declare function f<T>(): T;\nf().at(0);'],
+  ['async <T>(): Promise<T> awaited', 'declare class C<T> { take<T>(x: T): Promise<T>; }\ndeclare const c: C<string[]>;\nasync function g() { (await c.take(1)).at(0); }'],
+  ['generic call signature { <T>(x: T): T }', 'type Box<T> = { <T>(x: T): T };\ndeclare const b: Box<string[]>;\ndeclare const n: number;\nb(n).at(0);'],
+  ['generic construct signature { new <T>(x: T): T }', 'type Box<T> = { new <T>(x: T): T };\ndeclare const b: Box<string[]>;\ndeclare const n: number;\nnew b(n).at(0);'],
+  ['unresolvable call-arg falls back to unknown (no capture)', 'declare class C<T> { take<T>(x: T): T; }\ndeclare const c: C<string[]>;\nc.take(globalThis.zz).at(0);'],
+]) {
+  runBoth(`signature-local <T> shadows enclosing subst: ${ variant }`, code, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+    check(`${ lbl } not narrowed to the enclosing arg`, !(resolved && !resolved.primitive && resolved.constructor === 'Array'), true);
+  });
+}
+// boundaries: a DIFFERENTLY-named method `<U>` is still bound by the CALL ARGS (call-site inference, not the
+// enclosing subst), and a NON-generic method returning the class `T` keeps the real narrow
+for (const [variant, code] of [
+  ['differently-named <U> bound by an array call-arg', 'declare class C<T> { make<U>(x: U): U; }\ndeclare const c: C<string>;\ndeclare const arr: number[];\nc.make(arr).at(0);'],
+  ['non-generic method returns the class T (real array)', 'declare class C<T> { get(): T; }\ndeclare const c: C<string[]>;\nc.get().at(0);'],
+  ['alias-level T (no signature-local <T>) IS the structural return type', 'type Fn<T> = () => { x: T };\ndeclare const r: ReturnType<Fn<number[][]>>;\nr.x.at(0);'],
+  ['constrained <T extends any[]> narrows via its array call-arg', 'declare class C<T> { take<T extends any[]>(x: T): T; }\ndeclare const c: C<string>;\nc.take([1, 2, 3]).at(0);'],
+  ['multi-param: class U return survives the <T> shadow', 'declare class C<T, U> { take<T>(): U; }\ndeclare const c: C<string, number[][]>;\nc.take(0).at(0);'],
+  ['same-named <T> narrows via an array call-arg (call-site, not capture)', 'declare class C<T> { take<T>(x: T): T; }\ndeclare const c: C<string>;\nc.take([1, 2, 3]).at(0);'],
+  ['method <U> returning the class T keeps the real array narrow', 'declare class C<T> { m<U>(x: U): T; }\ndeclare const c: C<string[]>;\ndeclare const n: number;\nc.m(n).at(0);'],
+  ['defaulted <T = string[]> narrows to its default array', 'declare class C<T> { take<T = string[]>(): T; }\ndeclare const c: C<number>;\nc.take().at(0);'],
+]) {
+  runBoth(`enclosing subst still narrows: ${ variant }`, code, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+}
+
+// `ConstructorParameters<typeof C>` where C has no own constructor and extends an AMBIENT
+// `declare class` parent: babel's runtime-expression lookup bails on the value-less ambient super,
+// so without a TYPE-level fallback the inherited element type diverges from oxc (which resolves
+// the super). both parsers must walk into the parent's `number[]` constructor param
+runBoth('utility: ConstructorParameters<typeof C>[0] inherits ambient declare-class super -> Array',
+  'declare class Base { constructor(rows: number[]); }\nclass C extends Base {}\nlet x: ConstructorParameters<typeof C>[0];',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
+    const resolver = adapter.makeResolver();
+    checkType(lbl, resolver.resolveNodeType(decl.get('id')),
+      { primitive: false, ctor: 'Array' });
+  });
+
+// the ambient-super fallback must keep walking MULTIPLE levels: C -> B -> A, both intermediates
+// value-less `declare class`. each hop re-enters the type-level lookup, so the constructor on the
+// grandparent still surfaces (a single-level fallback would stall at B and bail null on babel)
+runBoth('utility: ConstructorParameters<typeof C>[0] walks two ambient declare-class levels -> Array',
+  'declare class A { constructor(rows: number[]); }\ndeclare class B extends A {}\nclass C extends B {}\nlet x: ConstructorParameters<typeof C>[0];',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
+    const resolver = adapter.makeResolver();
+    checkType(lbl, resolver.resolveNodeType(decl.get('id')),
+      { primitive: false, ctor: 'Array' });
+  });
+
+// no constructor anywhere in the ambient chain: the walk must terminate gracefully (null), not
+// loop or throw - guards the fallback's depth-bounded termination on both parsers
+runBoth('utility: ConstructorParameters<typeof C>[0] with no ctor in ambient chain -> null',
+  'declare class A {}\ndeclare class B extends A {}\nclass C extends B {}\nlet x: ConstructorParameters<typeof C>[0];',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
+    const resolver = adapter.makeResolver();
+    checkTruthy(`${ lbl } resolves to null without throwing`, resolver.resolveNodeType(decl.get('id')) === null);
+  });
+
+// --- Index access types ---
+
+runBoth('TS index access: type Foo = { x: string }; Foo["x"] -> string',
+  'type Foo = { x: number[] }; let v: Foo["x"];',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'v');
+    const resolver = adapter.makeResolver();
+    checkType(lbl, resolver.resolveNodeType(decl.get('id')),
+      { primitive: false, ctor: 'Array' });
+  });
+
+// --- Pick / Omit deeper ---
+
+runBoth('utility: Pick<{x: string, y: number}, "x"> -> object',
+  'type T = Pick<{ x: string; y: number }, "x">; let v: T;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'v');
+    const resolver = adapter.makeResolver();
+    const type = resolver.resolveNodeType(decl.get('id'));
+    // Pick preserves object-typed shape (no concrete ctor for anonymous object types)
+    checkTruthy(`${ lbl } Pick yields non-primitive type`, type && type.primitive === false);
+  });
+
+// --- Symbol-keyed access on instance ---
+
+// the resolver should at least handle the chained call without throwing -
+// result may be null (Symbol.iterator return-type isn't statically tabulated).
+// `runBothAndAgree` ensures the parsers don't DIVERGE: previously each adapter
+// independently accepted null, so one returning null and the other returning a
+// Type would still pass. now both must produce the same shape, catching the
+// cross-parser regression class
+runBothAndAgree('Symbol.iterator access on Array instance agrees across parsers',
+  'const a = [1, 2]; const it = a[Symbol.iterator]();',
+  (adapter, prog) => {
+    const call = adapter.pickPath(prog, 'CallExpression');
+    const resolver = adapter.makeResolver();
+    return resolver.resolveNodeType(call);
+  });
+
+// --- conditionally proven callee root ---
+
+// a callee proven through a SINGLE conditional write (`let f; if (c) f = () => globalThis`)
+// resolves its return like an unconditionally proven one - the value is either that literal or
+// undefined, and the undefined path never reaches the receiver. the two parsers point a
+// constant-violation at DIFFERENT nodes (babel at the assignment, estree-toolkit at the written
+// identifier), which left the estree side unable to read the written function at all: a generic
+// dispatcher on a provably-Array receiver
+for (const [label, code] of [
+  ['plain call', 'let f; if (globalThis.setTimeout) f = () => globalThis; const r = f().Array.of(1);'],
+  ['optional call', 'let f; if (globalThis.setTimeout) f = () => globalThis; const r = f?.().Array.of(1);'],
+  ['nested wrapper', 'let f; if (globalThis.setTimeout) f = () => globalThis; const g = () => f(); const r = g().Array.of(1);'],
+]) {
+  runBothAndAgree(`conditionally proven callee root agrees across parsers: ${ label }`, code,
+    (adapter, prog) => {
+      const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id?.name ?? p.node.id?.value) === 'r');
+      const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+      return type && { primitive: type.primitive, ctor: type.constructor?.name ?? null };
+    });
+}
+
+// --- top-level `this` global-proxy assumption ---
+
+// pragmatic assumption: top-level `this` IS the global proxy regardless of sourceType (an
+// ESM-undefined `this` chain is statically dead, script / CommonJS-shaped code means the
+// global), so the proxy narrow applies
+runBoth('top-level this.Map resolves as Map', 'const m = new this.Map();',
+  (adapter, prog, lbl) => {
+    const newExpr = adapter.pickPath(prog, 'NewExpression');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(newExpr), { primitive: false, ctor: 'Map' });
+  });
+
+// `this` inside a NON-arrow function is rebound - never the global proxy
+runBoth('function this.Map does not resolve', 'function f() { return new this.Map(); } f();',
+  (adapter, prog, lbl) => {
+    const newExpr = adapter.pickPath(prog, 'NewExpression');
+    check(lbl, adapter.makeResolver().resolveNodeType(newExpr)?.constructor ?? null, null);
+  });
+
+// --- defaulted destructure binding fold ---
+
+// unknown member side keeps the generic dispatch (a default-only narrow was unsound)
+runBoth('destructure default with unknown member folds to null',
+  'const { items = [] } = JSON.parse(x); items.at(0);',
+  (adapter, prog, lbl) => {
+    const at = adapter.pickPath(prog, 'CallExpression', p => p.node.callee?.property?.name === 'at');
+    check(lbl, adapter.makeResolver().resolveNodeType(at.get('callee').get('object')), null);
+  });
+
+// statically absent member: the default always fires - its type alone is precise
+runBoth('destructure default with statically absent member takes the default type',
+  "const [a = 'x'] = []; a.at(0);",
+  (adapter, prog, lbl) => {
+    const at = adapter.pickPath(prog, 'CallExpression', p => p.node.callee?.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(at.get('callee').get('object')),
+      { primitive: true, kind: 'string' });
+  });
+
+// statically present member: the default is dead - the member's type alone is precise
+runBoth('destructure default with statically present member takes the member type',
+  "const [a = 0] = ['hello']; a.at(0);",
+  (adapter, prog, lbl) => {
+    const at = adapter.pickPath(prog, 'CallExpression', p => p.node.callee?.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(at.get('callee').get('object')),
+      { primitive: true, kind: 'string' });
+  });
+
+// numeric destructuring key present: the init literal supplies key `0` (a NumericLiteral), so the
+// default is dead and the present string member wins. the presence probe matches the numeric init key
+// against the stringified pattern key via the canonical extractor - a raw number-vs-string compare
+// judged it absent and wrongly narrowed to the array default
+runBoth('destructure default with numeric key present takes the member type',
+  "const { 0: x = [] } = { 0: 'hello' }; x.at(0);",
+  (adapter, prog, lbl) => {
+    const at = adapter.pickPath(prog, 'CallExpression', p => p.node.callee?.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(at.get('callee').get('object')),
+      { primitive: true, kind: 'string' });
+  });
+
+// duplicate object-literal keys: ECMAScript keeps the LAST property (a string here), so the present
+// member's type wins over the array default. a find-first scan saw the leading `undefined` and
+// wrongly narrowed to the default
+runBoth('destructure default with duplicate key takes the last property type',
+  "const { a = [] } = { a: undefined, a: 'tail' }; a.at(0);",
+  (adapter, prog, lbl) => {
+    const at = adapter.pickPath(prog, 'CallExpression', p => p.node.callee?.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(at.get('callee').get('object')),
+      { primitive: true, kind: 'string' });
+  });
+
+// duplicate keys where the LAST property is `undefined`: the member is absent, so the array default
+// fires - the symmetric last-wins case (find-first would have taken the leading string)
+runBoth('destructure default with duplicate key last-undefined takes the default type',
+  "const { a = [] } = { a: 'head', a: undefined }; a.at(0);",
+  (adapter, prog, lbl) => {
+    const at = adapter.pickPath(prog, 'CallExpression', p => p.node.callee?.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(at.get('callee').get('object')),
+      { primitive: false, ctor: 'Array' });
+  });
+
+// duplicate key whose LAST property is a setter: the slot reads undefined, so last-wins must land on
+// the setter and stay undecided (the fold keeps the generic dispatch) - a find-first scan took the
+// leading data string and wrongly narrowed it to the string `at` helper
+runBoth('destructure default with data-then-setter duplicate key folds to null',
+  "const { a = [] } = { a: 'str', set a(v) {} }; a.at(0);",
+  (adapter, prog, lbl) => {
+    const at = adapter.pickPath(prog, 'CallExpression', p => p.node.callee?.property?.name === 'at');
+    check(lbl, adapter.makeResolver().resolveNodeType(at.get('callee').get('object')), null);
+  });
+
+// duplicate key whose LAST property is a getter returning an array: last-wins lands on the getter and
+// its array return folds with the array default
+runBoth('destructure default with data-then-getter duplicate key takes the getter type',
+  "const { a = [] } = { a: 'str', get a() { return []; } }; a.at(0);",
+  (adapter, prog, lbl) => {
+    const at = adapter.pickPath(prog, 'CallExpression', p => p.node.callee?.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(at.get('callee').get('object')),
+      { primitive: false, ctor: 'Array' });
+  });
+
+// a getter shadowed by a trailing data string: last-wins takes the string data property (a find-first
+// scan stopped at the getter and stayed undecided, dropping the precise string narrow)
+runBoth('destructure default with getter-then-data duplicate key takes the last string',
+  "const { a = [] } = { get a() { return 1; }, a: 'plain' }; a.at(0);",
+  (adapter, prog, lbl) => {
+    const at = adapter.pickPath(prog, 'CallExpression', p => p.node.callee?.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(at.get('callee').get('object')),
+      { primitive: true, kind: 'string' });
+  });
+
+// numeric key AND duplicate key together: last-wins lands on the trailing string under the numeric
+// key, so both the key-coercion and the last-property-wins paths must hold at once
+runBoth('destructure default with duplicate numeric key takes the last string',
+  "const { 0: x = [] } = { 0: undefined, 0: 'tail' }; x.at(0);",
+  (adapter, prog, lbl) => {
+    const at = adapter.pickPath(prog, 'CallExpression', p => p.node.callee?.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(at.get('callee').get('object')),
+      { primitive: true, kind: 'string' });
+  });
+
+// computed numeric PATTERN key resolved to a string path entry must still match the numeric init key
+// through the canonical extractor, so the present string member wins over the array default
+runBoth('destructure default with computed numeric pattern key present takes the member type',
+  "const { [0]: x = [] } = { 0: 'hello' }; x.at(0);",
+  (adapter, prog, lbl) => {
+    const at = adapter.pickPath(prog, 'CallExpression', p => p.node.callee?.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(at.get('callee').get('object')),
+      { primitive: true, kind: 'string' });
+  });
+
+// numeric keys match by VALUE, not source text: a hex pattern key and a decimal init key denote the
+// same property `16`, so the present string member wins - the canonical extractor stringifies the
+// numeric value identically for both forms
+runBoth('destructure default with hex pattern key matches decimal init key',
+  "const { 0x10: x = [] } = { 16: 'hello' }; x.at(0);",
+  (adapter, prog, lbl) => {
+    const at = adapter.pickPath(prog, 'CallExpression', p => p.node.callee?.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(at.get('callee').get('object')),
+      { primitive: true, kind: 'string' });
+  });
+
+// --- wrapper-peel divergence: runtime-object peel must snip the same wrapper set across sites ---
+
+// optional-chain-wrapped global ctor: `new (globalThis?.Array)()` is an Array instance, so `.at`
+// narrows to the array helper. resolveGlobalName peeled only ParenthesizedExpression, leaving the
+// oxc ChainExpression wrapper -> not member-like -> generic; the canonical skippable-wrapper peel fixes it
+runBoth('wrapper-peel: new (globalThis?.Array)() narrows .at to Array',
+  'new (globalThis?.Array)().at(0);',
+  (adapter, prog, lbl) => {
+    const at = adapter.pickPath(prog, 'CallExpression', p => p.node.callee?.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(at.get('callee').get('object')),
+      { primitive: false, ctor: 'Array' });
+  });
+
+// assignment-expression runtime object: `(a = Array).from([])` evaluates to `Array.from([])` (an
+// Array), so `.at` narrows to the array helper. peelToRuntimeObject lacked the AssignmentExpression
+// branch its sibling resolveRuntimeExpression has, so the return type was unnarrowed -> generic
+runBoth('wrapper-peel: (a = Array).from([]).at narrows to Array via AssignmentExpression peel',
+  'let a; (a = Array).from([1]).at(0);',
+  (adapter, prog, lbl) => {
+    const at = adapter.pickPath(prog, 'CallExpression', p => p.node.callee?.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(at.get('callee').get('object')),
+      { primitive: false, ctor: 'Array' });
+  });
+
+// a type-literal member keyed by a COMPUTED CONST (`const k = 'len'; type T = { [k]: number[] }`)
+// must match the folded name, not the bare key identifier: an access of the real member resolves to
+// its type, and an access of the key identifier itself does NOT spuriously match. one member per line
+runBoth('type member via computed const key resolves the folded name',
+  `
+    const k = "len";
+    type T = { [k]: number[]; other: string };
+    declare const t: T;
+    const x = t.len;
+  `,
+  (adapter, prog, lbl) => {
+    const ds = adapter.collectPaths(prog, 'VariableDeclarator');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(ds[ds.length - 1].get('init')),
+      { primitive: false, ctor: 'Array' });
+  });
+
+// TS permits a computed type-member key only when the binding is a string-literal (or unique-symbol)
+// type: a value-less `declare const` reads its literal from the type annotation, and an `as const`
+// init peels to its literal. a unique-symbol / non-literal-typed binding is not a foldable string key
+for (const [label, decl, want] of [
+  ['declare const literal type', 'declare const k: "len";', true],
+  ['as const init', 'const k = "len" as const;', true],
+  ['annotated literal init', 'const k: "len" = "len";', true],
+  ['unique symbol (bails)', 'declare const k: unique symbol;', false],
+]) {
+  runBoth(`type member keyed by ${ label }`,
+    `${ decl }\ntype T = { [k]: number[] };\ndeclare const t: T;\nconst x = t.len;`,
+    (adapter, prog, lbl) => {
+      const ds = adapter.collectPaths(prog, 'VariableDeclarator');
+      const type = adapter.makeResolver().resolveNodeType(ds[ds.length - 1].get('init'));
+      check(lbl, type?.constructor === 'Array', want);
+    });
+}
+
+runBoth('type member computed const key does not spuriously match the key identifier',
+  `
+    const k = "len";
+    type T = { [k]: number[] };
+    declare const t: T;
+    const x = t.k;
+  `,
+  (adapter, prog, lbl) => {
+    // `t.k` names no member (the member is "len", not "k"); resolving it must yield no Array type
+    const ds = adapter.collectPaths(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(ds[ds.length - 1].get('init'));
+    check(lbl, type?.constructor === 'Array', false);
+  });
+
+// oxc keeps a parenthesized type (`("len")`, `(0)`) as TSParenthesizedType where babel strips it at
+// parse: an unpeeled `.type` dispatch folds the key on babel only, so a receiver typed through such a
+// key desyncs between the emitters. these lock parity across both parsers on every paren index/key form
+for (const [label, src] of [
+  ['computed const key with parenthesized literal type',
+    'declare const k: ("len");\ntype T = { [k]: number[] };\ndeclare const t: T;\nconst x = t.len;'],
+  ['string indexed access with parenthesized index',
+    'type T = { len: number[] };\ntype E = T[("len")];\ndeclare const e: E;\nconst x = e;'],
+  ['numeric indexed access with parenthesized index',
+    'type T = [number[]];\ntype E = T[(0)];\ndeclare const e: E;\nconst x = e;'],
+  ['keyof-self indexed access with parenthesized index',
+    'type T = { a: number[]; b: number[] };\ntype E = T[(keyof T)];\ndeclare const e: E;\nconst x = e;'],
+]) {
+  runBoth(`${ label } resolves the inner type`, src, (adapter, prog, lbl) => {
+    const ds = adapter.collectPaths(prog, 'VariableDeclarator');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(ds[ds.length - 1].get('init')),
+      { primitive: false, ctor: 'Array' });
+  });
+}
+
+// --- globalThis member access ---
+
+// a global destructured through a COMPUTED CONST key (`const k = 'Array'; { [k]: A } = globalThis`)
+// names the same proxy-global as a literal key. the destructured-global type resolver folds the const
+// key through the canonical scope-aware resolver; without it, the key is unresolved and the alias
+// degrades to a generic dispatch. covers the plain, array-wrapped, and nested-method forms
+for (const [label, src] of [
+  ['computed const key', 'const k = "Array";\nconst { [k]: A } = globalThis;\nconst x = A.from([]);'],
+  ['array-wrapped const key', 'const k = "Array";\nconst [{ [k]: A }] = [globalThis];\nconst x = A.from([]);'],
+  ['const key static call', 'const k = "Array";\nconst { [k]: A } = globalThis;\nconst x = A.of(1);'],
+]) {
+  runBoth(`destructured global via ${ label } resolves to the proxy global`, src, (adapter, prog, lbl) => {
+    const ds = adapter.collectPaths(prog, 'VariableDeclarator');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(ds[ds.length - 1].get('init')),
+      { primitive: false, ctor: 'Array' });
+  });
+}
+
+runBoth('globalThis.Map() resolved as Map constructor invocation',
+  'const m = new globalThis.Map();',
+  (adapter, prog, lbl) => {
+    const newExpr = adapter.pickPath(prog, 'NewExpression');
+    const resolver = adapter.makeResolver();
+    // engine routes `globalThis.Map` through proxy-global member resolution
+    checkType(lbl, resolver.resolveNodeType(newExpr), { primitive: false, ctor: 'Map' });
+  });
+
+// `isProxyGlobalIifeReturn` walks the call's `fnPath` to locate the arrow / fn-expr body.
+// the node-level IIFE peel used to peel TS / paren / chain wrappers on the
+// callee via `unwrapInitValue + unwrapRuntimeExpr`. when the path-level walk only peeled
+// `ParenthesizedExpression`, TS-wrapped callees never matched their body, breaking
+// proxy-global detection for shapes like `((() => globalThis) as any)().Map`
+runBoth('proxy-global: TS-wrapped IIFE callee resolves through proxy-global chain',
+  'const m = new (((() => globalThis) as any)()).Map();',
+  (adapter, prog, lbl) => {
+    const newExpr = adapter.pickPath(prog, 'NewExpression');
+    const resolver = adapter.makeResolver();
+    checkType(lbl, resolver.resolveNodeType(newExpr), { primitive: false, ctor: 'Map' });
+  });
+
+// FunctionExpression IIFE variant of the same shape - `(function(){ return self })().Map`.
+// distinct from the arrow case: callee shape goes through a different branch of
+// the IIFE peel (function-expression vs arrow), and the inner body return-path differs
+runBoth('proxy-global: FunctionExpression IIFE returning self resolves through Map ctor',
+  'const m = new ((function () { return self; })()).Map();',
+  (adapter, prog, lbl) => {
+    const newExpr = adapter.pickPath(prog, 'NewExpression');
+    const resolver = adapter.makeResolver();
+    checkType(lbl, resolver.resolveNodeType(newExpr), { primitive: false, ctor: 'Map' });
+  });
+
+// TSSatisfiesExpression wrapper - distinct from TSAsExpression but both runtime no-ops.
+// shared peel via SKIPPABLE_WRAPPER_TYPES covers both; explicit fixture pins that the
+// alternate wrapper choice doesn't regress
+runBoth('proxy-global: TSSatisfiesExpression-wrapped IIFE callee resolves',
+  'const m = new (((() => globalThis) satisfies unknown)()).Map();',
+  (adapter, prog, lbl) => {
+    const newExpr = adapter.pickPath(prog, 'NewExpression');
+    const resolver = adapter.makeResolver();
+    checkType(lbl, resolver.resolveNodeType(newExpr), { primitive: false, ctor: 'Map' });
+  });
+
+// --- Function declaration return type ---
+
+runBoth('function declaration with explicit return -> Promise',
+  'function f(): Promise<number> { return Promise.resolve(1); } const r = f();',
+  (adapter, prog, lbl) => {
+    // pick `f()` outer call (not `Promise.resolve` inside)
+    const calls = adapter.collectPaths(prog, 'CallExpression');
+    // find the call whose callee is bare Identifier `f`
+    const fCall = calls.find(p => p.node.callee?.type === 'Identifier'
+      && p.node.callee?.name === 'f');
+    const resolver = adapter.makeResolver();
+    checkType(lbl, resolver.resolveNodeType(fCall),
+      { primitive: false, ctor: 'Promise' });
+  });
+
+// --- TypeQuery (`typeof X` in type position) ---
+
+runBoth('TS typeof in type: `typeof arr` where arr: number[] -> Array',
+  'const arr: number[] = []; let x: typeof arr;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
+    const resolver = adapter.makeResolver();
+    checkType(lbl, resolver.resolveNodeType(decl.get('id')),
+      { primitive: false, ctor: 'Array' });
+  });
+
+// a reassigned (non-const) but ANNOTATED `let` keeps its DECLARED type under `typeof` - TS reads
+// the annotation, not the narrowed value. `constantBindingPath` bails because the binding isn't
+// constant, so the resolver recovers the type via the declarator's explicit annotation instead
+runBoth('TS typeof in type: reassigned annotated `let m: Map` -> typeof m still resolves to Map',
+  'let m: Map<string, number> = new Map(); m = new Map(); let x: typeof m;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
+    const resolver = adapter.makeResolver();
+    checkType(lbl, resolver.resolveNodeType(decl.get('id')),
+      { primitive: false, ctor: 'Map' });
+  });
+
+// --- Readonly / ReadonlyArray ---
+
+runBoth('readonly array annotation -> Array',
+  'let x: readonly string[];',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const resolver = adapter.makeResolver();
+    checkType(lbl, resolver.resolveNodeType(decl.get('id')),
+      { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('ReadonlyArray<T> annotation -> Array',
+  'let x: ReadonlyArray<number>;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const resolver = adapter.makeResolver();
+    checkType(lbl, resolver.resolveNodeType(decl.get('id')),
+      { primitive: false, ctor: 'Array' });
+  });
+
+// --- Destructuring with annotation propagation ---
+
+runBoth('array destructure of tuple: `const [a, b]: [string, number[]] = ...` a -> string',
+  'const [a, b]: [string, number[]] = ["", []];',
+  (adapter, prog, lbl) => {
+    // pick `a` Identifier inside the ArrayPattern
+    const ids = adapter.collectPaths(prog, 'Identifier', p => p.node?.name === 'a');
+    // pattern position - the bound name appears in the destructure
+    const aRef = ids.find(p => {
+      let cur = p.parentPath;
+      while (cur) {
+        if (cur.node?.type === 'ArrayPattern') return true;
+        cur = cur.parentPath;
+      }
+      return false;
+    });
+    const resolver = adapter.makeResolver();
+    // the tuple annotation narrows the first destructured element `a` to its slot type (string)
+    checkType(lbl, resolver.resolveNodeType(aRef), { primitive: true, kind: 'string' });
+  });
+
+// --- Array.isArray narrowing ---
+
+runBoth('Array.isArray narrowing inside if -> Array',
+  'function f(v: unknown) { if (Array.isArray(v)) { return v; } }',
+  (adapter, prog, lbl) => {
+    const ref = pickReturnArg(adapter, prog, 'v');
+    const resolver = adapter.makeResolver();
+    checkType(lbl, resolver.resolveNodeType(ref), { primitive: false, ctor: 'Array' });
+  });
+
+// --- Generic constraint propagation ---
+
+runBoth('generic constraint via `<T extends number[]>` -> Array',
+  'function g<T extends number[]>(x: T) { return x; } let v: ReturnType<typeof g>;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'v');
+    const resolver = adapter.makeResolver();
+    // ReturnType flows through the type param to its `number[]` constraint -> Array
+    checkType(lbl, resolver.resolveNodeType(decl.get('id')), { primitive: false, ctor: 'Array' });
+  });
+
+// --- Static class members ---
+
+runBoth('Static method on class invocation -> declared return',
+  'class C { static all(): string[] { return []; } } const r = C.all();',
+  (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression');
+    const resolver = adapter.makeResolver();
+    checkType(lbl, resolver.resolveNodeType(call),
+      { primitive: false, ctor: 'Array' });
+  });
+
+// --- Object literal spread inference ---
+
+runBoth('Object literal with spread does not crash',
+  'const o = { ...{}, x: 1 }; const v = o;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'v');
+    const resolver = adapter.makeResolver();
+    try {
+      resolver.resolveNodeType(decl.get('id'));
+      pass();
+    } catch (error) { fail(lbl, `threw: ${ error.message }`); }
+  });
+
+// --- Template literal types ---
+
+// NOTE: TS template-literal types in source use `${string}` placeholders - the test's source
+// literal must contain that syntax verbatim. disable lint rules that fire on its appearance
+// inside a non-template-string test fixture
+runBoth('Template literal type with string placeholder -> string',
+  // eslint-disable-next-line no-template-curly-in-string -- TS template-literal type fixture
+  'let v: `pre-${string}`;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const resolver = adapter.makeResolver();
+    // a TS template-literal type always denotes a string primitive
+    checkType(lbl, resolver.resolveNodeType(decl.get('id')), { primitive: true, kind: 'string' });
+  });
+
+// --- Resolver entry points: edge cases ---
+
+runBoth('resolvePropertyObjectType: Map instance .get -> Map',
+  'const m = new Map(); const v = m.get;',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression');
+    const resolver = adapter.makeResolver();
+    checkType(lbl, resolver.resolvePropertyObjectType(member),
+      { primitive: false, ctor: 'Map' });
+  });
+
+runBoth('resolveGuardHints: typeof === string returns concrete (null hints)',
+  'function f(x: unknown) { if (typeof x === "string") { return x; } }',
+  (adapter, prog, lbl) => {
+    const ref = pickReturnArg(adapter, prog, 'x');
+    const resolver = adapter.makeResolver();
+    // the narrowing flows through resolveNodeType (-> string primitive), so the guard-hint
+    // channel stays null; both halves of that contract are locked
+    check(`${ lbl } hints`, resolver.resolveGuardHints(ref), null);
+    checkType(`${ lbl } nodeType`, resolver.resolveNodeType(ref), { primitive: true, kind: 'string' });
+  });
+
+runBoth('isString / isObject on number literal',
+  'const n = 42;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const resolver = adapter.makeResolver();
+    check(`${ lbl } isString`, resolver.isString(decl.get('init')), false);
+    check(`${ lbl } isObject`, resolver.isObject(decl.get('init')), false);
+  });
+
+runBoth('isString on TemplateLiteral',
+  // eslint-disable-next-line no-template-curly-in-string -- TS template-literal fixture source
+  'const s = `${1}`;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const resolver = adapter.makeResolver();
+    check(`${ lbl } isString TemplateLiteral`,
+      resolver.isString(decl.get('init')), true);
+  });
+
+// --- Type alias self-reference (must not infinite loop) ---
+
+runBoth('Self-referential alias terminates: type X = X; let v: X;',
+  'type X = X; let v: X;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const resolver = adapter.makeResolver();
+    try {
+      resolver.resolveNodeType(decl.get('id'));
+      pass();
+    } catch (error) { fail(lbl, `threw: ${ error.message }`); }
+  });
+
+// --- Union of arrays ---
+
+runBoth('Union of arrays narrowed inside Array.isArray -> Array',
+  `
+    function g(v: string[] | number[]) {
+      if (Array.isArray(v)) { return v; }
+    }
+  `,
+  (adapter, prog, lbl) => {
+    const ref = pickReturnArg(adapter, prog, 'v');
+    const resolver = adapter.makeResolver();
+    // both union members are arrays, so the guard collapses the union to Array
+    checkType(lbl, resolver.resolveNodeType(ref), { primitive: false, ctor: 'Array' });
+  });
+
+// --- Enum types ---
+
+// `E.A` resolves through resolveEnumMemberAccess -> resolveEnumMemberType, which classifies
+// each member's initializer kind. table-driven cases below cover the per-member kind
+// classification + heterogeneous mixes + the known back-ref limit + const enums (constness
+// is compile-time only - runtime kind matches non-const enums)
+
+const ENUM_MEMBER_CASES = [
+  // single-member string / numeric / implicit-numeric
+  { label: 'string', src: 'enum E { A = "foo" } const v = E.A;', kind: 'string' },
+  { label: 'numeric', src: 'enum E { A = 42 } const v = E.A;', kind: 'number' },
+  { label: 'implicit-numeric', src: 'enum E { A, B } const v = E.A;', kind: 'number' },
+  // back-to-back same-kind members
+  { label: 'back-to-back string A', src: 'enum E { A = "x", B = "y" } const v = E.A;', kind: 'string' },
+  { label: 'back-to-back string B', src: 'enum E { A = "x", B = "y" } const v = E.B;', kind: 'string' },
+  // heterogeneous mix - each member classified independently
+  { label: 'mix string A', src: 'enum E { A = "foo", B = 42, C = "bar" } const v = E.A;', kind: 'string' },
+  { label: 'mix number B', src: 'enum E { A = "foo", B = 42, C = "bar" } const v = E.B;', kind: 'number' },
+  { label: 'mix string C', src: 'enum E { A = "foo", B = 42, C = "bar" } const v = E.C;', kind: 'string' },
+  // const enum: constness is compile-time concern; runtime kind identical to non-const
+  { label: 'const enum string', src: 'const enum E { A = "foo" } const v = E.A;', kind: 'string' },
+  { label: 'const enum numeric', src: 'const enum E { A = 42 } const v = E.A;', kind: 'number' },
+  // declaration merging: TS unions members across `enum E {}` blocks; a member in a later block
+  // must still resolve, and members in the first block keep resolving
+  { label: 'decl-merge member in 2nd block (string)', src: 'enum E { A = "x" } enum E { B = "y" } const v = E.B;', kind: 'string' },
+  { label: 'decl-merge member in 2nd block (numeric)', src: 'enum E { A = 1 } enum E { B = 2 } const v = E.B;', kind: 'number' },
+  { label: 'decl-merge member in 1st block still resolves', src: 'enum E { A = "x" } enum E { B = "y" } const v = E.A;', kind: 'string' },
+  // initialiser-less members are auto-numbered from the one before them, so the kind comes from
+  // the nearest preceding INITIALISED member. a member opening the block auto-numbers from 0, and
+  // the walk-back skips over any run of bare members between the read and that initialiser
+  { label: 'bare leading member', src: 'enum E { A, B } const v = E.A;', kind: 'number' },
+  { label: 'bare after numeric', src: 'enum E { A = 1, B } const v = E.B;', kind: 'number' },
+  { label: 'bare after numeric, two hops', src: 'enum E { A = 1, B, C } const v = E.C;', kind: 'number' },
+  { label: 'bare after numeric expression', src: 'enum E { A = 1 + 2, B } const v = E.B;', kind: 'number' },
+  { label: 'bare between numerics reads its own predecessor', src: 'enum E { A = 1, B, C = 9 } const v = E.B;', kind: 'number' },
+  // merging does not carry the auto-numbering across the block boundary - a member opening a later
+  // block restarts at 0, so it is numeric even where the previous block ended on a string
+  { label: 'bare opening a merged block after string', src: 'enum E { A = "x" } enum E { B } const v = E.B;', kind: 'number' },
+  { label: 'bare opening a merged block after numeric', src: 'enum E { A = 1 } enum E { B } const v = E.B;', kind: 'number' },
+  // a QUOTED member name is a value-bearing id node on both parsers rather than an identifier -
+  // reading only the identifier slot loses the member, and a parity oracle cannot see it because
+  // both sides lose it identically
+  { label: 'quoted member name, string', src: 'enum E { "A" = "x" } const v = E.A;', kind: 'string' },
+  { label: 'quoted member name, numeric', src: 'enum E { "A" = 1 } const v = E.A;', kind: 'number' },
+  { label: 'bare successor of a quoted numeric member', src: 'enum E { "A" = 1, B } const v = E.B;', kind: 'number' },
+];
+
+for (const { label, src, kind } of ENUM_MEMBER_CASES) {
+  runBoth(`enum member kind: ${ label } -> ${ kind } primitive`, src, (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'v');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: true, kind });
+  });
+}
+
+// known limit: resolveEnumMemberKind doesn't chase Identifier or MemberExpression back-refs
+// to peer members. flip these into ENUM_MEMBER_CASES if the classifier learns to follow them
+const ENUM_BAIL_CASES = [
+  { label: 'identifier back-ref to peer (numeric)', src: 'enum E { A = 1, B = A } const v = E.B;' },
+  { label: 'member back-ref (E.A forward-ref)', src: 'enum E { A = "x", B = E.A } const v = E.B;' },
+  // a bare member after a NON-numeric one is only reachable through non-type-checked input, and the
+  // emitters disagree on what it then holds - babel refuses the enum outright, swc leaves the member
+  // `undefined`. neither is an enum value kind, so all of these stay opaque instead of assuming number
+  { label: 'bare after string', src: 'enum E { A = "x", B } const v = E.B;' },
+  { label: 'bare after string, two hops', src: 'enum E { A = "x", B, C } const v = E.C;' },
+  { label: 'bare after bigint', src: 'enum E { A = 1n, B } const v = E.B;' },
+  { label: 'bare after unclassified predecessor', src: 'enum E { A = 1 > 2, B } const v = E.B;' },
+  { label: 'bare successor of a quoted string member', src: 'enum E { "A" = "x", B } const v = E.B;' },
+];
+
+for (const { label, src } of ENUM_BAIL_CASES) {
+  runBoth(`enum member bail: ${ label }`, src, (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'v');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    if (type === null) return pass();
+    return fail(lbl, `expected null bail, got ${ JSON.stringify(type) }`);
+  });
+}
+
+// enum declaration-merging through the `typeof` paths (separate from value-position member access):
+// a member declared in a later `enum E {}` block must resolve via typeof-member (`typeof E.B`),
+// namespaced typeof (`typeof N.E.B`), and a `typeof E` annotation member - all share the decl-merge set
+const ENUM_MERGE_TYPEOF_CASES = [
+  { label: 'typeof E.B (2nd block)', src: 'enum E { A = "x" } enum E { B = "y" } declare const r: typeof E.B; r.at(0);' },
+  { label: 'typeof N.E.B (namespaced 2nd block)', src: 'namespace N { export enum E { A = "x" } export enum E { B = "y" } } declare const r: typeof N.E.B; r.at(0);' },
+  { label: 'typeof E annotation member (2nd block)', src: 'enum E { A = "x" } enum E { B = "y" } declare const o: typeof E; const { B } = o; B.at(0);' },
+];
+
+for (const { label, src } of ENUM_MERGE_TYPEOF_CASES) {
+  runBoth(`enum decl-merge via typeof: ${ label } -> string`, src, (adapter, prog, lbl) => {
+    const recv = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at').get('object');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(recv), { primitive: true, kind: 'string' });
+  });
+}
+
+// --- declaration-driven type resolution: three closed domains ---
+
+// resolve the receiver of `v.at(0)` written against an annotation - the shape these three tables
+// share, since none of them has a value initialiser to read instead
+function annotatedReceiverType(adapter, prog) {
+  const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+  return adapter.makeResolver().resolveNodeType(member.get('object'));
+}
+
+// a primitive is assignable to the wrapper it boxes into, so `string extends String` is TRUE and
+// the conditional takes its true branch. every OTHER pairing on that arm stays false: a foreign
+// wrapper, a concrete container. the wide `Object` is deliberately left undecided (it folds both
+// branches) - pairing each wrapper with its own primitive AND with a foreign one keeps a blanket
+// answer in either direction from passing
+// the domain is closed and small, so it is swept in full rather than sampled: every primitive
+// against every wrapper (its own and the four foreign ones) and against two concrete containers.
+// wide `Object` / `object` / `{}` are excluded here - those fold both branches instead of deciding,
+// and the fold is asserted separately below
+const BOXED_CHECKS = ['string', 'number', 'boolean', 'bigint', 'symbol'];
+const BOXED_WRAPPERS = ['String', 'Number', 'Boolean', 'BigInt', 'Symbol'];
+const CONCRETE_EXTENDS = ['Array<number>', 'Map<string, number>'];
+const BOXED_WRAPPER_CASES = [];
+for (const checked of BOXED_CHECKS) {
+  const own = BOXED_WRAPPERS[BOXED_CHECKS.indexOf(checked)];
+  for (const extend of [...BOXED_WRAPPERS, ...CONCRETE_EXTENDS]) {
+    BOXED_WRAPPER_CASES.push({ label: `${ checked } / ${ extend }`, checked, extend, taken: extend === own });
+  }
+}
+
+for (const { label, checked, extend, taken } of BOXED_WRAPPER_CASES) {
+  // the true branch is an Array and the false branch a Set, so the assertion names the branch that
+  // fired rather than merely observing that something resolved
+  runBoth(`conditional boxed wrapper: ${ label } -> ${ taken ? 'true' : 'false' } branch`,
+    `type C<T> = T extends ${ extend } ? number[] : Set<number>;
+     declare const v: C<${ checked }>;
+     v.at(0);`,
+    (adapter, prog, lbl) => {
+      checkType(lbl, annotatedReceiverType(adapter, prog), { primitive: false, ctor: taken ? 'Array' : 'Set' });
+    });
+}
+
+// the lowercase keyword is the top of the NON-primitive types, so `string extends object` is FALSE
+// in TS and the false branch is the answer - decided, not folded
+runBoth('conditional wide extends: string / object takes the false branch',
+  `type C<T> = T extends object ? number[] : Set<number>;
+   declare const v: C<string>;
+   v.at(0);`,
+  (adapter, prog, lbl) => {
+    checkType(lbl, annotatedReceiverType(adapter, prog), { primitive: false, ctor: 'Set' });
+  });
+
+// its boxed-top and empty-shape neighbours are an accepted UNDER-resolve, not a semantic claim: TS
+// decides both TRUE (`string extends Object`, `string extends {}`), this layer folds both branches
+// and keeps neither type. safe - the receiver falls back to the generic helper - so the row asserts
+// what the layer does rather than pinning a decision it has not earned
+for (const extend of ['Object', '{}']) {
+  runBoth(`conditional wide extends: string / ${ extend } stays undecided`,
+    `type C<T> = T extends ${ extend } ? number[] : Set<number>;
+     declare const v: C<string>;
+     v.at(0);`,
+    (adapter, prog, lbl) => {
+      const resolved = annotatedReceiverType(adapter, prog);
+      if (resolved?.constructor === 'Array' || resolved?.constructor === 'Set') {
+        return fail(lbl, `a wide extends decided a branch (${ resolved.constructor })`);
+      }
+      pass();
+    });
+}
+
+// a decided conditional and a mapped key-set have to answer the same in every position their
+// reference can occupy, not only when written directly on the binding. the mapped rows come in
+// pairs - a key inside the source key-set and one only in the indexed type - so a position that
+// stopped resolving at all fails the first row rather than passing the second by accident
+const NESTED_POSITIONS = [
+  ['directly', v => `declare const v: ${ v };`, 'v'],
+  ['in an object-type member', v => `declare const v: { i: ${ v } };`, 'v.i'],
+  ['as an alias argument', v => `type O<T> = { i: T };\ndeclare const v: O<${ v }>;`, 'v.i'],
+];
+
+for (const [position, decl, read] of NESTED_POSITIONS) {
+  runBoth(`conditional boxed wrapper ${ position }`,
+    `type C<T> = T extends String ? number[] : Set<number>;\n${ decl('C<string>') }\n${ read }.at(0);`,
+    (adapter, prog, lbl) => {
+      checkType(lbl, annotatedReceiverType(adapter, prog), { primitive: false, ctor: 'Array' });
+    });
+  runBoth(`mapped key inside the source set ${ position }`,
+    `type M<T> = { [K in keyof { a: unknown; }]: T[K] };\n${ decl('M<{ a: number[] }>') }\n${ read }.a.at(0);`,
+    (adapter, prog, lbl) => {
+      checkType(lbl, annotatedReceiverType(adapter, prog), { primitive: false, ctor: 'Array' });
+    });
+  runBoth(`mapped key outside the source set ${ position }`,
+    `type M<T> = { [K in keyof { a: unknown; }]: T[K] };\n${ decl('M<{ a: unknown; extra: number[] }>') }\n${ read }.extra.at(0);`,
+    (adapter, prog, lbl) => {
+      const resolved = annotatedReceiverType(adapter, prog);
+      if (resolved?.constructor === 'Array') return fail(lbl, 'a key outside the mapped key-set resolved');
+      pass();
+    });
+}
+
+// a mapped type carries the keys of the type it iterates, not the keys of the type its body
+// indexes. the passthrough shortcut may only fire when those are the SAME type - two refs by name,
+// anything structural by node - so a cross-type projection falls through to the per-key expansion
+const MAPPED_PASSTHROUGH_CASES = [
+  { label: 'ref source indexed by the same ref', src: 'type M<T> = { [K in keyof T]: T[K] }; declare const v: M<{ a: number[] }>;', ctor: 'Array' },
+  { label: 'literal source indexed by a ref', src: 'type M<T> = { [K in keyof { a: unknown }]: T[K] }; declare const v: M<{ a: number[] }>;', ctor: 'Array' },
+  { label: 'literal source, same structural body', src: 'type M = { [K in keyof { a: unknown }]: { a: number[] }[K] }; declare const v: M;', ctor: 'Array' },
+  { label: 'cross-type projection keeps the source keys', src: 'type M<A, B> = { [K in keyof A]: B[K] }; declare const v: M<{ a: unknown }, { a: number[] }>;', ctor: 'Array' },
+];
+
+for (const { label, src, ctor } of MAPPED_PASSTHROUGH_CASES) {
+  runBoth(`mapped passthrough: ${ label }`, `${ src } v.a.at(0);`, (adapter, prog, lbl) => {
+    checkType(lbl, annotatedReceiverType(adapter, prog), { primitive: false, ctor });
+  });
+}
+
+// a member that exists only in the INDEXED type is not a member of the mapped type, so it must not
+// resolve - the negative half of the table above, and the direction the passthrough shortcut used
+// to get wrong
+runBoth('mapped passthrough: a key outside the source key-set does not resolve',
+  'type M<T> = { [K in keyof { a: unknown }]: T[K] }; declare const v: M<{ a: unknown; extra: number[] }>; v.extra.at(0);',
+  (adapter, prog, lbl) => {
+    const resolved = annotatedReceiverType(adapter, prog);
+    if (resolved && resolved.constructor === 'Array') {
+      return fail(lbl, 'a key absent from the mapped key-set resolved to the indexed type\'s member');
+    }
+    pass();
+  });
+
+// a type-parameter outranks a same-named global: the annotation names the parameter, which is
+// opaque, not the built-in container. only a single-segment reference can be shadowed, and a name
+// that matches no global has nothing to shadow
+const TYPE_PARAM_SHADOW_CASES = [
+  { label: 'parameter named Array shadows the container', src: 'function f<Array>(v: Array) { v.at(0); }', shadowed: true },
+  { label: 'parameter named Set shadows the container', src: 'function f<Set>(v: Set) { v.at(0); }', shadowed: true },
+  { label: 'qualified reference cannot be shadowed', src: 'namespace NS { export type Array = number[]; } function f<Array>(v: NS.Array) { v.at(0); }', shadowed: false },
+  { label: 'unshadowed container resolves', src: 'function f(v: Array<number>) { v.at(0); }', shadowed: false },
+  { label: 'constrained ordinary parameter still resolves', src: 'function f<T extends number[]>(v: T) { v.at(0); }', shadowed: false },
+  // shadowing suppresses the GLOBAL, not the parameter: a constrained parameter named after a
+  // container still resolves through its own constraint, exactly as TS reads it
+  { label: 'constrained parameter named Array resolves via its constraint', src: 'function f<Array extends number[]>(v: Array) { v.at(0); }', shadowed: false },
+  { label: 'constrained parameter named Set resolves via its constraint', src: 'function f<Set extends number[]>(v: Set) { v.at(0); }', shadowed: false },
+  // the same shadow through the positions a type-ref can occupy - a return annotation and a
+  // generic alias argument reach the resolver by different lanes than a parameter annotation
+  { label: 'shadow in a return annotation', src: 'declare const q: any;\nfunction f<Array>(x: any): Array { return x; }\nconst r = f(q);\nr.at(0);', shadowed: true },
+  { label: 'shadow in a generic alias argument', src: 'type W<Array> = Array;\ndeclare const r: W<any>;\nr.at(0);', shadowed: true },
+  // the type-ARGUMENT position resolves through the substitution lane, where the parameter map
+  // holds the ALIAS's own parameters and not the caller's - the bound-parameter check there does
+  // not see the shadow, so the container lookup needs the same guard as the plain lane
+  { label: 'shadow in a type-argument position', src: 'type Outer<T> = { inner: T };\nfunction f<Array>(x: Outer<Array>) { x.inner.at(0); }', shadowed: true },
+  { label: 'shadow in a nested type-argument position',
+    src: 'type Outer<T> = { inner: { deep: T } };\nfunction f<Array>(x: Outer<Array>) { x.inner.deep.at(0); }',
+    shadowed: true },
+  { label: 'a real container in the same argument position resolves', src: 'type Outer<T> = { inner: T };\ndeclare const x: Outer<number[]>;\nx.inner.at(0);', shadowed: false },
+];
+
+// the shadow has to hold in EVERY position a type-ref can occupy, not just the ones a bug was
+// once found in - each entry pairs the shadowed spelling with the same position carrying a real
+// container, so a position that stopped resolving at all would fail the control rather than pass
+// the shadow by accident
+const SHADOW_POSITIONS = [
+  ['array element', 'function f<Array>(x: Array[]) { x[0].at(0); }', 'declare const x: number[][];\nx[0].at(0);'],
+  ['tuple element', 'function f<Array>(x: [Array]) { x[0].at(0); }', 'declare const x: [number[]];\nx[0].at(0);'],
+  ['union member', 'function f<Array>(x: Array | Array) { x.at(0); }', 'declare const x: number[] | number[];\nx.at(0);'],
+  ['intersection member', 'type Tag = { t: 1 };\nfunction f<Array>(x: Array & Tag) { x.at(0); }',
+    'type Tag = { t: 1 };\ndeclare const x: number[] & Tag;\nx.at(0);'],
+  ['object-type member', 'function f<Array>(x: { i: Array }) { x.i.at(0); }', 'declare const x: { i: number[] };\nx.i.at(0);'],
+  ['conditional branch', 'function f<Array>(x: 1 extends 1 ? Array : string) { x.at(0); }', 'declare const x: 1 extends 1 ? number[] : string;\nx.at(0);'],
+  ['mapped body', 'function f<Array>(x: { [K in "a"]: Array }) { x.a.at(0); }', 'declare const x: { [K in "a"]: number[] };\nx.a.at(0);'],
+  ['indexed access', 'function f<Array>(x: { a: Array }["a"]) { x.at(0); }', 'declare const x: { a: number[] }["a"];\nx.at(0);'],
+  ['awaited', 'function f<Array>(x: Awaited<Array>) { x.at(0); }', 'declare const x: Awaited<number[]>;\nx.at(0);'],
+];
+
+for (const [position, shadowedSrc, controlSrc] of SHADOW_POSITIONS) {
+  TYPE_PARAM_SHADOW_CASES.push(
+    { label: `shadow in ${ position }`, src: shadowedSrc, shadowed: true },
+    { label: `real container in ${ position }`, src: controlSrc, shadowed: false },
+  );
+}
+
+for (const { label, src, shadowed } of TYPE_PARAM_SHADOW_CASES) {
+  runBoth(`type-param shadow: ${ label }`, src, (adapter, prog, lbl) => {
+    const resolved = annotatedReceiverType(adapter, prog);
+    if (shadowed) {
+      if (resolved?.constructor === 'Array' || resolved?.constructor === 'Set') {
+        return fail(lbl, `shadowed parameter resolved to the built-in ${ resolved.constructor }`);
+      }
+      return pass();
+    }
+    checkType(lbl, resolved, { primitive: false, ctor: 'Array' });
+  });
+}
+
+// computed member key `o[E.B]` resolves the enum member's value to the static key name - the 2nd-block
+// member must resolve too (decl-merge), so `o[E.B]` picks the same property as `o.x` when `E.B = "x"`
+runBoth('enum decl-merge via computed key: o[E.B] resolves the 2nd-block member value',
+  'enum E { A = "z" } enum E { B = "x" } const o = { x: [1, 2] }; o[E.B].at(0);',
+  (adapter, prog, lbl) => {
+    const recv = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at').get('object');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(recv), { primitive: false, ctor: 'Array' });
+  });
+
+// whole enum type (`let x: E`) folds the value-kind across merged blocks: uniform -> that kind, a
+// cross-block kind mismatch -> generic (null), consistent with a single-block mixed enum (rather than
+// masquerading the nearest block's kind for a member declared in another block)
+runBoth('merged enum whole-type: uniform kind folds across blocks (string)',
+  'enum E { A = "x" } enum E { B = "y" } let x: E;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('id')), { primitive: true, kind: 'string' });
+  });
+
+runBoth('merged enum whole-type: cross-block kind mismatch is generic, not the nearest block',
+  'enum E { A = "x" } enum E { B = 1 } let x: E;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
+    checkTruthy(lbl, adapter.makeResolver().resolveNodeType(decl.get('id')) === null,
+      'mixed-kind merged enum must not resolve to one block kind');
+  });
+
+runBoth('namespaced merged enum whole-type: cross-block mismatch is generic (name-qualified fold)',
+  'namespace N { export enum E { A = "x" } export enum E { B = 1 } } let x: N.E;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
+    checkTruthy(lbl, adapter.makeResolver().resolveNodeType(decl.get('id')) === null,
+      'namespaced mixed-kind merged enum must not resolve to one block kind');
+  });
+
+// type-position enum-member reference (`let v: E.A`) goes through resolveTypeAnnotation -
+// separate path from value-position. resolver must not crash; narrow type-ref tabulation
+// is out of scope
+const ENUM_TYPE_REF_CASES = [
+  { label: 'numeric enum type ref', src: 'enum E { A, B } let v: E.A;' },
+  { label: 'string enum type ref', src: 'enum E { A = "a", B = "b" } let v: E.A;' },
+];
+
+for (const { label, src } of ENUM_TYPE_REF_CASES) {
+  runBoth(`enum type ref smoke: ${ label }`, src, (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'v');
+    const resolver = adapter.makeResolver();
+    try {
+      resolver.resolveNodeType(decl.get('id'));
+      pass();
+    } catch (error) { fail(lbl, `threw: ${ error.message }`); }
+  });
+}
+
+// --- Prototype-method access on built-in ---
+
+runBoth('Array.prototype.map identity does not crash resolver',
+  'const m = Array.prototype.map;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'm');
+    const resolver = adapter.makeResolver();
+    try {
+      resolver.resolveNodeType(decl.get('init'));
+      pass();
+    } catch (error) {
+      fail(lbl, `threw: ${ error.message }`);
+    }
+  });
+
+// --- Optional-chain call return ---
+
+runBoth('optional call: obj?.fn() does not crash',
+  'declare const obj: { fn(): string[] } | null; const r = obj?.fn();',
+  (adapter, prog, lbl) => {
+    // outermost call: pickPath returns first match - either CallExpression (babel
+    // OptionalCallExpression treated similarly) or wrapper. ensure resolver runs.
+    const calls = adapter.collectPaths(prog, 'CallExpression');
+    const optCalls = adapter.collectPaths(prog, 'OptionalCallExpression');
+    const call = calls[0] ?? optCalls[0];
+    if (!call) return fail(lbl, 'no call expression found');
+    const resolver = adapter.makeResolver();
+    try {
+      resolver.resolveNodeType(call);
+      pass();
+    } catch (error) {
+      fail(lbl, `threw: ${ error.message }`);
+    }
+  });
+
+// --- typeof X for binding without annotation ---
+
+runBoth('typeof annotation reads init type: `typeof a` where a = [] -> Array',
+  'const a = []; let x: typeof a;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
+    const resolver = adapter.makeResolver();
+    checkType(lbl, resolver.resolveNodeType(decl.get('id')),
+      { primitive: false, ctor: 'Array' });
+  });
+
+// --- Generic alias chain ---
+
+runBoth('generic alias chain: `type Wrap<T> = T; type Of = Wrap<number[]>` -> Array',
+  'type Wrap<T> = T; type Of = Wrap<number[]>; let v: Of;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const resolver = adapter.makeResolver();
+    checkType(lbl, resolver.resolveNodeType(decl.get('id')),
+      { primitive: false, ctor: 'Array' });
+  });
+
+// --- Class with explicit method return annotation ---
+
+runBoth('class method declared return -> Map',
+  `
+    class C { m(): Map<string, number> { return new Map(); } }
+    const c = new C();
+    const r = c.m();
+  `,
+  (adapter, prog, lbl) => {
+    // pick the outer `c.m()` (not the inner `new Map()`)
+    const calls = adapter.collectPaths(prog, 'CallExpression');
+    const outerCall = calls.find(p => p.node.callee?.type === 'MemberExpression'
+      && p.node.callee.property?.name === 'm');
+    if (!outerCall) return fail(lbl, 'no c.m() found');
+    const resolver = adapter.makeResolver();
+    checkType(lbl, resolver.resolveNodeType(outerCall),
+      { primitive: false, ctor: 'Map' });
+  });
+
+// --- Capture-avoidance: colliding generic type-param name in receiver args ---
+// `Wrap<string, A>` over `class Wrap<A, Q>` - the usage-arg `A` collides with sibling param `A`.
+// without capture-avoidance (scope passed to buildSubstMap) the transitive subst re-captures
+// Q -> A -> string; with it, the colliding `A` resolves to its alias body (number[]), so `m(): Q`
+// narrows to Array, not string. regression guard for the buildSubstMap scope-less callers
+runBoth('capture-avoidance: colliding generic param resolves class member to the outer alias',
+  `
+    type A = number[];
+    class Wrap<A, Q> { m(): Q { return null; } }
+    declare const c: Wrap<string, A>;
+    const r = c.m();
+  `,
+  (adapter, prog, lbl) => {
+    const calls = adapter.collectPaths(prog, 'CallExpression');
+    const outerCall = calls.find(p => p.node.callee?.type === 'MemberExpression'
+      && p.node.callee.property?.name === 'm');
+    if (!outerCall) return fail(lbl, 'no c.m() found');
+    const resolver = adapter.makeResolver();
+    checkType(lbl, resolver.resolveNodeType(outerCall), { primitive: false, ctor: 'Array' });
+  });
+
+// inherited member through the extends chain: `Sub extends Base<string, A>` carries the same
+// colliding `A` arg into the parent-class subst (buildParentClassSubstFromNodes). without the scope
+// thread, Q -> A -> string; with it, Q -> number[], so the inherited `m(): Q` narrows to Array
+runBoth('capture-avoidance: colliding generic param resolves inherited member to the outer alias',
+  `
+    type A = number[];
+    class Base<A, Q> { m(): Q { return null; } }
+    class Sub extends Base<string, A> {}
+    declare const c: Sub;
+    const r = c.m();
+  `,
+  (adapter, prog, lbl) => {
+    const calls = adapter.collectPaths(prog, 'CallExpression');
+    const outerCall = calls.find(p => p.node.callee?.type === 'MemberExpression'
+      && p.node.callee.property?.name === 'm');
+    if (!outerCall) return fail(lbl, 'no c.m() found');
+    const resolver = adapter.makeResolver();
+    checkType(lbl, resolver.resolveNodeType(outerCall), { primitive: false, ctor: 'Array' });
+  });
+
+// awaited value through a user thenable with a colliding generic: the `.then` cb-arg Q resolves via
+// buildSubstMap in awaited.js. without the scope thread Q -> A -> string; with it Q -> number[]
+runBoth('capture-avoidance: colliding generic param resolves awaited thenable value to the outer alias',
+  `
+    type A = number[];
+    class Th<A, Q> { then(cb: (v: Q) => void): void {} }
+    declare function f(): Th<string, A>;
+    async function g() {
+      const r = await f();
+    }
+  `,
+  (adapter, prog, lbl) => {
+    const aw = adapter.pickPath(prog, 'AwaitExpression');
+    if (!aw) return fail(lbl, 'no await found');
+    const resolver = adapter.makeResolver();
+    checkType(lbl, resolver.resolveNodeType(aw), { primitive: false, ctor: 'Array' });
+  });
+
+// element type of a user array-like alias with a colliding generic, via array destructuring:
+// extractElementAnnotation -> resolveUserTypeElement -> buildSubstMap in element-types.js. without
+// the scope thread the element Q -> A -> string; with it Q -> number[] (Array)
+runBoth('capture-avoidance: colliding generic param resolves destructured element to the outer alias',
+  `
+    type A = number[];
+    type Arr<A, Q> = Q[];
+    declare const c: Arr<string, A>;
+    const [x] = c;
+  `,
+  (adapter, prog, lbl) => {
+    const x = adapter.pickPath(prog, 'Identifier',
+      p => p.node.name === 'x' && p.parentPath?.node?.type === 'ArrayPattern');
+    if (!x) return fail(lbl, 'no destructured x found');
+    const resolver = adapter.makeResolver();
+    checkType(lbl, resolver.resolveNodeType(x), { primitive: false, ctor: 'Array' });
+  });
+
+// --- Isolated sub-module tests ---
+// validate that extracted modules work standalone, without going through the resolver
+// factory. each test imports the module directly and exercises its public API against
+// minimal synthetic inputs
+
+// --- exit-analysis (pure AST control-flow walker) ---
+
+{
+  // `return;` -> always exits
+  const returnNode = { type: 'ReturnStatement' };
+  check('exit-analysis: ReturnStatement always exits', nodeAlwaysExits(returnNode), true);
+
+  // `if (cond) return; else throw new Error()` -> always exits (both branches exit)
+  const ifNode = {
+    type: 'IfStatement',
+    consequent: { type: 'ReturnStatement' },
+    alternate: { type: 'ThrowStatement' },
+  };
+  check('exit-analysis: if with both-branch exits', nodeAlwaysExits(ifNode), true);
+
+  // `if (cond) return;` -> NOT always exits (no alternate). impl returns null via
+  // short-circuit `node.alternate && ...` - callers check truthiness, so the falsy
+  // value is the contract, not the specific null vs false form
+  const ifWithoutElse = {
+    type: 'IfStatement',
+    consequent: { type: 'ReturnStatement' },
+    alternate: null,
+  };
+  check('exit-analysis: if without alternate is not always-exits (falsy)',
+    !nodeAlwaysExits(ifWithoutElse), true);
+
+  // empty block -> false (no statements means no exit)
+  check('exit-analysis: empty block is not always-exits',
+    nodeAlwaysExits({ type: 'BlockStatement', body: [] }), false);
+
+  // `case 'x': return; break;` -> exits BEFORE break, so `canFallThrough` is false
+  const caseWithReturn = { consequent: [{ type: 'ReturnStatement' }] };
+  check('exit-analysis: canFallThrough false for case-with-return',
+    canFallThrough(caseWithReturn), false);
+
+  // `case 'x': foo();` -> falls through (no exit statement)
+  const caseWithoutExit = { consequent: [{ type: 'ExpressionStatement' }] };
+  check('exit-analysis: canFallThrough true for case-without-exit',
+    canFallThrough(caseWithoutExit), true);
+}
+
+// --- guard-builders (pure guard descriptor constructors) ---
+
+{
+  // typeofGuard: object with required fields, no extra mutation
+  const g = typeofGuard('string', false);
+  check('guard-builders: typeofGuard kind', g.kind, 'typeof');
+  check('guard-builders: typeofGuard value', g.value, 'string');
+  check('guard-builders: typeofGuard negated', g.negated, false);
+
+  const ng = instanceofGuard('Array', true);
+  check('guard-builders: instanceofGuard kind', ng.kind, 'instanceof');
+  check('guard-builders: instanceofGuard constructorName', ng.constructorName, 'Array');
+  check('guard-builders: instanceofGuard negated', ng.negated, true);
+
+  // guardFromResolvedType: primitive Type -> typeof guard
+  const fromPrimitive = guardFromResolvedType({ primitive: true, type: 'string' }, false);
+  check('guard-builders: from primitive -> typeof guard',
+    fromPrimitive?.kind, 'typeof');
+  check('guard-builders: from primitive -> value', fromPrimitive?.value, 'string');
+
+  // guardFromResolvedType: object Type with constructor -> instanceof guard
+  const fromObject = guardFromResolvedType({ primitive: false, constructor: 'Map' }, false);
+  check('guard-builders: from object -> instanceof guard',
+    fromObject?.kind, 'instanceof');
+  check('guard-builders: from object -> constructorName',
+    fromObject?.constructorName, 'Map');
+
+  // null input -> null output
+  check('guard-builders: from null -> null', guardFromResolvedType(null, false), null);
+
+  // guardFromHint: hint with lowercase primitive type -> typeof
+  const hintPrim = guardFromHint({ type: 'string' }, false);
+  check('guard-builders: hint string -> typeof guard kind', hintPrim?.kind, 'typeof');
+  check('guard-builders: hint string -> value', hintPrim?.value, 'string');
+
+  // guardFromHint: hint with capitalised constructor -> instanceof
+  const hintObj = guardFromHint({ type: 'Array' }, true);
+  check('guard-builders: hint Array -> instanceof guard kind', hintObj?.kind, 'instanceof');
+  check('guard-builders: hint Array -> constructorName', hintObj?.constructorName, 'Array');
+  check('guard-builders: hint Array -> negated', hintObj?.negated, true);
+
+  // isTypeofVar: `typeof x` -> true when arg matches
+  const typeofX = {
+    type: 'UnaryExpression',
+    operator: 'typeof',
+    argument: { type: 'Identifier', name: 'x' },
+  };
+  check('guard-builders: isTypeofVar(`typeof x`, "x") -> true', isTypeofVar(typeofX, 'x'), true);
+  check('guard-builders: isTypeofVar(`typeof x`, "y") -> false', isTypeofVar(typeofX, 'y'), false);
+
+  // isTypeofVar: non-typeof unary -> false
+  const voidX = {
+    type: 'UnaryExpression', operator: 'void', argument: { type: 'Identifier', name: 'x' },
+  };
+  check('guard-builders: isTypeofVar(`void x`, "x") -> false', isTypeofVar(voidX, 'x'), false);
+
+  // isTypeofVar: typeof on non-identifier -> false
+  const typeofExpr = {
+    type: 'UnaryExpression',
+    operator: 'typeof',
+    argument: { type: 'CallExpression' },
+  };
+  check('guard-builders: isTypeofVar(`typeof f()`, "x") -> false', isTypeofVar(typeofExpr, 'x'), false);
+}
+
+// --- base utilities ($Primitive / $Object constructors, primitive helpers, hint round-trip) ---
+
+{
+  // $Primitive: marks primitive=true, stores type tag
+  const prim = new $Primitive('number');
+  check('base: $Primitive primitive', prim.primitive, true);
+  check('base: $Primitive type', prim.type, 'number');
+
+  // $Object: marks primitive=false, stores constructor + inner
+  const inner = new $Primitive('string');
+  const arr = new $Object('Array', inner);
+  check('base: $Object primitive', arr.primitive, false);
+  check('base: $Object constructor', arr.constructor, 'Array');
+  check('base: $Object inner === passed inner', arr.inner, inner);
+
+  // mark: returns a marked CLONE (cached originals must stay untouched), preserves the
+  // identity fields, the prototype `primitive` flag and previously set markers. the
+  // prototype slots are the marker registry: unmarked instances read the `false` default,
+  // and a name outside the registry throws instead of minting a dead field
+  check('base: unmarked instance reads the false prototype default', arr.mayBeNullish, false);
+  const marked = arr.mark('mayBeNullish');
+  check('base: mark sets the marker on the clone', marked.mayBeNullish, true);
+  check('base: mark leaves the original unmarked', arr.mayBeNullish, false);
+  check('base: mark clone is a new object', marked === arr, false);
+  try {
+    arr.mark('maybeNullish');
+    fail('base: mark rejects a name outside the registry', 'did not throw');
+  } catch (error) {
+    check('base: mark rejects a name outside the registry', error.constructor, TypeError);
+  }
+  try {
+    arr.mark('clone');
+    fail('base: mark rejects a non-marker prototype slot', 'did not throw');
+  } catch (error) {
+    check('base: mark rejects a non-marker prototype slot', error.constructor, TypeError);
+  }
+  check('base: mark clone keeps constructor', marked.constructor, 'Array');
+  check('base: mark clone keeps inner identity', marked.inner, inner);
+  check('base: mark clone keeps prototype primitive flag', marked.primitive, false);
+  check('base: mark no-ops on an already-marked type', marked.mark('mayBeNullish'), marked);
+  check('base: second marker stacks on the first', marked.mark('readonly').mayBeNullish, true);
+  check('base: clone carries existing markers', marked.clone().mayBeNullish, true);
+  const markedPrim = new $Primitive('string', 's').mark('literalUnion');
+  check('base: $Primitive mark keeps literal', markedPrim.literal, 's');
+  check('base: $Primitive mark keeps primitive flag', markedPrim.primitive, true);
+
+  // unmark: the strip counterpart of mark - clears on a CLONE, no-ops when absent, same
+  // registry guard. exists for both-required markers (readonly) that an identity-returned
+  // fold input may already carry
+  const stripped = marked.unmark('mayBeNullish');
+  check('base: unmark clears the marker on the clone', stripped.mayBeNullish, false);
+  check('base: unmark leaves the original marked', marked.mayBeNullish, true);
+  check('base: unmark no-ops on an unmarked type', arr.unmark('mayBeNullish'), arr);
+  check('base: unmark clone keeps constructor', stripped.constructor, 'Array');
+  check('base: unmark clone keeps other markers', marked.mark('readonly').unmark('mayBeNullish').readonly, true);
+  try {
+    marked.unmark('maybeNullish');
+    fail('base: unmark rejects a name outside the registry', 'did not throw');
+  } catch (error) {
+    check('base: unmark rejects a name outside the registry', error.constructor, TypeError);
+  }
+
+  // primitiveTypeOf: $Primitive('bigint') -> 'bigint'
+  check('base: primitiveTypeOf bigint primitive', primitiveTypeOf(new $Primitive('bigint')), 'bigint');
+  // primitiveTypeOf: $Object('Number') unwraps via UNBOXED_PRIMITIVES table -> 'number'
+  check('base: primitiveTypeOf boxed Number -> number',
+    primitiveTypeOf(new $Object('Number')), 'number');
+  // primitiveTypeOf: $Object('Array') is not boxed-primitive -> null
+  check('base: primitiveTypeOf Array -> null',
+    primitiveTypeOf(new $Object('Array')), null);
+  // primitiveTypeOf: null -> null
+  check('base: primitiveTypeOf null -> null', primitiveTypeOf(null), null);
+
+  // toHint: primitive -> hint string
+  check('base: toHint $Primitive(string)', toHint(new $Primitive('string')), 'string');
+  // toHint: object Array -> lowercase 'array'
+  check('base: toHint $Object(Array)', toHint(new $Object('Array')), 'array');
+  // toHint: unknown primitive -> null (not in TYPE_HINTS)
+  check('base: toHint $Primitive(unknown)', toHint(new $Primitive('unknown')), null);
+  // toHint: null -> null
+  check('base: toHint null', toHint(null), null);
+
+  // intersectHintSets: null seed -> copy of hints
+  const seed = intersectHintSets(null, new Set(['a', 'b']));
+  check('base: intersectHintSets fresh seed size', seed.size, 2);
+  checkTruthy('base: intersectHintSets seed has a', seed.has('a'));
+  checkTruthy('base: intersectHintSets seed has b', seed.has('b'));
+
+  // intersectHintSets: narrows existing set in place
+  const existing = new Set(['a', 'b', 'c']);
+  const narrowed = intersectHintSets(existing, new Set(['a', 'c']));
+  check('base: intersectHintSets returns same set ref', narrowed, existing);
+  check('base: intersectHintSets narrowed size', narrowed.size, 2);
+  checkTruthy('base: intersectHintSets narrowed has a', narrowed.has('a'));
+  check('base: intersectHintSets narrowed dropped b', narrowed.has('b'), false);
+
+  // getOrInitMap: missing key creates new Map
+  const container = new WeakMap();
+  const key = {};
+  const inner1 = getOrInitMap(container, key);
+  checkTruthy('base: getOrInitMap creates Map', inner1 instanceof Map);
+  // second call returns SAME Map (key-cached)
+  const inner2 = getOrInitMap(container, key);
+  check('base: getOrInitMap is idempotent', inner1, inner2);
+  // different key -> different Map
+  const inner3 = getOrInitMap(container, {});
+  checkTruthy('base: getOrInitMap different key -> different Map', inner1 !== inner3);
+}
+
+// --- ast-shapes (pure AST-shape predicates) ---
+
+{
+  // typeRefName: TSTypeReference with Identifier name
+  const idRef = { type: 'TSTypeReference', typeName: { type: 'Identifier', name: 'Foo' } };
+  check('ast-shapes: typeRefName Identifier', typeRefName(idRef), 'Foo');
+
+  // typeRefName: qualified name `NS.Foo` -> null (only single-segment names resolve to a
+  // bare string; qualified names route through `typeRefSegments` for the full path)
+  const qualified = {
+    type: 'TSTypeReference',
+    typeName: {
+      type: 'TSQualifiedName',
+      left: { type: 'Identifier', name: 'NS' },
+      right: { type: 'Identifier', name: 'Foo' },
+    },
+  };
+  check('ast-shapes: typeRefName qualified -> null', typeRefName(qualified), null);
+
+  // typeRefSegments: bare Identifier -> single segment
+  check('ast-shapes: typeRefSegments single', typeRefSegments(idRef)?.join('.'), 'Foo');
+
+  // typeRefSegments: qualified -> joined segments
+  check('ast-shapes: typeRefSegments qualified', typeRefSegments(qualified)?.join('.'), 'NS.Foo');
+
+  // typeRefSegments: non-ref returns null
+  check('ast-shapes: typeRefSegments non-ref -> null',
+    typeRefSegments({ type: 'TSStringKeyword' }), null);
+
+  // isTypeAlias / isInterfaceDeclaration: discriminator predicates
+  checkTruthy('ast-shapes: isTypeAlias',
+    isTypeAlias({ type: 'TSTypeAliasDeclaration' }));
+  check('ast-shapes: isTypeAlias false for non-alias',
+    isTypeAlias({ type: 'ClassDeclaration' }), false);
+  checkTruthy('ast-shapes: isInterfaceDeclaration TS',
+    isInterfaceDeclaration({ type: 'TSInterfaceDeclaration' }));
+  checkTruthy('ast-shapes: isInterfaceDeclaration Flow',
+    isInterfaceDeclaration({ type: 'InterfaceDeclaration' }));
+  check('ast-shapes: isInterfaceDeclaration false for class',
+    isInterfaceDeclaration({ type: 'ClassDeclaration' }), false);
+  // the AMBIENT Flow spellings describe the same shapes and must not fall out of the predicates
+  checkTruthy('ast-shapes: isTypeAlias Flow declare type',
+    isTypeAlias({ type: 'DeclareTypeAlias' }));
+  checkTruthy('ast-shapes: isTypeAlias Flow declare opaque type',
+    isTypeAlias({ type: 'DeclareOpaqueType' }));
+  checkTruthy('ast-shapes: isInterfaceDeclaration Flow declare interface',
+    isInterfaceDeclaration({ type: 'DeclareInterface' }));
+  // an ambient opaque type publishes only its SUPERTYPE bound - values are assignable to it, so
+  // it is the most precise shape available and `typeAliasBody` must reach it
+  check('ast-shapes: typeAliasBody ambient opaque falls back to the supertype',
+    typeAliasBody({ type: 'DeclareOpaqueType', supertype: { type: 'MARKER' } })?.type, 'MARKER');
+  check('ast-shapes: typeAliasBody opaque prefers impltype',
+    typeAliasBody({ type: 'OpaqueType', impltype: { type: 'IMPL' }, supertype: { type: 'SUPER' } })?.type, 'IMPL');
+
+  // dialect PAIRS: each predicate answers one question about two spellings. spelled per call site
+  // these drifted apart, so the pair itself is the contract
+  checkTruthy('ast-shapes: isTypeReferenceNode TS', isTypeReferenceNode({ type: 'TSTypeReference' }));
+  checkTruthy('ast-shapes: isTypeReferenceNode Flow', isTypeReferenceNode({ type: 'GenericTypeAnnotation' }));
+  check('ast-shapes: isTypeReferenceNode other', isTypeReferenceNode({ type: 'TSTypeLiteral' }), false);
+  checkTruthy('ast-shapes: isObjectTypeLiteral TS', isObjectTypeLiteral({ type: 'TSTypeLiteral' }));
+  checkTruthy('ast-shapes: isObjectTypeLiteral Flow', isObjectTypeLiteral({ type: 'ObjectTypeAnnotation' }));
+  check('ast-shapes: isObjectTypeLiteral other', isObjectTypeLiteral({ type: 'TSTypeReference' }), false);
+  checkTruthy('ast-shapes: isFunctionTypeNode TS', isFunctionTypeNode({ type: 'TSFunctionType' }));
+  checkTruthy('ast-shapes: isFunctionTypeNode Flow', isFunctionTypeNode({ type: 'FunctionTypeAnnotation' }));
+  check('ast-shapes: isFunctionTypeNode other', isFunctionTypeNode({ type: 'TSMethodSignature' }), false);
+  // TS wraps the literal of a literal TYPE; Flow's literal type IS the value node, so the canon
+  // rebuilds the value-space shape every downstream literal reader already understands
+  check('ast-shapes: literalTypeValueNode TS unwraps the wrapper',
+    literalTypeValueNode({ type: 'TSLiteralType', literal: { type: 'StringLiteral', value: 'k' } })?.value, 'k');
+  check('ast-shapes: literalTypeValueNode Flow string rebuilds a StringLiteral',
+    literalTypeValueNode({ type: 'StringLiteralTypeAnnotation', value: 'k' })?.type, 'StringLiteral');
+  check('ast-shapes: literalTypeValueNode Flow bigint keeps the digits',
+    literalTypeValueNode({ type: 'BigIntLiteralTypeAnnotation', value: '1' })?.value, '1');
+  check('ast-shapes: literalTypeValueNode non-literal type', literalTypeValueNode({ type: 'TSTypeReference' }), null);
+
+  // typeAliasBody: TS uses `typeAnnotation`, Flow uses `right`
+  const tsAlias = { type: 'TSTypeAliasDeclaration', typeAnnotation: { type: 'TSStringKeyword' } };
+  check('ast-shapes: typeAliasBody TS',
+    typeAliasBody(tsAlias)?.type, 'TSStringKeyword');
+  const flowAlias = { type: 'TypeAlias', right: { type: 'StringTypeAnnotation' } };
+  check('ast-shapes: typeAliasBody Flow',
+    typeAliasBody(flowAlias)?.type, 'StringTypeAnnotation');
+
+  // extendsId: TS extends carries an `expression`, Flow carries an `id`
+  const tsExtends = { expression: { type: 'Identifier', name: 'Base' } };
+  check('ast-shapes: extendsId TS', extendsId(tsExtends)?.name, 'Base');
+  const flowExtends = { id: { type: 'Identifier', name: 'Base' } };
+  check('ast-shapes: extendsId Flow', extendsId(flowExtends)?.name, 'Base');
+
+  // synthInterfaceExtendsRef: wraps an extends clause into a synthetic TSTypeReference
+  const synth = synthInterfaceExtendsRef({
+    expression: { type: 'Identifier', name: 'Base' },
+    typeParameters: { params: [{ type: 'TSStringKeyword' }] },
+  });
+  check('ast-shapes: synthInterfaceExtendsRef type', synth?.type, 'TSTypeReference');
+  check('ast-shapes: synthInterfaceExtendsRef typeName name', synth?.typeName?.name, 'Base');
+  check('ast-shapes: synthInterfaceExtendsRef typeParameters preserved',
+    synth?.typeParameters?.params?.[0]?.type, 'TSStringKeyword');
+
+  // synthInterfaceExtendsRef: non-Identifier expression -> null
+  check('ast-shapes: synthInterfaceExtendsRef non-identifier -> null',
+    synthInterfaceExtendsRef({ expression: { type: 'CallExpression' } }), null);
+
+  // isQualifiedNameNode: TSQualifiedName (babel) and MemberExpression (oxc) both qualify
+  checkTruthy('ast-shapes: isQualifiedNameNode TSQualifiedName',
+    isQualifiedNameNode({ type: 'TSQualifiedName' }));
+  checkTruthy('ast-shapes: isQualifiedNameNode MemberExpression',
+    isQualifiedNameNode({ type: 'MemberExpression' }));
+  check('ast-shapes: isQualifiedNameNode Identifier -> false',
+    isQualifiedNameNode({ type: 'Identifier' }), false);
+
+  // collectQualifiedSegments: walks a TSQualifiedName chain to its segments
+  const qChain = {
+    type: 'TSQualifiedName',
+    left: {
+      type: 'TSQualifiedName',
+      left: { type: 'Identifier', name: 'A' },
+      right: { type: 'Identifier', name: 'B' },
+    },
+    right: { type: 'Identifier', name: 'C' },
+  };
+  check('ast-shapes: collectQualifiedSegments depth-3 chain',
+    collectQualifiedSegments(qChain)?.join('.'), 'A.B.C');
+
+  // collectQualifiedSegments: bare Identifier -> [name]
+  check('ast-shapes: collectQualifiedSegments Identifier',
+    collectQualifiedSegments({ type: 'Identifier', name: 'X' })?.join('.'), 'X');
+}
+
+// --- helpers/ast-patterns (pure top-level utilities) ---
+
+{
+  // valueless-redecl phantom filter: BOTH parser shapes must drop, real writes must stay
+  const babelPhantom = { node: { type: 'VariableDeclarator', id: { type: 'Identifier', name: 'x' }, init: null } };
+  check('ast-patterns: valueless filter drops babel declarator shape',
+    withoutValuelessDeclarationViolations([babelPhantom]).length, 0);
+
+  function estreeIdViolation(forX) {
+    const id = { type: 'Identifier', name: 'x' };
+    const declarator = { type: 'VariableDeclarator', id, init: null };
+    const declaration = { type: 'VariableDeclaration', kind: 'var', declarations: [declarator] };
+    const host = forX ? { type: 'ForOfStatement', left: declaration } : { type: 'Program' };
+    const declarationPath = { node: declaration, parentPath: { node: host, parentPath: null } };
+    return { node: id, parentPath: { node: declarator, parentPath: declarationPath } };
+  }
+  check('ast-patterns: valueless filter drops estree identifier shape',
+    withoutValuelessDeclarationViolations([estreeIdViolation(false)]).length, 0);
+  // a for-x head declarator also has no init, but its per-iteration rebind is a real write
+  check('ast-patterns: for-x head identifier violation stays',
+    withoutValuelessDeclarationViolations([estreeIdViolation(true)]).length, 1);
+  const realWrite = { node: { type: 'AssignmentExpression' } };
+  check('ast-patterns: assignment violation stays',
+    withoutValuelessDeclarationViolations([babelPhantom, realWrite]).length, 1);
+
+  // the clean-alias shape check counts real writes only: a redecl phantom next to an
+  // init-bearing declarator must not read as a reassignment
+  const cleanWithPhantom = {
+    kind: 'var',
+    constantViolations: [babelPhantom],
+    path: { node: { type: 'VariableDeclarator', id: { type: 'ObjectPattern' }, init: { type: 'Identifier', name: 'Symbol' } } },
+  };
+  checkTruthy('ast-patterns: isCleanDestructureAliasBinding ignores the phantom',
+    isCleanDestructureAliasBinding(cleanWithPhantom));
+}
+
+// --- valueless `var` redeclaration reaches the RESOLVER, not just the filter ---
+
+// the shapes above assert the filter on hand-built violations; these assert the answer the type
+// layer gives, which is where the phantom was actually costing a narrow - the binding lookup is
+// the ONE funnel every type-layer consumer reads its violation list through, so a per-consumer
+// strip would leave whichever consumer nobody enumerated still reading the phantom
+
+runBoth('bare `var` redeclaration writes nothing - the init still types the receiver',
+  'var arr = [1, 2, 3];\nvar arr;\narr.at(0);',
+  (adapter, prog, lbl) => {
+    const recv = adapter.pickPath(prog, 'MemberExpression').get('object');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(recv), { primitive: false, ctor: 'Array' });
+  });
+
+// the redeclaration in a NESTED block is the shape the two trackers model differently: one hoists
+// the name and records the phantom, the other block-scopes the later declarator and reports IT as
+// the binding - an init-less view carrying none of the var's flow
+runBoth('nested-block `var` redeclaration is the same binding, not a shadow',
+  'var arr = [1, 2, 3];\n{\n  var arr;\n  arr.at(0);\n}',
+  (adapter, prog, lbl) => {
+    const recv = adapter.pickPath(prog, 'MemberExpression').get('object');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(recv), { primitive: false, ctor: 'Array' });
+  });
+
+// a nested-block redeclaration WITH an init is a real write, and the last one before the use wins
+runBoth('nested-block redeclaration with an init still decides the receiver',
+  'var arr = [1, 2, 3];\n{\n  var arr = "abc";\n  arr.at(0);\n}',
+  (adapter, prog, lbl) => {
+    const recv = adapter.pickPath(prog, 'MemberExpression').get('object');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(recv), { primitive: true, kind: 'string' });
+  });
+
+runBoth('a real write alongside the phantom still decides the receiver',
+  'var arr = [1, 2, 3];\nvar arr;\narr = "abc";\narr.at(0);',
+  (adapter, prog, lbl) => {
+    const recv = adapter.pickPath(prog, 'MemberExpression').get('object');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(recv), { primitive: true, kind: 'string' });
+  });
+
+// the negative the filter's for-x carve-out exists for: a head declarator has no init either, but
+// it rebinds per iteration over values this cannot see, so the init is dead and the answer opens
+runBoth('for-of head redeclaration is a real write - declines',
+  'var arr = [1, 2, 3];\nfor (var arr of [["a"], "b"]) { }\narr.at(0);',
+  (adapter, prog, lbl) => {
+    const recv = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at').get('object');
+    check(lbl, adapter.makeResolver().resolveNodeType(recv), null);
+  });
+
+// --- the static-callee pair's method filter, read through the call-return answer ---
+
+// the filter exists so the consumers matching a FIXED pair stop paying the shape's scope-chain
+// lookups for every call that cannot be theirs. it is a contract, not a shortcut: a pair returned
+// under a filter always names that method, whichever spelling the callee has - and the observable
+// difference is the `Object.create` arm, which types its call as a plain Object
+
+runBoth('the `Object.create` arm still claims its own call',
+  'Object.create(null);', (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(call), { primitive: false, ctor: 'Object' });
+  });
+
+// the argument is a primitive on purpose: a dispatching one would make the `create` arm decline on
+// its OWN guard, and the case would prove nothing about the method filter
+runBoth('a sibling static of the same constructor keeps its own return type',
+  'Object.keys("ab");', (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(call), { primitive: false, ctor: 'Array' });
+  });
+
+// the post-rewrite alias carries no method name ON the node, so the filter has to apply to the
+// RESOLVED pair - covering only the member spelling would let `_Object$keys(...)` answer the
+// `create` arm, whose caller compares the constructor alone
+runBoth('the alias spelling of a sibling static keeps its own return type',
+  '_Object$keys("ab");', (adapter, prog, lbl) => {
+    const resolver = adapter.makeResolver({
+      getPolyfillBindingEntry: (scope, name) => name === '_Object$keys' ? 'object/keys' : null,
+    });
+    const call = adapter.pickPath(prog, 'CallExpression');
+    checkType(lbl, resolver.resolveNodeType(call), { primitive: false, ctor: 'Array' });
+  });
+
+// the other fixed-pair consumer: the class-context anchor reads `Reflect.construct`'s ctor argument
+// as the receiver's class. a sibling `Reflect` static must not be taken for it, or an unrelated
+// call's first argument decides the receiver type
+runBoth('`Reflect.construct` still anchors the receiver class',
+  'class C { m(): string[] { return ["a"]; } }\nReflect.construct(C, []).m();',
+  (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression', p => p.node.callee?.property?.name === 'm');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(call), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('a sibling `Reflect` static is not taken for `construct`',
+  'class C { m(): string[] { return ["a"]; } }\nReflect.ownKeys(C).m();',
+  (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression', p => p.node.callee?.property?.name === 'm');
+    check(lbl, adapter.makeResolver().resolveNodeType(call), null);
+  });
+
+// --- the merged-namespace static's declaration filter, over its whole domain ---
+
+// the filter decides which declaration kinds a `C.<name>()` merged-namespace static may resolve
+// through. it is spelled as a type test because the path is already in hand; the domain is the two
+// function shapes it accepts and the class leaf it rejects, plus the chain the whole thing sits in
+
+runBoth('merged-namespace static resolves through a function declaration',
+  'class C { }\nnamespace C { export function make(): string[] { return ["a"]; } }\nC.make().at(0);',
+  (adapter, prog, lbl) => {
+    const recv = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at').get('object');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(recv), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('merged-namespace static resolves through an ambient function declaration',
+  'class C { }\nnamespace C { export function make(): string[]; }\nC.make().at(0);',
+  (adapter, prog, lbl) => {
+    const recv = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at').get('object');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(recv), { primitive: false, ctor: 'Array' });
+  });
+
+// the class leaf's OUTCOME, which is what a consumer sees. it is not a lock on the kind filter:
+// probed both ways, removing the filter changes no answer here, because the return-type resolver
+// declines a class leaf on its own - so this guards the outcome against whichever of the two
+// stops declining, not the filter in particular
+runBoth('merged-namespace class leaf resolves to nothing',
+  'class C { }\nnamespace C { export class Inner { } }\nC.Inner.at(0);',
+  (adapter, prog, lbl) => {
+    const recv = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at').get('object');
+    check(lbl, adapter.makeResolver().resolveNodeType(recv), null);
+  });
+
+// the filter sits inside the super-chain walk, so both directions of that walk are its domain too:
+// an inherited export reaches the child, and the child's own export outranks the parent's
+runBoth('an inherited merged-namespace static reaches the subclass',
+  'class B { }\nnamespace B { export function make(): string[] { return ["a"]; } }\nclass C extends B { }\nC.make().at(0);',
+  (adapter, prog, lbl) => {
+    const recv = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at').get('object');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(recv), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('the subclass own namespace export outranks the parent one',
+  'class B { }\nnamespace B { export function make(): string[] { return ["a"]; } }\n'
+  + 'class C extends B { }\nnamespace C { export function make(): string { return "a"; } }\nC.make().at(0);',
+  (adapter, prog, lbl) => {
+    const recv = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at').get('object');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(recv), { primitive: true, kind: 'string' });
+  });
+
+{
+  // singleQuasiString: TemplateLiteral with no interpolations -> the cooked string
+  const tpl = {
+    type: 'TemplateLiteral',
+    expressions: [],
+    quasis: [{ value: { cooked: 'hello' } }],
+  };
+  check('ast-patterns: singleQuasiString cooked', singleQuasiString(tpl), 'hello');
+
+  // singleQuasiString: template with expressions -> null
+  const tplWithExpr = {
+    type: 'TemplateLiteral',
+    expressions: [{ type: 'Identifier', name: 'x' }],
+    quasis: [{ value: { cooked: 'a' } }, { value: { cooked: 'b' } }],
+  };
+  check('ast-patterns: singleQuasiString interpolated -> null',
+    singleQuasiString(tplWithExpr), null);
+
+  // singleQuasiString: non-TemplateLiteral -> null
+  check('ast-patterns: singleQuasiString non-template -> null',
+    singleQuasiString({ type: 'StringLiteral', value: 'x' }), null);
+
+  // isTaggedTemplateTagPosition: a tag is a this-carrying invocation of the member. the tag
+  // slot may hold transparent wrappers (parens survive the oxc parse, TS casts survive both
+  // parsers) - they peel; sequences do NOT peel (a sequence tag detaches `this` natively)
+  const member = {
+    type: 'MemberExpression',
+    object: { type: 'Identifier', name: 'M' },
+    property: { type: 'Identifier', name: 'groupBy' },
+  };
+  function taggedBy(tag) {
+    return { type: 'TaggedTemplateExpression', tag };
+  }
+  checkTruthy('ast-patterns: tagged tag position bare member',
+    isTaggedTemplateTagPosition(taggedBy(member), member));
+  checkTruthy('ast-patterns: tagged tag position paren-wrapped',
+    isTaggedTemplateTagPosition(taggedBy({ type: 'ParenthesizedExpression', expression: member }), member));
+  checkTruthy('ast-patterns: tagged tag position TS-cast-wrapped',
+    isTaggedTemplateTagPosition(taggedBy({ type: 'TSAsExpression', expression: member }), member));
+  check('ast-patterns: tagged tag position sequence-detached -> false',
+    isTaggedTemplateTagPosition(taggedBy({
+      type: 'SequenceExpression',
+      expressions: [{ type: 'NumericLiteral', value: 0 }, member],
+    }), member), false);
+  check('ast-patterns: call parent is not a tag position',
+    isTaggedTemplateTagPosition({ type: 'CallExpression', callee: member, arguments: [] }, member), false);
+
+  // kebabToCamel: `weak-map` -> `weakMap` (first char stays lowercase)
+  check('ast-patterns: kebabToCamel weak-map', kebabToCamel('weak-map'), 'weakMap');
+  check('ast-patterns: kebabToCamel async-iterator',
+    kebabToCamel('async-iterator'), 'asyncIterator');
+  // no-dash input passes through unchanged
+  check('ast-patterns: kebabToCamel no-dash', kebabToCamel('plain'), 'plain');
+  // multiple dashes
+  check('ast-patterns: kebabToCamel multi-dash',
+    kebabToCamel('a-b-c-d'), 'aBCD');
+
+  // unwrapParens: strips ParenthesizedExpression chain
+  const parened = {
+    type: 'ParenthesizedExpression',
+    expression: {
+      type: 'ParenthesizedExpression',
+      expression: { type: 'Identifier', name: 'x' },
+    },
+  };
+  check('ast-patterns: unwrapParens nested', unwrapParens(parened)?.type, 'Identifier');
+  // unwrapParens: bare node passes through
+  check('ast-patterns: unwrapParens bare',
+    unwrapParens({ type: 'Identifier', name: 'x' })?.type, 'Identifier');
+
+  // unwrapRuntimeExpr: strips TS wrappers + parens + ChainExpression
+  const tsWrapped = {
+    type: 'TSAsExpression',
+    expression: {
+      type: 'ChainExpression',
+      expression: {
+        type: 'ParenthesizedExpression',
+        expression: { type: 'Identifier', name: 'x' },
+      },
+    },
+  };
+  check('ast-patterns: unwrapRuntimeExpr chain', unwrapRuntimeExpr(tsWrapped)?.type, 'Identifier');
+
+  // unwrapRuntimeExpr: TSNonNullExpression (`x!`) peels
+  check('ast-patterns: unwrapRuntimeExpr non-null',
+    unwrapRuntimeExpr({
+      type: 'TSNonNullExpression',
+      expression: { type: 'Identifier', name: 'y' },
+    })?.name, 'y');
+
+  // unwrapExpressionChain: strips ChainExpression wrappers (preserves remaining structure)
+  const chainExpr = {
+    type: 'ChainExpression',
+    expression: {
+      type: 'OptionalMemberExpression',
+      object: { type: 'Identifier', name: 'obj' },
+      property: { type: 'Identifier', name: 'x' },
+    },
+  };
+  check('ast-patterns: unwrapExpressionChain peels ChainExpression',
+    unwrapExpressionChain(chainExpr)?.type, 'OptionalMemberExpression');
+
+  // getTypeArgs: babel uses `typeParameters`; oxc/ESTree uses `typeArguments`. Helper covers both
+  const babelArgs = { typeParameters: { params: ['arg'] } };
+  check('ast-patterns: getTypeArgs babel', getTypeArgs(babelArgs)?.params?.[0], 'arg');
+  const oxcArgs = { typeArguments: { params: ['arg'] } };
+  check('ast-patterns: getTypeArgs oxc', getTypeArgs(oxcArgs)?.params?.[0], 'arg');
+  // neither slot -> undefined
+  check('ast-patterns: getTypeArgs neither',
+    getTypeArgs({})?.params, undefined);
+
+  // getSuperTypeArgs: babel `superTypeParameters`, oxc `superTypeArguments`
+  const babelSuper = { superTypeParameters: { params: ['T'] } };
+  check('ast-patterns: getSuperTypeArgs babel',
+    getSuperTypeArgs(babelSuper)?.params?.[0], 'T');
+  const oxcSuper = { superTypeArguments: { params: ['T'] } };
+  check('ast-patterns: getSuperTypeArgs oxc',
+    getSuperTypeArgs(oxcSuper)?.params?.[0], 'T');
+}
+
+// --- base sets / constants membership ---
+
+{
+  // PRIMITIVES: PRIMITIVE_HINTS + null + undefined
+  const primitivesArr = [...PRIMITIVES];
+  check('base sets: PRIMITIVES length (5 + null + undefined)', primitivesArr.length, 7);
+  checkTruthy('base sets: PRIMITIVES has string', PRIMITIVES.has('string'));
+  checkTruthy('base sets: PRIMITIVES has bigint', PRIMITIVES.has('bigint'));
+  checkTruthy('base sets: PRIMITIVES has null', PRIMITIVES.has('null'));
+  checkTruthy('base sets: PRIMITIVES has undefined', PRIMITIVES.has('undefined'));
+  // object NOT a primitive
+  check('base sets: PRIMITIVES has object', PRIMITIVES.has('object'), false);
+  // function NOT a primitive
+  check('base sets: PRIMITIVES has function', PRIMITIVES.has('function'), false);
+
+  // PROMISE_SYNONYMS: TS PromiseLike + Flow Thenable
+  checkTruthy('base sets: PROMISE_SYNONYMS has PromiseLike', PROMISE_SYNONYMS.has('PromiseLike'));
+  checkTruthy('base sets: PROMISE_SYNONYMS has Thenable', PROMISE_SYNONYMS.has('Thenable'));
+  // bare `Promise` is NOT a synonym - it's the canonical
+  check('base sets: PROMISE_SYNONYMS no bare Promise',
+    PROMISE_SYNONYMS.has('Promise'), false);
+
+  // GENERATOR_LIKE_NAMES: iterator-shape names share `<TYield, TReturn, TNext>` slot order
+  checkTruthy('base sets: GENERATOR_LIKE_NAMES has Generator',
+    GENERATOR_LIKE_NAMES.has('Generator'));
+  checkTruthy('base sets: GENERATOR_LIKE_NAMES has AsyncGenerator',
+    GENERATOR_LIKE_NAMES.has('AsyncGenerator'));
+  checkTruthy('base sets: GENERATOR_LIKE_NAMES has IteratorObject (TS 5.6+)',
+    GENERATOR_LIKE_NAMES.has('IteratorObject'));
+  checkTruthy('base sets: GENERATOR_LIKE_NAMES has IterableIterator',
+    GENERATOR_LIKE_NAMES.has('IterableIterator'));
+  // Array is NOT iterator-shape (its T is element type, but slot semantics differ)
+  check('base sets: GENERATOR_LIKE_NAMES rejects Array',
+    GENERATOR_LIKE_NAMES.has('Array'), false);
+
+  // STRUCTURE_PRESERVING_WRAPPERS: TRANSPARENT_WRAPPERS ∪ KEY_FILTERING_WRAPPERS
+  checkTruthy('base sets: STRUCTURE_PRESERVING_WRAPPERS has Partial',
+    STRUCTURE_PRESERVING_WRAPPERS.has('Partial'));
+  checkTruthy('base sets: STRUCTURE_PRESERVING_WRAPPERS has Readonly',
+    STRUCTURE_PRESERVING_WRAPPERS.has('Readonly'));
+  checkTruthy('base sets: STRUCTURE_PRESERVING_WRAPPERS has NoInfer',
+    STRUCTURE_PRESERVING_WRAPPERS.has('NoInfer'));
+  checkTruthy('base sets: STRUCTURE_PRESERVING_WRAPPERS has Pick',
+    STRUCTURE_PRESERVING_WRAPPERS.has('Pick'));
+  checkTruthy('base sets: STRUCTURE_PRESERVING_WRAPPERS has Omit',
+    STRUCTURE_PRESERVING_WRAPPERS.has('Omit'));
+  // `ThisType` and `Exclude` are NOT structure-preserving
+  check('base sets: STRUCTURE_PRESERVING_WRAPPERS no ThisType',
+    STRUCTURE_PRESERVING_WRAPPERS.has('ThisType'), false);
+  check('base sets: STRUCTURE_PRESERVING_WRAPPERS no Exclude',
+    STRUCTURE_PRESERVING_WRAPPERS.has('Exclude'), false);
+
+  // NULLABLE_NEVER_ANNOTATIONS: both TS and Flow annotation type names
+  checkTruthy('base sets: NULLABLE_NEVER_ANNOTATIONS has TSNullKeyword',
+    NULLABLE_NEVER_ANNOTATIONS.has('TSNullKeyword'));
+  checkTruthy('base sets: NULLABLE_NEVER_ANNOTATIONS has TSNeverKeyword',
+    NULLABLE_NEVER_ANNOTATIONS.has('TSNeverKeyword'));
+  checkTruthy('base sets: NULLABLE_NEVER_ANNOTATIONS has NullLiteralTypeAnnotation (Flow)',
+    NULLABLE_NEVER_ANNOTATIONS.has('NullLiteralTypeAnnotation'));
+  checkTruthy('base sets: NULLABLE_NEVER_ANNOTATIONS has EmptyTypeAnnotation (Flow never)',
+    NULLABLE_NEVER_ANNOTATIONS.has('EmptyTypeAnnotation'));
+  // string-keyword is NOT nullable/never
+  check('base sets: NULLABLE_NEVER_ANNOTATIONS no TSStringKeyword',
+    NULLABLE_NEVER_ANNOTATIONS.has('TSStringKeyword'), false);
+
+  // MEMBER_ANNOTATION_SLOTS: ordered most-common slot first
+  check('base sets: MEMBER_ANNOTATION_SLOTS[0] = typeAnnotation',
+    MEMBER_ANNOTATION_SLOTS[0], 'typeAnnotation');
+  check('base sets: MEMBER_ANNOTATION_SLOTS length', MEMBER_ANNOTATION_SLOTS.length, 3);
+  checkTruthy('base sets: MEMBER_ANNOTATION_SLOTS has returnType',
+    MEMBER_ANNOTATION_SLOTS.includes('returnType'));
+  checkTruthy('base sets: MEMBER_ANNOTATION_SLOTS has value',
+    MEMBER_ANNOTATION_SLOTS.includes('value'));
+
+  // PRIMITIVE_WRAPPERS: typeof name -> wrapper-class name
+  check('base sets: PRIMITIVE_WRAPPERS.string', PRIMITIVE_WRAPPERS.string, 'String');
+  check('base sets: PRIMITIVE_WRAPPERS.number', PRIMITIVE_WRAPPERS.number, 'Number');
+  check('base sets: PRIMITIVE_WRAPPERS.bigint', PRIMITIVE_WRAPPERS.bigint, 'BigInt');
+  check('base sets: PRIMITIVE_WRAPPERS.boolean', PRIMITIVE_WRAPPERS.boolean, 'Boolean');
+  check('base sets: PRIMITIVE_WRAPPERS.symbol', PRIMITIVE_WRAPPERS.symbol, 'Symbol');
+  // null-prototype - no inherited Object methods
+  check('base sets: PRIMITIVE_WRAPPERS null-proto',
+    Object.getPrototypeOf(PRIMITIVE_WRAPPERS), null);
+
+  // UNBOXED_PRIMITIVES: reverse of PRIMITIVE_WRAPPERS (wrapper name -> typeof name)
+  check('base sets: UNBOXED_PRIMITIVES.String', UNBOXED_PRIMITIVES.String, 'string');
+  check('base sets: UNBOXED_PRIMITIVES.BigInt', UNBOXED_PRIMITIVES.BigInt, 'bigint');
+  // not a primitive wrapper - undefined
+  check('base sets: UNBOXED_PRIMITIVES.Array',
+    UNBOXED_PRIMITIVES.Array, undefined);
+
+  // TYPEOF_HINT_GROUPS: typeof string -> Set of hint names that group is valid for
+  checkTruthy('base sets: TYPEOF_HINT_GROUPS.string contains string',
+    TYPEOF_HINT_GROUPS.string.has('string'));
+  checkTruthy('base sets: TYPEOF_HINT_GROUPS.function contains function',
+    TYPEOF_HINT_GROUPS.function.has('function'));
+  // object group: all hints not covered by typeof groups
+  checkTruthy('base sets: TYPEOF_HINT_GROUPS.object contains array',
+    TYPEOF_HINT_GROUPS.object.has('array'));
+  checkTruthy('base sets: TYPEOF_HINT_GROUPS.object contains regexp',
+    TYPEOF_HINT_GROUPS.object.has('regexp'));
+  // string NOT in object group (typeof would say `string`, not `object`)
+  check('base sets: TYPEOF_HINT_GROUPS.object excludes string',
+    TYPEOF_HINT_GROUPS.object.has('string'), false);
+
+  // PATTERN_WRAPPERS: destructure pattern node types
+  checkTruthy('base sets: PATTERN_WRAPPERS has ArrayPattern',
+    PATTERN_WRAPPERS.has('ArrayPattern'));
+  checkTruthy('base sets: PATTERN_WRAPPERS has ObjectPattern',
+    PATTERN_WRAPPERS.has('ObjectPattern'));
+  checkTruthy('base sets: PATTERN_WRAPPERS has AssignmentPattern',
+    PATTERN_WRAPPERS.has('AssignmentPattern'));
+  checkTruthy('base sets: PATTERN_WRAPPERS has RestElement',
+    PATTERN_WRAPPERS.has('RestElement'));
+
+  // AMBIENT_FUNCTION_TYPES: TS / Flow declare statements with function shape
+  checkTruthy('base sets: AMBIENT_FUNCTION_TYPES has TSDeclareFunction',
+    AMBIENT_FUNCTION_TYPES.has('TSDeclareFunction'));
+  checkTruthy('base sets: AMBIENT_FUNCTION_TYPES has DeclareFunction (Flow)',
+    AMBIENT_FUNCTION_TYPES.has('DeclareFunction'));
+  // bare FunctionDeclaration not ambient
+  check('base sets: AMBIENT_FUNCTION_TYPES rejects FunctionDeclaration',
+    AMBIENT_FUNCTION_TYPES.has('FunctionDeclaration'), false);
+
+  // AMBIENT_FN_OR_CLASS_DECLARATION_TYPES: superset including DeclareClass
+  checkTruthy('base sets: AMBIENT_FN_OR_CLASS_DECLARATION_TYPES has DeclareClass',
+    AMBIENT_FN_OR_CLASS_DECLARATION_TYPES.has('DeclareClass'));
+  checkTruthy('base sets: AMBIENT_FN_OR_CLASS_DECLARATION_TYPES has TSDeclareFunction',
+    AMBIENT_FN_OR_CLASS_DECLARATION_TYPES.has('TSDeclareFunction'));
+
+  // TRANSPARENT_WRAPPERS: subset of STRUCTURE_PRESERVING_WRAPPERS without filtering
+  checkTruthy('base sets: TRANSPARENT_WRAPPERS has Partial',
+    TRANSPARENT_WRAPPERS.has('Partial'));
+  // Pick NOT here - that's key-filtering
+  check('base sets: TRANSPARENT_WRAPPERS no Pick',
+    TRANSPARENT_WRAPPERS.has('Pick'), false);
+
+  // KEY_FILTERING_WRAPPERS: Pick + Omit
+  checkTruthy('base sets: KEY_FILTERING_WRAPPERS has Pick',
+    KEY_FILTERING_WRAPPERS.has('Pick'));
+  checkTruthy('base sets: KEY_FILTERING_WRAPPERS has Omit',
+    KEY_FILTERING_WRAPPERS.has('Omit'));
+  check('base sets: KEY_FILTERING_WRAPPERS no Partial',
+    KEY_FILTERING_WRAPPERS.has('Partial'), false);
+
+  // ASSIGN_LEFT_TYPES: LHS shapes that bind runtime values
+  checkTruthy('base sets: ASSIGN_LEFT_TYPES has Identifier',
+    ASSIGN_LEFT_TYPES.has('Identifier'));
+  checkTruthy('base sets: ASSIGN_LEFT_TYPES has ObjectPattern',
+    ASSIGN_LEFT_TYPES.has('ObjectPattern'));
+  checkTruthy('base sets: ASSIGN_LEFT_TYPES has ArrayPattern',
+    ASSIGN_LEFT_TYPES.has('ArrayPattern'));
+
+  // STRUCTURAL_WALK_SKIP_KEYS: identity/position metadata skipped during recursion
+  checkTruthy('base sets: STRUCTURAL_WALK_SKIP_KEYS has type',
+    STRUCTURAL_WALK_SKIP_KEYS.has('type'));
+  checkTruthy('base sets: STRUCTURAL_WALK_SKIP_KEYS has loc',
+    STRUCTURAL_WALK_SKIP_KEYS.has('loc'));
+  checkTruthy('base sets: STRUCTURAL_WALK_SKIP_KEYS has range',
+    STRUCTURAL_WALK_SKIP_KEYS.has('range'));
+
+  // EXTENDS_CHILD_RESOLVERS: dispatch from extends-clause expression type to child slots
+  const callNode = { arguments: [{ type: 'Identifier', name: 'Base' }] };
+  check('base sets: EXTENDS_CHILD_RESOLVERS CallExpression first arg',
+    EXTENDS_CHILD_RESOLVERS.CallExpression(callNode)[0]?.name, 'Base');
+  // SpreadElement filtered out
+  const callWithSpread = {
+    arguments: [
+      { type: 'SpreadElement' },
+      { type: 'Identifier', name: 'X' },
+    ],
+  };
+  check('base sets: EXTENDS_CHILD_RESOLVERS CallExpression skips spread',
+    EXTENDS_CHILD_RESOLVERS.CallExpression(callWithSpread).length, 1);
+  // ConditionalExpression -> [consequent, alternate]
+  const cond = {
+    consequent: { type: 'Identifier', name: 'A' },
+    alternate: { type: 'Identifier', name: 'B' },
+  };
+  const condChildren = EXTENDS_CHILD_RESOLVERS.ConditionalExpression(cond);
+  check('base sets: EXTENDS_CHILD_RESOLVERS Conditional consequent',
+    condChildren[0]?.name, 'A');
+  check('base sets: EXTENDS_CHILD_RESOLVERS Conditional alternate',
+    condChildren[1]?.name, 'B');
+  // SequenceExpression -> [tail]
+  const seq = {
+    expressions: [
+      { type: 'Identifier', name: 'A' },
+      { type: 'Identifier', name: 'B' },
+    ],
+  };
+  const seqChildren = EXTENDS_CHILD_RESOLVERS.SequenceExpression(seq);
+  check('base sets: EXTENDS_CHILD_RESOLVERS Sequence tail only',
+    seqChildren[0]?.name, 'B');
+}
+
+// --- base.js: regexes + tables ---
+
+{
+  // INTRINSIC_STRING_TRANSFORMERS: TS-level Uppercase / Lowercase / Capitalize / Uncapitalize
+  const transformerNames = Object.keys(INTRINSIC_STRING_TRANSFORMERS);
+  check('base helpers: INTRINSIC_STRING_TRANSFORMERS count', transformerNames.length, 4);
+  check('base helpers: Uppercase',
+    INTRINSIC_STRING_TRANSFORMERS.Uppercase('hello'), 'HELLO');
+  check('base helpers: Lowercase',
+    INTRINSIC_STRING_TRANSFORMERS.Lowercase('HELLO'), 'hello');
+  check('base helpers: Capitalize',
+    INTRINSIC_STRING_TRANSFORMERS.Capitalize('hello'), 'Hello');
+  check('base helpers: Uncapitalize',
+    INTRINSIC_STRING_TRANSFORMERS.Uncapitalize('Hello'), 'hello');
+  check('base helpers: Capitalize empty', INTRINSIC_STRING_TRANSFORMERS.Capitalize(''), '');
+
+  // quasiText: cooked > raw > ''
+  check('base helpers: quasiText cooked',
+    quasiText({ value: { cooked: 'a', raw: 'a' } }), 'a');
+  // raw fallback when cooked null (invalid escape)
+  check('base helpers: quasiText raw fallback',
+    quasiText({ value: { cooked: null, raw: 'b' } }), 'b');
+  // empty-string fallback
+  check('base helpers: quasiText empty', quasiText(null), '');
+  check('base helpers: quasiText missing value', quasiText({}), '');
+
+  // NUMERIC_KEY_SHAPE_RE: integer / float / scientific
+  checkTruthy('base regex: NUMERIC_KEY_SHAPE_RE int', NUMERIC_KEY_SHAPE_RE.test('42'));
+  checkTruthy('base regex: NUMERIC_KEY_SHAPE_RE neg int', NUMERIC_KEY_SHAPE_RE.test('-5'));
+  checkTruthy('base regex: NUMERIC_KEY_SHAPE_RE float', NUMERIC_KEY_SHAPE_RE.test('1.5'));
+  checkTruthy('base regex: NUMERIC_KEY_SHAPE_RE scientific',
+    NUMERIC_KEY_SHAPE_RE.test('1e10'));
+  check('base regex: NUMERIC_KEY_SHAPE_RE rejects letter',
+    NUMERIC_KEY_SHAPE_RE.test('1a'), false);
+  check('base regex: NUMERIC_KEY_SHAPE_RE rejects empty',
+    NUMERIC_KEY_SHAPE_RE.test(''), false);
+
+  // NUMBER_LITERAL_RE: JS number literal shape
+  checkTruthy('base regex: NUMBER_LITERAL_RE 42', NUMBER_LITERAL_RE.test('42'));
+  checkTruthy('base regex: NUMBER_LITERAL_RE 1.5', NUMBER_LITERAL_RE.test('1.5'));
+  checkTruthy('base regex: NUMBER_LITERAL_RE .5', NUMBER_LITERAL_RE.test('.5'));
+  // requires digits in mantissa
+  check('base regex: NUMBER_LITERAL_RE rejects bare dot',
+    NUMBER_LITERAL_RE.test('.'), false);
+
+  // PLACEHOLDER_VALIDATORS: per-type segment match
+  // String accepts anything
+  checkTruthy('base helpers: PLACEHOLDER_VALIDATORS TSStringKeyword',
+    PLACEHOLDER_VALIDATORS.TSStringKeyword('anything'));
+  // Number requires literal shape + finite
+  checkTruthy('base helpers: PLACEHOLDER_VALIDATORS TSNumberKeyword 42',
+    PLACEHOLDER_VALIDATORS.TSNumberKeyword('42'));
+  check('base helpers: PLACEHOLDER_VALIDATORS TSNumberKeyword reject text',
+    PLACEHOLDER_VALIDATORS.TSNumberKeyword('hello'), false);
+  // Infinity is finite-fail via Number(); regex would pass but `Number.isFinite` guards
+  check('base helpers: PLACEHOLDER_VALIDATORS TSNumberKeyword Infinity reject',
+    PLACEHOLDER_VALIDATORS.TSNumberKeyword('Infinity'), false);
+}
+
+// --- helpers/ast-patterns: pure predicates ---
+
+{
+  // paramsHaveInvisibleCallers: a NAMED immediately-invoked function that references its own
+  // name in the body has an extra (self-call) caller, so a caller-lossy emission is unsound -
+  // it reports invisible callers even though it is an IIFE
+  function iifeParamProbe({ named, selfRefKind, fnName = 'f' }) {
+    const param = { type: 'Identifier', name: 'p' };
+    const nameRef = { type: 'Identifier', name: fnName };
+    // a JSX element whose opening tag carries `tagName` (and one attribute named `attrName`)
+    function jsxStmt({ tagName, attrName = 'x' }) {
+      return {
+        type: 'ExpressionStatement',
+        expression: {
+          type: 'JSXElement',
+          openingElement: {
+            type: 'JSXOpeningElement',
+            name: tagName,
+            attributes: [{ type: 'JSXAttribute', name: { type: 'JSXIdentifier', name: attrName }, value: null }],
+          },
+          children: [],
+          closingElement: null,
+        },
+      };
+    }
+    function jsxId(name) {
+      return { type: 'JSXIdentifier', name };
+    }
+    const JSX_TAG_NAMES = {
+      // `<F />` - a bare tag name is the binding only when it is not an intrinsic spelling
+      jsx: jsxId(fnName),
+      // `<F.Sub />` - a member tag is an expression whatever its case: the ROOT is the binding
+      jsxmemberroot: { type: 'JSXMemberExpression', object: jsxId(fnName), property: jsxId('Sub') },
+      // `<Other.F />` - the member TAIL names a prop, not the binding
+      jsxtail: { type: 'JSXMemberExpression', object: jsxId('Other'), property: jsxId(fnName) },
+      // `<ns:F />` - both namespaced parts are literals
+      jsxns: { type: 'JSXNamespacedName', namespace: jsxId('ns'), name: jsxId(fnName) },
+    };
+    const bodyStmts = selfRefKind === 'call'
+      ? [{ type: 'ExpressionStatement', expression: { type: 'CallExpression', callee: nameRef, arguments: [{ type: 'NumericLiteral', value: 1 }] } }]
+      : selfRefKind === 'escape'
+        ? [{ type: 'ReturnStatement', argument: nameRef }]
+        : selfRefKind === 'propkey'
+          ? [{
+            type: 'ExpressionStatement',
+            expression: {
+              type: 'ObjectExpression',
+              properties: [{ type: 'ObjectProperty', computed: false, key: { type: 'Identifier', name: 'f' }, value: { type: 'NumericLiteral', value: 1 } }],
+            },
+          }]
+          // `<div f={1} />` - the ATTRIBUTE name matches, which names a prop, not the binding
+          : selfRefKind === 'jsxattr'
+            ? [jsxStmt({ tagName: jsxId('div'), attrName: fnName })]
+            : JSX_TAG_NAMES[selfRefKind]
+              ? [jsxStmt({ tagName: JSX_TAG_NAMES[selfRefKind] })]
+              : [];
+    const fn = { type: 'FunctionExpression', id: named ? { type: 'Identifier', name: fnName } : null, params: [param], body: { type: 'BlockStatement', body: bodyStmts } };
+    const call = { type: 'CallExpression', callee: fn, arguments: [] };
+    const fnPath = { node: fn, parentPath: { node: call, parentPath: null } };
+    return { node: param, parentPath: fnPath };
+  }
+  const opts = { paramNeverOverridden: () => false };
+  checkTruthy('ast-patterns: named self-call IIFE has invisible callers',
+    paramsHaveInvisibleCallers(iifeParamProbe({ named: true, selfRefKind: 'call' }), opts));
+  checkTruthy('ast-patterns: named escaping IIFE has invisible callers',
+    paramsHaveInvisibleCallers(iifeParamProbe({ named: true, selfRefKind: 'escape' }), opts));
+  check('ast-patterns: unnamed IIFE callers visible',
+    paramsHaveInvisibleCallers(iifeParamProbe({ named: false, selfRefKind: 'none' }), opts), false);
+  check('ast-patterns: named IIFE without self-reference callers visible',
+    paramsHaveInvisibleCallers(iifeParamProbe({ named: true, selfRefKind: 'none' }), opts), false);
+  check('ast-patterns: name matching an object-property KEY is not a self-reference',
+    paramsHaveInvisibleCallers(iifeParamProbe({ named: true, selfRefKind: 'propkey' }), opts), false);
+  // a JSX tag name hands the component to a renderer that calls it with props - an extra caller
+  checkTruthy('ast-patterns: JSX tag-name self-reference has invisible callers',
+    paramsHaveInvisibleCallers(iifeParamProbe({ named: true, selfRefKind: 'jsx', fnName: 'F' }), opts));
+  checkTruthy('ast-patterns: JSX member-root self-reference has invisible callers',
+    paramsHaveInvisibleCallers(iifeParamProbe({ named: true, selfRefKind: 'jsxmemberroot', fnName: 'F' }), opts));
+  // a lowercase BARE tag is an intrinsic element - the string, never the binding of that spelling
+  check('ast-patterns: intrinsic-spelled bare tag is not a self-reference',
+    paramsHaveInvisibleCallers(iifeParamProbe({ named: true, selfRefKind: 'jsx', fnName: 'f' }), opts), false);
+  // a MEMBER tag is an expression whatever its case, so its root still references the binding
+  checkTruthy('ast-patterns: intrinsic-spelled member ROOT is a self-reference',
+    paramsHaveInvisibleCallers(iifeParamProbe({ named: true, selfRefKind: 'jsxmemberroot', fnName: 'f' }), opts));
+  check('ast-patterns: name matching a JSX ATTRIBUTE name is not a self-reference',
+    paramsHaveInvisibleCallers(iifeParamProbe({ named: true, selfRefKind: 'jsxattr', fnName: 'F' }), opts), false);
+  check('ast-patterns: name matching a JSX member TAIL is not a self-reference',
+    paramsHaveInvisibleCallers(iifeParamProbe({ named: true, selfRefKind: 'jsxtail', fnName: 'F' }), opts), false);
+  check('ast-patterns: name matching a JSX namespaced part is not a self-reference',
+    paramsHaveInvisibleCallers(iifeParamProbe({ named: true, selfRefKind: 'jsxns', fnName: 'F' }), opts), false);
+
+  // a self-reference in a PARAM DEFAULT is in scope of the name too - it counts as an extra caller
+  const paramDefaultParam = {
+    type: 'AssignmentPattern',
+    left: { type: 'Identifier', name: 'cb' },
+    right: {
+      type: 'ArrowFunctionExpression',
+      params: [],
+      body: { type: 'CallExpression', callee: { type: 'Identifier', name: 'f' }, arguments: [{ type: 'NumericLiteral', value: 1 }] },
+    },
+  };
+  const firstParam = { type: 'Identifier', name: 'p' };
+  const paramDefaultFn = { type: 'FunctionExpression', id: { type: 'Identifier', name: 'f' }, params: [firstParam, paramDefaultParam], body: { type: 'BlockStatement', body: [] } };
+  const paramDefaultCall = { type: 'CallExpression', callee: paramDefaultFn, arguments: [] };
+  const paramDefaultPath = { node: firstParam, parentPath: { node: paramDefaultFn, parentPath: { node: paramDefaultCall, parentPath: null } } };
+  checkTruthy('ast-patterns: named self-reference in a param default has invisible callers',
+    paramsHaveInvisibleCallers(paramDefaultPath, opts));
+}
+
+{
+  // paramReboundInBody: a nested function covers only the names its OWN params bind. a write to any
+  // other target still lands on ours, so the shadow skip applies per-name, not to the whole subtree
+  // `shadows` entries are param names (Identifier) or ready-made param nodes for the other
+  // binding shapes - the shadow is whatever a param BINDS, not the spelling of its slot
+  function nestedWrite({ shadows, writes }) {
+    const assign = {
+      type: 'AssignmentExpression',
+      operator: '=',
+      left: { type: 'Identifier', name: writes },
+      right: { type: 'Identifier', name: 'P' },
+    };
+    return {
+      type: 'ExpressionStatement',
+      expression: {
+        type: 'CallExpression',
+        callee: {
+          type: 'FunctionExpression',
+          id: null,
+          params: shadows.map(shadow => typeof shadow === 'string' ? { type: 'Identifier', name: shadow } : shadow),
+          body: { type: 'BlockStatement', body: [{ type: 'ExpressionStatement', expression: assign }] },
+        },
+        arguments: [],
+      },
+    };
+  }
+  const twoParams = new Set(['x', 'y']);
+  checkTruthy('ast-patterns: nested fn shadowing ONE param still sees the write to the other',
+    paramReboundInBody(nestedWrite({ shadows: ['x'], writes: 'y' }), twoParams));
+  checkTruthy('ast-patterns: nested fn with no shadow sees the write',
+    paramReboundInBody(nestedWrite({ shadows: [], writes: 'y' }), twoParams));
+  check('ast-patterns: nested fn shadowing the WRITTEN param hides its own write',
+    paramReboundInBody(nestedWrite({ shadows: ['y'], writes: 'y' }), twoParams), false);
+  check('ast-patterns: nested fn shadowing every param hides its writes',
+    paramReboundInBody(nestedWrite({ shadows: ['x', 'y'], writes: 'y' }), twoParams), false);
+  // a single-name caller cannot lose a subset - the shadow covers the only target
+  check('ast-patterns: single-name shadow hides the write',
+    paramReboundInBody(nestedWrite({ shadows: ['y'], writes: 'y' }), new Set(['y'])), false);
+
+  // patternSlotValues over-approximation arm: a spread at/before slot i makes every static rhs
+  // element from the spread on a POSSIBLE slot value; slots before the spread pair exactly.
+  // patternSlotSpreadShifted is the paired completeness signal precision consumers gate on
+  function ident(name) {
+    return { type: 'Identifier', name };
+  }
+  function arrayPattern(...elements) {
+    return { type: 'ArrayPattern', elements };
+  }
+  function arrayExpr(...elements) {
+    return { type: 'ArrayExpression', elements };
+  }
+  const spread = { type: 'SpreadElement', argument: ident('xs') };
+  // [, A] = [...xs, G] - slot 1 sits past the spread: G is a possible value
+  const shifted = patternSlotValues(arrayPattern(null, ident('A')), arrayExpr(spread, ident('G')), 'A');
+  check('ast-patterns: spread-shifted slot enumerates the static candidates',
+    shifted.length === 1 && shifted[0].name, 'G');
+  // [B] = [G, ...xs] - slot 0 pairs exactly before the spread
+  const exact = patternSlotValues(arrayPattern(ident('B')), arrayExpr(ident('G'), spread), 'B');
+  check('ast-patterns: pre-spread slot still pairs exactly',
+    exact.length === 1 && exact[0].name, 'G');
+  // several statics past the spread are ALL possible values of one slot
+  const multi = patternSlotValues(arrayPattern(null, ident('C')), arrayExpr(spread, ident('G1'), ident('G2')), 'C');
+  check('ast-patterns: every static past the spread is a candidate',
+    multi.map(v => v.name).join(','), 'G1,G2');
+  // objectPatternLiteralKeyPath names a non-computed key through the plain-key canon, so every
+  // spelling a pattern key can take is covered by ONE enumeration. numeric is the spelling the
+  // hand-rolled copy in detect-usage resolved and this one dropped - the two have to agree, since
+  // both answer "which key path binds this name"
+  function objProp(key, value) {
+    return { type: 'ObjectProperty', computed: false, key, value };
+  }
+  function objPattern(...properties) {
+    return { type: 'ObjectPattern', properties };
+  }
+  checkDeep('ast-patterns: key path through an Identifier key',
+    objectPatternLiteralKeyPath(objPattern(objProp(ident('Array'), ident('A'))), 'A'), ['Array']);
+  checkDeep('ast-patterns: key path through a string key',
+    objectPatternLiteralKeyPath(objPattern(objProp({ type: 'StringLiteral', value: 'Array' }, ident('A'))), 'A'), ['Array']);
+  checkDeep('ast-patterns: key path through an estree string key',
+    objectPatternLiteralKeyPath(objPattern(objProp({ type: 'Literal', value: 'Array' }, ident('A'))), 'A'), ['Array']);
+  checkDeep('ast-patterns: key path through a numeric key',
+    objectPatternLiteralKeyPath(objPattern(objProp({ type: 'NumericLiteral', value: 0 }, ident('A'))), 'A'), ['0']);
+  checkDeep('ast-patterns: key path through an estree numeric key',
+    objectPatternLiteralKeyPath(objPattern(objProp({ type: 'Literal', value: 0 }, ident('A'))), 'A'), ['0']);
+  const nestedPattern = objPattern(objProp(ident('Map'), ident('M')));
+  checkDeep('ast-patterns: nested key path',
+    objectPatternLiteralKeyPath(objPattern(objProp(ident('ns'), nestedPattern)), 'M'), ['ns', 'Map']);
+  // a computed key needs the ctx resolver; without it the walk finds nothing rather than guessing
+  check('ast-patterns: computed key without ctx yields no path',
+    objectPatternLiteralKeyPath(objPattern({ type: 'ObjectProperty', computed: true, key: ident('k'), value: ident('A') }), 'A'), null);
+
+  checkTruthy('ast-patterns: spread-shifted predicate fires past the spread',
+    patternSlotSpreadShifted(arrayPattern(null, ident('A')), arrayExpr(spread, ident('G')), 'A'));
+  check('ast-patterns: spread-shifted predicate quiet before the spread',
+    patternSlotSpreadShifted(arrayPattern(ident('B')), arrayExpr(ident('G'), spread), 'B'), false);
+  // an exactly-paired nested layer with no spread anywhere stays quiet; a spread on EITHER level
+  // (outer shifting the nested slot, or inside the nested rhs itself) reports the shift
+  check('ast-patterns: nested exact pairing stays quiet', patternSlotSpreadShifted(
+    arrayPattern(arrayPattern(ident('N'))), arrayExpr(arrayExpr(ident('G'))), 'N'), false);
+  checkTruthy('ast-patterns: outer spread shifts the nested slot',
+    patternSlotSpreadShifted(arrayPattern(null, arrayPattern(ident('N'))), arrayExpr(spread, arrayExpr(ident('G'))), 'N'));
+  checkTruthy('ast-patterns: a spread inside the nested rhs reports through the recursion',
+    patternSlotSpreadShifted(arrayPattern(arrayPattern(ident('N'))), arrayExpr(arrayExpr(spread, ident('G'))), 'N'));
+  // an OBJECT layer shifts nothing itself, but a shifted array under a key must still be reported:
+  // the descent pairs each key against the rhs literal's own key, and an overriding trailing spread
+  // there pairs nothing at all (no rhs to descend into, so no shift to claim)
+  function objectPattern(key, value) {
+    return { type: 'ObjectPattern', properties: [{ type: 'Property', key: ident(key), computed: false, value }] };
+  }
+  function objectExpr(key, value) {
+    return { type: 'ObjectExpression', properties: [{ type: 'Property', key: ident(key), computed: false, value }] };
+  }
+  checkTruthy('ast-patterns: object key descends into a shifted array slot',
+    patternSlotSpreadShifted(objectPattern('x', arrayPattern(null, ident('O'))),
+      objectExpr('x', arrayExpr(spread, ident('G'))), 'O'));
+  check('ast-patterns: object key over an exactly-paired array stays quiet',
+    patternSlotSpreadShifted(objectPattern('x', arrayPattern(ident('O'))),
+      objectExpr('x', arrayExpr(ident('G'), spread)), 'O'), false);
+  const twoLayerPattern = objectPattern('x', objectPattern('y', arrayPattern(null, ident('O'))));
+  const twoLayerRhs = objectExpr('x', objectExpr('y', arrayExpr(spread, ident('G'))));
+  checkTruthy('ast-patterns: the descent reaches a shift nested under two object layers',
+    patternSlotSpreadShifted(twoLayerPattern, twoLayerRhs, 'O'));
+  check('ast-patterns: a mismatched object key pairs nothing to shift',
+    patternSlotSpreadShifted(objectPattern('x', arrayPattern(null, ident('O'))),
+      objectExpr('z', arrayExpr(spread, ident('G'))), 'O'), false);
+  // a COMPUTED key is only pairable through the ctx key canon - without it the completeness check
+  // would read no key at all and miss a shift on the very slot the value pairing did resolve
+  const computedPattern = {
+    type: 'ObjectPattern',
+    properties: [{ type: 'Property', key: ident('k'), computed: true, value: arrayPattern(null, ident('O')) }],
+  };
+  const keyResolvingCtx = { resolveKey: ({ node, computed }) => computed && node.name === 'k' ? 'x' : node.name };
+  checkTruthy('ast-patterns: computed key resolves through the ctx canon to see the shift',
+    patternSlotSpreadShifted(computedPattern, objectExpr('x', arrayExpr(spread, ident('G'))), 'O', keyResolvingCtx));
+  // the pre-spread slot under the same computed key pairs exactly - the canon must not over-report
+  const computedPatternHead = {
+    type: 'ObjectPattern',
+    properties: [{ type: 'Property', key: ident('k'), computed: true, value: arrayPattern(ident('O')) }],
+  };
+  check('ast-patterns: a computed key over an exact pairing stays quiet',
+    patternSlotSpreadShifted(computedPatternHead, objectExpr('x', arrayExpr(ident('G'), spread)), 'O', keyResolvingCtx), false);
+  // a shifted candidate that is ITSELF a union contributes each arm; `&&` stays whole (its falsy
+  // LEFT is the expression's value); exact pre-spread pairing never flattens
+  function ternary(c, a, b) {
+    return { type: 'ConditionalExpression', test: ident(c), consequent: a, alternate: b };
+  }
+  const shiftedUnion = arrayWrapSlotValueCandidates([spread, ternary('c', ident('G1'), ident('G2'))], 1);
+  check('ast-patterns: shifted union candidate flattens per arm',
+    shiftedUnion.map(v => v.name).join(','), 'G1,G2');
+  const shiftedAnd = arrayWrapSlotValueCandidates(
+    [spread, { type: 'LogicalExpression', operator: '&&', left: ident('c'), right: ident('G') }], 1);
+  check('ast-patterns: shifted && candidate stays whole',
+    shiftedAnd.length === 1 && shiftedAnd[0].type, 'LogicalExpression');
+  const exactUnion = arrayWrapSlotValueCandidates([ternary('c', ident('G1'), ident('G2')), spread], 0);
+  check('ast-patterns: exact pre-spread pairing never flattens',
+    exactUnion.length === 1 && exactUnion[0].type, 'ConditionalExpression');
+  // a shadow is whatever the param BINDS: object / array patterns, rest and default wrappers all
+  // cover exactly their own leaves, and a write to any other param still reaches ours
+  const objectPatternParam = {
+    type: 'ObjectPattern',
+    properties: [{ type: 'ObjectProperty', computed: false, shorthand: true, key: { type: 'Identifier', name: 'x' }, value: { type: 'Identifier', name: 'x' } }],
+  };
+  const arrayPatternParam = { type: 'ArrayPattern', elements: [{ type: 'Identifier', name: 'x' }] };
+  const restParam = { type: 'RestElement', argument: { type: 'Identifier', name: 'x' } };
+  const defaultParam = { type: 'AssignmentPattern', left: { type: 'Identifier', name: 'x' }, right: { type: 'NumericLiteral', value: 1 } };
+  for (const [label, param] of [['object pattern', objectPatternParam], ['array pattern', arrayPatternParam],
+    ['rest element', restParam], ['default wrapper', defaultParam]]) {
+    checkTruthy(`ast-patterns: nested fn shadowing via ${ label } still sees the write to the other`,
+      paramReboundInBody(nestedWrite({ shadows: [param], writes: 'y' }), twoParams));
+    check(`ast-patterns: nested fn shadowing via ${ label } hides its own write`,
+      paramReboundInBody(nestedWrite({ shadows: [param], writes: 'x' }), twoParams), false);
+  }
+
+  // a chain of nested functions each shadowing one more name - the write lands on ours only while
+  // some enclosing shadow has not yet covered it
+  function shadowChain({ shadows, writes }) {
+    let inner = {
+      type: 'ExpressionStatement',
+      expression: { type: 'AssignmentExpression', operator: '=', left: { type: 'Identifier', name: writes }, right: { type: 'Identifier', name: 'P' } },
+    };
+    for (const shadow of [...shadows].reverse()) {
+      inner = {
+        type: 'ExpressionStatement',
+        expression: {
+          type: 'CallExpression',
+          callee: {
+            type: 'FunctionExpression', id: null,
+            params: [{ type: 'Identifier', name: shadow }],
+            body: { type: 'BlockStatement', body: [inner] },
+          },
+          arguments: [],
+        },
+      };
+    }
+    return inner;
+  }
+  const threeParams = new Set(['x', 'y', 'z']);
+  checkTruthy('ast-patterns: shadow chain leaves an uncovered name writable',
+    paramReboundInBody(shadowChain({ shadows: ['x', 'y'], writes: 'z' }), threeParams));
+  check('ast-patterns: shadow chain covering every name hides the write',
+    paramReboundInBody(shadowChain({ shadows: ['x', 'y', 'z'], writes: 'z' }), threeParams), false);
+  checkTruthy('ast-patterns: shadow chain with an unrelated inner param still sees the write',
+    paramReboundInBody(shadowChain({ shadows: ['x', 'q'], writes: 'y' }), threeParams));
+
+  // the shadowing function's own param DEFAULT is outside its shadow for other names
+  checkTruthy('ast-patterns: write in a shadowing fn param default still reaches an unshadowed param', paramReboundInBody({
+    type: 'ExpressionStatement',
+    expression: {
+      type: 'CallExpression',
+      callee: {
+        type: 'FunctionExpression',
+        id: null,
+        params: [{ type: 'Identifier', name: 'x' }, {
+          type: 'AssignmentPattern',
+          left: { type: 'Identifier', name: 'z' },
+          right: { type: 'AssignmentExpression', operator: '=', left: { type: 'Identifier', name: 'y' }, right: { type: 'Identifier', name: 'P' } },
+        }],
+        body: { type: 'BlockStatement', body: [] },
+      },
+      arguments: [],
+    },
+  }, twoParams));
+}
+
+{
+  // isASTNode: shape-only check - object with string `type`
+  checkTruthy('ast-patterns: isASTNode identifier',
+    isASTNode({ type: 'Identifier', name: 'x' }));
+  check('ast-patterns: isASTNode null', isASTNode(null), false);
+  check('ast-patterns: isASTNode undefined', isASTNode(undefined), false);
+  check('ast-patterns: isASTNode plain object', isASTNode({}), false);
+  check('ast-patterns: isASTNode missing type', isASTNode({ name: 'x' }), false);
+  check('ast-patterns: isASTNode primitive', isASTNode('Identifier'), false);
+  check('ast-patterns: isASTNode array', isASTNode([{ type: 'X' }]), false);
+
+  // isThisReceiver: peels TS / paren wrappers down to ThisExpression
+  checkTruthy('ast-patterns: isThisReceiver bare',
+    isThisReceiver({ type: 'ThisExpression' }));
+  // wrapped in TS `as` expression
+  checkTruthy('ast-patterns: isThisReceiver through TSAsExpression',
+    isThisReceiver({
+      type: 'TSAsExpression',
+      expression: { type: 'ThisExpression' },
+    }));
+  // identifier is NOT a this-receiver
+  check('ast-patterns: isThisReceiver identifier -> false',
+    isThisReceiver({ type: 'Identifier', name: 'this' }), false);
+  check('ast-patterns: isThisReceiver null -> false', isThisReceiver(null), false);
+
+  // isDirectiveStatement: ExpressionStatement carrying babel's `.directive` field
+  // (`use strict` etc.). babel populates `.directive` for prologue strings; absent -> false
+  checkTruthy('ast-patterns: isDirectiveStatement use strict',
+    isDirectiveStatement({
+      type: 'ExpressionStatement',
+      directive: 'use strict',
+      expression: { type: 'StringLiteral', value: 'use strict' },
+    }));
+  // an empty-string directive IS part of the prologue per the spec (any string-literal
+  // statement extends it) - rejecting it stopped the prologue scan ahead of a following
+  // `'use strict'` and anchored injected imports before the strict directive
+  check('ast-patterns: isDirectiveStatement empty directive',
+    isDirectiveStatement({
+      type: 'ExpressionStatement',
+      directive: '',
+      expression: { type: 'StringLiteral', value: '' },
+    }), true);
+  // no `.directive` -> false even if expression is a string literal
+  check('ast-patterns: isDirectiveStatement no directive field',
+    isDirectiveStatement({
+      type: 'ExpressionStatement',
+      expression: { type: 'StringLiteral', value: 'use strict' },
+    }), false);
+  // not an ExpressionStatement -> false
+  check('ast-patterns: isDirectiveStatement Identifier -> false',
+    isDirectiveStatement({ type: 'Identifier', name: 'x' }), false);
+  check('ast-patterns: isDirectiveStatement null -> false',
+    isDirectiveStatement(null), false);
+
+  // isNonReferencePosition: property key of MemberExpression (non-computed) is NOT a reference
+  const idNode = { type: 'Identifier', name: 'foo' };
+  const memberAccess = { type: 'MemberExpression', property: idNode, computed: false };
+  checkTruthy('ast-patterns: isNonReferencePosition member prop key',
+    isNonReferencePosition(memberAccess, idNode));
+  // computed: `obj[foo]` -> foo IS a reference
+  check('ast-patterns: isNonReferencePosition member computed',
+    isNonReferencePosition({ type: 'MemberExpression', property: idNode, computed: true }, idNode),
+    false);
+  // import specifier: imported side is NOT a reference (it names the export)
+  checkTruthy('ast-patterns: isNonReferencePosition import imported name',
+    isNonReferencePosition({ type: 'ImportSpecifier', imported: idNode, local: { type: 'Identifier' } },
+      idNode));
+  // labeled statement
+  checkTruthy('ast-patterns: isNonReferencePosition LabeledStatement label',
+    isNonReferencePosition({ type: 'LabeledStatement', label: idNode }, idNode));
+  check('ast-patterns: isNonReferencePosition no parent',
+    isNonReferencePosition(null, idNode), false);
+
+  // blocksUidSlot vs isNonReferencePosition: the two agree everywhere EXCEPT a bodyless method-shaped
+  // member (an overload signature), whose key names no runtime reference yet is claimed by babel's live
+  // scope - so a UID must step around it. a body-bearing method of the SAME node type must not.
+  const overloadSig = { type: 'MethodDefinition', key: idNode, computed: false, value: { type: 'FunctionExpression', body: null } };
+  const bodyMethod = { type: 'MethodDefinition', key: idNode, computed: false, value: { type: 'FunctionExpression', body: { type: 'BlockStatement', body: [] } } };
+  checkTruthy('ast-patterns: isNonReferencePosition bodyless method key is a name slot',
+    isNonReferencePosition(overloadSig, idNode));
+  checkTruthy('ast-patterns: blocksUidSlot bodyless method key claims the slot',
+    blocksUidSlot(overloadSig, idNode));
+  check('ast-patterns: blocksUidSlot body-bearing method key frees the slot',
+    blocksUidSlot(bodyMethod, idNode), false);
+  // an `abstract accessor` key is property-shaped: a name slot AND free for the allocator
+  const absAccessor = { type: 'TSAbstractAccessorProperty', key: idNode, computed: false, value: null };
+  checkTruthy('ast-patterns: isNonReferencePosition abstract accessor key',
+    isNonReferencePosition(absAccessor, idNode));
+  check('ast-patterns: blocksUidSlot abstract accessor key frees the slot',
+    blocksUidSlot(absAccessor, idNode), false);
+  // a computed key is a real reference on both questions
+  checkTruthy('ast-patterns: blocksUidSlot computed method key claims the slot',
+    blocksUidSlot({ ...overloadSig, computed: true }, idNode));
+
+  // isBindingPosition: VariableDeclarator id IS a binding (not a reference)
+  checkTruthy('ast-patterns: isBindingPosition VariableDeclarator',
+    isBindingPosition({ type: 'VariableDeclarator', id: idNode, init: null }, idNode));
+  // FunctionDeclaration id
+  checkTruthy('ast-patterns: isBindingPosition FunctionDeclaration',
+    isBindingPosition({ type: 'FunctionDeclaration', id: idNode }, idNode));
+  // ClassExpression id
+  checkTruthy('ast-patterns: isBindingPosition ClassExpression',
+    isBindingPosition({ type: 'ClassExpression', id: idNode }, idNode));
+  // CatchClause param
+  checkTruthy('ast-patterns: isBindingPosition CatchClause',
+    isBindingPosition({ type: 'CatchClause', param: idNode }, idNode));
+  // declarator init slot is a reference, not a binding
+  check('ast-patterns: isBindingPosition VariableDeclarator init',
+    isBindingPosition({ type: 'VariableDeclarator', id: { type: 'Identifier' }, init: idNode },
+      idNode), false);
+  check('ast-patterns: isBindingPosition no parent',
+    isBindingPosition(null, idNode), false);
+
+  // resolveCallArgument: indexed access into args; null index past end
+  const args = [
+    { type: 'Identifier', name: 'a' },
+    { type: 'Identifier', name: 'b' },
+  ];
+  check('ast-patterns: resolveCallArgument 0', resolveCallArgument(args, 0)?.name, 'a');
+  check('ast-patterns: resolveCallArgument 1', resolveCallArgument(args, 1)?.name, 'b');
+  check('ast-patterns: resolveCallArgument past end',
+    resolveCallArgument(args, 5), null);
+  // spread of a literal array expands inline
+  const spreadArgs = [
+    { type: 'Identifier', name: 'a' },
+    {
+      type: 'SpreadElement',
+      argument: {
+        type: 'ArrayExpression',
+        elements: [
+          { type: 'Identifier', name: 'b' },
+          { type: 'Identifier', name: 'c' },
+        ],
+      },
+    },
+    { type: 'Identifier', name: 'd' },
+  ];
+  check('ast-patterns: resolveCallArgument spread literal 0',
+    resolveCallArgument(spreadArgs, 0)?.name, 'a');
+  check('ast-patterns: resolveCallArgument spread literal 1',
+    resolveCallArgument(spreadArgs, 1)?.name, 'b');
+  check('ast-patterns: resolveCallArgument spread literal 2',
+    resolveCallArgument(spreadArgs, 2)?.name, 'c');
+  check('ast-patterns: resolveCallArgument spread literal 3',
+    resolveCallArgument(spreadArgs, 3)?.name, 'd');
+  // non-literal spread before index -> null (length unknowable)
+  const opaqueSpread = [
+    { type: 'SpreadElement', argument: { type: 'Identifier', name: 'rest' } },
+    { type: 'Identifier', name: 'tail' },
+  ];
+  check('ast-patterns: resolveCallArgument opaque spread',
+    resolveCallArgument(opaqueSpread, 0), null);
+
+  // unwrapExportedDeclaration: export wrapping passes inner declaration through
+  const exported = {
+    type: 'ExportNamedDeclaration',
+    declaration: { type: 'VariableDeclaration', kind: 'const' },
+  };
+  check('ast-patterns: unwrapExportedDeclaration named',
+    unwrapExportedDeclaration(exported)?.type, 'VariableDeclaration');
+  const exportedDefault = {
+    type: 'ExportDefaultDeclaration',
+    declaration: { type: 'FunctionDeclaration' },
+  };
+  check('ast-patterns: unwrapExportedDeclaration default',
+    unwrapExportedDeclaration(exportedDefault)?.type, 'FunctionDeclaration');
+  // re-export without declaration -> null
+  check('ast-patterns: unwrapExportedDeclaration re-export',
+    unwrapExportedDeclaration({ type: 'ExportNamedDeclaration', declaration: null }), null);
+  // non-export passes through unchanged
+  check('ast-patterns: unwrapExportedDeclaration passthrough',
+    unwrapExportedDeclaration({ type: 'VariableDeclaration' })?.type, 'VariableDeclaration');
+}
+
+// --- ast-patterns: additional pure helpers ---
+
+{
+  // kebabToPascal: dash-cased -> PascalCase; null when not a string OR malformed
+  check('ast-patterns: kebabToPascal weak-map', kebabToPascal('weak-map'), 'WeakMap');
+  check('ast-patterns: kebabToPascal promise', kebabToPascal('promise'), 'Promise');
+  check('ast-patterns: kebabToPascal async-iterator',
+    kebabToPascal('async-iterator'), 'AsyncIterator');
+  // leading dash or trailing dash -> reject (invalid kebab)
+  check('ast-patterns: kebabToPascal leading dash',
+    kebabToPascal('-map'), null);
+  check('ast-patterns: kebabToPascal trailing dash',
+    kebabToPascal('map-'), null);
+  check('ast-patterns: kebabToPascal non-string',
+    kebabToPascal(42), null);
+
+  // isDeleteTarget: parent is `delete x` UnaryExpression
+  checkTruthy('ast-patterns: isDeleteTarget delete unary',
+    isDeleteTarget({ type: 'UnaryExpression', operator: 'delete' }));
+  check('ast-patterns: isDeleteTarget typeof',
+    isDeleteTarget({ type: 'UnaryExpression', operator: 'typeof' }), false);
+  check('ast-patterns: isDeleteTarget non-unary',
+    isDeleteTarget({ type: 'BinaryExpression', operator: '+' }), false);
+  check('ast-patterns: isDeleteTarget null',
+    isDeleteTarget(null), false);
+
+  // isUpdateTarget: parent is `++` / `--` UpdateExpression
+  checkTruthy('ast-patterns: isUpdateTarget increment',
+    isUpdateTarget({ type: 'UpdateExpression', operator: '++' }));
+  check('ast-patterns: isUpdateTarget non-update',
+    isUpdateTarget({ type: 'AssignmentExpression' }), false);
+
+  // propBindingIdentifier: shorthand `{ x }` value -> Identifier; nested patterns -> null
+  const idValue = { type: 'Identifier', name: 'x' };
+  check('ast-patterns: propBindingIdentifier identifier',
+    propBindingIdentifier(idValue)?.name, 'x');
+  // AssignmentPattern: `{ x = 1 }` -> left side
+  const assignPat = {
+    type: 'AssignmentPattern',
+    left: { type: 'Identifier', name: 'y' },
+    right: { type: 'NumericLiteral', value: 1 },
+  };
+  check('ast-patterns: propBindingIdentifier AssignmentPattern',
+    propBindingIdentifier(assignPat)?.name, 'y');
+  // nested pattern -> null
+  check('ast-patterns: propBindingIdentifier ObjectPattern',
+    propBindingIdentifier({ type: 'ObjectPattern', properties: [] }), null);
+
+  // isIdentifierPropValue: derived from propBindingIdentifier
+  checkTruthy('ast-patterns: isIdentifierPropValue ident',
+    isIdentifierPropValue(idValue));
+  check('ast-patterns: isIdentifierPropValue nested pattern',
+    isIdentifierPropValue({ type: 'ObjectPattern' }), false);
+
+  // hasTopLevelESM: import / export at top-level body
+  const esmProgram = {
+    body: [
+      { type: 'ImportDeclaration', specifiers: [] },
+      { type: 'VariableDeclaration', declarations: [] },
+    ],
+  };
+  checkTruthy('ast-patterns: hasTopLevelESM import', hasTopLevelESM(esmProgram));
+  const exportProgram = {
+    body: [{ type: 'ExportNamedDeclaration', declaration: null }],
+  };
+  checkTruthy('ast-patterns: hasTopLevelESM export', hasTopLevelESM(exportProgram));
+  const cjsProgram = {
+    body: [{ type: 'ExpressionStatement' }],
+  };
+  check('ast-patterns: hasTopLevelESM CJS only',
+    hasTopLevelESM(cjsProgram), false);
+
+  // declaresRequireBinding: function/class/var/import named `require` shadows the CJS global
+  const declaresViaConst = [
+    {
+      type: 'VariableDeclaration',
+      declarations: [
+        { id: { type: 'Identifier', name: 'require' }, init: null },
+      ],
+    },
+  ];
+  checkTruthy('ast-patterns: declaresRequireBinding const',
+    declaresRequireBinding(declaresViaConst));
+  const declaresViaFn = [
+    { type: 'FunctionDeclaration', id: { type: 'Identifier', name: 'require' } },
+  ];
+  checkTruthy('ast-patterns: declaresRequireBinding fn',
+    declaresRequireBinding(declaresViaFn));
+  const declaresViaImport = [
+    {
+      type: 'ImportDeclaration',
+      specifiers: [
+        { local: { type: 'Identifier', name: 'require' } },
+      ],
+    },
+  ];
+  checkTruthy('ast-patterns: declaresRequireBinding import',
+    declaresRequireBinding(declaresViaImport));
+  // no binding -> false
+  const noShadow = [{ type: 'ExpressionStatement' }];
+  check('ast-patterns: declaresRequireBinding none',
+    declaresRequireBinding(noShadow), false);
+  check('ast-patterns: declaresRequireBinding null',
+    declaresRequireBinding(null), false);
+
+  // detectCommonJS: `module.exports = ...` -> true; ESM presence wins
+  const cjsAssign = {
+    body: [
+      {
+        type: 'ExpressionStatement',
+        expression: {
+          type: 'AssignmentExpression',
+          left: {
+            type: 'MemberExpression',
+            object: { type: 'Identifier', name: 'module' },
+            property: { type: 'Identifier', name: 'exports' },
+          },
+          right: { type: 'ObjectExpression', properties: [] },
+        },
+      },
+    ],
+  };
+  checkTruthy('ast-patterns: detectCommonJS module.exports', detectCommonJS(cjsAssign));
+  // ESM wins: even if a CJS shape appears, top-level import overrides
+  const esmWins = {
+    body: [
+      ...cjsAssign.body,
+      { type: 'ImportDeclaration', specifiers: [] },
+    ],
+  };
+  check('ast-patterns: detectCommonJS ESM wins', detectCommonJS(esmWins), false);
+  // nothing CJS-like
+  check('ast-patterns: detectCommonJS empty', detectCommonJS({ body: [] }), false);
+  // top-level await is an ESM-only marker in ANY statement host, not just a bare
+  // expression statement; an await inside a nested function body is NOT top-level
+  const tlaDecl = {
+    body: [
+      {
+        type: 'VariableDeclaration',
+        kind: 'const',
+        declarations: [{
+          type: 'VariableDeclarator',
+          id: { type: 'Identifier', name: 'x' },
+          init: { type: 'AwaitExpression', argument: { type: 'Identifier', name: 'p' } },
+        }],
+      },
+      ...cjsAssign.body,
+    ],
+  };
+  check('ast-patterns: detectCommonJS non-bare top-level await wins', detectCommonJS(tlaDecl), false);
+  const forAwait = {
+    body: [
+      {
+        type: 'ForOfStatement',
+        await: true,
+        left: { type: 'Identifier', name: 'x' },
+        right: { type: 'Identifier', name: 'gen' },
+        body: { type: 'BlockStatement', body: [] },
+      },
+      ...cjsAssign.body,
+    ],
+  };
+  check('ast-patterns: detectCommonJS for-await wins', detectCommonJS(forAwait), false);
+  const fnAwait = {
+    body: [
+      {
+        type: 'FunctionDeclaration',
+        id: { type: 'Identifier', name: 'f' },
+        async: true,
+        params: [],
+        body: {
+          type: 'BlockStatement',
+          body: [{
+            type: 'ExpressionStatement',
+            expression: { type: 'AwaitExpression', argument: { type: 'Identifier', name: 'p' } },
+          }],
+        },
+      },
+      ...cjsAssign.body,
+    ],
+  };
+  checkTruthy('ast-patterns: detectCommonJS await inside function stays CJS', detectCommonJS(fnAwait));
+  // a computed method KEY evaluates at class-definition time in the enclosing context -
+  // an await there IS top-level even though the method body is its own await scope
+  const computedKeyAwait = {
+    body: [
+      {
+        type: 'ClassDeclaration',
+        id: { type: 'Identifier', name: 'C' },
+        body: {
+          type: 'ClassBody',
+          body: [{
+            type: 'ClassMethod',
+            computed: true,
+            key: { type: 'AwaitExpression', argument: { type: 'Identifier', name: 'k' } },
+            params: [],
+            body: { type: 'BlockStatement', body: [] },
+          }],
+        },
+      },
+      ...cjsAssign.body,
+    ],
+  };
+  check('ast-patterns: detectCommonJS computed-key top-level await wins', detectCommonJS(computedKeyAwait), false);
+  const asyncMethod = {
+    body: [
+      {
+        type: 'ClassDeclaration',
+        id: { type: 'Identifier', name: 'C' },
+        body: {
+          type: 'ClassBody',
+          body: [{
+            type: 'ClassMethod',
+            computed: false,
+            async: true,
+            key: { type: 'Identifier', name: 'm' },
+            params: [],
+            body: {
+              type: 'BlockStatement',
+              body: [{
+                type: 'ExpressionStatement',
+                expression: { type: 'AwaitExpression', argument: { type: 'Identifier', name: 'g' } },
+              }],
+            },
+          }],
+        },
+      },
+      ...cjsAssign.body,
+    ],
+  };
+  checkTruthy('ast-patterns: detectCommonJS async method stays CJS', detectCommonJS(asyncMethod));
+  // method decorators evaluate at class-definition time in the enclosing context - an
+  // await there IS top-level even though the method body is its own await scope
+  const decoratorAwait = {
+    body: [
+      {
+        type: 'ClassDeclaration',
+        id: { type: 'Identifier', name: 'C' },
+        body: {
+          type: 'ClassBody',
+          body: [{
+            type: 'ClassMethod',
+            computed: false,
+            key: { type: 'Identifier', name: 'm' },
+            decorators: [{
+              type: 'Decorator',
+              expression: { type: 'AwaitExpression', argument: { type: 'Identifier', name: 'deco' } },
+            }],
+            params: [],
+            body: { type: 'BlockStatement', body: [] },
+          }],
+        },
+      },
+      ...cjsAssign.body,
+    ],
+  };
+  check('ast-patterns: detectCommonJS decorator top-level await wins', detectCommonJS(decoratorAwait), false);
+  // estree wraps method functions in MethodDefinition (no ClassMethod node) - the
+  // computed-key carve-out must recognize that shape too
+  const estreeComputedKeyAwait = {
+    body: [
+      {
+        type: 'ClassDeclaration',
+        id: { type: 'Identifier', name: 'C' },
+        body: {
+          type: 'ClassBody',
+          body: [{
+            type: 'MethodDefinition',
+            computed: true,
+            key: { type: 'AwaitExpression', argument: { type: 'Identifier', name: 'k' } },
+            value: { type: 'FunctionExpression', params: [], body: { type: 'BlockStatement', body: [] } },
+          }],
+        },
+      },
+      ...cjsAssign.body,
+    ],
+  };
+  check('ast-patterns: detectCommonJS estree computed-key await wins', detectCommonJS(estreeComputedKeyAwait), false);
+  const estreeAsyncMethod = {
+    body: [
+      {
+        type: 'ClassDeclaration',
+        id: { type: 'Identifier', name: 'C' },
+        body: {
+          type: 'ClassBody',
+          body: [{
+            type: 'MethodDefinition',
+            computed: false,
+            key: { type: 'Identifier', name: 'm' },
+            value: {
+              type: 'FunctionExpression',
+              async: true,
+              params: [],
+              body: {
+                type: 'BlockStatement',
+                body: [{
+                  type: 'ExpressionStatement',
+                  expression: { type: 'AwaitExpression', argument: { type: 'Identifier', name: 'g' } },
+                }],
+              },
+            },
+          }],
+        },
+      },
+      ...cjsAssign.body,
+    ],
+  };
+  checkTruthy('ast-patterns: detectCommonJS estree async method stays CJS', detectCommonJS(estreeAsyncMethod));
+
+  // mayHaveSideEffects: conservatively SE; only provably pure -> false
+  check('ast-patterns: mayHaveSideEffects Identifier',
+    mayHaveSideEffects({ type: 'Identifier', name: 'x' }), false);
+  check('ast-patterns: mayHaveSideEffects NumericLiteral',
+    mayHaveSideEffects({ type: 'NumericLiteral', value: 1 }), false);
+  // CallExpression -> always SE
+  checkTruthy('ast-patterns: mayHaveSideEffects CallExpression',
+    mayHaveSideEffects({ type: 'CallExpression', callee: { type: 'Identifier' }, arguments: [] }));
+  // AssignmentExpression -> always SE
+  checkTruthy('ast-patterns: mayHaveSideEffects AssignmentExpression',
+    mayHaveSideEffects({
+      type: 'AssignmentExpression',
+      operator: '=',
+      left: { type: 'Identifier' },
+      right: { type: 'NumericLiteral' },
+    }));
+  // NewExpression -> always SE
+  checkTruthy('ast-patterns: mayHaveSideEffects NewExpression',
+    mayHaveSideEffects({ type: 'NewExpression', callee: { type: 'Identifier' }, arguments: [] }));
+  // UpdateExpression -> always SE
+  checkTruthy('ast-patterns: mayHaveSideEffects UpdateExpression',
+    mayHaveSideEffects({ type: 'UpdateExpression', operator: '++' }));
+  // a spread ITERATES its operand (`a[Symbol.iterator]()`, or Proxy traps in an object literal) and
+  // throws on a non-iterable, so it is effectful wherever it stands - the containers below are the
+  // closed set of places one can appear. a REST element is the pattern-side shape and stays a no-op
+  const PURE_OPERAND = { type: 'Identifier', name: 'a' };
+  const SPREAD_HOSTS = [
+    ['bare spread', { type: 'SpreadElement', argument: PURE_OPERAND }],
+    ['array element', { type: 'ArrayExpression', elements: [{ type: 'SpreadElement', argument: PURE_OPERAND }] }],
+    ['object property', { type: 'ObjectExpression', properties: [{ type: 'SpreadElement', argument: PURE_OPERAND }] }],
+    ['sequence operand', { type: 'SequenceExpression', expressions: [{ type: 'SpreadElement', argument: PURE_OPERAND }] }],
+    ['conditional branch', {
+      type: 'ConditionalExpression',
+      test: PURE_OPERAND,
+      consequent: { type: 'SpreadElement', argument: PURE_OPERAND },
+      alternate: PURE_OPERAND,
+    }],
+    ['parenthesized', { type: 'ParenthesizedExpression', expression: { type: 'SpreadElement', argument: PURE_OPERAND } }],
+  ];
+  for (const [label, node] of SPREAD_HOSTS) {
+    checkTruthy(`ast-patterns: mayHaveSideEffects spread as ${ label }`, mayHaveSideEffects(node));
+  }
+  // the domain is closed in both directions, so it is swept rather than sampled: every container a
+  // spread can sit in crossed with every operand shape it can carry. the operand is irrelevant to
+  // the answer - the spread iterates whatever it is given - and the mirror sweep below feeds the
+  // SAME containers the bare operand, which must stay pure. a container that answered by its own
+  // type rather than by its contents would fail one half or the other
+  const SPREAD_CONTAINERS = [
+    ['array element', inner => ({ type: 'ArrayExpression', elements: [inner] })],
+    ['object property', inner => ({ type: 'ObjectExpression', properties: [inner] })],
+    ['nested array', inner => ({ type: 'ArrayExpression', elements: [{ type: 'ArrayExpression', elements: [inner] }] })],
+    ['sequence operand', inner => ({ type: 'SequenceExpression', expressions: [inner] })],
+    ['conditional branch', inner => ({ type: 'ConditionalExpression', test: PURE_OPERAND, consequent: inner, alternate: PURE_OPERAND })],
+    ['parenthesized', inner => ({ type: 'ParenthesizedExpression', expression: inner })],
+    ['template expression', inner => ({ type: 'TemplateLiteral', expressions: [inner], quasis: [] })],
+  ];
+  const SPREAD_OPERANDS = [
+    ['identifier', PURE_OPERAND],
+    ['numeric literal', { type: 'NumericLiteral', value: 1 }],
+    ['string literal', { type: 'StringLiteral', value: 'a' }],
+    ['member expression', { type: 'MemberExpression', object: PURE_OPERAND, property: { type: 'Identifier', name: 'p' } }],
+    ['array literal', { type: 'ArrayExpression', elements: [{ type: 'NumericLiteral', value: 1 }] }],
+    ['object literal', { type: 'ObjectExpression', properties: [] }],
+    ['nested spread', { type: 'ArrayExpression', elements: [{ type: 'SpreadElement', argument: PURE_OPERAND }] }],
+  ];
+  for (const [containerLabel, wrap] of SPREAD_CONTAINERS) {
+    for (const [operandLabel, operand] of SPREAD_OPERANDS) {
+      checkTruthy(`ast-patterns: spread of ${ operandLabel } in ${ containerLabel } is effectful`,
+        mayHaveSideEffects(wrap({ type: 'SpreadElement', argument: operand })));
+    }
+    // the same container holding the operand DIRECTLY answers by its contents, not its type
+    check(`ast-patterns: pure operand in ${ containerLabel } stays pure`,
+      mayHaveSideEffects(wrap(PURE_OPERAND)), false);
+  }
+  // the same containers holding the pure operand DIRECTLY stay pure - otherwise the rows above
+  // would pass on a blanket "container is effectful" answer
+  check('ast-patterns: mayHaveSideEffects array of pure operand',
+    mayHaveSideEffects({ type: 'ArrayExpression', elements: [PURE_OPERAND] }), false);
+  check('ast-patterns: mayHaveSideEffects parenthesized pure operand',
+    mayHaveSideEffects({ type: 'ParenthesizedExpression', expression: PURE_OPERAND }), false);
+  // a rest element binds, it does not iterate
+  check('ast-patterns: mayHaveSideEffects rest element',
+    mayHaveSideEffects({ type: 'RestElement', argument: PURE_OPERAND }), false);
+  // a JSX spread child iterates exactly as a spread attribute does
+  checkTruthy('ast-patterns: mayHaveSideEffects JSX spread child',
+    mayHaveSideEffects({ type: 'JSXSpreadChild', expression: PURE_OPERAND }));
+  checkTruthy('ast-patterns: mayHaveSideEffects JSX spread attribute',
+    mayHaveSideEffects({
+      type: 'JSXElement',
+      openingElement: { type: 'JSXOpeningElement', attributes: [{ type: 'JSXSpreadAttribute', argument: PURE_OPERAND }] },
+      children: [],
+    }));
+  check('ast-patterns: mayHaveSideEffects JSX expression container stays transparent',
+    mayHaveSideEffects({ type: 'JSXExpressionContainer', expression: PURE_OPERAND }), false);
+
+  // Array literal of pure elements -> pure
+  check('ast-patterns: mayHaveSideEffects array of literals',
+    mayHaveSideEffects({
+      type: 'ArrayExpression',
+      elements: [
+        { type: 'NumericLiteral', value: 1 },
+        { type: 'NumericLiteral', value: 2 },
+      ],
+    }), false);
+  // Array with SpreadElement -> SE (proxy traps)
+  checkTruthy('ast-patterns: mayHaveSideEffects array with spread',
+    mayHaveSideEffects({
+      type: 'ArrayExpression',
+      elements: [{ type: 'SpreadElement', argument: { type: 'Identifier' } }],
+    }));
+  // delete x -> SE (unary)
+  checkTruthy('ast-patterns: mayHaveSideEffects delete unary',
+    mayHaveSideEffects({
+      type: 'UnaryExpression',
+      operator: 'delete',
+      argument: { type: 'Identifier' },
+    }));
+  // typeof x -> pure
+  check('ast-patterns: mayHaveSideEffects typeof unary',
+    mayHaveSideEffects({
+      type: 'UnaryExpression',
+      operator: 'typeof',
+      argument: { type: 'Identifier' },
+    }), false);
+  // ConditionalExpression all-pure -> false
+  check('ast-patterns: mayHaveSideEffects conditional pure',
+    mayHaveSideEffects({
+      type: 'ConditionalExpression',
+      test: { type: 'Identifier' },
+      consequent: { type: 'NumericLiteral' },
+      alternate: { type: 'NumericLiteral' },
+    }), false);
+  // babel ObjectMethod with non-computed Identifier key -> pure (method body deferred)
+  check('ast-patterns: mayHaveSideEffects ObjectMethod ident key',
+    mayHaveSideEffects({
+      type: 'ObjectExpression',
+      properties: [{
+        type: 'ObjectMethod',
+        kind: 'method',
+        computed: false,
+        key: { type: 'Identifier', name: 'foo' },
+        params: [],
+        body: { type: 'BlockStatement', body: [] },
+      }],
+    }), false);
+  // babel ObjectMethod with SE computed key -> SE: `{ [fn()]() {} }`. body stays deferred,
+  // but the key is evaluated at object-literal-eval time
+  checkTruthy('ast-patterns: mayHaveSideEffects ObjectMethod computed call key',
+    mayHaveSideEffects({
+      type: 'ObjectExpression',
+      properties: [{
+        type: 'ObjectMethod',
+        kind: 'method',
+        computed: true,
+        key: { type: 'CallExpression', callee: { type: 'Identifier', name: 'fn' }, arguments: [] },
+        params: [],
+        body: { type: 'BlockStatement', body: [] },
+      }],
+    }));
+  // ESTree shorthand-method shape `Property { method: true }` mirrors the same gate -
+  // the existing Property/ObjectProperty branch already covers computed-key SE
+  checkTruthy('ast-patterns: mayHaveSideEffects ESTree shorthand method computed call key',
+    mayHaveSideEffects({
+      type: 'ObjectExpression',
+      properties: [{
+        type: 'Property',
+        method: true,
+        kind: 'init',
+        computed: true,
+        key: { type: 'CallExpression', callee: { type: 'Identifier', name: 'fn' }, arguments: [] },
+        value: {
+          type: 'FunctionExpression',
+          params: [],
+          body: { type: 'BlockStatement', body: [] },
+        },
+        shorthand: false,
+      }],
+    }));
+
+  // reEvaluationObservable: strict superset of mayHaveSideEffects - member reads and accessor
+  // definitions are observable on RE-evaluation even though a single eval is pure
+  const memberRead = { type: 'MemberExpression', object: { type: 'Identifier', name: 'holder' }, property: { type: 'Identifier', name: 'p' }, computed: false };
+  const memberWrappedArray = { type: 'ArrayExpression', elements: [memberRead] };
+  check('ast-patterns: reEvaluationObservable pure literal array', reEvaluationObservable({
+    type: 'ArrayExpression',
+    elements: [{ type: 'NumericLiteral', value: 1 }],
+  }), false);
+  checkTruthy('ast-patterns: reEvaluationObservable member read', reEvaluationObservable(memberRead));
+  checkTruthy('ast-patterns: reEvaluationObservable member inside array literal', reEvaluationObservable(memberWrappedArray));
+  // the two walkers share nodes but not verdicts - caches must stay independent
+  check('ast-patterns: mayHaveSideEffects stays false on a re-eval-observable node', mayHaveSideEffects(memberWrappedArray), false);
+  checkTruthy('ast-patterns: reEvaluationObservable optional member', reEvaluationObservable({
+    type: 'OptionalMemberExpression', object: { type: 'Identifier', name: 'holder' },
+    property: { type: 'Identifier', name: 'p' }, computed: false, optional: true,
+  }));
+  checkTruthy('ast-patterns: reEvaluationObservable template interpolating a member', reEvaluationObservable({
+    type: 'TemplateLiteral', quasis: [], expressions: [memberRead],
+  }));
+  checkTruthy('ast-patterns: reEvaluationObservable accessor definition', reEvaluationObservable({
+    type: 'ObjectExpression',
+    properties: [{
+      type: 'ObjectMethod', kind: 'get', computed: false,
+      key: { type: 'Identifier', name: 'p' }, params: [], body: { type: 'BlockStatement', body: [] },
+    }],
+  }));
+  // estree spells the same accessor as a Property with kind 'get' - both flavors must trip
+  checkTruthy('ast-patterns: reEvaluationObservable estree Property accessor', reEvaluationObservable({
+    type: 'ObjectExpression',
+    properties: [{
+      type: 'Property', kind: 'get', computed: false, method: false, shorthand: false,
+      key: { type: 'Identifier', name: 'p' },
+      value: { type: 'FunctionExpression', params: [], body: { type: 'BlockStatement', body: [] } },
+    }],
+  }));
+  // deferred bodies stay inert: the read runs per call, not per literal re-evaluation
+  check('ast-patterns: reEvaluationObservable member inside arrow body', reEvaluationObservable({
+    type: 'ArrayExpression',
+    elements: [{ type: 'ArrowFunctionExpression', params: [], body: memberRead }],
+  }), false);
+  // class-EVAL-TIME positions thread the strict lens; instance fields evaluate per construction
+  function classWithField(staticField) {
+    return {
+      type: 'ClassExpression',
+      body: { type: 'ClassBody',
+        body: [{
+          type: 'ClassProperty', static: staticField, computed: false,
+          key: { type: 'Identifier', name: 'p' }, value: memberRead,
+        }] },
+    };
+  }
+  checkTruthy('ast-patterns: reEvaluationObservable class static field member init', reEvaluationObservable(classWithField(true)));
+  check('ast-patterns: reEvaluationObservable class instance field member init', reEvaluationObservable(classWithField(false)), false);
+  checkTruthy('ast-patterns: reEvaluationObservable class computed method key member', reEvaluationObservable({
+    type: 'ClassExpression',
+    body: { type: 'ClassBody',
+      body: [{ type: 'ClassMethod', kind: 'method', static: false, computed: true, key: memberRead, params: [], body: { type: 'BlockStatement', body: [] } }] },
+  }));
+  // JSX attribute expressions evaluate at element creation - a member read there re-fires per copy
+  checkTruthy('ast-patterns: reEvaluationObservable JSX attribute member read', reEvaluationObservable({
+    type: 'JSXElement',
+    openingElement: { type: 'JSXOpeningElement', name: { type: 'JSXIdentifier', name: 'X' },
+      attributes: [{ type: 'JSXAttribute', name: { type: 'JSXIdentifier', name: 'y' }, value: { type: 'JSXExpressionContainer', expression: memberRead } }] },
+    children: [],
+  }));
+  check('ast-patterns: reEvaluationObservable JSX attr literal stays inert', reEvaluationObservable({
+    type: 'JSXElement',
+    openingElement: { type: 'JSXOpeningElement', name: { type: 'JSXIdentifier', name: 'X' },
+      attributes: [{
+        type: 'JSXAttribute', name: { type: 'JSXIdentifier', name: 'y' },
+        value: { type: 'JSXExpressionContainer', expression: { type: 'NumericLiteral', value: 1 } },
+      }] },
+    children: [],
+  }), false);
+
+  // walkPatternIdentifiers: visit each Identifier leaf
+  const idsCollected = [];
+  walkPatternIdentifiers(
+    {
+      type: 'ObjectPattern',
+      properties: [
+        {
+          type: 'ObjectProperty',
+          key: { type: 'Identifier', name: 'a' },
+          value: { type: 'Identifier', name: 'a' },
+          shorthand: true,
+        },
+        {
+          type: 'ObjectProperty',
+          key: { type: 'Identifier', name: 'b' },
+          value: {
+            type: 'ArrayPattern',
+            elements: [
+              { type: 'Identifier', name: 'c' },
+              { type: 'Identifier', name: 'd' },
+            ],
+          },
+        },
+      ],
+    },
+    id => idsCollected.push(id.name),
+  );
+  check('ast-patterns: walkPatternIdentifiers nested',
+    idsCollected.join(','), 'a,c,d');
+  // RestElement
+  const restCollected = [];
+  walkPatternIdentifiers(
+    {
+      type: 'ArrayPattern',
+      elements: [
+        { type: 'Identifier', name: 'head' },
+        { type: 'RestElement', argument: { type: 'Identifier', name: 'tail' } },
+      ],
+    },
+    id => restCollected.push(id.name),
+  );
+  check('ast-patterns: walkPatternIdentifiers rest',
+    restCollected.join(','), 'head,tail');
+}
+
+// --- ast-patterns: set/constants membership ---
+
+{
+  // collect set sizes upfront to drive the no-lone-blocks guard with a meaningful summary
+  const setSizes = [
+    TS_EXPR_WRAPPERS.size,
+    IIFE_CALL_PATH_WRAPPERS.size,
+    TRANSPARENT_EXPR_WRAPPER_TYPES.size,
+    FUNCTION_LIKE_NODE_TYPES.size,
+    ESM_MARKER_TYPES.size,
+  ];
+  checkTruthy('ast-patterns sets: all non-empty', setSizes.every(n => n > 0));
+
+  // TS_EXPR_WRAPPERS: TS expression-wrapper node types
+  checkTruthy('ast-patterns sets: TS_EXPR_WRAPPERS has TSAsExpression',
+    TS_EXPR_WRAPPERS.has('TSAsExpression'));
+  checkTruthy('ast-patterns sets: TS_EXPR_WRAPPERS has TSNonNullExpression',
+    TS_EXPR_WRAPPERS.has('TSNonNullExpression'));
+  checkTruthy('ast-patterns sets: TS_EXPR_WRAPPERS has TSSatisfiesExpression',
+    TS_EXPR_WRAPPERS.has('TSSatisfiesExpression'));
+  checkTruthy('ast-patterns sets: TS_EXPR_WRAPPERS has TSTypeAssertion',
+    TS_EXPR_WRAPPERS.has('TSTypeAssertion'));
+  // Flow TypeCastExpression also lives in TS_EXPR_WRAPPERS for cross-parser uniformity
+  checkTruthy('ast-patterns sets: TS_EXPR_WRAPPERS has Flow TypeCastExpression',
+    TS_EXPR_WRAPPERS.has('TypeCastExpression'));
+  // not a wrapper - ParenthesizedExpression handled separately
+  check('ast-patterns sets: TS_EXPR_WRAPPERS no Paren',
+    TS_EXPR_WRAPPERS.has('ParenthesizedExpression'), false);
+
+  // IIFE_CALL_PATH_WRAPPERS: ancestors above arrow-IIFE call sites
+  checkTruthy('ast-patterns sets: IIFE_CALL_PATH_WRAPPERS has UnaryExpression',
+    IIFE_CALL_PATH_WRAPPERS.has('UnaryExpression'));
+  checkTruthy('ast-patterns sets: IIFE_CALL_PATH_WRAPPERS has SequenceExpression',
+    IIFE_CALL_PATH_WRAPPERS.has('SequenceExpression'));
+  checkTruthy('ast-patterns sets: IIFE_CALL_PATH_WRAPPERS has ParenthesizedExpression',
+    IIFE_CALL_PATH_WRAPPERS.has('ParenthesizedExpression'));
+  checkTruthy('ast-patterns sets: IIFE_CALL_PATH_WRAPPERS has ChainExpression',
+    IIFE_CALL_PATH_WRAPPERS.has('ChainExpression'));
+
+  // TRANSPARENT_EXPR_WRAPPER_TYPES: TS wrappers + Paren (excludes Unary/SE/ChainExpression)
+  checkTruthy('ast-patterns sets: TRANSPARENT_EXPR_WRAPPER_TYPES has Paren',
+    TRANSPARENT_EXPR_WRAPPER_TYPES.has('ParenthesizedExpression'));
+  checkTruthy('ast-patterns sets: TRANSPARENT_EXPR_WRAPPER_TYPES has TSAsExpression',
+    TRANSPARENT_EXPR_WRAPPER_TYPES.has('TSAsExpression'));
+  check('ast-patterns sets: TRANSPARENT_EXPR_WRAPPER_TYPES no Unary',
+    TRANSPARENT_EXPR_WRAPPER_TYPES.has('UnaryExpression'), false);
+
+  // FUNCTION_LIKE_NODE_TYPES: all function-like body owners
+  checkTruthy('ast-patterns sets: FUNCTION_LIKE_NODE_TYPES has FunctionDeclaration',
+    FUNCTION_LIKE_NODE_TYPES.has('FunctionDeclaration'));
+  checkTruthy('ast-patterns sets: FUNCTION_LIKE_NODE_TYPES has ArrowFunctionExpression',
+    FUNCTION_LIKE_NODE_TYPES.has('ArrowFunctionExpression'));
+  checkTruthy('ast-patterns sets: FUNCTION_LIKE_NODE_TYPES has ClassMethod',
+    FUNCTION_LIKE_NODE_TYPES.has('ClassMethod'));
+  checkTruthy('ast-patterns sets: FUNCTION_LIKE_NODE_TYPES has ObjectMethod',
+    FUNCTION_LIKE_NODE_TYPES.has('ObjectMethod'));
+  // babel-only private-method shape - own param-binding scope + block body, body-extract
+  // must stop here instead of walking up into the enclosing class
+  checkTruthy('ast-patterns sets: FUNCTION_LIKE_NODE_TYPES has ClassPrivateMethod',
+    FUNCTION_LIKE_NODE_TYPES.has('ClassPrivateMethod'));
+  check('ast-patterns sets: FUNCTION_LIKE_NODE_TYPES no Identifier',
+    FUNCTION_LIKE_NODE_TYPES.has('Identifier'), false);
+
+  // ESM_MARKER_TYPES: top-level ESM markers
+  checkTruthy('ast-patterns sets: ESM_MARKER_TYPES has ImportDeclaration',
+    ESM_MARKER_TYPES.has('ImportDeclaration'));
+  checkTruthy('ast-patterns sets: ESM_MARKER_TYPES has ExportNamedDeclaration',
+    ESM_MARKER_TYPES.has('ExportNamedDeclaration'));
+  checkTruthy('ast-patterns sets: ESM_MARKER_TYPES has ExportDefaultDeclaration',
+    ESM_MARKER_TYPES.has('ExportDefaultDeclaration'));
+  checkTruthy('ast-patterns sets: ESM_MARKER_TYPES has ExportAllDeclaration',
+    ESM_MARKER_TYPES.has('ExportAllDeclaration'));
+  // CJS-only statements not ESM markers
+  check('ast-patterns sets: ESM_MARKER_TYPES no ExpressionStatement',
+    ESM_MARKER_TYPES.has('ExpressionStatement'), false);
+}
+
+// --- ast-patterns: SE-prefix peelers + deep fallback receiver ---
+
+{
+  // peelNestedSequenceExpressions: returns { prefix: Node[], tail }
+  //   `(se1(), (se2(), G))` -> prefix=[se1(), se2()], tail=G
+  const callA = { type: 'CallExpression', callee: { type: 'Identifier', name: 'se1' }, arguments: [] };
+  const callB = { type: 'CallExpression', callee: { type: 'Identifier', name: 'se2' }, arguments: [] };
+  const goal = { type: 'Identifier', name: 'G' };
+  const nested = {
+    type: 'SequenceExpression',
+    expressions: [
+      callA,
+      {
+        type: 'SequenceExpression',
+        expressions: [callB, goal],
+      },
+    ],
+  };
+  const peeled = peelNestedSequenceExpressions(nested);
+  check('ast-patterns: peelNestedSequenceExpressions tail.name',
+    peeled.tail?.name, 'G');
+  check('ast-patterns: peelNestedSequenceExpressions prefix length', peeled.prefix.length, 2);
+  check('ast-patterns: peelNestedSequenceExpressions prefix[0] is se1 call',
+    peeled.prefix[0]?.callee?.name, 'se1');
+  check('ast-patterns: peelNestedSequenceExpressions prefix[1] is se2 call',
+    peeled.prefix[1]?.callee?.name, 'se2');
+  // non-SE - empty prefix, identity tail
+  const bareResult = peelNestedSequenceExpressions({ type: 'Identifier', name: 'x' });
+  check('ast-patterns: peelNestedSequenceExpressions non-seq prefix empty',
+    bareResult.prefix.length, 0);
+  check('ast-patterns: peelNestedSequenceExpressions non-seq tail identity',
+    bareResult.tail?.name, 'x');
+
+  // unwrapSafeSequenceTail: peel SE tail unconditionally
+  check('ast-patterns: unwrapSafeSequenceTail nested SE',
+    unwrapSafeSequenceTail(nested)?.name, 'G');
+  // TS-wrapped SE -> still reaches goal
+  const wrappedSE = { type: 'TSAsExpression', expression: nested };
+  check('ast-patterns: unwrapSafeSequenceTail TS-wrapped SE',
+    unwrapSafeSequenceTail(wrappedSE)?.name, 'G');
+  // bare -> identity
+  check('ast-patterns: unwrapSafeSequenceTail bare',
+    unwrapSafeSequenceTail({ type: 'Identifier', name: 'x' })?.name, 'x');
+
+  // peelFallbackReceiver: chain-assign + paren + TS + safe-SE alternation
+  // `r = (cond ? A : B)` -> ConditionalExpression
+  const condExpr = {
+    type: 'ConditionalExpression',
+    test: { type: 'Identifier', name: 'cond' },
+    consequent: { type: 'Identifier', name: 'A' },
+    alternate: { type: 'Identifier', name: 'B' },
+  };
+  const chainAssign = {
+    type: 'AssignmentExpression',
+    operator: '=',
+    left: { type: 'Identifier', name: 'r' },
+    right: condExpr,
+  };
+  check('ast-patterns: peelFallbackReceiver chain-assign',
+    peelFallbackReceiver(chainAssign)?.type, 'ConditionalExpression');
+  // paren + TS + safe-SE alternation
+  const wrappedCond = {
+    type: 'ParenthesizedExpression',
+    expression: {
+      type: 'TSAsExpression',
+      expression: {
+        type: 'SequenceExpression',
+        expressions: [
+          { type: 'NumericLiteral', value: 0 },
+          condExpr,
+        ],
+      },
+    },
+  };
+  check('ast-patterns: peelFallbackReceiver paren+TS+SE',
+    peelFallbackReceiver(wrappedCond)?.type, 'ConditionalExpression');
+  // SE with side-effectful prefix -> peel unconditionally to tail (prefix preserved at
+  // apply time via per-branch substitution / source-range overwrite around inner Identifier)
+  const seWithCall = {
+    type: 'SequenceExpression',
+    expressions: [
+      { type: 'CallExpression', callee: { type: 'Identifier' }, arguments: [] },
+      condExpr,
+    ],
+  };
+  check('ast-patterns: peelFallbackReceiver peels SE-with-side-effects to tail',
+    peelFallbackReceiver(seWithCall)?.type, 'ConditionalExpression');
+
+  // the per-branch peel reaches the same leaf through the same wrappers
+  check('ast-patterns: peelFallbackBranchInner paren+TS+SE',
+    peelFallbackBranchInner(wrappedCond)?.type, 'ConditionalExpression');
+  // a SELF-REFERENTIAL SE tail (only a foreign plugin's synthetic tree can build one) terminates
+  // on the visited set - the deep peel already carried this guard, the per-branch one spun forever
+  const cyclicSE = { type: 'SequenceExpression', expressions: [{ type: 'NumericLiteral', value: 0 }] };
+  cyclicSE.expressions.push(cyclicSE);
+  check('ast-patterns: peelFallbackBranchInner cyclic SE tail terminates',
+    peelFallbackBranchInner(cyclicSE)?.type, 'SequenceExpression');
+}
+
+// --- ast-patterns: member-write contexts + tag predicates ---
+
+{
+  // isMemberWriteOnlyContext: parent contexts where MemberExpression is write-only
+  const memberNode = {
+    type: 'MemberExpression',
+    object: { type: 'Identifier' },
+    property: { type: 'Identifier' },
+  };
+  // simple assignment: `obj.x = 1`
+  const simpleAssign = {
+    type: 'AssignmentExpression',
+    operator: '=',
+    left: memberNode,
+    right: { type: 'NumericLiteral' },
+  };
+  checkTruthy('ast-patterns: isMemberWriteOnlyContext simple assignment',
+    isMemberWriteOnlyContext(memberNode, simpleAssign));
+  // compound `+=` -> NOT write-only (reads LHS first)
+  const compoundAssign = {
+    type: 'AssignmentExpression',
+    operator: '+=',
+    left: memberNode,
+    right: { type: 'NumericLiteral' },
+  };
+  check('ast-patterns: isMemberWriteOnlyContext compound assignment',
+    isMemberWriteOnlyContext(memberNode, compoundAssign), false);
+  // AssignmentPattern left -> write
+  const assignPattern = {
+    type: 'AssignmentPattern',
+    left: memberNode,
+    right: { type: 'NumericLiteral' },
+  };
+  checkTruthy('ast-patterns: isMemberWriteOnlyContext AssignmentPattern',
+    isMemberWriteOnlyContext(memberNode, assignPattern));
+  // ObjectProperty.value within ObjectPattern: `({a: obj.x} = src)`
+  const objPropWriter = {
+    type: 'ObjectProperty',
+    value: memberNode,
+  };
+  checkTruthy('ast-patterns: isMemberWriteOnlyContext destructured object property',
+    isMemberWriteOnlyContext(memberNode, objPropWriter, { type: 'ObjectPattern' }));
+  // grandparent not ObjectPattern -> NOT write
+  check('ast-patterns: isMemberWriteOnlyContext property without ObjectPattern parent',
+    isMemberWriteOnlyContext(memberNode, objPropWriter, { type: 'ObjectExpression' }), false);
+  // ArrayPattern element: `[obj.x] = src`
+  const arrPattern = {
+    type: 'ArrayPattern',
+    elements: [memberNode],
+  };
+  checkTruthy('ast-patterns: isMemberWriteOnlyContext ArrayPattern element',
+    isMemberWriteOnlyContext(memberNode, arrPattern));
+  // RestElement target: `[...obj.x] = src`
+  const restWriter = { type: 'RestElement', argument: memberNode };
+  checkTruthy('ast-patterns: isMemberWriteOnlyContext RestElement',
+    isMemberWriteOnlyContext(memberNode, restWriter));
+  // no parent -> false
+  check('ast-patterns: isMemberWriteOnlyContext no parent',
+    isMemberWriteOnlyContext(memberNode, null), false);
+  check('ast-patterns: isMemberWriteOnlyContext no member',
+    isMemberWriteOnlyContext(null, simpleAssign), false);
+  // for-of LHS: `for (Array.from of arr)` - rebinds the static slot per iteration
+  const forOfWrite = {
+    type: 'ForOfStatement',
+    left: memberNode,
+    right: { type: 'Identifier' },
+    body: { type: 'BlockStatement' },
+  };
+  checkTruthy('ast-patterns: isMemberWriteOnlyContext for-of LHS',
+    isMemberWriteOnlyContext(memberNode, forOfWrite));
+  // for-in LHS: `for (Array.from in src)` - enumerated property name lands in the slot
+  const forInWrite = {
+    type: 'ForInStatement',
+    left: memberNode,
+    right: { type: 'Identifier' },
+    body: { type: 'BlockStatement' },
+  };
+  checkTruthy('ast-patterns: isMemberWriteOnlyContext for-in LHS',
+    isMemberWriteOnlyContext(memberNode, forInWrite));
+  // member sits on `.right` of a for-of - reading position, not a write
+  const forOfRightRead = {
+    type: 'ForOfStatement',
+    left: { type: 'Identifier' },
+    right: memberNode,
+    body: { type: 'BlockStatement' },
+  };
+  check('ast-patterns: isMemberWriteOnlyContext for-of right (read)',
+    isMemberWriteOnlyContext(memberNode, forOfRightRead), false);
+
+  // isTaggedTemplateTag: prototype placement only, parent is TaggedTemplateExpression with tag === node
+  const targetNode = { type: 'Identifier', name: 'tag' };
+  const tagParent = {
+    type: 'TaggedTemplateExpression',
+    tag: targetNode,
+    quasi: { type: 'TemplateLiteral' },
+  };
+  checkTruthy('ast-patterns: isTaggedTemplateTag prototype tag',
+    isTaggedTemplateTag(tagParent, targetNode, 'prototype'));
+  // static placement -> false (only prototype is unsafe)
+  check('ast-patterns: isTaggedTemplateTag static tag',
+    isTaggedTemplateTag(tagParent, targetNode, 'static'), false);
+  // non-TaggedTemplateExpression parent -> false
+  check('ast-patterns: isTaggedTemplateTag non-tagged',
+    isTaggedTemplateTag({ type: 'CallExpression', callee: targetNode }, targetNode, 'prototype'),
+    false);
+  // node is template quasi, not tag -> false
+  check('ast-patterns: isTaggedTemplateTag wrong slot',
+    isTaggedTemplateTag(tagParent, { type: 'TemplateLiteral' }, 'prototype'), false);
+
+  // hasRestSiblingExcept: any property other than current is a rest
+  const restEl = { type: 'RestElement' };
+  const propA = { type: 'ObjectProperty' };
+  const propB = { type: 'ObjectProperty' };
+  checkTruthy('ast-patterns: hasRestSiblingExcept has rest sibling',
+    hasRestSiblingExcept([propA, restEl], propA));
+  // current IS the rest -> false (we skip self)
+  check('ast-patterns: hasRestSiblingExcept self is rest',
+    hasRestSiblingExcept([propA, restEl], restEl), false);
+  // no rest at all
+  check('ast-patterns: hasRestSiblingExcept no rest',
+    hasRestSiblingExcept([propA, propB], propA), false);
+  // empty list
+  check('ast-patterns: hasRestSiblingExcept empty', hasRestSiblingExcept([], propA), false);
+  check('ast-patterns: hasRestSiblingExcept null', hasRestSiblingExcept(null, propA), false);
+}
+
+// --- mutation pre-pass: canonical receiver resolution (cross-plugin, source-based) ---
+// the pre-pass moved from a synthetic-node alias graph to the scoped plugin collectors backed
+// by the read-side canons; these locks run REAL sources through BOTH collectors and assert
+// agreement, preserving every behavior the old synthetic blocks pinned
+
+{
+  // suites probe the COLLECTOR semantics; shim ignoring depends on plugin resolvers, so the
+  // harness adapters answer "nothing is polyfillable" - every shim shape stays recorded here
+  const babelMutationAdapter = createBabelAdapter({ method: 'usage-pure' });
+  const estreeMutationAdapter = createEstreeAdapter({ method: 'usage-pure' });
+  function collectBoth(src) {
+    let babelMutated = null;
+    babelTransform(src, {
+      configFile: false,
+      babelrc: false,
+      sourceType: 'module',
+      plugins: [{ visitor: { Program(p2) { babelMutated = collectBabelMutationPrePass(p2, babelMutationAdapter).mutated; } } }],
+    });
+
+    const estreeMutated = collectEstreePrePassSites({
+      ast: parseSyncOxc('unit.mjs', src).program,
+      adapter: estreeMutationAdapter,
+      collectMutations: true,
+    }).mutated;
+    const a = [...babelMutated].sort().join('|');
+    const b = [...estreeMutated].sort().join('|');
+    check(`mutation pre-pass parity for: ${ src.slice(0, 60) }`, a, b);
+    return babelMutated;
+  }
+  const CASES = [
+    // [source, expected-present[], expected-absent[]]
+    ['Array.from = 1;', ['Array.from'], []],
+    ['for (Array.from of arr) {}', ['Array.from'], []],
+    ['for (Array.from in src) {}', ['Array.from'], []],
+    ['for (x of Array.from) {}', [], ['Array.from']],
+    ["Object.defineProperty(Array, 'from', d);", ['Array.from'], []],
+    ['Object.defineProperties(Iterator, { from: { value: 1 } });', ['Iterator.from'], []],
+    ['Object.assign(Array, { of: 1 }, { from: 2 });', ['Array.of', 'Array.from'], []],
+    ["Reflect.set(Array, 'of', 1);", ['Array.of'], []],
+    // alias canonicalization: the read side canonicalizes, so the mutation must too
+    ['const A = Array; A.from = 1;', ['Array.from'], ['A.from']],
+    ['const A = Array; const b = A; b.of = 1;', ['Array.of'], []],
+    // reassigned alias poisons EVERY reachable value
+    ['let A = Array; A = Map; A.of = 1;', ['Array.of', 'Map.of'], []],
+    ['let A = Array; A ||= Map; A.of = 1;', ['Array.of', 'Map.of'], []],
+    ['let A = Array; [A] = [Iterator]; A.of = 1;', ['Array.of', 'Iterator.of'], []],
+    // composite values fan out
+    ['const A = cond ? Map : Iterator; A.of = 1;', ['Map.of', 'Iterator.of'], []],
+    ['let A; A = (se(), Map); A.of = 1;', ['Map.of'], []],
+    ['let A; A = (B = Map); A.of = 1;', ['Map.of'], []],
+    ['let B2; ({ B2 = Promise } = {}); B2.resolve = 1;', ['Promise.resolve'], []],
+    // call returns: direct IIFE and bound single-return functions
+    ['const A = (() => Map)(); A.of = 1;', ['Map.of'], []],
+    ['const f = () => Map; const A = f(); A.of = 1;', ['Map.of'], []],
+    ['function g() { return Iterator; } const B = g(); B.from = 1;', ['Iterator.from'], []],
+    // static containers: object literal (deep), class static field; duplicate keys take the
+    // LAST (live) value; the leaf-name shortcut must not appear
+    ['const NS = { M: Map }; const A = NS.M; A.of = 1;', ['Map.of'], ['M.of']],
+    ['const NS = { a: { I: Iterator } }; const A = NS.a.I; A.from = 1;', ['Iterator.from'], []],
+    ['class NS { static M = Map; } const A = NS.M; A.of = 1;', ['Map.of'], []],
+    ['const ND = { M: Array, M: Iterator }; const A = ND.M; A.from = 1;', ['Iterator.from'], ['Array.from']],
+    // computed STATIC-string keys read like plain keys (container, mutation, assign source)
+    ["const NS = { ['M']: Map }; const A = NS.M; A.of = 1;", ['Map.of'], []],
+    ["const A = Array; A['from'] = 1;", ['Array.from'], []],
+    ["Object.assign(Array, { ['from']: 1 });", ['Array.from'], []],
+    // proxy-global chain receivers (SE-buried roots and proxy aliases included)
+    ['globalThis.Array.from = 1;', ['Array.from'], []],
+    ['(eff(), globalThis).Array.from = 1;', ['Array.from'], []],
+    ['const g = globalThis; g.Array.from = 1;', ['Array.from'], []],
+    ['const s = globalThis.self; s.Iterator.from = 1;', ['Iterator.from'], []],
+    // pattern-slot edges: a hole still pairs positionally; rest binds a FRESH array (its
+    // element mutation is not a constructor mutation); a swap stays an unresolvable cycle
+    ['let A = Array; [, A] = [0, Iterator]; A.of = 1;', ['Iterator.of'], []],
+    ['let B = Array; [...B] = [Iterator]; B.of = 1;', [], ['Iterator.of']],
+    // chain targets through every alias value shape reaching a proxy global
+    ['let h; h = c ? o : globalThis.self; h.Iterator.from = 1;', ['Iterator.from'], []],
+    ['let h = globalThis; if (c) h = o; h.Array.of = 1;', ['Array.of'], []],
+    ['const h = (() => globalThis)(); h.Array.from = 1;', ['Array.from'], []],
+    // namespace-call mutators through alias receivers; spread sources stay unenumerable but
+    // the literal keys beside them still record
+    ["const g = globalThis; Reflect.set(g.Array, 'of', 1);", ['Array.of'], []],
+    ["let h2; h2 = c ? o : globalThis; Object.defineProperty(h2.Array, 'of', d);", ['Array.of'], []],
+    ['Object.assign(Iterator, { ...patch }, { from: f });', ['Iterator.from'], ['Iterator.toArray']],
+    // prototype mutations record `Ctor.prototype.key` (the enrichment imports the instance
+    // entry up front); deeper or non-prototype chains keep their ordinary resolution
+    ['String.prototype.at = patch;', ['String.prototype.at'], []],
+    ['Array.prototype.flatMap ||= patch;', ['Array.prototype.flatMap'], []],
+    ['const S = String; S.prototype.at = patch;', ['String.prototype.at'], []],
+    ['globalThis.String.prototype.at = patch;', ['String.prototype.at'], []],
+    ['globalThis.self.Array.prototype.flatMap = patch;', ['Array.prototype.flatMap'], []],
+    ['config.thing.prototype.at = patch;', [], ['thing.prototype.at']],
+    ['const proto = String.prototype; proto.at = patch;', ['String.prototype.at'], []],
+    ['for (const k of ks) String.prototype[k] = fns[k];', [], ['String.prototype.at']],
+    // nested writes into a local container whose keys are static and DON'T match stay out
+    // (the gate skips the scoped traverse for them entirely)
+    ['const config = { mode: 1 }; config.foo.bar = patch;', [], ['foo.bar']],
+    // GUARDED shim shapes are mutations like any other: the routing model handles them by
+    // enriching the key (polyfill-then-patch), so the collector must record them
+    ['Iterator.from ||= shim;', ['Iterator.from'], []],
+    ['Promise.allSettled = Promise.allSettled || shim;', ['Promise.allSettled'], []],
+    ['if (!Object.groupBy) Object.groupBy = shim;', ['Object.groupBy'], []],
+    ["if (typeof Map.groupBy != 'function') Map.groupBy = shim;", ['Map.groupBy'], []],
+    ["if (!('from' in Array)) Array.from = shim;", ['Array.from'], []],
+    // ctor-slot writes through proxies record the slot (the enrichment pins the ctor entry);
+    // the proxy host canonicalizes to `globalThis` - the proxies alias ONE object, so a
+    // mutation through any of them must be visible to reads through any other
+    ['window.Promise = window.Promise || Shim;', ['globalThis.Promise'], ['window.Promise']],
+    ['globalThis.Map = ShimMap;', ['globalThis.Map'], []],
+    ['self.Set = function () {};', ['globalThis.Set'], ['self.Set']],
+    ['global.WeakSet = Shim;', ['globalThis.WeakSet'], ['global.WeakSet']],
+    ['globalThis.self.Reflect = Shim;', ['globalThis.Reflect'], ['self.Reflect']],
+    ['Object.defineProperty(self, "Symbol", d);', ['globalThis.Symbol'], ['self.Symbol']],
+    ['const g = self; g.Proxy = Shim;', ['globalThis.Proxy'], ['g.Proxy', 'self.Proxy']],
+    // proxy prefixes keep resolving to the LEAF ctor (no canonicalization applies) and
+    // computed / delete shapes canonicalize like plain writes
+    ['window.String.prototype.at = patch;', ['String.prototype.at'], []],
+    ['globalThis["self"].Set = patch;', ['globalThis.Set'], []],
+    ['delete self.Promise;', ['globalThis.Promise'], []],
+    ['const { Iterator: I9 } = self; I9.range = patch;', ['Iterator.range'], []],
+    // a SHADOWED proxy name is a local object, not the global - nothing records
+    ['const self = { Set: 1 }; self.Set = patch;', [], ['globalThis.Set', 'self.Set']],
+    // a global-proxy SLOT itself is a mutable key like any other
+    ['window.self = fake;', ['globalThis.self'], ['window.self']],
+    // copy / descriptor mutator channels canonicalize proxy TARGETS the same way
+    ['Object.assign(self, { Set: 1, Map: 2 });', ['globalThis.Set', 'globalThis.Map'], ['self.Set']],
+    ['Object.defineProperties(window, { Iterator: { value: 1 } });', ['globalThis.Iterator'], ['window.Iterator']],
+    // mutation targets behind transparent wrappers: estree ChainExpression on an optional
+    // delete, oxc-preserved parens on delete / update / compound assignment
+    ['delete Iterator?.from;', ['Iterator.from'], []],
+    ['delete (Map.groupBy);', ['Map.groupBy'], []],
+    ['(Iterator.from) ||= shim;', ['Iterator.from'], []],
+    ['const v = Iterator?.from; use(v);', [], ['Iterator.from']],
+    ['delete ((Map.groupBy));', ['Map.groupBy'], []],
+    ['Reflect.set((Map), "groupBy", p);', ['Map.groupBy'], []],
+    ['(delete Iterator?.from, use());', ['Iterator.from'], []],
+    ['Iterator.from = patch; function f({ from } = (eff(), globalThis).Iterator) {} f();', ['Iterator.from'], []],
+    // shadows: a local twin of the alias name poisons BOTH reachable values; a shadowing
+    // parameter is not the global; export-default class declares a program binding
+    // the scoped resolver sees the REAL (inner) callee - the outer twin is dead for this
+    // mutation and stays unpoisoned (a precision gain over the former scope-flat collector)
+    ['const f = () => Map; function g() { const f = () => Iterator; const A = f(); A.from = 1; }', ['Iterator.from'], ['Map.from']],
+    ['function f(Array) { Array.from = 1; }', [], ['Array.from']],
+    ['export default class Array {} Array.from = 1;', [], ['Array.from']],
+    // namespace-veto provenance: a local Object / Reflect shadow silences only the BARE callee -
+    // a proxy-global chain (direct or aliased) names the REAL namespace regardless of the shadow,
+    // while a shadowed proxy ROOT is not the global at all
+    ['const Object = { defineProperty() {} }; Object.defineProperty(Array, "from", d);', [], ['Array.from']],
+    ['const Object = { defineProperty() {} }; globalThis.Object.defineProperty(Array, "from", d);', ['Array.from'], []],
+    ['const Object = shim; const g2 = globalThis; g2.Object.defineProperty(Array, "from", d);', ['Array.from'], []],
+    ['const Reflect = shim; globalThis.Reflect.set(Array, "from", f);', ['Array.from'], []],
+    ['const globalThis = { Object: shim }; globalThis.Object.defineProperty(Array, "from", d);', [], ['Array.from']],
+    // COMPUTED mutator callee keys resolve through the binding-aware key canon in BOTH stages
+    // (the cheap gate fires as a superset; a dynamic key stays unresolvable and silent)
+    ['Object["defineProperty"](Array, "from", d);', ['Array.from'], []],
+    ['const m = "defineProperty"; Object[m](Array, "from", d);', ['Array.from'], []],
+    ['Reflect["set"](Array, "from", f);', ['Array.from'], []],
+    ['Object["defineProperties"](Array, { from: { value: 1 } });', ['Array.from'], []],
+    ['Object["assign"](Array, { from: 1 });', ['Array.from'], []],
+    ['globalThis["Object"].defineProperty(Array, "from", d);', ['Array.from'], []],
+    ['Object?.["defineProperty"]?.(Array, "from", d);', ['Array.from'], []],
+    ['Object[dyn](Array, "from", d);', [], ['Array.from']],
+    // destructure SELECTORS pair with the init: a prototype leaf off a non-literal source, a
+    // positional slot of an array-literal init, a keyed slot of an object-literal init -
+    // recursively through nested pattern / literal pairs
+    ['const { prototype: P } = Array; P.at = patch;', ['Array.prototype.at'], []],
+    ['let P4; ({ prototype: P4 } = Array); P4.at = patch;', ['Array.prototype.at'], []],
+    ['const [P2] = [Array.prototype]; P2.at = patch;', ['Array.prototype.at'], []],
+    ['const { p: P3 } = { p: Array.prototype }; P3.at = patch;', ['Array.prototype.at'], []],
+    ['const { p: { q: P5 } } = { p: { q: Array.prototype } }; P5.at = patch;', ['Array.prototype.at'], []],
+    ['const [, P6] = [0, Array.prototype]; P6.at = patch;', ['Array.prototype.at'], []],
+    ['const [{ q: P7 }] = [{ q: Array.prototype }]; P7.at = patch;', ['Array.prototype.at'], []],
+    // an ALIASED namespace, an EXTRACTED mutator binding and a DESTRUCTURED one (plain, renamed,
+    // off a proxy chain) name the same mutator through the read-side canons; a REASSIGNED
+    // extracted binding stays unresolved (documented limit - the const idiom is the channel)
+    ['const O = Object; O.defineProperty(Array, "from", d);', ['Array.from'], []],
+    ['const O = Object; O["defineProperty"](Array, "from", d);', ['Array.from'], []],
+    ['const dp = Object.defineProperty; dp(Array, "from", d);', ['Array.from'], []],
+    ['const { defineProperty } = Object; defineProperty(Array, "from", d);', ['Array.from'], []],
+    ['const { defineProperty: dp2 } = Object; dp2(Array, "from", d);', ['Array.from'], []],
+    ['const { defineProperty: dp3 } = globalThis.Object; dp3(Array, "from", d);', ['Array.from'], []],
+    ['const rs = Reflect.set; rs(Array, "from", f);', ['Array.from'], []],
+    ['let dp4; dp4 = Object.defineProperty; dp4(Array, "from", d);', [], ['Array.from']],
+    ['const [dp5] = [Object.defineProperty]; dp5(Array, "from", d);', ['Array.from'], []],
+    ['const dp6 = Object?.defineProperty; dp6(Array, "from", d);', ['Array.from'], []],
+    ['const dp7 = Object.defineProperty.bind(Object); dp7(Array, "from", d);', [], ['Array.from']],
+    // duplicate literal keys take the LAST (live) value - the selector mirrors the container canon
+    ['const { p: P8 } = { p: Array.prototype, p: String.prototype }; P8.padEnd = patch;',
+      ['String.prototype.padEnd'], ['Array.prototype.padEnd']],
+    // the detached-call idiom buries the mutator member behind a sequence tail; an optional bare
+    // extracted callee peels the same way. `Reflect.set` through an alias still redirects to the
+    // RECEIVER argument, so the target constructor stays unrecorded
+    ['(0, Object.defineProperty)(Array, "from", d);', ['Array.from'], []],
+    ['const O2 = Object; (0, O2.defineProperty)(Array, "from", d);', ['Array.from'], []],
+    ['const dp8 = Object.defineProperty; dp8?.(Array, "from", d);', ['Array.from'], []],
+    ['const R2 = Reflect; R2.set(Array, "from", f, receiver);', [], ['Array.from']],
+    // a DESTRUCTURED mutator source pairs to its selected literal - the whole-container follow
+    // would record a garbage key (`Array.s`) and miss the real one; the plain const alias keeps
+    // following to its literal init
+    ['const { s } = { s: { from: 1 } }; Object.assign(Array, s);', ['Array.from'], ['Array.s']],
+    ['const { d2 } = { d2: { from: { value: 1 } } }; Object.defineProperties(Array, d2);', ['Array.from'], []],
+    ['const src = { from: 1 }; Object.assign(Array, src);', ['Array.from'], []],
+    ['const src2 = { from: 1 }; const b2 = src2; Object.assign(Array, b2);', ['Array.from'], []],
+    ['const { T } = { T: Array }; T.from = 1;', ['Array.from'], []],
+    // a DESTRUCTURED alias feeding a pattern write fans through the pattern-slot pairing: the
+    // container bound through another destructure types its unique slot, so the write reaches
+    // the value the runtime actually mutates (`A2` holds `Map`) beside the pre-write init
+    ['const [arr2] = [[Map]]; let A2 = Array; [A2] = arr2; A2.groupBy = 1;', ['Array.groupBy', 'Map.groupBy'], []],
+    // a destructure declarator fans ONLY its selected slot - the whole-init fan would smuggle
+    // the container name and record a spurious STATIC beside the correct prototype pair
+    ['const { prototype: P8 } = Array; P8.of = function () {};', ['Array.prototype.of'], ['Array.of']],
+    // a REASSIGNED binding is not a resolvable mutator / source - recording its stale init
+    // would keep an unrelated read native (the declarator resolver bails on reassignment)
+    ['let dp9 = Object.defineProperty; dp9 = 0; dp9(Array, "from", d);', [], ['Array.from']],
+    ['let { s: src9 } = { s: { from: 1 } }; src9 = { of: 2 }; Object.assign(Array, src9);', [], ['Array.from']],
+    // an alias bound to a chain root off a reassigned proxy holder fans like the direct chain
+    ['let h9; h9 = globalThis; const alias9 = h9.Array; alias9.of = function () {};', ['Array.of'], []],
+  ];
+  for (const [src, present, absent] of CASES) {
+    const mutated = collectBoth(src);
+    for (const key of present) checkTruthy(`mutation pre-pass: ${ src.slice(0, 50) } has ${ key }`, mutated.has(key));
+    for (const key of absent) check(`mutation pre-pass: ${ src.slice(0, 50) } lacks ${ key }`, mutated.has(key), false);
+  }
+  // pattern-LHS writes pair into the alias value union and the reaching-definition recovery
+  // (a plain helper flowed the WHOLE array literal instead of the slot value)
+  {
+    const mutated = collectBoth('let A = Array; [A] = [Iterator]; A.of = 1;');
+    checkTruthy('mutation pre-pass: pattern write poisons the paired Iterator.of', mutated.has('Iterator.of'));
+  }
+  // a chain target whose root is a reassigned alias REACHING a proxy global records the
+  // constructor-leaf mutation (an unresolved chain root silently bypassed the patch)
+  {
+    const mutated = collectBoth('let h; h = c ? other : globalThis; h.Array.of = 1;');
+    checkTruthy('mutation pre-pass: reassigned proxy-alias chain poisons Array.of', mutated.has('Array.of'));
+    const clean = collectBoth('let h3; h3 = c ? a : b; h3.config.of = 1;');
+    check('mutation pre-pass: non-proxy alias chain stays unrecorded', clean.has('config.of'), false);
+  }
+}
+
+// --- ast-patterns: createTypeAnnotationChecker factory ---
+
+{
+  // build synthetic path chain: first arg is the LEAF (return value), subsequent are ancestors
+  // pathFor(leaf, parent, grandparent) -> leaf with parent->grandparent chain
+  function pathFor(...nodes) {
+    let parentPath = null;
+    // walk from outermost to innermost so the leaf retains the longest .parentPath chain
+    for (let i = nodes.length - 1; i >= 0; i--) {
+      parentPath = { node: nodes[i], parentPath };
+    }
+    return parentPath;
+  }
+  // the UID boundary is the `:` WRAPPER only, and its narrowness is the whole point: babel's crawler
+  // walks a type-alias RHS, an interface body and type ARGUMENTS at any depth, so the wider
+  // "is this type-space at all" node types must NOT read as the boundary
+  checkTruthy('ast-patterns: isTypeAnnotationWrapper TSTypeAnnotation',
+    isTypeAnnotationWrapper({ type: 'TSTypeAnnotation' }));
+  // both dialects: the annotation PEELERS share this predicate and babel-plugin does parse Flow,
+  // so a TS-only answer would make the peelers and the census disagree on a Flow annotation
+  checkTruthy('ast-patterns: isTypeAnnotationWrapper Flow TypeAnnotation',
+    isTypeAnnotationWrapper({ type: 'TypeAnnotation' }));
+  for (const wider of ['TSTypeParameterInstantiation', 'TSUnionType', 'TSTypeReference', 'TSTypeLiteral']) {
+    check(`ast-patterns: isTypeAnnotationWrapper excludes ${ wider }`,
+      isTypeAnnotationWrapper({ type: wider }), false);
+  }
+  // takes the NODE, so the absent-node case is answered once here instead of a `?.` at every peel site
+  for (const empty of [null, undefined, {}]) {
+    check(`ast-patterns: isTypeAnnotationWrapper nodeless ${ empty === undefined ? 'undefined' : JSON.stringify(empty) }`,
+      isTypeAnnotationWrapper(empty), false);
+  }
+
+  // predicate: node.type startsWith 'TS'
+  function isTSAnnotation(type) { return type.startsWith('TS'); }
+
+  const checker = createTypeAnnotationChecker(isTSAnnotation);
+  // leaf inside `TSTypeReference` -> true
+  const annLeaf = { type: 'Identifier' };
+  const annPath = pathFor(
+    annLeaf,
+    { type: 'TSTypeReference' },
+  );
+  checkTruthy('ast-patterns: createTypeAnnotationChecker reaches TSTypeReference',
+    checker(annPath));
+  // leaf with no TS ancestor -> false
+  const plainPath = pathFor(
+    { type: 'Identifier' },
+    { type: 'VariableDeclarator' },
+    { type: 'VariableDeclaration' },
+  );
+  check('ast-patterns: createTypeAnnotationChecker no TS ancestor',
+    checker(plainPath), false);
+
+  // .reset() flushes cache - exercise the entrypoint
+  checker.reset();
+  checkTruthy('ast-patterns: createTypeAnnotationChecker reset reusable',
+    checker(annPath));
+  // re-call exercises cache hit path
+  checkTruthy('ast-patterns: createTypeAnnotationChecker cached hit',
+    checker(annPath));
+}
+
+// --- ast-patterns: pattern / destructure / TS-binding predicates ---
+
+{
+  // isChainAssignment: `foo = X` with bare-Identifier LHS only
+  checkTruthy('ast-patterns: isChainAssignment simple',
+    isChainAssignment({
+      type: 'AssignmentExpression',
+      operator: '=',
+      left: { type: 'Identifier', name: 'foo' },
+      right: { type: 'Identifier', name: 'bar' },
+    }));
+  // compound `+=` rejected
+  check('ast-patterns: isChainAssignment compound +=',
+    isChainAssignment({
+      type: 'AssignmentExpression',
+      operator: '+=',
+      left: { type: 'Identifier', name: 'foo' },
+      right: { type: 'Identifier' },
+    }), false);
+  // destructure-LHS rejected
+  check('ast-patterns: isChainAssignment destructure LHS',
+    isChainAssignment({
+      type: 'AssignmentExpression',
+      operator: '=',
+      left: { type: 'ObjectPattern' },
+      right: { type: 'Identifier' },
+    }), false);
+  check('ast-patterns: isChainAssignment non-assign',
+    isChainAssignment({ type: 'BinaryExpression' }), false);
+
+  // destructureReceiverSlot: receiver slot name per wrapper
+  check('ast-patterns: destructureReceiverSlot AssignmentPattern',
+    destructureReceiverSlot({ type: 'AssignmentPattern' }), 'right');
+  check('ast-patterns: destructureReceiverSlot AssignmentExpression',
+    destructureReceiverSlot({ type: 'AssignmentExpression' }), 'right');
+  check('ast-patterns: destructureReceiverSlot VariableDeclarator',
+    destructureReceiverSlot({ type: 'VariableDeclarator' }), 'init');
+  check('ast-patterns: destructureReceiverSlot non-wrapper',
+    destructureReceiverSlot({ type: 'Identifier' }), null);
+
+  // getFallbackBranchSlots: ConditionalExpression -> [consequent, alternate], Logical -> [left, right]
+  const condSlots = getFallbackBranchSlots({ type: 'ConditionalExpression' });
+  check('ast-patterns: getFallbackBranchSlots Conditional[0]',
+    condSlots[0], 'consequent');
+  check('ast-patterns: getFallbackBranchSlots Conditional[1]',
+    condSlots[1], 'alternate');
+  const logicalSlots = getFallbackBranchSlots({ type: 'LogicalExpression' });
+  check('ast-patterns: getFallbackBranchSlots Logical[0]', logicalSlots[0], 'left');
+  check('ast-patterns: getFallbackBranchSlots Logical[1]', logicalSlots[1], 'right');
+  check('ast-patterns: getFallbackBranchSlots non-branch',
+    getFallbackBranchSlots({ type: 'Identifier' }), null);
+
+  // isTransparentDestructureWrapper:
+  //   AssignmentPattern { left: child } passthrough
+  const inner = { type: 'ObjectPattern' };
+  const assignPattern = {
+    type: 'AssignmentPattern',
+    left: inner,
+    right: { type: 'Identifier' },
+  };
+  checkTruthy('ast-patterns: isTransparentDestructureWrapper AssignmentPattern',
+    isTransparentDestructureWrapper(assignPattern, inner));
+  // ArrayPattern length=1 with child passthrough
+  const singletonArr = { type: 'ArrayPattern', elements: [inner] };
+  checkTruthy('ast-patterns: isTransparentDestructureWrapper ArrayPattern single',
+    isTransparentDestructureWrapper(singletonArr, inner));
+  // ArrayPattern with > 1 elements: not transparent (siblings matter)
+  const multiArr = { type: 'ArrayPattern', elements: [inner, { type: 'Identifier' }] };
+  check('ast-patterns: isTransparentDestructureWrapper ArrayPattern multi',
+    isTransparentDestructureWrapper(multiArr, inner), false);
+  check('ast-patterns: isTransparentDestructureWrapper null parent',
+    isTransparentDestructureWrapper(null, inner), false);
+
+  // isTypeOnlyImportEquals: `import type X = require(...)`
+  checkTruthy('ast-patterns: isTypeOnlyImportEquals',
+    isTypeOnlyImportEquals({ type: 'TSImportEqualsDeclaration', importKind: 'type' }));
+  // value-mode is not type-only
+  check('ast-patterns: isTypeOnlyImportEquals value',
+    isTypeOnlyImportEquals({ type: 'TSImportEqualsDeclaration', importKind: 'value' }), false);
+  check('ast-patterns: isTypeOnlyImportEquals non-equals',
+    isTypeOnlyImportEquals({ type: 'ImportDeclaration' }), false);
+
+  // isTypeOnlyImportBinding: 3 forms
+  //   import type X from "x" -> parent.importKind === 'type'
+  checkTruthy('ast-patterns: isTypeOnlyImportBinding parent type-only',
+    isTypeOnlyImportBinding({ type: 'ImportSpecifier' },
+      { type: 'ImportDeclaration', importKind: 'type' }));
+  //   import { type X } from "x" -> specifier-level
+  checkTruthy('ast-patterns: isTypeOnlyImportBinding specifier-level',
+    isTypeOnlyImportBinding({ type: 'ImportSpecifier', importKind: 'type' },
+      { type: 'ImportDeclaration' }));
+  // regular import -> not type-only
+  check('ast-patterns: isTypeOnlyImportBinding value',
+    isTypeOnlyImportBinding({ type: 'ImportSpecifier' },
+      { type: 'ImportDeclaration' }), false);
+  // the import-KIND domain is {'type', 'typeof', absent}: Flow's `import typeof X` erases exactly
+  // like TS `import type X`, so both spellings gate at both levels. spelled out per element so a
+  // site that re-writes the kind test by hand cannot drop the Flow half again
+  for (const kind of ['type', 'typeof']) {
+    checkTruthy(`ast-patterns: isTypeOnlyImportKind ${ kind }`, isTypeOnlyImportKind(kind));
+    checkTruthy(`ast-patterns: isTypeOnlyImportBinding declaration-level ${ kind }`,
+      isTypeOnlyImportBinding({ type: 'ImportSpecifier' },
+        { type: 'ImportDeclaration', importKind: kind }));
+    checkTruthy(`ast-patterns: isTypeOnlyImportBinding specifier-level ${ kind }`,
+      isTypeOnlyImportBinding({ type: 'ImportSpecifier', importKind: kind },
+        { type: 'ImportDeclaration' }));
+  }
+  check('ast-patterns: isTypeOnlyImportKind value import', isTypeOnlyImportKind(undefined), false);
+  check('ast-patterns: isTypeOnlyImportKind value spelling', isTypeOnlyImportKind('value'), false);
+
+  // isAmbientTypeDeclaration: TS ambient decl shapes
+  checkTruthy('ast-patterns: isAmbientTypeDeclaration TSDeclareFunction',
+    isAmbientTypeDeclaration({ type: 'TSDeclareFunction' }));
+  checkTruthy('ast-patterns: isAmbientTypeDeclaration TSInterfaceDeclaration',
+    isAmbientTypeDeclaration({ type: 'TSInterfaceDeclaration' }));
+  checkTruthy('ast-patterns: isAmbientTypeDeclaration TSTypeAliasDeclaration',
+    isAmbientTypeDeclaration({ type: 'TSTypeAliasDeclaration' }));
+  // `declare const X` carries `declare: true`
+  checkTruthy('ast-patterns: isAmbientTypeDeclaration declare:true',
+    isAmbientTypeDeclaration({ type: 'VariableDeclaration', declare: true }));
+  // plain VariableDeclaration not ambient
+  check('ast-patterns: isAmbientTypeDeclaration plain var',
+    isAmbientTypeDeclaration({ type: 'VariableDeclaration' }), false);
+  check('ast-patterns: isAmbientTypeDeclaration null',
+    isAmbientTypeDeclaration(null), false);
+
+  // isAmbientBindingShape: ambient-type-decl OR type-only-import OR declare-var-declarator
+  checkTruthy('ast-patterns: isAmbientBindingShape TSDeclareFunction',
+    isAmbientBindingShape({ type: 'TSDeclareFunction' }, null));
+  checkTruthy('ast-patterns: isAmbientBindingShape declare const declarator',
+    isAmbientBindingShape({ type: 'VariableDeclarator' },
+      { type: 'VariableDeclaration', declare: true }));
+  // regular VariableDeclarator -> not ambient
+  check('ast-patterns: isAmbientBindingShape plain declarator',
+    isAmbientBindingShape({ type: 'VariableDeclarator' },
+      { type: 'VariableDeclaration' }), false);
+
+  // isRestProperty: RestElement OR SpreadElement (parser-agnostic)
+  checkTruthy('ast-patterns: isRestProperty RestElement',
+    isRestProperty({ type: 'RestElement' }));
+  checkTruthy('ast-patterns: isRestProperty SpreadElement',
+    isRestProperty({ type: 'SpreadElement' }));
+  check('ast-patterns: isRestProperty Property',
+    isRestProperty({ type: 'Property' }), false);
+  check('ast-patterns: isRestProperty null', isRestProperty(null), false);
+
+  // objectPatternPropNeedsReceiverRewrite: rest / computed / default-shape -> true
+  checkTruthy('ast-patterns: objectPatternPropNeedsReceiverRewrite rest',
+    objectPatternPropNeedsReceiverRewrite({ type: 'RestElement' }));
+  checkTruthy('ast-patterns: objectPatternPropNeedsReceiverRewrite computed',
+    objectPatternPropNeedsReceiverRewrite({ type: 'ObjectProperty', computed: true }));
+  // AssignmentPattern in value -> default expr; needs rewrite
+  checkTruthy('ast-patterns: objectPatternPropNeedsReceiverRewrite default value',
+    objectPatternPropNeedsReceiverRewrite({
+      type: 'ObjectProperty', computed: false, value: { type: 'AssignmentPattern' },
+    }));
+  // plain `{ p }` shorthand
+  check('ast-patterns: objectPatternPropNeedsReceiverRewrite shorthand',
+    objectPatternPropNeedsReceiverRewrite({
+      type: 'ObjectProperty', computed: false, value: { type: 'Identifier' },
+    }), false);
+  check('ast-patterns: objectPatternPropNeedsReceiverRewrite null',
+    objectPatternPropNeedsReceiverRewrite(null), false);
+
+  // isSynthSimpleObjectPattern: all props are non-computed Identifier-keyed Property
+  checkTruthy('ast-patterns: isSynthSimpleObjectPattern simple',
+    isSynthSimpleObjectPattern({
+      properties: [
+        { type: 'ObjectProperty', computed: false, key: { type: 'Identifier', name: 'from' } },
+        { type: 'ObjectProperty', computed: false, key: { type: 'Identifier', name: 'of' } },
+      ],
+    }));
+  // duplicate static keys name ONE slot, which the literal carries once - the pattern still synths
+  checkTruthy('ast-patterns: isSynthSimpleObjectPattern duplicate keys',
+    isSynthSimpleObjectPattern({
+      properties: [
+        { type: 'ObjectProperty', computed: false, key: { type: 'Identifier', name: 'from' } },
+        { type: 'ObjectProperty', computed: false, key: { type: 'Identifier', name: 'from' } },
+      ],
+    }));
+  // bare-Identifier computed key that does NOT read a sibling binding -> true (synth-swap parity)
+  checkTruthy('ast-patterns: isSynthSimpleObjectPattern computed-ident',
+    isSynthSimpleObjectPattern({
+      type: 'ObjectPattern',
+      properties: [
+        { type: 'ObjectProperty', computed: false, key: { type: 'Identifier', name: 'from' }, value: { type: 'Identifier', name: 'from' } },
+        { type: 'ObjectProperty', computed: true, key: { type: 'Identifier', name: 'k' }, value: { type: 'Identifier', name: 'of' } },
+      ],
+    }));
+  // computed key that reads a SIBLING binding (`{ of, [of]: picked }`) -> false (scope-gate)
+  check('ast-patterns: isSynthSimpleObjectPattern computed reads sibling',
+    isSynthSimpleObjectPattern({
+      type: 'ObjectPattern',
+      properties: [
+        { type: 'ObjectProperty', computed: false, key: { type: 'Identifier', name: 'of' }, value: { type: 'Identifier', name: 'of' } },
+        { type: 'ObjectProperty', computed: true, key: { type: 'Identifier', name: 'of' }, value: { type: 'Identifier', name: 'picked' } },
+      ],
+    }), false);
+  // non-Identifier computed key (`[a.b]`) -> false (only bare Identifiers are mirrored)
+  check('ast-patterns: isSynthSimpleObjectPattern computed non-ident',
+    isSynthSimpleObjectPattern({
+      type: 'ObjectPattern',
+      properties: [
+        { type: 'ObjectProperty', computed: true, key: { type: 'MemberExpression' }, value: { type: 'Identifier', name: 'x' } },
+      ],
+    }), false);
+  // numeric-literal key names a static slot like a string one -> true
+  checkTruthy('ast-patterns: isSynthSimpleObjectPattern numeric key',
+    isSynthSimpleObjectPattern({
+      properties: [
+        { type: 'ObjectProperty', computed: false, key: { type: 'NumericLiteral', value: 0 } },
+      ],
+    }));
+  // the numeric and string spellings name the SAME slot, so the entry builder emits one key for both
+  {
+    const oneSlot = {
+      properties: [
+        { type: 'ObjectProperty', computed: false, key: { type: 'NumericLiteral', value: 0 } },
+        { type: 'ObjectProperty', computed: false, key: { type: 'StringLiteral', value: '0' } },
+      ],
+    };
+    checkTruthy('ast-patterns: isSynthSimpleObjectPattern numeric and string spellings of one slot',
+      isSynthSimpleObjectPattern(oneSlot));
+  }
+  // RestElement among properties -> false
+  check('ast-patterns: isSynthSimpleObjectPattern rest',
+    isSynthSimpleObjectPattern({
+      properties: [{ type: 'RestElement' }],
+    }), false);
+}
+
+// --- ast-patterns: unwrap chain & body helpers ---
+
+{
+  // unwrapInitValue: peel ParenthesizedExpression + SequenceExpression tail
+  const inner = { type: 'Identifier', name: 'x' };
+  check('ast-patterns: unwrapInitValue paren',
+    unwrapInitValue({ type: 'ParenthesizedExpression', expression: inner })?.name, 'x');
+  check('ast-patterns: unwrapInitValue SE tail',
+    unwrapInitValue({
+      type: 'SequenceExpression',
+      expressions: [{ type: 'Identifier', name: 'a' }, inner],
+    })?.name, 'x');
+  // mixed paren + SE
+  const mixed = {
+    type: 'ParenthesizedExpression',
+    expression: {
+      type: 'SequenceExpression',
+      expressions: [{ type: 'Identifier', name: 'a' }, inner],
+    },
+  };
+  check('ast-patterns: unwrapInitValue paren+SE',
+    unwrapInitValue(mixed)?.name, 'x');
+  // bare passthrough
+  check('ast-patterns: unwrapInitValue bare',
+    unwrapInitValue(inner)?.name, 'x');
+
+  // singleReturnBodyExpression: BlockStatement with single return -> return.argument
+  const blockSingleReturn = {
+    type: 'BlockStatement',
+    body: [
+      {
+        type: 'ReturnStatement',
+        argument: { type: 'Identifier', name: 'result' },
+      },
+    ],
+  };
+  check('ast-patterns: singleReturnBodyExpression single return',
+    singleReturnBodyExpression(blockSingleReturn)?.name, 'result');
+  // expression-body arrow (no BlockStatement wrap) passes through
+  check('ast-patterns: singleReturnBodyExpression bare expr',
+    singleReturnBodyExpression(inner)?.name, 'x');
+  // two returns -> null (ambiguous)
+  const blockTwoReturns = {
+    type: 'BlockStatement',
+    body: [
+      { type: 'ReturnStatement', argument: { type: 'Identifier', name: 'a' } },
+      { type: 'ReturnStatement', argument: { type: 'Identifier', name: 'b' } },
+    ],
+  };
+  check('ast-patterns: singleReturnBodyExpression two returns',
+    singleReturnBodyExpression(blockTwoReturns), null);
+  // non-return non-expression statement -> null
+  const blockWithIf = {
+    type: 'BlockStatement',
+    body: [{ type: 'IfStatement' }],
+  };
+  check('ast-patterns: singleReturnBodyExpression with if',
+    singleReturnBodyExpression(blockWithIf), null);
+  // return-only with no argument -> null
+  const emptyReturn = {
+    type: 'BlockStatement',
+    body: [{ type: 'ReturnStatement', argument: null }],
+  };
+  check('ast-patterns: singleReturnBodyExpression bare return',
+    singleReturnBodyExpression(emptyReturn), null);
+  check('ast-patterns: singleReturnBodyExpression null body',
+    singleReturnBodyExpression(null), null);
+
+  // unwrapReceiverLeaf: peels transparent wrappers + IIFE shells - zero-param `(() => x)()`, and a
+  // param-bearing IIFE whose return is a stable receiver (identity-param lifts the arg, an
+  // unused-param body is the receiver; a body referencing its param non-identity-wise stays unpeeled)
+  const iife = {
+    type: 'CallExpression',
+    callee: {
+      type: 'ArrowFunctionExpression',
+      params: [],
+      async: false,
+      generator: false,
+      body: inner,
+    },
+    arguments: [],
+  };
+  check('ast-patterns: unwrapReceiverLeaf arrow-IIFE',
+    unwrapReceiverLeaf(iife)?.name, 'x');
+  // `(function () { return x; })()`
+  const iifeFn = {
+    type: 'CallExpression',
+    callee: {
+      type: 'FunctionExpression',
+      params: [],
+      async: false,
+      generator: false,
+      body: {
+        type: 'BlockStatement',
+        body: [{ type: 'ReturnStatement', argument: inner }],
+      },
+    },
+    arguments: [],
+  };
+  check('ast-patterns: unwrapReceiverLeaf function-IIFE',
+    unwrapReceiverLeaf(iifeFn)?.name, 'x');
+  // arrow with a param whose body does NOT reference it: the return IS the receiver, peel to it
+  const arrowWithParam = {
+    type: 'CallExpression',
+    callee: {
+      type: 'ArrowFunctionExpression',
+      params: [{ type: 'Identifier', name: 'p' }],
+      body: inner,
+    },
+    arguments: [{ type: 'NumericLiteral' }],
+  };
+  check('ast-patterns: unwrapReceiverLeaf arrow with unused param -> body peeled',
+    unwrapReceiverLeaf(arrowWithParam)?.name, 'x');
+  // identity-param IIFE `((p) => p)(recv)` lifts the arg - the receiver a static fold drops
+  const identityParam = {
+    type: 'CallExpression',
+    callee: {
+      type: 'ArrowFunctionExpression',
+      params: [{ type: 'Identifier', name: 'p' }],
+      body: { type: 'Identifier', name: 'p' },
+    },
+    arguments: [{ type: 'Identifier', name: 'recv' }],
+  };
+  check('ast-patterns: unwrapReceiverLeaf identity-param IIFE -> arg',
+    unwrapReceiverLeaf(identityParam)?.name, 'recv');
+  // a body that references its param non-identity-wise cannot be lifted -> stays the call
+  const paramReferencingBody = {
+    type: 'CallExpression',
+    callee: {
+      type: 'ArrowFunctionExpression',
+      params: [{ type: 'Identifier', name: 'p' }],
+      body: {
+        type: 'MemberExpression', computed: false,
+        object: { type: 'Identifier', name: 'p' },
+        property: { type: 'Identifier', name: 'foo' },
+      },
+    },
+    arguments: [{ type: 'Identifier', name: 'recv' }],
+  };
+  check('ast-patterns: unwrapReceiverLeaf param-referencing body -> not peeled',
+    unwrapReceiverLeaf(paramReferencingBody)?.type, 'CallExpression');
+  // bare passes through
+  check('ast-patterns: unwrapReceiverLeaf bare',
+    unwrapReceiverLeaf(inner)?.name, 'x');
+}
+
+// --- ast-shapes: qualified-name segment walk + heritage clauses ---
+
+{
+  // the three parsers spell a qualified name in three slot pairs, and `collectQualifiedSegments`
+  // is the only production consumer of the accessors that read them. assert through it, on the
+  // FULL segment list: a per-slot assertion of the `left` accessor alone passes even when the
+  // Flow `qualification` slot drops out, because the recursion re-enters through the same accessor
+  //   babel TSQualifiedName: { left, right }
+  const babelQName = {
+    type: 'TSQualifiedName',
+    left: { type: 'Identifier', name: 'A' },
+    right: { type: 'Identifier', name: 'B' },
+  };
+  check('ast-shapes: segments of a babel TSQualifiedName',
+    collectQualifiedSegments(babelQName)?.join('.'), 'A.B');
+  // flow QualifiedTypeIdentifier: { qualification, id }
+  const flowQName = {
+    type: 'QualifiedTypeIdentifier',
+    qualification: { type: 'Identifier', name: 'NS' },
+    id: { type: 'Identifier', name: 'X' },
+  };
+  check('ast-shapes: segments of a Flow QualifiedTypeIdentifier',
+    collectQualifiedSegments(flowQName)?.join('.'), 'NS.X');
+  // oxc MemberExpression (type-position): { object, property }
+  const oxcQName = {
+    type: 'MemberExpression',
+    object: { type: 'Identifier', name: 'NS' },
+    property: { type: 'Identifier', name: 'Y' },
+    computed: false,
+  };
+  check('ast-shapes: segments of an oxc type-position MemberExpression',
+    collectQualifiedSegments(oxcQName)?.join('.'), 'NS.Y');
+  // a NESTED babel name exercises the recursion through the left accessor on every level
+  check('ast-shapes: segments of a nested TSQualifiedName',
+    collectQualifiedSegments({ type: 'TSQualifiedName', left: babelQName, right: { type: 'Identifier', name: 'C' } })
+      ?.join('.'), 'A.B.C');
+  // a non-Identifier link anywhere in the chain refuses the whole walk
+  check('ast-shapes: segments refuse a computed link',
+    collectQualifiedSegments({ type: 'MemberExpression', object: oxcQName, property: { type: 'Literal', value: 0 }, computed: true }),
+    null);
+  // the same three spellings through the type-reference entry point
+  check('ast-shapes: typeRefSegments of a Flow GenericTypeAnnotation',
+    typeRefSegments({ type: 'GenericTypeAnnotation', id: flowQName })?.join('.'), 'NS.X');
+
+  // extendsId: TS heritage `TSExpressionWithTypeArguments { expression }`
+  const tsExtend = {
+    type: 'TSExpressionWithTypeArguments',
+    expression: { type: 'Identifier', name: 'Base' },
+  };
+  check('ast-shapes: extendsId TS', extendsId(tsExtend)?.name, 'Base');
+  // Flow heritage `InterfaceExtends { id }`
+  const flowExtend = {
+    type: 'InterfaceExtends',
+    id: { type: 'Identifier', name: 'Base' },
+  };
+  check('ast-shapes: extendsId Flow', extendsId(flowExtend)?.name, 'Base');
+  // neither slot -> null
+  check('ast-shapes: extendsId neither',
+    extendsId({ type: 'TSExpressionWithTypeArguments' }), null);
+
+  // synthInterfaceExtendsRef:
+  //   bare Identifier base -> TSTypeReference wrapping
+  const synthBare = synthInterfaceExtendsRef({
+    type: 'TSExpressionWithTypeArguments',
+    expression: { type: 'Identifier', name: 'Base' },
+    typeParameters: { params: [{ type: 'TSStringKeyword' }] },
+  });
+  check('ast-shapes: synthInterfaceExtendsRef type',
+    synthBare?.type, 'TSTypeReference');
+  check('ast-shapes: synthInterfaceExtendsRef typeName',
+    synthBare?.typeName?.name, 'Base');
+  check('ast-shapes: synthInterfaceExtendsRef typeParameters first',
+    synthBare?.typeParameters?.params?.[0]?.type, 'TSStringKeyword');
+  // qualified-name base -> wrapped
+  const synthQualified = synthInterfaceExtendsRef({
+    type: 'TSExpressionWithTypeArguments',
+    expression: babelQName,
+  });
+  check('ast-shapes: synthInterfaceExtendsRef qualified typeName',
+    synthQualified?.typeName?.type, 'TSQualifiedName');
+  // call-expression base -> null (unsupported shape)
+  const synthUnsupported = synthInterfaceExtendsRef({
+    type: 'TSExpressionWithTypeArguments',
+    expression: { type: 'CallExpression' },
+  });
+  check('ast-shapes: synthInterfaceExtendsRef unsupported',
+    synthUnsupported, null);
+  // no extendsId at all -> null
+  check('ast-shapes: synthInterfaceExtendsRef no extends',
+    synthInterfaceExtendsRef({ type: 'TSExpressionWithTypeArguments' }), null);
+}
+
+// --- exit-analysis: extended cases ---
+
+{
+  // blockAlwaysExits is `nodeAlwaysExits(block.node)` - thin wrapper
+  const block = { type: 'BlockStatement', body: [{ type: 'ReturnStatement' }] };
+  checkTruthy('exit-analysis: blockAlwaysExits return',
+    blockAlwaysExits({ node: block }));
+  // empty body -> false
+  check('exit-analysis: blockAlwaysExits empty',
+    blockAlwaysExits({ node: { type: 'BlockStatement', body: [] } }), false);
+
+  // try with finalizer exit -> always exits (finalizer overrides)
+  const tryFinallyReturn = {
+    type: 'TryStatement',
+    block: { type: 'BlockStatement', body: [] },
+    handler: null,
+    finalizer: { type: 'BlockStatement', body: [{ type: 'ReturnStatement' }] },
+  };
+  checkTruthy('exit-analysis: TryStatement finalizer-only return',
+    nodeAlwaysExits(tryFinallyReturn));
+  // try-body exits + no catch -> always
+  const tryNoCatchReturn = {
+    type: 'TryStatement',
+    block: { type: 'BlockStatement', body: [{ type: 'ReturnStatement' }] },
+    handler: null,
+    finalizer: null,
+  };
+  checkTruthy('exit-analysis: TryStatement body-return no catch',
+    nodeAlwaysExits(tryNoCatchReturn));
+  // try-body exits + catch falls through -> NOT always
+  const tryCatchFalls = {
+    type: 'TryStatement',
+    block: { type: 'BlockStatement', body: [{ type: 'ReturnStatement' }] },
+    handler: { body: { type: 'BlockStatement', body: [] } },
+    finalizer: null,
+  };
+  check('exit-analysis: TryStatement catch-falls',
+    nodeAlwaysExits(tryCatchFalls), false);
+  // try-body falls + finalizer falls -> NOT always
+  const tryAllFall = {
+    type: 'TryStatement',
+    block: { type: 'BlockStatement', body: [] },
+    handler: null,
+    finalizer: { type: 'BlockStatement', body: [] },
+  };
+  check('exit-analysis: TryStatement all-fall', nodeAlwaysExits(tryAllFall), false);
+
+  // ThrowStatement / BreakStatement / ContinueStatement are exit statements
+  checkTruthy('exit-analysis: ThrowStatement exits',
+    nodeAlwaysExits({ type: 'ThrowStatement' }));
+  checkTruthy('exit-analysis: BreakStatement exits',
+    nodeAlwaysExits({ type: 'BreakStatement' }));
+  checkTruthy('exit-analysis: ContinueStatement exits',
+    nodeAlwaysExits({ type: 'ContinueStatement' }));
+
+  // canFallThrough: consequent with no exit -> true; with return -> false
+  check('exit-analysis: canFallThrough empty consequent',
+    canFallThrough({ consequent: [] }), true);
+  check('exit-analysis: canFallThrough with return',
+    canFallThrough({
+      consequent: [{ type: 'ReturnStatement' }],
+    }), false);
+  // statements after exit -> still no fall-through (first exit wins)
+  check('exit-analysis: canFallThrough exit-then-other',
+    canFallThrough({
+      consequent: [
+        { type: 'ThrowStatement' },
+        { type: 'ExpressionStatement' },
+      ],
+    }), false);
+}
+
+// --- exit-analysis: a diverting statement makes the rest of its list unreachable ---
+
+// the closed domain is the four statements that transfer control out of their list. under the
+// FUNCTION-level question (`nodeAlwaysHardExits`) only return / throw count as the exit, while
+// break / continue divert to somewhere the caller's later statements may still be reached from -
+// so a return AFTER one of them is dead and must not be read as an unconditional exit. under the
+// full-set question (`nodeAlwaysExits`) all four are exits and the same lists answer true
+{
+  const DIVERTERS = [
+    { type: 'BreakStatement', hardExits: false },
+    { type: 'ContinueStatement', hardExits: false },
+    { type: 'ReturnStatement', hardExits: true },
+    { type: 'ThrowStatement', hardExits: true },
+  ];
+  for (const { type, hardExits } of DIVERTERS) {
+    const body = [{ type }, { type: 'ReturnStatement' }];
+    check(`exit-analysis: hard-exit past ${ type }`,
+      nodeAlwaysHardExits({ type: 'BlockStatement', body }), hardExits);
+    checkTruthy(`exit-analysis: any-exit past ${ type }`,
+      nodeAlwaysExits({ type: 'BlockStatement', body }));
+    // the same list as a switch case: the switch as a whole exits only when every case reaches a
+    // function-level exit, so a case that merely diverts leaves the switch falling through
+    check(`exit-analysis: switch case ending past ${ type }`,
+      nodeAlwaysHardExits({
+        type: 'SwitchStatement',
+        cases: [{ test: null, consequent: body }],
+      }), hardExits);
+  }
+  // a non-diverting statement in front changes nothing - only diversion truncates the list
+  checkTruthy('exit-analysis: hard-exit past a plain statement',
+    nodeAlwaysHardExits({
+      type: 'BlockStatement',
+      body: [{ type: 'ExpressionStatement' }, { type: 'ReturnStatement' }],
+    }));
+  // a labeled break escapes its wrapper and no more, so neither walk may call the labeled
+  // statement an exit - and the return behind it is dead for the same reason
+  const labeledBreakThenReturn = {
+    type: 'LabeledStatement',
+    label: { name: 'outer' },
+    body: {
+      type: 'BlockStatement',
+      body: [{ type: 'BreakStatement', label: { name: 'outer' } }, { type: 'ReturnStatement' }],
+    },
+  };
+  check('exit-analysis: labeled break then return does not hard-exit',
+    nodeAlwaysHardExits(labeledBreakThenReturn), false);
+  check('exit-analysis: labeled break then return does not exit',
+    nodeAlwaysExits(labeledBreakThenReturn), false);
+}
+
+// --- name-resolution: ambient node predicates (module-level surface) ---
+
+{
+  // span all three predicates with the same input sets to verify the union contract
+  const allPredicates = [isAmbientFunctionNode, isAmbientClassNode, isAmbientFunctionOrClassNode];
+  check('name-resolution: predicates exported', allPredicates.length, 3);
+
+  // isAmbientFunctionNode: TSDeclareFunction / DeclareFunction
+  checkTruthy('name-resolution: isAmbientFunctionNode TSDeclareFunction',
+    isAmbientFunctionNode({ type: 'TSDeclareFunction' }));
+  checkTruthy('name-resolution: isAmbientFunctionNode DeclareFunction (Flow)',
+    isAmbientFunctionNode({ type: 'DeclareFunction' }));
+  check('name-resolution: isAmbientFunctionNode FunctionDeclaration',
+    isAmbientFunctionNode({ type: 'FunctionDeclaration' }), false);
+  check('name-resolution: isAmbientFunctionNode null',
+    isAmbientFunctionNode(null), false);
+
+  // isAmbientClassNode: DeclareClass OR ClassDeclaration with declare: true
+  checkTruthy('name-resolution: isAmbientClassNode DeclareClass',
+    isAmbientClassNode({ type: 'DeclareClass' }));
+  checkTruthy('name-resolution: isAmbientClassNode declare:true ClassDeclaration',
+    isAmbientClassNode({ type: 'ClassDeclaration', declare: true }));
+  // ClassDeclaration without declare flag -> false (runtime class)
+  check('name-resolution: isAmbientClassNode runtime ClassDeclaration',
+    isAmbientClassNode({ type: 'ClassDeclaration' }), false);
+
+  // isAmbientFunctionOrClassNode: union predicate
+  checkTruthy('name-resolution: isAmbientFunctionOrClassNode fn',
+    isAmbientFunctionOrClassNode({ type: 'TSDeclareFunction' }));
+  checkTruthy('name-resolution: isAmbientFunctionOrClassNode class',
+    isAmbientFunctionOrClassNode({ type: 'DeclareClass' }));
+  check('name-resolution: isAmbientFunctionOrClassNode plain',
+    isAmbientFunctionOrClassNode({ type: 'FunctionDeclaration' }), false);
+}
+
+{
+  // guard verdict for an aliasing write: a hoisted `var` declarator (or an assignment-form
+  // write) under a branch assigns on one path only and must not register a fold source;
+  // an unconditional write and a block-scoped `let` declarator stay registerable
+  function chain(nodes) {
+    let path = null;
+    for (const node of nodes) path = { node, parentPath: path };
+    return path;
+  }
+  function fnWith(statement) {
+    const body = { type: 'BlockStatement', body: [statement] };
+    return { type: 'FunctionDeclaration', id: { type: 'Identifier', name: 'f' }, params: [], body };
+  }
+  const guardedDeclarator = {
+    type: 'VariableDeclarator',
+    id: { type: 'ObjectPattern', properties: [] },
+    init: { type: 'Identifier', name: 'Symbol' },
+  };
+  const guardedDeclaration = { type: 'VariableDeclaration', kind: 'var', declarations: [guardedDeclarator] };
+  const guardedBlock = { type: 'BlockStatement', body: [guardedDeclaration] };
+  const guardedIf = { type: 'IfStatement', test: { type: 'Identifier', name: 'c' }, consequent: guardedBlock, alternate: null };
+  const guardedFn = fnWith(guardedIf);
+  checkTruthy('ast-patterns: guarded var declarator write refused',
+    isGuardedAliasingWrite({
+      kind: 'var', constantViolations: [],
+      path: chain([guardedFn, guardedFn.body, guardedIf, guardedBlock, guardedDeclaration, guardedDeclarator]),
+    }));
+
+  const plainDeclarator = {
+    type: 'VariableDeclarator',
+    id: { type: 'ObjectPattern', properties: [] },
+    init: { type: 'Identifier', name: 'Symbol' },
+  };
+  const plainDeclaration = { type: 'VariableDeclaration', kind: 'var', declarations: [plainDeclarator] };
+  const plainFn = fnWith(plainDeclaration);
+  check('ast-patterns: unconditional var declarator write keeps',
+    isGuardedAliasingWrite({
+      kind: 'var', constantViolations: [],
+      path: chain([plainFn, plainFn.body, plainDeclaration, plainDeclarator]),
+    }), false);
+
+  // a block-scoped `let` cannot leak past its branch - the declarator form stays registerable
+  check('ast-patterns: guarded let declarator keeps (block-scoped)',
+    isGuardedAliasingWrite({
+      kind: 'let', constantViolations: [],
+      path: chain([guardedFn, guardedFn.body, guardedIf, guardedBlock, guardedDeclaration, guardedDeclarator]),
+    }), false);
+
+  const bareDeclarator = { type: 'VariableDeclarator', id: { type: 'Identifier', name: 'it' }, init: null };
+  const assign = {
+    type: 'AssignmentExpression', operator: '=',
+    left: { type: 'ObjectPattern', properties: [] },
+    right: { type: 'Identifier', name: 'Symbol' },
+  };
+  const assignStmt = { type: 'ExpressionStatement', expression: assign };
+  const assignBlock = { type: 'BlockStatement', body: [assignStmt] };
+  const assignIf = { type: 'IfStatement', test: { type: 'Identifier', name: 'c' }, consequent: assignBlock, alternate: null };
+  const assignFn = fnWith(assignIf);
+  checkTruthy('ast-patterns: guarded assignment-form write refused',
+    isGuardedAliasingWrite({
+      kind: 'var',
+      constantViolations: [chain([assignFn, assignFn.body, assignIf, assignBlock, assignStmt, assign])],
+      path: { node: bareDeclarator, parentPath: null },
+    }));
+
+  const plainAssignFn = fnWith(assignStmt);
+  check('ast-patterns: unconditional assignment-form write keeps',
+    isGuardedAliasingWrite({
+      kind: 'var',
+      constantViolations: [chain([plainAssignFn, plainAssignFn.body, assignStmt, assign])],
+      path: { node: bareDeclarator, parentPath: null },
+    }), false);
+
+  // a synthetic var-hoist binding carries `.node` + `.ownerNode` (no `.path`): the guard
+  // verdict anchors node-based there
+  checkTruthy('ast-patterns: guarded synthetic binding refused',
+    isGuardedAliasingWrite({ kind: 'var', constantViolations: [], node: guardedDeclarator, ownerNode: guardedFn }));
+  check('ast-patterns: unconditional synthetic binding keeps',
+    isGuardedAliasingWrite({ kind: 'var', constantViolations: [], node: plainDeclarator, ownerNode: plainFn }), false);
+
+  // estree records a for-init declarator as a violation of ITSELF via the bound identifier
+  // inside the own pattern - the clean-alias count must not read it as a reassignment
+  const selfId = { type: 'Identifier', name: 'iterator' };
+  const selfProp = { type: 'Property', key: selfId, value: selfId };
+  const selfPattern = { type: 'ObjectPattern', properties: [selfProp] };
+  const selfDeclarator = { type: 'VariableDeclarator', id: selfPattern, init: { type: 'Identifier', name: 'Symbol' } };
+  const selfViolation = chain([selfDeclarator, selfPattern, selfProp, selfId]);
+  checkTruthy('ast-patterns: for-init self record does not poison the clean-alias count',
+    isCleanDestructureAliasBinding({ kind: 'var', constantViolations: [selfViolation], path: { node: selfDeclarator, parentPath: null } }));
+}
+
+// --- resolve-node-type/value-ops (module-level self-default ternary canon) ---
+
+{
+  function ternary(test, consequent, alternate) {
+    return { type: 'ConditionalExpression', test, consequent, alternate };
+  }
+  const ref = { type: 'Identifier', name: '_ref' };
+  const dflt = { type: 'Identifier', name: 'd' };
+  const voidZero = { type: 'UnaryExpression', operator: 'void', argument: { type: 'NumericLiteral', value: 0 } };
+  check('value-ops: self-default positive `_ref === void 0 ? d : _ref`',
+    matchSelfDefaultTernarySlot(ternary({ type: 'BinaryExpression', operator: '===', left: ref, right: voidZero }, dflt, ref)),
+    'consequent');
+  check('value-ops: self-default inverse `_ref !== void 0 ? _ref : d`',
+    matchSelfDefaultTernarySlot(ternary({ type: 'BinaryExpression', operator: '!==', left: ref, right: voidZero }, ref, dflt)),
+    'alternate');
+  const typeofTest = {
+    type: 'BinaryExpression', operator: '===',
+    left: { type: 'UnaryExpression', operator: 'typeof', argument: ref },
+    right: { type: 'StringLiteral', value: 'undefined' },
+  };
+  check('value-ops: self-default typeof spelling',
+    matchSelfDefaultTernarySlot(ternary(typeofTest, dflt, ref)), 'consequent');
+  const bareUndef = { type: 'BinaryExpression', operator: '===', left: ref, right: { type: 'Identifier', name: 'undefined' } };
+  check('value-ops: bare undefined accepted while unshadowed',
+    matchSelfDefaultTernarySlot(ternary(bareUndef, dflt, ref)), 'consequent');
+  check('value-ops: bare undefined rejected when locally shadowed',
+    matchSelfDefaultTernarySlot(ternary(bareUndef, dflt, ref), { isLocalUndefinedName: () => true }), null);
+  // a NON-self ternary (the tested reference is not the value branch) is not a default shape
+  check('value-ops: non-self ternary rejected',
+    matchSelfDefaultTernarySlot(ternary({ type: 'BinaryExpression', operator: '===', left: { type: 'Identifier', name: 'other' }, right: voidZero }, dflt, ref)),
+    null);
+  check('value-ops: bare-identifier test rejected',
+    matchSelfDefaultTernarySlot(ternary(ref, ref, dflt)), null);
+}
+
+// --- helpers/class-walk (pure utilities) ---
+
+{
+  // the Symbol destructure-alias shadow gate: a bare `Symbol` init counts only while
+  // unshadowed; a binary init can never be the constructor; the valueless-redecl phantom
+  // does not poison the shape check
+  // a top-level `{ iterator } = <init>` alias: `name` supplies the bound name the top-level-value
+  // gate needs (real callers pass it; a synthetic binding carries no `.identifier`)
+  function symbolBinding(init, violations = []) {
+    return {
+      path: { node: { type: 'VariableDeclarator',
+        id: { type: 'ObjectPattern', properties: [{ type: 'Property',
+          key: { type: 'Identifier', name: 'iterator' }, value: { type: 'Identifier', name: 'iterator' } }] },
+        init } },
+      constantViolations: violations,
+      name: 'iterator',
+    };
+  }
+  const info = { source: 'actual/symbol/iterator' };
+  const bareSymbol = { type: 'Identifier', name: 'Symbol' };
+  const unshadowed = { hasBinding: () => false };
+  const shadowed = { hasBinding: () => true };
+  checkTruthy('class-walk: symbol alias accepts unshadowed bare Symbol',
+    isSymbolDestructureAliasBinding({ info, binding: symbolBinding(bareSymbol), scope: {}, adapter: unshadowed, injector: null }));
+  check('class-walk: symbol alias rejects SHADOWED bare Symbol',
+    isSymbolDestructureAliasBinding({ info, binding: symbolBinding(bareSymbol), scope: {}, adapter: shadowed, injector: null }), false);
+  check('class-walk: symbol alias rejects a binary init',
+    isSymbolDestructureAliasBinding({
+      info, binding: symbolBinding({ type: 'BinaryExpression', operator: '+', left: bareSymbol, right: { type: 'NumericLiteral', value: 1 } }),
+      scope: {}, adapter: unshadowed, injector: null,
+    }), false);
+  const phantom = { node: { type: 'VariableDeclarator', id: { type: 'Identifier', name: 'iterator' }, init: null } };
+  checkTruthy('class-walk: symbol alias survives the valueless-redecl phantom',
+    isSymbolDestructureAliasBinding({ info, binding: symbolBinding(bareSymbol, [phantom]), scope: {}, adapter: unshadowed, injector: null }));
+
+  // a BRANCHING init is value-sound only on every completing path: a mixed ternary and the
+  // non-defaulted logical directions reject; the self-default ternary and `X || d` keep
+  const shim = { type: 'Identifier', name: 'shim' };
+  function accepted(init) {
+    return isSymbolDestructureAliasBinding({ info, binding: symbolBinding(init), scope: {}, adapter: unshadowed, injector: null });
+  }
+  check('class-walk: mixed ternary init rejected',
+    accepted({ type: 'ConditionalExpression', test: { type: 'Identifier', name: 'c' }, consequent: bareSymbol, alternate: shim }), false);
+  checkTruthy('class-walk: self-default ternary init accepted',
+    accepted({
+      type: 'ConditionalExpression',
+      test: {
+        type: 'BinaryExpression', operator: '===',
+        left: { type: 'UnaryExpression', operator: 'typeof', argument: bareSymbol },
+        right: { type: 'StringLiteral', value: 'undefined' },
+      },
+      consequent: shim, alternate: bareSymbol,
+    }));
+  checkTruthy('class-walk: defaulted `Symbol || shim` accepted',
+    accepted({ type: 'LogicalExpression', operator: '||', left: bareSymbol, right: shim }));
+  check('class-walk: reversed `shim || Symbol` rejected',
+    accepted({ type: 'LogicalExpression', operator: '||', left: shim, right: bareSymbol }), false);
+  check('class-walk: `cond && Symbol` rejected',
+    accepted({ type: 'LogicalExpression', operator: '&&', left: { type: 'Identifier', name: 'cond' }, right: bareSymbol }), false);
+
+  // the ctor-alias pre-pass registers a computed STRING-LITERAL key like the plain form
+  // and keeps identifier (dynamic) keys out
+  function prePassPattern(key, computed) {
+    return {
+      type: 'ObjectPattern',
+      properties: [{ type: 'ObjectProperty', computed, key, value: { type: 'Identifier', name: 'M' } }],
+    };
+  }
+  function runPrePass(pattern) {
+    const registered = [];
+    registerAliasPrePassSite({
+      pattern, init: { type: 'Identifier', name: 'globalThis' }, declKind: 'const', assignNode: null,
+      scope: {}, adapter: { hasBinding: () => false, getBinding: () => null },
+      injector: { registerGlobalAlias(local, hint) { registered.push(`${ local }<-${ hint }`); } },
+      path: null, isKnownGlobal: hint => hint === 'Map',
+    });
+    return registered.join(',');
+  }
+  check('class-walk: pre-pass registers computed string-literal ctor-alias key',
+    runPrePass(prePassPattern({ type: 'StringLiteral', value: 'Map' }, true)), 'M<-Map');
+  check('class-walk: pre-pass keeps computed identifier key out',
+    runPrePass(prePassPattern({ type: 'Identifier', name: 'Map' }, true)), '');
+}
+
+{
+  // a stale path from a replaced subtree (detached ancestor, node === null) must degrade to
+  // "no enclosing member" without throwing and without poisoning the walk cache for live
+  // nodes reused in the rebuilt tree
+  function typeIs(expected) {
+    return function (node) { return node?.type === expected; };
+  }
+  const tShim = {
+    isClassMethod: typeIs('ClassMethod'),
+    isClassPrivateMethod: typeIs('ClassPrivateMethod'),
+    isClassProperty: typeIs('ClassProperty'),
+    isClassPrivateProperty: typeIs('ClassPrivateProperty'),
+    isClassAccessorProperty: typeIs('ClassAccessorProperty'),
+    isStaticBlock: typeIs('StaticBlock'),
+    isArrowFunctionExpression: typeIs('ArrowFunctionExpression'),
+    isFunction(node) { return !!node?.type?.includes('Function'); },
+  };
+  const helpers = createClassHelpers({ t: tShim, adapter: {}, resolveKey: () => null });
+  const method = { type: 'ClassMethod', static: true, key: { type: 'Identifier', name: 'm' } };
+  const classBody = { type: 'ClassBody', body: [method] };
+  const classNode = { type: 'ClassDeclaration', body: classBody };
+  const methodPath = {
+    node: method,
+    parentPath: { node: classBody, parentPath: { node: classNode, parentPath: null } },
+  };
+  const stale = { node: { type: 'ObjectProperty' }, parentPath: { node: null, parentPath: methodPath } };
+  check('class-walk: detached ancestor degrades without throw',
+    helpers.isInStaticContext(stale), false);
+  // the later live walk through the SAME method node still resolves - the stale walk must
+  // not have cached a null conclusion for it
+  const live = { node: { type: 'Identifier' }, parentPath: methodPath };
+  check('class-walk: live walk after stale one unaffected',
+    helpers.isInStaticContext(live), true);
+}
+
+{
+  // POSSIBLE_GLOBAL_OBJECTS: from known-built-in-return-types.globalProxies
+  checkTruthy('ast-patterns: POSSIBLE_GLOBAL_OBJECTS has globalThis',
+    POSSIBLE_GLOBAL_OBJECTS.has('globalThis'));
+  checkTruthy('ast-patterns: POSSIBLE_GLOBAL_OBJECTS has self',
+    POSSIBLE_GLOBAL_OBJECTS.has('self'));
+  checkTruthy('ast-patterns: POSSIBLE_GLOBAL_OBJECTS has window',
+    POSSIBLE_GLOBAL_OBJECTS.has('window'));
+  // bare `Array` is a built-in, not a global-proxy alias
+  check('ast-patterns: POSSIBLE_GLOBAL_OBJECTS no Array',
+    POSSIBLE_GLOBAL_OBJECTS.has('Array'), false);
+
+  // globalProxyMemberName: `globalThis.Map` -> 'Map'
+  const directProxy = {
+    type: 'MemberExpression',
+    object: { type: 'Identifier', name: 'globalThis' },
+    property: { type: 'Identifier', name: 'Map' },
+    computed: false,
+  };
+  check('class-walk: globalProxyMemberName direct',
+    globalProxyMemberName({ node: directProxy }), 'Map');
+
+  // the adapter-hop cycle guard keeps IN-FLIGHT names in module state, so its release matters as
+  // much as its capture: a name left occupied silently downgrades every later resolution of it to
+  // the node-only answer. no corpus input can reach that - only these assertions can
+  {
+    const gt = { type: 'Identifier', name: 'globalThis' };
+    const guardScope = { id: 'guard-scope' };
+    function stubAdapter(getBinding) {
+      return { method: 'usage-pure', packages: ['core-js'], hasBinding: () => false, getBinding };
+    }
+    function clean() {
+      return stubAdapter(() => null);
+    }
+
+    // a throw INSIDE the adapter lookup must still release the name
+    try {
+      proxyGlobalRootName({ node: gt, scope: guardScope, adapter: stubAdapter(() => { throw new Error('probe'); }), path: null });
+    } catch { /* the throw is the point; the release is what is asserted next */ }
+    check('class-walk: in-flight guard releases after an adapter throw',
+      proxyGlobalRootName({ node: gt, scope: guardScope, adapter: clean(), path: null }), 'globalThis');
+
+    // sequential resolutions of the same name in the same scope are independent
+    proxyGlobalRootName({ node: gt, scope: guardScope, adapter: clean(), path: null });
+    check('class-walk: in-flight guard does not persist between calls',
+      proxyGlobalRootName({ node: gt, scope: guardScope, adapter: clean(), path: null }), 'globalThis');
+
+    // a nested lookup of a DIFFERENT name resolves normally; the SAME name is the cycle and answers
+    // node-only instead of recursing
+    let nestedOther = null;
+    const nesting = stubAdapter((sc, name) => {
+      if (name === 'globalThis') {
+        nestedOther = proxyGlobalRootName({ node: { type: 'Identifier', name: 'self' }, scope: sc, adapter: nesting, path: null });
+      }
+      return null;
+    });
+    proxyGlobalRootName({ node: gt, scope: guardScope, adapter: nesting, path: null });
+    check('class-walk: in-flight guard leaves a different name resolvable', nestedOther, 'self');
+
+    let nestedSame = null;
+    const cycling = stubAdapter((sc, name) => {
+      nestedSame ??= proxyGlobalRootName({ node: { type: 'Identifier', name }, scope: sc, adapter: cycling, path: null });
+      return null;
+    });
+    check('class-walk: in-flight guard breaks a same-name re-entry',
+      proxyGlobalRootName({ node: gt, scope: guardScope, adapter: cycling, path: null }), 'globalThis');
+    check('class-walk: same-name re-entry answers node-only', nestedSame, 'globalThis');
+  }
+
+  // `self.Map` -> 'Map' (any proxy-global)
+  const selfProxy = {
+    type: 'MemberExpression',
+    object: { type: 'Identifier', name: 'self' },
+    property: { type: 'Identifier', name: 'Set' },
+    computed: false,
+  };
+  check('class-walk: globalProxyMemberName self',
+    globalProxyMemberName({ node: selfProxy }), 'Set');
+
+  // chain through `globalThis.self.X` resolves to 'X'
+  const chainProxy = {
+    type: 'MemberExpression',
+    object: {
+      type: 'MemberExpression',
+      object: { type: 'Identifier', name: 'globalThis' },
+      property: { type: 'Identifier', name: 'self' },
+      computed: false,
+    },
+    property: { type: 'Identifier', name: 'Map' },
+    computed: false,
+  };
+  check('class-walk: globalProxyMemberName chained globalThis.self.X',
+    globalProxyMemberName({ node: chainProxy }), 'Map');
+
+  // `globalThis['Map']` -> 'Map' (string-literal computed key)
+  const computedProxy = {
+    type: 'MemberExpression',
+    object: { type: 'Identifier', name: 'globalThis' },
+    property: { type: 'StringLiteral', value: 'Map' },
+    computed: true,
+  };
+  check('class-walk: globalProxyMemberName computed string',
+    globalProxyMemberName({ node: computedProxy }), 'Map');
+
+  // non-global root -> null
+  const userBound = {
+    type: 'MemberExpression',
+    object: { type: 'Identifier', name: 'obj' },
+    property: { type: 'Identifier', name: 'Map' },
+    computed: false,
+  };
+  check('class-walk: globalProxyMemberName user root',
+    globalProxyMemberName({ node: userBound }), null);
+
+  // not a MemberExpression -> null
+  check('class-walk: globalProxyMemberName non-member',
+    globalProxyMemberName({ node: { type: 'Identifier', name: 'globalThis' } }), null);
+
+  // empty key `globalThis['']` -> null (no real global has empty name)
+  const emptyKey = {
+    type: 'MemberExpression',
+    object: { type: 'Identifier', name: 'globalThis' },
+    property: { type: 'StringLiteral', value: '' },
+    computed: true,
+  };
+  check('class-walk: globalProxyMemberName empty key',
+    globalProxyMemberName({ node: emptyKey }), null);
+
+  // isClassifiableReceiverArg: strict - Identifier only
+  checkTruthy('class-walk: isClassifiableReceiverArg identifier',
+    isClassifiableReceiverArg({ type: 'Identifier', name: 'X' }));
+  check('class-walk: isClassifiableReceiverArg member -> false',
+    isClassifiableReceiverArg(directProxy), false);
+  check('class-walk: isClassifiableReceiverArg null -> false',
+    isClassifiableReceiverArg(null), false);
+  // `undefined` arg: the global sentinel makes the IIFE-param default apply, so it is NOT a
+  // classifiable receiver; a shadowing local binding turns it into a real value (use the arg)
+  const undefinedArg = { type: 'Identifier', name: 'undefined' };
+  check('class-walk: isClassifiableReceiverArg undefined node-only -> false',
+    isClassifiableReceiverArg(undefinedArg), false);
+  check('class-walk: isClassifiableReceiverArg global undefined -> false',
+    isClassifiableReceiverArg(undefinedArg, {}, { hasBinding: () => false }), false);
+  checkTruthy('class-walk: isClassifiableReceiverArg shadowed undefined -> true',
+    isClassifiableReceiverArg(undefinedArg, {}, { hasBinding: () => true }));
+
+  // isExpandedClassifiableReceiver: permissive - Identifier OR proxy-global member
+  checkTruthy('class-walk: isExpandedClassifiableReceiver identifier',
+    isExpandedClassifiableReceiver({ node: { type: 'Identifier', name: 'X' } }));
+  checkTruthy('class-walk: isExpandedClassifiableReceiver globalThis.X',
+    isExpandedClassifiableReceiver({ node: directProxy }));
+  // user-bound member -> false
+  check('class-walk: isExpandedClassifiableReceiver user member',
+    isExpandedClassifiableReceiver({ node: userBound }), false);
+
+  // symbolKeyToEntry: Symbol.X -> symbol/<kebab>
+  check('globals: symbolKeyToEntry hasInstance',
+    symbolKeyToEntry('Symbol.hasInstance'), 'symbol/has-instance');
+  check('globals: symbolKeyToEntry iterator',
+    symbolKeyToEntry('Symbol.iterator'), 'symbol/iterator');
+  check('globals: symbolKeyToEntry asyncIterator',
+    symbolKeyToEntry('Symbol.asyncIterator'), 'symbol/async-iterator');
+  check('globals: symbolKeyToEntry toPrimitive',
+    symbolKeyToEntry('Symbol.toPrimitive'), 'symbol/to-primitive');
+  // not a Symbol.X key -> null
+  check('globals: symbolKeyToEntry plain key',
+    symbolKeyToEntry('Array.from'), null);
+  // empty suffix -> null (Symbol. with nothing after)
+  check('globals: symbolKeyToEntry empty suffix',
+    symbolKeyToEntry('Symbol.'), null);
+  // uppercase first letter -> null (well-known symbols are lowercase)
+  check('globals: symbolKeyToEntry uppercase first',
+    symbolKeyToEntry('Symbol.X'), null);
+  check('globals: symbolKeyToEntry null', symbolKeyToEntry(null), null);
+
+  // markSynthReceiverSkipped: walk down `.object` chain of proxy-global member chain
+  const skipped = new Set();
+  const inner = { type: 'Identifier', name: 'globalThis' };
+  const chain = {
+    type: 'MemberExpression',
+    object: {
+      type: 'MemberExpression',
+      object: inner,
+      property: { type: 'Identifier', name: 'self' },
+    },
+    property: { type: 'Identifier', name: 'Map' },
+  };
+  markSynthReceiverSkipped(chain, skipped);
+  // every chain node + inner Identifier is marked
+  checkTruthy('class-walk: markSynthReceiverSkipped outer chain',
+    skipped.has(chain));
+  checkTruthy('class-walk: markSynthReceiverSkipped intermediate',
+    skipped.has(chain.object));
+  checkTruthy('class-walk: markSynthReceiverSkipped innermost identifier',
+    skipped.has(inner));
+  // null receiver - no crash
+  const emptySet = new Set();
+  markSynthReceiverSkipped(null, emptySet);
+  check('class-walk: markSynthReceiverSkipped null receiver', emptySet.size, 0);
+  // bare Identifier - only that node is added
+  const bareSet = new Set();
+  const bareId = { type: 'Identifier', name: 'globalThis' };
+  markSynthReceiverSkipped(bareId, bareSet);
+  check('class-walk: markSynthReceiverSkipped bare identifier size', bareSet.size, 1);
+  checkTruthy('class-walk: markSynthReceiverSkipped bare identifier has node',
+    bareSet.has(bareId));
+
+  // resolveSuperImportName: rewrites .object via injector.getPureImport
+  // injector hit -> `.object` swapped to imp.hint, other fields preserved
+  const mockInjector = {
+    getPureImport(name) {
+      if (name === 'MyPromise') return { hint: 'Promise' };
+      return null;
+    },
+  };
+  const superMetaWithRemap = {
+    kind: 'property',
+    object: 'MyPromise',
+    key: 'try',
+    placement: 'static',
+  };
+  const remapped = resolveSuperImportName(mockInjector, superMetaWithRemap);
+  check('class-walk: resolveSuperImportName injector hit object',
+    remapped?.object, 'Promise');
+  check('class-walk: resolveSuperImportName injector hit key preserved',
+    remapped?.key, 'try');
+  check('class-walk: resolveSuperImportName injector hit placement preserved',
+    remapped?.placement, 'static');
+  // injector miss -> original returned (identity)
+  const noHit = resolveSuperImportName(mockInjector, {
+    kind: 'property',
+    object: 'NotImported',
+    key: 'x',
+  });
+  check('class-walk: resolveSuperImportName injector miss',
+    noHit?.object, 'NotImported');
+  // null injector -> input unchanged
+  const samePassthrough = resolveSuperImportName(null, superMetaWithRemap);
+  check('class-walk: resolveSuperImportName null injector',
+    samePassthrough?.object, 'MyPromise');
+  // null superMeta -> null
+  check('class-walk: resolveSuperImportName null superMeta',
+    resolveSuperImportName(mockInjector, null), null);
+  // missing .object -> input unchanged
+  const noObj = resolveSuperImportName(mockInjector, { kind: 'property' });
+  check('class-walk: resolveSuperImportName no .object',
+    noObj?.kind, 'property');
+
+  // remapInheritedStaticMeta: carries sideEffects from originalMeta
+  const sideEffect = { type: 'CallExpression' };
+  const original = {
+    kind: 'property',
+    object: 'Original',
+    sideEffects: [sideEffect],
+  };
+  const inherited = {
+    kind: 'property',
+    object: 'MyPromise',
+    key: 'try',
+  };
+  const remappedWithSE = remapInheritedStaticMeta(mockInjector, original, inherited);
+  check('class-walk: remapInheritedStaticMeta remaps object',
+    remappedWithSE?.object, 'Promise');
+  check('class-walk: remapInheritedStaticMeta carries SE',
+    remappedWithSE?.sideEffects?.[0], sideEffect);
+  // the receiver/key split point is the SE list's own metadata: carrying the list without it
+  // leaves the emit side splitting at an unrecorded point (an absent count reads as 0, so the
+  // whole carried list would be treated as key-SE by one consumer and receiver-SE by the other)
+  check('class-walk: remapInheritedStaticMeta carries the SE split point',
+    remappedWithSE?.receiverEffectCount, 0);
+  const recordedSplit = remapInheritedStaticMeta(mockInjector,
+    { ...original, sideEffects: [sideEffect, sideEffect], receiverEffectCount: 1 }, inherited);
+  check('class-walk: remapInheritedStaticMeta preserves a recorded split point',
+    recordedSplit?.receiverEffectCount, 1);
+  // no inherited -> null
+  check('class-walk: remapInheritedStaticMeta no inherited',
+    remapInheritedStaticMeta(mockInjector, original, null), null);
+  // original without SE -> result has no SE slot or carries undefined
+  const noSE = remapInheritedStaticMeta(mockInjector, { kind: 'property', object: 'X' }, inherited);
+  check('class-walk: remapInheritedStaticMeta no SE no carry',
+    noSE?.sideEffects, undefined);
+  check('class-walk: remapInheritedStaticMeta no SE no split point',
+    noSE?.receiverEffectCount, undefined);
+
+  // buildSuperStaticMeta: ClassDeclaration with superClass resolved by resolveSuperType
+  function fakeResolver(id) { return id?.type === 'Identifier' ? id.name : null; }
+  const classWithSuper = {
+    type: 'ClassDeclaration',
+    superClass: { type: 'Identifier', name: 'Base' },
+  };
+  const staticMeta = buildSuperStaticMeta(classWithSuper, 'try', fakeResolver);
+  check('class-walk: buildSuperStaticMeta object', staticMeta?.object, 'Base');
+  check('class-walk: buildSuperStaticMeta key', staticMeta?.key, 'try');
+  check('class-walk: buildSuperStaticMeta placement', staticMeta?.placement, 'static');
+  // null superClass -> null
+  const noSuperClass = buildSuperStaticMeta(
+    { type: 'ClassDeclaration', superClass: null },
+    'try', fakeResolver,
+  );
+  check('class-walk: buildSuperStaticMeta no superClass', noSuperClass, null);
+  // resolver returns null -> null
+  const unresolved = buildSuperStaticMeta(
+    classWithSuper, 'try', () => null,
+  );
+  check('class-walk: buildSuperStaticMeta unresolved', unresolved, null);
+  // non-class node -> null
+  check('class-walk: buildSuperStaticMeta non-class',
+    buildSuperStaticMeta({ type: 'FunctionDeclaration' }, 'try', fakeResolver), null);
+  // class wrapped in TS cast -> peel reaches Base
+  const classWithCastSuper = {
+    type: 'ClassExpression',
+    superClass: {
+      type: 'TSAsExpression',
+      expression: { type: 'Identifier', name: 'Base' },
+    },
+  };
+  const castMeta = buildSuperStaticMeta(classWithCastSuper, 'of', fakeResolver);
+  check('class-walk: buildSuperStaticMeta TS-cast superClass',
+    castMeta?.object, 'Base');
+}
+
+// --- type-structure + annotations findings ---
+
+// a non-numeric string key against a number-only / symbol-only index signature has no
+// member in TS - the resolver must return null, not the index value type (over-emission)
+runBoth('number-only index signature, non-numeric string key -> null',
+  'type T = { [k: number]: number[] }; declare const t: T; let x = t.foo;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
+    check(`${ lbl } number-only index sig string key`, adapter.makeResolver().resolveNodeType(decl.get('id')), null);
+  });
+
+runBoth('symbol-only index signature, non-numeric string key -> null',
+  'type T = { [k: symbol]: number[] }; declare const t: T; let x = t.foo;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
+    check(`${ lbl } symbol-only index sig string key`, adapter.makeResolver().resolveNodeType(decl.get('id')), null);
+  });
+
+// a body-less generic method reached via an indexed-access binding (`C<number>['m']`)
+// must keep the element type on BOTH parsers; oxc nests the returnType on a
+// TSEmptyBodyFunctionExpression `.value`, so the dispatch entry that drops it caused a divergence
+runBoth('declare-class generic method via indexed-access keeps element type on both parsers',
+  'declare class C<T> { m(): T[]; } declare const f: C<number>["m"]; const r = f();',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'r');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    checkType(lbl, type, { primitive: false, ctor: 'Array' });
+    checkTruthy(`${ lbl } inner number`, type?.inner?.type === 'number');
+  });
+
+// abstract variant: oxc models `abstract m(): T[]` as TSAbstractMethodDefinition (babel as
+// TSDeclareMethod), with the return type nested on its `.value` - same element-type-preservation
+// must hold on both parsers, threaded through the dispatch / method-shape / member / call layers
+runBoth('abstract-class generic method via indexed-access keeps element type on both parsers',
+  'abstract class C<T> { abstract m(): T[]; } declare const f: C<number>["m"]; const r = f();',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'r');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    checkType(lbl, type, { primitive: false, ctor: 'Array' });
+    checkTruthy(`${ lbl } inner number`, type?.inner?.type === 'number');
+  });
+
+// regression guard: a method-local generic shadowing an enclosing alias
+// type-param of the same name is NOT bound by the alias arg - the return resolves to null/generic
+runBoth('method-local generic shadowing outer alias type-param resolves null (no over-narrow)',
+  'interface I<T> { m<T>(): T; } declare const f: I<number[]>["m"]; const r = f();',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'r');
+    check(`${ lbl } method-local shadow`, adapter.makeResolver().resolveNodeType(decl.get('init')), null);
+  });
+
+// a deep stack of non-reducing aliased conditionals (each sibling branch re-hopping to the
+// same downstream conditional) must resolve via per-(node,scope) memoization, not a 2^N branch tree
+runBoth('deep nested non-reducing conditional type resolves via memoization',
+  'interface Brand { __brand: true }\n'
+  + 'type S0<U> = U extends Brand ? W0<U> : S1<U>;\ntype W0<U> = S1<U>;\n'
+  + 'type S1<U> = U extends Brand ? W1<U> : S2<U>;\ntype W1<U> = S2<U>;\n'
+  + 'type S2<U> = U extends Brand ? W2<U> : S3<U>;\ntype W2<U> = S3<U>;\n'
+  + 'type S3<U> = string[];\ndeclare const x: S0<{ plain: 1 }>;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('id')), { primitive: false, ctor: 'Array' });
+  });
+
+// a member sub-path narrow (`obj.a` via `obj.a.kind === 'x'`) is dropped when that exact sub-path
+// is reassigned inside the guarded block (`obj.a = other`): the receiver widens back to the full
+// union, so the type resolves to null (generic) rather than the narrowed `data: string` branch.
+// the reassign is a property write, NOT a `constantViolation` of the root binding, so it is
+// recovered from the binding's references via the parser-agnostic enumerator - reading babel's
+// `referencePaths` directly would leave the estree-toolkit (oxc) adapter with the stale narrow
+runBoth('member sub-path reassign drops discriminant narrow on both parsers',
+  'type Inner = { kind: "x"; data: string } | { kind: "y"; data: number[] };\n'
+  + 'declare const obj: { a: Inner };\ndeclare const dynInner: Inner;\n'
+  + 'if (obj.a.kind === "x") {\n  obj.a = dynInner;\n  obj.a.data.at(0);\n}',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    check(`${ lbl } widened to generic`, adapter.makeResolver().resolveNodeType(member.get('object')), null);
+  });
+
+// control: without the sub-path reassign the discriminant narrow holds, so the receiver resolves
+// to the `kind: "x"` branch's `data: string` - proves the null above is the dropped narrow, not a
+// blanket resolution bail on this shape
+runBoth('member sub-path narrow holds without reassign on both parsers',
+  'type Inner = { kind: "x"; data: string } | { kind: "y"; data: number[] };\n'
+  + 'declare const obj: { a: Inner };\n'
+  + 'if (obj.a.kind === "x") {\n  obj.a.data.at(0);\n}',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { kind: 'string' });
+  });
+
+// `Reflect.construct(target, args, newTarget)` builds an object with newTarget.prototype, so the
+// 3-arg form is an instance of newTarget - its members resolve against newTarget's class, not the
+// target's. resolving the constructor from arguments[2] reaches D.m's string return on both parsers
+runBoth('Reflect.construct 3-arg newTarget resolves the instance to the newTarget class',
+  'class C { m() { return [1, 2, 3]; } } class D { m() { return "s"; } } const r = Reflect.construct(C, [], D).m();',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'r');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { kind: 'string' });
+  });
+
+// control: the 2-arg form has no newTarget, so the result is a target (C) instance and resolves
+// against C.m's array return - confirms the newTarget branch does not hijack the plain case
+runBoth('Reflect.construct 2-arg resolves the instance to the target class',
+  'class C { m() { return [1, 2, 3]; } } const r = Reflect.construct(C, []).m();',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'r');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+
+// a getter returning DIFFERENT functions per branch (one -> number[], one -> string) is type-equal
+// as a bare function but differs on invoke; folding every branch's invoke-return yields no common
+// type, so `obj.getter()` resolves to null (generic) instead of narrowing to the first branch
+runBoth('invoked getter with divergent branch-function returns folds to null',
+  'declare const cond: boolean;\n'
+  + 'class C { get f() { if (cond) return () => [1, 2, 3]; return () => "s"; } }\n'
+  + 'const c = new C(); const r = c.f();',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'r');
+    check(`${ lbl } folds to null`, adapter.makeResolver().resolveNodeType(decl.get('init')), null);
+  });
+
+// a parameter's array default narrows the receiver ONLY when no call site overrides it. a call
+// passing a real argument (`f(foreign)`) makes the runtime value the argument, not the default, so
+// the `.at` receiver inside the body widens to generic (null). the call-site scan enumerates the
+// function's references through the parser-agnostic helper, so the override is seen on oxc too -
+// reading babel's `referencePaths` directly would leave the estree adapter narrowing off a dead default
+runBoth('default-param array narrow widens when a call site passes an overriding argument',
+  'function f(x = [1, 2, 3]) { return x.at(0); }\ndeclare const foreign: any;\nf(foreign);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    check(`${ lbl } widened to generic`, adapter.makeResolver().resolveNodeType(member.get('object')), null);
+  });
+
+// control: the only call site passes no argument (`f()`), so the default applies and the receiver
+// keeps the array narrow - proves the null above is the call-site override, not a blanket bail
+runBoth('default-param array narrow holds when no call site overrides it',
+  'function f(x = [1, 2, 3]) { return x.at(0); }\nf();',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+
+// --- cluster-G edge coverage ---
+
+// a rest binding nested under an inner OBJECT pattern in for-of (`[{ ...rest }]`) is always an
+// Object, independent of the iterable element type - it must not pick up the element type
+runBoth('for-of nested object-rest binding resolves to Object',
+  'declare const items: Array<[{ a: number }]>;\nfor (const [{ ...rest }] of items) {\n  rest.x;\n}',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'x');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Object' });
+  });
+
+// control: a rest binding nested under an inner ARRAY pattern (`[[...rest]]`) is always an Array -
+// proves the depth-recursive rest classifier handles both pattern kinds
+runBoth('for-of nested array-rest binding resolves to Array',
+  'declare const items: string[][];\nfor (const [[...rest]] of items) {\n  rest.x;\n}',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'x');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+
+// an object-rest nested under an inner ARRAY pattern inside an OBJECT-pattern variable binding
+// (`const { x: [{ ...rest }] } = obj`) is an Object - the object-binding rest walk must recurse the
+// other pattern kind too, else it falls through to the keyPath logic and leaves `rest` null
+runBoth('object-binding rest under nested array pattern resolves to Object',
+  'declare const obj: any;\nconst { x: [{ ...rest }] } = obj;\nrest.z;',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'z');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Object' });
+  });
+
+// control: an ARRAY-rest nested under an inner array in an object-binding (`const { x: [...rest] } = obj`)
+// is an Array - the symmetric recursion classifies both directions, not just object-rests
+runBoth('object-binding array-rest under nested array pattern resolves to Array',
+  'declare const obj: any;\nconst { x: [...rest] } = obj;\nrest.z;',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'z');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+
+// a wide primitive does NOT extend a narrower literal of the same family, so the conditional takes
+// the FALSE branch across every literal family (not just `number extends 1`)
+for (const [variant, src] of [
+  ['boolean extends true', 'type D<T> = T extends true ? string : number[];\ndeclare const w: D<boolean>;\nw.x;'],
+  ['bigint extends 1n', 'type D<T> = T extends 1n ? string : number[];\ndeclare const w: D<bigint>;\nw.x;'],
+]) {
+  runBoth(`conditional wide-extends-literal takes the false branch: ${ variant }`, src,
+    (adapter, prog, lbl) => {
+      const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'x');
+      checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+    });
+}
+
+// control: the assignable direction `1 extends number` is TRUE (a literal IS assignable to the wide
+// primitive), so it keeps the true branch - proves the fix only flips the non-assignable direction
+runBoth('conditional literal-extends-wide keeps the true branch',
+  'type D<T> = T extends number ? string : number[];\ndeclare const w: D<1>;\nw.x;',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'x');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { kind: 'string' });
+  });
+
+// a dynamic computed-key index access selects the index signature matching the access-key type, not
+// the first signature - a number key picks the number sig, a symbol key picks the symbol sig
+for (const [variant, src] of [
+  ['number key', 'declare const o: { [k: symbol]: string; [k: number]: number[]; [k: string]: string };\ndeclare const k: number;\no[k].x;'],
+  ['symbol key', 'declare const o: { [k: string]: string; [k: symbol]: number[] };\ndeclare const k: symbol;\no[k].x;'],
+]) {
+  runBoth(`index-signature dynamic key selection: ${ variant }`, src,
+    (adapter, prog, lbl) => {
+      const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'x');
+      checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+    });
+}
+
+// control: a write to a DEEPER path than the narrowed one (`obj.a.b.data = x` under a narrow on
+// `obj.a.b`) only mutates a property of the narrowed object, so the discriminant narrow holds -
+// proves the prefix-write invalidation is strict (descendants do not count)
+runBoth('discriminant narrow holds when a deeper path is written',
+  'type Inner = { kind: "x"; data: string } | { kind: "y"; data: number[] };\n'
+  + 'declare const obj: { a: { b: Inner } };\n'
+  + 'if (obj.a.b.kind === "y") {\n  obj.a.b.data = [9];\n  obj.a.b.data.at(0);\n}',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+
+// a write to a NON-discriminant field is not a binding reassignment, so it must not trip the
+// function-boundary / loop bail that drops guards above a nested-function use. only a write to the
+// discriminant field (or the binding itself) invalidates - the variant narrow survives here
+runBoth('discriminant narrow holds across a function boundary when a non-discriminant field is written',
+  'type Inner = { kind: "x"; data: string } | { kind: "y"; data: number[] };\n'
+  + 'declare const obj: { a: { b: Inner } };\n'
+  + 'if (obj.a.b.kind === "y") {\n  obj.a.b.data = [9];\n  const f = () => obj.a.b.data.at(0);\n  f();\n}',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+
+// a DISCRIMINANT field write in a deferred-execution region (loop body re-runs per iteration; a function
+// body defers to invocation) flips the variant the OUTER guard tested before the use re-reads it - the narrow
+// must DROP (a stale type-specific Maybe would throw on the re-tagged variant). the write textually FOLLOWS
+// the use, so the straight-line interval misses it - the guard interval extends over the deferred region
+const VARIANT = 'type V = { kind: "a"; arr: number[] } | { kind: "b"; arr: string };\n';
+for (const [variant, code] of [
+  ['loop body', `${ VARIANT }function f(s: V, cond: any) {\n  if (s.kind === "a") {\n    while (cond()) {\n      s.arr.at(0);\n      s.kind = "b";\n    }\n  }\n}`],
+  ['function boundary', `${ VARIANT }function f(s: V) {\n  if (s.kind === "a") {\n    const g = () => { s.arr.at(0); };\n    s.kind = "b";\n    g();\n  }\n}`],
+]) {
+  runBoth(`discriminant narrow drops on a discriminant write in a deferred region: ${ variant }`, code, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+    check(`${ lbl } stale variant narrow dropped`, !(resolved && resolved.constructor === 'Array'), true);
+  });
+}
+// a NON-discriminant write in a loop must NOT drop (same variant); a guard INSIDE the loop re-narrows each
+// iteration so it survives its own discriminant write
+runBoth('discriminant narrow holds across a loop when a non-discriminant field is written',
+  'type W = { kind: "a"; arr: number[]; data: number } | { kind: "b"; arr: string; data: number };\n'
+  + 'function f(s: W, cond: any) {\n  if (s.kind === "a") {\n    while (cond()) {\n      s.arr.at(0);\n      s.data = 9;\n    }\n  }\n}',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+runBoth('discriminant narrow inside a loop re-narrows each iteration past its own discriminant write',
+  `${ VARIANT }function f(s: V, cond: any) {\n  while (cond()) {\n    if (s.kind === "a") {\n      s.arr.at(0);\n      s.kind = "b";\n    }\n  }\n}`,
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+// an IIFE runs SYNCHRONOUSLY: a discriminant write AFTER it cannot reach the already-run use, so the deferred
+// bound is the IIFE call (NOT unbounded) and the narrow HOLDS. inside a loop the body re-executes, so the
+// write DOES reach the next iteration's IIFE use - it drops. a switch does not re-execute, so a write after
+// the use holds (the deferred extension is only for genuine loop back-edges)
+runBoth('discriminant narrow holds when the use is in an immediately-invoked function (IIFE)',
+  `${ VARIANT }function f(s: V) {\n  if (s.kind === "a") {\n    (() => { s.arr.at(0); })();\n  }\n  s.kind = "b";\n}`,
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+runBoth('discriminant narrow drops for an IIFE inside a loop with a discriminant write',
+  `${ VARIANT }function f(s: V, cond: any) {\n  if (s.kind === "a") {\n    while (cond()) { (() => { s.arr.at(0); })(); s.kind = "b"; }\n  }\n}`,
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+    check(`${ lbl } stale narrow dropped`, !(resolved && resolved.constructor === 'Array'), true);
+  });
+runBoth('discriminant narrow holds across a switch (no back-edge) when a discriminant field is written after',
+  `${ VARIANT }function f(s: V) {\n  if (s.kind === "a") {\n    switch (1) { case 1: s.arr.at(0); s.kind = "b"; }\n  }\n}`,
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+
+// an anonymous object literal whose VALUE is handed to external code (a return / call argument / default
+// export) can have its fields written from outside, so its `this.<field>` flow must NOT narrow - the
+// escape bails to the empty-closure exclusion. a module-local object (declarator / member-call) narrows
+runBoth('anonymous object this-field flow bails when the object escapes via return',
+  'function f() {\n  return { data: ["x"], read() { return this.data.at(0); } };\n}',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+    check(`${ lbl } returned anon-object field not narrowed to Array`, !(resolved && !resolved.primitive && resolved.constructor === 'Array'), true);
+  });
+
+// a SWITCH discriminant (`switch (b.tag)`) is also invalidated by a write to its discriminant field
+// between the case head and the use - the switch path shares the same write-collection gate as the
+// `if`-guard path, matching the bare `b.tag` discriminant (not just a `=== ` comparison)
+runBoth('switch discriminant narrow drops when the discriminant field is written',
+  'type Box = { tag: "arr"; val: string[] } | { tag: "str"; val: string };\n'
+  + 'function f(b: Box) {\n  switch (b.tag) {\n    case "arr": {\n      b.tag = "str";\n      return b.val.at(0);\n    }\n  }\n}',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+    check(`${ lbl } switch discriminant write drops narrow`, !(resolved && !resolved.primitive && resolved.constructor === 'Array'), true);
+  });
+
+// the discriminant write-host detection peels transparent LHS wrappers (TS `as` / `!` / parens), so a
+// `(b.tag as any) = "str"` reassignment of the discriminant invalidates the narrow just like a bare
+// write - `isMemberWriteHost` mirrors `memberWriteTargetPath`'s peel (the class-field write case above)
+runBoth('discriminant narrow drops when the discriminant field is written through a TS-cast LHS',
+  'type Box = { tag: "arr"; val: string[] } | { tag: "str"; val: string };\n'
+  + 'declare const b: Box;\n'
+  + 'if (b.tag === "arr") {\n  (b.tag as any) = "str";\n  b.val.at(0);\n}',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+    check(`${ lbl } cast-LHS discriminant write drops narrow`, !(resolved && !resolved.primitive && resolved.constructor === 'Array'), true);
+  });
+
+// an anonymous object also escapes when its value is carried OUT through a container/forwarder whose
+// own value escapes - here the object-property value of a returned object, and a returned conditional
+// branch. the escape check climbs value-preserving carriers to the outermost one before deciding
+runBoth('anonymous object this-field flow bails when it escapes as a returned object-property value',
+  'function f() {\n  return { box: { data: ["x"], read() { return this.data.at(0); } } };\n}',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+    check(`${ lbl } object-property-value escape not narrowed`, !(resolved && !resolved.primitive && resolved.constructor === 'Array'), true);
+  });
+runBoth('anonymous object this-field flow bails when it escapes through a returned conditional branch',
+  'declare const c: boolean;\n'
+  + 'function f() {\n  return c ? { data: ["x"], read() { return this.data.at(0); } } : null;\n}',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+    check(`${ lbl } conditional-branch escape not narrowed`, !(resolved && !resolved.primitive && resolved.constructor === 'Array'), true);
+  });
+
+// a container bound to a name escapes when that BINDING leaks (exported / returned / passed) - the carrier
+// climb routes into the bound-path leak analysis, where a member-read of the binding (`local[0]`) is local
+runBoth('anonymous object in a container bound to an EXPORTED name bails (binding leaks)',
+  'const leaked = [{ data: ["x"], read() { return this.data.at(0); } }];\nexport { leaked };',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+    check(`${ lbl } exported-binding container element not narrowed`, !(resolved && !resolved.primitive && resolved.constructor === 'Array'), true);
+  });
+runBoth('anonymous object in a container bound to a LOCAL name keeps the per-element narrow',
+  'const local = [{ data: ["x"], read() { return this.data.at(0); } }];\nlocal[0].read();',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+// the binding can be reached via a `=` assignment, not only a declarator - same leak routing
+runBoth('anonymous object in a container ASSIGNED to a name that leaks bails',
+  'let x: unknown[];\nx = [{ data: ["y"], read() { return this.data.at(0); } }];\nexport { x };',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+    check(`${ lbl } assigned-binding leak container element not narrowed`, !(resolved && !resolved.primitive && resolved.constructor === 'Array'), true);
+  });
+// value-out channels also include `throw` (value reaches a catch handler) and an assignment used as an
+// expression (`return (x = [...])`) - the assignment binds x AND forwards the assigned value upward
+runBoth('anonymous object thrown via a container bails',
+  'function f() {\n  throw [{ data: ["x"], read() { return this.data.at(0); } }];\n}',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+    check(`${ lbl } thrown container element not narrowed`, !(resolved && !resolved.primitive && resolved.constructor === 'Array'), true);
+  });
+runBoth('anonymous object in an assignment that is itself returned bails',
+  'function f() {\n  let x: unknown[];\n  return (x = [{ data: ["x"], read() { return this.data.at(0); } }]);\n}',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+    check(`${ lbl } returned-assignment container element not narrowed`, !(resolved && !resolved.primitive && resolved.constructor === 'Array'), true);
+  });
+
+// --- anon object escapes when stored into a member / class-field slot of a NON-provably-local holder ---
+// the holder (`this`, a call result, a param) is externally reachable, so an outside `holder.f.field = Y`
+// can rewrite the object's fields - its `this.<field>` flow must NOT narrow. regression: each position was
+// treated module-local, type-locking `this.data` to Array so `this.data.at` emitted `_atMaybeArray` that
+// throws on a foreign value at ie:11. covers a non-binding member root (`this.f` / `getObj().f` / `this[k]`),
+// a logical-assign ref-store (`||=` / `??=`), a param-rooted `=` store, and a class field initializer
+const ANON_ESC = '{ data: ["x"], read() { return this.data.at(0); } }';
+for (const [variant, code] of [
+  ['this.f member store (non-binding root)', `function f() {\n  this.f = ${ ANON_ESC };\n}`],
+  ['call-result member store getObj().f', `function f(getObj) {\n  getObj().f = ${ ANON_ESC };\n}`],
+  ['this[k] computed member store', `function f(k) {\n  this[k] = ${ ANON_ESC };\n}`],
+  ['logical-assign ||= ref-store', `function f(obj) {\n  obj.f ||= ${ ANON_ESC };\n}`],
+  ['logical-assign ??= ref-store', `function f(obj) {\n  obj.f ??= ${ ANON_ESC };\n}`],
+  ['param-rooted = member store', `function f(obj) {\n  obj.f = ${ ANON_ESC };\n}`],
+  ['instance class field initializer', `class C {\n  f = ${ ANON_ESC };\n}`],
+  ['static class field initializer', `class C {\n  static f = ${ ANON_ESC };\n}`],
+  // babel `#f` is a ClassPrivateProperty (estree keeps PropertyDefinition) - CLASS_FIELD_TYPES must cover it
+  // so the escape is cross-parser-symmetric, not babel-narrows / oxc-escapes
+  ['private class field initializer', `class C {\n  #f = ${ ANON_ESC };\n}`],
+]) {
+  runBoth(`anon object escapes via ${ variant }`, code, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+    check(`${ lbl } not narrowed (escaped)`, !(resolved && !resolved.primitive && resolved.constructor === 'Array'), true);
+  });
+}
+// boundary: a COERCING compound assign (`obj.f += {...}`) consumes the object as a primitive - it never
+// reaches the holder, so the object stays module-local and its field narrows (the ref-store gate excludes it)
+runBoth('anon object in a coercing += compound stays local (narrows)',
+  `function f(obj) {\n  obj.f += ${ ANON_ESC };\n}`,
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+// boundary: a member store rooted at a LOCAL var that never leaks keeps the object module-local (narrows) -
+// the kind gate routes a const / let / var root through the leak analysis, not the unconditional escape
+runBoth('anon object stored via a leak-free local-var member root narrows',
+  `function f() {\n  const obj = {};\n  obj.f = ${ ANON_ESC };\n  obj.f.read();\n}`,
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+// boundary: a destructuring-assignment LHS (`({ x: f } = ...)` / `[f] = ...`) binds the value to a TARGET
+// var, not a member slot - a leak-free target keeps the narrow. the member-store escape must NOT catch an
+// ObjectPattern / ArrayPattern LHS (whose `memberRootName` is ALSO null), only a true member access
+runBoth('anon object via leak-free object-destructure-assignment narrows',
+  'function take(init) {\n  let f = init;\n  ({ x: f } = { x: { data: ["y"] } });\n  return f.data.at(0);\n}',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+runBoth('anon object via leak-free array-destructure-assignment narrows',
+  'function take() {\n  let f;\n  [f] = [{ data: ["y"] }];\n  return f.data.at(0);\n}',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+
+// --- the object escapes via ITERATION / array-element exposure, not only a member-store ---
+// an inline `for (const x of [{...}]) {}` binds the elements to the loop variable; an array binding's
+// element-read `a[i]` that is HELD aliases the element out. both escape the object's `this.<field>` flow
+// even though it was never stored into a member slot
+for (const [variant, code] of [
+  ['inline for-of whose loop var leaks', `function f(sink) {\n  for (const x of [${ ANON_ESC }]) { sink(x); }\n}`],
+  ['array binding held element-read sink(a[i])', `function f(sink) {\n  const a = [${ ANON_ESC }];\n  sink(a[0]);\n}`],
+  ['array binding returned element-read', `function f() {\n  const a = [${ ANON_ESC }];\n  return a[0];\n}`],
+  ['assigned array binding held element-read', `function f(sink) {\n  let x;\n  x = [${ ANON_ESC }];\n  sink(x[0]);\n}`],
+  // member-target destructure stores the matched value into a member slot - a member store with an
+  // uncertain holder; a nested array's held element-read aliases the deep element out
+  ['object-destructure into a member target', `function f(obj) {\n  ({ x: obj.f } = { x: ${ ANON_ESC } });\n}`],
+  ['array-destructure into a member target', `function f(obj) {\n  [obj.f] = [${ ANON_ESC }];\n}`],
+  ['nested-array held element-read sink(a[i][j])', `function f(sink) {\n  const a = [[${ ANON_ESC }]];\n  sink(a[0][0]);\n}`],
+  // a BOUND array's iteration / spread / element-exposing method all alias elements out
+  ['bound for-of whose loop var leaks', `function f(sink) {\n  const a = [${ ANON_ESC }];\n  for (const x of a) { sink(x); }\n}`],
+  ['array spread copies elements out', `function f(sink) {\n  const a = [${ ANON_ESC }];\n  const b = [...a];\n  sink(b[0]);\n}`],
+  ['element-exposing method a.forEach', `function f(sink) {\n  const a = [${ ANON_ESC }];\n  a.forEach(x => sink(x));\n}`],
+]) {
+  runBoth(`anon array element escapes via ${ variant }`, code, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+    check(`${ lbl } not narrowed (escaped)`, !(resolved && !resolved.primitive && resolved.constructor === 'Array'), true);
+  });
+}
+// boundaries that keep the per-element narrow: a leak-free inline for-of loop var; a for-IN (iterates KEYS,
+// never the elements - stays the module-local default); an element used as a call / member receiver
+// (`a[i].read()` - the element is dereferenced, not held)
+for (const [variant, code] of [
+  ['inline for-of whose loop var stays local', `function f() {\n  for (const x of [${ ANON_ESC }]) { x.read(); }\n}`],
+  ['for-in iterates keys not elements', `function f() {\n  for (const k in [${ ANON_ESC }]) { k; }\n}`],
+  ['element dereferenced a[i].read()', `function f() {\n  const a = [${ ANON_ESC }];\n  a[0].read();\n}`],
+  ['nested element dereferenced a[i][j].read()', `function f() {\n  const a = [[${ ANON_ESC }]];\n  a[0][0].read();\n}`],
+  ['alias const b = a then b[i].read()', `function f() {\n  const a = [${ ANON_ESC }];\n  const b = a;\n  b[0].read();\n}`],
+]) {
+  runBoth(`anon array element keeps the narrow: ${ variant }`, code, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+}
+
+// the SAME field-path soundness extends to an anon nested in an OBJECT field (`const o = { wrap: {...} }`)
+// and to mixed object-of-array nesting: a held read of the anon's OWN slot (`o.wrap` / `o.a.b` / `o.list[i]`)
+// aliases it out, and the whole carrier escaping (`sink(o)` / `{ ...o }`) exposes it too
+for (const [variant, code] of [
+  ['object field held read sink(o.wrap)', `function f(sink) {\n  const o = { wrap: ${ ANON_ESC } };\n  sink(o.wrap);\n}`],
+  ['deep object field held read sink(o.a.b)', `function f(sink) {\n  const o = { a: { b: ${ ANON_ESC } } };\n  sink(o.a.b);\n}`],
+  ['the carrier object itself is held sink(o)', `function f(sink) {\n  const o = { wrap: ${ ANON_ESC } };\n  sink(o);\n}`],
+  ['object spread copies the field out', `function f(sink) {\n  const o = { wrap: ${ ANON_ESC } };\n  const o2 = { ...o };\n  sink(o2.wrap);\n}`],
+  ['mixed object-of-array held read sink(o.list[i])', `function f(sink) {\n  const o = { list: [${ ANON_ESC }] };\n  sink(o.list[0]);\n}`],
+  // a value-exposing call hands the field values (the anon) out without mutating; a destructure-init reads
+  // the field directly. both alias the nested anon out even though the binding stays module-local
+  ['value-exposing Object.values(o)', `function f(sink) {\n  const o = { wrap: ${ ANON_ESC } };\n  sink(Object.values(o));\n}`],
+  ['object destructure-init { wrap } = o', `function f(sink) {\n  const o = { wrap: ${ ANON_ESC } };\n  const { wrap } = o;\n  sink(wrap);\n}`],
+  // a DEFAULT-value carrier (param default / destructure default) binds the anon to the default's target, so a
+  // held read of its slot aliases it out the same way a bound carrier does
+  ['param-default held f(o = { wrap }) sink(o.wrap)', `function f(sink, o = { wrap: ${ ANON_ESC } }) {\n  sink(o.wrap);\n}`],
+  ['destructure-default held { x = { wrap } } sink(x.wrap)', `function f(sink, s) {\n  const { x = { wrap: ${ ANON_ESC } } } = s;\n  sink(x.wrap);\n}`],
+  // a COMPUTED slot read (`o[0]` numeric key / `o["w"]` string key) extracts the field the same as a dotted read
+  ['numeric-key computed read sink(o[0])', `function f(sink) {\n  const o = { 0: ${ ANON_ESC } };\n  sink(o[0]);\n}`],
+  ['string-key computed read sink(o["w"])', `function f(sink) {\n  const o = { w: ${ ANON_ESC } };\n  sink(o["w"]);\n}`],
+  // a for-of loop var carries the anon's path WITHIN the iterated element, so a held read of its slot escapes
+  ['for-of loop-var field held for (o of [{ wrap }]) sink(o.wrap)', `function f(sink) {\n  for (const o of [{ wrap: ${ ANON_ESC } }]) sink(o.wrap);\n}`],
+]) {
+  runBoth(`nested anon escapes via ${ variant }`, code, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+    check(`${ lbl } not narrowed (escaped)`, !(resolved && !resolved.primitive && resolved.constructor === 'Array'), true);
+  });
+}
+// boundaries: the anon's slot DEREFERENCED (`o.wrap.read()` / `o.list[i].read()`) stays local, and reading a
+// DIFFERENT field (`foo(o.count)`) doesn't reach the anon
+for (const [variant, code] of [
+  ['object field dereferenced o.wrap.read()', `function f() {\n  const o = { wrap: ${ ANON_ESC } };\n  o.wrap.read();\n}`],
+  ['deep object field dereferenced o.a.b.read()', `function f() {\n  const o = { a: { b: ${ ANON_ESC } } };\n  o.a.b.read();\n}`],
+  ['mixed object-of-array dereferenced o.list[i].read()', `function f() {\n  const o = { list: [${ ANON_ESC }] };\n  o.list[0].read();\n}`],
+  ['a different field read does not reach the anon', `function f(foo) {\n  const o = { wrap: ${ ANON_ESC }, count: 0 };\n  foo(o.count);\n  o.wrap.read();\n}`],
+  // a DEFAULT-value carrier whose slot is only DEREFERENCED keeps the anon module-local, like a bound carrier
+  ['param-default field dereferenced o.wrap.read()', `function f(o = { wrap: ${ ANON_ESC } }) {\n  o.wrap.read();\n}`],
+  ['param-default direct dereference o.read()', `function f(o = ${ ANON_ESC }) {\n  o.read();\n}`],
+  // a computed slot DEREFERENCED (`o[0].read()`) still keeps the anon module-local
+  ['numeric-key computed dereference o[0].read()', `function f() {\n  const o = { 0: ${ ANON_ESC } };\n  o[0].read();\n}`],
+  // a for-of loop var whose element slot is only DEREFERENCED keeps the anon module-local
+  ['for-of loop-var field dereferenced for (o of [{ wrap }]) o.wrap.read()', `function f() {\n  for (const o of [{ wrap: ${ ANON_ESC } }]) o.wrap.read();\n}`],
+]) {
+  runBoth(`nested anon keeps the narrow: ${ variant }`, code, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+}
+
+// --- anon escape through destructure TARGETS, untrackable slots and transparent wrappers ---
+// a destructuring pattern binds matched values to TARGET vars - the anon escapes iff any target binding
+// leaks against the anon's remainder path inside the value that target received. an untrackable slot
+// (computed key / inline spread) means ANY read of the carrier could extract the anon -> conservative
+// escape. paren / TS-cast wrappers between slot-read steps are runtime-transparent and must not drop
+// the held-read detection. a member STORE places the anon at the chain's composed slot path, so a held
+// read of that slot aliases it out even when the root binding stays local
+for (const [variant, code] of [
+  ['declarator array-pattern target leaks', `function f(sink) {\n  const [g] = [${ ANON_ESC }];\n  sink(g);\n}`],
+  ['declarator object-pattern target leaks', `function f(sink) {\n  const { x: g } = { x: ${ ANON_ESC } };\n  sink(g);\n}`],
+  ['assignment array-pattern target leaks', `function f(sink) {\n  let g;\n  [g] = [${ ANON_ESC }];\n  sink(g);\n}`],
+  ['assignment object-pattern target leaks', `function f(sink) {\n  let g;\n  ({ x: g } = { x: ${ ANON_ESC } });\n  sink(g);\n}`],
+  ['pattern target holds a carrier whose slot is held', `function f(sink) {\n  const { x: g } = { x: [${ ANON_ESC }] };\n  sink(g[0]);\n}`],
+  ['rest target held deep slot', `function f(sink) {\n  let r;\n  [...r] = [[${ ANON_ESC }]];\n  sink(r[0][0]);\n}`],
+  ['dynamic computed key held read', `function f(sink, dyn) {\n  const o = { [dyn]: ${ ANON_ESC } };\n  sink(o[dyn]);\n}`],
+  // a STATIC computed key is still an untrackable slot for the path builder - conservative escape is the
+  // current verdict (a precise key fold may legitimately relax this later)
+  ['static computed key conservative escape', `function f() {\n  const o = { ["w"]: ${ ANON_ESC } };\n  o.w.read();\n}`],
+  ['inline spread carrier held slot read', `function f(sink) {\n  const o2 = { ...{ w: ${ ANON_ESC } } };\n  sink(o2.w);\n}`],
+  ['TS cast between slot-read steps', `function f(sink) {\n  const o = { a: { b: ${ ANON_ESC } } };\n  sink((o.a as any).b);\n}`],
+  ['paren between slot-read steps', `function f(sink) {\n  const o = { a: { b: ${ ANON_ESC } } };\n  sink((o.a).b);\n}`],
+  ['TS cast between member and call', `function f(sink) {\n  const o = { w: ${ ANON_ESC }, grab() { return this.w; } };\n  sink((o.grab as any)());\n}`],
+  ['member store then held slot read', `function f(sink) {\n  const holder = {};\n  holder.f = ${ ANON_ESC };\n  sink(holder.f);\n}`],
+  ['deep chain store then held slot read', `function f(sink) {\n  const holder = { a: {} };\n  holder.a.b = ${ ANON_ESC };\n  sink(holder.a.b);\n}`],
+  ['computed member store conservative escape', `function f(k) {\n  const holder = {};\n  holder[k] = ${ ANON_ESC };\n  holder.q.read();\n}`],
+  ['member store of a carrier, held inner slot', `function f(sink) {\n  const holder = {};\n  holder.f = [${ ANON_ESC }];\n  sink(holder.f[0]);\n}`],
+  // a leaking target under a DIFFERENT key over-approximates to escape (bias-safe; a precise key match
+  // may legitimately relax this later)
+  ['different-key leaking target over-bails', `function f(sink) {\n  const { other: h } = { x: ${ ANON_ESC }, other: [1] };\n  sink(h);\n}`],
+]) {
+  runBoth(`anon escapes via ${ variant }`, code, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+    check(`${ lbl } not narrowed (escaped)`, !(resolved && !resolved.primitive && resolved.constructor === 'Array'), true);
+  });
+}
+// boundaries: a pattern target that is only DEREFERENCED keeps the narrow (the target's own leak analysis
+// runs against the remainder path); a transparent wrapper on a DEREFERENCED slot read stays local; a plain
+// `=` member store is the write that places the anon, not a read that hands it out
+for (const [variant, code] of [
+  ['declarator array-pattern target dereferenced', `function f() {\n  const [g] = [${ ANON_ESC }];\n  g.read();\n}`],
+  ['assignment array-pattern target dereferenced', `function f() {\n  let g;\n  [g] = [${ ANON_ESC }];\n  g.read();\n}`],
+  ['pattern target carrier slot dereferenced', `function f() {\n  const { x: g } = { x: [${ ANON_ESC }] };\n  g[0].read();\n}`],
+  ['rest target deep slot dereferenced', `function f() {\n  let r;\n  [...r] = [[${ ANON_ESC }]];\n  r[0][0].read();\n}`],
+  ['deref through a TS cast', `function f() {\n  const o = { a: ${ ANON_ESC } };\n  (o.a as any).read();\n}`],
+  ['deep chain store then deref', `function f() {\n  const holder = { a: {} };\n  holder.a.b = ${ ANON_ESC };\n  holder.a.b.read();\n}`],
+  ['member store of a carrier, inner slot dereferenced', `function f() {\n  const holder = {};\n  holder.f = [${ ANON_ESC }];\n  holder.f[0].read();\n}`],
+]) {
+  runBoth(`anon keeps the narrow: ${ variant }`, code, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+}
+
+// a WRITE through the anon's matched slot path (`o.a.data = 5` and every other write host - update,
+// delete, destructure member target, a deeper chain ending in a write, a wrapper-peeled LHS) mutates
+// the anon from OUTSIDE its this-scan, so the zero-external-write premise of the local narrow breaks
+// and the anon bails to generic; optional-chain and hole-consuming pattern forms follow the same
+// held-vs-dereferenced verdicts as their plain twins
+for (const [variant, code] of [
+  ['bare field write through the slot', `function f() {\n  const o = { a: ${ ANON_ESC } };\n  o.a.data = 5;\n  o.a.read();\n}`],
+  ['field write through a TS-cast slot read', `function f() {\n  const o = { a: ${ ANON_ESC } };\n  (o.a as any).data = 5;\n  o.a.read();\n}`],
+  ['field write through a stored member slot', `function f() {\n  const holder = {};\n  holder.f = ${ ANON_ESC };\n  holder.f.data = 5;\n  holder.f.read();\n}`],
+  ['update expression through the slot', `function f() {\n  const o = { a: ${ ANON_ESC } };\n  o.a.data++;\n  o.a.read();\n}`],
+  ['delete through the slot', `function f() {\n  const o = { a: ${ ANON_ESC } };\n  delete o.a.data;\n  o.a.read();\n}`],
+  ['deep chain write through the slot', `function f() {\n  const o = { a: ${ ANON_ESC } };\n  o.a.data.x = 5;\n  o.a.read();\n}`],
+  ['destructure member target through the slot', `function f() {\n  const o = { a: ${ ANON_ESC } };\n  ({ v: o.a.data } = { v: 5 });\n  o.a.read();\n}`],
+  ['logical-assign of the slot is a held read', `function f(sink) {\n  const holder = {};\n  holder.f = ${ ANON_ESC };\n  sink(holder.f ||= {});\n  holder.f.read();\n}`],
+  ['optional-chain held slot read', `function f(sink) {\n  const o = { a: { b: ${ ANON_ESC } } };\n  sink(o.a?.b);\n}`],
+  ['array-pattern hole then leaking target', `function f(sink) {\n  const [, g] = [0, ${ ANON_ESC }];\n  sink(g);\n}`],
+  ['pattern-default target leaks', `function f(sink) {\n  const [g = {}] = [${ ANON_ESC }];\n  sink(g);\n}`],
+]) {
+  runBoth(`anon escapes via ${ variant }`, code, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+    check(`${ lbl } not narrowed (escaped)`, !(resolved && !resolved.primitive && resolved.constructor === 'Array'), true);
+  });
+}
+for (const [variant, code] of [
+  ['static computed write through the slot', `function f() {\n  const o = { a: ${ ANON_ESC } };\n  o.a["data"] = 5;\n  o.a.read();\n}`],
+  ['dynamic computed write through the slot', `function f(k) {\n  const o = { a: ${ ANON_ESC } };\n  o.a[k] = 5;\n  o.a.read();\n}`],
+  ['carrier alias held slot read', `function f(sink) {\n  const o = { a: ${ ANON_ESC } };\n  const p = o;\n  sink(p.a);\n}`],
+  ['carrier alias write through the slot', `function f() {\n  const o = { a: ${ ANON_ESC } };\n  const p = o;\n  p.a.data = 5;\n  o.a.read();\n}`],
+  ['conditional-forwarded slot held read', `function f(sink, cond) {\n  const o = { k: cond ? ${ ANON_ESC } : null };\n  sink(o.k);\n}`],
+  // the anon channel has no temporal-bound refinement: a post-read write still bails (the named-binding
+  // twin keeps its narrow via the provably-dead-write bound - an intentional precision asymmetry)
+  ['slot write after the last read still bails', `function f() {\n  const o = { a: ${ ANON_ESC } };\n  o.a.read();\n  o.a.data = 5;\n}`],
+  ['sequence-tail carrier held slot read', `function f(sink) {\n  const o = (0, { a: ${ ANON_ESC } });\n  sink(o.a);\n}`],
+  ['cross-function held slot read', `const o = { a: ${ ANON_ESC } };\nfunction g(sink) { sink(o.a); }`],
+  ['TS non-null between slot-read steps', `function f(sink) {\n  const o = { a: { b: ${ ANON_ESC } } };\n  sink(o.a!.b);\n}`],
+]) {
+  runBoth(`anon escapes via ${ variant }`, code, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+    check(`${ lbl } not narrowed (escaped)`, !(resolved && !resolved.primitive && resolved.constructor === 'Array'), true);
+  });
+}
+for (const [variant, code] of [
+  ['optional-chain dereference', `function f() {\n  const o = { a: ${ ANON_ESC } };\n  o.a?.read();\n}`],
+  ['array-pattern hole then dereferenced target', `function f() {\n  const [, g] = [0, ${ ANON_ESC }];\n  g.read();\n}`],
+  ['write to a sibling object does not over-bail', `function f() {\n  const other = { data: [] };\n  const o = { a: ${ ANON_ESC } };\n  other.data = 5;\n  o.a.read();\n}`],
+  ['carrier alias dereference', `function f() {\n  const o = { a: ${ ANON_ESC } };\n  const p = o;\n  p.a.read();\n}`],
+  ['untagged template string-coerces the anon', `function f() {\n  const s = \`x\${ ${ ANON_ESC } }y\`;\n}`],
+  ['sequence-tail carrier dereference', `function f() {\n  const o = (0, { a: ${ ANON_ESC } });\n  o.a.read();\n}`],
+  ['cross-function dereference', `const o = { a: ${ ANON_ESC } };\nfunction g() { return o.a.read(); }`],
+  ['TS non-null dereference', `function f() {\n  const o = { a: ${ ANON_ESC } };\n  o.a!.read();\n}`],
+]) {
+  runBoth(`anon keeps the narrow: ${ variant }`, code, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+}
+// Flow dialect: the cast form `(o.a: any)` parses only on babel (oxc's Flow mode has no cast
+// expression), so the wrapper-peel escape / narrow / write-bail verdicts are locked babel-side;
+// TypeCastExpression membership in the shared peel set is asserted with the wrapper-set checks above
+{
+  const babelOnly = adapters.find(a => a.name === 'babel');
+  for (const [variant, code, wantNarrow] of [
+    ['Flow cast between slot-read steps escapes',
+      `function f(sink) {\n  const o = { a: { b: ${ ANON_ESC } } };\n  sink((o.a: any).b);\n}`, false],
+    ['Flow cast dereference keeps the narrow',
+      `function f() {\n  const o = { a: ${ ANON_ESC } };\n  (o.a: any).read();\n}`, true],
+    ['Flow cast field write drops the narrow',
+      `function f() {\n  const o = { a: ${ ANON_ESC } };\n  (o.a: any).data = 5;\n  o.a.read();\n}`, false],
+  ]) {
+    const lbl = `anon slot via ${ variant } [babel-flow]`;
+    try {
+      const prog = babelOnly.parseAndScope(code, undefined, ['flow']);
+      const member = babelOnly.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+      const resolved = babelOnly.makeResolver().resolveNodeType(member.get('object'));
+      const narrowed = !!(resolved && !resolved.primitive && resolved.constructor === 'Array');
+      check(lbl, narrowed, wantNarrow);
+    } catch (error) {
+      fail(lbl, `threw: ${ error.message }`);
+    }
+  }
+}
+
+// --- own-this method extraction rebinds `this` -> the this-field narrow must die ---
+// a HELD read of a method-valued member (`const m = o.read` / `sink(o.read)` / `o.read.call(x)` /
+// a destructure / rest / object-spread / a value-exposing call argument) hands out a function whose
+// `this` rebinds at its later invocation - the emitted type-specific helper would then run against
+// an untracked receiver. covers the object-literal, nested-anon-slot, class-instance, class-static,
+// `new C().m` and `C.prototype.m` channels; a DIRECT call, a discarded read, a data-field hold, an
+// arrow-valued prop (lexical this) and a getter result keep the narrow
+for (const [variant, code] of [
+  ['var extraction then call', `const o = ${ ANON_ESC };\nconst m = o.read;\nm.call({ data: 42 });`],
+  ['destructure extraction', `const o = ${ ANON_ESC };\nconst { read } = o;\nread.call({ data: 42 });`],
+  ['rest destructure scoops methods', `const o = ${ ANON_ESC };\nconst { data, ...rest } = o;\nrest.read.call({ data: 42 });`],
+  ['direct .call with a foreign this', `const o = ${ ANON_ESC };\no.read.call({ data: 42 });`],
+  ['.bind to a foreign this', `const o = ${ ANON_ESC };\nconst m = o.read.bind({ data: 42 });\nm();`],
+  ['object-spread copy shares the method body', `const o = ${ ANON_ESC };\nconst o2 = { ...o, data: 42 };\no2.read();`],
+  ['returned method', `const o = ${ ANON_ESC };\nfunction g() { return o.read; }\ng().call({ data: 42 });`],
+  ['dynamic computed held read', `function f(sink, k) {\n  const o = ${ ANON_ESC };\n  sink(o[k]);\n}`],
+  ['value-exposing Object.values argument', `const o = ${ ANON_ESC };\nObject.values(o)[1].call({ data: 42 });`],
+  ['sequence-detached callee', `const o = ${ ANON_ESC };\n(0, o.read)();`],
+  ['nested anon slot method extraction', `const holder = { w: ${ ANON_ESC } };\nconst m = holder.w.read;\nm.call({ data: 42 });`],
+  ['inline literal method held', `function f(sink) {\n  sink((${ ANON_ESC }).read);\n}`],
+  ['inline array carrier element held', `function f(sink) {\n  sink([${ ANON_ESC }][0]);\n}`],
+  ['class instance method extraction', 'class C {\n  data = ["x"];\n  read() { return this.data.at(0); }\n}\n'
+    + 'const c = new C();\nconst m = c.read;\nm.call({ data: 42 });'],
+  ['new-expression method extraction', 'class C {\n  data = ["x"];\n  read() { return this.data.at(0); }\n}\n'
+    + 'const m = new C().read;\nm.call({ data: 42 });'],
+  ['class static method extraction', 'class C {\n  static data = ["x"];\n  static read() { return this.data.at(0); }\n}\n'
+    + 'const m = C.read;\nm.call({ data: 42 });'],
+  ['prototype method extraction', 'class C {\n  data = ["x"];\n  read() { return this.data.at(0); }\n}\n'
+    + 'const m = C.prototype.read;\nm.call({ data: 42 });\nnew C().read();'],
+  ['subclass prototype extraction of an inherited method',
+    'class C {\n  data = ["x"];\n  read() { return this.data.at(0); }\n}\nclass D extends C {}\n'
+    + 'const m = D.prototype.read;\nm.call({ data: 42 });\nnew C().read();'],
+]) {
+  runBoth(`method extraction escapes via ${ variant }`, code, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+    check(`${ lbl } not narrowed (escaped)`, !(resolved && !resolved.primitive && resolved.constructor === 'Array'), true);
+  });
+}
+for (const [variant, code] of [
+  ['inline carrier API call exposes elements', `function f(sink) {\n  [${ ANON_ESC }].map(x => sink(x));\n}`],
+  ['inline carrier valueOf aliases the carrier', `function f(sink) {\n  sink(({ w: ${ ANON_ESC } }).valueOf());\n}`],
+  ['setPrototypeOf PROTO slot inherits methods', `const o = ${ ANON_ESC };\nconst x = {};\nObject.setPrototypeOf(x, o);\nx.read();`],
+  ['Reflect.setPrototypeOf PROTO slot', `const o = ${ ANON_ESC };\nconst x = {};\nReflect.setPrototypeOf(x, o);\nx.read();`],
+  ['held freeze result method extraction', `const o = ${ ANON_ESC };\nconst p = Object.freeze(o);\nconst m = p.read;\nm.call({ data: 42 });`],
+  ['cast-wrapped arg at the unsafe PROTO slot', `const o = ${ ANON_ESC };\nconst x = {};\nObject.setPrototypeOf(x, o as any);\nx.read();`],
+  ['cast-wrapped held identity result', `const o = ${ ANON_ESC };\nconst p = Object.freeze(o as any);\np.data = 5;\no.read();`],
+  ['__proto__ property held method read', `const o = ${ ANON_ESC };\nconst x = { __proto__: o, data: "xy" };\nconst m = x.read;\nm.call({ data: 7 });`],
+  ['__proto__ property call through the heir', `const o = ${ ANON_ESC };\nconst x = { __proto__: o, data: "xy" };\nx.read();`],
+  ['optional member extraction', `const o = ${ ANON_ESC };\nconst m = o?.read;\nm.call({ data: 42 });`],
+  ['new-expression argument (Proxy target)', `const o = ${ ANON_ESC };\nconst p = new Proxy(o, {});\np.read.call({ data: 42 });`],
+  ['accessor descriptor extraction', 'const o = { data: ["x"], read() { return this.data.at(0); }, get size() { return this.data.at(1); } };\n'
+    + 'Object.getOwnPropertyDescriptor(o, "size").get.call({ data: 42 });'],
+  ['held super instance method read in a subclass',
+    'class C {\n  data = ["x"];\n  read() { return this.data.at(0); }\n}\nclass D extends C {\n  grab() { return super.read; }\n}\n'
+    + 'new D().grab().call({ data: 42 });\nnew C().read();'],
+  ['held super STATIC method read in a subclass',
+    'class C {\n  static data = ["x"];\n  static read() { return this.data.at(0); }\n}\nclass D extends C {\n  static grab() { return super.read; }\n}\n'
+    + 'D.grab().call({ data: 42 });\nC.read();'],
+  ['held seal result data write through the alias', `const o = ${ ANON_ESC };\nconst p = Object.seal(o);\np.data = 5;\no.read();`],
+  ['held setPrototypeOf result aliases the target', `const o = ${ ANON_ESC };\nconst p = Object.setPrototypeOf(o, null);\np.data = 5;\no.read();`],
+]) {
+  runBoth(`method extraction escapes via ${ variant }`, code, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+    check(`${ lbl } not narrowed (escaped)`, !(resolved && !resolved.primitive && resolved.constructor === 'Array'), true);
+  });
+}
+for (const [variant, code] of [
+  ['direct method call', `const o = ${ ANON_ESC };\no.read();`],
+  ['cast-wrapped direct call', `const o = ${ ANON_ESC };\n(o.read as any)();`],
+  ['data-field value hold', `function f(sink) {\n  const o = ${ ANON_ESC };\n  sink(o.data);\n  o.read();\n}`],
+  ['discarded dynamic read', `function f(k) {\n  const o = ${ ANON_ESC };\n  o[k];\n  o.read();\n}`],
+  ['arrow-valued prop extraction (lexical this)',
+    'const o = { data: ["x"], read() { return this.data.at(0); }, pick: () => 1 };\nconst m = o.pick;\nm();\no.read();'],
+  ['getter result hold (the read invokes the getter)',
+    'function f(sink) {\n  const o = { data: ["x"], read() { return this.data.at(0); }, get size() { return 1; } };\n  sink(o.size);\n  o.read();\n}'],
+  ['JSON.stringify argument (functions are skipped)', `const o = ${ ANON_ESC };\nJSON.stringify(o);\no.read();`],
+  ['Object.keys argument (keys only)', `const o = ${ ANON_ESC };\nObject.keys(o);\no.read();`],
+  ['inline carrier own-API plain read', `function f() {\n  const n = [${ ANON_ESC }].length;\n  [${ ANON_ESC }][0].read();\n}`],
+  ['setPrototypeOf TARGET slot', `const o = ${ ANON_ESC };\nObject.setPrototypeOf(o, null);\no.read();`],
+  ['discarded freeze call', `const o = ${ ANON_ESC };\nObject.freeze(o);\no.read();`],
+  ['optional member direct call', `const o = ${ ANON_ESC };\no?.read();`],
+  ['super direct call in a subclass',
+    'class C {\n  data = ["x"];\n  read() { return this.data.at(0); }\n}\nclass D extends C {\n  grab() { return super.read(); }\n}\n'
+    + 'new D().grab();\nnew C().read();'],
+  ['super different-key read in a subclass',
+    'class C {\n  data = ["x"];\n  count = 1;\n  read() { return this.data.at(0); }\n}\nclass D extends C {\n  grab() { return super.count; }\n}\n'
+    + 'new D().grab();\nnew C().read();'],
+  ['bare prototype member deref', 'class C {\n  data = ["x"];\n  read() { return this.data.at(0); }\n}\n'
+    + 'C.prototype.read;\nnew C().read();'],
+  ['class static direct call', 'class C {\n  static data = ["x"];\n  static read() { return this.data.at(0); }\n}\nC.read();'],
+  ['new-expression direct chain call', 'class C {\n  data = ["x"];\n  read() { return this.data.at(0); }\n}\nnew C().read();'],
+]) {
+  runBoth(`method extraction keeps the narrow: ${ variant }`, code, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+}
+
+// the enum-as-computed-key shadow check uses the CONST-AGNOSTIC binding lookup, so a reassigned `let`
+// of the enum's name shadows it just like a `const` would - the key is the let's value, not the enum's
+runBoth('enum-as-computed-key is shadowed by a reassigned let of the same name',
+  'enum K { Field = "data" }\n'
+  + 'interface Obj { data: string[]; other: string }\n'
+  + 'declare const obj: Obj;\n'
+  + 'function f() {\n  let K = { Field: "other" };\n  K = { Field: "other" };\n  return obj[K.Field].at(0);\n}',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+    check(`${ lbl } reassigned-let shadow not resolved as enum value`, !(resolved && !resolved.primitive && resolved.constructor === 'Array'), true);
+  });
+
+// control: a callable field with a SINGLE-family declared return (`() => number[]`) resolves the
+// call to that family - the union-bail fires only for differing families, not for every annotation
+runBoth('callable-field call with single-family annotation keeps the family',
+  'class C {\n  make: () => number[] = () => [1, 2, 3];\n  read() { return this.make().at(0); }\n}\nnew C().read();',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+
+// a class-field write through a transparent wrapper (TS `!` / `as` / parens) must JOIN the field's
+// flow type: memberWriteTargetPath / memberWriteFieldName peel the wrapper so the write is indexed.
+// without the peel the write is stranded (target stays the unpeeled wrapper), the field keeps its
+// array-only narrow, and `this.field.at` emits `_atMaybeArray` that throws on the string (ie:11)
+for (const [variant, write] of [
+  ['non-null', 'this.field! = s'],
+  ['as-cast', '(this.field as any) = s'],
+  ['satisfies', '(this.field satisfies number[]) = s'],
+  ['paren', '(this.field) = s'],
+]) {
+  runBoth(`class-field write through ${ variant } wrapper widens the field`,
+    `class C {\n  field = [1];\n  m(s: string) {\n    ${ write };\n    return this.field.at(0);\n  }\n}`,
+    (adapter, prog, lbl) => {
+      const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+      check(`${ lbl } widened (not array-narrow)`, adapter.makeResolver().resolveNodeType(member.get('object')), null);
+    });
+}
+// negative control: NO write keeps the array narrow, so the wrapped-write widening above is meaningful
+runBoth('class-field with no write keeps the array narrow',
+  'class C {\n  field = [1];\n  m() {\n    return this.field.at(0);\n  }\n}',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+
+// a spread arg at the defaulted param's OWN slot makes its runtime value unknown (the spread may or
+// may not supply it), so the body receiver widens to generic - same bail as a spread before the slot
+runBoth('default-param narrow widens when a spread arg covers its slot',
+  'declare const arr: string[];\nfunction f(b = [1, 2, 3]) { return b.at(0); }\nf(...arr);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    check(`${ lbl } widened to generic`, adapter.makeResolver().resolveNodeType(member.get('object')), null);
+  });
+
+// --- spread-before-slot: positional narrowing must bail when a spread shifts the target slot ---
+// a spread before a LATER defaulted param can supply it from the iterable -> widen
+runBoth('default-param widens when a spread covers an EARLIER slot',
+  'declare const args: any[];\nfunction f(a: any, b = [1, 2, 3]) { return b.at(0); }\nf(...args);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    check(`${ lbl } widened`, adapter.makeResolver().resolveNodeType(member.get('object')), null);
+  });
+runBoth('default-param (no spread) keeps the array narrow [control]',
+  'function f(a: any, b = [1, 2, 3]) { return b.at(0); }\nf(1);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+// array-pattern slot paired against a RHS with a spread at/before the index -> widen
+runBoth('array-pattern slot widens when RHS has a leading spread',
+  'declare const a: any[];\nlet b;\n([, b] = [...a, [1, 2, 3]]);\nb.at(0);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    check(`${ lbl } widened`, adapter.makeResolver().resolveNodeType(member.get('object')), null);
+  });
+runBoth('array-pattern slot (no spread) keeps the array narrow [control]',
+  'let b;\n([, b] = [9, [1, 2, 3]]);\nb.at(0);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+// pattern-param return-type narrowing must bail when a spread shifts the arg->param map
+runBoth('pattern-param return-type widens when a spread covers an earlier arg slot',
+  'declare const g: any[];\nfunction f(a: any, { x }) { return x; }\nf(...g, { x: [1, 2, 3] }).at(0);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    check(`${ lbl } widened`, adapter.makeResolver().resolveNodeType(member.get('object')), null);
+  });
+
+// --- Type-resolution cluster regression locks ---
+
+// the indirect-call idiom `(0, ref)(...)` evaluates to ref's return type; resolveRuntimeExpression
+// peels the side-effect-free SequenceExpression tail so the call receiver narrows
+runBoth('sequence-wrapped callee `(0, getArr)().includes` resolves Array receiver',
+  'function getArr() { return [1, 2, 3]; } (0, getArr)().includes(1);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => (p.node.property?.name ?? p.node.property?.value) === 'includes');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+
+// `readonly [T, U]` (TSTypeOperator) indexing resolves like the `Readonly<[T, U]>` generic form
+runBoth('readonly-operator tuple index `readonly [string[], number][0]` -> Array',
+  'declare const x: readonly [string[], number]; const v = x[0];',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.computed);
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member), { primitive: false, ctor: 'Array' });
+  });
+
+// a union constituent reached through parens (or an alias) inside an intersection distributes, so a
+// two-hop property access keeps the narrowed member type instead of dropping to null
+runBoth('parenthesized union inside intersection keeps two-hop member type',
+  'function f(v: ({ a: { x: number[] } } | { a: { x: number[] } }) & { b: string }) { return v.a.x; }',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => (p.node.property?.name ?? p.node.property?.value) === 'x');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member), { primitive: false, ctor: 'Array' });
+  });
+
+// a no-subst conditional whose infer pattern is definitively false resolves the FALSE branch, never
+// leaking the INFER_PATTERN_FALSE sentinel as a Type (toHint would crash on the Symbol)
+runBoth('no-subst conditional infer disjoint check resolves false branch (not a symbol)',
+  'type T = string extends (infer U)[] ? U : number; declare const y: T; y.at(0);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const objType = adapter.makeResolver().resolvePropertyObjectType(member);
+    checkTruthy(`${ lbl } not a symbol`, typeof objType !== 'symbol');
+    checkType(lbl, objType, { primitive: true, kind: 'number' });
+  });
+
+// the Promise synonyms `PromiseLike<infer U>` / `Thenable<infer U>` unwrap a `Promise<X>` check the
+// same way `Promise<infer U>` does: the check-side resolver normalizes all three to constructor
+// `'Promise'`, so the container-family guard must fold the synonym pattern names too or it wrongly
+// takes the FALSE branch (a wrong-receiver polyfill: `string` instead of the inferred `number[]`)
+for (const container of ['Promise', 'PromiseLike', 'Thenable']) {
+  runBoth(`${ container }<infer U> over Promise<number[]> unwraps to the inferred Array element`,
+    `type T<P> = P extends ${ container }<infer U> ? U : string;\ndeclare const y: T<Promise<number[]>>;\ny.at(0);`,
+    (adapter, prog, lbl) => {
+      const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+      checkType(lbl, adapter.makeResolver().resolvePropertyObjectType(member), { primitive: false, ctor: 'Array' });
+    });
+}
+
+// disjoint control: a `Set<X>` check side does NOT match a `PromiseLike<infer U>` pattern, so the
+// conditional stays the FALSE branch (`string`) - the synonym fold must not over-match unrelated families
+runBoth('PromiseLike<infer U> over Set<number> stays the false branch (string)',
+  'type T<P> = P extends PromiseLike<infer U> ? U : string;\ndeclare const y: T<Set<number>>;\ny.at(0);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolvePropertyObjectType(member), { primitive: true, kind: 'string' });
+  });
+
+// a discriminant narrow is dropped when the discriminated binding is reassigned inside a captured
+// function (which may run before the use) - mirrors the typeof-guard captured-mutation soundness filter
+runBoth('discriminant narrow drops on captured-function reassignment',
+  "type U = { kind: 'a'; data: string } | { kind: 'b'; data: number[] };\ndeclare const altA: U;\n"
+  + "function f(u: U) { if (u.kind === 'b') { mutate(); u.data.at(0); function mutate() { u = altA; } } }",
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    check(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), null);
+  });
+
+// a conditional reassignment positioned between a straight-line assignment and the use can overwrite
+// it - the receiver widens to generic, not the straight-line value's single type
+runBoth('conditional reassignment between straight-line assignment and use widens to generic',
+  'let x;\nx = "hello";\nif (window.flag) { x = [1, 2, 3]; }\nx.at(-1);',
+  (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression');
+    check(lbl, adapter.makeResolver().resolveNodeType(call.get('callee').get('object')), null);
+  });
+
+// an assignment whose own RHS hosts the use (`x = ("" + x.at(-1))`) has not executed at the use, so
+// the receiver resolves from the prior value, not the not-yet-evaluated string assignment
+runBoth('self-referential assignment RHS resolves receiver from prior value (not string)',
+  'let x = [1, 2, 3];\nx = ("" + x.at(-1));',
+  (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression');
+    const t = adapter.makeResolver().resolveNodeType(call.get('callee').get('object'));
+    checkTruthy(`${ lbl } not narrowed to string`, !(t && t.primitive && t.type === 'string'));
+  });
+
+// the SE-tail peel applies in the `new` dispatch too: `new (0, C)()` constructs a C instance
+runBoth('sequence-wrapped `new (0, C)()` resolves the class instance method receiver',
+  'class C { items() { return [1, 2, 3]; } } const o = new (0, C)(); o.items().includes(1);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => (p.node.property?.name ?? p.node.property?.value) === 'includes');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+
+// the readonly-operator peel covers a readonly ARRAY (not just tuples), reached via destructuring
+runBoth('readonly array element via destructure `readonly string[][]` -> Array',
+  'declare const x: readonly string[][]; const [a] = x; a.at(0);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+
+// the no-subst conditional false-branch resolution recurses: a false branch that is ITSELF an
+// infer-false conditional resolves through to the inner false branch, never leaking the sentinel
+runBoth('nested no-subst conditional infer-false recurses to inner false branch (not a symbol)',
+  'type T = string extends (infer U)[] ? U : (number extends Array<infer V> ? V : boolean); declare const y: T; y.at(0);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const objType = adapter.makeResolver().resolvePropertyObjectType(member);
+    checkTruthy(`${ lbl } not a symbol`, typeof objType !== 'symbol');
+    checkType(lbl, objType, { primitive: true, kind: 'boolean' });
+  });
+
+// a union constituent inside a 3-way intersection still distributes (breadth of the parens/alias fix)
+runBoth('union inside 3-way intersection keeps two-hop member type',
+  'function f(v: ({ a: { x: number[] } } | { a: { x: number[] } }) & { b: string } & { c: number }) { return v.a.x; }',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => (p.node.property?.name ?? p.node.property?.value) === 'x');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member), { primitive: false, ctor: 'Array' });
+  });
+
+// a doubly-nested SequenceExpression IIFE returning a proxy global is recognized by the path walk
+// (it peels SE-callee tails to a fixpoint, matching the node-level IIFE peel), so the chained
+// instance-method receiver narrows
+runBoth('double-SE IIFE proxy-global `(0, (1, () => globalThis))().Array.from(...).at` narrows to Array',
+  '(0, (1, () => globalThis))().Array.from([1, 2, 3]).at(0);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+
+// the binding adapter forwards a pure-import CONSTRUCTOR hint (`_Array` -> `Array`), not just the
+// 4 global-proxy names, so a destructure off a plugin-rewritten constructor stub recovers the source
+// constructor: `const { from } = _Array; from(...)` resolves to `Array.from`'s return type and the
+// chained `.at` receiver narrows to Array. gating the hint to global-proxies left this recovery dead
+runBoth('destructure off a pure-import constructor stub recovers the static-method return narrow',
+  'import _Array from "@core-js/pure/actual/array";\nconst { from } = _Array;\nfrom([1, 2, 3]).at(0);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    // mirror injector.getBindingInfo(name).hint: the `_Array` import stub maps to source ctor `Array`
+    const resolver = adapter.makeResolver({ getPolyfillBindingHint: (scope, name) => name === '_Array' ? 'Array' : null });
+    checkType(lbl, resolver.resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+
+// `loopReExecRegionHasViolation` back-edge soundness across binding kinds / declaration sites. the
+// anchor's SCOPE node classifies re-creation (function-scoped `var` lands outside the loop,
+// block-scoped `let`/`const` inside); its DECL position pins the C-style for-header binding (its scope
+// IS the loop, yet it carries). run cross-parser - estree-toolkit attaches a for-body `let` to the
+// ForStatement scope while babel uses the body block, so the cases below exercise both shapes
+function loopBackEdgeCase(label, code, varName, expected) {
+  runBoth(label, code, (adapter, prog, lbl) => {
+    const loop = adapter.pickPath(prog, 'ForStatement', () => true)
+      ?? adapter.pickPath(prog, 'ForOfStatement', () => true)
+      ?? adapter.pickPath(prog, 'ForInStatement', () => true)
+      ?? adapter.pickPath(prog, 'WhileStatement', () => true);
+    const assign = adapter.pickPath(prog, 'AssignmentExpression', p => assignLeftName(p.node) === varName);
+    const binding = assign.scope.getBinding(varName);
+    const violationNodes = binding.constantViolations.map(v => v.node);
+    check(lbl, loopReExecRegionHasViolation(loop.node, violationNodes, bindingLoopAnchor(binding)), expected);
+  });
+}
+function assignLeftName(node) {
+  return node?.type === 'AssignmentExpression' && node.left?.type === 'Identifier' ? node.left.name : null;
+}
+// C-style for-header `let`: the per-iteration binding is copied from the previous iteration, so an
+// in-body reassignment survives the back-edge -> violation
+loopBackEdgeCase('loopReExec: C-style for-header let carries across the back-edge',
+  'for (let x = []; cond; ) { x.flat(); x = "s"; }', 'x', true);
+// body-block `let`: block-scoped, fresh per iteration -> exempt
+loopBackEdgeCase('loopReExec: for-body block let is re-created each iteration -> exempt',
+  'for (let i = 0; i < 1; i++) { let z = []; z.flat(); z = "s"; }', 'z', false);
+// body `var`: hoists to FUNCTION scope (outside the loop), so it is NOT re-created - carries -> violation
+loopBackEdgeCase('loopReExec: for-body var hoists to function scope and carries',
+  'function f() { for (let i = 0; i < 1; i++) { var v = []; v.flat(); v = "s"; } }', 'v', true);
+// for-of loop variable: re-bound to the next element each iteration -> exempt
+loopBackEdgeCase('loopReExec: for-of loop variable is re-bound -> exempt',
+  'for (let y of arr) { y.flat(); y = "s"; }', 'y', false);
+// `var` declared outside the loop: function-scoped, carries across the back-edge -> violation
+loopBackEdgeCase('loopReExec: outer var reassigned in the loop body carries',
+  'var w = []; for (let i = 0; i < 1; i++) { w.flat(); w = "s"; }', 'w', true);
+// reassignment confined to the once-only for-INIT slot does not re-execute on the back-edge -> exempt
+loopBackEdgeCase('loopReExec: for-init-slot-only reassignment is excluded',
+  'var u; for (u = []; cond; ) { u.flat(); }', 'u', false);
+// for-in loop variable: re-bound to the next key each iteration -> exempt (mirrors for-of via `left`)
+loopBackEdgeCase('loopReExec: for-in loop variable is re-bound -> exempt',
+  'for (let k in obj) { k.at(0); k = "s"; }', 'k', false);
+// non-`for` loop body (`while`): a block-scoped body `let` is still re-created each iteration -> exempt
+loopBackEdgeCase('loopReExec: while-body block let is re-created each iteration -> exempt',
+  'function f() { while (cond) { let m = []; m.flat(); m = "s"; } }', 'm', false);
+// while-body `var` hoists to function scope and carries across the back-edge -> violation
+loopBackEdgeCase('loopReExec: while-body var hoists to function scope and carries',
+  'function f() { while (cond) { var n = []; n.flat(); n = "s"; } }', 'n', true);
+
+// --- G-PICKARM-MAYBE: widen a heterogeneous union/overload/default instead of picking one arm ---
+// picking one arm of a divergent overload / index-signature union / present-but-unresolvable default emits a
+// type-specific Maybe helper that throws on a value matching another arm. the receiver must WIDEN to generic
+for (const [variant, code] of [
+  ['divergent overload', 'interface P { parse(x: string): number[]; parse(x: boolean): string; }\ndeclare const p: P;\nfunction g(u) { return p.parse(u).at(0); }'],
+  ['divergent ambient fn-declaration overload', 'declare function f(x: string): number[];\ndeclare function f(x: boolean): string;\nfunction g(u) { return f(u).at(0); }'],
+  ['index-signature union', 'type D = { [k: string]: number[] } | { [k: string]: string };\ndeclare const d: D;\nfunction g(k) { return d[k].at(0); }'],
+  ['default on a present-but-unresolvable arg (declared)', 'declare function f<T = number[]>(x: T): T;\nfunction g(z) { return f(z).at(0); }'],
+  ['default on a present-but-unresolvable arg (bodied body-fold)', 'function f<T = number[]>(x: T): T { return x; }\nfunction g(z) { return f(z).at(0); }'],
+  ['body-fold: a `T | null` return still references the unbound T', 'function f<T = number[]>(x: T): T | null { return x; }\nfunction g(z) { return f(z).at(0); }'],
+  ['divergent declare-class method overload', 'declare class C { m(x: string): number[]; m(x: boolean): string; }\ndeclare const c: C;\nfunction g(u) { return c.m(u).at(0); }'],
+  ['merged class+iface overload', 'class C {}\ninterface C { m(x: string): number[]; m(x: boolean): string; }\ndeclare const c: C;\nfunction g(u) { return c.m(u).at(0); }'],
+  // a divergent set where ONE arm is an unresolvable non-nullable type (bare generic `<T>`) is uncertain - the
+  // resolvable `T[]` arm must NOT win the fold (the other arm could be a foreign type)
+  ['generic overload, one arm bare `<T>` (interface)', 'interface P { m<T>(x: string): T[]; m<T>(x: boolean): T; }\ndeclare const p: P;\nfunction g(u) { return p.m(u).at(0); }'],
+  ['generic overload, one arm bare `<T>` (ambient fn)', 'declare function f<T>(x: string): T[];\ndeclare function f<T>(x: boolean): T;\nfunction g(u) { return f(u).at(0); }'],
+  ['generic overload, one arm bare `<T>` (class)', 'declare class C { m<T>(x: string): T[]; m<T>(x: boolean): T; }\ndeclare const c: C;\nfunction g(u) { return c.m(u).at(0); }'],
+  // the same "one unresolvable non-nullable arm makes the set uncertain" applies to the index-signature union fold
+  ['index-sig union unresolvable branch', 'type D = { [k: string]: number[] } | { [k: string]: NotDefinedType };\ndeclare const d: D;\nfunction g(k) { return d[k].at(0); }'],
+]) {
+  runBoth(`pickarm widens not picks: ${ variant }`, code, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+    check(`${ lbl } not narrowed to an arm`, !(resolved && !resolved.primitive && resolved.constructor === 'Array'), true);
+  });
+}
+// literal-discriminated overloads (`get('a'): A; get('b'): B`) are NOT divergent - TS picks by the literal
+// arg, so the receiver narrows PRECISELY (the widen must not over-broaden them)
+runBoth('pickarm: literal overload narrows precisely (string arm)',
+  'interface D { get(k: "a"): string; get(k: "b"): number; }\ndeclare const d: D;\nd.get("a").at(0);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: true, kind: 'string' });
+  });
+runBoth('pickarm: literal overload narrows precisely (array arm)',
+  'interface D { get(k: "a"): string; get(k: "c"): string[]; }\ndeclare const d: D;\nd.get("c").at(0);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+// the literal match handles MIXED literal+keyword params (`get(k: 'a', x: number)`) and ambient fn-decl overloads
+runBoth('pickarm: mixed literal+keyword overload param narrows precisely',
+  'interface D { get(k: "a", x: number): string[]; get(k: "b", x: number): number; }\ndeclare const d: D;\nd.get("a", 5).at(0);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+runBoth('pickarm: literal ambient fn-declaration overload narrows precisely',
+  'declare function f(x: "a"): string[];\ndeclare function f(x: "b"): number;\nf("a").at(0);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+// the same arg-discrimination applies to declare-class method overloads (literal arg -> precise arm) and
+// merged class+interface overloads - findClassMember / resolveMemberFromMembers must not pick the last/first arm
+runBoth('pickarm: declare-class method literal overload narrows precisely',
+  'declare class C { m(x: "a"): string[]; m(x: "b"): number; }\ndeclare const c: C;\nc.m("a").at(0);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+runBoth('pickarm: declare-class method keyword overload narrows by arg kind',
+  'declare class C { m(x: string): number[]; m(x: boolean): string; }\ndeclare const c: C;\nc.m("s").at(0);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+runBoth('pickarm: merged class+interface literal overload narrows precisely',
+  'class C {}\ninterface C { m(x: "a"): string[]; m(x: "b"): number; }\ndeclare const c: C;\nc.m("a").at(0);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+// a NULLABLE / never overload arm IS empty and stays skippable - the widen must not over-broaden a divergent
+// set whose only "other" arm is `undefined` / `never` (the resolvable arm narrows)
+runBoth('pickarm: a nullable overload arm is skipped, resolvable arm narrows',
+  'interface P { m(x: string): number[]; m(x: boolean): undefined; }\ndeclare const p: P;\nfunction g(u) { return p.m(u).at(0); }',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+runBoth('pickarm: index-sig union nullable value branch skipped, resolvable narrows',
+  'type D = { [k: string]: number[] } | { [k: string]: undefined };\ndeclare const d: D;\nfunction g(k) { return d[k].at(0); }',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+// suppression: an UNKNOWABLE super must NOT masquerade as `Object` (which suppresses the polyfill); a BASE-
+// LESS class IS `Object`; a KNOWN super (Array) keeps its narrow
+runBoth('pickarm: unknowable super stays generic (no Object-suppression)',
+  'declare const Base: any;\nclass C extends Base {}\nnew C().at(0);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+    check(`${ lbl } not Object/Array suppression`, !(resolved && (resolved.constructor === 'Object' || resolved.constructor === 'Array')), true);
+  });
+runBoth('pickarm: base-less class IS Object',
+  'class C {}\nnew C().at(0);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Object' });
+  });
+runBoth('pickarm: known Array super keeps the narrow',
+  'class C extends Array {}\nnew C().at(0);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+
+// FIRST-MATCH overload discrimination across every call-return site: implicit-any arms
+// stay in the set (widen), object-type call signatures / aliased `typeof fn` calls /
+// overloaded callees under a member chain discriminate by args instead of picking
+// first / last, and an earlier non-analyzable param bails to the fold
+
+function atReceiver(adapter, prog) {
+  const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at')
+    ?? adapter.pickPath(prog, 'OptionalMemberExpression', p => p.node.property?.name === 'at');
+  return adapter.makeResolver().resolveNodeType(member.get('object'));
+}
+function checkGenericAt(adapter, prog, lbl) {
+  const type = atReceiver(adapter, prog);
+  check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+}
+
+runBoth('pickarm: implicit-any interface overload arm widens the call to generic',
+  'interface P { parse(x: string): string[]; parse(x: number); }\ndeclare const p: P;\np.parse(123).at(0);',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('pickarm: fully-annotated interface overload still arg-narrows',
+  'interface P { parse(x: string): string[]; parse(x: number): string[]; }\ndeclare const p: P;\np.parse(123).at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('pickarm: implicit-any declare-class overload arm widens the call to generic',
+  'declare class C { m(x: number); m(x: string): number[]; }\ndeclare const c: C;\nc.m(5).at(0);',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('pickarm: object-type call signatures arg-discriminate (not last-arm)',
+  'interface Make { (x: number): number[]; (x: string): string; }\ndeclare const make: Make;\nmake(5).at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('pickarm: object-type call signatures widen on an indiscriminable arg',
+  'interface Make { (x: number): number[]; (x: string): string; }\ndeclare const make: Make;\nfunction g(u) { return make(u).at(0); }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('pickarm: aliased `typeof fn` CALL arg-discriminates (not last-arm)',
+  'declare function fn(x: number): number[];\ndeclare function fn(x: string): string;\ndeclare const g: typeof fn;\ng(0).at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('pickarm: type-level `ReturnType<typeof fn>` keeps the rightmost overload',
+  'declare function fn(x: number): number[];\ndeclare function fn(x: string): string;\ndeclare const v: ReturnType<typeof fn>;\nv.at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' });
+  });
+
+runBoth('pickarm: overloaded ambient callee under a member chain arg-discriminates',
+  'declare function pick(x: string): { m: number[] };\ndeclare function pick(x: number): { m: string };\npick(0).m.at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' });
+  });
+
+runBoth('pickarm: overloaded interface method under a member chain arg-discriminates',
+  'interface W { m(x: string): { v: number[] }; m(x: number): { v: string }; }\ndeclare const w: W;\nw.m(0).v.at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' });
+  });
+
+runBoth('pickarm: an earlier non-analyzable overload param bails to the fold (TS first-match)',
+  'declare function parse(input: unknown): string;\ndeclare function parse(input: string): number[];\ndeclare const s: string;\nparse(s).at(0);',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('pickarm: a provably non-matching literal first arm still selects the second',
+  'declare function tag(x: "a"): string;\ndeclare function tag(x: number): number[];\ntag(5).at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('pickarm: a literal-typed identifier arg folds instead of wrong-selecting the keyword arm',
+  'declare function tag(x: "a"): number[];\ndeclare function tag(x: string): string;\nconst k = "a";\ntag(k).at(0);',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+// spread args break positional inference but must stay OPAQUE-guarded: the declared
+// type-param default must not leak onto a spread-fed param TS infers from the element
+
+// positional (non-rest) signature: the harness oxc lane cannot scope-crawl an ambient
+// rest-param (estree-toolkit limitation); a spread onto positional params exercises the
+// same inference bail + opaque-guarded default fill
+runBoth('pickarm: spread arg keeps the type-param default opaque (generic)',
+  'declare function makeBox<T = number[]>(t: T, u?: T): { v: T };\ndeclare const arr: string[];\nconst r = makeBox(...arr);\nr.v.at(0);',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('pickarm: positional arg still infers the type-param (no default)',
+  'declare function makeBox<T = number[]>(t: T): { v: T };\ndeclare const s: string;\nconst r = makeBox(s);\nr.v.at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' });
+  });
+
+// `S[keyof S]` accessor arms: a SET-ONLY accessor still reads as its param type in TS,
+// so the value union bails instead of narrowing to the surviving members; a PAIRED
+// getter supplies the slot's read type and the setter arm skips
+
+runBoth('pickarm: set-only accessor arm bails the keyof-self value union',
+  'interface S { set foo(v: string); xs: number[]; }\ndeclare const val: S[keyof S];\nval.at(0);',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('pickarm: paired getter keeps the keyof-self value union narrow',
+  'interface S { get foo(): number[]; set foo(v: number[]); xs: number[]; }\ndeclare const val: S[keyof S];\nval.at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+// `readonly (infer U)[]` operator form is a READONLY pattern: a readonly check binds U
+// (TRUE branch) exactly like the `ReadonlyArray<infer U>` reference form
+
+runBoth('pickarm: readonly infer operator form binds U on a readonly check',
+  'type UnwrapArray<T> = T extends readonly (infer U)[] ? U : number[];\ndeclare const x: UnwrapArray<ReadonlyArray<string>>;\nx.at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' });
+  });
+
+runBoth('pickarm: readonly infer operator form binds U on a mutable check',
+  'type UnwrapArray<T> = T extends readonly (infer U)[] ? U : number[];\ndeclare const x: UnwrapArray<string[]>;\nx.at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' });
+  });
+
+runBoth('pickarm: mutable `Array<infer U>` pattern still rejects a readonly check',
+  'type UnwrapArray<T> = T extends Array<infer U> ? U : number[];\ndeclare const x: UnwrapArray<ReadonlyArray<string>>;\nx.at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+// capital `Object` is the boxed-top type: `Extract` keeps primitive arms against it
+// (`string extends Object` is true in TS), unlike lowercase `object`
+
+runBoth('pickarm: Extract against capital Object keeps the primitive arm (generic union)',
+  'declare const x: Extract<string | number[], Object>;\nx.at(0);',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('pickarm: Extract against lowercase object drops the primitive arm',
+  'declare const x: Extract<string | number[], object>;\nx.at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+// topObject is a MAY-union: a union target accepts primitives when ANY arm is the boxed-top
+// `Object`, in either arm order
+
+runBoth('pickarm: Extract vs `Object | object` keeps the primitive arm (Object first)',
+  'declare const x: Extract<string | number[], Object | object>;\nx.at(0);',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('pickarm: Extract vs `object | Object` keeps the primitive arm (Object second)',
+  'declare const x: Extract<string | number[], object | Object>;\nx.at(0);',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+// optional-chain call forms route through the same overload discrimination; a spread arg
+// stays indiscriminable and folds
+
+runBoth('pickarm: optional call arg-discriminates the overload set',
+  'interface P { m(x: string): string; m(x: number): number[]; }\ndeclare const p: P;\np?.m(5).at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('pickarm: optional member-chained overload arg-discriminates',
+  'interface W { m(x: number): { v: string }; m(x: string): { v: number[] }; }\ndeclare const w: W;\nw?.m(0).v.at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' });
+  });
+
+runBoth('pickarm: spread call arg keeps the overload set indiscriminable (fold)',
+  'interface P2 { m(x: string): string; m(x: number): number[]; }\ndeclare const p: P2;\ndeclare const xs: number[];\np.m(...xs).at(0);',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+// a function-valued object DATA prop is reassignable like any data prop: an observed
+// write to the slot bails the call narrowing; a write-free slot keeps it
+
+runBoth('pickarm: written function-valued object prop bails the call narrow',
+  'const o = { fn: () => [1, 2] };\no.fn = () => "s";\no.fn().at(0);',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('pickarm: write-free function-valued object prop keeps the call narrow',
+  'const o = { fn: () => [1, 2] };\no.fn().at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+// a POSITIONED rest (`[a, ...rest]`) binds a SLICE - the whole-RHS redecl shortcut is
+// provable only for the exact `[...r]` shape
+
+// a positioned rest never narrows to the whole RHS; its SLICE type resolves instead -
+// Array of the literal tail's common element type, so an element read is family-precise
+
+runBoth('pickarm: positioned rest var-redecl resolves the slice element, not the whole RHS',
+  'var rest = "abc";\n{ var [a, ...rest] = [[1], 2, 3]; }\nrest[0].at(-1);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'number' });
+  }, undefined, 'script');
+
+runBoth('pickarm: positioned rest slice is an Array for direct member dispatch',
+  'var rest = "abc";\n{ var [a, ...rest] = [[1], 2, 3]; }\nrest.includes(2);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'includes');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  }, undefined, 'script');
+
+runBoth('pickarm: heterogeneous slice tail keeps the element generic',
+  'var rest = "abc";\n{ var [a, ...rest] = [[1], 2, "x"]; }\nrest[0].at(-1);',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl), undefined, 'script');
+
+runBoth('pickarm: whole-rest string RHS spreads to an Array of chars',
+  'var r = 0;\n{ var [...r] = "abc"; }\nr[0].at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' });
+  }, undefined, 'script');
+
+runBoth('pickarm: a spread in the redecl RHS keeps the slice element generic',
+  'var rest = "abc";\nfunction f(xs: number[]) { { var [a, ...rest] = [1, ...xs]; } return rest[0].at(-1); }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('pickarm: whole-RHS rest var-redecl keeps the element narrow',
+  'var r = "abc";\n{ var [...r] = [[1], 2, 3]; }\nr[0].at(-1);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  }, undefined, 'script');
+
+// STALE-NARROW invalidation: a guard / structural narrow must not survive a write the
+// flow analysis cannot dominate - the runtime value may be a foreign family at the use
+
+// the guard narrow is invalidated AND the fall-through branch's trailing assignment
+// DOMINATES the post-if use (the other branch hard-exits), so the reassigned value's
+// own type resolves precisely
+
+runBoth('stale-narrow: non-exiting consequent reassign resolves to the reassigned type',
+  'function f(x: unknown) { if (typeof x === "string") { x = 5; } else throw 0; return x.at(0); }',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'number' });
+  });
+
+runBoth('stale-narrow: non-exiting alternate reassign resolves to the reassigned type',
+  'function f(x: string | number[], arr: number[]) { if (typeof x !== "string") { return null; } else { x = arr; } return x.at(0); }',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+// dominance boundaries of the fall-through rule: the EXITING branch's write never leaks,
+// dual sibling-branch writes bail on the positional overwrite guard, a write nested in an
+// inner conditional stays conditional, a labeled-break "exit" resumes at the use (not an
+// exit), and `else if` chains compose level by level
+
+runBoth('stale-narrow: exiting-branch write does not leak to the post-if use',
+  'function f(x: number[], c) { if (c) { x = "s"; return null; } return x.at(0); }',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('stale-narrow: dual sibling-branch writes bail',
+  'function f(c, arr: number[]) { let x: unknown; if (c) { x = 5; } else { x = arr; return null; } return x.at(0); }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('stale-narrow: nested-conditional write inside the fall-through branch stays conditional',
+  'function f(x: unknown, d) { if (typeof x === "string") { if (d) x = 5; } else throw 0; return x.at(0); }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('stale-narrow: labeled-break sibling branch is not a hard exit',
+  'function f(x: string | number[], arr: number[]) { outer: { if (typeof x !== "string") { break outer; } else { x = arr; } } return x.at(0); }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('stale-narrow: else-if chain of hard exits composes the dominance',
+  'function f(x: unknown, q) { if (typeof x === "string") { x = 5; } else if (q) { throw 0; } else { throw 1; } return x.at(0); }',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'number' });
+  });
+
+// try / catch and loop boundaries of the fall-through dominance: a caught throw resumes
+// AFTER the try, so only a use INSIDE the try (past the if) is dominated; catch-body and
+// post-try uses are not. per-iteration dominance holds inside a loop body; a use BEFORE
+// the if keeps the back-edge bail
+
+runBoth('stale-narrow: use after the try is not dominated (caught throw resumes)',
+  'function f(x: unknown, arr: number[]) { try { if (typeof x === "string") { x = arr; } else throw 0; } catch {} return x.at(0); }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('stale-narrow: use inside the try past the if is dominated',
+  'function f(x: unknown, arr: number[]) { try { if (typeof x === "string") { x = arr; } else throw 0; return x.at(0); } catch {} }',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('stale-narrow: catch-body use is not dominated',
+  'function f(x: unknown, arr: number[]) { try { if (typeof x === "string") { x = arr; } else throw 0; } catch { return x.at(0); } }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('stale-narrow: loop-body use before the if keeps the back-edge bail',
+  'declare const c: boolean;\nfunction f(x: unknown, arr: number[]) { while (c) { const r = x.at(0); if (typeof x === "string") { x = arr; } else throw 0; return r; } }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('landed-follow: closure-captured use is not followed',
+  'function f(arr: number[]) { let x: unknown; x = arr; return () => x.includes(1); }',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'includes');
+    const type = adapter.makeResolver().resolveNodeType(member.get('object'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+// integer-literal element access reads the receiver TYPE's element when no literal array
+// value is reachable (known return types, slices); a dynamic index stays generic
+
+runBoth('element access: known-return Array element resolves by inner type',
+  'declare const s: string;\nconst v = s.split(",")[0].at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' });
+  });
+
+runBoth('element access: dynamic index keeps the element generic',
+  'declare const s: string;\ndeclare const i: number;\nconst v = s.split(",")[i].at(0);',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+// element-type precision bails when anything can RETYPE the elements between creation
+// and the read: an element write, a mutating array method, or any escape of the binding
+// (a holder may write elements). read-only-referenced bindings keep the precision
+
+runBoth('element access: element write retypes - literal route bails',
+  'const a = [1, 2];\na[0] = "x";\nconst v = a[0].at(0);',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('element access: element write retypes - slice route bails',
+  'var rest = "s";\n{ var [h, ...rest] = [[1], 2, 3]; }\nrest[0] = "x";\nconst v = rest[0].at(0);',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl), undefined, 'script');
+
+runBoth('element access: mutating method call bails',
+  'const a = [1, 2];\na.unshift("x");\nconst v = a[0].at(0);',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('element access: call-argument escape bails',
+  'declare function touch(xs: unknown): void;\nconst a = [1, 2];\ntouch(a);\nconst v = a[0].at(0);',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('element access: read-only-referenced binding keeps the element precision',
+  'const a = [[1], [2]];\nconst total = a[0].includes(1);\nconst v = a[1].at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('element access: delete of an element bails',
+  'const a = [[1], [2]];\ndelete a[0];\nconst v = a[0].at(0);',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('element access: destructure-assignment element write bails',
+  'const a = [[1], [2]];\n[a[0]] = ["x"];\nconst v = a[0].at(0);',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('element access: computed-literal mutating method spelling bails',
+  'const a = [[1], [2]];\na["unshift"]("x");\nconst v = a[0].at(0);',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('element access: optional mutating call bails',
+  'const a = [[1], [2]];\na.unshift?.("x");\nconst v = a[0].at(0);',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('element access: dynamic-key CALL on the binding bails (may be any mutator)',
+  'declare const m: string;\nconst a = [[1], [2]];\na[m]("x");\nconst v = a[0].at(0);',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('element access: dynamic-key pure READ keeps the precision',
+  'declare const i: number;\nconst a = [[1], [2]];\nconst r = a[i];\nconst v = a[0].at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('element access: element write inside a nested function bails',
+  'const a = [[1], [2]];\nfunction g() { a[0] = "x"; }\ng();\nconst v = a[0].at(0);',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('element access: a SHADOWED inner write does not kill the outer precision',
+  'const a = [[1], [2]];\nfunction g() { const a = [1]; a[0] = 5; }\ng();\nconst v = a[0].at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('element access: cast-wrapped element write bails',
+  'const a = [[1], [2]];\n(a as any)[0] = "x";\nconst v = a[0].at(0);',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+// non-retentive reads (typeof / comparisons / bare condition slots) and whole-binding
+// writes (the flow layer's domain) never count as element retypes - a dominance-resolved
+// literal keeps per-element precision through its own guard and source assignment
+
+runBoth('element access: guard + dominance-resolved literal keeps element precision',
+  'function F(x: unknown) { if (typeof x === "string") { x = [[9], [8]]; } else throw 0; return x[0].at(0); }',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('element access: comparison read does not kill element precision',
+  'declare const other: unknown;\nconst a = [[1], [2]];\nconst same = a === other;\nconst v = a[0].at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('element access: conditional BRANCH position stays an escape',
+  'declare const c: boolean;\ndeclare function sink(v: unknown): void;\nconst a = [[1], [2]];\nsink(c ? a : null);\nconst v = a[0].at(0);',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+// a value-follow landing on a DIFFERENT annotation-only binding types by that binding's
+// annotation, exactly like a direct use
+
+runBoth('landed-follow: assignment RHS param annotation types the use',
+  'function f(x: unknown, arr: number[]) { x = arr; return x.includes(1); }',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'includes');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('landed-follow: alias init to an annotated param types the use',
+  'function f(arr: number[]) { const y = arr; return y.includes(1); }',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'includes');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('stale-narrow control: exit guard without a body reassign keeps the narrow',
+  'function f(x: unknown) { if (typeof x === "string") { } else throw 0; return x.at(0); }',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' });
+  });
+
+// structural narrows (rest / default / destructure slot / for-of element) bail on a
+// CONDITIONAL reassignment the straight-line walk cannot dominate; the write-free forms
+// keep their precision
+
+runBoth('stale-narrow: conditional reassign bails the default-param narrow',
+  'function head(x = [1, 2, 3], c) { if (c) x = "hello"; return x.at(0); }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('stale-narrow: conditional reassign bails the rest-param narrow',
+  'function first(c, ...xs) { if (c) xs = "hello"; return xs.at(0); }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('stale-narrow: conditional reassign bails the object-destructure narrow',
+  'function f(c) { let { a } = { a: [1, 2] }; if (c) a = "hello"; return a.at(0); }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('stale-narrow: conditional reassign bails the array-destructure narrow',
+  'function f(c) { let [a] = [[1, 2]]; if (c) a = "hello"; return a.at(0); }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('stale-narrow: conditional reassign bails the for-of element narrow',
+  'function f(c, xs: number[][]) { for (let x of xs) { if (c) x = "hello"; return x.at(0); } }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+// a CONDITIONAL `var` re-declaration reaches the structural narrow with an empty violation
+// list on the estree lane (no native record; canonical recovery excludes declarators) -
+// the positional redecl scan must bail it on BOTH parsers; a straight-line redecl stays
+// precise through the dedicated redecl machinery
+
+runBoth('stale-narrow: conditional var-redecl bails the destructure narrow',
+  'function f(c) { var [a] = [[1, 2]]; if (c) { var [a] = ["x"]; } return a.at(0); }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('stale-narrow control: straight-line var-redecl keeps the redecl precision',
+  'function f() { var [a] = [[1, 2]]; { var [a] = ["xy"]; } return a.at(0); }',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' });
+  });
+
+// a rest slot's family is RHS-independent: a same-family rest redecl (`var [...r] = "abc"`
+// spreads into a fresh Array) cannot change the narrow and stays ignorable even when
+// conditional; a PLAIN-id redecl re-types the binding and bails
+
+runBoth('stale-narrow control: same-family conditional rest redecl keeps the Array narrow',
+  'function f(c) { var [...r] = [1, 2]; if (c) { var [...r] = "abc"; } return r.at(0); }',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+// a `var` re-declaration is legal over PARAM / hoisted bindings too - the positional
+// redecl machinery must see it on both parsers (a param owns no var declarator, so the
+// scope-declaring var IS the redecl); dominance semantics match the var-over-var case
+
+runBoth('stale-narrow: conditional var-redecl over a param bails',
+  'function F(x = [1, 2], c) { if (c) { var x = "s"; } return x.at(0); }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('stale-narrow: dominating var-redecl over a param resolves its own value',
+  'function F(x = [1, 2]) { { var x = "abc"; } return x.at(0); }',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' });
+  });
+
+runBoth('stale-narrow: var-redecl over a guarded param bails the guard narrow',
+  'function F(x: unknown, c) { if (typeof x !== "object") return null; if (c) { var x = "s"; } return x.at(0); }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('stale-narrow: plain-id conditional var-redecl over a rest binding bails',
+  'function f(c) { var [...r] = [1, 2]; if (c) { var r = "abc"; } return r.at(0); }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+// a DOMINATED write whose value the upstream machinery cannot resolve still invalidates:
+// the runtime value is the write's, not the structural slot's, so serving the original
+// narrow from the leaf would key a wrong-family Maybe to it
+
+runBoth('stale-narrow: dominating redecl with an unresolvable slot bails',
+  'function f() { var [a] = [[1, 2]]; { var [a] = "xy"; } return a.at(0); }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('stale-narrow: dominating assignment with an unresolvable value bails the default-param narrow',
+  'declare const mk: () => unknown;\nfunction f(x = [1, 2]) { x = mk(); return x.at(0); }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('stale-narrow control: resolvable dominating write keeps its own precision',
+  'function f(x = [1, 2]) { x = "hello"; return x.at(0); }',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' });
+  });
+
+runBoth('stale-narrow control: write-free default-param keeps the narrow',
+  'function head(x = [1, 2, 3]) { return x.at(0); }',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+// a `break <label>` that targets a peeled wrapping label RESUMES at the guarded use -
+// it is not an exit, so the guard must not narrow
+
+runBoth('stale-narrow: labeled-break guard does not narrow',
+  'function f(x: string | number[]) { outer: if (typeof x === "string") break outer; return x.at(0); }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('stale-narrow control: real return-exit guard narrows',
+  'function f(x: string | number[]) { if (typeof x === "string") return null; return x.at(0); }',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+// a canonically-recovered violation (closure-write in a switch discriminant + case-level
+// shadow) proves the binding is reassigned - the stale `.constant` verdict must not
+// resurrect the init through `typeof x` resolution
+
+runBoth('stale-narrow: recovered closure-write drops the typeof-binding narrow',
+  'function f(mk) { let x = [1, 2, 3]; switch (mk(() => { x = "hello"; })) { case 1: { let x = 0; mk(x); } }'
+    + ' const y: typeof x = x; return y.at(0); }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+// a NON-fn class-field initializer runs with `this` bound to the instance - a buried
+// `this.<field>` write inside it joins the flow scan like a constructor write
+
+runBoth('stale-narrow: buried write in a non-fn field initializer bails the field narrow',
+  'class Box { items = [1, 2, 3]; poison = (this.items = "s"); read() { return this.items.at(0); } }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('stale-narrow control: write-free class field keeps the narrow',
+  'class Box { items = [1, 2, 3]; read() { return this.items.at(0); } }',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+// discriminant-narrow write invalidation resolves computed write keys and peels
+// LHS wrappers like the read side
+
+runBoth('stale-narrow: aliased computed-key discriminant write invalidates',
+  'type F = { kind: "a"; data: number[] } | { kind: "b"; data: string };\nconst K = "kind";\nfunction f(box: F) { if (box.kind === "a") { box[K] = "b"; return box.data.at(0); } }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('stale-narrow: cast-wrapped discriminant write invalidates',
+  'type F = { kind: "a"; data: number[] } | { kind: "b"; data: string };\nfunction f(box: F) { if (box.kind === "a") { (box as any).kind = "b"; return box.data.at(0); } }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('stale-narrow control: write-free discriminant guard keeps the narrow',
+  'type F = { kind: "a"; data: number[] } | { kind: "b"; data: string };\nfunction f(box: F) { if (box.kind === "a") { return box.data.at(0); } }',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('stale-narrow: deeper dynamic write stays excluded (property mutation)',
+  'type F = { kind: "a"; data: number[] } | { kind: "b"; data: string };\ndeclare const i: number;'
+    + '\nfunction f(box: F) { if (box.kind === "a") { box.data[i] = 5; return box.data.at(0); } }',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+// a write to an OUTER class's `#field` from a lexically-nested class (no same-named
+// private of its own) still binds the outer slot and joins the fold; a same-named twin
+// stays excluded
+
+runBoth('stale-narrow: nested-class write to the outer private field bails the narrow',
+  'class Outer { #x = [1, 2, 3]; read() { return this.#x.at(0); } static make() { return class Inner { poison(o) { o.#x = "s"; } }; } }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('stale-narrow control: write-free private field keeps the narrow',
+  'class Outer { #x = [1, 2, 3]; read() { return this.#x.at(0); } }',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+// a CLASS / declare-class GETTER returns its declared type on the node (babel) but nested on
+// `value.returnType` (oxc/ESTree, a TSEmptyBodyFunctionExpression) - the member reader must read the
+// RETURN, not the function value, so a 2-hop chain `s.value.first.at` narrows identically on both parsers
+// (the bare `?? m.value` read the function -> the next hop bailed -> parser-asymmetric import set)
+for (const [variant, code] of [
+  ['declared', 'declare class S { get value(): { first: number[] }; }\ndeclare const s: S;\ns.value.first.at(0);'],
+  ['bodied', 'class S {\n  get value(): { first: number[] } { return { first: [] }; }\n}\ndeclare const s: S;\ns.value.first.at(0);'],
+]) {
+  runBoth(`class getter member-chain narrows cross-parser: ${ variant }`, code, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+}
+
+// a binding referenced as a DEFAULT VALUE (`x = box` param-default / `{ a = box }` destructure-default) is a
+// real escaping read, NOT a binding declaration - it must keep `box` from being narrowed as a trusted anon
+// object (a stale type-specific Maybe on a value the default-holder may have mutated throws on a foreign
+// runtime value). babel's referencePaths keeps the ref; the estree walk must match (not over-exclude the slot)
+for (const [variant, code] of [
+  ['param-default', 'const box = { items: [1, 2, 3] };\nfunction use(s = box) { return s; }\nbox.items.at(0);'],
+  ['destructure-default', 'const box = { items: [1, 2, 3] };\nconst src = {};\nconst { a = box } = src;\nbox.items.at(0);'],
+]) {
+  runBoth(`default-value ref escapes the binding (no over-narrow): ${ variant }`, code, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+    check(`${ lbl } not narrowed to Array`, !(resolved && resolved.constructor === 'Array'), true);
+  });
+}
+// the LEFT of a default is still a binding declaration - an anon object with no escaping ref stays narrowed
+runBoth('default-value LEFT slot stays a binding (no escape -> narrowed)',
+  'const { a = 1 } = { a: 2 };\nconst box = { items: [1, 2, 3] };\nbox.items.at(0);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+
+// --- regression-guard coverage for every probed syntactic FORM (defense cycle) ---
+// S030: a discriminant write the use re-reads (loop re-execution) or that precedes a deferred invocation
+// drops the narrow to generic. one entry per distinct loop / guard / function-deferral form
+function dropAtReceiver(adapter, prog, lbl) {
+  const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+  const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+  check(`${ lbl } stale narrow dropped`, !(resolved && resolved.constructor === 'Array'), true);
+}
+function arrayAtReceiver(adapter, prog, lbl) {
+  const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+  checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+}
+for (const [form, code] of [
+  ['do-while', `${ VARIANT }function f(s: V, c: any) { if (s.kind==="a") { do { s.arr.at(0); s.kind="b"; } while(c()); } }`],
+  ['for-of', `${ VARIANT }function f(s: V, xs: any) { if (s.kind==="a") { for (const x of xs) { s.arr.at(0); s.kind="b"; } } }`],
+  ['labeled loop', `${ VARIANT }function f(s: V, c: any) { if (s.kind==="a") { outer: while(c()) { s.arr.at(0); s.kind="b"; } } }`],
+  ['nested loop, outer write', `${ VARIANT }function f(s: V, c: any) { if (s.kind==="a") { while(c()) { while(c()){ s.arr.at(0); } s.kind="b"; } } }`],
+  ['for-init write before use', `${ VARIANT }function f(s: V, c: any) { if (s.kind==="a") { for (s.kind="b"; c();) { s.arr.at(0); } } }`],
+  ['ternary arm in loop', `${ VARIANT }function f(s: V, c: any) { if (s.kind==="a") { while(c()) { const z = c() ? s.arr.at(0) : 0; s.kind="b"; } } }`],
+  ['&& logical guard', `${ VARIANT }function f(s: V, c: any) { if (s.kind==="a" && c()) { while(c()){ s.arr.at(0); s.kind="b"; } } }`],
+  ['class-method body', `${ VARIANT }class Q { m(s: V, c: any) { if (s.kind==="a") { while(c()){ s.arr.at(0); s.kind="b"; } } } }`],
+  ['nested function, invoke after write', `${ VARIANT }function f(s: V) { if (s.kind==="a") { function g() { return () => s.arr.at(0); } s.kind="b"; g()(); } }`],
+  ['async function boundary', `${ VARIANT }function f(s: V) { if (s.kind==="a") { const g = async () => { s.arr.at(0); }; s.kind="b"; g(); } }`],
+  ['callback arg escapes into a call', `${ VARIANT }function f(s: V, run: (cb: any)=>void) { if (s.kind==="a") { run(() => { s.arr.at(0); }); } s.kind="b"; }`],
+]) {
+  runBoth(`discriminant narrow drops across a deferred form: ${ form }`, code, dropAtReceiver);
+}
+// synchronous / non-re-executing forms KEEP the narrow (the write cannot reach the already-run use)
+for (const [form, code] of [
+  ['nested IIFE', `${ VARIANT }function f(s: V) { if (s.kind==="a") { (() => { (() => { s.arr.at(0); })(); })(); } s.kind="b"; }`],
+  ['early return before write', `${ VARIANT }function f(s: V) { if (s.kind==="a") { s.arr.at(0); return; s.kind="b"; } }`],
+]) {
+  runBoth(`discriminant narrow holds across a synchronous form: ${ form }`, code, arrayAtReceiver);
+}
+// S036: a class-getter member chain narrows identically across parser shapes for every getter form
+for (const [form, code] of [
+  ['generic class getter', 'declare class C<T> { get v(): { first: T[] }; }\ndeclare const c: C<number>;\nc.v.first.at(0);'],
+  ['3-hop getter', 'declare class C { get a(): { b: { c: number[] } }; }\ndeclare const c: C;\nc.a.b.c.at(0);'],
+  ['interface-merge getter', 'declare class C {}\ninterface C { get bucket(): { items: number[] }; }\ndeclare const c: C;\nc.bucket.items.at(0);'],
+  ['type-param bound by class arg', 'declare class C<T> { get val(): T; }\ndeclare const c: C<number[]>;\nc.val.at(0);'],
+  ['abstract getter', 'abstract class C { abstract get value(): { first: number[] }; }\ndeclare const c: C;\nc.value.first.at(0);'],
+]) {
+  runBoth(`class getter chain narrows for form: ${ form }`, code, arrayAtReceiver);
+}
+// S034: a binding referenced as a DEFAULT VALUE escapes (single-hop receiver stays generic) across forms
+for (const [form, code] of [
+  ['nested destructure default', 'const box = { items: [1, 2, 3] };\nconst src = { a: {} };\nconst { a: { b = box } } = src;\nbox.items.at(0);'],
+  ['array-pattern default', 'const box = { items: [1, 2, 3] };\nconst src = [];\nconst [a = box] = src;\nbox.items.at(0);'],
+  ['default through a call', 'const box = { items: [1, 2, 3] };\nfunction mk(z) { return z; }\nfunction use(s = mk(box)) {}\nbox.items.at(0);'],
+]) {
+  runBoth(`default-value ref escapes the binding for form: ${ form }`, code, dropAtReceiver);
+}
+
+// --- Logical always-truthy operand fold ---
+// an always-truthy left decides a logical statically: `A || B` / `A ?? B` is always A, `A && B`
+// is always B; a falsy-able primitive left keeps the two-operand union, and the
+// statically-nullish left fold (`null || B` -> B) stays
+
+runBoth('logical fold: array || object -> array', 'const x = [1] || {};', (adapter, prog, lbl) => {
+  const decl = adapter.pickPath(prog, 'VariableDeclarator');
+  checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+    { primitive: false, kind: 'object', ctor: 'Array' });
+});
+
+runBoth('logical fold: object || array -> object', 'const x = ({ a: 1 }) || [1];', (adapter, prog, lbl) => {
+  const decl = adapter.pickPath(prog, 'VariableDeclarator');
+  const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+  if (!type) return fail(lbl, 'got null type');
+  check(lbl, type.constructor !== 'Array' && type.primitive === false, true);
+});
+
+runBoth('logical fold: array ?? object -> array', 'const x = [1] ?? {};', (adapter, prog, lbl) => {
+  const decl = adapter.pickPath(prog, 'VariableDeclarator');
+  checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+    { primitive: false, kind: 'object', ctor: 'Array' });
+});
+
+runBoth('logical fold: symbol || array -> symbol', 'const x = Symbol("s") || [1];', (adapter, prog, lbl) => {
+  const decl = adapter.pickPath(prog, 'VariableDeclarator');
+  checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+    { primitive: true, kind: 'symbol' });
+});
+
+runBoth('logical no-fold: falsy-able string left keeps the union', 'const x = "s" || [1];', (adapter, prog, lbl) => {
+  const decl = adapter.pickPath(prog, 'VariableDeclarator');
+  const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+  check(lbl, type?.type !== 'string', true);
+});
+
+runBoth('logical fold: always-truthy && narrows to right', 'const x = [1] && "s";', (adapter, prog, lbl) => {
+  const decl = adapter.pickPath(prog, 'VariableDeclarator');
+  checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+    { primitive: true, kind: 'string' });
+});
+
+runBoth('logical no-fold: falsy-able && left keeps the union', 'const x = "s" && [1];', (adapter, prog, lbl) => {
+  const decl = adapter.pickPath(prog, 'VariableDeclarator');
+  const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+  check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+});
+
+runBoth('logical no-fold: document.all && keeps the union', 'const x = document.all && [1];', (adapter, prog, lbl) => {
+  const decl = adapter.pickPath(prog, 'VariableDeclarator');
+  const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+  check(lbl, type?.constructor !== 'Array', true);
+});
+
+runBoth('logical no-fold: document.all left keeps the union', 'const x = document.all || [1];', (adapter, prog, lbl) => {
+  const decl = adapter.pickPath(prog, 'VariableDeclarator');
+  const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+  // HTMLAllCollection is the ONE falsy object - the always-truthy fold must not narrow it, so
+  // the two-operand union stays (commonType of unrelated constructors resolves to null/generic)
+  check(lbl, type?.constructor !== 'HTMLAllCollection', true);
+});
+
+runBoth('logical fold: nullish left still falls to right', 'const x = null || [1];', (adapter, prog, lbl) => {
+  const decl = adapter.pickPath(prog, 'VariableDeclarator');
+  checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+    { primitive: false, kind: 'object', ctor: 'Array' });
+});
+
+// a nullish-STRIPPED union left (`r: number[] | null`) is NOT always truthy at runtime:
+// `??` / `||` yield the RIGHT operand on the nullish path, so the fold must keep the
+// two-operand union (heterogeneous operands -> null / generic dispatch). `&&` keeps its
+// right-fold - a nullish left short-circuits to a nullish RESULT, which throws the same
+// TypeError transformed or not. a same-family right still narrows via commonType, and a
+// `?:` with a statically-null branch marks its survivor the same way for an enclosing fold
+
+runBoth('logical no-fold: nullable-union left ?? foreign right keeps the union',
+  'function f(r: number[] | null) { const x = r ?? "s"; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+runBoth('logical no-fold: nullable-union left || foreign right keeps the union',
+  'function f(r: number[] | null) { const x = r || "s"; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+runBoth('logical fold: nullable-union left && still narrows to right',
+  'function f(r: number[] | null) { const x = r && "s"; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: true, kind: 'string' });
+  });
+
+runBoth('logical fold: nullable-union left with same-family right keeps the narrow',
+  'function f(r: number[] | null) { const x = r ?? []; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: false, kind: 'object', ctor: 'Array' });
+  });
+
+runBoth('logical no-fold: undefined-arm union left ?? keeps the union',
+  'function f(r: string[] | undefined) { const x = r ?? "s"; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+// the readonly re-tag must QUALIFY the union-folded result, not rebuild it from the identity
+// fields - a rebuild drops the mayBeNullish strip and re-arms the truthy fold
+runBoth('logical no-fold: Readonly-wrapped nullable union keeps the union',
+  'function f(r: Readonly<number[] | null>) { const x = r ?? "s"; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+runBoth('receiver narrow: Readonly-wrapped nullable union keeps readonly Array narrow',
+  'function f(r: Readonly<number[] | null>) { const x = r; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    checkType(lbl, type, { primitive: false, kind: 'object', ctor: 'Array' });
+    check(`${ lbl } (readonly marker)`, type?.readonly, true);
+  });
+
+// every fold that drops a statically-nullish arm marks its survivor - the dropped arm may
+// still be the runtime value, so an enclosing `??` / `||` must not fold to the survivor's
+// shape. sibling folds of the union fold: cross-return body fold, guard narrowing whose
+// guard keeps null at runtime (`typeof x === 'object'`), undecided conditional types
+
+runBoth('logical no-fold: cross-return nullable fold marks the call result',
+  'function f(c) { if (!c) return null; return [1, 2]; } const x = f(c) ?? "s";', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+runBoth('logical no-fold: bare-return arm marks the call result',
+  'function f(c) { if (c) return [1, 2]; return; } const x = f(c) ?? "s";', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+runBoth('logical fold: clean cross-return fold keeps the Array narrow',
+  'function f(c) { if (c) return [1]; return [2, 3]; } const x = f(c) ?? "s";', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: false, kind: 'object', ctor: 'Array' });
+  });
+
+runBoth('logical no-fold: typeof-object guard keeps null at runtime, narrow is marked',
+  'function f(r: number[] | null) { if (typeof r === "object") { const x = r ?? "s"; } }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+runBoth('logical fold: positive instanceof rules null out, narrow stays precise',
+  'function f(r: number[] | null) { if (r instanceof Array) { const x = r ?? "s"; } }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: false, kind: 'object', ctor: 'Array' });
+  });
+
+runBoth('logical no-fold: undecided conditional type with a nullable branch is marked',
+  'declare function pick<T>(x: T): T extends string ? number[] : null; function f(o: unknown) { const x = pick(o) ?? "s"; }',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+runBoth('merge: readonly survives a both-readonly union merge',
+  'function f(r: Readonly<number[]> | Readonly<string[]>) { const x = r; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    checkType(lbl, type, { primitive: false, kind: 'object', ctor: 'Array' });
+    check(`${ lbl } (readonly marker)`, type?.readonly, true);
+  });
+
+// readonly requires BOTH arms in EITHER order: the inner fold may return its readonly
+// input by identity, so the single-readonly merge must STRIP the marker, not just skip
+// adding it (order-independence)
+
+runBoth('merge: readonly | mutable union is not readonly-certain, readonly arm first',
+  'declare const v: (readonly number[]) | number[]; const x = v;', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    checkType(lbl, type, { primitive: false, kind: 'object', ctor: 'Array' });
+    check(`${ lbl } (readonly marker)`, type?.readonly, false);
+  });
+
+runBoth('merge: readonly | mutable union is not readonly-certain, readonly arm second',
+  'declare const v: number[] | (readonly number[]); const x = v;', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    checkType(lbl, type, { primitive: false, kind: 'object', ctor: 'Array' });
+    check(`${ lbl } (readonly marker)`, type?.readonly, false);
+  });
+
+// the subst lane stamps readonly like the plain lane: a readonly collection reached
+// through generic substitution keeps its marker in both spellings
+
+runBoth('subst lane: `readonly T[]` keeps the readonly marker through substitution',
+  'type RO<T> = readonly T[]; declare const v: RO<number>; const x = v;', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    checkType(lbl, type, { primitive: false, kind: 'object', ctor: 'Array' });
+    check(`${ lbl } (readonly marker)`, type?.readonly, true);
+  });
+
+runBoth('subst lane: `ReadonlyArray<T>` keeps the readonly marker through substitution',
+  'type RA<T> = ReadonlyArray<T>; declare const v: RA<number>; const x = v;', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    checkType(lbl, type, { primitive: false, kind: 'object', ctor: 'Array' });
+    check(`${ lbl } (readonly marker)`, type?.readonly, true);
+  });
+
+// marker propagation paths: through the async Promise wrap + await unwrap, through the
+// element-type merge in either union-arm order, and through the `&&` right-fold
+
+runBoth('logical no-fold: awaited nullable cross-return keeps the union',
+  'async function f(c) { if (!c) return null; return [1, 2]; } async function g(c) { const x = (await f(c)) ?? "s"; }',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+runBoth('logical no-fold: nullable-element marker survives merge, marked arm first',
+  'function f(a: (number[] | null)[] | number[][]) { const x = a[0] ?? "s"; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+runBoth('logical no-fold: nullable-element marker survives merge, marked arm second',
+  'function f(a: number[][] | (number[] | null)[]) { const x = a[0] ?? "s"; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+runBoth('logical fold: clean element access still folds under ??',
+  'function f(a: number[][]) { const x = a[0] ?? "s"; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: false, kind: 'object', ctor: 'Array' });
+  });
+
+runBoth('logical no-fold: && right-fold carries the marker into an enclosing ??',
+  'function f(arr: string[], r: number[] | null) { const x = (arr && r) ?? "s"; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+// the mirror arm: a nullish-capable LEFT of && makes the right-fold survivor itself
+// nullish-capable (`r && arr` is null when r is null), so an enclosing `||`/`??` keeps
+// its two-operand union; the bare `r && arr` receiver keeps the Array narrow (throw parity)
+
+runBoth('logical no-fold: nullish-capable && left marks the right-fold survivor',
+  'function f(r: number[] | null, arr: number[], s: string) { const x = (r && arr) || s; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+runBoth('receiver narrow: nullish-capable && left keeps the right narrow on the bare fold',
+  'function f(r: number[] | null, arr: number[]) { const x = r && arr; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: false, kind: 'object', ctor: 'Array' });
+  });
+
+// fall-through bodies return implicit undefined without a ReturnStatement to collect -
+// the survivor is marked exactly like an explicit bare `return` arm
+
+runBoth('logical no-fold: fall-through body marks the call result',
+  'function f(c) { if (c) return [1, 2]; } const x = f(c) ?? "s";', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+// a syntactically-present destructuring member whose value may be nullish keeps its
+// default LIVE - the member type alone must not shortcut the member x default fold
+
+runBoth('destructure default: nullish-capable member value keeps the default live',
+  'declare const maybe: string | undefined; const { a = [1, 2, 3] } = { a: maybe }; const x = a;', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+runBoth('destructure default: literally-present member still keeps its precise type',
+  'const { a = [1, 2, 3] } = { a: "hello" }; const x = a;', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: true, kind: 'string' });
+  });
+
+// merged-interface optional properties carry mayBeNullish like class-body optional fields
+
+runBoth('logical no-fold: merged-interface optional property is marked',
+  'class Box { test() { const x = this.items ?? "s"; } } interface Box { items?: number[]; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+runBoth('logical fold: merged-interface required property still folds',
+  'class Box { test() { const x = this.items ?? "s"; } } interface Box { items: number[]; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: false, kind: 'object', ctor: 'Array' });
+  });
+
+// nullish-admitting wrappers: a tuple optional slot ([T?]) admits undefined, so the
+// resolved element is marked - `??` on it must not fold, while the bare receiver keeps
+// the Array narrow (throw parity) and a required slot still folds
+
+runBoth('logical no-fold: tuple optional slot admits undefined',
+  'function f(t: [number[]?]) { const x = t[0] ?? "s"; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+runBoth('receiver narrow: tuple optional slot keeps the Array narrow on the bare receiver',
+  'function f(t: [number[]?]) { const x = t[0]; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: false, kind: 'object', ctor: 'Array' });
+  });
+
+runBoth('logical fold: required tuple slot still folds under ??',
+  'function f(t: [number[]]) { const x = t[0] ?? "s"; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: false, kind: 'object', ctor: 'Array' });
+  });
+
+// optional-chain short-circuit and optional members admit undefined without throwing, so
+// their results are marked; plain access on the same shapes keeps the narrow (throw parity)
+
+runBoth('logical no-fold: optional hop over a nullable receiver marks the member result',
+  'function f(o: { a: number[] } | null) { const x = o?.a ?? "s"; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+runBoth('logical no-fold: chain continuation inherits the short-circuit possibility',
+  'function f(o: { a: { b: number[] } } | null) { const x = o?.a.b ?? "s"; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+runBoth('logical fold: plain member access on a non-nullable receiver still folds',
+  'function f(o: { a: number[] }) { const x = o.a ?? "s"; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: false, kind: 'object', ctor: 'Array' });
+  });
+
+runBoth('logical no-fold: optional property admits undefined on a present receiver',
+  'interface I { a?: number[] } function f(i: I) { const x = i.a ?? "s"; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+runBoth('receiver narrow: optional property keeps the Array narrow on the bare receiver',
+  'interface I { a?: number[] } function f(i: I) { const x = i.a; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: false, kind: 'object', ctor: 'Array' });
+  });
+
+runBoth('logical fold: required property still folds',
+  'interface I { a: number[] } function f(i: I) { const x = i.a ?? "s"; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: false, kind: 'object', ctor: 'Array' });
+  });
+
+runBoth('logical no-fold: optional call marks the method return',
+  'interface I { m?(): number[] } function f(i: I) { const x = i.m?.() ?? "s"; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+runBoth('logical fold: required method call still folds',
+  'interface I { m(): number[] } function f(i: I) { const x = i.m() ?? "s"; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: false, kind: 'object', ctor: 'Array' });
+  });
+
+runBoth('logical no-fold: destructured optional property carries the marker',
+  'interface I { a?: number[] } function f(i: I) { const { a } = i; const x = a ?? "s"; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+// union-of-hints side channel: a cross-family union receiver resolves to no single Type,
+// but resolveUnionReceiverHints returns its exact hint SET for the injection layer.
+// contract: consulted only after Type resolution failed; a same-family input may return
+// a single-hint set (harmless - never reached through enhanceMeta)
+
+function checkHintSet(lbl, hints, expected) {
+  check(lbl, hints ? [...hints].sort().join(',') : null, expected);
+}
+
+runBoth('union hints: mixed-family union annotation yields the exact hint set',
+  'function f(r: number[] | string) { r.includes("x"); }', (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression');
+    const hints = adapter.makeResolver().resolvePropertyUnionHints(member);
+    checkHintSet(lbl, hints, 'array,string');
+  });
+
+runBoth('union hints: nullable arm contributes nothing',
+  'function f(r: number[] | string | null) { r.includes("x"); }', (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression');
+    const hints = adapter.makeResolver().resolvePropertyUnionHints(member);
+    checkHintSet(lbl, hints, 'array,string');
+  });
+
+runBoth('union hints: cross-family ternary receiver',
+  'function f(c: boolean, a: number[], s: string) { (c ? a : s).includes("x"); }', (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression');
+    const hints = adapter.makeResolver().resolvePropertyUnionHints(member);
+    checkHintSet(lbl, hints, 'array,string');
+  });
+
+runBoth('union hints: nullable-union left under || yields both operand hints',
+  'function f(r: number[] | null) { (r || "f").includes("x"); }', (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression');
+    const hints = adapter.makeResolver().resolvePropertyUnionHints(member);
+    checkHintSet(lbl, hints, 'array,string');
+  });
+
+runBoth('union hints: an unresolvable arm bails the whole set',
+  'function f(c: boolean, r: number[] | string) { (c ? r : g()).includes("x"); }', (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression');
+    const hints = adapter.makeResolver().resolvePropertyUnionHints(member);
+    check(lbl, hints, null);
+  });
+
+runBoth('union hints: non-union annotation yields null',
+  'function f(a: number[]) { a.includes(1); }', (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression');
+    const hints = adapter.makeResolver().resolvePropertyUnionHints(member);
+    check(lbl, hints, null);
+  });
+
+// the destructure shape shares the input domain: `const { includes } = x` derives the
+// hint set off the pattern's direct init (or the pattern annotation)
+
+runBoth('union hints: destructure property off a union-typed init',
+  'function f(r: number[] | string) { const { includes } = r; }', (adapter, prog, lbl) => {
+    const prop = adapter.pickPath(prog, 'ObjectProperty') ?? adapter.pickPath(prog, 'Property');
+    const hints = adapter.makeResolver().resolvePropertyUnionHints(prop);
+    checkHintSet(lbl, hints, 'array,string');
+  });
+
+runBoth('union hints: destructure property off a cross-family ternary init',
+  'function f(c: boolean, a: number[], s: string) { const { includes } = c ? a : s; }', (adapter, prog, lbl) => {
+    const prop = adapter.pickPath(prog, 'ObjectProperty') ?? adapter.pickPath(prog, 'Property');
+    const hints = adapter.makeResolver().resolvePropertyUnionHints(prop);
+    checkHintSet(lbl, hints, 'array,string');
+  });
+
+runBoth('union hints: destructure off a single-family init yields null',
+  'function f(a: number[]) { const { includes } = a; }', (adapter, prog, lbl) => {
+    const prop = adapter.pickPath(prog, 'ObjectProperty') ?? adapter.pickPath(prog, 'Property');
+    const hints = adapter.makeResolver().resolvePropertyUnionHints(prop);
+    check(lbl, hints, null);
+  });
+
+runBoth('union hints: a primitive arm contributes its own hint',
+  'function f(n: number, arr: number[]) { (n ?? arr).at(0); }', (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression');
+    const hints = adapter.makeResolver().resolvePropertyUnionHints(member);
+    checkHintSet(lbl, hints, 'array,number');
+  });
+
+runBoth('union hints: a class-annotated arm resolves into the object family',
+  'class Foo { at(i: number) { return i; } } function f(x: Foo | null, arr: number[]) { (x ?? arr).at(0); }',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const hints = adapter.makeResolver().resolvePropertyUnionHints(member);
+    checkHintSet(lbl, hints, 'array,object');
+  });
+
+runBoth('union hints: a family outside the hint-dispatch domain contributes nothing',
+  'function f(m: Map<string, number>, arr: number[]) { (m ?? arr).at(0); }',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const hints = adapter.makeResolver().resolvePropertyUnionHints(member);
+    checkHintSet(lbl, hints, 'array');
+  });
+
+runBoth('union hints: an unresolvable object-literal-typed arm bails the set',
+  'function f(o: { a: number }, arr: number[]) { (o ?? arr).includes(1); }', (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression');
+    const hints = adapter.makeResolver().resolvePropertyUnionHints(member);
+    check(lbl, hints, null);
+  });
+
+runBoth('union hints: a param-default destructure is NOT an authoritative receiver',
+  'function f(r: number[] | string) { function g({ includes } = r) { return includes; } g(); }',
+  (adapter, prog, lbl) => {
+    const prop = adapter.pickPath(prog, 'ObjectProperty') ?? adapter.pickPath(prog, 'Property');
+    const hints = adapter.makeResolver().resolvePropertyUnionHints(prop);
+    check(lbl, hints, null);
+  });
+
+runBoth('union hints: a guard-narrowed arm resolves precisely inside the branch',
+  'function f(r: number[] | string, arr: number[]) { if (typeof r !== "string") { (r ?? arr).includes(1); } }',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'includes');
+    const hints = adapter.makeResolver().resolvePropertyUnionHints(member);
+    checkHintSet(lbl, hints, 'array');
+  });
+
+runBoth('union hints: a DOM-collection arm collapses into the domcollection family',
+  'function f(c: boolean, nl: NodeList, arr: number[]) { (c ? nl : arr).forEach(x => x); }',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'forEach');
+    const hints = adapter.makeResolver().resolvePropertyUnionHints(member);
+    checkHintSet(lbl, hints, 'array,domcollection');
+  });
+
+runBoth('union hints: a nested destructure stays conservative (null)',
+  'function f(x: { a: number[] | string }) { const { a: { includes } } = x; }', (adapter, prog, lbl) => {
+    const prop = adapter.pickPath(prog, 'ObjectProperty', p => p.node.value?.type !== 'ObjectPattern')
+      ?? adapter.pickPath(prog, 'Property', p => p.node.value?.type !== 'ObjectPattern');
+    const hints = adapter.makeResolver().resolvePropertyUnionHints(prop);
+    check(lbl, hints, null);
+  });
+
+// marker propagation through value-flow channels: object-literal field init, sequence
+// tail and assignment value all carry the nullish-strip marker to the logical gate
+
+runBoth('logical no-fold: object-literal field with a nullable init',
+  'function f(r: number[] | null) { const o = { a: r }; const x = o.a ?? "s"; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+runBoth('logical no-fold: sequence tail carries the marker',
+  'function f(r: number[] | null, e: number) { const x = (e, r) ?? "s"; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+runBoth('logical no-fold: assignment value carries the marker',
+  'function f(r: number[] | null) { let y: unknown; const x = (y = r) ?? "s"; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+// class fields: the optional flag (`a?: T`) marks the field value through the class-member
+// channel (a distinct route from interface members), required fields keep the fold
+
+runBoth('logical no-fold: optional class field admits undefined via this',
+  'class C { a?: number[]; m() { const x = this.a ?? "s"; } }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+runBoth('receiver narrow: optional class field keeps Array narrow on the bare receiver',
+  'class C { a?: number[]; m() { const x = this.a; } }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: false, kind: 'object', ctor: 'Array' });
+  });
+
+runBoth('logical fold: required class field still folds',
+  'class C { a: number[] = []; m() { const x = this.a ?? "s"; } }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: false, kind: 'object', ctor: 'Array' });
+  });
+
+// built-in methods whose spec return admits undefined / null (`find` / `at` / `pop` /
+// `exec` / ...) carry `nullable: true` in known-built-in-return-types: the element narrow
+// is marked and must not truthy-fold, while container-returning methods still fold
+
+runBoth('logical no-fold: Array#find result admits undefined',
+  'function f(a: number[][]) { const x = a.find(v => v.length > 0) ?? "s"; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+runBoth('logical no-fold: Array#pop result admits undefined',
+  'function f(a: number[][]) { const x = a.pop() ?? "s"; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+runBoth('logical fold: Array#filter returns the container and still folds',
+  'function f(a: number[][]) { const x = a.filter(v => v) ?? "s"; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: false, kind: 'object', ctor: 'Array' });
+  });
+
+runBoth('receiver narrow: Array#find result keeps the element narrow on the bare receiver',
+  'function f(a: number[][]) { const x = a.find(v => v.length > 0); }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: false, kind: 'object', ctor: 'Array' });
+  });
+
+// the shared per-node resolution cache must serve BOTH consumer contexts of one binding:
+// the receiver narrow reads the marked type's Array family (marker ignored, throw parity),
+// the logical gate reads the marker - neither context may poison the other
+runBoth('dual use: one binding narrows as receiver and stays unfolded as logical left',
+  'function f(r: number[] | null) { const a = r; const x = r ?? "s"; }', (adapter, prog, lbl) => {
+    const resolver = adapter.makeResolver();
+    const declA = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'a');
+    const typeA = resolver.resolveNodeType(declA.get('init'));
+    checkType(`${ lbl } (receiver family)`, typeA, { primitive: false, kind: 'object', ctor: 'Array' });
+    check(`${ lbl } (marker present)`, typeA?.mayBeNullish, true);
+    const declX = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
+    const typeX = resolver.resolveNodeType(declX.get('init'));
+    check(`${ lbl } (logical no-fold)`, typeX?.constructor !== 'Array' && typeX?.type !== 'string', true);
+  });
+
+runBoth('ternary nullable branch marks the survivor for an enclosing logical',
+  'function f(c: boolean, a: number[]) { const x = (c ? a : null) ?? "s"; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+runBoth('ternary nullable branch alone keeps the receiver narrow',
+  'function f(c: boolean, a: number[]) { const x = c ? a : null; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: false, kind: 'object', ctor: 'Array' });
+  });
+
+// --- Structure-preserving wrapper x wide-keyword args ---
+// `NoInfer<unknown>` / `Partial<any>` / `Readonly<object>` resolve NULL like the bare keyword
+// (generic-instance emission), NOT the Object fallback (which suppressed `.at` / `.includes`);
+// the Object fallback stays for closed type-literal inners, and concrete args keep their narrow
+
+runBoth('wrapper wide-keyword: NoInfer<unknown> -> null', 'declare const v: NoInfer<unknown>; v;', (adapter, prog, lbl) => {
+  const decl = adapter.pickPath(prog, 'VariableDeclarator');
+  const resolver = adapter.makeResolver();
+  check(lbl, resolver.resolveNodeType(decl.get('id')) === null, true);
+});
+
+runBoth('wrapper wide-keyword: Partial<any> -> null', 'declare const v: Partial<any>; v;', (adapter, prog, lbl) => {
+  const decl = adapter.pickPath(prog, 'VariableDeclarator');
+  check(lbl, adapter.makeResolver().resolveNodeType(decl.get('id')) === null, true);
+});
+
+runBoth('wrapper wide-keyword mirrors the bare keyword: Readonly<object>', 'declare const v: Readonly<object>; declare const b: object;', (adapter, prog, lbl) => {
+  const resolver = adapter.makeResolver();
+  const wrapped = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'v');
+  const bare = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'b');
+  if (!wrapped || !bare) return fail(lbl, 'declarators not found');
+  const w = resolver.resolveNodeType(wrapped.get('id'));
+  const bt = resolver.resolveNodeType(bare.get('id'));
+  if (!w || !bt) return fail(lbl, `null resolution: wrapped=${ !!w } bare=${ !!bt }`);
+  check(lbl, w.constructor === bt.constructor && w.primitive === bt.primitive, true);
+});
+
+runBoth('wrapper literal inner keeps Object fallback', 'declare const v: Partial<{ a: 1 }>; v;', (adapter, prog, lbl) => {
+  const decl = adapter.pickPath(prog, 'VariableDeclarator');
+  checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('id')), { primitive: false, ctor: 'Object' });
+});
+
+runBoth('wrapper concrete arg keeps the narrow', 'declare const v: NoInfer<number[]>; v;', (adapter, prog, lbl) => {
+  const decl = adapter.pickPath(prog, 'VariableDeclarator');
+  checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('id')), { primitive: false, ctor: 'Array' });
+});
+
+// --- supplied-but-opaque type-params (wrong-Maybe default-leak family) ---
+// a type-param whose call/instantiation site SUPPLIES a value the resolver cannot type
+// must resolve to NULL (generic helper downstream), never to its declared default (a
+// type-specific Maybe on a foreign runtime receiver); resolvable sites keep precision
+
+runBoth('opaque explicit type-arg does not fall to the default',
+  'type Foo = { z: 1; }; function make<T = number[]>(): T { return [] as any; } const out = make<Foo>();',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
+    check(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), null);
+  });
+
+runBoth('resolvable explicit type-arg keeps precision',
+  'function make<T = number[]>(): T { return [] as any; } const out = make<string[]>();',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('deeply-referenced param (union wrapper) with a present arg stays opaque',
+  'function f<T = string>(x: T | null): T { return x as any; } const out = f(new Date());',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
+    check(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), null);
+  });
+
+runBoth('bare-T param binds the arg type (inference wins over the default)',
+  'function f<T = string>(x: T): T { return x; } const out = f([1, 2]);',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('transitive dependent default (U = T) stays opaque with an opaque earlier param',
+  'type Foo = { z: 1; }; declare const fv: Foo; '
+    + 'function make<T = number[], U = T>(x: T): U { return x as any; } const out = make(fv);',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
+    check(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), null);
+  });
+
+runBoth('transitive dependent default (U = T) keeps a resolvable earlier param',
+  'function make<T = number[], U = T>(x: T): U { return x as any; } const out = make(\'hi\');',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: true, kind: 'string' });
+  });
+
+runBoth('container-of-opaque keeps container precision with an inert element',
+  'type Foo = { z: 1; }; declare const fv: Foo; '
+    + 'function wrap<T>(x: T): T[] { return [x]; } const out = wrap(fv);',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('cyclic default with a supplied opaque arg resolves null without looping',
+  'type Foo = { z: 1; }; declare const fv: Foo; '
+    + 'function cyc<T = T[]>(x: T | null): T { return x as any; } const out = cyc(fv);',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
+    check(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), null);
+  });
+
+runBoth('user-type instantiation with an opaque explicit arg stays opaque on the member',
+  'type Foo = { z: 1; }; interface Box<T = number[]> { v: T } declare const b: Box<Foo>; const out = b.v;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
+    check(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), null);
+  });
+
+runBoth('user-type instantiation with an omitted arg legitimately binds the default',
+  'interface Box<T = number[]> { v: T } declare const b: Box; const out = b.v;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('literal arg bridges its type through the annotation-domain member chain',
+  'type Wrap<T> = { v: T; }; function w<T = number[]>(x: T): Wrap<T> { return { v: x } as any; } const out = w(\'abc\').v;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: true, kind: 'string' });
+  });
+
+runBoth('opaque arg through the same member chain stays opaque',
+  'type Foo = { z: 1; }; declare const fv: Foo; type Wrap<T> = { v: T; }; '
+    + 'function w<T = string>(x: T | null): Wrap<T> { return { v: x } as any; } const out = w(fv).v;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
+    check(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), null);
+  });
+
+// --- class-level type-param opaque instantiation (body-clobber guard) ---
+// a class instantiated with a type-arg the resolver can't type must resolve the
+// type-param-returning METHOD to null (generic downstream) - the method body's stub
+// return must not clobber the declared-but-opaque annotation (a `return null as any`
+// stub suppressed injection entirely; a `return [] as any` stub emitted an
+// array-specific Maybe on a foreign receiver). resolvable / omitted-default
+// instantiations keep their precision
+
+runBoth('class method: opaque alias arg resolves null, not the stub body',
+  'type Foo = { z: 1; }; class Holder<T = string> { get(): T { return null as any; } } '
+    + 'declare const h: Holder<Foo>; const out = h.get();',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
+    check(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), null);
+  });
+
+runBoth('class method: opaque arg with a CONCRETE stub body still resolves null',
+  'type Foo = { z: 1; }; class Holder<T = string> { get(): T { return [] as any; } } '
+    + 'declare const h: Holder<Foo>; const out = h.get();',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
+    check(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), null);
+  });
+
+runBoth('class method: undeclared ref arg resolves null',
+  'class Holder<T = string> { get(): T { return null as any; } } '
+    + 'declare const h: Holder<Undeclared>; const out = h.get();',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
+    check(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), null);
+  });
+
+runBoth('class method: resolvable arg keeps precision',
+  'class Holder<T = string> { get(): T { return null as any; } } '
+    + 'declare const h: Holder<number[]>; const out = h.get();',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('class method: omitted arg legitimately binds the default',
+  'class Holder<T = string> { get(): T { return null as any; } } '
+    + 'declare const h: Holder; const out = h.get();',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: true, kind: 'string' });
+  });
+
+runBoth('class method: non-param return keeps body inference',
+  'class Holder<T = string> { list(): SomeAlias { return [1] as any; } } '
+    + 'declare const h: Holder<number>; const out = h.list();',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('class getter: opaque arg resolves null',
+  'type Foo = { z: 1; }; class Holder<T = string> { get v(): T { return null as any; } } '
+    + 'declare const h: Holder<Foo>; const out = h.v;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
+    check(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), null);
+  });
+
+runBoth('class property: opaque arg resolves null',
+  'type Foo = { z: 1; }; class Holder<T = string> { v: T; } '
+    + 'declare const h: Holder<Foo>; const out = h.v;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
+    check(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), null);
+  });
+
+// --- class-body member resolution order ---
+// the read walk, the own-accessor probe and the bodyless-overload filter all ask the same
+// question of the same class body ("which members carry this name"), so the answer is indexed per
+// (body, name). these lock the ordering rules that index has to preserve: a FIELD is defined after
+// the body's methods, so it wins wherever it sits; among methods the source-LAST definition wins;
+// a setter never answers a read; a computed key names a slot only when it is a static literal;
+// and static and instance slots stay separate
+
+// field-wins: the field is declared BEFORE the same-named method, and still answers the read
+runBoth('class field wins over an earlier-declared method of the same name',
+  `
+    class C { m: string[] = []; m(): Map<string, number> { return new Map(); } }
+    const r = new C().m;
+  `,
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'm');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member), { primitive: false, ctor: 'Array' });
+  });
+
+// duplicate method keys: the source-LAST definition is the one installed on the prototype
+runBoth('duplicate class method keys resolve to the LAST definition',
+  `
+    class C { m(): string[] { return []; } m(): Map<string, number> { return new Map(); } }
+    const r = new C().m();
+  `,
+  (adapter, prog, lbl) => {
+    const calls = adapter.collectPaths(prog, 'CallExpression');
+    const call = calls.find(p => p.node.callee?.type === 'MemberExpression' && p.node.callee.property?.name === 'm');
+    if (!call) return fail(lbl, 'no c.m() found');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(call), { primitive: false, ctor: 'Map' });
+  });
+
+// a trailing SETTER does not answer a read: the getter above it stays the resolved slot
+runBoth('a trailing setter does not shadow the getter it follows',
+  `
+    class C { get m(): Map<string, number> { return new Map(); } set m(v: Map<string, number>) {} }
+    const r = new C().m;
+  `,
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'm');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member), { primitive: false, ctor: 'Map' });
+  });
+
+// a computed key that is a static literal names the slot exactly like the bare spelling
+runBoth('computed literal key names the slot it spells',
+  `
+    class C { ['m'](): Map<string, number> { return new Map(); } }
+    const r = new C().m();
+  `,
+  (adapter, prog, lbl) => {
+    const calls = adapter.collectPaths(prog, 'CallExpression');
+    const call = calls.find(p => p.node.callee?.type === 'MemberExpression' && p.node.callee.property?.name === 'm');
+    if (!call) return fail(lbl, 'no c.m() found');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(call), { primitive: false, ctor: 'Map' });
+  });
+
+// static and instance slots of one name are separate: the instance read must not take the static
+runBoth('a static member of the same name does not answer an instance read',
+  `
+    class C { static m(): string[] { return []; } m(): Map<string, number> { return new Map(); } }
+    const r = new C().m();
+  `,
+  (adapter, prog, lbl) => {
+    const calls = adapter.collectPaths(prog, 'CallExpression');
+    const call = calls.find(p => p.node.callee?.type === 'MemberExpression' && p.node.callee.property?.name === 'm');
+    if (!call) return fail(lbl, 'no c.m() found');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(call), { primitive: false, ctor: 'Map' });
+  });
+
+// bodyless overload signatures of one name fold to their common return; the implementation
+// signature (with a body) is not one of them, so its own annotation does not join the fold
+runBoth('bodyless overloads of one name fold to their common return',
+  `
+    declare class C { m(a: string): Map<string, number>; m(a: number): Map<string, number>; }
+    declare const c: C;
+    const r = c.m('x');
+  `,
+  (adapter, prog, lbl) => {
+    const calls = adapter.collectPaths(prog, 'CallExpression');
+    const call = calls.find(p => p.node.callee?.type === 'MemberExpression' && p.node.callee.property?.name === 'm');
+    if (!call) return fail(lbl, 'no c.m() found');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(call), { primitive: false, ctor: 'Map' });
+  });
+
+// --- Member optionality markers surviving the type-layer peels ---
+
+// the `mayBeNullish` marker is how an optional member reaches the logical folds: without it a
+// `x ?? fallback` reads always-truthy and collapses to the annotated branch, handing a
+// type-specific helper to a value that may be the fallback at runtime. every case below spells
+// the SAME optionality through a different peel, and each is paired with the required control -
+// a case whose answer does not move when the `?` is removed is proving nothing
+function checkNullish(label, type, expected) {
+  if (!type) return fail(label, 'got null type');
+  if (type.mayBeNullish !== expected) return fail(label, `mayBeNullish=${ type.mayBeNullish }, want ${ expected }`);
+  pass();
+}
+
+function memberMarkerCase({ label, code, want }) {
+  runBoth(label, code, (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'v');
+    if (!decl) return fail(lbl, 'no `v` declarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    checkType(lbl, type, { primitive: false, ctor: 'Array' });
+    checkNullish(lbl, type, want);
+  });
+}
+
+for (const [label, wrapper, want] of [
+  ['`Partial<>` marks the members it passes through', 'Partial<I>', true],
+  ['`Required<>` strips the optionality it passes through', 'Required<I>', false],
+  ['`Readonly<>` leaves member optionality alone', 'Readonly<I>', true],
+  ['`NoInfer<>` leaves member optionality alone', 'NoInfer<I>', true],
+]) {
+  memberMarkerCase({
+    label: `member markers: ${ label }`,
+    code: `interface I { a?: number[] }\ndeclare const o: ${ wrapper };\nconst v = o.a;`,
+    want,
+  });
+}
+
+memberMarkerCase({
+  label: 'member markers: `Partial<>` over a required member marks it',
+  code: 'interface I { a: number[] }\ndeclare const o: Partial<I>;\nconst v = o.a;',
+  want: true,
+});
+
+memberMarkerCase({
+  label: 'member markers: control - the bare interface member stays required',
+  code: 'interface I { a: number[] }\ndeclare const o: I;\nconst v = o.a;',
+  want: false,
+});
+
+memberMarkerCase({
+  label: 'member markers: the OUTER modifier wins over the inner one',
+  code: 'interface I { a: number[] }\ndeclare const o: Partial<Required<I>>;\nconst v = o.a;',
+  want: true,
+});
+
+memberMarkerCase({
+  label: 'member markers: control - the outer `Required<>` wins the same way',
+  code: 'interface I { a?: number[] }\ndeclare const o: Required<Partial<I>>;\nconst v = o.a;',
+  want: false,
+});
+
+// the ADDING modifiers are asked over a REQUIRED source member and the removing one over an
+// optional source member, so in each case the modifier - not the source flag - is what the
+// answer rests on
+for (const [label, modifier, source, want] of [
+  ['a mapped `?` matches the `Partial<>` wrapper', '?', 'a: number[]', true],
+  ['a mapped `+?` is the same modifier spelled explicitly', '+?', 'a: number[]', true],
+  ['a mapped `-?` removes the source optionality', '-?', 'a?: number[]', false],
+]) {
+  memberMarkerCase({
+    label: `member markers: ${ label }`,
+    code: `interface I { ${ source } }\ntype M = { [K in keyof I]${ modifier }: I[K] };\ndeclare const o: M;\nconst v = o.a;`,
+    want,
+  });
+}
+
+memberMarkerCase({
+  label: 'member markers: a bare mapped type inherits the source member flag',
+  code: 'interface I { a?: number[] }\ntype M = { [K in keyof I]: I[K] };\ndeclare const o: M;\nconst v = o.a;',
+  want: true,
+});
+
+memberMarkerCase({
+  label: 'member markers: control - a bare mapped type over a required member stays required',
+  code: 'interface I { a: number[] }\ntype M = { [K in keyof I]: I[K] };\ndeclare const o: M;\nconst v = o.a;',
+  want: false,
+});
+
+memberMarkerCase({
+  label: 'member markers: an `as`-renamed mapped key carries the modifier too',
+  code: 'interface I { a: number[] }\ntype M = { [K in keyof I as Uppercase<K & string>]?: I[K] };\ndeclare const o: M;\nconst v = o.A;',
+  want: true,
+});
+
+memberMarkerCase({
+  label: 'member markers: an optional parameter admits undefined',
+  code: 'declare function f(a?: number[]): void;\ndeclare const o: Parameters<typeof f>[0];\nconst v = o;',
+  want: true,
+});
+
+memberMarkerCase({
+  label: 'member markers: control - a required parameter does not',
+  code: 'declare function f(a: number[]): void;\ndeclare const o: Parameters<typeof f>[0];\nconst v = o;',
+  want: false,
+});
+
+memberMarkerCase({
+  label: 'member markers: a keyof-self value union includes the optional member undefined',
+  code: 'interface I { a?: number[] }\ndeclare const o: I[keyof I];\nconst v = o;',
+  want: true,
+});
+
+memberMarkerCase({
+  label: 'member markers: control - a required keyof-self value union does not',
+  code: 'interface I { a: number[] }\ndeclare const o: I[keyof I];\nconst v = o;',
+  want: false,
+});
+
+memberMarkerCase({
+  label: 'member markers: `NonNullable<>` strips the marker back off',
+  code: "interface I { a?: number[] }\ndeclare const o: NonNullable<I['a']>;\nconst v = o;",
+  want: false,
+});
+
+// the delta table is the single source of transparent-wrapper membership: a wrapper that is
+// peeled without an entry here would pass its members through with the wrong flags
+checkDeep('member markers: every transparent wrapper declares its delta',
+  [...TRANSPARENT_WRAPPERS].filter(name => !MODIFIER_WRAPPER_DELTAS.has(name)), []);
+check('member markers: `Partial` adds optionality',
+  MODIFIER_WRAPPER_DELTAS.get('Partial').optional, true);
+check('member markers: `Required` removes it',
+  MODIFIER_WRAPPER_DELTAS.get('Required').optional, false);
+check('member markers: `Readonly` is member-flag neutral',
+  MODIFIER_WRAPPER_DELTAS.get('Readonly').optional, undefined);
+
+// --- The other markers a peel drops: the literal stamp and the readonly view ---
+
+// each case resolves a conditional type that DISCRIMINATES on the marker, so the answer is a
+// whole different family: `Array` means the true branch was taken, `string` the false one.
+// every marker-carrying spelling is paired with the control that removes just that detail
+function markerBranchCase({ label, code, want }) {
+  runBoth(label, code, (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'v');
+    if (!decl) return fail(lbl, 'no `v` declarator');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), want);
+  });
+}
+
+const IS_MUTABLE = 'type IsMutable<T> = T extends number[] ? number[] : string;';
+const ARRAY_BRANCH = { primitive: false, ctor: 'Array' };
+const STRING_BRANCH = { primitive: true, kind: 'string' };
+
+// the intrinsic string transformers are computable on a literal argument and TS keeps the result
+// a LITERAL type - a dropped stamp reads as wide-vs-narrow and takes the false branch
+for (const [name, arg, result] of [
+  ['Uppercase', "'a'", "'A'"],
+  ['Lowercase', "'A'", "'a'"],
+  ['Capitalize', "'ab'", "'Ab'"],
+  ['Uncapitalize', "'Ab'", "'ab'"],
+]) {
+  markerBranchCase({
+    label: `type markers: \`${ name }\` keeps the literal stamp`,
+    code: `type P = ${ name }<${ arg }> extends ${ result } ? number[] : string;\ndeclare const q: P;\nconst v = q;`,
+    want: ARRAY_BRANCH,
+  });
+  markerBranchCase({
+    label: `type markers: control - \`${ name }\` against a non-matching literal`,
+    code: `type P = ${ name }<${ arg }> extends 'zz' ? number[] : string;\ndeclare const q: P;\nconst v = q;`,
+    want: STRING_BRANCH,
+  });
+}
+
+// a readonly collection is NOT assignable to its mutable form, so every spelling of the readonly
+// view has to carry the marker - and every spelling that removes it has to take it back off
+for (const [label, spelling, want] of [
+  ['`Readonly<>` over a collection', 'Readonly<number[]>', STRING_BRANCH],
+  ['`ReadonlyArray<>`', 'ReadonlyArray<number>', STRING_BRANCH],
+  ['the `readonly` operator', 'readonly number[]', STRING_BRANCH],
+  ['Flow `$ReadOnlyArray<>`', '$ReadOnlyArray<number>', STRING_BRANCH],
+  ['Flow `$ReadOnly<>`', '$ReadOnly<number[]>', STRING_BRANCH],
+  ['control - the mutable collection', 'number[]', ARRAY_BRANCH],
+]) {
+  markerBranchCase({
+    label: `type markers: ${ label }`,
+    code: `${ IS_MUTABLE }\ndeclare const q: IsMutable<${ spelling }>;\nconst v = q;`,
+    want,
+  });
+}
+
+// a HOMOMORPHIC readonly mapped type is the same type `Readonly<>` spells, so it answers alike
+for (const [label, alias, applied, want] of [
+  ['a hand-written readonly mapped type', '{ readonly [K in keyof T]: T[K] }', 'MyMap<number[]>', STRING_BRANCH],
+  ['the explicit `+readonly` spelling', '{ +readonly [K in keyof T]: T[K] }', 'MyMap<number[]>', STRING_BRANCH],
+  ['`-readonly` takes the marker back off', '{ -readonly [K in keyof T]: T[K] }', 'MyMap<Readonly<number[]>>', ARRAY_BRANCH],
+  ['control - a mapped type with no modifier', '{ [K in keyof T]: T[K] }', 'MyMap<number[]>', ARRAY_BRANCH],
+]) {
+  markerBranchCase({
+    label: `type markers: ${ label }`,
+    code: `${ IS_MUTABLE }\ntype MyMap<T> = ${ alias };\ndeclare const q: IsMutable<${ applied }>;\nconst v = q;`,
+    want,
+  });
+}
+
+// a higher-kinded application stamps the inner on the BOUND type; rebuilding it from the
+// identity fields alone drops whatever markers the bound already carried
+markerBranchCase({
+  label: 'type markers: a higher-kinded application keeps the bound type markers',
+  code: 'type IsMutable<T> = T extends Set<number> ? number[] : string;\ntype Apply<F, X> = F<X>;'
+    + '\ndeclare const q: IsMutable<Apply<ReadonlySet, number>>;\nconst v = q;',
+  want: STRING_BRANCH,
+});
+markerBranchCase({
+  label: 'type markers: control - a higher-kinded application of the mutable container',
+  code: 'type IsMutable<T> = T extends Set<number> ? number[] : string;\ntype Apply<F, X> = F<X>;'
+    + '\ndeclare const q: IsMutable<Apply<Set, number>>;\nconst v = q;',
+  want: ARRAY_BRANCH,
+});
+
+// --- One shadow gate before any built-in name recognition ---
+
+// a user DECLARATION or a type PARAMETER of the same name outranks the built-in reading. the
+// utility switch had no gate at all, so a user `Awaited` / a parameter named `Record` answered
+// with the utility's verdict for a value the source says is an array
+for (const [label, code] of [
+  ['a user alias named `Record`', 'type Record<K, V> = V[];\ndeclare const q: Record<string, number>;\nconst v = q;'],
+  ['a user alias named `Awaited`', 'type Awaited<T> = T[];\ndeclare const q: Awaited<number>;\nconst v = q;'],
+  ['a user alias named `NonNullable`', 'type NonNullable<T> = T[];\ndeclare const q: NonNullable<number>;\nconst v = q;'],
+  ['a user alias named `Exclude`', 'type Exclude<A, B> = A[];\ndeclare const q: Exclude<number, string>;\nconst v = q;'],
+  ['a user alias named `PropertyKey`', 'type PropertyKey = number[];\ndeclare const q: PropertyKey;\nconst v = q;'],
+  ['a parameter named `Record`', 'declare function f<Record extends number[]>(x: Record): Record;\ndeclare const q: number[];\nconst v = f(q);'],
+  ['a parameter named `Partial`', 'declare function f<Partial extends number[]>(x: Partial): Partial;\ndeclare const q: number[];\nconst v = f(q);'],
+]) {
+  markerBranchCase({ label: `shadow gate: ${ label } outranks the utility`, code, want: ARRAY_BRANCH });
+}
+
+// the real utilities must keep answering as before, and a QUALIFIED reference names a namespace
+// member that no bare declaration competes with
+markerBranchCase({
+  label: 'shadow gate: control - the real `NonNullable<>` still strips',
+  code: 'declare const q: NonNullable<number[] | null>;\nconst v = q;',
+  want: ARRAY_BRANCH,
+});
+markerBranchCase({
+  label: 'shadow gate: control - the real `Awaited<>` still unwraps',
+  code: 'declare const q: Awaited<Promise<number[]>>;\nconst v = q;',
+  want: ARRAY_BRANCH,
+});
+markerBranchCase({
+  label: 'shadow gate: control - a qualified reference is not shadowed',
+  code: 'namespace NS { export type Partial = number[]; }\ndeclare function f<Partial>(): NS.Partial;\nconst v = f();',
+  want: ARRAY_BRANCH,
+});
+
+// --- One value-vs-ambient gate, one identity-static answer, one union fold ---
+
+// a nearer VALUE binding is what a call really reaches: the ambient declaration of the same
+// name is only in play when nothing shadows it. the `const` and local-class forms already
+// resolved through their own initializers - the PARAMETER form had no initializer to walk and
+// fell through to the ambient probe, which answered with the wrong family
+for (const [label, code, want] of [
+  ['a local const shadows `declare function`',
+    "declare function make(): number[];\nfunction probe() {\n  const make = () => 'abc';\n  const v = make();\n}", { primitive: true, kind: 'string' }],
+  ['a PARAMETER shadows `declare function`',
+    'declare function make(): number[];\nfunction probe(make: () => string) {\n  const v = make();\n}', { primitive: true, kind: 'string' }],
+  ['control - nothing shadows the ambient declaration',
+    'declare function make(): number[];\nfunction probe() {\n  const v = make();\n}', { primitive: false, ctor: 'Array' }],
+]) {
+  markerBranchCase({ label: `ambient gate: ${ label }`, code, want });
+}
+
+// an identity static declares `type: 'argument'` - it returns its argument, so an UNRESOLVABLE
+// argument makes the call equally unresolvable. a generic `Object` answer is not a harmless
+// approximation there - an Object hint suppresses the instance polyfill outright
+runBoth('identity statics: an unresolvable argument is not an Object',
+  'declare const o: any;\nconst v = Object.freeze(o);',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'v');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    if (type) return fail(lbl, `got ${ type.primitive ? type.type : type.constructor }, want an unresolved receiver`);
+    pass();
+  });
+
+markerBranchCase({
+  label: 'identity statics: control - a resolvable argument still narrows',
+  code: 'const v = Object.freeze([1, 2]);',
+  want: { primitive: false, ctor: 'Array' },
+});
+// a directive that cannot be read answers UNKNOWN; there is no container to fall back to, because
+// the directive occupies the type slot itself. no fallback is lost: with no argument these return
+// `undefined` (freeze, seal, preventExtensions) or throw (assign, defineProperty, setPrototypeOf),
+// so the `Object` this used to answer was never a value any of them produces
+for (const call of ['Object.freeze()', 'Object.assign()', 'Object.setPrototypeOf()']) {
+  runBoth(`identity statics: an absent slot answers unknown, not the container - ${ call }`,
+    `const v = ${ call };`,
+    (adapter, prog, lbl) => {
+      const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'v');
+      const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+      if (type) return fail(lbl, `got ${ type.primitive ? type.type : type.constructor }, want unknown`);
+      pass();
+    });
+}
+
+// the SIBLING half: where the directive sits in the `resolved` slot the declared container is a
+// real declaration, not a fallback, so an unreadable argument leaves it standing
+for (const call of ['Promise.all()', 'Promise.resolve()', 'Array.fromAsync()']) {
+  markerBranchCase({
+    label: `identity statics: a directive under a container keeps the container - ${ call }`,
+    code: `const v = ${ call };`,
+    want: { primitive: false, ctor: 'Promise' },
+  });
+}
+
+// the deferred-read union folds through the CANONICAL fold, so a disagreement short-circuits
+// instead of letting the next arm re-seed the accumulator off the null `commonType` answered.
+// the position of the clash must not decide the answer
+for (const [label, writes, want] of [
+  ['a clash in the MIDDLE bails the whole set', ["v = 'abc';", 'v = [3, 4];'], null],
+  ['a clash LAST bails too', ['v = [3, 4];', "v = 'abc';"], null],
+  ['four arms with the clash buried still bail', ["v = 'a';", 'v = [3];', 'v = [4];'], null],
+  ['control - arms that all agree still narrow', ['v = [3, 4];', 'v = [5];'], { primitive: false, ctor: 'Array' }],
+]) {
+  const code = `let v = [1, 2];\nfunction read() { const seen = v; }\n${ writes.join('\n') }\nread();`;
+  runBoth(`deferred union: ${ label }`, code, (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'seen');
+    if (!decl) return fail(lbl, 'no `seen` declarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    if (want === null) {
+      if (type) return fail(lbl, `got ${ type.primitive ? type.type : type.constructor }, want a bailed fold`);
+      return pass();
+    }
+    checkType(lbl, type, want);
+  });
+}
+
+// --- Siblings of the marker / ambient roots (defense cycle) ---
+
+// a modifier wrapper over a TUPLE changes its ELEMENTS exactly as it changes an object's members,
+// and the tuple walk peels the wrapper in two places of its own
+for (const [label, alias, index, want] of [
+  ['`Partial<>` over a tuple marks its elements', 'Partial<[number[], string]>', 0, true],
+  ['control - the bare tuple element stays required', '[number[], string]', 0, false],
+  ['`Required<>` over a tuple strips the element `?`', 'Required<[string, (number[])?]>', 1, false],
+  ['control - the bare optional element keeps its `?`', '[string, (number[])?]', 1, true],
+  ['`Readonly<>` is not a member-value marker on a tuple', 'Readonly<[number[], string]>', 0, false],
+]) {
+  memberMarkerCase({
+    label: `tuple markers: ${ label }`,
+    code: `type P = ${ alias };\ndeclare const q: P[${ index }];\nconst v = q;`,
+    want,
+  });
+}
+
+// ONE `unwrapPassthroughWrapper` hop can cross SEVERAL wrappers: the Awaited walker peels through
+// structure-preserving wrappers itself, so a top-level-only read of the delta answers for neither
+memberMarkerCase({
+  label: 'passthrough delta: `Awaited<Partial<I>>` keeps the Partial delta',
+  code: 'interface I { a: number[] }\ndeclare const o: Awaited<Partial<I>>;\nconst v = o.a;',
+  want: true,
+});
+memberMarkerCase({
+  label: 'passthrough delta: control - `Awaited<I>` adds nothing',
+  code: 'interface I { a: number[] }\ndeclare const o: Awaited<I>;\nconst v = o.a;',
+  want: false,
+});
+memberMarkerCase({
+  label: 'passthrough delta: `Awaited<Required<I>>` strips it again',
+  code: 'interface I { a?: number[] }\ndeclare const o: Awaited<Required<I>>;\nconst v = o.a;',
+  want: false,
+});
+
+// the value-vs-ambient gate covers the CLASS lookups too, and must NOT read an overload
+// implementation as a shadow of its own heads - they are one declaration entity, and babel
+// registers only the impl as the binding
+// a parameter-shadowed ambient class declines rather than answering with the parameter's own
+// construct signature - the safe direction, and the point is that it no longer answers with the
+// AMBIENT one
+runBoth('ambient gate: a parameter shadows `declare class`',
+  'declare class H { pick(): number[] }\nfunction f(H: { new (): { pick(): string } }) {\n  const v = new H().pick();\n}',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'v');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    if (type && !type.primitive && type.constructor === 'Array') {
+      return fail(lbl, 'answered with the SHADOWED ambient class');
+    }
+    pass();
+  });
+
+for (const [label, code, want] of [
+  ['a local class shadows `declare class`',
+    "declare class H { pick(): number[] }\nfunction f() {\n  class H { pick() { return 'abc'; } }\n  const v = new H().pick();\n}",
+    { primitive: true, kind: 'string' }],
+  ['control - nothing shadows the ambient class',
+    'declare class H { pick(): number[] }\nfunction f() {\n  const v = new H().pick();\n}',
+    { primitive: false, ctor: 'Array' }],
+  ['control - an overload IMPLEMENTATION is not a shadow of its heads',
+    'function pick(): number[];\nfunction pick() { return [1, 2]; }\nconst v = pick();',
+    { primitive: false, ctor: 'Array' }],
+]) {
+  markerBranchCase({ label: `ambient gate: ${ label }`, code, want });
+}
+
+// the member-LIST flag rewriter is a SEPARATE channel from the per-annotation one: the read path
+// carries the delta as an accumulator, while consumers that iterate the whole member list
+// (the keyof-self value folds, on both the annotation and the runtime side) read the flag off
+// the members themselves. neutralising it moved neither suite until these cases existed
+for (const [label, object, want] of [
+  ['`Partial<>` reaches the keyof-self value fold', 'Partial<I>', true],
+  ['control - the bare interface does not', 'I', false],
+]) {
+  memberMarkerCase({
+    label: `member-list delta: ${ label }`,
+    code: `interface I { a: number[] }\ndeclare const q: ${ object }[keyof ${ object }];\nconst v = q;`,
+    want,
+  });
+}
+for (const [label, object, want] of [
+  ['`Required<>` strips it on the same fold', 'Required<I>', false],
+  ['control - the optional member keeps it', 'I', true],
+]) {
+  memberMarkerCase({
+    label: `member-list delta: ${ label }`,
+    code: `interface I { a?: number[] }\ndeclare const q: ${ object }[keyof ${ object }];\nconst v = q;`,
+    want,
+  });
+}
+memberMarkerCase({
+  label: 'member-list delta: a hand-written mapped `?` reaches it too',
+  code: 'interface I { a: number[] }\ntype M = { [K in keyof I]?: I[K] };\ndeclare const q: M[keyof M];\nconst v = q;',
+  want: true,
+});
+
+// the tuple / array ELEMENT return is a member return like any other and owes the wrapper delta -
+// a RUNTIME index read reaches it by a different route than the type-level `P[0]` above, which is
+// why the type-level lock alone left it open
+memberMarkerCase({
+  label: 'tuple markers: a RUNTIME index read carries the wrapper delta',
+  code: 'const t: Partial<[number[], string]> = [];\nconst v = t[0];',
+  want: true,
+});
+memberMarkerCase({
+  label: 'tuple markers: control - a runtime index read of the bare tuple does not',
+  code: 'const t: [number[], string] = [[1], "x"];\nconst v = t[0];',
+  want: false,
+});
+// ... and with NEITHER a wrapper delta nor a member flag the annotation is left alone, so a slot's
+// own source-level `?` survives: `optional: false` is a REMOVAL, not "nothing known"
+memberMarkerCase({
+  label: 'tuple markers: a slot own `?` survives an absent delta',
+  code: 'const t: [(number[])?] = [];\nconst v = t[0];',
+  want: true,
+});
+
+// the passthrough hop crosses whatever the Awaited walker crosses - Promise layers and alias hops
+// included - and stops where the peel stopped. a walk bounded only by the SYNTACTIC wrapper chain
+// answered for none of the layers behind a Promise, and a walk with no endpoint would apply a
+// wrapper the peel never reached
+for (const [label, annotation, want] of [
+  ['a wrapper behind a Promise layer is crossed', 'Awaited<Promise<Partial<I>>>', true],
+  ['a wrapper behind an alias hop is crossed', 'Awaited<AliasedPartial>', true],
+  ['control - no wrapper behind the Promise', 'Awaited<Promise<I>>', false],
+  // the endpoint bound itself is not lockable here: for a wrapper to sit BELOW where the peel
+  // stopped, it has to be inside a node the peel refused to enter - and the member is then
+  // unreachable too, so the leak has no observable. the bound stays a defensive invariant,
+  // stated at the walk
+]) {
+  memberMarkerCase({
+    label: `passthrough delta: ${ label }`,
+    code: 'interface I { a: number[] }\ntype AliasedPartial = Partial<I>;'
+      + `\ndeclare const o: ${ annotation };\nconst v = (o as any).a;`,
+    want,
+  });
+}
+
+// --- containers a parser may not open a scope for ---
+// a namespace body is a lexical container on both parsers but a SCOPE level on only one, and a
+// switch statement hosts its declarations under `cases` rather than a body. either gap makes the
+// declaration walk answer with an outer namesake or with nothing at all - the wrong family, or a
+// member type that vanishes - so each row states which declaration the reference must reach
+function checkContainerLocalType(label, code, expected) {
+  runBoth(label, code, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'items');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member), expected);
+  });
+}
+
+const ARRAY_MEMBER = { ctor: 'Array' };
+const STRING_MEMBER = { primitive: true, kind: 'string' };
+
+for (const [label, body] of [
+  ['parameter annotation', 'export function f(v: Inner) { return v.items; }'],
+  ['local const annotation', 'const v: Inner = null as any;\n  export const r = v.items;'],
+  ['ambient const annotation', 'declare const v: Inner;\n  export const r = v.items;'],
+  ['ambient function return', 'declare function make(): Inner;\n  export const r = make().items;'],
+  ['local function return', 'function make(): Inner { return null as any; }\n  export const r = make().items;'],
+]) {
+  checkContainerLocalType(`namespace-local interface reached through a ${ label }`,
+    `namespace NS {\n  interface Inner { items: number[] }\n  ${ body }\n}`, ARRAY_MEMBER);
+}
+
+// the declaration KINDS the walk leaf-matches, and the depths it has to cross
+for (const [label, decl] of [
+  ['interface', 'interface Inner { items: number[] }'],
+  ['type alias', 'type Inner = { items: number[] };'],
+  ['class', 'class Inner { items: number[] = []; }'],
+]) {
+  checkContainerLocalType(`namespace-local ${ label } outranks an outer namesake`,
+    `interface Inner { items: string }\nnamespace NS {\n  ${ decl }\n  export function f(v: Inner) { return v.items; }\n}`,
+    ARRAY_MEMBER);
+}
+
+// the same shadowing, reached through the routes that re-resolve the type NAME after the
+// annotation itself was read - each of them has to answer in the container the annotation was
+// written in, not in the one the value is read from
+for (const [label, body] of [
+  ['an ambient const', 'declare const v: Inner;\n  export const r = v.items;'],
+  ['an ambient function return', 'declare function make(): Inner;\n  export const r = make().items;'],
+  ['a local const annotation', 'const v: Inner = null as any;\n  export const r = v.items;'],
+  ['merged interface siblings', 'interface Inner { tag: number }\n  declare const v: Inner;\n  export const r = v.items;'],
+]) {
+  checkContainerLocalType(`namespace-local declaration outranks an outer namesake through ${ label }`,
+    `interface Inner { items: string }\nnamespace NS {\n  interface Inner { items: number[] }\n  ${ body }\n}`,
+    ARRAY_MEMBER);
+}
+
+// the reverse pairing of the same rule, and the reason the anchor is the DECLARATION rather than
+// the use: a value declared outside keeps the outer type however deep inside a namespace it is read
+for (const [label, decl, read] of [
+  ['an ambient const', 'declare const w: I;', 'w.items'],
+  ['an ambient function return', 'declare function make(): I;', 'make().items'],
+  ['a local const annotation', 'const w: I = null as any;', 'w.items'],
+]) {
+  checkContainerLocalType(`an outer declaration read inside a namespace keeps its own type through ${ label }`,
+    `interface I { items: string }\n${ decl }\nnamespace A {\n  interface I { items: number[] }\n  export const r = ${ read };\n}`,
+    STRING_MEMBER);
+}
+
+// a function BODY is not a container the scope walk is blind to - the walk drills into a
+// function's block itself - so the anchor lane must not re-answer for one. it did while the
+// stop-criterion was scope OWNERSHIP: a block owns no scope, its function does
+runBoth('a block-local declaration does not outrank the class an outer annotation names',
+  `
+    declare class Base { constructor(a: number[]); }
+    class Derived extends Base {}
+    function shadowed() {
+      class Base { constructor(b: string); }
+      type P = ConstructorParameters<typeof Derived>;
+      const picked: P[0] = null as any;
+      return picked;
+    }
+  `, (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'picked');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('id')), ARRAY_MEMBER);
+  });
+
+checkContainerLocalType('namespace-local declaration wins from a nested namespace',
+  `
+    interface Inner { items: string }
+    namespace A { export namespace B { interface Inner { items: number[] }
+      export function f(v: Inner) { return v.items; } } }
+  `, ARRAY_MEMBER);
+
+checkContainerLocalType('a declaration used before its namespace-local declaration still reaches it',
+  `
+    interface Inner { items: string }
+    namespace NS { export function f(v: Inner) { return v.items; }
+      interface Inner { items: number[] } }
+  `, ARRAY_MEMBER);
+
+// merged interface siblings are collected by the OTHER lookup lane, which needs the same
+// compensation - with only one of the two lanes fixed the member list comes back empty
+checkContainerLocalType('merged namespace-local interface siblings are all collected',
+  `
+    namespace NS { interface Inner { tag: number }
+      interface Inner { items: number[] }
+      declare const v: Inner;
+      export const r = v.items; }
+  `, ARRAY_MEMBER);
+
+// negatives: a container that does NOT enclose the reference must not contribute
+checkContainerLocalType('a sibling namespace does not lend its declaration',
+  `
+    namespace Other { export interface Inner { items: string } }
+    namespace NS { interface Inner { items: number[] }
+      export function f(v: Inner) { return v.items; } }
+  `, ARRAY_MEMBER);
+
+checkContainerLocalType('an outer annotation keeps the outer declaration when read inside a namespace',
+  `
+    interface I { items: string }
+    declare const w: I;
+    namespace A { interface I { items: number[] }
+      export const r = w.items; }
+  `, STRING_MEMBER);
+
+checkContainerLocalType('an outer ambient signature keeps the outer declaration inside a namespace',
+  `
+    interface I { items: string }
+    declare function make(): I;
+    namespace A { interface I { items: number[] }
+      export const r = make().items; }
+  `, STRING_MEMBER);
+
+// a switch statement is ONE block scope spanning every case, so an unbraced case's declaration
+// covers the whole statement - the braced twin passes either way and pins that they agree
+for (const [label, open, close] of [['braced', '{', '}'], ['unbraced', '', '']]) {
+  checkContainerLocalType(`a declaration in an ${ label } switch case shadows an outer namesake`,
+    `
+      interface Inner { items: string }
+      declare const k: number;
+      switch (k) { case 1: ${ open }
+        interface Inner { items: number[] }
+        declare const v: Inner;
+        globalThis.out = v.items;
+      ${ close } }
+    `, ARRAY_MEMBER);
+}
+
+// --- a destructured name binds a MEMBER, not its container ---
+// the annotation lane used to hand back the container's own annotation for a destructured binding,
+// so a call through the name found no return type on it: `const { m } = i; m()` resolved generic
+// while the very same `i.m()` resolved precisely. property members already worked - they are the
+// control that shows the gap was the CALL half, not destructuring itself
+function checkDestructuredCall(label, code, expected, callee = 'm') {
+  runBoth(label, code, (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression', p => p.node.callee?.name === callee);
+    checkType(lbl, adapter.makeResolver().resolveNodeType(call), expected);
+  });
+}
+
+for (const [label, code, callee] of [
+  ['method signature', 'interface I { m(): number[]; }\ndeclare const i: I;\nconst { m } = i;\nconst v = m();'],
+  ['function-typed property', 'interface I { m: () => number[]; }\ndeclare const i: I;\nconst { m } = i;\nconst v = m();'],
+  ['renamed binding', 'interface I { m(): number[]; }\ndeclare const i: I;\nconst { m: got } = i;\nconst v = got();', 'got'],
+  ['type alias container', 'type I = { m(): number[] };\ndeclare const i: I;\nconst { m } = i;\nconst v = m();'],
+  ['nested pattern', 'interface I { inner: { m(): number[] }; }\ndeclare const i: I;\nconst { inner: { m } } = i;\nconst v = m();'],
+  ['array pattern', 'declare const t: [() => number[], string];\nconst [m] = t;\nconst v = m();'],
+  ['call initializer', 'interface I { m(): number[]; }\ndeclare function make(): I;\nconst { m } = make();\nconst v = m();'],
+]) {
+  checkDestructuredCall(`destructured ${ label } keeps its return type`, code, { ctor: 'Array' }, callee);
+}
+
+// the renamed case above must read the KEY, not the local name - a walk that used the binding name
+// would miss the member entirely, so a string-returning twin pins which side is read
+checkDestructuredCall('destructured member reads the key, not the local name',
+  'interface I { m(): string; other(): number[]; }\ndeclare const i: I;\nconst { m } = i;\nconst v = m();',
+  { primitive: true, kind: 'string' });
+
+// an OVERLOADED member has no single answer without the call site, and this lane resolves the NAME.
+// picking the first head is a guess that usage-pure pays for with a throw, so the walk hands the
+// container back and the generic dispatch serves it - the direct call keeps its discrimination
+runBoth('a destructured OVERLOADED member is not narrowed to one head',
+  `
+    interface Api { m(x: string): string; m(x: number): number[]; }
+    declare const api: Api;
+    const { m } = api;
+    const v = m(1);
+  `, (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression', p => p.node.callee?.name === 'm');
+    const type = adapter.makeResolver().resolveNodeType(call);
+    check(lbl, type === null || type.constructor === undefined, true);
+  });
+
+runBoth('the same overloads still discriminate on a DIRECT call',
+  `
+    interface Api { m(x: string): string; m(x: number): number[]; }
+    declare const api: Api;
+    const v = api.m(1);
+  `, (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression', p => p.node.callee?.property?.name === 'm');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(call), { ctor: 'Array' });
+  });
+
+runBoth('a destructured parameter member keeps its return type',
+  'interface I { m(): number[]; }\nfunction f({ m }: I) { const v = m(); return v; }',
+  (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression', p => p.node.callee?.name === 'm');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(call), { ctor: 'Array' });
+  });
+
+// a rest slice names no single member, so the walk hands the container back rather than guessing -
+// the negative that keeps the descent from reading the array walker's negative-index sentinel
+runBoth('a rest-slice binding is not descended into',
+  'declare const t: [() => number[], () => string];\nconst [, ...rest] = t;\nconst v = rest;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'v');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { ctor: 'Array' });
+  });
+
+// --- an array REST binds a SLICE of the source, not the source ---
+// the annotation lane handed the CONTAINER's annotation back for a rest binding, so a POSITIONAL
+// container typed the slice by its own element 0: `const [, ...rest]: [string, number[]]` resolved
+// `rest[0]` to string, the wrong family rather than a coarse one - and usage-pure pays for a wrong
+// family with a throw. a slice taken from position 0 IS the whole source, and every slice of a
+// homogeneous container has the container's own type, so both of those must stay precise; only a
+// positional container sliced past 0 declines. the alias and wrapper spellings are the ones a raw
+// tuple-element read would miss, so they pin that the positional test follows the alias chain
+function checkReceiverType(label, code, expected) {
+  runBoth(label, code, (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression',
+      p => p.node.callee?.type === 'MemberExpression' && p.node.callee.property?.name === 'at');
+    const type = adapter.makeResolver().resolveNodeType(call.get('callee').get('object'));
+    if (expected === null) return check(lbl, type, null);
+    checkType(lbl, type, expected);
+  });
+}
+
+for (const [label, code] of [
+  ['bare tuple, rest after a hole',
+    'const a: [string, number[]] = ["x", [1]];\nconst [, ...rest] = a;\nrest[0].at(0);'],
+  ['bare tuple, rest after an element',
+    'const a: [string, number[]] = ["x", [1]];\nconst [h, ...rest] = a;\nrest[0].at(0);'],
+  ['tuple behind a type alias',
+    'type T = [string, number[]];\nconst a: T = ["x", [1]];\nconst [, ...rest] = a;\nrest[0].at(0);'],
+  ['tuple behind a Readonly wrapper',
+    'const a: Readonly<[string, number[]]> = ["x", [1]];\nconst [, ...rest] = a;\nrest[0].at(0);'],
+  ['tuple with a trailing rest of its own',
+    'const a: [string, ...number[][]] = ["x", [1]];\nconst [, ...rest] = a;\nrest[0].at(0);'],
+]) {
+  checkReceiverType(`${ label } does not type the slice by the source's element 0`, code, null);
+}
+
+// the precision the fix must NOT cost: a slice from position 0 is the whole source, and a
+// homogeneous container hands every slice its own element type
+for (const [label, code, expected] of [
+  ['homogeneous string[]',
+    'const a: string[] = ["x"];\nconst [, ...rest] = a;\nrest[0].at(0);', { primitive: true, kind: 'string' }],
+  ['homogeneous number[][]',
+    'const a: number[][] = [[1]];\nconst [, ...rest] = a;\nrest[0].at(0);', { ctor: 'Array' }],
+  ['bare tuple sliced from 0',
+    'const a: [number[], string] = [[1], "x"];\nconst [...rest] = a;\nrest[0].at(0);', { ctor: 'Array' }],
+  ['aliased tuple sliced from 0',
+    'type T = [number[], string];\nconst a: T = [[1], "x"];\nconst [...rest] = a;\nrest[0].at(0);', { ctor: 'Array' }],
+]) {
+  checkReceiverType(`${ label } keeps its slice element type`, code, expected);
+}
+
+// the annotation can also be written ON the pattern, and that spelling reaches the typed-member
+// walk instead of the destructure key-path walk - a second lane with the same container-for-binding
+// confusion, so every pattern-annotated spelling is pinned here too
+for (const [label, code] of [
+  ['declarator-annotated', 'const [, ...rest]: [string, number[]] = ["x", [1]];\nrest[0].at(0);'],
+  ['function param', 'function f([, ...rest]: [string, number[]]) { rest[0].at(0); }'],
+  ['arrow param', 'const f = ([, ...rest]: [string, number[]]) => { rest[0].at(0); };'],
+  ['method param', 'class C { f([, ...rest]: [string, number[]]) { rest[0].at(0); } }'],
+]) {
+  checkReceiverType(`${ label } rest slice does not type the slice by the source's element 0`, code, null);
+}
+
+for (const [label, code, expected] of [
+  ['declarator-annotated, sliced from 0',
+    'const [...rest]: [number[], string] = [[1], "x"];\nrest[0].at(0);', { ctor: 'Array' }],
+  ['declarator-annotated, homogeneous',
+    'const [, ...rest]: string[] = ["x"];\nrest[0].at(0);', { primitive: true, kind: 'string' }],
+  ['param-annotated, homogeneous',
+    'function f([, ...rest]: string[]) { rest[0].at(0); }', { primitive: true, kind: 'string' }],
+  ['param-annotated, sliced from 0',
+    'function f([...rest]: [number[], string]) { rest[0].at(0); }', { ctor: 'Array' }],
+]) {
+  checkReceiverType(`${ label } keeps its slice element type`, code, expected);
+}
+
+// the pattern-level annotation must stay available to every NON-rest read of the same patterns -
+// skipping it in the typed-member walk would have cost these their narrowing
+checkReceiverType('a declarator-annotated plain element stays exact',
+  'const [, second]: [string, number[]] = ["x", [1]];\nsecond.at(0);', { ctor: 'Array' });
+checkReceiverType('a param-annotated plain element stays exact',
+  'function f([, second]: [string, number[]]) { second.at(0); }', { ctor: 'Array' });
+checkReceiverType('a param-annotated object member stays exact',
+  'function f({ m }: { m: number[] }) { m.at(0); }', { ctor: 'Array' });
+
+// controls: a PLAIN destructured element carries no rest sentinel and must be untouched
+checkReceiverType('a plain destructured element 0 stays exact',
+  'const a: [string, number[]] = ["x", [1]];\nconst [first] = a;\nfirst.at(0);',
+  { primitive: true, kind: 'string' });
+checkReceiverType('a plain destructured element 1 stays exact',
+  'const a: [string, number[]] = ["x", [1]];\nconst [, second] = a;\nsecond.at(0);',
+  { ctor: 'Array' });
+
+// --- an INDEX hop in receiver position keeps its annotation ---
+// two member-lookup lanes exist, and only the sibling one (`findTypeMember`) knew how to key a
+// numeric index. so which lane ran depended on the shape of the FIRST hop: `o.inner[1]` resolved
+// because a named hop enters the sibling lane, while `t[0][1]` and `t[0].v` died AT the index hop -
+// the annotation lane answered nothing for `t[0]`, so the chain stopped before the second hop.
+// the tuple half is positional (`findTupleElement`), the array half is not (`arrayElementType`)
+for (const [label, code, expected] of [
+  ['inline tuple, index then index',
+    'declare const t: [[string, number[]], number];\nt[0][1].at(0);', { ctor: 'Array' }],
+  ['aliased tuple, index then index',
+    'type Inner = [string, number[]];\ndeclare const t: [Inner, number];\nt[0][1].at(0);', { ctor: 'Array' }],
+  ['hops split across a const',
+    'declare const t: [[string, number[]], number];\nconst inner = t[0];\ninner[1].at(0);', { ctor: 'Array' }],
+  ['index hop then MEMBER hop',
+    'declare const t: [{ v: number[] }, number];\nt[0].v.at(0);', { ctor: 'Array' }],
+  ['array OF tuple, index then index',
+    'declare const t: [string, number[]][];\nt[0][1].at(0);', { ctor: 'Array' }],
+  ['readonly array of tuple',
+    'declare const t: ReadonlyArray<[string, number[]]>;\nt[0][1].at(0);', { ctor: 'Array' }],
+  // the shape that already worked - it enters the sibling lane, and pins that the two now agree
+  ['member hop then index hop (already worked)',
+    'declare const o: { inner: [string, number[]] };\no.inner[1].at(0);', { ctor: 'Array' }],
+  // a homogeneous array keeps answering with its element, whatever the index
+  ['homogeneous array element',
+    'declare const s: string[];\ns[0].at(0);', { primitive: true, kind: 'string' }],
+]) {
+  checkReceiverType(`${ label } resolves through the index hop`, code, expected);
+}
+
+// the NEGATIVE that picks the canon: `arrayElementType` covers `X[]` / `Array<X>` / `ReadonlyArray<X>`
+// and nothing else. `extractElementAnnotation` would have looked like the same helper while answering
+// "element when ITERATED" - it synthesizes `[K, V]` for a Map, and `m[0]` is `undefined` at runtime,
+// so keying an index off it would narrow a receiver that has no element at all
+checkReceiverType('a Map is not indexable and must not be narrowed by index',
+  'declare const m: Map<string, number[]>;\nm[0].at(0);', null);
+checkReceiverType('a Set is not indexable and must not be narrowed by index',
+  'declare const s: Set<number[]>;\ns[0].at(0);', null);
+
+// --- an `any` implementation whose body contradicts the heads declines ---
+// TS enforces head/implementation agreement only while the implementation declares a REAL return.
+// an `any` one type-checks with its body returning another family entirely, so the CONTRACT and
+// the FACT disagree - and this lane picks the polyfill for the runtime value. take neither side:
+// a wrong family THROWS on a target engine that lacks the method, generic dispatch only degrades
+for (const [label, code] of [
+  ['body returns the argument',
+    'function f(x: string): string;\nfunction f(x: number): number[];\n'
+    + 'function f(x: any): any { return x; }\nf(1).at(0);'],
+  ['body is one literal of another family',
+    'function f(x: number): string;\nfunction f(x: string): string;\n'
+    + 'function f(x: any): any { return [1]; }\nf(1).at(0);'],
+  ['body is one literal, heads say array',
+    'function f(x: number): number[];\nfunction f(x: string): number[];\n'
+    + 'function f(x: any): any { return "s"; }\nf(1).at(0);'],
+]) {
+  checkReceiverType(`${ label } - contract vs fact`, code, null);
+}
+
+// --- explicit call-site type arguments, wherever the spelling puts them ---
+// `f<T>()` hangs the arguments on the CALL, but parenthesising the instantiation makes it the
+// CALLEE and carries them there, leaving the call slot empty - so the readers that asked only the
+// call node skipped the substitution and the return stayed generic. the boundary is narrower than
+// "wrapped": `(f)<T>()` is still a call WITH arguments and always worked; only a parenthesised
+// INSTANTIATION moved them
+for (const [label, code, expected] of [
+  ['flat', 'declare function pick<T>(): T;\npick<number[]>().at(0);', { ctor: 'Array' }],
+  ['callee parenthesised', 'declare function pick<T>(): T;\n(pick)<number[]>().at(0);', { ctor: 'Array' }],
+  ['instantiation parenthesised', 'declare function pick<T>(): T;\n(pick<number[]>)().at(0);', { ctor: 'Array' }],
+  ['both parenthesised', 'declare function pick<T>(): T;\n((pick)<number[]>)().at(0);', { ctor: 'Array' }],
+]) {
+  checkReceiverType(`${ label } instantiation narrows the return`, code, expected);
+}
+
+// the same four spellings with a STRING argument: an assertion that only ever expects Array would
+// pass on a lane that ignores the argument altogether and answers by the receiver's own shape
+for (const [label, code] of [
+  ['flat', 'declare function pick<T>(): T;\npick<string>().at(0);'],
+  ['callee parenthesised', 'declare function pick<T>(): T;\n(pick)<string>().at(0);'],
+  ['instantiation parenthesised', 'declare function pick<T>(): T;\n(pick<string>)().at(0);'],
+  ['both parenthesised', 'declare function pick<T>(): T;\n((pick)<string>)().at(0);'],
+]) {
+  checkReceiverType(`${ label } instantiation carries a string argument`, code, { primitive: true, kind: 'string' });
+}
+
+// --- a REWRITTEN enum slot stops answering with its declared member type ---
+// `enum S { Ready = "x" }` then `(S as any).Ready = [1, 2]` left the read narrowed to string over an
+// Array value - a wrong family, and in usage-pure a throw. class statics already deopt through the
+// field-flow fold's module-wide write phase; an enum is the same kind of container but reaches no
+// class body, and the mutated-statics registry cannot answer either (in usage-pure it records only
+// KNOWN GLOBALS, which is why a gate written in its image measured dead). the same per-program write
+// index answers it, and the read DECLINES rather than folding - over-reporting only degrades
+for (const [label, code, expected] of [
+  ['a rewritten slot',
+    'enum S { Ready = "x" }\n(S as any).Ready = [1, 2];\nS.Ready.at(0);', null],
+  ['a slot rewritten inside a function',
+    'enum S { Ready = "x" }\nfunction boom() { (S as any).Ready = [1, 2]; }\nboom();\nS.Ready.at(0);', null],
+  ['a slot rewritten before its read',
+    'enum S { Ready = "x" }\nconst w = ((S as any).Ready = [1, 2]);\nS.Ready.at(0);', null],
+  // precision: the gate keys on BOTH the member name and the receiver, so neither half alone deopts
+  ['an untouched enum',
+    'enum S { Ready = "x" }\nS.Ready.at(0);', { primitive: true, kind: 'string' }],
+  ['a write to a DIFFERENT member of the same enum',
+    'enum S { Ready = "x", Other = "y" }\n(S as any).Other = [1, 2];\nS.Ready.at(0);',
+    { primitive: true, kind: 'string' }],
+  ['a write to the same member name on ANOTHER receiver',
+    'enum S { Ready = "x" }\nconst other: any = {};\nother.Ready = [1, 2];\nS.Ready.at(0);',
+    { primitive: true, kind: 'string' }],
+]) {
+  checkReceiverType(`${ label } - enum member read`, code, expected);
+}
+
+// --- a direct call of an OVERLOADED function answers from the heads ---
+// TS makes the heads the only callable signatures and the implementation uncallable, so a direct
+// call takes the first head whose parameters match. the resolver used to answer from the
+// implementation instead - and only for a CONCRETE set: an all-ambient set resolves the name to a
+// head, while `function f(a): A; function f(b): B; function f(x) {...}` resolves it to the
+// implementation, which is what skipped the overload fold. `ReturnType<typeof f>` keeps its own
+// rule (the LAST head, TS's canonical signature) and the pair below pins that they stay distinct
+// a REALISTIC overload implementation branches, so its body has no single answer and the head
+// stands. an implementation whose body has ONE knowable answer that contradicts the head is the
+// user lying through `any` - TS type-checks it, and this lane declines rather than pick a side
+const OVERLOAD_IMPL = 'function f(x: any): any { return typeof x === "string" ? x : [x]; }\n';
+for (const [label, code, expected] of [
+  ['heads discriminate on a string argument',
+    `function f(x: string): string;\nfunction f(x: number): number[];\n${ OVERLOAD_IMPL }f("a").at(0);`,
+    { primitive: true, kind: 'string' }],
+  ['heads discriminate on a number argument',
+    `function f(x: string): string;\nfunction f(x: number): number[];\n${ OVERLOAD_IMPL }f(1).at(0);`,
+    { ctor: 'Array' }],
+  ['an unknowable body leaves the head standing',
+    'declare const src: any;\nfunction f(x: string): string;\nfunction f(x: number): number[];\n'
+    + 'function f(x: any): any { return src; }\nf(1).at(0);', { ctor: 'Array' }],
+  ['a body that AGREES with the heads leaves them standing',
+    'function f(x: number): string;\nfunction f(x: string): string;\n'
+    + 'function f(x: any): any { return "ab"; }\nf(1).at(0);', { primitive: true, kind: 'string' }],
+  ['an implementation declaring a REAL return keeps the head',
+    'function f(x: number): number[];\nfunction f(x: string): number[];\n'
+    + 'function f(x: any): number[] { return [1]; }\nf(1).at(0);', { ctor: 'Array' }],
+  // controls: no heads means the implementation IS the signature, and the ambient set already worked
+  ['a head-less function answers from its own body',
+    'function f(x: any): number[] { return [1]; }\nf(1).at(0);', { ctor: 'Array' }],
+  ['an all-ambient overload set still discriminates',
+    'declare function f(x: string): string;\ndeclare function f(x: number): number[];\nf(1).at(0);',
+    { ctor: 'Array' }],
+  // the OTHER rule, unchanged: a type query over the same set takes the last head
+  ['ReturnType<typeof f> keeps taking the LAST head',
+    `function f(x: string): string;\nfunction f(x: number): number[];\n${ OVERLOAD_IMPL }`
+    + 'declare const r: ReturnType<typeof f>;\nr.at(0);', { ctor: 'Array' }],
+]) {
+  checkReceiverType(`${ label } - overloaded direct call`, code, expected);
+}
+
+// --- a STANDALONE namespace resolves its exported function like a merged one ---
+// the merged-namespace lookup is keyed by SEGMENTS and never needed a class: it took a classPath
+// only to read a name and a scope. so `class C {} namespace C { export function make() }` resolved
+// while the identical export on a standalone `namespace NS` did not - the lane simply was not
+// reached, because a namespace receiver has no class context. the shared half is asked here once,
+// a namespace having no super chain to walk
+for (const [label, code, expected] of [
+  ['exported function',
+    'namespace NS { export function f(): number[] { return [1]; } }\nNS.f().at(0);', { ctor: 'Array' }],
+  ['exported function, string return',
+    'namespace NS { export function f(): string { return "a"; } }\nNS.f().at(0);',
+    { primitive: true, kind: 'string' }],
+  ['ambient exported function',
+    'declare namespace NS { function f(): number[]; }\nNS.f().at(0);', { ctor: 'Array' }],
+  ['overloaded namespace export discriminates',
+    'declare namespace NS { function f(x: string): string; function f(x: number): number[]; }\nNS.f(1).at(0);',
+    { ctor: 'Array' }],
+  // the shapes that already resolved - they pin that the shared half still serves its first caller
+  ['merged onto a class still resolves',
+    'class C {}\nnamespace C { export function make(): number[] { return [1]; } }\nC.make().at(0);',
+    { ctor: 'Array' }],
+  ['a namespace-local read from inside the body still resolves',
+    'namespace NS { export const v: number[] = JSON.parse("[1]");\nexport const r = v.at(0); }',
+    { ctor: 'Array' }],
+  // the VALUE half: a const export names itself on the DECLARATOR, so the declaration walk saw
+  // nothing at all for it until that walk started surfacing declarators as leaves
+  ['exported const',
+    'namespace NS { export const v: number[] = JSON.parse("[1]"); }\nNS.v.at(0);', { ctor: 'Array' }],
+  ['exported const, string',
+    'namespace NS { export const v: string = JSON.parse("\\"a\\""); }\nNS.v.at(0);',
+    { primitive: true, kind: 'string' }],
+  ['ambient exported const',
+    'declare namespace NS { const v: number[]; }\nNS.v.at(0);', { ctor: 'Array' }],
+  ['one declarator of a MULTI-declarator export',
+    'namespace NS { export const a: string = JSON.parse("\\"s\\""), v: number[] = JSON.parse("[1]"); }\nNS.v.at(0);',
+    { ctor: 'Array' }],
+  // an UNANNOTATED export declines rather than guessing: the walk carries no live path, so an
+  // initializer cannot be read here, and declining only degrades to the generic dispatch
+  ['an unannotated const export declines',
+    'namespace NS { export const v = JSON.parse("[1]"); }\nNS.v.at(0);', null],
+]) {
+  checkReceiverType(`${ label } - namespace member`, code, expected);
+}
+
+// --- a `new` hop carries its annotation like a call hop ---
+// the annotation walk had no entry for `NewExpression` at all, so a member read off an inline
+// object return died AT the `new` hop, while the identical read behind a plain call annotation
+// resolved. the entry is gated on a CONSTRUCT signature: a plain function type's declared return
+// is not the instance type - `new f()` discards a primitive return and yields the fresh object
+for (const [label, code, expected] of [
+  ['ctor type, member off an inline object return',
+    'declare const X: new (...s: string[]) => { chars: string[] };\nnew X().chars.at(0);', { ctor: 'Array' }],
+  ['ctor type without rest params',
+    'declare const X: new (s: string) => { chars: string[] };\nnew X("a").chars.at(0);', { ctor: 'Array' }],
+  ['ctor type behind an alias',
+    'type Ctor = new () => { chars: string[] };\ndeclare const X: Ctor;\nnew X().chars.at(0);', { ctor: 'Array' }],
+  ['a string member off the same shape',
+    'declare const X: new () => { tag: string };\nnew X().tag.at(0);', { primitive: true, kind: 'string' }],
+  // the shapes that already resolved, pinned so the new entry did not displace them
+  ['CONTROL a direct array return still resolves',
+    'declare const X: new (...s: string[]) => string[];\nnew X().at(0);', { ctor: 'Array' }],
+  ['CONTROL a plain CALL hop still resolves',
+    'declare const f: () => { chars: string[] };\nf().chars.at(0);', { ctor: 'Array' }],
+  ['CONTROL a declared class member still resolves',
+    'declare class X { chars: string[]; }\nnew X().chars.at(0);', { ctor: 'Array' }],
+  // the gate itself: `new` over a NON-construct annotation must not read its return as the instance
+  ['a plain function type under `new` does not answer',
+    'declare const f: () => { chars: string[] };\nnew (f as any)().chars.at(0);', null],
+]) {
+  checkReceiverType(`${ label } - construct hop`, code, expected);
+}
+
+// --- the optionality marker is SYMMETRIC, and `undefined` has one meaning however it is spelled ---
+// the queue carried "asymmetry of undefined" as never-checked. measured on both readings it does not
+// reproduce, so these pin the symmetry instead: the delta table has two directions and a drift in
+// either would show up here, as would a spelling that stops admitting undefined
+for (const [label, decl, nullish] of [
+  ['optional property', 'interface I { a?: number[] }\ndeclare const i: I;', true],
+  ['union with undefined', 'interface I { a: number[] | undefined }\ndeclare const i: I;', true],
+  ['optional AND union', 'interface I { a?: number[] | undefined }\ndeclare const i: I;', true],
+  ['plain required', 'interface I { a: number[] }\ndeclare const i: I;', false],
+  // the wrapper pair, both directions and both round trips
+  ['Partial adds it', 'interface I { a: number[] }\ndeclare const i: Partial<I>;', true],
+  ['Required removes it', 'interface I { a?: number[] }\ndeclare const i: Required<I>;', false],
+  ['Required<Partial<I>> round trip', 'interface I { a: number[] }\ndeclare const i: Required<Partial<I>>;', false],
+  ['Partial<Required<I>> round trip', 'interface I { a?: number[] }\ndeclare const i: Partial<Required<I>>;', true],
+  // the hand-written mapped spellings must agree with their wrapper twins
+  ['mapped `-?` removes it',
+    'interface I { a?: number[] }\ntype R = { [K in keyof I]-?: I[K] };\ndeclare const i: R;', false],
+  ['mapped `?` adds it',
+    'interface I { a: number[] }\ntype P = { [K in keyof I]?: I[K] };\ndeclare const i: P;', true],
+]) {
+  checkReceiverType(`${ label } - optionality marker`, `${ decl }\ni.a!.at(0);`, { ctor: 'Array', nullish });
+}
+
+// --- an optional method's VALUE marker (asymmetric today, deliberately not pinned) ---
+// `m?(): T` and `m?: () => T` are one thing to TS, but only the property spelling marks the value
+// as possibly-undefined. the property half is correct and guarded here; the method half is a known
+// gap recorded in the queue, and it is NOT asserted either way - locking the current answer would
+// pin the defect, and asserting the right one would fail
+for (const [label, decl, nullish] of [
+  ['optional function property', 'interface I { m?: () => number[] }', true],
+  ['required function property', 'interface I { m: () => number[] }', false],
+]) {
+  runBoth(`${ label } - method value marker`, `${ decl }\ndeclare const i: I;\nconst f = i.m;`,
+    (adapter, prog, lbl) => {
+      const decl2 = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'f');
+      checkType(lbl, adapter.makeResolver().resolveNodeType(decl2.get('init')),
+        { ctor: 'Function', nullish });
+    });
+}
+
+// the slot reads the marker must not disturb - these take the MARKED signature apart. (a
+// `ReturnType<NonNullable<I['m']>>` spelling is not resolved by this layer at all, with or without
+// the marker - measured, and recorded in the queue as its own pre-existing gap rather than pinned here)
+checkReceiverType('a called optional method still reads its return',
+  'interface I { m?(): number[] }\ndeclare const i: I;\ni.m!().at(0);', { ctor: 'Array' });
+checkReceiverType('an optional method reached through a destructure still reads its return',
+  'interface I { m?(): number[] }\ndeclare const i: I;\nconst { m } = i;\nm!().at(0);', { ctor: 'Array' });
+checkReceiverType('an optional method with params still reads them',
+  'interface I { m?(x: string): number[] }\ndeclare const i: I;\ni.m!("a").at(0);', { ctor: 'Array' });
+
+// --- shapes the harness can only reach because it shares the plugin's pattern neutralisation ---
+// a bodyless signature with a pattern parameter aborts `estree-toolkit`'s scope crawl; the harness
+// runs the same pass the pipeline does, so these are testable here rather than fixture-only
+for (const [label, code, expected] of [
+  ['ambient function with a rest parameter',
+    'declare function pick(...a: number[]): number[];\npick().at(0);', { ctor: 'Array' }],
+  ['overload heads with rest parameters',
+    'function pick(...a: number[]): number[];\nfunction pick(...a: any[]): any { return [1]; }\npick().at(0);',
+    { ctor: 'Array' }],
+  ['interface call signature with a rest parameter',
+    'interface P { (...a: number[]): number[] }\ndeclare const p: P;\np().at(0);', { ctor: 'Array' }],
+  ['interface construct signature with a rest parameter',
+    'interface P { new (...a: number[]): number[] }\ndeclare const C: P;\nnew C().at(0);', { ctor: 'Array' }],
+  ['declare class method with a rest parameter',
+    'declare class C { m(...a: number[]): number[]; }\ndeclare const c: C;\nc.m().at(0);', { ctor: 'Array' }],
+  ['ambient function with a destructured parameter',
+    'declare function pick([a]: number[]): number[];\npick([1]).at(0);', { ctor: 'Array' }],
+]) {
+  checkReceiverType(`${ label } - bodyless signature`, code, expected);
+}
+
+// --- a rest slot answers its own family only for the name it binds DIRECTLY ---
+// `function f(...xs)` makes `xs` an Array whatever the call passes, but `function f(...[s])` binds
+// `s` to the FIRST ARGUMENT - answering Array there narrows a string to the wrong family, which
+// throws on a target lacking the method. five sites asked the identity question by hand; the
+// rest-PARAMETER branch was the one that forgot, so they now share one predicate
+for (const [label, code, expected] of [
+  ['the rest parameter itself is an Array',
+    'function f(...xs) { xs.at(0); }\nf("a");', { ctor: 'Array' }],
+  ['a name destructured OUT of a rest parameter is not',
+    'function f(...[s]) { s.at(0); }\nf("abc");', null],
+  ['same, second slot', 'function f(...[a, s]) { s.at(0); }\nf("x", "abc");', null],
+  ['same, object-destructured', 'function f(...{ 0: s }) { s.at(0); }\nf("abc");', null],
+  ['same, nested deeper', 'function f(...[[s]]) { s.at(0); }\nf(["abc"]);', null],
+  // the sibling shapes that already applied the identity check, pinned so the shared predicate
+  // keeps serving them
+  ['an array-pattern rest is still an Array', 'const [...r] = ["a"];\nr.at(0);', { ctor: 'Array' }],
+  ['an object rest is still an Object', 'const { ...r } = { a: 1 };\nr.at(0);', { ctor: 'Object' }],
+  ['a nested array-pattern rest is still an Array', 'const [[...r]] = [["a"]];\nr.at(0);', { ctor: 'Array' }],
+]) {
+  checkReceiverType(`${ label } - rest identity`, code, expected);
+}
+
+// --- an installed prototype means a missing own key is not statically absent ---
+// `{ __proto__: base }` can supply the key without owning it, so the destructuring default is not
+// provably dead there - taking it hands back the default's flavor over the inherited value's.
+// a spread already left this undecided for the same reason; the prototype channel did not
+for (const [label, code, expected] of [
+  ['an installed prototype leaves presence undecided',
+    'const base = { a: "abc" };\nconst { a = [1] } = { __proto__: base };\na.at(0);', null],
+  ['a plain missing key still takes the default',
+    'const { a = [1] } = {};\na.at(0);', { ctor: 'Array' }],
+  ['a present key still wins over the default',
+    'const { a = [1] } = { a: "abc" };\na.at(0);', { primitive: true, kind: 'string' }],
+  ['a spread still leaves presence undecided',
+    'declare const other: any;\nconst { a = [1] } = { ...other };\na.at(0);', null],
+]) {
+  checkReceiverType(`${ label } - static presence`, code, expected);
+}
+
+// `splice` returns the REMOVED elements, so its result is receiver-typed even though the items
+// spliced in need not be - the registry gives it `element: 'inherit'` like `slice`. its
+// copy-returning neighbours `toSpliced` / `with` substitute values of their own and stay unknown
+runBoth('registry: Array#splice inherits the receiver element type',
+  'const a = [[1], [2]];\nconst x = a.splice(0, 1)[0];',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
+    const resolver = adapter.makeResolver();
+    checkType(lbl, resolver.resolveNodeType(decl.get('id')), { primitive: false, ctor: 'Array' });
+  });
+
+// `Reflect.ownKeys` is the one entry whose element hint is a UNION (string | symbol). the type
+// layer has no union representation, so the element must read as unknown rather than as either
+// member - picking one would rewrite a symbol key through a string helper
+runBoth('registry: Reflect.ownKeys element union resolves to no single constructor',
+  'const o = { a: 1 };\nconst x = Reflect.ownKeys(o)[0];',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
+    const resolver = adapter.makeResolver();
+    const type = resolver.resolveNodeType(decl.get('id'));
+    checkTruthy(`${ lbl }: element stays unresolved`, !type || (!type.primitive && !type.constructor),
+      `got primitive=${ type?.primitive } ctor=${ type?.constructor }`);
+  });
+
+// `Extract`/`Exclude` ARE the conditional (`T extends U ? T : never` and its complement), so they
+// answer through the same picker. two shapes a second, weaker reading of assignability got wrong:
+// a literal target is NARROWER than the bare keyword, and a structural target's members were never
+// modelled at all
+runBoth('extract: a literal target does not swallow the bare keyword',
+  'type X = Exclude<string, "a">;\ndeclare const x: X;\nx.at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, annotatedReceiverType(adapter, prog), { primitive: true, kind: 'string' });
+  });
+
+runBoth('extract: a literal target still excludes its own literal',
+  'type X = Exclude<"a" | number[], "a">;\ndeclare const x: X;\nx.at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, annotatedReceiverType(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+// `number[]` is NOT assignable to `Record<string, unknown>` in TS, but this layer never modelled
+// the target's members - so the member is undecidable and must sink the WHOLE result. deciding it
+// assignable dropped the array arm and left `_atMaybeString` on a runtime array
+runBoth('extract: an undecidable member sinks the whole result',
+  'type X = Exclude<number[] | string, Record<string, unknown>>;\ndeclare const x: X;\nx.at(0);',
+  (adapter, prog, lbl) => {
+    const resolved = annotatedReceiverType(adapter, prog);
+    if (resolved?.primitive || resolved?.constructor) {
+      return fail(lbl, `undecidable Exclude decided a family (${ resolved.constructor ?? resolved.type })`);
+    }
+    pass();
+  });
+
+// the decidable neighbour of the row above keeps its precision - the bail is not a blanket give-up
+runBoth('extract: a decidable target still narrows',
+  'type X = Exclude<number[] | string, string>;\ndeclare const x: X;\nx.at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, annotatedReceiverType(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+// class-field flow: a slot's writer set spans the whole hierarchy and both write channels, and any
+// hole in it leaves a narrow the runtime does not honour. every row below widened wrongly before,
+// each through a different half of the same contract
+const FIELD_FLOW_WIDENS = [
+  // a computed write names no slot, so it poisons every field of the surface it sits on - and that
+  // surface is inherited in BOTH directions
+  ['descendant wildcard poisons the base field',
+    'class Base { xs = [1]; }\nclass Sub extends Base { poison(k, v) { this[k] = v; } }\nconst s = new Sub();\ns.xs.at(0);'],
+  ['ancestor wildcard poisons the subclass field',
+    'class Base { poison(k, v) { this[k] = v; } }\nclass Sub extends Base { xs = [1]; }\nconst s = new Sub();\ns.xs.at(0);'],
+  ['static: ancestor wildcard poisons the subclass slot',
+    'class Base { static poison(k, v) { this[k] = v; } }\nclass Sub extends Base { static xs = [1]; }\nSub.xs.at(0);'],
+  // a static method is inherited too, so a base body runs with the SUBCLASS as `this`
+  ['static: ancestor this-write reaches the subclass slot',
+    'class Base { static poison() { this.xs = "abc"; } }\nclass Sub extends Base { static xs = [1]; }\nSub.xs.at(0);'],
+  // the slot holds its init until something overwrites it, so an init this layer cannot read is a
+  // value the fold must account for rather than drop
+  ['an unresolvable init is not dropped',
+    'class C { xs = opaque(); m() { this.xs = [1]; } }\nconst c = new C();\nc.xs.at(0);'],
+  // the module write index has to answer for the INSTANCE plane as well: a method slot is replaced
+  // through the prototype or through an instance, neither of which is a `this.` write
+  ['prototype write replaces the method',
+    'class C { m() { return [1]; } }\nC.prototype.m = () => "abc";\nconst c = new C();\nc.m().at(0);'],
+  ['instance write replaces the method',
+    'class C { m() { return [1]; } }\nconst c = new C();\nc.m = () => "abc";\nc.m().at(0);'],
+  // `Object.assign` writes its target's keys with no member expression anywhere
+  ['Object.assign into the prototype replaces the method',
+    'class C { m() { return [1]; } }\nObject.assign(C.prototype, { m: () => "abc" });\nconst c = new C();\nc.m().at(0);'],
+];
+for (const [label, source] of FIELD_FLOW_WIDENS) {
+  runBoth(`field flow: ${ label }`, source, (adapter, prog, lbl) => {
+    const resolved = atReceiver(adapter, prog);
+    if (resolved?.constructor === 'Array') return fail(lbl, 'the narrow survived a write it cannot account for');
+    pass();
+  });
+}
+
+// the same rows must stay PRECISE where nothing reaches the slot - the widening above is a verdict,
+// not a blanket give-up
+const FIELD_FLOW_KEEPS = [
+  ['an inert subclass leaves the base field narrow',
+    'class Base { xs = [1]; }\nclass Sub extends Base { ok() { return 1; } }\nconst s = new Sub();\ns.xs.at(0);'],
+  ['a resolvable init folds with its write',
+    'class C { xs = [2]; m() { this.xs = [1]; } }\nconst c = new C();\nc.xs.at(0);'],
+  ['an unrelated static slot stays narrow',
+    'class Base { static ok() { return 1; } }\nclass Sub extends Base { static xs = [1]; }\nSub.xs.at(0);'],
+  ['Object.assign of another key leaves the method narrow',
+    'class C { m() { return [1]; } }\nObject.assign(C.prototype, { n: () => "abc" });\nconst c = new C();\nc.m().at(0);'],
+];
+for (const [label, source] of FIELD_FLOW_KEEPS) {
+  runBoth(`field flow: ${ label }`, source, (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+}
+
+// `Awaited<T>` unwraps what `await` unwraps - an object with a callable `then`. a tuple has none,
+// so a tuple of promises is its own Awaited and element access answers the PROMISE. verified against
+// the compiler: `Awaited<[Promise<number[]>]>[0]` is assignable to `Promise<number[]>`
+const AWAITED_TUPLE_SHAPES = [
+  ['fixed', 'type T = Awaited<[Promise<number[]>, Promise<string>]>;'],
+  ['optional', 'type T = Awaited<[Promise<number[]>, Promise<string>?]>;'],
+  ['rest', 'type T = Awaited<[...Promise<number[]>[]]>;'],
+  ['named', 'type T = Awaited<[first: Promise<number[]>]>;'],
+];
+for (const [label, declaration] of AWAITED_TUPLE_SHAPES) {
+  runBoth(`awaited: a ${ label } tuple element stays a Promise`,
+    `${ declaration }\ndeclare const t: T;\nt[0].at(0);`,
+    (adapter, prog, lbl) => {
+      const resolved = atReceiver(adapter, prog);
+      if (resolved?.constructor === 'Array') return fail(lbl, 'the element was peeled to its awaited inner type');
+      pass();
+    });
+}
+
+// the removal cuts the peel, not the tuple: a tuple whose elements are NOT promises resolves
+// exactly as it did, through both walkers - the AST one and the resolved-type twin
+runBoth('awaited: a promise-free tuple still resolves its element',
+  'type X = Awaited<[number[], number[]]>;\ndeclare const x: X;\nx[0].at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('awaited: a promise OF a tuple still unwraps to the tuple',
+  'type X = Awaited<Promise<[number[], number[]]>>;\ndeclare const x: X;\nx[0].at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+// `Awaited<T>` unwraps a STRUCTURAL thenable on the same contract `await` does - verified against
+// the compiler for the interface, the class and the negative. the peel existed but answered only the
+// await lane, so the annotation form resolved to the thenable object itself
+runBoth('awaited: an interface thenable unwraps through the annotation',
+  'interface Th { then(cb: (v: number[]) => void): void }\ntype X = Awaited<Th>;\ndeclare const x: X;\nx.at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('awaited: a class thenable unwraps through the annotation',
+  'declare class C { then(cb: (v: number[]) => void): void }\ntype X = Awaited<C>;\ndeclare const x: X;\nx.at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+// the bodyless spellings are where the two parsers diverged: babel emits `TSDeclareMethod` for both
+// `declare` and `abstract`, oxc keeps `TSAbstractMethodDefinition`. a method-shape list holding
+// neither made this class a thenable on one parser and an opaque object on the other
+runBoth('awaited: an abstract thenable method unwraps on both parsers',
+  'abstract class C { abstract then(cb: (v: number[]) => void): void }\ntype X = Awaited<C>;\ndeclare const x: X;\nx.at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+// and a NON-thenable stays itself - the peel must not swallow an ordinary object
+runBoth('awaited: a non-thenable interface is its own Awaited',
+  'interface Plain { rows: number[] }\ntype X = Awaited<Plain>;\ndeclare const x: X;\nx.rows.at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+// the union arm IS the real distribution - a conditional type distributes over a naked union - so
+// removing the tuple arm must not touch it
+runBoth('awaited: a union of promises still peels',
+  'type T = Awaited<Promise<number[]> | Promise<number[]>>;\ndeclare const t: T;\nt.at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+// a key-remap `as` clause matches the key as TEXT. TS keeps `{ 0: T }` (number key) apart from
+// `{ '0': T }` (string key), but the pipeline stringifies both before the clause sees them - so a
+// CANONICAL numeric text is undecidable and the clause must bail. a non-canonical one is decided:
+// no number prints as `'01'` / `'1.0'` / `'1e10'`, so those are string keys, the filter below keeps
+// them, and the member's own type survives. reading them as numbers dropped the member entirely
+for (const key of ['01', '1.0', '1e10']) {
+  runBoth(`mapped as-clause: '${ key }' is a string key, so the member survives`,
+    `type Src = { '${ key }': number[] };\n`
+    + 'type M = { [K in keyof Src as K extends number ? never : K]: Src[K] };\n'
+    + `declare const m: M;\nm['${ key }'].at(0);`,
+    (adapter, prog, lbl) => {
+      checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+    });
+}
+// the canonical text keeps its accepted conflation: `{ 0: T }` and `{ '0': T }` are one key by the
+// time the clause sees them, and the bare spelling these renames are written for wins
+for (const key of ['0', '42']) {
+  runBoth(`mapped as-clause: '${ key }' still reads as a number key`,
+    `type Src = { '${ key }': number[] };\n`
+    + 'type M = { [K in keyof Src as K extends number ? never : K]: Src[K] };\n'
+    + `declare const m: M;\nm['${ key }'].at(0);`,
+    (adapter, prog, lbl) => {
+      const resolved = atReceiver(adapter, prog);
+      if (resolved?.constructor === 'Array') return fail(lbl, 'the numeric key survived a number-key filter');
+      pass();
+    });
+}
+
+// an optional chain short-circuits through a TS wrapper the same as without one - `a?.b!.c` and
+// `(a?.b as T).c` are `undefined` whenever `a` is nullish. reading the wrapper as the end of the
+// chain reported it never-nullish, and the truthy-fold then collapsed `<chain> || "x"` to the
+// chain's own family, handing an Array-specific helper the string the runtime actually produces
+const CHAIN_WRAPPER_SHAPES = [
+  ['bare', 'a?.b.c'],
+  ['non-null assertion between hops', 'a?.b!.c'],
+  ['as-cast between hops', '(a?.b as { c: number[] }).c'],
+];
+for (const [label, chain] of CHAIN_WRAPPER_SHAPES) {
+  runBoth(`optional chain (${ label }) keeps the fold open`,
+    `declare const a: { b?: { c: number[] } };\nconst v = ${ chain } || "x";\nv.at(0);`,
+    (adapter, prog, lbl) => {
+      const resolved = atReceiver(adapter, prog);
+      if (resolved?.constructor === 'Array') return fail(lbl, 'a short-circuiting chain folded to its own family');
+      pass();
+    });
+}
+
+// the same fold MUST still collapse when nothing can short-circuit - the bail is a verdict, not a
+// blanket give-up
+runBoth('non-optional chain still folds to its own family',
+  'declare const a: { b: { c: number[] } };\nconst v = a.b.c || "x";\nv.at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+// an element write reaches the read through whatever spelling holds the array: a binding, or a
+// member chain rooted at one. the retype walk enumerated a BINDING's references and looked one hop
+// out, so a chain receiver found no binding at all and a write two accesses out read as a plain
+// property read - the element narrow then survived it and handed the array helper a string
+runBoth('element retype: a member-chain receiver sees the write',
+  'const o = { xs: [[1]] };\no.xs[0] = "abc";\no.xs[0].at(0);',
+  (adapter, prog, lbl) => {
+    const resolved = atReceiver(adapter, prog);
+    if (resolved?.constructor === 'Array') return fail(lbl, 'the element narrow survived a retyping write');
+    pass();
+  });
+
+runBoth('element retype: a bare binding receiver still sees the write',
+  'const arr = [[1]];\narr[0] = "abc";\narr[0].at(0);',
+  (adapter, prog, lbl) => {
+    const resolved = atReceiver(adapter, prog);
+    if (resolved?.constructor === 'Array') return fail(lbl, 'the element narrow survived a retyping write');
+    pass();
+  });
+
+// and both spellings keep their precision when nothing writes - the bail is a verdict, not a
+// blanket give-up on member chains
+runBoth('element retype: an unwritten chain keeps its narrow',
+  'const nested = [[[1]], [[2]]];\nnested[0][0].at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('element retype: an unwritten binding keeps its narrow',
+  'const arr = [[1]];\narr[0].at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+// an index signature admits the keys its key TYPE spells. reading anything that is not `number` or
+// `symbol` as the permissive `string` signature answered a key the signature does not admit with its
+// value type - a member TS refuses to give the source at all
+// spliced rather than written whole: a `${` inside a plain string is a lint error, and a template
+// literal holding an escaped one is another
+const TEMPLATE_KEY_SHAPE = `{ [k: \`a$${ '{' }string}\`]: number[] }`;
+const INDEX_SIGNATURE_ROWS = [
+  ['template, key matches', TEMPLATE_KEY_SHAPE, 'abc', 'Array'],
+  ['template, key does not match', TEMPLATE_KEY_SHAPE, 'zzz', 'none'],
+  ['literal union, key in it', '{ [k: "a" | "b"]: number[] }', 'a', 'Array'],
+  ['literal union, key outside it', '{ [k: "a" | "b"]: number[] }', 'c', 'none'],
+  // the plain keywords keep answering exactly as before
+  ['bare string signature', '{ [k: string]: number[] }', 'zzz', 'Array'],
+  ['bare number signature, string key', '{ [k: number]: number[] }', 'zzz', 'none'],
+];
+for (const [label, shape, key, want] of INDEX_SIGNATURE_ROWS) {
+  runBoth(`index signature: ${ label }`, `type T = ${ shape };\ndeclare const o: T;\no["${ key }"].at(0);`,
+    (adapter, prog, lbl) => {
+      const resolved = atReceiver(adapter, prog);
+      if (want === 'Array') return checkType(lbl, resolved, { primitive: false, ctor: 'Array' });
+      if (resolved?.constructor === 'Array') return fail(lbl, 'a key the signature does not admit resolved to its value type');
+      return pass();
+    });
+}
+
+// an unresolvable computed key may be any kind at runtime, and only the STRING signature receives an
+// arbitrary one - TS converts a numeric key to a string, while a number-only or symbol-only shape
+// has no member for a plain string key at all. folding the survivors of a partial set answered with
+// a family the access may never produce
+const DYNAMIC_KEY_ROWS = [
+  ['number-only signature', '{ [k: number]: number[] }', 'none'],
+  ['symbol-only signature', '{ [k: symbol]: number[] }', 'none'],
+  ['string signature alone', '{ [k: string]: number[] }', 'Array'],
+  ['string beside number', '{ [k: number]: number[]; [k: string]: number[] }', 'Array'],
+];
+for (const [label, shape, want] of DYNAMIC_KEY_ROWS) {
+  runBoth(`dynamic key: ${ label }`,
+    `type T = ${ shape };\ndeclare const o: T;\ndeclare const k: any;\no[k].at(0);`,
+    (adapter, prog, lbl) => {
+      const resolved = atReceiver(adapter, prog);
+      if (want === 'Array') return checkType(lbl, resolved, { primitive: false, ctor: 'Array' });
+      if (resolved?.constructor === 'Array') return fail(lbl, 'a partial signature set answered a dynamic key');
+      return pass();
+    });
+}
+
+// a STATIC numeric key still reads the number signature - the bail is about the unresolvable key
+runBoth('dynamic key: a static numeric key still reads the number signature',
+  'type T = { [k: number]: number[] };\ndeclare const o: T;\no[0].at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+// a computed key that names a static member IS that member access: `const k = 'a'; o[k]` and
+// `o['a']` differ only in spelling. the annotation walker read the key off the node instead of
+// through the canonical resolver, so the const-bound spelling fell into the index-signature arm and
+// every hop past it lost its annotation
+const COMPUTED_KEY_ROWS = [
+  ['literal key', "declare const o: { a: { xs: number[] }, b: { xs: string } };\no['a'].xs.includes(1);", 'Array'],
+  ['const-bound key', "const k = 'a';\ndeclare const o: { a: { xs: number[] }, b: { xs: string } };\no[k].xs.includes(1);", 'Array'],
+  ['let never reassigned', "let k = 'a';\ndeclare const o: { a: { xs: number[] }, b: { xs: string } };\no[k].xs.includes(1);", 'Array'],
+  // and the resolver still tracks WHICH value the key holds - the reassigned spellings answer from
+  // the key they actually carry, not from the one they were declared with
+  ['let reassigned to another key', "let k = 'a';\nk = 'b';\ndeclare const o: { a: { xs: number[] }, b: { xs: string } };\no[k].xs.includes(1);", 'String'],
+  ['let reassigned dynamically', "declare const src: string;\nlet k = 'a';\nk = src;\ndeclare const o: { a: { xs: number[] }, b: { xs: string } };\no[k].xs.includes(1);", 'none'],
+];
+for (const [label, source, want] of COMPUTED_KEY_ROWS) {
+  runBoth(`computed key: ${ label }`, source, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'includes');
+    const type = adapter.makeResolver().resolveNodeType(member.get('object'));
+    if (want === 'none') {
+      if (type?.constructor || type?.primitive) return fail(lbl, `a dynamic key resolved to ${ type.constructor ?? type.type }`);
+      return pass();
+    }
+    if (want === 'Array') return checkType(lbl, type, { primitive: false, ctor: 'Array' });
+    return checkType(lbl, type, { primitive: true, kind: 'string' });
+  });
+}
+
+// a chained generic alias carries the outer binding into the inner hop, and the prior-hop param can
+// sit ANYWHERE in the argument - not only as the whole node. testing the argument's own name matched
+// a bare reference and dropped the binding for every nested occurrence
+const CHAINED_ALIAS_ROWS = [
+  ['bare reference', 'type B<U> = { v: U };\ntype A<T> = B<T>;\ndeclare const x: A<number[]>;\nx.v.includes(1);'],
+  ['array shorthand', 'type B<U> = { v: U };\ntype A<T> = B<T[]>;\ndeclare const x: A<number>;\nx.v.includes(1);'],
+  ['generic argument', 'type B<U> = { v: U };\ntype A<T> = B<Array<T>>;\ndeclare const x: A<number>;\nx.v.includes(1);'],
+  ['nested in an object literal', 'type B<U> = { v: U };\ntype A<T> = B<{ w: T }>;\ndeclare const x: A<number[]>;\nx.v.w.includes(1);'],
+];
+for (const [label, source] of CHAINED_ALIAS_ROWS) {
+  runBoth(`chained alias: ${ label }`, source, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'includes');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+}
+
+// the promise combinators resolve to what their ARGUMENTS hold, which the registry hint cannot say -
+// it describes the method, not the call. `all` wraps the folded element type in an array, `race` and
+// `any` yield it directly, and a disagreement between elements leaves no inner at all
+const PROMISE_COMBINATOR_ROWS = [
+  ['all, awaited then indexed', 'async function f() {\n  const t = await Promise.all([Promise.resolve([1]), Promise.resolve([2])]);\n  return t[0].includes(1);\n}', 'Array'],
+  ['all, destructured', 'async function f() {\n  const [a] = await Promise.all([Promise.resolve([1])]);\n  return a.includes(1);\n}', 'Array'],
+  ['race yields the element itself', 'async function f() {\n  const v = await Promise.race([Promise.resolve([1]), Promise.resolve([2])]);\n  return v.includes(1);\n}', 'Array'],
+  ['any yields the element itself', 'async function f() {\n  const v = await Promise.any([Promise.resolve([1])]);\n  return v.includes(1);\n}', 'Array'],
+  // a plain (non-promise) element is its own awaited value
+  ['plain elements', 'async function f() {\n  const t = await Promise.all([[1], [2]]);\n  return t[0].includes(1);\n}', 'Array'],
+  // and the disagreements degrade rather than pick one arm
+  ['mixed families', 'async function f() {\n  const t = await Promise.all([Promise.resolve([1]), Promise.resolve("s")]);\n  return t[0].includes(1);\n}', 'none'],
+  ['a spread element is unreadable',
+    'declare const rest: Promise<number[]>[];\n'
+    + 'async function f() {\n  const t = await Promise.all([...rest]);\n  return t[0].includes(1);\n}', 'none'],
+];
+for (const [label, source, want] of PROMISE_COMBINATOR_ROWS) {
+  runBoth(`promise combinator: ${ label }`, source, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'includes');
+    const type = adapter.makeResolver().resolveNodeType(member.get('object'));
+    if (want === 'Array') return checkType(lbl, type, { primitive: false, ctor: 'Array' });
+    if (type?.constructor === 'Array') return fail(lbl, 'an unreadable argument list still narrowed');
+    return pass();
+  });
+}
+
+// --- a transparent wrapper is not a POSITION ---
+
+// the this-escape scan decides what a method does with `this` by the position each `this` sits in,
+// and it walks NODES. a paren or a TS cast holds the value without reading it, so the position is
+// the one ABOVE the wrapper - counted as a position itself it answered "handed out", the object's
+// closure stopped being provable, and the receiver lost its type. only one parser keeps parens as
+// real nodes, so the two answered the same source differently until the wrapper became transparent
+// here. each row asserts the WRAPPED spelling resolves exactly as its bare twin does
+for (const [label, wrap] of [
+  ['bare', 'this'],
+  ['paren', '(this)'],
+  ['double paren', '((this))'],
+  ['cast', '(this as any)'],
+  ['non-null', 'this!'],
+]) {
+  runBoth(`this in an Array subclass method, ${ label }`,
+    `class C extends Array { m() { return ${ wrap }.at(-1); } }`, arrayAtReceiver);
+  // ... and through an ALIAS the same rule holds: the wrapper is not the position the alias sits in
+  runBoth(`this aliased out of an Array subclass method, ${ label }`,
+    `class C extends Array { m() { const self = ${ wrap }; return self.at(-1); } }`, arrayAtReceiver);
+}
+
+// the negative the rule must not swallow: a `this` genuinely HANDED OUT still breaks the closure,
+// wrapper or not - the wrapper is transparent, not exculpatory
+for (const [label, wrap] of [['bare', 'this'], ['paren', '(this)']]) {
+  runBoth(`this handed to a sink, ${ label }`,
+    `declare const sink: (x: any) => void;\nclass C extends Array { m() { sink(${ wrap }); return this.at(-1); } }`,
+    dropAtReceiver);
+}
+
+// --- call sites of the predicates the cycle changed ---
+// isMethodMember decides the scan roots of the class-field write flow: a bodyless member
+// must neither become a root nor hide the writes the concrete members carry.
+// the poisoning write assigns a foreign family to an inferred field, which valid TS forbids
+// (TS2322) - the shape belongs to untyped JS, and the contract is that the resolver stays
+// conservative on it rather than trusting the initializer
+const SCAN_ROOT_ROWS = [
+  ['abstract member beside a this-write',
+    'abstract class C { abstract q(): void; xs = [1]; poison() { this.xs = "abc"; } }\n'
+    + 'class D extends C { q() {} }\nconst d = new D();\nd.xs.at(0);', 'drop'],
+  ['same class without the abstract member',
+    'class C { xs = [1]; poison() { this.xs = "abc"; } }\nconst c = new C();\nc.xs.at(0);', 'drop'],
+  ['abstract member, no write - narrow survives',
+    'abstract class C { abstract q(): void; xs = [1]; }\nclass D extends C { q() {} }\n'
+    + 'const d = new D();\nd.xs.at(0);', 'Array'],
+  ['overload signatures beside a this-write',
+    'class C { xs = [1]; m(a: number): void; m(a: string): void; m(a: any) { this.xs = "abc"; } }\n'
+    + 'const c = new C();\nc.xs.at(0);', 'drop'],
+];
+// memberWriteReceiverPath roots the write in the same fold, whether the receiver is reached
+// through the class body or through a binding handed to Object.assign
+const SCAN_ROOT_ROWS_ASSIGN = [
+  ['assign into an instance binding', 'class C { xs = [1]; }\nconst c = new C();\nObject.assign(c, { xs: "abc" });\nc.xs.at(0);', 'drop'],
+  ['assign into an unrelated binding', 'class C { xs = [1]; }\nconst c = new C();\nconst other = {};\nObject.assign(other, { xs: "abc" });\nc.xs.at(0);', 'Array'],
+];
+for (const [label, source, want] of [...SCAN_ROOT_ROWS, ...SCAN_ROOT_ROWS_ASSIGN]) {
+  runBoth(`class-field write flow: ${ label }`, source, want === 'Array' ? arrayAtReceiver : dropAtReceiver);
+}
+// isNumericKeyShape gates BOTH arms of a mapped-type `as` clause; the string arm is the one
+// a numeric-looking key reaches, and a canonical numeric spelling stays unresolved there
+const MAPPED_AS_STRING_ARM = 'type M = { [K in keyof Src as K extends string ? K : never]: Src[K] };\ndeclare const m: M;\n';
+const MAPPED_AS_STRING_ARM_ROWS = [
+  ['non-canonical numeric key resolves', "type Src = { '01': number[] };\n", "m['01'].at(0);", 'Array'],
+  ['canonical numeric key bails', "type Src = { '0': number[] };\n", "m['0'].at(0);", 'drop'],
+  ['plain string key resolves', 'type Src = { a: number[] };\n', 'm.a.at(0);', 'Array'],
+];
+for (const [label, src, use, want] of MAPPED_AS_STRING_ARM_ROWS) {
+  runBoth(`mapped-type as clause, string arm: ${ label }`, `${ src }${ MAPPED_AS_STRING_ARM }${ use }`,
+    want === 'Array' ? arrayAtReceiver : dropAtReceiver);
+}
+
+// an extends side whose arguments are all written as a TOP keyword constrains no inner, exactly
+// like the bare `Array` shorthand - `Extract<T, any[]>` must decide, not sink as undecidable.
+// every expectation below is the type real tsc computes for the same expression
+const TOP_ARGUMENT_EXTENDS_ROWS = [
+  ['any[] target', 'type R = Extract<number[] | string, any[]>;', 'Array'],
+  ['unknown[] target', 'type R = Extract<number[] | string, unknown[]>;', 'Array'],
+  ['readonly unknown[] target', 'type R = Extract<number[] | string, readonly unknown[]>;', 'Array'],
+  ['Array<any> target', 'type R = Extract<number[] | string, Array<any>>;', 'Array'],
+  ['tuple check against any[]', 'type R = Extract<[number, string] | boolean, any[]>;', 'Array'],
+  // a UNION target distributes arm by arm; it is never resolved as a whole, which this layer
+  // could only answer with null - and a guard on that answer sank every union target
+  ['union target, two arms', 'type R = Exclude<number[] | string | symbol, string | symbol>;', 'Array'],
+  ['union target, three arms', 'type R = Exclude<number[] | string | symbol | boolean, string | symbol | boolean>;', 'Array'],
+  ['union target mixing top and primitive', 'type R = Extract<number[] | string, any[] | symbol>;', 'Array'],
+  ['union target behind an alias', 'type X = string | symbol;\ntype R = Exclude<number[] | string | symbol, X>;', 'Array'],
+  // again input tsc rejects (TS2304): the lock is that an unresolvable arm sinks the whole answer
+  ['union target with an unresolvable arm (tsc rejects)', 'type R = Exclude<number[] | string, string | Nowhere>;', 'drop'],
+  ['unresolvable target (tsc rejects)', 'type R = Extract<number[] | string, Nowhere>;', 'drop'],
+  ['structural target this layer never modelled', 'type R = Extract<number[] | string, { length: number }>;', 'drop'],
+  // the negatives: a target that is NOT all-top keeps its concrete comparison. each resolves to
+  // `never`, and TS forbids a property access on `never` - so the source is one tsc rejects, and
+  // what the row locks is that an uninhabited receiver gets no family-specific helper
+  ['concrete element target', 'type R = Extract<number[] | string, Array<string>>;', 'drop'],
+  ['object element is not a top', 'type R = Extract<number[] | string, Array<object>>;', 'drop'],
+  ['foreign container with top arguments', 'type R = Extract<number[] | string, Map<any, any>>;', 'drop'],
+  ['concrete readonly target', 'type R = Extract<number[] | string, readonly string[]>;', 'drop'],
+];
+for (const [label, decl, want] of TOP_ARGUMENT_EXTENDS_ROWS) {
+  runBoth(`top-argument extends: ${ label }`, `${ decl }\ndeclare const r: R;\nr.at(0);`,
+    want === 'Array' ? arrayAtReceiver : dropAtReceiver);
+}
+// the same predicate answers for the other three conditional-branch sites, each with the
+// concrete-argument negative that must NOT decide. those negatives resolve to `never`, whose
+// property access tsc rejects - the row asks only that no branch types the receiver
+const TOP_ARGUMENT_SITE_ROWS = [
+  ['plain conditional type', 'type P<T> = T extends any[] ? T : never;\ntype R = P<number[]>;', 'Array'],
+  ['plain conditional type, concrete argument', 'type P<T> = T extends Array<string> ? T : never;\ntype R = P<number[]>;', 'drop'],
+  ['conditional type member', 'interface Box<T> { v: T extends readonly unknown[] ? T : string }\ntype R = Box<number[]>["v"];', 'Array'],
+  ['conditional type member, concrete argument', 'interface Box<T> { v: T extends Array<string> ? T : string }\ntype R = Box<number[]>["v"];', 'drop'],
+  ['conditional under Awaited', 'type U<T> = T extends Array<any> ? T : never;\ntype R = Awaited<Promise<U<number[]>>>;', 'Array'],
+  ['conditional under Awaited, concrete argument', 'type U<T> = T extends Array<string> ? T : never;\ntype R = Awaited<Promise<U<number[]>>>;', 'drop'],
+];
+for (const [label, decl, want] of TOP_ARGUMENT_SITE_ROWS) {
+  runBoth(`top-argument extends at site: ${ label }`, `${ decl }\ndeclare const r: R;\nr.at(0);`,
+    want === 'Array' ? arrayAtReceiver : dropAtReceiver);
+}
+// a union CALLEE is one value with several signatures: convergent arms keep the narrow, divergent
+// ones degrade, and the two lanes that read a signature - the call itself and `ReturnType<typeof f>`
+// - have to answer alike
+const UNION_CALLEE_ROWS = [
+  ['direct call, convergent arms', 'declare const f: (() => number[]) | (() => number[]);\nf().at(0);', 'Array'],
+  ['direct call, divergent arms', 'declare const f: (() => number[]) | (() => string);\nf().at(0);', 'drop'],
+  ['direct call, nullish arm drops out', 'declare const f: (() => number[]) | undefined;\nf!().at(0);', 'Array'],
+  ['union behind an alias', 'type F = (() => number[]) | (() => number[]);\ndeclare const f: F;\nf().at(0);', 'Array'],
+  ['single signature control', 'declare const f: () => number[];\nf().at(0);', 'Array'],
+  ['ReturnType over the union', 'declare const f: (() => number[]) | (() => number[]);\ndeclare const r: ReturnType<typeof f>;\nr.at(0);', 'Array'],
+  ['ReturnType over divergent arms', 'declare const f: (() => number[]) | (() => string);\ndeclare const r: ReturnType<typeof f>;\nr.at(0);', 'drop'],
+  ['callable object types', 'declare const f: { (): number[] } | { (): number[] };\nf().at(0);', 'Array'],
+  // `new` on a union whose second arm is call-only is TS2351 - the lock is that the two signature
+  // kinds never cross-resolve even when the source is one tsc rejects
+  ['construct signatures stay apart (tsc rejects)', 'declare const C: { new (): number[] } | { (): string };\nnew C().at(0);', 'drop'],
+];
+for (const [label, source, want] of UNION_CALLEE_ROWS) {
+  runBoth(`union callee: ${ label }`, source, want === 'Array' ? arrayAtReceiver : dropAtReceiver);
+}
+// an indexed access distributes over a union OBJECT the way it already did over a union INDEX -
+// `(A | B)[K]` is `A[K] | B[K]`. a self `keyof` index travels with its arm, which widens the key
+// set to that arm's own: a superset of the union's shared keys, so the fold degrades rather than
+// over-resolves. every expectation is the type real tsc computes
+const UNION_INDEXED_ACCESS_ROWS = [
+  ['literal key', 'type S = { v: number[] } | { v: number[] };\ntype R = S["v"];', 'Array'],
+  ['union without an alias', 'type R = ({ v: number[] } | { v: number[] })["v"];', 'Array'],
+  ['string index signature', 'type S = { [k: string]: number[] } | { [k: string]: number[] };\ntype R = S[string];', 'Array'],
+  ['numeric index', 'type S = number[][] | number[][];\ntype R = S[number];', 'Array'],
+  ['union object and union index', 'type S = { a: number[]; b: number[] } | { a: number[]; b: number[] };\ntype R = S["a" | "b"];', 'Array'],
+  ['self keyof', 'type S = { v: number[] } | { v: number[] };\ntype R = S[keyof S];', 'Array'],
+  ['self keyof, arms carry extra keys', 'type S = { v: number[]; x: number[] } | { v: number[]; y: number[] };\ntype R = S[keyof S];', 'Array'],
+  ['divergent arms', 'type S = { v: number[] } | { v: string };\ntype R = S["v"];', 'drop'],
+  // the two below are input real tsc REJECTS (TS2339 on the missing key, TS2304 on the undeclared
+  // name). the plugin never typechecks what it is given, so what they lock is the other half of the
+  // contract: malformed input degrades to the generic helper instead of resolving to some arm
+  ['an arm missing the key (tsc rejects the source)', 'type S = { v: number[] } | { w: number };\ntype R = S["v"];', 'drop'],
+  ['an unresolvable arm (tsc rejects the source)', 'type S = { v: number[] } | Nowhere;\ntype R = S["v"];', 'drop'],
+  // tsc says number[] here; the arm superset drags in a foreign family, so this degrades - an
+  // under-resolve, and the safe direction for usage-pure
+  ['self keyof, extra key of another family', 'type S = { v: number[]; x: string } | { v: number[] };\ntype R = S[keyof S];', 'drop'],
+];
+for (const [label, decl, want] of UNION_INDEXED_ACCESS_ROWS) {
+  runBoth(`union indexed access: ${ label }`, `${ decl }\ndeclare const r: R;\nr.at(0);`,
+    want === 'Array' ? arrayAtReceiver : dropAtReceiver);
+}
+// the utilities lib.d.ts writes as a naked conditional distribute over a union argument, whether
+// the result is read directly or indexed into - and a same-named user declaration outranks all of it
+const DISTRIBUTIVE_UTILITY_ROWS = [
+  ['Parameters over a union', 'type R = Parameters<((a: number[]) => void) | ((a: number[]) => void)>;\ndeclare const r: R;\nr.at(0);', 'Array'],
+  ['Parameters, single signature', 'type R = Parameters<(a: number[]) => void>;\ndeclare const r: R;\nr.at(0);', 'Array'],
+  ['ConstructorParameters over a union', 'declare class K { constructor(a: number[]) }\n'
+    + 'type R = ConstructorParameters<typeof K | typeof K>;\ndeclare const r: R;\nr.at(0);', 'Array'],
+  ['InstanceType over a union, indexed', 'declare class K { v: number[] }\ntype R = InstanceType<typeof K | typeof K>["v"];\ndeclare const r: R;\nr.at(0);', 'Array'],
+  ['Parameters over a union, indexed', 'declare function g(a: number[]): void;\ntype R = Parameters<typeof g | typeof g>[0];\ndeclare const r: R;\nr.at(0);', 'Array'],
+  // `export {}` makes the source a MODULE, which is the only scope where a local name SHADOWS the
+  // global utility - in a script it collides with it instead (TS2300) and the row would be asking
+  // its question of input TypeScript rejects
+  ['a user alias of the same name wins', 'export {};\ntype Parameters<T> = string;\n'
+    + 'type R = Parameters<((a: number[]) => void) | ((a: number[]) => void)>;\n'
+    + 'declare const r: R;\n(r as any).at(0);', 'drop'],
+  ['a user alias wins AND supplies the type', 'export {};\ntype ConstructorParameters<T> = number[];\n'
+    + 'declare class K { constructor(a: string) }\n'
+    + 'type R = ConstructorParameters<typeof K | typeof K>;\ndeclare const r: R;\nr.at(0);', 'Array'],
+  // a structure-preserving wrapper is NOT distributive: `Pick<A | B, K>` is one mapped type over
+  // the whole union, so it must keep answering through its own resolver
+  ['Pick over a union still resolves', 'type R = Pick<{ v: number[] } | { v: number[] }, "v">["v"];\ndeclare const r: R;\nr.at(0);', 'Array'],
+];
+for (const [label, source, want] of DISTRIBUTIVE_UTILITY_ROWS) {
+  runBoth(`distributive utility: ${ label }`, source, want === 'Array' ? arrayAtReceiver : dropAtReceiver);
+}
+
+// a NAKED type parameter makes a conditional distributive, and distributing over `never` yields
+// `never` - no branch runs, so no branch may type the receiver. every expectation is real tsc's
+const NEVER_DISTRIBUTION_ROWS = [
+  ['naked parameter instantiated with never', 'type C<T> = T extends string ? number[] : string;\ntype R = C<never>;', 'drop'],
+  ['naked parameter, ordinary argument', 'type C<T> = T extends string ? number[] : string;\ntype R = C<string>;', 'Array'],
+  ['naked parameter, argument misses the branch', 'type C<T> = T extends string ? number[] : string;\ntype R = C<number>;', 'drop'],
+  // the non-distributive spellings keep their old answers: only the naked one distributes
+  ['never written directly in the check', 'type R = never extends string ? number[] : string;', 'Array'],
+  ['parameter wrapped in a tuple', 'type C<T> = [T] extends [string] ? number[] : string;\ntype R = C<never>;', 'drop'],
+  ['never as a union member, not the whole argument', 'type C<T> = T extends string ? number[] : boolean;\ntype R = C<never | number[]>;', 'drop'],
+];
+for (const [label, decl, want] of NEVER_DISTRIBUTION_ROWS) {
+  runBoth(`never distribution: ${ label }`, `${ decl }\ndeclare const r: R;\n(r as any).at(0);`,
+    want === 'Array' ? arrayAtReceiver : dropAtReceiver);
+}
+
+// `Parameters` / `ConstructorParameters` read an INLINE signature's parameter list as readily as a
+// `typeof` query's - the indirection was never what the utility needs. every expectation is tsc's
+const INLINE_SIGNATURE_PARAMS_ROWS = [
+  ['inline signature, first parameter', 'type R = Parameters<(a: number[]) => void>[0];', 'Array'],
+  ['inline signature, later parameter', 'type R = Parameters<(a: string, b: number[]) => void>[1];', 'Array'],
+  ['union of inline signatures', 'type R = Parameters<((a: number[]) => void) | ((a: number[]) => void)>[0];', 'Array'],
+  ['typeof query keeps working', 'declare function g(a: number[]): void;\ntype R = Parameters<typeof g>[0];', 'Array'],
+  // an ALIAS to a signature is that signature, and a GENERIC alias carries its binding into the
+  // parameter's own annotation - the list elements are parameter nodes, so a subst handed the node
+  // leaves the free type param sitting inside it
+  ['alias to a signature', 'type F = (a: number[]) => void;\ntype R = Parameters<F>[0];', 'Array'],
+  ['chain of aliases', 'type F = (a: number[]) => void;\ntype G = F;\ntype R = Parameters<G>[0];', 'Array'],
+  ['generic alias, bound argument', 'type F<T> = (a: T) => void;\ntype R = Parameters<F<number[]>>[0];', 'Array'],
+  ['generic alias, later parameter', 'type F<T> = (a: string, b: T) => void;\ntype R = Parameters<F<number[]>>[1];', 'Array'],
+  ['generic alias, foreign argument', 'type F<T> = (a: T) => void;\ntype R = Parameters<F<string>>[0];', 'drop'],
+  ['generic construct alias', 'type C<T> = new (a: T) => object;\ntype R = ConstructorParameters<C<number[]>>[0];', 'Array'],
+  ['crossed kind through an alias', 'type C = new (a: number[]) => object;\ntype R = Parameters<C>[0];', 'drop'],
+  // `ThisParameterType` is the same reader over the `this` slot, and it understood only the
+  // `typeof` spelling too - the two must not disagree about which forms they accept
+  ['this slot, inline signature', 'type R = ThisParameterType<(this: number[], a: string) => void>;', 'Array'],
+  ['this slot through an alias', 'type F = (this: number[], a: string) => void;\ntype R = ThisParameterType<F>;', 'Array'],
+  ['this slot, generic alias', 'type F<T> = (this: T, a: string) => void;\ntype R = ThisParameterType<F<number[]>>;', 'Array'],
+  ['this slot, foreign argument', 'type F<T> = (this: T, a: string) => void;\ntype R = ThisParameterType<F<string>>;', 'drop'],
+  ['no this slot at all', 'type F = (a: number[]) => void;\ntype R = ThisParameterType<F>;', 'drop'],
+  ['ConstructorParameters, inline construct signature', 'type R = ConstructorParameters<new (a: number[]) => object>[0];', 'Array'],
+  // each name takes only the signature kind it is defined over - a crossed spelling is one tsc
+  // rejects, and it must stay unresolved rather than answer off the wrong shape
+  ['Parameters over a construct signature stays unresolved', 'type R = Parameters<new (a: number[]) => object>[0];', 'drop'],
+  ['ConstructorParameters over a call signature stays unresolved', 'type R = ConstructorParameters<(a: number[]) => void>[0];', 'drop'],
+];
+for (const [label, decl, want] of INLINE_SIGNATURE_PARAMS_ROWS) {
+  runBoth(`inline signature parameters: ${ label }`, `${ decl }\ndeclare const r: R;\n(r as any).at(0);`,
+    want === 'Array' ? arrayAtReceiver : dropAtReceiver);
+}
+
+// a SURVIVING nullish arm of an Extract / Exclude source marks the result instead of sinking it -
+// the same contract the value-union fold applies. expectations are tsc's
+const EXTRACT_NULLISH_ARM_ROWS = [
+  ['Exclude keeps an array beside a null arm', 'type R = Exclude<number[] | null | string, string>;', 'Array'],
+  ['Extract keeps an array beside an undefined arm', 'type R = Extract<number[] | undefined, readonly unknown[] | undefined>;', 'Array'],
+  ['a nullish arm alone still resolves to no container', 'type R = Exclude<null | undefined, string>;', 'drop'],
+  ['a divergent real arm still sinks it', 'type R = Exclude<number[] | null | string, symbol>;', 'drop'],
+];
+for (const [label, decl, want] of EXTRACT_NULLISH_ARM_ROWS) {
+  runBoth(`extract nullish arm: ${ label }`, `${ decl }\ndeclare const r: R;\n(r as any).at(0);`,
+    want === 'Array' ? arrayAtReceiver : dropAtReceiver);
+}
+
+// what a call SETTLES to often lives in the call, not in the method - the data says so with the
+// `argument` directives, and the resolver reads them off the hint rather than off a name list.
+// `Promise.all` and `Array.fromAsync` carry the identical hint, which is what a name-keyed
+// registry used to hide: only the listed names got the inference
+const ARGUMENT_DIRECTIVE_ROWS = [
+  ['argument: the awaited value itself', 'async function f() { const r = await Promise.resolve([1]); r.at(0); }', 'Array'],
+  ['argument-element: race', 'async function f() { const r = await Promise.race([Promise.resolve([1])]); r.at(0); }', 'Array'],
+  ['argument-element: any', 'async function f() { const r = await Promise.any([Promise.resolve([1])]); r.at(0); }', 'Array'],
+  ['argument-element under Array: all', 'async function f() { const r = (await Promise.all([[1], [2]]))[0]; r.at(0); }', 'Array'],
+  ['argument-element under Array: fromAsync', 'async function f() { const r = (await Array.fromAsync([[1], [2]]))[0]; r.at(0); }', 'Array'],
+  ['argument-return: Promise.try', 'async function f() { const r = await Promise.try(() => [1]); r.at(0); }', 'Array'],
+  ['argument-return: then', 'async function f() { const r = await Promise.resolve(0).then(() => [1]); r.at(0); }', 'Array'],
+  ['argument-return keeps extra data args', 'async function f() { const r = await Promise.try((a: number) => [a], 1); r.at(0); }', 'Array'],
+  // the bails: one hint cannot carry two resolutions, and nothing may be guessed about an
+  // argument the reader cannot see
+  ['a second callback opens a second resolution', 'async function f() { const r = await Promise.resolve(0).then(() => [1], () => "s"); r.at(0); }', 'drop'],
+  ['elements of different families', 'async function f() { const r = (await Promise.all([[1], "s"]))[0]; r.at(0); }', 'drop'],
+  ['a spread hides the elements', 'async function f() { declare const xs: number[][]; const r = (await Promise.all([...xs]))[0]; r.at(0); }', 'drop'],
+  // both peels go through the canons the file already had: awaiting settles ALL the way down, and
+  // a LITERAL spread still names its arguments - only a spread whose source is opaque does not
+  ['nested promises settle to the innermost', 'async function f() { const r = await Promise.resolve(Promise.resolve([1])); r.at(0); }', 'Array'],
+  ['three layers deep', 'async function f() { const r = await Promise.resolve(Promise.resolve(Promise.resolve([1]))); r.at(0); }', 'Array'],
+  ['a literal spread still names the argument', 'async function f() { const r = await Promise.resolve(...[[1]]); r.at(0); }', 'Array'],
+  ['a literal spread of the iterable', 'async function f() { const r = (await Promise.all(...[[[1], [2]]]))[0]; r.at(0); }', 'Array'],
+  ['an opaque spread stays undecidable', 'async function f() { declare const xs: any[]; const r = await Promise.resolve(...xs); (r as any).at(0); }', 'drop'],
+  // a callback slot may NAME its function instead of writing it, and BOTH slots are read the same
+  // way - reading only literals in the second one let `then(onFulfilled, onRejected)` answer off
+  // the first of two resolution paths
+  ['a named callback', 'function mk() { return [1]; }\nasync function f() { const r = await Promise.try(mk); r.at(0); }', 'Array'],
+  ['an arrow bound to a name', 'const mk = () => [1];\nasync function f() { const r = await Promise.try(mk); r.at(0); }', 'Array'],
+  ['then with a named callback', 'function mk() { return [1]; }\nasync function f() { const r = await Promise.resolve(0).then(mk); r.at(0); }', 'Array'],
+  ['a NAMED second callback still bails', 'function a() { return [1]; }\nfunction b() { return "s"; }\n'
+    + 'async function f() { const r = await Promise.resolve(0).then(a, b); (r as any).at(0); }', 'drop'],
+  ['a named arrow as the second callback bails', 'const b = () => "s";\nasync function f() { const r = await Promise.resolve(0).then(() => [1], b); (r as any).at(0); }', 'drop'],
+  ['data in the later slot changes nothing', 'function mk(a: number) { return [a]; }\nasync function f() { const r = await Promise.try(mk, 1); r.at(0); }', 'Array'],
+  ['a slot holding no function at all', 'const notFn = 42;\nasync function f() { const r = await Promise.try(notFn as any); (r as any).at(0); }', 'drop'],
+  // a TS wrapper hides either shape, so the slot reader has to look through one - and only a
+  // REFERENCE is worth following at all, which is what keeps the guard off every data argument
+  ['an inline callback under a TS wrapper', 'async function f() { const r = await Promise.try((() => [1]) as any); r.at(0); }', 'Array'],
+  ['a named callback under a TS wrapper', 'const mk = () => [1];\nasync function f() { const r = await Promise.try(mk!); r.at(0); }', 'Array'],
+  // the callback's return is the answer, so an UNCERTAIN return is no answer: divergent branches,
+  // no return at all, a throw, a generator - each leaves the container bare
+  ['two returns of one family', 'async function f() { const r = await Promise.try(() => { if (Math.random()) return [1]; return [2]; }); r.at(0); }', 'Array'],
+  ['divergent branches', 'async function f() { const r = await Promise.try(() => Math.random() > 0.5 ? [1] : "s" as any); (r as any).at(0); }', 'drop'],
+  ['no return at all', 'async function f() { const r = await Promise.try(() => {}); (r as any).at(0); }', 'drop'],
+  ['a throwing callback', 'async function f() { const r = await Promise.try(() => { throw new Error(); }); (r as any).at(0); }', 'drop'],
+  // and the mutation guards still speak: a mutated static or a reassigned callback binding
+  // declines the narrow, which usage-global shows by keeping BOTH families injected
+  ['a reassigned callback binding', 'let mk = () => [1];\nmk = () => "s" as any;\nasync function f() { const r = await Promise.try(mk); (r as any).at(0); }', 'drop'],
+  ['a non-literal iterable', 'async function f() { declare const xs: number[][]; const r = (await Promise.all(xs))[0]; r.at(0); }', 'drop'],
+  // the iterable behind a transparent wrapper is still the iterable, and it has to read the same on
+  // BOTH parsers: babel strips `([...])` at parse while oxc keeps a ParenthesizedExpression, so a
+  // shape test on the raw node made the two emitters inject different helpers for one source
+  ['a parenthesised iterable', 'async function f() { const r = (await Promise.all(([[1], [2]])))[0]; r.at(0); }', 'Array'],
+  ['a TS-wrapped iterable', 'async function f() { const r = (await Promise.all([[1], [2]] as any))[0]; r.at(0); }', 'Array'],
+  ['a doubly wrapped iterable', 'async function f() { const r = (await Promise.all((([[1], [2]]) as any)))[0]; r.at(0); }', 'Array'],
+  ['a wrapper over a NON-literal still declines', 'async function f() { declare const xs: number[][]; const r = (await Promise.all((xs)))[0]; r.at(0); }', 'drop'],
+  // the ELEMENTS carry wrappers too, and the spread test that guards them reads a raw node type
+  ['a parenthesised element of the iterable', 'async function f() { const r = (await Promise.all([([1]), [2]]))[0]; r.at(0); }', 'Array'],
+  ['a TS-wrapped element of the iterable', 'async function f() { const r = (await Promise.all([[1] as any, [2]]))[0]; r.at(0); }', 'Array'],
+  ['a wrapped SPREAD element still declines', 'async function f() { declare const xs: number[][]; const r = (await Promise.all([...(xs)]))[0]; r.at(0); }', 'drop'],
+  // the carrier is reached by more than a bare member: through a proxy-global hop, and through a
+  // binding that aliases the static. both land on the same registry entry, so both must read it
+  ['through a proxy-global hop', 'const v = globalThis.Object.freeze([1, 2]);\nv.at(0);', 'Array'],
+  ['through a window hop', 'const v = window.Object.freeze([1, 2]);\nv.at(0);', 'Array'],
+  ['through an aliased static', 'const f = Object.freeze;\nconst v = f([1, 2]);\nv.at(0);', 'Array'],
+  // the elements fold as a union does: agreement narrows, ANY disagreement leaves the container
+  // bare rather than picking the first arm
+  ['elements that disagree bail', 'async function f() { const r = (await Promise.all([[1], "xy" as any]))[0]; (r as any).at(0); }', 'drop'],
+  ['a disagreement in the MIDDLE bails too', 'async function f() { const r = (await Promise.all([[1], "xy" as any, [2]]))[0]; (r as any).at(0); }', 'drop'],
+  ['three arms that all agree still narrow', 'async function f() { const r = (await Promise.all([[1], [2], [3]]))[0]; r.at(0); }', 'Array'],
+  ['an empty iterable leaves the container bare', 'async function f() { const r = (await Promise.all([]))[0]; (r as any).at(0); }', 'drop'],
+  // deliberately undeclared: a rejection is not a resolution, `catch` settles two ways, and the
+  // settled wrappers are not the awaited elements
+  ['reject carries no directive', 'async function f() { const r = await Promise.reject([1]); (r as any).at(0); }', 'drop'],
+  ['catch carries no directive', 'async function f() { const r = await Promise.resolve([1]).catch(() => [2]); (r as any).at(0); }', 'drop'],
+];
+for (const [label, source, want] of ARGUMENT_DIRECTIVE_ROWS) {
+  runBoth(`argument directive: ${ label }`, source, want === 'Array' ? arrayAtReceiver : dropAtReceiver);
+}
+
+// The directive vocabulary and what each directive MEANS both live in the resolver, one file apart:
+// the grammar in `base.js`, the branch that acts on it here. A name declared with no branch is the
+// drift that pair invites, and the answer must not be "unknown" - that reads as "could not resolve"
+// and the narrow the row was written for silently stops. Both sides are driven through the factory
+// with a doctored vocabulary, which is the only way to build that mismatch.
+function knownGlobalsWithVocabulary(directives) {
+  const table = {};
+  return createKnownGlobals({
+    babelNodeType: node => node?.type,
+    isMemberLike: () => false,
+    isNullableOrNever: () => false,
+    resolveMemberPropertyName: () => null,
+    resolveGlobalName: () => null,
+    resolveNodeType: () => null,
+    KNOWN_STATIC_METHOD_RETURN_TYPES: table,
+    KNOWN_STATIC_PROPERTY_RETURN_TYPES: table,
+    KNOWN_INSTANCE_PROPERTY_RETURN_TYPES: table,
+    KNOWN_GLOBAL_PROPERTY_RETURN_TYPES: table,
+    KNOWN_GLOBAL_METHOD_RETURN_TYPES: table,
+    KNOWN_RESOLUTION_DIRECTIVES: directives,
+    commonType: () => null,
+    resolveReturnType: () => null,
+    resolveRuntimeExpression: () => null,
+  });
+}
+
+for (const [label, directives, hint, wanted] of [
+  ['an unimplemented CALL directive', { 'argument-key': 'call' }, 'argument-key', /no resolver for call directive/],
+  ['an unimplemented RECEIVER directive', { 'inner-key': 'receiver' }, 'inner-key', /no resolver for receiver directive/],
+]) {
+  const { typeFromHint } = knownGlobalsWithVocabulary(directives);
+  let message = null;
+  try {
+    typeFromHint(hint);
+  } catch (error) {
+    message = error.message;
+  }
+  if (message === null) fail(`vocabulary drift: ${ label }`, 'answered instead of throwing');
+  else if (!wanted.test(message)) fail(`vocabulary drift: ${ label }`, `threw '${ message }'`);
+  else pass();
+}
+
+// the control half: the vocabulary the artifact really ships resolves through the same routing
+// without throwing, so the guards above are not simply refusing everything
+for (const [label, directives, hint] of [
+  ['a shipped call directive', { argument: 'call' }, 'argument'],
+  ['a shipped receiver directive', { inherit: 'receiver' }, 'inherit'],
+  ['a name outside the vocabulary is a TYPE, not a directive', {}, 'Array'],
+]) {
+  const { typeFromHint } = knownGlobalsWithVocabulary(directives);
+  try {
+    typeFromHint(hint);
+    pass();
+  } catch (error) {
+    fail(`vocabulary drift control: ${ label }`, `threw '${ error.message }'`);
+  }
+}
+
+// --- the binding funnel's synthesized views: a parameter property, a sloppy block function ---
+// a constructor parameter PROPERTY is a binding neither tracker registers: the funnel stands a view
+// on the parameter itself, so its annotation types the body read, defaulted or not. in sloppy code a
+// block-level `function` hoists onto its function and shadows the global there: the type layer
+// resolves the name to that function, so a static call on it is no known static
+runBoth('parameter property: defaulted', 'class C { constructor(public a: number[] = [1]) { a; } }', (adapter, prog, lbl) => {
+  const use = adapter.pickPath(prog, 'Identifier', p => p.node.name === 'a' && p.parentPath?.node?.type === 'ExpressionStatement');
+  checkType(lbl, adapter.makeResolver().resolveNodeType(use), { primitive: false, ctor: 'Array' });
+});
+runBoth('parameter property: bare', 'class C { constructor(public a: number[]) { a; } }', (adapter, prog, lbl) => {
+  const use = adapter.pickPath(prog, 'Identifier', p => p.node.name === 'a' && p.parentPath?.node?.type === 'ExpressionStatement');
+  checkType(lbl, adapter.makeResolver().resolveNodeType(use), { primitive: false, ctor: 'Array' });
+});
+runBoth('parameter property: a body write reaches the read', 'class C { constructor(public a: number[] = [1]) { a = "s"; a; } }', (adapter, prog, lbl) => {
+  const use = adapter.pickPath(prog, 'Identifier', p => p.node.name === 'a' && p.parentPath?.node?.type === 'ExpressionStatement');
+  checkType(lbl, adapter.makeResolver().resolveNodeType(use), { primitive: true, kind: 'string' });
+});
+// a namespace member's READ value: a data field hands back its init, a GETTER hands back what its
+// body returns - but only a body with nothing else to observe, since the walks that ask this resolve
+// the value statically and never run it. the object and CLASS containers answer alike, and so do the
+// two parsers (babel's ObjectMethod / ClassMethod against oxc's Property / MethodDefinition)
+// the key namer the two rows below hand the walk: these containers spell plain identifier keys, so
+// the provider's own resolver is not what is under test here
+function keyName({ node }) {
+  return node?.name ?? node?.value ?? null;
+}
+
+runBoth('findNamespaceMemberValue/reads a pure getter, keeps an observable one',
+  `const pure = { get w() { return globalThis; } };
+   const live = { get w() { mark(); return globalThis; } };
+   class PureClass { static get w() { return globalThis; } }
+   class LiveClass { static get w() { mark(); return globalThis; } }`, (adapter, prog, lbl) => {
+    const [pure, live] = adapter.collectPaths(prog, 'VariableDeclarator').map(decl => decl.node.init);
+    const [pureClass, liveClass] = adapter.collectPaths(prog, 'ClassDeclaration').map(decl => decl.node);
+    function read(container) {
+      return findNamespaceMemberValue(container, 'w', null, { method: 'usage-pure' }, keyName);
+    }
+    checkDeep(lbl, [pure, live, pureClass, liveClass].map(container => read(container)?.name ?? null),
+      ['globalThis', null, 'globalThis', null]);
+  });
+// ... and a trailing spread vetoes the answer for a caller that REWRITES the read, never for one
+// that only injects off it
+runBoth('findNamespaceMemberValue/spread veto is the caller\'s promise',
+  'const ns = { w: globalThis, ...extra };', (adapter, prog, lbl) => {
+    const container = adapter.pickPath(prog, 'VariableDeclarator').node.init;
+    function read(options) {
+      return findNamespaceMemberValue(container, 'w', null, { method: 'usage-pure' }, keyName, options);
+    }
+    check(lbl, read()?.name ?? null, null);
+    check(`${ lbl } without the veto`, read({ spreadVetoes: false })?.name ?? null, 'globalThis');
+  });
+runBoth('sloppy block function shadows the static call', 'function h(x) { { function Array() {} } const r = Array.from(x); }', (adapter, prog, lbl) => {
+  const decl = adapter.pickPath(prog, 'VariableDeclarator');
+  check(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), null);
+}, [], 'script');
+runBoth('strict block function is block-scoped, the static call stays known', 'function h(x) { { function Array() {} } const r = Array.from(x); }', (adapter, prog, lbl) => {
+  const decl = adapter.pickPath(prog, 'VariableDeclarator');
+  checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+});
+
+finish();

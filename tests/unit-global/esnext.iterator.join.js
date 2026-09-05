@@ -1,4 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
 import { createIterator } from '../helpers/helpers.js';
 
 QUnit.test('Iterator#join', assert => {
@@ -19,6 +18,7 @@ QUnit.test('Iterator#join', assert => {
   };
 
   const itObservable1 = createIterator([1, 2, 3], observableReturn);
+
   assert.strictEqual(join.call(itObservable1), '1,2,3', 'without separator attribute');
   assert.true(itObservable1.called, 'iterator closes');
   assert.strictEqual(join.call(createIterator([1, 2, 3]), '-'), '1-2-3', 'with separator attribute');
@@ -26,12 +26,10 @@ QUnit.test('Iterator#join', assert => {
   assert.strictEqual(join.call(createIterator([1, undefined, 3]), '-'), '1--3', 'skips undefined values');
   assert.strictEqual(join.call(createIterator([])), '', 'empty iterator');
 
-  if (STRICT) {
-    assert.throws(() => join.call(''), TypeError, 'iterable non-object this');
-    assert.throws(() => join.call(undefined), TypeError, 'non-iterable-object this #1');
-    assert.throws(() => join.call(null), TypeError, 'non-iterable-object this #2');
-    assert.throws(() => join.call(5), TypeError, 'non-iterable-object this #3');
-  }
+  assert.throws(() => join.call(''), TypeError, 'iterable non-object this');
+  assert.throws(() => join.call(undefined), TypeError, 'non-iterable-object this #1');
+  assert.throws(() => join.call(null), TypeError, 'non-iterable-object this #2');
+  assert.throws(() => join.call(5), TypeError, 'non-iterable-object this #3');
 
   const itObservable2 = createIterator([1, 2, 3], observableReturn);
   assert.throws(() => join.call(itObservable2, symbol), TypeError, 'throws on symbol separator');

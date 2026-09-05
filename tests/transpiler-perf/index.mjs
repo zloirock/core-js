@@ -1,0 +1,267 @@
+// Transpiler performance gates: REAL large single-scope bundles (three.js builds, pinned in
+// THIS directory's package.json - zxi installs it) plus a synthetic reassignment-heavy
+// stress, through BOTH emitters in
+// usage-global mode. The bounds are complexity-CLASS discriminators with wide headroom - a
+// quadratic scope / flow-analysis regression overshoots them on any machine, ordinary machine
+// variance does not. The synthetic deliberately maximizes WRITTEN top-level names: real
+// bundles rarely reassign at that density, and quadratic roots in the reassignment / flow
+// machinery are invisible on three.js yet catastrophic on this shape. Each transform also
+// asserts an injection happened, so a detection-dead run cannot pass vacuously fast.
+//
+// A case's `source()` may also return an ARRAY of module sources, transformed one-by-one the way
+// a bundler feeds them. Those cases gate the PER-CALL axis: everything above pays setup once on a
+// huge input, so a regression in per-file work (a cache that stops being reused across calls, say)
+// is invisible there and shows up only when the same bytes arrive as hundreds of separate calls.
+import { fileURLToPath } from 'node:url';
+import { transformAsync } from '@babel/core';
+import babelPlugin from '../../packages/core-js-babel-plugin/index.js';
+import createUnplugin from '../../packages/core-js-unplugin/internals/plugin.js';
+
+const { cyan, green, red } = chalk;
+const { readdir, readFile } = fs;
+const { dirname, join } = path;
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const MODES = ['usage-global', 'usage-pure'];
+
+function syntheticSingleScope(names) {
+  const pad = Array.from({ length: 100 }, (unused, k) => k).join(', ');
+  const parts = [];
+  for (let i = 0; i < names; i++) {
+    parts.push(`var v${ i } = [${ i }]; v${ i } = [${ i }, 1]; v${ i }.at(0);`,
+      `function pad${ i }(a) { return [${ pad }].length + a; }`);
+  }
+  return parts.join('\n');
+}
+
+// every use in the reassignment synthetic asks the preceding-sibling guard scan too, but a
+// guard-DENSE list additionally pays the guard extraction per statement - a quadratic in
+// either the scan or the extraction overshoots this shape first
+function syntheticGuardDense(names) {
+  const parts = [];
+  for (let i = 0; i < names; i++) {
+    parts.push(`var g${ i } = [${ i }]; if (typeof g${ i } !== 'object') throw new Error('x'); g${ i } = [${ i }, 1]; g${ i }.at(0);`);
+  }
+  return parts.join('\n');
+}
+
+// discriminated-union receivers walk the discriminant sibling scan per member use - a
+// quadratic there needs union-annotated bindings, which no other synthetic carries
+function syntheticDiscriminantDense(names) {
+  const parts = ["type U = { kind: 'a', v: string } | { kind: 'b', v: string[] };"];
+  for (let i = 0; i < names; i++) {
+    parts.push(`declare const u${ i }: U;`, `if (u${ i }.kind !== 'a') throw new Error('x');`, `u${ i }.v.at(${ i });`);
+  }
+  return parts.join('\n');
+}
+
+// assignment-form ctor aliases make babel drop the binding from its scope registry, so every
+// member use walks the lagged-binding recovery - a quadratic there is invisible on the
+// reassignment synthetic above (its bindings never lag) yet catastrophic on this shape
+function syntheticLaggedAliases(names) {
+  const parts = [`let ${ Array.from({ length: names }, (unused, i) => `g${ i }`).join(', ') };`];
+  for (let i = 0; i < names; i++) {
+    parts.push(`({ Map: g${ i } } = globalThis);`, `g${ i } = [${ i }];`, `g${ i }.at(0);`);
+  }
+  return parts.join('\n');
+}
+
+// member resolution materializes the class-body member list per query unless it goes through the
+// container-path cache - a quadratic in (members x uses) that no other case carries: the shapes
+// above are flat scopes, and real bundles never put member density and use density on one class
+function syntheticMemberDenseClass(members) {
+  const methods = Array.from({ length: members }, (unused, k) => `  m${ k }() { return [${ k }]; }`).join('\n');
+  const parts = [`class C {\n${ methods }\n}`, 'const c = new C();'];
+  for (let i = 0; i < members; i++) parts.push(`c.m${ i }().at(0);`, `c.m${ i }().at(1);`);
+  return parts.join('\n');
+}
+
+// `var { Global: local } = globalThis` registers an alias entry that has to be keyed under every
+// same-name declarator of the var scope. resolving those per registration by walking the scope
+// subtree is quadratic in (pairs x scope size); no other case here destructures the global at
+// density, and real bundles never do, so the class stays invisible everywhere else
+function syntheticVarDestructuredGlobals(pairs) {
+  const pad = Array.from({ length: 100 }, (unused, k) => k).join(', ');
+  const parts = [];
+  for (let i = 0; i < pairs; i++) {
+    parts.push(`var { Map: M${ i } } = globalThis;`, `M${ i }.groupBy([${ i }], x => x);`,
+      `function pad${ i }(a) { return [${ pad }].length + a; }`);
+  }
+  return parts.join('\n');
+}
+
+// bare-name callees on a LONG top level: the coarse census pairs every call with the function it
+// names and asks, per call, whether that name is a minted pure import - a fact of the whole program.
+// re-deriving it per call by scanning the top-level statements is quadratic in (calls x top-level
+// statements) and invisible on every other shape here: the guard and reassignment synthetics keep
+// their call density low, the real bundles keep their top levels short
+function syntheticCallDenseTopLevel(sites) {
+  const parts = ['function make(n) { return [n]; }'];
+  for (let i = 0; i < sites; i++) parts.push(`var c${ i } = make(${ i });`, `c${ i }.at(0);`);
+  return parts.join('\n');
+}
+
+// an opt-out directive per statement on a long top level: the directive scan spans each `-next-line`
+// over the statement it covers, and a scan that re-reads the whole top level per directive is
+// quadratic in (directives x statements) - the esrap leg pays it again in the channel that re-anchors
+// every honoured directive on the pass's output. no other case here carries a directive at all
+function syntheticDirectiveDense(optOuts) {
+  const parts = [];
+  for (let i = 0; i < optOuts; i++) parts.push('// core-js-disable-next-line', `var g${ i } = [${ i }];`, `g${ i }.at(0);`);
+  return parts.join('\n');
+}
+
+// the mutation census pairs a call's arguments with the parameters they land in, keyed by NAME -
+// so every function sharing a parameter name shares one fan, and a write through that parameter
+// walks the whole accumulated fan. real code shares those names constantly (`t`, `e`, `v`), which
+// makes this the one shape where the pre-pass, not the resolver, is the quadratic risk; no other
+// case here writes through a parameter at all. the fan is closed once per NAME rather than once per
+// write, so what is left grows with the fan's own length - this case is the discriminator for that
+// memo, and it is the shape that says so first
+function syntheticSharedParamWrites(installers) {
+  const parts = [];
+  for (let i = 0; i < installers; i++) {
+    parts.push(`function install${ i }(t, v) { t.k${ i } = v; }`,
+      `install${ i }(box${ i }, ${ i });`, `Map.groupBy([${ i }], x => x);`);
+  }
+  return parts.join('\n');
+}
+
+function threeBuild(file) {
+  return readFile(join(HERE, `node_modules/three/build/${ file }`), 'utf8');
+}
+
+// a published package carries a long tail of re-export stubs and one-line constant modules; below
+// this size a module is pure call overhead with no work to measure, which would let a bloated tail
+// drown the signal the case is meant to carry
+const TRIVIAL_MODULE_BYTES = 200;
+
+// every `.js` under the given package directories, as separate module sources
+async function packageModules(...directories) {
+  const sources = [];
+  for (const directory of directories) {
+    const base = join(HERE, 'node_modules', directory);
+    for (const file of await readdir(base, { recursive: true })) {
+      if (!file.endsWith('.js')) continue;
+      const code = await readFile(join(base, file), 'utf8');
+      if (code.length > TRIVIAL_MODULE_BYTES) sources.push(code);
+    }
+  }
+  return sources;
+}
+
+// the view-independent CodeMirror stack: editor state plus the Lezer runtime and one grammar
+const CODEMIRROR_DIRECTORIES = ['@codemirror/state/dist', '@lezer/common/dist', '@lezer/lr/dist',
+  '@lezer/highlight/dist', '@lezer/javascript/dist'];
+
+// bounds are per (mode, emitter), set at ~3x the measured wall time of a healthy run on the
+// reference machine, rounded UP to a whole second (re-derive the same way after intentional
+// perf work) - but never below 2s: CI runners can be several times slower than the reference
+// machine, and a 1s bound leaves their healthy runs no variance headroom, while a quadratic
+// regression overshoots 2s on any machine just as surely. usage-pure REWRITES every detected
+// use, so its budgets run higher than the injection-only usage-global ones. `injections` is
+// the vacuous-run floor - how
+// many modules must inject. Single-source cases need their one; multi-module ones cannot demand
+// every module (a package always holds files with nothing to polyfill) but must not settle for
+// one either, or detection could die everywhere but a single module and still pass - faster, and
+// so further inside the bound. Floors sit well under the current counts: rxjs injects in 65/212
+// modules under usage-global and 47/212 under usage-pure, codemirror in 4/6 under both
+const CASES = [
+  { name: 'three.core.js', source: () => threeBuild('three.core.js'), bounds: {
+    'usage-global': { babel: 4, unplugin: 4 }, 'usage-pure': { babel: 5, unplugin: 4 },
+  } },
+  { name: 'three.module.js', source: () => threeBuild('three.module.js'), bounds: {
+    'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 3, unplugin: 2 },
+  } },
+  { name: 'synthetic single-scope, 2000 reassigned names', source: () => syntheticSingleScope(2000), bounds: {
+    'usage-global': { babel: 3, unplugin: 3 }, 'usage-pure': { babel: 4, unplugin: 3 },
+  } },
+  // under @babel/generator's 500kb styling-deopt threshold, so the NORMAL codegen path is
+  // gated too - the big twin above always runs the deoptimised one
+  { name: 'synthetic single-scope, 640 reassigned names', source: () => syntheticSingleScope(640), bounds: {
+    'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
+  } },
+  { name: 'synthetic shared-param writes, 1200 installers', source: () => syntheticSharedParamWrites(1200), bounds: {
+    'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
+  } },
+  { name: 'synthetic call-dense top level, 12000 sites', source: () => syntheticCallDenseTopLevel(12000), bounds: {
+    'usage-global': { babel: 3, unplugin: 3 }, 'usage-pure': { babel: 5, unplugin: 5 },
+  } },
+  { name: 'synthetic directive-dense, 8000 opt-outs', source: () => syntheticDirectiveDense(8000), bounds: {
+    'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 4, unplugin: 3 },
+  } },
+  { name: 'synthetic lagged aliases, 1000 names', source: () => syntheticLaggedAliases(1000), bounds: {
+    'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
+  } },
+  { name: 'synthetic guard-dense, 1500 names', source: () => syntheticGuardDense(1500), bounds: {
+    'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
+  } },
+  { name: 'synthetic discriminant-dense, 1600 names', source: () => syntheticDiscriminantDense(1600), ts: true, bounds: {
+    'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
+  } },
+  { name: 'synthetic member-dense class, 800 members', source: () => syntheticMemberDenseClass(800), bounds: {
+    'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
+  } },
+  // stays under the 500kb codegen-deopt threshold, so the normal babel print path is the one measured
+  { name: 'synthetic var-destructured globals, 800 pairs', source: () => syntheticVarDestructuredGlobals(800), bounds: {
+    'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 3, unplugin: 2 },
+  } },
+  // per-call axis, two granularities: rxjs spreads 233kb over ~210 tiny modules so call overhead
+  // dominates, the codemirror set puts 402kb in 6 mid-sized ones so per-file work and bytes both show
+  { name: 'rxjs esm, tiny modules', source: () => packageModules('rxjs/dist/esm'), injections: 20, bounds: {
+    'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
+  } },
+  { name: 'codemirror + lezer, mid-sized modules', source: () => packageModules(...CODEMIRROR_DIRECTORIES), injections: 3, bounds: {
+    'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
+  } },
+];
+
+// usage-pure rewrites sites to `@core-js/pure` imports; usage-global prepends `core-js/modules`
+const INJECTION_MARK = { 'usage-global': 'core-js/modules/', 'usage-pure': '@core-js/pure' };
+
+async function transformWith(emitter, mode, source, ts) {
+  const options = { method: mode, version: '4.0', targets: { ie: 11 } };
+  const filename = ts ? 'input.ts' : 'input.mjs';
+  if (emitter === 'babel') {
+    const out = await transformAsync(source, {
+      plugins: [[babelPlugin, options]],
+      filename,
+      sourceType: 'module',
+      parserOpts: ts ? { plugins: ['typescript'] } : undefined,
+      configFile: false,
+      babelrc: false,
+    });
+    return out.code;
+  }
+  return createUnplugin(options).transform(source, filename)?.code;
+}
+
+let failed = 0;
+for (const { name, source, ts = false, injections = 1, bounds } of CASES) {
+  const input = await source();
+  // single-source cases are just a one-module list; multi-module ones gate the per-call axis
+  const modules = Array.isArray(input) ? input : [input];
+  const kilobytes = Math.round(modules.reduce((total, module) => total + module.length, 0) / 1024);
+  for (const mode of MODES) {
+    for (const emitter of ['babel', 'unplugin']) {
+      const start = performance.now();
+      let injected = 0;
+      for (const module of modules) {
+        const code = await transformWith(emitter, mode, module, ts);
+        if (code && code.includes(INJECTION_MARK[mode])) injected++;
+      }
+      const seconds = (performance.now() - start) / 1000;
+      const detected = injected >= injections;
+      const bound = bounds[mode][emitter] ?? bounds[mode].unplugin;
+      const ok = detected && seconds < bound;
+      if (!ok) failed++;
+      const size = modules.length > 1 ? `${ kilobytes }kb, ${ modules.length } modules` : `${ kilobytes }kb`;
+      // the failing datum wears the red: over-bound time and a short injection count are the two
+      // ways a cell fails, and the verdict word alone does not say which of them fired
+      const time = `${ seconds.toFixed(2) }s`;
+      const detectionNote = detected ? '' : `, ${ red(`${ injected }/${ injections } INJECTED`) }`;
+      echo`${ ok ? green('PASS') : red('FAIL') } ${ cyan(name) } (${ cyan(size) }) | ${ cyan(mode) } ${ cyan(emitter) }: ${ seconds < bound ? cyan(time) : red(time) } (bound ${ cyan(`${ bound }s`) }${ detectionNote })`;
+    }
+  }
+}
+if (failed) throw new Error('Some transpiler performance gates have failed');

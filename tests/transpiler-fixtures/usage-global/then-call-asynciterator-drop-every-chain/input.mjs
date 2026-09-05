@@ -1,0 +1,1 @@
+AsyncIterator.from(x).drop(3).every(fn).then(g);

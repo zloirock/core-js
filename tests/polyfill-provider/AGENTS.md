@@ -1,0 +1,22 @@
+# polyfill-provider tests
+
+Unit tests for `@core-js/polyfill-provider`, the layer both plugins share. Everything here tests decisions, not printed output - what the emitters do with those decisions is covered by the fixtures.
+
+## Target environment
+
+Node `^22.18.0 || >=24.11.0`, on the root dependencies - the `package.json` here declares no dependencies of its own, both parsers come from the workspace. Run with `npm run test-polyfill-provider`; `index.mjs` imports every suite in this directory and each throws on failure, so a failure surfaces as a load-time error.
+
+## How the suites are built
+
+`harness.mjs` normalizes the two parsers - Babel with `@babel/traverse`, oxc with `estree-toolkit` - behind one adapter shape, so a scenario written once runs through both. That is the point of the suite: a decision that differs between parsers is a regression, whichever side is wrong.
+
+Beyond the per-area suites there are the `holder-*` ones, around the escape analysis. That analysis answers one question - can anything outside reach this object and write to it - through two independent walks, and the equivalence suite checks that both walks agree. The rest widen a single axis of that question into its whole domain: the syntactic positions a value can sit in, the callee slots it can be handed to, the channels a receiver body can leak through. They exist because those walks are hand-written case lists whose failure mode is silence - a case nobody enumerated falls through to the default and nothing complains - and the domain is taken from this project's own fixture corpus rather than from a parser's node table.
+
+## Rules
+
+- A new decision in the provider needs its suite here, not only a fixture: a fixture locks one printed result, while these lock the decision for every shape and both parsers
+- Add a scenario through the harness rather than against one parser, or it silently stops being cross-parser
+- Assert a resolved type through `type.primitive` and `type.constructor`. A field the type does not carry reads `undefined`, the comparison passes, and the case proves nothing
+- When adding to the escape analysis, extend the domain suite of the axis you touched too - otherwise the new case is tested only where someone remembered it
+- These suites are blind to one node class: their shapes are parsed by BABEL, which drops source parens, so nothing here reaches a `ParenthesizedExpression` - the node the estree adapter's parser keeps. A row spelling parens passes without testing them and a domain entry for the position is never observed. That class is covered from two other places instead: the emitters run against each other on the shape, and `tests/babel-plugin/parser-dialect-equivalence.mjs` feeds the babel emitter both paren dialects of one source and compares the programs - the half neither the fixtures nor these suites reach, because a provider decision the paren shape declines can still be reached by the other emitter through a route of its own
+- A scenario source is never typechecked, and about a third of the existing ones do not pass `tsc` - some of them deliberately, because the row asks what the plugin does with input `tsc` rejects, and staying up there is a real contract. Before drawing a conclusion about SEMANTICS from a row, run its source through `tsc` and say in a comment when the invalidity is the point: an unmarked invalid source cannot be told from an accidentally invalid one, and a conclusion read off the accidental one is false. Ground truth for a type-resolution decision is `tsc` itself - mutual assignability, `Eq<A, B>` - never the other emitter and never a fixture, since both emitters read THIS resolver and a shared bias prints identically on both

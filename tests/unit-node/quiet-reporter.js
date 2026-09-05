@@ -12,10 +12,8 @@ const NOISE = /^(?:ok \d+|TAP version)/;
 function reportArmedTimers() {
   // the bun leg shares this reporter and runs the qunit cli on whatever node is on PATH,
   // which is not necessarily one that has this
-  /* eslint-disable node/no-unsupported-features/node-builtins -- safe */
   if (typeof process.getActiveResourcesInfo != 'function') return;
   const armed = process.getActiveResourcesInfo().filter(type => type === 'Timeout').length;
-  /* eslint-enable node/no-unsupported-features/node-builtins -- safe */
   if (!armed) return;
   process.stdout.write(`# ${ armed } timer(s) still armed after the run - a fallback timeout ` +
     'is not disarmed on its winning path; find it with an async_hooks Timeout trace\n');

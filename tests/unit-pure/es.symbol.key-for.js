@@ -1,4 +1,4 @@
-import Symbol from 'core-js-pure/es/symbol';
+import Symbol from '@core-js/pure/es/symbol';
 
 QUnit.test('Symbol.keyFor', assert => {
   assert.isFunction(Symbol.keyFor, 'Symbol.keyFor is function');

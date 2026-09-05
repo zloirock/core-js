@@ -1,0 +1,1315 @@
+// detect polyfillable usage patterns (usage-global and usage-pure modes)
+import {
+  buildDestructureLeafMeta,
+  classifyDestructureLeafHost,
+} from '@core-js/polyfill-provider/detect-usage/destructure';
+import { walkTypeAnnotationGlobals } from '@core-js/polyfill-provider/detect-usage/annotations';
+import { beginMutationPrePass, createDetectionAdapter, mutationSiteVisitors } from '@core-js/polyfill-provider/detect-usage/mutations';
+import { resolveKey as sharedResolveKey, unwrapTransparentSeq } from '@core-js/polyfill-provider/detect-usage/resolve';
+import { createUsageHandlerCore } from '@core-js/polyfill-provider/detect-usage/visitors';
+import { createSyntaxPathHandlers } from '@core-js/polyfill-provider/detect-syntax';
+import { mergeVisitors } from '@core-js/polyfill-provider/helpers/source-scan';
+import {
+  aliasSpanDominatesUse,
+  ancestorChainDetached,
+  bareAssignmentPatternLeafPath,
+  bindingInvisibleFromUseRegion,
+  cleanDestructureAliasWrites,
+  climbJsxMemberChain,
+  findFunctionScopeVarInPath,
+  findTSRuntimeBindingInPath,
+  getDirectStatementBody,
+  getTypeArgs,
+  IMPORT_SPECIFIER_TYPES,
+  importBindingView,
+  isAmbientBindingShape,
+  isASTNode,
+  isDestructurePattern,
+  isIntrinsicJsxTagName,
+  isInUpdateOperand,
+  isMemberWriteOnlyContext,
+  isNonReferencePosition,
+  isTSTypeOnlyIdentifierPath,
+  memoizeBindingLookup,
+  namespaceScopedBindingBlock,
+  pathContainedBy,
+  peelTransparentExprAncestorPath,
+  POSSIBLE_GLOBAL_OBJECTS,
+  recomputedBindingWrites,
+  syntheticNodeAncestry,
+  synthHoistedBinding,
+  unwrapExportedDeclaration,
+  usableAliasInfo,
+  useAnchorStart,
+  walkPatternIdentifiers,
+} from '@core-js/polyfill-provider/helpers/ast-patterns';
+import {
+  assignmentAliasWriteTrusted,
+  hasCtorAliasCandidateShapes,
+  isPolyfillAliasBinding,
+  soleAliasWrite,
+  isSymbolDestructureAliasBinding,
+  registerAliasPrePassSite,
+} from '@core-js/polyfill-provider/helpers/class-walk';
+import { is as estreeIs, traverse } from 'estree-toolkit';
+
+// --- isReferenced ---
+
+const DECLARATION_ID_TYPES = new Set([
+  'FunctionDeclaration',
+  'FunctionExpression',
+  'ClassDeclaration',
+  'ClassExpression',
+  'VariableDeclarator',
+  // enum member name (`enum E { Promise }`) is a member key on the runtime enum object, not a
+  // reference to a same-named global - babel's isReferencedIdentifier already excludes it
+  'TSEnumMember',
+]);
+
+const LABEL_TYPES = new Set([
+  'LabeledStatement',
+  'BreakStatement',
+  'ContinueStatement',
+]);
+
+// check if an identifier is referenced (not a declaration, property key, or export alias).
+// `skipUpdateTargets` (usage-pure only) additionally rejects UpdateExpression operands, since
+// the polyfill rewrite would produce `_Map++` on a frozen import binding. usage-global must
+// pass `false` here or `Map++` wouldn't inject its polyfill and would ReferenceError in IE 11
+function isReferenced({ path, skipUpdateTargets }) {
+  const { node } = path;
+  if (!path.parentPath?.node) return true;
+  // a transparent expression wrapper (`Map!`, `(Map)`, `Map as any`, `<any>Map`, `Map satisfies T`,
+  // `Map<T>`, Flow `(Map: T)`) occupies the identifier's syntactic position, so its EFFECTIVE parent
+  // decides read-vs-write. peel the full TS_EXPR_WRAPPERS + paren set via the shared helper (matching
+  // babel-plugin's isAssignOrForXWriteTargetPath) - else a cast-wrapped write-LHS (`(Map as any) = x`),
+  // for-x head, or logical-assign misses the write-LHS reject below and usage-pure over-substitutes a
+  // frozen import (TypeError at the write). `path` is the single source for the effective parent context
+  const anchor = peelTransparentExprAncestorPath(path);
+  const { parentPath } = anchor;
+  const parent = parentPath?.node;
+  const parentKey = anchor.key;
+  if (!parent) return true;
+  // TS type-only positions: `type X = ...` ids, `export { type X }` specifiers
+  if (isTSTypeOnlyIdentifierPath({ node, parent, key: parentKey, parentPath })) return false;
+  // member NAME slots - object-literal and class keys (property, accessor and method shapes alike, in
+  // value space and in type space) plus a non-computed member tail. one shared predicate with the babel
+  // emitter, so a global-shaped key (`abstract Map: number`) is never rewritten to the polyfill import
+  if ((parentKey === 'key' || parentKey === 'property') && isNonReferencePosition(parent, node)) return false;
+  if (parent.type === 'ImportAttribute' && parentKey === 'key') return false;
+  // declaration id positions
+  if (DECLARATION_ID_TYPES.has(parent.type) && parentKey === 'id') return false;
+  if (LABEL_TYPES.has(parent.type) && parentKey === 'label') return false;
+  // `IMPORT_SPECIFIER_TYPES` skips all import positions regardless of `importKind`, so
+  // `import { type X, foo }` / `import type { X }` are already covered here
+  if (IMPORT_SPECIFIER_TYPES.has(parent.type)) return false;
+  // export-alias position: both `export { X } from "mod"` (ExportSpecifier) and
+  // `export * as X from "mod"` (oxc's ExportAllDeclaration with `exported` slot) put the
+  // local name in a re-export alias - not a runtime reference to the polyfilled global
+  if ((parent.type === 'ExportSpecifier' || parent.type === 'ExportAllDeclaration')
+    && parentKey === 'exported') return false;
+  // bare-Identifier LHS that reads the binding before writing it: assignment (`Map = X` /
+  // `Map ||= X` / `Map += X`) and for-in/of head (`for (Map of arr)`). module / strict-mode
+  // reads the global first, so global mode needs the polyfill (else IE 11 ReferenceError);
+  // pure-mode rewrite to a frozen `_Map` import would TypeError at the write, so reject. checked
+  // BEFORE the member write-only filter, which matches Identifier LHS / the for-x head too and
+  // would otherwise drop them. a destructuring pattern head reaches its inner Identifiers through
+  // the pattern, never here
+  if (node.type === 'Identifier' && parentKey === 'left'
+    && (parent.type === 'AssignmentExpression' || parent.type === 'ForInStatement' || parent.type === 'ForOfStatement')) {
+    return !skipUpdateTargets;
+  }
+  // a bare pattern leaf of an ASSIGNMENT destructure writes the global name like the flat
+  // LHS above: usage-global injects (the slot must exist for the strict-mode write), pure
+  // rejects the write target. checked BEFORE the write-only filters, which match the same
+  // shapes and would otherwise drop the global-mode injection
+  if (node.type === 'Identifier' && bareAssignmentPatternLeafPath(path)) return !skipUpdateTargets;
+  // member-write-only / destructure-LHS / AssignmentPattern.left for non-Identifier shapes.
+  // tested on the ANCHOR: a wrapped pattern leaf (`({ p: Map! } = o)`) fills the slot with
+  // the wrapper node, so the raw identifier would never match the slot identity
+  if (isMemberWriteOnlyContext(anchor.node, parent, parentPath?.parent)) return false;
+  if (parent.type === 'CatchClause' && parentKey === 'param') return false;
+  if (parent.type === 'ArrayPattern' || (parent.type === 'RestElement' && parentKey === 'argument')) return false;
+  // UpdateExpression operand, peeling transparent wrappers - gate see `skipUpdateTargets`
+  if (skipUpdateTargets && isInUpdateOperand(parentPath)) return false;
+  return true;
+}
+
+// --- ESTree scope adapter ---
+
+// estree-toolkit's scope tracker doesn't recognise TS-specific runtime declarations
+// (TSImportEqualsDeclaration, TSEnumDeclaration, TSModuleDeclaration). walk path's
+// ancestor chain (Program / BlockStatement / TSModuleBlock / StaticBlock) so both
+// `function f() { enum Map {} new Map() }` and `namespace Outer { namespace Map {} new Map() }`
+// correctly identify the shadow. anchor preference: explicit `path` (the identifier path,
+// reaches inner anchors) > `scope.path` (the scope owner, may anchor at Program only)
+function hasTSRuntimeBinding(scope, name, path = null) {
+  const anchor = path ?? scope?.path ?? null;
+  return anchor ? findTSRuntimeBindingInPath(anchor, name) : false;
+}
+
+// the declaration NODE behind a TSImportEquals name - the existence walk above answers only
+// a boolean, but the resolution canon must read the module reference off the declaration to
+// recognize a pure global-proxy require import (`import g = require('.../global-this')`)
+function findTSImportEqualsDeclaration(path, name) {
+  for (let cur = path; cur; cur = cur.parentPath) {
+    // the statement list of a scope anchor, through the one reader of that question - a loop's
+    // block is that block's own, and reading it off the loop let a head see the body's declaration
+    const body = getDirectStatementBody(cur.node);
+    if (!body) continue;
+    for (const stmt of body) {
+      // peel the `export import X = require()` wrapper (ExportNamedDeclaration) - the runtime
+      // declaration sits in `.declaration`. mirrors the shadow-binding walk (`getTSRuntimeBindings`);
+      // without it the exported form's mutation / interop receiver goes unrecognised
+      const decl = unwrapExportedDeclaration(stmt);
+      if (decl?.type === 'TSImportEqualsDeclaration' && decl.id?.name === name) return decl;
+    }
+  }
+  return null;
+}
+
+// estree-toolkit's scope tracker registers `declare class X` / `declare const X` / `interface X`
+// / `import type X` as bindings even though they're tsc-elided. consult the binding before
+// declaring a shadow so ambient/type-only declarations don't suppress polyfill emission.
+// shared `isAmbientBindingShape` covers all tsc-elided binding forms uniformly with babel
+function isAmbientBinding(binding) {
+  return isAmbientBindingShape(binding?.path?.node, binding?.path?.parent);
+}
+
+// estree-toolkit over-hoists a binding declared inside `namespace N {}` / `declare global {}` (a
+// TSModuleBlock) - var/let/const, class, function alike - to the enclosing function / program
+// scope, so `scope.getBinding` surfaces it for a use OUTSIDE the namespace body. true when `native`
+// is such a binding and `path` does NOT sit inside its block, so the namespace-local declaration
+// must not shadow the real global used outside. hasRuntimeBinding + getBinding + getBindingNodeType
+// share this so they stay consistent - matching babel, which scopes namespaces correctly
+function isOverHoistedNamespaceBinding(native, path) {
+  if (!native || !path) return false;
+  const block = namespaceScopedBindingBlock(native);
+  return !!block && !pathContainedBy(path, block);
+}
+
+// the switch a binding's case belongs to, or null: a fact of the binding, climbed once per binding object
+const caseBlockSwitchCache = new WeakMap();
+function caseBlockSwitchOf(native) {
+  if (caseBlockSwitchCache.has(native)) return caseBlockSwitchCache.get(native);
+  let p = native.path;
+  while (p?.node && p.node.type !== 'SwitchCase') {
+    if (FUNCTION_NODE_TYPES.has(p.node.type) || p.node.type === 'Program') break;
+    p = p.parentPath;
+  }
+  const switchNode = p?.node?.type === 'SwitchCase' ? p.parentPath?.node : null;
+  const result = switchNode?.type === 'SwitchStatement' ? switchNode : null;
+  caseBlockSwitchCache.set(native, result);
+  return result;
+}
+// estree-toolkit does not model the switch CaseBlock (the braces around the cases) as its own
+// lexical scope: a case-body `let` (`case 1: let globalThis = ...`) reports as in scope at the
+// DISCRIMINANT and even outside the switch - regions the CaseBlock never covers. a raw global in
+// the discriminant then loses its substitution (ReferenceError on targets without it). true when
+// `native` is declared directly under a SwitchCase and `path` does NOT sit inside that switch's
+// cases region. babel scopes the CaseBlock correctly, so this fires only on the estree side; a
+// binding inside a nested block of a case is scoped by that block and never resolves out here
+function isCaseBlockBindingOutsideCases(native, path) {
+  if (!native?.path || !path?.node) return false;
+  const switchNode = caseBlockSwitchOf(native);
+  if (!switchNode) return false;
+  const pos = path.node.start;
+  const casesStart = switchNode.cases?.[0]?.start ?? switchNode.end;
+  return typeof pos === 'number' && !(pos >= casesStart && pos <= switchNode.end);
+}
+
+// a native binding that does not actually cover the use site: an over-hoisted namespace-local
+// declaration, or a case-block lexical binding consulted from outside the cases region. callers
+// fall through to the TS-runtime / var-hoist fallbacks - a nested-block `var` may still bind
+function nativeBindingInvisibleAtUse(native, path) {
+  return isOverHoistedNamespaceBinding(native, path) || isCaseBlockBindingOutsideCases(native, path)
+    || bindingInvisibleFromUseRegion(native?.path, path);
+}
+
+// estree-toolkit FALSELY records a DECLARATION as a constant-violation babel never does: a
+// same-named `namespace N {}` / `declare global {}` twin (over-hoisted onto the real binding), and a
+// for-init `let`/`const` recording its own declarator. both surface as an Identifier that is the
+// `id` of a declaration node (any kind: VariableDeclarator / FunctionDeclaration / ClassDeclaration /
+// enum ...), never a write. drop exactly those PATH-PRESERVING (a real reassignment's parent is an
+// Assignment/Update/for-x head, and `findPrecedingBlockAssignment` still reads the real write paths),
+// so the resolver's reassignment gates stop bailing on a phantom. estree-only - babel's default hook
+// keeps the raw list (babel scopes namespaces correctly). a declaration's name-id is phantom iff it
+// is EITHER the binding's own declaration (for-init self) OR over-hoisted from a namespace block; a
+// same-scope `function`/`class` redeclaration is neither, so its real last-wins shadow is kept
+// (a same-scope `var` redecl records no violation; a `let`/`const` one is a SyntaxError)
+function isPhantomDeclarationViolation(violation, binding) {
+  const declPath = violation?.parentPath;
+  const decl = declPath?.node;
+  if (!decl || decl.id !== violation.node) return false;
+  return decl === binding?.path?.node || !!namespaceScopedBindingBlock({ path: declPath });
+}
+// one FILTERED stand-in per native binding: every identity consumer downstream (the
+// resolver's per-binding lookup cache, closure membership Sets, per-binding classification
+// Maps) keys by object identity, so a fresh copy per call would silently miss them all -
+// dropping recorded writes from the analyses those consumers feed. violations are stable
+// after the scope crawl, so the memoized copy never goes stale within a file
+const phantomFilteredBindings = new WeakMap();
+export function withoutPhantomDeclarationViolations(binding) {
+  const violations = binding.constantViolations;
+  if (!violations?.length) return binding;
+  const cached = phantomFilteredBindings.get(binding);
+  if (cached) return cached;
+  const real = violations.filter(v => !isPhantomDeclarationViolation(v, binding));
+  if (real.length === violations.length) return binding;
+  // spread copies the binding's OWN props (`path` / `scope` / `kind`) so a resolver consumer can
+  // re-spread (`{ ...binding, constantViolations: combined }`) without losing them. carry
+  // `constant` explicitly - it is a prototype getter on the estree Binding (not copied by spread)
+  // and `constantBindingPath` reads it
+  const filtered = { ...binding, constantViolations: real, constant: real.length === 0 };
+  phantomFilteredBindings.set(binding, filtered);
+  return filtered;
+}
+
+// shared tail of every "no authoritative native binding" branch below: a TS-runtime
+// declaration (enum / namespace / import-equals) or a nested-block hoisted `var` may still
+// bind the name even when the scope tracker reports nothing usable
+function tsOrVarHoistFallback(scope, name, path) {
+  if (hasTSRuntimeBinding(scope, name, path)) return true;
+  // estree-toolkit doesn't hoist `var` declarations from nested non-function blocks to
+  // the enclosing function scope (babel's tracker does). without this fallback,
+  // `function () { if (cond) { var globalThis = ...; } return globalThis; }` reports
+  // no binding at the inner reference, so the Identifier visitor substitutes a USER
+  // binding (`globalThis -> _globalThis`). walking `path` ancestors for var-scope owners
+  // closes the gap
+  return path ? findFunctionScopeVarInPath(path, name) : false;
+}
+
+function hasRuntimeBinding(scope, name, path = null) {
+  // pass `path` through to `scope.hasBinding` / `scope.getBinding`: native estree-toolkit
+  // scopes ignore the extra arg (their signature is name-only), but `makeFrameScope` uses
+  // it for position-aware block-scope shadow checks - the inner `let`/`const`/`catch.param`
+  // binding only matches when the lookup site sits inside its containing block
+  if (!(scope?.hasBinding?.(name, path) ?? false)) return tsOrVarHoistFallback(scope, name, path);
+  // hasBinding=true; for real scopes where getBinding is also available, filter out ambient
+  // TS-only declarations. stub scopes (`detectEntries` shadowScope) don't expose getBinding -
+  // their hasBinding=true is authoritative
+  const native = scope?.getBinding?.(name, path);
+  if (!native) return true;
+  // a use-invisible binding (over-hoisted namespace / case-block let outside the cases) doesn't
+  // shadow, but an OUTER same-name declaration above it still does - continue the walk through
+  // the shared visible-binding canon (`const globalThis = fake; switch (globalThis.X) { case 1:
+  // let globalThis; }` stays shadowed by the outer const, matching babel's native scoping)
+  const visible = nativeBindingInvisibleAtUse(native, path)
+    ? closestVisibleNativeBinding(scope, name, path) : native;
+  // an ambient shape alone is NOT authoritative: a declaration-merged runtime namespace
+  // (`declare const Map: any; namespace Map {}`) still emits a real `var` after the TS
+  // transform, so the use MUST stay on the user binding. no visible binding falls through to
+  // the TS-runtime scan and the function-scope var walk, matching the babel adapter's ordering
+  if (!visible || isAmbientBinding(visible)) return tsOrVarHoistFallback(scope, name, path);
+  return true;
+}
+
+// the ONE scoped pre-pass walk (estree side): every registration that has to stand before the
+// usage pass meets a use rides it, and each lane brings its own cheap census gate - a file that
+// trips neither pays no walk at all. the mutation lane classifies its sites in place; the alias
+// lane only COLLECTS, because registration reads an injector this walk runs ahead of and has to
+// stay behind the mutated-static enrichment that feeds it. shares every resolution step with the
+// read side via `mutations` (provider)
+export function collectPrePassSites({
+  ast,
+  adapter,
+  census = null,
+  resolveStaticKey = null,
+  collectMutations = false,
+  isDisabled = null,
+}) {
+  const { mutated, handleSite, finalize } = collectMutations
+    ? beginMutationPrePass({ resolveStaticKey, rootNode: ast, adapter, census })
+    : { mutated: null, handleSite: null, finalize: null };
+  const wantsAliases = !!isDisabled
+    && (census ? census.hasCtorAliasShapes : hasCtorAliasCandidateShapes(ast));
+  const aliasSites = [];
+  if (!handleSite && !wantsAliases) return { mutated, aliasSites };
+  const siteVisitors = wantsAliases
+    ? mergeVisitors(handleSite ? mutationSiteVisitors(handleSite) : {}, aliasSiteVisitors(aliasSites, isDisabled))
+    : mutationSiteVisitors(handleSite);
+  // estree-toolkit omits `decorators` from the visitor keys of the DEFINED class / member node
+  // types, so a site hidden inside a `@decorator(...)` expression escapes the traverse (babel's
+  // Program traverse reaches it natively and the emitters would diverge): the monkey-patch stays
+  // wrongly substitutable and the alias write goes unregistered. run the same site visitors over
+  // decorator subtrees; the guard inside walkDecorators skips any owner estree-toolkit already
+  // auto-walks, so no node is double-visited
+  function visitDecoratorSites(path) { walkDecorators(path, siteVisitors); }
+  traverse(ast, {
+    $: { scope: true },
+    ...siteVisitors,
+    ClassDeclaration: visitDecoratorSites,
+    ClassExpression: visitDecoratorSites,
+    MethodDefinition: visitDecoratorSites,
+    PropertyDefinition: visitDecoratorSites,
+    AccessorProperty: visitDecoratorSites,
+    TSAbstractPropertyDefinition: visitDecoratorSites,
+    TSAbstractAccessorProperty: visitDecoratorSites,
+  });
+  finalize?.();
+  return { mutated, aliasSites };
+}
+
+// the ctor-alias lane's collectors: the destructure-of-global sites in document order, each
+// carrying what registration cannot read later - the host's declaration kind and the site's own
+// scope, both facts of where the walk stands
+function aliasSiteVisitors(sites, isDisabled) {
+  return {
+    AssignmentExpression(path) {
+      const { node } = path;
+      if (node.operator !== '=' || isDisabled(node)
+        || !isDestructurePattern(node.left)) return;
+      sites.push({
+        pattern: node.left,
+        init: node.right,
+        assignNode: node,
+        scope: path.scope,
+        path,
+      });
+    },
+    VariableDeclarator(path) {
+      const { node } = path;
+      if (!node.init || isDisabled(node)
+        || !isDestructurePattern(node.id)) return;
+      sites.push({
+        pattern: node.id,
+        init: node.init,
+        declKind: path.parent.kind,
+        scope: path.scope,
+        path,
+      });
+    },
+  };
+}
+
+// early ctor-alias registration (estree side) - see the babel twin in the plugin's initFile:
+// pre-register every destructure-of-global site through the shared trust gates so a member use
+// textually BEFORE its alias write still reads a complete table when visited
+export function registerAliasPrePassSites(sites, { adapter, injector }) {
+  for (const site of sites) registerAliasPrePassSite({ ...site, adapter, injector });
+}
+
+// estree merges an over-hoisted namespace declaration with a REAL same-name declaration in the
+// hoist-target scope into ONE binding. declared namespace-FIRST, the binding anchors on the
+// namespace declarator and the real declaration survives only as a declaration-violation (the
+// namespace-SECOND order is the mirrored shape the phantom filter already strips). re-anchor the
+// binding onto that real declaration so a use outside the block keeps its narrow instead of
+// degrading to generic. exactly one visible candidate re-anchors - ambiguity stays on the walk.
+// memoized per (binding, anchor): identity consumers downstream (per-binding resolver caches,
+// closure membership Sets) key by object identity, so a fresh copy per call would miss them all
+const reanchoredBindings = new WeakMap();
+function visibleSameScopeDeclarationTwin(native, path) {
+  if (!namespaceScopedBindingBlock(native)) return null;
+  const candidates = (native.constantViolations ?? []).filter(v => {
+    const decl = v?.parentPath?.node;
+    return decl && decl.id === v.node && decl !== native.path?.node
+      && !nativeBindingInvisibleAtUse({ path: v.parentPath, scope: native.scope }, path);
+  });
+  if (candidates.length !== 1) return null;
+  const [anchor] = candidates;
+  const cached = reanchoredBindings.get(native)?.get(anchor);
+  if (cached) return cached;
+  const violations = native.constantViolations.filter(v => v !== anchor);
+  const reanchored = {
+    ...native,
+    path: anchor.parentPath,
+    kind: anchor.parentPath.parent?.kind ?? native.kind,
+    constantViolations: violations,
+    // `constant` is a prototype getter on the estree Binding (not copied by spread) - carry it
+    constant: violations.length === 0,
+  };
+  if (!reanchoredBindings.has(native)) reanchoredBindings.set(native, new Map());
+  reanchoredBindings.get(native).set(anchor, reanchored);
+  return reanchored;
+}
+
+// the nearest native binding that actually COVERS the use site. a binding invisible at the
+// use (case-block let consulted from outside the cases, over-hoisted namespace local) does not
+// end the lookup - per ECMA that region belongs to the OUTER declaration, so the walk first
+// re-anchors onto a same-scope declaration twin, then continues in the invisible binding's
+// enclosing scope: `const g = globalThis; switch (g.self.X) { case 1: let g; }` resolves the
+// discriminant `g` to the outer const (babel scopes these regions natively, so dead-ending here
+// desyncs the emitters - the alias-follow reports unbound and the proxy-hop collapse never fires)
+export function closestVisibleNativeBinding(scope, name, path) {
+  let native = scope?.getBinding?.(name, path) ?? null;
+  while (native && nativeBindingInvisibleAtUse(native, path)) {
+    native = visibleSameScopeDeclarationTwin(native, path)
+      ?? native.scope?.parent?.getBinding?.(name, path) ?? null;
+  }
+  return native;
+}
+
+// the synth var-hoist twin recovers a function-scoped `var` estree failed to hoist, so it only
+// exists for a lookup taken from INSIDE its owner function. `synthHoistedBinding` walks the use
+// `path`, which can descend into a nested function whose `var name` is invisible from the lookup
+// `scope` a resolver explicitly threaded (an alias's own declaration scope, resolved with a
+// deeper use-site path). true when the owner sits STRICTLY BELOW the lookup scope in the scope
+// tree - the only relation that proves its var invisible there. every other relation (scope IS
+// the owner, scope nested inside it, or an opaque wrapper off the scope chain) keeps the
+// established synth-preference, so frame / non-estree scopes stay on their existing path
+function synthOwnerStrictlyInsideScope(scope, synth) {
+  for (let cur = synth.ownerScope?.parent; cur; cur = cur.parent) if (cur === scope) return true;
+  return false;
+}
+
+// closest-binding resolution shared by getBinding / getBindingNodeType (hasRuntimeBinding
+// shares the same primitives and branch order): forward `path` so a makeFrameScope lookup
+// stays position-aware; walk past a native binding invisible at the use (over-hoisted namespace /
+// case-block let outside the cases); prefer the synthesized var-hoist binding when the visible
+// native declaration lies OUTSIDE the var's hoist owner - the nested-block `var` is the NEARER
+// binding there (estree-toolkit neither hoists it nor lets it shadow the outer name), while a
+// declaration INSIDE the owner (a param, a nearer lexical shadow) keeps the native view. a
+// native resolution of the SAME declarator keeps the native view too (richer info channel)
+function resolveClosestBinding(scope, name, path) {
+  return memoizeBindingLookup(scope, name, path, () => resolveClosestBindingUncached(scope, name, path));
+}
+
+// ... the resolution itself, run once per (scope, name, use node) through the memo above
+function resolveClosestBindingUncached(scope, name, path) {
+  const native = closestVisibleNativeBinding(scope, name, path);
+  const synth = path ? synthHoistedBinding(path, name) : null;
+  if (!synth || synthOwnerStrictlyInsideScope(scope, synth)) return { native, synth: null };
+  if (native && (native.path?.node === synth.node || pathContainedBy(native.path, synth.ownerNode))) {
+    return { native, synth: null };
+  }
+  return { native: null, synth };
+}
+
+// the estree half of the adapter mirror: `createBabelAdapter` (babel-plugin's internals/detect-usage.js)
+// exposes the same surface, and a contract change to either must land in both. one member is
+// asymmetric by construction and stays so: `getTSImportEqualsNode` exists only on the estree
+// side, because estree-toolkit registers no binding for `import x = require(...)` while babel
+// does - the two answer the SAME question, one through a dedicated lookup, one through its
+// native binding (the provider's consumer branches on the member's presence) per-transform state
+// lives in the instance closure - concurrent transforms each build their own
+// factory: per-plugin-instance adapter closed over callbacks (an options bag mirroring the
+// babel twin) - keeps unplugin's adapter contract symmetric without leaning on module-level
+// state. `getInjector()` returns the active per-transform injector or null between
+// transforms; both consumers
+// (adapter.getBinding's polyfillHint AND typeResolvers' getPolyfillBindingEntry) read
+// through the same callback so user-imported polyfill UIDs (`import _Promise from
+// '@core-js/pure/.../promise/constructor'; _Promise.resolve(1)`) get recognised as
+// proxy-globals. re-entrancy is the caller's contract: plugin.js save/restore is the
+// runTransform try/finally - early-returns before the save leave the outer injector intact.
+export function createEstreeAdapter(options = {}) {
+  const { getInjector = () => null } = options;
+  return createDetectionAdapter(options, adapter => ({
+    hasBinding(scope, name, path = null) {
+      // a MINTED pure-import name answers like the printed tree will (see getBinding below):
+      // without this, `resolveObjectName`'s unbound-identifier branch reads the UID as a
+      // would-be global (`_Promise` - not capitalised - resolves to nothing). the registry
+      // view applies the span discipline; a USER-named record out of its span must not
+      // serve (out there the name is a different binding or the real global)
+      if (hasRuntimeBinding(scope, name, path)) return true;
+      const minted = getInjector()?.getBindingInfo?.(name, useAnchorStart(path));
+      // ... and so does a plugin-MINTED blind alias holding a CONSTRUCTOR (a guard memo ref): its
+      // `var _ref` is real but the scope registry lags the mid-traversal insertion, and reading it as
+      // unbound sent `resolveObjectName` down the would-be-global branch, where `_ref` names nothing -
+      // the static claim rebuilt onto the ref then died into a raw read off the ponyfill.
+      // a memo holding the SURFACE keeps the unbound reading: this leg's own surface routes resolve it
+      // (`proxySurfaceNameOf`), and answering here folds an SE-keyed hop the reference emitter keeps
+      return !!(minted?.hint
+        && ((minted.minted && !POSSIBLE_GLOBAL_OBJECTS.has(minted.hint)) || (minted.source && !minted.userNamed)));
+    },
+    getBinding(scope, name, path = null) {
+      const { native: b, synth } = resolveClosestBinding(scope, name, path);
+      // var-hoist branch (mirrors hasRuntimeBinding): estree-toolkit doesn't hoist a `var` from a
+      // nested non-function block to its function scope, so `function f(){ if (c) { var g =
+      // globalThis } g.Map.groupBy(...) }` either finds no native binding or resolves to an OUTER
+      // same-name binding the nested var actually shadows (babel hoists the var natively, so the
+      // two pipelines diverge here). surface a synthetic binding off the declarator + its
+      // reassignment sites so alias resolution reads its `.init` and the resolver's reassignment
+      // guard fires for a REASSIGNED nested-block var
+      if (synth || !b) {
+        if (!synth) {
+          // a MINTED pure-import name: the emitter swaps members to import bindings DURING
+          // traversal while the ImportDeclarations only flush at the end, so a follow through
+          // such a name (`const k = _Symbol$iterator; k in X`) finds no tree binding yet.
+          // serve the injector's registry view (span-disciplined; a USER-named record out of
+          // its span stays invisible - the name there is a different binding)
+          const minted = getInjector()?.getBindingInfo?.(name, useAnchorStart(path));
+          // a MINTED blind alias (a guard memo, `_ref = _globalThis.window`
+          // registered as holding 'window') serves its hint the same way - the rebuilt
+          // spine's claims resolve through the ref exactly like the source root
+          if (minted?.hint && ((minted.source && !minted.userNamed) || minted.minted)) {
+            return {
+              node: null, kind: 'module', constantViolations: [], references: 1, scope,
+              // the stored hint is the UID spelling (`Symbol$iterator`); the polyfillHint
+              // contract is the source spelling (`Symbol.iterator`, `Promise`)
+              importSource: null, importKind: 'value', polyfillHint: minted.hint.replaceAll('$', '.'),
+            };
+          }
+          return null;
+        }
+        // the synthetic binding skips the hint machinery below (no `.path`); still surface the
+        // registry's guard hint for it - IDENTITY view only, like the native-binding path (a
+        // hoisted-var alias registers per-declarator in the pre-pass, so identity reaches it)
+        const synthIdentity = getInjector()?.getBindingAliasInfo?.(synth.node, name) ?? null;
+        // and the Symbol destructure fold source: an UNCONDITIONAL nested-block `var`
+        // (a labeled block, a finally, a for-init) folds on babel through its native
+        // hoist, so the shape-judged alias must surface here too or the emitters desync
+        const synthInfo = synthIdentity ?? getInjector()?.getBindingInfo(name, useAnchorStart(path)) ?? null;
+        const aliasSymbolSource = isSymbolDestructureAliasBinding({
+          info: synthInfo, binding: synth, scope, adapter, injector: getInjector(), boundName: name,
+          keyCtx: { resolveKey: sharedResolveKey, path },
+        }) ? synthInfo.source : null;
+        // babel hoists the nested-block `var` natively and reports the declarator's own scope for
+        // it; opt the synthesized twin into the same key or the const-alias walkers would resolve
+        // this binding's init at the USE site instead. lazily: only a walker that follows the init
+        // reads it, and the lookup that never does must not pay for the search
+        return {
+          ...synth,
+          name,
+          get scope() { return synth.resolveDeclarationScope(); },
+          aliasSymbolSource,
+          guardedAliasHint: synthIdentity?.hint ?? null,
+        };
+      }
+      // `importSource` is part of the adapter contract: `resolveKey` in polyfill-provider
+      // needs it to recognise `import X from '.../symbol/<name>'` as Symbol.X. exposing the
+      // raw module source at this interface is deliberate - not a leak, just the minimum
+      // parser-agnostic info the provider requires to infer well-known symbol imports.
+      // `polyfillHint` enables proxy-global recognition for user-imported polyfill UIDs
+      // (`_Promise` -> 'Promise') so `_Promise.resolve(1)` rewrites to `_Promise$resolve(1)`
+      // matching babel-plugin's behavior - constructor module typically doesn't expose
+      // statics, so the rewrite avoids a runtime undefined-call crash.
+      // shadow guard (shared with babel-plugin via the provider): `info.source !== null` means a
+      // registered pure import - only attach `polyfillHint` when the actual scope binding IS an import
+      // too. `info.source === null` is a destructure-alias from `registerGlobalAlias`; the shared
+      // predicate identifies the real alias binding (init resolves to the destructured global, any
+      // declaration kind) and rejects user-declared shadows of the same name
+      // binding-first: the per-binding registry is exact - see the babel twin
+      const identityInfo = getInjector()?.getBindingAliasInfo?.(b.path.node, name) ?? null;
+      const info = identityInfo ?? getInjector()?.getBindingInfo?.(name, useAnchorStart(path)) ?? null;
+      const { isImportBinding, isRequireBinding, importSource, importKind } =
+        importBindingView(b.path.node, b.path.parent, { adapter, scope, path });
+      // estree-toolkit's `constantViolations` for a function-scoped `var` are unreliable: it MISSES
+      // a nested-block re-declaration (`var x = []; { var x = 'hello' }`) and FALSELY attributes a
+      // same-named namespace/declare-global var twin as a violation. recompute from the AST via the
+      // same walk the synthetic var-hoist binding uses (which respects the TSModuleBlock boundary
+      // and records every write shape) so a real reassignment narrows / bails and a phantom
+      // namespace twin doesn't - both matching babel. path-less callers keep estree's list
+      // estree-toolkit also omits a cross-boundary `let` reassignment (a use in a nested closure does
+      // not observe the outer-scope write `let K='a'; K='b'; const f=()=>X[K]()`), so a polyfillable
+      // reaching value is dropped while babel's native binding carries it. recompute by the same AST
+      // scan, anchored at the binding's own lexical scope (climb the declarator to its block /
+      // program). `const` shares the lexical-scope recompute with `let`: a const cannot be reassigned,
+      // so the only violations estree records for it are PHANTOM (an over-hoisted `namespace N {}`
+      // twin's declarator, or a for-init `const` self) - the boundary-respecting scan excludes them,
+      // matching babel; without this a const shadowed by a namespace twin keeps the phantom and a
+      // resolvable use (e.g. a computed key `obj[K]`) wrongly bails
+      // the shared recompute's branches are phantom-free by construction, and its raw-list
+      // fallbacks (`!path`, a kind it does not cover) get the valueless-redeclaration
+      // self-record (`var { Map: M } = g; var M;`) stripped inside it, so both adapters hand
+      // the resolver the same violation list for identical source
+      const constantViolations = recomputedBindingWrites({
+        kind: b.kind,
+        bindingPath: b.path,
+        usePath: path,
+        name,
+        fallback: b.constantViolations,
+      });
+      // the shared alias guard reads the RECOMPUTED violations (an assignment-form alias matches them
+      // against its registered write span; the raw estree list carries phantoms) - so it runs after them
+      // a VERIFIED identity hit needs no live shape verification - see the babel twin
+      const isAliasBindingShape = !!identityInfo?.aliasVerified || isPolyfillAliasBinding({
+        info, binding: { path: b.path, constantViolations }, scope, adapter, injector: getInjector(), boundName: name, path,
+      });
+      // guarded registration = flow-trust refused: the member read stays native. the dominance
+      // gate keeps a use textually BEFORE its trusted write / declaration native too.
+      // a plugin-MINTED memo (a guard ref) reaches here once its `var _ref` IS in the scope
+      // registry - the synthetic branch above serves it only while that lags. the minted arm is
+      // the babel twin's: the ref is allocator-owned (user code cannot rebind it) and its hint was
+      // set from a resolved surface, so a claim rebuilt onto it resolves through the ref
+      // an in-file `require` binding shadows the CJS import - the require-style arm only
+      // fires for the real module function (the node-local view cannot see the shadow)
+      // the shadow discipline already rode in through `importBindingView`'s shadowCtx
+      const requireBindingLive = isRequireBinding;
+      const polyfillHint = usableAliasInfo(info)
+        && (isAliasBindingShape || isImportBinding || requireBindingLive || info.minted)
+        && aliasSpanDominatesUse({ info, useStart: useAnchorStart(path) }) ? info.hint : null;
+      // a destructured Symbol.X alias (`const { iterator } = Symbol`) is a PATTERN binding with no
+      // `importSource` and a UID hint; surface the registered module source so `bindingSymbolKey`
+      // folds `obj[iterator]` uniformly with babel. the shadow gate rejects a nested same-name binding
+      // whose RHS is not Symbol (the name-keyed injector info is flat)
+      const aliasSymbolSource = isSymbolDestructureAliasBinding({
+        info, binding: b, scope, adapter, injector: getInjector(), boundName: name, keyCtx: { resolveKey: sharedResolveKey, path },
+      }) ? info.source : null;
+      return {
+        node: b.path.node,
+        kind: b.kind,
+        name,
+        constantViolations,
+        importSource,
+        importKind,
+        // READ count of the binding - estree-toolkit keeps reference paths (writes excluded)
+        references: b.references?.length ?? 0,
+        // the scope the DECLARATOR is written in - see the babel twin. here it IS `b.scope`: unlike
+        // babel, estree-toolkit never hoists a `var` out of its block, so a binding it DOES report
+        // already sits in the scope the declarator was written in (a use that outruns the block
+        // finds nothing here and takes the synthesized hoisted twin above instead)
+        scope: b.scope,
+        // the declarator's own PATH - see the babel twin
+        declarationPath: b.path,
+        polyfillHint,
+        aliasSymbolSource,
+        aliasWrite: polyfillHint ? info?.aliasWrite ?? null : null,
+        // the hint of a registration whose static narrow did NOT apply at this use - a REFUSED
+        // (guarded) registration or a use textually before its trusted write (dominance).
+        // IDENTITY view only: a resolved binding with no per-binding entry is provably a
+        // USER binding (a shadow), which must not pick up the alias's guard. drives the
+        // RUNTIME ctor guard on member reads of known separate statics - the guard compares
+        // the live value against the swapped ctor, so it self-corrects on any actual flow
+        guardedAliasHint: identityInfo && !polyfillHint ? identityInfo.hint : null,
+        // every ctor the slot was written with - the babel twin carries the same list
+        guardedAliasHints: identityInfo && !polyfillHint ? identityInfo.hints ?? null : null,
+      };
+    },
+    // lazy lookup for the resolver's assignment-form alias branch (mirror of the babel adapter):
+    // raw estree violations are PATHS onto the written Identifier - climb to the enclosing
+    // AssignmentExpression, then run the shared trust predicate
+    findTrustedAliasWrite(scope, name, { requirePlacement = true, readNode = null } = {}) {
+      const raw = scope?.getBinding?.(name);
+      if (!raw || raw.path?.node?.type !== 'VariableDeclarator' || raw.path.node.init) return null;
+      // mirror the babel twin: count the writes the alias canon counts BEFORE the first-violation
+      // pick - a trailing `var X;` lands in the raw list, the assignment climb dead-ends on its
+      // declarator, and the trust predicate's every-violation span check fails, dropping the
+      // trusted write babel resolves (a usage-global under-inject); an identity self-assign is
+      // no second value source either
+      const violations = cleanDestructureAliasWrites(raw);
+      const b = violations === raw.constantViolations ? raw : { ...raw, constantViolations: violations };
+      let assignPath = violations?.[0];
+      while (assignPath && assignPath.node?.type !== 'AssignmentExpression') assignPath = assignPath.parentPath;
+      const assignNode = assignPath?.node;
+      if (!assignNode) return null;
+      // a render that replaced a subtree while CARRYING this write leaves the cached violation
+      // path climbing edges that left the tree - re-anchor the placement judgment on the write's
+      // LIVE ancestry (the babel adapter re-anchors through its own fresh-path lookup)
+      if (ancestorChainDetached(assignPath)) {
+        let top = scope;
+        while (top?.parent) top = top.parent;
+        const fresh = top?.path?.node ? syntheticNodeAncestry(top.path.node, assignNode) : null;
+        assignPath = fresh ?? assignPath;
+      }
+      // the ASSIGNMENT path itself: the placement walk judges every edge up to the statement,
+      // so a conditional expression container between them refuses flow-trust. a STRUCTURAL
+      // consumer skips placement - its branch-after-test proof carries execution evidence
+      return (requirePlacement
+        ? assignmentAliasWriteTrusted({ binding: b, assignNode, stmtPath: assignPath, readNode })
+        : soleAliasWrite({ binding: b, assignNode }))
+        ? assignNode : null;
+    },
+    getBindingNodeType(scope, name, path = null) {
+      // stay consistent with getBinding through the SAME closest-binding resolution: a
+      // use-invisible native binding must not report its declarator type (else the resolver
+      // type-gates into resolveVariableBindingToGlobal with the null binding getBinding
+      // returned), and a nested-block `var` shadowing an outer binding reports as a declarator
+      const { native, synth } = resolveClosestBinding(scope, name, path);
+      return synth ? synth.node.type : native?.path?.node?.type ?? null;
+    },
+    // estree-toolkit registers no binding for TSImportEquals at all (see hasTSRuntimeBinding) -
+    // surface the declaration node through a dedicated lookup so the resolution canon can read
+    // its module reference. single-consumer, existing binding paths stay untouched; babel's
+    // adapter resolves the same shape through its native binding and doesn't implement this
+    getTSImportEqualsNode(scope, name, path = null) {
+      const anchor = path ?? scope?.path ?? null;
+      return anchor ? findTSImportEqualsDeclaration(anchor, name) : null;
+    },
+    // shared `unwrapTransparentSeq` peels paren / TS expression wrappers / safe SequenceExpression
+    // so `require('core-js/...' as any)` / `require((0, 'core-js/...'))` / `require(('core-js/...'))`
+    // all reach the underlying string literal. SE prefix that carries observable side-effects
+    // stops further peeling - entry-detection doesn't rewrite the call, so unsafe SE stays
+    isStringLiteral(node) {
+      return isLiteralString(unwrapTransparentSeq(node));
+    },
+    getStringValue(node) {
+      const inner = unwrapTransparentSeq(node);
+      return isLiteralString(inner) ? inner.value : null;
+    },
+  }));
+}
+
+function isLiteralString(node) {
+  return node?.type === 'Literal' && typeof node.value === 'string';
+}
+
+// --- Decorator sub-traversal ---
+
+// estree-toolkit's visitor keys skip `decorators` - walk them manually with
+// synthetic Babel-shaped paths so resolve-node-type can read typeAnnotations
+
+const FUNCTION_NODE_TYPES = new Set(['FunctionExpression', 'FunctionDeclaration', 'ArrowFunctionExpression']);
+
+// `isASTNode` drops parent back-pointers, location objects, and primitives without listing
+// them by name; tolerates parsers adding new metadata fields (e.g. `typeArguments`).
+// `visit(child, key, listKey, container)` matches babel NodePath shape: for array children
+// `key` = index, `listKey` = property name; for non-array `key` = property name, `listKey` = null
+function forEachChildNode(node, visit) {
+  // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
+  for (const key in node) {
+    const value = node[key];
+    if (Array.isArray(value)) {
+      for (let i = 0; i < value.length; i++) if (isASTNode(value[i])) visit(value[i], i, key, value);
+    } else if (isASTNode(value)) visit(value, key, null, node);
+  }
+}
+
+// babel NodePath parity: for array-indexed children `key` = numeric index, `listKey` =
+// property name, `container` = the array; for non-array children `key` = property name,
+// `listKey` = null, `container` = parent node. consumers like `getStatementSiblings` rely
+// on numeric key + listKey to recognise statement-in-block position
+function makeSynthPath({ node, parent, parentKey, parentPath, scope, listKey = null, container = null }) {
+  // cache `.get(key)` results per synth-path so repeated `path.get('object')` calls within
+  // one traversal return the same wrapper. downstream consumers that identity-check
+  // descendants (scope lookups, handled-object Sets) see stable paths. array branches cached
+  // as-a-whole; same key always returns the same array of child paths
+  const childCache = new Map();
+  const self = {
+    node,
+    parent,
+    parentPath,
+    key: parentKey,
+    listKey,
+    container: container ?? parent,
+    scope,
+    // the AST engine mutates through paths; a synthetic path swaps its container slot
+    // (array child: container = the array, key = index; else container = parent node)
+    replaceWith(next) {
+      self.container[self.key] = next;
+      self.node = next;
+    },
+    get(key) {
+      if (childCache.has(key)) return childCache.get(key);
+      const value = node?.[key];
+      const result = Array.isArray(value)
+        ? value.map((el, i) => makeSynthPath({
+          node: el,
+          parent: node,
+          parentKey: i,
+          parentPath: self,
+          scope,
+          listKey: key,
+          container: value,
+        }))
+        : makeSynthPath({
+          node: value ?? null, parent: node, parentKey: key, parentPath: self, scope, container: node,
+        });
+      childCache.set(key, result);
+      return result;
+    },
+  };
+  return self;
+}
+
+// frame scope for an inline function inside a decorator - locals shadow parentScope.
+// position-aware: `localDecls` carries Map<name, Array<{constant, node, blockStart,
+// blockEnd}>> so block-scoped bindings (`let`/`const`/`catch.param`/block-level
+// FunctionDeclaration / ClassDeclaration) only shadow the parent when the lookup site
+// sits inside their containing block. fn-scoped bindings (`var`, params, fn.id, hoisted
+// FunctionDeclaration at fn body top level) use the whole fn body range and shadow uniformly
+function findLocalAt(localDecls, name, path) {
+  const entries = localDecls.get(name);
+  if (!entries) return null;
+  const pos = path?.node?.start;
+  // no position context (e.g. caller used the legacy `hasBinding(name)` signature) -
+  // return the most-recently-added entry which corresponds to the innermost binding
+  // walked. matches the pre-position "last write wins" overwrite semantics
+  if (typeof pos !== 'number') return entries[0];
+  // pick the most-specific (smallest containing block) shadow whose range covers `pos`.
+  // ties broken by insertion order (most recent first - same as no-position fallback)
+  let best = null;
+  let bestSpan = Infinity;
+  for (const entry of entries) {
+    if (entry.blockStart <= pos && pos <= entry.blockEnd) {
+      const span = entry.blockEnd - entry.blockStart;
+      if (span < bestSpan) {
+        best = entry;
+        bestSpan = span;
+      }
+    }
+  }
+  return best;
+}
+
+function makeFrameScope(parentScope, localDecls) {
+  const bindingCache = new Map();
+  const frame = {
+    hasBinding(name, path) {
+      return findLocalAt(localDecls, name, path) !== null
+        || (parentScope?.hasBinding(name, path) ?? false);
+    },
+    getBinding(name, path) {
+      const local = findLocalAt(localDecls, name, path);
+      if (!local) return parentScope?.getBinding?.(name, path) ?? null;
+      // cache keyed on the entry identity, not the name - distinct shadows of the same
+      // name (`let X = 1; { let X = 2; }`) must produce distinct synthetic bindings
+      let binding = bindingCache.get(local);
+      if (!binding) {
+        binding = {
+          constant: local.constant,
+          // a synthetic VariableDeclaration parent surfaces the declaration KIND (`var`/`let`/
+          // `const`) - the self-ref-var guard reads `path.parent.kind`, and a null parent left it
+          // undefined, so `var Map = Map` in a decorator's inline function lost its global read
+          path: makeSynthPath({
+            node: local.node,
+            parent: local.kind ? { type: 'VariableDeclaration', kind: local.kind } : null,
+            parentKey: null,
+            parentPath: null,
+            scope: frame,
+          }),
+        };
+        bindingCache.set(local, binding);
+      }
+      return binding;
+    },
+  };
+  return frame;
+}
+
+// module-level cache: keyed on fn AST node identity. plugin instances each parse their own
+// AST, so node-identity is per-instance and cache entries never leak across instances.
+// only risks staleness if an external caller hands the same node to two configurations,
+// which the unplugin / babel-plugin pipeline doesn't do
+const LOCALS_CACHE = new WeakMap();
+
+// nodes that open a fresh lexical block scope. each entry inside one of these scopes its
+// `let`/`const` / class declarations / catch parameters to the block's source range so
+// shadow detection at a use-site uses position-aware containment. `var` and hoisted
+// FunctionDeclaration retain function-scope semantics (they get the fn body's range
+// passed through directly, ignoring intermediate block boundaries)
+const BLOCK_SCOPING_NODE_TYPES = new Set([
+  'BlockStatement',
+  'ForStatement',
+  'ForInStatement',
+  'ForOfStatement',
+]);
+
+// LIFO insertion: most-recently-added entry sits at index 0 so the no-position fallback
+// returns the innermost shadow (last-write-wins). entries carry their own block range so
+// position-aware lookup can pick the right shadow among same-name bindings in distinct scopes
+function addLocal(locals, name, entry) {
+  const list = locals.get(name);
+  if (list) list.unshift(entry);
+  else locals.set(name, [entry]);
+}
+
+function addPatternLocals(locals, pattern, entry) {
+  walkPatternIdentifiers(pattern, id => addLocal(locals, id.name, entry));
+}
+
+function collectFunctionLocals(fnNode) {
+  const cached = LOCALS_CACHE.get(fnNode);
+  if (cached) return cached;
+  const locals = new Map();
+  // fn-scope range covers the WHOLE function node (signature + body) so param identifiers
+  // themselves resolve to their own bindings - `fnNode.body.start` would leave params
+  // outside the range and `findLocalAt` would miss them, letting the identifier visitor
+  // rewrite `(Map) -> (_Map)` for a function-param shadow
+  const fnStart = fnNode.start;
+  const fnEnd = fnNode.end;
+  for (const param of fnNode.params ?? []) {
+    addPatternLocals(locals, param, { constant: true, node: param, blockStart: fnStart, blockEnd: fnEnd });
+  }
+  if (fnNode.id?.name) {
+    addLocal(locals, fnNode.id.name, { constant: true, node: fnNode, blockStart: fnStart, blockEnd: fnEnd });
+  }
+  function walk(node, blockStart, blockEnd) {
+    if (!node || typeof node !== 'object') return;
+    // FunctionDeclaration is block-scoped per ES6+ strict mode; at fn body top level the
+    // currentBlock IS the fn body so it naturally widens to fn-scope semantics. body opens
+    // its own scope - stop descent regardless
+    if (node.type === 'FunctionDeclaration') {
+      if (node.id?.name) {
+        addLocal(locals, node.id.name, { constant: true, node, blockStart, blockEnd });
+      }
+      return;
+    }
+    if (node.type === 'SwitchStatement') {
+      // the CaseBlock (the braces around the cases) is the switch's lexical scope; the
+      // DISCRIMINANT precedes it and resolves in the enclosing block, so a case-body `let`
+      // must not cover it (the main traversal fixes the same class via the case-block
+      // visibility filter on native bindings)
+      walk(node.discriminant, blockStart, blockEnd);
+      const casesStart = node.cases?.[0]?.start ?? node.end;
+      for (const c of node.cases ?? []) walk(c, casesStart, node.end);
+      return;
+    }
+    if (FUNCTION_NODE_TYPES.has(node.type)) return;
+    if (node.type === 'VariableDeclaration') {
+      // `var` hoists out of any enclosing block (fn-scoped); `let`/`const`/`using` /
+      // `await using` are block-scoped. catch-bindings walk separately below
+      const isVar = node.kind === 'var';
+      const scopeStart = isVar ? fnStart : blockStart;
+      const scopeEnd = isVar ? fnEnd : blockEnd;
+      const constant = node.kind === 'const';
+      for (const d of node.declarations) {
+        addPatternLocals(locals, d.id, { constant, kind: node.kind, node: d, blockStart: scopeStart, blockEnd: scopeEnd });
+      }
+    } else if (node.type === 'ClassDeclaration' || node.type === 'ClassExpression') {
+      // ClassDeclaration is block-scoped (strict mode); ClassExpression doesn't bind
+      // in the enclosing scope. body opens its own scope - stop descent either way
+      if (node.type === 'ClassDeclaration' && node.id?.name) {
+        addLocal(locals, node.id.name, { constant: true, node, blockStart, blockEnd });
+      }
+      return;
+    } else if (node.type === 'CatchClause' && node.param) {
+      // catch-binding lives only inside the handler body. descend with the catch-body
+      // context so `let`/`const` inside also get correct ranges
+      const catchStart = node.body?.start ?? node.start;
+      const catchEnd = node.body?.end ?? node.end;
+      addPatternLocals(locals, node.param, {
+        constant: false,
+        node: node.param,
+        blockStart: catchStart,
+        blockEnd: catchEnd,
+      });
+      if (node.body) walk(node.body, catchStart, catchEnd);
+      return;
+    }
+    // block-shape nodes push a new block context for their descendants
+    const inBlock = BLOCK_SCOPING_NODE_TYPES.has(node.type);
+    const childStart = inBlock ? node.start : blockStart;
+    const childEnd = inBlock ? node.end : blockEnd;
+    forEachChildNode(node, child => walk(child, childStart, childEnd));
+  }
+  if (fnNode.body) walk(fnNode.body, fnStart, fnEnd);
+  LOCALS_CACHE.set(fnNode, locals);
+  return locals;
+}
+
+// a named ClassExpression binds its own name for the class extent (a self-reference inside
+// the body resolves to the class, not an outer / global same-name binding). the locals walk
+// stops at class nodes, so the decorator traversal opens a dedicated one-name frame for it
+const CLASS_NAME_LOCALS_CACHE = new WeakMap();
+function classExpressionNameLocals(node) {
+  let locals = CLASS_NAME_LOCALS_CACHE.get(node);
+  if (!locals) {
+    locals = new Map();
+    addLocal(locals, node.id.name, { constant: true, node, blockStart: node.start, blockEnd: node.end });
+    CLASS_NAME_LOCALS_CACHE.set(node, locals);
+  }
+  return locals;
+}
+
+function walkSubtree({ node, parent, parentKey, parentPath, scope, visitors, listKey = null, container = null }) {
+  if (!node || typeof node !== 'object' || typeof node.type !== 'string') return;
+  const childScope = FUNCTION_NODE_TYPES.has(node.type)
+    ? makeFrameScope(scope, collectFunctionLocals(node))
+    : node.type === 'ClassExpression' && node.id?.name
+      ? makeFrameScope(scope, classExpressionNameLocals(node))
+      : scope;
+  const synthPath = makeSynthPath({ node, parent, parentKey, parentPath, scope: childScope, listKey, container });
+  // the same two spellings the engine takes: a bare handler, or the `{ enter }` object every
+  // merged visitor set is normalized into - a manual walk that took only the first silently
+  // dropped every site under a merged map
+  const visit = visitors[node.type];
+  (typeof visit === 'function' ? visit : visit?.enter)?.(synthPath);
+  forEachChildNode(node, (child, childKey, childListKey, childContainer) => {
+    walkSubtree({
+      node: child,
+      parent: node,
+      parentKey: childKey,
+      parentPath: synthPath,
+      scope: childScope,
+      visitors,
+      listKey: childListKey,
+      container: childContainer,
+    });
+  });
+}
+
+function walkDecoratorList(decorators, parentPath, decoratorVisitors, revisit = false) {
+  if (!decorators?.length) return;
+  for (let i = 0; i < decorators.length; i++) {
+    // a MANUAL walk queues nothing: an AST emission inside a decorator replaces its span and
+    // the replacement's own claims (an argument's nested read) would never be visited. the
+    // revisit pass reaches exactly those - consumed spans carry their skip marks and stay
+    // inert. the TEXT leg must NOT revisit: its transforms are position-keyed, so a second
+    // walk queues a colliding edit for a span the first one already owns
+    const passes = revisit ? 2 : 1;
+    for (let pass = 0; pass < passes; pass++) {
+      walkSubtree({
+        node: decorators[i], parent: parentPath.node, parentKey: i, parentPath, scope: parentPath.scope,
+        visitors: decoratorVisitors, listKey: 'decorators', container: decorators,
+      });
+    }
+  }
+}
+
+// estree-toolkit's traverse walks `visitorKeys[type] || Object.keys(node)`. for a node type it does
+// NOT define (no `is.<type>` predicate, so the Object.keys fallback applies) it already walks the
+// node's `decorators` array itself with the main visitor map; a manual walk then double-visits and
+// queues two colliding rewrites for the same span (crash). for a DEFINED type, `decorators` is
+// omitted from its visitor keys, so the manual walk is required. confirmed empirically: known
+// PropertyDefinition / Identifier-param decorators take the manual path and emit a single rewrite,
+// while unknown AccessorProperty / TSAbstract* / TSParameterProperty are reached by the auto-walk
+function estreeAutoWalksDecorators(node) {
+  const type = node?.type;
+  return !!type && estreeIs[type[0].toLowerCase() + type.slice(1)] === undefined;
+}
+
+// walks the node's own decorators plus any param-level decorators (TS legacy `@dec arg`
+// on class method / constructor params). `MethodDefinition.params` lives on `.value`. skip any
+// owner whose decorators estree-toolkit already auto-walks (see estreeAutoWalksDecorators)
+function walkDecorators(parentPath, decoratorVisitors, revisit = false) {
+  const { node } = parentPath;
+  if (!estreeAutoWalksDecorators(node)) {
+    walkDecoratorList(node?.decorators, parentPath, decoratorVisitors, revisit);
+  }
+  const params = node?.params ?? node?.value?.params;
+  if (!params) return;
+  for (const param of params) {
+    if (!estreeAutoWalksDecorators(param)) {
+      walkDecoratorList(param?.decorators, parentPath, decoratorVisitors, revisit);
+    }
+  }
+}
+
+// JSXIdentifier sits at the opening tag-name slot (`<Map />`'s `Map` Identifier with
+// parent=JSXOpeningElement, key='name'). only this position is a runtime reference;
+// attribute names, closing-tag dupes, and member-property tails reach the visitor too
+// but should be ignored
+function isJsxOpeningTagName(path) {
+  return path.parent?.type === 'JSXOpeningElement' && path.key === 'name';
+}
+
+// JSXMemberExpression root (`<Map.Provider.X />` -> `Map` Identifier sits at the bottom
+// of an `object`-chain whose terminal `MemberExpression` is the opening tag-name): true only
+// when the shared climb lands on a JSXOpeningElement.name slot AFTER at least one hop
+function isJsxMemberRoot(path) {
+  const cur = climbJsxMemberChain(path);
+  return cur !== path && isJsxOpeningTagName(cur);
+}
+
+// --- Usage visitors ---
+
+export function createUsageVisitors({
+  adapter,
+  onUsage,
+  method,
+  suppressProxyGlobals = false,
+  walkAnnotations = true,
+  isEntryAvailable,
+  resolveMeta,
+  resolvePure = null,
+  resolveStaticKey = null,
+  onSuppressedProxyHop = null,
+  suppressKeptNavRoot = null,
+  revisitDecorators = false,
+}) {
+  const core = createUsageHandlerCore({
+    adapter,
+    onUsage,
+    method,
+    isEntryAvailable,
+    resolveMeta,
+    resolvePure,
+    resolveStaticKey,
+    suppressProxyGlobals,
+    onSuppressedProxyHop,
+    suppressKeptNavRoot,
+    // read `kind` off the parent VariableDeclaration via the binding path - works across
+    // estree-toolkit shapes (`.path.parent` for one host, `.path.parentPath?.node` for
+    // another). babel's `binding.kind` is read directly via the babel adapter's own getter
+    selfRefBindingKind: b => (b?.path?.parent ?? b?.path?.parentPath?.node)?.kind,
+  });
+  const { skipUpdateTargets } = core;
+
+  // destructure-only wrapper (sole caller is extractPropertyKey): a side-effecting computed key
+  // resolves to its tail for identity; the emitter keeps the key in the pattern (it runs once) and
+  // adds an inline default `= _Array$from`, so the static is polyfilled, not bailed
+  // `path` anchors the key canon's flow gates (init-dominance, reaching-value) at the
+  // pattern holding the key - the key EVALUATES there; a pathless call defaults the
+  // dominance gate open and folds a conditionally-initialized key
+  // ... and `keepsKeyNode`: the pattern KEEPS an effectful key where it stands, so a key spelled
+  // through a bound identity call (`[k('at')]`) may fold to its argument
+  function resolveKey(node, computed, scope, path = null) {
+    return sharedResolveKey({ node, computed, scope, adapter, path, resolveStaticKey, keepsKeyNode: true });
+  }
+
+  function extractPropertyKey(propNode, scope, path = null) {
+    if (!propNode.computed) {
+      return propNode.key.type === 'Identifier' ? propNode.key.name
+        : adapter.isStringLiteral(propNode.key) ? propNode.key.value
+          : null;
+    }
+    return resolveKey(propNode.key, true, scope, path);
+  }
+
+  // build meta for destructuring property: const { from } = Array, ({ from } = Array)
+
+  function buildDestructuringMeta(propNode, parentPath, containerUnionSink = null) {
+    const objectPattern = parentPath;
+    if (!objectPattern?.parentPath) return null;
+    // the funnel choke: ONE host classification and ONE meta rule, shared with the babel
+    // leg - the per-shape switch this replaces is where the two funnels drifted apart
+    const descriptor = classifyDestructureLeafHost({ objectPattern });
+    const scope = objectPattern.parentPath.scope || objectPattern.scope;
+    const key = extractPropertyKey(propNode, scope, objectPattern);
+    return buildDestructureLeafMeta({
+      descriptor, key, adapter, resolvePure, unionSink: containerUnionSink, resolveStaticKey,
+    });
+  }
+
+  function identifierVisitor(path) {
+    // orphaned node (parent removed by sibling transform / pruning): downstream isReferenced
+    // and parent-shape checks would crash on null. parity with babel-plugin's handleIdentifier
+    if (!path.parent) return;
+    const { parent, key: parentKey } = path;
+    if (!isReferenced({ path, skipUpdateTargets })) return;
+    // re-export: export { Promise } from 'foo' - local is not a reference when source is present
+    if (parent?.type === 'ExportSpecifier' && parentKey === 'local'
+      && path.parentPath?.parentPath?.node?.source) return;
+    core.emitGlobalUsage(path);
+  }
+
+  function memberExpressionVisitor(path) {
+    if (core.memberAlreadyHandled(path)) return;
+    if (!isReferenced({ path, skipUpdateTargets })) {
+      // a guarded SHIM write stays fully native (its statement is ignored as polyfill
+      // intent); a deliberate override's receiver follows the SAME identifier routing the
+      // reads use, so the patch and the reads land on one object - no marking there
+      // its receiver follows the SAME identifier routing the (always-mutated-by-definition)
+      // reads use, so the patch and the reads land on one object - no marking
+      return;
+    }
+    core.emitMemberUsage(path);
+  }
+
+  // Property visitor is shared: top-level destructure bindings and decorator-arg patterns
+  // both need `buildDestructuringMeta` to route polyfillable receivers through synth-swap.
+  // decorator walk must include it explicitly - `walkSubtree`'s visitor lookup is keyed by
+  // node type, and without the entry the decorator subtree never reaches destructure handling
+  function propertyVisitor(path) {
+    if (path.node.method || path.parent?.type !== 'ObjectPattern') return;
+    // the container walk collects the slot's OTHER reaching values (written / repositioned)
+    // beside its primary answer - they join the usage-global union axis in the shared funnel
+    const containerUnion = [];
+    const meta = buildDestructuringMeta(path.node, path.parentPath, containerUnion);
+    // capture the key slots BEFORE dispatch, mirroring babel: a pure emit may restructure the
+    // property, so the shared funnel's union pass must not re-read the possibly-detached node
+    const { key: keyNode, computed } = path.node;
+    core.emitDestructurePropUsage({ meta, path, keyNode, computed, containerWalkObjects: containerUnion });
+  }
+
+  // JSX tag-name (`<Map />`) or N-deep member-root (`<Map.Provider.X />`). shared between
+  // the top-level visitor and `decoratorVisitors` so `@(<Map/>) class C {}` decorators
+  // detect the global runtime reference (without it the decorator walk has no
+  // JSXIdentifier entry, so the embedded JSX element never triggers polyfill emission).
+  // `adapter.hasBinding` gets the path so `hasRuntimeBinding`'s var-hoisting fallback
+  // detects a `var Tag` declaration inside a nested non-function block (estree-toolkit
+  // registers var in the block's own scope rather than hoisting to enclosing function)
+  function jsxIdentifierVisitor(path) {
+    // a lowercase-initial BARE tag names an intrinsic element - the string `structuredClone`, not
+    // the global of that name - so it is no runtime reference and must inject nothing. a MEMBER
+    // tag stays an expression whatever its case, so its root still resolves against the binding
+    if (isJsxOpeningTagName(path)) {
+      if (isIntrinsicJsxTagName(path.node.name)) return;
+    } else if (!isJsxMemberRoot(path)) return;
+    if (adapter.hasBinding(path.scope, path.node.name, path)) return;
+    onUsage({ kind: 'global', name: path.node.name }, path);
+  }
+
+  const decoratorVisitors = {
+    Identifier: identifierVisitor,
+    MemberExpression: memberExpressionVisitor,
+    BinaryExpression: core.emitBinaryInUsage,
+    Property: propertyVisitor,
+    JSXIdentifier: jsxIdentifierVisitor,
+  };
+
+  function visitDecorators(path) {
+    walkDecorators(path, decoratorVisitors, revisitDecorators);
+  }
+
+  // explicit type arguments at a call / new site (`bar<Map<...>>()`, `new Foo<Map<...>>()`)
+  // are a type-only instantiation hanging off the call node, not a runtime ref the call's own
+  // visitor reads. there's no FunctionExpression body to drive the param / return walk, so sweep
+  // them directly (babel reaches them via ReferencedIdentifier). most calls carry none, hence the
+  // guard. `getTypeArgs` reads babel `typeParameters` / oxc `typeArguments` uniformly
+  function checkCallTypeArguments(path) {
+    const typeArgs = getTypeArgs(path.node);
+    if (typeArgs) walkTypeAnnotationGlobals(typeArgs, core.annotationGlobal(path), core.annotationCtx(path));
+  }
+
+  // a class node and its field shapes carry type-only globals the FunctionExpression walk
+  // (method param / return types) never reaches: the class's own `typeParameters` constraints /
+  // defaults and `extends Base<...>` super-type-args, plus a field's `x: Map<T>` annotation.
+  // `checkTypeAnnotations` already reads `typeParameters.params` + super-type-args, so one routine
+  // covers both the class node and its members. pair it with the decorator walk so those globals
+  // polyfill when annotation walking is on (usage-global). abstract field variants are the same -
+  // their type-only declarations are still signal
+  function visitDecoratorsAndAnnotation(path) {
+    visitDecorators(path);
+    if (walkAnnotations) core.checkTypeAnnotation(path);
+  }
+
+  return {
+    ...walkAnnotations ? {
+      FunctionDeclaration: core.checkTypeAnnotation,
+      FunctionExpression: core.checkTypeAnnotation,
+      ArrowFunctionExpression: core.checkTypeAnnotation,
+      // bodyless function-signature types carry their global refs in params / return / type
+      // params but have no FunctionExpression body to drive the param/return walk above, so
+      // sweep them directly (babel reaches these via ReferencedIdentifier). covers interface
+      // method / call / construct signatures, standalone function / constructor types (incl.
+      // inside type aliases), and ambient overload declare-functions. abstract / declare-class /
+      // overload METHODS surface in oxc as a TSEmptyBodyFunctionExpression `.value` (the params
+      // live there, not on the method node), so sweep that node rather than babel's TSDeclareMethod
+      TSMethodSignature: core.checkTypeAnnotation,
+      TSCallSignatureDeclaration: core.checkTypeAnnotation,
+      TSConstructSignatureDeclaration: core.checkTypeAnnotation,
+      TSFunctionType: core.checkTypeAnnotation,
+      TSConstructorType: core.checkTypeAnnotation,
+      TSDeclareFunction: core.checkTypeAnnotation,
+      TSEmptyBodyFunctionExpression: core.checkTypeAnnotation,
+      ...core.annotationDeclVisitors,
+      // call / new / tagged-template type arguments (covers the optional-call form too). babel reaches
+      // a `tag<Set<number>>` instantiation via ReferencedIdentifier; oxc hangs it off the tag node, so
+      // sweep it here too or the type-only globals drop in unplugin only
+      CallExpression: checkCallTypeArguments,
+      NewExpression: checkCallTypeArguments,
+      OptionalCallExpression: checkCallTypeArguments,
+      TaggedTemplateExpression: checkCallTypeArguments,
+    } : null,
+    Identifier: identifierVisitor,
+    // `<Map />` tag-name is a runtime reference to a global constructor. skip attribute
+    // names and closing-tag dupes. also accept root of `<Map.Provider.X/>` (N-deep
+    // JSXMemberExpression chain) - walk the `.object` chain from path so deeper-than-2
+    // namespace tags still polyfill the outer global. shared with `decoratorVisitors`
+    // so JSX inside decorator expressions (`@(<Map/>) class C {}`) also triggers
+    JSXIdentifier: jsxIdentifierVisitor,
+    MemberExpression: memberExpressionVisitor,
+    BinaryExpression: core.emitBinaryInUsage,
+    Property: propertyVisitor,
+    // class node sweeps its own type params + `extends Base<...>` super-type-args
+    ClassDeclaration: visitDecoratorsAndAnnotation,
+    ClassExpression: visitDecoratorsAndAnnotation,
+    MethodDefinition: visitDecorators,
+    PropertyDefinition: visitDecoratorsAndAnnotation,
+    AccessorProperty: visitDecoratorsAndAnnotation,
+    TSAbstractPropertyDefinition: visitDecoratorsAndAnnotation,
+    TSAbstractAccessorProperty: visitDecoratorsAndAnnotation,
+  };
+}
+
+// --- Syntax visitors ---
+
+// the shared path handlers mapped onto estree's enumerated node types (methods hold a nested
+// FunctionExpression here, so the three named function types cover what babel's alias does)
+export function createSyntaxVisitors({ injectModulesForModeEntry, injectModulesForEntry, isDisabled, isWebpack = false }) {
+  const handlers = createSyntaxPathHandlers({ injectModulesForModeEntry, injectModulesForEntry, isDisabled, isWebpack });
+  return {
+    ImportExpression: handlers.onImportExpression,
+    FunctionDeclaration: handlers.onFunction,
+    FunctionExpression: handlers.onFunction,
+    ArrowFunctionExpression: handlers.onFunction,
+    ForOfStatement: handlers.onForOfStatement,
+    ArrayPattern: handlers.onArrayPattern,
+    SpreadElement: handlers.onSpreadElement,
+    YieldExpression: handlers.onYieldExpression,
+    VariableDeclaration: handlers.onVariableDeclaration,
+    ClassDeclaration: handlers.onClass,
+    ClassExpression: handlers.onClass,
+  };
+}

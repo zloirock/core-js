@@ -1,0 +1,1 @@
+window.Array.of(1, 2, 3).at(-1);
