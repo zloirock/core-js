@@ -21,6 +21,7 @@ import {
   findEnclosingFunctionLikePath,
   findIifeCallSite,
   findObjectKeyBeforeSpread,
+  flattenInlineArraySpreads,
   FN_NODE_TYPES,
   followConstIdentifierInit,
   forOfHeadElements,
@@ -43,6 +44,7 @@ import {
   isValidIdentifierName,
   leadingDiscardedEffectSlots,
   mayHaveSideEffects,
+  objectLevelPairedProperty,
   objectLiteralHoldsObservable,
   objectPatternHasNestedValue,
   objectPatternLiteralKeyPath,
@@ -50,13 +52,16 @@ import {
   pairedArrayWrapInitElement,
   paramListReadsName,
   patternBindingCount,
+  patternSlotTarget,
   peelFallbackBranchInner,
   peelFallbackReceiver,
   peelNestedSequenceExpressions,
   peelParenAndTSParentPath,
   peelProxyGlobalObject,
   peelSequenceTail,
+  peelTransparentWrapperPath,
   peelZeroArgIifeReturn,
+  positionalElementPath,
   POSSIBLE_GLOBAL_OBJECTS,
   PRIMITIVE_LITERAL_TYPES,
   propBindingIdentifier,
@@ -69,14 +74,13 @@ import {
   reEvaluationObservable,
   requireCallSource,
   resolveCallArgument,
+  resolveCallArgumentCoords,
   resolveFallbackReceiver,
   spelledSlotName,
-  spreadShiftsIndex,
   statementListOf,
   staticMemberKeyName,
   synthSlotName,
   synthSwapPropKey,
-  TRANSPARENT_EXPR_WRAPPER_TYPES,
   unwrapCollectingSePrefixes,
   unwrapExpressionChain,
   unwrapRuntimeExpr,
@@ -2033,10 +2037,11 @@ function restHostCarrier(host) {
   if (declarator?.node?.type !== 'VariableDeclarator' || declarator.node.id !== owner.node) return null;
   const index = owner.node.elements.indexOf(host.node);
   const init = unwrapRuntimeExpr(declarator.node.init);
-  if (index === -1 || init?.type !== 'ArrayExpression' || init.elements.length <= index) return null;
-  // a SPREAD at or before the slot makes the pairing a POSSIBILITY, never a fact
-  if (init.elements.slice(0, index + 1).some(element => element?.type === 'SpreadElement')) return null;
-  return { declarator, value: init.elements[index] };
+  if (index === -1 || init?.type !== 'ArrayExpression') return null;
+  // the positional read: a spread no static position survives makes the pairing a POSSIBILITY,
+  // never a fact
+  const coords = resolveCallArgumentCoords(init.elements, index);
+  return coords ? { declarator, value: resolveCallArgument(init.elements, index) } : null;
 }
 
 // can the host of this claim take the residual its surviving slots need - a plain statement beside
@@ -2440,15 +2445,15 @@ function arrayWrapperElementPlan(patternPath) {
   const init = unwrapExpressionChain(declarator.node.init);
   if (init?.type !== 'ArrayExpression') return null;
   const index = wrapper.node.elements.indexOf(patternPath.node);
-  // a SPREAD before the slot makes every later position runtime-determined, so the pattern no
-  // longer pairs with the literal element at the same index - the pairing is unprovable
-  if (index === -1 || spreadShiftsIndex(init.elements, index)) return null;
+  // the positional read: a spread of a binding before the slot makes every later position runtime-
+  // determined, so the pattern no longer pairs with a literal element - the pairing is unprovable
+  if (index === -1 || !resolveCallArgumentCoords(init.elements, index)) return null;
   // the element may wear wrappers the source spelled (parens the estree parser keeps, TS casts,
   // a SEQUENCE prefix): the peeled view is what CLASSIFIES the receiver, but every emitted node
   // is the element AS WRITTEN - peeling it into the output would drop a sequence prefix's effect
-  const rawElement = init.elements[index];
+  const rawElement = resolveCallArgument(init.elements, index);
   const element = rawElement && unwrapExpressionChain(rawElement);
-  if (!element || rawElement.type === 'SpreadElement') return null;
+  if (!element) return null;
   // a RE-REFERENCEABLE element (a bare binding, a constant literal) needs no memo whatever the
   // reader count - each read spells it, exactly like the flat route's raw receiver; a SOLE prop
   // reads once and takes it raw too
@@ -3176,7 +3181,8 @@ function isNestedDestructureDefault(assignmentPatternPath) {
 // or null. one source for the SE-key gate's receiver check and the mirror's array-wrapper descent
 // `hops` is every level the leaf pattern sits under, receiver-to-leaf: an array wrapper's `index`,
 // an object hop's `key` (a key nothing spells - computed - ends the record, `hops` is then null and
-// only `indices` answers); `indices` keeps the array levels alone for the wrapper-only readers
+// only `indices` answers), each with the `pattern` standing under it; `indices` keeps the array
+// levels alone for the wrapper-only readers
 function destructureHostThroughWrappers(leafPattern, adapter = null) {
   let cursor = leafPattern;
   let objectPattern = leafPattern;
@@ -3198,7 +3204,8 @@ function destructureHostThroughWrappers(leafPattern, adapter = null) {
       const idx = owner.node.elements.indexOf(cursor.node);
       if (idx === -1) return null;
       indices.unshift(idx);
-      hops?.unshift({ index: idx });
+      // the element's own pattern - past the transparent inner default the walk stepped through
+      hops?.unshift({ index: idx, pattern: patternSlotTarget(cursor.node) });
       cursor = owner;
       continue;
     }
@@ -3318,6 +3325,68 @@ function resolveArrayInnerDefaultReceiver(innerDefaultHost, adapter) {
     objectNode: unwrapExpressionChain(innerDefaultHost.node.right), scope: host.scope, adapter, path: host,
   });
   return resolved && isStaticPlacement(resolved) ? resolved : null;
+}
+
+// the inline-array spreads in a pattern host's literal levels, flattened for the rewrite: every
+// array level a pattern pairs with - the wrapper itself (`[...[Array]]`), one under an object hop
+// (`{ y: [...[arr]] }`), a nested wrapper - is spliced before any route edits a level by slot. the
+// rewriting flavor's own step (the classification pairs by position without touching the tree),
+// once per host from whichever leaf is handled first, and only along the host's own literals: an
+// alias keeps the literal where it is declared. a level whose bound slot pairs with a hole stays as
+// written, on both legs, and so does every level of a file the routes then claim nothing in
+// (`restoreUnclaimedFlattens`)
+const flattenedHosts = new WeakSet();
+const flattenRecords = new WeakMap();
+export function flattenArrayWrapperInits(leafPath) {
+  let root = leafPath;
+  for (let up = root.parentPath; up?.node; up = root.parentPath) {
+    const { type } = up.node;
+    if (type === 'ObjectPattern' || type === 'ArrayPattern' || type === 'RestElement'
+      || ((type === 'Property' || type === 'ObjectProperty') && up.parentPath?.node?.type === 'ObjectPattern')
+      || (type === 'AssignmentPattern' && up.node.left === root.node && isInnerDestructureDefault(up))) root = up;
+    else break;
+  }
+  const host = root.parentPath;
+  if (!isDestructurePattern(root.node) || !host?.node || flattenedHosts.has(host.node)) return;
+  flattenedHosts.add(host.node);
+  let program = host;
+  while (program.parentPath?.node) program = program.parentPath;
+  if (!flattenRecords.has(program.node)) flattenRecords.set(program.node, []);
+  flattenPatternLevels(root.node, destructureReceiverNode(host, root.node), flattenRecords.get(program.node), host.node);
+}
+
+// the splices a file's routes then left unclaimed, undone: a file that injects nothing prints as
+// written on the leg that reprints its tree, exactly as the leg that hands the source back
+export function restoreUnclaimedFlattens(programNode) {
+  for (const { host, elements, original } of flattenRecords.get(programNode) ?? []) {
+    elements.splice(0, elements.length, ...original);
+    // a later pass over the same tree flattens the host again
+    flattenedHosts.delete(host);
+  }
+  flattenRecords.delete(programNode);
+}
+
+// one paired level down: an array level splices its inline spreads, then each bound slot descends
+// into its element; an object level descends by key into the property it pairs with
+function flattenPatternLevels(pattern, init, records, host) {
+  const literal = unwrapRuntimeExpr(init);
+  if (pattern?.type === 'ArrayPattern' && literal?.type === 'ArrayExpression') {
+    const slots = pattern.elements.flatMap((element, index) => element && element.type !== 'RestElement' ? [index] : []);
+    if (slots.some(index => !resolveCallArgument(literal.elements, index))) return;
+    const original = [...literal.elements];
+    flattenInlineArraySpreads(literal.elements);
+    if (original.some((element, index) => element !== literal.elements[index])) {
+      records.push({ host, elements: literal.elements, original });
+    }
+    for (const index of slots) flattenPatternLevels(patternSlotTarget(pattern.elements[index]), literal.elements[index], records, host);
+  } else if (pattern?.type === 'ObjectPattern' && literal?.type === 'ObjectExpression') {
+    for (const prop of pattern.properties) {
+      if (prop.type !== 'Property' && prop.type !== 'ObjectProperty') continue;
+      const key = spelledSlotName(prop);
+      const paired = key === null ? null : objectLevelPairedProperty(literal, key);
+      if (paired) flattenPatternLevels(patternSlotTarget(prop.value), paired.read, records, host);
+    }
+  }
 }
 
 // resolve receiver for ArrayPattern-rooted nested destructure: `const [...{from}] = wrapper`
@@ -3473,6 +3542,8 @@ function mirrorReceiverNodes({ receiverSources, originNode, hops, host, adapter 
     for (const hop of hops) {
       if (hop.index !== undefined) {
         run.push(hop.index);
+        // the pattern under an array level is the element's own, like the one under a key
+        pattern = hop.pattern;
         continue;
       }
       if (!flushIndices()) return null;
@@ -3580,7 +3651,6 @@ export function buildNestedParamSynthPlan({ leafPatternPath, meta, resolvePure, 
   // value AND the leaf polyfill. a statement-context assignment (`({...} = R);`) discards the value, so
   // it keeps synth-swapping; a param default (AssignmentPattern host) is caller-correct, not captured
   if (host.node.type === 'AssignmentExpression' && !nestedAssignmentStatementOf(leafPatternPath)) return null;
-  if (nestedParamSynthPlan.has(host.node)) return nestedParamSynthPlan.get(host.node);
   // descend ArrayPattern wrappers: an outer destructure may wrap the consumed object-pattern in
   // arrays (`const [, { Array: { from } }] = [0, R]`). resolve the element's object-pattern and the
   // init slot descended to the matching element, so the mirror swaps the proxy branch INSIDE the
@@ -3596,6 +3666,12 @@ export function buildNestedParamSynthPlan({ leafPatternPath, meta, resolvePure, 
   });
   if (!mirrored) return null;
   const { receiverNodes } = mirrored;
+  // one plan per MIRRORED pattern - the one under the last hop the descent consumed: sibling leaves
+  // of that pattern share it, while a leaf under another hop of the same host (`{ a: { hasOwn },
+  // b: { is } }`) mirrors its own slot. keyed on the host, the second hop read the first one's
+  // "done" and stayed raw
+  const planKey = mirrored.patternNode ?? walked.pattern;
+  if (nestedParamSynthPlan.has(planKey)) return nestedParamSynthPlan.get(planKey);
   // a fallback-logical root collapses LEFT (`globalThis || self` - the left short-circuits
   // the selection wherever it is defined; the literal replaces the WHOLE logical), while `&&`
   // yields its RIGHT side when taken - only the right operand is replaced, so a falsy left
@@ -3796,10 +3872,10 @@ export function buildNestedParamSynthPlan({ leafPatternPath, meta, resolvePure, 
     // receiver keeps the sound inline default (it fires only when the global's static is genuinely
     // absent on the selected proxy, never replacing a user value)
     const declined = receiverSources.every(destructureValueBranchesAllProxy) ? null : { bail: true };
-    nestedParamSynthPlan.set(host.node, declined);
+    nestedParamSynthPlan.set(planKey, declined);
     return declined;
   }
-  nestedParamSynthPlan.set(host.node, { done: true });
+  nestedParamSynthPlan.set(planKey, { done: true });
   return { host, slot, targets };
 }
 
@@ -4373,18 +4449,18 @@ export function patternHopKeysToHost(patternPath, adapter = null) {
 
 // descend a receiver PATH through those hops: every object level a literal PAIRING the key on the
 // resolver's terms (the slot before any spread, no key after it that could BE this one), every array
-// level a literal holding the element (a spread ahead shifts it - null) - the paired VALUE's path, or
-// null. both legs' paths answer `get('properties')` / `get('elements')` with a list and `get('value')`
+// level a literal holding the element at its runtime position (an inline-array spread expanded, a
+// spread of a binding ahead shifts it - null) - the paired VALUE's path, or null. both legs' paths
+// answer `get('properties')` / `get('elements')` with a list and `get('value')`
 // with the slot, so one descent serves the two emitters; transparent wrappers are stepped through
 export function descendReceiverPathByKeys(path, hops) {
   let cur = path;
   for (const hop of hops) {
-    while (cur?.node && TRANSPARENT_EXPR_WRAPPER_TYPES.has(cur.node.type)) cur = cur.get('expression');
+    cur = peelTransparentWrapperPath(cur);
     const node = cur?.node;
     if (hop.index !== undefined) {
-      if (node?.type !== 'ArrayExpression'
-        || node.elements.slice(0, hop.index + 1).some(element => !element || element.type === 'SpreadElement')) return null;
-      cur = cur.get('elements')[hop.index];
+      cur = node?.type === 'ArrayExpression' ? positionalElementPath(cur, hop.index) : null;
+      if (!cur) return null;
     } else {
       if (node?.type !== 'ObjectExpression') return null;
       const match = findObjectKeyBeforeSpread(node.properties, prop => spelledSlotName(prop) === hop.key);
@@ -4394,7 +4470,7 @@ export function descendReceiverPathByKeys(path, hops) {
     }
     if (!cur?.node) return null;
   }
-  while (cur?.node && TRANSPARENT_EXPR_WRAPPER_TYPES.has(cur.node.type)) cur = cur.get('expression');
+  cur = peelTransparentWrapperPath(cur);
   return cur?.node ? cur : null;
 }
 

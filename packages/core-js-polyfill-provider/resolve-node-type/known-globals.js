@@ -31,6 +31,7 @@ import {
 } from './base.js';
 import { isTypeReferenceNode, typeRefName } from './ast-shapes.js';
 import {
+  callArgumentPathAt,
   FUNCTION_LIKE_NODE_TYPES, getTypeArgs, peelTransparentWrapperPath, resolveCallArgumentCoords,
   SKIPPABLE_WRAPPER_TYPES,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
@@ -239,10 +240,7 @@ export function createKnownGlobals({
     // it better than a spread-anywhere bail did: `f(...[a, b])` still names its arguments, and only
     // a spread whose source is not a literal makes the position undecidable
     const coords = resolveCallArgumentCoords(args.map(a => a.node), index);
-    if (!coords) return null;
-    return coords.elementIndex < 0
-      ? args[coords.argIndex]
-      : args[coords.argIndex].get('argument').get('elements')[coords.elementIndex];
+    return coords ? callArgumentPathAt(args, coords) : null;
   }
 
   // the value a slot holds, as written. AWAITING is not this function's business: it belongs to the

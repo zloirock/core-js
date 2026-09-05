@@ -50,7 +50,11 @@ import { createResolveNodeType } from '@core-js/polyfill-provider/resolve-node-t
 import { createPolyfillResolver } from '@core-js/polyfill-provider/resolver';
 import { createModuleInjectors } from '@core-js/polyfill-provider/plugin-options/inject';
 import { createUsageGlobalCallback } from '@core-js/polyfill-provider/plugin-options/usage-callback';
-import { attachMemberUnionExtras, enumerateFallbackDestructureBranches } from '@core-js/polyfill-provider/detect-usage/destructure';
+import {
+  attachMemberUnionExtras,
+  enumerateFallbackDestructureBranches,
+  restoreUnclaimedFlattens,
+} from '@core-js/polyfill-provider/detect-usage/destructure';
 import { resolveKey as sharedResolveKey } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { planMinifierSequenceSplit } from '@core-js/polyfill-provider/destructure-host-shape';
 import { scanExistingCoreJSImports } from '@core-js/polyfill-provider/detect-usage/entries';
@@ -1220,6 +1224,9 @@ export default function createPlugin(options) {
           revisitDecorators: true,
         })));
         destructureEmit.drain();
+        // a file that injected nothing prints as written: the wrapper splices are undone (the babel
+        // leg's rule, kept here for the reprint a surgery alone still triggers)
+        if (!injector.pureImports.size && !injector.globalImports.size) restoreUnclaimedFlattens(ast);
         // pre stores its work in the snapshot and the post pass carries the union (finalize's rule)
         if (pass !== 'pre') outputDebug();
         const collected = injector.pureImports.size || injector.globalImports.size || astRefNames.length;
