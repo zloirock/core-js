@@ -10,7 +10,6 @@ import "core-js/modules/es.array.values";
 import "core-js/modules/es.global-this";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
-import "core-js/modules/web.dom-collections.values";
 // a hop key written in brackets names the same slot its dotted spelling does, so a claim under it
 // rides the same route: the built-in surface narrows to the constructor's own family, a const-bound
 // key resolves like the literal, a literal receiver descends through it, and the array-WRAPPED host
