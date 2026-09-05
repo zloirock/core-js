@@ -12,7 +12,7 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
   hopNamesMissingAbleCtor,
-  peelArrayWrapperPair,
+  hostLevelSurvives,
   planCatchClauseExtraction,
 } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
 import {
@@ -37,9 +37,9 @@ import {
   invalidateScopeVarIndex,
   isPristineProxyGlobal,
   mayHaveSideEffects,
-  objectInitSpreadSurvives,
   observableSequenceElements,
   patternBindingCount,
+  patternBindsOnlySentinels,
   patternDead,
   patternKeepsEffectfulKey,
   patternSlotTarget,
@@ -165,12 +165,6 @@ const prunedHosts = new WeakSet();
 // the sentinel identifiers the drains minted into leaves, so a hop can tell a pattern of nothing but
 // sentinels from one that still binds
 const sentinelLeaves = new WeakSet();
-function patternAllSentinels(node, minted) {
-  const pattern = patternSlotTarget(node);
-  if (pattern?.type !== 'ObjectPattern' || !pattern.properties.length) return false;
-  return pattern.properties.every(prop => prop.type === 'Property'
-    && (minted.has(prop.value) || patternAllSentinels(prop.value, minted)));
-}
 
 // a residual the wrapper KEEPS still sheds its trailing emptied elements - the canon says how many,
 // and the literal still evaluates every position they stood in
@@ -239,9 +233,7 @@ function collectArrayDeclDrops({
         { liftWrites: readsSlot || storesNav, storedSlot: !readsSlot && storesNav, ridesBoundSlot }))
         .map(expr => expressionStatement(expr)));
     }
-    if (hasRealBinding(declarator.id, sentinelNames)
-      || objectInitSpreadSurvives(declarator.init)
-      || peelArrayWrapperPair({ pattern: declarator.id, init: declarator.init, liftTrailing: true }).wrapperSurvives) {
+    if (hasRealBinding(declarator.id, sentinelNames) || hostLevelSurvives(declarator)) {
       liftPrefixes();
       continue;
     }
@@ -1459,9 +1451,7 @@ export default function createDestructureDrains(ctx) {
     // pattern gets: a spread reads the source's own enumerable keys, a sibling value runs its effect,
     // and nothing here re-emits either - so the declarator stays with its sentinels, the partial
     // shape the other leg's plan prints. the pairing walk owns the rule (`wrapperSurvives`)
-    if (!patternFullyConsumed(declarator.id)
-      || peelArrayWrapperPair({ pattern: declarator.id, init: declarator.init, liftTrailing: true }).wrapperSurvives
-      || objectInitSpreadSurvives(declarator.init)) {
+    if (!patternFullyConsumed(declarator.id) || hostLevelSurvives(declarator)) {
       return emitPartialMemo({ hostNode, declarator, declJobs, consumed, statements, exported });
     }
     const needsValue = declJobs.some(job => job.kind === 'instance');
@@ -2193,8 +2183,11 @@ export default function createDestructureDrains(ctx) {
           // renders an emptied hop - the other leg prunes the emptied levels the same way. an
           // INSTANCE leaf keeps its own sentinel inside the hop: that is the memo channel's shape
           // on both legs, where the leaf marks the surface the extraction read
+          // ... never a hop whose leaves still spell an effectful key: that key runs where it stands
           const restHop = job.readsReceiver ? null : job.chain?.find(level => level.outerRest);
-          if (restHop && patternAllSentinels(restHop.hopProp.value, sentinelLeaves)) {
+          if (restHop && patternSlotTarget(restHop.hopProp.value)?.properties?.length
+            && patternBindsOnlySentinels(restHop.hopProp.value, id => sentinelLeaves.has(id))
+            && !patternKeepsEffectfulKey(restHop.hopProp.value)) {
             markSubtreeSkipped(skippedNodes, restHop.hopProp.value);
             restHop.hopProp.value = identifier(mint());
             restHop.hopProp.shorthand = false;
