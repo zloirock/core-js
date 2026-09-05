@@ -8,6 +8,7 @@ import {
   consumedAssignmentSlotPrunes,
   destructureAssignmentValueIsCaptured,
   fallbackBranchSwapKeepsSelection,
+  flattenArrayWrapperInits,
   isBuiltInSurfaceNav,
   isConstantLiteralReceiver,
   isInstanceSurfaceNav,
@@ -16,6 +17,7 @@ import {
   isSeFreeMemberReceiver,
   isViableBranchForKey,
   paramDefaultInstanceSynthAllowed,
+  patternHopKeysToHost,
   qualifiesForParamBodyExtract,
   receiverPerformsEveryInitEffect,
   renderSynthTree,
@@ -59,6 +61,7 @@ import {
   FUNCTION_LIKE_NODE_TYPES,
   getFallbackBranchSlots,
   hasRestSiblingExcept,
+  isDestructurePattern,
   isPristineProxyGlobal,
   isSynthSimpleObjectPattern,
   mayHaveSideEffects,
@@ -506,6 +509,8 @@ export default function createAstDestructureEmitter({
     // (`const host = ({ assign: a } = shim || Object)` keeps `Object`) - asked through the shared
     // host climb, so a wrapped pattern (`host = ([{ p }] = [sel])`) answers like the flat one
     if (destructureAssignmentValueIsCaptured(metaPath)) return;
+    // an inline-array spread in the wrapper flattens first, the way the per-prop dispatch does
+    flattenArrayWrapperInits(metaPath);
     // the receiver the pattern reads: its host's slot, the IIFE argument, or - under an ARRAY
     // WRAPPER - the element the host's literal pairs it with, the shared resolver's own climb
     const desc = resolveFallbackReceiver(patternPath.parentPath, pattern);
@@ -1088,6 +1093,8 @@ export default function createAstDestructureEmitter({
 
   // eslint-disable-next-line max-statements -- per-form prop dispatch sequence
   function handleObjectPropertyResult({ metaPath, meta, kind, entry, hintName }) {
+    // an inline-array spread in a wrapper literal flattens first: every route below edits by slot
+    flattenArrayWrapperInits(metaPath);
     const prop = metaPath.node;
     // a PRISTINE proxy hop holding a nested pattern is pure NAVIGATION, not a ctor alias:
     // the flatten owns it, and an extraction here would bind the hop's OWN surface where
@@ -1257,8 +1264,10 @@ export default function createAstDestructureEmitter({
       return (host?.node?.type === 'AssignmentPattern' && FUNCTION_LIKE_NODE_TYPES.has(host.parentPath?.node?.type))
         || FUNCTION_LIKE_NODE_TYPES.has(host?.node?.type);
     }
-    const paramHost = paramHostOf(hostParent) || (hostParent?.node?.type === 'ArrayPattern' && paramHostOf(hostParent.parentPath));
-    if (nestedPlainInstance && paramHost && registerHopInstanceSynthSlot({ metaPath, hostParent, kind, entry, hintName },
+    // ... asked of the host the HOP CLIMB lands on, so an array wrapper anywhere on the way (the
+    // parameter itself, a level under an object hop) reaches the same mirror as an object hop does
+    const hopHost = kind === 'instance' ? patternHopKeysToHost(patternPath, adapter)?.hostPattern.parentPath : null;
+    if (paramHostOf(hopHost) && registerHopInstanceSynthSlot({ metaPath, hostParent: hopHost, kind, entry, hintName },
       { adapter, resolvePure, synthLedger, instanceSynthCtx, injectorState })) return;
     if (nestedPlainInstance && hostParent?.node?.type !== 'VariableDeclarator' && !assignHost
       && !arrayWrapHost) return;
@@ -1577,8 +1586,12 @@ export default function createAstDestructureEmitter({
       // ... and a for-x HEAD holds no statement for any of these routes to land in: the mirror
       // answers in the ELEMENT instead, wrapper and all. the wrappers pair a slot, they host
       // nothing, so the walk through them ends at the same slot-less declarator
+      // ... the walk climbs every pattern level the head may nest - a key's property and a
+      // transparent inner default included, not only the bare pattern nodes
       let headHost = hostPatternPath;
-      while (headHost?.node?.type === 'ArrayPattern' || headHost?.node?.type === 'ObjectPattern') {
+      while (headHost?.node && (isDestructurePattern(headHost.node) || headHost.node.type === 'Property'
+        || headHost.node.type === 'ObjectProperty' || (headHost.node.type === 'AssignmentPattern'
+        && isDestructurePattern(headHost.node.left)))) {
         headHost = headHost.parentPath;
       }
       if (kind !== 'instance' && headHost?.node?.type === 'VariableDeclarator' && forOfHeadElements(headHost)

@@ -5527,6 +5527,44 @@ QUnit.test('destructuring: an object hop keeps every effect the literal spells',
 // the SLOT's own prefix runs exactly once whichever host the hop stands in, and a level whose key
 // nothing can name at runtime stays whole: the runtime value is the source's, never a ponyfill
 // read off a slot the level may not hold
+// an inline-array spread in a wrapper is a longer literal: every element still evaluates once, in
+// source order, whichever route the pairing takes (the wrapper dropped, a memo, a directive, an
+// IIFE argument), and the claim reads the value the element holds
+QUnit.test('destructuring: an inline-array spread in a wrapper evaluates its elements once, in order', assert => {
+  const log = [];
+  function mark(tag, value) {
+    log.push(tag);
+    return value;
+  }
+  // eslint-disable-next-line unicorn/no-useless-spread -- the inline spread is the case
+  const [{ at: viaDropped }] = [...[mark('a', [1, 2])], mark('b', 0)];
+  assert.same(viaDropped.call([3, 4], -1), 4, 'the wrapper element the claim reads is the one the spread spells');
+  assert.deepEqual(log, ['a', 'b'], 'the dropped wrapper still runs its elements in source order');
+  // eslint-disable-next-line unicorn/no-useless-spread -- the inline spread is the case
+  const [, { at: viaShifted }] = [...[mark('c', 0), mark('d', [5, 6])]];
+  assert.same(viaShifted.call([7], 0), 7);
+  assert.deepEqual(log, ['a', 'b', 'c', 'd'], 'a shifted slot behind an effect keeps the effect ahead of it');
+  // ... the receiver slot spells a LITERAL: an opaque call there is no receiver the mirror can
+  // classify, and that argument stays native by design
+  // eslint-disable-next-line unicorn/no-useless-spread -- the inline spread is the case
+  const viaIife = (({ at }, x) => [at.call([8, 9], -1), x])(...[[0], mark('e', 1)]);
+  assert.deepEqual(viaIife, [9, 1], 'an IIFE argument list spread from an inline array binds by position');
+  assert.deepEqual(log, ['a', 'b', 'c', 'd', 'e']);
+  // eslint-disable-next-line unicorn/no-useless-spread -- the inline spread is the case
+  const viaDirective = Object.seal(...[mark('g', [10, 11])]);
+  assert.same(viaDirective.at(-1), 11, 'a returning directive hands on the element at the coordinate');
+  const box = [[12]];
+  // eslint-disable-next-line unicorn/no-useless-spread -- the inline spread is the case
+  const [alias] = [...[box]];
+  alias.push('s');
+  assert.same(alias, box, 'the alias IS the element the spread expands to');
+  assert.same(box.at(-1), 's', 'the alias re-homes it');
+  assert.deepEqual(log, ['a', 'b', 'c', 'd', 'e', 'g']);
+  const viaSeq = (({ at }) => at)((mark('h', null), [13, 14]));
+  assert.same(viaSeq.call([15], 0), 15, 'a sequence-tail argument reads its tail');
+  assert.deepEqual(log, ['a', 'b', 'c', 'd', 'e', 'g', 'h']);
+});
+
 QUnit.test('destructuring: an object hop slot runs its prefix once on every host', assert => {
   let hits = 0;
   function bump() {

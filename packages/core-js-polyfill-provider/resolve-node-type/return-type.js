@@ -34,12 +34,14 @@ import {
 } from './base.js';
 import { isBareUndefinedIdentifier, isTypeQueryOverImportType, peelTSParenthesized, typeRefName } from './ast-shapes.js';
 import {
+  effectiveArgsLength,
   getCallSiteTypeArgs,
   getTypeArgs,
   isDestructurePattern,
   isVoidExpression,
   patternSlotTarget,
-  spreadAtOrBefore,
+  positionalPathAt,
+  resolveCallArgument,
 } from '../helpers/ast-patterns.js';
 import { nodeAlwaysExits } from './exit-analysis.js';
 
@@ -93,14 +95,18 @@ export function createReturnType({
   }
 
   // direct named param (`function f(x)` / `function f(x: T = 0)`): return the call
-  // arg at this position (spread-aware via canonical spreadAtOrBefore), the default's
+  // arg at this position (the positional read, an inline-array spread expanded), the default's
   // type when no arg was passed, or null when neither source applies
   function resolveDirectParam(param, i, args, fnPath) {
     // dual index: align `args` on the this-dropped `argIndex`, keep the raw `i` for the AST params
     // path (the AssignmentPattern default lookup below)
     const argIndex = argIndexForParam(fnPath.node.params, i);
-    if (spreadAtOrBefore(args, argIndex)) return null;
-    if (argIndex < args.length) return resolveCallArgType(args[argIndex]);
+    const length = effectiveArgsLength(args.map(a => a.node));
+    if (length === null) return null;
+    if (argIndex < length) {
+      const arg = positionalPathAt(args, argIndex);
+      return arg ? resolveCallArgType(arg) : null;
+    }
     if (param.type === 'AssignmentPattern') return resolveNodeType(fnPath.get('params')[i].get('right'));
     return null;
   }
@@ -115,11 +121,11 @@ export function createReturnType({
     // dual index, like resolveDirectParam: `argIndex` aligns the call args past a leading `this`, raw
     // `i` keeps the AST `params` path on the real slot
     const argIndex = argIndexForParam(fnPath.node.params, i);
-    if (argIndex < args.length) {
-      // a spread at OR before this slot shifts the arg->param mapping (sibling resolveDirectParam
-      // uses the same guard); `args[argIndex]` is then not the value that reaches this pattern param
-      if (spreadAtOrBefore(args, argIndex)) return null;
-      return resolveDestructuredMember(args[argIndex], keyPath);
+    const length = effectiveArgsLength(args.map(a => a.node));
+    if (length === null) return null;
+    if (argIndex < length) {
+      const arg = positionalPathAt(args, argIndex);
+      return arg ? resolveDestructuredMember(arg, keyPath) : null;
     }
     if (param.type === 'AssignmentPattern') {
       return resolveObjectMemberPath(fnPath.get('params')[i].get('right'), keyPath);
@@ -179,10 +185,11 @@ export function createReturnType({
     const args = callArgumentPaths(callPath).map(a => a.node);
     // align the call arg past a leading `this` pseudo-param (raw `found.index` indexes the AST params)
     const argIndex = argIndexForParam(fnPath.node.params, found.index);
-    // a spread arg at/before this slot makes the default possibly overridden: treat as overridden
-    // (return true) so the caller bails rather than narrowing the param to its default type
-    if (spreadAtOrBefore(args, argIndex)) return true;
-    const arg = args?.[argIndex];
+    // a spread arg no static position survives makes the default possibly overridden: treat as
+    // overridden (return true) so the caller bails rather than narrowing the param to its default type
+    const length = effectiveArgsLength(args);
+    if (length === null) return true;
+    const arg = argIndex < length ? resolveCallArgument(args, argIndex) : null;
     if (!arg) return false;
     // an explicit `undefined` / `void <x>` arg TRIGGERS the param default rather than overriding
     // it (JS coerces `undefined` at a defaulted param to the default), so the default's declared
