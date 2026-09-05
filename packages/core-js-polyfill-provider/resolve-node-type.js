@@ -537,6 +537,8 @@ function createResolveNodeType(babelNodeType, t, {
     let depth = 0;
     while (true) {
       if (depth > MAX_DEPTH) return null;
+      // a transparent wrapper (`o['data' as string]`, a paren node) is the key it wraps
+      key = unwrapRuntimeExpr(key);
       // a zero-arg IIFE computed key (`o[(() => 'data')()]`) evaluates to its return - peel and
       // re-drive. read-only classification keeps the node in place, so peeling a SE-bearing IIFE is
       // still sound (the correct runtime key). the Identifier branch reaches an IIFE-valued alias init
@@ -544,6 +546,15 @@ function createResolveNodeType(babelNodeType, t, {
       const iifeRet = peelZeroArgIifeReturn(key);
       if (iifeRet) {
         key = iifeRet;
+        depth += 1;
+        continue;
+      }
+      // ... and a SEQUENCE key evaluates to its tail (`o[(eff(), 'data')]`) - the same read-only
+      // classification, so the prefix's effect stays where it stands and the tail is the runtime key
+      // ... and a SEQUENCE key's prefix effect stays where it stands: the tail is the runtime key
+      const seqTail = unwrapRuntimeExpr(key)?.type === 'SequenceExpression' ? unwrapRuntimeExpr(key).expressions.at(-1) : null;
+      if (seqTail) {
+        key = seqTail;
         depth += 1;
         continue;
       }

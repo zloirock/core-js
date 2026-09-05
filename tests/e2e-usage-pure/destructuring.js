@@ -5459,18 +5459,12 @@ QUnit.test('destructuring: a bracketed hop key names the slot its dotted spellin
   const { ['box']: { map: literalReceiverMap } } = { box: [7] };
   assert.deepEqual(literalReceiverMap.call([7], value => value + 1), [8]);
   /* eslint-enable no-useless-computed-key -- end of the bracketed-spelling block */
-  // a HOP under a key that only folds through a SEQUENCE is not extracted yet: a leg that rewrites
-  // the destructure as written reads the realm's own slot (undefined where the engine lacks the
-  // method), a leg that rewrites after the destructure was lowered to a member read lands the
-  // ponyfill. the effect running exactly once is the rule here; the value is the gap the flat
-  // effectful key already closes (it keeps its slot AND extracts), and the hop should follow it
+  // a HOP under a key that only folds through a SEQUENCE keeps its level like a rest sibling: the
+  // hop retires to a sentinel, the key runs exactly once, and the leaf below extracts the polyfill
   const { [(eff('key'), 'Array')]: { prototype: { values: effectKeyValues } } } = globalThis;
-  // the realm's own slot, read through a key no rewrite resolves (a dotted spelling would take the
-  // ponyfill and answer `function` on every engine)
-  const rawValues = Array.prototype[['val', 'ues'].join('')];
-  const hopAnswers = effectKeyValues === rawValues || typeof effectKeyValues === 'function';
-  assert.true(hopAnswers, 'the raw slot on one leg, the ponyfill on the other');
-  assert.deepEqual(order, ['key']);
+  assert.same(typeof effectKeyValues, 'function', 'the leaf under an effectful hop key binds the polyfill');
+  assert.deepEqual([...effectKeyValues.call([7, 8])], [7, 8], '... and it works');
+  assert.deepEqual(order, ['key'], 'the key ran exactly once');
 });
 
 /* eslint-disable no-restricted-globals, unicorn/prefer-global-this -- `self` beside `globalThis` IS

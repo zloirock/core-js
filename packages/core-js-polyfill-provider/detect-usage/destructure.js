@@ -4217,11 +4217,10 @@ function computeNestedDestructureReceiver(outerProp, adapter, unionSink = null) 
     if (pattern?.node?.type !== 'ObjectPattern') return null;
     const key = sharedResolveKey({
       node: cur.node.key, computed: cur.node.computed, scope: pattern.scope, adapter,
-      // the two flavors want opposite answers for a key that only folds PAST AN EFFECT. usage-pure
-      // may REWRITE on this name, and no route can re-spell such a key, so it keeps the bail and the
-      // claim ships native. usage-global only ADDS an import, and a hop left unnamed there costs the
-      // module the read needs - over-inject is its safe side, and the effect runs from its own slot
-      bailOnSideEffectKey: adapter.method !== 'usage-global',
+      // a key that only folds PAST AN EFFECT still names the hop: the level keeps the hop the way a
+      // rest sibling does (the hop retires to a sentinel, the key runs once where it stands), so the
+      // fold keeps the key node and every flavor rewrites on the same name
+      bailOnSideEffectKey: false, keepsKeyNode: true,
     });
     if (!key) return null;
     keys.unshift(key);
