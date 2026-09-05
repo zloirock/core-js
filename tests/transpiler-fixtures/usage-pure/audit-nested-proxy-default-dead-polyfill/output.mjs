@@ -4,5 +4,5 @@ import _Array$from from "@core-js/pure/actual/array/from";
 // fires only when the property is undefined, so on engines with buggy-but-present native the
 // polyfill is imported but never assigned. the flatten binds the polyfill directly and keeps the
 // user's default as the static guard the flat twin prints (dead text: the pure is always defined)
-const from = _Array$from === void 0 ? [] : _Array$from;
+const from = _Array$from;
 from([1, 2, 3]);

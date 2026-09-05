@@ -34,7 +34,8 @@ for (const { w: { assign: viaGetter } } of [{ w: Object }, { get w() { return Ob
 for (const { w: { groupBy: viaExtraSlot } } of [{ w: Object, z: 1 }, { w: Object, z: 2 }]) viaExtraSlot;
 for (const { w: { fromEntries: viaSpread } } of [{ w: Object }, { w: Object, ...more }]) viaSpread;
 for (const [{ getOwnPropertyNames: viaHole }] of [[Object], [, Object]]) viaHole;
-// ... and a pattern written further down the body reads the loop variable as a plain binding
+// ... and a pattern written further down the body reads the loop variable as a binding of its
+// element: the static walk reads a for-of head's sole element as the init the head never had
 for (const viaLater of [{ w: Object }]) { const z = 1; const { w: { keys: viaLaterKeys } } = viaLater; [z, viaLaterKeys]; }
 
 // an emptied SOLE host with a pure init leaves on both legs, the wrapper husk included; a neighbour

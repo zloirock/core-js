@@ -46,5 +46,5 @@ n7 = _includesMaybeArray(arr);
 // the composed two-step in this host: a TYPED outer hop feeds the leaf dispatch, whether the hop
 // is an instance method or a static of the constructor the receiver names
 m9 = _at((_ref8 = _flatMaybeArray(arr)) === void 0 ? [] : _ref8);
-m10 = _nameMaybeFunction(_Array$from === void 0 ? {} : _Array$from);
+m10 = _nameMaybeFunction(_Array$from);
 export { m1, m2, m3, m4, m5, restOf, m6, m7, n7, m8, m9, m10 };
