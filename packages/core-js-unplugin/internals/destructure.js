@@ -1156,7 +1156,7 @@ export default function createAstDestructureEmitter({
     // ... and so does a prop whose LITERAL outlives it: the pairing walk keeps that literal alive, and
     // a slot that simply left would take with it the key the surviving husk still reads
     const sentinel = hasRestSibling(pattern) || (prop.computed && computedKeyHasSideEffects(prop))
-      || destructureHostLiteralSurvives(metaPath);
+      || destructureHostLiteralSurvives(metaPath, adapter);
     // a sentinel-kept DEFAULTED prop retires whole (`[(se, 'at')]: _unused` - the default
     // lives on in the extraction's guard ternary); other pattern-valued props stay
     if (sentinel && prop.value.type !== 'Identifier'
@@ -2646,7 +2646,7 @@ export default function createAstDestructureEmitter({
     // the receiver may be resolved THROUGH it, so the dispatch spells the value the read yields
     // (`{ w: (g(), globalThis) }` dispatches on `_globalThis` while the husk still runs `g()`).
     // a literal the consume DROPS keeps the whole sequence in the dispatch - nothing else runs it
-    if (chain.length > 0 && destructureHostLiteralSurvives(metaPath)) {
+    if (chain.length > 0 && destructureHostLiteralSurvives(metaPath, adapter)) {
       literalReceiver = resolveNestedReceiverNode(metaPath, { adapter, allowSePeeledFragment: true })
         ?? (literalReceiver?.type === 'SequenceExpression'
           ? peelReceiverSequenceTail(literalReceiver) : literalReceiver);

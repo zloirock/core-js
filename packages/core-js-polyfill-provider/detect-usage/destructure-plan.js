@@ -24,11 +24,13 @@ import {
   followConstIdentifierInit,
   isChainAssignment,
   isDestructurePattern,
+  isEffectfulKeyHop,
   isRestProperty,
   mayHaveSideEffects,
   objectInitSpreadSurvives,
   objectLevelPairedProperty,
   objectLiteralHoldsObservable,
+  patternKeepsEffectfulHop,
   patternSlotTarget,
   peelNestedSequenceExpressions,
   peelZeroArgIifeReturn,
@@ -152,7 +154,8 @@ function anchoredSeAccounting(declarator, peeledInit) {
 // does the literal this leaf reads THROUGH outlive the pairing? the walk that pairs the level owns
 // the answer, and a slot over a surviving literal stays NAMED: it leaves a sentinel instead of
 // dropping, so the husk keeps the key the residual still reads and every effect the literal owes
-export function destructureHostLiteralSurvives(leafPath) {
+// `adapter` lets the pairing walk fold a BOUND or effectful hop key the way the plan's own walk does
+export function destructureHostLiteralSurvives(leafPath, adapter = null) {
   const host = destructurePatternHostPath(leafPath);
   // a DECLARATION host only: an assignment keeps its literal as a statement of its own
   // (`({ v: (se(), arr) });` - the pattern goes, the read stays), which is its own channel
@@ -161,7 +164,7 @@ export function destructureHostLiteralSurvives(leafPath) {
   // asked of an OBJECT init only: an array wrapper answers the same flag for its own spread, and the
   // routes that own that shape already read it off the plan - re-deciding it here would move them
   return !!pattern && init?.type === 'ObjectExpression'
-    && peelArrayWrapperPair({ pattern, init, liftTrailing: true }).wrapperSurvives;
+    && peelArrayWrapperPair({ pattern, init, scope: leafPath.scope, adapter, path: leafPath, liftTrailing: true }).wrapperSurvives;
 }
 
 // peel parallel transparent destructure wrappers - a level is a SINGLE-slot pair on both sides:
@@ -249,7 +252,8 @@ export function peelArrayWrapperPair({ pattern, init, scope = null, adapter = nu
     // exactly as a spread in the literal does: rest gathers what the pattern did not name, so the
     // consumed hop stays as a sentinel keeping its key excluded, and the residual runs where it stood
     const hopCandidates = pattern?.type === 'ObjectPattern' ? pattern.properties.filter(prop => !isRestProperty(prop)) : [];
-    const hopRest = hopCandidates.length === 1 && pattern.properties.length === 2;
+    // ... and a hop whose KEY carries an effect keeps its level exactly like a rest beside it
+    const hopRest = hopCandidates.length === 1 && (pattern.properties.length === 2 || isEffectfulKeyHop(hopCandidates[0]));
     const hopProp = hopCandidates.length === 1 && (pattern.properties.length === 1 || hopRest)
       && isDestructurePattern(patternSlotTarget(hopCandidates[0].value))
       && consumableHopSlotName(hopCandidates[0], hopKeyCtx) !== null ? hopCandidates[0] : null;
@@ -515,6 +519,16 @@ export function hopNamesMissingAbleCtor(hopProp, resolveGlobalPolyfill) {
   return !!name && !POSSIBLE_GLOBAL_OBJECTS.has(name) && !!resolveGlobalPolyfill(name);
 }
 
+// does the host's LEVEL survive a consume, keeping every consumed leaf as a sentinel? an init whose
+// object literal spreads (the spread reads the source's own keys), an array wrapper the pairing walk
+// keeps (`peeled: false` asks it here; a caller that already peeled passes its own verdict), or a
+// pattern HOP whose key carries an effect (the key has to run once where it stands). one answer for
+// the plan and for the render that re-asks it
+export function hostLevelSurvives(declarator, { peeled = true } = {}) {
+  return objectInitSpreadSurvives(declarator.init) || patternKeepsEffectfulHop(declarator.id)
+    || (peeled && peelArrayWrapperPair({ pattern: declarator.id, init: declarator.init, liftTrailing: true }).wrapperSurvives);
+}
+
 // classify a destructure declarator (`{ id, init }` - a real VariableDeclarator or the
 // cascade's synthetic assignment host) into the plan tree, or null when the init isn't a
 // recognisable receiver shape or nothing extracts. dispatches across three receiver shapes:
@@ -561,10 +575,14 @@ export function buildNestedDestructurePlan({
   // residual reading the static off the pure ctor (unimported -> undefined at runtime, the unplugin
   // break vs babel). a SIDE-EFFECTING key bails to null - it must stay a residual so its effect runs
   // once in place (consuming would drop the key node). non-computed keys read structurally
-  function propKeyNameScoped(prop) {
+  // ... a HOP's key folds even with an effect (`keepsKey`): the level survives the render with the key
+  // in place (`hostLevelSurvives`), so nothing drops the effect - the leaves below it retire to sentinels
+  function propKeyNameScoped(prop, keepsKey = false) {
     if (!isPropertyNode(prop)) return null;
     return prop.computed
-      ? sharedResolveKey({ node: prop.key, computed: true, scope, adapter, path, bailOnSideEffectKey: true })
+      ? sharedResolveKey({
+        node: prop.key, computed: true, scope, adapter, path, bailOnSideEffectKey: !keepsKey, keepsKeyNode: keepsKey,
+      })
       // through the synth namer, which also names a NUMERIC key: it addresses an array SLOT and the
       // static descent reads that slot like any other container member. the narrower namer stays for
       // the mutation pre-pass, which tracks NAMED statics a numeric slot can never be
@@ -656,7 +674,7 @@ export function buildNestedDestructurePlan({
   function planOuterProp(outerProp) {
     const symbolPlanned = planSymbolIteratorProp(outerProp);
     if (symbolPlanned) return symbolPlanned;
-    const name = propKeyNameScoped(outerProp);
+    const name = propKeyNameScoped(outerProp, isDestructurePattern(patternSlotTarget(outerProp.value)));
     if (name === null) return { kind: 'verbatim', prop: outerProp };
     // a MUTATED slot (`globalThis.Promise = Shim` / `window.self = fake` in-file) must read off
     // the patched native binding, not the pure import - the user's replacement wins for the
@@ -732,7 +750,7 @@ export function buildNestedDestructurePlan({
   // Identifier-valued outer props are NOT supported here - they would name a local binding
   // outside the static path, so static-object descent doesn't apply
   function planOuterPropStatic(outerProp, hostInit, walkPath) {
-    const name = propKeyNameScoped(outerProp);
+    const name = propKeyNameScoped(outerProp, isDestructurePattern(patternSlotTarget(outerProp.value)));
     if (name === null) return { kind: 'verbatim', prop: outerProp };
     const value = patternSlotTarget(outerProp.value);
     if (value?.type !== 'ObjectPattern') return { kind: 'verbatim', prop: outerProp };
@@ -967,8 +985,9 @@ export function buildNestedDestructurePlan({
     }
   }
   if (plan && trailingEffects) plan.trailingEffects = trailingEffects;
-  if (plan && (wrapperSurvives || objectInitSpreadSurvives(declarator.init))) plan.wrapperSurvives = true;
-  if (plan && peeled.restKeepsLevel) plan.restKeepsLevel = true;
+  if (plan && (wrapperSurvives || hostLevelSurvives(declarator, { peeled: false }))) plan.wrapperSurvives = true;
+  // an effectful hop key keeps its level the way a rest does: the hop retires to a sentinel
+  if (plan && (peeled.restKeepsLevel || patternKeepsEffectfulHop(pattern))) plan.restKeepsLevel = true;
   planCache.set(adapter, declarator, plan);
   return plan;
 }
