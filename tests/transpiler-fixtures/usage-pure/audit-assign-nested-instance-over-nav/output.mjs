@@ -1,6 +1,6 @@
+import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _globalThis from "@core-js/pure/actual/global-this";
-import _at from "@core-js/pure/actual/instance/at";
 // a nested INSTANCE claim under `prototype`, in the ASSIGNMENT host, over a NAV receiver. the
 // overwrite this host emits dispatches on the receiver the pattern's own segments name, and that
 // receiver is spelled by walking the init's nav (`globalThis` + `Array` + `prototype`) - the
@@ -10,7 +10,7 @@ import _at from "@core-js/pure/actual/instance/at";
 let flatA, flatB, atC, defaulted;
 flatA = _flatMaybeArray(_globalThis.Array.prototype);
 flatB = _flatMaybeArray(_globalThis.Array.prototype);
-atC = _at(Array.prototype);
+atC = _atMaybeArray(Array.prototype);
 ({
   codes: {
     findIndex: defaulted = () => 0

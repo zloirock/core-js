@@ -10,7 +10,7 @@ import {
   createBabelAdapter,
 } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import {
-  collectMutationPrePass as collectEstreeMutationPrePass,
+  collectPrePassSites as collectEstreePrePassSites,
   createEstreeAdapter,
 } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { blockAlwaysExits, canFallThrough, nodeAlwaysExits, nodeAlwaysHardExits } from '../../packages/core-js-polyfill-provider/resolve-node-type/exit-analysis.js';
@@ -145,6 +145,7 @@ import {
   buildSuperStaticMeta,
   createClassHelpers,
   isSymbolDestructureAliasBinding,
+  findNamespaceMemberValue,
   registerAliasPrePassSite,
   isClassifiableReceiverArg,
   isExpandedClassifiableReceiver,
@@ -5752,7 +5753,11 @@ runBoth('the subclass own namespace export outranks the parent one',
       plugins: [{ visitor: { Program(p2) { babelMutated = collectBabelMutationPrePass(p2, babelMutationAdapter).mutated; } } }],
     });
 
-    const estreeMutated = collectEstreeMutationPrePass(parseSyncOxc('unit.mjs', src).program, estreeMutationAdapter).mutated;
+    const estreeMutated = collectEstreePrePassSites({
+      ast: parseSyncOxc('unit.mjs', src).program,
+      adapter: estreeMutationAdapter,
+      collectMutations: true,
+    }).mutated;
     const a = [...babelMutated].sort().join('|');
     const b = [...estreeMutated].sort().join('|');
     check(`mutation pre-pass parity for: ${ src.slice(0, 60) }`, a, b);
@@ -11935,6 +11940,40 @@ runBoth('parameter property: a body write reaches the read', 'class C { construc
   const use = adapter.pickPath(prog, 'Identifier', p => p.node.name === 'a' && p.parentPath?.node?.type === 'ExpressionStatement');
   checkType(lbl, adapter.makeResolver().resolveNodeType(use), { primitive: true, kind: 'string' });
 });
+// a namespace member's READ value: a data field hands back its init, a GETTER hands back what its
+// body returns - but only a body with nothing else to observe, since the walks that ask this resolve
+// the value statically and never run it. the object and CLASS containers answer alike, and so do the
+// two parsers (babel's ObjectMethod / ClassMethod against oxc's Property / MethodDefinition)
+// the key namer the two rows below hand the walk: these containers spell plain identifier keys, so
+// the provider's own resolver is not what is under test here
+function keyName({ node }) {
+  return node?.name ?? node?.value ?? null;
+}
+
+runBoth('findNamespaceMemberValue/reads a pure getter, keeps an observable one',
+  `const pure = { get w() { return globalThis; } };
+   const live = { get w() { mark(); return globalThis; } };
+   class PureClass { static get w() { return globalThis; } }
+   class LiveClass { static get w() { mark(); return globalThis; } }`, (adapter, prog, lbl) => {
+    const [pure, live] = adapter.collectPaths(prog, 'VariableDeclarator').map(decl => decl.node.init);
+    const [pureClass, liveClass] = adapter.collectPaths(prog, 'ClassDeclaration').map(decl => decl.node);
+    function read(container) {
+      return findNamespaceMemberValue(container, 'w', null, { method: 'usage-pure' }, keyName);
+    }
+    checkDeep(lbl, [pure, live, pureClass, liveClass].map(container => read(container)?.name ?? null),
+      ['globalThis', null, 'globalThis', null]);
+  });
+// ... and a trailing spread vetoes the answer for a caller that REWRITES the read, never for one
+// that only injects off it
+runBoth('findNamespaceMemberValue/spread veto is the caller\'s promise',
+  'const ns = { w: globalThis, ...extra };', (adapter, prog, lbl) => {
+    const container = adapter.pickPath(prog, 'VariableDeclarator').node.init;
+    function read(options) {
+      return findNamespaceMemberValue(container, 'w', null, { method: 'usage-pure' }, keyName, options);
+    }
+    check(lbl, read()?.name ?? null, null);
+    check(`${ lbl } without the veto`, read({ spreadVetoes: false })?.name ?? null, 'globalThis');
+  });
 runBoth('sloppy block function shadows the static call', 'function h(x) { { function Array() {} } const r = Array.from(x); }', (adapter, prog, lbl) => {
   const decl = adapter.pickPath(prog, 'VariableDeclarator');
   check(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), null);

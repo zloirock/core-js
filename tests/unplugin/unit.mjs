@@ -4,7 +4,7 @@ import { TraceMap, originalPositionFor } from '@jridgewell/trace-mapping';
 import unplugin, { shouldTransform } from '../../packages/core-js-unplugin/index.js';
 import { createPolyfillContext, entryToGlobalHint } from '../../packages/core-js-polyfill-provider/index.js';
 import { ORPHAN_REF_PATTERN } from '../../packages/core-js-polyfill-provider/injector-base.js';
-import { collectMutationPrePass, createEstreeAdapter, withoutPhantomDeclarationViolations } from '../../packages/core-js-unplugin/internals/detect-usage.js';
+import { collectPrePassSites, createEstreeAdapter, withoutPhantomDeclarationViolations } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { patternToRegExp } from '../../packages/core-js-polyfill-provider/helpers/pattern-matching.js';
 import { buildOffsetToLoc } from '../../packages/core-js-polyfill-provider/helpers/source-scan.js';
 import { normalizeMachinePaths, slashifyPath } from './fixture-lang.mjs';
@@ -384,6 +384,19 @@ check('entryToGlobalHint/null', entryToGlobalHint(null), null);
     ['byte order mark', '\uFEFF'],
     ['en quad', '\u2000'],
   ];
+  // a hop the plan ANCHORED under a sole array-assignment wrapper (`AggregateError: { customZ }`) has no
+  // local of its own: the twin route stands down on it instead of recording a nameless overwrite -
+  // the transform must neither throw nor lose the sibling claim
+  {
+    const source = 'let customZ, f; ([{ AggregateError: { customZ }, Iterator: { from: f } }] = [globalThis]);\n';
+    let out;
+    try {
+      out = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } }).transform(source, '/p.mjs')?.code ?? '';
+    } catch (error) {
+      out = `THROW ${ error.message }`;
+    }
+    check('destructure: array-assign twin stands down on an anchored hop', /f = _Iterator\$from/.test(out), true);
+  }
   for (const [label, gap] of GAPS) {
     const source = `import x from "y";${ gap }// keep\nexport const r = [...x].at(0);\n`;
     const out = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } }).transform(source, '/p.mjs')?.code ?? '';
@@ -2663,8 +2676,12 @@ checkSnapshotPeekWithParseNullAst();
 function checkCollectMutatedStaticMembers() {
   const mutationAdapter = createEstreeAdapter({ method: 'usage-pure' });
   function collect(src) {
-    // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
-    return collectMutationPrePass(parseSync('unit.js', src).program, mutationAdapter).mutated;
+    return collectPrePassSites({
+      // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+      ast: parseSync('unit.js', src).program,
+      adapter: mutationAdapter,
+      collectMutations: true,
+    }).mutated;
   }
   // direct `=` assignment
   check('collectMutatedStaticMembers/direct assign',

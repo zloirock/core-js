@@ -18,6 +18,7 @@ import {
   bindsModuleDefault,
   chainValueCarrier,
   collectFoldedReceiverSideEffects,
+  computedKeyHasSideEffects,
   definedBranchOfGuardConditional,
   deleteHostAboveChain,
   globalProxyNameFromImportSource,
@@ -72,6 +73,7 @@ import {
   singleQuasiString,
   singleReturnBodyExpression,
   SKIPPABLE_WRAPPER_TYPES,
+  spelledSlotName,
   spreadAtOrBefore,
   staticMemberKeyName,
   synthSwapPropKey,
@@ -964,8 +966,13 @@ function enterIdentifierBindingFollow(hop) {
   // was already judged clean by the shadow-safe predicate that surfaced `aliasSymbolSource`.
   // blocking on that same write kept the fold babel-only (babel's in-place rewrite hides the
   // write from its own scope tracker, the mutation-free estree side always saw it)
+  // ... and a binding whose every reachable value NAMES THE REALM is no alias risk at all: the writes
+  // spell one object under several names, so the read answers the same whichever reached the use
   if (!binding || (reassignmentBlocksGlobalResolve({ binding, adapter, path, usageNode })
-    && !binding.aliasSymbolSource)) return null;
+    && !binding.aliasSymbolSource
+    && !everyReachableValueNamesRealm({
+      binding, path, name: node.name, ctx: { scope, adapter, path }, usageNode,
+    }))) return null;
   const nextSeen = new Set(seen);
   nextSeen.add(node.name);
   // a destructure declarator binds `name` to a SLOT of the init, not the init itself: following
@@ -1423,9 +1430,16 @@ function resolveGuardedBindingToGlobal({ name, scope, adapter, seen, path, usage
 // Array; () => M.assign()`). returns the reaching value NODE to resolve instead of the dead init, or
 // null to keep following the init (no reassignment / init still live / value indeterminable - over-
 // inject-safe). shared by the key (resolveKey) and receiver (resolveVariableBindingToGlobal) follows
+// usage-pure takes the reaching value on the container walk's terms (`reachingContainerValueNode`):
+// only when that write is the ONLY value the read can observe - the bare canon and the walk lifted
+// from it answer one reassigned binding alike (`var g = globalThis; g = plain; g = self; g.Map`)
 function reachingValueOverDeadInit({ binding, adapter, path, scope, usageNode = null }) {
-  if (adapter.method !== 'usage-global' || !isReassignedBeyondDeclarator(binding)) return null;
-  return reachingReassignmentValueNode({ binding, usagePath: path, ctx: { scope, adapter, path, resolveKey }, usageNode });
+  const { method } = adapter;
+  if ((method !== 'usage-global' && method !== 'usage-pure') || !isReassignedBeyondDeclarator(binding)) return null;
+  return reachingReassignmentValueNode({
+    binding, usagePath: path, ctx: { scope, adapter, path, resolveKey }, usageNode,
+    requireSingleObservation: method === 'usage-pure', plainWritesOnly: method === 'usage-pure',
+  });
 }
 
 function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, path, usageNode = null, readNode = null }) {
@@ -1434,10 +1448,12 @@ function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, p
   const declarator = bindingDeclaratorNode(binding);
   if (!declarator) return null;
   // a real reassignment (a constantViolation beyond a loop-reinit declarator-self) makes the alias
-  // flow-dependent. usage-pure bails on ANY reassignment (its receiver-dropping rewrite is unsound);
-  // usage-global bails ONLY when a reassignment DOMINATES the use (init provably dead) - a
-  // conditional / after-use reassignment leaves the init live, and inject-if-maybe-needed keeps
-  // resolving it. `usageNode` anchors the dominance at THIS hop's read site for a multi-hop alias
+  // flow-dependent. usage-pure resolves ONLY a provable value: the live init when no reassignment
+  // reaches the use, else the ONE plain write the read can observe (the container walk's rule,
+  // `reachingValueOverDeadInit` below) - anything ambiguous bails, its receiver-dropping rewrite
+  // being unsound over a guess; usage-global bails ONLY when a reassignment DOMINATES the use (init
+  // provably dead) - a conditional / after-use reassignment leaves the init live, and
+  // inject-if-maybe-needed keeps resolving it. `usageNode` anchors the dominance at THIS hop's read site for a multi-hop alias
   // (`let a = Array; const b = a; a = Map; b.from()` - `a = Map` is after `const b = a`, so it does not
   // kill the value `b` captured). the bail returns early, before the `.node.init/.id` deref below
   // assignment-form ctor alias (`let M; ({ Map: M } = globalThis); M.groupBy`): the binding's single
@@ -1484,7 +1500,16 @@ function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, p
       if (alias) return alias;
     }
   }
-  if (isReassignedBeyondDeclarator(binding) && reassignBailApplies({ binding, adapter, path, usageNode })) return null;
+  // ... unless every value the binding can hold NAMES THE REALM: the writes spell one object under
+  // several names, so a read through it answers the same whichever reached the use - there is no
+  // flow hazard for the bail to protect (`let g = globalThis; g = self; g.Map`)
+  // ... or holds ONE value the read can observe: the reaching write resolves below in the init's place
+  const reaching = reachingValueOverDeadInit({ binding, adapter, path, scope, usageNode });
+  if (isReassignedBeyondDeclarator(binding) && reassignBailApplies({ binding, adapter, path, usageNode })
+    && !reaching
+    && !everyReachableValueNamesRealm({
+      binding, path, name, ctx: { scope, adapter, path }, usageNode,
+    })) return null;
   // a function-scoped `var` whose assignment is conditional (`if (c) { var M = globalThis }`)
   // holds the global only on paths through that branch. usage-pure rewrites `M.Array.from` to a
   // receiver-less helper, DROPPING the guard - so a non-dominating assignment would mask the
@@ -1496,7 +1521,6 @@ function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, p
   // (`let M = Object; M = Array; () => M.assign()` resolves to Array, not the unreachable Object).
   // the write's RHS was spelled where the binding lives, not at the use - resolve it in the
   // binding's own declaration scope so a use-site shadow of an RHS name cannot capture it
-  const reaching = reachingValueOverDeadInit({ binding, adapter, path, scope, usageNode });
   if (reaching) return resolveObjectName({
     objectNode: reaching, scope: aliasDeclScope(binding, scope), adapter, seen: new Set(seen).add(name), path, usageNode: reaching,
   });
@@ -1726,6 +1750,35 @@ export function patternBindingName(node) {
 // defensive default genuinely tests. entry existence is the same target-independent question
 // `proxyHopLacksPureEntry` asks of a hop; a SHADOWED or mutated-slot spelling still declines
 // downstream, at the identifier checks the peel hands the name to
+// does every value this binding can hold NAME THE REALM? `let g = globalThis; g = self` holds ONE
+// object under two names, so a read through it - a constructor, a static - answers the same whichever
+// write reached the use, and the alias bail has nothing to protect. the declaration's own init counts
+// as one of those values, and an enumeration that cannot see them all answers false
+function everyReachableValueNamesRealm({ binding, path, name, ctx = null, usageNode = null }) {
+  const bindingNode = binding?.node ?? binding?.path?.node;
+  const init = bindingNode?.type === 'VariableDeclarator' && bindingNode.id?.type === 'Identifier'
+    ? unwrapRuntimeExpr(bindingNode.init) : null;
+  if (!init) return false;
+  const values = [init, ...reassignmentValueNodes({ binding, usagePath: path, name, ctx, usageNode })];
+  return values.length > 1 && values.every(value => {
+    const named = peelRealmLogicalDefault(unwrapRuntimeExpr(value));
+    if (named?.type !== 'Identifier') return false;
+    // ... and only while the slot still stands: a name the file REPLACES holds the user's object,
+    // not the realm, so the values are no longer one object under several names
+    if (ctx?.adapter && isMutatedGlobalSlot(ctx.adapter, named.name)) return false;
+    if (guaranteedRealmObjectName(named.name)) return true;
+    // ... read through the MINTED spelling too: by the time this resolution runs, the walk may have
+    // swapped the source name for the ponyfill binding it stands for (`globalThis` -> `_globalThis`),
+    // and the hint is what names the realm behind it
+    const hint = ctx?.adapter?.getBindingPolyfillHint?.(ctx.scope, named.name)
+      ?? bindingPolyfillHint({
+        binding: ctx?.adapter?.getBinding?.(ctx.scope, named.name, ctx.path), scope: ctx?.scope, name: named.name,
+        adapter: ctx?.adapter,
+      });
+    return !!hint && guaranteedRealmObjectName(hint);
+  });
+}
+
 export function guaranteedRealmObjectName(name) {
   return !!name && POSSIBLE_GLOBAL_OBJECTS.has(name) && !!resolveBuiltInMeta({ kind: 'global', name });
 }
@@ -1746,11 +1799,16 @@ export function guaranteedRealmObjectName(name) {
 // navigation that can short-circuit makes the right side live. the walk descends nested defaults
 // (`((self ?? {}) ?? {})`) - the same guarantee kills the right side at every level - and hands
 // back the UNTOUCHED core when the innermost left proves nothing
-function peelRealmLogicalDefault(node) {
-  const core = peelChainRootValue(node);
+// `discarding`: the caller DROPS what it peels (a consume that reads the answer in place of the
+// slot), so a prefix or a write buried under the default would go with it - that mode reads through
+// transparent wrappers only, and a left that hides a sequence or an assignment stays unpeeled. the
+// default mode classifies: the source text stays, and the emit side harvests those effects itself
+export function peelRealmLogicalDefault(node, { discarding = false } = {}) {
+  const peelRoot = discarding ? unwrapRuntimeExpr : peelChainRootValue;
+  const core = peelRoot(node);
   let current = core;
   while (current?.type === 'LogicalExpression' && (current.operator === '??' || current.operator === '||')) {
-    const left = peelChainRootValue(current.left);
+    const left = peelRoot(current.left);
     if (left?.type === 'Identifier' && guaranteedRealmObjectName(left.name)) return left;
     current = left;
   }
@@ -1826,8 +1884,11 @@ export function resolveObjectName({
   // `(a = (b = Array))`, `((a = Array))` all resolve to Array). closes binding-init walks
   // (`const X = (a = Array); X.from(...)`) and IIFE-return walks
   // (`(() => (a = Array))().from(...)`) symmetrically. SE preservation is downstream's
-  // problem - resolveObjectName only classifies receiver shape
-  objectNode = peelChainAssignmentDeep(objectNode);
+  // problem - resolveObjectName only classifies receiver shape - so a stored value spelled with
+  // its own effect prefix classifies by its tail (`(a = (eff(), Array))` names Array: the write
+  // is rescued whole where it is discarded, and the prefix rides with it)
+  const stored = peelChainAssignment(objectNode);
+  objectNode = stored.outer ? peelReceiverSequenceTail(stored.value) : stored.value;
   // the receiver ITSELF spelled as a logical default over the realm: the same rule the proxy-root
   // walk reads for a receiver BELOW it (`peelRealmLogicalDefault`) - a guaranteed realm name is
   // an object, so the defensive right side is dead and `(globalThis ?? {}).Map` names the realm's
@@ -3048,6 +3109,16 @@ export function resolveSynthKeys({ node, scope, adapter, path }) {
     ? resolveKey({ node: node.key, computed: true, scope, adapter, path })
     : plainSynthKeyName(node.key);
   return { lookupKey, slotKey };
+}
+
+// the slot a HOP prop names for a walk that will CONSUME it: the spelling the source wrote, plus the
+// scope-aware fold of a bound key (`{ [K]: ... }` with `const K = 'Array'`) where the caller can hand
+// over a scope. a key that EVALUATES something answers null however it folds - consuming the prop
+// drops the key node, and the effect would go with it
+export function consumableHopSlotName(prop, keyCtx = null) {
+  if (prop.computed && computedKeyHasSideEffects(prop)) return null;
+  return spelledSlotName(prop)
+    ?? (prop.computed && keyCtx?.adapter ? resolveSynthKeys({ node: prop, ...keyCtx }).lookupKey : null);
 }
 
 // bare unbound `Symbol` / capitalised const-alias (`const Sym = Symbol`) /

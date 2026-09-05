@@ -1,8 +1,10 @@
+import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+var _ref;
 // When the receiver value of the body-extracted binding (`b: [y()]`) ITSELF carries a side effect,
-// re-emitting it for the body-extract would evaluate `y()` twice and pull it ahead of the sibling
-// side effects (`x()` before, `z()` after). so the extract must BAIL: the destructure stays intact
-// and the receiver literal runs once, keeping native order `x() -> y() -> z()`. trades the `at`
-// polyfill for side-effect correctness - the same call babel declines here
+// re-emitting it for the extraction would evaluate `y()` twice and pull it ahead of the sibling
+// side effects (`x()` before, `z()` after). the slot memo keeps both: the value is written IN its
+// slot (`b: _ref = [y()]`), so the literal still runs `x() -> y() -> z()` once, and the extraction
+// reads the ref after the destructure - the `at` polyfill lands without reordering anything
 function x() {
   return 1;
 }
@@ -15,12 +17,13 @@ function z() {
 const {
   a,
   b: {
-    at
+    at: _unused
   },
   c
 } = {
   a: [x()],
-  b: [y()],
+  b: _ref = [y()],
   c: [z()]
 };
+const at = _atMaybeArray(_ref);
 export const out = [a, c, typeof at];
