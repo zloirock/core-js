@@ -1,6 +1,7 @@
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Promise from "@core-js/pure/actual/promise/constructor";
 import _self from "@core-js/pure/actual/self";
+import _WeakSet from "@core-js/pure/actual/weak-set/constructor";
 // a spread-shifted array-wrap slot pairs a POSSIBLE value, not a certain one (the spread's own
 // items are unenumerable), so pure's receiver-dropping rewrite must not treat the lone enumerated
 // candidate as the binding's value: at runtime the slot may hold any spread element, and a
@@ -27,9 +28,11 @@ const [, [{
 }]];
 export const viaNestedShift = P.allSettled([]);
 
-// CONTROL: a slot strictly BEFORE the spread pairs exactly and still resolves
+// CONTROL: a slot strictly BEFORE the spread pairs exactly and still resolves - the residual stays,
+// since the spread ITERATES and no rescue re-emits that
+const W = _WeakSet;
 const [{
-  WeakSet: W
+  WeakSet: _unused
 }] = [_globalThis, ...tail];
 export const viaPreSpreadExact = new W();
 

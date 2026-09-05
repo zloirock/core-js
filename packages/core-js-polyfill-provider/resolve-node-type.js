@@ -1,6 +1,7 @@
 import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
 import { entryToGlobalHint } from './index.js';
 import {
+  allProxySelectingInit,
   cachedContainerPaths,
   findFunctionScopeVarDeclaratorInPath,
   findFunctionScopeVarInPath,
@@ -12,9 +13,11 @@ import {
   isTypeAnnotationWrapper,
   isVoidExpression,
   ownerWritePathIndex,
+  POSSIBLE_GLOBAL_OBJECTS,
   peelParenAndTSParentPath,
   peelParenAndTSSlotChild,
   peelZeroArgIifeReturn,
+  proxySelectingBranchKey,
   singleReturnBodyExpression,
   singleQuasiString,
   SKIPPABLE_WRAPPER_TYPES,
@@ -2488,6 +2491,85 @@ function createResolveNodeType(babelNodeType, t, {
     return null;
   }
 
+  // a key path off a GLOBAL object that spells `<Ctor>.prototype`, with proxy-global hops allowed
+  // ahead of the constructor (`globalThis.self.Array.prototype`): the instance type that surface
+  // hosts, or null for every other shape. a user-replaced slot answers null - the walk honors the
+  // redirection exactly as the member-read type channel does
+  // a SELECTING receiver whose every branch lands on the same proxy surface reads ONE realm
+  // whichever branch runs, so the selection cannot change the surface (`self ?? globalThis` holds
+  // `Array.prototype` either way) and the first branch answers for all of them. the verdict and the
+  // branch order are the core's own canon - the second leg's drain re-anchors by the same pair
+  function realmSelectingBranch(path) {
+    if (!proxySelectingBranchKey(path?.node) || !allProxySelectingInit(path.node, { adapter: babelBindingAdapter })) {
+      return null;
+    }
+    let cur = path;
+    for (let key = proxySelectingBranchKey(cur.node); key; key = proxySelectingBranchKey(cur.node)) {
+      cur = resolveRuntimeExpression(cur.get(key));
+    }
+    return cur;
+  }
+
+  // a claim reached through a LITERAL the source wrote - an array WRAPPER's slot, an object hop -
+  // starts its key path INSIDE that literal, so the surface question is asked of what the descent
+  // lands on and of the keys that are left (`[, { Array: { prototype: { at } } }] = [eff(), globalThis]`
+  // reads the same surface its flat twin does). a SPREAD at or before the slot makes the position
+  // runtime-determined, and the pairing is unprovable from there on
+  function descendLiteralKeyPrefix(path, keyPath) {
+    let receiver = path;
+    let keys = keyPath;
+    while (keys.length > 1) {
+      const [step] = keys;
+      const node = receiver?.node;
+      if (node?.type === 'ArrayExpression' && typeof step === 'number' && step >= 0) {
+        if (spreadAtOrBefore(node.elements, step)) return null;
+        const element = cachedContainerPaths(receiver, 'elements')[step];
+        if (!element?.node) return null;
+        receiver = resolveRuntimeExpression(element);
+      } else if (node?.type === 'ObjectExpression' && typeof step === 'string') {
+        const member = findObjectMember(receiver, step);
+        if (!member?.node) return null;
+        receiver = resolveRuntimeExpression(member.get('value'));
+      } else break;
+      keys = keys.slice(1);
+    }
+    return { receiver, keys };
+  }
+
+  function resolveGlobalSurfaceKeyPath(initPath, keyPath) {
+    if (keyPath.at(-1) !== 'prototype') return null;
+    const init = resolveRuntimeExpression(initPath);
+    const descended = descendLiteralKeyPrefix(realmSelectingBranch(init) ?? init, keyPath);
+    if (!descended) return null;
+    const { receiver: inner, keys } = descended;
+    const resolved = realmSelectingBranch(inner) ?? inner;
+    // a MEMO the emitter planted mid-render stands where the source wrote the nav, and what it holds
+    // is the alias it was registered under - the name a claim asking AFTER that memo landed reads
+    const rootName = resolveGlobalName(resolved)
+      ?? (resolved?.node?.type === 'Identifier'
+        ? babelBindingAdapter.getBindingPolyfillHint?.(resolved.scope, resolved.node.name) : null);
+    if (!rootName) return null;
+    const aliased = resolved?.node?.type === 'Identifier' && !POSSIBLE_GLOBAL_OBJECTS.has(rootName)
+      && !resolveKnownConstructor(rootName)
+      ? babelBindingAdapter.getBindingPolyfillHint?.(resolved.scope, resolved.node.name) : null;
+    const root = aliased ?? rootName;
+    const hops = keys.slice(0, -1);
+    // the constructor is the last hop the pattern names, or the init itself where the hops carry
+    // none - a collapsed proxy nav leaves the ctor there (`{ prototype: { at } } = _globalThis.Array`).
+    // `destructuredGlobalKeyPathLeaf` walks the same chain for the SYMBOL fold, but answers a leaf off
+    // a proxy ROOT: it has no arm for the ctor arriving in the init, and its root test reads an
+    // identifier where this one is handed a resolved global NAME
+    const ctorName = hops.length ? hops.at(-1) : root;
+    function proxyStep(step) {
+      return typeof step === 'string' && POSSIBLE_GLOBAL_OBJECTS.has(step)
+        && !babelBindingAdapter.isMutatedStatic('globalThis', step);
+    }
+    // where the ctor comes from the KEY PATH, everything ahead of it walks the global object
+    if (hops.length && (!POSSIBLE_GLOBAL_OBJECTS.has(root) || !hops.slice(0, -1).every(proxyStep))) return null;
+    if (typeof ctorName !== 'string' || babelBindingAdapter.isMutatedStatic('globalThis', ctorName)) return null;
+    return resolveKnownConstructor(ctorName);
+  }
+
   // resolve the type of the object from which a property is accessed:
   // member expression (obj.prop, obj?.prop) or destructuring ({ prop } = obj).
   // anchored like `resolveNodeType`: this public entry reads `path.scope` /
@@ -2495,6 +2577,117 @@ function createResolveNodeType(babelNodeType, t, {
   // the anchor exists to prevent
   function resolvePropertyObjectType(path) {
     path = anchorPathScope(path);
+    // a destructure prop is asked more than once, and an emitter REWRITES the pattern between those
+    // asks (a consumed hop leaves, a memo takes the init's place, a cast goes with the init it wraps).
+    // where the HOST holds one receiver for the whole pattern the first answer is a fact about the
+    // source and is kept, so a later ask cannot re-derive it from a tree the source never wrote; a
+    // host that supplies a receiver PER ITERATION (a for-x head) legitimately answers differently
+    // each time and is never cached
+    const cacheKey = path?.node?.type === 'ObjectProperty' || path?.node?.type === 'Property' ? path.node : null;
+    if (cacheKey && destructureReceiverTypes.has(cacheKey)) return destructureReceiverTypes.get(cacheKey);
+    // `perIteration: false` is the ANSWER's own claim that it does not depend on which element the
+    // host supplies - the slot fold of a for-x head is exactly that, and a leg that RELOCATES the
+    // head then re-detects the pattern against a minted name nothing types
+    const verdict = { perIteration: true };
+    const answer = resolvePropertyObjectTypeUncached(path, verdict);
+    if (cacheKey && (!verdict.perIteration || fixedReceiverHost(path))) destructureReceiverTypes.set(cacheKey, answer);
+    return answer;
+  }
+
+  // does the pattern this prop sits in read ONE receiver, fixed for the whole program? a declarator
+  // or an assignment does; a loop head re-binds per element, and a parameter takes whatever the
+  // caller passes
+  function fixedReceiverHost(path) {
+    let cur = path?.parentPath;
+    while (cur && PATTERN_WRAPPERS.has(babelNodeType(cur.node))) cur = cur.parentPath;
+    const type = babelNodeType(cur?.node);
+    if (type === 'AssignmentExpression') return true;
+    // a plain `for (const { at } = x; ...)` evaluates its init ONCE, so only the two heads that
+    // re-bind per element are excluded
+    const declarationHost = babelNodeType(cur.parentPath?.parentPath?.node);
+    return type === 'VariableDeclarator'
+      && declarationHost !== 'ForInStatement' && declarationHost !== 'ForOfStatement';
+  }
+
+  // the receiver type each destructure prop resolved to, by prop node - see above. a WeakMap keyed
+  // by node needs no reset: a new parse brings new nodes, and the entries of the old one go with it
+  const destructureReceiverTypes = new WeakMap();
+
+  // no answer at all, as against an answer of NOTHING: the slot walk that finds no literal to
+  // descend leaves the question to the routes below, while one that reads a cross-family pair
+  // answers the typeless verdict on purpose
+  const NO_SLOT_ANSWER = Symbol('no-slot-answer');
+
+  // the loop's ELEMENT is what the pattern destructures, so it answers a claim the pattern names
+  // DIRECTLY. a claim one or more HOPS in reads the element's SLOT, and where the iterable is a
+  // LITERAL that slot is a path this walk can descend - the same read a declarator host performs.
+  // where every element provably LACKS the hop, the pattern's own default is what runs, and its
+  // type is the answer; an annotated iterable has no path to walk and keeps the element type.
+  // only a literal-OBJECT element is a path this walk may descend: anything else (a binding, a
+  // call) is a value other routes own, and resolving it HERE answers their question out of turn
+  function forOfElementSlotType(forOfPath, keyPath, slotDefault) {
+    if (!keyPath?.length) return NO_SLOT_ANSWER;
+    const iterated = resolveRuntimeExpression(forOfPath.get('right'));
+    const elements = iterated?.node?.type === 'ArrayExpression'
+      ? cachedContainerPaths(iterated, 'elements').filter(item => item?.node) : [];
+    const values = elements.map(element => resolveRuntimeExpression(element));
+    // the head may destructure an ARRAY wrapper first (`for (const [{ y }] of [[{ y: [5] }]])`): a numeric
+    // step descends the element literal the way the object step descends a property
+    const literalElements = values.length !== 0 && values.every(value => typeof keyPath[0] === 'number'
+      ? t.isArrayExpression(value?.node) : t.isObjectExpression(value?.node));
+    if (slotDefault?.node && literalElements && typeof keyPath[0] !== 'number'
+      && values.every(value => !findObjectMember(value, keyPath[0]))) {
+      return resolveNodeType(slotDefault);
+    }
+    if (!literalElements) return NO_SLOT_ANSWER;
+    // ... and where the hop STANDS, the leaf reads that SLOT of each element, not the element:
+    // answering the element type handed a nested claim the plain-object answer, which resolves to
+    // no polyfill at all and cost usage-global the module the read needs. a CROSS-FAMILY pair folds
+    // to nothing, and nothing is the honest answer - both families have to reach the leaf then
+    let folded = null;
+    for (const value of values) {
+      // the slot is reached the way an EXPRESSION read reaches it - hop by hop, each resolved to
+      // what it HOLDS (a binding's value, a call's return). the member spelling of the same read
+      // answers that way, and a nested claim must not answer less than its own flat twin
+      let slotPath = value;
+      for (const [step, key] of keyPath.entries()) {
+        if (typeof key === 'number') {
+          const elementsHere = t.isArrayExpression(slotPath?.node) && key >= 0
+            && !spreadAtOrBefore(slotPath.node.elements, key) ? cachedContainerPaths(slotPath, 'elements') : null;
+          const element = elementsHere?.[key];
+          if (!element?.node) {
+            slotPath = null;
+            break;
+          }
+          slotPath = step === keyPath.length - 1 ? element : resolveRuntimeExpression(element);
+          continue;
+        }
+        const member = t.isObjectExpression(slotPath?.node) ? findObjectMember(slotPath, key) : null;
+        if (!member?.node) {
+          slotPath = null;
+          break;
+        }
+        // the LAST hop is typed AS WRITTEN: a binding names a value the type channel follows on its
+        // own (a call's target, a later write), and peeling it to the runtime expression asks the
+        // narrower question - the flat twin of this read asks the wide one. the hops before it are
+        // peeled, since only a literal can be descended
+        // ... and a GETTER names its value through the RETURN, the reading the member spine takes
+        // one hop up: without it the head of a loop answered nothing where its flat twin answers
+        const next = member.node.kind === 'get' ? getterReturnPath(member) : member.get('value');
+        if (!next?.node) {
+          slotPath = null;
+          break;
+        }
+        slotPath = step === keyPath.length - 1 ? next : resolveRuntimeExpression(next);
+      }
+      const slot = slotPath ? resolveNodeType(slotPath) : null;
+      if (!slot) return null;
+      folded = folded ? commonType(folded, slot) : slot;
+    }
+    return folded;
+  }
+
+  function resolvePropertyObjectTypeUncached(path, verdict = {}) {
     if (isMemberLike(path)) return resolveNodeType(path.get('object'));
     // `key in obj` presence probe: the receiver whose prototype answers is the RIGHT operand
     // (the instance-probe meta and its union extras dispatch with the BinaryExpression path).
@@ -2531,36 +2724,40 @@ function createResolveNodeType(babelNodeType, t, {
     if (keyPath?.length) {
       const initPath = getPatternInit(ancestor);
       if (initPath?.node) {
-        // a CAST is what the source says the receiver IS: `{ y: { at } } = box as any` reads the
-        // slot off `any`, exactly as `(box as any).y` does. peeling to the literal underneath
-        // answered a type the source overrode - and the flat spelling never does that.
+        // a CAST NARROWS where it resolves and never blocks: what the leaf reads at runtime is the
+        // VALUE, and an annotation is one more way to learn its type - so `box as SomeShape` answers
+        // from the shape, while `as any` names nothing and the read falls through to the value routes
+        // below, reaching exactly the type an uncast receiver reaches.
         // by node TYPE, not a babel-types helper: the estree adapter carries no `isTSAsExpression`,
         // and a helper that quietly answers `undefined` there would leave one leg on the peeled read
         const annotated = initPath.node.type === 'TSAsExpression' || initPath.node.type === 'TSTypeAssertion'
           ? findExpressionAnnotation(initPath) : null;
-        if (annotated) return resolveAnnotatedMemberPath(annotated.annotation, keyPath, annotated.scope);
+        const castType = annotated
+          ? resolveAnnotatedMemberPath(annotated.annotation, keyPath, annotated.scope) : null;
+        if (castType) return castType;
+        // ... and where it names nothing, the VALUE routes read THROUGH it: both dialects spell the
+        // wrapper `TSAsExpression`, and only its expression carries what runs
+        const valueInit = annotated ? initPath.get('expression') ?? initPath : initPath;
         // the init path travels UNRESOLVED as well: the slot read asks it whether a binding stands
         // between the literal and this read, and answers flow-aware where one does
-        const member = resolveObjectMemberPath(resolveRuntimeExpression(initPath), keyPath, initPath);
+        const member = resolveObjectMemberPath(resolveRuntimeExpression(valueInit), keyPath, valueInit);
         if (member) return foldDefault(member);
+        // ... and a BUILT-IN surface the pattern navigates to off a global object answers the way its
+        // member spelling does: the hops name a constructor and its `prototype` reads as an instance
+        // (`{ Array: { prototype: { at } } } = globalThis` narrows exactly as `globalThis.Array
+        // .prototype.at` - without this the leaf took the generic dispatcher on both legs).
+        const surface = resolveGlobalSurfaceKeyPath(valueInit, keyPath);
+        if (surface) return foldDefault(surface);
       }
     }
     const forOfPath = t.isForOfStatement(ancestor?.node) ? ancestor : findForLoopParent(ancestor);
     if (!t.isForOfStatement(forOfPath?.node)) return null;
-    // the loop's ELEMENT is what the pattern destructures, so it answers a claim the pattern names
-    // DIRECTLY. a claim one or more HOPS in reads the element's SLOT, and where the iterable is a
-    // LITERAL that slot is a path this walk can descend - the same read a declarator host performs.
-    // where every element provably LACKS the hop, the pattern's own default is what runs, and its
-    // type is the answer; an annotated iterable has no path to walk and keeps the element type
-    if (keyPath?.length && slotDefault?.node) {
-      const iterated = resolveRuntimeExpression(forOfPath.get('right'));
-      const elements = iterated?.node?.type === 'ArrayExpression'
-        ? cachedContainerPaths(iterated, 'elements').filter(item => item?.node) : [];
-      const lacksHop = elements.length !== 0 && elements.every(element => {
-        const value = resolveRuntimeExpression(element);
-        return t.isObjectExpression(value?.node) && !findObjectMember(value, keyPath[0]);
-      });
-      if (lacksHop) return resolveNodeType(slotDefault);
+    const slotted = forOfElementSlotType(forOfPath, keyPath, slotDefault);
+    if (slotted !== NO_SLOT_ANSWER) {
+      // the fold is over EVERY element the literal names, so it answers for every iteration alike -
+      // unlike the element type below, which is what one turn of the loop holds
+      verdict.perIteration = false;
+      return slotted === null ? foldDefault(null) : foldDefault(slotted);
     }
     return resolveForOfResolvedElement(forOfPath);
   }

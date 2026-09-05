@@ -4,7 +4,7 @@ import _toReversedMaybeArray from "@core-js/pure/actual/array/instance/to-revers
 import _toSortedMaybeArray from "@core-js/pure/actual/array/instance/to-sorted";
 import _toSplicedMaybeArray from "@core-js/pure/actual/array/instance/to-spliced";
 import _withMaybeArray from "@core-js/pure/actual/array/instance/with";
-var _ref2, _ref4, _ref6, _ref8, _ref9;
+var _ref2, _ref4, _ref6, _ref8, _ref10;
 const _ref = [9];
 // export x receiver-memo x LIVE instance default: the memo hoist plants BEFORE the `export`
 // keyword, so the destructure keeps its export (every user binding stays on the module surface)
@@ -41,9 +41,10 @@ export const {
   r1 = (_ref8 = _toReversedMaybeArray(_ref7)) === void 0 ? dflt() : _ref8,
   {
     other2
-  } = _ref7,
-  {
+  } = _ref7;
+const _ref9 = [4];
+export const {
     [(e6(), 'toSorted')]: _unused6
-  } = [4],
-  s1 = (_ref9 = _toSortedMaybeArray([4])) === void 0 ? dflt() : _ref9;
+  } = _ref9,
+  s1 = (_ref10 = _toSortedMaybeArray(_ref9)) === void 0 ? dflt() : _ref10;
 console.log(r1, s1, other2);

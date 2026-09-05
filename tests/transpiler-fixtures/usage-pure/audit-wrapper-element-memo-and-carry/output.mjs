@@ -20,15 +20,16 @@ const viaWrapOpaqueDefault = (_ref2 = _atMaybeArray(_ref3)) === void 0 ? null : 
 // does would have its element read before this declarator's own key
 const _ref4 = _flatMaybeArray(arr).call(arr);
 const viaWrapAheadOfPure = _atMaybeArray(_ref4);
-const viaWrapPureTail = 1; // ... and a SURVIVING residual pins its extraction beside itself when the source wrote a declarator
-// BEHIND them: that trailing binding splits into a statement of its own, while a pattern left holding
-// nothing but a rest reads through the memo from a statement of its own instead
+const viaWrapPureTail = 1; // ... and a SURVIVING residual keeps its extraction beside itself in the one declaration, a declarator
+// the source wrote BEHIND them staying in that join (the memo ahead of it all), while a pattern left
+// holding nothing but a rest reads through the memo from a statement of its own instead
 const _ref5 = hb.y;
 const [{
     length: viaKeptLength
   }] = [_ref5],
-  viaKeptResidual = _atMaybeArray(_ref5);
-const viaKeptTail = 1; // ... and a receiver carrying a CLAIM OF ITS OWN memoizes what the tree holds AFTER that claim
+  viaKeptResidual = _atMaybeArray(_ref5),
+  viaKeptTail = 1;
+// ... and a receiver carrying a CLAIM OF ITS OWN memoizes what the tree holds AFTER that claim
 // rendered, never the copy the plan captured - the rest below re-reads that one memo
 const _ref7 = _sliceMaybeArray(_ref6 = hb.y).call(_ref6);
 const viaSharedMemo = _atMaybeArray(_ref7);
@@ -36,15 +37,12 @@ const [{
   at: _unused,
   ...viaSharedRest
 }] = [_ref7];
-// a wrapper element the PEEL reduces to a sequence TAIL: the residual keeps the whole sequence, so
-// spelling that tail again would evaluate it twice - the shape this leg's OWN output takes on a
-// second pass, where the prefix has been lifted to the top of the element
+// a wrapper element the PEEL reduces to a sequence TAIL: the claim consumes the level whole and the
+// dispatch carries the sequence as written, prefix included - one evaluation, in source order
 let viaPeeledTail;
-[{
-  at: viaPeeledTail
-}] = [(out = 2, _flatMaybeArray(arr).call(arr))];
 // a DECLARATION host reads its receiver once whatever keeps the DECLARATION alive: a consumed
 // declarator splits off beside its siblings, and a sole array WRAPPER takes the element whole
+viaPeeledTail = _atMaybeArray((out = 2, _flatMaybeArray(arr).call(arr)));
 const viaDeclSibling = _atMaybeArray(hb.y);
 const viaDeclSiblingZ = 1;
 const viaWrapSole = _atMaybeArray(hb.y); // ... and a wrapper whose NEIGHBOUR still binds keeps the wrapper while THIS element goes empty: the

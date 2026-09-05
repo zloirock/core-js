@@ -81,6 +81,7 @@ import {
   pureCtorNameFromImportSource,
   SINGLE_STATEMENT_SLOTS,
   SKIPPABLE_WRAPPER_TYPES,
+  arrayLiteralSlotValue,
   spreadAtOrBefore,
   staticMemberFromEntrySegment,
   TS_EXPR_WRAPPERS,
@@ -1626,6 +1627,11 @@ function EL(name) { return { type: 'Identifier', name }; }
 check('spreadAtOrBefore/spread at index', spreadAtOrBefore([SP, EL('b')], 0), true);
 check('spreadAtOrBefore/spread before index', spreadAtOrBefore([SP, EL('b'), EL('c')], 2), true);
 check('spreadAtOrBefore/spread after index', spreadAtOrBefore([EL('a'), EL('b'), SP], 1), false);
+// the canonical array-slot read pairs a slot strictly BEFORE a spread exactly, like the positional
+// pairing, and refuses one at or past it
+check('arrayLiteralSlotValue/slot before a spread pairs', arrayLiteralSlotValue({ type: 'ArrayExpression', elements: [EL('a'), SP] }, 0)?.name, 'a');
+check('arrayLiteralSlotValue/slot past a spread declines', arrayLiteralSlotValue({ type: 'ArrayExpression', elements: [SP, EL('b')] }, 1), null);
+check('arrayLiteralSlotValue/slot at a spread declines', arrayLiteralSlotValue({ type: 'ArrayExpression', elements: [EL('a'), SP] }, 1), null);
 check('spreadAtOrBefore/no spread', spreadAtOrBefore([EL('a'), EL('b')], 1), false);
 check('spreadAtOrBefore/path form (.node)', spreadAtOrBefore([{ node: SP }, { node: EL('b') }], 1), true);
 check('spreadAtOrBefore/empty + null safe', spreadAtOrBefore([], 3) || spreadAtOrBefore(null, 0), false);
