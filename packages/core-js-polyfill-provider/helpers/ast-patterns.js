@@ -3204,7 +3204,10 @@ export function spreadAtOrBefore(list, index) {
 // a spread has shifted them (a zero-length spread pairs i to the next static, a longer one to the
 // spread's own unenumerable items - `patternSlotSpreadShifted` reports that incompleteness)
 export function arrayWrapSlotValueCandidates(elements, i) {
-  if (!spreadAtOrBefore(elements, i)) return elements[i] ? [elements[i]] : [];
+  if (resolveCallArgumentCoords(elements, i) || !spreadAtOrBefore(elements, i)) {
+    const paired = resolveCallArgument(elements, i);
+    return paired ? [paired] : [];
+  }
   return elements.slice(elements.findIndex(e => e?.type === 'SpreadElement'))
     .filter(e => e && e.type !== 'SpreadElement')
     .flatMap(flattenSlotUnionArms);
@@ -3230,9 +3233,24 @@ function flattenSlotUnionArms(node) {
 // pairing past it is unsound. `null` = no sound pairing (unbound name, spread-shifted or absent
 // element) - callers bail rather than judge a foreign element. single source for the array-wrap
 // positional pairing repeated across the alias / ctor / symbol / receiver resolvers
+// ... an INLINE-array spread (`[...[a, b], c]`) is a longer literal whose items sit at static
+// positions - the call-argument expansion reads them so, and any other spread still shifts the slot
 export function pairedArrayWrapInitElement(initElements, index) {
-  if (index < 0 || spreadAtOrBefore(initElements, index)) return null;
-  return initElements?.[index] ?? null;
+  return index < 0 ? null : resolveCallArgument(initElements ?? [], index);
+}
+
+// the same expansion written INTO the literal: the rewriting flavor splices an inline-array spread
+// in place before any route edits the literal by slot, so a positional answer and a positional edit
+// name one element. a spread with a spread inside stays (its length is variadic)
+export function flattenInlineArraySpreads(elements) {
+  if (!Array.isArray(elements)) return;
+  for (let i = 0; i < elements.length; i++) {
+    const item = elements[i];
+    const spread = item?.type === 'SpreadElement' ? unwrapRuntimeExpr(item.argument) : null;
+    if (spread?.type !== 'ArrayExpression' || spread.elements.some(inner => inner?.type === 'SpreadElement')) continue;
+    elements.splice(i, 1, ...spread.elements);
+    i -= 1;
+  }
 }
 
 // descend array-wrap layers (`const [x, { Array: A }] = [expr, globalThis]`) to the innermost
@@ -3451,10 +3469,9 @@ export function followConstLiteralAlias(node, ctx) {
 export function arrayLiteralSlotValue(node, key) {
   if (node?.type !== 'ArrayExpression') return null;
   const index = key === null || key === undefined ? null : canonicalArrayIndex(key);
-  // through the call-argument expansion: an INLINE-array spread (`[...[a, b]]`) is a longer literal,
-  // its positions static, while any other spread at or before the slot shifts them - the one
-  // rule for a positional read, shared with the argument lists
-  return index === null ? null : resolveCallArgument(node.elements, index);
+  // the positional pairing's own rule: an inline-array spread flattens, any other spread at or
+  // before the slot shifts it and the read declines
+  return index === null ? null : pairedArrayWrapInitElement(node.elements, index);
 }
 
 // `ctx` (optional `{ scope, adapter, path, resolveKey }`) makes the pairing binding-aware: it
@@ -3570,9 +3587,10 @@ export function patternSlotSpreadShifted(pattern, rhs, name, ctx = null) {
   for (let i = 0; i < pattern.elements.length; i++) {
     const element = pattern.elements[i];
     if (!element || !patternBindsName(element, name)) continue;
-    if (rhs?.type === 'ArrayExpression' && spreadAtOrBefore(rhs.elements, i)) return true;
+    const coords = rhs?.type === 'ArrayExpression' ? resolveCallArgumentCoords(rhs.elements, i) : null;
+    if (rhs?.type === 'ArrayExpression' && !coords && spreadAtOrBefore(rhs.elements, i)) return true;
     const slot = patternSlotTarget(element);
-    const paired = rhs?.type === 'ArrayExpression' ? rhs.elements[i] : null;
+    const paired = coords ? resolveCallArgument(rhs.elements, i) : null;
     if (patternSlotSpreadShifted(slot, paired, name, ctx)) return true;
     if (element.type === 'AssignmentPattern'
       && patternSlotSpreadShifted(slot, element.right, name, ctx)) return true;
@@ -4065,6 +4083,8 @@ export function namespaceScopedBindingBlock(binding) {
 // array spread, OR a NESTED spread inside the inline array (`...[a, ...rest]`) - either makes the
 // expanded length variadic at compile time, so a later positional can't be statically located.
 // shared by the node lifter (`resolveCallArgument`) and the babel synth-swap path so they can't drift.
+// the list is any POSITIONAL one - a call's arguments or an array literal's elements: an inline-array
+// spread in either is a longer list, read at its static positions, and a hole reads as null.
 // a positional answer is not a whole-list one: the mutation census reads a spread's elements as a LIST
 // and refuses it entirely once any element is a spread, which is stricter than this walk on purpose
 export function resolveCallArgumentCoords(args, index) {
@@ -4072,8 +4092,11 @@ export function resolveCallArgumentCoords(args, index) {
   for (let argIndex = 0; argIndex < args.length; argIndex++) {
     const arg = args[argIndex];
     if (arg?.type === 'SpreadElement') {
-      if (arg.argument?.type !== 'ArrayExpression') return null;
-      const { elements } = arg.argument;
+      // through the transparent wrappers a source may spell around the spread array (`...([a])`,
+      // `...([a] as any)` - one parser keeps the paren node)
+      const spread = unwrapRuntimeExpr(arg.argument);
+      if (spread?.type !== 'ArrayExpression') return null;
+      const { elements } = spread;
       for (let elementIndex = 0; elementIndex < elements.length; elementIndex++) {
         if (elements[elementIndex]?.type === 'SpreadElement') return null;
         if (effective === index) return { argIndex, elementIndex };
@@ -4091,7 +4114,7 @@ export function resolveCallArgumentCoords(args, index) {
 export function resolveCallArgument(args, index) {
   const coords = resolveCallArgumentCoords(args, index);
   if (!coords) return null;
-  return coords.elementIndex < 0 ? args[coords.argIndex] : args[coords.argIndex].argument.elements[coords.elementIndex];
+  return coords.elementIndex < 0 ? args[coords.argIndex] : unwrapRuntimeExpr(args[coords.argIndex].argument).elements[coords.elementIndex];
 }
 
 // effective argument count after expanding inline-array spreads (`...[a, b, c]` -> 3).
@@ -4099,12 +4122,13 @@ export function resolveCallArgument(args, index) {
 // array (`...[a, ...rest]`) whose own length is variadic - same bail as resolveCallArgumentCoords,
 // so counting and lifting agree. used by IIFE-identity callers to validate `params.length ===
 // effective args.length` symmetric with `resolveCallArgument`'s expansion semantics
-function effectiveArgsLength(args) {
+export function effectiveArgsLength(args) {
   let length = 0;
   for (const arg of args) {
     if (arg?.type === 'SpreadElement') {
-      if (arg.argument?.type !== 'ArrayExpression') return null;
-      const elements = arg.argument.elements ?? [];
+      const spread = unwrapRuntimeExpr(arg.argument);
+      if (spread?.type !== 'ArrayExpression') return null;
+      const elements = spread.elements ?? [];
       if (elements.some(el => el?.type === 'SpreadElement')) return null;
       length += elements.length;
       continue;
@@ -4152,20 +4176,50 @@ export function findIifeArgForParam(fnParentPath, paramNode) {
   return site ? resolveCallArgument(site.callPath.node.arguments ?? [], site.paramIndex) : null;
 }
 
+// the argument PATH a `resolveCallArgumentCoords` coordinate names among a call's argument paths:
+// the raw slot, or the element of the inline array its spread expands - stepped into THROUGH the
+// transparent wrappers the array may wear (`f(...([a, b] as any))`), the way the coordinate was
+// derived. the ONE materialisation for every consumer that walks a path from a coordinate. NO
+// trailing peel: babel unwraps a sequence tail, unplugin peels transparent wrappers, and baking
+// either one in here would impose it on the other
+export function callArgumentPathAt(argPaths, coords) {
+  const argPath = argPaths[coords.argIndex];
+  if (coords.elementIndex < 0) return argPath;
+  return cachedContainerPaths(peelTransparentWrapperPath(argPath?.get('argument')), 'elements')[coords.elementIndex] ?? null;
+}
+
+// a positional list read WHOLE at its runtime positions (inline-array spreads expanded, a hole
+// null), or null where no static length exists - the list twin of `resolveCallArgument`
+export function positionalElements(list) {
+  const length = effectiveArgsLength(list);
+  return length === null ? null : Array.from({ length }, (_, index) => resolveCallArgument(list, index));
+}
+
+// the PATH at runtime position `index` of a positional list of paths (call arguments, array-literal
+// elements), the coordinate read the way every positional list is read (`resolveCallArgumentCoords`):
+// null for a hole, a position past the static length, or a shift no static position survives (a
+// spread of a binding at or before it)
+export function positionalPathAt(paths, index) {
+  const coords = resolveCallArgumentCoords(paths.map(path => path.node), index);
+  const path = coords && callArgumentPathAt(paths, coords);
+  return path?.node ? path : null;
+}
+
+// the same read off an array-literal PATH
+export function positionalElementPath(arrayPath, index) {
+  return positionalPathAt(cachedContainerPaths(arrayPath, 'elements'), index);
+}
+
 // the argument PATH a bare-ObjectPattern IIFE param resolves to: the call site plus the
-// coordinate `resolveCallArgumentCoords` addresses it by, materialised as a path (an inline-array
-// spread expands, so the argument may live at `arguments[i].argument.elements[j]`). the ONE
-// locator both emitters use - a consumer that re-derives the position by an identity scan over
-// top-level `arguments` cannot see inside an expanded spread and silently loses the receiver
-// exactly where this resolver found it. NO trailing peel: babel unwraps a sequence tail, unplugin
-// peels transparent wrappers, and baking either one in here would impose it on the other
+// coordinate `resolveCallArgumentCoords` addresses it by, materialised as a path. the ONE locator
+// both emitters use - a consumer that re-derives the position by an identity scan over the
+// arguments diverges from the node form exactly where the two peel differently (a wrapped spread
+// array), and silently loses the receiver this resolver found
 export function findIifeArgPath(fnParentPath, paramNode) {
   const site = findIifeCallSite(fnParentPath, paramNode);
   if (!site) return null;
   const coords = resolveCallArgumentCoords(site.callPath.node.arguments ?? [], site.paramIndex);
-  if (!coords) return null;
-  const argPath = site.callPath.get('arguments')[coords.argIndex];
-  return coords.elementIndex < 0 ? argPath : cachedContainerPaths(argPath.get('argument'), 'elements')[coords.elementIndex];
+  return coords ? callArgumentPathAt(site.callPath.get('arguments'), coords) : null;
 }
 
 // `import type X = require(...)` is type-only - elided by tsc before runtime, references
@@ -4548,29 +4602,21 @@ export function resolveFallbackReceiverPath(wrapperPath, paramNode) {
   // element, or an object property's value (a getter's returned value is not a path this walk
   // takes: the node form already declined to a plain data property)
   for (const { container, index, spreadIndex = -1 } of desc.descend ?? []) {
-    while (path?.node && TRANSPARENT_EXPR_WRAPPER_TYPES.has(path.node.type)) path = path.get('expression');
+    path = peelTransparentWrapperPath(path);
     if (path?.node?.type !== (container === 'elements' ? 'ArrayExpression' : 'ObjectExpression')) return null;
     path = cachedContainerPaths(path, container)[index];
     if (container === 'properties') path = path?.get('value');
-    else if (spreadIndex >= 0) path = cachedContainerPaths(path?.get('argument'), 'elements')[spreadIndex];
+    else if (spreadIndex >= 0) path = cachedContainerPaths(peelTransparentWrapperPath(path?.get('argument')), 'elements')[spreadIndex];
   }
   return path ?? null;
 }
 
-// the descriptor's paramIndex counts EXPANDED positions - delegate the inline-array spread
-// expansion to `resolveCallArgument` (the canonical semantics) and only LOCATE the resolved
-// node's path here; raw `arguments[paramIndex]` indexed past the single SpreadElement and bailed
+// the descriptor's paramIndex counts EXPANDED positions - the inline-array spread expansion is
+// `resolveCallArgumentCoords` (the canonical semantics) and the path is the coordinate's;
+// raw `arguments[paramIndex]` indexed past the single SpreadElement and bailed
 function fallbackCallArgumentPath(desc) {
-  const target = resolveCallArgument(desc.callPath.node.arguments, desc.paramIndex);
-  if (!target) return null;
-  for (const argPath of desc.callPath.get('arguments')) {
-    if (argPath.node === target) return argPath;
-    if (argPath.node?.type === 'SpreadElement' && argPath.node.argument?.type === 'ArrayExpression') {
-      const index = argPath.node.argument.elements.indexOf(target);
-      if (index !== -1) return cachedContainerPaths(argPath.get('argument'), 'elements')[index];
-    }
-  }
-  return null;
+  const coords = resolveCallArgumentCoords(desc.callPath.node.arguments, desc.paramIndex);
+  return coords ? callArgumentPathAt(desc.callPath.get('arguments'), coords) : null;
 }
 
 // peel transparent expression wrappers up from `startPath` toward statement context.
@@ -7416,11 +7462,6 @@ function wrapperElementClaimed(element, emptied) {
   // a wrapper CHAIN coerces once per level, and the extraction repeats every level it descended,
   // so an inner wrapper leaves exactly when its own elements may
   return emptied.has(node) || arrayWrapperResidualDroppable(node, emptied);
-}
-
-export function spreadShiftsIndex(elements, index) {
-  const spreadAt = elements.findIndex(item => item?.type === 'SpreadElement');
-  return spreadAt !== -1 && index >= spreadAt;
 }
 
 // does anything in this pattern still bind a REAL name, or is every leaf a minted sentinel?
