@@ -30,10 +30,17 @@
 // `hasAnyParamTypeRef`, `isStructuralAnnotation`.
 import {
   MAX_DEPTH, firstTypeParamIsInner, $Object, $Primitive,
-  argIndexForParam, callArgumentPaths, dropLeadingThisParam, peelAssignmentPattern,
+  argIndexForParam, callArgumentPaths, dropLeadingThisParam,
 } from './base.js';
 import { isBareUndefinedIdentifier, isTypeQueryOverImportType, peelTSParenthesized, typeRefName } from './ast-shapes.js';
-import { getCallSiteTypeArgs, getTypeArgs, isVoidExpression, spreadAtOrBefore, isDestructurePattern } from '../helpers/ast-patterns.js';
+import {
+  getCallSiteTypeArgs,
+  getTypeArgs,
+  isDestructurePattern,
+  isVoidExpression,
+  patternSlotTarget,
+  spreadAtOrBefore,
+} from '../helpers/ast-patterns.js';
 import { nodeAlwaysExits } from './exit-analysis.js';
 
 export function createReturnType({
@@ -137,7 +144,7 @@ export function createReturnType({
         continue;
       }
       // peel outer AssignmentPattern wrapper (`function f(x = 0)` / `function f({a} = {})`)
-      const patternParam = peelAssignmentPattern(param);
+      const patternParam = patternSlotTarget(param);
       if (patternParam?.type === 'Identifier' && patternParam.name === targetName) {
         return { index: i, param, keyPath: null };
       }
