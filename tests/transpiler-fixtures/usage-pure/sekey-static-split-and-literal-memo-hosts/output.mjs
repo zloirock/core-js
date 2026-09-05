@@ -29,7 +29,7 @@ export const {
   alsoMore
 } = Array;
 var lead2 = pre();
-var ko2 = _Array$of === void 0 ? 1 : _Array$of;
+var ko2 = _Array$of;
 var {
   [(k++, 'of')]: _unused3,
   m2

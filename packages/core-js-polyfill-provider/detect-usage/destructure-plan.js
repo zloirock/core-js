@@ -19,6 +19,7 @@
 import {
   aliasEscaped,
   aliasSlotWritten,
+  arrayLiteralIterableElements,
   catchPropRewriteObservable,
   createInstanceNodeCache,
   followConstIdentifierInit,
@@ -289,7 +290,7 @@ export function peelArrayWrapperPair({ pattern, init, scope = null, adapter = nu
       // NAME, per file - would bail every common wrapper name a file also uses elsewhere
       if (followed.node !== effectiveInit && hopProp
         && (aliasEscaped(effectiveInit, adapter, path)
-          || aliasSlotWritten(effectiveInit, spelledSlotName(hopProp), adapter))) return done(pattern, init);
+          || aliasSlotWritten(effectiveInit, spelledSlotName(hopProp), adapter, { scope, path }))) return done(pattern, init);
       if (followed.node !== effectiveInit) dereferenced = true;
       effectiveInit = followed.node;
       ({ readNode } = followed);
@@ -607,8 +608,8 @@ export function buildNestedDestructurePlan({
   }
 
   // the user's own default on a consumed leaf (`{ from: alias = d }`): the polyfill is always defined,
-  // so it is dead text at runtime, but the flat twin keeps its guard (`_Map === void 0 ? d : _Map`)
-  // and so does the extraction - the render canon's static guard, on both legs
+  // so it is dead text at runtime - the render canon's static guard drops it on both legs; the plan
+  // still carries it so a renderer can spell the guard where the read is a memo rather than the import
   function leafDefaultNode(prop) {
     return prop.value?.type === 'AssignmentPattern' ? prop.value.right : null;
   }
@@ -742,6 +743,42 @@ export function buildNestedDestructurePlan({
     return { kind: 'anchored', prop: planned.prop, keyName: name, anchorPure, residualProps, extractions: planned.extractions ?? [] };
   }
 
+  // the constructor a hop's VALUE resolves to where the static walk names none: a CALL in the slot
+  // the keys pair to, read through the name channel's return type (`{ w: eff() }` beside a sibling
+  // plans like the sole-hop peel does), or a selection between such values and names that yields
+  // one constructor - the residual keeps the whole value, so every arm runs where it ran. the arms
+  // a selection yields follow the other leg's selecting rule: a `||` / `??` LEFT that names an object
+  // selects (`eff() ?? Array` names Object - the fallback never fires), a ternary both arms, which
+  // have to agree; `&&` selects its falsy LEFT, whose native read has to survive, so it never plans
+  // here (`false && Object` binds `undefined`). calls and names only - a member nav the walk declined
+  // carries a probe (`{ a: globalThis.window?.Array }`) that a consume here would drop; a bare name
+  // is the walk's own answer
+  function hopValueConstructor(hostInit, walkPath) {
+    let node = hostInit;
+    for (const key of walkPath) {
+      node = objectLevelPairedProperty(unwrapRuntimeExpr(node), key)?.read ?? null;
+      if (!node) return null;
+    }
+    const arms = yieldedArms(node);
+    if (!arms || unwrapRuntimeExpr(node)?.type === 'Identifier') return null;
+    const names = arms.map(arm => resolveObjectName({ objectNode: arm, scope, adapter, path }));
+    const [name] = names;
+    return name && isStaticPlacement(name) && names.every(other => other === name) ? name : null;
+  }
+
+  // the value arms a selection yields; null where an arm is neither a call nor a name. a sequence
+  // yields its tail - the prefix stays in the residual with the rest of the value
+  function yieldedArms(node) {
+    let peeled = unwrapRuntimeExpr(node);
+    while (peeled?.type === 'SequenceExpression') peeled = unwrapRuntimeExpr(peeled.expressions.at(-1));
+    if (peeled?.type === 'CallExpression' || peeled?.type === 'Identifier') return [peeled];
+    const sides = peeled?.type === 'LogicalExpression' ? peeled.operator === '&&' ? null : [peeled.left]
+      : peeled?.type === 'ConditionalExpression' ? [peeled.consequent, peeled.alternate] : null;
+    if (!sides) return null;
+    const arms = sides.map(yieldedArms);
+    return arms.every(Boolean) ? arms.flat() : null;
+  }
+
   // static-object descent. given an outer prop `key: ObjectPattern` at depth N (walkPath =
   // [k1, k2, ...] from declarator-root to here), walk hostInit through `walkPath + key`:
   //   - leaf Identifier (constructor name): plan inner ObjectPattern via `planInnerProp`
@@ -763,7 +800,7 @@ export function buildNestedDestructurePlan({
     // (polyfill-always-wins) instead of bailing to the native-wins default-injection
     const constructor = walkStaticReceiverChain({
       receiverNode: hostInit, walkPath: newPath, scope, adapter, path,
-    });
+    }) ?? hopValueConstructor(hostInit, newPath);
     if (constructor && !POSSIBLE_GLOBAL_OBJECTS.has(constructor)) {
       return foldNestedPattern(outerProp, value, innerProp => planInnerProp(innerProp, constructor));
     }
@@ -839,8 +876,9 @@ export function buildNestedDestructurePlan({
     // or keeps it verbatim in the residual init (partial consume).
     // span guard: `peelArrayWrapperPair` may have DEREFERENCED a const-alias wrapper
     // (`const w = [(IIFE)()]; [{x}] = w`) whose init lives OUTSIDE the discarded slot - its
-    // setup already runs at the alias declaration, so harvesting it would double-run
-    const probed = init ? discardRescueNodes({ node: initBeforeCollapse, scope, adapter, path }) : [];
+    // setup already runs at the alias declaration, so harvesting it would double-run - and so
+    // would a RELOCATED head's element, evaluated by the loop head the body declarator reads
+    const probed = init && !headElement ? discardRescueNodes({ node: initBeforeCollapse, scope, adapter, path }) : [];
     const inSlot = declarator.init
       ? probed.filter(n => spanWithinSlot(n, declarator.init)) : [];
     const discardSe = inSlot.length ? inSlot : null;
@@ -993,6 +1031,42 @@ export function buildNestedDestructurePlan({
       }
     }
   }
+  // a hop VALUE that runs (`{ w: eff() }`, its constructor resolved through the call's return type)
+  // is what a consumed level discards: it joins the rescue, so a full consume replays it once and a
+  // partial one keeps it in the residual - without it the effect left with the level
+  const initLiteral = plan ? unwrapRuntimeExpr(unwrapExpressionChain(peeled.init)) : null;
+  // ... and the peeled level's own value where the peel stepped INTO a hop (`{ w: eff() }` plans
+  // the inner pattern over `eff()`): a call there is the discarded value itself
+  // ... an ARRAY wrapper's element is not this: its effects ride `trailingEffects` / the anchored
+  // replay, so the rescue asks only of a peel that stepped through an OBJECT level
+  const peeledIsElement = (function elementOf(node) {
+    const literal = unwrapExpressionChain(node);
+    return literal?.type === 'ArrayExpression' && literal.elements.some(element => element === peeled.init
+      || unwrapExpressionChain(element) === peeled.init || elementOf(element));
+  })(declarator.init);
+  // ... and only INSIDE the host's own init: a peel that dereferenced an alias (`const w = [call()];
+  // [{ x }] = w`) reads a value whose setup already ran at the alias declaration
+  const peeledInSlot = typeof peeled.init?.start === 'number' && typeof declarator.init?.start === 'number'
+    && peeled.init.start >= declarator.init.start && peeled.init.end <= declarator.init.end;
+  if (plan && peeled.init !== declarator.init && !peeledIsElement && peeledInSlot
+    && mayHaveSideEffects(peeled.init) && !plan.discardSe?.includes(peeled.init)) {
+    plan.discardSe = [...plan.discardSe ?? [], peeled.init];
+  }
+  if (initLiteral?.type === 'ObjectExpression') {
+    const hopEffects = [];
+    (function collect(patternNode, literal, planned) {
+      patternNode.properties.forEach((prop, index) => {
+        if (!isPropertyNode(prop) || planned?.[index]?.kind === 'verbatim') return;
+        const key = spelledSlotName(prop);
+        const value = key === null ? null : objectLevelPairedProperty(unwrapRuntimeExpr(literal), key)?.read;
+        if (!value) return;
+        if (mayHaveSideEffects(value)) hopEffects.push(value);
+        const below = patternSlotTarget(prop.value);
+        if (below?.type === 'ObjectPattern') collect(below, value, planned?.[index]?.children);
+      });
+    })(pattern, initLiteral, plan.outerProps);
+    if (hopEffects.length) plan.discardSe = [...plan.discardSe ?? [], ...hopEffects.filter(node => !plan.discardSe?.includes(node))];
+  }
   if (plan && trailingEffects) plan.trailingEffects = trailingEffects;
   if (plan && (wrapperSurvives || hostLevelSurvives(declarator, { peeled: false }))) plan.wrapperSurvives = true;
   // an effectful hop key keeps its level the way a rest does: the hop retires to a sentinel
@@ -1013,16 +1087,6 @@ export function buildNestedDestructurePlan({
 // in place, and its leaf bindings are catch-local, not polyfill candidates. an ARRAY pattern asks
 // none of these questions - its bindings are positional, so there is no key to rewrite against a
 // named receiver - and takes the single question its own branch asks instead
-// the values a for-x head binds in TURN, when the source spells them: an array literal names its
-// own elements, and nothing else makes an iterated value's identity provable. a spread hides every
-// later position, so one anywhere takes the whole answer away
-function iterableElementNodes(node) {
-  if (node?.type !== 'ArrayExpression') return [];
-  const elements = node.elements ?? [];
-  if (elements.some(item => item?.type === 'SpreadElement')) return [];
-  return elements.filter(Boolean);
-}
-
 // does a leaf ANYWHERE below this pattern name a polyfillable member? this is the relocation's own
 // question - what it buys is a DECLARATION HOST, and every claim below takes it, whatever else the
 // pattern binds. the positional walk beside it answers a different one (may this element be RENAMED
@@ -1095,7 +1159,7 @@ export function planCatchClauseExtraction({
   // here - what the relocation buys is a DECLARATION HOST, and the element rename takes it from
   // there, with everything the pattern binds beside the claim riding the residual that host can now
   // hold. the rename's own walk re-asks the narrower questions (plain key, statement slot) at emit
-  const elementNodes = iterableElementNodes(iterableNode);
+  const elementNodes = arrayLiteralIterableElements(iterableNode)?.filter(Boolean) ?? [];
   if (paramNode?.type === 'ArrayPattern') {
     // ... unless every claim below is the receiver mirror's, like the object pattern's below
     if (mirrorHosts && !nestedClaimBeyondMirror(paramNode, elementNodes, { scope, adapter, path, resolvePure })) return null;

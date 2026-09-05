@@ -784,16 +784,28 @@ export function peelTransparentExpr(node) {
   return node;
 }
 
-// descend a member chain to its ROOT node, peeling only RUNTIME-transparent wrappers at every hop.
+// descend a member chain to its ROOT node, peeling only RUNTIME-transparent wrappers at every hop,
+// and keep the KEYS it passed, root-nearest first: `keyName` spells each hop (`memberKeyName` reads
+// a static key, `staticMemberKeyName` folds an effectful computed one to its tail) and an unreadable
+// hop records `null` - a caller that cannot use a partial path refuses on it, one that can (a write
+// record) wildcards from it. the root comes back WHATEVER its type: a name-resolving caller filters
+// to Identifier, a container walk descends a call there.
 // deliberately NOT `descendToChainRoot`: that canon also peels sequence TAILS, which hands back
 // `globalThis` for the very `(c++, globalThis)` root some callers here exist to recognise - and it
 // lives a layer above this file, which every layer imports
-function runtimeChainRoot(node) {
+export function memberChainKeys(node, keyName = memberKeyName) {
+  const keys = [];
   let root = unwrapRuntimeExpr(node);
   while (root?.type === 'MemberExpression' || root?.type === 'OptionalMemberExpression') {
+    keys.unshift(keyName(root));
     root = unwrapRuntimeExpr(root.object);
   }
-  return root;
+  return { root, keys };
+}
+
+// ... the root alone
+function runtimeChainRoot(node) {
+  return memberChainKeys(node, () => null).root;
 }
 
 // memoization peels parens + chain wrappers but deliberately NOT TS wrappers: keeping a TS cast
@@ -3374,10 +3386,12 @@ export function aliasEscaped(aliasNode, adapter, path) {
 // analysis tracks the binding, never its members, so the level that descends a named key asks here.
 // usage-pure alone bails, for the reason the container channel gives - a write anywhere in the file
 // may reach the read, while the other flavors over-inject and stay safe
-export function aliasSlotWritten(aliasNode, key, adapter) {
+// asked of the alias's own declaration where `scope` / `path` reach it, the name-wide union otherwise
+export function aliasSlotWritten(aliasNode, key, adapter, { scope = null, path = null } = {}) {
   if (aliasNode?.type !== 'Identifier' || adapter?.method !== 'usage-pure' || key === null || key === undefined) return false;
+  const binding = scope ? adapter.getBinding?.(scope, aliasNode.name, path) : null;
   // the record keys slots by their STRING spelling, and a numeric key names one like any other
-  return !!adapter.isWrittenContainerSlot?.(aliasNode.name, [String(key)]);
+  return !!adapter.isWrittenContainerSlot?.(aliasNode.name, [String(key)], binding?.path?.node ?? binding?.node ?? null);
 }
 
 // the ONE const-alias follow: an Identifier through its binding's init at each hop, peeling parens /
@@ -4388,16 +4402,19 @@ export function destructureReceiverSlot(node) {
 // a HOLE has no element to read (its `undefined` must keep throwing natively) and a SPREAD hides
 // what the pattern will see; for-IN is out (it binds the key, never the element), and so is
 // for-await (the head awaits what the literal holds, which is not the node written there)
-export function forOfHeadElements(declaratorPath) {
+// `sameCallee`: for a reader that RESOLVES the element rather than mirroring it, a call of the same
+// named function reads the same on every pass too - its return's static, whatever the arguments
+// (`[{ w: e('a') }, { w: e('b') }]`); the mirror never takes that option, a call holds no literal
+export function forOfHeadElements(declaratorPath, { sameCallee = false } = {}) {
   const elements = forOfHeadIterableElements(declaratorPath);
   if (!elements) return null;
   if (elements.length === 1) return elements;
-  return elements.every(element => sameHeadElement(element, elements[0])) ? elements : null;
+  return elements.every(element => sameHeadElement(element, elements[0], sameCallee)) ? elements : null;
 }
 
 // one element against the first: the same identifier (or a proxy-global pair), or a container of
 // the same shape over such leaves - data properties by spelled key, array slots by position
-function sameHeadElement(rawNode, rawFirst) {
+function sameHeadElement(rawNode, rawFirst, sameCallee = false) {
   // read through the transparent wrappers a source may spell (`(Object)`, `Object as any`)
   const node = unwrapRuntimeExpr(rawNode);
   const first = unwrapRuntimeExpr(rawFirst);
@@ -4411,17 +4428,22 @@ function sameHeadElement(rawNode, rawFirst) {
   if (node.type === 'Identifier') {
     return node.name === first.name || !!(asProxyGlobalName(node.name) && asProxyGlobalName(first.name));
   }
+  if (node.type === 'CallExpression') {
+    const callee = unwrapRuntimeExpr(node.callee);
+    const firstCallee = unwrapRuntimeExpr(first.callee);
+    return sameCallee && callee?.type === 'Identifier' && firstCallee?.type === 'Identifier' && callee.name === firstCallee.name;
+  }
   if (node.type === 'ArrayExpression') {
     return node.elements.length === first.elements.length
       && node.elements.every((element, index) => !!element && element.type !== 'SpreadElement'
-        && sameHeadElement(element, first.elements[index]));
+        && sameHeadElement(element, first.elements[index], sameCallee));
   }
   if (node.type === 'ObjectExpression') {
     return node.properties.length === first.properties.length && node.properties.every((prop, index) => {
       const twin = first.properties[index];
       return (prop.type === 'Property' || prop.type === 'ObjectProperty') && prop.type === twin.type
         && !!objectPropertyReadValue(prop) && spelledSlotName(prop) !== null && spelledSlotName(prop) === spelledSlotName(twin)
-        && sameHeadElement(prop.value, twin.value);
+        && sameHeadElement(prop.value, twin.value, sameCallee);
     });
   }
   return false;
@@ -4442,7 +4464,7 @@ export function relocatedHeadElement(declaratorPath) {
     || left?.type !== 'VariableDeclaration' || left.declarations?.length !== 1
     || left.declarations[0].id?.type !== 'Identifier' || left.declarations[0].id.name !== init.name
     || loop.node.body?.body?.[0] !== declaration.node) return null;
-  return forOfHeadElements(loop.get('left').get('declarations')[0])?.[0] ?? null;
+  return forOfHeadElements(loop.get('left').get('declarations')[0], { sameCallee: true })?.[0] ?? null;
 }
 
 // ... and the same values as a BRANCH SET, making no claim that one receiver answers for the loop:
@@ -4451,11 +4473,30 @@ export function relocatedHeadElement(declaratorPath) {
 export function forOfHeadIterableElements(declaratorPath) {
   const declaration = declaratorPath?.parentPath;
   const loop = declaration?.parentPath;
-  const loopNode = loop?.node;
-  if (loopNode?.type !== 'ForOfStatement' || loopNode.await || loopNode.left !== declaration.node) return null;
-  const elements = loopNode.right?.type === 'ArrayExpression' ? loopNode.right.elements : null;
-  if (!elements?.length || elements.some(element => !element || element.type === 'SpreadElement')) return null;
-  return elements;
+  if (!declaration || loop?.node?.left !== declaration.node) return null;
+  return forOfIterableElements(loop.node);
+}
+
+// the values an iterated ARRAY LITERAL spells in turn - nothing else makes an iterated value's
+// identity provable - or null: a SPREAD anywhere hides every later position and takes the whole
+// answer away. the literal is read through the transparent wrappers a source may spell (`of ([a])`,
+// `of ([a] as const)`) - one parser keeps them, the other drops them, and the loop reads the same
+// elements either way. a HOLE stays in its position as `null`: the relocation plan skips it, the
+// readers below need every position to hold a node
+export function arrayLiteralIterableElements(node) {
+  const literal = unwrapRuntimeExpr(node);
+  if (literal?.type !== 'ArrayExpression') return null;
+  const elements = literal.elements ?? [];
+  return elements.some(element => element?.type === 'SpreadElement') ? null : elements;
+}
+
+// ... the elements a for-of LOOP iterates, or null: the node-level half every reader of the head
+// shares - the path readers above, and the census, which visits the loop node and has no path.
+// a HOLE has no element to read; for-await awaits what the literal holds, which is not the node written
+export function forOfIterableElements(loopNode) {
+  if (loopNode?.type !== 'ForOfStatement' || loopNode.await) return null;
+  const elements = arrayLiteralIterableElements(loopNode.right);
+  return elements?.length && elements.every(Boolean) ? elements : null;
 }
 
 // the NODE a destructure host holds as its receiver: the slot's value, or - for a for-x HEAD, whose
@@ -4470,7 +4511,7 @@ export function destructureReceiverNode(host, patternNode = null) {
   if (iifeArgument) return iifeArgument;
   const slot = destructureReceiverSlot(host?.node);
   if (!slot) return null;
-  return host.node[slot] ?? forOfHeadElements(host)?.[0] ?? null;
+  return host.node[slot] ?? forOfHeadElements(host, { sameCallee: true })?.[0] ?? null;
 }
 
 function iifeParameterArgument(host, patternNode) {
@@ -5416,8 +5457,18 @@ const SCOPE_REBINDING_TYPES = new Set([
   'TSEnumDeclaration',
 ]);
 
-function isScopeRebinding(node) {
+// does this node open a VAR-scope of its own (the set above)? the census keys a `var` declaration
+// on the nearest of these, a lexical one on the nearest `let` host
+export function isScopeRebinding(node) {
   return SCOPE_REBINDING_TYPES.has(node.type);
+}
+
+// the LEXICAL scopes below a var-scope - the `let` hosts of the lattice above: a `let` / `const` /
+// `class` binding, a catch parameter and a for-x head live in the block, loop or clause that holds
+// them, so two blocks declaring one name are two bindings - the census keys its declarations by
+// these frames, and a `var` climbs past them to the nearest var-scope
+function isLexicalScopeOpener(node) {
+  return LET_SCOPE_HOST_TYPES.has(node.type);
 }
 
 // `this` REbinding is a narrower boundary than scope rebinding: an arrow inherits the enclosing
@@ -5455,9 +5506,16 @@ export function collectFileCensus(programNode, reducers) {
   // per PARENT rather than one per node - the reducers' contract is unchanged, they never
   // read a `node` off the frame
   const nodeStack = [programNode];
+  // `scopes`: the scope-opening nodes enclosing the node - var-scopes and lexical scopes alike -
+  // outermost first, the chain a reducer resolves a NAME against (the Program itself stands in it,
+  // a top-level `var` climbs past it to the module scope, the empty chain)
   const frameStack = [{
-    parentType: null, atTopLevel: true, atThisTopLevel: true,
-    parentNode: null, underTypeAnnotation: false,
+    parentType: null,
+    atTopLevel: true,
+    atThisTopLevel: true,
+    parentNode: null,
+    underTypeAnnotation: false,
+    scopes: [],
   }];
   while (nodeStack.length) {
     const node = nodeStack.pop();
@@ -5486,7 +5544,14 @@ export function collectFileCensus(programNode, reducers) {
     for (const key in node) {
       const value = node[key];
       if (Array.isArray(value) || isASTNode(value)) {
-        childFrame ??= { parentType, atTopLevel, atThisTopLevel, parentNode: node, underTypeAnnotation };
+        childFrame ??= {
+          parentType,
+          atTopLevel,
+          atThisTopLevel,
+          parentNode: node,
+          underTypeAnnotation,
+          scopes: isScopeRebinding(node) || isLexicalScopeOpener(node) ? [...frame.scopes, node] : frame.scopes,
+        };
         nodeStack.push(value);
         frameStack.push(childFrame);
       }

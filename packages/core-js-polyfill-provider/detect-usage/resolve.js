@@ -1592,10 +1592,13 @@ function writtenSlotBlocksPatternRead({ pattern, init, name, scope, adapter, pat
   const container = unwrapRuntimeExpr(init);
   if (container?.type !== 'Identifier') return false;
   const paths = patternRootKeyPathsFor(pattern, name, { scope, adapter, path, resolveKey });
+  // asked of the container's own declaration, the binding the read reaches
+  const containerBinding = adapter.getBinding(scope, container.name, path);
+  const ownerNode = containerBinding?.path?.node ?? containerBinding?.node ?? null;
   // a slot this walk cannot name reads an UNKNOWN one, so any write on the container reaches it
   return paths === null
-    ? adapter.isWrittenContainerSlot(container.name, [MUTATED_MEMBERS_UNKNOWN])
-    : paths.some(keys => adapter.isWrittenContainerSlot(container.name, keys));
+    ? adapter.isWrittenContainerSlot(container.name, [MUTATED_MEMBERS_UNKNOWN], ownerNode)
+    : paths.some(keys => adapter.isWrittenContainerSlot(container.name, keys, ownerNode));
 }
 
 // resolve the VALUE an Identifier-pattern alias stores - the declarator init, or a trusted
