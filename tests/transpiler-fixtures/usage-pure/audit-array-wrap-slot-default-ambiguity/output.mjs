@@ -55,5 +55,5 @@ export const viaDeepDeadDefault = _Iterator.range(0, 3);
 
 // control: the flat extraction channel keeps its runtime-guarded default handling
 let shim = () => [];
-const of = _Array$of === void 0 ? shim : _Array$of;
+const of = _Array$of;
 export const viaGuardedExtraction = of(1, 2);

@@ -373,6 +373,7 @@ export default function createPlugin(options) {
     method: options.method,
     getMutatedStatics: () => currentMutatedStatics,
     getWrittenContainerSlots: () => currentWrittenContainerSlots,
+    getContainerSlotIndex: () => currentContainerSlotIndex,
     getMutationRoots: () => currentMutationRoots,
     // lazy: `packages` is destructured from the resolver below; transforms run after
     getPackages: () => packages,
@@ -460,6 +461,7 @@ export default function createPlugin(options) {
   // the safe direction in usage-global). the scoped pre-pass stays where its completeness is required
   let currentMutationRoots = null;
   let currentWrittenContainerSlots = null;
+  let currentContainerSlotIndex = null;
   // a static the user monkey-patches must never bind to the frozen receiver-less import:
   // every pipeline (member emission, destructure props, param synth) resolves through this
   // filter, so the read keeps flowing through the substituted constructor instead
@@ -680,13 +682,16 @@ export default function createPlugin(options) {
       // writes feed. a re-entrant inner transform used to read the OUTER file's map here
       const outerMutatedStatics = currentMutatedStatics;
       const outerWrittenContainerSlots = currentWrittenContainerSlots;
+      const outerContainerSlotIndex = currentContainerSlotIndex;
       currentMutatedStatics = null;
       currentWrittenContainerSlots = null;
+      currentContainerSlotIndex = null;
       try {
         prePass = collectPrePassSites(prePassArgs);
       } finally {
         currentMutatedStatics = outerMutatedStatics;
         currentWrittenContainerSlots = outerWrittenContainerSlots;
+        currentContainerSlotIndex = outerContainerSlotIndex;
       }
     } else if (prePassArgs.isDisabled) prePass = collectPrePassSites(prePassArgs);
     let mutatedStatics = prePass?.mutated ?? null;
@@ -729,10 +734,12 @@ export default function createPlugin(options) {
     const previousMutatedStatics = currentMutatedStatics;
     const previousMutationRoots = currentMutationRoots;
     const previousWrittenContainerSlots = currentWrittenContainerSlots;
+    const previousContainerSlotIndex = currentContainerSlotIndex;
     currentInjector = injector;
     currentMutatedStatics = mutatedStatics;
     currentMutationRoots = fileCensus.mutationRoots ?? null;
     currentWrittenContainerSlots = fileCensus.writtenContainerSlots ?? null;
+    currentContainerSlotIndex = fileCensus.containerSlotIndex ?? null;
     try {
     // single AST scan - `names` seeds UID-collision guards at every nesting level;
     // `orphanRefs` feeds orphan adoption when post runs without a prior pre snapshot
@@ -1260,6 +1267,7 @@ export default function createPlugin(options) {
       currentMutatedStatics = previousMutatedStatics;
       currentMutationRoots = previousMutationRoots;
       currentWrittenContainerSlots = previousWrittenContainerSlots;
+      currentContainerSlotIndex = previousContainerSlotIndex;
     }
   }
 

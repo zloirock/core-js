@@ -98,7 +98,7 @@ const {
 } = {
   a: _globalThis
 };
-const viaDefault = _Object$assign === void 0 ? null : _Object$assign;
+const viaDefault = _Object$assign;
 const {
   [(eff('default'), 'Object')]: _unused12
 } = _globalThis;
