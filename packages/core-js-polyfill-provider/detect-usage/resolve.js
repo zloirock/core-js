@@ -69,12 +69,12 @@ import {
   reassignmentBlocksGlobalResolve,
   reassignmentValueNodes,
   requireCallSource,
+  resolveCallArgument,
   sequencePrefixWithSideEffects,
   singleQuasiString,
   singleReturnBodyExpression,
   SKIPPABLE_WRAPPER_TYPES,
   spelledSlotName,
-  spreadAtOrBefore,
   staticMemberKeyName,
   synthSwapPropKey,
   trustedIdentifierAliasWrite,
@@ -1691,15 +1691,14 @@ function resolveProxyGlobalDestructureAlias({ pattern, init, name, scope, adapte
 // descend array-wrapper layers pairing each pattern element to its init element positionally: an
 // ObjectPattern slot resolves via the flat proxy-global alias path, a nested ArrayPattern recurses.
 // `const [{ Array: A }] = [globalThis]` (and deeper `[[{ Array: A }]] = [[globalThis]]`) resolve `A`
-// to its property key just like the un-wrapped `{ Array: A } = globalThis`. a spread at/before the
-// slot breaks positional pairing, so that slot is skipped
+// to its property key just like the un-wrapped `{ Array: A } = globalThis`. the slot is the positional
+// read (an inline-array spread expanded); one no static position survives is skipped
 function resolveArrayWrappedProxyGlobalAlias({ pattern, init, name, scope, adapter, seen, path }) {
   if (pattern?.type !== 'ArrayPattern' || init?.type !== 'ArrayExpression') return null;
   for (let i = 0; i < pattern.elements.length; i++) {
     const raw = pattern.elements[i];
     const slot = patternSlotTarget(raw);
-    if (!slot || spreadAtOrBefore(init.elements, i)) continue;
-    const paired = init.elements[i];
+    const paired = slot ? resolveCallArgument(init.elements, i) : null;
     if (!paired) continue;
     if (slot.type === 'ObjectPattern') {
       const alias = resolveProxyGlobalDestructureAlias({ pattern: slot, init: paired, name, scope, adapter, seen, path });

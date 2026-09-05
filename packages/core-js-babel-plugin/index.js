@@ -84,6 +84,7 @@ import {
   attachMemberUnionExtras,
   enumerateFallbackDestructureBranches,
   renameSplitPropsToSentinels,
+  restoreUnclaimedFlattens,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import { isKnownGlobalName } from '@core-js/polyfill-provider/detect-usage/globals';
 import {
@@ -2315,6 +2316,8 @@ export default function plugin(api, options) {
         synthSwap?.apply(path);
         injector?.flush();
         finalizeInjector();
+        // a file that injected nothing prints as written: the wrapper splices are undone
+        if (injector && !injector.pureImports.size && !injector.globalImports.size) restoreUnclaimedFlattens(path.node);
         // outputDebug() + closure-captured state cleanup deferred to postHook so the
         // late-CJS detection (`postHook`'s markersGone check + diagnostic warn) can add to
         // debug output before format(). siblings' programExit + post may run AFTER ours;

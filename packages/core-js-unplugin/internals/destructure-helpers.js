@@ -37,6 +37,7 @@ import {
   arrayWrapperNeighbourEffect,
   computedKeyHasSideEffects,
   dropDeadSequenceElements,
+  findIifeArgPath,
   findObjectKeyBeforeSpread,
   firstProxyBranch,
   followConstLiteralAlias,
@@ -67,9 +68,10 @@ import {
   propertyKeyName,
   proxySurfaceIdentifier,
   receiverCarriesLiveOptional,
+  resolveCallArgument,
+  resolveCallArgumentCoords,
   SINGLE_STATEMENT_SLOTS,
   spelledSlotName,
-  spreadShiftsIndex,
   statementListOf,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   unwrapRuntimeExpr,
@@ -1904,7 +1906,7 @@ export function registerHopInstanceSynthSlot({ metaPath, hostParent, kind, entry
   if (!climbed || !(host.node.type === 'AssignmentPattern' ? host.node.left === climbed.hostPattern.node
     : host.node.params?.includes(climbed.hostPattern.node))) return false;
   const basePath = host.node.type === 'AssignmentPattern' ? host.get('right')
-    : iifeArgumentPathFor(host, detectIifeArgReceiver(host, climbed.hostPattern.node));
+    : iifeArgumentPathFor(host, climbed.hostPattern.node, detectIifeArgReceiver(host, climbed.hostPattern.node));
   const slotPath = basePath ? descendReceiverPathByKeys(basePath, climbed.hops) : null;
   if (!slotPath || (slotPath.node.type === 'Identifier'
     && ownOutputTests(injectorState).isOwnPassBinding(slotPath.node.name))) return false;
@@ -1950,7 +1952,7 @@ export function registerInstanceSynthSlot({
   const defaultPath = hostParent.node.type === 'AssignmentPattern'
     ? peelSkippableWrapperPath(hostParent.get('right'), TRANSPARENT_EXPR_WRAPPER_TYPES) : null;
   const receiverPath = givenReceiverPath ?? (defaultPath?.node === receiver ? defaultPath
-    : iifeArgumentPathFor(hostParent, receiver));
+    : iifeArgumentPathFor(hostParent, pattern, receiver));
   const objectHint = lookupKey && receiverPath && ctx.resolveNodeType && ctx.toHint
     ? ctx.toHint(ctx.resolveNodeType(receiverPath)) : null;
   const typed = objectHint
@@ -1962,36 +1964,18 @@ export function registerInstanceSynthSlot({
   return true;
 }
 
-// the ARGUMENT path holding an immediately-invoked host's receiver: the CALL is found past the
-// wrappers the source may spell (`(0, (({ at }) => at))([1, 2])`), then its argument paths are
-// peeled the same way the receiver was, descending an inline-array SPREAD (`(...)(...[[1, 2]])`
-// pairs its slot inside the array). the type resolver descends by PATH, and this is where the
-// receiver's own position lives
-function iifeArgumentPathFor(hostParent, receiver) {
+// the ARGUMENT path holding an immediately-invoked host's receiver: located by the shared
+// `findIifeArgPath` (the call past the wrappers the source may spell, an inline-array spread
+// expanded), then peeled the way the detect side peeled the node (`unwrapSafeSequenceTail`: the
+// argument's SEQUENCE TAIL is the receiver, and the type is read off the tail's own path). the
+// type resolver descends by PATH, and this is where the receiver's own position lives
+function iifeArgumentPathFor(hostParent, pattern, receiver) {
   function peeledPath(path) {
     return peelSkippableWrapperPath(path, TRANSPARENT_EXPR_WRAPPER_TYPES);
   }
-  let callPath = null;
-  for (let cur = hostParent, up = cur.parentPath; up?.node; cur = up, up = cur.parentPath) {
-    if (up.node.type === 'CallExpression') {
-      if (up.node.callee === cur.node) callPath = up;
-      break;
-    }
-    if (!(TRANSPARENT_EXPR_WRAPPER_TYPES.has(up.node.type)
-      || (up.node.type === 'SequenceExpression' && up.node.expressions.at(-1) === cur.node))) break;
-  }
-  for (const argPath of callPath?.get('arguments') ?? []) {
-    let peeled = peeledPath(argPath);
-    // the argument's SEQUENCE TAIL is the receiver the detect side handed over (`unwrapSafeSequenceTail`):
-    // the type is read off the tail's own path, not the sequence's - the other leg's typed dispatch
-    while (peeled?.node?.type === 'SequenceExpression') peeled = peeledPath(peeled.get('expressions').at(-1));
-    if (peeled?.node === receiver) return peeled;
-    if (argPath.node?.type !== 'SpreadElement' || argPath.node.argument?.type !== 'ArrayExpression') continue;
-    const found = argPath.get('argument').get('elements').map(el => peeledPath(el))
-      .find(el => el?.node === receiver);
-    if (found) return found;
-  }
-  return null;
+  let peeled = peeledPath(findIifeArgPath(hostParent, pattern));
+  while (peeled?.node?.type === 'SequenceExpression') peeled = peeledPath(peeled.get('expressions').at(-1));
+  return peeled?.node === receiver ? peeled : null;
 }
 
 // the anchoring bar the slot DEFAULTS set: a re-anchored render spells a default verbatim, so
@@ -2560,13 +2544,11 @@ function arrayWrapperInDeclarator(patternPath) {
   return !!arrayWrapperDeclarator(patternPath);
 }
 
-// one descent step into a literal: an INDEX reads an array element, a KEY an object property.
-// a spread anywhere could supply either, so a literal carrying one answers for neither
+// one descent step into a literal: an INDEX reads an array element (the positional read, an
+// inline-array spread expanded), a KEY an object property. a spread that leaves no static position
+// could supply either, so such a literal answers for neither
 function stepIntoLiteral(node, step) {
-  if (step.key === undefined) {
-    return node?.type === 'ArrayExpression' && !spreadShiftsIndex(node.elements, step.index)
-      ? node.elements[step.index] ?? null : null;
-  }
+  if (step.key === undefined) return node?.type === 'ArrayExpression' ? resolveCallArgument(node.elements, step.index) : null;
   if (node?.type !== 'ObjectExpression'
     || node.properties.some(item => item.type === 'SpreadElement')) return null;
   const prop = node.properties.find(item => (item.type === 'Property' || item.type === 'ObjectProperty')
@@ -2709,7 +2691,12 @@ export function resolveArrayWrappedReceiver(patternPath, aliasCtx = null, {
       continue;
     }
     const { index } = step;
-    if (element?.type !== 'ArrayExpression' || spreadShiftsIndex(element.elements, index)) return null;
+    // this walk edits the level BY INDEX, so the slot has to be a top-level element at its static
+    // position: a spread of a binding before it leaves none, and an inline-array spread is flattened
+    // by the time the rewrite reaches a level (`flattenArrayWrapperInits`) - one left as written
+    // (its pairing landed on a hole) keeps the level native
+    const coords = element?.type === 'ArrayExpression' ? resolveCallArgumentCoords(element.elements, index) : null;
+    if (!coords || coords.elementIndex >= 0 || coords.argIndex !== index) return null;
     // an element the pattern does not bind still EVALUATES - a spread ITERATES its argument, a
     // call runs. a SOLE slot drops the wrapper whole, which would ERASE that value. a READING claim
     // keeps such a wrapper instead, exactly as one with a bound neighbour does: the residual keeps
