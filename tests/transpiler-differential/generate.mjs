@@ -227,6 +227,19 @@ const D_PATTERNS = [
   // about this snippet alone
   { id: 'rest-instance-literal', recv: '[3, [1, 2]]', lhs: '{ at: ra, ...rrest }',
     names: ['ra', 'rrest'], observe: '[typeof ra, Object.keys(rrest).length]', strip: false },
+  // a nested pattern off a root the source COMPUTES: the extraction spells that root once, exactly
+  // where the source evaluates it, and the stripped realm is what sees a leaf left native. the
+  // hosts a computed root cannot yet be spelled on are named beside the row, not carried red: the
+  // wrapper family serves a nested claim only where the walk can follow the ELEMENT's own literal,
+  // and an opaque call has none - the flat host memoizes the init instead and keeps the claim
+  { id: 'nested-computed-root', recv: '(v => v)({ data: arr })', lhs: '{ data: { at: ncr } }',
+    names: ['ncr'], observe: 'typeof ncr', strip: true,
+    skipHosts: [
+      'array-wrap-effect-before-hole',
+      'array-wrap-sibling-trailing-effect', 'param-default', 'assign', 'assign-array-wrap-sole', 'assign-array-wrap-multi', 'assign-bodyless-skipped',
+      'assign-bodyless-taken', 'assign-discarded-seq', 'array-wrap-sole', 'array-wrap-effect-neighbour',
+      'array-wrap-pure-neighbour', 'array-wrap-effect-leading-sibling', 'array-wrap-trailing-sibling',
+      'array-wrap-twin-declarators', 'array-wrap-sole-trailing-effect'] },
   { id: 'object', recv: 'Object', lhs: '{ fromEntries }', names: ['fromEntries'], observe: 'typeof fromEntries', strip: true },
   { id: 'nested-proxy', recv: 'globalThis', lhs: '{ Array: { from } }', names: ['from'], observe: 'typeof from', strip: true },
   // the receiver spine wearing the optional-chain MARKER: on ESTree it is a node the extraction
@@ -242,13 +255,19 @@ const D_PATTERNS = [
   { id: 'marker-instance-two-hop', recv: 'globalThis?.globalThis.Array.prototype', lhs: '{ at: a }', names: ['a'], observe: 'typeof a', strip: true },
   // a chain-assign receiver whose stored VALUE carries its own SE prefix: only the tail is the nav,
   // and the write is an effect of the source's own - the claim must still land
-  { id: 'se-prefixed-kept-write', recv: '(kw = (log.push("w"), globalThis))', lhs: '{ Map: { groupBy: g } }', names: ['g'], observe: 'typeof g', strip: true },
+  // ... the MULTI-element assignment wrapper is the gap these three leave: babel mirrors a plain
+  // element there and has no overwrite route for a kept write (the mirror would replace what the
+  // write stores), where the other leg appends the overwrite behind the raw destructure
+  { id: 'se-prefixed-kept-write', recv: '(kw = (log.push("w"), globalThis))', lhs: '{ Map: { groupBy: g } }', names: ['g'], observe: 'typeof g', strip: true,
+    skipHosts: ['assign-array-wrap-multi'] },
   // ... the same receiver with a SURVIVING residual (the init keeps a reader of its own) and with a
   // DEAD default (a static ponyfill is always defined, so the source's default never fires): both
   // ride the opaque-init routes the assignment and bodyless hosts gained
   { id: 'se-prefixed-kept-write-residual', recv: '(kw = (log.push("w"), globalThis))', lhs: '{ Map: { groupBy: g }, other }',
-    names: ['g', 'other'], observe: '[typeof g, typeof other]', strip: true },
-  { id: 'se-prefixed-kept-write-defaulted', recv: '(kw = (log.push("w"), globalThis))', lhs: '{ Map: { groupBy: g = null } }', names: ['g'], observe: 'typeof g', strip: true },
+    names: ['g', 'other'], observe: '[typeof g, typeof other]', strip: true,
+    skipHosts: ['assign-array-wrap-multi'] },
+  { id: 'se-prefixed-kept-write-defaulted', recv: '(kw = (log.push("w"), globalThis))', lhs: '{ Map: { groupBy: g = null } }', names: ['g'], observe: 'typeof g', strip: true,
+    skipHosts: ['assign-array-wrap-multi'] },
   // the DEFAULTED instance leaf, whose dispatch answers `it.method` VERBATIM off a surface that is
   // not the polyfilled one: the axis BRANCHES on what the receiver names, and the `null` sentinel
   // separates "the ponyfill bound" from "the source's default fired" on every leg
@@ -278,6 +297,37 @@ const D_PATTERNS = [
     observe: '[typeof m, typeof m2]', strip: true },
   { id: 'instance-proxy-surface-se-prefix', recv: '(log.push("e"), globalThis)',
     lhs: '{ Array: { prototype: { flat: m } } }', names: ['m'], observe: 'typeof m', strip: true },
+  // ... and a STATIC claim sharing that init with the INSTANCE one: the two dispatch through
+  // different routes, and the prefix or the store the init carries belongs to exactly one of them -
+  // a leg whose routes each replay it runs the effect twice and stores twice, which the log and the
+  // observed store both see; the plain twin is the control where nothing in the init can double
+  { id: 'mixed-instance-static-se-prefix', recv: '(log.push("e"), globalThis)',
+    lhs: '{ Array: { prototype: { at: m } }, Object: { keys: k } }', names: ['m', 'k'],
+    observe: '[typeof m, typeof k]', strip: true },
+  { id: 'mixed-instance-static-kept-write', recv: '(kw = (log.push("w"), globalThis))',
+    lhs: '{ Array: { prototype: { at: m } }, Object: { keys: k } }', names: ['m', 'k'],
+    observe: '[typeof m, typeof k, kw === globalThis]', strip: true },
+  { id: 'mixed-instance-static', recv: 'globalThis',
+    lhs: '{ Array: { prototype: { at: m } }, Object: { keys: k } }', names: ['m', 'k'],
+    observe: '[typeof m, typeof k]', strip: true },
+  // a leaf off a MISSING-ABLE constructor beside a claim the pattern consumes: whatever keeps the
+  // residual - a wrapper a spread holds alive, a sibling - that leaf must still read through the
+  // ponyfilled constructor, since the native one is exactly what the stripped realm lacks
+  // ... and the MULTI-element assignment wrapper is this one's gap too: a sibling hop naming a
+  // missing-able ctor has to re-anchor on the pure, which no route owning that host can express -
+  // one leg mirrors the whole element instead, the other anchors the residual beside the overwrite
+  { id: 'missing-able-leaf-beside-claim', recv: 'globalThis',
+    lhs: '{ AggregateError: { customZ }, Iterator: { from: itFrom } }', names: ['customZ', 'itFrom'],
+    observe: '[typeof customZ, typeof itFrom]', strip: true,
+    skipHosts: ['assign-array-wrap-multi'] },
+  // ... and the same pair beside a SURVIVING residual (a leaf the source keeps): the residual
+  // re-reads the init, so the setup runs once for the extractions AND that re-read
+  { id: 'mixed-instance-static-residual', recv: '(log.push("e"), globalThis)',
+    lhs: '{ Array: { prototype: { at: m } }, Object: { keys: k }, other }', names: ['m', 'k', 'other'],
+    observe: '[typeof m, typeof k, typeof other]', strip: true },
+  { id: 'mixed-instance-static-kept-write-residual', recv: '(kw = (log.push("w"), globalThis))',
+    lhs: '{ Array: { prototype: { at: m } }, Object: { keys: k }, other }', names: ['m', 'k', 'other'],
+    observe: '[typeof m, typeof k, typeof other, kw === globalThis]', strip: true },
   // ... and the GETTER-backed capitalised hop off a USER object: a name that LOOKS like a built-in
   // surface is still a user key, and an emitter that re-spelled it beside the surviving residual
   // fired that getter twice where the source reads it once - the effect log is the oracle
@@ -447,7 +497,8 @@ const D_PATTERNS = [
     names: ['a'], observe: 'a', strip: false },
   { id: 'se-key-default-typed',
     recv: 'Array.prototype', lhs: '{ [(log.push("k"), "flat")]: m = (log.push("dead"), 0) }',
-    names: ['m'], observe: 'typeof m', strip: true },
+    names: ['m'], observe: 'typeof m', strip: true,
+    skipHosts: ['array-wrap-effect-before-hole'] },
   { id: 'se-key-default-interleave',
     recv: '{ q: 1 }',
     lhs: '{ [(log.push("k1"), "findLast")]: x = (log.push("d1"), 1), [(log.push("k2"), "findLastIndex")]: y = (log.push("d2"), 2) }',
@@ -517,12 +568,35 @@ const D_HOSTS = [
     build: p => `(() => { const [${ p.lhs }, zn] = [${ p.recv }, log.push("n")]; return [zn, ${ p.observe }]; })()` },
   { id: 'array-wrap-pure-neighbour', strip: true,
     build: p => `(() => { const [${ p.lhs }, zn] = [${ p.recv }, 7]; return [zn, ${ p.observe }]; })()` },
+  // ... the effect standing BEFORE the slot with nothing bound beside it: the wrapper dies with the
+  // claim, so the neighbour rides the extraction as its prefix and the log pins the order; and the
+  // effect standing AFTER a sole slot: a receiver-less static drops the wrapper and lifts the
+  // neighbour behind the element's own effects, while a READING claim keeps the residual, or
+  // memoizes the element ahead and lets the effect ride behind it. where the residual SURVIVES the
+  // memo takes the SLOT instead - a write the literal performs where native evaluates the element.
+  // a DISCARDED slot's effect lifts ahead of the declaration instead, in source order, and the level
+  // it leaves keeps the elision the pattern already reads - which is what lets a claim behind such a
+  // neighbour be served at all. the pattern naming this host in `skipHosts` is the gap that leaves:
+  // a DEFAULTED claim behind an effect-bearing key, whose arms the two legs order differently
+  { id: 'array-wrap-effect-before-hole', strip: true,
+    build: p => `(() => { const [, ${ p.lhs }] = [log.push("n"), ${ p.recv }]; return ${ p.observe }; })()` },
+  { id: 'array-wrap-sole-trailing-effect', strip: true,
+    build: p => `(() => { const [${ p.lhs }] = [${ p.recv }, log.push("n")]; return ${ p.observe }; })()` },
+  // ... and a SPREAD after a sole slot: the wrapper cannot drop (the spread iterates), so the
+  // claim keeps a residual - a sentinel for a receiver-less static, the positional ref for a
+  // reading one - and the log pins that the iteration still runs
+  { id: 'array-wrap-sole-spread', strip: true,
+    build: p => `(() => { const [${ p.lhs }] = [${ p.recv }, ...[log.push("s")]]; return ${ p.observe }; })()` },
   // an array-wrapped pattern SHARING its declaration: a memo of the element hoisted ahead of the
   // whole declaration would run the element read before an EFFECT the leading declarator performs,
   // and the trailing twin is the control where nothing precedes. the second wrapped declarator makes
   // each residual verdict answer for its own slot instead of the declaration's first
   { id: 'array-wrap-effect-leading-sibling', strip: true,
     build: p => `(() => { const zLead = log.push("lead"), [${ p.lhs }] = [${ p.recv }]; return [zLead, ${ p.observe }]; })()` },
+  // ... and a leading effect beside a TRAILING neighbour: the neighbour lifts at the slot, behind the
+  // sibling's own init and ahead of the extraction, and the log pins both orders at once
+  { id: 'array-wrap-sibling-trailing-effect', strip: true,
+    build: p => `(() => { const zLead = log.push("lead"), [${ p.lhs }] = [${ p.recv }, log.push("n")]; return [zLead, ${ p.observe }]; })()` },
   { id: 'array-wrap-trailing-sibling', strip: true,
     build: p => `(() => { const [${ p.lhs }] = [${ p.recv }], zTail = 1; return [zTail, ${ p.observe }]; })()` },
   { id: 'array-wrap-twin-declarators', strip: true,
@@ -789,6 +863,280 @@ function * generateAnchorInnerShape() {
       yield { ...snippet(`anchor-key-spelling/inner-present/${ inner.id }/${ key.id }`, present), strip: false };
       const absent = `(() => { const { ${ key.lhs }: ${ inner.lhs } } = globalThis; return ${ inner.observe }; })()`;
       yield { ...snippet(`anchor-key-spelling/inner-absent/${ inner.id }/${ key.id }`, absent), strip: false };
+    }
+  }
+}
+
+// --- Bracketed hop key (the spelling of the hop a CLAIM rides through) ---
+// a hop key written in brackets names the same slot its dotted spelling does, so the claim under it
+// has to ride the same route - and the STRIPPED realm is what says whether it did: a claim left
+// native there reads a method the realm no longer carries. the boundary is the key that folds only
+// past an EFFECT: it names the same slot and still may not be consumed, since the effect would leave
+// with the key, so that arm runs full-env and watches the effect COUNT beside the value. the host is
+// a live axis - a declaration, an assignment and an array-wrapped element each claim by a route of
+// their own, and the wrapped one answers the generic dispatcher where the flat ones narrow
+const BHK_KEYS = [
+  { id: 'dotted', lhs: 'Array', strip: true },
+  { id: 'string-literal', lhs: "['Array']", strip: true },
+  { id: 'template', lhs: '[`Array`]', strip: true },
+  { id: 'const-bound', lhs: '[BHK_K]', setup: "const BHK_K = 'Array';", strip: true },
+  // ... and a key that folds only PAST AN EFFECT names the hop for the INJECTION and not for the
+  // rewrite: the claim ships native (nothing may consume a key it cannot re-spell) while the module
+  // it needs is still injected, so these cells watch the effect count beside a value the realm
+  // strips out from under them
+  { id: 'se-folding', lhs: "[(hit(), 'Array')]", strip: false },
+];
+const BHK_CLAIMS = [
+  { id: 'instance', inner: 'prototype: { at: m }', observe: 'String(m.call([5, 6], 1))' },
+  { id: 'static', inner: 'of: m', observe: 'String(m(7))' },
+];
+const BHK_HOSTS = [
+  { id: 'decl', build: (lhs, inner) => `const { ${ lhs }: { ${ inner } } } = globalThis;` },
+  { id: 'assign', build: (lhs, inner) => `let m; ({ ${ lhs }: { ${ inner } } } = globalThis);` },
+  { id: 'array-wrap', build: (lhs, inner) => `const [{ ${ lhs }: { ${ inner } } }] = [globalThis];` },
+];
+function * generateBracketedHopKey() {
+  for (const key of BHK_KEYS) {
+    for (const claim of BHK_CLAIMS) {
+      for (const host of BHK_HOSTS) {
+        if (key.skipCells?.includes(`${ claim.id }/${ host.id }`)) continue;
+        const cell = `${ key.id }/${ claim.id }/${ host.id }`;
+        const expr = `(() => { let n = 0; const hit = () => { n += 1; return 0; }; ${ key.setup ?? '' }`
+          + ` ${ host.build(key.lhs, claim.inner) } return [${ claim.observe }, String(n)]; })()`;
+        yield { ...snippet(`bracketed-hop-key/${ cell }`, expr), strip: key.strip };
+      }
+    }
+  }
+}
+
+// --- Object-hop pairing (what a sole-key object level pairs its slot with) ---
+// a level whose sole property names a slot pairs with the value standing there, so the claim below
+// it reads that value - and what keeps the level whole is what dropping the literal would drop with
+// it: an effect in a sibling value or a getter body, a spread or an unnameable key that could BE the
+// key at runtime. the rows watch the value the claim yields AND the effect count, so a level
+// consumed where it should not be shows up as a missing effect rather than as a passing test
+const OHP_HOSTS = [
+  { id: 'plain', src: '{ w: globalThis }', strip: true },
+  { id: 'sibling-data', src: '{ z: 1, w: globalThis }', strip: true },
+  { id: 'pure-getter', src: '{ get w() { return globalThis; } }', strip: true },
+  { id: 'alias', src: 'ohpBox', setup: 'const ohpBox = { w: globalThis };', strip: true },
+  // ... and the shapes whose LITERAL survives the pairing: the claim is spelled from the slot its key
+  // names and the husk keeps every effect the literal owes, so the effect count is the oracle here
+  { id: 'sibling-effect', src: '{ z: (hit(), 1), w: globalThis }', strip: false },
+  // ... and a hop NEITHER leg can resolve - a live getter, a key nothing can name - leaves
+  // usage-global injecting nothing for the STATIC claim under it, though its own bias is to inject
+  // where the slot MIGHT be read. the hole is the product's; it is named here rather than hidden
+  { id: 'live-getter', src: '{ get w() { hit(); return globalThis; } }', strip: false, skipClaims: ['static', 'static-default'] },
+  { id: 'trailing-spread', src: '{ w: globalThis, ...ohpExtra }', setup: 'const ohpExtra = {};', strip: false },
+  // a key nothing can NAME could be this one at runtime, so the level stays whole; a key that folds
+  // through its binding names another slot and leaves the pairing alone
+  { id: 'unnameable-key', src: '{ w: globalThis, [ohpKey]: ohpOther }', setup: 'const ohpOther = {};',
+    params: 'ohpKey', arg: "'q'", strip: false, skipClaims: ['static', 'static-default'] },
+  // ... and the shapes where the PATTERN keeps the level alive beside the hop: a sibling prop bound
+  // off the same literal (the hop's leaf consumes, the sibling keeps the residual), a sibling
+  // DECLARATOR on the host (the memo of an effectful slot stands ahead, the join keeps the tail), and
+  // an effectful slot beside a bound sibling (the slot memoizes for both readers, in source order)
+  { id: 'sibling-pattern', src: '{ w: globalThis, z: (hit(), 1) }', patternExtra: ', z', strip: true },
+  { id: 'sibling-declarator', src: '{ w: globalThis }', tail: ', ohpTail = hit()', strip: true },
+  { id: 'effect-slot-sibling', src: '{ z: (hit(), 1), w: (hit(), globalThis) }', patternExtra: ', z', strip: true },
+  // ... and the ASSIGNMENT hosts of the same shapes: the residual keeps the sibling, the claim binds
+  // through an overwrite after it
+  { id: 'assign-sibling', src: '{ w: globalThis, z: (hit(), 1) }', patternExtra: ', z', assign: true, strip: true },
+  { id: 'assign-effect-slot', src: '{ z: (hit(), 1), w: (hit(), globalThis) }', patternExtra: ', z', assign: true, strip: true },
+  { id: 'bound-key', src: '{ w: globalThis, [ohpBound]: ohpOther2 }',
+    setup: "const ohpBound = 'q'; const ohpOther2 = {};", strip: true },
+  // a spread standing AHEAD of the key reads its source's own enumerable keys, so the count says
+  // whether a leg dropped the literal the claim reads through
+  { id: 'spread-ahead', src: '{ ...ohpAhead, w: globalThis }',
+    setup: 'const ohpAhead = { get z() { return hit(); } };', strip: false },
+  // a binding REASSIGNED between realm names: one object under several spellings, so the read
+  // answers the same whichever write reached it - and the value the row observes proves it
+  { id: 'realm-alias', src: 'ohpAlias', setup: 'let ohpAlias = globalThis; ohpAlias = globalThis.globalThis;', strip: true },
+  // a SEQUENCE around the paired value: the dispatch re-spells the realm as its ponyfill and never
+  // the comma run in front of it, so the literal keeps that prefix - the count is the oracle
+  { id: 'seq-prefix', src: '{ w: (hit(), globalThis) }', strip: false },
+  // the hop VALUE is a navigation, not a bare name: what the claim dispatches on is the ponyfill
+  // that nav stands for, never a member read off the realm object
+  { id: 'nav-value', src: '{ w: globalThis.globalThis }', strip: true },
+  // ... and the claim can sit directly on the paired VALUE, with no namespace hop under it: that
+  // receiver is the node the level lifts out of the literal
+  { id: 'array-value', src: '{ w: [5, 6] }', strip: true, skipClaims: ['instance', 'static', 'ctor'] },
+  // the slot read through the value canon at every depth: a NESTED comma run hands over every
+  // prefix, a defensive realm default (`?? {}`, `|| {}`, nested) reads as the realm it names, and a
+  // `?.` off a guaranteed realm name is dead text - each is the same value the flat spelling reads
+  { id: 'nested-seq', src: '{ w: (hit(), (hit(), globalThis)) }', strip: false },
+  { id: 'seq-default', src: '{ w: (hit(), globalThis ?? {}) }', strip: false },
+  { id: 'or-default', src: '{ w: globalThis || {} }', strip: true },
+  { id: 'nested-default', src: '{ w: (globalThis ?? {}) ?? {} }', strip: true },
+  { id: 'optional-nav', src: '{ w: globalThis?.globalThis }', strip: true },
+  // a binding reassigned to a realm name from INSIDE a nested function: the write is reachable, and
+  // every reachable value still names the realm - the hop reads the binding as the flat form does
+  { id: 'closure-realm-alias', src: 'ohpClosed', setup: 'let ohpClosed = globalThis; function ohpUp() { ohpClosed = self; }', strip: true },
+  // a BRANCHING realm write: the slot's binding enumerates through the flat canon on every host, so
+  // the global leg injects for the same objects the flat spelling does and no typeless row besides
+  { id: 'branching-realm-alias', src: 'ohpOr', setup: 'let ohpOr = globalThis; ohpOr = self || globalThis;', strip: true },
+  // the hop KEY spelled through a binding (`{ [k]: {...} }` with `const k = 'w'`): the consume folds
+  // it to the slot it names and claims exactly what the literal spelling claims, on the realm slot
+  // and on a value slot alike
+  { id: 'bound-hop-key', src: '{ w: globalThis }', key: '[ohpHopKey]', setup: "const ohpHopKey = 'w';", strip: true },
+  { id: 'bound-hop-key-array', src: '{ w: [5, 6] }', key: '[ohpHopKey]', setup: "const ohpHopKey = 'w';",
+    strip: true, skipClaims: ['instance', 'static', 'ctor'] },
+  // a comma run in front of a VALUE slot: the hop rides the prefix inside its dispatch exactly as
+  // the flat spelling does (`_at((hit(), [5, 6]))`), and the count says the prefix ran once
+  { id: 'seq-array-value', src: '{ w: (hit(), [5, 6]) }', strip: true, skipClaims: ['instance', 'static', 'ctor'] },
+];
+const OHP_CLAIMS = [
+  { id: 'instance', inner: 'Array: { prototype: { at: m } }', observe: 'String(m.call([5, 6], 1))' },
+  { id: 'static', inner: 'Array: { from: m }', observe: 'String(m("ab"))' },
+  { id: 'ctor', inner: 'Map: m', observe: 'String(new m([[1, 2]]).get(1))' },
+  // a leaf's own DEFAULT is dead text (the pure is always defined) and keeps its guard on both legs
+  { id: 'ctor-default', inner: 'Map: m = null', observe: 'String(new m([[1, 2]]).get(1))' },
+  { id: 'static-default', inner: 'Array: { from: m = null }', observe: 'String(m("ab"))' },
+  { id: 'value-instance', inner: 'at: m', observe: 'String(m.call([5, 6], 1))', onlyHosts: ['array-value', 'bound-hop-key-array', 'seq-array-value'] },
+  // the well-known-symbol leaf: its helper performs the very read the key names, so what the slot
+  // leaves behind is the product's own answer. the REST spelling of it is not a corpus row - the
+  // pure runtime's own Symbol shim and object rest meet there, which is the runtime suite's ground
+  { id: 'symbol', inner: '[Symbol.iterator]: m', observe: 'String(typeof m)' },
+];
+function * generateObjectHopPairing() {
+  for (const host of OHP_HOSTS) {
+    for (const claim of OHP_CLAIMS) {
+      if (host.skipClaims?.includes(claim.id)) continue;
+      if (claim.onlyHosts && !claim.onlyHosts.includes(host.id)) continue;
+      const cell = `${ host.id }/${ claim.id }`;
+      const pattern = `{ ${ host.key ?? 'w' }: { ${ claim.inner } }${ host.patternExtra ?? '' } }`;
+      // an ASSIGNMENT host declares its bindings ahead and destructures in statement position
+      const bind = host.assign
+        ? `let m${ host.patternExtra ?? '' }; (${ pattern } = ${ host.src });`
+        : `const ${ pattern } = ${ host.src }${ host.tail ?? '' };`;
+      const expr = `((${ host.params ?? '' }) => { let n = 0; const hit = () => { n += 1; return 0; };`
+        + ` ${ host.setup ?? '' } ${ bind } return [${ claim.observe }, String(n)]; })(${ host.arg ?? '' })`;
+      yield { ...snippet(`object-hop-pairing/${ cell }`, expr), strip: host.strip };
+    }
+  }
+}
+
+// --- SE-key sibling hosts (a kept effectful key beside SIBLING declarators, by host) ---
+// the claim under an effectful key keeps that key in the residual and binds beside the declarators
+// the source wrote around it: a static's canon is one statement per declarator, its extraction in
+// the group of its own declarator behind the receiver's prefix; a literal or member receiver
+// memoizes as a preceding declarator at its slot; a bodyless slot joins the lot into its one `var`;
+// an unclaimed effectful key beside the claim still segments the residual at the claim. the count is
+// the oracle for every effect the host carries (lead, prefix, keys, tail), the value for the binding.
+// a loop whose body never runs binds nothing, so those rows observe the hoisted `var` by type
+const SKS_HOSTS = [
+  { id: 'statement', bind: (p, s) => `var lead = hit(), ${ p } = ${ s }, tail = hit();` },
+  { id: 'pure-lead', bind: (p, s) => `var lead = 1, ${ p } = ${ s };` },
+  { id: 'host-first', bind: (p, s) => `var ${ p } = ${ s }, tail = hit();` },
+  { id: 'for-init', bind: (p, s) => `for (var lead = hit(), ${ p } = ${ s }; false;) break;` },
+  { id: 'bodyless-if', bind: (p, s) => `if (n >= 0) var lead = hit(), ${ p } = ${ s }, tail = hit();` },
+  { id: 'bodyless-while', bind: (p, s) => `while (n < 0) var lead = hit(), ${ p } = ${ s };`, dead: true },
+  { id: 'bodyless-do', bind: (p, s) => `do var ${ p } = ${ s }, tail = hit(); while (n < 0);` },
+];
+const SKS_RECEIVERS = [
+  { id: 'static', src: 'Array', key: 'of', observe: 'String(m(1, 2))' },
+  { id: 'static-prefix', src: '(hit(), Array)', key: 'of', observe: 'String(m(1, 2))' },
+  { id: 'static-default', src: 'Array', key: 'of', dflt: ' = null', observe: 'String(m(1, 2))' },
+  { id: 'ctor', src: 'globalThis', key: 'Map', observe: 'String(new m([[1, 2]]).get(1))' },
+  { id: 'literal-instance', src: '[5, 6]', key: 'at', observe: 'String(m.call([5, 6], 1))' },
+  { id: 'literal-prefix', src: '(hit(), [5, 6])', key: 'at', observe: 'String(m.call([5, 6], 1))' },
+  { id: 'member-instance', src: 'sksHolder.p', setup: 'const sksHolder = { p: [5, 6] };', key: 'at', observe: 'String(m.call([5, 6], 1))' },
+  { id: 'seq-instance', src: '(hit(), sksArr)', setup: 'const sksArr = [5, 6];', key: 'at', observe: 'String(m.call([5, 6], 1))' },
+];
+const SKS_PATTERNS = [
+  { id: 'sole', pattern: (key, dflt) => `{ [(hit(), '${ key }')]: m${ dflt } }` },
+  { id: 'sibling', pattern: (key, dflt) => `{ [(hit(), '${ key }')]: m${ dflt }, sksOther }` },
+  { id: 'unclaimed-key', pattern: (key, dflt) => `{ [(hit(), 'x')]: sksX, [(hit(), '${ key }')]: m${ dflt }, sksOther }` },
+];
+function * generateSeKeySiblingHosts() {
+  for (const host of SKS_HOSTS) {
+    for (const receiver of SKS_RECEIVERS) {
+      for (const shape of SKS_PATTERNS) {
+        const cell = `${ host.id }/${ receiver.id }/${ shape.id }`;
+        const bind = host.bind(shape.pattern(receiver.key, receiver.dflt ?? ''), receiver.src);
+        const observe = host.dead ? 'String(typeof m)' : receiver.observe;
+        const expr = `(() => { let n = 0; const hit = () => { n += 1; return 0; }; ${ receiver.setup ?? '' }`
+          + ` ${ bind } return [${ observe }, String(n)]; })()`;
+        yield { ...snippet(`sekey-sibling-hosts/${ cell }`, expr), strip: true };
+      }
+    }
+  }
+}
+
+// --- Var re-declaration read from a closure (which value a hoisted var holds at a nested read) ---
+// one tracker hoists a block-nested `var` and records the re-declaration as a write, the other
+// block-scopes it and records nothing: a read from a function NESTED in the var's owner may run
+// before or after any of the declarators, so it dispatches on the union of their values - a
+// clashing pair reads generic, an agreeing pair keeps its type. the global leg's import set is the
+// oracle: a second value the leg does not see is a module it does not inject, and the stripped
+// realm then throws on the read. the same-scope re-declaration and the plain reassignment are the
+// controls both trackers record
+const VRC_SECONDS = [
+  { id: 'string', src: "'xy'", observe: 'String(g())' },
+  { id: 'array', src: '[3, 4]', observe: 'String(g())' },
+];
+const VRC_SHAPES = [
+  { id: 'block-after-use', bind: second => `var a = [1, 2]; function g() { return a.at(0); } { var a = ${ second }; } return g();` },
+  { id: 'block-after-call', bind: second => `var a = [1, 2]; function g() { return a.at(0); } const r = g(); { var a = ${ second }; } return [r, g()];` },
+  { id: 'block-before-use', bind: second => `var a = [1, 2]; { var a = ${ second }; } function g() { return a.at(0); } return g();` },
+  { id: 'same-scope', bind: second => `var a = [1, 2]; function g() { return a.at(0); } var a = ${ second }; return g();` },
+  { id: 'reassign', bind: second => `var a = [1, 2]; function g() { return a.at(0); } a = ${ second }; return g();` },
+  { id: 'arrow-read', bind: second => `var a = [1, 2]; const g = () => a.at(0); { var a = ${ second }; } return g();` },
+  { id: 'destructure-read', bind: second => `var a = [1, 2]; function g() { const { at: m } = a; return m.call(a, 0); } { var a = ${ second }; } return g();` },
+  // a hoisted FUNCTION redeclared by a block `var`: the function is the binding's first value,
+  // the block declarator its second, at a straight read and a nested one alike
+  { id: 'function-then-block-var', bind: second => `function a() {} { var a = ${ second }; } return a.at(0);` },
+  { id: 'function-then-block-var-nested', bind: second => `function a() {} function g() { return a.at(0); } { var a = ${ second }; } return g();` },
+  // the nested function's OWN block var shadows the outer one for its reads outside the block
+  { id: 'inner-own-block-var', bind: second => `var a = [1, 2]; function g() { { var a = ${ second }; } return a.at(0); } return g();` },
+];
+// ... under every owner kind a `var` hoists to: the owner's own body is its scope whatever spells
+// the function (a top-level declaration there is the owner-level binding, never a block shadow)
+const VRC_OWNERS = [
+  { id: 'function', wrap: body => `function f() { ${ body } } return String(f());` },
+  { id: 'arrow', wrap: body => `const f = () => { ${ body } }; return String(f());` },
+  { id: 'method', wrap: body => `const o = { f() { ${ body } } }; return String(o.f());` },
+  // the async owner's cell AWAITS its result: a promise-valued `r` would read the same on every leg
+  { id: 'async', wrap: body => `async function f() { ${ body } } return f().then(String);`, awaits: true },
+];
+function * generateVarRedeclClosureRead() {
+  for (const owner of VRC_OWNERS) {
+    for (const shape of VRC_SHAPES) {
+      for (const second of VRC_SECONDS) {
+        const body = owner.wrap(shape.bind(second.src));
+        const expr = owner.awaits ? `await (async () => { ${ body } })()` : `(() => { ${ body } })()`;
+        yield { ...snippet(`var-redecl-closure-read/${ owner.id }/${ shape.id }/${ second.id }`, expr), strip: true };
+      }
+    }
+  }
+}
+
+// --- Loop-head nested slot (what a nested leaf of a for-x head reads) ---
+// the leaf reads a SLOT of the element, not the element, so the type answer has to descend the key
+// path per element and fold across them: a literal of object literals is a path this walk owns, a
+// bound or spread iterable belongs to the routes that own those values. the row watches the VALUE
+// the leaf yields in the stripped realm, where a claim left without its module reads a method the
+// realm no longer carries - and the import sets of the two legs have to agree on every cell
+const LHS_ITERABLES = [
+  { id: 'literal-array-slot', src: '[{ y: [5, 6] }]' },
+  { id: 'literal-cross-family', src: '[{ y: [5, 6] }, { y: "ab" }]' },
+  { id: 'literal-lacking-hop', src: '[{ y: [5, 6] }, { z: 1 }]' },
+  { id: 'bound-iterable', src: 'lhsRows', setup: 'const lhsRows = [{ y: [5, 6] }];' },
+  { id: 'spread-iterable', src: '[{ y: [5, 6] }, ...lhsMore]', setup: 'const lhsMore = [];' },
+];
+const LHS_CLAIMS = [
+  { id: 'at', inner: 'at: m', observe: 'String(m.call([5, 6], 1))' },
+  { id: 'includes', inner: 'includes: m', observe: 'String(m.call([5, 6], 6))' },
+];
+function * generateLoopHeadNestedSlot() {
+  for (const iterable of LHS_ITERABLES) {
+    for (const claim of LHS_CLAIMS) {
+      const cell = `${ iterable.id }/${ claim.id }`;
+      // the first element is the one the observable reads; a later element only widens the fold
+      const expr = `(() => { ${ iterable.setup ?? '' } const out = [];`
+        + ` for (const { y: { ${ claim.inner } } } of ${ iterable.src }) { out.push(${ claim.observe }); break; }`
+        + ' return out; })()';
+      yield { ...snippet(`loop-head-nested-slot/${ cell }`, expr), strip: true };
     }
   }
 }
@@ -7952,6 +8300,11 @@ export function * generate() {
   yield * generateReceiverBearingDefault();
   yield * generateAnchorKeySpelling();
   yield * generateAnchorInnerShape();
+  yield * generateBracketedHopKey();
+  yield * generateLoopHeadNestedSlot();
+  yield * generateObjectHopPairing();
+  yield * generateSeKeySiblingHosts();
+  yield * generateVarRedeclClosureRead();
   yield * generateDestructureAlias();
   yield * generateParamInstalledPatch();
   yield * generateParamInstalledPatchHosts();

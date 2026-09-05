@@ -1,8 +1,8 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 // the leaf flatten renders a memo plus its extractions, and the slot the declaration stands in is
 // what decides where that pair goes: a statement list splices it, a LOOP HEAD takes it as
-// declarators (they evaluate in order, so the memo binds first), and an unbraced slot gets braced
-// around it. a SHARED declaration keeps its node and the claim's declarator leaves the list, so the
+// declarators (they evaluate in order, so the memo binds first), and an unbraced slot joins it into
+// its one `var`. a SHARED declaration keeps its node and the claim's declarator leaves the list, so the
 // pair stands beside it - which needs an END of that list to stand at. an EXPORT wrapper is the one
 // host that declines: the memo cannot lift out of it without exporting a name the source never wrote
 const box = {
@@ -18,13 +18,11 @@ export const {
   }
 } = box;
 const bodyless = function () {
-  if (box) {
-    const _ref = box.y;
-    var at = _atMaybeArray(_ref);
-    var {
+  if (box) var _ref = box.y,
+    at = _atMaybeArray(_ref),
+    {
       other
     } = _ref;
-  }
   return [at, other];
 }();
 const loopHead = function () {

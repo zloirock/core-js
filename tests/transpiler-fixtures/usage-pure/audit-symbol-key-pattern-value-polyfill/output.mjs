@@ -99,10 +99,10 @@ const _ref6 = holder2.p,
 // EXPORT host: the memo plants as a bare statement before the export (never exported itself)
 const _ref7 = holder3.p;
 export const {
-  length: expArity
-} = _getIteratorMethod(_ref7);
-export const {
-  [_Symbol$iterator]: _unused9,
-  expQ
-} = _ref7;
+    [_Symbol$iterator]: _unused9,
+    expQ
+  } = _ref7,
+  {
+    length: expArity
+  } = _getIteratorMethod(_ref7);
 export { from, next, done, name, restOfMethod, union, n2, tp, of, iterName2, c, litArity, litCall, memArity, sib, brArity, alt, callArity, q, ts, mixArity };

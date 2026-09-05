@@ -118,7 +118,9 @@ let wCl = { c: Object };
 export const setIt = () => { wCl = { c: Number }; };
 const { c: { isNaN: viaClosureWrite } } = wCl;
 
-// the BARE binding canon: the identity no-op resolves, real writes keep the pure bail
+// the BARE binding canon: the identity no-op resolves, and a real plain write resolves the same way
+// the container walk reads it - when it is the ONE value the read can observe (a dominating
+// unconditional write, nothing written after the read), the static binds that value's ponyfill
 let bs1 = Object;
 bs1 = bs1;
 export const bareSelfAssign = bs1.fromEntries([['a', 1]]);
