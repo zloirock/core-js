@@ -72,6 +72,7 @@ import {
   reassignmentValueNodes,
   receiverCarriesLiveOptional,
   reEvaluationObservable,
+  relocatedHeadElement,
   requireCallSource,
   resolveCallArgument,
   resolveCallArgumentCoords,
@@ -4314,7 +4315,9 @@ function computeNestedDestructureReceiver(outerProp, adapter, unionSink = null) 
     const iifeSite = parent?.node && FN_NODE_TYPES.has(parent.node.type) ? findIifeCallSite(parent, paramPattern.node) : null;
     const hostPath = iifeSite ? iifeSite.callPath : parent;
     const hostScope = hostPath?.scope ?? parent?.scope;
-    const slotNode = destructureReceiverNode(parent, paramPattern.node);
+    // the name channel reads a relocated head through to its element (the emit routes key on the
+    // init as written and are not handed it)
+    const slotNode = relocatedHeadElement(parent) ?? destructureReceiverNode(parent, paramPattern.node);
     // descend the init through each ArrayPattern wrapper at its recorded element index
     // (`[, { from }]` descends index 1, not a blind 0). thread scope/adapter/path so a const-bound
     // array-literal wrapper (`const wrapper = [{ a: Array }]; const [{ a: { from } }] = wrapper`)

@@ -39,6 +39,8 @@ import {
   propBindingIdentifier,
   propertyKeyName,
   receiverCarriesLiveOptional,
+  relocatedHeadElement,
+  resolveCallArgument,
   spelledSlotName,
   unwrapCollectingSePrefixes,
   unwrapExpressionChain,
@@ -811,6 +813,13 @@ export function buildNestedDestructurePlan({
     // (and nested forms like `(se(), (R as any))`) reach the receiver. without this,
     // TS-wrapped destructure inits bail the flatten path and the SE prefix never lifts
     let init = unwrapExpressionChain(peeled.init);
+    // a RELOCATED loop head's pattern reads the iterated literal's element, not the minted name the
+    // head now binds (the name channel's rule, `relocatedHeadElement`): the static-object descent
+    // walks that element, and the render still prunes the pattern where it stands
+    let declaratorPath = path;
+    while (declaratorPath?.node && declaratorPath.node !== declarator) declaratorPath = declaratorPath.parentPath;
+    const headElement = relocatedHeadElement(declaratorPath?.node === declarator ? declaratorPath : null);
+    if (headElement) init = unwrapExpressionChain(headElement);
     // the discard-rescue harvest below must see the PRE-collapse node (a rescued IIFE call,
     // a chain assignment) - the collapse rewrites `init` to the resolution representative
     const initBeforeCollapse = init;
@@ -1040,6 +1049,43 @@ function patternHoldsClaim(node, resolvePure, undefaultedOnly = false) {
   });
 }
 
+// the mirror's own answer for a NESTED claim: does every element the head spells pair the hop path
+// down to a pristine constructor the leaf's static resolves off? such a claim is the receiver
+// mirror's (a static swapped into the element), not a reason to relocate - a dual-named leaf
+// (`entries`, `keys`) resolves TYPELESSLY as an instance method, and counted that way it relocated
+// a pattern whose claim then read `_ref.w` with the constructor's name lost
+function nestedClaimBeyondMirror(node, receivers, { scope, adapter, path, resolvePure }) {
+  const pattern = patternSlotTarget(node);
+  if (pattern?.type === 'ArrayPattern') {
+    return (pattern.elements ?? []).some((element, index) => element && element.type !== 'RestElement'
+      && nestedClaimBeyondMirror(element, receivers.map(receiver => {
+        const literal = unwrapRuntimeExpr(receiver);
+        return literal?.type === 'ArrayExpression' ? resolveCallArgument(literal.elements, index) : null;
+      }), { scope, adapter, path, resolvePure }));
+  }
+  if (pattern?.type !== 'ObjectPattern') return false;
+  return (pattern.properties ?? []).some(prop => {
+    if (!isPropertyNode(prop)) return false;
+    const key = spelledSlotName(prop);
+    const value = patternSlotTarget(prop.value);
+    if (key !== null && value?.type === 'Identifier') {
+      const claims = resolvePure({ kind: 'property', object: null, key, placement: null })
+        || receivers.some(receiver => resolvePure({
+          kind: 'property', object: unwrapRuntimeExpr(receiver)?.name ?? null, key, placement: 'static',
+        }));
+      if (!claims) return false;
+      return !receivers.length || !receivers.every(receiver => {
+        const element = unwrapRuntimeExpr(receiver);
+        if (element?.type !== 'Identifier' || adapter?.hasBinding?.(scope, element.name, path)) return false;
+        const meta = buildDestructuringInitMeta({ initNode: element, key, scope, adapter, path });
+        return meta?.object === element.name && !!resolvePolyfillableStaticProp({ prop, receiverName: meta.object, resolvePure });
+      });
+    }
+    const below = key === null ? [] : receivers.map(receiver => objectLevelPairedProperty(unwrapRuntimeExpr(receiver), key)?.read ?? null);
+    return nestedClaimBeyondMirror(prop.value, below.every(Boolean) ? below : [], { scope, adapter, path, resolvePure });
+  });
+}
+
 export function planCatchClauseExtraction({
   paramNode, bodyNode, scope, adapter, path, resolvePure, walkNode,
   objectHint = null, iterableNode = null, mirrorHosts = false,
@@ -1049,12 +1095,14 @@ export function planCatchClauseExtraction({
   // here - what the relocation buys is a DECLARATION HOST, and the element rename takes it from
   // there, with everything the pattern binds beside the claim riding the residual that host can now
   // hold. the rename's own walk re-asks the narrower questions (plain key, statement slot) at emit
+  const elementNodes = iterableElementNodes(iterableNode);
   if (paramNode?.type === 'ArrayPattern') {
+    // ... unless every claim below is the receiver mirror's, like the object pattern's below
+    if (mirrorHosts && !nestedClaimBeyondMirror(paramNode, elementNodes, { scope, adapter, path, resolvePure })) return null;
     return (paramNode.elements ?? []).some(element => patternHoldsClaim(element, resolvePure, true))
       ? { unobservable: [] } : null;
   }
   if (paramNode?.type !== 'ObjectPattern' || !paramNode.properties?.length) return null;
-  const elementNodes = iterableElementNodes(iterableNode);
   // WHICH channel answers decides whether the relocation is needed at all. the type channel buys a
   // DECLARATION HOST its dispatch cannot do without; a static off an element the source SPELLS is
   // something the receiver mirror puts in that element instead - no host, no minted name, no guard,
@@ -1117,10 +1165,13 @@ export function planCatchClauseExtraction({
     && consumableHopSlotName(prop, adapter ? { scope, adapter, path } : null) !== null
     && patternHoldsClaim(prop.value, resolvePure));
   if (!hasMachinery && !nestedClaim && !resolvableProps.length) return null;
+  // ... and a nested claim the mirror answers on every element is the mirror's, not a host's
+  const nestedBeyondMirror = nestedClaim
+    && (!mirrorHosts || nestedClaimBeyondMirror(paramNode, elementNodes, { scope, adapter, path, resolvePure }));
   // ... so a pattern the mirror HOSTS, whose every claim came from the element channel and whose
   // every key the literal can carry, is left to it: a rest gathers what no read names, a duplicate
   // key would need one property twice, and a key with no static spelling has no slot to sit in
-  if (mirrorHosts && !hasMachinery && !nestedClaim && viaElement.length === resolvableProps.length
+  if (mirrorHosts && !hasMachinery && !nestedBeyondMirror && viaElement.length === resolvableProps.length
     && patternKeysMirrorable({ paramNode, scope, adapter, path })) return null;
   const unobservable = resolvableProps.filter(prop => !catchPropRewriteObservable({
     propNode: prop,
