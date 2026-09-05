@@ -52,6 +52,8 @@ import {
   patternBindingCount,
   patternHasSeveralSeKeys,
   patternKeepsEffectfulKey,
+  patternLevelKeepsEffectfulHop,
+  patternLevelKeepsSentinels,
   peelNestedSequenceExpressions,
   peelParenAndTSParentPath,
   peelProxyGlobalObject,
@@ -1899,13 +1901,14 @@ export default function createDestructureEmitter({
         const id = generateUnusedId();
         names.push(id.name);
         return id;
-      } });
+      }, isSentinel: isUnusedName });
     }
     return names;
   }
 
   function prunePatternByPlan(pattern, planNodes, { keepSentinels = false } = {}) {
-    const hasRest = pattern.properties.some(isRestProperty);
+    // a rest sibling and an effectful hop key keep the level's consumed props as sentinels alike
+    const hasRest = patternLevelKeepsSentinels(pattern);
     // ... and only where the prune would EMPTY the pattern: a prop the source still binds keeps the
     // residual alive by itself, and a sentinel beside it reads a key the extraction already spells
     const emptiesPattern = pattern.properties.every(item => planNodes.some(planNode => planNode.prop === item));
@@ -1947,10 +1950,16 @@ export default function createDestructureEmitter({
             if (planNode.extractions?.[0]?.synth === 'symbol-iterator') {
               planNode.prop.key = t.cloneNode(injectPureImport('symbol/iterator', 'Symbol$iterator'));
             }
-            const unusedId = generateUnusedId();
-            unusedNames.push(unusedId.name);
-            planNode.prop.value = unusedId;
-            planNode.prop.shorthand = false;
+            // a consumed HOP whose leaves spell an effectful key keeps its shape, the leaves retiring
+            // one by one: retiring the hop whole would drop the key the source still evaluates
+            if (patternKeepsEffectfulKey(planNode.prop.value)) {
+              unusedNames.push(...renameLeavesToUnused(planNode.prop));
+            } else {
+              const unusedId = generateUnusedId();
+              unusedNames.push(unusedId.name);
+              planNode.prop.value = unusedId;
+              planNode.prop.shorthand = false;
+            }
           } else removed.add(planNode.prop);
           break;
         case 'rebuilt':
@@ -3210,7 +3219,9 @@ export default function createDestructureEmitter({
     const chained = typedNav || hopChainNamesMissingAbleCtor(prop) || wholeInitMemoized.has(hostDeclarator?.node)
       || surfaceRespelledHosts.has(hostDeclarator?.node)
       || (!!navReceiver && isReReadableSurfaceNav(navReceiver, name => !!injector?.getBindingInfo?.(name)));
-    if (chained && !hasRestSiblingExcept(prop.parent.properties, prop.node)) {
+    // ... and only a leaf whose own key evaluates nothing: an EFFECTFUL key runs where it stands, so
+    // that leaf retires to a sentinel below like any other kept key
+    if (chained && !hasRestSiblingExcept(prop.parent.properties, prop.node) && !computedKeyHasSideEffects(prop.node)) {
       const hostId = hostDeclarator?.node?.id;
       skippedNodes.add(prop.node);
       prop.remove();
@@ -3238,7 +3249,28 @@ export default function createDestructureEmitter({
     prop.node.shorthand = false;
     skippedNodes.add(prop.node);
     recordArrayWrappedResidual({ declaration: residualDecl, sentinelName: sentinel.name, kind, prop });
+    // a hop the sentinel emptied retires to one sentinel of its own where its level keeps it and
+    // the extraction reads a built-in SURFACE, not the slot: a slot the memo channel reads keeps
+    // the leaf's own sentinel inside the hop, the shape the other leg prints for that read
+    const sentinelHostId = hostDeclarator?.node?.id;
+    if (sentinelHostId?.type === 'ObjectPattern' && objectNode && isBuiltInSurfaceNav(objectNode)) {
+      pruneEmptiedHopProps(sentinelHostId, { mint: generateUnusedId, isSentinel: isUnusedName });
+    }
     return true;
+  }
+
+  // a sentinel this leg minted, by the injector's own registry
+  function isUnusedName(id) {
+    return injector.hasGeneratedUnusedName(id.name);
+  }
+
+  // is a hop above this leaf keyed by an effect? its level keeps the hop, so no residual dies
+  function effectfulHopAbove(prop) {
+    for (let cur = prop.parentPath; cur?.node; cur = cur.parentPath) {
+      if (cur.isObjectPattern() && patternLevelKeepsEffectfulHop(cur.node)) return true;
+      if (!cur.isObjectPattern() && !cur.isObjectProperty() && !cur.isArrayPattern() && !cur.isAssignmentPattern()) return false;
+    }
+    return false;
   }
 
   // an ARRAY-WRAPPED residual this route emptied: each prop renamed to a sentinel, the extraction
@@ -3597,8 +3629,10 @@ export default function createDestructureEmitter({
     // does the residual DIE with this extraction? the same three facts the plan reads, asked here
     // too: the SE-prefix route below spells the init into the dispatch only where nothing survives
     // to evaluate it a second time
+    // ... and never under a hop whose key carries an effect: that level keeps the hop as a sentinel
     const residualDies = bindingCount === patternBindingCount(prop.node.value)
-      && (!wrapperSiblingElements || wrapperSiblingElements.elements.every(element => element === null));
+      && (!wrapperSiblingElements || wrapperSiblingElements.elements.every(element => element === null))
+      && !effectfulHopAbove(prop);
     let objectNode = kind === 'instance'
       ? resolveDestructuringObject(prop, resolvePropertyObjectType(prop), true) : null;
     // ... and an EFFECT-bearing slot resolves as a CANDIDATE first, then answers for itself: the
@@ -4030,8 +4064,10 @@ export default function createDestructureEmitter({
       // element, so only a wrapper whose remaining elements are holes may go up front - one whose
       // siblings are patterns waits for the post-traverse prune, which knows what they all consumed
       // ... or ride the receiver's own prefix, where the slots beside them are holes coercing nothing
+      // ... and a hop keyed by an EFFECT keeps the declarator the way a rest sibling does: the hop
+      // retires to a sentinel that runs the key, and the claim reads beside it
       soleBindingInDeclaration: (slotDropsAlone || typedNavOwnsRead || declaration.node.declarations.length === 1)
-        && bindingCount === patternBindingCount(prop.node.value)
+        && bindingCount === patternBindingCount(prop.node.value) && !effectfulHopAbove(prop)
         && (!wrapperSiblingElements || neighboursCarried
           || wrapperSiblingElements.elements.every(element => element === null)),
       // ... and a TYPED user nav owns that slot under a SIBLING-declarator host too: the split
