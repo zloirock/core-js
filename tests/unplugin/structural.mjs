@@ -10,7 +10,31 @@
 // every nullish split, and babel prints the unsealed spelling; a seal under a NON-optional
 // continuation stays load-bearing and IS compared). `directive` stays - a re-quoted
 // prologue with escapes would change which directives the block carries
+// the MINTED names (`_ref3`, `_unused5`) number by emission order, which the two legs reach
+// differently once any earlier statement differs - the number is formatting, the identity is what
+// is compared: within each top-level statement a minted name maps to its order of first appearance
+// there (a hoisted `var _ref;` and the statement reading it each number their own)
+let mintedNames = null;
+function canonicalMinted(name) {
+  if (!mintedNames || !/^_(?:ref|unused)\d*$/.test(name)) return name;
+  if (!mintedNames.has(name)) mintedNames.set(name, `${ name.replace(/\d+$/, '') }#${ mintedNames.size }`);
+  return mintedNames.get(name);
+}
+
 export function strip(node) {
+  if (node?.type !== 'Program') return stripNode(node);
+  const body = node.body.filter(item => item?.type !== 'EmptyStatement').map(item => {
+    mintedNames = new Map();
+    try {
+      return stripNode(item);
+    } finally {
+      mintedNames = null;
+    }
+  });
+  return { ...stripNode({ ...node, body: [] }), body };
+}
+
+function stripNode(node) {
   while (node?.type === 'ParenthesizedExpression') node = node.expression;
   while (node?.type === 'TSParenthesizedType') node = node.typeAnnotation;
   if (Array.isArray(node)) return node.filter(item => item?.type !== 'EmptyStatement').map(item => strip(item));
@@ -55,7 +79,7 @@ export function strip(node) {
     const out = {};
     for (const key of Object.keys(node).sort()) {
       if (key === 'start' || key === 'end' || key === 'loc' || key === 'range' || key === 'raw' || key === 'shorthand') continue;
-      out[key] = strip(node[key]);
+      out[key] = key === 'name' && node.type === 'Identifier' ? canonicalMinted(node[key]) : strip(node[key]);
     }
     return out;
   }

@@ -127,6 +127,19 @@ function syntheticSharedParamWrites(installers) {
   return parts.join('\n');
 }
 
+// the census keys its container records by DECLARATION, and a name-only question about a slot
+// unions every declaration of that name in the file: asked per member read, over a file whose
+// functions all spell their locals alike (`r`, `a`, `t` - ordinary code), that union walks every
+// namesake per read and the pre-pass goes quadratic in (functions x reads). no other case here
+// declares one container name in many scopes, and the real bundles keep their locals unique
+function syntheticSharedContainerNames(functions) {
+  const parts = [];
+  for (let i = 0; i < functions; i++) {
+    parts.push(`function f${ i }(t) { const r = { w: Object }; const a = r.w; const { values } = a; return values(t); }`);
+  }
+  return parts.join('\n');
+}
+
 function threeBuild(file) {
   return readFile(join(HERE, `node_modules/three/build/${ file }`), 'utf8');
 }
@@ -182,6 +195,9 @@ const CASES = [
     'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
   } },
   { name: 'synthetic shared-param writes, 1200 installers', source: () => syntheticSharedParamWrites(1200), bounds: {
+    'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
+  } },
+  { name: 'synthetic shared container names, 2000 functions', source: () => syntheticSharedContainerNames(2000), bounds: {
     'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
   } },
   { name: 'synthetic call-dense top level, 12000 sites', source: () => syntheticCallDenseTopLevel(12000), bounds: {

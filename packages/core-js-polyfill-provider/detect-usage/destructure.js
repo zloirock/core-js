@@ -41,8 +41,10 @@ import {
   isReceiverShapedNode,
   isReplayableSynthKey,
   isRestProperty,
+  installedWriteValue,
   isValidIdentifierName,
   leadingDiscardedEffectSlots,
+  memberChainKeys,
   mayHaveSideEffects,
   objectLevelPairedProperty,
   objectLiteralHoldsObservable,
@@ -106,7 +108,6 @@ import {
   isStaticPlacement,
   isUndefinedNode,
   navValueCanShortCircuit,
-  peelChainAssignmentDeep,
   peelRealmLogicalDefault,
   peelReceiverSequenceTail,
   proxyGlobalRootName,
@@ -530,7 +531,7 @@ function resolveIndirectBranchingReceiver({ node, seen = new Set(), ctx }) {
       if (!binding || reassignmentBlocksGlobalResolve({ binding, adapter, path, usageNode: readSite })) return null;
       if (adapter.getBindingNodeType(scope, name, path) !== 'VariableDeclarator' || !binding.node?.init) return null;
       readSite = binding.node.init;
-      cur = unwrapTransparentSeq(binding.node.init);
+      cur = unwrapTransparentSeq(installedWriteValue(binding.node.init));
       // advance to the followed binding's own scope, like the sibling const-alias walkers - a
       // later hop reading a name declared in an OUTER scope must resolve it there, not against
       // the receiver-use scope (an inner shadow of that name would swallow the branching value)
@@ -794,9 +795,13 @@ function containerRepositionCandidates({ objectNode, scope, adapter, path, resol
   // or a member off it (`b[0].of`) - both dispatch on values the literal's elements supply
   const owner = member?.type === 'MemberExpression' || member?.type === 'OptionalMemberExpression'
     ? unwrapRuntimeExpr(member.object) : member;
-  if (owner?.type !== 'Identifier' || !adapter.isWrittenContainerSlot?.(owner.name, ['*'])) return [];
+  if (owner?.type !== 'Identifier') return [];
+  // asked of the binding's own DECLARATION: a name-only question unions every declaration of the
+  // name in the file, which is both the wider answer and a walk over all of them per read
   const binding = adapter.getBinding(scope, owner.name, path);
-  const init = unwrapTransparentSeq(peelChainAssignmentDeep(binding?.path?.node?.init ?? binding?.node?.init ?? null) ?? null);
+  const declaratorNode = binding?.path?.node ?? binding?.node ?? null;
+  if (!adapter.isWrittenContainerSlot?.(owner.name, ['*'], declaratorNode)) return [];
+  const init = unwrapTransparentSeq(installedWriteValue(declaratorNode?.init ?? null));
   if (init?.type !== 'ArrayExpression') return [];
   const names = [];
   for (const element of init.elements) {
@@ -1758,11 +1763,21 @@ function unfoldNestedRoot(root, keys) {
 // consuming canon when the caller hands over its `adapter`. the BASE that chain reads through -
 // proxy-root substitution, mutation gating - is `resolveNestedReceiverBase`'s answer; each leg
 // renders it in its own dialect
+// `siblingLevels`: a level ABOVE the leaf may keep siblings beside the hop (no rest): the caller
+// splits the hop out of that level into a twin of its own, and the level goes on reading the root
+// for its siblings - sound only for an IDENTIFIER root, which re-reads for free. the answer carries
+// `climbed`, leaf-first: every pattern level the walk climbed with the prop that holds the way down
 // eslint-disable-next-line max-statements -- the walk: one arm per pattern level it may stand in
 export function resolveNestedReceiverChain(leafPath, {
-  soleSlots = false, allowSlotDefault = false, allowLeafSiblings = false, rootMemoized = false, adapter = null,
+  soleSlots = false,
+  allowSlotDefault = false,
+  allowLeafSiblings = false,
+  rootMemoized = false,
+  adapter = null,
+  siblingLevels = false,
 } = {}) {
   const keys = [];
+  const climbed = [];
   let slotDefault = null;
   const leafPattern = leafPath.parentPath;
   let pattern = leafPattern;
@@ -1796,12 +1811,15 @@ export function resolveNestedReceiverChain(leafPath, {
     // that sentinel READS the hop a second time, which for a getter is a second call
     if (soleSlots && pattern.node.properties.length !== 1
       && !(allowLeafSiblings && pattern === leafPattern)
-      && ((ownerType !== 'VariableDeclarator' && ownerType !== 'ArrayPattern')
+      && ((ownerType !== 'VariableDeclarator' && ownerType !== 'ArrayPattern'
+        // ... a level ABOVE the leaf only: the leaf's own siblings are `allowLeafSiblings`' question
+        && !(siblingLevels && pattern !== leafPattern && (ownerType === 'ObjectProperty' || ownerType === 'Property')))
         || pattern.node.properties.some(isRestProperty))) return null;
     if (ownerType === 'ObjectProperty' || ownerType === 'Property') {
       const key = consumableHopSlotName(owner.node, adapter ? { scope: owner.scope ?? leafPattern.scope, adapter, path: owner } : null);
       if (typeof key !== 'string' || !isValidIdentifierName(key)) return null;
       keys.unshift(key);
+      climbed.push({ pattern: pattern.node, prop: owner.node });
       pattern = owner.parentPath;
       continue;
     }
@@ -1821,9 +1839,15 @@ export function resolveNestedReceiverChain(leafPath, {
       // a nav into the built-in namespace is the flatten's, which lands it on the ponyfill
       // ... unless the caller MEMOIZES the root: the memo is then its one evaluation, and a host
       // sibling reads the memo the way it would read an identifier (`{ data: { at }, keys } = mk()`)
+      // ... and a level with SIBLINGS above the leaf reads the root again for them: an identifier, or
+      // a nav into the built-in namespace (`_globalThis.Array`, the collapsed proxy hop) - free either way
+      const siblingLevelKept = climbed.some(level => level.pattern !== leafPattern.node
+        && level.pattern.properties.length > 1);
       let unfolded = null;
       if (root.type !== 'Identifier') {
-        if (!soleSlots || (pattern.node.properties.length !== 1 && !rootMemoized)) return null;
+        const builtInNav = isBuiltInSurfaceNav(root);
+        if ((siblingLevelKept && !builtInNav) || !soleSlots
+          || (pattern.node.properties.length !== 1 && !rootMemoized && !builtInNav)) return null;
         unfolded = unfoldNestedRoot(root, keys);
         if (!unfolded) return null;
       }
@@ -1835,10 +1859,19 @@ export function resolveNestedReceiverChain(leafPath, {
       // walked out of an assignment inside an IIFE and handed the rename to the enclosing declaration
       // ... an unfolded nav root is its own identifier, and the keys the nav spelled join the walk's:
       // the spelling it travels with is that identifier, since the init's wrappers wrapped the NAV
+      climbed.push({ pattern: pattern.node, prop: null });
       if (unfolded && unfolded.root !== root) {
-        return { root: unfolded.root, keys: unfolded.keys, slotDefault, leafPattern, declarator: owner, rootSpelling: unfolded.root };
+        return {
+          root: unfolded.root,
+          keys: unfolded.keys,
+          slotDefault,
+          leafPattern,
+          declarator: owner,
+          rootSpelling: unfolded.root,
+          climbed,
+        };
       }
-      return { root, keys, slotDefault, leafPattern, declarator: owner, rootSpelling: owner.node.init };
+      return { root, keys, slotDefault, leafPattern, declarator: owner, rootSpelling: owner.node.init, climbed };
     }
     // an ARRAY WRAPPER over a literal init is a PAIRING, not a hop: the element the pattern matches
     // is the value the leaf reads through, and the element must be a bare identifier for the
@@ -1909,6 +1942,7 @@ export function resolveNestedReceiverChain(leafPath, {
       // consumers that only READ through the element owe none of that and ignore them.
       // `wrapper` is the INNERMOST literal (the one holding the element a caller rewrites) and
       // `wrapperRoot` the declarator's own init, which is what a caller checks it against
+      climbed.push({ pattern: pattern.node, prop: null });
       return {
         root: literal,
         keys,
@@ -1922,6 +1956,7 @@ export function resolveNestedReceiverChain(leafPath, {
         wrapperLevels: levels,
         elementIndex: levels.at(-1).index,
         hostPattern: pattern,
+        climbed,
       };
     }
     // an inner default, an assignment host: reachability or value capture changes - outside this
@@ -1992,12 +2027,22 @@ export function firstPatternProp(patternPath) {
 // proxy / anchored machinery's shape and the rules there are its own. this is the question about the
 // SOURCE, and it is the one the synth gate asks: a fold that takes both arms of a default is the
 // synth's business whoever ends up rendering it
+// ... a level ABOVE the leaf may keep siblings where what they re-read is a nav INTO the built-in
+// namespace (`{ Array: { from, of: { name } } } = globalThis` re-reads `globalThis.Array`, free and
+// unobservable); a user nav's getter would fire a second time, so such a level stays sole
 export function typedNavClaimShape(leafPath, { allowLeafSiblings = false, rootMemoized = false, adapter = null } = {}) {
   const walk = resolveNestedReceiverChain(leafPath, {
-    soleSlots: true, allowSlotDefault: true, allowLeafSiblings, rootMemoized, adapter,
+    soleSlots: true, allowSlotDefault: true, allowLeafSiblings, rootMemoized, adapter, siblingLevels: true,
   });
   if (!walk) return null;
-  return isBuiltInSurfaceNav(walk.keys.reduce((base, key) => memberFromKeyName(base, key), walk.root))
+  const { keys, root } = walk;
+  const climbed = walk.climbed ?? [];
+  for (let index = 1; index < climbed.length; index++) {
+    if (climbed[index].prop === null || climbed[index].pattern.properties.length <= 1) continue;
+    const reRead = keys.slice(0, keys.length - index).reduce((base, key) => memberFromKeyName(base, key), root);
+    if (!isBuiltInSurfaceNav(reRead)) return null;
+  }
+  return isBuiltInSurfaceNav(keys.reduce((base, key) => memberFromKeyName(base, key), root))
     ? null : walk;
 }
 
@@ -2437,8 +2482,10 @@ export function resolveNestedNavDispatch(leafPath, { adapter, resolvePure, allow
 // the element an ARRAY-WRAPPED pattern is paired with, and how its receiver may be spelled:
 // `raw` when the element can be read as it stands (a sole-prop pattern reads it once), the
 // element-memo channel when several reads need one identity and the hoist keeps source order.
-// null when the shape is not a single-element pairing off a literal array
-function arrayWrapperElementPlan(patternPath) {
+// null when the shape is not a single-element pairing off a literal array.
+// `memoizedName`: a binding the caller memoizes even though it re-reads for free - a STATIC's
+// ponyfill import read by several leaves spells one memo on both legs
+function arrayWrapperElementPlan(patternPath, memoizedName = null) {
   const wrapper = patternPath?.parentPath;
   if (wrapper?.node?.type !== 'ArrayPattern') return null;
   const declarator = wrapper.parentPath;
@@ -2458,7 +2505,8 @@ function arrayWrapperElementPlan(patternPath) {
   // a RE-REFERENCEABLE element (a bare binding, a constant literal) needs no memo whatever the
   // reader count - each read spells it, exactly like the flat route's raw receiver; a SOLE prop
   // reads once and takes it raw too
-  if (isReReferenceableReceiver(element)) return { channel: 'raw', node: rawElement };
+  const staticMemo = element.type === 'Identifier' && patternPath.node.properties.length > 1 && !!memoizedName?.(element.name);
+  if (isReReferenceableReceiver(element) && !staticMemo) return { channel: 'raw', node: rawElement };
   // several readers of a value that cannot be spelled twice: the memo is the only sound shape,
   // and it may hoist only past pure elements. behind an EFFECTFUL predecessor the memo takes the
   // slot itself instead - a write the literal performs exactly where native evaluates the element
@@ -2473,7 +2521,7 @@ function arrayWrapperElementPlan(patternPath) {
   if (patternPath.node.properties.length <= 1 && !(inSlot && levelSurvives)) {
     return { channel: 'raw', node: rawElement };
   }
-  return { channel: 'array-element-memo', node: rawElement, elementIndex: index, inSlot };
+  return { channel: 'array-element-memo', node: rawElement, elementIndex: index, inSlot, staticMemo };
 }
 
 // the memo an object-hop SLOT takes where its value cannot be spelled twice yet the level stays
@@ -2537,9 +2585,12 @@ function literalHoldsClass(node) {
   return found;
 }
 
+// `memoizedName`: see `arrayWrapperElementPlan` - the same binding memoizes as a whole init
+// (`{ name, foo } = _Array$of`, the twin a nested static hop flattens to), `staticMemo` marking the
+// plan so the memo carries no constructor alias (it holds a static, not a constructor)
 export function resolveDestructureReceiverPlan(leafPath, {
   allowSeFreeSingleRead = false, allowInitCarriedEffects = false,
-  adapter = null, resolvePureGlobal = null, patternSize = null,
+  adapter = null, resolvePureGlobal = null, patternSize = null, memoizedName = null,
 } = {}) {
   const patternPath = leafPath.parentPath;
   const host = patternPath?.parentPath;
@@ -2552,7 +2603,7 @@ export function resolveDestructureReceiverPlan(leafPath, {
     // keeps source order, i.e. every element BEFORE this slot is pure (native evaluates them
     // left to right, then reads). without this the wrapped form has no memo channel at all and
     // an OBSERVABLE element stays native, losing its polyfill where the flat twin keeps it
-    const wrapped = arrayWrapperElementPlan(patternPath);
+    const wrapped = arrayWrapperElementPlan(patternPath, memoizedName);
     if (wrapped) return wrapped;
     // with the adapter: it is what folds a BOUND hop key (`{ [k]: { at } }` with `const k = 'w'`) to
     // the slot it names - without it the walk stops at the computed key and the claim ships native
@@ -2575,7 +2626,8 @@ export function resolveDestructureReceiverPlan(leafPath, {
   const elided = [];
   const peeled = unwrapCollectingSePrefixes(objectNode, elided);
   if (peeled?.type === 'Identifier' && !elided.some(mayHaveSideEffects)) {
-    return { channel: 'raw', node: peeled };
+    return memoizedName?.(peeled.name) ? { channel: 'whole-init-memo', node: objectNode, staticMemo: true }
+      : { channel: 'raw', node: peeled };
   }
   const proxyCtor = globalProxyMemberName({
     node: peelProxyGlobalObject(objectNode), scope: leafPath.scope, adapter, path: leafPath,
@@ -2815,14 +2867,8 @@ export function walkStaticReceiverChain({
 // key-alias fold applies rather than around it. `unionSink` collects the container-slot union
 // (written values, repositioned elements) beside the primary answer
 export function staticContainerReceiverName({ node, scope, adapter, path, unionSink = null }) {
-  const keys = [];
-  let root = node;
-  while (root?.type === 'MemberExpression' || root?.type === 'OptionalMemberExpression') {
-    const key = staticMemberKeyName(root);
-    if (key === null) return null;
-    keys.unshift(key);
-    root = unwrapRuntimeExpr(root.object);
-  }
+  const { root, keys } = memberChainKeys(node, staticMemberKeyName);
+  if (keys.includes(null)) return null;
   // a zero-arg call FORWARDING a container (`const plain = () => ({ window: { Array } });
   // plain()?.window?.Array.of(13)`): the callee's single return expression IS the container -
   // descend it like a const-bound literal. a shorthand `Array` there is the real global (an
@@ -2835,12 +2881,31 @@ export function staticContainerReceiverName({ node, scope, adapter, path, unionS
     return returned
       ? walkStaticReceiverStep({ node: returned.node, readNode: root, ctx: returned.ctx }, { walkPath: keys, unionSink }) : null;
   }
-  if (root?.type !== 'Identifier' || !keys.length) return null;
+  if (root?.type !== 'Identifier') return null;
   const binding = adapter.getBinding(scope, root.name, path);
   const declaratorNode = binding?.path?.node ?? binding?.node;
   if (!declaratorNode) return null;
+  // a bare name walks only as an ALIAS - of a nav (`const a = r.w; a.values`), which the walk folds
+  // into its path, or of another name it then follows; any other bare read has nothing to descend
+  const aliasInit = unwrapTransparentSeq(installedWriteValue(declaratorNode.init ?? null));
+  if (!keys.length && aliasInit?.type !== 'Identifier' && !memberNavFold(aliasInit)) return null;
   if (!varInitDominatesUsage({ declaratorNode, usagePath: path, usageNode: node, kind: binding.kind })) return null;
   return walkStaticReceiverChain({ receiverNode: root, walkPath: keys, scope, adapter, path, unionSink });
+}
+
+// the element a for-of head binding reads on every pass, or null: the sole element, or the first
+// where the elements agree - same-named calls included, since the walk resolves an element rather
+// than mirroring into it
+function forOfHeadElement(binding) {
+  const declaratorPath = binding?.path ?? binding?.declarationPath ?? null;
+  return declaratorPath ? forOfHeadElements(declaratorPath, { sameCallee: true })?.[0] ?? null : null;
+}
+
+// a member nav with an Identifier root and readable keys, split for the walk (`r.w.x` -> root `r`,
+// keys `['w', 'x']`); null for any other spelling
+function memberNavFold(node) {
+  const { root, keys } = memberChainKeys(node, staticMemberKeyName);
+  return root?.type === 'Identifier' && keys.length && !keys.includes(null) ? { root, keys } : null;
 }
 
 // the walk takes the hop standing on the receiver and the walk's OPTIONS beside it: `walkPath`
@@ -2850,7 +2915,13 @@ export function staticContainerReceiverName({ node, scope, adapter, path, unionS
 // recursion into a nested literal would forget which container it is inside and the written-slot
 // consult could only ever fire on the first hop
 function walkStaticReceiverStep(hop, {
-  walkPath, depth = 0, ignoreWrittenSlots = false, unionSink = null, containerName: enteredName = null, containerPath = [],
+  walkPath,
+  depth = 0,
+  ignoreWrittenSlots = false,
+  unionSink = null,
+  containerName: enteredName = null,
+  containerNode: enteredNode = null,
+  containerPath = [],
 }) {
   if (depth > STATIC_WALK_DEPTH) return null;
   const { adapter, path = null } = hop.ctx;
@@ -2872,10 +2943,14 @@ function walkStaticReceiverStep(hop, {
   // second visit with O(1) check, complementing the depth cap as a defensive lower bound
   const visited = hop.seen ?? new Set();
   let containerName = enteredName;
+  let containerNode = enteredNode;
   // dereferencing a bound name puts the walk INSIDE that container: the keys consumed above
   // belonged to whatever the name aliased, so the slot path restarts here
-  function enterContainer(name) {
+  // ... with the DECLARING node beside the name: the written-slot record is keyed by declaration,
+  // so the question about a container is asked of its own binding, never of a namesake's
+  function enterContainer(name, node) {
     containerName = name;
+    containerNode = node ?? null;
     containerPath = [];
   }
   // the hop the walk stands on right now, and the walk's options as they stand - for the per-hop
@@ -2883,7 +2958,7 @@ function walkStaticReceiverStep(hop, {
   function standing() {
     return {
       hop: { node: current, readNode, seen: visited, ctx: { scope: currentScope, adapter, path, resolveKey: sharedResolveKey } },
-      walk: { walkPath, depth, ignoreWrittenSlots, unionSink, containerName, containerPath },
+      walk: { walkPath, depth, ignoreWrittenSlots, unionSink, containerName, containerNode, containerPath },
     };
   }
   // the class-binding disposition, moved out whole: it advances the same three cursors the
@@ -2939,7 +3014,7 @@ function walkStaticReceiverStep(hop, {
     const blocked = blockedContainerHop({ ...standing(), binding, name: current.name });
     if (blocked !== CLEAR_HOP) {
       if (!blocked) return null;
-      enterContainer(current.name);
+      enterContainer(current.name, binding.path?.node ?? binding.node);
       current = unwrapTransparentSeq(blocked);
       currentScope = aliasDeclScope(binding, currentScope);
       // the reaching value was READ at its write site - the next hop's dominance proofs anchor
@@ -2952,13 +3027,18 @@ function walkStaticReceiverStep(hop, {
     // estree-toolkit at `binding.node` directly. fall through both shapes. chain-assignment
     // in init (`const wrapper = (x = {a: Array})`) evaluates to its right operand at runtime -
     // the shared peel alternates paren/chain to fixpoint so nested `(y = (x = Src))` reaches too
-    const initNode = peelChainAssignmentDeep(binding.path?.node?.init ?? binding.node?.init);
+    // ... a for-of HEAD binding carries no init: it holds an element of the iterated literal, and
+    // where every element reads the same the first stands for the loop, as the init would - the
+    // relocated head's minted name reads its element here (`for (const _ref of [{ w: e('a') }])`)
+    // ... and the VALUE the init spells: its own effect prefix ran at the declaration, so the
+    // alias holds the sequence's tail, the chain assignment's installed value (the write-value canon)
+    const initNode = installedWriteValue(binding.path?.node?.init ?? binding.node?.init ?? null) ?? forOfHeadElement(binding);
     if (!initNode) return null;
     walkPath = destructureLeafWalkPath({ binding, name: current.name, scope: currentScope, adapter, walkPath });
     if (!walkPath) return null;
     // the name this container is BOUND to: a write to one of its slots replaces what the literal
     // spells, and the descent has to consult that before trusting the initial member
-    enterContainer(current.name);
+    enterContainer(current.name, binding.path?.node ?? binding.node);
     current = unwrapTransparentSeq(initNode);
     currentScope = aliasDeclScope(binding, currentScope);
     readNode = (binding.path?.node ?? binding.node) ?? readNode;
@@ -2973,7 +3053,7 @@ function walkStaticReceiverStep(hop, {
 function walkStaticReceiverTerminal({ hop, walk }) {
   const { node: current, readNode, seen: visited } = hop;
   const { scope: currentScope, adapter, path } = hop.ctx;
-  const { walkPath, depth, ignoreWrittenSlots, unionSink, containerName, containerPath } = walk;
+  const { walkPath, depth, ignoreWrittenSlots, unionSink, containerName, containerNode, containerPath } = walk;
   // leaf return: walkPath consumed - extract the leaf global name.
   // bare Identifier returns its name directly; proxy-global member access
   // (`globalThis.Array` / `_globalThis.Array` after polyfill-injected rewrite) routes
@@ -2984,8 +3064,19 @@ function walkStaticReceiverTerminal({ hop, walk }) {
     // a bare global name answers itself; a minted hop never reaches this terminal - the
     // hop recognizer (`pluginRewrittenHopName`) resolves it earlier in the walk
     if (current?.type === 'Identifier') return current.name;
-    if (current?.type === 'MemberExpression' || current?.type === 'OptionalMemberExpression') {
+    // a CALL names its return's constructor through the name channel (`{ w: e('a') }` holds Object)
+    if (current?.type === 'CallExpression' || current?.type === 'OptionalCallExpression') {
       return resolveObjectName({ objectNode: current, scope: currentScope, adapter, path, usageNode: readNode });
+    }
+    if (current?.type === 'MemberExpression' || current?.type === 'OptionalMemberExpression') {
+      const named = resolveObjectName({ objectNode: current, scope: currentScope, adapter, path, usageNode: readNode });
+      if (named) return named;
+      // ... a nav the name channel cannot follow folds into the walk: its keys become the path and
+      // its root the next hop, so an alias of a container slot (`const a = r.w`; `var _r$w = r.w`,
+      // the spelling a destructure lowering ahead of this plugin leaves) descends the literal the
+      // direct spelling descends
+      const fold = memberNavFold(current);
+      return fold ? walkStaticReceiverStep({ ...hop, node: fold.root }, { ...walk, walkPath: fold.keys, depth: depth + 1 }) : null;
     }
     return null;
   }
@@ -3012,16 +3103,22 @@ function walkStaticReceiverTerminal({ hop, walk }) {
   // as the receiver - caller pairs it with the remaining destructured key for polyfill
   // lookup. only single-hop remaining walkPath is mappable (multi-hop would need
   // descend-through-resolved-constructor which has no AST anchor here)
-  if ((current?.type === 'MemberExpression' || current?.type === 'OptionalMemberExpression')
-      && walkPath.length === 1) {
-    const named = resolveObjectName({ objectNode: current, scope: currentScope, adapter, path, usageNode: readNode });
+  if (current?.type === 'MemberExpression' || current?.type === 'OptionalMemberExpression') {
+    const named = walkPath.length === 1
+      ? resolveObjectName({ objectNode: current, scope: currentScope, adapter, path, usageNode: readNode }) : null;
     // ... and where that chain names the REALM itself, the remaining key is a constructor ON it, not
     // a static OF it: the same lift the bare-name arm above takes, for the nav spelling of the same
     // receiver (`{ w: { Array: { from } } } = { w: globalThis.globalThis }`). without it the leaf
     // answered the realm, no module matched, and only the leg that re-visits its own collapse claimed
     if (named && POSSIBLE_GLOBAL_OBJECTS.has(named) && isStaticPlacement(walkPath[0])
       && !isMutatedGlobalSlot(adapter, walkPath[0])) return walkPath[0];
-    return named;
+    if (named) return named;
+    // ... and a nav the name channel cannot follow folds into the walk (an alias of a wrapper slot:
+    // `const a = box[0]; a.w.values`) - the same fold the consumed-path arm takes
+    const fold = memberNavFold(current);
+    return fold ? walkStaticReceiverStep({ ...hop, node: fold.root }, {
+      ...walk, walkPath: [...fold.keys, ...walkPath], depth: depth + 1,
+    }) : null;
   }
   // class STATIC fields and object-literal properties are both name-indexable static containers;
   // the canonical resolver descends the matching member's value with LAST-wins semantics and bails
@@ -3042,7 +3139,7 @@ function walkStaticReceiverTerminal({ hop, walk }) {
   // its own writes feed would lose the patch (`const m = NS.M; m.groupBy = shim` must still route
   // reads through the injected constructor), so it opts out of the slot consult
   if (!ignoreWrittenSlots && containerName && adapter.method === 'usage-pure'
-    && adapter.isWrittenContainerSlot?.(containerName, [...containerPath, walkPath[0]])) return null;
+    && adapter.isWrittenContainerSlot?.(containerName, [...containerPath, walkPath[0]], containerNode)) return null;
   // usage-global union of the slot's OTHER reaching values, collected beside the primary descent:
   // the values recorded as written to this slot (including unknown-slot writes, which may land
   // anywhere), and - once an in-place mutator repositioned the container - every literal element
@@ -3052,8 +3149,8 @@ function walkStaticReceiverTerminal({ hop, walk }) {
   // adds side-effect imports, and pure callers never pass one
   if (unionSink && containerName && adapter.method === 'usage-global') {
     const slotPath = [...containerPath, walkPath[0]];
-    const alternatives = [...adapter.writtenContainerSlotValues?.(containerName, slotPath) ?? []];
-    if (current?.type === 'ArrayExpression' && adapter.isWrittenContainerSlot?.(containerName, [...containerPath, '*'])) {
+    const alternatives = [...adapter.writtenContainerSlotValues?.(containerName, slotPath, containerNode) ?? []];
+    if (current?.type === 'ArrayExpression' && adapter.isWrittenContainerSlot?.(containerName, [...containerPath, '*'], containerNode)) {
       for (const element of current.elements) if (canHoldBuiltIn(element)) alternatives.push(element);
     }
     for (const alternative of alternatives) {
@@ -3136,7 +3233,8 @@ function peelDestructureWrappers(pattern, throughReceiverBearingDefaults = false
   // so `[{Array:{from}}, other] = [globalThis, ...]` resolves `from` to globalThis.Array.from
   const indices = [];
   for (;;) {
-    if (!parent) break;
+    // a pattern a rewrite DETACHED has no parent node above it: the peel ends there
+    if (!parent?.node) break;
     if (parent.node.type === 'ArrayPattern') {
       const idx = parent.node.elements.indexOf(prev);
       if (idx === -1) break;
@@ -4220,6 +4318,42 @@ export function resolveBranchProxyName({ branchNode, scope, adapter, path, eithe
   // branch node itself, not at whatever the host path happens to be (a write between the two must
   // not flip the captured value)
   return asProxyGlobalName(resolveObjectName({ objectNode: branch, scope, adapter, path, usageNode: branch }));
+}
+
+// where a hop LEAVES its pattern for a twin of its own: the innermost level above the leaf that keeps
+// siblings, the prop the hop occupies there, and the chain of levels from it up to the host (each
+// with the prop holding it in its parent, null at the host) for pruning what empties. a level BELOW
+// the host re-reads the root for its siblings, which only a built-in root affords (`builtInRoot`),
+// and its reads are unobservable, so the pair stands behind the host whatever the hop's position -
+// the one order both legs reach, whichever siblings their routes already took. a USER root re-reads
+// for free at the host only, and its reads keep the source's order: the hop stands at an END there,
+// the pair ahead of the host where the hop led. null where every level above the leaf is sole
+export function hopSplitPlan(walk, { builtInRoot }) {
+  const { climbed } = walk;
+  for (let index = 1; index < climbed.length; index++) {
+    const level = climbed[index];
+    if (level.pattern.properties.length <= 1) continue;
+    const hopProp = climbed[index - 1].prop;
+    const hopAt = level.pattern.properties.indexOf(hopProp);
+    const atHost = level.prop === null;
+    if (!builtInRoot && (!atHost || (hopAt !== 0 && hopAt !== level.pattern.properties.length - 1))) return null;
+    return { hopProp, placeBefore: !builtInRoot && hopAt === 0, chain: climbed.slice(index) };
+  }
+  return null;
+}
+
+// the hop's prop leaves its level, and every level that empties above it leaves its parent in
+// turn; true when the HOST pattern itself emptied - nothing binds there any more
+export function pruneHopFromLevels({ hopProp, chain }) {
+  let prop = hopProp;
+  for (const level of chain) {
+    const at = level.pattern.properties.indexOf(prop);
+    if (at !== -1) level.pattern.properties.splice(at, 1);
+    if (level.pattern.properties.length) return false;
+    if (level.prop === null) return true;
+    prop = level.prop;
+  }
+  return false;
 }
 
 // shared branch-walk: do ALL reachable VALUE branches of a destructure receiver satisfy `isLeaf`? a
