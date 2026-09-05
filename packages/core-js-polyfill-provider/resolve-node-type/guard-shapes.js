@@ -19,8 +19,13 @@
 //     consumed by the test-resolver to narrow `if (isFoo(x)) { ... }` shapes
 //   parseAssertionGuardEntries(sibling)
 //     consumed by the preceding-exit guard index for `asserts x is T` statement guards
-import { PRIMITIVES, dropLeadingThisParam, peelAssignmentPattern } from './base.js';
-import { TRANSPARENT_EXPR_WRAPPER_TYPES, unwrapExpressionChain, unwrapSafeSequenceTail } from '../helpers/ast-patterns.js';
+import { PRIMITIVES, dropLeadingThisParam } from './base.js';
+import {
+  patternSlotTarget,
+  TRANSPARENT_EXPR_WRAPPER_TYPES,
+  unwrapExpressionChain,
+  unwrapSafeSequenceTail,
+} from '../helpers/ast-patterns.js';
 
 const EMPTY_GUARD_ENTRIES = [];
 
@@ -128,7 +133,7 @@ export function createPredicateGuards({
     for (let i = 0; i < params.length; i++) {
       // peel `AssignmentPattern` so defaulted predicate params (`function isStr(x = ''): x is string`)
       // still match - the inner Identifier holds the parameterName, not the AssignmentPattern itself
-      if (peelAssignmentPattern(params[i])?.name !== targetName) continue;
+      if (patternSlotTarget(params[i])?.name !== targetName) continue;
       const arg = args?.[i];
       if (!arg) return null;
       const unwrapped = unwrapSafeSequenceTail(arg);

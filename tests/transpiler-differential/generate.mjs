@@ -1063,6 +1063,50 @@ function * generateSeKeySiblingHosts() {
   }
 }
 
+// --- Wrapped selecting receiver (a selecting element / property value under a pattern wrapper) ---
+// a selecting receiver under a wrapper mirrors per branch exactly as the bare init does: the host's
+// literal pairs the level's slot by position or by plain key, and the polyfill lands in the
+// constructor arm alone. the stripped realm is the oracle for the constructor arm (a missed mirror
+// reads `undefined` there), the user arm for over-application (a mirrored user arm would answer the
+// polyfill instead of the user's own method). the level stays whole under the mirror, so an
+// inline-array spread, a later spread and a later bound key all pair the way the source reads them
+const WSR_HOSTS = [
+  { id: 'element', bind: sel => `const [{ from: m }] = [${ sel }];` },
+  { id: 'element-default', bind: sel => `const [{ from: m } = {}] = [${ sel }];` },
+  { id: 'element-prefix', bind: sel => `const [{ from: m }] = [(hit(), ${ sel })];` },
+  { id: 'double', bind: sel => `const [[{ from: m }]] = [[${ sel }]];` },
+  { id: 'param-default', bind: sel => `const m = (([{ from: f }] = [${ sel }]) => f)();` },
+  { id: 'iife-arg', bind: sel => `const m = (([{ from: f }]) => f)([${ sel }]);` },
+  { id: 'keyed', bind: sel => `const { w: { from: m } } = { w: ${ sel } };` },
+  { id: 'keyed-array', bind: sel => `const { w: [{ from: m }] } = { w: [${ sel }] };` },
+  { id: 'array-keyed', bind: sel => `const [{ w: { from: m } }] = [{ w: ${ sel } }];` },
+  { id: 'hop-default', bind: sel => `const { w: { from: m } = {} } = { w: ${ sel } };` },
+  { id: 'index-key', bind: sel => `const { 0: { from: m } } = [${ sel }];` },
+  { id: 'assign', bind: sel => `let m; [{ from: m }] = [${ sel }];` },
+  { id: 'spread-shift', bind: sel => `const [{ from: m }] = [...[${ sel }]];` },
+  { id: 'spread-level', bind: sel => `const { w: { from: m } } = { w: ${ sel }, ...wsrMore };` },
+  { id: 'later-key', bind: sel => `const { w: { from: m } } = { w: ${ sel }, [wsrK]: 1 };` },
+];
+const WSR_SELECTIONS = [
+  { id: 'ternary-ctor', sel: c => `${ c } ? Array : wsrUser` },
+  { id: 'ternary-user', sel: c => `${ c } ? wsrUser : Array` },
+  { id: 'and-ctor', sel: c => `${ c } && Array` },
+  { id: 'or-ctor', sel: c => `(${ c } ? nul : wsrUser) || Array` },
+];
+function * generateWrappedSelectingReceiver() {
+  for (const host of WSR_HOSTS) {
+    for (const selection of WSR_SELECTIONS) {
+      for (const pick of ['cond', '!cond']) {
+        const cell = `${ host.id }/${ selection.id }/${ pick === 'cond' ? 'true' : 'false' }`;
+        const expr = '(() => { let n = 0; const hit = () => { n += 1; return 0; };'
+          + " const wsrUser = { from: () => 'user' }; const wsrMore = {}; const wsrK = 'q';"
+          + ` ${ host.bind(selection.sel(pick)) } return [String(typeof m === 'function' && m('ab')), String(n)]; })()`;
+        yield { ...snippet(`wrapped-selecting-receiver/${ cell }`, expr), strip: true };
+      }
+    }
+  }
+}
+
 // --- Var re-declaration read from a closure (which value a hoisted var holds at a nested read) ---
 // one tracker hoists a block-nested `var` and records the re-declaration as a write, the other
 // block-scopes it and records nothing: a read from a function NESTED in the var's owner may run
@@ -8305,6 +8349,7 @@ export function * generate() {
   yield * generateObjectHopPairing();
   yield * generateSeKeySiblingHosts();
   yield * generateVarRedeclClosureRead();
+  yield * generateWrappedSelectingReceiver();
   yield * generateDestructureAlias();
   yield * generateParamInstalledPatch();
   yield * generateParamInstalledPatchHosts();
