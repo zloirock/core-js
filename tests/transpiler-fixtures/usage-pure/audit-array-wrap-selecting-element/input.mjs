@@ -5,8 +5,9 @@ const [{ at }] = [c ? arr : other];
 const [{ [Symbol.iterator]: it }] = [c ? arr : other];
 export { at, it };
 
-// NEGATIVE: a STATIC claim is branch-bound - extracting would land the polyfill on the
-// user branch too, so the selection stays raw
+// a STATIC claim is branch-bound - extracting would land the polyfill on the user branch too -
+// so the selection mirrors PER BRANCH, the wrapper's element the way a bare init does: the
+// polyfill lands in the constructor arm alone and the user arm stays raw
 const [{ from }] = [c ? Array : userObj];
 export { from };
 

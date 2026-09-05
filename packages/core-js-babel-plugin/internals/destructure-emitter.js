@@ -4221,7 +4221,9 @@ export default function createDestructureEmitter({
     // ahead of the declaration, in source order, before any route below reads the level - what stays
     // is the elision the pattern already reads, and every question about the init then sees a level
     // the source's own reads leave behind (`[, { y: { at } }] = [eff(), { y: nb.y }]`)
-    liftWrapperHoleEffects(prop);
+    // ... not ahead of a per-branch MIRROR: it swaps arms inside the level and keeps the level whole,
+    // so the holes' effects run where the source wrote them, the other leg's shape
+    if (!meta?.fromFallback) liftWrapperHoleEffects(prop);
     // polyfill-always-wins canon: a multi-element ArrayPattern wrapper extracts the static even
     // when the consumed key carries a SE (the residual keeps the raw key, its effect runs once in
     // source order) - the SE-key dispatch below would otherwise preempt into the weaker

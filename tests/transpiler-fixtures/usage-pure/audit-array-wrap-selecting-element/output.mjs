@@ -1,3 +1,4 @@
+import _Array$from from "@core-js/pure/actual/array/from";
 import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _at from "@core-js/pure/actual/instance/at";
 // a diverging SELECTION element consumed by the sole binding reads once inside the
@@ -7,11 +8,14 @@ const at = _at(c ? arr : other);
 const it = _getIteratorMethod(c ? arr : other);
 export { at, it };
 
-// NEGATIVE: a STATIC claim is branch-bound - extracting would land the polyfill on the
-// user branch too, so the selection stays raw
+// a STATIC claim is branch-bound - extracting would land the polyfill on the user branch too -
+// so the selection mirrors PER BRANCH, the wrapper's element the way a bare init does: the
+// polyfill lands in the constructor arm alone and the user arm stays raw
 const [{
   from
-}] = [c ? Array : userObj];
+}] = [c ? {
+  from: _Array$from
+} : userObj];
 export { from };
 
 // ... and an SE-bearing selection rides the MEMO instead of an inline re-spelling: the ref is read

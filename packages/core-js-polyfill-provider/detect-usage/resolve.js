@@ -53,6 +53,7 @@ import {
   patternRootKeyPathsFor,
   patternSlotHasDefault,
   patternSlotSpreadShifted,
+  patternSlotTarget,
   patternSlotValues,
   peelChainAssignment,
   peelChainAssignmentDeep,
@@ -1697,7 +1698,7 @@ function resolveArrayWrappedProxyGlobalAlias({ pattern, init, name, scope, adapt
   if (pattern?.type !== 'ArrayPattern' || init?.type !== 'ArrayExpression') return null;
   for (let i = 0; i < pattern.elements.length; i++) {
     const raw = pattern.elements[i];
-    const slot = raw?.type === 'AssignmentPattern' ? raw.left : raw;
+    const slot = patternSlotTarget(raw);
     if (!slot || spreadAtOrBefore(init.elements, i)) continue;
     const paired = init.elements[i];
     if (!paired) continue;
@@ -2200,7 +2201,12 @@ export function inlineCallReturnExpression(hop, { rejectConditional = false } = 
   // the ARG - recovers a call/IIFE-rooted receiver (`((x)=>x)(globalThis).Symbol`, and the nested
   // `g(f()).Symbol` since the arg `f()` is itself resolved by the caller). an SE-bearing arg is
   // preserved by `inlineCallHasObservableEffects` (checks callNode.arguments), so return it as-is
-  if (body?.type === 'Identifier' && body.name === callee.params[0].name) {
+  // ... through a sequence TAIL as well (`tag => (log(tag), tag)`): the prefix runs where the call
+  // stands, which the effect gate reports and the call site keeps. the body is read through the
+  // parens oxc keeps around an arrow's expression body and babel strips
+  const bodyExpr = unwrapTransparentSeq(body);
+  const tail = bodyExpr?.type === 'SequenceExpression' ? unwrapTransparentSeq(bodyExpr.expressions.at(-1)) : bodyExpr;
+  if (tail?.type === 'Identifier' && tail.name === callee.params[0].name) {
     return hop.node.arguments?.[0] ? { ...hop, node: hop.node.arguments[0], seen: resolved.seen } : null;
   }
   // a body that never READS the param yields the same value for every argument (`(x) => globalThis`),
@@ -2904,17 +2910,38 @@ const KEY_SIDE_EFFECT_BAIL = Symbol('key-side-effect-bail');
 // by DROPPING the node, so it peels only an observably-pure IIFE, while usage-global keeps the node and
 // peels unconditionally (over-inject-safe). returns KEY_SIDE_EFFECT_BAIL when bailOnSideEffectKey and a
 // SE prefix survives (`[(fn(), 'X')]`), so the whole construct is skipped rather than dropping the effect
-function normalizeComputedKeyNode(node, bailOnSideEffectKey, adapter) {
+// ... and a call to a BOUND identity callee names its argument the same way (`const k = tag =>
+// (log.push(tag), tag); { [k('at')]: a }` - the body hands the param back unchanged, so the key is the
+// argument's key, read at the call site). the same purity discipline: usage-global keeps the node and
+// folds outright; usage-pure folds an effect-free call, or an effectful one only for a consumer that
+// KEEPS the key node where it stands (`keepsKeyNode` - the sentinel residual runs the call in place)
+function normalizeComputedKeyNode(node, bailOnSideEffectKey, adapter, ctx = null) {
   node = unwrapTransparentSeq(node);
   while (true) {
     if (bailOnSideEffectKey && node?.type === 'SequenceExpression' && sequencePrefixWithSideEffects(node)) return KEY_SIDE_EFFECT_BAIL;
     node = peelSequenceTail(node, { step: unwrapTransparentSeq });
     if (node?.type !== 'CallExpression' && node?.type !== 'OptionalCallExpression') return node;
-    if (adapter.method === 'usage-pure' && !zeroArgIifeSideEffectFree(node)) return node;
-    const iifeRet = peelZeroArgIifeReturn(node);
+    if (adapter.method === 'usage-pure' && !zeroArgIifeSideEffectFree(node)) {
+      const argument = ctx && !bailOnSideEffectKey ? identityCallKeyArgument(node, adapter, ctx) : null;
+      if (!argument) return node;
+      node = argument;
+      continue;
+    }
+    const iifeRet = peelZeroArgIifeReturn(node) ?? (ctx && !bailOnSideEffectKey ? identityCallKeyArgument(node, adapter, ctx) : null);
     if (!iifeRet) return node;
     node = unwrapTransparentSeq(iifeRet);
   }
+}
+
+// the argument a bound identity call hands back as its key, or null: a callee this file binds whose
+// body returns its one param, folded through the shared inline canon; an effectful call folds only
+// where the node stays (usage-global, or a consumer holding the key in place)
+function identityCallKeyArgument(node, adapter, { scope, path, usageNode, seen, keepsKeyNode = false }) {
+  const inlined = inlineCallReturnExpression({ node, readNode: usageNode, seen, ctx: { scope, adapter, path } });
+  if (!inlined?.node || inlined.node === node) return null;
+  const effectful = node.arguments?.some(mayHaveSideEffects) || inlineCallHasObservableEffects({ callNode: node, scope, adapter, path });
+  if (effectful && adapter.method === 'usage-pure' && !keepsKeyNode) return null;
+  return unwrapTransparentSeq(inlined.node);
 }
 
 // a numeric literal key node under either parser (babel `NumericLiteral`, estree `Literal`)
@@ -2946,14 +2973,14 @@ function memberKeyThroughTypeLayer(node, computed, scope, path, resolveStaticKey
 }
 
 export function resolveKey({ node, computed, scope, adapter, seen, path, depth = 0, bailOnSideEffectKey = false,
-  usageNode = null, resolveStaticKey = null }) {
+  usageNode = null, resolveStaticKey = null, keepsKeyNode = false }) {
   while (true) {
     // an over-deep chain and an ABSENT key answer alike: a mutator called with fewer arguments than it
     // takes (`Object.defineProperty(target)`) leaves the key slot empty - legal source that throws at
     // runtime, and callers already treat a null key as "not resolvable"
     if (depth > MAX_KEY_DEPTH || !node) return null;
     if (computed) {
-      node = normalizeComputedKeyNode(node, bailOnSideEffectKey, adapter);
+      node = normalizeComputedKeyNode(node, bailOnSideEffectKey, adapter, { scope, path, usageNode, seen, keepsKeyNode });
       if (node === KEY_SIDE_EFFECT_BAIL) return null;
     }
     if (!computed && node.type === 'Identifier') return node.name;
@@ -3105,10 +3132,14 @@ export function resolveSynthKeys({ node, scope, adapter, path }) {
   // pass `path` so `resolveKey`'s flow-sensitive gate (`varInitDominatesUsage`) sees the real usage
   // position: a flow-dependent computed key (`if (c) var K = 'from'; { [K]: m }`) must NOT fold to its
   // conditional init for usage-pure - a null path defaults the dominance check to true and folds wrongly
+  // ... the literal REPLACES the receiver and the pattern keeps its key node, so a key spelled through
+  // a bound identity call folds here as it does for every consumer holding the key in place
   const lookupKey = node.computed
-    ? resolveKey({ node: node.key, computed: true, scope, adapter, path })
+    ? resolveKey({ node: node.key, computed: true, scope, adapter, path, keepsKeyNode: true })
     : plainSynthKeyName(node.key);
-  return { lookupKey, slotKey };
+  // a key only SCOPE can name (a bound identity call) has no structural slot: it takes the quoted
+  // notation of a folded string, the slot its resolved name reads
+  return { lookupKey, slotKey: slotKey ?? (node.computed && typeof lookupKey === 'string' ? `[${ JSON.stringify(lookupKey) }]` : null) };
 }
 
 // the slot a HOP prop names for a walk that will CONSUME it: the spelling the source wrote, plus the
