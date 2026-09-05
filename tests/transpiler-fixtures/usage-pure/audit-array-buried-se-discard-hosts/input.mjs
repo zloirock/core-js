@@ -26,9 +26,9 @@ const [{ Map: { groupBy } }] = [(eff(w.at(-1)), globalThis)];
 
 export { out1, out2, fa, rest3, groupBy, seen };
 
-// an SE-bearing TRAILING init element is evaluated-then-discarded at runtime: consuming the
-// wrapper level would drop that effect, so the peel bails and the whole init stays verbatim
-// (bail-safe: no extraction, native reads keep every effect)
+// an SE-bearing TRAILING init element is evaluated-then-discarded at runtime, and it still runs:
+// the consumed wrapper drops, the buried prefix and the trailing neighbour lift as statements in
+// source order ahead of the extraction - both legs, one spelling
 const [{ Object: { fromEntries } }] = [(eff('e'), globalThis), eff('f')];
 
 // a PURE trailing extra is value-dead - the level still peels and the extraction proceeds
@@ -47,9 +47,9 @@ const [{ Reflect: { ownKeys } }] = wrap;
 const wrap2 = [[(eff('j'), globalThis), eff('k')]];
 const [[{ Object: { entries } }]] = wrap2;
 
-// an INLINE SE-bearing extra ABOVE a dereferenced element declines every rewrite that would
-// leave the host (the alias's declaration is foreign - other readers observe it); the leaf
-// falls to the inline-default fallback ON the host, and both effects stay verbatim
+// an INLINE SE-bearing extra ABOVE a dereferenced element lifts like any inline neighbour: the
+// alias's declaration is foreign (other readers observe it) and keeps its literal untouched,
+// while the inline level drops and re-emits its own effect ahead of the extraction
 const w3 = [globalThis];
 const [[{ Object: { hasOwn } }]] = [w3, eff('m')];
 

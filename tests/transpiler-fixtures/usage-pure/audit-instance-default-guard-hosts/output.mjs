@@ -47,7 +47,7 @@ export const {
   } = recvF,
   fm = _flatMapMaybeArray(recvF);
 
-// bodyless control-slot host: the block-wrap and the split compose
+// bodyless control-slot host: the `var` join and the split compose
 if (cnd) var {
     [(e5(), 'with')]: _unused5
   } = recvG,

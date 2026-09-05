@@ -1,4 +1,4 @@
-// the pair lands by the slot its host stands in: an unbraced control body gets BRACED around it, a
+// the pair lands by the slot its host stands in: an unbraced control body JOINS it into its `var`, a
 // LOOP HEAD takes it as declarators (they evaluate in order, so the minted name is bound first), a
 // CATCH param relocates into the body and extracts there, a flatten sibling splits the declaration
 // around it, and an exported host binding nothing else drops its wrapper onto the extraction

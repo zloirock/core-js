@@ -4,6 +4,6 @@ import _Array$of from "@core-js/pure/actual/array/of";
 // inner expression is itself polyfillable. both legs must flatten into standalone bindings
 // so that `Array.of` inside the default-value-param wrapper is also rewritten to its polyfill
 const from = _Array$from;
-const of = _Array$of;
+const of = _Array$of === void 0 ? _Array$of : _Array$of;
 from([1, 2]);
 of(3);

@@ -1,17 +1,17 @@
+import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
+import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 import _toSortedMaybeArray from "@core-js/pure/actual/array/instance/to-sorted";
 import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _globalThis from "@core-js/pure/actual/global-this";
-import _at from "@core-js/pure/actual/instance/at";
-import _includes from "@core-js/pure/actual/instance/includes";
 var _ref;
 // a NESTED instance claim whose chain NAVIGATES INTO a built-in surface: the dispatch reads what the
 // hops NAME (`_globalThis.Array.prototype`), not the root the init spells. both legs print this file
 // identically - it carries no sidecar, and a sidecar appearing here IS the regression
 const fromGlobal = _flatMaybeArray(_globalThis.Array.prototype);
-const fromCtor = _at(Array.prototype);
-const fromNav = _includes(_globalThis.Array.prototype); // the FOR-INIT row drops its slot like any other: what the drop needs is a DECLARATOR slot, not a
+const fromCtor = _atMaybeArray(Array.prototype);
+const fromNav = _includesMaybeArray(_globalThis.Array.prototype); // the FOR-INIT row drops its slot like any other: what the drop needs is a DECLARATOR slot, not a
 // statement one, and the header has that - the extraction stands where the residual did. a LITERAL
 // receiver keeps its residual there instead (`audit-destructure-nested-instance-for-init-no-memo`),
 // because nothing resolved a surface to read twice

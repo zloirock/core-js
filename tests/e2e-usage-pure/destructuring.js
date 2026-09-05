@@ -5136,3 +5136,658 @@ QUnit.test('destructuring: loop-body read of an assignment alias', assert => {
   }
   assert.deepEqual(nested, [3]);
 });
+
+// a nested pattern off an init the source COMPUTES: the root is evaluated exactly once and the leaf
+// binds the polyfill, which only a realm without the native can tell from the raw read
+QUnit.test('destructuring: nested pattern off a computed root evaluates it once', assert => {
+  let calls = 0;
+  function mk() {
+    calls++;
+    return { data: [5, 6] };
+  }
+  const { data: { at } } = mk();
+  assert.same(calls, 1);
+  assert.same(at.call([7, 8], -1), 8);
+  const { data: { at: withSlotDefault } = { at: () => 'D' } } = mk();
+  assert.same(calls, 2);
+  assert.same(withSlotDefault.call([1, 2], 0), 1);
+  const holder = { inner: { data: [3] } };
+  const { data: { at: viaMember } } = holder.inner;
+  assert.same(viaMember.call([9], 0), 9);
+  const { data: { at: withLeafSibling, length } } = mk();
+  assert.same(calls, 3);
+  assert.same(length, 2);
+  assert.same(withLeafSibling.call([4], 0), 4);
+});
+
+// an array-wrapped element beside an EFFECTFUL neighbour: native builds the whole literal before it
+// reads anything off a slot, and the extraction keeps that order whether the effect stands before
+// the slot (the wrapper dies, the effect rides the dispatch) or after a sole one (the wrapper stays,
+// or the element memoizes ahead); a getter element beside a bound neighbour fires once
+QUnit.test('destructuring: array-wrapped element beside an effectful neighbour keeps the order', assert => {
+  const log = [];
+  function eff(v) {
+    log.push(v);
+    return v;
+  }
+  const [, { at: afterEffect }] = [eff('n'), eff([1, 2])];
+  assert.deepEqual(log, ['n', [1, 2]]);
+  assert.same(afterEffect.call([4, 5], 1), 5);
+  const [{ at: beforeEffect }] = [eff([6]), eff('t')];
+  assert.deepEqual(log.slice(2), [[6], 't']);
+  assert.same(beforeEffect.call([8, 9], 0), 8);
+  let reads = 0;
+  const holder = {};
+  Object.defineProperty(holder, 'inner', {
+    get() {
+      reads++;
+      return [1];
+    },
+  });
+  const [{ at: viaGetter }, keep] = [holder.inner, 7];
+  assert.same(reads, 1);
+  assert.same(keep, 7);
+  assert.same(viaGetter.call([2], 0), 2);
+});
+
+// an instance leaf under a STATIC hop reads the static's ponyfill - behind a proxy hop, off the init's
+// own member read and with a leaf sibling alike - and a static claim with a pattern default binds the
+// pattern off the guarded ponyfill, whose own missing key still fires the leaf's default
+QUnit.test('destructuring: instance leaf under a static hop reads the static ponyfill', assert => {
+  const { Array: { of: { name: viaHop } = {} } = {} } = globalThis;
+  assert.same(typeof viaHop, 'string');
+  const { of: { name: viaMember } } = globalThis.Array;
+  assert.same(typeof viaMember, 'string');
+  const { of: { length: arity, name: sibling } } = Array;
+  assert.same(arity, 0);
+  assert.same(typeof sibling, 'string');
+  const { of: { missing = 'F' } = {} } = Array;
+  assert.same(missing, 'F');
+});
+
+// a SOLE array wrapper whose trailing neighbour runs code beside an element carrying its own
+// prefix: native evaluates the prefix, the element, then the neighbour, and a receiver-less static
+// reads nothing after that - so the wrapper drops and both effects run once, in that order, ahead
+// of the binding. a write the element stores lands before the neighbour too, and an inline
+// neighbour above an ALIASED element lifts while the alias keeps its literal
+QUnit.test('destructuring: a trailing wrapper neighbour lifts behind the element it follows', assert => {
+  const order = [];
+  function eff(tag) {
+    order.push(tag);
+    return tag;
+  }
+  const [{ Object: { hasOwn } }] = [(eff('e'), globalThis), eff('f')];
+  assert.same(hasOwn({ k: 1 }, 'k'), true);
+  assert.deepEqual(order, ['e', 'f']);
+  let stored;
+  const [{ Map: { groupBy } }] = [stored = (eff('w'), globalThis), eff('n')];
+  assert.same(stored, globalThis);
+  assert.same(typeof groupBy, 'function');
+  assert.deepEqual(order.slice(2), ['w', 'n']);
+  const alias = [globalThis];
+  const [[{ Object: { fromEntries } }]] = [alias, eff('m')];
+  assert.same(fromEntries([['a', 1]]).a, 1);
+  assert.same(alias.length, 1);
+  assert.deepEqual(order.slice(4), ['m']);
+});
+
+// what a wrapper residual keeps for a receiver-less static: a SPREAD neighbour still iterates its
+// argument exactly once (the wrapper survives under a sentinel), a kept WRITE in the slot stores its
+// value once and the binding is the ponyfill, a bare constructor's prefix and trailing neighbour run
+// in source order ahead of the binding, and a for-init header keeps the write ahead of the pure
+QUnit.test('destructuring: a wrapper residual keeps its spread, its write and its order', assert => {
+  const order = [];
+  function eff(tag) {
+    order.push(tag);
+    return tag;
+  }
+  let pulls = 0;
+  const xs = { [Symbol.iterator]() {
+    let done = false;
+    return { next() {
+      if (done) return { done: true, value: undefined };
+      done = true;
+      pulls++;
+      return { done: false, value: 'x' };
+    } };
+  } };
+  const [{ Object: { getPrototypeOf } }] = [globalThis, ...xs];
+  assert.same(pulls, 1);
+  assert.same(getPrototypeOf([]), Array.prototype);
+  let stored;
+  const [{ Object: { entries }, other }] = [stored = (eff('w'), globalThis), 7];
+  assert.same(stored, globalThis);
+  assert.same(other, undefined);
+  assert.deepEqual(entries({ a: 1 }), [['a', 1]]);
+  const [{ values }] = [(eff('e'), Object), eff('f')];
+  assert.deepEqual(values({ b: 2 }), [2]);
+  assert.deepEqual(order, ['w', 'e', 'f']);
+  let out;
+  let written;
+  for (const [{ Object: { fromEntries } }] = [written = (eff('q'), globalThis), 7]; !out;) out = fromEntries;
+  assert.same(written, globalThis);
+  assert.same(out([['c', 3]]).c, 3);
+  assert.same(order.at(-1), 'q');
+});
+
+// the shapes the wrapper convergence closed last: a kept write under a MULTI-element assignment
+// wrapper stores once and the binding still takes the ponyfill, a bare constructor stored with its
+// own prefix classifies by the tail, and beside a SPREAD a defaulted instance leaf, an effectful
+// computed key and a name the hops merely reach answer as native does - the key's effect included
+QUnit.test('destructuring: a multi-wrapper write, a stored constructor and reading claims beside a spread', assert => {
+  const order = [];
+  function eff(tag) {
+    order.push(tag);
+    return tag;
+  }
+  let stored;
+  let groupBy;
+  let zn;
+  // eslint-disable-next-line prefer-const, @stylistic/no-extra-parens -- the assignment host with its parens IS the case under test
+  ([{ Map: { groupBy } }, zn] = [stored = (eff('w'), globalThis), 7]);
+  assert.same(stored, globalThis);
+  assert.same(zn, 7);
+  assert.same(typeof groupBy, 'function');
+  let ctor;
+  const [{ getOwnPropertySymbols }] = [ctor = (eff('c'), Object)];
+  assert.same(ctor, Object);
+  assert.same(typeof getOwnPropertySymbols, 'function');
+  const xs = [1];
+  const nul = null;
+  const [{ Array: { prototype: { flat: viaDefault = nul } } }] = [globalThis, ...xs];
+  assert.deepEqual(viaDefault.call([[1], [2]]), [1, 2]);
+  const [{ [(eff('k'), 'at')]: viaKey }] = [Array.prototype, ...xs];
+  assert.same(viaKey.call([5, 6], -1), 6);
+  const [{ Array: { keys: nameMatch } }] = [globalThis, ...xs];
+  assert.same(nameMatch, undefined);
+  assert.deepEqual(order, ['w', 'c', 'k']);
+});
+
+// a SIBLING-declarator host beside a trailing neighbour keeps the source's order across the whole
+// declaration: the leading sibling's effect, then the neighbour, then the binding reads its ponyfill;
+// a spread one wrapper level down still iterates exactly once, a bodyless assignment slot lands the
+// overwrite inside its braces, and a loop head beside a spread binds the element positionally
+QUnit.test('destructuring: sibling hosts, buried spreads and loop heads beside a neighbour', assert => {
+  const order = [];
+  function eff(tag) {
+    order.push(tag);
+    return tag;
+  }
+  // eslint-disable-next-line @stylistic/one-var-declaration-per-line -- the sibling-declarator host IS the case under test
+  const lead = eff('lead'), [{ Array: { prototype: { findLast } } }] = [globalThis, eff('n')];
+  assert.same(lead, 'lead');
+  assert.same(findLast.call([1, 2, 3], x => x < 3), 2);
+  assert.deepEqual(order, ['lead', 'n']);
+  let pulls = 0;
+  const xs = { [Symbol.iterator]() {
+    let done = false;
+    return { next() {
+      if (done) return { done: true, value: undefined };
+      done = true;
+      pulls++;
+      return { done: false, value: 'x' };
+    } };
+  } };
+  const [[{ Object: { groupBy } }]] = [[globalThis, ...xs]];
+  assert.same(pulls, 1);
+  assert.deepEqual(groupBy([1, 2, 3], x => x % 2 ? 'odd' : 'even').odd, [1, 3]);
+  let stored;
+  let bodylessGb;
+  let bodylessZn;
+  if (lead) [{ Map: { groupBy: bodylessGb } }, bodylessZn] = [stored = (eff('w'), globalThis), 7];
+  assert.same(stored, globalThis);
+  assert.same(bodylessZn, 7);
+  assert.same(typeof bodylessGb, 'function');
+  let out;
+  for (const [{ Array: { prototype: { toSorted } } }] = [globalThis, ...xs]; !out;) out = toSorted;
+  assert.same(pulls, 2);
+  assert.deepEqual(out.call([3, 1, 2]), [1, 2, 3]);
+  assert.deepEqual(order.slice(2), ['w']);
+});
+
+QUnit.test('destructuring: several claims over one stored or prefixed init run its setup once', assert => {
+  const order = [];
+  function eff(tag) {
+    order.push(tag);
+    return tag;
+  }
+  let stored;
+  // eslint-disable-next-line prefer-const -- the claims share the init the write performs
+  let { Array: { prototype: { at: flatAt } }, Object: { keys: flatKeys } } = stored = (eff('w'), globalThis);
+  assert.same(stored, globalThis);
+  assert.same(flatAt.call([1, 2, 3], -1), 3);
+  assert.deepEqual(flatKeys({ a: 1 }), ['a']);
+  const [{ Array: { prototype: { at: wrapAt } }, Object: { values: wrapValues } }] = [stored = (eff('x'), globalThis)];
+  assert.same(stored, globalThis);
+  assert.same(wrapAt.call([1, 2, 3], 0), 1);
+  assert.deepEqual(wrapValues({ a: 1 }), [1]);
+  const [{ Object: { keys: pairKeys, values: pairValues } }] = [stored = (eff('y'), globalThis)];
+  assert.same(stored, globalThis);
+  assert.deepEqual(pairKeys({ b: 2 }), ['b']);
+  assert.deepEqual(pairValues({ b: 2 }), [2]);
+  let loopOut;
+  for (const [{ Array: { prototype: { at: loopAt } }, Object: { entries: loopEntries } }] = [stored = (eff('z'), globalThis)]; !loopOut;) loopOut = [loopAt, loopEntries];
+  assert.same(stored, globalThis);
+  assert.same(loopOut[0].call([7], 0), 7);
+  assert.deepEqual(loopOut[1]({ c: 3 }), [['c', 3]]);
+  let assignAt;
+  let assignKeys;
+  if (order.length) ({ Array: { prototype: { at: assignAt } }, Object: { keys: assignKeys } } = stored = (eff('v'), globalThis));
+  assert.same(stored, globalThis);
+  assert.same(assignAt.call([4, 5], 1), 5);
+  assert.deepEqual(assignKeys({ d: 4 }), ['d']);
+  assert.deepEqual(order, ['w', 'x', 'y', 'z', 'v']);
+});
+
+QUnit.test('destructuring: a slot behind a spread, a loop head beside an effect and two extractions over one write', assert => {
+  const order = [];
+  function eff(tag) {
+    order.push(tag);
+    return tag;
+  }
+  const xs = [1];
+  const [, { Array: { prototype: { at: behindSpread } } }] = [...xs, globalThis];
+  assert.same(behindSpread.call([8, 9], -1), 9);
+  const [, { at: slotBehindSpread }] = [...xs, [6, 7]];
+  assert.same(slotBehindSpread.call([6, 7], 0), 6);
+  let out;
+  for (const [{ Object: { keys: loopKeys } }] = [globalThis, eff('p')]; !out;) out = loopKeys;
+  assert.deepEqual(out({ e: 5 }), ['e']);
+  let stored;
+  let twin;
+  for (const [{ Object: { keys: twinKeys, values: twinValues } }] = [stored = (eff('q'), globalThis)]; !twin;) twin = [twinKeys, twinValues];
+  assert.same(stored, globalThis);
+  assert.deepEqual(twin[0]({ f: 6 }), ['f']);
+  assert.deepEqual(twin[1]({ f: 6 }), [6]);
+  assert.deepEqual(order, ['p', 'q']);
+});
+
+QUnit.test('destructuring: one host, one order - claims, loop-head sinks and a slot-written memo', assert => {
+  const order = [];
+  function eff(tag) {
+    order.push(tag);
+    return tag;
+  }
+  let assignStatic;
+  let assignInstance;
+  let assignOther;
+  ({ Object: { keys: assignStatic }, Array: { prototype: { at: assignInstance } } } = (eff('a'), globalThis));
+  assert.deepEqual(assignStatic({ a: 1 }), ['a']);
+  assert.same(assignInstance.call([1, 2], -1), 2);
+  ({ Array: { prototype: { at: assignInstance } }, Object: { keys: assignStatic }, other: assignOther } = (eff('b'), globalThis));
+  assert.same(assignInstance.call([3, 4], 0), 3);
+  assert.deepEqual(assignStatic({ b: 2 }), ['b']);
+  assert.same(assignOther, undefined);
+  let head;
+  for (const { Array: { prototype: { values: headValues, at: headAt } }, Object: { keys: headKeys } } = (eff('c'), globalThis); !head;) {
+    head = [headValues, headAt, headKeys];
+  }
+  assert.same(typeof head[0], 'function');
+  assert.same(head[1].call([5, 6], 1), 6);
+  assert.deepEqual(head[2]({ c: 3 }), ['c']);
+  const rows = [[1, 2]];
+  const [, { at: slotAt, length: slotLength }] = [eff('d'), rows.flat()];
+  assert.same(slotAt.call([7, 8], 0), 7);
+  assert.same(slotLength, 2);
+  let wrapFrom;
+  let wrapTail;
+  [{ Array: { from: wrapFrom } }, wrapTail] = [globalThis, eff('e')];
+  assert.deepEqual(wrapFrom([9]), [9]);
+  assert.same(wrapTail, 'e');
+  [{ Array: { of: wrapFrom } }, wrapTail] = [globalThis, eff('f')];
+  assert.deepEqual(wrapFrom(10), [10]);
+  assert.same(wrapTail, 'f');
+  assert.deepEqual(order, ['a', 'b', 'c', 'd', 'e', 'f']);
+});
+
+QUnit.test('destructuring: a bracketed hop key names the slot its dotted spelling does', assert => {
+  const order = [];
+  function eff(tag) {
+    order.push(tag);
+    return tag;
+  }
+  /* eslint-disable no-useless-computed-key -- the bracketed spelling of a hop key IS the subject */
+  const { ['Array']: { prototype: { at: literalKeyAt } } } = globalThis;
+  assert.same(literalKeyAt.call([1, 2], -1), 2);
+  const K = 'Array';
+  const { [K]: { prototype: { includes: boundKeyIncludes } } } = globalThis;
+  assert.same(boundKeyIncludes.call([3, 4], 4), true);
+  const [{ ['Array']: { prototype: { forEach: wrappedForEach } } }] = [globalThis];
+  const seen = [];
+  wrappedForEach.call([5, 6], value => seen.push(value));
+  assert.deepEqual(seen, [5, 6]);
+  const { ['box']: { map: literalReceiverMap } } = { box: [7] };
+  assert.deepEqual(literalReceiverMap.call([7], value => value + 1), [8]);
+  /* eslint-enable no-useless-computed-key -- end of the bracketed-spelling block */
+  // a HOP under a key that only folds through a SEQUENCE is not extracted yet: a leg that rewrites
+  // the destructure as written reads the realm's own slot (undefined where the engine lacks the
+  // method), a leg that rewrites after the destructure was lowered to a member read lands the
+  // ponyfill. the effect running exactly once is the rule here; the value is the gap the flat
+  // effectful key already closes (it keeps its slot AND extracts), and the hop should follow it
+  const { [(eff('key'), 'Array')]: { prototype: { values: effectKeyValues } } } = globalThis;
+  // the realm's own slot, read through a key no rewrite resolves (a dotted spelling would take the
+  // ponyfill and answer `function` on every engine)
+  const rawValues = Array.prototype[['val', 'ues'].join('')];
+  const hopAnswers = effectKeyValues === rawValues || typeof effectKeyValues === 'function';
+  assert.true(hopAnswers, 'the raw slot on one leg, the ponyfill on the other');
+  assert.deepEqual(order, ['key']);
+});
+
+/* eslint-disable no-restricted-globals, unicorn/prefer-global-this -- `self` beside `globalThis` IS
+   the selecting receiver under test: the two name one realm, which is what lets the surface collapse */
+QUnit.test('destructuring: a selecting realm receiver reads one surface', assert => {
+  const pick = 1;
+  const { Array: { prototype: { at: ternaryAt } } } = pick ? globalThis : self;
+  assert.same(ternaryAt.call([1, 2], -1), 2);
+  const { Array: { prototype: { includes: nullishIncludes } } } = self ?? globalThis;
+  assert.same(nullishIncludes.call([3, 4], 4), true);
+  const { Array: { prototype: { map: testedMap } } } = pick && globalThis;
+  assert.same(typeof testedMap, 'function');
+});
+/* eslint-enable no-restricted-globals, unicorn/prefer-global-this -- end of the selecting-receiver test */
+
+QUnit.test('destructuring: an object-literal hop reaches the built-in surface', assert => {
+  const { w: { Array: { prototype: { at: hopAt } } } } = { w: globalThis };
+  assert.same(hopAt.call([1, 2], -1), 2);
+  const { q: { w: { Array: { prototype: { includes: deepIncludes } } } } } = { q: { w: globalThis } };
+  assert.same(deepIncludes.call([3, 4], 4), true);
+  const { w: { Array: { prototype: { map: besideSibling } } }, z } = { w: globalThis, z: 5 };
+  assert.deepEqual(besideSibling.call([1], value => value + 1), [2]);
+  assert.same(z, 5);
+  const { y: { find: literalFind } } = { y: [6, 7] };
+  assert.same(literalFind.call([6, 7], value => value > 6), 7);
+});
+
+QUnit.test('destructuring: a sole-key object hop pairs the slot it names', assert => {
+  const { w: { Map: HopMap } } = { w: globalThis };
+  assert.same(new HopMap([[1, 2]]).get(1), 2);
+  const hopHolder = { P: Array };
+  const { P: { from: hopFrom } } = hopHolder;
+  assert.deepEqual(hopFrom('ab'), ['a', 'b']);
+  // the hazards that keep a level whole are locked byte-wise in the fixture: what stays native there
+  // reads the realm's own slot, which a stripped realm does not have to carry
+});
+
+QUnit.test('destructuring: an object hop keeps every effect the literal spells', assert => {
+  const order = [];
+  function bump(tag) {
+    order.push(tag);
+    return 1;
+  }
+  // a sibling VALUE runs whether the level is consumed or kept - the two legs may route it
+  // differently, and neither may lose it
+  const { w: { Map: BesideEffect } } = { z: bump('sibling'), w: globalThis };
+  assert.same(typeof new BesideEffect([]).get, 'function');
+  // ... and so does a sequence PREFIX standing in front of the literal
+  const { w: { Set: BehindPrefix } } = (bump('prefix'), { w: globalThis });
+  assert.same(typeof new BehindPrefix([]).has, 'function');
+  // ... and a SPREAD standing ahead of the key keeps the literal alive, so the claim still reads the
+  // slot the key names and everything the spread brought in stays where the source put it
+  const spreadSource = { z: bump('spread') };
+  const { w: { at: overSpread }, z: spreadKept } = { ...spreadSource, w: [7, 8] };
+  assert.same(overSpread.call([7, 8], -1), 8);
+  assert.same(spreadKept, 1);
+  assert.deepEqual(order, ['sibling', 'prefix', 'spread']);
+});
+
+// the SLOT's own prefix runs exactly once whichever host the hop stands in, and a level whose key
+// nothing can name at runtime stays whole: the runtime value is the source's, never a ponyfill
+// read off a slot the level may not hold
+QUnit.test('destructuring: an object hop slot runs its prefix once on every host', assert => {
+  let hits = 0;
+  function bump() {
+    hits += 1;
+  }
+  // eslint-disable-next-line @stylistic/no-extra-parens -- the nested sequence LEVEL is the case
+  const { w: { Map: DeclSeq } } = { w: (bump(), (bump(), globalThis)) };
+  assert.same(typeof new DeclSeq([]).get, 'function');
+  assert.same(hits, 2, 'a nested comma run in a declaration slot runs both effects once');
+  let AssignSeq;
+  // eslint-disable-next-line prefer-const -- the assignment-host spelling is the case
+  ({ w: { Map: AssignSeq } } = { w: (bump(), globalThis ?? {}) });
+  assert.same(typeof new AssignSeq([]).get, 'function');
+  assert.same(hits, 3, 'an assignment slot runs its prefix once');
+  let AssignNested;
+  // eslint-disable-next-line prefer-const, @stylistic/no-extra-parens -- the assignment host and the nested LEVEL are the case
+  ({ w: { Array: { from: AssignNested } } } = { w: (bump(), (bump(), globalThis)) });
+  assert.same(AssignNested('ab').length, 2);
+  assert.same(hits, 5, 'a nested run in an assignment slot runs both effects once');
+  const other = { Map: 'other' };
+  function unnameable(key) {
+    const { w: { Map: kept } } = { w: globalThis, [key]: other };
+    let keptAssign;
+    // eslint-disable-next-line prefer-const -- the assignment-host spelling is the case
+    ({ w: { Map: keptAssign } } = { w: globalThis, [key]: other });
+    return [kept, keptAssign];
+  }
+  assert.deepEqual(unnameable('w'), ['other', 'other'], 'a key that IS the slot at runtime wins on both hosts');
+  assert.same(typeof unnameable('q')[0], 'function', 'and another key leaves the realm slot in place');
+});
+
+// the hop on the hosts that MIRROR their receiver: a literal container in the slot pairs the hop key
+// with its slot value and the mirror lands in that slot - the value read is the polyfill's, and a
+// passed argument still destructures natively (the default never fires)
+QUnit.test('destructuring: an object hop over a literal container mirrors on every mirroring host', assert => {
+  function viaParam({ w: { Map: M } } = { w: globalThis }) {
+    return M;
+  }
+  assert.same(new (viaParam())([[1, 2]]).get(1), 2, 'a parameter default mirrors the ctor into the slot');
+  assert.same(viaParam({ w: { Map: 'passed' } }), 'passed', '... and a passed argument destructures natively');
+  function viaParamInstance({ w: { at } } = { w: [7, 8] }) {
+    return at;
+  }
+  assert.same(viaParamInstance().call([7, 8], -1), 8, 'an instance leaf under the hop dispatches on the slot');
+  const heads = [];
+  for (const { w: { Map: HeadMap } } of [{ w: globalThis }]) heads.push(typeof new HeadMap([]).get);
+  assert.deepEqual(heads, ['function'], 'a for-of head element mirrors the same way');
+  const ViaIife = (({ w: { Map: M } }) => M)({ w: globalThis });
+  assert.same(new ViaIife([[3, 4]]).get(3), 4, 'an IIFE argument mirrors the same way');
+});
+
+// a BOUND computed hop key (`{ [k]: {...} }` with `const k = 'w'`) claims exactly what the literal
+// spelling claims, on every host - and an emptied hop beside a rest on an assignment host writes a
+// sentinel the emitter must declare: an undeclared write throws in strict code
+QUnit.test('destructuring: a bound computed hop key claims like its literal spelling', assert => {
+  const k = 'w';
+  const { [k]: { Map: BoundCtor } } = { w: globalThis };
+  assert.same(new BoundCtor([[1, 2]]).get(1), 2, 'a ctor leaf under the bound key');
+  const { [k]: { at: boundAt } } = { w: [7, 8] };
+  assert.same(boundAt.call([7, 8], -1), 8, 'an instance leaf under the bound key');
+  // eslint-disable-next-line unicorn/no-unused-properties -- the pattern reads it through the bound key
+  const alias = { w: [5, 6] };
+  const { [k]: { at: aliasAt } } = alias;
+  assert.same(aliasAt.call([5, 6], -1), 6, '... through a followed alias');
+  const { [k]: [{ at: wrappedAt }] } = { w: [[3, 4]] };
+  assert.same(wrappedAt.call([3, 4], 0), 3, 'a wrapper under the key pairs its slot');
+  let assignAt;
+  // eslint-disable-next-line prefer-const -- the assignment-host spelling is the case
+  ({ [k]: [{ at: assignAt }] } = { w: [[3, 4]] });
+  assert.same(assignAt.call([3, 4], 0), 3, '... on an assignment host too');
+  let restAt;
+  let rest;
+  // eslint-disable-next-line prefer-const -- the assignment-host spelling is the case
+  ({ w: { at: restAt }, ...rest } = { w: [1, 2], z: 1 });
+  assert.same(restAt.call([1, 2], 1), 2, 'an emptied hop beside a rest still claims');
+  assert.deepEqual(rest, { z: 1 }, '... and the rest gathers the other keys');
+  const heads = [];
+  for (const { [k]: { at: headAt } } of [{ w: [9] }]) heads.push(headAt.call([9], 0));
+  const thrown = new Error('x');
+  thrown.w = [10];
+  try {
+    throw thrown;
+  } catch ({ [k]: { at: caughtAt } }) {
+    heads.push(caughtAt.call([10], 0));
+  }
+  assert.deepEqual(heads, [9, 10], 'a loop head and a catch clause relocate the same way');
+});
+
+// a comma run in front of a hop SLOT runs once and its tail is what the claim reads - on the
+// declaration and under a wrapper - and a REST beside the hop still gathers every other key
+QUnit.test('destructuring: a comma run in front of a hop slot runs once on every host', assert => {
+  let hits = 0;
+  function bump() {
+    hits += 1;
+  }
+  const { w: { at: seqAt } } = { w: (bump(), [7, 8]) };
+  assert.same(seqAt.call([7, 8], -1), 8, 'the tail is the receiver');
+  assert.same(hits, 1, 'the prefix ran once');
+  const [{ w: { at: wrappedAt } }] = [{ w: (bump(), [5, 6]) }];
+  assert.same(wrappedAt.call([5, 6], 0), 5, '... under an array wrapper too');
+  assert.same(hits, 2, 'and once there as well');
+  const { w: { Map: RestCtor }, ...rest } = { w: globalThis, z: 1 };
+  assert.same(new RestCtor([[1, 2]]).get(1), 2, 'a ctor leaf beside a rest');
+  assert.deepEqual(rest, { z: 1 }, '... and the rest keeps the other keys');
+  let AssignCtor;
+  let assignRest;
+  // eslint-disable-next-line prefer-const -- the assignment-host spelling is the case
+  ({ w: { Map: AssignCtor }, ...assignRest } = { w: globalThis, z: 2 });
+  assert.same(new AssignCtor([[3, 4]]).get(3), 4, '... on an assignment host');
+  assert.deepEqual(assignRest, { z: 2 }, 'where the rest gathers too');
+  const order = [];
+  const [{ w: { at: liftedAt } }] = [{ w: (order.push('a'), [9]) }, order.push('b')];
+  assert.same(liftedAt.call([9], 0), 9, 'a dead wrapper with a trailing effect');
+  assert.deepEqual(order, ['a', 'b'], '... keeps the source order');
+});
+
+// a hop over a slot the level cannot spell twice, while the level stays whole: the value moves to a
+// ref both readers take, evaluated once and in source order - hoisted where nothing observable stands
+// before the slot, written in the slot behind an observable property; a member read fires its getter once
+QUnit.test('destructuring: a hop slot the level cannot spell twice memoizes once and in order', assert => {
+  const log = [];
+  function eff(tag, value) {
+    log.push(tag);
+    return value;
+  }
+  const { w: { at: hoistAt }, z } = { w: eff('w', [7, 8]), z: 1 };
+  assert.same(hoistAt.call([7, 8], -1), 8, 'the hoisted slot value dispatches');
+  assert.same(z, 1, '... and the sibling still binds');
+  const { a, w: { at: inSlotAt } } = { a: eff('a', 1), w: eff('w2', [5, 6]) };
+  assert.same(inSlotAt.call([5, 6], 0), 5, 'the in-slot value dispatches');
+  assert.same(a, 1, '... and the preceding sibling still binds');
+  assert.deepEqual(log, ['w', 'a', 'w2'], 'every slot ran once, in source order');
+  let reads = 0;
+  const holder = {};
+  Object.defineProperty(holder, 'p', { get() {
+    reads += 1;
+    return [9];
+  } });
+  const { b, w: { at: memberAt } } = { b: eff('b', 2), w: holder.p };
+  assert.same(memberAt.call([9], 0), 9, 'a member read behind an observable property dispatches');
+  assert.same(b, 2);
+  assert.same(reads, 1, '... and its getter fired once');
+  const [, { y: { at: holeAt } }] = [eff('hole', 0), { y: eff('slot', [3, 4]) }];
+  assert.same(holeAt.call([3, 4], 1), 4, 'a slot behind an effectful hole dispatches');
+  assert.deepEqual(log.slice(-2), ['hole', 'slot'], '... after the hole ran, once each');
+  const { w: { at: sibHoistAt }, z: z2 } = { w: eff('sib-w', [1, 2]), z: 1 },
+        sibQ = 2;
+  assert.same(sibHoistAt.call([1, 2], -1), 2, 'a hoisted slot beside a sibling declarator dispatches');
+  assert.same(z2 + sibQ, 3, '... and both other bindings still bind');
+  const { a: a2, w: { at: sibInSlotAt } } = { a: eff('sib-a', 1), w: eff('sib-w2', [5, 6]) },
+        sibQ2 = 3;
+  assert.same(sibInSlotAt.call([5, 6], 1), 6, 'an in-slot memo beside a sibling declarator dispatches');
+  assert.same(a2 + sibQ2, 4);
+  assert.deepEqual(log.slice(-3), ['sib-w', 'sib-a', 'sib-w2'], '... every slot ran once, in source order');
+  const { b: b2, w: { at: twinAt, flat: twinFlat } } = { b: eff('twin-b', 1), w: eff('twin-w', [[7]]) };
+  assert.same(twinAt.call([[7]], 0)[0], 7, 'two leaves off one in-slot memo dispatch');
+  assert.deepEqual(twinFlat.call([[7]]), [7]);
+  assert.same(b2, 1);
+  assert.deepEqual(log.slice(-2), ['twin-b', 'twin-w'], '... and the slot ran once for both');
+  const [fa, { at: flatInSlotAt }] = [eff('flat-a', 1), eff('flat-w', [8, 9])];
+  assert.same(flatInSlotAt.call([8, 9], 0), 8, 'a sole-prop flat element behind an effectful sibling dispatches');
+  assert.same(fa, 1);
+  assert.deepEqual(log.slice(-2), ['flat-a', 'flat-w'], '... in source order, once each');
+  const [, { at: liftedThenSlotAt }, fz] = [eff('lift-1', 0), eff('lift-2', [1]), 1];
+  assert.same(liftedThenSlotAt.call([1], 0), 1, 'a slot behind a discarded effect with a live sibling dispatches');
+  assert.same(fz, 1);
+  assert.deepEqual(log.slice(-2), ['lift-1', 'lift-2'], '... the discarded effect first, then the slot');
+  const [fx, , { at: boundThenHoleAt }] = [1, eff('hole-2', 0), eff('slot-3', [2])];
+  assert.same(boundThenHoleAt.call([2], 0), 2, 'a slot behind a discarded effect that follows a bound slot dispatches');
+  assert.same(fx, 1);
+  assert.deepEqual(log.slice(-2), ['hole-2', 'slot-3'], '... the discarded effect still first');
+  const { a: a3, w: { at: hostObjAt } } = { a: eff('two-a', 1), w: eff('two-w', [1, 2]) },
+        [{ flat: hostArrFlat }, hz] = [eff('two-arr', [[3]]), 4];
+  assert.same(hostObjAt.call([1, 2], 1), 2, 'an object hop beside an array wrapper in one declaration dispatches');
+  assert.deepEqual(hostArrFlat.call([[3]]), [3], '... and so does the array wrapper beside it');
+  assert.same(a3 + hz, 5);
+  assert.deepEqual(log.slice(-3), ['two-a', 'two-w', 'two-arr'], '... every init ran once, in source order');
+  const { b: b3, w: { [Symbol.iterator]: symInSlot } } = { b: eff('sym-b', 1), w: eff('sym-w', [5]) };
+  assert.same(typeof symInSlot, 'function', 'a symbol leaf under a hop beside a sibling binds the iterator method');
+  assert.same(symInSlot.call([5]).next().value, 5);
+  assert.same(b3, 1);
+  assert.deepEqual(log.slice(-2), ['sym-b', 'sym-w'], '... its slot ran once, in order');
+});
+
+QUnit.test('destructuring: several SE keys on one pattern read in key order', assert => {
+  const log = [];
+  function key(tag) {
+    log.push(tag);
+    return tag;
+  }
+  // an ARRAY whose own getters log the read and answer the built-in method: the dispatch reads the
+  // own property first and hands the polyfill over only where it is the built-in
+  const source = Object.defineProperties([7, [8]], {
+    at: { get() {
+      log.push('get-at');
+      return Array.prototype.at;
+    } },
+    flat: { get() {
+      log.push('get-flat');
+      return Array.prototype.flat;
+    } },
+    z: { value: 9 },
+  });
+  const { [key('at')]: segAt, [key('flat')]: segFlat, z } = source;
+  assert.same(segAt.call([7], -1), 7, 'the first claim binds a working method');
+  assert.deepEqual(segFlat.call([[8]]), [8], 'the second claim binds a working method');
+  assert.same(z, 9, '... and the trailing prop still binds');
+  assert.true(log.indexOf('at') < log.indexOf('get-at'), 'the first key runs before its property is read');
+  assert.true(log.lastIndexOf('get-at') < log.indexOf('flat'), '... and every read of it precedes the second key');
+  assert.true(log.indexOf('flat') < log.indexOf('get-flat'), 'the second key runs before its property is read');
+});
+
+// an UNCLAIMED effectful key beside a claim still segments the residual at the claim: native reads
+// the claimed slot before the props written past it, and so does the emitted shape
+QUnit.test('destructuring: an unclaimed effectful key beside a claim keeps the per-prop read order', assert => {
+  const log = [];
+  const recv = Object.defineProperties({}, {
+    at: { get() {
+      log.push('at');
+      return Array.prototype.at;
+    } },
+    m: { get() {
+      log.push('m');
+      return 'm';
+    } },
+  });
+  // eslint-disable-next-line no-unused-vars -- the unclaimed key's binding is the shape under test
+  const { [(log.push('k1'), 'of')]: o, [(log.push('k2'), 'at')]: a, m } = recv;
+  assert.same(typeof a, 'function', 'the claim bound the polyfilled method');
+  assert.same(m, 'm', 'the trailing prop bound');
+  assert.deepEqual(log.slice(0, 3), ['k1', 'k2', 'at'], 'keys, then the claimed slot');
+  assert.same(log.at(-1), 'm', 'the trailing prop reads last');
+});
+
+QUnit.test('destructuring: a constructor under a literal hop beside a sibling prop binds the polyfill', assert => {
+  const { w: { Map: HopMap }, z } = { w: globalThis, z: 1 };
+  assert.same(typeof HopMap, 'function', 'the constructor binds');
+  assert.same(new HopMap([[1, 2]]).get(1), 2, '... and works');
+  assert.same(z, 1, '... while the sibling still binds');
+  const { a, w: { Map: HopMap2, Set: HopSet } } = { a: 3, w: globalThis };
+  assert.same(typeof HopMap2 + typeof HopSet, 'functionfunction', 'two constructors off one hop bind');
+  assert.same(a, 3);
+  let hits = 0;
+  const { w: { Array: { prototype: { at: deepBeside } } }, z: sibZ } = { w: globalThis, z: (hits += 1, 1) };
+  assert.same(deepBeside.call([4, 5], -1), 5, 'a deep nav under a hop beside an observable sibling dispatches');
+  assert.same(sibZ + hits, 2, '... the sibling binds and its effect ran once');
+  const order = [];
+  // the slot has to SPELL the realm for the nav below it to be a surface: a sequence tail, not a call
+  const { w: { Array: { prototype: { at: navInSlot } } }, z: nz } = { z: (order.push('z'), 1), w: (order.push('w'), globalThis) };
+  assert.same(navInSlot.call([6, 7], 0), 6, 'a nav below an effectful memoized slot dispatches on the surface');
+  assert.deepEqual(order, ['z', 'w'], '... the slots ran once, in source order');
+  assert.same(nz, 1);
+  let navAssign, na;
+  // eslint-disable-next-line prefer-const -- the destructuring ASSIGNMENT host is the case under test
+  ({ w: { Array: { prototype: { at: navAssign } } }, a: na } = { w: globalThis, a: 4 });
+  assert.same(navAssign.call([8], -1), 8, 'an assignment host navigating below a realm slot dispatches');
+  assert.same(na, 4);
+});
