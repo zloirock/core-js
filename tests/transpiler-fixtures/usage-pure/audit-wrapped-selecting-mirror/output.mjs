@@ -102,12 +102,12 @@ export { viaElementDefault, viaAnd, viaPrefix, viaParamDefault, viaIife, viaDoub
 // nothing names overrides the mirrored slot exactly as it overrides the source's (last wins)
 const [{
   hasOwn: viaSpreadShift
-}] = [...[c ? {
+}] = [c ? {
   hasOwn: _Object$hasOwn
-} : userObj]];
+} : userObj];
 const [, {
   getOwnPropertyNames: viaSpreadAhead
-}] = [...[0], c ? {
+}] = [0, c ? {
   getOwnPropertyNames: _Object$getOwnPropertyNames
 } : userObj];
 const {

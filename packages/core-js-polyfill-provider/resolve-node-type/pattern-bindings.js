@@ -23,9 +23,17 @@ import {
 } from './ast-shapes.js';
 import { assignLeft, assignRightKey, bindingCrossesLoopBackEdge } from './straight-line-flow.js';
 import {
-  cachedContainerPaths, declaratorBindsName, isVoidExpression, objectLiteralPrototypeValue, spreadAtOrBefore,
+  declaratorBindsName,
+  isVoidExpression,
+  objectLiteralPrototypeValue,
+  spreadAtOrBefore,
+  effectiveArgsLength,
   patternSlotTarget,
-  staleVarRedeclNodes, varInitStaleByRedecl,
+  positionalElementPath,
+  resolveCallArgument,
+  resolveCallArgumentCoords,
+  staleVarRedeclNodes,
+  varInitStaleByRedecl,
   isDestructurePattern,
 } from '../helpers/ast-patterns.js';
 
@@ -203,8 +211,8 @@ export function createPatternBindings({
     if (pattern.type === 'ArrayPattern' && init?.type === 'ArrayExpression') {
       const index = findPatternIndex(pattern, varName);
       if (index < 0) return null;
-      if (spreadAtOrBefore(init.elements, index)) return null;
-      return valuePresence(init.elements[index]);
+      if (!resolveCallArgumentCoords(init.elements, index)) return spreadAtOrBefore(init.elements, index) ? null : valuePresence(undefined);
+      return valuePresence(resolveCallArgument(init.elements, index));
     }
     if (pattern.type === 'ObjectPattern' && init?.type === 'ObjectExpression') {
       const keyPath = findDestructuredKeyPath(pattern, varName, bindingPath.scope);
@@ -310,24 +318,20 @@ export function createPatternBindings({
   // resolve the type of a specific element in an ArrayExpression by index
   // arrayPath must already be a resolved ArrayExpression path
   function resolveArrayLiteralElement(arrayPath, index) {
-    const { elements } = arrayPath.node;
-    if (index < 0 || index >= elements.length) return null;
-    // bail if any spread at or before target index - positions become unpredictable
-    if (spreadAtOrBefore(elements, index)) return null;
-    if (!elements[index]) return null; // hole
-    return resolveNodeType(cachedContainerPaths(arrayPath, 'elements')[index]);
+    const element = positionalElementPath(arrayPath, index);
+    return element ? resolveNodeType(element) : null;
   }
 
   // resolve common element type from an ArrayExpression if all elements share the same type
   // arrayPath must already be a resolved ArrayExpression path
   function resolveArrayLiteralCommonType(arrayPath) {
-    const { elements } = arrayPath.node;
-    if (elements.length === 0) return null;
+    const length = effectiveArgsLength(arrayPath.node.elements);
+    if (!length) return null;
     let common = null;
-    for (let i = 0; i < elements.length; i++) {
-      // bail on holes and spreads - can't determine element types
-      if (!elements[i] || elements[i].type === 'SpreadElement') return null;
-      const resolved = resolveNodeType(cachedContainerPaths(arrayPath, 'elements')[i]);
+    for (let i = 0; i < length; i++) {
+      // a hole reads as no element - no common type through it
+      const element = positionalElementPath(arrayPath, i);
+      const resolved = element && resolveNodeType(element);
       if (!resolved) return null;
       common = commonType(common, resolved);
       if (!common) return null; // mixed types
@@ -340,14 +344,15 @@ export function createPatternBindings({
   // type, else narrowing to the leading string would unsoundly drop the array element's polyfill.
   // holes / spreads / an unresolvable element / mixed types -> null (caller bails to speculative)
   function resolveArrayLiteralMemberCommonType(arrayPath, keyPath) {
-    const { elements } = arrayPath.node;
-    if (elements.length === 0) return null;
+    const length = effectiveArgsLength(arrayPath.node.elements);
+    if (!length) return null;
     let common = null;
-    for (let i = 0; i < elements.length; i++) {
-      if (!elements[i] || elements[i].type === 'SpreadElement') return null;
+    for (let i = 0; i < length; i++) {
+      const element = positionalElementPath(arrayPath, i);
+      if (!element) return null;
       // ... elements stay on the init-only read: the flow resolver has no alias closure for a slot
       // inside an array literal, so asking it there declines every narrow, held container or not
-      const member = resolveObjectMemberPath(resolveRuntimeExpression(cachedContainerPaths(arrayPath, 'elements')[i]), keyPath);
+      const member = resolveObjectMemberPath(resolveRuntimeExpression(element), keyPath);
       if (!member) return null;
       common = commonType(common, member);
       if (!common) return null; // mixed types
@@ -584,14 +589,12 @@ export function createPatternBindings({
         // key-path (`const [...{ length }] = a`) reads off that Array, but resolving it precisely
         // needs the source element type - bail so the member doesn't mis-resolve as the Array
         if (step < 0) return rest.length ? null : new $Object('Array');
-        if (!t.isArrayExpression(objPath.node) || objPath.node.elements.length <= step) return null;
-        // any spread at or before the target index shifts subsequent positions to a runtime-
-        // determined slot - `[...spread, 'x'][1]` resolves to spread[1] OR 'x' depending on
-        // spread.length. mirror `resolveArrayLiteralElement`'s spread-guard so this nested
-        // path matches the top-level extraction semantics
-        if (spreadAtOrBefore(objPath.node.elements, step)) return null;
-        const elementPath = cachedContainerPaths(objPath, 'elements')[step];
-        flowAware ||= elementPath?.node?.type === 'Identifier';
+        if (!t.isArrayExpression(objPath.node)) return null;
+        // the positional read `resolveArrayLiteralElement` makes, so this nested path matches the
+        // top-level extraction semantics
+        const elementPath = positionalElementPath(objPath, step);
+        if (!elementPath) return null;
+        flowAware ||= elementPath.node.type === 'Identifier';
         rawPath = elementPath;
         objPath = resolveRuntimeExpression(elementPath);
         keyPath = rest;
@@ -840,8 +843,9 @@ export function createPatternBindings({
         // default may be overridden even when arguments[paramIndex] is absent - treat as overridden
         // (the binding then resolves generic, not narrowed to the default's type). matches the
         // arg->param spread guard in resolveDirectParam / paramHasOverridingArg
-        if (spreadAtOrBefore(callNode.arguments, argIndex)) return false;
-        const arg = callNode.arguments?.[argIndex];
+        const length = effectiveArgsLength(callNode.arguments ?? []);
+        if (length === null) return false;
+        const arg = argIndex < length ? resolveCallArgument(callNode.arguments, argIndex) : null;
         if (!arg) continue;
         if (isVoidExpression(arg)) continue;
         if (isBareUndefinedIdentifier(arg) && !getScopeBinding(ref.scope, 'undefined')) continue;
