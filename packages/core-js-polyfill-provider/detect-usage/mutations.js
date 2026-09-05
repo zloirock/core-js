@@ -18,8 +18,10 @@ import {
   FN_NODE_TYPES,
   FUNCTION_LIKE_NODE_TYPES,
   MUTATED_MEMBERS_UNKNOWN,
+  positionalElements,
   POSSIBLE_GLOBAL_OBJECTS,
   PRIMITIVE_LITERAL_TYPES,
+  resolveCallArgumentCoords,
   TS_EXPR_WRAPPERS,
   VALUE_FLOW_ASSIGN_OPS,
   canHoldBuiltIn,
@@ -691,9 +693,16 @@ export function mutationShapesReducer(packages = null) {
     if (initNode?.type !== 'ArrayExpression' && initNode?.type !== 'ObjectExpression') return;
     const pairs = [];
     if (patternNode.type === 'ArrayPattern' && initNode.type === 'ArrayExpression') {
+      // the init read at its runtime positions; where a spread of a binding leaves none, every
+      // element from it on may land in any later slot, so the slot escapes them all
+      const expanded = positionalElements(initNode.elements);
+      const spreadAt = initNode.elements.findIndex(item => item?.type === 'SpreadElement');
+      const shifted = spreadAt === -1 ? [] : initNode.elements.slice(spreadAt);
       patternNode.elements.forEach((target, index) => {
-        if (target?.type === 'RestElement') pairs.push([target.argument, { rest: initNode.elements.slice(index) }]);
-        else if (target) pairs.push([target, initNode.elements[index]]);
+        if (!target) return;
+        if (target.type === 'RestElement') pairs.push([target.argument, { rest: expanded ? expanded.slice(index) : initNode.elements }]);
+        else if (resolveCallArgumentCoords(initNode.elements, index)) pairs.push([target, resolveCallArgument(initNode.elements, index)]);
+        else pairs.push([target, { rest: shifted }]);
       });
     } else if (patternNode.type === 'ObjectPattern' && initNode.type === 'ObjectExpression') {
       for (const prop of patternNode.properties) {

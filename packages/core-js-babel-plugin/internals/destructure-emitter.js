@@ -85,6 +85,7 @@ import {
   destructurePatternHostPath,
   fallbackDestructureHasPolyfillableBranch,
   firstPatternProp,
+  flattenArrayWrapperInits,
   isBuiltInSurfaceNav,
   isInstanceSurfaceNav,
   isReReadableSurfaceNav,
@@ -4253,6 +4254,8 @@ export default function createDestructureEmitter({
     // place - and a leaf asked after that reads a shrunken path, taking the generic dispatcher where
     // its sibling narrowed. the resolver caches by prop, so this only moves the question earlier
     primeDestructureReceiverTypes(prop);
+    // an inline-array spread in a wrapper literal flattens first: every route below edits by slot
+    flattenArrayWrapperInits(prop);
     // a wrapper level whose OTHER slots are holes evaluates them for their effects alone: those lift
     // ahead of the declaration, in source order, before any route below reads the level - what stays
     // is the elision the pattern already reads, and every question about the init then sees a level
