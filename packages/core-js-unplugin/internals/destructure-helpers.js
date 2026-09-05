@@ -57,6 +57,7 @@ import {
   patternBindingCount,
   patternHasSeveralSeKeys,
   patternKeepsEffectfulKey,
+  patternLevelKeepsEffectfulHop,
   peelNestedSequenceExpressions,
   peelParenAndTSParentPath,
   peelSkippableWrapperPath,
@@ -74,7 +75,10 @@ import {
   unwrapRuntimeExpr,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { ownEmittedPatternClaim, ownOutputTests } from '@core-js/polyfill-provider/detect-usage/own-output';
-import { hopNamesMissingAbleCtor } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
+import {
+  hopNamesMissingAbleCtor,
+  hostLevelSurvives,
+} from '@core-js/polyfill-provider/detect-usage/destructure-plan';
 import { detectIifeArgReceiver } from './destructure-emit-utils.js';
 import { walkAstNodes } from './plugin-helpers.js';
 import { cloneStamped, nodeSite } from './nav-spine.js';
@@ -880,7 +884,9 @@ export function planLiteralRoute({ metaPath, prop, sentinel, chain, declarator, 
       // ... asked of THIS DECLARATOR's own pattern, not of the declaration: a sibling declarator
       // keeps its own binding, and the consumed one splits off beside it - the split the other leg
       // already performs (`const { y: { at } } = { y: nb.y }, zn = 1`)
-      if (!literalReceiver && declaratorConsumedWhole && !sentinel) {
+      // ... and only where the residual DIES: a level an effectful hop key keeps would run the
+      // carried effect a second time beside the dispatch
+      if (!literalReceiver && declaratorConsumedWhole && !sentinel && !hostLevelSurvives(declarator)) {
         const carried = resolveNestedReceiverNode(metaPath, { allowInitCarriedEffects: true, adapter }) ?? null;
         if (carried && receiverPerformsEveryInitEffect(declarator.init, carried)) {
           literalReceiver = carried;
@@ -897,8 +903,9 @@ export function planLiteralRoute({ metaPath, prop, sentinel, chain, declarator, 
   // ... a RELAXED single read (a member, a selection) beside a residual takes it too where an
   // observable property stands BEFORE the slot: hoisting the read would fire its getter ahead of
   // that property, so the memo is written in the slot instead
-  const memoCandidate = (!literalReceiver || relaxedReceiver) && !declaratorConsumedWhole && chain.length > 0
-    ? nestedSlotMemoPlan(metaPath, { adapter }) : null;
+  // ... a level an effectful hop key keeps is a residual beside the claim exactly like a rest's
+  const memoCandidate = (!literalReceiver || relaxedReceiver) && (!declaratorConsumedWhole || hostLevelSurvives(declarator))
+    && chain.length > 0 ? nestedSlotMemoPlan(metaPath, { adapter }) : null;
   const slotMemo = memoCandidate && (!literalReceiver || !memoCandidate.hoist) ? memoCandidate : null;
   if (slotMemo) {
     literalReceiver = slotMemo.node;
@@ -1689,7 +1696,9 @@ export function isPlainConsumableProp(prop, { symbolProp = false, ctorPattern = 
 // removed prop changes what it collects (babel renames to `_unused` sentinels - staged).
 // computed / defaulted siblings keep their own routing and survive in the residual
 export function hasRestSibling(pattern) {
-  return hasRestSiblingExcept(pattern.properties, null);
+  // ... and a HOP whose key carries an effect keeps its level exactly as a rest does: the hop
+  // retires to a sentinel, the key runs once where it stands (the provider plan's own rule)
+  return hasRestSiblingExcept(pattern.properties, null) || patternLevelKeepsEffectfulHop(pattern);
 }
 
 // a DECLINED mirror's leaf defaults still take the sound polyfill (the slot fires only where
