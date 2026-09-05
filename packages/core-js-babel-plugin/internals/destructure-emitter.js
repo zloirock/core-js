@@ -3227,21 +3227,52 @@ export default function createDestructureEmitter({
       skippedNodes.add(prop.node);
       prop.remove();
       if (hostId) pruneEmptiedHopProps(hostId, { mint: generateUnusedId });
-      // ... and a host pattern the claim emptied WHOLE binds nothing: with a pure init it leaves,
-      // since a declarator binding nothing beside one that binds is a shape the standard
-      // destructuring lowering miscompiles, and the memo it read keeps that read for its siblings
+      // ... and a host pattern the claim emptied WHOLE binds nothing: with a pure init it leaves -
+      // the claim's own read already coerced the receiver, so the empty pattern's throw on a nullish
+      // one is spent, a declarator binding nothing beside one that binds is a shape the standard
+      // destructuring lowering miscompiles, and the other leg drops the same husk (`let {} = r`)
       // ... dropped AFTER the traversal: paths into the removed subtree are still queued, and
       // babel asks a removed node for its parent before this emitter's own guards run
-      // ... and an EXPORTED host reading a memo planted ahead of its wrapper is the same shape one
-      // statement up: its sole declarator binds nothing, so the whole export leaves.
       // in a LOOP HEAD there is nowhere to lift to, so an emptied host carrying an EFFECT stays as
       // the `_unused` sink instead of leaving
       if (hostId?.type === 'ObjectPattern' && !hostId.properties.length && hostDeclarator?.node
         && (!mayHaveSideEffects(hostDeclarator.node.init)
-          ? hostDeclarator.parentPath?.node?.declarations?.length > 1
-            || (wholeInitMemoized.has(hostDeclarator.node) && hostDeclarator.parentPath?.parentPath?.isExportNamedDeclaration())
-          : isForInitDeclaration(hostDeclarator.parentPath?.parentPath?.node, hostDeclarator.parentPath?.node))) {
+          || isForInitDeclaration(hostDeclarator.parentPath?.parentPath?.node, hostDeclarator.parentPath?.node))) {
         emptiedHostDeclarators.set(hostDeclarator.node, hostDeclarator.parentPath);
+      } else if (hostId?.type === 'ArrayPattern' && hostDeclarator?.node && patternBindingCount(hostId) === 0) {
+        // ... and an ARRAY wrapper whose every slot the claims emptied is the same husk one level
+        // up (`[{}] = [r]`): the wrapper-host prune drops it where nothing binds and nothing runs.
+        // an element that RUNS lifts as a statement ahead of the declaration first, in source order
+        // - the other leg's shape (`eff(); const values = ...`) - so the husk it leaves is pure; a
+        // SPREAD iterates its argument and keeps the level (a statement has no shape for it)
+        const hostDeclaration = hostDeclarator.parentPath;
+        const { init } = hostDeclarator.node;
+        // ... only where the declaration is the host's alone: beside a sibling declarator the
+        // element's effect would climb over that sibling's init, so the husk stays and runs in place
+        if (init?.type === 'ArrayExpression' && statementListOf(hostDeclaration.parentPath?.node)
+          && hostDeclaration.node.declarations.length === 1
+          && init.elements.every(element => element?.type !== 'SpreadElement')) {
+          // ... ahead of every extraction this host already emitted: the flatten rendered its
+          // statics before the declaration earlier than this claim, and native ran the element
+          // before any of them read - so the lift climbs over the statements the host's own props
+          // produced (`extractionPropOf` names them) to the source order
+          const { start, end } = hostDeclarator.node;
+          let anchor = hostDeclaration;
+          for (let prev = anchor.getPrevSibling(); prev?.node; prev = anchor.getPrevSibling()) {
+            const declarations = prev.node.type === 'VariableDeclaration' ? prev.node.declarations : null;
+            if (!declarations?.length || !declarations.every(item => {
+              const source = extractionPropOf.get(item);
+              return typeof source?.start === 'number' && source.start >= start && source.end <= end;
+            })) break;
+            anchor = prev;
+          }
+          init.elements.forEach((element, index) => {
+            if (!element || !mayHaveSideEffects(element)) return;
+            anchor.insertBefore(t.expressionStatement(collapseLiftedStore(element, prop)));
+            init.elements[index] = null;
+          });
+        }
+        if (!mayHaveSideEffects(init)) emptiedWrapperHosts.set(hostDeclarator.node, hostDeclaration);
       }
       return true;
     }
