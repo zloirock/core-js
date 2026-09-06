@@ -237,12 +237,7 @@ function captureTransform(source, pluginOptions, testId) {
   const { logs, warns, restore } = captureConsole();
   try {
     const plugin = createPlugin(pluginOptions);
-    let result = plugin.transform(source, testId);
-    // TS type assertions like <Type>expr cause JSX parse errors - retry without JSX
-    // only when source actually contains `<` that could be misinterpreted
-    if (result === null && testId.endsWith('.tsx') && source.includes('<') && !source.includes('/>')) {
-      result = plugin.transform(source, testId.replace('.tsx', '.ts'));
-    }
+    const result = plugin.transform(source, testId);
     return { code: result?.code ?? source, map: result?.map ?? null, abstained: result === null, logs, warns };
   } finally {
     restore();

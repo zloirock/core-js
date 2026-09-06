@@ -153,7 +153,7 @@ import {
   registerDeclAliasIfSound,
 } from '@core-js/polyfill-provider/helpers/class-walk';
 import {
-  symbolKeyToEntry,
+  symbolStaticMeta,
 } from '@core-js/polyfill-provider/detect-usage/globals';
 import {
   classifyVariableDeclarationHost,
@@ -516,6 +516,15 @@ export default function createDestructureEmitter({
     }
     return node;
   }
+  // the pure read of `Symbol.iterator`, asked once: the resolver answers both halves from
+  // `built-in-definitions`, and the two renders below spell whatever it says. memoising is safe
+  // only for a WELL-KNOWN key - a `/constructor` entry additionally rides the file's own
+  // escaped-ctor and mutated-static rewrites, so the `Symbol` read below asks per call
+  let symbolIteratorPureRead = null;
+  function symbolIteratorPure() {
+    return symbolIteratorPureRead ??= resolvePure(symbolStaticMeta('iterator'), null);
+  }
+
   // original body index of each declaration, before insertBefore shifts it
   const originalDeclKeys = new WeakMap();
   // flat-family multi-declarator declarations touched by per-prop emission: split into one
@@ -2001,7 +2010,8 @@ export default function createDestructureEmitter({
             // a synth Symbol.iterator sentinel re-keys through the polyfilled binding so engines without
             // native `Symbol` can still evaluate the computed key (the original key was skip-seeded above)
             if (planNode.extractions?.[0]?.synth === 'symbol-iterator') {
-              planNode.prop.key = t.cloneNode(injectPureImport('symbol/iterator', 'Symbol$iterator'));
+              const pure = symbolIteratorPure();
+              planNode.prop.key = t.cloneNode(injectPureImport(pure.entry, pure.hintName));
             }
             // a consumed HOP whose leaves spell an effectful key keeps its shape, the leaves retiring
             // one by one: retiring the hop whole would drop the key the source still evaluates
@@ -2231,10 +2241,13 @@ export default function createDestructureEmitter({
   function anchoredResidualPropKey(key, scope) {
     const name = anchoredResidualSymbolKeyName({ key, computed: true, scope, adapter, path: null });
     if (name === null) return null;
-    const entry = symbolKeyToEntry(`Symbol.${ name }`);
-    if (entry && isEntryNeeded?.(entry)) return t.cloneNode(injectPureImport(entry, `Symbol$${ name }`));
-    if (isEntryNeeded?.('symbol/constructor')) {
-      return t.memberExpression(t.cloneNode(injectPureImport('symbol/constructor', 'Symbol')), t.identifier(name));
+    const wellKnown = resolvePure(symbolStaticMeta(name), null);
+    if (wellKnown && isEntryNeeded?.(wellKnown.entry)) {
+      return t.cloneNode(injectPureImport(wellKnown.entry, wellKnown.hintName));
+    }
+    const constructor = resolvePure({ kind: 'global', name: 'Symbol' }, null);
+    if (constructor && isEntryNeeded?.(constructor.entry)) {
+      return t.memberExpression(t.cloneNode(injectPureImport(constructor.entry, constructor.hintName)), t.identifier(name));
     }
     return null;
   }
@@ -2300,8 +2313,9 @@ export default function createDestructureEmitter({
   // otherwise be re-claimed into a dispatcher call on insertion - while everything INSIDE stays
   // live: the guard test relies on re-entry for its proxy-root substitution
   function probeKeyReadNode(guardNode, probeKey) {
-    const read = probeKey.symbolIterator
-      ? t.memberExpression(guardNode, t.cloneNode(injectPureImport('symbol/iterator', 'Symbol$iterator')), true)
+    const iterator = probeKey.symbolIterator ? symbolIteratorPure() : null;
+    const read = iterator
+      ? t.memberExpression(guardNode, t.cloneNode(injectPureImport(iterator.entry, iterator.hintName)), true)
       : isValidIdentifierName(probeKey.name)
         ? t.memberExpression(guardNode, t.identifier(probeKey.name))
         : t.memberExpression(guardNode, t.stringLiteral(probeKey.name), true);
