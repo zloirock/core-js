@@ -1,3 +1,5 @@
+import "core-js/modules/es.symbol.constructor";
+import "core-js/modules/es.symbol.description";
 import "core-js/modules/es.symbol.async-dispose";
 import "core-js/modules/es.symbol.async-iterator";
 import "core-js/modules/es.symbol.dispose";
@@ -8,9 +10,11 @@ import "core-js/modules/es.suppressed-error.constructor";
 import "core-js/modules/es.promise.constructor";
 import "core-js/modules/es.promise.catch";
 import "core-js/modules/es.promise.finally";
+import "core-js/modules/es.promise.reject";
 import "core-js/modules/es.promise.resolve";
 import "core-js/modules/es.array.iterator";
 import "core-js/modules/es.async-iterator.async-dispose";
+import "core-js/modules/es.array.from";
 import "core-js/modules/es.iterator.dispose";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";

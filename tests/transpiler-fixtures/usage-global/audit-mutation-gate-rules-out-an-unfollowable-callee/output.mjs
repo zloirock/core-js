@@ -1,7 +1,7 @@
-import "core-js/modules/es.object.to-string";
-import "core-js/modules/es.array.at";
-import "core-js/modules/es.array.from";
-import "core-js/modules/es.string.iterator";
+require("core-js/modules/es.object.to-string");
+require("core-js/modules/es.array.at");
+require("core-js/modules/es.array.from");
+require("core-js/modules/es.string.iterator");
 // the negative half of the same rule: a call the scoped stage cannot follow to a function
 // literal - a member callee, and a callee this file never binds - reaches no namespace there
 // either, so the query rules the file out and the `Array.from` narrow survives

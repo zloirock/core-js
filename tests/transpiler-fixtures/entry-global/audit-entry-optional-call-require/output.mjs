@@ -1,3 +1,3 @@
-import "core-js/modules/es.object.to-string";
-import "core-js/modules/es.array.from";
-import "core-js/modules/es.string.iterator";
+require("core-js/modules/es.object.to-string");
+require("core-js/modules/es.array.from");
+require("core-js/modules/es.string.iterator");

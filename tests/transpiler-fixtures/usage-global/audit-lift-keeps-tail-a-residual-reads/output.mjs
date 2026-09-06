@@ -1,3 +1,7 @@
+import "<CWD>/packages/core-js/modules/es.symbol.constructor.js";
+import "<CWD>/packages/core-js/modules/es.symbol.description.js";
+import "<CWD>/packages/core-js/modules/es.object.assign.js";
+import "<CWD>/packages/core-js/modules/es.object.get-own-property-symbols.js";
 import "<CWD>/packages/core-js/modules/es.object.to-string.js";
 import "<CWD>/packages/core-js/modules/es.array.at.js";
 import "<CWD>/packages/core-js/modules/es.array.from.js";

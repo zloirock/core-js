@@ -1,11 +1,11 @@
-import "core-js/modules/es.object.to-string";
-import "core-js/modules/es.array.at";
-import "core-js/modules/es.array.find";
-import "core-js/modules/es.array.find-index";
-import "core-js/modules/es.array.from";
-import "core-js/modules/es.array.includes";
-import "core-js/modules/es.array.of";
-import "core-js/modules/es.string.iterator";
+require("core-js/modules/es.object.to-string");
+require("core-js/modules/es.array.at");
+require("core-js/modules/es.array.find");
+require("core-js/modules/es.array.find-index");
+require("core-js/modules/es.array.from");
+require("core-js/modules/es.array.includes");
+require("core-js/modules/es.array.of");
+require("core-js/modules/es.string.iterator");
 // an entry require in ANY slot of a statement-position comma sequence is an entry: that is how a
 // minifier joins statements - head, middle or tail - and every slot's value is discarded there
 // exactly as on its own line. the sequence is split into its statements first, so the entry is

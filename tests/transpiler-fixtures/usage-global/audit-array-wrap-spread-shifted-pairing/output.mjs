@@ -8,6 +8,7 @@ import "core-js/modules/es.aggregate-error.cause";
 import "core-js/modules/es.array.iterator";
 import "core-js/modules/es.array.at";
 import "core-js/modules/es.array.entries";
+import "core-js/modules/es.array.from";
 import "core-js/modules/es.array.keys";
 import "core-js/modules/es.global-this";
 import "core-js/modules/es.iterator.constructor";

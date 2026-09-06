@@ -1,7 +1,10 @@
+import "core-js/modules/es.symbol.constructor";
+import "core-js/modules/es.symbol.description";
 import "core-js/modules/es.symbol.iterator";
 import "core-js/modules/es.object.to-string";
 import "core-js/modules/es.array.iterator";
 import "core-js/modules/es.array.at";
+import "core-js/modules/es.array.from";
 import "core-js/modules/es.map.constructor";
 import "core-js/modules/es.map.species";
 import "core-js/modules/es.map.get-or-insert";
