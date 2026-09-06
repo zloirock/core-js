@@ -16,15 +16,30 @@ const SFC_FRAMEWORK_MARKERS = ['astro', 'svelte', 'vue'];
 // arms enumerate exactly the real extensions - a single `[cm]?[jt]sx?` would also accept the
 // non-existent `cjsx` / `mtsx`, whose lifted suffix oxc can't parse as JSX/TS
 const SFC_JS_LANG_RE = /^(?:[cm]?[jt]s|[jt]sx)$/;
-// SFC sub-block types whose body is CSS / markup, never runnable JS
-const SFC_NON_JS_TYPES = new Set(['style', 'template']);
+// SFC sub-block types whose body is CSS, at every phase
+const SFC_STYLE_TYPES = new Set(['style']);
+// ... and the one whose body is markup only until the framework plugin compiles it: on `post` a
+// `type=template` block is expected to hold the render FUNCTION that compilation produced, ordinary
+// JS owed its polyfills like any other. Same inference and the same cheap failure as the bare id
+const SFC_COMPILED_TO_JS_TYPES = new Set(['template']);
+// framework SFC source extensions. the bare id (no marker params) is the whole file, markup on
+// `pre` and the compiled module on `post`
+const SFC_EXT_RE = /\.(?:astro|svelte|vue)$/i;
 // Vite asset-import query params whose resolved body is not user-authored JS (`?url` / `?raw` /
-// `?worker` / `?inline` / ...). matched at ANY param position (the prior regex used `[&?]`), so a
-// structured key check is order-neutral by construction. `?worker` and `?sharedworker` both resolve to
-// a worker-constructor factory (the body is bundled separately), and `worker` has `-module` / `_file` sub-forms
-const ASSET_QUERY_PARAMS = new Set(['css', 'direct', 'html-proxy', 'import', 'inline', 'raw', 'url',
-  'used', 'worklet']);
-const WORKER_PARAM_RE = /^(?:shared)?worker(?:[-_][a-z]+)?$/;
+// `?inline` / ...). matched at ANY param position (the prior regex used `[&?]`), so a
+// structured key check is order-neutral by construction
+const ASSET_QUERY_PARAMS = new Set(['css', 'direct', 'import', 'inline', 'raw', 'url', 'used', 'worklet']);
+// `?worker` / `?sharedworker` resolve to a worker-CONSTRUCTOR factory Vite generates, and its
+// `-module` / `-inline` sub-forms with them; the body is bundled separately under its own id
+const WORKER_WRAPPER_PARAM_RE = /^(?:shared)?worker(?:-[a-z]+)?$/;
+// ... and THAT id is `?worker_file&type=module`, which carries the author's own worker source.
+// `type=classic` is loaded as a script (Vite prepends `importScripts`), where neither import
+// render can land, so it stays out
+const WORKER_SOURCE_PARAM = 'worker_file';
+// vite's html-proxy body is an inline block lifted out of an .html file; the trailing
+// `index=<n>.<ext>` says which kind, exactly as vite's own `htmlProxyRE` reads it. `.js` is the
+// author's `<script type="module">` body - real JS on every phase - and `.css` an inline `<style>`
+const HTML_PROXY_JS_INDEX_RE = /^\d+\.js$/;
 
 // Split a bundler module id into its path and query params. Each decoded param key + value is lowercased
 // so every structured lookup stays case-insensitive (markers / types / langs were matched case-
@@ -85,35 +100,54 @@ function sfcJsLang(params) {
   return lang && SFC_JS_LANG_RE.test(lang) ? lang : null;
 }
 
-function sfcIsNonJsTypeBlock(params) {
-  return SFC_NON_JS_TYPES.has(params.get('type'));
+// a framework SFC SOURCE file by its BARE id - the whole file rather than one of the sub-blocks its
+// plugin splits it into. Whether that plugin hands the id back compiled is INFERRED from its
+// conventions, not verified here, and the admission is safe because being wrong is cheap: a body
+// that is still markup fails the parse, which warns and skips. Refusing instead would lose the
+// polyfills of a compiled module silently. Any query or fragment means another stage owns the id
+export function isSfcSourceFile({ path, params, hash }) {
+  // a bare trailing separator carries nothing, so `App.vue?` and `App.vue#` are the bare id the
+  // same way `App.vue` is - the question is whether anything NAMES a sub-part of the file
+  return SFC_EXT_RE.test(path) && !hash.slice(1) && params.size === 0;
+}
+
+// vite's inline `<script>` proxy, as opposed to the `<style>` one sharing the marker
+export function isHtmlProxyScript(params) {
+  return params.has('html-proxy') && HTML_PROXY_JS_INDEX_RE.test(params.get('index') ?? '');
 }
 
 // --- composed predicates ---
 
-// shouldTransform's SFC admission: a runnable JS/TS sub-block. An explicit JS lang (either form) admits
-// unless the block is a style / template body; otherwise a framework-marked script / module block with NO
-// lang param AT ALL is JS by default. the default arm fires only when `sfcLangParam` is null (truly
-// absent) - any lang hint (`lang=ts` / `lang.ts` / non-JS `lang.coffee` / even an empty `lang=` / `lang.`)
-// is NOT markerless and must not default to JS, else a non-JS lang would parse-as-JS like the JS langs did
-export function isSfcScriptBlock(params) {
-  if (sfcIsNonJsTypeBlock(params)) return false;
-  if (sfcJsLang(params)) return true;
+// shouldTransform's SFC admission: a runnable JS/TS sub-block. A style body never admits; a TEMPLATE
+// body admits only once `compiled` says the framework plugin has already turned it into JS, and only
+// if it declares a JS lang. Otherwise an explicit JS lang (either form) admits, and a framework-marked
+// script / module block with NO lang param AT ALL is JS by default. That default arm fires only when
+// `sfcLangParam` is null (truly absent) - any lang hint (`lang=ts` / `lang.ts` / non-JS `lang.coffee` /
+// even an empty `lang=` / `lang.`) is NOT markerless and must not default to JS, else a non-JS lang
+// would parse-as-JS like the JS langs did
+export function isSfcScriptBlock(params, { compiled = false } = {}) {
   const type = params.get('type');
+  if (SFC_STYLE_TYPES.has(type)) return false;
+  // the ONE phase-dependent arm: a template block is markup until its plugin compiles it
+  if (SFC_COMPILED_TO_JS_TYPES.has(type)) return compiled && !!sfcJsLang(params);
+  if (sfcJsLang(params)) return true;
   return sfcLangParam(params) === null && sfcFrameworkMarked(params) && (type === 'module' || type === 'script');
-}
-
-// snapshot-cache's sub-block predicate: ANY framework-marked block (incl. style / template, which still
-// need a distinct cache key so sibling blocks of one file don't collide) OR a JS-lang-admitted markerless
-// block. Intentionally WIDER than isSfcScriptBlock (which gates polyfill injection, not cache keying).
-export function isSfcSubBlock(params) {
-  return sfcFrameworkMarked(params) || (!!sfcJsLang(params) && !sfcIsNonJsTypeBlock(params));
 }
 
 // a Vite asset-import query whose body is not user JS - skip transform entirely
 export function isViteAssetQuery(params) {
   for (const key of params.keys()) {
-    if (ASSET_QUERY_PARAMS.has(key) || WORKER_PARAM_RE.test(key)) return true;
+    // the two markers that carry the author's own JS under one spelling and a generated wrapper
+    // under another - the rejection is the spelling, not the marker
+    if (key === WORKER_SOURCE_PARAM) {
+      if (params.get('type') === 'module') continue;
+      return true;
+    }
+    if (key === 'html-proxy') {
+      if (isHtmlProxyScript(params)) continue;
+      return true;
+    }
+    if (ASSET_QUERY_PARAMS.has(key) || WORKER_WRAPPER_PARAM_RE.test(key)) return true;
   }
   return false;
 }

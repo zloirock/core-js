@@ -10,7 +10,7 @@ Build-time only, ESM. Node `^22.18.0 || >=24.11.0`, plus Bun for the `bun` entry
 
 At the package root, one `<bundler>.js` and `<bundler>.d.ts` pair per bundler - Vite, Webpack, Rspack, Rsbuild, Rollup, Rolldown, esbuild, Farm, Bun. Each is a one-line re-export of the corresponding binding from `index.js`. A pair is not the whole story though: bundlers are also named in `KNOWN_BUNDLERS`, in the hook-shape branch for Rollup and Rolldown, in `PRE_POST_UNSAFE_BUNDLERS` (where `pre+post` degrades to `post`), and in `CHUNK_LOADER_BUNDLERS`. `unloader` has no entry pair on purpose and must not get one, but it *is* present in `KNOWN_BUNDLERS` and `CHUNK_LOADER_BUNDLERS` because upstream can hand it to us - do not delete it there.
 
-`index.js` builds those bindings through `createUnplugin` and decides which module ids are transformed at all: virtual modules, commonjs proxies and asset queries are filtered out there.
+`index.js` builds those bindings through `createUnplugin` and decides which module ids are transformed at all: virtual modules, commonjs proxies and asset queries are filtered out there. Admission takes the sub-plugin's `enforce`, the one phase-dependent question in the file: at `pre` a framework SFC id still holds the author's markup, at `post` the JavaScript its plugin compiled it into. Every other rule there is the id's language fact, which is the provider's (`moduleIdLanguage`); `sourceDialectOf` only translates it into oxc's `lang` / `sourceType` vocabulary - the same `lang` the PRINTER takes, so the two cannot disagree.
 
 `internals/` holds the pipeline. The core and detection:
 
@@ -21,7 +21,7 @@ At the package root, one `<bundler>.js` and `<bundler>.d.ts` pair per bundler - 
 - `builders.js` - a re-export of the core's render canon (`@core-js/polyfill-provider/render`); `emit-shared.js` - this leg's own render idioms plus the canon shapes its emitters read from one import
 - `estree-compat.js` - ESTree to Babel literal-type mapping, the seam between the two AST dialects
 - `sfc-shapes.js` - module ids of SFC virtual modules (Vue, Svelte, Astro), whose metadata lives in query params
-- `snapshot-cache.js` - the pre-to-post handoff for `phase: 'pre+post'`
+- `snapshot-cache.js` - the pre-to-post handoff for `phase: 'pre+post'`, keyed by environment plus the whole id. Query and fragment are IDENTITY: a dev server runs `/dep.js` and `/dep.js?v=<hash>` as two interleaved modules, and one plugin instance serves several environments at once. Only the HMR timestamp is noise. What pre hands post is its injector state, never its tree - emission mutates that tree, so post re-parses its own input
 - `plugin-helpers.js` - directive prologues, the walk helpers, the census reducers
 
 The usage-pure emitter is layered bottom-up and acyclic; `proxy-spine`, `optional-dispatch` and `destructure-drain` are per-transform channel factories, the rest are plain modules:
