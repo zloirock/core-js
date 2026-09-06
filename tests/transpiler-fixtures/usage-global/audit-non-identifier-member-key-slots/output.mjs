@@ -1,6 +1,12 @@
+import "core-js/modules/es.object.to-string";
+import "core-js/modules/es.array.iterator";
 import "core-js/modules/es.array.flat";
 import "core-js/modules/es.array.species";
 import "core-js/modules/es.array.unscopables.flat";
+import "core-js/modules/es.weak-map.constructor";
+import "core-js/modules/es.weak-map.get-or-insert";
+import "core-js/modules/es.weak-map.get-or-insert-computed";
+import "core-js/modules/web.dom-collections.iterator";
 // keys that are NOT identifiers route around member-name detection entirely: a string-literal key, a
 // numeric key and a private name can each carry a global-shaped spelling while never being a reference,
 // so none of them may inject. each names a global used NOWHERE else, so any import for it is a false

@@ -1,8 +1,8 @@
 "use strict";
 
-import "core-js/modules/es.object.to-string";
-import "core-js/modules/es.array.from";
-import "core-js/modules/es.string.iterator";
+require("core-js/modules/es.object.to-string");
+require("core-js/modules/es.array.from");
+require("core-js/modules/es.string.iterator");
 // SE prefix on indirect require sitting between an existing directive (`"use strict"`)
 // and a non-directive string-literal expression. babel's directive-promotion guard would
 // fire for this slot (next surviving sibling `"use foo"` would round-trip into the

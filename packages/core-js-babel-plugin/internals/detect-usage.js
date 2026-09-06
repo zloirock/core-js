@@ -1009,13 +1009,22 @@ export function createSyntaxVisitors({ injectModulesForModeEntry, injectModulesF
     },
     ImportExpression: handlers.onImportExpression,
     Function: handlers.onFunction,
+    AwaitExpression: handlers.onAwaitExpression,
     'ForOfStatement|ArrayPattern'(path) {
       if (path.isForOfStatement()) handlers.onForOfStatement(path);
       else handlers.onArrayPattern(path);
     },
-    SpreadElement: handlers.onSpreadElement,
+    ObjectPattern: handlers.onObjectPattern,
+    // babel@7 spells an object spread `SpreadProperty`, babel@8 `SpreadElement` in both hosts
+    'SpreadElement|SpreadProperty': handlers.onSpreadElement,
+    JSXSpreadAttribute: handlers.onJsxSpreadAttribute,
+    JSXSpreadChild: handlers.onJsxSpreadChild,
     YieldExpression: handlers.onYieldExpression,
+    RegExpLiteral: handlers.onRegExpLiteral,
     VariableDeclaration: handlers.onVariableDeclaration,
+    // every class-member spelling this dialect has: the rule reads the KEY, so the list only has
+    // to REACH each of them
+    'ClassProperty|ClassPrivateProperty|ClassMethod|ClassPrivateMethod|ClassAccessorProperty': handlers.onClassMember,
     Class: handlers.onClass,
   };
 }

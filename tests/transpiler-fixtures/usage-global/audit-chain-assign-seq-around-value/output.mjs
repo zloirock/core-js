@@ -1,7 +1,10 @@
+import "<CWD>/packages/core-js/modules/es.symbol.constructor.js";
+import "<CWD>/packages/core-js/modules/es.symbol.description.js";
 import "<CWD>/packages/core-js/modules/es.symbol.iterator.js";
 import "<CWD>/packages/core-js/modules/es.object.to-string.js";
 import "<CWD>/packages/core-js/modules/es.array.iterator.js";
 import "<CWD>/packages/core-js/modules/es.array.at.js";
+import "<CWD>/packages/core-js/modules/es.array.from.js";
 import "<CWD>/packages/core-js/modules/es.array.of.js";
 import "<CWD>/packages/core-js/modules/es.array.push.js";
 import "<CWD>/packages/core-js/modules/es.function.name.js";

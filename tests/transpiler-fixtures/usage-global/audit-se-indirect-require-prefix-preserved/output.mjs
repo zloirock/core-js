@@ -1,8 +1,8 @@
-import "core-js/modules/es.object.to-string";
-import "core-js/modules/es.array.from";
-import "core-js/modules/es.array.includes";
-import "core-js/modules/es.array.of";
-import "core-js/modules/es.string.iterator";
+require("core-js/modules/es.object.to-string");
+require("core-js/modules/es.array.from");
+require("core-js/modules/es.array.includes");
+require("core-js/modules/es.array.of");
+require("core-js/modules/es.string.iterator");
 // An existing core-js require is removed in usage mode (the plugin re-injects the module), but an INDIRECT
 // require `(spy(), require)("core-js/...")` carries a side-effect prefix. The removal extracts that prefix -
 // the callee's AND an outer comma sequence's (`0, (spy(), require)(...)` keeps `spy()`) - as bare statements

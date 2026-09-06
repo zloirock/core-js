@@ -1,12 +1,7 @@
-import "core-js/modules/es.symbol.iterator";
-import "core-js/modules/es.object.to-string";
-import "core-js/modules/es.array.iterator";
 import "core-js/modules/es.array.at";
 import "core-js/modules/es.array.includes";
 import "core-js/modules/es.array.map";
 import "core-js/modules/es.array.species";
-import "core-js/modules/es.string.iterator";
-import "core-js/modules/web.dom-collections.iterator";
 // the same scope-less param position with the other pattern kinds: a nested rest, an array pattern
 // and a defaulted property. One host per line - ambient function, method signature, ambient class
 // method - and one multi-family method per line, so a host that stopped narrowing shows up as the

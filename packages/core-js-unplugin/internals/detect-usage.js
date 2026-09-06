@@ -1297,11 +1297,22 @@ export function createSyntaxVisitors({ injectModulesForModeEntry, injectModulesF
     FunctionDeclaration: handlers.onFunction,
     FunctionExpression: handlers.onFunction,
     ArrowFunctionExpression: handlers.onFunction,
+    AwaitExpression: handlers.onAwaitExpression,
     ForOfStatement: handlers.onForOfStatement,
     ArrayPattern: handlers.onArrayPattern,
+    ObjectPattern: handlers.onObjectPattern,
     SpreadElement: handlers.onSpreadElement,
+    JSXSpreadAttribute: handlers.onJsxSpreadAttribute,
+    JSXSpreadChild: handlers.onJsxSpreadChild,
     YieldExpression: handlers.onYieldExpression,
+    // estree hands a regexp literal as a `Literal` carrying a `regex` bag
+    Literal: handlers.onRegExpLiteral,
     VariableDeclaration: handlers.onVariableDeclaration,
+    // every class-member spelling this dialect has: the rule reads the KEY, so the list only has
+    // to REACH each of them
+    PropertyDefinition: handlers.onClassMember,
+    MethodDefinition: handlers.onClassMember,
+    AccessorProperty: handlers.onClassMember,
     ClassDeclaration: handlers.onClass,
     ClassExpression: handlers.onClass,
   };
