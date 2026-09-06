@@ -1,6 +1,6 @@
-import "core-js/modules/es.object.to-string";
-import "core-js/modules/es.array.from";
-import "core-js/modules/es.string.iterator";
+require("core-js/modules/es.object.to-string");
+require("core-js/modules/es.array.from");
+require("core-js/modules/es.string.iterator");
 // TypeScript-style `import alt = require('core-js/...')` binds a value the way `import alt from`
 // and `const alt = require()` do: a binding import is never a side-effect entry, used or not, so
 // it is left where the author wrote it with its binding intact - both legs alike. the bare

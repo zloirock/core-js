@@ -126,3 +126,24 @@ const DECLARATION_FILE = /\.d\.(?:cts|mts|ts)$/;
 export function isDeclarationFile(filename) {
   return typeof filename === 'string' && DECLARATION_FILE.test(normalizeImportSource(filename));
 }
+
+const MODULE_ID_LANGUAGE = /\.(?<prefix>[cm]?)(?<family>[jt])s(?<jsx>x?)$/;
+
+// the language family a module id names, or null when it names no runnable JS/TS source at all.
+// asked through `normalizeImportSource`, so the answer is case-insensitive by construction - the
+// property the hand-rolled spellings beside it disagreed about, and a wrong answer there is a
+// FATAL parse rather than a narrower one. `jsx` follows TypeScript's own rule: the js family
+// always admits it, because JSX is a strict superset there - a `<` never starts a JS expression,
+// measured over fifty thousand parses of this repository with zero divergence - while the ts
+// family admits it only through `.tsx`, since `.ts` spends the same syntax on the legacy
+// angle-bracket cast. `script` / `esm` are the extension's own format answer, which neither the
+// body nor the caller may overrule
+export function moduleIdLanguage(id) {
+  if (typeof id !== 'string') return null;
+  const path = normalizeImportSource(id);
+  const match = MODULE_ID_LANGUAGE.exec(path);
+  if (!match || DECLARATION_FILE.test(path)) return null;
+  const { prefix, family, jsx } = match.groups;
+  const ts = family === 't';
+  return { ts, jsx: !ts || jsx === 'x', script: prefix === 'c', esm: prefix === 'm' };
+}

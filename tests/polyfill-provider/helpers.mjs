@@ -76,6 +76,7 @@ import {
   isStatementPosition,
   programPrologueEndIndex,
   prologueEndIndex,
+  resolveBatchDirectivePromotionPolicy,
   isFunctionParamDestructureParent,
   isReusableReceiver,
   methodReadsUsageCensus,
@@ -2602,6 +2603,33 @@ for (const adapter of adapters) {
   check('isAmbientTypeDeclaration/DeclareClass', isAmbientTypeDeclaration(babelAdapter.collectPaths(flow, 'DeclareClass')[0]?.node), true);
   check('isAmbientTypeDeclaration/DeclareFunction', isAmbientTypeDeclaration(babelAdapter.collectPaths(flow, 'DeclareFunction')[0]?.node), true);
 }
+
+// --- resolveBatchDirectivePromotionPolicy: a removal may never change the prologue ---
+
+// the entry slot a removal would leave: `0;` (a promotion the guard blocked) or gone. bodies are
+// duck-typed, which is what the policy reads - the decision is positional, never parser-dialect
+function promotionVerdict(body, candidateIndices, injectedImportsBreakPrologue = false) {
+  const { toRemove, toReplaceWithNoop } = resolveBatchDirectivePromotionPolicy({
+    body, candidateIndices, injectedImportsBreakPrologue,
+  });
+  return { removed: toRemove.length, noop: toReplaceWithNoop.length };
+}
+
+// the case the guard exists for, in its worst spelling: no prologue at all, so the removal CREATES
+// one and a sloppy script silently becomes strict
+checkDeep('promotionPolicy/no prologue, literal behind', promotionVerdict([realCode, bareDirective('use strict'), realCode], [0]), { removed: 0, noop: 1 });
+checkDeep('promotionPolicy/prologue already there', promotionVerdict([markedDirective('use strict'), realCode, bareDirective('use asm'), realCode], [1]), { removed: 0, noop: 1 });
+// nothing to promote: the next surviving sibling is not a string, or a non-directive already
+// stands in the prefix, or the injected block will break the prologue itself
+checkDeep('promotionPolicy/next sibling is code', promotionVerdict([realCode, realCode], [0]), { removed: 1, noop: 0 });
+checkDeep('promotionPolicy/non-directive prefix', promotionVerdict([realCode, realCode, bareDirective('use strict')], [1]), { removed: 1, noop: 0 });
+checkDeep('promotionPolicy/injected imports break the prologue', promotionVerdict([realCode, bareDirective('use strict'), realCode], [0], true), { removed: 1, noop: 0 });
+// a run of literals promotes WHOLE, so the terminator is owed even when the mode-changing one is
+// not the first of them
+checkDeep('promotionPolicy/literal run', promotionVerdict([realCode, bareDirective('a'), bareDirective('use strict'), realCode], [0]), { removed: 0, noop: 1 });
+// batch: the later candidate decides first, and its `0;` is the non-directive that blocks the
+// earlier one - so exactly one terminator lands
+checkDeep('promotionPolicy/two candidates share one terminator', promotionVerdict([realCode, realCode, bareDirective('use strict'), realCode], [0, 1]), { removed: 1, noop: 1 });
 
 // --- bindingBoundName: whichever shape the binding takes ---
 check('bindingBoundName/babel record', bindingBoundName({ identifier: { name: 'a' } }), 'a');

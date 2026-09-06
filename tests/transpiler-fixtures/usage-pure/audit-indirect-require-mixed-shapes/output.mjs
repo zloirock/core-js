@@ -1,4 +1,4 @@
-import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
+var _includesMaybeArray = require("@core-js/pure/actual/array/instance/includes");
 // mix of indirect-require shapes used by webpack / esbuild output: SequenceExpression callee
 // `(0, require)(...)`, optional `require?.(...)` (oxc wraps it in a ChainExpression), MemberExpression
 // tail `require(...).default` (assigned to var) - all three are the leading import region. the

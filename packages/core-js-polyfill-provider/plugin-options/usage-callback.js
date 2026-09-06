@@ -46,6 +46,7 @@ export function createUsageGlobalCallback({
   adapter = null,
   resolveUsage,
   injectModulesForModeEntry,
+  isProposalEntry,
   isDisabled,
   resolveStaticInheritedMember,
   isInheritedStaticLookup,
@@ -90,6 +91,19 @@ export function createUsageGlobalCallback({
     return hasOwnStaticDefinition(meta.key, outerKey);
   }
 
+  // does anything we just injected guarantee the receiver global EXISTS? Two ways it does not, and
+  // they are unrelated:
+  // the member is not this object's own static, so what resolved for it targets something else
+  // entirely (`Promise.name` -> es.function.name) and nothing creates `Promise`;
+  // or the member IS its own static but a PROPOSAL, and a proposal installs itself through the
+  // constructor rather than defining it (`Symbol.metadata` reaches `Symbol` to hang itself off).
+  // Everything else is guaranteed by construction: core-js defines a standard static through its
+  // own export helper, which creates the namespace when the engine has none
+  function receiverIsUnguaranteed(meta, deps) {
+    if (meta.kind !== 'property' || meta.placement !== 'static' || !meta.object) return false;
+    return !hasOwnStaticDefinition(meta.object, meta.key) || deps.some(isProposalEntry);
+  }
+
   function injectBaseConstructor(meta, path) {
     if (meta.kind !== 'property' || meta.placement !== 'static' || !meta.object) return;
     // skip call-shape filters: this pass injects the constructor because a static member is read,
@@ -117,23 +131,15 @@ export function createUsageGlobalCallback({
       }
     }
     const deps = resolveUsage(meta, path);
-    if (deps) {
-      let injected = 0;
-      for (const entry of deps) injected += injectModulesForModeEntry(entry);
-      if (injected) {
-        // a static resolved through a GENERIC hint (`Promise.name` -> es.function.name) injects
-        // nothing that guarantees the RECEIVER global - unlike the global's own static, whose
-        // module defines it. inject the base constructor alongside, else the receiver read
-        // itself throws on engines lacking the global (a globals-table miss no-ops, so universal
-        // receivers like `Math` stay clean)
-        if (meta.kind === 'property' && meta.placement === 'static' && meta.object
-          && !hasOwnStaticDefinition(meta.object, meta.key)) injectBaseConstructor(meta, path);
-        return;
-      }
-      // deps resolved but mode-filtered to nothing: a RECOGNIZED static OUT of the current layer
-      // (`Symbol.metadata` / `Map.from` at mode=actual). fall through to the base-constructor branch
-    }
-    injectBaseConstructor(meta, path);
+    if (deps) for (const entry of deps) injectModulesForModeEntry(entry);
+    // the static's own modules and the RECEIVER's are two independent obligations - reading
+    // `Symbol.metadata` needs `Symbol` to exist whether or not the current layer polyfills the
+    // member - and the second is decided by the SOURCE and the narrowest layer, never by how many
+    // modules the configured one happened to yield. that count is what made the answer depend on
+    // `mode`: `Symbol.metadata` at `full` resolved the member and dropped the `es.symbol.*` that
+    // `actual` had injected, so widening the mode NARROWED the set. `injectBaseConstructor` bails
+    // on its own for a non-static or receiver-less meta, and a globals-table miss no-ops
+    if (!deps || receiverIsUnguaranteed(meta, deps)) injectBaseConstructor(meta, path);
   }
   return (meta, path) => {
     // shadow check for `this.X` - polyfill would bypass the user's own member

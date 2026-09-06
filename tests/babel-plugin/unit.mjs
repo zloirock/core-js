@@ -16,3 +16,6 @@ import './late-paren-compensation-gate.mjs';
 import './parser-dialect-equivalence.mjs';
 import './statement-order-independence.mjs';
 import './per-file-teardown.mjs';
+import './late-cjs-diagnostic.mjs';
+import './entry-directive-promotion.mjs';
+import './injection-spelling-domain.mjs';

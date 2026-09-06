@@ -59,12 +59,11 @@ const SKIP_DIRS = new Set([
   // emission. unplugin extracts only `@core-js` from `babelOptions.plugins` and runs it
   // standalone, so the AST shape that triggered the bug never appears here
   'audit-synth-swap-survives-transform-destructuring',
-  // babel-only: late-CJS detection diagnostic depends on a sibling babel plugin
-  // (`@babel/plugin-transform-modules-commonjs`) running after our programExit. unplugin
-  // doesn't have a babel plugin chain - it parses with oxc and runs core-js standalone,
-  // so the markersGone trigger never fires here. SKIP_DIRS matches by basename so the
-  // single entry covers both usage-pure and usage-global copies of the fixture
-  'audit-late-cjs-rewriter-warning',
+  // babel-only: the row is about a SIBLING babel plugin (`@babel/plugin-transform-modules-commonjs`)
+  // rewriting the body after our programExit. unplugin has no babel plugin chain - it parses with
+  // oxc and runs core-js standalone - so neither the rewrite nor the diagnostic exists here.
+  // SKIP_DIRS matches by basename so the single entry covers both copies of the fixture
+  'audit-late-cjs-rewriter-uniform-output',
   // babel-only: depends on `transform-object-rest-spread` inlining `Object.assign` for the spread
   // under setSpreadProperties, which our post-pass then polyfills. unplugin runs core-js standalone
   // (no babel plugin chain), so the spread is never lowered to an Object.assign here

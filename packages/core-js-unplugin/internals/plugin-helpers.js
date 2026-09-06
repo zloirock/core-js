@@ -10,6 +10,7 @@ import {
   isDestructurePattern,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { ORPHAN_REF_PATTERN } from '@core-js/polyfill-provider/injector-base';
+import { moduleIdLanguage } from '@core-js/polyfill-provider/helpers/path-normalize';
 import { liftSfcLangSuffix } from './sfc-shapes.js';
 
 // re-export the shared `isDirectiveStatement` so unplugin consumers
@@ -21,12 +22,28 @@ export { isDirectiveStatement };
 // stable; canonical impl lives in `sfc-shapes.js` alongside the regexes it consumes
 export { liftSfcLangSuffix };
 
-// what the parser makes of a (query-stripped, SFC-lifted) module id, and with it what the
-// lexer must make of the file's text: `.jsx` / `.tsx` admit JSX (`.js` does NOT - oxc rejects
-// an element there), `.cjs` / `.cts` parse as a Script. the ONE spelling of both rules - the
-// parse options, the import-style default and the lexer dialect all read it
+// oxc's own vocabulary for what a (query-stripped, SFC-lifted) module id names. The language FACT
+// is the provider's (`moduleIdLanguage`); this is its translation into the two knobs `parseSync`
+// takes, and it stays in the binding because the vocabulary is the parser's. `lang` also drives the
+// PRINTER, and the two must never disagree - a tree parsed as JSX printed by the non-JSX printer
+// throws.
+// the goal is `module` for everything but a CommonJS extension, and deliberately NOT oxc's
+// `unambiguous`: that decides by ESM DECLARATIONS alone, so a module whose only module-only syntax
+// is a top-level `await` comes back as a script - and worse, silently reparsed, with
+// `await (import(x))` becoming a CALL of something named `await`. `script` is reached instead by
+// the retry the parse makes when the module goal is PROVEN wrong by a fatal error
 export function sourceDialectOf(cleanId) {
-  return { jsx: /\.[jt]sx$/.test(cleanId), script: /\.c[jt]s$/.test(cleanId) };
+  const language = moduleIdLanguage(cleanId);
+  const jsx = language?.jsx ?? false;
+  return {
+    jsx,
+    // `.mjs` / `.mts` are Modules by extension whatever the body says, which is what makes the
+    // parse's own goal non-evidence there: a module parse that fails on one of them means a broken
+    // file, not a script
+    esm: language?.esm ?? false,
+    lang: language?.ts ? (jsx ? 'tsx' : 'ts') : 'jsx',
+    parseGoal: language?.script ? 'script' : 'module',
+  };
 }
 
 // the positional AST walk lives in the provider (the injector census shares it);

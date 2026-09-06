@@ -68,6 +68,16 @@ export const HELPER_CANON_ENTRIES = new Set([
   IS_ITERABLE_ENTRY,
 ]);
 
+// the meta for a WELL-KNOWN `Symbol.<key>` read, so both emitters ask the resolver the same
+// question and neither writes its answer down. What comes back is the registry's own pair - the
+// entry AND the import hint, which is where `Symbol$iterator` comes from - and for `Symbol` itself
+// (`{ kind: 'global', name: 'Symbol' }`) it additionally obeys the escaped-ctor and mutated-static
+// rewrites no literal can. A key that names no well-known symbol resolves to nothing, and the
+// caller decides what a raw `Symbol.foo` falls back to
+export function symbolStaticMeta(key) {
+  return { kind: 'property', object: 'Symbol', key, placement: 'static' };
+}
+
 // `Symbol.hasInstance` -> `symbol/has-instance`. pure string transform - caller must
 // validate the entry exists via the resolver. lowercase first char to filter malformed
 // inputs (`Symbol.XYZ` -> `symbol/-x-y-z` would silently miss the lookup)

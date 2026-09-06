@@ -1,12 +1,27 @@
+import "core-js/modules/es.symbol.constructor";
+import "core-js/modules/es.symbol.description";
+import "core-js/modules/es.symbol.for";
+import "core-js/modules/es.object.assign";
+import "core-js/modules/es.object.get-own-property-symbols";
 import "core-js/modules/es.object.to-string";
+import "core-js/modules/es.array.iterator";
 import "core-js/modules/es.array.fill";
 import "core-js/modules/es.array.includes";
 import "core-js/modules/es.array.with";
 import "core-js/modules/es.iterator.constructor";
+import "core-js/modules/es.map.constructor";
+import "core-js/modules/es.map.species";
+import "core-js/modules/es.map.get-or-insert";
+import "core-js/modules/es.map.get-or-insert-computed";
 import "core-js/modules/es.string.includes";
+import "core-js/modules/es.string.iterator";
+import "core-js/modules/es.weak-map.constructor";
+import "core-js/modules/es.weak-map.get-or-insert";
+import "core-js/modules/es.weak-map.get-or-insert-computed";
 import "core-js/modules/esnext.function.metadata";
 import "core-js/modules/esnext.iterator.includes";
 import "core-js/modules/esnext.symbol.metadata";
+import "core-js/modules/web.dom-collections.iterator";
 // the TypeScript member forms anchor like the plain ones: a modifier, a legacy decorator and a
 // parameter property are all members the reprint lays one per line, so each covered one is led by
 // its own directive and the member on the following line stays live. a parameter list shares a

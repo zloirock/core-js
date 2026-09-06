@@ -1,4 +1,4 @@
-import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+var _atMaybeArray = require("@core-js/pure/actual/array/instance/at");
 // indirect-require shapes - SequenceExpression callee `(0, require)('a')`, optional `require?.('b')`
 // (oxc wraps it in a ChainExpression), MemberExpression tail `require('c').default` - all register as
 // the leading import region. the array-literal receiver forces a memoize `var _ref;`, which must land
