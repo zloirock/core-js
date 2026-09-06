@@ -2,6 +2,7 @@ import "core-js/modules/es.object.to-string";
 import "core-js/modules/es.promise.constructor";
 import "core-js/modules/es.promise.catch";
 import "core-js/modules/es.promise.finally";
+import "core-js/modules/es.promise.resolve";
 import "core-js/modules/es.string.repeat";
 import "core-js/modules/es.array.at";
 // User-defined Thenable with property-form `then` member (`then: (cb) => ...`) rather

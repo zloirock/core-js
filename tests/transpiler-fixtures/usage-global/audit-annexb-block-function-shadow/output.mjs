@@ -1,3 +1,5 @@
+require("core-js/modules/es.symbol.constructor");
+require("core-js/modules/es.symbol.description");
 require("core-js/modules/es.symbol.iterator");
 require("core-js/modules/es.object.group-by");
 require("core-js/modules/es.object.to-string");
@@ -7,6 +9,7 @@ require("core-js/modules/es.promise.finally");
 require("core-js/modules/es.promise.resolve");
 require("core-js/modules/es.array.iterator");
 require("core-js/modules/es.array.from-async");
+require("core-js/modules/es.array.from");
 require("core-js/modules/es.iterator.constructor");
 require("core-js/modules/es.iterator.dispose");
 require("core-js/modules/es.iterator.drop");
