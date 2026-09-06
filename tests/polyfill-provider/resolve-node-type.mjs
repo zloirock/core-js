@@ -88,7 +88,6 @@ import {
   getSuperTypeArgs,
   getTypeArgs,
   hasRestSiblingExcept,
-  hasTopLevelESM,
   isAmbientBindingShape,
   isAmbientTypeDeclaration,
   isASTNode,
@@ -4900,52 +4899,36 @@ runBoth('the subclass own namespace export outranks the parent one',
   check('ast-patterns: isIdentifierPropValue nested pattern',
     isIdentifierPropValue({ type: 'ObjectPattern' }), false);
 
-  // hasTopLevelESM: import / export at top-level body
-  const esmProgram = {
-    body: [
-      { type: 'ImportDeclaration', specifiers: [] },
-      { type: 'VariableDeclaration', declarations: [] },
-    ],
-  };
-  checkTruthy('ast-patterns: hasTopLevelESM import', hasTopLevelESM(esmProgram));
-  const exportProgram = {
-    body: [{ type: 'ExportNamedDeclaration', declaration: null }],
-  };
-  checkTruthy('ast-patterns: hasTopLevelESM export', hasTopLevelESM(exportProgram));
-  const cjsProgram = {
-    body: [{ type: 'ExpressionStatement' }],
-  };
-  check('ast-patterns: hasTopLevelESM CJS only',
-    hasTopLevelESM(cjsProgram), false);
-
-  // declaresRequireBinding: function/class/var/import named `require` shadows the CJS global
-  const declaresViaConst = [
+  // declaresRequireBinding: function/class/var/import named `require` shadows the CJS global.
+  // it takes the PROGRAM, not a bare body: the Annex-B half of the answer only exists in a script
+  function program(body) { return { type: 'Program', sourceType: 'script', body }; }
+  const declaresViaConst = program([
     {
       type: 'VariableDeclaration',
       declarations: [
         { id: { type: 'Identifier', name: 'require' }, init: null },
       ],
     },
-  ];
+  ]);
   checkTruthy('ast-patterns: declaresRequireBinding const',
     declaresRequireBinding(declaresViaConst));
-  const declaresViaFn = [
+  const declaresViaFn = program([
     { type: 'FunctionDeclaration', id: { type: 'Identifier', name: 'require' } },
-  ];
+  ]);
   checkTruthy('ast-patterns: declaresRequireBinding fn',
     declaresRequireBinding(declaresViaFn));
-  const declaresViaImport = [
+  const declaresViaImport = program([
     {
       type: 'ImportDeclaration',
       specifiers: [
         { local: { type: 'Identifier', name: 'require' } },
       ],
     },
-  ];
+  ]);
   checkTruthy('ast-patterns: declaresRequireBinding import',
     declaresRequireBinding(declaresViaImport));
   // no binding -> false
-  const noShadow = [{ type: 'ExpressionStatement' }];
+  const noShadow = program([{ type: 'ExpressionStatement' }]);
   check('ast-patterns: declaresRequireBinding none',
     declaresRequireBinding(noShadow), false);
   check('ast-patterns: declaresRequireBinding null',
@@ -4953,6 +4936,8 @@ runBoth('the subclass own namespace export outranks the parent one',
 
   // detectCommonJS: `module.exports = ...` -> true; ESM presence wins
   const cjsAssign = {
+    type: 'Program',
+    sourceType: 'script',
     body: [
       {
         type: 'ExpressionStatement',
@@ -4970,18 +4955,18 @@ runBoth('the subclass own namespace export outranks the parent one',
   };
   checkTruthy('ast-patterns: detectCommonJS module.exports', detectCommonJS(cjsAssign));
   // ESM wins: even if a CJS shape appears, top-level import overrides
-  const esmWins = {
-    body: [
-      ...cjsAssign.body,
-      { type: 'ImportDeclaration', specifiers: [] },
-    ],
-  };
+  const esmWins = program([
+    ...cjsAssign.body,
+    { type: 'ImportDeclaration', specifiers: [] },
+  ]);
   check('ast-patterns: detectCommonJS ESM wins', detectCommonJS(esmWins), false);
   // nothing CJS-like
-  check('ast-patterns: detectCommonJS empty', detectCommonJS({ body: [] }), false);
+  check('ast-patterns: detectCommonJS empty', detectCommonJS(program([])), false);
   // top-level await is an ESM-only marker in ANY statement host, not just a bare
   // expression statement; an await inside a nested function body is NOT top-level
   const tlaDecl = {
+    type: 'Program',
+    sourceType: 'script',
     body: [
       {
         type: 'VariableDeclaration',
@@ -4997,6 +4982,8 @@ runBoth('the subclass own namespace export outranks the parent one',
   };
   check('ast-patterns: detectCommonJS non-bare top-level await wins', detectCommonJS(tlaDecl), false);
   const forAwait = {
+    type: 'Program',
+    sourceType: 'script',
     body: [
       {
         type: 'ForOfStatement',
@@ -5010,6 +4997,8 @@ runBoth('the subclass own namespace export outranks the parent one',
   };
   check('ast-patterns: detectCommonJS for-await wins', detectCommonJS(forAwait), false);
   const fnAwait = {
+    type: 'Program',
+    sourceType: 'script',
     body: [
       {
         type: 'FunctionDeclaration',
@@ -5031,6 +5020,8 @@ runBoth('the subclass own namespace export outranks the parent one',
   // a computed method KEY evaluates at class-definition time in the enclosing context -
   // an await there IS top-level even though the method body is its own await scope
   const computedKeyAwait = {
+    type: 'Program',
+    sourceType: 'script',
     body: [
       {
         type: 'ClassDeclaration',
@@ -5051,6 +5042,8 @@ runBoth('the subclass own namespace export outranks the parent one',
   };
   check('ast-patterns: detectCommonJS computed-key top-level await wins', detectCommonJS(computedKeyAwait), false);
   const asyncMethod = {
+    type: 'Program',
+    sourceType: 'script',
     body: [
       {
         type: 'ClassDeclaration',
@@ -5080,6 +5073,8 @@ runBoth('the subclass own namespace export outranks the parent one',
   // method decorators evaluate at class-definition time in the enclosing context - an
   // await there IS top-level even though the method body is its own await scope
   const decoratorAwait = {
+    type: 'Program',
+    sourceType: 'script',
     body: [
       {
         type: 'ClassDeclaration',
@@ -5106,6 +5101,8 @@ runBoth('the subclass own namespace export outranks the parent one',
   // estree wraps method functions in MethodDefinition (no ClassMethod node) - the
   // computed-key carve-out must recognize that shape too
   const estreeComputedKeyAwait = {
+    type: 'Program',
+    sourceType: 'script',
     body: [
       {
         type: 'ClassDeclaration',
@@ -5125,6 +5122,8 @@ runBoth('the subclass own namespace export outranks the parent one',
   };
   check('ast-patterns: detectCommonJS estree computed-key await wins', detectCommonJS(estreeComputedKeyAwait), false);
   const estreeAsyncMethod = {
+    type: 'Program',
+    sourceType: 'script',
     body: [
       {
         type: 'ClassDeclaration',

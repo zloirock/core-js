@@ -86,7 +86,7 @@ const shouldTransformCases = [
   ['/src/App.vue?vue&type=script&lang.coffee', false, 'Vue SFC dotted non-JS lang.coffee blocks default-JS'],
   ['/src/App.vue?vue&type=style&lang.scss', false, 'Vue SFC dotted lang.scss style block'],
   ['/src/App.vue?vue&type=script&lang.d.ts', false, 'Vue SFC dotted declaration lang.d.ts (not runnable JS)'],
-  ['/src/App.vue?vue&type=template&lang.ts', false, 'Vue SFC dotted lang.ts in template block excluded by type'],
+  ['/src/App.vue?vue&type=template&lang.ts', false, 'Vue SFC dotted lang.ts in template block, pre', true],
   // any `lang.<x>` key is a hint (only an ABSENT lang param is markerless), so an empty `lang.` and a
   // non-ext `lang.bar` both block the default-JS arm - symmetric with the empty `lang=` negative below
   ['/src/App.vue?vue&type=script&lang.', false, 'Vue SFC empty dotted lang. blocks default-JS'],
@@ -118,7 +118,7 @@ const shouldTransformCases = [
   // closes on `#` as well as `&`/EOL; without the `#` alternative the SFC dispatch silently
   // falls through to extension-only detection
   ['/src/App.vue?vue&type=script&lang=ts#L10', true, 'SFC lang=ts followed by #hash'],
-  ['/src/App.vue?vue&type=template&lang=ts#x', false, 'SFC template lang=ts with #hash (template still excluded)'],
+  ['/src/App.vue?vue&type=template&lang=ts#x', false, 'SFC template lang=ts with #hash, pre', true],
   ['/src/App.vue?vue&type=script#L10', true, 'SFC default-JS script with #hash'],
   // a `?` that lives INSIDE a URL fragment (`path#frag?key`) is fragment text, not a query: a real JS
   // file with such a tail must still transform (the fragment `?url` is not an asset query that skips it),
@@ -145,25 +145,40 @@ const shouldTransformCases = [
   ['/src/style.js?inline', false, 'Vite ?inline'],
   ['/src/foo.js?url&v=1', false, 'Vite ?url with extra query'],
   ['/src/foo.js?v=1&url', false, 'Vite ?url trailing'],
-  // Vite worker sub-forms: `?worker-module`, `?worker_file` identify ESM-worker / worker-body
-  // bundling stages; transformed body is Vite's synthetic output, not user JS
+  // `?worker-module` is still the CONSTRUCTOR factory Vite generates. `?worker_file` is the other
+  // half - the worker's own source - and only its `type=classic` spelling stays out, because that
+  // body is loaded as a script where neither import render can land
   ['/src/worker.js?worker-module', false, 'Vite ?worker-module'],
-  ['/src/worker.js?worker_file', false, 'Vite ?worker_file'],
+  ['/src/worker.js?worker_file&type=module', true, 'Vite worker source, module type'],
+  ['/src/worker.js?worker_file&type=classic', false, 'Vite worker source, classic type'],
+  ['/src/worker.js?worker_file', false, 'Vite ?worker_file with no type'],
   // Vite `?sharedworker` resolves to a SharedWorker-constructor factory exactly like `?worker` - the
   // worker body is bundled separately, so the import id itself is not user JS and must skip transform
   ['/src/worker.js?sharedworker', false, 'Vite ?sharedworker'],
   ['/src/worker.js?sharedworker-module', false, 'Vite ?sharedworker sub-form'],
-  // Vite internal queries: `?html-proxy` (HTML inline scripts), `?css` (CSS-as-JS),
-  // `?used` (tree-shake marker), `?direct` (post-processing escape), `?import` (wrap bypass)
-  ['/index.html?html-proxy&index=0.js', false, 'Vite ?html-proxy'],
+  // Vite internal queries: `?css` (CSS-as-JS), `?used` (tree-shake marker), `?direct`
+  // (post-processing escape), `?import` (wrap bypass). `?html-proxy` is NOT one of them - it lifts
+  // an inline block out of an .html file, and the `index=<n>.<ext>` tail says which kind: a `.js`
+  // one is the author's own `<script type="module">` body and is owed its polyfills
+  ['/index.html?html-proxy&index=0.js', true, 'Vite html-proxy inline script'],
+  ['/index.html?html-proxy&direct&index=0.css', false, 'Vite html-proxy inline style'],
+  ['/index.html?html-proxy&inline-css&index=0.css', false, 'Vite html-proxy style attribute'],
   ['/src/style.css?css', false, 'Vite ?css'],
   ['/src/foo.js?used', false, 'Vite ?used'],
   ['/src/foo.css?direct', false, 'Vite ?direct'],
   ['/src/foo.js?import', false, 'Vite ?import'],
-  // Vue / Astro SFC style and template halves are CSS / markup, not JS - even with lang=ts
-  // (TS-in-CSS-in-JS edge) the body isn't runnable JS; polyfill injection would corrupt it
+  // an SFC STYLE half is CSS at every phase. a TEMPLATE half is markup only until the framework
+  // plugin compiles it: on `post` it holds the render FUNCTION that compilation produced, which is
+  // ordinary JS. same for the SFC source file's own bare id
   ['/src/App.vue?vue&type=style&lang=ts', false, 'Vue SFC style block with lang=ts'],
-  ['/src/App.vue?vue&type=template&lang=ts', false, 'Vue SFC template block with lang=ts'],
+  ['/src/App.vue?vue&type=template&lang=ts', false, 'Vue SFC template block, pre', true],
+  ['/src/App.vue', false, 'Vue SFC source file, pre', true],
+  // a bare trailing separator names no sub-part, so it is the same bare id; a fragment with text does
+  ['/src/App.vue?', false, 'Vue SFC source file with an empty query', true],
+  ['/src/App.vue#', false, 'Vue SFC source file with an empty fragment', true],
+  ['/src/App.vue#frag', false, 'Vue SFC source file with a fragment', false],
+  ['/src/App.svelte', false, 'Svelte SFC source file, pre', true],
+  ['/src/Page.astro', false, 'Astro SFC source file, pre', true],
   // near-misses that should NOT match (substring or suffix only)
   ['/src/curly.js?curl=x', true, 'query containing "url" as substring'],
   ['/src/foo.js?v=unrelated', true, 'no asset-query key'],
@@ -181,7 +196,7 @@ const shouldTransformCases = [
   // bare paths; SFC dispatch matches on the query alone, so transform fires
   ['/virtual:component?lang=ts', true, 'bare virtual id with lang=ts'],
   // SFC sub-block with `.js` extension on the base path AND `lang=` token: extension
-  // takes precedence (JS_RE matches the post-strip base), still transforms
+  // takes precedence (the id's language family reads the post-strip base), still transforms
   ['/src/foo.js?lang=tsx', true, '.js base with lang= override'],
   // SFC sub-block + Vite asset query mixing: the asset-query gate wins, the body is
   // bundler-synthetic output regardless of lang= hint
@@ -224,7 +239,12 @@ const shouldTransformCases = [
   ['/src/lang=weird/App.vue?vue&type=script', true, 'SFC default-JS not suppressed by lang= in path'],
 ];
 
-for (const [id, want, label] of shouldTransformCases) check(`shouldTransform/${ label }`, shouldTransform(id), want);
+// a fourth column is the `post` expectation, for the ids whose body its own plugin compiles into
+// JS between the two phases; without one the id answers the same on both
+for (const [id, want, label, wantPost = want] of shouldTransformCases) {
+  check(`shouldTransform/${ label }`, shouldTransform(id, 'pre'), want);
+  check(`shouldTransform/${ label } [post]`, shouldTransform(id, 'post'), wantPost);
+}
 
 // --- liftSfcLangSuffix ---
 // shouldTransform's lang arm and the lifter BOTH resolve the lang through the same `sfcJsLang` predicate
@@ -825,17 +845,38 @@ function checkAdoptOrphanRespectsFlushed() {
 checkAdoptOrphanRespectsFlushed();
 
 // --- SnapshotCache key normalization ---
-// pre/post pair must round-trip across query / hash / slash variants. without normalization
-// a Windows bundler that switches between `\` and `/` between passes would lose the snapshot
+// pre/post pair must round-trip across the SPELLING variants one pipeline emits for one module -
+// a Windows bundler switching between `\` and `/` between passes, a resolver adding or dropping a
+// scheme prefix. What it must NOT round-trip across is the query and the fragment: a dev server
+// runs its pipeline over `/dep.js` and `/dep.js?v=<hash>` as two modules and interleaves them, so
+// a key that folded them handed one module's snapshot to the other
 function checkSnapshotKeyNormalization() {
   const cache = new SnapshotCache();
   cache.store('/src/foo.js', { tag: 'A' });
-  check('SnapshotCache/strip query', cache.take('/src/foo.js?v=1')?.tag, 'A');
+  check('SnapshotCache/query is identity', cache.take('/src/foo.js?v=1'), null);
   cache.store('C:\\src\\bar.js', { tag: 'B' });
   check('SnapshotCache/normalize backslash', cache.take('C:/src/bar.js')?.tag, 'B');
   cache.store('/src/baz.js#anchor', { tag: 'C' });
-  check('SnapshotCache/strip hash', cache.take('/src/baz.js')?.tag, 'C');
-  check('SnapshotCache/take consumes', cache.take('/src/foo.js'), null);
+  check('SnapshotCache/hash is identity', cache.take('/src/baz.js'), null);
+  check('SnapshotCache/hash round-trips as itself', cache.take('/src/baz.js#anchor')?.tag, 'C');
+  check('SnapshotCache/take consumes', cache.take('/src/foo.js')?.tag, 'A');
+  check('SnapshotCache/take consumes for good', cache.take('/src/foo.js'), null);
+  // the HMR timestamp is the ONE noise parameter: it changes on every re-fire of the same logical
+  // module, so a pre whose post never ran must be overwritten by the next pre rather than accumulate
+  cache.store('/src/hmr.js?t=1000', { tag: 'hmr' });
+  check('SnapshotCache/HMR timestamp is noise', cache.take('/src/hmr.js?t=2000')?.tag, 'hmr');
+  cache.store('/src/hmr2.js?v=1&t=1000', { tag: 'hmr-v1' });
+  check('SnapshotCache/HMR timestamp beside an identity param', cache.take('/src/hmr2.js?v=1&t=2000')?.tag, 'hmr-v1');
+  check('SnapshotCache/a differing identity param still misses', cache.take('/src/hmr2.js?v=2&t=1000'), null);
+  // ... and only where its value is one: `?t=abc` is somebody's own parameter
+  cache.store('/src/own.js?t=abc', { tag: 'own-t' });
+  check('SnapshotCache/non-numeric t is identity', cache.take('/src/own.js?t=xyz'), null);
+  check('SnapshotCache/non-numeric t round-trips', cache.take('/src/own.js?t=abc')?.tag, 'own-t');
+  // one plugin instance serves several environments over the same id, each its own pipeline
+  cache.store('/src/env.js', { tag: 'client' }, '');
+  cache.store('/src/env.js', { tag: 'ssr' }, 'ssr');
+  check('SnapshotCache/environments do not collide', cache.take('/src/env.js', 'ssr')?.tag, 'ssr');
+  check('SnapshotCache/default environment kept its own', cache.take('/src/env.js')?.tag, 'client');
   // Vite dev-server: pre may see `file:///abs/foo.js`, post may see `/@fs/abs/foo.js`
   cache.store('file:///abs/foo.js', { tag: 'D' });
   check('SnapshotCache/file:// <-> /@fs', cache.take('/@fs/abs/foo.js')?.tag, 'D');
@@ -920,8 +961,9 @@ function checkSnapshotKeyNormalization() {
   // the id is NOT an SFC sub-block: it keys on its bare path like any non-sub-block id (detection and the
   // key agree via the one parse, so no malformed `?#frag?...` sub-block key as the two-parser split emitted)
   cache.store('/src/Frag.vue#frag?vue&type=script', { tag: 'frag-bare' });
-  check('SnapshotCache/fragment marker keys on bare path',
-    cache.take('/src/Frag.vue')?.tag, 'frag-bare');
+  check('SnapshotCache/fragment marker is not a sub-block query',
+    cache.take('/src/Frag.vue#frag?vue&type=script')?.tag, 'frag-bare');
+  check('SnapshotCache/fragment does not fold onto the bare path', cache.take('/src/Frag.vue'), null);
   // Vite virtual module: `/@id/virtual:foo` must normalize to `virtual:foo` so pre/post
   // pair round-trips when the resolver strips the prefix between passes
   cache.store('/@id/virtual:mod', { tag: 'virt' });
@@ -1009,11 +1051,11 @@ function checkSnapshotKeyNormalization() {
     cache.take('/src/App.vue?type=script&setup=true&lang=ts'), null);
   check('SnapshotCache/marker-less SFC same sub-block hits',
     cache.take('/src/App.vue?type=script&lang=ts')?.tag, 'sfc-markerless-a');
-  // a generic `?lang=en` (non-JS/TS) is NOT an SFC sub-block - its query still strips so an
-  // unrelated bundler visiting the same file under different generic queries keeps one key
+  // a generic `?lang=en` is no SFC sub-block, and it is identity all the same: an unrecognised
+  // parameter is a module the host distinguishes for reasons of its own
   cache.store('/src/data.js?lang=en', { tag: 'generic-lang' });
-  check('SnapshotCache/generic non-JS lang query still strips',
-    cache.take('/src/data.js?lang=fr')?.tag, 'generic-lang');
+  check('SnapshotCache/an unrecognised param is identity', cache.take('/src/data.js?lang=fr'), null);
+  check('SnapshotCache/an unrecognised param round-trips', cache.take('/src/data.js?lang=en')?.tag, 'generic-lang');
   // case-fold is scoped to the Windows DRIVE LETTER only - the rest of the path stays
   // case-sensitive (on Linux `SRC` and `src` are different dirs). guards against an over-broad
   // whole-path `.toLowerCase()` that would collide genuinely-distinct files on case-sensitive fs
@@ -1029,12 +1071,10 @@ function checkSnapshotKeyNormalization() {
     cache.take('/src/Hash.vue?vue&type=script#z?a=2&b=1'), null);
   check('SnapshotCache/identical sub-block hash round-trips',
     cache.take('/src/Hash.vue?vue&type=script#z?b=1&a=2')?.tag, 'hash-verbatim');
-  // peekWithParse leaves the snapshot intact: callers (post pass with disable-file detection)
-  // can inspect cached AST before committing to `take()`. bail paths leave the entry so a
-  // subsequent retry can still consume it
-  cache.store('/src/Peek.js', { postInput: 'X', ast: { type: 'Program' }, comments: [], snapshot: { tag: 'peeked' } });
-  const peek1 = cache.peekWithParse('/src/Peek.js', 'X');
-  check('SnapshotCache/peek returns snapshot', peek1.snapshot?.tag, 'peeked');
+  // `peek` leaves the entry intact: the post pass inspects the file for a disable-file directive
+  // before committing to `take()`, and a bail leaves the entry so a retry can still consume it
+  cache.store('/src/Peek.js', { snapshot: { tag: 'peeked' } });
+  check('SnapshotCache/peek returns snapshot', cache.peek('/src/Peek.js').snapshot?.tag, 'peeked');
   check('SnapshotCache/peek non-destructive', cache.take('/src/Peek.js')?.snapshot?.tag, 'peeked');
   check('SnapshotCache/peek then take consumes', cache.take('/src/Peek.js'), null);
 }
@@ -1148,7 +1188,7 @@ function checkSnapshotHMRMultiTimestamp() {
     probeSnapshotHit('/src/x.js?t=1.5&import', '/src/x.js?import'), true);
   check('snapshot/HMR ?t=1.5#hash preserves hash',
     probeSnapshotHit('/src/x.js?t=1.5#L10', '/src/x.js#L10'), true);
-  // SFC sub-block keeps query intact (only HMR_TIMESTAMP_RE touches `t=`); these probe
+  // the query is identity for every id (only a NUMERIC `t=` is dropped as HMR noise); these probe
   // the regex shape directly. without SFC marker, `stripQueryHash` would strip the
   // whole query downstream and mask any HMR-strip mistakes
   check('snapshot/HMR SFC ?t=1.5 decimal in sub-block strips token',
@@ -2615,58 +2655,27 @@ function checkSnapshotStoreBumpsRecency() {
 }
 checkSnapshotStoreBumpsRecency();
 
-// peekWithParse byte-mismatch must invalidate the parse-cache fields while keeping the snapshot.
-// the shared `#withParseShape` helper collapses to the empty-parse shape on any non-byte-match
-// (and on a stored null ast); these peekWithParse cases are the regression guard for that helper
-function checkSnapshotPeekWithParseMismatch() {
+// `peek` is non-destructive and total: a hit hands back what pre stored, a miss the same shape
+// with nothing in it, and neither disturbs the entry - the post pass reads it before it knows
+// whether it will commit
+function checkSnapshotPeek() {
   const cache = new SnapshotCache();
-  const snap = { signal: 'peek-mismatch' };
-  cache.store('/a.js', { snapshot: snap, ast: { type: 'Program' }, comments: [], postInput: 'before' });
-  const result = cache.peekWithParse('/a.js', 'after');
-  check('peekWithParse/mismatch snapshot kept', result.snapshot, snap);
-  check('peekWithParse/mismatch ast invalidated', result.ast, null);
-  check('peekWithParse/mismatch comments invalidated', result.comments, null);
-  // entry survives - bail path can retry
-  check('peekWithParse/mismatch non-destructive', cache.take('/a.js')?.snapshot?.signal, 'peek-mismatch');
-}
-checkSnapshotPeekWithParseMismatch();
+  const snap = { signal: 'peeked' };
+  cache.store('/a.js', { snapshot: snap, preRewroteSource: true, mutatedStatics: new Set(['Object.assign']) });
+  const hit = cache.peek('/a.js');
+  check('peek/hit snapshot', hit.snapshot, snap);
+  check('peek/hit preRewroteSource', hit.preRewroteSource, true);
+  check('peek/hit mutatedStatics', hit.mutatedStatics?.has('Object.assign'), true);
+  // the entry survives, so a bail path can retry and the commit path still consumes it
+  check('peek/non-destructive', cache.take('/a.js')?.snapshot?.signal, 'peeked');
+  check('peek/then take consumes', cache.peek('/a.js').snapshot, null);
 
-function checkSnapshotPeekWithParseMiss() {
-  const cache = new SnapshotCache();
-  const result = cache.peekWithParse('/missing.js', 'anything');
-  check('peekWithParse/miss snapshot null', result.snapshot, null);
-  check('peekWithParse/miss ast null', result.ast, null);
-  check('peekWithParse/miss comments null', result.comments, null);
+  const miss = cache.peek('/missing.js');
+  check('peek/miss snapshot null', miss.snapshot, null);
+  check('peek/miss preRewroteSource false', miss.preRewroteSource, false);
+  check('peek/miss mutatedStatics null', miss.mutatedStatics, null);
 }
-checkSnapshotPeekWithParseMiss();
-
-// post-input byte-matches pre: `#withParseShape` reuses the cached AST/comments (dev-server
-// fast-path so post avoids re-parsing pre's input)
-function checkSnapshotPeekWithParseReuse() {
-  const cache = new SnapshotCache();
-  const fakeAst = { type: 'Program', body: [] };
-  const fakeComments = [];
-  const snap = { signal: 'peek-reuse' };
-  cache.store('/a.js', { snapshot: snap, ast: fakeAst, comments: fakeComments, postInput: 'foo();' });
-  const result = cache.peekWithParse('/a.js', 'foo();');
-  check('peekWithParse/reuse same bytes -> snapshot returned', result.snapshot, snap);
-  check('peekWithParse/reuse same bytes -> ast cached', result.ast, fakeAst);
-  check('peekWithParse/reuse same bytes -> comments cached', result.comments, fakeComments);
-}
-checkSnapshotPeekWithParseReuse();
-
-// pre intentionally stored `ast: null` (e.g. mode rewrote pre's output): `#withParseShape` must
-// collapse to the empty-parse shape regardless of a postInput byte match while keeping the snapshot
-function checkSnapshotPeekWithParseNullAst() {
-  const cache = new SnapshotCache();
-  const snap = { signal: 'peek-null-ast' };
-  cache.store('/a.js', { snapshot: snap, ast: null, comments: null, postInput: 'foo();' });
-  const result = cache.peekWithParse('/a.js', 'foo();');
-  check('peekWithParse/null ast - snapshot returned', result.snapshot, snap);
-  check('peekWithParse/null ast - ast stays null', result.ast, null);
-  check('peekWithParse/null ast - comments stay null', result.comments, null);
-}
-checkSnapshotPeekWithParseNullAst();
+checkSnapshotPeek();
 
 // --- collectMutatedStaticMembers ---
 // pre-pass scan that backs the usage-pure substitution gate. detects every shape of
@@ -2844,12 +2853,227 @@ function checkFileStrictness() {
     check(`strictness/${ id } ${ body === CJS_BODY ? 'cjs-body' : body === ESM_BODY ? 'esm-body' : 'bare' }`,
       strictness(id, body), want);
   }
-  // the explicit option is a declaration and reaches strictness too, except where the extension pins
-  check('strictness/option require on bare .js', strictness('/p.js', BARE_BODY, 'require'), 'script');
-  check('strictness/option import on cjs body', strictness('/p.js', CJS_BODY, 'import'), 'module');
-  check('strictness/option require cannot flip .mjs', strictness('/p.mjs', BARE_BODY, 'require'), 'module');
+  // `importStyle` is EMISSION configuration and reaches the language fact nowhere: asking for
+  // `require` output must not turn a module into a sloppy script (and lose every polyfill under the
+  // Annex-B shadow), nor asking for `import` turn a CommonJS body into one (and substitute a
+  // ponyfill over a shadow that is real)
+  check('strictness/option require does not make a script', strictness('/p.js', BARE_BODY, 'require'), 'module');
+  check('strictness/option import does not make a module', strictness('/p.js', CJS_BODY, 'import'), 'script');
+  check('strictness/option require does not flip .mjs', strictness('/p.mjs', BARE_BODY, 'require'), 'module');
 }
 checkFileStrictness();
+
+// the parser dialect the module id names. A wrong answer here is not a narrower transform but a
+// FATAL parse - the whole file loses every polyfill - and the fixture harness cannot reach the
+// class at all: `inferTestId` only ever names `input.ts` / `input.tsx` / `input.jsx`, so a
+// js-family id carrying JSX is unspellable there
+function checkParserDialectFromId() {
+  const JSX = 'const el = <div a={[1].includes(1)} />;\nexport default el;\n';
+  const TS = 'const x: number[] = [1];\nexport const y = x.includes(1);\n';
+  const CAST = 'const x = (<number[]>y).includes(1);\nexport default x;\n';
+  const injected = /core-js\/modules\//g;
+  function modules(source, id) {
+    // a fatal parse warns and abstains, and the count is what says which happened
+    const out = createPlugin({ method: 'usage-global', version: '4.0', targets: { ie: 11 } })
+      .transform.call({ warn: () => undefined }, source, id);
+    return ((out?.code ?? '').match(injected) ?? []).length;
+  }
+  // JSX is a strict superset of JS - a `<` never starts a JS expression - so every js-family id
+  // admits it, which is the CRA / Next / React Native convention
+  for (const id of ['/a.jsx', '/a.js', '/a.mjs', '/a.cjs', '/a.JS', '/a.MJS', '/a.CJS', '/a.Jsx']) {
+    check(`dialect/JSX in ${ id }`, modules(JSX, id) > 0, true);
+  }
+  // ... and the ts family spends the same syntax on the legacy angle-bracket cast, so only `.tsx`
+  // admits JSX there - TypeScript's own rule, and the one this repository's own fixtures rely on
+  check('dialect/JSX in .tsx', modules(JSX, '/a.tsx') > 0, true);
+  check('dialect/JSX in .ts is not JSX', modules(JSX, '/a.ts'), 0);
+  check('dialect/angle-bracket cast in .ts', modules(CAST, '/a.ts') > 0, true);
+  check('dialect/angle-bracket cast in .tsx is not one', modules(CAST, '/a.tsx'), 0);
+  // the extension match is case-insensitive in ADMISSION, so it has to be here too, or an id the
+  // filter let through is parsed as the wrong language
+  for (const id of ['/a.ts', '/a.TS', '/a.tsx', '/a.TSX', '/a.mts', '/a.MTS', '/a.cts', '/a.CTS']) {
+    check(`dialect/TypeScript in ${ id }`, modules(TS, id) > 0, true);
+  }
+}
+checkParserDialectFromId();
+
+// the goal a parse ACTUALLY used is evidence, and it has to reach the strictness model. A module
+// goal the parser REFUSED is the strongest statement there is that the file is a script - Annex-B
+// block-function hoisting is live in it, so a ponyfill must not go over the shadow. The `.mjs`
+// negative is the boundary: there the extension pins a module, so a refusal means a broken file
+// rather than a script, and the transform reports it instead of re-reading it
+function checkRefusedModuleGoalIsScriptEvidence() {
+  const SHADOW = '{ function Map() {} }\nuse(new Map());\n';
+  // an Annex-B HTML comment parses in the Script goal alone
+  const SCRIPT_ONLY = `<!-- legacy\n${ SHADOW }`;
+  function run(source, id) {
+    const warns = [];
+    const out = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } })
+      .transform.call({ warn: message => warns.push(String(message)) }, source, id);
+    return { substituted: /_Map/.test(out?.code ?? ''), warned: warns.length > 0 };
+  }
+  check('refused-goal/script-only source keeps the shadow', run(SCRIPT_ONLY, '/a.js').substituted, false);
+  check('refused-goal/script-only source is not reported', run(SCRIPT_ONLY, '/a.js').warned, false);
+  // the control: the SAME shadow in a file the module goal accepts is block-scoped, so the global
+  // is what the source reads and the ponyfill is owed
+  check('refused-goal/a module substitutes over the same shadow',
+    run(`export const m = 1;\n${ SHADOW }`, '/a.js').substituted, true);
+  // `.mjs` is a module by extension: a refusal there is a broken file, reported and skipped
+  const mjs = run(SCRIPT_ONLY, '/a.mjs');
+  check('refused-goal/.mjs is not re-read as a script', mjs.substituted, false);
+  check('refused-goal/.mjs is reported', mjs.warned, true);
+}
+checkRefusedModuleGoalIsScriptEvidence();
+
+// The admission table is asked with an `enforce`, and the WIRING that hands each stage its own is
+// what makes the phase-dependent half real: with `phase: 'pre+post'` the two stages must disagree
+// about a compiled SFC id, and the single-phase default must never admit one at all
+function checkEnforceReachesAdmission() {
+  const IDS = ['/src/App.vue', '/src/App.vue?vue&type=template&lang.js', '/src/App.vue?vue&type=script&lang.ts'];
+  function stagesFor(phase) {
+    const options = { method: 'usage-global', version: '4.0', targets: { ie: 11 }, ...phase ? { phase } : {} };
+    const built = unplugin.rollup(options);
+    return (Array.isArray(built) ? built : [built])
+      .map(stage => [stage.enforce, IDS.filter(id => stage.transformInclude?.(id)).join(' ')]);
+  }
+  const compiledOnly = '/src/App.vue /src/App.vue?vue&type=template&lang.js /src/App.vue?vue&type=script&lang.ts';
+  const scriptOnly = '/src/App.vue?vue&type=script&lang.ts';
+  function flat(phase) {
+    return stagesFor(phase).map(([enforce, admits]) => `${ enforce }: ${ admits }`).join(' | ');
+  }
+  check('enforce/the default phase is pre and admits no compiled id', flat(), `pre: ${ scriptOnly }`);
+  check('enforce/an explicit post stage admits them', flat('post'), `post: ${ compiledOnly }`);
+  check('enforce/pre+post gives each stage its own answer',
+    flat('pre+post'), `pre: ${ scriptOnly } | post: ${ compiledOnly }`);
+}
+checkEnforceReachesAdmission();
+
+// Admitting a framework SFC id at `post` rests on an inference about what that framework's own
+// plugin hands back there, and this workspace carries no framework plugin to settle it. What makes
+// the inference SAFE is asserted instead: being wrong has to be cheap. An admitted id whose body is
+// still markup must warn and SKIP - never crash, never emit - while the compiled body it expects is
+// transformed. That asymmetry is the reason to admit rather than to refuse: a refusal loses
+// polyfills silently, a wrong admission costs one warning
+function checkSfcAdmissionIsSafeWhenWrong() {
+  const MARKUP = '<template>\n  <div>{{ items.at(0) }}</div>\n</template>\n';
+  const COMPILED = 'export function render(_ctx) { return _ctx.items.at(0); }\n';
+  const OPTIONS = { method: 'usage-global', version: '4.0', targets: { ie: 11 } };
+  function run(code, id) {
+    const warnings = [];
+    const out = createPlugin(OPTIONS).transform.call({ warn: message => warnings.push(String(message)) }, code, id);
+    return { out, warned: warnings.length > 0 };
+  }
+  for (const [label, id] of [
+    ['bare SFC source', '/src/App.vue'],
+    ['template block', '/src/App.vue?vue&type=template&lang.js'],
+    ['script block', '/src/App.vue?vue&type=script&lang.ts'],
+    ['html proxy script', '/index.html?html-proxy&index=0.js'],
+    ['worker source', '/src/w.js?worker_file&type=module'],
+  ]) {
+    if (!shouldTransform(id, 'post')) {
+      check(`sfc-safety/${ label } is admitted at post`, shouldTransform(id, 'post'), true);
+      continue;
+    }
+    const markup = run(MARKUP, id);
+    check(`sfc-safety/${ label } skips a markup body`, markup.out, null);
+    check(`sfc-safety/${ label } says so`, markup.warned, true);
+    const compiled = run(COMPILED, id);
+    check(`sfc-safety/${ label } transforms the compiled body`,
+      (compiled.out?.code ?? '').includes('core-js/modules/es.array.at'), true);
+  }
+}
+checkSfcAdmissionIsSafeWhenWrong();
+
+// One file, many spellings. A bundler hands the same module id as a posix path, a Windows path,
+// a `file://` URL, a `/@fs/` or `/@id/` prefixed form, with a query, with a fragment - and none of
+// those may move the LANGUAGE fact, the admission verdict or the emitted code. A wrong answer on
+// the language half is a FATAL parse rather than a narrower transform, which is why the extension
+// is asked case-insensitively; the controls at the end are what make the sameness meaningful
+function checkIdSpellingInvariance() {
+  const SPELLINGS = [
+    ['posix', '/src/a.js'],
+    ['windows separators', '\\src\\a.js'],
+    ['drive letter', 'C:\\src\\a.js'],
+    ['drive letter lower', 'c:/src/a.js'],
+    ['unc long path', '\\\\?\\C:\\src\\a.js'],
+    ['file url', 'file:///src/a.js'],
+    ['file url with localhost', 'file://localhost/src/a.js'],
+    ['vite /@fs', '/@fs/src/a.js'],
+    ['vite /@id', '/@id/src/a.js'],
+    ['doubled slash', '//src//a.js'],
+    ['query', '/src/a.js?v=1'],
+    ['hmr stamp', '/src/a.js?t=1700000000'],
+    ['fragment', '/src/a.js#frag'],
+  ];
+  const SOURCE = 'module.exports = Array.from(x);';
+  function out(id) {
+    return createPlugin({ method: 'usage-global', version: '4.0', targets: { ie: 11 } })
+      .transform.call({ warn: () => undefined }, SOURCE, id)?.code ?? null;
+  }
+  const baseline = out('/src/a.js');
+  check('id-spelling/control - the transform did something', baseline !== null && baseline !== SOURCE, true);
+  for (const [label, id] of SPELLINGS) {
+    check(`id-spelling/output ${ label }`, out(id), baseline);
+    for (const phase of ['pre', 'post']) {
+      check(`id-spelling/admission ${ phase } ${ label }`, shouldTransform(id, phase), shouldTransform('/src/a.js', phase));
+    }
+  }
+  // the extension's case is the half a wrong answer turns FATAL
+  for (const [lower, upper] of [['/a.js', '/A.JS'], ['/a.cjs', '/a.CJS'], ['/a.mjs', '/A.MJS'], ['/a.tsx', '/a.TSX']]) {
+    check(`id-spelling/case ${ lower } == ${ upper }`, out(upper), out(lower));
+  }
+  // ... and the control that keeps the rows above from being a comparison of two blind answers:
+  // an axis that DOES name another language must move the output
+  function bare(id) {
+    return createPlugin({ method: 'usage-global', version: '4.0', targets: { ie: 11 } })
+      .transform.call({ warn: () => undefined }, 'Array.from(x);', id)?.code ?? '';
+  }
+  check('id-spelling/control - a .cjs is a different file than a .js', bare('/a.cjs') !== bare('/a.js'), true);
+  check('id-spelling/control - the .cjs leg spells require', bare('/a.cjs').includes('require('), true);
+  check('id-spelling/control - the .js leg spells import', /^import /m.test(bare('/a.js')), true);
+}
+checkIdSpellingInvariance();
+
+// widening `mode` must never NARROW the injected set. The ladder is `es` < `stable` < `actual` <
+// `full` and the DATA is monotone by construction, so the only way to lose a module is a control
+// flow that reads how many the configured layer happened to yield - which is how `Symbol.metadata`
+// resolved at `full` and dropped the `es.symbol.*` that `actual` had injected.
+// The rows are the discriminating ones: a member no stable layer carries, a web static (no `es`
+// layer at all), and ordinary ES statics whose receiver must NOT be over-injected
+function checkModeMonotonicity() {
+  const MODES = ['es', 'stable', 'actual', 'full'];
+  const injected = /core-js\/modules\/[\w\-.]+/g;
+  function modules(source, mode) {
+    const out = createPlugin({ method: 'usage-global', version: '4.0', targets: { ie: 11 }, mode })
+      .transform.call({ warn: () => undefined }, source, '/a.js');
+    return new Set((out?.code ?? '').match(injected));
+  }
+  for (const source of [
+    'Symbol.metadata;',
+    'Symbol.asyncIterator;',
+    'URL.canParse(x);',
+    'Number.isFinite(x);',
+    'Object.assign(a, b);',
+    'Array.from(x);',
+    'Map.groupBy(x, f);',
+    'Promise.allSettled(x);',
+    'RegExp.escape(x);',
+    'AggregateError.isError(x);',
+  ]) {
+    const sets = MODES.map(mode => modules(source, mode));
+    for (let i = 1; i < sets.length; i++) {
+      const lost = [...sets[i - 1]].filter(module => !sets[i].has(module));
+      check(`monotone/${ source } ${ MODES[i - 1] } -> ${ MODES[i] }`, lost.join(' '), '');
+    }
+  }
+  // ... and the receiver is owed exactly where nothing else guarantees it: a member no stable layer
+  // carries keeps its constructor at EVERY mode, while one that a layer does polyfill adds nothing
+  check('monotone/an out-of-layer member keeps its receiver',
+    modules('Symbol.metadata;', 'full').has('core-js/modules/es.symbol.constructor'), true);
+  check('monotone/an in-layer member does not over-inject its receiver',
+    [...modules('Number.isFinite(x);', 'actual')].join(' '), 'core-js/modules/es.number.is-finite');
+}
+checkModeMonotonicity();
 
 // --- the typed-outer inner default: the composed two-step extraction (a dead mirror
 // would polyfill only the branch the default fires on; the composition dispatches the
@@ -3696,10 +3920,13 @@ function checkUsageGlobalIndirectRequirePrefixBody() {
     'Array.from([1]);',
   ].join('\n');
   const code = plugin.transform(source, '/indirect-require-prefix.js')?.code ?? '';
-  const body = code.split('\n').filter(line => !line.startsWith('import ')).join('\n');
+  // the injected block is dropped in EITHER spelling: a body that spells `require` is CommonJS, so
+  // the emission is `require` too, and the question here is only what became of the USER's calls
+  const injected = /^(?:import "|require\(")core-js\/modules\//;
+  const body = code.split('\n').filter(line => !injected.test(line)).join('\n');
   check('indirect-require body/prefixes survive as statements in source order',
     /let loads = 0;\s*loads\+\+;\s*let arr = \[1\];\s*arr\.includes\(1\);\s*let opt = 0;\s*opt\+\+;\s*let outer = 0;\s*outer\+\+;\s*Array\.from\(\[1\]\);/.test(body), true);
-  check('indirect-require body/no require call survives', /require\(/.test(code), false);
+  check('indirect-require body/no require call survives', /require\(/.test(body), false);
   check('indirect-require body/kept-prefix usage stays visited', /es\.array\.includes/.test(code), true);
 }
 checkUsageGlobalIndirectRequirePrefixBody();

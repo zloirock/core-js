@@ -1,6 +1,6 @@
-import "core-js/modules/es.array.flat";
-import "core-js/modules/es.array.species";
-import "core-js/modules/es.array.unscopables.flat";
+require("core-js/modules/es.array.flat");
+require("core-js/modules/es.array.species");
+require("core-js/modules/es.array.unscopables.flat");
 // A minifier-collapsed sequence folds a `require('core-js/...')` entry into the head of a
 // SequenceExpression with a trailing destructure. The split pre-pass must carry source position
 // onto the surfaced statements so entry detection expands the require as a genuine entry; a

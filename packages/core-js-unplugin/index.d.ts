@@ -77,8 +77,10 @@ export declare const farm: BundlerPlugin<any>;
 export declare const bun: BundlerPlugin<any>;
 
 /** identifier-filter used by every adapter's `transformInclude` hook. exposed so consumers
- *  can pre-filter resources outside the plugin (custom loaders, etc.) */
-export declare function shouldTransform(id: string): boolean;
+ *  can pre-filter resources outside the plugin (custom loaders, etc.). `enforce` says where the
+ *  caller sits against the plugins that compile a framework SFC into JavaScript: at `'post'` such
+ *  an id carries their output rather than the author's markup */
+export declare function shouldTransform(id: string, enforce?: 'pre' | 'post'): boolean;
 
 /** the unplugin factory backing every named adapter above. shape mirrors upstream's
  *  `UnpluginInstance<Options>` but avoids the import to keep the typed surface from

@@ -1,9 +1,9 @@
 'use strict';
 
-import _Array$from from "@core-js/pure/actual/array/from";
-import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
-import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
+var _Array$from = require("@core-js/pure/actual/array/from");
+var _atMaybeArray = require("@core-js/pure/actual/array/instance/at");
+var _findLastMaybeArray = require("@core-js/pure/actual/array/instance/find-last");
+var _flatMaybeArray = require("@core-js/pure/actual/array/instance/flat");
 // Mixed prologue plus user requires plus destructure that allocates `var _ref;`.
 // `reorderRefsAfterImports` should keep the layout: directives -> imports -> _ref -> body.
 // `isImportRegion` accepts `require(...)` ExpressionStatements; verify the var prelude

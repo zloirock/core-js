@@ -27,13 +27,13 @@ import {
   canHoldBuiltIn,
   collectFileCensus,
   computedKeyStaticName,
+  declarationScopeIn,
   foldedPropertyKeyName,
   forOfIterableElements,
   followConstLiteralAlias,
   identifierDeclaratorInit,
   installedWriteValue,
   isDestructurePattern,
-  isScopeRebinding,
   isMemberMutationContext,
   isMutatedStaticPair,
   isTopLevelThisContext,
@@ -826,13 +826,8 @@ export function mutationShapesReducer(packages = null) {
   // (null for the module scope), the chain enclosing it, and the declaring node - the binding
   // identity the receiver walk hands back to ask about a container by DECLARATION, not by name
   const declared = new Map();
-  // the scope a declaration of `kind` lands in: a `var` climbs to the nearest var-scope (the module
-  // where none encloses it), every other kind binds in the innermost frame
-  function declarationScope(kind) {
-    return kind === 'var' ? currentScopes.findLast(isScopeRebinding) ?? null : currentScopes.at(-1) ?? null;
-  }
   // one declaration of `name`: in the innermost scope of the current chain unless the caller names it
-  function declare(name, node, scope = currentScopes.at(-1) ?? null) {
+  function declare(name, node, scope = declarationScopeIn(null, currentScopes)) {
     let entries = declared.get(name);
     if (!entries) declared.set(name, entries = []);
     entries.push({ scope, scopes: currentScopes, node });
@@ -842,7 +837,7 @@ export function mutationShapesReducer(packages = null) {
   // literal - inert as data until a mutator installs a built-in, a container otherwise
   function declareContainer(name, node, literal, { arrayLiteral = false, kind = null } = {}) {
     containerDeclarations.push({
-      name, scope: declarationScope(kind), scopes: currentScopes, node, literal, arrayLiteral,
+      name, scope: declarationScopeIn(kind, currentScopes), scopes: currentScopes, node, literal, arrayLiteral,
     });
   }
   // the bindings a node DECLARES: a parameter in the scope the function opens, a catch parameter
@@ -1300,7 +1295,7 @@ export function mutationShapesReducer(packages = null) {
   // the frame's parent node), and records the value it takes
   function recordDeclarator(node, frame) {
     const { kind = null } = frame?.parentNode ?? {};
-    walkPatternIdentifiers(node.id, id => declare(id.name, node, declarationScope(kind)));
+    walkPatternIdentifiers(node.id, id => declare(id.name, node, declarationScopeIn(kind, currentScopes)));
     recordPatternDetachedRepositioners(node.id, node.init);
     recordValueSource(node.id, node.init, node, kind);
   }

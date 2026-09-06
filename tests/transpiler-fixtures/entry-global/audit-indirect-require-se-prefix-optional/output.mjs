@@ -1,6 +1,6 @@
-import "core-js/modules/es.object.to-string";
-import "core-js/modules/es.array.from";
-import "core-js/modules/es.string.iterator";
+require("core-js/modules/es.object.to-string");
+require("core-js/modules/es.array.from");
+require("core-js/modules/es.string.iterator");
 // optional indirect require with an observable side-effect prefix:
 // `(sideEffect(), require)?.('core-js/...')`. babel models the optional call as an
 // OptionalCallExpression (oxc folds the optional marker into a plain CallExpression), so the

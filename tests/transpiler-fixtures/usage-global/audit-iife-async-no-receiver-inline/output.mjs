@@ -2,6 +2,7 @@ import "core-js/modules/es.object.to-string";
 import "core-js/modules/es.promise.constructor";
 import "core-js/modules/es.promise.catch";
 import "core-js/modules/es.promise.finally";
+import "core-js/modules/es.promise.resolve";
 import "core-js/modules/es.string.repeat";
 // IIFE return-expression inlining for receiver type must fire only for plain functions:
 // async / generator functions wrap the bare return in Promise / Generator, so inlining the

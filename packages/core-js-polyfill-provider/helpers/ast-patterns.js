@@ -1,5 +1,6 @@
 import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
 import { canonicalArrayIndex, DESTRUCTURE_PATTERN_TYPES, MAX_DEPTH, PATTERN_WRAPPERS } from '../resolve-node-type/base.js';
+import { moduleIdLanguage } from './path-normalize.js';
 
 // the escape census, keyed by PROGRAM node -> the NAMES a value handed out (a call argument, a
 // member-assignment RHS, a throw / yield / export-default), alias hops followed. written by the
@@ -200,16 +201,15 @@ export function isInitlessVarDecl(stmt) {
     && stmt.declarations.every(d => !d.init);
 }
 
-// would removing `body[entryIndex]` silently extend an EXISTING directive prologue with the
-// next surviving string-literal sibling? `"use strict"; require('core-js'); "use asm"; foo()`
-// -> removal promotes `"use asm"` and activates asm.js. fires only when SOME prologue exists
-// AND every surviving prior is a directive AND the next surviving sibling is a string-literal.
-// no-prologue case (string-literal lands at body[0] as the source's new first statement) is
-// an accepted transform consequence - the source had no directive context to disturb.
-// `hasPriorDirective`: babel parses module-level directives into `program.directives[]`,
-// lifted OUT of `program.body[]`. callers there pass `true` when `directives.length > 0` so
-// the prologue check still sees the implicit prefix. oxc keeps directives in body, so
-// callers there leave it at the default `false`.
+// would removing `body[entryIndex]` turn the next surviving string-literal sibling into a
+// DIRECTIVE it is not today? `require('core-js'); "use strict"; undeclared = 1` -> removal puts
+// `"use strict"` at body[0] and the sloppy script silently becomes strict; `"use client"` promoted
+// the same way makes a module a client boundary. the question is whether the prologue CHANGES, so
+// the answer does not depend on one already existing: a file with none is the worst case, not an
+// exemption - there the removal creates the prologue from nothing. fires when every surviving
+// prior statement is a directive - including none at all - and the next surviving sibling is a
+// bare string statement. `isQuietLiteralOperand` already holds the same invariant for the
+// minifier split.
 // `pendingRemovals` (optional index Set) treats queued siblings as gone for prefix scan and
 // next-sibling lookup. babel-plugin removes per-callback (live body reflects prior removals);
 // unplugin defers commit until after the whole batch decides, feeding the simulated state in
@@ -219,16 +219,16 @@ export function isInitlessVarDecl(stmt) {
 // is ever needed. only a zero-module expansion (modern targets filtering everything out)
 // leaves the bare-removal hazard this guard exists for
 function wouldPromoteDirectiveAfterRemoval({
-  body, entryIndex, pendingRemovals, hasPriorDirective = false, injectedImportsBreakPrologue = false,
+  body,
+  entryIndex,
+  pendingRemovals,
+  injectedImportsBreakPrologue = false,
 }) {
   if (injectedImportsBreakPrologue) return false;
-  let hasSurvivingDirective = hasPriorDirective;
   for (let i = 0; i < entryIndex; i++) {
     if (pendingRemovals?.has(i)) continue;
     if (!isDirectiveStatement(body[i])) return false;
-    hasSurvivingDirective = true;
   }
-  if (!hasSurvivingDirective) return false;
   let next = entryIndex + 1;
   while (pendingRemovals?.has(next)) next++;
   return isBareStringStatement(body[next]);
@@ -242,7 +242,9 @@ function wouldPromoteDirectiveAfterRemoval({
 // per-callback path (where prior removals are already physical). returns AST nodes in walk
 // order (descending body position) so callers don't re-sort before emit
 export function resolveBatchDirectivePromotionPolicy({
-  body, candidateIndices, hasPriorDirective = false, injectedImportsBreakPrologue = false,
+  body,
+  candidateIndices,
+  injectedImportsBreakPrologue = false,
 }) {
   const toRemove = [];
   const toReplaceWithNoop = [];
@@ -253,7 +255,7 @@ export function resolveBatchDirectivePromotionPolicy({
   for (let i = candidateIndices.length - 1; i >= 0; i--) {
     const idx = candidateIndices[i];
     pendingRemovals.delete(idx);
-    if (wouldPromoteDirectiveAfterRemoval({ body, entryIndex: idx, pendingRemovals, hasPriorDirective, injectedImportsBreakPrologue })) {
+    if (wouldPromoteDirectiveAfterRemoval({ body, entryIndex: idx, pendingRemovals, injectedImportsBreakPrologue })) {
       toReplaceWithNoop.push(body[idx]);
     } else {
       pendingRemovals.add(idx);
@@ -1317,7 +1319,7 @@ function useSitsInStatementHead(usePath, hostNode, slots) {
 // declarator with no init never overwrites it at all. a use inside a function stays shadowed: whether
 // the call lands before or after the assignment is not decidable from position
 function scriptProgramVarUncoveredUse(ownerNode, declaratorNode, usePath) {
-  if (ownerNode?.type !== 'Program' || ownerNode.sourceType !== 'script') return false;
+  if (ownerNode?.type !== 'Program' || !programIsScript(ownerNode)) return false;
   if (declaratorNode?.type !== 'VariableDeclarator') return false;
   for (let p = usePath; p?.node && p.node.type !== 'Program'; p = p.parentPath) {
     if (FUNCTION_LIKE_NODE_TYPES.has(p.node.type)) return false;
@@ -1743,12 +1745,22 @@ function anySloppyOwnerAbove(path) {
 // return undefined to continue), and the outer `?? false` normalises "no owner matched" to a boolean
 function findSloppyBlockFunctionInPath(path, name) {
   return climbVarScopeOwners(path, owner => {
-    // sloppiness FIRST: it is a short climb, while the block-function set is a full subtree walk
-    // on its first query per owner - and in an ES module (every file of a modern bundle) the
-    // answer is always false, so that walk would be built only to be thrown away
-    const fn = isSloppyAtPath(owner) ? cachedScopeBlockFunctions(owner.node).get(name) : null;
+    const fn = annexBHoistsBlockFunction(owner, name) ? cachedScopeBlockFunctions(owner.node).get(name) : null;
     return fn ? { owner, fn } : undefined;
   }) ?? null;
+}
+
+// does a block `function <name>` hoist into this var-scope owner? sloppiness FIRST: it is a short
+// climb, while the block-function set is a full subtree walk on its first query per owner - and in
+// an ES module (every file of a modern bundle) the answer is always false, so that walk would be
+// built only to be thrown away. B.3.3.1 then blocks the hoist for a name the enclosing function
+// takes as a PARAMETER, and a CommonJS wrapper takes exactly five - so inside one `{ function
+// require(){} }` shadows nothing while `{ function Map(){} }` still does, which is how the two
+// sloppy hosts answer this differently on identical source
+function annexBHoistsBlockFunction(owner, name) {
+  if (!isSloppyAtPath(owner)) return false;
+  if (!CJS_WRAPPER_PARAM_NAMES.has(name)) return true;
+  return PROGRAM_FORMAT.get(rootProgramOf(owner))?.hostScope !== 'cjs-wrapper';
 }
 
 // does the function at `scopePath` (descend blocks, stop at nested functions) bind `name` via a
@@ -1758,10 +1770,12 @@ function findSloppyBlockFunctionInPath(path, name) {
 // SyntaxError - so the extract bails to the inline-default fallback when this returns true, mirroring
 // the existing `paramListReadsName` bail. shared by both plugins' body-extract path
 export function functionScopeBindsVarOrFunction(scopePath, name) {
-  // the block-function half is Annex B, which only sloppy code has: in a module the block
-  // function stays block-scoped and clashes with nothing at the body top
+  // the block-function half is Annex B, which only sloppy code has - and not even all of it: a
+  // CommonJS wrapper's own parameter names are carved out of the hoist. the `var` half is asked
+  // FIRST and knows no such carve-out: a `var` re-declaration of a wrapper parameter is a real
+  // binding either way
   return cachedScopeVars(scopePath.node).has(name)
-    || (isSloppyAtPath(scopePath) && cachedScopeBlockFunctions(scopePath.node).has(name));
+    || (annexBHoistsBlockFunction(scopePath, name) && cachedScopeBlockFunctions(scopePath.node).has(name));
 }
 
 // `"use strict"` directive on a function body / Program. babel lifts directives into a
@@ -1808,7 +1822,7 @@ export function isSloppyAtPath(path) {
     if (type === 'ClassDeclaration' || type === 'ClassExpression') break;
     if ((FUNCTION_LIKE_NODE_TYPES.has(type) || type === 'Program') && nodeHasUseStrict(node)) break;
     if (type === 'Program') {
-      answer = node.sourceType === 'script';
+      answer = programIsScript(node);
       break;
     }
   }
@@ -5471,6 +5485,14 @@ function isLexicalScopeOpener(node) {
   return LET_SCOPE_HOST_TYPES.has(node.type);
 }
 
+// the scope a declaration of `kind` LANDS in, given the chain enclosing it: a `var` climbs past
+// every lexical frame to the nearest var-scope, everything else binds in the innermost. `null` is
+// the file root. every census reducer asking where a name was bound asks this one - a second
+// spelling of it is how one census came to read a `var` in a block as binding in that block
+export function declarationScopeIn(kind, scopes) {
+  return (kind === 'var' ? scopes.findLast(isScopeRebinding) : scopes.at(-1)) ?? null;
+}
+
 // `this` REbinding is a narrower boundary than scope rebinding: an arrow inherits the enclosing
 // `this`, so a `this` inside a top-level arrow is still the top-level one. mirrors the canon
 // `isTopLevelThisContext` walks, so a census frame and a path walk answer alike
@@ -6441,7 +6463,7 @@ export function defaultImportSourcesOf(root) {
   const cached = root ? DEFAULT_IMPORT_SOURCES.get(root) : null;
   if (cached && cached.length === body.length) return cached.sources;
   const sources = new Map();
-  const requireShadowed = declaresRequireBinding(body);
+  const requireShadowed = declaresRequireBinding(root);
   for (const stmt of body) {
     // `export const x = require(...)` / `export import x = require(...)`: neither the export
     // wrapper (babel@8 / oxc) nor the modifier babel@7 flags on the node changes what the local
@@ -7840,6 +7862,27 @@ export const ESM_MARKER_TYPES = new Set([
   'ImportDeclaration',
 ]);
 
+// is this ONE node an ESM marker? asked of the nodes a binding emitted itself - the file's own
+// format is the census's question, never a per-node type test
+export const isESMMarkerStatement = node => ESM_MARKER_TYPES.has(node?.type);
+
+// a declaration tsc erases WHOLE leaves no runtime marker, so it cannot decide the format:
+// `import type { A } from './a'` compiles to nothing and the file it stands in stays CommonJS.
+// the kind is spelled on the declaration or on every specifier - the two-level rule
+// `isTypeOnlyImportKind` already owns - while ZERO specifiers still reaches the module record
+// (`import './a'`, `export {}` are real imports of nothing)
+function isLiveESMDeclaration(node) {
+  if (!ESM_MARKER_TYPES.has(node?.type)) return false;
+  if (isTypeOnlyImportKind(node.importKind) || isTypeOnlyImportKind(node.exportKind)) return false;
+  const { declaration, specifiers } = node;
+  // `export import X = require('m')` is CommonJS-only syntax - tsc rejects it outright when it
+  // emits modules - so the export wrapper around it proves nothing about the goal
+  if (declaration?.type === 'TSImportEqualsDeclaration') return false;
+  if (declaration) return declaration.declare !== true && !TYPE_SPACE_NODE_TYPES.has(declaration.type);
+  return !specifiers?.length
+    || specifiers.some(spec => !isTypeOnlyImportKind(spec.importKind ?? spec.exportKind));
+}
+
 function isNamedIdent(node, name) {
   return node?.type === 'Identifier' && node.name === name;
 }
@@ -8145,57 +8188,67 @@ function isStaticMember(node, objName, propName) {
     && isNamedIdent(unwrapExpr(node.object), objName) && matchesMemberName(node, propName);
 }
 
-// walks the MemberExpression chain - any ancestor rooted at `exports` or `module.exports` matches.
-// also handles OptionalMemberExpression: `module?.exports.X = Y` is valid syntax (defensive
-// edge for tooling that emits guarded CJS reassignment); babel and oxc both produce the
-// matching node type, so the check accepts either
-function isCommonJSAssignTarget(left) {
+// the assignment target rooted at the CommonJS export object - `module.exports`, `exports.X.Y`,
+// `module['exports']` - as the free name it is rooted at, else null. the caller decides whether
+// that name is the host's or the author's own; here it is only read off the chain.
+// an optional target (`module?.exports.X = Y`) is not assignable in either parser, so the chain
+// walk meets `OptionalMemberExpression` only as an inner hop of a parenthesised spelling
+function commonJSAssignRootName(left) {
   let node = unwrapExpr(left);
   while (node?.type === 'MemberExpression' || node?.type === 'OptionalMemberExpression') {
-    if (isStaticMember(node, 'module', 'exports')) return true;
+    if (isStaticMember(node, 'module', 'exports')) return 'module';
     const obj = unwrapExpr(node.object);
-    if (isNamedIdent(obj, 'exports')) return true;
+    if (isNamedIdent(obj, 'exports')) return 'exports';
     node = obj;
   }
-  return false;
+  // `exports = {}` rebinds the whole export object; the target is the bare name
+  return isNamedIdent(node, 'exports') ? 'exports' : null;
 }
 
-export const hasTopLevelESM = program => program.body.some(n => ESM_MARKER_TYPES.has(n.type));
-
 // shadowed `require` makes its calls user-authored no-ops, not real core-js imports.
-// per-body cache - same body walked by multiple passes (detect-usage + detect-entry)
+// keyed by the PROGRAM, which is what the answer is about and what several passes share
+// (detect-usage + detect-entry walk the same one)
 const REQUIRE_SHADOW_CACHE = new WeakMap();
 
-export function declaresRequireBinding(body) {
-  if (!body || typeof body !== 'object') return false;
-  if (REQUIRE_SHADOW_CACHE.has(body)) return REQUIRE_SHADOW_CACHE.get(body);
-  const result = computeDeclaresRequire(body);
-  REQUIRE_SHADOW_CACHE.set(body, result);
+// takes the PROGRAM node, not a bare body: half the answer is the Annex-B block-function hoist,
+// which exists only in sloppy code, and a statement array carries no `sourceType` to ask
+export function declaresRequireBinding(program) {
+  if (program?.type !== 'Program') return false;
+  if (REQUIRE_SHADOW_CACHE.has(program)) return REQUIRE_SHADOW_CACHE.get(program);
+  const result = (program.body ?? []).some(statementShadowsRequireAtProgramScope)
+    // the `var` and Annex-B halves are ONE canonical pair, and this used to re-derive only the
+    // first of them - `collectScopeVars` ignores a FunctionDeclaration by contract, so a
+    // block-hoisted `function require(){}` shadowed the loader for the runtime and not for us.
+    // a synthesised path is enough: `isSloppyAtPath` takes one step and reads `Program.sourceType`
+    || functionScopeBindsVarOrFunction({ node: program }, 'require');
+  REQUIRE_SHADOW_CACHE.set(program, result);
   return result;
 }
 
-function computeDeclaresRequire(body) {
-  for (const stmt of body ?? []) {
-    if (statementShadowsRequireAtProgramScope(stmt)) return true;
-  }
-  // `var require` hoists from nested non-function scopes (for-of head, if-body, blocks,
-  // try-catch) to program scope per JS semantics. babel's scope tracker hoists vars
-  // natively; mirror that here so unplugin's entry-detection synth-scope matches
-  // babel-plugin's real-scope `getBindingIdentifier('require')` behavior
-  return collectScopeVars({ body }).has('require');
+// is the name `require` already bound at the TOP of this program's body, where our own emitted
+// call lands? a hoisted `function require` carries its body from the first line and a lexical one
+// is in TDZ there, so both swallow the call; a `var` only redeclares, and inside a CommonJS
+// wrapper it starts out holding the loader the host passed in - which is the one host where our
+// call still reaches the real `require`
+function bindsRequireAtProgramStart(program, hostScope) {
+  if (program?.type !== 'Program') return false;
+  if ((program.body ?? []).some(statementShadowsRequireAtProgramScope)) return true;
+  if (annexBHoistsBlockFunction({ node: program }, 'require')
+    && cachedScopeBlockFunctions(program).has('require')) return true;
+  return hostScope !== 'cjs-wrapper' && cachedScopeVars(program).has('require');
 }
 
 // covers what babel's `scope.getBindingIdentifier('require')` (filtered by
 // `isAmbientBindingShape`) plus `findTSRuntimeBindingInPath` would report for a
-// program-direct binding. `var` is excluded - the recursive hoist sweep in
-// `computeDeclaresRequire` handles it uniformly, including top-level `var require`
+// program-direct binding. `var` is excluded - the var-scope half of the canonical pair handles it
+// uniformly, nested and program-direct alike, so the two callers ask for it beside this one
 function statementShadowsRequireAtProgramScope(stmt) {
   const node = unwrapExportedDeclaration(stmt);
   if (!node || node.declare === true) return false;
   switch (node.type) {
     case 'VariableDeclaration':
-      // block-scoped `let`/`const` only matter at program-direct position. `var` falls
-      // through to the recursive collectScopeVars sweep (handles nested + program-direct)
+      // block-scoped `let`/`const` only matter at program-direct position. `var` falls through to
+      // the var-scope half of `functionScopeBindsVarOrFunction` (nested + program-direct alike)
       if (node.kind === 'var') return false;
       return declaratorsBindName(node.declarations, 'require');
     case 'FunctionDeclaration':
@@ -8243,14 +8296,20 @@ function declaratorsBindName(decls, name) {
   return (decls ?? []).some(d => declaratorBindsName(d, name));
 }
 
-// `Object.defineProperty(exports, 'x', ...)` is tsc/esbuild's CJS emit shape for
-// `export const x = ...`; recognise as CJS marker alongside the direct-assign forms
-function isObjectDefinePropertyOnExports(expression) {
-  if (expression?.type !== 'CallExpression' && expression?.type !== 'OptionalCallExpression') return false;
+// `Object.defineProperty(exports, ...)` is tsc's and esbuild's CJS emit shape for `export const x`,
+// and every sibling of it spells the same thing: the plural form, and `Reflect` in place of `Object`
+const DEFINE_PROPERTY_KEYS = new Set(['defineProperty', 'defineProperties']);
+
+// a define-property call whose target is the CommonJS export object, as the free name that object
+// is rooted at - else null, in the same vocabulary `commonJSAssignRootName` answers in
+function definePropertyOnExportsRootName(expression) {
+  if (expression?.type !== 'CallExpression' && expression?.type !== 'OptionalCallExpression') return null;
   const callee = unwrapExpr(expression.callee);
-  if (!isStaticMember(callee, 'Object', 'defineProperty')) return false;
+  const definer = DEFINE_PROPERTY_KEYS.has(callee?.property?.name ?? '')
+    && (isNamedIdent(unwrapExpr(callee.object), 'Object') || isNamedIdent(unwrapExpr(callee.object), 'Reflect'));
+  if (!definer) return null;
   const first = expression.arguments?.[0];
-  return !!first && isNamedIdent(unwrapExpr(first), 'exports');
+  return first ? commonJSAssignRootName(first) : null;
 }
 
 // any `await` evaluated in the ENCLOSING (top-level) context of the subtree. function-like
@@ -8274,24 +8333,246 @@ function containsTopLevelAwait(node) {
   return found;
 }
 
-export function detectCommonJS(program) {
-  let hasCJS = false;
-  for (const stmt of program.body) {
-    // ESM wins: any ESM marker anywhere in the program rules out CJS classification,
-    // so keep scanning even after hasCJS is set to surface a later import / export
-    if (ESM_MARKER_TYPES.has(stmt.type)) return false;
-    if (stmt.type !== 'ExpressionStatement') continue;
-    const expression = unwrapExpr(stmt.expression);
-    if (hasCJS) continue;
-    const isDirectAssign = expression?.type === 'AssignmentExpression' && isCommonJSAssignTarget(expression.left);
-    if (isDirectAssign || isObjectDefinePropertyOnExports(expression)) hasCJS = true;
+// --- Module format ---
+
+// the names a CommonJS wrapper hands the file as PARAMETERS. ONE set answers two questions: a
+// spelling of one of them is evidence about the FORMAT only while the file does not declare that
+// name itself, and B.3.3.1 blocks the Annex-B hoist of a block function for a parameter name, so
+// `{ function require(){} }` shadows nothing inside the wrapper while `{ function Map(){} }` still
+// does - measured against a real Node CommonJS module
+export const CJS_WRAPPER_PARAM_NAMES = new Set(['module', 'exports', 'require', '__dirname', '__filename']);
+
+// the module-format census: ONE walk collecting both sides of "what is this file", plus the
+// declarations that void a CommonJS spelling. only the module side is PROOF - a live top-level
+// `import` / `export`, `import.meta` and top-level `await` parse in the Module goal alone - while
+// the CommonJS side is EVIDENCE the host is free to contradict. the walk is whole-file on purpose:
+// a `module.exports` inside an `if` or an IIFE is the same evidence as one at the top, and the
+// statement-level scan this replaces saw neither. `import()` is NOT module evidence - a dynamic
+// import is legal in a script - and neither is script-only SYNTAX (`with`, HTML comments, legacy
+// octals), which babel's parser rejects before a tree ever reaches us
+function moduleFormatReducer() {
+  const declaredIn = new Map();
+  const evidence = [];
+  let esm = false;
+  let nestedAwait = false;
+
+  function declare(name, scope) {
+    let scopes = declaredIn.get(name);
+    if (!scopes) declaredIn.set(name, scopes = new Set());
+    scopes.add(scope);
   }
-  // top-level `await` is ESM-only syntax (a script parse would reject it), so it overrides
-  // a CJS verdict even without explicit import/export - in ANY top-level host (`const x =
-  // await f()`, `if (await f())`, `for await (...)`), not just a bare expression statement.
-  // gated on hasCJS: the walk runs only for files that produced a CJS verdict to override,
-  // so marker-free files (the common case) never pay it
-  return hasCJS && !program.body.some(containsTopLevelAwait);
+
+  // where a declaration on `node` BINDS: a scope opener holds what it introduces itself (a
+  // function's parameters, a catch clause's), everything else binds where its KIND lands it - a
+  // `var` past every block to the function around it. a function's own NAME is the one exception:
+  // it belongs to the scope holding the function.
+  // a block FUNCTION stays coarse, and unavoidably: whether B.3.3.1 hoists it out of the block
+  // depends on the strictness this very census is about to decide, so the evidence is counted and
+  // the price is a `require`-spelled emission where an `import` would have done
+  function declaringScopes(node, frame) {
+    // the census visits the DECLARATOR, and the kind is spelled one level up on the declaration
+    const kind = node.type === 'VariableDeclarator' ? frame.parentNode?.kind : node.kind;
+    const enclosing = declarationScopeIn(kind, frame.scopes);
+    const own = isScopeRebinding(node) || isLexicalScopeOpener(node) ? node : enclosing;
+    return { own, enclosing };
+  }
+
+  // a site whose meaning depends on one of the wrapper's free names being the HOST's, as that name -
+  // else null. `import.meta` and a live `import` / `export` are the other side and are proof, not
+  // evidence, so they never reach here
+  function commonJSEvidenceName(node, frame) {
+    switch (node.type) {
+      // `export = x` is tsc's CommonJS-only export form
+      case 'TSExportAssignment': return 'exports';
+      // `import X = require('m')` is its import twin; the type-only spelling erases and proves nothing
+      case 'TSImportEqualsDeclaration':
+        return node.moduleReference?.type === 'TSExternalModuleReference' && !isTypeOnlyImportEquals(node)
+          ? 'require' : null;
+      case 'AssignmentExpression': return commonJSAssignRootName(node.left);
+      case 'Identifier':
+        return (node.name === '__dirname' || node.name === '__filename')
+          && !isNonReferencePosition(frame.parentNode, node) ? node.name : null;
+      default:
+        if (isRequireCall(node)) return 'require';
+        if (isStaticMember(node, 'module', 'exports')) return 'module';
+        return definePropertyOnExportsRootName(node);
+    }
+  }
+
+  return {
+    visit(node, frame) {
+      const declared = declaredIdentifierNodes(node);
+      if (declared) {
+        const { own, enclosing } = declaringScopes(node, frame);
+        for (const id of declared) {
+          if (CJS_WRAPPER_PARAM_NAMES.has(id.name)) declare(id.name, id === node.id ? enclosing : own);
+        }
+      }
+      // `import.meta` has no erasable spelling, so it proves the Module goal from any depth
+      if (isLiveESMDeclaration(node) || (node.type === 'MetaProperty' && node.meta?.name === 'import')) {
+        esm = true;
+        return;
+      }
+      // top-level `await` is Module-only syntax too. the frame answers the common spelling for
+      // free; a class definition-time slot evaluates in the enclosing context yet reads as nested
+      // here, so an await anywhere else defers to the canonical walk that knows those slots
+      if (node.type === 'AwaitExpression' || (node.type === 'ForOfStatement' && node.await)) {
+        if (frame.atTopLevel) esm = true;
+        else nestedAwait = true;
+      }
+      const name = commonJSEvidenceName(node, frame);
+      if (name) evidence.push({ name, frame });
+    },
+    result() {
+      // an evidence site counts only while nothing between it and the file root declares the name
+      // it reads: `function f(module) { module.exports = 1 }` spells the author's own object, and
+      // widening the scan to the whole file is exactly what makes that shadow load-bearing
+      const cjs = evidence.some(({ name, frame }) => {
+        const declaring = declaredIn.get(name);
+        if (!declaring) return true;
+        // `null` stands for the file root, which every site is inside
+        return !declaring.has(null) && frame.scopes.every(scope => !declaring.has(scope));
+      });
+      return { moduleFormat: { hasLiveESM: esm, hasCJS: cjs, nestedAwait } };
+    },
+  };
+}
+
+// the census is whole-file and both the format owner and the emitters' diagnostics ask it, so it
+// is memoised on the program node it describes
+const MODULE_FORMAT_CACHE = new WeakMap();
+
+// what the BODY spells: `{ hasLiveESM, hasCJS }`. the two are independent - a source can spell
+// both, and that mixture is what no injection spelling can make loadable
+export function moduleFormatMarkers(program) {
+  if (!program || typeof program !== 'object') return { hasLiveESM: false, hasCJS: false };
+  let markers = MODULE_FORMAT_CACHE.get(program);
+  if (!markers) {
+    const { hasLiveESM, hasCJS, nestedAwait } = collectFileCensus(program, [moduleFormatReducer()]).moduleFormat;
+    // the census answered every await its frames can see; only a file carrying one they read as
+    // NESTED pays the canonical walk, which additionally reaches the class definition-time slots
+    markers = {
+      hasLiveESM: hasLiveESM || (nestedAwait && (program.body ?? []).some(containsTopLevelAwait)),
+      hasCJS,
+    };
+    MODULE_FORMAT_CACHE.set(program, markers);
+  }
+  return markers;
+}
+
+// does the body spell CommonJS and nothing that only a Module can spell? the emitters' shorthand
+// over the census, kept because "the source declares itself CommonJS" is a question with callers
+// of its own - the FORMAT is `resolveModuleFormat`, which weighs the id and the host beside this
+export function detectCommonJS(program) {
+  const markers = moduleFormatMarkers(program);
+  return markers.hasCJS && !markers.hasLiveESM;
+}
+
+// the format verdict, kept on the Program node. The strictness model and the shadow walks are
+// asked from a path, deep inside a resolution, so a fact about the FILE reaches them here rather
+// than threaded through every one of them - and the babel leg cannot write the verdict back onto
+// `sourceType` at all, because that tree belongs to a foreign pipeline whose module transforms
+// read the field after us
+const PROGRAM_FORMAT = new WeakMap();
+
+// the format owner's verdict outranks the parse goal: a host that parsed tolerantly (babel's
+// default `module`, oxc's `unambiguous`) has not decided the file's format, and the leg that
+// cannot write its verdict back leaves it here instead of on the node
+function programIsScript(program) {
+  return (PROGRAM_FORMAT.get(program)?.sourceType ?? program?.sourceType) === 'script';
+}
+
+// the extension's own answer, which neither the body nor the caller may overrule: `.mjs` / `.mts`
+// resolve as Modules and `.cjs` / `.cts` as CommonJS by the resolution rules of every host
+function moduleExtensionGoal(id) {
+  const language = moduleIdLanguage(id);
+  return language?.script ? 'script' : language?.esm ? 'module' : null;
+}
+
+// the one ESM statement a pass of ours takes away: a BARE side-effect import whose specifier names a
+// core-js entry, which `entry-global` replaces with the modules it expands to. A binding import, any
+// export and `import.meta` outlive every method, so the format owner asks only about this shape -
+// and only a caller that actually removes them hands the test in
+export function isConsumedEntryImport(node, getCoreJSEntry) {
+  return node.type === 'ImportDeclaration' && !node.specifiers?.length
+    && getCoreJSEntry(node.source?.value ?? '') !== null;
+}
+
+// THE owner of "what kind of module is this file". Everything downstream - the strictness model
+// and with it Annex-B, the import spelling the injector emits, the wrapper-parameter carve-out -
+// reads this one answer instead of re-deriving its own.
+// `importStyleOption` is EMISSION configuration and is deliberately absent from the language
+// half: reading it there let a caller who asked for `require` output silently turn an ES module
+// into a sloppy script, and every polyfill under an Annex-B shadow went with it.
+// precedence for the language fact, top wins: live module evidence in the body (proof - a script
+// parse rejects it); a host that declared it parsed a SCRIPT (a declared `module` is babel's
+// default, not a statement, so only the script half speaks); the id's extension; CommonJS
+// evidence; else a module.
+// `hostScope` splits the two sloppy hosts apart, because they answer differently and `sourceType`
+// alone cannot: inside a CommonJS wrapper `require` is a parameter, so a block `function require`
+// does NOT shadow the loader, while in a global script it does
+export function resolveModuleFormat({
+  id = null,
+  program,
+  declaredSourceType = null,
+  importStyleOption = null,
+  consumesESM = null,
+}) {
+  const markers = moduleFormatMarkers(program);
+  // a caller with no program at all gets the same degradation the census gives it - a module with
+  // the option's own spelling - rather than a throw out of the verdict store below
+  if (!program || typeof program !== 'object') {
+    return {
+      markers,
+      sourceType: 'module',
+      hostScope: 'module',
+      importStyle: importStyleOption ?? 'import',
+      requireDeclined: false,
+      sourceIsMixed: false,
+    };
+  }
+  const extensionGoal = moduleExtensionGoal(id);
+  const sourceType = markers.hasLiveESM ? 'module'
+    : declaredSourceType === 'script' ? 'script'
+      : extensionGoal ?? (markers.hasCJS ? 'script' : 'module');
+  const hostScope = sourceType === 'module' ? 'module'
+    : extensionGoal === 'script' || markers.hasCJS ? 'cjs-wrapper' : 'global-script';
+  PROGRAM_FORMAT.set(program, { sourceType, hostScope });
+  // does the file's own live ESM OUTLIVE this pass? Only a caller knows: `entry-global` removes the
+  // entry imports it recognises and nothing else does, so it hands in the test and everyone else
+  // hands in nothing. Evidence that is not a top-level statement - `import.meta`, top-level await -
+  // is never removed by anyone, which is why an absent statement list still counts as kept
+  const topLevelESM = (program.body ?? []).filter(isLiveESMDeclaration);
+  const keptESM = markers.hasLiveESM
+    && (!topLevelESM.length || topLevelESM.some(node => !consumesESM?.(node)));
+  // a script always emits `require`; so does a module whose body writes CommonJS - the `.mjs` whose
+  // body still spells `module.exports` - and so does one whose only ESM the pass is about to take
+  // away: after the entry it carried is consumed, what is left is CommonJS, and an `import` we put
+  // in it is the second module system that body never had. That case is the correctness one.
+  // Where the AUTHOR spelled both, no spelling saves the file - a bundler takes either and Node
+  // takes neither - so the tie goes to the ESM markers, which is what the source says it is, and
+  // `sourceIsMixed` reports the mixture rather than letting the choice pass for a fix
+  const derived = sourceType === 'script' || (markers.hasCJS && !keptESM) ? 'require' : 'import';
+  const requested = importStyleOption ?? derived;
+  // `require` is not a spelling this program HAS when it binds the name itself: our call lands at
+  // the top of the body, where a hoisted `function require` already carries its body and a lexical
+  // one is still in TDZ. only a `var` is harmless there, and only inside the wrapper, where it
+  // starts out holding the loader the host passed in. the decline is REPORTED however the style was
+  // chosen: `import` in a CommonJS file does not load either, and a derived style makes it no less
+  // the caller's problem to know about
+  const requireSpellable = requested !== 'require' || !bindsRequireAtProgramStart(program, hostScope);
+  return {
+    markers,
+    sourceType,
+    hostScope,
+    importStyle: requireSpellable ? requested : 'import',
+    requireDeclined: !requireSpellable,
+    // the AUTHOR mixed the two - `import` beside `module.exports` - so whichever spelling the
+    // injection takes, the file goes out mixed and no host accepts it. a fact about the SOURCE,
+    // answerable only before any emission, and the reason it is reported from here rather than
+    // from the tree a pass later
+    sourceIsMixed: markers.hasLiveESM && markers.hasCJS,
+  };
 }
 
 // memoized ancestor walk with back-fill: O(depth) worst case, ~O(1) for siblings sharing

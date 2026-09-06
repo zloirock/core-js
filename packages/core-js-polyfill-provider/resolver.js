@@ -162,9 +162,16 @@ export function createPolyfillResolver(options, {
   const { resolvePropertyObjectType, resolveGuardHints, resolvePropertyUnionHints, toHint, isString, isObject } = typeResolvers;
   const { isMemberLike, isCallee, isSpreadElement } = astPredicates;
   const {
-    method, mode, version, package: pkg, additionalPackages,
-    include, exclude,
-    shouldInjectPolyfill, createDebugOutput,
+    method,
+    mode,
+    version,
+    package: pkg,
+    additionalPackages,
+    include,
+    exclude,
+    importStyle,
+    shouldInjectPolyfill,
+    createDebugOutput,
   } = initPluginOptions(options, { getBabelTargets });
   const ctx = createPolyfillContext({
     method, mode, version, package: pkg, additionalPackages, include, exclude, shouldInjectPolyfill,
@@ -415,5 +422,8 @@ export function createPolyfillResolver(options, {
   return {
     resolver: { ...ctx, resolveUsage, resolvePure, resolvePureOrGlobalFallback },
     createDebugOutput,
+    // the normalized emission style, so a binding never re-reads the raw option and re-derives
+    // "was it set" on its own
+    importStyle,
   };
 }
