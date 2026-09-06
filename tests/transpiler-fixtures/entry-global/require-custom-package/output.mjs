@@ -1,2 +1,2 @@
-import "@x/y/modules/es.math.sum-precise";
-import "@x/y/modules/es.regexp.escape";
+require("@x/y/modules/es.math.sum-precise");
+require("@x/y/modules/es.regexp.escape");

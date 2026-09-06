@@ -2,6 +2,7 @@ import "core-js/modules/es.object.to-string";
 import "core-js/modules/es.promise.constructor";
 import "core-js/modules/es.promise.catch";
 import "core-js/modules/es.promise.finally";
+import "core-js/modules/es.promise.resolve";
 // the two halves of the compensation sit on opposite sides of every downstream lowering: the fold
 // REMOVES a node they misread and runs with the emitters, the parens ADD one they cannot walk and
 // go in at `post()`. these shapes are the ones that keep parens - each holds an `await` a lowering

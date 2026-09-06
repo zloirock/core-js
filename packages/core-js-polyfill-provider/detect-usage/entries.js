@@ -151,7 +151,7 @@ export function scanExistingCoreJSImports(ast, {
   // still matches the user's source literal when they typed the lowercase canonical form
   const mainPkgs = pkg ? [pkg.toLowerCase()] : null;
   const modePrefix = mode ? `${ mode }/` : null;
-  const shadowScope = declaresRequireBinding(ast.body) ? REQUIRE_SHADOWED_SCOPE : null;
+  const shadowScope = declaresRequireBinding(ast) ? REQUIRE_SHADOWED_SCOPE : null;
   for (const node of ast.body ?? []) {
     // an opt-out directive means "do not touch this line": the statement is neither adopted as a
     // dedup target nor removed and re-emitted, so it stays exactly where the author wrote it. the

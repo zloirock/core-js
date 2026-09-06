@@ -1,26 +1,34 @@
 import { createUnplugin } from 'unplugin';
 import createPlugin from './internals/plugin.js';
-import { isSfcScriptBlock, isViteAssetQuery, parseModuleId } from './internals/sfc-shapes.js';
+import { moduleIdLanguage } from '@core-js/polyfill-provider/helpers/path-normalize';
+import {
+  isHtmlProxyScript,
+  isSfcScriptBlock,
+  isSfcSourceFile,
+  isViteAssetQuery,
+  parseModuleId,
+} from './internals/sfc-shapes.js';
 
-// match JS/TS extensions anchored at end-of-path; `.d.ts` declaration files excluded.
-// Flow (.flow) is not listed - oxc-parser cannot parse Flow syntax.
-// case-insensitive: Windows FS is typically case-insensitive and build tools may normalize
-// extensions to upper-case (`.JS` / `.TSX`); lower-case-only match would skip those ids
-const JS_RE = /\.[cm]?[jt]sx?$/i;
-const DTS_RE = /\.d\.[cm]?tsx?$/i;
-
-export function shouldTransform(id) {
+// `enforce` says where this sub-plugin sits against the framework plugins that COMPILE an SFC: at
+// `pre` such an id still holds the author's markup, at `post` the JavaScript they turned it into.
+// It is the only phase-dependent input here; every other rule is a language fact of the id.
+export function shouldTransform(id, enforce = 'pre') {
   // `\0` marks virtual modules; `?commonjs-*` / `?commonjsExternal` are Rollup commonjs-plugin proxy /
   // external bodies. these are raw-id guards (the commonjs markers are anchored to the first `?` and
   // `\0` can sit mid-id), kept verbatim rather than folded into the structured query parse
   if (id.includes('\0') || id.includes('?commonjs-') || id.includes('?commonjsExternal')) return false;
-  const { path, params } = parseModuleId(id);
+  const compiled = enforce === 'post';
+  const parsed = parseModuleId(id);
+  const { path, params } = parsed;
   // Vite asset imports: resolved body isn't user JS even if the path looks like one
   if (isViteAssetQuery(params)) return false;
-  // a real JS/TS file by extension, excluding `.d.ts` declarations
-  if (JS_RE.test(path) && !DTS_RE.test(path)) return true;
-  // otherwise admit only a runnable SFC script / module sub-block
-  return isSfcScriptBlock(params);
+  // a real JS/TS source file by extension, `.d.ts` declarations excluded - the language canon
+  // answers both, case-insensitively, and is the same answer the parser's dialect is read from
+  if (moduleIdLanguage(path)) return true;
+  if (isHtmlProxyScript(params)) return true;
+  // a framework SOURCE file's bare id, once its own plugin has compiled it into a module
+  if (compiled && isSfcSourceFile(parsed)) return true;
+  return isSfcScriptBlock(params, { compiled });
 }
 
 const VALID_PHASES = new Set(['pre', 'post', 'pre+post']);
@@ -78,11 +86,20 @@ const unplugin = createUnplugin((options, meta) => {
     // forward bundler's `this` (carrying `.warn`) into plugin.transform so internal
     // diagnostics (parse failures, ImportInjector fallbacks) actually surface; without
     // `.call(this, ...)` the inner `this?.warn` is undefined and warnings drop silently
-    function transform(code, id) { return plugin.transform.call(this, code, id, pass); }
+    function transform(code, id, hookOptions) {
+      // Vite runs ONE plugin instance across several environments (client / ssr / custom): the same
+      // id, the same object, independent pipelines - so the pre-to-post snapshot must be partitioned
+      // by them or one environment's state lands in another's output. Vite 6+ names the environment
+      // on the hook context and covers the custom ones; older Vite only flags `options.ssr`. every
+      // other host runs a single pipeline (webpack's loader passes no third argument at all) and
+      // shares the default bucket
+      const environment = this?.environment?.name ?? (hookOptions?.ssr ? 'ssr' : '');
+      return plugin.transform.call(this, code, id, pass, environment);
+    }
     return {
       name: `${ plugin.name }:${ enforce }`,
       enforce,
-      transformInclude: shouldTransform,
+      transformInclude: id => shouldTransform(id, enforce),
       // rollup / rolldown ignore the vite-style top-level `enforce` (upstream maps it for
       // webpack-family rules, farm priorities and vite's plugin sorting, but its rollup
       // conversion leaves the field foreign) - without ordering, `pre+post` degenerates to two

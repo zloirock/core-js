@@ -1,3 +1,8 @@
+import "core-js/modules/es.symbol.constructor";
+import "core-js/modules/es.symbol.description";
+import "core-js/modules/es.object.assign";
+import "core-js/modules/es.object.get-own-property-symbols";
+import "core-js/modules/es.object.to-string";
 // destructuring with a computed key that SPELLS a well-known symbol as a string is a plain
 // string-keyed extraction - nothing to polyfill, so no symbol/iterator modules are injected
 // (a real `[Symbol.iterator]` key here would pull the whole iterator suite); for-of is kept

@@ -1,3 +1,5 @@
+import "core-js/modules/es.symbol.constructor";
+import "core-js/modules/es.symbol.description";
 import "core-js/modules/es.symbol.iterator";
 import "core-js/modules/es.object.from-entries";
 import "core-js/modules/es.object.group-by";

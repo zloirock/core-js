@@ -1,3 +1,5 @@
+import "core-js/modules/es.symbol.constructor";
+import "core-js/modules/es.symbol.description";
 import "core-js/modules/es.symbol.iterator";
 import "core-js/modules/es.object.has-own";
 import "core-js/modules/es.object.to-string";
@@ -8,6 +10,7 @@ import "core-js/modules/es.promise.resolve";
 import "core-js/modules/es.promise.try";
 import "core-js/modules/es.array.iterator";
 import "core-js/modules/es.array.from-async";
+import "core-js/modules/es.array.from";
 import "core-js/modules/es.global-this";
 import "core-js/modules/es.map.constructor";
 import "core-js/modules/es.map.species";

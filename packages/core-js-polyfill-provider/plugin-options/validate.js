@@ -16,7 +16,7 @@ function isPlainObject(value) {
 }
 
 // null/undefined symmetric so conditional spread (`{ debug: cond ? true : null }`) clears
-function isEmpty(v) {
+export function isEmpty(v) {
   return v === null || v === undefined;
 }
 

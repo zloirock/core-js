@@ -20,6 +20,8 @@ import {
 import { createDebugOutputFactory } from '../../packages/core-js-polyfill-provider/plugin-options/debug-output.js';
 import { initPluginOptions } from '../../packages/core-js-polyfill-provider/plugin-options/init.js';
 import knownBuiltInReturnTypes from '../../packages/core-js-compat/known-built-in-return-types.json' with { type: 'json' };
+import builtInDefinitions from '../../packages/core-js-compat/built-in-definitions.json' with { type: 'json' };
+import compatEntries from '../../packages/core-js-compat/entries.json' with { type: 'json' };
 import { createChecker } from './harness.mjs';
 
 const { check, checkDeep, checkTruthy, doesNotThrow, finish, throwsWith } = createChecker('plugin-options');
@@ -91,6 +93,9 @@ doesNotThrow('validateOptions/importStyle require',
 throwsWith('validateOptions/importStyle invalid',
   () => validateOptions({ ...validBase, importStyle: 'foo' }),
   '`importStyle`');
+// same nullish acceptance as every other option, and `init` is what turns it into ONE spelling
+doesNotThrow('validateOptions/importStyle null OK',
+  () => validateOptions({ ...validBase, importStyle: null }));
 
 // --- validateOptions: boolean options ---
 
@@ -601,6 +606,79 @@ check('sortByPolyfillOrder/single element unknown', JSON.stringify(sortByPolyfil
   check('createModuleInjectors/forEntry debug[2]', debugAdds[2], 'es.array.at');
 }
 
+// WIDENING THE MODE MAY NEVER NARROW THE INJECTED SET, over the real definitions rather than over
+// a scenario someone remembered. The receiver's own obligation is asked at the STABLE layer
+// (`isProposalEntry`) instead of off the count the CONFIGURED layer happened to yield, and
+// the two answers differ exactly where a static's entries are absent from `mode` yet present in
+// `stable` - the web entries, which no `es/` layer carries. Such a cell would inject the member's
+// modules and drop the constructor the narrower mode had injected for the same read, so the count
+// of them has to stay zero as the definitions grow.
+// The reverse cells are the point of the rule and are listed, not forbidden: a member outside every
+// stable layer now takes its receiver's constructor along
+{
+  function hasEntry(entry) { return (compatEntries[entry]?.length ?? 0) > 0; }
+  // the control: the test means nothing unless these spellings are the ones the data uses, and
+  // unless a web entry really does split the layers an `es` one does not
+  checkTruthy('mode-monotonicity/control - a web entry is stable-only',
+    !hasEntry('es/url/constructor') && hasEntry('stable/url/constructor'));
+  checkTruthy('mode-monotonicity/control - an es entry is in both',
+    hasEntry('es/array/from') && hasEntry('stable/array/from'));
+
+  const narrowing = [];
+  let cells = 0;
+  for (const [object, members] of Object.entries(builtInDefinitions.statics)) {
+    const objectDeps = builtInDefinitions.globals[object]?.global?.dependencies ?? [];
+    for (const [key, member] of Object.entries(members)) {
+      const deps = member?.global?.dependencies ?? [];
+      if (!deps.length) continue;
+      cells++;
+      for (const mode of VALID_MODES) {
+        // the baseline's injection was a no-op unless the receiver itself resolves at this mode
+        if (objectDeps.every(entry => !hasEntry(`${ mode }/${ entry }`))) continue;
+        if (deps.some(entry => hasEntry(`${ mode }/${ entry }`))) continue;
+        if (deps.some(entry => hasEntry(`stable/${ entry }`))) narrowing.push(`${ mode }/${ object }.${ key }`);
+      }
+    }
+  }
+  checkTruthy('mode-monotonicity/the enumeration reaches the statics table', cells > 100);
+  checkDeep('mode-monotonicity/no static loses its receiver as the mode widens', narrowing, []);
+}
+
+// The receiver's second reason, pinned to the data rather than left in a comment: a static that is
+// its own object's AND a PROPOSAL still needs the constructor injected, because a proposal module
+// reaches the constructor to hang itself off instead of defining it. A cell the reason fires on has
+// to be one it helps at SOME layer - at a wide one the member may already pull the whole family,
+// and the reason is then paid for by the narrow layers where it does not
+{
+  function hasEntry(entry) { return compatEntries[entry] ?? []; }
+  function isProposal(entry) { return hasEntry(`stable/${ entry }`).length === 0; }
+  const idle = [];
+  let helps = 0;
+  for (const [object, members] of Object.entries(builtInDefinitions.statics)) {
+    const objectDeps = builtInDefinitions.globals[object]?.global?.dependencies ?? [];
+    for (const [key, member] of Object.entries(members)) {
+      const deps = member?.global?.dependencies ?? [];
+      if (!deps.some(isProposal)) continue;
+      // a receiver the table polyfills nowhere - `Object`, `String`, an unshimmed proposal
+      // constructor - makes the injection a no-op, so firing on it costs nothing and proves nothing
+      if ([...VALID_MODES].every(mode => objectDeps.every(entry => !hasEntry(`${ mode }/${ entry }`).length))) continue;
+      const adds = [...VALID_MODES].some(mode => {
+        const injected = new Set(deps.flatMap(entry => hasEntry(`${ mode }/${ entry }`)));
+        return objectDeps.flatMap(entry => hasEntry(`${ mode }/${ entry }`)).some(module => !injected.has(module));
+      });
+      if (adds) helps++;
+      else idle.push(`${ object }.${ key }`);
+    }
+  }
+  // the one cell where the reason is idle rather than wrong: at every layer below `full` neither the
+  // member nor its receiver resolves to anything, and at `full` the member's entry already pulls the
+  // whole `AsyncIterator` family the receiver would have brought. The injection dedups, so the cost
+  // is nothing - but a NEW name here is the reason reaching past what it is for
+  checkDeep('receiver-obligation/the proposal reason fires on no cell it never helps',
+    idle.sort(), ['AsyncIterator.from']);
+  checkTruthy('receiver-obligation/... and it helps on some', helps > 0);
+}
+
 // null debug output (debug:false) skips bookkeeping without crashing
 {
   const injected = [];
@@ -872,6 +950,16 @@ check('formatTargets/multi', formatTargets({ ie: '11', chrome: '60' }),
   checkTruthy('initPluginOptions/returns shouldInjectPolyfill', typeof resolved.shouldInjectPolyfill === 'function');
   checkTruthy('initPluginOptions/mode passes through', resolved.mode === 'actual');
   checkTruthy('initPluginOptions/version passes through', resolved.version === '4.0');
+}
+
+// `importStyle` leaves here in ONE spelling: an absent option and a `null` one are the same
+// answer, so a consumer asking `=== undefined` and one asking `??` cannot disagree about
+// whether the user declared an emission style
+{
+  const base = { method: 'usage-global', version: '4.0', targets: { ie: 11 } };
+  check('initPluginOptions/importStyle null normalizes', initPluginOptions({ ...base, importStyle: null }).importStyle, undefined);
+  check('initPluginOptions/importStyle absent', initPluginOptions(base).importStyle, undefined);
+  check('initPluginOptions/importStyle explicit passes through', initPluginOptions({ ...base, importStyle: 'require' }).importStyle, 'require');
 }
 
 // unknown top-level key triggers Unknown plugin option error

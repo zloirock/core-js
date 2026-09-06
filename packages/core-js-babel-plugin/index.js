@@ -4,13 +4,12 @@ import {
   asProxyGlobalName,
   deleteHostAboveChain,
   claimIsInert,
-  ESM_MARKER_TYPES,
   detectCommonJS,
   extractIndirectRequireSEPrefix,
-  hasTopLevelESM,
   isAssignOrForXWriteTargetPath,
   claimDeleteOperand as isDeleteOperand,
   isDeleteTarget,
+  isESMMarkerStatement,
   isForXWriteTarget,
   isInUpdateOperand,
   isMemberWriteHost,
@@ -31,6 +30,8 @@ import {
   TS_EXPR_WRAPPERS,
   staticFallbackSwapRedundant,
   resolveBatchDirectivePromotionPolicy,
+  isConsumedEntryImport,
+  resolveModuleFormat,
   keptNavChainEndPath,
   memberChainEndPath,
   peelParenAndTSSlotPath,
@@ -206,7 +207,7 @@ export default function plugin(api, options) {
     resolveClaimableComputedKeyName, resolvePropertyObjectType, resolveNodeType, resolvedType, toHint,
   } = typeResolvers;
 
-  const { resolver, createDebugOutput } = createPolyfillResolver(options, {
+  const { resolver, createDebugOutput, importStyle: importStyleOption } = createPolyfillResolver(options, {
     typeResolvers,
     // the per-file mutation census the ENTRY choice consults (a ctor whose members cannot be
     // named carries its own statics); `adapter` is built below, so the closure defers like the
@@ -230,7 +231,7 @@ export default function plugin(api, options) {
     getBabelTargets: typeof api.targets === 'function' ? () => api.targets() : null,
   });
 
-  const { method, absoluteImports = false, importStyle: importStyleOption } = options;
+  const { method, absoluteImports = false } = options;
   const {
     getCoreJSEntry,
     getModulesForEntry,
@@ -266,7 +267,7 @@ export default function plugin(api, options) {
     return isMutatedStaticMeta(meta, mutatedStatics) ? null : resolvePureUnfiltered(meta, path);
   }
 
-  let injector, importStyle, debugOutput;
+  let injector, importStyle, format, debugOutput;
   // one debug note per DEOPTED global name per file (fired lazily at the first suppressed read)
   let deoptNotedNames = new Set();
   function noteDeoptedGlobal(name) {
@@ -429,7 +430,12 @@ export default function plugin(api, options) {
         }
       }
 
-      const { injectModulesForEntry, injectModulesForModeEntry, outputDebug } = createModuleInjectors({
+      const {
+        injectModulesForEntry,
+        injectModulesForModeEntry,
+        isProposalEntry,
+        outputDebug,
+      } = createModuleInjectors({
         mode,
         getModulesForEntry,
         getDebugOutput() { return debugOutput; },
@@ -554,6 +560,7 @@ export default function plugin(api, options) {
         adapter,
         resolveUsage,
         injectModulesForModeEntry,
+        isProposalEntry,
         isDisabled,
         resolveStaticInheritedMember,
         isInheritedStaticLookup,
@@ -1636,12 +1643,10 @@ export default function plugin(api, options) {
       // entry-global pass 2: partition every collected entry into remove / `0;`-promotion through the
       // shared batch resolver, fed the TOTAL injected-module count. mirrors unplugin's `detectEntries`
       // so the directive-promotion decision is single-sourced in the provider (no incremental fork).
-      // babel lifts module-level directives into `program.directives[]`, so a non-empty array is the
-      // prologue signal. `body.indexOf` reads the live (pre-flush) order; module imports flush after
+      // `body.indexOf` reads the live (pre-flush) order; module imports flush after
       function applyEntryDirectivePromotions(programPath) {
         if (!entryDirectiveCandidates.length) return;
-        const { body, directives } = programPath.node;
-        const hasPriorDirective = (directives?.length ?? 0) > 0;
+        const { body } = programPath.node;
         const nodeToPath = new Map();
         const candidateIndices = [];
         for (const path of entryDirectiveCandidates) {
@@ -1652,7 +1657,7 @@ export default function plugin(api, options) {
         }
         candidateIndices.sort((a, b) => a - b);
         const { toRemove, toReplaceWithNoop } = resolveBatchDirectivePromotionPolicy({
-          body, candidateIndices, hasPriorDirective, injectedImportsBreakPrologue: entryModulesInjected > 0,
+          body, candidateIndices, injectedImportsBreakPrologue: entryModulesInjected > 0,
         });
         const replaceSet = new Set(toReplaceWithNoop);
         for (const node of [...toRemove, ...toReplaceWithNoop]) {
@@ -1784,6 +1789,24 @@ export default function plugin(api, options) {
 
       function initFile(path) {
         const isInternalCoreJS = !!path.hub.file.opts.filename && isCoreJSFile(path.hub.file.opts.filename);
+        // FIRST, before any walk: the format owner, asked with what this host knows - the filename
+        // and the goal babel actually parsed with. Only a declared SCRIPT speaks there, because
+        // `module` is babel's default rather than a statement about the file. Everything below
+        // consults the strictness model, and that model MEMOISES its answer per node, so a verdict
+        // stored after the first walk would arrive too late to be read at all.
+        // The verdict is not written back onto `path.node.sourceType`: the tree is a foreign
+        // pipeline's, and the module transforms reading it after us key on that field
+        format = resolveModuleFormat({
+          id: path.hub.file.opts.filename,
+          program: path.node,
+          declaredSourceType: path.node.sourceType,
+          importStyleOption,
+          // only this method removes an ESM statement, and only the entry shape it recognises; a
+          // statement the author opted out of is not removed either, so it still holds the spelling
+          consumesESM: method === 'entry-global'
+            ? node => !isDisabled(node) && isConsumedEntryImport(node, getCoreJSEntry)
+            : null,
+        });
         // ONE raw walk answers every per-file census question (name reservation + the shape
         // gates) - the scans it replaces each re-walked the whole file. computed on the
         // PRISTINE tree: every consumer either reads it at this same point, or (ctor-alias
@@ -1812,10 +1835,7 @@ export default function plugin(api, options) {
         mutationRoots = isInternalCoreJS ? null : fileCensus.mutationRoots ?? null;
         writtenContainerSlots = fileCensus.writtenContainerSlots ?? null;
         containerSlotIndex = fileCensus.containerSlotIndex ?? null;
-        // source wins over sourceType: CJS-assign at top level of a `sourceType: "module"` file
-        // would otherwise produce mixed `import` + `module.exports` output
-        importStyle = importStyleOption ?? (!hasTopLevelESM(path.node)
-          && (path.node.sourceType === 'script' || detectCommonJS(path.node)) ? 'require' : 'import');
+        importStyle = format.importStyle;
         injector = new ImportInjector({
           t,
           programPath: path,
@@ -1877,6 +1897,14 @@ export default function plugin(api, options) {
         usageVisitors?.[USAGE_VISITORS_RESET]?.();
         if (helperVisitors && helperVisitors !== usageVisitors) helperVisitors[USAGE_VISITORS_RESET]?.();
         debugOutput = createDebugOutput?.() ?? null;
+        // the format owner's two reports, emitted here because the debug sink is only allocated
+        // now: what the source SPELLS is settled well before any of it reaches the tree
+        if (format.requireDeclined) {
+          debugOutput?.warn('the file binds `require` itself, so the injected imports stay ESM');
+        }
+        if (format.sourceIsMixed) {
+          debugOutput?.warn('the source mixes ESM and CommonJS, so its output is mixed whatever the injection spells');
+        }
         deoptNotedNames = new Set();
         const { comments } = path.hub.file.ast;
         // babel lifts directives into Program.directives, so body[0] is already post-prologue.
@@ -2322,7 +2350,7 @@ export default function plugin(api, options) {
         // a file that injected nothing prints as written: the wrapper splices are undone
         if (injector && !injector.pureImports.size && !injector.globalImports.size) restoreUnclaimedFlattens(path.node);
         // outputDebug() + closure-captured state cleanup deferred to postHook so the
-        // late-CJS detection (`postHook`'s markersGone check + diagnostic warn) can add to
+        // late-CJS detection (`postHook`'s diagnostic warn) can add to
         // debug output before format(). siblings' programExit + post may run AFTER ours;
         // nulling here would make postHook bail early and silently drop the ESM/CJS warning
       }
@@ -2336,15 +2364,24 @@ export default function plugin(api, options) {
         restoreParenCompensations(this.file?.path, parensPending ? null : originalBodyNodes);
         anchorDisableDirectives(this.file?.path?.node);
         if (!injector) return;
-        // late style-switch is a safety-net for sibling plugins that strip all ESM markers
-        // (e.g. `commonjs` rewriters) after our traversal. by post-phase our flush has
-        // already emitted imports; the remaining useful action is surfacing the mismatch
-        // through debug so users reorder plugins or opt into `importStyle: 'require'`
-        const markersGone = this.file.path.node.body.every(n => !ESM_MARKER_TYPES.has(n.type));
-        if (importStyleOption === undefined && importStyle === 'import' && markersGone && injector.hasFlushed) {
+        // a sibling CommonJS rewriter that runs after our last flush leaves whatever it did not
+        // reach behind in ESM, and the file goes out mixed. the question is asked of OUR nodes
+        // against the REST of the body, and counting our own imports as the file's ESM markers
+        // inverts it: a rewrite that reached everything reads as "no markers left" and a rewrite
+        // that missed our import reads as "markers are still here"
+        const { body } = this.file.path.node;
+        const ours = new Set(injector.survivingEmittedNodes(body));
+        // a body that was ALREADY CommonJS when we read it did not BECOME one after our flush, so a
+        // mixed output there is our own emission choice and its own report says so - this one is
+        // about a rewrite that happened behind us. and the advice it carries is to CHOOSE a
+        // spelling, so a caller who already chose one has nothing to read here
+        if (importStyleOption === undefined && !format.markers.hasCJS
+          && [...ours].some(isESMMarkerStatement)
+          && detectCommonJS({ type: 'Program', sourceType: 'script', body: body.filter(node => !ours.has(node)) })) {
           debugOutput?.warn(
-            'sibling plugin stripped ESM markers after our traversal; emitted imports '
-            + 'will stay ESM while file body is CJS. set `importStyle: "require"` to avoid mixing',
+            'a sibling plugin rewrote the file body to CommonJS after our last flush; the '
+            + 'polyfill imports it did not reach are still ESM. set `importStyle: "require"` '
+            + 'or order core-js after the module transform',
           );
         }
         // outputDebug AFTER potential warning add so format() includes the late-CJS diagnostic.
@@ -2360,18 +2397,17 @@ export default function plugin(api, options) {
         fileCensus = mutatedStatics = mutationRoots = writtenContainerSlots = containerSlotIndex = null;
       }
 
-      // per-file primitive-state reset: skipFile / disabledLines / importStyle /
-      // originalBodyNodes / skippedNodes. postHook nulls heap-allocated members
-      // (injector, synthSwap, destructureEmit, debugOutput) explicitly but leaves
-      // primitives intact across files - reset here before any early-return so a
-      // multi-file batch where `initFile` skips (path.node missing) doesn't carry
-      // the PREVIOUS file's `skipFile=true` into the next file's programExit
+      // every per-file slot that is NOT heap-allocated, in one place: postHook nulls the
+      // heap-allocated members (injector, synthSwap, destructureEmit, debugOutput) explicitly and
+      // leaves the rest intact across files, so they are reset here, before any early return - a
+      // multi-file batch where `initFile` skips (path.node missing) must not carry the PREVIOUS
+      // file's `skipFile=true`, or its format verdict, into the next file's programExit
       function resetPerFilePrimitives() {
         skipFile = false;
         disabledLines = null;
         entryModulesInjected = 0;
         entryDirectiveCandidates = [];
-        importStyle = null;
+        importStyle = format = null;
         originalBodyNodes = null;
         parensPending = true;
         skippedNodes = new WeakSet();
