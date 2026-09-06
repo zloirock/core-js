@@ -68,7 +68,7 @@ export default class ImportInjector extends ImportInjectorState {
   // computed-key synth gate to bail exactly the rewritten-member keys unplugin also bails on
   // flush runs multiple times (pre, programExit, deferred SE) - skip already-emitted.
   // `#emittedGlobals`: modules WE wrote out (subtract from `globalImports` in `#buildNodes`
-  // to compute newGlobals; drives `hasFlushed` for postHook's late-CJS diagnostic)
+  // to compute newGlobals)
   #emittedGlobals = new Set();
   #flushedPure = new Set();
   // emit history for canonical reorder at programExit. each `flush()` only sorts WITHIN
@@ -106,10 +106,13 @@ export default class ImportInjector extends ImportInjectorState {
     this.#scopeUids = makeScopeBag(program, 'uidsSet', 'uids');
   }
 
-  // post-hook safety-net needs to know whether any import has already been written so
-  // it doesn't switch `importStyle` mid-file and produce ESM+CJS mixed output
-  get hasFlushed() {
-    return this.#emittedGlobals.size > 0 || this.#flushedPure.size > 0;
+  // the nodes WE put in the program that are still standing, by node IDENTITY rather than by
+  // shape: a sibling CommonJS rewriter REPLACES our `ImportDeclaration` with a `require` of its
+  // own, and that is the right outcome - nothing is owed. What is owed is the opposite state, an
+  // ESM import of ours left in a body a sibling turned CommonJS, and only identity tells the two
+  // apart (a sibling's own `require('core-js/...')` prints exactly like ours)
+  survivingEmittedNodes(body) {
+    return (body ?? []).filter(node => this.#emittedKeyByNode.has(node));
   }
 
   isNameTaken(name) {

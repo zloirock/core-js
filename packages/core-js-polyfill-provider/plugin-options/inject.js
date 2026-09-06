@@ -48,6 +48,14 @@ export function createModuleInjectors({ mode, getModulesForEntry, getDebugOutput
     return injectModulesForEntry(`${ mode }/${ entry }`);
   }
 
+  // is this entry a PROPOSAL - carried by no standard layer, only by `actual` / `full`? Asked at the
+  // fixed layer rather than the configured one, so the answer cannot move as `mode` widens: reading
+  // it off the configured layer is what let a wider mode resolve a member and take its receiver's
+  // constructor away with it
+  function isProposalEntry(entry) {
+    return getModulesForEntry(`stable/${ entry }`).length === 0;
+  }
+
   function outputDebug() {
     const debugOutput = getDebugOutput();
     // guard `typeof console` for a console-less runtime, matching the sibling opt-in-debug sink in
@@ -58,5 +66,5 @@ export function createModuleInjectors({ mode, getModulesForEntry, getDebugOutput
     console.log(debugOutput.format());
   }
 
-  return { injectModulesForEntry, injectModulesForModeEntry, outputDebug };
+  return { injectModulesForEntry, injectModulesForModeEntry, isProposalEntry, outputDebug };
 }

@@ -7,9 +7,7 @@ import {
   SKIPPABLE_WRAPPER_TYPES,
   collectFileCensus,
   createTypeAnnotationChecker,
-  detectCommonJS,
   extractIndirectRequireSEPrefix,
-  hasTopLevelESM,
   isForXWriteTarget,
   isMemberWriteHost,
   isMutatedStaticMeta,
@@ -21,6 +19,8 @@ import {
   namespaceScopedBindingBlock,
   peelParenAndTSParentPath,
   prologueEndIndex,
+  isConsumedEntryImport,
+  resolveModuleFormat,
   usableAliasInfo,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
@@ -426,7 +426,7 @@ export default function createPlugin(options) {
   }
 
   const snapshots = new SnapshotCache({ debug: !!providerOptions.debug });
-  const { resolver, createDebugOutput } = createPolyfillResolver(providerOptions, {
+  const { resolver, createDebugOutput, importStyle: importStyleOption } = createPolyfillResolver(providerOptions, {
     typeResolvers,
     // the per-file mutation census the ENTRY choice consults - see the babel twin
     isMutatedStatic: (object, key) => estreeAdapter.isMutatedStatic(object, key),
@@ -440,7 +440,7 @@ export default function createPlugin(options) {
     },
   });
 
-  const { method, absoluteImports, importStyle: importStyleOption } = providerOptions;
+  const { method, absoluteImports } = providerOptions;
   const {
     mode,
     pkg,
@@ -472,13 +472,13 @@ export default function createPlugin(options) {
   // `isChunkLoaderBundler` for the bundler set + rationale)
   const isWebpack = isChunkLoaderBundler(bundler);
 
-  function runTransform(code, id, pass = 'single') {
+  function runTransform(code, id, pass = 'single', environment = '') {
     try {
       // thread bundler's `this` (Vite/Rollup/Webpack stage context with `.warn`) through
       // to runTransformInner so internal warnings reach the bundler's diagnostic channel.
       // injector save/restore happens INSIDE runTransformInner so early-returns before
       // its installation point don't disturb a re-entrant outer transform's slot
-      return runTransformInner.call(this, code, id, pass);
+      return runTransformInner.call(this, code, id, pass, environment);
     } catch (error) {
       tagError(error, id);
       throw error;
@@ -491,7 +491,7 @@ export default function createPlugin(options) {
   // state. mode bodies kept as inner functions for closure sharing - extracting them to
   // top-level would force passing 12+ closures explicitly with no readability gain
   // eslint-disable-next-line max-statements -- pipeline orchestrator + mode dispatcher
-  function runTransformInner(code, id, pass) {
+  function runTransformInner(code, id, pass, environment) {
     // defensive guard for direct callers (bundlers always pass valid strings)
     if (typeof code !== 'string' || typeof id !== 'string') return null;
     if (isCoreJSFile(id)) return null;
@@ -519,8 +519,6 @@ export default function createPlugin(options) {
     // map)? a no-op pre (usage-global detection only) emits no map, so post must NOT chain
     let inheritedPreRewrote = false;
     let inheritedMutatedStatics = null;
-    let cachedAst = null;
-    let cachedComments = null;
 
     // strip bundler query/hash suffix before passing the id to oxc-parser - oxc infers
     // the parser language from the extension and would otherwise see e.g. `tsx?import`
@@ -528,62 +526,58 @@ export default function createPlugin(options) {
     // INSIDE the query (`?vue&type=script&lang=ts`); `liftSfcLangSuffix` recovers it onto
     // the post-strip id so the right parser fires
     const cleanId = liftSfcLangSuffix(id);
-    // CJS files (.cjs, .cts) parse as scripts and, like files that look like CommonJS, get the
-    // 'require' import style by default
+    // what the ID alone says about the PARSE - the goal and the syntax dialect, nothing more. what
+    // the file IS, and how the injection is spelled, are the format owner's below, and they read
+    // the body this parse produces
     const sourceDialect = sourceDialectOf(cleanId);
-    const isCJSFile = sourceDialect.script;
     // strip leading BOM(s) before parsing - oxc rejects BOM-prefixed shebangs, and
     // offsetting positions by 1 would corrupt every transform. the output does NOT carry a
     // BOM (babel alignment - bundlers strip it anyway); `hasBOM` survives only so
-    // `sourcesContent` can keep the user's original bytes. Reassign `code` so the post-pass
-    // cache comparison uses the BOM-stripped source (stored `postInput` is always
-    // BOM-stripped). `stripLeadingBOMs` drops the whole leading run so a sibling plugin's
-    // per-pass prepend doesn't leave residual BOM bytes mid-prefix
+    // `sourcesContent` can keep the user's original bytes. `stripLeadingBOMs` drops the whole
+    // leading run so a sibling plugin's per-pass prepend doesn't leave residual BOM bytes
+    // mid-prefix
     const hasBOM = code.charCodeAt(0) === 0xFEFF;
     code = stripLeadingBOMs(code);
 
     // peek-then-commit: read snapshot WITHOUT removing it so a sibling-plugin-injected
     // `// core-js-disable-file` directive between pre and post (caught by `parseDisableDirectives`)
     // can bail without leaking pre's deferred imports. `snapshots.take(id)` commits only AFTER
-    // the disable check passes - bail paths leave the snapshot intact for a subsequent retry.
-    // `peekWithParse` encapsulates parse-cache reuse gating (sibling text mutation requires
-    // `postInput === code` byte-equality for AST position fidelity)
+    // the disable check passes - bail paths leave the snapshot intact for a subsequent retry
     if (pass === 'post') {
-      const stored = snapshots.peekWithParse(id, code);
+      const stored = snapshots.peek(id, environment);
       inherit = stored.snapshot;
       inheritedPreRewrote = stored.preRewroteSource;
       inheritedMutatedStatics = stored.mutatedStatics;
-      cachedAst = stored.ast;
-      cachedComments = stored.comments;
     }
-    let ast;
-    let comments;
-    if (cachedAst) {
-      ast = cachedAst;
-      comments = cachedComments;
-    } else {
-      // reset `typeResolvers`' AST-keyed WeakMap caches only when we're about to parse
-      // a FRESH AST. when the pre-pass cached the AST for post-reuse, its WeakMap
-      // entries are still valid - clearing them wastes a per-file warm-up. `createClassHelpers`
-      // is per-transform-fresh below; only the persistent resolver needs clearing here.
-      // sits below `cachedAst` resolution so the reset is gated correctly (fresh parse only)
-      typeResolvers.reset();
-      // parse with oxc-parser (sync is the only available API)
+    // the resolver's AST-keyed WeakMap caches describe the tree we are about to replace, so
+    // they go before the parse. `createClassHelpers` is per-transform-fresh below; only the
+    // persistent resolver needs clearing here
+    typeResolvers.reset();
+    // parse with oxc-parser (sync is the only available API)
+    // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
+    let parsed = parseSync(cleanId, code, { lang: sourceDialect.lang, sourceType: sourceDialect.parseGoal });
+    let [fatal] = parsed.errors?.filter(e => e.severity === 'Error') ?? [];
+    // a fatal error under the MODULE goal is proof the file is not one - the syntax a Script
+    // alone admits (an Annex-B HTML comment, a legacy octal) is exactly what it rejects. this is
+    // the one place a second parse is evidence rather than a guess: the first goal did not merely
+    // read the file differently, it refused it. the goal is never guessed the other way round -
+    // a Script parse ACCEPTS module text and silently reads `await x` as a call
+    if (fatal && sourceDialect.parseGoal === 'module' && !sourceDialect.esm) {
       // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
-      const parsed = parseSync(cleanId, code, { sourceType: isCJSFile ? 'script' : 'module' });
-      const [fatal] = parsed.errors?.filter(e => e.severity === 'Error') ?? [];
-      if (fatal) {
-        // emit a tagged breadcrumb so the user knows core-js saw the bad source first.
-        // a caller without a `warn` hook (direct tests / bare invocations - the real bundlers
-        // supply one via unplugin's context) gets a throw instead, so the breadcrumb propagates
-        // rather than silently dropping the file
-        if (typeof this?.warn !== 'function') throw new Error(formatParseErrorForThrow({ error: fatal, code }));
-        this.warn(formatParseErrorForWarn({ id, error: fatal, code }));
-        return null;
-      }
-      ast = parsed.program;
-      comments = parsed.comments;
+      const retried = parseSync(cleanId, code, { lang: sourceDialect.lang, sourceType: 'script' });
+      const [stillFatal] = retried.errors?.filter(e => e.severity === 'Error') ?? [];
+      if (!stillFatal) [parsed, fatal] = [retried, undefined];
     }
+    if (fatal) {
+      // emit a tagged breadcrumb so the user knows core-js saw the bad source first.
+      // a caller without a `warn` hook (direct tests / bare invocations - the real bundlers
+      // supply one via unplugin's context) gets a throw instead, so the breadcrumb propagates
+      // rather than silently dropping the file
+      if (typeof this?.warn !== 'function') throw new Error(formatParseErrorForThrow({ error: fatal, code }));
+      this.warn(formatParseErrorForWarn({ id, error: fatal, code }));
+      return null;
+    }
+    const { comments, program: ast } = parsed;
 
     // the disable directives are read off the PRISTINE tree, ahead of the minifier split below:
     // a `-next-line` over a collapsed statement spans the whole statement the author wrote, so
@@ -593,7 +587,7 @@ export default function createPlugin(options) {
     // commit the peeked snapshot now that disable-check passed. the entire-file-disabled bail
     // and the fatal-parse bail both keep the snapshot in cache so a retry (sibling-plugin re-
     // emit, watchChange re-run) can still consume it - `take()` only after both checks pass
-    if (pass === 'post') snapshots.take(id);
+    if (pass === 'post') snapshots.take(id, environment);
 
     // the minifier-sequence split as body surgery: the plan is the core's
     // (`planMinifierSequenceSplit` - the shape, the products, their spans), the splice is this
@@ -615,20 +609,25 @@ export default function createPlugin(options) {
     const patternRestorations = [];
     neutralizeUnwalkedParamPatterns(ast, patternRestorations);
 
-    // source wins over extension: a `.cjs`/`.cts` with top-level ESM (oxc parses tolerantly)
-    // must emit `import`, or bundlers reject the mixed output
-    const importStyle = importStyleOption
-      ?? (!hasTopLevelESM(ast) && (isCJSFile || detectCommonJS(ast)) ? 'require' : 'import');
-    // the SAME answer decides strictness, because it is the same question: a CommonJS file is a
-    // script, and a script is the only place Annex-B block-function hoisting exists. the parse is
-    // told `script` only by extension, so BOTH directions have to be written back or the answer
-    // splits - a `.cjs` carrying top-level ESM parses as script yet is a module by its own syntax,
-    // and every other id parses as module yet may be a script by body or option. reading the
-    // resolved `importStyle` is what keeps the two consumers single-sourced: an explicit
-    // `importStyle: 'require'` DECLARES a CommonJS input, and that declaration must reach the
-    // strictness model too. an `.mjs`/`.mts` id is a module by EXTENSION whatever the body or the
-    // option says, so it is the one signal neither the heuristic nor the option can override
-    ast.sourceType = importStyle === 'require' && !/\.m[jt]s$/.test(cleanId) ? 'script' : 'module';
+    // the format owner answers both halves at once, from the id, the body and the goal the parse
+    // actually used. the write-back is load-bearing in BOTH directions - a `.cjs` carrying top-level
+    // ESM parses as a script yet is a module by its own syntax, and every other id parses tolerantly
+    // yet may be a script by its body - and it is the LANGUAGE half that lands here, never the
+    // emission option. `ast.sourceType` still carries the goal at this point: a `script` there is
+    // the PARSER's own statement, either from a CommonJS extension or from a module goal it refused
+    const format = resolveModuleFormat({
+      id: cleanId,
+      program: ast,
+      declaredSourceType: ast.sourceType,
+      importStyleOption,
+      // only this method removes an ESM statement, and only the entry shape it recognises; a
+      // statement the author opted out of is not removed either, so it still holds the spelling
+      consumesESM: method === 'entry-global'
+        ? node => !isDisabled(node) && isConsumedEntryImport(node, getCoreJSEntry)
+        : null,
+    });
+    const { importStyle } = format;
+    ast.sourceType = format.sourceType;
 
     function isDisabled(node) {
       if (!disabledLines) return false;
@@ -820,8 +819,22 @@ export default function createPlugin(options) {
         }
       }
       debugOutput = createDebugOutput?.() ?? null;
+      // the format owner's two reports, emitted once the debug sink exists. the babel leg says the
+      // same words through the same channel: what the source SPELLS is one answer, and a user
+      // comparing the two legs must not have to read two different diagnostics for it
+      if (format.requireDeclined) {
+        debugOutput?.warn('the file binds `require` itself, so the injected imports stay ESM');
+      }
+      if (format.sourceIsMixed) {
+        debugOutput?.warn('the source mixes ESM and CommonJS, so its output is mixed whatever the injection spells');
+      }
 
-      const { injectModulesForEntry, injectModulesForModeEntry, outputDebug } = createModuleInjectors({
+      const {
+        injectModulesForEntry,
+        injectModulesForModeEntry,
+        isProposalEntry,
+        outputDebug,
+      } = createModuleInjectors({
         mode,
         getModulesForEntry,
         getDebugOutput() { return debugOutput; },
@@ -955,18 +968,15 @@ export default function createPlugin(options) {
         return { code: outCode, map };
       }
 
-      // the finalize() pre-store twin for the ast runners. the parse-reuse slots stay empty on
-      // this engine: emission mutates the tree in place and only the detection conveniences
-      // carry an undo ledger, so post re-parses its input instead of inheriting a mutated tree
+      // the finalize() pre-store twin for the ast runners: what pre hands post is its INJECTOR
+      // state, never its tree - emission mutates that tree in place and only the detection
+      // conveniences carry an undo ledger, so post re-parses its own input
       function storeAstPreSnapshot(preRewroteSource) {
         snapshots.store(id, {
           snapshot: injector.snapshot(),
-          ast: null,
-          comments: null,
-          postInput: null,
           preRewroteSource,
           mutatedStatics,
-        });
+        }, environment);
       }
       if (method === 'entry-global') return runEntryGlobal();
 
@@ -986,6 +996,7 @@ export default function createPlugin(options) {
           adapter: estreeAdapter,
           resolveUsage,
           injectModulesForModeEntry,
+          isProposalEntry,
           isDisabled,
           resolveStaticInheritedMember,
           isInheritedStaticLookup,
