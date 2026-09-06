@@ -44,7 +44,7 @@ const SCOPE_NODE_TYPES = new Set([
   'StaticBlock',
 ]);
 
-const [command, ...rest] = argv._;
+const [command, ...rest] = argv._.map(String);
 const asJSON = !!argv.json;
 
 // --- File scan ---

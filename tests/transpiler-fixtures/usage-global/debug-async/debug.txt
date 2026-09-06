@@ -8,3 +8,4 @@ The core-js@4 polyfill added the following polyfills:
   es.promise.constructor { "ie":"11" }
   es.promise.catch { "ie":"11" }
   es.promise.finally { "ie":"11" }
+  es.promise.resolve { "ie":"11" }
