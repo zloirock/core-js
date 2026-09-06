@@ -20,6 +20,7 @@ import {
   planMemoReadTarget,
   shouldDropRescueReceiver,
   SYMBOL_ITERATOR_PURE_RESULT,
+  symbolStaticMeta,
 } from '@core-js/polyfill-provider/detect-usage/members';
 import {
   discardRescueNodes,
@@ -789,9 +790,7 @@ export default function createDestructureDrains(ctx) {
       // the polyfill; an unresolvable symbol static has no spelling, so the literal declines
       if (planEntry.wksSpelling) {
         if (!metaPath) return null;
-        const symbolPure = resolvePure({
-          kind: 'property', object: 'Symbol', key: planEntry.wksSpelling, placement: 'static',
-        }, metaPath);
+        const symbolPure = resolvePure(symbolStaticMeta(planEntry.wksSpelling), metaPath);
         if (!symbolPure) return null;
         key = identifier(injectPureImport(symbolPure.entry, symbolPure.hintName));
         computed = true;

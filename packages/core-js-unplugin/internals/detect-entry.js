@@ -9,7 +9,7 @@ import { declaresRequireBinding, resolveBatchDirectivePromotionPolicy } from '@c
 // splicing the body
 export function planEntries(ast, { adapter, getCoreJSEntry, injectModulesForEntry, isDisabled }) {
   // getEntrySource only consults `hasBinding('require')`; stub-scope is enough
-  const shadowScope = declaresRequireBinding(ast.body) ? { hasBinding: () => true } : null;
+  const shadowScope = declaresRequireBinding(ast) ? { hasBinding: () => true } : null;
 
   // pass 1: collect candidate body indices, inject modules eagerly (the per-entry module
   // set is identical whether the slot ends up removed or replaced by `0;`)

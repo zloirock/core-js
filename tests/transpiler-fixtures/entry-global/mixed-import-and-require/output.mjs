@@ -1,2 +1,2 @@
-import "core-js/modules/es.string.repeat";
-import "core-js/modules/es.math.sum-precise";
+require("core-js/modules/es.string.repeat");
+require("core-js/modules/es.math.sum-precise");

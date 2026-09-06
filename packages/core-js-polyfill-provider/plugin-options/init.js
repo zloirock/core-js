@@ -4,7 +4,7 @@
 // (`createPolyfillContext` + `createPolyfillResolver`) read. sibling submodules in
 // `plugin-options/` cover the individual stages (validate / targets / debug-output);
 // `inject.js` and `usage-callback.js` are independently consumed by the host plugins
-import { validateOptions } from './validate.js';
+import { isEmpty, validateOptions } from './validate.js';
 import { buildShouldInjectPolyfill, resolveTargets } from './targets.js';
 import { createDebugOutputFactory } from './debug-output.js';
 
@@ -43,6 +43,10 @@ export function initPluginOptions(options, { getBabelTargets } = {}) {
     ...rest,
     createDebugOutput,
     exclude,
+    // ONE spelling downstream: `null` is "not set" for the `??` heuristic that derives the style,
+    // so it has to be "not set" for the strict `=== undefined` reads too - written both ways, the
+    // option silently declared itself set to one consumer and unset to the next
+    importStyle: isEmpty(importStyle) ? undefined : importStyle,
     include,
     shouldInjectPolyfill,
   };

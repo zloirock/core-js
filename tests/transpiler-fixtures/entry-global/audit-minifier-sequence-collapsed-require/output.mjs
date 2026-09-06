@@ -1,6 +1,6 @@
-import "core-js/modules/es.object.to-string";
-import "core-js/modules/es.array.from";
-import "core-js/modules/es.string.iterator";
+require("core-js/modules/es.object.to-string");
+require("core-js/modules/es.array.from");
+require("core-js/modules/es.string.iterator");
 // an entry require collapsed into a minifier sequence beside a destructure is still an entry once
 // the split gives it a statement of its own - one that carries the operand's own position, which
 // is what tells the entry detection a genuine statement from a synthesis it must leave alone; the

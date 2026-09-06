@@ -12,6 +12,8 @@ import './fallback-branches.mjs';
 import './guard-canon.mjs';
 import './wrapper-peels.mjs';
 import './detect-syntax.mjs';
+import './syntax-set-measurement.mjs';
+import './module-format.mjs';
 import './detect-usage.mjs';
 import './helpers.mjs';
 import './plugin-options.mjs';
