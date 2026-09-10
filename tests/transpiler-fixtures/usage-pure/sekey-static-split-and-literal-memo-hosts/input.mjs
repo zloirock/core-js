@@ -4,7 +4,9 @@
 // (an extraction ahead of the prefix would bind before the prefix could observe the binding).
 // the same on an exported host (the prefix a plain statement ahead of the export), in a loop head
 // (declarators, the prefix riding the value), and in a bodyless slot (the join, or a block around
-// the lifted prefix). a static keeps its default guard there like the flat twin does
+// the lifted prefix). a static drops its default guard - the ponyfill is always defined, so the
+// guard could never fire - where the flat twin keeps its own, since the instance lookup may answer
+// undefined
 let k = 0;
 function pre() {}
 function eff() {}

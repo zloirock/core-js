@@ -2735,6 +2735,114 @@ function * generateCarrierDeleteBase() {
   }
 }
 
+// --- Wrapper placement inside a deleted navigation ---
+// how far a `delete` collapse reads is a question about the MEMBER RUN above the claim, and a source
+// paren or TS cast between two hops must not move that answer: the two spellings name the same slot.
+// the grid places one wrapper at every boundary of a three-hop run, under three roots and both hop
+// orders, with and without a realm slot the file itself REWRITES - a mutated hop is what makes the
+// span's extent decide anything, since it is the only thing the span is scanned for. the import set
+// is the sharp half here (a hop that renders its own ponyfill pulls a module the folded spelling
+// does not), the readbacks the other: the box the source aimed at, and the realm slot it must leave
+const DSW_ROOTS = [
+  ['ident', 'globalThis'],
+  ['call', 'nrm()'],
+  ['store', '(ntm = globalThis)'],
+];
+// `w-s` reaches a hop with no ponyfill of its own first, `s-w` one that has one - the orders take
+// different render paths, and only the second is sensitive to where the span stops
+const DSW_HOPS = [
+  ['w-s', ['window', 'self', 'probe']],
+  ['s-w', ['self', 'window', 'probe']],
+];
+// the boundary the wrapper sits at, counted in hops: 0 seals the root, 3 the whole navigation, and
+// the two middles are the ones a member comparison can stop at
+const DSW_WRAPPERS = [
+  ['bare', 0, expr => expr],
+  ['paren-hop1', 1, expr => `(${ expr })`],
+  ['paren-hop2', 2, expr => `(${ expr })`],
+  ['paren-whole', 3, expr => `(${ expr })`],
+  ['cast-hop1', 1, expr => `(${ expr } as any)`, true],
+];
+function deletedNavSpelling(root, hops, wrapAt, wrap) {
+  let expr = root;
+  for (let index = 0; index < hops.length; index++) {
+    if (wrapAt === index) expr = wrap(expr);
+    expr += `.${ hops[index] }`;
+  }
+  return wrapAt === hops.length ? wrap(expr) : expr;
+}
+
+// where the navigation stands relative to the operator: it IS the deleted member, or it fills the
+// deleted member's computed KEY - a sibling expression whose VALUE is read, never a continuation of
+// the run. the key host is what tells a span that follows the object side from one that takes any
+// member above it
+const DSW_HOSTS = [
+  ['target', spell => `delete ${ spell }`, 'String("probe" in box), String("probe" in globalThis)'],
+  ['key-slot', spell => `delete holder[${ spell }]`, 'String("w" in holder), String("realm" in holder)'],
+];
+
+function * generateDeleteSpanWrappers() {
+  for (const [rootId, root] of DSW_ROOTS) {
+    for (const [hopId, hops] of DSW_HOPS) {
+      for (const [wrapId, wrapAt, wrap, ts = false] of DSW_WRAPPERS) {
+        const spell = deletedNavSpelling(root, hops, wrapAt, wrap);
+        for (const [hostId, build, readback] of DSW_HOSTS) {
+          // MUTATED: the file installs its own object on the realm's `window` slot, so the run the
+          // delete walks is the user's - a fold that drops the hop lands on the realm global instead.
+          // PRISTINE rides the rig, where every hop is a live alias of the realm object
+          for (const mutated of [true, false]) {
+            const expr = '(() => { const box = { self: { probe: "w" }, window: { probe: "w" }, probe: "w" };'
+              + ' const holder = { w: 1, realm: 1 };'
+              + `${ mutated ? ' globalThis.window = box;' : '' } globalThis.probe = "realm"; try {`
+              + ` const gone = ${ build(spell) };`
+              + ` return [String(gone), ${ readback }, log.length].join("|"); }`
+              + ` catch (e) { return ["throw", ${ readback }, log.length].join("|"); }`
+              + ' finally { delete globalThis.window; delete globalThis.probe; } })()';
+            const id = `delete-span-wrappers/${ mutated ? 'mutated' : 'pristine' }`
+              + `-${ rootId }-${ hopId }-${ wrapId }-${ hostId }`;
+            yield { ...snippet(id, expr, { rig: !mutated }), strip: false, ...ts ? { ts: true } : {} };
+          }
+        }
+      }
+    }
+  }
+}
+
+// --- A destructure source read through an optional chain ---
+// a pattern whose source navigates a `?.` and is handed on by a value-OBSERVING carrier keeps its
+// hop: on a realm without the hop the source reads an undefined step and THROWS before the carrier's
+// other arm runs, so a collapse would hand the pattern a value the source never produces. the chain
+// MARKER is what the observing walk has to read through - it stands between the navigated member and
+// the carrier - and the axes that decide the verdict are the carrier, the pattern's residual and
+// whether the source carries a live `?.` at all. rigged: the hop needs a live slot natively
+const CSD_CARRIERS = [
+  ['or', value => `${ value } || Set`],
+  ['and', value => `cond && ${ value }`],
+  ['nullish', value => `${ value } ?? Set`],
+  ['ternary', value => `cond ? ${ value } : Set`],
+  ['seq', value => `(log.push("p"), ${ value })`],
+  ['bare', value => value],
+];
+// a REST sibling leaves a residual that re-reads the run; a sole prop is consumed whole
+const CSD_PATTERNS = [
+  ['sole', '{ of }', 'of'],
+  ['rest', '{ of, ...rest }', 'of'],
+];
+
+function * generateChainSealedDestructureSource() {
+  for (const [carrierId, carry] of CSD_CARRIERS) {
+    for (const [patternId, pattern, read] of CSD_PATTERNS) {
+      for (const [guardId, value] of [['plain', 'globalThis.self.Array'], ['optional', 'globalThis.self?.Array']]) {
+        const expr = `(() => { try { const ${ pattern } = ${ carry(value) };`
+          + ` return [typeof ${ read }, ${ patternId === 'rest' ? 'typeof rest' : '"-"' }, log.length].join("|"); }`
+          + ' catch (e) { return ["throw", "-", log.length].join("|"); } })()';
+        const id = `chain-sealed-destructure-source/${ carrierId }-${ patternId }-${ guardId }`;
+        yield { ...snippet(id, expr, { rig: true }), strip: false };
+      }
+    }
+  }
+}
+
 function * generateShadowedRealmName() {
   for (const [id, decl] of SRN_HOSTS) {
     const expr = `(() => { ${ decl } globalThis.shadowedRealmSlot = 'realm';`
@@ -4786,6 +4894,20 @@ function * generateAssignAliasReassign() {
   const crossFn = '(() => { let M; function w() { ({ Map: M } = globalThis); } void w; '
     + 'try { return typeof M.groupBy; } catch (e) { return "T:" + e.constructor.name; } })()';
   yield { ...snippet('assign-alias-reassign/cross-fn-refused', crossFn), strip: false };
+  // the SOUND gate for the pure substitute direction: a write whose slot runs ahead of the use's own
+  // reaches it however far past the read its span sits, so the gate must decline. these two live here
+  // rather than in `deferred-reads` because they need the untouched realm - a stripped one has no
+  // `Array.of` to observe
+  const KEY_ALIAS_OUTRUN = [
+    ['key-alias-destructure-rhs-write',
+      'let K = "from"; const [v = String(Array[K]("ab"))] = ((K = "of"), []); return v;'],
+    ['key-alias-default-case-test-write',
+      'let K = "from"; let out = "z"; const s = "zz"; switch (s) { default: out = String(Array[K]("ab")); break; '
+      + 'case ((K = "of"), "b"): break; } return out;'],
+  ];
+  for (const [id, body] of KEY_ALIAS_OUTRUN) {
+    yield { ...snippet(`assign-alias-reassign/${ id }`, `(() => { ${ body } })()`), strip: false };
+  }
   // WRITE-ORDER: a read that CAPTURES (directly or through an alias hop) before the aliasing
   // write runs pre-assignment - a narrow there would rescue the native throw; the post-write
   // twin narrows. the out-of-scope row reads a same-named UNBOUND identifier (a runtime
@@ -8179,6 +8301,21 @@ const KEPT_SEQ_GUARDS = [
   // a SHADOWED realm name is the user's binding: nothing folds, nothing claims - runtime-live
   { id: 'shadowed-claim',
     code: '(() => { const f = (self) => (log.push("s"), (log.push("t"), self.globalThis))?.Map; return typeof f({ globalThis: { Map: 7 } }); })()' },
+  // the effect log reads ORDER, not just count: a receiver's own sequence prefix is part of
+  // evaluating that receiver and runs BEFORE the memo capturing it, while an effect lifted out of
+  // the KEY runs after. a receiver that logs when it is read is what tells the two apart
+  { id: 'prefix-runs-before-the-receiver',
+    code: '(() => { const box = { get list() { log.push("recv"); return [3, 4]; } }; return (log.push("pre"), box.list).at(0); })()' },
+  { id: 'key-effect-runs-after-the-receiver',
+    code: '(() => { const box = { get list() { log.push("recv"); return [3, 4]; } }; return box.list[(log.push("key"), "at")](0); })()' },
+  // the only shape where BOTH groups are populated, so it is the only one that runs the split with
+  // anything to split - and the member hop stays PLAIN on purpose: a `?.` there folds into the guard
+  // and takes the memo-less branch, where the two groups never meet the split at all
+  { id: 'prefix-and-key-effect-straddle-the-memo',
+    code: '(() => { const box = { get list() { log.push("recv"); return [3, 4]; } }; return (log.push("pre"), box.list)[(log.push("key"), "at")](0); })()' },
+  // the optional spelling of the same shape, which is a different branch rather than the same one
+  { id: 'prefix-and-key-effect-under-an-optional-hop',
+    code: '(() => { const box = { get list() { log.push("recv"); return [3, 4]; } }; return (log.push("pre"), box.list)?.[(log.push("key"), "at")](0); })()' },
 ];
 function * generateKeptSeqGuards() {
   for (const c of KEPT_SEQ_GUARDS) {
@@ -8332,7 +8469,526 @@ function * generateChainTailGets() {
   }
 }
 
+// --- a read whose EXECUTION TIME is not its source position, and a guard a later write outlives ---
+// every positional narrow asks the one deferral canon: an instance field initializer runs at
+// `new`-time, a generator body at the first `.next()`, an async body after its `await`, an IIFE
+// inside a loop once per iteration - each observes a reassignment textually after it, so the
+// declarator init / the guard above proves nothing and the read dispatches generically (the
+// stripped realm throws on a family-specific helper). the synchronous IIFE and the static field are
+// the controls that keep their narrow. the guard rows are the staleness suppressors: a weaker inner
+// guard inside a loop, a write in a preceding case test, a shadowed built-in inside a typeof-or
+// group, a shadow assigned in the fall-through branch
+const DEFERRED_READS = [
+  ['field-init-after-write', 'let s = "abc"; s = "def"; class W { first = s.at(0); } s = ["x", "y"]; return String(new W().first);'],
+  ['static-field-control', 'let s = "abc"; s = "def"; class W { static tag = s.at(1); } s = ["x", "y"]; return String(W.tag);'],
+  ['typeof-guarded-field-init', 'let x = "str"; let out = null; if (typeof x === "string") { class K { p = x.at(0); } x = [7, 8]; out = new K().p; } return String(out);'],
+  ['exit-guarded-field-init', 'let x = "str"; if (typeof x !== "string") return "no"; class K { p = x.includes(9); } x = [9]; return String(new K().p);'],
+  ['generator-iife', 'let O = "str"; const it = (function* () { yield O.at(0); })(); O = [4, 5]; return String(it.next().value);'],
+  ['generator-iife-write-never-runs', 'let x = "ab"; (function* () { x = ["ab"]; })(); return String(x.includes("ab"));'],
+  ['sync-iife-control', 'let P = "str"; const r = (function () { return P.at(0); })(); P = [4, 5]; return String(r);'],
+  ['tagged-template-iife-write', 'let x = "ab"; (function () { x = [1, 2]; })`t`; return String(x.at(0));'],
+  ['iife-in-for', 'let O = "str"; const seen = []; for (let i = 0; i < 2; i++) { seen.push((function () { return O.at(0); })()); O = [1, 2]; } return String(seen);'],
+  ['iife-in-for-of', 'let P = "str"; const seen = []; for (const step of [0, 1]) { seen.push((() => P.at(step))()); P = [1, 2]; } return String(seen);'],
+  ['loop-weaker-inner-guard',
+    'function f(value, steps) { const seen = []; '
+    + 'if (typeof value === "string") { for (const step of steps) { if (typeof value !== "number") seen.push(value.at(0)); value = step(value); '
+    + '} } return seen; } return String(f("str", [() => [3, 4], () => "x"]));'],
+  ['duplicate-case-fallthrough-write', 'let x = "ab"; switch (typeof x) { case "string": x = ["a", "b"]; case "string": return String(x.includes("a,b")); } return "none";'],
+  ['exit-guard-else-write', 'let x = "ab"; if (typeof x !== "string") return "exit"; else x = ["a", "b"]; return String(x.includes("a,b"));'],
+  ['unreadable-case-before-string',
+    'function f(x, g) { switch (typeof x) { case g(): case "string": return String(x.includes("a,b")); } return "none"; } return f(["a", "b"], () => "object");'],
+  ['case-test-write',
+    'function f(v) { let x = v; switch (typeof x) { case (x = [1, 2], "number"): break; case "string": return x.at(0); } return null; '
+    + '} return String(f("str"));'],
+  ['shadowed-static-guard-in-or',
+    'const Number = { isFinite: () => true }; function f(x) { if (typeof x === "string" || Number.isFinite(x)) return x.at(0); return null; '
+    + '} return String(f([1, 2]));'],
+  // a named function EXPRESSION that hands its own name out is not spent at its invocation - the
+  // body runs again on a later call, past the write
+  ['named-fn-expr-hands-itself-out',
+    'let x = "ab"; let out = ""; const h = (function f() { out += String(x.includes("a,b")) + ";"; return f; })(); '
+    + 'x = ["a", "b"]; h(); return out;'],
+  // the ARGUMENT region of an immediate invocation evaluates before the body it feeds, so a write
+  // there lands between the body read's source position and the read itself - directly, and through
+  // a nested function the region itself invokes
+  ['write-in-invocation-argument',
+    'let x = "ab"; const v = (function () { return x.includes("a,b"); })(x = ["a", "b"]); return String(v);'],
+  ['invoked-write-nested-in-argument-region',
+    'let x = "ab"; const v = (function () { return x.includes("a,b"); })((() => { x = ["a", "b"]; })()); return String(v);'],
+  ['argument-write-invoked-through-a-sequence-tail',
+    'let x = "ab"; const v = (function () { return x.includes("a,b"); })((0, function () { x = ["a", "b"]; return 0; })()); return String(v);'],
+  ['argument-write-in-a-fused-method-key',
+    'let x = "ab"; const v = (function () { return x.includes("a,b"); })(class { [(x = ["a", "b"], "k")]() {} }); return String(v);'],
+  // a `for`-init runs ONCE per entry to its own loop, so it is not behind that loop's back edge -
+  // but it is behind an enclosing one, and the skip is exactly one level
+  ['inner-for-init-under-outer-writing-loop',
+    'let x = "ab"; let out = ""; for (const _ of [0, 1]) { for (let i = (out += String(x.includes("a,b")) + ";", 0); i < 1; i++) {} '
+    + 'x = ["a", "b"]; } return out;'],
+  ['for-test-read-behind-back-edge',
+    'let x = "ab"; let out = ""; for (let i = 0; i < 2 && (out += String(x.includes("ab")) + ";", true); i++) { x = ["a", "b"]; } return out;'],
+  // a body that SUSPENDS is not atomic: the caller resumes at the `yield` and runs its own write, so
+  // a guard standing above the suspension proves nothing about the read below it
+  ['guard-above-yield-outside-write',
+    'let x = "ab"; let out = "z"; function* g() { if (typeof x !== "string") return; yield 0; out = String(x.includes("a,b")); } '
+    + 'const it = g(); it.next(); x = ["a", "b"]; it.next(); return out;'],
+  // the same two rules asked of a read the emitter carried into a REWRITTEN host: `out.push(...)` is
+  // itself polyfilled, and the copy it makes of its argument must keep the read's source offsets or
+  // both rules answer "no position" - the suspension one UNSAFELY
+  ['guard-above-yield-read-in-rewritten-host',
+    'let x = "ab"; const out = []; function* g() { if (typeof x !== "string") return; yield 0; out.push(String(x.includes("a,b"))); } '
+    + 'const it = g(); it.next(); x = ["a", "b"]; it.next(); return String(out);'],
+  ['for-init-read-in-rewritten-host',
+    'let x = "ab"; const out = []; for (let i = (out.push(String(x.includes("ab"))), 0); i < 2; i++) { x = ["a", "b"]; } return String(out);'],
+  // a class computes every KEY when it is defined, ahead of every static field whatever the source
+  // order - so this write reaches a read standing above it
+  ['class-key-write-below-static-field',
+    'let x = "ab"; class C { static f = x.at(0); static [(x = [1, 2], "k")]() {} } return String(C.f);'],
+  // the other two containers whose header slot runs ahead of the body slot they also host
+  ['destructure-rhs-runs-before-its-pattern',
+    'let x = "ab"; const [a = String(x.includes("a,b"))] = ((x = ["a", "b"]), []); return String(a);'],
+  ['case-body-after-default-follows-later-tests',
+    'let x = "ab"; let out = "z"; const k = "zz"; switch (k) { default: case "a": out = String(x.includes("a,b")); break; '
+    + 'case ((x = ["a", "b"]), "b"): break; } return out;'],
+  // an assignment let out of an `if` branch by the hard-exit shortcut must not reach the sibling that
+  // exits. the annotated spelling of this resolved generic either way and proved nothing
+  ['branch-assignment-not-in-exiting-sibling-unannotated',
+    'function f(c) { let x = "ab"; if (c) { x = ["a", "b"]; } else { return String(x.includes("ab")); } return "c"; } return String(f(false));'],
+  // the `AssignmentPattern` arm of the host rule: a default's own right side runs before the pattern
+  // it fills, and the read sits in a computed key of that very pattern
+  ['assignment-pattern-default-runs-before-its-own-pattern',
+    'let x = "ab"; let out = "z"; const [{ [(out = String(x.includes("a,b")), "k")]: q } = ((x = ["a", "b"]), {})] = [undefined]; '
+    + 'void q; return out;'],
+];
+const DEFERRED_READS_ASYNC = [
+  ['async-iife-write-after-await', 'let x = "ab"; (async () => { await 0; x = ["ab"]; })(); return String(x.includes("ab"));'],
+  ['async-iife-after-await', 'let O = "str"; const p = (async () => { await 0; return O.at(0); })(); O = [6, 7]; return String(await p);'],
+  ['guard-above-await-outside-write',
+    'let x = "ab"; let out = "z"; async function g() { if (typeof x !== "string") return; await 0; out = String(x.includes("a,b")); } '
+    + 'const p = g(); x = ["a", "b"]; await p; return out;'],
+  // the same staleness through the other lane start - a CONDITIONAL guard's own host rather than an
+  // exit guard's statement - and the two parking points the walk has to recognise for itself: a
+  // `for await` head carries no `await` node of its own, and a body invoked on the spot is not the
+  // body that parks, so the walk to the parking one goes through it
+  ['conditional-guard-above-await-outside-write',
+    'let x = "ab"; let out = "z"; async function g() { if (typeof x === "string") { await 0; out = String(x.includes("a,b")); } } '
+    + 'const p = g(); x = ["a", "b"]; await p; return out;'],
+  ['guard-above-for-await-outside-write',
+    'let x = "ab"; let out = "z"; async function g() { if (typeof x === "string") { for await (const s of [0]) void s; '
+    + 'out = String(x.includes("a,b")); } } const p = g(); x = ["a", "b"]; await p; return out;'],
+  ['guard-above-await-read-in-sync-iife',
+    'let x = "ab"; let out = "z"; async function g() { if (typeof x === "string") { await 0; out = (() => String(x.includes("a,b")))(); } } '
+    + 'const p = g(); x = ["a", "b"]; await p; return out;'],
+];
+// TS forms: the predicate call resolved to ONE overload, a class-method predicate's parameter, two
+// exit guards with a write between, an optional predicate compared to `false`
+const DEFERRED_READS_TS = [
+  // the writes come through PARAMETERS typed with the union, so no value-flow narrow answers ahead of
+  // the guard walk and the guard rows are what decides
+  ['two-exit-guards-write-between',
+    'function assertPresent<T>(v: T): asserts v is NonNullable<T> { if (v == null) throw new TypeError("absent"); '
+    + '} function h(raw: string | number[], decode: (v: string | number[]) => string | number[]) { if (typeof raw !== "string") return null; '
+    + 'raw = decode(raw); assertPresent(raw); return raw.at(0); } return String(h("abc", v => typeof v === "string" ? [v.length] : v));'],
+  ['fall-through-branch-shadow',
+    'function probe(ok: boolean, fetch: () => string | string[], normalize: (s: string) => string) { let data: string | string[] = []; '
+    + 'data = fetch(); if (ok) { let data = "fb"; data = normalize(data); } else { throw 0; } return data.includes("x"); '
+    + '} return String(probe(true, () => ["x"], s => s.toUpperCase()));'],
+  ['predicate-overload-literal',
+    'function isType(v: unknown, kind: "string"): v is string; function isType(v: unknown, kind: "array"): v is unknown[]; '
+    + 'function isType(v: unknown, kind: string): boolean { return kind === "string" ? typeof v === "string" : Array.isArray(v); '
+    + '} function probe(v: unknown) { if (isType(v, "array")) return v.at(0); return null; } return String(probe([7]));'],
+  ['predicate-overload-arity',
+    'function isX(v: unknown): v is string; function isX(v: unknown, deep: true): v is unknown[]; '
+    + 'function isX(v: unknown, deep?: boolean): boolean { return deep ? Array.isArray(v) : typeof v === "string"; '
+    + '} function probe(v: unknown) { if (isX(v, true)) return v.at(1); return null; } return String(probe([7, 8]));'],
+  ['class-method-predicate',
+    'class Checker { isStr(x: unknown): x is string { return typeof x === "string"; } } const c: Checker = new Checker(); '
+    + 'function take(input: unknown) { if (c.isStr(input)) return input.at(0); return null; } return String(take("ab"));'],
+  ['default-after-fallthrough',
+    'function f(x: string | string[]) { switch (typeof x) { case "string": x.length; default: return x.includes("ab"); } } return String([f("ab"), f(["ab"])]);'],
+  ['shadowed-exit-guard',
+    'function f(x: string | string[], y: string | string[]) { if (typeof x !== "string") return null; { const x = y; return x.includes("a,b"); } } '
+    + 'return String([f("ab", ["a", "b"])]);'],
+  ['structural-heads-first-arm-annotation',
+    'interface S { items: string } interface T { items: string[] } function isS(x: unknown, y: string): x is S; function isS(x: unknown, y: number): x is T; '
+    + 'function isS(x: unknown, y: any): boolean { return true; } function f(x: S | T, y: any) { if (isS(x, y)) return x.items.includes("a,b"); return null; } '
+    + 'return String([f({ items: "ab" }, 1), f({ items: ["a", "b"] }, 1)]);'],
+  // a `default` clause is reached only once EVERY case test has been evaluated, so a write in a test
+  // written BELOW it runs first - in the typeof lane and in the object-discriminant lane alike
+  ['default-later-case-test-write',
+    'function f(x: string | string[]) { switch (typeof x) { case "object": return "obj"; default: return String(x.includes("a,b")); '
+    + 'case (x = ["a", "b"], "boolean") as any: return "b"; } } return String(f("ab"));'],
+  ['discriminant-default-later-case-test-write',
+    'type A = { k: "a", v: string }; type B = { k: "b", v: string[] }; '
+    + 'function f(u: A | B) { switch (u.k) { case "b": return "b"; default: return String(u.v.includes("a,b")); '
+    + 'case (u = { k: "b", v: ["a", "b"] }, "zz") as any: return "z"; } } return String(f({ k: "a", v: "ab" }));'],
+  // a survivor that only carries a DROPPED nullish arm is not a decided check: the conditional type
+  // resting on it stays unresolved and both branches fold
+  ['nullish-marked-conditional-check',
+    'type P<T> = T extends Iterable<unknown> ? "a" : null; type Q<S> = S extends "a" ? string[] : string; '
+    + 'function make(): Q<P<number>> { return "ab" as any; } const v = make(); return String(v.includes("ab"));'],
+  // an assignment let out of an `if` branch by the hard-exit shortcut dominates only PAST the whole
+  // `if` - never the sibling branch that exits
+  // the metric mark can sit on the INNER type, so the check walks the whole `inner` chain
+  ['nullish-marked-inside-container-check',
+    'type Q<S> = S extends string[] ? string[] : string; function make(): Q<Array<string | null>> { return "ab" as any; } '
+    + 'const v = make(); return String(v.includes("ab"));'],
+  // the class-eval container asked of the GUARD lane, the fourth positional one
+  ['guarded-read-against-a-class-key-write',
+    'let v: string | string[] = "ab"; let out = "z"; if (typeof v === "string") { class C { static s = String(v.includes("a,b")); '
+    + '[(v = ["a", "b"], "k")]() {} } out = C.s; } return out;'],
+  // a DECORATOR is a class-eval slot too, and the receiver carries no annotation: a union one resolves
+  // generic before any positional rule runs, which is what made the first spelling of this row vacuous
+  ['class-decorator-runs-before-static-field',
+    'let x = "ab"; function dec() { return function () {}; } '
+    + 'class C { static f = String(x.includes("a,b")); @((x = ["a", "b"], dec())) m() {} } return String(C.f);'],
+  // the discriminant lane asking the same rule, and the decorator arm of the argument-region scan
+  ['discriminant-guard-against-a-class-key-write',
+    'type A = { k: "a", v: string }; type B = { k: "b", v: string[] }; let u: A | B = { k: "a", v: "ab" }; let out = "z"; '
+    + 'if (u.k === "a") { class C { static s = String(u.v.includes("a,b")); [(u = { k: "b", v: ["a", "b"] }, "key")]() {} } out = C.s; } '
+    + 'return out;'],
+  ['argument-write-in-a-fused-method-decorator',
+    'let x = "ab"; function dec() { return function () {}; } '
+    + 'const v = (function () { return x.includes("a,b"); })(class { @((x = ["a", "b"], dec())) m() {} }); return String(v);'],
+  // oxc keeps a `ParenthesizedExpression` where babel drops it, so a peel this leg misses shows as an
+  // import-set divergence, not as a runtime throw
+  ['paren-argument-literal',
+    'function isKind(v: unknown, k: "a"): v is string; function isKind(v: unknown, k: "b"): v is string[]; '
+    + 'function isKind(v: any, k: any): boolean { return true; } '
+    + 'function f(u: unknown) { if (isKind(u, ("b"))) return String(u.includes("a,b")); return "no"; } return String(f(["a", "b"]));'],
+  ['paren-builtin-namespace',
+    'function f(x: string | string[]) { if ((Array).isArray(x)) return String(x.includes("a,b")); return String(x.includes("ab")); } '
+    + 'return String([f("ab"), f(["a", "b"])]);'],
+  ['paren-static-guard-callee',
+    'function f(x: string | string[]) { if ((Array.isArray)(x)) return String(x.includes("a,b")); return String(x.includes("ab")); } '
+    + 'return String([f("ab"), f(["a", "b"])]);'],
+  ['paren-case-label',
+    'function f(x: string | string[]) { switch (typeof x) { case ("string"): return String(x.includes("ab")); } return "no"; } '
+    + 'return String([f("ab"), f(["a", "b"])]);'],
+  // a positive guard proves the arm nothing could resolve is of the family it NAMES - the outer
+  // constructor - and says nothing about what such an arm holds inside
+  ['family-guard-keeps-outer-drops-inner',
+    'function f(w: string[] | Missing.Kind) { if (w instanceof Array) return String(w.at(0).at(0)); return "no"; } '
+    + 'return f([["ab"]]);'],
+  ['optional-predicate-not-false',
+    'const obj: { isStr?(x: unknown): x is string } = {}; '
+    + 'function f(input: string | number[]) { if (obj.isStr?.(input) !== false) return input.at(0); return null; } return String(f([5]));'],
+];
+function * generateDeferredReads() {
+  for (const [id, body] of DEFERRED_READS) yield { ...snippet(`deferred-reads/${ id }`, `(() => { ${ body } })()`), strip: true };
+  for (const [id, body] of DEFERRED_READS_ASYNC) yield { ...snippet(`deferred-reads/${ id }`, `await (async () => { ${ body } })()`), strip: true };
+  for (const [id, body] of DEFERRED_READS_TS) yield { ...snippet(`deferred-reads/${ id }`, `(() => { ${ body } })()`), strip: true, ts: true };
+}
+
+// TS forms of the typeof-guard TEST on a `string | string[]` binding: each narrows the string branch,
+// and a wrong DIRECTION - a flipped polarity, a guard read off the wrong operand - runs the array
+// helper on the string receiver (`includes("ab")` on "ab" reads its two characters and answers false).
+// a form the parser stops recognising is NOT what this family sees: that degrades to the generic
+// helper, which answers the same and every leg accepts. recognition is locked by the unit cases
+const GUARD_FORMS_TS = [
+  ['reversed-operands', 'function f(x: string | string[]) { if ("string" === typeof x) return x.includes("ab"); return null; }'],
+  ['loose-equality', 'function f(x: string | string[]) { if (typeof x == "string") return x.includes("ab"); return null; }'],
+  ['loose-inequality-exit', 'function f(x: string | string[]) { if (typeof x != "string") return null; return x.includes("ab"); }'],
+  ['template-literal-rhs', 'function f(x: string | string[]) { if (typeof x === `string`) return x.includes("ab"); return null; }'],
+  ['parenthesized-typeof', 'function f(x: string | string[]) { if ((typeof x) === "string") return x.includes("ab"); return null; }'],
+  ['negation-wrapper-exit', 'function f(x: string | string[]) { if (!(typeof x === "string")) return null; return x.includes("ab"); }'],
+  ['double-negation', 'function f(x: string | string[]) { if (!!(typeof x === "string")) return x.includes("ab"); return null; }'],
+  ['else-branch-exit', 'function f(x: string | string[]) { if (typeof x === "string") {} else { return null; } return x.includes("ab"); }'],
+  ['exit-block-with-prefix', 'function f(x: string | string[]) { if (typeof x !== "string") { const n = x.length; return n > 5 ? 1 : null; } return x.includes("ab"); }'],
+  ['alias-of-narrowed', 'function f(x: string | string[]) { if (typeof x === "string") { const y = x; return y.includes("ab"); } return null; }'],
+  ['labeled-break-exit',
+    'function f(x: string | string[]) { let r = null; outer: for (const v of [x]) { if (typeof v !== "string") break outer; '
+    + 'r = v.includes("ab"); } return r; }'],
+  ['continue-in-loop', 'function f(x: string | string[]) { let r = null; for (const v of [x]) { if (typeof v !== "string") continue; r = v.includes("ab"); } return r; }'],
+  ['comma-in-test', 'function f(x: string | string[]) { if ((0, typeof x === "string")) return x.includes("ab"); return null; }'],
+  ['non-null-operand', 'function f(x: string | string[] | undefined) { if (typeof x! === "string") return x!.includes("ab"); return null; }'],
+  ['as-unknown-operand', 'function f(x: string | string[]) { if (typeof (x as unknown) === "string") return x.includes("ab"); return null; }'],
+  ['satisfies-operand', 'function f(x: string | string[]) { if (typeof (x satisfies string | string[]) === "string") return x.includes("ab"); return null; }'],
+  // the alternative arm must be an ARRAY, not a structural shape: with a shape the flipped polarity
+  // yields an unresolvable arm and a generic helper, which answers correctly and so proves nothing.
+  // this family's discriminator is the WRONG FAMILY, and only a real second family produces one
+  ['structural-alternative',
+    'interface Chars extends Array<string> { tag?: number } '
+    + 'function f(x: string | Chars) { if (typeof x === "string") return x.includes("ab"); return x.includes("a,b"); }'],
+];
+function * generateGuardForms() {
+  for (const [id, body] of GUARD_FORMS_TS) {
+    const calls = id === 'structural-alternative' ? 'f("ab"), f(["a", "b"] as Chars)' : 'f("ab"), f(["ab"])';
+    yield { ...snippet(`guard-forms/${ id }`, `(() => { ${ body } return String([${ calls }]); })()`), strip: true, ts: true };
+  }
+}
+
+// TS two-head predicate calls an ambiguous argument (`y: any`) cannot pin to one arm: the arms
+// narrow together only where they agree, and whatever they disagree on (the nominal, the members,
+// the type arguments) must not be taken from the first arm. every call runs on a value the SECOND
+// arm describes, so a first-arm narrow shows as the wrong helper at runtime
+const PREDICATE_ARMS_TS = [
+  ['same-primitive', 'function is(x: unknown, y: string): x is string; function is(x: unknown, y: number): x is string; '
+    + 'function is(x: unknown, y: any): boolean { return typeof x === "string"; } '
+    + 'function f(x: unknown, y: any) { if (is(x, y)) return x.includes("ab"); return null; } return String([f("ab", 1), f(["ab"], 1)]);'],
+  ['primitive-vs-array', 'function is(x: unknown, y: string): x is string; function is(x: unknown, y: number): x is string[]; '
+    + 'function is(x: unknown, y: any): boolean { return true; } '
+    + 'function f(x: unknown, y: any) { if (is(x, y)) return x.includes("a,b"); return null; } return String([f("ab", 1), f(["a", "b"], 1)]);'],
+  ['array-element-types', 'function is(x: unknown, y: string): x is number[][]; function is(x: unknown, y: number): x is string[]; '
+    + 'function is(x: unknown, y: any): boolean { return true; } '
+    + 'function f(x: unknown, y: any) { if (is(x, y)) return x[0].includes("a,b"); return null; } return String([f([[1]], 1), f(["a,b"], 1)]);'],
+  ['named-members', 'interface S { v: string } interface T { v: string[] } function is(x: unknown, y: string): x is S; function is(x: unknown, y: number): x is T; '
+    + 'function is(x: unknown, y: any): boolean { return true; } '
+    + 'function f(x: unknown, y: any) { if (is(x, y)) return x.v.includes("a,b"); return null; } return String([f({ v: "ab" }, 1), f({ v: ["a", "b"] }, 1)]);'],
+  ['same-named-target', 'interface S { v: string } function is(x: unknown, y: string): x is S; function is(x: unknown, y: number): x is S; '
+    + 'function is(x: unknown, y: any): boolean { return true; } '
+    + 'function f(x: unknown, y: any) { if (is(x, y)) return x.v.includes("ab"); return null; } return String([f({ v: "ab" }, 1)]);'],
+  ['method-form', 'interface S { v: string } interface T { v: string[] } declare class C { is(x: unknown, y: string): x is S; is(x: unknown, y: number): x is T; } '
+    + 'const c: C = { is: (x: unknown, y: any): boolean => true } as unknown as C; function f(x: unknown, y: any) { if (c.is(x, y)) return x.v.includes("a,b"); return null; } '
+    + 'return String([f({ v: "ab" }, 1), f({ v: ["a", "b"] }, 1)]);'],
+  ['asserts-form', 'interface S { v: string } interface T { v: string[] } function as(x: unknown, y: string): asserts x is S; '
+    + 'function as(x: unknown, y: number): asserts x is T; function as(x: unknown, y: any): void {} '
+    + 'function f(x: unknown, y: any) { as(x, y); return x.v.includes("a,b"); } return String([f({ v: "ab" }, 1), f({ v: ["a", "b"] }, 1)]);'],
+  // the argument PINS an arm here: a number literal refutes the `string` head by KIND, so the second
+  // arm narrows and the array helper is the right one. a keyword slot that stops refuting takes the
+  // first arm and spells the string helper on an array receiver
+  ['selected-by-literal', 'interface S { v: string } interface T { v: string[] } function is(x: unknown, y: string): x is S; function is(x: unknown, y: number): x is T; '
+    + 'function is(x: unknown, y: any): boolean { return true; } '
+    + 'function f(x: unknown) { if (is(x, 1)) return x.v.includes("a,b"); return null; } return String([f({ v: ["a", "b"] })]);'],
+  // a SPREAD argument fills an unknown number of slots, so no arm's arity is decided and the set
+  // cannot be discriminated at all
+  ['spread-argument-refutes-no-arm',
+    'function isX(v: unknown): v is string; function isX(v: unknown, deep: true): v is string[]; '
+    + 'function isX(v: any, deep?: any): boolean { return true; } '
+    + 'function f(u: unknown, rest: any[]) { if (isX(u, ...rest)) return String(u.includes("a,b")); return "no"; } '
+    + 'return String(f(["a", "b"], []));'],
+  // a declared `unknown` argument refutes NO parameter: the guard parser holds no path, so it cannot
+  // see the narrowing in force at the call site, and TS picks the arm that narrowing fits
+  ['declared-unknown-refutes-no-arm',
+    'function isIt(a: string, b: unknown): b is string[]; function isIt(a: unknown, b: unknown): b is string; '
+    + 'function isIt(a: any, b: any): boolean { return true; } '
+    + 'function f(k: unknown, u: unknown) { if (typeof k === "string") { if (isIt(k, u)) return String(u.includes("a,b")); } return "no"; } '
+    + 'return String(f("kk", ["a", "b"]));'],
+  // an arm whose unfilled tail is all OPTIONAL is exactly matched; a REST tail is not
+  ['rest-tail-arm-is-not-exactly-matched',
+    'function isIt(v: unknown, ...rest: string[]): v is string; function isIt(v: unknown): v is string[]; '
+    + 'function isIt(v: any, ...rest: any[]): boolean { return true; } '
+    + 'function f(u: unknown) { if (isIt(u)) return String(u.includes("a,b")); return "no"; } return String(f(["a", "b"]));'],
+  ['required-tail-arm-is-refuted',
+    'function isIt(v: unknown, k: string): v is string[]; function isIt(v: unknown): v is string; '
+    + 'function isIt(v: any, k?: any): boolean { return true; } '
+    + 'function f(u: unknown) { if (isIt(u)) return String(u.includes("ab")); return "no"; } return String(f("ab"));'],
+  // TS puts the members of a LATER interface declaration ahead of the earlier one, so first-match has
+  // to walk the merged list in that order
+  ['merged-interface-later-block-first',
+    'interface H { is(v: unknown): v is string } interface H { is(v: unknown): v is string[] } '
+    + 'const h: H = { is: (v: any) => true } as any; '
+    + 'function f(u: unknown) { if (h.is(u)) return String(u.includes("a,b")); return "no"; } return String(f(["a", "b"]));'],
+];
+function * generatePredicateArms() {
+  for (const [id, body] of PREDICATE_ARMS_TS) yield { ...snippet(`predicate-arms/${ id }`, `(() => { ${ body } })()`), strip: true, ts: true };
+}
+
+// --- the guard OPERATOR axis: which shape the narrow is spelled with ---
+// `guard-forms` walks the spellings of ONE operator; this walks the operators themselves -
+// `instanceof`, a built-in static predicate, a `switch` head, the discriminant field - each in the
+// arm it proves AND in the arm its complement proves, so a lane that narrows one direction only
+// shows up as the missing half. every row runs on the value the other arm describes: the array
+// helper reads "ab" as two characters and answers false where the string helper answers true, and
+// `String(["a", "b"])` is "a,b" going the other way, so a guard taken in the wrong direction spells
+// the wrong family's helper and the runtime says so
+const GUARD_KINDS_TS = [
+  ['instanceof-array-arm',
+    'function f(x: string | string[]) { if (x instanceof Array) return x.includes("a,b"); return null; }',
+    'f(["a", "b"]), f("ab")'],
+  ['instanceof-array-exit',
+    'function f(x: string | string[]) { if (x instanceof Array) return null; return x.includes("ab"); }',
+    'f("ab"), f(["a", "b"])'],
+  ['instanceof-negated-arm',
+    'function f(x: string | string[]) { if (!(x instanceof Array)) return x.includes("ab"); return null; }',
+    'f("ab"), f(["a", "b"])'],
+  ['instanceof-global-member-ctor',
+    'function f(x: string | string[]) { if (x instanceof globalThis.Array) return x.includes("a,b"); return null; }',
+    'f(["a", "b"]), f("ab")'],
+  // a USER binding of the constructor name is not the built-in: `x instanceof Array` under
+  // `const Array = Map` really tests `instanceof Map`, so nothing narrows and the read stays
+  // generic. reading the shadow as the built-in takes the complement arm and spells the string
+  // helper on an array
+  ['instanceof-shadowed-ctor-declines',
+    'function f(x: string | string[]) { const Array = Map as unknown as ArrayConstructor; '
+    + 'if (!(x instanceof Array)) return x.includes("a,b"); return null; }',
+    'f(["a", "b"])'],
+  ['isarray-arm',
+    'function f(x: string | string[]) { if (Array.isArray(x)) return x.includes("a,b"); return null; }',
+    'f(["a", "b"]), f("ab")'],
+  ['isarray-negated-exit',
+    'function f(x: string | string[]) { if (!Array.isArray(x)) return x.includes("ab"); return null; }',
+    'f("ab"), f(["a", "b"])'],
+  ['isarray-equals-false',
+    'function f(x: string | string[]) { if (Array.isArray(x) === false) return x.includes("ab"); return null; }',
+    'f("ab"), f(["a", "b"])'],
+  ['isarray-not-equals-true',
+    'function f(x: string | string[]) { if (Array.isArray(x) !== true) return x.includes("ab"); return null; }',
+    'f("ab"), f(["a", "b"])'],
+  ['isarray-member-spelled-through-globalthis',
+    'function f(x: string | string[]) { if (globalThis.Array.isArray(x)) return x.includes("a,b"); return null; }',
+    'f(["a", "b"]), f("ab")'],
+  ['switch-typeof-string-case',
+    'function f(x: string | string[]) { switch (typeof x) { case "string": return x.includes("ab"); default: return null; } }',
+    'f("ab"), f(["a", "b"])'],
+  ['switch-typeof-object-case',
+    'function f(x: string | string[]) { switch (typeof x) { case "object": return x.includes("a,b"); default: return null; } }',
+    'f(["a", "b"]), f("ab")'],
+  ['switch-typeof-default-complement',
+    'function f(x: string | string[]) { switch (typeof x) { case "object": return null; default: return x.includes("ab"); } }',
+    'f("ab"), f(["a", "b"])'],
+  // the discriminant lane is a resolver of its own, so it gets the same two directions on a pair of
+  // carriers that differ ONLY in the field's type - the wrong branch spells the other one's helper
+  ['discriminant-field-string-arm',
+    'type SBox = { kind: "s"; v: string }; type ABox = { kind: "a"; v: string[] }; '
+    + 'function f(u: SBox | ABox) { if (u.kind === "s") return u.v.includes("ab"); return null; }',
+    'f({ kind: "s", v: "ab" }), f({ kind: "a", v: ["a", "b"] })'],
+  ['discriminant-field-array-arm',
+    'type SBox = { kind: "s"; v: string }; type ABox = { kind: "a"; v: string[] }; '
+    + 'function f(u: SBox | ABox) { if (u.kind === "a") return u.v.includes("a,b"); return null; }',
+    'f({ kind: "a", v: ["a", "b"] }), f({ kind: "s", v: "ab" })'],
+  ['discriminant-field-neq-exit',
+    'type SBox = { kind: "s"; v: string }; type ABox = { kind: "a"; v: string[] }; '
+    + 'function f(u: SBox | ABox) { if (u.kind !== "s") return null; return u.v.includes("ab"); }',
+    'f({ kind: "s", v: "ab" }), f({ kind: "a", v: ["a", "b"] })'],
+  ['discriminant-nested-field',
+    'type SBox = { m: { k: "s" }; v: string }; type ABox = { m: { k: "a" }; v: string[] }; '
+    + 'function f(u: SBox | ABox) { if (u.m.k === "s") return u.v.includes("ab"); return null; }',
+    'f({ m: { k: "s" }, v: "ab" }), f({ m: { k: "a" }, v: ["a", "b"] })'],
+  ['discriminant-switch-case',
+    'type SBox = { kind: "s"; v: string }; type ABox = { kind: "a"; v: string[] }; '
+    + 'function f(u: SBox | ABox) { switch (u.kind) { case "s": return u.v.includes("ab"); default: return null; } }',
+    'f({ kind: "s", v: "ab" }), f({ kind: "a", v: ["a", "b"] })'],
+  ['discriminant-switch-default-complement',
+    'type SBox = { kind: "s"; v: string }; type ABox = { kind: "a"; v: string[] }; '
+    + 'function f(u: SBox | ABox) { switch (u.kind) { case "a": return null; default: return u.v.includes("ab"); } }',
+    'f({ kind: "s", v: "ab" }), f({ kind: "a", v: ["a", "b"] })'],
+];
+function * generateGuardKinds() {
+  for (const [id, body, calls] of GUARD_KINDS_TS) {
+    yield { ...snippet(`guard-kinds/${ id }`, `(() => { ${ body } return String([${ calls }]); })()`), strip: true, ts: true };
+  }
+}
+
+// --- the guard COMPOSITION axis: where in a logical expression the guard sits ---
+// the condition parser flattens `&&` on the true side and `||` on the false one, reads an OR group
+// of typeof tests as one MEMBERSHIP guard, and treats a mixed operator as opaque. each row puts the
+// same narrow at a different place in that algebra. the membership rows prove the set the value is
+// IN (a complement spelling narrows through the per-disjunct exit lane instead and never reaches
+// the group), and the ternary-test row is the boundary the group must not cross: a test whose
+// truthiness does not follow from either arm carries no guard, and taking its consequent for one
+// hands the string helper to the array the alternate lets through
+const GUARD_CHAINS_TS = [
+  ['and-second-conjunct',
+    'function f(x: string | string[], ok: boolean) { if (ok && typeof x === "string") return x.includes("ab"); return null; }',
+    'f("ab", true), f(["a", "b"], true)'],
+  ['and-first-conjunct',
+    'function f(x: string | string[], ok: boolean) { if (typeof x === "string" && ok) return x.includes("ab"); return null; }',
+    'f("ab", true), f(["a", "b"], true)'],
+  ['and-expression-host',
+    'function f(x: string | string[]) { return typeof x === "string" && x.includes("ab"); }',
+    'f("ab"), f(["a", "b"])'],
+  ['or-expression-host-complement',
+    'function f(x: string | string[]) { return typeof x !== "string" || x.includes("ab"); }',
+    'f("ab"), f(["a", "b"])'],
+  ['ternary-consequent',
+    'function f(x: string | string[]) { return typeof x === "string" ? x.includes("ab") : null; }',
+    'f("ab"), f(["a", "b"])'],
+  ['ternary-alternate',
+    'function f(x: string | string[]) { return typeof x !== "string" ? null : x.includes("ab"); }',
+    'f("ab"), f(["a", "b"])'],
+  ['de-morgan-exit-or',
+    'function f(x: string | string[], ok: boolean) { if (typeof x !== "string" || !ok) return null; return x.includes("ab"); }',
+    'f("ab", true), f(["a", "b"], true)'],
+  ['mixed-operator-conjunct',
+    'function f(x: string | string[], ok: boolean) { if ((ok || !ok) && typeof x === "string") return x.includes("ab"); return null; }',
+    'f("ab", true), f(["a", "b"], true)'],
+  ['typeof-or-group-membership',
+    'function f(x: string | string[]) { if (typeof x === "string" || typeof x === "boolean") return x.includes("ab"); return null; }',
+    'f("ab"), f(["a", "b"])'],
+  ['typeof-or-de-morgan-membership',
+    'function f(x: string | string[]) { if (typeof x !== "string" && typeof x !== "boolean") return null; return x.includes("ab"); }',
+    'f("ab"), f(["a", "b"])'],
+  ['opaque-ternary-test-carries-no-guard',
+    'function f(x: string | string[], ok: boolean) { if (ok ? typeof x === "string" : true) return x.includes("a,b"); return null; }',
+    'f(["a", "b"], false), f("ab", true)'],
+];
+function * generateGuardChains() {
+  for (const [id, body, calls] of GUARD_CHAINS_TS) {
+    yield { ...snippet(`guard-chains/${ id }`, `(() => { ${ body } return String([${ calls }]); })()`), strip: true, ts: true };
+  }
+}
+
+// --- the DEFERRAL-HOST axis, crossed with the guard KIND ---
+// the two machineries meet here. a guard proves something about the binding where it STANDS, and a
+// host body runs at a time its source position does not name; the climb out of that body stops at
+// the first deferred step unless the binding never changes, so the two legs are the two sides of
+// that one decision. `constant` never writes: the guard reaches through every host and the string
+// helper is the right one ("ab" read as an array is two characters and answers false). `late`
+// writes after the host is DEFINED and before it runs, which reaches the bodies that park - a field
+// initializer, a generator, a parameter default, a getter, an arrow held in a field - and does NOT
+// reach the two that run where they stand, a computed key and a static block. so the same leg is a
+// decline for five hosts and a KEEP for two, and a walk that answers one way for every host fails
+// one column or the other
+const GDX_GUARDS = [
+  ['typeof', 'if (typeof x !== "string") return "no";'],
+  ['instanceof', 'if (x instanceof Array) return "no";'],
+  ['isarray', 'if (Array.isArray(x)) return "no";'],
+  ['predicate', 'if (!isStr(x)) return "no";'],
+];
+// [id, constant body, late body] - KEEP / STALE are the two reads, WRITE the reassignment
+const GDX_HOSTS = [
+  ['field-init',
+    'class K { p = KEEP; } return new K().p;',
+    'class K { p = STALE; } WRITE return new K().p;'],
+  ['generator',
+    'function * g() { yield KEEP; } return g().next().value;',
+    'function * g() { yield STALE; } const it = g(); WRITE return it.next().value;'],
+  ['default-param',
+    'function h(v = KEEP) { return v; } return h();',
+    'function h(v = STALE) { return v; } WRITE return h();'],
+  ['getter',
+    'const o = { get p() { return KEEP; } }; return o.p;',
+    'const o = { get p() { return STALE; } }; WRITE return o.p;'],
+  ['arrow-field',
+    'class K { m = () => KEEP; } return new K().m();',
+    'class K { m = () => STALE; } const k = new K(); WRITE return k.m();'],
+  // the two hosts that run where they stand: their `late` leg is the CONTROL that a write past them
+  // is not folded back into the read, so it keeps the narrow the parking hosts must drop
+  ['computed-key',
+    'class K { [KEEP] = 1; } return Object.keys(new K()).join();',
+    'class K { [KEEP] = 1; } WRITE return Object.keys(new K()).join();'],
+  ['static-block',
+    'let seen = "z"; class C { static { seen = KEEP; } } void C; return seen;',
+    'let seen = "z"; class C { static { seen = KEEP; } } void C; WRITE return seen;'],
+];
+function * generateGuardDeferralCross() {
+  const predicate = 'function isStr(v: string | string[]): v is string { return typeof v === "string"; } ';
+  for (const [guardId, guard] of GDX_GUARDS) {
+    for (const [hostId, constantBody, lateBody] of GDX_HOSTS) {
+      for (const [orderId, template] of [['constant', constantBody], ['late', lateBody]]) {
+        const host = template
+          .replace('KEEP', 'String(x.includes("ab"))')
+          .replace('STALE', 'String(x.includes("a,b"))')
+          .replace('WRITE', 'x = ["a", "b"];');
+        const body = `${ guardId === 'predicate' ? predicate : '' }`
+          + `function f(x: string | string[]) { ${ guard } ${ host } } return f("ab");`;
+        yield {
+          ...snippet(`guard-deferral-cross/${ guardId }-${ hostId }-${ orderId }`, `(() => { ${ body } })()`),
+          strip: true,
+          ts: true,
+        };
+      }
+    }
+  }
+}
+
 export function * generate() {
+  yield * generateDeferredReads();
+  yield * generateGuardForms();
+  yield * generatePredicateArms();
+  yield * generateGuardKinds();
+  yield * generateGuardChains();
+  yield * generateGuardDeferralCross();
   yield * generateReEmittedReceiver();
   yield * generateLeadingEffectClaims();
   yield * generateDeclinedInitClaims();
@@ -8401,6 +9057,8 @@ export function * generate() {
   yield * generateChainAssignValue();
   yield * generateCarrierDeleteBase();
   yield * generateShadowedRealmName();
+  yield * generateDeleteSpanWrappers();
+  yield * generateChainSealedDestructureSource();
   yield * generateKeptValueCanon();
   yield * generateTerminalProbeCanon();
   yield * generateProvenCallGuardHops();

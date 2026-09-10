@@ -1,4 +1,4 @@
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 // `super[Symbol.iterator]` cannot be lowered to `_getIterator(super)` / `_ref = super`
 // (both are SyntaxError - super is a special form, not an expression). transformer keeps

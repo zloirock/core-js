@@ -556,3 +556,200 @@ QUnit.test('params: a numeric sibling key does not sink the receiver choice', as
   assert.same(typeof seen[1], 'function');
   assert.deepEqual(seen[1]({ a: 1 }), [['a', 1]]);
 });
+
+// --- A function expression's own name does not enumerate its callers ---
+// The caller-lossy emissions are sound only where every call site is visible, and the scan for those
+// sites runs over the NAMES that bind the function. A function EXPRESSION standing in an expression
+// position has none that carry the outside: its own name binds INSIDE it, so an empty reference set
+// for it says only that the function never recurses. The callers arrive through the VALUE instead -
+// the invocation the expression stands in, a `.call` hop, an argument slot, the property it is
+// stored in - and every one of them may pass a receiver a body-extract would clobber. Each body
+// reports the polyfill as a STRING rather than handing it to the assertion: a function value crashes
+// the TAP reporter mid-run, which would hide the rows below the first regression.
+
+QUnit.test('params: a tagged-template caller fills slot 0 - the polyfill must not overwrite it', assert => {
+  const seen = (function tag({ from, ...rest } = Array) {
+    return [typeof from === 'function' ? 'the polyfill' : String(from), rest[0]];
+  })`the-strings-array`;
+  // the tag hands its strings array over, so the parameter default never fires and the leaf reads
+  // off that array - which carries no `from` at all
+  assert.same(seen[0], 'undefined');
+  assert.same(seen[1], 'the-strings-array');
+});
+
+QUnit.test('params: a `.call` hop is an invisible caller - its receiver wins over the polyfill', assert => {
+  // eslint-disable-next-line no-unused-vars -- the rest sibling forces the caller-lossy extract
+  const seen = function hop({ from, ...rest } = Array) {
+    return typeof from === 'function' ? 'the polyfill' : from;
+  }.call(null, { from: 'via-call' });
+  assert.same(seen, 'via-call');
+});
+
+QUnit.test('params: a function expression handed to a call - the caller receiver wins', assert => {
+  function invoke(fn) {
+    return fn({ from: 'via-argument' });
+  }
+  // eslint-disable-next-line prefer-arrow-callback, no-unused-vars -- a NAMED expression with a rest sibling is the shape under test
+  const seen = invoke(function given({ from, ...rest } = Array) {
+    return typeof from === 'function' ? 'the polyfill' : from;
+  });
+  assert.same(seen, 'via-argument');
+});
+
+QUnit.test('params: a function expression stored in a property - the caller receiver wins', assert => {
+  const holder = {
+    // eslint-disable-next-line no-unused-vars -- the rest sibling forces the caller-lossy extract
+    run: function stored({ from, ...rest } = Array) {
+      return typeof from === 'function' ? 'the polyfill' : from;
+    },
+  };
+  assert.same(holder.run({ from: 'via-property' }), 'via-property');
+});
+
+// the same scan decides whether a slot default's TYPE describes the param, so a caller reached
+// through the value has to widen the dispatch too: narrowing to the default's Array forwards a
+// string receiver to the array-specific helper, which a realm without the native cannot serve
+QUnit.test('params: a value-reached caller keeps a slot default from narrowing the dispatch', assert => {
+  const hopped = function hop(x = [1, 2]) {
+    return x.at(0);
+  }.call(null, 'hello');
+  assert.same(hopped, 'h');
+  function invoke(fn) {
+    return fn('hello');
+  }
+  // eslint-disable-next-line prefer-arrow-callback -- a NAMED expression in an argument slot is the shape under test
+  const passed = invoke(function given(x = [1, 2]) {
+    return x.at(0);
+  });
+  assert.same(passed, 'h');
+});
+
+// --- An opaque construct is a caller the scan cannot enumerate ---
+
+// a direct `eval` runs its string in the caller's own scope chain, so it can invoke the function
+// with an argument spelled nowhere the census can read it. Narrowing the defaulted param on that
+// empty set forwards the array to the string-specific helper, which throws in a realm without the
+// native - and the reach covers the DECLARATION form, whose name binds in the scope around it
+QUnit.test('params: a direct eval caller widens the dispatch of a defaulted param', assert => {
+  function declared(x = 'abc') {
+    return x.at(0);
+  }
+  assert.same(declared(), 'a');
+  // eslint-disable-next-line no-eval -- the direct spelling is the shape under test
+  assert.same(eval('declared([1, 2])'), 1);
+});
+
+// ... and the same for the expression forms, which the census reaches through their declarator name
+QUnit.test('params: a direct eval caller widens a function-expression default too', assert => {
+  // eslint-disable-next-line unicorn/consistent-function-style -- the EXPRESSION form is the shape under test
+  const stored = function (x = 'abc') {
+    return x.at(0);
+  };
+  assert.same(stored(), 'a');
+  // eslint-disable-next-line no-eval -- the direct spelling is the shape under test
+  assert.same(eval('stored([1, 2])'), 1);
+});
+
+// --- The call is not one spelling: what the census reads as a call site ---
+
+// A call site is not only `f(...)`. `new f()`, `f.call(t)`, `f.apply(t, [x])`, a `bind` invoked on
+// the spot and an IIFE all invoke the function, each putting its arguments somewhere of its own -
+// and reading none of them left every such function's defaulted param dispatching the generic
+// helper. The pair per spelling is what makes each row distinguishing: the no-argument form takes
+// the default's own family, and a real argument at the same slot still overrides it
+
+QUnit.test('params: a `.call` with no argument past the receiver keeps the default\'s dispatch', assert => {
+  function target(x = [1, 2]) {
+    return x.at(0);
+  }
+  assert.same(target.call(null), 1);
+});
+
+QUnit.test('params: an `.apply` reads its inline argument array', assert => {
+  function target(x = [1, 2]) {
+    return x.at(0);
+  }
+  assert.same(target.apply(null, []), 1);
+});
+
+QUnit.test('params: a bind invoked on the spot carries the arguments it captured', assert => {
+  function target(x = [1, 2]) {
+    return x.at(0);
+  }
+  assert.same(target.bind(null)(), 1);
+});
+
+QUnit.test('params: an IIFE is its own whole caller set', assert => {
+  assert.same((function (x = [1, 2]) {
+    return x.at(0);
+  })(), 1);
+  assert.same(((x = [1, 2]) => x.at(0))(), 1);
+});
+
+// a `new` reads the same slots a call does, and the construction here is DROPPED - the object it
+// makes goes nowhere, so nothing can reach the constructor back through `inst.constructor`
+QUnit.test('params: a dropped construction accounts for its own arguments', assert => {
+  let seen;
+  function Target(x = [1, 2]) {
+    seen = x.at(0);
+  }
+  new Target();
+  assert.same(seen, 1);
+  new Target('hello');
+  assert.same(seen, 'h');
+});
+
+// a CONSTRUCTOR spells its callers through the CLASS, the one name they can write
+QUnit.test('params: a constructor default takes the dispatch its class\'s callers leave it', assert => {
+  let seen;
+  class Held {
+    constructor(x = [1, 2]) {
+      seen = x.at(0);
+    }
+  }
+  new Held();
+  assert.same(seen, 1);
+  new Held('hello');
+  assert.same(seen, 'h');
+});
+
+// a reference that only reads a FACT about the function - here its type - reaches nothing
+// afterwards and adds no caller, so the one real call still decides
+QUnit.test('params: a `typeof` reference adds no caller to the census', assert => {
+  function target(x = [1, 2]) {
+    return x.at(0);
+  }
+  assert.same(typeof target, 'function');
+  assert.same(target(), 1);
+});
+
+// --- A `new` hands the constructor out with every object it builds ---
+
+// `inst.constructor` IS the constructor, so a HELD instance is a caller channel spelling no name -
+// re-entered here in this very file. Narrowing the slot on the visible `new` alone would send the
+// string to the array-specific helper, which throws in a realm without the native
+QUnit.test('params: a held instance re-entered through `.constructor` widens the dispatch', assert => {
+  class Reentered {
+    constructor(x = [1, 2]) {
+      this.r = x.at(0);
+    }
+    again(value) {
+      // eslint-disable-next-line new-cap -- `.constructor` is the channel under test, and it is spelled lowercase
+      return new this.constructor(value).r;
+    }
+  }
+  const held = new Reentered();
+  assert.same(held.r, 1);
+  assert.same(held.again('hello'), 'h');
+});
+
+// ... and the plain-function form of the same channel
+QUnit.test('params: a held construction of a function widens it the same way', assert => {
+  function Built(x = [1, 2]) {
+    this.r = x.at(0);
+  }
+  const held = new Built();
+  assert.same(held.r, 1);
+  // eslint-disable-next-line new-cap -- `.constructor` is the channel under test, and it is spelled lowercase
+  assert.same(new held.constructor('hello').r, 'h');
+});

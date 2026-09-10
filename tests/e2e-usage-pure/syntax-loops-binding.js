@@ -383,3 +383,25 @@ QUnit.test('binding: a for-of head re-declaration rebinds and the last value is 
 
 /* eslint-enable no-var, no-redeclare, block-scoped-var, no-lone-blocks, no-useless-assignment
    -- back to the suite's modern-syntax default; the `var` shapes above are the tested form */
+
+// --- A direct `eval` is a write no reference set holds, so the read takes the generic dispatch ---
+// The string runs in this scope chain and can rebind anything it reaches, which no tracker records.
+// DISTINGUISHING in a stripped realm only: the array-narrowed helper hands back the receiver's own
+// `at`, and a string receiver has none there, so a narrow that survived the eval throws instead.
+
+/* eslint-disable no-eval, prefer-const -- a direct eval IS the tested form (an indirect one reaches
+   no local binding), and the binding it rewrites has to stay `let`: assigning a `const` from the
+   eval string throws instead of exercising the read */
+QUnit.test('binding: a direct eval outruns the narrow and the live string value is read', assert => {
+  let evalRebound = [1, 2, 3];
+  eval('evalRebound = "abc"');
+  assert.same(evalRebound.at(0), 'a');
+});
+
+QUnit.test('binding: a read the eval cannot outrun keeps its own value', assert => {
+  let evalUnreached = [1, 2, 3];
+  assert.same(evalUnreached.at(-1), 3);
+  eval('evalUnreached = "abc"');
+  assert.same(evalUnreached, 'abc');
+});
+/* eslint-enable no-eval, prefer-const -- back to the suite's default */

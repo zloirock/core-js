@@ -1,10 +1,10 @@
 import _Array$fromAsync from "@core-js/pure/actual/array/from-async";
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Object$groupBy from "@core-js/pure/actual/object/group-by";
-import _Promise from "@core-js/pure/actual/promise/constructor";
+import _Promise from "@core-js/pure/actual/promise";
 import _Promise$try from "@core-js/pure/actual/promise/try";
-import _WeakMap from "@core-js/pure/actual/weak-map/constructor";
+import _WeakMap from "@core-js/pure/actual/weak-map";
 // the container a `super.<static>` base is read from resolves through the same hops the value canon
 // walks: an alias to the container, a member read of it, an effect-wrapped base, and a dominating
 // reassignment whose reaching value is the live container. the subresolver handed a hop's init back

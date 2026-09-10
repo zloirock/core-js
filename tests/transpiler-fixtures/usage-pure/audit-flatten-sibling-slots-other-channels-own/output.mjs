@@ -1,7 +1,7 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
 import _Number$isFinite from "@core-js/pure/actual/number/is-finite";
 import _Number$isInteger from "@core-js/pure/actual/number/is-integer";
 import _Object$assign from "@core-js/pure/actual/object/assign";
@@ -10,9 +10,9 @@ import _Object$freeze from "@core-js/pure/actual/object/freeze";
 import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 import _Object$keys from "@core-js/pure/actual/object/keys";
 import _Object$values from "@core-js/pure/actual/object/values";
+import _Promise from "@core-js/pure/actual/promise";
 import _Promise$allSettled from "@core-js/pure/actual/promise/all-settled";
-import _Promise from "@core-js/pure/actual/promise/constructor";
-import _Set from "@core-js/pure/actual/set/constructor";
+import _Set from "@core-js/pure/actual/set";
 // the flatten's sibling walk substitutes proxy-global reads in the declarators it re-emits, but a
 // slot another channel replaces WHOLESALE has no room for that transform: the `key in obj` fold,
 // and all three receiver slots a synth swap owns - a destructure host's init and right, and an

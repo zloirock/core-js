@@ -1,6 +1,7 @@
-// a collapse that discards the hops below its leaf discards their computed keys too, so the
-// effects buried in them re-emit with the leaf's own, in native order (root side first). the
-// sequence-tail rebind cuts the same way. the last row has no hop key - it pins the plain shape
+// a computed hop key under a collapsed leaf still resolves the global it spells, and the leaf's own
+// members resolve through it: the global method rewrites nothing here, so the lock is the import set
+// alone - the Number statics and instance, self and Map. the last row has no hop key, it pins the
+// plain shape
 let u;
 let g = 0;
 let e = 0;

@@ -8,5 +8,7 @@ export const backedLeafFolds = globalThis.window.self?.Promise.noSuchStatic;
 export const deeperHopFolds = globalThis.self.window?.customKey;
 export const firstHopKeepsTheProbe = globalThis.window?.self.Promise.noSuchStatic;
 export const seqRootProvesItsAlias = (g = globalThis, v = g.window?.self)?.Promise.noSuchStatic;
+// ... and under `delete` the `?.` ABOVE that sequence is the one deciding whether the delete
+// happens: it survives the fold, the ctor riding the guard's alternate
 export const seqRootDelete = delete (g = globalThis, v = g.window?.self)?.Promise[key];
 export { g, v };

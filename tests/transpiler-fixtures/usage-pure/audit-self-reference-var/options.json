@@ -1,4 +1,6 @@
 {
+  "filename": "input.js",
+  "sourceType": "script",
   "plugins": [
     [
       "@core-js",

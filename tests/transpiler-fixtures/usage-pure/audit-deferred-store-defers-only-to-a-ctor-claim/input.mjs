@@ -1,7 +1,9 @@
 // inside a DEFERRED body the eager hook hands the store to the flush only when a CTOR / STATIC claim
-// owns its value - that claim's channel is what renders the guard. a tail that claims nothing, a proxy
-// hop and an INSTANCE dispatch each keep the store's own value: the instance channel renders its own
-// receiver, and a claimless tail has no channel at all. read from BOTH spellings of the claim, because
+// owns its value - that claim's channel is what renders the guard. a tail that claims nothing and a
+// proxy hop keep the store's own value: neither has a channel that reads the store's absence. an
+// INSTANCE dispatch does have one - the guard it builds IS that reader - so the store spells the
+// guarded value there, or the user's variable holds the realm object on the very branch that guard
+// calls absent. read from BOTH spellings of the claim, because
 // which one stands there is pass order: still above the store, or already inside the built guard's
 // alternate. each form gets its own bindings - a second write to one alias deopts the follow
 let c1, c2, n1, n2, h1, h2, i1, i2, out;

@@ -1,6 +1,6 @@
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Map from "@core-js/pure/actual/map/constructor";
-import _Set from "@core-js/pure/actual/set/constructor";
+import _Map from "@core-js/pure/actual/map";
+import _Set from "@core-js/pure/actual/set";
 // a STORE whose value carries a `?.` of its own, read through a guard: the render lowers the read
 // into a short-circuit and the store becomes the guard's TEST, while the `?.` chain the source wrote
 // around the whole read is left holding an assignment. what that assignment owes is the parens the
@@ -11,7 +11,9 @@ export const guardOverChainStore = null == (w = _globalThis.window?.self) ? void
 export const guardOverChainStoreDeep = null == (v = _globalThis.window?.self?.window) ? void 0 : _Set;
 
 // ... and the same store with no `?.` in the value it carries: the wrapper the source wrote is the
-// one the render empties either way, so the two spellings print alike
+// one the render empties either way, so the two spellings print alike. what neither of them folds
+// is the probe BELOW the terminal hop: this build spells no `self`, so the run's own value is the
+// raw host read and every slot it names stays
 let plain;
 export const guardOverPlainStore = null == (plain = _globalThis.window.self) ? void 0 : _Map;
 // ... and a `?.` the same verdict calls DEAD does not stop the fold MID-RUN either: it reads the

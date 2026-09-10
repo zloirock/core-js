@@ -8,7 +8,7 @@ import _self from "@core-js/pure/actual/self";
 // hold the navigation, and the stored canon spells what the source stores
 const alias = _globalThis;
 let out, key, kept;
-out = delete _Promise[key];
+out = delete (null == _globalThis.window ? void 0 : _Promise)?.[key];
 out = null == _globalThis.window ? void 0 : _Promise[key];
 out = null == alias.window ? void 0 : _Promise[key];
 kept = null == _globalThis.window ? void 0 : _self;

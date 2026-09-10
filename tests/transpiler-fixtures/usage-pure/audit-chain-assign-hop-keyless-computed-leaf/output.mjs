@@ -1,7 +1,7 @@
 import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _self from "@core-js/pure/actual/self";
-import _Set from "@core-js/pure/actual/set/constructor";
+import _Set from "@core-js/pure/actual/set";
 // a chain-assign root navigating a proxy hop into a KEYLESS computed leaf: the hop-root
 // collapse owns the whole span (assign folds, hop drops, the key stays raw) - the swallowed
 // hop must not fire its own value-canon claim (a `.self` -> ponyfill swap racing the span),

@@ -1,7 +1,7 @@
-// COMPUTED mutator-callee keys (static string, const alias, optional chain, computed proxy
-// member), an ALIASED namespace and EXTRACTED / DESTRUCTURED mutator bindings all resolve
-// through the same binding-aware canons as their dotted twins - each patched static keeps the
-// user override and routes through the injected constructor
+// COMPUTED mutator-callee keys (static string, const alias, optional chain, computed proxy member),
+// an ALIASED namespace and EXTRACTED / DESTRUCTURED mutator bindings resolve through the same
+// binding-aware canons as their dotted twins: a target pure can back takes the patch on the injected
+// constructor, and `Array` / `Object`, which it cannot, stay native on the mutation and the read alike
 Object['defineProperty'](Array, 'from', { value: custom });
 const r1 = Array.from([1]);
 const m = 'defineProperty';

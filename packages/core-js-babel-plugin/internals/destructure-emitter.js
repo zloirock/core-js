@@ -78,7 +78,6 @@ import {
   canTransformDestructuring as sharedCanTransformDestructuring,
   carriedInitReceiverNode,
   classifyCallBranchForSynth,
-  collectEnclosingObjectPatterns,
   conditionalDestructureLeftUntouchedWarning,
   consumedAssignmentSlotDropsHost,
   consumedAssignmentSlotDropsNav,
@@ -1825,8 +1824,10 @@ export default function createDestructureEmitter({
     return skippedNodes.has(prop.node) || planConsumedProps.has(prop.node);
   }
 
+  // the destructure plans hold the pattern slot, never a path to it - and need none: the ENTRY a
+  // ctor resolves to is a per-FILE answer, the same one every other reference to the name gets
   function resolveGlobalPure(name) {
-    const pure = resolvePure({ kind: 'global', name });
+    const pure = resolvePure({ kind: 'global', name }, null);
     return pure && pure.kind !== 'instance' ? pure : null;
   }
 
@@ -4345,12 +4346,6 @@ export default function createDestructureEmitter({
     // splice props out, and the receiver plan must judge the group the source wrote
     patternSizeOf(prop.parentPath);
     noteRetainedForInitHost(prop);
-    // claim the whole enclosing pattern chain up front (before any branch can bail) - the
-    // synth-swap proxy-hop collapse keys its defer on the ROOT pattern; an unclaimed pattern
-    // collapses there like a non-destructure receiver
-    for (const pattern of collectEnclosingObjectPatterns(prop.parentPath)) {
-      synthSwap.claimDestructurePattern(pattern);
-    }
     // snapshot the original binding count BEFORE any sibling prop's emission below mutates the pattern,
     // so a later instance prop's `soleBindingInDeclaration` reflects the source, not the shrunken pattern
     originalBindingCount(prop);
@@ -4915,8 +4910,10 @@ export default function createDestructureEmitter({
   // hop-keys, via the canonical `harvestDiscardedReceiverSE`) - the whole proxy navigation is dead and would
   // THROW off-browser on an unponyfillable hop, so re-emit the harvested SE in source-eval order (matching the
   // unplugin drop). null (caller keeps the receiver verbatim, via its own collapse) when it is not a droppable
-  // proxy nav OR carries NO side effects: an effect-free nav has nothing to drop and its bare-value collapse is
-  // owned by the caller's `collapseRetainedProxyReceiver` / fold, keeping the two emitters' output identical.
+  // proxy nav; a `sink` of null when it IS one and carries NO side effects - a different answer to the caller,
+  // since an effect-free droppable nav owes NOTHING at all and a lift there prints dead text. its bare-value
+  // collapse is owned by the caller's `collapseRetainedProxyReceiver` / fold, keeping the two emitters'
+  // output identical.
   // shared by the for-init sink AND the statement-lifted plain-decl discard so their decision stays
   // consistent. CALLERS MUST PASS THE RAW INIT: the gate inspects the navigation TAIL (peeled past a
   // sequence root like `(d++, globalThis['self'].Array)`, while the whole leaf still feeds the SE
@@ -4928,8 +4925,8 @@ export default function createDestructureEmitter({
     const dropCtx = path?.scope ? { scope: path.scope, adapter, path, resolvePure } : null;
     if (!shouldDropRescueReceiver(tail !== leaf ? unwrapRuntimeExpr(tail) : leaf, dropCtx)) return null;
     const se = harvestDiscardedReceiverSE(leaf, { scope: path.scope, adapter, path });
-    if (!se.length) return null;
-    return se.length === 1 ? t.cloneDeep(se[0]) : t.sequenceExpression(se.map(node => t.cloneDeep(node)));
+    return { sink: se.length === 0 ? null
+      : se.length === 1 ? t.cloneDeep(se[0]) : t.sequenceExpression(se.map(node => t.cloneDeep(node))) };
   }
 
   // for-init with SE: keep SE inline so it doesn't escape the loop.
@@ -4943,7 +4940,7 @@ export default function createDestructureEmitter({
       // (`sf()[(c++, 'self')].Map` keeps the raw `.self` - ie:11 / Node throw). the sink value is
       // discarded (dummy binding), so re-emit ONLY the harvested side effects (shared discard helper).
       // resolve the drop on the RAW init - foldBuriedProxyHopHosts re-roots the nav to a form the gate misses
-      let sinkInit = discardedReceiverSinkInit(parent.node.init, parent);
+      let sinkInit = discardedReceiverSinkInit(parent.node.init, parent)?.sink;
       foldBuriedProxyHopHosts(parent.get('init'));
       // a droppable nav with NO harvestable SE (a provably-pure call root: `(() => globalThis)().self.Array`)
       // still needs a SAFE sink - the fold leaves the raw `.self` hop the loop init reads undefined off-engine,
@@ -5040,6 +5037,10 @@ export default function createDestructureEmitter({
         ? t.cloneNode(ahead[0], true) : t.sequenceExpression(ahead.map(node => t.cloneNode(node, true))));
       return;
     }
+    // ... and a DROPPABLE proxy nav keeps ONLY what that harvest holds: with nothing harvested the
+    // init is the very read the extraction now performs, so the lift has nothing left to preserve
+    // and the statement it would leave is dead text the identifier twin never emits
+    if (discardedReceiverSinkInit(initNode, containerPath)?.sink === null) return;
     deferLiftedExpression(containerPath, null, initNode);
   }
 
@@ -5070,7 +5071,7 @@ export default function createDestructureEmitter({
         // off-browser on an unponyfillable hop); otherwise the whole init lifts minus a dead
         // tail, a kept chain-assignment among it storing the value canon like its in-place twin
         node: t.expressionStatement(expression
-          ?? discardedReceiverSinkInit(initNode, containerPath)
+          ?? discardedReceiverSinkInit(initNode, containerPath)?.sink
           ?? cloneReplayedEffect(trimSideEffectTail(initNode), containerPath)),
       });
     }

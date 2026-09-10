@@ -2,7 +2,9 @@
 // core export hook for non-`core-js` packages; shared by the unit and e2e bundle builds
 export async function generateTestsIndex(name, pkg, filter = /^(?:es|esnext|helpers|web)\./, extensions = ['.js']) {
   const dir = `../../tests/${ name }`;
-  const files = await fs.readdir(dir);
+  // sorted: readdir hands entries back in the filesystem's own order, so a suite that has to run
+  // LAST can only say so through its NAME once this order is the alphabetical one
+  const files = (await fs.readdir(dir)).sort();
   return fs.writeFile(`${ dir }/index.js`, `import '../helpers/qunit-helpers';\n\n${ files
     .filter(it => extensions.some(ext => it.endsWith(ext)) && it !== 'index.js' && filter.test(it))
     .map(it => `import './${ it.slice(0, -3) }';\n`)

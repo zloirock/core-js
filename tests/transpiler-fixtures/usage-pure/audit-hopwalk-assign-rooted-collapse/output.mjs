@@ -3,8 +3,8 @@ import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Map from "@core-js/pure/actual/map/constructor";
-import _Reflect from "@core-js/pure/actual/reflect/namespace";
+import _Map from "@core-js/pure/actual/map";
+import _Reflect from "@core-js/pure/actual/reflect";
 import _self from "@core-js/pure/actual/self";
 // A chain-assignment-rooted proxy navigation (`(a = globalThis).self.X`) roots at the assigned
 // value, but the emit-side collapse walked chains chain-assign-BLIND: the assign stopped the root

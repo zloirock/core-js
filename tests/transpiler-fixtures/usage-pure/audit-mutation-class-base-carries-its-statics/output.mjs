@@ -1,5 +1,5 @@
 import _Map from "@core-js/pure/actual/map";
-import _Set from "@core-js/pure/actual/set/constructor";
+import _Set from "@core-js/pure/actual/set";
 import _WeakMap from "@core-js/pure/actual/weak-map/constructor";
 // a subclass whose OWN NAME is a static receiver reads a static it INHERITS, through a binding no
 // reaching-value walk connects back to the base - so the base carries its statics itself and the

@@ -1,5 +1,5 @@
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
 // a flat for-init full-consume proxy-global destructure cannot drop its receiver tail - the loop
 // header needs a declarator, so the SE prefix and receiver re-embed into a sink declarator. the
 // dropped-receiver skip must NOT fire here: the `globalThis` root stays visible and is polyfilled

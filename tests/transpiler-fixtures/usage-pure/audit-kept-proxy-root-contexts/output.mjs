@@ -54,7 +54,7 @@ class KeptHost {
   // below it short-circuits, and then nothing else owns the chain at all: the render takes it,
   // the end hop rides outside the guard on the always-defined ponyfill, and the hop stops being
   // read raw. an SE-keyed end keeps its own migration canon and stays as it was
-  static endHop = null == _globalThis.window ? void 0 : _self['window'];
+  static endHop = null == _globalThis.window ? void 0 : _self;
   endHopSeKey = null == _globalThis.window ? void 0 : _self[c++, 'window'];
   field = (_globalThis.window ?? _globalThis)[c++, 'self']?.Array;
   static {
@@ -83,7 +83,7 @@ export const seKeyClaimDispatch = null == _globalThis.window ? void 0 : _flatMay
 // bare-probe INSTANCE guard-memo spellings: the prototype-method call keeps the raw nav in
 // the guard body (the locked alias/kept canon), the call-argument SE stays put; the SE-key
 // claimless `new`-callee renders the pony guard inside the callee parens
-export const bareProtoCall = null == (_ref8 = _globalThis.window) ? void 0 : _findMaybeArray(_ref8[c++, 'self'].Array.prototype).call([5], v => v === (c++, 5));
+export const bareProtoCall = null == (_ref8 = _globalThis.window) ? void 0 : _findMaybeArray((c++, _ref8).Array.prototype).call([5], v => v === (c++, 5));
 export const bareProtoUnpolyfilled = null == _globalThis.window ? void 0 : (c++, _self).Array.prototype.indexOf.call([5], 5);
 export const bareSeKeyNewCallee = new (null == _globalThis.window ? void 0 : (c++, _self).CustomThing)();
 export async function awaited() {

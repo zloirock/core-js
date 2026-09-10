@@ -1,7 +1,8 @@
 // a guard render that leads with `(` at the head of an ExpressionStatement fuses with an
 // unterminated previous statement and turns it into a CALL (`sink = 1(...)`). the reprint
-// owes every statement its own semicolon,
-// on every channel that can spell a parenthesized guard
+// owes every statement its own semicolon. the renders that do NOT lead with `(` owe none of their
+// own - the negatives that pin the guard to the leading token rather than to the statement position.
+// each is still rewritten
 export let liftedNav = 1
 globalThis.window?.self.hostBox.run()
 export let liftedMember = 2

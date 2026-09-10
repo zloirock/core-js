@@ -4,6 +4,7 @@ import "<CWD>/packages/core-js/modules/es.string.repeat.js";
 import "<CWD>/packages/core-js/modules/es.global-this.js";
 import "<CWD>/packages/core-js/modules/es.map.constructor.js";
 import "<CWD>/packages/core-js/modules/es.map.species.js";
+import "<CWD>/packages/core-js/modules/es.map.group-by.js";
 import "<CWD>/packages/core-js/modules/es.map.get-or-insert.js";
 import "<CWD>/packages/core-js/modules/es.map.get-or-insert-computed.js";
 import "<CWD>/packages/core-js/modules/es.number.max-safe-integer.js";
@@ -11,9 +12,10 @@ import "<CWD>/packages/core-js/modules/es.number.to-fixed.js";
 import "<CWD>/packages/core-js/modules/es.string.iterator.js";
 import "<CWD>/packages/core-js/modules/web.dom-collections.iterator.js";
 import "<CWD>/packages/core-js/modules/web.self.js";
-// a collapse that discards the hops below its leaf discards their computed keys too, so the
-// effects buried in them re-emit with the leaf's own, in native order (root side first). the
-// sequence-tail rebind cuts the same way. the last row has no hop key - it pins the plain shape
+// a computed hop key under a collapsed leaf still resolves the global it spells, and the leaf's own
+// members resolve through it: the global method rewrites nothing here, so the lock is the import set
+// alone - the Number statics and instance, self and Map. the last row has no hop key, it pins the
+// plain shape
 let u;
 let g = 0;
 let e = 0;

@@ -18,6 +18,7 @@ import {
   SKIPPABLE_WRAPPER_TYPES,
   unwrapRuntimeExpr,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import { deleteGuardKeepingHop, unbackedRealmHopFoldAbove } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import { createChecker } from './harness.mjs';
 
 const { check, checkTruthy, finish, runBoth } = createChecker('wrapper-peels');
@@ -258,6 +259,113 @@ function buildStack(stack, core) {
   }
   checkTruthy(`domain/every wrapper stack up to three deep (${ checked } stacks)`, checked > 100 && !wrong.length);
   if (wrong.length) check('domain/first disagreement', wrong[0], '(none)');
+}
+
+// --- the wrapper a call site does NOT have to peel ---
+
+// the plugin-shaped adapter surface the delete canon consults, and a resolver that answers for the
+// polyfillable names only - an environment probe (`window`, `self`, `chrome`) resolves to nothing,
+// which is what makes its `?.` a live one
+function guardAdapter(adapter) {
+  return {
+    ...adapter,
+    method: 'usage-global',
+    isStringLiteral(node) { return node.type === 'StringLiteral' || (node.type === 'Literal' && typeof node.value === 'string'); },
+    getStringValue(node) { return node.value; },
+    hasBinding(scope, name) { return !!scope?.getBinding?.(name); },
+    getBinding(scope, name) { return scope?.getBinding?.(name) ?? null; },
+    getBindingNodeType(scope, name) { return scope?.getBinding?.(name)?.path?.node?.type ?? null; },
+    isMutatedStatic() { return false; },
+  };
+}
+
+const POLYFILLABLE = new Set(['Array', 'Map', 'Promise', 'Set']);
+function guardResolvePure(meta) {
+  return meta?.kind === 'global' && POLYFILLABLE.has(meta.name)
+    ? { entry: `actual/${ meta.name.toLowerCase() }/constructor`, hintName: meta.name }
+    : null;
+}
+
+// `deleteGuardKeepingHop` is the delete fold's one exception, and every channel hands it whatever
+// the span it walked ended on - a chain marker, a source paren, a TS cast, and a different one per
+// parser off the same source. it opens on `unwrapRuntimeExpr` and reads the argument through
+// nothing else, so its answer is INVARIANT under the wrapper stack above it. that invariant is what
+// a call site leans on when it passes its raw top: a peel re-spelled at the call site covers a
+// SUBSET of this set at best, and the one that stood in the unplugin's delete question covered the
+// marker alone while the climb feeding it ran through the whole skippable set
+const DELETE_GUARD_ARGUMENTS = [
+  ['a live probe guard over a call root is kept', 'delete ut().window?.self.chrome;', true],
+  ['a plain nav keeps nothing', 'delete globalThis.window.self.chrome;', false],
+];
+
+for (const [name, code, keeps] of DELETE_GUARD_ARGUMENTS) {
+  runBoth(`argument/${ name } through every wrapper stack`, code, (adapter, prog, lbl) => {
+    const argument = adapter.pickPath(prog, 'UnaryExpression', p => p.node.operator === 'delete').get('argument');
+    const ctx = { scope: argument.scope, adapter: guardAdapter(adapter), path: argument };
+    const bare = deleteGuardKeepingHop(argument.node, guardResolvePure, ctx);
+    // a row that answered null for every input would pass each stack while locking nothing
+    check(`${ lbl } bare answer`, !!bare, keeps);
+    const wrong = [];
+    let checked = 0;
+    for (const stack of wrapperStacks(3)) {
+      const marker = stack.indexOf('ChainExpression');
+      if (marker !== -1 && (marker !== stack.length - 1 || stack.lastIndexOf('ChainExpression') !== marker)) continue;
+      checked++;
+      if (deleteGuardKeepingHop(buildStack(stack, argument.node), guardResolvePure, ctx) !== bare) {
+        wrong.push(stack.join('>'));
+      }
+    }
+    checkTruthy(`${ lbl } invariant over ${ checked } stacks`, checked > 100 && !wrong.length);
+    if (wrong.length) check(`${ lbl } first disagreement`, wrong[0], '(none)');
+  }, ['typescript']);
+}
+
+// --- the wrapper a fold's REFUSAL may not step over ---
+
+// the other side of the same hop: a live `?.` ABOVE an unbacked realm hop TESTS that hop's value,
+// so the run folds nowhere - and the reader stands behind whatever wrappers the source wrote
+// between them. read through a fixed parent step the layer answers "nothing reads this hop" for
+// every wrapped spelling and folds the hop away, which under a mutating consumer drops the very
+// `?.` deciding whether the act lands. the paren spelling is the one this suite cannot reach (babel
+// drops it), and the emitters run against each other on it
+const POLYFILLABLE_REALM = new Set(['globalThis', 'self']);
+function foldResolvePure(meta) {
+  return meta?.kind === 'global' && POLYFILLABLE_REALM.has(meta.name)
+    ? { entry: `actual/${ meta.name === 'self' ? 'self' : 'global-this' }`, hintName: meta.name } : null;
+}
+
+const FOLD_READER_FORMS = [
+  // the `?.` TESTING the hop refuses the fold - and stands behind whatever the source wrote
+  ['tested hop, bare reader', 'globalThis.self.window?.deleteBox;', false, false],
+  ['tested hop, cast between them', '(globalThis.self.window as any)?.deleteBox;', false, false],
+  ['tested hop, non-null between them', 'globalThis.self.window!?.deleteBox;', false, false],
+  ['tested hop, satisfies between them', '(globalThis.self.window satisfies any)?.deleteBox;', false, false],
+  ['tested hop, two casts between them', '((globalThis.self.window as any) as any)?.deleteBox;', false, false],
+  // NEGATIVES: nothing TESTS the hop - the run folds onto the ponyfill below it either way
+  ['no reader above the hop', 'globalThis.self.window.deleteBox;', true, false],
+  ['a PLAIN reader through the same cast', '(globalThis.self.window as any).deleteBox;', true, false],
+  // a LITERAL-keyed hop is the dotted one in disguise: this walk answers by the hop's NAME, and the
+  // positional half - which hops stand over a ponyfill, and whether the run is the value the source
+  // reads - is the caller's, so the two spellings answer alike in every position, TERMINAL included
+  ['literal-keyed hop, bare reader', "globalThis.self['window'].deleteBox;", true, false],
+  ['literal-keyed hop, cast between them', "(globalThis.self['window'] as any).deleteBox;", true, false],
+  ['dotted hop standing terminal', 'globalThis.self.window;', true, false],
+  ['literal-keyed hop standing terminal', "globalThis.self['window'];", true, false],
+  // the DELETED flavor stops at the operator, which the same wrappers hide from a fixed parent step
+  ['deleted slot, bare', 'delete globalThis.self.window;', false, true],
+  ['deleted slot, sealed', 'delete (globalThis.self.window);', false, true],
+  ['deleted slot, cast', 'delete (globalThis.self.window as any);', false, true],
+  // NEGATIVE: a hop the delete NAVIGATES rather than names still folds under the operator
+  ['deleted slot one hop up', 'delete globalThis.self.window.deleteBox;', true, true],
+];
+
+for (const [name, code, folds, deleted] of FOLD_READER_FORMS) {
+  runBoth(`fold-refusal/${ name }`, code, (adapter, prog, lbl) => {
+    const base = adapter.pickPath(prog, 'MemberExpression',
+      p => p.node.property?.name === 'self' || p.node.property?.value === 'self');
+    const ctx = { adapter: guardAdapter(adapter), resolvePure: foldResolvePure };
+    check(lbl, !!unbackedRealmHopFoldAbove(base, base.node, ctx, { deleted }), folds);
+  }, ['typescript']);
 }
 
 finish();

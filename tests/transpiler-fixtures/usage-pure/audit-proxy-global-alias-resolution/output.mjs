@@ -1,6 +1,5 @@
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Map from "@core-js/pure/actual/map/constructor";
-import _Map$groupBy from "@core-js/pure/actual/map/group-by";
+import _Map from "@core-js/pure/actual/map";
 // the pure flavor of the proxy-global root arms: the ARRAY-init negative is the load-bearing cell -
 // a named key off an array literal is undefined at runtime, so substituting the pure constructor
 // would hand working statics to broken code (wrong value); the binding must stay raw

@@ -5,6 +5,7 @@ import {
   isBuiltInSurfaceNav,
   isInstanceSurfaceNav,
   isSeFreeMemberReceiver,
+  instanceSynthReceiverPure,
   firstPatternProp,
   pruneHopFromLevels,
   resolveNestedReceiverBase,
@@ -401,6 +402,16 @@ function pushConstructorStaticSlot({ receiverNode, key, metaPath, resolvePure, i
 // level, and the pair - memo, claims, and whatever the leaf kept, off the memo - stands beside the
 // statement: ahead of it where the hop led the host pattern, behind it otherwise. a host that
 // empties goes - nothing binds there any more, and its root is read nowhere else
+// the receiver spelling an instance synth hands its helper: the shared rule answers which bare
+// globals arrive as their injected pure binding, and everything else is a clone of the source node -
+// the synth literal is re-emitted where no visitor reaches it again, so a raw name would stay raw
+function synthInstanceReceiver(receiver, metaPath, { adapter, resolvePure, injectPureImport }) {
+  const pure = metaPath && instanceSynthReceiverPure(receiver, {
+    adapter, scope: metaPath.scope, path: metaPath, resolvePure: m => resolvePure(m, metaPath),
+  });
+  return pure ? identifier(injectPureImport(pure.entry, pure.hintName)) : cloneNode(receiver);
+}
+
 function splitHopOutOfHost({ job, kept, statements, body, at, declarators }) {
   if (!job.split.chain[0].pattern.properties.includes(job.split.hopProp)) return false;
   const hostEmptied = pruneHopFromLevels(job.split);
@@ -811,9 +822,12 @@ export default function createDestructureDrains(ctx) {
       const binding = slots.get(planEntry.dedupKey);
       if (binding) {
         // an INSTANCE slot dispatches on a CLONE of the receiver the literal replaces
-        // (`{ at } = [1, 2]` -> `{ at: _atMaybeArray([1, 2]) }`)
+        // (`{ at } = [1, 2]` -> `{ at: _atMaybeArray([1, 2]) }`) - through the receiver's own pure
+        // binding where the shared rule names one, since this literal is re-emitted where no visitor
+        // reaches it again and a bare `Iterator` there would read the name the pass replaces
         pushSlot(typeof binding === 'string' ? identifier(binding)
-          : callExpression(identifier(binding.helper), [cloneNode(binding.receiver)]));
+          : callExpression(identifier(binding.helper),
+            [synthInstanceReceiver(binding.receiver, metaPath, { adapter, resolvePure, injectPureImport })]));
         continue;
       }
       // a memoized receiver: unresolved slots read the memo param (`other: _ref.other`)
@@ -1355,23 +1369,6 @@ export default function createDestructureDrains(ctx) {
       // it already - keeping both would run them twice
       rescues.length = 0;
       rescues.push(declarator.init);
-    }
-    // a full consume DISCARDS the read the source performs: a receiver ending in a
-    // resolvable CTOR off a proxy surface re-emits that read as a THROW PROBE on its own
-    // binding (`const { iterator } = f().self.Symbol` keeps `_Symbol;`), which is what
-    // preserves the native throw on an absent host
-    if (!rescues.length && !consumeProbe) {
-      // the walk already collapsed the receiver nav onto its pure BINDING: the full consume
-      // discards that read, so it re-emits as a throw probe of its own (`const { iterator }
-      // = f().self.Symbol` keeps `_Symbol;`) - what preserves the native throw off-host
-      const collapsedInit = declJobs.some(job => job.callRootedInit) ? peelTransparentExpr(declarator.init) : null;
-      // the probe is the whole collapsed READ: a bare binding (`_Symbol`) or a member off
-      // one (`_self.Array` - the ctor has no pure entry of its own)
-      let collapsedRoot = collapsedInit;
-      while (collapsedRoot?.type === 'MemberExpression') collapsedRoot = peelTransparentExpr(collapsedRoot.object);
-      const minted = collapsedRoot?.type === 'Identifier'
-        && [...injectorState?.pureImports ?? []].some(([, name]) => name === collapsedRoot.name);
-      if (minted) rescues.push(collapsedInit);
     }
     // the ctor-pattern re-anchor: a PATTERN-valued sole job reads the pure ctor whole,
     // the harvested rescues riding the init seq (`{ customB } = (eff(), _Set)`)
