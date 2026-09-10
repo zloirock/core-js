@@ -1,7 +1,7 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
 import _toFixedMaybeNumber from "@core-js/pure/actual/number/instance/to-fixed";
 import _Number$MAX_SAFE_INTEGER from "@core-js/pure/actual/number/max-safe-integer";
 import _self from "@core-js/pure/actual/self";
@@ -29,5 +29,7 @@ export const aliasInstance = null == (_ref2 = (d++, c++, null == ga.window ? voi
 export const flatTwin = _atMaybeArray((d++, _self).Array.prototype);
 // NEGATIVE: a claim consuming the whole spelling folds - nothing reads past the erased guard
 export const claimConsumes = (d++, c++, _Map);
-// NEGATIVE: the store below a deeper static keeps the value form - the live-tree read
-export const storeInstance = null == (d++, c++, k = _self) ? void 0 : _toFixedMaybeNumber(_ref3 = _Number$MAX_SAFE_INTEGER).call(_ref3, 1);
+// the store below a deeper static spells the GUARDED value like its static twin above: the guard the
+// instance dispatch builds is the store's reader, so the probe stands inside it and `k` holds what
+// the environment holds - the value form there left the realm object on the absent branch
+export const storeInstance = null == (d++, c++, k = null == _globalThis.window ? void 0 : _self) ? void 0 : _toFixedMaybeNumber(_ref3 = _Number$MAX_SAFE_INTEGER).call(_ref3, 1);

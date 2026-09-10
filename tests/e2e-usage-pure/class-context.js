@@ -390,6 +390,25 @@ QUnit.test('class: super static off a base alias overwritten before the class', 
   assert.deepEqual(Boxed.go(), [1, 2]);
 });
 
+// a static read off the SUBCLASS NAME lands on the base's own surface, through a binding no
+// reaching-value walk connects back to the base - so a base spelled through a container hop owes
+// its statics exactly as a bare one does, or the read answers undefined where every engine with
+// the constructor answers the member
+QUnit.test('class: inherited static off a subclass whose base is a container hop', assert => {
+  function parity(value) {
+    return value % 2 ? 'odd' : 'even';
+  }
+  const box = { Base: Map };
+  class Hopped extends box.Base {}
+  assert.deepEqual(Hopped.groupBy([1, 2, 3], parity).get('odd'), [1, 3]);
+  const nested = { inner: { Base: Map } };
+  class Deeper extends nested.inner.Base {}
+  assert.deepEqual(Deeper.groupBy([4, 5], parity).get('even'), [4]);
+  const alias = box;
+  class Aliased extends alias.Base {}
+  assert.deepEqual(Aliased.groupBy([6, 7], parity).get('odd'), [7]);
+});
+
 // a class expression bound to a name resolves its own static field through the source parens
 // between the declarator and the class; the anonymous form answers like the named one
 QUnit.test('class: static field read through a wrapped class expression binding', assert => {

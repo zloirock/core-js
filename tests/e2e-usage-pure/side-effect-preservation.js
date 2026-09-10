@@ -843,3 +843,38 @@ QUnit.test('side effect: sequence-receiver prefix runs before an array-wrapped e
   assert.strictEqual(typeof wrapped, 'function', 'the extraction bound the polyfilled constructor');
   assert.strictEqual(neighbour, 7, 'the wrapper neighbour still binds its own element');
 });
+
+// SE: an instance call whose receiver sits behind a SEQUENCE PREFIX and whose computed key carries
+// its own effect. The rewrite memoizes the receiver, and both effect groups arrive in one list - so
+// the memo has to land BETWEEN them: ECMA evaluates the receiver's prefix, then the receiver read
+// itself, then the key. An accessor makes that middle step observable; a plain value receiver cannot
+// tell the three orders apart, which is why the receiver is a getter here
+QUnit.test('side effect: sequence-receiver prefix, receiver read, then key effect', assert => {
+  const order = [];
+  const box = {
+    // eslint-disable-next-line es/no-accessor-properties -- the accessor IS what makes the receiver read observable
+    get list() {
+      order.push('read');
+      return [1, 2];
+    },
+  };
+  const result = (order.push('prefix'), box.list)[(order.push('key'), 'at')](-1);
+  assert.strictEqual(result, 2, 'the call still returns the polyfilled answer');
+  assert.deepEqual(order, ['prefix', 'read', 'key'], 'prefix, receiver read, key - native member-call order');
+});
+
+// the same rule one level deeper: the prefix group is TWO effects and the peel lifts both, so the
+// memo lands past the whole group rather than after its first element
+QUnit.test('side effect: a two-element sequence-receiver prefix stays ahead of the receiver read', assert => {
+  const order = [];
+  const box = {
+    // eslint-disable-next-line es/no-accessor-properties -- the accessor IS what makes the receiver read observable
+    get list() {
+      order.push('read');
+      return [1, 2];
+    },
+  };
+  const result = (order.push('outer'), (order.push('inner'), box.list))[(order.push('key'), 'at')](-1);
+  assert.strictEqual(result, 2, 'the call still returns the polyfilled answer');
+  assert.deepEqual(order, ['outer', 'inner', 'read', 'key'], 'both prefix effects, receiver read, key');
+});

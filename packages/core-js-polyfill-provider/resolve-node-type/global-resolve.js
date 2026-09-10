@@ -16,7 +16,7 @@
 //                                              `const { prototype: P } = Cls` paths
 //   resolveClassInheritance(classPath)       - walk `extends` chain to the first known base
 //                                              constructor, with type-arg propagation
-import { MAX_DEPTH, $Object } from './base.js';
+import { MAX_DEPTH, boxForDeclaration } from './base.js';
 import {
   staticMemberKeyName,
 } from '../helpers/class-walk.js';
@@ -322,8 +322,12 @@ export function createGlobalResolve({
       // BASE-LESS (no `extends`) - a plain class whose instances are plain objects. distinct from an
       // UNKNOWABLE super (an `extends` that does not resolve, below): base-less is DEFINITELY `Object`,
       // unknowable could be anything (incl. Array), so the latter must stay generic (null) to keep the
-      // polyfill rather than masquerade as `Object` and suppress it
-      if (!current.node.superClass) return new $Object('Object');
+      // polyfill rather than masquerade as `Object` and suppress it.
+      // the box stands for the class the walk STARTED at, not for the base whose walk produced it -
+      // identity is the one slot that makes two boxes ONE type, so a base's stamp reads as `new Sub()`
+      // agreeing with `Base` and with every SIBLING subclass, and hands a generic subclass the
+      // non-generic base's identity where the family owes none at all
+      if (!current.node.superClass) return boxForDeclaration('Object', classPath.node);
       const superPath = current.get('superClass');
       const name = resolveSuperGlobalName(superPath);
       if (name) {

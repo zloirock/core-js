@@ -2,7 +2,7 @@ import _Array$from from "@core-js/pure/actual/array/from";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _at from "@core-js/pure/actual/instance/at";
 import _keys from "@core-js/pure/actual/instance/keys";
-import _Set from "@core-js/pure/actual/set/constructor";
+import _Set from "@core-js/pure/actual/set";
 // an untouched leading statement anchors the comments below
 const anchor = [1, 2];
 export { anchor };

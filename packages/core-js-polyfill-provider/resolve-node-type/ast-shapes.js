@@ -7,9 +7,26 @@
 //
 // the shape predicates here encode cross-parser compatibility (babel / oxc / flow), discovered
 // empirically per parser - change them only with care
-import { getTypeArgs, isDeferredContextStep, isTypeAnnotationWrapper } from '../helpers/ast-patterns.js';
+import {
+  getTypeArgs,
+  isDeferredContextStep,
+  isTypeAnnotationWrapper,
+  readStepIsDeferred,
+  unwrapParens,
+} from '../helpers/ast-patterns.js';
 import { isLoopStatement } from '../destructure-host-shape.js';
-import { dropLeadingThisParam, literalNodeValue, MODIFIER_WRAPPER_DELTAS, PRIMITIVE_HINTS } from './base.js';
+import {
+  dropLeadingThisParam,
+  hasRange,
+  literalNodeValue,
+  MODIFIER_WRAPPER_DELTAS,
+  nodeRangeContains,
+  PRIMITIVE_HINTS,
+} from './base.js';
+
+// the span primitives live in `base.js` so `helpers/ast-patterns.js` can ask them without importing
+// this module back; re-exported here because every reader already spells them through this one
+export { hasRange, nodeRangeContains };
 
 // statement list directly inside a TSModuleDeclaration. for Babel's nested form
 // (`namespace A.B {}` -> A.body = TSModuleDeclaration B) expose B as a single-element list
@@ -405,15 +422,23 @@ export function isOpenKeywordAnnotation(node) {
 // branch, a mapped `as` clause), but the utility NAMES they key on are resolved by name in any
 // dialect, so `Extract<Array<number> | string, Array<mixed>>` in a Flow file reaches here and
 // answers correctly. measured, not assumed - do not drop them as dead
-const TOP_KEYWORD_ANNOTATION_TYPES = new Set([
-  'TSAnyKeyword',
-  'TSUnknownKeyword',
-  'AnyTypeAnnotation',
-  'MixedTypeAnnotation',
+// keyed by WHICH top the spelling is, because the two do not answer alike in every position:
+// `any` is assignable in BOTH directions and `unknown` only from below, so a container's written
+// argument list - the one place this layer weighs a top in the CHECK slot - reads the kind and not
+// merely the membership. Flow's `mixed` is the `unknown`-shaped one, `any` its own twin
+const TOP_KEYWORD_ANNOTATION_KINDS = new Map([
+  ['TSAnyKeyword', 'any'],
+  ['AnyTypeAnnotation', 'any'],
+  ['TSUnknownKeyword', 'unknown'],
+  ['MixedTypeAnnotation', 'unknown'],
 ]);
 
+export function topKeywordAnnotationKind(node) {
+  return TOP_KEYWORD_ANNOTATION_KINDS.get(peelTSParenthesized(node)?.type) ?? null;
+}
+
 export function isTopKeywordAnnotation(node) {
-  return TOP_KEYWORD_ANNOTATION_TYPES.has(peelTSParenthesized(node)?.type);
+  return topKeywordAnnotationKind(node) !== null;
 }
 
 // is this class member private? `#x` field / method / getter-setter / `accessor #x` / `static #x`.
@@ -423,14 +448,6 @@ export function isTopKeywordAnnotation(node) {
 // ClassAccessorProperty, not a ClassPrivateProperty, so a node-type check silently mis-routes it public)
 export function isPrivateMemberNode(node) {
   return node?.key?.type === 'PrivateName' || node?.key?.type === 'PrivateIdentifier';
-}
-
-// byte-range containment: `inner`'s span sits within `outer`'s span (both need source positions)
-function hasRange(node) {
-  return node && node.start !== null && node.start !== undefined && node.end !== null && node.end !== undefined;
-}
-export function nodeRangeContains(outer, inner) {
-  return hasRange(outer) && hasRange(inner) && inner.start >= outer.start && inner.end <= outer.end;
 }
 
 // does `loopNode`'s re-executing region (body / test / for-update slot, but NOT the once-only
@@ -457,11 +474,15 @@ export function loopReExecRegionHasViolation(loopNode, violationNodes, bindingAn
 // the back-edge before the next-iteration use makes a narrow chosen purely by source position
 // ("last assignment before the use" / declarator-init fallback / preceding guard) stale from
 // iteration 2 onward. true when `usagePath` sits inside a loop whose re-executing region contains
-// one of `violationNodes` (a reassignment of the binding). walk stops at the function boundary -
-// mirrors the crossedBackEdgeLoop guard in narrow-by-guards.js
-export function usageCrossesLoopBackEdgeReassign(t, usagePath, violationNodes, bindingAnchor) {
+// one of `violationNodes` (a reassignment of the binding). the climb stops exactly where the
+// read-side deferral gate stops - at a deferred context, THROUGH an immediately invoked body: the
+// gate hands such a read to positional reasoning, so this half of it has to see the same loops
+export function usageCrossesLoopBackEdgeReassign(usagePath, violationNodes, bindingAnchor) {
   if (!violationNodes?.length) return false;
-  for (let cur = usagePath, parent; (parent = cur.parentPath) && !t.isFunction(parent.node); cur = parent) {
+  for (let cur = usagePath, parent; (parent = cur.parentPath) && !readStepIsDeferred(parent, cur); cur = parent) {
+    // a read in the `for`-INIT slot runs once, before the first body write - the same once-only region
+    // `loopReExecRegionHasViolation` excludes on the write side, mirrored here so one rule serves both
+    if (parent.node.type === 'ForStatement' && cur.node === parent.node.init) continue;
     if (isLoopStatement(parent.node) && loopReExecRegionHasViolation(parent.node, violationNodes, bindingAnchor)) return true;
   }
   return false;
@@ -474,7 +495,7 @@ export function usageCrossesLoopBackEdgeReassign(t, usagePath, violationNodes, b
 // construction time). true when any violation sits inside such a context on the parent chain up to
 // (but not including) `stopPath` (the binding scope path). uses the canonical `isDeferredContextStep`
 // so the read-side gate stays in lockstep with the write-side fold and the value-flow walk
-export function violationInCapturedFunction(t, violations, stopPath) {
+export function violationInCapturedFunction(violations, stopPath) {
   if (!violations?.length) return false;
   return violations.some(v => {
     // a canonically-recovered extra has no parent chain to prove it is NOT captured - assume it is
@@ -483,18 +504,18 @@ export function violationInCapturedFunction(t, violations, stopPath) {
     // detached / tree-root path with a null node, so terminate there - matches the canonical
     // `hasDeferredContextAncestor` / `violationRunsDeferred` walkers that share this predicate
     for (let p = v.parentPath, child = v; p?.node && p !== stopPath; child = p, p = p.parentPath) {
-      if (isDeferredContextStep(t, p.node, child)) return true;
+      if (isDeferredContextStep(p.node, child)) return true;
     }
     return false;
   });
 }
 
-// primitive kind of a param's type keyword (`x: bigint` -> 'bigint'); covers the 5 typeof-primitive
-// keywords (string / number / boolean / bigint / symbol - PRIMITIVE_HINTS), null for a literal / complex /
-// generic / null / undefined param (indeterminate for arg-match). shared by the member-overload and
-// ambient-function-overload arg-match below
-function paramPrimitiveKind(param) {
-  switch (param?.typeAnnotation?.typeAnnotation?.type) {
+// primitive kind of a type keyword (`bigint` -> 'bigint'); covers the 5 typeof-primitive keywords
+// (string / number / boolean / bigint / symbol - PRIMITIVE_HINTS), null for a literal / complex /
+// generic / null / undefined annotation (indeterminate for arg-match). shared by the member-overload
+// and ambient-function-overload arg-match below, and by the argument side reading a binding's annotation
+export function keywordPrimitiveKind(typeNode) {
+  switch (typeNode?.type) {
     case 'TSStringKeyword': return 'string';
     case 'TSNumberKeyword': return 'number';
     case 'TSBooleanKeyword': return 'boolean';
@@ -502,6 +523,11 @@ function paramPrimitiveKind(param) {
     case 'TSSymbolKeyword': return 'symbol';
     default: return null;
   }
+}
+
+// the same kind read off a PARAM's annotation slot
+function paramPrimitiveKind(param) {
+  return keywordPrimitiveKind(peelTSParenthesized(param.typeAnnotation?.typeAnnotation));
 }
 
 // arg-side counterpart of paramPrimitiveKind: the primitive kind of an already-resolved node type, gated on
@@ -518,13 +544,13 @@ function primitiveTypeKind(type) {
 // (estree regex `Literal`, `null`) cannot be spelled by a TSLiteralType param, so it does not
 // discriminate - yields undefined like any other non-literal shape
 function overloadLiteralValue(node) {
-  const value = literalNodeValue(node);
+  const value = literalNodeValue(unwrapParens(node));
   return value !== null && typeof value !== 'object' ? value : undefined;
 }
 
 // the literal value of a literal-typed param (`k: 'a'` / `k: 1` / `k: true` / `k: 1n`), or undefined
 function paramLiteralValue(param) {
-  const lit = param?.typeAnnotation?.typeAnnotation;
+  const lit = peelTSParenthesized(param.typeAnnotation?.typeAnnotation);
   return lit?.type === 'TSLiteralType' ? overloadLiteralValue(lit.literal) : undefined;
 }
 
@@ -533,6 +559,7 @@ function paramLiteralValue(param) {
 // already-resolved arg types
 function paramSlotVerdict(param, argLiteral, argKind) {
   if (param.type === 'RestElement') return 'ambiguous';
+  const paramTop = isTopKeywordAnnotation(peelTSParenthesized(param.typeAnnotation?.typeAnnotation));
   const paramLit = paramLiteralValue(param);
   if (paramLit !== undefined) {
     if (argLiteral !== undefined) return paramLit === argLiteral ? 'match' : 'non-match';
@@ -540,6 +567,9 @@ function paramSlotVerdict(param, argLiteral, argKind) {
     // runtime through a const binding the kind extraction erased - undecidable
     return argKind !== null && typeof paramLit !== argKind ? 'non-match' : 'ambiguous';
   }
+  // a top-typed param (`unknown` / `any`) accepts every argument, so TS picks its arm as soon as the
+  // arms before it are refuted - a match, not an ambiguity
+  if (paramTop) return 'match';
   const keywordKind = paramPrimitiveKind(param);
   if (keywordKind === null) return 'ambiguous';
   if (argKind === null) return 'ambiguous';
@@ -559,7 +589,12 @@ function overloadArgVerdict(params, argLiterals, argKinds) {
     || (params.length > argKinds.length && extra.every(p => p.optional || p.type === 'RestElement'))
     || params.some(p => p.type === 'RestElement');
   if (!arityFits) return 'non-match';
-  let verdict = params.length === argKinds.length ? 'match' : 'ambiguous';
+  // an OPTIONAL tail needs no argument, so an arm the call fills exactly up to it is as exactly
+  // matched as one with no tail at all - TS picks it, and grading it ambiguous blocked every arm
+  // behind it from being picked either
+  const arityExact = params.length === argKinds.length
+    || (params.length > argKinds.length && extra.every(p => p.optional));
+  let verdict = arityExact ? 'match' : 'ambiguous';
   for (let i = 0; i < params.length && i < argKinds.length; i++) {
     const slot = paramSlotVerdict(params[i], argLiterals[i], argKinds[i]);
     if (slot === 'non-match') return 'non-match';
@@ -571,23 +606,66 @@ function overloadArgVerdict(params, argLiterals, argKinds) {
 // TS overload discrimination by args - FIRST-MATCH faithful, LITERAL-aware. answers with both
 // halves the callers need:
 //   - `selected`: the arm TS provably picks (exact arity, every param a keyword matching the
-//     arg's kind or a literal matching the arg node's literal value), or null. an AMBIGUOUS
-//     earlier arm (an `unknown` / `any` / union / generic param, an unresolvable arg kind, a
-//     same-family literal param without an arg literal to compare) might be the arm TS picks,
-//     so nothing after it can be single-selected;
+//     arg's kind, a literal matching the arg node's literal value, or a top-typed `unknown` /
+//     `any` that accepts anything), or null. an AMBIGUOUS earlier arm (a union / generic /
+//     object-typed param, an unresolvable arg kind, a same-family literal param without an arg
+//     literal to compare) might be the arm TS picks, so nothing after it can be single-selected;
 //   - `candidates`: every arm the args do not provably reject, for the caller's fold. an arm
 //     refuted by arity or by a param that rejects its arg is not a return this call can produce,
 //     and folding it in widened the answer to generic for no reason.
 // a set of fewer than two signatures is not discriminated at all - there is nothing to choose
 // between, and the lone arm is the caller's answer whatever the args are
 export function discriminateOverloads(overloads, getParams, argPaths, resolveNodeType) {
+  return discriminateOverloadsByArgs(overloads, getParams, argPaths.map(a => a.node),
+    argPaths.map(a => primitiveTypeKind(resolveNodeType(a)?.type)));
+}
+
+// the kind a literal argument NODE carries on its own (`'a'` is a string, `1n` a bigint) - what a
+// caller without paths to resolve can still say about a slot; a non-literal node says nothing
+export function literalArgKind(node) {
+  const value = overloadLiteralValue(node);
+  return value === undefined ? null : primitiveTypeKind(typeof value);
+}
+
+// an overloaded function's IMPLEMENTATION signature - the one with a body - is invisible to its
+// callers: only the bodyless heads take part in resolution, and a lone implementation with no heads
+// is the whole signature. an ESTree method keeps its function on `.value`; a bodyless one there is
+// `TSEmptyBodyFunctionExpression`
+export function isImplementationSignature(fnNode) {
+  const body = fnNode.body ?? fnNode.value?.body;
+  return !!body && body.type !== 'TSEmptyBodyFunctionExpression';
+}
+
+// is this signature SPECIALIZED for these arguments - does one of its params spell a literal type the
+// argument matches exactly? TypeScript hoists such a signature above the wider ones whatever the
+// declaration order, so first-match has to see them first (checked against tsc for string, number and
+// boolean literals, in both declaration orders, and for a literal in a later slot)
+function specializedForArgs(params, argLiterals) {
+  const runtime = params && dropLeadingThisParam(params);
+  if (!runtime) return false;
+  return runtime.some((param, i) => {
+    const literal = paramLiteralValue(param);
+    return literal !== undefined && literal === argLiterals[i];
+  });
+}
+
+// the same discrimination over argument NODES - the spelling for a caller that holds no paths, the
+// guard parser reading a test expression
+export function discriminateOverloadsByArgs(overloads, getParams, argNodes, argKinds) {
   if (overloads.length < 2) return { selected: null, candidates: overloads };
-  const argLiterals = argPaths.map(a => overloadLiteralValue(a.node));
-  const argKinds = argPaths.map(a => primitiveTypeKind(resolveNodeType(a)?.type));
+  // a spread expands to a count only the runtime knows, so every slot from it on is unpaired and
+  // the arity is unknown: no arm can be refuted or selected, and the caller is left to require the
+  // surviving arms to agree
+  if (argNodes.some(node => node.type === 'SpreadElement')) return { selected: null, candidates: overloads };
+  const argLiterals = argNodes.map(overloadLiteralValue);
+  function specializedRank(ov) {
+    return Number(specializedForArgs(getParams(ov), argLiterals));
+  }
+  const ordered = overloads.toSorted((a, b) => specializedRank(b) - specializedRank(a));
   const candidates = [];
   let selected = null;
   let blocked = false;
-  for (const ov of overloads) {
+  for (const ov of ordered) {
     // a leading `this` pseudo-param fills AST slot 0 but no runtime arg slot - drop it so
     // arity and per-slot pairing align with the call args (an undropped `this` skewed every
     // comparison by one: a this-annotated overload was skipped on arity or mismatched, and

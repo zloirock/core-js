@@ -2,7 +2,7 @@ import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _at from "@core-js/pure/actual/instance/at";
 import _Map from "@core-js/pure/actual/map/constructor";
-import _Set from "@core-js/pure/actual/set/constructor";
+import _Set from "@core-js/pure/actual/set";
 import _WeakMap from "@core-js/pure/actual/weak-map/constructor";
 var _ref, _ref2, _ref3;
 // a DOUBLE proxy hop under a kept assignment with an instance-GET tail: the erase-refusal claim
@@ -10,7 +10,8 @@ var _ref, _ref2, _ref3;
 // above the whole wrapper stack - guarding only the wrapper's argument would hand `void 0` to the
 // helper (a throw where native short-circuits the chain). a plugin helper wrap, its memoized
 // dispatch and the optional-call spelling all lift; a USER consumer of the claim does not (it
-// legitimately receives the short-circuited value)
+// legitimately receives the short-circuited value) - and being handed OUT, that one claim reads
+// the entry that carries the constructor's statics while the guarded static reads keep the bare one
 let n;
 let t;
 let c;

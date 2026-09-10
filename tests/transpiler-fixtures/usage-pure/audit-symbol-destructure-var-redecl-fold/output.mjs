@@ -33,6 +33,16 @@ twice = _Symbol$iterator;
 twice = _Symbol$iterator;
 export const viaDoubleAssign = [][twice];
 
+// an identity self-assign writes the alias's own current value back, so it is not a write of the
+// binding: both destructure forms keep exactly one real write and still fold on both emitters
+var selfAssigned;
+selfAssigned = _Symbol$iterator;
+selfAssigned = selfAssigned;
+export const viaAssignSelfAssign = _getIteratorMethod([]);
+var selfDeclared = _Symbol$iterator;
+selfDeclared = selfDeclared;
+export const viaDeclaratorSelfAssign = _getIteratorMethod([]);
+
 // UNCONDITIONAL nested-block writes fold on both emitters: a labeled block, a finally
 // and a for-init always execute; the estree side resolves them through the synthetic
 // var-hoist binding (labeled / finally) and past the loop-reinit self record (for-init)

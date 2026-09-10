@@ -15,22 +15,69 @@
 // cluster and by awaited cluster) and route into `resolveTypeAnnotation` for the no-subst
 // path - factory destructure binds the cluster output by the time those run.
 import {
-  $Object, $Primitive, INTRINSIC_STRING_TRANSFORMERS, literalNodeValue, firstTypeParamIsInner,
+  $Object,
+  $Primitive,
+  INTRINSIC_STRING_TRANSFORMERS,
+  STRUCTURAL_CONTAINER_NAMES,
+  TOP_ARGUMENT,
+  UNKNOWN_ARGUMENT,
+  literalMembers,
+  literalNodeValue,
+  firstTypeParamIsInner,
+  isTypeObject,
 } from './base.js';
 import {
   isMethodShapeMember,
   isOpenKeywordAnnotation,
   isUnionType,
+  keywordPrimitiveKind,
   literalTypeValueNode,
   markMappedReadonly,
   markReadonlyCollection,
   peelTSParenthesized,
+  topKeywordAnnotationKind,
   typeRefSegments,
   withMemberModifiers,
 } from './ast-shapes.js';
 import { getTypeArgs, propertyKeyName, singleQuasiString, withTypeArgParams } from '../helpers/ast-patterns.js';
 
 const { hasOwn } = Object;
+
+// one entry of a container's WRITTEN argument list. A top keyword constrains nothing and says so
+// through the shared sentinel; anything with a Type form is kept AS RESOLVED - `never` and the
+// nullish types included, which the element slot's filter drops because they are meaningless as a
+// dispatch HINT and this list is read by assignability alone; everything else leaves a hole
+function argumentEntry(param, innerResolver) {
+  const top = topKeywordAnnotationKind(param);
+  if (top) return top === 'any' ? TOP_ARGUMENT : UNKNOWN_ARGUMENT;
+  const resolved = innerResolver(param);
+  return isTypeObject(resolved) ? resolved : null;
+}
+
+// the box every unmodelled shape resolves into holds them all alike, so two of them are known only
+// to be alike - but a `Record` WROTE its key and its value, and that pair is what tells one from
+// another. The list is the one a key-first container already carries, MARKED because its first
+// entry is a key DOMAIN: `Record<string, V>` and `Record<'a', V>` accept each other in BOTH
+// directions, which a position compared like an element answers FALSE for
+function mappedRecordBox(node, innerResolver) {
+  const box = new $Object('Object');
+  const params = getTypeArgs(node)?.params;
+  if (!params?.length) return box;
+  const args = params.map(param => argumentEntry(param, innerResolver));
+  args[0] = keyDomainEntry(params[0], args[0]);
+  return box.withArgs(args).mark('keyDomainArgs');
+}
+
+// the domain entry, which the list's own reader cannot check for itself. A domain is either an index
+// SIGNATURE - it holds a key of its family without naming one - or a finite set of named keys, and
+// only what was WRITTEN tells the two apart: an enum and a template-literal pattern are finite, and
+// both resolve into the same bare primitive the keyword resolves into. Weighed off the resolved type
+// alone, `Record<E, V>` read as the whole string index signature and covered keys the enum has no
+// member for. A domain whose spelling this layer cannot confirm leaves a hole, which decides nothing
+function keyDomainEntry(param, entry) {
+  if (!isTypeObject(entry) || literalMembers(entry) || entry.type === 'never') return entry;
+  return keywordPrimitiveKind(peelTSParenthesized(param)) ? entry : null;
+}
 
 // the intrinsic string transformers are COMPUTABLE on a literal argument, and TS keeps the result
 // a literal type: `Uppercase<'a'>` is `'A'`, not `string`. dropping the stamp makes every
@@ -91,6 +138,7 @@ export function createTypeAnnotationResolve({
   findTupleElement,
   unwrapMappedTypePassthrough,
   tupleAsArrayType,
+  elementContainerType,
   flattenUnionBranches,
   getTypeMembers,
   pickConditionalBranchVia,
@@ -122,6 +170,7 @@ export function createTypeAnnotationResolve({
           extendsAST: arm,
           resolveOne: resolve,
           isUnconstrained: isUnconstrainedTypeShape(arm, typeParamMap),
+          scope,
         });
         if (verdict === true) return true;
         if (verdict === null) undecided = true;
@@ -182,13 +231,40 @@ export function createTypeAnnotationResolve({
 
   function resolveKnownContainerType({ name, base, node, innerResolver }) {
     if (!base) return null;
-    if (!firstTypeParamIsInner(name)) return base;
-    const firstArg = getTypeArgs(node)?.params?.[0];
-    if (firstArg) {
-      const inner = safeInnerType(innerResolver(firstArg));
-      if (inner) return new $Object(base.constructor, inner);
+    // capital `Object` accepts primitives in assignability (unlike lowercase `object`); its
+    // resolution stays constructor-null so member dispatch keeps the generic helpers, which leaves
+    // the marker as the only thing telling it from the lowercase keyword. Stamped HERE because both
+    // resolution lanes reach a named container through this one function: spelled on the annotation
+    // lane alone, the substituting one read `Array<A> extends Array<Object>` as disjoint
+    const known = name === 'Object' ? base.mark('topObject') : name === 'Function' ? base.mark('functionKeyword') : base;
+    // a container with no inner SLOT still had its arguments WRITTEN: this layer holds one element
+    // and `Map` keys off param-0, so none of them fits there. They are carried as a LIST instead -
+    // the absence left otherwise is the one a bare `Map` has, and a bare one means `Map<any, any>`,
+    // which is what made `Map<A, number>` and `Map<B, number>` read as the same type. A member with
+    // no Type form is kept as a HOLE rather than sinking the list: the comparison answers that one
+    // position undecided and the rest still decide, which is how `Map<number, { a: 1 }>` is told
+    // apart from `Map<string, { b: 2 }>` on its keys alone
+    if (!firstTypeParamIsInner(name)) {
+      const params = getTypeArgs(node)?.params;
+      return params?.length ? known.withArgs(params.map(param => argumentEntry(param, innerResolver))) : known;
     }
-    return base;
+    const firstArg = getTypeArgs(node)?.params?.[0];
+    if (firstArg) return elementContainerType(known, firstArg, innerResolver(firstArg));
+    return known;
+  }
+
+  // the ASSIGNABILITY reading of a TS-only structural container. `Iterable<T>` / `ArrayLike<T>` name
+  // a SHAPE that many runtime classes have - an array is both - so a box of their own name is what
+  // member DISPATCH must never see: read as a family, `Iterable<string>` has no `at` and the
+  // injection a null answer routes through the generic helper was dropped outright. The relation
+  // between container families is a different reader, and this is the box it borrows for the length
+  // of that one question - built through the same container walk every named one goes through
+  function resolveStructuralContainerType(node, innerResolver) {
+    const target = peelTSParenthesized(node);
+    const name = typeRefName(target);
+    return name && STRUCTURAL_CONTAINER_NAMES.has(name)
+      ? resolveKnownContainerType({ name, base: new $Object(name), node: target, innerResolver })
+      : null;
   }
 
   function resolveConstructorType(name, path) {
@@ -199,7 +275,8 @@ export function createTypeAnnotationResolve({
 
   function resolveConstructorCallType(name, path) {
     if (!hasOwn(KNOWN_CONSTRUCTORS, name)) return null;
-    const callResult = typeFromHint(KNOWN_CONSTRUCTORS[name].call);
+    // the call-form twin of `resolveKnownConstructor`: a bare reference, not an unread element
+    const callResult = typeFromHint(KNOWN_CONSTRUCTORS[name].call)?.unmark('innerElided');
     if (callResult.primitive) return callResult;
     return resolveKnownContainerType({ name, base: callResult, node: path.node, innerResolver: p => resolveTypeAnnotation(p, path.scope) });
   }
@@ -238,9 +315,7 @@ export function createTypeAnnotationResolve({
     }
     const known = shadowedByTypeParam ? null
       : resolveKnownContainerType({ name, base: resolveKnownConstructor(name), node, innerResolver: resolveArgInner });
-    // capital `Object` accepts primitives in assignability (unlike lowercase `object`);
-    // its resolution stays constructor-null so member dispatch keeps the generic helpers
-    if (known) return name === 'Object' ? known.mark('topObject') : known;
+    if (known) return known;
     function firstArg() {
       // peeled: oxc keeps a parenthesized utility-type arg (`ReturnType<(typeof f)>`)
       // as TSParenthesizedType where babel strips it - the `.type` dispatches on the
@@ -280,8 +355,9 @@ export function createTypeAnnotationResolve({
     // structure-preserving wrappers above are deliberately NOT in the set: `Pick<A | B, K>` is a
     // mapped type over the whole union, not the union of per-arm picks
     if (!shadowedUtilityName) switch (name) {
-      // structurally new shape from their type parameter - collapse to Object
       case 'Record':
+        return mappedRecordBox(node, resolveArgInner);
+      // structurally new shape from their type parameter - collapse to Object
       case '$Shape':
       case '$Diff':
       case '$Rest':
@@ -310,7 +386,14 @@ export function createTypeAnnotationResolve({
           inner = inner === undefined ? elem : commonType(inner, elem);
           if (!inner) break;
         }
-        return new $Object('Array', inner ?? null);
+        // an empty parameter list is the empty tuple, which resolves to a bare `Array` everywhere
+        // else. Every other absence here is a CONFESSION - a signature this layer could not read at
+        // all, or parameters that do not fold to one element - and left unconfessed it reads as that
+        // bare shape, which means `Array<any>` and matches anything: `Parameters<(a: string, b:
+        // number) => void>` and its mirror both ended there and answered TRUE where tsc weighs the
+        // two tuples and says FALSE
+        return params && !params.length
+          ? new $Object('Array') : elementContainerType(new $Object('Array'), null, inner ?? null);
       }
       case 'Uppercase':
       case 'Lowercase':
@@ -705,9 +788,10 @@ export function createTypeAnnotationResolve({
       case 'TSNeverKeyword':
       case 'EmptyTypeAnnotation':
         return new $Primitive('never');
-      // TS `object` keyword = any non-primitive, too broad to narrow polyfills
+      // TS `object` keyword = any non-primitive, too broad to narrow polyfills. Marked so
+      // assignability can still tell it from the shapes sharing its constructor-null form
       case 'TSObjectKeyword':
-        return new $Object(null);
+        return new $Object(null).mark('objectKeyword');
       // member-method shapes reach here when `findTypeMember` returns the full method node
       // instead of a synthetic stub - property-access on a method-typed slot semantically
       // yields a Function value (same as a TSFunctionType-typed property)
@@ -748,7 +832,12 @@ export function createTypeAnnotationResolve({
       }
       case 'TSArrayType':
       case 'ArrayTypeAnnotation':
-        return new $Object('Array', resolveNonNullableAnnotation({ node: node.elementType, scope, depth, seen }));
+        // the element resolves through the SAME reader its angle-bracket twin uses. The
+        // non-nullable one strips the mark a union fold leaves on the survivor, so
+        // `(string | null)[]` lost what `Array<string | null>` keeps - and the picker, which reads
+        // that mark to refuse a branch chosen on a survivor, decided TRUE against `string[]`
+        return elementContainerType(new $Object('Array'), node.elementType,
+          resolveAnnotationInContext({ node: node.elementType, scope, depth, seen }));
       case 'TSTupleType':
       case 'TupleTypeAnnotation':
         return tupleAsArrayType(node, e => resolveTypeAnnotation(e, scope, depth + 1, seen));
@@ -836,6 +925,7 @@ export function createTypeAnnotationResolve({
     resolveConstructorType,
     resolveConstructorCallType,
     resolveKnownContainerType,
+    resolveStructuralContainerType,
     resolveNamedType,
     isKeyofTargeting,
     reset,

@@ -1,6 +1,5 @@
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
-import _Map2 from "@core-js/pure/actual/map";
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Promise from "@core-js/pure/actual/promise";
 // the REFUSED-alias guarded narrow renders for the SOLE-ASSIGNMENT host exactly as for the
@@ -26,7 +25,7 @@ export const viaAssignment = [t(true), t(false)];
 const w = {
   k: Object
 };
-w.k = _Map2;
+w.k = _Map;
 export const viaSlotWrite = typeof w.k.groupBy;
 const cl = {
   q: null
@@ -45,5 +44,5 @@ export const viaValueHost = (() => {
   return [typeof vg, v === M];
 })();
 const installed = [];
-_pushMaybeArray(installed).call(installed, _Map2);
+_pushMaybeArray(installed).call(installed, _Map);
 export const viaMutatorArg = typeof installed[0].groupBy;

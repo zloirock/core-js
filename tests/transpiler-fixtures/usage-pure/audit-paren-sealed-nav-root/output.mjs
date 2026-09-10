@@ -4,7 +4,7 @@ import _findIndexMaybeArray from "@core-js/pure/actual/array/instance/find-index
 import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
 import _toFixedMaybeNumber from "@core-js/pure/actual/number/instance/to-fixed";
 import _Number$MAX_SAFE_INTEGER from "@core-js/pure/actual/number/max-safe-integer";
 import _Object$assign from "@core-js/pure/actual/object/assign";
@@ -20,7 +20,7 @@ import _Object$is from "@core-js/pure/actual/object/is";
 import _Object$keys from "@core-js/pure/actual/object/keys";
 import _Object$seal from "@core-js/pure/actual/object/seal";
 import _Object$values from "@core-js/pure/actual/object/values";
-import _Promise from "@core-js/pure/actual/promise/constructor";
+import _Promise from "@core-js/pure/actual/promise";
 import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
 import _self from "@core-js/pure/actual/self";
 var _ref, _ref2, _ref3, _ref5, _ref6, _ref7;

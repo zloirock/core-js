@@ -21,11 +21,17 @@ import {
   NUMERIC_KEY_SHAPE_RE,
   PLACEHOLDER_VALIDATORS,
   RENAME_SKIP,
+  STRUCTURAL_SUPERTYPES,
+  TOP_ARGUMENT,
+  UNKNOWN_ARGUMENT,
   firstTypeParamIsInner,
   STRUCTURAL_WALK_SKIP_KEYS,
+  isTopObjectShape,
+  literalMembers,
   literalNodeValue,
   primitiveTypeOf,
   quasiText,
+  typeIdentityElided,
 } from './base.js';
 import { getTypeArgs } from '../helpers/ast-patterns.js';
 import {
@@ -40,6 +46,11 @@ import {
 // type unresolvable) which folds both branches
 const INFER_PATTERN_FALSE = Symbol('infer-pattern-false');
 
+// `domainCovers` verdict for a target key domain that names nothing the check side could hold - an
+// empty domain, or one of a key family the check has no member of. The entries after the domain
+// describe members that do not exist, so the whole relation holds however far apart they read
+const DOMAIN_DESCRIBES_NOTHING = Symbol('domain-describes-nothing');
+
 export function createTypeExpansion({
   literalKeyValue,
   applyAliasSubstDeep,
@@ -51,13 +62,15 @@ export function createTypeExpansion({
   resolveInnerType,
   resolveTypeAnnotation,
   typeParamName,
-  commonType,
+  foldUnionTypes,
   isNullableOrNever,
   typesEqual,
-  innersEqual,
   typeRefName,
   typeRefSegments,
   isPromiseRefName,
+  resolveStructuralContainerType,
+  structuralKey,
+  compareMemberShapes,
 }) {
   // --- Mapped types ---
 
@@ -503,37 +516,6 @@ export function createTypeExpansion({
     return into;
   }
 
-  // to Foo for member-dispatch (TS narrowing strips null/undefined from value-position
-  // unions; conditional type fold does the same for member-lookup purposes). when both
-  // branches strip out, return null (caller falls through to generic dispatch).
-  // an undecided conditional may take EITHER branch at runtime, so a stripped nullable
-  // branch marks the survivor for the logical truthy-fold gate (`T extends X ? A : null`
-  // under `??` must not fold to A's shape); a stripped `never` branch carries no value
-  function resolveConditionalBranches(trueBranch, falseBranch) {
-    const trueViable = trueBranch && !isNullableOrNever(trueBranch) ? trueBranch : null;
-    const falseViable = falseBranch && !isNullableOrNever(falseBranch) ? falseBranch : null;
-    if (trueViable && falseViable) return commonType(trueViable, falseViable);
-    const survivor = trueViable ?? falseViable;
-    const dropped = trueViable ? falseBranch : trueBranch;
-    return survivor && dropped && isNullableOrNever(dropped) && dropped.type !== 'never'
-      ? survivor.mark('mayBeNullish') : survivor;
-  }
-
-  // pre-fold structural evaluation of `T extends U ? trueType : falseType`. returns:
-  //   true  - the conditional fires unambiguously to its true-branch
-  //   false - fires unambiguously to its false-branch (concrete-disjoint check sides)
-  //   null  - cannot decide statically (sub-type relations across different outer
-  //           constructors, concrete-shape extends like empty tuple `[]`, or check
-  //           side unconstrained against a concrete extend). caller falls back to
-  //           widened branch folding so we never silently mis-pick a branch.
-  // `extendNode` is the raw AST extends-side: lets us distinguish `Array` (TSTypeReference
-  // without typeArguments == Array<any>, matches any concrete inner) from concrete-shape
-  // forms that ALSO post-subst as `$Object('Array', null)` (`[]` empty tuple - non-empty
-  // tuples do NOT extend `[]`)
-  // AST-level conditional branch picker for findTypeMember (which works on AST nodes,
-  // not resolved $Primitive / $Object types). complementary to `pickConditionalBranch` -
-  // operates on AST shape after subst applied, so literal-type precision (`'narrow'`
-  // vs primitive `string`) is preserved. returns true / false / null (undecidable)
   // a readonly collection (`readonly T[]` / `ReadonlyArray` / `ReadonlySet` / `ReadonlyMap`) is NOT
   // assignable to the MUTABLE form of the SAME base - a conditional whose check is the readonly view
   // of the extends clause's mutable container takes the FALSE branch. single rule, applied both in the
@@ -544,10 +526,22 @@ export function createTypeExpansion({
     return roBase !== null && roBase === mutableCollectionName(extendsAST);
   }
 
-  function pickConditionalBranchByAST(check, extend) {
+  // AST-level conditional branch picker for findTypeMember (which works on AST nodes,
+  // not resolved $Primitive / $Object types). complementary to `pickConditionalBranch` -
+  // operates on AST shape after subst applied, so literal-type precision (`'narrow'`
+  // vs primitive `string`) is preserved. returns true / false / null (undecidable)
+  function pickConditionalBranchByAST(check, extend, scope) {
     if (!check || !extend) return null;
     check = peelTSParenthesized(check);
     extend = peelTSParenthesized(extend);
+    // two shapes read as member sets, and - for the shapes that have no member list of their own -
+    // one canonical string apiece. Asked BEFORE the resolved-type rules because the layer below
+    // holds no member information at all: every declared shape and every inline literal collapses
+    // into the one box that says only that it was not modelled
+    const structural = compareMemberShapes(check, extend, scope);
+    if (structural !== null) return structural;
+    const checkKey = structuralKey(check, scope);
+    if (checkKey !== null && checkKey === structuralKey(extend, scope)) return true;
     // readonly check is not assignable to its mutable-form pattern -> FALSE branch (covers containers
     // the single-element fast-path doesn't, e.g. two-param `Map<infer K, infer V>`)
     if (readonlyCheckVsMutablePattern(check, extend)) return false;
@@ -582,13 +576,206 @@ export function createTypeExpansion({
     return false;
   }
 
-  // the lowercase `object` keyword is the top of the NON-primitive types, and it has to be read off
-  // the AST: it resolves to a constructor-null `$Object`, which is also what an unresolved shape
-  // produces, and deciding assignability on that shape would answer for both
-  function isObjectKeywordShape(node) {
-    return peelTSParenthesized(node)?.type === 'TSObjectKeyword';
+  function compareArgLists(a, b, keyDomain) {
+    // only one side wrote its parameters. A bare container means all-`any` and matches whatever the
+    // other carries, but that reading is the caller's `extendIsUnconstrained` to make from the AST -
+    // reached here, the bare side is one this layer merely failed to fill in
+    if (!a || !b || a.length !== b.length) return null;
+    let verdict = true;
+    for (const [index, arg] of a.entries()) {
+      // a mapped container's first argument is a key DOMAIN, and the entries after it describe that
+      // domain's members. Two domains this layer cannot see to be ONE type therefore sink the whole
+      // relation rather than merely leaving their own position open: the empty-domain
+      // `Record<never, string>` is extended by `Record<string, number>` however far apart the values
+      if (keyDomain && index === 0) {
+        const covers = domainCovers(arg, b[0]);
+        if (covers === null) return null;
+        if (covers === DOMAIN_DESCRIBES_NOTHING) return true;
+        if (covers === false) return false;
+        continue;
+      }
+      const pick = compareArgSlot(arg, b[index]);
+      if (pick === false) return false;
+      if (pick === null) verdict = null;
+    }
+    return verdict;
   }
 
+  // one position of two written argument lists. A top argument constrains nothing, so an extends
+  // side that wrote one accepts whatever the check holds. The mirror question this layer does not
+  // answer: `any` is assignable in both directions and `unknown` in only one, and the list keeps
+  // no note of which keyword was written
+  function compareArgSlot(check, extend) {
+    // either top constrains nothing, so an extends side that wrote one accepts whatever is held
+    if (extend === TOP_ARGUMENT || extend === UNKNOWN_ARGUMENT) return true;
+    // in the CHECK slot the two tops part. `any` is assignable to every type but the BOTTOM one -
+    // the HOLE an unrepresentable argument leaves included, since `never` is a type this layer does
+    // resolve and so never leaves one. `unknown` is assignable only to another top, and the arm
+    // above already took every extends side that is one
+    if (check === TOP_ARGUMENT) return extend?.type !== 'never';
+    if (check === UNKNOWN_ARGUMENT) return false;
+    return pickConditionalBranch({ check, extend });
+  }
+
+  // the KEY FAMILY a mapped container's domain names: the shape of the members it has, not their
+  // count. `literals` is the one that holds actual keys; the three keyword families are index
+  // SIGNATURES, which hold a key of that family without naming any; `empty` holds none at all. A
+  // domain this layer did not resolve, a top, and a literal union whose members the fold could not
+  // keep are all unclassifiable - the last for the reason the union rule declines it, that its
+  // members are exactly what the question is about
+  function keyDomainKind(entry) {
+    if (!entry || entry === TOP_ARGUMENT || entry === UNKNOWN_ARGUMENT) return null;
+    if (entry.type === 'never') return 'empty';
+    if (!entry.primitive || entry.literalUnion && !entry.literals) return null;
+    if (literalMembers(entry)) return 'literals';
+    return entry.type === 'string' || entry.type === 'number' || entry.type === 'symbol' ? entry.type : null;
+  }
+
+  // a mapped container's members are its domain's keys, so a WIDER domain is a container with MORE
+  // members - and assignability runs the other way from a covariant position: `Record<'a' | 'b', V>`
+  // extends `Record<'a', V>` and not the reverse. This answers whether the check's domain holds
+  // every key the extends side's names, in the four shapes a domain comes in:
+  //   true  - it does, and the entries AFTER the domain decide the rest
+  //   false - it does not: the target names a key the check has no member for
+  //   DOMAIN_DESCRIBES_NOTHING - the target names no key this check could hold, so its entries
+  //           describe nothing and the relation holds whatever they say
+  //   null  - a domain this layer cannot classify
+  // an index signature is not a set of keys: a STRING one covers every string-named key and no
+  // numeric-named one (`Record<string, X>` extends `Record<'a', X>` and not `Record<1, X>`), a
+  // NUMERIC one the mirror, and a SYMBOL one nothing either of the other two can hold
+  function domainCovers(wide, narrow) {
+    const narrowKind = keyDomainKind(narrow);
+    const wideKind = keyDomainKind(wide);
+    // a domain this layer cannot classify decides nothing. Every spelling it CAN read is either a
+    // key FAMILY or a set of keys, and what is left is a hole, a top, or a spelling whose members
+    // are not recoverable - and a mutual assignability probe cannot separate those either, since
+    // the pair that needs separating (an enum against the keyword it resolves into) reads as one
+    // type from both sides
+    if (!narrowKind || !wideKind) return null;
+    if (narrowKind === 'empty') return DOMAIN_DESCRIBES_NOTHING;
+    if (narrowKind === 'literals') {
+      const members = literalMembers(narrow);
+      if (wideKind === 'literals') {
+        const held = literalMembers(wide);
+        return [...members].every(member => held.has(member));
+      }
+      if (wideKind === 'string' || wideKind === 'number') {
+        return [...members].every(member => typeof member === wideKind);
+      }
+      return false;
+    }
+    // a domain holding no key of the target's family leaves the target's entries describing nothing
+    if (wideKind === 'empty' || wideKind === 'symbol' && narrowKind !== 'symbol') return DOMAIN_DESCRIBES_NOTHING;
+    if (narrowKind === 'symbol') return wideKind === 'symbol' ? true : DOMAIN_DESCRIBES_NOTHING;
+    if (narrowKind === 'number' && wideKind === 'literals') {
+      return [...literalMembers(wide)].some(member => typeof member === 'number') ? true : DOMAIN_DESCRIBES_NOTHING;
+    }
+    return true;
+  }
+
+  // tri-state assignability of two parents' `.inner` slots:
+  //   true  - the check's inner is assignable to the extends side's
+  //   false - it is not, at a level where BOTH sides say what they carry
+  //   null  - a level whose inner is ELIDED, or a relation this layer does not model
+  // `innersEqual` answers two-state, and its `a === b` arm takes two absent inners for agreement.
+  // An absence is only agreement when it means `any` - which the elision marker is there to deny:
+  // two chains the shared depth budget cut at the same level both end absent and compared EQUAL,
+  // firing the TRUE branch of `Array<..<string | null>..> extends Array<..<string>..>` that tsc
+  // answers FALSE. The same absence comes from an argument with no Type form (`Array<{ a: 1 }>`)
+  // assignability of two written argument LISTS, position by position through the same decider.
+  // One definite mismatch sinks the whole relation whatever the other positions say; anything the
+  // decider leaves open leaves the list open too
+  function compareInnerChains(a, b) {
+    if (a.innerElided || b.innerElided) return null;
+    // an identity-less box: the level says only that the shape was not modelled, and reading the
+    // family it collapsed into as agreement fires the TRUE branch of `Array<A> extends Array<B>`
+    // that tsc answers FALSE for two unrelated interfaces - the same box holding two disjoint call
+    // signatures declines by the same rule. One side answers for both: the pair reaching here is
+    // the one the caller already found family-equal, so both carry the same family. What a box CAN
+    // say is that it stands for the same declaration as the other, which makes the two one type -
+    // the reverse never holds, two declarations being structurally assignable all the same
+    if (typeIdentityElided(a)) return a.identity && a.identity === b.identity ? true : null;
+    // a top WRITTEN in the check's element slot parts the two tops the way the argument LIST already
+    // parts them: `any` is assignable to every element but the bottom one, `unknown` only to another
+    // top - and an extends side that is one was answered TRUE before this level was reached
+    if (a.innerUnconstrained) return a.innerUnknown ? false : innerOf(b)?.type !== 'never';
+    // the element the `.inner` slot refused is still what the level carries, and assignability is the
+    // reader it was kept for: `Array<never>` extends every array and `Array<null>` almost none, where
+    // the bare slot they share says `Array<any>` and matches whatever it is weighed against
+    const checkInner = innerOf(a);
+    const extendInner = innerOf(b);
+    // both absent: the chains ended together and nothing is left that can disagree. Two PRESENT
+    // inners go to the decider below however alike they are spelled, one shared BOX included - an
+    // inferred type is memoized on the declaration it came from, so two reads that landed on one
+    // object say only that this layer asked them the same question, which is what an identity-less
+    // box already admits it cannot answer: `ReturnType<typeof A.mk<string>>` and its `<number>`
+    // twin share the one inferred return type between them
+    if (!checkInner || !extendInner) return !checkInner && !extendInner;
+    // one side a string hint (`'string'`), the other a Type object: no common ground to walk
+    if (typeof checkInner === 'string' || typeof extendInner === 'string') return checkInner === extendInner;
+    // a container's parameter is one more assignability question, so it goes to the decider that
+    // holds every rule rather than to a second, family-equality-only copy of it. Walking the chain
+    // by `typesEqual` answered `Array<string> extends Array<String>` FALSE (a primitive IS
+    // assignable to the wrapper it boxes into), `Array<string> extends Array<'a'>` TRUE (the
+    // wide-vs-narrow rule never ran), and `Array<ReadonlyArray<T>> extends Array<Array<T>>` TRUE
+    // (so did the readonly rule). The recursion terminates on the same finite chain the loop walked
+    const pick = pickConditionalBranch({ check: checkInner, extend: extendInner });
+    if (pick !== null) return pick;
+    // the residual is the relations that decider leaves open across DIFFERENT families (`Array` vs
+    // `Iterable`): family inequality is what this level answered before, and keeping it there costs
+    // no precision while a bare fold would give up the decided FALSE of `Map<..>` vs `Set<..>`. A
+    // SURVIVOR of a dropped nullish arm is no family to weigh that way - it stands for the union the
+    // arm was in, and the check may be exactly that arm: `Array<null>` extends `Array<string | null>`
+    return extendInner.mayBeNullish || typesEqual(checkInner, extendInner) ? null : false;
+  }
+
+  // the family name the supertype table knows a resolved type by: a container's constructor, or - for
+  // the one primitive family with structural supertypes - the primitive itself, which the shared
+  // unboxer names for the `String` WRAPPER too rather than spelling that pairing a second time. A
+  // type whose family the table does not carry answers null, leaving its relations to the other rules
+  function structuralFamily(type) {
+    const name = primitiveTypeOf(type) === 'string' ? 'string' : type.constructor;
+    return name && STRUCTURAL_SUPERTYPES.has(name) ? name : null;
+  }
+
+  // what a level carries in its element slot, the resolution the slot itself refused included. Every
+  // reader that asks whether a level said anything asks through this pair, or the two spellings of
+  // one absence drift apart - `Array<never>` looks inner-less to a raw `.inner` read
+  function innerOf(type) {
+    return type.inner ?? type.droppedInner;
+  }
+
+  // did this level say ANYTHING about its element? An unwritten argument leaves nothing, and that
+  // absence is the bare container's, which means `Array<any>`; a written top says so through its
+  // marker, and a refused resolution through the slot beside the empty one
+  function innerKnown(type) {
+    return !!(innerOf(type) || type.innerUnconstrained);
+  }
+
+  // the union rule above, over the members two narrow sides carry: subset -> true, disjoint -> false,
+  // anything else (an overlap, or a side whose members the fold did not keep) -> undecidable
+  function compareLiteralMembers(check, extend) {
+    const checkMembers = literalMembers(check);
+    const extendMembers = literalMembers(extend);
+    if (!checkMembers || !extendMembers) return null;
+    let shared = 0;
+    for (const member of checkMembers) if (extendMembers.has(member)) shared++;
+    if (shared === checkMembers.size) return true;
+    return shared === 0 ? false : null;
+  }
+
+  // pre-fold structural evaluation of `T extends U ? trueType : falseType`. returns:
+  //   true  - the conditional fires unambiguously to its true-branch
+  //   false - fires unambiguously to its false-branch (concrete-disjoint check sides)
+  //   null  - cannot decide statically (sub-type relations across different outer
+  //           constructors, a concrete-shape extends like the empty tuple `[]`, or a check
+  //           side unconstrained against a concrete extend). the caller folds both branches
+  //           so we never silently mis-pick one
+  // the extends side is asked about through the two AST-derived flags below rather than through
+  // its resolved type, because the shapes that must be told apart collapse onto the same one: a
+  // bare `Array` (a TSTypeReference with no typeArguments, so `Array<any>`, which matches any
+  // concrete inner) and a concrete shape like the empty tuple `[]` (which a non-empty tuple does
+  // NOT extend) both post-subst as `$Object('Array', null)`
   // `extendIsUnconstrained` reflects POST-SUBST AST shape: caller computes via
   // `isUnconstrainedTypeShape(node, typeParamMap?)` (map omitted when AST is already
   // substituted; passed when reasoning from raw AST + Type-Object map for
@@ -599,22 +786,34 @@ export function createTypeExpansion({
   // (`[]`, `{}`). caller computes via `isConcreteEmptyShape(extendsAST)`. used to
   // distinguish syntactic empty (deterministic falseBranch) from post-resolve inner-less
   // artefacts (undecidable, fall back to fold)
-  function pickConditionalBranch({ check, extend, extendIsUnconstrained, extendIsConcreteEmpty, extendIsObjectKeyword }) {
+  function pickConditionalBranch({ check, extend, extendIsUnconstrained, extendIsConcreteEmpty }) {
     if (!check || !extend) return null;
     // never is the bottom type: assignable to any T, so `never extends T` is always true.
     // without this short-circuit, the primitive-vs-X tail rules below see never as just
     // another primitive and return false (wrong branch). symmetric to `extends never`
     // handled by the "object check vs primitive extend" rule already returning false
     if (check.type === 'never') return true;
+    // the union fold DROPS a nullish arm and marks the SURVIVOR, without recording which arm went:
+    // `string | null` and `string | undefined` both read as `string` plus the mark. A nullish check
+    // may be exactly the arm that was dropped - `null extends string | null` is TRUE - so a marked
+    // extends side leaves the relation open instead of taking the FALSE the primitive-family rules
+    // below answer off the survivor alone
+    if (extend.mayBeNullish && isNullableOrNever(check)) return null;
     // a folded literal union (`'a' | 'b'`, from commonType merging distinct literal branches) is OPAQUE -
     // its members are not retained. `checkNarrow` / `extendNarrow` flag the narrow (single literal OR such
     // a union) sides; a bare keyword (`string`) is NOT narrow
     const checkNarrow = check.literalUnion || check.literal !== undefined;
     const extendNarrow = extend.literalUnion || extend.literal !== undefined;
-    // both sides narrow with at least one OPAQUE union -> undecidable (some members may extend the other,
-    // others not, and the members are unrecoverable) -> fold both branches via null. guard before the
-    // literal rules so a union is never read as a single literal or, below, as a bare keyword
-    if ((check.literalUnion || extend.literalUnion) && checkNarrow && extendNarrow) return null;
+    // both sides narrow with at least one union -> the members decide it, where the fold kept them:
+    // every member of the check inside the extends side makes the relation hold for each of them and
+    // so for their union, and a pair sharing no member fails for each of them alike. A PARTIAL overlap
+    // is the undecidable one, and for two readings at once - the type-level answer is FALSE, while the
+    // same union reached through a naked type parameter DISTRIBUTES and takes both branches. An opaque
+    // union (members over the cap, or a fold that saw a wide arm) leaves all three open. guard before
+    // the literal rules so a union is never read as a single literal or, below, as a bare keyword
+    if ((check.literalUnion || extend.literalUnion) && checkNarrow && extendNarrow) {
+      return compareLiteralMembers(check, extend);
+    }
     // literal precision: `2 extends 1` is false even though both widen to `number`. resolveLiteralType
     // stamps each side's source literal; two single literals are disjoint unless strictly equal (cross-
     // family `2` vs `'2'` too). a union side is excluded above; a bare-keyword side has no stamp and folds
@@ -630,23 +829,72 @@ export function createTypeExpansion({
     // readonly extend (a `ReadonlyX` pattern) is also tagged, so readonly-to-readonly still binds
     if (check.readonly && !extend.readonly && check.constructor === extend.constructor) return false;
     if (typesEqual(check, extend)) {
-      if (innersEqual(check.inner, extend.inner)) return true;
-      // extends has no inner constraint. three sub-cases distinguished by caller-supplied flags:
-      //   - unparameterised TSTypeReference (`Array` -> `Array<any>`): matches any inner
+      // the `Function` KEYWORD is the top of the callable types: reaching here means the check is of
+      // that family too, and every function value extends it whatever signature it was written with.
+      // Asked off the marker rather than the AST for the reason its object-family twins are - the
+      // box it shares with every unmodelled call signature says nothing else about which it is
+      if (extend.functionKeyword) return true;
+      // two tuples that disagree on LENGTH are disjoint whatever their elements say, and a check
+      // side that is no tuple cannot be weighed against one at all - an array extends no tuple, but
+      // a parameter this layer resolved to a bare container may still be one. Only the recorded
+      // length can say: the collapse to `Array<commonElement>` left both sides looking alike, and
+      // the inner comparison below then read `string[]` and `[string, string]` as one type. The
+      // EMPTY tuple keeps the concrete-shape rule further down, which decides the same FALSE
+      if (extend.tupleArity && check.tupleArity !== extend.tupleArity) {
+        return check.tupleArity === null ? null : false;
+      }
+      // asked BEFORE the inner comparison: an extends side that constrains no inner (the
+      // unparameterised `Array`, or an all-top spelling like `Array<any>`) matches whatever the
+      // check carries - an ELIDED check inner included, so the comparison below never sees it.
+      // an identity-less box is not such a side: a bare `B` writes no type argument either, but
+      // it names one interface out of the many that box holds rather than leaving them all in.
+      // a top keyword WRITTEN as the argument says exactly what a missing one does, and reaches the
+      // rule through the marker - the AST flag covers the outermost extends clause alone
+      if (!extend.inner && (extendIsUnconstrained || extend.innerUnconstrained) && !typeIdentityElided(extend)) return true;
+      // a container whose parameters have no element slot carries them as a LIST, and that list is
+      // the whole relation - the inner-slot sub-cases below read an emptiness these two never fill
+      if (check.args || extend.args) {
+        return compareArgLists(check.args, extend.args, check.keyDomainArgs && extend.keyDomainArgs);
+      }
+      const innerPick = compareInnerChains(check, extend);
+      if (innerPick === true) return true;
+      // a level whose inner was elided is unknowable in BOTH directions - fold both branches
+      if (innerPick === null) return null;
+      // extends has no inner constraint. two sub-cases distinguished by caller-supplied flags
+      // (the unparameterised-reference one is answered above):
       //   - concrete-empty AST (`[]` empty tuple): structurally distinct from non-empty
       //     check, picks falseBranch per TS spec
       //   - post-resolve inner-less (e.g., `[infer X, X]` where infer doesn't resolve to
       //     a concrete inner): undecidable - infer pattern may still match, fall back to
       //     fold-both-branches via null return
-      if (!extend.inner) {
-        if (extendIsUnconstrained) return true;
-        if (check.inner && extendIsConcreteEmpty) return false;
+      if (!innerKnown(extend)) {
+        if (innerKnown(check) && extendIsConcreteEmpty) return false;
         return null;
       }
       // check side unconstrained against a concrete extend - can't statically decide
-      if (!check.inner) return null;
+      if (!innerKnown(check)) return null;
       // both concrete, differing inners (Array<number> vs Array<string>): disjoint
       return false;
+    }
+    // two families the supertype table names: the relation is decided THERE and by no rule below. A
+    // check whose family REACHES the extends side's is assignable to it wherever their elements
+    // agree, and one that reaches it in neither direction holds none of the other's surface and is
+    // disjoint whatever the elements say. A pair the table does not carry BOTH halves of is left to
+    // the rules below - the constructor registry holds hierarchies of its own, and a FALSE off a
+    // bare name difference is the wrong answer for every one of them
+    const checkFamily = structuralFamily(check);
+    const extendFamily = structuralFamily(extend);
+    if (checkFamily && extendFamily && checkFamily !== extendFamily) {
+      if (!STRUCTURAL_SUPERTYPES.get(checkFamily).has(extendFamily)) return false;
+      // an extends element that constrains nothing matches whatever the check carries, exactly as it
+      // does between two levels of ONE family - asked here too, or the comparison below reads the
+      // empty slot a written top leaves as a disagreement
+      if (!extend.inner && (extendIsUnconstrained || extend.innerUnconstrained)) return true;
+      // reachable, and a structural supertype is covariant in its element - so the elements decide,
+      // where BOTH sides wrote one. A PRIMITIVE check carries its element as a hint STRING, which
+      // the chain comparison has no Type object to weigh against the container's
+      if (check.primitive || !innerKnown(check) || !innerKnown(extend)) return null;
+      return compareInnerChains(check, extend);
     }
     // capital `Object` is the boxed top: every non-nullish check extends it, primitives included
     // (`string extends Object` is true per TS). it resolves constructor-null like the lowercase
@@ -655,8 +903,14 @@ export function createTypeExpansion({
     // a null constructor. `never` is decided above
     if (extend.topObject) return !isNullableOrNever(check);
     // its lowercase twin is the top of the NON-primitive types instead: `number[] extends object`
-    // holds, `string extends object` does not
-    if (extendIsObjectKeyword) return !check.primitive;
+    // holds, `string extends object` does not. Read off the resolved type and not the AST, so a
+    // container's parameter is decided by the same rule as the outermost pair
+    if (extend.objectKeyword) return !check.primitive;
+    // the same two tops read on the CHECK side, where they say the opposite: a top stands ABOVE
+    // every object type, and nothing above a shape is assignable to it - `object extends Array<X>`
+    // is FALSE, and so is every other pair whose extends side NAMES a family. Only a named one
+    // decides: an identity-elided box holds the empty interface too, which every object does extend
+    if (isTopObjectShape(check) && extend.constructor && !typeIdentityElided(extend)) return false;
     // non-primitive check (Array / Map / Promise / ...) vs primitive extend (string / number /
     // never / null / ...): disjoint per TS structural subtyping. object types can't extend
     // primitives. subsumes the `extends never` case (never is primitive) - generic rule with
@@ -685,21 +939,51 @@ export function createTypeExpansion({
   // object and (b) whether the extendsAST is already post-AST-subst or raw + a Type-object
   // substitution map. all 3 conditional-branch sites (`findConditionalTypeMember`,
   // `evaluateConditionalType`, `pickAwaitedConditionalBranch`) flow through this helper
-  function pickConditionalBranchVia({ checkAST, extendsAST, resolveOne, isUnconstrained }) {
+  function pickConditionalBranchVia({ checkAST, extendsAST, resolveOne, isUnconstrained, scope }) {
     // resolveOne collapses TSTemplateLiteralType to $Primitive('string') - downstream
     // pickConditionalBranch then sees string-vs-string and returns true. short-circuit
     // to undecidable on either side so the caller folds both branches instead of
     // over-picking through a stripped template
     if (isTemplateLiteralExtend(checkAST) || isTemplateLiteralExtend(extendsAST)) return null;
-    const astPick = pickConditionalBranchByAST(checkAST, extendsAST);
+    const astPick = pickConditionalBranchByAST(checkAST, extendsAST, scope);
     if (astPick !== null) return astPick;
+    // a TS-only structural container resolves to nothing, which member dispatch depends on - the
+    // relation between families is the reader that borrows a box for it, and only here, where the
+    // pair is weighed and then dropped
+    function resolveSide(node) {
+      return resolveOne(node) ?? resolveStructuralContainerType(node, resolveOne);
+    }
+    const check = resolveSide(checkAST);
+    // a check the union fold marked `mayBeNullish` is the SURVIVOR of a dropped nullish arm, not a
+    // certainty: the value may take the arm that was stripped, so a branch picked on the survivor
+    // commits the whole conditional to a shape the runtime need not have. the mark can sit on an
+    // INNER type - `Array<string | null>` folds the arm inside the container and the container's own
+    // flag stays clear - so the whole chain is asked, not just the top
+    if (carriesStrippedNullish(check)) return null;
     return pickConditionalBranch({
-      check: resolveOne(checkAST),
-      extend: resolveOne(extendsAST),
+      check,
+      extend: resolveSide(extendsAST),
       extendIsUnconstrained: isUnconstrained,
       extendIsConcreteEmpty: isConcreteEmptyShape(extendsAST),
-      extendIsObjectKeyword: isObjectKeywordShape(extendsAST),
     });
+  }
+
+  // does this resolved type, or anything it contains, survive a dropped nullish arm? the fold marks
+  // the survivor where the arm was dropped, which may be several containers down. the bound is the
+  // SHARED recursion budget and not a smaller number of its own: the `.inner` chain is built under
+  // that same budget, so any shorter ceiling stops before a mark resolution DID produce and hands
+  // the picker a survivor it then reads as a certainty - `Array` nested past the ceiling around
+  // `string | null` picked the true branch of `extends Array<...<string>>`, which tsc calls false
+  function carriesStrippedNullish(type, depth = 0) {
+    for (let cur = type, level = depth; cur && typeof cur === 'object' && level <= MAX_DEPTH; cur = cur.inner, level++) {
+      if (cur.mayBeNullish) return true;
+      // the `.inner` chain the loop walks is one place a survivor sits and the written argument LIST
+      // is the other - a key-first or mapped container has no element slot at all, so
+      // `Map<string, string | null>` carries its dropped arm there and nowhere else. Each entry is
+      // its own chain, and a TOP entry is a symbol that stops on the loop guard
+      if (cur.args?.some(arg => carriesStrippedNullish(arg, level + 1))) return true;
+    }
+    return false;
   }
 
   function isTemplateLiteralExtend(node) {
@@ -761,7 +1045,7 @@ export function createTypeExpansion({
   // resolve `T extends U ? trueType : falseType` post-subst:
   //   1) narrow `(infer U)[]` / `Array<infer U>` short-circuit (resolveInferElementPattern)
   //   2) structural eval via pickConditionalBranch - lazy: substitute only the chosen branch
-  //   3) fall through to resolveConditionalBranches's commonType / never-strip fold
+  //   3) fall through to the canonical union fold over both branches
   // shared between substituteTypeParams's TSConditionalType case and any future caller
   // that needs the same evaluation contract for a TSConditionalType node
   function evaluateConditionalType(node, typeParamMap, scope, depth, seen) {
@@ -798,11 +1082,19 @@ export function createTypeExpansion({
       extendsAST: node.extendsType,
       resolveOne: ast => recurse(ast, typeParamMap),
       isUnconstrained: isUnconstrainedTypeShape(node.extendsType, typeParamMap),
+      scope,
     });
     if (branch !== null) return branch ? recurse(node.trueType, trueMap()) : recurse(node.falseType, typeParamMap);
-    return resolveConditionalBranches(
-      recurse(node.trueType, trueMap()),
-      recurse(node.falseType, typeParamMap));
+    // undecided: the value may take EITHER branch, so the two fold like the arms of a union, through
+    // the canonical fold and its one arm policy - a branch nothing can resolve SINKS the answer (it may
+    // be any shape, another polyfill family included; a stripped-looking `null` there is not a
+    // stripped branch), a nullish branch drops out marking the survivor `mayBeNullish` (TS strips it in
+    // value position, and `T extends X ? A : null` under `??` must not fold to A's shape), a `never`
+    // branch carries no value, and two live branches must converge. two nullish branches leave no
+    // shape to dispatch on
+    const folded = foldUnionTypes([node.trueType, node.falseType],
+      branchNode => recurse(branchNode, branchNode === node.trueType ? trueMap() : typeParamMap));
+    return folded && !isNullableOrNever(folded) ? folded : null;
   }
 
   // drop entries whose names appear in `shadowingNames` from a substitution Map. agnostic
@@ -865,8 +1157,13 @@ export function createTypeExpansion({
   // false     - provably disjoint -> the conditional is FALSE
   function checkTypeMatchesContainerFamily(checkType, family, container) {
     if (!checkType?.primitive) {
+      // a TOP of the object types is the one constructor-null check side that is not an unmodelled
+      // shape: it stands ABOVE every container, so it is assignable to none of them and the
+      // conditional is decided FALSE here, before the permissive reading below admits it
+      if (isTopObjectShape(checkType)) return false;
       // a non-primitive check side must be assignable to `container<U>` for `infer U` to bind. an
-      // `Iterable<infer U>` admits any iterable EXCEPT a Promise (not iterable - `Promise<X>` must take
+      // `Iterable<infer U>` admits the families the supertype table walks TO it, and a `Promise`,
+      // which the table carries reaching nothing, is the loud one it does not (`Promise<X>` must take
       // the FALSE branch, not bind U from a non-iterable); otherwise the check side's container must MATCH
       // the pattern's (`Set<string>` against `Array<infer U>` is disjoint -> conditional FALSE, so the false
       // branch resolves precisely instead of binding U=string -> wrong helper variant). Array and
@@ -874,7 +1171,14 @@ export function createTypeExpansion({
       // unknown pattern container stays permissive (could be assignable; over-emit-safe)
       if (family === 'iterable') {
         if (isPromiseRefName(checkType.constructor)) return false;
-        return checkType.constructor ? 'match' : 'unknown';
+        // WHICH families reach `Iterable` is the supertype table's question, and the general branch
+        // decider already asks it there. A constructor merely being SET says only that some box was
+        // resolved, and reading that as membership bound U from the constraint for every `Date`,
+        // class instance and plain interface - the wrong-receiver narrow this guard exists to stop.
+        // A family the table does not carry stays permissive, exactly as it does there
+        const reaches = checkType.constructor ? STRUCTURAL_SUPERTYPES.get(checkType.constructor) : null;
+        if (!reaches) return 'unknown';
+        return reaches.has('Iterable') ? 'match' : false;
       }
       if (!checkType.constructor || !container) return 'unknown';
       // compare BASE container family - strip a `Readonly` prefix so `ReadonlyArray` / `ReadonlySet`

@@ -4,11 +4,8 @@ import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _mapMaybeArray from "@core-js/pure/actual/array/instance/map";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _at from "@core-js/pure/actual/instance/at";
-import _Iterator from "@core-js/pure/actual/iterator/constructor";
-import _Iterator$from from "@core-js/pure/actual/iterator/from";
-import _Map2 from "@core-js/pure/actual/map";
-import _Map from "@core-js/pure/actual/map/constructor";
-import _Map$groupBy from "@core-js/pure/actual/map/group-by";
+import _Iterator from "@core-js/pure/actual/iterator";
+import _Map from "@core-js/pure/actual/map";
 import _Object$assign from "@core-js/pure/actual/object/assign";
 import _self from "@core-js/pure/actual/self";
 var _ref, _ref2, _ref3;
@@ -18,7 +15,7 @@ delete (_Map.groupBy as any);
 export const r1 = _Map.groupBy(x, f);
 _Iterator.from ||= shim;
 export const r2 = _Iterator.from(it);
-Object.defineProperty(_Map2, 'groupBy', {
+Object.defineProperty(_Map, 'groupBy', {
   value: dpPatch
 });
 export const r3 = _Map.groupBy(y, g);

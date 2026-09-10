@@ -71,6 +71,9 @@ export function emitBareOptionalSeDispatch({ node, parent, callerPath, metaPath,
   const bare = unwrapRuntimeExpr(node.object);
   // a receiver the guard cannot SPELL TWICE - the test reads it and so does the dispatch -
   // memoizes into the test itself, which is the one evaluation the source performs
+  // ... and one it CAN spell twice owes no memo at all: it is its own null test, and the
+  // key's effects are left to the alternate, where native runs them - a nullish receiver
+  // skips the property read entirely (`arr?.[(probe(), 'includes')](42)`)
   // (`(eff(), arr)?.flat()` -> `null == (_ref = (eff(), arr)) ? void 0 : _flat(_ref).call(_ref)`)
   const reusable = ctx.isReusableReceiver(bare);
   // a PAREN-SEALED lookup keeps the plain emitter's twin: the guard wraps ONLY the lookup -
@@ -298,8 +301,11 @@ export function emitSeReadFormOverLiveOptional({ node, metaPath, entry, hintName
   if (!readSplit || readSplit === ctx.stagedSplit) return;
   const id = ctx.injectPureImport(entry, hintName);
   ctx.markRewrite();
+  // the rebuilt spelling folds the realm hops it reads off the split's own memo, exactly as the
+  // ordinary split's does - one receiver question, asked wherever a split hands its value on
+  const receiver = ctx.foldRealmHopsOverSplitMemo(readSplit.receiver, readSplit.disjuncts, metaPath);
   replaceGuardedHop({ hopPath: metaPath, test: ctx.composeGuardTest(readSplit.disjuncts, null),
-    built: callExpression(identifier(id), [readSplit.receiver]), skippedNodes: ctx.skippedNodes });
+    built: callExpression(identifier(id), [receiver]), skippedNodes: ctx.skippedNodes });
 }
 
 // the sealed plainly-called lookup shape (`(arr?.[S])()`): zero args, no `?.` on the call

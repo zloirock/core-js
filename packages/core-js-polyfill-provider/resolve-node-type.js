@@ -84,6 +84,7 @@ import {
   createStraightLineFlow,
 } from './resolve-node-type/straight-line-flow.js';
 import { createTypeAnnotationResolve } from './resolve-node-type/type-annotation-resolve.js';
+import { createStructuralKey } from './resolve-node-type/structural-key.js';
 import { createTypeExpansion } from './resolve-node-type/type-expansion.js';
 import { createTypeFolding } from './resolve-node-type/type-folding.js';
 import { createOverloadFold } from './resolve-node-type/overload-fold.js';
@@ -737,7 +738,7 @@ function createResolveNodeType(babelNodeType, t, {
   let buildCallSiteSubst, substituteTypeParams, functionTypeParams;
   let findExpressionAnnotation, findTypeMember, getTypeMembers, arrayElementType, classSubstInner, methodFnPath;
   let findClassPathForTypeReference, findClassMember, findObjectMember;
-  let resolveObjectMember, resolveTypeAnnotation, resolveKnownContainerType, extendsClauseName;
+  let resolveObjectMember, resolveTypeAnnotation, resolveKnownContainerType, resolveStructuralContainerType, extendsClauseName;
   /* eslint-enable prefer-const -- destructuring assignment below rebinds these */
 
   // known-globals cluster: type-from-hint conversion + built-in / global member resolvers
@@ -764,6 +765,8 @@ function createResolveNodeType(babelNodeType, t, {
     commonType: (...args) => commonType(...args),
     // same forward-decl thunk: the return-type cluster is built after this one
     resolveReturnType: (...args) => resolveReturnType(...args),
+    // and the type-folding cluster, which owns the element-container build, is built after it too
+    elementContainerType: (...args) => elementContainerType(...args),
     resolveRuntimeExpression,
     babelNodeType,
     isMemberLike,
@@ -791,6 +794,7 @@ function createResolveNodeType(babelNodeType, t, {
     tupleElements,
     rebuildTupleElements,
     tupleAsArrayType,
+    elementContainerType,
     resolveParametersParams,
     resolveThisParamAnnotation,
     findTupleElement,
@@ -870,6 +874,19 @@ function createResolveNodeType(babelNodeType, t, {
     babelBindingAdapter,
   });
 
+  // structural IDENTITY lives in its own cluster: the canonical key a shape reduces to and the
+  // member-set reading of a relation between two of them. Its one consumer is the conditional branch
+  // picker below, which asks it BEFORE the resolved-type rules - by the time a shape is a Type object
+  // every interface, class and object literal has collapsed into the same identity-less box
+  const { structuralKey, compareMemberShapes } = createStructuralKey({
+    getTypeMembers: (...args) => getTypeMembers(...args),
+    getKeyName,
+    unwrapTypeAnnotation,
+    peelTSParenthesized,
+    typeRefSegments,
+    findAllTypeDeclarations,
+  });
+
   // mapped + conditional type evaluation lives in the `type-expansion` cluster. service
   // object passes function references that close over the factory's later-declared deps
   // (`getTypeMembers`, `resolveInnerType`) via function-declaration hoisting.
@@ -893,13 +910,15 @@ function createResolveNodeType(babelNodeType, t, {
     // shared parser-shape helper: babel wraps TSTypeParameter.name as Identifier,
     // oxc stores the bare string. extractInferTarget reuses it for `infer U` extraction
     typeParamName,
-    commonType,
+    foldUnionTypes,
     isNullableOrNever,
     typesEqual,
-    innersEqual,
     typeRefName,
     typeRefSegments,
     isPromiseRefName,
+    resolveStructuralContainerType: (...args) => resolveStructuralContainerType(...args),
+    structuralKey,
+    compareMemberShapes,
   });
   const {
     mappedTypeKeyName,
@@ -994,8 +1013,12 @@ function createResolveNodeType(babelNodeType, t, {
   // `findAllTypeDeclarations` / `typeParamName` / `findTypeParameter` etc.) live in
   // `resolve-node-type/name-resolution.js`
 
+  // the box a BARE `Set` / `Array` reference resolves to. The constructor table records no element
+  // and the reference wrote none, which is `Set<any>` - it matches whatever it is weighed against.
+  // The RETURN-hint table's unrecorded element means the opposite, an elision, and the shared
+  // decoder marks for that reading; the two type-argument lanes stamp their own answer over this box
   function resolveKnownConstructor(name) {
-    return hasOwn(KNOWN_CONSTRUCTORS, name) ? typeFromHint(KNOWN_CONSTRUCTORS[name].new) : null;
+    return hasOwn(KNOWN_CONSTRUCTORS, name) ? typeFromHint(KNOWN_CONSTRUCTORS[name].new)?.unmark('innerElided') ?? null : null;
   }
 
   // user-type-resolve cluster: walks `type` / `interface` / `class` / `enum` declarations
@@ -1070,6 +1093,7 @@ function createResolveNodeType(babelNodeType, t, {
     dropTypeParamSubst,
     isNullableOrNever,
     safeInnerType,
+    elementContainerType,
     commonType,
     // `findPatternKeyPath` is a hoisted function DECLARATION of this factory - already bound here,
     // so it passes by value. its two neighbours are pattern-bindings cluster exports assigned
@@ -1782,31 +1806,33 @@ function createResolveNodeType(babelNodeType, t, {
     collectBindingReferences,
   });
 
-  // post-rewrite alias `const from = _Array$from`: injector exposes the canonical entry
-  // path (`array/from`) - leading segment maps to the constructor name via the same
-  // resolver injector itself uses (`entryToGlobalHint`), trailing segment is the method.
-  // entry paths are kebab-case (`reflect/set-prototype-of`, `number/is-nan`); table keys are
-  // camelCase (`Reflect.setPrototypeOf`, `Number.isNaN`) and the conversion back cannot restore
-  // every capital, so the trailing segment resolves against the registry's own keys.
-  // kept in factory (not in call-return cluster) because binding-analysis cluster
-  // instantiated upstream consumes it as a service dep
-  // the hop's anchor (`hopAnchorStart`) positions the injector's name-keyed lookup: a USER-named
-  // body-extract record serves only inside its hosting scope span, so a position-blind ask cannot
-  // be served (a same-named binding elsewhere in the file would read the wrong entry - wrong-Maybe
-  // throw). `hop` stands on the identifier spelling `name`
-  function staticPairFromPolyfillEntry(name, hop) {
-    const entry = getPolyfillBindingEntry(hop.ctx.scope, name, hopAnchorStart(hop));
-    if (!entry) return null;
-    const segments = entry.split('/');
-    if (segments.length < 2) return null;
+  // post-rewrite alias `const from = _Array$from` / pure-import binding `_Number$isFinite`: the
+  // injector exposes the canonical entry path (`array/from`) - leading segment maps to the
+  // constructor name via the same resolver injector itself uses (`entryToGlobalHint`), trailing
+  // segment is the method. entry paths are kebab-case (`reflect/set-prototype-of`, `number/is-nan`);
+  // table keys are camelCase (`Reflect.setPrototypeOf`, `Number.isNaN`) and the conversion back
+  // cannot restore every capital, so the trailing segment resolves against the registry's own keys.
+  // `useStart` positions the injector's name-keyed lookup: a USER-named body-extract record serves
+  // only inside its hosting scope span, so a position-blind ask cannot be served (a same-named
+  // binding elsewhere in the file would read the wrong entry - wrong-Maybe throw). kept in factory
+  // (not in call-return cluster) because the binding-analysis and guard clusters instantiated
+  // upstream consume it as a service dep
+  function staticPairFromPolyfillBinding(scope, name, useStart) {
+    const entry = getPolyfillBindingEntry(scope, name, useStart);
+    const segments = entry?.split('/');
+    if (!segments || segments.length < 2) return null;
     const constructor = entryToGlobalHint(segments[0]);
-    if (!constructor) return null;
-    // gate on KNOWN_STATIC_METHOD_RETURN_TYPES the same as `staticPairFromDestructure`
-    // does - asymmetric acceptance otherwise resurfaces stale entries for unknown
-    // constructors (`reflect/xxx` shimmed but not tracked structurally) and downstream
-    // call-return inference reads garbage
-    if (!hasOwn(KNOWN_STATIC_METHOD_RETURN_TYPES, constructor)) return null;
-    return { constructor, method: staticMemberFromEntrySegment(constructor, segments.at(-1)) };
+    return constructor ? { constructor, method: staticMemberFromEntrySegment(constructor, segments.at(-1)) } : null;
+  }
+
+  // the hop-shaped ask: `hop` stands on the identifier spelling `name`, its anchor
+  // (`hopAnchorStart`) is the use position. gates on KNOWN_STATIC_METHOD_RETURN_TYPES the same as
+  // `staticPairFromDestructure` does - asymmetric acceptance otherwise resurfaces stale entries for
+  // unknown constructors (`reflect/xxx` shimmed but not tracked structurally) and downstream
+  // call-return inference reads garbage
+  function staticPairFromPolyfillEntry(name, hop) {
+    const pair = staticPairFromPolyfillBinding(hop.ctx.scope, name, hopAnchorStart(hop));
+    return pair && hasOwn(KNOWN_STATIC_METHOD_RETURN_TYPES, pair.constructor) ? pair : null;
   }
 
   // post-rewrite VALUE alias of a whole namespace / constructor (`_Math` from 'math/namespace',
@@ -2081,6 +2107,7 @@ function createResolveNodeType(babelNodeType, t, {
     findTupleElement,
     unwrapMappedTypePassthrough,
     tupleAsArrayType,
+    elementContainerType,
     getTypeMembers: (...args) => getTypeMembers(...args),
     pickConditionalBranchVia,
     isUnconstrainedTypeShape,
@@ -2088,6 +2115,7 @@ function createResolveNodeType(babelNodeType, t, {
   ({
     resolveTypeAnnotation,
     resolveKnownContainerType,
+    resolveStructuralContainerType,
   } = typeAnnotationResolveCluster);
   const {
     resolveConstructorType,
@@ -2210,12 +2238,15 @@ function createResolveNodeType(babelNodeType, t, {
     resolveEnumMemberType,
     resolveEnumType,
     resolveNodeType,
+    // assigned by the awaited cluster above - passed by value, like the binding-analysis twin
+    functionTypeParams,
   });
   ({ findClassPathForTypeReference } = memberResolveCluster);
   const {
     resolveMemberCallChain,
     resolveBindingReturnInfo,
     memberCallReturnAnnotation,
+    memberCallParams,
     resolveFromMemberExpression,
     resolveArrayIndexAccess,
     resolveEnumMemberAccess,
@@ -2257,6 +2288,7 @@ function createResolveNodeType(babelNodeType, t, {
     isNullableOrNever,
     safeInnerType,
     tupleAsArrayType,
+    elementContainerType,
     foldUnionTypes,
     foldIntersectionTypes,
     resolveTypeAnnotation,
@@ -2273,8 +2305,10 @@ function createResolveNodeType(babelNodeType, t, {
     resolveMemberCallChain,
     unwrapTypeAnnotation,
     memberCallReturnAnnotation,
+    memberCallParams,
     resolveBindingReturnInfo,
     findAmbientFunctionPaths,
+    findBindingAnnotation,
     resolveTypeAnnotation,
   });
   const { parseUserPredicateGuardEntries, parseAssertionGuardEntries } = predicateGuardsCluster;
@@ -2296,6 +2330,7 @@ function createResolveNodeType(babelNodeType, t, {
     canFallThrough,
     KNOWN_STATIC_TYPE_GUARDS,
     babelBindingAdapter,
+    staticPairFromPolyfillBinding,
   });
   const {
     findEnclosingTypeGuards,
@@ -2303,9 +2338,7 @@ function createResolveNodeType(babelNodeType, t, {
     findConditionalGuards,
     findSwitchCaseGuards,
     findEarlyExitGuards,
-    guardAppliesToBinding,
     getStatementSiblings,
-    resolveExitCondition,
   } = typeofGuardsCluster;
 
   // guard-narrowing cluster: filters union annotations / synthesises from positive guards.
@@ -2316,20 +2349,18 @@ function createResolveNodeType(babelNodeType, t, {
     t,
     resolveTypeAnnotation,
     isNullableOrNever,
-    commonType,
+    foldUnionTypes,
     resolveKnownConstructor,
     findBindingAnnotation,
     followTypeAliasChain,
     applyAliasSubstDeep,
     findEnclosingTypeGuards,
-    guardAppliesToBinding,
     nearestPrecedingGuardIndex,
     findConditionalGuards,
     findSwitchCaseGuards,
     findEarlyExitGuards,
     getStatementSiblings,
     canFallThrough,
-    resolveExitCondition,
   });
   const {
     resolveGuardType,
@@ -2374,6 +2405,7 @@ function createResolveNodeType(babelNodeType, t, {
     resolveCallReturnType,
     typeFromHint,
     resolveArrayLiteralCommonType,
+    elementContainerType,
     resolveThisAnchor,
     computeObjectAliasClosure,
     thisAnchorIsProvable,

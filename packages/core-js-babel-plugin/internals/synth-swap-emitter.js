@@ -122,19 +122,6 @@ export default function createSynthSwapEmitter({
   // runs twice per file - end of pre-traverse and programExit)
   let pendingSwapCount = 0;
 
-  // ObjectPatterns CLAIMED by the destructure pipeline (a resolvable prop reached
-  // `handleObjectPropertyResult`). the proxy-hop collapse defers only to a pattern something
-  // actually OWNS - an unclaimed pattern (`const { zzz } = globalThis['self'].Array`, no
-  // polyfillable prop) has no owner to collapse the hop, so deferring strands a raw
-  // `_globalThis['self']...` (undefined off-engine); it collapses in place like a
-  // non-destructure receiver. pattern props visit before the init, so the claim always
-  // precedes the init-time hop-climb
-  const claimedDestructurePatterns = new WeakSet();
-
-  function claimDestructurePattern(patternNode) {
-    claimedDestructurePatterns.add(patternNode);
-  }
-
   // `(fn, R)` SE evaluates to its tail. peel SE prefixes recursively through paren wrappers
   // so flat / nested forms (`(0, R)` vs `(0, (1, R))`) classify identically. peel is
   // unconditional including for side-effecting prefixes: synth-swap's `replaceWith` mutates
@@ -517,15 +504,12 @@ export default function createSynthSwapEmitter({
     if (!deleteHostAboveChain(recPath, recPath.node, unwrapRuntimeExpr)
       && navValueCanShortCircuit(recPath.node, resolvePure, aliasCtx)) return false;
     if (runSwallowsStoreProbe(recPath.node, resolvePure)) return false;
-    // the destructure-emitter OWNS the collapse when the chain is an OBJECT-pattern destructure SOURCE
-    // it CLAIMED (named props feed a synth literal `{ from: _Array$from }`); collapsing here too
-    // double-injects a dead `_globalThis`, even when the source sits under value carriers (`{from} =
-    // (se, chain) || Set`). climb the carriers to the binding context and skip a CLAIMED OBJECT-pattern
-    // target. an UNCLAIMED pattern (`const { zzz } = ...`, no polyfillable prop) has no owner - deferring
-    // strands a raw `_globalThis.self.X` (undefined off-engine), so it collapses HERE like a
-    // non-destructure receiver. an ARRAY pattern binds by index / iteration, NEVER a named static the
-    // emitter could synth-swap, so the emitter never owns it - collapse the hop HERE too. a plain default
-    // VALUE (`{ x = chain }`, target Identifier) is not a source. mirrors the unplugin gate
+    // a destructure SOURCE is a receiver like any other: the hop collapse owns it here, and the
+    // pattern's own render - where one fires - replaces the whole source with its synth literal, so
+    // the two never spell the same node. a pattern-shaped target was once deferred to that render on
+    // the strength of a CLAIM census, which answered differently on the two legs and left a raw
+    // `_globalThis.self.X` standing on one of them - undefined off-engine, where the polyfilled
+    // product answers. a plain default VALUE (`{ x = chain }`, target Identifier) is not a source
     let ctxPath = recPath.parentPath;
     // a value-OBSERVING carrier (`??` / `||` / `&&` / ternary) between the receiver and the binding OBSERVES
     // the receiver's undefined/falsy: `{x} = globalThis.window ?? {}` reads `undefined ?? {}` = `{}` off-engine.
@@ -538,7 +522,6 @@ export default function createSynthSwapEmitter({
     const ctx = ctxPath?.node;
     const target = ctx?.type === 'VariableDeclarator' ? ctx.id
       : ctx?.type === 'AssignmentPattern' || ctx?.type === 'AssignmentExpression' ? ctx.left : null;
-    if (target?.type === 'ObjectPattern' && claimedDestructurePatterns.has(target)) return false;
     // an ALL-proxy chain END (`globalThis.self.window`, no non-proxy leaf) collapses to the bare root ONLY as
     // a DISCARDED destructure SOURCE whose value the canon calls DEFINED - a deep unresolvable hop is a
     // realm self-reference, invariant of which global names it, safe to drop (`{Object:OD} = _globalThis`);
@@ -559,7 +542,7 @@ export default function createSynthSwapEmitter({
       // realm self-reference): a value that can be absent is the environment PROBE, and the
       // always-defined root would destructure where native throws - decline to the natural
       // root swap, whose kept raw hop keeps the throw (`= _globalThis.window`)
-      if (!navHasUnresolvableProxyHop(recPath.node, resolvePure)
+      if (!navHasUnresolvableProxyHop(recPath.node, resolvePure, aliasCtx)
         || proxyReceiverValueCanBeUndefined(recPath.node, resolvePure, aliasCtx)) return false;
       const rootIdent = findProxyGlobal(recPath.node, aliasCtx, true);
       const rootPure = rootIdent && proxyRunLandingPure({
@@ -598,7 +581,7 @@ export default function createSynthSwapEmitter({
     const deleteHost = deleteHostAboveChain(recPath, recPath.node, unwrapRuntimeExpr)
       && !navCarriesChainAssign(recPath.node);
     if (isWriteTarget && !deleteHost
-      && !navHasUnresolvableProxyHop(recPath.node.object, resolvePure)) return false;
+      && !navHasUnresolvableProxyHop(recPath.node.object, resolvePure, aliasCtx)) return false;
     // this drive REPLACES the receiver subtree, so the render carries the kept user nodes by
     // identity - a cloned kept write stranded the scope tracker's violation records on the
     // detached original, and every later placement-gated trust ask about its alias failed
@@ -896,7 +879,7 @@ export default function createSynthSwapEmitter({
   }
 
   return {
-    apply, claimDestructurePattern, collapseProxyGlobalReceiver, collapseProxyHopRoot,
+    apply, collapseProxyGlobalReceiver, collapseProxyHopRoot,
     findTargetPath, detectIifeArgPath, registerPolyfill, tryRegisterPerBranchSynth,
   };
 }

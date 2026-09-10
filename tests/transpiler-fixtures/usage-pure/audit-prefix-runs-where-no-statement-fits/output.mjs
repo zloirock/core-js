@@ -1,10 +1,10 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Map from "@core-js/pure/actual/map/constructor";
-import _Set from "@core-js/pure/actual/set/constructor";
-import _WeakMap from "@core-js/pure/actual/weak-map/constructor";
-import _WeakSet from "@core-js/pure/actual/weak-set/constructor";
+import _Map from "@core-js/pure/actual/map";
+import _Set from "@core-js/pure/actual/set";
+import _WeakMap from "@core-js/pure/actual/weak-map";
+import _WeakSet from "@core-js/pure/actual/weak-set";
 // the same prefix rule where the host has no statement slot to lift into. a bodyless control slot
 // is BRACED first, so the effect stays conditional; a multi-declarator host SPLITS and the prefix
 // opens its own declarator's group, past the sibling init that runs before it - and so does the

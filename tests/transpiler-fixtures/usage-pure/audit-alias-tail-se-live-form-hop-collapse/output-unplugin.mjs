@@ -1,6 +1,10 @@
+// the redundant `.self` hop drops off an OWNERLESS alias nav, and the two legs then spell the
+// receiver differently: babel inlines the alias to the pure root, the unplugin keeps `g` (whose
+// declaration is rewritten to that root). the accepted kept-alias class, sidecar-held - the three
+// realms read the same value either way, and both legs drop the same dead hop, which is the lock
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Map from "@core-js/pure/actual/map/constructor";
-import _Set from "@core-js/pure/actual/set/constructor";
+import _Set from "@core-js/pure/actual/set";
 
 let c = 0;
 const g = _globalThis;

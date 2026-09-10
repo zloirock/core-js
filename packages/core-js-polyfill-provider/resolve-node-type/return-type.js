@@ -64,7 +64,7 @@ export function createReturnType({
   shadowMethodTypeParams,
   dropTypeParamSubst,
   isNullableOrNever,
-  safeInnerType,
+  elementContainerType,
   commonType,
   findPatternKeyPath,
   resolveDestructuredMember,
@@ -298,7 +298,7 @@ export function createReturnType({
       if (!type) return null;
       // skip bare `return;` (implicit undefined, common in `catch { return; }`
       // bail-outs) and `never`-typed returns (consistent with how
-      // resolveConditionalBranches handles never branches)
+      // the conditional fold strips never branches)
       if (isBareReturn || type.type === 'never') {
         droppedNullish ||= isBareReturn;
         continue;
@@ -606,7 +606,10 @@ export function createReturnType({
       const yieldType = classSubstInner(params?.[0], classSubst);
       let inner = yieldType ? resolveTypeAnnotation(yieldType, fnPath.scope, depth + 1) : null;
       if (!inner && yieldType && callPath) inner = applyCallSiteSubst(yieldType, fnPath, callPath);
-      return new $Object(fnPath.node.async ? 'AsyncIterator' : 'Iterator', safeInnerType(inner));
+      // a yield type this layer did not resolve - never written, or written and not representable -
+      // leaves the iterator inner-less, and that absence is the bare shape every element matches.
+      // Two generators whose yields it could not read compared EQUAL and answered TRUE
+      return elementContainerType(new $Object(fnPath.node.async ? 'AsyncIterator' : 'Iterator'), yieldType, inner);
     }
     // peel TSTypeAnnotation + apply class subst upfront. a method's signature-local `<T>` (`take<T>(): T`)
     // is bound by the CALL ARGS, not the enclosing class subst, so DROP it from the class subst first - a

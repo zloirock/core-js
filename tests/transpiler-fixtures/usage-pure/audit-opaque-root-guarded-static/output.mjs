@@ -126,12 +126,12 @@ const cse = () => {
 };
 export const viaChainAssignSeBody = null == (heldSe = cse(), _self) ? void 0 : _atMaybeArray(_ref18 = _Array$of(18)).call(_ref18, 0);
 
-// an SE-PREFIXED computed hop key still RESOLVES for the guard count (the effect stays live in
-// the kept test text, in source order after the window test) - the branch reads the ponyfill
-// leaf
+// an SE-PREFIXED computed hop key still RESOLVES for the guard count: the memo composes with the
+// probe rather than testing its result again, so ONE test stands and the effect rides the composed
+// leaf into the branch - still once, still in source order after the window test
 let keyEff = 0;
 const sk = () => _globalThis;
-export const viaSeComputedOwnKey = null == (null == sk().window ? void 0 : (keyEff++, _self)) ? void 0 : _atMaybeArray(_ref19 = _Array$of(19)).call(_ref19, 0);
+export const viaSeComputedOwnKey = null == sk()?.window ? void 0 : _atMaybeArray(_ref19 = (keyEff++, _Array$of)(19)).call(_ref19, 0);
 
 // a TEMPLATE-literal hop key resolves like the dotted spelling through the canonical key fold
 const tk = () => _globalThis;

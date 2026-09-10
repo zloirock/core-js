@@ -3,16 +3,15 @@
 // abstracting this would require an extra adapter layer for one Set lookup - kept inline
 import {
   MUTATED_MEMBERS_UNKNOWN,
+  MUTATED_STATIC_PINNED,
   kebabToPascal,
   POSSIBLE_GLOBAL_OBJECTS,
   proxyNavEffectsHarvestable,
   unwrapRuntimeExpr,
-  rootProgramOf,
 } from './helpers/ast-patterns.js';
-import { ESCAPED_CTOR_REFS, nodePositionKey } from './detect-usage/mutations.js';
 import { TYPE_HINTS } from './resolve-node-type/base.js';
 import { initPluginOptions } from './plugin-options/init.js';
-import { createPolyfillContext, resolve } from './index.js';
+import { createPolyfillContext, entryToGlobalHint, resolve } from './index.js';
 
 const { hasOwn } = Object;
 
@@ -157,7 +156,7 @@ function pureImportName(kind, name, importEntry) {
 // high-level polyfill resolver factory.
 // validates options, resolves targets, creates resolver + debug output.
 export function createPolyfillResolver(options, {
-  typeResolvers, astPredicates, getBabelTargets, isMutatedStatic = null,
+  typeResolvers, astPredicates, getBabelTargets, isMutatedStatic = null, isEscapedCtor = null,
 } = {}) {
   const { resolvePropertyObjectType, resolveGuardHints, resolvePropertyUnionHints, toHint, isString, isObject } = typeResolvers;
   const { isMemberLike, isCallee, isSpreadElement } = astPredicates;
@@ -291,9 +290,29 @@ export function createPolyfillResolver(options, {
     return entry;
   }
 
+  // a constructor this build never polyfills as a BINDING - `Array`, `Object`, `String` - carries no
+  // definition of its own, so a bare read of it rightly injects nothing. its ESCAPE is the other
+  // question: whoever the reference was handed to reads the statics this build DOES polyfill, and
+  // with no definition to widen there was nothing to answer with. the NAMESPACE entry is that
+  // answer, the same one every other escaping constructor widens to
+  const NAME_TO_ENTRY = /[0-9a-z](?=[A-Z])/gu;
+  function escapedNamespaceEntry(meta) {
+    // the same reference in its member spelling (`globalThis.Array`, `self.Array`): the proxy root
+    // names no value of its own, so the KEY is the constructor and the question is the same one
+    const name = meta?.kind === 'global' ? meta.name
+      : meta?.kind === 'property' && POSSIBLE_GLOBAL_OBJECTS.has(meta.object) ? meta.key : null;
+    if (typeof name !== 'string' || !ctorNameIsOpaque(name)) return null;
+    const entry = name.replaceAll(NAME_TO_ENTRY, '$&-').toLowerCase();
+    // ... and the entry has to name THIS constructor back. the mapping folds case, so an ordinary
+    // free identifier that merely rhymes with a global - `array`, `set`, `promise`, and `ARRAY` with
+    // it - derived a real entry and escaped into that global's whole family. only the spelling the
+    // entry itself stands for may widen to it
+    return entryToGlobalHint(entry) === name && ctx.isEntryNeeded(entry) ? [entry] : null;
+  }
+
   function resolveUsage(meta, path, { skipFilters = false } = {}) {
     const resolved = resolve(meta);
-    if (!resolved || !hasOwn(resolved.desc, 'global')) return null;
+    if (!resolved || !hasOwn(resolved.desc, 'global')) return escapedNamespaceEntry(meta);
     let { kind, desc: { global: desc } } = resolved;
     // a synthetic inherited-static meta (`super.at()` / `this.at()` in a static method) whose key
     // resolves to an INSTANCE desc means no such static exists on the super class - bail rather than
@@ -315,21 +334,44 @@ export function createPolyfillResolver(options, {
     // call-shape filters (e.g. Error's min-args / cause-option arg check) read the WRONG call (the
     // static method's args) and flip the injection on that arg count. skip them for that pass
     if (!skipFilters && rejectsByFilters(desc, path)) return null;
-    return dependencies;
+    // an OPAQUE constructor owes its family here too: this flavor installs on the global slot, and
+    // the bare `<x>/constructor` module installs the constructor ALONE - so the consumer an escaped
+    // reference was handed read `undefined` for `Map.groupBy`, which the native core-js replaced on
+    // a floor engine answers. asked of the NAME, like the pure half: whichever position spelled the
+    // escape, every read of that name in the file lands on the one global slot
+    if (resolved.kind !== 'global' || !ctorNameIsOpaque(resolved.name)) return dependencies;
+    return dependencies.map(ctorFamilyEntry);
+  }
+
+  // is a read through this constructor able to land where the file cannot see? the escape census
+  // names the constructors handed OUT, the mutation census the ones whose MEMBERS it could not name
+  // (`delete Map[k]`); either way the reference has to carry the constructor's statics itself. the
+  // mutation arm answers only where its pre-pass runs, which is usage-pure: a mutation hands nothing
+  // out of the file, so what the global flavor owes a family for is the escape
+  // `heldInSlot` is the half only a MINTED binding owes: a constructor stored in a container slot of
+  // this file stays where usage-global can see it - every read still lands on the one global slot it
+  // patches - while usage-pure substitutes its own binding there and declines to read that slot back,
+  // so the entry it picks is the last chance to carry the statics
+  function ctorNameIsOpaque(name, heldInSlot = false) {
+    return isEscapedCtor?.(name, heldInSlot) === true || isMutatedStatic?.(name, MUTATED_MEMBERS_UNKNOWN) === true
+      || isMutatedStatic?.(name, MUTATED_STATIC_PINNED) === true;
+  }
+
+  // the entry a NARROW dependency widens to: its family sibling, a module superset of the narrow one
+  // in every layer, so widening never drops what the narrow entry carried. ONE answer for both
+  // flavors - pure imports the family ponyfill, usage-global injects that same entry's modules onto
+  // the global slot. BOTH spellings of narrow: a constructor global names its bare binding
+  // `<x>/constructor`, a namespace global names its bare object `<x>/namespace`, and asking only for
+  // the first shipped the escaped namespace as a stub - every static read off it answered
+  // `undefined` on the floor, which is the one thing this widen exists to prevent
+  const NARROW_ENTRY = /\/(?:constructor|namespace)$/u;
+  function ctorFamilyEntry(entry) {
+    return entry.replace(NARROW_ENTRY, '');
   }
 
   // assignment spellings that store their RHS VALUE into the target slot: the plain write
   // and the logical compounds (a `||=` stores the ctor exactly like `=` when it fires);
   // arithmetic compounds store a computed value, never the bare reference
-
-  // the census stamp, looked up by SOURCE POSITION under the claim's own program: a
-  // position survives our rewrites' clones and region rebuilds, where node identity does not
-  function escapedCtorClaim(path) {
-    const node = path?.node;
-    if (node?.type !== 'Identifier') return false;
-    const key = nodePositionKey(node);
-    return key !== null && ESCAPED_CTOR_REFS.get(rootProgramOf(path))?.has(key) === true;
-  }
 
   // shared pure-resolve protocol: resolve meta -> require `pure` desc -> extract (kind, desc)
   // -> caller-supplied effectiveMeta builder -> resolvePureEntry -> build return shape.
@@ -363,10 +405,13 @@ export function createPolyfillResolver(options, {
     // reads through it are unresolvable for the same reason, and every one of them lands on this
     // binding, so it has to bring the statics itself. the bare constructor entry installs none,
     // which a realm without the native answers with `undefined`
-    if (entry.endsWith('/constructor')
-      && (escapedCtorClaim(path) || isMutatedStatic?.(resolved.name, MUTATED_MEMBERS_UNKNOWN))) {
-      entry = entry.replace(/\/constructor$/u, '');
-    }
+    // ... and both questions are asked of the NAME, per file, never of the reference's own position.
+    // the two entries name ONE runtime value, so a per-position answer mints a second binding for it
+    // and leaves the ctor-identity guard testing a value taken from one against the other - a
+    // comparison that passes only because the two modules happen to export the same object, which
+    // nothing about them guarantees. the file-wide reading costs no module either: what a split file
+    // imported was the namespace entry AND its own subset
+    if (NARROW_ENTRY.test(entry) && ctorNameIsOpaque(resolved.name, true)) entry = ctorFamilyEntry(entry);
     return {
       entry,
       kind,
@@ -412,7 +457,11 @@ export function createPolyfillResolver(options, {
       const globalMeta = { kind: 'global', name: meta.object };
       const globalResolved = resolve(globalMeta);
       if (globalResolved && hasOwn(globalResolved.desc, 'pure')) {
-        const entry = resolvePureEntry({ kind: globalResolved.kind, desc: globalResolved.desc.pure, meta: globalMeta, path });
+        let entry = resolvePureEntry({ kind: globalResolved.kind, desc: globalResolved.desc.pure, meta: globalMeta, path });
+        // ... and the SAME widening the direct resolve applies: one name answers with ONE entry per
+        // file, so a fallback minting the bare `*/constructor` beside a widened read mints that name a
+        // second binding and leaves the identity guard comparing a value from one against the other
+        if (entry && NARROW_ENTRY.test(entry) && ctorNameIsOpaque(meta.object, true)) entry = ctorFamilyEntry(entry);
         if (entry) return { result: null, fallback: { entry, hintName: meta.object } };
       }
     }
