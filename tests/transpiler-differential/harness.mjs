@@ -21,6 +21,7 @@ import { parseSync } from 'oxc-parser';
 import tsStrip from '@babel/plugin-transform-typescript';
 import decoratorsPlugin from '@babel/plugin-proposal-decorators';
 import classPropsPlugin from '@babel/plugin-transform-class-properties';
+import classStaticBlockPlugin from '@babel/plugin-transform-class-static-block';
 import babelPlugin from '../../packages/core-js-babel-plugin/index.js';
 import createPlugin from '../../packages/core-js-unplugin/internals/plugin.js';
 import { printProgram } from '../../packages/core-js-unplugin/internals/print.js';
@@ -53,8 +54,12 @@ const TMP = process.env.DIFF_TMP ?? join(HERE, 'tmp');
 // `decorators-legacy` is harmless for non-decorator TS, so one parser config covers all TS snippets
 const TS_PARSER = { plugins: ['typescript', 'decorators-legacy'] };
 // strip TS to runnable JS; legacy decorators + class properties make decorated classes executable.
-// babel@8 replaced the `legacy: true` shorthand with a required `version: 'legacy' | '2023-11'`
-const STRIP_PLUGINS = [[decoratorsPlugin, { version: 'legacy' }], classPropsPlugin, tsStrip];
+// babel@8 replaced the `legacy: true` shorthand with a required `version: 'legacy' | '2023-11'`.
+// the class-features plugin THROWS on a `static {}` block unless the static-block plugin stands
+// beside it, and that throw lands as a native SyntaxError - which every deep leg then abstains on
+// (`native-throw`) while the row still passes, so a whole deferral host would be unwritable in TS
+// with nothing red to show for it
+const STRIP_PLUGINS = [[decoratorsPlugin, { version: 'legacy' }], classPropsPlugin, classStaticBlockPlugin, tsStrip];
 
 export async function transformBabel(src, options, ts = false) {
   const out = await transformAsync(src, {
@@ -243,10 +248,15 @@ export function setEqual(a, b) {
 }
 
 // run both oracles on one snippet; returns the verdict + raw materials for reporting. a transform
-// that THROWS (e.g. an unplugin composition invariant) is itself a bug - captured, not propagated
+// that THROWS (e.g. an unplugin composition invariant) is itself a bug - captured, not propagated.
+// `stripCoverage` / `astCoverage` say, for each deep leg, whether the snippet was CHECKED or the
+// NAMED reason it was not: the shard turns them into the run's coverage accounting, and a leg that
+// stops deep-checking then shows as a shortfall instead of as a silently smaller number
 export async function checkSnippet(src, options, ts = false, stripCheck = false) {
   const { babelOut, unpluginOut, babelError, unpluginError } = await transformBoth({ src, options, ts, timed: true });
-  if (babelError || unpluginError) return { transformCrash: true, babelError, unpluginError };
+  if (babelError || unpluginError) {
+    return { transformCrash: true, babelError, unpluginError, stripCoverage: 'transform-crash', astCoverage: 'transform-crash' };
+  }
 
   const babelImports = WANT_BABEL ? importSet(babelOut) : new Set();
   const unpluginImports = WANT_UNPLUGIN ? importSet(unpluginOut) : new Set();
@@ -275,15 +285,22 @@ export async function checkSnippet(src, options, ts = false, stripCheck = false)
     },
   });
   mark('eval native', t0);
+  // a native SyntaxError is never an "uninteresting throw" the corpus meant to write: the module the
+  // harness materialized is not runnable at all, so every deep leg abstains under `native-throw` and
+  // the row passes having compared nothing. it is what a TS shape the strip pipeline cannot lower
+  // looks like from here - and that reads exactly like a shape the corpus does not carry
+  const nativeMalformed = native === 'ERR|SyntaxError';
   // AST-engine print-through leg: printed source must reproduce the native reference in the
   // full env. runs under the same `self` aliasing as native - it IS native semantics, only
   // re-printed. gated on native producing a value for the same reason the stripped leg is:
   // ERR == ERR would pass vacuously on error-name collapse
   let astPrintMismatch = false;
   let astPrintRun = null;
+  let astCoverage = 'native-throw';
   if (!native.startsWith('ERR')) {
     t0 = process.hrtime.bigint();
     const astPrinted = printThroughAst(src, ts);
+    astCoverage = astPrinted === null ? 'unparsable' : 'checked';
     if (astPrinted !== null) {
       astPrintRun = await cached({
         type: 'ast-print',
@@ -325,7 +342,10 @@ export async function checkSnippet(src, options, ts = false, stripCheck = false)
   // oracle meaningless - a MISSED injection throws too, and runtimeKey collapses distinct errors to the
   // errorName, so ERR == ERR regardless of whether the polyfill ran. only a value-producing native gives
   // the stripped realm a reference that a leftover (now-throwing) native call would visibly diverge from
-  if (stripCheck && !native.startsWith('ERR')) {
+  // named in the order the gates above are written: `not-strip-family` first, so the leg's
+  // `native-throw` bucket counts the shapes that DO assert an injection and lost the oracle anyway
+  const stripCoverage = !stripCheck ? 'not-strip-family' : native.startsWith('ERR') ? 'native-throw' : 'checked';
+  if (stripCoverage === 'checked') {
     t0 = process.hrtime.bigint();
     babelStripped = WANT_BABEL
       ? await cached({ type: 'strip-babel', code: babelOut, evaluate: async () => evalStripped(await babelFile()) })
@@ -341,9 +361,11 @@ export async function checkSnippet(src, options, ts = false, stripCheck = false)
     importMismatch: EMITTER === 'both' && !setEqual(babelImports, unpluginImports),
     runtimeMismatch: (WANT_BABEL && native !== babelRun) || (WANT_UNPLUGIN && native !== unpluginRun),
     pluginRuntimeDiverge: EMITTER === 'both' && babelRun !== unpluginRun,
+    nativeMalformed,
     strippedMismatch,
     astPrintMismatch,
-    astChecked: astPrintRun !== null,
+    stripCoverage,
+    astCoverage,
     babelImports,
     unpluginImports,
     native,
@@ -359,10 +381,11 @@ export async function checkSnippet(src, options, ts = false, stripCheck = false)
 // checkSnippet so the verdict's shape and its meaning stay in one place - a runner shouldn't decode
 // the verdict's internals itself. `detail` is empty when not failed
 export function summarizeVerdict(v) {
-  if (!(v.transformCrash || v.importMismatch || v.runtimeMismatch || v.strippedMismatch || v.astPrintMismatch)) {
+  if (!(v.transformCrash || v.nativeMalformed || v.importMismatch || v.runtimeMismatch || v.strippedMismatch || v.astPrintMismatch)) {
     return { failed: false, detail: '' };
   }
   const details = [];
+  if (v.nativeMalformed) details.push('native leg is not runnable (SyntaxError) - the snippet never reached any oracle');
   if (v.babelError) details.push(`babel threw: ${ v.babelError }`);
   if (v.unpluginError) details.push(`unplugin threw: ${ v.unpluginError }`);
   if (v.importMismatch) {

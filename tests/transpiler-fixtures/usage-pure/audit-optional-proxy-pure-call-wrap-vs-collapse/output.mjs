@@ -3,7 +3,7 @@ import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Map from "@core-js/pure/actual/map/constructor";
 import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
-import _WeakSet from "@core-js/pure/actual/weak-set/constructor";
+import _WeakSet from "@core-js/pure/actual/weak-set";
 var _ref;
 // An optional `?.` on a proxy-global chain rooted in an inline-resolvable PURE call (`(() => globalThis)()
 // ?.self.X`) keeps the call LIVE in the null-guard (`_ref = call`) when the polyfill WRAPS the chain as a

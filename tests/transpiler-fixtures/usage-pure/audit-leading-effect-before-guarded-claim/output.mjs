@@ -1,7 +1,7 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
 import _self from "@core-js/pure/actual/self";
 // an effect the source wrote AHEAD of a guarded claim's root has a home of its own: it evaluates
 // before the guard test, so it wraps the whole claim. the SE classifier knew only two regions -

@@ -117,12 +117,18 @@ function coarseSaysMutated(recordedKey, roots) {
   return reader.isMutatedStaticSlot(key.slice(0, dot), key.slice(dot + 1));
 }
 
+const { MUTATED_STATIC_PINNED } = await import('@core-js/polyfill-provider/helpers/ast-patterns');
+
 for (const [label, source] of CHANNELS) {
   const programPath = await programOf(source);
   const census = collectFileCensus(programPath.node, [mutationShapesReducer(null)]);
   const adapter = createBabelAdapter({ method: 'usage-pure', getMutatedStatics: () => null });
   const scoped = [...collectMutationPrePass(programPath, adapter, census).mutated ?? []];
-  const uncovered = scoped.filter(key => !coarseSaysMutated(key, census.mutationRoots));
+  // the PINNED marker is not a slot fact: it says only that the ctor's ENTRY has to carry a member
+  // the file patched, and no reader ever asks the cheap roots for it. the superset property is about
+  // the slots those readers do ask about, so counting this key here would compare two questions
+  const uncovered = scoped.filter(key => !String(key).endsWith(`.${ MUTATED_STATIC_PINNED }`))
+    .filter(key => !coarseSaysMutated(key, census.mutationRoots));
   checkTruthy(`gate covers the scoped set: ${ label }`, uncovered.length === 0);
 }
 

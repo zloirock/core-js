@@ -695,6 +695,9 @@ export function buildNestedDestructurePlan({
     }
     if (value?.type === 'Identifier') {
       if (leafDisabled(outerProp)) return { kind: 'verbatim', prop: outerProp };
+      // resolved by NAME with no node of its own, and needing none: the ctor a destructured slot
+      // hands out carries its statics exactly as a spelled-out member read of the same surface
+      // does, because the ENTRY is one file-wide answer per ctor name
       const pure = resolveGlobalPolyfill(name);
       if (!pure) return { kind: 'verbatim', prop: outerProp };
       return {

@@ -2,7 +2,7 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
 import _self from "@core-js/pure/actual/self";
 // ... and WHO holds the value a store hands on: a read THROUGH it is the consumer's own, and that
 // read is the proof the value must be the realm object - so the probe folds there whatever the run

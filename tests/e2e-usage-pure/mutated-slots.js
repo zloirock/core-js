@@ -349,17 +349,18 @@ QUnit.test('mutated-slots: dynamic-key static patch wins over the ponyfill', ass
   assert.same(observed, 'patched');
 });
 
-// `delete` through the environment probe - the only legal WRITE through an optional chain. the member
-// it names is never READ, so no `?.` over the navigation is load-bearing: the nav collapses whole and
-// the slot is reached off the ponyfill on either host. the emitted form must still be a REFERENCE - a
-// tail folded inside a guard ternary evaluates and deletes nothing.
+// `delete` through the environment probe - the only legal WRITE through an optional chain. the nav
+// under it collapses onto the ponyfill, but the LIVE `?.` over the PROBE stays: it decides whether
+// the delete happens, and off-env the source reaches no slot at all. the emitted form must still be
+// a REFERENCE where it does run - a tail folded inside a guard ternary evaluates and deletes nothing.
 // LOWERED legs are excluded by the second-pass class the area's AGENTS.md records
 const testUnlessDetectLowered = typeof E2E_DETECT_LOWERED === 'undefined' ? QUnit.test : QUnit.skip;
-testUnlessDetectLowered('mutated-slots: delete through a probe chain reaches the realm slot', assert => {
+testUnlessDetectLowered('mutated-slots: delete through a probe chain keeps its guard', assert => {
+  const hasWindow = typeof window != 'undefined';
   globalThis.probeDeleteSlot = 1;
   try {
     assert.true(delete globalThis.window?.self.probeDeleteSlot);
-    assert.false('probeDeleteSlot' in globalThis, 'the delete reaches the realm slot');
+    assert.same('probeDeleteSlot' in globalThis, !hasWindow, 'the delete reaches the realm slot only past the probe');
   } finally {
     delete globalThis.probeDeleteSlot;
   }

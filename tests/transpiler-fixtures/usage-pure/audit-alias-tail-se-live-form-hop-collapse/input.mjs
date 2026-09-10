@@ -1,3 +1,7 @@
+// the redundant `.self` hop drops off an OWNERLESS alias nav, and the two legs then spell the
+// receiver differently: babel inlines the alias to the pure root, the unplugin keeps `g` (whose
+// declaration is rewritten to that root). the accepted kept-alias class, sidecar-held - the three
+// realms read the same value either way, and both legs drop the same dead hop, which is the lock
 let c = 0;
 const g = globalThis;
 function id(a) { return a; }

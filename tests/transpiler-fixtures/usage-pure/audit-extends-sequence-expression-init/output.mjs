@@ -1,4 +1,4 @@
-import _Promise from "@core-js/pure/actual/promise/constructor";
+import _Promise from "@core-js/pure/actual/promise";
 import _Promise$try from "@core-js/pure/actual/promise/try";
 // alias init wrapped in a comma expression: `const A = (sideEffect(), Promise)`. at
 // runtime A === Promise (last expression of comma chain). plugin peels the comma-tail when

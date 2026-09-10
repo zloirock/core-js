@@ -18,14 +18,12 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/members';
 import {
   claimIsInert,
+  climbTransparentWrapperPath,
   deleteHostAboveChain,
   isDeoptedGlobalSlotRead,
-  isNullLiteralNode,
   isReusableReceiver,
   isTaggedTemplateTag,
-  isPristineProxyGlobal,
   mayHaveSideEffects,
-  memberProxyHopName,
   mutatedSlotLeftNativeWarning,
   peelParenAndTSParentPath,
   receiverCarriesLiveOptional,
@@ -61,7 +59,7 @@ import {
   foldPendingReceiverSpineRoot,
   insideMemoClone,
   markSubtreeSkipped,
-  noteUnbackedHopAliasInit,
+  noteProxyHopClaimHost,
   optionalsAreSealed,
   sourceSpanKey,
 } from './nav-spine.js';
@@ -113,9 +111,6 @@ function markDeleteHostedSpine(node, marks, storeKeepsShortCircuit) {
   }
 }
 
-// an OPTIONAL member with a harvested SE key over a REUSABLE receiver: the receiver is its own
-// null test - no memo is owed - and the key effects run INSIDE the branch, because native skips
-// the property read entirely when the receiver is nullish (`arr?.[(probe(), 'includes')](42)`)
 // the slot-deopt DIAGNOSTIC: a global slot
 // the file writes ITSELF keeps its reads native, and the debug report says so once per name
 function noteDeoptedSlotRead(meta, { getDebugOutput, adapter, noted }) {
@@ -142,28 +137,12 @@ function fallbackSwapsSequenceTail(node, meta) {
   return recvHeld && keyHeld ? receiver : null;
 }
 
+// the receiver carries a chain-assignment the harvest EXCLUDED, leaving behind only the slot it
+// evaluates in. the static collapse is the one render with a slot to splice it back into
+// (`emitStaticGlobalClaim`, through the canonical prepend), so every other arm stays raw on a true
+// answer - the instance arm only for an assign its own receiver memo does not already carry
 function chainAssignStaged(meta) {
   return meta.chainAssignInsertAt !== null && meta.chainAssignInsertAt !== undefined;
-}
-
-// is this claim inside a short-circuit guard's null TEST (`null == <nav> ? void 0 : ...`)?
-// that nav is the read the test performs and spells the source's own call. asked by SHAPE,
-// because the probe may ride into the test by IDENTITY (the keep-live carve), invisible to
-// the clone registries
-function inShortCircuitGuardTest(metaPath) {
-  for (let up = metaPath; up?.node; up = up.parentPath) {
-    const p = up.parentPath?.node;
-    if (p?.type === 'BinaryExpression' && (p.operator === '==' || p.operator === '!=')
-      && (isNullLiteralNode(p.left) || isNullLiteralNode(p.right))) {
-      const host = up.parentPath.parentPath?.node;
-      return host?.type === 'ConditionalExpression' && host.test === p;
-    }
-    if (p?.type === 'MemberExpression' || p?.type === 'CallExpression'
-      || p?.type === 'ChainExpression' || p?.type === 'SequenceExpression'
-      || p?.type === 'AssignmentExpression' || TRANSPARENT_EXPR_WRAPPER_TYPES.has(p?.type)) continue;
-    return false;
-  }
-  return false;
 }
 
 export default function createAstUsagePureCallback({
@@ -283,6 +262,7 @@ export default function createAstUsagePureCallback({
     emitOwnOptionalGuardedClaim,
     emitStaticGlobalClaim,
     emitStaticOverGuardedNav,
+    mutatedRunKeepsItsGuards,
     peelNonNullWraps,
     proxyHopKey,
     spineIsNavigated,
@@ -417,8 +397,6 @@ export default function createAstUsagePureCallback({
     markSubtreeSkipped(skippedNodes, consumed);
   }
 
-  // `obj[Symbol.iterator]()` -> `_getIterator(obj)`; the read form -> `_getIteratorMethod(obj)`.
-  // proxy-root collapse, SE threading and the optional spellings are staged
   // a proxy-nav symbol receiver collapses through the shared plan: redundant hops drop, a
   // kept chain-assign root re-emits itself, harvested effects ride the collapsed spine
   // (`(a = globalThis.window).self[S]` -> `_gim(a = _globalThis.window)`), a dropped hop's
@@ -514,6 +492,7 @@ export default function createAstUsagePureCallback({
     return true;
   }
 
+  // `obj[Symbol.iterator]()` -> `_getIterator(obj)`; the read form -> `_getIteratorMethod(obj)`
   function handleSymbolIterator(meta, metaPath) {
     const { node } = metaPath;
     if (node.object?.type === 'Super') return;
@@ -625,8 +604,6 @@ export default function createAstUsagePureCallback({
     markSubtreeSkipped(skippedNodes, consumed);
   }
 
-  // `x?.[S]` / `x?.[S]()` - the null test guards the whole consumed shape; a non-reusable
-  // receiver memoizes through the shared guard
   // the consume CORE: the helper call, and for the method form its `.call` dispatch -
   // a non-reusable receiver memoizes into the helper argument
   function buildSymbolConsumeCore({ id, object, methodCallConsume, callerPath, metaPath, receiverClone }) {
@@ -645,6 +622,8 @@ export default function createAstUsagePureCallback({
     return core;
   }
 
+  // `x?.[S]` / `x?.[S]()` - the null test guards the whole consumed shape; a non-reusable
+  // receiver memoizes through the shared guard
   function emitGuardedSymbolConsume({ metaPath, id, object, effects, methodCallConsume, callerPath, hopPath }) {
     const guard = guardObject(object, metaPath);
     let guardedCore = callExpression(identifier(id), [guard.makeBase()]);
@@ -699,7 +678,7 @@ export default function createAstUsagePureCallback({
     // the hop-host note is taken BEFORE any render: a guard replaces the whole nav, and the root
     // identifier that would otherwise carry the note lands inside a detached test clone
     // (`{ Math: { floor } } = globalThis.window?.self`)
-    noteUnbackedHopAliasInit(metaPath, node, resolvePure, { meta, adapter, destructureEmit });
+    noteProxyHopClaimHost(metaPath, node, { meta, adapter, destructureEmit });
 
     // the shadow-alias guard's kept raw read (`h === Ctor ? _X : h.of`) is already ours -
     // and so is a nav whose SE spells a minted pure call (a prior pass's spent claim)
@@ -834,8 +813,6 @@ export default function createAstUsagePureCallback({
     emitStaticGlobalClaim({ meta, metaPath, node, kind, entry, hintName });
   };
 
-  // does an optional member's OBJECT keep the guard routes - a live `?.` inside it, or a
-  // value that can genuinely be undefined (read THROUGH a kept write)
   // a claim with NO pure result: the ctor-fallback receiver swap, then the alias-spine
   // drop for hops the declined meta subsumed
   function handleUnresolvedClaim({ meta, metaPath, node, fallback }) {
@@ -932,9 +909,10 @@ export default function createAstUsagePureCallback({
   // keeps reading through it (`s.window.Array` -> `s.Array`, babel's kept shape)
   function dropDeclinedNavSpine({ meta, metaPath, node }) {
     // an OPTIONAL member reading this hop owns its probe - the alias drop would eat the
-    // load-bearing read (`g.window?.self?.Map` tests `null == g.window`)
-    const optionalReader = metaPath.parentPath?.node?.type === 'ChainExpression'
-      ? metaPath.parentPath.parentPath?.node : metaPath.parentPath?.node;
+    // load-bearing read (`g.window?.self?.Map` tests `null == g.window`) - and it reads the hop
+    // through whatever the source wrote between them, the canon climb: spelled as the chain marker
+    // alone, a paren or a TS cast over the hop hid that reader and the drop ate its probe
+    const optionalReader = climbTransparentWrapperPath(metaPath).parentPath?.node;
     if (optionalReader?.type === 'MemberExpression' && optionalReader.optional
       && unwrapRuntimeExpr(optionalReader.object) === node) return;
     // an SE-bearing meta normally belongs to the SE channels - the in-place drop has no slot
@@ -957,7 +935,10 @@ export default function createAstUsagePureCallback({
       // collapses whole; a dead leaf (`.Array`) collapses its object spine under it - asked
       // through the wrappers a SEAL puts between them (`((f().self.window)).customUserSlot`),
       // the dialect rule every predicate here follows
-      const deleteFolds = deleteHostForClaim(metaPath, node, { forFold: true, canonOnly: true });
+      // ... and the FOLD BASE that verdict picks is the run's to decide: a mutating consumer whose
+      // canon KEEPS a hop keeps the whole run with it, whatever the claim's own node spells
+      const deleteFolds = !mutatedRunKeepsItsGuards(metaPath)
+        && deleteHostForClaim(metaPath, node, { forFold: true, canonOnly: true });
       const spineObject = unwrapRuntimeExpr(node.object);
       const spineNode = proxyHopKey(node, { metaPath, allowOptional: optionalFolds }) ? node
         : spineObject?.type === 'MemberExpression' ? spineObject : null;
@@ -973,55 +954,31 @@ export default function createAstUsagePureCallback({
       // a NAVIGATED call-rooted spine folds onto the same base outside the `delete` too: the
       // identifier spelling of `f().window.customUserSlot` reads `_globalThis.customUserSlot`,
       // and a call root has no identifier visit to drive that fold from - this claim owns it.
-      // never inside a guard TEST's clone or a memo's cloned value: that nav is the read the
-      // render performs, and it spells the source's own call
-      // (`null == (() => _globalThis)().window ? ...`)
+      // inside a guard TEST's clone or a memo's cloned value the plan is handed that fact: the
+      // `?.` it answers for was the source's own and the test consumed it, so only a run landing
+      // on its own ROOT still folds there (`null == (() => _globalThis)().window ? ...`)
       const testClone = insideMemoClone(metaPath, probeTestClones)
-        || insideMemoClone(metaPath, memoValueClones)
-        || inShortCircuitGuardTest(metaPath);
+        || insideMemoClone(metaPath, memoValueClones);
       // the claimless call-rooted verdicts come from the shared plan - the identifier twin's
-      // bytes, cell for cell; the `delete` fold keeps its own base arm below. the plan reads
-      // the member ENDING the all-proxy run, and this claim fires where its own meta declined -
-      // one hop short of that end whenever navigation continues above - so the anchor climbs the
-      // consecutive proxy hops first, THROUGH the wrapper nodes one parser keeps (`delete
-      // ((c++, dh()).window).customUserSlot` - the seal is not load-bearing over a run the canon's
-      // own walk unwraps)
-      let planPath = metaPath;
-      for (let up = planPath.parentPath; up?.node; up = planPath.parentPath) {
-        const core = unwrapRuntimeExpr(planPath.node);
-        if (up.node !== planPath.node && unwrapRuntimeExpr(up.node) === core) {
-          planPath = up;
-          continue;
-        }
-        // ... and only through a hop the fold may actually DROP: a MUTATED slot holds the user's own
-        // object (`globalThis.self = ...`), so the run stops below it and its read stays spelled -
-        // climbing by the hop's NAME alone folded that read away with the rest of the run
-        if (up.node.type === 'MemberExpression' && unwrapRuntimeExpr(up.node.object) === core
-          && isPristineProxyGlobal(adapter, memberProxyHopName(core))) {
-          planPath = up;
-          continue;
-        }
-        break;
-      }
-      while (planPath.node && unwrapRuntimeExpr(planPath.node) !== planPath.node) {
-        planPath = planPath.get('expression');
-      }
-      const callPlan = !testClone
-        ? planClaimlessCallRootedNav({
-          endNode: planPath.node,
-          // the plan's BASE question, which a `delete` answers with the run's root only where it
-          // names a slot ON that run: a dispatch between them consumes the run as its receiver, so
-          // the read rule applies - the same gate the spine's own landing asks
-          deleteFold: deleteFolds && !dispatchConsumesRun({
-            path: metaPath,
-            resolvePure: m => resolvePure(m, metaPath),
-            aliasCtx: { scope: metaPath.scope, adapter, path: metaPath },
-          }),
-          scope: metaPath.scope,
-          adapter,
+      // bytes, cell for cell; the `delete` fold keeps its own base arm below. the run's own END is
+      // the plan's to find - this claim fires one hop short of it whenever navigation continues
+      // above - and the path it climbed to comes back for the drop below to name
+      const callPlan = planClaimlessCallRootedNav({
+        loweredGuardTest: testClone,
+        // the plan's BASE question, which a `delete` answers with the run's root only where it
+        // names a slot ON that run: a dispatch between them consumes the run as its receiver, so
+        // the read rule applies - the same gate the spine's own landing asks
+        deleteFold: !!deleteHostForClaim(metaPath, node) && !dispatchConsumesRun({
           path: metaPath,
           resolvePure: m => resolvePure(m, metaPath),
-        }) : null;
+          aliasCtx: { scope: metaPath.scope, adapter, path: metaPath },
+        }),
+        scope: metaPath.scope,
+        adapter,
+        path: metaPath,
+        resolvePure: m => resolvePure(m, metaPath),
+      });
+      const planPath = callPlan.endPath;
       // the shared plan spelled the base itself where it folded the nav whole - its own landing,
       // the `delete` root arm included; the spine's landing answers the arms the plan declined
       const planBase = callPlan?.verdict === 'fold-whole' ? callPlan.rootPure : null;
@@ -1040,7 +997,13 @@ export default function createAstUsagePureCallback({
         && (meta.sideEffects ?? []).slice(0, meta.receiverEffectCount ?? 0)
           .every(effect => foldEffects.includes(effect)
             || foldEffects.some(held => subtreeContainsNode(held, effect))));
-      if (droppedBase && (foldEffects ? receiverShareHeld : seFree && !collapsed.effects.length) && navigatedSpine) {
+      // the shared plan's own fold needs no second navigation test: it is handed the member ENDING
+      // the run, so a plan that folded WHOLE has already been told a real member reads through the
+      // hops - and the binding's positional gate, written for the value-vs-root question an
+      // identifier claim answers, called a WRITE TARGET over a call root "not navigated" and left
+      // the run raw where its identifier twin folds
+      if (droppedBase && (foldEffects ? receiverShareHeld : seFree && !collapsed.effects.length)
+        && (planBase || navigatedSpine)) {
         markRewrite();
         const consumed = planPath === metaPath ? spineNode : planPath.node.object;
         const dropped = planPath !== metaPath ? planPath.get('object')

@@ -1,8 +1,8 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Map from "@core-js/pure/actual/map/constructor";
-import _Set from "@core-js/pure/actual/set/constructor";
-import _WeakMap from "@core-js/pure/actual/weak-map/constructor";
+import _Map from "@core-js/pure/actual/map";
+import _Set from "@core-js/pure/actual/set";
+import _WeakMap from "@core-js/pure/actual/weak-map";
 // a SURVIVING residual keeps the receiver, so the extraction is emitted ahead of it - and the
 // source ran the receiver's sequence prefix before either. the prefix lifts to where the source
 // ran it, and the residual reads the bare tail; leaving it behind let the effect observe the
