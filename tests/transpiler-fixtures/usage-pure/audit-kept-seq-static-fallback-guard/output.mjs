@@ -1,5 +1,5 @@
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
 import _self from "@core-js/pure/actual/self";
 // a static-FALLBACK claim (only the receiver swaps to the pure ctor) with a tail read over a
 // NESTED sequence: the sequence value stays unproven under the kept-sequence boundary, so the

@@ -14,7 +14,7 @@ const requireBabel = BABEL_REQUIRE_FROM
 const { parse: babelParse } = requireBabel('@babel/parser');
 const traverseModule = requireBabel('@babel/traverse');
 const t = requireBabel('@babel/types');
-import createASTHelpers from '../../packages/core-js-babel-plugin/internals/babel-compat.js';
+import createASTHelpers, { rangePreservingTypes } from '../../packages/core-js-babel-plugin/internals/babel-compat.js';
 import { createChecker, findNode } from '../polyfill-provider/harness.mjs';
 
 const traverse = traverseModule.default ?? traverseModule;
@@ -1009,6 +1009,28 @@ function hasDotCallBoundTo(node, matchArg) {
   const stmt = firstExprStmt(program.node.body);
   checkTruthy('replaceInstanceChainCombined/relocates return-type stamp onto the conditional',
     stmt.expression.type === 'ConditionalExpression' && seen.get(stmt.expression) === OUT_TYPE);
+}
+
+// --- rangePreservingTypes: what a copy must carry, and what it must not hand the original ---
+// the resolver's positional rules read `start` / `end`; babel's own `cloneNode` keeps `loc` and
+// drops the offsets, so a read carried into a rewritten host answers "no position" to all of them.
+// the shallow arm has no call site in this package and is a guard, so only a unit can hold it
+{
+  const parsed = babelParse('f(x.at(0));', { sourceType: 'module' });
+  const [sourceArg] = parsed.program.body[0].expression.arguments;
+  const wrapped = rangePreservingTypes(t);
+  check('rangePreservingTypes/babel drops the offsets on its own', t.cloneNode(sourceArg).start, undefined);
+  const deep = wrapped.cloneNode(sourceArg);
+  check('rangePreservingTypes/a deep clone gets its start back from loc', deep.start, sourceArg.start);
+  check('rangePreservingTypes/... and its end', deep.end, sourceArg.end);
+  check('rangePreservingTypes/cloneDeep is wrapped too', wrapped.cloneDeep(sourceArg).start, sourceArg.start);
+  // a SHALLOW copy shares the ORIGINAL's children: stamping them would give live source nodes a span
+  // they never occupied, and would throw outright on a frozen one
+  const shared = t.identifier('_helper');
+  shared.loc = sourceArg.loc;
+  wrapped.cloneNode(t.callExpression(shared, []), false);
+  check('rangePreservingTypes/a shallow clone leaves the shared child unstamped', shared.start, undefined);
+  checkTruthy('rangePreservingTypes/one wrapper per types object', rangePreservingTypes(t) === wrapped);
 }
 
 finish();

@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url';
 import { transformAsync } from '@babel/core';
 import babelPlugin from '../../packages/core-js-babel-plugin/index.js';
 import createUnplugin from '../../packages/core-js-unplugin/internals/plugin.js';
+import { censusWalkTruncations } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
 
 const { cyan, green, red } = chalk;
 const { readdir, readFile } = fs;
@@ -42,6 +43,19 @@ function syntheticGuardDense(names) {
   for (let i = 0; i < names; i++) {
     parts.push(`var g${ i } = [${ i }]; if (typeof g${ i } !== 'object') throw new Error('x'); g${ i } = [${ i }, 1]; g${ i }.at(0);`);
   }
+  return parts.join('\n');
+}
+
+// the guard-dense case spreads its writes over as many BINDINGS as there are statements, so every
+// use asks the preceding-sibling machinery about a single write. put the same density on ONE binding
+// and the write set grows with the statement list those scans walk: a per-write walk of the
+// preceding siblings, or a per-use re-derivation of the write set, is CUBIC in the statement count
+// on this shape while staying flat on every other case here. real bundles carry the shape as a
+// long-lived reassigned accumulator read throughout a module
+function syntheticWriteDenseBinding(uses) {
+  const parts = ['let w = [0];', "if (typeof w !== 'object') throw new Error('x');"];
+  for (let i = 0; i < uses; i++) parts.push(`w.at(${ i });`);
+  for (let i = 0; i < uses; i++) parts.push(`w = [${ i }];`);
   return parts.join('\n');
 }
 
@@ -144,6 +158,15 @@ function threeBuild(file) {
   return readFile(join(HERE, `node_modules/three/build/${ file }`), 'utf8');
 }
 
+// a framework runtime whose factories return 30-to-50-slot object literals, and whose bundle then
+// reads those slots back through member chains everywhere: the shape that makes the container
+// census pay a PRODUCT - chains naming the container, times slots in it, times the alias fan-out
+// per slot - instead of a sum over size. The other real bundles here are dense in scope and flow
+// and stayed inside their bounds through a 25x blowup in exactly this axis
+function vueRuntimeCore() {
+  return readFile(join(HERE, 'node_modules/@vue/runtime-core/dist/runtime-core.esm-bundler.js'), 'utf8');
+}
+
 // a published package carries a long tail of re-export stubs and one-line constant modules; below
 // this size a module is pure call overhead with no work to measure, which would let a bloated tail
 // drown the signal the case is meant to carry
@@ -186,6 +209,9 @@ const CASES = [
   { name: 'three.module.js', source: () => threeBuild('three.module.js'), bounds: {
     'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 3, unplugin: 2 },
   } },
+  { name: 'vue runtime-core, container-dense bundle', source: () => vueRuntimeCore(), bounds: {
+    'usage-global': { babel: 5, unplugin: 4 }, 'usage-pure': { babel: 5, unplugin: 4 },
+  } },
   { name: 'synthetic single-scope, 2000 reassigned names', source: () => syntheticSingleScope(2000), bounds: {
     'usage-global': { babel: 3, unplugin: 3 }, 'usage-pure': { babel: 4, unplugin: 3 },
   } },
@@ -210,6 +236,9 @@ const CASES = [
     'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
   } },
   { name: 'synthetic guard-dense, 1500 names', source: () => syntheticGuardDense(1500), bounds: {
+    'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
+  } },
+  { name: 'synthetic write-dense binding, 600 uses', source: () => syntheticWriteDenseBinding(600), bounds: {
     'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
   } },
   { name: 'synthetic discriminant-dense, 1600 names', source: () => syntheticDiscriminantDense(1600), ts: true, bounds: {
@@ -280,4 +309,10 @@ for (const { name, source, ts = false, injections = 1, bounds } of CASES) {
     }
   }
 }
+// the deterministic half of the same gate: the escape census truncates a walk that stops converging
+// at its own step ceiling, and a truncated walk answers from less than it was given. no output diff
+// shows it and no wall clock has to be trusted for it - on this corpus the count is zero, so any
+// reading above zero names the complexity class directly
+const truncated = censusWalkTruncations();
+if (truncated) throw new Error(`the escape census truncated ${ truncated } walk(s) at its step ceiling`);
 if (failed) throw new Error('Some transpiler performance gates have failed');

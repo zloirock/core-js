@@ -14,6 +14,7 @@ export const guardedOverStore = (q = globalThis, _self).name;
 export const guardedOverParenStore = (q = globalThis, _self).name;
 
 // NEGATIVE: an opaque CALL root is undefinable by its own canon, so the guard the source wrote over
-// it stands - the fold lands a ponyfill under it, but proving the run is what admits the erasure
-export const guardedCallRoot = _self?.name;
+// it stands - and the run under it is TERMINAL in the value that read consumes, so its probe hop
+// keeps its own slot over the landed ponyfill rather than folding into it
+export const guardedCallRoot = _self.window?.name;
 export { q };

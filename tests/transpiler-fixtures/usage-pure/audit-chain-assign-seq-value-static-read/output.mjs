@@ -1,8 +1,8 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
 import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
 import _self from "@core-js/pure/actual/self";
-import _Set from "@core-js/pure/actual/set/constructor";
+import _Set from "@core-js/pure/actual/set";
 // a BARE static read (no claim tail above it) through a chain-assignment whose value carries a
 // side-effecting sequence: the value classifies through the sequence like the SE-free spelling,
 // so the read claims its ponyfill instead of staying a raw native read. the assignment is kept

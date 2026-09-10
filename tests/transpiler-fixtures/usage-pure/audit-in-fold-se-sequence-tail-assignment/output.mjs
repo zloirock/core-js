@@ -1,5 +1,5 @@
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
 // a polyfillable `key in obj` folds to constant `true`, but a SequenceExpression receiver whose
 // TAIL is itself side-effecting must still run that effect - the fold discards the tail's VALUE,
 // not its effect. here the trailing `k = Map` assignment binds `k` even though the membership test

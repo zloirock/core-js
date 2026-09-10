@@ -17,7 +17,7 @@ function eff(tag) {
 }
 const g = _globalThis;
 const bareConcat = (eff('a'), _self).Array.isArray([1]);
-const aliasTemplate = (eff('b'), _self).Math.max(1, 2);
+const aliasTemplate = (eff('b'), g).Math.max(1, 2);
 const directSe = (eff('c'), _Array$from)([3]);
 const noSe = _Array$of(4);
 export { bareConcat, aliasTemplate, directSe, noSe, log };

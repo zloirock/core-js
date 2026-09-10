@@ -1,5 +1,5 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-import _Symbol from "@core-js/pure/actual/symbol/constructor";
+import _Symbol from "@core-js/pure/actual/symbol";
 // var inside a nested INNER function does NOT shadow at the outer scope. collectScopeVars
 // stops descent at function-like boundaries, so inner-fn vars don't pollute outer var-set.
 // outer IIFE's `return globalThis` reference must still get `_globalThis` substitution

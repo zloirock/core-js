@@ -2689,7 +2689,7 @@ export default [
   {
     files: [
       'tests/@(helpers|unit-@(global|pure)|e2e-usage-pure|wpt-url-resources)/**',
-      'tests/transpiler-integration/*.js',
+      'tests/transpiler-integration/**/*.js',
     ],
     languageOptions: {
       sourceType: 'module',

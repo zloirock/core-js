@@ -1,4 +1,4 @@
-import _Iterator from "@core-js/pure/actual/iterator/constructor";
+import _Iterator from "@core-js/pure/actual/iterator";
 // chain assignment `const { from } = foo = cond ? Array : Iterator`. the assignment
 // evaluates to its RHS, so the destructure also targets the conditional value. rewriting
 // the branches into synth literals would change what `foo` receives, so the chain is left

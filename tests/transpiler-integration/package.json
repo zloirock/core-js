@@ -8,11 +8,13 @@
     "@rollup/plugin-node-resolve": "^16.0.3",
     "@rsbuild/core": "^2.2.5",
     "@rspack/core": "^2.2.3",
+    "@vitejs/plugin-vue": "^6.0.8",
     "core-js": "file:../../packages/core-js",
     "esbuild": "^0.28.2",
     "rolldown": "^1.2.8",
     "rollup": "^4.63.1",
     "vite": "^8.3.0",
+    "vue": "^3.5.42",
     "webpack": "^5.110.3"
   }
 }

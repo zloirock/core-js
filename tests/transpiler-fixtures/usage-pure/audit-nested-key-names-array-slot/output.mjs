@@ -11,7 +11,6 @@ import _keys from "@core-js/pure/actual/instance/keys";
 import _values from "@core-js/pure/actual/instance/values";
 import _JSON$stringify from "@core-js/pure/actual/json/stringify";
 import _Map from "@core-js/pure/actual/map";
-import _Map2 from "@core-js/pure/actual/map/constructor";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Object$assign from "@core-js/pure/actual/object/assign";
 import _Object$defineProperty from "@core-js/pure/actual/object/define-property";
@@ -573,7 +572,7 @@ const escapedByWrapperLiteral = function () {
 // slots resolving; and a BRANCHING value escapes both arms - either may take the write
 const aliasLeakIsPairPrecise = function () {
   const twoSlots = {
-    M: _Map2,
+    M: _Map,
     P: Object
   };
   const aliasM = twoSlots.M;
@@ -704,7 +703,7 @@ const containerWhollyReassigned = function () {
     k: Object
   };
   swapped = {
-    k: _Map2
+    k: _Map
   };
   const groupBy = _Map$groupBy;
   return groupBy;

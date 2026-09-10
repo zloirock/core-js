@@ -22,14 +22,17 @@
 // `applySubst` / `applyAliasSubstDeep`).
 import {
   MAX_DEPTH,
+  MAX_LITERAL_UNION_MEMBERS,
   NULLABLE_NEVER_ANNOTATIONS,
   $Object,
   $Primitive,
+  literalMembers,
   dropLeadingThisParam,
   hasLeadingThisParam,
+  isTypeObject,
 } from './base.js';
 import {
-  composeModifierDeltas, isUnionType, modifierWrapperDelta, typeRefName, withMemberModifiers,
+  composeModifierDeltas, isUnionType, modifierWrapperDelta, topKeywordAnnotationKind, typeRefName, withMemberModifiers,
 } from './ast-shapes.js';
 import { getTypeArgs } from '../helpers/ast-patterns.js';
 
@@ -85,8 +88,40 @@ export function createTypeFolding({
   // empty tuple -> Array<null> (no inner). shared by resolveTypeAnnotation,
   // substituteTypeParams, resolveAwaitedAnnotation - same shape, different per-element resolver
   function tupleAsArrayType(node, resolver) {
-    const elements = tupleElements(node);
-    return new $Object('Array', elements?.length ? resolveTupleInner(elements, resolver) : null);
+    const elements = tupleElements(node) ?? [];
+    // elements that do not fold to one type are DROPPED, and the absence they leave is the one a
+    // bare `Array` has - which means `Array<any>` and matches any element. `[number, string]` and
+    // `[string, number]` both end there, and taking the two absences for agreement picks a branch.
+    // the LENGTH is the other thing the collapse drops, and the box carries it out
+    const collapsed = elements.length
+      ? elementContainerType(new $Object('Array'), null, resolveTupleInner(elements, resolver))
+      : new $Object('Array');
+    return collapsed.withTupleArity(elements.length);
+  }
+
+  // a container built from ONE written element argument, with the confession its absence owes.
+  // An inner-less box is what a BARE container has, and a bare one means `Array<any>` - it matches
+  // whatever the other side carries. A WRITTEN argument that resolved to nothing leaves the same
+  // hole and must not be read that way: two of them compare EQUAL and answer TRUE where tsc weighs
+  // the shapes themselves and answers FALSE. A top keyword written there is the one exception - it
+  // really does say what the bare shorthand says. Every spelling of one container goes through
+  // here, or the marker holds for `Array<X>` and not for the `X[]` the same type is also written as
+  function elementContainerType(box, argNode, inner) {
+    // the element slot takes no `never` / nullish hint - nothing dispatches on one - so the RAW
+    // resolution arrives here and the drop happens in the one place that can also record it. Handed
+    // the filtered one instead, the level looks like the hole an unreadable argument leaves, and
+    // `Array<never>`, which extends every array, was weighed as one that extends none
+    const resolved = isTypeObject(inner) ? inner : null;
+    // a hint STRING is the other thing this slot holds; anything else that arrives is no element at
+    // all - a cyclic type-param default (`Self<T = T[]>`) leaks its raw ANNOTATION through the subst
+    // map as a resolved value, and an AST node in the slot poisons every reader below
+    const kept = safeInnerType(inner) ?? (resolved || typeof inner !== 'string' ? null : inner);
+    if (kept) return new $Object(box.constructor, kept);
+    if (resolved) return box.withDroppedInner(resolved);
+    const top = topKeywordAnnotationKind(argNode);
+    if (!top) return box.mark('innerElided');
+    const unconstrained = box.mark('innerUnconstrained');
+    return top === 'any' ? unconstrained : unconstrained.mark('innerUnknown');
   }
 
   // params list of the function/class referenced by `Parameters<typeof fn>` /
@@ -274,6 +309,17 @@ export function createTypeFolding({
     return a.type === b.type && a.constructor === b.constructor;
   }
 
+  // deep equality of two written argument lists. The identity-returning fold hands back ONE arm, so
+  // a merge of containers whose lists disagree must not keep that arm's - `Map<string, number>`
+  // folded with `Map<string, string>` is a Map whose value type this layer no longer knows
+  function argListsEqual(a, b) {
+    if (a === b) return true;
+    if (!a || !b || a.length !== b.length) return false;
+    // a member is a slot's content exactly as an `.inner` is, holes included, so it compares by the
+    // same deep equality - two holes agree, and a hole never agrees with a shape that resolved
+    return a.every((arg, index) => innersEqual(arg, b[index]));
+  }
+
   // deep equality of inner type hints (string hints or type objects)
   function innersEqual(a, b) {
     if (a === b) return true;
@@ -296,11 +342,21 @@ export function createTypeFolding({
     // when ANY arm accepts, so `object | Object` accepts primitives regardless of arm
     // order (the identity-returned fold otherwise dropped the marker order-dependently)
     if (existing?.topObject || incoming.topObject) merged = merged.mark('topObject');
+    // the lowercase `object` keyword is a MAY-union marker for the same reason: every other arm a
+    // fold can keep beside it is constructor-null too - the box for a shape this layer did not
+    // model, or the boxed top, which is asked first and answers wider still
+    if (existing?.objectKeyword || incoming.objectKeyword) merged = merged.mark('objectKeyword');
     // enforced symmetrically: the inner fold may return `existing` by IDENTITY with its
     // readonly marker already set, which made `readonly | mutable` readonly-certain in one
     // arm order but not the other - so the single-readonly merge STRIPS, not just skips-add
     if (existing && existing.readonly && incoming.readonly) merged = merged.mark('readonly');
     else if (existing && merged.readonly) merged = merged.unmark('readonly');
+    // the collapsed LENGTH survives only where both arms wrote the same one. The inner fold returns
+    // `existing` by IDENTITY when the elements agree, so folding a tuple with an array of its
+    // element type kept the tuple's length for a union that is no tuple of that length
+    if (existing && merged.tupleArity !== null && existing.tupleArity !== incoming.tupleArity) {
+      merged = merged.withTupleArity(null);
+    }
     return merged;
   }
 
@@ -316,11 +372,15 @@ export function createTypeFolding({
     if (existing.primitive) {
       if (existing.literal === incoming.literal && !existing.literalUnion && !incoming.literalUnion) return existing;
       const merged = new $Primitive(existing.type);
-      const existingHasLiteral = existing.literal !== undefined || existing.literalUnion;
-      const incomingHasLiteral = incoming.literal !== undefined || incoming.literalUnion;
-      return existingHasLiteral && incomingHasLiteral ? merged.mark('literalUnion') : merged;
+      const existingMembers = literalMembers(existing);
+      const incomingMembers = literalMembers(incoming);
+      if (!existingMembers && !existing.literalUnion) return merged;
+      if (!incomingMembers && !incoming.literalUnion) return merged;
+      const union = existingMembers && incomingMembers ? new Set([...existingMembers, ...incomingMembers]) : null;
+      const marked = merged.mark('literalUnion');
+      return union && union.size <= MAX_LITERAL_UNION_MEMBERS ? marked.withLiterals(union) : marked;
     }
-    if (innersEqual(existing.inner, incoming.inner)) return existing;
+    if (innersEqual(existing.inner, incoming.inner) && argListsEqual(existing.args, incoming.args)) return existing;
     return new $Object(existing.constructor);
   }
 
@@ -418,7 +478,7 @@ export function createTypeFolding({
   // leaks the `null` into element-narrow queries that expect a useful inner). single source
   // of truth so the build sites (HKT apply, array-as-type, generator return-type) can't drift
   function safeInnerType(inner) {
-    return inner && typeof inner.primitive === 'boolean' && !isNullableOrNever(inner) ? inner : null;
+    return isTypeObject(inner) && !isNullableOrNever(inner) ? inner : null;
   }
 
   // cluster-private: `foldTypes` (generic fold engine; only `foldUnionTypes` /
@@ -445,6 +505,7 @@ export function createTypeFolding({
     tupleElements,
     rebuildTupleElements,
     tupleAsArrayType,
+    elementContainerType,
     resolveParametersParams,
     resolveThisParamAnnotation,
     findTupleElement,

@@ -310,10 +310,13 @@ export function createTypeMembers({
   // shared with `getTypeMembers`'s interface dispatch so cross-dispatcher recursion observes
   // the same Set. members are pushed already substituted - callers MUST NOT layer an outer
   // subst on top
+  // declaration order is REVERSED because TS merges interfaces that way: the members of a later
+  // declaration precede those of an earlier one, so an overload set spread across merged blocks is
+  // tried later-block-first and the first-match selection lands where TypeScript lands
   function appendMergedInterfaceMembers({ segments, scope, depth, out, receiverArgs, visited }) {
     if (!segments) return;
     const seen = visited ?? new Set();
-    for (const iface of findAllTypeDeclarations(segments, scope)) {
+    for (const iface of findAllTypeDeclarations(segments, scope).toReversed()) {
       if (!isInterfaceDeclaration(iface) || seen.has(iface)) continue;
       seen.add(iface);
       const ifaceSubst = declSubst(iface, receiverArgs, scope);
@@ -570,13 +573,14 @@ export function createTypeMembers({
       extendsAST: extendSubst,
       resolveOne: ast => resolveTypeAnnotation(ast, scope, depth + 1),
       isUnconstrained: isUnconstrainedTypeShape(extendSubst),
+      scope,
     });
     if (branch !== null) {
       return findTypeMember({ objectType: innerWithSubst(branch ? aliased.trueType : aliased.falseType), key, scope, depth: depth + 1 });
     }
     const trueResult = findTypeMember({ objectType: innerWithSubst(aliased.trueType), key, scope, depth: depth + 1 });
     const falseResult = findTypeMember({ objectType: innerWithSubst(aliased.falseType), key, scope, depth: depth + 1 });
-    // strip nullable/never branches symmetric with `resolveConditionalBranches` - otherwise
+    // strip nullable/never branches the way the value-side conditional fold does - otherwise
     // `K extends string ? Foo : never` post-subst can return a synth union carrying the
     // never branch as a member, which would interfere with downstream member dispatch
     const trueViable = trueResult && !isNullableOrNeverAnnotation(trueResult) ? trueResult : null;

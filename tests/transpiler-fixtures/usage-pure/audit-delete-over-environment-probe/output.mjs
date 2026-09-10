@@ -8,7 +8,7 @@ import _self from "@core-js/pure/actual/self";
 // deletes it). the kept guard puts the deleted member OUTSIDE the ternary behind a `?.` of its
 // own - pulled into the alternate the ternary evaluates and deletes nothing, and left outside
 // bare it reads off the guard's `void 0`. a `?.` over a hop pure CAN spell (`self`) reads an
-// always-defined ponyfill and folds with the rest, seals included.
+// always-defined ponyfill and folds with the rest.
 _globalThis.chrome = {
   probeSlot: 1
 };
@@ -19,6 +19,7 @@ _globalThis.deleteBox = {
   }
 };
 const ut = () => _globalThis;
+let st;
 // KEPT: the `?.` guards the `window` probe read
 export const probeGuarded = delete (null == ut().window ? void 0 : _self)?.chrome;
 // ... and the tail rides outside behind a `?.` the source never spelled
@@ -26,5 +27,14 @@ export const probeGuardedPlainTail = delete (null == ut().window ? void 0 : _sel
 export const probeGuardedDeepTail = delete (null == ut().window ? void 0 : _self)?.deleteBox.nested.slot;
 // FOLDED: the `?.` is over `self`, a hop the pure package spells - always defined after the swap
 export const resolvableHopFolds = delete _globalThis.Promise;
-// FOLDED: a seal ends the chain, and that family accepts the divergence
-export const sealedFolds = delete _globalThis.deleteBox;
+// KEPT: the probe read off a span pure lands always-defined is the environment probe too, and a
+// seal changes nothing about that - the delete happens exactly where the source's `?.` says
+export const sealedDeepProbeKeeps = delete (null == _self.window ? void 0 : _self).deleteBox;
+// ... a STORE at the run's root spells the same span and keeps it, running once inside the test
+export const storedRootProbeKeeps = delete (null == (st = _globalThis, _self).window ? void 0 : _self)?.deleteBox;
+// ... and so does a deeper tail, whose own hops ride outside the guard. the second row ends on a
+// name the instance channel claims, off a container this file never WRITES - a written slot deopts
+// that route, and the guard render this row covers is reached only through it
+export const deepTailProbeKeeps = delete (null == _self.window ? void 0 : _self)?.deleteBox.nested.slot;
+export const deepTailClaimedName = delete (null == _self.window ? void 0 : _self)?.untouchedBox.at;
+export { st };

@@ -3,6 +3,8 @@
 import {
   aliasHeldClaimProbe,
   callYieldCanBeUndefined,
+  deleteHostAboveCarriedChain,
+  descendToChainRoot,
   inlineCallProxyGlobalRoot,
   navHasUnresolvableProxyHop,
   peelChainAssignmentDeep,
@@ -17,6 +19,8 @@ import {
 import {
   CHAIN_HOP_WRAPPER_TYPES,
   claimDeleteOperand,
+  deleteHostAboveChain,
+  invocationCalleeOf,
   isPristineProxyGlobal,
   memberKeyName,
   nodeCarriesSourceSpan,
@@ -41,7 +45,6 @@ import {
 } from './builders.js';
 import { memberFromKeyName, receiverCarriesOptional, replaceNodeInTree, withSideEffects } from './emit-shared.js';
 import {
-  aliasHoldsUnbackedHopNav,
   markSubtreeSkipped,
   navComputedKeyEffects,
   optionalHeirAbove,
@@ -131,6 +134,9 @@ function climbAbsorbedTail(hopPath, { alwaysDefined, navAlternate, unbackedHopKe
   let crossedUnbacked = false;
   for (let up = cursor.parentPath; up?.node; up = cursor.parentPath) {
     const upNode = up.node;
+    // no canon set answers this: each layer is peeled under a rule of its own - a TS assertion
+    // wherever it stands, a paren only while it wraps THIS cursor, the chain marker only while a
+    // live `?.` above the seal reads the replaced hop
     if (TS_EXPR_WRAPPERS.has(upNode.type)
       || (upNode.type === 'ParenthesizedExpression' && upNode.expression === cursor.node)
       // a CHAIN wrapper SEALING the replaced nav is stepped over only when a LIVE `?.` reads it:
@@ -240,6 +246,13 @@ function rehangGuardedTailOptional(target, inserted, up = target.parentPath) {
   if (top.parentPath?.node?.type !== 'ChainExpression') top.replaceWith(chainExpression(top.node));
 }
 
+// finish a hop rewrite: climb the plain tail a guard absorbs, consume the chain wrapper
+// the rewrite's own optionality replaced, land the (possibly guarded) emission, and mark
+// the detached original spine off the traversal queue - the queue still holds entries pointing into
+// that spine, and an unmarked one re-fires the emission on a subtree the rewrite has already replaced.
+// under a guard the plain tail hops above ride inside the alternate (`a?.b.at(0).c.d`
+// keeps `.c.d` on the non-null branch - babel's shape); the climb stops at the next `?.`
+// hop, which keeps its own short-circuit over the emitted ternary
 // eslint-disable-next-line max-statements -- sequential emission steps of one guarded hop
 export function replaceGuardedHop({
   hopPath,
@@ -249,7 +262,6 @@ export function replaceGuardedHop({
   returnType = null,
   resolvedType = null,
   alwaysDefined = false,
-  deleteHostTail = false,
   navAlternate = false,
   leafKeySe = null,
   prefixSe = null,
@@ -274,7 +286,13 @@ export function replaceGuardedHop({
   // a `delete` consumer needs the MEMBER itself: pulled into the alternate the ternary
   // deletes nothing, so the tail stays outside and re-hangs the short-circuit the guard
   // now owes it (`delete dl()?.window?.self.missing` ->
-  // `delete (null == dl().window ? void 0 : _self)?.missing`)
+  // `delete (null == dl().window ? void 0 : _self)?.missing`). ONE home for that question -
+  // asked of the hop the render replaces, carriers included, instead of each NAV channel that
+  // renders here remembering to hand it in: the ones that forgot absorbed the member and the
+  // delete then deleted nothing. a DISPATCH alternate asks it too: the value below the member is
+  // this render's to mint, but the member itself is one the source names to delete
+  const deleteHostTail = deleteHostAboveChain(hopPath, hopPath.node, unwrapRuntimeExpr)
+    || deleteHostAboveCarriedChain(hopPath);
   const climbed = test && !sealedTail && !deleteHostTail
           ? climbAbsorbedTail(hopPath, { alwaysDefined, navAlternate, unbackedHopKey: hopIsUnbacked }) : null;
   const absorbedWrappers = climbed?.absorbedWrappers ?? [];
@@ -313,8 +331,7 @@ export function replaceGuardedHop({
       cursor = up;
       continue;
     }
-    const invokes = (upNode.type === 'CallExpression' || upNode.type === 'NewExpression')
-      ? upNode.callee === cursor.node : upNode.type === 'TaggedTemplateExpression' && upNode.tag === cursor.node;
+    const invokes = invocationCalleeOf(upNode) === cursor.node;
     if (outermost && invokes) {
       target = outermost;
       calleeConsumedWrapper = true;
@@ -323,7 +340,6 @@ export function replaceGuardedHop({
   }
   // the climb may reach a path an earlier emission in the same chain already replaced
   if (target.removed) return;
-  // the detached original spine must not re-fire from the traversal queue's stale entries
   // dropped-hop key effects ride as a sequence prefix around the WHOLE alternate - the
   // native order runs them past the guard, before the leaf read
   function withLeafKeySe(alternate) {
@@ -420,17 +436,16 @@ export function replaceGuardedHop({
   markSubtreeSkipped(skippedNodes, consumed, keepLive.size ? keepLive : null);
 }
 
-// a probe that provably cannot be nullish ERASES its guard - only a genuinely
-// undefinable value keeps one. an optional CALL short-circuits to undefined whenever
-// its CALLEE is nullish, so any non-literal callee keeps it undefinable (`condFn?.()`);
-// an inline function literal never is (`(() => Symbol)?.()`)
 // is there a SEAL directly above this node? a paren makes the read through it OBSERVABLE, so the
-// probe may be asked off the proxy SPINE below the hop. the chain wrapper oxc hangs on an optional
-// spine is transparent to the climb, and each parser dialect spells the paren its own way
+// probe may be asked off the proxy SPINE below the hop. what stands BETWEEN the hop and the seal is
+// the chain-hop canon's set - the marker oxc hangs on an optional spine, and TS assertions, which
+// erase and seal nothing of their own (`(x?.y as any).z` seals exactly like its cast-less twin;
+// climbing only the marker read it as unsealed). only the ANSWER is outside a set: the paren is not
+// a layer to peel, and one dialect spells it as a flag on the node below rather than a node at all
 export function sealedLayerAbove(metaPath, node) {
   if (node.extra?.parenthesized) return true;
   let up = metaPath.parentPath;
-  while (up?.node?.type === 'ChainExpression') up = up.parentPath;
+  while (CHAIN_HOP_WRAPPER_TYPES.has(up?.node?.type)) up = up.parentPath;
   return up?.node?.type === 'ParenthesizedExpression' || !!up?.node?.extra?.parenthesized;
 }
 
@@ -458,6 +473,10 @@ function realmRootProves(node, aliasCtx) {
   return !!name && POSSIBLE_GLOBAL_OBJECTS.has(name);
 }
 
+// a probe that provably cannot be nullish ERASES its guard - only a genuinely
+// undefinable value keeps one. an optional CALL short-circuits to undefined whenever
+// its CALLEE is nullish, so any non-literal callee keeps it undefinable (`condFn?.()`);
+// an inline function literal never is (`(() => Symbol)?.()`)
 export function guardProbeUndefinable(probe, {
   metaPath,
   adapter,
@@ -534,10 +553,14 @@ export function guardProbeUndefinable(probe, {
   // a CHAIN-ASSIGN probe keeps its own locked rule, the one the detection's source count asks:
   // the captured value's undefinedness is HOP-based, because the write observes the raw read
   // (`(m = globalThis.window.self)?.x` guards - `.self` off an absent `window` never lands).
-  // the value question below answers on the LEAF hop alone and would call it always-defined
+  // the value question below answers on the LEAF hop alone and would call it always-defined.
+  // the rule speaks for a nav spelled INSIDE the store, whose raw read the guard test re-emits;
+  // through an ALIAS binding there is no such read left to observe - the declaration folded it
+  // onto the ponyfill, so the store hands on an always-defined value and the value canon below
+  // owns that verdict like any other alias
   if (storeObserved
-    && (navHasUnresolvableProxyHop(probeValue, m => resolvePure(m, metaPath))
-      || aliasHoldsUnbackedHopNav(probeValue, metaPath, adapter))) return true;
+    && navHasUnresolvableProxyHop(probeValue, m => resolvePure(m, metaPath),
+      { scope: metaPath.scope, adapter, path: metaPath })) return true;
   // a bare ALIAS answers through the value canon like every other probe: an alias of an
   // entry-backed surface (`const g = globalThis`) holds the realm object and proves defined
   // there, an alias of a probe read (`const w = globalThis.window`) or of a rendered guard
@@ -551,7 +574,8 @@ export function guardProbeUndefinable(probe, {
     { throughChainAssign: true, observableRead: observableRead || storeObserved });
 }
 
-// an optional STATIC member whose object can genuinely be undefined keeps its guard routes
+// an optional STATIC member keeps its guard routes when its OBJECT can genuinely be undefined -
+// a live `?.` inside it, or a value read THROUGH a kept write
 export function optionalMemberStaysGuarded(node, { metaPath, adapter, resolvePure, observableRead = false }) {
   // the INSTANCE route reads a VALUE through the sequence, so a nested one leaves it unproven
   const seqOpts = { metaPath, adapter, resolvePure, nestedSeqUnproven: true };
@@ -567,11 +591,13 @@ export function optionalMemberStaysGuarded(node, { metaPath, adapter, resolvePur
       // the extended value question fires only on a SOURCE proxy-global root: a rendered
       // span roots at a minted always-defined binding, and its vestigial `?.` keeps the
       // erase the re-emit spelled (the sealed respell owns the probe there)
-      let root = cur;
-      while (root?.type === 'MemberExpression') root = unwrapRuntimeExpr(root.object);
+      const { root } = descendToChainRoot(cur);
       if (root?.type !== 'Identifier' || !POSSIBLE_GLOBAL_OBJECTS.has(root.name)) return false;
-      return proxyReceiverValueCanBeUndefined(cur, m => resolvePure(m, metaPath),
-        { scope: metaPath.scope, adapter, path: metaPath }, { throughChainAssign: true, observableRead });
+      // ... asked of the RECEIVER, which is the value OUR `?.` tests - not of this link. hops
+      // standing between them are realm self-references the collapse assumption defines, so the
+      // link's own verdict guarded a run whose plain twin folds whole
+      // (`globalThis?.window.window?.self` reads the realm exactly like `globalThis.window.window?.self`)
+      break;
     }
     cur = unwrapRuntimeExpr(cur.object);
   }
@@ -609,10 +635,6 @@ export function probeSpelling(probeNode, { resolveHere, aliasCtx, substituteProb
   return probe;
 }
 
-// a SEAL makes the read above it observable: the source performs it on a value that can be
-// absent (`(globalThis.window?.self).Map` throws off-window), and the claim's swap erases it.
-// rebuild that read as a THROW PROBE riding ahead of the ponyfill - the sealed value through
-// the shared guard plan, the boundary key re-spelling the source read
 // does a LOAD-BEARING seal below the claim own the render? the read it made observable rides
 // back as a throw probe and the claim's own `?.` erases with the substitution - the guard
 // routes would answer `void 0` where the source THROWS. the probe's own precondition, asked
@@ -673,6 +695,10 @@ export function sealedPristineHopCollapse(metaPath, node, { adapter, resolvePure
   return true;
 }
 
+// a SEAL makes the read above it observable: the source performs it on a value that can be
+// absent (`(globalThis.window?.self).Map` throws off-window), and the claim's swap erases it.
+// rebuild that read as a THROW PROBE riding ahead of the ponyfill - the sealed value through
+// the shared guard plan, the boundary key re-spelling the source read
 export function sealedClaimThrowProbe(node, metaPath, ctx) {
   const { adapter, resolvePure, resolveGlobalPolyfill, injectPureImport, skippedNodes } = ctx;
   const boundary = sealedChainBoundary(node);

@@ -13,6 +13,7 @@ import {
   isPristineProxyGlobal,
   isTaggedTemplateTagPosition,
   mayHaveSideEffects,
+  memberChainEndPath,
   memberKeyName,
   memberProxyHopName,
   nestedSequenceValueSpelling,
@@ -23,7 +24,9 @@ import {
   privateNameSpelling,
   proxyNavEffectsHarvestable,
   SKIPPABLE_WRAPPER_TYPES,
+  spineHasOptionalHop,
   staticMemberKeyName,
+  stepOverChainWrappers,
   unwrapRuntimeExpr,
 } from '../helpers/ast-patterns.js';
 import {
@@ -46,6 +49,7 @@ import {
   ownChainOptionalCount,
   deleteGuardKeepingHop,
   findProxyGlobal,
+  foldableRealmHop,
   inlineCallHasObservableEffects,
   inlineCallProxyGlobalRoot,
   inlineCallReturnExpression,
@@ -54,12 +58,15 @@ import {
   isStaticPlacement,
   isTransparentWrapper,
   maximalProxyGlobalPrefix,
+  mutationGuardKeepingHop,
   navHasUnresolvableProxyHop,
   peelChainAssignment,
   peelChainRootValue,
   prependChainAssignmentEffect,
   peelReceiverSequenceTail,
+  proxyGlobalRootName,
   proxyHopLacksPureEntry,
+  realmHopKeyName,
   realmRootIsSpellable,
   requireBoundProxyGlobalName,
   resolveKey,
@@ -99,19 +106,6 @@ function tryBuildPrototypeMeta({ obj, key, scope, adapter, path }) {
   if (resolveKey({ node: obj.property, computed: obj.computed, scope, adapter, path }) !== 'prototype') return null;
   const protoName = resolveObjectName({ objectNode: obj.object, scope, adapter, path });
   return protoName ? { kind: 'property', object: protoName, key, placement: 'prototype' } : null;
-}
-
-// true when a single optional `?.` directly on a chain-root call keeps it LIVE in a null-guard memoize
-// (`_ref = call`) - so its inner proxy-global must still be visitor-rewritten (`globalThis -> _globalThis`),
-// like an SE-bearing root. requires EXACTLY ONE optional, the one on the call: a non-optional first hop
-// (`(call).self.X`) inlines/collapses the call, and a SECOND optional anywhere (`(call)?.self?.Map.name`)
-// makes the whole optional chain vestigially COLLAPSE to the always-defined polyfill on babel
-// (`_nameMaybeFunction(_Map)`), dropping the call - both subsume the inner correctly
-function chainRootCallKeptInOptionalGuard(node) {
-  const { root, firstHop, optionalCount } = descendToChainRoot(node);
-  // the single optional must be the hop ON the call (`firstHop.optional`): exactly one + on-the-call = the
-  // rebind shape; zero / >1 / optional-elsewhere all collapse or inline, subsuming the inner correctly
-  return optionalCount === 1 && isCallShape(root) && !!firstHop?.optional;
 }
 
 // true when a member ABOVE this one in the chain resolves to a receiver-WRAPPING `instance` polyfill
@@ -254,7 +248,7 @@ export function planProxyReceiver(receiver, {
   // the canonical walk with no bespoke one. a ponyfilled value (`(q = globalThis.self).X`) roots through as
   // before - there the value provably IS the global
   const chainAssign = throughChainAssign ? peelChainAssignment(descendToChainRoot(receiver).root) : null;
-  const keptAssignRoot = chainAssign?.outer && navHasUnresolvableProxyHop(chainAssign.value, resolvePure)
+  const keptAssignRoot = chainAssign?.outer && navHasUnresolvableProxyHop(chainAssign.value, resolvePure, aliasCtx)
     ? chainAssign.outer : null;
   // a live `?.` in the chain over an undefinable read (the environment probe - `globalThis
   // .window?.[(c++, 'self')]?.X`) may not collapse: the erase runs the key SE and reads the
@@ -269,8 +263,15 @@ export function planProxyReceiver(receiver, {
   // load-bearing, so the collapse takes it whole and the slot is reached off the ponyfill - the owner's
   // rule for this family. asked of the CONSUMER, not of `isWriteTarget`: an assignment host under a
   // seal keeps its read, and `delete` is the only write legal past a `?.` anyway
+  // ... EXCEPT the delete-DECIDING guard (`deleteGuardKeepingHop`): a live `?.` over the
+  // environment probe decides whether the delete HAPPENS, and the collapse below would drop it
   const deleteConsumer = !!aliasCtx?.path
-    && deleteHostAboveChain(aliasCtx.path, receiver, unwrapRuntimeExpr);
+    && deleteHostAboveChain(aliasCtx.path, receiver, unwrapRuntimeExpr)
+    && !deleteGuardKeepingHop(receiver, resolvePure, aliasCtx);
+  // ... and the hop a MUTATING consumer keeps stands this collapse down whatever the value canon
+  // says about the probe: the guard channel owns that shape, and folding here lands the write or
+  // the delete on the ponyfill global in the realms where the source throws
+  if (mutationGuardKeepingHop(receiver, resolvePure, aliasCtx)) return null;
   if (!deleteConsumer && !keptAssignRoot && aliasCtx
     && (ownChainOptionalObjects(receiver)
       // a NESTED-sequence value stays unproven under the kept-sequence boundary, so the `?.`
@@ -306,11 +307,13 @@ export function planProxyReceiver(receiver, {
   // ... and a root this build cannot spell hands the run to the deepest backed span below it: that
   // swap re-emits the dropped keys' effects the way the kept-root canon does, so an SE-bearing key is
   // no barrier to the walk here either (a spellable root keeps the read channel's rule)
-  const rootUnspellable = !!throughRoot && POSSIBLE_GLOBAL_OBJECTS.has(throughRoot.name)
-    && !resolvePure({ kind: 'global', name: throughRoot.name });
-  const seKeysMigrate = isWriteTarget || !!keptAssignRoot || rootUnspellable;
-  if (maximalProxyGlobalPrefix(receiver, aliasCtx, { allowSideEffectKeys: seKeysMigrate, throughChainAssign }) !== objectCore) {
-    const callRooted = planCallRootedProxyReceiver(receiver, aliasCtx, resolvePure);
+  // ... and no ROOT form gates the admission: what a dropped key's effects need is a SLOT, and every
+  // root has one - the kept root migrates them into the surviving key, every other takes the pre-root
+  // harvest. gating on the root's shape instead answered for the wrong thing, and the run then kept
+  // its hop: a hop kept over a probe is a NATIVE realm read, `self` off the environment, which is the
+  // one slot the ponyfill exists to stand in for
+  if (maximalProxyGlobalPrefix(receiver, aliasCtx, { allowSideEffectKeys: true, throughChainAssign }) !== objectCore) {
+    const callRooted = planCallRootedProxyReceiver({ receiver, aliasCtx, resolvePure, deleteFold: deleteConsumer });
     if (callRooted) return callRooted;
     // the deeper nav decides for itself: the recursion re-asks every root form this plan owns
     // (identifier, alias, call/IIFE), so no root pre-filter belongs here - an identifier-only
@@ -331,14 +334,14 @@ export function planProxyReceiver(receiver, {
   // literal-rooted nav keeps the bail: its leaf-adjacent hop still earns the natural ponyfill swap (`_self.Set`).
   // a nav still CARRYING `?.` keeps the bail too: the exception's renders vouch no root guard, so a live
   // optional must first pass the guard-building rewrite - its guarded REBUILD comes back here optional-free
-  const leafKey = staticMemberKeyName(receiver);
+  const leafKey = realmHopKeyName(receiver, aliasCtx, { allowSideEffectKeys: true });
   if (!isWriteTarget && leafKey && resolvePure({ kind: 'global', name: leafKey })
     && !(isMutatedGlobalSlot(aliasCtx?.adapter, leafKey)
       // ... and the `?.` a `delete` folds is not live either: the guard-building rewrite this
       // waits for never runs there, so the bail would strand the prefix the mutation just took
       // the leaf swap away from
       && (ownChainOptionalCount(receiver) === 0 || deleteConsumer)
-      && (navHasUnresolvableProxyHop(receiver.object, resolvePure)
+      && (navHasUnresolvableProxyHop(receiver.object, resolvePure, aliasCtx)
         || (!keptAssignRoot && isAliasProxyRoot(throughRoot, aliasCtx))))) return null;
   // the leaf is itself a redundant proxy hop reached via a SE-bearing key (`globalThis[(e++, 'self')]`) - the
   // harvest reads the chain OBJECT not the key, so collapsing would re-root a proxy chain and loop; bail
@@ -500,8 +503,10 @@ function mintedRefRoot(receiver, aliasCtx) {
 
 // call/IIFE-rooted proxy nav (`(() => globalThis)().self.Array`): `findProxyGlobal` validates only bare-Identifier
 // roots, so the main path bails. resolve the root global (inlining the call), drop the proxy hops onto the
-// binding the landing canon names, keep an SE-bearing chain-root call as the harvested prefix
-function planCallRootedProxyReceiver(receiver, aliasCtx, resolvePure) {
+// binding the landing canon names, keep an SE-bearing chain-root call as the harvested prefix.
+// `deleteFold` is the CONSUMER fact its caller already answered - the landing canon takes it as a flag,
+// and re-deriving nothing here is what keeps the two spellings of one run on one binding
+function planCallRootedProxyReceiver({ receiver, aliasCtx, resolvePure, deleteFold = false }) {
   if (!aliasCtx) return null;
   const plan = resolveCallRootedProxyCollapse({ receiver, ...aliasCtx });
   if (!plan) return null;
@@ -511,7 +516,7 @@ function planCallRootedProxyReceiver(receiver, aliasCtx, resolvePure) {
   // receiver rooted in a ref THIS PASS minted is our own render read back, and folding it a second
   // time rewrites a guard that already spelled the value (`_ref[(c++, 'self')].Array`)
   const landingPure = mintedRefRoot(receiver, aliasCtx) ? null : proxyRunLandingPure({
-    navNode: receiver.object, ctx: aliasCtx, resolvePure, rootName: plan.rootName,
+    navNode: receiver.object, ctx: aliasCtx, resolvePure, rootName: plan.rootName, deleteFold,
   });
   if (!landingPure) return null;
   return {
@@ -523,12 +528,35 @@ function planCallRootedProxyReceiver(receiver, aliasCtx, resolvePure) {
   };
 }
 
+// the member ENDING an all-proxy run, climbed from the claim that fires inside it - THROUGH the
+// wrapper nodes one dialect keeps (`delete ((c++, dh()).window).customUserSlot` - the seal is not
+// load-bearing over a run this walk unwraps), and only through a hop the fold may actually DROP: a
+// MUTATED slot holds the user's own object (`globalThis.self = ...`), so the run stops below it and
+// its read stays spelled. the plan below is the only caller: written out at each binding instead,
+// the same climb asked the hop through a canon of its own and stopped a hop apart
+function claimlessRunEndPath(path, adapter, ctx) {
+  let end = path;
+  for (;;) {
+    const [inner, up] = stepOverChainWrappers(end.node, end.parentPath, end === path);
+    const above = up?.node;
+    if (above?.type !== 'MemberExpression' && above?.type !== 'OptionalMemberExpression') return end;
+    const core = unwrapRuntimeExpr(inner);
+    if (unwrapRuntimeExpr(above.object) !== core
+      || !isPristineProxyGlobal(adapter, realmHopKeyName(core, ctx))) return end;
+    end = up;
+  }
+}
+
 // the CLAIMLESS proxy nav rooted in an inline-resolvable CALL (`(() => globalThis)().self
 // .customUserSlot`): no claim leads a channel here, so the fold verdicts live once - the
-// identifier twin's bytes, cell for cell. `endNode` is the member ENDING the all-proxy run
-// (the declined claim, or the member above the last consecutive hop); `deleteFold` is the
+// identifier twin's bytes, cell for cell. the run's own END is found HERE, by climbing from `path`:
+// each binding's claim fires where its meta declined, one hop short of that end whenever navigation
+// continues above, and the climb spelled out at each of them asked the hop through a canon of its
+// own - the bare NAME on one leg, the pristine-slot rule the fold actually obeys on the other - so
+// one binding stopped a hop short of the other and a MUTATED slot's read folded away with the run.
+// `endPath` comes back for the caller that must name the dropped span. `deleteFold` is the
 // caller's consumer fact - the delete host is a path question each binding answers through
-// its own anchoring, while who owns a STORED value is asked here, of `path`. verdicts: 'guard' - a
+// its own anchoring, while who owns a STORED value is asked here, of the run's END. verdicts: 'guard' - a
 // run with a LIVE short-circuit, the guard channels own the render; 'stand-down' - a delete
 // whose deciding `?.` stays (the ut-family locks); 'kept-value' - a STORED probe-leaf value
 // nothing reads through, over a run with nothing to re-emit: the kept-value canon owns that fold;
@@ -538,38 +566,69 @@ function planCallRootedProxyReceiver(receiver, aliasCtx, resolvePure) {
 // run (a delete reads nothing over it), and the whole navigation folds onto the root, erasing the
 // same intermediate-hop throw the identifier twin erases; 'leaf-fold' - a probe-YIELD root names a
 // global the value never reached, so the nav collapses onto the ponyfill of what it NAVIGATES. null -
-// not this family: a computed or non-hop step, a MUTATED hop (the mutation gate's channels
-// keep the patched read raw), an effectful or unprovable call, a probe yield with nothing
-// backed to land on
-export function planClaimlessCallRootedNav({ endNode, deleteFold = false, scope, adapter, path, resolvePure }) {
-  if (endNode?.type !== 'MemberExpression' && endNode?.type !== 'OptionalMemberExpression') return null;
+// not this family: a step the hop-name canon cannot NAME (an effect-bearing key among them, whose
+// effects the fold has no slot for) or one that is no hop at all, a MUTATED hop (the mutation
+// gate's channels keep the patched read raw), an effectful or unprovable call, a probe yield with
+// nothing backed to land on - a verdict of null, never a null plan: `endPath` stands whatever the
+// verdict is. `loweredGuardTest` is the binding's own fact - this node is a clone the
+// guard render already made its test out of, so the `?.` it answers for is gone from the tree
+export function planClaimlessCallRootedNav({
+  deleteFold = false, loweredGuardTest = false, scope, adapter, path, resolvePure,
+}) {
+  const ctx = { scope, adapter, path };
+  const endPath = claimlessRunEndPath(path, adapter, ctx);
+  const endNode = unwrapRuntimeExpr(endPath.node);
+  // a verdict-less plan is still the run's END: the caller that names the dropped span asks for it
+  // whatever this one answers
+  const declined = { verdict: null, endPath };
+  if (endNode?.type !== 'MemberExpression' && endNode?.type !== 'OptionalMemberExpression') return declined;
   let root = unwrapRuntimeExpr(peelReceiverSequenceTail(endNode.object));
-  if (root?.type !== 'MemberExpression' && root?.type !== 'OptionalMemberExpression') return null;
-  let guardedRun = false;
+  if (root?.type !== 'MemberExpression' && root?.type !== 'OptionalMemberExpression') return declined;
+  // the `?.` the SOURCE wrote over the whole run stands on the run's own end member, not on any hop
+  // inside it, and a scan that reads only the hops answered "no short-circuit" for the very spelling
+  // the guard channels exist for (`delete <call>.self.window?.k` dropped the test that decides
+  // whether the delete happens)
+  let guardedRun = !!endNode.optional;
   while (root?.type === 'MemberExpression' || root?.type === 'OptionalMemberExpression') {
-    const hopName = root.computed ? null : memberProxyHopName(root);
-    if (!hopName || !isPristineProxyGlobal(adapter, hopName)) return null;
+    // by the hop's NAME, whatever spells its key: a shape-blind refusal of computed keys left this
+    // channel declining runs the identifier twin folds, and the fallback claim then stopped mid-run
+    const hopName = realmHopKeyName(root, ctx);
+    if (!hopName || !isPristineProxyGlobal(adapter, hopName)) return declined;
     guardedRun ||= !!root.optional;
     root = unwrapRuntimeExpr(peelReceiverSequenceTail(root.object));
   }
-  const ctx = { scope, adapter, path };
   // a `?.` in the run belongs to the guard channels only while it can actually SHORT-CIRCUIT
   // (the value canon's question): one testing a proven-defined value - the run over an
   // inline-proven call included - is dead and folds with the plain twin
   if (guardedRun && !navValueCanShortCircuit(endNode, resolvePure, ctx)) guardedRun = false;
-  if (guardedRun && !deleteFold) return { verdict: 'guard' };
-  if (guardedRun && deleteFold && deleteGuardKeepingHop(endNode, resolvePure, ctx)) return { verdict: 'stand-down' };
-  if ((root?.type !== 'CallExpression' && root?.type !== 'OptionalCallExpression') || root.optional) return null;
+  // an ALREADY-LOWERED guard test carries no `?.` for these rules to reach - the branch it spells was
+  // the source's own, consumed by the test - so a fold here answers for a run it can no longer read.
+  // only where the landing is the run's own ROOT is there nothing above it the test still reads, and
+  // there the fold spells what the identifier twin spells; a BACKED hop above the root keeps the
+  // spelling the guard render already gave it
+  if (loweredGuardTest && deepestBackedProxySpan(endNode.object, ctx, resolvePure)) {
+    return { verdict: 'stand-down', endPath };
+  }
+  if (guardedRun && !deleteFold) return { verdict: 'guard', endPath };
+  const deleteRunEnd = deleteFold
+    ? unwrapRuntimeExpr(memberChainEndPath({ path: endPath, unwrap: unwrapRuntimeExpr })?.node) ?? endNode : endNode;
+  if (deleteFold && deleteGuardKeepingHop(deleteRunEnd, resolvePure, ctx)) return { verdict: 'stand-down', endPath };
+  if ((root?.type !== 'CallExpression' && root?.type !== 'OptionalCallExpression') || root.optional) return declined;
   const rootId = inlineCallProxyGlobalRoot({ callNode: root, ...ctx, rejectConditional: true });
-  if (!rootId) return null;
+  if (!rootId) return declined;
   // the fold drops the call with the nav and has no slot to replay what it DID on the way
-  if (inlineCallHasObservableEffects({ callNode: root, ...ctx })) return null;
+  if (inlineCallHasObservableEffects({ callNode: root, ...ctx })) return declined;
   if (!proxyReceiverValueCanBeUndefined(root, resolvePure, ctx)) {
     const rootName = POSSIBLE_GLOBAL_OBJECTS.has(rootId.name) ? rootId.name
       : resolveObjectName({ objectNode: rootId, ...ctx });
     const rootPure = rootName && POSSIBLE_GLOBAL_OBJECTS.has(rootName)
       && resolvePure({ kind: 'global', name: rootName });
-    const leafKey = memberProxyHopName(endNode);
+    // the run's TERMINAL hop is named by the same canon its inner hops are, keys with effects
+    // included: naming only ever KEEPS this hop, so the widest name is its safe pole - read off the
+    // node alone a key BOUND to a constant string named nothing, and the run folded whole through
+    // the very probe its dotted twin keeps (`f().self[k]` stored `_self`)
+    const leafName = realmHopKeyName(endNode, ctx, { allowSideEffectKeys: true });
+    const leafKey = leafName !== null && POSSIBLE_GLOBAL_OBJECTS.has(leafName) ? leafName : null;
     if (!deleteFold && leafKey && !resolvePure({ kind: 'global', name: leafKey })) {
       // the probe run rides off the deepest hop pure can back, and the span holding it is what
       // the swap consumes - with its observable setup, which the swap has no other slot for
@@ -582,17 +641,17 @@ export function planClaimlessCallRootedNav({ endNode, deleteFold = false, scope,
       // a CONSUMER reading THROUGH that store owns the value instead, and its read is the proof the
       // value must be the realm object: the probe folds there whatever the run carries, so the swap
       // takes the WHOLE run - with everything the run did, which this render re-emits either way
-      const consumed = storedValueConsumedAbove(path);
+      const consumed = storedValueConsumedAbove(endPath);
       const swapNode = consumed ? endNode : backed?.span ?? root;
       const droppedSe = backed || consumed ? collectFoldedReceiverSideEffects(swapNode) : [];
-      if (!consumed && storedUserAssignmentOf(path) && !droppedSe.length) return { verdict: 'kept-value' };
-      if (backed) return { verdict: 'swap-call', swapNode, basePure: backed.pure, droppedSe };
-      return rootPure ? { verdict: 'swap-call', swapNode, basePure: rootPure, droppedSe } : null;
+      if (!consumed && storedUserAssignmentOf(endPath) && !droppedSe.length) return { verdict: 'kept-value', endPath };
+      if (backed) return { verdict: 'swap-call', swapNode, basePure: backed.pure, droppedSe, endPath };
+      return rootPure ? { verdict: 'swap-call', swapNode, basePure: rootPure, droppedSe, endPath } : declined;
     }
     // the whole-nav fold lands where the shared canon says - a backed leaf IS the deepest span
     // (`(() => globalThis)().self` rides `_self`); only the `delete` fold keeps the root base
     const foldPure = proxyRunLandingPure({ navNode: endNode, ctx, resolvePure, rootName, deleteFold });
-    return foldPure ? { verdict: 'fold-whole', rootPure: foldPure } : { verdict: 'guard' };
+    return foldPure ? { verdict: 'fold-whole', rootPure: foldPure, endPath } : { verdict: 'guard', endPath };
   }
   const navName = resolveObjectName({ objectNode: endNode.object, ...ctx });
   let pure = navName && POSSIBLE_GLOBAL_OBJECTS.has(navName) && resolvePure({ kind: 'global', name: navName });
@@ -600,7 +659,7 @@ export function planClaimlessCallRootedNav({ endNode, deleteFold = false, scope,
   // ponyfill of what the nav NAVIGATES - a window-terminated run hands the deepest BACKED
   // spelling on; a run with nothing backed below the call keeps the raw read and its throw
   if (!pure && deleteFold) pure = deepestBackedProxySpan(endNode.object, ctx, resolvePure)?.pure ?? null;
-  return pure ? { verdict: 'leaf-fold', pure } : null;
+  return pure ? { verdict: 'leaf-fold', pure, endPath } : declined;
 }
 
 // what a run of unbacked realm hops RIDES OFF: walking down from the terminal, the first span
@@ -608,21 +667,34 @@ export function planClaimlessCallRootedNav({ endNode, deleteFold = false, scope,
 // the root's own ponyfill to answer. the span comes back with its pure so a caller that SWAPS it
 // (rather than folding the whole nav) has the node to replace
 function deepestBackedProxySpan(navNode, ctx, resolvePure) {
-  for (let span = unwrapRuntimeExpr(peelReceiverSequenceTail(navNode));
-    span?.type === 'MemberExpression' || span?.type === 'OptionalMemberExpression';
-    span = unwrapRuntimeExpr(peelReceiverSequenceTail(span.object))) {
+  let span = unwrapRuntimeExpr(peelReceiverSequenceTail(navNode));
+  for (;;) {
+    const isHop = span?.type === 'MemberExpression' || span?.type === 'OptionalMemberExpression';
+    // the run's own ROOT is a span like any other: a backed name spelled BARE is the deepest thing
+    // pure can back, and a walk that stops above it leaves one source two landings - `self.window
+    // .Number` would ride nothing where `globalThis.self.window.Number` rides `_self`, and every
+    // rule the landing carries (the read-through fold above it, the vestigial `?.` on the binding
+    // it lands) would reach only the run one hop longer
+    if (!isHop && span?.type !== 'Identifier') return null;
     // the run is a PROVEN proxy navigation, so a hop names its own value: the name walk is asked
     // first, and its own HOP KEY answers where the walk declines. the two legs' scope shims part
     // company exactly there (a self-cycle shadow `var globalThis = globalThis` reads as a local
-    // binding on one leg), and a landing that moved with the shim landed the run on two bindings
-    const spanName = resolveObjectName({ objectNode: span, ...ctx }) ?? memberProxyHopName(span);
+    // binding on one leg), and a landing that moved with the shim landed the run on two bindings.
+    // a ROOT is the other question - does this NAME read the realm - and its own canon answers it,
+    // asked of the name the source SPELLS: the value walk would follow an ALIAS to the global it
+    // holds, and the landing then substituted a ponyfill for the local binding the source named
+    // (`g.window` stays `g.window`) - or for one holding a value that can be absent
+    // (`const w = dw()?.self`), where the `?.` over the store is the whole point
+    const spanName = isHop ? resolveObjectName({ objectNode: span, ...ctx }) ?? memberProxyHopName(span)
+      : POSSIBLE_GLOBAL_OBJECTS.has(span.name) ? proxyGlobalRootName({ node: span, ...ctx }) : null;
     // a MUTATED realm slot holds the user's own object, so the run may not ride its ponyfill - the
     // hop stays spelled and the walk keeps looking below it
     const pure = spanName && POSSIBLE_GLOBAL_OBJECTS.has(spanName)
       && !isMutatedGlobalSlot(ctx.adapter, spanName) && resolvePure({ kind: 'global', name: spanName });
     if (pure) return { span, pure };
+    if (!isHop) return null;
+    span = unwrapRuntimeExpr(peelReceiverSequenceTail(span.object));
   }
-  return null;
 }
 
 // does a DISPATCH consume this run? an instance claim above it renders one (`<run>.Array.prototype
@@ -670,8 +742,11 @@ export function proxyRunLandingPure({ navNode, ctx, resolvePure, rootName = null
     return rootName && POSSIBLE_GLOBAL_OBJECTS.has(rootName)
       ? resolvePure({ kind: 'global', name: rootName }) || null : null;
   }
-  if (deleteFold) return rootPure();
   let span = navNode ? deepestBackedProxySpan(navNode, ctx, resolvePure) : null;
+  // ... and what the ROOT spells gates nothing above it (`realmRootIsSpellable`): a root this build
+  // cannot name leaves the delete fold nothing to land, and the run rides the deepest span pure CAN
+  // back instead of standing down raw (`delete window.self.a.b.x` lands `_self`, not a native read)
+  if (deleteFold) return rootPure() ?? span?.pure ?? null;
   // a STORE at the run's base hands its value on, so the read rides THROUGH it: the walk follows
   // the stored value the same way (`(q = globalThis.self).window` lands `_self`), and the store
   // itself keeps whatever the source put in it
@@ -680,6 +755,95 @@ export function proxyRunLandingPure({ navNode, ctx, resolvePure, rootName = null
     span = stored ? deepestBackedProxySpan(stored, ctx, resolvePure) : null;
   }
   return span ? span.pure : rootPure();
+}
+
+// the landing SWAPPED IN PLACE, for every channel that keeps a run SPELLED instead of folding it -
+// a guard test, a stored value. such a render performs the environment READ the source wrote, so
+// only the deepest span pure can back substitutes and every hop above it stays, its `?.` included
+// (`globalThis.self.window?.Array` spells `_self.window?.Array`): a root-only swap froze a native
+// `.self` read the ponyfill exists to answer, and folding the tail tested a value the source never
+// reads. the walk is this canon's, the mint each leg's own - the swapped node comes back so a
+// whole-nav landing has a value to return. THREE answers, and the caller needs them apart: a node
+// says the run is spelled here, `null` that this swap does not land it, and `false` that the
+// guard-lowering COLLAPSE owns it instead - a distinction the caller cannot make up, and reading
+// the second for the third is what left a backed hop raw where every other host of the same run
+// folds it
+export function landRunOnDeepestBackedSpan({ navNode, ctx, resolvePure, mintPure }) {
+  // a kept chain-assign hands its VALUE on, so the run inside it lands exactly like its bare twin
+  // and the write keeps the spelling the source wrote around it
+  const store = navNode ? peelChainAssignment(navNode) : { outer: null, value: null };
+  const run = navNode ? unwrapRuntimeExpr(peelReceiverSequenceTail(store.outer ? store.value : navNode)) : null;
+  const found = run ? deepestBackedProxySpan(run, ctx, resolvePure) : null;
+  if (!found) return null;
+  // a `?.` the source wrote INSIDE the span is a branch THIS swap has no spelling for: swapped, the
+  // run would answer the always-defined ponyfill exactly where the source short-circuits. the
+  // collapse spells both at once - the probe lowered to the guard's test, the backed hop folded
+  // onto its ponyfill (`(w = globalThis.window?.self.Array)?.from(x)` tests `w = null == _globalThis
+  // .window ? void 0 : _self.Array`) - so the run goes there. above the landing a `?.` rides along
+  // as ever: only what the swap DISCARDS is asked here. a BRANCH, though, not a `?.` - asked of the
+  // value canon like every other short-circuit question, because one testing a value that cannot be
+  // absent (`globalThis?.self`) is dead text and the run has no branch for the collapse to spell
+  if (spineHasOptionalHop(found.span)
+    && navValueCanShortCircuit(found.span, resolvePure, ctx, { throughChainAssign: true })) return false;
+  // hops the landing leaves ABOVE it: an unbacked realm hop a member READS THROUGH is not a value
+  // the source reads, so the read-through fold owns it here exactly as it owns it under a plain
+  // claim (`(s = globalThis.self.window.Number)?.isInteger(1)` stores `_self.Number`). a TERMINAL
+  // one keeps its slot - it IS the environment probe - and so does one the source's own `?.` reads
+  const above = [];
+  for (let cur = run; cur && cur !== found.span
+    && (cur.type === 'MemberExpression' || cur.type === 'OptionalMemberExpression');
+    cur = unwrapRuntimeExpr(peelReceiverSequenceTail(cur.object))) above.push(cur);
+  // ... and none of them where the run's own TERMINAL is a realm hop THIS BUILD leaves raw: that
+  // value IS the environment probe the source reads, so the run keeps every slot it spells over the
+  // landing (`(p = globalThis.window.self)` stores `_globalThis.window.self` where `web.self` is
+  // excluded - one build's spelling, not a defect). the fold owns a run a real member NAVIGATES,
+  // which is the question `unbackedTailRidesAbove` answers for the claim channels, asked here of
+  // the node this walk already holds. by the NAME, not by the fold verdict beside it: that one
+  // answers whether core-js HAS an entry for the hop, and the walk above already proved every hop
+  // standing here unbacked in this build
+  // ... nor where a `?.` ABOVE the landing OBSERVES the run's absence: the value that `?.` tests is
+  // the environment probe just as a terminal realm hop is, so the run under it keeps every slot it
+  // spells. folding only up to the `?.` left the run one hop shorter than the source wrote it and
+  // answered `undefined` where the read the test performs throws (`(w = globalThis.window.window
+  // ?.Array)?.from(x)` tested `_globalThis.window?.Array`)
+  const terminalHopName = above.length ? memberProxyHopName(above[0]) : null;
+  const probeRunIsTheValue = above.slice(0, -1).some(reader => reader.optional)
+    || (!!terminalHopName && isPristineProxyGlobal(ctx?.adapter, terminalHopName));
+  for (let index = probeRunIsTheValue ? 0 : above.length - 1; index > 0; index--) {
+    const reader = above[index - 1];
+    if (!foldableRealmHop(above[index], { ...ctx, resolvePure })) break;
+    // ... and never THROUGH a realm hop this fold may not take - a hop the name canon cannot name,
+    // a mutated slot - so folding what stands under it leaves the run half spelled: either every
+    // realm hop over the landing rides the binding or none of them does
+    if (memberProxyHopName(reader) && !foldableRealmHop(reader, { ...ctx, resolvePure })) break;
+    reader.object = above[index].object;
+  }
+  // ... and what the span spells BELOW its key is discarded with it - a sequence prefix, a kept
+  // write, an SE-bearing computed key. those are acts the source performs, so the mint re-emits
+  // them ahead of the binding, where the source ran them (`(c++, globalThis).self` -> `(c++, _self)`)
+  const discarded = collectFoldedReceiverSideEffects(found.span);
+  if (found.span === run) {
+    const minted = mintPure(found.pure, discarded);
+    if (!store.outer) return minted;
+    // only where the write spells the run DIRECTLY: a wrapper or a sequence in the slot has a
+    // spelling of its own this swap has no place for
+    if (store.outer.right !== run) return null;
+    store.outer.right = minted;
+    return navNode;
+  }
+  // the host hop whose `.object` IS the span - again only the direct slot
+  for (let host = run; host?.type === 'MemberExpression' || host?.type === 'OptionalMemberExpression';
+    host = unwrapRuntimeExpr(peelReceiverSequenceTail(host.object))) {
+    if (unwrapRuntimeExpr(peelReceiverSequenceTail(host.object)) !== found.span) continue;
+    if (host.object !== found.span) return null;
+    host.object = mintPure(found.pure, discarded);
+    // the hop standing directly on the landed binding reads a value that cannot be absent, so its
+    // own `?.` is dead text (`globalThis.self?.window` lands `_self.window`) - the shared vestigial
+    // verdict, applied where the landing creates it
+    host.optional = false;
+    return navNode;
+  }
+  return null;
 }
 
 // an inline-resolvable call at the root of a FOLDED chain (receiver collapsed into a static
@@ -1014,9 +1178,14 @@ export function planGuardedStaticNarrow({ memberNode, parent, meta, path, resolv
     || memberNode.type === 'OptionalMemberExpression' || memberNode.optional)) {
     return { bail: true };
   }
-  // each candidate carries its own ctor reference - the guard chains them, innermost-last
+  // each candidate carries its own ctor reference - the guard chains them, innermost-last.
+  // resolved BY NAME, like every other name-only ctor caller: this reference is SYNTHESIZED for an
+  // identity test and the source spells no ctor at this position, so handing the member's path in
+  // let the positional escape census answer for `M.groupBy` - the STATIC's value, not the ctor's -
+  // and widened the comparator to the namespace entry beside the `*/constructor` the write already
+  // holds. the comparator's value is never handed out, so no escape can oblige it to carry statics
   const branches = candidates.map(candidate => {
-    const pure = resolvePure({ kind: 'global', name: candidate.ctorName }, path);
+    const pure = resolvePure({ kind: 'global', name: candidate.ctorName }, null);
     return { ...candidate, ctorPure: pure && pure.kind !== 'instance' ? pure : null };
   });
   const [primary] = branches;
@@ -1045,7 +1214,7 @@ export function planGuardedStaticNarrow({ memberNode, parent, meta, path, resolv
 function resolveSymbolReceiverProxyRoot({ node, receiverChain, receiverValueName, scope, adapter, path, resolvePure }) {
   const keptAssign = resolvePure ? peelChainAssignment(descendToChainRoot(receiverChain).root) : null;
   const isOptionalAccess = ownChainOptionalCount(node) > 0;
-  if (keptAssign?.outer && navHasUnresolvableProxyHop(keptAssign.value, resolvePure)) {
+  if (keptAssign?.outer && navHasUnresolvableProxyHop(keptAssign.value, resolvePure, { scope, adapter, path })) {
     // the kept root re-emits ITSELF, so harvesting it too would run the assignment twice - but
     // only IT is exempt: sequence effects around it and dropped-hop KEY effects still have to
     // ride ahead in source order (the symbol strand has no surviving key slot to carry them) -
@@ -1323,8 +1492,12 @@ export function handleMemberExpressionNode({
     // .Array).from` -> `_Array$from`). an INSTANCE claim re-emits its receiver as the helper's
     // argument, so the leaf is still a live read there: marking it handled strands a raw
     // `globalThis` / `self` (ie11 ReferenceError) in every render that keeps node identity
-    const collapsesReceiver = subsumesReceiver && (!resolveMeta || meta.placement === 'static'
-      || !!resolveMeta({ kind: 'global', name: meta.object }, path));
+    // ... and the question is the RESOLUTION's, not the detection placement's: a `static`-placement
+    // key can still resolve to an INSTANCE helper (`Array.name` -> `function/instance/name`), whose
+    // render takes the receiver as its argument. the call-rooted twin below already asks it this way
+    const collapsesReceiver = subsumesReceiver && resolveMeta?.(meta, path)?.kind !== 'instance'
+      && (!resolveMeta || meta.placement === 'static'
+        || !!resolveMeta({ kind: 'global', name: meta.object }, path));
     // a hop suppressed under a meta whose own OBJECT is an ordinary name (`bx.arr`) belongs to the
     // receiver PATH, not to the claim - it survives into the output and an emitter that can rewrite
     // it without colliding with the outer span records it as still-live for the suppressed-hop
@@ -1374,14 +1547,15 @@ export function handleMemberExpressionNode({
     // observable effects (the re-emitted body keeps a live reference that still needs `_globalThis`)
     if (suppressProxyGlobals && subsumesReceiver && meta.placement === 'static'
       && findChainRootCallExpression(node.object, true)) {
-      // the chain-root call stays LIVE (its inner must be visitor-rewritten) when the optional `?.` guard
-      // memoizes it AND a receiver-WRAPPING `instance` polyfill keeps the chain as a runtime receiver - either
-      // THIS member is itself that wrapper leaf (`...Map.name` -> `_nameMaybeFunction(_ref.self.Map)`), or one
-      // sits above it in the chain. otherwise the chain collapses to a receiver-less import (ctor / static / a
-      // polyfilled ctor's `.prototype.method`, whose leaf resolves to null), dropping the call - subsume the inner
-      const keepCallInner = chainRootCallKeptInOptionalGuard(node)
-        && ((!POSSIBLE_GLOBAL_OBJECTS.has(meta.object) && resolveMeta?.(meta, path)?.kind === 'instance')
-          || hasInstanceWrapperAbove({ path, scope, adapter, resolveMeta }));
+      // the chain-root call stays LIVE (its inner must be visitor-rewritten) when a receiver-WRAPPING
+      // `instance` polyfill keeps the chain as a runtime receiver - either THIS member is itself that
+      // wrapper leaf (`...Map.name` -> `_nameMaybeFunction(_ref.self.Map)`), which is exactly what
+      // `collapsesReceiver` answers, or one sits above it in the chain. otherwise the chain collapses to a
+      // receiver-less import (ctor / static / a polyfilled ctor's `.prototype.method`, whose leaf resolves
+      // to null), dropping the call - subsume the inner. keying this on the `?.` SHAPE instead asked a
+      // different question and stranded a raw `globalThis` wherever the guard memoized the call one hop
+      // down (`(() => globalThis)().window?.window.Array.name`)
+      const keepCallInner = !collapsesReceiver || hasInstanceWrapperAbove({ path, scope, adapter, resolveMeta });
       markSubsumedProxyChain({ node: node.object, handledObjects, scope, adapter, path, keepCallInner });
     }
   }
@@ -1796,7 +1970,7 @@ function markHandledObjects({ node, handledObjects, suppressProxyGlobals, scope,
   function keptStoredNavValue(candidate) {
     if (candidate.type !== 'AssignmentExpression') return null;
     const value = peelChainRootValue(candidate);
-    return value !== candidate && navHasUnresolvableProxyHop(value, spec => resolvePure?.(spec, path))
+    return value !== candidate && navHasUnresolvableProxyHop(value, spec => resolvePure?.(spec, path), { scope, adapter, path })
       ? value : null;
   }
   // walk down the proxy chain (`globalThis.Object`, `globalThis.self.Promise`, ...) and mark

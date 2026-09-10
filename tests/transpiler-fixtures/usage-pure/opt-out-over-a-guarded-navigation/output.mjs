@@ -1,5 +1,5 @@
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Promise from "@core-js/pure/actual/promise/constructor";
+import _Promise from "@core-js/pure/actual/promise";
 import _self from "@core-js/pure/actual/self";
 // the line-scoped opt-out reaches the guarded-navigation render too: that render INJECTS a
 // ponyfilled root and leaf, so it is an injection and not the reprint compensation that has to run

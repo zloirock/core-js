@@ -15,7 +15,6 @@ import {
   bareAssignmentPatternLeafPath,
   bindingInvisibleFromUseRegion,
   cleanDestructureAliasWrites,
-  climbJsxMemberChain,
   findFunctionScopeVarInPath,
   findTSRuntimeBindingInPath,
   getDirectStatementBody,
@@ -25,11 +24,11 @@ import {
   isAmbientBindingShape,
   isASTNode,
   isDestructurePattern,
-  isIntrinsicJsxTagName,
   isInUpdateOperand,
   isMemberWriteOnlyContext,
   isNonReferencePosition,
   isTSTypeOnlyIdentifierPath,
+  jsxTagRootReferencesBinding,
   LET_SCOPE_HOST_TYPES,
   memoizeBindingLookup,
   namespaceScopedBindingBlock,
@@ -52,7 +51,8 @@ import {
   isSymbolDestructureAliasBinding,
   registerAliasPrePassSite,
 } from '@core-js/polyfill-provider/helpers/class-walk';
-import { is as estreeIs, traverse } from 'estree-toolkit';
+import { traverse } from 'estree-toolkit';
+import { traverseWalksDecorators } from './estree-compat.js';
 
 // --- isReferenced ---
 
@@ -329,12 +329,12 @@ export function collectPrePassSites({
   const siteVisitors = wantsAliases
     ? mergeVisitors(handleSite ? mutationSiteVisitors(handleSite) : {}, aliasSiteVisitors(aliasSites, isDisabled))
     : mutationSiteVisitors(handleSite);
-  // estree-toolkit omits `decorators` from the visitor keys of the DEFINED class / member node
-  // types, so a site hidden inside a `@decorator(...)` expression escapes the traverse (babel's
-  // Program traverse reaches it natively and the emitters would diverge): the monkey-patch stays
-  // wrongly substitutable and the alias write goes unregistered. run the same site visitors over
-  // decorator subtrees; the guard inside walkDecorators skips any owner estree-toolkit already
-  // auto-walks, so no node is double-visited
+  // a site hidden inside a `@decorator(...)` the traverse does not enter escapes the pre-pass
+  // (babel's Program traverse reaches it natively and the emitters would diverge): the monkey-patch
+  // stays wrongly substitutable and the alias write goes unregistered. the restored visitor keys
+  // carry the traverse into an OWNER's decorators, so what is left to sweep by hand is the
+  // param-level ones; `walkDecorators` stands down wherever the traverse already goes, so no node
+  // is double-visited
   function visitDecoratorSites(path) { walkDecorators(path, siteVisitors); }
   traverse(ast, {
     $: { scope: true },
@@ -628,7 +628,7 @@ export function createEstreeAdapter(options = {}) {
       const requireBindingLive = isRequireBinding;
       const polyfillHint = usableAliasInfo(info)
         && (isAliasBindingShape || isImportBinding || requireBindingLive || info.minted)
-        && aliasSpanDominatesUse({ info, useStart: useAnchorStart(path) }) ? info.hint : null;
+        && aliasSpanDominatesUse({ info, useStart: useAnchorStart(path), usagePath: path }) ? info.hint : null;
       // a destructured Symbol.X alias (`const { iterator } = Symbol`) is a PATTERN binding with no
       // `importSource` and a UID hint; surface the registered module source so `bindingSymbolKey`
       // folds `obj[iterator]` uniformly with babel. the shadow gate rejects a nested same-name binding
@@ -1029,49 +1029,21 @@ function walkDecoratorList(decorators, parentPath, decoratorVisitors, revisit = 
   }
 }
 
-// estree-toolkit's traverse walks `visitorKeys[type] || Object.keys(node)`. for a node type it does
-// NOT define (no `is.<type>` predicate, so the Object.keys fallback applies) it already walks the
-// node's `decorators` array itself with the main visitor map; a manual walk then double-visits and
-// queues two colliding rewrites for the same span (crash). for a DEFINED type, `decorators` is
-// omitted from its visitor keys, so the manual walk is required. confirmed empirically: known
-// PropertyDefinition / Identifier-param decorators take the manual path and emit a single rewrite,
-// while unknown AccessorProperty / TSAbstract* / TSParameterProperty are reached by the auto-walk
-function estreeAutoWalksDecorators(node) {
-  const type = node?.type;
-  return !!type && estreeIs[type[0].toLowerCase() + type.slice(1)] === undefined;
-}
-
-// walks the node's own decorators plus any param-level decorators (TS legacy `@dec arg`
-// on class method / constructor params). `MethodDefinition.params` lives on `.value`. skip any
-// owner whose decorators estree-toolkit already auto-walks (see estreeAutoWalksDecorators)
+// walks the param-level decorators the traverse leaves behind (TS legacy `@dec arg` on class
+// method / constructor params); `MethodDefinition.params` lives on `.value`. the owner's OWN
+// decorators are not owed here - the restored visitor keys take the traverse into every one of
+// them, and visiting one a second time would queue two colliding rewrites for its span (crash).
+// `traverseWalksDecorators` - which reads the very keys the traverse follows - is the one arbiter
+// of what is still owed, and it stands this walk down per param type
 function walkDecorators(parentPath, decoratorVisitors, revisit = false) {
   const { node } = parentPath;
-  if (!estreeAutoWalksDecorators(node)) {
-    walkDecoratorList(node?.decorators, parentPath, decoratorVisitors, revisit);
-  }
   const params = node?.params ?? node?.value?.params;
   if (!params) return;
   for (const param of params) {
-    if (!estreeAutoWalksDecorators(param)) {
+    if (!traverseWalksDecorators(param.type)) {
       walkDecoratorList(param?.decorators, parentPath, decoratorVisitors, revisit);
     }
   }
-}
-
-// JSXIdentifier sits at the opening tag-name slot (`<Map />`'s `Map` Identifier with
-// parent=JSXOpeningElement, key='name'). only this position is a runtime reference;
-// attribute names, closing-tag dupes, and member-property tails reach the visitor too
-// but should be ignored
-function isJsxOpeningTagName(path) {
-  return path.parent?.type === 'JSXOpeningElement' && path.key === 'name';
-}
-
-// JSXMemberExpression root (`<Map.Provider.X />` -> `Map` Identifier sits at the bottom
-// of an `object`-chain whose terminal `MemberExpression` is the opening tag-name): true only
-// when the shared climb lands on a JSXOpeningElement.name slot AFTER at least one hop
-function isJsxMemberRoot(path) {
-  const cur = climbJsxMemberChain(path);
-  return cur !== path && isJsxOpeningTagName(cur);
 }
 
 // --- Usage visitors ---
@@ -1101,10 +1073,6 @@ export function createUsageVisitors({
     suppressProxyGlobals,
     onSuppressedProxyHop,
     suppressKeptNavRoot,
-    // read `kind` off the parent VariableDeclaration via the binding path - works across
-    // estree-toolkit shapes (`.path.parent` for one host, `.path.parentPath?.node` for
-    // another). babel's `binding.kind` is read directly via the babel adapter's own getter
-    selfRefBindingKind: b => (b?.path?.parent ?? b?.path?.parentPath?.node)?.kind,
   });
   const { skipUpdateTargets } = core;
 
@@ -1193,12 +1161,9 @@ export function createUsageVisitors({
   // detects a `var Tag` declaration inside a nested non-function block (estree-toolkit
   // registers var in the block's own scope rather than hoisting to enclosing function)
   function jsxIdentifierVisitor(path) {
-    // a lowercase-initial BARE tag names an intrinsic element - the string `structuredClone`, not
-    // the global of that name - so it is no runtime reference and must inject nothing. a MEMBER
-    // tag stays an expression whatever its case, so its root still resolves against the binding
-    if (isJsxOpeningTagName(path)) {
-      if (isIntrinsicJsxTagName(path.node.name)) return;
-    } else if (!isJsxMemberRoot(path)) return;
+    // which JSXIdentifier claims a runtime value - a bare tag not spelled as an intrinsic element,
+    // the root of a member tag, and only under the OPENING element - is the tag-root canon's answer
+    if (!jsxTagRootReferencesBinding(path)) return;
     if (adapter.hasBinding(path.scope, path.node.name, path)) return;
     onUsage({ kind: 'global', name: path.node.name }, path);
   }

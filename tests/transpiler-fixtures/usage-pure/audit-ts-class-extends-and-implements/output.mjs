@@ -1,4 +1,4 @@
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
 // `extends` slot and `implements` list are different parents under the same class -
 // `extends` is runtime (polyfilled), each `implements` entry is type-only (skipped).
 // multi-implements walks each implements-clause type-args entry separately
