@@ -38,6 +38,7 @@ import {
   memberKeyName,
   nodeHoldsChild,
   peelSkippableWrapperPath,
+  peelTransparentWrapperPath,
   unwrapRuntimeExpr,
 } from '../helpers/ast-patterns.js';
 import { memberWriteTargetPath } from './class-member-shapes.js';
@@ -101,15 +102,16 @@ export function createMemberResolve({
   resolveEnumMemberType,
   resolveEnumType,
   resolveNodeType,
+  functionTypeParams,
 }) {
   // --- Member-chain walker (predicate-guards integration) ---
 
-  // walk a (possibly nested) `obj.a.b.c` member-chain to its leaf member node. for each
-  // intermediate hop we step into the carried annotation via `getTypeMembers` + match;
-  // the leaf member is returned raw (not its typeAnnotation) so the caller can inspect
-  // a method's full TSMethodSignature - `findTypeMember` would synth a stub there and
-  // lose return-type info (e.g. TSTypePredicate). returns null on any non-Identifier link,
-  // missing root binding, or unresolvable intermediate hop
+  // walk a (possibly nested) `obj.a.b.c` member-chain to its leaf MEMBERS - every same-named
+  // callable one, an overload set being a set. for each intermediate hop we step into the carried
+  // annotation via `getTypeMembers` + match; the leaf members are returned raw (not their
+  // typeAnnotation) so the caller can inspect a method's full TSMethodSignature - `findTypeMember`
+  // would synth a stub there and lose return-type info (e.g. TSTypePredicate). returns null on any
+  // non-Identifier link, missing root binding, or unresolvable intermediate hop
   function resolveMemberCallChain(callee, scope) {
     const props = [];
     // peel ESTree `ChainExpression` / TS wrappers / parens at entry; intermediate hops
@@ -153,12 +155,12 @@ export function createMemberResolve({
       annotation = unwrapTypeAnnotation(findTypeMember({ objectType: annotation, key: props[i], scope: scopeRef }));
     }
     if (!annotation) return null;
-    // leaf: need the RAW member node (caller inspects signature shape - method vs property
+    // leaf: need the RAW member nodes (caller inspects signature shape - method vs property
     // vs getter - to decide call-vs-read dispatch). `findTypeMember` returns the resolved
-    // annotation only, which loses the signature shape, so leaf stays at members+find
-    const members = getTypeMembers({ objectType: annotation, scope: scopeRef });
-    const member = members?.find(m => keyMatchesName(m.key, props[0], scopeRef, m.computed));
-    return member ? { member, scope: scopeRef } : null;
+    // annotation only, which loses the signature shape, so leaf stays at members+filter
+    const members = getTypeMembers({ objectType: annotation, scope: scopeRef })
+      ?.filter(m => keyMatchesName(m.key, props[0], scopeRef, m.computed));
+    return members?.length ? { members, scope: scopeRef } : null;
   }
 
   // resolve a callee identifier to its function-like decl: returns {fnNode, returnType}
@@ -249,6 +251,32 @@ export function createMemberResolve({
     return null;
   }
 
+  // the callable member's PARAMETER list (parallel to memberCallReturnAnnotation): a method carries it
+  // on the member, an ESTree method on its `.value` function, a function-typed property on the
+  // function TYPE - and babel 7 spells a type's list `parameters`. the ONE reader of that slot, so a
+  // predicate bound through a class method or a function-typed property finds its argument on both
+  // parsers. a class FIELD holding a function is property-shaped and answers null: its value is not
+  // a member signature here (class-object-member resolves what such a call returns). the `?? null`
+  // tails normalise a missing slot to the null this contract promises, matching the shapes below
+  // that answer null outright - a caller testing the result may not have to tell the two apart
+  function memberCallParams(member) {
+    switch (member.type) {
+      case 'TSMethodSignature':
+      case 'ClassMethod':
+      case 'ClassPrivateMethod':
+      case 'TSDeclareMethod':
+        return member.params ?? member.parameters ?? null;
+      case 'TSAbstractMethodDefinition':
+      case 'MethodDefinition':
+        return member.value.params ?? null;
+      case 'TSPropertySignature':
+        return functionTypeParams(unwrapTypeAnnotation(member.typeAnnotation));
+      case 'ObjectTypeProperty':
+        return functionTypeParams(unwrapTypeAnnotation(member.value));
+    }
+    return null;
+  }
+
   // the callable member's signature-local `<T>` type-parameters (parallel to memberCallReturnAnnotation). a
   // METHOD signature (`take<T>(): T`) carries them on the member; a PROPERTY whose type is a function
   // (`take: <T>(x: T) => T`) carries them on the FUNCTION TYPE annotation, not the member - so shadowing
@@ -299,7 +327,7 @@ export function createMemberResolve({
       const memberSubst = subst ? shadowMethodTypeParams(memberCallTypeParameters(member), subst) : null;
       return memberSubst ? applyAliasSubstDeep(unwrapTypeAnnotation(returnAnnotation), memberSubst) : returnAnnotation;
     }
-    return foldOverloadReturns(matchingMembers, m => m.parameters ?? m.params, member => {
+    return foldOverloadReturns(matchingMembers, memberCallParams, member => {
       const substituted = substitutedReturn(member);
       return substituted ? resolve(substituted) : null;
     }, substitutedReturn, callPath);
@@ -770,8 +798,9 @@ export function createMemberResolve({
     // guarded branch, but F is structural - no $-Type carries its members, so the typed
     // walks above can't see them. route the predicate's annotation through the same
     // machinery a declared annotation takes (generics / class refs / method call returns)
-    if (originalObjectPath.node?.type === 'Identifier') {
-      const guard = findAnnotationGuard(originalObjectPath);
+    const guardedPath = peelTransparentWrapperPath(originalObjectPath);
+    if (guardedPath.node.type === 'Identifier') {
+      const guard = findAnnotationGuard(guardedPath);
       if (guard) {
         return resolveMemberOnAnnotation({
           annotation: unwrapTypeAnnotation(guard.annotation),
@@ -1010,6 +1039,7 @@ export function createMemberResolve({
     resolveMemberCallChain,
     resolveBindingReturnInfo,
     memberCallReturnAnnotation,
+    memberCallParams,
     resolveTypedMember,
     findClassPathForTypeReference,
     resolveIndexSignatureMember,

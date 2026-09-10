@@ -29,7 +29,9 @@ export const seqRootInstanceTail = delete (((n++, globalThis.window)).self?.Arra
 // stopped deleting anything at all
 export const deletedInstanceMember = delete (globalThis.self.Array.prototype.flat.name);
 // an INSTANCE dispatch under the delete memoizes its receiver: that memo holds the COLLAPSED value too,
-// so the `_ref` never reads `window` off the ponyfill. with a tail above it the canon lands on the ROOT
+// so the `_ref` never reads `window` off the ponyfill. with a tail above it the canon lands on the ROOT,
+// and the deleted member re-hangs OUTSIDE the guard behind a `?.` - absorbed into the alternate it
+// would be deleted from nothing, since `delete <ternary>` names no reference at all
 export const instanceTailMemo = delete (globalThis.window.self?.Array?.prototype.flat.name);
 // the SAME shape off a proven CALL root: the operator names a slot on what the dispatch returned,
 // so the run under it is an ordinary read and lands the deepest hop pure can back - the answer may

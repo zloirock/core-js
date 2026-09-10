@@ -65,6 +65,11 @@ async function runEquivalence(label, source, pluginOptions, {
   // babel side: full pipeline with `@core-js/babel-plugin`. TS parser plugin enabled
   // by default since most parser-sensitive cases involve TS shapes
   const babelOptions = {
+    // the oxc leg has no config lookup of its own, so an ambient babel config lowers ONE side and
+    // the comparison stops being about the two walkers. the repository root carries one, which this
+    // suite finds or misses by cwd alone - so the answer is pinned rather than left to the launcher
+    configFile: false,
+    babelrc: false,
     plugins: [['@core-js', pluginOptions]],
     parserOpts: { plugins: parserPlugins, ...parserOpts },
     filename: testId,

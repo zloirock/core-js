@@ -19,6 +19,7 @@ import { fork } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { applyRuntimeStamps, mergeCases, nextRound } from './cache-store.mjs';
+import { LEGS, coverageShortfalls, mergeCoverage, skippedTotal } from './coverage.mjs';
 import { generate } from './generate.mjs';
 
 const { cyan, green, red } = chalk;
@@ -252,27 +253,47 @@ try {
   killSurvivingChunks();
 }
 let passed = 0;
-let globalChecked = 0;
-let globalArmed = 0;
+let seen = 0;
 const failures = [];
 const timings = {};
 const cache = { hits: 0, evaluated: 0, audited: 0, volatile: 0, drifted: 0 };
 for (const r of results) {
   passed += r.passed;
-  globalChecked += r.globalChecked;
-  globalArmed += r.globalArmed;
+  seen += r.seen ?? 0;
   failures.push(...r.failures);
   for (const [phase, ms] of Object.entries(r.timings ?? {})) timings[phase] = (timings[phase] ?? 0) + ms;
   for (const [name, value] of Object.entries(r.cacheStats ?? {})) cache[name] += value;
 }
-for (const f of failures) echo`${ red('FAIL') } ${ cyan(f) }`;
+const coverage = mergeCoverage(results.map(r => r.coverage));
+// the corpus itself, bounded from below: every accounting here is scale-free and holds at zero, so
+// a generator that stops yielding is otherwise the fastest green run there is
+const CORPUS_FLOOR = 8000;
 
-const globalSummary = PURE_ONLY
-  ? red('SKIPPED (pure-only run - NOT a full verification)')
-  : `${ cyan(globalArmed) } armed of ${ cyan(globalChecked) } checked`;
-const emitterSummary = EMITTER === 'both' ? '' : ` | ${ red(`${ EMITTER }-only, parity oracle OFF`) }`;
-const legSummary = `Global leg: ${ globalSummary }${ emitterSummary }`;
-echo`\nChunks: ${ cyan(CHUNKS) } | Passed: ${ green(passed) }, Failed: ${ failures.length ? red(failures.length) : green(0) } | ${ legSummary }`;
+// COVERAGE IS ENFORCED, not merely printed. Every deep leg has to account for the whole corpus,
+// snippet by snippet, as CHECKED or under one of the reasons coverage.mjs names; a leg that stops
+// deep-checking leaves the difference unaccounted, which is the shortfall below. Without this a
+// regression can drop most of the corpus from a leg and the run still exits 0
+const coverageFailures = seen === corpusTotal ? [] : [`the chunks reported ${ seen } snippets of ${ corpusTotal } in the corpus`];
+if (corpusTotal < CORPUS_FLOOR) coverageFailures.push(`the generated corpus collapsed to ${ corpusTotal } snippets, under its floor of ${ CORPUS_FLOOR }`);
+coverageFailures.push(...coverageShortfalls(coverage, corpusTotal));
+for (const f of failures) echo`${ red('FAIL') } ${ cyan(f) }`;
+for (const f of coverageFailures) echo`${ red('COVERAGE') } ${ cyan(f) }`;
+
+const modeNotes = [];
+if (PURE_ONLY) modeNotes.push(red('usage-global leg SKIPPED (pure-only run - NOT a full verification)'));
+if (EMITTER !== 'both') modeNotes.push(red(`${ EMITTER }-only, parity oracle OFF`));
+echo`\nChunks: ${ cyan(CHUNKS) } | Passed: ${ green(passed) }, Failed: ${ failures.length ? red(failures.length) : green(0) }${ modeNotes.length ? ` | ${ modeNotes.join(' | ') }` : '' }`;
+// what was and was not DEEP-CHECKED, per leg. the `global-stripped` row's checked count IS the
+// leg's armed count, and a corpus edit that disarms it shows up as `not-armed` swallowing the row
+echo(green(`Coverage per deep leg (checked + named skips = ${ corpusTotal } snippets):`));
+const legWidth = Math.max(...Object.keys(LEGS).map(leg => leg.length));
+for (const [leg, stats] of Object.entries(coverage)) {
+  const reasons = Object.entries(stats.skipped)
+    .sort((a, b) => b[1] - a[1])
+    .map(([reason, count]) => `${ reason } ${ count }`);
+  const skipped = `${ cyan(String(skippedTotal(stats)).padStart(6)) } skipped${ reasons.length ? `: ${ cyan(reasons.join(', ')) }` : '' }`;
+  echo(`  ${ cyan(leg.padEnd(legWidth)) } ${ cyan(String(stats.checked).padStart(6)) } checked | ${ skipped }`);
+}
 // what the run actually EXECUTED, spelled out: a fully memoized run evaluates nothing, and the
 // audit count is the only evidence that the cached keys were checked against live ones at all
 const volatileNote = cache.volatile ? `, ${ cyan(cache.volatile) } not cacheable (result not a function of the code alone)` : '';
@@ -323,5 +344,8 @@ try {
 if (!tokens.size) echo`edit-loop scoping: ${ cyan('pure') } skips the usage-global leg, ${ cyan('babel') } / ${ cyan('unplugin') } runs one emitter - combinable positional tokens; the bare run stays the gate`;
 // a clean run leaves nothing behind; a failed one keeps its modules for reproduction (the tree
 // is reaped as dead by the next run's startup sweep)
-if (!failures.length) await remove(TMP);
+if (!failures.length && !coverageFailures.length) await remove(TMP);
+// the coverage verdict goes FIRST: a leg that stopped accounting for the corpus makes the pass
+// count above a statement about an unknown subset of it, so it is the more urgent thing to say
+if (coverageFailures.length) throw new Error(`differential coverage is not accounted for: ${ coverageFailures.join('; ') }`);
 if (failures.length) throw new Error('Some tests have failed');

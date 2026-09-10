@@ -34,10 +34,13 @@ import {
 } from '../../packages/core-js-polyfill-provider/helpers/source-scan.js';
 import {
   bindingBoundName,
+  bindingOpaqueAccessNodes,
   buildScopeReassignmentIndex,
   callArgumentPathAt,
   effectiveArgsLength,
   findIifeArgPath,
+  annexBHoistOutrunsBinding,
+  isOpaqueAccessNode,
   isSloppyAtPath,
   classDefinitionTimePaths,
   classOwnThisMethodInfo,
@@ -48,6 +51,7 @@ import {
   inferTypeParameterNames,
   isBindingDeclarationPath,
   isConditionalExpressionSlot,
+  isDeferredContextStep,
   isAmbientTypeDeclaration,
   isTSTypeOnlyIdentifierPath,
   nonEmittedExpressionAncestor,
@@ -57,6 +61,7 @@ import {
   resolveCallArgumentCoords,
   resolveFallbackReceiverPath,
   stepOverChainWrappers,
+  suspensionPointBefore,
   recomputedBindingWrites,
   synthHoistedBinding,
   typeParameterInScope,
@@ -90,6 +95,10 @@ import {
   pureCtorNameFromImportSource,
   SINGLE_STATEMENT_SLOTS,
   SKIPPABLE_WRAPPER_TYPES,
+  siblingHostingIndex,
+  useOutrunsWrite,
+  writeOutrunsUse,
+  writeSitsInEarlySlot,
   arrayLiteralSlotValue,
   flattenInlineArraySpreads,
   objectLevelPairedProperty,
@@ -2253,6 +2262,77 @@ for (const adapter of adapters) {
   check(`recomputedBindingWrites/catch parameter: the clause's write [${ adapter.name }]`, writes[0]?.right?.value, 3);
 }
 
+// --- bindingOpaqueAccessNodes: the accesses no reference set holds ---
+// a direct `eval` assigns through the scope chain it stands in and a `with` head answers a body
+// read off its object, and neither leaves a reference either tracker records - so both are recorded
+// as writes of every name their position resolves. the boundaries: an INDIRECT eval evaluates in
+// the global scope and reaches nothing local, a shadowed `eval` name is not the intrinsic, and a
+// declaration the `with` body itself binds sits BELOW the object environment
+for (const adapter of adapters) {
+  function opaqueOf(code, name, kind, pick) {
+    const program = adapter.parseAndScope(code, 'script');
+    return bindingOpaqueAccessNodes(pick(program), name, kind);
+  }
+  function letDeclarator(program, name) {
+    return adapter.pickPath(program, 'VariableDeclarator', p => p.node.id?.name === name);
+  }
+  // the shadowing scenarios below spell one name twice and ask about the OUTER declaration, which
+  // `letDeclarator` cannot point at - the array initializer is what tells the two apart
+  function outerArrayDeclarator(program, name) {
+    return adapter.pickPath(program, 'VariableDeclarator',
+      p => p.node.id?.name === name && p.node.init?.type === 'ArrayExpression');
+  }
+
+  const direct = opaqueOf('let v = []; eval("v = 1"); v.at(0);', 'v', 'let', p => letDeclarator(p, 'v'));
+  check(`bindingOpaqueAccessNodes/a direct eval reaches the name [${ adapter.name }]`, direct.length, 1);
+  check(`bindingOpaqueAccessNodes/recorded at the call itself [${ adapter.name }]`,
+    isOpaqueAccessNode(direct[0]), true);
+
+  check(`bindingOpaqueAccessNodes/an optional direct eval reaches it too [${ adapter.name }]`,
+    opaqueOf('let v = []; eval?.("v = 1");', 'v', 'let', p => letDeclarator(p, 'v')).length, 1);
+  check(`bindingOpaqueAccessNodes/a sequence prefix makes the eval indirect [${ adapter.name }]`,
+    opaqueOf('let v = []; (0, eval)("v = 1");', 'v', 'let', p => letDeclarator(p, 'v')).length, 0);
+  check(`bindingOpaqueAccessNodes/an eval name the census shadows is not the intrinsic [${ adapter.name }]`,
+    opaqueOf('let v = []; function h() { var eval = f; eval("v = 1"); }', 'v', 'let', p => letDeclarator(p, 'v')).length, 0);
+  // a shadow declared ABOVE the scanned scope is invisible to the census, and the call is recorded
+  // rather than guessed away - the direction that costs a narrow instead of substituting a helper
+  check(`bindingOpaqueAccessNodes/a shadow above the scanned scope is recorded anyway [${ adapter.name }]`,
+    opaqueOf('function h(eval) { let v = []; eval("v = 1"); }', 'v', 'let', p => letDeclarator(p, 'v')).length, 1);
+
+  const withOuter = opaqueOf('const outer = []; with (host) { outer.at(0); }', 'outer', 'const', p => letDeclarator(p, 'outer'));
+  check(`bindingOpaqueAccessNodes/a with body reaches a binding declared outside [${ adapter.name }]`, withOuter.length, 1);
+  check(`bindingOpaqueAccessNodes/recorded at the statement itself [${ adapter.name }]`,
+    withOuter[0]?.type, 'WithStatement');
+  check(`bindingOpaqueAccessNodes/a lexical the body binds sits below the object env [${ adapter.name }]`,
+    opaqueOf('with (host) { const inner = []; inner.at(0); }', 'inner', 'const', p => letDeclarator(p, 'inner')).length, 0);
+  // a `var` in that body hoists PAST the statement, so the object environment does answer for it
+  check(`bindingOpaqueAccessNodes/a var the body binds hoists past the head [${ adapter.name }]`,
+    opaqueOf('with (host) { var raised = []; raised.at(0); }', 'raised', 'var', p => letDeclarator(p, 'raised')).length, 1);
+
+  // the census snapshot is per CONSTRUCT and a query subtracts ITSELF from it, so a name already
+  // shadowed where the construct stands is a name that construct resolves to an inner binding of -
+  // an outer binding of it is out of reach and keeps its narrow. the pair differs only by the inner
+  // declaration, so the second row proves the first one is not measuring an unrecorded access
+  check(`bindingOpaqueAccessNodes/an eval under a scope shadowing the name leaves the outer one [${ adapter.name }]`,
+    opaqueOf('var v = []; function h() { var v = 1; eval("v = 1"); } v.at(0);',
+      'v', 'var', p => outerArrayDeclarator(p, 'v')).length, 0);
+  check(`bindingOpaqueAccessNodes/the same eval without the inner declaration does reach it [${ adapter.name }]`,
+    opaqueOf('var v = []; function h() { eval("v = 1"); } v.at(0);',
+      'v', 'var', p => outerArrayDeclarator(p, 'v')).length, 1);
+  // the body's lexical names shadow BEFORE the head is recorded, so a `let` there is already in the
+  // snapshot: a body read of that name answers off the lexical instead of the object environment,
+  // which leaves an outer binding of the same name outside the statement's reach
+  check(`bindingOpaqueAccessNodes/a with body lexical shields the outer name of it [${ adapter.name }]`,
+    opaqueOf('var shared = []; with (host) { let shared = 1; } shared.at(0);',
+      'shared', 'var', p => outerArrayDeclarator(p, 'shared')).length, 0);
+  check(`bindingOpaqueAccessNodes/without that lexical the same head reaches it [${ adapter.name }]`,
+    opaqueOf('var shared = []; with (host) { shared.at(0); }',
+      'shared', 'var', p => outerArrayDeclarator(p, 'shared')).length, 1);
+
+  check(`isOpaqueAccessNode/an ordinary write is not one [${ adapter.name }]`,
+    isOpaqueAccessNode({ type: 'AssignmentExpression' }), false);
+}
+
 // --- isSloppyAtPath: ONE answer for the strictness every write index depends on ---
 // the index builder takes strictness as a FLAG, so two consumers answering that question
 // differently get different write sets for the same owner. the predicate is the single answer
@@ -2337,6 +2417,35 @@ for (const adapter of adapters) {
     check(`functionScopeBindsVarOrFunction/${ mode }: the body-extract bail follows Annex B [${ adapter.name }]`,
       functionScopeBindsVarOrFunction(adapter.pickPath(prog, 'FunctionDeclaration'), 'Array'), hoisted);
   }
+}
+
+// --- annexBHoistOutrunsBinding: whose name reaches past the block its binding covers ---
+// the same hoist, asked of the DECLARATION: only a sloppy block-level function has uses a
+// block-scoped binding cannot see. a declaration the var-scope owner holds directly is
+// function-scoped whatever the strictness, an intervening lexical keeps the hoist inside the
+// block, and a binding that is no function declaration at all is never in question
+for (const adapter of adapters) {
+  for (const [label, sourceType, code, outruns] of [
+    ['sloppy block-nested function', 'script', '{ function F() {} }', true],
+    ['sloppy block function inside a function body', 'script', 'function h() { { function F() {} } }', true],
+    ['strict block-nested function', 'module', '{ function F() {} }', false],
+    ['sloppy program-level function', 'script', 'function F() {}', false],
+    ['sloppy function-body-level function', 'script', 'function h() { function F() {} }', false],
+    ['intervening lexical blocks the hoist', 'script', '{ let F; { function F() {} } }', false],
+  ]) {
+    const prog = adapter.parseAndScope(code, sourceType);
+    const decl = adapter.pickPath(prog, 'FunctionDeclaration', p => p.node.id?.name === 'F');
+    check(`annexBHoistOutrunsBinding/${ label } [${ adapter.name }]`, annexBHoistOutrunsBinding(decl), outruns);
+  }
+  const varProg = adapter.parseAndScope('{ var F = 1; }', 'script');
+  check(`annexBHoistOutrunsBinding/a declarator is not a block function [${ adapter.name }]`,
+    annexBHoistOutrunsBinding(adapter.pickPath(varProg, 'VariableDeclarator')), false);
+  // the hoist carries a NAME, and a default export declares a FunctionDeclaration that binds none -
+  // the question is answered off the id slot, before any scope walk
+  const anonProg = adapter.parseAndScope('export default function () {}');
+  check(`annexBHoistOutrunsBinding/a nameless default export binds no name [${ adapter.name }]`,
+    annexBHoistOutrunsBinding(adapter.pickPath(anonProg, 'FunctionDeclaration')), false);
+  check('annexBHoistOutrunsBinding/no path', annexBHoistOutrunsBinding(null), false);
 }
 
 // --- identifierReferencedInSubtree: a declaration of the name is no reference, nor is type space ---
@@ -2639,5 +2748,95 @@ check('bindingBoundName/pattern declarator answers nothing', bindingBoundName({ 
 // the accessor is asked of whatever a lookup handed back, an ABSENT binding included
 check('bindingBoundName/no binding at all', bindingBoundName(null), null);
 check('bindingBoundName/an empty view', bindingBoundName({}), null);
+
+// --- the chains these predicates are asked over: detached, dropped, position-less ---
+
+// every one of these walks climbs a parent chain, and three of the shapes it is handed carry a hole
+// where a node is expected: a chain that overshoots its stop and reaches a detached / tree-root path
+// (node `null`), a statement list whose member an emitter DROPPED, a path a caller built with no
+// parent at all. None is reachable through a parse, so no fixture can put one here; each is what the
+// resolver itself hands these helpers mid-rewrite, and reading the hole through throws before any
+// answer. The rows below stand the shape up directly and pin the answer the walk stops on.
+
+// the write climb: a class eval slot sits ABOVE the hole, so a climb that read through it would
+// answer `true` - the control row spells the same chain WITHOUT the hole and gets exactly that
+{
+  const write = { type: 'AssignmentExpression', start: 20, end: 30 };
+  const decorator = { type: 'Decorator', expression: write, start: 18, end: 30 };
+  const classNode = { type: 'ClassDeclaration', decorators: [decorator], body: { type: 'ClassBody', body: [] }, start: 0, end: 60 };
+  const classPath = { node: classNode, parentPath: null };
+  const holedPath = { node: decorator, listKey: 'decorators', key: 0, parentPath: { node: null, parentPath: classPath } };
+  const wholePath = { node: decorator, listKey: 'decorators', key: 0, parentPath: classPath };
+  check('early slot/write climb stops at a detached step', writeSitsInEarlySlot({ node: write, key: 'expression', parentPath: holedPath }), false);
+  check('early slot/the same chain without the hole reaches the class decorator', writeSitsInEarlySlot({ node: write, key: 'expression', parentPath: wholePath }), true);
+}
+
+// the mirror's climb, over the pair only a CLASS ranks: its own decorator list runs at definition
+// time, ahead of every field value the body holds, and the class node is where that pair is read -
+// an ancestry step above a class MEMBER would answer about the class enclosing THIS one
+{
+  const useNode = { type: 'Identifier', name: 'x', start: 5, end: 6 };
+  const decorator = { type: 'Decorator', expression: useNode, start: 2, end: 8 };
+  const write = { type: 'AssignmentExpression', start: 38, end: 48 };
+  const field = { type: 'ClassProperty', computed: false, key: { type: 'Identifier', name: 'p' }, value: write, start: 36, end: 50 };
+  const classNode = { type: 'ClassDeclaration', decorators: [decorator], body: { type: 'ClassBody', body: [field] }, start: 0, end: 60 };
+  const classPath = { node: classNode, parentPath: null };
+  const decPath = { node: decorator, listKey: 'decorators', key: 0, parentPath: classPath };
+  check('early slot, mirror: a use in the class\'s own decorator outruns a field value below it',
+    useOutrunsWrite(write, { node: useNode, key: 'expression', parentPath: decPath }), true);
+  // its own nodes, not the pair above: the span index is memoized per use NODE, and a shared one
+  // would answer this row from the row before it
+  const holedUse = { type: 'Identifier', name: 'z', start: 5, end: 6 };
+  const holedDec = { type: 'Decorator', expression: holedUse, start: 2, end: 8 };
+  const holedPath = { node: holedDec, listKey: 'decorators', key: 0, parentPath: { node: null, parentPath: classPath } };
+  check('early slot, mirror: the climb stops at a detached step', useOutrunsWrite(write, { node: holedUse, key: 'expression', parentPath: holedPath }), false);
+  check('early slot, mirror: a use path with no parent at all outruns nothing',
+    useOutrunsWrite(write, { node: { type: 'Identifier', name: 'y', start: 5, end: 6 } }), false);
+  // the OTHER half of the memo pair asks the same question in reverse and reads the same parent slot
+  // to key its memo by, so the parentless use reaches it too
+  check('early slot: a use path with no parent at all is outrun by nothing',
+    writeOutrunsUse(write, { node: { type: 'Identifier', name: 'w', start: 5, end: 6 } }), false);
+}
+
+// statement placement over a list an emitter has dropped a member from: the hole occupies no span
+// and hosts nothing, while the members around it still place their own writes
+{
+  const first = { type: 'VariableDeclaration', start: 0, end: 10 };
+  const third = { type: 'ExpressionStatement', start: 31, end: 50 };
+  const block = { type: 'BlockStatement', body: [first, null, third] };
+  const blockPath = { node: block, parentPath: null };
+  const siblings = block.body.map((node, key) => ({ node, listKey: 'body', key, parentPath: blockPath }));
+  check('statement placement: a dropped member does not displace the ones around it',
+    siblingHostingIndex(siblings, { type: 'AssignmentExpression', start: 33, end: 40 }), 2);
+  check('statement placement: and hosts nothing where it stood',
+    siblingHostingIndex(siblings, { type: 'AssignmentExpression', start: 12, end: 20 }), -1);
+  // a bare node placed by span alone, with no span to place it by: the search over an ASCENDING
+  // list of disjoint spans answers "no member" for every partial one, so the placement needs no
+  // span test of its own ahead of it
+  for (const [label, target] of [
+    ['neither end', { type: 'AssignmentExpression' }],
+    ['a start only', { type: 'AssignmentExpression', start: 12 }],
+    ['an end only', { type: 'AssignmentExpression', end: 20 }],
+  ]) check(`statement placement: a node with ${ label } is hosted by nothing`, siblingHostingIndex(siblings, target), -1);
+}
+
+// the deferral step is asked of an ancestor NODE, and the climbs that ask it run off the top of
+// their chain - the step above a detached path has no node to classify
+check('deferral step/no node is no deferred context', isDeferredContextStep(null, null), false);
+
+// the suspension search is asked for a read position, and a read an emitter minted has none. the
+// search over an ascending list ranks nothing before such a read, so a caller holding a
+// position-less read needs no test of its own ahead of the call
+{
+  const await0 = { type: 'AwaitExpression', argument: { type: 'NumericLiteral', value: 0 }, start: 30, end: 37 };
+  const fnNode = {
+    type: 'FunctionDeclaration',
+    async: true,
+    body: { type: 'BlockStatement', body: [{ type: 'ExpressionStatement', expression: await0, start: 30, end: 38 }] },
+  };
+  check('suspension point/a read below the await is parked behind it', suspensionPointBefore(fnNode, 40), 30);
+  check('suspension point/a read above it is not', suspensionPointBefore(fnNode, 10), null);
+  check('suspension point/a read with no position of its own is not', suspensionPointBefore(fnNode, undefined), null);
+}
 
 finish();
