@@ -3,8 +3,7 @@
 // a computed hop-key effect, and an effect buried in the LEAF's own computed key - in source
 // order ahead of it. the decision is the shared discarded-receiver plan; a pure chain-root
 // call is dropped entirely. the leaf key resolves through the canonical fold, so an
-// SE-sequence leaf key still swaps instead of stranding the raw proxy hop; a folded leaf
-// WITHOUT a pure ctor entry falls back to the root-collapse residual, keeping the key read
+// SE-sequence leaf key still swaps instead of stranding the raw proxy hop
 let c = 0;
 function sf() {
   c++;

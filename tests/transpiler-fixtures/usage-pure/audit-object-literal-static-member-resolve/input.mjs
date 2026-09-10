@@ -1,5 +1,9 @@
 // an object literal is a name-indexable static container: a nested destructure off one of its keys
-// resolves the LAST matching member's value, through the same canonical resolver a class body uses
+// resolves the LAST matching member's value, through the same canonical resolver a class body uses.
+// where a slot this pass cannot NAME bails that pairing - a computed key it cannot fold, a spread
+// that may redefine one, an accessor - the read still happens, off the binding pure substituted into
+// the named slot: there the entry has to carry the STATICS, because the bare `<x>/constructor`
+// installs none and the read answers `undefined` on the floor this build targets
 
 // a computed static-string key overrides an earlier plain key (last-wins sees through it)
 const withComputed = { N: Array, ["N"]: Promise };

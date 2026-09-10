@@ -1,6 +1,6 @@
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Promise from "@core-js/pure/actual/promise/constructor";
+import _Promise from "@core-js/pure/actual/promise";
 import _self from "@core-js/pure/actual/self";
 // an alias whose init is the MINTED guard (the in-place collapse rewrote it before this claim
 // resolved): classification follows the marked defined branch on BOTH legs - the mark rides

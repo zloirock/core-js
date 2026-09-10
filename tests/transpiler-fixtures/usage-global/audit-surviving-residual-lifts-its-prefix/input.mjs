@@ -1,8 +1,7 @@
-// a SURVIVING residual keeps the receiver, so the extraction is emitted ahead of it - and the
-// source ran the receiver's sequence prefix before either. the prefix lifts to where the source
-// ran it, and the residual reads the bare tail; leaving it behind let the effect observe the
-// write the extraction had already made. the nav tail and the export host take the same lift, and
-// so does a prop whose OWN computed key carries an effect - that key runs where it stands, second.
+// usage-global twin of the surviving-residual prefix lift: the global method rewrites none of these
+// destructures, so the lock is the import set alone. the receiver's sequence prefix stands where the
+// source wrote it, and each row reads a family of its own - the nav tail, the export host and a prop
+// whose OWN computed key carries an effect - so no row masks another's regression.
 function eff() {}
 let mm, oo;
 ({ Map: mm, other: oo } = (eff(), globalThis));

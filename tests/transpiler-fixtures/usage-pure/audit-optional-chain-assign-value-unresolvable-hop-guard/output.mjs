@@ -7,7 +7,7 @@ import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
 import _self from "@core-js/pure/actual/self";
 var _ref, _ref2, _ref3;
 // Rooting the proxy-hop collapse THROUGH a chain-assignment proves the ROOT is a proxy global - it says

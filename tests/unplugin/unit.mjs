@@ -13,8 +13,8 @@ import createPlugin, {
   formatLabelLocation,
   formatParseErrorForThrow,
   formatParseErrorForWarn,
-  formatParseErrorMessage,
 } from '../../packages/core-js-unplugin/internals/plugin.js';
+import { sealedLayerAbove } from '../../packages/core-js-unplugin/internals/claim-guards.js';
 import SnapshotCache from '../../packages/core-js-unplugin/internals/snapshot-cache.js';
 import { printProgram } from '../../packages/core-js-unplugin/internals/print.js';
 import { expressionStatement as mintStatement, literal as mintLiteral } from '../../packages/core-js-unplugin/internals/builders.js';
@@ -435,6 +435,29 @@ check('entryToGlobalHint/null', entryToGlobalHint(null), null);
   }
 }
 
+// --- user ternary of the guard spelling is a source read, not our render ---
+// the emitter stands a call-rooted fold down inside the guard TEST it rendered - that nav is the
+// read the render performs. a USER ternary of the same spelling (`null == <nav> ? void 0 : ...`)
+// is not that render, so its test keeps the fold every other source read takes: the babel leg's
+// bytes, where standing down left the test reading a hop the alternate had already folded away
+function checkUserGuardTernaryKeepsItsFold() {
+  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
+  const CASES = [
+    ['plain call root', 'null == f().self.window ? void 0 : f().self.window.customUserSlot',
+      'null == _self.window ? void 0 : _self.customUserSlot'],
+    ['optional call root', 'null == f()?.self.window ? void 0 : f().self.window.customUserSlot',
+      'null == _self.window ? void 0 : _self.customUserSlot'],
+    ['reversed operands over an optional hop', 'f().self?.window == null ? void 0 : f().self.window.customUserSlot',
+      '_self?.window == null ? void 0 : _self.customUserSlot'],
+  ];
+  for (const [label, expression, expected] of CASES) {
+    const source = `const f = () => globalThis;\nexport const a = ${ expression };\n`;
+    const out = plugin.transform(source, '/p.mjs')?.code ?? '';
+    check(`user guard ternary: ${ label } keeps the test's own fold`, out.includes(expected), true);
+  }
+}
+checkUserGuardTernaryKeepsItsFold();
+
 // --- isTopLevelImportLike: paren / sequence-wrapped require ---
 // a top-level `require('m')` counts as an import-like statement so `var _ref;` lands after it.
 // the callee is peeled of skippable wrappers first, so a parenthesized or comma-sequence
@@ -510,7 +533,7 @@ function checkTransformParseErrorThrowsWhenNoWarn() {
 }
 checkTransformParseErrorThrowsWhenNoWarn();
 
-// formatParseErrorMessage labels-only fallback: oxc currently always emits codeframe, but
+// formatParseErrorForWarn labels-only fallback: oxc currently always emits codeframe, but
 // future versions might omit it for synthetic / degraded errors. helper must still build
 // an actionable message from labels + label.message + helpMessage. test with a
 // synthetic error shape (no codeframe) to lock the fallback path
@@ -523,27 +546,23 @@ function checkFormatParseErrorLabelsFallback() {
     helpMessage: 'add a value after `=`',
     codeframe: null,
   };
-  const warnMsg = formatParseErrorMessage({
-    id: '/synthetic.mjs', error: syntheticError, code, withCoreJSPrefix: true,
-  });
-  check('formatParseErrorMessage/labels-fallback prefix',
+  const warnMsg = formatParseErrorForWarn({ id: '/synthetic.mjs', error: syntheticError, code });
+  check('formatParseErrorForWarn/labels-fallback prefix',
     warnMsg.startsWith('[core-js] could not parse /synthetic.mjs:'), true);
   // offset 10 lands on line 2 (after the `\n` at offset 9), column 1 (start of `foo`)
-  check('formatParseErrorMessage/labels-fallback at line:col', warnMsg.includes('at 2:1'), true);
-  check('formatParseErrorMessage/labels-fallback label.message',
+  check('formatParseErrorForWarn/labels-fallback at line:col', warnMsg.includes('at 2:1'), true);
+  check('formatParseErrorForWarn/labels-fallback label.message',
     warnMsg.includes('expected expression'), true);
-  check('formatParseErrorMessage/labels-fallback helpMessage',
+  check('formatParseErrorForWarn/labels-fallback helpMessage',
     warnMsg.includes('add a value after `=`'), true);
   // throw-path variant strips the explicit `[core-js]` prefix because runTransform's catch
   // re-stamps `[core-js] [<id>]` via tagError - double-prefixing would be noisy
-  const throwMsg = formatParseErrorMessage({
-    id: '/synthetic.mjs', error: syntheticError, code, withCoreJSPrefix: false,
-  });
-  check('formatParseErrorMessage/throw-path no `[core-js]` prefix',
+  const throwMsg = formatParseErrorForThrow({ error: syntheticError, code });
+  check('formatParseErrorForThrow/no `[core-js]` prefix',
     throwMsg.startsWith('could not parse:'), true);
   // missing helpMessage and missing label.message both degrade gracefully - presence of
   // line:col alone is enough for the user to find the broken span
-  const minimal = formatParseErrorMessage({
+  const minimal = formatParseErrorForWarn({
     id: '/min.mjs',
     error: {
       severity: 'Error',
@@ -553,14 +572,13 @@ function checkFormatParseErrorLabelsFallback() {
       codeframe: null,
     },
     code: 'x',
-    withCoreJSPrefix: true,
   });
-  check('formatParseErrorMessage/minimal labels has line:col',
+  check('formatParseErrorForWarn/minimal labels has line:col',
     /at \d+:\d+/.test(minimal), true);
-  check('formatParseErrorMessage/minimal labels no null str',
+  check('formatParseErrorForWarn/minimal labels no null str',
     !minimal.includes('null'), true);
   // codeframe present -> labels path skipped entirely (codeframe already carries line:col)
-  const withFrame = formatParseErrorMessage({
+  const withFrame = formatParseErrorForWarn({
     id: '/frame.mjs',
     error: {
       severity: 'Error',
@@ -570,14 +588,13 @@ function checkFormatParseErrorLabelsFallback() {
       codeframe: '  x Boom\n   ,-[/frame.mjs:1:1]\n',
     },
     code: 'x',
-    withCoreJSPrefix: true,
   });
-  check('formatParseErrorMessage/codeframe wins over labels',
+  check('formatParseErrorForWarn/codeframe wins over labels',
     withFrame.includes('[/frame.mjs:1:1]') && !withFrame.includes('label noise'), true);
 }
 checkFormatParseErrorLabelsFallback();
 
-// --- formatParseErrorMessage degradation paths ---
+// --- parse-error message degradation paths ---
 // no codeframe AND no labels: helper must still emit a usable head from `error.message`;
 // silently swallowing the diagnostic would hide the broken file from the user
 function checkFormatParseErrorNoCodeframeNoLabels() {
@@ -586,16 +603,16 @@ function checkFormatParseErrorNoCodeframeNoLabels() {
     error: { severity: 'Error', message: 'Bare oxc failure', labels: null, helpMessage: null, codeframe: null },
     code: 'x',
   });
-  check('formatParseErrorMessage/bare warn starts with prefix',
+  check('formatParseErrorForWarn/bare starts with prefix',
     warnOut.startsWith('[core-js] could not parse /bare.mjs: Bare oxc failure'), true);
-  check('formatParseErrorMessage/bare warn carries no location chunk',
+  check('formatParseErrorForWarn/bare carries no location chunk',
     !warnOut.includes('\nat ') && !warnOut.includes('null'), true);
 
   const throwOut = formatParseErrorForThrow({
     error: { severity: 'Error', message: 'Bare oxc failure', labels: undefined, codeframe: undefined },
     code: 'x',
   });
-  check('formatParseErrorMessage/bare throw head only', throwOut, 'could not parse: Bare oxc failure');
+  check('formatParseErrorForThrow/bare head only', throwOut, 'could not parse: Bare oxc failure');
 }
 checkFormatParseErrorNoCodeframeNoLabels();
 
@@ -614,9 +631,9 @@ function checkFormatParseErrorHelpMessageAttachesWithoutLocation() {
     code: 'x,',
   });
   const [head, tail] = msg.split('\n', 2);
-  check('formatParseErrorMessage/help-only head',
+  check('formatParseErrorForWarn/help-only head',
     head.startsWith('[core-js] could not parse /help-only.mjs: Unexpected token'), true);
-  check('formatParseErrorMessage/help-only tail equals helpMessage', tail, 'try removing the trailing comma');
+  check('formatParseErrorForWarn/help-only tail equals helpMessage', tail, 'try removing the trailing comma');
 }
 checkFormatParseErrorHelpMessageAttachesWithoutLocation();
 
@@ -3731,10 +3748,6 @@ function checkWalkerMutationContract() {
 }
 checkWalkerMutationContract();
 
-const { passed, failed } = counts;
-echo`\nPassed: ${ green(passed) }, Failed: ${ failed ? red(failed) : green(failed) }`;
-if (failed) throw new Error('Some tests have failed');
-
 // --- phase: 'pre+post' bundler-specific downgrade (PRE_POST_UNSAFE_BUNDLERS) ---
 // bun and esbuild can't honor sibling pre-then-post ordering (bun drops `enforce`; esbuild's
 // first-wins onLoad runs only one of two sibling instances), so an explicit `phase: 'pre+post'`
@@ -4141,3 +4154,45 @@ function injectsModule(source, module) {
     return `threw: ${ error.message.split('\n', 1)[0] }`;
   }
 }
+
+// --- sealedLayerAbove: what a chain hop reads THROUGH on its way to a seal ---
+
+// the verdict decides whether the read above the hop is OBSERVABLE, and today every consumer of it
+// happens to answer the same either way - so no fixture can hold this and the predicate is asserted
+// directly. what it must NOT do is stop on a TS assertion: the assertion erases, so `(x?.y as any).z`
+// seals exactly like its cast-less twin, and a climb that only steps over the chain marker is a
+// hand-rolled SUBSET of `CHAIN_HOP_WRAPPER_TYPES` reporting those as unsealed
+function checkSealedLayerAbove() {
+  function sealed(expr) {
+    // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+    const { program } = parseSync('unit.ts', `const v = ${ expr };`, { lang: 'ts' });
+    let verdict = null;
+    traverse(program, {
+      MemberExpression(path) {
+        if (path.node.optional) verdict = sealedLayerAbove(path, path.node);
+      },
+    });
+    return verdict;
+  }
+  const rows = [
+    ['a source paren seals', '(g.window?.self).Array', true],
+    ['a cast under the paren is read THROUGH', '(g.window?.self as any).Array', true],
+    ['a non-null assertion under the paren is read THROUGH', '(g.window?.self!).Array', true],
+    ['a satisfies under the paren is read THROUGH', '(g.window?.self satisfies any).Array', true],
+    ['stacked assertions are read THROUGH', '(g.window?.self as any as any).Array', true],
+    ['an inner paren of its own still seals', '((g.window?.self) as any).Array', true],
+    ['a bare chain is unsealed', 'g.window?.self.Array', false],
+    ['a cast with NO paren seals nothing', 'g.window?.self!.Array', false],
+    ['an argument slot is not a seal', 'f(g.window?.self as any)', false],
+    ['an array element is not a seal', '[g.window?.self as any]', false],
+  ];
+  for (const [label, expr, expected] of rows) check(`sealedLayerAbove/${ label }`, sealed(expr), expected);
+}
+checkSealedLayerAbove();
+
+// the tally reads `counts` at the moment it runs, so it belongs AFTER the last section: standing
+// mid-file it snapshotted the count and left every check below it reporting FAIL to stdout while
+// the runner exited 0
+const { passed, failed } = counts;
+echo`\nPassed: ${ green(passed) }, Failed: ${ failed ? red(failed) : green(failed) }`;
+if (failed) throw new Error('Some tests have failed');

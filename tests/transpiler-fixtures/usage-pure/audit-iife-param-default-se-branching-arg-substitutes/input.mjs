@@ -3,6 +3,6 @@
 // (not the raw sequence) and rewrites EACH reachable branch to its own ponyfill - the Iterator branch
 // exposes `from` as the pure static, the Set branch keeps the pure ctor (its `.from` stays undefined,
 // matching native). the destructure + call stay dynamic (no over-resolve), the leading SE runs. an
-// unresolvable branch keeps its raw value. distinct method per line
+// distinct method per line
 export const a = (({ from } = Array) => from(items))((eff(), c ? Set : Iterator));
 export const b = (({ fromEntries } = Array) => fromEntries(pairs))((log(), d ? Object : Map));

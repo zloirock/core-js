@@ -11,6 +11,7 @@ import "<CWD>/packages/core-js/modules/es.function.name.js";
 import "<CWD>/packages/core-js/modules/es.global-this.js";
 import "<CWD>/packages/core-js/modules/es.map.constructor.js";
 import "<CWD>/packages/core-js/modules/es.map.species.js";
+import "<CWD>/packages/core-js/modules/es.map.group-by.js";
 import "<CWD>/packages/core-js/modules/es.map.get-or-insert.js";
 import "<CWD>/packages/core-js/modules/es.map.get-or-insert-computed.js";
 import "<CWD>/packages/core-js/modules/es.number.max-safe-integer.js";

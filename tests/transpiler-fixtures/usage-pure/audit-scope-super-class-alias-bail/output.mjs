@@ -1,4 +1,4 @@
-import _Promise from "@core-js/pure/actual/promise/constructor";
+import _Promise from "@core-js/pure/actual/promise";
 import _Promise$race from "@core-js/pure/actual/promise/race";
 // usage-pure resolves an inherited super-static only when the super-class alias is unconditionally
 // the global at the capture point. a conditional-var base (init may be dead) or an assignment-form

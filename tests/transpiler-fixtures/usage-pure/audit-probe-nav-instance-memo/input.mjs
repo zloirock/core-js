@@ -17,8 +17,10 @@ export const resolvingNav = globalThis.self?.Array?.prototype.flat.name;
 // keeps the probe read plus its live `?.` - the memo is that value, not the raw source
 export const deepProbeNav = globalThis.self.window?.Array?.prototype.flat;
 
-// the delete consumer collapses the navigation whole, through a SEQUENCE root and through the
-// guard scaffold this emit builds for the memo itself
+// the delete consumer collapses the navigation whole, through a SEQUENCE root - except over the
+// live `?.` that decides whether the delete happens, which survives INSIDE the guard scaffold this
+// emit builds for the memo: the run standing in that scaffold's own test is the probe read, and a
+// fold reaching into it would answer the probe instead of running it
 export const seqDelete = delete ((n++, globalThis.window)).self?.Array?.prototype;
 export const seqDeleteComputedKey = delete ((n++, globalThis.window)).self?.Array?.[(n++, 'of')];
 export const loweredScaffoldDelete = delete ((globalThis.window?.self)?.Array?.prototype.flat.name);
@@ -27,7 +29,10 @@ export { w, n };
 // the deleted member sits ABOVE an instance dispatch, so the members below it keep their claims and
 // the collapse stops there. taking the whole span instead swallowed the dispatch (the queue aborts
 // with no slot for its rewrite), and the receiver render handed its lifted `?.` into the helper
-// argument, where it is a dangling token the bundler cannot parse
+// argument, where it is a dangling token the bundler cannot parse.
+// the member stays OUTSIDE the guard the receiver needs, behind the `?.` that guard now owes it:
+// pulled into the alternate it is evaluated and deleted from nothing, and `delete <ternary>` is a
+// no-op the source never wrote
 globalThis.box = { list: [[1]] };
 export const deleteAboveDispatch = delete globalThis.self.box.list.at.name;
 export const deleteAboveDispatchProbe = delete globalThis.window?.self.box.list.at.name;

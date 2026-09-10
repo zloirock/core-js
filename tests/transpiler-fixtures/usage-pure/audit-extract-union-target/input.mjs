@@ -1,9 +1,8 @@
 // Extract with a UNION target. TS distributes Extract<U, A | B> as Extract<U, A> | Extract<U, B>,
 // and so does the resolver: each source member is asked about every target ARM, not about their
-// folded shape. `Set<number>` is the member that decides the answer here - no arm shares its
-// constructor, and two different known constructors are NOT a decidable pair (subtype relations
-// between them exist, `Array extends Iterable` among them). an undecidable member sinks the whole
-// result rather than being guessed either way, so the receiver keeps the generic helper.
+// folded shape. `Set<number>` is the member the arms decide: the supertype table names both `Set`
+// and `Array` and carries no path between them either way, so the member is EXCLUDED rather than
+// sinking the whole result, and the two array arms fold into an element-precise receiver.
 type Pool = number[] | string[] | Set<number>;
 type Narrowed = Extract<Pool, number[] | string[]>;
 declare const arr: Narrowed;

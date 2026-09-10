@@ -2,16 +2,18 @@ import _Array$from from "@core-js/pure/actual/array/from";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Map from "@core-js/pure/actual/map/constructor";
-import _Set from "@core-js/pure/actual/set/constructor";
-import _WeakMap from "@core-js/pure/actual/weak-map/constructor";
+import _Map from "@core-js/pure/actual/map";
+import _Set from "@core-js/pure/actual/set";
+import _WeakMap from "@core-js/pure/actual/weak-map";
 // a STATIC (or ctor) claim under an effectful key beside SIBLING declarators takes the plain static's
 // canon: one statement per declarator, the extraction in its own declarator's group ahead of the
 // sentinel residual and BEHIND the receiver's sequence prefix - which is where the source ran it
 // (an extraction ahead of the prefix would bind before the prefix could observe the binding).
 // the same on an exported host (the prefix a plain statement ahead of the export), in a loop head
 // (declarators, the prefix riding the value), and in a bodyless slot (the join, or a block around
-// the lifted prefix). a static keeps its default guard there like the flat twin does
+// the lifted prefix). a static drops its default guard - the ponyfill is always defined, so the
+// guard could never fire - where the flat twin keeps its own, since the instance lookup may answer
+// undefined
 let k = 0;
 function pre() {}
 function eff() {}

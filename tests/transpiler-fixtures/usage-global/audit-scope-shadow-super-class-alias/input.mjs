@@ -1,9 +1,9 @@
 // a super-class alias chain (`class C extends Mid`, `const Mid = Base`) resolves each hop in the
 // hop's OWN declaration scope. the `extends` clause has its own resolver, so extending the aliased
-// Promise pulls the constructor family whether or not the hop-scope rule fires; the rule gates the
-// inherited-STATIC dispatch instead - `super.race` walks the super-class alias, so an inner shadow of
-// an INTERMEDIATE name (`Base`) at the class site captures that hop and drops the `super.race` ->
-// Promise.race static, while the extends-driven constructor family stays either way
+// Promise pulls the constructor family, and an inner shadow of an INTERMEDIATE name (`Base`) at the
+// class site does not reach it: the family is here either way. the inherited `super.race` rides
+// inside that same family, so the static dispatch adds no import of its own - what this locks is the
+// family surviving the shadow
 const Base = globalThis.Promise;
 const Mid = Base;
 function makeClass() {

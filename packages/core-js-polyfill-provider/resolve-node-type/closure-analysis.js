@@ -583,7 +583,7 @@ export function createClosureAnalysis({
       // construction even when they sit after the field's source position. `p` is the call's receiver
       // root, so a deferred context on its ancestor chain defers the call. canonical predicate shared
       // with the write-side deferral
-      if (hasDeferredContextAncestor(t, p)) return { kind: 'extraction' };
+      if (hasDeferredContextAncestor(p)) return { kind: 'extraction' };
       return { kind: 'call', end: ctx.end };
     }
     if (ctx?.type === 'AssignmentExpression' && ctx.operator === '='
@@ -630,7 +630,7 @@ export function createClosureAnalysis({
           // straight-line call bounds only writes up to its own end position
           // keep the new-expression path: the map key is the callee NAME, and only the path can
           // prove which class this call actually constructs
-          ends.push({ end: hasDeferredContextAncestor(t, entry.wrapperPath) ? Infinity : ctx.end, path: entry.path });
+          ends.push({ end: hasDeferredContextAncestor(entry.wrapperPath) ? Infinity : ctx.end, path: entry.path });
         }
       }
       return { classifiedByBinding, newCallsByName };

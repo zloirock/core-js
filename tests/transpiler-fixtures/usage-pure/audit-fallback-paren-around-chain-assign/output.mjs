@@ -1,4 +1,4 @@
-import _Iterator from "@core-js/pure/actual/iterator/constructor";
+import _Iterator from "@core-js/pure/actual/iterator";
 // `let r; const {from} = (r = cond ? Array : Iterator);` - paren wraps a chain-assignment.
 // Per-branch destructure rewriting peels parens BUT NOT the chain-assignment: splitting branches
 // would change `r`'s observed runtime value (intentional escape hatch). So the chain-assign stays

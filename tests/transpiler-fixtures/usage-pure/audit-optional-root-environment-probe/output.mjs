@@ -10,6 +10,6 @@ var _ref;
 // value is what the next `?.` tests. the always-defined chain still erases whole
 const log = [];
 export const v1 = null == _globalThis.window ? void 0 : _self;
-export const v2 = null == (null == _globalThis.window ? void 0 : (_pushMaybeArray(log).call(log, "k"), _self)) ? void 0 : _atMaybeArray(_ref = _Array$of(7)).call(_ref, 0);
+export const v2 = null == _globalThis.window ? void 0 : _atMaybeArray(_ref = (_pushMaybeArray(log).call(log, "k"), _Array$of)(7)).call(_ref, 0);
 export const v3 = _Array$from;
 use(v1, v2, v3, log);

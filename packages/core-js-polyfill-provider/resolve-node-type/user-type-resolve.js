@@ -13,7 +13,7 @@
 //                                      rename to drop colliding outer entries
 //   resolveInterfaceExtendsParent    - single `extends` clause walker (Identifier OR
 //                                      namespace-qualified TSQualifiedName / MemberExpression)
-import { $Object, MAX_DEPTH } from './base.js';
+import { MAX_DEPTH, boxForDeclaration, withDeclarationIdentity } from './base.js';
 import {
   collectQualifiedSegments,
   extendsId,
@@ -252,7 +252,9 @@ export function createUserTypeResolve({
             for (const parent of parents) {
               const result = runParentWalkWithCycleIsolation(visited,
                 () => resolveInterfaceExtendsParent({ parent, scope, resolve, depth, typeParamMap, visited }));
-              if (result) return result;
+              // the parent's box stands for the PARENT - re-stamped, or `Base extends Derived` reads
+              // one identity on both sides and answers TRUE for the members the derived side adds
+              if (result) return withDeclarationIdentity(result, declaration);
             }
             // extends parents that ALL resolved to nothing are unknowable (undeclared / unresolved
             // heritage) - masquerading as Object suppresses the polyfill, same as the class branch -> null.
@@ -260,7 +262,7 @@ export function createUserTypeResolve({
             // both the cyclic and the all-unresolved outcomes are already null
             return null;
           }
-          return new $Object('Object');
+          return boxForDeclaration('Object', declaration);
         }
         // class as a type: walk `extends` for known container (`Array<T>`) or user parent.
         // cyclic class extends should NOT fall back to `$Object('Object')` - that masquerades
@@ -287,7 +289,7 @@ export function createUserTypeResolve({
           // expression) is UNKNOWABLE - it could be Array / a typed-array / any polyfillable base, where
           // masquerading as `$Object('Object')` would suppress the generic polyfill -> bail to null (same
           // rule as cyclic extends); keep Object only for the genuinely base-less class
-          if (!superName) return superClass ? null : new $Object('Object');
+          if (!superName) return superClass ? null : boxForDeclaration('Object', declaration);
           // the heritage accessor is what keeps `T` on the parent ref for the Flow ambient
           // spelling - dropping it would lose element-precision through `Base<T>`
           const parentRef = {
@@ -306,7 +308,7 @@ export function createUserTypeResolve({
             ? findDeclPathBySegments(parentSegments, scope, isClassLikeDeclaration) : null;
           const result = runParentWalkWithCycleIsolation(visited, () => resolveParentAnchored(parentPath,
             { name: superName, node: parentRef, scope, depth, typeParamMap, seen: visited }));
-          if (result) return result;
+          if (result) return withDeclarationIdentity(result, declaration);
           if (cycleFlipped()) return null;
           // superName was extracted but no parent class with that name resolved to a container type.
           // distinguish a KNOWN-but-plain base (a local class declaration with no polyfillable shape ->
@@ -324,7 +326,8 @@ export function createUserTypeResolve({
           // (its super did not resolve to a container) and must propagate null, else masquerading it as
           // Object suppresses the subclass polyfill while the base's own receiver correctly gets it
           const baseDecl = baseDeclPath.node ?? baseDeclPath;
-          return (baseDecl.superClass ?? baseDecl.extends?.[0]) ? null : new $Object('Object');
+          // the box stands for the SUBCLASS being resolved, not for the base whose walk produced it
+          return (baseDecl.superClass ?? baseDecl.extends?.[0]) ? null : boxForDeclaration('Object', declaration);
         }
         return null;
       })();

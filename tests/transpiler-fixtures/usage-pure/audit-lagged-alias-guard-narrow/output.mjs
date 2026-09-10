@@ -1,6 +1,6 @@
 import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
 import _atMaybeString from "@core-js/pure/actual/string/instance/at";
 // guards narrow a LAGGED alias binding (babel rebuilds it after the destructure-assignment
 // rewrite): an asserts-predicate statement narrows the reassigned alias to the asserted

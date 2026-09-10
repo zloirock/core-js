@@ -1063,11 +1063,6 @@ export default function createAstDestructureEmitter({
     return outerPure?.kind === 'instance' ? outerPure : null;
   }
 
-  // the TYPED single hop (the receiver's own type dispatches the outer key, as an instance method
-  // or as a static of the constructor the receiver names) composes the two-step extraction: the hop
-  // step feeds the leaf dispatch, the inner default folding through the canonical guard. it needs no
-  // literal receiver, so it rides PAST the nested-instance declines, and it is what retires the
-  // dead-mirror suppression for the sole-leaf shape - the babel leg composes the same steps natively
   // the value the outer key reads off, from whichever host spells it: a declarator's init and an
   // assignment's right are the same value, and the composition owes every host the same answer. a
   // host whose receiver is an ELEMENT hands that element in directly - the wrapper's own init is
@@ -1078,6 +1073,11 @@ export default function createAstDestructureEmitter({
     return type === 'AssignmentExpression' ? host.get?.('right') ?? null : null;
   }
 
+  // the TYPED single hop (the receiver's own type dispatches the outer key, as an instance method
+  // or as a static of the constructor the receiver names) composes the two-step extraction: the hop
+  // step feeds the leaf dispatch, the inner default folding through the canonical guard. it needs no
+  // literal receiver, so it rides PAST the nested-instance declines, and it is what retires the
+  // dead-mirror suppression for the sole-leaf shape - the babel leg composes the same steps natively
   function typedHopFor({ chain, kind, entry, metaPath, receiverPath }) {
     const assignmentPattern = chain.length >= 1 && metaPath.parentPath?.parentPath?.node?.type === 'AssignmentPattern'
       && metaPath.parentPath.parentPath.node.left === metaPath.parentPath.node
@@ -3538,17 +3538,6 @@ export default function createAstDestructureEmitter({
       if (!hopHosts.has(host)) hopHosts.set(host, { metaPath, assignHost, wholeDeclarator: true });
     },
     isAllProxySelectingInit: node => allProxySelectingInit(node, { adapter, injectorState }),
-    // has any claim of this pattern reached the pipeline? the usage emitter's hop-collapse
-    // verdict asks it: an UNCLAIMED pattern has no channel that re-renders its receiver, so a
-    // collapse there would be the ONLY spelling - and under a value-observing carrier the hops
-    // the source wrote have to survive. the pattern is visited before the init, so the answer
-    // is complete by the time the init's claims land
-    patternClaimed(patternNode) {
-      for (const [, { jobs }] of ledger) {
-        if (jobs.some(job => job.pattern === patternNode)) return true;
-      }
-      return false;
-    },
     // a proxy hop bound to a NAME registers as an alias of that surface - the same channel the
     // polyfillable hops take through `registerExtractAliases`, for the ones pure cannot back
     noteProxyHopAlias({ metaPath, hopKey, localName, declarationPath }) {

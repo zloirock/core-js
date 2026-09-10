@@ -7,7 +7,11 @@
 import { fork } from 'node:child_process';
 import { createRequire } from 'node:module';
 
-const MARKER = /@@FIXTURE-SHARD@@(?<json>[^@]*)@@/u;
+// `.*` (greedy to the line's last `@@`), never `[^@]*`: the counters carry per-reason keys, and one
+// of them - `skip:no @core-js plugin in options` - holds the delimiter's own character. The marker
+// then matched nothing at all and the shard's entire verdict set was reported as "produced no
+// result", naming neither the fixture nor the reason. The payload is one line, so `.` cannot leave it
+const MARKER = /@@FIXTURE-SHARD@@(?<json>.*)@@/u;
 
 export const { FIXTURE_SHARD } = process.env;
 
@@ -42,10 +46,15 @@ export async function collectFixtures(directory, out = []) {
     out.push(directory);
     return out;
   }
+  const before = out.length;
   for (const name of names) {
     const subdirectory = path.join(directory, name);
     if ((await fs.stat(subdirectory)).isDirectory()) await collectFixtures(subdirectory, out);
   }
+  // a directory that is neither a fixture nor a container of one is read by NO runner: the walk
+  // drops it here, so it never reaches a counter, and the reconciliation downstream cannot miss it
+  // either - that check compares counters against what was COLLECTED, and this never was
+  if (out.length === before) throw new Error(`fixture tree: ${ directory } holds no input.mjs and no fixture below it`);
   return out;
 }
 

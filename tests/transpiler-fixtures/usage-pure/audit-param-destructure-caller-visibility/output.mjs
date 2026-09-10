@@ -1,8 +1,8 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Map from "@core-js/pure/actual/map/constructor";
-import _Set from "@core-js/pure/actual/set/constructor";
+import _Map from "@core-js/pure/actual/map";
+import _Set from "@core-js/pure/actual/set";
 // Rewriting a parameter destructure is caller-lossy: a body-extract ignores what the caller passed,
 // and an inline default fills a leaf the caller deliberately left undefined. That is sound only
 // where every call site is visible. The two immediately-invoked hosts below are rewritten; every

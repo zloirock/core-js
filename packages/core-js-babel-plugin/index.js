@@ -26,8 +26,8 @@ import {
   isTaggedTemplateTag,
   nestedSequenceValueSpelling,
   peelNestedSequenceExpressions,
+  isCalleeReference,
   unwrapRuntimeExpr,
-  TS_EXPR_WRAPPERS,
   staticFallbackSwapRedundant,
   resolveBatchDirectivePromotionPolicy,
   isConsumedEntryImport,
@@ -86,6 +86,7 @@ import {
   enumerateFallbackDestructureBranches,
   renameSplitPropsToSentinels,
   restoreUnclaimedFlattens,
+  staticContainerReceiverName,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import { isKnownGlobalName } from '@core-js/polyfill-provider/detect-usage/globals';
 import {
@@ -100,17 +101,18 @@ import {
   ownChainOptionalObjects,
   prependChainAssignmentEffect,
   descendToChainRoot,
+  deleteGuardKeepingHop,
   deleteHostAboveCarriedChain,
   peelReceiverSequenceTail,
   probeRenderedReceiver,
   probeRunIsTheSourceValue,
-  proxyReceiverValueCanBeUndefined,
   staticMayEraseReceiver,
   storedUserAssignmentOf,
   partitionEffectsAtProbe,
   unbackedRealmHopFoldAbove,
   undefinableOptionalGuard,
   receiverSideEffectsOnly,
+  deletedRunCarriesMutatedRealmHop,
   resolveKey as sharedResolveKey,
   globalProxyMemberName,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
@@ -123,6 +125,7 @@ import { scanExistingCoreJSImports } from '@core-js/polyfill-provider/detect-usa
 import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
 import createASTHelpers, {
   deoptionalizeAstNode,
+  rangePreservingTypes,
   destructuredValueAbove,
   isOptionalNode,
 } from './internals/babel-compat.js';
@@ -167,7 +170,10 @@ function splitMinifierSequence(programPath, t) {
 }
 
 export default function plugin(api, options) {
-  const { types: t, caller } = api;
+  // every clone in this plugin goes through the range-preserving wrapper: babel's own `cloneNode`
+  // drops the source offsets the provider's positional rules read (see `rangePreservingTypes`)
+  const { types: babelTypes, caller } = api;
+  const t = rangePreservingTypes(babelTypes);
   // set at program entry, read by the late-bound compat callbacks below
   let currentSynthSwap = null;
   // late-bound like `currentSynthSwap`: the usage visitors exist only inside the program visit,
@@ -213,19 +219,13 @@ export default function plugin(api, options) {
     // named carries its own statics); `adapter` is built below, so the closure defers like the
     // type layer's twin above
     isMutatedStatic: (object, key) => adapter.isMutatedStatic(object, key),
+    // ... and its escape twin, one file-wide answer per ctor NAME, off the same census
+    isEscapedCtor: (name, heldInSlot) => escapedCtorNames?.has(name, heldInSlot) === true,
     astPredicates: {
       isMemberLike: path => path.isMemberExpression() || path.isOptionalMemberExpression(),
-      // peel parens + TS expression wrappers from `parent.callee` before identity-checking
-      // against `node`. without the peel, `(JSON.parse as any)(s)` shape - where the
-      // resolver's `filter()` already walked through TS-wraps to find the outer Call -
-      // rejects the callee match by strict identity (parent.callee is the wrapper, not
-      // the inner MemberExpression) and arg-count / arg-shape filters silently over-inject.
-      // babel's `t.is*({callee:node})` matchers are strict-identity; replace with explicit
-      // peel through shared `SKIPPABLE_WRAPPER_TYPES`
-      isCallee: (node, parent) => {
-        if (!t.isCallExpression(parent) && !t.isOptionalCallExpression(parent) && !t.isNewExpression(parent)) return false;
-        return unwrapRuntimeExpr(parent.callee) === node;
-      },
+      // babel's own `t.is*({ callee: node })` matchers are strict-identity, which the shared answer
+      // is not: the argument order is all this adapter adds
+      isCallee: (node, parent) => isCalleeReference(parent, node),
       isSpreadElement: node => t.isSpreadElement(node),
     },
     getBabelTargets: typeof api.targets === 'function' ? () => api.targets() : null,
@@ -260,6 +260,10 @@ export default function plugin(api, options) {
   let writtenContainerSlots = null;
   let containerSlotIndex = null;
   let fileCensus = null;
+  // the census's escape half, by NAME. the answer object is built outside the walk so it closes over
+  // the name sets alone - the slot outlives the file it was filled for, and one taken from the walk's
+  // own scope would hold that file's whole tree for as long as this instance lives
+  let escapedCtorNames = null;
   // a static the user monkey-patches must never bind to the frozen receiver-less import:
   // every pipeline (member emission, destructure props, param synth) resolves through this
   // filter, so the read keeps flowing through the substituted constructor instead
@@ -549,7 +553,12 @@ export default function plugin(api, options) {
         isShadowedByClassOwnMember,
         reset: resetClassHelpers,
       } = createClassHelpers({
-        t, adapter, resolveKey: sharedResolveKey, getInjector: () => injector, attachUnionExtras: attachMemberUnionExtras,
+        t,
+        adapter,
+        resolveKey: sharedResolveKey,
+        getInjector: () => injector,
+        attachUnionExtras: attachMemberUnionExtras,
+        containerReceiverName: staticContainerReceiverName,
       });
       // wire the forward references so the top-level optional-chain deopt check can resolve
       // supers and reject own-static shadows of `this.X`
@@ -842,30 +851,18 @@ export default function plugin(api, options) {
         t.traverseFast(rawBranch, n => skippedNodes.add(n));
         // the generator prints the `expr<T>` instantiation slot without the parens its precedence
         // needs (`c ? a : b<T>(x)` re-parses the call into the alternate, leaving the consequent
-        // uninvoked; `tern as any<T>(x)` re-parses the type-argument list into a type) - walk the
-        // wrapper chain above the replaced member and parenthesize the slot-filling node. the
-        // slot is judged on what will OCCUPY it after the swap: at `cur === path` that is the
-        // guard ternary, not the member being replaced.
-        // this is the ONE paren node spelled before the lowerings rather than in `post()`, and it is
-        // safe for a structural reason: what it wraps is `binding === ctor ? static : raw`, which
-        // cannot hold an `await` or a `yield`, so regenerator never has to explode it. it is also
-        // only reachable when the fold could not run - a foldable host takes the type arguments
-        // during the usage traversal, and by the time this walk climbs there is no node left to find
-        let instantiationSlot = null;
-        for (let cur = path; cur.parentPath; cur = cur.parentPath) {
-          const parentType = cur.parentPath.node?.type;
-          if (parentType === 'TSInstantiationExpression') {
-            if (instantiationSlotNeedsParens(cur === path ? guard : cur.node)) instantiationSlot = cur;
-            break;
-          }
-          if (!TS_EXPR_WRAPPERS.has(parentType) && parentType !== 'ChainExpression'
-            && parentType !== 'ParenthesizedExpression') break;
-        }
-        if (instantiationSlot === path) path.replaceWith(t.parenthesizedExpression(guard));
-        else {
-          path.replaceWith(guard);
-          if (instantiationSlot) instantiationSlot.replaceWith(t.parenthesizedExpression(instantiationSlot.node));
-        }
+        // uninvoked) - so the guard ternary, which is what will OCCUPY that slot after the swap,
+        // takes them here. this is the ONE paren node spelled before the lowerings rather than in
+        // `post()`, and it is safe for a structural reason: what it wraps is `binding === ctor ?
+        // static : raw`, which cannot hold an `await` or a `yield`, so regenerator never has to
+        // explode it. it is also only reachable when the fold could not run - a foldable host takes
+        // the type arguments during the usage traversal, and by then there is no node left to find.
+        // a WRAPPER between the swap and the instantiation is not this rule's to compensate: the
+        // slot then holds the wrapper, whose own priority the late restoration reads off the same
+        // predicate - and every wrapper that owes the parens is a TS cast, which that pass covers
+        if (path.parentPath?.node?.type === 'TSInstantiationExpression'
+          && instantiationSlotNeedsParens(guard)) path.replaceWith(t.parenthesizedExpression(guard));
+        else path.replaceWith(guard);
         return true;
       }
 
@@ -1173,15 +1170,14 @@ export default function plugin(api, options) {
             const seqReceiver = ownChainOptionalObjects(path.node)
               .find(object => nestedSequenceValueSpelling(object)) ?? null;
             // the effect COUNT was the gate, and it asks the wrong question: what the guard render
-            // owes is that every effect still runs exactly once, and an effect standing INSIDE the
-            // guard object rides the test itself (`(g = _globalThis, v = <nav>)` IS the test). the
-            // count bound erased the source's short-circuit on every receiver carrying two of them
+            // owes is that every effect still runs exactly once, and it has a slot for each - an
+            // effect standing INSIDE the guard object rides the test itself (`(g = _globalThis,
+            // v = <nav>)` IS the test), every other one re-emits ahead of the whole guard. counted
+            // instead, a receiver carrying two of them lost the source's short-circuit
             const guardObject = eraseGuard.kind === 'guard'
               ? (seqReceiver && subtreeContainsNode(seqReceiver, eraseGuard.object) ? seqReceiver : eraseGuard.object)
               : eraseGuard.kind === 'erase' ? seqReceiver : null;
-            if (guardObject
-              && (allEffects.length <= 1
-                || allEffects.every(effect => subtreeContainsNode(guardObject, effect)))) {
+            if (guardObject) {
               emitReceiverGuard(guardObject, { detached: !hadChainAssign });
               return;
             }
@@ -1335,10 +1331,22 @@ export default function plugin(api, options) {
               resolveStaticKey: (node, scope, keyPath) => resolveClaimableComputedKeyName(node, scope, keyPath),
             }))
             : null);
+          // ... and never where a MUTATED realm slot stands BETWEEN this claim and the deleted one:
+          // that hop holds the user's own object and the run keeps every hop, so landing the root
+          // binding under it rewrote what it reads off (`delete globalThis.self.window.k` with the
+          // `window` slot written became `_globalThis.window.k`, one import short of the read twin's
+          // `_self.window.k`). the same question the spine's own fold asks, in its one home
           if (deleteHopName
             && (chainRootPath.isIdentifier() || chainRootPath.isCallExpression()
               || chainAssignRootValueName || seqRootName || storedNavRootName || carriedCallRoot)
-            && deleteHostAboveChain(path, path.node, unwrapRuntimeExpr)) {
+            && deleteHostAboveChain(path, path.node, unwrapRuntimeExpr)
+            // ... and never over the delete-DECIDING guard: a live `?.` on the environment probe
+            // decides whether the delete happens at all, and the fold would delete unconditionally.
+            // hoisted here from the call-root arm below, whose own scan was a second spelling of it
+            && !(path.scope && deleteGuardKeepingHop(
+              memberChainEndPath({ path, unwrap: unwrapRuntimeExpr }).node,
+              m => resolvePure(m, path), { scope: path.scope, adapter, path }))
+            && !deletedRunCarriesMutatedRealmHop(path, { adapter, unwrap: unwrapRuntimeExpr })) {
             // the `?.` the source wrote over the folded nav guards a read that never happens: the
             // fold landed the root binding, and the canon has spoken for the whole navigation -
             // the shared dangling-optional rule spells it, carriers and all
@@ -1353,16 +1361,6 @@ export default function plugin(api, options) {
               const callNode = carriedCallRoot ?? chainRootPath.node;
               if (callNode.optional || !path.scope) return null;
               const callCtx = { scope: path.scope, adapter, path };
-              // a LIVE `?.` anywhere in the deleted navigation short-circuits what stands
-              // above it - the guard channels own that render (the locked `ut()` family);
-              // only a run whose every `?.` tests a proven-defined value folds whole
-              const chainEndNode = memberChainEndPath({ path, unwrap: unwrapRuntimeExpr }).node;
-              for (let scan = unwrapRuntimeExpr(chainEndNode);
-                scan?.type === 'MemberExpression' || scan?.type === 'OptionalMemberExpression';
-                scan = unwrapRuntimeExpr(scan.object)) {
-                if (scan.optional && proxyReceiverValueCanBeUndefined(unwrapRuntimeExpr(scan.object),
-                  resolveBuiltIn, callCtx)) return null;
-              }
               const rootId = inlineCallProxyGlobalRoot({ callNode, ...callCtx, rejectConditional: true });
               if (!rootId || callValueCanBeUndefined(callNode, callCtx, m => resolvePure(m, path))
                 || inlineCallHasObservableEffects({ callNode, ...callCtx })) return null;
@@ -1829,9 +1827,11 @@ export default function plugin(api, options) {
         // adapter, and the previous file's set must not gate this file's collection
         mutatedStatics = null;
         writtenContainerSlots = null;
+        escapedCtorNames = null;
         mutatedStatics = method === 'usage-pure' && !isInternalCoreJS
           ? collectMutationPrePass(path, adapter, fileCensus,
             (node, scope, keyPath) => resolveClaimableComputedKeyName(node, scope, keyPath)).mutated : null;
+        escapedCtorNames = fileCensus.escapedCtorNames ?? null;
         mutationRoots = isInternalCoreJS ? null : fileCensus.mutationRoots ?? null;
         writtenContainerSlots = fileCensus.writtenContainerSlots ?? null;
         containerSlotIndex = fileCensus.containerSlotIndex ?? null;

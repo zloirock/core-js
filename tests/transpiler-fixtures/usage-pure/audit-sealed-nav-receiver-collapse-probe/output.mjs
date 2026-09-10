@@ -2,7 +2,7 @@ import _Array$of from "@core-js/pure/actual/array/of";
 import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _at from "@core-js/pure/actual/instance/at";
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
 import _Number$MAX_SAFE_INTEGER from "@core-js/pure/actual/number/max-safe-integer";
 import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
@@ -32,12 +32,14 @@ export const viaIntermediate = ((null == _globalThis.window ? void 0 : _self).Ma
 // always-defined alternate - the read the seal makes observable survives either way
 export const sealedNavEndingAtClaim = ((null == _globalThis.window ? void 0 : _Promise).resolve, _Promise$resolve);
 
-// a WRITE host is a member access like any other: the seal keeps its read, so the collapse may
-// not retarget it at the live realm global (it wrote there and swallowed the throw)
+// a WRITE host is a member access like any other, and a `delete` is one too - but both PERFORM the
+// act the nav leads to, so the `?.` over the environment probe decides whether it lands and stays
+// as the guard. it stays whatever spells the run below the probe: reading it off a span pure lands
+// always-defined (`globalThis.self`) makes the hop no less the host environment
 export function writeHost(v) {
-  _self.Box = v;
+  (null == _self.window ? void 0 : _self).Box = v;
 }
-export const deleteHost = () => delete _globalThis.Box;
+export const deleteHost = () => delete (null == _self.window ? void 0 : _self).Box;
 
 // a leaf core-js ponyfills no constructor for has no binding to stand in as the always-defined
 // alternate, so the guard reads off the global's own name - the claim beside it still polyfills

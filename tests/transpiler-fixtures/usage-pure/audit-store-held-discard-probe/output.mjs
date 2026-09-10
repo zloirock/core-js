@@ -1,7 +1,7 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
 // a destructure that CONSUMES its init discards the read the source performed on an inline kept
 // STORE, and off-realm that read is what throws: the probe channel re-emits it, respelled from the
 // seal the source wrote and carrying the store itself, so the write still runs exactly once. the

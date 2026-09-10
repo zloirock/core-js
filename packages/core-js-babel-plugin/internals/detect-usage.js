@@ -15,7 +15,7 @@ import { createUsageHandlerCore } from '@core-js/polyfill-provider/detect-usage/
 import { createSyntaxPathHandlers } from '@core-js/polyfill-provider/detect-syntax';
 import {
   ancestorChainDetached,
-  climbJsxMemberChain,
+  jsxTagRootReferencesBinding,
   bindingInvisibleFromUseRegion,
   findFunctionScopeVarInPath,
   findTSRuntimeBindingInPath,
@@ -166,7 +166,7 @@ export function createBabelAdapter(options = {}) {
         const memoInfo = getInjector()?.getBindingInfo(name, memoUseStart) ?? null;
         const memoTrusted = memoInfo
           && (memoInfo.source !== null || memoInfo.aliasTrusted || !!memoInfo.aliasWrite || !!memoInfo.aliasVerified);
-        const memoHint = memoTrusted && aliasSpanDominatesUse({ info: memoInfo, useStart: memoUseStart })
+        const memoHint = memoTrusted && aliasSpanDominatesUse({ info: memoInfo, useStart: memoUseStart, usagePath: path })
           ? memoInfo.hint : null;
         return {
           node: memoDecl, kind: 'var', name, constantViolations: [], importSource: null, scope,
@@ -239,7 +239,7 @@ export function createBabelAdapter(options = {}) {
         // the shadow discipline already rode in through `importBindingView`'s shadowCtx
         const requireBindingLive = isRequireBinding;
         const polyfillHint = usableAliasInfo(info) && (isAliasBindingShape || isImportBinding || requireBindingLive || info.minted)
-          && aliasSpanDominatesUse({ info, useStart }) ? info.hint : null;
+          && aliasSpanDominatesUse({ info, useStart, usagePath: path }) ? info.hint : null;
         // a destructured Symbol.X alias (`const { iterator } = Symbol`) is a PATTERN binding, so it
         // carries no `importSource` and its hint is the UID (`iterator`); surface the registered module
         // source so `bindingSymbolKey` can fold `obj[iterator]`. the shadow gate rejects a nested
@@ -292,7 +292,7 @@ export function createBabelAdapter(options = {}) {
       // a USER-named source record already arrives span-gated: `getBindingInfo` serves it only
       // inside its hosting scope, so an out-of-scope unbound read never reaches this fallback
       const blindTrusted = info.source !== null || info.aliasTrusted || !!info.aliasWrite || !!info.aliasVerified;
-      const blindHint = blindTrusted && aliasSpanDominatesUse({ info, useStart }) ? info.hint : null;
+      const blindHint = blindTrusted && aliasSpanDominatesUse({ info, useStart, usagePath: path }) ? info.hint : null;
       return {
         node: null, constantViolations: null, importSource: info.source,
         polyfillHint: blindHint,
@@ -822,8 +822,6 @@ export function createUsageVisitors({
   const core = createUsageHandlerCore({
     adapter, onUsage, method, isEntryAvailable, resolveMeta, resolvePure, resolveStaticKey, suppressProxyGlobals,
     keptProxyHops, onSuppressedProxyHop, suppressKeptNavRoot,
-    // babel exposes the declaration kind directly on its Binding
-    selfRefBindingKind: b => b.kind,
   });
   const { skipUpdateTargets } = core;
 
@@ -847,13 +845,9 @@ export function createUsageVisitors({
     if (!skipReferencedCheck && !path.isReferencedIdentifier()) return;
     // the logical-assign LHS polyfill injection lives on a dedicated `Identifier` visitor
     // (babel classifies `Map ||= X` LHS as non-reference, so it doesn't reach this path)
-    // ReferencedIdentifier matches JSXIdentifier in too many positions. accept only a direct
-    // opening-element name (`<Foo />`) or the root of an N-deep member chain there
-    // (`<Foo.Bar.Baz />`); reject attribute names, JSXNamespacedName parts, .property positions
-    if (path.node.type === 'JSXIdentifier') {
-      const cur = climbJsxMemberChain(path);
-      if (cur?.parent?.type !== 'JSXOpeningElement' || cur.key !== 'name') return;
-    }
+    // ReferencedIdentifier matches JSXIdentifier in too many positions - which of them claims a
+    // runtime value is the tag-root canon's question, shared with unplugin's own JSX visitor
+    if (path.node.type === 'JSXIdentifier' && !jsxTagRootReferencesBinding(path)) return;
     // TS type-only positions: `type X = ...` / `interface X {...}` / `import type X = require(...)`
     // ids and `export { type X }` / `import type { X }` specifiers. babel's
     // `isReferencedIdentifier` marks them as referenced, but no runtime binding exists -
@@ -980,8 +974,9 @@ export function createUsageVisitors({
     // never descends into a legacy param decorator's expression on a constructor parameter-property
     // (`constructor(@dec(Array.from([1])) private p) {}`) and its polyfillable globals go undetected.
     // requeue each decorator so the usage detectors run on it. plain Identifier params need no help -
-    // their visitor keys keep `decorators`. (RestElement / ArrayPattern share the visitorKeys gap but
-    // a decorator on a rest / destructured param is not parseable, so only this shape is reachable.)
+    // their visitor keys keep `decorators`, and so do ObjectPattern / AssignmentPattern, the two other
+    // param shapes a legacy decorator parses on. RestElement and ArrayPattern share the visitorKeys
+    // gap and are owed nothing: the parser rejects a decorator on either
     // guard on length so non-decorated parameter properties are untouched
     TSParameterProperty(path) {
       if (!path.node.decorators?.length) return;

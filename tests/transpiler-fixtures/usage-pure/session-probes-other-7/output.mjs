@@ -8,10 +8,10 @@ import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _at from "@core-js/pure/actual/instance/at";
 import _values from "@core-js/pure/actual/instance/values";
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
 import _Object$hasOwn from "@core-js/pure/actual/object/has-own";
 import _Object$is from "@core-js/pure/actual/object/is";
-import _Set from "@core-js/pure/actual/set/constructor";
+import _Set from "@core-js/pure/actual/set";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 // probe corpus of the defense cycles over the destructure wrappers, family "other", part 7:
 // every block is one probed form, self-contained over the header bindings, locked on both legs
