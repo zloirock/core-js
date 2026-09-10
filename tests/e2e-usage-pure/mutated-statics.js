@@ -200,14 +200,18 @@ QUnit.test('mutated-statics: optional delete routes through the constructor', as
 // so a key patch lands exactly where the raw destructure read looks
 QUnit.test('mutated-statics: slot-mutated ctor shares one object across surfaces', assert => {
   function patched() { return 'patched'; }
+  // restore, never `delete`: the routed constructor carries core-js's OWN `groupBy`, so a delete
+  // here strips it for every later reader in the run instead of putting the slot back
+  const original = Map.groupBy;
   Map.groupBy = patched;
   try {
     assert.same(Map.groupBy(), 'patched');
     const { Map: { groupBy: rawRead } } = globalThis;
     assert.same(rawRead, patched);
   } finally {
-    delete Map.groupBy;
+    Map.groupBy = original;
   }
+  assert.same(typeof Map.groupBy, 'function');
 });
 
 // with NO slot mutation on the ctor, the nested-proxy destructure normalizes to a flat

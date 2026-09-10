@@ -9,13 +9,13 @@ import { ASSIGN_LEFT_TYPES, MAX_DEPTH } from './base.js';
 import { nodeAlwaysHardExits } from './exit-analysis.js';
 import { usageCrossesLoopBackEdgeReassign } from './ast-shapes.js';
 import {
-  IIFE_CALL_CALLEE_WRAPPERS,
   isDeferredContextStep,
-  isIifeCallNode,
   NESTED_BINDING_INTRODUCERS,
   peelTransparentExpr,
   readRunsDeferredWithin,
+  runsAtImmediateInvocation,
   TS_EXPR_WRAPPERS,
+  anyWriteOutrunsUse,
 } from '../helpers/ast-patterns.js';
 import { isLoopStatement } from '../destructure-host-shape.js';
 
@@ -152,8 +152,8 @@ export function bindingLoopAnchor(binding) {
 // `usageCrossesLoopBackEdgeReassign` adapted to a binding: derives its reassignment nodes from
 // `constantViolations` and its loop anchor. shared by the value-flow finders to bail a source-position
 // narrow that a loop-carried reassignment makes stale from iteration 2
-export function bindingCrossesLoopBackEdge(t, usagePath, binding) {
-  return usageCrossesLoopBackEdgeReassign(t, usagePath, binding?.constantViolations?.map(v => v.node), bindingLoopAnchor(binding));
+export function bindingCrossesLoopBackEdge(usagePath, binding) {
+  return usageCrossesLoopBackEdgeReassign(usagePath, binding.constantViolations.map(v => v.node), bindingLoopAnchor(binding));
 }
 
 // nearest ancestor (inclusive) of `stmtType`; shared by inner/outer checks. a DETACHED node
@@ -190,6 +190,24 @@ function reachesStraightLine(startPath, endNode) {
   return false;
 }
 
+// the position from which an admitted assignment DOMINATES. normally its own end - but one the climb
+// let out of an if-BRANCH through the hard-exit shortcut above dominates only past the whole `if`:
+// inside it the sibling branch runs INSTEAD, so a use there never sees the assignment even though it
+// is positioned after it. deliberately coarse - a use in the WRITING branch does see the assignment
+// and is refused here all the same, which costs only precision: refusing hands that read to the
+// other lanes rather than committing this one to a value the sibling branch may have skipped
+function dominanceStart(startPath, endNode, fallback) {
+  let from = fallback;
+  // the caller has just proven this chain reaches `endNode`, so the climb breaks before the root;
+  // the guard is what keeps it correct for a start path that has not been through that check
+  for (let prev = null, p = startPath; p?.node; prev = p, p = p.parentPath) {
+    if (p.node === endNode) break;
+    if (p.node.type === 'IfStatement' && prev
+      && (prev.node === p.node.consequent || prev.node === p.node.alternate)) from = p.node.end;
+  }
+  return from;
+}
+
 export function createStraightLineFlow({ t, babelNodeType }) {
   // walk constant-violation up to AssignmentExpression / VariableDeclarator.
   // babel: violation IS the AE / VD. estree-toolkit: violation is LHS Identifier,
@@ -208,38 +226,17 @@ export function createStraightLineFlow({ t, babelNodeType }) {
     return null;
   }
 
-  // synchronous IIFE wrapping `path` within `targetScope` -> { call, fnBody }.
-  // matches `(() => {x=1})()`, `(() => {x=1})?.()`, `new function () { x = 1 }()`.
-  // body peeled through ParenthesizedExpression / TS wrappers so the identity check
+  // the immediately invoked function wrapping `path` within `targetScope` whose body RUNS at the
+  // invocation -> { call, fnBody }, through the canonical recogniser: a `new` on a non-constructible
+  // callee, an async or a generator body never runs at the call, so its writes reach no post-call
+  // position. body peeled through ParenthesizedExpression / TS wrappers so the identity check
   // `effectiveAp.node === fnBody` works under oxc which keeps `() => (expr)` parens
   function findEnclosingIIFE(path, targetScope) {
     for (let cur = path; cur; cur = cur.parentPath) {
       if (cur.scope === targetScope) return null;
       if (!t.isFunction(cur.node)) continue;
-      if (cur.node.async || cur.node.generator) return null;
-      let callee = cur;
-      // walk only through wrappers that don't change the invoked value. UnaryExpression on
-      // the callee path (`(!fn)(...)`) invokes the BOOLEAN, not fn - body writes never run,
-      // narrowing against them is unsound. IIFE_CALL_CALLEE_WRAPPERS excludes UnaryExpression;
-      // the broader IIFE_CALL_PATH_WRAPPERS still applies to wrappers ABOVE the call
-      while (callee.parentPath?.node
-        && (IIFE_CALL_CALLEE_WRAPPERS.has(callee.parentPath.node.type)
-          || TS_EXPR_WRAPPERS.has(callee.parentPath.node.type))) {
-        // SequenceExpression peels only when callee is the TAIL - preceding elements are
-        // side-effect slots that don't carry the invoked value
-        if (callee.parentPath.node.type === 'SequenceExpression'
-          && callee.node !== callee.parentPath.node.expressions.at(-1)) break;
-        callee = callee.parentPath;
-      }
-      const call = callee.parentPath;
-      if (!call || call.node.callee !== callee.node) return null;
-      if (!isIifeCallNode(call.node)) return null;
-      // `new (() => {})()` throws TypeError at runtime - arrow body never runs,
-      // writes aren't reachable from post-call usage. require constructible callee
-      if (call.node.type === 'NewExpression' && cur.node.type !== 'FunctionExpression') return null;
-      // body-side peel mirrors callee-side: `() => ((x = 1) as any)` parses as TSAsExpression
-      // wrapping the assignment; without peel, the assignment-is-body trivial case misses
-      return { call, fnBody: peelTransparentExpr(cur.node.body) };
+      const call = runsAtImmediateInvocation(cur);
+      return call ? { call, fnBody: peelTransparentExpr(cur.node.body) } : null;
     }
     return null;
   }
@@ -306,6 +303,7 @@ export function createStraightLineFlow({ t, babelNodeType }) {
 
   // lazy per-binding cache: valid assignments pre-filtered, sorted by pos; binary-searched
   let sortedAssignmentCache = new WeakMap();
+  let deferredViolationAnswers = new WeakMap();
 
   function buildSortedAssignments(binding) {
     const { scope: bindingScope, constantViolations } = binding;
@@ -332,7 +330,7 @@ export function createStraightLineFlow({ t, babelNodeType }) {
       // lifted effectiveAp is the IIFE call - sits inside an ExpressionStatement
       const outerWrapType = effectiveAp === ap ? wrapStmtType : 'ExpressionStatement';
       if (!passesStraightLineCheck(effectiveAp, varScopeBody, outerWrapType)) continue;
-      out.push({ ap, pos, end: effectiveAp.node.end });
+      out.push({ ap, pos, end: effectiveAp.node.end, from: dominanceStart(effectiveAp, varScopeBody, effectiveAp.node.end) });
     }
     out.sort((a, b) => a.pos - b.pos);
     return out;
@@ -348,9 +346,20 @@ export function createStraightLineFlow({ t, babelNodeType }) {
   // IIFE-reassigned narrows. the deferral predicate is shared with closure / class-field analysis
   function violationRunsDeferred(v, bindingScope) {
     const stop = scopeNode(bindingScope);
+    // the answer is a fact of the pair (write, binding scope), and both are fixed per binding - but
+    // the callers ask it once per WRITE per READ, so the climb ran writes x reads times. one entry
+    // per write, validated against the scope it was computed for
+    const memo = deferredViolationAnswers.get(v);
+    if (memo && memo.stop === stop) return memo.answer;
+    const answer = computeViolationRunsDeferred(v, bindingScope, stop);
+    deferredViolationAnswers.set(v, { stop, answer });
+    return answer;
+  }
+
+  function computeViolationRunsDeferred(v, bindingScope, stop) {
     let deferred = false;
     for (let p = v.parentPath, child = v; p?.node && p.node !== stop && !deferred; child = p, p = p.parentPath) {
-      if (isDeferredContextStep(t, p.node, child)) deferred = true;
+      if (isDeferredContextStep(p.node, child)) deferred = true;
     }
     if (!deferred) return false;
     const ap = violationToAssignment(v);
@@ -387,10 +396,17 @@ export function createStraightLineFlow({ t, babelNodeType }) {
     // use even when textually later - so the positional narrow below cannot be trusted
     // a recovered extra has no parent chain to prove it is NOT deferred - bail like one
     if (violations.some(v => v.canonicalRecovered || violationRunsDeferred(v, binding.scope))) return null;
+    // a write whose evaluation slot runs ahead of the use's own - a class computed key, a case test a
+    // `default` body is reached through - sits past the use by position and cannot be ranked here
+    if (anyWriteOutrunsUse(violations.map(v => v.node), usagePath)) return null;
+    // the READ side of the same rule: a use in a deferred context below the binding's scope (an
+    // instance field initializer runs at `new`-time) observes writes textually after it, so no
+    // positional order holds - the same gate the declarator-init narrow beside this one applies
+    if (usageRunsDeferred(usagePath, binding.scope)) return null;
     if (!isInBindingVarScope(usagePath, binding.scope)) return null;
     // loop back-edge: a reassignment inside an enclosing loop body re-runs before the next-iteration
     // use, so the positional "last assignment before use" is stale from iteration 2 - degrade to generic
-    if (bindingCrossesLoopBackEdge(t, usagePath, binding)) return null;
+    if (bindingCrossesLoopBackEdge(usagePath, binding)) return null;
 
     let sortedAssigns = sortedAssignmentCache.get(binding);
     if (!sortedAssigns) {
@@ -415,7 +431,7 @@ export function createStraightLineFlow({ t, babelNodeType }) {
     // skip any assignment whose own RHS textually ENCLOSES the use (`x = ("" + x.at(-1))`): its start
     // precedes the use but it has not executed yet, so the receiver must come from the prior value
     let idx = lo - 1;
-    while (idx >= 0 && sortedAssigns[idx].end > beforePos) idx--;
+    while (idx >= 0 && (sortedAssigns[idx].end > beforePos || sortedAssigns[idx].from > beforePos)) idx--;
     if (idx < 0) return null;
     const chosen = sortedAssigns[idx];
     // a CONDITIONAL reassignment (not straight-line, so absent from sortedAssigns) positioned between
@@ -430,6 +446,7 @@ export function createStraightLineFlow({ t, babelNodeType }) {
 
   function reset() {
     sortedAssignmentCache = new WeakMap();
+    deferredViolationAnswers = new WeakMap();
   }
 
   return {

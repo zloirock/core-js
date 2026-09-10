@@ -1,6 +1,5 @@
 import _Iterator$from from "@core-js/pure/actual/iterator/from";
-import _Map from "@core-js/pure/actual/map/constructor";
-import _Map$groupBy from "@core-js/pure/actual/map/group-by";
+import _Map from "@core-js/pure/actual/map";
 // the TS require-import twin binds the global like the bare proxy spelling: statics substitute
 // (polyfill-always-wins) and a PATCH through the binding routes onto the injected constructor
 import gtp = require("@core-js/pure/actual/global-this");

@@ -1,6 +1,5 @@
-import _Iterator from "@core-js/pure/actual/iterator/constructor";
-import _Map from "@core-js/pure/actual/map/constructor";
-import _Map$groupBy from "@core-js/pure/actual/map/group-by";
+import _Iterator from "@core-js/pure/actual/iterator";
+import _Map from "@core-js/pure/actual/map";
 // G-MUTATION-PREPASS: a monkey-patch through a destructure-leaf alias (`const { Map: M } = globalThis`)
 // must mark the SAME global static mutated as a dotted patch would. the mutation pre-pass delegates the
 // bound receiver to the read-side canon (the object-name resolution), which follows the `{ Map: M }` key (M -> Map)

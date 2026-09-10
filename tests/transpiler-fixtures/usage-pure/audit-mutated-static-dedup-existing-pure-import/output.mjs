@@ -1,5 +1,5 @@
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
 // A mutated built-in static / prototype method / proxy-global constructor pins the polyfill entry of
 // the mutated key for pristine-init (so core-js modules loading later in the bundle initialize from the
 // pristine value, not the replacement). When the file ALSO imports that exact pure entry directly, the

@@ -2,7 +2,7 @@
 // Cross-parser via shared harness: every snippet runs through BOTH babel (used by
 // babel-plugin) AND oxc (used by unplugin), so dispatch-shape regressions in either
 // adapter surface immediately
-import { adapters, createChecker } from './harness.mjs';
+import { adapters, createChecker, findNode } from './harness.mjs';
 import { transformSync as babelTransform } from '@babel/core';
 import { parseSync as parseSyncOxc } from 'oxc-parser';
 import {
@@ -22,7 +22,16 @@ import {
   isAmbientFunctionOrClassNode,
 } from '../../packages/core-js-polyfill-provider/resolve-node-type/name-resolution.js';
 import {
-  createPredicateGuards, guardFromHint, guardFromResolvedType, instanceofGuard, isTypeofVar, typeofGuard,
+  annotationGuard,
+  createPredicateGuards,
+  guardFromHint,
+  guardFromResolvedType,
+  instanceofGuard,
+  isTypeofVar,
+  markOptionalCall,
+  stampPolarity,
+  typeofGuard,
+  typeofOrGuard,
 } from '../../packages/core-js-polyfill-provider/resolve-node-type/guard-shapes.js';
 import {
   $Object,
@@ -50,11 +59,13 @@ import {
   TYPEOF_HINT_GROUPS,
   TYPE_HINTS,
   UNBOXED_PRIMITIVES,
+  boxForDeclaration,
   getOrInitMap,
   intersectHintSets,
   primitiveTypeOf,
   quasiText,
   toHint,
+  typeIdentityElided,
 } from '../../packages/core-js-polyfill-provider/resolve-node-type/base.js';
 import {
   collectQualifiedSegments,
@@ -76,12 +87,17 @@ import { bindingLoopAnchor } from '../../packages/core-js-polyfill-provider/reso
 import {
   ESM_MARKER_TYPES,
   FUNCTION_LIKE_NODE_TYPES,
-  IIFE_CALL_PATH_WRAPPERS,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   TS_EXPR_WRAPPERS,
   blocksUidSlot,
+  bodyRunsAtInvocation,
+  immediateInvocationOf,
+  invocationCalleeOf,
+  readRunsDeferredWithin,
+  runsAtImmediateInvocation,
   createTypeAnnotationChecker,
   declaresRequireBinding,
+  functionScopeBindsVarOrFunction,
   destructureReceiverSlot,
   detectCommonJS,
   getFallbackBranchSlots,
@@ -119,7 +135,9 @@ import {
   peelNestedSequenceExpressions,
   isCleanDestructureAliasBinding,
   isGuardedAliasingWrite,
+  isReassignedBeyondDeclarator,
   isTaggedTemplateTagPosition,
+  jsxTagRootReferencesBinding,
   propBindingIdentifier,
   resolveCallArgument,
   singleQuasiString,
@@ -139,6 +157,7 @@ import {
   walkPatternIdentifiers,
   POSSIBLE_GLOBAL_OBJECTS,
   withoutValuelessDeclarationViolations,
+  wrapScopeBindingLookup,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import {
   buildSuperStaticMeta,
@@ -158,7 +177,7 @@ import {
 } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import { symbolKeyToEntry } from '../../packages/core-js-polyfill-provider/detect-usage/globals.js';
 
-const { check, checkDeep, checkTruthy, fail, finish, pass, runBoth, runBothAndAgree } = createChecker('resolve-node-type');
+const { check, checkDeep, checkTruthy, fail, finish, pass, runBoth, runBothAndAgree, throwsWith } = createChecker('resolve-node-type');
 
 // NOTE: `constructor` as a destructured key reads via prototype chain
 // (`Object.prototype.constructor` = the Object function), so a missing slot would
@@ -867,6 +886,19 @@ runBoth('typeof guard: string narrowing via resolveNodeType',
     checkType(lbl, resolver.resolveNodeType(ref), { primitive: true, kind: 'string' });
   });
 
+// a CONDITIONAL is not a guard the test can be read through: only one of its arms decided the
+// branch, and reading the consequent as if the test had been it narrows on a value the alternate
+// let past. the flatten above is spelled for the two operators whose arms BOTH run
+runBoth('typeof guard: a conditional test is opaque, its consequent is not the guard',
+  'function f(x: string | number[]) { if (c ? typeof x === "string" : true) return x.at(0); }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+// ... and it stays opaque where both arms happen to spell the same guard: the rule is about the
+// SHAPE, and one that reads an arm at all reads the wrong arm on the row above
+runBoth('typeof guard: ... and stays opaque when both arms spell the same test',
+  'function f(x: string | number[]) { if (c ? typeof x === "string" : typeof x === "string") return x.at(0); }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
 runBoth('typeof guard hints: object spans group',
   'function f(x: any) { if (typeof x === "object" && x) { return x; } }', (adapter, prog, lbl) => {
     const ref = pickReturnArg(adapter, prog, 'x');
@@ -1127,6 +1159,894 @@ runBoth('TS conditional: a naked parameter bound to never distributes to never: 
     check(`${ lbl } no branch types the binding`, !(type && type.constructor === 'Array'), true);
   });
 
+// --- a stripped nullish arm sinks the branch pick at ANY container depth ---
+// `Array<string | null>` folds the nullish arm INSIDE the container, so the mark rides on the inner
+// type while the container's own flag stays clear. The picker must ask the whole chain: with the arm
+// stripped, `Array<..<string | null>..>` reads as `Array<..<string>..>` and matches the extends side
+// exactly, firing a TRUE branch tsc answers FALSE (`string | null` is not assignable to `string`).
+// The rows step the nesting across the old ceiling of 8 - past it the mark was invisible and the
+// binding resolved to the true branch's Array, which on `usage-pure` substitutes an array-only
+// helper into a read whose value is a string.
+for (const depth of [1, 8, 9, 16, 32]) {
+  const checkSide = `${ 'Array<'.repeat(depth) }string | null${ '>'.repeat(depth) }`;
+  const extendSide = `${ 'Array<'.repeat(depth) }string${ '>'.repeat(depth) }`;
+  runBoth(`TS conditional: a nullish arm stripped ${ depth } containers down keeps the pick undecided`,
+    `type Sel<T> = T extends ${ extendSide } ? number[] : string;\ndeclare const v: ${ checkSide };\ndeclare const r: Sel<typeof v>;\nconst x = r;`,
+    (adapter, prog, lbl) => {
+      const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
+      const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+      check(`${ lbl } no branch types the read`, type === null, true);
+    });
+}
+
+// --- an inner the container ELIDED is not the `any` a bare one means ---
+// A container's inner slot reads empty for two reasons that print the same: nothing was WRITTEN
+// (`Array` is `Array<any>` and matches any inner), or an argument was written and this layer has no
+// Type form for it - the shared depth budget cut the chain short, or the spelling itself carries
+// none (`{ a: string }`). Read as agreement, two such absences fire a TRUE branch tsc answers
+// FALSE. These steps sit PAST the budget, where the nullish mark of the rows above is never built
+// at all, so only the elision can hold the pick back.
+for (const depth of [62, 64, 80]) {
+  const checkSide = `${ 'Array<'.repeat(depth) }string | null${ '>'.repeat(depth) }`;
+  const extendSide = `${ 'Array<'.repeat(depth) }string${ '>'.repeat(depth) }`;
+  runBoth(`TS conditional: a chain the budget cut ${ depth } containers down decides no branch`,
+    `type Sel<T> = T extends ${ extendSide } ? number[] : string;\ndeclare const v: ${ checkSide };\ndeclare const r: Sel<typeof v>;\nconst x = r;`,
+    (adapter, prog, lbl) => {
+      const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
+      const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+      check(`${ lbl } no branch types the read`, type === null, true);
+    });
+}
+
+// the same cut with no nullish arm anywhere: the leaves genuinely DISAGREE (`string` vs `number`,
+// tsc answers FALSE) and both chains still end identical once the budget drops them
+runBoth('TS conditional: chains cut past the budget are not equal inners',
+  `type Sel<T> = T extends ${ 'Array<'.repeat(70) }number${ '>'.repeat(70) } ? number[] : string;\n`
+  + `declare const v: ${ 'Array<'.repeat(70) }string${ '>'.repeat(70) };\ndeclare const r: Sel<typeof v>;\nconst x = r;`,
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
+    check(`${ lbl } no branch types the read`, adapter.makeResolver().resolveNodeType(decl.get('init')) === null, true);
+  }, ['typescript']);
+
+// the budget is one producer of an elided inner; a written argument with no Type form is the other,
+// and it reaches the same comparison at depth 1. `{ a: string }` and `{ b: number }` are disjoint to
+// tsc, which answers FALSE - both resolve to nothing here, and read as agreement they answered TRUE.
+// the concrete-empty extends side is the third row for a reason of its own: it writes no element
+// either, so the pair is TWO absences, and the only thing keeping them from reading as agreement -
+// a TRUE branch where tsc answers FALSE, an array extending no empty tuple - is the CHECK side's
+// own elision. every other elided pair is caught further down by the caller's inner-known floor
+for (const [what, checkSide, extendSide] of [
+  ['at the top level', 'Array<{ a: string }>', 'Array<{ b: number }>'],
+  ['one container down', 'Array<Array<{ a: string }>>', 'Array<Array<{ b: number }>>'],
+  ['against a concrete-empty extends side', 'Array<{ a: string }>', '[]'],
+]) {
+  runBoth(`TS conditional: an argument with no Type form decides no branch ${ what }`,
+    `type Sel<T> = T extends ${ extendSide } ? number[] : string;\ndeclare const v: ${ checkSide };\ndeclare const r: Sel<typeof v>;\nconst x = r;`,
+    (adapter, prog, lbl) => {
+      const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
+      check(`${ lbl } no branch types the read`, adapter.makeResolver().resolveNodeType(decl.get('init')) === null, true);
+    }, ['typescript']);
+}
+
+// the elision is asked of BOTH sides. An elided EXTENDS inner hides an assignability that HOLDS
+// (`string extends {}` is true in TS), and reading its absence as a difference decides the FALSE
+// branch - the mirror of the agreement the check side would fake
+runBoth('TS conditional: an elided extends inner decides no branch either',
+  'type Sel<T> = T extends Array<Array<{}>> ? number[] : string;\ndeclare const v: Array<Array<string>>;\ndeclare const r: Sel<typeof v>;\nconst x = r;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
+    check(`${ lbl } no branch types the read`, adapter.makeResolver().resolveNodeType(decl.get('init')) === null, true);
+  }, ['typescript']);
+
+// the refusal is keyed on the ELISION, not on an absent inner: everything that decided a branch
+// before still decides one. The extends sides below all resolve to an inner-less container, and the
+// unparameterised / all-top spellings among them constrain no inner at all - they keep matching
+// whatever the check carries, exactly as `Array<any>` does in TS
+for (const [what, checkSide, extendSide, trueBranch] of [
+  ['concrete inners that agree', 'Array<string>', 'Array<string>', true],
+  ['concrete inners that differ', 'Array<string>', 'Array<number>', false],
+  ['nested concrete inners that agree', 'Array<Array<string>>', 'Array<Array<string>>', true],
+  ['nested concrete inners that differ', 'Array<Array<string>>', 'Array<Array<number>>', false],
+  ['an unparameterised extends side', 'Array<string>', 'Array', true],
+  ['an `any` argument on the extends side', 'Array<string>', 'Array<any>', true],
+  ['an `unknown` argument on the extends side', 'Array<string>', 'Array<unknown>', true],
+  ['an `any[]` extends side', 'Array<string>', 'any[]', true],
+  ['a `readonly any[]` extends side', 'Array<string>', 'readonly any[]', true],
+  ['an all-top multi-parameter extends side', 'Map<string, number>', 'Map<any, any>', true],
+  ['a concrete-empty extends side', 'Array<string>', '[]', false],
+  ['a primitive extends side', 'Array<string>', 'string', false],
+]) {
+  runBoth(`TS conditional: ${ what } still picks a branch`,
+    `type Sel<T> = T extends ${ extendSide } ? number[] : string;\ndeclare const v: ${ checkSide };\ndeclare const r: Sel<typeof v>;\nconst x = r;`,
+    (adapter, prog, lbl) => {
+      const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
+      const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+      if (trueBranch) checkType(lbl, type, { primitive: false, ctor: 'Array' });
+      else checkType(lbl, type, { primitive: true, kind: 'string' });
+    }, ['typescript']);
+}
+
+// an `infer` slot has no Type form either, so the pattern's container carries the mark - the infer
+// lane must keep binding U off it rather than reading the mark as a refusal
+runBoth('TS conditional: an infer pattern still binds through an elided container',
+  'type El<T> = T extends Array<infer U> ? U : never;\ndeclare const r: El<Array<string>>;\nconst x = r;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: true, kind: 'string' });
+  }, ['typescript']);
+
+// --- every spelling of one container leaves the same confession ---
+
+// the elision above is a property of the CONTAINER, not of the syntax that wrote it: `Array<X>` and
+// `X[]` are one type, and so are a tuple, a `Parameters<...>` list and a container an array literal
+// or a registry directive produced. Each of those is built by its own code, and the ones that built
+// the inner-less box straight said the bare `Array<any>` instead - two of them then compared EQUAL
+// and picked the TRUE branch tsc answers FALSE for. Every `none` row below is that refusal, and
+// every decided row is the branch tsc picks
+for (const [what, decls, checkSide, extendSide, want] of [
+  ['two shorthand elements with no Type form', '', '{ a: string }[]', '{ b: number }[]', 'none'],
+  ['the same pair one container down', '', '{ a: string }[][]', '{ b: number }[][]', 'none'],
+  ['the same pair under a readonly shorthand', '', 'readonly { a: string }[]', 'readonly { b: number }[]', 'none'],
+  ['two shorthand elements naming different interfaces', 'interface EA { a: string }\ninterface EB { b: number }\n', 'EA[]', 'EB[]', 'none'],
+  ['a shorthand check against an angle-bracket extends', '', '{ a: string }[]', 'Array<{ b: number }>', 'none'],
+  ['an angle-bracket check against a shorthand extends', '', 'Array<{ a: string }>', '{ b: number }[]', 'none'],
+  ['two shorthand elements that agree', '', 'string[]', 'string[]', 'true'],
+  ['two shorthand elements that differ', '', 'string[]', 'number[]', 'false'],
+  ['a shorthand check against an all-top shorthand', '', 'string[]', 'any[]', 'true'],
+  ['two signature lists that do not fold to one element', '', 'Parameters<(a: string, b: number) => void>', 'Parameters<(a: number, b: string) => void>', 'none'],
+  ['two constructor lists that do not fold', '',
+    'ConstructorParameters<new (a: string, b: number) => object>',
+    'ConstructorParameters<new (a: number, b: string) => object>', 'none'],
+  ['two signature lists with one unreadable parameter each', '', 'Parameters<(a: { x: 1 }) => void>', 'Parameters<(a: { y: 2 }) => void>', 'none'],
+  ['two EMPTY signature lists', '', 'Parameters<() => void>', 'Parameters<() => void>', 'true'],
+  ['two rest signature lists', '', 'Parameters<(...a: string[]) => void>', 'Parameters<(...a: string[]) => void>', 'true'],
+  ['two signature lists that fold and differ', '', 'Parameters<(a: string) => void>', 'Parameters<(a: number) => void>', 'false'],
+  ['an array weighed against a tuple through the alias hop', '', 'string[]', '[string, string]', 'none'],
+  ['an angle-bracket array weighed against a tuple through the hop', '', 'Array<string>', '[string]', 'none'],
+  ['two tuples of one length through the hop', '', '[string, string]', '[string, string]', 'true'],
+  ['two tuples of different length through the hop', '', '[string]', '[string, string]', 'false'],
+  ['a tuple weighed against an array through the hop', '', '[string, string]', 'string[]', 'true'],
+  ['a tuple whose length survives a container level', '', 'Array<[string]>', 'Array<[string, string]>', 'false'],
+  ['a union of a tuple and an array of its element, which is no tuple', '', '[string, string] | string[]', '[string, string]', 'none'],
+]) {
+  runBoth(`TS conditional: ${ what } ${ want === 'none' ? 'decides no branch' : `picks the ${ want } branch` }`,
+    `${ decls }type Sel<T> = T extends ${ extendSide } ? number[] : string;\ndeclare const v: ${ checkSide };\n`
+    + 'declare const r: Sel<typeof v>;\nconst x = r;',
+    (adapter, prog, lbl) => {
+      const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
+      const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+      if (want === 'true') checkType(lbl, type, { primitive: false, ctor: 'Array' });
+      else if (want === 'false') checkType(lbl, type, { primitive: true, kind: 'string' });
+      else check(`${ lbl } no branch types the read`, type === null, true);
+    }, ['typescript']);
+}
+
+// the two lanes that resolve an annotation - the plain one and the substituting one the alias hop
+// runs its extends side through - each build the container, so a pair written through the hop is
+// refused by whichever of them marked. These two reach one lane apiece: the direct conditional
+// resolves both sides plainly, and the BARE check side below (`Array` with no argument, which is a
+// tsc error and is the point - it is the shape a missing argument leaves) carries no mark of its
+// own, so only the substituted extends side can refuse
+runBoth('TS conditional: a shorthand pair spelled directly decides no branch',
+  'type Sel = { a: string }[] extends { b: number }[] ? number[] : string;\ndeclare const r: Sel;\nconst x = r;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
+    check(`${ lbl } no branch types the read`, adapter.makeResolver().resolveNodeType(decl.get('init')) === null, true);
+  }, ['typescript']);
+runBoth('TS conditional: a bare check against a substituted shorthand extends decides no branch',
+  'type Sel<T> = T extends { b: number }[] ? number[] : string;\ndeclare const v: Array;\n'
+  + 'declare const r: Sel<typeof v>;\nconst x = r;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
+    check(`${ lbl } no branch types the read`, adapter.makeResolver().resolveNodeType(decl.get('init')) === null, true);
+  }, ['typescript']);
+
+// the same confession is owed by the lanes that build a container from a VALUE rather than from an
+// annotation: an array literal whose elements do not fold, a generator whose yield type nothing
+// resolved, and a registry directive that names a container without naming its element. A family
+// with no element slot at all (`Date`) is not confessing anything - its absence IS agreement
+for (const [what, pre, subject, extendSide, want] of [
+  ['two array literals whose elements do not fold', "const la = [1, 'x'];\nconst lb = [true, 1];\n", 'la', 'typeof lb', 'none'],
+  ['an array literal against a written element', "const la = [1, 'x'];\n", 'la', 'number[]', 'none'],
+  ['an EMPTY array literal against a written element', 'const la = [];\n', 'la', 'number[]', 'none'],
+  ['an array literal whose elements DO fold', 'const la = [1, 2];\n', 'la', 'number[]', 'true'],
+  ['two generators whose yield nothing resolved', 'function* ga() { yield ({ a: 1 }); }\nfunction* gb() { yield ({ b: 2 }); }\n'
+    + 'declare const ia: ReturnType<typeof ga>;\n', 'ia', 'ReturnType<typeof gb>', 'none'],
+  ['two directives that name a container and not its element', 'declare const oa: { a: 1 };\ndeclare const ob: { b: 2 };\n'
+    + 'const ea = Object.entries(oa);\nconst eb = Object.entries(ob);\n', 'ea', 'typeof eb', 'none'],
+  ['two directives naming a KEY-first container and not its element', 'declare const xs: string[];\ndeclare const ys: number[];\n'
+    + 'const ga = Map.groupBy(xs, s => s.length);\nconst gb = Map.groupBy(ys, n => n);\n', 'ga', 'typeof gb', 'none'],
+  ['two results of the constructor CALL form', 'const ca = Array(3);\nconst cb = Array(2);\n', 'ca', 'typeof cb', 'true'],
+  ['a directive that names its element', 'declare const oa: { a: 1 };\nconst ka = Object.keys(oa);\n', 'ka', 'string[]', 'true'],
+  ['a family with no element slot at all', 'const da = new Date();\n', 'da', 'Date', 'true'],
+  ['the BARE container shorthand, which really does constrain nothing', 'declare const sa: Set<string>;\n', 'sa', 'Set', 'true'],
+]) {
+  runBoth(`TS conditional: ${ what } ${ want === 'none' ? 'decides no branch' : `picks the ${ want } branch` }`,
+    `type Sel<T> = T extends ${ extendSide } ? number[] : string;\n${ pre }`
+    + `declare const r: Sel<typeof ${ subject }>;\nconst x = r;`,
+    (adapter, prog, lbl) => {
+      const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
+      const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+      if (want === 'true') checkType(lbl, type, { primitive: false, ctor: 'Array' });
+      else check(`${ lbl } no branch types the read`, type === null, true);
+    }, ['typescript']);
+}
+
+// --- a dropped nullish arm, wherever the fold left its mark ---
+
+// the union fold DROPS a nullish arm and marks the survivor, and a branch picked on that survivor
+// commits the conditional to a shape the runtime need not have. The mark is asked of the whole
+// resolved shape, so a container with no element slot - which carries its parameters as a LIST -
+// is asked too; and the mirror question, a nullish CHECK against a marked extends side, is open
+// rather than false, because the mark does not record WHICH nullish arm went
+for (const [what, checkSide, extendSide] of [
+  ['a dropped arm in a listed value slot', 'Map<string, string | null>', 'Map<string, string>'],
+  ['a dropped arm in a mapped value slot', 'Record<string, string | null>', 'Record<string, string>'],
+  ['a dropped arm in a listed key slot', 'Map<string | null, number>', 'Map<string, number>'],
+  ['a dropped arm in a shorthand element', '(string | null)[]', 'string[]'],
+  ['a dropped arm in a readonly shorthand element', 'readonly (string | null)[]', 'readonly string[]'],
+  ['a dropped arm in an angle-bracket element', 'Array<string | null>', 'Array<string>'],
+  ['a nullish check against a marked extends side', 'null', 'string | null'],
+  ['an undefined check against a marked extends side', 'undefined', 'string | null'],
+]) {
+  runBoth(`TS conditional: ${ what } decides no branch`,
+    `type Sel<T> = T extends ${ extendSide } ? number[] : string;\ndeclare const v: ${ checkSide };\n`
+    + 'declare const r: Sel<typeof v>;\nconst x = r;',
+    (adapter, prog, lbl) => {
+      const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
+      check(`${ lbl } no branch types the read`, adapter.makeResolver().resolveNodeType(decl.get('init')) === null, true);
+    }, ['typescript']);
+}
+
+// the refusal is the NULLISH check's alone: a check that cannot be the arm that was dropped is
+// still weighed against the survivor, and the pair below is the branch tsc picks for it
+for (const [what, checkSide, extendSide, trueBranch] of [
+  ['a check the dropped arm cannot be', 'string', 'string | null', true],
+  ['a check of another family entirely', 'number', 'string | null', false],
+  ['a container check against a marked container extends', 'Array<string>', 'Array<string> | null', true],
+]) {
+  runBoth(`TS conditional: ${ what } still picks the ${ trueBranch ? 'true' : 'false' } branch`,
+    `type Sel<T> = T extends ${ extendSide } ? number[] : string;\ndeclare const v: ${ checkSide };\n`
+    + 'declare const r: Sel<typeof v>;\nconst x = r;',
+    (adapter, prog, lbl) => {
+      const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
+      const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+      if (trueBranch) checkType(lbl, type, { primitive: false, ctor: 'Array' });
+      else checkType(lbl, type, { primitive: true, kind: 'string' });
+    }, ['typescript']);
+}
+
+// --- a tuple's arity, which its collapse to an Array drops ---
+
+// `[string]` and `[string, string]` both resolve to `Array<string>`, so the resolved pair says they
+// are one type. Only the AST still holds the length: two tuples that disagree on it are disjoint
+// whatever their elements say, and a check side that is no written tuple cannot be weighed against
+// one - it may be an array, which extends no tuple, or a parameter that substitutes to that shape
+// the rule reads the two WRITTEN shapes, and a `Sel<typeof v>` hop hands it the alias parameter on
+// the check side - so the pair is spelled directly here, which is also where a length disagreement
+// is decidable at all. Through the hop every one of these rows leaves the relation open instead
+for (const [what, checkSide, extendSide, want] of [
+  ['two tuples of different length', '[string]', '[string, string]', 'false'],
+  ['two tuples of different length, the longer checking', '[string, string, string]', '[string, string]', 'false'],
+  ['two tuples of one length', '[string, string]', '[string, string]', 'true'],
+  ['two tuples of one length whose elements differ', '[string]', '[number]', 'false'],
+  ['an array against a tuple', 'string[]', '[string, string]', 'none'],
+  ['an angle-bracket array against a tuple', 'Array<string>', '[string]', 'none'],
+  ['a tuple against an array', '[string, string]', 'string[]', 'true'],
+  ['an array against the EMPTY tuple', 'Array<string>', '[]', 'false'],
+]) {
+  runBoth(`TS conditional: ${ what } ${ want === 'none' ? 'decides no branch' : `picks the ${ want } branch` }`,
+    `type Sel = ${ checkSide } extends ${ extendSide } ? number[] : string;\n`
+    + 'declare const r: Sel;\nconst x = r;',
+    (adapter, prog, lbl) => {
+      const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
+      const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+      if (want === 'true') checkType(lbl, type, { primitive: false, ctor: 'Array' });
+      else if (want === 'false') checkType(lbl, type, { primitive: true, kind: 'string' });
+      else check(`${ lbl } no branch types the read`, type === null, true);
+    }, ['typescript']);
+}
+
+// --- a family that stands for a shape is not that shape ---
+// Two families are how this layer says "a shape I did not model": the `Object` box holds every
+// interface, class, `Record<..>` and intersection alike, the `Function` one every call signature.
+// Read as type identity, two such boxes claim agreement where tsc compares the shapes themselves
+// and answers FALSE - the same wrong TRUE an elided inner used to fire, from a full slot instead
+// of an empty one.
+for (const [what, decls, checkSide, extendSide] of [
+  ['interfaces', 'interface A { a: string }\ninterface B { b: number }\n', 'Array<A>', 'Array<B>'],
+  ['classes', 'declare class A { a: string; }\ndeclare class B { b: number; }\n', 'Array<A>', 'Array<B>'],
+  ['call signatures', '', 'Array<(n: number) => void>', 'Array<() => void>'],
+  ['interfaces under a Set', 'interface A { a: string }\ninterface B { b: number }\n', 'Set<A>', 'Set<B>'],
+  ['interfaces under a Promise', 'interface A { a: string }\ninterface B { b: number }\n', 'Promise<A>', 'Promise<B>'],
+  ['interfaces one container down', 'interface A { a: string }\ninterface B { b: number }\n', 'Array<Array<A>>', 'Array<Array<B>>'],
+  ['interfaces with no container at all', 'interface A { a: string }\ninterface B { b: number }\n', 'A', 'B'],
+]) {
+  runBoth(`TS conditional: two boxes standing for different ${ what } decide no branch`,
+    `${ decls }type Sel<T> = T extends ${ extendSide } ? number[] : string;\ndeclare const v: ${ checkSide };\ndeclare const r: Sel<typeof v>;\nconst x = r;`,
+    (adapter, prog, lbl) => {
+      const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
+      check(`${ lbl } no branch types the read`, adapter.makeResolver().resolveNodeType(decl.get('init')) === null, true);
+    }, ['typescript']);
+}
+
+// what a box CAN say is which DECLARATION it stands for, and two standing for the same one are the
+// same type. It is a node and not a name, so a shadowed same-name declaration is a different type;
+// merged declarations of one interface resolve to one node and stay one type. The reverse never
+// holds - two declarations may be structurally assignable all the same - so identity only ever
+// turns the refusal into agreement, and a box from a shape with no declaration keeps refusing
+for (const [what, decls, side, trueBranch] of [
+  ['one interface against itself', 'interface A { a: string }\n', 'Array<A>', true],
+  ['one interface reached through an alias', 'interface A { a: string }\ntype A2 = A;\n', 'Array<A>', true],
+  ['one interface with no container at all', 'interface A { a: string }\n', 'A', true],
+  ['one base-less class against itself', 'declare class K { a: string; }\n', 'Array<K>', true],
+  ['one interface as a Map key', 'interface A { a: string }\n', 'Map<A, number>', true],
+  ['merged declarations of one interface', 'interface A { a: string }\ninterface A { b: number }\n', 'Array<A>', true],
+  ['a GENERIC interface against itself', 'interface Box<T> { v: T }\n', 'Array<Box<string>>', false],
+  ['a GENERIC class against itself', 'declare class Box<T> { v: T; }\n', 'Array<Box<string>>', false],
+  ['a type literal against itself', '', 'Array<{ a: string }>', false],
+]) {
+  runBoth(`TS conditional: a box weighed against ${ what } ${ trueBranch ? 'picks the true branch' : 'decides no branch' }`,
+    `${ decls }type Sel<T> = T extends ${ side } ? number[] : string;\ndeclare const v: ${ side };\ndeclare const r: Sel<typeof v>;\nconst x = r;`,
+    (adapter, prog, lbl) => {
+      const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
+      const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+      if (trueBranch) checkType(lbl, type, { primitive: false, ctor: 'Array' });
+      else check(`${ lbl } no branch types the read`, type === null, true);
+    }, ['typescript']);
+}
+
+// identity is read as AGREEMENT only. Two different declarations may still be structurally
+// assignable - tsc answers TRUE for the pair below on their members - so a box that stands for one
+// declaration must not decide FALSE against a box that stands for another
+runBoth('TS conditional: two boxes standing for different declarations decide no branch',
+  'interface A { a: number }\ninterface B { a: number }\n'
+  + 'type Sel<T> = T extends Array<B> ? number[] : string;\ndeclare const v: Array<A>;\n'
+  + 'declare const r: Sel<typeof v>;\nconst x = r;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
+    check(`${ lbl } no branch types the read`, adapter.makeResolver().resolveNodeType(decl.get('init')) === null, true);
+  }, ['typescript']);
+
+// one BOX reaching both sides is not one TYPE. An inferred return type is memoized on the
+// declaration it was inferred from, so two instantiations of one generic static hand the SAME box
+// to the check and the extends side - and a box carrying no identity is exactly the one that
+// cannot say whether the two are one type. Read as agreement, JS object identity stood in for the
+// identity slot and answered TRUE for `A<string>` against `A<number>`, which tsc answers FALSE. The
+// price of refusing it is named here too: the same spelling on BOTH sides is a type tsc calls equal
+// to itself, and this layer no longer says so for a generic. A declaration that DOES own its box
+// still decides the pair, through the identity slot rather than through the shared object
+for (const [what, decls, checkSide, extendSide, trueBranch] of [
+  ['two instantiations of one generic static, one inferred return type between them',
+    'class A<T> { v!: T; static mk<U>() { return new A<U>(); } }\n',
+    'Array<ReturnType<typeof A.mk<string>>>', 'Array<ReturnType<typeof A.mk<number>>>', false],
+  ['one instantiation of a generic static against itself',
+    'class A<T> { v!: T; static mk<U>() { return new A<U>(); } }\n',
+    'Array<ReturnType<typeof A.mk<string>>>', 'Array<ReturnType<typeof A.mk<string>>>', false],
+  ['a generic static with no instantiation at all against itself',
+    'class A<T> { v!: T; static mk() { return new A<string>(); } }\n',
+    'Array<ReturnType<typeof A.mk>>', 'Array<ReturnType<typeof A.mk>>', false],
+  ['a NON-generic static against itself, whose box stands for its class',
+    'class K { v = 1; static mk() { return new K(); } }\n',
+    'Array<ReturnType<typeof K.mk>>', 'Array<ReturnType<typeof K.mk>>', true],
+  ['two NON-generic statics of different classes',
+    'class K { v = 1; static mk() { return new K(); } }\nclass L { w = 2; static mk() { return new L(); } }\n',
+    'Array<ReturnType<typeof K.mk>>', 'Array<ReturnType<typeof L.mk>>', false],
+]) {
+  runBoth(`TS conditional: ${ what } ${ trueBranch ? 'picks the true branch' : 'decides no branch' }`,
+    `${ decls }type Sel<T> = T extends ${ extendSide } ? number[] : string;\ndeclare const v: ${ checkSide };\n`
+    + 'declare const r: Sel<typeof v>;\nconst x = r;',
+    (adapter, prog, lbl) => {
+      const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
+      const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+      if (trueBranch) checkType(lbl, type, { primitive: false, ctor: 'Array' });
+      else check(`${ lbl } no branch types the read`, type === null, true);
+    }, ['typescript']);
+}
+
+// --- box families told apart by what the SPELLING was ---
+
+// the `Function` KEYWORD is the top of the callable types, and every function value extends it -
+// but it resolves into the same box every unmodelled call signature collapses into, which left the
+// two indistinguishable and the pair below undecided. The marker says which spelling produced the
+// box, so the keyword AS THE EXTENDS SIDE accepts whatever callable the check holds. The reverse is
+// not the same question: a box the layer merely failed to model may itself BE the keyword
+for (const [what, checkSide, extendSide, want] of [
+  ['the keyword against itself, in a container', 'Array<Function>', 'Array<Function>', 'true'],
+  ['the keyword against itself, with no container', 'Function', 'Function', 'true'],
+  ['a call signature against the keyword', 'Array<() => void>', 'Array<Function>', 'true'],
+  ['a constructor signature against the keyword', 'Array<new () => object>', 'Array<Function>', 'true'],
+  ['the keyword against a call signature', 'Array<Function>', 'Array<() => void>', 'none'],
+  ['a call signature against another call signature', 'Array<() => void>', 'Array<(n: number) => void>', 'none'],
+]) {
+  runBoth(`TS conditional: ${ what } ${ want === 'true' ? 'picks the true branch' : 'decides no branch' }`,
+    `type Sel<T> = T extends ${ extendSide } ? number[] : string;\ndeclare const v: ${ checkSide };\n`
+    + 'declare const r: Sel<typeof v>;\nconst x = r;',
+    (adapter, prog, lbl) => {
+      const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
+      const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+      if (want === 'true') checkType(lbl, type, { primitive: false, ctor: 'Array' });
+      else check(`${ lbl } no branch types the read`, type === null, true);
+    }, ['typescript']);
+}
+
+// --- written TOP arguments ---
+
+// a top keyword (`any` / `unknown`) WRITTEN as an argument constrains nothing - the same thing a
+// container with no argument at all says, and the opposite of the elision an unrepresentable
+// argument confesses. Both were the same absence before, so a partly-top spelling
+// (`Map<string, any>`) decided nothing where tsc decides.
+// In the CHECK slot the two tops part, and the list records WHICH was written: `any` is assignable
+// to every type but the bottom one, `unknown` only to another top. Every row below is the branch
+// tsc picks for the same pair. The `.inner` slot keeps one marker for both spellings and so keeps
+// the conflation - the `Array<any>` / `Array<unknown>` pair at the end of the list is that residue
+for (const [what, checkSide, extendSide, want] of [
+  ['a top VALUE argument on the extends side', 'Map<string, number>', 'Map<string, any>', 'true'],
+  ['a top KEY argument on the extends side', 'Map<string, number>', 'Map<any, number>', 'true'],
+  ['an `unknown` argument on the extends side', 'Map<string, number>', 'Map<string, unknown>', 'true'],
+  ['two top arguments meeting each other', 'Map<string, any>', 'Map<string, any>', 'true'],
+  ['a top argument one container down', 'Array<Array<number>>', 'Array<Array<any>>', 'true'],
+  ['a top argument in a listed slot one container down', 'Map<string, Array<number>>', 'Map<string, Array<any>>', 'true'],
+  ['an `any` argument on the CHECK side', 'Map<string, any>', 'Map<string, number>', 'true'],
+  ['an `any` KEY argument on the CHECK side', 'Map<any, number>', 'Map<string, number>', 'true'],
+  ['an all-top check against a concrete list', 'Map<any, any>', 'Map<string, number>', 'true'],
+  ['an `any` argument against the BOTTOM type', 'Map<string, any>', 'Map<string, never>', 'false'],
+  ['an `any` argument against an elided one', 'Map<string, any>', 'Map<string, { a: 1 }>', 'true'],
+  ['an `unknown` argument on the CHECK side', 'Map<string, unknown>', 'Map<string, number>', 'false'],
+  ['an `unknown` KEY argument on the CHECK side', 'Map<unknown, number>', 'Map<string, number>', 'false'],
+  ['an `unknown` check against an `any` extend', 'Map<string, unknown>', 'Map<string, any>', 'true'],
+  ['an `any` check against an `unknown` extend', 'Map<string, any>', 'Map<string, unknown>', 'true'],
+  ['a top argument in a mapped container', 'Record<string, any>', 'Record<string, number>', 'true'],
+  ['an `unknown` argument in a mapped container', 'Record<string, unknown>', 'Record<string, number>', 'false'],
+  ['a top argument under a weak container', 'WeakMap<object, any>', 'WeakMap<object, number>', 'true'],
+  ['an elided argument beside a concrete one', 'Map<string, { a: 1 }>', 'Map<string, number>', 'none'],
+  ['the `.inner` residue - a top written there', 'Array<any>', 'Array<number>', 'true'],
+  ['the `.inner` residue - a top written there against the BOTTOM type', 'Array<any>', 'Array<never>', 'false'],
+  ['the `.inner` residue - an `unknown` written there', 'Array<unknown>', 'Array<number>', 'false'],
+  ['the `.inner` residue - an `unknown` check against an `any` extend', 'Array<unknown>', 'Array<any>', 'true'],
+  ['the `.inner` residue - a top written there one container down', 'Array<Array<any>>', 'Array<Array<number>>', 'true'],
+  ['the `.inner` residue - an `unknown` written there one container down', 'Array<Array<unknown>>', 'Array<Array<number>>', 'false'],
+]) {
+  runBoth(`TS conditional: ${ what } ${ want === 'none' ? 'decides no branch' : `picks the ${ want } branch` }`,
+    `type Sel<T> = T extends ${ extendSide } ? number[] : string;\ndeclare const v: ${ checkSide };\n`
+    + 'declare const r: Sel<typeof v>;\nconst x = r;',
+    (adapter, prog, lbl) => {
+      const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
+      const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+      if (want === 'true') checkType(lbl, type, { primitive: false, ctor: 'Array' });
+      else if (want === 'false') checkType(lbl, type, { primitive: true, kind: 'string' });
+      else check(`${ lbl } no branch types the read`, type === null, true);
+    }, ['typescript']);
+}
+
+// the element slot drops a `never` / nullish resolution because it is meaningless as a dispatch
+// HINT. An argument LIST is read by assignability alone, so it keeps what was written - and
+// `never` extends everything while `null` extends nothing of another family
+for (const [what, checkSide, extendSide, want] of [
+  ['a `never` value argument', 'Map<string, never>', 'Map<string, number>', 'true'],
+  ['a `never` key argument', 'Map<never, number>', 'Map<string, number>', 'true'],
+  ['a `null` value argument', 'Map<string, null>', 'Map<string, number>', 'false'],
+  ['an `undefined` key argument', 'Map<undefined, number>', 'Map<string, number>', 'false'],
+]) {
+  runBoth(`TS conditional: ${ what } picks the ${ want } branch`,
+    `type Sel<T> = T extends ${ extendSide } ? number[] : string;\ndeclare const v: ${ checkSide };\n`
+    + 'declare const r: Sel<typeof v>;\nconst x = r;',
+    (adapter, prog, lbl) => {
+      const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
+      const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+      if (want === 'true') checkType(lbl, type, { primitive: false, ctor: 'Array' });
+      else checkType(lbl, type, { primitive: true, kind: 'string' });
+    }, ['typescript']);
+}
+
+// --- a mapped container's key domain ---
+
+// `Record<K, V>` has no declaration node to be identified by, but it WROTE its key and its value.
+// The first entry is a key DOMAIN and not a covariant position: the domain is what the container's
+// MEMBERS are, so a wider one is a container with MORE of them and the relation runs the other way
+// - `Record<'a' | 'b', V>` extends `Record<'a', V>` and not the reverse. The entries after the
+// domain decide only over the keys BOTH sides hold: a target domain naming none the check could
+// hold leaves them describing nothing, and one naming a key the check has no member for sinks the
+// relation whatever they say. Every row below is the branch `tsc` picks for the same source
+for (const [what, checkSide, extendSide, want] of [
+  ['one domain and one value', 'Record<string, number>', 'Record<string, number>', 'true'],
+  ['one literal domain and one value', "Record<'a', number>", "Record<'a', number>", 'true'],
+  ['one domain and a value that is a container', 'Record<string, Array<number>>', 'Record<string, Array<number>>', 'true'],
+  ['one domain and a top value on the extends side', 'Record<string, number>', 'Record<string, any>', 'true'],
+  ['one domain under a container', 'Array<Record<string, number>>', 'Array<Record<string, number>>', 'true'],
+  ['one domain and values that disagree', 'Record<string, number>', 'Record<string, string>', 'false'],
+  ['one literal domain and values that disagree', "Record<'a', number>", "Record<'a', string>", 'false'],
+  ['one domain and container values that disagree', 'Record<string, Array<number>>', 'Record<string, Array<string>>', 'false'],
+  ['domains of different families', 'Record<string, number>', 'Record<number, string>', 'false'],
+  ['domains of different families one container down', 'Array<Record<string, number>>', 'Array<Record<number, string>>', 'false'],
+  ['a wide domain against a literal one', 'Record<string, number>', "Record<'a', number>", 'true'],
+  ['a wide domain against a literal one of the OTHER family', 'Record<string, number>', 'Record<1, number>', 'false'],
+  ['a numeric domain against a numeric literal one', 'Record<number, number>', 'Record<1, number>', 'true'],
+  ['a literal domain against a wide one', "Record<'a', number>", 'Record<string, number>', 'true'],
+  ['a literal domain against a wide one whose value differs', "Record<'a', number>", 'Record<string, string>', 'false'],
+  ['a string-literal domain against a numeric wide one', "Record<'a', number>", 'Record<number, string>', 'true'],
+  ['two literal domains', "Record<'a', number>", "Record<'b', number>", 'false'],
+  ['a literal union domain against one of its members', "Record<'a' | 'b', number>", "Record<'a', number>", 'true'],
+  ['a literal domain against the union that holds it', "Record<'a', number>", "Record<'a' | 'b', number>", 'false'],
+  ['a bottom domain on the extends side', 'Record<string, number>', 'Record<never, string>', 'true'],
+  ['bottom domains on both sides', 'Record<never, number>', 'Record<never, string>', 'true'],
+  ['a bottom domain on the CHECK side against a literal one', 'Record<never, number>', "Record<'a', number>", 'false'],
+  ['a bottom domain on the check side against a wide one', 'Record<never, number>', 'Record<string, string>', 'true'],
+  ['a symbol domain against a string one', 'Record<symbol, number>', 'Record<string, string>', 'true'],
+  ['a symbol domain against itself with values that disagree', 'Record<symbol, number>', 'Record<symbol, string>', 'false'],
+  ['a domain union across families', 'Record<string, number>', 'Record<string | number, number>', 'none'],
+  ['a domain union across families whose values disagree', 'Record<string, number>', 'Record<string | number, string>', 'none'],
+  ['a written domain against a plain interface', 'Record<string, number>', 'RIface', 'none'],
+]) {
+  runBoth(`TS conditional: a mapped container with ${ what } ${ want === 'none' ? 'decides no branch' : `picks the ${ want } branch` }`,
+    `interface RIface { a: number }\ntype Sel<T> = T extends ${ extendSide } ? number[] : string;\n`
+    + `declare const v: ${ checkSide };\ndeclare const r: Sel<typeof v>;\nconst x = r;`,
+    (adapter, prog, lbl) => {
+      const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
+      const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+      if (want === 'true') checkType(lbl, type, { primitive: false, ctor: 'Array' });
+      else if (want === 'false') checkType(lbl, type, { primitive: true, kind: 'string' });
+      else check(`${ lbl } no branch types the read`, type === null, true);
+    }, ['typescript']);
+}
+
+// a domain is either an index SIGNATURE - it holds a key of its family without naming one - or a
+// finite set of named keys, and only what was WRITTEN tells the two apart: an enum and a
+// template-literal pattern are FINITE, and both resolve into the same bare primitive the keyword
+// resolves into. Read off the resolved type alone, `Record<E, V>` answered as the whole string index
+// signature and covered keys the enum has no member for. An alias is not one of these: it resolves
+// to the members it was written with, and keeps deciding
+// eslint-disable-next-line no-template-curly-in-string -- a TS template-literal TYPE, not a substitution
+const DOMAIN_SPELLING_DECLS = "enum E { A = 'a', B = 'b' }\ntype AliasKey = 'a' | 'b';\ntype TL = `a${string}`;\n";
+for (const [what, checkSide, extendSide, want] of [
+  ['an enum domain against itself', 'Record<E, number>', 'Record<E, number>', 'none'],
+  ['an enum domain against a literal one', 'Record<E, number>', "Record<'a', number>", 'none'],
+  ['a template-literal domain against an enum one', 'Record<TL, number>', 'Record<E, number>', 'none'],
+  ['a template-literal domain against a wide one', 'Record<TL, number>', 'Record<string, number>', 'none'],
+  ['a wide domain against an enum one', 'Record<string, number>', 'Record<E, number>', 'none'],
+  ['an alias domain against one of its members', 'Record<AliasKey, number>', "Record<'a', number>", 'true'],
+  ['an alias domain against a wide one', 'Record<AliasKey, number>', 'Record<string, number>', 'true'],
+  ['an alias domain against a wide one whose value differs', 'Record<AliasKey, number>', 'Record<string, string>', 'false'],
+]) {
+  runBoth(`TS conditional: a mapped container with ${ what } ${ want === 'none' ? 'decides no branch' : `picks the ${ want } branch` }`,
+    `${ DOMAIN_SPELLING_DECLS }type Sel<T> = T extends ${ extendSide } ? number[] : string;\n`
+    + `declare const v: ${ checkSide };\ndeclare const r: Sel<typeof v>;\nconst x = r;`,
+    (adapter, prog, lbl) => {
+      const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
+      const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+      if (want === 'true') checkType(lbl, type, { primitive: false, ctor: 'Array' });
+      else if (want === 'false') checkType(lbl, type, { primitive: true, kind: 'string' });
+      else check(`${ lbl } no branch types the read`, type === null, true);
+    }, ['typescript']);
+}
+
+// a class reached as a VALUE resolves through its own lane, and its instance box carries the same
+// declaration the annotation lane stamps - so the two sides of the conditional below meet on one node
+for (const [what, init, extendSide] of [
+  ['a class instance', 'new K()', 'K'],
+  ['a class instance inside a container', '[new K()]', 'Array<K>'],
+]) {
+  runBoth(`TS conditional: ${ what } reached as a value picks the true branch`,
+    `class K { a = 1; }\nconst k = ${ init };\ntype Sel<T> = T extends ${ extendSide } ? number[] : string;\n`
+    + 'declare const r: Sel<typeof k>;\nconst x = r;',
+    (adapter, prog, lbl) => {
+      const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
+      checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+    }, ['typescript']);
+}
+
+// the key is the declaration NODE and not its name: two same-named interfaces in different scopes
+// are two types, and tsc answers FALSE between them - a name would have called them one
+runBoth('TS conditional: two same-named interfaces from different scopes decide no branch',
+  'interface A { a: string }\ndeclare const outer: Array<A>;\nnamespace N { export interface A { z: boolean } }\n'
+  + 'type Sel<T> = T extends Array<N.A> ? number[] : string;\ndeclare const r: Sel<typeof outer>;\nconst x = r;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
+    check(`${ lbl } no branch types the read`, adapter.makeResolver().resolveNodeType(decl.get('init')) === null, true);
+  }, ['typescript']);
+
+// a GENERIC declaration is a family and not a type: the two instantiations below share the node,
+// and tsc answers FALSE between them - so the node is left off the box entirely rather than made to
+// claim an agreement it cannot check
+for (const [what, decls, checkSide, extendSide] of [
+  ['a generic interface', 'interface Box<T> { v: T }\n', 'Array<Box<string>>', 'Array<Box<number>>'],
+  ['a generic class', 'declare class Box<T> { v: T; }\n', 'Array<Box<string>>', 'Array<Box<number>>'],
+]) {
+  runBoth(`TS conditional: two instantiations of ${ what } decide no branch`,
+    `${ decls }type Sel<T> = T extends ${ extendSide } ? number[] : string;\ndeclare const v: ${ checkSide };\ndeclare const r: Sel<typeof v>;\nconst x = r;`,
+    (adapter, prog, lbl) => {
+      const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
+      check(`${ lbl } no branch types the read`, adapter.makeResolver().resolveNodeType(decl.get('init')) === null, true);
+    }, ['typescript']);
+}
+
+// --- a parameter the container has no element slot for is carried as a list ---
+// One element per container is all the `.inner` slot holds, and a key-first `Map` / `WeakMap` keys
+// off param-0, so nothing it was written with fits there. The absence that left is the one a BARE
+// `Map` has, and a bare one means `Map<any, any>` - which made every written parameter agree with
+// every other. The list is compared position by position instead, through the same decider the
+// outermost pair goes through: one definite mismatch sinks the relation whatever the rest say, and
+// a member with no Type form of its own is a HOLE the other positions still decide around.
+for (const [what, decls, checkSide, extendSide, trueBranch] of [
+  ['agree', '', 'Map<string, number>', 'Map<string, number>', true],
+  ['differ in the value', '', 'Map<string, boolean>', 'Map<string, number>', false],
+  ['differ in the key', '', 'Map<number, boolean>', 'Map<string, boolean>', false],
+  ['differ under a WeakMap', 'interface K { a: string }\n', 'WeakMap<K, boolean>', 'WeakMap<K, number>', false],
+  ['differ inside a container', '', 'Array<Map<string, number>>', 'Array<Map<number, string>>', false],
+  ['pair a value with the wrapper it boxes into', '', 'Map<string, string>', 'Map<string, String>', true],
+  ['pair a wide value with a narrower literal', '', 'Map<string, string>', 'Map<string, "a">', false],
+  ['pair a readonly value with its mutable form', '', 'Map<string, ReadonlyArray<number>>', 'Map<string, Array<number>>', false],
+  ['are written all-top on the extends side', '', 'Map<string, number>', 'Map<any, any>', true],
+  ['are written on neither side', '', 'Map', 'Map', true],
+  ['differ in the key beside a hole', '', 'Map<number, { a: 1 }>', 'Map<string, { b: 2 }>', false],
+  ['differ in the value beside a hole', '', 'WeakMap<{ a: 1 }, number>', 'WeakMap<{ a: 1 }, string>', false],
+  ['differ beside a hole inside a container', '', 'Array<Map<number, { a: 1 }>>', 'Array<Map<string, { b: 2 }>>', false],
+  ['differ in the key beside an `any` value', '', 'Map<number, any>', 'Map<string, any>', false],
+]) {
+  runBoth(`TS conditional: written parameters that ${ what } pick the branch tsc picks`,
+    `${ decls }type Sel<T> = T extends ${ extendSide } ? number[] : string;\ndeclare const v: ${ checkSide };\ndeclare const r: Sel<typeof v>;\nconst x = r;`,
+    (adapter, prog, lbl) => {
+      const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
+      const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+      if (trueBranch) checkType(lbl, type, { primitive: false, ctor: 'Array' });
+      else checkType(lbl, type, { primitive: true, kind: 'string' });
+    }, ['typescript']);
+}
+
+// a definite mismatch at ONE position is the whole answer, even where another position is a box the
+// list cannot read: tsc answers FALSE for the pair below on its values alone
+runBoth('TS conditional: one position that disagrees sinks a list whose other position is a box',
+  'interface A { a: string }\ninterface B { b: string }\n'
+  + 'type Sel<T> = T extends Map<B, number> ? number[] : string;\ndeclare const v: Map<A, boolean>;\n'
+  + 'declare const r: Sel<typeof v>;\nconst x = r;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: true, kind: 'string' });
+  }, ['typescript']);
+
+// a hole decides nothing on its own, so a list whose ONLY disagreement sits in one stays open - as
+// does a key that resolved into the box every unmodelled shape shares, and tuple elements that do
+// not fold to one type, which never reach a written list at all
+for (const [what, decls, checkSide, extendSide] of [
+  ['a Map key that is a box', 'interface A { a: string }\ninterface B { b: string }\n', 'Map<A, number>', 'Map<B, number>'],
+  ['a Map value that is the only disagreement and has no Type form', '', 'Map<string, { a: 1 }>', 'Map<string, { b: 2 }>'],
+  ['tuple elements', '', 'Array<[number, string]>', 'Array<[string, number]>'],
+]) {
+  runBoth(`TS conditional: ${ what } decides no branch`,
+    `${ decls }type Sel<T> = T extends ${ extendSide } ? number[] : string;\ndeclare const v: ${ checkSide };\ndeclare const r: Sel<typeof v>;\nconst x = r;`,
+    (adapter, prog, lbl) => {
+      const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
+      check(`${ lbl } no branch types the read`, adapter.makeResolver().resolveNodeType(decl.get('init')) === null, true);
+    }, ['typescript']);
+}
+
+// a union fold hands ONE arm back by identity, so a merge of containers whose lists disagree must
+// not keep that arm's - `Map<string, number> | Map<string, string>` is a Map whose value type this
+// layer no longer knows, and reading the survivor's list decides the TRUE branch tsc answers FALSE
+runBoth('TS conditional: a fold of Maps with disagreeing parameters decides no branch',
+  'type Sel<T> = T extends Map<string, number> ? number[] : string;\n'
+  + 'declare const v: Map<string, number> | Map<string, string>;\ndeclare const r: Sel<typeof v>;\nconst x = r;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
+    check(`${ lbl } no branch types the read`, adapter.makeResolver().resolveNodeType(decl.get('init')) === null, true);
+  }, ['typescript']);
+
+// the same fold with lists that AGREE keeps them: the strip is keyed on disagreement, not on the fold
+runBoth('TS conditional: a fold of Maps with agreeing parameters still picks a branch',
+  'type Sel<T> = T extends Map<string, number> ? number[] : string;\n'
+  + 'declare const v: Map<string, number> | Map<string, number>;\ndeclare const r: Sel<typeof v>;\nconst x = r;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  }, ['typescript']);
+
+// what the model still holds in full keeps deciding: a named container family, the lowercase
+// `object` keyword (one type, not a box), the boxed top reached THROUGH a container - which spells
+// itself constructor-null and so reads as a family mismatch against the box - and a container
+// whose arguments were never written, where nothing was dropped to begin with
+for (const [what, decls, checkSide, extendSide, trueBranch] of [
+  ['a concrete container element', '', 'Array<Date>', 'Array<Date>', true],
+  ['the lowercase object keyword', '', 'Array<object>', 'Array<object>', true],
+  ['a box against the boxed top', 'interface A { a: string }\n', 'Array<A>', 'Array<Object>', true],
+  ['a primitive against the boxed top', '', 'Array<string>', 'Array<Object>', true],
+  ['a box against a disjoint primitive', 'interface A { a: string }\n', 'Array<A>', 'Array<string>', false],
+  ['containers with no written arguments', '', 'Map', 'Map', true],
+  ['tuple elements that fold to one type', '', 'Array<[string, string]>', 'Array<[string, string]>', true],
+  ['empty tuples', '', 'Array<[]>', 'Array<[]>', true],
+]) {
+  runBoth(`TS conditional: ${ what } still picks a branch`,
+    `${ decls }type Sel<T> = T extends ${ extendSide } ? number[] : string;\ndeclare const v: ${ checkSide };\ndeclare const r: Sel<typeof v>;\nconst x = r;`,
+    (adapter, prog, lbl) => {
+      const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
+      const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+      if (trueBranch) checkType(lbl, type, { primitive: false, ctor: 'Array' });
+      else checkType(lbl, type, { primitive: true, kind: 'string' });
+    }, ['typescript']);
+}
+
+// --- a container's parameter is an assignability question, not an equality one ---
+// The chain used to be walked by family EQUALITY, a second and poorer copy of the rule set the
+// outermost pair already goes through. Equality cannot say that a primitive is assignable to the
+// wrapper it boxes into, that a wide keyword is NOT assignable to a narrower literal, that a
+// readonly collection is not assignable to its mutable form, or that everything non-primitive is
+// assignable to the lowercase `object` keyword - so each row below is a branch tsc decides and
+// this layer used to answer the other way round.
+for (const [what, checkSide, extendSide, trueBranch] of [
+  ['a primitive under the wrapper it boxes into', 'Array<string>', 'Array<String>', true],
+  ['a number under its wrapper', 'Array<number>', 'Array<Number>', true],
+  ['a boolean under its wrapper', 'Array<boolean>', 'Array<Boolean>', true],
+  ['a bigint under its wrapper', 'Array<bigint>', 'Array<BigInt>', true],
+  ['a symbol under its wrapper', 'Array<symbol>', 'Array<Symbol>', true],
+  ['a boxed wrapper under a Promise', 'Promise<string>', 'Promise<String>', true],
+  ['a boxed wrapper under a Set', 'Set<string>', 'Set<String>', true],
+  ['a boxed wrapper two containers down', 'Array<Array<string>>', 'Array<Array<String>>', true],
+  ['a wrapper against the primitive it boxes', 'Array<String>', 'Array<string>', false],
+  ['a wide keyword against a narrower literal', 'Array<string>', 'Array<"a">', false],
+  ['a wide keyword against a narrower literal one down', 'Array<Array<string>>', 'Array<Array<"a">>', false],
+  ['a wide keyword against a narrower literal union', 'Array<string>', 'Array<"a" | "b">', false],
+  ['a literal against the keyword that widens it', 'Array<"a">', 'Array<string>', true],
+  ['a readonly collection against its mutable form', 'Array<ReadonlyArray<string>>', 'Array<Array<string>>', false],
+  ['a readonly collection two containers down', 'Array<Array<ReadonlyArray<string>>>', 'Array<Array<Array<string>>>', false],
+  ['a container against the lowercase object keyword', 'Array<Array<string>>', 'Array<object>', true],
+  ['a container against that keyword two down', 'Array<Array<Array<string>>>', 'Array<Array<object>>', true],
+  ['a primitive against the lowercase object keyword', 'Array<string>', 'Array<object>', false],
+]) {
+  runBoth(`TS conditional: ${ what } picks the branch tsc picks`,
+    `type Sel<T> = T extends ${ extendSide } ? number[] : string;\ndeclare const v: ${ checkSide };\ndeclare const r: Sel<typeof v>;\nconst x = r;`,
+    (adapter, prog, lbl) => {
+      const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
+      const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+      if (trueBranch) checkType(lbl, type, { primitive: false, ctor: 'Array' });
+      else checkType(lbl, type, { primitive: true, kind: 'string' });
+    }, ['typescript']);
+}
+
+// asking the full rule set must not cost a branch the walk already decided: the relations it leaves
+// open across DIFFERENT families keep the family-inequality answer the level gave before
+for (const [what, checkSide, extendSide, trueBranch] of [
+  ['inners that agree', 'Array<string>', 'Array<string>', true],
+  ['inners that disagree', 'Array<number>', 'Array<string>', false],
+  ['inners that agree two containers down', 'Array<Array<string>>', 'Array<Array<string>>', true],
+  ['inners that disagree two containers down', 'Array<Array<string>>', 'Array<Array<number>>', false],
+  ['a primitive under a wrapper of another family', 'Array<string>', 'Array<Number>', false],
+  ['unrelated container families', 'Array<Map<string, number>>', 'Array<Set<number>>', false],
+  ['unrelated concrete families', 'Array<Date>', 'Array<RegExp>', false],
+  ['a container against a primitive', 'Array<Array<string>>', 'Array<string>', false],
+  ['a primitive against a container', 'Array<string>', 'Array<Array<string>>', false],
+  ['a container against the boxed top', 'Array<Array<string>>', 'Array<Object>', true],
+]) {
+  runBoth(`TS conditional: ${ what } still picks a branch`,
+    `type Sel<T> = T extends ${ extendSide } ? number[] : string;\ndeclare const v: ${ checkSide };\ndeclare const r: Sel<typeof v>;\nconst x = r;`,
+    (adapter, prog, lbl) => {
+      const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
+      const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+      if (trueBranch) checkType(lbl, type, { primitive: false, ctor: 'Array' });
+      else checkType(lbl, type, { primitive: true, kind: 'string' });
+    }, ['typescript']);
+}
+
+// a folded literal union keeps its MEMBERS, and the members are the whole question a conditional
+// asks about one: every member of the check inside the extends side holds for each of them and so
+// for their union, and a pair sharing no member fails for each alike. The PARTIAL overlap is the one
+// left open, and for two readings at once - the type-level answer is FALSE, while the same union
+// reached through a naked type parameter DISTRIBUTES and takes both branches. Past the member cap,
+// and where a wide arm absorbed the literals, the union is opaque again and all three stay open
+const MANY_MEMBERS = Array.from({ length: 17 }, (unused, index) => `"k${ index }"`).join(' | ');
+for (const [what, checkSide, extendSide, want] of [
+  ['the same literal union on both sides', 'Array<"a" | "b">', 'Array<"a" | "b">', 'true'],
+  ['the same literal union with no container at all', '"a" | "b"', '"a" | "b"', 'true'],
+  ['a member against the union that holds it', '"a"', '"a" | "b"', 'true'],
+  ['a union against a superset of it', '"a" | "b"', '"a" | "b" | "c"', 'true'],
+  ['literal unions that differ', 'Array<"a" | "b">', 'Array<"a" | "c">', 'none'],
+  ['a union against one of its own members', '"a" | "b"', '"a"', 'none'],
+  ['unions of different families', 'Array<"a" | "b">', 'Array<1 | 2>', 'false'],
+  ['a member against a union holding neither', '"a"', '"c" | "d"', 'false'],
+  ['a union past the member cap against itself', MANY_MEMBERS, MANY_MEMBERS, 'none'],
+  ['a wide arm that absorbed the literals against a member', '"a" | "b" | string', '"a"', 'false'],
+]) {
+  runBoth(`TS conditional: ${ what } ${ want === 'none' ? 'decides no branch' : `picks the ${ want } branch` }`,
+    `type Sel<T> = T extends ${ extendSide } ? number[] : string;\ndeclare const v: ${ checkSide };\ndeclare const r: Sel<typeof v>;\nconst x = r;`,
+    (adapter, prog, lbl) => {
+      const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
+      const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+      if (want === 'true') checkType(lbl, type, { primitive: false, ctor: 'Array' });
+      else if (want === 'false') checkType(lbl, type, { primitive: true, kind: 'string' });
+      else check(`${ lbl } no branch types the read`, type === null, true);
+    }, ['typescript']);
+}
+
+// the element slot takes no `never` / nullish hint - nothing dispatches on one - so the level looks
+// inner-less, which is the shape a BARE container has and means `Array<any>`. `Array<never>` is the
+// opposite of that shape: the bottom element makes it assignable to every array, `Array<null>` to
+// almost none, and the two used to be one absence. Every spelling of one container reaches the same
+// place, or the mark holds for `Array<X>` and not for the `X[]` the same type is also written as
+for (const [what, checkSide, extendSide, want] of [
+  ['a bottom element against a concrete one', 'Array<never>', 'Array<string>', 'true'],
+  ['a concrete element against a bottom one', 'Array<string>', 'Array<never>', 'false'],
+  ['bottom elements on both sides', 'Array<never>', 'Array<never>', 'true'],
+  ['a bottom element against a nullish one', 'Array<never>', 'Array<null>', 'true'],
+  ['nullish elements on both sides', 'Array<null>', 'Array<null>', 'true'],
+  ['a nullish element against a concrete one', 'Array<null>', 'Array<string>', 'false'],
+  ['an undefined element against a concrete one', 'Array<undefined>', 'Array<string>', 'false'],
+  ['a bottom element one container down', 'Array<Array<never>>', 'Array<Array<string>>', 'true'],
+  ['a bottom element under a Set', 'Set<never>', 'Set<string>', 'true'],
+  ['a bottom element under a Promise', 'Promise<never>', 'Promise<string>', 'true'],
+  ['a bottom element in the bracket spelling', 'never[]', 'string[]', 'true'],
+  ['a nullish element against the union it was dropped from', 'Array<null>', 'Array<string | null>', 'none'],
+]) {
+  runBoth(`TS conditional: ${ what } ${ want === 'none' ? 'decides no branch' : `picks the ${ want } branch` }`,
+    `type Sel<T> = T extends ${ extendSide } ? number[] : string;\ndeclare const v: ${ checkSide };\ndeclare const r: Sel<typeof v>;\nconst x = r;`,
+    (adapter, prog, lbl) => {
+      const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
+      const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+      if (want === 'true') checkType(lbl, type, { primitive: false, ctor: 'Array' });
+      else if (want === 'false') checkType(lbl, type, { primitive: true, kind: 'string' });
+      else check(`${ lbl } no branch types the read`, type === null, true);
+    }, ['typescript']);
+}
+
+// a cyclic type-param default (`Self<T = T[]>`) leaks its raw ANNOTATION through the subst map as a
+// resolved value, and an AST node in the element slot poisons every reader below it. The slot holds a
+// resolved type or a hint string and nothing else, so the container CONFESSES the absence instead
+runBoth('TS annotation: a cyclic type-param default leaves the element confessed, not the annotation',
+  'type Self<T = T[]> = { items: T };\ndeclare const r: Self;\nconst x = r.items;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    checkType(lbl, type, { primitive: false, ctor: 'Array' });
+    check(`${ lbl } the element slot holds nothing`, type.inner, null);
+    check(`${ lbl } and the container says so`, type.innerElided, true);
+  }, ['typescript']);
+
+// the element slot's refusal is one rule, and the container is only ONE of the places it applies:
+// a bare annotation that strips to nothing keeps resolving to nothing, so a member read on it stays
+// typeless rather than dispatching against the bottom or the nullish type it stripped to
+for (const [what, annotation] of [
+  ['a nullish strip that leaves nothing', 'NonNullable<null>'],
+  ['a bottom strip that leaves nothing', 'NonNullable<never>'],
+]) {
+  runBoth(`TS annotation: ${ what } types no read`,
+    `declare const v: ${ annotation };\nconst x = v;`,
+    (adapter, prog, lbl) => {
+      const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
+      check(`${ lbl } no type for the read`, adapter.makeResolver().resolveNodeType(decl.get('init')) === null, true);
+    }, ['typescript']);
+}
+
+// the bottom element reaches the same place through the SUBSTITUTION lane, where a type parameter
+// stands in the element slot until the alias is applied
+runBoth('TS conditional: a bottom element bound through a type parameter picks the true branch',
+  'type Wrap<T> = T[];\ntype Sel<T> = T extends string[] ? number[] : string;\n'
+  + 'declare const v: Wrap<never>;\ndeclare const r: Sel<typeof v>;\nconst x = r;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  }, ['typescript']);
+
+// the lowercase `object` keyword spells itself constructor-null, which is also what the box for an
+// unmodelled shape and the boxed top spell - so a marker is the only thing that tells them apart
+// once the AST is out of reach, and a union fold carries it like the boxed top's: assignability to
+// a union target holds when ANY arm accepts. Both arm orders answer the same, and the boxed top
+// still answers first where a fold kept both
+for (const [what, checkSide, extendSide, trueBranch] of [
+  ['a union of the keyword and an opaque shape', 'Array<string>', '(object | M<{ a: 1 }>)', true],
+  ['that union written the other way round', 'Array<string>', '(M<{ a: 1 }> | object)', true],
+  ['a primitive against that union', 'string', '(object | M<{ a: 1 }>)', false],
+  ['a primitive against the keyword folded with the boxed top', 'string', '(object | Object)', true],
+  ['that fold written the other way round', 'string', '(Object | object)', true],
+]) {
+  runBoth(`TS conditional: ${ what } picks the branch tsc picks`,
+    'type M<T> = { [K in keyof T]: number };\n'
+    + `type Sel<T> = T extends ${ extendSide } ? number[] : string;\ndeclare const v: ${ checkSide };\n`
+    + 'declare const r: Sel<typeof v>;\nconst x = r;',
+    (adapter, prog, lbl) => {
+      const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
+      const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+      if (trueBranch) checkType(lbl, type, { primitive: false, ctor: 'Array' });
+      else checkType(lbl, type, { primitive: true, kind: 'string' });
+    }, ['typescript']);
+}
+
 // --- Readonly array is NOT assignable to a mutable `Array<infer U>` infer pattern ---
 // TS picks the FALSE branch for a `readonly T[]` / `ReadonlyArray<T>` check side against an
 // `Array<infer U>` pattern. Binding U from a readonly check would key an array-only helper to the
@@ -1363,6 +2283,87 @@ runBoth('Promise check side does not match `Iterable<infer U>` pattern (FALSE br
   (adapter, prog, lbl) => {
     const recv = adapter.pickPath(prog, 'MemberExpression').get('object');
     checkType(lbl, adapter.makeResolver().resolveNodeType(recv), { primitive: true, kind: 'string' });
+  });
+
+// Which families REACH `Iterable` is what the supertype table says, and nothing else may answer it.
+// A check side merely HAVING a constructor says only that some box was resolved: read as membership
+// it bound U from the constraint for a `Date`, a class instance and a plain interface alike, keying
+// a string-family helper to a receiver that is not iterable at all. A family the table does not
+// carry is undecided, not a match - no narrow rather than the wrong one.
+
+runBoth('`Date` check side does not match an `Iterable<infer U extends C>` pattern',
+  'type T = Date extends Iterable<infer U extends string> ? U : number[];\ndeclare const r: T;\nr.at(0);',
+  (adapter, prog, lbl) => {
+    const recv = adapter.pickPath(prog, 'MemberExpression').get('object');
+    check(lbl, adapter.makeResolver().resolveNodeType(recv), null);
+  });
+
+runBoth('a plain interface check side does not match an `Iterable<infer U extends C>` pattern',
+  'interface Foo { a: number }\ntype T = Foo extends Iterable<infer U extends string> ? U : number[];\ndeclare const r: T;\nr.at(0);',
+  (adapter, prog, lbl) => {
+    const recv = adapter.pickPath(prog, 'MemberExpression').get('object');
+    check(lbl, adapter.makeResolver().resolveNodeType(recv), null);
+  });
+
+runBoth('a `Set` check side the table DOES carry still binds U from the constraint',
+  'type T = Set<string> extends Iterable<infer U extends string> ? U : number[];\ndeclare const r: T;\nr.at(0);',
+  (adapter, prog, lbl) => {
+    const recv = adapter.pickPath(prog, 'MemberExpression').get('object');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(recv), { primitive: true, kind: 'string' });
+  });
+
+// The TOP of the object types is not an unmodelled shape that MIGHT be a container: it stands above
+// every one of them and is assignable to none, so the conditional is DECIDED and its false branch
+// resolves precisely. Read as "possibly assignable" it sank both spellings below to no type at all,
+// and the array-family narrow the false branch owes went with it.
+
+runBoth('`object` check side takes the FALSE branch of an `infer U extends C` pattern',
+  'type T = object extends Array<infer U extends string> ? U : number[];\ndeclare const r: T;\nr.at(0);',
+  (adapter, prog, lbl) => {
+    const recv = adapter.pickPath(prog, 'MemberExpression').get('object');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(recv), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('`object` check side takes the FALSE branch against a concrete container too',
+  'type T = object extends Array<string> ? string : number[];\ndeclare const r: T;\nr.at(0);',
+  (adapter, prog, lbl) => {
+    const recv = adapter.pickPath(prog, 'MemberExpression').get('object');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(recv), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('boxed `Object` check side takes the FALSE branch against a concrete container',
+  'type T = Object extends Set<string> ? string : number[];\ndeclare const r: T;\nr.at(0);',
+  (adapter, prog, lbl) => {
+    const recv = adapter.pickPath(prog, 'MemberExpression').get('object');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(recv), { primitive: false, ctor: 'Array' });
+  });
+
+// and the infer lane owes the same answer on its OWN, not through the general decider: a check side
+// the union fold marked `mayBeNullish` stops that decider before any rule of its runs, so a top
+// reached through `object | null` is decided HERE or nowhere. `tsc` agrees the whole union takes the
+// false branch - neither arm is assignable to an array.
+
+runBoth('a nullish-marked top check side still takes the FALSE branch of an infer pattern',
+  'type T = (object | null) extends Array<infer U extends string> ? U : number[];\ndeclare const r: T;\nr.at(0);',
+  (adapter, prog, lbl) => {
+    const recv = adapter.pickPath(prog, 'MemberExpression').get('object');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(recv), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('a nullish-marked boxed `Object` check side takes the FALSE branch of an infer pattern',
+  'type T = (Object | null) extends Set<infer U extends string> ? U : number[];\ndeclare const r: T;\nr.at(0);',
+  (adapter, prog, lbl) => {
+    const recv = adapter.pickPath(prog, 'MemberExpression').get('object');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(recv), { primitive: false, ctor: 'Array' });
+  });
+
+// its guard: an identity-elided box holds the EMPTY interface too, which every object type does
+// extend - so a top check side against one stays undecided rather than answering FALSE
+runBoth('`object` check side against an identity-elided box stays undecided',
+  'interface Empty {}\ntype T = object extends Empty ? string : number[];\ndeclare const r: T;\nr.at(0);',
+  (adapter, prog, lbl) => {
+    const recv = adapter.pickPath(prog, 'MemberExpression').get('object');
+    check(lbl, adapter.makeResolver().resolveNodeType(recv), null);
   });
 
 // A parenthesized extends-clause (`(Array<infer U>)`) must match the same as the unparenthesized
@@ -3050,8 +4051,8 @@ function annotatedReceiverType(adapter, prog) {
 // answer in either direction from passing
 // the domain is closed and small, so it is swept in full rather than sampled: every primitive
 // against every wrapper (its own and the four foreign ones) and against two concrete containers.
-// wide `Object` / `object` / `{}` are excluded here - those fold both branches instead of deciding,
-// and the fold is asserted separately below
+// wide `Object` / `object` / `{}` are excluded here - each answers by a rule of its own rather than
+// by the wrapper pairing, and all three are asserted separately below
 const BOXED_CHECKS = ['string', 'number', 'boolean', 'bigint', 'symbol'];
 const BOXED_WRAPPERS = ['String', 'Number', 'Boolean', 'BigInt', 'Symbol'];
 const CONCRETE_EXTENDS = ['Array<number>', 'Map<string, number>'];
@@ -3085,23 +4086,32 @@ runBoth('conditional wide extends: string / object takes the false branch',
     checkType(lbl, annotatedReceiverType(adapter, prog), { primitive: false, ctor: 'Set' });
   });
 
-// its boxed-top and empty-shape neighbours are an accepted UNDER-resolve, not a semantic claim: TS
-// decides both TRUE (`string extends Object`, `string extends {}`), this layer folds both branches
-// and keeps neither type. safe - the receiver falls back to the generic helper - so the row asserts
-// what the layer does rather than pinning a decision it has not earned
-for (const extend of ['Object', '{}']) {
-  runBoth(`conditional wide extends: string / ${ extend } stays undecided`,
-    `type C<T> = T extends ${ extend } ? number[] : Set<number>;
-     declare const v: C<string>;
-     v.at(0);`,
-    (adapter, prog, lbl) => {
-      const resolved = annotatedReceiverType(adapter, prog);
-      if (resolved?.constructor === 'Array' || resolved?.constructor === 'Set') {
-        return fail(lbl, `a wide extends decided a branch (${ resolved.constructor })`);
-      }
-      pass();
-    });
-}
+// its capitalized neighbour is the boxed TOP, which TS decides TRUE for every non-nullish check,
+// primitives included. The alias instantiation reaches the container through the SUBSTITUTING lane,
+// so the row also pins that the marker separating the boxed top from the lowercase keyword is
+// stamped where both lanes pass rather than on the direct-annotation one alone
+runBoth('conditional wide extends: string / Object takes the true branch',
+  `type C<T> = T extends Object ? number[] : Set<number>;
+   declare const v: C<string>;
+   v.at(0);`,
+  (adapter, prog, lbl) => {
+    checkType(lbl, annotatedReceiverType(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+// the empty shape is an accepted UNDER-resolve, not a semantic claim: TS decides `string extends {}`
+// TRUE, this layer folds both branches and keeps neither type. safe - the receiver falls back to the
+// generic helper - so the row asserts what the layer does rather than pinning a decision it has not earned
+runBoth('conditional wide extends: string / {} stays undecided',
+  `type C<T> = T extends {} ? number[] : Set<number>;
+   declare const v: C<string>;
+   v.at(0);`,
+  (adapter, prog, lbl) => {
+    const resolved = annotatedReceiverType(adapter, prog);
+    if (resolved?.constructor === 'Array' || resolved?.constructor === 'Set') {
+      return fail(lbl, `a wide extends decided a branch (${ resolved.constructor })`);
+    }
+    pass();
+  });
 
 // a decided conditional and a mapped key-set have to answer the same in every position their
 // reference can occupy, not only when written directly on the binding. the mapped rows come in
@@ -3568,6 +4578,45 @@ runBoth('capture-avoidance: colliding generic param resolves destructured elemen
   check('base: mark sets the marker on the clone', marked.mayBeNullish, true);
   check('base: mark leaves the original unmarked', arr.mayBeNullish, false);
   check('base: mark clone is a new object', marked === arr, false);
+  check('base: innerElided reads the false prototype default', arr.innerElided, false);
+  check('base: innerElided is a registered marker', arr.mark('innerElided').innerElided, true);
+  check('base: objectKeyword reads the false prototype default', arr.objectKeyword, false);
+  check('base: objectKeyword is a registered marker', arr.mark('objectKeyword').objectKeyword, true);
+  // `args` is a written-argument LIST, not a marker: it defaults to null rather than false, it is
+  // set through its own clone-returning setter, and the marker registry rejects the name
+  check('base: args reads the null prototype default', arr.args, null);
+  check('base: withArgs carries the list on the clone', arr.withArgs([inner]).args[0], inner);
+  check('base: withArgs clone is a new object', arr.withArgs([inner]) === arr, false);
+  check('base: withArgs leaves the source list-less', arr.args, null);
+  check('base: withArgs keeps the identity fields', arr.withArgs([inner]).constructor, 'Array');
+  check('base: withArgs keeps previously set markers', arr.mark('readonly').withArgs([inner]).readonly, true);
+  throwsWith('base: mark rejects the args slot', () => arr.mark('args'), 'Unknown type marker');
+  check('base: identity reads the null prototype default', arr.identity, null);
+  check('base: withIdentity carries the node on the clone', arr.withIdentity(inner).identity, inner);
+  check('base: withIdentity leaves the source identity-less', arr.identity, null);
+  throwsWith('base: mark rejects the identity slot', () => arr.mark('identity'), 'Unknown type marker');
+  // a box built for a declaration carries it; a GENERIC declaration is a family, not a type
+  check('base: boxForDeclaration carries a plain declaration',
+    boxForDeclaration('Object', { type: 'TSInterfaceDeclaration' }).identity !== null, true);
+  check('base: boxForDeclaration refuses a generic declaration',
+    boxForDeclaration('Object', { type: 'TSInterfaceDeclaration', typeParameters: { params: [] } }).identity, null);
+  check('base: boxForDeclaration with no declaration', boxForDeclaration('Object', null).identity, null);
+  check('base: boxForDeclaration keeps the family', boxForDeclaration('Function', null).constructor, 'Function');
+  check('base: a box with identity is still identity-elided',
+    typeIdentityElided(boxForDeclaration('Object', { type: 'TSInterfaceDeclaration' })), true);
+
+  // the two families that stand for a shape this layer never modelled - every interface, class,
+  // `Record<..>` and intersection resolves into the `Object` box, every call signature into the
+  // `Function` one. Both keep answering member dispatch; neither carries the identity an
+  // assignability comparison reads off them. Their constructor-null neighbours do carry it: the
+  // lowercase `object` keyword is one type, and the boxed top says which one it is by its marker
+  check('base: typeIdentityElided on the Object box', typeIdentityElided(new $Object('Object')), true);
+  check('base: typeIdentityElided on the Function box', typeIdentityElided(new $Object('Function')), true);
+  check('base: typeIdentityElided on a named container', typeIdentityElided(new $Object('Array')), false);
+  check('base: typeIdentityElided on the lowercase object keyword', typeIdentityElided(new $Object(null)), false);
+  check('base: typeIdentityElided on the boxed top', typeIdentityElided(new $Object(null).mark('topObject')), false);
+  check('base: typeIdentityElided on a primitive', typeIdentityElided(new $Primitive('string')), false);
+  check('base: typeIdentityElided on nothing', typeIdentityElided(null), false);
   try {
     arr.mark('maybeNullish');
     fail('base: mark rejects a name outside the registry', 'did not throw');
@@ -4927,6 +5976,26 @@ runBoth('the subclass own namespace export outranks the parent one',
   ]);
   checkTruthy('ast-patterns: declaresRequireBinding import',
     declaresRequireBinding(declaresViaImport));
+  // ... and the Annex-B half, which B.3.3.1 blocks for a name the enclosing function takes as a
+  // PARAMETER: the sloppy host is a CommonJS wrapper and `require` is one of its five, so a
+  // block-level `function require` hoists over nothing and the loader stays reachable
+  const blockFnRequire = program([
+    {
+      type: 'BlockStatement',
+      body: [{ type: 'FunctionDeclaration', id: { type: 'Identifier', name: 'require' } }],
+    },
+  ]);
+  check('ast-patterns: declaresRequireBinding block function over a wrapper parameter',
+    declaresRequireBinding(blockFnRequire), false);
+  // ... while a name the wrapper does NOT take still hoists out of the block
+  const blockFnMap = program([
+    {
+      type: 'BlockStatement',
+      body: [{ type: 'FunctionDeclaration', id: { type: 'Identifier', name: 'Map' } }],
+    },
+  ]);
+  checkTruthy('ast-patterns: the same block hoists a name the wrapper does not take',
+    functionScopeBindsVarOrFunction({ node: blockFnMap }, 'Map'));
   // no binding -> false
   const noShadow = program([{ type: 'ExpressionStatement' }]);
   check('ast-patterns: declaresRequireBinding none',
@@ -5459,7 +6528,6 @@ runBoth('the subclass own namespace export outranks the parent one',
   // collect set sizes upfront to drive the no-lone-blocks guard with a meaningful summary
   const setSizes = [
     TS_EXPR_WRAPPERS.size,
-    IIFE_CALL_PATH_WRAPPERS.size,
     TRANSPARENT_EXPR_WRAPPER_TYPES.size,
     FUNCTION_LIKE_NODE_TYPES.size,
     ESM_MARKER_TYPES.size,
@@ -5481,16 +6549,6 @@ runBoth('the subclass own namespace export outranks the parent one',
   // not a wrapper - ParenthesizedExpression handled separately
   check('ast-patterns sets: TS_EXPR_WRAPPERS no Paren',
     TS_EXPR_WRAPPERS.has('ParenthesizedExpression'), false);
-
-  // IIFE_CALL_PATH_WRAPPERS: ancestors above arrow-IIFE call sites
-  checkTruthy('ast-patterns sets: IIFE_CALL_PATH_WRAPPERS has UnaryExpression',
-    IIFE_CALL_PATH_WRAPPERS.has('UnaryExpression'));
-  checkTruthy('ast-patterns sets: IIFE_CALL_PATH_WRAPPERS has SequenceExpression',
-    IIFE_CALL_PATH_WRAPPERS.has('SequenceExpression'));
-  checkTruthy('ast-patterns sets: IIFE_CALL_PATH_WRAPPERS has ParenthesizedExpression',
-    IIFE_CALL_PATH_WRAPPERS.has('ParenthesizedExpression'));
-  checkTruthy('ast-patterns sets: IIFE_CALL_PATH_WRAPPERS has ChainExpression',
-    IIFE_CALL_PATH_WRAPPERS.has('ChainExpression'));
 
   // TRANSPARENT_EXPR_WRAPPER_TYPES: TS wrappers + Paren (excludes Unary/SE/ChainExpression)
   checkTruthy('ast-patterns sets: TRANSPARENT_EXPR_WRAPPER_TYPES has Paren',
@@ -6770,6 +7828,145 @@ runBoth('the subclass own namespace export outranks the parent one',
   const selfViolation = chain([selfDeclarator, selfPattern, selfProp, selfId]);
   checkTruthy('ast-patterns: for-init self record does not poison the clean-alias count',
     isCleanDestructureAliasBinding({ kind: 'var', constantViolations: [selfViolation], path: { node: selfDeclarator, parentPath: null } }));
+}
+
+// --- the reassignment write-set has ONE spelling ---
+
+// `isReassignedBeyondDeclarator` is the boolean view of the canonical reassignment-node set, so
+// every record that set excludes is excluded here too. the three shapes below are what a
+// `violationNode(v) !== binding.node` spelling of the same question cannot see: it reads a field
+// the raw parser binding shape leaves empty, and it knows one of the declaration's three spellings
+{
+  const declId = { type: 'Identifier', name: 'M' };
+  const declarator = { type: 'VariableDeclarator', id: declId, init: { type: 'Identifier', name: 'Map' } };
+  const identity = {
+    type: 'AssignmentExpression',
+    operator: '=',
+    left: { type: 'Identifier', name: 'M' },
+    right: { type: 'Identifier', name: 'M' },
+  };
+  const realWrite = {
+    type: 'AssignmentExpression',
+    operator: '=',
+    left: { type: 'Identifier', name: 'M' },
+    right: { type: 'Identifier', name: 'Set' },
+  };
+  const forHead = { type: 'VariableDeclaration', kind: 'var', declarations: [declarator] };
+  const forOf = { type: 'ForOfStatement', left: forHead, right: { type: 'Identifier', name: 'arr' } };
+  function bindingWith(violations, kind = 'let') {
+    return { kind, identifier: declId, constantViolations: violations, path: { node: declarator, parentPath: null } };
+  }
+  check('ast-patterns: a violation-less binding is not reassigned',
+    isReassignedBeyondDeclarator(bindingWith([])), false);
+  // the raw parser binding carries its declarator on `.path` alone
+  check('ast-patterns: the declarator-self record read through the path-only binding shape',
+    isReassignedBeyondDeclarator(bindingWith([{ node: declarator }])), false);
+  check('ast-patterns: an identity self-assign is not a reassignment',
+    isReassignedBeyondDeclarator(bindingWith([{ node: identity }])), false);
+  check('ast-patterns: the for-x head declaring the binding is not a reassignment',
+    isReassignedBeyondDeclarator(bindingWith([{ node: forOf }], 'var')), false);
+  checkTruthy('ast-patterns: a write of another value IS a reassignment',
+    isReassignedBeyondDeclarator(bindingWith([{ node: realWrite }])));
+}
+
+// the recovered var-scope write count and the violation count are ONE question asked twice, so a
+// record the violation leg drops cannot come back through the recovered leg: an identity
+// self-assign writes the alias's own value back, and a for-x head declares the alias it records
+runBoth('clean-alias recovery drops an identity self-assign',
+  'function t(src) {\n  var { at: A } = src;\n  A = A;\n  return A;\n}\n',
+  (adapter, prog, lbl) => {
+    const use = adapter.collectPaths(prog, 'Identifier', p => p.node.name === 'A').at(-1);
+    checkTruthy(`${ lbl } alias stays clean`, isCleanDestructureAliasBinding(use.scope.getBinding('A')));
+  });
+
+runBoth('clean-alias recovery drops the for-x head that declares the alias',
+  'function t(arr) {\n  for (var { at: A } of arr) { A = null; }\n  return A;\n}\n',
+  (adapter, prog, lbl) => {
+    const use = adapter.collectPaths(prog, 'Identifier', p => p.node.name === 'A').at(-1);
+    checkTruthy(`${ lbl } alias stays clean`, isCleanDestructureAliasBinding(use.scope.getBinding('A')));
+  });
+
+// a write spelled through a TS wrapper is recorded by NEITHER native tracker, so the canonical scan
+// is its only recorder and the merge decides what the binding's violation list holds. it merges the
+// same set the constancy re-derivation drops, or one binding answers "is it written" two ways
+function constancyOf(adapter, prog) {
+  const use = adapter.pickPath(prog, 'MemberExpression', p => p.node.object?.name === 'A');
+  const lookup = wrapScopeBindingLookup((scope, name) => scope.getBinding(name));
+  return lookup(use.scope, 'A', use)?.constant;
+}
+
+runBoth('a recovered identity self-assign leaves the binding constant',
+  'let A = Array;\n(A as any) = A;\nA.from([1]);\n',
+  (adapter, prog, lbl) => checkTruthy(`${ lbl } constant`, constancyOf(adapter, prog)));
+
+runBoth('a recovered write of another value costs the binding its constancy',
+  'let A = Array;\n(A as any) = Set;\nA.from([1]);\n',
+  (adapter, prog, lbl) => check(`${ lbl } not constant`, constancyOf(adapter, prog), false));
+
+// --- the JSX tag-root slot table ---
+
+// both emitters route every JSXIdentifier through `jsxTagRootReferencesBinding`, so the closed slot
+// table is asserted once here: which slots read a binding, and the claim's own rule that only the
+// OPENING element counts the element. babel additionally pre-filters JSX through its
+// `ReferencedIdentifier` virtual type, whose intrinsic test (`isCompatTag`) is `/^[a-z]/` over the
+// same domain - the rows below are what BOTH emitters are held to
+{
+  function jsxPath(node, parent, key, parentPath = null) {
+    return { node, parent, key, parentPath };
+  }
+  function jsxId(name) {
+    return { type: 'JSXIdentifier', name };
+  }
+  function openingTag(nameNode) {
+    return { type: 'JSXOpeningElement', name: nameNode };
+  }
+  // `<Map />` / `<div />` / `<x-y />`: the bare tag-name slot, intrinsic by initial letter
+  function bareTag(name) {
+    const node = jsxId(name);
+    return jsxPath(node, openingTag(node), 'name');
+  }
+  // `<a.b.C />`: the chain root, whatever its case - a member tag is an expression
+  function memberRoot(names) {
+    const rootPath = jsxPath(jsxId(names[0]), null, 'object');
+    let cur = rootPath;
+    for (const name of names.slice(1)) {
+      const member = { type: 'JSXMemberExpression', object: cur.node, property: jsxId(name) };
+      cur.parent = member;
+      cur.parentPath = jsxPath(member, null, 'object');
+      cur = cur.parentPath;
+    }
+    cur.parent = openingTag(cur.node);
+    cur.key = 'name';
+    return rootPath;
+  }
+  checkTruthy('ast-patterns: a bare non-intrinsic opening tag references',
+    jsxTagRootReferencesBinding(bareTag('Map')));
+  check('ast-patterns: a bare intrinsic opening tag references nothing',
+    jsxTagRootReferencesBinding(bareTag('div')), false);
+  check('ast-patterns: a dashed tag is intrinsic too',
+    jsxTagRootReferencesBinding(bareTag('x-y')), false);
+  check('ast-patterns: a lowercase-spelled global tag is intrinsic',
+    jsxTagRootReferencesBinding(bareTag('structuredClone')), false);
+  checkTruthy('ast-patterns: an N-deep member-tag root references whatever its case',
+    jsxTagRootReferencesBinding(memberRoot(['structuredClone', 'Provider', 'X'])));
+  // the closing tag names the component its opening tag already claimed
+  const closingName = jsxId('Map');
+  check('ast-patterns: a closing tag is not a second claim',
+    jsxTagRootReferencesBinding(jsxPath(closingName, { type: 'JSXClosingElement', name: closingName }, 'name')), false);
+  // an attribute name, a member-tag TAIL and both halves of a namespaced name lower to strings
+  const attrName = jsxId('Map');
+  check('ast-patterns: an attribute name references nothing',
+    jsxTagRootReferencesBinding(jsxPath(attrName, { type: 'JSXAttribute', name: attrName }, 'name')), false);
+  const tail = jsxId('Sub');
+  check('ast-patterns: a member-tag tail references nothing',
+    jsxTagRootReferencesBinding(jsxPath(tail, { type: 'JSXMemberExpression', object: jsxId('Map'), property: tail }, 'property')), false);
+  const nsNamespace = jsxId('Svg');
+  const nsName = jsxId('Map');
+  const namespaced = { type: 'JSXNamespacedName', namespace: nsNamespace, name: nsName };
+  check('ast-patterns: a namespaced-name namespace references nothing',
+    jsxTagRootReferencesBinding(jsxPath(nsNamespace, namespaced, 'namespace')), false);
+  check('ast-patterns: a namespaced-name name references nothing',
+    jsxTagRootReferencesBinding(jsxPath(nsName, namespaced, 'name')), false);
 }
 
 // --- resolve-node-type/value-ops (module-level self-default ternary canon) ---
@@ -8420,6 +9617,108 @@ runBoth('pickarm: known Array super keeps the narrow',
     checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
   });
 
+// ... and the same three verdicts once the super names a LOCAL class whose OWN heritage walk came
+// back empty - the arc every row above reaches past, and its three exits in order. the base-less
+// leg answers `Object`, and the box has to stand for the SUBCLASS: both boxes read `Object`, so
+// the constructor alone separates nothing here and only the identity covers the claim. the merged
+// spelling is what keeps the parent walk empty while a class declaration of that name still exists
+// to be found. an ANNOTATED receiver, not a `new` one - the construction lane never reaches here
+runBoth('pickarm: class over a merged interface-and-class base IS Object, stamped for the subclass',
+  'interface B extends Unknown {}\nclass B {}\nclass A extends B {}\ndeclare const a: A;\na.at(0);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+    checkType(lbl, resolved, { primitive: false, ctor: 'Object' });
+    const subclass = adapter.pickPath(prog, 'ClassDeclaration', p => p.node.id?.name === 'A');
+    check(`${ lbl } identity is the subclass declaration`, resolved?.identity === subclass?.node, true);
+  }, ['typescript']);
+runBoth('pickarm: class over a transitively unknowable base stays generic',
+  'class B extends Unknown {}\nclass A extends B {}\ndeclare const a: A;\na.at(0);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+    check(`${ lbl } not Object/Array suppression`,
+      !(resolved && (resolved.constructor === 'Object' || resolved.constructor === 'Array')), true);
+  }, ['typescript']);
+runBoth('pickarm: class over an opaque imported super stays generic',
+  'import { Sup } from "sup";\nclass A extends Sup {}\ndeclare const a: A;\na.at(0);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+    check(`${ lbl } not Object/Array suppression`,
+      !(resolved && (resolved.constructor === 'Object' || resolved.constructor === 'Array')), true);
+  }, ['typescript']);
+
+// the same question on the CONSTRUCTION lane, which every annotated row above reaches past. the
+// `extends` walk answers from the BASE it bottoms out at, and stamping the box for that base is
+// what makes `new Sub()` read as agreeing with `Base` - and with every SIBLING subclass of it. the
+// box stands for the class the walk STARTED at, whatever the heritage between it and the base is
+for (const [what, decls, receiver] of [
+  ['a merged interface-and-class base', 'interface B extends Unknown {}\nclass B {}\nclass A extends B {}', 'new A()'],
+  ['a plain local base', 'class B {}\nclass A extends B {}', 'new A()'],
+  ['a base two levels up', 'class R {}\nclass B extends R {}\nclass A extends B {}', 'new A()'],
+  ['a base reached through a const alias', 'class B {}\nconst Alias = B;\nclass A extends Alias {}', 'new A()'],
+  ['a GENERIC base instantiated by the subclass', 'class B<T> { v!: T }\nclass A extends B<string> {}', 'new A()'],
+  ['no heritage at all', 'class A {}', 'new A()'],
+  ['the class reached through InstanceType', 'class B {}\nclass A extends B {}\ndeclare const a: InstanceType<typeof A>;', 'a'],
+  ['a static factory of the subclass', 'class B {}\nclass A extends B { static make() { return new A(); } }', 'A.make()'],
+]) {
+  runBoth(`pickarm: a constructed instance over ${ what } IS Object, stamped for the subclass`,
+    `${ decls }\n${ receiver }.at(0);`,
+    (adapter, prog, lbl) => {
+      const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+      const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+      checkType(lbl, resolved, { primitive: false, ctor: 'Object' });
+      const subclass = adapter.pickPath(prog, 'ClassDeclaration', p => p.node.id?.name === 'A');
+      check(`${ lbl } identity is the subclass declaration`, resolved?.identity === subclass?.node, true);
+    }, ['typescript']);
+}
+
+// a GENERIC subclass is not one type but a family of them, and the rule that elides the stamp for
+// one reads the declaration the walk STARTED at: handed the non-generic base instead, the family
+// took the base's identity and `new A<string>()` agreed with `new A<number>()`
+runBoth('pickarm: a GENERIC subclass over a local base carries no identity',
+  'class B {}\nclass A<T> extends B { v!: T }\nnew A<string>().at(0);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+    checkType(lbl, resolved, { primitive: false, ctor: 'Object' });
+    check(`${ lbl } no identity`, resolved?.identity ?? null, null);
+  }, ['typescript']);
+
+// `this` walks the same arc from the lexically enclosing class, so it owes the same stamp
+runBoth('pickarm: `this` in a subclass body is stamped for the subclass',
+  'class B {}\nclass A extends B { m() { this.at(0); } }',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+    checkType(lbl, resolved, { primitive: false, ctor: 'Object' });
+    const subclass = adapter.pickPath(prog, 'ClassDeclaration', p => p.node.id?.name === 'A');
+    check(`${ lbl } identity is the enclosing class`, resolved?.identity === subclass?.node, true);
+  }, ['typescript']);
+
+// what the stamp decides, read off the construction lane on both sides: two SIBLING subclasses of
+// one base are not one type - tsc answers FALSE on the members each adds - while the same subclass
+// constructed twice is, and an annotated spelling of it names the same declaration
+for (const [what, check1, check2, trueBranch] of [
+  ['two SIBLING subclasses of one base', 'typeof v', 'typeof w', false],
+  ['one subclass constructed twice', 'typeof v', 'typeof v2', true],
+  ['a constructed instance against its own annotation', 'typeof v', 'A', true],
+  ['a constructed instance against its BASE', 'typeof v', 'B', false],
+]) {
+  runBoth(`TS conditional: ${ what } ${ trueBranch ? 'pick the true branch' : 'decide no branch' }`,
+    'class B {}\nclass A extends B { a = 1 }\nclass C extends B { c = 2 }\n'
+    + 'const v = new A();\nconst v2 = new A();\nconst w = new C();\n'
+    + `type Sel<T> = T extends Array<${ check2 }> ? number[] : string;\n`
+    + `declare const r: Sel<Array<${ check1 }>>;\nconst x = r;`,
+    (adapter, prog, lbl) => {
+      const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
+      const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+      if (trueBranch) checkType(lbl, type, { primitive: false, ctor: 'Array' });
+      else check(`${ lbl } no branch types the read`, type === null, true);
+    }, ['typescript']);
+}
+
 // FIRST-MATCH overload discrimination across every call-return site: implicit-any arms
 // stay in the set (widen), object-type call signatures / aliased `typeof fn` calls /
 // overloaded callees under a member chain discriminate by args instead of picking
@@ -8483,8 +9782,19 @@ runBoth('pickarm: overloaded interface method under a member chain arg-discrimin
     checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' });
   });
 
-runBoth('pickarm: an earlier non-analyzable overload param bails to the fold (TS first-match)',
+// a top-typed (`unknown` / `any`) param accepts every argument, so TS resolves the call to that arm as
+// soon as the arms before it are refuted - here the FIRST arm, whatever the later one says (`tsc`:
+// `parse(s)` is `string`)
+runBoth('pickarm: a top-typed first overload param accepts every argument and is selected (TS first-match)',
   'declare function parse(input: unknown): string;\ndeclare function parse(input: string): number[];\ndeclare const s: string;\nparse(s).at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' });
+  });
+
+// a param the arg-match cannot weigh (a union) may or may not accept the argument: the arm is
+// ambiguous, so nothing after it can be single-selected and the divergent set folds to generic
+runBoth('pickarm: an earlier non-analyzable overload param bails to the fold (TS first-match)',
+  'declare function parse(input: string | number): string;\ndeclare function parse(input: string): number[];\ndeclare const s: string;\nparse(s).at(0);',
   (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
 
 runBoth('pickarm: a provably non-matching literal first arm still selects the second',
@@ -8495,6 +9805,33 @@ runBoth('pickarm: a provably non-matching literal first arm still selects the se
 
 runBoth('pickarm: a literal-typed identifier arg folds instead of wrong-selecting the keyword arm',
   'declare function tag(x: "a"): number[];\ndeclare function tag(x: string): string;\nconst k = "a";\ntag(k).at(0);',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+// TS hoists a signature SPECIALIZED for the call - one whose param spells a literal type the
+// argument matches exactly - above the wider ones, so DECLARATION ORDER does not decide between
+// them: without the hoist first-match takes the wide `string` arm declared before the literal one
+// (`tsc`: `tag("a")` is `number[]` with the arms in either order)
+runBoth('pickarm: a specialized literal arm declared after a wider one is still selected',
+  'declare function tag(x: string): string;\ndeclare function tag(x: "a"): number[];\ntag("a").at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+// an overload head may leave a param UNANNOTATED (implicit `any`) - every arm is weighed while the
+// candidate list is built, so the missing annotation slot has to read as absent rather than be
+// dereferenced. only `tsc --noImplicitAny` objects to the source; the resolution itself is not in
+// doubt (`tsc`: `f(5)` is `number[]`, the annotated first arm)
+runBoth('pickarm: an unannotated later overload param is weighed, not dereferenced (ambient fn)',
+  'declare function f(x: number): number[];\ndeclare function f(x): string;\nf(5).at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+// the same slot on an interface method, with the unannotated arm FIRST: it accepts every argument
+// in TS, and the resolver has no annotation to weigh it by, so the set folds to generic instead of
+// letting the second arm narrow a call `tsc` types as `string`
+runBoth('pickarm: an unannotated first overload param widens the call to generic (interface)',
+  'interface P { m(x): string; m(x: number): number[]; }\ndeclare const p: P;\np.m(5).at(0);',
   (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
 
 // spread args break positional inference but must stay OPAQUE-guarded: the declared
@@ -11432,6 +12769,24 @@ runBoth('element retype: an unwritten binding keeps its narrow',
     checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
   });
 
+// an opaque construct unsettles the same set from the other side: it can write an ELEMENT with no
+// reference for the walk to find, so the enumeration is a subset and its emptiness is not "nothing
+// wrote". The read stands BEFORE the construct on purpose - the flow layer keeps the binding's own
+// narrow there, which leaves this walk as the only thing deciding the element
+runBoth('element retype: a direct eval unsettles the element set',
+  'const arr = [[1]];\narr[0].at(0);\neval("arr[0] = \'ab\'");',
+  (adapter, prog, lbl) => {
+    const resolved = atReceiver(adapter, prog);
+    if (resolved?.constructor === 'Array') return fail(lbl, 'the element narrow survived an opaque write');
+    pass();
+  });
+
+runBoth('element retype: an indirect eval leaves it settled',
+  'const arr = [[1]];\narr[0].at(0);\n(0, eval)("arr[0] = \'ab\'");',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
 // an index signature admits the keys its key TYPE spells. reading anything that is not `number` or
 // `symbol` as the permissive `string` signature answered a key the signature does not admit with its
 // value type - a member TS refuses to give the source at all
@@ -12003,5 +13358,1377 @@ runBoth('strict block function is block-scoped, the static call stays known', 'f
   const decl = adapter.pickPath(prog, 'VariableDeclarator');
   checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
 });
+
+// the hoist reaches the CALLER census the same way: the block binding both trackers report holds
+// only the uses inside its block, so its reference list is no proof that a parameter's default
+// survives - a caller past the block reaches the function through the hoisted twin and overrides
+// the slot with a foreign type. strict code, where the declaration really is block-scoped, and a
+// declaration the var-scope owner holds directly both keep the narrow
+const BLOCK_FN_PARAM_DEFAULT = 'if (c) { function F(x = "abc") { return x.at(0); } }\nF([1, 2]);';
+for (const [label, sourceType, code, narrowed] of [
+  ['an outer caller overrides the parameter default', 'script', `module.exports = {};\n${ BLOCK_FN_PARAM_DEFAULT }`, false],
+  ['a sloppy function body hosts the same hoist', 'script',
+    'function outer() { if (c) { function F(x = "abc") { return x.at(0); } } return F([1, 2]); }', false],
+  ['in strict code the outer call binds nothing, so the block binding is whole', 'module', BLOCK_FN_PARAM_DEFAULT, true],
+  ['a declaration the owner holds directly keeps the narrow', 'script',
+    'module.exports = {};\nfunction F(x = "abc") { return x.at(0); }\nF();', true],
+]) {
+  runBoth(`sloppy block function: ${ label }`, code, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const type = adapter.makeResolver().resolveNodeType(member.get('object'));
+    if (narrowed) checkType(lbl, type, { primitive: true, kind: 'string' });
+    else check(lbl, type, null);
+  }, [], sourceType);
+}
+
+// --- the file's own boundary: whose callers the parameter-default census can enumerate ---
+// a default's TYPE describes the param only while every caller is inside this file, and an EXPORT is
+// the one way out that spells itself. NO top level is the realm's own scope: the sloppy host is a
+// CommonJS wrapper, whose top level is a function body (its only channel, `module.exports = f`, is
+// an assignment reference the census already refuses), so a declaration there stays as private as
+// one nested in another function - and the narrow holds in both
+for (const [label, sourceType, code, narrowed] of [
+  ['a sloppy top-level declaration is private', 'script', 'function f(x = "abc") { return x.at(0); }\nf();', true],
+  ['a top-level arrow declarator too', 'script', 'const f = (x = "abc") => x.at(0);\nf();', true],
+  ['and a top-level named function expression', 'script', 'const f = function g(x = "abc") { return x.at(0); };\nf();', true],
+  ['a top-level block is private with it', 'script', '{ const f = (x = "abc") => x.at(0);\n  f(); }', true],
+  ['an export is the module\'s spelling of the escape', 'module',
+    'export function f(x = "abc") { return x.at(0); }\nf();', false],
+  ['a CommonJS wrapper top level is private', 'script',
+    'module.exports = {};\nfunction f(x = "abc") { return x.at(0); }\nf();', true],
+  ['a function nested in another is out of reach', 'script',
+    'function outer() { const f = (x = "abc") => x.at(0);\n  return f(); }', true],
+  ['a module top level is not the global either', 'module', 'function f(x = "abc") { return x.at(0); }\nf();', true],
+]) {
+  runBoth(`default-param caller census: ${ label }`, code, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const type = adapter.makeResolver().resolveNodeType(member.get('object'));
+    if (narrowed) checkType(lbl, type, { primitive: true, kind: 'string' });
+    else check(lbl, type, null);
+  }, [], sourceType);
+}
+
+// ... and the callers an OPAQUE construct brings, which spell nothing at all: a direct `eval` runs
+// its string in the caller's own scope chain, so it can invoke - or replace - every function that
+// chain reaches, and a `with` head answers a body name off its object. Neither leaves a reference
+// the census can count, so an empty call-site set there is not proof the default stands. The
+// negatives pin the reach: an INDIRECT eval evaluates in the global scope and reaches no local
+// name, and a construct outside the declaring scope never reaches inward
+for (const [label, sourceType, code, narrowed] of [
+  ['a direct eval beside a hoisted declaration', 'module',
+    'function f(x = "abc") { return x.at(0); }\neval("f([1, 2])");\nf();', false],
+  ['... and one that replaces the function itself', 'module',
+    'function f(x = "abc") { return x.at(0); }\neval("f = null");\nf();', false],
+  ['an optional-call eval is direct too', 'module',
+    'function f(x = "abc") { return x.at(0); }\neval?.("f([1, 2])");\nf();', false],
+  ['a nested eval still reaches outward', 'module',
+    'function f(x = "abc") { return x.at(0); }\nfunction poison() { eval("f([1, 2])"); }\nf();', false],
+  ['a `with` head reaches the declaration beside it', 'script',
+    'function outer() { function f(x = "abc") { return x.at(0); }\n  with (host) { void 0; }\n  return f(); }', false],
+  ['the same reach through a function-expression declarator', 'module',
+    'const f = function (x = "abc") { return x.at(0); };\neval("f([1, 2])");\nf();', false],
+  ['and through an arrow one', 'module',
+    'const f = (x = "abc") => x.at(0);\neval("f([1, 2])");\nf();', false],
+  ['an indirect eval reaches no local name', 'module',
+    'function f(x = "abc") { return x.at(0); }\n(0, eval)("f([1, 2])");\nf();', true],
+  ['a construct outside the declaring scope does not reach in', 'module',
+    'function outer() { function f(x = "abc") { return x.at(0); }\n  return f(); }\neval("outer()");', true],
+  ['and with no construct at all the default stands', 'module',
+    'function f(x = "abc") { return x.at(0); }\nf();', true],
+]) {
+  runBoth(`default-param opaque callers: ${ label }`, code, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const type = adapter.makeResolver().resolveNodeType(member.get('object'));
+    if (narrowed) checkType(lbl, type, { primitive: true, kind: 'string' });
+    else check(lbl, type, null);
+  }, [], sourceType);
+}
+
+// ... and what an argument at that slot IS, through the wrappers a source may spell around it. They
+// leave the VALUE alone, so an `undefined` under them still triggers the default and a real value
+// under them still overrides it - but only ONE leg's parser keeps a paren as a node, so reading the
+// raw slot answered the same source two ways. `null` is not `undefined` and never triggers a default
+for (const [label, args, narrowed] of [
+  ['a parenthesised undefined triggers the default', '(undefined)', true],
+  ['a cast undefined does too', 'undefined as any', true],
+  ['and a non-null assertion on it', 'undefined!', true],
+  ['a cast void 0 as well', 'void 0 as any', true],
+  ['an inline-array spread carries the same peel', '...[(undefined)]', true],
+  ['a wrapped REAL argument still overrides', '"s" as any', false],
+  ['so does a parenthesised one', '("s")', false],
+  ['a null literal is not the default trigger', 'null', false],
+]) {
+  runBoth(`default-param argument peel: ${ label }`,
+    `function f(x = [1, 2, 3]) { return x.at(0); }\nf(${ args });`, (adapter, prog, lbl) => {
+      const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+      const type = adapter.makeResolver().resolveNodeType(member.get('object'));
+      if (narrowed) checkType(lbl, type, { primitive: false, ctor: 'Array' });
+      else check(lbl, type, null);
+    });
+}
+
+// ... and WHICH references are calls at all. A call is not one syntactic shape: `new f()`, `f.call(t)`,
+// `f.apply(t, [x])`, a `bind` invoked on the spot, `Reflect.apply(f, t, [x])` and a TAGGED TEMPLATE all
+// invoke f, each putting the arguments in a place of its own - so a census matching the plain callee slot
+// alone read every one of them as "not a call" and dropped the narrow whole. The one pairing canon answers
+// which function a call-like host invokes and which arguments land in its parameters, and the rows below
+// pin both halves: the spelling is READ, and what it puts at the slot still decides
+for (const [label, code, narrowed] of [
+  ['a plain call is the base case', 'f();', true],
+  ['a `new` reads the same slots', 'new f();', true],
+  ['... and its argument still overrides', 'new f([1, 2]);', false],
+  ['a `.call` drops the receiver slot', 'f.call(null);', true],
+  ['... and reads the argument past it', 'f.call(null, [1, 2]);', false],
+  ['an `undefined` past the receiver triggers the default', 'f.call(null, undefined);', true],
+  ['... and the receiver slot is dropped by POSITION, not by a `this` parameter', 'f.call(null);', true],
+  ['a `.apply` reads the inline array', 'f.apply(null, []);', true],
+  ['... and its element overrides', 'f.apply(null, [[1, 2]]);', false],
+  ['an unreadable apply array decides nothing', 'f.apply(null, rest);', false],
+  ['an apply with no array at all decides nothing', 'f.apply(null);', false],
+  ['a spread receiver slot decides nothing', 'f.call(...rest);', false],
+  ['a bind invoked on the spot carries its captured args', 'f.bind(null)();', true],
+  ['... the captured one overrides', 'f.bind(null, [1, 2])();', false],
+  ['... and so does the call\'s own', 'f.bind(null)([1, 2]);', false],
+  ['a STORED bind is a function value the census does not track', 'const g = f.bind(null);\ng([1, 2]);', false],
+  ['`Reflect.apply` spells the function in the first slot', 'Reflect.apply(f, null, []);', true],
+  ['... and its array element overrides', 'Reflect.apply(f, null, [[1, 2]]);', false],
+  ['a SHADOWED `Reflect` is not the namespace', 'const Reflect = { apply: fn => fn([1, 2]) };\nReflect.apply(f, null, []);', false],
+  ['`Reflect.construct` is not a spelling the pairing reads', 'Reflect.construct(f, [[1, 2]]);', false],
+  ['a tagged template fills slot 0 with the strings array', 'f`hi`;', false],
+  ['an optional call reads its slots', 'f?.();', true],
+  ['an optional `.call` too', 'f?.call(null);', true],
+  ['a static-string computed key is the same member', 'f["call"](null);', true],
+  ['an unreadable computed key could name any invoker', 'f[k](null);', false],
+  ['a member hop past the invoker is not one', 'f.call.apply(f, [null, [1, 2]]);', false],
+  ['an indirect call through a sequence tail is a call', '(0, f)();', true],
+  // the climb peels the wrappers itself rather than spending a hop on each: STACKED ones push the
+  // invoker past the budget, and the member arm then reads the receiver invoker as a hand-out
+  ['a receiver invoker under stacked casts is still one', '(f as any as any).call(null);', true],
+  ['... and its argument overrides', '(0, f)([1, 2]);', false],
+]) {
+  runBoth(`default-param call spelling: ${ label }`,
+    `function f(x = "abc") { return x.at(0); }\n${ code }`, (adapter, prog, lbl) => {
+      const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+      const type = adapter.makeResolver().resolveNodeType(member.get('object'));
+      if (narrowed) checkType(lbl, type, { primitive: true, kind: 'string' });
+      else check(lbl, type, null);
+    });
+}
+
+// ... and the two argument SHIFTS must not double up. A TS `this` pseudo-parameter occupies an AST
+// slot no call ever fills, so the parameter index is mapped down by one; a `.call` drops its own
+// receiver slot from the ARGUMENT list. Each is applied on its own side, and a source spelling both
+// is where a census that conflated them reads the wrong slot
+for (const [label, code, narrowed] of [
+  ['a `this` parameter with a plain call', 'f();', true],
+  ['... with a `.call` that passes only the receiver', 'f.call(host);', true],
+  ['... with a `.call` that passes a real argument too', 'f.call(host, [1, 2]);', false],
+  ['... with an `.apply` whose array is empty', 'f.apply(host, []);', true],
+  ['... and one whose array fills the slot', 'f.apply(host, [[1, 2]]);', false],
+]) {
+  runBoth(`default-param this-parameter shift: ${ label }`,
+    `function f(this: Host, x = "abc") { return x.at(0); }\n${ code }`, (adapter, prog, lbl) => {
+      const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+      const type = adapter.makeResolver().resolveNodeType(member.get('object'));
+      if (narrowed) checkType(lbl, type, { primitive: true, kind: 'string' });
+      else check(lbl, type, null);
+    });
+}
+
+// A `new` is the one call spelling that hands the FUNCTION'S OWN IDENTITY on: `inst.constructor` is the
+// constructor, reachable off every object it built and spelling no name a census keyed on names could
+// count - in this file (`new this.constructor([1, 2])` inside a method) as much as out of it. So a
+// construction accounts for its arguments only while the object it makes is DROPPED where it stands,
+// and the position enumeration is what says whether it was
+for (const [label, code, narrowed] of [
+  ['a dropped construction is the whole caller set', 'new f();', true],
+  ['a construction dropped by `void` too', 'void new f();', true],
+  ['... and one read only for its truthiness', 'if (new f()) sink();', true],
+  ['a HELD instance carries the constructor on', 'export const inst = new f();', false],
+  ['... a local one just as much', 'const held = new f();', false],
+  ['... one handed to a call', 'sink(new f());', false],
+  ['a member read off the instance reaches `.constructor`', 'sink(new f().r);', false],
+  ['one dropped construction does not excuse a held one', 'new f();\nconst held = new f();', false],
+  ['a plain call beside a dropped construction is fine', 'f();\nnew f();', true],
+]) {
+  runBoth(`default-param construction channel: ${ label }`,
+    `function f(x = "abc") { this.r = x.at(0); }\n${ code }`, (adapter, prog, lbl) => {
+      const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+      const type = adapter.makeResolver().resolveNodeType(member.get('object'));
+      if (narrowed) checkType(lbl, type, { primitive: true, kind: 'string' });
+      else check(lbl, type, null);
+    });
+}
+
+// A CONSTRUCTOR carries no name of its own, so the census used to have nothing to scan and dropped every
+// constructor default. Its callers spell the CLASS, an ordinary binding - and a class expression holds two
+// names for the same reason a named function expression does: the inner id binds inside the body only, the
+// declarator name is the one the outside writes. A DECORATED class is skipped whole - a decorator returns
+// the value the binding then holds, so `new C()` need not reach this constructor at all
+for (const [label, sourceType, code, narrowed] of [
+  ['a declaration form is named by its own id', 'module', 'class C { constructor(x = "abc") { this.r = x.at(0); } }\nnew C();', true],
+  ['... and its argument still overrides', 'module', 'class C { constructor(x = "abc") { this.r = x.at(0); } }\nnew C([1, 2]);', false],
+  ['an export is the same escape it is for a function', 'module',
+    'export class C { constructor(x = "abc") { this.r = x.at(0); } }\nnew C();', false],
+  ['a subclass reaches the constructor through `extends`', 'module',
+    'class C { constructor(x = "abc") { this.r = x.at(0); } }\nclass D extends C {}\nnew C();', false],
+  ['a decorator returns the value the binding holds', 'module',
+    '@dec class C { constructor(x = "abc") { this.r = x.at(0); } }\nnew C();', false],
+  ['a class expression is named by its declarator', 'module',
+    'const C = class { constructor(x = "abc") { this.r = x.at(0); } };\nnew C();', true],
+  ['... and its INNER id is a caller too', 'module',
+    'const C = class X { constructor(x = "abc") { if (c) new X([1, 2]);\n  this.r = x.at(0); } };\nnew C();', false],
+  ['an anonymous class expression has no name at all', 'module',
+    'sink(class { constructor(x = "abc") { this.r = x.at(0); } });', false],
+  // the one DECLARATION form that carries no id: the census reads the class id for both halves of
+  // its answer, and a default export is where that id is absent while the value still escapes
+  ['a default-exported class declaration has no id at all', 'module',
+    'export default class { constructor(x = "abc") { this.r = x.at(0); } }', false],
+  ['... nor does its subclass spelling', 'module',
+    'export default class extends B { constructor(x = "abc") { super(); this.r = x.at(0); } }', false],
+  ['a held class binding reaches every caller', 'module',
+    'class C { constructor(x = "abc") { this.r = x.at(0); } }\nsink(C);', false],
+  ['a sloppy top level keeps the class private too', 'script',
+    'class C { constructor(x = "abc") { this.r = x.at(0); } }\nnew C();', true],
+  ['a CommonJS wrapper keeps the class private', 'script',
+    'module.exports = {};\nclass C { constructor(x = "abc") { this.r = x.at(0); } }\nnew C();', true],
+  ['a direct eval reaches the class name', 'module',
+    'class C { constructor(x = "abc") { this.r = x.at(0); } }\neval("new C([1,2])");\nnew C();', false],
+  // a non-constructor method has no name its callers spell: the key is not a binding, and the object or
+  // class holding it hands the method out through reads no name census sees. An accepted loss, pinned so
+  // a later closure that DOES enumerate them changes this row rather than arriving beside it
+  ['a class method is reached by a key, not a name', 'module',
+    'class C { m(x = "abc") { return x.at(0); } }\nnew C().m();', false],
+  // ... and it must not BORROW the class's census either: the arguments a `new C()` leaves empty say
+  // nothing about the arguments a method call passes, and a receiver the constructor let out reaches
+  // the method from anywhere
+  ['a method does not borrow the constructor\'s caller set', 'module',
+    'let inst;\nclass C {\n  constructor() { inst = this; }\n  m(x = "abc") { return x.at(0); }\n}\nnew C();\ninst.m([1, 2]);', false],
+  ['... not even beside a class whose own census is clean', 'module',
+    'class C { m(x = "abc") { return x.at(0); } }\nnew C();', false],
+  ['an object method likewise', 'module', 'const o = { m(x = "abc") { return x.at(0); } };\no.m();', false],
+]) {
+  runBoth(`default-param constructor census: ${ label }`, code, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const type = adapter.makeResolver().resolveNodeType(member.get('object'));
+    if (narrowed) checkType(lbl, type, { primitive: true, kind: 'string' });
+    else check(lbl, type, null);
+  }, sourceType === 'script' ? [] : ['decorators'], sourceType);
+}
+
+// A function reached as a VALUE occupies exactly ONE position, so an invocation THERE is its whole
+// external caller set - there is no name for anything else to call it by. `arguments.callee` is not a
+// second channel: a parameter default makes the list non-simple, and the unmapped arguments object that
+// brings answers `callee` with the poison-pill accessor. The named forms forfeit it - the internal name
+// can re-invoke or hand the function out - and so does any position that is not the invocation itself
+for (const [label, sourceType, code, narrowed] of [
+  ['an IIFE is its own caller set', 'module', '(function (x = "abc") { return x.at(0); })();', true],
+  ['... and its argument still overrides', 'module', '(function (x = "abc") { return x.at(0); })([1, 2]);', false],
+  ['an arrow IIFE the same', 'module', '((x = "abc") => x.at(0))();', true],
+  ['a sequence tail is the invoked value', 'module', '(0, function (x = "abc") { return x.at(0); })();', true],
+  ['a receiver invoker on the literal is the invocation too', 'module',
+    '(function (x = "abc") { return x.at(0); }).call(null);', true],
+  ['... reading its argument past the receiver', 'module',
+    '(function (x = "abc") { return x.at(0); }).call(null, [1, 2]);', false],
+  ['an apply on the literal reads the inline array', 'module',
+    '(function (x = "abc") { return x.at(0); }).apply(null, []);', true],
+  ['... and an unreadable one decides nothing', 'module',
+    '(function (x = "abc") { return x.at(0); }).apply(null, rest);', false],
+  ['a dropped construction of the literal', 'module', 'new function (x = "abc") { this.r = x.at(0); }();', true],
+  ['... a held one carries `.constructor` on', 'module', 'sink(new function (x = "abc") { this.r = x.at(0); }());', false],
+  ['a NAMED IIFE that calls itself has a second caller', 'module',
+    '(function f(x = "abc") { if (c) f([1, 2]);\n  return x.at(0); })();', false],
+  ['... and one that hands its own name out', 'module',
+    '(function f(x = "abc") { if (c) sink(f);\n  return x.at(0); })();', false],
+  ['a function in an ARGUMENT slot is invoked by the callee', 'module',
+    'sink(function (x = "abc") { return x.at(0); });', false],
+  // ... and NAMING it changes nothing: its own name binds INSIDE it, so an empty reference set says
+  // only that it never recurses. the internal name is not an outer one, and there is no invocation
+  // at its position to be the caller set instead
+  ['a NAMED one in an argument slot the same', 'module',
+    'sink(function f(x = "abc") { return x.at(0); });', false],
+  ['... and one stored in an array', 'module',
+    'const a = [function f(x = "abc") { return x.at(0); }];', false],
+  ['one stored in an object literal likewise', 'module',
+    'const o = { m: function (x = "abc") { return x.at(0); } };', false],
+  ['an unnamed IIFE is private at a sloppy top level too', 'script',
+    '(function (x = "abc") { return x.at(0); })();', true],
+]) {
+  runBoth(`default-param value-position caller: ${ label }`, code, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const type = adapter.makeResolver().resolveNodeType(member.get('object'));
+    if (narrowed) checkType(lbl, type, { primitive: true, kind: 'string' });
+    else check(lbl, type, null);
+  }, [], sourceType);
+}
+
+// ... and the references that are NOT calls. A reference that only reads a FACT about the function -
+// its type, its truthiness, its string form - is evaluated where it stands and reaches nothing
+// afterwards, so it adds no caller; the position enumeration says which those are. The one arm it hands
+// back is the MEMBER read, and off a function that is exactly where the invokers live
+for (const [label, code, narrowed] of [
+  ['a `typeof` reads the type and drops the value', 'const t = typeof f;', true],
+  ['... and through a wrapper the position enumeration does not see', 'const t = typeof (f as any);', true],
+  ['a truthiness test drops it too', 'if (f) f();', true],
+  ['a bare statement reference', 'f;\nf();', true],
+  // eslint-disable-next-line no-template-curly-in-string -- the interpolation belongs to the SOURCE under test
+  ['a string interpolation coerces it', 'const s = `${ f }`;\nf();', true],
+  ['a non-tail sequence slot is evaluated and dropped', 'sink((f, 1));\nf();', true],
+  ['a `for...in` head enumerates keys without calling', 'for (const k in f) sink(k);\nf();', true],
+  ['a switch discriminant is compared by identity', 'switch (f) { default: }\nf();', true],
+  ['a computed property KEY coerces it to a string', 'const o = { [f]: 1 };\nf();', true],
+  ['a RETURN hands it to the caller', 'export function outer() { return f; }', false],
+  ['an argument slot is the callee\'s call', 'sink(f);', false],
+  ['`instanceof` invokes `Symbol.hasInstance` on it', 'const r = o instanceof f;', false],
+  ['an object-literal value stores it', 'const o = { f };', false],
+  ['an array element stores it', 'const a = [f];', false],
+  ['a sequence TAIL flows on', 'sink((0, f));', false],
+  ['a `for...of` head calls its iterator', 'for (const q of f) sink(q);', false],
+  ['a member read is where `.call` and `.bind` live', 'sink(f.call);', false],
+  ['... and `.prototype.constructor` IS the function', 'sink(f.prototype.constructor);', false],
+  ['... so even a harmless key stays a member read', 'sink(f.length);', false],
+]) {
+  runBoth(`default-param non-call reference: ${ label }`,
+    `function f(x = "abc") { return x.at(0); }\n${ code }`, (adapter, prog, lbl) => {
+      const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+      const type = adapter.makeResolver().resolveNodeType(member.get('object'));
+      if (narrowed) checkType(lbl, type, { primitive: true, kind: 'string' });
+      else check(lbl, type, null);
+    });
+}
+
+// --- immediate invocation: the one recogniser of the IIFE shape, and whether the body runs there ---
+// the shape question (`immediateInvocationOf`) is answered for every invocation node and through every
+// wrapper that leaves the invoked value unchanged; the timing question (`runsAtImmediateInvocation`)
+// additionally refuses a body that does not run at the call
+
+function pickFunction(adapter, prog) {
+  return adapter.pickPath(prog, 'FunctionExpression') ?? adapter.pickPath(prog, 'ArrowFunctionExpression');
+}
+
+for (const [label, code, invocationType] of [
+  ['plain call', '(function () {})();', ['CallExpression']],
+  ['optional call', '(() => 1)?.();', ['CallExpression', 'OptionalCallExpression']],
+  ['new', 'new function () {}();', ['NewExpression']],
+  ['tagged template', '(function () {})`t`;', ['TaggedTemplateExpression']],
+  ['sequence tail', '(0, function () {})();', ['CallExpression']],
+  ['TS cast', '((function () {}) as any)();', ['CallExpression']],
+  ['negated call', '!function () {}();', ['CallExpression']],
+]) {
+  runBoth(`immediate invocation: ${ label } is recognised`, code, (adapter, prog, lbl) => {
+    const call = immediateInvocationOf(pickFunction(adapter, prog));
+    checkTruthy(lbl, call && invocationType.includes(call.node.type), `got ${ call?.node?.type ?? null }`);
+    checkTruthy(`${ lbl } (callee slot)`, call && invocationCalleeOf(call.node) !== null);
+  });
+}
+
+for (const [label, code] of [
+  ['an argument', 'f(function () {});'],
+  ['a sequence prefix', '(function () {}, other)();'],
+  ['a bound value', 'const g = function () {};'],
+  ['a negated callee', '(!function () {})();'],
+]) {
+  runBoth(`immediate invocation: ${ label } is not one`, code, (adapter, prog, lbl) => {
+    check(lbl, immediateInvocationOf(pickFunction(adapter, prog)), null);
+  });
+}
+
+for (const [label, code, runs] of [
+  ['synchronous body', '(function () {})();', true],
+  ['constructible callee under new', 'new function () {}();', true],
+  ['generator body', '(function* () {})();', false],
+  ['async body', '(async () => {})();', false],
+  ['arrow under new', 'new (() => {})();', false],
+]) {
+  runBoth(`immediate invocation: ${ label } ${ runs ? 'runs' : 'does not run' } at the call`, code, (adapter, prog, lbl) => {
+    const fn = pickFunction(adapter, prog);
+    const call = immediateInvocationOf(fn);
+    checkTruthy(`${ lbl } (shape)`, call);
+    check(lbl, bodyRunsAtInvocation(fn.node, call.node), runs);
+    check(`${ lbl } (pair)`, runsAtImmediateInvocation(fn) !== null, runs);
+  });
+}
+
+// --- the read-side deferral step: which contexts defer a read below the binding's scope ---
+// a function body defers unless its immediate invocation runs it there; an instance field VALUE
+// defers to construction; a static field, a method's computed KEY (one fused node on babel, a
+// wrapper around a function on ESTree) evaluate at class-eval and stay straight-line
+
+function atReceiverPath(adapter, prog) {
+  return (adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at')
+    ?? adapter.pickPath(prog, 'OptionalMemberExpression', p => p.node.property?.name === 'at')).get('object');
+}
+
+for (const [label, code, deferred] of [
+  ['a synchronous IIFE body', 'let x; (function () { x.at(0); })();', false],
+  ['a generator IIFE body', 'let x; (function* () { x.at(0); })();', true],
+  ['an async IIFE body', 'let x; (async () => { x.at(0); })();', true],
+  ['a tagged-template IIFE body', 'let x; (function () { x.at(0); })`t`;', false],
+  ['a bound function body', 'let x; const f = function () { x.at(0); };', true],
+  ['an instance field value', 'let x; class C { p = x.at(0); }', true],
+  ['a static field value', 'let x; class C { static p = x.at(0); }', false],
+  ['a method body', 'let x; class C { m() { x.at(0); } }', true],
+  ['a method computed key', 'let x; class C { [x.at(0)]() {} }', false],
+  ['an object method computed key', 'let x; const o = { [x.at(0)]() {} };', false],
+]) {
+  runBoth(`read-side deferral: ${ label } is ${ deferred ? 'deferred' : 'straight-line' }`, code, (adapter, prog, lbl) => {
+    check(lbl, readRunsDeferredWithin(atReceiverPath(adapter, prog), prog.node), deferred);
+  });
+}
+
+// --- the deferred read observes the writes after it: every positional narrow gates on the step ---
+
+runBoth('deferred read: typeof guard does not hold inside an instance field initializer written after',
+  'declare function anyv(): any; function f(v: any) { let x: any = v; if (typeof x === "string") { class K { p = x.at(0); } x = anyv(); return new K(); } }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('deferred read: typeof guard holds inside a static field initializer',
+  'declare function anyv(): any; function f(v: any) { let x: any = v; if (typeof x === "string") { class K { static p = x.at(0); } x = anyv(); return K; } }',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' }));
+
+runBoth('deferred read: early-exit typeof guard does not hold inside an instance field initializer written after',
+  'declare function anyv(): any; function f(v: any) { let x: any = v; if (typeof x !== "string") return null; class K { p = x.at(0); } x = anyv(); return new K(); }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('deferred read: typeof guard holds in a method computed key on both parsers',
+  'declare function anyv(): any; function f(v: any) { let x: any = v; if (typeof x === "string") { class K { [x.at(0) as any]() {} } x = anyv(); return K; } }',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' }));
+
+runBoth('deferred read: discriminant guard does not hold inside an instance field initializer whose field is written after',
+  `type A = { kind: "a"; v: string }; type B = { kind: "b"; v: number[] }; function f(o: A | B) { if (o.kind === "a") { class K { p = o.v.at(0);
+   } o.kind = "b"; o.v = [1]; return new K(); } }`,
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('deferred read: straight-line init does not hold inside an instance field initializer written after',
+  'let s = "abc"; s = "def"; class W { first = s.at(0); } s = ["a"]; new W();',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('deferred read: straight-line init holds inside a static field initializer',
+  'let s = "abc"; s = "def"; class W { static first = s.at(0); } s = ["a"]; new W();',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' }));
+
+runBoth('deferred read: preceding-assignment narrow does not hold inside an instance field initializer written after',
+  'let h = { value: "def" }; h = { value: ["a"] }; class W { first = h.value.at(0); } h = { value: ["b"] }; new W();',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('deferred read: declarator init does not hold inside a generator IIFE written after',
+  'let O = "str"; const it = (function* () { yield O.at(0); })(); O = [1, 2];',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('deferred read: declarator init does not hold inside an async IIFE written after',
+  'let O = "str"; const p = (async () => { await 0; return O.at(0); })(); O = [1, 2];',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('deferred read: declarator init holds inside a synchronous IIFE written after',
+  'let O = "str"; const r = (function () { return O.at(0); })(); O = [1, 2];',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' }));
+
+runBoth('deferred read: a tagged-template IIFE write lands straight-line before the read',
+  'let x = "ab"; (function () { x = [1, 2]; })`t`; x.at(0);',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' }));
+
+runBoth('deferred read: discriminant guard does not bound a generator IIFE at the call',
+  `type A = { kind: "a"; v: string }; type B = { kind: "b"; v: number[] };
+   function f(o: A | B) { if (o.kind === "a") { const it = (function* () { yield o.v.at(0); })(); o.kind = "b"; o.v = [1]; return it; } }`,
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+// --- the loop back-edge climbs through an immediately invoked body, as the read gate does ---
+
+runBoth('back-edge: declarator init does not survive a loop that re-runs the IIFE reading it',
+  'let O = "str"; for (let i = 0; i < 2; i++) { (function () { return O.at(0); })(); O = [1, 2]; }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('back-edge: declarator init does not survive a for-of that re-runs the arrow IIFE reading it',
+  'let P = "str"; for (const step of [1, 2]) { (() => P.at(step))(); P = [1, 2]; }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('back-edge: the same IIFE with no loop keeps the declarator init',
+  'let Q = "str"; (function () { return Q.at(0); })(); Q = [1, 2];',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' }));
+
+// --- staleness the guard walk must not suppress ---
+
+runBoth('stale guard: an outer typeof guard does not outlive a back-edge loop with a weaker inner guard',
+  'function f(value, steps) { if (typeof value === "string") { for (const step of steps) { if (typeof value !== "number") value.at(0); value = step(value); } } }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('stale guard: an inner guard identical to the outer re-narrows per iteration',
+  'function f(value, steps) { if (typeof value === "string") { for (const step of steps) { if (typeof value === "string") value.at(0); value = step(value); } } }',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' }));
+
+runBoth('stale guard: an earlier exit guard written after does not enter the set behind a neutral nearer guard',
+  `declare function decode(v: string | number[]): string | number[]; declare function assertPresent<T>(v: T): asserts v is NonNullable<T>;
+   function h(raw: string | number[]) { if (typeof raw !== "string") return null; raw = decode(raw); assertPresent(raw); return raw.at(0); }`,
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('stale guard: a write before both exit guards leaves them live',
+  `declare function decode(v: string | number[]): string | number[]; declare function assertPresent<T>(v: T): asserts v is NonNullable<T>;
+   function h(raw: string | number[]) { raw = decode(raw); if (typeof raw !== "string") return null; assertPresent(raw); return raw.at(0); }`,
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' }));
+
+runBoth('stale guard: a write inside the exiting branch of an exit guard does not stale it',
+  'function foo(bar, baz) { let x = bar(); if (typeof x !== "string") { x = baz(); return; } x.at(-1); }',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' }));
+
+runBoth('stale guard: a write in a preceding case test reaches the matching case',
+  'function f(v) { let x = v; switch (typeof x) { case (x = [1, 2], "number"): break; case "string": return x.at(0); } }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+// --- built-in identification behind a guard operand ---
+
+runBoth('guard operand: a shadowed built-in inside a typeof-or group contributes no disjunct',
+  'const Number = { isFinite: (v: unknown) => true }; function f(x: string | number[]) { if (typeof x === "string" || Number.isFinite(x)) return x.at(0); }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('guard operand: the built-in reached through the realm object inside a typeof-or group narrows',
+  'const Number = { isFinite: (v: unknown) => true }; function f(x: string | number[]) { if (typeof x === "string" || globalThis.Number.isFinite(x as any)) return x.at(0); }',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' }));
+
+runBoth('guard operand: an instanceof against a shadowed built-in narrows nothing',
+  'const Array = Map; function f(x: string | number[]) { if (x instanceof Array) return x.at(0); }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+// --- scope anchors: a guard test evaluates where its host stands ---
+
+runBoth('guard anchor: a predicate shadowed inside the braced branch is not what the test called',
+  'declare function check(v: unknown): boolean; function f(v: unknown) { if (check(v)) { const check = (x: unknown): x is string => typeof x === "string"; return v.at(0); } }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('guard anchor: a built-in shadowed inside the braced branch still guards the test',
+  'function f(v: unknown) { if (Array.isArray(v)) { const Array = 0; return v.at(0); } }',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' }));
+
+// the case-level `let outer` shadows the discriminant's binding: its init says nothing (`unknown`),
+// so any string narrow here could only have come from the OUTER binding's guard
+runBoth('guard anchor: a switch discriminant reads the binding outside the case block',
+  'declare const outer: string; declare function make(): unknown; function f() { switch (typeof outer) { case "string": let outer = make(); return outer.at(0); } }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('guard anchor: an identifier that IS a ternary arm is narrowed by its own host',
+  'function f(x: string | number[]) { const v = typeof x === "string" ? x : String(x); return v; }',
+  (adapter, prog, lbl) => {
+    const arm = adapter.pickPath(prog, 'ConditionalExpression').get('consequent');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(arm), { primitive: true, kind: 'string' });
+  });
+
+runBoth('guard anchor: the preceding-assignment descent ignores a shadow assigned in the fall-through branch',
+  `declare function fetchRaw(): string | string[]; declare function normalize(s: string): string;
+   function probe(ok: boolean) { let data: string | string[] = []; data = fetchRaw(); if (ok) { let data = "fb"; data = normalize(data); } else { throw 0; } return data.at(0); }`,
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+// the discriminant lane's switch anchor: the case-level `let o` shadows the discriminant's binding,
+// so the outer `o.kind` test proves nothing about the inner union
+runBoth('guard anchor: a switch discriminant narrows the binding outside the case block, not a case-level shadow',
+  `type A = { kind: "a"; v: string }; type B = { kind: "b"; v: number[] }; declare const o: A | B;
+   function f(make: () => A | B) { switch (o.kind) { case "a": let o: A | B = make(); return o.v.at(0); } }`,
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+// a switch guard the binding was written after inside its own case is stale, but a fresh inner
+// conditional below the write re-narrows on its own: the walk keeps the narrow and reports the inner
+// host as the boundary, so the stale `number` case is dropped instead of being intersected with the
+// live `string` guard into nothing
+runBoth('a stale switch guard above a fresh inner conditional is dropped, not intersected',
+  'function f(x, next) { switch (typeof x) { case "number": x = next(); if (typeof x === "string") return x.at(0); } }',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' }));
+
+// the same drop for a preceding EXIT guard the write made stale
+runBoth('a stale exit guard above a fresh inner conditional is dropped, not intersected',
+  'function f(x, next) { if (typeof x !== "number") return; x = next(); if (typeof x === "string") return x.at(0); }',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' }));
+
+// a case whose test is not a string the walk can read (`case g():`) narrows nothing: the switch says
+// the discriminant is SOME value, but not which
+runBoth('a switch case with an unreadable test contributes no guard',
+  'function f(x, g) { switch (typeof x) { case g(): return x.at(0); } }',
+  (adapter, prog, lbl) => check(lbl, atReceiver(adapter, prog), null));
+
+// a `default` clause is reached only once EVERY case test has been evaluated and none matched - the
+// ones written AFTER it included - so a write inside such a test runs before the default body and
+// the negative guards the clause carries prove nothing about the value read there
+runBoth('a write in a case test after the default clause reaches the default body',
+  'function f(x: string | number[]) { switch (typeof x) { case "object": return null; default: return x.at(0); case (x = [1, 2], "boolean") as any: return null; } }',
+  (adapter, prog, lbl) => check(lbl, atReceiver(adapter, prog), null), ['typescript']);
+
+// a body that can SUSPEND is not atomic: the caller resumes it, and everything it ran in between -
+// a write in the enclosing scope included - lands between a guard above the suspension and the use
+// below it. the climb stops at the function boundary and never sees that write
+runBoth('a guard above a yield does not survive the suspension',
+  'let x = "abc"; function* g() { if (typeof x !== "string") return null; yield 0; return x.at(0); } const it = g(); it.next(); x = [1, 2]; it.next();',
+  (adapter, prog, lbl) => check(lbl, atReceiver(adapter, prog), null));
+
+runBoth('a guard above an await does not survive the suspension',
+  'let x = "abc"; async function g() { if (typeof x !== "string") return null; await 0; return x.at(0); } g(); x = [1, 2];',
+  (adapter, prog, lbl) => check(lbl, atReceiver(adapter, prog), null));
+
+// with no write outside the body there is nothing the suspension can let in, and the guard holds
+runBoth('a guard above a yield holds when nothing outside writes the binding',
+  'let x = "abc"; function* g() { if (typeof x !== "string") return null; yield 0; return x.at(0); } g().next();',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' }));
+
+// an assignment let out of an if-BRANCH by the hard-exit shortcut dominates only past the whole
+// `if`: inside the sibling branch the assignment never ran, however the positions read
+runBoth('an assignment in one branch does not reach a use in the branch that exits',
+  'function f(x, c) { if (c) { x = [1, 2]; } else { return x.at(0); } }',
+  (adapter, prog, lbl) => check(lbl, atReceiver(adapter, prog), null));
+
+runBoth('the same assignment does reach a use after the if',
+  'function f(x, c) { if (c) { x = [1, 2]; } else { return null; } return x.at(0); }',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' }));
+
+// the argument region of an invocation evaluates BEFORE the callee's body, so a write there reaches
+// a read the source places above it
+runBoth('a write in a call argument reaches the read in the callee body',
+  'let x = "str"; (function () { return x.at(1); })(x = [10, 20]);',
+  (adapter, prog, lbl) => check(lbl, atReceiver(adapter, prog), null));
+
+runBoth('a plain immediate invocation still runs before a later write',
+  'let x = "str"; (function () { return x.at(1); })(); x = [10, 20];',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' }));
+
+// a named function EXPRESSION that reads its own name can hand itself out and re-run after a later
+// write, so its body does not run only at the invocation
+runBoth('a named function expression that returns itself forfeits the invocation exemption',
+  'let x = "str"; globalThis.h = (function f() { globalThis.sink = x.at(1); return f; })(); x = [10, 20]; globalThis.h();',
+  (adapter, prog, lbl) => check(lbl, atReceiver(adapter, prog), null));
+
+// the same clause with no write in the later test keeps its narrow - the rule drops the guards for a
+// reaching WRITE, not for the shape
+runBoth('a default clause whose later case tests write nothing keeps its narrow',
+  'function f(x: string | number[]) { switch (typeof x) { case "object": return null; default: return x.at(0); case ("bool" + "ean") as any: return null; } }',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' }), ['typescript']);
+
+// the object-discriminant lane answers the same question about the same evaluation order
+runBoth('a write in a case test after the default clause drops the discriminant narrow',
+  `type A = { k: "a", v: string }; type B = { k: "b", v: number[] };
+   function f(u: A | B) { switch (u.k) { case "b": return null; default: return u.v.at(0); case (u = { k: "b", v: [1, 2] }, "zz") as any: return null; } }`,
+  (adapter, prog, lbl) => check(lbl, atReceiver(adapter, prog), null), ['typescript']);
+
+// duplicate case labels are legal: the first `"string"` matches, its body writes and falls through
+// into the second, so the use there reads the written value - the fall-through predecessor's BODY
+// feeds the current case and its write invalidates the narrow
+runBoth('a write in a fall-through predecessor case invalidates the narrow',
+  'function f(x, next) { switch (typeof x) { case "string": x = next(); case "string": return x.at(0); } }',
+  (adapter, prog, lbl) => check(lbl, atReceiver(adapter, prog), null));
+
+// a predecessor that ends in `break` feeds neither its body write nor anything before it
+runBoth('a write in a predecessor case that breaks does not reach the current case',
+  'function f(x, next) { switch (typeof x) { case "string": x = next(); break; case "string": return x.at(0); } }',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' }));
+
+// the exit guard's ELSE branch is the path that reaches the use, and a write there is live at it
+runBoth('a write in the fall-through branch of an exit guard invalidates the narrow',
+  'function f(x, next) { if (typeof x !== "string") return; else x = next(); return x.at(0); }',
+  (adapter, prog, lbl) => check(lbl, atReceiver(adapter, prog), null));
+
+// a fall-through predecessor whose test the walk cannot read (`case g():`) may have matched any
+// value, so the group it feeds narrows nothing
+runBoth('an unreadable fall-through predecessor test bails the case group',
+  'function f(x, g) { switch (typeof x) { case g(): case "string": return x.at(0); } }',
+  (adapter, prog, lbl) => check(lbl, atReceiver(adapter, prog), null));
+
+// `default` reached by falling through from `case "string"` is NOT "none of the cases matched": the
+// negative guards would narrow the string that just fell in to its array alternative
+runBoth('default reached by fall-through carries no negative guards',
+  'function f(x: string | string[], log: () => void) { switch (typeof x) { case "string": log(); default: return x.at(0); } }',
+  (adapter, prog, lbl) => check(lbl, atReceiver(adapter, prog), null), ['typescript']);
+
+// the exit guard tests the OUTER `x`; a block-level `x` declared after it is another binding
+runBoth('an early-exit guard does not narrow a shadow declared below it',
+  'function f(x, y) { if (typeof x !== "string") return; { let x = y; return x.at(0); } }',
+  (adapter, prog, lbl) => check(lbl, atReceiver(adapter, prog), null));
+
+// the discriminant lane reads the switch discriminant against the use's own object: a switch over
+// ANOTHER value of the same union shape contributes no guard to it
+runBoth('a switch over an unrelated discriminant narrows nothing',
+  'type U = { kind: "a"; v: string } | { kind: "b"; v: string[] }; function f(o: U, p: U) { switch (p.kind) { case "a": return o.v.at(0); } }',
+  (adapter, prog, lbl) => check(lbl, atReceiver(adapter, prog), null), ['typescript']);
+
+// --- the guard descriptor: one builder per kind, one polarity fold, one optional-call stamp ---
+
+{
+  const or = typeofOrGuard(new Set(['string', 'number']), false);
+  check('guard-builders: typeofOrGuard kind', or.kind, 'typeof-or');
+  check('guard-builders: typeofOrGuard values', [...or.values].join(','), 'string,number');
+  check('guard-builders: typeofOrGuard negated', or.negated, false);
+  const ann = annotationGuard(true);
+  check('guard-builders: annotationGuard kind', ann.kind, 'annotation');
+  check('guard-builders: annotationGuard negated', ann.negated, true);
+  check('guard-builders: stampPolarity folds the branch with the negation', stampPolarity(typeofGuard('string', true), true).positive, false);
+  check('guard-builders: stampPolarity of a plain guard in the truthy branch', stampPolarity(typeofGuard('string', false), true).positive, true);
+  check('guard-builders: markOptionalCall stamps only when asked', 'optionalCall' in markOptionalCall(typeofGuard('string', false), false), false);
+  check('guard-builders: markOptionalCall stamps true', markOptionalCall(typeofGuard('string', false), true).optionalCall, true);
+}
+
+// core-js installs nothing for `Array.isArray` - no module here defines it, and the library calls it
+// natively in its own internals - so no configuration can leave a build without it and the `?.` over
+// it is dead text: the guard tested its argument on every path, and its complement branch narrows
+// exactly like the plain call's
+runBoth('optional guard: a `?.` over a static no build can be without narrows the complement branch',
+  'function f(value: number[] | string) { if (Array.isArray?.(value)) return null; return value.at(0); }',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' }));
+
+// the rule reads the namespace and the static, so either position of the `?.` - and both at once -
+// answers alike
+runBoth('optional guard: the same rule over a `?.` on the namespace',
+  'function f(value: number[] | string) { if (Array?.isArray(value)) return null; return value.at(0); }',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' }));
+
+runBoth('optional guard: the same rule with a `?.` on both segments',
+  'function f(value: number[] | string) { if (Array?.isArray?.(value)) return null; return value.at(0); }',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' }));
+
+// ... and the truthy branch was never in question: a truthy result proves the call ran whatever the
+// `?.` could have done
+runBoth('optional guard: the truthy branch of that guard still narrows to the array',
+  'function f(value: number[] | string) { if (Array.isArray?.(value)) return value.at(0); return null; }',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' }));
+
+// the boundary, and where every uncertainty about presence resolves: a static core-js CAN install is
+// build-conditional in BOTH directions - a target that lacks it and an `exclude` that drops its
+// module leave it genuinely absent - so its `?.` keeps the three-valued stamp and the complement
+// branch keeps the union. the plain call beside it is the narrow that stamp costs
+runBoth('optional guard: a `?.` over an installable static keeps the union',
+  'function f(value: number | string) { if (Number.isInteger?.(value)) return null; return value.at(0); }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('optional guard: the same installable static without the `?.` narrows',
+  'function f(value: number | string) { if (Number.isInteger(value)) return null; return value.at(0); }',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' }));
+
+// ... and the rule reaches only the namespace itself: `window` has no entry here and stays the
+// environment probe a defensive `?.` genuinely tests, so a hop through it may short-circuit before
+// the static is ever read
+runBoth('optional guard: a `?.` on a realm probe hop above the namespace keeps the union',
+  'function f(value: number[] | string) { if (window?.Array.isArray(value)) return null; return value.at(0); }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('optional guard: the same hop without the `?.` narrows',
+  'function f(value: number[] | string) { if (window.Array.isArray(value)) return null; return value.at(0); }',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' }));
+
+// the stamp's other reader: a comparison against `false` carries a guard whose call may not have run
+// nowhere - `undefined !== false` reads as a genuine answer on either side - and a `?.` this rule
+// killed is not that guard, so the comparison flips it
+runBoth('optional guard: a dead `?.` compared to false flips like a plain call',
+  'function f(value: number[] | string) { if (Array.isArray?.(value) === false) return null; return value.at(0); }',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' }));
+
+// `tsc` narrows both `!== false` rows to string (a two-valued reading of the predicate); the runtime
+// oracle says the skipped call lets the array through, so the resolver refuses that narrow on purpose
+runBoth('optional guard: an optional-chained predicate compared to false trusts neither side',
+  'declare const obj: { isStr?(x: unknown): x is string }; function f(input: string | number[]) { if (obj.isStr?.(input) !== false) return input.at(0); }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('optional guard: an optional-chained predicate compared to true narrows the truthy side',
+  'declare const obj: { isStr?(x: unknown): x is string }; function f(input: string | number[]) { if (obj.isStr?.(input) === true) return input.at(0); }',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' }));
+
+runBoth('predicate polarity: a negated structural predicate still carries its target after the exit',
+  'interface Box { items: string[] } declare function isBox(x: unknown): x is Box; function f(x: unknown) { if (!isBox(x)) return null; return x.items.at(0); }',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' }));
+
+// --- predicate overload selection: TS picks ONE signature ---
+
+runBoth('predicate overloads: the literal argument selects the array header',
+  `declare function isType(v: unknown, kind: "string"): v is string; declare function isType(v: unknown, kind: "array"): v is unknown[];
+   function f(v: unknown) { if (isType(v, "array")) return v.at(0); }`,
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' }));
+
+runBoth('predicate overloads: the arity selects the two-param header',
+  'declare function isX(v: unknown): v is string; declare function isX(v: unknown, deep: true): v is unknown[]; function f(v: unknown) { if (isX(v, true)) return v.at(0); }',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' }));
+
+runBoth('a declared-unknown argument refutes no header, so a keyword-headed set selects nothing',
+  'function isStr(x: number): boolean; function isStr(x: unknown): asserts x is string; function isStr(x: unknown) {} function f(x: unknown) { isStr(x); return x.at(0); }',
+  (adapter, prog, lbl) => check(lbl, atReceiver(adapter, prog), null));
+
+// the same refusal for an `object`-typed header. TypeScript does refute both for an argument that is
+// really `unknown` at the call - but the guard parser reads the DECLARED annotation and cannot see a
+// narrowing in force there, and the narrowed argument is the case where acting on it picks the wrong
+// header and emits a foreign helper. the refusal costs precision on this shape and buys soundness on
+// the shape below it
+runBoth('a declared-unknown argument refutes no object-typed header either',
+  'function isObj(x: object): boolean; function isObj(x: unknown): asserts x is string; function isObj(x: unknown): any {} function f(x: unknown) { isObj(x); return x.at(0); }',
+  (adapter, prog, lbl) => check(lbl, atReceiver(adapter, prog), null));
+
+// the shape the refusal exists for: `k` is DECLARED unknown and NARROWED to string at the call, so TS
+// selects the first header and narrows `u` to `number[]`. reading the declaration as a refutation
+// selected the second header instead and aimed a string helper at an array
+runBoth('a narrowed argument declared unknown does not select the header its declaration would',
+  'declare function isIt(a: string, b: unknown): b is number[]; declare function isIt(a: unknown, b: unknown): b is string; '
+  + 'export function f(k: unknown, u: unknown) { if (typeof k === "string") { if (isIt(k, u)) return u.at(0); } return null; }',
+  (adapter, prog, lbl) => check(lbl, atReceiver(adapter, prog), null), ['typescript']);
+
+// a top-typed param spelled through an ALIAS is still top; refuting it by the argument's declaration
+// skipped the header TypeScript selects
+runBoth('a top-typed header spelled through an alias is not skipped',
+  'type Any = unknown; declare function isIt(v: Any): v is number[]; declare function isIt(v: unknown): v is string; '
+  + 'export function f(u: unknown) { if (isIt(u)) return u.at(0); return null; }',
+  (adapter, prog, lbl) => check(lbl, atReceiver(adapter, prog), null), ['typescript']);
+
+// a NON-top declared annotation still speaks: `k: string` selects the first header, and the receiver
+// narrows through it
+runBoth('a declared keyword argument still selects its header',
+  'declare function isIt(a: string, b: unknown): b is number[]; declare function isIt(a: unknown, b: unknown): b is string; '
+  + 'export function f(k: string, u: unknown) { if (isIt(k, u)) return u.at(0); return null; }',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' }), ['typescript']);
+
+// TypeScript merges interfaces later-declaration-FIRST, so an overload set spread across two blocks
+// is tried from the later block down - the first-match selection has to see them in that order
+runBoth('a predicate spread over merged interface blocks selects the later declaration',
+  'interface H { is(v: unknown): v is string } interface H { is(v: unknown): v is number[] } '
+  + 'declare const h: H; export function f(u: unknown) { if (h.is(u)) return u.at(0); return null; }',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' }), ['typescript']);
+
+runBoth('a predicate in a single interface block still selects it',
+  'interface H { is(v: unknown): v is string } declare const h: H; export function f(u: unknown) { if (h.is(u)) return u.at(0); return null; }',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' }), ['typescript']);
+
+// oxc keeps a source paren as a NODE where babel drops it, so every RAW read of a value or a type
+// has to peel it or the two legs answer differently. four sites, one rule
+runBoth('a parenthesized argument literal still discriminates the overload set',
+  'declare function isKind(v: unknown, k: "a"): v is string; declare function isKind(v: unknown, k: "b"): v is unknown[]; '
+  + 'function f(v: unknown) { if (isKind(v, ("b"))) return v.at(0); return null; }',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' }), ['typescript']);
+
+runBoth('a parenthesized built-in namespace still fires its static guard',
+  'function f(x: string | number[]) { if ((Array).isArray(x)) return x.at(0); return null; }',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' }), ['typescript']);
+
+runBoth('a parenthesized static-guard callee still fires',
+  'function f(x: string | number[]) { if ((Array.isArray)(x)) return x.at(0); return null; }',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' }), ['typescript']);
+
+runBoth('a parenthesized case label still carries its switch guard',
+  'function f(x: string | number[]) { switch (typeof x) { case ("string"): return x.at(0); } return null; }',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' }), ['typescript']);
+
+runBoth('a parenthesized guarded receiver still reaches its structural annotation',
+  'interface S { items: string } declare function isS(x: unknown): x is S; '
+  + 'function f(x: unknown) { if (isS(x)) return (x).items.at(0); return null; }',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' }), ['typescript']);
+
+// an OPTIONAL tail needs no argument, so the call fills this arm exactly and TS picks it - grading it
+// ambiguous blocked every arm behind it from being picked either, and the set bailed to generic
+runBoth('an arm whose tail is optional is exactly matched, not ambiguous',
+  'declare function isIt(v: unknown, k?: string): v is string; declare function isIt(v: unknown): v is unknown[]; '
+  + 'function f(u: unknown) { if (isIt(u)) return u.at(0); return null; }',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' }), ['typescript']);
+
+// the `for`-INIT slot runs once, before the first body write, so a read there is not behind the back
+// edge - the same once-only region the write side already excludes
+runBoth('a read in the for-init slot is not behind the loop back edge',
+  'let x = "str"; for (let i = ((function () { globalThis.sink = x.at(1); })(), 0); i < 2; i++) { x = [10, 20]; }',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' }));
+
+runBoth('the same read in the loop BODY is behind it',
+  'let x = "str"; for (let i = 0; i < 2; i++) { (function () { globalThis.sink = x.at(1); })(); x = [10, 20]; }',
+  (adapter, prog, lbl) => check(lbl, atReceiver(adapter, prog), null));
+
+// a head that is not a predicate at all is still a head TS can SELECT, and selecting it narrows
+// nothing - so a set the arguments cannot discriminate has to bail even though a predicate head is
+// among the survivors. skipping the non-predicate arm would narrow on an arm TypeScript may not pick
+runBoth('a non-predicate head among the survivors bails the whole set',
+  'declare function chk(v: number): boolean; declare function chk(v: string | string[]): v is string; '
+  + 'function f(x: string | string[]) { if (chk(x)) return x.at(0); return null; }',
+  (adapter, prog, lbl) => check(lbl, atReceiver(adapter, prog), null), ['typescript']);
+
+// a check the union fold marked `mayBeNullish` is the survivor of a dropped arm, not a certainty:
+// picking a branch on it commits the conditional to a shape the value need not have
+runBoth('a conditional type does not pick a branch on a nullish-marked check',
+  // eslint-disable-next-line no-template-curly-in-string -- a TS template-literal TYPE, not a substitution
+  'type P<T> = T extends `a${string}` ? "a" : null; type Q<S> = S extends "a" ? number[] : string; '
+  + 'declare function make(): Q<P<number>>; const v = make(); v.at(0);',
+  (adapter, prog, lbl) => check(lbl, atReceiver(adapter, prog), null), ['typescript']);
+
+// the vehicle above USED to be `T extends Iterable<unknown>`, undecidable only because the
+// structural container resolved to nothing at all. It resolves now, and the whole chain decides:
+// `number` is no Iterable, so the false branch stands and `Q<null>` takes its own false branch
+runBoth('a decided structural-container check carries the whole chain',
+  'type P<T> = T extends Iterable<unknown> ? "a" : null; type Q<S> = S extends "a" ? number[] : string; '
+  + 'declare function make(): Q<P<number>>; const v = make(); v.at(0);',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' }), ['typescript']);
+
+runBoth('predicate overloads: only the selected header narrows its own argument',
+  `declare function pick(x: unknown, y: unknown): x is string; declare function pick(x: unknown, y: unknown): y is number[];
+   declare const e: string | string[]; declare const f: string | number[]; if (pick(e, f)) { f.at(0); }`,
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+// oxc spells an `abstract` method as TSAbstractMethodDefinition with the function under `.value`,
+// babel as a TSDeclareMethod: the predicate's parameter list is read from whichever slot holds it,
+// or the argument never binds and nothing narrows
+runBoth('predicate through an abstract class method narrows on both parsers',
+  'abstract class C { abstract isStr(x: unknown): x is string; } declare const c: C; function f(v: unknown) { if (c.isStr(v)) return v.at(0); }',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' }), ['typescript']);
+
+// a member callee resolves through the receiver's ANNOTATION chain; an instance of a concrete class
+// (`new C()`) carries none, so its predicate method contributes no guard and the call narrows nothing
+runBoth('a predicate method on a concrete class instance contributes no guard',
+  'interface S { v: string } class C { is(x: unknown): x is S { return true; } } const c = new C(); function f(x: unknown) { if (c.is(x)) return x.v.at(0); }',
+  (adapter, prog, lbl) => check(lbl, atReceiver(adapter, prog), null), ['typescript']);
+
+// a class FIELD holding an arrow predicate is property-shaped on both parsers: it carries neither a
+// method's parameter slot nor its return annotation, so the member is not a predicate and the call
+// narrows nothing - the receiver stays generic rather than guessing a target
+runBoth('a class-field arrow predicate is not a member predicate',
+  'class C { isStr = (x: unknown): x is string => typeof x === "string"; } declare const c: C; function f(v: unknown) { if (c.isStr(v)) return v.at(0); }',
+  (adapter, prog, lbl) => check(lbl, atReceiver(adapter, prog), null), ['typescript']);
+
+// an `any`-typed argument is not `unknown`: TS resolves it against the FIRST overload, so it selects
+// nothing here and the arms decide together - a keyword header and a predicate header disagree
+runBoth('predicate overloads: an any-typed argument selects no arm',
+  'function isStr(x: number): boolean; function isStr(x: unknown): x is string; function isStr(x: unknown) { return typeof x === "string"; } '
+  + 'function f(x: any) { if (isStr(x)) return x.at(0); }',
+  (adapter, prog, lbl) => check(lbl, atReceiver(adapter, prog), null), ['typescript']);
+
+// a spread argument expands to a count only the runtime knows, so it pairs with no fixed number of
+// slots: no arm may be refuted or selected by arity, and arms that disagree narrow nothing
+runBoth('predicate overloads: a spread argument selects no arm',
+  'declare function isX(v: unknown, d: true): v is number[]; declare function isX(v: unknown): v is string; '
+  + 'function f(value: unknown, rest: []) { if (isX(value, ...rest)) return value.at(0); return null; }',
+  (adapter, prog, lbl) => check(lbl, atReceiver(adapter, prog), null), ['typescript']);
+
+// arms that AGREE still narrow through a spread - the rule withholds the choice, not the answer
+runBoth('predicate overloads: agreeing arms narrow through a spread argument',
+  'declare function isX(v: unknown, d: true): v is string; declare function isX(v: unknown): v is string; '
+  + 'function f(value: unknown, rest: []) { if (isX(value, ...rest)) return value.at(0); return null; }',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' }), ['typescript']);
+
+// an UNBOUND identifier argument (a global) has no binding to read an annotation off: its kind is
+// unknown to the discrimination, and the head naming the bound argument still narrows that one
+runBoth('an unbound identifier argument has no kind and does not block the narrow',
+  'declare function is2(x: unknown, y: unknown): x is string; function f(x: unknown) { if (is2(x, g)) return x.at(0); }',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' }), ['typescript']);
+
+// guards apply to BINDINGS: a predicate naming an unbound global narrows nothing
+runBoth('a predicate on an unbound global narrows nothing',
+  'declare function isStr(x: unknown): x is string; function f() { if (isStr(g)) return g.at(0); }',
+  (adapter, prog, lbl) => check(lbl, atReceiver(adapter, prog), null), ['typescript']);
+
+// the predicate names a PARAMETER; the call fills that slot with a member read, which no binding
+// carries, so the test contributes no guard - the binding asked about stays unnarrowed
+runBoth('a predicate called on a member read contributes no guard',
+  'declare function isStr(x: unknown): x is string; function f(x: unknown, o: { p: unknown }) { if (isStr(o.p)) return x.at(0); }',
+  (adapter, prog, lbl) => check(lbl, atReceiver(adapter, prog), null), ['typescript']);
+
+// a structural target narrows through its annotation: the member read off it resolves to what the
+// interface declares (the positive control for the two-head case below)
+runBoth('a structural predicate narrows a member read through its annotation',
+  'interface S { items: string } declare function isS(x: unknown): x is S; function f(x: unknown) { if (isS(x)) return x.items.at(0); }',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' }), ['typescript']);
+
+// two heads spelling a BARE structural target (a type literal) carry two annotation nodes and no
+// nominal, so the arms the arguments cannot tell apart (an `any` argument refutes neither header and
+// selects no arm) agree on nothing - the call narrows nothing rather than picking one of them. a
+// string argument would select the FIRST head and narrow through it
+runBoth('predicate overloads: two structural-target heads the arguments cannot tell apart do not agree',
+  'declare function isS(x: unknown, y: string): x is { items: string }; declare function isS(x: unknown, y: number): x is { items: string }; '
+  + 'function f(x: unknown, y: any) { if (isS(x, y)) return x.items.at(0); }',
+  (adapter, prog, lbl) => check(lbl, atReceiver(adapter, prog), null), ['typescript']);
+
+// two NAMED structural targets both resolve to the bare `Object` nominal and agree on it, but the
+// members come from the annotation, and the arms spell different ones: the agreed nominal goes bare
+// and the member read resolves nothing - the first head's `string` is not what the other head's
+// runtime value carries
+runBoth('predicate overloads: agreeing structural heads with different annotations drop the members',
+  'interface S { items: string } interface T { items: string[] } declare function isS(x: unknown, y: string): x is S; declare function isS(x: unknown, y: number): x is T; '
+  + 'function f(x: unknown, y: any) { if (isS(x, y)) return x.items.at(0); }',
+  (adapter, prog, lbl) => check(lbl, atReceiver(adapter, prog), null), ['typescript']);
+
+// two bare references to ONE named target are one annotation: the members stay
+runBoth('predicate overloads: agreeing heads spelling one named target keep its members',
+  'interface S { items: string } declare function isS(x: unknown, y: string): x is S; declare function isS(x: unknown, y: number): x is S; '
+  + 'function f(x: unknown, y: any) { if (isS(x, y)) return x.items.at(0); }',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' }), ['typescript']);
+
+// a parameterised reference carries its own arguments: two references to one generic target with
+// different arguments are two annotations, so the members go with them
+runBoth('predicate overloads: agreeing heads spelling one generic target with different arguments drop the members',
+  'interface S<T> { items: T } declare function isS(x: unknown, y: string): x is S<string>; declare function isS(x: unknown, y: number): x is S<string[]>; '
+  + 'function f(x: unknown, y: any) { if (isS(x, y)) return x.items.at(0); }',
+  (adapter, prog, lbl) => check(lbl, atReceiver(adapter, prog), null), ['typescript']);
+
+// the fold is pairwise, so a THIRD head compares against what the first two agreed on - and two
+// heads spelling different names agreed on NO annotation. the comparison has to survive the absent
+// side and stay bare rather than read a name off it
+runBoth('predicate overloads: a third head folds against the annotation the first two dropped',
+  'interface S { items: string } interface T { items: string } interface U { items: string } '
+  + 'declare function isS(x: unknown, y: string): x is S; declare function isS(x: unknown, y: number): x is T; '
+  + 'declare function isS(x: unknown, y: boolean): x is U; '
+  + 'function f(x: unknown, y: any) { if (isS(x, y)) return x.items.at(0); }',
+  (adapter, prog, lbl) => check(lbl, atReceiver(adapter, prog), null), ['typescript']);
+
+// ... and three heads spelling ONE name fold to it twice over, so the members stay
+runBoth('predicate overloads: three heads spelling one named target keep its members',
+  'interface S { items: string } declare function isS(x: unknown, y: string): x is S; '
+  + 'declare function isS(x: unknown, y: number): x is S; declare function isS(x: unknown, y: boolean): x is S; '
+  + 'function f(x: unknown, y: any) { if (isS(x, y)) return x.items.at(0); }',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' }), ['typescript']);
+
+// the assertion form spells a head the predicate form cannot: `asserts x` names no target at all. it
+// resolves to the same neutral guard a bare structural head does and AGREES with it, so the pair
+// reaches the annotation fold with one side missing - and one head's members are not what the other
+// head's runtime value carries
+runBoth('predicate overloads: an agreeing head with no target annotation drops the members',
+  'type S = { items: string }; declare function assertS(x: unknown, y: string): asserts x is S; '
+  + 'declare function assertS(x: unknown, y: number): asserts x; '
+  + 'function f(x: unknown, y: any) { assertS(x, y); return x.items.at(0); }',
+  (adapter, prog, lbl) => check(lbl, atReceiver(adapter, prog), null), ['typescript']);
+
+// ... the same pair with both heads naming the target keeps them
+runBoth('predicate overloads: two asserting heads spelling one named target keep its members',
+  'type S = { items: string }; declare function assertS(x: unknown, y: string): asserts x is S; '
+  + 'declare function assertS(x: unknown, y: number): asserts x is S; '
+  + 'function f(x: unknown, y: any) { assertS(x, y); return x.items.at(0); }',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' }), ['typescript']);
+
+// a built-in target agreed on by two heads with different type arguments keeps the nominal (the
+// `at` on the array itself still narrows, see above) and drops the arguments: an element read off
+// it resolves nothing rather than the first head's element type
+runBoth('predicate overloads: agreeing built-in heads with different type arguments drop the element type',
+  `declare function isEither(v: object, k: string): v is number[]; declare function isEither(v: unknown, k: string): v is string[];
+   function f(o: object) { if (isEither(o, "k")) return o[0].at(0); }`,
+  (adapter, prog, lbl) => check(lbl, atReceiver(adapter, prog), null));
+
+// Flow spells a declared class method as an ObjectTypeProperty holding a FunctionTypeAnnotation; the
+// overload fold reads its parameters through the same slot the predicate lane does, so two same-named
+// declarations discriminate by arity instead of folding to their common type
+{
+  const babelOnly = adapters.find(a => a.name === 'babel');
+  const lbl = 'overload fold reads Flow declare-class method parameters [babel-flow]';
+  try {
+    const prog = babelOnly.parseAndScope(
+      'declare class C { m(x: string): string; m(x: string, y: number): number[]; } declare var c: C; const r = c.m("a"); r.at(0);',
+      undefined, ['flow']);
+    checkType(lbl, atReceiver(babelOnly, prog), { primitive: true, kind: 'string' });
+  } catch (error) {
+    fail(lbl, `threw: ${ error.message }`);
+  }
+}
+
+runBoth('predicate overloads: a member overload set is discriminated whole',
+  `interface C { isKind(v: unknown, k: "string"): v is string; isKind(v: unknown, k: "array"): v is unknown[]; } declare const c: C;
+   function f(v: unknown) { if (c.isKind(v, "array")) return v.at(0); }`,
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' }));
+
+runBoth('predicate overloads: the asserts form discriminates the same way',
+  `declare function assertT(v: unknown, kind: "string"): asserts v is string; declare function assertT(v: unknown, kind: "array"): asserts v is unknown[];
+   function f(v: unknown) { assertT(v, "array"); return v.at(0); }`,
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' }));
+
+runBoth('predicate params: a class-method predicate binds its parameter on both parsers',
+  `class Checker { isStr(x: unknown): x is string { return typeof x === "string"; } } declare const c: Checker;
+   function f(input: unknown) { if (c.isStr(input)) return input.at(0); }`,
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' }));
+
+runBoth('predicate params: a function-typed property predicate binds its parameter',
+  'declare const obj: { isStr: (x: unknown) => x is string }; function f(input: unknown) { if (obj.isStr(input)) return input.at(0); }',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' }));
+
+// an intersection puts a METHOD signature and a same-named property in ONE member set, and a property
+// spelling its function type through an ALIAS carries no parameter list at this slot. an arm with no
+// list is not a SPECIALIZED one: ranking it so hoists it over the method the call matches, and the
+// arm it lands in front of can no longer be selected (`tsc`: `u` is `string` here)
+runBoth('predicate overloads: an arm with no param list is not hoisted over the method that matches',
+  'type Check = (x: unknown) => x is string; interface A { check(x: unknown): x is string; } interface B { check: Check; } '
+  + 'declare const g: A & B; function f(u: unknown) { if (g.check(u)) return u.at(0); return null; }',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' }), ['typescript']);
+
+// the same set in the other intersection order, where the list-less arm stands first on its own: it is
+// weighed where it is declared and blocks the set. `tsc` narrows `u` to `string` in BOTH orders, so
+// this is the resolver declining a narrowing it cannot weigh - the safe direction, and the contrast
+// that makes the row above an assertion about the hoist rather than about the arm
+runBoth('predicate overloads: an arm with no param list blocks the set where it stands',
+  'type Check = (x: unknown) => x is string; interface A { check(x: unknown): x is string; } interface B { check: Check; } '
+  + 'declare const g: B & A; function f(u: unknown) { if (g.check(u)) return u.at(0); return null; }',
+  (adapter, prog, lbl) => check(lbl, atReceiver(adapter, prog), null), ['typescript']);
+
+runBoth('predicate params: a spread after the named slot leaves it bound',
+  'declare function assertStr(x: unknown, ...rest: unknown[]): asserts x is string; function f(val: unknown, rest: any[]) { assertStr(val, ...rest); return val.at(0); }',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' }));
+
+runBoth('predicate params: a spread at or before the named slot declines',
+  'declare function assertOpts(opts: unknown, x: unknown): asserts x is string; function f(val: unknown, rest: any[]) { assertOpts(...rest, val); return val.at(0); }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+// an OPTIONAL tail leaves a one-argument call legal, so the head stands and the predicate's slot is
+// simply not filled: the binding step reads past the end of the argument list and has to answer
+// nothing there rather than the argument that is not
+runBoth('predicate params: a named slot past the call arity binds nothing',
+  'declare function isStr(a: unknown, x?: unknown): x is string; function f(u: string | number[]) { if (isStr(u)) return u.at(0); return null; }',
+  (adapter, prog, lbl) => check(lbl, atReceiver(adapter, prog), null), ['typescript']);
+
+// ... the same head with that slot filled narrows through it
+runBoth('predicate params: the same head narrows once the named slot is filled',
+  'declare function isStr(a: unknown, x?: unknown): x is string; function f(u: string | number[]) { if (isStr(0, u)) return u.at(0); return null; }',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' }), ['typescript']);
+
+// a predicate spelled as a binding ANNOTATION reads its parameter list off the annotation node, and
+// which slot holds that list is a parser-dialect difference: babel 7 fills `parameters` where babel
+// 8 and the estree parser fill `params`. Neither parser driving these scenarios produces the older
+// slot, so the dialect is re-spelled onto the parsed tree - a resolver reading only `params` leaves
+// the predicate parameter-less and the call binds no argument at all
+const BINDING_ANNOTATION_PREDICATE = 'declare const impl: (x: unknown) => x is string;\n'
+  + 'const isStr: (x: unknown) => x is string = impl;\n'
+  + 'function f(u: string | number[]) { if (isStr(u)) return u.at(0); return null; }';
+
+function respellFunctionTypeParamsSlot(root) {
+  function nextNativelySpelled() {
+    return findNode(root, node => node.type === 'TSFunctionType' && !!node.params);
+  }
+  let respelled = 0;
+  for (let node = nextNativelySpelled(); node; node = nextNativelySpelled()) {
+    node.parameters = node.params;
+    delete node.params;
+    respelled++;
+  }
+  return respelled;
+}
+
+runBoth('predicate params: a binding-annotation predicate binds its parameter under the `params` slot',
+  BINDING_ANNOTATION_PREDICATE,
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' }), ['typescript']);
+
+runBoth('predicate params: a binding-annotation predicate binds its parameter under the `parameters` slot',
+  BINDING_ANNOTATION_PREDICATE,
+  (adapter, prog, lbl) => {
+    // a re-spelling that found nothing would leave the native slot in place and assert the row above
+    checkTruthy(`${ lbl } re-spelled the dialect slot`, respellFunctionTypeParamsSlot(prog.node) > 0);
+    checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' });
+  }, ['typescript']);
+
+// --- one arm policy: an arm nothing can resolve sinks the fold, under a guard or a conditional ---
+
+runBoth('unresolvable arm: a neutral assertion guard over an imported arm keeps the union whole',
+  `import type { Cursor } from "./cursor"; declare function assertPresent<T>(v: T): asserts v is NonNullable<T>;
+   function read(x: number[] | Cursor | null) { assertPresent(x); return x.at(0); }`,
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('unresolvable arm: a negative typeof guard over an inline object arm keeps the union whole',
+  'function read(x: number[] | { at(i: number): string }) { if (typeof x === "function") throw 0; return x.at(0); }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('unresolvable arm: a positive typeof guard establishes the family itself',
+  'import type { Cursor } from "./cursor"; function read(x: string | Cursor) { if (typeof x === "string") return x.at(0); }',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' }));
+
+runBoth('unresolvable arm: an undecided conditional type with an imported branch folds to nothing',
+  `import type { Rows } from "./rows"; interface L { [Symbol.iterator](): Iterator<number[]> } type P<T> = T extends Iterable<unknown> ? Rows : string;
+   declare const p: P<L>; p.at(0);`,
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('unresolvable arm: an undecided conditional type still strips a nullish branch',
+  'interface L { [Symbol.iterator](): Iterator<number[]> } type P<T> = T extends Iterable<unknown> ? null : string; declare const q: P<L>; q.at(0);',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' }));
+
+// ... and the certainty a positive guard adds reaches exactly as far as the CONSTRUCTOR it names.
+// The arm nothing could resolve is an Array by the test the value passed, but WHAT that Array
+// holds the guard proves nothing about, so the survivors' element type may not ride out with the
+// family. tsc keeps a richer answer here (`Cursor & Array<any>` stays in the union); the element
+// slot is dropped rather than borrowed from the one arm that spelled it, which costs precision
+// and never picks a foreign polyfill family
+runBoth('unresolvable arm: a positive instanceof carries the family and not the element type',
+  'import type { Cursor } from "./cursor"; function read(x: number[] | Cursor) { if (x instanceof Array) return x.at(0); }',
+  (adapter, prog, lbl) => {
+    const type = atReceiver(adapter, prog);
+    checkType(lbl, type, { primitive: false, ctor: 'Array' });
+    check(`${ lbl } (element)`, type.inner, null);
+  });
+
+// ... while a union whose every arm resolves keeps its element type under that same guard: the
+// certainty came from the arms, and no arm was dropped for the guard to answer in place of
+runBoth('unresolvable arm: a fully resolvable union keeps its element type under the same guard',
+  'function read(x: number[] | string) { if (x instanceof Array) return x.at(0); }',
+  (adapter, prog, lbl) => {
+    const type = atReceiver(adapter, prog);
+    checkType(lbl, type, { primitive: false, ctor: 'Array' });
+    check(`${ lbl } (element)`, type.inner?.type, 'number');
+  });
+
+// --- the branches only a minted binding reaches: the injector's hint and entry channels ---
+// the babel leg rewrites a built-in before the guard behind it is parsed; the resolver reads the
+// built-in back through the channels the plugin wires (`getPolyfillBindingHint` for a constructor
+// stub, `getPolyfillBindingEntry` for a static), so the harness supplies them and a plain binding
+// named like a minted one is a control that must NOT identify
+
+runBoth('guard operand: a minted constructor stub is the built-in through the hint channel',
+  'const _Promise = 0; function f(x: unknown) { if (x instanceof _Promise) return x; }',
+  (adapter, prog, lbl) => {
+    const ref = pickReturnArg(adapter, prog, 'x');
+    const hinted = adapter.makeResolver({ getPolyfillBindingHint: (scope, name) => name === '_Promise' ? 'Promise' : null });
+    checkType(lbl, hinted.resolveNodeType(ref), { primitive: false, ctor: 'Promise' });
+    check(`${ lbl } (no channel: a user binding shadows)`, adapter.makeResolver().resolveNodeType(ref), null);
+  });
+
+runBoth('guard operand: a minted static-guard binding is the built-in through the entry channel',
+  'const _Number$isFinite = (v: unknown) => true; function f(x: string | number[]) { if (typeof x === "string" || _Number$isFinite(x)) return x.at(0); }',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const wired = adapter.makeResolver({ getPolyfillBindingEntry: (scope, name) => name === '_Number$isFinite' ? 'number/is-finite' : null });
+    checkType(lbl, wired.resolveNodeType(member.get('object')), { primitive: true, kind: 'string' });
+    checkGenericAt(adapter, prog, `${ lbl } (no channel: a user function is no built-in)`);
+  });
+
+// --- a divergent predicate set narrows nothing ---
+
+runBoth('predicate overloads: arms the arguments cannot tell apart must agree, else nothing narrows',
+  `declare function isEither(v: object, k: string): v is string; declare function isEither(v: unknown, k: string): v is number[];
+   function f(o: object) { if (isEither(o, "k")) return o.at(0); }`,
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('predicate overloads: arms the arguments cannot tell apart that agree still narrow',
+  `declare function isEither(v: object, k: string): v is number[]; declare function isEither(v: unknown, k: string): v is string[];
+   function f(o: object) { if (isEither(o, "k")) return o.at(0); }`,
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' }));
+
+// --- a write with no source positions is a mutation in every window asked about ---
+// a plugin-minted rewrite of the binding's write carries no positions: the positional probes must
+// take it as sitting inside the guard's test slot and inside the outer-inner window alike, so the
+// narrow drops instead of surviving on a comparison that read `undefined` as a coordinate
+
+function stripAssignmentPositions(adapter, prog) {
+  for (const assign of adapter.collectPaths(prog, 'AssignmentExpression')) {
+    for (const node of [assign.node, assign.node.left]) {
+      node.start = undefined;
+      node.end = undefined;
+    }
+  }
+}
+
+runBoth('position-less write: inside the guard test slot still stales the narrow',
+  'function g(x: string | number[], other) { if (typeof x === "string" && (x = other, true)) return x.at(0); }',
+  (adapter, prog, lbl) => {
+    stripAssignmentPositions(adapter, prog);
+    checkGenericAt(adapter, prog, lbl);
+  });
+
+// ... and no conditional above it is fresh, so the narrow is dropped outright rather than kept on a
+// window computed from missing coordinates
+runBoth('position-less write: between the outer guards and a fresh inner conditional still drops the outer guards',
+  'function g(x: string | number[], other) { if (typeof x === "string") { x = other; if (typeof x !== "number") return x.at(0); } }',
+  (adapter, prog, lbl) => {
+    stripAssignmentPositions(adapter, prog);
+    checkGenericAt(adapter, prog, lbl);
+  });
+
+// --- Structural identity and the container supertype lattice ---
+
+// every shape this layer never modelled collapses into ONE box, so a relation between two of them
+// is decided off the AST instead: the MEMBERS each side carries, and - for the shapes with no member
+// list of their own - one canonical key apiece. TRUE where the two sets agree, FALSE where the
+// extends side REQUIRES a name the check side does not carry, open where they merely differ
+const STRUCTURAL_PRELUDE = 'interface A { a: number } interface B { a: number } interface C { b: string } '
+  + 'interface Opt { a?: number } interface RO { readonly a: number } '
+  + 'interface Meth { a: number; m(x: string): void } interface Meth2 { a: number; m(x: string): void } '
+  + 'interface Meth3 { a: number; m(x: number): void } '
+  + 'interface Opaque1 { a: Missing1 } interface Opaque2 { a: Missing2 } '
+  + 'interface Ord1 { a: number; b: string } interface Ord2 { b: string; a: number } '
+  + 'interface NOrd1 { a: { p: number; q: string } } interface NOrd2 { a: { q: string; p: number } } '
+  + 'interface Nest1 { a: Array<{ q: string }> } interface Nest2 { a: Array<{ q: string }> } '
+  + 'interface Nest3 { a: Array<{ q: number }> } '
+  + 'interface Sup { a: number } interface Sub extends Sup { b: string } ';
+
+for (const [label, prelude, subject, target, want] of [
+  // FC-321: the four shapes an identity-less box could not tell apart
+  ['an inline object element keys its container', '', 'Array<{ a: number }>', 'Array<{ a: number }>', 'Array'],
+  ['a function-typed element keys its container', '', 'Array<() => void>', 'Array<() => void>', 'Array'],
+  ['two interfaces of one shape are one type', STRUCTURAL_PRELUDE, 'A', 'B', 'Array'],
+  ['two interfaces of different shapes are disjoint', STRUCTURAL_PRELUDE, 'A', 'C', 'string'],
+  // the GATE: one member this layer cannot key refuses the whole shape, so two DIFFERENT shapes
+  // never collapse onto one reading
+  ['an unresolvable member refuses the whole key', STRUCTURAL_PRELUDE, 'Opaque1', 'Opaque2', 'fold'],
+  ['a method member refuses the whole key', STRUCTURAL_PRELUDE, 'Meth', 'Meth2', 'fold'],
+  // the parameters are what a member's annotation slot never carries, so reading a method through it
+  // reads two DIFFERENT signatures as one - the refusal above is what stops that, not caution
+  ['and refuses it where only the parameters differ', STRUCTURAL_PRELUDE, 'Meth', 'Meth3', 'fold'],
+  ['a heritage clause refuses the shape, its members may be short', STRUCTURAL_PRELUDE, 'Sub', 'Sup', 'fold'],
+  ['and refuses it the other way round, where the box once read one identity for both',
+    STRUCTURAL_PRELUDE, 'Sup', 'Sub', 'fold'],
+  // width, optionality and the modifier that does not travel
+  ['a required member satisfies an optional one', STRUCTURAL_PRELUDE, 'A', 'Opt', 'Array'],
+  ['an optional member does not satisfy a required one', STRUCTURAL_PRELUDE, 'Opt', 'A', 'string'],
+  ['readonly freezes the slot and leaves assignability alone', STRUCTURAL_PRELUDE, 'A', 'RO', 'Array'],
+  ['a member set is unordered, and two spellings of one shape key alike',
+    STRUCTURAL_PRELUDE, 'Ord1', 'Ord2', 'Array'],
+  // the map above is keyed by name and reads in no order at all; a member set reached as a member
+  // TYPE is compared as one STRING, and that is where the order has to be taken out
+  ['a nested member set is unordered too', STRUCTURAL_PRELUDE, 'NOrd1', 'NOrd2', 'Array'],
+  ['two signatures that differ only in their parameters stay open',
+    '', 'Array<(x: string) => void>', 'Array<(x: number) => void>', 'fold'],
+  ['a nested container element keys through', STRUCTURAL_PRELUDE, 'Nest1', 'Nest2', 'Array'],
+  ['a nested element that differs leaves the relation open', STRUCTURAL_PRELUDE, 'Nest3', 'Nest2', 'fold'],
+  ['an inline literal missing a required name is disjoint', '', '{ a: number }', '{ b: string }', 'string'],
+  // FC-322: the container families and the paths between them
+  ['an array is iterable', '', 'Array<string>', 'Iterable<string>', 'Array'],
+  ['an array is index-readable', '', 'Array<string>', 'ArrayLike<string>', 'Array'],
+  ['a set is iterable', '', 'Set<string>', 'Iterable<string>', 'Array'],
+  ['a readonly array is iterable too', '', 'ReadonlyArray<string>', 'Iterable<string>', 'Array'],
+  ['a map is no set', '', 'Map<string, number>', 'Set<string>', 'string'],
+  ['and a set is no map', '', 'Set<string>', 'Map<string, number>', 'string'],
+  ['the element decides where the families connect', '', 'Array<string>', 'Iterable<number>', 'string'],
+  ['a top element constrains none of it', '', 'Array<string>', 'Iterable<unknown>', 'Array'],
+  ['a supertype is not assignable to its subtype', '', 'Iterable<string>', 'Array<string>', 'string'],
+  ['two families with no path either way are disjoint', '', 'ArrayLike<string>', 'Iterable<string>', 'string'],
+  // the primitive reaches both families, but it carries its element as a hint STRING and the chain
+  // comparison has no Type object to weigh that against - so the pair stays open rather than being
+  // read, as it was before the table, off the primitive-versus-container rule that answers FALSE
+  ['a primitive check against a family it reaches stays open', '', 'string', 'Iterable<string>', 'fold'],
+  // a name pair the table does not carry is left to the rules that DO know about hierarchies -
+  // the constructor registry holds its own (`RangeError` under `Error`), and a FALSE off a bare
+  // name difference is the wrong answer for every one of them
+  ['a family pair the table does not name stays open', '', 'Node', 'Element', 'fold'],
+]) {
+  runBoth(`structural relations: ${ label }`,
+    `${ prelude }type Cnd = ${ subject } extends ${ target } ? number[] : string;\ndeclare const r: Cnd;\nr.at(0);`,
+    (adapter, prog, lbl) => {
+      const type = atReceiver(adapter, prog);
+      if (want === 'fold') return check(lbl, type, null);
+      return want === 'Array'
+        ? checkType(lbl, type, { primitive: false, ctor: 'Array' })
+        : checkType(lbl, type, { primitive: true, kind: 'string' });
+    }, ['typescript']);
+}
+
+// the structural containers name a SHAPE many runtime classes have, so member DISPATCH must keep
+// reading nothing off them: a box named `Iterable` is a family with no `at`, and the injection the
+// null answer routes through the generic helper would be dropped outright. The box exists for the
+// relation above and nowhere else
+for (const [label, annotation] of [['Iterable', 'Iterable<string>'], ['ArrayLike', 'ArrayLike<string>']]) {
+  runBoth(`a ${ label } annotation stays unresolved for member dispatch`,
+    `declare const xs: ${ annotation };\nxs.at(0);`,
+    (adapter, prog, lbl) => check(lbl, atReceiver(adapter, prog), null), ['typescript']);
+}
+
+// `ArrayLike<T>` is index-and-length only, which makes its param-0 the element as surely as
+// `Array<T>`'s - and the element read is what never saw it, where its `Iterable` twin was seen all along
+runBoth('an ArrayLike element resolves through param-0',
+  'declare const xs: ArrayLike<string>;\nfor (const v of xs) { v.at(0); }',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' }), ['typescript']);
+
+// a NAKED type parameter names a type nobody has written yet - every instantiation is its own, and
+// the conditional DISTRIBUTES over the ones that are unions - so the two sides being spelled alike
+// says nothing a branch could be picked on
+runBoth('a naked type parameter is no key',
+  'function f<T>(x: T extends T ? number[] : string) { x.at(0); }',
+  (adapter, prog, lbl) => check(lbl, atReceiver(adapter, prog), null), ['typescript']);
+
+// the same, spelled as a class: a subclass whose base is a plain local class took the BASE's node for
+// its own identity, and the two then read as one type in both directions
+runBoth('a class base does not answer to its subclass',
+  'class CBase { a = 1 }\nclass CDerived extends CBase { b = "s" }\n'
+  + 'type Cnd = CBase extends CDerived ? number[] : string;\ndeclare const r: Cnd;\nr.at(0);',
+  (adapter, prog, lbl) => check(lbl, atReceiver(adapter, prog), null), ['typescript']);
+
+// the box a DERIVED declaration resolves into stands for THAT declaration: the parent walk hands
+// back the parent's, identity slot included, and two boxes sharing one identity are read as one type
+runBoth('a derived interface does not answer to its base declaration',
+  'interface Base { a: number } interface Derived extends Base { b: string }\n'
+  + 'declare const x: Base;\ndeclare const y: Derived;',
+  (adapter, prog, lbl) => {
+    const resolver = adapter.makeResolver();
+    const base = resolver.resolveNodeType(adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id.name === 'x').get('id'));
+    const derived = resolver.resolveNodeType(adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id.name === 'y').get('id'));
+    check(lbl, Boolean(base?.identity && derived?.identity && base.identity !== derived.identity), true);
+  }, ['typescript']);
 
 finish();
