@@ -30,8 +30,26 @@ if (CD) cd(DIR);
 
 env.FORCE_COLOR = '1';
 
+// --- idle stdin ---
+// Node materializes `process.stdin` REF'd, and a transient read anywhere in a run's dependency
+// graph leaves that handle ref'd with no consumer on it. Behind a pipe that never closes - the
+// stdin every `run-s` member is handed - the finished process then stays up on an input it is not
+// reading, which is measured: a runner printing its own success and then living for over an hour.
+// No script started this way takes input, so the bootstrap releases an idle stdin once the script
+// is done; a stream something is still reading is left exactly as it is
+function releaseIdleStdin() {
+  const { stdin } = process;
+  if (stdin.readableFlowing === true) return;
+  if (stdin.listenerCount('data') || stdin.listenerCount('readable')) return;
+  stdin.unref?.();
+}
+
 const start = Date.now();
 
-await import(`../${ FILE }`);
+try {
+  await import(`../${ FILE }`);
+} finally {
+  releaseIdleStdin();
+}
 
 if (TIME) echo(green(`\n${ FILE } took ${ cyan((Date.now() - start) / 1000) } seconds`));
