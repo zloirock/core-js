@@ -6,11 +6,11 @@ import _Array$of from "@core-js/pure/actual/array/of";
 import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _at from "@core-js/pure/actual/instance/at";
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
 import _self from "@core-js/pure/actual/self";
-import _Set from "@core-js/pure/actual/set/constructor";
+import _Set from "@core-js/pure/actual/set";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
-import _WeakMap from "@core-js/pure/actual/weak-map/constructor";
+import _WeakMap from "@core-js/pure/actual/weak-map";
 var _ref21, _ref22;
 // a sole-key object hop pairs with the slot it names, exactly as an array wrapper pairs with its
 // sole element: the level is consumed and the claim below it reads the value standing there. a

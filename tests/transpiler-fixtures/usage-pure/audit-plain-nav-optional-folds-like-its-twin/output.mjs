@@ -11,5 +11,7 @@ export const backedLeafFolds = _Promise.noSuchStatic;
 export const deeperHopFolds = _self.customKey;
 export const firstHopKeepsTheProbe = null == _globalThis.window ? void 0 : _Promise.noSuchStatic;
 export const seqRootProvesItsAlias = null == (g = _globalThis, v = null == g.window ? void 0 : _self) ? void 0 : _Promise.noSuchStatic;
-export const seqRootDelete = delete (g = _globalThis, v = null == g.window ? void 0 : _self, _Promise)[key];
+// ... and under `delete` the `?.` ABOVE that sequence is the one deciding whether the delete
+// happens: it survives the fold, the ctor riding the guard's alternate
+export const seqRootDelete = delete (null == (g = _globalThis, v = null == g.window ? void 0 : _self) ? void 0 : _Promise)?.[key];
 export { g, v };

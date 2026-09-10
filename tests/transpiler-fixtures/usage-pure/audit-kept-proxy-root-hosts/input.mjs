@@ -22,6 +22,8 @@ export const templateHole = `${ (t = globalThis.window)?.self.Array.prototype.in
 let s;
 export const spreadArg = Math.max(...((s = globalThis.window)?.self.Array.from?.([1, 2]) ?? [0]));
 
+// the store's own value IS the probe, and the `?.` over it decides whether the delete happens -
+// the hop above it drops onto that value, the way this same source's READ lands
 let d;
 delete (d = globalThis.window)?.self.someUserKey;
 

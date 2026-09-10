@@ -6,8 +6,7 @@ import _valuesMaybeArray from "@core-js/pure/actual/array/instance/values";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _at from "@core-js/pure/actual/instance/at";
 import _values from "@core-js/pure/actual/instance/values";
-import _Map2 from "@core-js/pure/actual/map";
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
 import _Object$freeze from "@core-js/pure/actual/object/freeze";
 import _Object$is from "@core-js/pure/actual/object/is";
 // probe corpus of the defense cycles over the destructure wrappers, family "other", part 4:
@@ -99,7 +98,7 @@ function mark(t, v) {
   [is, at];
 }
 {
-  const m = new (id(_Map2))();
+  const m = new (id(_Map))();
 }
 {
   var _ref;

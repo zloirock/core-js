@@ -175,11 +175,13 @@ QUnit.test('default param: polyfill in default value', assert => {
   assert.same(getFirst([5, 6]), 5);
 });
 
-// var self-reference shadow - var Map = Map resolves to global
-QUnit.test('var self-ref: var Map = Map; Map.groupBy', assert => {
+// var self-reference binds afresh: the local is hoisted to `undefined` and the initializer reads it,
+// so a member off it throws exactly as it does natively. no host a bundle produces says otherwise -
+// its top level is a wrapper's function body, not the realm's own scope
+QUnit.test('var self-ref: var Map = Map binds afresh in a function', assert => {
   // eslint-disable-next-line no-var -- testing var hoisting
   var Map = Map;
-  assert.same(typeof Map.groupBy, 'function');
+  assert.same(typeof Map, 'undefined');
 });
 
 // computed template literal key

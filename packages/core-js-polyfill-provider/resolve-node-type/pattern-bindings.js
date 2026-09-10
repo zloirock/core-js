@@ -35,7 +35,76 @@ import {
   staleVarRedeclNodes,
   varInitStaleByRedecl,
   isDestructurePattern,
+  anyWriteOutrunsUse,
+  peelTransparentExprAncestorPath,
+  positionDisposition,
+  POSITION_CONSUMES,
+  unwrapRuntimeExpr,
 } from '../helpers/ast-patterns.js';
+import { callPairing } from '../detect-usage/mutations.js';
+
+// the class whose CONSTRUCTOR this function is, or null. one climb for both parsers: babel keeps
+// the parameters on the `ClassMethod` that carries `kind`, estree nests a `FunctionExpression`
+// under a `MethodDefinition` that does - so the member sits zero or one hop above the function
+function constructorHostClass(fnPath) {
+  for (let member = fnPath, hops = 0; member?.node && hops < 2; member = member.parentPath, hops++) {
+    if (member.node.kind !== 'constructor') continue;
+    // the member may stand at the top of a chain a caller built: neither hop above it need exist
+    const classPath = member.parentPath?.parentPath;
+    const type = classPath?.node?.type;
+    return type === 'ClassDeclaration' || type === 'ClassExpression' ? classPath : null;
+  }
+  return null;
+}
+
+// the names a CONSTRUCTOR's callers spell. a constructor carries none of its own: every call
+// spells the CLASS (`new C(...)`), an ordinary binding this same census reads. a class expression
+// holds two, exactly like a named function expression - the inner id binds inside the body only,
+// the declarator name is the one the outside uses - so both are scanned and only the outer one
+// ACCOUNTS for the outside. a DECORATED class is skipped whole: a decorator returns the value the
+// binding then holds, so `new C()` need not reach this constructor at all and the arguments the
+// wrapper forwards are not in this file
+function constructorCallerNames(fnPath) {
+  const classPath = constructorHostClass(fnPath);
+  if (!classPath || classPath.node.decorators?.length) return null;
+  const sources = [];
+  let outerNamed = classPath.node.type === 'ClassDeclaration' && classPath.node.id?.type === 'Identifier';
+  if (classPath.node.id?.type === 'Identifier') {
+    sources.push({ name: classPath.node.id.name, scope: classPath.scope, anchor: classPath });
+  }
+  // a class path a rewrite detached has no host to read the outer name off
+  const host = classPath.parentPath;
+  if (host?.node?.type === 'VariableDeclarator' && host.node.id.type === 'Identifier') {
+    sources.push({ name: host.node.id.name, scope: host.scope, anchor: host });
+    outerNamed = true;
+  }
+  return { sources, outerNamed };
+}
+
+// the positions from which a value can still reach a CALLER of the function it carries, and so
+// the ones this census must not read as the end of it. an INVOCATION host is the case
+// `invocationPairingAt` owns; a MEMBER read is the arm the position enumeration hands back to its
+// caller, and here it always can hand an invoker out - `f.call` / `f.apply` / `f.bind` invoke the
+// function, and `f.prototype.constructor` and an INSTANCE's `.constructor` ARE it. every other
+// position the enumeration calls CONSUMES is evaluated where it stands and unreachable
+// afterwards, so no call can be spelled through it. asked of a reference to the function and of
+// an object the function CONSTRUCTED alike - both carry the same identity onward
+const CALLER_REACHING_PARENT_TYPES = new Set([
+  'CallExpression',
+  'MemberExpression',
+  'NewExpression',
+  'OptionalCallExpression',
+  'OptionalMemberExpression',
+]);
+
+function valueIsDroppedAt(path) {
+  // the peel runs off the top of the tree, where there is no position left to dispose of the value
+  const outer = peelTransparentExprAncestorPath(path);
+  const parentPath = outer?.parentPath;
+  const parent = parentPath?.node;
+  if (!parent || CALLER_REACHING_PARENT_TYPES.has(parent.type)) return false;
+  return positionDisposition(parent, outer.node, parentPath) === POSITION_CONSUMES;
+}
 
 export function createPatternBindings({
   t,
@@ -772,15 +841,20 @@ export function createPatternBindings({
     return resolveTypeAnnotation(annotation, objInfo.scope);
   }
 
-  // an exported function escapes the module: external callers can pass any arg, so a defaulted
-  // param's default type is not authoritative. babel records the export as a reference (which bails
-  // the call-site scan below); the oxc program-index fallback drops the export-specifier slot, so
-  // detect the export form directly for cross-parser parity. covers declaration exports
-  // (`export function f` / `export default function f` / `export const f = () =>`, reached via the
-  // decl wrappers) AND a separate `export { f }` / `export default f` specifier elsewhere in the module
-  function isExportedFunction(fnPath, fnName) {
+  // does this function's NAME leave the file, so that callers this module cannot see may pass an
+  // arg? then a defaulted param's default type is not authoritative. two channels, one per host:
+  //
+  // an EXPORT. babel records the export as a reference (which bails the call-site scan below); the
+  // oxc program-index fallback drops the export-specifier slot, so detect the export form directly
+  // for cross-parser parity. covers declaration exports (`export function f` / `export default
+  // function f` / `export const f = () =>`, reached via the decl wrappers) AND a separate
+  // `export { f }` / `export default f` specifier elsewhere in the module.
+  // a sloppy host opens no second hole: it is a CommonJS wrapper, whose top level is a function
+  // body, so a declaration there keeps the narrow - `module.exports = f` is an assignment
+  // reference the call-site scan already refuses
+  function functionNameEscapesFile(fnPath, fnName) {
     let program = null;
-    for (let p = fnPath; p; p = p.parentPath) {
+    for (let p = fnPath.parentPath; p; p = p.parentPath) {
       const type = p.node?.type;
       if (type === 'ExportNamedDeclaration' || type === 'ExportDefaultDeclaration') return true;
       if (t.isProgram(p.node)) {
@@ -788,7 +862,8 @@ export function createPatternBindings({
         break;
       }
     }
-    if (!program || !fnName) return false;
+    if (!program) return false;
+    if (!fnName) return false;
     for (const stmt of program.node.body ?? []) {
       // a re-export (`export { f } from './x'`) carries a source and re-exports a DIFFERENT module's
       // binding, so it does not make THIS function escape - require no source
@@ -800,12 +875,59 @@ export function createPatternBindings({
     return false;
   }
 
+  // the invocation a reference to the function stands in, and the arguments that reach the
+  // parameters - or null where the reference is not invoked here. the SHAPES are the call canon's
+  // (a plain call, a `new`, a tagged template, `.call` / `.apply`, `Reflect.apply`, a `bind`
+  // invoked on the spot), so this climb owns only how far above a reference a receiver-invoker hop
+  // can sit: two, the member and the bind's own call. a transparent wrapper is not a hop - the
+  // canon peels those on both sides of the identity compare
+  function invocationPairingAt(refPath, scope, anchor) {
+    const shadowCheck = { nameIsShadowed: name => Boolean(getScopeBinding(scope, name, anchor)) };
+    for (let cur = refPath, hops = 0; hops <= 2; hops++) {
+      // the same peel answers nothing at the top of the tree, and no host there ends the hop climb
+      const host = peelTransparentExprAncestorPath(cur)?.parentPath;
+      if (!host?.node) return null;
+      const pairing = callPairing(host.node, null, shadowCheck);
+      // a `new` hands the function's own identity to every object it builds: `inst.constructor` IS
+      // the constructor, and reaching it that way spells no name for a census keyed on names to
+      // count - measured as a live in-file re-entry (`new this.constructor([1, 2])` inside a
+      // method) as well as an exported instance. so a construction accounts for its own arguments
+      // only while the object it makes is DROPPED where it stands; a HELD one carries the channel
+      // on, and following it is an instance closure this census is not
+      if (pairing && pairing.callee === refPath.node) {
+        return host.node.type === 'NewExpression' && !valueIsDroppedAt(host) ? null : pairing;
+      }
+      cur = host;
+    }
+    return null;
+  }
+
+  // does ONE invocation put a real value in the parameter's slot? a missing slot and an `undefined`
+  // / `void` argument both leave the default standing. the wrappers a source may spell around the
+  // argument (`(undefined)`, `undefined as any`, `undefined!`) leave the VALUE alone, and only one
+  // leg's parser keeps a paren as a node - reading the raw slot answers "a real arg" for the paren
+  // dialect and "the default" for the other on one source, and costs the narrow on both TS
+  // spellings. a spread at or before the slot can supply the param from the spread iterable, and an
+  // argument list the pairing could not decide says nothing about the slot - both count as an
+  // override, matching the arg->param spread guard in resolveDirectParam / paramHasOverridingArg
+  function invocationOverridesSlot(pairing, argIndex, scope) {
+    if (pairing.argsUnknown) return true;
+    const args = pairing.args ?? [];
+    const length = effectiveArgsLength(args);
+    if (length === null) return true;
+    const arg = argIndex < length ? resolveCallArgument(args, argIndex) : null;
+    if (!arg) return false;
+    const value = unwrapRuntimeExpr(arg);
+    if (isVoidExpression(value)) return false;
+    return !(isBareUndefinedIdentifier(value) && !getScopeBinding(scope, 'undefined'));
+  }
+
   // is `function f(x = default)` never called with a real overriding arg at this param's slot?
   // only then does the default's TYPE soundly describe the param at runtime (a foreign arg would
   // make a type-specific Maybe forward to a missing native method). scans the enclosing function's
   // call sites via the parser-agnostic enumerator: an `undefined` / `void` arg triggers the default
-  // (not an override), a missing arg is fine, but a real arg or a non-callee reference (the function
-  // escapes, so external calls are unknown) makes the default non-authoritative
+  // (not an override), a missing arg is fine, but a real arg or a caller-reaching reference (the
+  // function escapes, so external calls are unknown) makes the default non-authoritative
   function defaultParamNeverOverridden(bindingPath) {
     const fnPath = bindingPath.parentPath;
     if (!fnPath?.node || !t.isFunction(fnPath.node)) return false;
@@ -822,34 +944,43 @@ export function createPatternBindings({
     const sources = [];
     if (fnPath.node.id?.type === 'Identifier') sources.push({ name: fnPath.node.id.name, scope: fnPath.scope, anchor: fnPath });
     const declarator = fnPath.parentPath?.node;
-    if (declarator?.type === 'VariableDeclarator' && declarator.id?.type === 'Identifier') {
+    const declaresTheName = declarator.type === 'VariableDeclarator' && declarator.id.type === 'Identifier';
+    if (declaresTheName) {
       sources.push({ name: declarator.id.name, scope: fnPath.parentPath.scope, anchor: fnPath.parentPath });
     }
-    if (!sources.length) return false;
+    const viaClass = constructorCallerNames(fnPath);
+    if (viaClass) sources.push(...viaClass.sources);
+    // ... and the caller set must ACCOUNT for the outside, which the NFE internal name alone never
+    // does. two spellings do: an OUTER NAME the outside can write (a declaration's own id, a
+    // declarator's, the class of a constructor), or - for a function reached as a VALUE - the
+    // invocation standing at its own position. a literal occupies exactly ONE position, so an
+    // invocation there IS its whole external caller set, and the canon reads the arguments of that
+    // one the same way it reads a named call's: an IIFE, `.call` / `.apply` on the literal, a
+    // TAGGED TEMPLATE putting the strings array in slot 0. anywhere else the value is handed
+    // straight to whatever invokes it, with no name to scan and an empty recursion set that would
+    // read as "no caller". `arguments.callee` is not a third spelling: a parameter default makes
+    // the list non-simple, whose unmapped arguments object answers `callee` with the poison pill
+    const ownInvocation = invocationPairingAt(fnPath, fnPath.scope, fnPath);
+    const outerNamed = fnPath.node.type === 'FunctionDeclaration'
+      || declaresTheName || Boolean(viaClass?.outerNamed);
+    if (!outerNamed && !ownInvocation) return false;
+    if (ownInvocation && invocationOverridesSlot(ownInvocation, argIndex, fnPath.scope)) return false;
     for (const { name: fnName, scope, anchor } of sources) {
       const binding = getScopeBinding(scope, fnName, anchor);
       if (!binding || binding.constantViolations?.length) return false;
-      if (isExportedFunction(fnPath, fnName)) return false;
+      if (functionNameEscapesFile(fnPath, fnName)) return false;
       // a NULL reference set means the callers could not be enumerated, not that there are none;
       // treating unknown-references as proof-of-absence would let the default narrow the param over
       // a foreign-typed call arg (bias-unsafe) - bail rather than claim "never overridden"
       const refs = collectBindingReferences(binding, anchor);
       if (refs === null) return false;
       for (const ref of refs) {
-        const callNode = ref.parentPath?.node;
-        if ((callNode?.type !== 'CallExpression' && callNode?.type !== 'OptionalCallExpression')
-          || callNode.callee !== ref.node) return false;
-        // a spread at or before this slot can supply the param from the spread iterable, so the
-        // default may be overridden even when arguments[paramIndex] is absent - treat as overridden
-        // (the binding then resolves generic, not narrowed to the default's type). matches the
-        // arg->param spread guard in resolveDirectParam / paramHasOverridingArg
-        const length = effectiveArgsLength(callNode.arguments ?? []);
-        if (length === null) return false;
-        const arg = argIndex < length ? resolveCallArgument(callNode.arguments, argIndex) : null;
-        if (!arg) continue;
-        if (isVoidExpression(arg)) continue;
-        if (isBareUndefinedIdentifier(arg) && !getScopeBinding(ref.scope, 'undefined')) continue;
-        return false;
+        const pairing = invocationPairingAt(ref, ref.scope, ref);
+        if (!pairing) {
+          if (valueIsDroppedAt(ref)) continue;
+          return false;
+        }
+        if (invocationOverridesSlot(pairing, argIndex, ref.scope)) return false;
       }
     }
     return true;
@@ -1136,7 +1267,7 @@ export function createPatternBindings({
     if (!violations?.length) return resolveNodeType(bindingPath.get('init'));
     // loop back-edge: a reassignment inside an enclosing loop body re-runs before the next-iteration
     // use, so the declarator init no longer describes the receiver from iteration 2 - degrade to generic
-    if (bindingCrossesLoopBackEdge(t, path, binding)) return null;
+    if (bindingCrossesLoopBackEdge(path, binding)) return null;
     // a violation whose home runs at an UNKNOWN time (a captured function invoked before the use,
     // an instance class-field initializer) fires regardless of source position, so the positional
     // test below cannot see it. an IIFE body is NOT such a home - it lifts to a straight-line
@@ -1151,6 +1282,13 @@ export function createPatternBindings({
     // wider value set only reduces narrowing. a write this cannot decompose leaves the set open, and
     // an open set is exactly the unknown the caller had before
     if (usageRunsDeferred(path, binding.scope)) return deferredReadUnionType(binding, bindingPath, name, path);
+    // a write whose evaluation slot runs AHEAD of the use's own - a class computed key, computed when
+    // the class is defined and so before every static field and static block it hosts - sits PAST the
+    // use by position, so the test below reads it as "after" and keeps an init it has already replaced.
+    // this answer picks a helper FAMILY, not just a global to substitute: kept, the stale `[]` init
+    // keys an array-only helper to a receiver the key already made a string, which is a wrong VALUE
+    // on `usage-pure` (`[].includes.call('abc', 'ab')` is false where the string method is true)
+    if (anyWriteOutrunsUse(violations.map(v => v.node), path)) return null;
     const usagePos = path.node.start;
     if (usagePos !== undefined && violations.every(v => (v.node.start ?? -1) >= usagePos)) {
       return resolveNodeType(bindingPath.get('init'));

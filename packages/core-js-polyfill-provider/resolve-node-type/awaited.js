@@ -326,6 +326,7 @@ export function createAwaited({
       extendsAST: node.extendsType,
       resolveOne: ast => resolveAnnotationInContext({ node: ast, scope, depth: depth + 1, typeParamMap, seen }),
       isUnconstrained: isUnconstrainedTypeShape(node.extendsType, typeParamMap),
+      scope,
     });
   }
 

@@ -1,4 +1,5 @@
-// a VALUE-only usage of a UNIVERSAL namespace injects NOTHING: `JSON` exists on every
-// supported target and the (much younger) `@@toStringTag` is not the value's concern
+// a VALUE-only usage of a namespace: `globalThis.JSON` read for truthiness names the root and
+// injects `es.global-this` alone, while the bare `JSON` value carries no member to narrow on and
+// pulls the whole namespace family, `@@toStringTag` included
 export const supported = globalThis.JSON ? 'yes' : 'no';
 export const escaped = JSON;

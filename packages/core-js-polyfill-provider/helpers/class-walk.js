@@ -19,7 +19,6 @@ import {
   cleanDestructureAliasWrites,
   definitionTimeSlotOf,
   conditionalEvaluationEdge,
-  isDeclaratorSelfViolation,
   isDestructurePattern,
   isGuardedAliasingWrite,
   isMutatedGlobalSlot,
@@ -32,7 +31,7 @@ import {
   peelArrayWrapBindingLayers,
   peelChainAssignmentDeep,
   peelProxyGlobalObject,
-  peelZeroArgIifeReturn,
+  peelIifeReturnTarget,
   propertyKeyName,
   reachingReassignmentValueNode,
   reassignmentBlocksGlobalResolve,
@@ -40,7 +39,6 @@ import {
   unwrapRuntimeExpr,
   unwrapSafeSequenceTail,
   varInitDominatesUsage,
-  withoutValuelessDeclarationViolations,
   pureReturnBodyValue,
 } from './ast-patterns.js';
 // the proxy-global recogniser lives with the value canon it narrows ():
@@ -63,21 +61,6 @@ function unwrapInitForResolution(node) {
     const peeled = unwrapRuntimeExpr(peelChainAssignmentDeep(node));
     if (peeled?.type === 'SequenceExpression') node = peeled.expressions.at(-1);
     else return peeled;
-  }
-  return node;
-}
-
-// peel zero-arg IIFEs returning the target so an inline `(() => X)()` resolves like `X`, to a
-// fixpoint (a nested `(() => (() => X)())()` peels every layer), re-unwrapping between peels.
-// `node` must already be runtime-unwrapped. shared by the container and global resolvers and the
-// alias-init lookup so the wrapper resolves identically on every path into container / global
-// resolution (an inline extends-IIFE, one bound to a const alias, and any depth of nesting).
-// each peel consumes one IIFE layer off a finite AST, so the loop always terminates
-function peelIifeReturnTarget(node) {
-  while (node?.type === 'CallExpression' || node?.type === 'OptionalCallExpression') {
-    const ret = peelZeroArgIifeReturn(node);
-    if (!ret) break;
-    node = unwrapRuntimeExpr(ret);
   }
   return node;
 }
@@ -883,13 +866,10 @@ export function isSymbolDestructureAliasBinding({
   // guarded assignment) reads undefined on the untaken path - the registration refusal
   // poisoned ITS entry, but the positional name view still surfaces the outer one
   if (isGuardedAliasingWrite(binding)) return false;
-  // the loop-reinit declarator-self (a for-init const records its own per-iteration rebind as a
-  // violation on estree, a destructured one via the bound identifier INSIDE the pattern) is the
-  // declaration, not a write - exclude it via the shared canon or a for-init-hosted alias never
-  // judges clean while the block-hosted twin does (emitter desync). filter on the RAW violation
-  // entries: the valueless-redecl filter reads their paths, so mapping to nodes first blinds it
-  const writes = (withoutValuelessDeclarationViolations(binding.constantViolations) ?? [])
-    .filter(v => !isDeclaratorSelfViolation(v, declarator));
+  // the real writes through the shared canon: a for-init-hosted alias otherwise never judges clean
+  // while the block-hosted twin does (emitter desync), and a re-spelled filter here would count the
+  // records that are not writes - the loop-reinit declarator-self and an identity self-assign
+  const writes = cleanDestructureAliasWrites(binding);
   // babel exposes the bound identifier at `binding.identifier`; estree-toolkit at `binding.name`;
   // a synthetic var-hoist binding carries neither, so the caller passes the name explicitly
   const boundName = passedName ?? binding.identifier?.name ?? binding.name
@@ -1169,9 +1149,14 @@ export function findNamespaceMemberValue(container, propName, scope, adapter, re
 // - `resolveKey`: provider's key resolver, injected to avoid circular deps via helpers barrel
 // - `attachUnionExtras`: the usage-global union choke (`attachMemberUnionExtras`), injected for the
 //   same reason - a super-class alias with writes is a union producer like any member receiver
+// - `containerReceiverName`: the union's container axis (`staticContainerReceiverName`), injected
+//   beside the choke it feeds - `detect-usage/destructure.js` reads THIS file, so the import edge
+//   only goes one way and the walk reaches the extends clause as a parameter
 // - `getInjector`: lazy accessor for the per-file ImportInjector (factory may run before pre())
 // caches on the closure - call once per file
-export function createClassHelpers({ t, adapter, resolveKey, getInjector = null, attachUnionExtras = null }) {
+export function createClassHelpers({
+  t, adapter, resolveKey, getInjector = null, attachUnionExtras = null, containerReceiverName = null,
+}) {
   function isClassMember(node) {
     return t.isClassMethod(node) || t.isClassPrivateMethod(node)
       || t.isClassProperty(node) || t.isClassPrivateProperty(node) || t.isClassAccessorProperty(node);
@@ -1487,17 +1472,33 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null,
       superTypeCache.set(info.classNode, resolved);
       return resolved;
     });
-    // a base alias the class may have captured under ANOTHER value - a conditional or closure write
-    // the dominance proof cannot settle - unions its written constructors' statics beside the
-    // primary, exactly as a member read off such an alias does (usage-global over-inject-safe;
-    // the union choke leaves pure metas untouched). anchored at the class node, where `extends`
-    // captured the base
-    const superClass = meta && attachUnionExtras ? peelProxyGlobalObject(info.classNode.superClass) : null;
-    if (superClass?.type === 'Identifier') {
-      attachUnionExtras(meta, {
-        objectNode: superClass, computedKeyNode: null, primaryObject: meta.object, primaryKey: key,
-        scope: classScope, adapter, path: classAnchor ?? path,
+    // a base the class may have captured under ANOTHER value - a conditional or closure write the
+    // dominance proof cannot settle - unions its written constructors' statics beside the primary,
+    // exactly as a member read off the same slot does (usage-global over-inject-safe; the union
+    // choke leaves pure metas untouched). resolved in the class scope and anchored at the class
+    // node, where `extends` captured the base, and taking that base WHOLE in whatever shape it is
+    // spelled - a bare alias, a container hop (`ns.Base`), an array slot, an optional hop, an
+    // IIFE - because the axis asks what VALUE the clause captured, never how it was written. an
+    // Identifier-only gate read every hop as no base at all, so a class extending one lost the
+    // alternatives its member-read sibling (`ns.Base.from()`) enumerates off that very slot; the
+    // container leg of the axis is that sibling's own walk, run here with its union sink
+    const superClass = attachUnionExtras ? peelProxyGlobalObject(info.classNode.superClass) : null;
+    if (superClass) {
+      // an UNRESOLVED base still reaches every constructor written into its slot, and `super.X`
+      // dispatches whichever one ran - so the enumeration rides the typeless carrier the member
+      // producer's own null-object meta is. dropped again when nothing enumerates, so a base that
+      // names no value keeps injecting nothing, and pure keeps `null` throughout (the choke is
+      // usage-global-only, so its extras are always empty there)
+      const carrier = meta ?? { kind: 'property', object: null, key, placement: 'static', inheritedStatic: true };
+      const containerWalkObjects = [];
+      containerReceiverName?.({
+        node: superClass, scope: classScope, adapter, path: classAnchor ?? path, unionSink: containerWalkObjects,
       });
+      attachUnionExtras(carrier, {
+        objectNode: superClass, computedKeyNode: null, primaryObject: carrier.object, primaryKey: key,
+        scope: classScope, adapter, path: classAnchor ?? path, containerWalkObjects,
+      });
+      if (!meta) return carrier.extraCandidates?.length ? carrier : null;
     }
     return meta;
   }

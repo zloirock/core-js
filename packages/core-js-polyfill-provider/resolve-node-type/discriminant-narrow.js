@@ -25,12 +25,14 @@ import {
   cachedContainerPaths,
   SOURCE_ORDER_STATEMENT_HOST_TYPES,
   unwrapRuntimeExpr,
-  isIifeCallNode,
-  IIFE_CALL_CALLEE_WRAPPERS,
+  isDeferredContextStep,
+  readRunsDeferredWithin,
+  runsAtImmediateInvocation,
+  anyWriteOutrunsUse,
 } from '../helpers/ast-patterns.js';
 import { scopeNode, bindingLoopAnchor, bindingCrossesLoopBackEdge } from './straight-line-flow.js';
 import { nodeAlwaysHardExits } from './exit-analysis.js';
-import { isUnionType, loopReExecRegionHasViolation, violationInCapturedFunction } from './ast-shapes.js';
+import { hasRange, isUnionType, loopReExecRegionHasViolation, violationInCapturedFunction } from './ast-shapes.js';
 import { MAX_DEPTH } from './base.js';
 import { isLoopStatement } from '../destructure-host-shape.js';
 
@@ -232,7 +234,7 @@ export function createDiscriminantNarrow({
       if (writes) for (const write of writes) (write.writeKey === undefined ? violations : fieldWrites).push(write);
       else writesUnknown = true;
     }
-    return { rootName, objectBinding, violations, fieldWrites, writesUnknown, targetKey, objectStart: varPath.node?.start };
+    return { rootName, objectBinding, violations, fieldWrites, writesUnknown, targetKey, varPath, objectStart: varPath.node.start };
   }
 
   // the `<targetKey>.<field>` write-keys a guard's discriminant clauses test, so a field write only
@@ -299,13 +301,17 @@ export function createDiscriminantNarrow({
   // SHARED lookup, and only that answers alike on both parsers for a nested-block `var` - the
   // synthesized hoisted twin needs a path to anchor its search
   function discriminantGuardApplies(testPath, testNode, ctx, deferredUpper) {
-    const { rootName, objectBinding, targetKey, objectStart } = ctx;
+    const { rootName, objectBinding, targetKey, objectStart, varPath } = ctx;
     const scope = testPath?.scope;
     if (rootName !== 'this' && objectBinding
       && getScopeBinding(scope, rootName, testPath) !== objectBinding) return false;
     // a direct field write only flips THIS guard when the field is one of its discriminants
     const relevant = relevantGuardViolations(ctx, testNode, targetKey, scope);
-    if (objectBinding && violationInCapturedFunction(t, relevant, objectBinding.scope?.path)) return false;
+    if (objectBinding && violationInCapturedFunction(relevant, objectBinding.scope?.path)) return false;
+    // the intervals below are bounded ABOVE by the use, so a write whose slot runs ahead of the use's
+    // own - a class key or decorator, a case test a `default` body is reached through - lands past
+    // every one of them and drops out. it reaches the read all the same
+    if (varPath && anyWriteOutrunsUse(relevant.map(v => v.node), varPath)) return false;
     const testStart = testNode?.start;
     const testEnd = testNode?.end;
     if (testEnd === undefined || objectStart === undefined) return false;
@@ -419,15 +425,29 @@ export function createDiscriminantNarrow({
     if (current.listKey !== 'consequent') return;
     const switchStmt = switchCase.parentPath;
     if (!t.isSwitchStatement(switchStmt?.node)) return;
-    const fieldPath = matchTargetFieldPath(unwrapRuntimeExpr(switchStmt.node.discriminant), targetKey, switchStmt.scope);
+    // the discriminant is evaluated OUTSIDE the case block: a case-level lexical shadowing the root is
+    // not what it read, so both its key resolution and the binding-identity check anchor on the
+    // statement's parent
+    const outside = switchStmt.parentPath;
+    const fieldPath = matchTargetFieldPath(unwrapRuntimeExpr(switchStmt.node.discriminant), targetKey, outside.scope);
     if (fieldPath === null) return;
-    if (!discriminantGuardApplies(switchStmt, switchStmt.node.discriminant, ctx, deferredUpper)) return;
+    if (!discriminantGuardApplies(outside, switchStmt.node.discriminant, ctx, deferredUpper)) return;
     const { cases } = switchStmt.node;
     const { scope } = switchCase;
     const caseIndex = cases.indexOf(switchCase.node);
     if (caseIndex > 0 && canFallThrough(cases[caseIndex - 1])) return;
-    // default branch (`test === null`): narrow by excluding every explicit case value
+    // default branch (`test === null`): narrow by excluding every explicit case value. it is reached
+    // only once EVERY case test has been evaluated and none matched, so the tests written AFTER it run
+    // before this body - and their spans sit past the use, where the positional interval above cannot
+    // look. a discriminant write in any of them drops the guards; a test with no source span could
+    // stand anywhere, so it drops them too
     if (switchCase.node.test === null) {
+      const tests = cases.map($case => $case.test).filter(Boolean);
+      // `hasRange`, not an own `undefined` check: the question "does this node carry a span" has one
+      // canonical answer, and a site that re-spells it drifts from the canon the moment either parser
+      // changes how it marks the absence - here into collapsing the interval to [0, 0], which lets
+      // the guards survive the very write they were meant to drop
+      if (tests.some(test => !hasRange(test))) return;
       for (const $case of cases) {
         const value = resolveLiteralOrComputed($case.test, scope);
         if (value !== null) out.push({ fieldPath, value, positive: false });
@@ -438,22 +458,26 @@ export function createDiscriminantNarrow({
     if (value !== null) out.push({ fieldPath, value, positive: true });
   }
 
-  // walk up collecting `<path>.kind === 'a'` / `!==` guards from enclosing if / ternary / `&&`,
-  // plus preceding early-exit siblings. `targetKey` covers arbitrary LHS shapes
-  // (Identifier / `this.x` / `obj.a.b`). binding-identity + mutation checks (via `ctx`)
-  // reject inner-shadow leakage and stale narrowing across reassignments
-  // the deferred-execution upper bound for a use inside `funcPath`. an IIFE / immediately-invoked function
-  // runs SYNCHRONOUSLY at its call, so a discriminant write AFTER the call cannot reach the (already-run) use
-  // - the bound is the call's end, not unbounded. a function bound to a name / passed / returned could be
-  // invoked after ANY later write, so it stays unbounded (a write before that invocation drops the narrow)
-  function functionDeferredBound(funcPath) {
-    let p = funcPath;
-    while (p.parentPath && IIFE_CALL_CALLEE_WRAPPERS.has(p.parentPath.node.type)) p = p.parentPath;
-    const call = p.parentPath?.node;
-    if (isIifeCallNode(call) && call.callee === p.node && typeof call.end === 'number') return call.end;
-    return Number.MAX_SAFE_INTEGER;
+  // the deferred-execution upper bound a deferred context puts on a use inside it. a body that RUNS at
+  // its immediate invocation runs at that position, so a discriminant write AFTER the call cannot reach
+  // the (already-run) use - the bound is the call's end. a function bound to a name / passed / returned
+  // could be invoked after ANY later write, an async or generator body runs after the call returns, and
+  // an instance field initializer runs at `new`-time: all unbounded
+  function deferredStepBound(contextPath) {
+    const call = runsAtImmediateInvocation(contextPath);
+    return typeof call?.node.end === 'number' ? call.node.end : Number.MAX_SAFE_INTEGER;
   }
 
+  // every discriminant guard that reaches this use, collected by walking OUT: an enclosing if or
+  // ternary arm, the right side of a `&&` (the condition holds positively) or an `||` (negatively),
+  // a `switch` case, and a preceding sibling that exits early. `targetKey` names the guarded LHS in
+  // any shape - an Identifier, `this.x`, `obj.a.b` - and the identity and mutation checks the
+  // context carries reject an inner shadow and a narrow gone stale across a reassignment.
+  // TWO answers are wholesale rather than per-guard: a writer set that cannot be enumerated leaves
+  // none of them trustworthy, and walking out past a loop whose body reassigns the binding drops
+  // every guard above it. And the mutation-check interval is not the use's own position - crossing a
+  // loop or a function CONTAINING the use grows it to that region, so a write standing textually
+  // BELOW the use still drops a guard above it
   function findDiscriminantGuards(varPath, targetKey) {
     const guards = [];
     const ctx = buildDiscriminantContext(varPath, targetKey);
@@ -462,7 +486,7 @@ export function createDiscriminantNarrow({
     if (ctx.writesUnknown) return guards;
     const anchor = ctx.objectBinding ? bindingLoopAnchor(ctx.objectBinding) : null;
     const violationNodes = ctx.violations.map(v => v.node);
-    // once we walk out past a back-edge loop whose body reassigns the binding, every guard above
+    // beyond a back-edge loop whose body reassigns the binding, every guard above
     // it is outside the loop and cannot re-narrow per iteration - drop it (mirror narrow-by-guards)
     let crossedBackEdgeLoop = false;
     // upper bound for the guard mutation-check interval; grows past the use as the walk crosses a loop /
@@ -475,16 +499,13 @@ export function createDiscriminantNarrow({
         && loopReExecRegionHasViolation(parent.node, violationNodes, anchor)) {
         crossedBackEdgeLoop = true;
       }
-      // function boundary: guards above this point fire at call-evaluation time, but
-      // the use inside the function runs at invocation time; for rebindable bindings any
-      // outer-scope reassignment between those moments invalidates narrowing. mirrors the
-      // typeof-side stop in `findEnclosingTypeGuards`. const bindings stay closure-stable
-      if (t.isFunction(parent.node) && ctx.violations.length) break;
-      // a discriminant FIELD write (no identity reassignment) is not caught by the gates above - extend the
-      // deferred region instead: a loop body re-runs to its end; a function body defers to invocation (any
-      // later write matters), so the bound becomes unbounded
+      // guards above a deferred boundary fire at class-eval / call-evaluation time, but the use inside
+      // runs at invocation / construction time, after any textually later write: the mutation-check
+      // interval of every guard above grows to cover that region - a loop body re-runs to its end; a
+      // deferred context defers to invocation / construction (any later write matters, identity and
+      // field alike) unless it is a body run at its immediate invocation, which runs at the call
       if (isLoopStatement(parent.node) && typeof parent.node.end === 'number') deferredUpper = Math.max(deferredUpper, parent.node.end);
-      else if (t.isFunction(parent.node)) deferredUpper = Math.max(deferredUpper, functionDeferredBound(parent));
+      else if (isDeferredContextStep(parent.node, current)) deferredUpper = Math.max(deferredUpper, deferredStepBound(parent));
       if (crossedBackEdgeLoop) continue;
       let test;
       let conditionTrue;
@@ -547,18 +568,15 @@ export function createDiscriminantNarrow({
     ]);
   }
 
-  // scan preceding ExpressionStatement siblings within a block-child parent, returning the
-  // path of the first AssignmentExpression that re-binds `targetName`. ObjectPattern
-  // destructure-assignment is only parseable as `({...} = R)` - the parens become an AST node
-  // in oxc-parser (ESTree preserves ParenthesizedExpression), unwrap so the AssignmentExpression
-  // is reachable. babel strips parens at parse, so the unwrap is a no-op there.
-  // when a candidate hit is found, validate no intermediate sibling reassigns the binding
-  // (`f = X; if (cond) f = Y; f.use()`): the intermediate `if-f=Y` may have rebound `f` to a
-  // different shape, so the candidate's RHS no longer represents the value at the use site.
-  // bail to null so the caller falls back to the declared type. without this, narrowing
-  // unsoundly picks the FIRST preceding match and ignores conditional shadowing
-  // unwrap an ExpressionStatement sibling to its assignment path when it binds `targetName`
-  function statementAssignmentPath(sibPath, targetName) {
+  // unwrap an ExpressionStatement sibling to its assignment path when it binds `targetName`.
+  // ObjectPattern destructure-assignment is only parseable as `({...} = R)` - the parens become an
+  // AST node in oxc-parser (ESTree preserves ParenthesizedExpression), unwrap so the
+  // AssignmentExpression is reachable; babel strips parens at parse, so the unwrap is a no-op there.
+  // the name alone is not the binding: the fall-through descent below enters a nested block, where a
+  // same-named declaration shadows the one asked about (`if (ok) { let d = 'x'; d = f(d); } else throw 0;`)
+  // - the assignment must resolve to THAT binding where it stands, the identity compare every guard lane
+  // applies
+  function statementAssignmentPath(sibPath, targetName, binding) {
     if (sibPath?.node?.type !== 'ExpressionStatement') return null;
     let expr = sibPath.node.expression;
     let exprPath = sibPath.get('expression');
@@ -566,7 +584,8 @@ export function createDiscriminantNarrow({
       expr = expr.expression;
       exprPath = exprPath.get('expression');
     }
-    return assignmentBindsTarget(expr, targetName, sibPath.scope) ? exprPath : null;
+    if (!assignmentBindsTarget(expr, targetName, sibPath.scope)) return null;
+    return !binding || getScopeBinding(sibPath.scope, targetName, sibPath) === binding ? exprPath : null;
   }
 
   // a preceding IF whose one branch unconditionally HARD-exits (return / throw) is
@@ -585,24 +604,31 @@ export function createDiscriminantNarrow({
     return null;
   }
 
-  function scanStatementsForAssignment(stmtPaths, targetName, depth) {
+  function scanStatementsForAssignment(stmtPaths, targetName, binding, depth) {
     if (depth > MAX_DEPTH) return null;
     for (let i = stmtPaths.length - 1; i >= 0; i--) {
       const sib = stmtPaths[i];
-      const direct = statementAssignmentPath(sib, targetName);
+      const direct = statementAssignmentPath(sib, targetName, binding);
       if (direct) return direct;
       const branch = sib?.node ? fallThroughBranchPath(sib) : null;
       if (branch) {
         const inner = branch.node.type === 'BlockStatement' ? cachedContainerPaths(branch, 'body') : [branch];
-        const hit = scanStatementsForAssignment(inner, targetName, depth + 1);
+        const hit = scanStatementsForAssignment(inner, targetName, binding, depth + 1);
         if (hit) return hit;
       }
     }
     return null;
   }
 
+  // scan preceding ExpressionStatement siblings within a block-child parent, returning the
+  // path of the first AssignmentExpression that re-binds `targetName`. when a candidate hit is
+  // found, validate no intermediate sibling reassigns the binding (`f = X; if (cond) f = Y;
+  // f.use()`): the intermediate `if-f=Y` may have rebound `f` to a different shape, so the
+  // candidate's RHS no longer represents the value at the use site. bail to null so the caller
+  // falls back to the declared type. without this, narrowing unsoundly picks the FIRST preceding
+  // match and ignores conditional shadowing
   function findPrecedingSiblingAssignment({ parent, currentKey, targetName, binding, varPath }) {
-    const hit = scanStatementsForAssignment(cachedContainerPaths(parent, 'body').slice(0, currentKey), targetName, 0);
+    const hit = scanStatementsForAssignment(cachedContainerPaths(parent, 'body').slice(0, currentKey), targetName, binding, 0);
     if (!hit) return null;
     if (hasReassignmentBetween(binding, hit.parentPath.node.end ?? hit.node.end, varPath.node?.start)) return null;
     return hit;
@@ -635,19 +661,22 @@ export function createDiscriminantNarrow({
     if (!binding.constantViolations?.length) return null;
     // a captured-function reassignment can run between the preceding assignment and the use, so the
     // assignment-literal narrow is not safe to keep - mirror discriminantGuardApplies / narrow-by-guards
-    if (violationInCapturedFunction(t, binding.constantViolations, binding.scope?.path)) return null;
+    if (violationInCapturedFunction(binding.constantViolations, binding.scope.path)) return null;
+    // the same evaluation-order rule the straight-line lane applies: a write in a slot that runs
+    // ahead of the use's own is not ranked by the sibling walk below either
+    if (anyWriteOutrunsUse(binding.constantViolations.map(v => v.node), varPath)) return null;
     const targetName = bindingTargetName(binding, varPath);
     if (!targetName) return null;
+    const limit = scopeNode(binding.scope);
+    // the READ side of the same rule: a use in a deferred context below the binding's scope - a
+    // closure invoked after later outer reassignments, an instance field initializer run at `new`-time -
+    // is not preceded by anything positionally; a body run at its immediate invocation is
+    if (readRunsDeferredWithin(varPath, limit)) return null;
     // loop back-edge: an assignment in an enclosing block OUTSIDE the loop is stale from iteration 2
     // once the loop body reassigns the binding on the back-edge - degrade to generic
-    if (bindingCrossesLoopBackEdge(t, varPath, binding)) return null;
-    const limit = scopeNode(binding.scope);
+    if (bindingCrossesLoopBackEdge(varPath, binding)) return null;
     for (let current = varPath; current?.parentPath; current = current.parentPath) {
       const parent = current.parentPath;
-      // function boundary: preceding sibling in an outer block is not guaranteed to
-      // run before a closure-captured use - the closure may invoke after later outer
-      // reassignments. binding rebindable was already gated above
-      if (t.isFunction(parent.node)) return null;
       if (isBlockChildPath(parent, current)) {
         const hit = findPrecedingSiblingAssignment({ parent, currentKey: current.key, targetName, binding, varPath });
         if (hit) return hit;

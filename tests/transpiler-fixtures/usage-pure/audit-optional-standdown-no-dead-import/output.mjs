@@ -1,8 +1,8 @@
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Map from "@core-js/pure/actual/map/constructor";
-import _Promise from "@core-js/pure/actual/promise/constructor";
-import _Set from "@core-js/pure/actual/set/constructor";
-import _WeakMap from "@core-js/pure/actual/weak-map/constructor";
+import _Map from "@core-js/pure/actual/map";
+import _Promise from "@core-js/pure/actual/promise";
+import _Set from "@core-js/pure/actual/set";
+import _WeakMap from "@core-js/pure/actual/weak-map";
 // A static claim over a PROVEN proxy-global root (a literal or a bare-global alias) shares one
 // source of undefined - the window hop - so a single test expresses the union and the claim
 // emits guarded (`null == root.window ? void 0 : <claim>`), the ponyfillable `self` hop

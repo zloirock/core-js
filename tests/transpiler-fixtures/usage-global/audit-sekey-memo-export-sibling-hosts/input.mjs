@@ -1,10 +1,11 @@
 // usage-global twin of the pure SE-key memo hosts (export + live default, sibling declarators,
 // exported flatten with a later-declarator memo, SE-bearing computed-member receiver beside a
 // flatten sibling): the global method never rewrites these destructures, so the lock here is the
-// import set alone - one method family per line so no line masks another's regression
-var bag = { A: Array };
+// import set alone - one method family per line, and the SE-key row reads a carrier of a DIFFERENT
+// family than its neighbours, or the family it pulls whole would answer for every line at once
+var bag = { A: Map };
 var e = 0;
-const { from: m1 } = bag[(e++, 'A')], { Array: { of: of1 } } = globalThis;
+const { groupBy: m1 } = bag[(e++, 'A')], { Array: { of: of1 } } = globalThis;
 console.log(m1, of1, e);
 export const { [(se1(), 'with')]: w = dflt(), [(se2(), 'toSpliced')]: t } = [9];
 let k = 0;
