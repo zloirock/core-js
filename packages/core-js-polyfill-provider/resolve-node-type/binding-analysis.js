@@ -33,6 +33,8 @@ import { PRIMITIVES } from './base.js';
 import {
   POSSIBLE_GLOBAL_OBJECTS,
   TS_EXPR_WRAPPERS,
+  annexBHoistOutrunsBinding,
+  bindingHasOpaqueAccess,
   isBindingDeclarationPath,
   isForXStatement,
   isMemberAccessNode,
@@ -42,6 +44,7 @@ import {
   prototypeValueMayDispatch,
   isMemberWriteHost,
   isNonReferencePosition,
+  jsxIdentifierReferencesBinding,
   isTSTypeOnlyIdentifierPath,
   memberReadKeyName,
   patternSlotHost,
@@ -379,6 +382,14 @@ export function createBindingAnalysis({
           if (isNonReferencePosition(p.parent, p.node)) return;
           referenceIdentifierPaths.push(p);
         },
+        // a JSX tag name is a runtime reference too: the element hands the component to a renderer
+        // that calls it with props, which is a CALLER the file does not otherwise spell. babel's
+        // `referencePaths` carries these, and a census without the visitor answered an EMPTY set -
+        // read as "no callers", which is the one wrong answer every consumer here is unsound on
+        JSXIdentifier(p) {
+          if (!jsxIdentifierReferencesBinding(p.node, p.parent)) return;
+          referenceIdentifierPaths.push(p);
+        },
         NewExpression(p) {
           const callee = unwrapRuntimeExpr(p.node.callee);
           if (!callee || callee.type !== 'Identifier') return;
@@ -415,11 +426,33 @@ export function createBindingAnalysis({
     });
   }
 
+  // a JSXIdentifier babel's reference walker reports that the tag-name canon does not: babel keeps
+  // any non-lowercase JSXIdentifier outside an attribute name / member tail, which admits BOTH
+  // halves of a namespaced name - a slot that lowers to a string and names no binding. filtering
+  // here is what makes the two legs answer one rule; a set with no JSX in it is handed back as is
+  function overReportedJsxReference(path) {
+    return path.node?.type === 'JSXIdentifier' && !jsxIdentifierReferencesBinding(path.node, path.parent);
+  }
+
   // collect every reference path of `binding` (excluding the declarator id slot). babel
   // exposes the canonical `binding.referencePaths`; estree-toolkit doesn't - fall back to
-  // the shared per-program index. null result signals "couldn't enumerate" (no program path)
+  // the shared per-program index. null result signals "couldn't enumerate" - no program path, or a
+  // set neither tracker holds whole
   function collectBindingReferences(binding, anchorPath) {
-    if (Array.isArray(binding.referencePaths)) return binding.referencePaths;
+    // an Annex-B hoisted block `function` is reachable outside the block both trackers scope it to,
+    // and neither records those uses here - the set they hold is a subset, so the answer is
+    // "not enumerable" rather than the shorter list
+    if (annexBHoistOutrunsBinding(binding.path)) return null;
+    // and neither does a direct `eval` or a `with` head: the first reads and writes the name from a
+    // string, the second answers a body read off its object, so the reference set is a subset there
+    // too - and this walker's consumers read emptiness as "nothing escapes", the reading that turns
+    // a leaked container back into a narrowed one
+    if (bindingHasOpaqueAccess(binding)) return null;
+    const { referencePaths } = binding;
+    if (Array.isArray(referencePaths)) {
+      return referencePaths.some(overReportedJsxReference)
+        ? referencePaths.filter(p => !overReportedJsxReference(p)) : referencePaths;
+    }
     const program = findProgramPath(anchorPath);
     if (!program) return null;
     return buildProgramIndex(program).identifierByBinding.get(binding) ?? [];

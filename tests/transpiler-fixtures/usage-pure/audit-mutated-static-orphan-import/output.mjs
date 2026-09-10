@@ -1,12 +1,12 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-import _Map$groupBy from "@core-js/pure/actual/map/group-by";
+import _Map from "@core-js/pure/actual/map";
 // a user-mutated static routes every surface through the injected CONSTRUCTOR (patch-wins).
 // the static's own import LOOKS binding-unused, but it is LOAD-BEARING: the pure module
 // attaches the method to the pure constructor on load, and the ctor-routed read depends on
 // it (a conditional user patch would otherwise read undefined) - it must STAY. a LIVE
 // static keeps its import as ever
-HeldMap.groupBy = patched;
-export const viaMutatedStatic = HeldMap.groupBy([], f);
+_Map.groupBy = patched;
+export const viaMutatedStatic = _Map.groupBy([], f);
 export const viaLiveStatic = _Array$from([1]);
 
 // the same patch spelled through a HELD pure ctor import (the shape a SECOND plugin pass

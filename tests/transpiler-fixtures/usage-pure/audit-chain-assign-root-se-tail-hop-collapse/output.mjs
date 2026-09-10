@@ -1,5 +1,5 @@
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Reflect from "@core-js/pure/actual/reflect/namespace";
+import _Reflect from "@core-js/pure/actual/reflect";
 import _self from "@core-js/pure/actual/self";
 let a, b;
 

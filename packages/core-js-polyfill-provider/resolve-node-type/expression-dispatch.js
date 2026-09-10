@@ -42,6 +42,7 @@ export function createExpressionDispatch({
   resolveCallReturnType,
   typeFromHint,
   resolveArrayLiteralCommonType,
+  elementContainerType,
   resolveThisAnchor,
   computeObjectAliasClosure,
   thisAnchorIsProvable,
@@ -319,8 +320,15 @@ export function createExpressionDispatch({
         // prototype is not resolved here (it can be any expression) - the receiver stays unknown,
         // which keeps the typeless dispatch and is over-inject-safe
         return objectDispatchesForeignPrototype(path) ? null : new $Object('Object');
-      case 'ArrayExpression':
-        return new $Object('Array', resolveArrayLiteralCommonType(path));
+      case 'ArrayExpression': {
+        // an EMPTY literal constrains no element, exactly as the bare `Array` shorthand does.
+        // Elements that WERE written and did not fold to one type leave the same hole, and left
+        // unconfessed two of them compare EQUAL - `[1, 'x']` and `[true, 1]` answered TRUE where
+        // tsc weighs the element types and says FALSE
+        const elements = resolveArrayLiteralCommonType(path);
+        if (!elements && !path.node.elements.length) return new $Object('Array');
+        return elementContainerType(new $Object('Array'), null, elements);
+      }
       case 'FunctionExpression':
       case 'ArrowFunctionExpression':
       case 'FunctionDeclaration':

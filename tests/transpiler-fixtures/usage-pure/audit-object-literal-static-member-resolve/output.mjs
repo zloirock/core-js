@@ -1,11 +1,15 @@
-import _Iterator from "@core-js/pure/actual/iterator/constructor";
+import _Iterator from "@core-js/pure/actual/iterator";
 import _Iterator$from from "@core-js/pure/actual/iterator/from";
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
 import _Promise$allSettled from "@core-js/pure/actual/promise/all-settled";
 import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Set from "@core-js/pure/actual/set";
 // an object literal is a name-indexable static container: a nested destructure off one of its keys
-// resolves the LAST matching member's value, through the same canonical resolver a class body uses
+// resolves the LAST matching member's value, through the same canonical resolver a class body uses.
+// where a slot this pass cannot NAME bails that pairing - a computed key it cannot fold, a spread
+// that may redefine one, an accessor - the read still happens, off the binding pure substituted into
+// the named slot: there the entry has to carry the STATICS, because the bare `<x>/constructor`
+// installs none and the read answers `undefined` on the floor this build targets
 
 // a computed static-string key overrides an earlier plain key (last-wins sees through it)
 const withComputed = {

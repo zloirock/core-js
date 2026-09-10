@@ -1,14 +1,13 @@
 import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
-import _at from "@core-js/pure/actual/instance/at";
+import _atMaybeString from "@core-js/pure/actual/string/instance/at";
 var _ref, _ref2;
-// TS overload selection is FIRST-MATCH: an earlier arm with a non-analyzable param
-// (`unknown`) may be the TS-selected one, so a later keyword arm must not single-select -
-// the divergent set widens to generic instead of the later arm's Maybe (ie:11 on the
-// string the first arm returns)
+// TS overload selection is FIRST-MATCH: an earlier arm with a top-typed param (`unknown`) accepts
+// every argument, so it IS the selected one and the later keyword arm never wins - the call resolves
+// to the first arm's string, never to the later arm's Maybe (ie:11 on that string)
 declare function parse(input: unknown): string;
 declare function parse(input: string): number[];
 declare const s: string;
-export const viaSubsumed = _at(_ref = parse(s)).call(_ref, 0);
+export const viaSubsumed = _atMaybeString(_ref = parse(s)).call(_ref, 0);
 
 // a provably non-matching literal first arm (different primitive family) still lets the
 // second arm select precisely

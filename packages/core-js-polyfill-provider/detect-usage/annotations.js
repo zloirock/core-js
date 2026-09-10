@@ -9,8 +9,17 @@
 //     OR the optional call wrapping it (`Array.from?.(...)`); a call unwraps to its callee
 import {
   getSuperTypeArgs,
-  importBindingIsTypeOnly, inferTypeParameterNames, isMutatedStaticMeta, isTypeAnnotationNodeType, memberKeyName,
-  POSSIBLE_GLOBAL_OBJECTS, TRANSPARENT_EXPR_WRAPPER_TYPES, TYPE_REFERENCE_SLOTS, typeParameterInScope, unwrapRuntimeExpr,
+  importBindingIsTypeOnly,
+  inferTypeParameterNames,
+  isMutatedStaticMeta,
+  isTypeAnnotationNodeType,
+  memberKeyName,
+  typeDeclarationUnreferencedInFile,
+  POSSIBLE_GLOBAL_OBJECTS,
+  TRANSPARENT_EXPR_WRAPPER_TYPES,
+  TYPE_REFERENCE_SLOTS,
+  typeParameterInScope,
+  unwrapRuntimeExpr,
 } from '../helpers/ast-patterns.js';
 import {
   globalProxyMemberName,
@@ -28,7 +37,7 @@ import {
 
 // the type-space node census lives with the AST canon (the type-only identifier rule reads it
 // there); this module keeps the annotation walks and re-exports the predicate for its consumers
-export { isTypeAnnotationNodeType };
+export { isTypeAnnotationNodeType, typeDeclarationUnreferencedInFile };
 
 // a TYPE position and a VALUE position ask different shadow questions of the same name, and
 // `adapter.hasBinding` answers the value one: it deliberately ignores a type-only import because

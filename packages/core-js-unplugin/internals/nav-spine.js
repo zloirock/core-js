@@ -3,7 +3,6 @@
 import {
   foldableRealmHop,
   inlineCallProxyGlobalRoot,
-  navHasUnresolvableProxyHop,
   planProvenNavGuardCollapse,
   proxyGlobalRootName,
   proxyHopLacksPureEntry,
@@ -19,6 +18,7 @@ import {
   isDestructurePattern,
   isMutatedGlobalSlot,
   nodeHoldsChild,
+  inCallerCorrectFallbackSlot,
   isPristineProxyGlobal,
   mayHaveSideEffects,
   memberProxyHopName,
@@ -32,7 +32,6 @@ import {
   computedKeyStaticName,
   staticMemberKeyName,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
-  TS_EXPR_WRAPPERS,
   unwrapRuntimeExpr,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { walkAstNodes } from './plugin-helpers.js';
@@ -68,10 +67,6 @@ export function cloneSpinePeeled(node, inCallee = false) {
   return cloneNode(cur ?? node);
 }
 
-// an INSTANCE dispatch riding the absorbed tail (`....Set.name` -> `_nameMaybeFunction(_Set)`)
-// memoizes the probe - babel's instance route always does, even when the alternate never reads the
-// ref; a static tail keeps the plain spelling. a SEQ-prefixed computed key folds to its literal
-// tail, and the dispatch above reads the same slot either way
 // the nested-guard VALUE spelling: a nav whose unresolvable hop sits BELOW the collapse point
 // (`(se(), globalThis).window.self` -> `null == (se(), _globalThis).window ? void 0 : _self`).
 // WHICH form a kept store takes is the plan's verdict (`valueFormSpells`), read here as the other
@@ -125,10 +120,17 @@ export function emitNestedGuardNavValue(metaPath, node, {
 
 // a kept-tail hop's respelling: dotted for a plain name, a computed SE-carrying key for
 // the seq-keyed spelling - the one member shape every tail consumer spells
-export function respellKeptHop(spelling, { keyName, keySe }) {
-  return keySe.length
-    ? memberExpression(spelling,
-      sequenceExpression([...keySe.map(expr => cloneNode(expr)), literal(keyName)]), { computed: true })
+// a QUIET computed key the canon could name is kept as the source spelled it: the hop itself
+// survives the collapse, so re-spelling its key dotted rewrites a read the transform does not
+// otherwise touch - and the same source, rooted at a bare proxy global, keeps its brackets on
+// both legs. the guard render's own kept-hop respell above already spells it that way
+export function respellKeptHop(spelling, { keyName, keySe, keyNode = null }) {
+  if (keySe.length) {
+    return memberExpression(spelling,
+      sequenceExpression([...keySe.map(expr => cloneNode(expr)), literal(keyName)]), { computed: true });
+  }
+  return keyNode
+    ? memberExpression(spelling, cloneNode(keyNode), { computed: true })
     : memberFromKeyName(spelling, keyName);
 }
 
@@ -164,8 +166,19 @@ export function foldTailPristineProxyHops(node, ctx) {
       seq = tail;
       continue;
     }
-    const peeled = peelPristineProxyHops(tail, ctx);
-    if (peeled === tail) return;
+    // a kept WRITE at the tail hands its own value on: what every reader of the sequence sees is the
+    // stored nav, so the fold reads THROUGH the write and lands in its VALUE slot - the write keeps
+    // its target and its place. read as an opaque tail instead, the store spelled the always-defined
+    // ponyfill while the guard beside it still tested the probe, and the user's variable then held
+    // the realm object on the very branch that guard calls absent
+    const write = tail?.type === 'AssignmentExpression' && tail.operator === '=' ? tail : null;
+    const navNode = write ? unwrapRuntimeExpr(write.right) : tail;
+    function land(value) {
+      if (write) write.right = value;
+      else seq.expressions[seq.expressions.length - 1] = value;
+    }
+    const peeled = peelPristineProxyHops(navNode, ctx);
+    if (peeled === navNode) return;
     // the ROOT proof is binding-aware, never the file census alone: a shadowed realm name
     // (`function f(self)`) holds the user's object, and the hop peel above is name-blind - an
     // unproven root leaves the tail exactly as written. THE canon (`proxyGlobalRootName`) answers
@@ -178,22 +191,29 @@ export function foldTailPristineProxyHops(node, ctx) {
       return POSSIBLE_GLOBAL_OBJECTS.has(base.name) ? 'direct' : 'alias';
     }
     const wholeKind = realmRootKind(peeled);
-    const probeStop = !wholeKind && unbackedProxyHopKey(peeled, meta => ctx.resolveGlobalPolyfill(meta.name))
+    // ... and no hop earns a guard inside a caller-correct FALLBACK SLOT: the slot fires only when
+    // nothing was passed, so it keeps the always-defined literal rather than reproducing the absent
+    // host's throw. the shared rule, asked here too - the plain nav a kept write stores is the same
+    // nav the plan folds whole there
+    const probeStop = !wholeKind && !inCallerCorrectFallbackSlot(ctx.aliasCtx?.path)
+      && unbackedProxyHopKey(peeled, meta => ctx.resolveGlobalPolyfill(meta.name))
       && !!realmRootKind(peelPristineProxyHops(unwrapRuntimeExpr(peeled.object), ctx));
-    if (wholeKind === 'direct') seq.expressions[seq.expressions.length - 1] = mintPonyfill(tail.property.name);
-    else if (probeStop) {
-      seq.expressions[seq.expressions.length - 1] =
-        renderShortCircuitGuard(nullFirstGuardTest(peeled), mintPonyfill(tail.property.name));
-    } else if (wholeKind === 'alias') {
+    if (wholeKind === 'direct') land(mintPonyfill(navNode.property.name));
+    else if (probeStop) land(renderShortCircuitGuard(nullFirstGuardTest(peeled), mintPonyfill(navNode.property.name)));
+    else if (wholeKind === 'alias') {
       // every caller hands a VALUE slot (a guard test, a memo), where the alias root's kept
       // value folds to the leaf ponyfill like the direct twin; a NAV-position claimless fold
       // keeps the alias, but that render never routes here
-      seq.expressions[seq.expressions.length - 1] = mintPonyfill(tail.property.name);
+      land(mintPonyfill(navNode.property.name));
     }
     return;
   }
 }
 
+// an INSTANCE dispatch riding the absorbed tail (`....Set.name` -> `_nameMaybeFunction(_Set)`)
+// memoizes the probe - babel's instance route always does, even when the alternate never reads the
+// ref; a static tail keeps the plain spelling. a SEQ-prefixed computed key folds to its literal
+// tail, and the dispatch above reads the same slot either way
 export function instanceTailMemoTest(test, metaPath, node, ctx) {
   const aboveNode = metaPath.parentPath?.node;
   const aboveKey = aboveNode?.type === 'MemberExpression' && aboveNode.object === node
@@ -356,8 +376,6 @@ export function climbToCallerPath(metaPath) {
   return peelParenAndTSParentPath(metaPath, SKIPPABLE_WRAPPER_TYPES);
 }
 
-// an optional hop anywhere INSIDE a receiver: the arms that cannot consume it stay staged,
-// the split and the guard helpers use it to route the `?.`-aware spellings
 // does every `?.` in this receiver live under a SEAL? the chain walk stops at a paren / TS
 // wrapper, so an optional below one is invisible to the read the member performs - that read is
 // plain, and the dispatch may take the receiver whole with the seal's own guard inside it
@@ -373,12 +391,6 @@ export function optionalsAreSealed(receiver) {
   }
 }
 
-// finish a hop rewrite: climb the plain tail a guard absorbs, consume the chain wrapper
-// the rewrite's own optionality replaced, land the (possibly guarded) emission, and mark
-// the detached original spine off the traversal queue.
-// under a guard the plain tail hops above ride inside the alternate (`a?.b.at(0).c.d`
-// keeps `.c.d` on the non-null branch - babel's shape); the climb stops at the next `?.`
-// hop, which keeps its own short-circuit over the emitted ternary
 // is this member a WRITE TARGET - an assignment / update / for-x LHS, or a slot inside a
 // destructuring pattern? a write addresses the slot on the surface the source named, so the
 // proxy collapse below it keeps the nav's own VALUE (`globalThis.self.x = 1` -> `_self.x`);
@@ -392,9 +404,8 @@ export function memberIsWriteTarget(hopPath) {
     if (upNode.type === 'ForOfStatement' || upNode.type === 'ForInStatement') return upNode.left === cursor.node;
     // pattern containers hand the question up - a Property or a default only when the
     // member fills its TARGET slot (a default's value side is an ordinary read)
-    const climbs = isDestructurePattern(upNode)
-      || upNode.type === 'RestElement' || upNode.type === 'ParenthesizedExpression'
-      || TS_EXPR_WRAPPERS.has(upNode.type)
+    const climbs = isDestructurePattern(upNode) || upNode.type === 'RestElement'
+      || TRANSPARENT_EXPR_WRAPPER_TYPES.has(upNode.type)
       || (upNode.type === 'Property' && upNode.value === cursor.node)
       || (upNode.type === 'AssignmentPattern' && upNode.left === cursor.node);
     if (!climbs) return false;
@@ -427,8 +438,6 @@ export function stepOverKeptWrite(up, target, { allowOptional, metaPath, proxyHo
   return peelParenAndTSSlotPath(up);
 }
 
-// is the plan's probe hop INSIDE the kept write's value (`(r = globalThis.window)?.self`:
-// the undefinability is the held VALUE, not a nav hop)
 // the value a probe span yields is INVOKED, not navigated: the source short-circuits the
 // call away on a nullish root, so the span's own read must survive as the callee - dropping
 // it would call the root's value instead (`((w = globalThis.window)?.self)(1)`)
@@ -438,6 +447,8 @@ export function probeValueIsInvoked(path) {
   return (above?.type === 'CallExpression' || above?.type === 'NewExpression') && above.callee === top;
 }
 
+// is the plan's probe hop INSIDE the kept write's value (`(r = globalThis.window)?.self`:
+// the undefinability is the held VALUE, not a nav hop)
 export function probeHopInValue(plan, probeHop) {
   return !!plan.rootAssign && Number.isInteger(probeHop.node.start)
     && probeHop.node.start >= plan.rootAssign.start && probeHop.node.end <= plan.rootAssign.end;
@@ -528,12 +539,6 @@ export function foldPendingReceiverSpineRoot(object, metaPath, { collapseProxyHo
   ]);
 }
 
-// does a run of PLAIN proxy hops sit directly above this root claim? false as soon as one
-// carries a live `?.`: that hop is the environment probe (a hop pure cannot back answers
-// `undefined` off-engine), so the whole run must stay spelled - and so must a run whose own
-// consumer reads it optionally, where the hop claim's guard render owns the shape
-// (`deadOptionalHop`: a `?.` the shared vestigial verdict already called dead is no probe and
-// does not end the run)
 // does anything READ THROUGH this member - a further hop off it, a call of it? a member nothing
 // reads through is the end of the navigation, whatever the operator above does with it
 function memberIsReadThrough(memberPath) {
@@ -542,6 +547,12 @@ function memberIsReadThrough(memberPath) {
     || (above?.type === 'CallExpression' && above.callee === memberPath.node);
 }
 
+// does a run of PLAIN proxy hops sit directly above this root claim? false as soon as one
+// carries a live `?.`: that hop is the environment probe (a hop pure cannot back answers
+// `undefined` off-engine), so the whole run must stay spelled - and so must a run whose own
+// consumer reads it optionally, where the hop claim's guard render owns the shape
+// (`deadOptionalHop`: a `?.` the shared vestigial verdict already called dead is no probe and
+// does not end the run)
 export function plainProxyHopRunAbove(metaPath, proxyHopKey, { allowOptional = false, deadOptionalHop = null } = {}) {
   // a source PAREN - and the chain wrapper an `?.` wears - is transparent to the run and to the
   // read above it (`(g.window?.self)?.Array` navigates exactly like the bare twin), and so is a
@@ -608,29 +619,13 @@ export function plainRunReadOptionally(metaPath, node, proxyHopKey) {
   return !proxyHopKey(consumer, { metaPath, allowOptional: true });
 }
 
-// the walk's OWN collapse destroys the evidence a later guard needs: `const a = globalThis
-// .window.self` already reads `_self` by the time `(w = a)?.Array.of` asks whether `a` can be
-// absent, and the hop canon, blind through the binding, then calls the alias always-defined.
-// record the verdict while the source spelling still stands. keyed by declarator node, so the
-// module-scope table costs nothing across files
-const unbackedHopAliasDecls = new WeakSet();
-
-export function noteUnbackedHopAliasInit(metaPath, node, resolvePure, hopNoteCtx = null) {
-  // the hop-host note travels with a POSSIBLE-GLOBAL hop claim only - the same surface the
-  // identifier arm speaks for; any other member read has its own host channels
-  if (hopNoteCtx && node.type === 'MemberExpression' && !node.computed
+// the hop-host note travels with a POSSIBLE-GLOBAL hop claim only - the same surface the
+// identifier arm speaks for; any other member read has its own host channels
+export function noteProxyHopClaimHost(metaPath, node, hopNoteCtx) {
+  if (node.type === 'MemberExpression' && !node.computed
     && !hopNoteCtx.meta?.sideEffects?.length && POSSIBLE_GLOBAL_OBJECTS.has(node.property?.name)) {
     noteMutatedCtorHopDestructure(metaPath, node, hopNoteCtx);
   }
-  const host = metaPath.parentPath?.node;
-  if (host?.type !== 'VariableDeclarator' || unwrapRuntimeExpr(host.init) !== node) return;
-  if (navHasUnresolvableProxyHop(node, m => resolvePure(m, metaPath))) unbackedHopAliasDecls.add(host);
-}
-
-export function aliasHoldsUnbackedHopNav(value, metaPath, adapter) {
-  if (value?.type !== 'Identifier') return false;
-  const binding = adapter.getBinding(metaPath.scope, value.name, metaPath);
-  return unbackedHopAliasDecls.has(binding?.node ?? binding?.path?.node);
 }
 
 // the sequence PREFIXES a probe spine keeps in its spelling - every kept computed key's, and
@@ -657,12 +652,16 @@ export function spineCarriesComputedHop(objectNode) {
 
 // a KEPT WRITE anywhere down the member spine (`((dw = gw) as any)?.self` - the write
 // anchors the kept-root canon even buried under hops)
-export function spineHoldsKeptWrite(objectNode) {
+// `throughHops: false` asks the narrower question - is the write the value this spine READS, with
+// only wrappers and sequence tails between? a write buried under a HOP is not: what the read holds
+// is an environment value taken ABOVE the store, and a caller keying on the store's own surface
+// must not answer yes for it
+export function spineHoldsKeptWrite(objectNode, { throughHops = true } = {}) {
   // ... and through a SEQUENCE tail: the write is the value the spine reads either way
   // (`(c++, e = globalThis.window)?.[k]` anchors on the same kept write as the bare twin)
   let value = unwrapRuntimeExpr(objectNode);
   for (;;) {
-    if (value?.type === 'MemberExpression') {
+    if (throughHops && value?.type === 'MemberExpression') {
       value = unwrapRuntimeExpr(value.object);
       continue;
     }
@@ -841,43 +840,6 @@ export function assignmentHoldsValue(path) {
   return false;
 }
 
-// a DESTRUCTURE source reached through a value-OBSERVING carrier (`||`, `&&`, `??`, a ternary
-// arm): on a realm without the hop the source reads an undefined step and THROWS before the
-// fallback runs, so collapsing the hop would silently hand the pattern a value the source never
-// produces (`const { x } = globalThis.self.Array || Set` keeps `.self`). a carrier that only
-// PASSES the value on (a sequence tail) observes nothing and keeps the collapse
-export function valueObservingDestructureSource(metaPath, destructureEmit) {
-  let child = metaPath.node;
-  let observed = false;
-  for (let up = metaPath.parentPath; up?.node; up = up.parentPath) {
-    const { type } = up.node;
-    let pattern = null;
-    if (type === 'LogicalExpression' || type === 'ConditionalExpression') observed = true;
-    else if (type === 'VariableDeclarator' && up.node.init === child) pattern = up.node.id;
-    else if (type === 'AssignmentExpression' && up.node.right === child) pattern = up.node.left;
-    else if (!SKIPPABLE_WRAPPER_TYPES.has(type) && type !== 'ChainExpression'
-      && !((type === 'MemberExpression' || type === 'OptionalMemberExpression') && up.node.object === child)) {
-      return false;
-    }
-    // ... and only where the pattern claims NOTHING: a claimed one re-renders its receiver
-    // through its own channel, and that render is the collapse - but it owns the run only when the
-    // pattern is consumed WHOLE. a surviving RESIDUAL re-reads that run, and the hops the source
-    // wrote stand there whatever carries the value
-    // ... and only where the pattern claims NOTHING: a claimed one re-renders its receiver
-    // through its own channel, and that render is the collapse - but it owns the run only when the
-    // pattern is consumed WHOLE. a surviving RESIDUAL re-reads that run, and the hops the source
-    // wrote stand there whatever carries the value
-    // ... and only where the pattern claims NOTHING: a claimed one re-renders its receiver
-    // through its own channel, and that render is the collapse
-    if (pattern) {
-      return observed && isDestructurePattern(pattern)
-        && !destructureEmit.patternClaimed(pattern);
-    }
-    child = up.node;
-  }
-  return false;
-}
-
 // does the member chain read a MUTATED static anywhere (`globalThis.Array.of = patched`
 // above `...Array.of(5)`)? the deopt keeps every source `?.` spelled. node-DOWN spine twin
 // of the provider's path-UP `mutatedStaticLandingVerdict` (annotations.js) - different
@@ -976,10 +938,6 @@ export function memoizedCallResultType(objectNode, metaPath, resolveNodeType) {
   return nodeTypeRefinement(value, metaPath.scope, resolveNodeType);
 }
 
-// the split's rebuilt `.call(...)` STANDS FOR the source call it replaces, so the source
-// node's PRE-MUTATION type travels onto it - the receiver-id stamp's twin. without it a claim
-// ABOVE resolves generic over the minted spelling (`arr.flat?.(0).at` reads the untyped `_at`
-// where the array-typed `_atMaybeArray` is owed)
 // the node-only type resolve is a TYPING REFINEMENT - a null answer degrades to the generic
 // helper, never to a wrong rewrite. the resolver descends by PATH, so a shape whose descent
 // leaves the node (a callee resolving through a binding) THROWS instead of answering, and a
@@ -992,6 +950,10 @@ export function nodeTypeRefinement(node, scope, resolveNodeType) {
   }
 }
 
+// the split's rebuilt `.call(...)` STANDS FOR the source call it replaces, so the source
+// node's PRE-MUTATION type travels onto it - the receiver-id stamp's twin. without it a claim
+// ABOVE resolves generic over the minted spelling (`arr.flat?.(0).at` reads the untyped `_at`
+// where the array-typed `_atMaybeArray` is owed)
 export function stampSourceCallType(built, sourceNode, metaPath, ctx) {
   const type = nodeTypeRefinement(sourceNode, metaPath.scope, ctx.resolveNodeType);
   if (type) ctx.resolvedType.set(built, type);

@@ -247,10 +247,12 @@ export default class ImportInjector extends ImportInjectorState {
       const { body } = scope.path.node;
       if (body?.type === 'BlockStatement') return true;
       if (!useNode || !body) return false;
-      // a use the plugin re-emitted from a copy carries no range, so the body test cannot confirm
-      // it - and only a BODY use is safe to host inside the loop. treat the unprovable case as the
-      // header use it comes from: hoisting is valid for either (`var` is function-scoped), it just
-      // stops a bodyless body from being block-converted to host a declaration after its own use
+      // only a BODY use is safe to host inside the loop, and a use with no range cannot be shown to
+      // be one - a minted node has none. treat the unprovable case as the header use it comes from:
+      // hoisting is valid for either (`var` is function-scoped), it just stops a bodyless body from
+      // being block-converted to host a declaration after its own use. a use re-emitted from a COPY
+      // is no longer such a case - `rangePreservingTypes` gives the copy its original's span, so the
+      // body test decides it, which is what the other emitter already did
       return useNode.start === undefined
         || !(useNode.start >= body.start && useNode.end <= body.end);
     }

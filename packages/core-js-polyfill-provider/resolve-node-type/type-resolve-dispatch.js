@@ -36,6 +36,7 @@ export function createTypeResolveDispatch({
   isNullableOrNever,
   safeInnerType,
   tupleAsArrayType,
+  elementContainerType,
   foldUnionTypes,
   foldIntersectionTypes,
   resolveTypeAnnotation,
@@ -99,7 +100,7 @@ export function createTypeResolveDispatch({
   // T[] / Array<T> -> $Object('Array', inner) with substituted element type
   function substArrayAsType(node, typeParamMap, scope, depth, seen) {
     const inner = substRecurse({ node: node.elementType, typeParamMap, scope, depth, seen });
-    return new $Object('Array', safeInnerType(inner));
+    return elementContainerType(new $Object('Array'), node.elementType, inner);
   }
 
   // [T, U] -> Array<commonInner> per-element folded via shared `tupleAsArrayType`

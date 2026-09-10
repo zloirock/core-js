@@ -91,6 +91,13 @@ const fixturesDir = '../transpiler-fixtures';
 let passed = 0;
 let failed = 0;
 let skipped = 0;
+// a run that CREATES a baseline verifies nothing about it - counted apart so the reconciliation
+// below can see it, and so a green line can never mean "compared" when it meant "written"
+let created = 0;
+// an OVERWRITE run writes expectations instead of comparing them, so like a creating run it proves
+// nothing about the fixtures it touched - counted apart, and it may not leave a green exit
+let rewritten = 0;
+let regenerated = 0;
 
 function label(directory) {
   return path.relative(fixturesDir, directory);
@@ -204,12 +211,15 @@ async function runFixture(directory) {
   // baseline match - so a plain `OVERWRITE=1` run regenerates v7 variants without the old manual
   // `touch <stem>.<variant>.<ext>` placeholder step and never clobbers the v8 baseline
   if (OVERWRITE) {
-    if (BABEL_VARIANT) return overwriteVariant(directory, [
-      [EXPECTED_SLOTS.errorFile, error ? actual : null],
-      [EXPECTED_SLOTS.outputFile, error ? null : actual],
-      [EXPECTED_SLOTS.debugFile, debugOutput],
-      [EXPECTED_SLOTS.warningsFile, warningsOutput],
-    ]);
+    if (BABEL_VARIANT) {
+      regenerated++;
+      return overwriteVariant(directory, [
+        [EXPECTED_SLOTS.errorFile, error ? actual : null],
+        [EXPECTED_SLOTS.outputFile, error ? null : actual],
+        [EXPECTED_SLOTS.debugFile, debugOutput],
+        [EXPECTED_SLOTS.warningsFile, warningsOutput],
+      ]);
+    }
     // touch (and report) only what actually changes - the regen deltas ARE the output
     let changed = await pathExists(staleFile);
     await rm(staleFile, { force: true });
@@ -220,7 +230,10 @@ async function runFixture(directory) {
       if (content !== null) await writeFile(file, content, UTF8);
       else await rm(file, { force: true });
     }
-    if (changed) echo`${ cyan(label(directory)) } ${ yellow('rewritten') }`;
+    if (changed) {
+      rewritten++;
+      echo`${ cyan(label(directory)) } ${ yellow('rewritten') }`;
+    } else regenerated++;
     return;
   }
 
@@ -239,6 +252,7 @@ async function runFixture(directory) {
     for (const [file, content] of expected) {
       if (content !== null) await writeFile(file, content, UTF8);
     }
+    created++;
     return echo`${ cyan(label(directory)) } ${ yellow('created') }`;
   }
 
@@ -274,12 +288,12 @@ const fixtures = await collectFixtures(subtree ? `${ fixturesDir }/${ subtree }`
 // a child reports through the marker only; the parent aggregates and decides the exit
 if (FIXTURE_SHARD) {
   for (const directory of shardSlice(fixtures)) await runFixture(directory);
-  emitShardSummary({ passed, failed, skipped });
+  emitShardSummary({ passed, failed, skipped, created, rewritten, regenerated });
 } else {
   const shards = defaultShardCount(fixtures.length);
   echo(green(`babel-plugin fixtures: ${ cyan(fixtures.length) } in ${ cyan(shards) } shard(s); only failures and rewrites are printed below`));
   if (shards > 1) {
-    ({ passed = 0, failed = 0, skipped = 0 } = await runShards({
+    ({ passed = 0, failed = 0, skipped = 0, created = 0, rewritten = 0, regenerated = 0 } = await runShards({
       script: fileURLToPath(import.meta.url),
       shards,
       extraEnv: subtree ? { FIXTURE_SUBTREE: subtree } : {},
@@ -288,6 +302,25 @@ if (FIXTURE_SHARD) {
     for (const directory of fixtures) await runFixture(directory);
   }
   logSummary();
+  // the denominator, enforced: every collected fixture must have left through exactly one counter.
+  // without this the summary reports the absence of RED, not the presence of a comparison - a walk
+  // or filter regression that drops most of the corpus reads identically to a clean run
+  const accounted = passed + failed + skipped + created + rewritten + regenerated;
+  if (accounted !== fixtures.length) {
+    throw new Error(`corpus not accounted for: ${ accounted } of ${ fixtures.length } fixtures reached a counter`);
+  }
+  // the comparison itself, bounded from below. The equality above is scale-free: it holds just as
+  // well when every collected fixture left through a SKIP counter, which is what a comparator that
+  // stopped comparing produces (measured: forcing one declined lane takes the whole corpus with it).
+  // An unscoped run must therefore also compare a corpus-sized number of fixtures; a subtree run is a
+  // deliberate narrowing and carries no floor
+  const COMPARED_FLOOR = 8000;
+  const compared = passed + failed;
+  if (!subtree && compared < COMPARED_FLOOR) {
+    throw new Error(`fixture corpus collapsed: ${ compared } fixtures compared, under the floor of ${ COMPARED_FLOOR }`);
+  }
+  if (created) throw new Error(`${ created } baseline(s) created - a creating run compares nothing, re-run to verify them`);
+  if (rewritten) throw new Error(`${ rewritten } baseline(s) rewritten - an OVERWRITE run compares nothing, re-run to verify them`);
   if (failed) throw new Error('Some tests have failed');
 }
 
@@ -303,5 +336,6 @@ function logSummary() {
   const skippedTail = BABEL_REQUIRE_FROM
     ? `, Skipped: ${ skipped ? yellow(skipped) : green(skipped) }`
     : '';
-  echo(`${ BABEL_REQUIRE_FROM ? '' : '\n' }Passed: ${ passedLabel }, Failed: ${ failedLabel }${ skippedTail }`);
+  const createdTail = created ? `, Created: ${ yellow(created) }` : '';
+  echo(`${ BABEL_REQUIRE_FROM ? '' : '\n' }Passed: ${ passedLabel }, Failed: ${ failedLabel }${ skippedTail }${ createdTail }`);
 }

@@ -34,6 +34,7 @@ import {
   classDefinitionTimePaths,
   forEachPatternWriteMember,
   hasDeferredContextAncestor,
+  writeSitsInEarlySlot,
   declaratorBindsName,
   peelSkippableWrapperPath,
   unwrapRuntimeExpr,
@@ -197,8 +198,11 @@ export function createClassFields({
       // position says nothing about execution order, so it folds unconditionally; only straight-line
       // writes can be dropped by the source-position temporal bound. shares the canonical
       // `hasDeferredContextAncestor` with the read-side gate and the value-flow walk
+      // a write in a slot its container evaluates early runs at a time its POSITION does not report,
+      // exactly like a deferred one - the bound below cannot rank it, so it folds unconditionally
       if ((writePath.node.start ?? Infinity) >= bound
-        && !hasDeferredContextAncestor(t, writePath)
+        && !hasDeferredContextAncestor(writePath)
+        && !writeSitsInEarlySlot(writePath)
         && !isWriteInsideLoopSpanningBound(writePath, bound)) continue;
       pushIfWriteMatches(writePath, predicate, out);
     }

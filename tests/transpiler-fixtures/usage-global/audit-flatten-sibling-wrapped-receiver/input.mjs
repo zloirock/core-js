@@ -1,8 +1,8 @@
 // the flatten's sibling walk climbs from a matched receiver identifier up its member chain to decide
 // whether another channel owns it. a cast or a paren sitting BETWEEN the two is transparent to that
-// question - the chain is still the one rooted at this receiver - so stopping there claimed a receiver
-// the member's own rewrite then replaced wholesale. every wrapper the language puts in that position,
-// with the key resolved in a nested scope and in place
+// question - the chain is still the one rooted at this receiver. this flavor prints the source back
+// verbatim, wrappers and all, so what it locks here is the family each row pulls; the walk's own
+// verdict on the receiver is visible on the pure twin
 const { Array: { of } } = globalThis, cast = (globalThis as any)['Promise'];
 const { Array: { from } } = globalThis, nonNull = (globalThis!)['Set'];
 const { Object: { entries } } = globalThis, paren = ((globalThis) as any).Promise;

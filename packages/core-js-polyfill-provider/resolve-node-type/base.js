@@ -8,6 +8,25 @@ const { assign, create, entries, getPrototypeOf, keys } = Object;
 // profile-specific constants by necessity (when a call site needs a tighter or looser cap)
 export const MAX_DEPTH = 64;
 
+// how many members a folded literal union carries before it goes back to being opaque. A union
+// is written by hand and a long one is a table, not a discriminant - the set exists to answer a
+// conditional, and past this size the answer it buys is not worth carrying the set to every
+// reader of the type
+export const MAX_LITERAL_UNION_MEMBERS = 16;
+
+// --- Source spans ---
+
+// does the node carry source positions? a plugin-minted node has none, and every positional
+// question asked of one answers conservatively rather than reading `undefined` as a position
+export function hasRange(node) {
+  return !!node && node.start !== null && node.start !== undefined && node.end !== null && node.end !== undefined;
+}
+
+// byte-range containment: `inner`'s span sits within `outer`'s span (both need source positions)
+export function nodeRangeContains(outer, inner) {
+  return hasRange(outer) && hasRange(inner) && inner.start >= outer.start && inner.end <= outer.end;
+}
+
 export const PRIMITIVE_WRAPPERS = assign(create(null), {
   bigint: 'BigInt',
   boolean: 'Boolean',
@@ -100,7 +119,46 @@ export const SINGLE_ELEMENT_COLLECTIONS = new Set([
   'ReadonlyArray',
   'Set',
   'ReadonlySet',
+  // `ArrayLike<T>` is index-and-length only, which makes its param-0 the element as surely as
+  // `Array<T>`'s. Its absence left the element read answering nothing for an annotation that names
+  // the element outright, and left the container build with no slot to put it in
+  'ArrayLike',
   ...GENERATOR_LIKE_NAMES,
+]);
+
+// TS-only STRUCTURAL container names: each describes a SHAPE many runtime classes have rather than
+// naming one constructor, so the registry (`known-built-in-return-types`, which catalogues RUNTIME
+// globals) carries no entry and an annotation spelled with one resolves to nothing at all. That
+// absence is what member DISPATCH needs - read as a family, `Iterable<string>` has no `at` and the
+// injection a null answer routes through the generic helper is dropped outright - so the box these
+// names build is borrowed by ASSIGNABILITY alone, where the question is which families contain which
+export const STRUCTURAL_CONTAINER_NAMES = new Set([
+  'Iterable',
+  'AsyncIterable',
+  'ArrayLike',
+]);
+
+// the assignability EDGES between the container families this layer names. A check whose family
+// REACHES the extends side's is assignable to it wherever their elements agree, and a pair naming
+// two families with no path either way is disjoint whatever the elements say. It is DATA and not a
+// rule because the cheap reading - two different known constructors are disjoint - is false: the
+// constructor registry holds hierarchies of its own (`RangeError` under `Error`, `Element` under
+// `Node`), and a FALSE off a bare name difference is the wrong answer for every one of them. Only a
+// pair BOTH of whose names are here is decided, so an unlisted family leaves the relation open.
+// `string` stands for the primitive AND the `String` wrapper it boxes into, the one primitive family
+// with structural supertypes; the readonly collections name no family of their own (they resolve to
+// the mutable constructor plus a marker) and so are absent. The generator families are absent for
+// the same reason - they resolve to no box at all, and an entry no resolution can produce is a rule
+// nothing ever reads
+export const STRUCTURAL_SUPERTYPES = new Map([
+  ['Array', new Set(['Iterable', 'ArrayLike'])],
+  ['Set', new Set(['Iterable'])],
+  ['Map', new Set(['Iterable'])],
+  ['string', new Set(['Iterable', 'ArrayLike'])],
+  ['Promise', new Set()],
+  ['Iterable', new Set()],
+  ['AsyncIterable', new Set()],
+  ['ArrayLike', new Set()],
 ]);
 
 // resolved container names whose `.inner` slot is built from type-param 0: the single-element
@@ -185,15 +243,110 @@ const TypePrototype = {
   // but a conditional check against a literal stays undecidable, so the branch-picker
   // folds both branches
   literalUnion: false,
+  // the MEMBERS behind that marker, where the fold could keep them: the whole point of the
+  // marker is that a union is undecidable against a literal, and it is undecidable only while
+  // nobody knows what is in it. A kept set answers the two ends of the relation outright - a
+  // subset extends, a disjoint pair does not - and leaves open only the partial overlap, which
+  // is genuinely both. `null` is the marker's original meaning, an opaque union: one arm too
+  // wide to name, or more members than the cap keeps
+  literals: null,
   // capital `Object` (the boxed-top type): every non-nullish candidate is assignable to it
   // (TS: `string extends Object` is true), unlike the lowercase `object` keyword and
   // structural literal shapes, which reject primitives. member dispatch stays generic
   // (constructor null), only assignability reads the marker
   topObject: false,
+  // the lowercase `object` keyword: the top of the NON-primitive types. It resolves
+  // constructor-null like its capital twin and like an unmodelled shape, so without the
+  // marker nothing tells the three apart once the AST is out of reach - which is every
+  // level below the outermost, where `Array<T[]> extends Array<object>` is decided
+  objectKeyword: false,
+  // the `Function` KEYWORD, the top of the CALLABLE types: every function value is assignable to
+  // it whatever signature it was written with. It resolves into the same box every unmodelled call
+  // signature collapses into, so the marker is the only thing telling the two apart - the same
+  // reason its two object-family twins above carry one
+  functionKeyword: false,
+  // WRITTEN type information this layer does not represent: an argument whose resolution has no
+  // Type form or whose chain the shared depth budget cut, one the container has no slot for
+  // (`Map` keys off param-0), or tuple elements that did not fold to one type. The container keeps
+  // the inner-less shape a BARE `Array` also has, and a bare one means `Array<any>` - it matches
+  // ANY inner. without the marker an assignability reader takes two such absences for agreement
+  innerElided: false,
+  // the opposite admission: the element argument WAS written and it was a top keyword (`any` /
+  // `unknown`), which constrains no element at all - exactly what a container with no argument
+  // says. Carried on the type because the AST is out of reach below the outermost pair, where
+  // `Array<Array<number>> extends Array<Array<any>>` is decided and the caller's AST-derived
+  // unconstrained flag covers the outermost extends clause alone
+  innerUnconstrained: false,
+  // WHICH top that was. `any` is assignable in both directions and `unknown` only from below, so the
+  // two say the same thing as the element of an extends side and opposite things as the element of a
+  // CHECK - the same parting the argument list spells with two sentinels, kept here for the slot
+  // every element-first container writes into
+  innerUnknown: false,
+  // the element resolution the `.inner` slot REFUSED: `never` and the nullish types are meaningless
+  // as a dispatch HINT and are dropped there, which leaves the container looking inner-less - the
+  // shape a BARE one has, and a bare one means `Array<any>`. `Array<never>` is the opposite of that:
+  // the bottom element makes it assignable to every array, and `Array<null>` is assignable to almost
+  // none. Held beside the slot rather than in it, and read by assignability ALONE, for the reason
+  // `args` is: every dispatch reader wants a hint it can narrow on, which this is not
+  droppedInner: null,
+  // the written type arguments of a container this layer holds no `.inner` slot for - a key-first
+  // `Map` / `WeakMap`, whose param-0 is the KEY. It is the same information `innerElided` admits
+  // to dropping, represented instead of merely confessed, so the two are exclusive: a list that
+  // resolved in full clears the marker. Read by assignability ALONE - member dispatch keeps
+  // reading the empty `.inner`, which is what says these containers carry no element type
+  args: null,
+  // the list above belongs to a MAPPED container (`Record<K, V>`), whose first entry is a key
+  // DOMAIN and not a covariant position: `Record<string, V>` and `Record<'a', V>` accept each
+  // other in BOTH directions, so a domain read like an element answers FALSE where tsc answers
+  // TRUE. The marker is what routes the first entry to the domain rule instead
+  keyDomainArgs: false,
+  // the DECLARATION node a `typeIdentityElided` box stands for, where the box came from one. It is
+  // the only thing that can tell two of them apart, and a node rather than a name because a
+  // shadowed same-name declaration is a different type. It never makes a box decide FALSE - two
+  // different declarations may still be structurally assignable - only the same one decide TRUE
+  identity: null,
+  // how many elements the TUPLE this box collapsed from wrote, where it came from one. The collapse
+  // to `Array<commonElement>` is what makes a tuple readable at all here, and it drops the length:
+  // `[string]` and `[string, string]` become one type, and an array of the same element becomes it
+  // too. Read by assignability alone, like `args` - every dispatch reader wants the element, which
+  // the collapse already gives them
+  tupleArity: null,
   // own-prop copy on the same prototype: `instanceof`, the prototype `primitive` flag and
   // every marker survive
   clone() {
     return assign(create(getPrototypeOf(this)), this);
+  },
+  // same clone discipline for the element resolution the `.inner` slot refused
+  withDroppedInner(inner) {
+    const carried = this.clone();
+    carried.droppedInner = inner;
+    return carried;
+  },
+  // same clone discipline for the members a folded literal union kept
+  withLiterals(literals) {
+    const carried = this.clone();
+    carried.literals = literals;
+    return carried;
+  },
+  // carry a written argument list on a CLONE, for the reason `mark` does: a resolve input may
+  // come from a resolver cache, and an in-place write would poison every later reader of it
+  withArgs(args) {
+    const carried = this.clone();
+    carried.args = args;
+    return carried;
+  },
+  // same clone discipline for the declaration a box stands for
+  withIdentity(declaration) {
+    const carried = this.clone();
+    carried.identity = declaration;
+    return carried;
+  },
+  // and for the length a collapsed tuple carries. `null` takes it back off, which is what a fold of
+  // two arms that disagree about the length owes
+  withTupleArity(arity) {
+    const carried = this.clone();
+    carried.tupleArity = arity;
+    return carried;
   },
   // set a marker on a CLONE, no-op when already set: fold / resolve inputs may come from
   // resolver caches, so qualification never mutates in place - an in-place write would
@@ -281,6 +434,75 @@ const { hasOwn } = Object;
 // pure helpers extracted from the resolver factory - no closure deps, depend only
 // on the shared Type-object shape ($Primitive / $Object). kept here so the factory
 // imports a stable surface instead of redefining them every per-file instantiation
+
+// the box a DECLARED shape resolves into, carrying the declaration it stands for. A GENERIC
+// declaration is not one type but a family of them - `Box<string>` and `Box<number>` share the node
+// and tsc answers FALSE between them - so it is left identity-less, exactly as an undeclared shape is
+export function boxForDeclaration(constructor, declaration) {
+  return withDeclarationIdentity(new $Object(constructor), declaration);
+}
+
+// the same rule applied to a box that already EXISTS. A DERIVED declaration's box comes back from
+// the parent walk carrying the PARENT's identity, and that slot is the one thing that makes two
+// boxes ONE type: read off a derived interface it fired the TRUE branch of `Base extends Derived`,
+// where the members the derived side adds are exactly what tsc answers FALSE for. Only an
+// identity-elided box says anything through the slot, so a box that names a real family
+// (`interface I extends Array<T>`) is handed back untouched
+export function withDeclarationIdentity(box, declaration) {
+  if (!typeIdentityElided(box)) return box;
+  const owned = declaration && !declaration.typeParameters ? declaration : null;
+  return box.identity === owned ? box : box.withIdentity(owned);
+}
+
+// does this Type stand for a shape the layer never modelled, rather than name a type? two
+// families are such boxes and nothing else resolves into them: `Object` holds every interface,
+// class, `Record<..>`, object literal and intersection alike, and `Function` holds every call
+// signature beside the `Function` keyword. The family is real for member dispatch - both answer
+// the generic surface - but it carries no identity, so two of them are known only to be alike
+// as far as this layer looks, never to be the same type. The capital `Object` KEYWORD is not one
+// of them: it resolves constructor-null and says so through `topObject`, and the lowercase
+// `object` keyword, also constructor-null, is an exact type whose comparison stays decidable
+export function typeIdentityElided(type) {
+  return !!type && !type.primitive && (type.constructor === 'Object' || type.constructor === 'Function');
+}
+
+// the TOP of the object types, as opposed to the box above for a shape this layer did not model:
+// the lowercase `object` keyword and the boxed `Object`, both constructor-null and told apart from
+// each other, and from that box, only by the marker each carries. Nothing narrower stands above
+// them, so a top on the CHECK side of a conditional is assignable to no family the extends side
+// NAMES - the mirror of the two rules that already read these markers on the extends side
+export function isTopObjectShape(type) {
+  return !!type && !type.primitive && !type.constructor && !!(type.objectKeyword || type.topObject);
+}
+
+// a resolved Type object, as opposed to an AST node, a hint string or nothing: every Type carries
+// the prototype's boolean `primitive` flag and nothing else this layer passes around does
+export function isTypeObject(value) {
+  return !!value && typeof value.primitive === 'boolean';
+}
+
+// the entry a written top-keyword argument (`any` / `unknown`) takes in an `args` list. It is NOT
+// the hole an unresolvable argument leaves: a hole is undecidable, a top accepts whatever the other
+// side holds. Confined to that list, which assignability alone reads - the `.inner` slot says the
+// same thing through `innerUnconstrained`, because every dispatch reader looks at THAT one
+export const TOP_ARGUMENT = Symbol('top-argument');
+
+// its twin, for the OTHER top. `any` is assignable in both directions, `unknown` only from below -
+// so as the extends side they say the same thing and as the CHECK side they do not, and one entry
+// for both left `Map<string, any>` and `Map<string, unknown>` weighed against `Map<string, number>`
+// with the same undecided answer where tsc decides them opposite ways. The `.inner` slot keeps the
+// single `innerUnconstrained` marker and so keeps the conflation: every reader of THAT slot is a
+// dispatch one, and this difference is an assignability question only
+export const UNKNOWN_ARGUMENT = Symbol('unknown-argument');
+
+// the VALUES a resolved primitive stands for, or null where it stands for a whole family. A single
+// stamp is the one-member case of the set a literal-union fold keeps, so both ends of the union rule
+// read one shape. `literalNodeValue` and its AST twins answer this question about a NODE, which is
+// not the same one: by the time a conditional is decided the annotation it was written as is gone
+export function literalMembers(type) {
+  if (type.literals) return type.literals;
+  return type.literal === undefined ? null : new Set([type.literal]);
+}
 
 // `boxed primitive Type -> primitive name` via UNBOXED_PRIMITIVES lookup; `$Primitive`
 // instances expose `.primitive=true` directly. callers default to `null` when the

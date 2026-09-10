@@ -52,6 +52,5 @@ export const r9 = [typeof fromEntries, typeof u];
 function mk() {
   return _globalThis;
 }
-_self.Object;
 const assign = _Object$assign;
 export const r10 = typeof assign;

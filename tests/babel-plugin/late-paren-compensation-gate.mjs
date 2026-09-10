@@ -182,4 +182,45 @@ for (const [name, snippet] of SHAPES) {
     reprinted === plantedExpressionType(snippet));
 }
 
+// the one shape an EMITTER puts into an instantiation slot: the guarded ctor narrow swaps a member
+// read for a ternary, which the slot rejects bare. What the swap owes is the parens for the slot it
+// fills ITSELF; a TS wrapper standing between the two fills that slot instead, and its own priority
+// is the late restoration's question, off the same predicate. Spelling both at the emit duplicated
+// a paren the reprint already carries, so the association below is what says the wrapper leg is
+// covered: without the parens the `<string>` re-parses into the cast's own type and the whole
+// expression stops being an instantiation at all
+for (const [name, receiverSlot, wants] of [
+  ['bare instantiation slot', 'M.groupBy<string>', ['TSInstantiationExpression', 'ConditionalExpression']],
+  ['under a TS cast', '(M.groupBy as any)<string>', ['TSInstantiationExpression', 'TSAsExpression', 'ConditionalExpression']],
+  ['under a satisfies', '(M.groupBy satisfies unknown)<string>', ['TSInstantiationExpression', 'TSSatisfiesExpression', 'ConditionalExpression']],
+  ['under an angle-bracket assertion', '(<any>M.groupBy)<string>', ['TSInstantiationExpression', 'TSTypeAssertion', 'ConditionalExpression']],
+]) {
+  // the ctor alias is read from a function DEFINED before the destructure, which is what keeps the
+  // narrow guarded rather than folded straight to the pure static
+  const { code } = await transformAsync(
+    `function early() { return ${ receiverSlot }; }
+var { ['Map']: M } = globalThis;
+export const r = early();
+`, {
+      configFile: false,
+      babelrc: false,
+      filename: 'guarded.ts',
+      parserOpts: { plugins: ['typescript'] },
+      plugins: [['@core-js', { method: 'usage-pure', version: '4.0', targets: { ie: 11 } }]],
+    });
+  const emitted = code.split('\n').filter(line => !line.startsWith('import')).join('\n');
+  let spine = null;
+  try {
+    let node = parseTS(emitted).program.body
+      .find(statement => statement.type === 'FunctionDeclaration').body.body[0].argument;
+    spine = [];
+    while (node) {
+      spine.push(node.type);
+      node = node.expression;
+    }
+  } catch { /* stays null: an unparsable reprint fails the check below with the same verdict */ }
+  checkTruthy(`guarded narrow ${ name }: the swap keeps its instantiation association`,
+    JSON.stringify(spine) === JSON.stringify(wants));
+}
+
 finish();

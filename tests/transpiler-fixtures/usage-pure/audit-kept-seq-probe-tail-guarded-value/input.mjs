@@ -19,5 +19,7 @@ export const aliasInstance = (d++, (c++, ga.window.self))?.Array.prototype.at;
 export const flatTwin = (d++, globalThis.window.self)?.Array.prototype.at;
 // NEGATIVE: a claim consuming the whole spelling folds - nothing reads past the erased guard
 export const claimConsumes = (d++, (c++, globalThis.window.self))?.Map;
-// NEGATIVE: the store below a deeper static keeps the value form - the live-tree read
+// the store below a deeper static spells the GUARDED value like its static twin above: the guard the
+// instance dispatch builds is the store's reader, so the probe stands inside it and `k` holds what
+// the environment holds - the value form there left the realm object on the absent branch
 export const storeInstance = (d++, (c++, k = globalThis.window.self))?.Number.MAX_SAFE_INTEGER.toFixed(1);

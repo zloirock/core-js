@@ -8,13 +8,12 @@ import {
   annotationNameIsGlobal,
   checkTypeAnnotations,
   isTypeAnnotationNodeType,
+  typeDeclarationUnreferencedInFile,
   typeOnlyImportShadows,
   walkTypeAnnotationGlobals,
 } from './annotations.js';
 import { collectDestructureUnionCandidates, prepareDestructureUnion } from './destructure.js';
-import { isKnownGlobalName } from './globals.js';
 import { handleBinaryIn, handleMemberExpressionNode, tagSymbolSourcedMeta } from './members.js';
-import { createSelfRefVarGuard } from './resolve.js';
 
 export function createUsageHandlerCore({
   adapter,
@@ -30,14 +29,12 @@ export function createUsageHandlerCore({
   keptProxyHops = null,
   onSuppressedProxyHop = null,
   suppressKeptNavRoot = null,
-  selfRefBindingKind,
 }) {
   // only usage-pure rewrites global identifiers to named import bindings (which are frozen).
   // usage-global injects side-effect imports and leaves the identifier alone, so `Map++`
   // must polyfill - otherwise `Map` ReferenceError's in engines where the native is missing
   const skipUpdateTargets = method === 'usage-pure';
   let handledObjects = new WeakSet();
-  let isSelfRefVarBinding = createSelfRefVarGuard(selfRefBindingKind, adapter);
 
   // the identifier tail every host runs after its own referenced-position gates
   function emitGlobalUsage(path) {
@@ -46,29 +43,22 @@ export function createUsageHandlerCore({
     // as a referenced identifier - so the type-space shadow question belongs here, where every
     // binding's identifier visitor already funnels. `hasBinding` below answers the VALUE question
     // and deliberately ignores a type-only import, which in a type position IS the shadow
-    if (isTypeAnnotationNodeType(path.parent?.type)
-      && typeOnlyImportShadows({ adapter, scope: path.scope, name: node.name, path, hostType: path.parent.type })) return;
+    if (isTypeAnnotationNodeType(path.parent?.type)) {
+      if (typeOnlyImportShadows({ adapter, scope: path.scope, name: node.name, path, hostType: path.parent.type })) return;
+      // ... and a type DECLARATION nothing in the file names declares a surface no value here can
+      // have, so no read reaches this mention - the reference convention has nothing to serve
+      if (typeDeclarationUnreferencedInFile(path)) return;
+    }
     // the ROOT of a nav stored by a USER assignment renders the stored canon from the root's
     // visit - the one place a member-channel skip or a declined claim cannot hide (a claim
     // that declines leaves no render owning the value's hops). ungated by name: an ALIAS root
     // (`const galias = globalThis; (ntm = (se, galias).window.self)`) stores the same canon,
     // and the hook self-gates cheaply (a parent climb, then the plan's own proxy-root proof)
     if (suppressKeptNavRoot?.(path)) return;
-    if (adapter.hasBinding(path.scope, node.name, path)) {
-      // self-reference `var X = X` - hoisted var init references its own name, which at
-      // runtime reads from the outer (global) scope before the local is assigned. narrow
-      // path intentionally: ImportSpecifiers, class-decls, and const-to-identifier aliases
-      // are excluded so user-owned pure imports (e.g. `const MyPromiseTry = ...`) don't get
-      // re-routed through generic-global polyfill
-      if (!isSelfRefVarBinding(path.scope?.getBinding?.(node.name), path)) return;
-      // name equals the binding's own name (we looked up the binding by `node.name`), so
-      // `isKnownGlobalName` is sufficient - `resolveBindingToGlobal` would walk a
-      // now-mutated `init` and give an unreliable answer
-      if (!isKnownGlobalName(node.name)) return;
-      if (handledObjects.has(node)) return;
-      onUsage({ kind: 'global', name: node.name }, path);
-      return;
-    }
+    // a name the file BINDS is that binding's, wherever the declaration sits: the sloppy host is a
+    // CommonJS wrapper, so a top-level `var` binds afresh like every other one and a self-reference
+    // (`var X = X`) reads the hoisted undefined rather than the realm
+    if (adapter.hasBinding(path.scope, node.name, path)) return;
     // see `handleBinaryIn` - only resolved polyfillable keys seed `handledObjects`
     if (handledObjects.has(node)) return;
     onUsage({ kind: 'global', name: node.name }, path);
@@ -147,6 +137,10 @@ export function createUsageHandlerCore({
   // declarations (`enum Map`, `namespace Map`) DO shadow (resolved via path ancestor walk)
   function annotationGlobal(path) {
     return (name, hostType) => {
+      // ... and a type DECLARATION nothing in the file names declares a surface no value here can
+      // have, so no read reaches its annotations - the same rule the identifier tail applies, asked
+      // here because this walk is the lane one binding routes its type space through
+      if (typeDeclarationUnreferencedInFile(path)) return;
       if (annotationNameIsGlobal({ ...annotationCtx(path), name, hostType })) onUsage({ kind: 'global', name }, path);
     };
   }
@@ -178,7 +172,6 @@ export function createUsageHandlerCore({
   // per-file state drop for the host that reuses one visitor object across files (babel)
   function reset() {
     handledObjects = new WeakSet();
-    isSelfRefVarBinding = createSelfRefVarGuard(selfRefBindingKind, adapter);
   }
 
   return {

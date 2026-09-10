@@ -24,20 +24,21 @@ export function writes() {
   } = {
     k: 6
   });
-  delete _globalThis.writeBox.n;
+  delete ((null == _globalThis.window ? void 0 : _self)?.writeBox).n;
   for ((null == _globalThis.window ? void 0 : _self.writeBox).n of [1]) break;
   return null == _globalThis.window ? void 0 : _self.writeBox.n;
 }
 
 // the same slot behind the two layers this family collapses through: a SEQUENCE and an effectful
-// root. the write must still reach the guarded object, and the root effect must run once
+// root. the write must still reach the guarded object, and the root effect must run once - and the
+// `delete` re-hangs its tail off the guard through the carrier, as its carrier-less twin does
 export function layeredWrites() {
   var _ref;
   ('x', null == _globalThis.window ? void 0 : _self.writeBox).n = 2;
   ('x', null == _globalThis.window ? void 0 : _self.writeBox).n += 3;
   ('x', null == (held = _globalThis).window ? void 0 : _self.writeBox).n = 5;
   [('x', null == _globalThis.window ? void 0 : _self.writeBox).n] = [6];
-  delete ('x', _globalThis.writeBox).n;
+  delete ('x', (null == _globalThis.window ? void 0 : _self)?.writeBox).n;
   ('x', null == _globalThis.window ? void 0 : _self.writeBox).list = null == (_ref = null == _globalThis.window ? void 0 : _self.writeBox.list) ? void 0 : _at(_ref).call(_ref, 0);
   return held;
 }
