@@ -3,7 +3,7 @@ import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 import _self from "@core-js/pure/actual/self";
-import _Symbol from "@core-js/pure/actual/symbol/constructor";
+import _Symbol from "@core-js/pure/actual/symbol";
 var _ref;
 // a `delete` consumer over a proxy nav COLLAPSES THE NAVIGATION WHOLE: the member it names is never
 // READ, so no `?.` over the nav is load-bearing and no probe guard is built - the slot is reached off
@@ -38,8 +38,10 @@ export const seqRootInstanceTail = delete (n++, _globalThis).Array?.prototype.fl
 // stopped deleting anything at all
 export const deletedInstanceMember = delete _flatMaybeArray(_self.Array.prototype).name;
 // an INSTANCE dispatch under the delete memoizes its receiver: that memo holds the COLLAPSED value too,
-// so the `_ref` never reads `window` off the ponyfill. with a tail above it the canon lands on the ROOT
-export const instanceTailMemo = delete (null == (_ref = _self.Array) ? void 0 : _flatMaybeArray(_ref.prototype).name);
+// so the `_ref` never reads `window` off the ponyfill. with a tail above it the canon lands on the ROOT,
+// and the deleted member re-hangs OUTSIDE the guard behind a `?.` - absorbed into the alternate it
+// would be deleted from nothing, since `delete <ternary>` names no reference at all
+export const instanceTailMemo = delete (null == (_ref = _self.Array) ? void 0 : _flatMaybeArray(_ref.prototype))?.name;
 // the SAME shape off a proven CALL root: the operator names a slot on what the dispatch returned,
 // so the run under it is an ordinary read and lands the deepest hop pure can back - the answer may
 // not swap with the root kind (it did: an identifier root rode `_self`, a call root the root pony)

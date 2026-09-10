@@ -1,4 +1,4 @@
-import _Promise from "@core-js/pure/actual/promise/constructor";
+import _Promise from "@core-js/pure/actual/promise";
 // a getter winning a duplicate key is a DYNAMIC value: `NS.Base` is the getter (returns Object at
 // runtime), so `super.allSettled` must NOT be substituted with the Promise pure helper - and both
 // parsers must agree (babel skips the getter as ObjectMethod, oxc matches it as a Property)

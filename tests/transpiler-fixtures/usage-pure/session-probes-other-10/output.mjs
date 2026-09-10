@@ -7,7 +7,7 @@ import _at from "@core-js/pure/actual/instance/at";
 import _entries from "@core-js/pure/actual/instance/entries";
 import _keys from "@core-js/pure/actual/instance/keys";
 import _values from "@core-js/pure/actual/instance/values";
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
 import _Object$entries from "@core-js/pure/actual/object/entries";
 // probe corpus of the defense cycles over the destructure wrappers, family "other", part 10:
 // every block is one probed form, self-contained over the header bindings, locked on both legs

@@ -88,9 +88,11 @@ async function armingEval(code, ts) {
 
 // the usage-global verdict for one snippet. `native` is the full-env reference key the pure leg
 // already computed; a throwing native is vacuous-by-throw (ERR == ERR regardless of injection),
-// same gate as the pure stripped leg. returns { armed, failed, detail }
+// same gate as the pure stripped leg. returns { skip, failed, detail } - `skip` names why the
+// stripped-realm comparison did not run and is null when it did, which is what the run's coverage
+// accounting counts as this leg's ARMED snippets
 export async function checkGlobalSnippet({ code, ts = false, native, options, provenArmed = false }) {
-  if (native.startsWith('ERR')) return { armed: false, failed: false, detail: '' };
+  if (native.startsWith('ERR')) return { skip: 'native-throw', failed: false, detail: '' };
   // arming: a `strip:true` snippet is the generator's PROVEN manifest-builtin read - its
   // stripped-realm divergence holds by construction (this realm strips the same globals as
   // the pure regex's token set) and the evaluation is skipped; the output-vs-native oracle
@@ -108,9 +110,9 @@ export async function checkGlobalSnippet({ code, ts = false, native, options, pr
     const details = [];
     if (babelError) details.push(`babel threw: ${ babelError }`);
     if (unpluginError) details.push(`unplugin threw: ${ unpluginError }`);
-    return { armed: true, failed: true, detail: details.join('; ') };
+    return { skip: null, failed: true, detail: details.join('; ') };
   }
-  if (armingKey && await armingKey === native) return { armed: false, failed: false, detail: '' };
+  if (armingKey && await armingKey === native) return { skip: 'not-armed', failed: false, detail: '' };
 
   // collapse two evaluations into ONE when the outputs are byte-identical: both emitters are
   // AST reprints now, so agreeing trees usually print the same bytes. any difference - imports
@@ -130,14 +132,14 @@ export async function checkGlobalSnippet({ code, ts = false, native, options, pr
     ]);
   }
   if ((!WANT_BABEL || babelKey === native) && (!WANT_UNPLUGIN || unpluginKey === native)) {
-    return { armed: true, failed: false, detail: '' };
+    return { skip: null, failed: false, detail: '' };
   }
   // import sets ride along as the localization signal: a shared miss (both diverge, sets agree)
   // roots in the provider's detection, a one-sided one in that emitter
   const imports = `imports babel={ ${ WANT_BABEL ? [...importSet(babelOut)].join(', ') : '-' } }`
     + ` unplugin={ ${ WANT_UNPLUGIN ? [...importSet(unpluginOut)].join(', ') : '-' } }`;
   return {
-    armed: true,
+    skip: null,
     failed: true,
     detail: `stripped-realm native=${ native } babel=${ babelKey } unplugin=${ unpluginKey }; ${ imports }`,
   };

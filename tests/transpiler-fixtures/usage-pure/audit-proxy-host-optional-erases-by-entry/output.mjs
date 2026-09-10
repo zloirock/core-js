@@ -1,4 +1,4 @@
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
 // a `?.` over the host of a proxy-global navigation is not load-bearing when the host is a name the
 // pure package can back: the collapse replaces the whole navigation, so the guard goes with it. the
 // question is whether the ENTRY EXISTS, never whether this target asked for it - reading a hop the

@@ -1,11 +1,11 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Map from "@core-js/pure/actual/map/constructor";
-import _Promise from "@core-js/pure/actual/promise/constructor";
-import _Set from "@core-js/pure/actual/set/constructor";
-import _WeakMap from "@core-js/pure/actual/weak-map/constructor";
-import _WeakSet from "@core-js/pure/actual/weak-set/constructor";
+import _Map from "@core-js/pure/actual/map";
+import _Promise from "@core-js/pure/actual/promise";
+import _Set from "@core-js/pure/actual/set";
+import _WeakMap from "@core-js/pure/actual/weak-map";
+import _WeakSet from "@core-js/pure/actual/weak-set";
 // a lifted prefix keeps exactly what can be observed: the statement it becomes discards every value,
 // so an effect-free element is a comma the source wrote rather than work it did, and a prefix with
 // nothing to observe leaves no statement at all. the trim is one canon for every channel that lifts

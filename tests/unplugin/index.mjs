@@ -6,10 +6,15 @@ import { strip } from './structural.mjs';
 import { extractPluginOptions, inferTestId, loadBabelOptions, normalizeMachinePaths, shouldSkip } from './fixture-lang.mjs';
 import { fileURLToPath } from 'node:url';
 import {
-  FIXTURE_SHARD, defaultShardCount, emitShardSummary, runShards, shardSlice,
+  FIXTURE_SHARD,
+  collectFixtures,
+  defaultShardCount,
+  emitShardSummary,
+  runShards,
+  shardSlice,
 } from '../babel-plugin/fixture-shards.mjs';
 
-const { readdir, pathExists, readFile, rm, stat, writeFile } = fs;
+const { pathExists, readFile, rm, writeFile } = fs;
 const { basename, join } = path;
 const { cyan, green, red, yellow } = chalk;
 
@@ -396,6 +401,16 @@ async function compareMainOutput({ directory, actual, babelOutput, babelOptions,
     firstDiff(actual, babelOutput));
 }
 
+// four different reasons decline to compare a fixture, and one nameless counter reported them as a
+// single number - so "Skipped: 99" said nothing about WHAT went unchecked or why, and a walk or
+// filter regression could hide inside it. the per-reason tallies ride on `counts` because that is
+// what crosses the shard boundary: a number a shard computes and the coordinator drops is invisible
+function skip(directory, reason) {
+  counts.skipped++;
+  const key = `skip:${ reason }`;
+  counts[key] = (counts[key] ?? 0) + 1;
+}
+
 async function runFixture(directory) {
   const unpluginOutputFile = join(directory, 'output-unplugin.mjs');
   const hasUnpluginOutput = await pathExists(unpluginOutputFile);
@@ -403,18 +418,18 @@ async function runFixture(directory) {
 
   if (shouldSkip(path.basename(directory), babelOptions)) {
     if (hasUnpluginOutput) return fail(directory, `stale ${ cyan('output-unplugin.mjs') } in skipped fixture`);
-    counts.skipped++;
+    skip(directory, 'declared');
     return;
   }
 
   if (!babelOptions) {
-    counts.skipped++;
+    skip(directory, 'no options.json');
     return;
   }
 
   const pluginOptions = extractPluginOptions(babelOptions);
   if (!pluginOptions) {
-    counts.skipped++;
+    skip(directory, 'no @core-js plugin in options');
     return;
   }
 
@@ -423,7 +438,7 @@ async function runFixture(directory) {
 
   const outputFile = join(directory, 'output.mjs');
   if (!await pathExists(outputFile)) {
-    counts.skipped++;
+    skip(directory, 'no output.mjs');
     return;
   }
 
@@ -454,16 +469,10 @@ async function runFixture(directory) {
 // a shard child receives the subtree filter via env (the zx CLI keeps the script name in
 // argv._, so a positional arg would land off-by-one against the zxi-invoked parent)
 const subtree = FIXTURE_SHARD ? process.env.FIXTURE_SUBTREE : args[0];
-const fixtures = [];
-for (const mode of ['entry-global', 'usage-global', 'usage-pure']) {
-  if (subtree && subtree !== mode && !subtree.startsWith(`${ mode }/`)) continue;
-  const only = subtree?.startsWith(`${ mode }/`) ? subtree.slice(mode.length + 1) : null;
-  for (const name of (await readdir(join(fixturesDir, mode))).sort()) {
-    if (only && name !== only) continue;
-    const dir = join(fixturesDir, mode, name);
-    if ((await stat(dir)).isDirectory()) fixtures.push(dir);
-  }
-}
+// the SAME collect the babel leg uses, so both legs agree on what a fixture is: a directory holding
+// `input.mjs`, at whatever depth. a walk of its own, fixed at mode/fixture, silently dropped anything
+// one level deeper - the babel leg compared it, this one skipped its parent, and no counter said so
+const fixtures = await collectFixtures(subtree ? join(fixturesDir, subtree) : fixturesDir);
 
 // a child reports through the marker only; the parent aggregates and decides the exit
 if (FIXTURE_SHARD) {
@@ -481,8 +490,27 @@ if (FIXTURE_SHARD) {
   }
   const { passed, failed, skipped } = counts;
   echo(`\nPassed: ${ green(passed) }, Failed: ${ failed ? red(failed) : green(failed) }, Skipped: ${ yellow(skipped) }`);
-  // corpus-presence canary - a walk or filter regression must not read green; a subtree run
-  // is a deliberate narrowing, so only the full corpus is held to it
-  if (!subtree && !OVERWRITE && passed + failed < 200) throw new Error(`unplugin corpus collapsed: only ${ passed + failed } fixtures compared`);
+  // the denominator, enforced: every collected fixture must have left through exactly one counter.
+  // the equality is what says the summary describes the whole COLLECTED corpus, and a subtree run
+  // is a deliberate narrowing of that, so it holds there too
+  const reasons = Object.entries(counts)
+    .filter(([key]) => key.startsWith('skip:'))
+    .sort((a, b) => b[1] - a[1])
+    .map(([key, count]) => `${ key.slice(5) }: ${ count }`);
+  if (reasons.length) echo(`Skipped by reason - ${ reasons.join(', ') }`);
+  const accounted = passed + failed + skipped;
+  if (accounted !== fixtures.length) {
+    throw new Error(`corpus not accounted for: ${ accounted } of ${ fixtures.length } fixtures reached a counter`);
+  }
+  // the comparison itself, bounded from below. The equality above is scale-free: it holds just as
+  // well when every collected fixture left through a SKIP counter, which is what a comparator that
+  // stopped comparing produces (measured: forcing one declined lane takes the whole corpus with it).
+  // An unscoped run must therefore also compare a corpus-sized number of fixtures; a subtree run is a
+  // deliberate narrowing and carries no floor
+  const COMPARED_FLOOR = 8000;
+  const compared = passed + failed;
+  if (!subtree && compared < COMPARED_FLOOR) {
+    throw new Error(`fixture corpus collapsed: ${ compared } fixtures compared, under the floor of ${ COMPARED_FLOOR }`);
+  }
   if (failed) throw new Error('Some tests have failed');
 }

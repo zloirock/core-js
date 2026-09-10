@@ -1,6 +1,6 @@
 import _globalThis from "@core-js/pure/actual/global-this";
+import _Promise from "@core-js/pure/actual/promise";
 import _Promise$allSettled from "@core-js/pure/actual/promise/all-settled";
-import _Promise from "@core-js/pure/actual/promise/constructor";
 // a super-class alias whose init reads a member off a receiver (`var Base = R.Promise`) or
 // destructures it (`var { Promise: Base } = R`) resolves `R` in the alias's OWN declaration scope.
 // an inner-function `var` redeclaring the receiver name shadows it only at the class site, so

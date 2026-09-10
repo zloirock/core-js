@@ -5,18 +5,21 @@
 // exists), and takes the `isPureImportSource` test bound to the active package via
 // `pureImportSourceTest`. semantics live here so both plugins' dispatchers gate on the
 // same family; the emitters only bind their injector state
-import { entryToGlobalHint } from '../index.js';
+import { entryToGlobalHint, hasOwnStaticDefinition } from '../index.js';
 import { ORPHAN_REF_PATTERN, UNUSED_NAME_PATTERN } from '../injector-base.js';
 import { isSourcedSymbolIteratorMeta } from './members.js';
 import {
   patternSlotTarget,
-  TS_EXPR_WRAPPERS,
+  SKIPPABLE_WRAPPER_TYPES,
   blocksUidSlot,
   defaultImportSourcesOf,
   kebabToCamel,
+  memberKeyName,
+  pureImportEntryOf,
   pureImportSourceEntry,
   requireCallSource,
   rootProgramOf,
+  staticMemberFromEntrySegment,
   statementListOf,
   tsImportEqualsRequireSource,
   unwrapExportedDeclaration,
@@ -69,6 +72,13 @@ export function ownOutputTests(injector) {
                 may = true;
                 break;
               }
+              // ... and a binding wearing the MINTED spelling with no import behind it at all: a
+              // bundler rewrote that import into its own module call, and the name is the only thing
+              // this file keeps of it - without this the whole family skips a bundled re-pass
+              if (declarator.init && mintedNameTarget(declarator.id.name)?.member) {
+                may = true;
+                break;
+              }
             }
             if (may) break;
           }
@@ -113,6 +123,92 @@ function defaultHoldsPureImport(path, tests) {
   return pureDefaultImportBinding(path, right.name, tests);
 }
 
+// the pure ENTRY a PRIOR pass's default import binds (`_Array$of` -> `array/of`), null for
+// every other name: a census that must know WHICH read a kept spelling stands for reads the
+// entry, where the boolean sibling above only asks whether the binding is one of ours. the
+// lookup is the program-wide canon; only the own-pass exclusion is this family's to add
+function priorPassImportEntry(path, name, { isOwnPassBinding }) {
+  return isOwnPassBinding?.(name) ? null : pureImportEntryOf(path, name);
+}
+
+// the (global, member) a MINTED NAME spells, read back where the import that bound it is no longer
+// visible: a bundler rewrites every import into its own module call, so a pass over bundled output
+// sees the binding by name alone and the whole own-output family went blind there - the guard it
+// wrote was re-claimed and nested one level per pass. the name is enough to say WHICH read it stands
+// for, and the definitions confirm it names a real one; the three-way agreement the caller then owes
+// is the same one an import-backed spelling owes, so a user binding wearing the shape decides nothing
+const MINTED_STATIC_NAME = /^_+(?<global>[A-Z]\w*)\$(?<member>\w+)$/u;
+const MINTED_CTOR_NAME = /^_+(?<global>[A-Z]\w*)$/u;
+function mintedNameTarget(name) {
+  const statik = MINTED_STATIC_NAME.exec(name ?? '');
+  if (statik) {
+    const { global, member } = statik.groups;
+    return hasOwnStaticDefinition(global, member) ? { global, member } : null;
+  }
+  const ctor = MINTED_CTOR_NAME.exec(name ?? '');
+  return ctor ? { global: ctor.groups.global, member: null } : null;
+}
+
+// the (global, member) a pure entry names - `array/of` -> Array + `of`, a family entry
+// (`map`, `map/constructor`) naming the global with no member of its own. the segment split
+// is the injector's, so a member whose spelling the kebab head cannot carry reads the same
+function entryGuardTarget(entry) {
+  const family = entryToGlobalHint(entry);
+  if (family !== null) return { global: family, member: null };
+  const segments = typeof entry === 'string' ? entry.split('/') : [];
+  const global = segments.length < 2 ? null : entryToGlobalHint(segments.at(-2));
+  return global === null ? null : { global, member: staticMemberFromEntrySegment(global, segments.at(-1)) };
+}
+
+// the read a guard's alternate keeps, peeled to `<bare receiver>.<member>` through the
+// composition our render leaves above it (`h.from.bind(h)`, `h?.groupBy`, a TS wrapper)
+function guardedReadLeaf(node) {
+  for (let cur = unwrapRuntimeExpr(node); cur;) {
+    if (cur.type === 'CallExpression' || cur.type === 'OptionalCallExpression') {
+      cur = unwrapRuntimeExpr(cur.callee);
+      continue;
+    }
+    if (cur.type !== 'MemberExpression' && cur.type !== 'OptionalMemberExpression') return null;
+    const object = unwrapRuntimeExpr(cur.object);
+    if (object?.type === 'Identifier') {
+      const member = memberKeyName(cur);
+      return member === null ? null : { receiver: object.name, member };
+    }
+    cur = object;
+  }
+  return null;
+}
+
+// does this conditional's TEST already settle the alternate's claim? our shadow-alias render is
+// `h === Ctor ? _X : h.of`, and what makes the alternate off limits is the test, not the member: on
+// that arm `h` is provably NOT the global `_X` was minted for, so a claim there would polyfill a
+// value that global's polyfill has nothing to do with - our own kept read and a foreign member
+// under the same test alike. a test against ANOTHER global settles nothing: `h` may still be this
+// one, and the alternate keeps its claim
+function ownGuardRenderShape(conditional, path, tests) {
+  const consequent = unwrapRuntimeExpr(conditional.consequent);
+  if (consequent?.type !== 'Identifier') return false;
+  const target = entryGuardTarget(priorPassImportEntry(path, consequent.name, tests))
+    ?? mintedNameTarget(consequent.name);
+  if (target === null || target.member === null) return false;
+  const read = guardedReadLeaf(conditional.alternate);
+  if (read === null) return false;
+  const test = unwrapRuntimeExpr(conditional.test);
+  if (test?.type !== 'BinaryExpression' || test.operator !== '===') return false;
+  const left = unwrapRuntimeExpr(test.left);
+  const right = unwrapRuntimeExpr(test.right);
+  // the render spells the receiver first, but the test is symmetric - take whichever side is it
+  const against = left?.type === 'Identifier' && left.name === read.receiver ? right
+    : right?.type === 'Identifier' && right.name === read.receiver ? left : null;
+  if (against?.type !== 'Identifier') return false;
+  // a global core-js never replaces is tested against its BARE name, a replaced one against
+  // the minted constructor binding
+  const entry = priorPassImportEntry(path, against.name, tests);
+  const compared = entry === null
+    ? mintedNameTarget(against.name)?.global ?? against.name : entryGuardTarget(entry)?.global;
+  return compared === target.global;
+}
+
 // the raw read OUR shadow-alias guard deliberately keeps (`h === Ctor ? _X : h.of` - the
 // alternate reads the shadowed value): a pass over our own output must not claim it again,
 // or the guard nests one level per pass
@@ -123,13 +219,10 @@ function guardedAliasAlternateRead(path, tests) {
   for (let up = cur.parentPath; up?.node; cur = up, up = up.parentPath) {
     const parent = up.node;
     if (parent.type === 'ConditionalExpression') {
-      if (parent.alternate !== cur.node) return false;
-      const consequent = unwrapRuntimeExpr(parent.consequent);
-      return consequent?.type === 'Identifier' && pureDefaultImportBinding(path, consequent.name, tests);
+      return parent.alternate === cur.node && ownGuardRenderShape(parent, path, tests);
     }
     if (parent.type !== 'MemberExpression' && parent.type !== 'OptionalMemberExpression'
-      && parent.type !== 'CallExpression' && parent.type !== 'ParenthesizedExpression'
-      && parent.type !== 'ChainExpression' && !TS_EXPR_WRAPPERS.has(parent.type)) return false;
+      && parent.type !== 'CallExpression' && !SKIPPABLE_WRAPPER_TYPES.has(parent.type)) return false;
   }
   return false;
 }
@@ -164,14 +257,6 @@ function patternDefaultHoldsPureImport(path, tests) {
   return pureDefaultImportBinding(path, right.name, tests);
 }
 
-// does the receiver spine carry a MINTED pure-call side effect (a sequence prefix or a
-// computed key holding `_x(...)` bound to a pure default import)? that spelling is our own
-// prior pass's output: its pending claims are spent, and a fresh claim over it would
-// UPGRADE a verdict the first pass settled (`(push, _globalThis)[key]?.tail` collapsed on
-// the second pass where the first deliberately kept the source `?.`)
-// the RENDERED GUARD spelling our collapse writes (`null == probe ? void 0 : _x.tail`):
-// a receiver carrying one is our own prior output - a fresh claim over it re-upgrades a
-// settled verdict (the same census family as `navHoldsMintedSeCall`, for the guard shape)
 // a COMPUTED member whose key is a minted pure import (`[1, 2][_Symbol$iterator]` - the
 // symbol read our pass left through its own binding): re-claiming it re-resolves the alias
 // and upgrades the kept spelling (`_getIteratorMethod([1, 2])`) on a pass over our output
@@ -184,6 +269,9 @@ function computedKeyIsMintedImport(node, path, tests) {
   return key?.type === 'Identifier' && pureDefaultImportBinding(path, key.name, tests);
 }
 
+// the RENDERED GUARD spelling our collapse writes (`null == probe ? void 0 : _x.tail`):
+// a receiver carrying one is our own prior output - a fresh claim over it re-upgrades a
+// settled verdict (the same census family as `navHoldsMintedSeCall`, for the guard shape)
 function navHoldsRenderedGuard(objectNode, path, tests) {
   const stack = [objectNode];
   while (stack.length) {
@@ -220,6 +308,11 @@ function navHoldsRenderedGuard(objectNode, path, tests) {
   return false;
 }
 
+// does the receiver spine carry a MINTED pure-call side effect (a sequence prefix or a
+// computed key holding `_x(...)` bound to a pure default import)? that spelling is our own
+// prior pass's output: its pending claims are spent, and a fresh claim over it would
+// UPGRADE a verdict the first pass settled (`(push, _globalThis)[key]?.tail` collapsed on
+// the second pass where the first deliberately kept the source `?.`)
 export function navHoldsMintedSeCall(objectNode, path, tests) {
   const stack = [objectNode];
   while (stack.length) {
@@ -288,18 +381,6 @@ function overwriteRebindSibling(path, { localName, ...tests }) {
   return false;
 }
 
-// an ADOPTED sentinel - a `_unusedN` the census found in the sentinel position of a source that
-// already imports core-js (a re-parse of our own output, or a user file written against the
-// pure imports) - is ours only where our extraction of THIS KEY stands with it: every rest
-// rebuild leaves the extracted value in the same statement list, as a declarator init or an
-// assignment read through the key's pure-import binding (`at = _atMaybeArray(_ref)`,
-// `from = _Array$from`, a `for` head's `from = _Array$from, _unused = ...`; a nested proxy key
-// names the NAMESPACE the import hangs off - `Array: _unused` beside `_Array$from`; a symbol
-// iterator key reads through `get-iterator-method`). a user's unread alias in that position has
-// no such sibling and keeps its rewrite - its importers may read it. reached through the census
-// below, which both dispatchers ask ahead of EVERY route: without the skip a pass over our own
-// output re-extracts the sentinel as a live binding and mints a fresh one, growing it per pass
-
 // a sentinel-valued prop a PRIOR pass printed (`{ key: _unusedN }`): ours outright, or an
 // adopted name that still stands beside our extraction of THIS key. both dispatchers ask it
 // ahead of every route
@@ -313,6 +394,17 @@ export function sentinelAlreadyProcessed(path, { node, meta, injector }) {
   });
 }
 
+// an ADOPTED sentinel - a `_unusedN` the census found in the sentinel position of a source that
+// already imports core-js (a re-parse of our own output, or a user file written against the
+// pure imports) - is ours only where our extraction of THIS KEY stands with it: every rest
+// rebuild leaves the extracted value in the same statement list, as a declarator init or an
+// assignment read through the key's pure-import binding (`at = _atMaybeArray(_ref)`,
+// `from = _Array$from`, a `for` head's `from = _Array$from, _unused = ...`; a nested proxy key
+// names the NAMESPACE the import hangs off - `Array: _unused` beside `_Array$from`; a symbol
+// iterator key reads through `get-iterator-method`). a user's unread alias in that position has
+// no such sibling and keeps its rewrite - its importers may read it. reached through the census
+// above, which both dispatchers ask ahead of EVERY route: without the skip a pass over our own
+// output re-extracts the sentinel as a live binding and mints a fresh one, growing it per pass
 function restSentinelExtractionSibling(path, { key, symbolIterator, injector }) {
   let p = path;
   let paramsBody = null;

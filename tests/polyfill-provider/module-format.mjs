@@ -59,6 +59,15 @@ const CENSUS = [
   ['const x = 1; export = x;', false, true],
   ['import X = require("./x"); X();', false, true],
   ['export import X = require("./x");', false, true],
+  // ... and an AMBIENT declaration binds nothing at runtime, so it shadows nothing: tsc erases it
+  // and the read reaches the host's own wrapper name. the positives above pair with these - a
+  // census reading the declaration as a binding suppresses the evidence and spells the injection
+  // as an `import` into a file that is CommonJS
+  ['declare const require: (m: string) => unknown; require("./dep");', false, true],
+  ['declare const module: any; module.exports = 1;', false, true],
+  ['declare var exports: any; exports.x = 1;', false, true],
+  ['declare const __dirname: string; g(__dirname);', false, true],
+  ['import type { require } from "./a"; require("./dep");', false, true],
   // the author bound the name themselves, so the spelling is about their object
   ['let exports = {}; exports.x = 1;', false, false],
   ['const module = { exports: {} }; module.exports = 1;', false, false],
@@ -131,33 +140,33 @@ for (const [id, expected] of [
 
 // --- the verdict ---
 
-// `[label, id, source, declaredSourceType, importStyleOption, sourceType, hostScope, importStyle]`
+// `[label, id, source, declaredSourceType, importStyleOption, sourceType, importStyle]`
 const FORMAT = [
   // live module evidence is PROOF and outranks everything, the emission option included
-  ['esm body', '/p.js', 'import "./a";', 'module', null, 'module', 'module', 'import'],
-  ['esm body under a require option', '/p.js', 'import "./a";', 'module', 'require', 'module', 'module', 'require'],
-  ['esm body in a .cjs', '/p.cjs', 'import "./a";', 'script', null, 'module', 'module', 'import'],
+  ['esm body', '/p.js', 'import "./a";', 'module', null, 'module', 'import'],
+  ['esm body under a require option', '/p.js', 'import "./a";', 'module', 'require', 'module', 'require'],
+  ['esm body in a .cjs', '/p.cjs', 'import "./a";', 'script', null, 'module', 'import'],
   // the option decides the SPELLING and nothing else
-  ['cjs body under an import option', '/p.js', 'module.exports = 1;', 'module', 'import', 'script', 'cjs-wrapper', 'import'],
-  ['bare body under a require option', '/p.js', 'g();', 'module', 'require', 'module', 'module', 'require'],
+  ['cjs body under an import option', '/p.js', 'module.exports = 1;', 'module', 'import', 'script', 'import'],
+  ['bare body under a require option', '/p.js', 'g();', 'module', 'require', 'module', 'require'],
   // the extension outranks a body with no module proof, and a declared `module` is a default
-  ['cjs extension, cjs body', '/p.cjs', 'module.exports = 1;', 'module', null, 'script', 'cjs-wrapper', 'require'],
-  ['cjs extension, bare body', '/p.cjs', 'g();', 'module', null, 'script', 'cjs-wrapper', 'require'],
-  ['mjs extension, cjs body', '/p.mjs', 'module.exports = 1;', 'module', null, 'module', 'module', 'require'],
+  ['cjs extension, cjs body', '/p.cjs', 'module.exports = 1;', 'module', null, 'script', 'require'],
+  ['cjs extension, bare body', '/p.cjs', 'g();', 'module', null, 'script', 'require'],
+  ['mjs extension, cjs body', '/p.mjs', 'module.exports = 1;', 'module', null, 'module', 'require'],
   // a declared SCRIPT is a statement about the file; a declared module is not
-  ['host declared a script', '/p.js', 'g();', 'script', null, 'script', 'global-script', 'require'],
-  ['host declared a script with a cjs body', '/p.js', 'module.exports = 1;', 'script', null, 'script', 'cjs-wrapper', 'require'],
+  ['host declared a script', '/p.js', 'g();', 'script', null, 'script', 'require'],
+  ['host declared a script with a cjs body', '/p.js', 'module.exports = 1;', 'script', null, 'script', 'require'],
   // a MIXED body spells both, and the emission follows the ESM: a `require` at the top of a file
   // that still imports or exports is a ReferenceError under the only loader that takes the rest of
   // it. Whether a statement will be CONSUMED before the print is not the owner's question - only
   // `entry-global` consumes one, and only a core-js specifier
-  ['mixed: an export beside CommonJS', '/p.js', 'export const a = 1;\nrequire("./d");', 'module', null, 'module', 'module', 'import'],
-  ['mixed: a binding import beside CommonJS', '/p.js', 'import d from "./d";\nrequire("./e");', 'module', null, 'module', 'module', 'import'],
-  ['mixed: a bare import beside CommonJS', '/p.js', 'import "./d";\nrequire("./e");', 'module', null, 'module', 'module', 'import'],
-  ['mixed: top-level await beside CommonJS', '/p.js', 'await f();\nrequire("./e");', 'module', null, 'module', 'module', 'import'],
+  ['mixed: an export beside CommonJS', '/p.js', 'export const a = 1;\nrequire("./d");', 'module', null, 'module', 'import'],
+  ['mixed: a binding import beside CommonJS', '/p.js', 'import d from "./d";\nrequire("./e");', 'module', null, 'module', 'import'],
+  ['mixed: a bare import beside CommonJS', '/p.js', 'import "./d";\nrequire("./e");', 'module', null, 'module', 'import'],
+  ['mixed: top-level await beside CommonJS', '/p.js', 'await f();\nrequire("./e");', 'module', null, 'module', 'import'],
   // nothing to go on at all: a module, which is what a bundler feeds a plugin
-  ['no evidence', '/p.js', 'g();', 'module', null, 'module', 'module', 'import'],
-  ['no id at all', null, 'module.exports = 1;', null, null, 'script', 'cjs-wrapper', 'require'],
+  ['no evidence', '/p.js', 'g();', 'module', null, 'module', 'import'],
+  ['no id at all', null, 'module.exports = 1;', null, null, 'script', 'require'],
 ];
 
 // a caller with no program at all degrades the way the census does - a module with the option's
@@ -165,20 +174,19 @@ const FORMAT = [
 for (const [label, program] of [['null', null], ['undefined', undefined], ['a string', 'x']]) {
   const format = resolveModuleFormat({ program, importStyleOption: 'require' });
   checkDeep(`format/no program (${ label })`,
-    { sourceType: format.sourceType, hostScope: format.hostScope, importStyle: format.importStyle },
-    { sourceType: 'module', hostScope: 'module', importStyle: 'require' });
+    { sourceType: format.sourceType, importStyle: format.importStyle },
+    { sourceType: 'module', importStyle: 'require' });
 }
 
-for (const [label, id, source, declaredSourceType, importStyleOption, sourceType, hostScope, importStyle] of FORMAT) {
+for (const [label, id, source, declaredSourceType, importStyleOption, sourceType, importStyle] of FORMAT) {
   runBoth(`format: ${ label }`, source, (adapter, prog, rowLabel) => {
     const program = prog.node ?? prog;
     program.sourceType = declaredSourceType ?? 'module';
     const format = resolveModuleFormat({ id, program, declaredSourceType, importStyleOption });
     checkDeep(rowLabel, {
       sourceType: format.sourceType,
-      hostScope: format.hostScope,
       importStyle: format.importStyle,
-    }, { sourceType, hostScope, importStyle });
+    }, { sourceType, importStyle });
   });
 }
 
@@ -199,14 +207,14 @@ runBoth('verdict: a flipped emission option leaves the language half alone',
     const second = ask('require');
     const third = ask('import');
     checkDeep(label, [
-      [second.sourceType, second.hostScope],
-      [third.sourceType, third.hostScope],
+      second.sourceType,
+      third.sourceType,
       // ... while the SPELLING is the caller's own each time, and this row means nothing unless
       // the two callers really did ask for different ones
       [second.importStyle, third.importStyle],
     ], [
-      [first.sourceType, first.hostScope],
-      [first.sourceType, first.hostScope],
+      first.sourceType,
+      first.sourceType,
       ['require', 'import'],
     ]);
   });
@@ -237,10 +245,7 @@ runBoth('verdict: a flipped emission option leaves the language half alone',
         const broken = [];
         // live module evidence is PROOF: nothing may read such a body as a script
         if (esm && format.sourceType !== 'module') broken.push('esm body read as a script');
-        // the two sloppy hosts exist only under a script, and a wrapper needs something to wrap
-        if (format.sourceType === 'module' && format.hostScope !== 'module') broken.push('module with a sloppy host');
-        if (format.sourceType === 'script' && format.hostScope === 'module') broken.push('script with a module host');
-        if (format.hostScope === 'cjs-wrapper' && !(cjs || id === '/p.cjs')) broken.push('wrapper with no CommonJS');
+        if (!['module', 'script'].includes(format.sourceType)) broken.push('unknown source type');
         if (format.sourceIsMixed !== (esm && cjs)) broken.push('sourceIsMixed disagrees with the body');
         if (!['import', 'require'].includes(format.importStyle)) broken.push('unknown spelling');
         // nothing consumes ESM here, so a body that keeps its own may not be spelled `require`
@@ -264,8 +269,6 @@ const SPELLABLE = [
   ['class require', '/p.js', 'class require {}\nmodule.exports = 1;', 'import', true],
   // a `var` only REDECLARES: inside the wrapper it starts out holding the loader the host passed
   ['var require in a wrapper', '/p.cjs', 'var require = f;\nmodule.exports = 1;', 'require', false],
-  // ... and holds nothing in a global script, where there is no parameter behind it
-  ['var require in a global script', '/p.js', 'var require = f;\ng();', 'import', true],
   // a block function does not hoist over a wrapper PARAMETER (B.3.3.1), so it shadows nothing there
   ['block function require in a wrapper', '/p.cjs', '{ function require() {} }\nmodule.exports = 1;', 'require', false],
   ['no binding at all', '/p.cjs', 'module.exports = 1;', 'require', false],
@@ -280,5 +283,14 @@ for (const [label, id, source, importStyle, requireDeclined] of SPELLABLE) {
       { importStyle, requireDeclined });
   });
 }
+
+// a MODULE asked for the `require` spelling by its caller is the one host left where a program-level
+// `var require` swallows the call: no loader parameter stands behind the name there
+runBoth('spellable: var require in a module asked to spell it', 'var require = f;\nexport const a = 1;',
+  (adapter, prog, label) => {
+    const format = resolveModuleFormat({ id: '/p.js', program: prog.node ?? prog, importStyleOption: 'require' });
+    checkDeep(label, { importStyle: format.importStyle, requireDeclined: format.requireDeclined },
+      { importStyle: 'import', requireDeclined: true });
+  });
 
 finish();

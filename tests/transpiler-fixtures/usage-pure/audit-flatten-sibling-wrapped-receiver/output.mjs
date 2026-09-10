@@ -1,7 +1,7 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
 import _Number$isFinite from "@core-js/pure/actual/number/is-finite";
 import _Number$isInteger from "@core-js/pure/actual/number/is-integer";
 import _Number$isSafeInteger from "@core-js/pure/actual/number/is-safe-integer";
@@ -10,8 +10,8 @@ import _Object$entries from "@core-js/pure/actual/object/entries";
 import _Object$freeze from "@core-js/pure/actual/object/freeze";
 import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 import _Object$keys from "@core-js/pure/actual/object/keys";
-import _Promise from "@core-js/pure/actual/promise/constructor";
-import _Set from "@core-js/pure/actual/set/constructor";
+import _Promise from "@core-js/pure/actual/promise";
+import _Set from "@core-js/pure/actual/set";
 // the flatten's sibling walk climbs from a matched receiver identifier up its member chain to decide
 // whether another channel owns it. a cast or a paren sitting BETWEEN the two is transparent to that
 // question - the chain is still the one rooted at this receiver - so stopping there claimed a receiver

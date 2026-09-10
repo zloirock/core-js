@@ -54,6 +54,7 @@ import {
   attachMemberUnionExtras,
   enumerateFallbackDestructureBranches,
   restoreUnclaimedFlattens,
+  staticContainerReceiverName,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import { resolveKey as sharedResolveKey } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { planMinifierSequenceSplit } from '@core-js/polyfill-provider/destructure-host-shape';
@@ -345,13 +346,6 @@ export function formatParseErrorForThrow({ error, code }) {
   return combineHeadAndBody(`could not parse: ${ error.message }`, buildParseErrorBody(error, code));
 }
 
-// legacy entry kept for tests that exercise the flag dispatch; new callers pick the named helper
-export function formatParseErrorMessage({ id, error, code, withCoreJSPrefix }) {
-  return withCoreJSPrefix
-    ? formatParseErrorForWarn({ id, error, code })
-    : formatParseErrorForThrow({ error, code });
-}
-
 export default function createPlugin(options) {
   // per-instance type resolvers - guardsCache/resolveCache WeakMaps don't leak across
   // plugin instances. shared between transforms WITHIN one instance is safe because
@@ -430,6 +424,8 @@ export default function createPlugin(options) {
     typeResolvers,
     // the per-file mutation census the ENTRY choice consults - see the babel twin
     isMutatedStatic: (object, key) => estreeAdapter.isMutatedStatic(object, key),
+    // ... and its escape twin, one file-wide answer per ctor NAME, off the same census
+    isEscapedCtor: (name, heldInSlot) => currentEscapedCtorNames?.has(name, heldInSlot) === true,
     astPredicates: {
       isMemberLike: path => path.node?.type === 'MemberExpression',
       // `isCallee` peels parens / TS wrappers / ChainExpression from `parent.callee` before the
@@ -455,6 +451,8 @@ export default function createPlugin(options) {
   // per-transform mutated-statics set, readable by the factory-scoped adapter / resolvePure
   // filter (the transform-local const cannot be closed over from here)
   let currentMutatedStatics = null;
+  // the census's escape half, by NAME - strings alone, so the per-file tree stays releasable
+  let currentEscapedCtorNames = null;
   // typing asks a YES/NO about ONE namespace, and the cheap census the shared walk already produced
   // answers it: its target roots are a SUPERSET of what a scoped walk could attribute, so a namespace
   // none of them names is provably untouched, and an over-report only degrades a narrow (over-inject,
@@ -680,15 +678,18 @@ export default function createPlugin(options) {
       // REGISTERS a patch through a written slot would otherwise bail on the very record its own
       // writes feed. a re-entrant inner transform used to read the OUTER file's map here
       const outerMutatedStatics = currentMutatedStatics;
+      const outerEscapedCtorNames = currentEscapedCtorNames;
       const outerWrittenContainerSlots = currentWrittenContainerSlots;
       const outerContainerSlotIndex = currentContainerSlotIndex;
       currentMutatedStatics = null;
+      currentEscapedCtorNames = null;
       currentWrittenContainerSlots = null;
       currentContainerSlotIndex = null;
       try {
         prePass = collectPrePassSites(prePassArgs);
       } finally {
         currentMutatedStatics = outerMutatedStatics;
+        currentEscapedCtorNames = outerEscapedCtorNames;
         currentWrittenContainerSlots = outerWrittenContainerSlots;
         currentContainerSlotIndex = outerContainerSlotIndex;
       }
@@ -731,11 +732,13 @@ export default function createPlugin(options) {
     // Promise constructor and rewrites to `_Promise$resolve(1)` (matches babel adapter behavior)
     const previousInjector = currentInjector;
     const previousMutatedStatics = currentMutatedStatics;
+    const previousEscapedCtorNames = currentEscapedCtorNames;
     const previousMutationRoots = currentMutationRoots;
     const previousWrittenContainerSlots = currentWrittenContainerSlots;
     const previousContainerSlotIndex = currentContainerSlotIndex;
     currentInjector = injector;
     currentMutatedStatics = mutatedStatics;
+    currentEscapedCtorNames = fileCensus.escapedCtorNames ?? null;
     currentMutationRoots = fileCensus.mutationRoots ?? null;
     currentWrittenContainerSlots = fileCensus.writtenContainerSlots ?? null;
     currentContainerSlotIndex = fileCensus.containerSlotIndex ?? null;
@@ -844,8 +847,10 @@ export default function createPlugin(options) {
       // resolve a bare global name (`Array`, `Promise`, `globalThis`) to its pure polyfill
       // binding info; null when not polyfillable as a global. shared between the usage-pure
       // callback and the destructure emitter
+      // the destructure plans hold the pattern slot, never a path to it - and need none: the ENTRY a
+      // ctor resolves to is a per-FILE answer, the same one every other reference to the name gets
       function resolveGlobalPolyfill(name) {
-        const pure = resolvePure({ kind: 'global', name });
+        const pure = resolvePure({ kind: 'global', name }, null);
         return pure && pure.kind !== 'instance' ? pure : null;
       }
 
@@ -986,8 +991,12 @@ export default function createPlugin(options) {
         isInStaticContext,
         isShadowedByClassOwnMember,
       } = createClassHelpers({
-        t: types, adapter: estreeAdapter, resolveKey: sharedResolveKey, getInjector: () => injector,
+        t: types,
+        adapter: estreeAdapter,
+        resolveKey: sharedResolveKey,
+        getInjector: () => injector,
         attachUnionExtras: attachMemberUnionExtras,
+        containerReceiverName: staticContainerReceiverName,
       });
 
       // usage-global mode
@@ -1276,6 +1285,7 @@ export default function createPlugin(options) {
     } finally {
       currentInjector = previousInjector;
       currentMutatedStatics = previousMutatedStatics;
+      currentEscapedCtorNames = previousEscapedCtorNames;
       currentMutationRoots = previousMutationRoots;
       currentWrittenContainerSlots = previousWrittenContainerSlots;
       currentContainerSlotIndex = previousContainerSlotIndex;

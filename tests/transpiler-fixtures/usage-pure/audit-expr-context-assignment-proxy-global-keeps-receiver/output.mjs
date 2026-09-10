@@ -1,5 +1,5 @@
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Set from "@core-js/pure/actual/set/constructor";
+import _Set from "@core-js/pure/actual/set";
 // a destructure-ASSIGNMENT whose own value is CAPTURED: the consume would hand its reader the
 // ponyfill where the source hands it the receiver, so the emit bails and leaves the assignment in
 // place. the dropped-receiver skip must therefore NOT fire - the `globalThis` root stays and is

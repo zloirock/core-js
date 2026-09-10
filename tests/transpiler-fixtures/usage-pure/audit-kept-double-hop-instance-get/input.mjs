@@ -3,7 +3,8 @@
 // above the whole wrapper stack - guarding only the wrapper's argument would hand `void 0` to the
 // helper (a throw where native short-circuits the chain). a plugin helper wrap, its memoized
 // dispatch and the optional-call spelling all lift; a USER consumer of the claim does not (it
-// legitimately receives the short-circuited value)
+// legitimately receives the short-circuited value) - and being handed OUT, that one claim reads
+// the entry that carries the constructor's statics while the guarded static reads keep the bare one
 let n;
 let t;
 let c;

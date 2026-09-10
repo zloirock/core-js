@@ -1,9 +1,9 @@
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Map from "@core-js/pure/actual/map/constructor";
-import _Promise from "@core-js/pure/actual/promise/constructor";
+import _Map from "@core-js/pure/actual/map";
+import _Promise from "@core-js/pure/actual/promise";
 import _self from "@core-js/pure/actual/self";
-import _Set from "@core-js/pure/actual/set/constructor";
+import _Set from "@core-js/pure/actual/set";
 // a proxy-global HOP KEY carrying a side effect, read under a LIVE `?.`: the guard test is the kept
 // source of the hop that owns the key, so it already evaluates that effect - re-emitting it ahead of
 // the alternate would run it twice where native runs it once. a key ABOVE the guarded hop is the

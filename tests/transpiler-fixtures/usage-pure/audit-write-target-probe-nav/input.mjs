@@ -17,7 +17,8 @@ export function writes() {
 }
 
 // the same slot behind the two layers this family collapses through: a SEQUENCE and an effectful
-// root. the write must still reach the guarded object, and the root effect must run once
+// root. the write must still reach the guarded object, and the root effect must run once - and the
+// `delete` re-hangs its tail off the guard through the carrier, as its carrier-less twin does
 export function layeredWrites() {
   ('x', globalThis.window?.self.writeBox).n = 2;
   ('x', globalThis.window?.self.writeBox).n += 3;

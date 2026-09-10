@@ -3,15 +3,13 @@ import _globalThis from "@core-js/pure/actual/global-this";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
 import _Symbol$asyncIterator from "@core-js/pure/actual/symbol/async-iterator";
-import _Symbol from "@core-js/pure/actual/symbol/constructor";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 // a DISCARDED call/IIFE-rooted proxy receiver with a pure-ctor leaf whole-swaps the leaf and
 // re-emits every side effect the dropped navigation carried - the SE-bearing chain-root call,
 // a computed hop-key effect, and an effect buried in the LEAF's own computed key - in source
 // order ahead of it. the decision is the shared discarded-receiver plan; a pure chain-root
 // call is dropped entirely. the leaf key resolves through the canonical fold, so an
-// SE-sequence leaf key still swaps instead of stranding the raw proxy hop; a folded leaf
-// WITHOUT a pure ctor entry falls back to the root-collapse residual, keeping the key read
+// SE-sequence leaf key still swaps instead of stranding the raw proxy hop
 let c = 0;
 function sf() {
   c++;
@@ -21,7 +19,6 @@ sf(), c++;
 const groupBy = _Map$groupBy;
 export const r = [typeof groupBy, c];
 const f = () => _globalThis;
-_Symbol;
 const iterator = _Symbol$iterator;
 export const q = typeof iterator;
 let n = 0;

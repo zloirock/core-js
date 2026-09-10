@@ -68,6 +68,7 @@ export function createKnownGlobals({
   // branch here is a mismatch nothing else can build
   KNOWN_RESOLUTION_DIRECTIVES = RESOLUTION_DIRECTIVES,
   commonType,
+  elementContainerType,
   resolveReturnType,
   resolveRuntimeExpression,
 }) {
@@ -119,9 +120,15 @@ export function createKnownGlobals({
       const innerHint = hint.element ?? hint.resolved ?? null;
       let inner = innerHint ? typeFromHint(innerHint, objectType, callPath) : null;
       if (settles && inner) inner = unwrapPromise(inner);
-      // an argument directive that could not be read leaves the container bare, which is the
-      // declared answer minus the precision - never a guess about what the call was given
-      base = new $Object(hint.type, inner);
+      // an element the data never recorded, or an argument directive that could not be read, leaves
+      // the container inner-less - the declared answer minus the precision, never a guess about what
+      // the call was given. That absence is also the shape a BARE container has, which means
+      // `Array<any>` and matches whatever it is weighed against, so it confesses instead: the table
+      // says `Array` of nothing for `Object.entries` and `Map` of nothing for `Map.groupBy`, and two
+      // of those compared EQUAL and answered TRUE where the two calls carry different elements. The
+      // families with no element to record are reached as a CONSTRUCTOR box, which takes the mark
+      // back off - a bare `Date` really does constrain nothing
+      base = elementContainerType(new $Object(hint.type), null, inner);
     }
     return hint.nullable && base ? base.mark('mayBeNullish') : base;
   }

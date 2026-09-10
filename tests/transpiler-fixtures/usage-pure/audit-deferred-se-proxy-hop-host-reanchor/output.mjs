@@ -3,7 +3,7 @@ import _Array$fromAsync from "@core-js/pure/actual/array/from-async";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Object$assign from "@core-js/pure/actual/object/assign";
 import _Object$create from "@core-js/pure/actual/object/create";
@@ -18,7 +18,7 @@ import _Object$keys from "@core-js/pure/actual/object/keys";
 import _Object$values from "@core-js/pure/actual/object/values";
 import _Promise$allSettled from "@core-js/pure/actual/promise/all-settled";
 import _Promise from "@core-js/pure/actual/promise/constructor";
-import _Set from "@core-js/pure/actual/set/constructor";
+import _Set from "@core-js/pure/actual/set";
 import _Symbol$asyncIterator from "@core-js/pure/actual/symbol/async-iterator";
 var _ref, _unused2;
 // a deferred-SE destructure host (a `({ hop: { leaf } } = root)` assignment buried in a consumed

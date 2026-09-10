@@ -1,5 +1,5 @@
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
 import _toFixedMaybeNumber from "@core-js/pure/actual/number/instance/to-fixed";
 import _Number$MAX_SAFE_INTEGER from "@core-js/pure/actual/number/max-safe-integer";
 var _ref, _ref2;

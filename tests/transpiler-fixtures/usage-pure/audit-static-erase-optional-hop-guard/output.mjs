@@ -1,9 +1,9 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
 import _Promise from "@core-js/pure/actual/promise/constructor";
-import _Set from "@core-js/pure/actual/set/constructor";
+import _Set from "@core-js/pure/actual/set";
 // a static-method substitution ERASES its receiver navigation - the navigation only names the global
 // the substituted import already is. but a live `?.` guarding a value that navigates an unponyfilled
 // proxy hop (`globalThis.window`) is NOT erasable: dropping it runs the static where the source

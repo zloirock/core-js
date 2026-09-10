@@ -4,8 +4,6 @@ import _Map from "@core-js/pure/actual/map";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Object$assign from "@core-js/pure/actual/object/assign";
 import _Promise from "@core-js/pure/actual/promise";
-import _Promise$any from "@core-js/pure/actual/promise/any";
-import _Promise2 from "@core-js/pure/actual/promise/constructor";
 // the CALL-form mutated-static collectors (`Object.assign(Array, ...)`, `Reflect.set(Map, ...)`,
 // `Object.defineProperty(...)`) must shadow-check the NAMESPACE callee, not just the target arg. here
 // `Object` / `Reflect` are local (param, or a block-level `let` at ANY depth), so the call patches
@@ -38,4 +36,4 @@ _Map$groupBy([1], () => 0);
 _Object$assign(_Promise, {
   any() {}
 });
-_Promise2.any([1]);
+_Promise.any([1]);

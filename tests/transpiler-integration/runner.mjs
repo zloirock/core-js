@@ -1,4 +1,5 @@
 import { deepEqual } from 'node:assert/strict';
+import { censusWalkTruncations } from '@core-js/polyfill-provider/detect-usage/mutations';
 import { promisify } from 'node:util';
 import { pathToFileURL } from 'node:url';
 
@@ -19,6 +20,14 @@ function pluginOpts(method, phase) {
   if (phase) opts.phase = phase;
   return opts;
 }
+
+// every cell of every leg goes through `runLeg`, so this is the run's denominator. `failures`
+// counts what went WRONG and never what was attempted, so a phase / builder / method list that
+// stops yielding prints the same final line and exits 0 (measured: 19 cells instead of 93).
+// the floor sits under the 86 a machine WITHOUT bun runs (the bun row costs 7 of the 93), which
+// is the only legitimate narrowing this matrix has
+let cells = 0;
+const CELL_FLOOR = 82;
 
 // `entry-global` rejects `phase`; everything else runs across all three.
 function phasesFor(method) {
@@ -335,12 +344,10 @@ const builders = {
   },
 
   async farm(input, method, phase, extra = {}) {
-    const { build, Logger } = await import('@farmfe/core');
-    // Logger level: 'error' doesn't silence "Build completed" - override info methods directly
-    function noop() { /* empty */ }
-    const silent = Object.assign(new Logger({ level: 'error' }), {
-      info: noop, warn: noop, debug: noop, trace: noop, infoOnce: noop, warnOnce: noop, logMessage: noop,
-    });
+    const { build, NoopLogger } = await import('@farmfe/core');
+    // farm's own logger for tests: silences the progress chatter like a hand-nulled `Logger`,
+    // but THROWS a build error where the real one prints it and calls `process.exit`
+    const silent = new NoopLogger();
     return withTmpDir(async dir => {
       await build({
         root: testDir,
@@ -387,7 +394,25 @@ const builders = {
 
 // --- run ---
 
-const hasBun = await which('bun', { nothrow: true });
+// a bun old enough to miss `file://` import specifiers goes to the npm registry for a package
+// named `file:` and fails ALL SEVEN of its cells - with a stack pointing at the plugin's import
+// line and no mention of bun, so the row reads as an unplugin defect while 86 cells keep the
+// floor green. the version is read, not assumed: three bun binaries can sit on one PATH and the
+// Cellar directory name is not the binary's version
+const BUN_FLOOR = [1, 0, 0];
+const bunBinary = await which('bun', { nothrow: true });
+const bunVersion = bunBinary ? (await $({ quiet: true, nothrow: true })`bun --version`).stdout.trim() : null;
+const bunTooOld = !!bunVersion && !meetsFloor(bunVersion, BUN_FLOOR);
+const hasBun = !!bunBinary && !bunTooOld;
+
+function meetsFloor(version, floor) {
+  const parts = version.split('.').map(Number);
+  for (const [i, want] of floor.entries()) {
+    const got = parts[i] ?? 0;
+    if (got !== want) return got > want;
+  }
+  return true;
+}
 let failures = 0;
 
 // structural check on the bundler's final sourcemap - confirms our per-module maps
@@ -399,9 +424,34 @@ function assertMapShape(label, map) {
   if (typeof map.mappings !== 'string') throw new Error('map.mappings is not a string');
 }
 
-for (const [name, build] of Object.entries(builders)) {
+// every leg goes through here: a builder that reports failure by killing the process instead of
+// rejecting takes the whole matrix with it - no row for the leg, none of the legs after it, and
+// an exit code with nothing printed. turning the exit into a throw keeps that a named red row.
+// the WHOLE leg runs inside, not the builder call alone: the verifiers import the built bundle
+// into THIS process, and a sibling-plugin factory builds an adapter - either can reach the same
+// exit, and both used to sit outside the window (the factory because arguments are evaluated
+// before the call they belong to). what still escapes is an exit delivered from a callback
+// OUTSIDE the awaited chain: it surfaces as an uncaught exception, and catching those here would
+// swallow genuine crashes rather than name one leg
+async function runLeg(name, work) {
+  cells++;
+  const realExit = process.exit;
+  function exitTrap(code) {
+    throw new Error(`${ name } called process.exit(${ code })`);
+  }
+  process.exit = exitTrap;
+  try {
+    return await work();
+  } finally {
+    process.exit = realExit;
+  }
+}
+
+for (const name of Object.keys(builders)) {
   if (name === 'bun' && !hasBun) {
-    echo(`${ cyan('bun') }: ${ yellow('skipped (not installed)') }`);
+    echo(`${ cyan('bun') }: ${ yellow(bunTooOld
+      ? `skipped (bun ${ bunVersion } is under the ${ BUN_FLOOR.join('.') } floor - its failures name the plugin, not bun)`
+      : 'skipped (not installed)') }`);
     continue;
   }
   for (const method of methods) {
@@ -410,10 +460,12 @@ for (const [name, build] of Object.entries(builders)) {
     async function runCell(phase) {
       const label = [name, method, phase].filter(Boolean).join('/');
       try {
-        const { code, ext, map, verifier } = await build(inputOf(method), method, phase);
-        if (verifier === 'bun') await verifyInBun(code, label, method);
-        else await verifyInNode(code, label, ext);
-        if (name === 'rollup' || name === 'vite') assertMapShape(label, map);
+        await runLeg(name, async () => {
+          const { code, ext, map, verifier } = await builders[name](inputOf(method), method, phase);
+          if (verifier === 'bun') await verifyInBun(code, label, method);
+          else await verifyInNode(code, label, ext);
+          if (name === 'rollup' || name === 'vite') assertMapShape(label, map);
+        });
         echo(`${ cyan(label) } ${ green('passed') }`);
       } catch (error) {
         echo(red(`${ cyan(label) } failed: ${ error.message }`));
@@ -432,9 +484,11 @@ const phasesInput = resolve(testDir, 'input-phases.js');
 for (const name of ['rollup', 'rolldown', 'vite', 'webpack', 'rspack', 'rsbuild', 'farm']) {
   const label = `${ name }/usage-pure/pre+post contract`;
   try {
-    const { code, ext } = await builders[name](phasesInput, 'usage-pure', 'pre+post',
-      { siblings: [siblingMangler[name]()] });
-    await verifyPhases(code, label, ext);
+    await runLeg(name, async () => {
+      const { code, ext } = await builders[name](phasesInput, 'usage-pure', 'pre+post',
+        { siblings: [siblingMangler[name]()] });
+      await verifyPhases(code, label, ext);
+    });
     echo(`${ cyan(label) } ${ green('passed') }`);
   } catch (error) {
     echo(red(`${ cyan(label) } failed: ${ error.message }`));
@@ -451,9 +505,11 @@ const dynamicInput = resolve(testDir, 'input-dynamic.js');
 for (const name of ['esbuild', 'rollup', 'rolldown', 'vite', 'webpack', 'rspack', 'rsbuild', 'farm']) {
   const label = `${ name }/usage-global/dynamic-import`;
   try {
-    const { code, ext } = await builders[name](dynamicInput, 'usage-global', undefined,
-      { inlineDynamic: true });
-    await verifyDynamic(code, label, ext);
+    await runLeg(name, async () => {
+      const { code, ext } = await builders[name](dynamicInput, 'usage-global', undefined,
+        { inlineDynamic: true });
+      await verifyDynamic(code, label, ext);
+    });
     echo(`${ cyan(label) } ${ green('passed') }`);
   } catch (error) {
     echo(red(`${ cyan(label) } failed: ${ error.message }`));
@@ -461,5 +517,198 @@ for (const name of ['esbuild', 'rollup', 'rolldown', 'vite', 'webpack', 'rspack'
   }
 }
 
+// --- id-flow legs ---
+// Every leg above hands its builder an ordinary module id. A bundler also mints ids whose
+// ADMISSION depends on the phase - the sub-blocks a framework plugin splits a component into,
+// the component's own bare id, an inline `<script>` lifted out of an .html file, a worker's own
+// source - and the table for those (`shouldTransform`) is otherwise held only against strings
+// written by hand in `tests/unplugin/unit.mjs`, which cannot see whether a bundler produces such
+// an id at all, at which stage, or spelled how. These legs run the real vite pipeline over a
+// project that provokes each shape and hold the ACTUAL id stream to that table.
+//
+// The verdict is read off the plugin's OWN hook rather than by asking the predicate again:
+// unplugin's adapter applies `transformInclude` INSIDE the transform wrapper and returns without
+// calling the handler when it refuses, so an `undefined` result means REFUSED and any other
+// result - `null` included, which is what a pre pass deferring to post returns - means the
+// handler ran. A form whose id never reaches a stage fails the leg instead of passing it
+// silently, so a cell cannot go green having observed nothing.
+const idFlowDir = resolve(testDir, 'id-flow');
+
+// one row per id form. `pre` / `post` are the admission the unit table declares for the shape;
+// `injects` names a core-js module only THAT form's body can pull in, which is what proves the
+// admitted handler reached the author's code rather than merely being offered the id
+const idFlowForms = [
+  { label: 'html source file', match: /\/index\.html$/, modes: ['build'], pre: false, post: false },
+  {
+    label: 'html inline script',
+    match: /\/index\.html\?html-proxy&index=\d+\.js$/,
+    modes: ['build', 'serve'],
+    pre: true,
+    post: true,
+    injects: 'es.array.at',
+  },
+  { label: 'SFC source file', match: /\/App\.vue$/, modes: ['build', 'serve'], pre: false, post: true },
+  {
+    label: 'SFC script block',
+    match: /\/App\.vue\?vue&type=script&setup=true&lang\.ts$/,
+    modes: ['build'],
+    pre: true,
+    post: true,
+    injects: 'es.string.replace-all',
+  },
+  { label: 'SFC style block', match: /\/App\.vue\?vue&type=style&/, modes: ['build'], pre: false, post: false },
+  { label: 'SFC template block', match: /\/tpl\.html\?vue&type=template&/, modes: ['build', 'serve'], pre: false, post: true },
+  { label: 'worker wrapper', match: /\/worker-wrapper\.js\?worker$/, modes: ['build', 'serve'], pre: false, post: false },
+  {
+    label: 'worker source',
+    match: /\/worker-source\.js\?worker_file&type=module$/,
+    modes: ['serve'],
+    pre: true,
+    post: true,
+    injects: 'es.array.flat',
+  },
+];
+
+// wrap the sub-plugins the adapter just built: `offered` is the raw stream reaching each stage,
+// `ran` the ids whose handler the include gate actually let through, `emitted` what it returned
+function watchIdFlow(plugins, seen) {
+  for (const plugin of plugins) {
+    const phase = plugin.enforce;
+    const { transform } = plugin;
+    plugin.transform = async function (code, id, ...rest) {
+      seen.offered[phase].add(id);
+      const result = await transform.call(this, code, id, ...rest);
+      if (result !== undefined) seen.ran[phase].add(id);
+      if (result?.code) seen.emitted[phase].set(id, result.code);
+      return result;
+    };
+  }
+  return plugins;
+}
+
+async function runIdFlow(mode) {
+  const seen = {
+    offered: { pre: new Set(), post: new Set() },
+    ran: { pre: new Set(), post: new Set() },
+    emitted: { pre: new Map(), post: new Map() },
+    missed: [],
+  };
+  const vue = (await import('@vitejs/plugin-vue')).default;
+  const plugins = [vue(), ...watchIdFlow(pluginFor('vite')(pluginOpts('usage-global', 'pre+post')), seen)];
+  const entry = join(idFlowDir, 'index.html');
+  if (mode === 'build') {
+    const { build } = await import('vite');
+    await build({
+      root: idFlowDir,
+      logLevel: 'silent',
+      build: { write: false, minify: false, rollupOptions: { input: entry } },
+      plugins,
+    });
+  } else {
+    const { createServer } = await import('vite');
+    // the dev pipeline is the only one that mints a worker SOURCE id: a build bundles the worker
+    // in a nested pass keyed on the clean path instead. `transformIndexHtml` first, or the inline
+    // block's proxy id has nothing behind it
+    // `watch: null` is not tidiness: the file watcher this leg never consults is native, and its
+    // teardown loses a race with `close()` often enough to matter - measured at 4 runs in 15, each
+    // one leaving a REFERENCED libuv async handle that no JS handle backs, so the finished process
+    // hangs with nothing to name. Behind a pipe that never closes - the stdin every `run-s` member
+    // gets - that is a runner reporting success and then living for over an hour
+    const server = await createServer({
+      root: idFlowDir,
+      logLevel: 'silent',
+      server: { middlewareMode: true, hmr: false, watch: null },
+      optimizeDeps: { noDiscovery: true, include: [] },
+      plugins,
+    });
+    try {
+      await server.transformIndexHtml('/index.html', await readFile(entry, 'utf8'));
+      // the SFC's TEMPLATE block is reached only through the module that imports it, and nothing
+      // asks for it on its own - so read the specifier the framework plugin just minted out of
+      // the compiled SFC rather than spelling its query here, which would assert our guess of it
+      const compiled = await server.environments.client.transformRequest('/src/Tpl.vue');
+      const block = /["'](?<id>[^"']*[&?]type=template[^"']*)["']/u.exec(compiled?.code ?? '');
+      for (const url of [
+        '/src/main.js',
+        '/src/App.vue',
+        block?.groups.id ?? '/src/Tpl.vue?vue&type=template',
+        '/index.html?html-proxy&index=0.js',
+        '/src/worker-source.js?worker_file&type=module',
+        '/src/worker-wrapper.js?worker',
+      ]) {
+        // a url the pipeline no longer serves is RECORDED, not rethrown: thrown, it would red
+        // every form of this run rather than the one whose id went missing. the record rides
+        // along to whichever leg then finds its form absent, so the cause is still named
+        try {
+          await server.environments.client.transformRequest(url);
+        } catch (error) {
+          seen.missed.push(`${ url } (${ error.message.split('\n', 1)[0] })`);
+        }
+      }
+    } finally {
+      await server.close();
+    }
+  }
+  return seen;
+}
+
+function assertIdFlowForm(seen, form, label) {
+  for (const phase of ['pre', 'post']) {
+    const ids = [...seen.offered[phase]].filter(id => form.match.test(id));
+    if (!ids.length) {
+      const cause = seen.missed.length ? `; unserved: ${ seen.missed.join(', ') }` : '';
+      throw new Error(`${ label }: no id of this form reached the ${ phase } stage${ cause }`);
+    }
+    for (const id of ids) {
+      const ran = seen.ran[phase].has(id);
+      if (ran !== form[phase]) {
+        throw new Error(`${ label }: ${ phase } ${ ran ? 'transformed' : 'refused' } ${ id }, table says ${ form[phase] ? 'admit' : 'refuse' }`);
+      }
+    }
+  }
+  if (!form.injects) return;
+  // an admitted id proves the gate; only the injection proves the handler reached the body behind
+  // it. either phase may carry it - the pre pass defers to post whenever both run
+  const carriers = ['pre', 'post'].flatMap(phase => [...seen.emitted[phase]]
+    .filter(([id]) => form.match.test(id)).map(([, code]) => code));
+  if (carriers.every(code => !code.includes(`core-js/modules/${ form.injects }`))) {
+    throw new Error(`${ label }: nothing injected \`${ form.injects }\` into this form's body`);
+  }
+}
+
+// the two runs happen once each; a run that throws reds every form it was carrying, one row apiece
+const idFlowSeen = {};
+for (const mode of ['build', 'serve']) {
+  try {
+    idFlowSeen[mode] = { seen: await runIdFlow(mode) };
+  } catch (error) {
+    idFlowSeen[mode] = { error };
+  }
+}
+for (const form of idFlowForms) {
+  for (const mode of form.modes) {
+    const label = `vite:${ mode }/id-flow/${ form.label }`;
+    try {
+      await runLeg('vite', () => {
+        const { seen, error } = idFlowSeen[mode];
+        if (error) throw error;
+        assertIdFlowForm(seen, form, label);
+      });
+      echo(`${ cyan(label) } ${ green('passed') }`);
+    } catch (error) {
+      echo(red(`${ cyan(label) } failed: ${ error.message }`));
+      failures++;
+    }
+  }
+}
+
+// the escape census carries a step CEILING under a walk that cannot converge, and truncating there
+// costs a degraded answer no output diff can show - the shape stays legal, it is just derived from
+// less. this run is the one that feeds the plugin a real framework runtime, so it is where that
+// backstop is read: free, and it does not care how fast the machine is. a non-zero count is a
+// converge regression in the analysis, not a slow machine
+const truncated = censusWalkTruncations();
+if (truncated) throw new Error(`the escape census truncated ${ truncated } walk(s) at its step ceiling`);
+if (cells < CELL_FLOOR) throw new Error(`integration matrix collapsed: ${ cells } cells ran, under the floor of ${ CELL_FLOOR }`);
 if (failures) throw new Error(`${ failures } integration test(s) failed`);
 echo(green('\nAll integration tests passed'));

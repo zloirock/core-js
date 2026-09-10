@@ -1,12 +1,12 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Map from "@core-js/pure/actual/map/constructor";
-import _Promise from "@core-js/pure/actual/promise/constructor";
+import _Map from "@core-js/pure/actual/map";
+import _Promise from "@core-js/pure/actual/promise";
 import _Promise$race from "@core-js/pure/actual/promise/race";
-import _Set from "@core-js/pure/actual/set/constructor";
-import _WeakMap from "@core-js/pure/actual/weak-map/constructor";
-import _WeakSet from "@core-js/pure/actual/weak-set/constructor";
+import _Set from "@core-js/pure/actual/set";
+import _WeakMap from "@core-js/pure/actual/weak-map";
+import _WeakSet from "@core-js/pure/actual/weak-set";
 // A mixed pattern - a nested-ObjectPattern value beside flat keys - belongs to the nested mirror
 // only while the mirror can actually render it. An unresolvable computed key, a duplicate resolved
 // key and a non-identifier key each make it bail for good, and deferring to it then drops the flat

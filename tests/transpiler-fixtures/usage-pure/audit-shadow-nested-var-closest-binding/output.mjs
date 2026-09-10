@@ -2,7 +2,7 @@ import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 import _WeakMap from "@core-js/pure/actual/weak-map/constructor";

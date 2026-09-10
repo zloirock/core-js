@@ -1,6 +1,5 @@
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Iterator from "@core-js/pure/actual/iterator/constructor";
-import _Iterator$from from "@core-js/pure/actual/iterator/from";
+import _Iterator from "@core-js/pure/actual/iterator";
 import _padStartMaybeString from "@core-js/pure/actual/string/instance/pad-start";
 // third-party shim writes with distinct routing:
 // - a PROTOTYPE shim is invisible to the static mutation model; instance dispatch keeps the

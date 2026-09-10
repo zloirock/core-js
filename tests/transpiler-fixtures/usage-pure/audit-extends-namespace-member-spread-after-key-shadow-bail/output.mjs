@@ -1,4 +1,4 @@
-import _Promise from "@core-js/pure/actual/promise/constructor";
+import _Promise from "@core-js/pure/actual/promise";
 import _Promise$try from "@core-js/pure/actual/promise/try";
 // a spread AFTER a matched namespace key can REDEFINE it at runtime with statically-unknown
 // contents, so super-static resolution through that key must BAIL and stay native. `A` spreads

@@ -75,8 +75,21 @@ const SKIP_DIRS = new Set([
 // earlier name-based heuristic (`dirName.includes('-flow-')`) over-skipped unrelated
 // audit fixtures whose names merely mention `flow` (e.g. `*-control-flow-bail`,
 // `*-flow-multi-hop`, `*-flow-segments`), all of which actually parse as TS or vanilla JS
+// a declared `sourceType` is a BABEL option and never reaches unplugin, which takes its parse goal
+// from the file itself. the two legs are then told different things about the same bytes wherever a
+// row declares `script` under an id that does not spell CommonJS: babel reads a sloppy wrapper, oxc
+// reads a module, and the outputs part over strictness and the injection spelling. a `.cjs` / `.cts`
+// id says the same thing to both, so those rows keep running - as does a row that declares `script`
+// and NAMES no id, where the id this module infers decides the host for both legs alike
+const NAMED_SOURCE_ID = /\.[cm]?[jt]sx?$/iu;
+const COMMONJS_EXTENSION = /\.c[jt]s$/iu;
+function declaresScriptUnreadableFromTheId(babelOptions) {
+  const id = babelOptions?.filename ?? '';
+  return babelOptions?.sourceType === 'script' && NAMED_SOURCE_ID.test(id) && !COMMONJS_EXTENSION.test(id);
+}
+
 export function shouldSkip(dirName, babelOptions) {
-  if (SKIP_DIRS.has(dirName)) return true;
+  if (SKIP_DIRS.has(dirName) || declaresScriptUnreadableFromTheId(babelOptions)) return true;
   const plugins = babelOptions?.parserOpts?.plugins ?? [];
   return plugins.some(p => (typeof p === 'string' ? p : p?.[0]) === 'flow');
 }

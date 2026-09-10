@@ -1,6 +1,8 @@
-// 3+ overload siblings where the assertion predicate is NOT on the first header. single-
-// match ambient walk would pick the boolean-returning overload and miss the asserts;
-// collecting all ambient siblings recovers the predicate of interest
+// 3+ overload siblings where the assertion predicate is NOT on the first header. the argument is
+// DECLARED `unknown` and the guard parser holds no path, so it cannot see whether a narrowing is in
+// force at the call: reading the declaration as a refutation of the `number` header picked the arm
+// behind it, which is wrong wherever the argument was narrowed. nothing discriminates the set here,
+// so it stays undiscriminated and the generic helper dispatches
 function isStr(x: number): boolean;
 function isStr(x: unknown): asserts x is string;
 function isStr(x: unknown) {}
