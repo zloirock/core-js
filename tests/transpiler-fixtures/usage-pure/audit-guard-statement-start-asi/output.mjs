@@ -7,8 +7,9 @@ import _self from "@core-js/pure/actual/self";
 var _ref;
 // a guard render that leads with `(` at the head of an ExpressionStatement fuses with an
 // unterminated previous statement and turns it into a CALL (`sink = 1(...)`). the reprint
-// owes every statement its own semicolon,
-// on every channel that can spell a parenthesized guard
+// owes every statement its own semicolon. the renders that do NOT lead with `(` owe none of their
+// own - the negatives that pin the guard to the leading token rather than to the statement position.
+// each is still rewritten
 export let liftedNav = 1;
 null == _globalThis.window ? void 0 : _self.hostBox.run();
 export let liftedMember = 2;
@@ -25,7 +26,7 @@ export let claimUnderOperator = 5;
 export let foldedClaim = 6;
 null == _globalThis.window ? void 0 : _atMaybeArray(_ref = _Array$of(1)).call(_ref, 0);
 export let deleteOperand = 7;
-delete _globalThis.hostBox.gone;
+delete (null == _globalThis.window ? void 0 : _self)?.hostBox.gone;
 export let protoPlacement = 8;
 null == _globalThis.window ? void 0 : _Map.prototype.has.call(new _Map([[1, 1]]), 1);
 

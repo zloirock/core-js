@@ -1,3 +1,40 @@
+import { visitorKeys } from 'estree-toolkit/dist-es/definitions';
+
+// every node oxc hangs `decorators` on that estree-toolkit DEFINES. a type it does not define
+// (`AccessorProperty`, `TSParameterProperty`, the `TSAbstract*` members) needs no entry - the
+// traverse falls back to the node's own keys there and reaches the slot already. an `Identifier`
+// param carrying TS-legacy parameter decorators is deliberately NOT here: the traverse would enter
+// them, but estree-toolkit reads every identifier under a `params` subtree as binding material and
+// records no reference or write for it, so the manual walk stays their only channel
+const DECORATOR_HOST_TYPES = [
+  'ClassDeclaration',
+  'ClassExpression',
+  'MethodDefinition',
+  'PropertyDefinition',
+];
+
+// estree-toolkit derives its visitor keys from its own node definitions, and NONE of them carries a
+// `decorators` slot: its traverse - and with it the scope crawl and every path it builds - stops at
+// the class member and never enters a decorator. a decorator expression evaluates at class-eval
+// time, ahead of every static field, so a write in one is real flow; invisible, it leaves the
+// binding's `constantViolations` empty, the resolver keeps a narrow the write already invalidated,
+// and the polyfill for the value actually read is never injected. the slot is a syntax fact of the
+// tree oxc hands us, restored here once, before any traversal runs - the seam this module owns
+for (const type of DECORATOR_HOST_TYPES) {
+  const keys = visitorKeys[type];
+  if (keys && !keys.includes('decorators')) visitorKeys[type] = [...keys, 'decorators'];
+}
+
+// does estree-toolkit's traverse reach a node type's `decorators` on its own? a type it does not
+// define falls back to the node's own keys and reaches every slot; a defined one reaches exactly its
+// visitor keys - which carry the slot for every host restored above. detection's manual decorator
+// walk asks this to stand down wherever the traverse already goes, so the two can never both visit
+// one decorator and queue colliding rewrites for its span
+export function traverseWalksDecorators(type) {
+  const keys = visitorKeys[type];
+  return keys === undefined || keys.includes('decorators');
+}
+
 // ESTree Literal -> Babel-specific literal types mapping
 export function nodeType(node) {
   if (!node) return null;

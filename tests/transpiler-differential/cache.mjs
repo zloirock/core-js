@@ -10,6 +10,7 @@
 // run must produce exactly what the cold one did.
 import { fileURLToPath } from 'node:url';
 import { createChecker } from '../polyfill-provider/harness.mjs';
+import { skippedTotal } from './coverage.mjs';
 
 const { ensureDir, outputFile, readJson, removeSync, writeJson } = fs;
 const { dirname, join } = path;
@@ -232,13 +233,26 @@ async function runShard({ cache = '', audit = '0', legs = 'full', emitter = 'bot
     DIFF_CACHE: cache,
     DIFF_AUDIT_EVERY: audit,
   };
-  const { stdout } = await $({ env, quiet: true })`node ${ join(HERE, 'shard.mjs') }`;
+  const { stdout } = await $({ cwd: HERE, env, quiet: true })`node shard.mjs`;
   const found = MARKER.exec(stdout);
   if (!found) throw new Error('chunk produced no result');
   return JSON.parse(found.groups.json);
 }
+// the coverage map is compared as a whole: a hot run that quietly deep-checked fewer snippets than
+// the cold one is exactly the silent-green failure the cache is dangerous for. skip keys are sorted
+// because JSON comparison is key-order sensitive and theirs is insertion order
+function sortedCoverage(coverage) {
+  return Object.fromEntries(Object.entries(coverage).map(([leg, stats]) => {
+    return [leg, { checked: stats.checked, skipped: Object.fromEntries(Object.entries(stats.skipped).sort()) }];
+  }));
+}
 function verdictOf(result) {
-  return { passed: result.passed, failures: result.failures, armed: result.globalArmed, checked: result.globalChecked };
+  return { passed: result.passed, failures: result.failures, coverage: sortedCoverage(result.coverage) };
+}
+// every snippet accounted for exactly once in every leg - what the shard's own equation ships and
+// the coordinator enforces against the corpus
+function accountedPerLeg(result) {
+  return Object.values(result.coverage).map(stats => stats.checked + skippedTotal(stats));
 }
 
 const SHARD_CACHE = join(TMP, 'shard-cache.json');
@@ -298,7 +312,7 @@ const replayed = await runShard({ cache: SHARD_CACHE });
 checkDeep('a mixed group is replayed live instead of believed', replayed.failures, []);
 check('  and every replayed snippet is written back', Object.keys(replayed.cases).length, Object.keys(cold.cases).length);
 // the replay runs both oracles a second time, so its per-snippet counters must stay per-snippet
-checkDeep('  counted once, not twice', [replayed.globalChecked, replayed.passed], [cold.globalChecked, cold.passed]);
+checkDeep('  counted once, not twice', [accountedPerLeg(replayed), replayed.passed], [accountedPerLeg(cold), cold.passed]);
 // NOT asserted here: that the eviction list travels shard -> marker -> merge, that a HARNESS CRASH
 // drops its group, and that the coordinator honours `reset` / the corpus liveness set. All four need
 // a volatile snippet or a coordinator run, and this suite forks shards only - a `[]`-shaped

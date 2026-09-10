@@ -4,6 +4,7 @@ import "core-js/modules/es.array.from";
 import "core-js/modules/es.global-this";
 import "core-js/modules/es.map.constructor";
 import "core-js/modules/es.map.species";
+import "core-js/modules/es.map.group-by";
 import "core-js/modules/es.map.get-or-insert";
 import "core-js/modules/es.map.get-or-insert-computed";
 import "core-js/modules/es.set.constructor";
@@ -20,11 +21,10 @@ import "core-js/modules/es.weak-map.constructor";
 import "core-js/modules/es.weak-map.get-or-insert";
 import "core-js/modules/es.weak-map.get-or-insert-computed";
 import "core-js/modules/web.dom-collections.iterator";
-// a SURVIVING residual keeps the receiver, so the extraction is emitted ahead of it - and the
-// source ran the receiver's sequence prefix before either. the prefix lifts to where the source
-// ran it, and the residual reads the bare tail; leaving it behind let the effect observe the
-// write the extraction had already made. the nav tail and the export host take the same lift, and
-// so does a prop whose OWN computed key carries an effect - that key runs where it stands, second.
+// usage-global twin of the surviving-residual prefix lift: the global method rewrites none of these
+// destructures, so the lock is the import set alone. the receiver's sequence prefix stands where the
+// source wrote it, and each row reads a family of its own - the nav tail, the export host and a prop
+// whose OWN computed key carries an effect - so no row masks another's regression.
 function eff() {}
 let mm, oo;
 ({

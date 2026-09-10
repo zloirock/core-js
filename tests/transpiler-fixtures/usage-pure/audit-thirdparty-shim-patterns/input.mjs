@@ -1,8 +1,8 @@
-// popular third-party shim patterns: every GUARDED mutation routes through the injected
-// constructor, and the mutated key's own entry is imported up front (polyfill-then-patch).
-// the guard finds the key present on the ponyfill, so the shim stays dead code and every
-// surface (the guard read, the write, the later reads) works on every target - including
-// engines missing the global natively
+// popular third-party shim patterns: a guarded mutation on a global core-js ponyfills as a
+// CONSTRUCTOR routes through the injected one, and the mutated key's own entry is imported up front
+// (polyfill-then-patch), so the guard finds the key present and the shim stays dead code. `Array`
+// and `Object` have no constructor to inject: those rows stay native, the guard fires on the target
+// and the third-party shim is what runs
 if (!Array.from) Array.from = shimFrom;
 export const r1 = Array.from(x);
 Promise.allSettled = Promise.allSettled || shimAllSettled;

@@ -19,9 +19,11 @@ import {
   chainReadsThroughSeal,
   bindsModuleDefault,
   descendToChainRoot,
+  foldableRealmHop,
   isStaticPlacement,
   isTransparentWrapper,
   keySideEffectsOnly,
+  mutationGuardKeepingHop,
   ownChainOptionalCount,
   proxyGlobalMemberCtorPureSwap,
   PROXY_HOP_VALUE_CARRIERS,
@@ -35,6 +37,9 @@ import {
 import {
   computedPropKeyHostsMachinery,
   isSourcedSymbolIteratorMeta,
+  landRunOnDeepestBackedSpan,
+  planClaimlessCallRootedNav,
+  proxyRunLandingPure,
   resolveSymbolIteratorEntry,
   tagSymbolSourcedMeta,
 } from '../../packages/core-js-polyfill-provider/detect-usage/members.js';
@@ -44,6 +49,7 @@ import {
   prepareDestructureUnion,
   destructureAssignmentValueIsCaptured,
   destructurePatternHostPath,
+  attachMemberUnionExtras,
   collectMemberUnionCandidates,
   flattenFallbackBranches,
   isConstantLiteralReceiver,
@@ -51,7 +57,9 @@ import {
   isSeFreeBranchingReceiver,
   isSeFreeMemberReceiver,
   resolvePositionalElementSlot,
+  staticContainerReceiverName,
 } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
+import { createClassHelpers } from '../../packages/core-js-polyfill-provider/helpers/class-walk.js';
 import { hopNamesMissingAbleCtor, peelArrayWrapperPair } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
 import {
   checkTypeAnnotations,
@@ -80,11 +88,20 @@ import {
   SOURCE_ORDER_STATEMENT_HOST_TYPES,
   STATEMENT_LIST_HOST_TYPES,
   TS_EXPR_WRAPPERS,
+  collectFileCensus,
+  ESCAPED_CTOR_REFS,
   reachingReassignmentValueNode,
   reassignmentValueEnumeration,
   varInitDominatesUsage,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import {
+  callPairing,
+  escapedCtorReferencesReducer,
+  mutationShapesReducer,
+} from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
 import { parse as babelParse } from '@babel/parser';
+import * as babelTypes from '@babel/types';
+import { types as estreeTypes } from '../../packages/core-js-unplugin/internals/estree-compat.js';
 import { babelAdapter, createChecker, findTypeNode } from './harness.mjs';
 
 const { check, checkDeep, checkTruthy, finish, runBoth } = createChecker('detect-usage');
@@ -1103,6 +1120,117 @@ runBoth('collectMemberUnionCandidates/placement override types the reachable cto
     checkDeep(lbl, extras, [{ kind: 'property', object: 'String', key: 'includes', placement: 'prototype', receiverHint: null }]);
   });
 
+// --- the `extends` base as a union receiver (helpers/class-walk) ---
+
+// `super.<static>` in a static method reads the base's static surface, so an AMBIGUOUS base owes
+// the same reachable union a member read off the same slot owes - and how the base is SPELLED is
+// no part of that question. an Identifier-only admission enumerated nothing for a hop, and a base
+// naming no value at all built no meta to hang the enumeration on.
+// the binding view is the plugin-shaped one the value walks consult: the declarator NODE, its own
+// scope and its writes - a raw parser binding answers none of those and every alias hop bails
+const superBaseAdapter = {
+  method: 'usage-global',
+  isStringLiteral(node) { return node.type === 'StringLiteral' || (node.type === 'Literal' && typeof node.value === 'string'); },
+  getStringValue(node) { return node.value; },
+  hasBinding(scope, name) { return !!scope?.getBinding?.(name); },
+  getBindingNodeType(scope, name) { return scope?.getBinding?.(name)?.path?.node?.type ?? null; },
+  isMutatedStatic() { return false; },
+  getBinding(scope, name) {
+    const binding = scope?.getBinding?.(name);
+    return binding ? {
+      node: binding.path?.node ?? null,
+      kind: binding.kind,
+      name,
+      constantViolations: binding.constantViolations ?? [],
+      scope: binding.path?.scope ?? scope,
+      declarationPath: binding.path ?? null,
+      path: binding.path ?? null,
+    } : null;
+  },
+};
+function superStaticMeta(adapter, prog, method = 'usage-global') {
+  const { resolveStaticInheritedMember } = createClassHelpers({
+    t: adapter.name === 'babel' ? babelTypes : estreeTypes,
+    adapter: { ...superBaseAdapter, method },
+    resolveKey,
+    attachUnionExtras: attachMemberUnionExtras,
+    containerReceiverName: staticContainerReceiverName,
+  });
+  const read = adapter.pickPath(prog, 'MemberExpression', p => p.node.object?.type === 'Super');
+  return resolveStaticInheritedMember(read);
+}
+function staticExtra(object) {
+  return { kind: 'property', object, key: 'from', placement: 'static', receiverHint: 'function' };
+}
+// one class shape throughout, so a row differs only in how its base is spelled
+function staticRead(base) {
+  return `class X extends ${ base } { static go() { return super.from("ab"); } }`;
+}
+const AMBIGUOUS_SLOT = 'let N = { Base: Boolean }; if (c) N = { Base: Array }; ';
+const AMBIGUOUS_ALIAS = 'let B = Boolean; if (c) B = Array; ';
+const REACHES_ARRAY = [staticExtra('Array')];
+const REACHES_BOTH = [staticExtra('Boolean'), staticExtra('Array')];
+const SUPER_BASE_SPELLINGS = [
+  ['bare reassigned alias', AMBIGUOUS_ALIAS + staticRead('B'), REACHES_ARRAY],
+  // a branching INIT decides nothing either, so no arm is the primary and BOTH enumerate
+  ['bare branching init', `let B = c ? Boolean : Array; ${ staticRead('B') }`, [staticExtra('Boolean'), staticExtra('Array')]],
+  ['container hop', AMBIGUOUS_SLOT + staticRead('N.Base'), REACHES_ARRAY],
+  ['nested container hop', `${ AMBIGUOUS_SLOT }const NN = { inner: N }; ${ staticRead('NN.inner.Base') }`, REACHES_ARRAY],
+  ['alias of the container', `${ AMBIGUOUS_SLOT }const M = N; ${ staticRead('M.Base') }`, REACHES_ARRAY],
+  ['optional hop', AMBIGUOUS_SLOT + staticRead('N?.Base'), REACHES_ARRAY],
+  ['class-static slot',
+    `class S0 { static Base = Boolean; } class S1 { static Base = Array; } let S = S0; if (c) S = S1; ${ staticRead('S.Base') }`,
+    REACHES_ARRAY],
+  ['iife over the alias', AMBIGUOUS_ALIAS + staticRead('(() => B)()'), REACHES_ARRAY],
+  // ... and the branching spellings of the same reachability: what the arms are is one question
+  // (the fallback-branch canon), and a hop spelling must answer it exactly as the bare alias does
+  ['branching slot', `const N = { Base: c ? Boolean : Array }; ${ staticRead('N.Base') }`, REACHES_BOTH],
+  ['branching container', `const N = c ? { Base: Boolean } : { Base: Array }; ${ staticRead('N.Base') }`, REACHES_BOTH],
+  ['branching container alias',
+    `const NL = { Base: Boolean }; const NR = { Base: Array }; const N = c ? NL : NR; ${ staticRead('N.Base') }`,
+    REACHES_BOTH],
+  ['branching array element', `const N = [c ? Boolean : Array]; ${ staticRead('N[0]') }`, REACHES_BOTH],
+  ['branching nested slot', `const N = { inner: { Base: c ? Boolean : Array } }; ${ staticRead('N.inner.Base') }`, REACHES_BOTH],
+  ['logical-defaulted slot', `const N = { Base: Boolean ?? Array }; ${ staticRead('N.Base') }`, REACHES_BOTH],
+];
+for (const [name, code, extras] of SUPER_BASE_SPELLINGS) {
+  runBoth(`resolveStaticInheritedMember/union survives the ${ name }`, code, (adapter, prog, lbl) => {
+    checkDeep(lbl, superStaticMeta(adapter, prog)?.extraCandidates ?? null, extras);
+  });
+  // pure substitutes a base it can PROVE and never enumerates: the choke is usage-global-only, so
+  // the carrier these spellings ride is dropped again and the read stays native
+  runBoth(`resolveStaticInheritedMember/pure keeps the ${ name } native`, code, (adapter, prog, lbl) => {
+    check(lbl, superStaticMeta(adapter, prog, 'usage-pure')?.object ?? null, null);
+  });
+}
+// the boundaries: an unambiguous base names its own constructor and enumerates nothing beside it,
+// a base no walk can name builds no carrier at all, and a USER class among the arms is no global -
+// only the global arm becomes a candidate, and a candidate whose constructor has no such static
+// resolves to no module (the fixtures record the empty import set that follows)
+const SUPER_BASE_BOUNDARIES = [
+  ['unambiguous hop base', `const N = { Base: Array }; ${ staticRead('N.Base') }`, 'Array', null],
+  ['unambiguous bare base', `const B = Array; ${ staticRead('B') }`, 'Array', null],
+  ['parameter base', `function h(P) { ${ staticRead('P') } return X; }`, null, null],
+  ['opaque call base', staticRead('mk()'), null, null],
+  ['user class among the arms',
+    `class L {} let N = { Base: L }; if (c) N = { Base: Boolean }; ${ staticRead('N.Base') }`,
+    null, [staticExtra('Boolean')]],
+  // the arms are answered by the canonical branch enumeration, so a value naming no global -
+  // a user class, a local, a literal - contributes nothing here either
+  ['branching arms naming no global', `class L {} class R {} const N = { Base: c ? L : R }; ${ staticRead('N.Base') }`, null, null],
+  ['branching arms with one user class',
+    `class L {} const N = { Base: c ? L : Array }; ${ staticRead('N.Base') }`, null, REACHES_ARRAY],
+  ['branching arms that are not constructors', `const N = { Base: c ? 1 : "s" }; ${ staticRead('N.Base') }`, null, null],
+  ['branching arm that is a bare local', `const N = { Base: (c && Boolean) || Array }; ${ staticRead('N.Base') }`, null, REACHES_BOTH],
+];
+for (const [name, code, object, extras] of SUPER_BASE_BOUNDARIES) {
+  runBoth(`resolveStaticInheritedMember/${ name }`, code, (adapter, prog, lbl) => {
+    const meta = superStaticMeta(adapter, prog);
+    check(`${ lbl }/object`, meta?.object ?? null, object);
+    checkDeep(`${ lbl }/extras`, meta?.extraCandidates ?? null, extras);
+  });
+}
+
 // the destructure twin anchors at the ObjectProperty: the declarator host supplies the receiver
 // alias, the prop key supplies the key alias; a non-global method or a fallback meta yields none
 function destructureExtras(adapter, prog, meta, method = 'usage-global') {
@@ -1391,6 +1519,320 @@ runBoth('proxyGlobalMemberCtorPureSwap/non-pure leaf resolves nothing',
     check(lbl, swap, null);
   });
 
+// WHERE a kept-spelled realm run lands, and the THREE answers its callers have to tell apart: a
+// node when the swap spells the run, `false` when the guard-lowering collapse owns it instead, and
+// `null` when the run carries no backed span at all. Reading the second as the third is what froze
+// a native `self` read inside a guarded claim's test, in exactly the realms the ponyfill serves
+function landStoredRun(adapter, prog, pure = null) {
+  const path = adapter.pickPath(prog, 'AssignmentExpression');
+  const PURE = pure ?? {
+    self: { entry: 'actual/self', hintName: 'self', kind: 'global' },
+    globalThis: { entry: 'actual/global-this', hintName: 'globalThis', kind: 'global' },
+  };
+  const landed = landRunOnDeepestBackedSpan({
+    navNode: path.node,
+    ctx: { scope: path.scope, adapter: { ...adapter, getBinding: () => null }, path },
+    resolvePure: global => PURE[global.name] ?? null,
+    mintPure: minting => ({ type: 'Identifier', name: `_${ minting.hintName }` }),
+  });
+  // the swap mutates in place, so the minted binding is looked for in the tree it landed in -
+  // and so is the probe hop, whose survival is the second half of the landing's verdict. a `?.`
+  // left over the LANDED binding is the third: the landing is what made it dead text
+  let minted = false;
+  let probeHops = 0;
+  let optionalOverTheLanding = false;
+  (function walk(node) {
+    if (!node || typeof node !== 'object') return;
+    if (node.type === 'Identifier' && node.name.startsWith('_')) minted = true;
+    if (node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression') {
+      if (node.property?.name === 'window') probeHops += 1;
+      if (node.optional && node.object?.type === 'Identifier' && node.object.name.startsWith('_')) {
+        optionalOverTheLanding = true;
+      }
+    }
+    for (const value of Object.values(node)) {
+      if (Array.isArray(value)) value.forEach(walk);
+      else if (value && typeof value === 'object' && typeof value.type === 'string') walk(value);
+    }
+  })(path.node);
+  return {
+    verdict: landed === null ? 'null' : landed === false ? 'collapse' : 'node',
+    minted,
+    keptProbe: probeHops > 0,
+    probeHops,
+    optionalOverTheLanding,
+  };
+}
+
+runBoth('landRunOnDeepestBackedSpan/a probe above the span swaps the span in place',
+  'let w; w = globalThis.self.window?.Array;', (adapter, prog, lbl) => {
+    const landed = landStoredRun(adapter, prog);
+    check(lbl, landed.verdict, 'node');
+    check(`${ lbl } minted`, landed.minted, true);
+  });
+runBoth('landRunOnDeepestBackedSpan/the source `?.` over a probe keeps its slot above the landing',
+  'let w; w = globalThis.self.window?.Array;', (adapter, prog, lbl) => {
+    check(lbl, landStoredRun(adapter, prog).keptProbe, true);
+  });
+// ... and the other half of the same rule: a probe nothing branches on, with a member READING
+// THROUGH it, is not a value the source reads - the read-through fold owns it here exactly as it
+// owns it under a plain claim, so the landing may not leave it standing
+runBoth('landRunOnDeepestBackedSpan/a read-through probe above the landing folds onto it',
+  'let w; w = globalThis.self.window.Number;', (adapter, prog, lbl) => {
+    const landed = landStoredRun(adapter, prog);
+    check(lbl, landed.verdict, 'node');
+    check(`${ lbl } minted`, landed.minted, true);
+    check(`${ lbl } folded`, landed.keptProbe, false);
+  });
+runBoth('landRunOnDeepestBackedSpan/a TERMINAL probe keeps its slot over the landing',
+  'let w; w = globalThis.self.window;', (adapter, prog, lbl) => {
+    const landed = landStoredRun(adapter, prog);
+    check(lbl, landed.verdict, 'node');
+    check(`${ lbl } kept`, landed.keptProbe, true);
+  });
+runBoth('landRunOnDeepestBackedSpan/a probe INSIDE the span hands the run to the collapse',
+  'let w; w = globalThis.window?.self.Number;', (adapter, prog, lbl) => {
+    const landed = landStoredRun(adapter, prog);
+    check(lbl, landed.verdict, 'collapse');
+    check(`${ lbl } spells nothing itself`, landed.minted, false);
+  });
+// the run's own ROOT is a span like any other: a backed name spelled BARE is the deepest thing pure
+// can back, so the landing reaches it and every rule it carries reaches the run - read as "no span
+// exists", one source got two landings, and the fold moved with a `?.` standing over the CLAIM
+runBoth('landRunOnDeepestBackedSpan/the run lands its bare ROOT when nothing above it is backed',
+  'let w; w = globalThis.window?.Array;', (adapter, prog, lbl) => {
+    const landed = landStoredRun(adapter, prog);
+    check(lbl, landed.verdict, 'node');
+    check(`${ lbl } minted`, landed.minted, true);
+    check(`${ lbl } the source branch keeps the probe`, landed.keptProbe, true);
+  });
+runBoth('landRunOnDeepestBackedSpan/a read-through probe over a bare ROOT folds onto it',
+  'let w; w = self.window.Number;', (adapter, prog, lbl) => {
+    const landed = landStoredRun(adapter, prog);
+    check(lbl, landed.verdict, 'node');
+    check(`${ lbl } folded`, landed.keptProbe, false);
+  });
+runBoth('landRunOnDeepestBackedSpan/the `?.` the ROOT landing makes vestigial drops with it',
+  'let w; w = self?.window;', (adapter, prog, lbl) => {
+    const landed = landStoredRun(adapter, prog);
+    check(lbl, landed.verdict, 'node');
+    check(`${ lbl } the terminal probe stands`, landed.keptProbe, true);
+    check(`${ lbl } no optional over the landing`, landed.optionalOverTheLanding, false);
+  });
+// ... and the same boundary drawn by a `?.` ABOVE the landing: the value it OBSERVES is the
+// environment probe just as a terminal realm hop is, so the run under it keeps every slot it spells.
+// folded only up to the `?.`, the run came out one hop shorter than the source wrote it and answered
+// `undefined` where the read it stands for throws
+runBoth('landRunOnDeepestBackedSpan/an observing `?.` keeps every hop under it',
+  'let w; w = globalThis.window.window?.Array;', (adapter, prog, lbl) => {
+    const landed = landStoredRun(adapter, prog);
+    check(lbl, landed.verdict, 'node');
+    check(`${ lbl } both hops stand`, landed.probeHops, 2);
+  });
+runBoth('landRunOnDeepestBackedSpan/... however deep the run runs',
+  'let w; w = globalThis.window.window.window?.Array;', (adapter, prog, lbl) => {
+    check(lbl, landStoredRun(adapter, prog).probeHops, 3);
+  });
+// NEGATIVE: with no `?.` observing it, a PLAIN member reads THROUGH the same hops and the
+// read-through fold owns them - the rule above moves no boundary that one already draws
+runBoth('landRunOnDeepestBackedSpan/a plain reader over the same hops still folds them',
+  'let w; w = globalThis.window.window.Array;', (adapter, prog, lbl) => {
+    const landed = landStoredRun(adapter, prog);
+    check(lbl, landed.verdict, 'node');
+    check(`${ lbl } folded`, landed.probeHops, 0);
+  });
+
+// ... and the boundary of that fold: a run whose own TERMINAL is a realm hop THIS BUILD leaves raw
+// is the environment probe the source reads, so every slot it spells stays - what the hop's name
+// says about core-js having an entry for it answers a different question
+runBoth('landRunOnDeepestBackedSpan/a terminal hop this build leaves raw keeps the run whole',
+  'let w; w = globalThis.window.self;', (adapter, prog, lbl) => {
+    const landed = landStoredRun(adapter, prog,
+      { globalThis: { entry: 'actual/global-this', hintName: 'globalThis', kind: 'global' } });
+    check(lbl, landed.verdict, 'node');
+    check(`${ lbl } keeps the read-through probe`, landed.keptProbe, true);
+  });
+// ... and the run whose own TERMINAL is that probe: it IS the value the source reads, so every slot
+// it spells stays over the landing rather than one of them riding the ponyfill
+runBoth('landRunOnDeepestBackedSpan/a run TERMINATING in the probe keeps every slot it spells',
+  'let w; w = self.window.window;', (adapter, prog, lbl) => {
+    const landed = landStoredRun(adapter, prog);
+    check(lbl, landed.verdict, 'node');
+    check(`${ lbl } keeps both hops`, landed.probeHops, 2);
+  });
+runBoth('landRunOnDeepestBackedSpan/no backed span and no spellable root leaves the run alone',
+  'let w; w = window.window?.Array;', (adapter, prog, lbl) => {
+    const landed = landStoredRun(adapter, prog);
+    check(lbl, landed.verdict, 'null');
+    check(`${ lbl } spells nothing itself`, landed.minted, false);
+  });
+runBoth('landRunOnDeepestBackedSpan/a DEAD `?.` inside the span still swaps in place',
+  'let w; w = globalThis?.self.window?.Array;', (adapter, prog, lbl) => {
+    const landed = landStoredRun(adapter, prog);
+    check(lbl, landed.verdict, 'node');
+    check(`${ lbl } minted`, landed.minted, true);
+  });
+runBoth('landRunOnDeepestBackedSpan/a `?.` over a STORED probe inside the span still collapses',
+  'let w, d; w = (d = globalThis.window)?.self.Number;', (adapter, prog, lbl) => {
+    const landed = landStoredRun(adapter, prog);
+    check(lbl, landed.verdict, 'collapse');
+    check(`${ lbl } spells nothing itself`, landed.minted, false);
+  });
+
+// the `delete` fold's BASE. the operator names a slot rather than reading a value, so the run's own
+// ROOT binding answers - and where this build can spell no root, the deepest span pure can back
+// does, because what the root spells gates nothing above it. read as "no landing exists" instead,
+// the run stood down and left a native realm read standing in pure output
+function deleteFoldLanding(adapter, prog, rootName, pure) {
+  const path = adapter.pickPath(prog, 'AssignmentExpression');
+  return proxyRunLandingPure({
+    navNode: path.node.right,
+    ctx: { scope: path.scope, adapter: { ...adapter, getBinding: () => null }, path },
+    resolvePure: global => pure[global.name] ?? null,
+    rootName,
+    deleteFold: true,
+  })?.hintName ?? null;
+}
+
+const SELF_PURE = { entry: 'actual/self', hintName: 'self', kind: 'global' };
+const GLOBAL_THIS_PURE = { entry: 'actual/global-this', hintName: 'globalThis', kind: 'global' };
+
+runBoth('proxyRunLandingPure/a delete fold keeps the ROOT binding over every hop above it',
+  'let w; w = globalThis.self.window;', (adapter, prog, lbl) => {
+    check(lbl, deleteFoldLanding(adapter, prog, 'globalThis',
+      { self: SELF_PURE, globalThis: GLOBAL_THIS_PURE }), 'globalThis');
+  });
+runBoth('proxyRunLandingPure/a delete fold on an UNSPELLABLE root rides the deepest backed span',
+  'let w; w = window.self;', (adapter, prog, lbl) => {
+    check(lbl, deleteFoldLanding(adapter, prog, 'window', { self: SELF_PURE }), 'self');
+  });
+runBoth('proxyRunLandingPure/a delete fold with neither a root nor a backed span lands nothing',
+  'let w; w = window.window;', (adapter, prog, lbl) => {
+    check(lbl, deleteFoldLanding(adapter, prog, 'window',
+      { self: SELF_PURE, globalThis: GLOBAL_THIS_PURE }), null);
+  });
+
+// WHICH name a realm hop has is the name canon's question and never the fold's: the dotted key, the
+// string-literal computed key and one BOUND to a constant string all name the same slot, so a fold
+// gating on the node's own SHAPE answered for one spelling and left the other two standing in a run
+// their dotted twin folds whole - one hop with two names, which is the one thing the proxy alias
+// may never have. an EFFECT-bearing key is the real boundary: it names the slot too, but the fold
+// would take its effects with it and this verdict carries no slot to replay them in
+// the scope surface these two ask for is the one every emitter hands the provider - a key BOUND to a
+// constant string is reached through it, and a ctx without it answers the node-only half
+function realmScopeAdapter(adapter) {
+  return {
+    ...adapter,
+    method: 'usage-pure',
+    isStringLiteral(node) { return node.type === 'StringLiteral' || (node.type === 'Literal' && typeof node.value === 'string'); },
+    getStringValue(node) { return node.value; },
+    hasBinding(scope, name) { return !!scope?.getBinding?.(name); },
+    getBinding(scope, name) { return scope?.getBinding?.(name) ?? null; },
+    getBindingNodeType(scope, name) { return scope?.getBinding?.(name)?.path?.node?.type ?? null; },
+    isMutatedStatic() { return false; },
+  };
+}
+
+function realmPure(global) {
+  return global.name === 'self' ? SELF_PURE : global.name === 'globalThis' ? GLOBAL_THIS_PURE : null;
+}
+
+function hopFolds(adapter, prog) {
+  const path = adapter.pickPath(prog, 'AssignmentExpression');
+  return foldableRealmHop(path.node.right, {
+    adapter: realmScopeAdapter(adapter),
+    resolvePure: global => global.name === 'self' ? SELF_PURE : null,
+    scope: path.scope,
+    path,
+  });
+}
+
+runBoth('foldableRealmHop/a dotted unbacked hop folds', 'let w; w = globalThis.self.window;',
+  (adapter, prog, lbl) => check(lbl, hopFolds(adapter, prog), true));
+runBoth('foldableRealmHop/a STRING-LITERAL key names the same hop', "let w; w = globalThis.self['window'];",
+  (adapter, prog, lbl) => check(lbl, hopFolds(adapter, prog), true));
+runBoth('foldableRealmHop/a key BOUND to a constant string names it too',
+  "const k = 'window'; let w; w = globalThis.self[k];",
+  (adapter, prog, lbl) => check(lbl, hopFolds(adapter, prog), true));
+runBoth('foldableRealmHop/an EFFECT-bearing key is a hop no fold may take',
+  "let c = 0, w; w = globalThis.self[(c++, 'window')];",
+  (adapter, prog, lbl) => check(lbl, hopFolds(adapter, prog), false));
+runBoth('foldableRealmHop/a BACKED hop is not this fold\'s either', 'let w; w = globalThis.window.self;',
+  (adapter, prog, lbl) => check(lbl, hopFolds(adapter, prog), false));
+
+// the claimless CALL-rooted plan reads the same canon for the hops it walks and for the run's own
+// TERMINAL: read off the node alone a computed key named nothing, the plan declined the whole shape,
+// and the fallback claim then stopped mid-run - a raw realm hop left standing off the ponyfill
+// the anchor is the MEMBER path a binding's claim stands on, never the consumer above it: the plan
+// climbs from that path to the run's end and asks the STORE question there, so handing it the
+// assignment instead measured the plan at an anchor no binding uses
+function callRootedVerdict(adapter, prog, { deleteFold = false, loweredGuardTest = false, end = 'customQ' } = {}) {
+  const path = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === end);
+  return planClaimlessCallRootedNav({
+    deleteFold,
+    loweredGuardTest,
+    scope: path.scope,
+    adapter: realmScopeAdapter(adapter),
+    path,
+    resolvePure: realmPure,
+  })?.verdict ?? null;
+}
+
+const CALL_ROOT = 'const dh = () => globalThis;';
+runBoth('planClaimlessCallRootedNav/a dotted hop run folds whole',
+  `${ CALL_ROOT } const r = dh().self.window.customQ;`,
+  (adapter, prog, lbl) => check(lbl, callRootedVerdict(adapter, prog), 'fold-whole'));
+runBoth('planClaimlessCallRootedNav/a STRING-LITERAL hop key folds with it',
+  `${ CALL_ROOT } const r = dh().self['window'].customQ;`,
+  (adapter, prog, lbl) => check(lbl, callRootedVerdict(adapter, prog), 'fold-whole'));
+runBoth('planClaimlessCallRootedNav/a key BOUND to a constant string folds with it',
+  `const k = 'window'; ${ CALL_ROOT } const r = dh().self[k].customQ;`,
+  (adapter, prog, lbl) => check(lbl, callRootedVerdict(adapter, prog), 'fold-whole'));
+runBoth('planClaimlessCallRootedNav/an EFFECT-bearing hop key declines the shape',
+  `let c = 0; ${ CALL_ROOT } const r = dh().self[(c++, 'window')].customQ;`,
+  (adapter, prog, lbl) => check(lbl, callRootedVerdict(adapter, prog), null));
+runBoth('planClaimlessCallRootedNav/a BOUND-key TERMINAL hop is the value the source reads',
+  `const k = 'window'; ${ CALL_ROOT } let w; w = dh().self[k];`,
+  (adapter, prog, lbl) => check(lbl, callRootedVerdict(adapter, prog, { end: 'k' }), 'kept-value'));
+// ... and the `delete` fold is handed the member ENDING the run like every other consumer: walked to
+// the chain TOP instead it carries plain members the plan declines outright, and the run then fell
+// back to a hop claim that stopped mid-run
+runBoth('planClaimlessCallRootedNav/the delete fold reaches past a PLAIN tail',
+  `${ CALL_ROOT } const r = dh().self.window.a.customQ;`,
+  (adapter, prog, lbl) => check(lbl, callRootedVerdict(adapter, prog, { deleteFold: true, end: 'a' }), 'fold-whole'));
+runBoth('planClaimlessCallRootedNav/... and declines the chain TOP, which is not that member',
+  `${ CALL_ROOT } const r = dh().self.window.a.customQ;`,
+  (adapter, prog, lbl) => check(lbl, callRootedVerdict(adapter, prog, { deleteFold: true }), null));
+// the guard that decides whether the delete HAPPENS spans the whole deleted RUN, so it is asked at
+// the chain END: read off the anchored member alone, a `?.` on the tail ABOVE it went unseen and
+// the fold then performed a delete on exactly the branch the source short-circuits past
+runBoth('planClaimlessCallRootedNav/the delete-deciding guard is asked at the chain END',
+  `${ CALL_ROOT } delete dh().self.window?.a.customQ;`,
+  (adapter, prog, lbl) => check(lbl, callRootedVerdict(adapter, prog, { deleteFold: true, end: 'window' }), 'stand-down'));
+// an already-LOWERED guard test carries no `?.` for these rules to reach - the branch it spells was
+// the source's own, consumed by the test - so only a run landing on its own ROOT has nothing left
+// above that landing for the test to read, and there the fold spells the identifier twin's bytes
+runBoth('planClaimlessCallRootedNav/inside a lowered guard test a BACKED landing stands down',
+  `${ CALL_ROOT } const r = dh().self.window.customQ;`,
+  (adapter, prog, lbl) => check(lbl, callRootedVerdict(adapter, prog, { loweredGuardTest: true }), 'stand-down'));
+runBoth('planClaimlessCallRootedNav/... and a ROOT landing folds there like its identifier twin',
+  `${ CALL_ROOT } const r = dh().window.customQ;`,
+  (adapter, prog, lbl) => check(lbl, callRootedVerdict(adapter, prog, { loweredGuardTest: true }), 'fold-whole'));
+
+// the run's own END is the PLAN's to find, climbed from the anchor it is handed: a claim fires one
+// hop short of that end whenever navigation continues above, and the climb spelled out at each
+// binding instead asked the hop through a canon of its own, stopping a hop apart. the three anchors
+// of one run answer alike, and the chain TOP - which is not that member - still declines
+runBoth('planClaimlessCallRootedNav/the plan climbs to the run END from a claim one hop short',
+  `${ CALL_ROOT } const r = dh().self.window.customQ;`,
+  (adapter, prog, lbl) => check(lbl, callRootedVerdict(adapter, prog, { end: 'self' }), 'fold-whole'));
+runBoth('planClaimlessCallRootedNav/... and stops where the realm run itself stops',
+  `${ CALL_ROOT } const r = dh().self.window.a.customQ;`,
+  (adapter, prog, lbl) => check(lbl, callRootedVerdict(adapter, prog, { end: 'self' }), 'fold-whole'));
+runBoth('planClaimlessCallRootedNav/... reaching the same verdict from the run END itself',
+  `${ CALL_ROOT } const r = dh().self.window.a.customQ;`,
+  (adapter, prog, lbl) => check(lbl, callRootedVerdict(adapter, prog, { end: 'a' }), 'fold-whole'));
+
 // the exported fallback-branch walker: the member / `in` producers enumerate a BRANCHING
 // static receiver through the same walk the destructure form uses - lock the flattened
 // per-branch metas (nested conditionals flatten; a shadowed branch drops)
@@ -1498,6 +1940,51 @@ runBoth('descendToChainRoot/optionalCount aggregates across a paren seal', '(glo
   const top = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'key');
   check(lbl, descendToChainRoot(top.node).optionalCount, 1);
 });
+
+// --- mutationGuardKeepingHop (does a MUTATING consumer keep the `?.` over the environment probe?) ---
+
+// the value canon's accepted answer for a probe is `undefined` where the source throws - a price
+// only a READ can take. a write slot, an update and a `delete` PERFORM the act the nav leads to, so
+// the branch the source wrote over the probe decides whether it lands, whatever spells the run
+// below that probe. the rows below run the whole write-host enumeration against the same shape and
+// pin the boundary with the negatives: a probe the value canon already calls absent-able, a probe
+// read off ANOTHER probe (absent there, the read throws before the `?.` runs) and a hop naming no
+// realm at all
+function mutationHopPure(name) {
+  return name === 'globalThis' || name === 'self'
+    ? { entry: `actual/${ name === 'self' ? 'self' : 'global-this' }`, hintName: name, kind: 'global' } : null;
+}
+for (const [variant, code, expected] of [
+  ['write slot keeps it', 'function w(v) { (globalThis.self.window?.self).Box = v; }', true],
+  ['delete keeps it', 'const d = () => delete (globalThis.self.window?.self).Box;', true],
+  ['delete without the seal keeps it', 'const d = () => delete globalThis.self.window?.self.Box;', true],
+  ['update slot keeps it', 'function u() { (globalThis.self.window?.self).Box++; }', true],
+  ['destructuring slot keeps it', 'function p(a) { [(globalThis.self.window?.self).Box] = a; }', true],
+  ['for-of head keeps it', 'function f(a) { for ((globalThis.self.window?.self).Box of a); }', true],
+  ['a store between the run and the delete keeps it',
+    'let s; const d = () => delete (s = globalThis.self?.window?.self).Box;', true],
+  // NEGATIVE: nothing is written, so the collapse answers a VALUE and the accepted price applies
+  ['a plain read takes the accepted price', 'const r = (globalThis.self.window?.self).Box;', false],
+  // NEGATIVE: the value canon already sees this branch - the ordinary channels build the guard
+  ['a probe off the bare root is the value canon\'s own',
+    'function w(v) { (globalThis.window?.self).Box = v; }', false],
+  // NEGATIVE: the base under the probe is absent-able itself, so the read THROWS rather than
+  // answering undefined and the `?.` above it is dead by throw
+  ['a probe read off another probe is dead by throw',
+    'function w(v) { (globalThis.window.window?.self).Box = v; }', false],
+  // NEGATIVE: a hop naming no realm holds the user's own object - no environment probe here
+  ['a non-realm hop below the probe is no realm span',
+    'function w(v) { (globalThis.foo.window?.self).Box = v; }', false],
+]) {
+  runBoth(`mutationGuardKeepingHop/${ variant }`, code, (adapter, prog, lbl) => {
+    // the `?.` hop is the claim's own path, which is what both emitters hand in; the two parsers
+    // spell it as different node TYPES and agree only on the flag
+    const [hop] = [...adapter.collectPaths(prog, 'MemberExpression', p => p.node.optional),
+      ...adapter.collectPaths(prog, 'OptionalMemberExpression', p => p.node.optional)];
+    check(lbl, !!mutationGuardKeepingHop(hop.node, ({ name }) => mutationHopPure(name),
+      { scope: hop.scope, adapter, path: hop }), expected);
+  });
+}
 
 // --- receiver re-reference classification (side-effect-key destructure plan) ---
 // cross-parser: babel spells an object getter as ObjectMethod(kind get), estree as Property(kind get) -
@@ -1997,8 +2484,6 @@ runBoth('walkTypeAnnotationGlobals/reports a typeof query host apart',
     });
 }
 
-finish();
-
 // the positional element slot pairs a reading claim beside a SPREAD (the wrapper survives whole
 // there), and never a computed key carrying an EFFECT: the rename drops the pattern that spells
 // the key, and with it the effect the source runs
@@ -2016,3 +2501,379 @@ runBoth('resolvePositionalElementSlot/effectful computed key declines even when 
       ?? adapter.pickPath(prog, 'ObjectProperty', p => p.node.computed);
     check(lbl, resolvePositionalElementSlot(leaf), null);
   });
+
+// --- the escaping-constructor census over the slots a source can leave ABSENT ---
+
+function censusStamps(programNode) {
+  collectFileCensus(programNode, [escapedCtorReferencesReducer()]);
+  return ESCAPED_CTOR_REFS.get(programNode).size;
+}
+
+// an array literal's element slot can be a HOLE, and a hole redefines nothing: the container is
+// handed out whole only where a SPREAD may have filled the slot the read names
+runBoth('escaped-ctor census/an array hole is no spread', 'const NS = [, Map];\nsink(NS[9]);',
+  (adapter, prog, lbl) => check(lbl, censusStamps(prog.node), 0));
+runBoth('escaped-ctor census/a spread hands the container out whole', 'const NS = [...s, Map];\nsink(NS[9]);',
+  (adapter, prog, lbl) => check(lbl, censusStamps(prog.node), 2));
+
+// a class DECLARATION can bind no name at all - `export default class {}` - and a container nothing
+// names is reachable through no chain the census can follow. the export hands the class itself out,
+// which stamps its own static either way, so the pair is what isolates the claim: the READ adds
+// nothing, where a slot wrongly resolved off the nameless class would make it two
+runBoth('escaped-ctor census/a nameless class declaration is stamped by its export alone',
+  'const x = {};\nexport default class { static Base = Map; }',
+  (adapter, prog, lbl) => check(lbl, censusStamps(prog.node), 1));
+runBoth('escaped-ctor census/a nameless class declaration binds no container name',
+  'const x = {};\nexport default class { static Base = Map; }\nsink(x.Base);',
+  (adapter, prog, lbl) => check(lbl, censusStamps(prog.node), 1));
+runBoth('escaped-ctor census/a named class declaration binds its statics',
+  'class NS { static Base = Map; }\nsink(NS.Base);',
+  (adapter, prog, lbl) => check(lbl, censusStamps(prog.node), 1));
+
+// `bind` invoked on the spot carries the arguments it captured ahead of the call's - and it may
+// have captured NONE, in which case there is no leading argument to read a spread off
+runBoth('callPairing/a bind with no captured arguments', 'f.bind()();', (adapter, prog, lbl) => {
+  const pairing = callPairing(adapter.pickPath(prog, 'CallExpression', p => p.node.callee.type === 'CallExpression').node);
+  checkDeep(lbl, [pairing.args.length, pairing.argsUnknown], [0, false]);
+});
+runBoth('callPairing/a bind capturing a spread cannot place the arguments', 'f.bind(...s)();', (adapter, prog, lbl) => {
+  const pairing = callPairing(adapter.pickPath(prog, 'CallExpression', p => p.node.callee.type === 'CallExpression').node);
+  checkDeep(lbl, [pairing.args.length, pairing.argsUnknown], [0, true]);
+});
+
+// --- the container slot an ESCAPE names: the whole key path, not the hop above it ---
+
+// the census records what a value handed out of the file re-homes. the slot that leaks is the one
+// the read LANDS on, so a multi-hop member escape (`f(ns.g.Map)`) owes `ns.g.Map` - recording the
+// `ns.g` it navigates through poisons the very container slot the receiver walk descends, and every
+// value read through a container then stopped resolving while `new` / `extends` (no escape) kept
+// working. one spelling serves the write recorder and this one
+function censusSlots(programNode) {
+  const { writtenContainerSlots } = collectFileCensus(programNode, [mutationShapesReducer(null)]);
+  // the record key qualifies a name by its DECLARATION (`ns#1`); the path under it is what is asserted
+  return writtenContainerSlots.keys().map(key => key.replaceAll(/#\d+/g, '')).toArray().sort();
+}
+for (const [label, code, expected] of [
+  ['a member escape names its own slot', 'const ns = { g: globalThis }; f(ns.g.Map);', ['ns.g.Map']],
+  ['a deeper chain keeps every hop', 'const ns = { a: { g: globalThis } }; f(ns.a.g.Map);', ['ns.a.g.Map']],
+  ['an element index is a key like any other', 'const arr = [{ g: globalThis }]; f(arr[0].g.Map);', ['arr.0.g.Map']],
+  ['a single hop is unchanged', 'const w = { k: Map }; f(w.k);', ['w.k']],
+  ['an unreadable hop ends the path in the wildcard', 'const w = { a: { b: Map } }; f(w.a[k]);', ['w.a.*']],
+  ['a bare container escapes whole', 'const w = { a: { b: Map } }; f(w);', ['w.*']],
+  ['a write spells the same path', 'const w = { a: { b: Map } }; w.a.b = Map;', ['w.a.b']],
+  ['a chain root no binding names descends', 'const w = { k: Map }; f([w][0].k);', ['w.*']],
+]) {
+  runBoth(`escape slot path/${ label }`, code, (adapter, prog, lbl) => {
+    checkDeep(lbl, censusSlots(prog.node), expected);
+  });
+}
+
+// --- an inline CALL standing where a container is due ---
+
+// a container reached through a call resolves like the literal that call returns, wherever the call
+// stands: as the chain ROOT (`plain().window.Array`) or as the container binding's INIT (`const ns =
+// (() => ({ g: globalThis }))(); ns.g.Map`), which the dereference loop hands to the walk verbatim.
+// so the peel is the WALK's, taken on its own hop through the shared inline-call canon - written as a
+// root-only special case it left every bound spelling unresolved in every position and both flavors.
+// the callee shapes whose body does not run at the call, and the ones no proof reaches, pin the boundary
+function inlineCallContainerReceiver(adapter, prog, extraAdapter = {}) {
+  const read = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'Map');
+  const object = read.get('object');
+  return staticContainerReceiverName({
+    node: object.node, scope: object.scope, adapter: { ...superBaseAdapter, ...extraAdapter }, path: read,
+  }) ?? null;
+}
+for (const [label, init, expected] of [
+  ['arrow IIFE', 'const ns = (() => ({ g: globalThis }))();', 'globalThis'],
+  ['function-expression IIFE', 'const ns = (function () { return { g: globalThis }; })();', 'globalThis'],
+  ['call inside the parens', 'const ns = (function () { return { g: globalThis }; }());', 'globalThis'],
+  ['effect prefix in the body', 'const ns = (() => { side(); return { g: globalThis }; })();', 'globalThis'],
+  ['nested IIFE', 'const ns = (() => (() => ({ g: globalThis }))())();', 'globalThis'],
+  ['function declaration callee', 'function make() { return { g: globalThis }; }\nconst ns = make();', 'globalThis'],
+  ['const-bound arrow callee', 'const make = () => ({ g: globalThis });\nconst ns = make();', 'globalThis'],
+  ['optional call', 'const make = () => ({ g: globalThis });\nconst ns = make?.();', 'globalThis'],
+  ['identity call over the container', 'const ns = (x => x)({ g: globalThis });', 'globalThis'],
+  ['the call forwards a bound container', 'const box = { g: globalThis };\nconst ns = (() => box)();', 'globalThis'],
+  // the callee's body does not run at the call: the value is a promise / an iterator, never the container
+  ['async body', 'const ns = (async () => ({ g: globalThis }))();', null],
+  ['generator body', 'const ns = (function * () { return { g: globalThis }; })();', null],
+  ['`new` over the callee', 'const ns = new (function () { return { g: globalThis }; })();', null],
+  ['tagged template', 'const ns = make`x`;', null],
+  // an argument the body only PLACES IN A SLOT is what that slot holds: the call yields the literal
+  // and the read through the slot lands on the argument, exactly as the identity call above resolves
+  ['parameter placed in a slot', 'const ns = (x => ({ g: x }))(globalThis);', 'globalThis'],
+  // ... and the shapes no proof reaches: a parameter read anywhere BUT a slot, a callee OTHER call
+  // sites can reach, a value only one path assigns, a callee with no binding, a body binding of its
+  // own, and a container the source replaces
+  ['parameter read beside its slot', 'const ns = (x => (use(x), { g: x }))(globalThis);', null],
+  ['named callee fills the slot', 'function make(x) { return { g: x }; }\nconst ns = make(globalThis);', null],
+  ['conditionally assigned callee', 'let make;\nif (c) make = () => ({ g: globalThis });\nconst ns = make();', null],
+  ['unbound callee', 'const ns = make();', null],
+  ['body binding of its own', 'const ns = (() => { const box = { g: globalThis }; return box; })();', null],
+  ['container reassigned before the read', 'let ns = (() => ({ g: globalThis }))();\nns = {};', null],
+]) {
+  runBoth(`inline-call container/${ label }`, `${ init }\nf(ns.g.Map);`, (adapter, prog, lbl) => {
+    check(lbl, inlineCallContainerReceiver(adapter, prog), expected);
+  });
+}
+
+const INLINE_CALL_CONTAINER = 'const ns = (() => ({ g: globalThis }))();\nf(ns.g.Map);';
+
+// the returned expression resolves where the CALLEE was declared, never at the call: a use site that
+// shadows a name the body reads must not capture it
+const SHADOWED_CALLEE_BODY = 'const realm = globalThis;\nconst make = () => ({ g: realm });\n'
+  + 'function use() {\n  const realm = { g: 1 };\n  const ns = make();\n  return ns.g.Map;\n}';
+runBoth('inline-call container/the body resolves in its own declaration scope', SHADOWED_CALLEE_BODY, (adapter, prog, lbl) => {
+  check(lbl, inlineCallContainerReceiver(adapter, prog), 'globalThis');
+});
+
+// the value was captured where the call RAN, so a write after that cannot replace it - the walk keeps
+// the capture site as its dominance anchor across the peel
+runBoth('inline-call container/a write after the capture leaves it standing',
+  'let box = { g: globalThis };\nconst ns = (() => box)();\nbox = {};\nf(ns.g.Map);', (adapter, prog, lbl) => {
+    check(lbl, inlineCallContainerReceiver(adapter, prog), 'globalThis');
+  });
+
+// a call with nothing left to descend belongs to the NAME channel - this walk answers about the
+// container a call forwards, and forwards nothing of its own
+runBoth('inline-call container/a call with no keys left is not this walk\'s',
+  'f((() => globalThis)().Map);', (adapter, prog, lbl) => {
+    check(lbl, inlineCallContainerReceiver(adapter, prog), null);
+  });
+
+// the usage-global slot union rides through the peel like the primary value does: an alternative
+// recorded for the slot walks the SAME remaining path
+runBoth('inline-call container/the slot union rides through the call', INLINE_CALL_CONTAINER, (adapter, prog, lbl) => {
+  const read = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'Map');
+  const object = read.get('object');
+  const unionSink = [];
+  staticContainerReceiverName({
+    node: object.node,
+    scope: object.scope,
+    path: read,
+    unionSink,
+    adapter: {
+      ...superBaseAdapter,
+      writtenContainerSlotValues(name, slot) {
+        return name === 'ns' && slot.join('.') === 'g' ? [{ type: 'Identifier', name: 'Map' }] : [];
+      },
+    },
+  });
+  checkDeep(lbl, unionSink, ['Map']);
+});
+
+// the peel keeps the walk INSIDE the container it entered, so a slot the source WRITES is consulted
+// against the binding that spells it - the same decline a literal container owes, on the same slot
+runBoth('inline-call container/a written slot declines in pure', INLINE_CALL_CONTAINER, (adapter, prog, lbl) => {
+  check(lbl, inlineCallContainerReceiver(adapter, prog, {
+    method: 'usage-pure',
+    isWrittenContainerSlot(name, slot) { return name === 'ns' && slot.join('.') === 'g'; },
+  }), null);
+});
+runBoth('inline-call container/another slot leaves it resolving', INLINE_CALL_CONTAINER, (adapter, prog, lbl) => {
+  check(lbl, inlineCallContainerReceiver(adapter, prog, {
+    method: 'usage-pure',
+    isWrittenContainerSlot(name, slot) { return name === 'ns' && slot.join('.') === 'other'; },
+  }), 'globalThis');
+});
+
+// --- a container LITERAL standing where the chain ROOT is due ---
+
+// the twin of the call peel above, for the nav whose chain starts at the container itself
+// (`({ h: { g: globalThis } }).h`): the keys in front of the container are part of the walk's path,
+// not a reason to stop, so the fold takes any root the walk can STAND on rather than a NAME alone.
+// written as a name-only gate it stranded every such spelling in both flavors while the bound and
+// call-forwarded spellings of the same reachability resolved
+for (const [label, init, expected] of [
+  ['object literal root', 'const ns = ({ h: { g: globalThis } }).h;', 'globalThis'],
+  ['array literal root', 'const ns = ([{ g: globalThis }])[0];', 'globalThis'],
+  ['two literal hops', 'const ns = ({ a: { h: { g: globalThis } } }).a.h;', 'globalThis'],
+  ['three literal hops', 'const ns = ({ a: { b: { h: { g: globalThis } } } }).a.b.h;', 'globalThis'],
+  ['array inside the object', 'const ns = ({ h: [{ g: globalThis }] }).h[0];', 'globalThis'],
+  ['object inside the array', 'const ns = ([{ h: { g: globalThis } }])[0].h;', 'globalThis'],
+  ['class expression statics', 'const ns = (class { static h = { g: globalThis }; }).h;', 'globalThis'],
+  ['parens around the literal', 'const ns = ((({ h: { g: globalThis } }))).h;', 'globalThis'],
+  ['transparent sequence', 'const ns = (0, { h: { g: globalThis } }).h;', 'globalThis'],
+  ['an alias of the literal-rooted nav', 'const first = ({ h: { g: globalThis } }).h;\nconst ns = first;', 'globalThis'],
+  // ... and a prefix that may RUN is transparent to THIS question: it decides when the container is
+  // built, never which one the nav stands on. the peel that refuses such a prefix answers for a
+  // caller about to rewrite through the node; standing down here dropped the injection whole
+  ['effect in front of the sequence', 'const ns = (eff(), { h: { g: globalThis } }).h;', 'globalThis'],
+  // the boundary: a key the walk cannot fold names no slot, and a root that hands out no literal of
+  // this file has nothing to descend
+  ['dynamic key off the literal', 'const ns = ({ h: { g: globalThis } })[k];', null],
+  ['key the literal does not spell', 'const ns = ({ h: { q: globalThis } }).h;', null],
+  ['slot holding no built-in', 'const ns = ({ h: { g: 1 } }).h;', null],
+  ['call with arguments as root', 'const ns = mk(1).h;', null],
+  ['container reassigned before the read', 'let ns = ({ h: { g: globalThis } }).h;\nns = {};', null],
+]) {
+  runBoth(`literal-rooted container/${ label }`, `${ init }\nf(ns.g.Map);`, (adapter, prog, lbl) => {
+    check(lbl, inlineCallContainerReceiver(adapter, prog), expected);
+  });
+}
+
+// the same chain with NO binding between the literal and the read: the entry classifies the root it
+// stands on exactly as the fold does, so the two spellings of one reachability answer alike
+runBoth('literal-rooted container/no binding between the literal and the read',
+  'f(({ h: { g: globalThis } }).h.g.Map);', (adapter, prog, lbl) => {
+    check(lbl, inlineCallContainerReceiver(adapter, prog), 'globalThis');
+  });
+
+const LITERAL_ROOTED_CONTAINER = 'const ns = ({ h: { g: globalThis } }).h;\nf(ns.g.Map);';
+
+// re-rooting at a literal LEAVES the named container - the loop's container entry is what normally
+// re-establishes that bookkeeping and it does not run here, so carrying the name past the re-root
+// would offset every later slot consult by exactly the fold's keys. pure asks the write question
+// once at the fold instead, against the whole path still to be read under that name
+runBoth('literal-rooted container/a written slot declines in pure', LITERAL_ROOTED_CONTAINER, (adapter, prog, lbl) => {
+  check(lbl, inlineCallContainerReceiver(adapter, prog, {
+    method: 'usage-pure',
+    isWrittenContainerSlot(name, slot) { return name === 'ns' && slot.join('.') === 'g'; },
+  }), null);
+});
+// the question carries the WHOLE path still to be read under that name, so a write anywhere along a
+// multi-key descent is seen at the one place the fold can still ask it
+const LITERAL_ROOTED_TWO_KEYS = 'const ns = ({ h: { g: { r: globalThis } } }).h;\nf(ns.g.r.Map);';
+runBoth('literal-rooted container/a write deeper on the path declines too', LITERAL_ROOTED_TWO_KEYS, (adapter, prog, lbl) => {
+  check(lbl, inlineCallContainerReceiver(adapter, prog, {
+    method: 'usage-pure',
+    isWrittenContainerSlot(name, slot) { return name === 'ns' && slot.join('.') === 'g.r'; },
+  }), null);
+});
+runBoth('literal-rooted container/two keys under the name resolve', LITERAL_ROOTED_TWO_KEYS, (adapter, prog, lbl) => {
+  check(lbl, inlineCallContainerReceiver(adapter, prog), 'globalThis');
+});
+runBoth('literal-rooted container/another slot leaves it resolving', LITERAL_ROOTED_CONTAINER, (adapter, prog, lbl) => {
+  check(lbl, inlineCallContainerReceiver(adapter, prog, {
+    method: 'usage-pure',
+    isWrittenContainerSlot(name, slot) { return name === 'ns' && slot.join('.') === 'other'; },
+  }), 'globalThis');
+});
+// the consult is pure's: global over-injects for a written slot rather than losing the read
+runBoth('literal-rooted container/a written slot keeps resolving in global', LITERAL_ROOTED_CONTAINER, (adapter, prog, lbl) => {
+  check(lbl, inlineCallContainerReceiver(adapter, prog, {
+    method: 'usage-global',
+    isWrittenContainerSlot(name, slot) { return name === 'ns' && slot.join('.') === 'g'; },
+  }), 'globalThis');
+});
+// the keys the LITERAL spells are not the name's: `ns` stands at the fold's keys, so a write to the
+// slot ABOVE it (`ns.h`, which the read never goes through) leaves the read resolving. carrying the
+// container name past the re-root would ask about `h` under `ns` and decline on exactly this
+runBoth('literal-rooted container/a write to the literal\'s own key is not the name\'s slot',
+  LITERAL_ROOTED_CONTAINER, (adapter, prog, lbl) => {
+    check(lbl, inlineCallContainerReceiver(adapter, prog, {
+      method: 'usage-pure',
+      isWrittenContainerSlot(name, slot) { return name === 'ns' && slot.join('.') === 'h'; },
+    }), 'globalThis');
+  });
+
+// the entry classifies the root it stands on, and the binding gate still owns a NAME: a read the
+// declaration does not reach resolves nothing, whichever spelling the init uses
+for (const [label, code] of [
+  ['a bare container', 'f(ns.g.Map);\nvar ns = { g: globalThis };'],
+  ['a literal-rooted nav', 'f(ns.g.Map);\nvar ns = ({ h: { g: globalThis } }).h;'],
+]) {
+  runBoth(`literal-rooted container/the init must reach the read/${ label }`, code, (adapter, prog, lbl) => {
+    check(lbl, inlineCallContainerReceiver(adapter, prog), null);
+  });
+}
+
+// the other two roots the entry stands up with no binding to look up, at the USE site: a call
+// forwarding the container, and a transparent sequence around a bound one
+runBoth('literal-rooted container/a call is still a root the entry stands on',
+  'const mk = () => ({ h: { g: globalThis } });\nf(mk().h.g.Map);', (adapter, prog, lbl) => {
+    check(lbl, inlineCallContainerReceiver(adapter, prog), 'globalThis');
+  });
+runBoth('literal-rooted container/a transparent sequence at the use site peels',
+  'const w = { h: { g: globalThis } };\nf((0, w).h.g.Map);', (adapter, prog, lbl) => {
+    check(lbl, inlineCallContainerReceiver(adapter, prog), 'globalThis');
+  });
+
+// --- the union sink of the container walk ---
+
+// the sink both producers hand this walk is an array allocated whatever the flavor, so a row takes
+// it off `staticContainerReceiverName` - the entry the member producer calls - and pins it beside
+// the primary answer, one walk and both halves
+function containerWalkUnion({ adapter, prog, unionSink = null, extraAdapter = {}, key = 'get' }) {
+  const read = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === key);
+  const object = read.get('object');
+  return staticContainerReceiverName({
+    node: object.node, scope: object.scope, adapter: { ...superBaseAdapter, ...extraAdapter }, path: read, unionSink,
+  }) ?? null;
+}
+
+const BRANCHING_HOP = 'const w1 = { k: Map };\nconst w2 = { k: Set };\nconst box = c ? w1 : w2;\nf(box.k.get);';
+
+// a branching hop names NO single container, so the primary answers nothing while each arm walks the
+// remaining path into the sink
+runBoth('container union/both arms of a branching hop reach the sink', BRANCHING_HOP, (adapter, prog, lbl) => {
+  const unionSink = [];
+  check(`${ lbl } primary`, containerWalkUnion({ adapter, prog, unionSink }), null);
+  checkDeep(`${ lbl } sink`, unionSink, ['Map', 'Set']);
+});
+
+// ... and with no sink the arms are not enumerated at all: every `buildDestructuringInitMeta` caller
+// that passes none (a fallback branch's leaf, a per-branch meta) reaches this same walk in global,
+// and an enumeration there has nowhere to put its answers
+runBoth('container union/a sink-less walk leaves the arms alone', BRANCHING_HOP, (adapter, prog, lbl) => {
+  check(lbl, containerWalkUnion({ adapter, prog }), null);
+});
+
+// the sink holds receiver NAMES: an arm the walk resolves nothing for contributes nothing, or the
+// union axis crosses a nameless entry with every reachable key
+const UNRESOLVED_ARM = 'const w1 = { k: Map };\nconst w2 = { q: 1 };\nconst box = c ? w1 : w2;\nf(box.k.get);';
+runBoth('container union/an arm that names nothing stays out', UNRESOLVED_ARM, (adapter, prog, lbl) => {
+  const unionSink = [];
+  containerWalkUnion({ adapter, prog, unionSink });
+  checkDeep(lbl, unionSink, ['Map']);
+});
+
+// ... and arms that agree name ONE receiver - the sink is a set, and a repeated name would carry the
+// same module twice through the axis
+const AGREEING_ARMS = 'const w1 = { k: Map };\nconst w2 = { k: Map };\nconst box = c ? w1 : w2;\nf(box.k.get);';
+runBoth('container union/arms naming the same receiver dedupe', AGREEING_ARMS, (adapter, prog, lbl) => {
+  const unionSink = [];
+  containerWalkUnion({ adapter, prog, unionSink });
+  checkDeep(lbl, unionSink, ['Map']);
+});
+
+// an alternative replaces a SLOT, so it walks the rest of the path under that slot: the key it
+// consumed rides with it, or its own deeper write (`ns.g.k` beneath the replaced `ns.g`) is looked
+// up one level too high and the value that reaches the read is lost
+const NESTED_SLOT_WRITE = 'const ns = { q: 1 };\nns.g = { k: Map };\nns.g.k = Set;\nf(ns.g.k.get);';
+runBoth('container union/an alternative carries the key it replaced', NESTED_SLOT_WRITE, (adapter, prog, lbl) => {
+  const written = adapter.pickPath(prog, 'ObjectExpression', p => p.node.properties[0]?.key?.name === 'k');
+  const unionSink = [];
+  check(`${ lbl } primary`, containerWalkUnion({
+    adapter,
+    prog,
+    unionSink,
+    extraAdapter: {
+      writtenContainerSlotValues(name, slot) {
+        if (name !== 'ns') return [];
+        if (slot.join('.') === 'g') return [written.node];
+        return slot.join('.') === 'g.k' ? [{ type: 'Identifier', name: 'Set' }] : [];
+      },
+    },
+  }), null);
+  checkDeep(`${ lbl } sink`, unionSink, ['Set', 'Map']);
+});
+
+// the flavors part on a BRANCHING array slot: enumerating arms is the union axis's own move, so the
+// slot resolves for global, which only over-injects, and stays unresolved for pure, which would
+// rewrite the read off a value the slot need not hold. the sink cannot decide it - both producers
+// allocate one whatever the flavor
+const BRANCHING_SLOT = 'const box = [globalThis ?? {}];\nf(box[0].Map);';
+runBoth('container union/a branching array slot resolves in global', BRANCHING_SLOT, (adapter, prog, lbl) => {
+  check(lbl, containerWalkUnion({ adapter, prog, unionSink: [], key: 'Map' }), 'globalThis');
+});
+runBoth('container union/a branching array slot declines in pure', BRANCHING_SLOT, (adapter, prog, lbl) => {
+  check(`${ lbl } with a sink`, containerWalkUnion({
+    adapter, prog, unionSink: [], key: 'Map', extraAdapter: { method: 'usage-pure' },
+  }), null);
+  check(`${ lbl } without`, containerWalkUnion({
+    adapter, prog, key: 'Map', extraAdapter: { method: 'usage-pure' },
+  }), null);
+});
+
+finish();

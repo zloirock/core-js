@@ -9,6 +9,7 @@
 // spawned per evaluation and run under the builtin strip, where this import would cost both dearly.
 import 'zx/globals';
 import { auditDrifted, beginCase, cacheStats, collectCases, collectEvicted, discardCase, hashCode, mixedCase } from './cache-store.mjs';
+import { accountSnippet, emptyCoverage } from './coverage.mjs';
 import { generate } from './generate.mjs';
 import { checkGlobalSnippet } from './global-leg.mjs';
 import { checkSnippet, closeStrippedWorker, phaseNs, summarizeVerdict } from './harness.mjs';
@@ -31,10 +32,10 @@ phaseNs['generate corpus'] = process.hrtime.bigint() - t0;
 const PROGRESS_EVERY = 100;
 let processed = 0;
 let passed = 0;
-let globalChecked = 0;
-let globalArmed = 0;
-let astChecked = 0;
 const failures = [];
+// what each deep leg did with each snippet it saw - see coverage.mjs for the legs and the reasons
+// each may abstain for; the coordinator enforces checked + skipped against the corpus size
+const coverage = emptyCoverage();
 // run both oracles over one snippet. `live` opens its cache group with every cell forced to run
 async function judge(snippet, live) {
   await beginCase({ name: snippet.name, code: snippet.code, ts: snippet.ts, live, prefix });
@@ -43,9 +44,11 @@ async function judge(snippet, live) {
   const lines = failed ? [`${ snippet.name } :: ${ detail }`] : [];
   // the usage-global leg: skipped for by-design full-env shapes (their stripped divergence is
   // the family's point) and when there is no usable native reference (transform crash)
-  const checked = !PURE_ONLY && !snippet.fullEnv && !verdict.transformCrash;
-  let armed = false;
-  if (checked) {
+  let globalOutcome;
+  if (PURE_ONLY) globalOutcome = 'pure-only';
+  else if (snippet.fullEnv) globalOutcome = 'full-env';
+  else if (verdict.transformCrash) globalOutcome = 'transform-crash';
+  else {
     const started = process.hrtime.bigint();
     const globalVerdict = await checkGlobalSnippet({
       code: snippet.code,
@@ -54,11 +57,18 @@ async function judge(snippet, live) {
       options: GLOBAL_OPTIONS,
       provenArmed: snippet.strip === true,
     });
-    armed = globalVerdict.armed;
+    globalOutcome = globalVerdict.skip ?? 'checked';
     if (globalVerdict.failed) lines.push(`${ snippet.name } :: [global] ${ globalVerdict.detail }`);
     phaseNs['global leg'] = (phaseNs['global leg'] ?? 0n) + (process.hrtime.bigint() - started);
   }
-  return { lines, armed, checked, ast: verdict.astChecked === true };
+  return {
+    lines,
+    outcomes: {
+      'pure-stripped': verdict.stripCoverage,
+      'ast-print-through': verdict.astCoverage,
+      'global-stripped': globalOutcome,
+    },
+  };
 }
 // running hash of every snippet that already ran in THIS chunk - see beginCase for why a cell is
 // addressed by it. folded before the snippet runs, so it describes the realm the snippet meets
@@ -67,6 +77,7 @@ for (const snippet of subset) {
   // a harness-level throw (e.g. the TS-strip of a plugin output failing, outside checkSnippet's own
   // transform/eval guards) must NOT crash the shard - that discards every divergence accumulated so
   // far and the coordinator sees only "produced no result". record it as a failure and keep going
+  let outcomes;
   try {
     let result = await judge(snippet, false);
     // a divergence found on a MIXED group compared a cached value against a freshly produced one,
@@ -80,17 +91,23 @@ for (const snippet of subset) {
       failures.push(...result.lines);
       discardCase(snippet.name);
     } else passed++;
-    if (result.checked) globalChecked++;
-    if (result.armed) globalArmed++;
-    if (result.ast) astChecked++;
+    outcomes = result.outcomes;
   } catch (error) {
     failures.push(`${ snippet.name } :: HARNESS CRASH ${ error?.message ?? error }`);
     discardCase(snippet.name);
+    // a crashed snippet is still one no leg deep-checked: named here, or it would leave the
+    // coordinator's equation short by exactly the snippets that died loudest
+    outcomes = { 'pure-stripped': 'harness-crash', 'ast-print-through': 'harness-crash', 'global-stripped': 'harness-crash' };
   }
+  // OUTSIDE the guard above, and once per snippet however many times `judge` ran: an unnamed
+  // outcome is a bug in the legs' own bookkeeping and must kill the shard rather than be recorded
+  // as a snippet that crashed
+  accountSnippet(coverage, outcomes);
   prefix = hashCode(`${ prefix }\u0000${ snippet.code }`, snippet.ts);
   if (++processed % PROGRESS_EVERY === 0 || processed === subset.length) {
     process.stderr.write(`${ cyan(`[differential ${ shard + 1 }/${ total }]`) } ${ cyan(processed) }/${ cyan(subset.length) }`
-      + ` | pure ${ green(passed) } ok | ast-leg ${ cyan(astChecked) } | global-leg ${ cyan(globalArmed) } armed`
+      + ` | pure ${ green(passed) } ok | ast-leg ${ cyan(coverage['ast-print-through'].checked) }`
+      + ` | global-leg ${ cyan(coverage['global-stripped'].checked) } armed`
       + `${ failures.length ? ` | ${ red(`FAILURES ${ failures.length }`) }` : '' }\n`);
   }
 }
@@ -103,7 +120,7 @@ const timings = Object.fromEntries(Object.entries(phaseNs).map(([phase, ns]) => 
 const cases = collectCases();
 const evicted = collectEvicted();
 await new Promise(resolve => {
-  process.stdout.write(`\n@@SHARD@@${ JSON.stringify({ passed, failures, globalChecked, globalArmed, astChecked, timings, cases, evicted, cacheStats }) }@@\n`, resolve);
+  process.stdout.write(`\n@@SHARD@@${ JSON.stringify({ passed, failures, seen: subset.length, coverage, timings, cases, evicted, cacheStats }) }@@\n`, resolve);
 });
 // HARD exit. natural teardown after thousands of per-eval worker threads (the usage-global
 // leg spawns one per evaluation) ACCESS_VIOLATIONs on Windows (exit code 0xC0000005 fired
