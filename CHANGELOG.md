@@ -4,6 +4,7 @@
   - [`Iterator.{ zip, zipKeyed }`](https://github.com/tc39/proposal-joint-iteration) marked as [shipped in V8 ~ Chrome 153](https://issues.chromium.org/issues/465715798)
   - [`Promise.{ allKeyed, allSettledKeyed }`](https://github.com/tc39/proposal-await-dictionary) marked as [shipped in FF155](https://bugzilla.mozilla.org/show_bug.cgi?id=2057270)
   - Updated [Electron 45](https://releases.electronjs.org/) compat data mapping
+  - Added [Opera for Android 101](https://forums.opera.com/topic/89420/opera-for-android-101) compat data mapping
 
 ### [3.50.0 - 2026.08.05](https://github.com/zloirock/core-js/releases/tag/v3.50.0)
 - Changes [v3.49.0...v3.50.0](https://github.com/zloirock/core-js/compare/v3.49.0...v3.50.0) (138 commits)

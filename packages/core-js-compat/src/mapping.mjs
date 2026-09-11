@@ -315,6 +315,7 @@ export default {
     [147, 98],
     [148, 99],
     [149, 100],
+    [151, 101],
   ],
   // https://developers.meta.com/horizon/release-notes/web/
   // https://www.meta.com/experiences/browser/1916519981771802/
