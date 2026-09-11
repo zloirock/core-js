@@ -59,7 +59,7 @@ for (const scope of [data, external]) {
     }
     map('ChromeAndroidToQuest');
     if (!has(module, 'quest') && chrome >= 144) {
-      module.quest = Math.ceil(chrome / 2) * 2;
+      module.quest = String(Math.ceil(chrome / 2) * 2);
     }
     // TODO: Remove from `core-js@4`
     if (has(module, 'quest')) {
