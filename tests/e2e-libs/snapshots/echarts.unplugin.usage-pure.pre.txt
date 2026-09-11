@@ -1,0 +1,2 @@
+-@core-js/pure/full/symbol/replace
+-@core-js/pure/full/weak-map/constructor

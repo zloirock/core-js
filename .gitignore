@@ -60,6 +60,7 @@ node_modules/
 /tests/unit-global/index.js
 /tests/unit-pure/index.js
 /tests/e2e-usage-pure/index.js
+/tests/e2e-libs/artifacts/
 /tests/transpiler-differential/tmp/
 /tests/type-definitions/tmp/
 /website/templates/
