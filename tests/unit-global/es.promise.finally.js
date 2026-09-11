@@ -43,9 +43,10 @@ if (promise && promise.constructor !== Promise) QUnit.test('Native Promise, patc
   assert.isFunction(promise.finally);
   assert.arity(promise.finally, 1);
   assert.looksNative(promise.finally);
-  assert.nonEnumerable(promise.constructor.prototype, 'finally');
+  const $Promise = promise.constructor;
+  assert.nonEnumerable($Promise.prototype, 'finally');
   function empty() { /* empty */ }
   assert.true(promise.finally(empty) instanceof Promise, '`.finally` returns `Promise` instance #1');
-  assert.true(new promise.constructor(empty).finally(empty) instanceof Promise, '`.finally` returns `Promise` instance #2');
+  assert.true(new $Promise(empty).finally(empty) instanceof Promise, '`.finally` returns `Promise` instance #2');
 });
 

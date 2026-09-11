@@ -21,4 +21,8 @@ export default {
     '@babel/cli': 'minor',
     'moon-unit': 'patch',
   },
+  'tests/test262': {
+    // update only when needed to avoid noise
+    test262: 'exclude',
+  },
 };
