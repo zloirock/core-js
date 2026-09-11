@@ -2646,12 +2646,14 @@ export const data = {
   'esnext.iterator.from': null,
   'esnext.iterator.includes': {
     bun: '1.4.0',
+    chrome: '154',
     firefox: '154',
   },
   'esnext.iterator.indexed': {
   },
   'esnext.iterator.join': {
     bun: '1.4.0',
+    chrome: '154',
     firefox: '154',
   },
   // TODO: Remove from `core-js@4`

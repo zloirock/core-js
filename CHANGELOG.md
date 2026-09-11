@@ -1,7 +1,9 @@
 # Changelog
 ### Unreleased
 - Compat data improvements:
-  - [`Iterator.{ zip, zipKeyed }`](https://github.com/tc39/proposal-joint-iteration) marked as [shipped in V8 ~ Chrome 153](https://issues.chromium.org/issues/465715798)
+  - [`Iterator.{ zip, zipKeyed }`](https://github.com/tc39/proposal-joint-iteration) marked as [shipped in V8 ~ Chrome 153](https://issues.chromium.org/issues/465357675)
+  - [`Iterator.prototype.includes`](https://github.com/tc39/proposal-iterator-includes) marked as [shipped in V8 ~ Chrome 154](https://issues.chromium.org/issues/504886973)
+  - [`Iterator.prototype.join`](https://github.com/tc39/proposal-iterator-join) marked as [shipped in V8 ~ Chrome 154](https://issues.chromium.org/issues/465715798)
   - [`Promise.{ allKeyed, allSettledKeyed }`](https://github.com/tc39/proposal-await-dictionary) marked as [shipped in FF155](https://bugzilla.mozilla.org/show_bug.cgi?id=2057270)
   - [`Iterator.{ zip, zipKeyed }`](https://github.com/tc39/proposal-joint-iteration) marked as shipped in Bun 1.4.0
   - [`Iterator.prototype.{ chunks, windows }`](https://github.com/tc39/proposal-iterator-chunking) marked as shipped in Bun 1.4.0
