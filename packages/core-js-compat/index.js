@@ -1,14 +1,30 @@
-'use strict';
-const compat = require('./compat');
-const data = require('./data');
-const entries = require('./entries');
-const getModulesListForTargetVersion = require('./get-modules-list-for-target-version');
-const modules = require('./modules');
+import compat from './compat.js';
+import builtInDefinitions from './built-in-definitions.json' with { type: 'json' };
+import data from './data.json' with { type: 'json' };
+import entries from './entries.json' with { type: 'json' };
+import getEntriesListForTargetVersion from './get-entries-list-for-target-version.js';
+import getModulesListForTargetVersion from './get-modules-list-for-target-version.js';
+import knownBuiltInReturnTypes from './known-built-in-return-types.json' with { type: 'json' };
+import modules from './modules.json' with { type: 'json' };
 
-module.exports = Object.assign(compat, {
+export {
+  builtInDefinitions,
   compat,
   data,
   entries,
+  getEntriesListForTargetVersion,
   getModulesListForTargetVersion,
+  knownBuiltInReturnTypes,
+  modules,
+};
+
+export default Object.assign(compat, {
+  builtInDefinitions,
+  compat,
+  data,
+  entries,
+  getEntriesListForTargetVersion,
+  getModulesListForTargetVersion,
+  knownBuiltInReturnTypes,
   modules,
 });

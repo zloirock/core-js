@@ -1,6 +1,4 @@
-import { DESCRIPTORS, STRICT } from '../helpers/constants.js';
-
-import fill from 'core-js-pure/es/array/fill';
+import fill from '@core-js/pure/es/array/fill';
 
 QUnit.test('Array#fill', assert => {
   assert.isFunction(fill);
@@ -12,18 +10,15 @@ QUnit.test('Array#fill', assert => {
   assert.deepEqual(fill(Array(5), 5, 6, 1), [undefined, undefined, undefined, undefined, undefined]);
   assert.deepEqual(fill(Array(5), 5, -3, 4), [undefined, undefined, 5, 5, undefined]);
   assert.arrayEqual(fill({ length: 5 }, 5), [5, 5, 5, 5, 5]);
-  if (STRICT) {
-    assert.throws(() => fill(null, 0), TypeError);
-    assert.throws(() => fill(undefined, 0), TypeError);
-  }
-  if (DESCRIPTORS) {
-    // eslint-disable-next-line es/no-object-defineproperty -- required for testing
-    assert.notThrows(() => fill(Object.defineProperty({
-      length: -1,
-    }, 0, {
-      set() {
-        throw new Error();
-      },
-    })), 'uses ToLength');
-  }
+
+  assert.throws(() => fill(null, 0), TypeError);
+  assert.throws(() => fill(undefined, 0), TypeError);
+
+  assert.notThrows(() => fill(Object.defineProperty({
+    length: -1,
+  }, 0, {
+    set() {
+      throw new Error();
+    },
+  })), 'uses ToLength');
 });

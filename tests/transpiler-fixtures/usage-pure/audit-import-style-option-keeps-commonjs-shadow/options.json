@@ -1,0 +1,16 @@
+{
+  "sourceType": "script",
+  "plugins": [
+    [
+      "@core-js",
+      {
+        "method": "usage-pure",
+        "version": "4.0",
+        "importStyle": "import",
+        "targets": {
+          "ie": 11
+        }
+      }
+    ]
+  ]
+}

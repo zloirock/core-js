@@ -1,0 +1,1 @@
+export { Promise } from "some-module";

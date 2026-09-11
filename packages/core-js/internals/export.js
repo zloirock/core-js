@@ -1,11 +1,8 @@
 'use strict';
 var globalThis = require('../internals/global-this');
-var getOwnPropertyDescriptor = require('../internals/object-get-own-property-descriptor').f;
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var defineBuiltIn = require('../internals/define-built-in');
 var defineGlobalProperty = require('../internals/define-global-property');
-var copyConstructorProperties = require('../internals/copy-constructor-properties');
-var isForced = require('../internals/is-forced');
 
 /*
   options.target         - name of the target object
@@ -24,32 +21,22 @@ var isForced = require('../internals/is-forced');
 */
 module.exports = function (options, source) {
   var TARGET = options.target;
-  var GLOBAL = options.global;
-  var STATIC = options.stat;
-  var FORCED, target, key, targetProperty, sourceProperty, descriptor;
-  if (GLOBAL) {
-    target = globalThis;
-  } else if (STATIC) {
-    target = globalThis[TARGET] || defineGlobalProperty(TARGET, {});
-  } else {
-    target = globalThis[TARGET] && globalThis[TARGET].prototype;
-  }
-  if (target) for (key in source) {
+  var target = options.global ? globalThis
+    : options.stat ? globalThis[TARGET] || defineGlobalProperty(TARGET, {})
+    : globalThis[TARGET] && globalThis[TARGET].prototype;
+  var targetProperty, sourceProperty, descriptor;
+  if (target) Object.keys(source).forEach(function (key) {
     sourceProperty = source[key];
     if (options.dontCallGetSet) {
-      descriptor = getOwnPropertyDescriptor(target, key);
+      descriptor = Object.getOwnPropertyDescriptor(target, key);
       targetProperty = descriptor && descriptor.value;
     } else targetProperty = target[key];
-    FORCED = isForced(GLOBAL ? key : TARGET + (STATIC ? '.' : '#') + key, options.forced);
     // contained in target
-    if (!FORCED && targetProperty !== undefined) {
-      if (typeof sourceProperty == typeof targetProperty) continue;
-      copyConstructorProperties(sourceProperty, targetProperty);
-    }
+    if (!options.forced && typeof sourceProperty == typeof targetProperty) return;
     // add a flag to not completely full polyfills
-    if (options.sham || (targetProperty && targetProperty.sham)) {
+    if (options.sham) {
       createNonEnumerableProperty(sourceProperty, 'sham', true);
     }
     defineBuiltIn(target, key, sourceProperty, options);
-  }
+  });
 };

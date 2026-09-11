@@ -1,3 +1,4 @@
+// @types: proposals/iterator-helpers
 'use strict';
 var $ = require('../internals/export');
 var call = require('../internals/function-call');
@@ -22,7 +23,7 @@ var FORCED = IS_PURE || DROP_WITHOUT_THROWING_ON_INVALID_ITERATOR || dropWithout
   try {
     // eslint-disable-next-line es/no-iterator, es/no-iterator-prototype-drop -- detection
     Iterator.prototype.drop.call({
-      next: function () { return { done: true }; }
+      next: function () { return { done: true }; },
     }, 0x20000000000000);
   } catch (error) {
     return error instanceof $RangeError;
@@ -46,6 +47,7 @@ var IteratorProxy = createIteratorProxy(function () {
 
 // `Iterator.prototype.drop` method
 // https://tc39.es/ecma262/#sec-iterator.prototype.drop
+// @dependency: es.iterator.constructor
 $({ target: 'Iterator', proto: true, real: true, forced: FORCED }, {
   drop: function drop(limit) {
     anObject(this);
@@ -62,7 +64,7 @@ $({ target: 'Iterator', proto: true, real: true, forced: FORCED }, {
     if (dropWithoutClosingOnEarlyError) return call(dropWithoutClosingOnEarlyError, this, remaining);
 
     return new IteratorProxy(getIteratorDirect(this), {
-      remaining: remaining
+      remaining: remaining,
     });
-  }
+  },
 });

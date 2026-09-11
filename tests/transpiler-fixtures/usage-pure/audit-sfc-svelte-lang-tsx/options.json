@@ -1,0 +1,21 @@
+{
+  "plugins": [
+    [
+      "@core-js",
+      {
+        "method": "usage-pure",
+        "version": "4.0",
+        "targets": {
+          "ie": 11
+        }
+      }
+    ]
+  ],
+  "filename": "App.svelte?svelte&type=script&lang=tsx",
+  "parserOpts": {
+    "plugins": [
+      "typescript",
+      "jsx"
+    ]
+  }
+}

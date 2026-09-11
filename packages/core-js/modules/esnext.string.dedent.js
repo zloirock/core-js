@@ -1,14 +1,12 @@
+// @types: proposals/string-dedent
 'use strict';
-var FREEZING = require('../internals/freezing');
 var $ = require('../internals/export');
-var makeBuiltIn = require('../internals/make-built-in');
 var uncurryThis = require('../internals/function-uncurry-this');
 var apply = require('../internals/function-apply');
 var anObject = require('../internals/an-object');
 var toObject = require('../internals/to-object');
 var isCallable = require('../internals/is-callable');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
-var defineProperty = require('../internals/object-define-property').f;
 var createArrayFromList = require('../internals/array-slice');
 var WeakMapHelpers = require('../internals/weak-map-helpers');
 var cooked = require('../internals/string-cooked');
@@ -22,12 +20,11 @@ var weakMapSet = WeakMapHelpers.set;
 
 var $Array = Array;
 var $TypeError = TypeError;
-// eslint-disable-next-line es/no-object-freeze -- safe
-var freeze = Object.freeze || Object;
+var defineProperty = Object.defineProperty;
+var freeze = Object.freeze;
 // eslint-disable-next-line es/no-object-isfrozen -- safe
 var isFrozen = Object.isFrozen;
 var min = Math.min;
-var charAt = uncurryThis(''.charAt);
 var stringSlice = uncurryThis(''.slice);
 var split = uncurryThis(''.split);
 var exec = uncurryThis(/./.exec);
@@ -42,12 +39,12 @@ var INVALID_CLOSING_LINE = 'Invalid closing line';
 var dedentTemplateStringsArray = function (template) {
   var rawInput = template.raw;
   // https://github.com/tc39/proposal-string-dedent/issues/75
-  if (FREEZING && !isFrozen(rawInput)) throw new $TypeError('Raw template should be frozen');
+  if (!isFrozen(rawInput)) throw new $TypeError('Raw template should be frozen');
   if (weakMapHas(DedentMap, rawInput)) return weakMapGet(DedentMap, rawInput);
   var raw = dedentStringsArray(rawInput);
   var cookedArr = cookStrings(raw);
   defineProperty(cookedArr, 'raw', {
-    value: freeze(raw)
+    value: freeze(raw),
   });
   freeze(cookedArr);
   weakMapSet(DedentMap, rawInput, cookedArr);
@@ -118,7 +115,7 @@ var commonLeadingIndentation = function (a, b) {
   if (b === undefined || a === b) return a;
   var i = 0;
   for (var len = min(a.length, b.length); i < len; i++) {
-    if (charAt(a, i) !== charAt(b, i)) break;
+    if (a[i] !== b[i]) break;
   }
   return stringSlice(a, 0, i);
 };
@@ -133,11 +130,11 @@ var cookStrings = function (raw) {
 };
 
 var makeDedentTag = function (tag) {
-  return makeBuiltIn(function (template /* , ...substitutions */) {
+  return function (template /* , ...substitutions */) {
     var args = createArrayFromList(arguments);
     args[0] = dedentTemplateStringsArray(anObject(template));
     return apply(tag, this, args);
-  }, '');
+  };
 };
 
 var cookedDedentTag = makeDedentTag(cooked);
@@ -149,5 +146,5 @@ $({ target: 'String', stat: true, forced: true }, {
     anObject(templateOrFn);
     if (isCallable(templateOrFn)) return makeDedentTag(templateOrFn);
     return apply(cookedDedentTag, this, arguments);
-  }
+  },
 });

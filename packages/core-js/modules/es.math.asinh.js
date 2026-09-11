@@ -10,6 +10,7 @@ var LN2 = Math.LN2;
 // sqrt(2 ** 53) - prevent n * n overflow
 var SQRT_2_POW_53 = 94906265.62425156;
 
+// eslint-disable-next-line unicorn/consistent-function-style -- name required
 function asinh(x) {
   var n = +x;
   return !isFinite(n) || n === 0 ? n : n < 0 ? -asinh(-n) : n > SQRT_2_POW_53 ? log(n) + LN2
@@ -22,5 +23,5 @@ var FORCED = !($asinh && 1 / $asinh(0) > 0);
 // https://tc39.es/ecma262/#sec-math.asinh
 // Tor Browser bug: Math.asinh(0) -> -0
 $({ target: 'Math', stat: true, forced: FORCED }, {
-  asinh: asinh
+  asinh: asinh,
 });

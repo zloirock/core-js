@@ -1,3 +1,4 @@
+// @types: proposals/iterator-includes
 'use strict';
 var $ = require('../internals/export');
 var anObject = require('../internals/an-object');
@@ -15,6 +16,7 @@ var INVALID_SKIPPED_ELEMENTS = 'skippedElements should be a positive safe intege
 
 // `Iterator.prototype.includes` method
 // https://github.com/tc39/proposal-iterator-includes
+// @dependency: es.iterator.constructor
 $({ target: 'Iterator', proto: true, real: true, forced: IS_PURE }, {
   includes: function includes(searchElement /* , skippedElements */) {
     anObject(this);
@@ -40,5 +42,5 @@ $({ target: 'Iterator', proto: true, real: true, forced: IS_PURE }, {
       if (skipped < toSkip) skipped++;
       else if (sameValueZero(value, searchElement)) return stop();
     }, { IS_ITERATOR: true, INTERRUPTED: true }).stopped;
-  }
+  },
 });

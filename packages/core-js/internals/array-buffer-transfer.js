@@ -9,12 +9,13 @@ var detachTransferable = require('../internals/detach-transferable');
 var PROPER_STRUCTURED_CLONE_TRANSFER = require('../internals/structured-clone-proper-transfer');
 
 var structuredClone = globalThis.structuredClone;
-var ArrayBuffer = globalThis.ArrayBuffer;
-var DataView = globalThis.DataView;
+var $ArrayBuffer = ArrayBuffer;
+var $DataView = DataView;
+var ArrayBufferPrototype = $ArrayBuffer.prototype;
+var DataViewPrototype = $DataView.prototype;
 var max = Math.max;
 var min = Math.min;
-var ArrayBufferPrototype = ArrayBuffer.prototype;
-var DataViewPrototype = DataView.prototype;
+// @dependency: es.array-buffer.slice
 var slice = uncurryThis(ArrayBufferPrototype.slice);
 var isResizable = uncurryThisAccessor(ArrayBufferPrototype, 'resizable', 'get');
 var maxByteLength = uncurryThisAccessor(ArrayBufferPrototype, 'maxByteLength', 'get');
@@ -37,9 +38,10 @@ module.exports = (PROPER_STRUCTURED_CLONE_TRANSFER || detachTransferable) && fun
     var options = preserveResizability && !fixedLength && maxByteLength
       ? { maxByteLength: max(newByteLength, maxByteLength(arrayBuffer)) }
       : undefined;
-    newBuffer = new ArrayBuffer(newByteLength, options);
-    var a = new DataView(arrayBuffer);
-    var b = new DataView(newBuffer);
+    // eslint-disable-next-line es/no-resizable-and-growable-arraybuffers -- safe
+    newBuffer = new $ArrayBuffer(newByteLength, options);
+    var a = new $DataView(arrayBuffer);
+    var b = new $DataView(newBuffer);
     var copyLength = min(newByteLength, byteLength);
     for (var i = 0; i < copyLength; i++) setInt8(b, i, getInt8(a, i));
   }

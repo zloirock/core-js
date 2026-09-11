@@ -1,8 +1,10 @@
+// @types: web/url
 'use strict';
 var $ = require('../internals/export');
 var call = require('../internals/function-call');
 var getBuiltInPrototypeMethod = require('../internals/get-built-in-prototype-method');
 
+// @dependency: web.url.constructor
 var toString = getBuiltInPrototypeMethod('URL', 'toString');
 
 // `URL.prototype.toJSON` method
@@ -10,5 +12,5 @@ var toString = getBuiltInPrototypeMethod('URL', 'toString');
 $({ target: 'URL', proto: true, enumerable: true }, {
   toJSON: function toJSON() {
     return call(toString, this);
-  }
+  },
 });

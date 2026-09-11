@@ -13,3 +13,6 @@ class Symbol {
 ```plaintext
 core-js/proposals/async-iteration
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/async-iteration`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/async-iteration.d.ts)

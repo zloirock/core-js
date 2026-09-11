@@ -1,5 +1,6 @@
-import Promise from 'core-js-pure/es/promise';
-import getPrototypeOf from 'core-js-pure/es/object/get-prototype-of';
+import Promise from '@core-js/pure/es/promise';
+
+const { getPrototypeOf } = Object;
 
 QUnit.test('Promise.withResolvers', assert => {
   const { withResolvers } = Promise;
@@ -14,7 +15,7 @@ QUnit.test('Promise.withResolvers', assert => {
   assert.isFunction(d1.reject, 'reject is function');
 
   const promise = {};
-  const resolve = () => { /* empty */ };
+  function resolve() { /* empty */ }
   let reject = () => { /* empty */ };
 
   function P(exec) {

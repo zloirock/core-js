@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-Number.range)
 
 ## Module
-[`esnext.iterator.range`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.range.js)
+[`esnext.iterator.range`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/esnext.iterator.range.js)
 
 ## Built-ins signatures
 ```ts
@@ -18,6 +18,9 @@ class Iterator {
 core-js/proposals/number-range
 core-js(-pure)/full/iterator/range
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/iterator-range`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/iterator-range.d.ts)
 
 ## Example
 ```js

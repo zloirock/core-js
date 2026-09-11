@@ -1,0 +1,1 @@
+Iterator.from(gen);

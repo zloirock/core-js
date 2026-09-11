@@ -1,0 +1,27 @@
+# transpiler-integration
+
+The plugins driven through the real build tools rather than through a test harness: every supported bundler, every injection method, every phase, and the result executed. This is where an assumption about a hook, a module id or a chunk shape breaks - a fixture cannot see any of that.
+
+## Target environment
+
+Node `^22.18.0 || >=24.11.0`, with its own `package.json` pinning the bundlers. Run with `npm run test-transpiler-integration`. Each case builds into a temporary directory and runs the bundle, so the suite is slow by nature.
+
+## Layout
+
+- `runner.mjs` - the matrix: a `builders` map with one entry per tool, crossed with the three methods and the phases each one supports. babel-plugin has no phase of its own; every other builder exercises the full range
+- `input-<method>.js` - the source for each injection method, plus `input-phases.js` for the pre/post interaction and `input-dynamic.js` for dynamic import
+- `lazy-chunk.js` - the body of a lazily imported module, written so its value can only be right if the polyfill reached the chunk, not just the loader
+- `id-flow/` - the project behind the id-flow legs: an `.html` entry carrying an inline `<script>`, a Vue SFC per sub-block shape, a `src=` template (the one spelling whose block its plugin hands back as a separate module) and both halves of a worker. Every body uses a feature nothing else there uses, so an injection names the id that carried it
+
+## Rules
+
+- The assertion is the runtime result of the built bundle, not its text - plus a check that every generated reference it contains is actually declared, which is how a mangled or half-applied injection is caught
+- No targets are passed: the cases run with `mode: 'full'` and a pinned `core-js` version, so what gets injected depends on the features the inputs use, not on a browser list
+- Adding a bundler means adding a builder here, and checking whether it belongs to the sets in `@core-js/unplugin` that name bundlers by hand
+- Keep the inputs exercising features that really are polyfilled, or the run passes without any injection having happened
+- The id-flow legs hold something no other leg can see: that a bundler really mints the ids whose ADMISSION depends on the phase - an SFC sub-block, the component's own bare id, an inline `<script>` lifted out of html, a worker's source - and that the plugin takes or refuses each one exactly where `tests/unplugin/unit.mjs` declares it does. The verdict is read off the plugin's OWN hook, never by asking the predicate again: unplugin applies `transformInclude` inside the transform wrapper and returns without calling the handler when it refuses, so an `undefined` result means refused and any other result - `null` included, which is what a pre pass deferring to post returns - means the handler ran. A leg whose form reaches no stage fails instead of passing, so a cell cannot go green having observed nothing
+- They run vite twice because the id space is split across its modes: a BUILD mints the SFC sub-block ids and the html-proxy body, while the worker SOURCE id (`?worker_file&type=module`) lives only in the dev pipeline - a build bundles the worker in a nested pass keyed on its clean path instead. A serve url the pipeline cannot answer is recorded rather than rethrown, or one missing id reds every form of the run instead of its own. These are also the only legs that do not execute their output: an html / SFC bundle targets a browser
+- The dev server of the serve leg is created with `watch: null`. Its file watcher is native, this leg never consults it, and its teardown loses a race with `close()` often enough to matter: the run leaves a REFERENCED libuv async handle that no JS handle backs, so a process that already printed its own success stays alive with nothing able to name what holds it. Behind stdin that never closes - what every `run-s` member is handed - that is a green suite whose exit code never arrives. The bootstrap's watchdog turns a recurrence into a red row rather than a wait, so this is not a silent regression, but it is still a red one
+- The shapes are vite's BY CONSTRUCTION rather than a hole in the other builders. `html-proxy` and `worker_file` are spelled in no other bundler shipped here, and `@vitejs/plugin-vue` names vite a peer dependency and drives itself off `configResolved` / `configureServer` / `options.devServer`, so no bare rollup, rolldown, webpack, rspack, esbuild or farm leg can host it
+- A builder may report a build error by killing the process instead of by rejecting - farm's logger does. Every leg therefore goes through `runBuilder`, which turns such an exit into a throw so the leg is a named red row and the matrix carries on; without it the run stops mid-matrix, leaving an exit code and no reason printed. farm additionally gets its own `NoopLogger` rather than a hand-silenced `Logger`: it silences the same chatter but throws the build error, so the row carries the cause
+- farm resolves nothing through an ABSOLUTE `node_modules` symlink - not a pattern subpath, not an explicit `exports` key, not even the package directory - while every other bundler here does. A tree whose workspace links are spelled absolute therefore reds the farm legs alone, on `@core-js/pure`, and reads like a hole in the generated `exports` map; it is the link, and only a hand re-link repairs it - `npm install` rewrites a workspace link only when it points OUTSIDE the tree, so on this shape it is a no-op

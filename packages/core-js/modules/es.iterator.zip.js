@@ -1,3 +1,4 @@
+// @types: proposals/joint-iteration
 'use strict';
 var $ = require('../internals/export');
 var anObject = require('../internals/an-object');
@@ -18,6 +19,7 @@ var THROW = 'throw';
 
 // `Iterator.zip` method
 // https://github.com/tc39/proposal-joint-iteration
+// @dependency: es.iterator.constructor
 $({ target: 'Iterator', stat: true, forced: IS_PURE }, {
   zip: function zip(iterables /* , options */) {
     anObject(iterables);
@@ -38,6 +40,8 @@ $({ target: 'Iterator', stat: true, forced: IS_PURE }, {
       }
       if (!done) {
         try {
+          // @dependency: es.array.iterator
+          // @dependency: web.dom-collections.iterator
           iter = getIteratorFlattenable(next.value, false);
         } catch (error) {
           return iteratorCloseAll(concat([inputIter], iters), THROW, error);
@@ -88,5 +92,5 @@ $({ target: 'Iterator', stat: true, forced: IS_PURE }, {
     }
 
     return iteratorZip(iters, mode, padding);
-  }
+  },
 });

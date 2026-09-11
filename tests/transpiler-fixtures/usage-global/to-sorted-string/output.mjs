@@ -1,0 +1,1 @@
+"str".toSorted(fn);

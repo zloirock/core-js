@@ -19,5 +19,5 @@ $({ target: 'Math', stat: true, forced: FORCED }, {
   sinh: function sinh(x) {
     var n = +x;
     return abs(n) < 1 ? (expm1(n) - expm1(-n)) / 2 : (exp(n - 1) - exp(-n - 1)) * (E / 2);
-  }
+  },
 });

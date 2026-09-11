@@ -1,15 +1,16 @@
 'use strict';
 var $ = require('../internals/export');
+var getBuiltInPrototypeMethod = require('../internals/get-built-in-prototype-method');
 var uncurryThis = require('../internals/function-uncurry-this');
 var toIntegerOrInfinity = require('../internals/to-integer-or-infinity');
 var thisNumberValue = require('../internals/this-number-value');
-var $repeat = require('../internals/string-repeat');
 var fails = require('../internals/fails');
 
 var $RangeError = RangeError;
 var $String = String;
 var floor = Math.floor;
-var repeat = uncurryThis($repeat);
+// @dependency: es.string.repeat
+var repeat = uncurryThis(getBuiltInPrototypeMethod('String', 'repeat'));
 var stringSlice = uncurryThis(''.slice);
 var nativeToFixed = uncurryThis(1.1.toFixed);
 
@@ -66,9 +67,6 @@ var FORCED = fails(function () {
     nativeToFixed(0.9, 0) !== '1' ||
     nativeToFixed(1.255, 2) !== '1.25' ||
     nativeToFixed(1000000000000000128.0, 0) !== '1000000000000000128';
-}) || !fails(function () {
-  // V8 ~ Android 4.3-
-  nativeToFixed({});
 });
 
 // `Number.prototype.toFixed` method
@@ -96,8 +94,8 @@ $({ target: 'Number', proto: true, forced: FORCED }, {
       z = e < 0 ? number * pow(2, -e, 1) : number / pow(2, e, 1);
       z *= 0x10000000000000;
       e = 52 - e;
+      multiply(data, 0, z);
       if (e > 0) {
-        multiply(data, 0, z);
         j = fractDigits;
         while (j >= 7) {
           multiply(data, 1e7, 0);
@@ -114,7 +112,6 @@ $({ target: 'Number', proto: true, forced: FORCED }, {
         divide(data, 2);
         result = dataToString(data);
       } else {
-        multiply(data, 0, z);
         multiply(data, 1 << -e, 0);
         result = dataToString(data) + repeat('0', fractDigits);
       }
@@ -127,5 +124,5 @@ $({ target: 'Number', proto: true, forced: FORCED }, {
     } else {
       result = sign + result;
     } return result;
-  }
+  },
 });

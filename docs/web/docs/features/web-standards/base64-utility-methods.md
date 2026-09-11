@@ -3,7 +3,7 @@
 [MDN](https://developer.mozilla.org/en-US/docs/Glossary/Base64)
 
 ## Modules 
-[`web.atob`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.atob.js), [`web.btoa`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.btoa.js).
+[`web.atob`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/web.atob.js), [`web.btoa`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/web.btoa.js).
 
 ## Built-ins signatures
 ```ts
@@ -16,6 +16,9 @@ function btoa(data: string): string;
 core-js(-pure)/stable|actual|full/atob
 core-js(-pure)/stable|actual|full/btoa
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/web/atob-btoa`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/web/atob-btoa.d.ts)
 
 ## Examples
 ```js

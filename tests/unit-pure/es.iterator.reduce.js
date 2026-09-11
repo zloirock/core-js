@@ -1,7 +1,6 @@
 import { createIterator } from '../helpers/helpers.js';
-import { STRICT, STRICT_THIS } from '../helpers/constants.js';
 
-import Iterator from 'core-js-pure/es/iterator';
+import Iterator from '@core-js/pure/es/iterator';
 
 QUnit.test('Iterator#reduce', assert => {
   const { reduce } = Iterator.prototype;
@@ -14,17 +13,15 @@ QUnit.test('Iterator#reduce', assert => {
   assert.same(reduce.call(createIterator([1, 2, 3]), (a, b) => a + b, 1), 7, 'basic functionality');
   assert.same(reduce.call(createIterator([1, 2, 3]), (a, b) => a + b), 6, 'basic functionality, no init');
   reduce.call(createIterator([2]), function (a, b, counter) {
-    assert.same(this, STRICT_THIS, 'this');
+    assert.same(this, undefined, 'this');
     assert.same(arguments.length, 3, 'arguments length');
     assert.same(a, 1, 'argument 1');
     assert.same(b, 2, 'argument 2');
     assert.same(counter, 0, 'counter');
   }, 1);
 
-  if (STRICT) {
-    assert.throws(() => reduce.call(undefined, (a, b) => a + b, 0), TypeError);
-    assert.throws(() => reduce.call(null, (a, b) => a + b, 0), TypeError);
-  }
+  assert.throws(() => reduce.call(undefined, (a, b) => a + b, 0), TypeError);
+  assert.throws(() => reduce.call(null, (a, b) => a + b, 0), TypeError);
 
   assert.throws(() => reduce.call({}, (a, b) => a + b, 0), TypeError);
   assert.throws(() => reduce.call([], (a, b) => a + b, 0), TypeError);
@@ -35,4 +32,17 @@ QUnit.test('Iterator#reduce', assert => {
   assert.true(it.closed, 'reduce closes iterator on validation error');
   assert.notThrows(() => reduce.call(createIterator([]), () => false, undefined), 'does not fail on undefined initial parameter');
   assert.same(reduce.call(createIterator([]), () => false, undefined), undefined, 'correct result on undefined initial parameter');
+
+  // .return() called when callback throws during iteration
+  {
+    let returnCount = 0;
+    const it2 = createIterator([1, 2, 3], {
+      return() {
+        returnCount++;
+        return { done: true, value: undefined };
+      },
+    });
+    assert.throws(() => reduce.call(it2, () => { throw new Error('test'); }, 0), Error);
+    assert.same(returnCount, 1, '.return() called when callback throws');
+  }
 });

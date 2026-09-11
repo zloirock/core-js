@@ -11,5 +11,8 @@ class String {
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
-core-js/proposals/string-replace-all-stage-4
+core-js/proposals/string-replace-all
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/string-replace-all`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/string-replace-all.d.ts)

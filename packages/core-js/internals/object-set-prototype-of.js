@@ -9,7 +9,7 @@ var aPossiblePrototype = require('../internals/a-possible-prototype');
 // https://tc39.es/ecma262/#sec-object.setprototypeof
 // Works with __proto__ only. Old v8 can't work with null proto objects.
 // eslint-disable-next-line es/no-object-setprototypeof -- safe
-module.exports = Object.setPrototypeOf || ('__proto__' in {} ? function () {
+module.exports = Object.setPrototypeOf || function () {
   var CORRECT_SETTER = false;
   var test = {};
   var setter;
@@ -26,4 +26,4 @@ module.exports = Object.setPrototypeOf || ('__proto__' in {} ? function () {
     else O.__proto__ = proto;
     return O;
   };
-}() : undefined);
+}();
