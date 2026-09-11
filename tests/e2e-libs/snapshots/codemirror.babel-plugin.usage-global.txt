@@ -91,6 +91,7 @@ core-js/modules/es.typed-array.find-index
 core-js/modules/es.typed-array.find-last
 core-js/modules/es.typed-array.find-last-index
 core-js/modules/es.typed-array.for-each
+core-js/modules/es.typed-array.from
 core-js/modules/es.typed-array.includes
 core-js/modules/es.typed-array.index-of
 core-js/modules/es.typed-array.iterator
@@ -98,6 +99,7 @@ core-js/modules/es.typed-array.join
 core-js/modules/es.typed-array.keys
 core-js/modules/es.typed-array.last-index-of
 core-js/modules/es.typed-array.map
+core-js/modules/es.typed-array.of
 core-js/modules/es.typed-array.reduce
 core-js/modules/es.typed-array.reduce-right
 core-js/modules/es.typed-array.reverse
