@@ -1,3 +1,4 @@
+core-js/modules/es.aggregate-error.constructor
 core-js/modules/es.array.concat
 core-js/modules/es.array.filter
 core-js/modules/es.array.from
@@ -50,12 +51,18 @@ core-js/modules/es.object.keys
 core-js/modules/es.object.set-prototype-of
 core-js/modules/es.object.to-string
 core-js/modules/es.promise.all
+core-js/modules/es.promise.all-settled
+core-js/modules/es.promise.any
 core-js/modules/es.promise.catch
 core-js/modules/es.promise.constructor
 core-js/modules/es.promise.finally
+core-js/modules/es.promise.race
 core-js/modules/es.promise.reject
 core-js/modules/es.promise.resolve
+core-js/modules/es.promise.try
+core-js/modules/es.promise.with-resolvers
 core-js/modules/es.reflect.namespace
+core-js/modules/es.reflect.own-keys
 core-js/modules/es.regexp.exec
 core-js/modules/es.regexp.test
 core-js/modules/es.regexp.to-string
@@ -96,6 +103,8 @@ core-js/modules/esnext.iterator.includes
 core-js/modules/esnext.iterator.join
 core-js/modules/esnext.iterator.to-async
 core-js/modules/esnext.iterator.windows
+core-js/modules/esnext.promise.all-keyed
+core-js/modules/esnext.promise.all-settled-keyed
 core-js/modules/web.dom-collections.for-each
 core-js/modules/web.dom-collections.iterator
 core-js/modules/web.dom-collections.keys

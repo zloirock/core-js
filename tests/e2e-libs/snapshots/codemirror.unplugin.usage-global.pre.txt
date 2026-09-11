@@ -1,4 +1,3 @@
--core-js/modules/es.array.from
 -core-js/modules/es.date.to-primitive
 -core-js/modules/es.number.constructor
 -core-js/modules/es.object.get-own-property-descriptor

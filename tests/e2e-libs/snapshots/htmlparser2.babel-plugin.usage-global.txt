@@ -24,7 +24,9 @@ core-js/modules/es.iterator.constructor
 core-js/modules/es.iterator.every
 core-js/modules/es.iterator.filter
 core-js/modules/es.iterator.find
+core-js/modules/es.iterator.for-each
 core-js/modules/es.iterator.map
+core-js/modules/es.iterator.reduce
 core-js/modules/es.iterator.some
 core-js/modules/es.map.constructor
 core-js/modules/es.map.get-or-insert
@@ -33,6 +35,7 @@ core-js/modules/es.map.species
 core-js/modules/es.number.constructor
 core-js/modules/es.number.is-nan
 core-js/modules/es.number.parse-int
+core-js/modules/es.object.assign
 core-js/modules/es.object.get-own-property-descriptor
 core-js/modules/es.object.get-own-property-descriptors
 core-js/modules/es.object.get-own-property-symbols
@@ -127,10 +130,12 @@ core-js/modules/esnext.async-iterator.every
 core-js/modules/esnext.async-iterator.filter
 core-js/modules/esnext.async-iterator.find
 core-js/modules/esnext.async-iterator.map
+core-js/modules/esnext.async-iterator.reduce
 core-js/modules/esnext.async-iterator.some
 core-js/modules/esnext.iterator.includes
 core-js/modules/esnext.iterator.join
 core-js/modules/web.atob
+core-js/modules/web.dom-collections.for-each
 core-js/modules/web.dom-collections.iterator
 core-js/modules/web.dom-exception.constructor
 core-js/modules/web.dom-exception.stack
