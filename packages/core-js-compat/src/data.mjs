@@ -831,10 +831,12 @@ export const data = {
     safari: '18.4',
   },
   'es.iterator.zip': {
+    bun: '1.4.0',
     chrome: '153',
     firefox: '148',
   },
   'es.iterator.zip-keyed': {
+    bun: '1.4.0',
     chrome: '153',
     firefox: '148',
   },
@@ -2621,6 +2623,7 @@ export const data = {
   'esnext.iterator.as-indexed-pairs': {
   },
   'esnext.iterator.chunks': {
+    bun: '1.4.0',
     firefox: '154',
   },
   // TODO: Remove from `core-js@4`
@@ -2648,6 +2651,7 @@ export const data = {
   'esnext.iterator.indexed': {
   },
   'esnext.iterator.join': {
+    bun: '1.4.0',
     firefox: '154',
   },
   // TODO: Remove from `core-js@4`
@@ -2667,6 +2671,7 @@ export const data = {
   'esnext.iterator.to-async': {
   },
   'esnext.iterator.windows': {
+    bun: '1.4.0',
     firefox: '154',
   },
   // TODO: Remove from `core-js@4`
