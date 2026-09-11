@@ -460,7 +460,7 @@ async function runIdFlow(mode) {
     missed: [],
   };
   const vue = (await import('@vitejs/plugin-vue')).default;
-  const plugins = [vue(), ...watchIdFlow(pluginFor('vite')(pluginOpts('usage-global', 'pre+post')), seen)];
+  const plugins = [vue(), ...watchIdFlow(unplugin.vite(pluginOpts('usage-global', 'pre+post')), seen)];
   const entry = join(idFlowDir, 'index.html');
   if (mode === 'build') {
     const { build } = await import('vite');
