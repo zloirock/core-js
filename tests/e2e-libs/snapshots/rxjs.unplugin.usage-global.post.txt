@@ -1,0 +1,13 @@
++core-js/modules/es.reflect.apply
++core-js/modules/es.reflect.construct
++core-js/modules/es.reflect.define-property
++core-js/modules/es.reflect.delete-property
++core-js/modules/es.reflect.get
++core-js/modules/es.reflect.get-own-property-descriptor
++core-js/modules/es.reflect.get-prototype-of
++core-js/modules/es.reflect.has
++core-js/modules/es.reflect.is-extensible
++core-js/modules/es.reflect.prevent-extensions
++core-js/modules/es.reflect.set
++core-js/modules/es.reflect.set-prototype-of
++core-js/modules/es.reflect.to-string-tag
