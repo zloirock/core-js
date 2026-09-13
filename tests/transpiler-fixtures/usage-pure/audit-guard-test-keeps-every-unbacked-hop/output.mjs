@@ -15,7 +15,7 @@ export const literalKeyBelow = null == (k = _globalThis['window'].window?.Array)
 // NEGATIVE: a PLAIN member above the run READS THROUGH the hops, and the read-through fold owns
 // them - the landing canon's reader rule, unchanged
 let p;
-export const plainReader = null == (p = _globalThis.Array) ? void 0 : _Array$from([5]);
+export const plainReader = (p = _globalThis.Array, _Array$from)([5]);
 
 // NEGATIVE: a BACKED hop under the run IS the landing, and only what stands above it keeps its slot
 let b;

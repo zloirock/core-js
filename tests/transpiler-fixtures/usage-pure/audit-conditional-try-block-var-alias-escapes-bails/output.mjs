@@ -1,9 +1,10 @@
 import _globalThis from "@core-js/pure/actual/global-this";
-// the guarding branch is a TRY block (a throw before the assignment can skip it). `finally` always
-// runs so it guards nothing; the use sits after the try-statement, so usage-pure bails
+import _Promise from "@core-js/pure/actual/promise";
+// A try block does not prove that its alias assignment ran. Test the stored realm's identity
+// before selecting the ponyfill, and keep the original member read as the fallback.
 function f() {
   try {
     var M = _globalThis;
   } finally {}
-  M.Promise.allSettled([]);
+  (M === _globalThis ? _Promise : M.Promise).allSettled([]);
 }

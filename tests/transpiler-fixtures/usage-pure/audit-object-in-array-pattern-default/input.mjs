@@ -1,5 +1,5 @@
-// destructure-default at function param position fires when the array slot is omitted,
-// substituting a polyfill receiver for `from` on engines without native Array.from
+// The parameter consumes `from` from its supplied array element or its default.
+// Both paths need the static method when the native Array.from is absent.
 function f([{ from } = Array]) {
   return from([1, 2]);
 }

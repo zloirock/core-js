@@ -1,21 +1,20 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-// an SE-computed-key leaf under an ARRAY-wrapped receiver still extracts (the wrapper peel wins
-// over the SE-key keep-in-residual dispatch); the key effect runs once in the kept residual
+// A computed static key under an array wrapper and a nested computed instance key
+// both receive polyfills. Each key effect runs once, before its corresponding source read.
 let c1 = 0;
-const from = _Array$from;
-const [{
-  [(c1++, 'from')]: _unused
-}, other] = [Array, {}];
+const [_ref, _ref2] = [Array, {}],
+  _ref3 = _ref,
+  from = null == _ref3 ? _ref3[""] : (c1++, _Array$from),
+  other = _ref2;
 // nested-pattern variant with a plus-fold key on an instance method
 let c2 = 0;
 const arr = [1];
-const at = _atMaybeArray(arr);
 const {
-  y: {
-    [(c2++, 'a') + 't']: _unused2
-  }
-} = {
-  y: arr
-};
+    y: _ref4
+  } = {
+    y: arr
+  },
+  _ref5 = _ref4,
+  at = null == _ref5 ? _ref5[""] : ((c2++, 'a') + 't', _atMaybeArray(_ref5));
 export const r = [from, at, other, c1, c2];

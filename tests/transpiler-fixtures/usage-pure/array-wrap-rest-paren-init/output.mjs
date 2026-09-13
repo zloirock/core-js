@@ -1,31 +1,25 @@
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Object$entries from "@core-js/pure/actual/object/entries";
-import _Object$keys from "@core-js/pure/actual/object/keys";
-import _Object$values from "@core-js/pure/actual/object/values";
-// a REST host whose init the parser keeps PARENTHESIZED: the rest carrier reads the init through the
-// runtime peel, so the residual anchors exactly as it does for the bare spelling - on both the
-// wrapped and the flat host, with a prefix lifted or kept inside the same way
+// Object-rest keeps the affected pattern native, including inside an array wrapper.
+// Independent reads and key/default expressions still receive their own polyfills.
 const seen = [];
 const eff = t => (_pushMaybeArray(seen).call(seen, t), t);
-const keys = _Object$keys;
 const [{
   Object: {
-    keys: _unused,
+    keys,
     ...restA
   }
 }] = ([_globalThis]);
-const values = _Object$values;
 const {
-  values: _unused2,
-  ...restB
-} = _globalThis.Object;
-eff('a');
-const entries = _Object$entries;
+  Object: {
+    values,
+    ...restB
+  }
+} = _globalThis;
 const [{
   Object: {
-    entries: _unused3,
+    entries,
     ...restC
   }
-}] = [_globalThis];
+}] = ([(eff('a'), _globalThis)]);
 export { keys, restA, values, restB, entries, restC, seen };

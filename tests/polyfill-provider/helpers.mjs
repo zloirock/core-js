@@ -34,13 +34,11 @@ import {
 } from '../../packages/core-js-polyfill-provider/helpers/source-scan.js';
 import {
   bindingBoundName,
-  bindingOpaqueAccessNodes,
   buildScopeReassignmentIndex,
   callArgumentPathAt,
   effectiveArgsLength,
   findIifeArgPath,
   annexBHoistOutrunsBinding,
-  isOpaqueAccessNode,
   isSloppyAtPath,
   classDefinitionTimePaths,
   classOwnThisMethodInfo,
@@ -62,6 +60,7 @@ import {
   resolveFallbackReceiverPath,
   stepOverChainWrappers,
   suspensionPointBefore,
+  walkAstNodes,
   recomputedBindingWrites,
   synthHoistedBinding,
   typeParameterInScope,
@@ -85,9 +84,12 @@ import {
   isFunctionParamDestructureParent,
   isReusableReceiver,
   methodReadsUsageCensus,
+  memberChainKeys,
   migratableClaimSe,
   nodeSpan,
   paramListReadsName,
+  patternReceiverSlotNodes,
+  patternSlotValues,
   peelMemoizeWrappers,
   peelSequenceTail,
   peelZeroArgIifeReturn,
@@ -2262,77 +2264,6 @@ for (const adapter of adapters) {
   check(`recomputedBindingWrites/catch parameter: the clause's write [${ adapter.name }]`, writes[0]?.right?.value, 3);
 }
 
-// --- bindingOpaqueAccessNodes: the accesses no reference set holds ---
-// a direct `eval` assigns through the scope chain it stands in and a `with` head answers a body
-// read off its object, and neither leaves a reference either tracker records - so both are recorded
-// as writes of every name their position resolves. the boundaries: an INDIRECT eval evaluates in
-// the global scope and reaches nothing local, a shadowed `eval` name is not the intrinsic, and a
-// declaration the `with` body itself binds sits BELOW the object environment
-for (const adapter of adapters) {
-  function opaqueOf(code, name, kind, pick) {
-    const program = adapter.parseAndScope(code, 'script');
-    return bindingOpaqueAccessNodes(pick(program), name, kind);
-  }
-  function letDeclarator(program, name) {
-    return adapter.pickPath(program, 'VariableDeclarator', p => p.node.id?.name === name);
-  }
-  // the shadowing scenarios below spell one name twice and ask about the OUTER declaration, which
-  // `letDeclarator` cannot point at - the array initializer is what tells the two apart
-  function outerArrayDeclarator(program, name) {
-    return adapter.pickPath(program, 'VariableDeclarator',
-      p => p.node.id?.name === name && p.node.init?.type === 'ArrayExpression');
-  }
-
-  const direct = opaqueOf('let v = []; eval("v = 1"); v.at(0);', 'v', 'let', p => letDeclarator(p, 'v'));
-  check(`bindingOpaqueAccessNodes/a direct eval reaches the name [${ adapter.name }]`, direct.length, 1);
-  check(`bindingOpaqueAccessNodes/recorded at the call itself [${ adapter.name }]`,
-    isOpaqueAccessNode(direct[0]), true);
-
-  check(`bindingOpaqueAccessNodes/an optional direct eval reaches it too [${ adapter.name }]`,
-    opaqueOf('let v = []; eval?.("v = 1");', 'v', 'let', p => letDeclarator(p, 'v')).length, 1);
-  check(`bindingOpaqueAccessNodes/a sequence prefix makes the eval indirect [${ adapter.name }]`,
-    opaqueOf('let v = []; (0, eval)("v = 1");', 'v', 'let', p => letDeclarator(p, 'v')).length, 0);
-  check(`bindingOpaqueAccessNodes/an eval name the census shadows is not the intrinsic [${ adapter.name }]`,
-    opaqueOf('let v = []; function h() { var eval = f; eval("v = 1"); }', 'v', 'let', p => letDeclarator(p, 'v')).length, 0);
-  // a shadow declared ABOVE the scanned scope is invisible to the census, and the call is recorded
-  // rather than guessed away - the direction that costs a narrow instead of substituting a helper
-  check(`bindingOpaqueAccessNodes/a shadow above the scanned scope is recorded anyway [${ adapter.name }]`,
-    opaqueOf('function h(eval) { let v = []; eval("v = 1"); }', 'v', 'let', p => letDeclarator(p, 'v')).length, 1);
-
-  const withOuter = opaqueOf('const outer = []; with (host) { outer.at(0); }', 'outer', 'const', p => letDeclarator(p, 'outer'));
-  check(`bindingOpaqueAccessNodes/a with body reaches a binding declared outside [${ adapter.name }]`, withOuter.length, 1);
-  check(`bindingOpaqueAccessNodes/recorded at the statement itself [${ adapter.name }]`,
-    withOuter[0]?.type, 'WithStatement');
-  check(`bindingOpaqueAccessNodes/a lexical the body binds sits below the object env [${ adapter.name }]`,
-    opaqueOf('with (host) { const inner = []; inner.at(0); }', 'inner', 'const', p => letDeclarator(p, 'inner')).length, 0);
-  // a `var` in that body hoists PAST the statement, so the object environment does answer for it
-  check(`bindingOpaqueAccessNodes/a var the body binds hoists past the head [${ adapter.name }]`,
-    opaqueOf('with (host) { var raised = []; raised.at(0); }', 'raised', 'var', p => letDeclarator(p, 'raised')).length, 1);
-
-  // the census snapshot is per CONSTRUCT and a query subtracts ITSELF from it, so a name already
-  // shadowed where the construct stands is a name that construct resolves to an inner binding of -
-  // an outer binding of it is out of reach and keeps its narrow. the pair differs only by the inner
-  // declaration, so the second row proves the first one is not measuring an unrecorded access
-  check(`bindingOpaqueAccessNodes/an eval under a scope shadowing the name leaves the outer one [${ adapter.name }]`,
-    opaqueOf('var v = []; function h() { var v = 1; eval("v = 1"); } v.at(0);',
-      'v', 'var', p => outerArrayDeclarator(p, 'v')).length, 0);
-  check(`bindingOpaqueAccessNodes/the same eval without the inner declaration does reach it [${ adapter.name }]`,
-    opaqueOf('var v = []; function h() { eval("v = 1"); } v.at(0);',
-      'v', 'var', p => outerArrayDeclarator(p, 'v')).length, 1);
-  // the body's lexical names shadow BEFORE the head is recorded, so a `let` there is already in the
-  // snapshot: a body read of that name answers off the lexical instead of the object environment,
-  // which leaves an outer binding of the same name outside the statement's reach
-  check(`bindingOpaqueAccessNodes/a with body lexical shields the outer name of it [${ adapter.name }]`,
-    opaqueOf('var shared = []; with (host) { let shared = 1; } shared.at(0);',
-      'shared', 'var', p => outerArrayDeclarator(p, 'shared')).length, 0);
-  check(`bindingOpaqueAccessNodes/without that lexical the same head reaches it [${ adapter.name }]`,
-    opaqueOf('var shared = []; with (host) { shared.at(0); }',
-      'shared', 'var', p => outerArrayDeclarator(p, 'shared')).length, 1);
-
-  check(`isOpaqueAccessNode/an ordinary write is not one [${ adapter.name }]`,
-    isOpaqueAccessNode({ type: 'AssignmentExpression' }), false);
-}
-
 // --- isSloppyAtPath: ONE answer for the strictness every write index depends on ---
 // the index builder takes strictness as a FLAG, so two consumers answering that question
 // differently get different write sets for the same owner. the predicate is the single answer
@@ -2456,9 +2387,21 @@ for (const adapter of adapters) {
     'function h() { return h; }',
     'function m() { const [x = m] = []; }',
     'function n() { class n {} }',
+    'function nestedDefault() { const helper = function inner({ value = nestedDefault }) {}; }',
+    'function nestedBinding() { const helper = function inner({ nestedBinding }) {}; }',
+    'function nestedRead() { const helper = function inner(nestedRead) { return nestedRead; }; }',
   ].join('\n'));
   const bodies = adapter.collectPaths(prog, 'FunctionDeclaration').map(p => [p.node.id.name, p.node.body]);
-  const expected = { f: false, g: false, h: true, m: true, n: false };
+  const expected = {
+    f: false,
+    g: false,
+    h: true,
+    m: true,
+    n: false,
+    nestedDefault: true,
+    nestedBinding: false,
+    nestedRead: true,
+  };
   for (const [name, body] of bodies) {
     check(`identifierReferencedInSubtree/${ name } [${ adapter.name }]`, identifierReferencedInSubtree(body, name), expected[name]);
   }
@@ -2838,5 +2781,89 @@ check('deferral step/no node is no deferred context', isDeferredContextStep(null
   check('suspension point/a read above it is not', suspensionPointBefore(fnNode, 10), null);
   check('suspension point/a read with no position of its own is not', suspensionPointBefore(fnNode, undefined), null);
 }
+
+// Source-only pairing keeps a supplied argument distinct from a pattern's default obligations.
+// In particular, an absent or unreadable array slot must not masquerade as its own fallback.
+for (const [label, source, name, all, supplied] of [
+  ['array leaf', 'const [value = fallback] = [actual];', 'value', ['fallback', 'actual'], ['actual']],
+  ['array nested', 'const [{ of } = Array] = [Map];', 'of', ['Map.of', 'Array.of'], ['Map.of']],
+  ['object nested', 'const { x: { of } = Array } = { x: Map };', 'of', ['Map.of', 'Array.of'], ['Map.of']],
+  ['absent slot', 'const [{ of } = Array] = [];', 'of', ['Array.of'], []],
+  ['unknown source', 'const [{ of } = Array] = values;', 'of', ['Array.of'], []],
+  ['array siblings', 'const [other, { of: value } = Array, ...rest] = [Boolean, Map];',
+    'value', ['Map.of', 'Array.of'], ['Map.of']],
+  ['renamed object siblings', 'const { value: other, x: { of: value } = Array, tail } = { value: Number, x: Map };',
+    'value', ['Map.of', 'Array.of'], ['Map.of']],
+  ['property name is not a binding', 'const { value: other, x: { of } = Array } = { value: Number, x: Map };',
+    'value', [], []],
+]) {
+  for (const adapter of adapters) {
+    const program = adapter.parseAndScope(source);
+    const { id, init } = adapter.pickPath(program, 'VariableDeclarator').node;
+    function values(ctx) {
+      return patternSlotValues(id, init, name, ctx).map(value => {
+        const { root, keys } = memberChainKeys(value);
+        return [root.name, ...keys].join('.');
+      });
+    }
+    checkDeep(`patternSlotValues/${ label } [${ adapter.name }]: complete union`, values(), all);
+    checkDeep(`patternSlotValues/${ label } [${ adapter.name }]: supplied alone`, values({ includeDefaults: false }), supplied);
+  }
+}
+
+for (const [source, keys] of [
+  ['const { first: { Map: other }, wanted: { WeakSet: value }, last } = box;', ['WeakSet']],
+  ['const [other, { Map: value = WeakMap }] = [Set, globalThis];', ['Map']],
+  ['const { value: other, x: { Map: value }, ...rest } = globalThis;', ['Map']],
+  ['const { value: other, ...rest } = globalThis;', []],
+]) {
+  for (const adapter of adapters) {
+    const program = adapter.parseAndScope(source);
+    const { id, init } = adapter.pickPath(program, 'VariableDeclarator').node;
+    checkDeep(`patternReceiverSlotNodes/sibling bindings [${ adapter.name }]: ${ source }`,
+      patternReceiverSlotNodes(id, init, 'value').map(property => property.key.name), keys);
+  }
+}
+
+runBoth('walkAstNodes/leave follows children in source order', 'outer(first, inner(second), third);', (adapter, program, label) => {
+  const root = adapter.pickPath(program, 'CallExpression').node;
+  const entered = [];
+  const left = [];
+  function labelOf(node) {
+    return node.type === 'CallExpression' ? `call:${ node.callee.name }` : node.name;
+  }
+  walkAstNodes({
+    root,
+    visit(node) { entered.push(labelOf(node)); },
+    leave(node, parent) {
+      left.push(labelOf(node));
+      if (node.name === 'second') check(`${ label }: leave receives parent`, parent.callee.name, 'inner');
+    },
+  });
+  checkDeep(`${ label }: enter order`, entered, ['call:outer', 'outer', 'first', 'call:inner', 'inner', 'second', 'third']);
+  checkDeep(`${ label }: leave order`, left, ['outer', 'first', 'inner', 'second', 'call:inner', 'third', 'call:outer']);
+});
+
+runBoth('walkAstNodes/pruning skips descendants and leave', 'outer(first, inner(second), third);', (adapter, program, label) => {
+  const root = adapter.pickPath(program, 'CallExpression').node;
+  const entered = [];
+  const left = [];
+  function labelOf(node) {
+    return node.type === 'CallExpression' ? `call:${ node.callee.name }` : node.name;
+  }
+  walkAstNodes({
+    root,
+    visit(node) {
+      entered.push(labelOf(node));
+      return node.type !== 'CallExpression' || node.callee.name !== 'inner';
+    },
+    leave(node) { left.push(labelOf(node)); },
+  });
+  checkDeep(`${ label }: pruned enter order`, entered, ['call:outer', 'outer', 'first', 'call:inner', 'third']);
+  checkDeep(`${ label }: pruned leave order`, left, ['outer', 'first', 'third', 'call:outer']);
+  let rootLeft = false;
+  walkAstNodes({ root, visit: () => false, leave() { rootLeft = true; } });
+  check(`${ label }: pruned root has no leave`, rootLeft, false);
+});
 
 finish();

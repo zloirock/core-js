@@ -18,9 +18,6 @@
 //                                              constructor, with type-arg propagation
 import { MAX_DEPTH, boxForDeclaration } from './base.js';
 import {
-  staticMemberKeyName,
-} from '../helpers/class-walk.js';
-import {
   globalProxyMemberName,
   guaranteedRealmObjectName,
   inlineCallProxyGlobalRoot,
@@ -37,6 +34,7 @@ import {
   peelSkippableWrapperPath,
   POSSIBLE_GLOBAL_OBJECTS,
   aliasDeclScope,
+  staticMemberKeyName,
 } from '../helpers/ast-patterns.js';
 import { walkStaticReceiverChain } from '../detect-usage/destructure.js';
 
@@ -47,6 +45,7 @@ export function createGlobalResolve({
   keyMatchesName,
   resolveMemberPropertyName,
   resolveKnownConstructor,
+  resolveGlobalSurfaceKeyPath,
   resolveRuntimeExpression,
   resolveKnownContainerType,
   resolveTypeAnnotation,
@@ -250,7 +249,8 @@ export function createGlobalResolve({
 
   // known constructor at the runtime-resolved target of `path`, or null
   function knownConstructorAt(path) {
-    return resolveKnownConstructor(resolveGlobalName(resolveRuntimeExpression(path)));
+    return resolveKnownConstructor(resolveGlobalName(resolveRuntimeExpression(path)))
+      ?? resolveGlobalSurfaceKeyPath(path, ['prototype']);
   }
 
   // `const { prototype: name } = ...` shape - `name` is bound to the init's `.prototype`.

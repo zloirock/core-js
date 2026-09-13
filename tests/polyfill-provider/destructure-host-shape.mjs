@@ -6,14 +6,134 @@
 import {
   classifyVariableDeclarationHost,
   isBodylessStatementSlot,
+  isCapturedKeyedPattern,
   isForInitDeclaration,
   isLoopStatement,
   peelLabeledStatements,
+  planArrayWrapperCapture,
   planMinifierSequenceSplit,
+  planNestedKeyedPatternCapture,
+  planRetainedObjectCapture,
+  renderArrayWrapperCapture,
+  renderNestedKeyedPatternCapture,
 } from '../../packages/core-js-polyfill-provider/destructure-host-shape.js';
 import { createChecker } from './harness.mjs';
+import { hasObjectRestAncestor } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import { destructureKeyReadPlan } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
+import { hostSlot, identifier, renderInstanceDefaultGuard } from '../../packages/core-js-polyfill-provider/render.js';
 
 const { check, checkDeep, finish, runBoth } = createChecker('destructure-host-shape');
+
+for (const [source, expected, kind = 'static'] of [
+  ['const { [Symbol.iterator]: iter, Map: { custom }, ...rest } = globalThis;', false, 'instance'],
+  ['const { Array: { from }, [Symbol.iterator]: iter, ...rest } = globalThis;', false],
+  ['const { from, [Symbol.iterator]: iter, ...rest } = Array;', false],
+  ['const { [Symbol.iterator]: iter, from, ...rest } = Array;', false],
+  ['const { from, [Symbol.iterator]: iter } = Array;', false],
+  ['const key = Symbol.iterator; const { Array: { from }, [key]: iter, ...rest } = globalThis;', false],
+  ['const { Array: { from }, other, ...rest } = globalThis;', false],
+  ['const { Array: { from }, [Symbol.iterator]: iter } = globalThis;', false],
+  ['const Symbol = { iterator: "x" }; const { Array: { from }, [Symbol.iterator]: iter, ...rest } = globalThis;', false],
+]) runBoth('retained static and iterator/rest bail', source, (adapter, program, label) => {
+  const host = adapter.pickPath(program, 'VariableDeclarator', path => path.node.id.type === 'ObjectPattern');
+  const bindingAdapter = {
+    isStringLiteral: node => node.type === 'StringLiteral' || (node.type === 'Literal' && typeof node.value === 'string'),
+    getStringValue: node => node.value,
+    hasBinding: (scope, name) => !!scope?.getBinding(name),
+    getBinding: (scope, name) => scope?.getBinding(name),
+    method: 'usage-pure',
+  };
+  const plan = planRetainedObjectCapture({
+    pattern: host.node.id, init: host.node.init, hostPath: host, adapter: bindingAdapter,
+    resolveNodeType: adapter.makeResolver().resolveNodeType, kind,
+  });
+  check(label, !!plan, expected);
+});
+
+runBoth('retained static capture through an array element path',
+  'const [{ from, [Symbol.iterator]: iter, ...rest }] = [Array];', (adapter, program, label) => {
+    const host = adapter.pickPath(program, 'VariableDeclarator');
+    const [pattern] = host.get('id').get('elements');
+    const bindingAdapter = {
+      isStringLiteral: node => node.type === 'StringLiteral' || (node.type === 'Literal' && typeof node.value === 'string'),
+      getStringValue: node => node.value,
+      hasBinding: (scope, name) => !!scope?.getBinding(name),
+      getBinding: (scope, name) => scope?.getBinding(name),
+      method: 'usage-pure',
+    };
+    const plan = planRetainedObjectCapture({
+      pattern: pattern.node, patternPath: pattern, init: host.node.init.elements[0], hostPath: host,
+      adapter: bindingAdapter, resolveNodeType: adapter.makeResolver().resolveNodeType, kind: 'static',
+    });
+    check(label, !!plan, false);
+  });
+
+for (const [pattern, expected] of [
+  ['{ w: { at }, ...rest }', false],
+  ['{ w: { at, other }, ...rest }', false],
+  ['{ w: { at = fallback }, ...rest }', false],
+]) runBoth('nested instance assignment/rest capture', `(${ pattern } = source);`, (adapter, program, label) => {
+  const host = adapter.pickPath(program, 'AssignmentExpression').node;
+  const prop = adapter.pickPath(program, adapter.name === 'babel' ? 'ObjectProperty' : 'Property', path => path.node.key.name === 'at').node;
+  const plan = planRetainedObjectCapture({ pattern: host.left, init: host.right, assignment: true, prop });
+  check(label, !!plan?.nested, expected);
+});
+
+for (const [label, source, expected] of [
+  ['direct declaration', 'const { at: method, ...rest } = source;', true],
+  ['assignment', '({ at: method, ...rest } = source);', true],
+  ['nested leaf', 'const { w: { at: method, ...rest }, after } = source;', true],
+  ['outer rest', 'const { w: { at: method }, ...rest } = source;', true],
+  ['array wrapper', 'const [{ at: method, ...rest }, other] = source;', true],
+  ['defaulted wrapper', 'const { w: { at: method } = fallback, ...rest } = source;', true],
+  ['parameter', 'function read({ at: method, ...rest } = source) {}', true],
+  ['catch', 'try {} catch ({ at: method, ...rest }) {}', true],
+  ['loop', 'for (const { at: method, ...rest } of source) {}', true],
+  ['nested rest sibling', 'const { at: method, w: { ...rest } } = source;', false],
+  ['array rest', 'const [{ at: method }, ...rest] = source;', false],
+  ['rest parameter', 'function read(...args) { const { at: method } = args; }', false],
+  ['computed-key expression', 'const { [(() => { const { at: method } = xs; return method; })()]: value, ...rest } = source;', false],
+  ['default expression', 'const { value = (() => { const { at: method } = xs; return method; })(), ...rest } = source;', false],
+]) runBoth(`object-rest extraction boundary/${ label }`, source, (adapter, program, parser) => {
+  const prop = adapter.pickPath(program, adapter.name === 'babel' ? 'ObjectProperty' : 'Property',
+    path => path.node.value?.name === 'method');
+  check(parser, hasObjectRestAncestor(prop), expected);
+});
+
+for (const [key, entry, expected] of [
+  ['"at"', 'actual/instance/at', true],
+  ['Symbol.iterator', 'get-iterator-method', false],
+]) runBoth(`nested assignment capture/${ entry }`, `({ w: { [(effect(), ${ key })]: method } } = source);`,
+  (adapter, program, label) => {
+    const host = adapter.pickPath(program, 'AssignmentExpression').node;
+    const prop = adapter.pickPath(program, adapter.name === 'babel' ? 'ObjectProperty' : 'Property',
+      path => path.node.value?.name === 'method').node;
+    const plan = planRetainedObjectCapture({ pattern: host.left, init: host.right, assignment: true, prop, entry });
+    check(`${ label }: ordinary instance capture`, !!plan?.capture, expected);
+  });
+
+for (const [source, expected] of [
+  ['const { [(key(), "at")]: method = fallback, after } = input;', true],
+  ['const { [(key(), "at")]: method = fallback, ...rest } = input;', false],
+  ['const { [(key(), "at")]: method, after } = input;', false],
+  ['const { w: { [(key(), "at")]: method = fallback }, after } = input;', false],
+]) runBoth('keyed default/single read boundary', source, (adapter, program, label) => {
+  const path = adapter.pickPath(program, adapter.name === 'babel' ? 'ObjectProperty' : 'Property', node => node.node.computed);
+  check(label, destructureKeyReadPlan(path)?.consumeKey, expected);
+});
+
+for (const [source, named] of [
+  ['function () {}', true], ['() => 1', true], ['function* () {}', true], ['class {}', true],
+  ['function own() {}', false], ['eval("local")', false],
+]) runBoth('default guard/inferred binding name', `const method = ${ source };`, (adapter, program, label) => {
+  const { init } = adapter.pickPath(program, 'VariableDeclarator').node;
+  const guard = renderInstanceDefaultGuard({
+    assignedRef: identifier('memo'), call: identifier('read'), reread: identifier('memo'),
+    defaultValue: hostSlot(init), defaultName: 'method',
+  });
+  check(`${ label }/name preservation`, guard.consequent.type === 'MemberExpression', named);
+  if (named) check(`${ label }/source binding name`, guard.consequent.property.value, 'method');
+});
 
 // --- isBodylessStatementSlot ---
 
@@ -256,6 +376,198 @@ runBoth('isForInitDeclaration/init vs body slot', 'for (var { from } = Array; ;)
     check(`${ lbl }/init`, isForInitDeclaration(head.parentPath.node, head.node), true);
     check(`${ lbl }/body`, isForInitDeclaration(body.parentPath.node, body.node), false);
   });
+
+for (const source of [
+  'const [{ inner: { [(key(), "flat")]: method } }] = [box];',
+  'const [{ y: { at, ...rest } }] = source;',
+]) {
+  runBoth('array wrapper capture/retained key or rest keeps native iteration', source, (adapter, prog, lbl) => {
+    const { id: pattern, init } = adapter.pickPath(prog, 'VariableDeclarator').node;
+    const restPattern = pattern.elements[0].properties[0].value;
+    const plan = planArrayWrapperCapture({ pattern, init, force: true, restPattern });
+    check(`${ lbl }/capture selected`, !!plan, true);
+    if (!plan) return;
+    const rendered = renderArrayWrapperCapture(plan, { mintRef: () => 'memo' });
+    check(`${ lbl }/initializer is evaluated once`, rendered.capture.init === init, true);
+    check(`${ lbl }/iteration remains native`, rendered.capture.id.type, 'ArrayPattern');
+    check(`${ lbl }/nested pattern retains its keys and rest`, rendered.elements[0].declarator.id === pattern.elements[0], true);
+  });
+}
+
+runBoth('retained assignment capture/one computed slot keeps its read in order',
+  '({ [(key(), "at")]: method } = source);', (adapter, prog, lbl) => {
+    const { left: pattern, right: init } = adapter.pickPath(prog, 'AssignmentExpression').node;
+    const plan = planRetainedObjectCapture({ pattern, init, assignment: true, prop: pattern.properties[0] });
+    check(`${ lbl }/a sole computed slot needs capture`, !!plan, true);
+  });
+
+runBoth('array wrapper capture/effects before a nested pattern and its sibling',
+  'for (let [, [{ w: { values }, y: { at } }], { z }] = [eff(), [r], other]; ;) {}',
+  (adapter, prog, lbl) => {
+    const { id: pattern, init } = adapter.pickPath(prog, 'VariableDeclarator').node;
+    const plan = planArrayWrapperCapture({ pattern, init });
+    checkDeep(`${ lbl }/source positions`, plan.elements.map(element => element.path), [[1, 0], [2]]);
+    let refs = 0;
+    const rendered = renderArrayWrapperCapture(plan, { mintRef: () => `memo${ ++refs }` });
+    check(`${ lbl }/initializer evaluates once in the capture`, rendered.capture.init === init, true);
+    check(`${ lbl }/leading elision survives`, rendered.capture.id.elements[0], null);
+    check(`${ lbl }/nested iteration survives`, rendered.capture.id.elements[1].elements[0].name, 'memo1');
+    check(`${ lbl }/sibling position survives`, rendered.capture.id.elements[2].name, 'memo2');
+    checkDeep(`${ lbl }/source order`, rendered.elements.map(element => element.declarator.init.name), ['memo1', 'memo2']);
+    check(`${ lbl }/first pattern keeps its source identity`, rendered.elements[0].declarator.id === pattern.elements[1].elements[0], true);
+    check(`${ lbl }/sibling pattern keeps its source identity`, rendered.elements[1].declarator.id === pattern.elements[2], true);
+    check(`${ lbl }/source pattern is untouched`, pattern.elements[1].elements[0].type, 'ObjectPattern');
+  });
+
+for (const [label, source] of [
+  ['opaque nested element', 'const [{ data: { at: method } }] = [make()];'],
+  ['quiet sibling patterns', 'const [{ values }, { at }] = [left, right];'],
+  ['trailing effect', 'const [{ values }] = [left, eff()];'],
+  ['parenthesized literal', 'const [{ values }] = ([left, eff()]);'],
+]) {
+  runBoth(`array wrapper capture/${ label }`, source, (adapter, prog, lbl) => {
+    const { id: pattern, init } = adapter.pickPath(prog, 'VariableDeclarator').node;
+    const plan = planArrayWrapperCapture({ pattern, init });
+    check(`${ lbl }/capture is required`, !!plan, true);
+    let refs = 0;
+    const rendered = renderArrayWrapperCapture(plan, {
+      mintRef: () => `memo${ ++refs }`,
+      embed: node => ({ type: 'Wrapped', node }),
+    });
+    check(`${ lbl }/initializer crosses the host boundary`, rendered.capture.init.node === init, true);
+    check(`${ lbl }/pattern crosses the host boundary`, rendered.elements[0].declarator.id.node === pattern.elements[0], true);
+  });
+}
+
+for (const [source, expected] of [
+  ['const [{ data: { at: method } }] = [make()];', true],
+  ['const [{ data: { at: method }, Object: { is } }] = [make()];', false],
+  ['const [{ data: { at: method } }] = [{ data: make() }];', false],
+  ['const [{ data: { at: method } }] = [{ data: make() } as any];', false],
+  ['const [{ data: { at: method } }] = [make(), effect()];', false],
+  ['const [{ at: method }] = [make()];', false],
+]) runBoth('array wrapper capture/one nested declaration claim', source, (adapter, program, label) => {
+  const { id: pattern, init } = adapter.pickPath(program, 'VariableDeclarator').node;
+  check(label, !!planArrayWrapperCapture({ pattern, init, nestedOnly: true }), expected);
+});
+
+for (const [label, source] of [
+  ['quiet sole element', 'const [{ values }] = [left];'],
+  ['nonliteral initializer', 'const [{ values }, { at }] = source;'],
+  ['rest position', 'const [{ values }, ...rest] = [left, eff()];'],
+  ['spread position', 'const [{ values }, { at }] = [left, ...source];'],
+  ['nested rest position', 'const [[{ values }, ...rest]] = [[left, right], eff()];'],
+  ['nested spread position', 'const [[{ values }]] = [[...source], eff()];'],
+  ['defaulted element', 'const [{ values } = fallback] = [left, eff()];'],
+]) {
+  runBoth(`array wrapper capture/${ label }`, source, (adapter, prog, lbl) => {
+    const { id: pattern, init } = adapter.pickPath(prog, 'VariableDeclarator').node;
+    check(lbl, planArrayWrapperCapture({ pattern, init }), null);
+  });
+}
+
+runBoth('array wrapper capture/leaves realm rest to the receiver mirror',
+  'const [{ [Symbol.iterator]: iterator, Array: { from }, ...rest }] = [globalThis];',
+  (adapter, prog, lbl) => {
+    const { id: pattern, init } = adapter.pickPath(prog, 'VariableDeclarator').node;
+    check(lbl, planArrayWrapperCapture({ pattern, init, force: true, restPattern: pattern.elements[0], adapter: {} }), null);
+  });
+
+runBoth('nested keyed capture/outer keys and source leaf survive',
+  'const { [(outer(), "w")]: { middle: { [(inner(), "at")]: method } } } = make();',
+  (adapter, prog, lbl) => {
+    const { id: pattern, init } = adapter.pickPath(prog, 'VariableDeclarator').node;
+    const plan = planNestedKeyedPatternCapture({ pattern, init });
+    check(`${ lbl }/every outer hop is retained`, plan.ancestors.length, 2);
+    check(`${ lbl }/source leaf has not moved`, isCapturedKeyedPattern(plan.leafPattern), false);
+    let refs = 0;
+    const rendered = renderNestedKeyedPatternCapture(plan, { mintRef: () => `memo${ ++refs }` });
+    check(`${ lbl }/moved leaf retains its coercion obligation`, isCapturedKeyedPattern(plan.leafPattern), true);
+    check(`${ lbl }/initializer evaluates once in the capture`, rendered.capture.init === init, true);
+    check(`${ lbl }/outer key is retained`, rendered.elements[0].declarator.id.properties[0].key === pattern.properties[0].key, true);
+    const guardedInit = rendered.elements[0].declarator.init;
+    check(`${ lbl }/null rejection precedes the key`, guardedInit.type, 'ConditionalExpression');
+    check(`${ lbl }/guard checks the captured source`, guardedInit.test.right.name, rendered.capture.id.name);
+    check(`${ lbl }/inner hop binds the capture`, rendered.elements[1].declarator.id.properties[0].value.name, 'memo1');
+    check(`${ lbl }/leaf preserves its source identity`, rendered.elements.at(-1).declarator.id === plan.leafPattern, true);
+    check(`${ lbl }/leaf reads the captured receiver`, rendered.elements.at(-1).declarator.init.name, 'memo1');
+    check(`${ lbl }/source chain is untouched`, pattern.properties[0].value.properties[0].value.type, 'ObjectPattern');
+  });
+
+for (const [label, source] of [
+  ['leaf default', 'const { [(outer(), "w")]: { at: method = fallback } } = input;'],
+  ['outer key only', 'const { [(outer(), "w")]: { at: method } } = input;'],
+  ['leaf key only', 'const { w: { [(inner(), "at")]: method } } = input;'],
+  ['outer default', 'const { [(outer(), "w")]: { at: method } = fallback } = input;'],
+  ['default under computed key', 'const { before, w: { [(key(), "at")]: method = fallback(), ...rest }, after } = source;'],
+  ['leaf rest', 'const { [(outer(), "w")]: { at: method, ...rest } } = input;'],
+  ['outer sibling', 'const { [(outer(), "w")]: { at: method }, other } = input;'],
+  ['leaf sibling', 'const { [(outer(), "w")]: { at: method, other } } = input;'],
+  ['leaf key with inner siblings', 'const { q, p: { [(key(), "flat")]: method, other } } = source;'],
+  ['leaf key with outer siblings', 'const { before, w: { [(inner(), "at")]: method }, after } = input;'],
+]) {
+  runBoth(`nested keyed capture/${ label }`, source, (adapter, prog, lbl) => {
+    const { id: pattern, init } = adapter.pickPath(prog, 'VariableDeclarator').node;
+    const plan = planNestedKeyedPatternCapture({ pattern, init });
+    check(`${ lbl }/capture is required`, !!plan, true);
+    const rendered = renderNestedKeyedPatternCapture(plan, {
+      mintRef: () => 'memo',
+      embed: node => ({ type: 'Wrapped', node }),
+    });
+    check(`${ lbl }/initializer crosses the host boundary`, rendered.capture.init.node === init, true);
+    check(`${ lbl }/leaf crosses the host boundary once`,
+      rendered.elements.filter(element => element.declarator.id.node === plan.leafPattern).length, 1);
+  });
+}
+
+runBoth('nested keyed capture/outer siblings surround the leaf',
+  'const { before, w: { [(inner(), "at")]: method }, after } = input;', (adapter, prog, lbl) => {
+    const { id: pattern, init } = adapter.pickPath(prog, 'VariableDeclarator').node;
+    const plan = planNestedKeyedPatternCapture({ pattern, init });
+    let refs = 0;
+    const rendered = renderNestedKeyedPatternCapture(plan, { mintRef: () => `memo${ ++refs }` });
+    const order = rendered.elements.map(({ declarator }) => declarator.id === plan.leafPattern
+      ? 'method' : declarator.id.properties[0].key.name);
+    checkDeep(`${ lbl }/binding order`, order, ['before', 'w', 'method', 'after']);
+  });
+
+for (const [label, source] of [
+  ['direct leaf', 'const { [(inner(), "at")]: method } = input;'],
+  ['effect-free keys', 'const { w: { ["at"]: method } } = input;'],
+  ['two nested branches', 'const { w: { [(inner(), "at")]: method }, x: { other } } = input;'],
+  ['outer rest', 'const { [(outer(), "w")]: { at: method }, ...rest } = input;'],
+]) {
+  runBoth(`nested keyed capture/${ label }`, source, (adapter, prog, lbl) => {
+    const { id: pattern, init } = adapter.pickPath(prog, 'VariableDeclarator').node;
+    check(lbl, planNestedKeyedPatternCapture({ pattern, init }), null);
+  });
+}
+
+runBoth('nested guarded capture/one receiver supplies the identity test and fallback',
+  'const { Q: { of: method } } = source;', (adapter, prog, lbl) => {
+    const { id: pattern, init } = adapter.pickPath(prog, 'VariableDeclarator').node;
+    const plan = planNestedKeyedPatternCapture({ pattern, init, force: true });
+    const rendered = renderNestedKeyedPatternCapture(plan, {
+      mintRef: () => 'memo',
+      narrow: { branches: [{ ctorName: 'Array', staticPure: { kind: 'static', entry: 'array/of', hintName: 'of' } }] },
+      injectImport: () => 'pureOf',
+    });
+    const leaf = rendered.elements[0].declarator;
+    check(`${ lbl }/native outer read`, rendered.capture.id.properties[0].value.name, 'memo');
+    check(`${ lbl }/source binding`, leaf.id.name, 'method');
+    check(`${ lbl }/same receiver in test`, leaf.init.test.left.name, 'memo');
+    check(`${ lbl }/same receiver in fallback`, leaf.init.alternate.object.name, 'memo');
+    check(`${ lbl }/static import`, leaf.init.consequent.name, 'pureOf');
+  });
+
+for (const source of [
+  'const { Q: { of: method }, other } = source;',
+  'const { Q: { of: method = fallback } } = source;',
+  'const { Q: { of: method }, ...rest } = source;',
+]) runBoth('nested guarded capture/force keeps the structural exclusions', source, (adapter, prog, lbl) => {
+  const { id: pattern, init } = adapter.pickPath(prog, 'VariableDeclarator').node;
+  check(lbl, planNestedKeyedPatternCapture({ pattern, init, force: true }), null);
+});
 
 // --- planMinifierSequenceSplit ---
 // the plan both bindings apply: one entry per minifier-sequence statement, one product per

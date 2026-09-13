@@ -23,11 +23,9 @@ const arr = [1];
 let p;
 export const guardedSeqPrefixValue = (p = (arr.at(0), globalThis).self.window)?.Map;
 
-// a guarded seq-rooted value whose unresolvable hop sits BELOW the ponyfillable leaf renders
-// the nested-guard canon exactly like the unguarded twin: the value's test keeps the prefix
-// effect alive with its own polyfill, the proven root substitutes eagerly (the deferred flush
-// may land where no visitor re-enters), and the kept assignment's plan owns the value's
-// spelling - no inner claim may detach what the render reads
+// A plain middle hop lands on its backed leaf, including through a sequence prefix.
+// No source optional tests `window`, so the value must not acquire an invented window guard.
+// The stored value and the prefix effect follow the same collapse as the inline plain twin.
 let nb;
 export const guardedSeqNestedBelow = (nb = (arr.at(0), globalThis).window.self)?.Map.length;
 

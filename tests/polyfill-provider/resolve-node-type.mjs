@@ -77,13 +77,11 @@ import {
   isTypeAlias,
   isTypeReferenceNode,
   literalTypeValueNode,
-  loopReExecRegionHasViolation,
   synthInterfaceExtendsRef,
   typeAliasBody,
   typeRefName,
   typeRefSegments,
 } from '../../packages/core-js-polyfill-provider/resolve-node-type/ast-shapes.js';
-import { bindingLoopAnchor } from '../../packages/core-js-polyfill-provider/resolve-node-type/straight-line-flow.js';
 import {
   ESM_MARKER_TYPES,
   FUNCTION_LIKE_NODE_TYPES,
@@ -158,6 +156,8 @@ import {
   POSSIBLE_GLOBAL_OBJECTS,
   withoutValuelessDeclarationViolations,
   wrapScopeBindingLookup,
+  loopReExecRegionHasViolation,
+  bindingLoopAnchor,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import {
   buildSuperStaticMeta,
@@ -1021,6 +1021,51 @@ runBoth('member object type: async zero-arg IIFE init is NOT narrowed to body (A
     check(`${ lbl } async-IIFE init not narrowed to Array`, !(objType && objType.constructor === 'Array'), true);
   });
 
+// A method stored in an iterated object is a function value; only a getter reads its return.
+for (const [slot, expected] of [
+  ['w() { return Object; }', 'Function'],
+  ['w: function () { return Object; }', 'Function'],
+  ['get w() { return []; }', 'Array'],
+]) runBoth(`nested for-of member receiver: ${ slot }`,
+  `for (const { w: { keys } } of [{ ${ slot } }, { ${ slot } }]) keys;`,
+  (adapter, prog, lbl) => {
+    const pattern = adapter.pickPath(prog, 'VariableDeclarator').get('id');
+    const [member] = pattern.get('properties')[0].get('value').get('properties');
+    checkType(lbl, adapter.makeResolver().resolvePropertyObjectType(member), { primitive: false, ctor: expected });
+  });
+
+// A getter's returned constructor identifies its prototype, while the source read remains live.
+// Writes, escaping aliases and later unknown keys must not inherit that constructor proof.
+for (const [name, setup, expected] of [
+  ['array getter', 'const source = { get C() { effect(); return Array; } };', 'Array'],
+  ['string getter', 'const source = { get C() { effect(); return String; } };', 'String'],
+  ['data slot', 'const source = { C: Array };', 'Array'],
+  ['unknown later key', 'const source = { get C() { return Array; }, [key]: String };', null],
+  ['later spread', 'const source = { get C() { return Array; }, ...other };', null],
+  ['conditional return', 'const source = { get C() { if (flag) return String; return Array; } };', null],
+  ['shadowed constructor', 'const source = { get C() { const Array = unknown; return Array; } };', null],
+  ['getter replacement', 'const source = { get C() { return Array; } }; Object.defineProperty(source, "C", { value: String });', null],
+  ['alias write', 'const source = { C: Array }; let held; held = (effect(), source); held.C = String;', null],
+  ['alias escape', 'const source = { get C() { return Array; } }; let held; held = (effect(), source); mutate(held);', null],
+  ['assignment result escape', 'const source = { get C() { return Array; } }; let held; mutate(held = (effect(), source));', null],
+]) {
+  for (const captured of [false, true]) {
+    const read = captured ? 'let saved; const { C: { prototype: { at: result } } } = saved = (effect(), source);'
+      : 'const result = source.C.prototype.at;';
+    runBoth(`getter constructor prototype: ${ name } (${ captured ? 'captured pattern' : 'member' })`,
+      `${ setup } ${ read }`, (adapter, prog, lbl) => {
+        const decl = adapter.pickPath(prog, 'VariableDeclarator', p => captured
+          ? p.node.id?.type === 'ObjectPattern' : p.node.id?.name === 'result');
+        const property = captured
+          ? decl.get('id').get('properties')[0].get('value').get('properties')[0].get('value').get('properties')[0]
+          : decl.get('init');
+        const type = adapter.makeResolver().resolvePropertyObjectType(property);
+        if (expected === null) check(lbl, type, null);
+        else checkType(lbl, type, { primitive: false, ctor: expected });
+      });
+  }
+}
+
 // --- Conditional type resolution ---
 
 runBoth('TS conditional: `T extends string ? Array : Map` with concrete T -> Array',
@@ -1208,23 +1253,20 @@ runBoth('TS conditional: chains cut past the budget are not equal inners',
     check(`${ lbl } no branch types the read`, adapter.makeResolver().resolveNodeType(decl.get('init')) === null, true);
   }, ['typescript']);
 
-// the budget is one producer of an elided inner; a written argument with no Type form is the other,
-// and it reaches the same comparison at depth 1. `{ a: string }` and `{ b: number }` are disjoint to
-// tsc, which answers FALSE - both resolve to nothing here, and read as agreement they answered TRUE.
-// the concrete-empty extends side is the third row for a reason of its own: it writes no element
-// either, so the pair is TWO absences, and the only thing keeping them from reading as agreement -
-// a TRUE branch where tsc answers FALSE, an array extending no empty tuple - is the CHECK side's
-// own elision. every other elided pair is caught further down by the caller's inner-known floor
-for (const [what, checkSide, extendSide] of [
-  ['at the top level', 'Array<{ a: string }>', 'Array<{ b: number }>'],
-  ['one container down', 'Array<Array<{ a: string }>>', 'Array<Array<{ b: number }>>'],
+// A complete member map proves a missing required field through either container depth.
+// The empty tuple still has no argument map, so its existing elision boundary stays open.
+for (const [what, checkSide, extendSide, falseBranch] of [
+  ['at the top level', 'Array<{ a: string }>', 'Array<{ b: number }>', true],
+  ['one container down', 'Array<Array<{ a: string }>>', 'Array<Array<{ b: number }>>', true],
   ['against a concrete-empty extends side', 'Array<{ a: string }>', '[]'],
 ]) {
-  runBoth(`TS conditional: an argument with no Type form decides no branch ${ what }`,
+  runBoth(`TS conditional: a structural argument ${ what } ${ falseBranch ? 'picks false' : 'stays open' }`,
     `type Sel<T> = T extends ${ extendSide } ? number[] : string;\ndeclare const v: ${ checkSide };\ndeclare const r: Sel<typeof v>;\nconst x = r;`,
     (adapter, prog, lbl) => {
       const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
-      check(`${ lbl } no branch types the read`, adapter.makeResolver().resolveNodeType(decl.get('init')) === null, true);
+      const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+      if (falseBranch) checkType(lbl, type, { primitive: true, kind: 'string' });
+      else check(`${ lbl } no branch types the read`, type === null, true);
     }, ['typescript']);
 }
 
@@ -1284,12 +1326,12 @@ runBoth('TS conditional: an infer pattern still binds through an elided containe
 // and picked the TRUE branch tsc answers FALSE for. Every `none` row below is that refusal, and
 // every decided row is the branch tsc picks
 for (const [what, decls, checkSide, extendSide, want] of [
-  ['two shorthand elements with no Type form', '', '{ a: string }[]', '{ b: number }[]', 'none'],
-  ['the same pair one container down', '', '{ a: string }[][]', '{ b: number }[][]', 'none'],
-  ['the same pair under a readonly shorthand', '', 'readonly { a: string }[]', 'readonly { b: number }[]', 'none'],
-  ['two shorthand elements naming different interfaces', 'interface EA { a: string }\ninterface EB { b: number }\n', 'EA[]', 'EB[]', 'none'],
-  ['a shorthand check against an angle-bracket extends', '', '{ a: string }[]', 'Array<{ b: number }>', 'none'],
-  ['an angle-bracket check against a shorthand extends', '', 'Array<{ a: string }>', '{ b: number }[]', 'none'],
+  ['two shorthand elements with no Type form', '', '{ a: string }[]', '{ b: number }[]', 'false'],
+  ['the same pair one container down', '', '{ a: string }[][]', '{ b: number }[][]', 'false'],
+  ['the same pair under a readonly shorthand', '', 'readonly { a: string }[]', 'readonly { b: number }[]', 'false'],
+  ['two shorthand elements naming different interfaces', 'interface EA { a: string }\ninterface EB { b: number }\n', 'EA[]', 'EB[]', 'false'],
+  ['a shorthand check against an angle-bracket extends', '', '{ a: string }[]', 'Array<{ b: number }>', 'false'],
+  ['an angle-bracket check against a shorthand extends', '', 'Array<{ a: string }>', '{ b: number }[]', 'false'],
   ['two shorthand elements that agree', '', 'string[]', 'string[]', 'true'],
   ['two shorthand elements that differ', '', 'string[]', 'number[]', 'false'],
   ['a shorthand check against an all-top shorthand', '', 'string[]', 'any[]', 'true'],
@@ -1321,17 +1363,13 @@ for (const [what, decls, checkSide, extendSide, want] of [
     }, ['typescript']);
 }
 
-// the two lanes that resolve an annotation - the plain one and the substituting one the alias hop
-// runs its extends side through - each build the container, so a pair written through the hop is
-// refused by whichever of them marked. These two reach one lane apiece: the direct conditional
-// resolves both sides plainly, and the BARE check side below (`Array` with no argument, which is a
-// tsc error and is the point - it is the shape a missing argument leaves) carries no mark of its
-// own, so only the substituted extends side can refuse
-runBoth('TS conditional: a shorthand pair spelled directly decides no branch',
+// Plain and substituted annotations both retain complete argument maps. A bare Array still has
+// no such proof: the invalid TS shorthand below intentionally tests that existing boundary.
+runBoth('TS conditional: a shorthand pair spelled directly picks the false branch',
   'type Sel = { a: string }[] extends { b: number }[] ? number[] : string;\ndeclare const r: Sel;\nconst x = r;',
   (adapter, prog, lbl) => {
     const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
-    check(`${ lbl } no branch types the read`, adapter.makeResolver().resolveNodeType(decl.get('init')) === null, true);
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: true, kind: 'string' });
   }, ['typescript']);
 runBoth('TS conditional: a bare check against a substituted shorthand extends decides no branch',
   'type Sel<T> = T extends { b: number }[] ? number[] : string;\ndeclare const v: Array;\n'
@@ -1416,6 +1454,51 @@ for (const [what, checkSide, extendSide, trueBranch] of [
     }, ['typescript']);
 }
 
+// Complete argument member maps reject missing required fields, but never stand in for one
+// alternative of a union. The corresponding conditional results were checked with TypeScript.
+for (const [label, prelude, subject, target, want] of [
+  ['inline required field', '', 'Array<{ a: string }>', 'Array<{ b: number }>', 'string'],
+  ['optional source field', '', 'Array<{ a?: string }>', 'Array<{ a: string }>', 'string'],
+  ['same fields', '', 'Array<{ a: string }>', 'Array<{ a: string }>', 'fold'],
+  ['extra source field', '', 'Array<{ a: string; b: number }>', 'Array<{ a: string }>', 'fold'],
+  ['optional target field', '', 'Array<{ a: string }>', 'Array<{ a: string; b?: number }>', 'fold'],
+  ['different field type', '', 'Array<{ a: string }>', 'Array<{ a: number }>', 'fold'],
+  ['readonly elements', '', 'ReadonlyArray<{ a: string }>', 'ReadonlyArray<{ b: number }>', 'string'],
+  ['nested shorthand', '', '{ a: string }[][]', '{ b: number }[][]', 'string'],
+  ['map key', 'interface A { a: string } interface B { b: number }', 'Map<A, number>', 'Map<B, number>', 'string'],
+  ['map value', '', 'Map<string, { a: string }>', 'Map<string, { b: number }>', 'string'],
+  ['merged interface', 'interface A { a: string } interface A { b: number } interface B { b: number }', 'Array<A>', 'Array<B>', 'fold'],
+  ['inherited interface', 'interface A { a: string } interface B extends A { b: number }', 'Array<A>', 'Array<B>', 'fold'],
+  ['recursive interface', 'interface A { next: A; a: string } interface B { next: B; b: number }', 'Array<A>', 'Array<B>', 'fold'],
+  ['index signature', '', 'Array<{ [k: string]: string }>', 'Array<{ a: string }>', 'fold'],
+  ['union forward', 'interface A { a: string } interface B { b: number }', 'Array<A> | Array<B>', 'Array<B>', 'fold'],
+  ['union reverse', 'interface A { a: string } interface B { b: number }', 'Array<B> | Array<A>', 'Array<B>', 'fold'],
+  ['nested union forward', 'interface A { a: string } interface B { b: number }', 'Array<Array<A> | Array<B>>', 'Array<Array<B>>', 'fold'],
+  ['nested union reverse', 'interface A { a: string } interface B { b: number }', 'Array<Array<B> | Array<A>>', 'Array<Array<B>>', 'fold'],
+  ['map union forward', 'interface A { a: string } interface B { b: number }', 'Map<A, number> | Map<B, number>', 'Map<B, number>', 'fold'],
+  ['map union reverse', 'interface A { a: string } interface B { b: number }', 'Map<B, number> | Map<A, number>', 'Map<B, number>', 'fold'],
+  ['parenthesized array element', '', 'Array<({ a: string })>', 'Array<({ b: number })>', 'string'],
+  ['parenthesized map value', '', 'Map<string, ({ a: string })>', 'Map<string, ({ b: number })>', 'string'],
+]) {
+  runBoth(`conditional argument members: ${ label }`,
+    `${ prelude } type Sel<T> = T extends ${ target } ? number[] : string;\n`
+    + `declare const v: ${ subject }; declare const r: Sel<typeof v>; r.at(0);`,
+    (adapter, prog, lbl) => {
+      const type = atReceiver(adapter, prog);
+      if (want === 'fold') check(lbl, type, null);
+      else checkType(lbl, type, { primitive: true, kind: 'string' });
+    }, ['typescript']);
+}
+
+// A substituted parameter is not an outer declaration with the same name, with or without parens.
+for (const element of ['T', '(T)']) {
+  runBoth(`conditional argument members: bound ${ element } shadows an outer interface`,
+    'interface T { a: string }\n'
+    + `type Sel<T> = Array<${ element }> extends Array<{ b: number }> ? number[] : string;\n`
+    + 'declare const r: Sel<{ b: number }>; r.at(0);',
+    (adapter, prog, lbl) => check(lbl, atReceiver(adapter, prog), null), ['typescript']);
+}
+
 // --- a tuple's arity, which its collapse to an Array drops ---
 
 // `[string]` and `[string, string]` both resolve to `Array<string>`, so the resolved pair says they
@@ -1453,20 +1536,22 @@ for (const [what, checkSide, extendSide, want] of [
 // Read as type identity, two such boxes claim agreement where tsc compares the shapes themselves
 // and answers FALSE - the same wrong TRUE an elided inner used to fire, from a full slot instead
 // of an empty one.
-for (const [what, decls, checkSide, extendSide] of [
-  ['interfaces', 'interface A { a: string }\ninterface B { b: number }\n', 'Array<A>', 'Array<B>'],
+for (const [what, decls, checkSide, extendSide, falseBranch] of [
+  ['interfaces', 'interface A { a: string }\ninterface B { b: number }\n', 'Array<A>', 'Array<B>', true],
   ['classes', 'declare class A { a: string; }\ndeclare class B { b: number; }\n', 'Array<A>', 'Array<B>'],
   ['call signatures', '', 'Array<(n: number) => void>', 'Array<() => void>'],
-  ['interfaces under a Set', 'interface A { a: string }\ninterface B { b: number }\n', 'Set<A>', 'Set<B>'],
-  ['interfaces under a Promise', 'interface A { a: string }\ninterface B { b: number }\n', 'Promise<A>', 'Promise<B>'],
-  ['interfaces one container down', 'interface A { a: string }\ninterface B { b: number }\n', 'Array<Array<A>>', 'Array<Array<B>>'],
+  ['interfaces under a Set', 'interface A { a: string }\ninterface B { b: number }\n', 'Set<A>', 'Set<B>', true],
+  ['interfaces under a Promise', 'interface A { a: string }\ninterface B { b: number }\n', 'Promise<A>', 'Promise<B>', true],
+  ['interfaces one container down', 'interface A { a: string }\ninterface B { b: number }\n', 'Array<Array<A>>', 'Array<Array<B>>', true],
   ['interfaces with no container at all', 'interface A { a: string }\ninterface B { b: number }\n', 'A', 'B'],
 ]) {
-  runBoth(`TS conditional: two boxes standing for different ${ what } decide no branch`,
+  runBoth(`TS conditional: two boxes standing for different ${ what } ${ falseBranch ? 'pick false' : 'stay open' }`,
     `${ decls }type Sel<T> = T extends ${ extendSide } ? number[] : string;\ndeclare const v: ${ checkSide };\ndeclare const r: Sel<typeof v>;\nconst x = r;`,
     (adapter, prog, lbl) => {
       const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
-      check(`${ lbl } no branch types the read`, adapter.makeResolver().resolveNodeType(decl.get('init')) === null, true);
+      const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+      if (falseBranch) checkType(lbl, type, { primitive: true, kind: 'string' });
+      else check(`${ lbl } no branch types the read`, type === null, true);
     }, ['typescript']);
 }
 
@@ -1737,12 +1822,12 @@ for (const [what, init, extendSide] of [
 
 // the key is the declaration NODE and not its name: two same-named interfaces in different scopes
 // are two types, and tsc answers FALSE between them - a name would have called them one
-runBoth('TS conditional: two same-named interfaces from different scopes decide no branch',
+runBoth('TS conditional: two same-named interfaces from different scopes pick the false branch',
   'interface A { a: string }\ndeclare const outer: Array<A>;\nnamespace N { export interface A { z: boolean } }\n'
   + 'type Sel<T> = T extends Array<N.A> ? number[] : string;\ndeclare const r: Sel<typeof outer>;\nconst x = r;',
   (adapter, prog, lbl) => {
     const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
-    check(`${ lbl } no branch types the read`, adapter.makeResolver().resolveNodeType(decl.get('init')) === null, true);
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: true, kind: 'string' });
   }, ['typescript']);
 
 // a GENERIC declaration is a family and not a type: the two instantiations below share the node,
@@ -1804,19 +1889,20 @@ runBoth('TS conditional: one position that disagrees sinks a list whose other po
     checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: true, kind: 'string' });
   }, ['typescript']);
 
-// a hole decides nothing on its own, so a list whose ONLY disagreement sits in one stays open - as
-// does a key that resolved into the box every unmodelled shape shares, and tuple elements that do
-// not fold to one type, which never reach a written list at all
-for (const [what, decls, checkSide, extendSide] of [
-  ['a Map key that is a box', 'interface A { a: string }\ninterface B { b: string }\n', 'Map<A, number>', 'Map<B, number>'],
-  ['a Map value that is the only disagreement and has no Type form', '', 'Map<string, { a: 1 }>', 'Map<string, { b: 2 }>'],
+// A complete member map can reject a listed key or value even without a dispatch type.
+// Tuple elements that do not fold still have no per-element proof and stay open.
+for (const [what, decls, checkSide, extendSide, falseBranch] of [
+  ['a Map key that is a box', 'interface A { a: string }\ninterface B { b: string }\n', 'Map<A, number>', 'Map<B, number>', true],
+  ['a Map value that is the only disagreement and has no Type form', '', 'Map<string, { a: 1 }>', 'Map<string, { b: 2 }>', true],
   ['tuple elements', '', 'Array<[number, string]>', 'Array<[string, number]>'],
 ]) {
-  runBoth(`TS conditional: ${ what } decides no branch`,
+  runBoth(`TS conditional: ${ what } ${ falseBranch ? 'picks false' : 'stays open' }`,
     `${ decls }type Sel<T> = T extends ${ extendSide } ? number[] : string;\ndeclare const v: ${ checkSide };\ndeclare const r: Sel<typeof v>;\nconst x = r;`,
     (adapter, prog, lbl) => {
       const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id.name ?? p.node.id.value) === 'x');
-      check(`${ lbl } no branch types the read`, adapter.makeResolver().resolveNodeType(decl.get('init')) === null, true);
+      const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+      if (falseBranch) checkType(lbl, type, { primitive: true, kind: 'string' });
+      else check(`${ lbl } no branch types the read`, type === null, true);
     }, ['typescript']);
 }
 
@@ -10076,9 +10162,35 @@ runBoth('element access: dynamic index keeps the element generic',
 // and the read: an element write, a mutating array method, or any escape of the binding
 // (a holder may write elements). read-only-referenced bindings keep the precision
 
-runBoth('element access: element write retypes - literal route bails',
+runBoth('element access: a direct element write supplies the string type',
   'const a = [1, 2];\na[0] = "x";\nconst v = a[0].at(0);',
-  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' }));
+
+// A direct element replacement supplies its value only when the write dominates the read
+// and every reference preserves that slot. Unknown writers retain the generic dispatcher.
+for (const [label, before, after, narrow] of [
+  ['fresh array replaces constructor', 'a[0] = [8];', '', true],
+  ['string key names the same write slot', 'a["0"] = [8];', '', true],
+  ['effectful replacement value', 'a[0] = (effect(), [8]);', '', true],
+  ['conditional write', 'if (flag) a[0] = [8];', '', false],
+  ['logical write', 'flag && (a[0] = [8]);', '', false],
+  ['logical assignment', 'a[0] ||= [8];', '', false],
+  ['write after read', '', 'a[0] = [8];', false],
+  ['second write', 'a[0] = [8]; a[0] = "text";', '', false],
+  ['later write', 'a[0] = [8];', 'a[0] = "text";', false],
+  ['unknown key writer', 'a[0] = [8]; a[key] = "text";', '', false],
+  ['escaped array', 'a[0] = [8]; mutate(a);', '', false],
+  ['aliased array', 'const alias = a; a[0] = [8]; alias[0] = "text";', '', false],
+  ['mutating method', 'a[0] = [8]; a.unshift("text");', '', false],
+  ['deferred write', 'function change() { a[0] = [8]; } change();', '', false],
+  ['whole binding replacement', 'a[0] = [8]; a = ["text"];', '', false],
+]) {
+  runBoth(`element replacement: ${ label }`,
+    `let a = [globalThis.Array]; ${ before } const v = a[0].at(0); ${ after }`,
+    (adapter, prog, lbl) => narrow
+      ? checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' })
+      : checkGenericAt(adapter, prog, lbl));
+}
 
 runBoth('element access: element write retypes - slice route bails',
   'var rest = "s";\n{ var [h, ...rest] = [[1], 2, 3]; }\nrest[0] = "x";\nconst v = rest[0].at(0);',
@@ -12769,24 +12881,6 @@ runBoth('element retype: an unwritten binding keeps its narrow',
     checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
   });
 
-// an opaque construct unsettles the same set from the other side: it can write an ELEMENT with no
-// reference for the walk to find, so the enumeration is a subset and its emptiness is not "nothing
-// wrote". The read stands BEFORE the construct on purpose - the flow layer keeps the binding's own
-// narrow there, which leaves this walk as the only thing deciding the element
-runBoth('element retype: a direct eval unsettles the element set',
-  'const arr = [[1]];\narr[0].at(0);\neval("arr[0] = \'ab\'");',
-  (adapter, prog, lbl) => {
-    const resolved = atReceiver(adapter, prog);
-    if (resolved?.constructor === 'Array') return fail(lbl, 'the element narrow survived an opaque write');
-    pass();
-  });
-
-runBoth('element retype: an indirect eval leaves it settled',
-  'const arr = [[1]];\narr[0].at(0);\n(0, eval)("arr[0] = \'ab\'");',
-  (adapter, prog, lbl) => {
-    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
-  });
-
 // an index signature admits the keys its key TYPE spells. reading anything that is not `number` or
 // `symbol` as the permissive `string` signature answered a key the signature does not admit with its
 // value type - a member TS refuses to give the source at all
@@ -13408,42 +13502,6 @@ for (const [label, sourceType, code, narrowed] of [
   }, [], sourceType);
 }
 
-// ... and the callers an OPAQUE construct brings, which spell nothing at all: a direct `eval` runs
-// its string in the caller's own scope chain, so it can invoke - or replace - every function that
-// chain reaches, and a `with` head answers a body name off its object. Neither leaves a reference
-// the census can count, so an empty call-site set there is not proof the default stands. The
-// negatives pin the reach: an INDIRECT eval evaluates in the global scope and reaches no local
-// name, and a construct outside the declaring scope never reaches inward
-for (const [label, sourceType, code, narrowed] of [
-  ['a direct eval beside a hoisted declaration', 'module',
-    'function f(x = "abc") { return x.at(0); }\neval("f([1, 2])");\nf();', false],
-  ['... and one that replaces the function itself', 'module',
-    'function f(x = "abc") { return x.at(0); }\neval("f = null");\nf();', false],
-  ['an optional-call eval is direct too', 'module',
-    'function f(x = "abc") { return x.at(0); }\neval?.("f([1, 2])");\nf();', false],
-  ['a nested eval still reaches outward', 'module',
-    'function f(x = "abc") { return x.at(0); }\nfunction poison() { eval("f([1, 2])"); }\nf();', false],
-  ['a `with` head reaches the declaration beside it', 'script',
-    'function outer() { function f(x = "abc") { return x.at(0); }\n  with (host) { void 0; }\n  return f(); }', false],
-  ['the same reach through a function-expression declarator', 'module',
-    'const f = function (x = "abc") { return x.at(0); };\neval("f([1, 2])");\nf();', false],
-  ['and through an arrow one', 'module',
-    'const f = (x = "abc") => x.at(0);\neval("f([1, 2])");\nf();', false],
-  ['an indirect eval reaches no local name', 'module',
-    'function f(x = "abc") { return x.at(0); }\n(0, eval)("f([1, 2])");\nf();', true],
-  ['a construct outside the declaring scope does not reach in', 'module',
-    'function outer() { function f(x = "abc") { return x.at(0); }\n  return f(); }\neval("outer()");', true],
-  ['and with no construct at all the default stands', 'module',
-    'function f(x = "abc") { return x.at(0); }\nf();', true],
-]) {
-  runBoth(`default-param opaque callers: ${ label }`, code, (adapter, prog, lbl) => {
-    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
-    const type = adapter.makeResolver().resolveNodeType(member.get('object'));
-    if (narrowed) checkType(lbl, type, { primitive: true, kind: 'string' });
-    else check(lbl, type, null);
-  }, [], sourceType);
-}
-
 // ... and what an argument at that slot IS, through the wrappers a source may spell around it. They
 // leave the VALUE alone, so an `undefined` under them still triggers the default and a real value
 // under them still overrides it - but only ONE leg's parser keeps a paren as a node, so reading the
@@ -13592,8 +13650,6 @@ for (const [label, sourceType, code, narrowed] of [
     'class C { constructor(x = "abc") { this.r = x.at(0); } }\nnew C();', true],
   ['a CommonJS wrapper keeps the class private', 'script',
     'module.exports = {};\nclass C { constructor(x = "abc") { this.r = x.at(0); } }\nnew C();', true],
-  ['a direct eval reaches the class name', 'module',
-    'class C { constructor(x = "abc") { this.r = x.at(0); } }\neval("new C([1,2])");\nnew C();', false],
   // a non-constructor method has no name its callers spell: the key is not a binding, and the object or
   // class holding it hands the method out through reads no name census sees. An accepted loss, pinned so
   // a later closure that DOES enumerate them changes this row rather than arriving beside it
@@ -13974,6 +14030,41 @@ runBoth('an assignment in one branch does not reach a use in the branch that exi
 runBoth('the same assignment does reach a use after the if',
   'function f(x, c) { if (c) { x = [1, 2]; } else { return null; } return x.at(0); }',
   (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' }));
+
+// Opposite arms of one conditional cannot write the same invocation's read. These
+// assertions distinguish a precise string from the safe but unnecessarily generic answer.
+for (const [label, source] of [
+  ['nested exiting branch', 'let x = "abc"; if (c) { { x = [1, 2]; } throw 0; } else return x.at(0);'],
+  ['branch without exit', 'let x = "abc"; if (c) { x = [1, 2]; } else return x.at(0);'],
+  ['earlier read arm', 'let x = "abc"; if (c) return x.at(0); else { x = [1, 2]; }'],
+  ['conditional expression', 'let x = "abc"; return c ? (x = [1, 2]) : x.at(0);'],
+  ['nested read arm', 'let x = "abc"; if (c) { x = [1, 2]; } else if (d) { return x.at(0); }'],
+  ['preceding assignment', 'let x = 0; x = "abc"; if (c) { x = [1, 2]; } else return x.at(0);'],
+  ['fresh loop body binding', 'for (let i = 0; i < 2; i++) { let x = "abc"; if (i) { x = [1, 2]; } else x.at(0); }'],
+  ['immediate read', 'let x = "abc"; if (c) { x = [1, 2]; } else return (() => x.at(0))();'],
+]) runBoth(`opposite branch keeps string: ${ label }`, `function f(c, d) { ${ source } }`,
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' }));
+
+runBoth('opposite branch keeps an array receiver',
+  'function f(c) { let x = [1, 2]; if (c) { x = "abc"; } else return x.at(0); }',
+  (adapter, prog, lbl) => checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' }));
+
+// Branch exclusion is local to one execution. Loop-carried values and deferred
+// bodies can observe the other arm on a different iteration or invocation.
+for (const [label, source] of [
+  ['outer loop binding', 'let x = "abc"; for (let i = 0; i < 2; i++) { if (!i) { x = [1, 2]; } else x.at(0); }'],
+  ['var loop body binding', 'for (let i = 0; i < 2; i++) { var x; if (!i) { x = [1, 2]; } else x.at(0); }'],
+  ['copied loop header binding', 'for (let x = "abc", i = 0; i < 2; i++) { if (!i) { x = [1, 2]; } else x.at(0); }'],
+  ['deferred reader', 'let x = "abc"; let read; if (c) { x = [1, 2]; } else read = () => x.at(0); x = [3, 4]; return read;'],
+  ['deferred writer', 'let x = "abc"; let write; if (c) { write = () => { x = [1, 2]; }; } else x.at(0); return write;'],
+  ['write before the conditional', 'let x = "abc"; if (d) x = [1, 2]; if (c) return null; else return x.at(0);'],
+  ['fall-through switch cases', 'let x = "abc"; switch (c) { case 0: x = [1, 2]; case 1: return x.at(0); }'],
+]) runBoth(`opposite branch does not hide a reaching write: ${ label }`, `function f(c, d) { ${ source } }`,
+  (adapter, prog, lbl) => check(lbl, atReceiver(adapter, prog), null));
+
+runBoth('opposite branches of a re-entered function share an outer binding',
+  'let x = "abc"; function f(c) { if (c) { x = [1, 2]; } else return x.at(0); } f(true); f(false);',
+  (adapter, prog, lbl) => check(lbl, atReceiver(adapter, prog), null));
 
 // the argument region of an invocation evaluates BEFORE the callee's body, so a write there reaches
 // a read the source places above it

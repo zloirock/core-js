@@ -1,6 +1,4 @@
-// export-wrapped destructure with rest sibling: `export const { Array: { from }, ...rest }
-// = globalThis;` - cascade emits `export const from = ...` for the extraction AND keeps
-// `export const { ...rest } = _globalThis` for the residual rest gather. both bindings
-// must be re-exported
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
 export const { Array: { from }, ...rest } = globalThis;
 [from, rest];

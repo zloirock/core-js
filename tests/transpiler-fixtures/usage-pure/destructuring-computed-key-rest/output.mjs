@@ -1,7 +1,7 @@
-import _Array$from from "@core-js/pure/actual/array/from";
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
 const key = 'from';
-const value = _Array$from;
 const {
-  [key]: _unused,
+  [key]: value,
   ...rest
 } = Array;

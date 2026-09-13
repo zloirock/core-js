@@ -2,11 +2,8 @@ import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Map from "@core-js/pure/actual/map/constructor";
-import _Map$groupBy from "@core-js/pure/actual/map/group-by";
-// SYNTH-SWAP: the outcomes are not ranked alternatives, they are chosen PER KEY and coexist in one
-// pattern - a polyfillable key leaves the pattern as its own binding, an unknown key stays in the
-// pattern with the receiver substituted. a rest element keeps a residual pattern beside the
-// extracted binding, and in a parameter default, where no literal can be built, nothing is rewritten
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
 const {
   foo
 } = _globalThis.Array;
@@ -15,9 +12,8 @@ const of = _Array$of;
 const {
   bar
 } = _globalThis.Array;
-const groupBy = _Map$groupBy;
 const {
-  groupBy: _unused,
+  groupBy,
   ...rest
 } = _Map;
 export function g({

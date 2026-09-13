@@ -1,8 +1,7 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-// that hop read is a getter call, so the extraction is sound only where it OWNS it. a HOST sibling
-// is no obstacle - the leaf leaves and the emptied hop prunes with it - but a sibling INSIDE the
-// nested pattern keeps the hop for its own binding, and there the claim stays native: a standing
-// miss the ownership rule buys, not a shape that wants to stay raw
+// A getter returning an array is read once for the nested method before the outer sibling.
+// The inner-sibling control contains an ordinary object with a numeric at property: both
+// of its values stay native because that receiver needs no instance polyfill.
 let reads = 0;
 const src = {
   get y() {
@@ -12,10 +11,11 @@ const src = {
   keep: 1
 };
 const hostSibling = function () {
-  const at = _atMaybeArray(src.y);
+  const _ref = src;
+  const at = _atMaybeArray(_ref.y);
   const {
     keep
-  } = src;
+  } = _ref;
   return [at, keep];
 }();
 const innerSibling = function () {

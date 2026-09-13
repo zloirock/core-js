@@ -3,30 +3,21 @@
 // `name-resolution`, `type-subst`, `type-members`, `user-type-resolve`, `member-resolve`,
 // and the factory itself.
 //
-// `getTypeArgs` is the only outside dep (imports from `helpers/ast-patterns.js`).
-//
 // the shape predicates here encode cross-parser compatibility (babel / oxc / flow), discovered
 // empirically per parser - change them only with care
 import {
   getTypeArgs,
   isDeferredContextStep,
   isTypeAnnotationWrapper,
-  readStepIsDeferred,
+  peelTSParenthesized,
   unwrapParens,
 } from '../helpers/ast-patterns.js';
-import { isLoopStatement } from '../destructure-host-shape.js';
 import {
   dropLeadingThisParam,
-  hasRange,
   literalNodeValue,
   MODIFIER_WRAPPER_DELTAS,
-  nodeRangeContains,
   PRIMITIVE_HINTS,
 } from './base.js';
-
-// the span primitives live in `base.js` so `helpers/ast-patterns.js` can ask them without importing
-// this module back; re-exported here because every reader already spells them through this one
-export { hasRange, nodeRangeContains };
 
 // statement list directly inside a TSModuleDeclaration. for Babel's nested form
 // (`namespace A.B {}` -> A.body = TSModuleDeclaration B) expose B as a single-element list
@@ -374,27 +365,12 @@ export function internedTypeRef(typeName, params = null) {
   return ref;
 }
 
-// peel transparent paren wrappers from a TYPE annotation. oxc preserves `(T)` shape as
-// `TSParenthesizedType` AST node (babel parser drops it during parsing). callers that
-// pattern-match on the inner type's discriminator (`TSUnionType`, `TSIntersectionType`,
-// `TSTypeQuery`, etc.) MUST peel first or the wrapped shapes leak past the dispatch
-// branch on the oxc parser path while behaving correctly on babel
-export function peelTSParenthesized(node) {
-  while (node?.type === 'TSParenthesizedType') node = node.typeAnnotation;
-  return node;
-}
-
 // `typeof import('x').Bar` parses as TSTypeQuery wrapping TSImportType. the outer
 // TSTypeQuery hides the structurally-opaque inner from a flat type-discriminator check,
 // so callers that want to treat `typeof import(...)` as opaque must look one level in
 export function isTypeQueryOverImportType(node) {
   return node?.type === 'TSTypeQuery' && node.exprName?.type === 'TSImportType';
 }
-
-// re-exported from the shared canon so the detect cluster (which must not import this one) and the
-// type resolver read ONE definition of the shape; the runtime-`undefined` semantic still needs the
-// caller's scope check on top
-export { isBareUndefinedIdentifier } from '../helpers/ast-patterns.js';
 
 // wide-open keyword annotations: `any` / `unknown` / `object` / Flow `any` / `mixed`.
 // `resolveTypeAnnotation` collapses each to null (too broad to narrow polyfills); callers
@@ -448,44 +424,6 @@ export function isTopKeywordAnnotation(node) {
 // ClassAccessorProperty, not a ClassPrivateProperty, so a node-type check silently mis-routes it public)
 export function isPrivateMemberNode(node) {
   return node?.key?.type === 'PrivateName' || node?.key?.type === 'PrivateIdentifier';
-}
-
-// does `loopNode`'s re-executing region (body / test / for-update slot, but NOT the once-only
-// for-init slot) contain a reassignment that survives the back-edge? `bindingAnchor` ({ decl, kind })
-// gates it by declaration POSITION + binding KIND, NOT scope: estree-toolkit attaches BOTH a for-body
-// `let` and a for-body `var` to the ForStatement scope (babel uses the body block for `let`, the
-// function for `var`), so a scope test cannot tell function-scoped `var` from block-scoped `let`.
-// a binding is re-created / re-bound each iteration (no back-edge) when it is a for-of/in loop variable
-// (declared in `left`, re-bound to the next element, any kind) OR a block-scoped (`let`/`const`)
-// binding declared in the loop BODY (fresh per iteration). a `var` is function-scoped and carries even
-// when written in the body; a C-style `for (let x = init; ;)` HEADER binding is declared in the
-// once-only init slot and is COPIED per iteration (carries); an outer binding is declared outside the
-// loop. shared soundness core for the value-flow walk and the discriminant walk
-export function loopReExecRegionHasViolation(loopNode, violationNodes, bindingAnchor) {
-  const { decl, kind } = bindingAnchor ?? {};
-  const initNode = loopNode.type === 'ForStatement' ? loopNode.init : null;
-  const reBoundInLeft = decl && loopNode.left && nodeRangeContains(loopNode.left, decl);
-  const blockScopedInBody = decl && kind && kind !== 'var' && nodeRangeContains(loopNode.body, decl);
-  if (reBoundInLeft || blockScopedInBody) return false;
-  return violationNodes.some(v => nodeRangeContains(loopNode, v) && !(initNode && nodeRangeContains(initNode, v)));
-}
-
-// loop back-edge soundness for source-position-based narrows. a reassignment that re-executes on
-// the back-edge before the next-iteration use makes a narrow chosen purely by source position
-// ("last assignment before the use" / declarator-init fallback / preceding guard) stale from
-// iteration 2 onward. true when `usagePath` sits inside a loop whose re-executing region contains
-// one of `violationNodes` (a reassignment of the binding). the climb stops exactly where the
-// read-side deferral gate stops - at a deferred context, THROUGH an immediately invoked body: the
-// gate hands such a read to positional reasoning, so this half of it has to see the same loops
-export function usageCrossesLoopBackEdgeReassign(usagePath, violationNodes, bindingAnchor) {
-  if (!violationNodes?.length) return false;
-  for (let cur = usagePath, parent; (parent = cur.parentPath) && !readStepIsDeferred(parent, cur); cur = parent) {
-    // a read in the `for`-INIT slot runs once, before the first body write - the same once-only region
-    // `loopReExecRegionHasViolation` excludes on the write side, mirrored here so one rule serves both
-    if (parent.node.type === 'ForStatement' && cur.node === parent.node.init) continue;
-    if (isLoopStatement(parent.node) && loopReExecRegionHasViolation(parent.node, violationNodes, bindingAnchor)) return true;
-  }
-  return false;
 }
 
 // soundness filter for source-position narrows: a reassignment of the binding that lives inside a

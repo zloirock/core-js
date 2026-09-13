@@ -14,8 +14,8 @@ export const optionalRootTwoHops = null == _globalThis.window?.window ? void 0 :
 const dr = () => _globalThis;
 export const provenRootTwoHops = null == dr()?.window?.window ? void 0 : _atMaybeArray(_ref3 = _Array$of(3)).call(_ref3, 0);
 
-// the `?.` over a PROVEN root is dead text in the very same test - both emitters drop it, and
-// the load-bearing one above the probe survives beside it
+// An optional over a proven root is redundant, but may remain in a preserved probe
+// expression. The optional above an unbacked host hop must keep guarding that read.
 const sr = () => _globalThis;
 export const provenRootOneHop = null == sr()?.window ? void 0 : _atMaybeArray(_ref4 = _Array$of(4)).call(_ref4, 0);
 
@@ -101,22 +101,19 @@ export const unplannedNullishCarrier = (null == ut().window ? void 0 : _self.chr
 // so the plain read observes the short-circuited value instead of riding it
 export const sealedUnplannedTail = (null == ut().window ? void 0 : _self).chrome;
 
-// the realm hop the plan folds leaves the alternate ON the ponyfill leaf, so the FIRST live `?.`
-// above it is the leaf-adjacent one the vestigial verdict erases: every pulled step is a straight
-// continuation and the alternate produces the value the source reads. the SECOND guard has a step
-// with a name pure does not back behind it, and that one stays out
-export const plannedTailKeepsGuard = (null == ut().window ? void 0 : _self.chrome)?.Array;
+// The backed self landing keeps the unbacked window above it. Both later optionals remain
+// load-bearing: an absent window skips chrome, and an absent chrome skips Array.
+export const plannedTailKeepsGuard = (null == ut().window ? void 0 : _self.window)?.chrome?.Array;
 
-// the hops the render emitted are marked, so the re-traversal keeps the shape the plan chose
-// instead of collapsing them against a receiver it never picked - and the realm hop the source
-// wrote above the collapse is not one of them: it folded before the render ever spelled a tail
+// Plain continuations after the backed self landing retain the unbacked window read.
+// An optional after that window remains live, while the plain forms keep their native throw.
 const rt = () => _globalThis;
-export const renderTailPlainContinuation = null == rt().window ? void 0 : _self.chrome;
-export const renderTailFirstOptionalFolds = null == rt().window ? void 0 : _self.chrome;
-export const renderTailDeepPlain = null == rt().window ? void 0 : _self.chrome.foo;
+export const renderTailPlainContinuation = null == rt().window ? void 0 : _self.window.chrome;
+export const renderTailFirstOptionalFolds = (null == rt().window ? void 0 : _self.window)?.chrome;
+export const renderTailDeepPlain = null == rt().window ? void 0 : _self.window.chrome.foo;
 
-// the same render under an INSTANCE dispatch receiver keeps its hops too (the receiver-collapse
-// drive must not re-run on them)
+// The instance dispatch folds the plain realm suffix into its proven receiver, while
+// preserving the earlier host probe and the sequence effect before the call.
 let rc = 0;
 export const renderTailInstanceRecv = (rc++, null == rt().window ? void 0 : _self).Array.prototype.indexOf.call([5], 5);
 export { rc };
@@ -238,7 +235,7 @@ _globalThis.ckHost = {
   a: 1
 };
 const ckr = () => _globalThis;
-export const opaqueComputedKeyTail = (null == ckr().window ? void 0 : (ck2++, _self)[ck2++, 'ckHost'])?.a;
+export const opaqueComputedKeyTail = (null == ckr().window ? void 0 : (ck2++, _self).window)?.[ck2++, 'ckHost']?.a;
 export const opaqueComputedKeyPlain = null == ckr().window ? void 0 : _self[ck2++, 'ckHost'].a;
 export { ck2 };
 

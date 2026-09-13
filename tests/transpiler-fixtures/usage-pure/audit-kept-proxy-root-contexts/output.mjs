@@ -13,13 +13,12 @@ import _globalThis from "@core-js/pure/actual/global-this";
 import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
 import _self from "@core-js/pure/actual/self";
 var _ref, _ref2, _ref4, _ref5, _ref7, _ref8;
-// the syntactic CONTEXTS a kept proxy root can be reached from. the rule does not depend on any of them -
-// the assignment stays as the root, the redundant proxy hop drops, the guard survives - but each context
-// reaches the collapse through its own visitor, so each pins separately: a kept root nested inside another
-// kept root's value, a destructuring default, a class static method, an async arrow body, and a computed
-// leaf key. distinct methods per line.
+// Kept proxy stores retain the value and nullish guard observed by their consumers.
+// These hosts exercise nested stores, defaults, class members, async bodies and
+// computed keys. A stored terminal probe must not become an always-defined realm
+// value merely because another proxy hop follows the store.
 let n;
-export const nestedKeptRoot = null == (_ref = n = null == _globalThis.window ? void 0 : _self) ? void 0 : _flatMaybeArray(_ref.Array.prototype).call([1, [2]]);
+export const nestedKeptRoot = null == (_ref = n = null == _globalThis.window ? void 0 : _self.window) ? void 0 : _flatMaybeArray(_ref.Array.prototype).call([1, [2]]);
 let p;
 export const inDestructureDefault = (({
   x = null == (_ref2 = p = _globalThis.window) ? void 0 : _includesMaybeArray(_ref2.Array.prototype)

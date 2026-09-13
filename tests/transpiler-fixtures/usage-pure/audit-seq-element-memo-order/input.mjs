@@ -1,6 +1,5 @@
-// a memo planted for a DISCARDED SEQUENCE ELEMENT must not walk its read past what the sequence
-// evaluates ahead of it: those leading elements are discarded values, so they lift to statements of
-// their own, in source order, and the memo lands behind them where the source reads the receiver
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
 const arr = [3, [1, 2]];
 const log = [];
 const eff = () => { log.push('e'); return arr; };

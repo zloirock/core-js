@@ -1,10 +1,7 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-var _ref;
-// When the receiver value of the body-extracted binding (`b: [y()]`) ITSELF carries a side effect,
-// re-emitting it for the extraction would evaluate `y()` twice and pull it ahead of the sibling
-// side effects (`x()` before, `z()` after). the slot memo keeps both: the value is written IN its
-// slot (`b: _ref = [y()]`), so the literal still runs `x() -> y() -> z()` once, and the extraction
-// reads the ref after the destructure - the `at` polyfill lands without reordering anything
+// The b receiver and its outer neighbours all carry effects. Capture the completed object literal
+// once so x(), y(), and z() run in source order, then read a, select the method from captured b,
+// and read c.
 function x() {
   return 1;
 }
@@ -14,16 +11,16 @@ function y() {
 function z() {
   return 3;
 }
-const {
-  a,
-  b: {
-    at: _unused
-  },
-  c
-} = {
+const _ref = {
   a: [x()],
-  b: _ref = [y()],
+  b: [y()],
   c: [z()]
 };
-const at = _atMaybeArray(_ref);
+const {
+  a
+} = _ref;
+const at = _atMaybeArray(_ref.b);
+const {
+  c
+} = _ref;
 export const out = [a, c, typeof at];

@@ -8,14 +8,14 @@ var _ref;
 // a READ target with a claiming read: the write collapses AND the read still resolves the
 // static through the stored conditional, typed dispatch included
 let k9;
-k9 = null == _globalThis.window ? void 0 : _self;
+k9 = null == _globalThis.window ? void 0 : _self.window;
 export const viaStoredReadClaim = k9 == null ? void 0 : _atMaybeArray(_ref = _Array$of(3)).call(_ref, 0);
 
 // reads of the stored target claim through the RENDERED conditional in every guard form -
 // and, because the render IS the navigation it replaced, in unguarded forms too (a braced
 // `if` body, a later function body) exactly like the raw source classifies them
 let k13;
-k13 = null == _globalThis.window ? void 0 : _self;
+k13 = null == _globalThis.window ? void 0 : _self.window;
 export let viaBracedIfRead;
 if (k13) {
   viaBracedIfRead = _Array$from('ab');

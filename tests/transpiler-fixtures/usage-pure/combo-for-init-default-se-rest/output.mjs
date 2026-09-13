@@ -1,6 +1,7 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-import _includes from "@core-js/pure/actual/instance/includes";
-for (var _ref = (se(), Array), from = _Array$from, includes = _includes(obj), {
-    includes: _unused,
+// Object-rest keeps the affected loop pattern native at its original evaluation point.
+// Independent reads and key/default expressions still receive their own polyfills.
+for (var _ref = (se(), Array), from = _Array$from, {
+    includes,
     ...rest
   } = obj;;) break;

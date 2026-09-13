@@ -4,6 +4,7 @@ import {
   DESTRUCTURE_PATTERN_TYPES,
   hasRange,
   MAX_DEPTH,
+  nodeRangeContains,
   PATTERN_WRAPPERS,
 } from '../resolve-node-type/base.js';
 import { moduleIdLanguage } from './path-normalize.js';
@@ -13,6 +14,15 @@ import { moduleIdLanguage } from './path-normalize.js';
 // mutation pre-pass, read wherever a claim needs to know the container is still this file's own -
 // it lives here, at the bottom, so the census and its readers need no import of each other
 export const ESCAPED_CONTAINER_NAMES = new WeakMap();
+
+// Selected values of fixed local member callees, found by the file census. Receiver-name
+// resolution follows their returns while preserving the call; the proof stays with the census.
+export const LOCAL_MEMBER_CALLEES = new WeakMap();
+
+// Read-only parameters supplied by one built-in at every closed call site. Published by the
+// escape census and reset when that census visits the parameter's owner again. The scoped
+// resolver validates only these candidates; unrelated parameters never need its caller walk.
+export const PARAMETER_STATIC_SOURCES = new WeakMap();
 
 // ... and its position half, keyed by PROGRAM node -> `start:end` keys of the CONSTRUCTOR references
 // whose value escapes. a position survives every clone and region rebuild (babel's cloneNode keeps
@@ -109,11 +119,12 @@ export function staticMemberFromEntrySegment(constructor, segment) {
 export const isASTNode = v => v !== null && typeof v === 'object' && typeof v.type === 'string';
 
 // positional recursive walk over a raw AST subtree of EITHER dialect: `visit(node, parent)`
-// per position (a node shared by two parents is visited from each), an explicit `false`
-// return PRUNES the subtree (a type-annotation wall, a span the caller owns). the depth cap
+// per position (a node shared by two parents is visited from each), optional `leave` after
+// its children. An explicit `false` return PRUNES the subtree and its leave callback
+// (a type-annotation wall, a span the caller owns). the depth cap
 // protects against pathological nesting (template-literal bombs, parser bug-emitted cycles);
 // the per-node hot path allocates nothing
-export function walkAstNodes({ root, visit, parent = null, depth = 0 }) {
+export function walkAstNodes({ root, visit, leave = null, parent = null, depth = 0 }) {
   (function step(node, parentNode, level) {
     if (!node || typeof node !== 'object' || typeof node.type !== 'string' || level >= 1024) return;
     if (visit(node, parentNode) === false) return;
@@ -123,6 +134,7 @@ export function walkAstNodes({ root, visit, parent = null, depth = 0 }) {
       if (Array.isArray(value)) for (const item of value) step(item, node, level + 1);
       else step(value, node, level + 1);
     }
+    leave?.(node, parentNode);
   })(root, parent, depth);
 }
 
@@ -533,6 +545,35 @@ export function isTypeAnnotationWrapper(node) {
   return type === 'TSTypeAnnotation' || type === 'TypeAnnotation';
 }
 
+// Parentheses around a TS type carry no type semantics; both parser dialects answer
+// through this peel before comparing the contained type shape.
+export function peelTSParenthesized(node) {
+  while (node?.type === 'TSParenthesizedType') node = node.typeAnnotation;
+  return node;
+}
+
+// The content of a tuple member, peeling its optional label and rest wrapper in either order.
+export function unwrapTupleMember(element) {
+  let node = element;
+  for (let i = 0; i < 2; i++) {
+    if (node.type === 'TSNamedTupleMember') node = node.elementType;
+    else if (node.type === 'TSRestType') node = node.typeAnnotation;
+    else break;
+  }
+  return node;
+}
+
+// Whether a tuple member is variadic, with or without a source label.
+export function isTupleRestElement(element) {
+  const unwrapped = element.type === 'TSNamedTupleMember' ? element.elementType : element;
+  return unwrapped.type === 'TSRestType';
+}
+
+// The tuple element list in the TS and Flow dialects.
+export function tupleElements(node) {
+  return node.elementTypes || node.types;
+}
+
 // does this identifier occupy a name the UID allocator must not hand out? this is a DIFFERENT question
 // from `isNonReferencePosition` and the two disagree on exactly one shape - an overload SIGNATURE key.
 // babel's live scope registers it (babel spells the node `TSDeclareMethod`), so a UID must step around
@@ -778,6 +819,7 @@ export function runStandsInLoweredGuardTest(startPath, unwrap) {
   for (let step = startPath, up = step?.parentPath; up?.node; step = up, up = up.parentPath) {
     const { node } = up;
     if (node.type === 'ConditionalExpression') return node.test === step.node;
+    if (node.type === 'LogicalExpression' && node.operator !== '??') continue;
     const stepsOn = (node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression')
       && unwrap(node.object) === unwrap(step.node);
     if (!stepsOn && unwrap(node) === node && !chainValueCarrier(node, step.node)) return false;
@@ -1660,7 +1702,10 @@ function identifierReferencedIn(node, name, declared) {
   if (node.type === 'JSXIdentifier') return node.name === name;
   if (TYPE_SPACE_NODE_TYPES.has(node.type)) return false;
   const own = declaredIdentifierNodes(node);
-  const inner = !own ? declared : !declared ? own : new Set([...declared, ...own]);
+  // Only this spelling can match the query; unrelated declarations need not be copied down
+  // into every nested scope. The set belongs to this call, not to the declaration census.
+  if (own) for (const id of own) if (id.name !== name) own.delete(id);
+  const inner = !own?.size ? declared : !declared ? own : new Set([...declared, ...own]);
   // recurse, skipping the source-text name slots `isNonReferencePosition` recognises (member tail,
   // object / class / method / field key, label, import / export specifier, JSX attribute name /
   // member-tag tail) - those are name literals, not references - and the type-space slots
@@ -1771,7 +1816,7 @@ export function isForXStatement(node) {
 // var scope - the boundary a `var` declared anywhere below it hoists to. returns null if
 // the chain reaches the root without one (shouldn't happen for an attached node: Program
 // is always a boundary). shared by the var-membership walk and the namespace-scope check
-function findNearestVarScopeOwner(path) {
+export function findNearestVarScopeOwner(path) {
   for (let cur = path; cur; cur = cur.parentPath) {
     if (isVarScopeBoundary(cur.node?.type)) return cur;
   }
@@ -2453,31 +2498,6 @@ export function findFunctionScopeVarInPath(path, name) {
   return !!findSloppyBlockFunctionInPath(path, name);
 }
 
-// a DIRECT `eval` call - the only call whose argument runs in the CALLER's scope chain, so it can
-// assign every binding that chain reaches (strict code too: strict eval confines DECLARATIONS to
-// its own environment, never assignments) and, in sloppy code, declare new ones on the enclosing
-// var scope. the spelling is the callee: a bare `eval` through the transparent wrappers only -
-// `(0, eval)(s)` is a SequenceExpression, which makes the call INdirect and runs it in the global
-// scope where no local binding is reachable, and `unwrapRuntimeExpr` is the peel that keeps that
-// distinction. an optional call (`eval?.(s)`) is direct like the plain one
-function isDirectEvalCall(node) {
-  if (node.type !== 'CallExpression' && node.type !== 'OptionalCallExpression') return false;
-  const callee = unwrapRuntimeExpr(node.callee);
-  return callee.type === 'Identifier' && callee.name === 'eval';
-}
-
-// the two constructs that reach a name with NO reference either scope tracker records, recognised
-// by the node the opaque-access index yields. no ordinary violation is ever shaped like one - a
-// tracked write is an assignment, an update, a for-x head or a declarator - so a consumer holding a
-// merged violation list tells the two apart by this alone
-export function isOpaqueAccessNode(node) {
-  return node.type === 'WithStatement' || isDirectEvalCall(node);
-}
-
-// the opaque accesses ride the reassignment index because they come out of the SAME walk and owe
-// the same shadow discipline; a symbol key keeps them out of every by-name lookup over it
-const OPAQUE_SCOPE_ACCESSES = Symbol('opaqueScopeAccesses');
-
 // reassignment sites for a function-scoped `var`, recovering the `constantViolations` set babel's
 // native binding records but estree-toolkit's misses for a nested-block-hoisted var (so the shared
 // resolver's reassignment guard fires identically on both). resolve the owner that hoists the var
@@ -2508,16 +2528,6 @@ const EMPTY_REASSIGNMENTS = [];
 export function buildScopeReassignmentIndex(ownerNode, sloppy = false) {
   const index = new Map();
   const shadowDepth = new Map();
-  const opaqueAccesses = [];
-  // an opaque construct reaches EVERY name its position can resolve, which is the complement of
-  // the shadow census at that moment - so the entry carries the shadowed set rather than a name,
-  // and a query subtracts itself from it. the snapshot is per construct, and both constructs are
-  // rare enough that copying the set beats re-deriving it per queried name
-  function recordOpaqueAccess(node) {
-    const shadowed = new Set();
-    for (const [name, depth] of shadowDepth) if (depth) shadowed.add(name);
-    opaqueAccesses.push({ node, shadowed });
-  }
   function record(name, node) {
     if (shadowDepth.get(name)) return;
     let list = index.get(name);
@@ -2608,27 +2618,7 @@ export function buildScopeReassignmentIndex(ownerNode, sloppy = false) {
       pop(shadowNames);
       return;
     }
-    // a `with` head puts an OBJECT environment between its body and every binding declared outside
-    // the statement, so a name the body reads may be that object's property instead of the binding
-    // the trackers resolved it to - unknowable statically. the body's own LEXICAL declarations sit
-    // BELOW that environment and keep answering first, so they are pushed before the record; a
-    // `var` there hoists past the statement and stays reachable through the object. the head
-    // expression evaluates before the environment exists, so it is visited outside the shadow
-    if (node.type === 'WithStatement') {
-      visit(node.object, false, sloppyInside);
-      const bodyNames = blockShadowNames(node.body ?? {});
-      push(bodyNames);
-      recordOpaqueAccess(node);
-      visit(node.body, false, sloppyInside);
-      pop(bodyNames);
-      return;
-    }
     push(shadowNames);
-    // a direct `eval` writes through the scope chain it stands in, so it records where it stands.
-    // an `eval` name this census shadows is not the intrinsic and reaches nothing; one shadowed
-    // ABOVE the scanned scope is invisible here and stays recorded - the direction that costs a
-    // narrow rather than substituting a helper over a value the call replaced
-    if (isDirectEvalCall(node) && !shadowDepth.get('eval')) recordOpaqueAccess(node);
     // the written TARGET, through the wrappers a write may spell around it (`a! = v`,
     // `(a as any) = v`, `(a)++`): neither native tracker records those as writes, and this
     // scan is their only recorder
@@ -2660,7 +2650,6 @@ export function buildScopeReassignmentIndex(ownerNode, sloppy = false) {
     pop(shadowNames);
   }
   visit(ownerNode, true, sloppy);
-  index.set(OPAQUE_SCOPE_ACCESSES, opaqueAccesses);
   return index;
 }
 // the whole index for an owner, cached per owner NODE; the owner's PATH is what tells its
@@ -2680,68 +2669,6 @@ function scopeReassignmentIndexFor(ownerPath) {
 // differ only in how they locate the owner
 function collectScopeReassignmentNodes(ownerPath, name) {
   return scopeReassignmentIndexFor(ownerPath).get(name) ?? EMPTY_REASSIGNMENTS;
-}
-
-// the opaque half of that same index for one name: every construct in the owner's subtree that
-// reaches `name` with no reference either tracker records, minus the ones an inner binding of the
-// name catches. kept OUT of the reassignment list above, whose contract is the syntactic writes
-function collectScopeOpaqueAccessNodes(ownerPath, name) {
-  const entries = scopeReassignmentIndexFor(ownerPath).get(OPAQUE_SCOPE_ACCESSES);
-  if (!entries.length) return EMPTY_REASSIGNMENTS;
-  const nodes = [];
-  for (const entry of entries) if (!entry.shadowed.has(name)) nodes.push(entry.node);
-  return nodes;
-}
-
-// where the climb to a binding's own var scope STARTS. a hoisted `function name` declares into the
-// scope AROUND it while its own path IS a var-scope boundary, so climbing from the path itself
-// stops on the function and scans its body - the region the declaring scope's constructs are
-// outside of, which cost the name every opaque access that reaches it. a function EXPRESSION's
-// internal name is the mirror case (it binds INSIDE the expression), so only the declaration form
-// starts one level up
-function opaqueScanAnchorOf(bindingPath) {
-  // asked of whatever a binding lookup handed back, a path a rewrite has detached included: a step
-  // with no node classifies as no declaration form and anchors the scan on itself
-  return bindingPath.node?.type === 'FunctionDeclaration' ? bindingPath.parentPath ?? bindingPath : bindingPath;
-}
-
-// the opaque accesses of a binding, whatever its kind: `with` and direct `eval` reach a PARAMETER,
-// a class or a hoisted function exactly as they reach a `var`. the anchor is the binding's own
-// scope, picked the way the reassignment recovery picks it - a LEXICAL declaration is reached only
-// from its own block, and anchoring it at the var-scope owner instead cost every `let` in a sibling
-// block of the construct its narrow. every other kind is function-scoped, and the anchor above says
-// where that climb starts
-export function bindingOpaqueAccessNodes(bindingPath, name, kind) {
-  if (!bindingPath || !name) return EMPTY_REASSIGNMENTS;
-  const owner = kind === 'let' || kind === 'const'
-    ? letScopeHostOf(bindingPath) : findNearestVarScopeOwner(opaqueScanAnchorOf(bindingPath));
-  return owner ? collectScopeOpaqueAccessNodes(owner, name) : EMPTY_REASSIGNMENTS;
-}
-
-// merge those accesses into a binding's violation list. a DIRECT `eval` can assign every binding
-// its scope chain reaches and a `with` head answers a body read off its object, so a tracker's
-// violation set is a SUBSET of the writes and reading its emptiness as "constant" is what
-// substitutes a narrowed helper over a foreign value - the array `at` over a string the polyfill
-// never installed. recorded at the construct's OWN node so the positional bands rank it like any
-// other write: a read the construct cannot outrun keeps its narrow. no containment dedupe - a
-// `with` spans every write inside its body, and dropping the marker for one of them would lose
-// exactly the region the marker exists for
-function withOpaqueAccessViolations(binding, name) {
-  const nodes = bindingOpaqueAccessNodes(binding.path, name, binding.kind);
-  const known = new Set((binding.constantViolations ?? []).map(violationNode));
-  const extras = nodes
-    .filter(node => node.start !== undefined && node.end !== undefined && !known.has(node))
-    .map(node => ({ node, canonicalRecovered: true }));
-  if (!extras.length) return binding;
-  return { ...binding, constant: false, constantViolations: [...binding.constantViolations ?? [], ...extras] };
-}
-
-// does a binding carry one? the merged list is where every consumer reads the answer, so a channel
-// asking whether the tracker's REFERENCE set is whole asks it here rather than re-deriving the scan
-export function bindingHasOpaqueAccess(binding) {
-  // not every binding record carries the list: the manual decorator walk opens a FRAME scope whose
-  // binding is `{ constant, path }`, and the merge above spells the same absence
-  return (binding.constantViolations ?? []).some(violation => isOpaqueAccessNode(violationNode(violation)));
 }
 
 // var-hoist reassignment recovery: estree-toolkit block-scopes a `var`, so its constantViolations miss
@@ -2977,7 +2904,7 @@ export function wrapScopeBindingLookup(lookup) {
     if (path && binding.path && bindingInvisibleFromUseRegion(binding.path, path)) return undefined;
     let wrapped = cache.get(binding);
     if (!wrapped) {
-      wrapped = withOpaqueAccessViolations(withCanonicalViolations(withoutPhantomWrites(binding), name), name);
+      wrapped = withCanonicalViolations(withoutPhantomWrites(binding), name);
       cache.set(binding, wrapped);
     }
     return wrapped;
@@ -3145,18 +3072,18 @@ export function classDefinitionTimePaths(classPath) {
 // the spine in O(depth) instead of re-walking the whole owner per target (quadratic on
 // binding-heavy bundles). same per-node staleness contract as the sibling caches
 const ownerParentIndexCache = new WeakMap();
-function ownerParentIndex(ownerNode) {
+function ownerParentIndex(ownerNode, includeExcluded = false) {
   let parents = ownerParentIndexCache.get(ownerNode);
   if (parents) return parents;
   parents = new Map();
-  (function visit(node) {
+  (function visit(node, outside = false) {
     walkAstChildren(node, child => {
-      parents.set(child, node);
-      // both consumers abandon the climb at a nested var-scope boundary, so nothing under one is
-      // ever reachable through this index - descending into it indexed every node once per
-      // ENCLOSING owner instead of once. the boundary node itself stays mapped, so a spine that
-      // ends at it still resolves
-      if (!isVarScopeBoundary(child.type)) visit(child);
+      // A nested var scope stays unreachable. On a miss, also record its descendants with no
+      // parent: later queries can distinguish an excluded node from a newly attached subtree.
+      // The initial index remains shallow, so ordinary in-scope queries pay no extra walk.
+      parents.set(child, outside ? null : node);
+      const excluded = outside || isVarScopeBoundary(child.type);
+      if (!excluded || includeExcluded) visit(child, excluded);
     });
   })(ownerNode);
   ownerParentIndexCache.set(ownerNode, parents);
@@ -3173,7 +3100,7 @@ function ownerParentIndexLocating(ownerNode, target) {
   const parents = ownerParentIndex(ownerNode);
   if (target === ownerNode || parents.has(target)) return parents;
   ownerParentIndexCache.delete(ownerNode);
-  return ownerParentIndex(ownerNode);
+  return ownerParentIndex(ownerNode, true);
 }
 
 // the first of `fields` on `parent` holding `child` (direct or as an array element), or null.
@@ -3204,6 +3131,75 @@ const nodeSitsInLoopRerunWithin = memoizeByNodePair((ownerNode, target) => {
   }
   return false;
 });
+
+// loop back-edge anchor for a binding: its declaration identifier node + kind. position (which loop
+// slot the decl sits in) plus kind (`var` is function-scoped and carries; `let`/`const` are
+// block-scoped and re-created in a body) is the parser-robust signal - estree-toolkit attaches both a
+// for-body `var` and a for-body `let` to the ForStatement scope, so the scope node cannot tell them apart
+export function bindingLoopAnchor(binding) {
+  return {
+    decl: binding?.identifier ?? binding?.identifierPath?.node ?? bindingDeclaratorNode(binding)?.id ?? null,
+    kind: binding?.kind ?? null,
+  };
+}
+
+// does `loopNode`'s re-executing region (body / test / for-update slot, but NOT the once-only
+// for-init slot) contain a reassignment that survives the back-edge? `bindingAnchor` ({ decl, kind })
+// gates it by declaration POSITION + binding KIND, NOT scope: estree-toolkit attaches BOTH a for-body
+// `let` and a for-body `var` to the ForStatement scope (babel uses the body block for `let`, the
+// function for `var`), so a scope test cannot tell function-scoped `var` from block-scoped `let`.
+// a binding is re-created / re-bound each iteration (no back-edge) when it is a for-of/in loop variable
+// (declared in `left`, re-bound to the next element, any kind) OR a block-scoped (`let`/`const`)
+// binding declared in the loop BODY (fresh per iteration). a `var` is function-scoped and carries even
+// when written in the body; a C-style `for (let x = init; ;)` HEADER binding is declared in the
+// once-only init slot and is COPIED per iteration (carries); an outer binding is declared outside the
+// loop. shared soundness core for the value-flow walk and the discriminant walk
+export function loopReExecRegionHasViolation(loopNode, violationNodes, bindingAnchor) {
+  const { decl, kind } = bindingAnchor ?? {};
+  const initNode = loopNode.type === 'ForStatement' ? loopNode.init : null;
+  const reBoundInLeft = decl && loopNode.left && nodeRangeContains(loopNode.left, decl);
+  const blockScopedInBody = decl && kind && kind !== 'var' && nodeRangeContains(loopNode.body, decl);
+  if (reBoundInLeft || blockScopedInBody) return false;
+  return violationNodes.some(v => nodeRangeContains(loopNode, v) && !(initNode && nodeRangeContains(initNode, v)));
+}
+
+// loop back-edge soundness for source-position-based narrows. a reassignment that re-executes on
+// the back-edge before the next-iteration use makes a narrow chosen purely by source position
+// ("last assignment before the use" / declarator-init fallback / preceding guard) stale from
+// iteration 2 onward. true when `usagePath` sits inside a loop whose re-executing region contains
+// one of `violationNodes` (a reassignment of the binding). the climb stops exactly where the
+// read-side deferral gate stops - at a deferred context, THROUGH an immediately invoked body: the
+// gate hands such a read to positional reasoning, so this half of it has to see the same loops
+export function usageCrossesLoopBackEdgeReassign(usagePath, violationNodes, bindingAnchor, readNode = null) {
+  if (!violationNodes?.length) return false;
+  for (let cur = usagePath, parent; (parent = cur.parentPath) && !readStepIsDeferred(parent, cur); cur = parent) {
+    // a read in the `for`-INIT slot runs once, before the first body write - the same once-only region
+    // `loopReExecRegionHasViolation` excludes on the write side, mirrored here so one rule serves both
+    if (parent.node.type === 'ForStatement' && cur.node === parent.node.init) continue;
+    const rerunFields = LOOP_RERUN_FIELDS[parent.node.type];
+    // an alias capture reads its source at the capture, not at the later use of that alias.
+    // A capture outside this loop's rerun slots cannot observe a write on its back-edge.
+    if (rerunFields && (!hasRange(readNode) || [...rerunFields].some(field => nodeRangeContains(parent.node[field], readNode)))
+      && loopReExecRegionHasViolation(parent.node, violationNodes, bindingAnchor)) return true;
+  }
+  return false;
+}
+
+// a write in the other arm of the SAME if / conditional cannot run beside this read.
+// Callers must first exclude loop-carried and deferred writes: different executions can
+// take different arms. The read climb itself stops at deferred bodies. Switch cases and
+// logical operands are not opposite arms: fall-through / a shared left operand can reach both.
+// A captured alias uses its own read node, not the eventual consumer's branch.
+export function writeIsInOppositeBranch(writeNode, usagePath, readNode = usagePath?.node) {
+  for (let cur = usagePath, parent; (parent = cur?.parentPath)?.node && !readStepIsDeferred(parent, cur); cur = parent) {
+    const { node } = parent;
+    if (node.type !== 'IfStatement' && node.type !== 'ConditionalExpression') continue;
+    const other = cur.node === node.consequent ? node.alternate
+      : cur.node === node.alternate ? node.consequent : null;
+    if (nodeRangeContains(cur.node, readNode) && nodeRangeContains(other, writeNode)) return true;
+  }
+  return false;
+}
 
 // branches whose body runs only on some control-flow paths. a target nested under one is
 // conditional, so it dominates a use only when the use also sits under the SAME branch. the
@@ -3519,7 +3515,7 @@ export function varInitDominatesUsage({ declaratorNode, usagePath, usageNode = n
 // reaching value - the cross-closure dead-init case is instead handled where the init is followed, by
 // preferring `reachingReassignmentValueNode`'s value. returns false when no write dominates, letting
 // usage-global keep resolving a still-live init (inject-if-maybe-needed). usage-pure bails on any reassignment
-export function reassignmentDominatesUsage({ reassignmentNodes, usagePath, usageNode = null }) {
+export function reassignmentDominatesUsage({ reassignmentNodes, usagePath, usageNode = null, afterNode = null }) {
   if (!usagePath || !reassignmentNodes?.length) return false;
   const owner = findNearestVarScopeOwner(usagePath);
   if (!owner) return false;
@@ -3537,7 +3533,9 @@ export function reassignmentDominatesUsage({ reassignmentNodes, usagePath, usage
   // runs BEFORE the writes the source places above it, so no such write dominates it however far the
   // position ranks it first. asked here because it only ever REMOVES a dominance claim, which is the
   // over-injecting direction; the reaching-value sibling carries the same gate for the same reason
-  return reassignmentNodes.some(node => !useOutrunsWrite(node, usagePath)
+  // A registered alias may describe a later write, not the initializer. Only a write after
+  // that registration can kill its candidate; missing source positions prove nothing.
+  return reassignmentNodes.some(node => (!afterNode || provablyPrecedes(afterNode, node)) && !useOutrunsWrite(node, usagePath)
     && nodeDominatesUsage({ node, usagePath, owner, climb: false, usageNode }));
 }
 
@@ -3551,31 +3549,44 @@ function nodeFollowsUsageInScope({ node, readNode, owner }) {
 // SOUND gate for the SUBSTITUTE (usage-pure) direction: does the declarator-init value provably
 // reach `usagePath` UNMODIFIED on every path - i.e. can NO reassignment run before the read? pure
 // rewrites to a receiver-less polyfill, so a wrong "yes" masks the native value - resolve only on
-// PROOF. holds iff the read runs at most once (not in a loop body, where a back-edge re-runs a
-// textually-later write before it) AND every reassignment sits in the read's OWN var-scope owner (a
-// write beyond it lives in a closure that may run earlier) textually STRICTLY after the read. no
+// PROOF. a loop-carried write or a deferred read prevents that proof. otherwise every write must
+// follow the read within its own var scope, occupy the opposite branch in that execution,
+// or occupy a container slot evaluated after the read
+// (a class initializer after every computed key). a fresh loop-body binding starts anew. no
 // reassignment -> the init trivially reaches. mirror of reassignmentDominatesUsage (global bails only
 // when the init is provably DEAD; pure resolves only when it is provably the LIVE value). `usageNode`
 // overrides the read position like in the mirror: an alias hop / destructure CAPTURE reads the value
 // there, so a same-scope write between the capture and the eventual use cannot reach the captured value
 export function noReassignmentReachesUsage({
-  reassignmentNodes, usagePath, usageNode = null, bindingScopeNode = null,
+  reassignmentNodes, usagePath, usageNode = null, bindingScopeNode = null, bindingAnchor = null,
 }) {
   if (!usagePath) return false;
   if (!reassignmentNodes?.length) return true;
   const owner = findNearestVarScopeOwner(usagePath);
   if (!owner) return false;
   const readNode = usageNode ?? usagePath.node;
-  if (nodeSitsInLoopRerunWithin(owner.node, readNode)) return false;
+  if ((!bindingAnchor || usageNode) && nodeSitsInLoopRerunWithin(owner.node, readNode)) return false;
   // "textually after the read" proves nothing beyond ONE activation of that owner. when the owner
   // is re-invocable while the binding outlives it, the previous activation's write runs before the
   // next activation's read - the same exposure a loop back-edge creates, one scope level up. the
   // read-side deferral predicate is the shared one the reachable-value union already gates on
-  if (bindingScopeNode && readRunsDeferredWithin(usagePath, bindingScopeNode)) return false;
+  // A hoisted var's adapter scope can be its initializer's branch. Its binding still
+  // belongs to this activation when the declaration lies in the read's var-scope owner.
+  const bindingOwner = bindingAnchor?.kind === 'var' && nodeRangeContains(owner.node, bindingAnchor.decl)
+    ? owner.node : bindingScopeNode;
+  if (bindingOwner && readRunsDeferredWithin(usagePath, bindingOwner)) return false;
   // the same rule from the SOUND side: a write in a slot that runs ahead of the use's own reaches it,
   // however far past the read its span sits, so this gate must decline rather than call it "after"
   if (anyWriteOutrunsUse(reassignmentNodes, usagePath)) return false;
-  return reassignmentNodes.every(node => nodeFollowsUsageInScope({ node, readNode, owner }));
+  // computed method keys and immediately invoked bodies run in their enclosing loop, even
+  // when their syntactic var-scope owner stops the positional walk above.
+  if (usageCrossesLoopBackEdgeReassign(usagePath, reassignmentNodes, bindingAnchor, readNode)) return false;
+  // an early container slot observes the init before that container's late writes even when the
+  // source places them above it. the relation excludes writes outside the container.
+  return reassignmentNodes.every(node => useOutrunsWrite(node, usagePath)
+    || nodeFollowsUsageInScope({ node, readNode, owner })
+    || (writeIsInOppositeBranch(node, usagePath, readNode)
+      && collectVarGuardsToDeclarator(owner.node, node) !== null));
 }
 
 // the value a reassignment site INSTALLS (`installedWriteValue` of its `=` RHS), normalized across
@@ -3721,12 +3732,12 @@ export function patternSlotTarget(target) {
 // and not just its head: a nested container has no binding name of its own, so only the path can
 // name the slot a write replaced. `null` where a slot on the way cannot be named - a computed
 // spelling the key canon cannot fold, or a rest target, which takes every remaining slot. several
-// paths where the pattern binds the name more than once
+// paths where the pattern binds the name more than once; null names every binding leaf
 export function patternRootKeyPathsFor(pattern, name, ctx) {
   const paths = [];
   let unnameable = false;
   function leadsTo(node) {
-    return !!node && patternBindsIdentifier(node, id => id.name === name);
+    return !!node && patternBindsIdentifier(node, id => name === null || id.name === name);
   }
   function collectPaths(node, prefix) {
     if (node?.type === 'Identifier') {
@@ -3768,12 +3779,17 @@ export function patternRootKeyPathsFor(pattern, name, ctx) {
 // right. the slot's doctrine lives in the provider's AGENTS.md: a PLAIN undefinable receiver keeps the
 // always-defined literal there, because the slot fires only on the omitted argument and reproducing the
 // absent-host throw is not worth the output complexity. the climb ends at the function that OWNS the
-// slot - a nav inside a nested function body runs when that function is called, not on that path
-export function inCallerCorrectFallbackSlot(path) {
+// slot - a nested function body or instance-field value runs later, not on that path
+export function inCallerCorrectFallbackSlot(path, receiverNode = path?.node) {
+  // a node-based binding can hold the pattern's path while asking about its receiver.
+  // re-anchor that node before the placement climb; the pattern and its RHS occupy different slots.
+  if (receiverNode && path?.node !== receiverNode) path = syntheticNodeAncestry(rootProgramOf(path), receiverNode);
   for (let up = path?.parentPath, child = path; up?.node; child = up, up = up.parentPath) {
     const { type } = up.node;
     if (type === 'AssignmentPattern' && up.node.right === child.node) return true;
-    if (FUNCTION_LIKE_NODE_TYPES.has(type) || type === 'Program') break;
+    // a logical left selects the next branch by its own value, even inside a default.
+    if (type === 'LogicalExpression' && up.node.left === child.node) break;
+    if (FUNCTION_LIKE_NODE_TYPES.has(type) || isDeferredFieldValueNode(up.node, child.node) || type === 'Program') break;
   }
   return false;
 }
@@ -3782,7 +3798,7 @@ export function inCallerCorrectFallbackSlot(path) {
 // without a default)? one spelling of that question, over the canonical binding-leaf walk - the
 // default-guarded ask above keeps its own walk because it TRACKS default context, which the leaf
 // walk deliberately does not carry
-function patternBindsName(pattern, name) {
+export function patternBindsName(pattern, name) {
   return patternBindsIdentifier(pattern, id => id.name === name);
 }
 
@@ -3858,13 +3874,23 @@ function hostLexicalNames(host) {
   }
 }
 
-// a write hosted in a nested lexical block reads its RHS THERE: a name that block (or one between it
-// and the var-scope owner) declares shadows what the declarator's scope holds, and the consumers
-// resolve the returned node in the declarator's scope - so such a write proves no value
-// (`var h = src; { const src = {}; var h = src; }` holds the block's `src`, not the outer one)
-function rhsReadsBlockShadow(ownerNode, writeNode, rhs) {
+// a reaching RHS resolves in its binding's declarator scope, so lexical hosts shared by declaration
+// and write introduce no shadow - the function body and a shared nested block are the ordinary
+// case. A host belonging to only ONE side can rebind an RHS name: a nested write sees its local
+// source, while a hoisted var declared in a nested block can resolve a later outer write there.
+function rhsReadsBlockShadow(ownerNode, writeNode, rhs, declarationNode) {
   const parents = ownerParentIndexLocating(ownerNode, writeNode);
+  const declarationAncestors = new Set();
+  for (let cur = declarationNode; cur; cur = parents.get(cur)) declarationAncestors.add(cur);
+  let common = null;
   for (let cur = parents.get(writeNode); cur && cur !== ownerNode; cur = parents.get(cur)) {
+    if (declarationAncestors.has(cur)) {
+      common = cur;
+      break;
+    }
+    for (const name of hostLexicalNames(cur) ?? []) if (identifierReferencedInSubtree(rhs, name)) return true;
+  }
+  for (let cur = declarationNode; cur && cur !== common && cur !== ownerNode; cur = parents.get(cur)) {
     for (const name of hostLexicalNames(cur) ?? []) if (identifierReferencedInSubtree(rhs, name)) return true;
   }
   return false;
@@ -3932,7 +3958,7 @@ export function reachingReassignmentValueNode({
     if (plainWritesOnly && isDestructurePattern(plainWriteOf(last, owner.node)?.target)) return null;
     if (requireSingleObservation && writeSitsInGuardTest(owner.node, last)) return null;
     const rhs = reassignmentRhsForBinding(last, owner.node, bindingName, ctx);
-    return rhs && !rhsReadsBlockShadow(owner.node, last, rhs) ? rhs : null;
+    return rhs && !rhsReadsBlockShadow(owner.node, last, rhs, bindingDeclaratorNode(binding)) ? rhs : null;
   }
   // CLOSURE: the use sits in a nested closure, so the before-writes live in an enclosing scope. the
   // declarator-init (and earlier writes) are dead once an UNCONDITIONAL write completes before the
@@ -4031,10 +4057,16 @@ function reassignmentValueEnumerationCore({ binding, usagePath, owner, name, ctx
     out.push(...values);
   }
   for (const node of reassignmentNodesBeyondDeclarator(binding)) {
-    // ... and neither does a write whose SLOT runs ahead of the use's own: it sits after the read by
-    // span, so `provablyPrecedes` drops it, while at runtime the read observes exactly its value
+    // Exclude ordinary later writes before walking the read's branch ancestry for each
+    // candidate. Loops, deferred reads and early-evaluated slots still need the full proof.
     if (!useInLoop && !closureReenters && !writeOutrunsUse(node, usagePath)
       && provablyPrecedes(readNode, node)) continue;
+    // A late container slot or an opposite arm cannot reach this execution's read.
+    // The proof retains writes carried by a loop back-edge or another invocation.
+    if ((useOutrunsWrite(node, usagePath) || writeIsInOppositeBranch(node, usagePath, readNode)) && noReassignmentReachesUsage({
+      reassignmentNodes: [node], usagePath, usageNode, bindingScopeNode: violationSearchRoot,
+      bindingAnchor: bindingLoopAnchor(binding),
+    })) continue;
     const values = flattenBranchingValueNodes(
       reassignmentValueNodesAt(node, violationSearchRoot, bindingName, ctx, owner.node));
     if (!values.length) complete = false;
@@ -4148,27 +4180,38 @@ export function pureReturnBodyValue(body) {
 }
 
 // the expression an object-literal property hands a reader, or null when none does: a data property
-// gives its value, and a GETTER gives what its body returns - but only a body that is ONE PURE
-// RETURN, because the consumers here CONSUME the literal (the level it stands on is dropped), so a
-// body with anything to observe would stop running. a setter-won key answers `undefined` and a
+// gives its value, and a GETTER gives what its body returns. consuming callers require a pure
+// body; a caller keeping the getter can read its return while preserving effects and locals.
+// a setter-won key answers `undefined` and a
 // method shorthand holds a function the reader would read THROUGH - neither names a value. babel
 // spells accessors and method shorthands as `ObjectMethod`, ESTree as a `Property` carrying `kind` /
 // `method`: both reach this one reading, or two walks answer differently about one source
-export function objectPropertyReadValue(prop) {
+export function objectPropertyReadValue(prop, { preservesBody = false } = {}) {
   const kind = prop?.type === 'ObjectMethod' ? prop.kind : prop?.method ? 'method' : prop?.kind;
   if (!prop || kind === 'set' || kind === 'method') return null;
   if (kind !== 'get') return prop.value ?? null;
-  return pureReturnBodyValue(prop.type === 'ObjectMethod' ? prop.body : prop.value?.body);
+  const body = prop.type === 'ObjectMethod' ? prop.body : prop.value?.body;
+  if (preservesBody) {
+    // this can expose the getter's object to another reader, which must see its original return.
+    let readsThis = false;
+    walkAstNodes({ root: body, visit(node) {
+      if (node.type === 'ThisExpression') readsThis = true;
+      return !readsThis;
+    } });
+    if (readsThis) return null;
+  }
+  return preservesBody ? singleReturnBodyExpression(body, { preservesBody }) : pureReturnBodyValue(body);
 }
 
 // the property of an object LEVEL a key pairs with, or null when nothing pairs: no match ahead of a
 // spread (it could override the key), a key standing AFTER the match that `nameLater` cannot name
-// (last wins, so it could BE the slot at runtime), or an accessor / method (a read runs a body).
-// `nameLater` is the spelled name by default; a scope-aware caller hands over the consuming canon
-export function objectLevelPairedProperty(objectNode, key, nameLater = spelledSlotName) {
+// (last wins, so it could BE the slot at runtime), or a body whose returned value cannot be proven.
+// `nameLater` defaults to the spelled name. `readOptions` goes to objectPropertyReadValue;
+// a caller keeping the original read may allow its getter body's effects via `preservesBody`.
+export function objectLevelPairedProperty(objectNode, key, nameLater = spelledSlotName, readOptions = {}) {
   if (objectNode?.type !== 'ObjectExpression') return null;
   const match = findObjectKeyBeforeSpread(objectNode.properties, prop => spelledSlotName(prop) === key);
-  const read = objectPropertyReadValue(match);
+  const read = objectPropertyReadValue(match, readOptions);
   if (!read) return null;
   if (objectNode.properties.slice(objectNode.properties.indexOf(match) + 1)
     .some(prop => nameLater(prop) === null)) return null;
@@ -4238,11 +4281,12 @@ export function aliasEscaped(aliasNode, adapter, path) {
 // usage-pure alone bails, for the reason the container channel gives - a write anywhere in the file
 // may reach the read, while the other flavors over-inject and stay safe
 // asked of the alias's own declaration where `scope` / `path` reach it, the name-wide union otherwise
-export function aliasSlotWritten(aliasNode, key, adapter, { scope = null, path = null } = {}) {
+export function aliasSlotWritten(aliasNode, key, adapter, { scope = null, path = null, ownerNode = null } = {}) {
   if (aliasNode?.type !== 'Identifier' || adapter?.method !== 'usage-pure' || key === null || key === undefined) return false;
   const binding = scope ? adapter.getBinding?.(scope, aliasNode.name, path) : null;
   // the record keys slots by their STRING spelling, and a numeric key names one like any other
-  return !!adapter.isWrittenContainerSlot?.(aliasNode.name, [String(key)], binding?.path?.node ?? binding?.node ?? null);
+  return !!adapter.isWrittenContainerSlot?.(aliasNode.name, Array.isArray(key) ? key.map(String) : [String(key)],
+    ownerNode ?? binding?.path?.node ?? binding?.node ?? null);
 }
 
 // the ONE const-alias follow: an Identifier through its binding's init at each hop, peeling parens /
@@ -4357,6 +4401,8 @@ function receiverSlotRead(receiver, key) {
 // has nothing else to name here: the read itself is synthesized over the receiver's span, and the
 // receiver stands in a tracked position of its own. a level paired with a real container value is not
 // such a read - it descends against that value, whose own node is where it stands
+// `includeNestedReceivers` also reports a receiver read whose value feeds a nested pattern: a
+// guarded constructor yielded there must carry the static slots that pattern subsequently reads.
 export function patternReceiverSlotNodes(pattern, rhs, name, ctx) {
   const out = [];
   rhs = followConstLiteralAlias(unwrapExpressionChain(rhs), ctx);
@@ -4376,17 +4422,19 @@ export function patternReceiverSlotNodes(pattern, rhs, name, ctx) {
   if (pattern?.type !== 'ObjectPattern') return out;
   for (const prop of pattern.properties) {
     if (prop.type !== 'Property' && prop.type !== 'ObjectProperty') continue;
+    const slot = patternSlotTarget(prop.value);
+    if (slot?.type === 'Identifier' && slot.name !== name) continue;
     const key = patternPropKey(prop, ctx, pattern);
     if (key === null) continue;
     const paired = rhs?.type === 'ObjectExpression'
-      ? objectPropertyReadValue(findObjectKeyBeforeSpread(rhs.properties, rp => patternPropKey(rp, ctx, pattern) === key))
+      ? objectPropertyReadValue(findObjectKeyBeforeSpread(rhs.properties, rp => patternPropKey(rp, ctx, pattern) === key), ctx ?? {})
       : arrayLiteralSlotValue(rhs, key);
     // ... the same sources `patternSlotValues` pairs against: the container slot, the receiver read
     // and the slot's own default. the first two are exclusive by construction - a paired value means
     // an object / array literal rhs, which is never receiver-shaped
     const received = isReceiverShapedNode(rhs) ? receiverSlotRead(rhs, key) : null;
-    const slot = patternSlotTarget(prop.value);
     if (isDestructurePattern(slot)) {
+      if (received && ctx?.includeNestedReceivers) out.push(prop);
       const source = paired ?? received;
       if (source) out.push(...patternReceiverSlotNodes(slot, source, name, ctx));
       if (prop.value.type === 'AssignmentPattern') {
@@ -4399,14 +4447,6 @@ export function patternReceiverSlotNodes(pattern, rhs, name, ctx) {
   return out;
 }
 
-// the pattern slot's POSSIBLE values for the binding named `name`: the positionally / key-
-// paired RHS value plus the slot's own default (either may be live at runtime). a dynamic
-// RHS or slot contributes nothing. a level's property is read the way every other reader
-// reads one - a getter with a single pure return hands that return over, a body with
-// anything to observe hands over nothing
-// `ctx` (optional `{ scope, adapter, path, resolveKey }`) makes the pairing binding-aware: it
-// follows a const-identifier rhs to its literal init and resolves computed keys through the read-
-// side canon. ctx-less callers keep the node-only behaviour (literal rhs, static-name keys)
 // the function's OWN return statements: a shallow walk that does not descend into nested
 // functions (their returns belong to them). babel spells a METHOD as a function node of its own
 // (`ObjectMethod` / `ClassMethod` / `ClassPrivateMethod`) where ESTree nests a `FunctionExpression`
@@ -4449,6 +4489,22 @@ export function referencesArgumentsObject(callee) {
     walkAstChildren(current, child => work.push(child));
   }
   return false;
+}
+
+// One static receiver supplied by every known invocation. Missing, shifted, opaque and mixed
+// arguments prove no identity; the caller owns scope resolution and completeness of the sites.
+export function parameterStaticSource(sites, paramIndex, resolveSource) {
+  if (!sites?.length) return null;
+  let source = null;
+  for (const site of sites) {
+    if (!site.pairing || site.pairing.argsUnknown) return null;
+    const argument = unwrapRuntimeExpr(resolveCallArgument(site.pairing.args ?? [], site.argIndex ?? paramIndex));
+    if (argument?.type !== 'Identifier') return null;
+    const name = resolveSource(argument, site);
+    if (!name || source && source !== name) return null;
+    source = name;
+  }
+  return source;
 }
 
 // the slots of a wrapper literal that hold a container by NAME: `[keyPath, name]` pairs - a
@@ -4524,13 +4580,21 @@ export function classStaticSlotValue(classNode, key) {
   return null;
 }
 
+// Possible values reaching one pattern binding from its supplied receiver and slot defaults.
+// `includeDefaults: false` selects the supplied half for callers proving independent obligations.
+// `followIifeReturns` exposes inline receivers for analysis, retaining each returned node's scope.
+// `preservesBody` permits getter effects only for callers retaining the original property read.
 export function patternSlotValues(pattern, rhs, name, ctx) {
   const out = [];
+  // a caller comparing supplied values with a default's existing obligations needs the source
+  // half alone. keep that choice on the canonical pairing, including its nested descent
+  const includeDefaults = ctx?.includeDefaults !== false;
   // a const-identifier rhs bound to a literal (`const arr = [Map]; [A] = arr`) - follow it so the
   // pairing sees the underlying array / object, like the direct-literal form. the EFFECTIVE value
   // peel comes first: a paren (an oxc NODE), a TS cast or a sequence tail all hand the same
   // runtime value, and judging the raw spelling split the legs on `([[globalThis]])`
   rhs = followConstLiteralAlias(unwrapExpressionChain(rhs), ctx);
+  if (ctx?.followIifeReturns) rhs = peelIifeReturnTarget(rhs);
   function propKey(prop) {
     return patternPropKey(prop, ctx, pattern);
   }
@@ -4540,13 +4604,14 @@ export function patternSlotValues(pattern, rhs, name, ctx) {
   function descend(slot, element, pairedRhs) {
     if (!isDestructurePattern(slot)) return false;
     if (pairedRhs) out.push(...patternSlotValues(slot, pairedRhs, name, ctx));
-    if (element.type === 'AssignmentPattern') out.push(...patternSlotValues(slot, element.right, name, ctx));
+    if (includeDefaults && element.type === 'AssignmentPattern') out.push(...patternSlotValues(slot, element.right, name, ctx));
     return true;
   }
   if (pattern?.type === 'ArrayPattern') {
     for (let i = 0; i < pattern.elements.length; i++) {
       const element = pattern.elements[i];
       const slot = patternSlotTarget(element);
+      if (slot?.type === 'Identifier' && slot.name !== name) continue;
       // a spread at or before slot i shifts every later position by the spread's runtime length,
       // so `rhs.elements[i]` is no longer THE value that lands in slot i. under the value-UNION
       // contract every static element from the first spread on is still a POSSIBLE slot value
@@ -4556,19 +4621,22 @@ export function patternSlotValues(pattern, rhs, name, ctx) {
       const candidates = rhs?.type === 'ArrayExpression' ? arrayWrapSlotValueCandidates(rhs.elements, i) : [];
       if (isDestructurePattern(slot)) {
         for (const cand of candidates) out.push(...patternSlotValues(slot, cand, name, ctx));
-        if (element.type === 'AssignmentPattern') out.push(...patternSlotValues(slot, element.right, name, ctx));
+        if (includeDefaults && element.type === 'AssignmentPattern') out.push(...patternSlotValues(slot, element.right, name, ctx));
         continue;
       }
       if (slot?.type !== 'Identifier' || slot.name !== name) continue;
       // a slot's paired value and its default are values spelled at a write - the write-value
       // canon reads them (`[k] = [j = "from"]` installs `"from"`)
-      if (element.type === 'AssignmentPattern') out.push(installedWriteValue(element.right));
+      if (includeDefaults && element.type === 'AssignmentPattern') out.push(installedWriteValue(element.right));
       out.push(...candidates.map(installedWriteValue));
     }
   } else if (pattern?.type === 'ObjectPattern') {
     for (const prop of pattern.properties) {
       if (prop.type !== 'Property' && prop.type !== 'ObjectProperty') continue;
       const slot = patternSlotTarget(prop.value);
+      // A sibling binding contributes no value to this name. Resolving its key against every
+      // candidate container first makes wide patterns multiply the same property scans.
+      if (slot?.type === 'Identifier' && slot.name !== name) continue;
       const key = propKey(prop);
       // last matching key wins, but a trailing spread could override it -> bail (canonical helper)
       // an object-pattern key can spell a canonical ARRAY index (`({ 0: w } = [v])` reads
@@ -4576,13 +4644,13 @@ export function patternSlotValues(pattern, rhs, name, ctx) {
       // the nested-receiver walk performs, guarded the same way
       const paired = key !== null
         ? rhs?.type === 'ObjectExpression'
-          ? objectPropertyReadValue(findObjectKeyBeforeSpread(rhs.properties, rp => propKey(rp) === key))
+          ? objectPropertyReadValue(findObjectKeyBeforeSpread(rhs.properties, rp => propKey(rp) === key), ctx ?? {})
           : CLASS_NODE_TYPES.has(rhs?.type) ? classStaticSlotValue(rhs, key)
             : arrayLiteralSlotValue(rhs, key)
         : null;
       if (descend(slot, prop.value, paired)) continue;
       if (slot?.type !== 'Identifier' || slot.name !== name) continue;
-      if (prop.value.type === 'AssignmentPattern') out.push(installedWriteValue(prop.value.right));
+      if (includeDefaults && prop.value.type === 'AssignmentPattern') out.push(installedWriteValue(prop.value.right));
       if (paired) out.push(installedWriteValue(paired));
       // a destructure from a RECEIVER (`({ Promise: M } = globalThis)`): the slot's reaching
       // value is the receiver's member - synthesize it so the reaching resolution sees
@@ -4606,6 +4674,7 @@ export function patternSlotSpreadShifted(pattern, rhs, name, ctx = null) {
   // values enumerated through a followed / peeled rhs with completeness judged on the raw spelling
   // would read a lone candidate as certain while an alias or a paren hides the shift
   rhs = followConstLiteralAlias(unwrapExpressionChain(rhs), ctx);
+  if (ctx?.followIifeReturns) rhs = peelIifeReturnTarget(rhs);
   if (pattern?.type === 'ObjectPattern') {
     for (const prop of pattern.properties) {
       if (prop.type !== 'Property' && prop.type !== 'ObjectProperty') continue;
@@ -4899,15 +4968,10 @@ export function hopAnchorStart({ node = null, ctx = null }) {
 // self-records, so both adapters hand the resolver one list for identical source; a path-less
 // lookup (no use anchor) and a kind outside the recompute keep the tracker's raw list
 export function recomputedBindingWrites({ kind, bindingPath, usePath, name, fallback }) {
-  const recomputed = withoutValuelessDeclarationViolations(!usePath ? fallback
+  return withoutValuelessDeclarationViolations(!usePath ? fallback
     : kind === 'var' ? collectFunctionScopeVarReassignments(usePath, name)
       : kind === 'let' || kind === 'const' ? collectScopeLetReassignments(bindingPath, name)
         : fallback);
-  // the opaque accesses ride along on EVERY kind: `with` and direct `eval` reach a parameter or a
-  // hoisted function exactly as they reach a `var`, while the kind gate above is about which
-  // tracker mis-scopes a SYNTACTIC write - a question they are not
-  const opaque = bindingOpaqueAccessNodes(bindingPath, name, kind);
-  return opaque.length ? [...recomputed ?? [], ...opaque] : recomputed;
 }
 
 export const IMPORT_SPECIFIER_TYPES = new Set([
@@ -5062,17 +5126,18 @@ function reassignmentNodesBeyondDeclarator(binding) {
 // the type-resolver (narrowing, whose binding adapter carries no `.method`) and entry keep the
 // conservative flat bail. both branches exclude the loop-reinit declarator-self via
 // reassignmentNodesBeyondDeclarator
-export function reassignBailApplies({ binding, adapter, path, usageNode = null }) {
+export function reassignBailApplies({ binding, adapter, path, usageNode = null, afterNode = null }) {
   const method = adapter?.method;
   if (method !== 'usage-global' && method !== 'usage-pure') return true;
   const reassignmentNodes = reassignmentNodesBeyondDeclarator(binding);
   // both arms thread `usageNode` (an alias hop's / destructure capture's read site): a write after
   // that read neither dominates it (global) nor reaches the value captured there (pure) - without
   // the anchor, pure bails a provably-live init whose only writes flip the key AFTER the capture
-  if (method === 'usage-global') return reassignmentDominatesUsage({ reassignmentNodes, usagePath: path, usageNode });
+  if (method === 'usage-global') return reassignmentDominatesUsage({ reassignmentNodes, usagePath: path, usageNode, afterNode });
   return !noReassignmentReachesUsage({
     reassignmentNodes, usagePath: path, usageNode,
     bindingScopeNode: binding?.scope?.block ?? binding?.scope?.path?.node ?? null,
+    bindingAnchor: bindingLoopAnchor(binding),
   });
 }
 
@@ -5119,8 +5184,8 @@ export function nodeSpan(node) {
   return typeof start === 'number' && typeof end === 'number' ? { start, end } : null;
 }
 
-export function reassignmentBlocksGlobalResolve({ binding, adapter, path, usageNode = null }) {
-  return !!binding.constantViolations?.length && reassignBailApplies({ binding, adapter, path, usageNode });
+export function reassignmentBlocksGlobalResolve({ binding, adapter, path, usageNode = null, afterNode = null }) {
+  return !!binding.constantViolations?.length && reassignBailApplies({ binding, adapter, path, usageNode, afterNode });
 }
 
 // the climb below is asked of every native binding on every lookup, so it runs once per binding object
@@ -6049,12 +6114,13 @@ function staticStringKey(node) {
 }
 
 // a value that can REACH a built-in constructor: the constructor itself (an Identifier, bare or
-// aliased) or a container that may hold one deeper. every other value is data no walk can follow to a
-// built-in. shared by the receiver walk (which slot to descend) and the mutation gate (which binding
-// counts as a container) so read and write agree on what a container is
+// aliased), a member read that may yield it, or a container that may hold one deeper. the value
+// stored through wrappers, sequences or assignments is the same candidate. shared by the receiver
+// walk and mutation census so a followed array slot also records the writes that invalidate it
 export function canHoldBuiltIn(node) {
+  node = installedWriteValue(node);
   return node?.type === 'Identifier' || node?.type === 'ObjectExpression'
-    || node?.type === 'ArrayExpression' || node?.type === 'ClassExpression';
+    || node?.type === 'ArrayExpression' || node?.type === 'ClassExpression' || isMemberAccessNode(node);
 }
 
 // a computed key that is a (paren-wrapped) SequenceExpression with a static-string TAIL
@@ -6098,6 +6164,47 @@ export function computedKeyStaticName(keyNode) {
     return out;
   }
   return staticStringKey(node);
+}
+
+// literal-resolvable keys reachable through a BRANCHING computed-key node: ternary / logical
+// arms, nested arms recursing. a non-branching node contributes its own resolution; an
+// unresolvable arm contributes nothing (enumerating only what folds is the safe direction -
+// a missed arm under-injects no worse than before, a guessed arm would fabricate a key).
+// the fan is a worklist, not a recursion with a budget: arm nesting is the SOURCE's, so a
+// budget answered a legal `c ? 'flat' : c2 ? 'flat' : ... : 'at'` exactly as it answered a
+// broken tree - past five arms the trailing key stopped being enumerated and usage-global
+// silently dropped its polyfill. slots go on the stack in REVERSE so popping keeps the
+// depth-first left-to-right order the key list (and the import order behind it) is built in
+// Precision consumers request a complete set; injection consumers keep every resolvable arm.
+export function flattenBranchKeys(node, resolveKey = computedKeyStaticName, { requireComplete = false } = {}) {
+  const keys = [];
+  const pending = [node];
+  const fanned = new Set();
+  while (pending.length) {
+    // oxc preserves paren nodes and both parsers keep TS casts - the branch shape must be
+    // detected through them (`(cond ? "flat" : "at") in []` arrives paren-wrapped on the
+    // estree side and bare on babel); arm wrappers unwrap the same way
+    const cur = unwrapRuntimeExpr(pending.pop());
+    if (!cur) {
+      if (requireComplete) return null;
+      continue;
+    }
+    const slots = getFallbackBranchSlots(cur);
+    if (!slots) {
+      const key = resolveKey(cur);
+      if (requireComplete && (key === null || key === undefined)) return null;
+      if (key && !keys.includes(key)) keys.push(key);
+      continue;
+    }
+    // only a cyclic tree can re-reach a fanned node; the fan itself never revisits
+    if (fanned.has(cur)) {
+      if (requireComplete) return null;
+      continue;
+    }
+    fanned.add(cur);
+    for (let i = slots.length - 1; i >= 0; i--) pending.push(cur[slots[i]]);
+  }
+  return keys;
 }
 
 // resolve a property's key to its static string name. accepts bare Identifier shorthand
@@ -6557,8 +6664,8 @@ export function createDeclaredNameIndex(names = null) {
     // one visited node's declarations, taken from the census walk that visits it. `select(id, node)`
     // narrows what is taken - a reducer indexing one PROPERTY of a binding rather than the whole
     // lattice passes it, and asks the same chain question of the narrower index
-    record(node, frame, select = null) {
-      const declared = declaredIdentifierNodes(node);
+    record(node, frame, select = null, knownDeclared = undefined) {
+      const declared = knownDeclared === undefined ? declaredIdentifierNodes(node) : knownDeclared;
       if (!declared || isAmbientBindingShape(node, frame.parentNode)) return;
       const { own, named } = declarationScopesOf(node, frame);
       for (const id of declared) {
@@ -6589,8 +6696,9 @@ function isThisRebinding(node) {
 
 // ONE full-file raw walk driving every per-file census reducer. each reducer keeps its own
 // per-node logic and closure state in its home module ({ visit(node, frame), result() });
-// the driver owns only the traversal. every reducer output is an order-insensitive set /
-// flag, so one shared traversal order serves all of them - the point is collapsing the
+// the driver owns only the traversal. Visits collect syntax facts without consulting the file's
+// strictness; results run in reducer order so the format owner can publish before its consumers.
+// The point is collapsing the
 // N independent whole-file scans (name reservation, mutation / ctor-alias / minifier
 // shape gates) into a single pass. frames carry the structural parent type (transparent
 // wrappers forwarded) and the module-top-level flag - the contexts the orphan-ref
@@ -6598,9 +6706,8 @@ function isThisRebinding(node) {
 // does this injection method read the census the usage lanes build? `entry-global` replaces an
 // entry import and mints no name of its own, so it consumes neither the name reservation the
 // census feeds nor the mutation / ctor-alias tables - only the resolvers and emitters it never
-// reaches read those. one question, asked by both emitters, so it lives here rather than as a
-// method-literal compare in each; the reducer LIST stays with the emitter, because only babel's
-// census carries the minifier-shape gate and entry-global does need that one
+// reaches read those. Both emitters ask this one question; each supplies its own reducer list,
+// with the format reducer included for every method
 export function methodReadsUsageCensus(method) {
   return method !== 'entry-global';
 }
@@ -6911,8 +7018,12 @@ export function proxySurfaceIdentifier(node, { adapter, injectorState, throughRe
 
 // a selecting init whose EVERY LIVE branch lands on the same pristine proxy surface
 // (`c ? globalThis : self`): the claim extracts like a plain proxy receiver and the
-// discarded init drops whole - no branch diverges, nothing observable dies with it
-export function allProxySelectingInit(node, { adapter, injectorState, allowEffectfulTest = false, throughRealmHop = null }) {
+// discarded init drops whole - no branch diverges, nothing observable dies with it. A caller
+// preserving the selection may supply a scoped value proof (`readSurface`): it can classify a
+// stored value while keeping its write, and it checks every leaf against the binding at the read.
+export function allProxySelectingInit(node, {
+  adapter, injectorState, allowEffectfulTest = false, throughRealmHop = null, readSurface = null,
+}) {
   const stack = [{ node, branch: false }];
   while (stack.length) {
     const { node: raw, branch } = stack.pop();
@@ -6926,11 +7037,12 @@ export function allProxySelectingInit(node, { adapter, injectorState, allowEffec
       stack.push({ node: inner.consequent, branch: true }, { node: inner.alternate, branch: true });
       continue;
     }
-    if (inner?.type === 'LogicalExpression' && inner.operator !== '&&') {
+    if (inner?.type === 'LogicalExpression' && (inner.operator !== '&&' || readSurface)) {
       // a proxy surface DECIDES a `||` / `??` on its own - an object is always truthy and
       // never nullish, so the right operand never evaluates and dies with the init. a LEFT that is
       // itself an all-proxy selection decides the same way, at every depth (`(globalThis ?? {}) ?? {}`)
-      if (allProxySelectingInit(inner.left, { adapter, injectorState, allowEffectfulTest, throughRealmHop })) continue;
+      if (inner.operator !== '&&'
+        && allProxySelectingInit(inner.left, { adapter, injectorState, allowEffectfulTest, throughRealmHop, readSurface })) continue;
       stack.push({ node: inner.left, branch: true }, { node: inner.right, branch: true });
       continue;
     }
@@ -6938,6 +7050,12 @@ export function allProxySelectingInit(node, { adapter, injectorState, allowEffec
     // the value it stores (`c ? (q = globalThis) : (w = globalThis)`). a BARE write init is
     // not a selection at all and keeps its own channels
     let value = inner;
+    // A read-side caller can prove a stored navigation through its value canon while keeping the
+    // complete selection as an effect. Consumers that discard the selection supply no such proof.
+    if (readSurface) {
+      if (!readSurface(value)) return false;
+      if (isChainAssignment(value)) continue;
+    }
     if (branch) {
       while (value?.type === 'AssignmentExpression' && value.operator === '=') value = peelTransparentExpr(value.right);
     }
@@ -6946,20 +7064,21 @@ export function allProxySelectingInit(node, { adapter, injectorState, allowEffec
   return true;
 }
 
-// the surface an all-proxy selecting init reads - its first branch's pristine root
-export function firstProxyBranch(node) {
+// the surface an all-proxy selecting init reads - its first branch's pristine root. `truthyAnd`
+// is the proof that an AND's left is a realm object, so that selection always yields its right.
+export function firstProxyBranch(node, { truthyAnd = false } = {}) {
   let inner = peelTransparentExpr(node);
-  for (let key = proxySelectingBranchKey(inner); key; key = proxySelectingBranchKey(inner)) {
+  for (let key = proxySelectingBranchKey(inner, { truthyAnd }); key; key = proxySelectingBranchKey(inner, { truthyAnd })) {
     inner = peelTransparentExpr(inner[key]);
   }
   return inner;
 }
 
 // which branch a SELECTING node yields first - the ternary's consequent, the `||` / `??` left.
-// `&&` names none: its left is the test, not a value the selection settles on
-export function proxySelectingBranchKey(node) {
+// `&&` names none without the caller's truthy-left proof; with it the right is the value read.
+export function proxySelectingBranchKey(node, { truthyAnd = false } = {}) {
   if (node?.type === 'ConditionalExpression') return 'consequent';
-  if (node?.type === 'LogicalExpression' && node.operator !== '&&') return 'left';
+  if (node?.type === 'LogicalExpression') return node.operator !== '&&' ? 'left' : truthyAnd ? 'right' : null;
   return null;
 }
 
@@ -7532,6 +7651,78 @@ export function inferTypeParameterNames(node) {
   return names;
 }
 
+// The check-side subtrees an infer capture passes into the true result. This is source
+// provenance, not assignability: a comparison alone owes no global, and an unused capture
+// owes none either. Matching slots keep `Map<K, Set<V>>`'s captured value separate from Map.
+const CONDITIONAL_INFERENCE_INPUTS = new WeakMap();
+function conditionalInferenceInputs(node) {
+  if (CONDITIONAL_INFERENCE_INPUTS.has(node)) return CONDITIONAL_INFERENCE_INPUTS.get(node);
+  const inputs = new Set();
+  CONDITIONAL_INFERENCE_INPUTS.set(node, inputs);
+  const names = inferTypeParameterNames(node.extendsType);
+  if (!names?.size) return inputs;
+  const used = new Set();
+  function read(path) {
+    const ref = path.node[TYPE_REFERENCE_SLOTS.get(path.node.type)];
+    if (ref?.type === 'Identifier' && names.has(ref.name)
+      && !typeParameterInScope(path, ref.name) && !isTSTypeOnlyIdentifierPath(path)) used.add(ref.name);
+    walkAstChildren(path.node, (child, key) => read({ node: child, parent: path.node, parentPath: path, key }));
+  }
+  read({ node: node.trueType });
+  if (!used.size) return inputs;
+  function pair(source, pattern, depth = 0) {
+    if (!source || !pattern) return;
+    source = peelTSParenthesized(isTypeAnnotationWrapper(source) ? source.typeAnnotation : source);
+    pattern = peelTSParenthesized(isTypeAnnotationWrapper(pattern) ? pattern.typeAnnotation : pattern);
+    if (pattern?.type === 'TSInferType') {
+      if (used.has(typeParameterName(pattern.typeParameter))) inputs.add(source);
+      return;
+    }
+    // A nested conditional owns its own captures, not this conditional's inference.
+    if (pattern?.type === 'TSConditionalType') return;
+    const referenceSlot = TYPE_REFERENCE_SLOTS.get(pattern?.type);
+    const sourceReference = referenceSlot && source?.[referenceSlot];
+    const patternReference = referenceSlot && pattern?.[referenceSlot];
+    const differentReferenceHosts = referenceSlot && (sourceReference?.type !== 'Identifier'
+      || patternReference?.type !== 'Identifier' || sourceReference.name !== patternReference.name);
+    if (depth > MAX_DEPTH || source?.type !== pattern?.type || differentReferenceHosts) {
+      // An unmodelled structural relation may still capture this source. Preserve that
+      // possible input only when its inferred name reaches the result. Different generic
+      // hosts have no positional correspondence: Map's iterable element includes both
+      // type arguments, so matching Iterable's argument against Map's first one loses V.
+      // Exhausting the correspondence budget must preserve the same possible input.
+      if ([...inferTypeParameterNames(pattern) ?? []].some(name => used.has(name))) inputs.add(source);
+      return;
+    }
+    if (pattern.type === 'TSTupleType') {
+      const sourceElements = tupleElements(source);
+      const patternElements = tupleElements(pattern);
+      const restAt = patternElements.findIndex(isTupleRestElement);
+      for (const [index, element] of patternElements.entries()) {
+        const sourceAt = restAt === -1 || index <= restAt ? index : sourceElements.length - patternElements.length + index;
+        const end = index === restAt ? sourceElements.length - (patternElements.length - index - 1) : sourceAt + 1;
+        for (const candidate of sourceElements.slice(sourceAt, end)) {
+          pair(unwrapTupleMember(candidate), unwrapTupleMember(element), depth + 1);
+        }
+      }
+      return;
+    }
+    walkAstChildren(pattern, (child, key, inList) => {
+      const memberName = key === 'members' ? propertyKeyName(child) : null;
+      // Union arms are unordered, and an overload set may infer from any signature the
+      // source relation selects. Keep the possible captured inputs instead of trusting
+      // list position; ordinary generic arguments and parameter slots remain positional.
+      const candidates = !inList ? [source[key]]
+        : key === 'types' ? source[key]
+        : key === 'members' ? source[key]?.filter(member => propertyKeyName(member) === memberName)
+        : [source[key]?.[pattern[key].indexOf(child)]];
+      for (const candidate of candidates ?? []) pair(candidate, child, depth + 1);
+    });
+  }
+  pair(node.checkType, node.extendsType);
+  return inputs;
+}
+
 // ancestors that hard-stop the pure-erase walk: reaching one proves we're inside a
 // runtime container without first crossing a pure-erase boundary. ClassBody / ClassDeclaration /
 // ClassExpression / Program are runtime containers; TS expression wrappers (TSAsExpression
@@ -7553,6 +7744,26 @@ const PURE_TYPE_ERASE_STOP_TYPES = new Set([
 // Map's path needs ancestor walk past TSTypeReference / TSTypeParameterInstantiation hops)
 export function isTSTypeOnlyIdentifierPath(path) {
   if (isTSTypeOnlyIdentifier(path?.parent, path?.key, path?.parentPath?.parent)) return true;
+  // Comparison operands select the result; only a check-side subtree captured into that
+  // result carries an annotation expectation of its own. The extends pattern reads nothing.
+  if (isTypeAnnotationNodeType(path?.node?.type) || isTypeAnnotationNodeType(path?.parentPath?.node?.type)) {
+    for (let child = path, current = path?.parentPath; current; child = current, current = current.parentPath) {
+      const type = current.node?.type;
+      if (!type || PURE_TYPE_ERASE_STOP_TYPES.has(type) || isRuntimeExpressionHost(type)) break;
+      if (type === 'TSConditionalType' && child.key === 'extendsType') return true;
+      if (type === 'TSConditionalType' && child.key === 'checkType') {
+        const inputs = conditionalInferenceInputs(current.node);
+        let captured = false;
+        for (let inputPath = path; inputPath && inputPath !== current; inputPath = inputPath.parentPath) {
+          if (inputs.has(inputPath.node)) {
+            captured = true;
+            break;
+          }
+        }
+        if (!captured) return true;
+      }
+    }
+  }
   return typeSpaceNameNotReference(path);
 }
 
@@ -8434,6 +8645,16 @@ function isPatternTargetSlot(pn, cn) {
   return pn.type === 'AssignmentPattern' && pn.left === cn;
 }
 
+// A rest-bearing object level keeps all its reads native. Follow only pattern target
+// slots: a separate destructure in a computed key or default has its own boundary.
+export function hasObjectRestAncestor(path) {
+  for (const [parent, cur] of ancestorPathSteps(path)) {
+    if (!parent.node || !isPatternTargetSlot(parent.node, cur.node)) return false;
+    if (parent.node.type === 'ObjectPattern' && hasRestSiblingExcept(parent.node.properties, null)) return true;
+  }
+  return false;
+}
+
 export function bareAssignmentPatternLeafPath(path) {
   let hops = 0;
   for (const [parent, cur] of ancestorPathSteps(peelTransparentExprAncestorPath(path))) {
@@ -8889,10 +9110,11 @@ function memberShapeSignature(node) {
 
 // flatten a for-of/for-in LHS or destructuring-assignment LHS (bare member, or nested in
 // object / array / rest / default patterns) into every MemberExpression that receives a write
-function collectForXWriteMembers(node, out) {
+export function collectForXWriteMembers(node, out) {
   if (!node) return;
   switch (node.type) {
     case 'MemberExpression':
+    case 'OptionalMemberExpression':
       out.push(node);
       return;
     case 'ObjectPattern':
@@ -9201,29 +9423,15 @@ export function unwrapCollectingSePrefixes(node, prefixes) {
   return node;
 }
 
-// extract the single return expression of a function-like body. arrow expression-body
-// returns directly; block bodies must contain EXACTLY one ReturnStatement and any other
-// statement type bails - the inlined replacement at the caller swaps the entire call site
-// for the extracted return expression, so anything besides a side-effect-only prefix would
-// be silently lost. allowlist:
-//   - ReturnStatement (must appear exactly once)
-//   - ExpressionStatement (`calls++;` / `'use strict';` / `console.log(x);`) - preserved
-//     via caller's `meta.sideEffects` channel + SE-wrap (see `inlineCallHasObservableEffects`)
-// EVERYTHING ELSE bails - declarations introduce local bindings that shadow caller-scope
-// free identifiers; control-flow (IfStatement / TryStatement / ForStatement / SwitchStatement
-// / ThrowStatement / WhileStatement / DoWhileStatement / etc.) carries branches the scan
-// can't statically pick. without the strict gate, a body like `if (cond) return X; return Y;`
-// would resolve to Y, ignoring the conditional branch - silent semantic mismatch
-// resolve a callee body to its single returned expression. a BLOCK body is accepted only when its
-// statements cannot change what the return yields - today that means expression statements only.
-// DECLARATIONS were accepted for a while (the value proof is really about whether the return READS
-// what the block binds, and rejecting them lost the chain's static claim for the commonest block
-// body there is) and the relaxation was REVERTED by measurement: it lets the buried-root claim erase
-// a receiver whose block still needs a scoped `var`, and the queue has no slot for that var - the
-// insert's nearest owner is the erasing claim, the caller's raw re-emit then collides with it, and
-// the build aborts. reaching it again needs the span-ownership decision recorded in the queue, not
-// a wider gate here
-export function singleReturnBodyExpression(body) {
+// the single return expression of a function-like body. arrow bodies return directly; blocks
+// accept exactly one ReturnStatement and ExpressionStatements. a caller replacing the BODY must
+// preserve those expressions through its side-effect channel, and cannot carry local declarations
+// into the caller's scope. `preservesBody` is the narrower promise that the original body keeps
+// running: local declarations then stay too, provided the returned expression reads none of their
+// bindings. that check includes declarations AFTER the return, whose var hoisting / lexical TDZ
+// still shadows outer names. control flow stays refused: one top-level return does not prove that
+// a nested branch cannot return another value
+export function singleReturnBodyExpression(body, { preservesBody = false } = {}) {
   if (!body) return null;
   if (body.type !== 'BlockStatement') return body;
   let ret = null;
@@ -9233,8 +9441,11 @@ export function singleReturnBodyExpression(body) {
       ret = stmt;
       continue;
     }
-    if (stmt.type !== 'ExpressionStatement') return null;
+    if (stmt.type !== 'ExpressionStatement' && !(preservesBody && stmt.type === 'VariableDeclaration')) return null;
   }
+  if (preservesBody && body.body.some(stmt => stmt.type === 'VariableDeclaration'
+    && stmt.declarations.some(decl => patternBindsIdentifier(decl.id,
+      id => identifierReferencedInSubtree(ret?.argument, id.name))))) return null;
   return ret?.argument ?? null;
 }
 
@@ -9376,17 +9587,16 @@ function commonJSAssignRootName(left) {
 // (detect-usage + detect-entry walk the same one)
 const REQUIRE_SHADOW_CACHE = new WeakMap();
 
-// takes the PROGRAM node, not a bare body: half the answer is the Annex-B block-function hoist,
-// which exists only in sloppy code, and a statement array carries no `sourceType` to ask
+// takes the Program so the cached var-scope index can answer nested declarations too. Annex B
+// adds nothing for `require`: modules are strict, and a CommonJS wrapper takes it as a parameter.
+// This query therefore needs no format/strictness verdict and can run during the format census.
 export function declaresRequireBinding(program) {
   if (program?.type !== 'Program') return false;
   if (REQUIRE_SHADOW_CACHE.has(program)) return REQUIRE_SHADOW_CACHE.get(program);
   const result = (program.body ?? []).some(statementShadowsRequireAtProgramScope)
-    // the `var` and Annex-B halves are ONE canonical pair, and this used to re-derive only the
-    // first of them - `collectScopeVars` ignores a FunctionDeclaration by contract, so a
-    // block-hoisted `function require(){}` shadowed the loader for the runtime and not for us.
-    // a synthesised path is enough: `isSloppyAtPath` takes one step and reads `Program.sourceType`
-    || functionScopeBindsVarOrFunction({ node: program }, 'require');
+    // Direct functions/classes/lexicals were checked above; only hoisted vars remain. Asking
+    // the general var-or-Annex-B predicate would memoise strictness before format publication.
+    || cachedScopeVars(program).has('require');
   REQUIRE_SHADOW_CACHE.set(program, result);
   return result;
 }
@@ -9514,7 +9724,7 @@ export const CJS_WRAPPER_PARAM_NAMES = new Set(['module', 'exports', 'require', 
 // statement-level scan this replaces saw neither. `import()` is NOT module evidence - a dynamic
 // import is legal in a script - and neither is script-only SYNTAX (`with`, HTML comments, legacy
 // octals), which babel's parser rejects before a tree ever reaches us
-function moduleFormatReducer() {
+export function moduleFormatReducer(onResult = null) {
   // the wrapper's five free names are the only ones an evidence site reads, so the index carries
   // nothing else
   const declarations = createDeclaredNameIndex(CJS_WRAPPER_PARAM_NAMES);
@@ -9567,7 +9777,10 @@ function moduleFormatReducer() {
       // it reads: `function f(module) { module.exports = 1 }` spells the author's own object, and
       // widening the scan to the whole file is exactly what makes that shadow load-bearing
       const cjs = evidence.some(({ name, frame }) => !declarations.declares(name, frame.scopes));
-      return { moduleFormat: { hasLiveESM: esm, hasCJS: cjs, nestedAwait } };
+      const moduleFormat = { hasLiveESM: esm, hasCJS: cjs, nestedAwait };
+      // Publish before subsequent reducers resolve facts that depend on the file's strictness.
+      onResult?.(moduleFormat);
+      return { moduleFormat };
     },
   };
 }
@@ -9578,11 +9791,11 @@ const MODULE_FORMAT_CACHE = new WeakMap();
 
 // what the BODY spells: `{ hasLiveESM, hasCJS }`. the two are independent - a source can spell
 // both, and that mixture is what no injection spelling can make loadable
-export function moduleFormatMarkers(program) {
+export function moduleFormatMarkers(program, observed = null) {
   if (!program || typeof program !== 'object') return { hasLiveESM: false, hasCJS: false };
   let markers = MODULE_FORMAT_CACHE.get(program);
   if (!markers) {
-    const { hasLiveESM, hasCJS, nestedAwait } = collectFileCensus(program, [moduleFormatReducer()]).moduleFormat;
+    const { hasLiveESM, hasCJS, nestedAwait } = observed ?? collectFileCensus(program, [moduleFormatReducer()]).moduleFormat;
     // the census answered every await its frames can see; only a file carrying one they read as
     // NESTED pays the canonical walk, which additionally reaches the class definition-time slots
     markers = {
@@ -9651,8 +9864,9 @@ export function resolveModuleFormat({
   declaredSourceType = null,
   importStyleOption = null,
   consumesESM = null,
+  moduleFormat = null,
 }) {
-  const markers = moduleFormatMarkers(program);
+  const markers = moduleFormatMarkers(program, moduleFormat);
   // a caller with no program at all gets the same degradation the census gives it - a module with
   // the option's own spelling - rather than a throw out of the verdict store below
   if (!program || typeof program !== 'object') {
@@ -10563,6 +10777,14 @@ export function trustedIdentifierAliasWrite({ scope, name, adapter, path, readNo
   if (!adapter?.findTrustedAliasWrite) return null;
   const write = adapter.findTrustedAliasWrite(scope, name, { requirePlacement: false });
   if (!write || write.left?.type !== 'Identifier' || write.left.name !== name) return null;
+  if (writeIsInOppositeBranch(write, path, readNode ?? path?.node)) {
+    const binding = adapter.getBinding?.(scope, name, path);
+    if (binding && noReassignmentReachesUsage({
+      reassignmentNodes: [write], usagePath: path, usageNode: readNode,
+      bindingScopeNode: binding.scope?.block ?? binding.scope?.path?.node,
+      bindingAnchor: bindingLoopAnchor(binding),
+    })) return null;
+  }
   // ... or the READ's own span proves it - the evidence the PATTERN arm of the same follow already
   // accepts: a source read beginning past the write's end runs after it, which is what a sequence
   // spells (`(g = globalThis, v = g.window.self)`). a rebuilt node carries no span and declines, so

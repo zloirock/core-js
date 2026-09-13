@@ -115,6 +115,12 @@ function syntheticCallDenseTopLevel(sites) {
   return parts.join('\n');
 }
 
+// Both axes grow: repeated parameter reads must share the body and all-callers proof. Rechecking
+// the body or the supplied sources at every read makes this quadratic despite a tiny key set.
+function syntheticNamespaceParameterReads(sites) {
+  return `function read(ns) { ${ 'ns.ownKeys({});'.repeat(sites) } } ${ 'read(Reflect);'.repeat(sites) }`;
+}
+
 // an opt-out directive per statement on a long top level: the directive scan spans each `-next-line`
 // over the statement it covers, and a scan that re-reads the whole top level per directive is
 // quadratic in (directives x statements) - the esrap leg pays it again in the channel that re-anchors
@@ -144,14 +150,28 @@ function syntheticSharedParamWrites(installers) {
 // the census keys its container records by DECLARATION, and a name-only question about a slot
 // unions every declaration of that name in the file: asked per member read, over a file whose
 // functions all spell their locals alike (`r`, `a`, `t` - ordinary code), that union walks every
-// namesake per read and the pre-pass goes quadratic in (functions x reads). no other case here
-// declares one container name in many scopes, and the real bundles keep their locals unique
+// namesake per read and the pre-pass goes quadratic in (functions x reads). The extracted `values`
+// binding also repeats in every scope, gating the injector's same-name span index. No other case here
+// declares both container and extracted names in many scopes, and real bundles routinely reuse them
 function syntheticSharedContainerNames(functions) {
   const parts = [];
   for (let i = 0; i < functions; i++) {
     parts.push(`function f${ i }(t) { const r = { w: Object }; const a = r.w; const { values } = a; return values(t); }`);
   }
   return parts.join('\n');
+}
+
+// Pairing each binding with all same-name container candidates must not resolve its siblings
+// against those candidates too. Width in both the pattern and literal exposes that extra factor.
+function syntheticWideContainerPatterns(width, functions) {
+  const keys = Array.from({ length: width }, (unused, i) => `p${ i }`);
+  const literal = keys.map(key => `${ key }: Map`).join(', ');
+  const names = keys.join(', ');
+  return Array.from({ length: functions }, (unused, i) => `export function wide${ i }() {
+    const data = { ${ literal } };
+    const { ${ names } } = data;
+    return [${ names }];
+  }`).join('\n');
 }
 
 function threeBuild(file) {
@@ -212,6 +232,9 @@ const CASES = [
   { name: 'vue runtime-core, container-dense bundle', source: () => vueRuntimeCore(), bounds: {
     'usage-global': { babel: 5, unplugin: 4 }, 'usage-pure': { babel: 5, unplugin: 4 },
   } },
+  { name: 'synthetic wide container patterns, 256 slots in 8 scopes', source: () => syntheticWideContainerPatterns(256, 8), bounds: {
+    'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
+  } },
   { name: 'synthetic single-scope, 2000 reassigned names', source: () => syntheticSingleScope(2000), bounds: {
     'usage-global': { babel: 3, unplugin: 3 }, 'usage-pure': { babel: 4, unplugin: 3 },
   } },
@@ -225,6 +248,10 @@ const CASES = [
   } },
   { name: 'synthetic shared container names, 2000 functions', source: () => syntheticSharedContainerNames(2000), bounds: {
     'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
+  } },
+  { name: 'synthetic namespace parameter, 1200 reads and callers', source: () => syntheticNamespaceParameterReads(1200), bounds: {
+    'usage-global': { babel: 3, unplugin: 3 },
+    'usage-pure': { babel: 3, unplugin: 3 },
   } },
   { name: 'synthetic call-dense top level, 12000 sites', source: () => syntheticCallDenseTopLevel(12000), bounds: {
     'usage-global': { babel: 3, unplugin: 3 }, 'usage-pure': { babel: 5, unplugin: 5 },

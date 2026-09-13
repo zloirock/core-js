@@ -4,8 +4,13 @@
 // between them is a regression whichever side is wrong
 import {
   enumerateFallbackDestructureBranches,
+  fallbackBranchSwapKeepsSelection,
+  instanceSynthReceiverPure,
   isViableBranchForKey,
+  paramDefaultInstanceSynthAllowed,
+  planSynthReceiverGuard,
 } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
+import { unwrapRuntimeExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createChecker } from './harness.mjs';
 
 const { check, checkDeep, finish, runBoth } = createChecker('fallback-branches');
@@ -106,6 +111,74 @@ runBoth('enumerate/destructure leaf enumerates the branches', INDIRECT, (adapter
   const meta = { kind: 'property', object: null, key: 'from', placement: null };
   const branches = enumerateFallbackDestructureBranches(meta, prop, pluginAdapter(adapter, 'usage-global'), { followIndirection: true });
   checkDeep(lbl, branches?.map(branch => branch.object), ['Array', 'Object']);
+});
+
+// The receiver spelling must not decide whether an instance slot gets its helper. A pure
+// constructor navigation can replace the receiver whole; effects, a live guard, or a changed
+// global slot cannot be discarded by this flat synth.
+for (const [label, source, allowed, pureName, mutated = false] of [
+  ['bare constructor', 'function take({ name } = Symbol) {}', true, 'Symbol'],
+  ['member constructor', 'function take({ name } = globalThis.Symbol) {}', true, 'Symbol'],
+  ['computed constructor', 'function take({ name } = globalThis["Symbol"]) {}', true, 'Symbol'],
+  ['realm alias', 'const realm = globalThis; function take({ name } = realm.Symbol) {}', true, 'Symbol'],
+  ['proxy hop', 'function take({ name } = globalThis.self.Symbol) {}', true, 'Symbol'],
+  ['two slots', 'function take({ name, length } = globalThis.Symbol) {}', true, 'Symbol'],
+  ['shadowed root', 'function take(globalThis, { name } = globalThis.Symbol) {}', true, null],
+  ['absent probe', 'function take({ name } = globalThis.window?.Symbol) {}', false, null],
+  ['sealed probe', 'function take({ name } = (globalThis.window?.self).Symbol) {}', false, null],
+  ['key effect', 'function take({ name } = globalThis[(tick(), "Symbol")]) {}', false, null],
+  ['root effect', 'function take({ name } = (tick(), globalThis).Symbol) {}', false, null],
+  ['changed slot', 'function take({ name } = globalThis.Symbol) {}', false, null, true],
+]) runBoth(`instance synth/${ label }`, source, (adapter, prog, lbl) => {
+  const assignment = adapter.pickPath(prog, 'AssignmentPattern');
+  const receiver = unwrapRuntimeExpr(assignment.node.right);
+  const ctx = {
+    scope: assignment.scope, path: assignment,
+    adapter: {
+      ...pluginAdapter(adapter),
+      isMutatedStatic(object, key) { return mutated && object === 'globalThis' && key === 'Symbol'; },
+    },
+    resolvePure(meta) {
+      return meta.kind === 'global' && ['Symbol', 'globalThis', 'self'].includes(meta.name)
+        ? { kind: 'global', entry: meta.name, hintName: meta.name } : null;
+    },
+  };
+  check(`${ lbl } gate`, paramDefaultInstanceSynthAllowed({
+    objectPatternNode: assignment.node.left, receiverNode: receiver, ...ctx,
+  }), allowed);
+  check(`${ lbl } binding`, instanceSynthReceiverPure(receiver, ctx)?.entry ?? null, pureName);
+});
+
+// A logical left observes the receiver's nullish value even when the logical itself is
+// a parameter default. It may synthesize a method only while retaining that selection.
+for (const [label, source, selection, guarded, viable, mutated = false] of [
+  ['optional nullish left', 'const { from } = globalThis.window?.Array ?? Object;', true, true, true],
+  ['parameter default', 'function f({ from } = globalThis.window?.Array ?? Object) {}', true, true, true],
+  ['inner default', 'const { x: { from } = globalThis.window?.Array || Object } = {};', true, true, true],
+  ['effectful left', 'const { from } = (tick(), globalThis).window?.Array ?? Object;', true, true, true],
+  ['bare probe', 'const { from } = globalThis.window ?? Object;', false, false, false],
+  ['sealed left', 'const { from } = (globalThis.window?.self).Array ?? Object;', true, false, true],
+  ['defined left', 'const { from } = Array ?? Object;', true, false, true],
+  ['shadowed root', 'function f(globalThis) { const { from } = globalThis.window?.Array ?? Object; }', true, false, false],
+  ['changed static', 'const { from } = globalThis.window?.Array ?? Object;', true, true, false, true],
+]) runBoth(`branch guard/${ label }`, source, (adapter, prog, lbl) => {
+  const logical = adapter.pickPath(prog, 'LogicalExpression');
+  const ctx = {
+    scope: logical.scope, path: logical,
+    adapter: {
+      ...pluginAdapter(adapter),
+      isMutatedStatic(object, key) { return mutated && object === 'Array' && key === 'from'; },
+    },
+    resolvePure(meta) {
+      if (meta.kind !== 'global') return resolvePure(meta);
+      return ['globalThis', 'self'].includes(meta.name) ? { entry: meta.name, hintName: meta.name } : null;
+    },
+  };
+  check(`${ lbl } selection`, fallbackBranchSwapKeepsSelection({
+    hostNode: logical.node, slot: 'left', branchNode: logical.node.left, ...ctx,
+  }), selection);
+  check(`${ lbl } guard`, !!planSynthReceiverGuard({ receiver: logical.node.left, ...ctx }), guarded);
+  check(`${ lbl } static`, !!isViableBranchForKey({ branch: logical.node.left, key: 'from', ...ctx }), viable);
 });
 
 finish();

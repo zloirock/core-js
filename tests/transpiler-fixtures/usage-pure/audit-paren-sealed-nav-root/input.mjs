@@ -13,9 +13,8 @@ export function viaParamDefault(x = (globalThis.window?.self.window)?.Number.MAX
 // nested test guards it
 export const viaUnsealedChain = globalThis.window?.self.window?.Map;
 
-// NEGATIVE: a PLAIN value-use of the sealed nav collapses to the root - the internal `?.`
-// short-circuits only the sealed value, the plain read observes it (throw semantics), and the
-// non-claimable leaf keeps the locked navigation-drop canon
+// A plain read above a sealed optional value keeps the source read and its throw.
+// The sealed value retains its terminal environment probe over the backed root.
 export const viaPlainValueUse = (globalThis.window?.self.window).Array;
 
 // the sealed root serves every OPTIONAL claim spelling like the alias of the same value:
@@ -59,9 +58,8 @@ let c4 = 0;
 export function viaSealedSeKeySynthDefault({ setPrototypeOf: sp2 } = (globalThis.window?.[(c4++, 'self')]).Object) { return sp2; }
 export { c4 };
 
-// synth NEGATIVES: an unresolvable prop sibling bails the whole synth (the raw default IS
-// the destructure source - its read carries the throw); an empty pattern keeps the
-// guard-value render of the source (nothing extracts, the read still probes)
+// A custom sibling retains its source read beside the synthesized polyfilled property.
+// An empty pattern keeps the guarded receiver because coercion can still throw.
 export function viaSealedSynthResidualBail({ groupBy: sn1, customK: sn2 } = (globalThis.window?.self.window).Object) { return [sn1, sn2]; }
 export const {} = (globalThis.window?.self.window).Math;
 
@@ -84,10 +82,8 @@ class SealedHost {
 export const sealedHost = new SealedHost();
 export { c6 };
 
-// probed NEGATIVES locked verbatim: an SE-key sealed receiver with an unresolvable prop
-// sibling bails the synth WHOLE (a hybrid would run the key SE twice); a fallback-LOGICAL
-// with a non-collapsible right keeps the raw branch pair; a MUTATED `self` slot deopts the
-// probe render (the read must observe the user's replacement, raw)
+// A synthesized property beside a custom sibling evaluates a source key effect once.
+// A sealed receiver that throws before producing its value does not reach its fallback.
 let c7 = 0;
 export function viaSealedSeKeyResidualBail({ getOwnPropertyNames: nb1, customK: nb2 } = (globalThis.window?.[(c7++, 'self')]).Object) { return [nb1, nb2]; }
 export function viaSealedLogicalRawBail({ seal: nb3 } = (globalThis.window?.self.window).Object || {}) { return nb3; }

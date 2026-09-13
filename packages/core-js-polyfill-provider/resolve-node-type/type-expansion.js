@@ -576,7 +576,7 @@ export function createTypeExpansion({
     return false;
   }
 
-  function compareArgLists(a, b, keyDomain) {
+  function compareArgLists(a, b, keyDomain, aMembers, bMembers) {
     // only one side wrote its parameters. A bare container means all-`any` and matches whatever the
     // other carries, but that reading is the caller's `extendIsUnconstrained` to make from the AST -
     // reached here, the bare side is one this layer merely failed to fill in
@@ -596,7 +596,10 @@ export function createTypeExpansion({
       }
       const pick = compareArgSlot(arg, b[index]);
       if (pick === false) return false;
-      if (pick === null) verdict = null;
+      if (pick === null) {
+        if (compareMemberShapes(aMembers?.[index], bMembers?.[index]) === false) return false;
+        verdict = null;
+      }
     }
     return verdict;
   }
@@ -854,8 +857,12 @@ export function createTypeExpansion({
       // a container whose parameters have no element slot carries them as a LIST, and that list is
       // the whole relation - the inner-slot sub-cases below read an emptiness these two never fill
       if (check.args || extend.args) {
-        return compareArgLists(check.args, extend.args, check.keyDomainArgs && extend.keyDomainArgs);
+        return compareArgLists(check.args, extend.args, check.keyDomainArgs && extend.keyDomainArgs,
+          check.argumentMembers, extend.argumentMembers);
       }
+      // A missing required member disproves the relation even when neither element has a
+      // dispatch type. Equality of these maps adds no new TRUE shortcut.
+      if (compareMemberShapes(check.argumentMembers?.[0], extend.argumentMembers?.[0]) === false) return false;
       const innerPick = compareInnerChains(check, extend);
       if (innerPick === true) return true;
       // a level whose inner was elided is unknowable in BOTH directions - fold both branches

@@ -1,12 +1,10 @@
-// four more claims the differential caught the engine DROPPING, all with the fixture
-// gate green: a bodyless SE-key sentinel over a receiver only a memo can re-read, the same over
-// an EFFECTFUL init the memo evaluates once, an instance synth slot whose receiver is spelled
-// exactly once, and a receiver-bearing default one level in - in a declarator, an assignment
-// and a catch parameter alike
+// Bodyless computed-key destructures evaluate the receiver once and extract properties in order.
+// Instance parameter defaults retain their receiver-read limits. Nested defaults belong to their
+// own receiver slot in declarations, assignments and catch parameters.
 const log = [];
 const cond = true;
-// a bodyless slot memoizes whatever the init's shape: the sentinel residual and the extraction
-// both read the memo, so a ternary / logical / sequence-tail receiver is re-readable there
+// A bodyless slot evaluates its receiver once, checks object coercibility, converts the computed key,
+// extracts the method, then reads residual siblings in source order.
 export const a1 = (() => { if (cond) var { [(log.push('k'), 'findLast')]: m, other } = 1 ? Array.prototype : []; return [typeof m, typeof other]; })();
 export const a2 = (() => { if (cond) var { [(log.push('k'), 'flatMap')]: m, other } = null || Array.prototype; return [typeof m, typeof other]; })();
 export const a3 = (() => { let i = 0; do var { [(log.push('k'), 'at')]: m, other } = (log.push('t'), Array.prototype); while (i++ < 0); return [typeof m, typeof other]; })();

@@ -2,6 +2,30 @@
 // Polyfilled methods as callbacks, stored references, and higher-order usage
 
 // callbacks
+QUnit.test('local method result: static calls preserve receiver and argument effects', assert => {
+  const events = [];
+  const source = { read() {
+    events.push('method');
+    return Map;
+  } };
+  const result = source.read(events.push('receiver-argument')).groupBy((events.push('static-argument'), [1, 2, 1]), value => value);
+  assert.deepEqual(result.get(1), [1, 1]);
+  assert.deepEqual(events, ['receiver-argument', 'method', 'static-argument']);
+});
+
+QUnit.test('local method result: stored and destructured statics remain usable', assert => {
+  let calls = 0;
+  const source = { read() {
+    calls++;
+    return Map;
+  } };
+  const Constructor = source.read();
+  const { groupBy } = source.read();
+  assert.deepEqual(Constructor.groupBy([1], value => value).get(1), [1]);
+  assert.deepEqual(groupBy([2], value => value).get(2), [2]);
+  assert.same(calls, 2);
+});
+
 QUnit.test('callback: Number.isFinite as filter', assert => {
   assert.deepEqual([1, Infinity, 2, NaN, 3].filter(Number.isFinite), [1, 2, 3]);
 });

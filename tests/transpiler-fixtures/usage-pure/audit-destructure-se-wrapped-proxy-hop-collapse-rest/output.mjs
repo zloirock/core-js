@@ -1,10 +1,9 @@
-import _Array$from from "@core-js/pure/actual/array/from";
 import _self from "@core-js/pure/actual/self";
-sideEffect();
-const from = _Array$from;
+// Object-rest keeps the affected pattern native, including inside an array wrapper.
+// Independent reads and key/default expressions still receive their own polyfills.
 const {
-  from: _unused,
+  from,
   ...rest
-} = _self.Array;
+} = (sideEffect(), _self.Array);
 from([1, 2, 3]);
 rest;

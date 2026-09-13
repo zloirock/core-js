@@ -1,15 +1,9 @@
-import _Array$from from "@core-js/pure/actual/array/from";
-import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
-const f = _Array$from;
-const it = _getIteratorMethod(Array);
-// composition of two destructure pipelines over one declarator: the array-wrapped static
-// extract claims the literal-keyed prop (preceding decl + rest sentinel), the symbol-key
-// handling rebuilds the declarator - the rebuild must render the claimed prop VERBATIM
-// so the claimer's own rewrites land in it (a re-consume double-sentinels the prop)
+// Object-rest keeps the affected pattern native, including inside an array wrapper.
+// Independent reads and key/default expressions still receive their own polyfills.
 const [{
-  'from': _unused,
-  [_Symbol$iterator]: _unused2,
+  'from': f,
+  [_Symbol$iterator]: it,
   ...r
 }] = [Array];
 f([1]);

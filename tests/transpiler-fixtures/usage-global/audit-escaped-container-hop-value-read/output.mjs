@@ -23,7 +23,6 @@ import "core-js/modules/es.object.seal";
 import "core-js/modules/es.object.to-string";
 import "core-js/modules/es.object.values";
 import "core-js/modules/es.array.iterator";
-import "core-js/modules/es.array.from";
 import "core-js/modules/es.global-this";
 import "core-js/modules/es.map.constructor";
 import "core-js/modules/es.map.species";
@@ -39,27 +38,15 @@ import "core-js/modules/es.set.is-subset-of";
 import "core-js/modules/es.set.is-superset-of";
 import "core-js/modules/es.set.symmetric-difference";
 import "core-js/modules/es.set.union";
-import "core-js/modules/es.string.from-code-point";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/es.weak-map.constructor";
 import "core-js/modules/es.weak-map.get-or-insert";
 import "core-js/modules/es.weak-map.get-or-insert-computed";
 import "core-js/modules/es.weak-set.constructor";
 import "core-js/modules/web.dom-collections.iterator";
-import "core-js/modules/web.url.constructor";
-import "core-js/modules/web.url.to-json";
-import "core-js/modules/web.url-search-params.constructor";
-import "core-js/modules/web.url-search-params.delete";
-import "core-js/modules/web.url-search-params.has";
-import "core-js/modules/web.url-search-params.size";
-// a VALUE read through a container hop that holds a proxy global resolves like every other
-// position the same chain appears in. the escape a call argument (or a return) performs re-homes
-// the slot the read LANDS on - `ns.g.Map`, not the `ns.g` it navigates through - so the receiver
-// walk keeps descending the literal. the two negatives - a slot whose own value was handed out, and
-// a slot this file replaced - are method-aware consults answered in usage-pure, which leaves both
-// reads native; usage-global keeps resolving and over-injects for the SUBSTITUTION, while the escape
-// census reads the replacement itself, so a read landing on it owes no family. each row names its
-// OWN global, or one row's family would answer for another's there
+// Reading a constructor through a container preserves its global claim.
+// Escaping a nested value does not replace its parent slot.
+// A fresh replacement removes the old realm candidate; its URL stays null.
 const ns = {
   g: globalThis
 };

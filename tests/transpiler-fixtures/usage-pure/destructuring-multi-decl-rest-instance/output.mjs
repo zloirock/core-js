@@ -1,12 +1,10 @@
-import _at from "@core-js/pure/actual/instance/at";
-import _includes from "@core-js/pure/actual/instance/includes";
-const includes = _includes(obj);
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
 const {
-  includes: _unused,
-  ...rest
-} = obj;
-const at = _at(obj2);
-const {
-  at: _unused2,
-  ...rest2
-} = obj2;
+    includes,
+    ...rest
+  } = obj,
+  {
+    at,
+    ...rest2
+  } = obj2;

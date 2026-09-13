@@ -11,11 +11,15 @@ import {
   isTopLevelImportLike,
   programPrologueEndIndex,
   prologueEndIndex,
+  isDirectiveStatement,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { resolveImportPath } from '@core-js/polyfill-provider/helpers/path-normalize';
-import { renderInjectedImportNodes } from '@core-js/polyfill-provider/render';
-import { isDirectiveStatement } from './plugin-helpers.js';
-import { identifier, variableDeclaration, variableDeclarator } from './builders.js';
+import {
+  renderInjectedImportNodes,
+  identifier,
+  variableDeclaration,
+  variableDeclarator,
+} from '@core-js/polyfill-provider/render';
 
 export default class ImportInjector extends ImportInjectorState {
   // refs already emitted by a prior flush (or inherited from pre via snapshot).

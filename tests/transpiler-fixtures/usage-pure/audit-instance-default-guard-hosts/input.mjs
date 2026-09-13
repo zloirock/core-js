@@ -1,5 +1,5 @@
-// HOST axis of the instance-default guard: every binding host preserves the user default
-// behind the `=== void 0` guard, and a split host keeps the native per-prop order
+// Every binding host preserves user defaults for undefined extraction results.
+// Split declarations keep the native per-property order, scope and exported bindings.
 
 // plain block declaration, unknown receiver - the per-prop channel's guard
 const { at: a = dfltA() } = recvA;

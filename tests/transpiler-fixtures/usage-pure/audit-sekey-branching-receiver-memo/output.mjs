@@ -12,48 +12,46 @@ import _keys from "@core-js/pure/actual/instance/keys";
 import _values from "@core-js/pure/actual/instance/values";
 import _Promise from "@core-js/pure/actual/promise/constructor";
 import _self from "@core-js/pure/actual/self";
-// a side-effect-key instance destructure off a side-effect-free BRANCHING receiver (ternary /
-// logical) memoizes the receiver into a `_ref` read once - the branch selects exactly once,
-// like the native single read - and extracts the polyfill off the memo. the key effect stays
-// in the kept residual key (runs once); Maybe-dispatch keeps a diverging branch value-correct
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
 let k1 = 0;
 var _ref = _Promise.prototype ? [7, 8] : [],
+  _ref2 = _ref,
+  a1 = null == _ref2 ? _ref2[""] : (k1++, _atMaybeArray(_ref2)),
   {
-    [(k1++, 'at')]: _unused,
     other1
-  } = _ref,
-  a1 = _atMaybeArray(_ref);
+  } = _ref;
 export const r1 = [typeof a1, k1];
 // logical `||` receiver
 let k2 = 0;
 const arr2 = [1];
-var _ref2 = arr2 || [],
+var _ref3 = arr2 || [],
+  _ref4 = _ref3,
+  f2 = null == _ref4 ? _ref4[""] : (k2++, _flatMaybeArray(_ref4)),
   {
-    [(k2++, 'flat')]: _unused2,
     other2
-  } = _ref2,
-  f2 = _flatMaybeArray(_ref2);
+  } = _ref3;
 export const r2 = [typeof f2, k2];
 // logical `??` receiver
 let k3 = 0;
 const arr3 = [2];
-var _ref3 = arr3 ?? [],
+var _ref5 = arr3 ?? [],
+  _ref6 = _ref5,
+  inc3 = null == _ref6 ? _ref6[""] : (k3++, _includesMaybeArray(_ref6)),
   {
-    [(k3++, 'includes')]: _unused3,
     other3
-  } = _ref3,
-  inc3 = _includesMaybeArray(_ref3);
+  } = _ref5;
 export const r3 = [typeof inc3, k3];
 // logical `&&` receiver
 let k4 = 0;
 const arr4 = [3],
   arr5 = [4];
-var _ref4 = arr4 && arr5,
+var _ref7 = arr4 && arr5,
+  _ref8 = _ref7,
+  fl4 = null == _ref8 ? _ref8[""] : (k4++, _findLastMaybeArray(_ref8)),
   {
-    [(k4++, 'findLast')]: _unused4,
     other4
-  } = _ref4,
-  fl4 = _findLastMaybeArray(_ref4);
+  } = _ref7;
 export const r4 = [typeof fl4, k4];
 // diverging ternary (user-object branch): Maybe-dispatch keeps the user branch value-correct
 let k5 = 0;
@@ -61,80 +59,75 @@ const userObj = {
   flatMap: undefined
 };
 function pick(c) {
-  var _ref5 = c ? [5] : userObj,
+  var _ref9 = c ? [5] : userObj,
+    _ref10 = _ref9,
+    fm = null == _ref10 ? _ref10[""] : (k5++, _flatMapMaybeArray(_ref10)),
     {
-      [(k5++, 'flatMap')]: _unused5,
       other5
-    } = _ref5,
-    fm = _flatMapMaybeArray(_ref5);
+    } = _ref9;
   return typeof fm;
 }
 export const r5 = [pick(true), pick(false), k5];
-// nested branching fragment off a pure init hoists the fragment memo
+// A nested branching receiver keeps its selected slot ahead of the key and sibling read.
 let k6 = 0;
-const _ref6 = _Promise.prototype ? [1] : [];
-const v6 = _valuesMaybeArray(_ref6);
-const {
-  y: {
-    [(k6++, 'values')]: _unused6
+const _ref12 = {
+    y: _Promise.prototype ? [1] : [],
+    z6: 1
   },
-  z6
-} = {
-  y: _ref6,
-  z6: 1
-};
+  {
+    y: _ref11
+  } = _ref12,
+  _ref13 = _ref11,
+  v6 = null == _ref13 ? _ref13[""] : (k6++, _valuesMaybeArray(_ref13)),
+  {
+    z6
+  } = _ref12;
 export const r6 = [typeof v6, k6, z6];
-// sole-prop pattern memoizes too: the kept key effect still reads the residual, so the
-// receiver has two readers (residual + extract) and the memo is the only sound single-read
+// A sole property also captures its RHS before the key effect and reads the method once.
 let k7 = 0;
-var _ref7 = _Promise.prototype ? [9] : [];
-var ks7 = _keysMaybeArray(_ref7);
-var {
-  [(k7++, 'keys')]: _unused7
-} = _ref7;
+var _ref14 = _Promise.prototype ? [9] : [],
+  ks7 = null == _ref14 ? _ref14[""] : (k7++, _keysMaybeArray(_ref14));
 export const r7 = [typeof ks7, k7];
-// for-init sibling-declarator host takes the memo as a preceding declarator
+// A for-init declaration captures its receiver before the key and later declarators.
 let k8 = 0,
   out8 = '';
-for (var _ref8 = 1 ? [6] : [], {
-    [(k8++, 'entries')]: _unused8,
+for (var _ref15 = 1 ? [6] : [], _ref16 = _ref15, e8 = null == _ref16 ? _ref16[""] : (k8++, _entriesMaybeArray(_ref16)), {
     other8
-  } = _ref8, e8 = _entriesMaybeArray(_ref8), i8 = 0; i8 < 1; i8++) out8 = typeof e8;
+  } = _ref15, i8 = 0; i8 < 1; i8++) out8 = typeof e8;
 export const r8 = [out8, k8];
-// the memoize channel also takes the WHOLE INIT of a top-level multi-prop pattern when the
-// receiver resolves to no single-read-safe node - the memo evaluates exactly where the init
-// did, so every buried effect runs once in source order, whatever the expression shape
+// An opaque initializer is captured where the source evaluates it, so each buried effect
+// runs once before the key and property reads.
 let k9 = 0,
   calls9 = 0;
 function mk9() {
   calls9++;
   return [9];
 }
-var _ref9 = mk9(),
+var _ref17 = mk9(),
+  _ref18 = _ref17,
+  a9 = null == _ref18 ? _ref18[""] : (k9++, _atMaybeArray(_ref18)),
   {
-    [(k9++, 'at')]: _unused9,
     other9
-  } = _ref9,
-  a9 = _atMaybeArray(_ref9);
+  } = _ref17;
 export const r9 = [typeof a9, k9, calls9];
 // SE-bearing ternary (an effectful branch value)
 let k10 = 0;
-var _ref10 = k10 >= 0 ? _Array$of([1]) : [],
+var _ref19 = k10 >= 0 ? _Array$of([1]) : [],
+  _ref20 = _ref19,
+  f10 = null == _ref20 ? _ref20[""] : (k10++, _flatMaybeArray(_ref20)),
   {
-    [(k10++, 'flat')]: _unused10,
     other10
-  } = _ref10,
-  f10 = _flatMaybeArray(_ref10);
+  } = _ref19;
 export const r10 = [typeof f10, k10];
-// sequence init with an SE-bearing tail: the memo captures the WHOLE sequence (prefix included)
+// A sequence initializer retains its effectful prefix and selected receiver together.
 let k11 = 0,
   s11 = 0;
-var _ref11 = (s11++, s11 > 0 ? _Array$of(2) : []),
+var _ref21 = (s11++, s11 > 0 ? _Array$of(2) : []),
+  _ref22 = _ref21,
+  inc11 = null == _ref22 ? _ref22[""] : (k11++, _includesMaybeArray(_ref22)),
   {
-    [(k11++, 'includes')]: _unused11,
     other11
-  } = _ref11,
-  inc11 = _includesMaybeArray(_ref11);
+  } = _ref21;
 export const r11 = [typeof inc11, k11, s11];
 // effectful computed-member receiver (getter + key effect each fire once)
 let g12 = 0;
@@ -144,87 +137,85 @@ const holder12 = {
     return [3];
   }
 };
-var _ref12 = holder12[g12++, 'p'],
+var _ref23 = holder12[g12++, 'p'],
+  _ref24 = _ref23,
+  fl12 = null == _ref24 ? _ref24[""] : (g12++, _findLastMaybeArray(_ref24)),
   {
-    [(g12++, 'findLast')]: _unused12,
     other12
-  } = _ref12,
-  fl12 = _findLastMaybeArray(_ref12);
+  } = _ref23;
 export const r12 = [typeof fl12, g12];
-// rest sibling: the kept (renamed) key is read and EXCLUDED from rest like native
 let k13 = 0;
 function mk13() {
   return [7, 8];
 }
-var _ref13 = mk13(),
-  {
-    [(k13++, 'at')]: _unused13,
-    ...rest13
-  } = _ref13,
-  a13 = _atMaybeArray(_ref13);
+var {
+  [(k13++, 'at')]: a13,
+  ...rest13
+} = mk13();
 export const r13 = [typeof a13, k13, typeof rest13];
-// optional-call init routes through the same whole-init memo
+// An optional-call initializer is evaluated once before the pattern starts reading it.
 let k14 = 0;
 const holder14 = {
   get14() {
     return [4];
   }
 };
-var _ref14 = holder14?.get14?.(),
+var _ref25 = holder14?.get14?.(),
+  _ref26 = _ref25,
+  f14 = null == _ref26 ? _ref26[""] : (k14++, _flatMaybeArray(_ref26)),
   {
-    [(k14++, 'flat')]: _unused14,
     other14
-  } = _ref14,
-  f14 = _flatMaybeArray(_ref14);
+  } = _ref25;
 export const r14 = [typeof f14, k14];
-// a proxy-hop member receiver collapses INSIDE the memo (the raw hop is undefined off-engine)
+// Proxy navigation collapses inside the captured receiver before its instance read.
 let k15 = 0;
-var _ref15 = _self.Array.prototype,
+var _ref27 = _self.Array.prototype,
+  _ref28 = _ref27,
+  a15 = null == _ref28 ? _ref28[""] : (k15++, _atMaybeArray(_ref28)),
   {
-    [(k15++, 'at')]: _unused15,
     other15
-  } = _ref15,
-  a15 = _atMaybeArray(_ref15);
+  } = _ref27;
 export const r15 = [typeof a15, k15];
-// a sequence init whose resolved TAIL sits under an impure prefix retries as the whole init:
-// the memo captures prefix and receiver together, effects once in source order
+// An effectful sequence prefix stays with the captured navigation receiver and runs once.
 let k16 = 0,
   s16 = 0;
-var _ref16 = (s16++, _self.Array.prototype),
+var _ref29 = (s16++, _self.Array.prototype),
+  _ref30 = _ref29,
+  f16 = null == _ref30 ? _ref30[""] : (k16++, _flatMaybeArray(_ref30)),
   {
-    [(k16++, 'flat')]: _unused16,
     other16
-  } = _ref16,
-  f16 = _flatMaybeArray(_ref16);
+  } = _ref29;
 export const r16 = [typeof f16, k16, s16];
-// an EXPORTED host must not export the internal memo temp: first-declarator memos plant as a
-// bare statement BEFORE the export (comma-joining would add `_ref` to the module surface)
+// An exported pattern exposes only its source bindings; generated receiver names stay private.
 let k17 = 0;
-var _ref17 = holder17.p;
-export var {
-    [(k17++, 'toSorted')]: _unused17,
+var _ref31 = holder17.p,
+  _ref32 = _ref31,
+  _u17 = null == _ref32 ? _ref32[""] : (k17++, _toSortedMaybeArray(_ref32)),
+  {
     other17
-  } = _ref17,
-  _u17 = _toSortedMaybeArray(_ref17);
+  } = _ref31;
+export { _u17, other17 };
 export const r17 = [typeof _u17, typeof other17, k17];
-// multi-declarator export host: the memo still precedes the export, the pair joins the list
+// A multi-declarator export preserves binding order and exposes only the source names.
 let k18 = 0;
-const _ref18 = holder18.p;
-export var {
-    [(k18++, 'values')]: _unused18,
+var _ref33 = holder18.p,
+  _ref34 = _ref33,
+  _u18 = null == _ref34 ? _ref34[""] : (k18++, _values(_ref34)),
+  {
     other18
-  } = _ref18,
-  _u18 = _values(_ref18),
+  } = _ref33,
   z18 = 1;
+export { _u18, other18, z18 };
 export const r18 = [typeof _u18, typeof other18, z18, k18];
-// LATER-declarator export memo keeps the comma slot (a statement hoist would run the receiver
-// read ahead of the earlier declarator's init) - the exported `_ref` is the documented residue
+// A later exported pattern keeps its receiver read after earlier initializers without
+// exporting the generated receiver name.
 let k19 = 0;
-export var z19 = 1;
-const _ref19 = holder19.p;
-export var {
-    [(k19++, 'keys')]: _unused19,
+var z19 = 1,
+  _ref35 = holder19.p,
+  _ref36 = _ref35,
+  _u19 = null == _ref36 ? _ref36[""] : (k19++, _keys(_ref36)),
+  {
     other19
-  } = _ref19,
-  _u19 = _keys(_ref19);
+  } = _ref35;
+export { z19, _u19, other19 };
 export const r19 = [z19, typeof other19, k19];

@@ -1,10 +1,7 @@
-// an alias write is TRUSTED for a read that stands in the same execution region: a function body, an
-// arrow, a parameter default and a class-field initializer all defer, but if the region never runs
-// neither does the read, so the write dominates it exactly as it does at statement level. judged
-// against the READ's own position, not against the program - the write's own placement inside the
-// region is still walked, so a genuinely conditional write stays untrusted (the last row).
-// one alias per row on purpose: a second write of the same name is the SOLE-write question, which
-// this file is not about
+// A sole alias write is trusted when it dominates the read in the same execution region.
+// Function bodies, parameter defaults and class fields keep this local relationship.
+// A conditional write requires a runtime identity check and retains the other receiver's read.
+// Separate aliases keep multiple writes out of the claim.
 let v, out;
 
 let g1;

@@ -1,7 +1,5 @@
-// the ASSIGNMENT host with a kept write and a rest: the write stays in the residual, the
-// overwrite follows; a sole full consume keeps the RHS as a statement, spread and all; a
-// MULTI-element wrapper whose paired element is a kept write keeps the raw destructure and the
-// binding takes the ponyfill right after it - the mirror may not replace what the write stores
+// Object-rest keeps the affected assignment pattern native and preserves its RHS value.
+// Independent reads and key/default expressions still receive their own polyfills.
 const seen = [];
 const eff = t => (seen.push(t), t);
 const xs = [1];

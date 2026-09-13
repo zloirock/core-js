@@ -12,6 +12,7 @@ import {
   isNullLiteralNode,
   isTypeAnnotationWrapper,
   isVoidExpression,
+  objectLevelPairedProperty,
   ownerWritePathIndex,
   positionalElementPath,
   POSSIBLE_GLOBAL_OBJECTS,
@@ -28,6 +29,8 @@ import {
   unwrapRuntimeExpr,
   varInitStaleByRedecl,
   wrapScopeBindingLookup,
+  isBareUndefinedIdentifier,
+  peelTSParenthesized,
 } from './helpers/ast-patterns.js';
 import {
   $Object,
@@ -50,10 +53,8 @@ import {
 } from './resolve-node-type/base.js';
 import {
   collectQualifiedSegments,
-  isBareUndefinedIdentifier,
   isUnionType,
   literalTypeValueNode,
-  peelTSParenthesized,
   typeRefName,
   typeRefSegments,
 } from './resolve-node-type/ast-shapes.js';
@@ -866,6 +867,7 @@ function createResolveNodeType(babelNodeType, t, {
     keyMatchesName,
     resolveMemberPropertyName,
     resolveKnownConstructor,
+    resolveGlobalSurfaceKeyPath,
     resolveRuntimeExpression,
     resolveKnownContainerType: (...args) => resolveKnownContainerType(...args),
     resolveTypeAnnotation: (...args) => resolveTypeAnnotation(...args),
@@ -874,11 +876,10 @@ function createResolveNodeType(babelNodeType, t, {
     babelBindingAdapter,
   });
 
-  // structural IDENTITY lives in its own cluster: the canonical key a shape reduces to and the
-  // member-set reading of a relation between two of them. Its one consumer is the conditional branch
-  // picker below, which asks it BEFORE the resolved-type rules - by the time a shape is a Type object
-  // every interface, class and object literal has collapsed into the same identity-less box
-  const { structuralKey, compareMemberShapes } = createStructuralKey({
+  // Structural identity and complete member maps share one collector. The conditional picker reads
+  // source shapes directly; container resolution retains argument maps before their dispatch types
+  // lose the fields needed to disprove a relation.
+  const { structuralKey, structuralMembers, compareMemberShapes } = createStructuralKey({
     getTypeMembers: (...args) => getTypeMembers(...args),
     getKeyName,
     unwrapTypeAnnotation,
@@ -1686,6 +1687,7 @@ function createResolveNodeType(babelNodeType, t, {
   const {
     resolveClassFieldType,
     resolveObjectFieldFlow,
+    callableSlotReassigned,
     staticFieldShadowable,
     instanceMemberShadowable,
     thisAnchorIsProvable,
@@ -2058,6 +2060,7 @@ function createResolveNodeType(babelNodeType, t, {
   // outputs (all just-destructured). assigns the factory's forward-declared `let`s for
   // `resolveTypeAnnotation` / `resolveConstructorType` / `resolveConstructorCallType`
   const typeAnnotationResolveCluster = createTypeAnnotationResolve({
+    structuralMembers,
     flattenUnionBranches,
     evaluateConditionalType: (...args) => evaluateConditionalType(...args),
     t,
@@ -2279,6 +2282,7 @@ function createResolveNodeType(babelNodeType, t, {
   // / `evaluateConditionalType` from the `type-expansion` cluster; the rest are factory
   // function declarations passed through closure
   ({ substituteTypeParams } = createTypeResolveDispatch({
+    structuralMembers,
     typeRefSegments,
     resolveKnownConstructor,
     resolveKnownContainerType,
@@ -2555,6 +2559,12 @@ function createResolveNodeType(babelNodeType, t, {
   function descendLiteralKeyPrefix(path, keyPath) {
     let receiver = path;
     let keys = keyPath;
+    while (isMemberLike(receiver)) {
+      const key = resolveMemberPropertyName(receiver);
+      if (key === null || key === undefined) return null;
+      keys = [key, ...keys];
+      receiver = resolveRuntimeExpression(receiver.get('object'));
+    }
     while (keys.length > 1) {
       const [step] = keys;
       const node = receiver?.node;
@@ -2564,8 +2574,11 @@ function createResolveNodeType(babelNodeType, t, {
         receiver = resolveRuntimeExpression(element);
       } else if (node?.type === 'ObjectExpression' && typeof step === 'string') {
         const member = findObjectMember(receiver, step);
-        if (!member?.node) return null;
-        receiver = resolveRuntimeExpression(member.get('value'));
+        if (!member?.node || objectLevelPairedProperty(receiver.node, step, undefined, { preservesBody: true })?.match !== member.node
+          || callableSlotReassigned(receiver, member.node, step)) return null;
+        const value = member.node.kind === 'get' ? getterReturnPath(member) : member.get('value');
+        if (!value?.node) return null;
+        receiver = resolveRuntimeExpression(value);
       } else break;
       keys = keys.slice(1);
     }
@@ -2707,14 +2720,16 @@ function createResolveNodeType(babelNodeType, t, {
         // peeled, since only a literal can be descended
         // ... and a GETTER names its value through the RETURN, the reading the member spine takes
         // one hop up: without it the head of a loop answered nothing where its flat twin answers
-        const next = member.node.kind === 'get' ? getterReturnPath(member) : member.get('value');
+        const next = member.node.kind === 'get' ? getterReturnPath(member)
+          : t.isObjectMethod(member.node) ? member : member.get('value');
         if (!next?.node) {
           slotPath = null;
           break;
         }
         slotPath = step === keyPath.length - 1 ? next : resolveRuntimeExpression(next);
       }
-      const slot = slotPath ? resolveNodeType(slotPath) : null;
+      const slot = slotPath ? t.isObjectMethod(slotPath.node)
+        ? resolveObjectMember(slotPath.parentPath, keyPath.at(-1)) : resolveNodeType(slotPath) : null;
       if (!slot) return null;
       folded = folded ? commonType(folded, slot) : slot;
     }
@@ -3021,6 +3036,7 @@ function createResolveNodeType(babelNodeType, t, {
     // destructure dispatches (caller-lossy emission soundness) gate on: a non-exported,
     // non-escaping function whose every call leaves this param slot to its default
     paramDefaultNeverOverridden: patternBindingsCluster.defaultParamNeverOverridden,
+    parameterCallSites: patternBindingsCluster.parameterCallSites,
     reset,
     resolveClaimableComputedKeyName,
     resolveComputedKeyName,

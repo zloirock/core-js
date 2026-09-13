@@ -1,7 +1,5 @@
-// a flatten slot whose extractions already render the declarator's init - a routed receiver memo,
-// a rendered sibling, an SE-key pair the slot took over - must not have that init's sequence
-// prefix lifted a second time, and a slot mutated after the fact keeps the entries the other
-// channels routed into it: rebuilding the record from scratch dropped a sibling's polyfill
+// Each destructure initializer and its sequence effects run once at the original declaration slot.
+// Claimed and residual siblings retain their own computed-key effects and polyfill rewrites.
 let k = 0;
 let k4 = 0;
 function log() {}

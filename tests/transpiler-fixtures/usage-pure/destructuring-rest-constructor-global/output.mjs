@@ -1,7 +1,7 @@
 import _Promise from "@core-js/pure/actual/promise/constructor";
-import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
-const resolve = _Promise$resolve;
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
 const {
-  resolve: _unused,
+  resolve,
   ...rest
 } = _Promise;

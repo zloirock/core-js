@@ -27,7 +27,7 @@
 // already-extracted cluster, the `KNOWN_STATIC_TYPE_GUARDS` table for built-in predicate hint
 // lookup, and the injector's alias channel (`staticPairFromPolyfillBinding`) that names the
 // built-in a pure-import binding stands for
-import { getOrInitMap } from './base.js';
+import { getOrInitMap, hasRange, nodeRangeContains } from './base.js';
 import {
   SOURCE_ORDER_STATEMENT_HOST_TYPES,
   cachedContainerPaths,
@@ -39,7 +39,6 @@ import {
   unwrapParens,
   unwrapRuntimeExpr,
 } from '../helpers/ast-patterns.js';
-import { hasRange, nodeRangeContains } from './ast-shapes.js';
 import { resolve as resolveBuiltInMeta } from '../index.js';
 import {
   globalProxyMemberName,

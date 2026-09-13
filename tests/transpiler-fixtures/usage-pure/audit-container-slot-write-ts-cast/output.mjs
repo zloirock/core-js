@@ -2,10 +2,10 @@ import _Map from "@core-js/pure/actual/map";
 import _Object$entries from "@core-js/pure/actual/object/entries";
 import _Object$getOwnPropertyNames from "@core-js/pure/actual/object/get-own-property-names";
 import _Object$keys from "@core-js/pure/actual/object/keys";
-// a TS cast is TRANSPARENT to the container machinery on both of its ends: a cast around the INIT
-// must not keep the binding off the container registry (its slot writes would then be dropped at
-// publish time and a polyfill would override the program's replacement), and a cast around the WRITE
-// target names the same slot. the clean twin resolves through the cast like through nothing
+// TS casts around a container initializer or write target preserve the slot identity.
+// An unconditional Map write kills the initial Object candidate: pure keeps the native
+// destructuring without an Object guard, and retains Map with its statics.
+// Clean slots still resolve through casts; type positions do not mutate their values.
 const clean = {
   k: Object
 } as {

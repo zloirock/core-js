@@ -324,9 +324,9 @@ const escapedInsideObjectValue = (function () {
   const { k: { isFrozen } } = objBox;
   return isFrozen;
 })();
-// re-homing under another name is the same leak without a call: an alias takes writes the
-// container's own name never sees, a wrapper literal hands the reference out through its member
-// chain - and a member-read alias leaks its SLOT's value while the owner's other slots stay live
+// Writes through a definite alias or wrapper reach the same container slot. An unconditional
+// replacement discards the initial Object candidate and its guard; the written slot stays native.
+// A captured member value has its own identity, while the owner's other slots stay live.
 const escapedByAlias = (function () {
   const aliasedBox = { k: Object };
   const aliasName = aliasedBox;

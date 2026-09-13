@@ -1,7 +1,6 @@
-import _at from "@core-js/pure/actual/instance/at";
-if (cond) var _ref = getObj(),
-  at = _at(_ref),
-  {
-    at: _unused,
-    ...rest
-  } = _ref;
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
+if (cond) var {
+  at,
+  ...rest
+} = getObj();

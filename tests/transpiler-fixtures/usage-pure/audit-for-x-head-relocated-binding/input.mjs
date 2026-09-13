@@ -1,14 +1,9 @@
-// a for-x HEAD holds no statement list, so extracting a claim out of it moves what the pattern still
-// binds into the loop BODY and leaves a record naming the minted iteration variable. reading the
-// type off that dead head answers the ITERATED element instead: an object rest resolves Array, which
-// folds a presence test to `true` and dispatches the array-specific helper onto a plain object
+// Object-rest keeps the affected loop pattern native at its original evaluation point.
+// Independent reads and key/default expressions still receive their own polyfills.
 const rows = Object.assign([1, [2]], { extra: 7 });
 const nested = [{ y: rows }];
 const seen = [];
 for (const { at, ...rest } of [rows]) {
-  // the rest is the type in plain sight: a plain object carries no `at`, so the read stays RAW and
-  // throws exactly where native throws - the array-specific helper here would be the head's element
-  // type answering for a value that never had it, and the presence test would fold to `true`
   seen.push(typeof at, 'at' in rest, rest.at(0));
 }
 // the same head one level in, where the claim travels with a renamed array element
@@ -17,7 +12,6 @@ for (const [{ y: { at, ...rest } }] of [nested]) {
 }
 // a bodyless head: the extraction has to build the block it puts the residual in
 for (const { at, ...rest } of [rows]) seen.push(typeof at, 'at' in rest);
-// for-in binds the KEY, so the rest gathers what a string carries - the head is dead all the same
 for (const { at, ...rest } in { a: 1 }) {
   seen.push(typeof at, 'at' in rest);
 }

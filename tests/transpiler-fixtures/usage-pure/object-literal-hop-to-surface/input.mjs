@@ -1,8 +1,7 @@
-// a hop the pattern descends through an object LITERAL reaches the same built-in surface its
-// identifier-init twin does, so the claim dispatches on the nav those hops NAME (`_globalThis
-// .Array.prototype`) rather than on the literal they start in. a sibling key beside the hop
-// changes nothing about what the hop reads; a hop landing on a user value keeps the receiver's
-// own type, which is the read the source performs
+// A pattern hop through an object literal can reach a built-in surface. A sole consumed hop may
+// dispatch directly on that surface. With an outer sibling, capture the complete literal first,
+// dispatch through its nested property, then read the sibling. A user value keeps its own receiver
+// type.
 const { w: { Array: { prototype: { at } } } } = { w: globalThis };
 const { q: { w: { Array: { prototype: { includes } } } } } = { q: { w: globalThis } };
 const { w: { Array: { prototype: { map } } }, z } = { w: globalThis, z: 1 };

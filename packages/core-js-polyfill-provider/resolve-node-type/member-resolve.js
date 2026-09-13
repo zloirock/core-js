@@ -28,8 +28,12 @@
 // `functionTypeReturnAnnotation` thunk through forward-decl `let` bindings
 import { MAX_DEPTH, $Primitive, nodePathInScope } from './base.js';
 import {
-  collectQualifiedSegments, isMethodShapeMember, isQualifiedNameNode, isUnionType, peelTSParenthesized,
-  typeRefName, withMemberModifiers,
+  collectQualifiedSegments,
+  isMethodShapeMember,
+  isQualifiedNameNode,
+  isUnionType,
+  typeRefName,
+  withMemberModifiers,
 } from './ast-shapes.js';
 import { isAmbientFunctionNode } from './name-resolution.js';
 import {
@@ -40,9 +44,12 @@ import {
   peelSkippableWrapperPath,
   peelTransparentWrapperPath,
   unwrapRuntimeExpr,
+  peelTSParenthesized,
+  provablyPrecedes,
+  reassignmentDominatesUsage,
+  staticMemberKeyName,
 } from '../helpers/ast-patterns.js';
 import { memberWriteTargetPath } from './class-member-shapes.js';
-import { staticMemberKeyName } from '../helpers/class-walk.js';
 
 const CLASS_PATH_TYPES = ['ClassDeclaration'];
 
@@ -815,10 +822,10 @@ export function createMemberResolve({
   }
 
   // arr[0], arr[1] - numeric index access on array literals
-  // element-type precision is only sound while nothing can RETYPE the elements between
-  // the array's creation and the read: an element write (`a[0] = "x"`), a mutating method
-  // (`a.unshift(v)` / `a.fill(v)`), or ANY escape of the binding (call argument, alias,
-  // spread - the holder may write elements) invalidates it. whitelist: a reference is safe
+  // element-type precision follows the initializer or a single dominating element assignment.
+  // Other writers between creation and the read - a mutating method
+  // (`a.unshift(v)` / `a.fill(v)`) or an escape of the binding (call argument, alias,
+  // spread - the holder may write elements) invalidate it. whitelist: a reference is safe
   // only as a member-access READ off the binding with a non-mutating key. the object-field
   // twin consults its external-write fold the same way; destructure-time element reads
   // (`const [x] = a`) copy the value at execution and stay exempt.
@@ -843,7 +850,7 @@ export function createMemberResolve({
     return cur;
   }
 
-  function arrayElementsMayBeRetyped(objectPath, anchorPath) {
+  function arrayElementsMayBeRetyped(objectPath, anchorPath, elementWrites = null) {
     // a receiver that is a STORED SLOT rather than a binding (`o.xs[0]`) is UNKNOWN, not clean: this
     // walk enumerates a binding's references and finds nothing for a member path, so answering "no
     // retype" kept the element narrow over writes nobody looked for - `o.xs[0] = "abc"` then
@@ -891,7 +898,16 @@ export function createMemberResolve({
       const isMemberRead = (memberNode?.type === 'MemberExpression' || memberNode?.type === 'OptionalMemberExpression')
         && memberNode.object === ref.node;
       if (!isMemberRead) return true;
-      if (isMemberWriteHost(member)) return true;
+      if (isMemberWriteHost(member)) {
+        const write = member.parentPath;
+        // An exact direct assignment can supply this element's type. Other writers and
+        // escapes still veto it; the caller proves that the collected write reaches the read.
+        if (!elementWrites || binding.constantViolations?.length
+          || write?.node.type !== 'AssignmentExpression' || write.node.operator !== '='
+          || write.node.left !== memberNode || memberKeyName(memberNode) !== memberKeyName(anchorPath.node)) return true;
+        elementWrites.push(write);
+        continue;
+      }
       // the write may sit further UP the chain than this hop: from a reference to `o`, the element
       // write `o.xs[0] = "abc"` is two accesses out, and stopping at `o.xs` read it as a plain
       // property read. climb the accesses rooted at this one and ask the same question at each
@@ -945,7 +961,16 @@ export function createMemberResolve({
     if (!Number.isInteger(index) || index < 0) return null;
     const rawObject = path.get('object');
     const objectPath = resolveRuntimeExpression(rawObject);
-    if (arrayElementsMayBeRetyped(rawObject, path)) return null;
+    const elementWrites = t.isIdentifier(rawObject.node) && t.isArrayExpression(objectPath.node) ? [] : null;
+    if (arrayElementsMayBeRetyped(rawObject, path, elementWrites)) return null;
+    if (elementWrites?.length) {
+      // A single observed write must precede and dominate this read. Multiple writes,
+      // deferred execution and conditional replacement keep the element type unknown.
+      const [write] = elementWrites;
+      return elementWrites.length === 1 && provablyPrecedes(write.node, path.node)
+        && reassignmentDominatesUsage({ reassignmentNodes: [write.node], usagePath: path })
+        ? resolveNodeType(write.get('right')) : null;
+    }
     if (t.isArrayExpression(objectPath.node)) return resolveArrayLiteralElement(objectPath, index);
     // a receiver whose RESOLVED type carries an element type (a rest-slice, an inner-typed
     // binding) yields it for a non-negative integer index: the value route above needs a

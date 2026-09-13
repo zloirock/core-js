@@ -55,7 +55,8 @@ rw9 = (eff9(), { d: Promise });
 const { d: { allSettled: viaSeWrite } } = rw9;
 
 // CROSS-writes: `ma = mb` captures mb BEFORE `mb = ma` overwrites it - the write-site anchor
-// resolves the captured value instead of bailing on the later write
+// resolves the captured value instead of bailing on the later write. The local holders remain
+// attributable, so only the used static is injected rather than either escaped constructor family.
 let ma = { x: Object };
 let mb = { x: String };
 ma = mb;

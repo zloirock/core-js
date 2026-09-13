@@ -1,14 +1,12 @@
-import _Array$of from "@core-js/pure/actual/array/of";
-import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
-const it = _getIteratorMethod(Array);
-const o = _Array$of;
+// Object-rest keeps the affected method slots native; computed symbol keys still polyfill.
+// Independent reads and key/default expressions still receive their own polyfills.
 // extraction statements follow the props' SOURCE order even though the symbol extraction is
 // registered at a later phase than the static one (the receiver copy waits for composed
 // text): a `[Symbol.iterator]` binding written before a static sibling extracts first
 const [{
-  [_Symbol$iterator]: _unused,
-  of: _unused2,
+  [_Symbol$iterator]: it,
+  of: o,
   ...r
 }] = [Array];
 it;

@@ -1,6 +1,6 @@
-// the nested-block-hoisted proxy-global alias is reassigned inside a NESTED closure that does not
-// re-bind it - a closure write still mutates the outer var, so `M.Array.from` must NOT be polyfilled
-// (the reassignment scan descends into non-shadowing nested scopes). matches babel's constantViolations
+// A nested closure can overwrite the hoisted realm alias without rebinding it.
+// Pure cannot fold the receiver: its live constructor read needs an identity guard,
+// preserving both the realm static and the supplied value after a closure write.
 function f() {
   if (c) { var M = globalThis; }
   function g() { M = somethingElse; }

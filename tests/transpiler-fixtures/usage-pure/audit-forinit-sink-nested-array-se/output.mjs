@@ -7,5 +7,5 @@ import _globalThis from "@core-js/pure/actual/global-this";
 const seen = [];
 const eff = t => (_pushMaybeArray(seen).call(seen, t), t);
 let out;
-for (const from = _Array$from, _unused = (eff('outer'), eff('inner'), _globalThis); !out;) out = from;
+for (const _unused = (eff('outer'), eff('inner'), _globalThis), from = _Array$from; !out;) out = from;
 export { out, seen };

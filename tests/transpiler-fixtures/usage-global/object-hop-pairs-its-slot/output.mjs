@@ -54,6 +54,7 @@ import "core-js/modules/es.string.iterator";
 import "core-js/modules/es.weak-map.constructor";
 import "core-js/modules/es.weak-map.get-or-insert";
 import "core-js/modules/es.weak-map.get-or-insert-computed";
+import "core-js/modules/es.weak-set.constructor";
 import "core-js/modules/esnext.iterator.chunks";
 import "core-js/modules/esnext.iterator.includes";
 import "core-js/modules/esnext.iterator.join";
@@ -68,6 +69,7 @@ import "core-js/modules/web.self";
 // accessor-free spread that could override it (usage-global resolves through that one - it injects
 // where the slot MIGHT be read, and over-injection is its safe side). the getter rows live HERE
 // rather than in the runtime suite: its baseline forbids ES5 accessors, so only bytes can hold them
+// A constructor escaping through the getter includes its static methods.
 const other = {};
 const {
   w: {

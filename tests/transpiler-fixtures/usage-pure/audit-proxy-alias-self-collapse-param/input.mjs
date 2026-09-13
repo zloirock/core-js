@@ -1,7 +1,5 @@
-// Same root as the const case, exercised through the function-parameter-default receiver: a
-// const-aliased global (`const g = globalThis`) with a redundant `.self` hop must collapse to
-// `g.Array` (alias kept, hop dropped) so the residual `...rest` does not read `g.self` (undefined
-// on ie:11 / non-browser hosts). (parameter-default / synth-swap path)
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
 const g = globalThis;
 function withDefault({ from, ...rest } = g.self.Array) {
   return from([1]);

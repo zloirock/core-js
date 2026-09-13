@@ -1,7 +1,6 @@
-// a PLAIN navigation the source stores: nothing above the store observes its absence, so the slot
-// takes the navigation's own value - that nav IS the realm - and not the probe guard. the read
-// through a live `?.` is the negative half: there the store's absence IS observed, and the guard
-// stays for both emitters
+// Both reads store a plain navigation ending at backed self. Its value is the
+// realm object, so the optional over the second store is dead as well. Each
+// sequence prefix still runs once before the stored value is consumed.
 let c = 0;
 let plain;
 let probed;

@@ -1,8 +1,7 @@
-// the syntactic CONTEXTS a kept proxy root can be reached from. the rule does not depend on any of them -
-// the assignment stays as the root, the redundant proxy hop drops, the guard survives - but each context
-// reaches the collapse through its own visitor, so each pins separately: a kept root nested inside another
-// kept root's value, a destructuring default, a class static method, an async arrow body, and a computed
-// leaf key. distinct methods per line.
+// Kept proxy stores retain the value and nullish guard observed by their consumers.
+// These hosts exercise nested stores, defaults, class members, async bodies and
+// computed keys. A stored terminal probe must not become an always-defined realm
+// value merely because another proxy hop follows the store.
 let n;
 export const nestedKeptRoot = (n = globalThis.window?.self.window)?.self.Array.prototype.flat.call([1, [2]]);
 

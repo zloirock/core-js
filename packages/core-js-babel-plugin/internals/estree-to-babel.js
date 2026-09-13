@@ -191,6 +191,8 @@ function build(node) {
       return { type: 'AssignmentExpression', operator: node.operator, left: convert(node.left), right: convert(node.right) };
     case 'ObjectExpression':
       return { type: 'ObjectExpression', properties: node.properties.map(property => convert(property)) };
+    case 'ArrowFunctionExpression':
+      return { type: 'ArrowFunctionExpression', params: node.params.map(param => convert(param)), body: convert(node.body), async: false };
     case 'Property':
       return {
         type: 'ObjectProperty',

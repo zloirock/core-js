@@ -1,15 +1,14 @@
+// Object-rest keeps the affected assignment pattern native and preserves its RHS value.
+// Independent reads and key/default expressions still receive their own polyfills.
 const src2 = [1, [2]];
 let at, includes;
 ({ at, includes } = [1, 2, 3]);
-// a REST sibling is a residual like any other: it re-reads the receiver past the renamed key, so
-// the memo is what gives both readers one identity - the arrangement the DECLARATION host emits for
-// the same pattern, and the one a receiver nothing can re-read has no other way to get
 let at2, rest2;
 ({ at: at2, ...rest2 } = [1, 2]);
-// ... and a receiver whose evaluation is OBSERVABLE takes it for the same reason, once
+// An effectful receiver still runs once.
 let at3, rest3;
 ({ at: at3, ...rest3 } = mk());
-// a re-readable receiver needs none of it: both readers spell the binding
+// A binding receiver follows the same native-rest boundary.
 let at4, rest4;
 const src = [1, 2];
 ({ at: at4, ...rest4 } = src);

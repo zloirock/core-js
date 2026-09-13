@@ -1,3 +1,5 @@
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
 // an effect buried in a transparent single-element array wrapper must survive every
 // discard-and-rebuild host: the consumed wrapper drops, the effect lifts / re-embeds in
 // source order (a top-level-only sequence peel dropped it with the discarded init)
@@ -8,8 +10,6 @@ const eff = t => (seen.push(t), t);
 let out1;
 for (const [{ Array: { from } }] = [(eff('a'), globalThis)]; !out1;) out1 = from;
 
-// for-init partial consume: the rest sibling keeps the rebuilt wrapper; the buried
-// prefix re-embeds around it, running exactly once
 let out2;
 for (const [{ Array: { of }, ...rest2 }] = [(eff('b'), globalThis)]; !out2;) out2 = of;
 

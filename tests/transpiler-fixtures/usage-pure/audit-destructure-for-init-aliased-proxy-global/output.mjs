@@ -6,6 +6,6 @@ import _globalThis from "@core-js/pure/actual/global-this";
 // `_unused = (logCall(), obj)` re-embeds the SE but keeps `obj`, not `_globalThis`.
 declare const logCall: () => any;
 const obj = _globalThis;
-for (const from = _Array$from, _unused = (logCall(), obj); false;) {
+for (const _unused = (logCall(), obj), from = _Array$from; false;) {
   console.log(from);
 }

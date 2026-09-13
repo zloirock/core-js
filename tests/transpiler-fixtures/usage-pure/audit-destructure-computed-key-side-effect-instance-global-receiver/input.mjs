@@ -1,5 +1,4 @@
-// the residual-extract copies the receiver beside the kept residual; a global nested in the literal
-// receiver must be substituted in the COPY too (the in-place residual's visitor rewrite can't reach it),
-// else the extracted call ReferenceErrors on engines lacking the global
+// A global inside a computed-key destructure receiver is substituted before the key runs.
+// The literal is evaluated once, then the key effect precedes the instance-property read.
 const { [(effectful(), 'flat')]: m } = [1, Promise];
 const probe = [3].at(0);
