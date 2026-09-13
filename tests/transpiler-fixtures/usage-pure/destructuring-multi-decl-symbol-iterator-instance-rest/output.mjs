@@ -1,8 +1,8 @@
 import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
-import _includes from "@core-js/pure/actual/instance/includes";
+// Object-rest keeps the affected method slots native; computed symbol keys still polyfill.
+// Independent reads and key/default expressions still receive their own polyfills.
 const iter = _getIteratorMethod(a);
-const includes = _includes(b);
 const {
-  includes: _unused,
+  includes,
   ...rest
 } = b;

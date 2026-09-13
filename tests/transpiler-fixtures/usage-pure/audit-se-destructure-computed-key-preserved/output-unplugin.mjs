@@ -4,6 +4,8 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 
 let keyEval = 0;
-const { [(keyEval++, "from")]: build = _Array$from } = Array && Array;
+
+const _ref = Array && Array,
+	build = null == _ref ? _ref[""] : (keyEval++, _Array$from);
 
 export const made = build([1]);

@@ -1,7 +1,5 @@
-// catch param destructuring with a computed Symbol.asyncIterator key plus rest. Unlike
-// `Symbol.iterator` (rewritten via a `_getIteratorMethod` extractor), async-iterator
-// has no extractor rewrite path - the computed key is replaced by the polyfill binding,
-// the rest gather is preserved verbatim, and no extractor line is hoisted
+// Object-rest keeps the affected catch pattern native, including its named method slots.
+// Independent reads and key/default expressions still receive their own polyfills.
 try {} catch ({ [Symbol.asyncIterator]: ait, ...rest }) {
   ait;
   rest;

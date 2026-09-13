@@ -1,16 +1,13 @@
-// where the assignment-host OVERWRITE may take its slot with it, and where the slot has to stay. the
-// dispatch re-spells the receiver nav the raw pattern read, so a slot with no reader left simply
-// drops - and an emptied host drops too. the boundaries below each keep the slot for a reason of
-// their own, and the residual then reads the nav BESIDE the dispatch, which is what the receiver
-// gate weighs
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _copyWithinMaybeArray from "@core-js/pure/actual/array/instance/copy-within";
-import _fillMaybeArray from "@core-js/pure/actual/array/instance/fill";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _flatMapMaybeArray from "@core-js/pure/actual/array/instance/flat-map";
 import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 import _globalThis from "@core-js/pure/actual/global-this";
 
+var _ref, _ref2, _ref3;
 declare const userNs: { Array: { prototype: number[] } };
 
 let dropped,
@@ -32,22 +29,25 @@ kept = _flatMaybeArray(userNs.Array.prototype);
 
 sibling = _atMaybeArray(_globalThis.Array.prototype);
 
-// a REST keeps the emptied hop under a sentinel - the rest must go on excluding that key, so the
-// residual still reads `globalThis.Array` beside the dispatch
 let rest;
 
-var _unused;
-
-({ Array: _unused, ...rest } = _globalThis);
-other = _fillMaybeArray(_globalThis.Array.prototype);
+({ Array: { prototype: { fill: other } }, ...rest } = _globalThis);
 wrapped = _flatMapMaybeArray(_globalThis.Array.prototype);
 
 // an ARRAY-wrapped element has no way to drop: pruning the leaf under it would leave `[{}]` behind
 // a COMPUTED key is the one part of the pattern the dispatch never re-spells, so the slot is what
 // runs it - the legs part on how far that surviving residual COLLAPSES its receiver, which is the
 // SE-key channel's own question, not this one's
-({ [(effect(), 'includes')]: computed } = _globalThis.Array.prototype);
-
-computed = _includesMaybeArray(_globalThis.Array.prototype);
+(
+	_ref = { Array: { prototype: _ref2 } } = _globalThis,
+	(
+		_ref3 = _ref2,
+		null == _ref3
+			? _ref3[""]
+			: ((effect(), computed = _includesMaybeArray(_ref3))),
+		_ref3
+	),
+	_ref
+);
 
 export { dropped, kept, sibling, other, rest, wrapped, computed, z };

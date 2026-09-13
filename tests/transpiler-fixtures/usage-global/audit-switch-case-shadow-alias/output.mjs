@@ -74,6 +74,7 @@ export function noShadowRealWrite(cond, mk) {
   }
   return Q.allSettled([1]);
 }
+// The discriminant always replaces D; its old Number candidate must not add a guard.
 export function discriminantWrite(mk) {
   let D = Number;
   switch (D = mk()) {

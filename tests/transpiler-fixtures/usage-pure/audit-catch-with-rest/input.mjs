@@ -1,6 +1,5 @@
-// catch destructure with rest element: polyfilled keys are renamed to `_unused` and the
-// pattern is rebuilt around them. `message` is not polyfilled (no instance match on the
-// Error shape) and is left in source text
+// Object-rest keeps the affected catch pattern native, including its named method slots.
+// Independent reads and key/default expressions still receive their own polyfills.
 try {
   risky();
 } catch ({ at, ...rest }) {

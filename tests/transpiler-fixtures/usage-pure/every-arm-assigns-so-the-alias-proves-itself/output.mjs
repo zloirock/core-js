@@ -1,16 +1,14 @@
 import _Array$from from "@core-js/pure/actual/array/from";
+import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
+import _Object$assign from "@core-js/pure/actual/object/assign";
 import _Object$entries from "@core-js/pure/actual/object/entries";
+import _Object$getOwnPropertyNames from "@core-js/pure/actual/object/get-own-property-names";
 import _self from "@core-js/pure/actual/self";
-// a conditionally assigned alias proves nothing on its own, but an if/else whose EVERY arm assigns
-// the name settles the position by itself: whichever way the test went the binding holds one of
-// those writes and never the hoisted `undefined`, so a receiver-less rewrite drops no access that
-// would have thrown. the two arms are mutually exclusive, which is what makes a nested re-declaration
-// readable at all - neither can overwrite the other. the negatives are the whole of what still
-// proves nothing: an arm naming something other than the realm, a lone `if`, a name the arm itself
-// SHADOWS (there the init reads that shadow, not the realm), and a write after the pair. one static
-// per row, and none of them a name the instance dispatcher also answers - that channel would fire on
-// the unknown receiver and hide whether the STATIC folded
+// When every arm assigns the realm, the alias permits a direct static fold.
+// Mixed or missing arms and shadowed realm names provide only candidates: pure keeps
+// the constructor read behind an identity guard. A later overwrite prevents direct
+// folding too. Distinct static methods keep these decisions independently observable.
 export function bothArmsName(flag) {
   if (flag) {
     var G = _globalThis;
@@ -32,29 +30,36 @@ export function bothArmsDestructure(flag) {
 }
 // negatives
 export function oneArmIsNotTheRealm(flag) {
+  var _ref;
   if (flag) {
     var N = _globalThis;
   } else {
     var N = {};
   }
-  return N.Array.of(3);
+  return _ref = N.Array, _ref === Array ? _Array$of(3) : _ref.of(3);
 }
 export function noAlternate(flag) {
+  var _ref2;
   if (flag) {
     var L = _globalThis;
   }
-  return L.Object.assign({}, {
+  return _ref2 = L.Object, _ref2 === Object ? _Object$assign({}, {
+    b: 2
+  }) : _ref2.assign({}, {
     b: 2
   });
 }
 export function armShadowsTheRealmName(flag) {
+  var _ref3;
   if (flag) {
     const globalThis = {};
     var S = globalThis;
   } else {
     var S = _self;
   }
-  return S.Object.getOwnPropertyNames({
+  return _ref3 = S.Object, _ref3 === Object ? _Object$getOwnPropertyNames({
+    c: 3
+  }) : _ref3.getOwnPropertyNames({
     c: 3
   });
 }

@@ -1,11 +1,9 @@
-// destructuring off the bare probe: a POLYFILLABLE key extracts with the discarded read
-// re-emitted as a throw probe (the consuming-position canon - off-env the probe throws where
-// native does, on-env the ponyfill binds); a non-claim key keeps the raw kept hop; the rest
-// form binds the ponyfill directly and its residual carries the throw itself
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
+// The exported constructor includes its static methods for external consumers.
 export const { Promise: viaBareProbePoly } = globalThis.window;
 export const { customThing: viaBareProbeCustom } = globalThis.window;
 export const { Array: { of: viaBareProbeRestPoly }, ...viaBareProbeRest } = globalThis.window;
-
 
 // the value that IS the environment probe: a bare one-hop init (`= globalThis.window`), its
 // sealed twin, an agreeing-proxy ternary collapse and an alias HOLDING the probe all consume

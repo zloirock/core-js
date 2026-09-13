@@ -3,12 +3,8 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _Promise from "@core-js/pure/actual/promise";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
-// the first row takes the caller-correct DEFAULT synth (the wks sibling joins it), so its
-// user-written leaf default survives in the pattern - dead when the synth default fires,
-// exactly as native leaves it. the remaining param routes still drop the user-written
-// default (polyfill always wins): the rest-sibling shape cuts the prop back to its key plus
-// a fresh sentinel, and the inline default replaces the default alone. the last row keeps
-// its default in the pattern, so the read there stays polyfilled in place
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
 let e = 0;
 export const bodyExtract = function f({
   from = [_Promise],
@@ -20,7 +16,7 @@ export const bodyExtract = function f({
   return [from([1]), it];
 }();
 export const restSibling = (({
-  from = _Array$from,
+  from = [_Promise],
   ...rest
 } = Array) => [from, rest])();
 export const seKeyDefault = (({

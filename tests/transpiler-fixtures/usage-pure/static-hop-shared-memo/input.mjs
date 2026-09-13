@@ -1,8 +1,5 @@
-// a STATIC's ponyfill read by an instance leaf AND a surviving sibling of the same level memoizes
-// once on both legs, whatever the host: the import binding re-reads for free, but the twin spells one
-// memo (`const _ref = _Array$of; const a = _name(_ref); const { foo } = _ref`) - flat, under a dead
-// pattern default, array-wrapped, in a loop head, in a bodyless slot, beside declarators, under a
-// proxy hop, beside a rest. a SOLE leaf reads the binding inline: nothing else reads it
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
 const c = 1;
 function eff() {}
 const { of: { name: viaFlat, foo: f1 } } = Array;

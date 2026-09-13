@@ -1,3 +1,5 @@
+// Object-rest keeps the affected assignment pattern native and preserves its RHS value.
+// Independent reads and key/default expressions still receive their own polyfills.
 // the `let x; ({ x } = Source)` destructure's own write is the aliasing event, not a
 // disqualifying reassignment: the body-extract alias must register so receiver narrowing
 // through the binding dispatches the TYPED instance variant (the registrar once counted

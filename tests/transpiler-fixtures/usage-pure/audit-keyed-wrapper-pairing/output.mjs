@@ -19,17 +19,20 @@ const flatClaim = function () {
 // before it destructures, so a read moved to the pairing would step over that effect
 const log = [];
 const besideAnEffect = function () {
-  const {
-    pair: [{
-      y: {
-        flat
-      }
-    }],
-    zn
-  } = {
-    pair: [nb],
-    zn: _pushMaybeArray(log).call(log, 'n')
-  };
+  const _ref = {
+      pair: [nb],
+      zn: _pushMaybeArray(log).call(log, 'n')
+    },
+    {
+      pair: [{
+        y: {
+          flat
+        }
+      }]
+    } = _ref,
+    {
+      zn
+    } = _ref;
   return [typeof flat, zn];
 }();
 export { nested, flatClaim, besideAnEffect };

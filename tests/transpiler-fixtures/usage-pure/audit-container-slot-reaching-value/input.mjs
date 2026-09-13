@@ -1,9 +1,6 @@
-// the pure flavor must keep its NAME resolution out of the container-slot reaching union: it is a
-// usage-global-only over-inject axis, while pure keeps its bail (a write anywhere in the file may
-// reach the read, so no slot read off a written container resolves to a static). the destructures
-// below keep their slot reads - bare constructor NAMES resolve to pure imports, and an ambiguous
-// method name resolves no further than the value-safe dispatcher, whose answer IS the source's
-// own read of the written slot (`_keys(cc.c)`), so what the write left there still decides
+// Written slots contribute their reaching constructors to global static injection.
+// Local aliases and wrappers do not release the whole constructor family.
+// Pure keeps written slots native with their statics; a proven replacement drops the old guard.
 const cw = { k: Object };
 cw.k = Map;
 const { k: { groupBy: viaSlotWrite } } = cw;
@@ -13,7 +10,7 @@ const cm = { s: Object };
 cm.s = Array;
 export const viaMemberRead = cm.s.from([1]);
 
-// a dynamic-key write may land on ANY slot - every slot read of the container bails
+// the const-bound key names the same slot; pure keeps its written value native
 const cd = { d: Object };
 const dyn = 'd';
 cd[dyn] = Promise;

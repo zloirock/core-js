@@ -1,11 +1,10 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-export const f = _Array$from;
-// an EXPORTED destructure with a side-effecting computed key (`from`, polyfilled -> extracted) NEXT TO a
-// real non-polyfilled sibling binding (`isArray`, native for the target). the sibling MUST stay exported:
-// the extracted polyfill becomes its own `export const f`, and the residual destructure keeps its export
-// so `isArray` is still exported. regression: unplugin stole the `export` keyword for the extract and
-// dropped the whole destructure - and `isArray` with it - out of the export; babel kept it. both agree now
-export const {
-  [(effectful(), 'from')]: _unused,
-  isArray
-} = Array;
+// An exported pattern combines an effectful static key and a native sibling.
+// The key effect runs before the static binding, both f and isArray stay exported,
+// and the native sibling is read from the original receiver.
+const _ref = Array,
+  f = null == _ref ? _ref[""] : (effectful(), _Array$from),
+  {
+    isArray
+  } = _ref;
+export { f, isArray };

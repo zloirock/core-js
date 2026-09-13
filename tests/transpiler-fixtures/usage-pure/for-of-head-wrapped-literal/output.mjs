@@ -84,13 +84,12 @@ for (const item of [{
   const viaParenWrittenSlot = item.w.assign;
   _pushMaybeArray(out).call(out, viaParenWrittenSlot);
 }
-for (const {
-  w: {
-    getOwnPropertyNames: viaParenCallee = _Object$getOwnPropertyNames
-  }
-} of [{
+for (const _ref of [{
   w: e('a')
 }, {
   w: e('b')
-}]) _pushMaybeArray(out).call(out, viaParenCallee);
+}]) {
+  let viaParenCallee = _Object$getOwnPropertyNames;
+  _pushMaybeArray(out).call(out, viaParenCallee);
+}
 export { out, n };

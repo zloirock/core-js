@@ -1,11 +1,6 @@
-// inside a DEFERRED body the eager hook hands the store to the flush only when a CTOR / STATIC claim
-// owns its value - that claim's channel is what renders the guard. a tail that claims nothing and a
-// proxy hop keep the store's own value: neither has a channel that reads the store's absence. an
-// INSTANCE dispatch does have one - the guard it builds IS that reader - so the store spells the
-// guarded value there, or the user's variable holds the realm object on the very branch that guard
-// calls absent. read from BOTH spellings of the claim, because
-// which one stands there is pass order: still above the store, or already inside the built guard's
-// alternate. each form gets its own bindings - a second write to one alias deopts the follow
+// A deferred store whose plain realm run ends at backed self stores that ponyfill.
+// Constructor, instance, unclaimed, and hop-tail consumers preserve the same store and key effects.
+// Separate bindings keep later writes from deoptimizing the comparison.
 let c1, c2, n1, n2, h1, h2, i1, i2, out;
 function eff() {}
 const ctorClaim = () => (c1 = globalThis, c2 = c1[(eff(), 'window')].self)?.Promise.noSuchStatic;

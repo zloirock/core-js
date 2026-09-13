@@ -7,6 +7,8 @@ import _values from "@core-js/pure/actual/instance/values";
 import _Object$entries from "@core-js/pure/actual/object/entries";
 import _Object$is from "@core-js/pure/actual/object/is";
 import _Object$keys from "@core-js/pure/actual/object/keys";
+// Object-rest keeps the affected loop pattern native at its original evaluation point.
+// Independent reads and key/default expressions still receive their own polyfills.
 // probe corpus of the defense cycles over the destructure wrappers, family "forx", part 3:
 // every block is one probed form, self-contained over the header bindings, locked on both legs
 let pick = 1;
@@ -143,12 +145,15 @@ function mark(t, v) {
   }]) keys;
 }
 {
-  for (const _ref of [{
+  for (const _ref2 of [{
     [eff()]: Object
   }, {
     [eff()]: Object
   }]) {
-    let keys = _keys(_ref.w);
+    let {
+        w: _ref
+      } = _ref2,
+      keys = _ref === Object ? _Object$keys : _keys(_ref);
     keys;
   }
 }
@@ -168,46 +173,53 @@ function mark(t, v) {
   }]) keys;
 }
 {
-  for (const _ref2 of [{
+  for (const _ref3 of [{
     w: Array
   }]) {
     let {
       w: {
         keys
       }
-    } = _ref2;
+    } = _ref3;
     keys;
   }
 }
 {
-  for (const _ref3 of [{
+  for (const {
+    w: {
+      keys
+    }
+  } of [{
     w: Object
   }, {
     get w() {
       return Object;
     }
-  }]) {
-    let keys = _keys(_ref3.w);
-    keys;
-  }
-}
-{
-  for (const _ref4 of [{
-    w: Object
-  }, {
-    v: Object
-  }]) {
-    let keys = _keys(_ref4.w);
-    keys;
-  }
+  }]) keys;
 }
 {
   for (const _ref5 of [{
     w: Object
   }, {
+    v: Object
+  }]) {
+    let {
+        w: _ref4
+      } = _ref5,
+      keys = _ref4 === Object ? _Object$keys : _keys(_ref4);
+    keys;
+  }
+}
+{
+  for (const _ref7 of [{
+    w: Object
+  }, {
     w: Array
   }]) {
-    let keys = _keys(_ref5.w);
+    let {
+        w: _ref6
+      } = _ref7,
+      keys = _ref6 === Object ? _Object$keys : _keys(_ref6);
     keys;
   }
 }
@@ -246,13 +258,16 @@ function mark(t, v) {
   }]) keys;
 }
 {
-  for (const _ref6 of [{
+  for (const _ref9 of [{
     w: Object
   }, {
     w: Object,
     ...more
   }]) {
-    let keys = _keys(_ref6.w);
+    let {
+        w: _ref8
+      } = _ref9,
+      keys = _ref8 === Object ? _Object$keys : _keys(_ref8);
     keys;
   }
 }
@@ -302,7 +317,7 @@ function mark(t, v) {
   }]) keys;
 }
 {
-  for (const _ref9 of [{
+  for (const _ref12 of [{
     w: _globalThis.Object
   }]) {
     let keys = _Object$keys;
@@ -310,24 +325,22 @@ function mark(t, v) {
   }
 }
 {
-  for (const _ref7 of rows) {
-    let keys = _keys(_ref7.w);
+  for (const _ref10 of rows) {
+    let keys = _keys(_ref10.w);
     keys;
   }
 }
 {
-  for (const _ref8 of [{
+  for (const {
+    w: {
+      keys
+    },
+    ...rest
+  } of [{
     w: Object
   }, {
     w: Object
-  }]) {
-    let keys = _Object$keys;
-    let {
-      w: _unused,
-      ...rest
-    } = _ref8;
-    keys;
-  }
+  }]) keys;
 }
 {
   for (const {
@@ -354,7 +367,7 @@ function mark(t, v) {
   }]) _atMaybeArray(x).call(x, 0);
 }
 {
-  for (let values = _values(r.w), at = _at(r.y);;) {
+  for (let _ref11 = r, values = _values(_ref11.w), at = _at(_ref11.y);;) {
     [values, at];
     break;
   }

@@ -1,10 +1,41 @@
 import {
   SINGLE_STATEMENT_SLOTS,
+  allProxySelectingInit,
+  computedKeyHasSideEffects,
+  foldedPropertyKeyName,
   forEachStatementPosition,
   getMinifierSequenceExpressions,
   isQuietLiteralOperand,
+  isRestProperty,
+  mayHaveSideEffects,
+  observableSequenceElements,
+  patternSlotTarget,
+  peelNestedSequenceExpressions,
+  peelTransparentExpr,
 } from './helpers/ast-patterns.js';
-import { expressionStatement } from './render.js';
+import {
+  assignmentExpression,
+  callExpression,
+  conditionalExpression,
+  expressionStatement,
+  identifier,
+  literal as valueLiteral,
+  memberExpression,
+  nullFirstGuardTest,
+  renderCtorIdentityNarrow,
+  renderInstanceDefaultGuard,
+  renderKeyedDestructureRead,
+  sequenceExpression,
+  variableDeclarator,
+} from './render.js';
+import { globalProxyMemberName, isStaticPlacement, resolveKey, resolveObjectName, symbolSourcedFoldedKey } from './detect-usage/resolve.js';
+import { toHint } from './resolve-node-type/base.js';
+
+const capturedKeyedPatterns = new WeakSet();
+// A moved leaf still owes the coercion and reads its source pattern performed before capture.
+export function isCapturedKeyedPattern(pattern) {
+  return capturedKeyedPatterns.has(pattern);
+}
 
 // shape classification for destructure hosts (VariableDeclaration / AssignmentExpression
 // inside ExpressionStatement): the parser-agnostic booleans both plugins consume -
@@ -74,6 +105,289 @@ export function classifyVariableDeclarationHost({ declaration, declarationParent
     isBodyless: isBodylessStatementSlot(declarationParent, declaration),
     isMultiDecl: declaration.declarations.length > 1,
   };
+}
+
+// A loop-head extraction cannot re-read an element after its neighbours have evaluated: they may
+// replace its binding. A later pattern also reads in source order, after the earlier extraction.
+// Capture the positions once, then let each element's own declarations consume its captured value.
+// Spread/rest positions keep their original route because their number of bindings is not fixed.
+export function planArrayWrapperCapture({
+  pattern, init, force = false, restPattern = null, adapter = null, injectorState = null, nestedOnly = false,
+}) {
+  if (restPattern && restPattern.properties?.at(-1)?.type !== 'RestElement'
+    && !restPattern.properties?.some(computedKeyHasSideEffects)) return null;
+  const array = peelTransparentExpr(init);
+  if (pattern?.type !== 'ArrayPattern' || !init || (!force && array?.type !== 'ArrayExpression')) return null;
+  // The declaration fallback captures one opaque nested claim before a sibling can stage an extraction.
+  // Explicit object literals keep their existing slot pairing and carried initializer.
+  if (nestedOnly && (pattern.elements.length !== 1 || array?.elements?.length !== 1
+    || peelTransparentExpr(array.elements[0])?.type === 'ObjectExpression'
+    || planNestedKeyedPatternCapture({ pattern: pattern.elements[0], init: array.elements[0], force: true })
+      ?.leafPattern.properties.length !== 1)) return null;
+  const elements = [];
+  function collectCaptureElements(level, value, path = []) {
+    const literal = peelTransparentExpr(value);
+    if ((!force && literal?.type !== 'ArrayExpression')
+      || level.elements.some(element => element?.type === 'RestElement')
+      || literal?.elements?.some(element => element?.type === 'SpreadElement')) return false;
+    return level.elements.every((element, index) => {
+      if (!element) return true;
+      const position = [...path, index];
+      const source = literal?.type === 'ArrayExpression' ? literal.elements[index] : null;
+      if (element.type === 'ArrayPattern') return collectCaptureElements(element, source, position);
+      if (element.type === 'AssignmentPattern') return false;
+      // Realm rest patterns already have a receiver mirror that keeps their static siblings.
+      if (element === restPattern && source && adapter && allProxySelectingInit(source, { adapter, injectorState })) return false;
+      elements.push({ pattern: element, index: position[0], path: position });
+      return true;
+    });
+  }
+  if (!collectCaptureElements(pattern, array)) return null;
+  if (!elements.length || (!force && array.elements.every(element => !mayHaveSideEffects(element)) && elements.length === 1)) return null;
+  return { pattern, init, elements };
+}
+
+// The capture and the per-element declarations share one reference per consumed position. `embed`
+// is the binding's source-node boundary; the patterns move rather than being interpreted here.
+export function renderArrayWrapperCapture(plan, { mintRef, embed = node => node }) {
+  const refs = new Map();
+  const elements = plan.elements.map(element => {
+    const ref = mintRef();
+    refs.set(element.pattern, ref);
+    return {
+      ...element,
+      ref,
+      declarator: variableDeclarator(embed(element.pattern), identifier(ref)),
+    };
+  });
+  function capturePattern(pattern) {
+    if (!pattern) return null;
+    const ref = refs.get(pattern);
+    return ref ? identifier(ref) : { ...pattern, elements: pattern.elements.map(capturePattern) };
+  }
+  return {
+    capture: variableDeclarator(embed(capturePattern(plan.pattern)), embed(plan.init)),
+    elements,
+  };
+}
+
+// Split an object-pattern hop chain at its innermost binding when a computed key must stay
+// between the outer reads and the leaf dispatch, or a guarded read needs the receiver's identity.
+// A guard can supply its ancestor path to retain ordinary siblings at each outer level.
+// The source outer pattern keeps its coercions,
+// keys and getters; only the inner pattern moves onto the captured value.
+export function planNestedKeyedPatternCapture({ pattern, init, force = false, ancestors: sourceAncestors = null }) {
+  if (!init) return null;
+  const ancestors = [];
+  let inner = pattern;
+  if (force && sourceAncestors?.length) {
+    for (const level of sourceAncestors) {
+      if (level.pattern.properties.some(prop => prop.type === 'RestElement')) return null;
+      ancestors.push(level);
+      inner = level.prop.value;
+    }
+  }
+  while (inner?.type === 'ObjectPattern') {
+    if (force && inner.properties.length !== 1) break;
+    if (inner.properties.some(prop => prop.type === 'RestElement')) break;
+    const nested = inner.properties.filter(prop => {
+      const value = !force && prop.value?.type === 'AssignmentPattern' ? prop.value.left : prop.value;
+      return value?.type === 'ObjectPattern';
+    });
+    if (nested.length !== 1) break;
+    const [prop] = nested;
+    if (prop.type !== 'Property' && prop.type !== 'ObjectProperty') return null;
+    const defaultValue = !force && prop.value?.type === 'AssignmentPattern' ? prop.value : null;
+    const value = defaultValue ? defaultValue.left : prop.value;
+    if (value?.type !== 'ObjectPattern') break;
+    ancestors.push({ pattern: inner, prop, defaultValue });
+    inner = value;
+  }
+  const leaf = inner?.properties?.[0];
+  const rest = !force && inner?.properties?.at(-1)?.type === 'RestElement';
+  if (!ancestors.length || inner?.type !== 'ObjectPattern' || !inner.properties.length
+    || (leaf?.type !== 'Property' && leaf?.type !== 'ObjectProperty') || patternSlotTarget(leaf.value)?.type !== 'Identifier'
+    || (force && inner.properties.some(prop => (prop.type !== 'Property' && prop.type !== 'ObjectProperty')
+      || prop.computed || prop.value?.type !== 'Identifier'))
+    || (!force && !rest && [...ancestors.map(level => level.prop), leaf].every(prop => !computedKeyHasSideEffects(prop)))) return null;
+  return { pattern, init, ancestors, leafPattern: inner, leaf, rest, keys: computedKeyHasSideEffects(leaf) ? [leaf.key] : [] };
+}
+
+// Replace only the innermost source pattern with the captured binding. Each outer key stays in
+// its original native pattern, while the moved leaf is ready for the ordinary direct emitter.
+export function renderNestedKeyedPatternCapture(plan, {
+  mintRef, embed = node => node, narrow = null, split = null, injectImport = null, assignment = false, preserveResult = false,
+}) {
+  capturedKeyedPatterns.add(plan.leafPattern);
+  const ref = mintRef();
+  let captured = identifier(ref);
+  for (const level of plan.ancestors.toReversed()) {
+    captured = { ...level.pattern, properties: [{ ...level.prop,
+      value: level.defaultValue ? { ...level.defaultValue, left: captured } : captured }] };
+  }
+  const elements = (narrow ? plan.leafPattern.properties : [plan.leaf]).map((leaf, index) => {
+    const value = narrow ? renderCtorIdentityNarrow(split?.[index].plan ?? narrow,
+      memberExpression(identifier(ref), identifier(leaf.key.name ?? leaf.key.value)), {
+        injectImport, spellRecv: () => identifier(ref),
+      }) : identifier(ref);
+    return { pattern: plan.leafPattern, ref,
+      guarded: !!narrow,
+      declarator: variableDeclarator(embed(narrow ? leaf.value : plan.leafPattern), value) };
+  });
+  const splitCapture = plan.ancestors.some(level => level.pattern.properties.length > 1 || computedKeyHasSideEffects(level.prop));
+  if (splitCapture) {
+    let receiver = ref;
+    for (const level of plan.ancestors.toReversed()) {
+      const outer = mintRef();
+      const ordered = [];
+      for (const prop of level.pattern.properties) {
+        const source = prop === level.prop ? { ...prop, value: level.defaultValue
+          ? { ...level.defaultValue, left: identifier(receiver) } : identifier(receiver) } : prop;
+        // A later destructuring lowering may evaluate the key before rejecting null.
+        // Keep that rejection in the initializer, ahead of the source pattern's key.
+        const init = computedKeyHasSideEffects(prop) ? conditionalExpression(nullFirstGuardTest(identifier(outer)),
+          memberExpression(identifier(outer), valueLiteral(''), { computed: true }), identifier(outer)) : identifier(outer);
+        ordered.push({ declarator: variableDeclarator(embed({ ...level.pattern, properties: [source] }), init) });
+        if (prop === level.prop) ordered.push(...elements);
+      }
+      elements.splice(0, elements.length, ...ordered);
+      receiver = outer;
+    }
+    captured = identifier(receiver);
+  }
+  if (assignment) {
+    const capture = assignmentExpression('=', embed(captured), embed(plan.init));
+    const result = preserveResult ? splitCapture ? captured : identifier(mintRef()) : null;
+    return { elements, expression: sequenceExpression([
+      result && !splitCapture ? assignmentExpression('=', result, capture) : capture,
+      ...elements.map(({ declarator }) => assignmentExpression('=', declarator.id, declarator.init)),
+      ...result ? [result] : [],
+    ]) };
+  }
+  return {
+    capture: variableDeclarator(embed(captured), embed(plan.init)),
+    elements,
+  };
+}
+
+// An effectful key cannot keep a sentinel: that reads its getter twice. Split the level
+// into native single-property patterns. A rest-bearing level stays native as a whole.
+// Nested patterns remain native operands, so their iterator/default effects keep their position.
+export function planRetainedObjectCapture({
+  pattern, init, assignment = false, prop = null, hostPath = null, adapter = null, resolveNodeType = null, injectorState = null,
+  kind = 'instance', entry = null, patternPath = null, probedInit = false,
+}) {
+  if (!init || pattern?.type !== 'ObjectPattern' || pattern.properties.some(isRestProperty)) return null;
+  if (assignment && kind === 'instance' && entry !== 'get-iterator-method' && !pattern.properties.includes(prop)) {
+    const capture = planNestedKeyedPatternCapture({ pattern, init });
+    if (capture?.leafPattern.properties.includes(prop)) return { capture };
+  }
+  const target = prop?.value?.type === 'AssignmentPattern' ? prop.value.left : prop?.value;
+  const nestedDefault = !assignment && pattern.properties.length > 1
+    && pattern.properties.some(item => item.value?.type === 'AssignmentPattern' && item.value.left?.type === 'ObjectPattern');
+  const symbolPatternCandidate = !assignment && pattern.properties.length > 1
+    && pattern.properties.some(item => item.computed && item.value?.type === 'ObjectPattern');
+  // A nested extraction stays between the outer siblings instead of overtaking their getters.
+  const nestedSibling = !assignment && (kind === 'instance' || (kind === 'static' && computedKeyHasSideEffects(prop)))
+    && pattern.properties.length > 1
+    && !pattern.properties.includes(prop)
+    && !(kind !== 'static' && adapter && !probedInit && isStaticPlacement(resolveObjectName({
+      objectNode: init, scope: hostPath?.scope, adapter, path: hostPath,
+    }) ?? ''));
+  const symbols = new Map();
+  if (symbolPatternCandidate && hostPath && adapter) {
+    for (const path of (patternPath ?? hostPath.get(assignment ? 'left' : 'id')).get('properties')) {
+      if (foldedPropertyKeyName(path.node) !== null) continue;
+      const { key: node, computed } = path.node;
+      const key = resolveKey({ node, computed, scope: path.scope, adapter, path });
+      if (key !== null && symbolSourcedFoldedKey({ key, keyNode: node, scope: path.scope, adapter, path })
+        && toHint(resolveNodeType?.(path.get('key'))) === 'symbol') symbols.set(path.node, { hint: key });
+    }
+  }
+  const symbolPattern = symbolPatternCandidate && [...symbols].some(
+    ([item, symbol]) => symbol.hint === 'Symbol.iterator' && item.value?.type === 'ObjectPattern',
+  );
+  const proxyMemberElement = !assignment && init.type === 'ArrayExpression' && init.elements.some(
+    element => globalProxyMemberName({
+      node: peelTransparentExpr(element), scope: hostPath?.scope, adapter, path: hostPath,
+    }) !== null,
+  );
+  if (!nestedDefault && !symbolPattern && !nestedSibling
+    && !((assignment || pattern.properties.length > 1 || proxyMemberElement)
+      && pattern.properties.includes(prop) && computedKeyHasSideEffects(prop))
+    && !(assignment && target?.type === 'MemberExpression' && pattern.properties.includes(prop))) return null;
+  const retainedStatic = kind === 'static' && (!assignment || target?.type === 'Identifier')
+    && pattern.properties.includes(prop)
+    && computedKeyHasSideEffects(prop);
+  if (kind !== 'instance' && !symbolPattern && !retainedStatic && !nestedSibling) return null;
+  if (!symbolPattern && !nestedSibling && adapter && allProxySelectingInit(init, { adapter, injectorState })) return null;
+  const nested = assignment && !pattern.properties.includes(prop)
+    ? pattern.properties.map(item => planNestedKeyedPatternCapture({
+      pattern: { ...pattern, properties: [item] }, init, force: true,
+    })).find(plan => plan?.leaf === prop && plan.leafPattern.properties.length === 1) : null;
+  return { pattern, init, assignment, prop, nested, retainedStatic };
+}
+
+// Keep native property patterns around the claimed read so keys, defaults and sibling
+// effects retain their positions. Rest never reaches this renderer.
+export function renderRetainedObjectCapture(plan, {
+  mintRef, mintDeclaredRef, injectImport, entry, hintName, embed = node => node,
+}) {
+  if (plan.capture) return renderNestedKeyedPatternCapture(plan.capture, {
+    mintRef: mintDeclaredRef, embed, assignment: true, preserveResult: true,
+  });
+  const ref = identifier(plan.assignment ? mintDeclaredRef() : mintRef());
+  const declarations = [variableDeclarator(ref, embed(plan.init))];
+  const assignments = [];
+  for (const prop of plan.pattern.properties) {
+    const assignmentStart = assignments.length;
+    if (prop === plan.nested?.ancestors[0].prop) {
+      const captured = renderNestedKeyedPatternCapture(plan.nested, { mintRef: mintDeclaredRef, embed });
+      assignments.push(
+        assignmentExpression('=', captured.capture.id, ref),
+        assignmentExpression('=', embed(plan.prop.value), callExpression(identifier(injectImport(entry, hintName)), [
+          identifier(captured.elements[0].ref),
+        ])),
+      );
+    } else if (plan.retainedStatic && !plan.assignment && prop === plan.prop) {
+      // The key observes the old binding; later siblings observe the initialized pure value.
+      const target = prop.value.type === 'AssignmentPattern' ? prop.value.left : prop.value;
+      const { prefix, tail } = peelNestedSequenceExpressions(prop.key);
+      declarations.push(renderKeyedDestructureRead({
+        receiverName: ref.name, receiver: ref, binding: embed(target),
+        keys: observableSequenceElements([...prefix, tail]).map(embed),
+        read: identifier(injectImport(entry, hintName)),
+      }).at(-1));
+    } else if (plan.assignment && prop === plan.prop) {
+      const defaulted = prop.value.type === 'AssignmentPattern';
+      const target = defaulted ? prop.value.left : prop.value;
+      const pure = identifier(injectImport(entry, hintName));
+      let read = plan.retainedStatic ? pure : callExpression(pure, [ref]);
+      if (defaulted && !plan.retainedStatic) {
+        const memo = identifier(mintDeclaredRef());
+        read = renderInstanceDefaultGuard({ assignedRef: memo, call: read, reread: memo,
+          defaultValue: embed(prop.value.right), defaultName: target.name });
+      }
+      const write = assignmentExpression('=', embed(target), read);
+      const { prefix, tail } = peelNestedSequenceExpressions(prop.key);
+      const keyEffects = prop.computed ? observableSequenceElements([...prefix, tail]).map(embed) : [];
+      assignments.push(keyEffects.length ? sequenceExpression([...keyEffects, write]) : write);
+    } else {
+      const pattern = embed({ ...plan.pattern, properties: [prop] });
+      if (plan.assignment) assignments.push(assignmentExpression('=', pattern, ref));
+      else declarations.push(variableDeclarator(pattern, ref));
+    }
+    // A computed key rejects null before its effects. A plain member target is evaluated
+    // first, so keep its native assignment ahead of the property read's null rejection.
+    if (plan.assignment && prop.computed) {
+      assignments.push(conditionalExpression(nullFirstGuardTest(ref),
+        memberExpression(ref, valueLiteral(''), { computed: true }), sequenceExpression(assignments.splice(assignmentStart))));
+    }
+  }
+  return plan.assignment ? { expression: sequenceExpression([
+    assignmentExpression('=', ref, embed(plan.init)),
+    ...assignments, ref,
+  ]) } : { declarations };
 }
 
 // --- the minifier-sequence split ---

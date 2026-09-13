@@ -80,7 +80,7 @@ function stripLeadingPrefix(p) {
 // pipeline split between query/backslash normalisation (pre-strip), prefix strip, and the
 // remaining UNC/slash-collapse/lowercase pass: slash-collapse must run AFTER stripLeadingPrefix
 // because `file://` would otherwise collapse to `file:/` and miss the prefix matcher
-function normalizeImportPath(path) {
+export function normalizeImportPath(path) {
   if (typeof path != 'string') return null;
   const queryless = stripQueryHash(path).replaceAll('\\', '/');
   const stripped = stripLeadingPrefix(queryless);
@@ -245,6 +245,12 @@ export function createPolyfillContext({
 
   const isEntryNeededCache = new Map();
 
+  // Syntax-lowering helpers have no polyfill modules. They need an entry in the selected
+  // package version even when every native polyfill is filtered by targets or exclusions.
+  function isEntryAvailable(entry) {
+    return entriesSetForTargetVersion.has(`${ mode }/${ entry || 'index' }`);
+  }
+
   // filter precedence convention: `exclude` wins over `include` over targets-default.
   // mirrors `buildShouldInjectPolyfill` in `plugin-options/targets.js` for module-level
   // filtering. flipping one without the other would desync - change both sites in lockstep.
@@ -275,6 +281,7 @@ export function createPolyfillContext({
     packages,
     getModulesForEntry,
     getCoreJSEntry,
+    isEntryAvailable,
     isEntryNeeded,
   };
 }

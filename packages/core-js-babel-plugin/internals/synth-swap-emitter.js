@@ -28,6 +28,7 @@ import {
   POSSIBLE_GLOBAL_OBJECTS,
   bindingPolyfillHint,
   trustedIdentifierAliasWrite,
+  peelChainAssignment,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   isClassifiableReceiverArg,
@@ -41,6 +42,7 @@ import {
   undefinedArmEffectiveReceiver,
   classifyCallBranchForSynth,
   fallbackBranchSwapKeepsSelection,
+  planSynthReceiverGuard,
   isViableBranchForKey,
   resolvableArgSupersedesDeadDefault,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
@@ -48,13 +50,13 @@ import estreeToBabel from './estree-to-babel.js';
 import {
   chainExpression,
   hostSlot,
+  renderSynthReceiverGuard,
   renderProxyReceiverPlan,
   renderSynthSlotRead,
   synthEntryKey,
   synthKeyMustBeComputed,
 } from '@core-js/polyfill-provider/render';
 import {
-  SYMBOL_ITERATOR_PURE_RESULT,
   planMemoReadTarget,
   dispatchConsumesRun,
   planProxyReceiver,
@@ -63,14 +65,22 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/members';
 import {
   proxyHopLacksPureEntry,
-  descendToChainRoot, discardRescueNodes, findProxyGlobal, maximalProxyGlobalHop, maximalProxyGlobalPrefix,
-  navHasUnresolvableProxyHop, navValueCanShortCircuit, ownChainOptionalObjects, PROXY_HOP_VALUE_CARRIERS, proxyGlobalMemberCtorPure,
+  descendToChainRoot,
+  discardRescueNodes,
+  findProxyGlobal,
+  maximalProxyGlobalHop,
+  maximalProxyGlobalPrefix,
+  navHasUnresolvableProxyHop,
+  navValueCanShortCircuit,
+  ownChainOptionalObjects,
+  PROXY_HOP_VALUE_CARRIERS,
+  proxyGlobalMemberCtorPure,
   proxyReceiverValueCanBeUndefined,
   resolveSynthKeys,
-  peelChainAssignment,
   peelReceiverSequenceTail,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { patternComputedKeysSynthSafe } from './synth-key-utils.js';
+import { SYMBOL_ITERATOR_PURE_RESULT } from '@core-js/polyfill-provider/detect-usage/globals';
 
 // does the run swallow a hop pure cannot back that reads a KEPT WRITE whose value the collapse
 // cannot serve? a store whose value ends on a hop pure cannot back (`v = globalThis.window`) hands
@@ -222,6 +232,7 @@ export default function createSynthSwapEmitter({
     targetPath, objectPatternPath, key, entry, hintName, callBranch = false, rescueSe = null, instance = false,
   }) {
     const receiver = targetPath.node;
+    const synthGuard = planSynthReceiverGuard({ receiver, scope: targetPath.scope, adapter, path: targetPath, resolvePure });
     // synth-swap owns the receiver chain - for proxy-global MemberExpression receivers
     // (`globalThis.Map`) walk down `.object` so inner Identifier visitors don't emit
     // `_globalThis` etc. into the range that synth-swap will replace.
@@ -232,10 +243,13 @@ export default function createSynthSwapEmitter({
       // and leaves its prefix's dropped globals - `(eff(), globalThis).Array` - to leak a dead import);
       // its harvested SE is re-exposed so the live left PREFIX (`([1].at(0), Array)`, an IIFE body's
       // globals) still polyfills in place, for apply() to harvest into the rescued leftSe sequence
-      t.traverseFast(receiver.right, node => { skippedNodes.add(node); });
+      if (!synthGuard) {
+        t.traverseFast(receiver.right, node => { skippedNodes.add(node); });
+      }
       const keepSe = discardRescueNodes({
         node: receiver.left, scope: targetPath.scope, adapter, path: targetPath,
       });
+      if (synthGuard) keepSe.push(synthGuard.probe);
       markReplacedReceiverSkipped({ receiver: receiver.left, keepSe, skippedNodes, walkNode: t.traverseFast });
     } else if (!rescueSe || shouldDropRescueReceiver(receiver)) {
       // case 3 (plain replace) + case 1 (rescue-drop): the synth literal supplants the receiver value
@@ -243,9 +257,10 @@ export default function createSynthSwapEmitter({
       // at a sequence and leaves the prefix's dropped globals visible, injecting a dead `_globalThis`
       // import. the harvested SE is re-exposed so its globals still polyfill in the live tree before
       // apply clones them into the re-emitted prefix. keeps the import set identical to the unplugin emitter
-      const keepSe = rescueSe ? discardRescueNodes({
+      const keepSe = rescueSe || synthGuard ? discardRescueNodes({
         node: receiver, scope: targetPath.scope, adapter, path: targetPath,
       }) : [];
+      if (synthGuard) keepSe.push(synthGuard.probe);
       markReplacedReceiverSkipped({ receiver, keepSe, skippedNodes, walkNode: t.traverseFast });
     } else markSynthReceiverSkipped(receiver, skippedNodes);
     let pending = synthSwapByReceiver.get(receiver);
@@ -258,6 +273,11 @@ export default function createSynthSwapEmitter({
         polyfills: new Map(),
         callBranch,
         rescueSe,
+        // the live probe's root rewrites before apply; preserve the source's landing plan
+        // now, while its direct realm root has not become an injector-owned alias.
+        guardedReceiverPlan: synthGuard ? planProxyReceiver(synthGuard.fallback?.left ?? receiver, {
+          aliasCtx: { scope: targetPath.scope, adapter, path: targetPath }, guardedProbe: synthGuard.probe, resolvePure,
+        }) : null,
       };
       synthSwapByReceiver.set(receiver, pending);
       pendingSwapCount++;
@@ -323,7 +343,7 @@ export default function createSynthSwapEmitter({
         // shared rule substitutes the default there (same branch, same value)
         if (!undefinedArmEffectiveReceiver({ branch: peeled.node[slot], paramDefaultNode: undefinedArmFallback })
           && !fallbackBranchSwapKeepsSelection({
-            hostNode: peeled.node, slot, branchNode: peeled.node[slot], scope: peeled.scope, adapter, path: peeled,
+            hostNode: peeled.node, slot, branchNode: peeled.node[slot], scope: peeled.scope, adapter, path: peeled, resolvePure,
           })) continue;
         if (registerBranchTreeForKey({
           branchPath: peeled.get(slot), objectPattern, lookupKey, slotKey, undefinedArmFallback,
@@ -665,7 +685,7 @@ export default function createSynthSwapEmitter({
   // `entries` is the shared flat classification the caller resolved for its own memo verdict and
   // hands over - recomputing it here classified every property of the pattern a second time per
   // applied swap (the unplugin twin has always threaded its `planEntries` the same way)
-  function buildSynthLiteral({ receiver, entries, memoParam = null, aliasCtx = null }) {
+  function buildSynthLiteral({ receiver, entries, memoParam = null, aliasCtx = null, guardedReceiverPlan = null }) {
     // `isExpandedClassifiableReceiver` accepts both bare Identifier (`Array`) and proxy-global
     // MemberExpression (`globalThis.Array`). only the Identifier shape has a `.name` slot worth
     // probing `resolvePure` against; MemberExpression receivers fall through to the as-is
@@ -699,7 +719,8 @@ export default function createSynthSwapEmitter({
       // unplugin); a non-ctor leaf falls through to the proxy-root collapse below
       const ctorPure = proxyGlobalMemberCtorPure({ receiver: readReceiver, aliasCtx, resolvePure });
       if (ctorPure) return receiverRef = injectPureImport(ctorPure.entry, ctorPure.hintName);
-      return receiverRef = collapseProxyGlobalReceiver(readReceiver, { aliasCtx }) ?? readReceiver;
+      return receiverRef = (guardedReceiverPlan ? renderCollapsePlan(guardedReceiverPlan)
+        : collapseProxyGlobalReceiver(readReceiver, { aliasCtx })) ?? readReceiver;
     }
 
     // the per-property classification AND its key spelling live in the shared plan / render
@@ -789,7 +810,25 @@ export default function createSynthSwapEmitter({
         // fragmented the print-order canonicalization's universe
         const memoParam = needMemo ? t.identifier(injector.generateRefName(n => path.scope.hasBinding(n))) : null;
         const aliasCtx = { scope: path.scope, adapter, path };
-        const literal = buildSynthLiteral({ receiver: path.node, entries, memoParam, aliasCtx });
+        const synthGuard = planSynthReceiverGuard({ receiver: path.node, ...aliasCtx, resolvePure });
+        const literal = buildSynthLiteral({ receiver: path.node, entries, memoParam, aliasCtx,
+          guardedReceiverPlan: synthGuard && pending.guardedReceiverPlan });
+        if (synthGuard) {
+          let guardedValue = literal;
+          if (needMemo) {
+            const guardedBody = estreeToBabel(renderSynthReceiverGuard({ probe: memoParam }, hostSlot(literal), { embed: hostSlot }));
+            const memoFunction = t.functionExpression(null, [memoParam], t.blockStatement([t.returnStatement(guardedBody)]));
+            guardedValue = t.callExpression(memoFunction, [t.cloneNode(synthGuard.fallback?.left ?? path.node, true)]);
+          }
+          const guarded = estreeToBabel(renderSynthReceiverGuard(
+            needMemo ? { fallback: synthGuard.fallback } : synthGuard, hostSlot(guardedValue), { embed: hostSlot },
+          ));
+          path.replaceWith(guarded);
+          pending.applied = true;
+          pendingSwapCount--;
+          path.skip();
+          return;
+        }
         // a fallback-logical receiver memoizes its resolved LEFT, not the whole `||` / `??`: the left
         // is the always-truthy receiver, so the dead right operand short-circuits and must not survive
         // into the memo argument (cloning the whole logical would re-substitute the right global on
@@ -881,5 +920,7 @@ export default function createSynthSwapEmitter({
   return {
     apply, collapseProxyGlobalReceiver, collapseProxyHopRoot,
     findTargetPath, detectIifeArgPath, registerPolyfill, tryRegisterPerBranchSynth,
+    // a suppressed-hop drive must not detach a receiver this ledger will replace at apply().
+    ownsReceiver: node => !!synthSwapByReceiver.get(node) && !synthSwapByReceiver.get(node).applied,
   };
 }

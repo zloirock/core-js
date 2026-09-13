@@ -3,13 +3,11 @@ import _Array$of from "@core-js/pure/actual/array/of";
 import _Object$groupBy from "@core-js/pure/actual/object/group-by";
 import _Promise$allSettled from "@core-js/pure/actual/promise/all-settled";
 import _Promise from "@core-js/pure/actual/promise/constructor";
-import _Promise$race from "@core-js/pure/actual/promise/race";
 import _Promise$try from "@core-js/pure/actual/promise/try";
-// a const-alias chain resolves each hop in ITS OWN declaration scope, not the receiver-use
-// scope - an inner binding shadowing an intermediate hop (or the winning IIFE call-arg) name
-// must not swallow the receiver, so the pure substitution still lands. distinct static per row.
-// branching-union hops are usage-global-only (pure requires certainty and bails on a branch),
-// so this pure twin locks the single-resolvable forms
+// Each alias hop resolves where its initializer evaluates; later shadows cannot retype it.
+// The sole IIFE call supplies the value used by both the synthesized argument and default.
+// A var name hoists, but its initializer still reads bindings in the block where it is written.
+// Different static methods keep every scope boundary observable.
 
 // single-static chain (`root -> link -> Array`): an inner param shadows the middle hop, but
 // the alias resolves against the module scope where the hop is a const
@@ -82,7 +80,9 @@ export function viaShadowedInitVar() {
     var heldRace = raceRoot;
   }
   {
-    const race = heldRace === _Promise ? _Promise$race : heldRace.race;
+    const {
+      race
+    } = heldRace;
     return race([]);
   }
 }

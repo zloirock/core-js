@@ -1,5 +1,7 @@
-// duplicate static class fields are LAST-wins at runtime (`NS.M === Iterator`), so a destructure
-// off the static must resolve through the LAST declaration - substituting the first is wrong-value
+// Duplicate static fields resolve to the last matching declaration, including computed string keys.
+// Unknown computed keys require dispatch through the actual stored constructor.
+// A later static block keeps its written slot instead of assuming the original field value.
+// Single-field and computed-key controls preserve the directly resolved cases.
 class NS {
   static M = Array;
   static M = Iterator;
@@ -23,8 +25,8 @@ class Computed {
 const { N: { allSettled } } = Computed;
 export const viaComputedOverride = allSettled([]);
 
-// an UNRESOLVABLE computed static key could BE the target name at runtime and override the plain
-// field, so resolution must BAIL (native) rather than fold the stale plain value
+// An unknown computed key may override the field. Test the stored constructor's identity
+// before selecting either candidate's static method.
 export function dynamicKeyBails(o) {
   class Guard {
     static P = Array;

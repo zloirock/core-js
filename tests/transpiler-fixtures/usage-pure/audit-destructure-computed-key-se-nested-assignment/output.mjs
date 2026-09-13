@@ -1,12 +1,10 @@
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
-// nested SE-key instance in a destructuring-ASSIGNMENT: the receiver is resolved through the object key
-// (`{ y: arr }.y` -> arr) and the polyfill appended as a post-statement overwrite; the effect runs once
+var _ref, _ref2, _ref3;
+// A nested computed method assignment reads its receiver once before the key effect.
+// The polyfill is assigned at that slot, without a second read after the pattern.
 let m;
-({
-  y: {
-    [(eff(), 'flat')]: m
-  }
+_ref = {
+  y: _ref2
 } = {
   y: arr
-});
-m = _flatMaybeArray(arr);
+}, _ref3 = _ref2, null == _ref3 ? _ref3[""] : (eff(), m = _flatMaybeArray(_ref3)), _ref3, _ref;

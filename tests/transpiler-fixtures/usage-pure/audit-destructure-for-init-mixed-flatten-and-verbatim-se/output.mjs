@@ -7,6 +7,6 @@ import _globalThis from "@core-js/pure/actual/global-this";
 // double-rewrite a non-flatten sibling that just happens to have a SequenceExpression init
 declare const a: () => void;
 declare const sideEffect: () => number;
-for (const from = _Array$from, _unused = (a(), _globalThis), b = (sideEffect(), 1); false;) {
+for (const _unused = (a(), _globalThis), from = _Array$from, b = (sideEffect(), 1); false;) {
   console.log(from, b);
 }

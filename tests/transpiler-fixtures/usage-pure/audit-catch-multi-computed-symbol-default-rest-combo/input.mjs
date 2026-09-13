@@ -1,7 +1,5 @@
-// catch param destructure mixing two computed Symbol keys (only one rewritable) + a
-// default-value on the rewritable key + rest gather. The plugin orchestrates a hoisted
-// `_ref2`, an `it` extractor with default fallback, and a residual destructure for
-// `Symbol.asyncIterator` + `...rest` - all in one catch clause
+// Object-rest keeps the affected catch pattern native, including its named method slots.
+// Independent reads and key/default expressions still receive their own polyfills.
 try {} catch ({ [Symbol.iterator]: it = altIter, [Symbol.asyncIterator]: ait, ...rest }) {
   it();
   ait;

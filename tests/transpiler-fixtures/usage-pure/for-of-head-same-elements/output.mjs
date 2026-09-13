@@ -5,11 +5,13 @@ import _entries from "@core-js/pure/actual/instance/entries";
 import _keys from "@core-js/pure/actual/instance/keys";
 import _values from "@core-js/pure/actual/instance/values";
 import _Object$entries from "@core-js/pure/actual/object/entries";
+import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 import _Object$groupBy from "@core-js/pure/actual/object/group-by";
 import _Object$hasOwn from "@core-js/pure/actual/object/has-own";
 import _Object$is from "@core-js/pure/actual/object/is";
 import _Object$isFrozen from "@core-js/pure/actual/object/is-frozen";
 import _Object$keys from "@core-js/pure/actual/object/keys";
+import _Object$seal from "@core-js/pure/actual/object/seal";
 import _Object$values from "@core-js/pure/actual/object/values";
 // a for-x HEAD over a LONGER literal answers a static claim when every element reads the same on
 // every pass: one identifier, or a literal container spelling the same keys and positions over such
@@ -183,26 +185,31 @@ for (const {
   z: 2
 }]) [viaPrimitiveSlots, z];
 
-// NEGATIVES: an element reading DIFFERENTLY on some pass - another value, another key, a getter, an
-// extra slot, a spread, a hole - leaves the head to the generic relocation or native
-for (const {
-  w: [{
-    freeze: viaOtherValue
-  }]
-} of [{
+// Different values, keys, getters, spreads and holes refuse a single-receiver mirror.
+// Enumerable static candidates may still receive a guard; unknown receivers stay native.
+for (const _ref3 of [{
   w: [Object]
 }, {
   w: [userObj]
-}]) viaOtherValue;
-for (const {
-  w: {
-    seal: viaOtherKey
-  }
-} of [{
+}]) {
+  let {
+    w: [{
+      freeze: viaOtherValue
+    }]
+  } = _ref3;
+  viaOtherValue;
+}
+for (const _ref5 of [{
   w: Object
 }, {
   v: Object
-}]) viaOtherKey;
+}]) {
+  let {
+      w: _ref4
+    } = _ref5,
+    viaOtherKey = _ref4 === Object ? _Object$seal : _ref4.seal;
+  viaOtherKey;
+}
 for (const {
   w: {
     assign: viaGetter
@@ -229,16 +236,18 @@ for (const {
   },
   z: 2
 }]) viaExtraSlot;
-for (const {
-  w: {
-    fromEntries: viaSpread
-  }
-} of [{
+for (const _ref7 of [{
   w: Object
 }, {
   w: Object,
   ...more
-}]) viaSpread;
+}]) {
+  let {
+      w: _ref6
+    } = _ref7,
+    viaSpread = _ref6 === Object ? _Object$fromEntries : _ref6.fromEntries;
+  viaSpread;
+}
 for (const [{
   getOwnPropertyNames: viaHole
 }] of [[Object], [, Object]]) viaHole;
@@ -254,8 +263,9 @@ for (const viaLater of [{
 
 // an emptied SOLE host with a pure init leaves on both legs, the wrapper husk included; a neighbour
 // element that runs lifts as a statement ahead, in source order (the `push` claims are carriers)
-let viaEmptiedObject = _entries(rec.w);
-let viaEmptiedObjectAt = _at(rec.y);
+let _ref8 = rec;
+let viaEmptiedObject = _entries(_ref8.w);
+let viaEmptiedObjectAt = _at(_ref8.y);
 [viaEmptiedObject, viaEmptiedObjectAt];
 const viaEmptiedWrap = _values(rec.w);
 const viaEmptiedWrapAt = _at(rec.y);

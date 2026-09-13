@@ -17,16 +17,16 @@ export const { keys: castSealDestructure } = (globalThis.window?.self as any).Ob
 export function castSealSynth({ values: sv } = (globalThis.window?.[(c2++, 'self')] as any).Object) { return sv; }
 export { c2 };
 
-// the bare-`!` KEPT-ASSIGN spelling stays raw on BOTH legs (the kept canon owns the write; the
-// wrapper neither seals nor unlocks a collapse). its VALUE twin has no write to keep, so the
-// short-circuit render owns it and the hop resolves to its ponyfill instead of being read raw
+// A non-null wrapper preserves the kept assignment and the source optional branch.
+// The store retains its terminal environment probe; the unconsumed navigation follows
+// the ordinary realm-collapse rule. The wrapper itself introduces no runtime check.
 let kv;
 export const bareNonNullKeptAssign = (kv = globalThis.window?.self!.window)?.BigInt;
 export const bareNonNullKeptValue = globalThis.window?.self!.window;
 export { c };
 
-// a CAST-sealed SE-key destructure source: the wrapper peels transparently, the residual
-// rides the guard exactly like the paren-sealed spelling
+// A cast-sealed receiver keeps its optional guard. Only a non-null receiver evaluates
+// the computed key and selects the pure static.
 let c3 = 0;
 export const { [(c3++, 'freeze')]: castSealSeKeyResidual } = ((globalThis.window?.self) as any).Object;
 export { c3 };

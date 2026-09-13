@@ -4,6 +4,8 @@ import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _at from "@core-js/pure/actual/instance/at";
 import _Object$entries from "@core-js/pure/actual/object/entries";
 import _structuredClone from "@core-js/pure/actual/structured-clone";
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
 // probe corpus of the defense cycles over the destructure wrappers, family "other", part 8:
 // every block is one probed form, self-contained over the header bindings, locked on both legs
 let pick = 1;
@@ -44,51 +46,45 @@ function mark(t, v) {
   const a1 = _atMaybeArray([1]);
 }
 {
-  const _ref = [1];
-  const a4 = _atMaybeArray(_ref);
+  const {
+    w: {
+      at: a4
+    },
+    ...r
+  } = {
+    w: [1]
+  };
+}
+{
+  const {
+    w: {
+      at: f21
+    },
+    ...r
+  } = {
+    w: g()
+  };
+}
+{
+  const {
+    w: {
+      at: f22
+    },
+    ...r
+  } = {
+    w: [1]
+  };
+}
+{
+  const _ref = [1, 2];
+  const m = _atMaybeArray(_ref);
   const {
     w: {
       at: _unused
-    },
-    ...r
-  } = {
-    w: _ref
-  };
-}
-{
-  const _ref2 = g();
-  const f21 = _at(_ref2);
-  const {
-    w: {
-      at: _unused2
-    },
-    ...r
-  } = {
-    w: _ref2
-  };
-}
-{
-  const _ref3 = [1];
-  const f22 = _atMaybeArray(_ref3);
-  const {
-    w: {
-      at: _unused3
-    },
-    ...r
-  } = {
-    w: _ref3
-  };
-}
-{
-  const _ref4 = [1, 2];
-  const m = _atMaybeArray(_ref4);
-  const {
-    w: {
-      at: _unused4
     }
   } = {
     ...spread,
-    w: _ref4
+    w: _ref
   };
   use(m);
 }
@@ -96,7 +92,7 @@ function mark(t, v) {
   const m = _atMaybeArray(arr);
   const {
     w: {
-      at: _unused5
+      at: _unused2
     }
   } = {
     ...spread,
@@ -135,15 +131,13 @@ function mark(t, v) {
   use(m);
 }
 {
-  const _ref5 = [1, 2];
-  const m = _atMaybeArray(_ref5);
   const {
     w: {
-      at: _unused6
+      at: m
     },
     ...rest
   } = {
-    w: _ref5,
+    w: [1, 2],
     z: 1
   };
   use(m, rest);
@@ -161,59 +155,47 @@ function mark(t, v) {
   use(m, rest);
 }
 {
-  const _ref6 = (mark(), arr);
-  const m = _atMaybeArray(_ref6);
-  const {
-    w: {
-      at: _unused7
-    },
-    z
-  } = {
-    w: _ref6,
+  const _ref2 = {
+    w: (mark(), arr),
     z: 1
   };
+  const m = _atMaybeArray(_ref2.w);
+  const {
+    z
+  } = _ref2;
   use(m, z);
 }
 {
-  const _ref7 = [1, 2];
-  const m = _atMaybeArray(_ref7);
-  const {
-    w: {
-      at: _unused8
-    },
-    z
-  } = {
-    w: _ref7,
+  const _ref3 = {
+    w: [1, 2],
     z: 1
   };
+  const m = _atMaybeArray(_ref3.w);
+  const {
+    z
+  } = _ref3;
   use(m, z);
 }
 {
-  const _ref8 = [eff()];
-  const m = _atMaybeArray(_ref8);
-  const {
-    w: {
-      at: _unused9
-    },
-    z
-  } = {
-    w: _ref8,
+  const _ref4 = {
+    w: [eff()],
     z: 1
   };
+  const m = _atMaybeArray(_ref4.w);
+  const {
+    z
+  } = _ref4;
   use(m, z);
 }
 {
-  const _ref9 = c ? a : b;
-  const m = _at(_ref9);
-  const {
-    w: {
-      at: _unused10
-    },
-    z
-  } = {
-    w: _ref9,
+  const _ref5 = {
+    w: c ? a : b,
     z: 1
   };
+  const m = _at(_ref5.w);
+  const {
+    z
+  } = _ref5;
   use(m, z);
 }
 {
@@ -254,31 +236,25 @@ function mark(t, v) {
   use(m, z);
 }
 {
-  const _ref10 = obj.p;
-  const m = _at(_ref10);
-  const {
-    w: {
-      at: _unused11
-    },
-    z
-  } = {
-    w: _ref10,
+  const _ref6 = {
+    w: obj.p,
     z: 1
   };
+  const m = _at(_ref6.w);
+  const {
+    z
+  } = _ref6;
   use(m, z);
 }
 {
-  var _ref11;
-  const {
-    w: {
-      at: _unused12
-    },
-    z
-  } = {
+  const _ref7 = {
     z: tick('z', 1),
-    w: _ref11 = tick('w', arr)
+    w: tick('w', arr)
   };
-  const m = _at(_ref11);
+  const m = _at(_ref7.w);
+  const {
+    z
+  } = _ref7;
   use(m, z);
 }
 {
@@ -346,13 +322,12 @@ function mark(t, v) {
 }
 {
   const {
-    w: {
-      from: f
-    }
-  } = {
-    w: Array,
-    ...o
-  };
+      w: _ref8
+    } = {
+      w: Array,
+      ...o
+    },
+    f = _ref8 === Array ? _Array$from : _ref8.from;
 }
 {
   const {

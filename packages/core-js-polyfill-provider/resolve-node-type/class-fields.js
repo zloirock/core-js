@@ -41,8 +41,9 @@ import {
   ownThisMemberKeyName,
   walkAstChildren,
 } from '../helpers/ast-patterns.js';
-import { isPrivateMemberNode, moduleStatements, nodeRangeContains } from './ast-shapes.js';
+import { isPrivateMemberNode, moduleStatements } from './ast-shapes.js';
 import { isLoopStatement } from '../destructure-host-shape.js';
+import { nodeRangeContains } from './base.js';
 
 export function createClassFields({
   t,
@@ -1000,6 +1001,7 @@ export function createClassFields({
   return {
     resolveClassFieldType,
     classCallableSlotReassigned,
+    callableSlotReassigned,
     resolveObjectFieldFlow,
     staticFieldShadowable,
     instanceMemberShadowable,

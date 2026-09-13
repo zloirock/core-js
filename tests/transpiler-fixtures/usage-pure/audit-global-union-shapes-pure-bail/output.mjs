@@ -1,17 +1,17 @@
+import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Iterator from "@core-js/pure/actual/iterator/constructor";
 import _Map from "@core-js/pure/actual/map/constructor";
 import _Set from "@core-js/pure/actual/set/constructor";
-// pure twin of the usage-global union shapes: pure substitutes only when CERTAIN, so a
-// reassigned alias / captured branching value / conditionally reassigned self-ref var all
-// keep their reads RAW - the global-side union widening must never leak substitutions here
+// Ambiguous constructor aliases select statics through runtime identity checks.
+// Each fallback retains the selected receiver and preserves the method call receiver.
 function f(c, d) {
   let M0 = Object;
   if (c) M0 = Array;
   let M = M0;
   if (d) M = _Map;
-  M.from([1, 2, 3]);
+  (M === Array ? _Array$from : M.from.bind(M))([1, 2, 3]);
 }
 f(true, false);
 let loopHeld = Array;

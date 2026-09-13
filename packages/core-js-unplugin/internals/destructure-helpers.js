@@ -4,6 +4,7 @@ import {
   buildPatternRenderPlan,
   conditionalDestructureLeftUntouchedWarning,
   descendReceiverPathByKeys,
+  destructureKeyReadPlan,
   fallbackDestructureHasPolyfillableBranch,
   isConstantLiteralReceiver,
   isReReferenceableReceiver,
@@ -39,7 +40,6 @@ import {
   dropDeadSequenceElements,
   findIifeArgPath,
   findObjectKeyBeforeSpread,
-  firstProxyBranch,
   followConstLiteralAlias,
   hasRestSiblingExcept,
   isDestructurePattern,
@@ -75,6 +75,7 @@ import {
   statementListOf,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   unwrapRuntimeExpr,
+  walkAstNodes,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { ownEmittedPatternClaim, ownOutputTests } from '@core-js/polyfill-provider/detect-usage/own-output';
 import {
@@ -82,11 +83,9 @@ import {
   hostLevelSurvives,
 } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
 import { detectIifeArgReceiver } from './destructure-emit-utils.js';
-import { walkAstNodes } from './plugin-helpers.js';
 import { cloneStamped, nodeSite } from './nav-spine.js';
 
 import {
-  memberFromKeyName,
   mintedProxyGlobalName,
   proxyStoreIsSpellable,
   replaceNodeInTree,
@@ -106,9 +105,11 @@ import {
   nullFirstGuardTest,
   renderAliasHeldProbeRead,
   renderInstanceDefaultGuard,
+  renderKeyedDestructureRead,
   renderShortCircuitGuard,
   renderStaticDefaultGuard,
-} from './builders.js';
+  memberFromKeyName,
+} from '@core-js/polyfill-provider/render';
 
 // the AST engine's destructure pipeline - the STAGED port of babel's destructure-emitter
 // (the design's MIG-14 blueprint): the plan layer's decisions replay over estree nodes.
@@ -609,10 +610,6 @@ export function liftArrayWrapperPrefixes(declarator, { liftWrites = true, stored
   return lifted;
 }
 
-// the selecting-init canon lives in the core now - this leg's drain and claim routes keep their
-// import path through here, which is where they always asked for it
-export { allProxySelectingInit, firstProxyBranch, proxySurfaceIdentifier };
-
 export function propBindingTarget(prop) {
   if (isDestructurePattern(prop.value)) return prop.value;
   // a DEFAULTED pattern value binds through its OWN pattern: the default rides the extraction's
@@ -926,6 +923,7 @@ export function overwriteDefaultGuard({ call, localName, ref, defaultNode = null
     assignedRef: identifier(ref),
     call,
     defaultValue: defaultNode ?? identifier(localName),
+    defaultName: localName,
     reread: identifier(ref),
   });
 }
@@ -1098,7 +1096,9 @@ export function planSealedNavProbe(receiver, metaPath, ctx) {
     // a leaf pure cannot back reads off the ponyfill base the guard proved - folded onto it or as
     // its member - the plan's own verdict, shared with the other leg's render
     basePure: leafPlan.leafBasePure ?? null,
-    foldLeafOntoBase: !!leafPlan.foldLeafOntoBase,
+    // The seal makes the terminal environment read observable. Keep it over
+    // the backed base instead of folding it into that base.
+    foldLeafOntoBase: false,
     guardObject: cloneStamped(leafPlan.guardObject),
     effectsHost: boundary.inner,
   };
@@ -1247,7 +1247,7 @@ function renderDiscardedInitProbeRead(jobs, ctx) {
   const aliasCtx = { scope: metaPath.scope, adapter: ctx.adapter, path: metaPath };
   // a HOP chain reads its OUTERMOST key off the init - that is the read native performs
   // (`{ Math: { cbrt } } = (guard)` probes `(guard).Math`)
-  const keyProp = job.chain?.length ? job.chain.at(-1).hopProp : job.prop;
+  const keyProp = job.chain?.length && !job.initProbeReadsLeaf ? job.chain.at(-1).hopProp : job.prop;
   const { lookupKey } = resolveSynthKeys({ node: keyProp, ...aliasCtx });
   if (typeof lookupKey !== 'string') return null;
   const probe = substituteProxyRootsInClone(cloneStamped(plan.guardObject), metaPath, ctx);
@@ -1508,14 +1508,17 @@ function drainSequenceAssignment({ hostNode, jobs }, { program, drainAssignment,
 // sequence (nothing to lift, and a hoist past nothing is already order-safe). the elements leave the
 // sequence, so the caller splices what comes back ahead of its own hoists
 function liftLeadingSequenceElements(program, hostNode) {
-  // the element may sit under grouping parens, so the match peels each expression before comparing
+  // Only the statement's own sequence can lift ahead of that statement. A nested sequence
+  // may sit behind a guard or earlier effects that must stay ahead of its prefix.
   let sequence = null;
   let index = -1;
   walkAstNodes({ root: program, visit: node => {
-    if (sequence || node.type !== 'SequenceExpression') return !sequence;
-    const at = node.expressions.findIndex(expr => peelTransparentExpr(expr) === hostNode);
+    if (sequence || node.type !== 'ExpressionStatement') return !sequence;
+    const candidate = peelTransparentExpr(node.expression);
+    if (candidate?.type !== 'SequenceExpression') return;
+    const at = candidate.expressions.findIndex(expr => peelTransparentExpr(expr) === hostNode);
     if (at !== -1) {
-      sequence = node;
+      sequence = candidate;
       index = at;
     }
     return !sequence;
@@ -1707,6 +1710,7 @@ export function hasRestSibling(pattern) {
 // the destructured value reads undefined, whatever the receiver held)
 export function swapInlineDefaults({ leafPattern, ctorName, metaPath, insertOnUndefaulted = false },
   { resolvePure, markSubtreeSkipped, skippedNodes, injectPureImport, markRewrite }) {
+  if (hasRestSiblingExcept(leafPattern.properties, null)) return;
   for (const leafProp of leafPattern.properties) {
     if (leafProp.type !== 'Property' || leafProp.computed) continue;
     const defaulted = leafProp.value?.type === 'AssignmentPattern';
@@ -2158,7 +2162,7 @@ export function forInitMemoVerdicts(byDeclarator, mintRefName) {
   for (const [declarator, declJobs] of byDeclarator) {
     const init = declarator?.init;
     const reusableInit = init?.type === 'Identifier' || init?.type === 'ThisExpression';
-    if (!init || reusableInit || declJobs.some(job => job.chain?.length)) continue;
+    if (!init || reusableInit || declJobs.some(job => job.chain?.length || job.arrayWrapSink)) continue;
     const readers = declJobs.filter(job => job.readsReceiver).length;
     const consumed = declJobs.reduce((total, job) => total + patternBindingCount(job.prop.value), 0);
     const residualLives = patternBindingCount(declarator.id) !== consumed;
@@ -2958,7 +2962,7 @@ export function seKeySegmentedDeclarators(declarator, jobs, refName) {
   // ... never around a REST: it gathers by exclusion of its own pattern's keys, and a segment of its
   // own would gather the claimed keys too (babel keeps the batch there, a documented boundary)
   const rest = declarator.id.type === 'ObjectPattern' && declarator.id.properties.some(item => item.type === 'RestElement');
-  if (!rest && (jobs.length > 1 || patternHasSeveralSeKeys(declarator.id)
+  if (!rest && (jobs.some(job => job.consumeKey) || jobs.length > 1 || patternHasSeveralSeKeys(declarator.id)
     || (jobs.length === 1 && trailingSeKeyProps(declarator, jobs[0])))) {
     return interleavedSeKeySegments(declarator, jobs, refName);
   }
@@ -2988,9 +2992,22 @@ export function interleavedSeKeySegments(declarator, jobs, refName) {
   const declarators = [];
   let buffered = [];
   for (const prop of declarator.id.properties) {
-    buffered.push(prop);
     const job = jobByProp.get(prop);
+    if (!job?.consumeKey) buffered.push(prop);
     if (!job) continue;
+    if (job.consumeKey) {
+      if (buffered.length) declarators.push(variableDeclarator(
+        { type: 'ObjectPattern', properties: buffered }, cloneNode(declarator.init),
+      ));
+      const receiverName = refName ?? declarator.init.name;
+      const keys = destructureKeyReadPlan({ node: prop, parentPath: { node: declarator.id } })?.keys ?? [];
+      declarators.push(renderKeyedDestructureRead({
+        receiverName, receiver: identifier(receiverName), binding: job.bindingTarget,
+        keys, read: job.value(receiverName),
+      }).at(-1));
+      buffered = [];
+      continue;
+    }
     declarators.push(
       variableDeclarator({ type: 'ObjectPattern', properties: buffered }, cloneNode(declarator.init)),
       variableDeclarator(job.bindingTarget, job.value(refName)),
@@ -3018,6 +3035,7 @@ export function guardedSlotValue(built, valueNode, guardRef) {
       assignedRef: identifier(guardRef),
       call: built,
       defaultValue: valueNode.right,
+      defaultName: valueNode.left?.name,
       reread: identifier(guardRef),
     });
 }

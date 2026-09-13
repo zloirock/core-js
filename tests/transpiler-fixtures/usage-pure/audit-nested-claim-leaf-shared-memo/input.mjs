@@ -1,7 +1,5 @@
-// once a leaf flattens onto its twin, EVERY claim in it reads the shared memo - a claim spelling
-// the hop for itself would fire that getter a second time. the claims may take the leaf whole, and
-// then the rewritten declarator binds nothing and leaves with the pattern. a COMPUTED sibling
-// travels (it keeps its key node and its position); a REST one gathers what was not named and stays
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
 const box = { y: [1, [2]], keep: 3 };
 const twoClaims = (function () {
   const { y: { at, flat } } = box;

@@ -7,8 +7,9 @@
 // O(V) cache build per binding (sorted by source position), O(log V) per query.
 import { ASSIGN_LEFT_TYPES, MAX_DEPTH } from './base.js';
 import { nodeAlwaysHardExits } from './exit-analysis.js';
-import { usageCrossesLoopBackEdgeReassign } from './ast-shapes.js';
 import {
+  bindingLoopAnchor,
+  usageCrossesLoopBackEdgeReassign,
   isDeferredContextStep,
   NESTED_BINDING_INTRODUCERS,
   peelTransparentExpr,
@@ -16,6 +17,7 @@ import {
   runsAtImmediateInvocation,
   TS_EXPR_WRAPPERS,
   anyWriteOutrunsUse,
+  writeIsInOppositeBranch,
 } from '../helpers/ast-patterns.js';
 import { isLoopStatement } from '../destructure-host-shape.js';
 
@@ -136,17 +138,6 @@ export function assignRightKey(n) {
 // scope-anchor AST node: babel exposes `.block`, estree-toolkit `.path.node`
 export function scopeNode(s) {
   return s.block ?? s.path?.node;
-}
-
-// loop back-edge anchor for a binding: its declaration identifier node + kind. position (which loop
-// slot the decl sits in) plus kind (`var` is function-scoped and carries; `let`/`const` are
-// block-scoped and re-created in a body) is the parser-robust signal - estree-toolkit attaches both a
-// for-body `var` and a for-body `let` to the ForStatement scope, so the scope node cannot tell them apart
-export function bindingLoopAnchor(binding) {
-  return {
-    decl: binding?.identifier ?? binding?.identifierPath?.node ?? null,
-    kind: binding?.kind ?? null,
-  };
 }
 
 // `usageCrossesLoopBackEdgeReassign` adapted to a binding: derives its reassignment nodes from
@@ -435,11 +426,12 @@ export function createStraightLineFlow({ t, babelNodeType }) {
     if (idx < 0) return null;
     const chosen = sortedAssigns[idx];
     // a CONDITIONAL reassignment (not straight-line, so absent from sortedAssigns) positioned between
-    // the chosen assignment and the use can overwrite it at runtime - degrade to the generic / union
-    // path rather than committing to the chosen value's single type
+    // the chosen assignment and the use can overwrite it at runtime, except in the opposite arm
+    // of the same conditional - otherwise degrade to the generic / union path
     for (const v of violations) {
       const vStart = v.node?.start;
-      if (vStart !== undefined && vStart >= chosen.end && vStart < beforePos) return null;
+      if (vStart !== undefined && vStart >= chosen.end && vStart < beforePos
+        && !writeIsInOppositeBranch(v.node, usagePath)) return null;
     }
     return chosen.ap;
   }

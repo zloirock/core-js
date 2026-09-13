@@ -4,7 +4,6 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
   resolveKey as sharedResolveKey,
-  unwrapTransparentSeq,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
   beginMutationPrePass,
@@ -38,6 +37,7 @@ import {
   aliasSpanDominatesUse,
   usableAliasInfo,
   CHAIN_HOP_WRAPPER_TYPES,
+  unwrapTransparentSeq,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   assignmentAliasWriteTrusted,
@@ -278,6 +278,7 @@ export function createBabelAdapter(options = {}) {
           // only adds a branch that never fires
           guardedAliasHints: (identityInfo ?? replacedDeclSlotInfo(b.path.node, info)) && !polyfillHint
             ? (identityInfo ?? info).hints ?? null : null,
+          guardedAliasWrite: (identityInfo ?? info)?.aliasWrite ?? (identityInfo ?? info)?.aliasDeclSpan ?? null,
         };
       }
       if (!info) return null;
@@ -813,6 +814,7 @@ export function createUsageVisitors({
   onUsage,
   resolveMeta,
   resolvePure = null,
+  parameterCallSites = null,
   resolveStaticKey = null,
   resolvedType,
   suppressProxyGlobals = false,
@@ -912,7 +914,7 @@ export function createUsageVisitors({
     const key = resolveKey(path.get('key'), path.node.computed);
     const containerUnion = [];
     let meta = buildDestructureLeafMeta({
-      descriptor, key, adapter, resolvePure, unionSink: containerUnion, resolveStaticKey,
+      descriptor, key, adapter, resolvePure, unionSink: containerUnion, resolveStaticKey, parameterCallSites,
     });
     // follow memoized reference type (e.g. `const _ref = [1, 2, 3]` after memoization) -
     // a binding-half post-step: the resolvedType cache is this leg's scope tracker's.

@@ -26,8 +26,8 @@ for (const { w: { values: viaDualBesideInstance }, y: { at: viaInstanceBeside } 
 for (const viaWritten of [{ w: Object }]) { const { w: { keys: viaWrittenKeys } } = viaWritten; viaWrittenKeys; }
 for (const { w: { is: viaPrimitiveSlots }, z } of [{ w: Object, z: 's' }, { w: Object, z: 2 }]) [viaPrimitiveSlots, z];
 
-// NEGATIVES: an element reading DIFFERENTLY on some pass - another value, another key, a getter, an
-// extra slot, a spread, a hole - leaves the head to the generic relocation or native
+// Different values, keys, getters, spreads and holes refuse a single-receiver mirror.
+// Enumerable static candidates may still receive a guard; unknown receivers stay native.
 for (const { w: [{ freeze: viaOtherValue }] } of [{ w: [Object] }, { w: [userObj] }]) viaOtherValue;
 for (const { w: { seal: viaOtherKey } } of [{ w: Object }, { v: Object }]) viaOtherKey;
 for (const { w: { assign: viaGetter } } of [{ w: Object }, { get w() { return Object; } }]) viaGetter;

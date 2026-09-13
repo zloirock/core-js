@@ -1,3 +1,5 @@
+import PureWeakSet from '@core-js/pure/actual/weak-set/constructor';
+
 // Object literals, coercion and declaration-destructure around polyfill injection. Every test is
 // DISTINGUISHING via evaluation count or order: a getter / computed key / spread source / iterator
 // protocol must run an exact number of times, a declaration destructure must extract the polyfill
@@ -233,3 +235,257 @@ QUnit.test('object: polyfill result stored then read back through the literal', 
   assert.deepEqual(wrap.data, [1, 2, 3]);
   assert.same(wrap.data.at(-1), 3);
 });
+
+/* eslint-disable es/no-accessor-properties, unicorn/no-unused-properties -- computed slot and getter regression shapes */
+QUnit.test('destructure: an unknown later key preserves the selected receiver', assert => {
+  function read(key, replacement) {
+    const ns = { Q: Array, [key]: replacement };
+    const { Q: { of: method } } = ns;
+    return method;
+  }
+  assert.deepEqual(read('other', Map)(3, 7), [3, 7]);
+  assert.same(read('Q', Map), undefined);
+  function custom() { return 42; }
+  assert.same(read('Q', { of: custom }), custom);
+  assert.throws(() => read('Q', null), TypeError);
+});
+
+QUnit.test('destructure: a trailing spread preserves the selected receiver', assert => {
+  function read(extra) {
+    const ns = { Q: Array, ...extra };
+    const { Q: { of: method } } = ns;
+    return method;
+  }
+  assert.deepEqual(read({})(4, 9), [4, 9]);
+  assert.same(read({ Q: Map }), undefined);
+  function custom() { return 23; }
+  assert.same(read({ Q: { of: custom } }), custom);
+  assert.throws(() => read({ Q: null }), TypeError);
+});
+
+QUnit.test('destructure: an uncertain nested assignment keeps its receiver', assert => {
+  function read(key, replacement) {
+    const ns = { Q: Array, [key]: replacement };
+    let method;
+    // eslint-disable-next-line prefer-const -- assignment-form destructuring is the regression shape
+    ({ Q: { of: method } } = ns);
+    return method;
+  }
+  assert.deepEqual(read('other', Map)(5, 8), [5, 8]);
+  assert.same(read('Q', Map), undefined);
+  function custom() { return 31; }
+  assert.same(read('Q', { of: custom }), custom);
+  assert.throws(() => read('Q', null), TypeError);
+});
+
+QUnit.test('destructure: uncertain nested slots keep multiple static reads in order', assert => {
+  const log = [];
+  function read(key, replacement) {
+    const ns = { wrap: { Q: Array, [key]: replacement } };
+    const { wrap: { Q: { of: ofMethod, from: fromMethod } } } = ns;
+    return [ofMethod, fromMethod];
+  }
+  const normal = read('other', Map);
+  assert.deepEqual(normal[0](1, 2), [1, 2]);
+  assert.deepEqual(normal[1]([6, 7]), [6, 7]);
+  const overridden = read('Q', {
+    get of() { log.push('of'); return 11; },
+    get from() { log.push('from'); return 22; },
+  });
+  assert.deepEqual(overridden, [11, 22]);
+  assert.deepEqual(log, ['of', 'from']);
+});
+
+QUnit.test('destructure: a shadowed constructor name cannot select the wrong static', assert => {
+  function read(key) {
+    const ns = { Q: Array, [key]: Map };
+    // The runtime comparator must name the realm's Array.
+    return function capture(Array) {
+      const { Q: { of: method } } = ns;
+      return [method, Array];
+    }(Map);
+  }
+  assert.deepEqual(read('other')[0](2, 5), [2, 5]);
+  assert.same(read('Q')[0], undefined);
+});
+
+QUnit.test('destructure: a computed replacement supplies its own static candidate', assert => {
+  function read(key) {
+    const ns = { Q: Object, [key]: Array };
+    const { Q: { of: method } } = ns;
+    return method;
+  }
+  assert.same(read('other'), undefined);
+  assert.deepEqual(read('Q')(8, 13), [8, 13]);
+});
+
+QUnit.test('destructure: a written slot uses a candidate only when its receiver matches', assert => {
+  function read(replacement) {
+    const ns = { Q: Array };
+    ns.Q = replacement;
+    const { Q: { of: method } } = ns;
+    return method;
+  }
+  assert.deepEqual(read(Array)(3, 6), [3, 6]);
+  assert.same(read(Map), undefined);
+  function custom() { return 71; }
+  assert.same(read({ of: custom }), custom);
+  assert.throws(() => read(null), TypeError);
+});
+
+QUnit.test('destructure: a consumed assignment keeps its source value and ordered reads', assert => {
+  const log = [];
+  function read(key, replacement) {
+    let ofMethod;
+    let fromMethod;
+    const source = { Q: Array, [key]: replacement };
+    const result = { Q: { of: ofMethod, from: fromMethod } } = source;
+    assert.same(result, source);
+    return [ofMethod, fromMethod];
+  }
+  const normal = read('other', Map);
+  assert.deepEqual(normal[0](1, 2), [1, 2]);
+  assert.deepEqual(normal[1]([3, 4]), [3, 4]);
+  const overridden = read('Q', {
+    get of() { log.push('of'); return 11; },
+    get from() { log.push('from'); return 22; },
+  });
+  assert.deepEqual(overridden, [11, 22]);
+  assert.deepEqual(log, ['of', 'from']);
+});
+
+QUnit.test('destructure: an inline assignment source keeps its own polyfill reads', assert => {
+  function read(key) {
+    let method;
+    const result = { Q: { of: method } } = { Q: Array, [key]: Map };
+    return [method, result];
+  }
+  const normal = read('other');
+  assert.deepEqual(normal[0](5, 6), [5, 6]);
+  assert.same(normal[1].other, Map);
+  const overridden = read('Q');
+  assert.same(overridden[0], undefined);
+  assert.same(overridden[1].Q, Map);
+});
+/* eslint-enable es/no-accessor-properties, unicorn/no-unused-properties -- end of the source forms above */
+
+/* eslint-disable es/no-accessor-properties -- getter effects are the source behavior under test */
+
+QUnit.test('getter member read supplies the pure constructor after running the getter once', assert => {
+  const order = [];
+  const source = {
+    get w() {
+      const count = order.push('getter');
+      order.push(count);
+      return globalThis;
+    },
+  };
+  const value = source.w.WeakSet;
+  assert.same(value, PureWeakSet);
+  assert.deepEqual(order, ['getter', 1]);
+});
+
+QUnit.test('getter member read keeps an overriding object and the native null error', assert => {
+  const order = [];
+  const custom = {};
+  function read(key, replacement) {
+    const source = {
+      get w() { order.push('getter'); return globalThis; },
+      [key]: replacement, // eslint-disable-line unicorn/no-unused-properties -- the dynamic override is the source behavior under test
+    };
+    return source.w.WeakSet;
+  }
+  assert.same(read('w', { WeakSet: custom }), custom);
+  assert.deepEqual(order, []);
+  assert.throws(() => read('w', null), TypeError);
+  assert.deepEqual(order, []);
+  assert.same(read('other', null), PureWeakSet);
+  assert.deepEqual(order, ['getter']);
+});
+
+QUnit.test('destructuring: a nested getter retains its effect and supplies the pure constructor', assert => {
+  const order = [];
+  const { w: { WeakSet: value } } = {
+    get w() {
+      order.push('getter');
+      return globalThis;
+    },
+  };
+  assert.same(value, PureWeakSet);
+  assert.deepEqual(order, ['getter']);
+});
+
+QUnit.test('destructuring: a retained getter keeps unrelated locals', assert => {
+  const order = [];
+  const { w: { WeakSet: value } } = {
+    get w() {
+      const local = order.push('local');
+      order.push(local);
+      return globalThis;
+    },
+  };
+  assert.same(value, PureWeakSet);
+  assert.deepEqual(order, ['local', 1]);
+});
+
+QUnit.test('destructuring: a getter effect can throw before initializing its binding', assert => {
+  const order = [];
+  let value = 'before';
+  function mark() {
+    order.push(value);
+    throw new RangeError('getter');
+  }
+  assert.throws(() => {
+    ({ w: { WeakSet: value } } = {
+      get w() { mark(); return globalThis; },
+    });
+  }, RangeError);
+  assert.same(value, 'before');
+  assert.deepEqual(order, ['before']);
+});
+
+QUnit.test('destructuring: a getter-local realm name stays local', assert => {
+  const custom = {};
+  const { w: { WeakSet: value } } = {
+    get w() {
+      const globalThis = { WeakSet: custom }; // eslint-disable-line sonarjs/prefer-immediate-return -- local shadow is under test
+      return globalThis;
+    },
+  };
+  assert.same(value, custom);
+});
+
+QUnit.test('destructuring: an unknown later key can override the getter', assert => {
+  const custom = {};
+  const order = [];
+  function read(key) {
+    const { w: { WeakSet: value } } = {
+      get w() { order.push('getter'); return globalThis; },
+      [key]: { WeakSet: custom },
+    };
+    return value;
+  }
+  assert.same(read('w'), custom);
+  assert.deepEqual(order, []);
+});
+
+QUnit.test('destructuring: a shared getter source keeps its returned object', assert => {
+  const order = [];
+  const source = {
+    get w() { order.push('getter'); return globalThis; },
+  };
+  const { w: { WeakSet: value } } = source;
+  assert.same(source.w, globalThis);
+  assert.deepEqual(order, ['getter', 'getter']);
+  assert.same(value, PureWeakSet);
+});
+
+QUnit.test('destructuring: a getter escaping through this keeps its returned object', assert => {
+  let leaked;
+  const { w: { WeakSet: value } } = {
+    get w() { leaked = this; return globalThis; },
+  };
+  assert.same(leaked.w, globalThis);
+  assert.same(value, PureWeakSet);
+});
+/* eslint-enable es/no-accessor-properties -- end of the source forms above */

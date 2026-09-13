@@ -1,8 +1,5 @@
-// the POSITIONAL slot renames an ARRAY element to a minted name, and what the pattern binds BESIDE
-// the claim rides the residual: the element pattern survives against that name with the claim's own
-// slot spelled as a sentinel, so a named sibling binds what it bound and a rest goes on gathering.
-// the receiver here is a BINDING, not a literal - the pairing routes have no element to walk to, so
-// this is the only shape that reaches the claim at all
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
 const rows = Object.assign([1, [2]], { extra: 7 });
 const holder = { y: rows, keep: 3 };
 const pair = [holder];

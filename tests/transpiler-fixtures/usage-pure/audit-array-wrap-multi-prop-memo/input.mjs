@@ -1,3 +1,5 @@
+// Object-rest keeps the affected pattern native, including inside an array wrapper.
+// Independent reads and key/default expressions still receive their own polyfills.
 // an untouched leading statement anchors the comments below: every row here is consumed,
 // and a removed first statement would carry its leading comment down to the next one
 const anchor = [1, 2];
@@ -17,8 +19,6 @@ export { at, keys };
 const [{ at: at3, keys: keys3, other: other3 }] = [c ? arr : o2];
 export { at3, keys3, other3 };
 
-// NEGATIVE: a REST sibling gathers what the pattern does not name, so the consumed key stays
-// excluded by its sentinel instead of leaving
 const [{ at: at4, ...rest }] = [arr];
 export { at4, rest };
 

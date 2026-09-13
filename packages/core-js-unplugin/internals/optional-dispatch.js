@@ -7,9 +7,9 @@ import {
   inlineCallHasObservableEffects,
   inlineCallProxyGlobalRoot,
   navValueCanShortCircuit,
-  peelChainAssignment,
-  peelChainAssignmentDeep,
+  navRootPrefixNodes,
   peelReceiverSequenceTail,
+  planProvenNavGuardCollapse,
   proxyGlobalMemberCtorPureSwap,
   proxyReceiverValueCanBeUndefined,
   resolveKey,
@@ -27,6 +27,7 @@ import {
   isPristineProxyGlobal,
   isReusableReceiver,
   mayHaveSideEffects,
+  nestedSequenceValueSpelling,
   receiverCarriesLiveOptional,
   singleSequenceTail,
   unwrapRuntimeExpr,
@@ -34,10 +35,12 @@ import {
   bindingPolyfillHint,
   isAliasProxyRoot,
   computedKeyStaticName,
+  peelChainAssignment,
+  peelChainAssignmentDeep,
+  staticMemberKeyName,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   remapInheritedStaticMeta,
-  staticMemberKeyName,
 } from '@core-js/polyfill-provider/helpers/class-walk';
 import {
   assignmentExpression,
@@ -50,11 +53,12 @@ import {
   memberExpression,
   nullGuardTest,
   renderNavCollapseLeaf,
+  renderNavCollapseTail,
   renderShortCircuitGuard,
   sequenceExpression,
-} from './builders.js';
-import {
   memberFromKeyName,
+} from '@core-js/polyfill-provider/render';
+import {
   mintedProxyGlobalName,
   receiverCarriesOptional,
   replaceNodeInTree,
@@ -158,7 +162,23 @@ export default function createOptionalDispatchChannel(ctx) {
     // _globalThis.window`); every other memo keeps its cast (the `satisfies` canon, and a
     // ctor hop above - `((v = gw) as any)?.Array...` keeps `as any`)
     let memoSource = objectNode;
-    if (surface) {
+    // Plan the WHOLE source value before peeling its backed leaf. a plain middle probe has no
+    // source guard of its own: the shared bare or sequence plan replaces it with the leaf and keeps the
+    // call's arguments or sequence effects. peeling first freezes a raw off-window dereference.
+    const navPlan = !mutatedLeaf && planProvenNavGuardCollapse({
+      rootNode: objectNode, scope: metaPath.scope, adapter, path: metaPath,
+      resolvePure: meta => resolvePure(meta, metaPath), allowSequenceRoot: true,
+    });
+    // A bare call fold must also prove its yield defined: the memo guards that yield.
+    if (navPlan && navPlan.kind !== 'nested' && !navPlan.topAssign
+      && (navPlan.kind === 'sequence' || !navPlan.call
+        || !guardProbeUndefinable(navPlan.call, { metaPath, adapter, resolvePure }))) {
+      const pure = navPlan.leafPure;
+      memoSource = renderNavCollapseTail(navPlan, renderNavCollapseLeaf(navPlan,
+        identifier(injectPureImport(pure.entry, pure.hintName)), {
+          cloneHost: cloneNode, prefix: navPlan.kind === 'sequence' ? navRootPrefixNodes(navPlan, cloneNode) : [],
+        }), { cloneHost: cloneNode });
+    } else if (surface) {
       // trailing ERASABLE hops drop from a SURFACE memo - the surface below them IS the
       // memo's value (`(v = gw)?.self` memoizes `_ref = v = _globalThis.window`); a hop
       // pure cannot back (`window`) is the probe the test must read and stays
@@ -660,8 +680,8 @@ export default function createOptionalDispatchChannel(ctx) {
     // the `?.` tests a value that COLLAPSES to a pure CTOR binding - the polyfill makes it
     // always-defined, so the guard is dead and the hop reads straight off the ponyfill
     // (`globalThis.Map?.list.at(0)` -> `_at(_ref = _Map.list).call(_ref, 0)`, babel's
-    // flatten). effect-bearing navigation keeps the guard - its rescue nodes have no slot
-    // here, and the memo the guard mints is what carries them
+    // flatten). an identifier-rooted navigation carries its effects ahead of that binding;
+    // a call root keeps the memo route, which preserves the call's own guard spelling
     const deadCtorSwap = proxyGlobalMemberCtorPureSwap({
       receiver: node.object,
       aliasCtx: { scope: metaPath.scope, adapter, path: metaPath },
@@ -680,12 +700,12 @@ export default function createOptionalDispatchChannel(ctx) {
     const probedNavObject = unwrapRuntimeExpr(node.object);
     const probedNav = navValueCanShortCircuit(probedNavObject, m => resolvePure(m, metaPath),
       { scope: metaPath.scope, adapter, path: metaPath });
-    if (deadCtorSwap && !deadCtorSwap.se.length && !probedNav) {
+    const navAliasCtx = { scope: metaPath.scope, adapter, path: metaPath };
+    const navRoot = deadCtorSwap && findProxyGlobal(node.object, navAliasCtx, true);
+    if (deadCtorSwap && (!deadCtorSwap.se.length || navRoot) && !probedNav) {
       // an ALIAS root keeps its OWN binding and only drops the hops (the alias canon): landing the
       // leaf ponyfill here would re-root the read on a binding the source never named, where every
       // other spelling of the same nav keeps the alias (`ga.window.self?.Array.prototype`)
-      const navAliasCtx = { scope: metaPath.scope, adapter, path: metaPath };
-      const navRoot = findProxyGlobal(node.object, navAliasCtx, true);
       // ... only where the swapped leaf is a PROXY HOP: a CTOR leaf names its own ponyfill and the
       // alias cannot stand for it (`g.Set?.foo` reads `_Set.foo`, never `g.foo`)
       const base = POSSIBLE_GLOBAL_OBJECTS.has(deadCtorSwap.pure.hintName)
@@ -694,7 +714,8 @@ export default function createOptionalDispatchChannel(ctx) {
       return {
         hopKind: 'member',
         disjuncts: [],
-        receiver: stampReplacementSpan(memberExpression(base, cloneNode(node.property), { computed: node.computed }), node),
+        receiver: stampReplacementSpan(memberExpression(withSideEffects(base, deadCtorSwap.se),
+          cloneNode(node.property), { computed: node.computed }), node),
       };
     }
     const surfaceHeld = holdsProxySurface(node.object, metaPath);
@@ -1125,6 +1146,13 @@ export default function createOptionalDispatchChannel(ctx) {
   // MUTATED static sits in the chain, and only a LITERAL IIFE proves through a call
   function eraseVestigialReceiverOptionals({ memberOptional, object, metaPath }) {
     if (memberOptional || !receiverCarriesOptional(object)) return;
+    // A nested sequence is the established value boundary for optional receivers.  Keep the
+    // guard even when its tail is a write that will later collapse to a realm ponyfill; the
+    // outer read still owns the nested evaluation shape.
+    for (let cur = unwrapRuntimeExpr(object); cur?.type === 'MemberExpression';
+      cur = unwrapRuntimeExpr(cur.object)) {
+      if (cur.optional && nestedSequenceValueSpelling(cur.object)) return;
+    }
     function surfaceObject(node) {
       // a KEPT WRITE is transparent to the verdict: what flows is its VALUE
       // (`(w = globalThis)?.Array` - the erased `?.` reads the always-defined global)
@@ -1475,7 +1503,7 @@ export default function createOptionalDispatchChannel(ctx) {
       && !receiverCarriesLiveOptional(node.object)
       && meta.sideEffects.every(effect => subtreeContainsNode(node.object, effect))) {
       return emitSeCarryingReceiverRead({ node, metaPath, entry, hintName },
-        { adapter, injector, injectPureImport, markRewrite, skippedNodes });
+        { injectPureImport, markRewrite, skippedNodes });
     }
     if (!memberOptional && !methodCall && isReusableReceiver(unwrapRuntimeExpr(node.object))) {
       const receiver = unwrapRuntimeExpr(node.object);
@@ -1518,6 +1546,7 @@ export default function createOptionalDispatchChannel(ctx) {
     // receiver yields: a chain ending on a BACKED read answers "defined" for its leaf while the
     // `?.` below it still tests the environment, and the value ask turned the arm away and lost
     // the claim (`f().window[(c++, 'window')]?.window.Array.name` kept every hop raw)
+    // An excluded root has no later collapse to wait for either: the live split owns that read.
     if (!methodCall && !memberOptional && receiverCarriesLiveOptional(node.object)
       && (guardProbeUndefinable(node.object, { metaPath, adapter, resolvePure })
         || !navRootIsProxyIdentifier(node, metaPath, adapter, { requireBareName: true }))

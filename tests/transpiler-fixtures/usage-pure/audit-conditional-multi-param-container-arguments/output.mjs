@@ -1,8 +1,6 @@
-import _at from "@core-js/pure/actual/instance/at";
-// A key-first container has no slot for either written parameter: this layer holds one element and
-// `Map` keys off the first. Two Map instantiations that differ only in a type argument are not
-// compared here, so neither branch is knowable and the generic helper is the answer - `at` reads on
-// both families and shows which one was taken.
+import _atMaybeString from "@core-js/pure/actual/string/instance/at";
+// The Map key types differ on a required field, so the conditional is false.
+// Written argument member maps select string.at without widening the result to an array.
 interface Wanted {
   wanted: string;
 }
@@ -12,4 +10,4 @@ interface Other {
 type Sel<T> = T extends Map<Other, number> ? number[] : string;
 declare const v: Map<Wanted, number>;
 declare const r: Sel<typeof v>;
-_at(r).call(r, 0);
+_atMaybeString(r).call(r, 0);

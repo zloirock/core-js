@@ -1,8 +1,5 @@
-// a for-init host cannot take a preceding extraction statement (the loop header forbids it -
-// the extraction insert crashed babel and emitted two `const` statements on unplugin), so the
-// array-wrapped + rest shape routes to the cascade flatten: the polyfill rides a SIBLING
-// declarator in the same header declaration and the residual destructure keeps rest exclusion.
-// a multi-element wrapper in a loop header stays the conservative native bail
+// Object-rest keeps the affected loop pattern native at its original evaluation point.
+// Independent reads and key/default expressions still receive their own polyfills.
 for (const [{ of, ...r }] = [Array]; ; ) {
   of(1);
   break;

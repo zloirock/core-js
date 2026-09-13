@@ -1,7 +1,7 @@
-// a synth-swap receiver whose navigation SHORT-CIRCUITS: the mirror supplants the whole nav, so the
-// kept-nav render must stand down on it rather than claim the same span, and a key the mirror leaves
-// unpolyfilled must re-read through a SUBSTITUTED root - a raw global there is the ReferenceError
-// the substitution exists to prevent. the last row is the boundary: no polyfillable root, stays raw
+// Optional realm navigation supplies static polyfills while supplied arguments retain their nullish branch.
+// Unpolyfilled sibling keys read through a substituted realm root on the live branch.
+// Parameter defaults synthesize covered keys even when the optional host is absent.
+// A receiver rooted in an unknown host keeps its original navigation.
 export function overAHop({ of, from } = globalThis.window?.self.Array) {
   return [of, from];
 }
@@ -9,9 +9,8 @@ export function unpolyfilledSibling({ groupBy, other } = globalThis.window?.Map)
   return [groupBy, other];
 }
 export const viaIifeArgument = (({ entries, other }) => [entries, other])(globalThis.window?.self.Object);
-// the two rows the sealed render does NOT take: the guarded hop sits directly under the leaf, so the
-// unpolyfilled key re-reads through the chain itself - which is where the root has to be substituted
-// by hand, or a raw global reaches the output
+// The guard can sit directly below the constructor. The supplied argument retains its nullish branch,
+// while the parameter default still reads its unresolved sibling through the optional receiver.
 export function directlyUnderTheGuard({ of, other } = globalThis.window?.Array) {
   return [of, other];
 }

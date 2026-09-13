@@ -1,9 +1,6 @@
-// a side-effect-key destructure off a side-effect-free MEMBER receiver with a SURVIVING residual
-// memoizes the receiver: the residual and the extraction read the shared binding, so a getter
-// fires exactly once (like the native single read) and the polyfill lands. the memo joins a
-// multi-declarator / for-init host as a preceding declarator at the source slot. an effectful
-// slot elsewhere in the init disables the memo (hoisting the receiver read would observably
-// reorder), leaving the destructure native
+// Computed-key instance patterns read their member receiver once, then evaluate each key
+// before its method read and subsequent siblings. Declarator and for-init hosts preserve
+// the source slot, and an effectful sibling initializer runs before nested extraction.
 const logv = [];
 const holder = { p: [1, [2]] };
 var { [(logv.push(1), 'flat')]: m, other } = holder.p;

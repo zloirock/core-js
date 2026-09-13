@@ -1,6 +1,6 @@
-// an SE-prefix computed `[(eff++, Symbol.iterator)]` DECLARATION key: the extraction canon
-// pulls the iterator-method read ahead of the pattern, the residual keeps the key SE
-// re-read with the substituted symbol binding - the effect still runs exactly once
+// A computed iterator key with an effectful prefix runs before its method read.
+// The receiver is captured first, the effect runs exactly once, and the iterator
+// binding receives its polyfill without a residual property read.
 let eff = 0;
 const arr = [1, 2];
 const { [(eff++, Symbol.iterator)]: it } = arr;

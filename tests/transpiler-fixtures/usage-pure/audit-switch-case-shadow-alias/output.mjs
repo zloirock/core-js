@@ -2,7 +2,6 @@ import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _Map from "@core-js/pure/actual/map/constructor";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
-import _Number$parseFloat from "@core-js/pure/actual/number/parse-float";
 import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 import _Promise$allSettled from "@core-js/pure/actual/promise/all-settled";
 import _Promise from "@core-js/pure/actual/promise/constructor";
@@ -64,6 +63,7 @@ export function noShadowRealWrite(cond, mk) {
   }
   return (Q === _Promise ? _Promise$allSettled : Q.allSettled.bind(Q))([1]);
 }
+// The discriminant always replaces D; its old Number candidate must not add a guard.
 export function discriminantWrite(mk) {
   let D = Number;
   switch (D = mk()) {
@@ -71,7 +71,7 @@ export function discriminantWrite(mk) {
       let D = 0;
       mk(D);
   }
-  return (D === Number ? _Number$parseFloat : D.parseFloat.bind(D))("1.5");
+  return D.parseFloat("1.5");
 }
 export function caseVarOverwrite(cond, mk) {
   var R = _Reflect;

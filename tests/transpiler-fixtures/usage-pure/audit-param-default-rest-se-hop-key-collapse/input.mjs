@@ -1,7 +1,5 @@
-// a REST element forces the param-default fallback (no whole synth-swap), and a side-effecting
-// computed proxy-hop KEY cannot be single-hop-deleted (that would drop the effect): the shared
-// root-collapse harvests the key SE as a sequence prefix and re-roots, so the default reads
-// `(eff++, _globalThis).Array` instead of keeping the raw hop (undefined `.self` off-browser)
+// Rest-bearing parameters keep their native bindings and defaults in parameter scope.
+// Independent reads and key/default expressions still receive their own polyfills.
 let eff = 0;
 function f({ from, ...rest } = globalThis[(eff++, 'self')].Array) { return [from, rest]; }
 f();

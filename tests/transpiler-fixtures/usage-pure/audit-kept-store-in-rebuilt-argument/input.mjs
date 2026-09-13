@@ -1,6 +1,6 @@
-// a kept store riding a claim-REBUILT argument keeps its guard: the instance dispatch clones
-// the argument, and the clone still carries source provenance - the stored canon must admit
-// it exactly like the in-place spelling, or the store folds to the ponyfill on one leg only
+// A kept store inside a claim-rebuilt argument still folds plain proxy navigation to self.
+// The argument clone preserves its source origin, assignment and sequence effect once,
+// both for a single call and for repeated calls in a loop.
 let held;
 let seqE = 0;
 const sink = [];

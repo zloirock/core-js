@@ -1,6 +1,5 @@
-// catch-param destructure with a polyfillable non-iterator symbol key (Symbol.asyncIterator)
-// carrying BOTH a default and a rest sibling: the default must survive into the rebuilt body
-// pattern, else the local binds to undefined instead of the default when the key is absent
+// Object-rest keeps the affected catch pattern native, including its named method slots.
+// Independent reads and key/default expressions still receive their own polyfills.
 try {} catch ({ [Symbol.asyncIterator]: ait = fallback, ...rest }) {
   ait;
   rest;

@@ -8,4 +8,4 @@ import _globalThis from "@core-js/pure/actual/global-this";
 function se() {
   return _globalThis;
 }
-for (const from = _Array$from, _unused = (se(), _globalThis); false;) from([]);
+for (const _unused = (se(), _globalThis), from = _Array$from; false;) from([]);

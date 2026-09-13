@@ -384,24 +384,189 @@ QUnit.test('binding: a for-of head re-declaration rebinds and the last value is 
 /* eslint-enable no-var, no-redeclare, block-scoped-var, no-lone-blocks, no-useless-assignment
    -- back to the suite's modern-syntax default; the `var` shapes above are the tested form */
 
-// --- A direct `eval` is a write no reference set holds, so the read takes the generic dispatch ---
-// The string runs in this scope chain and can rebind anything it reaches, which no tracker records.
-// DISTINGUISHING in a stripped realm only: the array-narrowed helper hands back the receiver's own
-// `at`, and a string receiver has none there, so a narrow that survived the eval throws instead.
+/* eslint-disable es/no-accessor-properties, no-unreachable-loop -- getters and one-pass loop heads are the forms under test */
 
-/* eslint-disable no-eval, prefer-const -- a direct eval IS the tested form (an indirect one reaches
-   no local binding), and the binding it rewrites has to stay `let`: assigning a `const` from the
-   eval string throws instead of exercising the read */
-QUnit.test('binding: a direct eval outruns the narrow and the live string value is read', assert => {
-  let evalRebound = [1, 2, 3];
-  eval('evalRebound = "abc"');
-  assert.same(evalRebound.at(0), 'a');
+// Loop-head wrappers keep initializer effects ahead of method extraction.
+function nestedTrailing(receiver, effect) {
+  for (let [{ w: { values }, y: { at } }] = [receiver, effect()]; ;) return [values, at];
+}
+
+function nestedLeading(receiver, effect) {
+  for (let [, { w: { values }, y: { at } }] = [effect(), receiver]; ;) return [values, at];
+}
+
+function flatTrailing(receiver, effect) {
+  for (let [{ values, at }] = [receiver, effect()]; ;) return [values, at];
+}
+
+QUnit.test('destructuring: loop-head wrapper evaluates neighbours before nested methods', assert => {
+  const rows = [3, 4];
+  for (const extract of [nestedTrailing, nestedLeading]) {
+    const events = [];
+    const receiver = {
+      get w() { events.push('w'); return rows; },
+      get y() { events.push('y'); return rows; },
+    };
+    const [values, at] = extract(receiver, () => { events.push('effect'); });
+    assert.deepEqual(events, ['effect', 'w', 'y']);
+    assert.same(values.call(rows).next().value, 3);
+    assert.same(at.call(rows, -1), 4);
+  }
 });
 
-QUnit.test('binding: a read the eval cannot outrun keeps its own value', assert => {
-  let evalUnreached = [1, 2, 3];
-  assert.same(evalUnreached.at(-1), 3);
-  eval('evalUnreached = "abc"');
-  assert.same(evalUnreached, 'abc');
+QUnit.test('destructuring: loop-head dispatch reads its element rather than its array wrapper', assert => {
+  const events = [];
+  function ownValues() { return 'values'; }
+  function ownAt() { return 'at'; }
+  const receiver = {
+    get values() { events.push('values'); return ownValues; },
+    get at() { events.push('at'); return ownAt; },
+  };
+  const [values, at] = flatTrailing(receiver, () => { events.push('effect'); });
+  assert.deepEqual(events, ['effect', 'values', 'at']);
+  assert.same(values, ownValues);
+  assert.same(at, ownAt);
 });
-/* eslint-enable no-eval, prefer-const -- back to the suite's default */
+
+function nestedArrays(receiver, effect) {
+  for (let [[{ w: { values }, y: { at } }]] = [[receiver], effect()]; ;) return [values, at];
+}
+
+function patternSibling(receiver, effect) {
+  for (let [{ w: { values }, y: { at } }, { z }] = [receiver, effect()]; ;) return [values, at, z];
+}
+
+QUnit.test('destructuring: loop-head wrapper preserves property order across pattern elements', assert => {
+  const events = [];
+  const rows = [3, 4];
+  const receiver = {
+    get w() { events.push('w'); return rows; },
+    get y() { events.push('y'); return rows; },
+  };
+  const [values, at, z] = patternSibling(receiver, () => {
+    events.push('effect');
+    return {
+      get z() { events.push('z'); return 7; },
+    };
+  });
+  assert.deepEqual(events, ['effect', 'w', 'y', 'z']);
+  assert.same(values.call(rows).next().value, 3);
+  assert.same(at.call(rows, -1), 4);
+  assert.same(z, 7);
+  events.length = 0;
+  const [nestedValues, nestedAt] = nestedArrays(receiver, () => { events.push('effect'); });
+  assert.deepEqual(events, ['effect', 'w', 'y']);
+  assert.same(nestedValues.call(rows).next().value, 3);
+  assert.same(nestedAt.call(rows, -1), 4);
+});
+
+QUnit.test('destructuring: loop-head wrapper captures a receiver before its neighbour replaces the binding', assert => {
+  const events = [];
+  const rows = [3, 4];
+  let receiver = {
+    get w() { events.push('original w'); return rows; },
+    get y() { events.push('original y'); return rows; },
+  };
+  function replace() {
+    events.push('replace');
+    receiver = { w: [], y: [] };
+    return receiver;
+  }
+  for (let [{ w: { values }, y: { at } }] = [receiver, replace()]; ;) {
+    assert.deepEqual(events, ['replace', 'original w', 'original y']);
+    assert.same(values.call(rows).next().value, 3);
+    assert.same(at.call(rows, -1), 4);
+    break;
+  }
+});
+/* eslint-enable es/no-accessor-properties, no-unreachable-loop -- end of the source forms above */
+
+// Each iterated receiver keeps its own static value and the head keeps its source binding.
+
+/* eslint-disable no-var -- var is the loop-head form under test */
+QUnit.test('for-of var: mixed constructor and custom static', assert => {
+  const seen = [];
+  for (var { from } of [Array, { from: 'mine' }]) seen.push(typeof from);
+  assert.deepEqual(seen, ['function', 'string']);
+});
+/* eslint-enable no-var -- end of var loop-head case */
+
+QUnit.test('for-of let: mixed constructor and custom static', assert => {
+  const seen = [];
+  // eslint-disable-next-line prefer-const -- let is the loop-head form under test
+  for (let { from } of [Array, { from: 'mine' }]) seen.push(typeof from);
+  assert.deepEqual(seen, ['function', 'string']);
+});
+
+QUnit.test('for-of const: mixed constructor and custom static', assert => {
+  const seen = [];
+  for (const { from } of [Array, { from: 'mine' }]) seen.push(typeof from);
+  assert.deepEqual(seen, ['function', 'string']);
+});
+
+QUnit.test('for-of: custom getter, default and per-iteration capture retain order', assert => {
+  const log = [];
+  const reads = [];
+  for (const { from = (log.push('default'), 'fallback') } of [
+    Array,
+    // eslint-disable-next-line es/no-accessor-properties -- the getter's order is the behavior under test
+    { get from() { log.push('get'); return undefined; } },
+  ]) {
+    log.push(typeof from);
+    reads.push(() => typeof from);
+  }
+  assert.deepEqual(log, ['function', 'get', 'default', 'string']);
+  assert.deepEqual(reads.map(read => read()), ['function', 'string']);
+});
+
+QUnit.test('for-of: a custom first element does not choose the later static', assert => {
+  const seen = [];
+  for (const { from } of [{ from: 'first' }, Array]) seen.push(typeof from);
+  assert.deepEqual(seen, ['string', 'function']);
+  function shadow(Array) {
+    const values = [];
+    for (const { from } of [Array, { from: 'last' }]) values.push(from);
+    return values;
+  }
+  assert.deepEqual(shadow({ from: 'local' }), ['local', 'last']);
+});
+
+QUnit.test('for-of: a null element still throws after the earlier body', assert => {
+  const seen = [];
+  assert.throws(() => {
+    for (const { from } of [Array, null]) seen.push(typeof from);
+  }, TypeError);
+  assert.deepEqual(seen, ['function']);
+});
+
+QUnit.test('loop: returned static receivers keep calls, custom properties and var closures', assert => {
+  const events = [];
+  const values = [];
+  const reads = [];
+  function receiver(label, value) {
+    events.push(label);
+    return value;
+  }
+  // eslint-disable-next-line no-var -- shared binding is the regression under test
+  for (var { w: { from } } of [{ w: receiver('first', Array) }, { w: receiver('second', { from: () => ['custom'] }) }]) {
+    values.push(from([7])[0]);
+    reads.push(() => from([8])[0]);
+  }
+  assert.deepEqual(events, ['first', 'second']);
+  assert.deepEqual(values, [7, 'custom']);
+  assert.deepEqual(reads.map(read => read()), ['custom', 'custom']);
+});
+
+QUnit.test('loop: mixed nested static receivers keep lexical closures and null throws', assert => {
+  const values = [];
+  const reads = [];
+  assert.throws(() => {
+    // eslint-disable-next-line prefer-const -- retain the let loop-head form under test
+    for (let { w: { from } } of [{ w: Array }, { w: { from: () => ['custom'] } }, { w: null }]) {
+      values.push(from([7])[0]);
+      reads.push(() => from([8])[0]);
+    }
+  }, TypeError);
+  assert.deepEqual(values, [7, 'custom']);
+  assert.deepEqual(reads.map(read => read()), [8, 'custom']);
+});

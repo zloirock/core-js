@@ -1,32 +1,27 @@
-// an instance dispatcher may return undefined on a foreign receiver (its own-property read),
-// so a user default on an instance-extraction leaf stays LIVE behind the `=== void 0` guard;
-// with a kept SE key the guarded extraction evaluates AFTER the key's effect (native order).
-// static/global extractions keep dropping the default - their pure bindings are always defined
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
 
-// standalone arm: trailing sibling declarator after the kept-key residual
+// A single property keeps its key effect before the extraction and default.
 const { [(e1(), 'at')]: a = dfltA() } = recvA;
 
-// sibling-declarator arm: the guarded extraction lands between the residual and the sibling
+// The key, extraction and default all run before the following sibling declarator.
 const { [(e2(), 'flat')]: f = dfltB() } = recvB, other = 1;
 
-// memoized const-literal receiver: the memo ref numbers before the guard ref
+// A literal receiver is captured once before its key effect and extraction.
 const { [(e3(), 'includes')]: i = dfltC() } = [7, 8];
 
 // eliminate arm (array-wrapped sole binding, pure key): no residual survives, the guard
 // wraps the extraction in place
 const [{ toReversed = dfltD() }] = [recvD];
 
-// native evaluates a destructure PER PROP (key, read, default, next key): the residual
-// splits at a live-defaulted entry, so its guard runs BEFORE the following prop's key
-// effect, and post-split entries ride the same trailing chain
+// Destructuring evaluates each key, read and default before the next property.
+// The first default therefore runs before the second key effect.
 const { [(e4(), 'findLast')]: fl = dfltE(), [(e5(), 'findLastIndex')]: fli } = recvE;
 
-// rest keeps the pattern whole (rest gathers by exclusion of its own pattern's keys), so
-// keys batch before the guard - a documented boundary
 const { [(e6(), 'toSorted')]: ts = dfltF(), ...restF } = recvF;
 
-// memoized receiver + split: both segments and the guard read the shared ref, and the
-// extraction rides the declaration's own comma chain - side-effect order is identical
+// Multiple properties share one captured receiver and retain their native key, read
+// and default order in the declaration.
 const { [(e7(), 'with')]: w7 = dfltG(), [(e8(), 'toSpliced')]: t8 } = [9];
 
 export { a, f, i, toReversed, other, fl, fli, ts, restF, w7, t8 };

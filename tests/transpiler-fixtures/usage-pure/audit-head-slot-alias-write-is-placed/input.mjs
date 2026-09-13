@@ -1,10 +1,7 @@
-// the HEAD slot of a statement - a test, a switch discriminant, a for-of / for-in subject - evaluates
-// whenever the statement runs, so an alias write standing there is as placed as one in an expression
-// statement. the placement walk climbed EXPRESSIONS and recognised such a head only while the child
-// still occupied that very slot: a render replaces what stands there, and the climb from the detached
-// node then ran past the statement, past the program, and answered "conditional" from a walk that had
-// lost its terminator. the alias went untrusted, and the two legs then spelled the stored nav apart.
-// one alias per row: a name written twice is not a sole write, and the trust question never arises
+// Alias writes in statement heads are trusted at reads in the same evaluation.
+// Optional window?.self retains its environment probe; a plain window.self hop lands on self.
+// Computed-key effects and both alias stores survive the collapse.
+// Separate bindings compare statement heads with an expression-statement control.
 let out;
 function eff() {}
 let gs, vs;

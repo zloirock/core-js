@@ -14,34 +14,14 @@ import "core-js/modules/es.promise.try";
 import "core-js/modules/es.promise.with-resolvers";
 import "core-js/modules/es.array.iterator";
 import "core-js/modules/es.global-this";
-import "core-js/modules/es.map.constructor";
-import "core-js/modules/es.map.species";
-import "core-js/modules/es.map.get-or-insert";
-import "core-js/modules/es.map.get-or-insert-computed";
-import "core-js/modules/es.set.constructor";
-import "core-js/modules/es.set.species";
-import "core-js/modules/es.set.difference";
-import "core-js/modules/es.set.intersection";
-import "core-js/modules/es.set.is-disjoint-from";
-import "core-js/modules/es.set.is-subset-of";
-import "core-js/modules/es.set.is-superset-of";
-import "core-js/modules/es.set.symmetric-difference";
-import "core-js/modules/es.set.union";
 import "core-js/modules/es.string.iterator";
-import "core-js/modules/es.weak-map.constructor";
-import "core-js/modules/es.weak-map.get-or-insert";
-import "core-js/modules/es.weak-map.get-or-insert-computed";
 import "core-js/modules/es.weak-set.constructor";
 import "core-js/modules/esnext.promise.all-keyed";
 import "core-js/modules/esnext.promise.all-settled-keyed";
 import "core-js/modules/web.dom-collections.iterator";
-// the written-slot boundary for a nav rooted at a container LITERAL. such a binding holds a
-// container exactly as a bare literal does, so the census indexes it through the SAME literal and a
-// slot the source REPLACES stops the read - object, array and class-expression roots alike. the
-// consult is method-aware like every other one: pure leaves the read native, global over-injects -
-// but the escape census reads the replacement, so the read owes no family on either flavor.
-// the positives pin the other side - the keys the literal spells ABOVE the name are not the name's
-// slots, and an unrelated slot on the same container leaves the read resolving
+// A fresh replacement removes the old realm candidate in either flavor.
+// This also holds for bindings reached through object, array and class literals.
+// Writes to unrelated keys leave the original global claims intact.
 const obj = {
   h: {
     g: globalThis

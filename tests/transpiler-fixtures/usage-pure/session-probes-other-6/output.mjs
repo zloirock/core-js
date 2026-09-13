@@ -7,6 +7,8 @@ import _at from "@core-js/pure/actual/instance/at";
 import _Object$freeze from "@core-js/pure/actual/object/freeze";
 import _Object$hasOwn from "@core-js/pure/actual/object/has-own";
 import _self from "@core-js/pure/actual/self";
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
 // probe corpus of the defense cycles over the destructure wrappers, family "other", part 6:
 // every block is one probed form, self-contained over the header bindings, locked on both legs
 let pick = 1;
@@ -34,40 +36,39 @@ function mark(t, v) {
   return v;
 }
 {
-  const a = _at(src);
-  const {
-    [(eff(), 'w')]: {
-      at: _unused
-    }
-  } = {
-    w: src
-  };
+  const _ref2 = {
+      w: src
+    },
+    {
+      [(eff(), 'w')]: _ref
+    } = null == _ref2 ? _ref2[""] : _ref2,
+    _ref3 = _ref,
+    a = null == _ref3 ? _ref3[""] : _at(_ref3);
 }
 {
-  const _ref = [1];
-  const a2 = _atMaybeArray(_ref);
-  const {
-    [(eff(), 'w')]: {
-      at: _unused2
-    }
-  } = {
-    w: _ref
-  };
+  const _ref5 = {
+      w: [1]
+    },
+    {
+      [(eff(), 'w')]: _ref4
+    } = null == _ref5 ? _ref5[""] : _ref5,
+    _ref6 = _ref4,
+    a2 = null == _ref6 ? _ref6[""] : _atMaybeArray(_ref6);
 }
 {
-  const a3 = _at(src);
-  const {
-    [(eff(), 'w')]: {
-      at: _unused3
-    }
-  } = {
-    w: src
-  };
+  const _ref8 = {
+      w: src
+    },
+    {
+      [(eff(), 'w')]: _ref7
+    } = null == _ref8 ? _ref8[""] : _ref8,
+    _ref9 = _ref7,
+    a3 = null == _ref9 ? _ref9[""] : _at(_ref9);
 }
 {
   const f4 = _Array$from;
   const {
-    [(eff(), 'w')]: _unused4
+    [(eff(), 'w')]: _unused
   } = {
     w: Array
   };
@@ -75,7 +76,7 @@ function mark(t, v) {
 {
   const f1 = _Array$from;
   const {
-    [(effectful(), 'Array')]: _unused5
+    [(effectful(), 'Array')]: _unused2
   } = _globalThis;
 }
 {
@@ -87,16 +88,13 @@ function mark(t, v) {
   s(z, q);
 }
 {
-  const s = _atMaybeArray(arr);
-  const {
-    [(k(), 'at')]: _unused6
-  } = arr;
+  const _ref10 = arr,
+    s = null == _ref10 ? _ref10[""] : (k(), _atMaybeArray(_ref10));
   s();
 }
 {
-  const s = _atMaybeArray(arr);
   const {
-    [(k(), 'at')]: _unused7,
+    [(k(), 'at')]: s,
     ...r
   } = arr;
   s(r);
@@ -126,21 +124,17 @@ function mark(t, v) {
 }
 {
   const {
-      [(k(), 'at')]: _unused8,
-      [(k2(), 'flat')]: _unused9,
+      [(k(), 'at')]: s,
+      [(k2(), 'flat')]: f,
       ...r
     } = arr,
-    s = _atMaybeArray(arr),
-    f = _flatMaybeArray(arr),
     q = 2;
   s(r, f, q);
 }
 {
-  const s = _atMaybeArray(arr);
-  const f = _flatMaybeArray(arr);
   const {
-    [(k(), 'at')]: _unused10,
-    [(k2(), 'flat')]: _unused11,
+    [(k(), 'at')]: s,
+    [(k2(), 'flat')]: f,
     ...r
   } = arr;
   s(r, f);
@@ -154,17 +148,14 @@ function mark(t, v) {
   s(r, f);
 }
 {
-  const {
-      [(k(), 'at')]: _unused12
-    } = arr,
-    s = _atMaybeArray(arr),
-    {
-      [(k2(), 'flat')]: _unused13
-    } = arr,
-    f = _flatMaybeArray(arr),
+  const _ref11 = arr,
+    _ref12 = _ref11,
+    s = null == _ref12 ? _ref12[""] : (k(), _atMaybeArray(_ref12)),
+    _ref13 = _ref11,
+    f = null == _ref13 ? _ref13[""] : (k2(), _flatMaybeArray(_ref13)),
     {
       z
-    } = arr;
+    } = _ref11;
   s(z, f);
 }
 {
@@ -177,39 +168,41 @@ function mark(t, v) {
   s(z, q, f);
 }
 {
-  const _ref2 = [1, 2],
+  const _ref14 = [1, 2],
+    _ref15 = _ref14,
+    s = null == _ref15 ? _ref15[""] : (k(), _atMaybeArray(_ref15)),
     {
-      [(k(), 'at')]: _unused14,
       z
-    } = _ref2,
-    s = _atMaybeArray(_ref2),
+    } = _ref14,
     q = 2;
   s(z, q);
 }
 {
-  const {
-      [(k(), 'at')]: _unused15,
+  const _ref16 = arr,
+    _ref17 = _ref16,
+    s = null == _ref17 ? _ref17[""] : (k(), _atMaybeArray(_ref17)),
+    {
       z
-    } = arr,
-    s = _atMaybeArray(arr),
+    } = _ref16,
     q = 2;
   s(z, q);
 }
 {
-  const s = _atMaybeArray(arr);
-  const {
-    [(k(), 'at')]: _unused16,
-    z
-  } = arr;
+  const _ref18 = arr,
+    _ref19 = _ref18,
+    s = null == _ref19 ? _ref19[""] : (k(), _atMaybeArray(_ref19)),
+    {
+      z
+    } = _ref18;
   s(z);
 }
 {
-  const _ref3 = c ? a1 : a2,
+  const _ref20 = c ? a1 : a2,
+    _ref21 = _ref20,
+    s = null == _ref21 ? _ref21[""] : (k(), _at(_ref21)),
     {
-      [(k(), 'at')]: _unused17,
       z
-    } = _ref3,
-    s = _at(_ref3),
+    } = _ref20,
     q = 2;
   s(z, q);
 }
@@ -222,12 +215,12 @@ function mark(t, v) {
   s(z, q);
 }
 {
-  const _ref4 = eff().constructor.prototype,
+  const _ref22 = eff().constructor.prototype,
+    _ref23 = _ref22,
+    s = null == _ref23 ? _ref23[""] : (k(), _at(_ref23)),
     {
-      [(k(), 'at')]: _unused18,
       z
-    } = _ref4,
-    s = _at(_ref4),
+    } = _ref22,
     q = 2;
   s(z, q);
 }
@@ -239,50 +232,50 @@ function mark(t, v) {
   s(z);
 }
 {
-  const _ref5 = _globalThis.Array.prototype,
+  const _ref24 = _globalThis.Array.prototype,
+    _ref25 = _ref24,
+    s = null == _ref25 ? _ref25[""] : (k(), _atMaybeArray(_ref25)),
     {
-      [(k(), 'at')]: _unused19,
       z
-    } = _ref5,
-    s = _atMaybeArray(_ref5),
+    } = _ref24,
     q = 2;
   s(z, q);
 }
 {
-  const _ref6 = _globalThis.Array.prototype,
+  const _ref26 = _globalThis.Array.prototype,
+    _ref27 = _ref26,
+    s = null == _ref27 ? _ref27[""] : (k(), _atMaybeArray(_ref27)),
     {
-      [(k(), 'at')]: _unused20,
       z
-    } = _ref6,
-    s = _atMaybeArray(_ref6);
+    } = _ref26;
   s(z);
 }
 {
-  const _ref7 = holder.p,
+  const _ref28 = holder.p,
+    _ref29 = _ref28,
+    s = null == _ref29 ? _ref29[""] : (k(), _at(_ref29)),
     {
-      [(k(), 'at')]: _unused21,
       z
-    } = _ref7,
-    s = _at(_ref7),
+    } = _ref28,
     q = 2;
   s(z, q);
 }
 {
-  const _ref8 = holder.p,
+  const _ref30 = holder.p,
+    _ref31 = _ref30,
+    s = null == _ref31 ? _ref31[""] : (k(), _at(_ref31)),
     {
-      [(k(), 'at')]: _unused22,
       z
-    } = _ref8,
-    s = _at(_ref8);
+    } = _ref30;
   s(z);
 }
 {
-  const _ref9 = _self.Array.prototype,
+  const _ref32 = _self.Array.prototype,
+    _ref33 = _ref32,
+    s = null == _ref33 ? _ref33[""] : (k(), _atMaybeArray(_ref33)),
     {
-      [(k(), 'at')]: _unused23,
       z
-    } = _ref9,
-    s = _atMaybeArray(_ref9);
+    } = _ref32;
   s(z);
 }
 {
@@ -301,11 +294,11 @@ function mark(t, v) {
   v(w);
 }
 {
-  const fr = _Object$freeze;
-  const {
-    [(k(), 'freeze')]: _unused24,
-    z
-  } = _globalThis.Object;
+  const _ref34 = _globalThis.Object,
+    fr = null == _ref34 ? _ref34[""] : (k(), _Object$freeze),
+    {
+      z
+    } = _ref34;
   fr(z);
 }
 {
@@ -321,17 +314,14 @@ function mark(t, v) {
   use(a, m);
 }
 {
-  var _ref10;
-  const {
-    a,
-    w: {
-      at: _unused25
-    }
-  } = {
+  const _ref35 = {
     a: g(),
-    w: _ref10 = obj.p
+    w: obj.p
   };
-  const m = _at(_ref10);
+  const {
+    a
+  } = _ref35;
+  const m = _at(_ref35.w);
   use(a, m);
 }
 {
@@ -369,7 +359,7 @@ function mark(t, v) {
   const f14 = _Array$from;
   const {
     a: {
-      [(eff('k'), 'Array')]: _unused26
+      [(eff('k'), 'Array')]: _unused3
     }
   } = {
     a: _globalThis

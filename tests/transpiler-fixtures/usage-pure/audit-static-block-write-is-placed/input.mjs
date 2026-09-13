@@ -1,9 +1,7 @@
-// a class STATIC BLOCK owns a var scope but defers nothing: it runs exactly once, when the class
-// definition evaluates. the placement walk terminated on it and applied the containment test written
-// for FUNCTIONS - "the binding must live inside this terminator, else the statement may never run" -
-// which refused every write whose alias is declared outside the class, and the legs then spelled the
-// stored nav apart. the FIELD initializer next to it is the deferred sibling and keeps its own answer:
-// it runs per instantiation, which may never happen
+// A static block evaluates with its class; an instance field evaluates on construction.
+// In each body, a sole alias write is trusted by the following read in that evaluation.
+// Plain window.self navigation lands on self while preserving computed-key effects and stores.
+// A statement-level control exercises the same expression.
 let out;
 function eff() {}
 let gb, vb;

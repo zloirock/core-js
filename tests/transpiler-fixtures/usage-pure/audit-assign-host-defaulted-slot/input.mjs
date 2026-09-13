@@ -1,3 +1,5 @@
+// Object-rest keeps the affected assignment pattern native and preserves its RHS value.
+// Independent reads and key/default expressions still receive their own polyfills.
 // a DEFAULTED leaf in an assignment host is flat like its undefaulted twin: the default costs a
 // guard, not a route, and the consume spells the receiver once whether or not it is re-readable
 const arr = [1, 2];
@@ -7,8 +9,6 @@ let m1, m2, m3, m4, m5, restOf, m6, m7, n7, m8, m9, m10, x;
 // the same leaf in the two sequence positions: a discarded non-tail element and a tail one
 (({ at: m2 = 1 } = [1, 2]), x);
 (x, ({ at: m3 = 1 } = [1, 2]));
-// a PATTERN default consumes too - the left becomes the extraction's own target, and it may
-// spell whatever a pattern spells: a rest, a leaf default, a surviving sibling prop
 ({ at: { 0: m4 } = [9] } = arr);
 ({ at: { 0: m5, ...restOf } = [9] } = arr);
 ({ at: { 0: m6 = 7 } = [9] } = arr);

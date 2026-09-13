@@ -89,17 +89,18 @@ function mark(t, v) {
   }
 }
 {
-  let values = _values(r.w);
-  let at = _at(r.y);
+  let _ref = r as any;
+  let values = _values(_ref.w);
+  let at = _at(_ref.y);
   [values, at];
 }
 {
-  var _ref;
+  var _ref2;
   o['data' as string] = 'str';
-  const r1 = _at(_ref = o['data' as string]).call(_ref, 0);
+  const r1 = _at(_ref2 = o['data' as string]).call(_ref2, 0);
 }
 {
-  var _ref2;
+  var _ref3;
   o[E.A as string] = 'str';
-  const r3 = _at(_ref2 = o[E.A]).call(_ref2, 0);
+  const r3 = _at(_ref3 = o[E.A]).call(_ref3, 0);
 }

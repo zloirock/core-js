@@ -10,6 +10,8 @@ import _Object$keys from "@core-js/pure/actual/object/keys";
 import _self from "@core-js/pure/actual/self";
 import _Set from "@core-js/pure/actual/set/constructor";
 import _includesMaybeString from "@core-js/pure/actual/string/instance/includes";
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
 // probe corpus of the defense cycles over the destructure wrappers, family "other", part 9:
 // every block is one probed form, self-contained over the header bindings, locked on both legs
 let pick = 1;
@@ -59,9 +61,10 @@ function mark(t, v) {
   };
 }
 {
-  const f18 = _Array$from;
   const {
-    w: _unused,
+    w: {
+      from: f18
+    },
     ...r
   } = {
     w: Array
@@ -86,16 +89,15 @@ function mark(t, v) {
   };
 }
 {
-  var _ref;
-  const f2 = _Array$from;
+  var _ref3;
   const {
-    x: {
-      [(effectful(), 'from')]: _unused2
-    }
-  } = {
-    x: Array
-  };
-  const doubled = _flatMaybeArray(_ref = [1, [2]]).call(_ref);
+      x: _ref
+    } = {
+      x: Array
+    },
+    _ref2 = _ref,
+    f2 = null == _ref2 ? _ref2[""] : (effectful(), _Array$from);
+  const doubled = _flatMaybeArray(_ref3 = [1, [2]]).call(_ref3);
 }
 {
   const at = _at(r.y);
@@ -103,10 +105,11 @@ function mark(t, v) {
 }
 {
   const {
-    y: _ref2,
+    y: {
+      at
+    },
     ...rest
   } = r;
-  const at = _at(_ref2);
   [at, rest];
 }
 {
@@ -138,27 +141,28 @@ function mark(t, v) {
   } = eff();
 }
 {
-  const _ref3 = [1, 2],
+  const _ref4 = [1, 2],
+    _ref5 = _ref4,
+    s = null == _ref5 ? _ref5[""] : (k(), _atMaybeArray(_ref5)),
     {
-      [(k(), 'at')]: _unused3,
       z
-    } = _ref3,
-    s = _atMaybeArray(_ref3);
+    } = _ref4;
 }
 {
-  const s = _atMaybeArray(arr);
-  const {
-    [(k(), 'at')]: _unused4,
-    z
-  } = arr;
+  const _ref6 = arr,
+    _ref7 = _ref6,
+    s = null == _ref7 ? _ref7[""] : (k(), _atMaybeArray(_ref7)),
+    {
+      z
+    } = _ref6;
 }
 {
-  const _ref4 = c ? a1 : a2,
+  const _ref8 = c ? a1 : a2,
+    _ref9 = _ref8,
+    s = null == _ref9 ? _ref9[""] : (k(), _at(_ref9)),
     {
-      [(k(), 'at')]: _unused5,
       z
-    } = _ref4,
-    s = _at(_ref4);
+    } = _ref8;
 }
 {
   const {
@@ -174,12 +178,12 @@ function mark(t, v) {
   } = eff();
 }
 {
-  const _ref5 = holder.p,
+  const _ref10 = holder.p,
+    _ref11 = _ref10,
+    s = null == _ref11 ? _ref11[""] : (k(), _at(_ref11)),
     {
-      [(k(), 'at')]: _unused6,
       z
-    } = _ref5,
-    s = _at(_ref5);
+    } = _ref10;
 }
 {
   const {
@@ -199,7 +203,7 @@ function mark(t, v) {
       of: v
     }
   } = {
-    a: c ? {
+    a: c ? null == _globalThis.window ? void 0 : {
       of: _Array$of
     } : _Set
   };
@@ -240,8 +244,9 @@ function mark(t, v) {
   };
 }
 {
-  const values = _values(r.w);
-  const at = _at(r.y);
+  const _ref12 = r;
+  const values = _values(_ref12.w);
+  const at = _at(_ref12.y);
 }
 {
   if (c) var {
@@ -286,9 +291,9 @@ function mark(t, v) {
 }
 {
   let a;
-  var _unused7;
+  var _unused;
   [{
-    [(eff('k'), 'w')]: _unused7
+    [(eff('k'), 'w')]: _unused
   }] = [{
     w: src
   }];

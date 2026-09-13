@@ -1,9 +1,7 @@
-// a hoisted-var alias assigned on ONE path holds the global only through that branch: off-branch
-// the source throws on the member read, and outside browsers (`self` absent) it throws even on
-// the assigned path - a proxy-hop collapse would rescue reads the source guarantees to throw.
-// the alias-follow requires the init to DOMINATE the use before any pure rewrite, so BOTH
-// emitters keep the receiver verbatim here; a dominating placement (module const, function-top
-// var) still collapses the redundant hop
+// A conditional var initializer does not prove the alias is the realm on every path.
+// A runtime identity guard may select the backed self entry when that initializer ran;
+// otherwise it must keep g.self, including the TypeError from an unassigned g.
+// The surrounding sequence and later instance read retain their evaluation positions.
 function f(c) {
   if (c) { var g = globalThis; }
   return (0, g.self).Array.prototype.findLastIndex;

@@ -7,8 +7,6 @@ import {
   discardRescueNodes,
   navGuardTestBase,
   navHasUnresolvableProxyHop,
-  peelChainAssignment,
-  peelChainAssignmentDeep,
   peelReceiverSequenceTail,
   planProvenNavGuardCollapse,
   realmRunSplitBySequencePrefix,
@@ -21,6 +19,7 @@ import {
   callValueCanBeUndefined,
   inlineCallHasObservableEffects,
   inlineCallProxyGlobalRoot,
+  inlineCallReturnExpression,
   deleteHostAboveCarriedChain,
   mutationGuardKeepingHop,
   probeRunIsTheSourceValue,
@@ -31,6 +30,7 @@ import {
   storeReadHopOptional,
   vestigialNavOptionals,
   proxyNavSpellsClaimPure,
+  peelPristineProxyHops,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
   planGuardedDestructureNarrow,
@@ -40,6 +40,7 @@ import {
   proxyRunLandingPure,
 } from '@core-js/polyfill-provider/detect-usage/members';
 import { renameSplitPropsToSentinels } from '@core-js/polyfill-provider/detect-usage/destructure';
+import { renderNestedKeyedPatternCapture } from '@core-js/polyfill-provider/destructure-host-shape';
 import {
   asProxyGlobalName,
   chainValueCarrier,
@@ -50,10 +51,12 @@ import {
   isMutatedGlobalSlot,
   isPristineProxyGlobal,
   walkAstChildren,
+  walkPatternIdentifiers,
   mayHaveSideEffects,
   nestedSequenceValueSpelling,
   migratableClaimSe,
   peelParenAndTSParentPath,
+  peelParenAndTSSlotPath,
   peelParenAndTSSlotChild,
   POSSIBLE_GLOBAL_OBJECTS,
   receiverCarriesLiveOptional,
@@ -64,6 +67,8 @@ import {
   TS_EXPR_WRAPPERS,
   unwrapRuntimeExpr,
   subtreeContainsNode,
+  peelChainAssignment,
+  peelChainAssignmentDeep,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   assignmentExpression,
@@ -79,7 +84,7 @@ import {
   renderNavCollapseLeaf,
   renderNavCollapseTail,
   renderNavGuardTestBase,
-} from './builders.js';
+} from '@core-js/polyfill-provider/render';
 import {
   proxyStoreIsSpellable,
   receiverCarriesOptional,
@@ -113,7 +118,6 @@ import {
   navRootIsProxyIdentifier,
   noteMutatedCtorHopDestructure,
   optionalHeirAbove,
-  peelPristineProxyHops,
   plainProxyHopRunAbove,
   plainRunReadOptionally,
   probeHopInValue,
@@ -177,6 +181,7 @@ export default function createProxySpineChannel(ctx) {
     destructureEmit,
     hopPeelCtx,
     injectPureImport,
+    injector,
     markRewrite,
     memoValueClones,
     nestedGuardCtx,
@@ -208,9 +213,10 @@ export default function createProxySpineChannel(ctx) {
   }
 
   // one guard branch per candidate ctor, innermost-last - both legs chain the same plan list
-  function guardChainNode(plan, rawBranch) {
+  function guardChainNode(plan, rawBranch, invoke) {
     return renderCtorIdentityNarrow(plan, rawBranch, {
-      injectImport: injectPureImport, spellRecv: () => identifier(plan.recvIdent.name),
+      injectImport: injectPureImport, spellRecv: () => identifier(plan.recvIdent.name), invoke,
+      captureReceiver: plan.captureReceiver ? cloneNode(plan.captureReceiver) : null,
     });
   }
 
@@ -219,18 +225,24 @@ export default function createProxySpineChannel(ctx) {
   // binding `this` via `.bind(M)`
   function emitGuardedStaticNarrow(meta, metaPath, parent) {
     const memberNode = metaPath.node;
-    const plan = planGuardedStaticNarrow({ memberNode, parent, meta, path: metaPath, resolvePure });
+    const plan = planGuardedStaticNarrow({ memberNode, parent, meta, path: metaPath, resolvePure, adapter });
     if (!plan) return false;
     if (plan.bail) return true;
+    if (plan.captureReceiver) plan.recvIdent = identifier(injector.generateDeclaredRef(metaPath));
     // an effectful sequence prefix on the receiver runs ONCE, ahead of the test - the raw
     // branch reads off the bare identifier
-    const memberClone = plan.seqPrefix.length
+    const memberClone = plan.seqPrefix.length || plan.captureReceiver
       ? { ...cloneNode(memberNode), object: identifier(plan.recvIdent.name) }
       : cloneNode(memberNode);
-    const rawBranch = plan.isCallee
+    const rawBranch = plan.isCallee && !plan.callInBranches
       ? renderBoundRawBranch(memberClone, identifier(plan.recvIdent.name))
       : memberClone.optional || receiverCarriesOptional(memberClone) ? chainExpression(memberClone) : memberClone;
-    let replacement = guardChainNode(plan, rawBranch);
+    const liveArguments = plan.callInBranches ? new Set() : null;
+    let replacement = guardChainNode(plan, rawBranch, plan.callInBranches ? callee => {
+      const call = { ...cloneNode(parent), callee };
+      for (const arg of call.arguments) liveArguments.add(arg);
+      return call;
+    } : undefined);
     if (plan.seqPrefix.length) replacement = sequenceExpression([...plan.seqPrefix.map(expr => cloneNode(expr)), replacement]);
     // the source `?.` arrived wrapped in a ChainExpression; the conditional replaces the whole
     // wrapper, the raw branch carries its own
@@ -238,13 +250,14 @@ export default function createProxySpineChannel(ctx) {
     if (target.parentPath?.node?.type === 'ChainExpression' && target.parentPath.node.expression === memberNode) {
       target = target.parentPath;
     }
+    if (plan.callInBranches) target = peelParenAndTSSlotPath(metaPath).parentPath;
     const consumed = target.node;
     markRewrite();
     target.replaceWith(replacement);
     markSubtreeSkipped(skippedNodes, consumed);
     // the WHOLE replacement: the raw branch respells the member, and a revisit re-claiming
     // it would guard the guard
-    markSubtreeSkipped(skippedNodes, replacement);
+    markSubtreeSkipped(skippedNodes, plan.captureReceiver ? replacement.expressions.at(-1) : replacement, liveArguments);
     return true;
   }
 
@@ -252,6 +265,7 @@ export default function createProxySpineChannel(ctx) {
   // as the declarator's value - on a nullish receiver the raw branch dereferences it exactly as
   // the pattern would. only the receiver identifier slot is swapped, so a sequence prefix
   // around it keeps its own claims
+  // eslint-disable-next-line max-statements -- direct, nested and exported hosts land the shared guard plan
   function emitGuardedDestructureNarrow(meta, metaPath) {
     const prop = metaPath.node;
     const pattern = metaPath.parentPath?.node;
@@ -268,13 +282,56 @@ export default function createProxySpineChannel(ctx) {
       meta,
       path: metaPath,
       resolvePure,
+      adapter,
     });
     if (!admitted) return false;
-    const { plan, split, restResidual, bindingName, hostKind } = admitted;
+    const { plan, split, restResidual, bindingName, hostKind, nested, capture, keepPatternLive } = admitted;
+    if (nested) {
+      const declarationPath = nested.host.parentPath;
+      if (capture && declarationPath.parentPath?.node?.type === 'ExportNamedDeclaration') {
+        const names = [];
+        for (const declarator of declarationPath.node.declarations) walkPatternIdentifiers(declarator.id, id => names.push(id.name));
+        // The unwrapped declaration requeues every sibling, including earlier static claims.
+        for (const declarator of declarationPath.get('declarations')) destructureEmit.retireDeclaratorJobs(declarator);
+        declarationPath.parentPath.replaceWithMultiple([declarationPath.node, {
+          type: 'ExportNamedDeclaration', declaration: null, source: null,
+          specifiers: names.map(name => ({ type: 'ExportSpecifier', local: identifier(name), exported: identifier(name) })),
+        }]);
+        markRewrite();
+        return true;
+      }
+      if (destructureEmit.renderNestedParamSynth({ metaPath, meta, fallbackOnBail: !!capture })) return true;
+      if (!capture) return false;
+      const rendered = renderNestedKeyedPatternCapture(capture, {
+        mintRef: hostKind === 'declarator' ? destructureEmit.mintRefName : () => injector.generateDeclaredRef(metaPath),
+        narrow: plan,
+        split,
+        assignment: hostKind !== 'declarator',
+        preserveResult: hostKind === 'assignment-value',
+        injectImport: injectPureImport,
+      });
+      if (rendered.expression) {
+        for (const [index, element] of rendered.elements.entries()) {
+          if (element.guarded) markSubtreeSkipped(skippedNodes, rendered.expression.expressions[index + 1]);
+        }
+        nested.host.replaceWith(rendered.expression);
+        markRewrite();
+        return true;
+      }
+      const extracted = rendered.elements.map(element => element.declarator);
+      for (const [index, element] of rendered.elements.entries()) {
+        if (element.guarded) markSubtreeSkipped(skippedNodes, extracted[index]);
+      }
+      destructureEmit.retireDeclaratorJobs(nested.host);
+      const [captured] = nested.host.replaceWithMultiple([rendered.capture, ...extracted]);
+      captured.scope.registerBinding(captured.parentPath.node.kind, captured.get('id'), captured);
+      markRewrite();
+      return true;
+    }
     const host = hostPath.node;
     const chain = guardChainNode(plan, memberExpression(identifier(plan.recvIdent.name), identifier(meta.key)));
     markRewrite();
-    markSubtreeSkipped(skippedNodes, pattern);
+    if (!keepPatternLive) markSubtreeSkipped(skippedNodes, pattern);
     markSubtreeSkipped(skippedNodes, chain);
     // a MULTI-prop pattern becomes one read per prop, in source order, each taking its own guard:
     // the plan answered for all of them, so nothing here waits on a later visit - which is what lets
@@ -302,12 +359,12 @@ export default function createProxySpineChannel(ctx) {
       return true;
     }
     if (hostKind === 'declarator') {
-      host.id = identifier(bindingName);
+      host.id = keepPatternLive ? metaPath.node.value : identifier(bindingName);
       if (host.init === plan.recvIdent) host.init = chain;
       else replaceNodeInTree(host.init, plan.recvIdent, chain);
       return true;
     }
-    host.left = identifier(bindingName);
+    host.left = keepPatternLive ? metaPath.node.value : identifier(bindingName);
     if (host.right === plan.recvIdent) host.right = chain;
     else replaceNodeInTree(host.right, plan.recvIdent, chain);
     // the VALUE-CONSUMING host keeps its native value - the RHS object - as a sequence tail
@@ -766,7 +823,8 @@ export default function createProxySpineChannel(ctx) {
       test: nullFirstGuardTest(test),
       built: identifier(id),
       skippedNodes,
-      alwaysDefined: true,
+      alwaysDefined: plan.hops.length === plan.collapseIdx + 1,
+      preserveOptionalHops: true,
       // the ORIGINAL key-effect nodes ride by IDENTITY: a claim inside them fires later in
       // the walk and lands in place (the keep-live carve above the consumed mark)
       leafKeySe: plan.liveKeySeExprs().slice(plan.testKeySeCount),
@@ -863,6 +921,17 @@ export default function createProxySpineChannel(ctx) {
     for (let at = climbed.length - 1; at >= 0; at--) {
       const leafPath = climbed[at];
       if (!leafPath.node.optional && !receiverCarriesOptional(leafPath.node)) continue;
+      // This channel exists for a navigation whose value can really disappear.  A syntactic
+      // `?.` over the proven realm is handled by the ordinary spine collapse below, together
+      // with its plain twin (`globalThis.self?.window.x` -> `_globalThis.x`).  Building a guard
+      // here first preserved the dead source hops and prevented that collapse from running.
+      const liveRootGuard = navValueCanShortCircuit(leafPath.node, resolveHere, aliasCtx,
+        { throughChainAssign: true });
+      if (!liveRootGuard && !spineHoldsKeptWrite(leafPath.node) && !storedUserAssignmentOf(metaPath)) {
+        for (const hop of vestigialNavOptionals(leafPath.node, resolveHere, aliasCtx)) hop.optional = false;
+        dropChainMarkerWithoutOptional(leafPath);
+        continue;
+      }
       const plan = planProvenNavGuardCollapse({
         rootNode: leafPath.node,
         scope: metaPath.scope,
@@ -898,16 +967,32 @@ export default function createProxySpineChannel(ctx) {
       // the leaf's key effects wrap the PURE binding, the absorbed tail hangs outside
       // (`(c++, _self).Array` - the nav-collapse leaf shape); nav hops ABOVE the collapse
       // hang back on in their SOURCE spelling (`_self['window']`, a raw `.window` read)
-      const leaf = renderNavCollapseLeaf(plan,
+      // A terminal run of realm self-references is navigation, not a value retained by
+      // another consumer. Fold those hops onto the backed leaf, as the Babel binding does.
+      const leafSlot = climbTransparentWrapperPath(leafPath);
+      const { node: leafConsumer } = leafSlot.parentPath ?? {};
+      const readsThroughLeaf = (leafConsumer?.type === 'MemberExpression' && leafConsumer.object === leafSlot.node)
+        || (leafConsumer?.type === 'CallExpression' && leafConsumer.callee === leafSlot.node)
+        || (leafConsumer?.type === 'AssignmentExpression' && leafConsumer.right === leafSlot.node);
+      let { collapseIdx } = plan;
+      if (!readsThroughLeaf && !plan.rootAssign && !plan.topAssign) {
+        while (collapseIdx + 1 < plan.hops.length
+          && (!plan.hops[collapseIdx + 1].node.computed
+            || !mayHaveSideEffects(plan.hops[collapseIdx + 1].node.property))
+          && unbackedProxyHopKey(plan.hops[collapseIdx + 1].node, resolveHere)) collapseIdx++;
+      }
+      const renderPlan = collapseIdx === plan.collapseIdx ? plan : { ...plan, collapseIdx };
+      const leaf = renderNavCollapseLeaf(renderPlan,
         identifier(injectPureImport(plan.leafPure.entry, plan.leafPure.hintName)), { cloneHost: cloneNode });
-      const built = renderNavCollapseTail(plan, leaf, { cloneHost: cloneNode });
+      const built = renderNavCollapseTail(renderPlan, leaf, { cloneHost: cloneNode });
       markRewrite();
       replaceGuardedHop({
         hopPath: leafPath,
         test: nullFirstGuardTest(test),
         built,
         skippedNodes,
-        alwaysDefined: true,
+        alwaysDefined: renderPlan.hops.length === renderPlan.collapseIdx + 1,
+        preserveOptionalHops: true,
         resolveHere: m => resolvePure(m, metaPath),
       });
       return true;
@@ -1058,13 +1143,22 @@ export default function createProxySpineChannel(ctx) {
     function deeperSourceUndefinable(objNode) {
       const objValue = unwrapRuntimeExpr(objNode);
       if (objValue?.type !== 'CallExpression' || objValue.optional) return false;
+      // A strict inline call returning a local container can prove every slot between the
+      // call and this constructor. Its first `?.` is therefore the remaining guard boundary;
+      // keep the call test instead of re-reading an already-proven container property.
+      const aliasCtx = { scope: metaPath.scope, adapter, path: metaPath };
+      const returned = claimCtor && inlineCallReturnExpression({
+        node: objValue, readNode: node, seen: new Set(), ctx: aliasCtx,
+      }, { rejectConditional: true });
+      if (returned && unwrapRuntimeExpr(returned.node)?.type === 'ObjectExpression'
+        && !inlineCallProxyGlobalRoot({ callNode: objValue, ...aliasCtx, rejectConditional: true })) return true;
       const fnCallee = unwrapRuntimeExpr(objValue.callee);
       const fnBody = (fnCallee?.type === 'ArrowFunctionExpression' && fnCallee.expression)
         ? unwrapRuntimeExpr(fnCallee.body) : null;
       if (fnBody?.type === 'ConditionalExpression'
         && fnBody.consequent?.type === 'UnaryExpression' && fnBody.consequent.operator === 'void') return true;
       return proxyReceiverValueCanBeUndefined(objValue, m => resolvePure(m, metaPath),
-        { scope: metaPath.scope, adapter, path: metaPath }, { throughChainAssign: true });
+        aliasCtx, { throughChainAssign: true });
     }
     for (let inner = probe && unwrapRuntimeExpr(probe);
       inner?.type === 'MemberExpression' && inner.optional && !inner.computed
@@ -1180,6 +1274,7 @@ export default function createProxySpineChannel(ctx) {
         // source read THROUGH it - so an optional tail rides the branch with its `?.` kept
         // (`p()?.window?.Promise.resolve(4)?.then?.(f)`), exactly as a plain tail already does
         navAlternate: true,
+        preserveOptionalHops: !!unbackedProxyHopKey(probeSource, m => resolvePure(m, metaPath)),
         resolveHere: m => resolvePure(m, metaPath),
         prefixSe: prefixSe.length ? prefixSe.map(effect => cloneNode(effect)) : null,
         leafKeySe: keySe?.length ? keySe.map(effect => cloneNode(effect)) : null,
@@ -1524,6 +1619,7 @@ export default function createProxySpineChannel(ctx) {
     };
   }
 
+  // eslint-disable-next-line max-statements -- one ordered render pass over the collapse plan
   function renderProxySpineCollapse({
     metaPath,
     collapsed,
@@ -1561,8 +1657,15 @@ export default function createProxySpineChannel(ctx) {
     const deadOptional = allowOptional
       || (!mutatedRunKeepsItsGuards(metaPath)
         && proxyRunValueIsProven(target.node, m => resolvePure(m, metaPath), navAliasCtx));
-    const { navigated, mutatedAbove } = spineIsNavigated(
+    const navigation = spineIsNavigated(
       target, keptTail, collapsed.keptWrite ?? writeStep, { deadOptional });
+    const targetParent = target.parentPath;
+    const sealedValue = targetParent?.node?.type === 'ParenthesizedExpression'
+      || (targetParent?.node?.type === 'ChainExpression'
+        && targetParent.parentPath?.node?.type === 'ParenthesizedExpression');
+    const sealedDeleteValue = sealedValue && deleteHostAboveChain(target, target.node, unwrapRuntimeExpr);
+    const navigated = navigation.navigated && !sealedDeleteValue;
+    const { mutatedAbove } = navigation;
 
     // a NAVIGATION rebuilds from the root, so a dead prefix has nothing to carry and drops
     // (`(0, globalThis.window).Promise = f` -> `_globalThis.Promise = f`); a VALUE keeps the
@@ -1871,6 +1974,9 @@ export default function createProxySpineChannel(ctx) {
         && navValueCanShortCircuit(node.object, m => resolvePure(m, metaPath),
           { scope: metaPath.scope, adapter, path: metaPath }));
     if (!collapsed && !sealedAbove && !optionalAbove && !deleteHost && guardedReceiver
+      && unbackedTailRidesAbove(metaPath, m => resolvePure(m, metaPath))
+      && emitRootGuardedNavCollapse(metaPath)) return true;
+    if (!collapsed && !sealedAbove && !optionalAbove && !deleteHost && guardedReceiver
       && emitStaticOverGuardedNav({
         meta,
         metaPath,
@@ -2010,16 +2116,6 @@ export default function createProxySpineChannel(ctx) {
 
   // the kept-root hop collapse first, then the plain static / global claim swap
   function emitStaticGlobalClaim({ meta, metaPath, node, kind, entry, hintName }) {
-    // a LEAF claim re-visited INSIDE a guard-test clone is the read that test performs: swapping
-    // it in leaves the test asking an always-defined ponyfill and answering the branch native
-    // short-circuits past (`(w = globalThis.self.window?.Promise)?.resolve(1)` tests
-    // `_self.window?.Promise`, not `_Promise`). standing down costs no injection - the realm hops
-    // BELOW still spell their own, which is where the run lands - and it is the hop claim's own
-    // test-clone arm asked for a leaf the realm-hop canon does not name
-    if (node.type === 'MemberExpression' && !POSSIBLE_GLOBAL_OBJECTS.has(hintName)
-      && insideMemoClone(metaPath, probeTestClones)
-      && navHasUnresolvableProxyHop(node.object, m => resolvePure(m, metaPath),
-        { scope: metaPath.scope, adapter, path: metaPath })) return;
     // a `delete` whose whole navigation folds has no short-circuit for a guard render to
     // reproduce, and a guard built there hands `delete` a conditional, which deletes nothing
     const foldsUnderDelete = deleteHostForClaim(metaPath, node, { forFold: true });

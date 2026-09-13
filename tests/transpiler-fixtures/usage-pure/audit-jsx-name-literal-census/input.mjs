@@ -1,7 +1,5 @@
-// The negative half of the same rule: a JSX name that lowers to a STRING names no binding, so it is
-// no caller and the caller-lossy extract stays sound. Four slots spell such a name - a lowercase-
-// initial bare tag, an attribute name, a member tag's tail, and either half of a namespaced name -
-// and each row here is reachable through that slot alone.
+// Rest-bearing parameters keep their native bindings and defaults in parameter scope.
+// Independent reads and key/default expressions still receive their own polyfills.
 function div({ values, ...rest } = Object) {
   return [values, rest];
 }
@@ -22,7 +20,6 @@ function NsAttr({ race, ...rest } = Promise) {
   return [race, rest];
 }
 
-// CONTROL: a bare tag naming this one, so the file also exercises the verbatim verdict it pins.
 function Referenced({ from, ...rest } = Array) {
   return [from, rest];
 }

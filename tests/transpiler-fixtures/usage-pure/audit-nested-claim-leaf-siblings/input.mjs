@@ -1,8 +1,6 @@
-// a nested pattern whose LEAF level keeps siblings is the flat shape written the long way, so it
-// flattens onto that twin and the hop reads ONCE into a memo the dispatch and the residual share -
-// however DEEP the chain is, since both spellings of the flattened receiver now fold the same
-// writer set. a HOST sibling is the one that stays native: it names another key off the root and
-// would lose its binding in that rewrite
+// A nested leaf with siblings uses one receiver capture for the method and the remaining
+// properties, at any depth. An outer sibling requires a capture of the root as well; the nested
+// read and outer sibling then retain source property order.
 const box = { y: [1, [2]], keep: 3 };
 const deep = { a: { b: [1, [2]] } };
 const leafSiblings = (function () {

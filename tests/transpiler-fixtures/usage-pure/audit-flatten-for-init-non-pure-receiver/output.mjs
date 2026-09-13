@@ -9,10 +9,10 @@ import _valuesMaybeArray from "@core-js/pure/actual/array/instance/values";
 const userGlobal = {
   Array
 };
-for (const from = _Array$from, _unused = ((() => {
+for (const _unused = ((() => {
     var _ref;
     return _valuesMaybeArray(_ref = []).call(_ref);
-  })(), userGlobal); false;) {
+  })(), userGlobal), from = _Array$from; false;) {
   var _ref2;
   _atMaybeArray(_ref2 = from([])).call(_ref2, 0);
 }

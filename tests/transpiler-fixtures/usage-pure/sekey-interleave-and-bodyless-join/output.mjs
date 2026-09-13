@@ -1,97 +1,70 @@
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _at from "@core-js/pure/actual/instance/at";
-// SEVERAL SE keys on one pattern interleave on both legs: native runs key, read, key, read - and the
-// dispatch reads the property too - so each claim's extraction follows its own key's segment of
-// the residual, the trailing plain props taking a segment of their own (memo declarator, identifier
-// init and an exported host alike); a REST keeps the batch - no segment may gather the claimed keys
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
 const log = [];
 const k = tag => (_pushMaybeArray(log).call(log, tag), tag);
 const _ref = eff(),
-  {
-    [k('at')]: _unused
-  } = _ref,
-  viaSeq = _at(_ref),
-  {
-    [k('flat')]: _unused2
-  } = _ref,
-  viaSeqFlat = _flatMaybeArray(_ref),
+  _ref2 = _ref,
+  viaSeq = null == _ref2 ? _ref2[""] : (k('at'), _at(_ref2)),
+  _ref3 = _ref,
+  viaSeqFlat = null == _ref3 ? _ref3[""] : (k('flat'), _flatMaybeArray(_ref3)),
   {
     z
   } = _ref,
   viaSeqTail = 1;
-const {
-    [k('at')]: _unused3
-  } = arr,
-  viaIdent = _at(arr),
-  {
-    [k('flat')]: _unused4
-  } = arr,
-  viaIdentFlat = _flatMaybeArray(arr),
+const _ref4 = arr,
+  _ref5 = _ref4,
+  viaIdent = null == _ref5 ? _ref5[""] : (k('at'), _at(_ref5)),
+  _ref6 = _ref4,
+  viaIdentFlat = null == _ref6 ? _ref6[""] : (k('flat'), _flatMaybeArray(_ref6)),
   {
     y
-  } = arr;
-const _ref2 = eff();
-export const {
-    [k('at')]: _unused5
-  } = _ref2,
-  viaExport = _at(_ref2),
-  {
-    [k('flat')]: _unused6
-  } = _ref2,
-  viaExportFlat = _flatMaybeArray(_ref2),
+  } = _ref4;
+const _ref7 = eff(),
+  _ref8 = _ref7,
+  viaExport = null == _ref8 ? _ref8[""] : (k('at'), _at(_ref8)),
+  _ref9 = _ref7,
+  viaExportFlat = null == _ref9 ? _ref9[""] : (k('flat'), _flatMaybeArray(_ref9)),
   {
     w
-  } = _ref2;
-const viaRest = _at(arr);
-const viaRestFlat = _flatMaybeArray(arr);
+  } = _ref7;
+export { viaExport, viaExportFlat, w };
 const {
-  [k('at')]: _unused7,
-  [k('flat')]: _unused8,
+  [k('at')]: viaRest,
+  [k('flat')]: viaRestFlat,
   ...viaRestRest
 } = arr;
-// a bodyless `var` host joins the sentinel memo into its one statement, the memo the leading
-// declarator (a sole declarator and a sibling host alike); where the residual holds the sentinel
-// alone the memo is a `const` statement and the slot braces; a rest-kept residual splits behind
-// its extraction; a segment interleaves inside the join too
-if (c) var _ref3 = eff(),
+if (c) var _ref10 = eff(),
+  _ref11 = _ref10,
+  viaBodyless = null == _ref11 ? _ref11[""] : (k('at'), _at(_ref11)),
   {
-    [k('at')]: _unused9,
     bz
-  } = _ref3,
-  viaBodyless = _at(_ref3),
+  } = _ref10,
   viaBodylessTail = 2;
-if (c) var _ref4 = eff(),
+if (c) var _ref12 = eff(),
+  _ref13 = _ref12,
+  viaBodylessSole = null == _ref13 ? _ref13[""] : (k('at'), _at(_ref13)),
   {
-    [k('at')]: _unused10,
     bs
-  } = _ref4,
-  viaBodylessSole = _at(_ref4);
+  } = _ref12;
 if (c) var viaBodylessLead = 3,
-  _ref5 = eff(),
-  {
-    [k('at')]: _unused11
-  } = _ref5,
-  viaBodylessBehind = _at(_ref5);
-if (c) var _ref6 = eff(),
-  viaBodylessRest = _at(_ref6),
-  {
-    at: _unused12,
+  _ref14 = eff(),
+  viaBodylessBehind = null == _ref14 ? _ref14[""] : (k('at'), _at(_ref14));
+if (c) var {
+    at: viaBodylessRest,
     ...viaBodylessRestRest
-  } = _ref6,
+  } = eff(),
   viaBodylessRestTail = 4;
-if (c) var _ref7 = eff(),
-  {
-    [k('at')]: _unused13
-  } = _ref7,
-  viaBodylessSeg = _at(_ref7),
-  {
-    [k('flat')]: _unused14
-  } = _ref7,
-  viaBodylessSegFlat = _flatMaybeArray(_ref7),
+if (c) var _ref15 = eff(),
+  _ref16 = _ref15,
+  viaBodylessSeg = null == _ref16 ? _ref16[""] : (k('at'), _at(_ref16)),
+  _ref17 = _ref15,
+  viaBodylessSegFlat = null == _ref17 ? _ref17[""] : (k('flat'), _flatMaybeArray(_ref17)),
   {
     bq
-  } = _ref7,
+  } = _ref15,
   viaBodylessSegTail = 5;
 export { viaSeq, viaSeqFlat, z, viaSeqTail, viaIdent, viaIdentFlat, y, viaRest, viaRestFlat, viaRestRest, log };
 export { viaBodyless, bz, viaBodylessTail, viaBodylessSole, bs, viaBodylessLead, viaBodylessBehind };

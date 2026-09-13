@@ -1,7 +1,6 @@
-// a kept store of a seq-prefixed PROVEN CALL nav guards like its ident twin: the store takes
-// the guarded value, the prefix rides inside the test - spelled once, claims inside it live
-// (the render defers to the host's exit so a prefix claim lands before the slice is cloned).
-// an optional call link keeps its own `?.` in the test
+// A kept store of a sequence-prefixed proven call lands its plain proxy tail on self.
+// Prefix claims remain live and execute once before the assignment.
+// The optional-call twin has a known present callee and preserves the same value and effects.
 let held;
 const seqLog = [];
 const utRoot = () => globalThis;

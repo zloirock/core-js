@@ -6,10 +6,17 @@
 // `import x = require`) whose node shapes the two dialects have to agree on, and a type-only
 // import erases in both, so it decides nothing.
 import {
+  collectFileCensus,
   detectCommonJS,
+  isSloppyAtPath,
+  moduleFormatReducer,
   moduleFormatMarkers,
   resolveModuleFormat,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import {
+  escapedCtorReferencesReducer,
+  mutationShapesReducer,
+} from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
 import { parseSync } from 'oxc-parser';
 import { moduleIdLanguage } from '../../packages/core-js-polyfill-provider/helpers/path-normalize.js';
 import { createChecker } from './harness.mjs';
@@ -100,6 +107,43 @@ const CENSUS = [
 for (const [source, hasLiveESM, hasCJS] of CENSUS) {
   runBoth(`census: ${ source.replaceAll('\n', ' ') }`, source, (adapter, prog, label) => {
     checkDeep(label, moduleFormatMarkers(prog.node ?? prog), { hasLiveESM, hasCJS });
+  });
+}
+
+// The shared census collects late evidence and shadows before publishing the format. Usage
+// visits must not memoise the parser's provisional strictness; their results see the final goal.
+for (const [name, source, sourceType, hasLiveESM, hasCJS] of [
+  ['late CommonJS evidence', 'const box = { value: Map }; function f() { return box.value; } module.exports = f;', 'script', false, true],
+  ['late shadow cancels CommonJS evidence', 'module.exports = f; function f() {} const module = {};', 'module', false, false],
+  ['late live export overrides CommonJS goal', 'module.exports = 1; export {};', 'module', true, true],
+  ['parameter shadow stays scoped', 'function f(module) { module.exports = 1; }', 'module', false, false],
+  ['class definition awaits at top level', 'class C extends (await f()) {}', 'module', true, false],
+  // The call census consults import bindings even for an ordinary constructor. Its require-shadow
+  // check must not memoise the parser's strict goal before the CommonJS verdict is published.
+  ['CommonJS call keeps Annex-B scope', '{ function Map() {} } Object.assign = shim; module.exports = new Map();', 'script', false, true],
+  ['require block function does not shadow wrapper parameter', '{ function require() {} } const read = require("./dep"); module.exports = read();', 'script', false, true],
+  ['nested var require still shadows the loader', '{ var require; } const read = require("./dep"); read();', 'module', false, false],
+]) {
+  runBoth(`shared format and usage census: ${ name }`, source, (adapter, prog, label) => {
+    let format;
+    collectFileCensus(prog.node, [
+      moduleFormatReducer(moduleFormat => {
+        format = resolveModuleFormat({ id: '/probe.js', program: prog.node, moduleFormat });
+      }),
+      escapedCtorReferencesReducer(),
+      mutationShapesReducer(),
+      {
+        visit(node) {
+          if (node === prog.node) check(`${ label }: collection precedes publication`, format, undefined);
+        },
+        result() {
+          check(`${ label }: format precedes usage results`, format.sourceType, sourceType);
+          check(`${ label }: strictness sees the published format`, isSloppyAtPath(prog), sourceType === 'script');
+          return {};
+        },
+      },
+    ]);
+    checkDeep(`${ label }: independent source markers`, format.markers, { hasLiveESM, hasCJS });
   });
 }
 

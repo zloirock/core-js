@@ -9,6 +9,6 @@ _globalThis.deleteBox = {
   slot: 1
 };
 export const optionalAboveTheSeal = delete _self.window?.deleteBox;
-export const probeHopAboveTheSeal = delete _self.window?.deleteBox;
+export const probeHopAboveTheSeal = delete _self.window.window?.deleteBox;
 export const noMarkerUnderTheSeal = delete _self.window?.deleteBox;
 export const markerWithNothingAbove = delete _self.window?.deleteBox;

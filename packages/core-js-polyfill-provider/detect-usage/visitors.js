@@ -7,13 +7,19 @@
 import {
   annotationNameIsGlobal,
   checkTypeAnnotations,
-  isTypeAnnotationNodeType,
-  typeDeclarationUnreferencedInFile,
   typeOnlyImportShadows,
   walkTypeAnnotationGlobals,
 } from './annotations.js';
+import { isKnownGlobalName } from './globals.js';
 import { collectDestructureUnionCandidates, prepareDestructureUnion } from './destructure.js';
 import { handleBinaryIn, handleMemberExpressionNode, tagSymbolSourcedMeta } from './members.js';
+import {
+  hasObjectRestAncestor,
+  hasRestSiblingExcept,
+  isTypeAnnotationNodeType,
+  patternSlotTarget,
+  typeDeclarationUnreferencedInFile,
+} from '../helpers/ast-patterns.js';
 
 export function createUsageHandlerCore({
   adapter,
@@ -55,6 +61,9 @@ export function createUsageHandlerCore({
     // (`const galias = globalThis; (ntm = (se, galias).window.self)`) stores the same canon,
     // and the hook self-gates cheaply (a parent climb, then the plan's own proxy-root proof)
     if (suppressKeptNavRoot?.(path)) return;
+    // The alias hook above also consumes ordinary names. Only known globals can request a
+    // polyfill below, so their scope lookup need not run for every local reference in the file.
+    if (!isKnownGlobalName(node.name)) return;
     // a name the file BINDS is that binding's, wherever the declaration sits: the sloppy host is a
     // CommonJS wrapper, so a top-level `var` binds afresh like every other one and a self-reference
     // (`var X = X`) reads the hoisted undefined rather than the realm
@@ -105,6 +114,11 @@ export function createUsageHandlerCore({
   // receiver): the primary dispatch skips, but the union still runs - the provider synthesizes
   // its branch-key carrier there, so every producer bail keeps its reachable arm keys
   function emitDestructurePropUsage({ meta, path, keyNode, computed, containerWalkObjects = null }) {
+    if (method === 'usage-pure') {
+      const target = patternSlotTarget(path.node.value);
+      if (hasObjectRestAncestor(path) || (target?.type === 'ObjectPattern'
+        && hasRestSiblingExcept(target.properties, null))) return;
+    }
     const { scope } = path;
     const tagged = meta ? tagSymbolSourcedMeta({ meta, keyNode, computed, scope, adapter, path }) : null;
     // usage-global reachable receiver / key union, in the member twin's order: its verdict phase

@@ -10,6 +10,8 @@ import _Object$hasOwn from "@core-js/pure/actual/object/has-own";
 import _Object$is from "@core-js/pure/actual/object/is";
 import _Object$keys from "@core-js/pure/actual/object/keys";
 import _Object$values from "@core-js/pure/actual/object/values";
+// Object-rest keeps the affected loop pattern native at its original evaluation point.
+// Independent reads and key/default expressions still receive their own polyfills.
 // probe corpus of the defense cycles over the destructure wrappers, family "forx", part 1:
 // every block is one probed form, self-contained over the header bindings, locked on both legs
 let pick = 1;
@@ -203,14 +205,7 @@ function mark(t, v) {
     let [_ref7] = _ref8;
     let _ref9 = _ref7.w;
     let values = _values(_ref9);
-    let {
-      values: _unused
-    } = _ref9;
-    let {
-      y: {
-        at
-      }
-    } = _ref7;
+    let at = _at(_ref7.y);
     [values, at];
   }
 }
@@ -239,7 +234,10 @@ function mark(t, v) {
   }, {
     w: userObj
   }]) {
-    let keys = _keys(_r.w);
+    let {
+        w: _ref11
+      } = _r,
+      keys = _ref11 === Object ? _Object$keys : _keys(_ref11);
     keys;
   }
 }
@@ -289,9 +287,10 @@ function mark(t, v) {
   for (const _r of [{
     w: Object
   }]) {
-    let entries = _Object$entries;
     let {
-      w: _unused2,
+      w: {
+        entries
+      },
       ...rest
     } = _r;
     entries;
@@ -342,13 +341,15 @@ function mark(t, v) {
   }
 }
 {
-  for (const {
-    Array: {
-      from
-    }
-  } of [_globalThis, {
+  for (const _ref13 of [_globalThis, {
     Array
-  }]) from;
+  }]) {
+    let {
+        Array: _ref12
+      } = _ref13,
+      from = _ref12 === Array ? _Array$from : _ref12.from;
+    from;
+  }
 }
 {
   for (const {

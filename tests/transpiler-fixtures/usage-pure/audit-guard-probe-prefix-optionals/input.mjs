@@ -7,8 +7,8 @@ export const optionalRootTwoHops = globalThis?.window?.window?.self?.Array.of(2)
 const dr = () => globalThis;
 export const provenRootTwoHops = dr()?.window?.window?.self?.Array.of(3).at(0);
 
-// the `?.` over a PROVEN root is dead text in the very same test - both emitters drop it, and
-// the load-bearing one above the probe survives beside it
+// An optional over a proven root is redundant, but may remain in a preserved probe
+// expression. The optional above an unbacked host hop must keep guarding that read.
 const sr = () => globalThis;
 export const provenRootOneHop = sr()?.window?.self?.Array.of(4).at(0);
 
@@ -86,22 +86,19 @@ export const unplannedNullishCarrier = ut()?.window?.self?.chrome ?? 'absent';
 // so the plain read observes the short-circuited value instead of riding it
 export const sealedUnplannedTail = (ut()?.window?.self).chrome;
 
-// the realm hop the plan folds leaves the alternate ON the ponyfill leaf, so the FIRST live `?.`
-// above it is the leaf-adjacent one the vestigial verdict erases: every pulled step is a straight
-// continuation and the alternate produces the value the source reads. the SECOND guard has a step
-// with a name pure does not back behind it, and that one stays out
+// The backed self landing keeps the unbacked window above it. Both later optionals remain
+// load-bearing: an absent window skips chrome, and an absent chrome skips Array.
 export const plannedTailKeepsGuard = ut()?.window?.self?.window?.chrome?.Array;
 
-// the hops the render emitted are marked, so the re-traversal keeps the shape the plan chose
-// instead of collapsing them against a receiver it never picked - and the realm hop the source
-// wrote above the collapse is not one of them: it folded before the render ever spelled a tail
+// Plain continuations after the backed self landing retain the unbacked window read.
+// An optional after that window remains live, while the plain forms keep their native throw.
 const rt = () => globalThis;
 export const renderTailPlainContinuation = rt()?.window?.self.window.chrome;
 export const renderTailFirstOptionalFolds = rt()?.window?.self?.window?.chrome;
 export const renderTailDeepPlain = rt()?.window?.self.window.chrome.foo;
 
-// the same render under an INSTANCE dispatch receiver keeps its hops too (the receiver-collapse
-// drive must not re-run on them)
+// The instance dispatch folds the plain realm suffix into its proven receiver, while
+// preserving the earlier host probe and the sequence effect before the call.
 let rc = 0;
 export const renderTailInstanceRecv = (rc++, rt()?.window?.self.window).Array.prototype.indexOf.call([5], 5);
 export { rc };

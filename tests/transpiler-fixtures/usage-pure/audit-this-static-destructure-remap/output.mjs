@@ -5,11 +5,8 @@ import _Map from "@core-js/pure/actual/map/constructor";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Promise$try from "@core-js/pure/actual/promise/try";
-// `const { X } = this` inside a STATIC method of `extends KnownGlobal` reads the inherited
-// STATIC surface exactly like `this.X` - the destructure funnel resolves the extends host
-// through the same class-walk gate as the member remap. the extraction is the plain pure
-// binding (native extraction loses `this`, so the un-bound polyfill matches); rest keeps
-// reading the SUBCLASS constructor verbatim; the user default is dead (polyfill defined)
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
 class Basic extends Array {
   static m() {
     const from = _Array$from;
@@ -26,9 +23,8 @@ class Renamed extends _Map {
 export const viaRenamed = Renamed.m();
 class WithRest extends Array {
   static m() {
-    const of = _Array$of;
     const {
-      of: _unused,
+      of,
       ...rest
     } = this;
     return [of, rest];
@@ -114,10 +110,6 @@ class ForInit extends Array {
   }
 }
 export const viaForInit = ForInit.m();
-
-// a property default stays order-exact around the substituted read; an SE-key ASSIGNMENT
-// keeps the source and injects the polyfill as the target default (an expression context
-// cannot mint a sentinel binding, so the declarator extraction canon is unavailable)
 class KeyDefault extends Array {
   static m() {
     const from = _Array$from;
@@ -129,9 +121,8 @@ let counted = 0;
 let seTarget;
 class AssignSeKey extends Array {
   static m() {
-    ({
-      [(counted++, 'of')]: seTarget = _Array$of
-    } = this);
+    var _ref;
+    _ref = this, null == _ref ? _ref[""] : (counted++, seTarget = _Array$of), _ref;
     return seTarget;
   }
 }
@@ -173,16 +164,14 @@ class ComputedShadow extends Array {
 }
 export const viaComputedShadow = ComputedShadow.m();
 
-// an SE computed key: the declarator canon extracts ahead and re-reads the key SE
-// through a sentinel; the param-default canon synths the literal with the proven string
-// key instead (an expression default cannot host the sentinel split)
+// The declarator captures this, then evaluates the computed-key effect and binds the
+// pure static at that property slot. The parameter default keeps the proven string key
+// in its synthesized literal.
 let ticks = 0;
 class SeKeyDecl extends Array {
   static m() {
-    const o = _Array$of;
-    const {
-      [(ticks++, 'of')]: _unused2
-    } = this;
+    const _ref2 = this,
+      o = null == _ref2 ? _ref2[""] : (ticks++, _Array$of);
     return o;
   }
 }
@@ -229,10 +218,6 @@ class MemberHeritage extends ns.Promise {
   }
 }
 export const viaMemberHeritage = MemberHeritage.m();
-
-// more negatives: an own static ACCESSOR shadows like a method; a rest-bearing param
-// default bails (the sentinel extraction is not caller-correct without provably bare
-// calls); an array pattern never reads the static surface
 class AccessorShadow extends Array {
   static get of() {
     return 1;
