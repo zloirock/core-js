@@ -1,4 +1,4 @@
-// nested SE-key instance in a destructuring-ASSIGNMENT: the receiver is resolved through the object key
-// (`{ y: arr }.y` -> arr) and the polyfill appended as a post-statement overwrite; the effect runs once
+// A nested computed method assignment reads its receiver once before the key effect.
+// The polyfill is assigned at that slot, without a second read after the pattern.
 let m;
 ({ y: { [(eff(), 'flat')]: m } } = { y: arr });

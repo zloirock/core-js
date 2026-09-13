@@ -34,7 +34,6 @@ import {
   POSSIBLE_GLOBAL_OBJECTS,
   TS_EXPR_WRAPPERS,
   annexBHoistOutrunsBinding,
-  bindingHasOpaqueAccess,
   isBindingDeclarationPath,
   isForXStatement,
   isMemberAccessNode,
@@ -54,6 +53,7 @@ import {
   aliasTargetName,
   positionDisposition,
   POSITION_CONSUMES,
+  POSITION_FORWARDS,
   propertyKeyName,
   unwrapRuntimeExpr,
   walkPatternIdentifiers,
@@ -443,11 +443,6 @@ export function createBindingAnalysis({
     // and neither records those uses here - the set they hold is a subset, so the answer is
     // "not enumerable" rather than the shorter list
     if (annexBHoistOutrunsBinding(binding.path)) return null;
-    // and neither does a direct `eval` or a `with` head: the first reads and writes the name from a
-    // string, the second answers a body read off its object, so the reference set is a subset there
-    // too - and this walker's consumers read emptiness as "nothing escapes", the reading that turns
-    // a leaked container back into a narrowed one
-    if (bindingHasOpaqueAccess(binding)) return null;
     const { referencePaths } = binding;
     if (Array.isArray(referencePaths)) {
       return referencePaths.some(overReportedJsxReference)
@@ -497,6 +492,35 @@ export function createBindingAnalysis({
     return heldResultRetainsArgument(callNode, argNode, argPath);
   }
 
+  // The nested pattern consuming a literal's slot, or null. Array slots cannot shift through a
+  // spread; an object wrapper must have just the one named slot on both sides of the pairing.
+  // Return the pattern so method-aware callers also check which of the receiver's methods it binds.
+  function wrapperDestructureReadsSlot(parent, refNode, refPath) {
+    const array = parent?.type === 'ArrayExpression';
+    const property = parent?.type === 'Property' || parent?.type === 'ObjectProperty';
+    if (!array && (!property || parent.value !== refNode)) return null;
+    const literalPath = array ? refPath?.parentPath : refPath?.parentPath?.parentPath;
+    const literal = literalPath?.node;
+    const declarator = peelTransparentExprAncestorPath(literalPath)?.parentPath?.node;
+    if (declarator?.type !== 'VariableDeclarator' || unwrapRuntimeExpr(declarator.init) !== literal) return null;
+    let slot;
+    if (array) {
+      if (declarator.id?.type !== 'ArrayPattern' || literal.elements.some(item => item?.type === 'SpreadElement')) return null;
+      const index = literal.elements.indexOf(refNode);
+      if (index === -1) return null;
+      slot = declarator.id.elements[index];
+    } else {
+      if (literal?.type !== 'ObjectExpression' || literal.properties.length !== 1
+        || declarator.id?.type !== 'ObjectPattern' || declarator.id.properties.length !== 1) return null;
+      const [paired] = declarator.id.properties;
+      const key = propertyKeyName(parent);
+      if (key === null || key === undefined || propertyKeyName(paired) !== key) return null;
+      slot = paired.value;
+    }
+    if (slot?.type === 'AssignmentPattern') slot = slot.left;
+    return isDestructurePattern(slot) ? slot : null;
+  }
+
   // ref classifier used during alias-closure construction. categories:
   //   'trivial' - reference is a member-access receiver (`<name>.X` / `<name>?.X` / `<name>[expr]`)
   //               or any other shape that doesn't escape the binding's value
@@ -506,25 +530,6 @@ export function createBindingAnalysis({
   // object-shape value). class-binding closure swaps in `classBindingRefClassifier` which also
   // accepts `new ClassName()`, `class Sub extends ClassName`, `x instanceof ClassName` -
   // those uses don't escape the binding's value (the class) for static-state mutation purposes
-  // is this array-literal element read by a destructuring declarator that consumes the whole literal,
-  // and read as a PATTERN rather than bound to a name? a spread shifts what the slot matches, and a
-  // rest slot collects a slice - neither pairs the element with a knowable pattern
-  function wrapperDestructureReadsSlot(literalNode, refNode, refPath) {
-    // the literal may wear wrappers the source spelled, and only ONE leg's parser keeps a paren as
-    // a node: reading the declarator a FIXED number of hops up - and matching its init by IDENTITY -
-    // then answers 'leak' on that leg alone, which costs the read its narrow rather than its
-    // correctness (`const [{ y: { at } }, zn] = ([nb, eff()])` shipped the generic dispatcher)
-    const declarator = peelTransparentExprAncestorPath(refPath?.parentPath)?.parentPath?.node;
-    if (declarator?.type !== 'VariableDeclarator' || unwrapRuntimeExpr(declarator.init) !== literalNode
-      || declarator.id?.type !== 'ArrayPattern') return false;
-    if (literalNode.elements.some(item => item?.type === 'SpreadElement')) return false;
-    const index = literalNode.elements.indexOf(refNode);
-    if (index === -1) return false;
-    let slot = declarator.id.elements[index];
-    if (slot?.type === 'AssignmentPattern') slot = slot.left;
-    return slot?.type === 'ObjectPattern' || slot?.type === 'ArrayPattern';
-  }
-
   function defaultAliasRefClassifier(parent, refNode, refPath) {
     // a dynamic computed-key write is an unenumerable mutation channel - leak before the
     // member-receiver shortcut would otherwise treat it as trivial
@@ -535,16 +540,10 @@ export function createBindingAnalysis({
     // closure-narrow stays in scope. shared helper covers both declaration-level and
     // per-specifier `exportKind` and the implements-heritage walk
     if (refPath && isTSTypeOnlyIdentifierPath(refPath)) return 'trivial';
-    // a declarator id and a simple assignment target both bind the value to ONE name, through which
-    // the closure keeps tracking it. an assignment ALSO forwards the value on from its own position
-    // (`sink(b = a)` hands it to sink), so that position has to consume it for the alias to hold
+    // Both forms bind the value to one tracked name. The closure walker also checks the consumer
+    // of an assignment's result, with the same method-aware classifier used for direct references.
     if (parent?.type === 'VariableDeclarator' && parent.init === refNode && aliasTargetName(parent)) return 'alias';
-    // ... asked at the assignment's OWN position, reached through the wrappers the source spelled:
-    // only one leg's parser keeps a paren as a node, and fixed hops land on it there - the position
-    // then reads as a hand-out, the alias is refused, and the value looks leaked on that leg alone
-    const assignHost = peelTransparentExprAncestorPath(refPath?.parentPath);
-    if (parent?.type === 'AssignmentExpression' && parent.right === refNode && aliasTargetName(parent)
-      && positionDisposition(assignHost?.parent, parent, assignHost?.parentPath) === POSITION_CONSUMES) return 'alias';
+    if (parent?.type === 'AssignmentExpression' && parent.right === refNode && aliasTargetName(parent)) return 'alias';
     // VariableDeclarator destructure init `const {x} = o` / `const [x] = o` - destructure
     // only reads named/indexed properties off `o`, no mutation channel. equivalent to a
     // bag of `o.x` / `o[N]` member-receiver reads
@@ -552,9 +551,9 @@ export function createBindingAnalysis({
       && isDestructurePattern(parent.id)) return 'trivial';
     // ... and the same read one WRAPPER deep (`const [{ x }] = [o]`): the literal is built only to be
     // destructured, so nothing downstream reaches `o` through it. the matching pattern slot decides:
-    // a nested PATTERN reads properties off it like the direct form, while a bare name would bind the
-    // value itself and keep today's verdict
-    if (parent?.type === 'ArrayExpression' && wrapperDestructureReadsSlot(parent, refNode, refPath)) return 'trivial';
+    // a nested PATTERN reads properties off it like the direct form, including a sole-key object
+    // wrapper (`const { w: { x } } = { w: o }`); a bare name would bind the value itself
+    if (wrapperDestructureReadsSlot(parent, refNode, refPath)) return 'trivial';
     // the shared position enumeration: a value this reference names is evaluated here and nothing
     // downstream can reach it - a `for...in` head among them, since it only enumerates keys. this walk
     // cannot follow a FORWARDS into a container, so anything but CONSUMES falls through to the rules
@@ -817,6 +816,8 @@ export function createBindingAnalysis({
           && prototypeReadLeaks(refPath?.parentPath, prototypeInfo)) return 'leak';
       }
       if (!methodInfo) return base(parent, refNode, refPath);
+      const wrappedPattern = wrapperDestructureReadsSlot(parent, refNode, refPath);
+      if (wrappedPattern) return patternBindsMethodKey(wrappedPattern, methodInfo) ? 'leak' : 'trivial';
       // an OBJECT spread copies the holder's own props - methods included - into the new object
       if (parent?.type === 'SpreadElement' && (methodInfo.methodKeys.size || methodInfo.unknownKey)
         && refPath?.parentPath?.parent?.type === 'ObjectExpression') return 'leak';
@@ -1019,11 +1020,13 @@ export function createBindingAnalysis({
         // outer MemberExpression; oxc additionally preserves the outer parens as
         // ParenthesizedExpression. walk upward through both runtime-transparent shapes
         // so the classifier sees the post-peel (parent, refNode) pair regardless of
-        // wrapper choice, and TS-wrapped receivers / alias-inits don't fall through to 'leak'
+        // wrapper choice. A sequence tail forwards that same value; its prefix does not.
         let refNode = ref.node;
         let refContext = ref;
         let { parent } = refContext;
-        while (parent && TRANSPARENT_EXPR_WRAPPER_TYPES.has(parent.type)) {
+        while (parent && (TRANSPARENT_EXPR_WRAPPER_TYPES.has(parent.type)
+          || (parent.type === 'SequenceExpression'
+            && positionDisposition(parent, refNode, refContext.parentPath) === POSITION_FORWARDS))) {
           refNode = parent;
           refContext = refContext.parentPath;
           if (!refContext) break;
@@ -1032,6 +1035,10 @@ export function createBindingAnalysis({
         const kind = classifier(parent, refNode, refContext);
         if (kind === 'trivial') continue;
         if (kind === 'alias') {
+          if (parent.type === 'AssignmentExpression') {
+            const host = peelTransparentExprAncestorPath(refContext.parentPath);
+            if (classifier(host?.parent, host?.node, host) !== 'trivial') return null;
+          }
           const aliasName = aliasTargetName(parent);
           // 3rd arg is a use-PATH (drives rebuildLaggedScopeBinding / pathContainedBy recovery), not
           // a node: `parent` is `refContext.parent` (a VariableDeclarator NODE) and defeats both

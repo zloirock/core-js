@@ -1,16 +1,16 @@
-import _Array$from from "@core-js/pure/actual/array/from";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Map from "@core-js/pure/actual/map/constructor";
 import _self from "@core-js/pure/actual/self";
 import _Set from "@core-js/pure/actual/set/constructor";
-// Mixed logical operands resolve per-operand: a direct non-pure proxy member collapses its hop
-// (`globalThis.self.Array` -> `_globalThis.Array`), an alias pure-ctor operand whole-swaps via the
-// natural visitor (`g.self.Set` -> `_Set`, left verbatim here so it does not fight the visitor), and
-// a bare global -> its pure import (`Map` -> `_Map`). Exercises crash-safety for the alias pure-ctor.
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
+// Each logical operand keeps its own substitution: a realm member lands on the
+// backed proxy root, while a constructor operand lands on its pure constructor.
+// The selected receiver is evaluated once before binding the polyfilled property
+// and copying the remaining keys.
 const g = _globalThis;
-const from = _Array$from;
 const {
-  from: _unused,
+  from,
   ...rest
 } = _self.Array || _Set || _Map;
 from([1]);

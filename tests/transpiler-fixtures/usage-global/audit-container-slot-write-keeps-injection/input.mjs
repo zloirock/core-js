@@ -1,9 +1,7 @@
-// a container slot write must not SILENCE injection in the global flavor: the binding reassignment
-// canon is method-aware - pure bails (a write anywhere may reach the read), global bails only on
-// PROVEN dominance, which the slot record cannot establish, so it keeps resolving and over-injects
-// the literal's candidate. the written value's own statics inject too (the recorded value joins
-// the union axis); here that import coincides with the binding-canon cell's, so this file locks
-// the literal candidate surviving - the reaching union has its own fixture
+// Global injection follows the possible values of written and repositioned container slots.
+// A local slot change alone does not require every static method of its constructors.
+// Pure keeps the written slot native and retains the replacement constructor's statics.
+// The unconditional write makes the initial Object unreachable; it needs no identity guard.
 const w = { k: Object };
 w.k = Map;
 const { k: { groupBy } } = w;

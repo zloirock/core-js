@@ -1,10 +1,6 @@
-// TWO writes of the SAME proxy global are one value: the alias holds that global whichever write ran,
-// so the read needs no sole-write proof. without the agreement arm the verdict flipped mid-file - this
-// emitter rewrites the first write into its pure spelling, and the next read of the alias then saw a
-// different write set than the read before it, so the two identical expressions below rendered
-// differently (the first lost the probe the second kept).
-// the negative is `M`: a PATTERN left stores a property of the global, never the global, so two such
-// writes are two different constructors and stay untrusted
+// Repeated writes of the same realm object keep the alias trustworthy at both reads.
+// The plain window.self navigation lands on the backed self entry while assignments remain.
+// Pattern writes to M store different constructors; identity checks preserve the selected value.
 let v, g, out, out2;
 out = (g = globalThis, v = g.window.self)?.Promise.race.zzz;
 out2 = (g = globalThis, v = g.window.self)?.Promise.race.zzz;

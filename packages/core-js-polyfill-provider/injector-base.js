@@ -140,6 +140,10 @@ export default class ImportInjectorState {
   // Symbol.X polyfills via source-path); `hint` is the global class name so
   // `resolveSuperImportName` can map `class C extends MyPromise` back to `Promise`
   #importInfoByName = new Map();
+  // Per-primary-record index for user-named aliases. Same-name destructuring aliases are common
+  // in generated bundles; scanning every preceding scope on both registration and lookup makes
+  // that shape quadratic. The WeakMap is rebuilt lazily after a pre/post snapshot handoff.
+  #importSpanIndexes = new WeakMap();
 
   constructor({ absoluteImports, mode, pkg, importStyle, packages = null, emitsGlobalModules = true }) {
     this.absoluteImports = absoluteImports;
@@ -174,6 +178,24 @@ export default class ImportInjectorState {
     return name;
   }
 
+  // Rehydration and incremental registration apply the same span ordering to the index.
+  #importSpanIndex(primary, added = null) {
+    let index = this.#importSpanIndexes.get(primary);
+    if (index && !added) return index;
+    const records = index ? [added] : [primary, ...primary.siblings ?? []];
+    index ??= { keys: new Set(), latest: null };
+    for (const record of records) {
+      const { scopeSpan } = record;
+      index.keys.add(scopeSpan ? `${ scopeSpan.start }:${ scopeSpan.end }` : 'file');
+      if (scopeSpan && (!index.latest || scopeSpan.start > index.latest.scopeSpan.start
+        || (scopeSpan.start === index.latest.scopeSpan.start && scopeSpan.end < index.latest.scopeSpan.end))) {
+        index.latest = record;
+      }
+    }
+    this.#importSpanIndexes.set(primary, index);
+    return index;
+  }
+
   // shared `#importInfoByName` writer for entry-derived metadata. computes canonical
   // shape `{source, hint, entry}` from (mode, entry, name); first-write-wins so subsequent
   // re-registrations for the same name don't overwrite (e.g. user re-imports same source
@@ -202,13 +224,12 @@ export default class ImportInjectorState {
     // first-write-wins against a plugin-minted / import record, for a non-user re-registration,
     // and for a user record re-registering an already-covered span
     if (!userNamed || !existing.userNamed) return;
-    function spanKey(span) {
-      return span ? `${ span.start }:${ span.end }` : 'file';
-    }
+    const index = this.#importSpanIndex(existing);
+    const key = scopeSpan ? `${ scopeSpan.start }:${ scopeSpan.end }` : 'file';
+    if (index.keys.has(key)) return;
     const siblings = existing.siblings ??= [];
-    if (spanKey(existing.scopeSpan) === spanKey(scopeSpan)
-      || siblings.some(r => spanKey(r.scopeSpan) === spanKey(scopeSpan))) return;
     siblings.push(record);
+    this.#importSpanIndex(existing, record);
   }
 
   // the record (primary or sibling) a use at `useStart` may read: a plugin-minted / import
@@ -217,9 +238,13 @@ export default class ImportInjectorState {
   // a pathless lookup (`useStart === null`) never serves a USER record: without a position the
   // span discipline cannot run, and a single record answered FILE-wide for every same-named
   // binding in the file - the wrong-Maybe over-resolve a positional consumer exists to prevent
-  static #servableImportRecord(primary, useStart) {
+  #servableImportRecord(primary, useStart) {
     if (!primary.userNamed) return primary;
     if (useStart === null) return null;
+    // AST scope spans are nested or disjoint. If the rightmost registered span contains this
+    // forward traversal's use, no earlier span can be a narrower containing scope.
+    const { latest } = this.#importSpanIndex(primary);
+    if (latest?.scopeSpan && latest.scopeSpan.start <= useStart && useStart <= latest.scopeSpan.end) return latest;
     const candidates = [primary, ...primary.siblings ?? []];
     let best = null;
     for (const record of candidates) {
@@ -414,11 +439,11 @@ export default class ImportInjectorState {
       // same binding judged by more than one path (plan gate + standalone site): keep the
       // strongest judgment - a trusted/write registration wins over a refused one
       if ((existing.trusted || existing.write) && guarded) return;
-      // two GUARDED judgments with source positions (a dirty multi-write binding registered
-      // once per write): keep the LATER write deterministically - the substrates register in
-      // their own traversal order, and the runtime ctor guard keys on the LAST swap's hint
-      if (existing.guarded && guarded && existing.srcPos !== null && srcPos !== null
-        && srcPos < existing.srcPos) return;
+      // A revisit of an earlier conditional write cannot replace a later guarded write or
+      // verified declaration. A genuinely later conditional write still replaces either.
+      const existingPos = existing.srcPos ?? existing.declSpan?.start ?? null;
+      if ((existing.guarded || existing.verified) && guarded && existingPos !== null && srcPos !== null
+        && srcPos < existingPos) return;
       const { hints } = existing;
       Object.assign(existing, entry, { hints });
       return;
@@ -445,7 +470,7 @@ export default class ImportInjectorState {
     // record is invisible: the name there is either unbound (a runtime ReferenceError a fold
     // would mask) or a DIFFERENT binding - including the real global the alias name shadows
     if (pure) {
-      const rec = ImportInjectorState.#servableImportRecord(pure, useStart);
+      const rec = this.#servableImportRecord(pure, useStart);
       if (rec) {
         return { hint: rec.hint, source: rec.source, entry: rec.entry, userNamed: !!rec.userNamed, scopeSpan: rec.scopeSpan ?? null };
       }
@@ -464,9 +489,17 @@ export default class ImportInjectorState {
     } else if (list.length === 1) [alias] = list;
     if (!alias) return null;
     return {
-      hint: alias.hint, hints: this.#candidateHints(name ?? alias.name, alias), source: null, entry: null,
-      aliasTrusted: false, aliasWrite: alias.write, aliasGuarded: alias.guarded,
-      aliasDeclSpan: alias.declSpan, aliasVerified: alias.verified,
+      hint: alias.hint,
+      hints: this.#candidateHints(name ?? alias.name, alias),
+      source: null,
+      entry: null,
+      // A verified declaration is the value-writing anchor even when the host binding
+      // points to an earlier var declarator. Consumers still check its span at the read.
+      aliasTrusted: false,
+      aliasWrite: alias.write ?? (alias.verified ? alias.declSpan : null),
+      aliasGuarded: alias.guarded,
+      aliasDeclSpan: alias.declSpan,
+      aliasVerified: alias.verified,
     };
   }
 
@@ -481,7 +514,7 @@ export default class ImportInjectorState {
     // globalThis)`) must stay INVISIBLE here - the name IS the global slot, and reporting a binding
     // would hide its reads from the global machinery (no substitution, no deopt gating)
     const pure = this.#importInfoByName.get(name);
-    if (pure && ImportInjectorState.#servableImportRecord(pure, useStart)) return true;
+    if (pure && this.#servableImportRecord(pure, useStart)) return true;
     if (this.#globalAliases.get(name)?.minted) return true;
     const list = this.#aliasEntriesByName.get(name);
     if (!list?.length) return false;
@@ -513,9 +546,15 @@ export default class ImportInjectorState {
       : perNode.size === 1 ? perNode.values().next().value : null;
     if (!alias) return null;
     return {
-      hint: alias.hint, hints: this.#candidateHints(name, alias), source: null, entry: null,
-      aliasTrusted: false, aliasWrite: alias.write, aliasGuarded: alias.guarded,
-      aliasDeclSpan: alias.declSpan, aliasVerified: alias.verified,
+      hint: alias.hint,
+      hints: this.#candidateHints(name, alias),
+      source: null,
+      entry: null,
+      aliasTrusted: false,
+      aliasWrite: alias.write ?? (alias.verified ? alias.declSpan : null),
+      aliasGuarded: alias.guarded,
+      aliasDeclSpan: alias.declSpan,
+      aliasVerified: alias.verified,
     };
   }
 

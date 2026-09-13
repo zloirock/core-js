@@ -15,6 +15,7 @@ const generateModule = requireBabel('@babel/generator');
 import estreeToBabel from '../../packages/core-js-babel-plugin/internals/estree-to-babel.js';
 import {
   assignmentExpression,
+  arrowFunctionExpression,
   bareImport,
   bareRequire,
   binaryExpression,
@@ -155,8 +156,8 @@ check('chain/seal boundary types', estreeToBabel(sealed).type, 'MemberExpression
 // --- host slots: an embedded babel subtree passes through UNCONVERTED ---
 {
   // identity: the slot unwraps to the very node, undescended - a babel-only inner type
-  // (ArrowFunctionExpression is outside the vocabulary) proves the converter never walked in
-  const hostNode = { type: 'ArrowFunctionExpression', params: [], body: { type: 'Identifier', name: 'x' } };
+  // (ClassExpression is outside the vocabulary) proves the converter never walked in
+  const hostNode = { type: 'ClassExpression', id: null, superClass: null, body: { type: 'ClassBody', body: [] } };
   checkTruthy('host-slot/unwraps to the very node', estreeToBabel(hostSlot(hostNode)) === hostNode);
   const shell = callExpression(identifier('f'), [hostSlot(hostNode)]);
   checkTruthy('host-slot/inside a canonical shell passes through by identity',
@@ -174,7 +175,8 @@ check('chain/seal boundary types', estreeToBabel(sealed).type, 'MemberExpression
 }
 
 // --- totality: outside the vocabulary or misminted = loud throw, never a wrong print ---
-checkTruthy('totality/unknown type throws', caught({ type: 'ArrowFunctionExpression' })?.includes('outside the canonical vocabulary'));
+check('callback/expression body', print(arrowFunctionExpression([identifier('value')], identifier('value'))), 'value => value');
+checkTruthy('totality/unknown type throws', caught({ type: 'AwaitExpression' })?.includes('outside the canonical vocabulary'));
 checkTruthy('totality/optional member outside chain throws',
   caught(memberExpression(identifier('a'), identifier('b'), { optional: true }))?.includes('outside a ChainExpression'));
 checkTruthy('totality/optional call outside chain throws',

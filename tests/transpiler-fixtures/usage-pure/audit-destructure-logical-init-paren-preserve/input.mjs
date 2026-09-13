@@ -1,7 +1,5 @@
-// a `...rest` sibling keeps the destructure init in the output (rest needs the source object), so
-// the emitter re-substitutes the proxy globals inside that retained logical. when a `??` operand is
-// a PARENTHESIZED `||` chain, its wrapping parens are REQUIRED (`??` cannot mix with `||` without
-// them) - dropping them on substitution is a syntax error the AST-based twin never produces
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
 const { from, ...rest } = globalThis.Array ?? (globalThis.Set || Map);
 const { groupBy, ...others } = globalThis.Map ?? (globalThis.WeakMap || Set);
 export { from, rest, groupBy, others };

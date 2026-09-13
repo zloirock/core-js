@@ -1,7 +1,5 @@
-// assignment-cascade statement order (shared canon, probed per shape): an extraction from a
-// TOP-LEVEL aliased or shorthand binding prop precedes the surviving residual, and a rest-forced
-// sentinel keeps that order; a NESTED pattern prop's extraction follows the residual; with no
-// residual, extractions keep source order
+// Object-rest keeps the affected assignment pattern native and preserves its RHS value.
+// Independent reads and key/default expressions still receive their own polyfills.
 let a, b;
 ({ from: a, deep: { other: b } } = globalThis.Array);
 use(a, b);

@@ -8,7 +8,7 @@ export const storedProbeHop = (w = globalThis.self.window?.Array)?.from([1]);
 // a value that cannot be absent
 export const storedNestedOptional = (n = globalThis.self?.window?.Array)?.from([1]);
 
-// NEGATIVE: with no `?.` inside the stored value there is no branch to reproduce - the read through
-// the store proves the value and the probe folds, the locked store canon
+// A `?.` above the store tests the same probe even with no optional inside its value.
+// Backing `self` changes the base, not the terminal environment value stored in `s`.
 export const storedPlainRun = (s = globalThis.self.window)?.Array.from([1]);
 export { w, n, s };

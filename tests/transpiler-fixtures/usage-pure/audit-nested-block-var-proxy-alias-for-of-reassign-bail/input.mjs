@@ -1,7 +1,6 @@
-// a nested-block `var` proxy-global alias reassigned through a for-of head before the use. the
-// var-hoist reassignment scan records the for-of head write, so the synthetic binding reports the
-// reassignment and the receiver-dropping pure substitution bails - leaving `g.Array.from` native
-// (the alias may no longer be globalThis at the use)
+// A for-of head can replace the hoisted realm alias, or leave its initializer when empty.
+// Pure must keep the live constructor read and guard its static; a direct fold would
+// discard the replacement value and its native behavior.
 function f(arr) {
   {
     var g = globalThis;

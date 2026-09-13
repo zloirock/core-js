@@ -37,14 +37,7 @@ function mark(t, v) {
   const [_ref] = [eff(), r][1];
   const _ref2 = _ref.w;
   const values = _values(_ref2);
-  const {
-    values: _unused
-  } = _ref2;
-  const {
-    y: {
-      at
-    }
-  } = _ref;
+  const at = _at(_ref.y);
   [values, at];
 }
 {
@@ -57,14 +50,7 @@ function mark(t, v) {
   const [_ref3] = [r, ...rest];
   const _ref4 = _ref3.w;
   const values = _values(_ref4);
-  const {
-    values: _unused2
-  } = _ref4;
-  const {
-    y: {
-      at
-    }
-  } = _ref3;
+  const at = _at(_ref3.y);
   [values, at];
 }
 {
@@ -258,7 +244,7 @@ function mark(t, v) {
   const m = _atMaybeArray(_ref8);
   const {
     [k]: {
-      at: _unused3
+      at: _unused
     }
   } = {
     ...spread,

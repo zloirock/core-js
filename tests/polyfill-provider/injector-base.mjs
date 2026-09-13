@@ -277,4 +277,58 @@ function makeInjector() {
   check('registry/minted record stays file-wide', minted.getBindingInfo(uid, null)?.entry, 'array/from');
 }
 
+{
+  const injector = makeInjector();
+  function binding(start, end) {
+    return {
+      kind: 'const',
+      scope: { block: { type: 'FunctionDeclaration', start, end } },
+    };
+  }
+  injector.registerBodyExtractAlias('method', 'array/from', binding(100, 500));
+  injector.registerBodyExtractAlias('method', 'set/from', binding(200, 300));
+  injector.registerBodyExtractAlias('method', 'map/group-by', binding(600, 700));
+  injector.registerBodyExtractAlias('method', 'weak-map/upsert', binding(600, 700));
+  check('registry/same-name aliases select the innermost span', injector.getBindingInfo('method', 250)?.entry, 'set/from');
+  check('registry/same-name aliases return to the outer span', injector.getBindingInfo('method', 400)?.entry, 'array/from');
+  check('registry/same-name aliases select a later disjoint span', injector.getBindingInfo('method', 650)?.entry, 'map/group-by');
+  check('registry/duplicate span registration keeps its first entry', injector.getBindingInfo('method', 650)?.entry, 'map/group-by');
+  check('registry/same-name aliases decline outside every span', injector.getBindingInfo('method', 800), null);
+
+  const restored = makeInjector();
+  restored.rehydrateImportInfoByName(injector.captureImportInfoByName());
+  check('registry/rehydrated same-name aliases rebuild their span index', restored.getBindingInfo('method', 250)?.entry, 'set/from');
+  check('registry/rehydrated same-name aliases keep the fast disjoint lookup', restored.getBindingInfo('method', 650)?.entry, 'map/group-by');
+  restored.registerBodyExtractAlias('method', 'weak-map/upsert', binding(600, 675));
+  check('registry/registration after rehydration selects a narrower equal-start span',
+    restored.getBindingInfo('method', 650)?.entry, 'weak-map/upsert');
+  check('registry/registration after rehydration preserves the enclosing span',
+    restored.getBindingInfo('method', 690)?.entry, 'map/group-by');
+  restored.registerBodyExtractAlias('method', 'array/of', binding(210, 250));
+  check('registry/earlier registration does not replace the latest cached span',
+    restored.getBindingInfo('method', 650)?.entry, 'weak-map/upsert');
+  check('registry/earlier registration remains available through its own span',
+    restored.getBindingInfo('method', 225)?.entry, 'array/of');
+}
+
+{
+  const injector = makeInjector();
+  const bindingNode = {};
+  const early = { bindingNode, guarded: true, srcPos: 10, declSpan: { start: 10, end: 20 } };
+  const later = { bindingNode, verified: true, declSpan: { start: 30, end: 40 } };
+  injector.registerGlobalAlias('M', 'Promise', early);
+  injector.registerGlobalAlias('M', 'Map', later);
+  injector.registerGlobalAlias('M', 'Promise', early);
+  const info = injector.getBindingAliasInfo(bindingNode, 'M');
+  check('alias/revisited earlier conditional keeps later declaration', info.hint, 'Map');
+  check('alias/revisited earlier conditional keeps verified status', info.aliasVerified, true);
+  check('alias/verified declaration supplies the read-time write anchor', info.aliasWrite, later.declSpan);
+  check('alias/name view supplies the same write anchor', injector.getBindingInfo('M').aliasWrite, later.declSpan);
+  check('alias/earlier candidate remains available to guards', info.hints.join(','), 'Promise,Map');
+  injector.registerGlobalAlias('M', 'Set', { bindingNode, guarded: true, srcPos: 50, declSpan: { start: 50, end: 60 } });
+  check('alias/later conditional still supersedes the declaration', injector.getBindingAliasInfo(bindingNode, 'M').hint, 'Set');
+  check('alias/later conditional still requires a guard', injector.getBindingAliasInfo(bindingNode, 'M').aliasGuarded, true);
+  check('alias/conditional declaration supplies no trusted write anchor', injector.getBindingAliasInfo(bindingNode, 'M').aliasWrite, null);
+}
+
 finish();

@@ -5,8 +5,6 @@
 // native (untranspiled) leg aliases it to `globalThis` (harness.mjs, deleted before the transpiled
 // outputs run), so a `globalThis || self` proxy-global fallback resolves natively while a plugin that
 // leaves a bare `self` in its OUTPUT still throws (missed-injection). `window` is not a core-js target.
-import { dirname, join } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
 import { STRIP_PROTO, STRIP_STATIC, STRIP_GLOBALS } from './strip-manifest.mjs';
 
 const PRELUDE = [
@@ -56,8 +54,7 @@ const PRELUDE = [
 
 // absolute URL: the harness materializes snippets in a tmp dir, so a relative specifier
 // would not resolve; the stripped-realm worker re-imports outputs from the same tmp dir
-const RIG_IMPORT = `import { withRiggedAliases } from ${ JSON.stringify(
-  pathToFileURL(join(dirname(fileURLToPath(import.meta.url)), 'rig-aliases.mjs')).href) };`;
+const RIG_IMPORT = `import { withRiggedAliases } from ${ JSON.stringify(new URL('./rig-aliases.mjs', import.meta.url).href) };`;
 
 function snippet(name, expr, { rig = false } = {}) {
   const body = rig ? `withRiggedAliases(() => (${ expr }))` : expr;
@@ -176,12 +173,14 @@ function * generateGrammar() {
 // proxy-hop / side-effect-key uniformly. each pattern OBSERVES an injected binding (`typeof from`)
 // so the stripped-realm oracle stays valid (the observable never reads a native that wasn't replaced).
 // `strip` is pattern.strip && host.strip: only declaration hosts off a guaranteed-injected pattern
-// qualify; param-default (synth-swap may bail) and assignment hosts stay full-env only
+// qualify; param-default (synth-swap may bail) and assignment hosts stay full-env only.
+// Object-rest keeps its named slots native in pure. Keep every host in the corpus, including
+// TS wrappers, but test these slots in the full environment and the usage-global stripped leg.
 const D_PATTERNS = [
   { id: 'shorthand', recv: 'Array', lhs: '{ from }', names: ['from'], observe: 'typeof from', strip: true },
   { id: 'alias', recv: 'Array', lhs: '{ from: f }', names: ['f'], observe: 'typeof f', strip: true },
   { id: 'multi', recv: 'Array', lhs: '{ from, of }', names: ['from', 'of'], observe: '[typeof from, typeof of]', strip: true },
-  { id: 'rest', recv: 'Array', lhs: '{ from, ...rest }', names: ['from', 'rest'], observe: 'typeof from', strip: true },
+  { id: 'rest', recv: 'Array', lhs: '{ from, ...rest }', names: ['from', 'rest'], observe: 'typeof from', strip: true, nativeRest: true },
   // a receiver that carries a CLAIM OF ITS OWN: the extraction spells that receiver, and a copy of
   // it taken before its own step rendered ships the source read with the polyfill lost. the axis is
   // the SPELLING channel, so it belongs beside the plain receivers rather than in a type family
@@ -398,10 +397,8 @@ const D_PATTERNS = [
   { id: 'nested-instance-write-in-fn', recv: 'nbWriteInFn', lhs: '{ y: { at: a } }', names: ['a'], observe: 'typeof a', strip: false },
   { id: 'nested-instance-typed-sole', recv: 'nb', lhs: '{ y: { at: a } }', names: ['a'], observe: 'typeof a', strip: true },
   { id: 'nested-instance-typed-host-sibling', recv: 'nb', lhs: '{ y: { at: a }, keep }', names: ['a', 'keep'], observe: '[typeof a, keep]', strip: true },
-  // ... and its REST twin reaches the WRAPPER hosts through the same hop rename: a rest above the hop
-  // keeps the hop's key in the pattern, so what leaves is the hop's VALUE, renamed to the binding the
-  // dispatch reads (`[{ y: _ref, ...rest }] = [nb]`) - the wrapper is that host one literal out
-  { id: 'nested-instance-typed-host-rest', recv: 'nb', lhs: '{ y: { at: a }, ...rest }', names: ['a', 'rest'], observe: '[typeof a, rest.keep]', strip: true },
+  // Rest above the hop keeps the complete nested extraction native in pure.
+  { id: 'nested-instance-typed-host-rest', recv: 'nb', lhs: '{ y: { at: a }, ...rest }', names: ['a', 'rest'], observe: '[typeof a, rest.keep]', strip: true, nativeRest: true },
   { id: 'nested-instance-typed-slot-default', recv: 'nb', lhs: '{ y: { at: a } = [7] }', names: ['a'], observe: 'typeof a', strip: true },
   { id: 'nested-instance-leaf-typed-pair',
     recv: 'nb',
@@ -425,23 +422,19 @@ const D_PATTERNS = [
     names: ['m'],
     observe: 'typeof m',
     strip: true },
-  // a REST sibling keeps the hop in the pattern - it is what excludes that key from rest - so the
-  // hop's VALUE takes the minted name and the dispatch reads it: one read, the key still excluding
-  // itself, `rest` observed by a NAMED key since a count over a shared receiver reports chunk order
+  // Rest at either level keeps the nested method native, preserving exclusion and reads.
   { id: 'nested-instance-host-rest',
     recv: 'nb',
     lhs: '{ y: { flat: m }, ...rest }',
     names: ['m', 'rest'],
     observe: '[typeof m, rest.keep]',
-    strip: true },
-  // ... and a REST in the LEAF travels with it: the twin keeps the leaf's own pattern, so the rest
-  // gathers off the memo while the claim's key stays there as a sentinel, still excluding itself
+    strip: true, nativeRest: true },
   { id: 'nested-instance-leaf-rest',
     recv: 'nb',
     lhs: '{ y: { flat: m, ...rest } }',
     names: ['m', 'rest'],
     observe: '[typeof m, Object.keys(rest).length]',
-    strip: true },
+    strip: true, nativeRest: true },
   { id: 'nested-instance-leaf-sibling',
     recv: 'nb',
     lhs: '{ y: { flat: m, length: len } }',
@@ -755,7 +748,7 @@ function * generateDestructure() {
       // a host spelled in TS serves only the rows the stripping reaches
       if (host.ts && !pat.strip) continue;
       const name = `destructure-grammar/${ host.id }/${ pat.id }`;
-      yield { ...snippet(name, host.build(pat)), strip: host.strip && pat.strip, ...host.ts ? { ts: true } : {} };
+      yield { ...snippet(name, host.build(pat)), strip: host.strip && pat.strip && !pat.nativeRest, ...host.ts ? { ts: true } : {} };
     }
   }
 }
@@ -1066,6 +1059,41 @@ const SKS_PATTERNS = [
   { id: 'unclaimed-key', pattern: (key, dflt) => `{ [(hit(), 'x')]: sksX, [(hit(), '${ key }')]: m${ dflt }, sksOther }` },
 ];
 function * generateSeKeySiblingHosts() {
+  yield { ...snippet('sekey-sibling-hosts/binding-order/array-wrapped-tdz',
+    '(() => { let seen; function observe() { try { seen = typeof from; } catch (error) { seen = error.name; } }'
+    + ' const [{ [(observe(), "from")]: from }, other] = [Array, {}];'
+    + ' return [seen, from([7])[0], Object.keys(other).length]; })()'), strip: true };
+  for (const [id, key, source] of [['realm', 'Array', 'globalThis'], ['literal', 'w', '{ w: Array }']]) {
+    yield { ...snippet(`sekey-sibling-hosts/nested-binding-order/keyed-hop-${ id }`,
+      `(() => { var { [(log.push('outer'), '${ key }')]: { [(log.push(typeof from), 'from')]: from } } = ${ source };
+      return from('ab'); })()`), strip: true };
+  }
+  yield { ...snippet('sekey-sibling-hosts/nested-binding-order/rest',
+    `(() => { var { x: { [(log.push(typeof from), 'from')]: from, ...rest } } = { x: Array };
+    return [from('ab'), typeof rest, Object.hasOwn(rest, 'from')]; })()`), strip: false };
+  yield { ...snippet('sekey-sibling-hosts/nested-binding-order/mixed',
+    `(() => { var { x: { [(log.push(typeof from), 'from')]: from },
+      y: { [(log.push(typeof from, typeof at), 'at')]: at } } = { x: Array, y: [4, 8] };
+    return [from('ab'), at.call([4, 8], -1)]; })()`), strip: true };
+  for (const source of ['globalThis', '(log.length ? globalThis : globalThis)']) {
+    yield { ...snippet(`sekey-sibling-hosts/nested-binding-order/${ source === 'globalThis' ? 'direct' : 'conditional' }`,
+      `(() => { var { Array: { [(log.push(typeof from), 'from')]: from } } = ${ source }; return from('ab'); })()`), strip: true };
+  }
+  // Counts alone miss a key moved across its own binding. Observe the old var value in
+  // that key and the initialized value in the next key, including a retained rest slot.
+  for (const host of ['module', 'export', 'assignment']) {
+    for (const shape of ['sibling', 'default', 'rest']) {
+      const row = snippet(`sekey-sibling-hosts/binding-order/${ host }/${ shape }`,
+        `[method('ab'), isArray([])${ shape === 'rest' ? ', Object.hasOwn(rest, "from"), Object.hasOwn(rest, "isArray")' : '' }]`);
+      const bind = `{
+        [(log.push(typeof method), 'from')]: method${ shape === 'default' ? ' = null' : '' },
+        [(log.push(typeof method), 'isArray')]: isArray${ shape === 'rest' ? ', ...rest' : '' }
+      } = Array`;
+      const setup = host === 'assignment' ? `let method, isArray${ shape === 'rest' ? ', rest' : '' }; (${ bind });`
+        : `${ host === 'export' ? 'export ' : '' }var ${ bind };`;
+      yield { ...row, code: row.code.replace('export const r =', `${ setup }\nexport const r =`), strip: shape !== 'rest' };
+    }
+  }
   for (const host of SKS_HOSTS) {
     for (const receiver of SKS_RECEIVERS) {
       for (const shape of SKS_PATTERNS) {
@@ -1242,11 +1270,72 @@ const C_SLOTS = [
   { id: 'reposition-inline', setup: 'const b = [{ q: 1 }, Array]; b.reverse();', use: 'typeof b[0].of', strip: false },
   { id: 'reposition-stored', setup: 'const b = [{ q: 1 }, Array]; const m = b.reverse; m.call(b);', use: 'typeof b[0].of', strip: false },
   { id: 'reposition-pattern', setup: 'const b = [{ q: 1 }, Array]; const { reverse } = b; reverse.call(b);', use: 'typeof b[0].of', strip: false },
+  { id: 'reposition-named-key', setup: 'const b = [{ q: 1 }, Array]; const key = "reverse"; b[key]();', use: 'JSON.stringify(b[0].of(7))', strip: false },
+  { id: 'reposition-object-pattern', setup: 'const b = [Object]; b.reverse(); const { 0: { fromEntries } } = b;', use: 'JSON.stringify(fromEntries([["a", 7]]))', strip: false },
+  { id: 'written-local-wrapper', setup: 'const b = { k: Array }; const host = { b }; b.k = Object;', use: 'JSON.stringify(host.b.k.fromEntries([["a", 7]]))', strip: false },
+  { id: 'written-identity-argument',
+    setup: 'const id = value => value; const b = { k: Array }; b.k = Object; id(b);',
+    use: 'JSON.stringify(b.k.fromEntries([["a", 7]]))', strip: false },
+  { id: 'finite-static-argument',
+    setup: 'const flag = log.length === 0; const method = (({ [flag ? "from" : "of"]: selected }) => selected)(Array);',
+    use: 'JSON.stringify(method([7]))', strip: false },
+  ...[
+    ['direct', 'arg = replacement;'],
+    ['immediate-closure', '(() => { arg = replacement; })();'],
+    ['computed-key', 'sink[arg = replacement] = 1;'],
+  ].map(([id, overwrite]) => ({
+    id: `constructor-argument-overwrite-${ id }`,
+    setup: 'const replacement = { value: 7 }; const sink = {};'
+      + ` const chosen = (arg => { ${ overwrite } return arg; })(Map);`,
+    use: 'chosen.value', strip: true,
+  })),
   // `void Map.groupBy` for the same reason the ctor-narrow block carries it: the read lands on the
   // pure ctor, which is ONE object per realm, so the static's presence would otherwise depend on
   // which neighbour imported it
   { id: 'reposition-multi', setup: 'void Map.groupBy; const b = [Array, Map]; b.reverse();', use: 'typeof b[0].groupBy', strip: false },
   { id: 'readonly-still-clean', setup: 'const b = [Array]; b.slice(0);', use: 'JSON.stringify(b[0].of(5))', strip: true },
+  // A fresh replacement owns the later method; global must not retain the old constructor's
+  // static and pure must keep the user's method and its effects, including through destructuring.
+  {
+    id: 'array-slot-fresh-replacement',
+    setup: 'const b = [globalThis.Array]; b[0] = { from(value) { log.push("from"); return value; } };',
+    use: 'JSON.stringify(b[0].from([1]))', strip: true,
+  },
+  {
+    id: 'object-slot-fresh-replacement',
+    setup: 'const b = { value: globalThis.Array }; b.value = { from(value) { log.push("from"); return value; } };',
+    use: 'JSON.stringify(b.value.from([1]))', strip: true,
+  },
+  {
+    id: 'array-slot-fresh-replacement-destructure',
+    setup: 'const b = [globalThis.Array]; b[0] = { from(value) { log.push("from"); return value; } }; const { from } = b[0];',
+    use: 'JSON.stringify(from([1]))', strip: true,
+  },
+  {
+    id: 'array-slot-fresh-instance',
+    setup: 'const b = [globalThis.Array]; b[0] = [8];',
+    use: 'b[0].at(0)', strip: true,
+  },
+  {
+    id: 'array-slot-instance-effect',
+    setup: 'const b = ["old"]; b[0] = (log.push("replace"), [8]);',
+    use: 'b[0].at(0)', strip: true,
+  },
+  {
+    id: 'array-slot-instance-string',
+    setup: 'const b = [[8]]; b[0] = "text";',
+    use: 'b[0].at(0)', strip: true,
+  },
+  {
+    id: 'array-slot-instance-second-write',
+    setup: 'const b = ["old"]; b[0] = [8]; b[0] = "text";',
+    use: 'b[0].at(0)', strip: true,
+  },
+  {
+    id: 'array-slot-instance-mutator',
+    setup: 'const b = ["old"]; b[0] = [8]; b.unshift("text");',
+    use: 'b[0].at(0)', strip: true,
+  },
   // the slot-WRITE family that never spells a member write: a mutator call, a callee that may
   // write (the escape), a delete, a dynamic key. all full-env - the observable is the native value
   { id: 'write-via-assign', setup: 'const w = { k: Array }; Object.assign(w, { k: { of: () => "P" } });', use: 'w.k.of(1)', strip: false },
@@ -1280,21 +1369,76 @@ const C_SLOTS = [
   // usage-global unions its statics beside the literal candidate's, pure keeps the bail. member
   // and destructure spellings read through the same walk, so both lock the union channel
   { id: 'write-reaching-member', setup: 'const w = { k: Object }; w.k = Map;', use: 'typeof w.k.groupBy', strip: false },
-  // a bare ctor INSTALLED by an in-place array mutator escapes the same way a slot write
-  // does - the argument must resolve to the namespace entry, statics included (the mutator
-  // itself may be polyfilled, so the claim sees the rewritten `.call` dispatch spelling)
-  { id: 'mutator-arg-push', setup: 'const b = []; b.push(Map);', use: 'typeof b[0].groupBy', strip: false },
-  { id: 'mutator-arg-unshift', setup: 'const b = []; b.unshift(Map);', use: 'typeof b[0].groupBy', strip: false },
-  { id: 'mutator-arg-splice', setup: 'const b = [Object]; b.splice(0, 1, Map);', use: 'typeof b[0].groupBy', strip: false },
+  // The old Object candidate is dead after a definite replacement. Observe the result's
+  // kind as well as the method's presence; Object.groupBy and Map.groupBy both exist.
+  ...[
+    ['direct', 'const w = { k: Object }; w.k = Map; const { k: { groupBy: g } } = w;'],
+    ['array', 'const w = [Object]; w[0] = Map; const { 0: { groupBy: g } } = w;'],
+    ['alias', 'const w = { k: Object }; const alias = w; w.k = Map; const { k: { groupBy: g } } = alias;'],
+    ['nested-literal', 'const w = { part: { k: Object } }; w.part.k = Map; const { part: { k: { groupBy: g } } } = w;'],
+    ['held-container', 'const inner = { k: Object }; const w = { part: inner }; inner.k = Map; const { part: { k: { groupBy: g } } } = w;'],
+    ['wrapper-write', 'const w = { k: Object }; const wrap = { box: w }; wrap.box.k = Map; const { k: { groupBy: g } } = w;'],
+    ['conditional-keeps-initial', 'const w = { k: Object }; if (log.length) w.k = Map; const { k: { groupBy: g } } = w;'],
+    ['setter-keeps-initial', 'const w = { get k() { log.push("get"); return Object; }, set k(value) { log.push("set"); } }; w.k = Map; const { k: { groupBy: g } } = w;'],
+    ['later-write', 'const w = { k: Object }; const { k: { groupBy: g } } = w; w.k = Map;'],
+  ].map(([id, setup]) => ({ id: `replaced-ctor-${ id }`, setup, use: 'JSON.stringify(g([1], x => x))', strip: true })),
+  {
+    id: 'replaced-ctor-ts-cast',
+    setup: 'const w = { k: Object } as { k: any }; (w as { k: any }).k = Map; const { k: { groupBy: g } } = w;',
+    use: 'JSON.stringify(g([1], x => x))', strip: true, ts: true,
+  },
+  // Known local calls can replace an own slot. Uncertain calls retain the initial candidate.
+  ...[
+    ['direct', 'value.realm = Map;'],
+    ['truthy', 'if (value) value.realm = Map; return 0;'],
+    ['conditional', 'if (log.length) value.realm = Map;'],
+    ['early-return', 'if (!log.length) return; value.realm = Map;'],
+    ['rebound', 'value = {}; value.realm = Map;'],
+    ['returned-closure', 'return () => { value.realm = Map; };'],
+  ].flatMap(([id, body]) => [false, true].map(tagged => ({
+    id: `local-call-slot-${ tagged ? 'tag' : 'call' }-${ id }`,
+    // eslint-disable-next-line no-template-curly-in-string -- the tag is generated source
+    setup: `function install(${ tagged ? 'strings, ' : '' }value) { ${ body } } const source = { realm: Object }; ${ tagged ? 'install`${source}`;' : 'install(source);' } const { realm: { groupBy } } = source;`,
+    use: 'JSON.stringify(groupBy([1], x => x))', strip: true,
+  }))),
+  ...[false, true].map(tagged => ({
+    id: `local-call-slot-${ tagged ? 'tag' : 'call' }-later-compound`,
+    // eslint-disable-next-line no-template-curly-in-string -- the tag is generated source
+    setup: `function install(${ tagged ? 'strings, ' : '' }value) { value.realm = Map; } const source = { realm: Object }; ${ tagged ? 'install`${source}`;' : 'install(source);' } source.realm &&= Object; const { realm: { groupBy } } = source;`,
+    use: 'JSON.stringify(groupBy([1], x => x))', strip: true,
+  })),
+  // Detached call/apply insertion still covers the later static read. Deferred insertion
+  // routes are locked in builtin-*-static-read fixtures instead.
   { id: 'mutator-arg-call', setup: 'const b = []; b.push.call(b, Map);', use: 'typeof b[0].groupBy', strip: false },
   { id: 'mutator-arg-apply', setup: 'const b = []; b.push.apply(b, [Map]);', use: 'typeof b[0].groupBy', strip: false },
-  { id: 'mutator-arg-reflect', setup: 'const b = []; Reflect.apply(b.push, b, [Map]);', use: 'typeof b[0].groupBy', strip: false },
-  { id: 'mutator-arg-spread', setup: 'const b = []; b.push(...[Map]);', use: 'typeof b[0].groupBy', strip: false },
-  { id: 'assign-install', setup: 'const w = { k: Object }; Object.assign(w, { k: Map });', use: 'typeof w.k.groupBy', strip: false },
-  { id: 'factory-arg-of', setup: 'const b = Array.of(Map);', use: 'typeof b[0].groupBy', strip: false, fullEnvSnippet: true },
   { id: 'param-default-ctor', setup: 'function f(M = Map) { return typeof M.groupBy; }', use: 'f()', strip: false, fullEnvSnippet: true },
   { id: 'branchy-return-ctor', setup: 'let c = 1; function h() { if (c) return Map; return Set; }', use: 'typeof h().groupBy', strip: false, fullEnvSnippet: true },
-  { id: 'method-return-ctor', setup: 'const o = { m() { return Map; } };', use: 'typeof o.m().groupBy', strip: false, fullEnvSnippet: true },
+  { id: 'method-return-ctor', setup: 'const o = { m() { return Map; } };', use: 'typeof o.m().groupBy', strip: true },
+  // Fixed local methods share the direct-call return proof; their calls and arguments stay live.
+  ...[
+    ['function', 'const o = { m: function () { return Map; } };', 'typeof o.m().groupBy'],
+    ['arrow', 'const o = { m: () => Map };', 'typeof o.m().groupBy'],
+    ['alias', 'const m = () => Map; const o = { m };', 'typeof o.m().groupBy'],
+    ['namesake-owner', 'function other() { const o = { m() { return Set; } }; return o.m(); } const o = { m() { return Map; } };', 'typeof o.m().groupBy'],
+    ['literal-key', 'const o = { m() { return Map; } };', 'typeof o["m"]().groupBy'],
+    ['optional-call', 'const o = { m() { return Map; } };', 'typeof o.m?.().groupBy'],
+    ['optional-owner', 'const o = { m() { return Map; } };', 'typeof o?.m().groupBy'],
+    ['optional-result', 'const o = { m() { return Map; } };', 'typeof o.m()?.groupBy'],
+    ['stored', 'const o = { m() { return Map; } }; const C = o.m();', 'typeof C.groupBy'],
+    ['destructured', 'const o = { m() { return Map; } }; const { groupBy } = o.m();', 'typeof groupBy'],
+    ['nested', 'const o = { m() { return { C: Map }; } };', 'typeof o.m().C.groupBy'],
+    ['argument-order', 'const events = []; const o = { m() { events.push("body"); return Map; } };',
+      '[typeof o.m(events.push("argument")).groupBy, events]'],
+    ['call-order', 'const events = []; const o = { m() { events.push("body"); return Map; } };',
+      '[o.m().groupBy((events.push("argument"), [1]), value => value).get(1), events]'],
+    ['throw', 'const events = []; const o = { m() { events.push("body"); throw new Error("stop"); return Map; } }; let caught;',
+      '(() => { try { o.m().groupBy(events.push("argument")); } catch (error) { caught = error.message; } return [caught, events]; })()'],
+    ['declared-scope', 'const o = { m() { return Map; } }; function read(Map) { return typeof o.m().groupBy; }', 'read({})'],
+    ['named-shadow', 'const o = { m: function Map() { return Map; } };', 'typeof o.m().groupBy'],
+    ['aliased-named-shadow', 'const m = function Map() { return Map; }; const o = { m };', 'typeof o.m().groupBy'],
+    ['replacement', 'const o = { m() { return Map; } }; o.m = () => ({ groupBy: "custom" });', 'o.m().groupBy'],
+    ['optional-absent-owner', 'if (false) { var o = { m() { return Map; } }; }', 'typeof o?.m().groupBy'],
+  ].map(([id, setup, use]) => ({ id: `method-return-${ id }`, setup, use, strip: true })),
   { id: 'getter-return-ctor', setup: 'const o = { get m() { return Map; } };', use: 'typeof o.m.groupBy', strip: false, fullEnvSnippet: true },
   { id: 'write-reaching-destructure', setup: 'void Map.groupBy; const w = { k: Object }; w.k = Map; const { k: { groupBy: g } } = w;', use: 'typeof g', strip: false },
   {
@@ -1441,7 +1585,8 @@ function * generateParamInstalledPatchHosts() {
 function * generateContainerSlots() {
   for (const s of C_SLOTS) {
     const body = `(() => { ${ s.setup } return ${ s.use }; })()`;
-    yield { ...snippet(`container-slot/${ s.id }`, body), strip: s.strip, ...s.fullEnvSnippet ? { fullEnv: true } : {} };
+    yield { ...snippet(`container-slot/${ s.id }`, body), strip: s.strip,
+      ...s.ts ? { ts: true } : {}, ...s.fullEnvSnippet ? { fullEnv: true } : {} };
   }
 }
 
@@ -1519,6 +1664,38 @@ const W_DOMINATING = [
 function * generateDominatingWrites() {
   for (const s of W_DOMINATING) {
     yield { ...snippet(`dominating-write/${ s.id }`, `(() => { ${ s.setup } return ${ s.use }; })()`), strip: s.strip };
+  }
+  // A supplied realm replaces the initializer, even if it happens to equal globalThis.
+  // Observe the actual supplied constructor and its absence in stripped realms: a stale
+  // identity guard would silently supply a different constructor instead of preserving it.
+  for (const write of ['plain', 'array', 'object']) {
+    for (const read of ['member', 'destructure', 'nested-assignment']) {
+      for (const supplied of ['realm', 'custom', 'null']) {
+        const assignment = write === 'plain' ? 'held = source.value;'
+          : write === 'array' ? '[held] = source;' : '({ value: held } = source);';
+        const extraction = read === 'member' ? 'const Ctor = held.Map; const method = held.Map.groupBy;'
+          : read === 'destructure' ? 'const Ctor = held.Map; const { groupBy: method } = held.Map;'
+            : 'const Ctor = held.Map; let method; ({ Map: { groupBy: method } } = held);';
+        const value = supplied === 'realm' ? 'globalThis' : supplied === 'custom' ? '{ Map: Custom }' : 'null';
+        const expected = supplied === 'realm' ? 'NativeMap' : supplied === 'custom' ? 'Custom' : 'undefined';
+        const row = snippet(`dominating-write/realm-${ write }/${ read }/${ supplied }`, `(() => {
+          const NativeMap = Object.getOwnPropertyDescriptor(globalThis, 'Map')?.value;
+          function Custom() {}
+          const expected = ${ expected };
+          try {
+            const result = read(${ write === 'array' ? `[${ value }]` : `{ value: ${ value } }` });
+            return !!expected && result[0] === expected && result[1] === expected.groupBy;
+          } catch (error) { return !expected && error instanceof TypeError; }
+        })()`);
+        yield { ...row, strip: true, code: `${ row.code }
+          export function read(source) {
+            let held = globalThis;
+            ${ assignment }
+            ${ extraction }
+            return [Ctor, method];
+          }` };
+      }
+    }
   }
 }
 
@@ -2458,17 +2635,20 @@ function * generateSuperClassAliasReceiverShadow() {
 // `globalThis -> _globalThis` rewrite inside the statement overwrite (an unplugin text-composition
 // crash that aborts the whole file) nor leak a now-dead import. flat + nested-hop patterns across
 // declaration and assignment hosts; the prefix's `log.push` pins the effect so a dropped / doubled
-// SE shows in `effects`. for-init keeps the tail in a sink declarator (static-fixture territory).
+// SE shows in `effects`. A for-init also observes its bindings before their initialization,
+// so a discarded receiver sink cannot silently move behind the extracted values.
 // declaration host is stripped-valid (every binding is an injected polyfill); assignment host stays
 // full-env like the other assignment-host destructure families
 const PGS_PATTERNS = [
   { id: 'flat-single', lhs: '{ Map }', names: ['Map'], observe: 'typeof Map' },
   { id: 'flat-multi', lhs: '{ Map, Set }', names: ['Map', 'Set'], observe: '[typeof Map, typeof Set]' },
   { id: 'nested-hop', lhs: '{ Array: { from } }', names: ['from'], observe: 'typeof from' },
+  { id: 'nested-mixed', lhs: '{ Object: { keys }, Array: { prototype: { at } } }', names: ['keys', 'at'], observe: '[typeof keys, typeof at]' },
 ];
 const PGS_HOSTS = [
   { id: 'decl', strip: true, build: p => `(() => { const ${ p.lhs } = (log.push("r"), globalThis); return ${ p.observe }; })()` },
   { id: 'assign', strip: false, build: p => `(() => { let ${ p.names.join(', ') }; (${ p.lhs } = (log.push("r"), globalThis)); return ${ p.observe }; })()` },
+  { id: 'for-init', strip: true, build: p => `(() => { let result; for (var before = log.push("before"), ${ p.lhs } = (log.push(${ p.names.map(name => `typeof ${ name }`).join(', ') }), globalThis), after = log.push("after"); !result;) result = ${ p.observe }; return result; })()` },
 ];
 
 // --- Chain-assign VALUE re-emitted around a rebuilt collapse ---
@@ -2983,6 +3163,70 @@ function * generateProxyGlobalSEReceiver() {
       yield { ...snippet(name, host.build(pat)), strip: host.strip };
     }
   }
+  // Full consumption still rejects an absent guarded source before either nested key.
+  for (const [id, source] of [
+    ['guarded', 'globalThis.window?.self'],
+    ['guarded-sequence', '(log.push("source"), globalThis.window?.self)'],
+  ]) {
+    for (const host of ['decl', 'assign']) {
+      const bind = `{ Array: { [(log.push("key"), "from")]: from }, Object: { keys } } = ${ source }`;
+      const setup = host === 'assign' ? 'let from = "old-from", keys = "old-keys";' : '';
+      const expr = `(() => { ${ setup } try { ${ host === 'assign' ? `(${ bind })` : `const ${ bind }` };`
+        + ' return [from([7])[0], keys({ x: 1 })[0]]; } catch (error) { return error.name; } })()';
+      yield { ...snippet(`proxy-global-se-receiver/${ id }-${ host }`, expr), strip: true };
+      yield { ...snippet(`proxy-global-se-receiver/${ id }-${ host }-rigged`, expr, { rig: true }), strip: true };
+    }
+  }
+  // A later outer key observes the write from the preceding nested slot, including pure identity.
+  const expr = '(() => { const pureFrom = Array.from; let from = "old-from", keys = "old-keys";'
+    + ' try { ({ Array: { [(log.push("key"), "from")]: from },'
+    + ' [(log.push("x".at(0), from === pureFrom), "Object")]: { keys } } = globalThis.window?.self);'
+    + ' return [from([7])[0], keys({ x: 1 })[0]]; } catch (error) { return error.name; } })()';
+  yield { ...snippet('proxy-global-se-receiver/guarded-assignment-later-key', expr), strip: true };
+  yield { ...snippet('proxy-global-se-receiver/guarded-assignment-later-key-rigged', expr, { rig: true }), strip: true };
+  yield { ...snippet('proxy-global-se-receiver/direct-assignment-later-key-throw',
+    '(() => { const pureFrom = Array.from; let from = "old-from", keys = "old-keys";'
+    + ' function next() { log.push(from === pureFrom); throw "stop"; }'
+    + ' try { ({ Array: { [(log.push("key"), "from")]: from },'
+    + ' [(next(), "Object")]: { keys } } = globalThis); } catch (error) { log.push(error); }'
+    + ' return [from === pureFrom, keys]; })()'), strip: true };
+  yield { ...snippet('proxy-global-se-receiver/direct-assignment-nested-key',
+    '(() => { let from, keys; let defaults = 0;'
+    + ' ({ Array: { [(log.push("first"), "from")]: from },'
+    + ' [(log.push("outer"), "Object")]: { [(log.push("x".at(0)), "keys")]: keys = (defaults++, null) } } = globalThis);'
+    + ' return [from([7])[0], keys({ x: 1 })[0], defaults]; })()'), strip: true };
+  // Nested and member static targets keep the native slot by the Identifier-only safe-bail.
+  // Import parity and runtime still check their keys; stripping that deliberately native slot
+  // would reject the accepted boundary rather than expose an injection obligation.
+  for (const [id, target, result] of [
+    ['nested', '{ [(log.push("x".at(0)), "bind")]: bind }', 'typeof bind'],
+    ['member', 'box[(log.push("x".at(0)), "value")]', 'typeof box.value'],
+    ['default-member', 'box[(log.push("x".at(0)), "value")] = (defaults++, null)', '[typeof box.value, defaults]'],
+  ]) {
+    yield { ...snippet(`proxy-global-se-receiver/native-target-${ id }`,
+      '(() => { const pureFrom = Array.from; let from, bind; const box = {}; let defaults = 0;'
+      + ` ({ Array: { [(log.push("from"), "from")]: from }, Object: { keys: ${ target } } } = globalThis);`
+      + ` return [from([7])[0], from === pureFrom, ${ result }]; })()`), strip: false };
+  }
+  // Binding patterns may consume the pure static value; only assignment targets have that bail.
+  const boundPattern = '{ Array: { [(log.push("from"), "from")]: from },'
+    + ' Object: { keys: { [(log.push("x".at(0)), "bind")]: bind } } }';
+  for (const [host, body] of [
+    ['declaration', 'let seen; function observe() { try { seen = typeof from; } catch (error) { seen = error.name; } }'
+      + ` const ${ boundPattern.replace('log.push("from")', 'log.push("from"), observe()') } = globalThis;`
+      + ' return [from([7])[0], typeof bind, seen];'],
+    ['parameter', `function read(${ boundPattern } = globalThis) { return [from([7])[0], typeof bind]; } return read();`],
+  ]) {
+    yield { ...snippet(`proxy-global-se-receiver/bound-target-${ host }`, `(() => { ${ body } })()`), strip: true };
+  }
+  const partialGuard = '(() => { const pureFrom = Array.from; let from = "old"; const box = {};'
+    + ' try { ({ Array: { [(log.push("first"), "from")]: from },'
+    + ' Object: { keys: box[(log.push(from === pureFrom, "x".at(0)), "value")] } }'
+    + ' = (log.push("source"), globalThis.window?.self));'
+    + ' return [from === pureFrom, typeof box.value]; } catch (error) { return [error.name, from]; } })()';
+  // Same native member-target boundary, with the optional-source probe and its passthrough base.
+  yield { ...snippet('proxy-global-se-receiver/native-target-guarded-member', partialGuard), strip: false };
+  yield { ...snippet('proxy-global-se-receiver/native-target-guarded-member-rigged', partialGuard, { rig: true }), strip: false };
 }
 
 // --- Proxy-global HOP + pure constructor + no-meta-leaf terminal ---
@@ -3841,6 +4085,45 @@ function * generateBareProxyProbe() {
     + ' catch (e) { return ["throw", log.length]; } })()';
   yield { ...snippet('bare-proxy-probe/se-key-throwing-receiver', throwingRecvClaim), strip: false };
   yield { ...snippet('bare-proxy-probe/se-key-throwing-receiver-rigged', throwingRecvClaim, { rig: true }), strip: false };
+}
+
+// The unbacked bare root must keep the guard even when its spelling resolves to the realm.
+// Rig writes stay outside the source so neither emitter can deoptimize these clean reads.
+function * generateUnbackedWindowOptionals() {
+  const changingRig = `import { withChangingWindow } from ${ JSON.stringify(
+    new URL('../e2e-usage-pure/unbacked-window-host.js', import.meta.url).href) };`;
+  // A computed unbacked prefix must retain the optional above it when stored. The first
+  // window exists, while the second may disappear: dropping ?.Array then invents a throw.
+  for (const [keyId, key] of [['dotted', '.window'], ['computed', "['window']"]]) {
+    for (const optional of [false, true]) {
+      for (const rig of [true, 'first-window-only']) {
+        const expr = `(() => { let held = 7; try {
+          const value = (held = globalThis.window?.self${ key }${ optional ? '?.' : '.' }Array)?.of(1);
+          return [value, typeof held];
+        } catch (e) { return [e.name, held === 7]; } })()`;
+        const row = snippet(`unbacked-window-optionals/stored-${ keyId }-${ optional ? 'optional' : 'plain' }-${ rig }`,
+          rig === true ? expr : `withChangingWindow(() => ${ expr })`, { rig: rig === true });
+        yield { ...row, code: `${ changingRig }\n${ row.code }`, strip: true };
+      }
+    }
+  }
+  const rigImport = `import { withNestedWindow } from ${ JSON.stringify(
+    new URL('../e2e-usage-pure/unbacked-window-host.js', import.meta.url).href) };`;
+  for (const [keyId, probe] of [
+    ['dotted', 'window.window.window'],
+    ['computed-effect', "window.window[(log.push('key'), 'window')]"],
+  ]) {
+    for (const [leafId, leaf] of [
+      ['raw-constructor-name', 'Array.name'],
+      ['static-call', "Array.of((log.push('arg'), 5))"],
+    ]) {
+      for (const absent of [true, false]) {
+        const row = snippet(`unbacked-window-optionals/${ keyId }/${ leafId }/${ absent ? 'absent' : 'defined' }`,
+          `withNestedWindow(${ absent }, () => ${ probe }?.window.${ leaf })`);
+        yield { ...row, code: `${ rigImport }\n${ row.code }`, strip: true };
+      }
+    }
+  }
 }
 
 // --- Opaque (inline-call) proxy-nav root: a static / fallback reached THROUGH `f()?.window` ---
@@ -4923,6 +5206,44 @@ function * generateAssignAliasReassign() {
     const body = `(() => { ${ c.body } })()`;
     yield { ...snippet(`assign-alias-reassign/${ c.id }`, body), strip: false };
   }
+  // Opposite arms cannot share a value within one execution. Loop-carried bindings and
+  // re-entered closures are controls: their other arm can have run before this read.
+  for (const [id, body, ts = false] of [
+    ['opposite-init', 'function read(flag) { if (flag) { var held = globalThis; } else return held.Array.of(log.push("argument")); } return read(false);'],
+    ['opposite-later-init', 'function read(flag) { if (flag) return held.Array.of(log.push("argument")); else { var held = globalThis; } } return read(true);'],
+    ['opposite-assignment', 'function read(flag) { let held; if (flag) held = globalThis; else return held.Array.of(log.push("argument")); } return read(false);'],
+    ['opposite-captured-init', 'function read(flag) { if (flag) { var realm = globalThis; }'
+      + ' else { const held = realm; return held.Array.of(log.push("argument")); } } return read(false);'],
+    ['opposite-ternary', 'function read(flag) { let held; return flag ? held = globalThis : held.Array.of(log.push("argument")); } return read(false);'],
+    ['fresh-loop-binding', 'for (let i = 0; i < 2; i++) { let held; if (!i) held = globalThis; else return held.Array.of(7)[0]; }'],
+    ['loop-carried-init', 'for (let i = 0; i < 2; i++) { if (!i) { var held = globalThis; } else return held.Array.of(7)[0]; }'],
+    ['loop-carried-assignment', 'let held; for (let i = 0; i < 2; i++) { if (!i) held = globalThis; else return held.Array.of(7)[0]; }'],
+    ['reentered-function', 'let held; function read(flag) { if (flag) held = globalThis; else return held.Array.of(7)[0]; } read(true); return read(false);'],
+    ['deferred-reader', 'let held; function select(flag) { if (flag) held = globalThis; else return () => held.Array.of(7)[0]; }'
+      + ' const read = select(false); select(true); return read();'],
+    ['fall-through-switch', 'let held; switch (0) { case 0: held = globalThis; case 1: return held.Array.of(7)[0]; }'],
+    ['guarded-static-read', 'let held; function select(flag) { if (flag) held = globalThis; else return held.Array.of; }'
+      + ' select(true); return select(false)(7)[0];'],
+    ['guarded-static-this', 'let held; if (log.length) held = globalThis; else held = {'
+      + ' get Array() { log.push("get"); return { tag: 9, of(value) { return [this.tag, value]; } }; } };'
+      + ' return held.Array.of((log.push("arg"), [7].at(0)));'],
+    ['guarded-static-missing', 'let held; if (log.length) held = globalThis; else held = {'
+      + ' get Array() { log.push("get"); return {}; } }; return held.Array.of(log.push("arg"));'],
+    ['guarded-static-noncallable', 'let held; if (log.length) held = globalThis; else held = {'
+      + ' get Array() { log.push("get"); return { of: 0 }; } }; return held.Array.of(log.push("arg"));'],
+    ['guarded-static-null-ctor', 'let held; if (log.length) held = globalThis; else held = {'
+      + ' get Array() { log.push("get"); return null; } }; return held.Array.of(log.push("arg"));'],
+    ['guarded-static-throwing-getter', 'let held; if (log.length) held = globalThis; else held = {'
+      + ' get Array() { log.push("get"); throw new TypeError(); } }; return held.Array.of(log.push("arg"));'],
+    ['guarded-static-wrapped', 'let held; function select(flag) { if (flag) held = globalThis;'
+      + ' else return (held.Array.of as any)([7].at(0))[0]; } select(true); return select(false);', true],
+    ['guarded-static-spread', 'let held; function select(flag) { if (flag) held = globalThis;'
+      + ' else return held.Array.of(...(log.push("arg"), [7, 8])); } select(true); return select(false);'],
+    ['guarded-static-shadow', 'let held; function select(flag, Array) { if (flag) held = globalThis; else return held.Array.of(7)[0]; }'
+      + ' select(true, null); return select(false, null);'],
+  ]) {
+    yield { ...snippet(`alias-branch-reachability/${ id }`, `(() => { try { ${ body } } catch (error) { return error.name; } })()`), strip: true, ts };
+  }
   // a REFUSED registration keeps the value swap (polyfill provision in write order) and leaves
   // member reads RAW - exact in ORDER and FLOW on every path: untaken throws on the undefined
   // binding exactly like untranspiled code, a reassigned alias keeps the user's value. trusted
@@ -5849,8 +6170,7 @@ function * generateChainTrailingContinuations() {
 //     the observe is `typeof from` - a default-synth that wrongly fires the polyfill on that branch
 //     reads `function` instead of native `undefined`, caught full-env (the proxy branch is native
 //     too, so full-env only)
-//   - UN-MIRRORABLE pattern on `&&` (proxy-only value): the sound inline default fires only when the
-//     global static is absent, so it stays stripped-valid
+//   - Object-rest stays native on every branch, including the proxy-only value of `&&`.
 const CM_USER = '{ Array: { from: () => "U", of: () => "U" } }';
 const CM_USER_NOSTATIC = '{ Array: {} }';
 const CM_PATTERNS = [
@@ -5873,8 +6193,36 @@ function * generateConditionalMirror() {
       const obs = bails ? 'typeof from' : pat.obs;
       const pick = `sel => { try { const ${ pat.lhs } = ${ shape.recv }; return ${ obs }; } catch { return "THROW"; } }`;
       const body = `(() => { const U = ${ user }; const pick = ${ pick }; return [pick(${ shape.sels[0] }), pick(${ shape.sels[1] })]; })()`;
-      yield { ...snippet(`conditional-mirror/${ shape.id }/${ pat.id }`, body), strip: !bails };
+      yield { ...snippet(`conditional-mirror/${ shape.id }/${ pat.id }`, body), strip: !bails && pat.mirror };
     }
+  }
+}
+
+// A mixed realm selection keeps its source evaluation and the custom member branch.
+// Constructors remain native in this oracle's strip set; e2e separately locks the
+// missing-constructor case. Here both selections expose wrong guards and lost effects.
+function * generateSelectedRealmMembers() {
+  const receivers = [
+    ['bare-and', 'window && globalThis'],
+    ['stored-and', '(held = globalThis.window) && globalThis'],
+    ['stored-ternary', 'flag ? held = globalThis.window : globalThis'],
+    ['custom', 'flag ? held = globalThis : custom'],
+    ['optional-store', 'flag ? held = globalThis.window?.self : globalThis'],
+    ['sequence', 'flag ? (log.push("select"), globalThis.self) : globalThis'],
+    ['shadowed', 'flag ? held = globalThis : self'],
+    ['nested', 'flag ? (log.push("select"), flag ? globalThis : custom) : custom'],
+  ];
+  for (const [name, receiver] of receivers) {
+    yield { ...snippet(`selected-realm-members/${ name }`, `(() => {
+      function Custom() { this.get = () => 23; }
+      const custom = { get Map() { log.push("custom"); return Custom; } };
+      let held;
+      function read(flag, self) {
+        const C = (${ receiver }).Map;
+        return new C([["key", 9]]).get("key");
+      }
+      return [read(false, custom), read(true, custom), held === globalThis];
+    })()`, { rig: true }), strip: true };
   }
 }
 
@@ -6331,6 +6679,27 @@ function * generateValuelessRedecl() {
   }
 }
 
+// Known builtin consumers do not request the whole namespace of a supplied constructor.
+// Compare primitive observations, not native/polyfill function source or incidental own keys.
+function * generateBuiltinArguments() {
+  for (const [name, callee, args, observe] of [
+    ['compare', 'Object.is', 'value, value', 'answer'],
+    ['keys', 'Object.keys', 'value', 'typeof answer.length'],
+    ['conversion', 'String', 'value', 'typeof answer'],
+    ['invoker', 'Reflect.apply', 'item => typeof item, null, [value]', 'answer'],
+    ['constructor', 'Set', '[value]', 'answer.has(value)'],
+  ]) {
+    for (const alias of [false, true]) {
+      const called = alias ? 'consume' : callee;
+      const expr = `(() => { ${ alias ? `const consume = ${ callee };` : '' }`
+        + ' const value = (log.push("argument"), Map);'
+        + ` const answer = ${ name === 'constructor' ? 'new ' : '' }${ called }(${ args });`
+        + ` return ${ observe }; })()`;
+      yield { ...snippet(`builtin-arguments/${ name }/${ alias ? 'alias' : 'direct' }`, expr), strip: true };
+    }
+  }
+}
+
 // --- for-x HEAD binding kinds ---
 // a for-x head declares its binding per iteration and holds no init of its own: what it destructures
 // is an ELEMENT of the iterated literal, which the receiver mirror spells in place. the KIND is one
@@ -6354,6 +6723,20 @@ function * generateForXHeadKind() {
           `(() => { const seen = []; for (${ kind } { from } of [${ element.src }]) seen.push(${ element.obs }); return seen; })()`),
         strip: true,
       };
+    }
+    // A returned argument remains a local receiver regardless of its parameter position.
+    // Mixed receivers observe guard selection; deferred reads distinguish var from let/const.
+    for (const second of [false, true]) {
+      const params = second ? 'label, value' : 'value, label';
+      const first = second ? '1, Array' : 'Array, 1';
+      const next = second ? '2, custom' : 'custom, 2';
+      const expr = '(() => { const seen = [], reads = [];'
+        + ' const custom = { from() { log.push("custom"); return ["custom"]; } };'
+        + ` function receiver(${ params }) { log.push(label); return value; }`
+        + ` for (${ kind } { w: { from } } of [{ w: receiver(${ first }) }, { w: receiver(${ next }) }]) {`
+        + ' seen.push(from([7])[0]); reads.push(() => from([8])[0]); }'
+        + ' return [seen, reads[0](), reads[1]()]; })()';
+      yield { ...snippet(`for-x-head-kind/${ kind }/returned-${ second ? 'second' : 'first' }`, expr), strip: true };
     }
   }
 }
@@ -8027,6 +8410,39 @@ function * generateDeclaredTypeOverResolve() {
       + ` function take(v: C<string>) { return v.at(0); } return take(${ arg } as any); })()`),
     ts: true, strip: true };
   }
+  // Conditional results span two receiver families; the negative controls retain both union arms.
+  // TypeScript validates each relation independently; stripped execution catches a wrong narrow.
+  for (const [id, prelude, subject, target, values] of [
+    ['inline-required-field', '', 'Array<{ a: string }>', 'Array<{ b: number }>', ['"xy"']],
+    ['optional-source-field', '', 'Array<{ a?: string }>', 'Array<{ a: string }>', ['"xy"']],
+    ['same-fields', '', 'Array<{ a: string }>', 'Array<{ a: string }>', ['[17, 23]']],
+    ['extra-source-field', '', 'Array<{ a: string; b: number }>', 'Array<{ a: string }>', ['[17, 23]']],
+    ['optional-target-field', '', 'Array<{ a: string }>', 'Array<{ a: string; b?: number }>', ['[17, 23]']],
+    ['different-field-type', '', 'Array<{ a: string }>', 'Array<{ a: number }>', ['"xy"']],
+    ['readonly-elements', '', 'ReadonlyArray<{ a: string }>', 'ReadonlyArray<{ b: number }>', ['"xy"']],
+    ['nested-shorthand', '', '{ a: string }[][]', '{ b: number }[][]', ['"xy"']],
+    ['map-key', 'interface A { a: string } interface B { b: number }', 'Map<A, number>', 'Map<B, number>', ['"xy"']],
+    ['map-value', '', 'Map<string, { a: string }>', 'Map<string, { b: number }>', ['"xy"']],
+    ['merged-interface', 'interface A { a: string } interface A { b: number } interface B { b: number }', 'Array<A>', 'Array<B>', ['[17, 23]']],
+    ['inherited-interface', 'interface A { a: string } interface B extends A { b: number }', 'Array<A>', 'Array<B>', ['"xy"']],
+    ['recursive-interface', 'interface A { next: A; a: string } interface B { next: B; b: number }', 'Array<A>', 'Array<B>', ['"xy"']],
+    ['index-signature', '', 'Array<{ [k: string]: string }>', 'Array<{ a: string }>', ['"xy"']],
+    ['union-forward', 'interface A { a: string } interface B { b: number }', 'Array<A> | Array<B>', 'Array<B>', ['"xy"', '[17, 23]']],
+    ['union-reverse', 'interface A { a: string } interface B { b: number }', 'Array<B> | Array<A>', 'Array<B>', ['"xy"', '[17, 23]']],
+    ['nested-union-forward', 'interface A { a: string } interface B { b: number }', 'Array<Array<A> | Array<B>>', 'Array<Array<B>>', ['"xy"']],
+    ['nested-union-reverse', 'interface A { a: string } interface B { b: number }', 'Array<Array<B> | Array<A>>', 'Array<Array<B>>', ['"xy"']],
+    ['map-union-forward', 'interface A { a: string } interface B { b: number }', 'Map<A, number> | Map<B, number>', 'Map<B, number>', ['"xy"', '[17, 23]']],
+    ['map-union-reverse', 'interface A { a: string } interface B { b: number }', 'Map<B, number> | Map<A, number>', 'Map<B, number>', ['"xy"', '[17, 23]']],
+    ['parenthesized-array-element', '', 'Array<({ a: string })>', 'Array<({ b: number })>', ['"xy"']],
+    ['parenthesized-map-value', '', 'Map<string, ({ a: string })>', 'Map<string, ({ b: number })>', ['"xy"']],
+  ]) {
+    for (const [index, value] of values.entries()) {
+      yield { ...snippet(`declared-over-resolve/container-members-${ id }-${ index }`,
+        `(() => { ${ prelude } type Sel<T> = T extends ${ target } ? number[] : string;`
+        + ` function take(v: ${ subject }, value: Sel<typeof v>) { return value.at(-1); }`
+        + ` return take(null as any, ${ value }); })()`), ts: true, strip: true };
+    }
+  }
   // a type-parameter shadows the same-named global, so the receiver is opaque and both families
   // have to be imported; resolving it as the container imports only that one
   yield { ...snippet('declared-over-resolve/type-param-shadows-container',
@@ -8553,6 +8969,24 @@ const DEFERRED_READS = [
   // exits. the annotated spelling of this resolved generic either way and proved nothing
   ['branch-assignment-not-in-exiting-sibling-unannotated',
     'function f(c) { let x = "ab"; if (c) { x = ["a", "b"]; } else { return String(x.includes("ab")); } return "c"; } return String(f(false));'],
+  ['opposite-nested-exiting-write',
+    'function f(c) { let x = "ab"; if (c) { { x = ["a", "b"]; } throw 0; } else return x.includes("ab"); } return String(f(false));'],
+  ['opposite-write-after-proven-assignment',
+    'function f(c) { let x = 0; x = "ab"; if (c) { x = ["a", "b"]; } else return x.includes("ab"); } return String(f(false));'],
+  ['opposite-conditional-expression-write',
+    'function f(c) { let x = "ab"; return c ? (x = ["a", "b"]) : x.includes("ab"); } return String(f(false));'],
+  ['opposite-write-before-immediate-read',
+    'function f(c) { let x = "ab"; if (c) { x = ["a", "b"]; } else return (() => x.includes("ab"))(); } return String(f(false));'],
+  ['opposite-write-with-fresh-loop-binding',
+    'let out; for (let i = 0; i < 2; i++) { let x = "ab"; if (!i) { x = ["a", "b"]; } else out = x.includes("ab"); } return String(out);'],
+  ['opposite-write-carried-through-loop',
+    'let x = "ab", out; for (let i = 0; i < 2; i++) { if (!i) { x = ["a", "b"]; } else out = x.includes("a,b"); } return String(out);'],
+  ['opposite-write-carried-through-for-header',
+    'let out; for (let x = "ab", i = 0; i < 2; i++) { if (!i) { x = ["a", "b"]; } else out = x.includes("a,b"); } return String(out);'],
+  ['opposite-write-in-another-invocation',
+    'let x = "ab"; function f(c) { if (c) { x = ["a", "b"]; } else return x.includes("a,b"); } f(true); return String(f(false));'],
+  ['opposite-arm-reader-runs-after-a-write',
+    'let x = "ab", read; const c = false; if (c) { x = ["a", "b"]; } else read = () => x.includes("a,b"); x = ["a", "b"]; return String(read());'],
   // the `AssignmentPattern` arm of the host rule: a default's own right side runs before the pattern
   // it fills, and the read sits in a computed key of that very pattern
   ['assignment-pattern-default-runs-before-its-own-pattern',
@@ -8626,8 +9060,6 @@ const DEFERRED_READS_TS = [
   ['nullish-marked-conditional-check',
     'type P<T> = T extends Iterable<unknown> ? "a" : null; type Q<S> = S extends "a" ? string[] : string; '
     + 'function make(): Q<P<number>> { return "ab" as any; } const v = make(); return String(v.includes("ab"));'],
-  // an assignment let out of an `if` branch by the hard-exit shortcut dominates only PAST the whole
-  // `if` - never the sibling branch that exits
   // the metric mark can sit on the INNER type, so the check walks the whole `inner` chain
   ['nullish-marked-inside-container-check',
     'type Q<S> = S extends string[] ? string[] : string; function make(): Q<Array<string | null>> { return "ab" as any; } '
@@ -8982,6 +9414,808 @@ function * generateGuardDeferralCross() {
   }
 }
 
+// Object-rest reads stay native in pure. These source forms were moved from e2e because
+// Babel's later syntax lowering changes their key, getter or assignment order. The direct
+// plugin legs must still preserve every observation, including Proxy and own __proto__ data.
+function * generateNativeRestSemantics() {
+  const cases = [
+    ['coerced-proto-key', `function readCoercedSlots(factory, key, effect) {
+  const { [key()]: first, [(effect(), 'at')]: value, ...rest } = factory();
+  return [first, value, rest];
+}
+const source = { at: 20, other: 30 };
+  Object.defineProperty(source, '__proto__', { value: 10, enumerable: true });
+  let calls = 0;
+  const key = { toString() {
+    calls++;
+    return '__proto__';
+  } };
+  const [first, method, rest] = readCoercedSlots(() => source, () => key, () => 0);
+  observed.push(first === 10);
+  observed.push(method === 20);
+  observed.push(calls === 1);
+  observed.push(rest);
+  observed.push(Object.getPrototypeOf(rest) === Object.prototype);`],
+    ['proxy-key-snapshot', `function readRetainedSlots(factory, key, fallback) {
+  const { before = fallback('before'), [(key(), 'at')]: value = fallback('value'), after = fallback('after'), ...rest } = factory();
+  return [before, value, after, rest];
+}
+const log = [];
+  const source = { before: 10, at: 20, after: 30 };
+  Object.defineProperty(source, 'first', { enumerable: true, get() {
+    log.push('get:first');
+    delete source.later;
+    return 40;
+  } });
+  source.later = 50;
+  const proxy = new Proxy(source, {
+    ownKeys(target) {
+      log.push('keys');
+      return Reflect.ownKeys(target);
+    },
+    getOwnPropertyDescriptor(target, key) {
+      log.push(\`descriptor:\${ key }\`);
+      return Object.getOwnPropertyDescriptor(target, key);
+    },
+  });
+  const { 3: rest } = readRetainedSlots(() => proxy, () => 0, () => 'unexpected');
+  observed.push(rest);
+  observed.push(log);`],
+    ['getter-default-order', `function readRetainedSlots(factory, key, fallback) {
+  const { before = fallback('before'), [(key(), 'at')]: value = fallback('value'), after = fallback('after'), ...rest } = factory();
+  return [before, value, after, rest];
+}
+function recordGetter(source, name, log, value) {
+  Object.defineProperty(source, name, {
+    enumerable: true,
+    get() {
+      log.push(name);
+      return value;
+    },
+  });
+}
+const log = [];
+  const source = {};
+  recordGetter(source, 'before', log, undefined);
+  recordGetter(source, 'at', log, undefined);
+  recordGetter(source, 'after', log, undefined);
+  recordGetter(source, 'other', log, 40);
+  const result = readRetainedSlots(() => {
+    log.push('receiver');
+    return source;
+  }, () => log.push('key'), name => {
+    log.push(\`\${ name }-default\`);
+    return name;
+  });
+  observed.push(result);
+  observed.push(log);`],
+    ['key-coercion-order', `function readCoercedSlots(factory, key, effect) {
+  const { [key()]: first, [(effect(), 'at')]: value, ...rest } = factory();
+  return [first, value, rest];
+}
+function recordGetter(source, name, log, value) {
+  Object.defineProperty(source, name, {
+    enumerable: true,
+    get() {
+      log.push(name);
+      return value;
+    },
+  });
+}
+const log = [];
+  const source = {};
+  recordGetter(source, 'before', log, 10);
+  recordGetter(source, 'at', log, 20);
+  recordGetter(source, 'other', log, 30);
+  const key = {
+    toString() {
+      log.push('coerce');
+      return 'before';
+    },
+  };
+  const result = readCoercedSlots(() => source, () => {
+    log.push('key-expression');
+    return key;
+  }, () => log.push('at-key'));
+  observed.push(result);
+  observed.push(log);`],
+    ['default-binding-name', `function readRetainedBindingUses(factory, key) {
+  const { [(key(), 'at')]: method = () => 3, ...rest } = factory();
+  return [method.name, Object.keys(rest)];
+}
+function recordGetter(source, name, log, value) {
+  Object.defineProperty(source, name, {
+    enumerable: true,
+    get() {
+      log.push(name);
+      return value;
+    },
+  });
+}
+const log = [];
+  const source = {};
+  recordGetter(source, 'at', log, undefined);
+  recordGetter(source, 'other', log, 40);
+  observed.push(readRetainedBindingUses(() => source, () => log.push('key')));
+  observed.push(log);`],
+    ['null-before-key', `function readRetainedSlots(factory, key, fallback) {
+  const { before = fallback('before'), [(key(), 'at')]: value = fallback('value'), after = fallback('after'), ...rest } = factory();
+  return [before, value, after, rest];
+}
+const log = [];
+  try { (() => readRetainedSlots(() => null, () => log.push('key'), () => log.push('default')))(); observed.push('no-throw'); } catch (error) { observed.push(error.name); }
+  observed.push(log);`],
+    ['throwing-getter', `function readRetainedSlots(factory, key, fallback) {
+  const { before = fallback('before'), [(key(), 'at')]: value = fallback('value'), after = fallback('after'), ...rest } = factory();
+  return [before, value, after, rest];
+}
+function recordGetter(source, name, log, value) {
+  Object.defineProperty(source, name, {
+    enumerable: true,
+    get() {
+      log.push(name);
+      return value;
+    },
+  });
+}
+const log = [];
+  const source = {};
+  recordGetter(source, 'before', log, 10);
+  Object.defineProperty(source, 'at', {
+    enumerable: true,
+    get() {
+      log.push('at');
+      throw new RangeError('slot');
+    },
+  });
+  recordGetter(source, 'after', log, 30);
+  recordGetter(source, 'other', log, 40);
+  try { (() => readRetainedSlots(() => source, () => log.push('key'), () => log.push('default')))(); observed.push('no-throw'); } catch (error) { observed.push(error.name); }
+  observed.push(log);`],
+    ['own-proto-data', `function readRetainedSlots(factory, key, fallback) {
+  const { before = fallback('before'), [(key(), 'at')]: value = fallback('value'), after = fallback('after'), ...rest } = factory();
+  return [before, value, after, rest];
+}
+function recordGetter(source, name, log, value) {
+  Object.defineProperty(source, name, {
+    enumerable: true,
+    get() {
+      log.push(name);
+      return value;
+    },
+  });
+}
+const log = [];
+  const source = Object.create({ inherited: 91 });
+  source.before = 10;
+  source.at = 20;
+  source.after = 30;
+  recordGetter(source, 'other', log, 40);
+  Object.defineProperties(source, {
+    hidden: { value: 92 },
+  });
+  // A computed object-literal key is lowered as a prototype setter by loose Babel.
+  Object.defineProperty(source, '__proto__', { value: 93, enumerable: true });
+  const { 3: rest } = readRetainedSlots(() => source, () => log.push('key'), () => 'unexpected');
+  observed.push(log);
+  observed.push(Object.getPrototypeOf(rest) === Object.prototype);
+  observed.push(Object.getOwnPropertyDescriptor(rest, '__proto__').value === 93);
+  observed.push(Object.getOwnPropertyDescriptor(rest, 'other'));
+  observed.push(Object.hasOwn(rest, 'at') === false);
+  observed.push(Object.hasOwn(rest, 'hidden') === false);
+  observed.push(Object.hasOwn(rest, 'inherited') === false);`],
+    ['sibling-member-targets', `function assignMixedRetainedSlots(factory, key, target, restTarget, fallback) {
+  let value;
+  const result = { before: target('before').value, [(key(), 'at')]: value = fallback(), after: target('after').value, ...restTarget().value } = factory();
+  return [result, value];
+}
+function recordGetter(source, name, log, value) {
+  Object.defineProperty(source, name, {
+    enumerable: true,
+    get() {
+      log.push(name);
+      return value;
+    },
+  });
+}
+const log = [];
+  const source = {};
+  recordGetter(source, 'before', log, 10);
+  recordGetter(source, 'at', log, undefined);
+  recordGetter(source, 'after', log, 30);
+  recordGetter(source, 'other', log, 40);
+  const sink = {};
+  const restSink = {};
+  const assigned = [];
+  Object.defineProperty(sink, 'value', {
+    set(value) {
+      log.push(\`assign-\${ value }\`);
+      assigned.push(value);
+    },
+  });
+  const result = assignMixedRetainedSlots(() => {
+    log.push('receiver');
+    return source;
+  }, () => log.push('key'), name => {
+    log.push(\`target-\${ name }\`);
+    return sink;
+  }, () => {
+    log.push('rest-target');
+    return restSink;
+  }, () => {
+    log.push('default');
+    return 20;
+  });
+  observed.push(result[0] === source);
+  observed.push(result[1] === 20);
+  observed.push(assigned);
+  observed.push(restSink.value);
+  observed.push(log);`],
+    ['member-targets', `function assignRetainedSlots(factory, key, target, restTarget, fallback) {
+  let before;
+  let after;
+  const result = { before, [(key(), 'at')]: target().value = fallback(), after, ...restTarget().value } = factory();
+  return [result, before, after];
+}
+function recordGetter(source, name, log, value) {
+  Object.defineProperty(source, name, {
+    enumerable: true,
+    get() {
+      log.push(name);
+      return value;
+    },
+  });
+}
+const log = [];
+  const source = {};
+  recordGetter(source, 'before', log, 10);
+  recordGetter(source, 'at', log, undefined);
+  recordGetter(source, 'after', log, 30);
+  recordGetter(source, 'other', log, 40);
+  const sink = {};
+  const restSink = {};
+  let assigned;
+  Object.defineProperty(sink, 'value', {
+    set(value) {
+      log.push('assign');
+      assigned = value;
+    },
+  });
+  const result = assignRetainedSlots(() => {
+    log.push('receiver');
+    return source;
+  }, () => log.push('key'), () => {
+    log.push('target');
+    return sink;
+  }, () => {
+    log.push('rest-target');
+    return restSink;
+  }, () => {
+    log.push('default');
+    return 20;
+  });
+  observed.push(result[0] === source);
+  observed.push(result.slice(1));
+  observed.push(assigned === 20);
+  observed.push(restSink.value);
+  observed.push(log);`],
+    ['array-iterator-order', `function readScalarArraySibling(factory, key) {
+  const { before: [first], [(key(), 'at')]: method, ...rest } = factory();
+  return [first, method, rest];
+}
+function recordGetter(source, name, log, value) {
+  Object.defineProperty(source, name, {
+    enumerable: true,
+    get() {
+      log.push(name);
+      return value;
+    },
+  });
+}
+const log = [];
+  const iterable = {
+    [Symbol.iterator]() {
+      log.push('iterator');
+      return {
+        next() {
+          log.push('next');
+          return { value: 7, done: false };
+        },
+        return() {
+          log.push('close');
+          return { done: true };
+        },
+      };
+    },
+  };
+  const source = {};
+  recordGetter(source, 'before', log, iterable);
+  recordGetter(source, 'at', log, 20);
+  recordGetter(source, 'other', log, 40);
+  observed.push(readScalarArraySibling(() => source, () => log.push('key')));
+  observed.push(log);
+  log.length = 0;
+  const rows = [7, 8];
+  Object.defineProperty(rows, 'before', { value: iterable, enumerable: true });
+  const result = readScalarArraySibling(() => rows, () => log.push('key'));
+  observed.push(result[1].call(rows, -1) === 8);
+  observed.push(result[2]);
+  observed.push(log);`],
+  ];
+  for (const [name, body] of cases) {
+    yield { ...snippet(`native-rest-semantics/${ name }`, `(() => { const observed = []; ${ body } return observed; })()`), strip: false };
+  }
+}
+
+// Retained pattern reads cross the hosts that move bindings differently. The same source logs
+// receiver, hop, key, default and rest reads; caught failures keep the log observable too.
+// Pure leaves these rest-bearing slots native: successful native-method calls use full-env;
+// null, throwing and missing-method controls still exercise stripped execution.
+function * generateRetainedPatternOrder() {
+  const hosts = [
+    ['declaration', (pattern, observe) => `const ${ pattern } = source; return ${ observe };`],
+    ['array-wrapper', (pattern, observe) => `const [${ pattern }] = [source]; return ${ observe };`],
+    ['for-initializer', (pattern, observe) => `for (const [${ pattern }] = [source]; ; ) return ${ observe };`],
+    ['for-of', (pattern, observe) => `for (const ${ pattern } of [source]) return ${ observe };`],
+    ['catch', (pattern, observe) => `try { throw source; } catch (${ pattern }) { return ${ observe }; }`],
+    ['assignment', (pattern, observe) => 'let before, method, length, rest, after;'
+      + ` const result = (${ pattern } = source); return [result === source, ${ observe }];`],
+    ['member-target', (pattern, observe) => 'const assigned = {}; const target = () => (log.push(\'target\'), assigned);'
+      + ` let method, length, rest, after; const result = (${ pattern.replace('before,', 'before: target().before,') } = source);`
+      + ` const before = assigned.before; return [result === source, ${ observe }];`],
+  ];
+  for (const [host, build] of hosts) {
+    for (const computedHop of [false, true]) {
+      for (const mode of ['value', 'plain-array', 'missing-method', 'null-root', 'null-leaf', 'throw-hop']) {
+        const hop = computedHop ? "[(log.push('outer-key'), 'data')]" : 'data';
+        const pattern = `{ before, ${ hop }: { [(log.push('key'), 'at')]: method = fallback(), length, ...rest }, after }`;
+        const observe = '[before, method.call([5, 6], 1), length, rest.keep, rest[symbol], Object.hasOwn(rest, "at"), after]';
+        const expr = `(() => { const symbol = Symbol('rest'); const leaf = ${ mode === 'missing-method' ? '{}' : '[5, 6]' };${
+           mode === 'plain-array' ? '' : ' Object.defineProperty(leaf, "keep", { enumerable: true, get() { log.push("rest"); return 7; } }); leaf[symbol] = 8;'
+        } function fallback() { log.push("default"); return function () { return 9; }; }`
+          + ` const source = ${ mode === 'null-root' ? 'null' : '{'
+            + ' get before() { log.push("before"); return 1; },'
+            + ` get data() { log.push("hop");${
+             mode === 'throw-hop' ? ' throw new RangeError("hop");' : ` return ${ mode === 'null-leaf' ? 'null' : 'leaf' };`
+            } }, get after() { log.push("after"); return 2; } }` };`
+          + ` try { ${ build(pattern, observe) } } catch (error) { return ['throw', error.name]; } })()`;
+        yield { ...snippet(`retained-pattern-order/${ host }/${ computedHop ? 'computed-hop' : 'plain-hop' }/${ mode }`, expr), strip: mode !== 'value' && mode !== 'plain-array' };
+      }
+    }
+  }
+}
+
+// A getter returning the realm must supply the ponyfill, while a later unknown key or spread
+// can replace that getter with a user object or null. Both member and pattern reads own one hop.
+function * generateGetterRealmReads() {
+  for (const shape of ['getter', 'computed-override', 'spread-override']) {
+    for (const read of ['member', 'pattern', 'pattern-siblings']) {
+      for (const value of ['realm', 'custom', 'null']) {
+        const selection = value === 'realm' ? 'globalThis' : value === 'custom' ? '{ WeakSet: Custom }' : 'null';
+        const getterValue = shape === 'getter' ? selection : 'globalThis';
+        const suffix = shape === 'computed-override' ? ', [key]: replacement'
+          : shape === 'spread-override' ? ', ...replacement' : '';
+        const extraction = read === 'member' ? 'const Value = source.w.WeakSet;'
+          : read === 'pattern' ? 'const { w: { WeakSet: Value } } = source;'
+            : 'const { before, w: { WeakSet: Value }, after } = source; log.push(before, after);';
+        const row = snippet(`getter-realm-read/${ shape }/${ read }/${ value }`,
+          `read(${ value === 'realm' ? '"other"' : '"w"' },`
+          + ` ${ shape === 'spread-override' ? `{ ${ value === 'realm' ? 'other' : 'w' }: ${ selection } }` : selection })`);
+        yield { ...row, strip: true, code: `${ row.code }\n`
+          + 'function Custom() { this.has = function () { return "custom"; }; this.add = function () {}; }'
+          + ' export function read(key, replacement) {'
+          + ' const source = { get before() { log.push("before"); return 1; },'
+          + ` get w() { log.push('getter'); return ${ getterValue }; },`
+          + ` get after() { log.push('after'); return 2; }${ suffix } };`
+          + ` try { ${ extraction } const item = {}; const set = new Value(); set.add(item); return set.has(item); }`
+          + ' catch (error) { return ["throw", error.name]; } }' };
+      }
+    }
+  }
+  // The consumer names its static dynamically: only the escaped constructor's own import
+  // supplies it. The stripped worker isolates that obligation from earlier pure imports.
+  const source = 'let source = { before: undefined, get w() { effects.push("getter"); return globalThis; }, after: 2 };';
+  for (const [host, extraction] of [
+    ['export', 'export const { w: { Map: Ctor } } = source;'],
+    ['default-siblings', 'const { before = (source = {}, 1), w: { Map: Ctor }, after } = source;'
+      + ' effects.push(before, after); export { Ctor };'],
+    ['assignment', 'let Ctor = "before"; ({ w: { Map: Ctor } } = source); export { Ctor };'],
+    ['return', 'export function read() { const { w: { Map: Value } } = source; return Value; } const Ctor = read();'],
+  ]) {
+    yield {
+      name: `getter-realm-escape/${ host }`,
+      code: `const effects = []; ${ source } ${ extraction }
+        const key = ['group', 'By'].join('');
+        export const r = Reflect.get(Ctor, key)([1, 2, 3], x => x % 2).get(1);
+        export { effects };`,
+      strip: true,
+    };
+  }
+}
+
+// Consuming a constructor argument may not replace the caller's object or move extraction ahead
+// of later arguments. Each pattern is called with both a builtin and a user value, plus its default.
+function * generateParameterReceiverChannels() {
+  const patterns = [
+    ['flat', '{ from } = Array', value => value],
+    ['nested', '[{ from } = Array]', value => `[${ value }]`],
+    ['object-array', '{ slot: [{ from } = Array] }', value => `{ slot: [${ value }] }`],
+  ];
+  const calls = [
+    ['direct', args => `read(${ args })`],
+    ['call', args => `read.call(null, ${ args })`],
+    ['apply', args => `read.apply(null, [${ args }])`],
+    ['reflect', args => `Reflect.apply(read, null, [${ args }])`],
+    ['bound', args => `read.bind(null)(${ args })`],
+  ];
+  for (const [patternId, pattern, wrap] of patterns) {
+    for (const [host, call] of calls) {
+      for (const value of ['Array', 'custom', 'undefined']) {
+        for (const kept of [false, true]) {
+          const source = wrap(value);
+          const argument = kept ? 'input' : `(log.push('argument'), ${ source })`;
+          const args = `${ argument }, (log.push('later'), 3)`;
+          const expr = `(() => { const custom = { get from() { log.push('get'); return function (xs) { return ['custom', xs[0]]; }; } };${
+           kept ? ` const input = (log.push('argument'), ${ source });` : ''
+          } function read(${ pattern }, later) { log.push('body', later);`
+          + ` return [from([7])[0]${ kept ? ', arguments[0] === input, arguments.length' : '' }]; }`
+          + ` return ${ call(args) }; })()`;
+          // Caller-correct emission leaves an observed supplied object native. In that lane the
+          // full-env and usage-global oracles apply; consumed arguments and defaults owe pure injection.
+          yield { ...snippet(`parameter-receiver/${ patternId }/${ host }/${ value }/${ kept ? 'kept' : 'consumed' }`, expr),
+            strip: !(kept && value === 'Array') };
+        }
+      }
+    }
+  }
+}
+
+// Captures keep the identity they received, even when the alias is later rebound. Crossing the
+// capture scope with a later write distinguishes a local holder from its same-named shadow.
+function * generateCapturedContainerWrites() {
+  const captures = [
+    ['direct', 'let alias = original;', 'alias'],
+    ['direct-inline', 'let alias = original;', 'alias', "{ from: xs => ['custom', xs[0]] }"],
+    ['nested-inline', 'let alias = original.part;', 'alias', "{ from: xs => ['custom', xs[0]] }", true],
+    ['nested-wrapper-inline', 'const local = original.part; let alias = { box: local };', 'alias.box',
+      "{ from: xs => ['custom', xs[0]] }", true],
+    ['nested-array-inline', 'const local = original.part; let alias = [local];', 'alias[0]',
+      "{ from: xs => ['custom', xs[0]] }", true],
+    ['plain', 'const local = original; let alias = { box: local };'],
+    ['block', 'let alias; { const local = original; alias = { box: local }; }'],
+    ['called-function', 'let alias; function capture() { const local = original; alias = { box: local }; } capture();'],
+    ['member', 'const holder = { inner: original }; const local = holder.inner; let alias = { box: local };'],
+    ['shadow', 'let alias; { const original = { x: Array }; alias = { box: original }; }'],
+  ];
+  for (const [captureId, capture, receiver = 'alias.box', replacement = 'custom', nested = false] of captures) {
+    for (const write of ['clean', 'slot', 'replace-wrapper', 'rebind-after-write']) {
+      for (const read of ['member', 'pattern']) {
+        const update = write === 'clean' ? '' : write === 'replace-wrapper' ? `${ receiver } = { x: ${ replacement } };`
+          : `${ receiver }.x = ${ replacement };${ write === 'rebind-after-write' ? 'alias = opaque();' : '' }`;
+        const source = nested ? 'original.part' : 'original';
+        const observe = read === 'member' ? `${ source }.x.from([1])` : `(() => { const { x: { from } } = ${ source }; return from([1]); })()`;
+        const expr = `(() => { const original = ${ nested ? '{ part: { x: Array } }' : '{ x: Array }' };`
+          + ' const custom = { from: xs => [\'custom\', xs[0]] };'
+          + ` function opaque() { log.push('rebind'); return {}; } ${ capture } ${ update } return ${ observe }; })()`;
+        yield { ...snippet(`captured-container-write/${ captureId }/${ write }/${ read }`, expr), strip: true };
+      }
+    }
+  }
+}
+
+// Alias expansion must keep each lexical owner, including a same-name hop through a pattern.
+// Dynamic static reads consume the escaped constructor, so stripped execution checks its family.
+function * generateScopedContainerEscapes() {
+  const sources = [
+    ['opaque-alias', 'const box = { value: Map }; let alias = box; alias = opaque();'
+      + ' function opaque() { return {}; }', ''],
+    ['independent', 'function hidden() { const box = { value: Set }; return box.value; }',
+      'const box = { value: Map };'],
+    ['closure', 'const box = { value: Map }; function hidden() { const box = { value: Set }; return box.value; }', ''],
+    ['same-name-hop', 'const box = { value: Map }; const holder = { box };', 'const { box } = holder;'],
+    ['parameter-default', 'const box = { value: Map };', 'var box = { value: Set };'],
+  ];
+  for (const [scope, setup, binding] of sources) {
+    for (const read of ['member', 'pattern']) {
+      const receiver = scope === 'parameter-default' ? 'arg' : 'box';
+      const take = read === 'member' ? `return ${ receiver }.value;`
+        : `const { value } = ${ receiver }; return value;`;
+      const parameter = scope === 'parameter-default' ? 'arg = box' : '';
+      yield {
+        name: `scoped-container-escape/${ scope }/${ read }`,
+        code: `const effects = []; ${ setup }
+          export function read(${ parameter }) { ${ binding } effects.push('read'); ${ take } }
+          const Ctor = read(); const key = ['group', 'By'].join('');
+          export const r = Reflect.get(Ctor, key)([1, 2, 3], x => x % 2).get(1);
+          export { effects };`,
+        strip: true,
+      };
+    }
+  }
+  // The first block and the Program both start at zero. Positions cannot identify their owners.
+  for (const read of ['member', 'pattern']) {
+    function take(kind) {
+      return read === 'member' ? `observe(box.value, '${ kind }');`
+        : `const { value } = box; observe(value, '${ kind }');`;
+    }
+    yield {
+      name: `scoped-container-escape/leading-block/${ read }`,
+      code: `{ const box = { value: Map }; ${ take('map') } }
+        const box = { value: Promise }; ${ take('promise') }
+        export function observe(Ctor, kind) {
+          const key = kind === 'map' ? ['group', 'By'].join('') : ['with', 'Resolvers'].join('');
+          const value = Reflect.apply(Reflect.get(Ctor, key), Ctor, kind === 'map' ? [[1], x => x] : []);
+          (observe.results || (observe.results = [])).push(kind === 'map' ? value.get(1)[0] : typeof value.resolve);
+        }
+        export const r = observe.results; export const effects = [];`,
+      strip: true,
+    };
+  }
+}
+
+// The iterator getter is a claimed outer slot too. Its nested default and rest must read the
+// captured function, and copying rest must exclude that symbol without re-reading its getter.
+function * generateIteratorPatternOrder() {
+  for (const rest of [false, true]) {
+    for (const host of ['declaration', 'array-wrapper', 'catch', 'assignment']) {
+      for (const mode of ['value', 'null', 'throw']) {
+        const pattern = `{ [Symbol.iterator]: { missing = (log.push('default'), 7) }, tail${ rest ? ', ...other' : '' } }`;
+        const observe = `[missing, tail${ rest ? ', other[symbol], Object.hasOwn(other, Symbol.iterator)' : '' }]`;
+        const bind = host === 'declaration' ? `const ${ pattern } = source; return ${ observe };`
+          : host === 'array-wrapper' ? `const [${ pattern }] = [source]; return ${ observe };`
+            : host === 'catch' ? `try { throw source; } catch (${ pattern }) { return ${ observe }; }`
+              : `let missing, tail${ rest ? ', other' : '' }; const result = (${ pattern } = source); return [result === source, ${ observe }];`;
+        const expr = '(() => { const symbol = Symbol(\'other\'); const source = {'
+          + ` get [Symbol.iterator]() { log.push('iterator'); ${ mode === 'throw' ? 'throw new RangeError("iterator");'
+            : `return ${ mode === 'null' ? 'null' : 'function () {}' };` } },`
+          + ' get tail() { log.push("tail"); return 3; }, [symbol]: 4 };'
+          + ` try { ${ bind } } catch (error) { return ['throw', error.name]; } })()`;
+        // The getter and default are user code; full-env compares their read protocol. This family
+        // owes no removed iterator method, so it does not claim a missed-injection stripped oracle.
+        yield { ...snippet(`iterator-pattern-order/${ host }/${ rest ? 'rest' : 'sibling' }/${ mode }`, expr), strip: false };
+      }
+    }
+  }
+}
+
+// Static and iterator claims share one retained receiver regardless of visitation order.
+// A known realm may shed its captures; an ordinary object's getters still run in order.
+function * generateCapturedSiblingClaims() {
+  // An extracted method may be called on a different receiver: exporting a field is harmless,
+  // but handing out an own-this method must keep the dispatcher generic.
+  for (const array of [false, true]) {
+    for (const string of [false, true]) {
+      const expr = `(() => {
+        const holder = { rows: ['a', 'b'], read() { return this.rows.includes('a,b'); } };
+        const ${ array ? '[{ read }]' : '{ w: { read } }' } = ${ array ? '[holder]' : '{ w: holder }' };
+        return read.call({ rows: ${ string ? "'a,b'" : "['a', 'b']" } });
+      })()`;
+      yield { ...snippet(`captured-sibling-claims/borrowed-method/${ array ? 'array' : 'object' }/${ string ? 'string' : 'array' }`, expr), strip: true };
+    }
+  }
+  // Borrowing includes distinguishes Array from String; stripping catches an incorrect narrow
+  // hidden by the native method. Both the getter and an overriding slot must keep their effects.
+  for (const constructor of ['Array', 'String']) {
+    for (const captured of [false, true]) {
+      for (const slot of ['plain', 'other', 'C']) {
+        const read = captured ? 'const { C: { prototype: { includes } }, tail } = held = (log.push("source"), source);'
+          : 'held = (log.push("source"), source); const includes = held.C.prototype.includes; const { tail } = held;';
+        const expr = `(() => { function read(key) {
+          const source = { get C() { log.push('getter'); return ${ constructor }; },
+            ${ slot === 'plain' ? '' : '[key]: String,' } get tail() { log.push('tail'); return 7; } };
+          let held; ${ read }
+          return [includes.call(['a', 'b'], 'a,b'), tail, held === source];
+        } return read('${ slot }'); })()`;
+        yield { ...snippet(`captured-sibling-claims/getter-prototype/${ constructor }/${ captured ? 'pattern' : 'member' }/${ slot }`, expr), strip: true };
+      }
+    }
+  }
+  // Multiple leaves need a shared inner receiver after the outer capture. Getters expose
+  // property order; the stripped leg detects a claim lost in a middle declarator.
+  for (const exported of [false, true]) {
+    for (const position of ['first', 'middle', 'last']) {
+      for (const multiple of [false, true]) {
+        const leaf = multiple ? '{ at, includes }' : '{ at }';
+        const slots = position === 'first' ? `slot: ${ leaf }, before, after`
+          : position === 'middle' ? `before, slot: ${ leaf }, after` : `before, after, slot: ${ leaf }`;
+        const row = snippet(`captured-sibling-claims/nested-order/${ exported ? 'export' : 'module' }/${ position }/${ multiple ? 'multiple' : 'single' }`,
+          `[before, at.call([4, 8], -1), after${ multiple ? ', includes.call([4, 8], 8)' : '' }]`);
+        const setup = `const source = {
+          get before() { log.push('before'); return 1; },
+          get slot() { log.push('slot'); return [4, 8]; },
+          get after() { log.push('after'); return 2; }
+        }; ${ exported ? 'export ' : '' }const { ${ slots } } = source;`;
+        yield { ...row, code: row.code.replace('export const r =', `${ setup }\nexport const r =`), strip: true };
+      }
+    }
+  }
+  for (const constructor of [false, true]) {
+    const pattern = constructor ? '{ prototype: { at, entries } }' : '{ Array: { prototype: { at, entries } } }';
+    const receiver = constructor ? 'globalThis.Array' : 'globalThis';
+    yield { ...snippet(`captured-sibling-claims/surface/${ constructor ? 'constructor' : 'realm' }`,
+      `(() => { const ${ pattern } = (log.push('source'), ${ receiver });
+        return [at.call([4, 8], -1), entries.call([4]).next().value]; })()`), strip: true };
+  }
+  for (const exported of [false, true]) {
+    for (const sibling of [false, true]) {
+      const row = snippet(`captured-sibling-claims/${ exported ? 'export' : 'module' }/${ sibling ? 'declarator' : 'single' }`,
+        `[at.call([4, 8], -1), keys({ a: 1 }), other, held === source${ sibling ? ", from('ab')" : '' }]`);
+      const setup = `const source = { get Array() { log.push('Array'); return Array; },
+        get Object() { log.push('Object'); return Object; }, get other() { log.push('other'); return 7; } };
+        let held;
+        ${ exported ? 'export ' : '' }const ${ sibling ? '{ from } = Array, ' : '' }
+          { Array: { prototype: { at } }, Object: { keys }, other } = held = (log.push('source'), source);`;
+      yield { ...row, code: row.code.replace('export const r =', `${ setup }\nexport const r =`), strip: true };
+    }
+  }
+  for (const wrapped of [false, true]) {
+    for (const staticFirst of [false, true]) {
+      const slots = staticFirst ? 'from, [Symbol.iterator]: it' : '[Symbol.iterator]: it, from';
+      const pattern = `{ ${ slots }, ...rest }`;
+      const init = "(log.push('source'), Array)";
+      const expr = `(() => { const ${ wrapped ? `[${ pattern }]` : pattern } = ${ wrapped ? `[${ init }]` : init };
+        return [from('ab'), it, Object.hasOwn(rest, 'from'), Object.hasOwn(rest, Symbol.iterator)]; })()`;
+      yield { ...snippet(`retained-iterator-static/${ wrapped ? 'array' : 'direct' }/${ staticFirst ? 'static-first' : 'iterator-first' }`, expr), strip: false };
+    }
+    for (const root of ['realm', 'object']) {
+      for (const throws of [false, true]) {
+        const source = root === 'realm' ? 'globalThis' : 'source';
+        const pattern = '{ Array: { prototype: { at } }, Object: { keys }, other }';
+        const init = `held = (effect(), ${ source })`;
+        const expr = `(() => { let held = null; const error = {};
+          const source = { get Array() { log.push('Array'); return Array; },
+            get Object() { log.push('Object'); return Object; }, get other() { log.push('other'); return 7; } };
+          function effect() { log.push('source'); ${ throws ? 'throw error;' : '' } }
+          try { const ${ wrapped ? `[${ pattern }]` : pattern } = ${ wrapped ? `[${ init }]` : init };
+            return [at.call([4, 8], -1), keys({ a: 1 }), other, held === ${ source }];
+          } catch (caught) { if (caught !== error) throw caught; return ['caught', held === null]; } })()`;
+        yield { ...snippet(`captured-sibling-claims/${ wrapped ? 'array' : 'direct' }/${ root }/${ throws ? 'throw' : 'value' }`, expr), strip: true };
+      }
+    }
+  }
+}
+
+// A module-local consumed argument has a closed caller set. Keep this next to the IIFE and
+// arguments-observing forms: treating every supplied receiver as native misses this route.
+function * generateModuleParameterReceivers() {
+  for (const [patternId, pattern, value] of [
+    ['flat', '{ from } = Array', 'Array'],
+    ['nested', '[{ from } = Array]', '[Array]'],
+    ['object-array', '{ slot: [{ from } = Array] }', '{ slot: [Array] }'],
+  ]) {
+    for (const [host, call] of [
+      ['direct', `read(${ value })`],
+      ['call', `read.call(null, ${ value })`],
+      ['apply', `read.apply(null, [${ value }])`],
+      ['reflect', `Reflect.apply(read, null, [${ value }])`],
+      ['bound', `read.bind(null)(${ value })`],
+    ]) {
+      const row = snippet(`module-parameter-receiver/${ patternId }/${ host }`, `${ call }([7])`);
+      yield { ...row, strip: true, code: `${ row.code }\nfunction read(${ pattern }) { log.push('body'); return from; }` };
+    }
+  }
+  // Different caller values do not expose the whole constructor: only the selected static is
+  // consumed. Reverse their order so the first custom caller cannot hide the later builtin.
+  for (const [patternId, pattern, wrap] of [
+    ['flat', '{ from }', value => value],
+    ['nested', '[{ from }]', value => `[${ value }]`],
+    ['object-array', '{ slot: [{ from }] }', value => `{ slot: [${ value }] }`],
+  ]) {
+    for (const builtinFirst of [true, false]) {
+      const calls = [`read(${ wrap('Array') })([7])`, `read(${ wrap('custom') })(3)`, `read(${ wrap('{}') }) === undefined`];
+      if (!builtinFirst) calls.reverse();
+      const expr = '(() => { const custom = { get from() { log.push("get"); return value => ["custom", value]; } };'
+        + ` function read(${ pattern }) { log.push('body'); return from; } return [${ calls.join(', ') }]; })()`;
+      yield { ...snippet(`module-parameter-receiver/${ patternId }/mixed-${ builtinFirst ? 'builtin' : 'custom' }-first`, expr), strip: true };
+    }
+  }
+  // The first resolved receiver may be hidden by a name or a member. Its claim cannot cover
+  // Array.from at another call site; the later argument must keep its independent polyfill.
+  for (const [host, first] of [
+    ['alias', 'const C = Set; read(C);'],
+    ['member', 'read(globalThis.Set);'],
+    ['shadow', '{ const Array = Set; read(Array); }'],
+    ['call', 'read.call(null, Set);'],
+  ]) {
+    const expr = `(() => { function read({ from }) { log.push('body'); return from; } ${ first } return read(Array)([7]); })()`;
+    yield { ...snippet(`module-parameter-receiver/flat/different-${ host }-first`, expr), strip: true };
+  }
+}
+
+// Tags insert a strings-array argument; TypeScript's this parameter consumes no argument.
+// Member, pattern and later-slot reads must all reach the supplied namespace's static.
+/* eslint-disable no-template-curly-in-string -- snippets carry tagged-template source */
+function * generateNamespaceArgumentPositions() {
+  for (const ts of [false, true]) {
+    for (const tagged of [false, true]) {
+      for (const effects of [false, true]) {
+        for (const read of ['member', 'pattern', 'later']) {
+          const parameters = `${ ts ? 'this: void, ' : '' }strings${ read === 'later' ? ', ignored' : '' },`
+            + ` ${ read === 'pattern' ? '{ ownKeys }' : 'namespace' }`;
+          const value = effects ? "(log.push('namespace'), Reflect)" : 'Reflect';
+          const args = `${ read === 'later' ? "(log.push('ignored'), 0), " : '' }${ value }`;
+          const invocation = tagged ? `read\`x${ read === 'later' ? "${(log.push('ignored'), 0)}" : '' }\${${ value }}\``
+            : `read(['x'], ${ args })`;
+          const expr = `(() => { function read(${ parameters }) { log.push('body');`
+            + ` return ${ read === 'pattern' ? 'ownKeys' : 'namespace.ownKeys' }({ value: 1 }); } return ${ invocation }; })()`;
+          yield { ...snippet(`namespace-argument/${ ts ? 'this' : 'js' }/${ tagged ? 'tag' : 'call' }/${ read }/${ effects ? 'effects' : 'bare' }`, expr), ts, strip: true };
+        }
+      }
+      for (const read of ['member', 'pattern']) {
+        const params = `${ ts ? 'this: void, ' : '' }strings, ${ read === 'pattern' ? '{ ownKeys }' : 'namespace' }`;
+        const invoke = tagged ? 'read`${ Reflect }`, read`${ custom }`' : "read([''], Reflect), read([''], custom)";
+        const expr = '(() => { const custom = { ownKeys(value) { log.push("custom"); return [value.value + 1]; } };'
+          + ` function read(${ params }) { log.push('body'); return ${ read === 'pattern' ? 'ownKeys' : 'namespace.ownKeys' }({ value: 2 }); }`
+          + ` return [${ invoke }]; })()`;
+        yield { ...snippet(`namespace-argument/${ ts ? 'this' : 'js' }/${ tagged ? 'tag' : 'call' }/${ read }/mixed`, expr), ts, strip: true };
+      }
+      const parameters = `${ ts ? 'this: void, ' : '' }strings, namespace`;
+      const invocation = tagged ? 'install`${ Reflect }`' : "install([''], Reflect)";
+      const expr = '(() => { const descriptor = Object.getOwnPropertyDescriptor(Reflect, \'ownKeys\');'
+        + ` function install(${ parameters }) { log.push('install'); namespace.ownKeys = () => ['patched']; }`
+        + ` try { ${ invocation }; return Reflect.ownKeys({ value: 1 }); }`
+        + " finally { if (descriptor) Object.defineProperty(Reflect, 'ownKeys', descriptor); else delete Reflect.ownKeys; } })()";
+      // The overwritten static is user code; native equality checks mutation routing, not injection.
+      yield { ...snippet(`namespace-argument/${ ts ? 'this' : 'js' }/${ tagged ? 'tag' : 'call' }/write`, expr), ts, strip: false };
+    }
+  }
+}
+/* eslint-enable no-template-curly-in-string -- end of tagged-template source */
+
+// A parameter used only for writes keeps the constructor local but still mutates the named
+// static. Its replacement can return an array or a string; losing the mutation narrows at wrongly.
+function * generateConstructorArgumentWrites() {
+  for (const [host, install] of [
+    ['default', 'function install(ctor = Array) { ctor.from = patch; } install();'],
+    ['inline', '(function(ctor) { ctor.from = patch; })(Array);'],
+    ['method', 'const host = { install(ctor) { ctor.from = patch; } }; host.install(Array);'],
+    ['class', 'class Install { constructor(ctor) { ctor.from = patch; } } new Install(Array);'],
+    ['super', 'class Base { constructor(ctor) { ctor.from = patch; } } class Install extends Base { constructor() { super(Array); } } new Install();'],
+  ]) {
+    for (const value of ['["patched"]', '"patched"']) {
+      const expr = '(() => { const saved = Array.from;'
+        + ` const patch = () => { log.push('patch'); return ${ value }; };`
+        + ` try { ${ install } return Array.from([]).at(-1); } finally { Array.from = saved; } })()`;
+      yield { ...snippet(`constructor-argument-write/${ host }/${ value[0] === '[' ? 'array' : 'string' }`, expr), strip: true };
+    }
+  }
+}
+
+// Class keys run before static initializers even when those initializers stand earlier in source.
+// Array.from and Array.of give different key lengths, so the wrong reaching write changes the result.
+function * generateClassKeyOrder() {
+  for (const member of ['field', 'method', 'immediate']) {
+    for (const loop of [false, true]) {
+      const key = member === 'immediate' ? '(() => Array[key]([1, 2]).length)()' : 'Array[key]([1, 2]).length';
+      const slot = member === 'method' ? '() { return i; }' : ' = i;';
+      const body = 'let key = \'from\'; class Keyed { static ran = (log.push(\'init\'), key = \'of\', 1);'
+        + ` static [(log.push('key'), ${ key })]${ slot } }`
+        + ` out.push([${ member === 'method' ? 'Keyed[2]()' : 'Keyed[2]' }, Keyed.ran, key]);`;
+      const expr = `(() => { const out = []; ${ loop ? `for (let i = 0; i < 2; i++) { ${ body } }` : `const i = 0; ${ body }` } return out; })()`;
+      yield { ...snippet(`class-key-order/${ member }/${ loop ? 'fresh-loop-binding' : 'once' }`, expr), strip: true };
+    }
+  }
+}
+
+// A relocated nested loop head reads each returned constructor separately. The custom and null
+// elements refute a blanket static substitution, and a closure observes let/const versus var capture.
+function * generateReturnedStaticLoopHeads() {
+  for (const kind of ['var', 'let', 'const']) {
+    for (const source of ['literal', 'call', 'constant-call']) {
+      for (const tail of ['builtin', 'custom', 'null']) {
+        const value = source === 'literal' ? 'Array' : source === 'call' ? 'receiver("first", Array)' : 'first("first")';
+        const other = tail === 'builtin' ? 'Array' : tail === 'custom' ? '{ from: () => ["custom"] }' : 'null';
+        const expr = `(() => { const seen = []; const reads = []; function receiver(label, value) { log.push(label); return value; }${
+           source === 'constant-call' ? ` function first(label) { log.push(label); return Array; } function second(label) { log.push(label); return ${ other }; }` : ''
+        } try { for (${ kind } { w: { from } } of [{ w: ${ value } }, { w: ${ source === 'literal' ? other : source === 'call' ? `receiver('second', ${ other })` : "second('second')" } }]) {`
+          + ' log.push(\'body\'); seen.push(from([7])[0]); reads.push(() => from([8])[0]); } }'
+          + ' catch (error) { seen.push(error.name); } return [seen, reads.map(read => read())]; })()';
+        yield { ...snippet(`returned-static-loop-head/${ kind }/${ source }/${ tail }`, expr), strip: true };
+      }
+    }
+  }
+}
+
 export function * generate() {
   yield * generateDeferredReads();
   yield * generateGuardForms();
@@ -9071,6 +10305,7 @@ export function * generate() {
   yield * generateKeptProxyRoot();
   yield * generateRunLandingConsumers();
   yield * generateBareProxyProbe();
+  yield * generateUnbackedWindowOptionals();
   yield * wrapperOutcomeRows('wrapped-composition', WRAPPED_COMPOSE_SHAPES);
   yield * wrapperOutcomeRows('chain-seals', CHAIN_SEAL_SHAPES);
   yield * generateOpaqueCallRootGuard();
@@ -9119,6 +10354,7 @@ export function * generate() {
   yield * generateAssertGuardStale();
   yield * generateChainTrailingContinuations();
   yield * generateConditionalMirror();
+  yield * generateSelectedRealmMembers();
   yield * generateChains();
   yield * generateComputedInnerCallChain();
   yield * generateIn();
@@ -9143,6 +10379,7 @@ export function * generate() {
   yield * generateCollectionReceivers();
   yield * generateForOfIterable();
   yield * generateForXHeadKind();
+  yield * generateBuiltinArguments();
   yield * generateProxyImportSlotWrite();
   yield * generateNestingDepth();
   yield * generateDisableDirectives();
@@ -9158,4 +10395,17 @@ export function * generate() {
   for (const [family, exprs] of Object.entries(TS_FAMILIES)) {
     for (const expr of exprs) yield { ...snippet(`${ family }: ${ expr }`, expr), ts: true };
   }
+  yield * generateNativeRestSemantics();
+  yield * generateRetainedPatternOrder();
+  yield * generateGetterRealmReads();
+  yield * generateParameterReceiverChannels();
+  yield * generateCapturedContainerWrites();
+  yield * generateScopedContainerEscapes();
+  yield * generateIteratorPatternOrder();
+  yield * generateCapturedSiblingClaims();
+  yield * generateModuleParameterReceivers();
+  yield * generateNamespaceArgumentPositions();
+  yield * generateConstructorArgumentWrites();
+  yield * generateClassKeyOrder();
+  yield * generateReturnedStaticLoopHeads();
 }

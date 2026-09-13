@@ -11,73 +11,52 @@ import _at from "@core-js/pure/actual/instance/at";
 import _entries from "@core-js/pure/actual/instance/entries";
 import _includes from "@core-js/pure/actual/instance/includes";
 import _keys from "@core-js/pure/actual/instance/keys";
-var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _ref11, _ref12;
+var _ref3, _ref5, _ref8, _ref10, _ref12, _ref15, _ref17, _ref20, _ref24, _ref28, _ref30;
 // PATTERN axis of the per-prop interleave: segments and guards alternate exactly like the
 // native per-prop evaluation (key, read, default, next key)
 
 // both props defaulted: two guards, two segments
-const {
-    [(e1(), 'at')]: _unused
-  } = recvA,
-  a = (_ref = _at(recvA)) === void 0 ? dfltA() : _ref,
-  {
-    [(e2(), 'flat')]: _unused2
-  } = recvA,
-  f = (_ref2 = _flatMaybeArray(recvA)) === void 0 ? dfltB() : _ref2;
+const _ref = recvA,
+  _ref2 = _ref,
+  a = null == _ref2 ? _ref2[""] : (e1(), (_ref3 = _at(_ref2)) === void 0 ? dfltA() : _ref3),
+  _ref4 = _ref,
+  f = null == _ref4 ? _ref4[""] : (e2(), (_ref5 = _flatMaybeArray(_ref4)) === void 0 ? dfltB() : _ref5);
 
-// three defaulted props: nested cuts compose innermost-first
-const {
-    [(e3(), 'includes')]: _unused3
-  } = recvB,
-  i = (_ref3 = _includes(recvB)) === void 0 ? dfltC() : _ref3,
-  {
-    [(e4(), 'findLast')]: _unused4
-  } = recvB,
-  fl = (_ref4 = _findLastMaybeArray(recvB)) === void 0 ? dfltD() : _ref4,
-  {
-    [(e5(), 'findLastIndex')]: _unused5
-  } = recvB,
-  fli = (_ref5 = _findLastIndexMaybeArray(recvB)) === void 0 ? dfltE() : _ref5;
+// Three defaulted properties preserve key, extraction and default order from left to right.
+const _ref6 = recvB,
+  _ref7 = _ref6,
+  i = null == _ref7 ? _ref7[""] : (e3(), (_ref8 = _includes(_ref7)) === void 0 ? dfltC() : _ref8),
+  _ref9 = _ref6,
+  fl = null == _ref9 ? _ref9[""] : (e4(), (_ref10 = _findLastMaybeArray(_ref9)) === void 0 ? dfltD() : _ref10),
+  _ref11 = _ref6,
+  fli = null == _ref11 ? _ref11[""] : (e5(), (_ref12 = _findLastIndexMaybeArray(_ref11)) === void 0 ? dfltE() : _ref12);
 
 // a later default may read the PRIOR extracted binding (bound before its key evaluates)
-const {
-    [(e6(), 'toSorted')]: _unused6
-  } = recvC,
-  ts = (_ref6 = _toSortedMaybeArray(recvC)) === void 0 ? dfltF() : _ref6,
-  {
-    [(e7(), 'toReversed')]: _unused7
-  } = recvC,
-  tr = (_ref7 = _toReversedMaybeArray(recvC)) === void 0 ? ts : _ref7;
+const _ref13 = recvC,
+  _ref14 = _ref13,
+  ts = null == _ref14 ? _ref14[""] : (e6(), (_ref15 = _toSortedMaybeArray(_ref14)) === void 0 ? dfltF() : _ref15),
+  _ref16 = _ref13,
+  tr = null == _ref16 ? _ref16[""] : (e7(), (_ref17 = _toReversedMaybeArray(_ref16)) === void 0 ? ts : _ref17);
 
 // two declarators of one declaration, each with its own split
-const {
-    [(e8(), 'flatMap')]: _unused8
-  } = recvD,
-  fm = (_ref8 = _flatMapMaybeArray(recvD)) === void 0 ? dfltG() : _ref8,
-  {
-    [(e9(), 'entries')]: _unused9
-  } = recvD,
-  en = _entries(recvD),
-  {
-    [(e10(), 'with')]: _unused10
-  } = recvE,
-  w10 = (_ref9 = _withMaybeArray(recvE)) === void 0 ? dfltH() : _ref9,
-  {
-    [(e11(), 'keys')]: _unused11
-  } = recvE,
-  ks = _keys(recvE);
+const _ref18 = recvD,
+  _ref19 = _ref18,
+  fm = null == _ref19 ? _ref19[""] : (e8(), (_ref20 = _flatMapMaybeArray(_ref19)) === void 0 ? dfltG() : _ref20),
+  _ref21 = _ref18,
+  en = null == _ref21 ? _ref21[""] : (e9(), _entries(_ref21)),
+  _ref22 = recvE,
+  _ref23 = _ref22,
+  w10 = null == _ref23 ? _ref23[""] : (e10(), (_ref24 = _withMaybeArray(_ref23)) === void 0 ? dfltH() : _ref24),
+  _ref25 = _ref22,
+  ks = null == _ref25 ? _ref25[""] : (e11(), _keys(_ref25));
 
 // shared memoized receiver with two guards: one `_ref`, guards read it in order (typed -
 // both defaults dead at runtime, the shape still locks ref sharing and numbering)
-const _ref10 = [7, 8],
-  {
-    [(e12(), 'fill')]: _unused12
-  } = _ref10,
-  fi = (_ref11 = _fillMaybeArray(_ref10)) === void 0 ? dfltI() : _ref11,
-  {
-    [(e13(), 'find')]: _unused13
-  } = _ref10,
-  fnd = (_ref12 = _findMaybeArray(_ref10)) === void 0 ? dfltJ() : _ref12;
+const _ref26 = [7, 8],
+  _ref27 = _ref26,
+  fi = null == _ref27 ? _ref27[""] : (e12(), (_ref28 = _fillMaybeArray(_ref27)) === void 0 ? dfltI() : _ref28),
+  _ref29 = _ref26,
+  fnd = null == _ref29 ? _ref29[""] : (e13(), (_ref30 = _findMaybeArray(_ref29)) === void 0 ? dfltJ() : _ref30);
 
 // nested assignment stays NATIVE (the receiver gate admits no member receivers) - negative
 let m;

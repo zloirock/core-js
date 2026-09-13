@@ -9,6 +9,8 @@ import _values from "@core-js/pure/actual/instance/values";
 import _Map from "@core-js/pure/actual/map";
 import _Object$freeze from "@core-js/pure/actual/object/freeze";
 import _Object$is from "@core-js/pure/actual/object/is";
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
 // probe corpus of the defense cycles over the destructure wrappers, family "other", part 4:
 // every block is one probed form, self-contained over the header bindings, locked on both legs
 let pick = 1;
@@ -226,22 +228,17 @@ function mark(t, v) {
   } : userObj];
 }
 {
-  const f6 = _Array$from;
-  const {
-    [(eff('k'), 'from')]: _unused
-  } = _globalThis.Array;
+  const _ref9 = _globalThis.Array,
+    f6 = null == _ref9 ? _ref9[""] : (eff('k'), _Array$from);
 }
 {
-  const f = _Array$from;
-  const {
-    [(eff('k2'), 'from')]: _unused2
-  } = _globalThis.Array;
+  const _ref10 = _globalThis.Array,
+    f = null == _ref10 ? _ref10[""] : (eff('k2'), _Array$from);
 }
 {
-  const f = _Array$from;
   const {
     Array: {
-      [(eff('k2'), 'from')]: _unused3
+      [(eff('k2'), 'from')]: f
     },
     ...r
   } = _globalThis;
@@ -254,9 +251,10 @@ function mark(t, v) {
   } = id(_globalThis);
 }
 {
-  const from = _Array$from;
   const {
-    Array: _unused4,
+    Array: {
+      from
+    },
     ...rest
   } = _globalThis;
   use(from, rest);
@@ -273,9 +271,10 @@ function mark(t, v) {
   F(z);
 }
 {
-  const f = _Array$from;
   const {
-    Array: _unused5,
+    Array: {
+      from: f
+    },
     ...r
   } = _globalThis;
 }
@@ -283,9 +282,10 @@ function mark(t, v) {
   const f1 = _Array$from;
 }
 {
-  const f2 = _Array$from;
   const {
-    Array: _unused6,
+    Array: {
+      from: f2
+    },
     ...r2
   } = _globalThis;
 }

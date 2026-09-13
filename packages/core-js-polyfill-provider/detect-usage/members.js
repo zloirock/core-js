@@ -6,6 +6,7 @@ import {
   climbTransparentWrapperPath,
   collectFoldedReceiverSideEffects,
   deleteHostAboveChain,
+  getFallbackBranchSlots,
   isAliasProxyRoot,
   isForXWriteTarget,
   isMemberWriteHost,
@@ -20,14 +21,19 @@ import {
   peelNestedSequenceExpressions,
   peelParenAndTSParentPath,
   peelSequenceTail,
+  peelFallbackReceiver,
   POSSIBLE_GLOBAL_OBJECTS,
   privateNameSpelling,
   proxyNavEffectsHarvestable,
+  runStandsInLoweredGuardTest,
   SKIPPABLE_WRAPPER_TYPES,
   spineHasOptionalHop,
   staticMemberKeyName,
   stepOverChainWrappers,
   unwrapRuntimeExpr,
+  isTransparentWrapper,
+  peelChainAssignment,
+  unwrapTransparentSeq,
 } from '../helpers/ast-patterns.js';
 import {
   GET_ITERATOR_ENTRY,
@@ -36,8 +42,16 @@ import {
   SYMBOL_ITERATOR_PURE_RESULT,
   symbolKeyToEntry,
 } from './globals.js';
-import { aliasWriteCtorNames, attachMemberUnionExtras, staticContainerReceiverName, unionKeyedCarrierRides } from './destructure.js';
+import {
+  aliasWriteCtorNames,
+  attachMemberUnionExtras,
+  flattenFallbackBranches,
+  nestedAssignmentStatementOf,
+  staticContainerReceiverName,
+  unionKeyedCarrierRides,
+} from './destructure.js';
 import { resolve as resolveBuiltIn } from '../index.js';
+import { planNestedKeyedPatternCapture } from '../destructure-host-shape.js';
 import {
   asSymbolRef,
   descendToChainRoot,
@@ -56,11 +70,9 @@ import {
   interopDefaultProxyName,
   isCallShape,
   isStaticPlacement,
-  isTransparentWrapper,
   maximalProxyGlobalPrefix,
   mutationGuardKeepingHop,
   navHasUnresolvableProxyHop,
-  peelChainAssignment,
   peelChainRootValue,
   prependChainAssignmentEffect,
   peelReceiverSequenceTail,
@@ -74,9 +86,11 @@ import {
   storedUserAssignmentOf,
   storedValueConsumedAbove,
   storeReadHopOptional,
-  unwrapTransparentSeq,
   unwrapParensCollectingEffects,
-  chainReadsThroughSeal, chainSealsAShortCircuit, navValueCanShortCircuit, ownChainOptionalObjects,
+  chainReadsThroughSeal,
+  chainSealsAShortCircuit,
+  navValueCanShortCircuit,
+  ownChainOptionalObjects,
   proxyReceiverValueCanBeUndefined,
   proxyGlobalMemberCtorPureSwap,
   claimAlreadyRendered,
@@ -234,6 +248,7 @@ export function planCallRootDiscardedProxySwap({ receiver, scope, adapter, path,
 // guard is dead and never travels
 export function planProxyReceiver(receiver, {
   aliasCtx = null, isWriteTarget = false, throughChainAssign = false,
+  guardedProbe = null,
   resolvePure,
 }) {
   if (receiver?.type !== 'MemberExpression' && receiver?.type !== 'OptionalMemberExpression') return null;
@@ -277,8 +292,11 @@ export function planProxyReceiver(receiver, {
       // a NESTED-sequence value stays unproven under the kept-sequence boundary, so the `?.`
       // reading it is as load-bearing as one over a genuine probe - the kept-guard channels own
       // the shape, and collapsing here erased the guard and re-rooted the memo the other leg keeps
-      .some(object => proxyReceiverValueCanBeUndefined(object, resolvePure, aliasCtx)
-        || nestedSequenceValueSpelling(object))
+      // an enclosing synth guard can establish ONE exact probe; a further optional
+      // object or a seal still owes its own check and cannot borrow that proof
+      .some(object => unwrapRuntimeExpr(object) !== guardedProbe
+        && (proxyReceiverValueCanBeUndefined(object, resolvePure, aliasCtx)
+          || nestedSequenceValueSpelling(object)))
       // a SEALED SHORT-CIRCUIT under the chain (`((c++, globalThis.window)?.self).X` - the paren'd
       // sequence hides the `?.` from the own-chain walk) may not collapse either: the read/write host
       // is the short-circuited value, and dropping the hop erases the source throw. a seal over a
@@ -319,7 +337,7 @@ export function planProxyReceiver(receiver, {
     // (identifier, alias, call/IIFE), so no root pre-filter belongs here - an identifier-only
     // gate left a call-rooted deep nav (`(() => globalThis)().window.foo[Symbol.iterator]`)
     // un-collapsed on the leg that renders through this plan while the other leg folded it
-    const inner = planProxyReceiver(objectCore, { aliasCtx, throughChainAssign, resolvePure });
+    const inner = planProxyReceiver(objectCore, { aliasCtx, throughChainAssign, guardedProbe, resolvePure });
     return inner ? { kind: 'member', inner, property: receiver.property, computed: receiver.computed } : null;
   }
   // a pure-ctor leaf (`globalThis.self.Map`) is whole-swapped to `_Map` elsewhere, so bail here (a
@@ -413,30 +431,63 @@ export function planMemoReadTarget(memoReceiver, { aliasCtx, resolvePure }) {
   return plan ? { prefix, se: [], pure: null, plan, tail } : null;
 }
 
-// the DESTRUCTURED spelling of the guarded-alias narrow (`const { groupBy: g } = M`): which
-// single-prop pattern on which host may collapse to a plain binding, and the plan the collapse
-// renders. the admission is the decision - one property, a nameable binding, an uncomputed key,
-// and a host whose value is either declared or written by a sole `=`; `hostKind` then tells the
-// binding WHICH surgery its own dialect owes, including the value-consuming assignment whose
-// native value (the RHS object) has to survive as a sequence tail
+// The destructured guarded-alias narrow (`const { groupBy: g } = M`): admit a named binding
+// and an uncomputed key, and return the existing identity guard. Direct hosts can replace their
+// binding or split a fully answered pattern. A sole nested declaration can capture its receiver
+// for that same guard; other nested hosts retain the source-mirror route.
 export function planGuardedDestructureNarrow({
-  propNode, patternNode, hostNode, hostInStatement, meta, path, resolvePure,
+  propNode, patternNode, hostNode, hostInStatement, meta, path, resolvePure, adapter = null,
 }) {
   if (patternNode?.type !== 'ObjectPattern' || !patternNode.properties.length) return null;
   if (propNode?.computed || (propNode?.shorthand && propNode.value?.type !== 'Identifier')) return null;
   const binding = propNode?.value;
-  if (binding?.type !== 'Identifier') return null;
+  if (binding?.type !== 'Identifier' && binding?.type !== 'ObjectPattern') return null;
+  // A nested guard must occupy this property's Get without moving surrounding bindings.
+  // The capture keeps ordinary outer siblings in order; a rest still needs its own copy plan.
+  // A constructor read can itself feed a nested pattern. Guard that outer Get before the pattern
+  // reads a static from a possibly missing constructor; the inner pattern retains native binding.
+  let nested = binding.type === 'ObjectPattern' && patternNode.properties.length !== 1 ? {
+    host: path?.parentPath?.parentPath,
+    receiverPattern: path?.parentPath,
+    statement: nestedAssignmentStatementOf(path),
+  } : null;
+  if (hostNode?.type === 'Property' || hostNode?.type === 'ObjectProperty') {
+    let up = path?.parentPath;
+    const receiverPattern = up;
+    const ancestors = [];
+    while (up?.parentPath?.node?.type === 'Property' || up?.parentPath?.node?.type === 'ObjectProperty') {
+      const owner = up.parentPath;
+      const outer = owner.parentPath;
+      if (owner.node.value !== up.node || outer?.node?.type !== 'ObjectPattern') return null;
+      ancestors.unshift({ pattern: outer.node, prop: owner.node });
+      up = outer;
+    }
+    const root = up?.parentPath;
+    const statement = root?.node?.type === 'AssignmentExpression' ? nestedAssignmentStatementOf(path) : null;
+    if (!(root?.node?.type === 'VariableDeclarator' && root.node.init)
+      && !(root?.node?.type === 'AssignmentExpression' && root.node.operator === '=')) return null;
+    nested = { host: root, receiverPattern, statement, ancestors };
+    hostNode = nested.host.node;
+    if (statement) hostInStatement = true;
+  }
   const isDeclarator = hostNode?.type === 'VariableDeclarator' && !!hostNode.init;
   const isSoleAssignment = hostNode?.type === 'AssignmentExpression' && hostNode.operator === '='
-    && hostNode.left === patternNode;
+    && (nested || hostNode.left === patternNode);
   if (!isDeclarator && !isSoleAssignment) return null;
-  // a MULTI-prop pattern becomes one read per prop, in source order - but only where THIS plan
+  const captureCandidate = nested && binding.type === 'Identifier'
+    ? planNestedKeyedPatternCapture({
+      pattern: isDeclarator ? hostNode.id : hostNode.left,
+      init: isDeclarator ? hostNode.init : hostNode.right,
+      force: true,
+      ancestors: nested.ancestors,
+    }) : null;
+  // a DIRECT multi-prop pattern becomes one read per prop, in source order - but only where THIS plan
   // answers for every one of them. a prop it cannot answer would have to reach the claim funnel on
   // its own, and only one leg re-visits what it splices, so the two would disagree about it; with
   // every prop answered here nothing is left for that pass to do. each has to be re-spellable for
   // the split at all: a rest gathers what no read names, a computed key would be printed twice, and
   // a default belongs to its own canon
-  const receiverNode = isDeclarator ? hostNode.init : hostNode.right;
+  const receiverNode = nested ? { type: 'Identifier', name: '' } : isDeclarator ? hostNode.init : hostNode.right;
   function memberOf(key) {
     return {
       type: 'MemberExpression',
@@ -446,26 +497,28 @@ export function planGuardedDestructureNarrow({
       optional: false,
     };
   }
-  // a REST gathers what no read names, so it cannot become a read of its own - but it can stay
+  // A direct host's REST gathers what no read names, so it cannot become a read of its own - but it can stay
   // BEHIND them, reading the same receiver with every consumed key renamed to a sentinel. that is
   // the shape the direct-receiver hosts already print for this pattern, so the guarded twin spells
   // it too rather than declining. a rest also forces the SPLIT: the sole-prop render replaces the
   // whole host, which would take the rest with it
-  const restResidual = patternNode.properties.some(item => item.type === 'RestElement');
+  const restResidual = !nested && patternNode.properties.some(item => item.type === 'RestElement');
   const splitProps = patternNode.properties.filter(item => item.type !== 'RestElement');
-  const split = splitProps.length === 1 && !restResidual ? null : splitProps.map(item => {
+  const split = (nested && !captureCandidate) || (splitProps.length === 1 && !restResidual) ? null : splitProps.map(item => {
     if (item.computed || item.value?.type !== 'Identifier') return null;
     const key = item.key?.name ?? item.key?.value ?? null;
     if (key === null) return null;
     if (item === propNode) return { key, name: item.value.name, plan: null, self: true };
-    const sibling = planGuardedStaticNarrow({ memberNode: memberOf(key), parent: null, meta: { ...meta, key }, path, resolvePure });
+    const sibling = planGuardedStaticNarrow({
+      memberNode: memberOf(key), parent: null, meta: { ...meta, key }, path, resolvePure, adapter,
+    });
     return sibling && !sibling.bail ? { key, name: item.value.name, plan: sibling, self: false } : null;
   });
   if (split && split.some(item => !item)) return null;
   // ... and the split needs a host whose VALUE nobody reads: a declaration, or an assignment
   // standing as its own statement - an assignment in value position yields the receiver, and the
   // pieces of a split cannot
-  if (split && !isDeclarator && !hostInStatement) return null;
+  if (split && !captureCandidate && !isDeclarator && !hostInStatement) return null;
   // ... and the REST residual needs a declaration to sit in: an assignment host would have to
   // re-spell the whole pattern as a second assignment, which is a shape of its own
   if (restResidual && !isDeclarator) return null;
@@ -475,6 +528,7 @@ export function planGuardedDestructureNarrow({
     meta,
     path,
     resolvePure,
+    adapter,
   });
   if (!plan || plan.bail) return null;
   // ... and never beside an effect: the prefix runs ONCE, ahead of the whole init, where a split
@@ -483,6 +537,9 @@ export function planGuardedDestructureNarrow({
   for (const item of split ?? []) if (item.self) item.plan = plan;
   return {
     plan,
+    nested,
+    capture: captureCandidate?.leaf === propNode ? captureCandidate : null,
+    keepPatternLive: binding.type === 'ObjectPattern',
     split,
     restResidual,
     bindingName: binding.name,
@@ -949,7 +1006,8 @@ export function harvestDiscardedReceiverSE(node, { scope, adapter, path }) {
 // the meta of a MEMBER read: the resolved receiver (a global, a proxy chain, a static container, a
 // prototype navigation) crossed with the resolved key, its harvested side effects, and - for
 // usage-global - the reachable union of every other receiver x key pair the aliases can hold
-function buildMemberMeta({ node, scope, adapter, path, resolveStaticKey = null }) {
+// eslint-disable-next-line max-statements -- member classification and guarded candidate selection
+function buildMemberMeta({ node, scope, adapter, path, resolveStaticKey = null, resolvePure = null }) {
   // collect side effects from both the receiver and the computed-key so a polyfill
   // replacement on this MemberExpression (which discards the whole subtree) can re-emit
   // them via a SequenceExpression wrap in the plugin's emission path
@@ -1062,6 +1120,39 @@ function buildMemberMeta({ node, scope, adapter, path, resolveStaticKey = null }
     // `Array` constructor; `Array.name` resolves via the function variant). same gate the
     // destructure path already applies to `const { concat } = Array`
     meta = { kind: 'property', object: objectName, key, placement, receiverHint: staticReceiverHint(placement, objectName) };
+    // The container walk already collects getter returns as guarded candidates. Keep the
+    // actual read: a getter, spread or later write can supply a different realm at runtime.
+    const guardedRealms = containerUnion.filter(name => POSSIBLE_GLOBAL_OBJECTS.has(name));
+    // A branch can name the realm without proving the whole selection is one. Capture the
+    // selection unchanged and compare with ONE backed realm; an unbacked window comparator
+    // would introduce a ReferenceError even when another arm supplied a valid receiver.
+    if (!objectName && !guardedRealms.length && !keyEffects.length && resolvePure
+      && !isMutatedGlobalSlot(adapter, key) && resolveBuiltIn({ kind: 'global', name: key })
+      && getFallbackBranchSlots(peelFallbackReceiver(classifyTarget))) {
+      const realm = flattenFallbackBranches({ node: classifyTarget, key, scope, adapter, path })
+        .find(branch => isPristineProxyGlobal(adapter, branch.object)
+          && resolvePure({ kind: 'global', name: branch.object }, null));
+      if (realm) guardedRealms.push(realm.object);
+    }
+    if (!objectName && guardedRealms.length && !keyEffects.length && !isMutatedGlobalSlot(adapter, key)) {
+      Object.assign(meta, {
+        guardedAliasHint: guardedRealms[0], guardedAliasHints: guardedRealms,
+        captureGuardReceiver: true,
+      });
+    }
+    // A native constructor has no whole-value pure replacement. Keep the realm member read
+    // and guard its static separately when the realm alias only has candidate values.
+    const receiver = !objectName && !keyEffects.length && unwrapRuntimeExpr(classifyTarget);
+    const receiverKey = staticMemberKeyName(receiver);
+    const receiverRoot = unwrapRuntimeExpr(receiver?.object);
+    if (!objectName && !keyEffects.length && receiverRoot?.type === 'Identifier'
+      && receiverKey && !POSSIBLE_GLOBAL_OBJECTS.has(receiverKey) && isStaticPlacement(receiverKey)
+      && !resolveBuiltIn({ kind: 'global', name: receiverKey })
+      && resolveBuiltIn({ kind: 'property', object: receiverKey, key, placement: 'static' })
+      && !isMutatedGlobalSlot(adapter, receiverKey)
+      && aliasWriteCtorNames({ name: receiverRoot.name, scope, adapter, path }).some(name => POSSIBLE_GLOBAL_OBJECTS.has(name))) {
+      Object.assign(meta, { guardedAliasHint: receiverKey, captureGuardReceiver: true });
+    }
     // usage-global: a conditionally reassigned receiver / computed-key reaches more than the
     // declarator-init primary - emit a side-effect import for each reachable target too
     attachMemberUnionExtras(meta, {
@@ -1142,8 +1233,11 @@ function buildMemberMeta({ node, scope, adapter, path, resolveStaticKey = null }
 // render inputs - the unwrapped receiver identifier, the static's pure entry, callee-ness
 // (the raw branch then binds `this`), and the ctor comparator (the swapped pure binding, or
 // its raw global name when the ctor does not polyfill for the targets)
-export function planGuardedStaticNarrow({ memberNode, parent, meta, path, resolvePure }) {
+export function planGuardedStaticNarrow({ memberNode, parent, meta, path, resolvePure, adapter = null }) {
   if (memberNode.type !== 'MemberExpression' && memberNode.type !== 'OptionalMemberExpression') return null;
+  // A lowered optional still observes the environment probe; substituting a backed
+  // realm hop here would let the following unguarded reads run on an absent host.
+  if (POSSIBLE_GLOBAL_OBJECTS.has(meta.key) && runStandsInLoweredGuardTest(path, unwrapRuntimeExpr)) return { bail: true };
   // an EFFECTFUL sequence prefix on the receiver (`(n++, M).groupBy`) keeps the guard: the value
   // tested is the sequence's tail, and the prefix runs once ahead of the whole render (the emitters
   // re-emit it there). the transparent peel stops at such a prefix by design - it answers "what is
@@ -1151,7 +1245,10 @@ export function planGuardedStaticNarrow({ memberNode, parent, meta, path, resolv
   const objCore = unwrapTransparentSeq(memberNode.object);
   const seqPrefix = objCore?.type === 'SequenceExpression' ? objCore.expressions.slice(0, -1) : [];
   const recvIdent = seqPrefix.length ? unwrapTransparentSeq(objCore.expressions.at(-1)) : objCore;
-  if (recvIdent?.type !== 'Identifier') return null;
+  const captureReceiver = meta.captureGuardReceiver ? memberNode.object : null;
+  if (captureReceiver && (spineHasOptionalHop(captureReceiver)
+    || memberNode.optional || memberNode.type === 'OptionalMemberExpression')) return { bail: true };
+  if (!captureReceiver && recvIdent?.type !== 'Identifier') return null;
   // every ctor this slot was written with is a candidate: the key may live on an EARLIER write's
   // ctor than the one the registration kept (`if (c) M = Map; if (!c) M = Promise` - `groupBy` is
   // Map's). the guard tests identity, so each candidate is one more branch that either matches at
@@ -1160,10 +1257,11 @@ export function planGuardedStaticNarrow({ memberNode, parent, meta, path, resolv
   for (const name of [meta.guardedAliasHint, ...meta.guardedAliasHints ?? [], ...meta.guardedWriteObjects ?? []]) {
     if (!name || candidates.some(candidate => candidate.ctorName === name)) continue;
     const pure = resolvePure({ kind: 'property', object: name, key: meta.key, placement: 'static' }, path);
-    if (pure?.kind === 'static') candidates.push({ ctorName: name, staticPure: pure });
+    if (pure?.kind === 'static' || (pure?.kind === 'global' && POSSIBLE_GLOBAL_OBJECTS.has(name))) {
+      candidates.push({ ctorName: name, staticPure: pure });
+    }
   }
   if (!candidates.length) return meta.guardOnly ? { bail: true } : null;
-  const [{ staticPure }] = candidates;
   // the callee slot may hold a this-PRESERVING wrapper over the member (`(M.groupBy as any)(...)`,
   // `(M.groupBy)(...)` - oxc keeps the paren node, babel only marks `extra.parenthesized`): peel
   // parens / TS / chain so the raw branch still binds `this`. sequences are NOT peeled - a
@@ -1184,19 +1282,36 @@ export function planGuardedStaticNarrow({ memberNode, parent, meta, path, resolv
   // let the positional escape census answer for `M.groupBy` - the STATIC's value, not the ctor's -
   // and widened the comparator to the namespace entry beside the `*/constructor` the write already
   // holds. the comparator's value is never handed out, so no escape can oblige it to carry statics
-  const branches = candidates.map(candidate => {
+  const branches = candidates.flatMap(candidate => {
     const pure = resolvePure({ kind: 'global', name: candidate.ctorName }, null);
-    return { ...candidate, ctorPure: pure && pure.kind !== 'instance' ? pure : null };
+    const ctorPure = pure && pure.kind !== 'instance' ? pure : null;
+    // A native constructor has no imported comparator. Under a local shadow its raw name means
+    // the user's value, so compare through the realm entry instead; without that entry no safe
+    // comparator can be emitted at this site.
+    const shadowed = !ctorPure && adapter?.hasBinding?.(path?.scope, candidate.ctorName, path);
+    const ctorRealmPure = shadowed ? resolvePure({ kind: 'global', name: 'globalThis' }, null) : null;
+    if (shadowed && (!ctorRealmPure || ctorRealmPure.kind === 'instance')) return [];
+    return [{ ...candidate, ctorPure, ctorRealmPure }];
   });
+  if (!branches.length) return meta.guardOnly ? { bail: true } : null;
   const [primary] = branches;
+  const instanceFallback = resolvePure({ kind: 'property', key: meta.key, placement: 'prototype' }, path);
+  const callInBranches = Boolean(captureReceiver && isCallee && parent.type === 'CallExpression'
+    && instanceFallback?.kind !== 'instance');
+  // Captured calls must preserve argument evaluation before a non-callable method throws.
+  // Only the ordinary static call has that render; other invocation shapes stay raw.
+  if (captureReceiver && isCallee && !callInBranches) return instanceFallback?.kind === 'instance' ? null : { bail: true };
   return {
+    callInBranches,
     recvIdent,
-    seqPrefix,
-    staticPure,
+    captureReceiver,
+    seqPrefix: captureReceiver ? [] : seqPrefix,
+    staticPure: primary.staticPure,
     isCallee,
     branches,
     ctorPure: primary.ctorPure,
     ctorName: primary.ctorName,
+    instanceFallback,
   };
 }
 
@@ -1360,7 +1475,7 @@ export function handleMemberExpressionNode({
     if (sideEffects.length) meta.sideEffects = sideEffects;
     return meta;
   }
-  const meta = buildMemberMeta({ node, scope, adapter, path, resolveStaticKey });
+  const meta = buildMemberMeta({ node, scope, adapter, path, resolveStaticKey, resolvePure });
   // a static the user monkey-patches in this file is NOT a polyfillable static: binding the
   // read to the frozen receiver-less import would bypass the patch, and bailing whole leaves
   // code referencing a possibly-missing global. return no meta and leave the receiver
@@ -1433,15 +1548,15 @@ export function handleMemberExpressionNode({
       // own write enumeration can - and the guard tests identity, so a name that never matches at
       // runtime costs nothing
       const guardedBinding = adapter.getBinding(scope, recvIdent.name, path);
-      const writeObjects = aliasWriteCtorNames({ name: recvIdent.name, scope, adapter, path });
+      const writeObjects = aliasWriteCtorNames({ name: recvIdent.name, scope, adapter, path, binding: guardedBinding });
       // ... and when NOTHING registered an alias at all (`let M; if (c) M = globalThis.Map` -
       // the write's RHS resolves on its own, so the member channel swaps it and the registry
       // never sees the binding), the enumeration IS the hint: without it the read went out raw
       // off a binding already swapped to the pure ctor, answering `undefined` where native has
       // the static - the miss usage-pure may never ship. NOT inside a guard this plugin already
       // emitted, where the same read is the raw branch and a second pass would guard it twice
-      const guardedHint = guardedBinding?.guardedAliasHint
-              ?? (insideEmittedCtorGuardBranch(path, adapter) ? null : writeObjects[0] ?? null);
+      const guardedHint = writeObjects.includes(guardedBinding?.guardedAliasHint) ? guardedBinding.guardedAliasHint
+        : insideEmittedCtorGuardBranch(path, adapter) ? null : writeObjects[0] ?? null;
       // a SIDE-EFFECTING computed KEY stays raw: the guard's consequent replaces the whole member
       // and would skip the key's effect on the taken path (native always evaluates it). a RECEIVER
       // effect is not that - it runs once ahead of the test, where the source runs it, so the count
@@ -1455,13 +1570,13 @@ export function handleMemberExpressionNode({
         });
         if (key && meta) {
           Object.assign(meta, {
-            guardedAliasHint: guardedHint, guardedAliasHints: guardedBinding?.guardedAliasHints ?? null,
+            guardedAliasHint: guardedHint,
             guardedWriteObjects: writeObjects,
           });
         } else if (key) {
           return {
             kind: 'property', object: null, key, placement: 'static', guardedAliasHint: guardedHint,
-            guardedAliasHints: guardedBinding?.guardedAliasHints ?? null, guardedWriteObjects: writeObjects,
+            guardedWriteObjects: writeObjects,
             guardOnly: true,
           };
         }
@@ -1580,11 +1695,6 @@ export function tagSymbolSourcedMeta({ meta, keyNode, computed, scope, adapter, 
 export function isSourcedSymbolIteratorMeta(meta) {
   return !!meta.symbolSourced && meta.key === 'Symbol.iterator';
 }
-
-// its pure resolution lives beside the built-in name catalogue (`SYMBOL_ITERATOR_PURE_RESULT`,
-// single-sourced with the emit-canon helper-entry set); re-exported here for the emitters'
-// existing import surface
-export { HELPER_CANON_ENTRIES, SYMBOL_ITERATOR_PURE_RESULT, symbolStaticMeta } from './globals.js';
 
 // a computed destructure-prop key "hosts machinery" when the rewrite pipeline has work bound
 // to it: a real well-known-symbol reference (iterator-method / catch-passthrough handling) or a
@@ -2052,4 +2162,3 @@ function markHandledObjects({ node, handledObjects, suppressProxyGlobals, scope,
     }
   }
 }
-

@@ -6,6 +6,6 @@ import _self from "@core-js/pure/actual/self";
 let out, statics, instance, hop;
 statics = delete (null == (() => _globalThis)().window ? void 0 : _self)?.Number.MAX_SAFE_INTEGER;
 instance = delete (null == (() => _globalThis)().window ? void 0 : _self)?.Array.prototype.at;
-hop = delete (null == (() => _globalThis)().window ? void 0 : _self)?.noSuchStatic;
+hop = delete (null == (() => _globalThis)().window ? void 0 : _self.window)?.noSuchStatic;
 out = [statics, instance, hop];
 export const read = out;

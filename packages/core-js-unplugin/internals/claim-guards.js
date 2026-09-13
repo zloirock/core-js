@@ -6,8 +6,6 @@ import {
   deleteHostAboveCarriedChain,
   descendToChainRoot,
   inlineCallProxyGlobalRoot,
-  navHasUnresolvableProxyHop,
-  peelChainAssignmentDeep,
   planProvenNavGuardCollapse,
   proxyGlobalRootName,
   proxyReceiverValueCanBeUndefined,
@@ -31,6 +29,7 @@ import {
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   TS_EXPR_WRAPPERS,
   unwrapRuntimeExpr,
+  peelChainAssignmentDeep,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   chainExpression,
@@ -42,8 +41,9 @@ import {
   nullFirstGuardTest,
   renderShortCircuitGuard,
   renderAliasHeldProbeRead,
-} from './builders.js';
-import { memberFromKeyName, receiverCarriesOptional, replaceNodeInTree, withSideEffects } from './emit-shared.js';
+  memberFromKeyName,
+} from '@core-js/polyfill-provider/render';
+import { receiverCarriesOptional, replaceNodeInTree, withSideEffects } from './emit-shared.js';
 import {
   markSubtreeSkipped,
   navComputedKeyEffects,
@@ -110,7 +110,7 @@ function parenSealedCalleeTail(hopPath) {
 
 // the guard climb: how far above the replaced hop the alternate reaches, and which TS wrappers
 // it swallowed on the way. extracted from `replaceGuardedHop` for its size
-function climbAbsorbedTail(hopPath, { alwaysDefined, navAlternate, unbackedHopKey = null }) {
+function climbAbsorbedTail(hopPath, { alwaysDefined, navAlternate, unbackedHopKey = null, preserveOptionalHops }) {
   const absorbedWrappers = [];
   // the realm hops the alternate reads THROUGH: over an always-defined ponyfill each of them names
   // that same ponyfill (the plan folds them for the same reason), so the alternate drops them
@@ -159,6 +159,7 @@ function climbAbsorbedTail(hopPath, { alwaysDefined, navAlternate, unbackedHopKe
     // MEMBER absorbs with its `?.` ERASED (the vestigial rule), and an optional CALL of
     // an already-absorbed callee cannot split from it - it rides the alternate with its
     // `?.` kept (`.reduce?.(...)` inside the branch)
+    const sourceOptional = !!upNode.optional;
     if (upNode.optional) {
       // an optional MEMBER continuation rides the alternate whatever its base: only its
       // `?.` depends on the base, and the always-defined leaf erases it (the vestigial
@@ -188,11 +189,27 @@ function climbAbsorbedTail(hopPath, { alwaysDefined, navAlternate, unbackedHopKe
     }
     let folded = false;
     if (memberCont && unbackedHopKey?.(upNode)) {
-      // a FOLDED hop leaves the alternate on the ponyfill it started from, so what reads next still
+      let consumerSlot = up;
+      let consumerPath = up.parentPath;
+      while (consumerPath?.node && CHAIN_HOP_WRAPPER_TYPES.has(consumerPath.node.type)
+        && consumerPath.node.expression === consumerSlot.node) {
+        consumerSlot = consumerPath;
+        consumerPath = consumerPath.parentPath;
+      }
+      const consumer = consumerPath?.node;
+      const consumerMember = consumer?.type === 'MemberExpression' && consumer.object === consumerSlot.node;
+      const consumerKey = consumerMember ? memberKeyName(consumer) : null;
+      const sourceReadContinues = preserveOptionalHops && !sourceOptional
+        && ((consumerMember && (consumer.optional || !POSSIBLE_GLOBAL_OBJECTS.has(consumerKey)))
+          || (consumer?.type === 'CallExpression' && consumer.callee === consumerSlot.node)
+          || (consumer?.type === 'AssignmentExpression' && consumer.right === consumerSlot.node));
+      // Keep the property read whose original optional operator was just erased above.
+      // A folded hop leaves the alternate on the ponyfill it started from, so what reads next still
       // reads an always-defined value - and its own `?.` folds with it, since the only realm where
       // that short-circuit fires is the one the collapse already answers for. a COMPUTED key stays:
       // folding it would fold its key effect away with it
-      if (!upNode.computed && (alwaysDefined || navAlternate)) {
+      if (!sourceReadContinues && (!sourceOptional || !preserveOptionalHops)
+        && !upNode.computed && (alwaysDefined || navAlternate)) {
         foldedHops.push(upNode);
         folded = true;
         // the `?.` goes with the hop, so the erase it just spent is RETURNED: the step above is
@@ -263,6 +280,7 @@ export function replaceGuardedHop({
   resolvedType = null,
   alwaysDefined = false,
   navAlternate = false,
+  preserveOptionalHops = false,
   leafKeySe = null,
   prefixSe = null,
   resolveHere = null,
@@ -294,7 +312,9 @@ export function replaceGuardedHop({
   const deleteHostTail = deleteHostAboveChain(hopPath, hopPath.node, unwrapRuntimeExpr)
     || deleteHostAboveCarriedChain(hopPath);
   const climbed = test && !sealedTail && !deleteHostTail
-          ? climbAbsorbedTail(hopPath, { alwaysDefined, navAlternate, unbackedHopKey: hopIsUnbacked }) : null;
+          ? climbAbsorbedTail(hopPath, {
+            alwaysDefined, navAlternate, unbackedHopKey: hopIsUnbacked, preserveOptionalHops,
+          }) : null;
   const absorbedWrappers = climbed?.absorbedWrappers ?? [];
   const foldedHops = climbed?.foldedHops ?? [];
   if (sealedTail) sealedTail.optional = true;
@@ -550,17 +570,6 @@ export function guardProbeUndefinable(probe, {
     storeObserved = true;
     probeValue = unwrapRuntimeExpr(dechained);
   }
-  // a CHAIN-ASSIGN probe keeps its own locked rule, the one the detection's source count asks:
-  // the captured value's undefinedness is HOP-based, because the write observes the raw read
-  // (`(m = globalThis.window.self)?.x` guards - `.self` off an absent `window` never lands).
-  // the value question below answers on the LEAF hop alone and would call it always-defined.
-  // the rule speaks for a nav spelled INSIDE the store, whose raw read the guard test re-emits;
-  // through an ALIAS binding there is no such read left to observe - the declaration folded it
-  // onto the ponyfill, so the store hands on an always-defined value and the value canon below
-  // owns that verdict like any other alias
-  if (storeObserved
-    && navHasUnresolvableProxyHop(probeValue, m => resolvePure(m, metaPath),
-      { scope: metaPath.scope, adapter, path: metaPath })) return true;
   // a bare ALIAS answers through the value canon like every other probe: an alias of an
   // entry-backed surface (`const g = globalThis`) holds the realm object and proves defined
   // there, an alias of a probe read (`const w = globalThis.window`) or of a rendered guard
