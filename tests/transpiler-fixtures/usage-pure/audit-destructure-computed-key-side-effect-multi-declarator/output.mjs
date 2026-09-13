@@ -1,12 +1,10 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
-var _ref;
-// a side-effecting computed key sharing its VariableDeclaration with another declarator. the polyfill is
-// extracted to a preceding `const`; the key stays in the residual declarator with its value renamed.
-// effect runs once, polyfill ALWAYS wins. regression: the old inline default read the native instead
-const first = 1;
-const from = _Array$from;
-const {
-  [(effectful(), 'from')]: _unused
-} = Array;
-const probe = _includesMaybeArray(_ref = [1, 2]).call(_ref, 2);
+var _ref2;
+// A computed static key shares its declaration with an earlier declarator. The receiver capture,
+// key effect and pure static binding remain in that declarator slot, before the following
+// statement.
+const first = 1,
+  _ref = Array,
+  from = null == _ref ? _ref[""] : (effectful(), _Array$from);
+const probe = _includesMaybeArray(_ref2 = [1, 2]).call(_ref2, 2);

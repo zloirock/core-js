@@ -7,6 +7,7 @@ import { buildNestedDestructurePlan, planCatchClauseExtraction } from '../../pac
 import { sentinelAlreadyProcessed } from '../../packages/core-js-polyfill-provider/detect-usage/own-output.js';
 import { HOST_SLOT, hostSlot, renderProxyReceiverPlan } from '../../packages/core-js-polyfill-provider/render.js';
 import { buildOffsetToLine } from '../../packages/core-js-polyfill-provider/helpers/source-scan.js';
+import { walkAstNodes } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createChecker } from './harness.mjs';
 
 const { check, checkTruthy, finish, runBoth } = createChecker('destructure-collapse');
@@ -137,6 +138,36 @@ runBoth('memo/sequence prefix is peeled off the tail', 'var q = (c++, globalThis
 });
 
 // --- planCatchClauseExtraction: whether the catch param has to become a `_ref` ---
+
+for (const [receiver, expected, flat = false, leaf = 'is'] of [
+  ['(() => { log(); return Object; })()', true],
+  ['((label, value) => { log(label); return value; })(1, Object)', true],
+  ['((label, value) => { value = {}; return value; })(1, Object)', false],
+  ['Object', false],
+  ['Object', false, false, '[(effect(), "is")]: is'],
+  ['unknown()', false],
+  ['({ is: custom })', false],
+  ['Object, { is: custom }', false, true],
+  ['{ is: custom }, Object', false, true],
+]) runBoth(`loop capture/a static-only nested claim from ${ receiver }`,
+  flat ? `for (const { is } of [${ receiver }]) use(is);`
+    : `for (const { w: { ${ leaf } } } of [{ w: ${ receiver } }, { w: ${ receiver } }]) use(is);`,
+  (adapter, prog, lbl) => {
+    const loop = adapter.pickPath(prog, 'ForOfStatement');
+    const plan = planCatchClauseExtraction({
+      paramNode: loop.node.left.declarations[0].id, bodyNode: loop.node.body,
+      scope: loop.scope, path: loop, iterableNode: loop.node.right, mirrorHosts: true,
+      adapter: {
+        method: 'usage-pure',
+        isStringLiteral: () => false, getStringValue: node => node.value,
+        hasBinding: (scope, name) => !!scope.getBinding(name), getBinding: (scope, name) => scope.getBinding(name),
+      },
+      resolvePure: meta => meta?.object === 'Object' && meta.key === 'is'
+        ? { entry: 'actual/object/is', hintName: 'Object$is', kind: 'static' } : null,
+      walkNode: (root, visit) => walkAstNodes({ root, visit }),
+    });
+    check(lbl, !!plan, expected);
+  });
 
 function catchResolvePure(meta) {
   return meta.kind === 'property' && meta.key === 'at'

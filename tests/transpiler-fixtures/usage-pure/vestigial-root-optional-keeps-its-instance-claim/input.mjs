@@ -1,6 +1,7 @@
 // A VESTIGIAL `?.` over an unbacked realm run, read by a non-call INSTANCE claim: the hop erases and
 // the claim still dispatches. Routed off the un-erased spelling the read stood down, and nothing
 // re-drives it - the root-claim fold of an unbacked run replaces below the read, never over it.
+// The helper reads its receiver once, so neither effect-bearing root needs a receiver memo.
 // NEGATIVES: the same run with no effect in the root, and a BACKED hop, which the hop claim collapses.
 // `usage-global` rewrites no source here, so it has no twin to hold: its import set is the same
 // either way and a row there would be green whichever way the read routes.

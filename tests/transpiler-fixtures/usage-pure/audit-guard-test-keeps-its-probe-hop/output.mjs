@@ -10,7 +10,7 @@ export const storedProbeHop = null == (w = _self.window?.Array) ? void 0 : _Arra
 // a value that cannot be absent
 export const storedNestedOptional = null == (n = _self.window?.Array) ? void 0 : _Array$from([1]);
 
-// NEGATIVE: with no `?.` inside the stored value there is no branch to reproduce - the read through
-// the store proves the value and the probe folds, the locked store canon
-export const storedPlainRun = null == (s = _self) ? void 0 : _Array$from([1]);
+// A `?.` above the store tests the same probe even with no optional inside its value.
+// Backing `self` changes the base, not the terminal environment value stored in `s`.
+export const storedPlainRun = null == (s = _self.window) ? void 0 : _Array$from([1]);
 export { w, n, s };

@@ -14,11 +14,55 @@ import {
   renderNavCollapseLeaf,
   renderNavCollapseTail,
   renderNavGuardTestBase,
+  renderKeptSequenceTail,
   renderShortCircuitGuard,
 } from '../../packages/core-js-polyfill-provider/render.js';
+import { planSynthReceiverGuard } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
+import { planGuardedStaticNarrow, planProxyReceiver } from '../../packages/core-js-polyfill-provider/detect-usage/members.js';
+import { inlineCallReturnExpression, navRootPrefixNodes, planKeptSequenceTail } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
+import { walkAstNodes, unwrapRuntimeExpr, wrapScopeBindingLookup, peelParenAndTSSlotPath } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createChecker } from './harness.mjs';
 
-const { check, checkTruthy, finish } = createChecker('guard-canon');
+const { check, checkTruthy, finish, runBoth } = createChecker('guard-canon');
+
+for (const source of [
+  'const value = (first(), (second(), globalThis));',
+  'const value = (first(), ((second(), (third(), globalThis))));',
+]) runBoth(`navigation prefix/${ source }`, source, (adapter, program, label) => {
+  const root = unwrapRuntimeExpr(adapter.pickPath(program, 'VariableDeclarator').node.init);
+  const prefixes = navRootPrefixNodes({ seqRoot: true, rootValueNode: root }, node => node.callee.name);
+  check(`${ label }/source order`, prefixes.join(','), source.includes('third') ? 'first,second,third' : 'first,second');
+});
+
+// A generated single-element sequence must not hide a deeper prefix.
+const nestedPrefix = identifier('prefix');
+const nestedSequence = { type: 'SequenceExpression', expressions: [
+  { type: 'SequenceExpression', expressions: [nestedPrefix, identifier('receiver')] },
+] };
+check('navigation prefix/single-element intermediate sequence',
+  navRootPrefixNodes({ seqRoot: true, rootValueNode: nestedSequence }, node => node)[0], nestedPrefix);
+
+for (const [source, expected] of [
+  ['const value = (d++, (c++, globalThis.window.self));', 'guard'],
+  ['const value = (d++, (c++, globalThis.self));', 'value'],
+  ['const value = (d++, (c++, window.self));', 'value'],
+  ['const value = (d++, (c++, globalThis.self.window));', null],
+  ['const value = (d++, (c++, globalThis.custom.self));', null],
+  ['function read(globalThis) { const value = (d++, (c++, globalThis.window.self)); }', null],
+]) runBoth(`kept sequence tail/${ source }`, source, (adapter, program, label) => {
+  const path = adapter.pickPath(program, 'VariableDeclarator');
+  const node = unwrapRuntimeExpr(path.node.init);
+  const bindingAdapter = { ...adapter, getBinding: wrapScopeBindingLookup((scope, name) => scope.getBinding(name)) };
+  const plan = planKeptSequenceTail(node, {
+    adapter: bindingAdapter, aliasCtx: { scope: path.scope, adapter: bindingAdapter, path },
+    resolveGlobalPolyfill: name => name === 'window' ? null : { entry: name, hintName: name },
+  });
+  check(`${ label }/decision`, plan ? plan.probe ? 'guard' : 'value' : null, expected);
+  if (!plan) return;
+  const rendered = renderKeptSequenceTail(plan, { injectImport });
+  check(`${ label }/render`, rendered.type, expected === 'guard' ? 'ConditionalExpression' : 'Identifier');
+  check(`${ label }/source slot is retained until insertion`, plan.holder[plan.key].type, 'MemberExpression');
+});
 
 function identifier(name) {
   return { type: 'Identifier', name };
@@ -118,6 +162,137 @@ check('narrow/nameless ctor reads its own binding', narrow().alternate.test.righ
 check('narrow/no branches keeps the raw read',
   renderCtorIdentityNarrow({ branches: [] }, identifier('raw'), { injectImport, spellRecv: () => identifier('M') }).name,
   'raw');
+
+const capturedNarrow = renderCtorIdentityNarrow(NARROW_PLAN, identifier('raw'), {
+  injectImport, spellRecv: () => identifier('M'), captureReceiver: identifier('source'),
+});
+check('narrow/captures before testing identity', capturedNarrow.expressions[0].type, 'AssignmentExpression');
+check('narrow/captures the source once', capturedNarrow.expressions[0].right.name, 'source');
+check('narrow/tests the captured value', capturedNarrow.expressions[1].test.left.name, 'M');
+
+for (const isCallee of [false, true]) {
+  const result = renderCtorIdentityNarrow({
+    ...NARROW_PLAN, isCallee,
+    instanceFallback: { kind: 'instance', entry: 'actual/instance/entries', hintName: 'entries' },
+  }, identifier('raw'), { injectImport, spellRecv: () => identifier('M') });
+  const fallback = result.alternate.alternate;
+  const read = isCallee ? fallback.callee.object : fallback;
+  check(`narrow/instance fallback ${ isCallee }/dispatcher`, read.callee.name, '_entries');
+  check(`narrow/instance fallback ${ isCallee }/receiver`, read.arguments[0].name, 'M');
+  if (isCallee) check('narrow/instance call fallback retains this', fallback.arguments[0].name, 'M');
+}
+
+runBoth('guarded static keeps the instance fallback', 'receiver.entries;', (adapter, program, label) => {
+  const path = adapter.pickPath(program, 'MemberExpression');
+  const plan = planGuardedStaticNarrow({
+    memberNode: path.node, parent: path.parentPath.node, path,
+    meta: { key: 'entries', guardedAliasHint: 'Object' },
+    resolvePure: meta => meta.placement === 'prototype'
+      ? { kind: 'instance', entry: 'actual/instance/entries', hintName: 'entries' }
+      : meta.kind === 'property' ? { kind: 'static', entry: 'actual/object/entries', hintName: 'Object$entries' } : null,
+  });
+  check(`${ label }/unknown receiver retains dispatch`, plan.instanceFallback.kind, 'instance');
+});
+
+runBoth('captured static with instance fallback keeps ordinary dispatch', 'held.Object.entries(effect());', (adapter, program, label) => {
+  const path = adapter.pickPath(program, 'MemberExpression', candidate => candidate.node.property?.name === 'entries');
+  const plan = planGuardedStaticNarrow({
+    memberNode: path.node, parent: path.parentPath.node, path,
+    meta: { key: 'entries', guardedAliasHint: 'Object', captureGuardReceiver: true },
+    resolvePure: meta => meta.placement === 'prototype'
+      ? { kind: 'instance', entry: 'actual/instance/entries', hintName: 'entries' }
+      : meta.placement === 'static' ? { kind: 'static', entry: 'actual/object/entries', hintName: 'Object$entries' } : null,
+  });
+  check(`${ label }/ordinary dispatcher remains available`, plan, null);
+});
+
+for (const [source, expected] of [
+  ['held.Array.of;', 'read'],
+  ['held.Array.of(effect());', 'call'],
+  ['(held.Array.of)(effect());', 'call'],
+  ['held.Array.of?.(effect());', 'bail'],
+  ['held.Array.of`value`;', 'bail'],
+]) runBoth(`captured static invocation/${ source }`, source, (adapter, program, label) => {
+  const path = adapter.pickPath(program, 'MemberExpression', candidate => candidate.node.property?.name === 'of');
+  const parent = peelParenAndTSSlotPath(path).parentPath;
+  const plan = planGuardedStaticNarrow({
+    memberNode: path.node, parent: parent.node, path,
+    meta: { key: 'of', guardedAliasHint: 'Array', captureGuardReceiver: true },
+    resolvePure: meta => meta.placement === 'static'
+      ? { kind: 'static', entry: 'actual/array/of', hintName: 'Array$of' } : null,
+  });
+  check(`${ label }/route`, plan.bail ? 'bail' : plan.callInBranches ? 'call' : 'read', expected);
+  if (!plan.callInBranches) return;
+  const rendered = renderCtorIdentityNarrow(plan, {
+    type: 'MemberExpression', object: identifier('ref'), property: identifier('of'), computed: false,
+  }, {
+    injectImport, spellRecv: () => identifier('ref'),
+    invoke: callee => ({ type: 'CallExpression', callee, arguments: [identifier('argument')] }),
+  });
+  check(`${ label }/pure call`, rendered.consequent.type, 'CallExpression');
+  check(`${ label }/raw call keeps member receiver`, rendered.alternate.callee.object.name, 'ref');
+  check(`${ label }/pure argument`, rendered.consequent.arguments[0].name, 'argument');
+  check(`${ label }/raw argument`, rendered.alternate.arguments[0].name, 'argument');
+});
+
+for (const [source, expected] of [
+  ['((value, key) => (value[key] = 1, value))(source, key);', 'source'],
+  ['((value, key) => (key = other, value))(source, key);', 'source'],
+  ['((value, key) => (value = other, value))(source, key);', null],
+  ['((value, key) => key)(source, key);', 'key'],
+  ['((value, key) => (key = other, key))(source, key);', null],
+  ['((value, key) => { function mutate() { key = other; } mutate(); return key; })(source, key);', null],
+  ['((value, key = fallback()) => value)(source, key);', null],
+  ['(async (value, key) => value)(source, key);', null],
+]) runBoth(`guarded returned container/${ source }`, source, (adapter, program, label) => {
+  const path = adapter.pickPath(program, 'CallExpression', candidate => candidate.node.arguments[0]?.name === 'source');
+  const callHop = { node: path.node, ctx: { adapter, scope: path.scope, path }, seen: new Set() };
+  check(`${ label }/ordinary fold stays refused`, inlineCallReturnExpression(callHop), null);
+  check(`${ label }/guard candidate`, inlineCallReturnExpression(callHop, { allowExtraParams: true })?.node?.name ?? null, expected);
+});
+
+for (const [source, expected] of [
+  ['source.w.WeakSet;', 'capture'],
+  ['(effect(), source.w).WeakSet;', 'capture'],
+  ['source?.w.WeakSet;', 'bail'],
+  ['source.w?.WeakSet;', 'bail'],
+]) runBoth(`guarded member capture/${ source }`, source, (adapter, program, label) => {
+  const path = adapter.pickPath(program, adapter.name === 'babel' && source.includes('?.')
+    ? 'OptionalMemberExpression' : 'MemberExpression', candidate => candidate.node.property?.name === 'WeakSet');
+  const plan = planGuardedStaticNarrow({
+    memberNode: path.node, parent: path.parentPath?.node, path,
+    meta: { key: 'WeakSet', guardedAliasHint: 'globalThis', captureGuardReceiver: true, guardOnly: true },
+    resolvePure: meta => meta.kind === 'global'
+      ? { kind: 'global', entry: 'actual/global-this', hintName: 'globalThis' }
+      : { kind: 'global', entry: 'actual/weak-set/constructor', hintName: 'WeakSet' },
+  });
+  check(`${ label }/route`, plan?.bail ? 'bail' : plan?.captureReceiver ? 'capture' : 'none', expected);
+});
+
+for (const [source, expected] of [
+  ['ref == null || (ref = ref.self) == null ? undefined : ref.window;', true],
+  ['ref != null && (ref = ref.self) != null ? ref.window : undefined;', true],
+  ['ref == null ? undefined : ref.self;', false],
+  ['ref.self;', false],
+]) runBoth(`lowered guard keeps environment probe/${ source }`, source, (adapter, program, label) => {
+  const path = adapter.pickPath(program, 'MemberExpression', candidate => candidate.node.property?.name === 'self');
+  const plan = planGuardedStaticNarrow({
+    memberNode: path.node, parent: path.parentPath?.node, path,
+    meta: { key: 'self', guardedAliasHint: 'globalThis' },
+    resolvePure: () => ({ kind: 'global', entry: 'actual/global-this', hintName: 'globalThis' }),
+  });
+  check(`${ label }/preserves the probe`, Boolean(plan?.bail), expected);
+});
+
+runBoth('guarded candidate keeps instance dispatch', 'source.w.at;', (adapter, program, label) => {
+  const path = adapter.pickPath(program, 'MemberExpression', candidate => candidate.node.property?.name === 'at');
+  const plan = planGuardedStaticNarrow({
+    memberNode: path.node, parent: path.parentPath?.node, path,
+    meta: { key: 'at', guardedAliasHint: 'globalThis', captureGuardReceiver: true },
+    resolvePure: () => ({ kind: 'instance', entry: 'actual/instance/at', hintName: 'at' }),
+  });
+  check(`${ label }/ordinary dispatcher remains available`, plan, null);
+});
 
 // --- the nav-guard test a resolvable base supplies ---
 
@@ -253,6 +428,15 @@ check('leaf/cloneHost lifts every effect node',
   renderNavCollapseLeaf(navPlan([hop('self')], 0, [identifier('eff')]), identifier('_self'),
     { cloneHost: hostSlot }).expressions[0].type, HOST_SLOT);
 
+check('leaf/root effects precede folded key effects in one sequence',
+  (() => {
+    const prefix = hostSlot(identifier('rootArgument'));
+    const rendered = renderNavCollapseLeaf(navPlan([hop('self')], 0, [identifier('keyEffect')]),
+      identifier('_self'), { cloneHost: hostSlot, prefix: [prefix] });
+    return [rendered.expressions[0] === prefix, rendered.expressions[1].node.name,
+      rendered.expressions[2].name].join(':');
+  })(), 'true:keyEffect:_self');
+
 check('tail/nothing above the collapse hangs nothing',
   renderNavCollapseTail(navPlan([hop('self')], 0), identifier('_self')).name, '_self');
 
@@ -287,5 +471,80 @@ check('tail/hops hang in plan order',
     const tail = renderNavCollapseTail(navPlan([hop('self'), hop('window'), hop('top')], 0), identifier('_self'));
     return `${ tail.property.name }/${ tail.object.property.name }/${ tail.object.object.name }`;
   })(), 'top/window/_self');
+
+// The synth guard partitions by tree position, including when a host removes source spans.
+for (const spanless of [false, true]) {
+  runBoth(`synth/kept probe partitions effects${ spanless ? ' without spans' : '' }`,
+    "let held; let before = 0; let after = 0; (before++, held = globalThis.window)?.[(after++, 'self')].Array ?? {};",
+    (adapter, program, label) => {
+      const receiverPath = adapter.pickPath(program, 'LogicalExpression');
+      if (spanless) walkAstNodes(program.node, node => {
+        delete node.start;
+        delete node.end;
+      });
+      const plan = planSynthReceiverGuard({
+        receiver: receiverPath.node, scope: receiverPath.scope, path: receiverPath,
+        adapter: { ...adapter, hasBinding: (scope, name) => !!scope.getBinding(name) },
+        resolvePure: ({ name }) => name === 'window' ? null : { entry: name },
+      });
+      check(`${ label }/probe`, plan?.probe.type, 'AssignmentExpression');
+      check(`${ label }/write`, plan?.probe.left.name, 'held');
+      check(`${ label }/ahead`, plan?.ahead.map(node => node.argument?.name).join(','), 'before');
+      check(`${ label }/after`, plan?.after.map(node => node.argument?.name).join(','), 'after');
+      check(`${ label }/fallback`, plan?.fallback, receiverPath.node);
+    });
+}
+for (const source of ['globalThis.self.Array ?? {};', '(globalThis.window?.self).Array ?? {};']) {
+  runBoth('synth/dead and sealed guards stay with their own channels', source, (adapter, program, label) => {
+    const receiverPath = adapter.pickPath(program, 'LogicalExpression');
+    check(label, planSynthReceiverGuard({
+      receiver: receiverPath.node, scope: receiverPath.scope, path: receiverPath,
+      adapter: { ...adapter, hasBinding: (scope, name) => !!scope.getBinding(name) },
+      resolvePure: ({ name }) => name === 'window' ? null : { entry: name },
+    }), null);
+  });
+}
+
+// The caller-correct exception follows the receiver's slot, even when a binding supplies
+// the pattern property's path. A function called from a default has its own execution boundary.
+for (const [source, guarded] of [
+  ['function f({ of } = globalThis.window?.self.Array) {}', false],
+  ['function f({ of } = (0, globalThis.window?.self.Array)) {}', false],
+  ['function f({ x: { of } = globalThis.window?.self.Array } = {}) {}', false],
+  ['function f({ of } = (() => globalThis.window?.self.Array)()) {}', true],
+  ['(({ of } = {}) => of)(globalThis.window?.self.Array);', true],
+  ['function f(C = class { value = (({ of }) => of)(globalThis.window?.self.Array); }) {}', true],
+  ['function f(C = class { static value = (({ of }) => of)(globalThis.window?.self.Array); }) {}', false],
+  ['function f(C = class { [(({ of }) => of)(globalThis.window?.self.Array)]; }) {}', false],
+]) runBoth('synth/caller-correct default boundary', source, (adapter, program, label) => {
+  const receiverPath = adapter.pickPath(program, 'Identifier', path => path.node.name === 'Array').parentPath;
+  const patternPath = adapter.pickPath(program, 'ObjectPattern');
+  const propertyPath = { node: patternPath.node.properties[0], parentPath: patternPath };
+  for (const path of [receiverPath, propertyPath]) check(`${ label }/${ path === receiverPath ? 'receiver' : 'pattern' }`,
+    !!planSynthReceiverGuard({
+      receiver: receiverPath.node, scope: receiverPath.scope, path,
+      adapter: { ...adapter, hasBinding: (scope, name) => !!scope.getBinding(name) },
+      resolvePure: ({ name }) => name === 'window' ? null : { entry: name },
+    }), guarded);
+});
+
+for (const [source, collapsible] of [
+  ['globalThis.window?.self.Object;', true],
+  ['globalThis.window?.self.window?.Object;', false],
+]) runBoth('synth/established probe is exact and does not prove a second probe', source, (adapter, program, label) => {
+  const receiverPath = adapter.pickPath(program, 'ExpressionStatement').get('expression');
+  const receiver = unwrapRuntimeExpr(receiverPath.node);
+  const aliasCtx = { scope: receiverPath.scope, path: receiverPath,
+    adapter: { ...adapter, hasBinding: (scope, name) => !!scope.getBinding(name) } };
+  function resolvePure({ name }) {
+    return ['globalThis', 'self'].includes(name) ? { entry: name } : null;
+  }
+  const guard = planSynthReceiverGuard({ receiver, ...aliasCtx, resolvePure });
+  check(`${ label }/without proof`, planProxyReceiver(receiver, { aliasCtx, resolvePure }), null);
+  check(`${ label }/copied probe is not proof`, planProxyReceiver(receiver,
+    { aliasCtx, resolvePure, guardedProbe: { ...guard.probe } }), null);
+  check(`${ label }/exact proof`, !!planProxyReceiver(receiver,
+    { aliasCtx, resolvePure, guardedProbe: guard.probe }), collapsible);
+});
 
 finish();

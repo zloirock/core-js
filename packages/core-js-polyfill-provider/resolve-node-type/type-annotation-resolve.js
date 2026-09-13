@@ -34,12 +34,17 @@ import {
   literalTypeValueNode,
   markMappedReadonly,
   markReadonlyCollection,
-  peelTSParenthesized,
   topKeywordAnnotationKind,
   typeRefSegments,
   withMemberModifiers,
 } from './ast-shapes.js';
-import { getTypeArgs, propertyKeyName, singleQuasiString, withTypeArgParams } from '../helpers/ast-patterns.js';
+import {
+  getTypeArgs,
+  propertyKeyName,
+  singleQuasiString,
+  withTypeArgParams,
+  peelTSParenthesized,
+} from '../helpers/ast-patterns.js';
 
 const { hasOwn } = Object;
 
@@ -141,6 +146,7 @@ export function createTypeAnnotationResolve({
   elementContainerType,
   flattenUnionBranches,
   getTypeMembers,
+  structuralMembers,
   pickConditionalBranchVia,
   isUnconstrainedTypeShape,
 }) {
@@ -229,7 +235,7 @@ export function createTypeAnnotationResolve({
     return result;
   }
 
-  function resolveKnownContainerType({ name, base, node, innerResolver }) {
+  function resolveKnownContainerType({ name, base, node, innerResolver, scope, typeParamMap }) {
     if (!base) return null;
     // capital `Object` accepts primitives in assignability (unlike lowercase `object`); its
     // resolution stays constructor-null so member dispatch keeps the generic helpers, which leaves
@@ -244,13 +250,14 @@ export function createTypeAnnotationResolve({
     // no Type form is kept as a HOLE rather than sinking the list: the comparison answers that one
     // position undecided and the rest still decide, which is how `Map<number, { a: 1 }>` is told
     // apart from `Map<string, { b: 2 }>` on its keys alone
-    if (!firstTypeParamIsInner(name)) {
-      const params = getTypeArgs(node)?.params;
-      return params?.length ? known.withArgs(params.map(param => argumentEntry(param, innerResolver))) : known;
-    }
-    const firstArg = getTypeArgs(node)?.params?.[0];
-    if (firstArg) return elementContainerType(known, firstArg, innerResolver(firstArg));
-    return known;
+    const params = getTypeArgs(node)?.params;
+    if (!params?.length) return known;
+    const resolved = firstTypeParamIsInner(name)
+      ? elementContainerType(known, params[0], innerResolver(params[0]))
+      : known.withArgs(params.map(param => argumentEntry(param, innerResolver)));
+    // A substituted parameter's raw spelling names no concrete shape; its resolved container
+    // already carries any proof obtained where the caller wrote the argument.
+    return scope ? resolved.withArgumentMembers(params.map(param => structuralMembers(param, scope, typeParamMap))) : resolved;
   }
 
   // the ASSIGNABILITY reading of a TS-only structural container. `Iterable<T>` / `ArrayLike<T>` name
@@ -314,7 +321,7 @@ export function createTypeAnnotationResolve({
       return resolveAnnotationInContext({ node: arg, scope, depth, typeParamMap, seen });
     }
     const known = shadowedByTypeParam ? null
-      : resolveKnownContainerType({ name, base: resolveKnownConstructor(name), node, innerResolver: resolveArgInner });
+      : resolveKnownContainerType({ name, base: resolveKnownConstructor(name), node, innerResolver: resolveArgInner, scope, typeParamMap });
     if (known) return known;
     function firstArg() {
       // peeled: oxc keeps a parenthesized utility-type arg (`ReturnType<(typeof f)>`)
@@ -837,7 +844,8 @@ export function createTypeAnnotationResolve({
         // `(string | null)[]` lost what `Array<string | null>` keeps - and the picker, which reads
         // that mark to refuse a branch chosen on a survivor, decided TRUE against `string[]`
         return elementContainerType(new $Object('Array'), node.elementType,
-          resolveAnnotationInContext({ node: node.elementType, scope, depth, seen }));
+          resolveAnnotationInContext({ node: node.elementType, scope, depth, seen }))
+          .withArgumentMembers([structuralMembers(node.elementType, scope)]);
       case 'TSTupleType':
       case 'TupleTypeAnnotation':
         return tupleAsArrayType(node, e => resolveTypeAnnotation(e, scope, depth + 1, seen));

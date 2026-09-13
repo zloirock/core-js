@@ -19,11 +19,15 @@ import {
   $Object, $Primitive, PATTERN_WRAPPERS, argIndexForParam, canonicalArrayIndex, dropLeadingThisParam,
 } from './base.js';
 import {
-  collectQualifiedSegments, isBareUndefinedIdentifier, isFunctionTypeNode, withMemberModifiers,
+  collectQualifiedSegments,
+  isFunctionTypeNode,
+  withMemberModifiers,
 } from './ast-shapes.js';
 import { assignLeft, assignRightKey, bindingCrossesLoopBackEdge } from './straight-line-flow.js';
 import {
   declaratorBindsName,
+  bindingDeclaratorNode,
+  functionScopeBindsVarOrFunction,
   isVoidExpression,
   objectLiteralPrototypeValue,
   spreadAtOrBefore,
@@ -36,10 +40,13 @@ import {
   varInitStaleByRedecl,
   isDestructurePattern,
   anyWriteOutrunsUse,
+  writeIsInOppositeBranch,
   peelTransparentExprAncestorPath,
   positionDisposition,
   POSITION_CONSUMES,
   unwrapRuntimeExpr,
+  walkPatternIdentifiers,
+  isBareUndefinedIdentifier,
 } from '../helpers/ast-patterns.js';
 import { callPairing } from '../detect-usage/mutations.js';
 
@@ -856,6 +863,8 @@ export function createPatternBindings({
     let program = null;
     for (let p = fnPath.parentPath; p; p = p.parentPath) {
       const type = p.node?.type;
+      // Exporting an enclosing function or its result does not export this local binding.
+      if (t.isFunction(p.node)) return false;
       if (type === 'ExportNamedDeclaration' || type === 'ExportDefaultDeclaration') return true;
       if (t.isProgram(p.node)) {
         program = p;
@@ -881,8 +890,12 @@ export function createPatternBindings({
   // invoked on the spot), so this climb owns only how far above a reference a receiver-invoker hop
   // can sit: two, the member and the bind's own call. a transparent wrapper is not a hop - the
   // canon peels those on both sides of the identity compare
-  function invocationPairingAt(refPath, scope, anchor) {
-    const shadowCheck = { nameIsShadowed: name => Boolean(getScopeBinding(scope, name, anchor)) };
+  function invocationPairingAt(refPath, scope, anchor, staticIsMutated = null, getBindingEntry = null) {
+    const shadowCheck = {
+      nameIsShadowed: name => Boolean(getScopeBinding(scope, name, anchor)),
+      staticIsMutated,
+      getBindingEntry: getBindingEntry && (name => getBindingEntry(scope, name, anchor)),
+    };
     for (let cur = refPath, hops = 0; hops <= 2; hops++) {
       // the same peel answers nothing at the top of the tree, and no host there ends the hop climb
       const host = peelTransparentExprAncestorPath(cur)?.parentPath;
@@ -895,7 +908,7 @@ export function createPatternBindings({
       // only while the object it makes is DROPPED where it stands; a HELD one carries the channel
       // on, and following it is an instance closure this census is not
       if (pairing && pairing.callee === refPath.node) {
-        return host.node.type === 'NewExpression' && !valueIsDroppedAt(host) ? null : pairing;
+        return host.node.type === 'NewExpression' && !valueIsDroppedAt(host) ? null : { pairing, callPath: host };
       }
       cur = host;
     }
@@ -922,17 +935,17 @@ export function createPatternBindings({
     return !(isBareUndefinedIdentifier(value) && !getScopeBinding(scope, 'undefined'));
   }
 
-  // is `function f(x = default)` never called with a real overriding arg at this param's slot?
-  // only then does the default's TYPE soundly describe the param at runtime (a foreign arg would
-  // make a type-specific Maybe forward to a missing native method). scans the enclosing function's
-  // call sites via the parser-agnostic enumerator: an `undefined` / `void` arg triggers the default
-  // (not an override), a missing arg is fine, but a real arg or a caller-reaching reference (the
-  // function escapes, so external calls are unknown) makes the default non-authoritative
-  function defaultParamNeverOverridden(bindingPath) {
+  // every invocation that can supply this parameter, with its live call path and runtime argument
+  // index. null means an incomplete caller set, while [] proves that no call reaches it. the type
+  // resolver asks whether these slots override a default; a synth consumer asks which source paths
+  // it can replace, and owns its additional consumed-value / arguments-object restrictions.
+  // that consumer also supplies the mutation hook: the call canon alone decides whether an invoker
+  // still calls the apparent function, without a second pairing at the rewrite site.
+  function parameterCallSites(bindingPath, { staticIsMutated = null, getBindingEntry = null } = {}) {
     const fnPath = bindingPath.parentPath;
-    if (!fnPath?.node || !t.isFunction(fnPath.node)) return false;
+    if (!fnPath?.node || !t.isFunction(fnPath.node)) return null;
     const paramIndex = fnPath.node.params.indexOf(bindingPath.node);
-    if (paramIndex === -1) return false;
+    if (paramIndex === -1) return null;
     // the call args are this-dropped at runtime, so a leading `this` pseudo-param shifts the override
     // check's arg position down by one (raw `paramIndex` indexes the AST params)
     const argIndex = argIndexForParam(fnPath.node.params, paramIndex);
@@ -942,9 +955,22 @@ export function createPatternBindings({
     // misses every external call -> false "never overridden" -> the default narrows the param even
     // though callers pass a foreign type (`_atMaybeArray` on a string, ie:11 throw). check all names
     const sources = [];
-    if (fnPath.node.id?.type === 'Identifier') sources.push({ name: fnPath.node.id.name, scope: fnPath.scope, anchor: fnPath });
+    if (fnPath.node.id?.type === 'Identifier') {
+      const { name } = fnPath.node.id;
+      // a declaration's name belongs to the OUTER scope: a parameter named `f` inside `function
+      // f(f, x = [])` must not hide calls of the declaration. an NFE's internal name instead lives
+      // inside it, where a parameter / body var can shadow it. the trackers disagree on which
+      // binding they report for that collision, so neither can provide an authoritative census.
+      if (fnPath.node.type === 'FunctionExpression') {
+        let shadowed = functionScopeBindsVarOrFunction(fnPath, name);
+        for (const param of fnPath.node.params) walkPatternIdentifiers(param, id => { shadowed ||= id.name === name; });
+        if (shadowed) return null;
+      }
+      const scope = fnPath.node.type === 'FunctionDeclaration' ? fnPath.parentPath?.scope ?? fnPath.scope : fnPath.scope;
+      sources.push({ name, scope, anchor: fnPath });
+    }
     const declarator = fnPath.parentPath?.node;
-    const declaresTheName = declarator.type === 'VariableDeclarator' && declarator.id.type === 'Identifier';
+    const declaresTheName = declarator?.type === 'VariableDeclarator' && declarator.id.type === 'Identifier';
     if (declaresTheName) {
       sources.push({ name: declarator.id.name, scope: fnPath.parentPath.scope, anchor: fnPath.parentPath });
     }
@@ -960,30 +986,48 @@ export function createPatternBindings({
     // straight to whatever invokes it, with no name to scan and an empty recursion set that would
     // read as "no caller". `arguments.callee` is not a third spelling: a parameter default makes
     // the list non-simple, whose unmapped arguments object answers `callee` with the poison pill
-    const ownInvocation = invocationPairingAt(fnPath, fnPath.scope, fnPath);
+    const ownInvocation = invocationPairingAt(fnPath, fnPath.scope, fnPath, staticIsMutated, getBindingEntry);
     const outerNamed = fnPath.node.type === 'FunctionDeclaration'
       || declaresTheName || Boolean(viaClass?.outerNamed);
-    if (!outerNamed && !ownInvocation) return false;
-    if (ownInvocation && invocationOverridesSlot(ownInvocation, argIndex, fnPath.scope)) return false;
+    if (!outerNamed && !ownInvocation) return null;
+    const sites = ownInvocation ? [{ ...ownInvocation, argIndex }] : [];
+    const seenCalls = new Set(sites.map(site => site.callPath.node));
     for (const { name: fnName, scope, anchor } of sources) {
       const binding = getScopeBinding(scope, fnName, anchor);
-      if (!binding || binding.constantViolations?.length) return false;
-      if (functionNameEscapesFile(fnPath, fnName)) return false;
+      // an identically named binding is not a callable identity. a source anchor is the function,
+      // its declarator, or its constructor's class, and only that exact declaration qualifies.
+      if (!binding || bindingDeclaratorNode(binding) !== anchor.node || binding.constantViolations?.length) return null;
+      // an NFE's internal name cannot be exported from the file. its value may escape through
+      // a reference (checked below), or through its outer declarator (checked separately), but
+      // exporting an IIFE's RESULT does not export the function literal that produced it.
+      if (anchor.node.type !== 'FunctionExpression' && functionNameEscapesFile(fnPath, fnName)) return null;
       // a NULL reference set means the callers could not be enumerated, not that there are none;
       // treating unknown-references as proof-of-absence would let the default narrow the param over
       // a foreign-typed call arg (bias-unsafe) - bail rather than claim "never overridden"
       const refs = collectBindingReferences(binding, anchor);
-      if (refs === null) return false;
+      if (refs === null) return null;
       for (const ref of refs) {
-        const pairing = invocationPairingAt(ref, ref.scope, ref);
-        if (!pairing) {
+        const site = invocationPairingAt(ref, ref.scope, ref, staticIsMutated, getBindingEntry);
+        if (!site) {
           if (valueIsDroppedAt(ref)) continue;
-          return false;
+          return null;
         }
-        if (invocationOverridesSlot(pairing, argIndex, ref.scope)) return false;
+        if (!seenCalls.has(site.callPath.node)) {
+          sites.push({ ...site, argIndex });
+          seenCalls.add(site.callPath.node);
+        }
       }
     }
-    return true;
+    return sites;
+  }
+
+  // is `function f(x = default)` never called with a real overriding arg at this param's slot?
+  // only then does the default's TYPE soundly describe the param at runtime (a foreign arg would
+  // make a type-specific Maybe forward to a missing native method). an incomplete caller set
+  // cannot prove absence; an undefined / void or missing argument leaves the default standing.
+  function defaultParamNeverOverridden(bindingPath) {
+    const sites = parameterCallSites(bindingPath);
+    return sites !== null && sites.every(({ pairing, callPath, argIndex }) => !invocationOverridesSlot(pairing, argIndex, callPath.scope));
   }
 
   // resolve a binding's type via the most precise source available: rest-param ->
@@ -1042,8 +1086,8 @@ export function createPatternBindings({
   }
 
   // invariance filter for a binding whose CURRENT declaration is a same-family rest slot
-  function sameRestFamilyRebind(binding, name) {
-    const original = restRebindFamily(binding.path?.node, name);
+  function sameRestFamilyRebind(bindingPath, name) {
+    const original = restRebindFamily(bindingPath?.node, name);
     if (!original) return null;
     return node => restRebindFamily(node, name) === original;
   }
@@ -1116,12 +1160,12 @@ export function createPatternBindings({
     if (restBindsNameDirectly(node, name)) {
       const annotated = findBindingAnnotation(bindingPath);
       if (annotated) return resolveTypeAnnotation(annotated, bindingPath.scope);
-      return structuralNarrowInvalidated(binding, path, sameRestFamilyRebind(binding, name)) ? null : new $Object('Array');
+      return structuralNarrowInvalidated(binding, path, sameRestFamilyRebind(bindingPath, name)) ? null : new $Object('Array');
     }
     // destructured object / array: for (const { a } of ...) / const [a] = ...
     const pattern = bindingDestructuringPattern(node);
     if (pattern) {
-      if (structuralNarrowInvalidated(binding, path, sameRestFamilyRebind(binding, name))) return null;
+      if (structuralNarrowInvalidated(binding, path, sameRestFamilyRebind(bindingPath, name))) return null;
       const slot = pattern.type === 'ObjectPattern'
         ? resolveObjectBinding(pattern, name, bindingPath)
         : resolveArrayBinding(pattern, name, bindingPath);
@@ -1263,7 +1307,9 @@ export function createPatternBindings({
     // by a `var name = X` re-declaration before the use that it never recorded - don't trust its
     // init then (babel records the redecl, so this only fires on the estree var-hoist gap)
     if (varInitStaleByRedecl(binding, path, name)) return null;
-    const violations = binding.constantViolations;
+    // A relocated declaration can leave its original binding identifier recorded as a write.
+    const violations = bindingPath === binding.path ? binding.constantViolations
+      : binding.constantViolations?.filter(v => !isOwnBindingWrite(v, binding.path));
     if (!violations?.length) return resolveNodeType(bindingPath.get('init'));
     // loop back-edge: a reassignment inside an enclosing loop body re-runs before the next-iteration
     // use, so the declarator init no longer describes the receiver from iteration 2 - degrade to generic
@@ -1290,7 +1336,10 @@ export function createPatternBindings({
     // on `usage-pure` (`[].includes.call('abc', 'ab')` is false where the string method is true)
     if (anyWriteOutrunsUse(violations.map(v => v.node), path)) return null;
     const usagePos = path.node.start;
-    if (usagePos !== undefined && violations.every(v => (v.node.start ?? -1) >= usagePos)) {
+    // Same-execution writes in the opposite arm cannot replace the init at this read.
+    // Loop and deferred execution were ruled out above, before applying this exclusion.
+    if (usagePos !== undefined && violations.every(v => (v.node.start ?? -1) >= usagePos
+      || writeIsInOppositeBranch(v.node, path))) {
       return resolveNodeType(bindingPath.get('init'));
     }
     return null;
@@ -1303,6 +1352,7 @@ export function createPatternBindings({
   // `findBindingPattern` / `unwrapPromiseAnnotation`
   return {
     defaultParamNeverOverridden,
+    parameterCallSites,
     reachableValuePaths,
     findArrayPatternKeyPath,
     findDestructuredKeyPath,

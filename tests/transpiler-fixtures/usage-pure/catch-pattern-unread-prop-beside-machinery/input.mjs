@@ -1,3 +1,5 @@
+// Object-rest keeps the affected catch pattern native, including its named method slots.
+// Independent reads and key/default expressions still receive their own polyfills.
 // a catch pattern whose computed key forces the receiver extraction: whether a SIBLING prop is
 // worth its own `_ref`-bound rewrite is asked per prop. a binding the body never reads keeps a
 // native read in the residual instead of an import and a dispatcher call nothing observes

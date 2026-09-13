@@ -3,10 +3,10 @@ import _Object$groupBy from "@core-js/pure/actual/object/group-by";
 import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Reflect from "@core-js/pure/actual/reflect";
 import _Reflect$ownKeys from "@core-js/pure/actual/reflect/own-keys";
-// the IIFE identity-peel bails on a param write hidden in a WRITE-TARGET subtree: an LHS
-// pattern DEFAULT value, an LHS computed member key, and an update-target computed key all
-// rebind the param before `return arg`, so the runtime receiver is not the call arg. a write
-// to a NON-param in the same positions and a plain param READ in a key keep the peel sound
+// Writes inside assignment targets prevent treating the result as the original argument.
+// The default keeps the global fixture's conservative escape classification, not a real leak.
+// Deeper flow analysis for this uncommon shape is deliberately omitted. Pure keeps Array and
+// the affected method reads native, while Promise is still substituted.
 let x;
 const viaLhsDefault = (arg => {
   ({

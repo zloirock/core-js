@@ -1,6 +1,5 @@
-// a consumed STRING-LITERAL key next to `...rest` in a param-default destructure: the
-// rest-exclusion sentinel must re-emit the key with its quotes (a bare `.name` read is
-// undefined for literal keys and would leak the consumed prop into rest)
+// Rest-bearing parameters keep their native bindings and defaults in parameter scope.
+// Independent reads and key/default expressions still receive their own polyfills.
 function g({ 'from': f, ...rest } = Array) {
   return [f([1]), rest];
 }

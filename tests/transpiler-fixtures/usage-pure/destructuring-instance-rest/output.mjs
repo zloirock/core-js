@@ -1,6 +1,6 @@
-import _at from "@core-js/pure/actual/instance/at";
-const at = _at(obj);
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
 const {
-  at: _unused,
+  at,
   ...rest
 } = obj;

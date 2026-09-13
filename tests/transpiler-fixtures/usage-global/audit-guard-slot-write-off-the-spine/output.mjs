@@ -10,11 +10,10 @@ import "core-js/modules/es.map.get-or-insert";
 import "core-js/modules/es.map.get-or-insert-computed";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
-// a read is proven to follow an alias write only when the write stands on the always-evaluated
-// SPINE of the guard slot: a write in a branch arm of the test, or inside a function body there,
-// may never have run when the read does, so the read stays native and throws on the undefined
-// alias exactly as the source does. the write on the spine itself keeps proving the read. one
-// global per row, so a row that loses its claim loses its own module
+// A conditional or deferred alias write provides only a possible realm value.
+// Pure guards its live constructor read, preserving an uninitialized-alias throw
+// and the static on a matching value. Only an always-evaluated guard write proves
+// the alias strongly enough for a direct fold.
 var _g;
 var _h;
 var _i;

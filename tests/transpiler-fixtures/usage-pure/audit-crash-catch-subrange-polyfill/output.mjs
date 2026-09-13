@@ -1,9 +1,7 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
-// catch-clause rewrite (well-known Symbol key triggers param -> _ref) co-located with a polyfill
-// at a SUB-range inside the pattern (an instance-method call in a computed key). the sub-range
-// transform must be drained and baked into the relocated prelude, not orphaned inside the bare
-// `_ref` overwrite. regression lock
+// A rewritten catch pattern retains polyfills inside its computed keys.
+// The iterator key is read before the later instance call and property read.
 try {} catch (_ref) {
   var _ref2;
   let it = _getIteratorMethod(_ref);

@@ -1,12 +1,8 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 import _Symbol from "@core-js/pure/actual/symbol";
-// assignment-cascade statement order (shared canon, probed per shape): an extraction from a
-// TOP-LEVEL aliased or shorthand binding prop precedes the surviving residual, and a rest-forced
-// sentinel keeps that order; a NESTED pattern prop's extraction follows the residual; with no
-// residual, extractions keep source order
+// Object-rest keeps the affected assignment pattern native and preserves its RHS value.
+// Independent reads and key/default expressions still receive their own polyfills.
 let a, b;
 a = _Array$from;
 ({
@@ -25,18 +21,14 @@ s = _Symbol;
 f = _Array$from;
 use(s, f, x);
 let g;
-var _unused;
-g = _Array$of;
 ({
-  of: _unused,
+  of: g,
   ...rest
 } = _globalThis.Array);
 use(g, rest);
 let inner;
-var _unused2;
-fromEntries = _Object$fromEntries;
 ({
-  fromEntries: _unused2,
+  fromEntries,
   ...inner
 } = _globalThis.Object);
 use(fromEntries, inner);

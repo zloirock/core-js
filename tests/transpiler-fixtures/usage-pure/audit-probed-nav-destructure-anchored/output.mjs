@@ -6,18 +6,15 @@ import _Object$freeze from "@core-js/pure/actual/object/freeze";
 import _Object$keys from "@core-js/pure/actual/object/keys";
 import _Reflect$ownKeys from "@core-js/pure/actual/reflect/own-keys";
 import _self from "@core-js/pure/actual/self";
-// pattern-hop (anchored) destructures over an UNDEFINABLE probe nav: the source read throws
-// where the probe yields undefined, so every anchored render rides the guard-value spelling
-// instead of the always-defined receiver / ctor bindings (which would erase the throw and
-// run computed-key effects the source never reaches)
+var _ref;
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
+// A computed static leaf captures the guarded Object value first.
+// An absent nav throws before the key effect; a defined nav runs the key effect
+// before initializing the pure binding.
 
-// SE-computed-key leaf under a static-ctor pattern hop: extraction + guarded residual (the
-// key effect and the throw both live in the residual read)
 let f1 = 0;
-export const viaAnchoredSealedSeKey = _Object$freeze;
-export const {
-  [(f1++, 'freeze')]: _unused
-} = (null == _globalThis.window ? void 0 : _self).Object;
+export const viaAnchoredSealedSeKey = (_ref = (null == _globalThis.window ? void 0 : _self).Object, null == _ref ? _ref[""] : (f1++, _Object$freeze));
 export { f1 };
 
 // unresolvable custom leaf under a resolvable ctor hop: the residual re-anchors onto the
@@ -44,9 +41,7 @@ for (const {
   void viaForInitAnchor;
 }
 let f3 = 0;
-for (const {
-    [(f3++, 'keys')]: _unused2
-  } = (null == _globalThis.window ? void 0 : _self).Object, viaForInitSeKey = _Object$keys; f3 < 2;) {
+for (const _ref2 = (null == _globalThis.window ? void 0 : _self).Object, viaForInitSeKey = null == _ref2 ? _ref2[""] : (f3++, _Object$keys); f3 < 2;) {
   void viaForInitSeKey;
   break;
 }
@@ -63,8 +58,7 @@ export const {
 export const viaDefinedRoot = _Array$of;
 export const viaResolvableHop = _Array$of;
 export const viaAllPlainNav = _Array$of;
-export const viaPartialConsume = _Array$of;
 export const {
-  of: _unused3,
+  of: viaPartialConsume,
   ...viaPartialRest
 } = _globalThis.window?.Array;

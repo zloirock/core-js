@@ -1,6 +1,5 @@
-// computed-key destructure in a catch clause: the well-known symbol key is preserved
-// verbatim in the rebuilt rest pattern so the extracted iterator helper still resolves
-// to the same key at runtime
+// Object-rest keeps the affected catch pattern native, including its named method slots.
+// Independent reads and key/default expressions still receive their own polyfills.
 try {
   risky();
 } catch ({ [Symbol.iterator]: iter, ...rest }) {

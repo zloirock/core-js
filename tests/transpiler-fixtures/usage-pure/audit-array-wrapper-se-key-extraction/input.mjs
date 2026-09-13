@@ -1,5 +1,5 @@
-// an SE-computed-key leaf under an ARRAY-wrapped receiver still extracts (the wrapper peel wins
-// over the SE-key keep-in-residual dispatch); the key effect runs once in the kept residual
+// A computed static key under an array wrapper and a nested computed instance key
+// both receive polyfills. Each key effect runs once, before its corresponding source read.
 let c1 = 0;
 const [{ [(c1++, 'from')]: from }, other] = [Array, {}];
 // nested-pattern variant with a plus-fold key on an instance method

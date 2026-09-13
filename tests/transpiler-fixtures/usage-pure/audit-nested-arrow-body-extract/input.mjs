@@ -1,5 +1,4 @@
-// Nested arrow with no IIFE: outer arrow takes `{from}` but is never called inline.
-// Body-extract should hit the outer arrow's body block (innermost owner of the param);
-// the inner arrow body is unrelated and shouldn't receive the prepend
+// The known caller supplies the outer parameter's static method through an argument mirror.
+// Both arrow bodies retain their source shape and share the same parameter binding.
 const make = ({ from }) => () => from([1, 2]);
 make(Array)();
