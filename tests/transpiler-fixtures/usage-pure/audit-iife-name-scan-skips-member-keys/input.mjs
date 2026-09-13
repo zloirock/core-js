@@ -1,11 +1,5 @@
-// the caller-lossy param emission is allowed only when every call site is visible, which a named
-// IIFE stops being as soon as its own name is REFERENCED inside it. a member key that merely spells
-// that name is a name literal, not a reference - class methods, fields, accessors, statics, object
-// methods and a plain member tail all read as text, so the extraction still fires. a real self-call
-// keeps the parameter verbatim, since the recursive argument has to win.
-// the REST element is what puts that decision on the table at all: it collects keys no synthesized
-// literal can enumerate, so the caller-correct synth declines permanently and the scan's verdict is
-// what picks between extract and verbatim
+// Rest-bearing parameters keep their native bindings and defaults in parameter scope.
+// Independent reads and key/default expressions still receive their own polyfills.
 const withMethod = (function f({ from, ...rest } = Array) {
   class C { f() {} }
   return [from, rest, C];
@@ -31,7 +25,6 @@ const withMemberTail = (function n({ fromEntries, ...rest } = Object) {
   o.n = 1;
   return [fromEntries, rest, o];
 })();
-// a REAL self-reference is an invisible caller - the parameter stays verbatim
 const withRecursion = (function r({ groupBy, ...rest } = Object) {
   return globalThis.never ? r({ groupBy: null }) : [groupBy, rest];
 })();

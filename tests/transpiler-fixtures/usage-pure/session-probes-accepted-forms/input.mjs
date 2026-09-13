@@ -1,27 +1,5 @@
-// probe corpus rows whose two legs print DIFFERENT but equivalent trees - the classes the unplugin
-// package's AGENTS.md accepts, held here as one sidecar so every other corpus fixture compares clean:
-// - ref-hoist placement: a re-referenceable literal receiver memoized by one leg and read inline by
-//   the other (`[0, [1, 2]]`, `[...[0, [1, 2]]]`, `_globalThis.Array.prototype` under an effectful
-//   key, a primitive `'str'` slot)
-// - a husk beside a SIBLING declarator: babel keeps `[{}] = [r, eff()]` in place, unplugin lifts the
-//   effect as a statement (the sibling-host residual canon)
-// - placement of PURE extractions and memos around each other (a static beside an instance memo,
-//   the relocated head's per-prop order, an IIFE argument hoisted as a statement or spelled as a
-//   sequence, a hop's rescued call as a sequence or a statement)
-// - a sentinel residual one leg keeps and the other drops where nothing binds (`{ w: [, { keys:
-//   _unused }] }` over a pure init, `Map: _unused` beside a binding sibling under an outer rest)
-// - a leaf and a STATIC sibling of the same level of a proxy-global host (`{ Array: { of: { name,
-//   foo }, from: F } } = globalThis`, `{ Array: { of: { name }, from: F } }`): the two legs order the
-//   sibling's extraction and the leaf's pair differently - pure reads either way
-// - the hop residual a proxy-global host keeps beside an extracted leaf (`{ Array: { of: { name },
-//   junk } } = globalThis`): babel collapses it onto the hop (`{ junk } = _globalThis.Array`), unplugin
-//   keeps the hop in the pattern (`{ Array: { junk } } = _globalThis`) - the residual class the
-//   sibling-static form (`{ Array: { from, isArray } }`) already prints
-// - a PATTERN default over a static beside a sibling (`{ junk, of: { name, foo } = {} } = Array`):
-//   babel's per-prop extraction of the static stands ahead of the host, unplugin's twin behind it
-// - an `&&` hop value whose left is a call typed to return a constructor (`{ w: eff() && Object }`
-//   beside a sibling): unplugin extracts off the typed left, babel keeps the native read (the falsy
-//   left's own short-circuit)
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
 let pick = 1;
 const c = 1;
 const userObj = {};

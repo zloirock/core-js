@@ -18,12 +18,10 @@ import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
 import _Reflect$ownKeys from "@core-js/pure/actual/reflect/own-keys";
 import _self from "@core-js/pure/actual/self";
 import _String$fromCodePoint from "@core-js/pure/actual/string/from-code-point";
-// the guard's kept receiver reaches the channel in three spellings, and the collapse verdict must be
-// the same in all of them: an ALIAS binding, a DESTRUCTURED extraction, and a TS-wrapped expression.
-// what decides it is the hop, not the spelling - a hop core-js ponyfills collapses and the guard goes
-// with it, one it does not keeps both the raw read and the guard, and an unresolvable hop in the
-// MIDDLE renders the shared plan. a reassigned alias stays raw whatever it currently holds.
-// one static per row, so a row that changes verdict shows up in the import set.
+// In pure, an alias, a destructured value and a wrapped expression follow the same
+// proxy-value rule: a backed leaf collapses a plain middle hop; a terminal environment
+// probe or an optional inside the value keeps its guard. Reassigned aliases stay raw.
+// Filtered Object statics below lock the receiver spelling rather than an import.
 
 // --- alias spellings ---
 const aliasWindow = _globalThis.window;
@@ -89,9 +87,9 @@ export const satisfiesOnPlainHop = (k10 = _self satisfies object, _Object$assign
 // target and the operator, nothing between them. slicing it up to the VALUE swallowed the wrapper's
 // opening token while its closer went with the replaced span, and the module stopped parsing
 let k13;
-export const wrappedMultiHopNav = null == (k13 = null == _globalThis.window ? void 0 : _self) ? void 0 : _Object$getOwnPropertyNames({});
+export const wrappedMultiHopNav = (k13 = _self, _Object$getOwnPropertyNames)({});
 let k14;
-export const wrappedResolvableNav = null == (k14 = _self) ? void 0 : _Promise$reject(1).catch(() => {});
+export const wrappedResolvableNav = null == (k14 = _self.window) ? void 0 : _Promise$reject(1).catch(() => {});
 let k15;
 export const doubleWrappedNav = (k15 = _self)?.Object.getPrototypeOf({});
 let k11;

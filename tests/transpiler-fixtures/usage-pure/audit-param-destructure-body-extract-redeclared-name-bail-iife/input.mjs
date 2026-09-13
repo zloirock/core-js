@@ -1,9 +1,5 @@
-// a destructured param may be legally redeclared by a body `var <name>` / `function <name>(){}`.
-// the body-extract would emit a body-top `let <name> = <polyfill>`, but `let` + `var`/`function`
-// on one name in a scope is a SyntaxError - so it must BAIL to the inline-default (no `let`) when
-// the body already binds the name. `run` covers `var`, `make` the function-decl shape; `keep` is
-// the no-over-bail control (its `var resolve` is in a NESTED scope, no collision, extract fires).
-// immediately-invoked: every call site visible, so caller-lossy param emissions stay sound
+// Rest-bearing parameters keep their native bindings and defaults in parameter scope.
+// Independent reads and key/default expressions still receive their own polyfills.
 (function run({ from, ...rest } = Array) {
   var from = 7;
   return [from, rest];

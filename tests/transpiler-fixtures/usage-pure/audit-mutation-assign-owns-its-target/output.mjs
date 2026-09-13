@@ -1,4 +1,4 @@
-import _Map from "@core-js/pure/actual/map";
+import _Map from "@core-js/pure/actual/map/constructor";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Object$assign from "@core-js/pure/actual/object/assign";
 import _Set from "@core-js/pure/actual/set";

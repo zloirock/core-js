@@ -1,15 +1,9 @@
 import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
-import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
-// an SE-prefix computed `[(eff++, Symbol.iterator)]` ASSIGNMENT key: the pattern stays fully
-// in place (key effect exactly once) and the target re-assigns from the iterator-method
-// helper AFTER the statement, so the raw in-pattern write is dead and needs no sentinel -
-// unlike the declaration route, where the extraction BINDS FIRST and the residual must
-// rename its slot to a throwaway to keep the polyfill binding un-clobbered
+var _ref;
+// A computed iterator-key assignment captures its receiver before the key effect.
+// The iterator method is read once after that effect, and the expression yields the receiver.
 let eff = 0;
 const arr = [3];
 let it;
-({
-  [(eff++, _Symbol$iterator)]: it
-} = arr);
-it = _getIteratorMethod(arr);
+_ref = arr, null == _ref ? _ref[""] : (eff++, it = _getIteratorMethod(_ref)), _ref;
 export const r = [it, eff];

@@ -1,9 +1,12 @@
-import _Array$from from "@core-js/pure/actual/array/from";
 import _globalThis from "@core-js/pure/actual/global-this";
+// Object-rest keeps the affected loop pattern native at its original evaluation point.
+// Independent reads and key/default expressions still receive their own polyfills.
 declare const logCall: () => any;
-for (const from = _Array$from, {
-    Array: _unused,
-    ...rest
-  } = (logCall(), _globalThis); false;) {
+for (const {
+  Array: {
+    from
+  },
+  ...rest
+} = (logCall(), _globalThis); false;) {
   console.log(from, rest);
 }

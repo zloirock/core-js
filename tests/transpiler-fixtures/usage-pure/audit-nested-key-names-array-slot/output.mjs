@@ -13,11 +13,17 @@ import _JSON$stringify from "@core-js/pure/actual/json/stringify";
 import _Map from "@core-js/pure/actual/map";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Object$assign from "@core-js/pure/actual/object/assign";
+import _Object$create from "@core-js/pure/actual/object/create";
+import _Object$defineProperties from "@core-js/pure/actual/object/define-properties";
 import _Object$defineProperty from "@core-js/pure/actual/object/define-property";
 import _Object$entries from "@core-js/pure/actual/object/entries";
+import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 import _Object$getOwnPropertyDescriptor from "@core-js/pure/actual/object/get-own-property-descriptor";
 import _Object$getOwnPropertyNames from "@core-js/pure/actual/object/get-own-property-names";
 import _Object$getOwnPropertySymbols from "@core-js/pure/actual/object/get-own-property-symbols";
+import _Object$groupBy from "@core-js/pure/actual/object/group-by";
+import _Object$isFrozen from "@core-js/pure/actual/object/is-frozen";
+import _Object$isSealed from "@core-js/pure/actual/object/is-sealed";
 import _Object$keys from "@core-js/pure/actual/object/keys";
 import _Object$seal from "@core-js/pure/actual/object/seal";
 import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
@@ -435,10 +441,9 @@ const assignedViaObjectAssign = function () {
     k: _Map
   });
   const {
-    k: {
-      groupBy
-    }
-  } = merged;
+      k: _ref
+    } = merged,
+    groupBy = _ref === Object ? _Object$groupBy : _ref.groupBy;
   return groupBy;
 }();
 const assignedViaDefineProperty = function () {
@@ -449,10 +454,9 @@ const assignedViaDefineProperty = function () {
     value: _Map
   });
   const {
-    k: {
-      groupBy
-    }
-  } = defined;
+      k: _ref2
+    } = defined,
+    groupBy = _ref2 === Object ? _Object$groupBy : _ref2.groupBy;
   return groupBy;
 }();
 const assignedViaLogicalWrite = function () {
@@ -461,10 +465,9 @@ const assignedViaLogicalWrite = function () {
   };
   logical.k &&= _Map;
   const {
-    k: {
-      groupBy
-    }
-  } = logical;
+      k: _ref3
+    } = logical,
+    groupBy = _ref3 === Object ? _Object$groupBy : _ref3.groupBy;
   return groupBy;
 }();
 const deletedSlot = function () {
@@ -491,10 +494,9 @@ const escapedBySpread = function () {
   };
   consume(...[spreadBox]);
   const {
-    k: {
-      groupBy
-    }
-  } = spreadBox;
+      k: _ref4
+    } = spreadBox,
+    groupBy = _ref4 === Object ? _Object$groupBy : _ref4.groupBy;
   return groupBy;
 }();
 // the container may sit INSIDE the argument's value - the walk descends literals, member reads
@@ -505,10 +507,9 @@ const escapedInsideArrayLiteral = function () {
   };
   consume([litBox][0]);
   const {
-    k: {
-      getOwnPropertyNames
-    }
-  } = litBox;
+      k: _ref5
+    } = litBox,
+    getOwnPropertyNames = _ref5 === Object ? _Object$getOwnPropertyNames : _ref5.getOwnPropertyNames;
   return getOwnPropertyNames;
 }();
 const escapedViaApplyArray = function () {
@@ -517,10 +518,9 @@ const escapedViaApplyArray = function () {
   };
   consume.apply(null, [applyBox]);
   const {
-    k: {
-      getOwnPropertyDescriptor
-    }
-  } = applyBox;
+      k: _ref6
+    } = applyBox,
+    getOwnPropertyDescriptor = _ref6 === Object ? _Object$getOwnPropertyDescriptor : _ref6.getOwnPropertyDescriptor;
   return getOwnPropertyDescriptor;
 }();
 const escapedInsideObjectValue = function () {
@@ -531,15 +531,14 @@ const escapedInsideObjectValue = function () {
     inner: objBox
   }.inner);
   const {
-    k: {
-      isFrozen
-    }
-  } = objBox;
+      k: _ref7
+    } = objBox,
+    isFrozen = _ref7 === Object ? _Object$isFrozen : _ref7.isFrozen;
   return isFrozen;
 }();
-// re-homing under another name is the same leak without a call: an alias takes writes the
-// container's own name never sees, a wrapper literal hands the reference out through its member
-// chain - and a member-read alias leaks its SLOT's value while the owner's other slots stay live
+// Writes through a definite alias or wrapper reach the same container slot. An unconditional
+// replacement discards the initial Object candidate and its guard; the written slot stays native.
+// A captured member value has its own identity, while the owner's other slots stay live.
 const escapedByAlias = function () {
   const aliasedBox = {
     k: Object
@@ -590,15 +589,13 @@ const branchEscapeBothArms = function () {
   const picked = _globalThis.cond ? armA : armB;
   picked.k = _Map;
   const {
-    k: {
-      getOwnPropertyNames: fromA
-    }
-  } = armA;
+      k: _ref8
+    } = armA,
+    fromA = _ref8 === Object ? _Object$getOwnPropertyNames : _ref8.getOwnPropertyNames;
   const {
-    k: {
-      getOwnPropertyDescriptor: fromB
-    }
-  } = armB;
+      k: _ref9
+    } = armB,
+    fromB = _ref9 === Object ? _Object$getOwnPropertyDescriptor : _ref9.getOwnPropertyDescriptor;
   return [fromA, fromB];
 }();
 // iterating hands each VALUE to the loop binding, so the for-of head escapes like an argument;
@@ -612,10 +609,9 @@ const escapedByArrayPatternInit = function () {
   const [reHomed] = [patBox];
   reHomed.k = _Map;
   const {
-    k: {
-      getOwnPropertySymbols
-    }
-  } = patBox;
+      k: _ref10
+    } = patBox,
+    getOwnPropertySymbols = _ref10 === Object ? _Object$getOwnPropertySymbols : _ref10.getOwnPropertySymbols;
   return getOwnPropertySymbols;
 }();
 const escapedByObjectPatternInit = function () {
@@ -629,10 +625,9 @@ const escapedByObjectPatternInit = function () {
   };
   taken.k = _Map;
   const {
-    k: {
-      fromEntries
-    }
-  } = objPatBox;
+      k: _ref11
+    } = objPatBox,
+    fromEntries = _ref11 === Object ? _Object$fromEntries : _ref11.fromEntries;
   return fromEntries;
 }();
 // the matching is POSITIONAL: only members landing on an IDENTIFIER binding re-home, a nested
@@ -649,10 +644,9 @@ const escapedByNestedPatternLiteral = function () {
   }];
   reBound.k = _Map;
   const {
-    k: {
-      getOwnPropertyNames: deepRead
-    }
-  } = deepBox;
+      k: _ref12
+    } = deepBox,
+    deepRead = _ref12 === Object ? _Object$getOwnPropertyNames : _ref12.getOwnPropertyNames;
   return deepRead;
 }();
 // a throw re-homes its value into some catch binding; a switch DISCRIMINANT only compares, so it
@@ -714,7 +708,10 @@ const conditionalSlotWrite = function (flag) {
     k: Object
   };
   if (flag) maybe.k = _Map;
-  const entries = _entries(maybe.k);
+  const {
+      k: _ref13
+    } = maybe,
+    entries = _ref13 === Object ? _Object$entries : _entries(_ref13);
   return entries;
 }(1);
 // a container arriving AS A PARAMETER is unknown - no static name, only the dispatcher
@@ -811,7 +808,10 @@ const readOnlyCalleeStillBails = function () {
     k: Object
   };
   onlyReads(readOnlyEscape);
-  const entries = _entries(readOnlyEscape.k);
+  const {
+      k: _ref14
+    } = readOnlyEscape,
+    entries = _ref14 === Object ? _Object$entries : _entries(_ref14);
   return entries;
 }();
 const selfMethodCallLeaksNothing = function () {
@@ -835,7 +835,10 @@ const escapedByAsyncCallee = function () {
     t.k = _Map;
   }
   void takeAsync(asyncEscape);
-  const keys = _keys(asyncEscape.k);
+  const {
+      k: _ref15
+    } = asyncEscape,
+    keys = _ref15 === Object ? _Object$keys : _keys(_ref15);
   return keys;
 }();
 const escapedThroughPromiseResolve = function () {
@@ -843,7 +846,10 @@ const escapedThroughPromiseResolve = function () {
     k: Object
   };
   void _Promise$resolve(awaitedBox);
-  const entries = _entries(awaitedBox.k);
+  const {
+      k: _ref16
+    } = awaitedBox,
+    entries = _ref16 === Object ? _Object$entries : _entries(_ref16);
   return entries;
 }();
 const repositionedByOptionalCall = function () {
@@ -866,10 +872,9 @@ const escapedByThrow = function () {
     caught.k = _Map;
   }
   const {
-    k: {
-      create: viaThrow
-    }
-  } = thrownBox;
+      k: _ref17
+    } = thrownBox,
+    viaThrow = _ref17 === Object ? _Object$create : _ref17.create;
   return viaThrow;
 }();
 const switchDiscriminantLeaksNothing = function () {
@@ -889,10 +894,9 @@ const escapedByForOfHead = function () {
   };
   for (const x of [loopBox]) x.k = _Map;
   const {
-    k: {
-      defineProperties
-    }
-  } = loopBox;
+      k: _ref18
+    } = loopBox,
+    defineProperties = _ref18 === Object ? _Object$defineProperties : _ref18.defineProperties;
   return defineProperties;
 }();
 const forInKeysLeakNothing = function () {
@@ -926,10 +930,9 @@ const escapedByOptionalCall = function () {
   };
   consume?.(optionalBox);
   const {
-    k: {
-      isSealed
-    }
-  } = optionalBox;
+      k: _ref19
+    } = optionalBox,
+    isSealed = _ref19 === Object ? _Object$isSealed : _ref19.isSealed;
   return isSealed;
 }();
 const escapedByNew = function () {
@@ -940,7 +943,10 @@ const escapedByNew = function () {
     k: Object
   };
   void new TakerShape(newBox);
-  const entries = _entries(newBox.k);
+  const {
+      k: _ref20
+    } = newBox,
+    entries = _ref20 === Object ? _Object$entries : _entries(_ref20);
   return entries;
 }();
 const escapedByTemplateTag = function () {
@@ -962,10 +968,9 @@ const dynamicWriteKey = function (key) {
   };
   dynamic[key] = _Map;
   const {
-    k: {
-      groupBy
-    }
-  } = dynamic;
+      k: _ref21
+    } = dynamic,
+    groupBy = _ref21 === Object ? _Object$groupBy : _ref21.groupBy;
   return groupBy;
 }('k');
 function poisonContainer(target) {
@@ -976,7 +981,10 @@ const closureWrite = function () {
     k: Object
   };
   poisonContainer(closed);
-  const entries = _entries(closed.k);
+  const {
+      k: _ref22
+    } = closed,
+    entries = _ref22 === Object ? _Object$entries : _entries(_ref22);
   return entries;
 }();
 export { memberSiblingEffectSurvives, memberOptionalHop, memberComputedStringKey, letReassignedAfterRead, escapedBySpread, escapedByNew, escapedByTemplateTag, escapedInsideArrayLiteral, escapedViaApplyArray, escapedInsideObjectValue, escapedByOptionalCall, escapedByAlias, escapedByWrapperLiteral, aliasLeakIsPairPrecise, branchEscapeBothArms, escapedByForOfHead, forInKeysLeakNothing, escapedByYieldedArgument, escapedByArrayPatternInit, escapedByObjectPatternInit, escapedByNestedPatternLiteral, escapedByThrow, switchDiscriminantLeaksNothing, memberChainReceiverStringKey, constBoundComputedInstanceKey, classInSlotStaysNative, nestedSeSlotKeepsEffect, nestedSlotEffects, containerWhollyReassigned, conditionalSlotWrite, parameterContainer, repositionedByFill, repositionedBySort, repositionedByOptionalCall, repositionedByBoundKey, varIndexOverBail, varIndexOnDataArray, configObjectIsNoContainer, readOnlyCalleeStillBails, selfMethodCallLeaksNothing, escapedByAsyncCallee, escapedThroughPromiseResolve, assignedViaObjectAssign, assignedViaDefineProperty, assignedViaLogicalWrite, deletedSlot, dynamicWriteKey, closureWrite, memberEffects, patternConcatDetaches, patternDynamicDetaches, foldedReadOnlyKeyStillResolves, repositionedByConcatKey, repositionedByDynamicKey, repositionedByDestructuredMethod, repositionedByStoredMethod, repositionedByDetachedCall, repositionedByReflectApply, detachedReadOnlyStillResolves, repositionedByUnshift, repositionedBySplice, repositionedByReverse, objectSlotReplaced, arraySlotReplaced, unrelatedKeyWritten, memberReadThroughSlot, memberReadThroughObjectKey, firstSlot, stringSpelling, laterSlot, overHole, overSpread, nonIndexName, nonCanonicalSpelling, outOfBounds, constructorSlot, constructorUnderObjectKey, patchedSlotStaysNative, patchedStringSpellingStaysNative, siblingEffectSurvives, objectSiblingEffectSurvives, twoLevelContainer, effects };

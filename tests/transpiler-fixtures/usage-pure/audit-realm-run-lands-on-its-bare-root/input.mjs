@@ -14,8 +14,8 @@ export const repeatedProbeHops = (e = self.window.window.Number)?.isInteger(1);
 // NEGATIVE: a `?.` the SOURCE wrote over the probe branches on the read, so the hop keeps its slot
 // and the test spells the run it tests
 export const sourceBranchesOnTheProbe = (f = self.window?.Number)?.isInteger(1);
-// NEGATIVE: an unspellable root has no landing of its own and nothing above it is backed either,
-// so the whole run stays raw
+// An unbacked root keeps its original receiver read and any resulting throw;
+// the recognized receiver-independent static still receives its ponyfill.
 export const noLandingAtAll = (g = window.window.Number)?.isInteger(1);
 // NEGATIVE: a shadowing binding holds the user's own object, and no realm landing may touch it
 export function shadowed(self) {
@@ -23,8 +23,8 @@ export function shadowed(self) {
 }
 // a QUIET computed realm hop names the slot its dotted twin names, so it rides the landing with the
 // rest of the run - above the fold and below it alike
-// NEGATIVE: an EFFECT-bearing key is a hop no fold may take - the effects would go with it and the
-// landing has no slot to replay them in - so it and everything under it keep their place
+// A computed-key effect runs once before the plain navigation lands. It does not
+// prevent the same middle-hop collapse that its quiet-key twin receives.
 let i, j, l, k = 0;
 export const computedHopRidesTheFold = (i = globalThis.window['window'].Number)?.isInteger(1);
 export const computedHopBelowTheFoldRidesToo = (j = globalThis['window'].window.Number)?.isInteger(1);

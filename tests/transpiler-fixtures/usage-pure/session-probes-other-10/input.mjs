@@ -1,5 +1,8 @@
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
 // probe corpus of the defense cycles over the destructure wrappers, family "other", part 10:
 // every block is one probed form, self-contained over the header bindings, locked on both legs
+// The computed assignment has equivalent sequence/statement grouping held in the unplugin sidecar.
 let pick = 1;
 const c = 1;
 const userObj = {};

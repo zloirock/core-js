@@ -1,7 +1,5 @@
-// catch param destructuring with computed Symbol.iterator key carrying a default plus
-// a rest gather. exercises both the iterator-method synth path (renamed `_unused`) and
-// the default-value param wrapper - default fallback fires only when extracted value is
-// undefined, then the residual destructure leaves rest pointing at the original error
+// Object-rest keeps the affected catch pattern native, including its named method slots.
+// Independent reads and key/default expressions still receive their own polyfills.
 try {} catch ({ [Symbol.iterator]: it = fallback, ...rest }) {
   it();
   rest;

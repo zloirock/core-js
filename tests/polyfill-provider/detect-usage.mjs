@@ -17,11 +17,10 @@ import {
   asSymbolRef,
   bindingSymbolKey,
   chainReadsThroughSeal,
-  bindsModuleDefault,
   descendToChainRoot,
   foldableRealmHop,
   isStaticPlacement,
-  isTransparentWrapper,
+  inlineCallHasObservableEffects,
   keySideEffectsOnly,
   mutationGuardKeepingHop,
   ownChainOptionalCount,
@@ -30,9 +29,9 @@ import {
   probeRenderedReceiver,
   receiverSideEffectsOnly,
   resolveKey,
+  resolveObjectName,
   returnedReceiverHasEffects,
   unwrapParensCollectingEffects,
-  unwrapTransparentSeq,
 } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import {
   computedPropKeyHostsMachinery,
@@ -44,6 +43,7 @@ import {
   tagSymbolSourcedMeta,
 } from '../../packages/core-js-polyfill-provider/detect-usage/members.js';
 import {
+  aliasWriteCtorNames,
   buildDestructuringInitMeta,
   collectDestructureUnionCandidates,
   prepareDestructureUnion,
@@ -59,11 +59,10 @@ import {
   resolvePositionalElementSlot,
   staticContainerReceiverName,
 } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
-import { createClassHelpers } from '../../packages/core-js-polyfill-provider/helpers/class-walk.js';
+import { createClassHelpers, ctorAliasShapesReducer } from '../../packages/core-js-polyfill-provider/helpers/class-walk.js';
 import { hopNamesMissingAbleCtor, peelArrayWrapperPair } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
 import {
   checkTypeAnnotations,
-  isTypeAnnotationNodeType,
   mutatedStaticLandingVerdict,
   annotationNameIsGlobal,
   typeOnlyImportShadows,
@@ -93,12 +92,21 @@ import {
   reachingReassignmentValueNode,
   reassignmentValueEnumeration,
   varInitDominatesUsage,
+  wrapScopeBindingLookup,
+  bindsModuleDefault,
+  isTransparentWrapper,
+  unwrapTransparentSeq,
+  unwrapRuntimeExpr,
+  isTypeAnnotationNodeType,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import {
   callPairing,
   escapedCtorReferencesReducer,
   mutationShapesReducer,
 } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
+import { createUsageHandlerCore } from '../../packages/core-js-polyfill-provider/detect-usage/visitors.js';
+import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
+import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { parse as babelParse } from '@babel/parser';
 import * as babelTypes from '@babel/types';
 import { types as estreeTypes } from '../../packages/core-js-unplugin/internals/estree-compat.js';
@@ -156,6 +164,42 @@ check('isKnownGlobalName/notAGlobal', isKnownGlobalName('notAGlobal_xyz'), false
 // globals (Iterator / AsyncIterator) are recognized too - not just the legacy hardcoded sets
 check('isKnownGlobalName/Iterator', isKnownGlobalName('Iterator'), true);
 check('isKnownGlobalName/AsyncIterator', isKnownGlobalName('AsyncIterator'), true);
+
+// Ordinary identifiers cannot request a global polyfill, but their stored-realm hook must
+// still run: an alias need not spell a known global. Real globals retain the shadow check,
+// including injectable names outside the return-type catalogue. The two ordinary names are
+// intentionally unbound here: their rejection must not depend on a successful scope lookup.
+for (const method of ['usage-global', 'usage-pure']) {
+  runBoth(`global visitor/name screening/${ method }`,
+    'ordinary; realmAlias; Map; Iterator; AsyncIterator; structuredClone; function f(Map) { Map; }',
+    (adapter, prog, lbl) => {
+      const queried = [];
+      const hooked = [];
+      const emitted = [];
+      const core = createUsageHandlerCore({
+        method,
+        adapter: {
+          hasBinding(scope, name) {
+            queried.push(name);
+            return !!scope.getBinding(name);
+          },
+        },
+        suppressKeptNavRoot(path) {
+          hooked.push(path.node.name);
+          return path.node.name === 'realmAlias';
+        },
+        onUsage(meta) { emitted.push(meta.name); },
+      });
+      for (const statement of adapter.collectPaths(prog, 'ExpressionStatement')) {
+        core.emitGlobalUsage(statement.get('expression'));
+      }
+      checkDeep(`${ lbl } globals and shadow`, emitted, ['Map', 'Iterator', 'AsyncIterator', 'structuredClone']);
+      checkDeep(`${ lbl } unknown names need no scope query`, queried,
+        ['Map', 'Iterator', 'AsyncIterator', 'structuredClone', 'Map']);
+      checkDeep(`${ lbl } alias hook precedes screening`, hooked,
+        ['ordinary', 'realmAlias', 'Map', 'Iterator', 'AsyncIterator', 'structuredClone', 'Map']);
+    });
+}
 
 // --- staticReceiverHint (instance-method-on-static gate) ---
 // constructors -> 'function': lets the resolver bail Array.prototype methods read off the
@@ -603,6 +647,48 @@ check('isTypeAnnotationNodeType/ClassImplements', isTypeAnnotationNodeType('Clas
 
 // --- walkTypeAnnotationGlobals ---
 
+// A conditional's comparison types select its result without describing a value flowing
+// through the annotation. Result arms still carry the usual global expectations.
+for (const [label, annotation, expected] of [
+  ['check operand', 'Number extends string ? string : boolean', []],
+  ['extends operand', 'string extends Number ? string : boolean', []],
+  ['nested generic operand', 'string extends Array<Number> ? string : boolean', []],
+  ['signature operand', 'string extends ((value: Number) => Set<number>) ? string : boolean', []],
+  ['query operand', 'string extends typeof Number ? string : boolean', []],
+  ['qualified operand', 'string extends globalThis.Number ? string : boolean', []],
+  ['true result', 'string extends string ? Number : boolean', ['Number']],
+  ['false result', 'string extends boolean ? boolean : Number', ['Number']],
+  ['signature result', 'string extends string ? ((value: Number) => Set<number>) : boolean', ['Number', 'Set']],
+  ['nested result comparison', 'string extends string ? (Number extends string ? Map<string, number> : boolean) : boolean', ['Map']],
+  ['captured check result', 'Set<number> extends infer Captured ? Captured : never', ['Set']],
+  ['captured return result', '(() => Set<number>) extends (() => infer Captured) ? Captured : never', ['Set']],
+  ['captured array result', 'Set<number> extends infer Captured ? Captured[] : never', ['Set']],
+  ['captured function result', 'Set<number> extends infer Captured ? (() => Captured) : never', ['Set']],
+  ['captured nested argument', 'Map<string, Set<number>> extends Map<string, infer Captured> ? Captured : never', ['Set']],
+  ['different generic hosts', 'Map<string, Set<number>> extends Iterable<infer Captured> ? Captured : never', ['Map', 'Set']],
+  ['unused different generic capture', 'Map<string, Set<number>> extends Iterable<infer Captured> ? string : never', []],
+  ['deep captured input',
+    `${ 'Array<'.repeat(33) }Set<number>${ '>'.repeat(33) } extends ${ 'Array<'.repeat(33) }infer Captured${ '>'.repeat(33) } ? Captured : never`,
+    ['Set']],
+  ['captured member by name', '{ a: Map<string, number>; b: Set<number> } extends { b: infer Captured } ? Captured : never', ['Set']],
+  ['unused capture', 'Set<number> extends infer Captured ? string : boolean', []],
+  ['unused return capture', '(() => Set<number>) extends (() => infer Captured) ? string : boolean', []],
+  ['shadowed capture', 'Set<number> extends infer Captured ? (<Captured>() => Captured) : never', []],
+  ['captured trailing tuple rest', '[number, Set<number>, Promise<number>] extends [unknown, ...infer Captured] ? Captured : never', ['Promise', 'Set']],
+  ['captured leading tuple rest', '[Set<number>, Promise<number>, number] extends [...infer Captured, unknown] ? Captured : never', ['Promise', 'Set']],
+  ['captured middle tuple rest', '[number, Set<number>, Promise<number>, number] extends [unknown, ...infer Captured, unknown] ? Captured : never', ['Promise', 'Set']],
+  // Unordered arms and overloaded signatures preserve candidate obligations; they are not
+  // a claim that the type resolver picked a particular assignability relation.
+  ['unordered capture candidates', '(Set<number> | Promise<number>) extends (Promise<number> | infer Captured) ? Captured : never', ['Promise', 'Set']],
+  ['overloaded call candidates', '{ (x: string): Map<string, number>; (x: number): Set<number> } extends { (...args: any[]): infer Captured } ? Captured : never', ['Map', 'Set']],
+  ['overloaded method candidates',
+    '{ m(x: string): Map<string, number>; m(x: number): Set<number> } extends { m(...args: any[]): infer Captured } ? Captured : never', ['Map', 'Set']],
+]) {
+  runBoth(`walkTypeAnnotationGlobals/conditional ${ label }`, `declare const value: ${ annotation };`, (adapter, prog, lbl) => {
+    checkDeep(lbl, annotationGlobals(prog, 'TSConditionalType').sort(), [...expected].sort());
+  });
+}
+
 // walks `Promise<number>` reference, calls onGlobal with 'Promise' once
 runBoth('walkTypeAnnotationGlobals/Promise<number>', 'const x: Promise<number> = null!;', (adapter, prog, lbl) => {
   checkDeep(lbl, annotationGlobals(prog, 'TSTypeReference'), ['Promise']);
@@ -859,6 +945,34 @@ runBoth('reassignmentDominatesUsage/cross-closure reassign stays shallow -> fals
     check(lbl, reassignmentDominatesUsage({ reassignmentNodes, usagePath }), false);
   });
 
+// A write below a nested function is deliberately outside the owner's parent index. Many distinct
+// excluded writes must not each rebuild that index. Count raw walks instead of machine-dependent
+// elapsed time, then attach a fresh write to verify that a real cache miss still refreshes it.
+{
+  const nested = Array.from({ length: 32 }, (unused, index) => `function inner${ index }() { for (; flag;) { M = Set; } }`).join('\n');
+  runBoth('reassignmentDominatesUsage/excluded writes do not repeatedly rebuild the owner',
+    `function outer() { var M = Map; ${ nested } M.foo(); }`, (adapter, prog, lbl) => {
+      const owner = adapter.pickPath(prog, 'FunctionDeclaration', p => p.node.id?.name === 'outer').node;
+      const writes = adapter.collectPaths(prog, 'AssignmentExpression').map(p => p.node);
+      const usagePath = adapter.pickPath(prog, 'MemberExpression', p => p.node.object?.name === 'M');
+      let walks = 0;
+      Object.defineProperty(owner, 'indexWalkProbe', {
+        configurable: true, enumerable: true,
+        get() { walks++; return null; },
+      });
+      check(`${ lbl } nested writes stay deferred`, reassignmentDominatesUsage({ reassignmentNodes: writes, usagePath }), false);
+      check(`${ lbl } bounded owner walks`, walks <= 2, true);
+      delete owner.indexWalkProbe;
+
+      // A clone has a fresh identity, as in an emitter rewrite. Its new, unconditional position
+      // dominates the use even though the original write remains inside a nested loop.
+      const clone = { ...writes[0] };
+      owner.body.body.splice(1, 0, { type: 'ExpressionStatement', expression: clone, start: clone.start, end: clone.end });
+      check(`${ lbl } attached clone refreshes the index`,
+        reassignmentDominatesUsage({ reassignmentNodes: [clone], usagePath }), true);
+    });
+}
+
 // X11: reassignmentDominatesUsage must stay SUB-CUBIC on a heavily-reassigned alias. without memoizing
 // collectVarGuardsToDeclarator, every (use, write) pair re-walked the whole owner subtree -> O(U*R*N),
 // seconds-to-tens-of-seconds at a few hundred reassigns/uses. this calls the helper over every use site
@@ -1086,6 +1200,20 @@ const unionAdapter = {
   getBindingNodeType() { return null; },
   hasBinding(scope, name) { return !!scope?.getBinding?.(name); },
 };
+for (const [source, expected] of [
+  ['for (const ctor of [Array]) { ctor.from; }', ['Array']],
+  ['for (const ctor of [Array, Array]) { ctor.from; }', ['Array']],
+  ['for (const ctor of [Array]) { const Array = {}; ctor.from; }', ['Array']],
+  ['function f(Array) { for (const ctor of [Array]) { ctor.from; } }', []],
+  ['for (const ctor in [Array]) { ctor.from; }', []],
+  ['for (const ctor of values) { ctor.from; }', []],
+  ['for (const ctor of [{ from: custom }]) { ctor.from; }', []],
+]) runBoth(`alias guard candidates from a for-of head/${ source }`, source, (adapter, prog, lbl) => {
+  const read = adapter.pickPath(prog, 'MemberExpression', p => p.node.object?.name === 'ctor');
+  const getBinding = wrapScopeBindingLookup((scope, name) => scope.getBinding(name));
+  const bindingAdapter = { ...unionAdapter, getBinding, hasBinding: (scope, name, path) => !!getBinding(scope, name, path) };
+  checkDeep(lbl, aliasWriteCtorNames({ name: 'ctor', scope: read.scope, path: read, adapter: bindingAdapter }), expected);
+});
 function unionExtras(adapter, prog, receiverIsStatic) {
   const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.computed);
   return collectMemberUnionCandidates({
@@ -2319,6 +2447,11 @@ const STATEMENT_HEAD_CASES = [
   ['a use in the BODY is not a head', 'for (let i = 0; false;) { let Map = 1; y(Map); }', false, false],
   ['an outer declaration is not the body', 'let Map = 1; for (let i = Map; false;) { }', true, false],
   ['a body declaration nested in a block', 'while (Map) { { let Map = 1; } }', true, true],
+  // A declaration can sit inside several statement bodies. A non-matching inner head must not
+  // stop the search before the outer match, and a use in every body must remain visible.
+  ['outer of two heads', 'while (Map) { for (;;) { let Map = 1; } }', true, true],
+  ['inner of two heads', 'while (ok) { for (; Map;) { let Map = 1; } }', true, true],
+  ['body of two statements', 'while (ok) { for (;;) { let Map = 1; y(Map); } }', false, false],
   ['no enclosing statement', 'const f = () => Map; let Map = 1;', false, false],
 ];
 for (const [variant, code, , invisible] of STATEMENT_HEAD_CASES) {
@@ -2457,15 +2590,15 @@ runBoth('walkTypeAnnotationGlobals/reports a typeof query host apart',
     checkTypeAnnotations(host.node, name => found.push(name), annotationWalkCtx(prog));
     return [...new Set(found)].sort();
   }
-  // the walk hands every reference to the sink, the alias's own parameter `T` included - the
-  // sink is where a parameter in scope is filtered; the infer's name never reaches it at all
+  // An unresolved inferred input reaches the sink's scope filter like a result reference.
+  // The inferred name itself is suppressed by the walk; its pattern's container stays erased.
   runBoth('walkTypeAnnotationGlobals/an infer covers the true branch', 'type U<T> = T extends Array<infer Set> ? Set : never;',
     (adapter, prog, lbl) => {
-      checkDeep(lbl, slotGlobals(adapter, prog, 'TSTypeAliasDeclaration'), ['Array', 'T']);
+      checkDeep(lbl, slotGlobals(adapter, prog, 'TSTypeAliasDeclaration'), ['T']);
     });
   runBoth('walkTypeAnnotationGlobals/the false branch reads the global', 'type U<T> = T extends Array<infer Set> ? 1 : Set<T>;',
     (adapter, prog, lbl) => {
-      checkDeep(lbl, slotGlobals(adapter, prog, 'TSTypeAliasDeclaration'), ['Array', 'Set', 'T']);
+      checkDeep(lbl, slotGlobals(adapter, prog, 'TSTypeAliasDeclaration'), ['Set', 'T']);
     });
   runBoth('annotationNameIsGlobal/a type parameter of the host shadows', 'interface Box<Set> { v: Set }',
     (adapter, prog, lbl) => {
@@ -2530,6 +2663,34 @@ runBoth('escaped-ctor census/a named class declaration binds its statics',
   'class NS { static Base = Map; }\nsink(NS.Base);',
   (adapter, prog, lbl) => check(lbl, censusStamps(prog.node), 1));
 
+// The alias pre-pass can register only a known global key. Ordinary destructuring must
+// not start a scoped file walk; nested wrappers and all key spellings it accepts still do.
+for (const [name, source, expected] of [
+  ['plain object', 'const { array, itemSize } = attribute;', false],
+  ['plain array', 'const [first, second] = items;', false],
+  ['nested ordinary slots', 'const [{ options: { size } }] = items;', false],
+  ['rest only', 'const { ...rest } = source;', false],
+  ['unknown computed key', 'const { [key]: value } = source;', false],
+  ['object literal is not a pattern', 'const [value] = items; const options = { Map: source };', false],
+  ['parameter alone', 'function read({ Map: M }) { return M; }', false],
+  ['parameter default alone', 'function read({ Map: M } = globalThis) { return M; }', false],
+  ['known global declaration', 'const { Map: M } = source;', true],
+  ['known global assignment', 'let M; ({ Map: M } = source);', true],
+  ['statics-only globals', 'const { Array: A, Object: O, Math: M } = source;', true],
+  ['nested proxy', 'const { self: { Map: M } } = source;', true],
+  ['array wrapper', 'const [{ Map: M }] = [source];', true],
+  ['deep array wrapper', 'const [[{ Map: M }]] = [[source]];', true],
+  ['string key', "const { 'Map': M } = source;", true],
+  ['computed string key', "const { ['Map']: M } = source;", true],
+  ['computed template key', 'const { [`Map`]: M } = source;', true],
+  ['exported declaration', 'export const { Map: M } = source;', true],
+  ['known key beside rest', 'const { Map: M, ...rest } = source;', true],
+]) {
+  runBoth(`ctor-alias census/${ name }`, source, (adapter, program, label) => {
+    check(label, collectFileCensus(program.node, [ctorAliasShapesReducer()]).hasCtorAliasShapes, expected);
+  });
+}
+
 // `bind` invoked on the spot carries the arguments it captured ahead of the call's - and it may
 // have captured NONE, in which case there is no leading argument to read a spread off
 runBoth('callPairing/a bind with no captured arguments', 'f.bind()();', (adapter, prog, lbl) => {
@@ -2539,6 +2700,35 @@ runBoth('callPairing/a bind with no captured arguments', 'f.bind()();', (adapter
 runBoth('callPairing/a bind capturing a spread cannot place the arguments', 'f.bind(...s)();', (adapter, prog, lbl) => {
   const pairing = callPairing(adapter.pickPath(prog, 'CallExpression', p => p.node.callee.type === 'CallExpression').node);
   checkDeep(lbl, [pairing.args.length, pairing.argsUnknown], [0, true]);
+});
+
+// A rewrite needs the invoker's authority, whereas the mutation census keeps its over-pairing.
+// Redirected methods may inspect the argument's identity without invoking the apparent callee.
+for (const [source, namespace, key] of [
+  ['Reflect.apply(f, null, [Array]);', 'Reflect', 'apply'],
+  ['f.call(null, Array);', 'Function.prototype', 'call'],
+  ['f.apply(null, [Array]);', 'Function.prototype', 'apply'],
+  ['f.bind(null, Array)();', 'Function.prototype', 'bind'],
+]) {
+  runBoth(`callPairing/mutated ${ namespace }.${ key }`, source, (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression').node;
+    const callee = adapter.pickPath(prog, 'Identifier', path => path.node.name === 'f').node;
+    check(`${ lbl }: census still pairs`, callPairing(call).callee === callee, true);
+    check(`${ lbl }: pristine rewrite pairs`, callPairing(call, null, { staticIsMutated: () => false }).callee === callee, true);
+    const options = { staticIsMutated: (object, member) => object === namespace && member === key };
+    check(`${ lbl }: redirected rewrite declines`, callPairing(call, null, options).callee === callee, false);
+  });
+}
+
+// The scoped import registry is available before the pending import enters the Program body.
+runBoth('callPairing/pending Reflect.apply binding', '_apply(f, null, [Array]);', (adapter, prog, label) => {
+  const call = adapter.pickPath(prog, 'CallExpression').node;
+  const [supplied] = call.arguments[2].elements;
+  const pairing = callPairing(call, null, { getBindingEntry: name => name === '_apply' ? 'reflect/apply' : null });
+  check(`${ label }: target`, pairing.callee.name, 'f');
+  check(`${ label }: supplied argument`, pairing.args[0] === supplied, true);
+  check(`${ label }: shadow or reassignment removes authority`,
+    callPairing(call, prog.node, { getBindingEntry: () => null }).callee.name, '_apply');
 });
 
 // --- the container slot an ESCAPE names: the whole key path, not the hop above it ---
@@ -2567,6 +2757,35 @@ for (const [label, code, expected] of [
     checkDeep(lbl, censusSlots(prog.node), expected);
   });
 }
+
+// Same-named declarations in unrelated scopes must not share their container writes. Repeating
+// a var in its own scope keeps that identity, while parameters, catches and loop heads shadow it.
+runBoth('container declaration scopes/aliases and repeated names', `
+  const box = { value: Map };
+  function left() {
+    var box = { value: Array };
+    var box;
+    const alias = box;
+    alias.value = Set;
+  }
+  function right() {
+    const box = { value: WeakMap };
+    { const alias = box; alias.value = WeakSet; }
+  }
+  function shadow(box) { box.value = Promise; }
+  try { throw null; } catch (box) { box.value = Object; }
+  for (let box of []) box.value = Promise;
+`, (adapter, prog, lbl) => {
+  const { writtenContainerSlots, containerSlotIndex } = collectFileCensus(prog.node, [mutationShapesReducer(null)]);
+  for (const [initial, expected] of [['Map', []], ['Array', ['Set']], ['WeakMap', ['WeakSet']]]) {
+    const declaration = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.init?.type === 'ObjectExpression'
+      && p.node.init.properties[0].value.name === initial).node;
+    const key = containerSlotIndex.owners.get(declaration);
+    check(`${ lbl }/${ initial }: declaration indexed`, typeof key, 'string');
+    const writes = writtenContainerSlots.get(`${ key }.value`) ?? [];
+    checkDeep(`${ lbl }/${ initial }: own writes`, writes.map(node => node.name), expected);
+  }
+});
 
 // --- an inline CALL standing where a container is due ---
 
@@ -2874,6 +3093,38 @@ runBoth('container union/a branching array slot declines in pure', BRANCHING_SLO
   check(`${ lbl } without`, containerWalkUnion({
     adapter, prog, key: 'Map', extraAdapter: { method: 'usage-pure' },
   }), null);
+});
+
+for (const [name, setup, call, expected] of [
+  ['shorthand', 'const o = { m() { return Map; } };', 'o.m()', 'Map'],
+  ['function property', 'const o = { m: function () { return Map; } };', 'o.m()', 'Map'],
+  ['arrow property', 'const o = { m: () => Map };', 'o.m()', 'Map'],
+  ['function alias', 'const m = () => Map; const o = { m };', 'o.m()', 'Map'],
+  ['namesake owner', 'function other() { const o = { m() { return Set; } }; return o.m(); } const o = { m() { return Map; } };', 'o.m()', 'Map'],
+  ['effects', 'const o = { m() { effect(); return Map; } };', 'o.m(argument())', 'Map'],
+  ['computed literal', 'const o = { m() { return Map; } };', 'o["m"]()', 'Map'],
+  ['optional owner', 'const o = { m() { return Map; } };', 'o?.m()', 'Map'],
+  ['optional call', 'const o = { m() { return Map; } };', 'o.m?.()', 'Map'],
+  ['shadowed return', 'const Map = {}; const o = { m() { return Map; } };', 'o.m()', null],
+  ['named function shadow', 'const o = { m: function Map() { return Map; } };', 'o.m()', null],
+  ['aliased named function shadow', 'const m = function Map() { return Map; }; const o = { m };', 'o.m()', null],
+  ['parameter shadow', 'const o = { m(Map) { return Map; } };', 'o.m(other)', null],
+  ['async method', 'const o = { async m() { return Map; } };', 'o.m()', null],
+  ['generator method', 'const o = { *m() { return Map; } };', 'o.m()', null],
+  ['replaced method', 'const o = { m() { return Map; } }; o.m = other;', 'o.m()', null],
+  ['later getter', 'const o = { m() { return Map; }, get m() { return other; } };', 'o.m()', null],
+  ['later spread', 'const o = { m() { return Map; }, ...other };', 'o.m()', null],
+  ['later unknown key', 'const o = { m() { return Map; }, [key]: other };', 'o.m()', null],
+  ['receiver exposed by this', 'const o = { m() { return Map; }, expose() { return this; } };', 'o.m()', null],
+  ['conditional owner', 'if (flag) { var o = { m() { return Map; } }; }', 'o?.m()', null],
+]) runBoth(`local method return/${ name }`, `${ setup } const result = ${ call };`, (parser, program, label) => {
+  collectFileCensus(program.node, [escapedCtorReferencesReducer()]);
+  const value = parser.pickPath(program, 'VariableDeclarator', path => path.node.id.name === 'result').get('init');
+  const adapter = parser.name === 'babel' ? createBabelAdapter({ method: 'usage-pure' }) : createEstreeAdapter({ method: 'usage-pure' });
+  check(label, resolveObjectName({ objectNode: value.node, scope: value.scope, adapter, path: value }), expected);
+  if (expected) check(`${ label }: preserves call`, inlineCallHasObservableEffects({
+    callNode: unwrapRuntimeExpr(value.node), scope: value.scope, adapter, path: value,
+  }), true);
 });
 
 finish();

@@ -4,6 +4,11 @@ import { TraceMap, originalPositionFor } from '@jridgewell/trace-mapping';
 import unplugin, { shouldTransform } from '../../packages/core-js-unplugin/index.js';
 import { createPolyfillContext, entryToGlobalHint } from '../../packages/core-js-polyfill-provider/index.js';
 import { ORPHAN_REF_PATTERN } from '../../packages/core-js-polyfill-provider/injector-base.js';
+import {
+  memberFromKeyName,
+  expressionStatement as mintStatement,
+  literal as mintLiteral,
+} from '../../packages/core-js-polyfill-provider/render.js';
 import { collectPrePassSites, createEstreeAdapter, withoutPhantomDeclarationViolations } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { patternToRegExp } from '../../packages/core-js-polyfill-provider/helpers/pattern-matching.js';
 import { buildOffsetToLoc } from '../../packages/core-js-polyfill-provider/helpers/source-scan.js';
@@ -17,19 +22,16 @@ import createPlugin, {
 import { sealedLayerAbove } from '../../packages/core-js-unplugin/internals/claim-guards.js';
 import SnapshotCache from '../../packages/core-js-unplugin/internals/snapshot-cache.js';
 import { printProgram } from '../../packages/core-js-unplugin/internals/print.js';
-import { expressionStatement as mintStatement, literal as mintLiteral } from '../../packages/core-js-unplugin/internals/builders.js';
 import { collapseWhitespace } from './collapse-whitespace.mjs';
 import {
   hasCoreJSImport,
   isCallee,
   isChunkLoaderBundler,
-  isTopLevelImportLike,
-  liftSfcLangSuffix,
   skipDirectivePrologue,
   stripLeadingBOMs,
-  walkAstNodes,
 } from '../../packages/core-js-unplugin/internals/plugin-helpers.js';
-import { unwrapRuntimeExpr as unwrapNode } from '@core-js/polyfill-provider/helpers/ast-patterns';
+import { unwrapRuntimeExpr as unwrapNode, isTopLevelImportLike, walkAstNodes } from '@core-js/polyfill-provider/helpers/ast-patterns';
+import { liftSfcLangSuffix } from '../../packages/core-js-unplugin/internals/sfc-shapes.js';
 
 function programOf(src, sourceType = 'module') {
   // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
@@ -1638,7 +1640,7 @@ checkPhaseSnapshotFlow();
 
 // --- AST-engine internals: builders and emit-shared contracts ---
 async function checkAstInternalsCore() {
-  const b = await import('../../packages/core-js-unplugin/internals/builders.js');
+  const b = await import('../../packages/core-js-polyfill-provider/render.js');
   check('builders identifier shape', JSON.stringify(b.identifier('x')), '{"type":"Identifier","name":"x"}');
   check('builders string literal carries its raw quote', b.literal('a').raw, '"a"');
   check('builders non-string literal has NO raw (printer derives NaN/bigint itself)',
@@ -1661,10 +1663,10 @@ async function checkAstInternalsCore() {
   check('emit-shared receiverCarriesOptional sees a buried `?.()`', es.receiverCarriesOptional(optionalDeep), true);
   check('emit-shared receiverCarriesOptional clean spine answers false',
     es.receiverCarriesOptional(b.memberExpression(b.identifier('a'), b.identifier('b'))), false);
-  check('emit-shared memberFromKeyName spells a non-ident key computed',
-    es.memberFromKeyName(b.identifier('o'), 'has-dash').computed, true);
-  check('emit-shared memberFromKeyName spells an ident key plain',
-    es.memberFromKeyName(b.identifier('o'), 'flat').computed, false);
+  check('render memberFromKeyName spells a non-ident key computed',
+    memberFromKeyName(b.identifier('o'), 'has-dash').computed, true);
+  check('render memberFromKeyName spells an ident key plain',
+    memberFromKeyName(b.identifier('o'), 'flat').computed, false);
   const host = b.expressionStatement(b.identifier('old'));
   check('emit-shared replaceNodeInTree lands by identity',
     es.replaceNodeInTree(host, host.expression, b.identifier('next')) && host.expression.name === 'next', true);
@@ -1892,70 +1894,45 @@ function checkPostKeepsRelocatedCatchLiveness() {
 }
 checkPostKeepsRelocatedCatchLiveness();
 
-// --- post-without-pre re-recognizes pre's rest-destructure sentinels ---
-// pre rebuilds `const { from, ...rest } = Array` with a `_unused` sentinel keeping the rest
-// exclusion. a post pass whose snapshot was lost (sibling invalidation) re-parses that output;
-// without sentinel adoption it re-processed the rebuilt pattern - a dead `const _unused =`
-// body-extract plus a re-keyed `_unused2` per re-pass, growing on every rebuild cycle
+// Native rest is stable across pre and post, including user bindings named like legacy
+// sentinels. Previously emitted sentinel output remains accepted without another rewrite.
 function checkPostAdoptsUnusedSentinels() {
   const code = 'const { from, ...rest } = Array;\nexport const r = [from, rest];';
   const opts = { method: 'usage-pure', version: '4.0', targets: { ie: 11 } };
   const pre = createPlugin(opts).transform(code, '/x30.mjs', 'pre');
-  check('post-adopt-unused/pre rebuilt with sentinel', pre?.code?.includes('_unused'), true);
-  const post = createPlugin(opts).transform(pre.code, '/x30.mjs', 'post');
-  // idempotent: nothing left for post to change (null/undefined result = no transform)
+  check('post-adopt-unused/pre preserves rest without a sentinel', (pre?.code ?? code).includes('_unused'), false);
+  const post = createPlugin(opts).transform(pre?.code ?? code, '/x30.mjs', 'post');
   check('post-adopt-unused/post-without-pre is idempotent', post?.code ?? null, null);
-  // a NESTED-scope sentinel adopts the same way - declared names collect at every depth
   const nested = 'function f() {\n  const { from, ...rest } = Array;\n  return [from, rest];\n}\nexport default f;';
   const nestedPre = createPlugin(opts).transform(nested, '/x30n.mjs', 'pre');
-  check('post-adopt-unused/nested pre rebuilt with sentinel', nestedPre?.code?.includes('_unused'), true);
-  const nestedPost = createPlugin(opts).transform(nestedPre.code, '/x30n.mjs', 'post');
+  check('post-adopt-unused/nested pre preserves rest without a sentinel', (nestedPre?.code ?? nested).includes('_unused'), false);
+  const nestedPost = createPlugin(opts).transform(nestedPre?.code ?? nested, '/x30n.mjs', 'post');
   check('post-adopt-unused/nested post-without-pre is idempotent', nestedPost?.code ?? null, null);
-  // BOTH adoption channels in one file (orphan `_ref` memo + `_unused` sentinel) - the two
-  // suffix-state seeds merge instead of clobbering each other, and the post pass is idempotent
   const both = 'const { from, ...rest } = Array;\nexport const r = [from, rest, (arr ?? [1]).at(0)];';
   const bothPre = createPlugin(opts).transform(both, '/x30b.mjs', 'pre');
-  check('post-adopt-unused/both channels present in pre',
-    bothPre?.code?.includes('_unused') && bothPre?.code?.includes('var _ref'), true);
+  check('post-adopt-unused/independent receiver memo remains beside native rest',
+    !bothPre?.code?.includes('_unused') && bothPre?.code?.includes('var _ref'), true);
   const bothPost = createPlugin(opts).transform(bothPre.code, '/x30b.mjs', 'post');
   check('post-adopt-unused/both channels post is idempotent', bothPost?.code ?? null, null);
-  // adoption is by POSITION and by ORIGIN, not by name shape: a USER binding named `_unused` in
-  // the sentinel position that the file READS is the user's (our sentinel is read by nothing),
-  // so it is not adopted and the rest-destructure keeps its rewrite - the read gets the
-  // polyfilled `from` instead of the native slot the taken engine lacks. a binding read by
-  // nothing adopts only where OUR extraction of the key stands beside it (the shape pre leaves:
-  // `const from = _Array$from;` in the same statement list) - an unread alias with no such
-  // sibling is the user's too, whatever the file imports, and its importers may read it
   const shadow = 'import "@core-js/pure/actual/array/from";\nconst { from: _unused, ...rest } = Array;\nexport const r = [_unused, rest];';
   const shadowPost = createPlugin(opts).transform(shadow, '/x30s.mjs', 'post');
-  check('post-adopt-unused/read user binding in the sentinel position keeps its rewrite',
-    /const _unused = _Array\$from;\s*const \{ from: _unused2, \.\.\.rest \} = Array;/.test(shadowPost?.code ?? ''), true);
+  check('post-adopt-unused/shadow native rest stays intact', shadowPost?.code ?? shadow, shadow);
   const unread = 'import "@core-js/pure/actual/array/from";\nexport const { from: _unused, ...rest } = Array;';
   const unreadPost = createPlugin(opts).transform(unread, '/x30u.mjs', 'post');
-  check('post-adopt-unused/unread alias without our extraction beside it keeps its rewrite',
-    /export const _unused = _Array\$from;\s*export const \{ from: _unused2, \.\.\.rest \} = Array;/.test(unreadPost?.code ?? ''), true);
+  check('post-adopt-unused/unread native rest stays intact', unreadPost?.code ?? unread, unread);
   const ours = 'import _Array$from from "@core-js/pure/actual/array/from";\nexport const from = _Array$from;\nexport const { from: _unused, ...rest } = Array;';
   const oursPost = createPlugin(opts).transform(ours, '/x30o.mjs', 'post');
   check('post-adopt-unused/our exported sentinel beside its extraction adopts', oursPost?.code ?? null, null);
-  // the extraction must be of the SAME key: a pure import of another member in the same list is
-  // not our sibling
   const other = 'import _Array$from from "@core-js/pure/actual/array/from";\nexport const y = _Array$from([1]);\nexport const { at: _unused, ...rest } = [2];';
   const otherPost = createPlugin(opts).transform(other, '/x30k.mjs', 'post');
-  check('post-adopt-unused/an extraction of another key is no sibling', /export const _unused = _atMaybeArray\(_ref\);/.test(otherPost?.code ?? ''), true);
-  // a READ binding never adopts even when an extraction-lookalike of the same key stands beside it
-  // (a user aliasing the ponyfill AND naming their rest-consumed key `_unusedN`): our sentinel is
-  // read by nothing, so the read alone proves the name is the user's - the position filter, not
-  // the sibling fingerprint, is what keeps this rewrite
+  check('post-adopt-unused/other native rest stays intact', otherPost?.code ?? other, other);
   const readBeside = 'import _at from "@core-js/pure/actual/array/instance/at";\nconst arr = [1];\nconst at = _at(arr);\n'
     + 'export const { at: _unused2, ...rest } = arr;\nexport const r = [_unused2, at];';
   const readBesidePost = createPlugin(opts).transform(readBeside, '/x30r.mjs', 'post');
-  check('post-adopt-unused/a read binding beside a same-key extraction keeps its rewrite',
-    /export const _unused2 = /.test(readBesidePost?.code ?? ''), true);
-  // a slot-shaped name OUTSIDE the sentinel position is never a sentinel, whatever the file imports
+  check('post-adopt-unused/readBeside native rest stays intact', readBesidePost?.code ?? readBeside, readBeside);
   const plain = 'import "@core-js/pure/actual/array/from";\nvar _unused = 1;\nexport const { at: _unused2, ...rest } = [2];\nexport const r = [_unused, _unused2];';
   const plainPost = createPlugin(opts).transform(plain, '/x30p.mjs', 'post');
-  check('post-adopt-unused/a plain var of the shape does not arm the skip',
-    /export const _unused2 = _atMaybeArray\(_ref\);/.test(plainPost?.code ?? ''), true);
+  check('post-adopt-unused/plain native rest stays intact', plainPost?.code ?? plain, plain);
 }
 checkPostAdoptsUnusedSentinels();
 
@@ -3111,8 +3088,11 @@ function checkTypedOuterInnerDefault() {
     composed.includes('_nameMaybeFunction((_ref = _atMaybeArray(src)) === void 0 ? {} : _ref)'), true);
   check('typed-outer inner default/both steps import', importCount('const { at: { name } = {} } = src;'), 2);
   // a sibling prop keeps its residual beside the extraction
+  const withSibling = transformed('const { at: { name } = {}, other } = src;');
   check('typed-outer inner default/multi-prop keeps the residual',
-    transformed('const { at: { name } = {}, other } = src;').includes('const { other } = src;'), true);
+    withSibling.includes('const _ref2 = src;') && withSibling.includes('const { other } = _ref2;'), true);
+  check('typed-outer inner default/captured source keeps its array type',
+    withSibling.includes('_nameMaybeFunction((_ref = _atMaybeArray(_ref2)) === void 0 ? {} : _ref)'), true);
   // the receiver-bearing default folds through the SAME guard (the climb's carriesReceiver
   // answers false on the typed outer, so the hop stays and the composition owns the claim)
   check('typed-outer inner default/receiver default folds into the guard',
@@ -4189,6 +4169,74 @@ function checkSealedLayerAbove() {
   for (const [label, expr, expected] of rows) check(`sealedLayerAbove/${ label }`, sealed(expr), expected);
 }
 checkSealedLayerAbove();
+
+{
+  const source = 'const obj = globalThis; const { Array: { from }, [Symbol.iterator]: iter, ...rest } = obj; use(from, iter, rest);';
+  const output = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } }).transform(source, 'input.mjs')?.code ?? source;
+  check('a consumed nested sibling does not crash the remaining symbol and rest drain', typeof output, 'string');
+  // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+  check('the consumed sibling output remains parseable', parseSync('output.mjs', output).errors.length, 0);
+}
+
+{
+  const source = 'const { [Symbol.iterator]: it, from, ...rest } = globalThis.Array; use(it, from, rest);';
+  const output = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } }).transform(source, 'input.mjs')?.code ?? source;
+  check('iterator and static slots beside rest stay native', output.includes('@core-js/pure/actual/array/from'), false);
+}
+
+{
+  const source = 'export const { from } = Array, { includes, ...rest } = obj;';
+  const output = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } }).transform(source, 'input.mjs')?.code ?? source;
+  // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+  const parsed = parseSync('output.mjs', output);
+  check('a captured export retires the old host without duplicate bindings', parsed.errors.length, 0);
+  check('a separate exported rest level stays native', output.includes('@core-js/pure/actual/instance/includes'), false);
+  check('a captured export retains the native rest declaration',
+    /export const \{ includes, \.\.\.rest \} = obj;/.test(output), true);
+}
+
+{
+  const source = "const [{ 'from': f, [Symbol.iterator]: it, ...rest }] = [Array]; use(f, it, rest);";
+  const output = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } }).transform(source, 'input.mjs')?.code ?? source;
+  check('array-wrapped static slots beside rest stay native', output.includes('@core-js/pure/actual/array/from'), false);
+  check('array-wrapped iterator slots beside rest stay native', output.includes('@core-js/pure/actual/get-iterator-method'), false);
+}
+
+{
+  const source = 'const { of: { name, ...rest }, junk } = Array; use(name, rest, junk);';
+  const output = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } }).transform(source, 'input.mjs')?.code ?? source;
+  check('a static hop into a rest-bearing level stays native', output.includes('@core-js/pure/actual/array/of'), false);
+}
+
+for (const pattern of ['{ y: { flat: method, ...rest } }', '[{ flat: method, ...rest }]']) {
+  const source = `const { Array: { from } } = globalThis, ${ pattern } = input; use(from, method, rest);`;
+  const output = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } }).transform(source, 'input.mjs')?.code ?? source;
+  check(`a capture preserves claims from its preceding declarator: ${ pattern }`, output.includes('@core-js/pure/actual/array/from'), true);
+}
+
+for (const [receiver, entry] of [['Object.assign([1], { extra: 2 })', 'array/instance/at'], ["'text'", 'string/instance/at']]) {
+  const source = `const box = { y: ${ receiver } }; const { y: { flat, at, ...rest } } = box; use(flat, at, rest);`;
+  const output = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } }).transform(source, 'input.mjs')?.code ?? source;
+  check(`a nested rest pattern stays native: ${ entry }`, output.includes(`@core-js/pure/actual/${ entry }`), false);
+}
+
+{
+  const source = 'const { [Symbol.iterator]: { name, ...rest } } = Array.prototype; use(name, rest);';
+  const output = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } }).transform(source, 'input.mjs')?.code ?? source;
+  check('a symbol hop into a rest-bearing level stays native', output.includes('@core-js/pure/actual/get-iterator-method'), false);
+}
+
+for (const declaration of ['const', 'let']) {
+  const source = `for (${ declaration } { at, ...rest } of [[1]]) use(at, rest.at(0));`;
+  const output = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } }).transform(source, 'input.mjs')?.code ?? source;
+  check(`a native ${ declaration } rest retains its Object type`, output.includes('@core-js/pure/actual/instance/at'), false);
+}
+
+{
+  const source = "for (let { at, ...rest } of [[1]]) { if (flag) rest = 'abc'; use(at, rest.includes('a')); }";
+  const output = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } }).transform(source, 'input.mjs')?.code ?? source;
+  check('a real write to native rest still invalidates its Object type', output.includes('@core-js/pure/actual/instance/includes'), true);
+}
 
 // the tally reads `counts` at the moment it runs, so it belongs AFTER the last section: standing
 // mid-file it snapshotted the count and left every check below it reporting FAIL to stdout while

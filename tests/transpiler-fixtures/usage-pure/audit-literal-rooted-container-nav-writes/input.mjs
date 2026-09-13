@@ -1,9 +1,6 @@
-// the written-slot boundary for a nav rooted at a container LITERAL. such a binding holds a
-// container exactly as a bare literal does, so the census indexes it through the SAME literal and a
-// slot the source REPLACES stops the read - object, array and class-expression roots alike. the
-// consult is method-aware like every other one: pure leaves the read native, global over-injects.
-// the positives pin the other side - the keys the literal spells ABOVE the name are not the name's
-// slots, and an unrelated slot on the same container leaves the read resolving
+// A fresh replacement removes the old realm candidate in either flavor.
+// This also holds for bindings reached through object, array and class literals.
+// Writes to unrelated keys leave the original global claims intact.
 const obj = ({ h: { g: globalThis } }).h;
 obj.g = { Map: null };
 hand(obj.g.Map);

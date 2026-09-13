@@ -249,3 +249,124 @@ QUnit.test('complex: alias written in a branch arm of the guard test throws like
     async();
   });
 });
+
+/* eslint-disable no-useless-assignment -- overwritten holders preserve the binding and capture boundaries under test */
+
+QUnit.test('wrapper capture: a held alias reaches the original container', assert => {
+  const original = { x: Array };
+  const local = original;
+  const alias = { box: local };
+  alias.box.x = { from: () => 'custom' };
+  assert.same(original.x.from([1]), 'custom');
+});
+
+QUnit.test('wrapper capture: a later literal keeps the block-local alias', assert => {
+  const original = { x: Array };
+  let alias = { x: Object };
+  {
+    const local = original;
+    alias = { box: local };
+    alias.box.x = { from: () => 'custom' };
+  }
+  assert.same(original.x.from([1]), 'custom');
+});
+
+QUnit.test('wrapper capture: the write can follow the capture block', assert => {
+  const original = { x: Array };
+  let alias = { x: Object };
+  {
+    const local = original;
+    alias = { box: local };
+  }
+  alias.box.x = { from: () => 'custom' };
+  assert.same(original.x.from([1]), 'custom');
+});
+
+QUnit.test('wrapper capture: a called function installs its own capture', assert => {
+  const original = { x: Array };
+  let alias = { x: Object };
+  function install() {
+    const local = original;
+    alias = { box: local };
+  }
+  install();
+  alias.box.x = { from: () => 'custom' };
+  assert.same(original.x.from([1]), 'custom');
+});
+
+QUnit.test('wrapper capture: a captured member retains its original path', assert => {
+  const original = { part: { x: Array } };
+  const local = original.part;
+  const alias = { box: local };
+  alias.box.x = { from: () => 'custom' };
+  assert.same(original.part.x.from([1]), 'custom');
+});
+
+QUnit.test('wrapper capture: shadowed names preserve the outer container', assert => {
+  const original = { x: Array };
+  let alias = { x: Object };
+  {
+    // eslint-disable-next-line no-shadow -- the two binding identities are the boundary under test
+    const original = { x: Array };
+    alias = { box: original };
+    alias.box.x = { from: () => 'custom' };
+  }
+  assert.deepEqual(original.x.from({ 0: 'outer', length: 1 }), ['outer']);
+});
+
+QUnit.test('wrapper capture: replacing a wrapper slot leaves its former value intact', assert => {
+  const original = { x: Array };
+  const local = original;
+  const alias = { box: local };
+  alias.box = { x: { from: () => 'custom' } };
+  assert.deepEqual(original.x.from({ 0: 'kept', length: 1 }), ['kept']);
+});
+/* eslint-enable no-useless-assignment -- end of the source forms above */
+
+/* eslint-disable no-useless-assignment -- overwritten initial holders are the uncertainty boundary under test */
+
+// Local slot writes preserve custom values and the original captured holder.
+QUnit.test('container alias: a write through the shared holder preserves custom behavior', assert => {
+  let first = { x: Number };
+  const second = { x: String };
+  first = second;
+  first.x = { from: () => 'custom from' };
+  const { x: { from } } = second;
+  assert.same(from([]), 'custom from');
+});
+
+QUnit.test('container alias: an opaque replacement keeps its value and null failure', assert => {
+  function read(external) {
+    let first = { x: Number };
+    const second = { x: String };
+    first = second;
+    first = external;
+    const { x: { raw } } = first;
+    return raw({ raw: ['native'] });
+  }
+  assert.same(read({ x: { raw: () => 'custom raw' } }), 'custom raw');
+  assert.throws(() => read(null), TypeError, 'a null replacement still throws');
+});
+
+QUnit.test('container alias: a later opaque source preserves a function-local write', assert => {
+  function run(external) {
+    const original = { x: Array };
+    let alias = original;
+    alias.x = { from: () => 'custom from' };
+    alias = external();
+    return original.x.from([1]);
+  }
+  assert.same(run(() => ({})), 'custom from');
+});
+
+QUnit.test('container alias: a later opaque source preserves a captured member write', assert => {
+  function run(external) {
+    const original = { slot: { x: Array } };
+    let alias = original.slot;
+    alias.x = { from: () => 'custom member' };
+    alias = external();
+    return original.slot.x.from([1]);
+  }
+  assert.same(run(() => ({})), 'custom member');
+});
+/* eslint-enable no-useless-assignment -- end of the source forms above */

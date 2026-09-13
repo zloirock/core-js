@@ -546,6 +546,12 @@ QUnit.test('mutated-statics: a patch through an array slot beats the polyfill', 
   assert.deepEqual(keys({ a: 1 }), ['a']);
 });
 
+QUnit.test('mutated-statics: a replacement array uses its instance method', assert => {
+  const slot = [globalThis.Array];
+  slot[0] = [8];
+  assert.same(slot[0].at(0), 8);
+});
+
 // the slot-write family that never spells a member write still replaces what the container's slot
 // holds - a mutator call, a callee that may write, a delete, a dynamic key. each must keep the
 // program's replacement winning over the polyfill; no global is touched, so nothing to restore
@@ -728,3 +734,96 @@ QUnit.test('mutated-statics: Object.assign owns the slots it names', assert => {
   assert.same(box.live.at(-1), 3);
 });
 
+// These constructors have static namespaces in pure, but those namespaces are not callable.
+// A user-installed static must stay on the native constructor so call, new and identity survive.
+QUnit.test('mutated native constructors: parameter writes keep callable identity', assert => {
+  const objectDescriptor = Object.getOwnPropertyDescriptor(Object, 'fromEntries');
+  const stringDescriptor = Object.getOwnPropertyDescriptor(String, 'raw');
+  const arrayDescriptor = Object.getOwnPropertyDescriptor(Array, 'from');
+  try {
+    function installObject(target) { target.fromEntries = () => 'object patch'; }
+    function installString(target) { target.raw = () => 'string patch'; }
+    function installArray(target) { target.from = () => ['array patch']; }
+    installObject(Object);
+    installString(String);
+    installArray(Array);
+    assert.same(Object.fromEntries([]), 'object patch');
+    assert.same(String.raw({ raw: ['x'] }), 'string patch');
+    assert.deepEqual(Array.from([]), ['array patch']);
+    assert.same(Object, {}.constructor);
+    assert.same(String, ''.constructor);
+    assert.same(Array, [].constructor);
+    assert.same(Object(1).valueOf(), 1);
+    assert.same(String(2), '2');
+    assert.same(Array(3).length, 3);
+    const ObjectConstructor = Object;
+    const StringConstructor = String;
+    const ArrayConstructor = Array;
+    assert.same(new ObjectConstructor(4).valueOf(), 4);
+    assert.same(new StringConstructor(5).valueOf(), '5');
+    assert.same(new ArrayConstructor(6).length, 6);
+  } finally {
+    if (objectDescriptor) Object.defineProperty(Object, 'fromEntries', objectDescriptor);
+    else delete Object.fromEntries;
+    if (stringDescriptor) Object.defineProperty(String, 'raw', stringDescriptor);
+    else delete String.raw;
+    if (arrayDescriptor) Object.defineProperty(Array, 'from', arrayDescriptor);
+    else delete Array.from;
+  }
+});
+
+QUnit.test('mutated native constructors: missing static activates its installer', assert => {
+  const objectDescriptor = Object.getOwnPropertyDescriptor(Object, 'fromEntries');
+  const stringDescriptor = Object.getOwnPropertyDescriptor(String, 'raw');
+  const arrayDescriptor = Object.getOwnPropertyDescriptor(Array, 'from');
+  try {
+    delete Object.fromEntries;
+    delete String.raw;
+    delete Array.from;
+    if (!Object.fromEntries) Object.fromEntries = () => 'object shim';
+    if (!String.raw) String.raw = () => 'string shim';
+    if (!Array.from) Array.from = () => ['array shim'];
+    assert.same(Object.fromEntries([]), 'object shim');
+    assert.same(String.raw({ raw: ['x'] }), 'string shim');
+    assert.deepEqual(Array.from([]), ['array shim']);
+    assert.same(typeof Object, 'function');
+    assert.same(typeof String, 'function');
+    assert.same(typeof Array, 'function');
+  } finally {
+    if (objectDescriptor) Object.defineProperty(Object, 'fromEntries', objectDescriptor);
+    else delete Object.fromEntries;
+    if (stringDescriptor) Object.defineProperty(String, 'raw', stringDescriptor);
+    else delete String.raw;
+    if (arrayDescriptor) Object.defineProperty(Array, 'from', arrayDescriptor);
+    else delete Array.from;
+  }
+});
+
+/* eslint-disable no-extend-native -- invoker mutation is the form under test */
+
+QUnit.test('consumed parameters: a replaced Reflect.apply observes the original argument', assert => {
+  function read([{ from } = Array]) { return from; }
+  const descriptor = Object.getOwnPropertyDescriptor(Reflect, 'apply');
+  let result;
+  try {
+    Reflect.apply = function (fn, receiver, args) { return args[0][0] === Array; };
+    result = Reflect.apply(read, null, [[Array]]);
+  } finally {
+    Object.defineProperty(Reflect, 'apply', descriptor);
+  }
+  assert.same(result, true);
+});
+
+QUnit.test('consumed parameters: a replaced prototype invoker observes the original argument', assert => {
+  function read([{ from } = Array]) { return from; }
+  const descriptor = Object.getOwnPropertyDescriptor(Function.prototype, 'apply');
+  let result;
+  try {
+    Function.prototype.apply = function (receiver, args) { return args[0][0] === Array; };
+    result = read.apply(null, [[Array]]);
+  } finally {
+    Object.defineProperty(Function.prototype, 'apply', descriptor);
+  }
+  assert.same(result, true);
+});
+/* eslint-enable no-extend-native -- end of the source forms above */

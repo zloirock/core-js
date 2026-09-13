@@ -4,6 +4,7 @@ import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _at from "@core-js/pure/actual/instance/at";
+import _Map from "@core-js/pure/actual/map/constructor";
 import _Object$hasOwn from "@core-js/pure/actual/object/has-own";
 import _Object$is from "@core-js/pure/actual/object/is";
 import _Object$keys from "@core-js/pure/actual/object/keys";
@@ -313,33 +314,31 @@ function mark(t, v) {
   })());
 }
 {
+  // A later computed key can replace w. Substitute Map only when the final w still holds the realm object.
   function k(key) {
     const {
-      w: {
-        Map: kd
-      }
-    } = {
-      w: _globalThis,
-      [key]: other
-    };
+        w: _ref
+      } = {
+        w: _globalThis,
+        [key]: other
+      },
+      kd = _ref === _globalThis ? _Map : _ref.Map;
     return kd;
   }
 }
 {
+  // Read the nested method once before evaluating the following computed key and reading its property.
   function key() {
     return 'k';
   }
-  const _ref = [1];
-  const at = _atMaybeArray(_ref);
-  const {
-    m: {
-      at: _unused
-    },
-    [key()]: picked
-  } = {
-    m: _ref,
+  const _ref2 = {
+    m: [1],
     k: 2
   };
+  const at = _atMaybeArray(_ref2.m);
+  const {
+    [key()]: picked
+  } = _ref2;
 }
 {
   function mark() {}

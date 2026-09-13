@@ -1,11 +1,6 @@
-// the proxy root stays visitable only while the emitted text still carries it RAW. every render
-// that spells the root itself - a paren-sealed guard test, a chain-assign whose hops the guard
-// collapsed, an alias chain a ctor-static claim erases - owns that substitution, and a rewrite
-// left queued on the deleted spelling has nowhere to compose. the last two rows are the negative:
-// there the guard memo re-emits the root verbatim, so its own rewrite must stay live.
-// `collapsedStatic` pins the receiver-guard channel against its sibling one line up: the SAME
-// receiver under an instance claim and under a static one collapses its pristine hops the same
-// way, or the guard TEST reads a raw hop off a root that does not carry it
+// A rendered guard owns the substitutions inside its test; raw source roots remain visitable.
+// Instance and static consumers of a stored terminal window probe must both preserve its absence.
+// Plain alias claims and raw non-realm guard memos remain boundary controls.
 const alias = globalThis;
 let assigned, kept, mid;
 export const sealedRoot = (globalThis)?.window?.Array.prototype.includes.call([1], 1);

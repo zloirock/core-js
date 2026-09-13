@@ -17,7 +17,6 @@ import "core-js/modules/es.symbol.split";
 import "core-js/modules/es.symbol.to-primitive";
 import "core-js/modules/es.symbol.to-string-tag";
 import "core-js/modules/es.symbol.unscopables";
-import "core-js/modules/es.object.assign";
 import "core-js/modules/es.object.to-string";
 import "core-js/modules/es.reflect.namespace";
 import "core-js/modules/es.reflect.apply";
@@ -41,7 +40,6 @@ import "core-js/modules/es.promise.resolve";
 import "core-js/modules/es.array.iterator";
 import "core-js/modules/es.async-iterator.async-dispose";
 import "core-js/modules/es.string.repeat";
-import "core-js/modules/es.array.from";
 import "core-js/modules/es.array.species";
 import "core-js/modules/es.array-buffer.species";
 import "core-js/modules/es.date.to-primitive";
@@ -77,7 +75,6 @@ import "core-js/modules/es.set.is-subset-of";
 import "core-js/modules/es.set.is-superset-of";
 import "core-js/modules/es.set.symmetric-difference";
 import "core-js/modules/es.set.union";
-import "core-js/modules/es.string.from-code-point";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/es.typed-array.species";
 import "core-js/modules/es.weak-map.constructor";
@@ -85,21 +82,9 @@ import "core-js/modules/es.weak-map.get-or-insert";
 import "core-js/modules/es.weak-map.get-or-insert-computed";
 import "core-js/modules/es.weak-set.constructor";
 import "core-js/modules/web.dom-collections.iterator";
-import "core-js/modules/web.url.constructor";
-import "core-js/modules/web.url.to-json";
-import "core-js/modules/web.url-search-params.constructor";
-import "core-js/modules/web.url-search-params.delete";
-import "core-js/modules/web.url-search-params.has";
-import "core-js/modules/web.url-search-params.size";
-// a member nav whose chain starts at the container LITERAL itself folds into the receiver walk
-// exactly as one rooted at a NAME does: the walk descends the literal either way, so the keys in
-// front of the container are part of the path rather than a reason to stop. every root the walk can
-// stand on reaches - an object literal, an array literal, a class expression's statics, a
-// transparent sequence around one, and the literal read with no binding between it and the use.
-// the two negatives pin the boundary: an effect in front of the sequence leaves the nav unfoldable
-// in both flavors, while a slot this file REPLACED is method-aware like every other written-slot
-// consult - pure leaves the read native, global over-injects for it. the escape census reads the
-// replacement either way, so the read lands on what the write installed and owes no family
+// Navigation through a literal resolves the same container as navigation through a name.
+// Object, array and class roots retain their global claims and sequence effects.
+// A fresh replacement removes the old realm candidate; its URL stays null.
 const obj = {
   h: {
     g: globalThis

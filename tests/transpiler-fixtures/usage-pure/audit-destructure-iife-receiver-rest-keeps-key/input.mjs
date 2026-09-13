@@ -1,5 +1,5 @@
-// regression lock: an IIFE-returned receiver (side-effecting) with a `...rest` sibling preserves the
-// IIFE (its effect runs) and keeps the consumed key as a sentinel so rest stays exclusion-correct
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
 let log = [];
 const { of, ...rest } = (() => { log.push(1); return Array; })();
 of(2);

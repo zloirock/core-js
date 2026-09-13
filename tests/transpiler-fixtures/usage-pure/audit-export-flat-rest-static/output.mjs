@@ -1,10 +1,7 @@
-import _Array$from from "@core-js/pure/actual/array/from";
-export const from = _Array$from;
-// flat export + rest of a static: `export const { from, ...rest } = Array`. the static is
-// polyfilled and the consumed key renames to `_unused` in the residual (a named export, like
-// the nested-proxy export+rest path) instead of skipping and leaving `Array.from` native
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
 export const {
-  from: _unused,
+  from,
   ...rest
 } = Array;
 from([1]);

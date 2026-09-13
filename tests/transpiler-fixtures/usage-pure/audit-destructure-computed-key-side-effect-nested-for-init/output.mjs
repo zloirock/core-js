@@ -1,11 +1,9 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-// a NESTED side-effecting computed key in a FOR-INIT declarator. a loop header can't host a preceding
-// statement, so the residual binds the polyfill as a SIBLING declarator in the header instead (the key
-// stays in place, effect once). both emitters agree (no sidecar). regression: unplugin crashed / dropped
+// A nested computed static key in a loop initializer follows its receiver capture.
+// The key runs once before the method binding initializes; all declarations stay
+// in the loop header, without lifting work across the surrounding loop.
 for (const {
-    x: {
-      [(effectful(), 'from')]: _unused
-    }
+    x: _ref
   } = {
     x: Array
-  }, f = _Array$from; cond;) use(f);
+  }, _ref2 = _ref, f = null == _ref2 ? _ref2[""] : (effectful(), _Array$from); cond;) use(f);

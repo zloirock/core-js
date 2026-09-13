@@ -108,35 +108,42 @@ function mark(t, v) {
   } = _globalThis;
 }
 {
+  // The computed outer key runs before the nested prototype read and instance-method extraction.
   const order = [];
   const eff = t => (_pushMaybeArray(order).call(order, t), t);
-  const f2 = _valuesMaybeArray(_globalThis.Array.prototype);
-  const {
-    [(eff('k'), 'Array')]: _unused2
-  } = _globalThis;
+  const _ref2 = _globalThis,
+    {
+      [(eff('k'), 'Array')]: _ref
+    } = null == _ref2 ? _ref2[""] : _ref2,
+    {
+      prototype: _ref3
+    } = _ref,
+    _ref4 = _ref3,
+    f2 = null == _ref4 ? _ref4[""] : _valuesMaybeArray(_ref4);
 }
 {
   const order = [];
   const eff = t => (_pushMaybeArray(order).call(order, t), t);
   const f4 = _Array$from;
   const {
-    [(eff('k'), 'w')]: _unused3
+    [(eff('k'), 'w')]: _unused2
   } = {
     w: Array
   };
 }
 {
+  // The receiver is evaluated once; key conversion precedes the method binding and the sibling read.
   const order = [];
   function eff(t) {
     _pushMaybeArray(order).call(order, t);
     return t;
   }
-  const _ref = [1, 2],
+  const _ref5 = [1, 2],
+    _ref6 = _ref5,
+    a = null == _ref6 ? _ref6[""] : (eff('k'), _atMaybeArray(_ref6)),
     {
-      [(eff('k'), 'at')]: _unused4,
       z
-    } = _ref,
-    a = _atMaybeArray(_ref);
+    } = _ref5;
 }
 {
   const q = _Object$hasOwn;

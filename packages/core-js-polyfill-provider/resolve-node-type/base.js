@@ -305,6 +305,9 @@ const TypePrototype = {
   // shadowed same-name declaration is a different type. It never makes a box decide FALSE - two
   // different declarations may still be structurally assignable - only the same one decide TRUE
   identity: null,
+  // Complete member maps of written container arguments, used only by assignability. They retain
+  // the fields an unmodelled element loses without giving member dispatch a new receiver type.
+  argumentMembers: null,
   // how many elements the TUPLE this box collapsed from wrote, where it came from one. The collapse
   // to `Array<commonElement>` is what makes a tuple readable at all here, and it drops the length:
   // `[string]` and `[string, string]` become one type, and an array of the same element becomes it
@@ -333,6 +336,14 @@ const TypePrototype = {
   withArgs(args) {
     const carried = this.clone();
     carried.args = args;
+    return carried;
+  },
+  // Keep argument proofs on a clone, just like the resolved argument list beside them.
+  withArgumentMembers(members) {
+    const kept = members?.some(Boolean) ? members : null;
+    if (this.argumentMembers === kept) return this;
+    const carried = this.clone();
+    carried.argumentMembers = kept;
     return carried;
   },
   // same clone discipline for the declaration a box stands for

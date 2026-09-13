@@ -1,8 +1,5 @@
-// A JSX tag name is a CALLER the file never spells: the element hands the component to a renderer
-// that invokes it with props, so a parameter default the extract folds away can still be overridden.
-// A function DECLARATION learns that only from the program-wide reference census - the enclosing
-// expression says nothing - so every tag slot that references keeps the pattern VERBATIM. The rest
-// element is what makes the extract the only caller-lossy option, so the decision is really on the table.
+// Rest-bearing parameters keep their native bindings and defaults in parameter scope.
+// Independent reads and key/default expressions still receive their own polyfills.
 function TagName({ from, ...rest } = Array) {
   return [from, rest];
 }
@@ -19,13 +16,10 @@ function DeepMemberRoot({ keys, ...rest } = Object) {
   return [keys, rest];
 }
 
-// A MEMBER tag is an expression whatever its case - the intrinsic spelling rule must not reach it.
 function lowerRoot({ values, ...rest } = Object) {
   return [values, rest];
 }
 
-// CONTROL: the same shape named by no tag at all. Every call site is visible, so the extract stands -
-// without it an emitter that stopped extracting anywhere would read this file as a pass.
 function noTag({ fromEntries, ...rest } = Object) {
   return [fromEntries, rest];
 }

@@ -2,7 +2,7 @@
 // a DROPPED proxy hop fold into the claim sequence at their native slot - after the assignment, which
 // is the object being read and so evaluates first. the dropped-hop key used to ride the detection's
 // side-effect channel and got wrapped AROUND the whole render, running before the assignment.
-// the emitters agree on order and differ only in memoizing the sequence - the sidecar carries that
+// the helper reads the ordered sequence once, inline, without an extra receiver memo
 let m;
 let c = 0;
 export const seClaimKey = (m = globalThis.window).self[(c++, 'Set')].name;

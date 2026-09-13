@@ -1,6 +1,10 @@
+import { readArrayIteratorBeforeStatic, readNestedRealmIterator, readRealmIteratorWithStatic } from './destructuring.js';
+
 // Symbol well-known - only features that work in pure mode on engines without native symbols
 // NOTE: typeof checks use notSame(_, undefined) instead of typeof === 'symbol'
 // because pure-mode Symbol on engines without native symbols returns strings, not real symbols
+
+const nativeArrayFrom = Object.getOwnPropertyDescriptor(Array, 'from')?.value;
 
 QUnit.test('Symbol.iterator exists', assert => {
   assert.notSame(Symbol.iterator, undefined);
@@ -240,4 +244,77 @@ QUnit.test('Symbol.iterator: string-spelled key stays a plain property read', as
   assert.false('Symbol.iterator' in arr);
   /* eslint-enable no-useless-concat, no-useless-computed-key -- end of string-spelling block */
   /* eslint-enable es/no-nonstandard-array-prototype-properties -- end of string-spelling block */
+});
+
+QUnit.test('destructuring: an iterator under a retained container reads its own receiver', assert => {
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, Symbol.iterator);
+  function ownIterator() { return 7; }
+  try {
+    Object.defineProperty(globalThis, Symbol.iterator, { configurable: true, value: ownIterator });
+    const result = readNestedRealmIterator();
+    assert.same(result[0], ownIterator);
+    assert.deepEqual(result[1], { value: 3 });
+  } finally {
+    if (descriptor) Object.defineProperty(globalThis, Symbol.iterator, descriptor);
+    else delete globalThis[Symbol.iterator];
+  }
+});
+
+QUnit.test('destructuring: nested static and iterator read once before rest', assert => {
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, Symbol.iterator);
+  const retainedKey = Symbol('retained');
+  let reads = 0;
+  function ownIterator() { return 7; }
+  try {
+    // eslint-disable-next-line unicorn/prefer-object-define-properties -- install the symbol keys independently
+    Object.defineProperty(globalThis, Symbol.iterator, {
+      configurable: true, enumerable: true,
+      get() { reads++; return ownIterator; },
+    });
+    Object.defineProperty(globalThis, retainedKey, { configurable: true, enumerable: true, value: 42 });
+    const result = readRealmIteratorWithStatic();
+    if (typeof E2E_POST_LOWERED !== 'undefined') assert.deepEqual(result[0]([1]), [1]);
+    else assert.same(result[0], nativeArrayFrom);
+    assert.same(result[1], ownIterator);
+    assert.same(reads, 1);
+    assert.same(Object.getOwnPropertyDescriptor(result[2], 'Array'), undefined);
+    assert.same(Object.getOwnPropertyDescriptor(result[2], Symbol.iterator), undefined);
+    assert.deepEqual(Object.getOwnPropertyDescriptor(result[2], retainedKey), {
+      value: 42, enumerable: true, configurable: true, writable: true,
+    });
+  } finally {
+    delete globalThis[retainedKey];
+    if (descriptor) Object.defineProperty(globalThis, Symbol.iterator, descriptor);
+    else delete globalThis[Symbol.iterator];
+  }
+});
+
+QUnit.test('destructuring: an iterator read retains its native static sibling', assert => {
+  const receiver = globalThis.Array;
+  const descriptor = Object.getOwnPropertyDescriptor(receiver, Symbol.iterator);
+  const retainedKey = Symbol('retained');
+  let reads = 0;
+  function ownIterator() { return 7; }
+  try {
+    // eslint-disable-next-line unicorn/prefer-object-define-properties -- install the symbol keys independently
+    Object.defineProperty(receiver, Symbol.iterator, {
+      configurable: true, enumerable: true,
+      get() { reads++; return ownIterator; },
+    });
+    Object.defineProperty(receiver, retainedKey, { configurable: true, enumerable: true, value: 42 });
+    const result = readArrayIteratorBeforeStatic();
+    assert.same(result[0], ownIterator);
+    if (typeof E2E_POST_LOWERED !== 'undefined') assert.deepEqual(result[1]([1]), [1]);
+    else assert.same(result[1], nativeArrayFrom);
+    assert.same(reads, 1);
+    assert.same(Object.getOwnPropertyDescriptor(result[2], 'from'), undefined);
+    assert.same(Object.getOwnPropertyDescriptor(result[2], Symbol.iterator), undefined);
+    assert.deepEqual(Object.getOwnPropertyDescriptor(result[2], retainedKey), {
+      value: 42, enumerable: true, configurable: true, writable: true,
+    });
+  } finally {
+    delete receiver[retainedKey];
+    if (descriptor) Object.defineProperty(receiver, Symbol.iterator, descriptor);
+    else delete receiver[Symbol.iterator];
+  }
 });

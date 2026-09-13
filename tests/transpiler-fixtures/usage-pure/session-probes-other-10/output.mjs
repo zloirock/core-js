@@ -7,10 +7,12 @@ import _at from "@core-js/pure/actual/instance/at";
 import _entries from "@core-js/pure/actual/instance/entries";
 import _keys from "@core-js/pure/actual/instance/keys";
 import _values from "@core-js/pure/actual/instance/values";
-import _Map from "@core-js/pure/actual/map";
 import _Object$entries from "@core-js/pure/actual/object/entries";
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
 // probe corpus of the defense cycles over the destructure wrappers, family "other", part 10:
 // every block is one probed form, self-contained over the header bindings, locked on both legs
+// The computed assignment has equivalent sequence/statement grouping held in the unplugin sidecar.
 let pick = 1;
 const c = 1;
 const userObj = {};
@@ -52,40 +54,38 @@ function mark(t, v) {
   use(e);
 }
 {
+  var _ref2, _ref;
   let f17;
-  var _unused;
-  ({
-    [(eff('k'), 'w')]: _unused
-  } = {
+  _ref = {
     w: [1]
-  });
-  f17 = _atMaybeArray([1]);
+  }, {
+    [(eff('k'), 'w')]: _ref2
+  } = null == _ref ? _ref[""] : _ref, f17 = _atMaybeArray(_ref2), _ref;
 }
 {
+  var _ref3;
   let f3;
   ({
-    w: {
-      from: f3
-    }
+    w: _ref3
   } = {
     w: Array,
     ...o
-  });
+  }), f3 = _ref3 === Array ? _Array$from : _ref3.from;
 }
 {
   let f4;
-  var _unused2;
   ({
-    Array: _unused2,
+    Array: {
+      from: f4
+    },
     ...r4
   } = _globalThis);
-  f4 = _Array$from;
 }
 {
   let f9;
-  var _unused3;
+  var _unused;
   ({
-    [(eff('k'), 'Array')]: _unused3
+    [(eff('k'), 'Array')]: _unused
   } = _globalThis);
   f9 = _Array$from;
 }
@@ -111,12 +111,12 @@ function mark(t, v) {
 }
 {
   let from, rest;
-  var _unused4;
   ({
-    Array: _unused4,
+    Array: {
+      from
+    },
     ...rest
   } = _globalThis);
-  from = _Array$from;
   use(from, rest);
 }
 {
@@ -135,38 +135,36 @@ function mark(t, v) {
 }
 {
   let m, rest;
-  var _unused5;
-  m = _Map;
   ({
-    Map: _unused5,
+    Map: m,
     ...rest
   } = _globalThis);
   use(m, rest);
 }
 {
   let m, rest;
-  var _unused6;
   ({
-    w: _unused6,
+    w: {
+      Map: m
+    },
     ...rest
   } = {
     w: _globalThis,
     z: 1
   });
-  m = _Map;
   use(m, rest);
 }
 {
   let m, rest;
-  var _unused7;
   ({
-    w: _unused7,
+    w: {
+      at: m
+    },
     ...rest
   } = {
     w: [1, 2],
     z: 1
   });
-  m = _atMaybeArray([1, 2]);
   use(m, rest);
 }
 {
@@ -255,25 +253,21 @@ function mark(t, v) {
   v = _Object$entries;
 }
 {
-  const _ref = eff();
-  let values = _values(_ref.w);
-  let at = _at(_ref.y);
+  const _ref4 = eff();
+  let values = _values(_ref4.w);
+  let at = _at(_ref4.y);
   [values, at];
 }
 {
-  let {
-    w: {
-      values
-    },
-    y: {
-      at
-    }
-  } = r ?? {};
+  let _ref5 = r ?? {};
+  let values = _values(_ref5.w);
+  let at = _at(_ref5.y);
   [values, at];
 }
 {
-  let values = _values(r.w);
-  let at = _at(r.y);
+  let _ref6 = r;
+  let values = _values(_ref6.w);
+  let at = _at(_ref6.y);
   [values, at];
 }
 {
@@ -286,14 +280,14 @@ function mark(t, v) {
   at;
 }
 {
-  var _ref2;
+  var _ref7;
   o[eff(), 'data'] = 'str';
-  const r2 = _at(_ref2 = o.data).call(_ref2, 0);
+  const r2 = _at(_ref7 = o.data).call(_ref7, 0);
 }
 {
-  var _ref3;
+  var _ref8;
   o[eff(), 'data'] = 'str';
-  const r2 = _at(_ref3 = o[eff(), 'data']).call(_ref3, 0);
+  const r2 = _at(_ref8 = o[eff(), 'data']).call(_ref8, 0);
 }
 {
   try {
@@ -317,26 +311,19 @@ function mark(t, v) {
 {
   try {
     throw 0;
-  } catch (_ref4) {
-    let entries = _entries(_ref4.w);
+  } catch (_ref9) {
+    let entries = _entries(_ref9.w);
     entries;
   }
 }
 {
   try {
     throw [r];
-  } catch (_ref5) {
-    let [_ref6] = _ref5;
-    let _ref7 = _ref6.w;
-    let values = _values(_ref7);
-    let {
-      values: _unused8
-    } = _ref7;
-    let {
-      y: {
-        at
-      }
-    } = _ref6;
+  } catch (_ref10) {
+    let [_ref11] = _ref10;
+    let _ref12 = _ref11.w;
+    let values = _values(_ref12);
+    let at = _at(_ref11.y);
     [values, at];
   }
 }

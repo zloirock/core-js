@@ -1,3 +1,5 @@
+// Object-rest keeps the affected method slots native; computed symbol keys still polyfill.
+// Independent reads and key/default expressions still receive their own polyfills.
 // a `[Symbol.iterator]` prop sharing its declarator with a proxy-global nest belongs to the
 // FLATTEN (its plan synthesizes the extraction) no matter which prop the visitor dispatches
 // first: a per-prop route firing beside the whole-declarator rebuild would double-consume

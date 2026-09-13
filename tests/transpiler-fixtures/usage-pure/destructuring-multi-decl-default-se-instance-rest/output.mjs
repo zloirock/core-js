@@ -1,9 +1,9 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-import _includes from "@core-js/pure/actual/instance/includes";
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
 se();
 const from = _Array$from;
-const includes = _includes(obj);
 const {
-  includes: _unused,
+  includes,
   ...rest
 } = obj;

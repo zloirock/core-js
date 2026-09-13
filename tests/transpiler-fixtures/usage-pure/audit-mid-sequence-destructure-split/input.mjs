@@ -1,3 +1,5 @@
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
 // a destructure assignment in ANY slot of a statement-position SequenceExpression is
 // split into per-expression statements by the shared minifier-shape pre-pass (statement
 // context discards every slot's value, so the split is sound at any position) - the
@@ -9,7 +11,6 @@ export const r1 = from([3]).at(0);
 let of2;
 (pre(), ({ of: of2 } = Array), post());
 export const r2 = of2(4).at(0);
-// rest sibling: the consumed key renames to the sentinel, rest exclusion preserved
 let keys, rest;
 (({ keys, ...rest } = Object), use(rest));
 // a destructure buried in a NESTED sequence slot splits too (fixpoint over the products)
@@ -33,5 +34,5 @@ class K {
   }
 }
 export { K };
-// a VALUE-position sequence is NOT split - its result is consumed, both stay native
+// A value-position sequence keeps its tail value while a discarded assignment may be rewritten.
 export const v = (({ from } = Array), from([5]));

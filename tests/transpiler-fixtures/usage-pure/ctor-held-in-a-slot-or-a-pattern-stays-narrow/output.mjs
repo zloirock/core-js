@@ -9,7 +9,7 @@ import _SuppressedError from "@core-js/pure/actual/suppressed-error";
 import _Symbol from "@core-js/pure/actual/symbol/constructor";
 import _URL from "@core-js/pure/actual/url";
 import _WeakMap from "@core-js/pure/actual/weak-map/constructor";
-import _WeakSet from "@core-js/pure/actual/weak-set/constructor";
+import _WeakSet from "@core-js/pure/actual/weak-set";
 // a constructor a value position STORES rather than hands out: a write puts it inside the receiver,
 // and an argument landing in a destructuring parameter of a callee spelled inline binds the slots the
 // pattern names. neither leaves the file, so the census answers the CHANNEL, never the position that
@@ -53,7 +53,9 @@ use(function ({
   name
 }, Symbol) {
   return name;
-}(_Symbol));
+}({
+  name: _nameMaybeFunction(_Symbol)
+}));
 // ... and the three spellings that read PAST the pairing: an IDENTIFIER parameter holds the value
 // whole, a key the pattern cannot name reads a slot nothing here names, and a REST element takes
 // every own property in one binding.

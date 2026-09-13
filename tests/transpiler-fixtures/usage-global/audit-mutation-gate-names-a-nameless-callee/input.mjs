@@ -1,8 +1,6 @@
-// two call hosts spell no callee name at all: an immediately-invoked literal IS the function, and a
-// tag hands its strings array the first slot and the interpolation the second. the pairing has to
-// reach the parameter through both, or the write never names what it patches. the gate is coarse
-// per receiver, so the two rows take different ones - on one receiver either write would answer for
-// both, and the row that stopped working would stay green
+// An inline function receives its argument directly; a tag puts its interpolation
+// after the strings array. Both named writes must invalidate the later return type.
+// Neither write releases the namespace. Distinct receivers keep both routes observable.
 const o = {};
 (function (ns) {
   ns.entries = patch;

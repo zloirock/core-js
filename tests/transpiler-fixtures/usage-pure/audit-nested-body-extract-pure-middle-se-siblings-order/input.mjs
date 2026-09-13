@@ -1,7 +1,6 @@
-// The body-extracted polyfill binding (`at`) sits in the MIDDLE property, flanked by sibling
-// receiver values carrying side effects (`a: [x()]` before, `c: [z()]` after). its value is a
-// CONSTANT array literal, so it memoizes into a single `_ref` and the residual keeps the real
-// `a` / `c` bindings. order holds: the hoisted constant can't reorder, residual runs `x()` then `z()`
+// The claimed b.at leaf sits between outer siblings a and c. Capture the completed object literal
+// once, then read a, select the method from the captured b value, and read c in source property
+// order.
 function x() { return 1; }
 function z() { return 3; }
 

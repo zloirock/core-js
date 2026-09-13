@@ -32,6 +32,7 @@ import {
   resolveBatchDirectivePromotionPolicy,
   isConsumedEntryImport,
   resolveModuleFormat,
+  moduleFormatReducer,
   keptNavChainEndPath,
   memberChainEndPath,
   peelParenAndTSSlotPath,
@@ -42,6 +43,7 @@ import {
   usableAliasInfo,
   isMemberAccessNode,
   POSSIBLE_GLOBAL_OBJECTS,
+  walkPatternIdentifiers,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   navHoldsMintedSeCall, ownEmittedNavClaim, ownOutputTests, restSentinelNamesReducer,
@@ -50,7 +52,7 @@ import {
   enrichMutatedStatics, escapedCtorReferencesReducer, mutationShapesReducer,
 } from '@core-js/polyfill-provider/detect-usage/mutations';
 import { isSymbolIteratorPatternProp } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
-import { planMinifierSequenceSplit } from '@core-js/polyfill-provider/destructure-host-shape';
+import { planMinifierSequenceSplit, renderNestedKeyedPatternCapture } from '@core-js/polyfill-provider/destructure-host-shape';
 import { planInExpression } from '@core-js/polyfill-provider/helpers/in-expression';
 import {
   createClassHelpers,
@@ -88,7 +90,7 @@ import {
   restoreUnclaimedFlattens,
   staticContainerReceiverName,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
-import { isKnownGlobalName } from '@core-js/polyfill-provider/detect-usage/globals';
+import { isKnownGlobalName, SYMBOL_ITERATOR_PURE_RESULT } from '@core-js/polyfill-provider/detect-usage/globals';
 import {
   aliasHeldClaimProbe,
   aliasRootedReadMayThrow,
@@ -118,7 +120,10 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
   planGuardedDestructureNarrow,
-  isSourcedSymbolIteratorMeta, planGuardedStaticNarrow, resolveSymbolIteratorEntry, SYMBOL_ITERATOR_PURE_RESULT, symbolIteratorHint,
+  isSourcedSymbolIteratorMeta,
+  planGuardedStaticNarrow,
+  resolveSymbolIteratorEntry,
+  symbolIteratorHint,
 } from '@core-js/polyfill-provider/detect-usage/members';
 import { isPolyfillableOptional, mutatedStaticLandingVerdict } from '@core-js/polyfill-provider/detect-usage/annotations';
 import { scanExistingCoreJSImports } from '@core-js/polyfill-provider/detect-usage/entries';
@@ -236,6 +241,7 @@ export default function plugin(api, options) {
     getCoreJSEntry,
     getModulesForEntry,
     isEntryNeeded,
+    isEntryAvailable,
     mode,
     packages,
     pkg,
@@ -353,6 +359,7 @@ export default function plugin(api, options) {
     getContainerSlotIndex: () => containerSlotIndex,
     getMutationRoots: () => mutationRoots,
     getPackages: () => packages,
+    parameterCallSites: typeResolvers.parameterCallSites,
   });
 
   // forward references into `createClassHelpers` below: assigned once, right after that call and
@@ -377,8 +384,14 @@ export default function plugin(api, options) {
   // shared write-host predicate applies to its own hosts
   function skipPolyfillableOptional(node, scope, path) {
     return isPolyfillableOptional({
-      node, scope, path, adapter, resolve: resolveBuiltIn, resolveSuperStatic: resolveSuperStaticFn,
-      mutatedSet: mutatedStatics, isShadowedByClassOwnMember: isShadowedByClassOwnMemberFn,
+      node,
+      scope,
+      path,
+      adapter,
+      resolve: meta => resolvePure(meta, path),
+      resolveSuperStatic: resolveSuperStaticFn,
+      mutatedSet: mutatedStatics,
+      isShadowedByClassOwnMember: isShadowedByClassOwnMemberFn,
     });
   }
 
@@ -818,19 +831,20 @@ export default function plugin(api, options) {
         const memberNode = path.node;
         if (guardedNarrowRendered.has(memberNode)) return true;
         const plan = planGuardedStaticNarrow({
-          memberNode, parent: peelParenAndTSSlotPath(path).parentPath?.node, meta, path, resolvePure,
+          memberNode, parent: peelParenAndTSSlotPath(path).parentPath?.node, meta, path, resolvePure, adapter,
         });
         if (!plan) return false;
         if (plan.bail) return true;
+        if (plan.captureReceiver) plan.recvIdent = generateRef(path.scope, memberNode);
         // an effectful sequence prefix on the receiver runs ONCE, ahead of the test, exactly where
         // the source runs it - so the raw branch reads off the bare identifier instead of re-running
         // the sequence (`(n++, M === _Map ? _Map$groupBy : M.groupBy)`)
-        const readNode = plan.seqPrefix.length
+        const readNode = plan.seqPrefix.length || plan.captureReceiver
           ? t.memberExpression(t.cloneNode(plan.recvIdent),
             memberNode.computed ? t.cloneNode(memberNode.property) : t.identifier(memberNode.property.name),
             memberNode.computed)
           : memberNode;
-        const rawBranch = plan.isCallee
+        const rawBranch = plan.isCallee && !plan.callInBranches
           ? estreeToBabel(renderBoundRawBranch(hostSlot(t.cloneNode(readNode)), hostSlot(t.cloneNode(plan.recvIdent))))
           : readNode;
         guardedNarrowRendered.add(memberNode);
@@ -838,8 +852,11 @@ export default function plugin(api, options) {
         // the test reads the USER's binding, so its identifier is skipped like the raw branch's:
         // left live, the identifier visitor swapped it for the ponyfill wherever the binding NAME
         // is a global one (`var Map = Map`), and the test became `_Map === _Map` - constant true
+        const callPath = plan.callInBranches ? peelParenAndTSSlotPath(path).parentPath : null;
         const narrow = estreeToBabel(renderCtorIdentityNarrow(plan, hostSlot(rawBranch), {
+          invoke: callPath ? callee => hostSlot({ ...t.cloneNode(callPath.node), callee: estreeToBabel(callee) }) : undefined,
           injectImport: (entry, hintName) => injectPureImport(entry, hintName).name,
+          captureReceiver: plan.captureReceiver ? hostSlot(t.cloneNode(plan.captureReceiver, true)) : null,
           spellRecv: () => {
             const testRecv = t.cloneNode(plan.recvIdent);
             skippedNodes.add(testRecv);
@@ -860,7 +877,8 @@ export default function plugin(api, options) {
         // a WRAPPER between the swap and the instantiation is not this rule's to compensate: the
         // slot then holds the wrapper, whose own priority the late restoration reads off the same
         // predicate - and every wrapper that owes the parens is a TS cast, which that pass covers
-        if (path.parentPath?.node?.type === 'TSInstantiationExpression'
+        if (callPath) callPath.replaceWith(guard);
+        else if (path.parentPath?.node?.type === 'TSInstantiationExpression'
           && instantiationSlotNeedsParens(guard)) path.replaceWith(t.parenthesizedExpression(guard));
         else path.replaceWith(guard);
         return true;
@@ -901,9 +919,53 @@ export default function plugin(api, options) {
           meta,
           path: prop,
           resolvePure,
+          adapter,
         });
         if (!admitted) return false;
-        const { plan, split, restResidual, bindingName, hostKind } = admitted;
+        const { plan, split, restResidual, bindingName, hostKind, nested, capture, keepPatternLive } = admitted;
+        if (nested) {
+          const declaration = nested.host.parentPath;
+          if (capture && declaration.parentPath?.isExportNamedDeclaration()) {
+            const names = [];
+            for (const declarator of declaration.node.declarations) {
+              if (!destructureEmit.isMemoDeclarator(declarator)) walkPatternIdentifiers(declarator.id, id => names.push(id.name));
+            }
+            declaration.parentPath.replaceWithMultiple([
+              declaration.node,
+              t.exportNamedDeclaration(null, names.map(name => t.exportSpecifier(t.identifier(name), t.identifier(name)))),
+            ]);
+            return true;
+          }
+          if (destructureEmit.renderNestedParamSynth({ prop, meta, fallbackOnBail: !!capture })) return true;
+          if (!capture) return false;
+          const rendered = renderNestedKeyedPatternCapture(capture, {
+            mintRef: () => (hostKind === 'declarator' ? generateLocalRef : generateRef)(prop.scope).name,
+            embed: hostSlot,
+            narrow: plan,
+            split,
+            assignment: hostKind !== 'declarator',
+            preserveResult: hostKind === 'assignment-value',
+            injectImport: (entry, hintName) => injectPureImport(entry, hintName).name,
+          });
+          if (rendered.expression) {
+            const expression = estreeToBabel(rendered.expression);
+            for (const [index, element] of rendered.elements.entries()) {
+              if (element.guarded) t.traverseFast(expression.expressions[index + 1], node => skippedNodes.add(node));
+            }
+            nested.host.replaceWith(expression);
+            return true;
+          }
+          const captured = estreeToBabel(rendered.capture);
+          const extracted = rendered.elements.map(element => estreeToBabel(element.declarator));
+          for (const [index, element] of rendered.elements.entries()) {
+            if (element.guarded) t.traverseFast(extracted[index], node => skippedNodes.add(node));
+          }
+          const declarator = nested.host;
+          declarator.get('id').replaceWith(captured.id);
+          declarator.scope.registerBinding(declarator.parentPath.node.kind, declarator.get('id'), declarator);
+          declarator.insertAfter(extracted);
+          return true;
+        }
         const rawBranch = markedRawBranch(plan, meta.key);
         const narrow = estreeToBabel(renderCtorIdentityNarrow(plan, hostSlot(rawBranch), {
           injectImport: (entry, hintName) => injectPureImport(entry, hintName).name,
@@ -935,15 +997,21 @@ export default function plugin(api, options) {
           return true;
         }
         if (hostKind === 'declarator') {
-          host.node.id = t.identifier(bindingName);
+          host.node.id = keepPatternLive ? prop.node.value : t.identifier(bindingName);
           host.node.init = value;
         } else if (hostKind === 'assignment-statement') {
-          host.node.left = t.identifier(bindingName);
+          host.node.left = keepPatternLive ? prop.node.value : t.identifier(bindingName);
           host.node.right = value;
         } else {
           host.replaceWith(t.sequenceExpression([
-            t.assignmentExpression('=', t.identifier(bindingName), value), t.cloneNode(plan.recvIdent),
+            t.assignmentExpression('=', keepPatternLive ? prop.node.value : t.identifier(bindingName), value), t.cloneNode(plan.recvIdent),
           ]));
+        }
+        if (keepPatternLive) {
+          // The guard already supplies the constructor's slots. Revisit source expressions
+          // in the moved pattern, including defaults, without mirroring its receiver again.
+          for (const item of prop.node.value.properties) skippedNodes.add(item);
+          host.requeue();
         }
         return true;
       }
@@ -982,6 +1050,7 @@ export default function plugin(api, options) {
             // destructures the get-iterator-method result (helper canon, matching the
             // identifier-valued form); every other pattern-valued prop stays native
             if (!t.isIdentifier(path.node.value) && !t.isAssignmentPattern(path.node.value)
+              && !isMemberAccessNode(unwrapRuntimeExpr(path.node.value))
               && !(isSymbolIteratorPatternProp(path.node) && isSourcedSymbolIteratorMeta(meta))) return;
             // ConditionalExpression / LogicalExpression init - resolver may pick a branch
             // whose key isn't viable as static (Promise.from, WeakMap.groupBy, ...) and bail
@@ -1107,6 +1176,10 @@ export default function plugin(api, options) {
           // `detached`: the test this render lifts out is a node no visitor reaches again - a kept
           // WRITE stays live (the funnel below collapses it in place), a sequence prefix does not
           function emitReceiverGuard(guardTest, { detached = false } = {}) {
+            // Plan against the source reader: replacing it first removes the optional link and
+            // makes the stored-value canon mistake this null probe for a consuming plain read.
+            // The kept value then reaches the test as `k = _self.window` on either claim channel.
+            collapseKeptNavValueNode(guardTest, path, { observed: true });
             receiverPath.replaceWith(t.cloneNode(fallbackId()));
             normalizeOptionalChain(path, false);
             retypeDeadOptionalLinks(path);
@@ -1123,11 +1196,6 @@ export default function plugin(api, options) {
               }
               break;
             }
-            // the kept chain-assign VALUE spells through the shared plan before the test freezes
-            // it (`k = _globalThis.self.window` -> `k = _self.window`), exactly like the claim
-            // funnel: this channel builds its own guard, and skipping the collapse left the
-            // intermediate pony hops raw off a root that does not carry them
-            collapseKeptNavValueNode(guardTest, path);
             const guarded = estreeToBabel(renderShortCircuitGuard(
               nullFirstGuardTest(navGuardTestNode(guardTest, path, null, null, { detached }),
                 { embed: hostSlot }),
@@ -1158,7 +1226,7 @@ export default function plugin(api, options) {
           // ... and where the ONLY effect is one this render owns itself - the kept WRITE its test
           // spells, or a prefix it re-emits ahead of the guard
           {
-            const eraseGuard = undefinableOptionalGuard(path.node, resolveBuiltIn,
+            const eraseGuard = undefinableOptionalGuard(path.node, m => resolvePure(m, path),
               path.scope ? { scope: path.scope, adapter, path } : null);
             if (eraseGuard.kind === 'standdown' && allEffects.length <= 1) return;
             // a NESTED-sequence receiver stays unproven under the kept-sequence boundary, so its
@@ -1419,7 +1487,8 @@ export default function plugin(api, options) {
           // layer seals - the member above parses PLAIN, so the render keeps the source's throw
           // semantics by node type)
           const chainEnd = memberChainEndPath({ path, unwrap: unwrapRuntimeExpr });
-          if (chainEnd !== path && collapseShortCircuitNavInPlace(chainEnd)) return;
+          if (chainEnd !== path && !synthSwap?.ownsReceiver(chainEnd.node)
+            && collapseShortCircuitNavInPlace(chainEnd)) return;
         }
 
         if (path.isObjectProperty()) {
@@ -1432,7 +1501,7 @@ export default function plugin(api, options) {
           // chain - no single test expresses the union). resolve it BEFORE the import so a kept-raw claim
           // leaves no dead pure import: injectPureImport eagerly registers even when the id goes unused
           const staticEraseGuard = kind !== 'instance' && !inheritedStatic
-            ? undefinableOptionalGuard(path.node, resolveBuiltIn, path.scope ? { scope: path.scope, adapter, path } : null)
+            ? undefinableOptionalGuard(path.node, m => resolvePure(m, path), path.scope ? { scope: path.scope, adapter, path } : null)
             : null;
           if (staticEraseGuard?.kind === 'standdown') return;
           // a swap that OWES a throw probe but cannot spell one (an SE computed key in the
@@ -1680,6 +1749,7 @@ export default function plugin(api, options) {
       const usageCallback = isPure ? usagePureCallback : usageGlobalCallback;
       const commonVisitorOptions = {
         adapter,
+        parameterCallSites: typeResolvers.parameterCallSites,
         onUsage: usageCallback,
         method,
         isEntryAvailable: isEntryNeeded,
@@ -1751,7 +1821,9 @@ export default function plugin(api, options) {
             keyOf: memberKeyName,
             resolvesProperty: (key, endPath) => !!resolvePure({ kind: 'property', key }, endPath),
           });
-          if (!chainEnd) return;
+          // the live probe inside a pending synth still needs its own global substitution,
+          // but this drive must leave the registered receiver attached for the synth's drain.
+          if (!chainEnd || synthSwap?.ownsReceiver(chainEnd.node)) return;
           // a QUEUED kept-nav plan owns the assignment's whole emission - a fold or render
           // firing inside its span detaches the nodes the deferred flush renders from; the
           // stored canon (an owning ASSIGNMENT comes back) renders the kept value in place
@@ -1787,14 +1859,11 @@ export default function plugin(api, options) {
 
       function initFile(path) {
         const isInternalCoreJS = !!path.hub.file.opts.filename && isCoreJSFile(path.hub.file.opts.filename);
-        // FIRST, before any walk: the format owner, asked with what this host knows - the filename
-        // and the goal babel actually parsed with. Only a declared SCRIPT speaks there, because
-        // `module` is babel's default rather than a statement about the file. Everything below
-        // consults the strictness model, and that model MEMOISES its answer per node, so a verdict
-        // stored after the first walk would arrive too late to be read at all.
+        // Ask the format owner with the filename and the goal babel actually parsed with. Only
+        // a declared SCRIPT speaks there: `module` is babel's default, not a statement about the file.
         // The verdict is not written back onto `path.node.sourceType`: the tree is a foreign
         // pipeline's, and the module transforms reading it after us key on that field
-        format = resolveModuleFormat({
+        const formatOptions = {
           id: path.hub.file.opts.filename,
           program: path.node,
           declaredSourceType: path.node.sourceType,
@@ -1804,21 +1873,27 @@ export default function plugin(api, options) {
           consumesESM: method === 'entry-global'
             ? node => !isDisabled(node) && isConsumedEntryImport(node, getCoreJSEntry)
             : null,
-        });
-        // ONE raw walk answers every per-file census question (name reservation + the shape
-        // gates) - the scans it replaces each re-walked the whole file. computed on the
+        };
+        // ONE raw walk collects format, name reservation and shape facts. The format reducer
+        // publishes FIRST, after collection: subsequent results and scoped walks consult the
+        // strictness model, which memoises its answer per node. Computed on the
         // PRISTINE tree: every consumer either reads it at this same point, or (ctor-alias
         // gate, after the minifier split) is invariant to the split - the split only
-        // re-parents existing expression nodes into their own statements. read by the usage
-        // lanes alone, so entry-global skips the walk (an empty reducer list would still pay it)
-        fileCensus = methodReadsUsageCensus(method) ? collectFileCensus(path.node, [
-          memberKeyNamesReducer(),
-          ctorAliasShapesReducer(),
-          mutationShapesReducer(packages),
-          escapedCtorReferencesReducer(),
-          restSentinelNamesReducer(),
-          proxyWriteOriginsReducer(),
-        ]) : {};
+        // re-parents existing expression nodes into their own statements. Entry-global collects
+        // only format facts; the remaining reducers belong to the usage lanes
+        fileCensus = collectFileCensus(path.node, [
+          moduleFormatReducer(moduleFormat => {
+            format = resolveModuleFormat({ ...formatOptions, moduleFormat });
+          }),
+          ...methodReadsUsageCensus(method) ? [
+            memberKeyNamesReducer(),
+            ctorAliasShapesReducer(),
+            mutationShapesReducer(packages),
+            escapedCtorReferencesReducer(),
+            restSentinelNamesReducer(),
+            proxyWriteOriginsReducer(),
+          ] : [],
+        ]);
         // pre-walk for monkey-patches, consulted by `usagePureCallback` before substituting
         // `Object.key` reads - so the INJECTION-policy slot stays usage-pure only, exactly as
         // before: a global-flavor bail there would drop an import instead of adding one.
@@ -1868,6 +1943,7 @@ export default function plugin(api, options) {
           adapter,
           generateRef,
           paramDefaultNeverOverridden: typeResolvers.paramDefaultNeverOverridden,
+          parameterCallSites: typeResolvers.parameterCallSites,
           resolvePure,
           generateLocalRef,
           generateUnusedId,
@@ -1876,6 +1952,7 @@ export default function plugin(api, options) {
           injectPureImport,
           isDisabled,
           isEntryNeeded,
+          isEntryAvailable,
           resolvePropertyObjectType,
           resolveNodeType,
           toHint,
@@ -2267,6 +2344,8 @@ export default function plugin(api, options) {
               && isKnownGlobalName(obj.name) && !member.scope.getBinding(obj.name)) memberHandler(member);
           },
           Identifier(idPath) {
+            // This sweep claims globals alone; local and minted names need no scope lookup.
+            if (!isKnownGlobalName(idPath.node.name)) return;
             if (!idPath.isReferencedIdentifier()) return;
             // adapter.hasBinding (vs raw `getBindingIdentifier`) folds in TS-runtime shadows
             // estree-toolkit & babel scope miss (`enum`, `namespace`, `const enum`,

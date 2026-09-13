@@ -1,8 +1,5 @@
-// an SE-prefix computed `[(eff++, Symbol.iterator)]` ASSIGNMENT key: the pattern stays fully
-// in place (key effect exactly once) and the target re-assigns from the iterator-method
-// helper AFTER the statement, so the raw in-pattern write is dead and needs no sentinel -
-// unlike the declaration route, where the extraction BINDS FIRST and the residual must
-// rename its slot to a throwaway to keep the polyfill binding un-clobbered
+// A computed iterator-key assignment captures its receiver before the key effect.
+// The iterator method is read once after that effect, and the expression yields the receiver.
 let eff = 0;
 const arr = [3];
 let it;

@@ -1,7 +1,5 @@
 import {
   blocksUidSlot,
-  isDirectiveStatement,
-  isTopLevelImportLike,
   prologueEndIndex,
   requireCallSource,
   tsRuntimeBindingName,
@@ -11,16 +9,6 @@ import {
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { ORPHAN_REF_PATTERN } from '@core-js/polyfill-provider/injector-base';
 import { moduleIdLanguage } from '@core-js/polyfill-provider/helpers/path-normalize';
-import { liftSfcLangSuffix } from './sfc-shapes.js';
-
-// re-export the shared `isDirectiveStatement` so unplugin consumers
-// (`import-injector.js`, `destructure.js`) keep one import home;
-// single source of truth for the predicate lives in provider helpers
-export { isDirectiveStatement };
-
-// re-export `liftSfcLangSuffix` so `plugin.js` and the test runner keep their import path
-// stable; canonical impl lives in `sfc-shapes.js` alongside the regexes it consumes
-export { liftSfcLangSuffix };
 
 // oxc's own vocabulary for what a (query-stripped, SFC-lifted) module id names. The language FACT
 // is the provider's (`moduleIdLanguage`); this is its translation into the two knobs `parseSync`
@@ -46,10 +34,6 @@ export function sourceDialectOf(cleanId) {
   };
 }
 
-// the positional AST walk lives in the provider (the injector census shares it);
-// re-exported here for this package's many callers
-export { walkAstNodes } from '@core-js/polyfill-provider/helpers/ast-patterns';
-
 // generic walker: advance past directive prologue in `statements`, starting from `fallback`.
 // returns end-of-last-directive when present, else `fallback`. used by Program-level emit
 // (fallback=0), and
@@ -59,11 +43,6 @@ export function skipDirectivePrologue(statements, fallback) {
   const end = prologueEndIndex(statements);
   return end ? statements[end - 1].end : fallback;
 }
-
-// `isRequireCall` + `isTopLevelImportLike` are shared with babel-plugin (the `var _ref;`
-// placement boundary), so they live in provider helpers; re-export the region predicate so
-// unplugin consumers + the unit tests keep importing it from here
-export { isTopLevelImportLike };
 
 // RHS node types the plugin emits for `_ref = ...` memoization - used to classify a bare
 // `_ref = X` assignment as plugin leftover vs user sloppy-mode code.

@@ -6,9 +6,9 @@
 // because a partial one collapses two different shapes onto a single string and fires the TRUE branch
 // of a conditional tsc answers FALSE.
 //
-// Public surface: `structuralKey` (a canonical string, or null) and `compareMemberShapes` (tri-state
-// assignability of two member sets). Both are consumed by the conditional branch picker in
-// `type-expansion.js` and by nothing else.
+// Public surface: `structuralKey` (a canonical string), `structuralMembers` (a complete member map),
+// and `compareMemberShapes` (tri-state assignability of maps or source shapes). Container resolution
+// retains the maps for the conditional picker; neither supplies a runtime receiver type.
 import { MAX_DEPTH, MEMBER_ANNOTATION_SLOTS, literalNodeValue } from './base.js';
 import { getTypeArgs } from '../helpers/ast-patterns.js';
 import {
@@ -81,7 +81,12 @@ export function createStructuralKey({
   // reading and answers TRUE for a relation tsc answers FALSE. An index or call signature carries no
   // name at all, and a method's PARAMETERS sit in a slot the annotation read never reaches, so two
   // methods differing only there would look alike
-  function structuralMembers(node, walk, depth) {
+  function structuralMembers(node, scope, typeParamMap = null, depth = 0, seen = new Set()) {
+    node = peelTSParenthesized(node);
+    if (!node || !scope) return null;
+    const segments = typeParamMap && typeRefSegments(node);
+    if (segments?.length === 1 && typeParamMap.has(segments[0])) return null;
+    const walk = { scope, seen };
     if (!shapeCarriesAllItsMembers(node, walk.scope)) return null;
     const members = getTypeMembers({ objectType: node, scope: walk.scope, depth });
     if (!members) return null;
@@ -123,7 +128,7 @@ export function createStructuralKey({
     if (!perNode) structuralKeyCache.set(target, perNode = new WeakMap());
     if (perNode.has(walk.scope)) return perNode.get(walk.scope);
     walk.seen.add(target);
-    const members = structuralMembers(target, walk, depth);
+    const members = structuralMembers(target, walk.scope, null, depth, walk.seen);
     const key = members ? memberSetKey(members) : syntacticKey(target, walk, depth);
     walk.seen.delete(target);
     perNode.set(walk.scope, key);
@@ -200,9 +205,8 @@ export function createStructuralKey({
   // merely differs in TYPE is not disjoint - the two may still be assignable one way round - so it
   // leaves the whole relation open
   function compareMemberShapes(check, extend, scope) {
-    if (!scope) return null;
-    const checkMembers = structuralMembers(check, { scope, seen: new Set() }, 0);
-    const extendMembers = checkMembers && structuralMembers(extend, { scope, seen: new Set() }, 0);
+    const checkMembers = check instanceof Map ? check : structuralMembers(check, scope);
+    const extendMembers = checkMembers && (extend instanceof Map ? extend : structuralMembers(extend, scope));
     if (!checkMembers || !extendMembers) return null;
     let verdict = true;
     for (const [name, wanted] of extendMembers) {
@@ -219,6 +223,7 @@ export function createStructuralKey({
 
   return {
     structuralKey,
+    structuralMembers,
     compareMemberShapes,
   };
 }

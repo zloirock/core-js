@@ -13,31 +13,28 @@ import {
   inferTypeParameterNames,
   isMutatedStaticMeta,
   isTypeAnnotationNodeType,
+  isTSTypeOnlyIdentifierPath,
   memberKeyName,
-  typeDeclarationUnreferencedInFile,
   POSSIBLE_GLOBAL_OBJECTS,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   TYPE_REFERENCE_SLOTS,
   typeParameterInScope,
   unwrapRuntimeExpr,
+  peelChainAssignment,
+  unwrapTransparentSeq,
 } from '../helpers/ast-patterns.js';
 import {
   globalProxyMemberName,
   proxyGlobalRootName,
   maximalProxyGlobalPrefix,
-  peelChainAssignment,
   peelChainRootValue,
   peelReceiverSequenceTail,
   proxyReceiverValueCanBeUndefined,
+  realmRootIsSpellable,
   resolveKey,
   resolveObjectName,
   undefinableProxyRootValue,
-  unwrapTransparentSeq,
 } from './resolve.js';
-
-// the type-space node census lives with the AST canon (the type-only identifier rule reads it
-// there); this module keeps the annotation walks and re-exports the predicate for its consumers
-export { isTypeAnnotationNodeType, typeDeclarationUnreferencedInFile };
 
 // a TYPE position and a VALUE position ask different shadow questions of the same name, and
 // `adapter.hasBinding` answers the value one: it deliberately ignores a type-only import because
@@ -144,15 +141,19 @@ const TYPE_CHILD_KEYS = [
 export function walkTypeAnnotationGlobals(annotation, onGlobal, ctx) {
   if (!annotation) return;
   const seen = new WeakSet();
-  const stack = [[annotation, null]];
+  const stack = [[{ node: annotation, parentPath: ctx?.path }, null]];
   while (stack.length) {
-    const [node, inferred] = stack.pop();
+    const [path, inferred] = stack.pop();
+    const { node } = path;
     if (!node || typeof node !== 'object' || seen.has(node)) continue;
     seen.add(node);
+    // A comparison host may contain a captured input that reaches the result. Suppress
+    // only this node's own reference, then descend so that captured subtree remains live.
+    const erasedReference = isTypeAnnotationNodeType(node.type) && isTSTypeOnlyIdentifierPath(path);
     // WHICH slot of a type-space node holds a reference is the shared canon's answer - the same
     // table the type-only identifier rule reads from the child's side
     const refSlot = TYPE_REFERENCE_SLOTS.get(node.type);
-    const ref = refSlot ? node[refSlot] : null;
+    const ref = refSlot && !erasedReference ? node[refSlot] : null;
     if (ref?.type === 'Identifier' && !inferred?.has(ref.name)) onGlobal(ref.name, node.type);
     // a qualified type name (`globalThis.Map.prototype`): `exprName` / `typeName` is a TSQualifiedName
     // whose leftmost `left` is the chain root. unplugin's estree-toolkit scope tracker does not visit
@@ -202,9 +203,9 @@ export function walkTypeAnnotationGlobals(annotation, onGlobal, ctx) {
       const scope = trueBranchScope && key === 'trueType'
         ? new Set([...inferred ?? [], ...trueBranchScope]) : inferred;
       if (Array.isArray(child)) {
-        for (const c of child) if (isTypeWalkable(c)) stack.push([c, scope]);
+        for (const c of child) if (isTypeWalkable(c)) stack.push([{ node: c, parent: node, parentPath: path, key }, scope]);
       } else if (isTypeWalkable(child)) {
-        stack.push([child, scope]);
+        stack.push([{ node: child, parent: node, parentPath: path, key }, scope]);
       }
     }
   }
@@ -304,8 +305,9 @@ function proxyNavRootCanBeUndefined(navNode, resolve, aliasCtx) {
 // dead exactly when that RESULT is always defined once substituted - INDEPENDENT of which member
 // follows, since the guard tests the receiver, not the member. that holds for a bare proxy name AND
 // for a navigation core-js ponyfills end to end (`(q = globalThis.self)?.x` -> `_self`); it does NOT
-// hold when the value navigates a hop with no entry (`(w = globalThis.window)?.x`) - a raw read that
-// really can be undefined off-browser, its guard has to fire. ONE verdict for both emitters: the
+// hold when the value ends on an environment probe (`(w = globalThis.self.window)?.x`) or
+// short-circuits through one. A plain middle hop still collapses onto its backed leaf.
+// A terminal probe can be undefined off-browser, so its guard has to fire. ONE verdict for both emitters: the
 // babel skip-check's chain-assign arm and the unplugin dispatch's provability walk ask it alike
 export function storedProxyNavProvesHop(storeNode, { scope, adapter, path, resolve }) {
   const { value, outer } = peelChainAssignment(storeNode);
@@ -429,6 +431,7 @@ export function isPolyfillableOptional({
     && proxyReceiverValueCanBeUndefined(objCore, resolve, { scope, adapter, path });
   if (member === node
     && !undefinableReceiver
+    && realmRootIsSpellable(objCore, resolve)
     && maximalProxyGlobalPrefix(objCore, { scope, adapter, path },
       { allowSideEffectKeys: true, throughChainAssign: true }) === objCore
     // MUTATED landing over an undefinable root: the claim this deopt leans on is cancelled,
@@ -494,7 +497,8 @@ export function isPolyfillableOptional({
   // member (`globalThis.self.foo?.x`) stays guarded (`foo` may be undefined) - globalProxyMemberName returns
   // the raw last-hop name without an alias check, so the POSSIBLE_GLOBAL_OBJECTS gate distinguishes the two
   if (objName && member === node && !undefinableReceiver
-    && (resolve({ kind: 'global', name: objName }) || POSSIBLE_GLOBAL_OBJECTS.has(objName))) return true;
+    && (resolve({ kind: 'global', name: objName })
+      || (POSSIBLE_GLOBAL_OBJECTS.has(objName) && realmRootIsSpellable(objCore, resolve)))) return true;
   const staticHost = objName ?? ctorHost;
   const resolved = memberKey && resolve({ kind: 'property', object: staticHost, key: memberKey, placement: 'static' });
   if (resolved?.kind !== 'static' && resolved?.kind !== 'global') return false;

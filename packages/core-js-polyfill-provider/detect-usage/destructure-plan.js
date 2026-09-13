@@ -32,6 +32,7 @@ import {
   objectLevelPairedProperty,
   objectLiteralHoldsObservable,
   patternKeepsEffectfulHop,
+  patternRootKeyPathsFor,
   patternSlotTarget,
   peelNestedSequenceExpressions,
   peelZeroArgIifeReturn,
@@ -46,6 +47,7 @@ import {
   unwrapCollectingSePrefixes,
   unwrapExpressionChain,
   unwrapRuntimeExpr,
+  isUndefinedNode,
 } from '../helpers/ast-patterns.js';
 import { resolve as resolveBuiltIn } from '../index.js';
 import { computedPropKeyHostsMachinery } from './members.js';
@@ -55,7 +57,6 @@ import {
   discardRescueNodes,
   guaranteedRealmObjectName,
   isStaticPlacement,
-  isUndefinedNode,
   navValueCanShortCircuit,
   peelRealmLogicalDefault,
   proxyReceiverValueCanBeUndefined,
@@ -236,6 +237,7 @@ export function peelArrayWrapperPair({ pattern, init, scope = null, adapter = nu
     };
   }
   for (;;) {
+    if (pattern?.type === 'ObjectPattern' && pattern.properties.some(isRestProperty)) return done(pattern, init);
     // strip AssignmentPattern wrapper on the destructure side - init has no AssignmentPattern
     // equivalent (defaults sit on the LHS slot), so we only peel pattern here. EXCEPTION: a
     // receiver-shaped inner default whose paired slot is literally `undefined` fires the default, so
@@ -288,9 +290,14 @@ export function peelArrayWrapperPair({ pattern, init, scope = null, adapter = nu
       // polyfill to that literal. asked of the OBJECT level alone: its key names the slot, so the
       // question has an answer, while an array level's slot is positional and the census - keyed by
       // NAME, per file - would bail every common wrapper name a file also uses elsewhere
-      if (followed.node !== effectiveInit && hopProp
-        && (aliasEscaped(effectiveInit, adapter, path)
-          || aliasSlotWritten(effectiveInit, spelledSlotName(hopProp), adapter, { scope, path }))) return done(pattern, init);
+      if (followed.node !== effectiveInit && hopProp) {
+        // Peeling the outer level also forgets the owner of nested slots. Check known paths
+        // against the declaration the alias follow reached; opaque inner keys keep the outer check.
+        const keys = patternRootKeyPathsFor(pattern, null, hopKeyCtx) ?? [[spelledSlotName(hopProp)]];
+        const ownerNode = followed.readNode?.type === 'VariableDeclarator' ? followed.readNode : null;
+        if (aliasEscaped(effectiveInit, adapter, path)
+          || keys.some(key => aliasSlotWritten(effectiveInit, key, adapter, { scope, path, ownerNode }))) return done(pattern, init);
+      }
       if (followed.node !== effectiveInit) dereferenced = true;
       effectiveInit = followed.node;
       ({ readNode } = followed);
@@ -616,10 +623,10 @@ export function buildNestedDestructurePlan({
 
   // fold an ObjectPattern-valued outer prop: plan each child, aggregate extractions, pick
   // the node kind. no extraction anywhere -> the whole prop stays verbatim; every child
-  // consumed -> the prop is consumed whole (an inner RestElement child always plans
-  // verbatim, so a rest-bearing pattern lands in 'rebuilt' and the renderer keeps
-  // sentinels for its consumed siblings); otherwise 'rebuilt' with per-child plans
+  // consumed -> the prop is consumed whole; otherwise 'rebuilt' with per-child plans.
+  // A rest-bearing level stays native instead of creating exclusion sentinels.
   function foldNestedPattern(outerProp, pattern, planChild) {
+    if (pattern.properties.some(isRestProperty)) return { kind: 'verbatim', prop: outerProp };
     const children = pattern.properties.map(planChild);
     const extractions = children.flatMap(c => c.extractions ?? []);
     if (!extractions.length) return { kind: 'verbatim', prop: outerProp };
@@ -653,6 +660,10 @@ export function buildNestedDestructurePlan({
       return { kind: 'consumed', prop, extractions: [{ synth: 'symbol-iterator', localName }] };
     }
     if (isSymbolIteratorPatternProp(prop)) {
+      // The ordinary capture retains the live declarator for a relocated rest binding.
+      if (declarator.id.properties?.length === 1 && prop.value.properties.some(isRestProperty)) {
+        return { kind: 'verbatim', prop };
+      }
       const leaf = symbolIteratorInstanceLeaf({
         value: prop.value, resolvePure, isDisabled: leafDisabled, keyNameOf: propKeyNameScoped,
       });
@@ -688,6 +699,10 @@ export function buildNestedDestructurePlan({
     if (adapter.isMutatedStatic?.(planReceiverName, name)) return { kind: 'verbatim', prop: outerProp };
     const value = patternSlotTarget(outerProp.value);
     if (value?.type === 'ObjectPattern') {
+      // A retained iterator sentinel would repeat the read; let the capture own rest.
+      if (value.properties.some(isRestProperty) && value.properties.some(isSymbolIteratorComputedKey)) {
+        return { kind: 'verbatim', prop: outerProp };
+      }
       const planChild = POSSIBLE_GLOBAL_OBJECTS.has(name)
         ? planOuterProp
         : innerProp => planInnerProp(innerProp, name);
@@ -848,7 +863,7 @@ export function buildNestedDestructurePlan({
   // level (array outside the wrapper span) keeps its identifier verbatim - nothing to strip
   const consumedLevelStrips = (peeled.consumedLevels ?? []).filter(l => l.wrapper !== l.array
     && spanWithinSlot(l.array, l.wrapper) && spanWithinSlot(l.wrapper, declarator.init));
-  if (pattern?.type === 'ObjectPattern' && pattern.properties.length) {
+  if (pattern?.type === 'ObjectPattern' && pattern.properties.length && !pattern.properties.some(isRestProperty)) {
     // peel parens / chain / TS wrappers AND SE tail to a fixpoint so `(se(), R) as any`
     // (and nested forms like `(se(), (R as any))`) reach the receiver. without this,
     // TS-wrapped destructure inits bail the flatten path and the SE prefix never lifts
@@ -933,6 +948,7 @@ export function buildNestedDestructurePlan({
         const inner = key && !POSSIBLE_GLOBAL_OBJECTS.has(key) && isStaticPlacement(key)
           ? patternSlotTarget(prop.value) : null;
         if (inner?.type !== 'ObjectPattern' || !inner.properties.length) return null;
+        if (inner.properties.some(isRestProperty)) return null;
         // an opt-out on the hop or on any leaf under it keeps the residual the user's own raw read:
         // anchored on the ponyfill constructor, a leaf the directive kept from importing its static
         // reads `undefined` off it (`{ groupBy } = _Map` without `map/group-by`) where the realm
@@ -1099,20 +1115,20 @@ export function buildNestedDestructurePlan({
 // `undefaultedOnly`: the ELEMENT routes bind the dispatch IN PLACE of the slot, which leaves a
 // default no arm to run - they decline it, so a pattern whose only claim carries one buys nothing
 // from the relocation. the direct hosts fold that arm with a test ref and keep counting it
-function patternHoldsClaim(node, resolvePure, undefaultedOnly = false) {
+function patternHoldsClaim(node, resolvePure, undefaultedOnly = false, keyCtx = null) {
   const pattern = patternSlotTarget(node);
   if (pattern?.type === 'ArrayPattern') {
-    return (pattern.elements ?? []).some(element => patternHoldsClaim(element, resolvePure, undefaultedOnly));
+    return (pattern.elements ?? []).some(element => patternHoldsClaim(element, resolvePure, undefaultedOnly, keyCtx));
   }
-  if (pattern?.type !== 'ObjectPattern') return false;
+  if (pattern?.type !== 'ObjectPattern' || pattern.properties.some(isRestProperty)) return false;
   return (pattern.properties ?? []).some(prop => {
     if (!isPropertyNode(prop)) return false;
-    const key = spelledSlotName(prop);
+    const key = consumableHopSlotName(prop, keyCtx);
     const defaulted = prop.value?.type === 'AssignmentPattern';
     const value = defaulted ? prop.value.left : prop.value;
     if (key !== null && value?.type === 'Identifier' && !(undefaultedOnly && defaulted)
       && resolvePure({ kind: 'property', object: null, key, placement: null })) return true;
-    return patternHoldsClaim(prop.value, resolvePure, undefaultedOnly);
+    return patternHoldsClaim(prop.value, resolvePure, undefaultedOnly, keyCtx);
   });
 }
 
@@ -1121,7 +1137,7 @@ function patternHoldsClaim(node, resolvePure, undefaultedOnly = false) {
 // mirror's (a static swapped into the element), not a reason to relocate - a dual-named leaf
 // (`entries`, `keys`) resolves TYPELESSLY as an instance method, and counted that way it relocated
 // a pattern whose claim then read `_ref.w` with the constructor's name lost
-function nestedClaimBeyondMirror(node, receivers, { scope, adapter, path, resolvePure }) {
+function nestedClaimBeyondMirror(node, receivers, { scope, adapter, path, resolvePure, nestedOnly = false }) {
   const pattern = patternSlotTarget(node);
   if (pattern?.type === 'ArrayPattern') {
     return (pattern.elements ?? []).some((element, index) => element && element.type !== 'RestElement'
@@ -1130,26 +1146,31 @@ function nestedClaimBeyondMirror(node, receivers, { scope, adapter, path, resolv
         return literal?.type === 'ArrayExpression' ? resolveCallArgument(literal.elements, index) : null;
       }), { scope, adapter, path, resolvePure }));
   }
-  if (pattern?.type !== 'ObjectPattern') return false;
+  if (pattern?.type !== 'ObjectPattern' || pattern.properties.some(isRestProperty)) return false;
   return (pattern.properties ?? []).some(prop => {
     if (!isPropertyNode(prop)) return false;
-    const key = spelledSlotName(prop);
+    const key = consumableHopSlotName(prop, { scope, adapter, path });
     const value = patternSlotTarget(prop.value);
     if (key !== null && value?.type === 'Identifier') {
+      if (nestedOnly) return false;
       const claims = resolvePure({ kind: 'property', object: null, key, placement: null })
-        || receivers.some(receiver => resolvePure({
-          kind: 'property', object: unwrapRuntimeExpr(receiver)?.name ?? null, key, placement: 'static',
-        }));
+        || receivers.some(receiver => {
+          const candidates = [];
+          const object = walkStaticReceiverChain({ receiverNode: receiver, walkPath: [], scope, adapter, path, unionSink: candidates });
+          return resolvePure(buildDestructuringInitMeta({ initNode: receiver, key, scope, adapter, path }))
+            || [object, ...candidates].some(name => name && resolvePure({ kind: 'property', object: name, key, placement: 'static' }));
+        });
       if (!claims) return false;
       return !receivers.length || !receivers.every(receiver => {
         const element = unwrapRuntimeExpr(receiver);
         if (element?.type !== 'Identifier' || adapter?.hasBinding?.(scope, element.name, path)) return false;
         const meta = buildDestructuringInitMeta({ initNode: element, key, scope, adapter, path });
-        return meta?.object === element.name && !!resolvePolyfillableStaticProp({ prop, receiverName: meta.object, resolvePure });
+        return meta?.object === element.name
+          && !!resolvePolyfillableStaticProp({ prop, receiverName: meta.object, resolvePure, keyName: key });
       });
     }
     const below = key === null ? [] : receivers.map(receiver => objectLevelPairedProperty(unwrapRuntimeExpr(receiver), key)?.read ?? null);
-    return nestedClaimBeyondMirror(prop.value, below.every(Boolean) ? below : [], { scope, adapter, path, resolvePure });
+    return nestedClaimBeyondMirror(prop.value, below, { scope, adapter, path, resolvePure });
   });
 }
 
@@ -1166,10 +1187,10 @@ export function planCatchClauseExtraction({
   if (paramNode?.type === 'ArrayPattern') {
     // ... unless every claim below is the receiver mirror's, like the object pattern's below
     if (mirrorHosts && !nestedClaimBeyondMirror(paramNode, elementNodes, { scope, adapter, path, resolvePure })) return null;
-    return (paramNode.elements ?? []).some(element => patternHoldsClaim(element, resolvePure, true))
+    return (paramNode.elements ?? []).some(element => patternHoldsClaim(element, resolvePure, true, { scope, adapter, path }))
       ? { unobservable: [] } : null;
   }
-  if (paramNode?.type !== 'ObjectPattern' || !paramNode.properties?.length) return null;
+  if (paramNode?.type !== 'ObjectPattern' || !paramNode.properties?.length || paramNode.properties.some(isRestProperty)) return null;
   // WHICH channel answers decides whether the relocation is needed at all. the type channel buys a
   // DECLARATION HOST its dispatch cannot do without; a static off an element the source SPELLS is
   // something the receiver mirror puts in that element instead - no host, no minted name, no guard,
@@ -1214,7 +1235,7 @@ export function planCatchClauseExtraction({
       if (meta?.object !== element.name) return false;
       // ask the question the EXTRACTION asks, not a weaker one: a prop this predicts and the
       // static route then declines is a pattern relocated for nothing
-      return !!resolvePolyfillableStaticProp({ prop, receiverName: meta.object, resolvePure });
+      return !!resolvePolyfillableStaticProp({ prop, receiverName: meta.object, resolvePure, keyName: key });
     });
     if (spelled) viaElement.push(prop);
     return spelled;
@@ -1230,11 +1251,11 @@ export function planCatchClauseExtraction({
   // ... under a key the consume can NAME: a bound computed one folds, an evaluating one stays out
   const nestedClaim = paramNode.properties.some(prop => isPropertyNode(prop)
     && consumableHopSlotName(prop, adapter ? { scope, adapter, path } : null) !== null
-    && patternHoldsClaim(prop.value, resolvePure));
-  if (!hasMachinery && !nestedClaim && !resolvableProps.length) return null;
+    && patternHoldsClaim(prop.value, resolvePure, false, { scope, adapter, path }));
   // ... and a nested claim the mirror answers on every element is the mirror's, not a host's
-  const nestedBeyondMirror = nestedClaim
-    && (!mirrorHosts || nestedClaimBeyondMirror(paramNode, elementNodes, { scope, adapter, path, resolvePure }));
+  const nestedBeyondMirror = mirrorHosts
+    ? nestedClaimBeyondMirror(paramNode, elementNodes, { scope, adapter, path, resolvePure, nestedOnly: true }) : nestedClaim;
+  if (!hasMachinery && !nestedClaim && !nestedBeyondMirror && !resolvableProps.length) return null;
   // ... so a pattern the mirror HOSTS, whose every claim came from the element channel and whose
   // every key the literal can carry, is left to it: a rest gathers what no read names, a duplicate
   // key would need one property twice, and a key with no static spelling has no slot to sit in
@@ -1247,7 +1268,7 @@ export function planCatchClauseExtraction({
     localName: prop.value?.type === 'Identifier' ? prop.value.name : null,
     walkNode,
   }));
-  if (!hasMachinery && !nestedClaim && unobservable.length === resolvableProps.length) return null;
+  if (!hasMachinery && !nestedClaim && !nestedBeyondMirror && unobservable.length === resolvableProps.length) return null;
   return { unobservable };
 }
 

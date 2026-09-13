@@ -43,9 +43,9 @@ let c2 = 0;
 let ks;
 export const ofSynthKept = (({
   of
-} = {}) => of)((ks = _globalThis.window, c2++, {
+} = {}) => of)((null == (ks = _globalThis.window) ? void 0 : (c2++, {
   of: _Array$of
-}));
+})) ?? {});
 export { c2 };
 // NEGATIVES for the synth-claim yield: the same kept+SE-key chain in a LOGICAL and a TERNARY carrier
 // with NO pending synth - the drive still owns the collapse (nothing claimed the receiver)

@@ -1,10 +1,8 @@
-import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
-import _includes from "@core-js/pure/actual/instance/includes";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
-export const iter = _getIteratorMethod(obj);
-export const includes = _includes(obj);
+// Object-rest keeps the affected method slots native; computed symbol keys still polyfill.
+// Independent reads and key/default expressions still receive their own polyfills.
 export const {
-  [_Symbol$iterator]: _unused,
-  includes: _unused2,
+  [_Symbol$iterator]: iter,
+  includes,
   ...rest
 } = obj;

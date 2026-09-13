@@ -1,5 +1,7 @@
 import _at from "@core-js/pure/actual/instance/at";
 import _keys from "@core-js/pure/actual/instance/keys";
+// Object-rest keeps the affected pattern native, including inside an array wrapper.
+// Independent reads and key/default expressions still receive their own polyfills.
 // an untouched leading statement anchors the comments below: every row here is consumed,
 // and a removed first statement would carry its leading comment down to the next one
 const anchor = [1, 2];
@@ -26,12 +28,8 @@ const [{
   other: other3
 }] = [_ref2];
 export { at3, keys3, other3 };
-
-// NEGATIVE: a REST sibling gathers what the pattern does not name, so the consumed key stays
-// excluded by its sentinel instead of leaving
-const at4 = _at(arr);
 const [{
-  at: _unused,
+  at: at4,
   ...rest
 }] = [arr];
 export { at4, rest };

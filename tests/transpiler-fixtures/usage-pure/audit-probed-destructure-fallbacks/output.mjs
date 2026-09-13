@@ -6,13 +6,19 @@ import _self from "@core-js/pure/actual/self";
 // THROWS instead of selecting - its dead fallback drops while the probe stays
 export const {
   of: viaFallbackObject
-} = _globalThis.window?.Array ?? {};
+} = (null == _globalThis.window ? void 0 : {
+  of: _Array$of
+}) ?? {};
 export const {
   of: viaFallbackOr
-} = _globalThis.window?.Array || {};
+} = (null == _globalThis.window ? void 0 : {
+  of: _Array$of
+}) || {};
 export const {
   of: viaFallbackAgree
-} = _globalThis.window?.Array ?? {
+} = (null == _globalThis.window ? void 0 : {
+  of: _Array$of
+}) ?? {
   of: _Array$of
 };
 export const viaFallbackSealed = ((null == _globalThis.window ? void 0 : _self).Array.of, _Array$of);

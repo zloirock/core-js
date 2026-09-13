@@ -18,14 +18,12 @@ import "core-js/modules/es.string.iterator";
 import "core-js/modules/esnext.promise.all-keyed";
 import "core-js/modules/esnext.promise.all-settled-keyed";
 import "core-js/modules/web.dom-collections.iterator";
-// a super-class alias whose init reads a member off a receiver (`var Base = R.Promise`) or
-// destructures it (`var { Promise: Base } = R`) resolves `R` in the alias's OWN declaration scope.
-// an inner-function `var` redeclaring the receiver name shadows it only at the class site, so
-// resolving there would bind the super-class to the inner shadow. both cases below carry such a
-// shadow of the receiver name.
+// Each superclass alias resolves in its declaration scope despite the later local shadow.
+// The first captures userLibrary.Promise; the second captures the global Promise.
+// Returning the global subclass requires its full static family, masking the negative race row.
+// The pure counterpart distinguishes the two super receivers directly.
 
-// the receiver is `userLibrary` at the declaration, so the super-class is provably not the global
-// Promise - neither the constructor family nor `super.race` injects
+// This alias captures userLibrary.Promise and adds no global Promise claim of its own.
 var recvA = userLibrary;
 var memberAlias = recvA.Promise;
 function memberSuper() {

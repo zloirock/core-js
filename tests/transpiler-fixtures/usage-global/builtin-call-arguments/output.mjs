@@ -1,0 +1,31 @@
+import "core-js/modules/es.object.is";
+import "core-js/modules/es.object.keys";
+import "core-js/modules/es.object.to-string";
+import "core-js/modules/es.promise.constructor";
+import "core-js/modules/es.promise.catch";
+import "core-js/modules/es.promise.finally";
+import "core-js/modules/es.array.iterator";
+import "core-js/modules/es.map.constructor";
+import "core-js/modules/es.map.species";
+import "core-js/modules/es.map.get-or-insert";
+import "core-js/modules/es.map.get-or-insert-computed";
+import "core-js/modules/es.number.is-nan";
+import "core-js/modules/es.set.constructor";
+import "core-js/modules/es.set.species";
+import "core-js/modules/es.set.difference";
+import "core-js/modules/es.set.intersection";
+import "core-js/modules/es.set.is-disjoint-from";
+import "core-js/modules/es.set.is-subset-of";
+import "core-js/modules/es.set.is-superset-of";
+import "core-js/modules/es.set.symmetric-difference";
+import "core-js/modules/es.set.union";
+import "core-js/modules/es.string.iterator";
+import "core-js/modules/web.dom-collections.iterator";
+// Passing a constructor to a known builtin does not request all of its static methods.
+// Static aliases and builtin instances follow the same boundary; each constructor stays narrow.
+Object.is(Array, Array);
+const keys = Object.keys;
+keys(Map);
+Number.isNaN(Set);
+const values = new Set();
+values.has(Promise);

@@ -1,11 +1,9 @@
 import _values from "@core-js/pure/actual/instance/values";
 import _Map from "@core-js/pure/actual/map";
 import _Object$keys from "@core-js/pure/actual/object/keys";
-// a template TAG receives its interpolations like a call receives arguments, so a container in an
-// interpolation escapes and its slots stop resolving TO A NAME: the clean twin below still binds
-// `Object.keys` by name, while the escaped slot only dispatches on the read the source performs
-// itself. isolated in its own fixture: in a shared file a sibling channel can mask this branch,
-// and the seed proof needs the branch to carry the bail
+// The local tag receives this own container as its second argument and replaces k with Map.
+// The object is truthy, so the old Object candidate and its guard are unreachable after the call.
+// Pure keeps the actual slot read and instance dispatch; the clean container still resolves Object.keys.
 function tagShape(strings, value) {
   if (value) value.k = _Map;
   return '';

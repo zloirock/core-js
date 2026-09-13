@@ -7,7 +7,6 @@ import _Map from "@core-js/pure/actual/map/constructor";
 import _Number$MAX_SAFE_INTEGER from "@core-js/pure/actual/number/max-safe-integer";
 import _Promise from "@core-js/pure/actual/promise/constructor";
 import _self from "@core-js/pure/actual/self";
-var _ref;
 // an emit that COLLAPSES a receiver replaces source it does not reproduce, so a polyfillable read
 // buried in the discarded region has to stand down with it - left queued it composes against text
 // that is gone and the build aborts. every discarded-region shape below (effect-free sequence
@@ -61,4 +60,4 @@ export const opaqueRoot = _Promise.self.Array.of(7);
 export const prefixGlobal = _nameMaybeFunction(_Map);
 export const prefixNav = _nameMaybeFunction(_Map);
 export const prefixDiscard = _nameMaybeFunction(_Map);
-export const prefixEffect = (_ref = (eff(), _Map), _nameMaybeFunction(_ref));
+export const prefixEffect = _nameMaybeFunction((eff(), _Map));

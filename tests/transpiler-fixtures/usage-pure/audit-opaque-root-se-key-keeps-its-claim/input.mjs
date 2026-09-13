@@ -1,13 +1,13 @@
-// an SE-bearing hop key over an OPAQUE root: no proxy-global identifier roots this nav, so nothing
-// downstream re-drives a claim standing down here and the peeled-SE route owes the guard itself.
-// the route asked instead whether the whole RECEIVER's value can be undefined, which answers for
-// its BACKED leaf while the `?.` below still tests the environment - the claim was turned away and
-// the chain shipped raw, with no `Function.prototype.name` ponyfill on a floor that lacks it
+// A live optional over an opaque root or an excluded realm root keeps its null guard.
+// The function-name read still needs its ponyfill, and every key effect runs once.
+// A plain key has the same guard obligation as an effect-bearing key.
 let c = 0;
 function probeHost() {
   return globalThis.window;
 }
 export const opaqueRootSeKey = probeHost().window[(c++, 'window')]?.window.Array.name;
-// NEGATIVE: a proxy-global root files a claim of its own, and the run folds onto it
 export const globalRootSeKey = globalThis.window[(c++, 'window')]?.window.Array.name;
+export const globalRootPlainKey = globalThis.window.window?.window.Array.name;
+export const globalRootSeStatic = globalThis.window[(c++, 'window')]?.window.Array.of(5);
+export const globalRootPlainStatic = globalThis.window.window?.window.Array.of(5);
 export { c };

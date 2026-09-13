@@ -1,23 +1,21 @@
-// an object literal is a name-indexable static container: a nested destructure off one of its keys
-// resolves the LAST matching member's value, through the same canonical resolver a class body uses.
-// where a slot this pass cannot NAME bails that pairing - a computed key it cannot fold, a spread
-// that may redefine one, an accessor - the read still happens, off the binding pure substituted into
-// the named slot: there the entry has to carry the STATICS, because the bare `<x>/constructor`
-// installs none and the read answers `undefined` on the floor this build targets
+// A named object-literal slot resolves its last matching value.
+// Unknown computed keys and trailing spreads require a constructor identity check;
+// replacement values retain their own member, and accessors remain unresolved.
+// Constructors used by unresolved reads must carry their static methods.
 
 // a computed static-string key overrides an earlier plain key (last-wins sees through it)
 const withComputed = { N: Array, ["N"]: Promise };
 const { N: { allSettled } } = withComputed;
 export const viaComputed = allSettled([]);
 
-// an unresolvable computed key could BE the target at runtime -> bail (native)
+// An unknown computed key may replace the slot; dispatch on the stored constructor.
 export function dynamicBails(o) {
   const ns = { P: Array, [o.k]: Iterator };
   const { P: { from } } = ns;
   return from([1, 2]);
 }
 
-// a trailing spread could redefine the key -> bail (native)
+// A trailing spread may replace the slot; preserve the replacement's own property.
 export function spreadBails(extra) {
   const ns = { Q: Map, ...extra };
   const { Q: { groupBy } } = ns;

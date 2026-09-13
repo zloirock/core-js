@@ -1,27 +1,17 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
-// an SE-key destructure (`{ [(eff(), 'k')]: v } = R`) keeps the key in place (its effect runs once) and binds
-// the polyfill BEFORE the surviving residual. when the host is a bodyless control body the binding and the
-// residual join as the declarators of ONE `var`, else the residual escapes the guard and runs the key effect
-// even when the control is not taken
+// A computed instance key runs after receiver evaluation and before the property read.
+// A bodyless control keeps the receiver, key effect, and binding in its one guarded statement.
 
 // bodyless `if`: a static extract - the key effect must run only when `c` is taken
-if (c) var f = _Array$from,
-  {
-    [(log(), 'from')]: _unused
-  } = Array;
+if (c) var _ref = Array,
+  f = null == _ref ? _ref[""] : (log(), _Array$from);
 
 // bodyless for-of BODY: an instance method, distinct from above - the for-of/in HEAD bail must not catch the
 // body (keying on the node type alone dropped the polyfill, mistaking the body for the head binding)
-for (item of items) var m = _flatMaybeArray(rows), {
-    [(log(), 'flat')]: _unused2
-  } = rows;
+for (item of items) var _ref2 = rows, m = null == _ref2 ? _ref2[""] : (log(), _flatMaybeArray(_ref2));
 
-// bodyless do-while: an instance method on a CONSTANT-literal receiver - the memoized `_ref` leads the join,
-// the extraction and the sentinel residual follow it (this shape previously crashed the build)
-do var _ref = [1, 2, 3],
-  a = _atMaybeArray(_ref),
-  {
-    [(log(), 'at')]: _unused3
-  } = _ref; while (c);
+// The literal-receiver do-while follows the same ordering on each iteration.
+do var _ref3 = [1, 2, 3],
+  a = null == _ref3 ? _ref3[""] : (log(), _atMaybeArray(_ref3)); while (c);

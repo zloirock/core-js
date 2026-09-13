@@ -7,8 +7,9 @@ import _globalThis from "@core-js/pure/actual/global-this";
 // polyfill-visible where a raw symbol read misses native iterators; the receiver keeps the
 // user binding `obj`
 const obj = _globalThis;
+const _ref = obj;
 const from = _Array$from;
 const {
   next
-} = _getIteratorMethod(obj);
+} = _getIteratorMethod(_ref);
 console.log(from, next);

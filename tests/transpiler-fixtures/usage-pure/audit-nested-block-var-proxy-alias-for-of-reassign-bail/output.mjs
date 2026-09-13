@@ -1,13 +1,14 @@
+import _Array$from from "@core-js/pure/actual/array/from";
 import _globalThis from "@core-js/pure/actual/global-this";
-// a nested-block `var` proxy-global alias reassigned through a for-of head before the use. the
-// var-hoist reassignment scan records the for-of head write, so the synthetic binding reports the
-// reassignment and the receiver-dropping pure substitution bails - leaving `g.Array.from` native
-// (the alias may no longer be globalThis at the use)
+// A for-of head can replace the hoisted realm alias, or leave its initializer when empty.
+// Pure must keep the live constructor read and guard its static; a direct fold would
+// discard the replacement value and its native behavior.
 function f(arr) {
+  var _ref;
   {
     var g = _globalThis;
   }
   for (g of arr) {}
-  g.Array.from([1, 2, 3]);
+  _ref = g.Array, _ref === Array ? _Array$from([1, 2, 3]) : _ref.from([1, 2, 3]);
 }
 f([]);

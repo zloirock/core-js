@@ -1,13 +1,6 @@
-// a collapse that keeps a chain assignment re-emits the assignment around a REBUILT value, and what
-// the value's own render copied from the source rides along with it. two things follow, and each row
-// asserts one of them: a polyfillable read left inside that copied text still owns its rewrite, and
-// the source between the value and the end of the assignment - where a parenthesized value keeps its
-// closing token - comes back too, or the file stops parsing.
-// both emitters spell the assigned value by ONE rule, the guarded twin's canon: a fully
-// ponyfilled navigation spells as the LEAF's own ponyfill (`q = _self`), a realm hop READ THROUGH
-// that leaf folds onto it, mid-chain writes survive the
-// collapse, and a SEQUENCE-rooted navigation stays root-substituted verbatim (its prefix owns
-// live inner rewrites no rebuilt span could carry); the import sets match either way
+// A stored navigation value keeps assignments and rewrites inside its sequence prefix.
+// Parenthesized and unparenthesized values collapse to the same backed navigation leaf.
+// Source optional checks remain observable; plain middle hops do not invent new guards.
 let q;
 const arr = [1];
 
@@ -26,8 +19,8 @@ export const parenValueNested = (q = ((globalThis.self))).Map.name;
 export const bareValue = (q = globalThis.self).Map.name;
 export const ctorStatic = (q = (arr.at(0), globalThis).self).Number.MAX_SAFE_INTEGER;
 
-// an unresolvable TAIL hop collapses to the deepest ponyfillable hop and rides the tail read
-// raw off it; mid-chain writes survive beside the outer one
+// A plain terminal navigation hop folds onto the deepest backed leaf when consumed.
+// Mid-chain stores retain their assignment order.
 export const bareUnresolvableTail = (q = globalThis.self.window).Map.name;
 let w;
 export const nestedWriteTail = (q = (w = globalThis.self.window)).Map.name;
@@ -39,9 +32,8 @@ export const tailStaticRead = (q = globalThis.self.window).Number.MAX_SAFE_INTEG
 export const tailStaticCall = (q = (Promise.resolve(2), globalThis).self.window).Array.of(7);
 export const tailFallback = (q = globalThis.self.window).Promise.noSuchStatic;
 
-// an unresolvable hop BELOW the collapse point keeps its guard - the value the source computes can
-// be undefined, and an unguarded leaf would report the global where native short-circuits or throws.
-// the sequence prefix rides INSIDE the test with its own polyfills alive, an alias root keeps its name
+// A plain middle navigation hop reaches the backed leaf without inventing an optional guard.
+// Sequence effects remain inside the stored value, and direct and aliased roots agree.
 export const nestedBelowValue = (q = globalThis.window.self).Map.name;
 export const nestedBelowSeq = (q = (arr.at(0), globalThis).window.self).Map.name;
 const alias = globalThis;

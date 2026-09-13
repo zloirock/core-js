@@ -1,11 +1,14 @@
+import _Array$from from "@core-js/pure/actual/array/from";
 import _Iterator from "@core-js/pure/actual/iterator/constructor";
 import _Iterator$from from "@core-js/pure/actual/iterator/from";
 import _Map from "@core-js/pure/actual/map/constructor";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Promise$allSettled from "@core-js/pure/actual/promise/all-settled";
 import _Promise from "@core-js/pure/actual/promise/constructor";
-// duplicate static class fields are LAST-wins at runtime (`NS.M === Iterator`), so a destructure
-// off the static must resolve through the LAST declaration - substituting the first is wrong-value
+// Duplicate static fields resolve to the last matching declaration, including computed string keys.
+// Unknown computed keys require dispatch through the actual stored constructor.
+// A later static block keeps its written slot instead of assuming the original field value.
+// Single-field and computed-key controls preserve the directly resolved cases.
 class NS {
   static M = Array;
   static M = _Iterator;
@@ -29,18 +32,17 @@ class Computed {
 const allSettled = _Promise$allSettled;
 export const viaComputedOverride = allSettled([]);
 
-// an UNRESOLVABLE computed static key could BE the target name at runtime and override the plain
-// field, so resolution must BAIL (native) rather than fold the stale plain value
+// An unknown computed key may override the field. Test the stored constructor's identity
+// before selecting either candidate's static method.
 export function dynamicKeyBails(o) {
   class Guard {
     static P = Array;
     static [o.k] = _Iterator;
   }
   const {
-    P: {
-      from
-    }
-  } = Guard;
+      P: _ref
+    } = Guard,
+    from = _ref === _Iterator ? _Iterator$from : _ref === Array ? _Array$from : _ref.from;
   return from([1, 2]);
 }
 

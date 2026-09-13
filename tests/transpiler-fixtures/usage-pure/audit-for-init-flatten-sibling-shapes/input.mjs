@@ -1,8 +1,5 @@
-// a for-init declaration shared with a proxy-global flatten declarator: the sibling
-// destructure renders through the SAME full emitter as every block-level shape - memo,
-// residual and rest slots are all valid comma-list declarators, so the polyfill survives
-// on every shape (a narrow for-init-only renderer once bailed these to verbatim source,
-// dropping the injected polyfill and leaving a dead import)
+// Object-rest keeps the affected loop pattern native at its original evaluation point.
+// Independent reads and key/default expressions still receive their own polyfills.
 for (const { Array: { from } } = globalThis, { at, ...rest } = arr; cond(); next()) use(from, at, rest);
 for (const { Array: { of: of2 } } = globalThis, { flat, plain } = arr; cond(); next()) use(of2, flat, plain);
 for (const { Array: { isArray } } = globalThis, { ['includes']: inc } = arr; cond(); next()) use(isArray, inc);

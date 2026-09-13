@@ -2,40 +2,30 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
-import _at from "@core-js/pure/actual/instance/at";
-var _ref4;
+var _ref2;
+// Object-rest keeps the affected assignment pattern native and preserves its RHS value.
+// Independent reads and key/default expressions still receive their own polyfills.
 const src2 = [1, [2]];
 let at, includes;
 const _ref = [1, 2, 3];
 at = _atMaybeArray(_ref);
 includes = _includesMaybeArray(_ref);
-// a REST sibling is a residual like any other: it re-reads the receiver past the renamed key, so
-// the memo is what gives both readers one identity - the arrangement the DECLARATION host emits for
-// the same pattern, and the one a receiver nothing can re-read has no other way to get
 let at2, rest2;
-const _ref2 = [1, 2];
-var _unused;
-at2 = _atMaybeArray(_ref2);
 ({
-  at: _unused,
+  at: at2,
   ...rest2
-} = _ref2);
-// ... and a receiver whose evaluation is OBSERVABLE takes it for the same reason, once
+} = [1, 2]);
+// An effectful receiver still runs once.
 let at3, rest3;
-const _ref3 = mk();
-var _unused2;
-at3 = _at(_ref3);
 ({
-  at: _unused2,
+  at: at3,
   ...rest3
-} = _ref3);
-// a re-readable receiver needs none of it: both readers spell the binding
+} = mk());
+// A binding receiver follows the same native-rest boundary.
 let at4, rest4;
 const src = [1, 2];
-var _unused3;
-at4 = _atMaybeArray(src);
 ({
-  at: _unused3,
+  at: at4,
   ...rest4
 } = src);
 export { at, includes, at2, rest2, at3, rest3, at4, rest4 };
@@ -47,5 +37,5 @@ let inner;
 inner = _atMaybeArray(_flatMaybeArray(other).call(other));
 // ... and so does a claim inside the slot DEFAULT, read through the slot at render time
 let viaDefault;
-viaDefault = _nameMaybeFunction((_ref4 = _atMaybeArray(src2)) === void 0 ? _flatMaybeArray(other).call(other) : _ref4);
+viaDefault = _nameMaybeFunction((_ref2 = _atMaybeArray(src2)) === void 0 ? _flatMaybeArray(other).call(other) : _ref2);
 export { inner, viaDefault };

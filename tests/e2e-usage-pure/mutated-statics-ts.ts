@@ -50,3 +50,21 @@ QUnit.test('mutated-statics-ts: a cast container init keeps its slot writes visi
   const { k: { keys } } = clean;
   assert.deepEqual(keys({ a: 1 }), ['a']);
 });
+
+// The TypeScript this parameter disappears before invocation. Both call spellings must pair the
+// namespace with the same runtime parameter before deciding which static was patched.
+QUnit.test('tagged arguments: erased this parameter preserves mutation routing', assert => {
+  const descriptor = Object.getOwnPropertyDescriptor(Reflect, 'ownKeys');
+  function install(this: void, strings: TemplateStringsArray | string[], namespace: any) {
+    namespace.ownKeys = () => ['patched'];
+  }
+  try {
+    install`${ Reflect }`;
+    assert.deepEqual(Reflect.ownKeys({}), ['patched']);
+    install([''], Reflect);
+    assert.deepEqual(Reflect.ownKeys({ value: 1 }), ['patched']);
+  } finally {
+    if (descriptor) Object.defineProperty(Reflect, 'ownKeys', descriptor);
+    else delete (Reflect as any).ownKeys;
+  }
+});

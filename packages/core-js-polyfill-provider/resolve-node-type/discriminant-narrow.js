@@ -29,11 +29,13 @@ import {
   readRunsDeferredWithin,
   runsAtImmediateInvocation,
   anyWriteOutrunsUse,
+  bindingLoopAnchor,
+  loopReExecRegionHasViolation,
 } from '../helpers/ast-patterns.js';
-import { scopeNode, bindingLoopAnchor, bindingCrossesLoopBackEdge } from './straight-line-flow.js';
+import { scopeNode, bindingCrossesLoopBackEdge } from './straight-line-flow.js';
 import { nodeAlwaysHardExits } from './exit-analysis.js';
-import { hasRange, isUnionType, loopReExecRegionHasViolation, violationInCapturedFunction } from './ast-shapes.js';
-import { MAX_DEPTH } from './base.js';
+import { isUnionType, violationInCapturedFunction } from './ast-shapes.js';
+import { MAX_DEPTH, hasRange } from './base.js';
 import { isLoopStatement } from '../destructure-host-shape.js';
 
 // nullish-keyword annotation shapes: any property-access guard (`x.kind === 'a'`)
@@ -610,7 +612,9 @@ export function createDiscriminantNarrow({
       const sib = stmtPaths[i];
       const direct = statementAssignmentPath(sib, targetName, binding);
       if (direct) return direct;
-      const branch = sib?.node ? fallThroughBranchPath(sib) : null;
+      // a plain nested block runs whenever its enclosing statement list does. follow it through
+      // the same scan as a guaranteed branch, retaining binding identity and intervening writes.
+      const branch = sib?.node?.type === 'BlockStatement' ? sib : sib?.node ? fallThroughBranchPath(sib) : null;
       if (branch) {
         const inner = branch.node.type === 'BlockStatement' ? cachedContainerPaths(branch, 'body') : [branch];
         const hit = scanStatementsForAssignment(inner, targetName, binding, depth + 1);
