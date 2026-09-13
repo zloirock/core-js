@@ -25,16 +25,16 @@ const { transformAsync } = requireBabel('@babel/core');
 const { checkTruthy, finish } = createChecker('post-sweep-introduced-global');
 
 // sibling plugin, ordered BEFORE core-js so its Program.exit runs first: it renames a marker
-// identifier to the bare global `Map` in-place at exit - AFTER core-js's main traversal already
+// identifier to the requested name (`Map` by default) in-place at exit - AFTER the main traversal
 // passed the marker (a non-global name it skipped), but BEFORE core-js's own Program.exit post-sweep.
 // the same in-place-mutation shape a sibling transform uses to drop a raw global into existing code
-function makeSiblingBareGlobal() {
+function makeSiblingBareGlobal(name = 'Map') {
   return () => ({
     visitor: {
       Program: {
         exit(programPath) {
           programPath.traverse({
-            Identifier(idPath) { if (idPath.node.name === '__M__') idPath.node.name = 'Map'; },
+            Identifier(idPath) { if (idPath.node.name === '__M__') idPath.node.name = name; },
           });
         },
       },
@@ -42,12 +42,12 @@ function makeSiblingBareGlobal() {
   });
 }
 
-async function transform(method) {
-  return (await transformAsync('var x = __M__;', {
+async function transform(method, name = 'Map', source = 'var x = __M__;') {
+  return (await transformAsync(source, {
     configFile: false,
     babelrc: false,
     plugins: [
-      makeSiblingBareGlobal(),
+      makeSiblingBareGlobal(name),
       ['@core-js', { method, version: '4.0', targets: { ie: 11 } }],
     ],
   })).code;
@@ -115,6 +115,21 @@ async function transformStatic(method) {
   const code = await transformStatic('usage-pure');
   checkTruthy('usage-pure/introduced static substituted with pure import',
     code.includes('@core-js/pure') && code.includes('assign') && !/\bObject\.assign\b/.test(code));
+}
+
+// Screening uses the complete global catalogue, not only known constructor return types.
+// A real global remains subject to lexical shadowing; an unrelated introduced name stays raw.
+for (const method of ['usage-global', 'usage-pure']) {
+  const cloned = await transform(method, 'structuredClone');
+  checkTruthy(`${ method }/introduced non-constructor global is covered`, method === 'usage-pure'
+    ? cloned.includes('@core-js/pure/actual/structured-clone') && /\bvar x = _structuredClone\b/.test(cloned)
+    : cloned.includes('core-js/modules/web.structured-clone') && /\bvar x = structuredClone;/.test(cloned));
+  const local = await transform(method, 'Map', 'function read(Map) { return __M__; }');
+  checkTruthy(`${ method }/introduced shadowed global stays local`,
+    !local.includes('core-js/') && !local.includes('@core-js/pure') && /return Map;/.test(local));
+  const ordinary = await transform(method, 'ordinary');
+  checkTruthy(`${ method }/introduced ordinary name stays raw`,
+    !ordinary.includes('core-js/') && !ordinary.includes('@core-js/pure') && /\bvar x = ordinary;/.test(ordinary));
 }
 
 // a SHADOWED object must not be polyfilled: the gate's binding check excludes a sibling-introduced

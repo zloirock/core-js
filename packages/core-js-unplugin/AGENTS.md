@@ -18,7 +18,7 @@ At the package root, one `<bundler>.js` and `<bundler>.d.ts` pair per bundler - 
 - `detect-entry.js`, `detect-usage.js` - the unplugin side of detection, on top of the provider; `entry.js` applies the entry plan as body surgery
 - `print.js` - the esrap printer adapter: loc synthesis, paren normalization to the minimal structural set, the corpus-measured esrap gap overrides, the sourcemap anchors of minted spellings, the anchored-comment channel that prints a directive ahead of its node whatever the loc heuristics do
 - `import-injector.js` - the injector: import and generated-ref bookkeeping, name allocation, the pre-to-post snapshot shape, and the flush that sweeps, injects and retires dead memos
-- `builders.js` - a re-export of the core's render canon (`@core-js/polyfill-provider/render`); `emit-shared.js` - this leg's own render idioms plus the canon shapes its emitters read from one import
+- `emit-shared.js` - this leg's own render idioms; emitters import the render canon directly from `@core-js/polyfill-provider/render`
 - `estree-compat.js` - ESTree to Babel literal-type mapping, the seam between the two AST dialects
 - `sfc-shapes.js` - module ids of SFC virtual modules (Vue, Svelte, Astro), whose metadata lives in query params
 - `snapshot-cache.js` - the pre-to-post handoff for `phase: 'pre+post'`, keyed by environment plus the whole id. Query and fragment are IDENTITY: a dev server runs `/dep.js` and `/dep.js?v=<hash>` as two interleaved modules, and one plugin instance serves several environments at once. Only the HMR timestamp is noise. What pre hands post is its injector state, never its tree - emission mutates that tree, so post re-parses its own input

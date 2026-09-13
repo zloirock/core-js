@@ -1,3 +1,5 @@
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
 // a deferred-SE destructure host (a `({ hop: { leaf } } = root)` assignment buried in a consumed
 // init's sequence prefix) must re-anchor exactly like the plain statement form even though no
 // leaf resolves: each emitter re-enters the anchored-plan trigger on its own re-traversal.
@@ -35,8 +37,6 @@ for (const { isFrozen } = (({ Array: { [Symbol.asyncIterator]: avy, of: fvy } } 
 let aM;
 export const { getOwnPropertyDescriptors: gpd2 } = (({ Map: aM } = globalThis), Object);
 export { aM };
-// a REST sibling keeps its sentinel'd residual while the static extraction still wins,
-// and the sentinel is PRE-DECLARED (an assignment host's LHS write needs the `var`)
 let fRe, rRe;
 export const { create: crD } = (({ Promise: { allSettled: fRe, ...rRe } } = globalThis), Object);
 export { fRe, rRe };

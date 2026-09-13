@@ -8,4 +8,6 @@ function f([[{
 }]]) {
   return from([1]);
 }
-f([[Array]]);
+f([[{
+  from: _Array$from
+}]]);

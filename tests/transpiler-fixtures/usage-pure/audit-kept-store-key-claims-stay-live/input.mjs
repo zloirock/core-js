@@ -1,7 +1,6 @@
-// a claim inside a kept store's computed key stays live through the render: the key container
-// rides by identity, so the polyfill lands in place - in the VALUE form (nothing above reads
-// the store's absence, the fold replays the key ahead of the leaf) and in the GUARDED form
-// alike (a claim above renders the test that reads the store, the key spelled inside it)
+// Claims inside a kept store's computed key survive the proxy fold and execute once.
+// Plain window.self navigation stores the backed self value in value, plain-member
+// and claimed-static consumers; key effects stay ahead of that store.
 let held;
 const keyLog = [];
 export const storedKeyClaimValue = (held = globalThis[(keyLog.push(1), 'window')].self)?.customQ;

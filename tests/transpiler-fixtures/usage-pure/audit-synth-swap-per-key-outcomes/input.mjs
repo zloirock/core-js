@@ -1,7 +1,5 @@
-// SYNTH-SWAP: the outcomes are not ranked alternatives, they are chosen PER KEY and coexist in one
-// pattern - a polyfillable key leaves the pattern as its own binding, an unknown key stays in the
-// pattern with the receiver substituted. a rest element keeps a residual pattern beside the
-// extracted binding, and in a parameter default, where no literal can be built, nothing is rewritten
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
 const { foo } = globalThis.Array;
 
 const { from } = globalThis.Array;

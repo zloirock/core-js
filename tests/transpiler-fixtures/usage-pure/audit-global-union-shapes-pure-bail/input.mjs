@@ -1,6 +1,5 @@
-// pure twin of the usage-global union shapes: pure substitutes only when CERTAIN, so a
-// reassigned alias / captured branching value / conditionally reassigned self-ref var all
-// keep their reads RAW - the global-side union widening must never leak substitutions here
+// Ambiguous constructor aliases select statics through runtime identity checks.
+// Each fallback retains the selected receiver and preserves the method call receiver.
 function f(c, d) {
   let M0 = Object;
   if (c) M0 = Array;

@@ -4,15 +4,12 @@ import _Array$of from "@core-js/pure/actual/array/of";
 import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Object$keys from "@core-js/pure/actual/object/keys";
-var _ref15;
-// a hop whose level keeps SIBLINGS leaves it for a twin of its own (`hopSplitPlan`): the pair - the
-// memo of the hop and the claims off it - stands beside the host, which goes on binding its siblings
-// off the root. a built-in root (a constructor, the realm, a nav into it) re-reads for free and its
-// reads are unobservable, so the pair stands behind the host whatever the hop's position or level;
-// a USER root re-reads for free at the host level only, keeping the source's order: the hop stands
-// at an end, the pair ahead of the host where the hop led. a host that empties goes. declined where
-// the pair has no statement slot of its own (a loop head, a bodyless slot, an export, a declarator
-// that is not the last) and for a user root's hop below the host or in the middle
+var _ref17;
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
+// Nested leaves retain unrelated siblings at every enclosing level.
+// User-object getters and defaults keep their source order; pristine built-in reads
+// follow the built-in-read contract across declarations and control-flow hosts.
 const box = {
   y: [1]
 };
@@ -60,95 +57,100 @@ const {
   foo: f5
 } = _ref5;
 const {
+  of: {
+    name: hopRest,
+    ...r1
+  },
   junk: j4
 } = Array;
-const _ref6 = _Array$of;
-const hopRest = _nameMaybeFunction(_ref6);
-const {
-  name: _unused,
-  ...r1
-} = _ref6;
 const {
   junk: j5
 } = _globalThis.Array;
-const _ref7 = _Array$of;
-const viaProxyInner = _nameMaybeFunction(_ref7);
+const _ref6 = _Array$of;
+const viaProxyInner = _nameMaybeFunction(_ref6);
 const {
   foo: f7
-} = _ref7;
+} = _ref6;
 const {
   junk: j6
 } = _globalThis.Array;
-const _ref8 = _Array$of;
-const viaProxyInnerLast = _nameMaybeFunction(_ref8);
+const _ref7 = _Array$of;
+const viaProxyInnerLast = _nameMaybeFunction(_ref7);
 const {
   foo: f8
-} = _ref8;
+} = _ref7;
 const {
   Array: {
     junk: j7
   },
   more: m1
 } = _globalThis;
-const _ref9 = _Array$of;
-const viaProxyTwoLevels = _nameMaybeFunction(_ref9);
+const _ref8 = _Array$of;
+const viaProxyTwoLevels = _nameMaybeFunction(_ref8);
 const {
   foo: f9
-} = _ref9;
+} = _ref8;
 const {
   junk: j8
 } = _globalThis;
-const _ref10 = _Array$of;
-const viaProxyHostSibling = _nameMaybeFunction(_ref10);
+const _ref9 = _Array$of;
+const viaProxyHostSibling = _nameMaybeFunction(_ref9);
 const {
   foo: f10
-} = _ref10;
+} = _ref9;
 const K1 = _Object$keys;
-const _ref11 = _Array$of;
-const viaProxyCtorSibling = _nameMaybeFunction(_ref11);
+const _ref10 = _Array$of;
+const viaProxyCtorSibling = _nameMaybeFunction(_ref10);
 const {
   foo: f11
-} = _ref11;
+} = _ref10;
 const {
   junk: j9
 } = _globalThis.Array;
-const _ref12 = _Array$of;
-const viaProxyNav = _nameMaybeFunction(_ref12);
+const _ref11 = _Array$of;
+const viaProxyNav = _nameMaybeFunction(_ref11);
 const {
   foo: f12
-} = _ref12;
-const _ref13 = box.y;
+} = _ref11;
+const _ref12 = box;
+const _ref13 = _ref12.y;
 const userFirst = _atMaybeArray(_ref13);
 const {
   other: o1
 } = _ref13;
 const {
   junk: j10
-} = box;
+} = _ref12;
+const _ref14 = box;
 const {
   junk: j11
-} = box;
-const _ref14 = box.y;
-const userLast = _atMaybeArray(_ref14);
+} = _ref14;
+const _ref15 = _ref14.y;
+const userLast = _atMaybeArray(_ref15);
 const {
   other: o2
-} = _ref14;
+} = _ref15;
+const _ref16 = box;
 const {
   junk: j12
-} = box;
-const _ref16 = (_ref15 = box.y) === void 0 ? [] : _ref15;
-const userDefault = _atMaybeArray(_ref16);
+} = _ref16;
+const _ref18 = (_ref17 = _ref16.y) === void 0 ? [] : _ref17;
+const userDefault = _atMaybeArray(_ref18);
 const {
   other: o3
-} = _ref16;
+} = _ref18;
+const _ref19 = box;
 const {
-  junk: j13,
-  y: {
-    at: userMiddle,
-    other: o4
-  },
+  junk: j13
+} = _ref19;
+const _ref20 = _ref19.y;
+const userMiddle = _atMaybeArray(_ref20);
+const {
+  other: o4
+} = _ref20;
+const {
   more: m2
-} = box;
+} = _ref19;
 const {
   y: {
     z: {
@@ -158,8 +160,7 @@ const {
     junk: j14
   }
 } = deep;
-// a SOLE leaf needs no twin: the typed nav claims it over a sibling level whose re-read is a nav
-// into the built-in namespace (`typedNavClaimShape`), and the residual keeps the siblings
+// A single consumed leaf leaves unrelated properties in the residual pattern.
 const F4 = _Array$from;
 const soleBesideStatic = _nameMaybeFunction(_Array$of);
 const soleBesideJunk = _nameMaybeFunction(_Array$of);
@@ -174,18 +175,19 @@ const soleBesideHostJunk = _nameMaybeFunction(_Array$of);
 const {
   junk: j23
 } = _globalThis;
-const soleUserBesideJunk = _atMaybeArray(box.y);
+const _ref21 = box;
+const soleUserBesideJunk = _atMaybeArray(_ref21.y);
 const {
   junk: j25
-} = box;
+} = _ref21;
 const {
   junk: j15
 } = Array;
-const _ref17 = _Array$of;
-const viaLet = _nameMaybeFunction(_ref17);
+const _ref22 = _Array$of;
+const viaLet = _nameMaybeFunction(_ref22);
 const {
   foo: f13
-} = _ref17;
+} = _ref22;
 const {
     of: {
       name: viaLeadingDeclarator,
@@ -198,11 +200,11 @@ const z2 = 1,
   {
     junk: j17
   } = Array;
-const _ref18 = _Array$of;
-const viaTrailingDeclarator = _nameMaybeFunction(_ref18);
+const _ref23 = _Array$of;
+const viaTrailingDeclarator = _nameMaybeFunction(_ref23);
 const {
   foo: f15
-} = _ref18;
+} = _ref23;
 for (const {
   of: {
     name: viaForInit,

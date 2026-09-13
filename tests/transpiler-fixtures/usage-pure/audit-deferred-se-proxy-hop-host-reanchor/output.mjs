@@ -1,5 +1,4 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-import _Array$fromAsync from "@core-js/pure/actual/array/from-async";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _globalThis from "@core-js/pure/actual/global-this";
@@ -16,11 +15,11 @@ import _Object$isFrozen from "@core-js/pure/actual/object/is-frozen";
 import _Object$isSealed from "@core-js/pure/actual/object/is-sealed";
 import _Object$keys from "@core-js/pure/actual/object/keys";
 import _Object$values from "@core-js/pure/actual/object/values";
-import _Promise$allSettled from "@core-js/pure/actual/promise/all-settled";
-import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Set from "@core-js/pure/actual/set";
 import _Symbol$asyncIterator from "@core-js/pure/actual/symbol/async-iterator";
-var _ref, _unused2;
+var _ref;
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
 // a deferred-SE destructure host (a `({ hop: { leaf } } = root)` assignment buried in a consumed
 // init's sequence prefix) must re-anchor exactly like the plain statement form even though no
 // leaf resolves: each emitter re-enters the anchored-plan trigger on its own re-traversal.
@@ -78,22 +77,22 @@ let aM;
 aM = _Map;
 export const gpd2 = _Object$getOwnPropertyDescriptors;
 export { aM };
-// a REST sibling keeps its sentinel'd residual while the static extraction still wins,
-// and the sentinel is PRE-DECLARED (an assignment host's LHS write needs the `var`)
 let fRe, rRe;
-var _unused;
 ({
-  allSettled: _unused,
-  ...rRe
-} = _Promise);
-fRe = _Promise$allSettled;
+  Promise: {
+    allSettled: fRe,
+    ...rRe
+  }
+} = _globalThis);
 export const crD = _Object$create;
 export { fRe, rRe };
 let fRf, rRf, oRf;
 for (const _ref4 = ({
-    fromAsync: _unused2,
-    ...rRf
-  } = _globalThis.Array, fRf = _Array$fromAsync, Object), isSealed = _Object$isSealed; !oRf;) oRf = isSealed;
+    Array: {
+      fromAsync: fRf,
+      ...rRf
+    }
+  } = _globalThis, Object), isSealed = _Object$isSealed; !oRf;) oRf = isSealed;
 // an anchor-less full consume with an SE-bearing init: the prefix stays verbatim ahead of
 // the alias assign (by parts, no anchor read involved)
 let mS2;

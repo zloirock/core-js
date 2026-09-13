@@ -25,7 +25,6 @@ import {
   isPristineProxyGlobal,
   isReassignedBeyondDeclarator,
   isVarScopeBoundary,
-  memberKeyName,
   objectPatternLiteralKeyPath,
   pairedArrayWrapInitElement,
   peelArrayWrapBindingLayers,
@@ -35,20 +34,16 @@ import {
   propertyKeyName,
   reachingReassignmentValueNode,
   reassignmentBlocksGlobalResolve,
-  staticMemberKeyName,
   unwrapRuntimeExpr,
   unwrapSafeSequenceTail,
   varInitDominatesUsage,
   pureReturnBodyValue,
+  singleReturnBodyExpression,
 } from './ast-patterns.js';
 // the proxy-global recogniser lives with the value canon it narrows ():
 // asking "does this binding hold a proxy global" is asking the canon what the binding holds and
 // keeping the proxy names - the copy that used to answer it here resolved fewer init spellings
 import { globalProxyMemberName, isProxyGlobalIdentifierNode } from '../detect-usage/resolve.js';
-
-// re-export so existing consumers (`global-resolve.js`, `member-resolve.js`) keep their
-// import path; canonical definitions live in `ast-patterns.js` next to `singleQuasiString`
-export { memberKeyName, staticMemberKeyName };
 
 // peel parens / TS wrappers AND SequenceExpression tail (`(se(), X)` -> `X` at runtime)
 // to a fixpoint; covers mixed-wrapper cases like `((se(), X) as any)`. exported so the unplugin
@@ -490,20 +485,24 @@ export function registerAliasPrePassSite({ pattern, init, declKind, assignNode, 
   }
 }
 
-// cheap scope-less gate for the alias pre-pass: does the file contain any destructure whose
-// source COULD be a proxy global (assignment with a pattern LHS, or an initialized declarator
-// with a pattern id)? most files have neither and skip the scoped traverse entirely.
-// census-reducer form - the per-node predicate latches from the shared file-census walk
+// scope-less gate for the alias pre-pass: registration needs a destructure source AND a known
+// global key, as collectCtorAliasPairs / registerAliasPrePassSite require. Ordinary data patterns
+// need no scoped walk. The shared census sees nested patterns too; the two facts may come from
+// unrelated sites, which only over-records candidates and keeps this gate conservative.
 export function ctorAliasShapesReducer() {
-  let hasCtorAliasShapes = false;
+  let hasDestructureSource = false;
+  let hasGlobalKey = false;
   return {
     visit(node) {
-      if (hasCtorAliasShapes) return;
+      if (hasDestructureSource && hasGlobalKey) return;
       const pattern = node.type === 'AssignmentExpression' && node.operator === '=' ? node.left
         : node.type === 'VariableDeclarator' && node.init ? node.id : null;
-      if (isDestructurePattern(pattern)) hasCtorAliasShapes = true;
+      if (isDestructurePattern(pattern)) hasDestructureSource = true;
+      if (!hasGlobalKey && node.type === 'ObjectPattern') {
+        hasGlobalKey = node.properties.some(prop => isKnownGlobalName(propertyKeyName(prop)));
+      }
     },
-    result() { return { hasCtorAliasShapes }; },
+    result() { return { hasCtorAliasShapes: hasDestructureSource && hasGlobalKey }; },
   };
 }
 
@@ -1077,15 +1076,18 @@ function isNamespaceContainer(node) {
 // the value a READ of this static member yields, or null when the read is dynamic: a method
 // shorthand hands back a function the reader would read THROUGH, a setter-won key answers
 // `undefined`, and a getter answers whatever its body computes - so only a body that is ONE PURE
-// RETURN names a value this walk may hand on. babel spells accessors and method shorthands as
+// RETURN names a value this walk may hand on. A caller preserving the read may also classify a
+// single return whose body has effects or unrelated local declarations, because the getter still
+// runs where the source reads it. returned references to getter-local names remain unclassified.
+// babel spells accessors and method shorthands as
 // `ObjectMethod` / `ClassMethod`, ESTree as a `Property` / `MethodDefinition` carrying `kind` and
 // `method` - both spellings reach one reading, or the two legs answer differently about one source
-function staticMemberReadValue(member) {
+function staticMemberReadValue(member, { preservesRead = false } = {}) {
   const kind = member.type === 'ObjectMethod' || member.type === 'ClassMethod' || member.type === 'MethodDefinition'
     ? member.kind : member.method ? 'method' : member.kind;
   if (kind !== 'get') return kind === 'init' || kind === undefined ? member.value ?? null : null;
   const body = member.type === 'ObjectMethod' || member.type === 'ClassMethod' ? member.body : member.value?.body;
-  return pureReturnBodyValue(body);
+  return preservesRead ? singleReturnBodyExpression(body, { preservesBody: true }) : pureReturnBodyValue(body);
 }
 
 // the value a namespace-shaped container binds to `propName`, scanning its members in REVERSE so the
@@ -1097,8 +1099,12 @@ function staticMemberReadValue(member) {
 // `spreadVetoes` is the caller's promise about what it does with the answer: a spread reached in the
 // reverse scan sits AT OR AFTER the matched key and may redefine it, so a caller that REWRITES the
 // read keeps the veto, while one that only INJECTS off the answer turns it off and treats the
-// literal's own last-wins value as one more candidate to inject for
-export function findNamespaceMemberValue(container, propName, scope, adapter, resolveKey, { spreadVetoes = true } = {}) {
+// literal's own last-wins value as one more candidate to inject for. An unknown computed sibling
+// has the same possible-overwrite standing, and a getter's effects do not erase its returned type
+// while that caller keeps the read itself.
+export function findNamespaceMemberValue(container, propName, scope, adapter, resolveKey, {
+  spreadVetoes = true, candidateSink = null,
+} = {}) {
   if (container?.type === 'ClassDeclaration' || container?.type === 'ClassExpression') {
     const members = container.body?.body ?? [];
     for (let i = members.length - 1; i >= 0; i--) {
@@ -1110,15 +1116,23 @@ export function findNamespaceMemberValue(container, propName, scope, adapter, re
       if (m.type === 'StaticBlock') return null;
       if (!m.static) continue;
       const verdict = memberKeyVerdict(m.key, m.computed, scope, propName, adapter, resolveKey);
-      if (verdict === 'bail') return null;
+      if (verdict === 'bail') {
+        const candidate = candidateSink ? staticMemberReadValue(m, { preservesRead: true }) : null;
+        if (candidate) candidateSink.push(candidate);
+        if (spreadVetoes) return null;
+        continue;
+      }
       if (verdict === 'skip') continue;
       // a static method / setter winning the key is dynamic - bail; a static field returns its init,
       // and a static GETTER of one pure return names its value the same way (the object twin below)
-      if (m.type !== 'ClassProperty' && m.type !== 'PropertyDefinition') return staticMemberReadValue(m);
+      if (m.type !== 'ClassProperty' && m.type !== 'PropertyDefinition') {
+        return staticMemberReadValue(m, { preservesRead: !spreadVetoes });
+      }
       return m.value ?? null;
     }
   } else if (container?.type === 'ObjectExpression') {
     const props = container.properties ?? [];
+    let setterSeen = false;
     for (let i = props.length - 1; i >= 0; i--) {
       const p = props[i];
       // a spread (`{ X: V, ...rest }`) reached in this reverse scan sits AT OR AFTER the matched
@@ -1132,12 +1146,24 @@ export function findNamespaceMemberValue(container, propName, scope, adapter, re
       }
       if (p.type !== 'Property' && p.type !== 'ObjectProperty' && p.type !== 'ObjectMethod') continue;
       const verdict = memberKeyVerdict(p.key, p.computed, scope, propName, adapter, resolveKey);
-      if (verdict === 'bail') return null;
+      if (verdict === 'bail') {
+        const candidate = candidateSink ? staticMemberReadValue(p, { preservesRead: true }) : null;
+        if (candidate) candidateSink.push(candidate);
+        if (spreadVetoes) return null;
+        continue;
+      }
       if (verdict === 'skip') continue;
+      // A setter preserves an earlier getter, but replaces an earlier data descriptor.
+      // Keep that getter as a candidate only when the caller retains the original read.
+      if (!spreadVetoes && p.kind === 'set') {
+        setterSeen = true;
+        continue;
+      }
+      if (setterSeen && p.kind !== 'get') return null;
       // a method shorthand or a SETTER winning the key is dynamic - a function the reader would read
       // through, or a key whose read answers undefined; a GETTER is dynamic only in its body, so one
       // that RETURNS a pure expression names its value as plainly as a data property does
-      return staticMemberReadValue(p);
+      return staticMemberReadValue(p, { preservesRead: !spreadVetoes });
     }
   }
   return null;

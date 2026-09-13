@@ -1,9 +1,7 @@
-// A `.name` (MaybeFunction memoizing-get) on a proxy-global chain memoizes the receiver (`_ref = receiver`).
-// The receiver's own side effect must be sourced EXACTLY ONCE - through the memo - not ALSO re-emitted as a
-// prefix (which double-ran it on both emitters). When a chain-root call returning a proxy-global is harvested
-// into the memo, its inner `globalThis` is rewritten to `_globalThis` (never a raw source slice -> would
-// ReferenceError off-engine). distinct ctor + side-effect shape per line: hop-key SE, an inline chain-root
-// call, a direct top-level SE, and a no-SE control.
+// A proxy-global receiver carries its side effects into the function-name read exactly once.
+// The helper consumes one receiver argument, so the effects stay inside it without a memo or
+// a duplicate prefix. A chain-root call keeps its own global rewrite. The rows cover a hop key,
+// an inline call root, a top-level sequence and an effect-free control.
 let n = 0;
 const hopKey = globalThis[(n += 1, 'self')].Map.name;
 const chainRoot = (() => { n += 10; return globalThis; })().self.Set.name;

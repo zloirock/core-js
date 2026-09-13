@@ -8,9 +8,9 @@
 import { parseSync } from 'oxc-parser';
 import { printProgram } from '../../packages/core-js-unplugin/internals/print.js';
 import { isLineBoundDisableDirective } from '../../packages/core-js-polyfill-provider/helpers/source-scan.js';
-import { liftSfcLangSuffix } from '../../packages/core-js-unplugin/internals/plugin-helpers.js';
 import { inferTestId, loadBabelOptions } from './fixture-lang.mjs';
 import { strip } from './structural.mjs';
+import { liftSfcLangSuffix } from '../../packages/core-js-unplugin/internals/sfc-shapes.js';
 
 const { readdir, readFile, stat } = fs;
 const { join } = path;

@@ -1,9 +1,7 @@
-// WHICH realm hop the collapse keeps is positional, not name-based. reading off the SOURCE ROOT a
-// hop pure cannot back is the environment probe and its `?.` is load-bearing; standing over a
-// ponyfill - a backed hop below it, or the leaf a collapse landed - the same hop is a read THROUGH
-// that ponyfill, which off-browser cannot answer it, so it folds onto the leaf with its `?.`. what
-// no position folds is a TERMINAL unbacked hop whose value the source itself reads: it rides off
-// the deepest ponyfill the run can hand it, keeping the slot a computed key keeps too
+// A realm hop folds according to the value its consumer observes. An environment
+// probe read by a kept store or a guard retains its slot over the backed root;
+// plain navigation through the run follows the realm-collapse rule. Terminal
+// values and computed-key effects remain observable in their original positions.
 let e = 0;
 let k;
 let v;
@@ -19,7 +17,7 @@ export const provenRootTailFolds = proven()?.window?.self?.window?.chrome;
 // a hop BETWEEN two backed hops is read through as much as one above them
 export const stackedFolds = (v = globalThis.self?.window?.self)?.Number.MAX_SAFE_INTEGER;
 
-// a stored value lands the ponyfill the fold leaves behind, not a raw realm read off it
+// An optional consumer observes the stored probe value, so the store retains window.
 export const storedFolds = (k = globalThis.self.window)?.Map.length;
 
 // ... and a harvested effect PREFIX does not revive the guard such a fold leaves behind: the
