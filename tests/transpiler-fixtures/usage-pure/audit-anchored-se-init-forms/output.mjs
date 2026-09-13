@@ -77,9 +77,9 @@ for (const _ref = ({
 // for-init FULL-consume host whose receiver is a proxy global (the flatten-route sink):
 // the buried host folds before the sink assembly captures it
 let customY2, outFC;
-for (const g2 = _Map$groupBy, _unused = ({
+for (const _unused = ({
     onlanguagechange: customY2
-  } = _globalThis, _globalThis); !outFC;) outFC = g2;
+  } = _globalThis, _globalThis), g2 = _Map$groupBy; !outFC;) outFC = g2;
 // recursion boundary: a host buried in the prefix an ANCHORED RESIDUAL itself replays
 // stays verbatim (root substituted, effect once) - replayed slices are not re-folded
 let customFR, outFR;

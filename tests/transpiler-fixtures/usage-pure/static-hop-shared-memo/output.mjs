@@ -1,10 +1,7 @@
 import _Array$of from "@core-js/pure/actual/array/of";
 import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
-// a STATIC's ponyfill read by an instance leaf AND a surviving sibling of the same level memoizes
-// once on both legs, whatever the host: the import binding re-reads for free, but the twin spells one
-// memo (`const _ref = _Array$of; const a = _name(_ref); const { foo } = _ref`) - flat, under a dead
-// pattern default, array-wrapped, in a loop head, in a bodyless slot, beside declarators, under a
-// proxy hop, beside a rest. a SOLE leaf reads the binding inline: nothing else reads it
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
 const c = 1;
 function eff() {}
 const _ref = _Array$of;
@@ -66,16 +63,16 @@ const viaHop = _nameMaybeFunction(_ref11);
 const {
   foo: f11
 } = _ref11;
-const _ref12 = _Array$of;
-const viaRest = _nameMaybeFunction(_ref12);
 const {
-  name: _unused,
-  ...r1
-} = _ref12;
-const _ref13 = _Array$of;
-const viaLength = _nameMaybeFunction(_ref13);
+  of: {
+    name: viaRest,
+    ...r1
+  }
+} = Array;
+const _ref12 = _Array$of;
+const viaLength = _nameMaybeFunction(_ref12);
 const {
   length: l1
-} = _ref13;
+} = _ref12;
 const viaSole = _nameMaybeFunction(_Array$of);
 export { viaFlat, f1, viaDefault, f2, viaWrapped, f3, viaWrappedDefault, f4, viaWrappedSibling, f5, z1, z2, viaWrappedBehindEffect, f6, viaBodyless, f8, viaLeadingDeclarator, f9, z3, z4, viaTrailingDeclarator, f10, viaHop, f11, viaRest, r1, viaLength, l1, viaSole };

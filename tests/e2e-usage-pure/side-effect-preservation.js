@@ -8,6 +8,8 @@
 // SE1: a polyfilled instance method reached via a parenthesized OPTIONAL member with a side-effecting
 // computed key. The key effect fires once on a non-null receiver, and NOT at all when the optional chain
 // short-circuits - native evaluates the key only after the receiver is confirmed non-null.
+const restArrayFrom = typeof E2E_POST_LOWERED !== 'undefined' ? Array.from : Object.getOwnPropertyDescriptor(Array, 'from')?.value;
+
 QUnit.test('side effect: paren-lookup optional computed-key fires once on a non-null receiver', assert => {
   let probe = 0;
   const arr = [1, 2, 3];
@@ -347,7 +349,7 @@ QUnit.test('cascade partial consume: rest sibling keeps the init effect', assert
   let from;
   // eslint-disable-next-line prefer-const -- the assignment CASCADE (not a declaration) is the case under test
   ({ Array: { from }, ...rest } = (effectRan = true, globalThis).self);
-  assert.same(typeof from, 'function');
+  assert.same(from, restArrayFrom);
   assert.same(typeof rest, 'object');
   assert.true(effectRan);
 });
@@ -465,7 +467,6 @@ QUnit.test('SE-sequence init: prefix runs before the extraction reads the receiv
 // soundly polyfills the plain member read the single-pass shape-bail protects (SE order is
 // already fixed by the lowering itself), so the value channel serves the ponyfill even where
 // the native is absent. single-pass legs keep the bail-to-native contract
-const POST_LOWERED = typeof E2E_POST_LOWERED !== 'undefined';
 
 // NESTED fragment under an SE prefix beside a surviving sibling: the slot memoizes ahead of the
 // declaration (`const _ref = (ran++, arr2)`), so the ponyfill lands, the sibling still binds and
@@ -512,9 +513,8 @@ QUnit.test('literal receiver with class static member read: getter fires once', 
   };
   // eslint-disable-next-line unicorn/no-static-only-class -- the class-eval-time static init IS the case under test
   const { y: { at: m }, q } = { y: [class K { static p = holder.p; }], q: 1 };
-  // bail-to-native: `m` mirrors native availability; the invariant is the single getter fire
-  const nativeAt = POST_LOWERED || Object.getOwnPropertyDescriptor(Array.prototype, 'at') ? 'function' : 'undefined';
-  assert.same(typeof m, nativeAt);
+  // Capturing the literal permits extraction without repeating the class evaluation.
+  assert.same(typeof m, 'function');
   assert.same(q, 1);
   assert.same(fires, 1);
 });
@@ -622,7 +622,7 @@ QUnit.test('side effect: an SE-key pair routed into a flatten slot leaves the in
   assert.strictEqual(evaluated, 1);
   assert.strictEqual(keyEval, 1);
   assert.true(isArray([]));
-  assert.deepEqual(of(1), [1]);
+  assert.same(of, typeof E2E_POST_LOWERED !== 'undefined' ? Array.of : Object.getOwnPropertyDescriptor(Array, 'of')?.value);
   assert.same(typeof rest, 'object');
 });
 

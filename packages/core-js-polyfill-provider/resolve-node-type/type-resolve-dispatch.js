@@ -37,6 +37,7 @@ export function createTypeResolveDispatch({
   safeInnerType,
   tupleAsArrayType,
   elementContainerType,
+  structuralMembers,
   foldUnionTypes,
   foldIntersectionTypes,
   resolveTypeAnnotation,
@@ -69,7 +70,12 @@ export function createTypeResolveDispatch({
     // alias's own parameters rather than the caller's, so the bound-check above does not see it.
     // only the container lookup is suppressed - the ref still resolves through the lanes below
     const known = findTypeParameter(name, scope) ? null : resolveKnownContainerType({
-      name, base: resolveKnownConstructor(name), node, innerResolver: p => substRecurse({ node: p, typeParamMap, scope, depth, seen }),
+      name,
+      node,
+      scope,
+      typeParamMap,
+      base: resolveKnownConstructor(name),
+      innerResolver: p => substRecurse({ node: p, typeParamMap, scope, depth, seen }),
     });
     if (known) return known;
     return resolveUserDefinedType({ name, node, scope, depth, typeParamMap, seen })
@@ -100,7 +106,8 @@ export function createTypeResolveDispatch({
   // T[] / Array<T> -> $Object('Array', inner) with substituted element type
   function substArrayAsType(node, typeParamMap, scope, depth, seen) {
     const inner = substRecurse({ node: node.elementType, typeParamMap, scope, depth, seen });
-    return elementContainerType(new $Object('Array'), node.elementType, inner);
+    return elementContainerType(new $Object('Array'), node.elementType, inner)
+      .withArgumentMembers([structuralMembers(node.elementType, scope, typeParamMap)]);
   }
 
   // [T, U] -> Array<commonInner> per-element folded via shared `tupleAsArrayType`

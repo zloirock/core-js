@@ -3,13 +3,9 @@ import _Map from "@core-js/pure/actual/map";
 import _Set from "@core-js/pure/actual/set";
 import _WeakMap from "@core-js/pure/actual/weak-map";
 import _WeakSet from "@core-js/pure/actual/weak-set";
-// a VALUE read through a container hop that holds a proxy global resolves like every other
-// position the same chain appears in. the escape a call argument (or a return) performs re-homes
-// the slot the read LANDS on - `ns.g.Map`, not the `ns.g` it navigates through - so the receiver
-// walk keeps descending the literal. the two negatives - a slot whose own value was handed out, and
-// a slot this file replaced - are method-aware consults answered in usage-pure, which leaves both
-// reads native; usage-global over-injects for either and locks only that the read reaches the
-// realm. each row names its OWN global, or one row's family would answer for another's there
+// Reading a constructor through a container preserves its global claim.
+// Escaping a nested value does not replace its parent slot.
+// A fresh replacement removes the old realm candidate; its URL stays null.
 const ns = {
   g: _globalThis
 };

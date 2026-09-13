@@ -1,16 +1,11 @@
-import _Array$from from "@core-js/pure/actual/array/from";
 import _globalThis from "@core-js/pure/actual/global-this";
-// rest binding present at BOTH inner and outer levels of a nested destructure. each level's
-// rest gathers its own remaining keys; the polyfilled prop must land on `_unused` sentinel
-// at the level where rest exists so neither rest binding is dropped. cascade walks chain
-// inner-to-outer and stops at the first rest hit (here: inner level)
+// Object-rest keeps the affected assignment pattern native and preserves its RHS value.
+// Independent reads and key/default expressions still receive their own polyfills.
 let from, inner, outer;
-var _unused;
 ({
   Array: {
-    from: _unused,
+    from,
     ...inner
   },
   ...outer
 } = _globalThis);
-from = _Array$from;

@@ -1,5 +1,6 @@
-// the guarding branch is a SWITCH case body (an array-valued branch field, so the SwitchCase node
-// itself is recorded as the guard). the use sits outside the switch, so usage-pure bails
+// The switch case may initialize the hoisted realm alias before the read outside it.
+// Pure guards the live constructor read: the taken case receives the static polyfill,
+// while an uninitialized alias keeps its native TypeError.
 function f() {
   switch (x) {
     case 1: var M = globalThis;

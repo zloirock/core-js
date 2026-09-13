@@ -16,12 +16,13 @@ import _Promise$withResolvers from "@core-js/pure/actual/promise/with-resolvers"
 import _Reflect$has from "@core-js/pure/actual/reflect/has";
 import _Reflect from "@core-js/pure/actual/reflect/namespace";
 import _Reflect$ownKeys from "@core-js/pure/actual/reflect/own-keys";
+import _String$raw from "@core-js/pure/actual/string/raw";
 import _Symbol$asyncIterator from "@core-js/pure/actual/symbol/async-iterator";
 import _Symbol from "@core-js/pure/actual/symbol/constructor";
 // pure resolves a REASSIGNED container binding only on proof: a dominating write it follows when
 // that write is the ONLY value the read can observe (unconditional, nothing written after the
 // read) - the single-observation half of the reaching canon usage-global unions over. every other
-// write shape below (conditional, branching, cross, closure, logical, ambiguous pattern) leaves
+// write shape below (conditional, branching, closure, logical, ambiguous pattern) leaves
 // the read verbatim; the union stays a usage-global-only over-inject axis
 let rw1 = {
   k: Object
@@ -100,7 +101,8 @@ let rw9 = {
 rw9 = (eff9(), {
   d: _Promise
 });
-const viaSeWrite = _Promise$allSettled; // cross-writes are real reassignments whose values observe each other - pure bails both
+const viaSeWrite = _Promise$allSettled; // Cross-writes capture their values at each assignment. The first captures the String holder;
+// the later write back to that same holder does not escape it or change the earlier capture.
 let ma = {
   x: Object
 };
@@ -109,13 +111,7 @@ let mb = {
 };
 ma = mb;
 mb = ma;
-const {
-  x: {
-    raw: viaCrossWrite
-  }
-} = ma;
-
-// an identity write beside a REAL one: the identity is a no-op, the real write dominates alone
+const viaCrossWrite = _String$raw; // an identity write beside a REAL one: the identity is a no-op, the real write dominates alone
 let wIR = {
   k: Object
 };

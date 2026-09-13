@@ -1,3 +1,5 @@
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
 // A mixed pattern - a nested-ObjectPattern value beside flat keys - belongs to the nested mirror
 // only while the mirror can actually render it. An unresolvable computed key, a duplicate resolved
 // key and a non-identifier key each make it bail for good, and deferring to it then drops the flat
@@ -10,9 +12,6 @@ export const duplicateKey = (({ Map, ["Map"]: alias, Array: { of } } = globalThi
 export const nonIdentifierKey = (({ WeakSet, "with-dash": dashed, Array: { isArray } } = globalThis) => [WeakSet, dashed, isArray])();
 export const mirrorable = (({ Promise, Array: { at } } = globalThis) => [Promise, at])();
 
-// a rest element is the mirror's other permanent bail, and several flat keys in front of the nested
-// value are the transient case the deferral exists for - the whole default becomes the synthesized
-// literal there instead of per-key inline defaults
 export const restSibling = (({ Set: S2, Array: { of: of2 }, ...rest } = globalThis) => [S2, of2, rest])();
 export const twoFlatKeys = (({ WeakMap, Promise: P2, Array: { from: from2 } } = globalThis) => [WeakMap, P2, from2])();
 export const nestedKeyFirst = (({ Array: { at: at7 }, Set: S7 } = globalThis) => [at7, S7])();

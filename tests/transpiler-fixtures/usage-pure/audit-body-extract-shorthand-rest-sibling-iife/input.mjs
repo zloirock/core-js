@@ -1,7 +1,5 @@
-// bare shorthand `{from}` with a rest sibling bails to body-extract: emit `let from = _polyfill`
-// at body top, rewrite the prop value so the destructure still consumes the key with rest
-// exclusion preserved. distinct keys (`from` / `of`) on separate functions verify per-key dispatch.
-// immediately invoked, so caller-lossy param emit is sound (every call site visible)
+// Rest-bearing parameters keep their native bindings and defaults in parameter scope.
+// Independent reads and key/default expressions still receive their own polyfills.
 (function run({ from, ...rest } = Array) {
   return [from([1]), rest];
 })();

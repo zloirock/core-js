@@ -1,7 +1,7 @@
-// a TS cast is TRANSPARENT to the container machinery on both of its ends: a cast around the INIT
-// must not keep the binding off the container registry (its slot writes would then be dropped at
-// publish time and a polyfill would override the program's replacement), and a cast around the WRITE
-// target names the same slot. the clean twin resolves through the cast like through nothing
+// TS casts around a container initializer or write target preserve the slot identity.
+// An unconditional Map write kills the initial Object candidate: pure keeps the native
+// destructuring without an Object guard, and retains Map with its statics.
+// Clean slots still resolve through casts; type positions do not mutate their values.
 const clean = { k: Object } as { k: typeof Object };
 const { k: { keys } } = clean;
 const written = { k: Object } as { k: unknown };

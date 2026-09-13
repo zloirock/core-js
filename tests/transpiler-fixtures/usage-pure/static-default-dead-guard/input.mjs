@@ -1,8 +1,8 @@
-// a user default over a STATIC leaf is dead text: the extraction binds the polyfill's own import,
-// which is never undefined, so the canon drops the guard on both legs at every depth and host -
-// flat, aliased, assigned, exported, in a for-init, beside a rest, under a folding computed key, under
-// a proxy hop, beside a data sibling, array-wrapped, and as a pattern default composing an instance
-// leaf. an INSTANCE leaf keeps its guard: the dispatch result decides through `=== void 0`
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
+// Defaults on claimed static leaves are dead because pure imports are defined. Direct and computed
+// static extractions drop those defaults while retaining computed-key effects. Instance leaves
+// still test the dispatch result before choosing their default.
 const fb = 0;
 const K = 'from';
 function k() { return 'from'; }

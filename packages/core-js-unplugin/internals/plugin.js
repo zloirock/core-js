@@ -21,7 +21,9 @@ import {
   prologueEndIndex,
   isConsumedEntryImport,
   resolveModuleFormat,
+  moduleFormatReducer,
   usableAliasInfo,
+  walkAstNodes,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   enrichMutatedStatics,
@@ -77,18 +79,17 @@ import {
   createSyntaxVisitors,
 } from './detect-usage.js';
 import {
-  walkAstNodes,
   bindingNamesReducer,
   hasCoreJSImport,
   isChunkLoaderBundler,
   KNOWN_BUNDLERS,
-  liftSfcLangSuffix,
   sourceDialectOf,
   stripLeadingBOMs,
   isCallee,
   optionalCallInstantiationCallee,
 } from './plugin-helpers.js';
 import SnapshotCache from './snapshot-cache.js';
+import { liftSfcLangSuffix } from './sfc-shapes.js';
 
 // estree-toolkit consumes a binding pattern in exactly ONE place - `findVisiblePathsInPattern`,
 // which its scope crawler reaches only from the slots it models: the `params` of the three node
@@ -371,6 +372,7 @@ export default function createPlugin(options) {
     getMutationRoots: () => currentMutationRoots,
     // lazy: `packages` is destructured from the resolver below; transforms run after
     getPackages: () => packages,
+    parameterCallSites: (...args) => typeResolvers.parameterCallSites(...args),
   });
   const typeResolvers = createResolveNodeType(nodeType, types, {
     // guarded alias hints must not feed the type channel - see the babel twin
@@ -443,6 +445,7 @@ export default function createPlugin(options) {
     packages,
     getModulesForEntry,
     getCoreJSEntry,
+    isEntryAvailable,
     isEntryNeeded,
     resolveUsage,
     resolvePure: resolvePureUnfiltered,
@@ -613,7 +616,7 @@ export default function createPlugin(options) {
     // yet may be a script by its body - and it is the LANGUAGE half that lands here, never the
     // emission option. `ast.sourceType` still carries the goal at this point: a `script` there is
     // the PARSER's own statement, either from a CommonJS extension or from a module goal it refused
-    const format = resolveModuleFormat({
+    const formatOptions = {
       id: cleanId,
       program: ast,
       declaredSourceType: ast.sourceType,
@@ -623,9 +626,8 @@ export default function createPlugin(options) {
       consumesESM: method === 'entry-global'
         ? node => !isDisabled(node) && isConsumedEntryImport(node, getCoreJSEntry)
         : null,
-    });
-    const { importStyle } = format;
-    ast.sourceType = format.sourceType;
+    };
+    let format;
 
     function isDisabled(node) {
       if (!disabledLines) return false;
@@ -642,21 +644,27 @@ export default function createPlugin(options) {
     // the shared read canons consult the live `currentMutatedStatics` slot through the adapter;
     // a re-entrant inner transform must not see the outer file's set while collecting - null the
     // slot for exactly the collection window
-    // ONE raw walk answers every per-file census question (binding / member-key name
-    // reservation + the mutation / ctor-alias shape gates) - the scans it replaces each
-    // re-walked the whole file. computed here, after the minifier split, so every consumer
-    // reads the tree the visitors walk. read by the usage lanes alone, so entry-global skips
-    // the walk (an empty reducer list would still pay it)
+    // ONE raw walk collects format, name reservation and shape facts after the minifier split.
+    // The format reducer publishes FIRST, after collection: subsequent results and scoped walks
+    // must see the resolved language goal before consulting the memoised strictness model.
+    // Entry-global collects only format facts; the remaining reducers belong to the usage lanes
     const readsCensus = methodReadsUsageCensus(method);
-    const fileCensus = readsCensus ? collectFileCensus(ast, [
-      bindingNamesReducer(),
-      escapedCtorReferencesReducer(),
-      restSentinelNamesReducer(),
-      memberKeyNamesReducer(),
-      mutationShapesReducer(packages),
-      ctorAliasShapesReducer(),
-      proxyWriteOriginsReducer(),
-    ]) : {};
+    const fileCensus = collectFileCensus(ast, [
+      moduleFormatReducer(moduleFormat => {
+        format = resolveModuleFormat({ ...formatOptions, moduleFormat });
+        ast.sourceType = format.sourceType;
+      }),
+      ...readsCensus ? [
+        bindingNamesReducer(),
+        escapedCtorReferencesReducer(),
+        restSentinelNamesReducer(),
+        memberKeyNamesReducer(),
+        mutationShapesReducer(packages),
+        ctorAliasShapesReducer(),
+        proxyWriteOriginsReducer(),
+      ] : [],
+    ]);
+    const { importStyle } = format;
     // ONE scoped pre-pass walk carries both lanes: the mutation classification and the ctor-alias
     // sites registered further below. the alias lane rides along for BOTH usage methods, so the
     // walk runs whenever either lane has something to collect
@@ -1018,6 +1026,7 @@ export default function createPlugin(options) {
 
         const usageVisitors = createUsageVisitors({
           adapter: estreeAdapter,
+          parameterCallSites: typeResolvers.parameterCallSites,
           // detection names a computed member key through the TYPE layer's resolver rather than a
           // copy of its enum fold - one name, one resolver
           resolveStaticKey: (node, scope, path) => typeResolvers.resolveClaimableComputedKeyName(node, scope, path),
@@ -1173,6 +1182,7 @@ export default function createPlugin(options) {
           injector: refFacade,
           injectorState: injector,
           injectPureImport,
+          isEntryAvailable,
           markRewrite() { astRewrote = true; },
           skippedNodes,
           markSubtreeSkipped,
@@ -1195,6 +1205,7 @@ export default function createPlugin(options) {
             return name;
           },
           paramDefaultNeverOverridden: typeResolvers.paramDefaultNeverOverridden,
+          parameterCallSites: typeResolvers.parameterCallSites,
           resolveNodeType: typeResolvers.resolveNodeType,
           resolvePropertyObjectType: typeResolvers.resolvePropertyObjectType,
           resolvedType: typeResolvers.resolvedType,
@@ -1228,6 +1239,17 @@ export default function createPlugin(options) {
           semanticParentNode,
           skippedNodes,
         });
+        const usageVisitorOptions = {
+          adapter: estreeAdapter,
+          parameterCallSites: typeResolvers.parameterCallSites,
+          resolveStaticKey: (node, scope, path) => typeResolvers.resolveClaimableComputedKeyName(node, scope, path),
+          method,
+          walkAnnotations: false,
+          isEntryAvailable: isEntryNeeded,
+          resolveMeta: resolvePure,
+          resolvePure,
+          revisitDecorators: true,
+        };
         traverse(ast, mergeVisitors({
           $: { scope: true },
           Program(path) { injector.rootScope = path.scope; },
@@ -1235,22 +1257,30 @@ export default function createPlugin(options) {
           ForOfStatement(path) { destructureEmit.extractLoopLeft(path); },
           ForInStatement(path) { destructureEmit.extractLoopLeft(path); },
         }, createUsageVisitors({
-          adapter: estreeAdapter,
+          ...usageVisitorOptions,
           // detection names a computed member key through the TYPE layer's resolver rather than a
           // copy of its enum fold - one name, one resolver
-          resolveStaticKey: (node, scope, path) => typeResolvers.resolveClaimableComputedKeyName(node, scope, path),
           onUsage: callback,
-          method,
-          walkAnnotations: false,
-          isEntryAvailable: isEntryNeeded,
-          resolveMeta: resolvePure,
-          resolvePure,
           // the AST engine mutates the tree in place, so an emission inside a DECORATOR
           // (walked manually, with nothing re-queued) hides the replacement's own claims
           // from the traversal - the second pass reaches them
-          revisitDecorators: true,
         })));
-        destructureEmit.drain();
+        const positionalRevisit = destructureEmit.drain();
+        if (positionalRevisit.size) {
+          traverse(ast, mergeVisitors({
+            $: { scope: true },
+            Program(path) { injector.rootScope = path.scope; },
+          }, createUsageVisitors({
+            ...usageVisitorOptions,
+            onUsage(meta, path) {
+              let current = path;
+              while (current?.node && !positionalRevisit.has(current.node)) current = current.parentPath;
+              // eslint-disable-next-line promise/prefer-await-to-callbacks -- forwards a synchronous AST visitor hook
+              if (current?.node) callback(meta, path);
+            },
+          })));
+          destructureEmit.drain();
+        }
         // a file that injected nothing prints as written: the wrapper splices are undone (the babel
         // leg's rule, kept here for the reprint a surgery alone still triggers)
         if (!injector.pureImports.size && !injector.globalImports.size) restoreUnclaimedFlattens(ast);

@@ -419,3 +419,106 @@ QUnit.test('class: static field read through a wrapped class expression binding'
   assert.same(wrapped.list.at(0), 2);
   assert.same(anonymous.list.at(0), 4);
 });
+
+/* eslint-disable unicorn/no-static-only-class, no-lone-blocks -- the class slots and nested blocks are the source shapes under test */
+QUnit.test('class keys precede static field initializers', assert => {
+  let key = 'from';
+  class Keyed {
+    static ran = (key = 'of', 1);
+    static [Array[key]([1, 2]).length] = 'field';
+  }
+  assert.same(Keyed[2], 'field', 'the key reads from before the initializer writes of');
+  assert.same(Keyed.ran, 1);
+  assert.same(key, 'of');
+});
+
+QUnit.test('class method keys and immediate key calls precede static writes', assert => {
+  let method = 'from';
+  class Methods {
+    static ran = (method = 'of', 1);
+    static [Array[method]([1, 2]).length]() { return 'method'; }
+  }
+  assert.same(Methods[2](), 'method');
+
+  let immediate = 'from';
+  class Immediate {
+    static ran = (immediate = 'of', 1);
+    static [(() => Array[immediate]([1, 2]).length)()] = 'immediate';
+  }
+  assert.same(Immediate[2], 'immediate');
+});
+
+QUnit.test('nested branch blocks preserve assignment and conditional overwrite order', assert => {
+  function read(flag, overwrite) {
+    let value = 'before';
+    if (flag) {
+      { { value = [1, 2]; } }
+      if (overwrite) value = 'abc';
+      return value.includes('ab');
+    }
+    return value.at(0);
+  }
+  assert.false(read(true, false));
+  assert.true(read(true, true), 'the conditional tail write keeps the string alternative');
+  assert.same(read(false, false), 'b', 'a sibling branch sees the original value');
+});
+
+QUnit.test('opposite branch writes leave the local string at its read', assert => {
+  function read(flag) {
+    let value = 'abc';
+    if (flag) {
+      // eslint-disable-next-line no-useless-assignment -- the unreachable write must not affect the sibling read
+      { value = [1, 2]; }
+      throw 0;
+    // eslint-disable-next-line unicorn/no-useless-else -- preserve the opposite arms under test
+    } else return value.includes('ab');
+  }
+  assert.true(read(false));
+  let caught;
+  try {
+    read(true);
+  } catch (error) {
+    caught = error;
+  }
+  assert.same(caught, 0, 'the other branch still throws its original value');
+});
+
+QUnit.test('opposite branches preserve loop-carried and closure-carried values', assert => {
+  let carried = 'ab';
+  let loopResult;
+  let freshResult;
+  for (let i = 0; i < 2; i++) {
+    let fresh = 'ab';
+    if (!i) {
+      carried = ['a', 'b'];
+      // eslint-disable-next-line no-useless-assignment -- this write must not carry into the next fresh binding
+      fresh = ['a', 'b'];
+    } else {
+      loopResult = carried.includes('a,b');
+      freshResult = fresh.includes('ab');
+    }
+  }
+  assert.false(loopResult, 'a previous iteration can run the other arm');
+  assert.true(freshResult, 'a block binding starts afresh on each iteration');
+
+  let value = 'ab';
+  function read(flag) {
+    if (flag) value = ['a', 'b'];
+    else return value.includes('a,b');
+  }
+  read(true);
+  assert.false(read(false), 'a previous invocation can run the other arm');
+});
+
+QUnit.test('each fresh loop binding is read before its own class initializer', assert => {
+  for (let i = 0; i < 2; i++) {
+    let key = 'from';
+    class Keyed {
+      static ran = (key = 'of', 1);
+      static [Array[key]([1, 2]).length] = i;
+    }
+    assert.same(Keyed[2], i, 'the next iteration creates a new binding');
+    assert.same(key, 'of');
+  }
+});
+/* eslint-enable unicorn/no-static-only-class, no-lone-blocks -- end of the source forms above */

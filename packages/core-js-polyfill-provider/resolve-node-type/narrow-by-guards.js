@@ -22,18 +22,22 @@ import {
   writeOutrunsUse,
   runsAtImmediateInvocation,
   suspensionPointBefore,
+  loopReExecRegionHasViolation,
+  bindingLoopAnchor,
 } from '../helpers/ast-patterns.js';
 import {
-  hasRange,
   isUnionType,
-  loopReExecRegionHasViolation,
   OPEN_KEYWORD_ANNOTATION_TYPES,
-  nodeRangeContains,
   violationInCapturedFunction,
 } from './ast-shapes.js';
-import { bindingLoopAnchor } from './straight-line-flow.js';
 import { isLoopStatement } from '../destructure-host-shape.js';
-import { $Object, $Primitive, PRIMITIVES } from './base.js';
+import {
+  $Object,
+  $Primitive,
+  PRIMITIVES,
+  hasRange,
+  nodeRangeContains,
+} from './base.js';
 
 export function createNarrowByGuards({
   getScopeBinding,

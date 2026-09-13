@@ -1,9 +1,8 @@
 import _Promise from "@core-js/pure/actual/promise/constructor";
-import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
+// Object-rest keeps the affected assignment pattern native and preserves its RHS value.
+// Independent reads and key/default expressions still receive their own polyfills.
 let resolve, rest;
-var _unused;
-resolve = _Promise$resolve;
 ({
-  resolve: _unused,
+  resolve,
   ...rest
 } = _Promise);

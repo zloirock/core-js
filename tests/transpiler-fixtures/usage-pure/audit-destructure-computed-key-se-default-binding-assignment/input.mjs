@@ -1,4 +1,4 @@
-// a defaulted binding (`m = []`, an AssignmentPattern) in an assignment-context SE-key: the binding
-// Identifier is unwrapped so the post-statement overwrite targets `m`, not the AssignmentPattern
+// A defaulted computed-key assignment captures its receiver before evaluating the key.
+// The fallback runs only when the single method read returns undefined.
 let m;
 ({ [(eff(), 'flat')]: m = [] } = arr);

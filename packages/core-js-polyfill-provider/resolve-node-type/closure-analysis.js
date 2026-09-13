@@ -129,14 +129,17 @@ export function createClosureAnalysis({
   // binding receives a matched value, so the anon escapes iff ANY target binding leaks. one pattern level
   // consumes one fieldPath step (mirrors the for-of element hop); a rest target receives a same-shape
   // container, so its level's step is preserved - `walkPatternIdentifiers` reports that depth per target.
-  // a target deeper than the anon's path holds a FIELD of the anon, not the anon - the empty remainder's
-  // generic leak analysis over-approximates that safely. a non-pattern LHS shape can't be enumerated -> escape
+  // A target deeper than the anon's path holds a field, not the anon. Only own-this methods can
+  // expose the owner through such a read; patternBindsAnonMethod checks those before the target walk.
+  // A non-pattern LHS shape cannot be enumerated and keeps the conservative escape verdict.
   function destructureVarTargetLeaks({ pattern, scope, anchorPath, fieldPath }) {
     if (!isDestructurePattern(pattern)) return true;
     if (patternBindsAnonMethod({ pattern, fieldPath, methodInfo: objectOwnThisMethodInfo(anchorPath?.node) })) return true;
     let leaks = false;
     walkPatternIdentifiers(pattern, (id, depth) => {
-      if (!leaks) leaks = carrierBindingClosure(scope, id.name, anchorPath, fieldPath.slice(depth)) === null;
+      if (!leaks && depth <= fieldPath.length) {
+        leaks = carrierBindingClosure(scope, id.name, anchorPath, fieldPath.slice(depth)) === null;
+      }
     });
     return leaks;
   }

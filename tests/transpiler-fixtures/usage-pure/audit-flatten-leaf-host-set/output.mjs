@@ -1,10 +1,8 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-// the leaf flatten renders a memo plus its extractions, and the slot the declaration stands in is
-// what decides where that pair goes: a statement list splices it, a LOOP HEAD takes it as
-// declarators (they evaluate in order, so the memo binds first), and an unbraced slot joins it into
-// its one `var`. a SHARED declaration keeps its node and the claim's declarator leaves the list, so the
-// pair stands beside it - which needs an END of that list to stand at. an EXPORT wrapper is the one
-// host that declines: the memo cannot lift out of it without exporting a name the source never wrote
+// Nested leaves share a captured receiver with their remaining properties. A loop head uses
+// declarators; an unbraced slot is braced. A shared declaration preserves both neighbours around a
+// middle capture. An export whose only nested level keeps siblings still follows its existing
+// native boundary.
 const box = {
   y: [1, [2]]
 };
@@ -41,14 +39,13 @@ const sharedDeclaration = function () {
   return [z, at, other];
 }();
 const middleDeclarator = function () {
-  var z = 1,
-    {
-      y: {
-        at,
-        other
-      }
-    } = box,
-    zTail = 2;
+  var z = 1;
+  const _ref4 = box.y;
+  var at = _atMaybeArray(_ref4);
+  var {
+    other
+  } = _ref4;
+  var zTail = 2;
   return [z, at, other, zTail];
 }();
 export { bodyless, loopHead, sharedDeclaration, middleDeclarator };

@@ -1,11 +1,5 @@
-// a destructure whose RECEIVER spine wears an optional-chain marker: on ESTree the marker is a
-// node the receiver questions meet before anything else, and peeling it or not is the whole
-// difference between the two wrapper sets the extraction asks through. every row keeps a
-// distinct spine shape - an SE computed hop key, a nested pattern with a surviving residual,
-// a plain hop, a paren-sealed hop, a defaulted leaf, an array pattern, a rest sibling, a
-// write-rooted spine and a call-rooted one. the emitters agree on the extraction and part
-// only where they already do off the marker: the key effect's placement (a comma inside the
-// value vs a hoisted statement) and the dead receiver read the babel leg keeps
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
 let c = 0;
 const { Symbol: { iterator } } = globalThis?.[(c++, 'self')];
 export const r1 = [typeof iterator, c];

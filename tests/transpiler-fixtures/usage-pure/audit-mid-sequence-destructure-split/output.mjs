@@ -4,9 +4,10 @@ import _Array$of from "@core-js/pure/actual/array/of";
 import _at from "@core-js/pure/actual/instance/at";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Object$entries from "@core-js/pure/actual/object/entries";
-import _Object$keys from "@core-js/pure/actual/object/keys";
 import _Promise$try from "@core-js/pure/actual/promise/try";
 var _ref, _ref2, _ref3;
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
 // a destructure assignment in ANY slot of a statement-position SequenceExpression is
 // split into per-expression statements by the shared minifier-shape pre-pass (statement
 // context discards every slot's value, so the split is sound at any position) - the
@@ -21,12 +22,9 @@ pre();
 of2 = _Array$of;
 post();
 export const r2 = _atMaybeArray(_ref2 = of2(4)).call(_ref2, 0);
-// rest sibling: the consumed key renames to the sentinel, rest exclusion preserved
 let keys, rest;
-var _unused;
-keys = _Object$keys;
 ({
-  keys: _unused,
+  keys,
   ...rest
 } = Object);
 use(rest);
@@ -57,5 +55,5 @@ class K {
   }
 }
 export { K };
-// a VALUE-position sequence is NOT split - its result is consumed, both stay native
+// A value-position sequence keeps its tail value while a discarded assignment may be rewritten.
 export const v = (from = _Array$from, from([5]));

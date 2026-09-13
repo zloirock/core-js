@@ -1,11 +1,10 @@
 import _globalThis from "@core-js/pure/actual/global-this";
-// the conditional branch guarding the declarator is a LOOP body (exercises the For/While body entry
-// of the branch-field table). `var M = globalThis` runs only when the loop body executes; the use
-// sits OUTSIDE the loop, so usage-pure bails - dropping M would mask the native throw when the loop
-// never runs (c falsy)
+import _Map from "@core-js/pure/actual/map";
+// A loop may never initialize its var alias. The realm identity guard retains the original
+// member read and its TypeError when the loop never runs.
 function f() {
   while (c) {
     var M = _globalThis;
   }
-  M.Map.groupBy([], () => 1);
+  (M === _globalThis ? _Map : M.Map).groupBy([], () => 1);
 }

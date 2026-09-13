@@ -34,7 +34,7 @@ import {
 import {
   composeModifierDeltas, isUnionType, modifierWrapperDelta, topKeywordAnnotationKind, typeRefName, withMemberModifiers,
 } from './ast-shapes.js';
-import { getTypeArgs } from '../helpers/ast-patterns.js';
+import { getTypeArgs, isTupleRestElement, tupleElements, unwrapTupleMember } from '../helpers/ast-patterns.js';
 
 export function createTypeFolding({
   t,
@@ -53,30 +53,6 @@ export function createTypeFolding({
   peelTSParenthesized,
   unwrapTypeAnnotation,
 }) {
-  function unwrapTupleMember(element) {
-    let node = element;
-    // peel TSNamedTupleMember and TSRestType wrappers in any order:
-    // [name: string] -> TSNamedTupleMember -> elementType
-    // [...number[]] -> TSRestType -> typeAnnotation
-    // [...rest: string[]] -> TSRestType -> TSNamedTupleMember -> elementType
-    for (let i = 0; i < 2; i++) {
-      if (node.type === 'TSNamedTupleMember') node = node.elementType;
-      else if (node.type === 'TSRestType') node = node.typeAnnotation;
-      else break;
-    }
-    return node;
-  }
-
-  function isTupleRestElement(element) {
-    const unwrapped = element.type === 'TSNamedTupleMember' ? element.elementType : element;
-    return unwrapped.type === 'TSRestType';
-  }
-
-  // get tuple element list: TS uses elementTypes, Flow uses types
-  function tupleElements(node) {
-    return node.elementTypes || node.types;
-  }
-
   // rebuild tuple AST with elements mapped through `mapper`. preserves the dialect's element
   // slot name (TS: elementTypes, Flow: types) so downstream consumers see the same shape
   function rebuildTupleElements(node, mapper) {
@@ -325,6 +301,8 @@ export function createTypeFolding({
     if (a === b) return true;
     if (!a || !b) return false;
     if (typeof a === 'string' || typeof b === 'string') return a === b;
+    // Keeping one nested arm must not keep its structural proof for a different alternative.
+    if (a.identity !== b.identity || a.argumentMembers !== b.argumentMembers) return false;
     return typesEqual(a, b) && innersEqual(a.inner, b.inner);
   }
 
@@ -337,6 +315,10 @@ export function createTypeFolding({
   function commonType(existing, incoming) {
     let merged = commonTypeInner(existing, incoming);
     if (!merged) return merged;
+    if (existing && existing.identity !== incoming.identity) merged = merged.withIdentity(null);
+    if (existing && existing !== incoming && existing.argumentMembers !== incoming.argumentMembers) {
+      merged = merged.withArgumentMembers(null);
+    }
     if (existing?.mayBeNullish || incoming.mayBeNullish) merged = merged.mark('mayBeNullish');
     // topObject is a MAY-union like mayBeNullish: assignability to a union target holds
     // when ANY arm accepts, so `object | Object` accepts primitives regardless of arm

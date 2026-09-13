@@ -2,15 +2,17 @@
 // `import 'core-js/...'` / `require('core-js/...')` / `await import('core-js/...')` and
 // scans existing core-js imports in the file body so the resolver can dedup them against
 // plugin-injected ones
-import { declaresRequireBinding, tsImportEqualsRequireSource, unwrapExportedDeclaration } from '../helpers/ast-patterns.js';
-import { normalizeImportSource, packageRootPrefix } from '../helpers/path-normalize.js';
 import {
+  declaresRequireBinding,
+  tsImportEqualsRequireSource,
+  unwrapExportedDeclaration,
   bindsModuleDefault,
   extractStaticString,
   isTypeOnlyImportKind,
   requireCallSource,
   unwrapTransparentSeq,
-} from './resolve.js';
+} from '../helpers/ast-patterns.js';
+import { normalizeImportSource, packageRootPrefix } from '../helpers/path-normalize.js';
 
 // pull the source argument out of a dynamic import call (`import('core-js/...')`).
 // covers both shapes: ImportExpression (`{type: 'ImportExpression', source}`) and the CallExpression

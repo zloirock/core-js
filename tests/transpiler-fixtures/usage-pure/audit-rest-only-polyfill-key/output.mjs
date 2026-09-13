@@ -1,10 +1,7 @@
-import _Array$from from "@core-js/pure/actual/array/from";
-const from = _Array$from;
-// Single polyfillable key + rest element: rest is present, so the property-rebuild step renames `from`
-// to _unused, rest collects everything else. `const from = _Array$from` extracted
-// with `const { from: _unused, ...rest } = Array` for rest construction.
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
 const {
-  from: _unused,
+  from,
   ...rest
 } = Array;
 rest;

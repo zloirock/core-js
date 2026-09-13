@@ -1,11 +1,6 @@
 import { POSSIBLE_GLOBAL_OBJECTS, unwrapRuntimeExpr } from '@core-js/polyfill-provider/helpers/ast-patterns';
 
-import { cloneNode, sequenceExpression } from './builders.js';
-
-export { discardedSequenceElement } from '@core-js/polyfill-provider/helpers/ast-patterns';
-// the member-hop spelling and the proxy-receiver collapse are the render canon's, re-exported
-// so this leg's emitters keep taking their node vocabulary from one import
-export { memberFromKeyName, renderProxyReceiverPlan } from '@core-js/polyfill-provider/render';
+import { cloneNode, sequenceExpression } from '@core-js/polyfill-provider/render';
 
 // helpers shared by the AST engine's emitters (usage-pure and the destructure pipeline) -
 // they live outside both so neither imports the other

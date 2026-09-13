@@ -1,15 +1,11 @@
-import _Object$keys from "@core-js/pure/actual/object/keys";
-// A fully-consumed static-method prop under an inner rest keeps a `<key>: _unused` sentinel so
-// `...rest` does not gather the originally-excluded key. The sentinel key comes from the canonical
-// key-source accessor, which handles StringLiteral keys - a raw `key.name` check (Identifier-only)
-// would drop the sentinel for a string key, letting rest capture it. Nested under an outer prop.
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
 const src = {
   o: Object
 };
-const k = _Object$keys;
 const {
   o: {
-    "keys": _unused,
+    "keys": k,
     ...rest
   }
 } = src;

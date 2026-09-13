@@ -7,7 +7,7 @@ import _globalThis from "@core-js/pure/actual/global-this";
 // needs a `var _ref;` declaration whose offset is local to the synthesized buffer, not
 // the original source. If the insert uses original-source coordinates, it corrupts the
 // sink and the adjacent `globalThis` substitution emits invalid syntax.
-for (const from = _Array$from, _unused = ((() => {
+for (const _unused = ((() => {
     var _ref;
     return _valuesMaybeArray(_ref = []).call(_ref);
-  })(), _globalThis); false;) from([]);
+  })(), _globalThis), from = _Array$from; false;) from([]);

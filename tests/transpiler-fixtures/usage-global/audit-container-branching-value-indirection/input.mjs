@@ -22,7 +22,7 @@ const hop = { left: String, right: Reflect };
 const shared = c ? { Base: hop.left } : { Base: hop.right };
 export const viaSharedHop = shared.Base.raw`x` + shared.Base.ownKeys({});
 
-// NEGATIVE: an array slot holding a NAV is no branching value - the walk still declines it, so the
-// key brings in no static of its own and only the realm the nav names is injected
+// An array slot holding a global navigation carries that value through the index read too.
+// The terminal static owes its own module beside the constructor held in the slot.
 const navSlot = [globalThis.Array];
 export const viaNavSlot = navSlot[0].of(1);

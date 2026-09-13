@@ -3,8 +3,7 @@
 // cannot express a SIBLING plugin injecting a helper body whose `catch ({ at, ...rest })` the
 // programExit helper-body re-traversal reaches. this suite drives a full @babel/core transform
 // alongside such a sibling so the gate is exercised directly: usage-global must NOT restructure
-// the catch param (it only adds side-effect imports), while usage-pure must (the body-extract
-// rewrite routes the destructure-derived binding through the pure helper).
+// the catch param (it only adds side-effect imports), while usage-pure also leaves a rest-bearing level native.
 // BABEL_REQUIRE_FROM mirrors the fixture runner's hook so the suite runs under babel@8 (default)
 // and babel@7 (with BABEL_REQUIRE_FROM=../babel-plugin-v7) alike.
 import { createRequire } from 'node:module';
@@ -58,12 +57,11 @@ async function transform(method) {
     code.includes('core-js/modules/es.array.at'));
 }
 
-// usage-pure DOES body-extract the catch so the destructure-derived binding routes through the
-// pure helper - the gate keeps this path
+// Rest-bearing catches stay native in usage-pure, including late sibling helper bodies.
 {
   const code = await transform('usage-pure');
-  checkTruthy('usage-pure/sibling catch param body-extracted',
-    /catch\s*\(\s*_ref/.test(code));
+  checkTruthy('usage-pure/sibling rest catch param left intact',
+    /catch\s*\(\s*\{/.test(code) && !/catch\s*\(\s*_ref/.test(code));
 }
 
 finish();

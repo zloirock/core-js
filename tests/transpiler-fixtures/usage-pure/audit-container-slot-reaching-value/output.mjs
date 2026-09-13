@@ -1,14 +1,13 @@
 import _entries from "@core-js/pure/actual/instance/entries";
 import _keys from "@core-js/pure/actual/instance/keys";
 import _Map from "@core-js/pure/actual/map";
+import _Object$entries from "@core-js/pure/actual/object/entries";
+import _Object$keys from "@core-js/pure/actual/object/keys";
 import _Promise from "@core-js/pure/actual/promise";
 import _String$raw from "@core-js/pure/actual/string/raw";
-// the pure flavor must keep its NAME resolution out of the container-slot reaching union: it is a
-// usage-global-only over-inject axis, while pure keeps its bail (a write anywhere in the file may
-// reach the read, so no slot read off a written container resolves to a static). the destructures
-// below keep their slot reads - bare constructor NAMES resolve to pure imports, and an ambiguous
-// method name resolves no further than the value-safe dispatcher, whose answer IS the source's
-// own read of the written slot (`_keys(cc.c)`), so what the write left there still decides
+// Written slots contribute their reaching constructors to global static injection.
+// Local aliases and wrappers do not release the whole constructor family.
+// Pure keeps written slots native with their statics; a proven replacement drops the old guard.
 const cw = {
   k: Object
 };
@@ -26,7 +25,7 @@ const cm = {
 cm.s = Array;
 export const viaMemberRead = cm.s.from([1]);
 
-// a dynamic-key write may land on ANY slot - every slot read of the container bails
+// the const-bound key names the same slot; pure keeps its written value native
 const cd = {
   d: Object
 };
@@ -65,7 +64,12 @@ const cc = {
   c: Object
 };
 cc.c += 1;
-const literalOnly = _keys(cc.c); // an escaped container bails via the wildcard too
+const {
+    c: _ref
+  } = cc,
+  literalOnly = _ref === Object ? _Object$keys : _keys(_ref);
+
+// an escaped container bails via the wildcard too
 const ce = {
   e: Object
 };
@@ -73,7 +77,12 @@ export function sink(x) {
   return x;
 }
 sink(ce);
-const escapedLiteralOnly = _entries(ce.e); // a write to a NESTED container bails the deep read as well
+const {
+    e: _ref2
+  } = ce,
+  escapedLiteralOnly = _ref2 === Object ? _Object$entries : _entries(_ref2);
+
+// a write to a NESTED container bails the deep read as well
 const inner = {
   g: Object
 };

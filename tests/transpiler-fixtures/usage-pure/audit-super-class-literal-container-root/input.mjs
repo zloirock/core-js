@@ -1,8 +1,7 @@
-// the pure sibling of the usage-global fixture: here the receiver is SUBSTITUTED when the alias
-// resolves, so both directions are observable. a literal container binds the global as its slot
-// VALUE and must substitute; the negatives must stay native - a key read OFF the global is not the
-// global, a non-global container carries no global, and an ambiguous union or a defaulted slot
-// has no single definite value. distinct method per line.
+// Literal containers can bind the realm object and resolve the Promise superclass directly.
+// A property read from the realm is uncertain and selects the polyfill only after an identity check.
+// Unresolved unions, defaults and non-global containers keep their native superclass reads.
+// Distinct static methods make every row observable.
 const [arrayWrap] = [globalThis];
 const { slot: objectWrap } = { slot: globalThis };
 const { keyRead } = globalThis;

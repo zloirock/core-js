@@ -6,6 +6,7 @@
 // accessor-free spread that could override it (usage-global resolves through that one - it injects
 // where the slot MIGHT be read, and over-injection is its safe side). the getter rows live HERE
 // rather than in the runtime suite: its baseline forbids ES5 accessors, so only bytes can hold them
+// A constructor escaping through the getter includes its static methods.
 const other = {};
 const { w: { Map: hopCtor } } = { w: globalThis };
 const src = { P: Array };

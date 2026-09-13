@@ -4,10 +4,8 @@ import _concatMaybeArray from "@core-js/pure/actual/array/instance/concat";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _Object$entries from "@core-js/pure/actual/object/entries";
-// a flatten slot whose extractions already render the declarator's init - a routed receiver memo,
-// a rendered sibling, an SE-key pair the slot took over - must not have that init's sequence
-// prefix lifted a second time, and a slot mutated after the fact keeps the entries the other
-// channels routed into it: rebuilding the record from scratch dropped a sibling's polyfill
+// Each destructure initializer and its sequence effects run once at the original declaration slot.
+// Claimed and residual siblings retain their own computed-key effects and polyfill rewrites.
 let k = 0;
 let k4 = 0;
 function log() {}
@@ -22,15 +20,14 @@ const concat = _concatMaybeArray(_ref);
 const of = _Array$of;
 const _ref2 = getArr();
 const {
-    indexOf,
-    [(k++, 'flat')]: _unused
-  } = _ref2,
-  fl = _flatMaybeArray(_ref2);
+  indexOf
+} = _ref2;
+const _ref3 = _ref2;
+const fl = null == _ref3 ? _ref3[""] : (k++, _flatMaybeArray(_ref3));
 var f4 = _Object$entries;
-eff();
-var of4 = _Array$of;
+var _ref4 = (eff(), Array);
+var of4 = null == _ref4 ? _ref4[""] : (k4++, _Array$of);
 var {
-  [(k4++, 'of')]: _unused2,
   other4
-} = Array;
+} = _ref4;
 export { from, at, concat, of, indexOf, fl, f4, of4, other4 };

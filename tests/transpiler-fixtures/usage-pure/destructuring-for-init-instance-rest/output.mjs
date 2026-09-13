@@ -1,5 +1,6 @@
-import _includes from "@core-js/pure/actual/instance/includes";
-for (var includes = _includes(obj), {
-    includes: _unused,
-    ...rest
-  } = obj;;) break;
+// Object-rest keeps the affected loop pattern native at its original evaluation point.
+// Independent reads and key/default expressions still receive their own polyfills.
+for (var {
+  includes,
+  ...rest
+} = obj;;) break;

@@ -1,8 +1,6 @@
-// the REACHING VALUE of a written container slot injects its own statics in the global flavor:
-// the census records what each write installs, and the receiver walk unions those candidates
-// beside the literal's (over-inject-safe - all imports are side-effect-only). every cell here
-// picks a method its literal candidate does NOT have, so each import can only come from the
-// reaching union - a file-level duplicate would make the cell vacuous
+// Written slots contribute their reaching constructors to global static injection.
+// Local aliases and wrappers do not release the whole constructor family.
+// Pure keeps written slots native with their statics; a proven replacement drops the old guard.
 const cw = { k: Object };
 cw.k = Map;
 const { k: { groupBy: viaSlotWrite } } = cw;

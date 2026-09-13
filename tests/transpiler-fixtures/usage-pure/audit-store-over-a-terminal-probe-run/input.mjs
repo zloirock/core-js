@@ -1,9 +1,6 @@
-// what a STORE spells over a terminal realm probe: the value it hands on IS the realm object, so
-// the probe folds onto the ponyfill - through a seal, a dead sequence element and a proven call
-// root alike. the one thing that stops the fold is an EFFECT inside the run: it has no slot in the
-// folded value, so the collapse keeps its own spelling and the probe rides the ponyfill, exactly
-// as the `delete` fold and the flat read do. every row is one spelling of the same entity, and
-// they must all answer the same way
+// A stored terminal realm probe keeps the value of its final window read.
+// Parentheses, dead sequence elements and proven call roots do not turn that probe
+// into a backed realm value. Prefix and computed-key effects run once in source order.
 let e = 0;
 let stored;
 function dh() {

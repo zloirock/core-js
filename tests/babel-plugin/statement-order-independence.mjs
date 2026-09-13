@@ -103,4 +103,17 @@ for (const method of ['usage-pure', 'usage-global']) {
   }
 }
 
+// A later rest redeclaration must be compared with the relocated binding's live pattern.
+for (const [label, later, genericAt] of [
+  ['object rest', 'if (flag) { var { ...rest } = other; }', false],
+  ['array rest', 'if (flag) { var [...rest] = other; }', true],
+  ['plain assignment', "if (flag) rest = 'abc';", true],
+]) {
+  const source = `var { [Symbol.iterator]: { from, ...rest } } = source; ${ later } use(from, rest.at(0));`;
+  for (const [leg, transform] of LEGS) {
+    const output = await transform(source, { method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
+    check(`${ leg }: relocated rest followed by ${ label }`, output.includes('@core-js/pure/actual/instance/at'), genericAt);
+  }
+}
+
 finish();

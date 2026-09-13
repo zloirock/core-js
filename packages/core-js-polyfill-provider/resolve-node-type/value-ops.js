@@ -22,9 +22,8 @@
 //   resolveBinaryOperatorType(op, left, right)        - `+` / `-` / `*` / `/` / `%` / `**` /
 //                                                       bitwise / shift narrowing (number vs
 //                                                       bigint vs string disambiguation)
-import { computedKeyStaticName, isNullLiteralNode } from '../helpers/ast-patterns.js';
+import { computedKeyStaticName, isNullLiteralNode, isBareUndefinedIdentifier } from '../helpers/ast-patterns.js';
 import { $Primitive, primitiveTypeOf } from './base.js';
-import { isBareUndefinedIdentifier } from './ast-shapes.js';
 
 // kind-level result of a binary operator given operand primitive kinds. THE single source
 // of operator semantics - the path-level resolver below, the expression dispatch and the

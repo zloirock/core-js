@@ -80,6 +80,31 @@ await runRow('paired tag', '<Component from="SUPPLIED" other={2}></Component>');
 await runRow('tag inside a nested arrow', '(() => <Component from="SUPPLIED" other={2} />)()');
 await runRow('tag behind a conditional', 'true ? <Component from="SUPPLIED" other={2} /> : null');
 
+// A JSX prop is a runtime value handed to the renderer. Its constructor must carry its statics;
+// the strings naming the element and attribute do not make the expression inert. A fresh process
+// removes the relevant native static before importing either transformed module, so a previously
+// loaded pure namespace cannot hide a missing family import.
+{
+  const source = 'const h = (type, props) => typeof props.value.groupBy;\nexport const value = <host value={Map} />;';
+  const babel = (await transformAsync(source, {
+    plugins: [['@core-js', OPTIONS]], parserOpts: { plugins: ['jsx'] },
+    filename: 'case.jsx', babelrc: false, configFile: false,
+  })).code;
+  const unplugin = createUnplugin(OPTIONS).transform(source, 'case.jsx')?.code ?? source;
+  for (const [leg, code] of [['babel', babel], ['unplugin', unplugin]]) {
+    const { code: lowered } = await swcTransform(code, {
+      filename: 'case.jsx', jsc: { parser: { syntax: 'ecmascript', jsx: true },
+        transform: { react: { pragma: 'h' } }, target: 'es2022' }, module: { type: 'es6' },
+    });
+    const file = path.join(DIR, `prop-${ leg }.mjs`);
+    await fs.outputFile(file, lowered);
+    const script = `delete Map.groupBy; const { value } = await import(${ JSON.stringify(pathToFileURL(file).href) }); process.stdout.write(value);`;
+    const { stdout } = await $({ quiet: true })`${ process.execPath } --input-type=module -e ${ script }`;
+    if (stdout === 'function') pass();
+    else fail(`runtime JSX prop [${ leg }]`, `missing namespace static: ${ stdout }`);
+  }
+}
+
 // The usage-global direction of the same blindness - a DROPPED injection rather than a substituted
 // value - has no row here, and not for want of trying: measured, both legs inject the array AND the
 // string module for every shape of this family whether the census sees the tag or not, because

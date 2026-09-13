@@ -1,6 +1,6 @@
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _globalThis from "@core-js/pure/actual/global-this";
-var _ref, _ref2, _ref3, _ref4;
+var _ref, _ref2, _ref3, _ref4, _ref5;
 // a DEFAULTED instance leaf whose claim is emitted as a post-statement OVERWRITE: the pure entry
 // answers `it.method` VERBATIM off a receiver that is not the polyfilled surface, so the dispatch
 // may be undefined and an unguarded overwrite bound that undefined over the value the destructure
@@ -17,16 +17,13 @@ declare const holder: {
 let m, q, s, n;
 m = (_ref = _flatMaybeArray(holder)) === void 0 ? null : _ref;
 q = (_ref2 = _flatMaybeArray(src)) === void 0 ? 7 : _ref2;
-({
-  [(eff(), 'flat')]: s = 7
-} = src);
+_ref3 = src, null == _ref3 ? _ref3[""] : (eff(), s = (_ref4 = _flatMaybeArray(_ref3)) === void 0 ? 7 : _ref4), _ref3;
 // a BUILT-IN surface nav is spelled by the overwrite, and the consumed slot leaves with it: the
 // dispatch is then the only reader of `globalThis.Array.prototype`, so the default node is spelled
-s = (_ref3 = _flatMaybeArray(src)) === void 0 ? s : _ref3;
 let c;
 // NEGATIVE: a USER key hop stays native - `recvF.codes` is neither a re-referenceable token nor an
 // instance surface, and no leg re-spells a member read that only the source's own nav reached
-c = (_ref4 = _flatMaybeArray(_globalThis.Array.prototype)) === void 0 ? null : _ref4;
+c = (_ref5 = _flatMaybeArray(_globalThis.Array.prototype)) === void 0 ? null : _ref5;
 ({
   codes: {
     findIndex: n = null

@@ -30,9 +30,8 @@ export const viaNested = nested.inner.Base.ownKeys({});
 const logical = { Base: (c && Object) || (c ? Math : Object) };
 export const viaLogical = logical.Base.clz32(1);
 
-// NEGATIVE: arms that carry no such static inject nothing for the key. the arms are a pair no other
-// line names, or the family a neighbour already pulled would answer for this one and the row would
-// measure nothing: the control is that `isInteger` here DOES add its module
+// NEGATIVE: neither arm carries this static, so the key adds no module.
+// No other row names these constructors and can mask that absence.
 const noStatic = { Base: c ? Number : Boolean };
 export const viaNoStatic = noStatic.Base.notAStatic;
 

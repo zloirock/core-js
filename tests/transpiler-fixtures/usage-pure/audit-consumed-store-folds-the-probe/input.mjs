@@ -1,8 +1,6 @@
-// ... and WHO holds the value a store hands on: a read THROUGH it is the consumer's own, and that
-// read is the proof the value must be the realm object - so the probe folds there whatever the run
-// carries, where the bare store beside it keeps the collapse's own spelling. every channel that
-// reads through answers the same way: a claim, its guard, an instance dispatch, a call, a
-// destructure - and so does the same run rooted in a proven call
+// Plain reads through a stored realm run retain the consuming collapse, including destructuring after its render.
+// An optional continuation preserves the absence of a terminal window probe instead of proving it defined.
+// Identifier and proven-call roots keep every sequence and computed-key effect exactly once.
 let e = 0;
 let held;
 function dh() {

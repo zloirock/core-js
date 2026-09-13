@@ -1,27 +1,5 @@
-import "core-js/modules/es.object.assign";
-import "core-js/modules/es.object.define-getter";
-import "core-js/modules/es.object.define-setter";
-import "core-js/modules/es.object.entries";
-import "core-js/modules/es.object.freeze";
-import "core-js/modules/es.object.from-entries";
-import "core-js/modules/es.object.get-own-property-descriptor";
-import "core-js/modules/es.object.get-own-property-descriptors";
-import "core-js/modules/es.object.get-own-property-names";
-import "core-js/modules/es.object.get-own-property-symbols";
-import "core-js/modules/es.object.get-prototype-of";
 import "core-js/modules/es.object.group-by";
-import "core-js/modules/es.object.has-own";
-import "core-js/modules/es.object.is";
-import "core-js/modules/es.object.is-extensible";
-import "core-js/modules/es.object.is-frozen";
-import "core-js/modules/es.object.is-sealed";
-import "core-js/modules/es.object.keys";
-import "core-js/modules/es.object.lookup-getter";
-import "core-js/modules/es.object.lookup-setter";
-import "core-js/modules/es.object.prevent-extensions";
-import "core-js/modules/es.object.seal";
 import "core-js/modules/es.object.to-string";
-import "core-js/modules/es.object.values";
 import "core-js/modules/es.reflect.namespace";
 import "core-js/modules/es.reflect.apply";
 import "core-js/modules/es.reflect.construct";
@@ -76,10 +54,10 @@ import "core-js/modules/es.array.with";
 import "core-js/modules/es.function.name";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
-// the IIFE identity-peel bails on a param write hidden in a WRITE-TARGET subtree: an LHS
-// pattern DEFAULT value, an LHS computed member key, and an update-target computed key all
-// rebind the param before `return arg`, so the runtime receiver is not the call arg. a write
-// to a NON-param in the same positions and a plain param READ in a key keep the peel sound
+// Writes inside assignment targets prevent treating the result as the original argument.
+// Accepted limitation: the default write is not proven to discard the incoming Array.
+// This injects the full Array family despite no real constructor escape; the extra injection
+// is retained to avoid deeper flow analysis for this uncommon shape.
 let x;
 const viaLhsDefault = (arg => {
   ({

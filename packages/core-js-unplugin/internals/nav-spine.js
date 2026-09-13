@@ -2,9 +2,8 @@
 // verdicts of unbacked hops - the position questions the usage-pure emitters ask
 import {
   foldableRealmHop,
-  inlineCallProxyGlobalRoot,
   planProvenNavGuardCollapse,
-  proxyGlobalRootName,
+  planKeptSequenceTail,
   proxyHopLacksPureEntry,
   resolveKey,
   resolveObjectName,
@@ -18,7 +17,6 @@ import {
   isDestructurePattern,
   isMutatedGlobalSlot,
   nodeHoldsChild,
-  inCallerCorrectFallbackSlot,
   isPristineProxyGlobal,
   mayHaveSideEffects,
   memberProxyHopName,
@@ -33,8 +31,8 @@ import {
   staticMemberKeyName,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   unwrapRuntimeExpr,
+  walkAstNodes,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
-import { walkAstNodes } from './plugin-helpers.js';
 import {
   cloneNode,
   identifier,
@@ -43,8 +41,10 @@ import {
   sequenceExpression,
   nullFirstGuardTest,
   renderShortCircuitGuard,
-} from './builders.js';
-import { memberFromKeyName, receiverCarriesOptional } from './emit-shared.js';
+  renderKeptSequenceTail,
+  memberFromKeyName,
+} from '@core-js/polyfill-provider/render';
+import { receiverCarriesOptional } from './emit-shared.js';
 
 // clone a receiver with source parens peeled off its member/call SPINE: babel holds parens
 // as printer trivia, so a memo respells without them, while TS casts stay - babel memoizes
@@ -134,80 +134,10 @@ export function respellKeptHop(spelling, { keyName, keySe, keyNode = null }) {
     : memberFromKeyName(spelling, keyName);
 }
 
-// pristine possible-global hops navigate into the SAME surface - above a PROBE they drop, so
-// the test reads at most the probe hop itself and never dereferences past it
-export function peelPristineProxyHops(node, { adapter, resolveGlobalPolyfill }) {
-  let base = node;
-  while (base?.type === 'MemberExpression' && !base.computed
-    && POSSIBLE_GLOBAL_OBJECTS.has(base.property?.name)
-    && isPristineProxyGlobal(adapter, base.property.name)
-    && resolveGlobalPolyfill(base.property.name)) {
-    base = unwrapRuntimeExpr(base.object);
-  }
-  return base;
-}
-
-// ... and a KEPT sequence's tail navigates the same surface as a VALUE: a chain the peel erases
-// WHOLE folds onto its outermost hop's own ponyfill (`(c++, globalThis.self)` tests `_self` -
-// a read through the ponyfill folds onto it, the realm-fold canon and the babel leg's plan
-// spelling). a tail whose peel stops on the environment PROBE with the spine below it backed
-// takes the guarded value render instead - the observing test decides the branch on the probe and
-// reads the always-defined leaf past it (`(c++, globalThis.window.self)` tests
-// `null == _globalThis.window ? void 0 : _self`, the kept-store canon); any other stop keeps the
-// peel remainder as the probe read the test performs
+// Apply the provider's kept-sequence decision to this host's live slot.
 export function foldTailPristineProxyHops(node, ctx) {
-  function mintPonyfill(name) {
-    const pure = ctx.resolveGlobalPolyfill(name);
-    return identifier(ctx.injectPureImport(pure.entry, pure.hintName));
-  }
-  for (let seq = node; seq?.type === 'SequenceExpression';) {
-    const tail = unwrapRuntimeExpr(seq.expressions.at(-1));
-    if (tail?.type === 'SequenceExpression') {
-      seq = tail;
-      continue;
-    }
-    // a kept WRITE at the tail hands its own value on: what every reader of the sequence sees is the
-    // stored nav, so the fold reads THROUGH the write and lands in its VALUE slot - the write keeps
-    // its target and its place. read as an opaque tail instead, the store spelled the always-defined
-    // ponyfill while the guard beside it still tested the probe, and the user's variable then held
-    // the realm object on the very branch that guard calls absent
-    const write = tail?.type === 'AssignmentExpression' && tail.operator === '=' ? tail : null;
-    const navNode = write ? unwrapRuntimeExpr(write.right) : tail;
-    function land(value) {
-      if (write) write.right = value;
-      else seq.expressions[seq.expressions.length - 1] = value;
-    }
-    const peeled = peelPristineProxyHops(navNode, ctx);
-    if (peeled === navNode) return;
-    // the ROOT proof is binding-aware, never the file census alone: a shadowed realm name
-    // (`function f(self)`) holds the user's object, and the hop peel above is name-blind - an
-    // unproven root leaves the tail exactly as written. THE canon (`proxyGlobalRootName`) answers
-    // name and alias alike with the shadow bail built in; a DIRECT realm name needs no entry of
-    // its own (the mint is of the HOP's ponyfill, `window` roots included)
-    function realmRootKind(base) {
-      const name = base?.type === 'Identifier' && ctx.aliasCtx
-        ? proxyGlobalRootName({ node: base, ...ctx.aliasCtx }) : null;
-      if (!name || !POSSIBLE_GLOBAL_OBJECTS.has(name) || !isPristineProxyGlobal(ctx.adapter, name)) return null;
-      return POSSIBLE_GLOBAL_OBJECTS.has(base.name) ? 'direct' : 'alias';
-    }
-    const wholeKind = realmRootKind(peeled);
-    // ... and no hop earns a guard inside a caller-correct FALLBACK SLOT: the slot fires only when
-    // nothing was passed, so it keeps the always-defined literal rather than reproducing the absent
-    // host's throw. the shared rule, asked here too - the plain nav a kept write stores is the same
-    // nav the plan folds whole there
-    const probeStop = !wholeKind && !inCallerCorrectFallbackSlot(ctx.aliasCtx?.path)
-      && unbackedProxyHopKey(peeled, meta => ctx.resolveGlobalPolyfill(meta.name))
-      && !!realmRootKind(peelPristineProxyHops(unwrapRuntimeExpr(peeled.object), ctx));
-    if (wholeKind === 'direct') land(mintPonyfill(navNode.property.name));
-    else if (probeStop) land(renderShortCircuitGuard(nullFirstGuardTest(peeled), mintPonyfill(navNode.property.name)));
-    else if (wholeKind === 'alias') {
-      // every caller hands a VALUE slot (a guard test, a memo), where the alias root's kept
-      // value folds to the leaf ponyfill like the direct twin; a NAV-position claimless fold
-      // keeps the alias, but that render never routes here
-      land(mintPonyfill(navNode.property.name));
-    }
-    return;
-  }
+  const plan = planKeptSequenceTail(node, ctx);
+  if (plan) plan.holder[plan.key] = renderKeptSequenceTail(plan, { injectImport: ctx.injectPureImport });
 }
 
 // an INSTANCE dispatch riding the absorbed tail (`....Set.name` -> `_nameMaybeFunction(_Set)`)
@@ -792,24 +722,6 @@ export function collectSourceSpans(root) {
 // receivers whose evaluation CONSTRUCTS rather than reads: nothing observes their order
 // against a computed key's effects
 export const LITERAL_RECEIVER_TYPES = new Set(['ArrayExpression', 'ObjectExpression', 'Literal', 'TemplateLiteral']);
-
-export function receiverMintsSpelling(objectNode, { adapter, metaPath }) {
-  if (objectNode?.type !== 'MemberExpression') return false;
-  // an effect-bearing computed KEY folds INTO the collapse the same way a sequence root does
-  let below = objectNode;
-  while (below?.type === 'MemberExpression') {
-    if (below.computed && mayHaveSideEffects(below.property)) return true;
-    below = unwrapRuntimeExpr(below.object);
-  }
-  // the hops above it collapse with the root, so the question is what the SPINE bottoms on
-  if (below?.type === 'SequenceExpression') return true;
-  return below?.type === 'CallExpression' && !!inlineCallProxyGlobalRoot({
-    callNode: below,
-    scope: metaPath.scope,
-    adapter,
-    path: metaPath,
-  });
-}
 
 // does this claim render INSIDE a guard memo's cloned value?
 export function insideMemoClone(metaPath, memoValueClones) {

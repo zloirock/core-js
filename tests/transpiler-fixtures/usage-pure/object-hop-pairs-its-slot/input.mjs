@@ -1,11 +1,9 @@
-// a sole-key object hop pairs with the slot it names, exactly as an array wrapper pairs with its
-// sole element: the level is consumed and the claim below it reads the value standing there. a
-// GETTER pairs too where its body is one pure return - the read yields that value and the consumed
-// level drops nothing observable. what keeps a level whole is what dropping the literal would take
-// with it: a getter body with an effect, an unnameable key that could BE this one at runtime, an
-// accessor-free spread that could override it (usage-global resolves through that one - it injects
-// where the slot MIGHT be read, and over-injection is its safe side). the getter rows live HERE
-// rather than in the runtime suite: its baseline forbids ES5 accessors, so only bytes can hold them
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
+// A sole-key object hop pairs with the slot it names, like an array wrapper with its element.
+// Pure getters may collapse; effectful getters keep their reads and use the actual slot's identity
+// to select the ponyfill. A later spread or unknown key keeps the runtime override in that choice.
+// A constructor escaping through the getter includes its static methods.
 const other = {};
 const { w: { Map: hopCtor } } = { w: globalThis };
 const src = { P: Array };
@@ -36,9 +34,6 @@ function seqPrefixKeepsLiteral(bump) {
   const { w: { [Symbol.iterator]: viaPrefix } } = { w: (bump(), globalThis) };
   return viaPrefix;
 }
-// a spread standing BEFORE the key is an effect of its own - it reads the source's own enumerable
-// keys - so the literal outlives the claim that reads through it, husk and all. the husk keeps its
-// own KEY too: a well-known-symbol sentinel reads the realm's `Symbol`, so it takes the ponyfill
 function symbolBehindSpread(extra) {
   const { w: { [Symbol.iterator]: aheadSymbol } } = { ...extra, w: globalThis };
   return aheadSymbol;
@@ -62,8 +57,8 @@ function keptByKey(key) {
   const { Q: { of: kept } } = ns;
   return kept;
 }
-// a key standing AFTER the match that nothing can name could BE the slot at runtime, so the level
-// stays whole on every host - the canonical resolver asks the pairing's own rule
+// A later unknown key can override the paired slot. Read the actual slot once and select the
+// ponyfill only when that value is the realm; declaration and assignment preserve overrides.
 function keptByUnnameableKey(key) {
   const { w: { Map: keptDecl } } = { w: globalThis, [key]: other };
   let keptAssign;
@@ -127,9 +122,9 @@ function closeOver() {
 }
 const { w: { Array: { from: viaClosedAlias } } } = { w: closedAlias };
 const { w: { at: noClaimOnClosedAlias } } = { w: closedAlias };
-// ... and NOT where the reaching write proves nothing: a write under an optional spine may never
-// run (`a?.[g = globalThis]`), and a `var` re-declaration inside a block reads its init THERE, where
-// a block-scoped shadow may hold something else - both hops stay native, like their flat twins
+// An optional write may not run, and a block-scoped shadow can change a var initializer's value.
+// These uncertain aliases require the actual slot's identity before selecting a constructor;
+// a non-realm value keeps its own property result.
 const maybeNull = null;
 let underOptional = other;
 maybeNull?.[underOptional = globalThis];
@@ -214,8 +209,6 @@ function viaBoundHopHeads(list) {
 const { [hopSlot]: [{ at: viaKeyedWrapper }] } = { w: [[1, 2]] };
 let assignKeyedWrapper;
 ({ [hopSlot]: [{ at: assignKeyedWrapper }] } = { w: [[1, 2]] });
-// an emptied hop beside a REST on an assignment host writes the sentinel it mints, and a write to
-// an undeclared name throws in strict code - so the host declares it
 function restAssignSentinel() {
   let restAt;
   let restRest;
@@ -232,8 +225,6 @@ function viaSeqSlot(mark, arr) {
   const { w: { at: viaSeqClaim } } = { w: (arr.at(0), arr) };
   return [viaSeq, viaSeqWrapped, viaSeqClaim];
 }
-// a REST beside the hop keeps the level alive the way a spread in the literal does: the ctor and the
-// static leaf extract and leave a sentinel keeping the key excluded, the residual runs where it stood
 function ctorUnderRest() {
   const { w: { Map: restCtor }, ...restDecl } = { w: globalThis, z: 1 };
   let restAssign;
@@ -248,17 +239,11 @@ function liftedHusk(eff, eff2) {
   const [{ w: { at: liftedAt } }] = [{ w: eff() }, eff2()];
   return liftedAt;
 }
-// a CONSTANT LITERAL behind a sentinel memoizes on both legs: the source built one array
 function literalBehindSpread(extra) {
   const { w: { at: behindSpreadAt } } = { ...extra, w: [1, 2] };
   return behindSpreadAt;
 }
 
-// an instance leaf under a hop over a slot the level cannot spell twice, while the level stays
-// WHOLE (a sibling, a rest): the slot value moves to a ref both readers take - hoisted ahead of the
-// declaration where nothing observable stands before the slot, written IN the slot behind an
-// observable property (`w: _ref = eff()`, the extraction reading the ref after the destructure);
-// a relaxed single read (a member) takes the same shape, so its getter fires once and in order
 function slotMemoHoist(eff, holder) {
   const { w: { at: slotHoist }, z } = { w: eff(), z: 1 };
   const { a, w: { at: slotInSlot } } = { a: eff(), w: eff() };
@@ -286,10 +271,6 @@ function slotMemoSiblingDecl(eff) {
   return [sibHoist, z, sibQ, sibInSlot, a, sibQ2, twinAt, twinFlat, b];
 }
 
-// the flat twin's own in-slot family: a SOLE-prop pattern behind an effectful neighbour that keeps
-// the level alive (a sibling, a rest) memoizes in its slot too; an effect in a slot the pattern
-// DISCARDS ahead of the claim lifts as a statement, and the memo hoists behind it - while a discarded
-// slot BEHIND a bound one stays where it is, and the memo is written in its slot
 function inSlotFlatFamily(eff, eff2, eff3) {
   const [fa, { at: flatInSlot }] = [eff(), eff()];
   const [fb, { at: flatRestSlot }, ...flatRest] = [eff(), eff()];
@@ -337,9 +318,8 @@ function ctorBesideSibling(eff) {
   return [sibMap, z, sibSet, sibWeakMap, a, sibMultiMap, y, sibQ];
 }
 
-// a consumed leaf's own default keeps its guard at every depth on both legs - the flat twin's
-// spelling, dead text at runtime since the pure is always defined: a ctor or a static under a hop,
-// under a wrapper element, beside a sibling
+// Defined constructor and static ponyfills make these source defaults unreachable at every
+// depth: under an object hop, under an array wrapper, and beside a sibling.
 function defaultKeepsGuard() {
   const { w: { Map: dfMap = null }, z } = { w: globalThis, z: 1 };
   const { Array: { from: dfFrom = null } } = globalThis;
@@ -348,10 +328,6 @@ function defaultKeepsGuard() {
   return [dfMap, z, dfFrom, dfOf, y, dfDeep];
 }
 
-// a literal holding an OBSERVABLE sibling value keeps a deep nav claim under its hop only where the
-// residual dies with the leaf; a SIBLING binding keeps the residual - the literal evaluates there,
-// the effect runs where the source ran it, and the claim consumes like the shallow twin's. a symbol
-// leaf under the hop keeps its sentinel beside the sibling
 function siblingKeepsResidual(hit) {
   const { w: { Array: { prototype: { at: deepBeside } } }, z: sibZ } = { w: globalThis, z: (hit(), 1) };
   const { w: { Array: { prototype: { at: deepAlone } } } } = { w: globalThis, z: (hit(), 2) };

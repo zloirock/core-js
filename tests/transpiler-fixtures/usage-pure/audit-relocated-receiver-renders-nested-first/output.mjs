@@ -9,23 +9,24 @@ import _at from "@core-js/pure/actual/instance/at";
 let k = 0;
 const src = [1, 2];
 var _ref = function () {
-  var flat = _flatMaybeArray(src);
-  return [flat];
-}();
-export var {
-    [(k++, 'at')]: _unused,
+    var flat = _flatMaybeArray(src);
+    return [flat];
+  }(),
+  _ref2 = _ref,
+  a = null == _ref2 ? _ref2[""] : (k++, _atMaybeArray(_ref2)),
+  {
     other
-  } = _ref,
-  a = _atMaybeArray(_ref);
+  } = _ref;
+export { a, other };
 try {
   risky();
-} catch (_ref2) {
-  let at = _at(_ref2);
+} catch (_ref3) {
+  let at = _at(_ref3);
   let {
     code = function () {
       var concat = _concatMaybeArray(src);
       return concat;
     }
-  } = _ref2;
+  } = _ref3;
   use(at, code);
 }

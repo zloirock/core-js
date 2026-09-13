@@ -1,6 +1,6 @@
-// computed key with a non-statically-resolvable expression `[fn()]: Array`: the runtime
-// key is unknowable, so the destructure must stay unflattened and `from` not be wired
-// to the static. companion to audit-static-walk-computed-key-skip (key DOES fold there)
+// An unknown computed key cannot prove which nested slot contains Array.
+// A runtime identity check supplies Array.from only for an actual Array receiver.
+// Missing and custom slots keep their native behavior.
 declare const fn: () => string;
 const wrapper = { [fn()]: Array };
 const { a: { from } } = wrapper;

@@ -6,14 +6,14 @@ import _Object$freeze from "@core-js/pure/actual/object/freeze";
 import _Object$keys from "@core-js/pure/actual/object/keys";
 import _Object$values from "@core-js/pure/actual/object/values";
 import _self from "@core-js/pure/actual/self";
-var _ref, _ref2;
+var _ref, _ref2, _ref3;
 // TS wrappers across the probe nav: a BARE wrapper (`!`, an unparenthesized cast position)
 // erases without breaking the chain - the short-circuit survives and the value canon renders
 // the guarded ponyfill; a PARENTHESIZED layer seals - the member above it parses PLAIN and
 // the render keeps the source's throw semantics. distinct methods per line
 let c = 0;
 export const bareNonNullHop = null == _globalThis.window ? void 0 : (c++, _self).Number;
-export const bareNonNullMidChain = null == _globalThis.window ? void 0 : _flatMaybeArray(_ref = _Array$of(2)).call(_ref);
+export const bareNonNullMidChain = null == (null == _globalThis.window ? void 0 : _self.window) ? void 0 : _flatMaybeArray(_ref = _Array$of(2)).call(_ref);
 export const castSealValueUse = (null == _globalThis.window ? void 0 : _self).Math;
 export const parenSealPlainRead = (null == _globalThis.window ? void 0 : _self).JSON;
 export const castSealDelete = delete ((null == _globalThis.window ? void 0 : _self)?.customProp as any);
@@ -32,19 +32,16 @@ export function castSealSynth({
 }
 export { c2 };
 
-// the bare-`!` KEPT-ASSIGN spelling stays raw on BOTH legs (the kept canon owns the write; the
-// wrapper neither seals nor unlocks a collapse). its VALUE twin has no write to keep, so the
-// short-circuit render owns it and the hop resolves to its ponyfill instead of being read raw
+// A non-null wrapper preserves the kept assignment and the source optional branch.
+// The store retains its terminal environment probe; the unconsumed navigation follows
+// the ordinary realm-collapse rule. The wrapper itself introduces no runtime check.
 let kv;
-export const bareNonNullKeptAssign = (kv = null == _globalThis.window ? void 0 : _self)?.BigInt;
+export const bareNonNullKeptAssign = (kv = null == _globalThis.window ? void 0 : _self.window)?.BigInt;
 export const bareNonNullKeptValue = null == _globalThis.window ? void 0 : _self;
 export { c };
 
-// a CAST-sealed SE-key destructure source: the wrapper peels transparently, the residual
-// rides the guard exactly like the paren-sealed spelling
+// A cast-sealed receiver keeps its optional guard. Only a non-null receiver evaluates
+// the computed key and selects the pure static.
 let c3 = 0;
-export const castSealSeKeyResidual = _Object$freeze;
-export const {
-  [(c3++, 'freeze')]: _unused
-} = (null == _globalThis.window ? void 0 : _self).Object;
+export const castSealSeKeyResidual = (_ref3 = (null == _globalThis.window ? void 0 : _self).Object, null == _ref3 ? _ref3[""] : (c3++, _Object$freeze));
 export { c3 };

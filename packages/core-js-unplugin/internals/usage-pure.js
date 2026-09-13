@@ -2,13 +2,13 @@ import {
   aliasRootedReadMayThrow,
   discardRescueNodes,
   navValueCanShortCircuit,
+  navHasUnresolvableProxyHop,
   probeRenderedReceiver,
   sealedChainBoundary,
   vestigialNavOptionals,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { planInExpression } from '@core-js/polyfill-provider/helpers/in-expression';
 import {
-  SYMBOL_ITERATOR_PURE_RESULT,
   dispatchConsumesRun,
   isSourcedSymbolIteratorMeta,
   planClaimlessCallRootedNav,
@@ -18,6 +18,7 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/members';
 import {
   claimIsInert,
+  POSSIBLE_GLOBAL_OBJECTS,
   climbTransparentWrapperPath,
   deleteHostAboveChain,
   isDeoptedGlobalSlotRead,
@@ -44,8 +45,9 @@ import {
   nullGuardTest,
   nullFirstGuardTest,
   renderInExpressionPlan,
-} from './builders.js';
-import { receiverCarriesOptional, renderProxyReceiverPlan, replaceNodeInTree, withSideEffects } from './emit-shared.js';
+  renderProxyReceiverPlan,
+} from '@core-js/polyfill-provider/render';
+import { receiverCarriesOptional, replaceNodeInTree, withSideEffects } from './emit-shared.js';
 import {
   calleeParenWrapped,
   guardProbeUndefinable,
@@ -66,6 +68,7 @@ import {
 import { collapseSymbolProxyRoot, emitSealedKeySeConsume, isSealedDirectSymbolCall } from './se-dispatch.js';
 import createProxySpineChannel from './proxy-spine.js';
 import createOptionalDispatchChannel from './optional-dispatch.js';
+import { SYMBOL_ITERATOR_PURE_RESULT } from '@core-js/polyfill-provider/detect-usage/globals';
 
 // the AST engine's usage-pure emission - a STAGED port of the babel leg's
 // `usagePureCallback` (the design's blueprint): the mainstream classes land first and every
@@ -273,6 +276,7 @@ export default function createAstUsagePureCallback({
     destructureEmit,
     hopPeelCtx,
     injectPureImport,
+    injector,
     markRewrite,
     memoValueClones,
     nestedGuardCtx,
@@ -788,10 +792,19 @@ export default function createAstUsagePureCallback({
       // effects already harvested - the emission consumes the member whole, so the dead key
       // spelling (a discarded `(globalThis, "fl") + "at"`) must not fire its own claims
       if (node.computed) markSubtreeSkipped(skippedNodes, node.property);
-      const id = injectPureImport(entry, hintName);
-      replaceInstanceLike({ metaPath, id });
+      replaceInstanceLike({ metaPath, id: injectPureImport(entry, hintName) });
       return;
     }
+    // a LEAF claim re-visited INSIDE a guard-test clone is the read that test performs: swapping
+    // it in leaves the test asking an always-defined ponyfill and answering the branch native
+    // short-circuits past (`(w = globalThis.self.window?.Promise)?.resolve(1)` tests
+    // `_self.window?.Promise`, not `_Promise`). standing down costs no injection - the realm hops
+    // BELOW still spell their own, which is where the run lands - and it is the hop claim's own
+    // test-clone arm asked for a leaf the realm-hop canon does not name
+    if (node.type === 'MemberExpression' && !POSSIBLE_GLOBAL_OBJECTS.has(hintName)
+      && insideMemoClone(metaPath, probeTestClones)
+      && navHasUnresolvableProxyHop(node.object, m => resolvePure(m, metaPath),
+        { scope: metaPath.scope, adapter, path: metaPath })) return;
     // an OPTIONAL static member (`X.Promise?.resolve`) substitutes like the plain spelling:
     // the claimed binding is always defined, so the `?.` erases with the member; an object
     // that can genuinely be undefined (an environment probe) keeps its guard routes

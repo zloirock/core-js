@@ -34,10 +34,12 @@ function mark(t, v) {
       w: [1]
     };
   } catch (_ref) {
-    let a = _at(_ref.w);
-    let {
-      [(eff('k'), 'w')]: _unused
-    } = _ref;
+    let _ref3 = _ref,
+      {
+        [(eff('k'), 'w')]: _ref2
+      } = null == _ref3 ? _ref3[""] : _ref3,
+      _ref4 = _ref2,
+      a = null == _ref4 ? _ref4[""] : _at(_ref4);
     a;
   }
 }
@@ -46,11 +48,13 @@ function mark(t, v) {
     throw {
       w: [1]
     };
-  } catch (_ref2) {
-    let a = _at(_ref2.w);
-    let {
-      [(eff('k'), 'w')]: _unused2
-    } = _ref2;
+  } catch (_ref5) {
+    let _ref7 = _ref5,
+      {
+        [(eff('k'), 'w')]: _ref6
+      } = null == _ref7 ? _ref7[""] : _ref7,
+      _ref8 = _ref6,
+      a = null == _ref8 ? _ref8[""] : _at(_ref8);
     _pushMaybeArray(log).call(log, a.call([5], 0));
   }
 }
@@ -61,18 +65,12 @@ function mark(t, v) {
   [values, at];
 }
 {
-  var t = 0;
-  const _ref3 = [1];
-  var {
-      [(k++, 'at')]: _unused3
-    } = _ref3,
-    a = _atMaybeArray(_ref3);
+  var t = 0,
+    _ref9 = [1],
+    a = null == _ref9 ? _ref9[""] : (k++, _atMaybeArray(_ref9));
 }
 {
-  const _ref4 = [1];
-  var {
-      [(k++, 'at')]: _unused4
-    } = _ref4,
-    a = _atMaybeArray(_ref4),
+  var _ref10 = [1],
+    a = null == _ref10 ? _ref10[""] : (k++, _atMaybeArray(_ref10)),
     t = 0;
 }

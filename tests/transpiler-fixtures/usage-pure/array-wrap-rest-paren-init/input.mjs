@@ -1,6 +1,5 @@
-// a REST host whose init the parser keeps PARENTHESIZED: the rest carrier reads the init through the
-// runtime peel, so the residual anchors exactly as it does for the bare spelling - on both the
-// wrapped and the flat host, with a prefix lifted or kept inside the same way
+// Object-rest keeps the affected pattern native, including inside an array wrapper.
+// Independent reads and key/default expressions still receive their own polyfills.
 const seen = [];
 const eff = t => (seen.push(t), t);
 const [{ Object: { keys, ...restA } }] = ([globalThis]);

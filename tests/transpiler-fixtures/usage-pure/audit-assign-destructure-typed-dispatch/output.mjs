@@ -3,8 +3,9 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _at from "@core-js/pure/actual/instance/at";
-import _Object$keys from "@core-js/pure/actual/object/keys";
 var _ref, _ref2, _ref3, _ref4;
+// Object-rest keeps the affected assignment pattern native and preserves its RHS value.
+// Independent reads and key/default expressions still receive their own polyfills.
 // the `let x; ({ x } = Source)` destructure's own write is the aliasing event, not a
 // disqualifying reassignment: the body-extract alias must register so receiver narrowing
 // through the binding dispatches the TYPED instance variant (the registrar once counted
@@ -16,10 +17,8 @@ let from;
 from = _Array$from;
 export const r1 = _atMaybeArray(_ref = from([1, 2])).call(_ref, 0);
 let keys, rest;
-var _unused;
-keys = _Object$keys;
 ({
-  keys: _unused,
+  keys,
   ...rest
 } = Object);
 export const r2 = _atMaybeArray(_ref2 = keys({

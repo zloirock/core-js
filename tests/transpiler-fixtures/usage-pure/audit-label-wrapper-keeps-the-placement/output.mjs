@@ -9,10 +9,10 @@ import _self from "@core-js/pure/actual/self";
 let out;
 function eff() {}
 let gl, vl;
-lbl: out = null == (gl = _globalThis, vl = null == gl[eff(), 'window'] ? void 0 : _self) ? void 0 : _Number$MAX_SAFE_INTEGER;
+lbl: out = (gl = _globalThis, vl = (eff(), _self), _Number$MAX_SAFE_INTEGER);
 let gb, vb;
 blk: {
-  out = null == (gb = _globalThis, vb = null == gb[eff(), 'window'] ? void 0 : _self) ? void 0 : _Number$MAX_SAFE_INTEGER;
+  out = (gb = _globalThis, vb = (eff(), _self), _Number$MAX_SAFE_INTEGER);
 }
 let gc, vc;
 switch (out) {
@@ -24,5 +24,5 @@ switch (out) {
 }
 // the unlabelled twin all of the above are judged against
 let ge, ve;
-out = null == (ge = _globalThis, ve = null == ge[eff(), 'window'] ? void 0 : _self) ? void 0 : _Number$MAX_SAFE_INTEGER;
+out = (ge = _globalThis, ve = (eff(), _self), _Number$MAX_SAFE_INTEGER);
 export const read = [out, vl, vb, vc, ve];

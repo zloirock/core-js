@@ -1,27 +1,5 @@
-// probe corpus rows whose two legs print DIFFERENT but equivalent trees - the classes the unplugin
-// package's AGENTS.md accepts, held here as one sidecar so every other corpus fixture compares clean:
-// - ref-hoist placement: a re-referenceable literal receiver memoized by one leg and read inline by
-//   the other (`[0, [1, 2]]`, `[...[0, [1, 2]]]`, `_globalThis.Array.prototype` under an effectful
-//   key, a primitive `'str'` slot)
-// - a husk beside a SIBLING declarator: babel keeps `[{}] = [r, eff()]` in place, unplugin lifts the
-//   effect as a statement (the sibling-host residual canon)
-// - placement of PURE extractions and memos around each other (a static beside an instance memo,
-//   the relocated head's per-prop order, an IIFE argument hoisted as a statement or spelled as a
-//   sequence, a hop's rescued call as a sequence or a statement)
-// - a sentinel residual one leg keeps and the other drops where nothing binds (`{ w: [, { keys:
-//   _unused }] }` over a pure init, `Map: _unused` beside a binding sibling under an outer rest)
-// - a leaf and a STATIC sibling of the same level of a proxy-global host (`{ Array: { of: { name,
-//   foo }, from: F } } = globalThis`, `{ Array: { of: { name }, from: F } }`): the two legs order the
-//   sibling's extraction and the leaf's pair differently - pure reads either way
-// - the hop residual a proxy-global host keeps beside an extracted leaf (`{ Array: { of: { name },
-//   junk } } = globalThis`): babel collapses it onto the hop (`{ junk } = _globalThis.Array`), unplugin
-//   keeps the hop in the pattern (`{ Array: { junk } } = _globalThis`) - the residual class the
-//   sibling-static form (`{ Array: { from, isArray } }`) already prints
-// - a PATTERN default over a static beside a sibling (`{ junk, of: { name, foo } = {} } = Array`):
-//   babel's per-prop extraction of the static stands ahead of the host, unplugin's twin behind it
-// - an `&&` hop value whose left is a call typed to return a constructor (`{ w: eff() && Object }`
-//   beside a sibling): unplugin extracts off the typed left, babel keeps the native read (the falsy
-//   left's own short-circuit)
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
 import _Array$from from "@core-js/pure/actual/array/from";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
@@ -30,7 +8,6 @@ import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _at from "@core-js/pure/actual/instance/at";
 import _values from "@core-js/pure/actual/instance/values";
-import _Map from "@core-js/pure/actual/map";
 import _Object$keys from "@core-js/pure/actual/object/keys";
 import _Object$values from "@core-js/pure/actual/object/values";
 import _atMaybeString from "@core-js/pure/actual/string/instance/at";
@@ -94,7 +71,10 @@ function mark(t, v) {
 }
 
 {
-	for (let [{ w: { values }, y: { at } }] = [r, eff()]; ; ) {
+	for (let [_ref5] = [r, eff()],
+		_ref6 = _ref5,
+		values = _values(_ref6.w),
+		at = _at(_ref6.y); ; ) {
 		[values, at];
 
 		break;
@@ -149,36 +129,35 @@ function mark(t, v) {
 }
 
 {
-	const a = _atMaybeArray(_globalThis.Array.prototype);
-	const { Array: { prototype: { [(eff('k2'), 'at')]: _unused2 } } } = _globalThis;
+	const { Array: { prototype: _ref7 } } = _globalThis,
+		_ref8 = _ref7,
+		a = null == _ref8 ? _ref8[""] : (eff('k2'), _atMaybeArray(_ref8));
 }
 
 {
-	const a = _atMaybeArray(_globalThis.Array.prototype);
-	const { Array: { prototype: { [(eff('k2'), 'at')]: _unused3 } } } = _globalThis;
+	const { Array: { prototype: _ref9 } } = _globalThis,
+		_ref10 = _ref9,
+		a = null == _ref10 ? _ref10[""] : (eff('k2'), _atMaybeArray(_ref10));
 
 	_pushMaybeArray(log).call(log, a.call([3], 0));
 }
 
 {
-	const a = _atMaybeArray(_globalThis.Array.prototype);
-
-	const {
-		Array: { prototype: { [(eff('k2'), 'at')]: _unused4 } },
-		...r
-	} = _globalThis;
+	const { Array: { prototype: { [(eff('k2'), 'at')]: a } }, ...r } = _globalThis;
 }
 
 {
-	const _ref5 = 'x';
-	const a = _atMaybeString(_ref5);
-	const { [(eff(), 'w')]: { at: _unused5 } } = { w: _ref5 };
+	const _ref12 = { w: 'x' },
+		{ [(eff(), 'w')]: _ref11 } = null == _ref12 ? _ref12[""] : _ref12,
+		_ref13 = _ref11,
+		a = null == _ref13 ? _ref13[""] : _atMaybeString(_ref13);
 }
 
 {
-	const _ref6 = 'str';
-	const i3 = _includesMaybeString(_ref6);
-	const { [(eff(), 'w')]: { includes: _unused6 } } = { w: _ref6 };
+	const _ref15 = { w: 'str' },
+		{ [(eff(), 'w')]: _ref14 } = null == _ref15 ? _ref15[""] : _ref15,
+		_ref16 = _ref14,
+		i3 = null == _ref16 ? _ref16[""] : _includesMaybeString(_ref16);
 }
 
 {
@@ -193,8 +172,7 @@ function mark(t, v) {
 }
 
 {
-	const m = _Map;
-	const { w: { Map: _unused7, keep }, ...rest } = { w: _globalThis, z: 1 };
+	const { w: { Map: m, keep }, ...rest } = { w: _globalThis, z: 1 };
 
 	use(m, keep, rest);
 }
@@ -215,16 +193,13 @@ function mark(t, v) {
 }
 
 {
-	const _ref7 = 'str';
-	const i4 = _includesMaybeString(_ref7);
-	const { w: { includes: _unused8 }, ...r } = { w: _ref7 };
+	const { w: { includes: i4 }, ...r } = { w: 'str' };
 }
 
 {
-	const _ref8 = [1];
+	const _ref17 = { w: Object, y: [1] };
 	const values = _Object$values;
-	const at = _atMaybeArray(_ref8);
-	const { y: { at: _unused9 } } = { w: Object, y: _ref8 };
+	const at = _atMaybeArray(_ref17.y);
 
 	[values, at];
 }
@@ -253,18 +228,22 @@ function mark(t, v) {
 
 {
 	const splitFrom = _Array$from;
-	const _ref9 = _Array$of;
-	const splitBesideStatic = _nameMaybeFunction(_ref9);
-	const { foo: splitFoo } = _ref9;
+	const _ref18 = _Array$of;
+	const splitBesideStatic = _nameMaybeFunction(_ref18);
+	const { foo: splitFoo } = _ref18;
 
 	[splitBesideStatic, splitFoo, splitFrom];
 }
 
 {
-	const { junk: defaultJunk } = Array;
-	const _ref10 = _Array$of;
-	const defaultName = _nameMaybeFunction(_ref10);
-	const { foo: defaultFoo } = _ref10;
+	var _ref20;
+
+	const _ref19 = Array,
+		{ junk: defaultJunk } = _ref19;
+
+	const _ref21 = (_ref20 = _ref19.of) === void 0 ? {} : _ref20;
+	const defaultName = _nameMaybeFunction(_ref21);
+	const { foo: defaultFoo } = _ref21;
 
 	[defaultJunk, defaultName, defaultFoo];
 }

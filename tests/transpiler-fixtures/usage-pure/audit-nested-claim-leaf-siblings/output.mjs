@@ -1,9 +1,7 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-// a nested pattern whose LEAF level keeps siblings is the flat shape written the long way, so it
-// flattens onto that twin and the hop reads ONCE into a memo the dispatch and the residual share -
-// however DEEP the chain is, since both spellings of the flattened receiver now fold the same
-// writer set. a HOST sibling is the one that stays native: it names another key off the root and
-// would lose its binding in that rewrite
+// A nested leaf with siblings uses one receiver capture for the method and the remaining
+// properties, at any depth. An outer sibling requires a capture of the root as well; the nested
+// read and outer sibling then retain source property order.
 const box = {
   y: [1, [2]],
   keep: 3
@@ -22,22 +20,23 @@ const leafSiblings = function () {
   return [at, other];
 }();
 const hostSibling = function () {
-  const _ref2 = box.y;
-  const at = _atMaybeArray(_ref2);
-  const {
-    other
-  } = _ref2;
-  const {
-    keep
-  } = box;
-  return [at, other, keep];
-}();
-const twoHops = function () {
-  const _ref3 = deep.a.b;
+  const _ref2 = box;
+  const _ref3 = _ref2.y;
   const at = _atMaybeArray(_ref3);
   const {
     other
   } = _ref3;
+  const {
+    keep
+  } = _ref2;
+  return [at, other, keep];
+}();
+const twoHops = function () {
+  const _ref4 = deep.a.b;
+  const at = _atMaybeArray(_ref4);
+  const {
+    other
+  } = _ref4;
   return [at, other];
 }();
 export { leafSiblings, hostSibling, twoHops };

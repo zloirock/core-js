@@ -7,102 +7,89 @@ import _globalThis from "@core-js/pure/actual/global-this";
 import _Set from "@core-js/pure/actual/set/constructor";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 import _Symbol$toPrimitive from "@core-js/pure/actual/symbol/to-primitive";
-var _ref, _ref2;
-// a symbol-keyed NESTED pattern extracts through the get-iterator-method helper: the pattern
-// destructures the helper result (polyfill-visible where a raw symbol read misses native
-// iterators), and polyfillable content in its VALUE position - an instance call in a binding
-// default - is rewritten inside the extracted pattern. the sibling prop keeps the residual,
-// where the consumed key retires to a sentinel
+var _ref2, _ref3;
+// Object-rest keeps the affected method slots native; computed symbol keys still polyfill.
+// Independent reads and key/default expressions still receive their own polyfills.
 const obj = {};
-const {
-  next = _atMaybeArray(_ref = [1]).call(_ref, 0)
-} = _getIteratorMethod(obj);
+const _ref = obj;
 const {
   Array: {
     from
-  },
-  [_Symbol$iterator]: _unused
-} = obj;
-// prop-level default: the helper result is guarded (a memoized `=== void 0` test), so a genuinely
+  }
+} = _ref;
+const {
+  next = _atMaybeArray(_ref2 = [1]).call(_ref2, 0)
+} = _getIteratorMethod(_ref); // prop-level default: the helper result is guarded (a memoized `=== void 0` test), so a genuinely
 // non-iterable receiver still takes the user default like a raw undefined read would
 const fb = {
   done: true
 };
 const {
   done
-} = (_ref2 = _getIteratorMethod(obj)) === void 0 ? fb : _ref2; // rest INSIDE the extracted pattern destructures the helper result the same way; the residual
-// keeps a sentinel for the consumed symbol key
+} = (_ref3 = _getIteratorMethod(obj)) === void 0 ? fb : _ref3;
 const arr = [3];
 const {
-  name,
-  ...restOfMethod
-} = _getIteratorMethod(arr); // all-proxy ternary receiver: the collapse extracts the sibling static AND the symbol pattern
+  [_Symbol$iterator]: {
+    name,
+    ...restOfMethod
+  }
+} = arr;
+// all-proxy ternary receiver: the collapse extracts the sibling static AND the symbol pattern
+const _ref4 = _Set ? _globalThis : _globalThis;
 const {
-  union
-} = _Set;
+  Set: {
+    union
+  }
+} = _ref4;
 const {
   next: n2
-} = _getIteratorMethod(_globalThis); // a computed well-known-symbol key INSIDE the extracted pattern stays live and substitutes
+} = _getIteratorMethod(_ref4); // a computed well-known-symbol key INSIDE the extracted pattern stays live and substitutes
 const {
   [_Symbol$toPrimitive]: tp
-} = _getIteratorMethod([1]); // an SE computed key and a symbol pattern SHARE one residual: both retire to sentinels there,
-// the key effect runs once in place
+} = _getIteratorMethod([1]); // A computed key and iterator pattern share one receiver and execute their reads in source order.
 let c = 0;
-const of = _Array$of;
-const iterName2 = _nameMaybeFunction(_getIteratorMethod(Array));
-const {
-  [(c++, 'of')]: _unused2,
-  [_Symbol$iterator]: _unused3
-} = Array;
-// memoize-class receivers extract through a shared `_ref` (single read): a CONST-LITERAL
+const _ref5 = Array;
+const of = null == _ref5 ? _ref5[""] : (c++, _Array$of);
+const iterName2 = _nameMaybeFunction(_getIteratorMethod(_ref5)); // memoize-class receivers extract through a shared `_ref` (single read): a CONST-LITERAL
 // receiver with a multi-binding pattern, a MEMBER receiver (getter fires once), a BRANCHING
 // receiver, and a CALL init (whole-init memo - the call runs once)
 const {
   length: litArity,
   call: litCall
 } = _getIteratorMethod([7]);
-const _ref3 = holder.p,
-  {
-    [_Symbol$iterator]: _unused4,
-    sib
-  } = _ref3,
-  {
-    length: memArity
-  } = _getIteratorMethod(_ref3);
-const _ref4 = cond ? [8] : [],
-  {
-    [_Symbol$iterator]: _unused5,
-    alt
-  } = _ref4,
-  {
-    length: brArity
-  } = _getIteratorMethod(_ref4);
-const _ref5 = mk(),
-  {
-    [_Symbol$iterator]: _unused6,
-    q
-  } = _ref5,
-  {
-    length: callArity
-  } = _getIteratorMethod(_ref5);
-// an SE computed key AND a symbol pattern on ONE memoized receiver share the `_ref`: the
-// member read fires once, both extractions and both sentinels read the memo
-const _ref6 = holder2.p,
-  {
-    [(k2(), 'toSorted')]: _unused7,
-    [_Symbol$iterator]: _unused8
-  } = _ref6,
-  ts = _toSortedMaybeArray(_ref6),
-  {
-    length: mixArity
-  } = _getIteratorMethod(_ref6);
-// EXPORT host: the memo plants as a bare statement before the export (never exported itself)
-const _ref7 = holder3.p;
-export const {
-    [_Symbol$iterator]: _unused9,
-    expQ
-  } = _ref7,
-  {
-    length: expArity
-  } = _getIteratorMethod(_ref7);
+const _ref6 = holder.p;
+const {
+  length: memArity
+} = _getIteratorMethod(_ref6);
+const {
+  sib
+} = _ref6;
+const _ref7 = cond ? [8] : [];
+const {
+  length: brArity
+} = _getIteratorMethod(_ref7);
+const {
+  alt
+} = _ref7;
+const _ref8 = mk();
+const {
+  length: callArity
+} = _getIteratorMethod(_ref8);
+const {
+  q
+} = _ref8; // The member receiver is evaluated once before the computed-key and iterator reads.
+const _ref9 = holder2.p;
+const _ref10 = _ref9;
+const ts = null == _ref10 ? _ref10[""] : (k2(), _toSortedMaybeArray(_ref10));
+const {
+  length: mixArity
+} = _getIteratorMethod(_ref9); // EXPORT host: the memo plants as a bare statement before the export (never exported itself)
+const _ref11 = holder3.p;
+const {
+  length: expArity
+} = _getIteratorMethod(_ref11);
+const {
+  expQ
+} = _ref11;
+export { expArity, expQ };
 export { from, next, done, name, restOfMethod, union, n2, tp, of, iterName2, c, litArity, litCall, memArity, sib, brArity, alt, callArity, q, ts, mixArity };

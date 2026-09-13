@@ -92,13 +92,13 @@ const forwards = () => ({
     Array
   }
 });
-export const literalForwardedRoot = null == forwards()?.window ? void 0 : _Array$of(13);
+export const literalForwardedRoot = null == forwards() ? void 0 : _Array$of(13);
 const forwardsExplicit = () => ({
   window: {
     Array: Array
   }
 });
-export const literalForwardedExplicit = null == forwardsExplicit()?.window ? void 0 : _Array$of(14);
+export const literalForwardedExplicit = null == forwardsExplicit() ? void 0 : _Array$of(14);
 let maybeForwards;
 if (_globalThis.setTimeout) maybeForwards = () => ({
   window: {

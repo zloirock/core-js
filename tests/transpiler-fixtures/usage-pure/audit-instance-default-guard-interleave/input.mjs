@@ -4,7 +4,7 @@
 // both props defaulted: two guards, two segments
 const { [(e1(), 'at')]: a = dfltA(), [(e2(), 'flat')]: f = dfltB() } = recvA;
 
-// three defaulted props: nested cuts compose innermost-first
+// Three defaulted properties preserve key, extraction and default order from left to right.
 const { [(e3(), 'includes')]: i = dfltC(), [(e4(), 'findLast')]: fl = dfltD(), [(e5(), 'findLastIndex')]: fli = dfltE() } = recvB;
 
 // a later default may read the PRIOR extracted binding (bound before its key evaluates)

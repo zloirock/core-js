@@ -2,32 +2,27 @@ import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Map from "@core-js/pure/actual/map/constructor";
 import _self from "@core-js/pure/actual/self";
-// a store whose value LEAVES through a branch is read through all the same: the arm hands it to the
-// reader above, so the probe folds there exactly as it does under a direct claim - both arms of a
-// ternary and both operands of a logical carry it, a `&&` left included (it leaves when falsy, and
-// that is still the value the reader receives). what carries nothing is a TEST slot: the branch
-// reads it and hands its arms out instead, so the store there keeps the collapse's own spelling -
-// the environment probe the source wrote to decide the branch stays a probe
+var _ref, _ref2;
+// A stored navigation carried by a branch reaches the constructor claim above it.
+// Both ternary arms and logical operands select the realm, so Map injects while stores and
+// effects remain in place. A store used only as the test retains its environment probe.
 let e = 0;
 let held;
-export const throughTernaryArm = _nameMaybeFunction((e ? held = (e++, _self) : _globalThis).Map);
-export const throughTernaryAlternate = _nameMaybeFunction((e ? _globalThis : held = (e++, _self)).Map);
-export const throughOr = _nameMaybeFunction(((held = (e++, _self)) || _globalThis).Map);
-export const throughNullish = _nameMaybeFunction(((held = (e++, _self)) ?? _globalThis).Map);
-export const throughAndRight = _nameMaybeFunction((_globalThis && (held = (e++, _self))).Map);
-export const throughAndLeft = _nameMaybeFunction(((held = (e++, _self)) && _globalThis).Map);
+export const throughTernaryArm = _nameMaybeFunction((e ? held = (e++, _self) : _globalThis, _Map));
+export const throughTernaryAlternate = _nameMaybeFunction((e ? _globalThis : held = (e++, _self), _Map));
+export const throughOr = _nameMaybeFunction(((held = (e++, _self)) || _globalThis, _Map));
+export const throughNullish = _nameMaybeFunction(((held = (e++, _self)) ?? _globalThis, _Map));
+export const throughAndRight = _nameMaybeFunction((_globalThis && (held = (e++, _self)), _Map));
+export const throughAndLeft = _nameMaybeFunction(((held = (e++, _self)) && _globalThis, _Map));
 
 // ... and the one that hands nothing to the reader: the store keeps the collapse's own spelling
 export const testSlotKeepsIt = _nameMaybeFunction(((held = (e++, _self).window) ? _globalThis : _globalThis, _Map));
 
-// ... and an ARM is a proxy surface by what it NAMES, not by how it is spelled: a realm navigation
-// names the realm its root does, so the selection settles on that surface exactly as the bare name
-// does and the claim above extracts. read through the hops only - the two negatives are the arms
-// that name a value instead of a surface: one that can be ABSENT (a live `?.` over an unbacked hop)
-// and one that carries an EFFECT, which the fold would drop with the arm
+// Plain navigation and effectful sequence arms still provide the realm's Map.
+// A live optional arm retains its selected value and throws if that value is absent.
 let c = 0;
 export const navArms = _nameMaybeFunction(_Map);
 export const navBothArms = _nameMaybeFunction(_Map);
-export const liveOptionalArm = _nameMaybeFunction((c ? null == _globalThis.window ? void 0 : _self : _globalThis).Map);
-export const seqArm = _nameMaybeFunction((c ? (c++, _self) : _globalThis).Map);
+export const liveOptionalArm = _nameMaybeFunction((_ref = c ? null == _globalThis.window ? void 0 : _self : _globalThis, _ref === _self ? _Map : _ref.Map));
+export const seqArm = _nameMaybeFunction((_ref2 = c ? (c++, _self) : _globalThis, _ref2 === _self ? _Map : _ref2.Map));
 export { c, e, held };

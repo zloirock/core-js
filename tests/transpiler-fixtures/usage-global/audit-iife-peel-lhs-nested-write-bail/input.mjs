@@ -1,7 +1,7 @@
-// the IIFE identity-peel bails on a param write hidden in a WRITE-TARGET subtree: an LHS
-// pattern DEFAULT value, an LHS computed member key, and an update-target computed key all
-// rebind the param before `return arg`, so the runtime receiver is not the call arg. a write
-// to a NON-param in the same positions and a plain param READ in a key keep the peel sound
+// Writes inside assignment targets prevent treating the result as the original argument.
+// Accepted limitation: the default write is not proven to discard the incoming Array.
+// This injects the full Array family despite no real constructor escape; the extra injection
+// is retained to avoid deeper flow analysis for this uncommon shape.
 let x;
 const viaLhsDefault = (arg => {
   ({ x = (arg = Promise) } = {});

@@ -4,29 +4,27 @@ import _Map from "@core-js/pure/actual/map/constructor";
 import _Number$MAX_SAFE_INTEGER from "@core-js/pure/actual/number/max-safe-integer";
 import _self from "@core-js/pure/actual/self";
 var _ref;
-// WHICH realm hop the collapse keeps is positional, not name-based. reading off the SOURCE ROOT a
-// hop pure cannot back is the environment probe and its `?.` is load-bearing; standing over a
-// ponyfill - a backed hop below it, or the leaf a collapse landed - the same hop is a read THROUGH
-// that ponyfill, which off-browser cannot answer it, so it folds onto the leaf with its `?.`. what
-// no position folds is a TERMINAL unbacked hop whose value the source itself reads: it rides off
-// the deepest ponyfill the run can hand it, keeping the slot a computed key keeps too
+// A realm hop folds according to the value its consumer observes. An environment
+// probe read by a kept store or a guard retains its slot over the backed root;
+// plain navigation through the run follows the realm-collapse rule. Terminal
+// values and computed-key effects remain observable in their original positions.
 let e = 0;
 let k;
 let v;
 
 // the probe reads off the root - guard kept, and the hop above it folds into the alternate
-export const probeKeptTailFolds = null == _globalThis.window ? void 0 : _self.noSuchStatic;
+export const probeKeptTailFolds = null == _globalThis.window ? void 0 : _self.window.noSuchStatic;
 export const probeKeptTailTerminal = null == _globalThis.window ? void 0 : _self;
 
 // ... the same over an opaque-but-proven root
 const proven = () => _globalThis;
-export const provenRootTailFolds = null == proven().window ? void 0 : _self.chrome;
+export const provenRootTailFolds = (null == proven().window ? void 0 : _self.window)?.chrome;
 
 // a hop BETWEEN two backed hops is read through as much as one above them
 export const stackedFolds = null == (v = _self) ? void 0 : _Number$MAX_SAFE_INTEGER;
 
-// a stored value lands the ponyfill the fold leaves behind, not a raw realm read off it
-export const storedFolds = null == (k = _self) ? void 0 : _Map.length;
+// An optional consumer observes the stored probe value, so the store retains window.
+export const storedFolds = null == (k = _self.window) ? void 0 : _Map.length;
 
 // ... and a harvested effect PREFIX does not revive the guard such a fold leaves behind: the
 // sequence hands its tail on, and that tail is the binding the substitution landed

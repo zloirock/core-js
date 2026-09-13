@@ -1,8 +1,6 @@
-// a DEAD `?.` names no probe: the value it tests is proven defined, so it is dead text and the run
-// renders exactly as its `?.`-less twin does - the nested guard over the run's own UNBACKED hop
-// included. read as THE probe, the dead `?.` stood the whole guard render down, and the fold that
-// took over dropped the environment read outright: the store then held the ponyfill where its twin
-// holds nothing off-engine
+// A dead optional on a proven realm root does not turn plain navigation into a host probe.
+// Stored constructor reads keep the native terminal value, while their known identity makes
+// the outer optional redundant. Bare, optional and proven-call roots agree.
 let w, t, i, n;
 export const deadRootOptional = (w = globalThis?.window.self.Array)?.from([1]);
 // the `?.`-less TWIN these rows are measured against - a dead `?.` may not change one byte

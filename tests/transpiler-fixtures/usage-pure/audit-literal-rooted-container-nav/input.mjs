@@ -1,11 +1,6 @@
-// a member nav whose chain starts at the container LITERAL itself folds into the receiver walk
-// exactly as one rooted at a NAME does: the walk descends the literal either way, so the keys in
-// front of the container are part of the path rather than a reason to stop. every root the walk can
-// stand on reaches - an object literal, an array literal, a class expression's statics, a
-// transparent sequence around one, and the literal read with no binding between it and the use.
-// the two negatives pin the boundary: an effect in front of the sequence leaves the nav unfoldable
-// in both flavors, while a slot this file REPLACED is method-aware like every other written-slot
-// consult - pure leaves the read native, global over-injects for it
+// Navigation through a literal resolves the same container as navigation through a name.
+// Object, array and class roots retain their global claims and sequence effects.
+// A fresh replacement removes the old realm candidate; its URL stays null.
 const obj = ({ h: { g: globalThis } }).h;
 hand(obj.g.Map);
 const box = ([{ g: globalThis }])[0];

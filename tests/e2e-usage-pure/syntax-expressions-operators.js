@@ -280,3 +280,35 @@ QUnit.test('wrapped write target: assignment survives, fresh receivers keep the 
   assert.same(arr.at, patched);
   assert.deepEqual([4, 5].at(-1), 5);
 });
+
+// A tag receives the strings array before its interpolations. Reads through an interpolated
+// namespace need its statics even when the body only names a parameter.
+QUnit.test('tagged arguments: known member reads receive their static', assert => {
+  function tag(strings, namespace) { return namespace.ownKeys({ value: 1 }); }
+  assert.deepEqual(tag`${ Reflect }`, ['value']);
+  assert.deepEqual(tag([''], Reflect), ['value']);
+  assert.deepEqual((function (strings, namespace) {
+    return namespace.ownKeys({ inline: 2 });
+  })`${ Reflect }`, ['inline']);
+});
+
+QUnit.test('tagged arguments: destructured and later arguments keep their positions', assert => {
+  function tag(strings, { ownKeys }) { return ownKeys({ pattern: 3 }); }
+  function later(strings, ignored, namespace) { return namespace.ownKeys({ later: 4 }); }
+  assert.deepEqual(tag`${ Reflect }`, ['pattern']);
+  assert.deepEqual(later`${ 0 }${ Reflect }`, ['later']);
+});
+
+QUnit.test('tagged arguments: mixed callers preserve the supplied receiver', assert => {
+  const events = [];
+  const custom = {
+    ownKeys(value) {
+      events.push(this === custom);
+      return [value.value + 1];
+    },
+  };
+  function read(strings, namespace) { return namespace.ownKeys({ value: 2 }); }
+  assert.deepEqual(read`${ Reflect }`, ['value']);
+  assert.deepEqual(read`${ custom }`, [3]);
+  assert.deepEqual(events, [true]);
+});
