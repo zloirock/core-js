@@ -23,8 +23,8 @@ export const seqKeyStoreRoot = (s = globalThis).self[(e++, 'window')].probe;
 export const reassignedKey = globalThis.self[reassigned].probe;
 export const dynamicKey = dyn => globalThis.self[dyn].probe;
 export const nonRealmKey = globalThis.self[chainedKey.length].probe;
-// ... and the same name decides the GUARD a stored probe nav earns: the hop is the environment probe
-// whichever key spells it, so the store keeps its test instead of reading an always-defined ponyfill
+// A plain middle hop collapses onto its backed leaf regardless of the key spelling.
+// The stored value is always defined, so the optional over it adds no guard.
 export const storedProbeDotted = (m = globalThis.window.self)?.Array.of(1);
 export const storedProbeBoundKey = (m2 = globalThis[litKey].self)?.Array.from([2]);
 export { e, m, m2, s };

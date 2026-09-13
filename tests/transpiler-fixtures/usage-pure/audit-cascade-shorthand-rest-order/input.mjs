@@ -1,6 +1,5 @@
-// the assignment-cascade order canon: a top-level aliased/shorthand binding prop's extraction
-// precedes the surviving residual even beside a REST sibling (the rest-forced demotion clause
-// diverged from the aliased control); nested-pattern props still follow the residual
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
 ({ Symbol, Array: { from }, ...rest } = globalThis);
 export const viaShorthandRest = [from([1]), rest];
 

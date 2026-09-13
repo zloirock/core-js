@@ -24,10 +24,11 @@ export const s = viaSymbol();
 var G = _globalThis;
 export const outer = _Array$from([1]);
 function viaCtor(flag) {
+  var _ref;
   if (flag) {
     var G = _globalThis;
   }
-  return G.Array.from([2]);
+  return _ref = G.Array, _ref === Array ? _Array$from([2]) : _ref.from([2]);
 }
 export const c = [viaCtor(true)];
 var M = _Map;

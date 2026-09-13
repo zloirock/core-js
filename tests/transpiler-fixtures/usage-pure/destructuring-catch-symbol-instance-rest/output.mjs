@@ -1,14 +1,11 @@
-import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
-import _includes from "@core-js/pure/actual/instance/includes";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
-try {} catch (_ref) {
-  let iter = _getIteratorMethod(_ref);
-  let includes = _includes(_ref);
-  let {
-    [_Symbol$iterator]: _unused,
-    includes: _unused2,
-    ...rest
-  } = _ref;
+// Object-rest keeps the affected catch pattern native, including its named method slots.
+// Independent reads and key/default expressions still receive their own polyfills.
+try {} catch ({
+  [_Symbol$iterator]: iter,
+  includes,
+  ...rest
+}) {
   iter();
   includes("x");
 }

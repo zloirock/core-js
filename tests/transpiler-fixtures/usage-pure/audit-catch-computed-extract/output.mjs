@@ -1,15 +1,11 @@
-import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
-// computed-key destructure in a catch clause: the well-known symbol key is preserved
-// verbatim in the rebuilt rest pattern so the extracted iterator helper still resolves
-// to the same key at runtime
+// Object-rest keeps the affected catch pattern native, including its named method slots.
+// Independent reads and key/default expressions still receive their own polyfills.
 try {
   risky();
-} catch (_ref) {
-  let iter = _getIteratorMethod(_ref);
-  let {
-    [_Symbol$iterator]: _unused,
-    ...rest
-  } = _ref;
+} catch ({
+  [_Symbol$iterator]: iter,
+  ...rest
+}) {
   use(iter, rest);
 }

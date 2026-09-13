@@ -1,13 +1,11 @@
-import _Array$from from "@core-js/pure/actual/array/from";
 import _Promise from "@core-js/pure/actual/promise/constructor";
-import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
-var from = _Array$from;
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
 var {
-  from: _unused,
-  ...r1
-} = Array;
-var resolve = _Promise$resolve;
-var {
-  resolve: _unused2,
-  ...r2
-} = _Promise;
+    from,
+    ...r1
+  } = Array,
+  {
+    resolve,
+    ...r2
+  } = _Promise;

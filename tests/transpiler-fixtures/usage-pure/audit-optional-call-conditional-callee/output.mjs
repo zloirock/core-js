@@ -20,7 +20,9 @@ export const condCalleeWellKnown = null == condFn?.() ? void 0 : _Symbol$iterato
 export const condCalleeDeepHop = null == condFn?.() ? void 0 : _Array$of(13);
 export const {
   of: condCalleeDestructured
-} = condFn?.()?.Array ?? {};
+} = (null == condFn?.() ? void 0 : {
+  of: _Array$of
+}) ?? {};
 export const condCalleePlainCall = _globalThis.setTimeout ? null == condFn() ? void 0 : _Array$of(14) : null;
 export const condCalleeInstanceMemo = null == (_ref = condFn?.()) ? void 0 : _atMaybeArray(_ref.Array.prototype).call([7], 0);
 export const condCalleeDelete = delete (null == condFn?.() ? void 0 : _Map)?.groupBy;

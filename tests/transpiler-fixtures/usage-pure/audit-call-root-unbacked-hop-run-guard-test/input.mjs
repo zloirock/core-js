@@ -1,7 +1,6 @@
-// a MINTED guard whose TEST holds a call-rooted run of UNBACKED realm hops (`window.window` -
-// nothing pure can land on) rides the shared plan's swap: the proven effect-free call folds onto
-// the root ponyfill and the hops stay where the source wrote them. reading the test's own nav as
-// a source read a second time left the raw call standing where the other emitter had swapped it
+// A plain proven call-rooted run reaching backed self lands on that ponyfill.
+// A live optional inside the run retains its probe, and an opaque root keeps its source navigation.
+// Preserved call arguments must still receive their own polyfills and run exactly once.
 const f = () => globalThis;
 export const plainRun = f().window.window.self?.Array.of(1).at(0);
 export const deadOptionalRun = f().window.window?.self?.Array.of(2).at(0);

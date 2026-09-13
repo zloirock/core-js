@@ -5,35 +5,32 @@ import _includes from "@core-js/pure/actual/instance/includes";
 // a receiver peeled from under an SE-bearing sequence prefix must not be read ahead of the
 // prefix. TOP-LEVEL init: the whole-init memo captures prefix + receiver in source order
 var _ref = (se1(), arr),
+  _ref2 = _ref,
+  at = null == _ref2 ? _ref2[""] : (k1(), _at(_ref2)),
   {
-    [(k1(), 'at')]: _unused,
     other
-  } = _ref,
-  at = _at(_ref);
-// NESTED fragment (extract would run before the residual evaluates the prefix): bail to native
-const _ref2 = (se2(), arr2);
-const flat = _flatMaybeArray(_ref2);
-const {
-  y: {
-    [(k2(), 'flat')]: _unused2
+  } = _ref;
+// A nested fragment captures the initializer before any key effect or claimed read.
+const _ref4 = {
+    y: (se2(), arr2),
+    q: 1
   },
-  q
-} = {
-  y: _ref2,
-  q: 1
-};
-const _ref3 = (se3(), arr3);
-const inc = _includes(_ref3);
-const {
-  z: {
-    includes: _unused3
-  },
-  w
-} = {
-  z: _ref3,
+  {
+    y: _ref3
+  } = _ref4,
+  _ref5 = _ref3,
+  flat = null == _ref5 ? _ref5[""] : (k2(), _flatMaybeArray(_ref5)),
+  {
+    q
+  } = _ref4;
+const _ref6 = {
+  z: (se3(), arr3),
   w: 1
 };
-// assignment-overwrite reads the receiver AFTER the residual ran the prefix in place: the
+const inc = _includes(_ref6.z);
+const {
+  w
+} = _ref6; // assignment-overwrite reads the receiver AFTER the residual ran the prefix in place: the
 // polyfill overwrite survives
 let m;
 ({

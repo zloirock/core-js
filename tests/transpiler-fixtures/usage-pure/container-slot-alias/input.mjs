@@ -9,8 +9,8 @@
 // ran at the declaration; a prefix that WRITES the slot is a write the census records like any other.
 // what still deopts: a slot written through the alias's container, a reassigned
 // alias, an alias handed to a call, a wrapper handed to a call, a mutated static through the alias.
-// the census is flow-insensitive per binding - an escape or a write anywhere reaches every read of
-// that binding - so each deopting row owns a container of its own, declared in a block of its own:
+// uncertain writes and escapes remain conservative, so each deopting row owns a container
+// declared in a block of its own:
 // beside the positive rows it would deopt them all and lock the instance dispatcher as the answer
 const r = { w: Object, y: [1] };
 const other = {};
@@ -89,6 +89,7 @@ out.push(viaConstValues, viaLowered, viaLoweredRoot, viaLoweredWrapper, viaChain
 {
   const source = { w: Object };
   const wrapperWritten = { k: source };
+  // This write definitely replaces source.w; only instance dispatch remains, without an Object guard.
   wrapperWritten.k.w = Map;
   const { w: { values: viaWrapperWritten } } = source;
   out.push(viaWrapperWritten);

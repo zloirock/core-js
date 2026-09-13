@@ -1,6 +1,7 @@
 import _Map from "@core-js/pure/actual/map/constructor";
-import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Set from "@core-js/pure/actual/set/constructor";
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
 // A side-effect-prefixed pure-constructor proxy-global operand in a LOGICAL receiver: the leaf lookup
 // must peel the SE tail to recognise the pure ctor, then leave the operand verbatim so the natural
 // visitor whole-swaps its tail (`(effect(), globalThis.self.Map)` -> `(effect(), _Map)`), preserving
@@ -8,9 +9,8 @@ import _Set from "@core-js/pure/actual/set/constructor";
 function effect() {
   return 0;
 }
-const groupBy = _Map$groupBy;
 const {
-  groupBy: _unused,
+  groupBy,
   ...rest
 } = (effect(), _Map) || _Set;
 groupBy([], item => item);

@@ -4,7 +4,7 @@ import {
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { resolveImportPath } from '@core-js/polyfill-provider/helpers/path-normalize';
 import { sortByPolyfillOrder } from '@core-js/polyfill-provider/plugin-options/inject';
-import { bareImport, bareRequire, expressionStatement } from './builders.js';
+import { bareImport, bareRequire, expressionStatement } from '@core-js/polyfill-provider/render';
 
 // the application of the entry plan `planEntries` produced: dispositions become body
 // surgery - a removed entry vanishes (its observable indirect-require prefix survives as

@@ -1,8 +1,6 @@
-import _at from "@core-js/pure/actual/instance/at";
-// a container's inner slot reads empty for two reasons that print alike: nothing was WRITTEN
-// (`Array` is `Array<any>` and matches any inner), or an argument was written and no Type form
-// carries it - `{ a: string }` has none. Read as agreement, two such absences pick the TRUE branch
-// tsc answers FALSE, keying an array-only `at` to a value the false branch types as a string
+import _atMaybeString from "@core-js/pure/actual/string/instance/at";
+// The written element shapes differ on a required field, so the conditional is false.
+// Retaining their complete member maps selects string.at despite the absent inner dispatch type.
 type Sel<T> = T extends Array<{
   b: number;
 }> ? number[] : string;
@@ -10,4 +8,4 @@ declare const v: Array<{
   a: string;
 }>;
 declare const r: Sel<typeof v>;
-_at(r).call(r, 0);
+_atMaybeString(r).call(r, 0);

@@ -1,11 +1,10 @@
-import _Array$from from "@core-js/pure/actual/array/from";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _findLastIndexMaybeArray from "@core-js/pure/actual/array/instance/find-last-index";
 import _Array$of from "@core-js/pure/actual/array/of";
-// a whole-statement rebuild replaces the subtree its own siblings anchored insertions in,
-// and an insertion aimed at the replaced subtree is lost. both channels that place one
-// have to route into the rebuild instead: the SE-computed-key inline default lands in the residual
-// prop it rewrites, the receiver memo becomes a LEADING declarator of its slot
+var _ref;
+// Rebuilding an assignment or loop header must preserve every sibling binding and inner claim.
+// Each receiver is captured before its computed key, followed by the selected property read;
+// later declarators can observe the completed bindings.
 const obj = {
   recv: [1]
 };
@@ -16,11 +15,8 @@ let done = false;
 function eff() {
   return 0;
 }
-from = _Array$from;
-({
-  [(e++, 'of')]: o = _Array$of
-} = Array);
-for (const _ref = obj.recv, a = _atMaybeArray(_ref), {
-    [(eff(), 'findLastIndex')]: _unused
-  } = _ref, fli = _findLastIndexMaybeArray(_ref); !done;) done = [fli, a];
+_ref = Array, null == _ref ? _ref[""] : (e++, o = _Array$of), {
+  from
+} = _ref, _ref;
+for (const _ref2 = obj.recv, _ref3 = _ref2, fli = null == _ref3 ? _ref3[""] : (eff(), _findLastIndexMaybeArray(_ref3)), a = _atMaybeArray(_ref2); !done;) done = [fli, a];
 export const r = [from, o, done];

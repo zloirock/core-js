@@ -1,6 +1,7 @@
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Map from "@core-js/pure/actual/map/constructor";
-import _Map$groupBy from "@core-js/pure/actual/map/group-by";
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
 // A const-aliased proxy-global whole-CONSTRUCTOR receiver behind a side-effect prefix AND a
 // redundant `.self` hop: the alias-aware leaf lookup must recognise the Map constructor so the
 // receiver resolves to the pure `_Map`, instead of the proxy-root fallback collapsing
@@ -10,10 +11,8 @@ function effect() {
   return 0;
 }
 const g = _globalThis;
-effect();
-const groupBy = _Map$groupBy;
 const {
-  groupBy: _unused,
+  groupBy,
   ...rest
-} = _Map;
+} = (effect(), _Map);
 groupBy([], item => item);

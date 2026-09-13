@@ -1,21 +1,16 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-// A consumed shorthand binding in a nested destructure is body-extracted to a const, so its slot
-// must be neutralized to a sentinel that KEEPS the original key (`{ at: _unused }`), not a shorthand
-// `{ _unused }` (which reads `m._unused` and skips the real `m.at`). the surviving computed-key
-// sibling memoizes the constant-literal receiver into one `_ref` so the extract does not re-emit it.
+// Capture the literal receiver once, select the pure at method from its m value, then evaluate the
+// computed sibling key. Both source bindings and their property order are preserved.
 function key() {
   return 'k';
 }
-const _ref = [1];
-const at = _atMaybeArray(_ref);
-const {
-  m: {
-    at: _unused
-  },
-  [key()]: picked
-} = {
-  m: _ref,
+const _ref = {
+  m: [1],
   k: 2
 };
+const at = _atMaybeArray(_ref.m);
+const {
+  [key()]: picked
+} = _ref;
 at();
 export const out = picked;

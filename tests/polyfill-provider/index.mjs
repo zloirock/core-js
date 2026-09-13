@@ -5,6 +5,18 @@
 // added here and left out of the list is run by nothing and reported by nothing
 import { fileURLToPath } from 'node:url';
 import './resolve-node-type.mjs';
+import './class-flow-order.mjs';
+import './container-navigation-opaque-values.mjs';
+import './container-alias-alternatives.mjs';
+import './container-wrapper-captures.mjs';
+import './reassigned-alias-lexical-scopes.mjs';
+import './kept-container-slot-values.mjs';
+import './guarded-container-receiver-candidates.mjs';
+import './guarded-alias-receiver-candidates.mjs';
+import './destructure-guarded-tdz.mjs';
+import './guarded-destructure-receiver-patterns.mjs';
+import './retained-getter-locals.mjs';
+import './selected-realm-receivers.mjs';
 import './destructure-host-shape.mjs';
 import './nested-receiver-base.mjs';
 import './array-wrapper-drop.mjs';
@@ -12,6 +24,7 @@ import './existing-imports.mjs';
 import './synth-wks-keys.mjs';
 import './destructure-collapse.mjs';
 import './fallback-branches.mjs';
+import './parameter-call-sites.mjs';
 import './guard-canon.mjs';
 import './wrapper-peels.mjs';
 import './detect-syntax.mjs';

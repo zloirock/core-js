@@ -10,69 +10,70 @@ import _Math$sign from "@core-js/pure/actual/math/sign";
 import _Math$trunc from "@core-js/pure/actual/math/trunc";
 import _Object$assign from "@core-js/pure/actual/object/assign";
 import _Object$entries from "@core-js/pure/actual/object/entries";
-import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 import _Object$groupBy from "@core-js/pure/actual/object/group-by";
 import _Object$hasOwn from "@core-js/pure/actual/object/has-own";
 import _Object$keys from "@core-js/pure/actual/object/keys";
 import _Object$values from "@core-js/pure/actual/object/values";
-// a HOP whose key carries an effect keeps its level the way a rest sibling does: the hop retires to
-// a sentinel, so the key runs exactly once where the source wrote it, and the claims below extract
-// off the slot the folded key names - the flat effectful key's own shape, one level up. one static
-// per row, so a row's extraction is attributable to its own host
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
 const order = [];
 const eff = tag => (_pushMaybeArray(order).call(order, tag), tag);
 const viaStatic = _Array$from;
 const {
   [(eff('static'), 'Array')]: _unused
 } = _globalThis;
-const viaNav = _valuesMaybeArray(_globalThis.Array.prototype);
-const {
-  [(eff('nav'), 'Array')]: _unused2
-} = _globalThis;
+const _ref2 = _globalThis,
+  {
+    [(eff('nav'), 'Array')]: _ref
+  } = null == _ref2 ? _ref2[""] : _ref2,
+  {
+    prototype: _ref3
+  } = _ref,
+  _ref4 = _ref3,
+  viaNav = null == _ref4 ? _ref4[""] : _valuesMaybeArray(_ref4);
 const viaLiteral = _Array$of;
 const {
-  [(eff('literal'), 'w')]: _unused3
+  [(eff('literal'), 'w')]: _unused2
 } = {
   w: Array
 };
-const viaAliasSlot = _at(src);
-const {
-  [(eff('alias'), 'w')]: {
-    at: _unused4
-  }
-} = {
-  w: src
-};
-// an instance leaf that reads its SLOT keeps its own sentinel inside the hop (the memo channel's
-// shape); one that reads a built-in surface lets the hop retire whole
-const _ref = [1];
-const viaLiteralSlot = _includesMaybeArray(_ref);
-const {
-  [(eff('memo'), 'w')]: {
-    includes: _unused5
-  }
-} = {
-  w: _ref
-};
+const _ref6 = {
+    w: src
+  },
+  {
+    [(eff('alias'), 'w')]: _ref5
+  } = null == _ref6 ? _ref6[""] : _ref6,
+  _ref7 = _ref5,
+  viaAliasSlot = null == _ref7 ? _ref7[""] : _at(_ref7);
+// An instance leaf uses the captured selected slot, so the hop and method are not reread.
+const _ref9 = {
+    w: [1]
+  },
+  {
+    [(eff('memo'), 'w')]: _ref8
+  } = null == _ref9 ? _ref9[""] : _ref9,
+  _ref10 = _ref8,
+  viaLiteralSlot = null == _ref10 ? _ref10[""] : _includesMaybeArray(_ref10);
 const viaSibling = _Object$entries;
 const {
-  [(eff('sibling'), 'Object')]: _unused6,
+  [(eff('sibling'), 'Object')]: _unused3,
   z
 } = _globalThis;
 const viaPairA = _Object$keys;
 const viaPairB = _Object$values;
 const {
-  [(eff('pair'), 'Object')]: _unused7
+  [(eff('pair'), 'Object')]: _unused4
 } = _globalThis;
-const viaRest = _Object$fromEntries;
 const {
-  [(eff('rest'), 'Object')]: _unused8,
+  [(eff('rest'), 'Object')]: {
+    fromEntries: viaRest
+  },
   ...rest
 } = _globalThis;
 let viaAssign;
-var _unused9;
+var _unused5;
 ({
-  [(eff('assign'), 'Object')]: _unused9
+  [(eff('assign'), 'Object')]: _unused5
 } = _globalThis);
 viaAssign = _Object$groupBy;
 function viaParam({
@@ -88,33 +89,36 @@ function viaParam({
 }
 const viaProxyHop = _Math$trunc;
 const {
-  [(eff('proxy'), 'self')]: _unused10
+  [(eff('proxy'), 'self')]: _unused6
 } = _globalThis;
 const viaDeep = _Math$sign;
 const {
   a: {
-    [(eff('deep'), 'Math')]: _unused11
+    [(eff('deep'), 'Math')]: _unused7
   }
 } = {
   a: _globalThis
 };
 const viaDefault = _Object$assign;
 const {
-  [(eff('default'), 'Object')]: _unused12
+  [(eff('default'), 'Object')]: _unused8
 } = _globalThis;
-const viaSymbol = _getIteratorMethod(_globalThis.Array);
-const {
-  [(eff('symbol'), 'Array')]: _unused13
-} = _globalThis;
+const _ref12 = _globalThis,
+  {
+    [(eff('symbol'), 'Array')]: _ref11
+  } = null == _ref12 ? _ref12[""] : _ref12,
+  _ref13 = _ref11,
+  viaSymbol = null == _ref13 ? _ref13[""] : _getIteratorMethod(_ref13);
 export { order, viaStatic, viaNav, viaLiteral, viaAliasSlot, viaLiteralSlot, viaSibling, z, viaPairA, viaPairB, viaRest, rest, viaAssign, viaParam, viaProxyHop, viaDeep, viaDefault, viaSymbol };
 
-// NEGATIVE: an effectful slot beside an effectful hop key has two effects to order and no memo
-// that keeps the level - the pattern stays native on both legs
-const {
-  [(eff('call'), 'w')]: {
-    at: viaEffectfulSlot
-  }
-} = {
-  w: make()
-};
+// An effectful receiver slot is evaluated once before its hop key; the selected instance
+// method is then read once from that captured slot.
+const _ref15 = {
+    w: make()
+  },
+  {
+    [(eff('call'), 'w')]: _ref14
+  } = null == _ref15 ? _ref15[""] : _ref15,
+  _ref16 = _ref14,
+  viaEffectfulSlot = null == _ref16 ? _ref16[""] : _at(_ref16);
 export { viaEffectfulSlot };

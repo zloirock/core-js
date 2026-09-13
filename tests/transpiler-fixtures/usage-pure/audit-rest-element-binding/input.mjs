@@ -1,5 +1,4 @@
-// `const { from, ...Map } = Array` - rest binding named `Map` collects remaining
-// own-props of `Array`, not the global `Map`. So `Map.prototype.get` stays
-// local-bound and is not polyfilled.
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
 const { from, ...Map } = Array;
 Map.prototype.get;

@@ -1,10 +1,6 @@
-// a CONSTANT-literal receiver with a side-effecting key on SIBLING-declarator hosts
-// (multi-declarator / for-init): the receiver memo routes through the sibling-aware channel and
-// plants as a preceding comma declarator at the source slot, so the extraction reads a declared
-// ref. the standalone host keeps the hoisted-statement memo (control).
-// sidecar: on the standalone control the emitters agree on values but not on shape - unplugin
-// hoists the memo and the effect-free extraction as preceding statements, babel appends a
-// trailing comma declarator after the kept-key residual
+// Literal receivers with computed keys preserve receiver, key, property, and sibling order.
+// Ordinary and for-init var declarations keep the entire sequence in their source slot.
+// Each key effect and property read runs once.
 let k = 0;
 var { [(k++, 'at')]: a, other } = [7, 8], z = 1;
 for (var { [(k++, 'flat')]: f, other2 } = [[1], 2], i = 0; i < 1; i++) console.log(f);

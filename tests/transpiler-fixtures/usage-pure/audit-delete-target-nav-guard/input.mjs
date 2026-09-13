@@ -6,10 +6,7 @@
 // it keeps neither the source tail nor the raw stand-down a leading effect otherwise earns - spelling
 // both cost first a doubled invocation, then the polyfill entirely.
 // one constructor per role: a deleted slot reads as MUTATED file-wide and cancels its own ponyfill.
-// the memoized instance tail carries a sidecar: the run under a dispatch is an ordinary READ, so
-// babel lands it on the deepest hop pure can back (`_self.Array`), while unplugin settles its
-// delete-fold verdict before the dispatch is visible and lands the run's root (`_globalThis.Array`).
-// both spell the same realm object - the divergence is which binding names it, not what it reads.
+// The run below an instance dispatch is an ordinary read and lands on the deepest backed hop.
 let n = 0;
 function dhRoot() { return globalThis; }
 export const guardedTarget = delete (globalThis.window.self?.Promise);

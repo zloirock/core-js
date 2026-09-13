@@ -1,0 +1,23 @@
+import "core-js/modules/es.object.to-string";
+import "core-js/modules/es.array.from";
+import "core-js/modules/es.string.iterator";
+// The assigned literal captures a block-local object sharing the outer object's name.
+// Its nested write affects the inner object alone; the outer typed static still injects.
+const original = {
+  x: Array
+};
+let alias = {
+  x: Object
+};
+{
+  const original = {
+    x: Array
+  };
+  alias = {
+    box: original
+  };
+  alias.box.x = {
+    from: () => 'custom'
+  };
+}
+original.x.from([1]);

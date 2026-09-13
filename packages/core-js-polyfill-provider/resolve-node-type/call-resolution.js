@@ -39,7 +39,6 @@ import {
   isObjectTypeLiteral,
   isTypeReferenceNode,
   isUnionType,
-  peelTSParenthesized,
   unionAnnotationOf,
   typeRefName,
   TS_NUMBER_TYPE,
@@ -47,8 +46,12 @@ import {
 } from './ast-shapes.js';
 import { isAmbientFunctionNode } from './name-resolution.js';
 import {
-  cleanDestructureAliasWrites, getCallSiteTypeArgs, getTypeArgs, isCleanDestructureAliasBinding,
+  cleanDestructureAliasWrites,
+  getCallSiteTypeArgs,
+  getTypeArgs,
+  isCleanDestructureAliasBinding,
   isGuardedAliasingWrite,
+  peelTSParenthesized,
 } from '../helpers/ast-patterns.js';
 
 const { hasOwn } = Object;

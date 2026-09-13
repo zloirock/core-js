@@ -1,15 +1,16 @@
+import _Array$of from "@core-js/pure/actual/array/of";
 import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
-var _ref, _ref2;
-// an SE-bearing hop key over an OPAQUE root: no proxy-global identifier roots this nav, so nothing
-// downstream re-drives a claim standing down here and the peeled-SE route owes the guard itself.
-// the route asked instead whether the whole RECEIVER's value can be undefined, which answers for
-// its BACKED leaf while the `?.` below still tests the environment - the claim was turned away and
-// the chain shipped raw, with no `Function.prototype.name` ponyfill on a floor that lacks it
+var _ref, _ref2, _ref3;
+// A live optional over an opaque root or an excluded realm root keeps its null guard.
+// The function-name read still needs its ponyfill, and every key effect runs once.
+// A plain key has the same guard obligation as an effect-bearing key.
 let c = 0;
 function probeHost() {
   return globalThis.window;
 }
 export const opaqueRootSeKey = null == (_ref = probeHost().window[c++, 'window']) ? void 0 : _nameMaybeFunction(_ref.Array);
-// NEGATIVE: a proxy-global root files a claim of its own, and the run folds onto it
-export const globalRootSeKey = (_ref2 = globalThis.window[c++, 'window'].window.Array, _nameMaybeFunction(_ref2));
+export const globalRootSeKey = null == (_ref2 = globalThis.window[c++, 'window']) ? void 0 : _nameMaybeFunction(_ref2.Array);
+export const globalRootPlainKey = null == (_ref3 = globalThis.window.window) ? void 0 : _nameMaybeFunction(_ref3.Array);
+export const globalRootSeStatic = null == globalThis.window[c++, 'window'] ? void 0 : _Array$of(5);
+export const globalRootPlainStatic = null == globalThis.window.window ? void 0 : _Array$of(5);
 export { c };

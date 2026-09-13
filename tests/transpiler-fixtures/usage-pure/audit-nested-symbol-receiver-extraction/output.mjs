@@ -27,11 +27,11 @@ export { take, viaMap };
 
 // a sibling binding keeps the PATTERN alive, but not the hop: the leaf leaves and the emptied
 // hop prunes with it, so the sibling reads its own key and nothing reads `inner` twice
-const kept = _getIteratorMethod(obj.inner);
+const _ref = obj;
+const kept = _getIteratorMethod(_ref.inner);
 const {
   keep
-} = obj;
-// NEGATIVE: a computed hop key cannot be walked - the chain is unresolvable
+} = _ref; // NEGATIVE: a computed hop key cannot be walked - the chain is unresolvable
 const {
   [k]: {
     [_Symbol$iterator]: viaComputed

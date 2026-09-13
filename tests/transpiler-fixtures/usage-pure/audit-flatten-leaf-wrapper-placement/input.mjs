@@ -1,20 +1,13 @@
-// an array WRAPPER is a host of its own for the leaf flatten: the twin lives in the literal's
-// ELEMENT, so the nav goes there and the pattern takes the leaf. that placement moves the READ to
-// where the literal builds, so it holds only while nothing stands between - and the DISPATCHER these
-// rows get is the one a flat twin of the same slot gets, since the element is reached through a
-// binding and the slot below it folds like any other binding's
+// A nested instance read through an array wrapper shares its selected slot with surviving
+// leaf siblings. The method keeps the same receiver-family narrowing as the flat spelling.
 const box = { y: [1, [2]] };
 function effect() { return 1; }
 const wrapped = (function () {
   const [{ y: { at, other } }] = [box];
   return [at, other];
 })();
-// ... and where something DOES stand between - a neighbour element carrying an effect, or a
-// declarator ahead of this one - the twin TRAILS the residual instead: the literal builds whole, the
-// emptied pattern coerces the element, and the read happens after both, where the source performs
-// it. an emptied residual holding no effects goes entirely, since the twin reads through the same
-// element and coerces it just the same - and a declarator binding NOTHING beside one that binds is
-// a shape `@babel/plugin-transform-destructuring` lowers wrong, dropping the sibling's binding
+// An effectful neighbor element or leading declarator must finish before the nested read.
+// The wrapper's elements are evaluated once, and surviving bindings keep their values.
 const wrappedBesideAnEffect = (function () {
   const [{ y: { at, other } }, zn] = [box, effect()];
   return [at, other, zn];
@@ -23,9 +16,8 @@ const wrappedAfterAnEffect = (function () {
   const zLead = effect(), [{ y: { at, other } }] = [box];
   return [zLead, at, other];
 })();
-// ... and the hosts a TRAILING twin cannot reach keep the claim native rather than reorder the read:
-// a loop HEAD takes declarators and an unbraced slot takes one statement, so neither has a place to
-// put a statement after the residual
+// A loop header can capture wrapper elements and lower the following bindings in the same
+// declaration. The bodyless variable declaration remains a separate native boundary.
 const wrappedInLoopHead = (function () {
   let out;
   for (const [{ y: { at, other } }, zn] = [box, effect()]; !out;) out = [at, other, zn];

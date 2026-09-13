@@ -3,7 +3,7 @@ import _Map from "@core-js/pure/actual/map/constructor";
 import _self from "@core-js/pure/actual/self";
 // the RIDELESS init spelling stores through the same root-hook channel as the statement form
 let k14;
-export const viaInitStored = k14 = _self;
+export const viaInitStored = k14 = _self.window;
 
 // an ALIAS-rooted stored value collapses off the root's visit like the ident-rooted twin
 const galias = _globalThis;

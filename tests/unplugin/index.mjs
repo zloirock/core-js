@@ -1,7 +1,6 @@
 import { parseSync } from 'oxc-parser';
 import { LEAST_UPPER_BOUND, TraceMap, originalPositionFor } from '@jridgewell/trace-mapping';
 import createPlugin from '../../packages/core-js-unplugin/internals/plugin.js';
-import { liftSfcLangSuffix } from '../../packages/core-js-unplugin/internals/plugin-helpers.js';
 import { strip } from './structural.mjs';
 import { extractPluginOptions, inferTestId, loadBabelOptions, normalizeMachinePaths, shouldSkip } from './fixture-lang.mjs';
 import { fileURLToPath } from 'node:url';
@@ -13,6 +12,7 @@ import {
   runShards,
   shardSlice,
 } from '../babel-plugin/fixture-shards.mjs';
+import { liftSfcLangSuffix } from '../../packages/core-js-unplugin/internals/sfc-shapes.js';
 
 const { pathExists, readFile, rm, writeFile } = fs;
 const { basename, join } = path;
@@ -395,7 +395,10 @@ async function compareMainOutput({ directory, actual, babelOutput, babelOptions,
     await writeIfChanged(directory, unpluginOutputFile, agrees ? null : actual);
     return;
   }
-  if (agrees) return pass();
+  if (agrees) {
+    if (hasUnpluginOutput) return fail(directory, 'stale output-unplugin.mjs: current output agrees with the babel baseline');
+    return pass();
+  }
   if (hasUnpluginOutput) return compareStrict(directory, actual, unpluginOutputFile);
   fail(directory, 'differs from the babel baseline (structurally, or by import set on a loose lane)',
     firstDiff(actual, babelOutput));

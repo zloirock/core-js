@@ -1,8 +1,6 @@
 import _fillMaybeArray from "@core-js/pure/actual/array/instance/fill";
-import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
 import _findLastIndexMaybeArray from "@core-js/pure/actual/array/instance/find-last-index";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
-import _flatMapMaybeArray from "@core-js/pure/actual/array/instance/flat-map";
 import _toReversedMaybeArray from "@core-js/pure/actual/array/instance/to-reversed";
 import _toSortedMaybeArray from "@core-js/pure/actual/array/instance/to-sorted";
 import _toSplicedMaybeArray from "@core-js/pure/actual/array/instance/to-spliced";
@@ -14,149 +12,124 @@ import _entries from "@core-js/pure/actual/instance/entries";
 import _includes from "@core-js/pure/actual/instance/includes";
 import _keys from "@core-js/pure/actual/instance/keys";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
-// a side-effecting computed key in a catch param extracts the dispatcher binding while the
-// key survives in the residual (effect once, in order); a user default on an instance leaf
-// stays LIVE and guarded AFTER the residual (the dispatcher may return undefined on a foreign
-// receiver, and native fires the default after the key's effect)
+// Object-rest keeps the affected catch pattern native, including its named method slots.
+// Independent reads and key/default expressions still receive their own polyfills.
 try {
   risky();
 } catch (_ref) {
-  let v = _at(_ref);
-  let {
-    [(e1(), 'at')]: _unused
-  } = _ref;
+  let _ref2 = _ref,
+    v = null == _ref2 ? _ref2[""] : (e1(), _at(_ref2));
   console.log(typeof v);
 }
 try {
   risky();
-} catch (_ref2) {
-  let f = _flatMaybeArray(_ref2);
-  let {
-    [(e2(), 'flat')]: _unused2,
-    message
-  } = _ref2;
+} catch (_ref3) {
+  let _ref4 = _ref3,
+    _ref5 = _ref4,
+    f = null == _ref5 ? _ref5[""] : (e2(), _flatMaybeArray(_ref5)),
+    {
+      message
+    } = _ref4;
   console.log(typeof f, message);
 }
 try {
   risky();
-} catch (_ref3) {
-  let {
-    [(e3(), 'includes')]: _unused3
-  } = _ref3;
-  let _ref4,
-    i = (_ref4 = _includes(_ref3)) === void 0 ? dflt() : _ref4;
+} catch (_ref6) {
+  var _ref8;
+  let _ref7 = _ref6,
+    i = null == _ref7 ? _ref7[""] : (e3(), (_ref8 = _includes(_ref7)) === void 0 ? dflt() : _ref8);
   console.log(typeof i);
 }
 try {
   risky();
-} catch (_ref5) {
-  let m = _flatMapMaybeArray(_ref5);
-  let {
-    [(e4(), 'flatMap')]: _unused4,
-    ...rest
-  } = _ref5;
+} catch ({
+  [(e4(), 'flatMap')]: m,
+  ...rest
+}) {
   console.log(typeof m, rest);
 }
-// plus-fold computed key routes through the same SE gate as a sequence key
-try {
-  risky();
-} catch (_ref6) {
-  let r = _toReversedMaybeArray(_ref6);
-  let {
-    [(e5(), 'toRevers') + 'ed']: _unused5
-  } = _ref6;
-  console.log(typeof r);
-}
-// multi-prop catch: the guarded default's segment flushes BEFORE its extraction line, so
-// the second key's effect stays after the first default (native per-prop order)
-try {
-  risky();
-} catch (_ref7) {
-  let {
-    [(e6(), 'toSorted')]: _unused6
-  } = _ref7;
-  let _ref8,
-    ts = (_ref8 = _toSortedMaybeArray(_ref7)) === void 0 ? dflt2() : _ref8;
-  let tsp = _toSplicedMaybeArray(_ref7);
-  let {
-    [(e7(), 'toSpliced')]: _unused7
-  } = _ref7;
-  console.log(typeof ts, typeof tsp);
-}
-// under REST the pattern stays whole, and the deferred guarded default lands AFTER the
-// rebuilt pattern - the kept key's effect still precedes the default
+// A concatenated constant key retains its effect just like a sequence key.
 try {
   risky();
 } catch (_ref9) {
-  let {
-    [(e8(), 'findLast')]: _unused8,
-    ...restA
-  } = _ref9;
-  let _ref10,
-    fnl = (_ref10 = _findLastMaybeArray(_ref9)) === void 0 ? dflt3() : _ref10;
-  console.log(typeof fnl, restA);
+  let _ref10 = _ref9,
+    r = null == _ref10 ? _ref10[""] : ((e5(), 'toRevers') + 'ed', _toReversedMaybeArray(_ref10));
+  console.log(typeof r);
 }
-
-// both props defaulted, no rest: per-prop segments (key, guard, key, guard)
+// In a multi-property catch pattern, the first default runs before the second key.
 try {
   risky();
 } catch (_ref11) {
-  let {
-    [(e9(), 'findLastIndex')]: _unused9
-  } = _ref11;
-  let _ref12,
-    fli = (_ref12 = _findLastIndexMaybeArray(_ref11)) === void 0 ? dflt4() : _ref12;
-  let {
-    [(e10(), 'with')]: _unused10
-  } = _ref11;
-  let _ref13,
-    w10 = (_ref13 = _withMaybeArray(_ref11)) === void 0 ? dflt5() : _ref13;
-  console.log(fli, w10);
+  var _ref14;
+  let _ref12 = _ref11,
+    _ref13 = _ref12,
+    ts = null == _ref13 ? _ref13[""] : (e6(), (_ref14 = _toSortedMaybeArray(_ref13)) === void 0 ? dflt2() : _ref14),
+    _ref15 = _ref12,
+    tsp = null == _ref15 ? _ref15[""] : (e7(), _toSplicedMaybeArray(_ref15));
+  console.log(typeof ts, typeof tsp);
 }
-
-// a plain (non-computed) key with a default guards through the relocated per-prop channel
 try {
   risky();
-} catch (_ref14) {
-  let _ref15,
-    en = (_ref15 = _entries(_ref14)) === void 0 ? dflt6() : _ref15;
-  console.log(en);
+} catch ({
+  [(e8(), 'findLast')]: fnl = dflt3(),
+  ...restA
+}) {
+  console.log(typeof fnl, restA);
 }
 
-// a non-entry prop between two entries joins the segment before the guard
+// Two defaulted properties retain key, read, default order independently.
 try {
   risky();
 } catch (_ref16) {
-  let {
-    [(e11(), 'keys')]: _unused11
-  } = _ref16;
-  let _ref17,
-    ks = (_ref17 = _keys(_ref16)) === void 0 ? dflt7() : _ref17;
-  let fi = _fillMaybeArray(_ref16);
-  let {
-    message,
-    [(e12(), 'fill')]: _unused12
-  } = _ref16;
+  var _ref19, _ref21;
+  let _ref17 = _ref16,
+    _ref18 = _ref17,
+    fli = null == _ref18 ? _ref18[""] : (e9(), (_ref19 = _findLastIndexMaybeArray(_ref18)) === void 0 ? dflt4() : _ref19),
+    _ref20 = _ref17,
+    w10 = null == _ref20 ? _ref20[""] : (e10(), (_ref21 = _withMaybeArray(_ref20)) === void 0 ? dflt5() : _ref21);
+  console.log(fli, w10);
+}
+
+// A plain key also keeps its default lazy when the selected instance value is undefined.
+try {
+  risky();
+} catch (_ref22) {
+  let _ref23,
+    en = (_ref23 = _entries(_ref22)) === void 0 ? dflt6() : _ref23;
+  console.log(en);
+}
+
+// An ordinary sibling read stays between the preceding default and the following key.
+try {
+  risky();
+} catch (_ref24) {
+  var _ref27;
+  let _ref25 = _ref24,
+    _ref26 = _ref25,
+    ks = null == _ref26 ? _ref26[""] : (e11(), (_ref27 = _keys(_ref26)) === void 0 ? dflt7() : _ref27),
+    {
+      message
+    } = _ref25,
+    _ref28 = _ref25,
+    fi = null == _ref28 ? _ref28[""] : (e12(), _fillMaybeArray(_ref28));
   console.log(ks, message, fi);
 }
 
-// a pattern-valued symbol prop in a catch param destructures the helper result off the
-// relocated ref, dropping the dead residual (the catch-born declaration is synthesized, so
-// the dead-residual gate must not depend on source positions)
+// A nested pattern under Symbol.iterator reads the selected iterator method once, then
+// resolves the function-name binding from that value.
 try {
   risky();
-} catch (_ref18) {
-  let name = _nameMaybeFunction(_getIteratorMethod(_ref18));
+} catch (_ref29) {
+  let name = _nameMaybeFunction(_getIteratorMethod(_ref29));
   console.log(name);
 }
-// with a rest sibling the consumed symbol key keeps a sentinel so rest still excludes it
 try {
   risky();
-} catch (_ref19) {
-  let name = _nameMaybeFunction(_getIteratorMethod(_ref19));
-  let {
-    [_Symbol$iterator]: _unused13,
-    ...rest
-  } = _ref19;
+} catch ({
+  [_Symbol$iterator]: {
+    name
+  },
+  ...rest
+}) {
   console.log(name, rest);
 }

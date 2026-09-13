@@ -1,7 +1,6 @@
-// the other two hosts name a CLASS: `new` spells the class while the method it runs is keyed
-// `constructor` on both parsers, and `super` names the base through the `extends` clause. the gate
-// is coarse per receiver, so the two rows take different ones and read with different methods -
-// sharing either would let one row's narrow answer for the other
+// New invokes the class constructor; super invokes the base constructor. Both writes
+// must invalidate the later return-type inference without releasing their namespaces.
+// Different receivers and instance methods keep the two mutation routes observable.
 const xs = [];
 const o = {};
 class Installer {

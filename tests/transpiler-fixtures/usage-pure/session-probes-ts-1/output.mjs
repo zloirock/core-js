@@ -82,38 +82,28 @@ function mark(t, v) {
 }
 {
   const k = (tag: string) => (_pushMaybeArray(log).call(log, tag), tag)!;
-  const a = _atMaybeArray(arr);
-  const {
-    [k('at')!]: _unused
-  } = arr;
+  const _ref = arr,
+    a = null == _ref ? _ref[""] : (k('at'), _atMaybeArray(_ref));
 }
 {
   const k = (tag: string) => (_pushMaybeArray(log).call(log, tag), tag);
-  const a = _atMaybeArray(arr);
-  const {
-    [(k as any)('at')]: _unused2
-  } = arr;
+  const _ref2 = arr,
+    a = null == _ref2 ? _ref2[""] : ((k as any)('at'), _atMaybeArray(_ref2));
 }
 {
   const k = (tag: string) => (_pushMaybeArray(log).call(log, tag), tag);
-  const a = _atMaybeArray(arr);
-  const {
-    [k('at' as string)]: _unused3
-  } = arr;
+  const _ref3 = arr,
+    a = null == _ref3 ? _ref3[""] : (k('at' as string), _atMaybeArray(_ref3));
 }
 {
   const k = (tag: string): string => (_pushMaybeArray(log).call(log, tag), tag);
-  const a = _atMaybeArray(arr);
-  const {
-    [k('at')]: _unused4
-  } = arr;
+  const _ref4 = arr,
+    a = null == _ref4 ? _ref4[""] : (k('at'), _atMaybeArray(_ref4));
 }
 {
   const k = <T,>(tag: T): T => (_pushMaybeArray(log).call(log, String(tag)), tag);
-  const a = _atMaybeArray(arr);
-  const {
-    [k<string>('at')]: _unused5
-  } = arr;
+  const _ref5 = arr,
+    a = null == _ref5 ? _ref5[""] : (k<string>('at'), _atMaybeArray(_ref5));
 }
 {
   const r = (([{
@@ -206,12 +196,12 @@ function mark(t, v) {
   } as any);
 }
 {
-  var _ref;
-  const r = _at(_ref = o['data' as string]).call(_ref, 0);
+  var _ref6;
+  const r = _at(_ref6 = o['data' as string]).call(_ref6, 0);
 }
 {
-  var _ref2;
-  const r4 = _at(_ref2 = o['s' as string]).call(_ref2, 0);
+  var _ref7;
+  const r4 = _at(_ref7 = o['s' as string]).call(_ref7, 0);
 }
 {
   const v = _Object$freeze(...([Array] as any));
@@ -233,24 +223,24 @@ function mark(t, v) {
   const a = _at(src);
 }
 {
-  const a = _at(src);
-  const {
-    [(eff('k'), 'w' as string)]: {
-      at: _unused6
-    }
-  } = {
-    w: src
-  };
+  const _ref9 = {
+      w: src
+    },
+    {
+      [(eff('k'), 'w' as string)]: _ref8
+    } = null == _ref9 ? _ref9[""] : _ref9,
+    _ref10 = _ref8,
+    a = null == _ref10 ? _ref10[""] : _at(_ref10);
 }
 {
-  const a = _at(src);
-  const {
-    [(eff('k'), 'w')]: {
-      at: _unused7
-    }
-  } = {
-    w: src
-  } as any;
+  const _ref12 = {
+      w: src
+    } as any,
+    {
+      [(eff('k'), 'w')]: _ref11
+    } = null == _ref12 ? _ref12[""] : _ref12,
+    _ref13 = _ref11,
+    a = null == _ref13 ? _ref13[""] : _at(_ref13);
 }
 {
   const at = _atMaybeArray([1, 2]);
@@ -263,17 +253,14 @@ function mark(t, v) {
   use(m, z);
 }
 {
-  const _ref3 = [1, 2];
-  const m = _atMaybeArray(_ref3);
-  const {
-    w: {
-      at: _unused8
-    },
-    z
-  } = {
-    w: _ref3 as any,
+  const _ref14 = {
+    w: [1, 2] as any,
     z: 1
   };
+  const m = _atMaybeArray(_ref14.w);
+  const {
+    z
+  } = _ref14;
   use(m, z);
 }
 {

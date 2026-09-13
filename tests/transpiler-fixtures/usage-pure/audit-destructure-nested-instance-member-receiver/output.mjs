@@ -1,20 +1,16 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
-// a nested-object destructure of an instance method whose receiver is a side-effect-free MEMBER
-// (`Array.prototype`). when the method is the SOLE binding and the init is pure, the residual is
-// eliminated and the extraction reads the receiver exactly ONCE - a getter fires once, like native.
-// a SURVIVING residual (a sibling binding) spells a re-readable built-in surface TWICE instead: the
-// extraction and the residual each read `Array.prototype`, a second read of which is free.
+// A sole nested instance method over a pure member receiver can eliminate its residual and dispatch
+// directly on that receiver. With an outer sibling, capture the complete host first, select the
+// nested method, then read the sibling from that same capture in source property order.
 const at = _atMaybeArray(Array.prototype);
-const m = _flatMaybeArray(Array.prototype);
-const {
-  p: {
-    flat: _unused
-  },
-  q
-} = {
+const _ref = {
   p: Array.prototype,
   q: 1
 };
+const m = _flatMaybeArray(_ref.p);
+const {
+  q
+} = _ref;
 export const r = [typeof at, typeof m, q];
 export const effects = [];

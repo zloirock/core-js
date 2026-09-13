@@ -8,7 +8,6 @@ import {
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { remapInheritedStaticMeta } from '@core-js/polyfill-provider/helpers/class-walk';
 import {
-  assignmentExpression,
   callExpression,
   chainExpression,
   cloneNode,
@@ -18,7 +17,7 @@ import {
   voidZero,
   nullGuardTest,
   renderShortCircuitGuard,
-} from './builders.js';
+} from '@core-js/polyfill-provider/render';
 import { withSideEffects } from './emit-shared.js';
 import { replaceGuardedHop } from './claim-guards.js';
 import {
@@ -26,7 +25,6 @@ import {
   climbToCallerPath,
   collectSourceSpans,
   markSubtreeSkipped,
-  receiverMintsSpelling,
   sourceSpanKey,
 } from './nav-spine.js';
 
@@ -213,12 +211,11 @@ export function collapseSymbolProxyRoot(meta, metaPath, { resolvePure, injectPur
 // the READ whose receiver spelling already carries every harvested effect. a KEPT WRITE
 // anchors the prefix and the whole sequence rides INSIDE the dispatch (`((v = g)).Map.name`
 // -> `_name((v = _globalThis, _Map))`); a plain SE prefix lifts OUT instead and the quiet
-// tail is the receiver. a receiver reading THROUGH a sequence the source never wrote - a
-// kept write anywhere in it, or a spelling an earlier render MINTED - memoizes into a ref
-// the helper sees (`(_ref = (eff(), _Set), _name(_ref))`); only an author-written sequence
-// lifts (a synthesized node carries no source span)
+// tail is the receiver. only an author-written sequence lifts (a synthesized node carries no
+// source span). the helper reads its receiver once, so a kept or minted spelling stays inline;
+// it owes no memo unless another reader or a later key effect needs the captured value
 export function emitSeCarryingReceiverRead({ node, metaPath, entry, hintName },
-  { adapter, injector, injectPureImport, markRewrite, skippedNodes }) {
+  { injectPureImport, markRewrite, skippedNodes }) {
   const id = injectPureImport(entry, hintName);
   markRewrite();
   const seqRecv = unwrapRuntimeExpr(node.object);
@@ -235,17 +232,11 @@ export function emitSeCarryingReceiverRead({ node, metaPath, entry, hintName },
   const liftedPrefix = seqTail && seqTail.type !== 'AssignmentExpression' && !seqWrites
           && Number.isInteger(seqRecv.start)
           ? seqRecv.expressions.slice(0, -1) : null;
-  const hopOverSeq = seqWrites || receiverMintsSpelling(seqRecv, { adapter, metaPath })
-          ? injector.generateDeclaredRef(metaPath) : null;
   replaceGuardedHop({
     hopPath: metaPath,
     test: null,
     built: liftedPrefix
       ? withSideEffects(callExpression(identifier(id), [cloneNode(seqTail)]), liftedPrefix)
-      : hopOverSeq ? sequenceExpression([
-        assignmentExpression('=', identifier(hopOverSeq), cloneNode(node.object)),
-        callExpression(identifier(id), [identifier(hopOverSeq)]),
-      ])
       : callExpression(identifier(id), [cloneNode(node.object)]),
     skippedNodes,
   });

@@ -1,7 +1,5 @@
-// an immediately-invoked nested closure reassigns the outer param before `return arg`, so the
-// IIFE-identity peel bails - the receiver is unknown at compile time, not `Array`. usage-global
-// therefore injects NO `es.array.from` for this destructure (an unknown receiver matches no
-// static), mirroring the usage-pure guard on the same shape
+// An immediate nested closure replaces the parameter before the returned value is read.
+// The result is not the original Array argument, and that discarded argument needs no statics.
 const Result = (arg => {
   (() => { arg = 1; })();
   return arg;

@@ -32,7 +32,7 @@ import {
   MAX_DEPTH, firstTypeParamIsInner, $Object, $Primitive,
   argIndexForParam, callArgumentPaths, dropLeadingThisParam,
 } from './base.js';
-import { isBareUndefinedIdentifier, isTypeQueryOverImportType, peelTSParenthesized, typeRefName } from './ast-shapes.js';
+import { isTypeQueryOverImportType, typeRefName } from './ast-shapes.js';
 import {
   effectiveArgsLength,
   getCallSiteTypeArgs,
@@ -42,6 +42,8 @@ import {
   patternSlotTarget,
   positionalPathAt,
   resolveCallArgument,
+  isBareUndefinedIdentifier,
+  peelTSParenthesized,
 } from '../helpers/ast-patterns.js';
 import { nodeAlwaysExits } from './exit-analysis.js';
 

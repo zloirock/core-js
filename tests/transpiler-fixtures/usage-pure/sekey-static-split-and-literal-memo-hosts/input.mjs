@@ -1,12 +1,5 @@
-// a STATIC (or ctor) claim under an effectful key beside SIBLING declarators takes the plain static's
-// canon: one statement per declarator, the extraction in its own declarator's group ahead of the
-// sentinel residual and BEHIND the receiver's sequence prefix - which is where the source ran it
-// (an extraction ahead of the prefix would bind before the prefix could observe the binding).
-// the same on an exported host (the prefix a plain statement ahead of the export), in a loop head
-// (declarators, the prefix riding the value), and in a bodyless slot (the join, or a block around
-// the lifted prefix). a static drops its default guard - the ponyfill is always defined, so the
-// guard could never fire - where the flat twin keeps its own, since the instance lookup may answer
-// undefined
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
 let k = 0;
 function pre() {}
 function eff() {}
@@ -20,10 +13,8 @@ for (var lead6 = pre(), { [(k++, 'of')]: ko6, m6 } = (eff(), Array); false;) bre
 if (k) var lead7 = pre(), { [(k++, 'of')]: ko7, m7 } = (eff(), Array);
 while (k < 0) var lead8 = pre(), { [(k++, 'of')]: ko8, m8 } = Array;
 
-// a CONSTANT-literal receiver under an effectful key memoizes beside sibling declarators too, the
-// memo a preceding declarator at the source slot (or the `const` statement ahead where the residual
-// holds the sentinel alone and a sibling was written ahead of it); a bodyless slot joins it, a loop
-// head takes it as a declarator, an export keeps the memo off the module surface
+// A literal receiver is evaluated once before its effectful key. Sibling declarators and
+// control-flow hosts retain that position, and exports expose only the source bindings.
 var t1 = 0, { [(k++, 'at')]: a1 } = [1];
 var { [(k++, 'at')]: a2 } = [1], t2 = 0;
 var t3 = 0, { [(k++, 'at')]: a3, other3 } = [1];
@@ -31,13 +22,13 @@ for (var t4 = 0, { [(k++, 'at')]: a4 } = [1]; false;) break;
 if (k) var t5 = 0, { [(k++, 'at')]: a5 } = [1];
 export const t6 = 0, { [(k++, 'at')]: a6 } = [1];
 
-// an UNCLAIMED effectful key beside a claim still segments the residual at the claim: native runs
-// key, read, key, read, and the props past the claim are read after its dispatch
+// Claimed and unclaimed keys interleave in source order: key, read, key, read. Sibling
+// properties following an instance claim are read only after its dispatch.
 var { [(k++, 'of')]: o7, [(k++, 'at')]: a7, m7b } = [1];
 var { [(k++, 'at')]: a8, m8b, [(k++, 'of')]: o8 } = [1];
 
-// a bodyless slot beside sibling declarators: the flatten leaf and the static bind AHEAD of the
-// residual, the instance claim behind the sentinel whose key runs first
+// Bodyless declaration hosts preserve sibling order. A nested static keeps its ordinary
+// extraction, while an effectful instance key runs before dispatch and later property reads.
 do var { Array: { from: f9 }, keep9 } = globalThis, tail9 = 1; while (k < 0);
 if (k) var lead10 = pre(), { [(k++, 'at')]: a10, m10 } = [1, 2];
 

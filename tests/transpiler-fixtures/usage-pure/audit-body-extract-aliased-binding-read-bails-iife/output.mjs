@@ -1,10 +1,7 @@
-import _Array$from from "@core-js/pure/actual/array/from";
-// renamed-local binding (`from: alias`) read by a sibling in-pattern default (`dup = alias`).
-// read-detection keys on the LOCAL binding name, not the property key, so `alias` is not
-// relocated via body-extract and stays bound through inline-default. immediately-invoked twin:
-// the lossy param emission is sound here because the single call site is visible.
+// Rest-bearing parameters keep their native bindings and defaults in parameter scope.
+// Independent reads and key/default expressions still receive their own polyfills.
 (function make({
-  from: alias = _Array$from,
+  from: alias,
   dup = alias,
   ...rest
 } = Array) {

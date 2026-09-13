@@ -1,10 +1,9 @@
-// pattern-hop (anchored) destructures over an UNDEFINABLE probe nav: the source read throws
-// where the probe yields undefined, so every anchored render rides the guard-value spelling
-// instead of the always-defined receiver / ctor bindings (which would erase the throw and
-// run computed-key effects the source never reaches)
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
+// A computed static leaf captures the guarded Object value first.
+// An absent nav throws before the key effect; a defined nav runs the key effect
+// before initializing the pure binding.
 
-// SE-computed-key leaf under a static-ctor pattern hop: extraction + guarded residual (the
-// key effect and the throw both live in the residual read)
 let f1 = 0;
 export const { Object: { [(f1++, 'freeze')]: viaAnchoredSealedSeKey } } = (globalThis.window?.self);
 export { f1 };

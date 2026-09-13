@@ -1,7 +1,5 @@
-// renamed-local binding (`from: alias`) read by a sibling in-pattern default (`dup = alias`).
-// read-detection keys on the LOCAL binding name, not the property key, so `alias` is not
-// relocated via body-extract and stays bound through inline-default. non-exported declared
-// function with all call sites visible, so the lossy param emission is proven safe and enabled.
+// Rest-bearing parameters keep their native bindings and defaults in parameter scope.
+// Independent reads and key/default expressions still receive their own polyfills.
 function make({ from: alias, dup = alias, ...rest } = Array) {
   return [alias([1]), dup, rest];
 }

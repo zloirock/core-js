@@ -1,11 +1,5 @@
-// the same prefix rule where the host has no statement slot to lift into. a bodyless control slot
-// is BRACED first, so the effect stays conditional; a multi-declarator host SPLITS and the prefix
-// opens its own declarator's group, past the sibling init that runs before it - and so does the
-// extraction of a prop whose OWN key carries an effect, whose key then runs where it stands; a for-init header
-// hosts no statement at all, so the prefix rides the FIRST extraction's value; an ARRAY WRAPPER
-// keeps its literal in the residual and takes the lift ahead of the extraction like a plain host.
-// the negative: a nested hop or a rest sibling re-reads the receiver through the residual, so
-// there the whole read stays where it was written.
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
 function eff() {}
 function pre() {}
 var bm, bo;

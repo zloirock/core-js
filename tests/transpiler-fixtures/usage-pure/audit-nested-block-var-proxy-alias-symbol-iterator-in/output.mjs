@@ -1,12 +1,12 @@
 import _globalThis from "@core-js/pure/actual/global-this";
-// a nested-block `var` proxy-global alias used as the object of a `Symbol.iterator in` check.
-// threading the use path into the class-walk proxy-global lookup surfaces the synthetic var-hoist
-// binding, so `g.Symbol.iterator` resolves to the global and the `in` test folds to the iterable
-// helper (rather than leaving the native check un-polyfilled)
+import _Symbol from "@core-js/pure/actual/symbol";
+// A conditionally initialized block-hoisted alias keeps its realm-identity guard.
+// The realm branch must provide Symbol.iterator before the in check, while an
+// uninitialized alias preserves the native throw.
 function f(c, obj) {
   if (c) {
     var g = _globalThis;
   }
-  return g.Symbol.iterator in obj;
+  return (g === _globalThis ? _Symbol : g.Symbol).iterator in obj;
 }
 f(true, []);

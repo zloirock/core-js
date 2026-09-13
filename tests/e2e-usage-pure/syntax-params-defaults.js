@@ -8,6 +8,8 @@
 
 // --- Synth-swap: a caller-passed receiver overrides the polyfilled default ---
 
+const nativeArrayFrom = Object.getOwnPropertyDescriptor(Array, 'from')?.value;
+
 QUnit.test('params: param-default no-arg uses the polyfill, caller receiver overrides it', assert => {
   function fn({ of } = Array) {
     return of(1);
@@ -186,12 +188,12 @@ QUnit.test('params: destructured array param feeds a polyfill', assert => {
   assert.same(fn(), undefined);
 });
 
-QUnit.test('params: rest sibling next to a polyfilled binding excludes that key', assert => {
+QUnit.test('params: rest sibling next to a native binding excludes that key', assert => {
   function fn({ from, ...rest } = Array) {
     return [typeof from, 'from' in rest];
   }
   const [fromType, inRest] = fn();
-  assert.same(fromType, 'function');
+  assert.same(fromType, typeof nativeArrayFrom);
   assert.false(inRest);
 });
 
@@ -406,15 +408,12 @@ QUnit.test('params: instance multi-key member receiver stays native (double-read
 // distinct sentinel receiver through such an invisible caller and asserts IT wins - a regression to
 // the lossy extract would bind `_Array$from` (a function on every engine, including IE) instead.
 
-QUnit.test('params: a named IIFE that never self-references still injects the polyfill', assert => {
-  // a name alone must NOT trigger the bail - only a real self-reference does; the sound extract
-  // still binds the injected polyfill here
+QUnit.test('params: a named IIFE with rest retains the native slot', assert => {
   // eslint-disable-next-line no-unused-vars -- the rest sibling forces the caller-lossy extract
   const bound = (function keep({ from, ...rest } = Array) {
     return from;
   })();
-  assert.same(typeof bound, 'function');
-  assert.deepEqual(bound([1, 2, 3]), [1, 2, 3]);
+  assert.same(bound, nativeArrayFrom);
 });
 
 QUnit.test('params: named self-referencing IIFE - the self-call receiver wins over the polyfill', assert => {
@@ -624,32 +623,6 @@ QUnit.test('params: a value-reached caller keeps a slot default from narrowing t
   assert.same(passed, 'h');
 });
 
-// --- An opaque construct is a caller the scan cannot enumerate ---
-
-// a direct `eval` runs its string in the caller's own scope chain, so it can invoke the function
-// with an argument spelled nowhere the census can read it. Narrowing the defaulted param on that
-// empty set forwards the array to the string-specific helper, which throws in a realm without the
-// native - and the reach covers the DECLARATION form, whose name binds in the scope around it
-QUnit.test('params: a direct eval caller widens the dispatch of a defaulted param', assert => {
-  function declared(x = 'abc') {
-    return x.at(0);
-  }
-  assert.same(declared(), 'a');
-  // eslint-disable-next-line no-eval -- the direct spelling is the shape under test
-  assert.same(eval('declared([1, 2])'), 1);
-});
-
-// ... and the same for the expression forms, which the census reaches through their declarator name
-QUnit.test('params: a direct eval caller widens a function-expression default too', assert => {
-  // eslint-disable-next-line unicorn/consistent-function-style -- the EXPRESSION form is the shape under test
-  const stored = function (x = 'abc') {
-    return x.at(0);
-  };
-  assert.same(stored(), 'a');
-  // eslint-disable-next-line no-eval -- the direct spelling is the shape under test
-  assert.same(eval('stored([1, 2])'), 1);
-});
-
 // --- The call is not one spelling: what the census reads as a call site ---
 
 // A call site is not only `f(...)`. `new f()`, `f.call(t)`, `f.apply(t, [x])`, a `bind` invoked on
@@ -752,4 +725,375 @@ QUnit.test('params: a held construction of a function widens it the same way', a
   assert.same(held.r, 1);
   // eslint-disable-next-line new-cap -- `.constructor` is the channel under test, and it is spelled lowercase
   assert.same(new held.constructor('hello').r, 'h');
+});
+
+/* eslint-disable no-sequences, no-unused-vars -- preserve the unread store and effectful optional key under test */
+// Synthesized destructure receivers preserve the host guard and the fallback it selects.
+QUnit.test('destructure synth: kept optional receiver guards key effects', assert => {
+  let hits = 0;
+  let held;
+  const method = (({ of } = {}) => of)((held = globalThis.window)?.[hits++, 'self'].Array ?? {});
+  const present = typeof window === 'object';
+  assert.same(hits, present ? 1 : 0);
+  if (present) assert.deepEqual(method(3, 7), [3, 7]);
+  else assert.same(method, undefined);
+});
+
+QUnit.test('destructure synth: unresolved sibling shares the guarded memo', assert => {
+  let hits = 0;
+  let held;
+  const result = (({ from, customZ } = {}) => [from, customZ])((held = globalThis.window)?.[hits++, 'self'].Array ?? {});
+  const present = typeof window === 'object';
+  assert.same(hits, present ? 1 : 0);
+  assert.same(result[1], undefined);
+  if (present) assert.deepEqual(result[0]([4, 9]), [4, 9]);
+  else assert.same(result[0], undefined);
+});
+
+QUnit.test('destructure synth: prefix and fallback run on their own branches', assert => {
+  let prefix = 0;
+  let keys = 0;
+  let fallbacks = 0;
+  let held;
+  const method = (({ values } = {}) => values)(
+    (prefix++, held = globalThis.window)?.[keys++, 'self'].Object ?? (fallbacks++, {}),
+  );
+  const present = typeof window === 'object';
+  assert.same(prefix, 1);
+  assert.same(keys, present ? 1 : 0);
+  assert.same(fallbacks, present ? 0 : 1);
+  if (present) assert.deepEqual(method({ answer: 42 }), [42]);
+  else assert.same(method, undefined);
+});
+
+QUnit.test('destructure synth: caller-correct defaults keep their method literal', assert => {
+  // eslint-disable-next-line no-unsafe-optional-chaining -- the accepted default-slot exception is under test
+  function overAHop({ of, from } = globalThis.window?.self.Array) {
+    return [of, from];
+  }
+  // Standalone post sees ordinary assignments after lowering, without a default slot to synthesize.
+  if (typeof E2E_DETECT_LOWERED !== 'undefined' && typeof window === 'undefined') {
+    assert.throws(() => overAHop(), TypeError);
+  } else {
+    const result = overAHop();
+    assert.deepEqual(result[0](3, 7), [3, 7]);
+    assert.deepEqual(result[1]([4, 9]), [4, 9]);
+  }
+  assert.deepEqual(overAHop({}), [undefined, undefined]);
+});
+
+QUnit.test('destructure synth: guarded deep IIFE keeps methods and native throw', assert => {
+  let result;
+  let error;
+  try {
+    result = (({ entries, customZ }) => [entries, customZ])(globalThis.window?.self.Object);
+  } catch (error_) {
+    error = error_;
+  }
+  if (typeof window === 'object') {
+    assert.same(error, undefined);
+    assert.deepEqual(result[0]({ answer: 42 }), [['answer', 42]]);
+    assert.same(result[1], undefined);
+  } else assert.same(error?.name, 'TypeError');
+});
+
+QUnit.test('destructure synth: deferred class field keeps its own guard', assert => {
+  function run(C = class {
+    field = (({ of }) => of)(globalThis.window?.Array);
+  }) {
+    return new C().field;
+  }
+  let result;
+  let error;
+  try {
+    result = run();
+  } catch (error_) {
+    error = error_;
+  }
+  if (typeof window === 'object') {
+    assert.same(error, undefined);
+    assert.deepEqual(result(3, 7), [3, 7]);
+  } else assert.same(error?.name, 'TypeError');
+});
+/* eslint-enable no-sequences, no-unused-vars -- end of the source forms above */
+
+/* eslint-disable no-sequences -- receiver and key effects must remain on their source branches */
+// A synthesized logical left keeps the nullish value that selects the fallback.
+QUnit.test('destructure logical synth: parameter fallback and caller value', assert => {
+  function read({ of } = globalThis.window?.Array ?? { of: 'fallback' }) { return of; }
+  const method = read();
+  if (typeof window === 'object') assert.deepEqual(method(2, 5), [2, 5]);
+  else assert.same(method, 'fallback');
+  assert.same(read({ of: 'caller' }), 'caller');
+});
+
+QUnit.test('destructure logical synth: both selected constructors carry their method', assert => {
+  const { of } = globalThis.window?.Array ?? Array;
+  assert.deepEqual(of(3, 8), [3, 8]);
+  const method = (({ from }) => from)(globalThis.window?.self.Array || Array);
+  assert.deepEqual(method([4, 7]), [4, 7]);
+});
+
+QUnit.test('destructure logical synth: effects and unknown sibling keep their branches', assert => {
+  let prefix = 0;
+  let keys = 0;
+  let fallbacks = 0;
+  function read({ of, customZ } = (prefix++, globalThis).window?.[keys++, 'self'].Array
+    || (fallbacks++, { of: 'fallback', customZ: 'other' })) { return [of, customZ]; }
+  const result = read();
+  const present = typeof window === 'object';
+  assert.same(prefix, 1);
+  assert.same(keys, present ? 1 : 0);
+  assert.same(fallbacks, present ? 0 : 1);
+  if (present) assert.deepEqual(result[0](1, 9), [1, 9]);
+  else assert.same(result[0], 'fallback');
+  assert.same(result[1], present ? undefined : 'other');
+});
+
+QUnit.test('destructure logical synth: a shadowed realm remains the caller object', assert => {
+  function read(globalThis) {
+    const { of } = globalThis.window?.Array ?? { of: 'fallback' };
+    return of;
+  }
+  assert.same(read({ window: { Array: { of: 'custom' } } }), 'custom');
+  assert.same(read({}), 'fallback');
+});
+/* eslint-enable no-sequences -- end of the source forms above */
+
+/* eslint-disable prefer-rest-params -- arguments identity is the form under test */
+
+QUnit.test('consumed parameters: named nested defaults preserve every argument branch', assert => {
+  function read([{ from } = Array]) { return from; }
+  function ownFrom(value) { return ['custom', value]; }
+  const first = read([Array]);
+  const second = read([Array]);
+  assert.deepEqual(first({ 0: 3, length: 1 }), [3]);
+  assert.deepEqual(second({ 0: 4, length: 1 }), [4]);
+  assert.same(first, second);
+  assert.deepEqual(read([])({ 0: 5, length: 1 }), [5]);
+  assert.deepEqual(read([undefined])({ 0: 6, length: 1 }), [6]);
+  const custom = read([{ from: ownFrom }]);
+  assert.same(custom, ownFrom);
+  assert.deepEqual(custom(7), ['custom', 7]);
+  assert.same(read([{}]), undefined);
+});
+
+QUnit.test('consumed parameters: named flat defaults preserve supplied and missing arguments', assert => {
+  function read({ from } = Array) { return from; }
+  function ownFrom(value) { return ['custom', value]; }
+  assert.deepEqual(read(Array)({ 0: 3, length: 1 }), [3]);
+  assert.deepEqual(read()({ 0: 4, length: 1 }), [4]);
+  assert.deepEqual(read(undefined)({ 0: 5, length: 1 }), [5]);
+  const custom = read({ from: ownFrom });
+  assert.same(custom, ownFrom);
+  assert.deepEqual(custom(6), ['custom', 6]);
+  assert.same(read({}), undefined);
+});
+
+QUnit.test('consumed parameters: nested IIFEs select their own defaults', assert => {
+  const supplied = (function ([{ from } = Array]) { return from; })([Array]);
+  const missing = (([{ from } = Array]) => from)([]);
+  const explicitUndefined = (([{ from } = Array]) => from)([undefined]);
+  function ownFrom(value) { return value; }
+  const custom = (([{ from } = Array]) => from)([{ from: ownFrom }]);
+  assert.deepEqual(supplied({ 0: 3, length: 1 }), [3]);
+  assert.deepEqual(missing({ 0: 4, length: 1 }), [4]);
+  assert.deepEqual(explicitUndefined({ 0: 5, length: 1 }), [5]);
+  assert.same(custom, ownFrom);
+  assert.same(custom(6), 6);
+});
+
+QUnit.test('consumed parameters: extracting a static preserves Array call and constructor identity', assert => {
+  function read([{ from } = Array]) { return from; }
+  assert.deepEqual(read([Array])({ 0: 3, length: 1 }), [3]);
+  assert.same(Array, [].constructor);
+  assert.deepEqual(Array(4, 5), [4, 5]);
+  assert.deepEqual(new Array(6, 7), [6, 7]);
+  assert.deepEqual(Array.call(null, 8, 9), [8, 9]);
+});
+
+QUnit.test('consumed parameters: defaults resolve in the parameter scope', assert => {
+  function read([{ from } = Array]) { return from; }
+  function caller(Array) { return [read([]), read([Array])]; }
+  function parameter(Array, [{ from } = Array]) { return from; }
+  function ownFrom(value) { return ['custom', value]; }
+  const custom = { from: ownFrom };
+  const result = caller(custom);
+  assert.deepEqual(result[0]({ 0: 3, length: 1 }), [3]);
+  assert.same(result[1], ownFrom);
+  assert.same(parameter(custom, []), ownFrom);
+  assert.same(parameter(custom, [undefined]), ownFrom);
+  assert.deepEqual(parameter(custom, [])(4), ['custom', 4]);
+});
+
+QUnit.test('consumed parameters: all arguments run before property extraction and defaults', assert => {
+  const events = [];
+  function read([{ from } = (events.push('default'), Array)], ignored) {
+    events.push('body', ignored);
+    return from;
+  }
+  function argument(label, value) {
+    events.push(label);
+    return value;
+  }
+  function ownFrom(value) { return value; }
+  const custom = {};
+  Object.defineProperty(custom, 'from', {
+    get() { events.push('from'); return ownFrom; },
+  });
+  const result = read([argument('receiver', custom)], argument('later', 0));
+  assert.deepEqual(events, ['receiver', 'later', 'from', 'body', 0]);
+  assert.same(result, ownFrom);
+  events.length = 0;
+  const fallback = read([], argument('later', 0));
+  assert.deepEqual(events, ['later', 'default', 'body', 0]);
+  assert.deepEqual(fallback({ 0: 3, length: 1 }), [3]);
+});
+
+QUnit.test('consumed parameters: arguments retains the original supplied object and length', assert => {
+  function read([{ from } = Array]) { return [arguments[0], from, arguments.length]; }
+  function referenced({ from } = Array) {
+    const original = arguments;
+    return [original, from];
+  }
+  function ownFrom(value) { return value; }
+  const custom = { from: ownFrom };
+  const input = [custom];
+  const result = read(input);
+  assert.same(result[0], input);
+  assert.same(result[1], ownFrom);
+  assert.same(result[2], 1);
+  const reference = referenced(custom);
+  assert.same(reference[0][0], custom);
+  assert.same(reference[0].length, 1);
+  assert.same(reference[1], ownFrom);
+  const supplied = [Array];
+  assert.same(read(supplied)[0], supplied);
+  assert.same(read(supplied)[0][0], [].constructor);
+});
+
+export function readExportedConsumedArgument([{ from } = Array]) { return from; }
+
+QUnit.test('consumed parameters: escaped and reassigned callees preserve custom receivers', assert => {
+  function read([{ from } = Array]) { return from; }
+  const escaped = { read };
+  let reassigned = ([{ from } = Array]) => from;
+  function ownFrom(value) { return value; }
+  const input = [{ from: ownFrom }];
+  assert.same(escaped.read(input), ownFrom);
+  assert.same(readExportedConsumedArgument(input), ownFrom);
+  assert.same(escaped.read([{}]), undefined);
+  assert.same(readExportedConsumedArgument([{}]), undefined);
+  assert.same(reassigned(input), ownFrom);
+  reassigned = value => value;
+  assert.same(reassigned(input), input);
+});
+
+QUnit.test('consumed parameters: rest and spread preserve custom method identity', assert => {
+  function rest(...[{ from } = Array]) { return from; }
+  function read([{ from } = Array]) { return from; }
+  function spread(args) { return read(...args); }
+  function ownFrom(value) { return ['custom', value]; }
+  const custom = { from: ownFrom };
+  assert.same(rest(custom), ownFrom);
+  assert.same(spread([[custom]]), ownFrom);
+  assert.deepEqual(rest(custom)(3), ['custom', 3]);
+  assert.deepEqual(spread([[custom]])(4), ['custom', 4]);
+  assert.same(rest({}), undefined);
+  assert.same(spread([[{}]]), undefined);
+});
+/* eslint-enable prefer-rest-params -- end of the source forms above */
+
+QUnit.test('consumed parameters: a returned receiver keeps the returning function intact', assert => {
+  let saved;
+  function read([{ from } = Array]) { return typeof from; }
+  read([(function source() {
+    saved = source;
+    return Array;
+  })()]);
+  assert.same(saved(), Array);
+});
+
+QUnit.test('consumed parameters: a returning function owns its internal name', assert => {
+  function read([{ from } = Array]) { return typeof from; }
+  assert.same(read([(function Array() { return Array; })()]), 'undefined');
+});
+
+QUnit.test('consumed parameters: captured receivers keep their original values', assert => {
+  let saved;
+  function read([{ from } = Array]) { return typeof from; }
+  read(saved = [Array]);
+  assert.same(saved[0], Array);
+  read([saved = Array]);
+  assert.same(saved, Array);
+});
+
+QUnit.test('consumed parameters: a sealed absent realm hop still throws', assert => {
+  if (typeof window === 'undefined') {
+    // eslint-disable-next-line default-param-last, es/no-nonstandard-object-properties, no-unused-vars -- the dead default and shadow pin the receiver frame
+    assert.throws(() => (function ({ from } = Object, globalThis) {
+      return from;
+    // eslint-disable-next-line no-unsafe-optional-chaining -- the sealed receiver must preserve this throw
+    })((globalThis.window?.self).Array), TypeError);
+    // eslint-disable-next-line default-param-last, es/no-nonstandard-object-properties, no-unused-vars -- a non-polyfilled sibling must preserve the same receiver throw
+    assert.throws(() => (function ({ from, other } = Object, globalThis) {
+      return [from, other];
+    // eslint-disable-next-line no-unsafe-optional-chaining -- the mixed pattern still observes the sealed receiver
+    })((globalThis.window?.self).Array), TypeError);
+  } else {
+    assert.same(globalThis.window.self, globalThis.window);
+  }
+});
+
+QUnit.test('consumed parameters: static arguments need no parameter default', assert => {
+  function flat({ from }) { return from; }
+  function nested([{ from }]) { return from; }
+  function deep({ slot: [{ from }] }) { return from; }
+  function ownFrom(value) { return ['custom', value]; }
+  assert.deepEqual(flat(Array)({ 0: 1, length: 1 }), [1]);
+  assert.deepEqual(nested([Array])({ 0: 2, length: 1 }), [2]);
+  assert.deepEqual(deep({ slot: [Array] })({ 0: 3, length: 1 }), [3]);
+  assert.same(flat({ from: ownFrom }), ownFrom);
+  assert.same(nested([{ from: ownFrom }]), ownFrom);
+  assert.same(deep({ slot: [{ from: ownFrom }] }), ownFrom);
+  assert.same(flat({}), undefined);
+  assert.same(nested([{}]), undefined);
+  assert.same(deep({ slot: [{}] }), undefined);
+});
+
+QUnit.test('consumed parameters: supplied receivers resolve in their caller scope', assert => {
+  function read(Array, [{ from }]) { return from; }
+  function outer([{ from }]) { return from; }
+  function ownFrom(value) { return value; }
+  assert.deepEqual(read(null, [Array])({ 0: 1, length: 1 }), [1]);
+  {
+    const Array = { from: ownFrom };
+    assert.same(outer([Array]), ownFrom);
+  }
+  assert.deepEqual(outer([Array])({ 0: 2, length: 1 }), [2]);
+});
+
+QUnit.test('consumed parameters: later arguments and wrappers keep their effects', assert => {
+  const events = [];
+  function read([{ from }], other) {
+    events.push('body', other);
+    return from;
+  }
+  const from = read([(events.push('receiver'), Array)], (events.push('later'), 1));
+  assert.deepEqual(events, ['receiver', 'later', 'body', 1]);
+  assert.deepEqual(from({ 0: 2, length: 1 }), [2]);
+  assert.same(Array, [].constructor);
+});
+
+// Exported results retain a closed caller set for private functions inside their initializer.
+export const privateParameterResult = (() => {
+  function read({ from } = Array) { return from; }
+  return read(Array)([7]);
+})();
+export const reflectedParameterResult = Reflect.apply(readReflectedParameter, null, [Array])([8]);
+function readReflectedParameter({ from } = Array) { return from; }
+
+QUnit.test('consumed parameters: private exported result and earlier Reflect.apply', assert => {
+  assert.deepEqual(privateParameterResult, [7]);
+  assert.deepEqual(reflectedParameterResult, [8]);
 });

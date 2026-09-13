@@ -16,7 +16,8 @@ let v;
 export const windowValued = (_w = v = globalThis.window) == null ? void 0 : _w.self.Set.name;
 var _a;
 export const instanceTail = (_a = globalThis) == null ? void 0 : _a.self.Array.prototype.at.name;
-// negative controls: a second write / a conditional write keep the alias opaque on every path
+// Negative controls: repeated or conditional writes require a realm-identity check;
+// other values retain their own self slot, including the native throw on undefined.
 var _d;
 _d = globalThis;
 _d = {};
@@ -24,9 +25,8 @@ export const doubleWrite = _d.self;
 var _c;
 if (Math.random()) _c = globalThis;
 export const conditionalWrite = _c.self.Array.name;
-// statement hosts beyond expression/declaration: a return / throw / if-test / while-test hosted
-// lowered guard is as unconditional as any statement - the placement walk accepts them, and the
-// write in a BRANCH or a loop BODY still refuses (path-dependent)
+// Return and if-test hosts preserve the lowered guard's ordered write.
+// A branch-dependent write uses a realm-identity check instead of an unconditional substitution.
 export function returnHosted() {
   var _r;
   return (_r = globalThis) == null ? void 0 : _r.self.WeakMap.name;

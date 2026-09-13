@@ -1,18 +1,17 @@
-// A trailing spread in a static-container object literal could inject or override the resolved key,
-// so a destructure that reaches a global static through it must NOT receiver-less-substitute the
-// static - the binding stays native. without the bail, `from` would wrongly bind `_Array$from` even
-// though the spread might redefine the inner `Array` container.
+import _Array$from from "@core-js/pure/actual/array/from";
+// A trailing spread can replace the Array slot of a nested object-literal container.
+// Read each receiver once and select the polyfill only when the slot still holds Array.
+// A spread-supplied replacement keeps its own from property.
 declare const o: Record<string, any>;
 const {
-  root: {
-    Array: {
-      from
+    root: {
+      Array: _ref
     }
-  }
-} = {
-  root: {
-    Array,
-    ...o
-  }
-};
+  } = {
+    root: {
+      Array,
+      ...o
+    }
+  },
+  from = _ref === Array ? _Array$from : _ref.from;
 from([1]);

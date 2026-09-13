@@ -1,6 +1,6 @@
 // the SE-order probes of the defense cycles over the destructure wrappers, replayed as tests: each
 // body runs as probed and its prints are compared to what native printed when the probe ran
-/* eslint-disable no-shadow, unicorn/no-useless-spread, unicorn/no-array-push-push, sonarjs/no-unused-collection, prefer-const, no-unused-vars, sonarjs/no-dead-store, sonarjs/no-unused-vars, @stylistic/quotes, @stylistic/max-statements-per-line, @stylistic/comma-spacing, @stylistic/max-len, @stylistic/no-extra-parens, unicorn/consistent-function-style, unicorn/prefer-optional-catch-binding, unicorn/catch-error-name, id-match, no-underscore-dangle -- generated from the probes as written */
+/* eslint-disable unicorn/no-useless-spread, sonarjs/no-unused-collection, prefer-const, no-unused-vars, @stylistic/quotes, @stylistic/max-statements-per-line, @stylistic/comma-spacing, @stylistic/max-len, @stylistic/no-extra-parens, unicorn/consistent-function-style, unicorn/prefer-optional-catch-binding, unicorn/catch-error-name, id-match, no-underscore-dangle -- generated from the probes as written */
 function collect() {
   const out = [];
   const console = { log: (...items) => out.push(items.map(String).join(' ')) };

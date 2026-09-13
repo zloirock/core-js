@@ -9,6 +9,7 @@ import "core-js/modules/es.promise.resolve";
 import "core-js/modules/es.promise.with-resolvers";
 import "core-js/modules/es.array.iterator";
 import "core-js/modules/es.array.from-async";
+import "core-js/modules/es.array.of";
 import "core-js/modules/es.global-this";
 import "core-js/modules/es.map.constructor";
 import "core-js/modules/es.map.species";
@@ -55,7 +56,7 @@ const shared = c ? {
 };
 export const viaSharedHop = shared.Base.raw`x` + shared.Base.ownKeys({});
 
-// NEGATIVE: an array slot holding a NAV is no branching value - the walk still declines it, so the
-// key brings in no static of its own and only the realm the nav names is injected
+// An array slot holding a global navigation carries that value through the index read too.
+// The terminal static owes its own module beside the constructor held in the slot.
 const navSlot = [globalThis.Array];
 export const viaNavSlot = navSlot[0].of(1);

@@ -1,9 +1,7 @@
-// the guard's kept receiver reaches the channel in three spellings, and the collapse verdict must be
-// the same in all of them: an ALIAS binding, a DESTRUCTURED extraction, and a TS-wrapped expression.
-// what decides it is the hop, not the spelling - a hop core-js ponyfills collapses and the guard goes
-// with it, one it does not keeps both the raw read and the guard, and an unresolvable hop in the
-// MIDDLE renders the shared plan. a reassigned alias stays raw whatever it currently holds.
-// one static per row, so a row that changes verdict shows up in the import set.
+// In pure, an alias, a destructured value and a wrapped expression follow the same
+// proxy-value rule: a backed leaf collapses a plain middle hop; a terminal environment
+// probe or an optional inside the value keeps its guard. Reassigned aliases stay raw.
+// Filtered Object statics below lock the receiver spelling rather than an import.
 
 // --- alias spellings ---
 const aliasWindow = globalThis.window;

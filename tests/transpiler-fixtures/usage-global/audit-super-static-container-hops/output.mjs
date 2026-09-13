@@ -57,11 +57,9 @@ import "core-js/modules/es.weak-map.get-or-insert-computed";
 import "core-js/modules/esnext.promise.all-keyed";
 import "core-js/modules/esnext.promise.all-settled-keyed";
 import "core-js/modules/web.dom-collections.iterator";
-// the container a `super.<static>` base is read from resolves through the same hops the value canon
-// walks: an alias to the container, a member read of it, an effect-wrapped base, and a dominating
-// reassignment whose reaching value is the live container. the subresolver handed a hop's init back
-// verbatim and indexed nothing, and it bailed flat where its super-class sibling kept resolving.
-// one static family per line - the import set is the only observable here
+// Exported subclasses resolve their bases through aliases, members, effects and reassignment.
+// Each exported class requires its base's full static family: Map, Object, Array and Promise.
+// This global import set checks those families; it cannot isolate the individual super calls.
 const mapNs = {
   Base: Map
 };

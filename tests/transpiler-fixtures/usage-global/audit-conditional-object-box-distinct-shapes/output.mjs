@@ -1,9 +1,6 @@
-import "core-js/modules/es.array.at";
 import "core-js/modules/es.string.at";
-// The `Object` box holds every interface alike, so two containers over DIFFERENT ones resolve to
-// one shape. Read as identity that agreement fires the TRUE branch tsc answers FALSE, keying an
-// array-only `at` to a value the false branch types as a string. Neither branch is knowable here,
-// so the generic helper is the answer - `at` reads on both families and shows which one was taken.
+// These interfaces have different required fields even though both resolve to Object boxes.
+// Their complete member maps prove the conditional false, selecting string.at.
 interface Wanted {
   wanted: string;
 }

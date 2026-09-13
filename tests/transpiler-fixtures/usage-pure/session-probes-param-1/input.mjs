@@ -40,12 +40,14 @@ const nb = { y: [1] }; function g([{ y: { at: a } }] = [...[nb]]) { return a; }
 const order = []; const eff = t => (order.push(t), t); const { [(eff('k'), 'Array')]: { from: f1 } } = globalThis;
 }
 {
+// The computed outer key runs before the nested prototype read and instance-method extraction.
 const order = []; const eff = t => (order.push(t), t); const { [(eff('k'), 'Array')]: { prototype: { values: f2 } } } = globalThis;
 }
 {
 const order = []; const eff = t => (order.push(t), t); const { [(eff('k'), 'w')]: { from: f4 } } = { w: Array };
 }
 {
+// The receiver is evaluated once; key conversion precedes the method binding and the sibling read.
 const order = []; function eff(t) { order.push(t); return t; } const { [(eff('k'), 'at')]: a, z } = [1, 2];
 }
 {

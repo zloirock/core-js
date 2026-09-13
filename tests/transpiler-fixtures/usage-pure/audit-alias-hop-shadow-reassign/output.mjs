@@ -1,3 +1,4 @@
+import _Array$of from "@core-js/pure/actual/array/of";
 import _Promise$allSettled from "@core-js/pure/actual/promise/all-settled";
 import _Promise from "@core-js/pure/actual/promise/constructor";
 // the reassignment gates and the hop-scope rule compose: the gate decides WHETHER the captured init
@@ -9,9 +10,7 @@ let liveRoot = Array;
 const liveLink = liveRoot;
 liveRoot = Object;
 export function viaReassignAfterCapture(liveRoot) {
-  const {
-    of
-  } = liveLink;
+  const of = liveLink === Array ? _Array$of : liveLink.of;
   return of(1);
 }
 

@@ -1,3 +1,5 @@
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
 // a binding that MAY be a constructor takes the identity guard, and a pattern reading several of its
 // statics splits into one read per prop, in source order - each with its own guard. the split needs
 // every prop answered HERE: a prop left for the claim funnel would depend on a later visit, and only
@@ -10,8 +12,6 @@ const { of: of2, from: from2 } = M;
 // NEGATIVE: one prop this plan cannot answer (a plain data key) keeps the whole pattern - splitting
 // it would hand that prop to a pass one leg makes and the other does not
 const { from: from3, of: of3, isArray } = M;
-// a REST gathers what no read names, so it cannot become a read of its own - it stays BEHIND them,
-// reading the same receiver with the consumed key renamed to a sentinel
 const { from: from4, ...rest } = M;
 // NEGATIVE: a DEFAULT belongs to its own canon, a COMPUTED key would be printed twice
 const { from: from5, of: of5 = 1 } = M;
