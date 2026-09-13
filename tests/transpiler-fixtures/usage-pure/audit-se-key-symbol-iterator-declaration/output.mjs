@@ -1,12 +1,10 @@
 import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
-// an SE-prefix computed `[(eff++, Symbol.iterator)]` DECLARATION key: the extraction canon
-// pulls the iterator-method read ahead of the pattern, the residual keeps the key SE
-// re-read with the substituted symbol binding - the effect still runs exactly once
+// A computed iterator key with an effectful prefix runs before its method read.
+// The receiver is captured first, the effect runs exactly once, and the iterator
+// binding receives its polyfill without a residual property read.
 let eff = 0;
 const arr = [1, 2];
-const it = _getIteratorMethod(arr);
-const {
-  [(eff++, _Symbol$iterator)]: _unused
-} = arr;
+const _ref = arr,
+  it = null == _ref ? _ref[""] : (eff++, _Symbol$iterator, _getIteratorMethod(_ref));
 export const r = [it, eff];

@@ -51,9 +51,9 @@ import "core-js/modules/es.weak-map.get-or-insert-computed";
 import "core-js/modules/esnext.function.metadata";
 import "core-js/modules/esnext.symbol.metadata";
 import "core-js/modules/web.dom-collections.iterator";
-// member DECORATOR `this` is the OUTER scope, not the class, so `@(this.from([1]))` must NOT
-// over-inject es.array.from. the method-BODY `this.of` IS the class (`C extends Array`) and
-// does inject es.array.of - so the import set proves only the body `this` anchored to C.
+// A member decorator reads outer `this`; the method body reads the subclass as `this`.
+// The unknown decorator and exported subclass require the complete inherited Array family.
+// This global import set cannot isolate `this.from`; the pure counterpart distinguishes it.
 class C extends Array {
   @(this.from([1]))
   static foo() {}

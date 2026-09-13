@@ -1,6 +1,6 @@
-// DUPLICATED receiver under a side-effect KEY (the residual survives so the key effect runs once): the
-// receiver is copied into the extraction AND kept in place. its FUNCTION value's body (an instance call)
-// must substitute in both copy and residual, visitor-driven like babel's clone, not left raw.
+// A receiver literal contains a function whose body itself needs a polyfill.
+// The literal is evaluated once, its computed key effect precedes extraction,
+// and the nested function body keeps its polyfilled instance call.
 let log = 0;
 const { [(log++, 'includes')]: n } = [() => [3, 4].flat()];
 export const out = [n, log];

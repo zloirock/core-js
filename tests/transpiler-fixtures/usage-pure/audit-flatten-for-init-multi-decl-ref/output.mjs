@@ -7,7 +7,7 @@ import _globalThis from "@core-js/pure/actual/global-this";
 // `[].values()`; that binding belongs to the synth declarator only. If the binding
 // leaks into the sibling, the for-init emits a duplicate or misplaced `_ref` and the
 // loop fails at runtime. Distinct methods on each side keep both branches observable.
-for (let idx = 0, from = _Array$from, _unused = ((() => {
+for (let idx = 0, _unused = ((() => {
     var _ref;
     return _valuesMaybeArray(_ref = []).call(_ref);
-  })(), _globalThis); idx < 1; idx++) from([idx]);
+  })(), _globalThis), from = _Array$from; idx < 1; idx++) from([idx]);

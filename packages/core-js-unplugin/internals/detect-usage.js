@@ -5,7 +5,7 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import { walkTypeAnnotationGlobals } from '@core-js/polyfill-provider/detect-usage/annotations';
 import { beginMutationPrePass, createDetectionAdapter, mutationSiteVisitors } from '@core-js/polyfill-provider/detect-usage/mutations';
-import { resolveKey as sharedResolveKey, unwrapTransparentSeq } from '@core-js/polyfill-provider/detect-usage/resolve';
+import { resolveKey as sharedResolveKey } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { createUsageHandlerCore } from '@core-js/polyfill-provider/detect-usage/visitors';
 import { createSyntaxPathHandlers } from '@core-js/polyfill-provider/detect-syntax';
 import { mergeVisitors } from '@core-js/polyfill-provider/helpers/source-scan';
@@ -42,6 +42,7 @@ import {
   usableAliasInfo,
   useAnchorStart,
   walkPatternIdentifiers,
+  unwrapTransparentSeq,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   assignmentAliasWriteTrusted,
@@ -534,10 +535,16 @@ export function createEstreeAdapter(options = {}) {
           // spine's claims resolve through the ref exactly like the source root
           if (minted?.hint && ((minted.source && !minted.userNamed) || minted.minted)) {
             return {
-              node: null, kind: 'module', constantViolations: [], references: 1, scope,
+              node: null,
+              kind: 'module',
+              constantViolations: [],
+              references: 1,
+              scope,
               // the stored hint is the UID spelling (`Symbol$iterator`); the polyfillHint
               // contract is the source spelling (`Symbol.iterator`, `Promise`)
-              importSource: null, importKind: 'value', polyfillHint: minted.hint.replaceAll('$', '.'),
+              importSource: minted.source,
+              importKind: 'value',
+              polyfillHint: minted.hint.replaceAll('$', '.'),
             };
           }
           return null;
@@ -664,6 +671,7 @@ export function createEstreeAdapter(options = {}) {
         guardedAliasHint: identityInfo && !polyfillHint ? identityInfo.hint : null,
         // every ctor the slot was written with - the babel twin carries the same list
         guardedAliasHints: identityInfo && !polyfillHint ? identityInfo.hints ?? null : null,
+        guardedAliasWrite: identityInfo?.aliasWrite ?? identityInfo?.aliasDeclSpan ?? null,
       };
     },
     // lazy lookup for the resolver's assignment-form alias branch (mirror of the babel adapter):
@@ -1057,6 +1065,7 @@ export function createUsageVisitors({
   isEntryAvailable,
   resolveMeta,
   resolvePure = null,
+  parameterCallSites = null,
   resolveStaticKey = null,
   onSuppressedProxyHop = null,
   suppressKeptNavRoot = null,
@@ -1108,7 +1117,7 @@ export function createUsageVisitors({
     const scope = objectPattern.parentPath.scope || objectPattern.scope;
     const key = extractPropertyKey(propNode, scope, objectPattern);
     return buildDestructureLeafMeta({
-      descriptor, key, adapter, resolvePure, unionSink: containerUnionSink, resolveStaticKey,
+      descriptor, key, adapter, resolvePure, unionSink: containerUnionSink, resolveStaticKey, parameterCallSites,
     });
   }
 

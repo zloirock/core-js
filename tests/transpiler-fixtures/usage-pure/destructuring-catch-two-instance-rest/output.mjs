@@ -1,13 +1,10 @@
-import _at from "@core-js/pure/actual/instance/at";
-import _includes from "@core-js/pure/actual/instance/includes";
-try {} catch (_ref) {
-  let includes = _includes(_ref);
-  let at = _at(_ref);
-  let {
-    includes: _unused,
-    at: _unused2,
-    ...rest
-  } = _ref;
+// Object-rest keeps the affected catch pattern native, including its named method slots.
+// Independent reads and key/default expressions still receive their own polyfills.
+try {} catch ({
+  includes,
+  at,
+  ...rest
+}) {
   includes("x");
   at(-1);
   rest.y;

@@ -1,18 +1,18 @@
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Promise from "@core-js/pure/actual/promise/constructor";
+import _Promise from "@core-js/pure/actual/promise";
 import _structuredClone from "@core-js/pure/actual/structured-clone";
-// destructuring off the bare probe: a POLYFILLABLE key extracts with the discarded read
-// re-emitted as a throw probe (the consuming-position canon - off-env the probe throws where
-// native does, on-env the ponyfill binds); a non-claim key keeps the raw kept hop; the rest
-// form binds the ponyfill directly and its residual carries the throw itself
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
+// The exported constructor includes its static methods for external consumers.
 export const viaBareProbePoly = ((null == _globalThis.window ? void 0 : _globalThis.window).Promise, _Promise);
 export const {
   customThing: viaBareProbeCustom
 } = _globalThis.window;
-export const viaBareProbeRestPoly = _Array$of;
 export const {
-  Array: _unused,
+  Array: {
+    of: viaBareProbeRestPoly
+  },
   ...viaBareProbeRest
 } = _globalThis.window;
 

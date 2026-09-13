@@ -1,8 +1,5 @@
-// a FOR-INIT rest sentinel has no statement slot beside the assignment it renames: its `var`
-// hoists to the scope top with the generated refs, claimed where the WALK is so it declares in
-// the order the refs were pushed. the shared declaration groups by FAMILY at PROGRAM level and
-// keeps push order inside a function. the consuming LIFT is also the slot a buried re-anchored
-// host's prefix never had - unless that prefix is a kept WRITE, which rides the value it stored
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
 let aP, rP, oP;
 for (const { isSealed } = (({ Array: { fromAsync: aP, ...rP } } = globalThis), Object); !oP;) oP = isSealed;
 const recvA = getObj();

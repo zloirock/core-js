@@ -3,8 +3,6 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _mapMaybeArray from "@core-js/pure/actual/array/instance/map";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
-import _Array$of from "@core-js/pure/actual/array/of";
-import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _at from "@core-js/pure/actual/instance/at";
 import _values from "@core-js/pure/actual/instance/values";
@@ -13,6 +11,8 @@ import _Object$hasOwn from "@core-js/pure/actual/object/has-own";
 import _Object$is from "@core-js/pure/actual/object/is";
 import _Set from "@core-js/pure/actual/set";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
 // probe corpus of the defense cycles over the destructure wrappers, family "other", part 7:
 // every block is one probed form, self-contained over the header bindings, locked on both legs
 let pick = 1;
@@ -152,33 +152,36 @@ function mark(t, v) {
   use(m, z);
 }
 {
-  var _ref;
-  const {
-    q: qq,
-    p: {
-      [(eff.push('key'), 'flat')]: _unused,
+  const _ref = {
+      q: (eff.push('se'), 1),
+      p: holder.p
+    },
+    {
+      q: qq
+    } = _ref,
+    {
+      p: _ref2
+    } = _ref,
+    _ref3 = _ref2,
+    _ref4 = _ref3,
+    m2 = null == _ref4 ? _ref4[""] : (eff.push('key'), _flatMaybeArray(_ref4)),
+    {
       other2
-    }
-  } = {
-    q: (eff.push('se'), 1),
-    p: _ref = holder.p
-  };
-  const m2 = _flatMaybeArray(_ref);
+    } = _ref3;
   use(qq, m2, other2);
 }
 {
   const {
-    root: {
-      Array: {
-        from: f
+      root: {
+        Array: _ref5
       }
-    }
-  } = {
-    root: {
-      Array,
-      ...more
-    }
-  };
+    } = {
+      root: {
+        Array,
+        ...more
+      }
+    },
+    f = _ref5 === Array ? _Array$from : _ref5.from;
 }
 {
   const at = _atMaybeArray([1]);
@@ -235,9 +238,12 @@ function mark(t, v) {
   };
 }
 {
-  const m = _Array$of;
   const {
-    w: _unused2,
+    w: {
+      Array: {
+        of: m
+      }
+    },
     ...rest
   } = {
     w: _globalThis,
@@ -246,45 +252,36 @@ function mark(t, v) {
   use(m, rest);
 }
 {
-  const {
-    w: {
-      Array: {
-        prototype: {
-          at: m
-        }
-      }
-    },
-    z
-  } = {
+  const _ref6 = {
     z: 1,
     w: tick('w', _globalThis)
   };
+  const m = _at(_ref6.w.Array.prototype);
+  const {
+    z
+  } = _ref6;
   use(m, z);
 }
 {
-  const {
-    w: {
-      Array: {
-        prototype: {
-          at: m
-        }
-      }
-    },
-    z
-  } = {
+  const _ref7 = {
     z: tick('z', 1),
     w: tick('w', _globalThis)
   };
+  const m = _at(_ref7.w.Array.prototype);
+  const {
+    z
+  } = _ref7;
   use(m, z);
 }
 {
-  const besideSibling = _mapMaybeArray(_globalThis.Array.prototype);
-  const {
-    z
-  } = {
+  const _ref8 = {
     w: _globalThis,
     z: 5
   };
+  const besideSibling = _mapMaybeArray(_ref8.w.Array.prototype);
+  const {
+    z
+  } = _ref8;
   use(besideSibling, z);
 }
 {
@@ -295,7 +292,7 @@ function mark(t, v) {
   const m = _Map;
   const {
     w: {
-      Map: _unused3
+      Map: _unused
     }
   } = {
     ...extra,
@@ -308,9 +305,10 @@ function mark(t, v) {
   use(m);
 }
 {
-  const m = _Map;
   const {
-    w: _unused4,
+    w: {
+      Map: m
+    },
     ...rest
   } = {
     w: _globalThis,
@@ -331,10 +329,11 @@ function mark(t, v) {
   use(m, z);
 }
 {
-  const m = _Map;
-  const s = _Set;
   const {
-    w: _unused5,
+    w: {
+      Map: m,
+      Set: s
+    },
     ...rest
   } = {
     w: _globalThis,
@@ -343,10 +342,9 @@ function mark(t, v) {
   use(m, s, rest);
 }
 {
-  const f = _Array$from;
   const {
     w: {
-      [(eff('k2'), 'from')]: _unused6
+      [(eff('k2'), 'from')]: f
     },
     ...r
   } = {
@@ -354,10 +352,9 @@ function mark(t, v) {
   };
 }
 {
-  const it = _getIteratorMethod(_globalThis);
   const {
     w: {
-      [_Symbol$iterator]: _unused7
+      [_Symbol$iterator]: it
     },
     ...rest
   } = {

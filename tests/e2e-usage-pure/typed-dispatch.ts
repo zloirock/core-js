@@ -455,3 +455,23 @@ QUnit.test('typed dispatch: a PATCHED enum member keeps the call the source make
   enum Clean { M = 'at' }
   assert.same(arr[Clean.M](-1), 3, 'while an untouched member still dispatches through the polyfill');
 });
+
+// The erased this parameter does not consume an argument. A member read through the following
+// parameter must carry the supplied namespace's statics on an engine without that namespace.
+QUnit.test('call arguments: erased this parameter preserves namespace reads', assert => {
+  function read(this: void, namespace: any) {
+    return namespace.ownKeys({ value: 1 });
+  }
+  assert.deepEqual(read(Reflect), ['value']);
+});
+
+QUnit.test('typed dispatch: a conditional keeps both constructor-container union arms', assert => {
+  interface A { a: string }
+  interface B { b: number }
+  type Select<T> = T extends Array<B> ? number[] : string;
+  function read(v: Array<B> | Array<A>, value: Select<typeof v>) {
+    return value.at(-1);
+  }
+  assert.same(read([], 'abc'), 'c');
+  assert.same(read([], [17, 23]), 23);
+});

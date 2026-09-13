@@ -40,7 +40,7 @@ export function viaAliasInCatchShadow() {
   }
 }
 
-// the LAST var declarator wins at runtime and its init is shadowed
+// The last var initializer wins; no guard may revive the earlier constructor.
 const multiRoot = Promise;
 export function viaMultiDeclLastShadowed() {
   { var multiHeld = multiRoot; }
@@ -62,7 +62,7 @@ export function viaNestedFnVar() {
   { const { race } = nestedHeld; return race([]); }
 }
 
-// a `var` reassigned inside its declaring block no longer holds the built-in
+// A var overwritten in its declaring block no longer owes the old built-in static.
 const reassignRoot = Object;
 export function viaVarReassignedInBlock() {
   { var reassignHeld = reassignRoot; reassignHeld = {}; }

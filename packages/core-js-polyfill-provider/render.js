@@ -1,4 +1,4 @@
-import { isValidIdentifierName, markRenderedStoredValue } from './helpers/ast-patterns.js';
+import { isValidIdentifierName, markRenderedStoredValue, unwrapRuntimeExpr } from './helpers/ast-patterns.js';
 // the render canon's node factory - the one place emitted nodes take shape, in the
 // canonical ESTree dialect. unplugin inserts these nodes as is; the babel binding converts
 // them at the insertion boundary (its `internals/estree-to-babel.js`, total over exactly
@@ -87,6 +87,11 @@ export function assignmentExpression(operator, left, right) {
 
 export function objectExpression(properties) {
   return { type: 'ObjectExpression', properties };
+}
+
+// A local callback over generated operands; source expressions stay outside its scope.
+export function arrowFunctionExpression(params, body) {
+  return { type: 'ArrowFunctionExpression', params, body, expression: true, async: false };
 }
 
 export function objectProperty(key, value, { computed = false } = {}) {
@@ -317,6 +322,16 @@ export function renderShortCircuitGuard(test, alternate) {
   return markRenderedStoredValue(conditionalExpression(test, voidZero(), alternate));
 }
 
+// the synth value keeps its probe, each side of that probe's effects, and the source fallback.
+// a memo spells only its parameter probe inside the body and carries the fallback around the call.
+export function renderSynthReceiverGuard({ probe = null, ahead = [], after = [], fallback = null }, value,
+  { embed = node => node } = {}) {
+  let rendered = after.length ? sequenceExpression([...after.map(node => embed(cloneNode(node))), value]) : value;
+  if (probe) rendered = renderShortCircuitGuard(nullFirstGuardTest(probe, { embed: node => embed(cloneNode(node)) }), rendered);
+  if (ahead.length) rendered = sequenceExpression([...ahead.map(node => embed(cloneNode(node))), rendered]);
+  return fallback ? logicalExpression(fallback.operator, rendered, embed(cloneNode(fallback.right))) : rendered;
+}
+
 // the RENDER of an `in`-expression plan (`planInExpression` decides the kind): what each kind
 // puts in place, with the leading effects the plan harvested riding ahead of it. the surgery
 // stays with the binding - a `swapLeft` result replaces only the LHS, so the RHS keeps the
@@ -352,12 +367,18 @@ export function renderAliasHeldProbeRead(probe, object) {
     : memberExpression(base, identifier(probe.key));
 }
 
+export function renderKeptSequenceTail(plan, { injectImport, embed = node => node }) {
+  const value = identifier(injectImport(plan.pure.entry, plan.pure.hintName));
+  return plan.probe ? renderShortCircuitGuard(nullFirstGuardTest(plan.probe, { embed }), value) : value;
+}
+
 // the nav-collapse LEAF: the collapsed run answers with its pure binding, wrapped in the leaf's
 // own live key effects - the share the guard test already spelled stays out of it, that prefix
-// evaluated there (`(c++, _self)`). `cloneHost` lifts the source's effect nodes into the render
-export function renderNavCollapseLeaf(plan, pureId, { cloneHost = node => node } = {}) {
+// evaluated there (`(c++, _self)`). an already-embedded root prefix runs before those key effects
+// in the SAME sequence. `cloneHost` lifts the source's key-effect nodes into the render.
+export function renderNavCollapseLeaf(plan, pureId, { cloneHost = node => node, prefix = [] } = {}) {
   const keySe = plan.liveKeySeExprs().slice(plan.testKeySeCount).map(expr => cloneHost(expr));
-  return keySe.length ? sequenceExpression([...keySe, pureId]) : pureId;
+  return prefix.length || keySe.length ? sequenceExpression([...prefix, ...keySe, pureId]) : pureId;
 }
 
 // ... and the TAIL the collapse did not absorb, hung back on in the SOURCE's own spelling: a
@@ -395,16 +416,25 @@ export function renderBoundRawBranch(read, recv) {
 // receiver matching none of them falls through to. the DECISION - which ctors are candidates and
 // in what order - is the shared plan's; this spells it. `spellRecv` mints the test's receiver read
 // per binding (the babel leg marks its clone handled on the way out).
+// `invoke` clones the host invocation around each callee when the plan moves a call into
+// its branches. Arguments remain live for later transformation; only one branch executes.
 // every branch is spelled by EITHER a pure entry or a name, and that is the plan's own invariant:
 // `planGuardedStaticNarrow` builds candidates only from truthy names, so neither slot is ever
 // empty here. a branch carrying neither would mint a nameless identifier and print `undefined`
-export function renderCtorIdentityNarrow(plan, rawBranch, { injectImport, spellRecv }) {
-  return plan.branches.reduceRight((alternate, branch) => conditionalExpression(
-    binaryExpression('===', spellRecv(), identifier(branch.ctorPure
-      ? injectImport(branch.ctorPure.entry, branch.ctorPure.hintName) : branch.ctorName)),
-    identifier(injectImport(branch.staticPure.entry, branch.staticPure.hintName)),
+export function renderCtorIdentityNarrow(plan, rawBranch, { injectImport, spellRecv, captureReceiver = null, invoke = node => node }) {
+  if (plan.instanceFallback?.kind === 'instance') {
+    const pure = plan.instanceFallback;
+    rawBranch = callExpression(identifier(injectImport(pure.entry, pure.hintName)), [spellRecv()]);
+    if (plan.isCallee) rawBranch = renderBoundRawBranch(rawBranch, spellRecv());
+  }
+  const guard = plan.branches.reduceRight((alternate, branch) => conditionalExpression(
+    binaryExpression('===', spellRecv(), branch.ctorRealmPure
+      ? memberExpression(identifier(injectImport(branch.ctorRealmPure.entry, branch.ctorRealmPure.hintName)), identifier(branch.ctorName))
+      : identifier(branch.ctorPure ? injectImport(branch.ctorPure.entry, branch.ctorPure.hintName) : branch.ctorName)),
+    invoke(identifier(injectImport(branch.staticPure.entry, branch.staticPure.hintName))),
     alternate,
-  ), rawBranch);
+  ), invoke(rawBranch));
+  return captureReceiver ? sequenceExpression([assignmentExpression('=', spellRecv(), captureReceiver), guard]) : guard;
 }
 
 // the `(ref = <dispatcher call>) === void 0 ? <default> : ref` guard for an instance
@@ -412,12 +442,36 @@ export function renderCtorIdentityNarrow(plan, rawBranch, { injectImport, spellR
 // receiver (its own-property read), so the default stays LIVE - polyfill-always-wins covers
 // only always-defined static/global bindings. every operand arrives ALREADY embedded (the
 // leg clones and wraps its host nodes); this spells the ONE guard shape both legs print
-export function renderInstanceDefaultGuard({ assignedRef, call, defaultValue, reread }) {
+export function renderInstanceDefaultGuard({ assignedRef, call, defaultValue, reread, defaultName = null }) {
+  const source = unwrapRuntimeExpr(defaultValue?.type === HOST_SLOT ? defaultValue.node : defaultValue);
+  // Moving an anonymous default into a conditional must preserve the binding's inferred name.
+  if (defaultName && (source?.type === 'ArrowFunctionExpression'
+    || ((source?.type === 'FunctionExpression' || source?.type === 'ClassExpression') && !source.id))) {
+    defaultValue = memberExpression(objectExpression([
+      objectProperty(literal(defaultName), defaultValue, { computed: synthKeyMustBeComputed(literal(defaultName)) }),
+    ]), literal(defaultName), { computed: true });
+  }
   return conditionalExpression(
     binaryExpression('===', assignmentExpression('=', assignedRef, call), voidZero()),
     defaultValue,
     reread,
   );
+}
+
+// A sole computed-key extraction captures the initializer before the key runs. The
+// dispatch owns the single property read; keeping a sentinel would read that slot twice.
+// Both bindings pass embedded source nodes and their already-built default guard.
+export function renderKeyedDestructureRead({ receiverName, receiver, binding, keys, read, storeReceiver = false }) {
+  const value = conditionalExpression(
+    nullFirstGuardTest(identifier(receiverName)),
+    memberExpression(identifier(receiverName), literal(''), { computed: true }),
+    keys.length ? sequenceExpression([...keys, read]) : read,
+  );
+  return [
+    ...storeReceiver ? [] : [variableDeclarator(identifier(receiverName), receiver)],
+    variableDeclarator(binding, storeReceiver
+      ? sequenceExpression([assignmentExpression('=', identifier(receiverName), receiver), value]) : value),
+  ];
 }
 
 // the static twin: the read needs no memo (an import binding or a plain ref re-reads for

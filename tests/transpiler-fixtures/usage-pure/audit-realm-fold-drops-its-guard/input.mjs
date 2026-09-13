@@ -1,6 +1,6 @@
-// a `?.` written over a realm run is reading the HOPS under it: once those fold onto the binding
-// this build CAN spell, what the guard reads is a ponyfill that cannot be absent, so it erases with
-// them - whichever hop of the run the source wrote it on, and whatever carrier stands at the root
+// An excluded realm root keeps its terminal environment-probe guard, including
+// through a stored root. Optionals over backed values remain redundant, and plain
+// navigation through the run follows the ordinary collapse rule.
 let q;
 function dh() { return globalThis; }
 export const guardedTail = globalThis.self.window?.name;

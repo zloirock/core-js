@@ -1,9 +1,6 @@
-import "core-js/modules/es.array.at";
 import "core-js/modules/es.string.at";
-// a container's inner slot reads empty for two reasons that print alike: nothing was WRITTEN
-// (`Array` is `Array<any>` and matches any inner), or an argument was written and no Type form
-// carries it - `{ a: string }` has none. Read as agreement, two such absences pick the TRUE branch
-// tsc answers FALSE, keying an array-only `at` to a value the false branch types as a string
+// The written element shapes differ on a required field, so the conditional is false.
+// Retaining their complete member maps selects string.at despite the absent inner dispatch type.
 type Sel<T> = T extends Array<{
   b: number;
 }> ? number[] : string;

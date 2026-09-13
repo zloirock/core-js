@@ -129,7 +129,8 @@ QUnit.test('transform: multi-decl destructuring static + instance rest', assert 
   const { from } = Array;
   const { includes, ...rest } = [];
   assert.deepEqual(from([1]), [1]);
-  assert.same(typeof includes, 'function');
+  assert.same(includes, typeof E2E_POST_LOWERED !== 'undefined'
+    ? Array.prototype.includes : Object.getOwnPropertyDescriptor(Array.prototype, 'includes')?.value);
   assert.false('includes' in rest);
 });
 

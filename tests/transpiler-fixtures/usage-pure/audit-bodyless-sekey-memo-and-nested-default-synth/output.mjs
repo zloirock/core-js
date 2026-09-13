@@ -5,54 +5,52 @@ import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _flatMapMaybeArray from "@core-js/pure/actual/array/instance/flat-map";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _at from "@core-js/pure/actual/instance/at";
-// four more claims the differential caught the engine DROPPING, all with the fixture
-// gate green: a bodyless SE-key sentinel over a receiver only a memo can re-read, the same over
-// an EFFECTFUL init the memo evaluates once, an instance synth slot whose receiver is spelled
-// exactly once, and a receiver-bearing default one level in - in a declarator, an assignment
-// and a catch parameter alike
+// Bodyless computed-key destructures evaluate the receiver once and extract properties in order.
+// Instance parameter defaults retain their receiver-read limits. Nested defaults belong to their
+// own receiver slot in declarations, assignments and catch parameters.
 const log = [];
 const cond = true;
-// a bodyless slot memoizes whatever the init's shape: the sentinel residual and the extraction
-// both read the memo, so a ternary / logical / sequence-tail receiver is re-readable there
+// A bodyless slot evaluates its receiver once, checks object coercibility, converts the computed key,
+// extracts the method, then reads residual siblings in source order.
 export const a1 = (() => {
   if (cond) var _ref = 1 ? Array.prototype : [],
+    _ref2 = _ref,
+    m = null == _ref2 ? _ref2[""] : (_pushMaybeArray(log).call(log, 'k'), _findLastMaybeArray(_ref2)),
     {
-      [(_pushMaybeArray(log).call(log, 'k'), 'findLast')]: _unused,
       other
-    } = _ref,
-    m = _findLastMaybeArray(_ref);
+    } = _ref;
   return [typeof m, typeof other];
 })();
 export const a2 = (() => {
-  if (cond) var _ref2 = null || Array.prototype,
+  if (cond) var _ref3 = null || Array.prototype,
+    _ref4 = _ref3,
+    m = null == _ref4 ? _ref4[""] : (_pushMaybeArray(log).call(log, 'k'), _flatMapMaybeArray(_ref4)),
     {
-      [(_pushMaybeArray(log).call(log, 'k'), 'flatMap')]: _unused2,
       other
-    } = _ref2,
-    m = _flatMapMaybeArray(_ref2);
+    } = _ref3;
   return [typeof m, typeof other];
 })();
 export const a3 = (() => {
   let i = 0;
-  do var _ref3 = (_pushMaybeArray(log).call(log, 't'), Array.prototype),
+  do var _ref5 = (_pushMaybeArray(log).call(log, 't'), Array.prototype),
+    _ref6 = _ref5,
+    m = null == _ref6 ? _ref6[""] : (_pushMaybeArray(log).call(log, 'k'), _atMaybeArray(_ref6)),
     {
-      [(_pushMaybeArray(log).call(log, 'k'), 'at')]: _unused3,
       other
-    } = _ref3,
-    m = _atMaybeArray(_ref3); while (i++ < 0);
+    } = _ref5; while (i++ < 0);
   return [typeof m, typeof other];
 })();
 // ... and an EFFECTFUL init rides the same memo - one evaluation, where the source ran it
 export const a4 = (() => {
-  if (cond) var _ref4 = (() => {
+  if (cond) var _ref7 = (() => {
       _pushMaybeArray(log).call(log, 'call');
       return Array.prototype;
     })(),
+    _ref8 = _ref7,
+    m = null == _ref8 ? _ref8[""] : (_pushMaybeArray(log).call(log, 'k'), _flatMaybeArray(_ref8)),
     {
-      [(_pushMaybeArray(log).call(log, 'k'), 'flat')]: _unused4,
       other
-    } = _ref4,
-    m = _flatMaybeArray(_ref4);
+    } = _ref7;
   return [typeof m, typeof other];
 })();
 // negative: with no SE key and a quiet init the slot keeps its single statement, no memo
@@ -142,9 +140,9 @@ export const c4 = (() => {
 export const c5 = (() => {
   try {
     throw {};
-  } catch (_ref5) {
-    var _ref6;
-    let at = _at((_ref6 = _ref5.inner) === void 0 ? [1, 2] : _ref6);
+  } catch (_ref9) {
+    var _ref10;
+    let at = _at((_ref10 = _ref9.inner) === void 0 ? [1, 2] : _ref10);
     return typeof at;
   }
 })();

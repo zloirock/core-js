@@ -1,11 +1,8 @@
-// a hop whose level keeps SIBLINGS leaves it for a twin of its own (`hopSplitPlan`): the pair - the
-// memo of the hop and the claims off it - stands beside the host, which goes on binding its siblings
-// off the root. a built-in root (a constructor, the realm, a nav into it) re-reads for free and its
-// reads are unobservable, so the pair stands behind the host whatever the hop's position or level;
-// a USER root re-reads for free at the host level only, keeping the source's order: the hop stands
-// at an end, the pair ahead of the host where the hop led. a host that empties goes. declined where
-// the pair has no statement slot of its own (a loop head, a bodyless slot, an export, a declarator
-// that is not the last) and for a user root's hop below the host or in the middle
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
+// Nested leaves retain unrelated siblings at every enclosing level.
+// User-object getters and defaults keep their source order; pristine built-in reads
+// follow the built-in-read contract across declarations and control-flow hosts.
 const box = { y: [1] };
 const deep = { y: { z: [1] } };
 const c = 1;
@@ -26,8 +23,7 @@ const { junk: j11, y: { at: userLast, other: o2 } } = box;
 const { junk: j12, y: { at: userDefault, other: o3 } = [] } = box;
 const { junk: j13, y: { at: userMiddle, other: o4 }, more: m2 } = box;
 const { y: { z: { at: userDeep, other: o5 }, junk: j14 } } = deep;
-// a SOLE leaf needs no twin: the typed nav claims it over a sibling level whose re-read is a nav
-// into the built-in namespace (`typedNavClaimShape`), and the residual keeps the siblings
+// A single consumed leaf leaves unrelated properties in the residual pattern.
 const { Array: { from: F4, of: { name: soleBesideStatic } } } = globalThis;
 const { of: { name: soleBesideJunk }, junk: j21 } = Array;
 const { of: { name: soleBesideNavJunk }, junk: j22 } = globalThis.Array;

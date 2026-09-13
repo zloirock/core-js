@@ -7,6 +7,8 @@ import _Promise$race from "@core-js/pure/actual/promise/race";
 import _Set from "@core-js/pure/actual/set";
 import _WeakMap from "@core-js/pure/actual/weak-map";
 import _WeakSet from "@core-js/pure/actual/weak-set";
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
 // A mixed pattern - a nested-ObjectPattern value beside flat keys - belongs to the nested mirror
 // only while the mirror can actually render it. An unresolvable computed key, a duplicate resolved
 // key and a non-identifier key each make it bail for good, and deferring to it then drops the flat
@@ -46,14 +48,10 @@ export const mirrorable = (({
     at: _globalThis.Array.at
   }
 }) => [Promise, at])();
-
-// a rest element is the mirror's other permanent bail, and several flat keys in front of the nested
-// value are the transient case the deferral exists for - the whole default becomes the synthesized
-// literal there instead of per-key inline defaults
 export const restSibling = (({
-  Set: S2 = _Set,
+  Set: S2,
   Array: {
-    of: of2 = _Array$of
+    of: of2
   },
   ...rest
 } = _globalThis) => [S2, of2, rest])();

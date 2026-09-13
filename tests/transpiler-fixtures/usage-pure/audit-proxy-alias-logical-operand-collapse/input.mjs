@@ -1,6 +1,9 @@
-// A const-alias proxy root with a `.self` hop in a LOGICAL operand must collapse the hop in the live
-// operand (`g.self.Array` -> `g.Array`), like a bare receiver, so the evaluated operand never reads
-// `g.self` (undefined on ie:11 / Node, throws before `||` short-circuits). Both emitters collapse.
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
+// A const alias of the realm object follows the ordinary proxy-hop collapse inside
+// a logical receiver. The live operand reads g.Array, so a host without native self
+// does not fail before the fallback. The selected receiver is evaluated once for
+// the polyfilled extraction and the remaining-key copy.
 const g = globalThis;
 const { from, ...rest } = g.self.Array || Set;
 from([1]);

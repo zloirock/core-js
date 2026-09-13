@@ -8,7 +8,9 @@ const o = [1];
 (() => {
   var _ref, _ref2;
   _atMaybeArray(_ref = [1]).call(_ref, 0);
-  const at = (_ref2 = _atMaybeArray(o)) === void 0 ? () => 0 : _ref2;
+  const at = (_ref2 = _atMaybeArray(o)) === void 0 ? {
+    "at": () => 0
+  }["at"] : _ref2;
   return Array;
 })();
 const from = _Array$from;
