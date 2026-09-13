@@ -1,7 +1,7 @@
 // pure resolves a REASSIGNED container binding only on proof: a dominating write it follows when
 // that write is the ONLY value the read can observe (unconditional, nothing written after the
 // read) - the single-observation half of the reaching canon usage-global unions over. every other
-// write shape below (conditional, branching, cross, closure, logical, ambiguous pattern) leaves
+// write shape below (conditional, branching, closure, logical, ambiguous pattern) leaves
 // the read verbatim; the union stays a usage-global-only over-inject axis
 let rw1 = { k: Object };
 rw1 = { k: Map };
@@ -56,7 +56,8 @@ let rw9 = { d: Object };
 rw9 = (eff9(), { d: Promise });
 const { d: { allSettled: viaSeWrite } } = rw9;
 
-// cross-writes are real reassignments whose values observe each other - pure bails both
+// Cross-writes capture their values at each assignment. The first captures the String holder;
+// the later write back to that same holder does not escape it or change the earlier capture.
 let ma = { x: Object };
 let mb = { x: String };
 ma = mb;

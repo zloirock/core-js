@@ -1,8 +1,5 @@
-// ASSIGNMENT-form ArrayPattern wrap + rest sibling flows through the rest-aware cascade on
-// both plugins: babel renames the consumed key in place, unplugin splices the rebuilt object
-// pattern back into the original LHS text - the wrap survives and rest keeps reading the
-// matching init element. a multi-element assignment wrapper stays the conservative native
-// bail (the single-element peel pair does not descend it)
+// Object-rest keeps the affected assignment pattern native and preserves its RHS value.
+// Independent reads and key/default expressions still receive their own polyfills.
 let from, rest, other;
 [{ from, ...rest }] = [Array];
 from([1]);

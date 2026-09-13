@@ -1,16 +1,13 @@
-import _Array$from from "@core-js/pure/actual/array/from";
 import _valuesMaybeArray from "@core-js/pure/actual/array/instance/values";
 import _globalThis from "@core-js/pure/actual/global-this";
 var _ref;
-// AssignmentExpression flatten - cascade path emits multi-statement output covering the
-// whole ExpressionStatement range. asserts whether instance-dispatch in a SE-prefix or
-// preserved sibling triggers similar var _ref insert collision
+// Object-rest keeps the affected assignment pattern native and preserves its RHS value.
+// Independent reads and key/default expressions still receive their own polyfills.
 let from, rest;
-console.log(_valuesMaybeArray(_ref = []).call(_ref));
-var _unused;
 ({
-  Array: _unused,
+  Array: {
+    from
+  },
   ...rest
-} = _globalThis);
-from = _Array$from;
+} = (console.log(_valuesMaybeArray(_ref = []).call(_ref)), _globalThis));
 export { from, rest };

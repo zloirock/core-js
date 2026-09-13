@@ -206,6 +206,7 @@ function shadowedPatternParameter(name) {
 const NARROW = {
   'direct constructor read': name => `use(new ${ name }(s));`,
   'constructor alias': name => `const A = ${ name };\nuse(new A(s));`,
+  'returned second argument': name => `function pick(label, value) { effect(label); return value; } use(new (pick(1, ${ name }))(s));`,
   'container literal slot': name => `const c = { k: ${ name } };\nuse(new c.k(s));`,
   'inline callee pattern parameter': name => `export const v = (({ name: got }) => got)(${ name });`,
   'inline callee pattern parameter, shadowed': shadowedPatternParameter,
@@ -218,11 +219,138 @@ for (const name of CONSTRUCTORS) {
   }
 }
 
+const returnedLoopReceiver = 'function receiver(label, value) { log(label); return value; }'
+  + ' for (var { w: { from } } of [{ w: receiver(1, Array) }, { w: receiver(2, { from: custom }) }]) {'
+  + ' use(from([7]), () => from([8])); }';
+for (const [emitter, imports] of [
+  ['babel', await babelImports(returnedLoopReceiver, GLOBAL)],
+  ['unplugin', unpluginImports(returnedLoopReceiver, GLOBAL)],
+]) {
+  check(`${ emitter }: returned loop receiver needs from`, imports.has('core-js/modules/es.array.from'), true);
+  check(`${ emitter }: returned loop receiver does not expose other statics`, imports.has('core-js/modules/es.array.of'), false);
+  check(`${ emitter }: returned loop receiver does not expose instance methods`, imports.has('core-js/modules/es.array.at'), false);
+}
+for (const [emitter, imports] of [
+  ['babel', await babelImports(returnedLoopReceiver, PURE)],
+  ['unplugin', unpluginImports(returnedLoopReceiver, PURE)],
+]) {
+  check(`${ emitter }: returned loop receiver keeps the pure extraction`, [...imports].join(','), '@core-js/pure/actual/array/from');
+}
+
 // the obligation is DERIVED, and this is where that shows: a constructor whose namespace entry adds
 // nothing over its constructor entry owes nothing extra when it escapes. Without it, a suite that
 // widened every constructor unconditionally would read exactly the same on every row above
 check('a namespace adding no statics owes nothing (actual/set)', wideEntryExtras('@core-js/pure/actual/set'), null);
 check('... and the one that does is named by compat, not here (actual/map)',
   wideEntryExtras('@core-js/pure/actual/map')?.join(','), 'es.map.group-by');
+
+// Import sets distinguish the argument's obligation from the source spelling. A named parameter
+// reads only ownKeys from a proven Reflect source; its other statics must stay absent. Unused
+// arguments owe no static, while opaque consumers still need the whole namespace.
+/* eslint-disable no-template-curly-in-string -- these are source snippets containing tagged interpolations */
+const PARAMETER_READS = [
+  ['named call', 'function read(strings, ns) { return ns.ownKeys({}); } read([""], Reflect);', true],
+  ['named tag', 'function read(strings, ns) { return ns.ownKeys({}); } read`${Reflect}`;', true],
+  ['inline tag', '(function(strings, ns) { return ns.ownKeys({}); })`${Reflect}`;', true],
+  ['pattern tag', 'function read(strings, { ownKeys }) { return ownKeys({}); } read`${Reflect}`;', true],
+  ['unused call', 'function read(strings, ns) {} read([""], Reflect);', false],
+  ['unused tag', 'function read(strings, ns) {} read`${Reflect}`;', false],
+];
+/* eslint-enable no-template-curly-in-string -- the source snippet table ends here */
+for (const [label, source, needed] of PARAMETER_READS) {
+  for (const mode of ['actual', 'full']) {
+    for (const [emitter, imports] of [
+      ['babel', await babelImports(source, { ...GLOBAL, mode })],
+      ['unplugin', unpluginImports(source, { ...GLOBAL, mode })],
+    ]) {
+      check(`${ label } [${ emitter }, ${ mode }]: ownKeys obligation`, imports.has('core-js/modules/es.reflect.own-keys'), needed);
+      check(`${ label } [${ emitter }, ${ mode }]: namespace exists`, imports.has('core-js/modules/es.reflect.namespace'), true);
+      check(`${ label } [${ emitter }, ${ mode }]: unrelated static stays absent`, imports.has('core-js/modules/es.reflect.get'), false);
+    }
+    for (const [emitter, imports] of [
+      ['babel', await babelImports(source, { ...PURE, mode })],
+      ['unplugin', unpluginImports(source, { ...PURE, mode })],
+    ]) {
+      // A consumed pattern may mirror just ownKeys, while a held identifier needs its namespace.
+      // Both must carry the required module; neither an unused argument nor its bare ctor does.
+      const carriesOwnKeys = [...imports].some(entry => entries[entry.replace(/^@core-js\/pure\//u, '')]?.includes('es.reflect.own-keys'));
+      check(`${ label } [${ emitter }, ${ mode }]: pure carries ownKeys`, carriesOwnKeys, needed);
+      const carriesGet = [...imports].some(entry => entries[entry.replace(/^@core-js\/pure\//u, '')]?.includes('es.reflect.get'));
+      check(`${ label } [${ emitter }, ${ mode }]: pure unrelated static stays absent`, carriesGet, false);
+    }
+  }
+}
+
+// Narrowing requires a closed caller set and a named, read-only receiver. Each row is transformed
+// independently so an unrelated namespace import cannot cover a missed obligation.
+const OPAQUE_PARAMETER_READS = [
+  ['unknown key', 'function read(ns) { return ns[key]({}); } read(Reflect);'],
+  ['rest pattern', 'function read({ ownKeys, ...rest }) { return rest; } use(read(Reflect));'],
+  ['returned namespace', 'function read(ns) { return ns; } use(read(Reflect));'],
+  ['passed namespace', 'function read(ns) { use(ns); return ns.ownKeys({}); } read(Reflect);'],
+  ['escaped callable', 'function read(ns) { return ns.ownKeys({}); } use(read); read(Reflect);'],
+  ['exported callable', 'export function read(ns) { return ns.ownKeys({}); } read(Reflect);'],
+  ['other caller', 'function read(ns) { return ns.ownKeys({}); } read(Reflect); read(custom);'],
+  ['missing argument', 'function read(ns) { return ns.ownKeys({}); } read(Reflect); read();'],
+  ['spread argument', 'function read(ns) { return ns.ownKeys({}); } read(Reflect); read(...args);'],
+  ['arguments object', 'function read(ns) { arguments[0] = custom; return ns.ownKeys({}); } read(Reflect);'],
+  // A leading overwrite drops the supplied value altogether; it must not create a static claim.
+  ['overwritten parameter', 'function read(ns) { ns = custom; return ns.ownKeys({}); } read(Reflect);', false],
+  ['conditionally reassigned parameter', 'function read(ns) { if (flag) ns = custom; return ns.ownKeys({}); } read(Reflect);'],
+  ['nested closure', 'function read(ns) { return () => ns.ownKeys({}); } use(read(Reflect));'],
+  ['mixed read and write', 'function read(ns) { ns.ownKeys = patch; return ns.get({}, "x"); } read(Reflect);'],
+  ['compound write', 'function read(ns) { ns.ownKeys += patch; } read(Reflect);'],
+  ['updated member', 'function read(ns) { ns.ownKeys++; } read(Reflect);'],
+  ['deleted member', 'function read(ns) { delete ns.ownKeys; } read(Reflect);'],
+];
+for (const [label, source, wide = true] of OPAQUE_PARAMETER_READS) {
+  for (const [emitter, imports] of [
+    ['babel', await babelImports(source, GLOBAL)],
+    ['unplugin', unpluginImports(source, GLOBAL)],
+  ]) {
+    check(`opaque parameter/${ label } [${ emitter }]: family stays`, imports.has('core-js/modules/es.reflect.get'), wide);
+  }
+  for (const [emitter, imports] of [
+    ['babel', await babelImports(source, PURE)],
+    ['unplugin', unpluginImports(source, PURE)],
+  ]) {
+    check(`opaque parameter/${ label } [${ emitter }]: pure family stays`, imports.has('@core-js/pure/actual/reflect'), wide);
+  }
+}
+
+// A default or known caller supplies the pattern's exact static claim. Only that SAME supplied
+// leaf is covered; different receivers, shadowed defaults, spread ambiguity and bare captures
+// still owe their independent family. Compare import sets so one import cannot mask another.
+const DEFAULT_COVERAGE = [
+  ['array wrapper', 'function f([{ of } = Array]) { return of(1); } f([Array]);', false],
+  ['parameter default', 'function f({ of } = Array) { return of(1); } f(Array);', false],
+  ['object wrapper', 'function f({ x: { of } = Array }) { return of(1); } f({ x: Array });', false],
+  ['nested wrappers', 'function f([[{ of } = Array]]) { return of(1); } f([[Array]]);', false],
+  ['inline spread', 'function f([{ of } = Array]) { return of(1); } f([...[], Array]);', false],
+  ['unknown spread', 'function f([{ of } = Array]) { return of(1); } f([...values, Array]);', true],
+  ['no default', 'function f([{ of }]) { return of(1); } f([Array]);', false],
+  ['custom callers', 'function f({ of }) { return of; } f(Array); f({ of: x => x }); f({});', false],
+  ['custom first', 'const custom = { of: x => x }; function f([{ of }]) { return of; } f([custom]); f([Array]);', false],
+  ['IIFE return', 'function f([{ of } = Array]) { return of; } f([(function source() { return Array; })()]);', false],
+  ['bare capture', 'function f([value = Array]) { return value; } f([Array]);', true],
+  ['shadowed default', 'function outer(Array) { function f([{ of } = Array]) { return of(1); } f([globalThis.Array]); }', true],
+];
+for (const [label, source, wide] of DEFAULT_COVERAGE) {
+  for (const [emitter, imports] of [
+    ['babel', await babelImports(source, GLOBAL)],
+    ['unplugin', unpluginImports(source, GLOBAL)],
+  ]) {
+    check(`default coverage/${ label } [${ emitter }]: own static`, imports.has('core-js/modules/es.array.of'), true);
+    check(`default coverage/${ label } [${ emitter }]: unrelated family`, imports.has('core-js/modules/es.array.find'), wide);
+  }
+}
+const differentDefault = 'function f([{ groupBy } = Object]) { return groupBy([], key); } f([Map]);';
+for (const [emitter, imports] of [
+  ['babel', await babelImports(differentDefault, GLOBAL)],
+  ['unplugin', unpluginImports(differentDefault, GLOBAL)],
+]) {
+  check(`default coverage/different receiver [${ emitter }]: default static`, imports.has('core-js/modules/es.object.group-by'), true);
+  check(`default coverage/different receiver [${ emitter }]: supplied static`, imports.has('core-js/modules/es.map.group-by'), true);
+}
 
 finish();

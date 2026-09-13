@@ -1,8 +1,5 @@
-// selection receivers the fromFallback dispatch cannot flag (a non-nullish PRIMARY resolves
-// without it): the mirror walks EVERY hop prop (a half-registered two-hop plan emits
-// nothing), a defaulted leaf mirrors like its undefaulted twin, an `&&`-declined rest
-// shape takes the INSERTED sound default, and a static defaulted sole leaf over a
-// discardable receiver extracts as the overwrite
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
 let cond = c1;
 const alt = { Array: {}, JSON: {} };
 const eff = () => 1;

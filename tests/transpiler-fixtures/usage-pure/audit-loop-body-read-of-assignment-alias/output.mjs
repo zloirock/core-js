@@ -1,6 +1,8 @@
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
+import _Map from "@core-js/pure/actual/map";
 import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
+import _Promise from "@core-js/pure/actual/promise";
 // an assignment-form alias read in a LOOP BODY resolves the single unconditional write before the
 // loop: the back-edge re-runs the read, never the write. a write INSIDE the loop can reach the next
 // iteration's read, and a conditional write proves nothing - both keep the read native in the pure
@@ -25,7 +27,7 @@ export function nestedLoops() {
 export function writeInsideLoop(c, other) {
   let y = _globalThis;
   while (c()) {
-    y.Map.groupBy([1], v => v);
+    (y === _globalThis ? _Map : y.Map).groupBy([1], v => v);
     y = other;
   }
 }
@@ -33,6 +35,6 @@ export function conditionalWrite(c) {
   let z;
   if (c()) z = _globalThis;
   while (z) {
-    return z.Promise.allSettled([]);
+    return (z === _globalThis ? _Promise : z.Promise).allSettled([]);
   }
 }

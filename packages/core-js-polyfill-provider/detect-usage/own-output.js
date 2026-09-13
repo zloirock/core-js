@@ -10,6 +10,7 @@ import { ORPHAN_REF_PATTERN, UNUSED_NAME_PATTERN } from '../injector-base.js';
 import { isSourcedSymbolIteratorMeta } from './members.js';
 import {
   patternSlotTarget,
+  POSSIBLE_GLOBAL_OBJECTS,
   SKIPPABLE_WRAPPER_TYPES,
   blocksUidSlot,
   defaultImportSourcesOf,
@@ -123,14 +124,6 @@ function defaultHoldsPureImport(path, tests) {
   return pureDefaultImportBinding(path, right.name, tests);
 }
 
-// the pure ENTRY a PRIOR pass's default import binds (`_Array$of` -> `array/of`), null for
-// every other name: a census that must know WHICH read a kept spelling stands for reads the
-// entry, where the boolean sibling above only asks whether the binding is one of ours. the
-// lookup is the program-wide canon; only the own-pass exclusion is this family's to add
-function priorPassImportEntry(path, name, { isOwnPassBinding }) {
-  return isOwnPassBinding?.(name) ? null : pureImportEntryOf(path, name);
-}
-
 // the (global, member) a MINTED NAME spells, read back where the import that bound it is no longer
 // visible: a bundler rewrites every import into its own module call, so a pass over bundled output
 // sees the binding by name alone and the whole own-output family went blind there - the guard it
@@ -185,12 +178,12 @@ function guardedReadLeaf(node) {
 // value that global's polyfill has nothing to do with - our own kept read and a foreign member
 // under the same test alike. a test against ANOTHER global settles nothing: `h` may still be this
 // one, and the alternate keeps its claim
-function ownGuardRenderShape(conditional, path, tests) {
+function ownGuardRenderShape(conditional, path) {
   const consequent = unwrapRuntimeExpr(conditional.consequent);
   if (consequent?.type !== 'Identifier') return false;
-  const target = entryGuardTarget(priorPassImportEntry(path, consequent.name, tests))
+  const target = entryGuardTarget(pureImportEntryOf(path, consequent.name))
     ?? mintedNameTarget(consequent.name);
-  if (target === null || target.member === null) return false;
+  if (target === null) return false;
   const read = guardedReadLeaf(conditional.alternate);
   if (read === null) return false;
   const test = unwrapRuntimeExpr(conditional.test);
@@ -203,23 +196,29 @@ function ownGuardRenderShape(conditional, path, tests) {
   if (against?.type !== 'Identifier') return false;
   // a global core-js never replaces is tested against its BARE name, a replaced one against
   // the minted constructor binding
-  const entry = priorPassImportEntry(path, against.name, tests);
+  // An inherited pre+post import can still belong to this injector. The completed
+  // identity test protects its raw arm regardless of which pass allocated the import.
+  const entry = pureImportEntryOf(path, against.name);
   const compared = entry === null
     ? mintedNameTarget(against.name)?.global ?? against.name : entryGuardTarget(entry)?.global;
-  return compared === target.global;
+  // A realm guard substitutes the GLOBAL itself rather than one of its statics.
+  // Its raw branch still owes the selected object's property or nullish TypeError.
+  return target.member === null
+    ? POSSIBLE_GLOBAL_OBJECTS.has(compared) && read.member === target.global
+    : compared === target.global;
 }
 
 // the raw read OUR shadow-alias guard deliberately keeps (`h === Ctor ? _X : h.of` - the
 // alternate reads the shadowed value): a pass over our own output must not claim it again,
 // or the guard nests one level per pass
-function guardedAliasAlternateRead(path, tests) {
+function guardedAliasAlternateRead(path) {
   // the read may sit DEEPER in the alternate (`h === Ctor ? _X : h.from.bind(h)` claims
   // `h.from`): climb the expression composition to the guard, then ask whose arm we rode
   let cur = path;
   for (let up = cur.parentPath; up?.node; cur = up, up = up.parentPath) {
     const parent = up.node;
     if (parent.type === 'ConditionalExpression') {
-      return parent.alternate === cur.node && ownGuardRenderShape(parent, path, tests);
+      return parent.alternate === cur.node && ownGuardRenderShape(parent, path);
     }
     if (parent.type !== 'MemberExpression' && parent.type !== 'OptionalMemberExpression'
       && parent.type !== 'CallExpression' && !SKIPPABLE_WRAPPER_TYPES.has(parent.type)) return false;
@@ -546,7 +545,7 @@ function ownRenderedGuardAlternateClaim(path, tests) {
 // claim routes. `node` is the MemberExpression, `metaPath` its path
 export function ownEmittedNavClaim(node, metaPath, tests) {
   if (tests.programMayHoldOwnOutput && !tests.programMayHoldOwnOutput(rootProgramOf(metaPath))) return false;
-  return guardedAliasAlternateRead(metaPath, tests)
+  return guardedAliasAlternateRead(metaPath)
     || computedKeyIsMintedImport(node, metaPath, tests)
     || adoptedRefReceiverClaim(node, metaPath, tests)
     || ownDefaultedGuardFallbackClaim(metaPath, tests)

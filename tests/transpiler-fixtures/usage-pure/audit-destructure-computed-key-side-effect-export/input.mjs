@@ -1,5 +1,3 @@
-// an EXPORTED side-effecting computed key. the extracted polyfill emits as its own
-// `export const f`, and the residual destructure keeps its own export, so both `f` and the
-// effect-running destructure stay exported. guards two past regressions: a dangling
-// `export eff();` syntax error, and a binding inserted between `export` and `const`.
+// An exported computed static key captures its receiver, runs the key effect once, and exports the
+// pure static binding. The generated initializer remains a valid export declaration.
 export const { [(effectful(), 'from')]: f } = Array;

@@ -482,10 +482,10 @@ await runEquivalence('labeled-block var alias folds the post-block use',
 await runEquivalence('block-scoped ctor alias does not narrow the post-block read',
   '{\n  let { Map: M3 } = globalThis;\n  use(M3.groupBy(x, f2));\n}\nexport const r = M3.groupBy(x, f2);', USAGE_PURE);
 // anchor-less deferred hosts fold via the full-consume path: a ctor alias binds the pure
-// ctor (no globalThis import), a rest sibling keeps the sentinel'd residual polyfill-wins
+// ctor (no globalThis import); an object-rest sibling keeps the affected pattern native
 await runEquivalence('deferred ctor-alias host full consume',
   'let aM;\nexport const { values } = (({ Map: aM } = globalThis), Object);\nexport const r = [aM, values];', USAGE_PURE);
-await runEquivalence('deferred static + rest sibling keeps polyfill-wins',
+await runEquivalence('deferred static + rest sibling keeps native slots',
   'let fv2, rv2;\nexport const { entries } = (({ Promise: { allSettled: fv2, ...rv2 } } = globalThis), Object);\nexport const r = [fv2, rv2, entries];', USAGE_PURE);
 
 // --- declaration-driven type resolution, swept ---

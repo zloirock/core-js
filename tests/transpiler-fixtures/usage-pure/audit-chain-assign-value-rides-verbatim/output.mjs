@@ -7,16 +7,9 @@ import _Number$MAX_SAFE_INTEGER from "@core-js/pure/actual/number/max-safe-integ
 import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
 import _self from "@core-js/pure/actual/self";
-// a collapse that keeps a chain assignment re-emits the assignment around a REBUILT value, and what
-// the value's own render copied from the source rides along with it. two things follow, and each row
-// asserts one of them: a polyfillable read left inside that copied text still owns its rewrite, and
-// the source between the value and the end of the assignment - where a parenthesized value keeps its
-// closing token - comes back too, or the file stops parsing.
-// both emitters spell the assigned value by ONE rule, the guarded twin's canon: a fully
-// ponyfilled navigation spells as the LEAF's own ponyfill (`q = _self`), a realm hop READ THROUGH
-// that leaf folds onto it, mid-chain writes survive the
-// collapse, and a SEQUENCE-rooted navigation stays root-substituted verbatim (its prefix owns
-// live inner rewrites no rebuilt span could carry); the import sets match either way
+// A stored navigation value keeps assignments and rewrites inside its sequence prefix.
+// Parenthesized and unparenthesized values collapse to the same backed navigation leaf.
+// Source optional checks remain observable; plain middle hops do not invent new guards.
 let q;
 const arr = [1];
 
@@ -35,8 +28,8 @@ export const parenValueNested = _nameMaybeFunction((q = _self, _Map));
 export const bareValue = _nameMaybeFunction((q = _self, _Map));
 export const ctorStatic = (q = (_atMaybeArray(arr).call(arr, 0), _self), _Number$MAX_SAFE_INTEGER);
 
-// an unresolvable TAIL hop collapses to the deepest ponyfillable hop and rides the tail read
-// raw off it; mid-chain writes survive beside the outer one
+// A plain terminal navigation hop folds onto the deepest backed leaf when consumed.
+// Mid-chain stores retain their assignment order.
 export const bareUnresolvableTail = _nameMaybeFunction((q = _self, _Map));
 let w;
 export const nestedWriteTail = _nameMaybeFunction((q = w = _self, _Map));
@@ -48,13 +41,12 @@ export const tailStaticRead = (q = _self, _Number$MAX_SAFE_INTEGER);
 export const tailStaticCall = (q = (_Promise$resolve(2), _self), _Array$of)(7);
 export const tailFallback = (q = _self, _Promise).noSuchStatic;
 
-// an unresolvable hop BELOW the collapse point keeps its guard - the value the source computes can
-// be undefined, and an unguarded leaf would report the global where native short-circuits or throws.
-// the sequence prefix rides INSIDE the test with its own polyfills alive, an alias root keeps its name
+// A plain middle navigation hop reaches the backed leaf without inventing an optional guard.
+// Sequence effects remain inside the stored value, and direct and aliased roots agree.
 export const nestedBelowValue = _nameMaybeFunction((q = _self, _Map));
-export const nestedBelowSeq = _nameMaybeFunction((q = null == (_atMaybeArray(arr).call(arr, 0), _globalThis).window ? void 0 : _self, _Map));
+export const nestedBelowSeq = _nameMaybeFunction((q = (_atMaybeArray(arr).call(arr, 0), _self), _Map));
 const alias = _globalThis;
-export const nestedBelowAliasSeq = _nameMaybeFunction((q = null == (_atMaybeArray(arr).call(arr, 0), alias).window ? void 0 : _self, _Map));
+export const nestedBelowAliasSeq = _nameMaybeFunction((q = (_atMaybeArray(arr).call(arr, 0), _self), _Map));
 
 // the claim needs the value to BE the global, not merely to be rooted at one: a step onto anything
 // else leaves a value the source dereferences and throws on, so the member stays where it was

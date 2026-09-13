@@ -1,11 +1,9 @@
-import _includes from "@core-js/pure/actual/instance/includes";
-try {} catch (_ref) {
-  let _ref2,
-    includes = (_ref2 = _includes(_ref)) === void 0 ? fb : _ref2;
-  let {
-    includes: _unused,
-    ...rest
-  } = _ref;
+// Object-rest keeps the affected catch pattern native, including its named method slots.
+// Independent reads and key/default expressions still receive their own polyfills.
+try {} catch ({
+  includes = fb,
+  ...rest
+}) {
   includes("x");
   rest.y;
 }

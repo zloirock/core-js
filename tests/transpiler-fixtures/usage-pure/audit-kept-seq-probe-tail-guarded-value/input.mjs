@@ -1,12 +1,6 @@
-// a NESTED sequence whose tail navigates through the environment probe onto a backed hop
-// (`globalThis.window.self`): the kept test observes the value, so the tail slot takes the
-// GUARDED value render - the test decides on the probe and reads the always-defined leaf past
-// it - on the static and the memoized instance route alike, and through an ALIAS root the same
-// way. one leg used to drop the backed hop and read the bare probe, the other to test an
-// always-defined leaf unconditionally.
-// a kept WRITE in the tail takes the same guarded spelling exactly where the optional ctor hop
-// is the claim's DIRECT object (the ctor's render rides the alternate and its test is the only
-// reader of the store); a deeper store is read on the live tree and keeps the value form.
+// Nested sequence tails ending in the backed self hop store and read that ponyfill.
+// The plain window hop adds no guard; each sequence prefix and kept assignment survives once.
+// Static, instance and aliased roots obey the same value rule, including deeper consumers.
 const ga = globalThis;
 let c = 0, d = 0, k;
 export const staticCombined = (d++, (c++, globalThis.window.self))?.Map.name;
@@ -19,7 +13,5 @@ export const aliasInstance = (d++, (c++, ga.window.self))?.Array.prototype.at;
 export const flatTwin = (d++, globalThis.window.self)?.Array.prototype.at;
 // NEGATIVE: a claim consuming the whole spelling folds - nothing reads past the erased guard
 export const claimConsumes = (d++, (c++, globalThis.window.self))?.Map;
-// the store below a deeper static spells the GUARDED value like its static twin above: the guard the
-// instance dispatch builds is the store's reader, so the probe stands inside it and `k` holds what
-// the environment holds - the value form there left the realm object on the absent branch
+// A deeper instance consumer likewise stores the backed self value and preserves both prefixes.
 export const storeInstance = (d++, (c++, k = globalThis.window.self))?.Number.MAX_SAFE_INTEGER.toFixed(1);

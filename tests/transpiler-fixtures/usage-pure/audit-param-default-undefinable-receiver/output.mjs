@@ -1,13 +1,10 @@
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _self from "@core-js/pure/actual/self";
-// param-default / IIFE-arg / inner-default synth-swaps over an UNDEFINABLE receiver keep the
-// plain always-defined literal: the caller-correct fallback slot fires only when nothing was
-// passed, and the ponyfill resolves where native would throw on the absent host - the accepted
-// divergence the provider AGENTS.md spells. the one exception rides the SEAL rule, not this
-// one: a sealed receiver read in the flat synth-swap re-emits as a throw probe (the source
-// itself spells the read the swap would erase), while the nested mirror stays plain on every
-// spelling
+// Plain parameter and inner defaults synthesize covered keys even when an optional host is absent.
+// Supplied arguments and logical-left branches preserve branch selection and their live static polyfills.
+// Flat sealed reads still throw; unresolved sibling keys retain their receiver reads.
+// Alias-held and nested defaults keep their fallback forms, and receiver effects run once.
 
 // flat synth-swap, plain optional nav receiver
 export function viaParamFlat({
@@ -37,10 +34,10 @@ export function viaParamAlias({
   return of;
 }
 
-// flat synth-swap, IIFE argument position
+// A supplied IIFE argument preserves the optional host guard before destructuring.
 export const viaIifeArg = (({
   of
-}) => of)({
+}) => of)(null == _globalThis.window ? void 0 : {
   of: _Array$of
 });
 
@@ -156,8 +153,11 @@ export function viaDefinedMirror({
 }) {
   return of;
 }
+// The logical left keeps its nullish branch so the rescue still runs when the host is absent.
 export function viaLogicalRescue({
   of
-} = _globalThis.window?.Array ?? {}) {
+} = (null == _globalThis.window ? void 0 : {
+  of: _Array$of
+}) ?? {}) {
   return of;
 }

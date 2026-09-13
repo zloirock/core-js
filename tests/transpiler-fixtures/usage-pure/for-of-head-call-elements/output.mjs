@@ -3,13 +3,10 @@ import _entries from "@core-js/pure/actual/instance/entries";
 import _Object$entries from "@core-js/pure/actual/object/entries";
 import _Object$is from "@core-js/pure/actual/object/is";
 import _Object$keys from "@core-js/pure/actual/object/keys";
-// a for-of head over a literal whose elements hold a CALL typed to return a constructor: the leaf
-// under the hop reads that constructor's STATIC on every pass (`_Object$entries`), never the
-// instance dispatcher that answers `undefined` where the native static is absent. the head binding
-// carries no init - the walk reads the iterated element as the init it would have had - and calls of
-// the same named function count as one element for a reader that resolves them, while a mirror
-// never writes into a call (the source pattern keeps an inline default there). differing callees
-// stay generic; a member read off the head binding in the body resolves the same way
+// A nested loop slot reads statics from the constructors returned by its element calls.
+// Equal receivers permit direct extraction; differing callees retain an identity guard.
+// Every call and its effects remain in the iterable.
+// A member read off the head binding resolves the same receiver.
 let n = 0;
 const e = t => {
   n += t.length;
@@ -20,7 +17,7 @@ const g = t => {
   return Array;
 };
 const out = [];
-for (const _ref2 of [{
+for (const _ref4 of [{
   w: e('a')
 }]) {
   let viaSole = _Object$entries;
@@ -36,24 +33,25 @@ for (const _ref of [{
   } = _ref;
   _pushMaybeArray(out).call(out, viaSibling, at);
 }
-for (const {
-  w: {
-    is: viaTwoSameCalls = _Object$is
-  }
-} of [{
+for (const _ref5 of [{
   w: e('a')
 }, {
   w: e('b')
-}]) _pushMaybeArray(out).call(out, viaTwoSameCalls);
-for (const {
-  w: {
-    is: viaDifferentCallees
-  }
-} of [{
+}]) {
+  let viaTwoSameCalls = _Object$is;
+  _pushMaybeArray(out).call(out, viaTwoSameCalls);
+}
+for (const _ref3 of [{
   w: e('a')
 }, {
   w: g('b')
-}]) _pushMaybeArray(out).call(out, viaDifferentCallees);
+}]) {
+  let {
+      w: _ref2
+    } = _ref3,
+    viaDifferentCallees = _ref2 === Object ? _Object$is : _ref2.is;
+  _pushMaybeArray(out).call(out, viaDifferentCallees);
+}
 for (const item of [{
   w: e('a')
 }]) {

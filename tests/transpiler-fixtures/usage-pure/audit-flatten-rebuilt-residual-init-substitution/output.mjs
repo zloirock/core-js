@@ -6,7 +6,6 @@ import _globalThis from "@core-js/pure/actual/global-this";
 import _Map from "@core-js/pure/actual/map/constructor";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Object$keys from "@core-js/pure/actual/object/keys";
-import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 var _ref2;
 const from = _Array$from;
 // a flatten whose residual keeps a REBUILT pattern re-emits the init: the detect pass
@@ -31,14 +30,13 @@ use(of, more);
 
 // a symbol-iterator-keyed PATTERN sibling extracts through the helper off the shared memo
 // (the init substitutes into the memo); the polyfillable default inside the pattern stays live
-const _ref = _globalThis.Array,
-  {
-    isArray,
-    [_Symbol$iterator]: _unused
-  } = _ref,
-  {
-    x = _atMaybeArray(_ref2 = [1]).call(_ref2, 0)
-  } = _getIteratorMethod(_ref);
+const _ref = _globalThis.Array;
+const {
+  isArray
+} = _ref;
+const {
+  x = _atMaybeArray(_ref2 = [1]).call(_ref2, 0)
+} = _getIteratorMethod(_ref);
 use(isArray, x);
 
 // the for-init host cannot lift the SE prefix (loop header forbids statements): the sink

@@ -1,13 +1,13 @@
-// The escape walk's CACHING layer as a domain of its own: the slot memo, the per-name root cache
+// The escape walk's CACHING layer as a domain of its own: the slot memo, the per-binding root cache
 // and the state one file's escapes share. A cache is supposed to leave the ANSWER alone, so no row
 // about which node carries a stamp can see it - what it owes instead is TERMINATION and a SOUND
 // key, and both of those turn into answers on the right shape. A walk that cannot converge spends
 // its step ceiling on the cycle and every item queued behind it goes unstamped; a key that folds
 // two different reads onto one entry hands the second read the first one's values, and a root
 // replayed without the visited set it was derived under descends past its own cycle guard.
-// Three of the four sources below spell a CIRCULAR alias graph, which is what a bundler's hoisted
-// output produces and what `tsc` answers TS7022 to - the circularity is the point, and none of
-// these sources is executed
+// Several sources below spell a CIRCULAR alias graph, which is what a bundler's hoisted output
+// produces and what `tsc` answers TS7022 to - the circularity is the point, and none of these
+// sources is executed
 import { createChecker, findNode } from './harness.mjs';
 import {
   collectFileCensus,
@@ -23,6 +23,12 @@ const { check, checkTruthy, finish, runBoth } = createChecker('escape-walk-memo-
 // has converged. every row hands out a pair - one value the walk reaches only AFTER it is done with
 // the shape the cache exists for, so a cache that stops folding starves the second half
 const ROWS = [
+  {
+    name: 'effectful getter pairings keep same-name aliases in their own scopes',
+    code: 'export function first() { const { w: { Map: Held } } = { get w() { mark(); return globalThis; } }; return Held; }'
+      + ' export function second() { const { w: { Set: Held } } = { get w() { mark(); return globalThis; } }; return Held; }',
+    stamped: ['Map: Held', 'Set: Held'],
+  },
   // a cycle whose every hop is a node the SOURCE spells: two containers reading each other's slot.
   // both keys fold it, which is what separates this row from the next one - the node is stable, so
   // identity dedup answers here exactly like the read's name does
@@ -38,7 +44,7 @@ const ROWS = [
   },
   // ... and the same cycle through slots a destructure SYNTHESIZES: the read a receiver-shaped
   // source pairs with is a new node every pass, so identity can never fold it and only the name
-  // the read stands for - the root's position plus the key path - converges
+  // the read stands for - the root binding plus the key path - converges
   {
     name: 'a cycle through synthesized receiver reads converges on the name the read stands for',
     code: [
@@ -77,6 +83,35 @@ const ROWS = [
     ].join('\n'),
     stamped: ['alias.deep.absent'],
   },
+  {
+    name: 'same-name roots in different functions keep independent cached values',
+    code: 'export function first() { const box = { value: Map }; return box.value; }'
+      + ' export function second() { const box = { value: Set }; return box.value; }',
+    stamped: ['Map', 'Set'],
+  },
+  {
+    name: 'a same-name alias hop is not a cycle until it reaches the same binding',
+    code: 'const x = { payload: Map }; const box = { x };'
+      + ' export function read() { const { x } = box; return x.payload; }',
+    stamped: ['Map'],
+  },
+  {
+    name: 'independent cycles do not starve either function escape',
+    code: 'export function first() { var a = { p: b.q }; var b = { q: a.p }; return [Map, a.p]; }'
+      + ' export function second() { var a = { p: b.q }; var b = { q: a.p }; return [Set, a.p]; }',
+    stamped: ['Map', 'Set'],
+  },
+  {
+    name: 'literal slots and computed keys preserve their parent container escape',
+    code: 'const box = { "held": Map }; hand([0, "text", false, null, 1n, /x/, box["held"]]);',
+    stamped: ['Map'],
+  },
+  {
+    name: 'a leading block and its program are different owners even when both start at zero',
+    code: '{ const box = { value: Map }; hand(box.value); }'
+      + ' const box = { value: Set }; hand(box.value);',
+    stamped: ['Map', 'Set'],
+  },
 ];
 
 // the span a spelling occupies in its own source. every spelling here is unique in its row, so an
@@ -97,6 +132,23 @@ for (const row of ROWS) {
     for (const spelling of row.stamped) {
       check(`${ label }: '${ spelling }' stamped`, stamps.has(spanKey(row.code, spelling, label)), true);
     }
+  });
+}
+
+// Babel plugins can create scope nodes with missing spans, or copy a span to several nodes.
+// The declarations remain distinct in either case; their bodies still carry the source leaves.
+for (const spans of ['missing', 'copied']) {
+  const code = 'export function first() { const box = { value: Map }; return box.value; }'
+    + ' export function second() { const box = { value: Set }; return box.value; }';
+  runBoth(`distinct scopes with ${ spans } positions keep both escapes`, code, (adapter, programPath, label) => {
+    for (const statement of programPath.node.body) {
+      for (const node of [statement.declaration, statement.declaration.body]) {
+        if (spans === 'missing') delete node.start;
+        else node.start = 0;
+      }
+    }
+    const { escapedCtorNames } = collectFileCensus(programPath.node, [escapedCtorReferencesReducer()]);
+    for (const name of ['Map', 'Set']) check(`${ label }: ${ name } family escapes`, escapedCtorNames.has(name), true);
   });
 }
 

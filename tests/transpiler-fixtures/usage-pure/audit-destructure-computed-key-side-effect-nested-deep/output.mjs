@@ -1,18 +1,18 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
-var _ref;
-const f = _Array$from;
-// a side-effecting computed key TWO levels deep. the key is kept in place (value renamed to a throwaway,
-// effect once) and the polyfill bound separately - the same residual path as every depth. polyfill wins
+var _ref3;
+// A computed static key two levels deep follows both receiver hops.
+// Its effect runs once before the source binding is initialized with the pure method.
+// The independent instance call remains polyfilled.
 const {
-  a: {
-    b: {
-      [(effectful(), 'from')]: _unused
+    a: {
+      b: _ref
     }
-  }
-} = {
-  a: {
-    b: Array
-  }
-};
-const probe = _includesMaybeArray(_ref = [1, 2]).call(_ref, 2);
+  } = {
+    a: {
+      b: Array
+    }
+  },
+  _ref2 = _ref,
+  f = null == _ref2 ? _ref2[""] : (effectful(), _Array$from);
+const probe = _includesMaybeArray(_ref3 = [1, 2]).call(_ref3, 2);

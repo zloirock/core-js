@@ -109,9 +109,11 @@ function g({ w: [{ hasOwn } = {}] = [] } = { w: [Object] }) { return hasOwn; }
 function g({ w: { from: f } } = { w: pick ? Array : userObj }) { return f; } log.push(g() === Array.from, g({ w: userObj })());
 }
 {
+// A later computed key can replace w. Substitute Map only when the final w still holds the realm object.
 function k(key) { const { w: { Map: kd } } = { w: globalThis, [key]: other }; return kd; }
 }
 {
+// Read the nested method once before evaluating the following computed key and reading its property.
 function key() { return 'k'; } const { m: { at }, [key()]: picked } = { m: [1], k: 2 };
 }
 {

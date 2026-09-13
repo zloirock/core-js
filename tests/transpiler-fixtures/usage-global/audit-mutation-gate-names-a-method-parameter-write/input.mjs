@@ -1,6 +1,6 @@
-// the same pairing named by a METHOD's key: the declaration side and the call side spell the owner
-// the same way, so `handler.take(Array)` reaches the parameter `handler.take` writes through. the
-// file's only mutation is that one, which is what makes the pairing the whole answer here
+// A local method receives Array and writes its named static. The mutation must widen
+// the later at call without treating the argument as a released constructor.
+// Pure retains the patched Array.from read.
 const xs = [];
 const handler = {
   take(ctor) {

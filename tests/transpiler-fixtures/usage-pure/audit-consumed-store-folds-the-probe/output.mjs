@@ -4,21 +4,19 @@ import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Map from "@core-js/pure/actual/map";
 import _self from "@core-js/pure/actual/self";
-// ... and WHO holds the value a store hands on: a read THROUGH it is the consumer's own, and that
-// read is the proof the value must be the realm object - so the probe folds there whatever the run
-// carries, where the bare store beside it keeps the collapse's own spelling. every channel that
-// reads through answers the same way: a claim, its guard, an instance dispatch, a call, a
-// destructure - and so does the same run rooted in a proven call
+// Plain reads through a stored realm run retain the consuming collapse, including destructuring after its render.
+// An optional continuation preserves the absence of a terminal window probe instead of proving it defined.
+// Identifier and proven-call roots keep every sequence and computed-key effect exactly once.
 let e = 0;
 let held;
 function dh() {
   return _globalThis;
 }
 export const claimed = _nameMaybeFunction((held = (e++, _self), _Map));
-export const guarded = null == (held = (e++, _self)) ? void 0 : _Map;
+export const guarded = null == (held = (e++, _self).window) ? void 0 : _Map;
 export const instanced = _nameMaybeFunction(_atMaybeArray((held = (e++, _self)).Array.prototype));
 export const called = (held = (e++, _self), _Array$of)(1);
-export const callRootGuarded = null == (held = (e++, _self)) ? void 0 : _Map;
+export const callRootGuarded = null == (held = (e++, _self).window) ? void 0 : _Map;
 export const callRootClaimed = _nameMaybeFunction((held = (e++, _self), _Map));
 export const callRootInstanced = _nameMaybeFunction(_atMaybeArray((held = (e++, _self)).Array.prototype));
 export const callRootDeleted = delete (held = (e++, _self)).customCallSlot;
@@ -43,7 +41,7 @@ export const seKeyedCallRoot = _nameMaybeFunction((held = _self[e++, 'window'], 
 // ... and a BACKED hop spelled the same way keeps the value canon over the kept-root one: what the
 // fold erases above it navigates nothing, so the claim's own ponyfill is the base
 export const seKeyedHop = _nameMaybeFunction((held = (eff('c'), _self), _Map));
-export const seKeyedHopCallRoot = null == (held = (eff('d'), _self)) ? void 0 : _Map;
+export const seKeyedHopCallRoot = null == (held = (eff('d'), _self).window) ? void 0 : _Map;
 
 // ... and the NEGATIVES beside them: reading the stored value without dereferencing it is not
 // reading THROUGH it, so nothing proves what the value must be and the collapse keeps its spelling

@@ -1,6 +1,5 @@
 import "core-js/modules/es.array.at";
 import "core-js/modules/es.array.join";
-import "core-js/modules/es.number.constructor";
 import "core-js/modules/es.string.includes";
 // A primitive is assignable to the wrapper it boxes into, so `string extends String` takes the
 // TRUE branch, a different wrapper or a concrete container takes the FALSE one, and the boxed top

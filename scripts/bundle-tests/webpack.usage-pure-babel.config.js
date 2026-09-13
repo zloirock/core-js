@@ -36,6 +36,11 @@ module.exports = {
             // e2e tests need proper Symbol.iterator usage for for-of/spread/destructuring
             iterableIsArray: false,
             skipForOfIteratorClosing: false,
+            // Computed data properties must be able to replace an earlier getter.
+            setComputedProperties: false,
+            setSpreadProperties: false,
+            // Object rest must retain enumerable symbol properties.
+            objectRestNoSymbols: false,
           },
         },
       },

@@ -10,12 +10,11 @@ let v;
 export const guardOverChainStore = null == (w = _globalThis.window?.self) ? void 0 : _Map;
 export const guardOverChainStoreDeep = null == (v = _globalThis.window?.self?.window) ? void 0 : _Set;
 
-// ... and the same store with no `?.` in the value it carries: the wrapper the source wrote is the
-// one the render empties either way, so the two spellings print alike. what neither of them folds
-// is the probe BELOW the terminal hop: this build spells no `self`, so the run's own value is the
-// raw host read and every slot it names stays
+// Without a live optional in the stored navigation, the known realm identity makes the
+// outer guard redundant. This build excludes self, so the native host read still runs and
+// its value is stored before the pure Map binding is returned.
 let plain;
-export const guardOverPlainStore = null == (plain = _globalThis.window.self) ? void 0 : _Map;
+export const guardOverPlainStore = (plain = _globalThis.window.self, _Map);
 // ... and a `?.` the same verdict calls DEAD does not stop the fold MID-RUN either: it reads the
 // run's own proven base, so the hops above it ride onto the binding exactly as their plain twins do
 export const deadGuardMidRun = _globalThis.customProp;

@@ -1,7 +1,5 @@
-// a side-effect-key instance destructure off a side-effect-free BRANCHING receiver (ternary /
-// logical) memoizes the receiver into a `_ref` read once - the branch selects exactly once,
-// like the native single read - and extracts the polyfill off the memo. the key effect stays
-// in the kept residual key (runs once); Maybe-dispatch keeps a diverging branch value-correct
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
 let k1 = 0;
 var { [(k1++, 'at')]: a1, other1 } = Promise.prototype ? [7, 8] : [];
 export const r1 = [typeof a1, k1];
@@ -28,22 +26,20 @@ function pick(c) {
   return typeof fm;
 }
 export const r5 = [pick(true), pick(false), k5];
-// nested branching fragment off a pure init hoists the fragment memo
+// A nested branching receiver keeps its selected slot ahead of the key and sibling read.
 let k6 = 0;
 const { y: { [(k6++, 'values')]: v6 }, z6 } = { y: Promise.prototype ? [1] : [], z6: 1 };
 export const r6 = [typeof v6, k6, z6];
-// sole-prop pattern memoizes too: the kept key effect still reads the residual, so the
-// receiver has two readers (residual + extract) and the memo is the only sound single-read
+// A sole property also captures its RHS before the key effect and reads the method once.
 let k7 = 0;
 var { [(k7++, 'keys')]: ks7 } = Promise.prototype ? [9] : [];
 export const r7 = [typeof ks7, k7];
-// for-init sibling-declarator host takes the memo as a preceding declarator
+// A for-init declaration captures its receiver before the key and later declarators.
 let k8 = 0, out8 = '';
 for (var { [(k8++, 'entries')]: e8, other8 } = 1 ? [6] : [], i8 = 0; i8 < 1; i8++) out8 = typeof e8;
 export const r8 = [out8, k8];
-// the memoize channel also takes the WHOLE INIT of a top-level multi-prop pattern when the
-// receiver resolves to no single-read-safe node - the memo evaluates exactly where the init
-// did, so every buried effect runs once in source order, whatever the expression shape
+// An opaque initializer is captured where the source evaluates it, so each buried effect
+// runs once before the key and property reads.
 let k9 = 0, calls9 = 0;
 function mk9() { calls9++; return [9]; }
 var { [(k9++, 'at')]: a9, other9 } = mk9();
@@ -52,7 +48,7 @@ export const r9 = [typeof a9, k9, calls9];
 let k10 = 0;
 var { [(k10++, 'flat')]: f10, other10 } = k10 >= 0 ? Array.of([1]) : [];
 export const r10 = [typeof f10, k10];
-// sequence init with an SE-bearing tail: the memo captures the WHOLE sequence (prefix included)
+// A sequence initializer retains its effectful prefix and selected receiver together.
 let k11 = 0, s11 = 0;
 var { [(k11++, 'includes')]: inc11, other11 } = (s11++, s11 > 0 ? Array.of(2) : []);
 export const r11 = [typeof inc11, k11, s11];
@@ -61,36 +57,33 @@ let g12 = 0;
 const holder12 = { get p() { g12++; return [3]; } };
 var { [(g12++, 'findLast')]: fl12, other12 } = holder12[(g12++, 'p')];
 export const r12 = [typeof fl12, g12];
-// rest sibling: the kept (renamed) key is read and EXCLUDED from rest like native
 let k13 = 0;
 function mk13() { return [7, 8]; }
 var { [(k13++, 'at')]: a13, ...rest13 } = mk13();
 export const r13 = [typeof a13, k13, typeof rest13];
-// optional-call init routes through the same whole-init memo
+// An optional-call initializer is evaluated once before the pattern starts reading it.
 let k14 = 0;
 const holder14 = { get14() { return [4]; } };
 var { [(k14++, 'flat')]: f14, other14 } = holder14?.get14?.();
 export const r14 = [typeof f14, k14];
-// a proxy-hop member receiver collapses INSIDE the memo (the raw hop is undefined off-engine)
+// Proxy navigation collapses inside the captured receiver before its instance read.
 let k15 = 0;
 var { [(k15++, 'at')]: a15, other15 } = globalThis['self'].Array.prototype;
 export const r15 = [typeof a15, k15];
-// a sequence init whose resolved TAIL sits under an impure prefix retries as the whole init:
-// the memo captures prefix and receiver together, effects once in source order
+// An effectful sequence prefix stays with the captured navigation receiver and runs once.
 let k16 = 0, s16 = 0;
 var { [(k16++, 'flat')]: f16, other16 } = (s16++, globalThis.self.Array.prototype);
 export const r16 = [typeof f16, k16, s16];
-// an EXPORTED host must not export the internal memo temp: first-declarator memos plant as a
-// bare statement BEFORE the export (comma-joining would add `_ref` to the module surface)
+// An exported pattern exposes only its source bindings; generated receiver names stay private.
 let k17 = 0;
 export var { [(k17++, 'toSorted')]: _u17, other17 } = holder17.p;
 export const r17 = [typeof _u17, typeof other17, k17];
-// multi-declarator export host: the memo still precedes the export, the pair joins the list
+// A multi-declarator export preserves binding order and exposes only the source names.
 let k18 = 0;
 export var { [(k18++, 'values')]: _u18, other18 } = holder18.p, z18 = 1;
 export const r18 = [typeof _u18, typeof other18, z18, k18];
-// LATER-declarator export memo keeps the comma slot (a statement hoist would run the receiver
-// read ahead of the earlier declarator's init) - the exported `_ref` is the documented residue
+// A later exported pattern keeps its receiver read after earlier initializers without
+// exporting the generated receiver name.
 let k19 = 0;
 export var z19 = 1, { [(k19++, 'keys')]: _u19, other19 } = holder19.p;
 export const r19 = [z19, typeof other19, k19];

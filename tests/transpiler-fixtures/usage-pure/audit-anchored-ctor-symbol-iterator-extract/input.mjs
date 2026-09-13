@@ -1,8 +1,5 @@
-// a `[Symbol.iterator]` leaf under a single-ctor-key ANCHOR extracts through the iterator-
-// method helper off the anchored CONSTRUCTOR (the pure ctor binding when one exists, else a
-// member read off the proxy binding), exactly like its proxy-outer twin: a sole binding
-// drops the declarator, a static sibling extracts alongside in source order, an inner rest
-// keeps the re-keyed sentinel in the residual anchored on the same base
+// Object-rest keeps the affected method slots native; computed symbol keys still polyfill.
+// Independent reads and key/default expressions still receive their own polyfills.
 const { Array: { [Symbol.iterator]: a } } = globalThis;
 a;
 const { Map: { [Symbol.iterator]: m } } = globalThis;

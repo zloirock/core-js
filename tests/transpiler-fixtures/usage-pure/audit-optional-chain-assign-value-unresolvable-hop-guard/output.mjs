@@ -32,15 +32,13 @@ export const unguardedWindowValue = _flatMaybeArray((n = _globalThis.window).Arr
 // tail read) exactly like the unguarded twin
 const arr = [1];
 let p;
-export const guardedSeqPrefixValue = null == (p = (_atMaybeArray(arr).call(arr, 0), _self)) ? void 0 : _Map;
+export const guardedSeqPrefixValue = null == (p = (_atMaybeArray(arr).call(arr, 0), _self).window) ? void 0 : _Map;
 
-// a guarded seq-rooted value whose unresolvable hop sits BELOW the ponyfillable leaf renders
-// the nested-guard canon exactly like the unguarded twin: the value's test keeps the prefix
-// effect alive with its own polyfill, the proven root substitutes eagerly (the deferred flush
-// may land where no visitor re-enters), and the kept assignment's plan owns the value's
-// spelling - no inner claim may detach what the render reads
+// A plain middle hop lands on its backed leaf, including through a sequence prefix.
+// No source optional tests `window`, so the value must not acquire an invented window guard.
+// The stored value and the prefix effect follow the same collapse as the inline plain twin.
 let nb;
-export const guardedSeqNestedBelow = null == (nb = null == (_atMaybeArray(arr).call(arr, 0), _globalThis).window ? void 0 : _self) ? void 0 : _Map.length;
+export const guardedSeqNestedBelow = (nb = (_atMaybeArray(arr).call(arr, 0), _self), _Map).length;
 export const guardedWindowHop = null == (_ref2 = _globalThis.window) ? void 0 : _atMaybeArray(_ref2.Array.prototype).call([9], 0);
 
 // the DESTRUCTURE-source shape of the same kept root: however an emitter renders the root, it
