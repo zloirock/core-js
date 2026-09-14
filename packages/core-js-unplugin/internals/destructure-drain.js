@@ -1,24 +1,28 @@
 // the drain half of the destructure emitter: the per-host ledger drains that run once over
 // the final tree - pattern surgery, memo declarations, residual re-anchoring and the
 // literal renders. created per transform over the visit half's shared context
+import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
 import {
   destructureKeyReadPlan,
+  firstPatternProp,
+  instanceSynthReceiverPure,
   isBuiltInSurfaceNav,
   isInstanceSurfaceNav,
   isSeFreeMemberReceiver,
-  instanceSynthReceiverPure,
+  liftedRealmNavEffect,
   planSynthReceiverGuard,
-  firstPatternProp,
   pruneHopFromLevels,
   resolveNestedReceiverBase,
   resolvePassthroughRef,
   staticHopPure,
+  provenRealmCallRoot,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import { renderNestedKeyedPatternCapture } from '@core-js/polyfill-provider/destructure-host-shape';
 import {
   hopNamesMissingAbleCtor,
   hostLevelSurvives,
   planCatchClauseExtraction,
+  residualLeafReadsCtorStatic,
 } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
 import {
   planMemoReadTarget,
@@ -30,6 +34,9 @@ import {
   inlineCallHasObservableEffects,
   navValueCanShortCircuit,
   proxyGlobalMemberCtorPureSwap,
+  isStaticPlacement,
+  isCallShape,
+  resolveKey,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 
 import {
@@ -119,7 +126,7 @@ import {
   interleavedSeKeySegments,
   isMintedOrProxyName,
   isPureNavReceiver,
-  jobOwnedNodes,
+  jobHostSiblingDeclarators,
   joinBodylessSiblingExtractions,
   joinExtractionBesideSentinel,
   joinSeKeySiblingDeclarator,
@@ -473,6 +480,8 @@ export default function createDestructureDrains(ctx) {
     toHint,
   } = ctx;
   const positionalRevisit = new Set();
+  // the slots the last drain renamed - what tells the revisit cascade it may go another round
+  let renamedSlots = 0;
 
   // the extracted binding's value: a static / global claim is the import binding itself;
   // an instance claim is the method lookup over the (reusable) receiver. a DEFAULT on the
@@ -549,17 +558,24 @@ export default function createDestructureDrains(ctx) {
     // undefined where the source binds null). the flat-depth canon renders exactly this guard
     function guarded(build) {
       if (!defaulted) return build;
-      const ref = injector.generateDeclaredRef(metaPath);
+      // a CATCH-BORN host (`memoJoin`) cannot hoist a `var` past its own binding: the ref is
+      // block-scoped and leads the extraction as its own `let` (the drain's lead declaration, the
+      // shape the other leg prints); a hoistable host takes the declared ref
+      const ref = memoJoin ? mintRefName() : injector.generateDeclaredRef(metaPath);
       // read `.right` LAZILY, like the guard path below: the walker's later in-place rewrites
       // replace the default THROUGH that slot
       const valueNode = prop.value;
-      return override => renderInstanceDefaultGuard({
-        assignedRef: identifier(ref),
-        call: build(override),
-        defaultValue: valueNode.right,
-        defaultName: valueNode.left?.name,
-        reread: identifier(ref),
-      });
+      function thunk(override) {
+        return renderInstanceDefaultGuard({
+          assignedRef: identifier(ref),
+          call: build(override),
+          defaultValue: valueNode.right,
+          defaultName: valueNode.left?.name,
+          reread: identifier(ref),
+        });
+      }
+      if (memoJoin) thunk.leadDecl = ref;
+      return thunk;
     }
     if (kind === 'instance') {
       let receiver = peelTransparentExpr(receiverNode);
@@ -713,7 +729,7 @@ export default function createDestructureDrains(ctx) {
         const ref = namelessRoot ? { path: chainKeys } : resolveNestedReceiverBase({
           rootName: receiver.name,
           keys: chainKeys,
-          bound: !!adapter.getBinding(nodeSite(receiver, metaPath).scope, receiver.name, nodeSite(receiver, metaPath).path),
+          binding: adapter.getBinding(nodeSite(receiver, metaPath).scope, receiver.name, nodeSite(receiver, metaPath).path),
           adapter,
           resolveGlobalPolyfill,
           // a nav ending on a polyfillable STATIC dispatches on the static's own ponyfill, never on
@@ -783,9 +799,26 @@ export default function createDestructureDrains(ctx) {
     ledger.get(key).jobs.push(job);
   }
 
+  // the RAW passthrough of a whole hop the branch literal keeps as the source read it (a wks leaf
+  // or an instance member below it): the value at the hop chain off the branch root - never
+  // through a ctor's pure binding - and skipped for the later passes
+  function renderWholeHopPassthrough(tree, receiver) {
+    if (receiver?.type !== 'Identifier') return null;
+    const ref = resolvePassthroughRef({
+      keyPath: tree.chainKeys, receiverName: receiver.name, receiverIsProxy: POSSIBLE_GLOBAL_OBJECTS.has(receiver.name),
+      resolveGlobalPolyfill, adapter, raw: true,
+    });
+    let read = ref.pure ? identifier(injectPureImport(ref.pure.entry, ref.pure.hintName)) : identifier(ref.name);
+    for (const hop of ref.path) read = memberFromKeyName(read, hop);
+    markSubtreeSkipped(skippedNodes, read);
+    return read;
+  }
+
   // render one pattern's synth literal over a receiver: polyfilled slots take their import,
   // the rest read through the receiver (its pure proxy import when it has one) - the
-  // caller's own value still wins, the literal only serves the defaulted path
+  // caller's own value still wins, the literal only serves the defaulted path. a RAW slot (a
+  // member target the mirror keeps as written) reads raw through the receiver - never the ctor's
+  // pure binding, which carries no statics - and the later passes leave that read alone
   // the one synth prop constructor: the canon's `__proto__` rule rides every entry - the
   // key re-spells as a STRING literal (a bare `[__proto__]` would read a binding)
   function synthProp(key, value, { computed = false } = {}) {
@@ -803,6 +836,7 @@ export default function createDestructureDrains(ctx) {
     baseIsProxy = false,
     passthroughPrefix = null,
     slots,
+    rawSlots = null,
     requireFullCoverage = false,
     // the RESOLVED key spelling (`from:` for a folded `[k]`) is the nested mirror's canon
     // whether or not coverage is required; the flat routes keep the source spelling
@@ -934,12 +968,14 @@ export default function createDestructureDrains(ctx) {
       // serves only a fully-covered pattern
       const passthroughName = baseName ?? (receiver.type === 'Identifier' ? receiver.name : null);
       if (!passthroughName) return null;
+      const raw = !!rawSlots?.has(planEntry.dedupKey);
       const ref = resolvePassthroughRef({
         keyPath: [...passthroughPrefix ?? [], planEntry.lookupKey],
         receiverName: passthroughName,
         receiverIsProxy: baseIsProxy || POSSIBLE_GLOBAL_OBJECTS.has(passthroughName),
         resolveGlobalPolyfill,
         adapter,
+        raw,
       });
       let base = ref.pure ? identifier(injectPureImport(ref.pure.entry, ref.pure.hintName)) : identifier(ref.name);
       // a string-spelled source key reads back computed with the same literal
@@ -950,6 +986,7 @@ export default function createDestructureDrains(ctx) {
           base = memberExpression(base, cloneNode(key), { computed: true });
         } else base = memberFromKeyName(base, hop);
       }
+      if (raw) markSubtreeSkipped(skippedNodes, base);
       pushSlot(base);
     }
     return objectExpression(entries);
@@ -1093,12 +1130,25 @@ export default function createDestructureDrains(ctx) {
       // joined at the top level - rendered only when every outer hop prop registered
       if (pending.nestedTrees) {
         const [{ outerPattern }] = pending.nestedTrees;
-        if (outerPattern && outerPattern.properties.length > 1
-          && pending.nestedTrees.length !== outerPattern.properties.length) continue;
+        // a literal that will not render - a hop the mirror declined after a sibling registered, a
+        // subtree with no spelling, no ponyfill in any subtree - leaves the branch as the source
+        // wrote it, its proxy roots substituted: the registration's skip kept the later passes off
+        // that read, so `globalThis` would otherwise stay raw where every other read is `_globalThis`
+        function restoreBranch() {
+          const restored = substituteProxyRootsInClone(cloneStamped(receiver), pending.metaPath,
+            { adapter, resolveGlobalPolyfill, injectPureImport });
+          if (restored !== receiver && replaceNodeInTree(program, receiver, restored)) markRewrite();
+        }
+        if ((outerPattern && outerPattern.properties.length > 1
+          && pending.nestedTrees.length !== outerPattern.properties.length)
+          || pending.nestedTrees.every(tree => !tree.slots?.size)) {
+          restoreBranch();
+          continue;
+        }
         const topProps = [];
         for (const tree of pending.nestedTrees) {
-          let sub = renderPatternLiteral({
-            plan: tree.plan, receiver, baseName: tree.baseName ?? null, slots: tree.slots,
+          let sub = tree.wholeHop ? renderWholeHopPassthrough(tree, receiver) : renderPatternLiteral({
+            plan: tree.plan, receiver, baseName: tree.baseName ?? null, slots: tree.slots, rawSlots: tree.rawSlots ?? null,
             passthroughPrefix: tree.chainKeys, resolvedSpelling: true,
           });
           if (!sub) {
@@ -1110,7 +1160,10 @@ export default function createDestructureDrains(ctx) {
           }
           topProps.push(objectProperty(identifier(tree.chainKeys[0]), sub));
         }
-        if (!topProps.length) continue;
+        if (!topProps.length) {
+          restoreBranch();
+          continue;
+        }
         let renderedTree = objectExpression(topProps);
         if (pending.discardedInitProbePlan) {
           const probe = renderDiscardedInitProbe([{ initProbePlan: pending.discardedInitProbePlan,
@@ -1212,33 +1265,8 @@ export default function createDestructureDrains(ctx) {
   // eslint-disable-next-line max-statements -- one flush pass dispatches every host kind
   function drain() {
     positionalRevisit.clear();
+    renamedSlots = 0;
     drainSynthLiterals();
-    const { owned: jobDeclarators, hostSiblings: jobHostSiblings } = jobOwnedNodes(ledger);
-    for (const [host, options] of hopHosts) {
-      // every note here speaks for a host the extraction never entered - one that did has
-      // its own residual shape (and its own drain, which would emit a second statement
-      // beside this one); babel anchors only what it consumed
-      if (jobDeclarators.has(host)) continue;
-      // an ASSIGNMENT host holds the same shape under different field names - the re-anchor
-      // reads a view of it and the result writes back
-      if (!options.assignHost) {
-        if (reanchorSoleCtorHopResidual(host, options) && !jobHostSiblings.has(host)) {
-          splitMultiDeclaratorHost({ program, declarator: host, markRewrite });
-        }
-        continue;
-      }
-      const view = { id: host.left, init: host.right };
-      // the prefix a lift may take is the SOURCE's own sequence: a kept-write re-read the
-      // re-anchor synthesises stays INSIDE the assignment, where the value it stored is what
-      // the pattern reads (`({ cr } = (q2 = _globalThis, _globalThis))`). asked before the
-      // re-anchor rewrites the init - after it, the two spellings are the same node type
-      const sourceSeqInit = peelTransparentExpr(host.right)?.type === 'SequenceExpression';
-      if (reanchorSoleCtorHopResidual(view, options)) {
-        host.left = view.id;
-        host.right = view.init;
-        if (sourceSeqInit) liftAssignInitPrefix(host, options.metaPath, program);
-      }
-    }
     drainSequenceAssignments(ledger, { program, drainAssignment, drainAssignOverwrite, markRewrite, seqDrainedSlots });
     for (const [, { hostPath, jobs }] of ledger) {
       const hostNode = hostPath.node;
@@ -1326,8 +1354,36 @@ export default function createDestructureDrains(ctx) {
         }
       }
     }
+    const jobHostSiblings = jobHostSiblingDeclarators(ledger);
+    // the hop-host notes drain AFTER the jobs: a host an extraction entered leaves a RESIDUAL
+    // behind (`{ Array: { junk } } = _globalThis` beside the claims it consumed), and that residual
+    // re-anchors the way an untouched host does (`{ junk } = _globalThis.Array`, the babel canon) -
+    // asked first, the note would anchor a pattern the drain still has to prune, and asked only
+    // of hosts no job owned, the leftover stayed on the proxy root where the other leg anchors.
+    // a residual the drain anchored itself no longer reads as a surface hop, so the note is inert there
+    for (const [host, options] of hopHosts) {
+      // an ASSIGNMENT host holds the same shape under different field names - the re-anchor
+      // reads a view of it and the result writes back
+      if (!options.assignHost) {
+        if (reanchorSoleCtorHopResidual(host, options) && !jobHostSiblings.has(host)) {
+          splitMultiDeclaratorHost({ program, declarator: host, markRewrite });
+        }
+        continue;
+      }
+      const view = { id: host.left, init: host.right };
+      // the prefix a lift may take is the SOURCE's own sequence: a kept-write re-read the
+      // re-anchor synthesises stays INSIDE the assignment, where the value it stored is what
+      // the pattern reads (`({ cr } = (q2 = _globalThis, _globalThis))`). asked before the
+      // re-anchor rewrites the init - after it, the two spellings are the same node type
+      const sourceSeqInit = peelTransparentExpr(host.right)?.type === 'SequenceExpression';
+      if (reanchorSoleCtorHopResidual(view, options)) {
+        host.left = view.id;
+        host.right = view.init;
+        if (sourceSeqInit) liftAssignInitPrefix(host, options.metaPath, program);
+      }
+    }
     ledger.clear();
-    return positionalRevisit;
+    return { revisit: positionalRevisit, renamed: renamedSlots };
   }
 
   // the opaque / effect-bearing init, consumed whole. two spellings, babel's split:
@@ -1371,10 +1427,25 @@ export default function createDestructureDrains(ctx) {
     return 'consumed';
   }
 
+  // the default-guard test ref of a memo job: a CATCH-BORN host cannot hoist a `var` past its own
+  // binding, so its ref is block-scoped - minted in the other leg's order (the first claim's ahead
+  // of the memo, the rest at their turn) and declared as its own `let` ahead of the extraction
+  // (`memoJobStatements`), the shape that leg prints; a hoistable host takes the declared ref
+  function mintMemoGuardRef(job) {
+    return job.catchBorn ? mintRefName() : injector.generateDeclaredRef(job.metaPath);
+  }
+
+  // the extraction a memo job binds, led by its block-`let` guard ref where the host is catch-born
+  function memoJobStatements({ job, value, guardRefs, kind, exported }) {
+    const lead = job.catchBorn && guardRefs.has(job)
+      ? [variableDeclaration('let', [variableDeclarator(identifier(guardRefs.get(job)))])] : [];
+    return [...lead, exportWrap(variableDeclaration(kind, [variableDeclarator(memoJobBindingTarget(job), value)]), exported)];
+  }
+
   // one extracted binding's VALUE off the whole-init memo. a DEFAULTED prop keeps
   // native-miss semantics through the guard ternary; a STATIC re-reads its import
   // directly (`_Array$from === void 0 ? [] : _Array$from`), an instance dispatch
-  // memoizes through a ref
+  // memoizes through a ref (recorded in `guardRefs`, so the caller can lead with it)
   function memoJobValue({ job, refName, guardRefs }) {
     const id = injectPureImport(job.entry, job.hintName);
     // a CHAINED instance job dispatches on the surface its hops NAME, read off the memo the init
@@ -1391,11 +1462,13 @@ export default function createDestructureDrains(ctx) {
     }
     if (job.prop.value?.type !== 'AssignmentPattern') return value;
     if (job.kind === 'instance') {
-      const guardRef = guardRefs.get(job) ?? injector.generateDeclaredRef(job.metaPath);
+      const guardRef = guardRefs.get(job) ?? mintMemoGuardRef(job);
+      guardRefs.set(job, guardRef);
       return renderInstanceDefaultGuard({
         assignedRef: identifier(guardRef),
         call: value,
         defaultValue: job.prop.value.right,
+        defaultName: job.prop.value.left?.name,
         reread: identifier(guardRef),
       });
     }
@@ -1492,6 +1565,15 @@ export default function createDestructureDrains(ctx) {
       // it already - keeping both would run them twice
       rescues.length = 0;
       rescues.push(declarator.init);
+    }
+    // ... a nav INTO the built-in namespace off a call the census resolves to a realm keeps the call
+    // alone (the shared rule): its hops are dead reads, and a pure call leaves nothing - the babel
+    // lift's answer, where the whole read printed `realm().Array;` for the value the extraction took
+    const realmNav = spineRoot?.type === 'CallExpression'
+      ? liftedRealmNavEffect(declarator.init, { scope: metaPath.scope, adapter, path: metaPath }) : null;
+    if (realmNav) {
+      rescues.length = 0;
+      rescues.push(...realmNav.effects);
     }
     // the ctor-pattern re-anchor: a PATTERN-valued sole job reads the pure ctor whole,
     // the harvested rescues riding the init seq (`{ customB } = (eff(), _Set)`)
@@ -1654,10 +1736,16 @@ export default function createDestructureDrains(ctx) {
     // ... but only a token the emitter itself MINTED: a source identifier may be shadowed or
     // rebound between the lifted statement and the read, so its residual keeps the memo
     const lift = liftableInitPrefix(declarator.init);
-    if (needsValue && lift?.tail.type === 'Identifier' && isMintedOrProxyName(lift.tail.name, injectorState)) {
+    // ... and a tail that is a CALL the inline canon proves to yield a proxy global lifts the same
+    // way: the prefix as statements, the call dropped for the global it stands for (its run has no
+    // effect) - the shape the realm-spelled twin takes, and the other leg's fold
+    const provenTail = lift && provenRealmCallRoot(lift.tail, declJobs[0].metaPath, adapter);
+    const provenPure = provenTail && bareProxyGlobalPure(provenTail, declJobs[0].metaPath, { adapter, resolveGlobalPolyfill });
+    const liftTail = provenPure ? identifier(injectPureImport(provenPure.entry, provenPure.hintName)) : lift?.tail;
+    if (needsValue && liftTail?.type === 'Identifier' && isMintedOrProxyName(liftTail.name, injectorState)) {
       for (const expr of lift.prefix) statements.push(expressionStatement(expr));
-      declarator.init = lift.tail;
-      refName = lift.tail.name;
+      declarator.init = liftTail;
+      refName = liftTail.name;
     }
     // a GUARDED init the walk collapsed onto a pure BINDING needs no memo of its own: the
     // binding is re-readable, and the guarded read the consume discards re-emits as the
@@ -1672,9 +1760,7 @@ export default function createDestructureDrains(ctx) {
     if (needsValue && !refName) {
       // ref order mirrors babel's requeue: the FIRST claim's guard ref mints before the
       // memo, later guards after it (`var _ref, _ref3; const _ref2 = getObj();`)
-      if (declJobs[0].prop.value?.type === 'AssignmentPattern') {
-        guardRefs.set(declJobs[0], injector.generateDeclaredRef(declJobs[0].metaPath));
-      }
+      if (declJobs[0].prop.value?.type === 'AssignmentPattern') guardRefs.set(declJobs[0], mintMemoGuardRef(declJobs[0]));
       refName = mintRefName();
       // the memo binds nothing the source named and stands as a statement of its own, so it takes
       // `const` - the host's kind belongs to the declarators that carry the source's own bindings
@@ -1701,8 +1787,7 @@ export default function createDestructureDrains(ctx) {
         value = sequenceExpression([...seqRescues.map(expr => cloneNode(expr)), ...probeParts, value]);
         seqRescues.length = 0;
       }
-      statements.push(exportWrap(variableDeclaration(hostNode.kind,
-        [variableDeclarator(memoJobBindingTarget(job), value)]), exported));
+      statements.push(...memoJobStatements({ job, value, guardRefs, kind: hostNode.kind, exported }));
       markSubtreeSkipped(skippedNodes, job.prop);
     }
     return keptSymbolSentinelResidual(declarator, declJobs, refName, mintUnusedName) ? true : 'consumed';
@@ -1798,7 +1883,11 @@ export default function createDestructureDrains(ctx) {
     // ... every other slot takes STATEMENTS, one declarator each: the memo binds nothing the source
     // named, so it is `const` whatever the host declares, while a claim carries the source's own
     // binding and keeps its kind
-    const statements = [variableDeclaration('const', [memo]),
+    // a catch-born host's default-guard ref is a block `let` of its own behind the memo (the other
+    // leg's shape); a hoistable host carries none here
+    const leadDecls = jobs.map(item => item.leadDecl).filter(Boolean)
+      .map(name => variableDeclaration('let', [variableDeclarator(identifier(name))]));
+    const statements = [variableDeclaration('const', [memo]), ...leadDecls,
       ...keyed ? [keyed] : claims.map(claim => variableDeclaration(kind, [claim]))];
     if (!job.wrapperNode && !job.split && kept.length) statements.push(variableDeclaration(kind, [job.declaratorNode]));
     // ... and the TRAILING twin spells that survivor itself: the wrapper's own declarator holds the
@@ -1877,6 +1966,23 @@ export default function createDestructureDrains(ctx) {
     markRewrite(hostNode);
   }
 
+  // the slot rename, and the earlier slots of every array level on its way asked again: the slot
+  // READ ahead of every earlier claim's extraction while it stayed a pattern, which is why those
+  // claims declined the route (`resolvePositionalElementSlot`); a bare binding now, they are asked on
+  // the tree the babel twin's requeue sees, where a LATER slot's rename is already in place
+  // (`[{ values }, { at }] = pair` extracts both, in source order; `[[{ at: a }], [{ at: b }]]`
+  // frees `a` through the OUTER level). false where the pattern moved on without the slot
+  function renameSlotRevisitingEarlier(job) {
+    if (!renamePositionalSlot(job)) return false;
+    renamedSlots++;
+    for (const { pattern, index } of job.arrayLevels ?? []) {
+      for (const item of pattern.elements.slice(0, index)) {
+        if (item?.type === 'ObjectPattern' || item?.type === 'ArrayPattern') positionalRevisit.add(item);
+      }
+    }
+    return true;
+  }
+
   // the slot rename itself: the element takes the minted name and the shape it held is quarantined
   // (its props already fired their metas). returns false where the pattern moved on without it
   function renamePositionalSlot(job) {
@@ -1911,7 +2017,7 @@ export default function createDestructureDrains(ctx) {
     }
     if (jobs[0]?.forInit) {
       for (const job of jobs) {
-        if (!renamePositionalSlot(job)) continue;
+        if (!renameSlotRevisitingEarlier(job)) continue;
         const head = job.declarationNode.declarations;
         head.splice(head.indexOf(job.declaratorNode) + 1, 0,
           variableDeclarator(identifier(job.local), job.value));
@@ -1929,7 +2035,7 @@ export default function createDestructureDrains(ctx) {
     const statements = [];
     const residuals = [];
     for (const job of jobs) {
-      if (!renamePositionalSlot(job)) {
+      if (!renameSlotRevisitingEarlier(job)) {
         // A prior claim on the same positional element moved this property into its residual.
         // Re-run detection on the resulting tree so the sibling uses that ordinary declaration
         // host instead of reading the original element a second time.
@@ -2015,7 +2121,7 @@ export default function createDestructureDrains(ctx) {
   function drainPositionalAssign({ hostNode, body, at, jobs }) {
     const statements = [];
     for (const job of jobs) {
-      if (!renamePositionalSlot(job)) continue;
+      if (!renameSlotRevisitingEarlier(job)) continue;
       statements.push(expressionStatement(assignmentExpression('=', identifier(job.local), job.value)));
     }
     if (!statements.length) return;
@@ -2105,9 +2211,23 @@ export default function createDestructureDrains(ctx) {
     }
     // a SURVIVING claimed declarator reads the memo these statements declare, so it can never lead them;
     // otherwise the statements follow the declaration whenever every survivor was written ahead of them
-    const trailing = declarations.every(declarator => !claimed.has(declarator)
+    // ... and a survivor written BEHIND the last claimed declarator follows the pinned extractions as
+    // well: they read the residual's element where the source read it, ahead of that sibling's own
+    // init (`const [{ y: { at } }] = [r, eff()], zTail = hit()` reads `r.y` before `hit()` runs), so
+    // the sibling splits off behind them as a statement of its own - its source slot, kept. left in
+    // the host, it ran ahead of every read the extractions carry
+    const behindClaimed = after.length
+      ? declarations.filter(declarator => hostNode.declarations.indexOf(declarator) > lastClaimed) : [];
+    const kept = declarations.filter(declarator => !behindClaimed.includes(declarator));
+    const behindStatements = behindClaimed.length
+      ? [exportWrap(variableDeclaration(hostNode.kind, behindClaimed), exported)] : [];
+    if (!kept.length) {
+      body.splice(at, 1, ...statements, ...after, ...behindStatements);
+      return;
+    }
+    const trailing = kept.every(declarator => !claimed.has(declarator)
       && hostNode.declarations.indexOf(declarator) < lastClaimed);
-    hostNode.declarations = declarations;
+    hostNode.declarations = kept;
     const statementsAt = trailing ? at + 1 : at;
     body.splice(statementsAt, 0, ...statements);
     // the pinned extractions follow the literal's stand-in: the residual where one survives, the
@@ -2115,7 +2235,8 @@ export default function createDestructureDrains(ctx) {
     // ... found through its EXPORT wrapper where the host has one: the bare node is not in the body there
     if (after.length) {
       body.splice(trailing ? statementsAt + statements.length
-        : body.findIndex(stmt => stmt === hostNode || stmt?.declaration === hostNode) + 1, 0, ...after);
+        : body.findIndex(stmt => stmt === hostNode || stmt?.declaration === hostNode) + 1, 0,
+      ...after, ...behindStatements);
     }
   }
 
@@ -2157,7 +2278,7 @@ export default function createDestructureDrains(ctx) {
       }
       removeConsumedProps(declJobs);
       const initBeforeReanchor = declarator.init;
-      if (surface) reanchorSoleCtorHopResidual(declarator);
+      if (surface) reanchorSoleCtorHopResidual(declarator, { metaPath: declJobs[0]?.metaPath ?? null });
       // the prefix lifts FIRST - source order, the init runs and then the extractions bind
       // (`log(); const from = _Array$from; ...`) - but only off a RE-READABLE identifier
       // tail: a residual left on a NAV keeps the sequence, where its effect runs
@@ -2609,7 +2730,11 @@ export default function createDestructureDrains(ctx) {
     // (`at = _at((sideEffect(), getObj()))`) - rescuing it again would run the effects twice
     if (declJobsHere.some(job => job.readsReceiver)) return;
     const dropMetaPath = declJobsHere[0].metaPath;
-    const dropExprs = dropMetaPath ? discardRescueNodes({
+    // a nav off a call the census resolves to a realm keeps the call alone (the shared rule): its
+    // hops are dead reads, and a pure call leaves nothing - the babel lift's answer
+    const realmNav = dropMetaPath
+      ? liftedRealmNavEffect(declarator.init, { scope: dropMetaPath.scope, adapter, path: dropMetaPath }) : null;
+    const dropExprs = realmNav ? realmNav.effects : dropMetaPath ? discardRescueNodes({
       node: declarator.init,
       scope: dropMetaPath.scope,
       adapter,
@@ -2638,7 +2763,12 @@ export default function createDestructureDrains(ctx) {
     // a job whose dispatch CARRIES the init performs the right's effects itself, so re-emitting the
     // right beside it would run them a second time - the dead host takes its right with it
     if (pruned.some(job => job.carriesInit)) return [];
-    return mayHaveSideEffects(assignment.right) ? [expressionStatement(assignment.right)] : [];
+    if (!mayHaveSideEffects(assignment.right)) return [];
+    // a nav off a call the census resolves to a realm keeps the call alone (the shared rule): its
+    // hops are dead reads, and their fold would print a bare ponyfill read
+    const [{ metaPath }] = pruned;
+    const realmNav = liftedRealmNavEffect(assignment.right, { scope: metaPath.scope, adapter, path: metaPath });
+    return (realmNav ? realmNav.effects : [assignment.right]).map(expressionStatement);
   }
 
   // the statement-position OVERWRITE host: the dispatches land after the destructure, and a slot the
@@ -2770,7 +2900,7 @@ export default function createDestructureDrains(ctx) {
           || !hopNamesMissingAbleCtor(hop, resolveGlobalPolyfill)
           || jobs.some(job => subtreeContainsNode(hop, job.prop))) continue;
         const view = { id: { type: 'ObjectPattern', properties: [hop] }, init: cloneNode(slot) };
-        if (!reanchorSoleCtorHopResidual(view)) continue;
+        if (!reanchorSoleCtorHopResidual(view, { metaPath: jobs[0]?.metaPath ?? null })) continue;
         ordered.push({ at: sourceAt(hop), statement: expressionStatement(assignmentExpression('=', view.id, view.init)) });
         element.properties = element.properties.filter(item => item !== hop);
       }
@@ -3035,7 +3165,8 @@ export default function createDestructureDrains(ctx) {
           lastDeclaration.declarations.push(declarator);
           continue;
         }
-        const anchored = declJobsHere.length > 0 && reanchorSoleCtorHopResidual(declarator);
+        const anchored = declJobsHere.length > 0
+          && reanchorSoleCtorHopResidual(declarator, { metaPath: declJobsHere[0]?.metaPath ?? null });
         if (anchored) touched = true;
         const survivingPrefix = survivingPrefixLift();
         const residual = exportWrap(variableDeclaration(hostNode.kind, [declarator]), exported);
@@ -3062,7 +3193,10 @@ export default function createDestructureDrains(ctx) {
 
   // the init's SURFACE view: a bare identifier, a sequence whose tail reads the surface,
   // or a kept write storing it - each re-anchors by swapping only the VALUE slot
-  function surfaceInitInfo(declarator) {
+  // `metaPath`, when the caller has one: a CALL tail the inline canon proves to yield a proxy global
+  // reads as that global's pure binding - dropped where it runs no effect, kept ahead of the value
+  // as a sequence prefix where it does (the other leg lifts it as a statement)
+  function surfaceInitInfo(declarator, metaPath = null) {
     let init = peelTransparentExpr(declarator.init);
     // a CHAIN wrapper the collapse EMPTIED is a husk for THIS question: the substitution took its
     // `?.` with it, so the surface the init names is the one its inner names
@@ -3098,6 +3232,19 @@ export default function createDestructureDrains(ctx) {
       && tail.consequent?.type === 'UnaryExpression' && tail.consequent.operator === 'void'
       && !!proxySurfaceIdentifier(tail.alternate, { adapter, injectorState });
     if (guarded) return { init, tail, shape: 'guard' };
+    if (shape && metaPath && isCallShape(tail)) {
+      const dropped = provenRealmCallRoot(tail, metaPath, adapter);
+      const proven = dropped ?? provenRealmCallRoot(tail, metaPath, adapter, { allowEffects: true });
+      const pure = proven && bareProxyGlobalPure(proven, metaPath, { adapter, resolveGlobalPolyfill });
+      if (pure) {
+        const prefix = [...shape === 'seq' ? init.expressions.slice(0, -1) : [], ...dropped ? [] : [tail]];
+        return {
+          init: prefix.length ? sequenceExpression([...prefix, tail]) : init,
+          tail: identifier(injectPureImport(pure.entry, pure.hintName)),
+          shape: prefix.length ? 'seq' : 'ident',
+        };
+      }
+    }
     if (!shape || !proxySurfaceIdentifier(tail, { adapter, injectorState })) return null;
     return { init, tail, shape };
   }
@@ -3106,9 +3253,45 @@ export default function createDestructureDrains(ctx) {
   // (`{ Promise: { customZ } } = _globalThis` -> `{ customZ } = _Promise`); pristine proxy
   // KEYS peel first (`{ globalThis: { Map: { g } } }` anchors at Map). a sibling key at the
   // outer level keeps the proxy-root residual (the boundary babel holds)
+  // a ctor hop whose SOLE hop below is a polyfillable STATIC holding a claim-free PATTERN
+  // (`{ Array: { of: { length } } }`): the residual would read the static raw off the realm -
+  // undefined where the ponyfill is the point, and the pattern then throws - so the pattern
+  // re-anchors on the static's ponyfill (the plan's pattern-valued static, the other leg's shape).
+  // a default, a rest, a leaf with a claim of its own, a computed key nothing folds or a mutated
+  // static keep the source; the pattern comes back with the ponyfill to bind it to, or null
+  // (a computed key folds through the shared key canon where the caller's scope reaches it - the
+  // plan names `[k]` with `const k = 'race'` as the literal does, and so does this twin)
+  // ... `claimsRide`: the ASSIGNMENT host renders every leaf claim it consumed off the extraction
+  // (the overwrite channel), so a claiming leaf rides the re-anchor there
+  function soleStaticHopBelow(hopPattern, ctorName, metaPath, claimsRide = false) {
+    if (hopPattern.properties.length !== 1 || !isStaticPlacement(ctorName)) return null;
+    const [staticProp] = hopPattern.properties;
+    if (staticProp.type !== 'Property' || staticProp.value?.type !== 'ObjectPattern') return null;
+    const key = staticProp.computed
+      ? resolveKey({ node: staticProp.key, computed: true, scope: metaPath?.scope, adapter, path: metaPath, bailOnSideEffectKey: true })
+      : staticProp.key?.type === 'Identifier' ? staticProp.key.name
+        : typeof staticProp.key?.value === 'string' ? staticProp.key.value : null;
+    const { value: pattern } = staticProp;
+    // ... a COMPUTED key rides too: it runs once inside the re-anchored pattern, where the source
+    // wrote it (`({ [(eff(), 'bind')]: bind } = _Object$keys)` - the babel leg's spelling)
+    function leafClaims(leaf) {
+      if (leaf.type !== 'Property' || leaf.value?.type === 'AssignmentPattern') return true;
+      if (leaf.computed) return !claimsRide;
+      return (leaf.key?.type !== 'Identifier' && typeof leaf.key?.value !== 'string')
+        || (!claimsRide
+          && !!resolvePure({ kind: 'property', object: undefined, key: leaf.key.name ?? leaf.key.value, placement: 'prototype' }, null));
+    }
+    if (key === null || !pattern.properties.length || pattern.properties.some(leafClaims)
+      || isDisabled?.(staticProp) || adapter.isMutatedStatic?.(ctorName, key)) return null;
+    const meta = { kind: 'property', object: ctorName, key, placement: 'static' };
+    if (resolveBuiltIn(meta)?.kind === 'instance') return null;
+    const pure = resolvePure(meta, metaPath ?? null);
+    return pure && pure.kind !== 'instance' ? { pattern, pure } : null;
+  }
+
   function reanchorSoleCtorHopResidual(declarator,
     { forceMutatedHop = false, wholeDeclarator = false, metaPath = null, hopKeyName = null } = {}) {
-    const info = surfaceInitInfo(declarator);
+    const info = surfaceInitInfo(declarator, metaPath);
     if (!info) return false;
     let changed = false;
     for (;;) {
@@ -3170,6 +3353,15 @@ export default function createDestructureDrains(ctx) {
       // and only the drain's own note reaches here with that proof
       const mutatedHop = adapter.isMutatedStatic('globalThis', keyName);
       if (mutatedHop && !forceMutatedHop) return changed;
+      // ... and the static hop below a ctor (entry-bearing or not) takes the whole residual onto the
+      // static's ponyfill in one step (`{ Array: { of: { length } } }` -> `{ length } = _Array$of`)
+      const staticHop = !mutatedHop && info.shape !== 'guard'
+        ? soleStaticHopBelow(hopPattern, keyName, metaPath, declarator.type !== 'VariableDeclarator') : null;
+      if (staticHop) {
+        declarator.id = staticHop.pattern;
+        declarator.init = reanchoredInit(declarator, info, identifier(injectPureImport(staticHop.pure.entry, staticHop.pure.hintName)));
+        return true;
+      }
       // under a GUARD the hop is read off the guarded VALUE, never off a ctor binding: the
       // ponyfill would answer where the source's probe yields undefined
       const pure = mutatedHop || info.shape === 'guard' ? null : resolveGlobalPolyfill(keyName);
@@ -3182,6 +3374,16 @@ export default function createDestructureDrains(ctx) {
         && hopPattern.properties.every(item => !(item.type === 'RestElement'
           || (item.type === 'Property' && item.value?.type === 'Identifier'
             && item.value.name?.startsWith('_unused'))))) return changed;
+      // ... and a residual leaf naming one of the ctor's OWN statics that no extraction serves keeps
+      // the native receiver: the pure binding carries no statics (the shared plan's rule)
+      // (a computed key folds through the shared key canon where the caller's scope reaches it -
+      // `[k]` with `const k = 'race'` names the static as the literal does)
+      if (pure && hopPattern.properties.some(leaf => residualLeafReadsCtorStatic({
+        prop: leaf, receiverName: keyName, resolvePure: m => resolvePure(m, metaPath ?? null),
+        keyName: leaf.computed
+          ? resolveKey({ node: leaf.key, computed: true, scope: metaPath?.scope, adapter, path: metaPath, bailOnSideEffectKey: true })
+          : leaf.key?.name ?? (typeof leaf.key?.value === 'string' ? leaf.key.value : null),
+      }))) return changed;
       declarator.id = hopPattern;
       // no pure ctor: the residual re-anchors on the hop's member READ off the surface
       // (`{ from: _unused, ...arrRest } = _globalThis.Array` - babel's shape)
@@ -3264,7 +3466,7 @@ export default function createDestructureDrains(ctx) {
       const outer = job.chain.at(-1).outerPattern;
       if (outer.properties.length === 1 && job.chain.every(level => !level.outerRest)) {
         const ctorView = { id: assignment.left, init: assignment.right };
-        if (reanchorSoleCtorHopResidual(ctorView)) {
+        if (reanchorSoleCtorHopResidual(ctorView, { metaPath: jobs[0]?.metaPath ?? null })) {
           assignment.left = ctorView.id;
           assignment.right = ctorView.init;
         } else {
@@ -3276,7 +3478,8 @@ export default function createDestructureDrains(ctx) {
         }
       }
     }
-    const anchoredResidual = anchorAssignmentResidual(assignment, jobs, reanchorSoleCtorHopResidual);
+    const anchoredResidual = anchorAssignmentResidual(assignment, jobs,
+      view => reanchorSoleCtorHopResidual(view, { metaPath: jobs[0]?.metaPath ?? null }));
     // sentinel names declare ADJACENT to their statement (babel plants the `var` right there)
     const mintedNames = jobs.flatMap(job => job.mintedSentinels ?? []);
     const varDecl = mintedNames.length
@@ -3316,7 +3519,10 @@ export default function createDestructureDrains(ctx) {
         ? liftedPrefixStatements(partitionEffectsAtProbe(
           discardRescueNodes({ node: assignment.right, scope: jobs[0].metaPath.scope, adapter, path: jobs[0].metaPath }),
           probeNavStartOf(probeLead)).ahead)
-        : [expressionStatement(assignment.right)])
+        // ... a nav off a call the census resolves to a realm keeps only what the call owes (the
+        // shared rule) - the whole read printed a dead `mk().Array;` where the babel leg lifts nothing
+        : (liftedRealmNavEffect(assignment.right, { scope: jobs[0].metaPath.scope, adapter, path: jobs[0].metaPath })?.effects
+          ?? [assignment.right]).map(expr => expressionStatement(expr)))
       // a FULLY consumed FLAT pattern discards its receiver, and what stays of it is ONE expression -
       // the shape the other leg's defer-SE route prints there (`eff(), eff2(); d = _WeakSet;`); a
       // SURVIVING residual and a NESTED claim take the per-element prefix both legs print for the
@@ -3348,10 +3554,18 @@ export default function createDestructureDrains(ctx) {
       // an SE init NOTHING evaluated (no memo, no lifted prefix, no reader) keeps its own
       // discarded statement ahead - dropping it would erase the call the source performs;
       // an ANCHOR job (a pattern-valued hop) and a SEQUENCE slot own their RHS already
+      // ... spelled by its OBSERVABLE elements alone: an anchored residual's right is the rescue
+      // prefix ahead of the ctor pure (`(realm(), _Map)`), and with no residual left to read it the
+      // pure is a dead read - the babel cascade's dead-tail trim, so neither leg prints it. a nav off
+      // a call the census resolves to a realm keeps only what the call owes (the shared rule)
+      const { prefix: keptPrefix, tail: keptTail } = peelNestedSequenceExpressions(peelTransparentExpr(assignment.right));
+      const keptRealmNav = mayHaveSideEffects(assignment.right)
+        ? liftedRealmNavEffect(assignment.right, { scope: jobs[0].metaPath.scope, adapter, path: jobs[0].metaPath }) : null;
       const rhsKept = !inSequence && !memoDecl.length && !stmtSeqPrefix.length && !discardedRead && !probeLead
         && jobs.every(job => !job.readsReceiver && job.prop?.value?.type !== 'ObjectPattern')
         && mayHaveSideEffects(assignment.right)
-        ? [expressionStatement(assignment.right)] : [];
+        ? (keptRealmNav ? keptRealmNav.effects : observableSequenceElements([...keptPrefix, keptTail]))
+          .map(expr => expressionStatement(expr)) : [];
       body.splice(at, 1, ...stmtSeqPrefix, ...memoDecl, ...varDecl,
         ...discardedRead ? [expressionStatement(discardedRead)] : [], ...rhsKept, ...bySource);
     } else if (seKeyResidualFirst) {

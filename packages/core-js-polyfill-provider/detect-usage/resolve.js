@@ -19,6 +19,7 @@ import {
   bindingLoopAnchor,
   bindingPolyfillHint,
   bindsModuleDefault,
+  boundModuleDefaultSource,
   chainValueCarrier,
   collectFoldedReceiverSideEffects,
   definedBranchOfGuardConditional,
@@ -1073,8 +1074,9 @@ export function bindingSymbolKey(binding, packages = null) {
   // module source directly, so both substrates fold uniformly regardless of the pattern's mutated init
   const aliasKey = symbolKeyFromSource(binding.aliasSymbolSource, packages);
   if (aliasKey) return aliasKey;
-  if (!bindsModuleDefault(binding.node)) return null;
-  return symbolKeyFromSource(binding.importSource, packages);
+  // ... and the module-default forms through the shared three-form rule: the ES default specifier,
+  // the TS require-import, the bare-CJS require declarator the require import style leaves behind
+  return symbolKeyFromSource(boundModuleDefaultSource(binding), packages);
 }
 
 // `<pkg>/.../symbol/<name>` module source -> `Symbol.<name>`, or null when the source is absent /
@@ -2225,7 +2227,7 @@ export function reachableAliasValues({
 // takes the hop standing on the CALL and returns the hop standing on the callee function: its
 // `ctx.scope` anchors the callee's BODY - identifiers resolve where the callee was declared, not
 // at the call site (a use-site shadow of a name the body reads must not capture it)
-function resolveInlineCalleeFunction(hop, { allowIdentityParam = false, allowExtraParams = false, rejectConditional = false } = {}) {
+export function resolveInlineCalleeFunction(hop, { allowIdentityParam = false, allowExtraParams = false, rejectConditional = false } = {}) {
   const { adapter, path } = hop.ctx;
   const seen = new Set(hop.seen);
   // SE-bail (unwrapTransparentSeq), NOT peel-to-tail: recognizing a SE-callee IIFE (`(eff(), () => Array)()`)
@@ -2260,6 +2262,12 @@ function resolveInlineCalleeFunction(hop, { allowIdentityParam = false, allowExt
     // pattern-bound name (`const { f } = g`) holds a SLOT of the init, so following the whole
     // init inlined the CONTAINER as the callee (`f().from` ran where native throws)
     const initNode = isDeclarator ? identifierDeclaratorInit(binding) : null;
+    // ... and the initializer has to have RUN by the call: a hoisted `var f = () => ...` declared
+    // below the call is `undefined` there, and inlining its body would erase the throw the source
+    // makes - the same gate the member-callee branch above applies
+    if (initNode && !varInitDominatesUsage({
+      declaratorNode: bindingDeclaratorNode(binding), usagePath: path, usageNode: hop.node, kind: binding.kind,
+    })) return null;
     if (isDeclarator && !initNode) {
       // an init-less binding whose ONE write assigns a function literal (`let f; if (c) f =
       // () => globalThis;`) proves through that write: on every path the value is either
@@ -2346,7 +2354,9 @@ const conditionallyProvenCallees = new WeakSet();
 
 // an `(x) => x` identity callee is inlineable when `allowIdentityParam` is set: its single Identifier
 // param is substituted with the call arg by `inlineCallReturnExpression`. every other param shape
-// needs substitution we don't do, so it still bails (params?.length && !identity -> null above)
+// needs substitution we don't do, so it still bails (params?.length && !identity -> null above).
+// `allowExtraParams` admits a longer all-Identifier list for a PRESERVED call returning one of its
+// arguments; the rebinding check below covers the first slot, the caller checks the returned one
 function identityParam({ callee, allowIdentityParam, allowExtraParams }) {
   if (!allowIdentityParam || !callee.params?.length || (!allowExtraParams && callee.params.length !== 1)
     || callee.params.some(param => param.type !== 'Identifier')) return false;
@@ -2663,7 +2673,9 @@ function liveHopKeySeExprs(hops) {
   });
 }
 
-// The backed-hop peel used by a kept sequence's guard test. Its root is proved separately.
+// the backed-hop peel a kept sequence's guard test reads through: pristine possible-global hops
+// navigate into the SAME surface, so above a PROBE they drop and the test reads at most the probe
+// hop itself, never dereferencing past it. the ROOT is proved separately (`realmRootKind` below)
 export function peelPristineProxyHops(node, { adapter, resolveGlobalPolyfill }) {
   let base = node;
   while (base?.type === 'MemberExpression' && !base.computed
@@ -2675,8 +2687,16 @@ export function peelPristineProxyHops(node, { adapter, resolveGlobalPolyfill }) 
   return base;
 }
 
-// A kept nested sequence retains the environment test before its backed tail. This is
-// the former unplugin tail-fold decision, shared with Babel's memoized guard receiver.
+// the kept-sequence TAIL decision both bindings apply (the former unplugin tail fold, shared with
+// babel's memoized guard receiver): a tail the peel erases WHOLE folds onto its outermost hop's own
+// ponyfill (`(c++, globalThis.self)` tests `_self` - the realm-fold canon); a tail whose peel stops
+// on the environment PROBE with the spine below it backed keeps that probe as the guard test and
+// reads the always-defined leaf past it (`(c++, globalThis.window.self)` tests `null ==
+// _globalThis.window ? void 0 : _self`); any other stop keeps the tail as written. a kept WRITE at
+// the tail hands its own value on, so the fold lands in the write's VALUE slot (`holder` / `key`) -
+// read as an opaque tail instead, the store spelled the ponyfill while the guard beside it still
+// tested the probe, and the user's variable held the realm object on the very branch the guard
+// calls absent. a nested sequence retains the environment test before its backed tail
 export function planKeptSequenceTail(node, ctx) {
   let nested = false;
   for (let seq = node; seq?.type === 'SequenceExpression';) {
@@ -2690,6 +2710,11 @@ export function planKeptSequenceTail(node, ctx) {
     const navNode = write ? unwrapRuntimeExpr(write.right) : tail;
     const peeled = peelPristineProxyHops(navNode, ctx);
     if (peeled === navNode) return null;
+    // the ROOT proof is binding-aware, never the file census alone: a shadowed realm name
+    // (`function f(self)`) holds the user's object, and the hop peel above is name-blind - an
+    // unproven root leaves the tail exactly as written. THE canon (`proxyGlobalRootName`) answers
+    // name and alias alike with the shadow bail built in; a DIRECT realm name needs no entry of
+    // its own (the mint is of the HOP's ponyfill, `window` roots included)
     function realmRootKind(base) {
       const name = base?.type === 'Identifier' && ctx.aliasCtx
         ? proxyGlobalRootName({ node: base, ...ctx.aliasCtx }) : null;
@@ -2697,12 +2722,12 @@ export function planKeptSequenceTail(node, ctx) {
       return POSSIBLE_GLOBAL_OBJECTS.has(base.name) ? 'direct' : 'alias';
     }
     const wholeKind = realmRootKind(peeled);
-    const probeKey = peeled?.type === 'MemberExpression' ? staticMemberKeyName(peeled) : null;
     const probeRootKind = peeled?.type === 'MemberExpression'
       ? realmRootKind(peelPristineProxyHops(unwrapRuntimeExpr(peeled.object), ctx)) : null;
+    // ... and no hop earns a guard inside a caller-correct FALLBACK SLOT (`lastGuardEarningHopIdx`
+    // owns that rule): the slot keeps the always-defined literal rather than the absent host's throw
     const probeStop = !wholeKind && !inCallerCorrectFallbackSlot(ctx.aliasCtx?.path)
-      && !!probeKey && proxyHopLacksPureEntry(probeKey, meta => ctx.resolveGlobalPolyfill(meta.name))
-      && !!probeRootKind;
+      && unbackedProxyHopKey(peeled, meta => ctx.resolveGlobalPolyfill(meta.name)) && !!probeRootKind;
     if (!wholeKind && !probeStop) return null;
     return {
       holder: write ?? seq.expressions,
@@ -4130,6 +4155,17 @@ function foldableRealmHopKey(key, { adapter, resolvePure }) {
 export function foldableRealmHop(node, ctx) {
   if (node?.type !== 'MemberExpression' && node?.type !== 'OptionalMemberExpression') return false;
   return foldableRealmHopKey(realmHopKeyName(node, ctx?.scope ? ctx : null), ctx);
+}
+
+// the UNBACKED half alone, node-shaped: a hop READ the pure package cannot back (`window` - there is
+// no `_window`), so a value past one is no longer the always-defined ponyfill. both questions are the
+// canon's own - `staticMemberKeyName` folds the dotted, static-computed and SE-seq-keyed spellings
+// alike (a hand-rolled `!computed` read left the seq-keyed `[eff(), 'window']` hop looking backed,
+// and the value collapse rode one hop past what the realm can prove). `resolveHere` is the caller's
+// pure resolver over a meta, the kept-sequence plan and both emitters' tail walks ask it
+export function unbackedProxyHopKey(node, resolveHere) {
+  const key = isMemberAccessNode(node) ? staticMemberKeyName(node) : null;
+  return !!key && proxyHopLacksPureEntry(key, resolveHere);
 }
 
 // does a TERMINAL run of unbacked pristine hops ride ABOVE the claim - `window` reads that end
