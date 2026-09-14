@@ -8976,6 +8976,66 @@ runBoth('anon object via leak-free array-destructure-assignment narrows',
     const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
     checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
   });
+// a destructure reading OFF the holder is a bag of member reads whichever way it is spelled: the
+// assignment form (`({ arr: x } = o)`, its array-wrapped twin) keeps the holder's field narrow for
+// every later read exactly as the declarator form does - it used to be classified as a leak, and
+// every read after it fell to the generic dispatcher
+for (const [variant, code] of [
+  ['object destructure-assignment', 'const o = { arr: [1] };\nlet x;\n({ arr: x } = o);\no.arr.at(0);'],
+  ['array-wrapped destructure-assignment', 'const o = { arr: [1] };\nlet x;\n([{ arr: x }] = [o]);\no.arr.at(0);'],
+  ['declarator destructure (control)', 'const o = { arr: [1] };\nconst { arr: x } = o;\no.arr.at(0);'],
+]) {
+  runBoth(`holder field narrow survives a ${ variant } off the holder`, code, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+}
+// ... and the nested pattern's own receiver types the same way on both hosts: the leaf's hop reads
+// the holder's field, so an assignment host answers the field's type where the declarator does
+for (const [host, code, pick] of [
+  ['declarator', 'const source = { y: [1, 2] };\nconst { y: { at } } = source;',
+    (adapter, prog) => adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.type === 'ObjectPattern').get('id')],
+  ['assignment', 'let at;\nconst source = { y: [1, 2] };\n({ y: { at } } = source);',
+    (adapter, prog) => adapter.pickPath(prog, 'AssignmentExpression').get('left')],
+]) {
+  runBoth(`nested destructure leaf on a ${ host } host types its receiver through the holder's field`, code,
+    (adapter, prog, lbl) => {
+      const [hop] = pick(adapter, prog).get('properties');
+      const [property] = hop.get('value').get('properties');
+      checkType(lbl, adapter.makeResolver().resolvePropertyObjectType(property), { primitive: false, ctor: 'Array' });
+    });
+}
+// ... and a POSITIONAL step over a container no literal holds - a call result - reads the element
+// the index spelling `f()[0]` reads, off the resolved type: on both hosts, through every level, and
+// for the binding the pattern names. a binding whose elements a writer may have retyped answers
+// nothing, exactly as the index spelling does
+const CALL_ROWS = 'const rows = [[1, 2], [3, 4]];\nconst nested = [[[1, 2]], [[3, 4]]];\n'
+  + 'const f = () => rows;\nconst g = () => nested;\n';
+for (const [variant, code, pick] of [
+  ['a declarator over a call', `${ CALL_ROWS }const [{ at }] = f();`,
+    (adapter, prog) => adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.type === 'ArrayPattern').get('id')],
+  ['an assignment over a call', `${ CALL_ROWS }let at;\n[{ at }] = f();`,
+    (adapter, prog) => adapter.pickPath(prog, 'AssignmentExpression').get('left')],
+  ['two levels of an assignment over a call', `${ CALL_ROWS }let at;\n[[{ at }]] = g();`,
+    (adapter, prog) => adapter.pickPath(prog, 'AssignmentExpression').get('left').get('elements')[0]],
+]) {
+  runBoth(`positional destructure leaf of ${ variant } types its receiver off the element type`, code,
+    (adapter, prog, lbl) => {
+      const [property] = pick(adapter, prog).get('elements')[0].get('properties');
+      checkType(lbl, adapter.makeResolver().resolvePropertyObjectType(property), { primitive: false, ctor: 'Array' });
+    });
+}
+runBoth('positional destructure binding two levels over a call types off the element type',
+  `${ CALL_ROWS }const [[a]] = g();\na.at(0);`, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+runBoth('positional destructure leaf over a binding with a retyped element answers nothing',
+  `${ CALL_ROWS }const held = f();\nheld[0] = 'str';\nlet at;\n[{ at }] = held;`, (adapter, prog, lbl) => {
+    const host = adapter.pickPath(prog, 'AssignmentExpression', p => p.node.left?.type === 'ArrayPattern');
+    const [property] = host.get('left').get('elements')[0].get('properties');
+    check(lbl, adapter.makeResolver().resolvePropertyObjectType(property), null);
+  });
 
 // --- the object escapes via ITERATION / array-element exposure, not only a member-store ---
 // an inline `for (const x of [{...}]) {}` binds the elements to the loop variable; an array binding's
@@ -9031,6 +9091,7 @@ for (const [variant, code] of [
   // the field directly. both alias the nested anon out even though the binding stays module-local
   ['value-exposing Object.values(o)', `function f(sink) {\n  const o = { wrap: ${ ANON_ESC } };\n  sink(Object.values(o));\n}`],
   ['object destructure-init { wrap } = o', `function f(sink) {\n  const o = { wrap: ${ ANON_ESC } };\n  const { wrap } = o;\n  sink(wrap);\n}`],
+  ['object destructure-assignment ({ wrap } = o)', `function f(sink) {\n  const o = { wrap: ${ ANON_ESC } };\n  let wrap;\n  ({ wrap } = o);\n  sink(wrap);\n}`],
   // a DEFAULT-value carrier (param default / destructure default) binds the anon to the default's target, so a
   // held read of its slot aliases it out the same way a bound carrier does
   ['param-default held f(o = { wrap }) sink(o.wrap)', `function f(sink, o = { wrap: ${ ANON_ESC } }) {\n  sink(o.wrap);\n}`],
@@ -9054,6 +9115,7 @@ for (const [variant, code] of [
   ['deep object field dereferenced o.a.b.read()', `function f() {\n  const o = { a: { b: ${ ANON_ESC } } };\n  o.a.b.read();\n}`],
   ['mixed object-of-array dereferenced o.list[i].read()', `function f() {\n  const o = { list: [${ ANON_ESC }] };\n  o.list[0].read();\n}`],
   ['a different field read does not reach the anon', `function f(foo) {\n  const o = { wrap: ${ ANON_ESC }, count: 0 };\n  foo(o.count);\n  o.wrap.read();\n}`],
+  ['a destructure-assignment of a different field does not reach the anon', `function f() {\n  const o = { wrap: ${ ANON_ESC }, count: 0 };\n  let count;\n  ({ count } = o);\n  o.wrap.read();\n}`],
   // a DEFAULT-value carrier whose slot is only DEREFERENCED keeps the anon module-local, like a bound carrier
   ['param-default field dereferenced o.wrap.read()', `function f(o = { wrap: ${ ANON_ESC } }) {\n  o.wrap.read();\n}`],
   ['param-default direct dereference o.read()', `function f(o = ${ ANON_ESC }) {\n  o.read();\n}`],
@@ -9217,6 +9279,8 @@ for (const [variant, code] of [
   ['var extraction then call', `const o = ${ ANON_ESC };\nconst m = o.read;\nm.call({ data: 42 });`],
   ['destructure extraction', `const o = ${ ANON_ESC };\nconst { read } = o;\nread.call({ data: 42 });`],
   ['rest destructure scoops methods', `const o = ${ ANON_ESC };\nconst { data, ...rest } = o;\nrest.read.call({ data: 42 });`],
+  ['destructure-assignment extraction', `const o = ${ ANON_ESC };\nlet read;\n({ read } = o);\nread.call({ data: 42 });`],
+  ['rest destructure-assignment scoops methods', `const o = ${ ANON_ESC };\nlet data, rest;\n({ data, ...rest } = o);\nrest.read.call({ data: 42 });`],
   ['direct .call with a foreign this', `const o = ${ ANON_ESC };\no.read.call({ data: 42 });`],
   ['.bind to a foreign this', `const o = ${ ANON_ESC };\nconst m = o.read.bind({ data: 42 });\nm();`],
   ['object-spread copy shares the method body', `const o = ${ ANON_ESC };\nconst o2 = { ...o, data: 42 };\no2.read();`],

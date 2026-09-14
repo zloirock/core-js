@@ -15,8 +15,8 @@ let m, q, s, n;
 // dispatch is then the only reader of `globalThis.Array.prototype`, so the default node is spelled
 let c;
 ({ Array: { prototype: { flat: c = null } } } = globalThis.globalThis);
-// NEGATIVE: a USER key hop stays native - `recvF.codes` is neither a re-referenceable token nor an
-// instance surface, and no leg re-spells a member read that only the source's own nav reached
+// a USER key hop the extraction OWNS is re-spelled where the source reads it: `recvF.codes` is read
+// once, by the dispatch alone, once the consumed slot drops the host - the declaration host's answer
 ({ codes: { findIndex: n = null } } = recvF);
 // ... but a CAPITALISED hop off a user object reaching a real INSTANCE surface takes the overwrite
 // once its slot drops the nav: `userNs.Array.prototype` is then read exactly where the source reads
