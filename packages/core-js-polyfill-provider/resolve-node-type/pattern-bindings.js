@@ -31,6 +31,7 @@ import {
   isVoidExpression,
   objectLiteralPrototypeValue,
   spreadAtOrBefore,
+  argumentOverridesSlot,
   effectiveArgsLength,
   patternSlotTarget,
   positionalElementPath,
@@ -44,7 +45,6 @@ import {
   peelTransparentExprAncestorPath,
   positionDisposition,
   POSITION_CONSUMES,
-  unwrapRuntimeExpr,
   walkPatternIdentifiers,
   isBareUndefinedIdentifier,
 } from '../helpers/ast-patterns.js';
@@ -141,6 +141,8 @@ export function createPatternBindings({
   findTupleElement,
   resolveObjectMember,
   resolveMemberOfObjectPath,
+  typedIndexElement,
+  arrayElementOfType,
   walkObjectLiteralPropertyPath,
   isGetterFreshLiteral,
   resolveTypeAnnotation,
@@ -665,7 +667,21 @@ export function createPatternBindings({
         // key-path (`const [...{ length }] = a`) reads off that Array, but resolving it precisely
         // needs the source element type - bail so the member doesn't mis-resolve as the Array
         if (step < 0) return rest.length ? null : new $Object('Array');
-        if (!t.isArrayExpression(objPath.node)) return null;
+        // no literal to walk: the container is a VALUE - a call result, an inner-typed binding - and
+        // the step reads its element exactly as the index spelling `f()[0]` does, off the resolved
+        // type. a value's element has no path of its own, so the steps left descend the TYPE: an
+        // index reads an Array's inner type, a trailing rest is an Array, and a KEY reads nothing
+        // there - the member spelling's own answer for a field of a value. answering null here left
+        // a positional leaf over a call on the generic dispatcher where its index spelling was typed
+        if (!t.isArrayExpression(objPath.node)) {
+          let type = typedIndexElement(rawPath, rawPath);
+          for (const [at, next] of rest.entries()) {
+            if (!type || typeof next !== 'number') return null;
+            if (next < 0) return at === rest.length - 1 ? new $Object('Array') : null;
+            type = arrayElementOfType(type);
+          }
+          return type;
+        }
         // the positional read `resolveArrayLiteralElement` makes, so this nested path matches the
         // top-level extraction semantics
         const elementPath = positionalElementPath(objPath, step);
@@ -915,24 +931,12 @@ export function createPatternBindings({
     return null;
   }
 
-  // does ONE invocation put a real value in the parameter's slot? a missing slot and an `undefined`
-  // / `void` argument both leave the default standing. the wrappers a source may spell around the
-  // argument (`(undefined)`, `undefined as any`, `undefined!`) leave the VALUE alone, and only one
-  // leg's parser keeps a paren as a node - reading the raw slot answers "a real arg" for the paren
-  // dialect and "the default" for the other on one source, and costs the narrow on both TS
-  // spellings. a spread at or before the slot can supply the param from the spread iterable, and an
-  // argument list the pairing could not decide says nothing about the slot - both count as an
-  // override, matching the arg->param spread guard in resolveDirectParam / paramHasOverridingArg
+  // does ONE invocation put a real value in the parameter's slot? an argument list the pairing could
+  // not decide says nothing about the slot, so it counts as an override; a decided list asks the
+  // shared slot rule (`argumentOverridesSlot`), with the call's own scope answering for `undefined`
   function invocationOverridesSlot(pairing, argIndex, scope) {
     if (pairing.argsUnknown) return true;
-    const args = pairing.args ?? [];
-    const length = effectiveArgsLength(args);
-    if (length === null) return true;
-    const arg = argIndex < length ? resolveCallArgument(args, argIndex) : null;
-    if (!arg) return false;
-    const value = unwrapRuntimeExpr(arg);
-    if (isVoidExpression(value)) return false;
-    return !(isBareUndefinedIdentifier(value) && !getScopeBinding(scope, 'undefined'));
+    return argumentOverridesSlot(pairing.args ?? [], argIndex, () => !!getScopeBinding(scope, 'undefined'));
   }
 
   // every invocation that can supply this parameter, with its live call path and runtime argument
