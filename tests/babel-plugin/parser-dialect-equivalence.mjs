@@ -110,6 +110,13 @@ const CASES = [
   ['sealed tagged tag under a non-null wrapper', 'export const r = (globalThis.window?.self.someTag!)`x`;', ['typescript']],
   ['untouched optional-chain tag under a non-null wrapper, reprint only',
     'const q = [1].at(0);\nexport const r = (a?.b.tag!)`x`;', ['typescript']],
+  // the cascade flattens the statement's paren NODE by re-seating that path onto the assignment; a
+  // leaf dispatched after the flatten climbs through the shadow to the same statement
+  ['assignment destructure, SE keys on two hops, pattern-valued static',
+    'const log = [];\nlet from, l;\n({ Array: { [(log.push("f"), "from")]: from }, Object: { keys: { [(log.push("k"), "length")]: l } } } = globalThis);\n'
+    + 'export const r = [from, l];'],
+  ['mixed inner default under a parenthesized slot',
+    'const held = { Set: class {}, Array: { of: x => [x] } };\nexport const r = (([{ Set: S, Array: { of } } = globalThis]) => [S, of(7)])([(held)]);'],
 ];
 
 for (const method of ['usage-pure', 'usage-global']) {

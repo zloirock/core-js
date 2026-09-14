@@ -279,9 +279,13 @@ QUnit.test('destructuring: nested static and iterator read once before rest', as
     assert.same(reads, 1);
     assert.same(Object.getOwnPropertyDescriptor(result[2], 'Array'), undefined);
     assert.same(Object.getOwnPropertyDescriptor(result[2], Symbol.iterator), undefined);
-    assert.deepEqual(Object.getOwnPropertyDescriptor(result[2], retainedKey), {
-      value: 42, enumerable: true, configurable: true, writable: true,
-    });
+    // under sham symbols the lowered rest copy lists no symbol keys: the retained key is
+    // asserted only where symbols are native
+    if (!Symbol.sham) {
+      assert.deepEqual(Object.getOwnPropertyDescriptor(result[2], retainedKey), {
+        value: 42, enumerable: true, configurable: true, writable: true,
+      });
+    }
   } finally {
     delete globalThis[retainedKey];
     if (descriptor) Object.defineProperty(globalThis, Symbol.iterator, descriptor);
@@ -309,9 +313,11 @@ QUnit.test('destructuring: an iterator read retains its native static sibling', 
     assert.same(reads, 1);
     assert.same(Object.getOwnPropertyDescriptor(result[2], 'from'), undefined);
     assert.same(Object.getOwnPropertyDescriptor(result[2], Symbol.iterator), undefined);
-    assert.deepEqual(Object.getOwnPropertyDescriptor(result[2], retainedKey), {
-      value: 42, enumerable: true, configurable: true, writable: true,
-    });
+    if (!Symbol.sham) {
+      assert.deepEqual(Object.getOwnPropertyDescriptor(result[2], retainedKey), {
+        value: 42, enumerable: true, configurable: true, writable: true,
+      });
+    }
   } finally {
     delete receiver[retainedKey];
     if (descriptor) Object.defineProperty(receiver, Symbol.iterator, descriptor);

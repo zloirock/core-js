@@ -9,8 +9,8 @@ import _Object$entries from "@core-js/pure/actual/object/entries";
 // rendered inside the prefix (`arr.flat()`) is spelled back in its source form with the polyfill
 // lost. the assignment host lifts a CALL-rooted receiver the same way even when the call is quiet -
 // a receiver with nothing to rescue still owes its read a slot, and without one the claim had no
-// route at all. the emitters part only on the quiet read itself: the babel leg keeps it, this one
-// drops it, which is the locked divergence for every discarded read that observes nothing
+// route at all. a quiet read off a realm the census resolves observes nothing, so the lift keeps
+// only what the call itself owes - nothing here - on both legs alike
 const arr = [1, [2]];
 function mk() {
   return _globalThis;
@@ -31,13 +31,11 @@ export function bodylessLiftedPrefixWhile() {
 }
 export function assignOverQuietCallRoot() {
   let of;
-  mk().Array;
   of = _Array$of;
   return typeof of;
 }
 export function assignOverEffectfulCallRoot() {
   let from;
-  mk().Array;
   from = _Array$from;
   return typeof from;
 }

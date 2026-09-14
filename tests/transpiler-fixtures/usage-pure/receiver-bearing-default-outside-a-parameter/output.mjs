@@ -3,7 +3,7 @@ import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _at from "@core-js/pure/actual/instance/at";
-import _Iterator from "@core-js/pure/actual/iterator/constructor";
+import _Iterator$from from "@core-js/pure/actual/iterator/from";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Number$isFinite from "@core-js/pure/actual/number/is-finite";
 import _Object$entries from "@core-js/pure/actual/object/entries";
@@ -80,18 +80,25 @@ const {
 const {
   union
 } = _Set;
-// a BRANCHY default declines: this channel answers with a receiver NAME, and a name cannot say
-// "either branch" - mirroring one of them would emit the wrong branch's static whenever the other
-// fires. the flat twin affords these shapes only because its meta carries a fallback flag
+// a BRANCHY default is the per-branch mirror's shape, whatever the host's slot holds: the name
+// channel still declines (a name cannot say "either branch"), and the mirror fills each arm the
+// default can yield - a `||` collapses onto its truthy left, a ternary keeps both arms - so the
+// static reads the ponyfill exactly when the default runs, on both legs
 const {
   b1: {
     from: fromOr
-  } = Array || _Iterator
+  } = {
+    from: _Array$from
+  }
 } = src;
 const {
   b2: {
     from: fromTernary
-  } = flag ? Array : _Iterator
+  } = flag ? {
+    from: _Array$from
+  } : {
+    from: _Iterator$from
+  }
 } = src;
 // an INSTANCE claim answers differently: a dispatch can reach BOTH arms, so it folds them - one
 // read of the slot, the default only where the source evaluates it - and the default's shape does

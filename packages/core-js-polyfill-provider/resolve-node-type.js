@@ -31,6 +31,7 @@ import {
   wrapScopeBindingLookup,
   isBareUndefinedIdentifier,
   peelTSParenthesized,
+  walkAstNodes,
 } from './helpers/ast-patterns.js';
 import {
   $Object,
@@ -716,7 +717,7 @@ function createResolveNodeType(babelNodeType, t, {
     }
     return null;
   }
-  // peelTSParenthesized is imported from ast-shapes and shared with siblings that
+  // peelTSParenthesized is imported from helpers/ast-patterns and shared with siblings that
   // pattern-match TSUnionType / TSIntersectionType / TSTypeQuery on the oxc parser path
 
   // `function fn(x = 'a')` - default wraps param in AssignmentPattern; type is on `.left`.
@@ -857,6 +858,7 @@ function createResolveNodeType(babelNodeType, t, {
   // `resolveKnownContainerType` / `resolveTypeAnnotation` (factory `let`s populated when
   // type-annotation-resolve cluster binds them later)
   const {
+    isGlobalProxy,
     resolveGlobalName,
     resolvePrototypeAsInstance,
     resolveClassInheritance,
@@ -1911,6 +1913,8 @@ function createResolveNodeType(babelNodeType, t, {
     findObjectMember,
     // forward-decl thunk: the member-resolve cluster is built after this one
     resolveMemberOfObjectPath: (...args) => memberResolveCluster.resolveMemberOfObjectPath(...args),
+    typedIndexElement: (...args) => memberResolveCluster.typedIndexElement(...args),
+    arrayElementOfType: (...args) => memberResolveCluster.arrayElementOfType(...args),
     walkObjectLiteralPropertyPath,
     isGetterFreshLiteral,
     resolveTypeAnnotation: (...args) => resolveTypeAnnotation(...args),
@@ -2594,9 +2598,15 @@ function createResolveNodeType(babelNodeType, t, {
     const resolved = realmSelectingBranch(inner) ?? inner;
     // a MEMO the emitter planted mid-render stands where the source wrote the nav, and what it holds
     // is the alias it was registered under - the name a claim asking AFTER that memo landed reads
+    // ... and a root the value canon proves to BE the global object without naming it - a call
+    // yielding it, a captured slot holding such a call - names it the way the member spelling's
+    // own chain typing does (`isGlobalProxy`): without it `{ Array: { prototype: { at } } } = _ref`
+    // over `const [_ref] = [realm()]` took the generic dispatcher on the leg that keeps the ref,
+    // where the leg re-anchoring it on the global narrowed
     const rootName = resolveGlobalName(resolved)
       ?? (resolved?.node?.type === 'Identifier'
-        ? babelBindingAdapter.getBindingPolyfillHint?.(resolved.scope, resolved.node.name) : null);
+        ? babelBindingAdapter.getBindingPolyfillHint?.(resolved.scope, resolved.node.name) : null)
+      ?? (isGlobalProxy(resolved) ? 'globalThis' : null);
     if (!rootName) return null;
     const aliased = resolved?.node?.type === 'Identifier' && !POSSIBLE_GLOBAL_OBJECTS.has(rootName)
       && !resolveKnownConstructor(rootName)
@@ -2661,6 +2671,19 @@ function createResolveNodeType(babelNodeType, t, {
   // the receiver type each destructure prop resolved to, by prop node - see above. a WeakMap keyed
   // by node needs no reset: a new parse brings new nodes, and the entries of the old one go with it
   const destructureReceiverTypes = new WeakMap();
+
+  // drop the cached answers of every prop under `patternNode`: an emitter that RE-ROOTS a pattern
+  // (the proxy flatten anchoring `{ Array: { prototype: { at } } } = _ref` at `_globalThis.Array`)
+  // hands its leaves a receiver the source never spelled, and the answer kept above is the one the
+  // leaves gave off the old root - null where that root was an element the walk could not type.
+  // asked by the rebuild itself, so a requeued leaf re-derives off the anchored init the way a leaf
+  // the flatten reached FIRST does
+  function forgetDestructureReceiverTypes(patternNode) {
+    walkAstNodes({ root: patternNode, visit: node => {
+      if (node.type === 'ObjectProperty' || node.type === 'Property') destructureReceiverTypes.delete(node);
+      return true;
+    } });
+  }
 
   // no answer at all, as against an answer of NOTHING: the slot walk that finds no literal to
   // descend leaves the question to the routes below, while one that reads a cross-family pair
@@ -3043,6 +3066,7 @@ function createResolveNodeType(babelNodeType, t, {
     resolveGuardHints,
     resolveNodeType,
     resolvePropertyObjectType,
+    forgetDestructureReceiverTypes,
     resolvePropertyUnionHints,
     resolvedType,
     toHint,

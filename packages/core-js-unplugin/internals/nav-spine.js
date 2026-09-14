@@ -4,7 +4,6 @@ import {
   foldableRealmHop,
   planProvenNavGuardCollapse,
   planKeptSequenceTail,
-  proxyHopLacksPureEntry,
   resolveKey,
   resolveObjectName,
   sealedLayerBetween,
@@ -28,7 +27,6 @@ import {
   stepOverChainWrappers,
   collectFoldedReceiverSideEffects,
   computedKeyStaticName,
-  staticMemberKeyName,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   unwrapRuntimeExpr,
   walkAstNodes,
@@ -155,16 +153,6 @@ export function instanceTailMemoTest(test, metaPath, node, ctx) {
     return test;
   }
   return ctx.assignmentExpression('=', identifier(ctx.injector.generateDeclaredRef(metaPath)), test);
-}
-
-// a hop READ the pure package cannot back (`window` - there is no `_window`): a value past one
-// is no longer the always-defined ponyfill. both questions are the canon's own -
-// `staticMemberKeyName` folds the dotted, static-computed and SE-seq-keyed spellings alike
-// (a hand-rolled `!computed` read left the seq-keyed `[eff(), 'window']` hop looking backed,
-// and the value collapse rode one hop past what the realm can prove)
-export function unbackedProxyHopKey(node, resolveHere) {
-  const key = node?.type === 'MemberExpression' ? staticMemberKeyName(node) : null;
-  return !!key && proxyHopLacksPureEntry(key, resolveHere);
 }
 
 // this leg's surgery for the shared fold verdict: the core walks the realm hops standing above a
@@ -675,7 +663,7 @@ export function noteMutatedCtorHopDestructure(metaPath, node, { adapter, destruc
   // yields the GLOBAL, while the anchored `({ k } = _Map)` yields the ctor - only a statement
   // position discards that value and can take the rewrite
   if (assignHost && !assignmentValueDiscarded(up)) return;
-  destructureEmit.noteUntouchedCtorHopHost(host, hopKey, assignHost);
+  destructureEmit.noteUntouchedCtorHopHost(host, hopKey, assignHost, metaPath);
 }
 
 // mark a whole subtree consumed: a replacement detaches the ORIGINAL nodes, but the

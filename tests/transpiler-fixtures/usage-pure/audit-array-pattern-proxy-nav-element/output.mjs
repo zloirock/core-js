@@ -7,6 +7,7 @@ import _Object$freeze from "@core-js/pure/actual/object/freeze";
 import _Object$getOwnPropertyNames from "@core-js/pure/actual/object/get-own-property-names";
 import _Object$getPrototypeOf from "@core-js/pure/actual/object/get-prototype-of";
 import _Object$keys from "@core-js/pure/actual/object/keys";
+import _Object$seal from "@core-js/pure/actual/object/seal";
 import _Object$values from "@core-js/pure/actual/object/values";
 import _self from "@core-js/pure/actual/self";
 // an ARRAY-pattern element whose value navigates the proxy globals: the receiver collapse claims
@@ -25,10 +26,13 @@ export const values = (w = _self, _Object$values); // the ASSIGNMENT form takes 
 // destructured name resolves to a static, which is what makes that render replace the statement
 // a NESTED array pattern reaches the same render through one more wrapper
 getPrototypeOf = _Object$getPrototypeOf;
-export const freeze = _Object$freeze; // a pattern DEFAULT puts the nav in the slot the flatten rewrites rather than in the init
+export const freeze = _Object$freeze; // a pattern DEFAULT puts the nav in the slot the flatten rewrites rather than in the init; the hole
+// fires it, so the default is mirrored whole
 export const [{
   seal
-} = _self.Object] = [];
+} = {
+  seal: _Object$seal
+}] = [];
 // NEGATIVE: a single-hop nav needs no receiver collapse, so nothing is queued inside
 export const [{
   isArray
