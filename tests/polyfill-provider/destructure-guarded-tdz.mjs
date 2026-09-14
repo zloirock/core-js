@@ -1,7 +1,9 @@
 // Lexical initialization is observable before the ES5 lowering used by the e2e suite, whose
 // block-scoping transform deliberately does not emulate TDZ. Execute the same persistent source
 // through native and both emitters in modern Node; no lowering can erase this order obligation.
+import { execFile } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
+import { promisify } from 'node:util';
 import { transformAsync } from '@babel/core';
 import plugin from '../../packages/core-js-babel-plugin/index.js';
 import createUnplugin from '../../packages/core-js-unplugin/internals/plugin.js';
@@ -25,7 +27,8 @@ try {
       const script = `${ stripped ? 'globalThis.WeakSet = undefined;' : '' }
         const { result } = await import(${ JSON.stringify(pathToFileURL(file).href) });
         process.stdout.write(JSON.stringify(result));`;
-      const { stdout } = await $({ quiet: true })`${ process.execPath } --input-type=module -e ${ script }`;
+      // spawned without a shell: through zx's bash a Windows `execPath` loses its backslashes
+      const { stdout } = await promisify(execFile)(process.execPath, ['--input-type=module', '-e', script]);
       checkDeep(`${ leg } ${ stripped ? 'stripped' : 'native' }`, JSON.parse(stdout), ['ReferenceError', ['first', 'realm']]);
     }
   }

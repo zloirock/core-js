@@ -12,6 +12,7 @@ import {
   isMemberWriteHost,
   isMutatedGlobalSlot,
   isPristineProxyGlobal,
+  isReusableReceiver,
   isTaggedTemplateTagPosition,
   mayHaveSideEffects,
   memberChainEndPath,
@@ -46,6 +47,8 @@ import {
   aliasWriteCtorNames,
   attachMemberUnionExtras,
   flattenFallbackBranches,
+  navigatedChainKeys,
+  navigatedSelectionArms,
   nestedAssignmentStatementOf,
   staticContainerReceiverName,
   unionKeyedCarrierRides,
@@ -1141,16 +1144,32 @@ function buildMemberMeta({ node, scope, adapter, path, resolveStaticKey = null, 
       });
     }
     // A native constructor has no whole-value pure replacement. Keep the realm member read
-    // and guard its static separately when the realm alias only has candidate values.
+    // and guard its static separately when the realm alias only has candidate values. the
+    // root the alias question names is the receiver's VALUE - a sequence's tail, its prefix
+    // running once inside the captured receiver (`(eff(), realm).Array.of` reads `realm`)
     const receiver = !objectName && !keyEffects.length && unwrapRuntimeExpr(classifyTarget);
-    const receiverKey = staticMemberKeyName(receiver);
-    const receiverRoot = unwrapRuntimeExpr(receiver?.object);
-    if (!objectName && !keyEffects.length && receiverRoot?.type === 'Identifier'
+    const receiverRoot = peelReceiverSequenceTail(receiver?.object);
+    // ... a chain ROOTED AT A SELECTION (`(c ? realm() : opaque()).Array.of`), read directly or through
+    // a const alias of the chain (`const h = (...).Array; h.of`), names its candidates by the ARMS: an
+    // arm that resolves to a pristine proxy global - spelled, or reached through a call the census
+    // resolves - is a realm the captured receiver is tested against, and an opaque arm falls through
+    // to the raw read the guard keeps (the whole selection is captured once, so nothing runs twice).
+    // the ctor the static hangs off is then the chain's own last key
+    const navigated = receiver ? navigatedSelectionArms(receiver, { scope, adapter, path }) : null;
+    // ... and a chain with a PLAIN root reads through a const alias the same way (`const h = realm
+    // .Array; h.of`): the alias hands the walk its init, and the root's own writes name the candidates
+    const chain = receiver && !navigated ? navigatedChainKeys(receiver, { scope, adapter, path }) : null;
+    const chainRoot = chain?.root ?? receiverRoot;
+    const receiverKey = staticMemberKeyName(receiver) ?? navigated?.keys.at(-1) ?? chain?.keys.at(-1) ?? null;
+    const rootRealmNames = !receiverKey ? []
+      : navigated ? navigated.arms.map(arm => resolveObjectName({ objectNode: arm, scope, adapter, path, usageNode: arm }))
+        : chainRoot?.type === 'Identifier' ? aliasWriteCtorNames({ name: chainRoot.name, scope, adapter, path }) : [];
+    if (!objectName && !keyEffects.length && (chainRoot || navigated)
       && receiverKey && !POSSIBLE_GLOBAL_OBJECTS.has(receiverKey) && isStaticPlacement(receiverKey)
       && !resolveBuiltIn({ kind: 'global', name: receiverKey })
       && resolveBuiltIn({ kind: 'property', object: receiverKey, key, placement: 'static' })
       && !isMutatedGlobalSlot(adapter, receiverKey)
-      && aliasWriteCtorNames({ name: receiverRoot.name, scope, adapter, path }).some(name => POSSIBLE_GLOBAL_OBJECTS.has(name))) {
+      && rootRealmNames.some(name => isPristineProxyGlobal(adapter, name))) {
       Object.assign(meta, { guardedAliasHint: receiverKey, captureGuardReceiver: true });
     }
     // usage-global: a conditionally reassigned receiver / computed-key reaches more than the
@@ -1230,9 +1249,10 @@ function buildMemberMeta({ node, scope, adapter, path, resolveStaticKey = null, 
 // wrappers). returns: null = not a guard read (fall through to normal dispatch); { bail: true }
 // = handled, intentionally RAW (an optional-CALL form, whose short-circuit the callee slot
 // cannot reproduce, or a synthesized guard-only meta with no resolvable static); else the
-// render inputs - the unwrapped receiver identifier, the static's pure entry, callee-ness
-// (the raw branch then binds `this`), and the ctor comparator (the swapped pure binding, or
-// its raw global name when the ctor does not polyfill for the targets)
+// render inputs - the unwrapped receiver identifier (or, for a meta asking `captureGuardReceiver`,
+// the receiver NODE the emitter captures into a ref of its own - `captureReceiver`), the static's
+// pure entry, callee-ness (the raw branch then binds `this`), and the ctor comparator (the swapped
+// pure binding, or its raw global name when the ctor does not polyfill for the targets)
 export function planGuardedStaticNarrow({ memberNode, parent, meta, path, resolvePure, adapter = null }) {
   if (memberNode.type !== 'MemberExpression' && memberNode.type !== 'OptionalMemberExpression') return null;
   // A lowered optional still observes the environment probe; substituting a backed
@@ -1274,6 +1294,15 @@ export function planGuardedStaticNarrow({ memberNode, parent, meta, path, resolv
   // estree marks optionality with `optional: true` (no Optional* node types) - check both encodings
   if (isCallee && (parent.type === 'OptionalCallExpression' || parent.optional
     || memberNode.type === 'OptionalMemberExpression' || memberNode.optional)) {
+    return { bail: true };
+  }
+  // an OPTIONAL hop the chain continues past: the conditional standing in for the member cannot
+  // carry the `?.` to the hops above it, so the guard would dereference the short-circuited value
+  // where the source stops (`realm?.Symbol.iterator` -> `(realm === _globalThis ? _Symbol :
+  // realm?.Symbol).iterator` threw on an absent realm). the raw member keeps the chain, like the
+  // optional callee above; a `?.` hop the chain ENDS on short-circuits inside the raw branch itself
+  if (memberNode.optional && (parent?.type === 'MemberExpression' || parent?.type === 'OptionalMemberExpression')
+    && unwrapRuntimeExpr(parent.object) === memberNode) {
     return { bail: true };
   }
   // each candidate carries its own ctor reference - the guard chains them, innermost-last.
@@ -1742,15 +1771,57 @@ export function symbolIteratorHint(entry) {
   return entry === GET_ITERATOR_ENTRY ? 'getIterator' : SYMBOL_ITERATOR_PURE_RESULT.hintName;
 }
 
+// the value test read off a REALM the source holds only in some branch (`if (c) { var realm =
+// globalThis; } ... realm.Symbol.iterator in x`): no unconditional symbol ref names that receiver,
+// and the member route alone would swap the `Symbol` read (`(realm === _globalThis ? _Symbol :
+// realm.Symbol).iterator in x`), whose membership test answers `false` for an iterable under sham
+// symbols. the test travels with the realm guard instead: every pristine proxy global the binding
+// was WRITTEN with is one identity branch answering the is-iterable helper, and the source `in`
+// stays the raw branch. the shape is kept narrow because the raw branch re-spells the source: the
+// LHS is a plainly spelled `<binding>.Symbol.<name>` (no optional hop, sequence prefix or effectful
+// key - each would run twice, once ahead of the test and once in the raw branch), the RHS a bare
+// identifier the branches may repeat, the name the iterator entry (the one `in` rewrite with a
+// call shape) and `Symbol` unmutated. null = not this shape; the member route keeps it. the raw
+// branch of an emitted guard re-enters here on the next pass (both legs re-queue their output)
+// and is recognised by that shape, like the member route's own raw branch
+function guardedRealmSymbolIn({ left, right, scope, adapter, path, resolvePure, resolveStaticKey }) {
+  if (left.type !== 'MemberExpression' || left.optional || !isReusableReceiver(right)) return null;
+  if (insideEmittedCtorGuardBranch(path, adapter)) return null;
+  const symbolNode = unwrapTransparentSeq(left.object);
+  if (symbolNode?.type !== 'MemberExpression' || symbolNode.optional || memberKeyName(symbolNode) !== 'Symbol') return null;
+  const receiver = unwrapTransparentSeq(symbolNode.object);
+  if (receiver?.type !== 'Identifier' || isMutatedGlobalSlot(adapter, 'Symbol')) return null;
+  const name = resolveKey({
+    node: left.property, computed: left.computed, scope, adapter, path, resolveStaticKey, bailOnSideEffectKey: true,
+  });
+  if (name !== 'iterator') return null;
+  const realms = [];
+  for (const candidate of aliasWriteCtorNames({ name: receiver.name, scope, adapter, path })) {
+    if (!isPristineProxyGlobal(adapter, candidate)) continue;
+    const pure = resolvePure({ kind: 'global', name: candidate }, null);
+    if (pure && pure.kind !== 'instance') realms.push(pure);
+  }
+  if (!realms.length) return null;
+  return {
+    symbolNode,
+    meta: {
+      kind: 'in', key: 'Symbol.iterator', object: null, placement: null, symbolSourced: true,
+      sideEffects: [], realmGuard: { receiver, realms },
+    },
+  };
+}
+
 // seeds `handledObjects` only for polyfillable Symbol.X. `isEntryAvailable`, when
 // provided by the caller (plugin's `isEntryNeeded`), gates seeding on the actual entries
 // map - non-existent entries (`Symbol.foo` -> synthetic `symbol/foo`) leave the `Symbol`
 // identifier in place so it can still receive its constructor polyfill via the regular
 // MemberExpression-fallback path. without the predicate (legacy callers), seed on the
 // pure-string `symbolKeyToEntry` shape - older callers lose the fallback but stay
-// behaviour-compatible
+// behaviour-compatible. `resolvePure` (usage-pure only) lets the realm-guarded form above spell
+// its comparators; without it that form keeps the member route
 export function handleBinaryIn({
   node, scope, adapter, handledObjects, isEntryAvailable, suppressProxyGlobals, path, resolveStaticKey = null,
+  resolvePure = null,
 }) {
   if (node.operator !== 'in') return null;
   const left = unwrapTransparentSeq(node.left);
@@ -1800,6 +1871,16 @@ export function handleBinaryIn({
       }
       return { kind: 'in', key, object: null, placement: null, symbolSourced: true, sideEffects };
     }
+  }
+  const guarded = !ref && resolvePure
+    ? guardedRealmSymbolIn({ left, right: node.right, scope, adapter, path, resolvePure, resolveStaticKey }) : null;
+  if (guarded) {
+    // the rewrite replaces the whole test; the LHS and its `Symbol` read are its own, like the
+    // unconditional ref's above
+    handledObjects.add(node.left);
+    handledObjects.add(left);
+    handledObjects.add(guarded.symbolNode);
+    return guarded.meta;
   }
   // identifier bound to Symbol.X - `const k = Symbol.iterator; k in obj` works regardless of
   // object type. literal-string sources that happen to spell `Symbol.X` (`'Symbol.iterator'`,

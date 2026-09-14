@@ -12,6 +12,7 @@ import {
   realmRunSplitBySequencePrefix,
   prependChainAssignmentEffect,
   proxyReceiverValueCanBeUndefined,
+  undefinableOptionalGuard,
   resolveObjectName,
   aliasRootedReadMayThrow,
   deleteGuardKeepingHop,
@@ -31,6 +32,7 @@ import {
   vestigialNavOptionals,
   proxyNavSpellsClaimPure,
   peelPristineProxyHops,
+  unbackedProxyHopKey,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
   planGuardedDestructureNarrow,
@@ -129,7 +131,6 @@ import {
   spineHoldsKeptWrite,
   stepOverKeptWrite,
   swallowDeadSeqWrapper,
-  unbackedProxyHopKey,
 } from './nav-spine.js';
 import { effectsPastThrowProbe } from './se-dispatch.js';
 
@@ -255,9 +256,12 @@ export default function createProxySpineChannel(ctx) {
     markRewrite();
     target.replaceWith(replacement);
     markSubtreeSkipped(skippedNodes, consumed);
-    // the WHOLE replacement: the raw branch respells the member, and a revisit re-claiming
-    // it would guard the guard
-    markSubtreeSkipped(skippedNodes, plan.captureReceiver ? replacement.expressions.at(-1) : replacement, liveArguments);
+    // the WHOLE guard: the raw branch respells the member, and a revisit re-claiming it would
+    // guard the guard. what rides AHEAD of it in the sequence - the captured receiver's write, the
+    // re-emitted effectful prefix - keeps its own claims (`(log.push("r"), M).groupBy` still owes
+    // `push` its dispatch, exactly as the babel leg's prefix clones do)
+    const guard = plan.captureReceiver || plan.seqPrefix.length ? replacement.expressions.at(-1) : replacement;
+    markSubtreeSkipped(skippedNodes, guard, liveArguments);
     return true;
   }
 
@@ -1166,6 +1170,25 @@ export default function createProxySpineChannel(ctx) {
           || deeperSourceUndefinable(inner.object));
       inner = unwrapRuntimeExpr(probe)) {
       probe = inner.object;
+    }
+    // ... and the shared guard canon names the SOURCE of undefined for the whole chain, deduping
+    // the hops that share one name onto the SHORTEST prefix - under the realm-self-reference
+    // assumption `globalThis.window?.window?.window` reads one value, and the test reads
+    // `_globalThis.window` for all of it (the babel leg's spelling). the descent above stops at
+    // the first unresolvable hop it meets from the leaf; where the canon's object stands deeper
+    // inside that same prefix, the test reads it instead
+    // ... reached along the probe's own member spine alone: a sequence wrapped around the probe
+    // is a kept boundary of its own, and the test reads the sequence (`(d++, (c++,
+    // globalThis.window))?.Map.length` keeps `null == (d++, c++, _globalThis.window)`)
+    if (probe) {
+      const verdict = undefinableOptionalGuard(node, m => resolvePure(m, metaPath),
+        { scope: metaPath.scope, adapter, path: metaPath });
+      const canonObject = verdict.kind === 'guard' ? unwrapRuntimeExpr(verdict.object) : null;
+      if (canonObject && canonObject !== unwrapRuntimeExpr(probe)) {
+        let spine = unwrapRuntimeExpr(probe);
+        while (spine?.type === 'MemberExpression' && spine !== canonObject) spine = unwrapRuntimeExpr(spine.object);
+        if (spine === canonObject) probe = verdict.object;
+      }
     }
     // a PAREN-SEALED probe renders as a guard of its OWN, and the test reads that guard's
     // source - the inner `?.`'s object - not the whole rendered value

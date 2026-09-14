@@ -2,6 +2,7 @@
 // and render spellings both the visit half and the drain half of the emitter speak
 import {
   buildPatternRenderPlan,
+  arrayWrappedReceiverProven,
   conditionalDestructureLeftUntouchedWarning,
   descendReceiverPathByKeys,
   destructureKeyReadPlan,
@@ -166,6 +167,19 @@ export function emitAssignStaticDefaultOverwrite({ hostParent, prop, pattern, ch
   hostParent.replaceWith(assignmentExpression('=', identifier(prop.value.left.name),
     renderStaticDefaultGuard({ read: identifier(id), defaultValue: prop.value.right, reread: identifier(id), alwaysDefined: true })));
   return true;
+}
+
+// the receiver a NESTED leaf's level actually reads: the host's own RHS, or - where the level hangs
+// under an inner DEFAULT of its own (`{ k: { Map: { groupBy } } = sel } = {}`) - that default, the
+// slot the leaf reads exactly when the outer key is missing. the selecting-receiver gates ask it
+// ahead of the host's RHS, which alone let a selecting default go unmirrored (the per-branch
+// mirror already reads the same slot through `resolveFallbackReceiver`)
+export function nestedLeafSelectingReceiver(metaPath, hostRhs) {
+  for (let level = metaPath.parentPath; level?.node; level = level.parentPath) {
+    if (level.node.type === 'AssignmentPattern') return level.node.right;
+    if (level.node.type !== 'ObjectPattern' && level.node.type !== 'Property') break;
+  }
+  return hostRhs;
 }
 
 export function routeSelectionMirror(metaPath, handlePerBranch) {
@@ -426,7 +440,7 @@ export function drainBodylessAssignment({ hostNode, jobs }, {
   // were already gone and their extractions were dropped on the floor - nothing wrote the bindings
   if (bodylessAssign.left.properties.length !== 0) {
     const view = { id: bodylessAssign.left, init: bodylessAssign.right };
-    const reanchored = reanchorSoleCtorHopResidual(view);
+    const reanchored = reanchorSoleCtorHopResidual(view, { metaPath: jobs[0]?.metaPath ?? null });
     if (reanchored) {
       bodylessAssign.left = view.id;
       bodylessAssign.right = view.init;
@@ -804,6 +818,14 @@ export function hopChainKeys(chain) {
   return chain.toReversed().map(level => level.foldedKey ?? level.hopProp.key.name ?? level.hopProp.key.value);
 }
 
+// does an inner default NAME a receiver (`= Array`, `= globalThis.X`)? such a default fires under
+// exactly the condition the outer slot leaves open, and the climb rewinds to it wherever the outer
+// chain cannot prove that slot; a literal one (`= {}`, `= [1, 2]`) names nothing to rewind to
+export function namedDefaultReceiver(node) {
+  const core = unwrapRuntimeExpr(node);
+  return core?.type === 'Identifier' || core?.type === 'MemberExpression';
+}
+
 export function climbPatternChain(patternPath, keyCtx = null) {
   let hostPatternPath = patternPath;
   const chain = [];
@@ -865,10 +887,17 @@ export function planLiteralRoute({ metaPath, prop, sentinel, chain, declarator, 
   let literalReceiver = null;
   let relaxedReceiver = false;
   let carriedLive = null;
+  // the descent steps through a NAMED inner default the climb walked past: the climb goes through
+  // such a default only where the outer chain names the receiver, so the default is dead and the
+  // pair the descent reaches is what the leaf reads (`{ k: { from } = Array } = { k: Array }`)
+  const throughNamedDefaults = chain.some(level => level.hopProp.value?.type === 'AssignmentPattern'
+    && namedDefaultReceiver(level.hopProp.value.right));
   if (!pureNav && chain.length > 0) {
-    literalReceiver = resolveNestedReceiverNode(metaPath, { adapter }) ?? null;
+    literalReceiver = resolveNestedReceiverNode(metaPath, { adapter, throughNamedDefaults }) ?? null;
     if (!literalReceiver) {
-      const relaxed = resolveNestedReceiverNode(metaPath, { allowSeFreeSingleRead: true, adapter }) ?? null;
+      const relaxed = resolveNestedReceiverNode(metaPath, {
+        allowSeFreeSingleRead: true, adapter, throughNamedDefaults,
+      }) ?? null;
       // a SENTINEL leaves a residual that reads the fragment a second time, so only a
       // value-SELECTING one qualifies for the relaxation: its memo is what makes the branch
       // select once for both readers
@@ -886,13 +915,15 @@ export function planLiteralRoute({ metaPath, prop, sentinel, chain, declarator, 
       // ... and only where the residual DIES: a level an effectful hop key keeps would run the
       // carried effect a second time beside the dispatch
       if (!literalReceiver && declaratorConsumedWhole && !sentinel && !hostLevelSurvives(declarator)) {
-        const carried = resolveNestedReceiverNode(metaPath, { allowInitCarriedEffects: true, adapter }) ?? null;
+        const carried = resolveNestedReceiverNode(metaPath, { allowInitCarriedEffects: true, adapter, throughNamedDefaults }) ?? null;
         if (carried && receiverPerformsEveryInitEffect(declarator.init, carried)) {
           literalReceiver = carried;
           relaxedReceiver = true;
           // the slot is re-resolved at DRAIN: a claim INSIDE it renders by replacing its node, and
           // this plan-time copy predates that rewrite
-          carriedLive = () => resolveNestedReceiverNode(metaPath, { allowInitCarriedEffects: true, adapter }) ?? carried;
+          carriedLive = () => resolveNestedReceiverNode(metaPath, {
+            allowInitCarriedEffects: true, adapter, throughNamedDefaults,
+          }) ?? carried;
         }
       }
     }
@@ -1545,27 +1576,19 @@ export function drainSequenceAssignments(ledger, ctx) {
   }
 }
 
-// the nodes an extraction already OWNS: a hop-host note for one of them would apply its anchor
-// a second time, on top of the drain's own. `hostSiblings` are the declarators sharing a
-// declaration with one - the residual split replaces that declaration node, and the ledger
-// drains by its identity, so splitting early would strand the sibling's own claim
-export function jobOwnedNodes(ledger) {
-  const owned = new Set();
+// the declarators sharing a declaration with a claimed one: the residual split replaces that
+// declaration node, and the ledger drains by its identity, so splitting a hop-host note's
+// declaration early would strand the sibling's own claim
+export function jobHostSiblingDeclarators(ledger) {
   const hostSiblings = new Set();
-  for (const [hostNode, { hostPath, jobs }] of ledger) {
-    for (const job of jobs) if (job.declarator) owned.add(job.declarator);
+  for (const [, { hostPath, jobs }] of ledger) {
     const declNode = hostPath.node?.type === 'ExportNamedDeclaration' ? hostPath.node.declaration : hostPath.node;
     if (declNode?.type === 'VariableDeclaration'
       && jobs.some(job => job.host === 'declaration' || job.host === 'memo-decl')) {
       for (const item of declNode.declarations) hostSiblings.add(item);
     }
-    // an ASSIGNMENT host is keyed by its own expression, a SEQUENCE-element one by the
-    // expression itself
-    const assignExpr = hostNode?.type === 'AssignmentExpression' ? hostNode
-      : hostNode?.type === 'ExpressionStatement' ? peelTransparentExpr(hostNode.expression) : null;
-    if (assignExpr?.type === 'AssignmentExpression') owned.add(assignExpr);
   }
-  return { owned, hostSiblings };
+  return hostSiblings;
 }
 
 // the pure BINDING a rendered guard hands back on its live branch (`null == x ? void 0 : _self`),
@@ -1707,12 +1730,16 @@ export function hasRestSibling(pattern) {
 }
 
 // a DECLINED mirror's leaf defaults still take the sound polyfill (the slot fires only where
-// the destructured value reads undefined, whatever the receiver held)
+// the destructured value reads undefined, whatever the receiver held) - except beside a REST,
+// where the level keeps every read native (the object-rest boundary, provider AGENTS.md)
 export function swapInlineDefaults({ leafPattern, ctorName, metaPath, insertOnUndefaulted = false },
   { resolvePure, markSubtreeSkipped, skippedNodes, injectPureImport, markRewrite }) {
   if (hasRestSiblingExcept(leafPattern.properties, null)) return;
   for (const leafProp of leafPattern.properties) {
     if (leafProp.type !== 'Property' || leafProp.computed) continue;
+    // a MEMBER target keeps the raw canon - its default is the user's, and the ponyfill never
+    // lands in the user's object (the flat route's own answer, and the babel leg's)
+    if (!propBindingIdentifier(leafProp.value)) continue;
     const defaulted = leafProp.value?.type === 'AssignmentPattern';
     // an UNDEFAULTED identifier leaf takes the sound default too, but ONLY on the
     // `&&`-declined shapes (proxy-only value - babel INSERTS `of = _Array$of` there);
@@ -2006,7 +2033,9 @@ export function patternHasPolyfillableDefault(node) {
 // a plain SE PREFIX ahead of a HOP nav, with the pattern consuming the declarator WHOLE: the
 // prefix lifts as its own statement ahead of the extraction (source order, exactly once). a
 // chain-assignment in the prefix is not liftable - it replays whole through its own channel
-export function seCarriedHopNav({ forInit, chain, declarator, prop, kind = null }) {
+// `tailRoot`: the proxy global a CALL tail provably yields (the caller's inline-canon answer) - the
+// nav question is asked of it instead of the call, which the lift then drops for that global
+export function seCarriedHopNav({ forInit, chain, declarator, prop, kind = null, tailRoot = null }) {
   const init = peelTransparentExpr(declarator.init);
   // ... and a kept WRITE is a prefix of its own: the statement it lifts to STORES the same value the
   // nav then reads (`(kw = globalThis)` -> `kw = _globalThis;` + the dispatch off `_globalThis`), so
@@ -2031,7 +2060,7 @@ export function seCarriedHopNav({ forInit, chain, declarator, prop, kind = null 
     && patternBindingCount(declarator.id) === patternBindingCount(prop.value)
     && (kind === 'instance'
       || init.expressions.slice(0, -1).every(expr => peelTransparentExpr(expr)?.type !== 'AssignmentExpression'))
-    && isPureNavAfterSePrefix(init);
+    && (tailRoot ? isPureNavReceiver(tailRoot) : isPureNavAfterSePrefix(init));
 }
 
 // the STATEMENTS an init performs ahead of the value it yields, and that value: a sequence's leading
@@ -2576,6 +2605,9 @@ function objectLevelNeighbourEffect(node, key) {
 export function resolveArrayWrappedReceiver(patternPath, aliasCtx = null, {
   allowForInit = false, allowBodylessMulti = false, readsReceiver = false, positionalTakes = null, adapter = null,
 } = {}) {
+  // a claim the inner DEFAULT alone supplied names no pair to read: the routes below drop the native
+  // read for what they pair, and only a PROVEN receiver affords that (the shared gate)
+  if (!arrayWrappedReceiverProven(patternPath, adapter)) return null;
   const indices = [];
   let sole = true;
   let neighbourEffect = false;

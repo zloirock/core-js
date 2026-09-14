@@ -1,8 +1,8 @@
 // Type-fold + tuple-resolution helpers. consolidates:
-//   - tuple structural ops (`unwrapTupleMember` / `isTupleRestElement` / `tupleElements` /
-//     `rebuildTupleElements` / `tupleAsArrayType` / `resolveParametersParams` /
+//   - tuple structural ops (`rebuildTupleElements` / `tupleAsArrayType` / `resolveParametersParams` /
 //     `findTupleElement`) - cross-dialect tuple AST traversal + Parameters / ConstructorParameters
-//     dispatch
+//     dispatch, over the member peels `helpers/ast-patterns.js` owns (`unwrapTupleMember` /
+//     `isTupleRestElement` / `tupleElements`)
 //   - type equality + commonType fold (`typesEqual` / `innersEqual` / `commonType`) - outer
 //     constructor match + inner equality probe; commonType strips inner on mismatch
 //   - nullable / never predicates (`isNullableOrNever` / `isNullableOrNeverAnnotation`)
@@ -464,9 +464,8 @@ export function createTypeFolding({
   }
 
   // cluster-private: `foldTypes` (generic fold engine; only `foldUnionTypes` /
-  // `foldIntersectionTypes` / `resolveTupleInner` invoke it), `isTupleRestElement` /
-  // `unwrapTupleMember` (only `tupleAsArrayType` / `resolveTupleInner` / `findTupleElement`
-  // consume them)
+  // `foldIntersectionTypes` / `resolveTupleInner` invoke it); the tuple member peels it reads
+  // (`isTupleRestElement` / `unwrapTupleMember`) are the shared ast-patterns canon
   // fold the per-arm answers of a union whose arms are ALTERNATIVES OF ONE VALUE - a callee that
   // is one of several signatures, and so on. nullish arms drop out; an arm nothing can resolve
   // sinks the whole answer; the survivors must converge, because the value could be any of them

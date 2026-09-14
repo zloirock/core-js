@@ -141,8 +141,20 @@ function base(args) {
   return resolveNestedReceiverBase({ resolveGlobalPolyfill: name => PURE[name] ?? null, ...args });
 }
 
-// a bound root reads raw whatever its name - even one shadowing a pure-resolvable global
-checkDeep('base/bound proxy-named root reads raw', base({ rootName: 'self', keys: ['inner'], bound: true, adapter: stubAdapter() }), { name: 'self', path: ['inner'] });
+// a bound root reads raw whatever its name - even one shadowing a pure-resolvable global; the
+// root's BINDING is what says so (a user binding carries no polyfill hint)
+checkDeep('base/bound proxy-named root reads raw', base({ rootName: 'self', keys: ['inner'], binding: {}, adapter: stubAdapter() }), { name: 'self', path: ['inner'] });
+
+// ... and the alias this plugin minted for a global (hinted with the global it holds - the swapped
+// `_globalThis`, the anchored `_Map`) takes a STATIC answer through the global's own name, the narrow
+// constructor entry never read through; every other read stays raw off the alias, the live binding
+checkDeep('base/minted proxy alias keeps the raw read short of a static',
+  base({ rootName: '_globalThis', keys: ['self', 'inner'], binding: { polyfillHint: 'globalThis' }, adapter: stubAdapter() }),
+  { name: '_globalThis', path: ['self', 'inner'] });
+checkDeep('base/minted ctor alias keeps the raw read short of a static',
+  base({ rootName: '_Map', keys: ['x'], binding: { polyfillHint: 'Map' }, adapter: stubAdapter() }), { name: '_Map', path: ['x'] });
+checkDeep('base/minted alias with a member hint stays raw',
+  base({ rootName: '_Array$of', keys: ['x'], binding: { polyfillHint: 'Array.of' }, adapter: stubAdapter() }), { name: '_Array$of', path: ['x'] });
 
 // an unbound user root reads raw through its own name
 checkDeep('base/user root reads raw', base({ rootName: 'obj', keys: ['inner'], adapter: stubAdapter() }), { name: 'obj', path: ['inner'] });
@@ -198,6 +210,16 @@ checkDeep('base/static off ctor root',
   base({ rootName: 'Array', keys: ['of'], adapter: stubAdapter(), resolveStaticPolyfill: staticOf }), { pure: OF, path: [], static: true });
 checkDeep('base/static through proxy root',
   base({ rootName: 'globalThis', keys: ['Array', 'of'], adapter: stubAdapter(), resolveStaticPolyfill: staticOf }), { pure: OF, path: [], static: true });
+// ... and through the minted proxy alias, after the identifier swap already ran, and off the minted
+// constructor alias an anchored residual reads (`({ groupBy: { name } } = _Map)`)
+checkDeep('base/static through minted proxy alias',
+  base({ rootName: '_globalThis', keys: ['Array', 'of'], binding: { polyfillHint: 'globalThis' }, adapter: stubAdapter(), resolveStaticPolyfill: staticOf }),
+  { pure: OF, path: [], static: true });
+const GROUP_BY = { entry: 'map/group-by', hintName: 'Map$groupBy' };
+checkDeep('base/static off minted ctor alias',
+  base({ rootName: '_Map', keys: ['groupBy'], binding: { polyfillHint: 'Map' }, adapter: stubAdapter(),
+    resolveStaticPolyfill: (ctor, key) => ctor === 'Map' && key === 'groupBy' ? GROUP_BY : null }),
+  { pure: GROUP_BY, path: [], static: true });
 
 // a key the resolver does not name keeps the ctor / raw answer
 checkDeep('base/non-static key keeps the raw read',

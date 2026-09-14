@@ -16,7 +16,8 @@ export const [{ values }] = [(w = globalThis.self).Object];
 [{ getPrototypeOf }] = [globalThis.self.Object];
 // a NESTED array pattern reaches the same render through one more wrapper
 export const [[{ freeze }]] = [[globalThis.self.Object]];
-// a pattern DEFAULT puts the nav in the slot the flatten rewrites rather than in the init
+// a pattern DEFAULT puts the nav in the slot the flatten rewrites rather than in the init; the hole
+// fires it, so the default is mirrored whole
 export const [{ seal } = globalThis.self.Object] = [];
 // NEGATIVE: a single-hop nav needs no receiver collapse, so nothing is queued inside
 export const [{ isArray }] = [globalThis.Array];

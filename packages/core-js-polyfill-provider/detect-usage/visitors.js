@@ -97,8 +97,15 @@ export function createUsageHandlerCore({
 
   function emitBinaryInUsage(path) {
     const meta = handleBinaryIn({
-      node: path.node, scope: path.scope, adapter, handledObjects, isEntryAvailable, suppressProxyGlobals, path,
+      node: path.node,
+      scope: path.scope,
+      adapter,
+      handledObjects,
+      isEntryAvailable,
+      suppressProxyGlobals,
+      path,
       resolveStaticKey,
+      resolvePure,
     });
     if (!meta) return;
     onUsage(meta, path);

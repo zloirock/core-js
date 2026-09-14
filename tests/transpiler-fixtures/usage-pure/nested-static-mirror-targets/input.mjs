@@ -1,4 +1,5 @@
-// Identifier slots receive pure statics; nested/member assignment targets retain native slots.
+// Identifier slots receive pure statics; a nested pattern under a static anchors on that static's
+// ponyfill (its computed key runs there), while member assignment targets retain native slots.
 // Computed keys and target effects stay live on both paths.
 const events = [];
 const pureFrom = Array.from;
