@@ -92,3 +92,59 @@ QUnit.test('mutated-statics: a patch installed through every receiver invoker wi
   assert.same(fromReflect, 'REFLECT-HOST');
   assert.same(fromBind, 'BIND-HOST');
 });
+
+QUnit.test('mutated-statics: a patch installed through what a call hands back wins', assert => {
+  const original = Array.from;
+  function patched() {
+    return 'PATCHED';
+  }
+  function pick(a, b) {
+    return b;
+  }
+  function box(x) {
+    return [x];
+  }
+  function bag(x) {
+    return { x };
+  }
+  // eslint-disable-next-line no-unused-vars -- the parameter names the slot `arguments[0]` reads
+  function viaArguments(x) {
+    // eslint-disable-next-line prefer-rest-params -- the arguments object is the route under test
+    arguments[0].from = patched;
+  }
+  // eslint-disable-next-line no-unused-vars -- the parameter names the slot the alias reads
+  function viaArgumentsAlias(x) {
+    // eslint-disable-next-line prefer-rest-params -- the arguments alias is the route under test
+    const a = arguments;
+    a[0].from = patched;
+  }
+  let held;
+  function keep(x) {
+    held = x;
+  }
+  function tag(strings, x) {
+    return x;
+  }
+  const seen = [];
+  function observe(install) {
+    install();
+    seen.push(Array.from([1]));
+    Array.from = original;
+  }
+  observe(() => { pick(1, Array).from = patched; });
+  // eslint-disable-next-line unicorn/no-useless-spread -- the inline-array spread is the route under test
+  observe(() => { pick(...[1, Array]).from = patched; });
+  observe(() => { tag`${ Array }`.from = patched; });
+  observe(() => { box(Array)[0].from = patched; });
+  observe(() => { bag(Array).x.from = patched; });
+  observe(() => { viaArguments(Array); });
+  observe(() => { viaArgumentsAlias(Array); });
+  observe(() => {
+    keep(Array);
+    held.from = patched;
+  });
+  const h = pick(1, Array);
+  observe(() => { h.from = patched; });
+  assert.deepEqual(seen, new Array(9).fill('PATCHED'));
+  assert.same(Array.from, original);
+});

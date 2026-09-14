@@ -15,7 +15,6 @@ const generateModule = requireBabel('@babel/generator');
 import estreeToBabel from '../../packages/core-js-babel-plugin/internals/estree-to-babel.js';
 import {
   assignmentExpression,
-  arrowFunctionExpression,
   bareImport,
   bareRequire,
   binaryExpression,
@@ -175,8 +174,9 @@ check('chain/seal boundary types', estreeToBabel(sealed).type, 'MemberExpression
 }
 
 // --- totality: outside the vocabulary or misminted = loud throw, never a wrong print ---
-check('callback/expression body', print(arrowFunctionExpression([identifier('value')], identifier('value'))), 'value => value');
 checkTruthy('totality/unknown type throws', caught({ type: 'AwaitExpression' })?.includes('outside the canonical vocabulary'));
+checkTruthy('totality/function shapes stay outside the vocabulary',
+  caught({ type: 'ArrowFunctionExpression', params: [], body: identifier('value') })?.includes('outside the canonical vocabulary'));
 checkTruthy('totality/optional member outside chain throws',
   caught(memberExpression(identifier('a'), identifier('b'), { optional: true }))?.includes('outside a ChainExpression'));
 checkTruthy('totality/optional call outside chain throws',

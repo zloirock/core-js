@@ -84,6 +84,7 @@ import {
   canTransformDestructuring as sharedCanTransformDestructuring,
   carriedInitReceiverNode,
   classifyCallBranchForSynth,
+  computedRootMemoChain,
   conditionalDestructureLeftUntouchedWarning,
   consumedAssignmentSlotDropsHost,
   consumedAssignmentSlotDropsNav,
@@ -100,9 +101,12 @@ import {
   isInstanceSurfaceNav,
   isReReadableSurfaceNav,
   isReReferenceableReceiver,
+  liftedRealmNavEffect,
+  provenRealmCallRoot,
   nestedAssignmentStatementOf,
   outerDestructureReceiver,
   paramDefaultInstanceSynthAllowed,
+  PATTERN_CHAIN_TYPES,
   patternHopKeysToHost,
   planArrayWrappedStaticExtract,
   planSideEffectKeyStrategy,
@@ -416,7 +420,7 @@ function renderNestedParamSynth({ prop, meta, deps, parameterCallSites = null, f
     probedNavGuardValueNode, probeKeyReadNode } = deps;
   const options = { leafPatternPath: prop.parentPath, meta, resolvePure, adapter, parameterCallSites };
   const plan = parameterCallSites ? buildParameterArgumentSynthPlan(options) : buildNestedParamSynthPlan(options);
-  return applyNestedParamSynthPlan({
+  const applied = applyNestedParamSynthPlan({
     plan,
     fallbackOnBail,
     renderTree: (tree, recv) => estreeToBabel(renderSynthTree(tree, {
@@ -486,6 +490,10 @@ function renderNestedParamSynth({ prop, meta, deps, parameterCallSites = null, f
       }
     },
   });
+  // the caller mirror answers a different question than the host's: not "did a mirror render" but
+  // "is the leaf's inner default arm closed for every caller" (the plan's `settled`) - a rendered
+  // argument beside an open default still leaves the parameter's own rewrite to run
+  return parameterCallSites ? !!plan?.settled : applied;
 }
 
 // destructure-emit factory: orchestrates the flatten / cascade / param / catch pipelines,
@@ -507,6 +515,7 @@ export default function createDestructureEmitter({
   isDisabled,
   isEntryNeeded = null,
   resolvePropertyObjectType,
+  forgetDestructureReceiverTypes = null,
   resolveNodeType = null,
   toHint = null,
   resolvedType,
@@ -854,10 +863,14 @@ export default function createDestructureEmitter({
   // `{key = default}` shapes. the user's default becomes dead code under synth-swap
   // (polyfill id is always defined) but stays syntactically intact in the output
   function handleParameterDestructure({ prop, kind, entry, hintName, meta = null }) {
-    if (parameterCallSites) renderNestedParamSynth({ prop, meta, parameterCallSites, deps: {
+    const synthDeps = {
       t, resolvePure, resolveGlobalPolyfill: resolveGlobalPure, injectPureImport, skippedNodes, adapter,
       probedNavGuardValueNode, probeKeyReadNode,
-    } });
+    };
+    // the caller mirror first: where it settles the leaf's inner default arm for every caller
+    // (mirrored the default, or proved it dead at each call), the rewrites below would only add
+    // dead text beside it - an inline default the mirror's literal never leaves undefined
+    if (parameterCallSites && renderNestedParamSynth({ prop, meta, parameterCallSites, deps: synthDeps })) return;
     if (meta?.parameterArgumentsOnly) return;
     if (kind === 'instance') {
       // an instance method destructured off a typed param DEFAULT (`function f({ at } = Array.prototype)`)
@@ -883,13 +896,17 @@ export default function createDestructureEmitter({
     // saw. decide once per pattern
     const targetPath = synthKey && patternSynthEligible(objectPattern, prop.scope)
       ? synthSwap.findTargetPath(objectPattern?.parentPath, objectPattern) : null;
+    // an INNER default (`{ k: { from } = Array }`, `[{ from } = Array]`) names only the arm the outer
+    // slot leaves open. where the host spells the live receiver too - the iterated elements of a
+    // head, the argument of an IIFE, a literal init - the shared plan mirrors both, so it answers
+    // first; the swap of the default alone is what a host with no provable receiver falls back to
+    const innerDefault = !!targetPath && objectPattern.parentPath?.isAssignmentPattern()
+      && (objectPattern.parentPath.parentPath?.isArrayPattern() || objectPattern.parentPath.parentPath?.isObjectProperty());
+    if (innerDefault && renderNestedParamSynth({ prop, meta, fallbackOnBail: true, deps: synthDeps })) return;
     if (!targetPath) {
       // a NESTED / array-wrapped parameter default replaces the DEFAULT itself with a
       // synthesized literal - fully caller-correct (see buildNestedParamSynthPlan)
-      if (renderNestedParamSynth({ prop, meta, deps: {
-        t, resolvePure, resolveGlobalPolyfill: resolveGlobalPure, injectPureImport, skippedNodes, adapter,
-        probedNavGuardValueNode, probeKeyReadNode,
-      } })) return;
+      if (renderNestedParamSynth({ prop, meta, deps: synthDeps })) return;
       // no deferral to the nested mirror here: `renderNestedParamSynth` returns true whenever the
       // mirror rendered, was already planned, or deliberately bailed - a false means the plan never
       // resolved a host, so the mirror will not run for this pattern at all. deferring then dropped
@@ -1172,11 +1189,12 @@ export default function createDestructureEmitter({
     // LAST declarator - the other leg splits the declaration at the declarator and lands the same place
     if (siblingLevel && (forInit || !statementListOf(slotParent)
       || index !== declaration.node.declarations.length - 1)) return false;
-    const bound = !!adapter.getBinding(prop.scope, walk.root.name, prop);
+    const binding = adapter.getBinding(prop.scope, walk.root.name, prop);
+    const bound = !!binding;
     const base = resolveNestedReceiverBase({
       rootName: walk.root.name,
       keys: walk.keys,
-      bound,
+      binding,
       adapter,
       resolveGlobalPolyfill: resolveGlobalPure,
       resolveStaticPolyfill: staticHopPure,
@@ -1352,6 +1370,36 @@ export default function createDestructureEmitter({
     t.traverseFast(dropped, node => { if (!liveSiblings.has(node)) skippedNodes.add(node); });
   }
 
+  // the writes of one statement's positional claims, in SLOT order (native binds the elements in
+  // source order, last element wins): a later slot's write chains off the previous one, the way
+  // the overwrite channel does - a bare `insertAfter` per element stacks them in REVERSE - and a
+  // requeued EARLIER slot's write lands ahead of the later slots' writes already in place
+  const positionalWrites = new WeakMap();
+  function insertPositionalWrite(statement, slotOrder, writeStmt) {
+    const writes = positionalWrites.get(statement.node) ?? [];
+    const later = writes.find(item => item.order > slotOrder);
+    const path = later ? later.path.insertBefore(writeStmt)[0]
+      : (nestedOverwriteLastInsert.get(statement.node) ?? statement).insertAfter(writeStmt)[0];
+    if (!later) nestedOverwriteLastInsert.set(statement.node, path);
+    positionalWrites.set(statement.node, [...writes, { order: slotOrder, path }].sort((a, b) => a.order - b.order));
+  }
+
+  // the earlier slots of every array level on a renamed slot's way, asked again: the slot READ
+  // ahead of every earlier claim's extraction while it stayed a pattern, which is why those claims
+  // declined the route (`resolvePositionalElementSlot`); a bare binding now, they are visited on the
+  // tree the other leg's drain revisit sees, where a LATER slot's rename is already in place
+  // (`[{ at }, { includes: inc }] = rows` extracts both, in source order; `[[{ at: a }], [{ at: b }]]`
+  // frees `a` through the OUTER level)
+  function requeueEarlierSlots(slot) {
+    for (let child = slot, level = slot.parentPath; level && PATTERN_CHAIN_TYPES.has(level.node.type);
+      child = level, level = level.parentPath) {
+      if (!level.isArrayPattern()) continue;
+      for (const item of level.get('elements').slice(0, child.key)) {
+        if (item.isObjectPattern() || item.isArrayPattern()) item.requeue();
+      }
+    }
+  }
+
   // the POSITIONAL element route's render (the other leg's `registerPositionalElementJob` +
   // drain): the array slot the claim's pattern sits in takes a MINTED name, the claim dispatches
   // off that name through the hop keys the pattern descends, and whatever else the slot bound
@@ -1372,15 +1420,12 @@ export default function createDestructureEmitter({
       const assignRef = injector.generateDeclaredRef(prop.scope);
       const droppedSlot = positional.slot.node;
       positional.slot.replaceWith(t.cloneNode(assignRef));
+      requeueEarlierSlots(positional.slot);
       t.traverseFast(droppedSlot, node => { skippedNodes.add(node); });
       const assignReceiver = estreeToBabel(positional.keys.reduce(memberFromKeyName, hostSlot(t.cloneNode(assignRef))));
       const assignDispatch = markThrowingExtraction(t.callExpression(injectPureImport(entry, hintName), [assignReceiver]));
-      // chain each write off the previous one for this statement, the way the overwrite channel does:
-      // a bare `insertAfter` per element stacks them in REVERSE, and the pattern's elements bind in
-      // source order
-      const writeStmt = t.expressionStatement(t.assignmentExpression('=', t.cloneNode(bindingId), assignDispatch));
-      const prevWrite = nestedOverwriteLastInsert.get(statement.node);
-      nestedOverwriteLastInsert.set(statement.node, (prevWrite ?? statement).insertAfter(writeStmt)[0]);
+      insertPositionalWrite(statement, droppedSlot.start ?? positional.slot.key,
+        t.expressionStatement(t.assignmentExpression('=', t.cloneNode(bindingId), assignDispatch)));
       return true;
     }
     if (!declaration?.node || !declaration.isVariableDeclaration?.()) return false;
@@ -1421,6 +1466,7 @@ export default function createDestructureEmitter({
       .some(name => name !== sentinel?.name);
     const outer = (positional.levels ?? []).slice(0, -1);
     positional.slot.replaceWith(t.cloneNode(ref));
+    requeueEarlierSlots(positional.slot);
     // Retained outer siblings resolve their receiver through this new array binding.
     positional.slot.scope.registerBinding(declaration.node.kind, positional.slot, positional.declarator);
     skipDroppedKeepingSiblings(dropped,
@@ -1703,7 +1749,13 @@ export default function createDestructureEmitter({
       // prune empties it, what is left to evaluate is the RIGHT alone - and only where it carries an
       // effect, exactly the statement host's rule. dropping it whole lost a kept WRITE's effect
       if (plan.pattern.properties.length) exprs.push(assignPath.node);
-      else if (mayHaveSideEffects(assignPath.node.right)) exprs.unshift(assignPath.node.right);
+      else if (mayHaveSideEffects(assignPath.node.right)) {
+        // a nav off a call the census resolves to a realm keeps the call alone (the shared rule):
+        // its hops are dead reads, and a pure call leaves nothing
+        const realmNav = liftedRealmNavEffect(assignPath.node.right, { scope: assignPath.scope, adapter, path: assignPath });
+        if (!realmNav) exprs.unshift(assignPath.node.right);
+        else exprs.unshift(...realmNav.effects);
+      }
       if (exprs.length) {
         const [replaced] = peeled.element.replaceWith(exprs.length === 1 ? exprs[0] : t.sequenceExpression(exprs));
         // the sentinels are declared from what SURVIVED: an ANCHORED rebuild lifts the pattern this
@@ -1747,8 +1799,14 @@ export default function createDestructureEmitter({
       applyAnchoredAssignmentRebuild(plan, assignPath);
     }
     if (plan.pattern.properties.length === 0 && !plan.restKeepsLevel) {
-      if (mayHaveSideEffects(assignPath.node.right)) exprStmt.get('expression').replaceWith(assignPath.node.right);
-      else exprStmt.remove();
+      // the right alone is what is left to evaluate, and a nav off a call the census resolves to a
+      // realm keeps the call alone (the shared rule) - the hops are dead reads
+      const realmNav = mayHaveSideEffects(assignPath.node.right)
+        ? liftedRealmNavEffect(assignPath.node.right, { scope: assignPath.scope, adapter, path: assignPath }) : null;
+      if (realmNav ? realmNav.effects.length : mayHaveSideEffects(assignPath.node.right)) {
+        exprStmt.get('expression').replaceWith(!realmNav ? assignPath.node.right
+          : realmNav.effects.length === 1 ? realmNav.effects[0] : t.sequenceExpression(realmNav.effects));
+      } else exprStmt.remove();
     }
     return !!prop && planConsumedProp(prop);
   }
@@ -2431,6 +2489,10 @@ export default function createDestructureEmitter({
     if (plan.anchor && !patternEmpties) {
       const oldInit = declarator.node.init;
       declarator.node.id = plan.pattern;
+      // the leaves now read off the anchored init: a leaf asked BEFORE this rebuild (a captured
+      // wrapper element's - `[{ Array: { prototype: { at } } }] = [realm()]`) cached the answer it
+      // gave off the element, and the requeue must not read that back
+      forgetDestructureReceiverTypes?.(plan.pattern);
       const replayed = [...plan.anchorSe ?? [], ...plan.discardSe ?? []];
       declarator.node.init = replayed.length
         ? t.sequenceExpression([...replayed.map(node => cloneReplayedEffect(node, declarator)), anchorInitNode(plan, declarator, oldInit)])
@@ -3380,19 +3442,22 @@ export default function createDestructureEmitter({
         // and the first of them asks babel for a parent that no longer exists. the declarator
         // identity survives the rewrite, so those paths stay answerable and our own skip set
         // keeps them from re-entering. the receiver here is spelled by the extraction itself
-        // (nothing to re-queue for substitution), which is what makes the in-place shape sound
-        if (declarators.length === 1 && prop.parentPath?.node !== hostDeclarator.node.id) {
+        // (nothing to re-queue for substitution), which is what makes the in-place shape sound.
+        // a catch-born fold's test ref is a LEADING initializer-less declarator: it goes in BEFORE
+        // the rewritten one (`let _ref3, m = ...`, the sole-declarator host's own order), never
+        // through `replaceWithMultiple`, which nulls the host path under the same queued paths
+        const binding = declarators.at(-1);
+        if (prop.parentPath?.node !== hostDeclarator.node.id) {
           const dropped = hostDeclarator.node.id;
-          hostDeclarator.node.id = declarators[0].id;
-          hostDeclarator.node.init = declarators[0].init;
+          hostDeclarator.node.id = binding.id;
+          hostDeclarator.node.init = binding.init;
           t.traverseFast(dropped, node => { skippedNodes.add(node); });
-          flatTouchedMultiDecls.add(declaration);
-          return true;
+        } else {
+          // Keep the parent path alive for queued children when one declarator replaces one.
+          // replaceWithMultiple nulls that path even for a single replacement.
+          hostDeclarator.replaceWith(binding);
         }
-        // Keep the parent path alive for queued children when one declarator replaces one.
-        // replaceWithMultiple nulls that path even for a single replacement.
-        if (declarators.length === 1) hostDeclarator.replaceWith(declarators[0]);
-        else hostDeclarator.replaceWithMultiple(declarators);
+        if (declarators.length > 1) hostDeclarator.insertBefore(declarators.slice(0, -1));
         flatTouchedMultiDecls.add(declaration);
         return true;
       }
@@ -3651,6 +3716,11 @@ export default function createDestructureEmitter({
     });
   }
 
+  // the assignment host's INSTANCE channel: the destructure stays in place and the claim's binding
+  // is overwritten with the dispatch right after the statement (or in the discarded sequence
+  // element's own next slot). true once an overwrite landed; false where the host offers no
+  // statement, where the claim's shape belongs to another route (a positional segment, a surface
+  // the nav merely reaches, an SE key over a member) or where no spelling of the receiver exists
   function emitAssignmentInstanceOverwrite({ prop, entry, hintName }) {
     const rawStatement = nestedAssignmentStatementOf(prop);
     // ... and where the assignment is a DISCARDED sequence element there is no statement to append
@@ -3737,14 +3807,33 @@ export default function createDestructureEmitter({
     for (let hop = resolvedReceiver; hop?.type === 'MemberExpression'; hop = hop.object) {
       if (hop.property?.type === 'Literal') return false;
     }
-    const receiverNode = resolvedReceiver
+    // ... and a nav ending on a polyfillable STATIC dispatches on that static's ponyfill - an import
+    // binding, re-referenceable by nature - never on the raw static off the realm, which the floor
+    // lacks (`({ Array: { of: { name } } } = globalThis)` -> `name = _name(_Array$of)`): the same
+    // typed-base question the declaration host asks, so the two hosts answer alike
+    const typedChain = typedNavClaimChain(prop, { adapter, allowAssignmentHost: true });
+    const typedBase = typedChain && resolveNestedReceiverBase({
+      rootName: typedChain.root.name,
+      keys: typedChain.keys,
+      binding: adapter.getBinding(prop.scope, typedChain.root.name, prop),
+      adapter,
+      resolveGlobalPolyfill: resolveGlobalPure,
+      resolveStaticPolyfill: staticHopPure,
+    });
+    const staticReceiver = typedBase?.static ? t.cloneNode(injectPureImport(typedBase.pure.entry, typedBase.pure.hintName)) : null;
+    // ... and a TYPED user nav the extraction OWNS - every level dies with the claim, the host
+    // included, so the dispatch is the nav's one read, in the source's own order (`({ y: { at } } =
+    // src)` -> `at = _atMaybeArray(src.y)`), the declaration host's answer for the same shape
+    const typedUserNav = !staticReceiver && !!typedChain && !!resolvedReceiver && consumedAssignmentSlotDropsHost(prop);
+    const receiverNode = staticReceiver ?? (resolvedReceiver
       && (carriedReceiver
+        || typedUserNav
         || isReReferenceableReceiver(resolvedReceiver)
         || isReReadableSurfaceNav(resolvedReceiver, name => !!injector?.getBindingInfo?.(name), OPTIONAL_HOPS)
         || (consumedAssignmentSlotDropsNav(prop)
           && (isInstanceSurfaceNav(resolvedReceiver, OPTIONAL_HOPS)
             || prop.findParent(item => item.isAssignmentExpression())?.node?.left?.type === 'ArrayPattern')))
-      ? resolvedReceiver : null;
+      ? resolvedReceiver : null);
     const bindingId = propBindingIdentifier(prop.node.value);
     // the overwrite re-spells the receiver nav the residual reads, so the raw slot has no reader
     // left once the dispatch lands - unless its KEY still owes an in-place effect
@@ -3768,6 +3857,7 @@ export default function createDestructureEmitter({
         ? buildInstanceDefaultGuard(t, {
           call: overwriteCall,
           defaultNode: t.cloneNode(prunesSlot ? prop.node.value.right : bindingId),
+          defaultName: bindingId.name,
           ref: generateRef(prop.scope, prop.node),
         })
         : overwriteCall;
@@ -3803,8 +3893,12 @@ export default function createDestructureEmitter({
       const prevInsert = nestedOverwriteLastInsert.get(statement.node);
       nestedOverwriteLastInsert.set(statement.node, (prevInsert ?? statement).insertAfter(overwriteStmt)[0]);
       if (prunesSlot) pruneOverwrittenSlot({ prop, statement, carriesInit: !!carriedReceiver });
+      return true;
     }
-    return true;
+    // nothing spelled the receiver (a CALL right, a nav the canon cannot re-read): the overwrite
+    // emitted nothing, and saying so lets the caller ask the positional route - which needs no
+    // spelling, and which the other leg takes here (`[{ at: a }, { at: b }] = f()`)
+    return false;
   }
 
   // the consumed slot drops the way the flat host's does: the prop first, then every hop pattern it
@@ -4035,7 +4129,7 @@ export default function createDestructureEmitter({
       const base = chain && resolveNestedReceiverBase({
         rootName: chain.root.name,
         keys: chain.keys,
-        bound: !!adapter.getBinding(prop.scope, chain.root.name, prop),
+        binding: adapter.getBinding(prop.scope, chain.root.name, prop),
         adapter,
         resolveGlobalPolyfill: resolveGlobalPure,
       });
@@ -4082,9 +4176,7 @@ export default function createDestructureEmitter({
         // Treating it as an opaque root first would replace that route with a whole-init memo.
         const prefixedSurface = !typedChain
           && resolveNestedReceiverNode(prop, { allowNavSegments: true, allowSePeeledFragment: true, adapter });
-        if (!typedChain && !isInstanceSurfaceNav(prefixedSurface)
-          && typedNavClaimChain(prop, { rootMemoized: true, adapter })?.root?.type !== undefined
-          && typedNavClaimChain(prop, { rootMemoized: true, adapter }).root.type !== 'Identifier') {
+        if (!typedChain && !isInstanceSurfaceNav(prefixedSurface) && computedRootMemoChain(prop, adapter)) {
           const hostDeclarator = prop.findParent(item => item.isVariableDeclarator());
           const hostDeclaration = hostDeclarator?.parentPath;
           if (hostDeclarator?.node?.init && hostDeclaration?.isVariableDeclaration()
@@ -4099,7 +4191,7 @@ export default function createDestructureEmitter({
         const typedBase = typedChain && resolveNestedReceiverBase({
           rootName: typedChain.root.name,
           keys: typedChain.keys,
-          bound: !!adapter.getBinding(prop.scope, typedChain.root.name, prop),
+          binding: adapter.getBinding(prop.scope, typedChain.root.name, prop),
           adapter,
           resolveGlobalPolyfill: resolveGlobalPure,
           resolveStaticPolyfill: staticHopPure,
@@ -4409,9 +4501,12 @@ export default function createDestructureEmitter({
       // dropped residual. the element ITSELF still has to be effect-free - an effect inside it
       // belongs to the other leg's own prefix-lift channel, whose spelling this route does not
       // reproduce (`[arr as any]` extracts here, `[(effect(), arr)]` stays native)
-      initIsPure: !!declarator && !mayHaveSideEffects(declarator.init.type === 'ArrayExpression'
-        ? arrayWrapperOtherElements(prop, declaration) ?? declarator.init : declarator.init)
-        && !mayHaveSideEffects(arrayWrapperLevels(prop, declaration)?.element ?? null),
+      // ... and a CALL the inline canon proves to yield a proxy global with no effect on the way is as
+      // pure as the name it stands for (the shared canon; the other leg drops it the same way)
+      initIsPure: !!declarator && (!!provenRealmCallRoot(unwrapRuntimeExpr(declarator.init), prop, adapter)
+        || (!mayHaveSideEffects(declarator.init.type === 'ArrayExpression'
+          ? arrayWrapperOtherElements(prop, declaration) ?? declarator.init : declarator.init)
+        && !mayHaveSideEffects(arrayWrapperLevels(prop, declaration)?.element ?? null))),
       propKeyIsPure: !computedKeyHasSideEffects(prop.node),
       // ... and a receiver that performs every effect its init would carries it just as surely: the
       // dropped residual would have evaluated exactly what the dispatch now evaluates, once
@@ -4676,6 +4771,22 @@ export default function createDestructureEmitter({
     // chain walk, so the rewrite reaches the same VariableDeclarator. bail silently
     // when flatten can't (multi-prop ObjectPattern, complex shape) since there's no
     // alternative emission path for ArrayPattern-wrapped destructures
+    // the host a for-x HEAD mirror answers from: the declarator above every ArrayPattern wrapper -
+    // a MULTI-element wrapper is not transparent, so `patternParent` stops on it and the head sits
+    // one climb further. an element DEFAULT inside the head (`[{ from } = Array, tail] of ...`) is
+    // climbed like the wrapper holding it: the shared plan reads the default for the passes whose
+    // slot holds `undefined` and the element for the others, so the mirror answers for both arms
+    let headHost = objectPattern.parentPath;
+    while (headHost?.node?.type === 'ArrayPattern'
+      || (headHost?.node?.type === 'AssignmentPattern' && headHost.parentPath?.node?.type === 'ArrayPattern')) {
+      headHost = headHost.parentPath;
+    }
+    const headMirrors = kind !== 'instance' && headHost?.isVariableDeclarator() && !!forOfHeadIterableElements(headHost);
+    // ... and an element default under any other host names the arm the slot leaves open, which
+    // the swap of the default polyfills where no route above proved the slot (`[{ from } = Array] =
+    // [pick()]`) - the object hop's inner default takes the same swap
+    const elementDefault = kind !== 'instance' && objectPattern.parentPath?.isAssignmentPattern()
+      && objectPattern.parentPath.parentPath?.isArrayPattern();
     if (objectPattern.parentPath?.node !== patternParent?.node && kind !== 'instance') {
       // ArrayPattern wrap + rest sibling flows into the same rest-aware cascade as the unwrapped
       // shapes: babel's sentinel rename mutates the pattern IN PLACE and unplugin splices the
@@ -4683,22 +4794,19 @@ export default function createDestructureEmitter({
       // keeps reading the matching init element
       if (tryFlattenNestedProxyDestructure(prop)) return;
       // ... and where the flatten declines because the host is a for-x HEAD - it holds no statement
-      // for the extraction to land in - the mirror answers in the ELEMENT instead, wrapper and all
-      let headHost = objectPattern.parentPath;
-      while (headHost?.node?.type === 'ArrayPattern') headHost = headHost.parentPath;
-      if (headHost?.isVariableDeclarator() && forOfHeadIterableElements(headHost)) {
-        handleParameterDestructure({ prop, kind, entry, hintName, meta });
-      }
+      // for the extraction to land in - the mirror answers in the ELEMENT instead, wrapper and all;
+      // an element default takes the same handler, whose swap of the default is its fallback
+      if (headMirrors || elementDefault) handleParameterDestructure({ prop, kind, entry, hintName, meta });
       return;
     }
     if (!canTransformDestructuring(prop)) {
       // a for-x HEAD holds no init for the value swap below to rewrite, so the shape gate turns it
       // away - but what it destructures IS a value: the element of the iterated literal, which the
-      // mirror swaps in place. the relocation that would otherwise mint a host for this claim stands
-      // down for exactly these patterns (the shared plan decides), so the mirror is what answers
-      if (kind !== 'instance' && forOfHeadIterableElements(objectPattern.parentPath)) {
-        handleParameterDestructure({ prop, kind, entry, hintName, meta });
-      }
+      // mirror swaps in place, through a multi-element wrapper too (`[{ from }, tail] of [[Array, x]]`
+      // - the residual extraction has no statement slot there, so the mirror is the only route).
+      // the relocation that would otherwise mint a host for this claim stands down for exactly
+      // these patterns (the shared plan decides), so the mirror is what answers
+      if (headMirrors) handleParameterDestructure({ prop, kind, entry, hintName, meta });
       return;
     }
     // ctor alias (kind global): trust-register the hint. a REFUSED registration (conditional /
@@ -5267,6 +5375,16 @@ export default function createDestructureEmitter({
     // init is the very read the extraction now performs, so the lift has nothing left to preserve
     // and the statement it would leave is dead text the identifier twin never emits
     if (discardedReceiverSinkInit(initNode, containerPath)?.sink === null) return;
+    // ... and a nav off a call the census resolves to a realm keeps the call alone (the shared rule):
+    // its hops are dead reads, and their fold would print a bare ponyfill read; a pure call lifts nothing
+    const realmNav = liftedRealmNavEffect(initNode, { scope: containerPath.scope, adapter, path: containerPath });
+    if (realmNav) {
+      if (realmNav.effects.length) {
+        deferLiftedExpression(containerPath, realmNav.effects.length === 1
+          ? t.cloneNode(realmNav.effects[0], true) : t.sequenceExpression(realmNav.effects.map(node => t.cloneNode(node, true))));
+      }
+      return;
+    }
     deferLiftedExpression(containerPath, null, initNode);
   }
 
@@ -5540,8 +5658,13 @@ export default function createDestructureEmitter({
       originalDeclKeys.set(declaration.node, findStatementParent(declaration).key);
     }
     const kind = snapshotDeclarationKind(declaration);
+    // a catch-born fold's test ref is a LEADING initializer-less declarator wherever the binding
+    // lands: the whole-declaration shapes carry it inside `extractedDeclaration`, the
+    // per-declarator channels put it ahead of the binding through their own channel - a channel
+    // that spelled the binding alone left the guard reading a ref no statement declared
+    const foldDeclarators = catchFoldedRef ? [t.variableDeclarator(catchFoldedRef)] : [];
     const extractedDeclaration = t.variableDeclaration(kind, [
-      ...catchFoldedRef ? [t.variableDeclarator(catchFoldedRef)] : [],
+      ...foldDeclarators,
       t.variableDeclarator(localBinding, value),
     ]);
     const ctx = classifyVariableDeclaratorSite({ declaration, parent, isStaticValue, isEmpty });
@@ -5570,7 +5693,7 @@ export default function createDestructureEmitter({
       case STRATEGIES.REPLACE_DECL:
         return replaceWithAndRegister(declaration, extractedDeclaration);
       case STRATEGIES.DEFER_SE_AND_SPLICE:
-        return spliceAndLiftSideEffect({ declaration, parent, localBinding, value });
+        return spliceAndLiftSideEffect({ declaration, parent, localBinding, value, foldDeclarators });
       case STRATEGIES.DEFER_SE_AND_REPLACE:
         deferSideEffect(declaration, parent.node.init, probeNavStart);
         return replaceWithAndRegister(declaration, extractedDeclaration);
@@ -5579,7 +5702,7 @@ export default function createDestructureEmitter({
         // paths in sync - a raw splice desyncs path.key and orphans the sibling subtrees'
         // pending visits (their inner polyfills would silently drop). the statement-per-
         // declarator split happens in the post-traverse `splitFlatMultiDecls` drain
-        if (catchFoldedRef) parent.insertBefore(t.variableDeclarator(catchFoldedRef));
+        if (foldDeclarators.length) parent.insertBefore(foldDeclarators);
         return parent.replaceWith(t.variableDeclarator(localBinding, value));
       case STRATEGIES.INSERT_BEFORE_DECLARATOR: {
         // the prefix cannot lift over the whole declaration - a preceding declarator's own init
@@ -5595,6 +5718,7 @@ export default function createDestructureEmitter({
           // it looks like, is only known once every prop of the pattern has been through
           if (!forInitCarries.has(parent.node)) forInitCarries.set(parent.node, extractedDeclarator);
         } else recordSplitLiftedPrefix(parent.node, localBinding, extractedDeclarator);
+        for (const fold of foldDeclarators) insertHostDeclarator(parent, fold);
         return insertHostDeclarator(parent, extractedDeclarator);
       }
       case STRATEGIES.INSERT_BEFORE_EXPORT: {
@@ -5703,7 +5827,7 @@ export default function createDestructureEmitter({
   // preserves sibling order). earlier `deferSideEffect` anchored SE at original-
   // declaration body index, so after a strategy-time sibling shift, the lifted
   // SE landed BEFORE pre-siblings (observable when both halves carry effects)
-  function spliceAndLiftSideEffect({ declaration, parent, localBinding, value }) {
+  function spliceAndLiftSideEffect({ declaration, parent, localBinding, value, foldDeclarators = [] }) {
     const decls = declaration.node.declarations;
     const idx = decls.indexOf(parent.node);
     if (idx === -1) return;
@@ -5718,7 +5842,7 @@ export default function createDestructureEmitter({
     splitDeclarationAtSlot({
       declaration, idx, sePrefix,
       sePrefixAt: insertedAt >= 0 ? Math.min(idx, insertedAt) : idx,
-      extractedDeclarators: [t.variableDeclarator(localBinding, value)],
+      extractedDeclarators: [...foldDeclarators, t.variableDeclarator(localBinding, value)],
     });
   }
 
