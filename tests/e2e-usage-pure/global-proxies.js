@@ -2616,14 +2616,17 @@ testUnlessDetectLowered('global-proxy: destructure off the bare probe keeps the 
     flat = 'threw';
   }
   assert.same(flat, hasWindow ? 'function' : 'threw');
+  // the ctor slot beside the REST stays the host's own (the rest-bearing level keeps its reads
+  // native); the post-lowered legs re-read the lowered member and answer the ponyfill instead
+  const hostArrayOf = typeof E2E_POST_LOWERED !== 'undefined' ? Array.of : Object.getOwnPropertyDescriptor(Array, 'of')?.value;
   let withRest;
   try {
     const { Array: { of: ofX }, ...others } = globalThis.window;
-    withRest = `${ typeof ofX }:${ typeof others }`;
+    withRest = `${ ofX === hostArrayOf }:${ typeof others }`;
   } catch {
     withRest = 'threw';
   }
-  assert.same(withRest, hasWindow ? 'function:object' : 'threw');
+  assert.same(withRest, hasWindow ? 'true:object' : 'threw');
 });
 
 // the minted-guard alias chain: the alias holds our rendered guard, the claim classifies
@@ -3735,6 +3738,100 @@ QUnit.test('conditional realm reads carry well-known symbol members', assert => 
   assert.throws(() => read(false, []), TypeError);
 });
 
+// a chain ROOTED at a selection names its candidates by the arms: the realm arm - reached through a
+// call the census resolves, or spelled - gets the identity guard, and an opaque arm keeps its own
+// value; a constructor's statics read off the family entry (the narrow one answered undefined)
+QUnit.test('a chain rooted at a selection with an opaque arm keeps the realm arm polyfilled', assert => {
+  const log = [];
+  function realm() {
+    log.push('realm');
+    return globalThis;
+  }
+  function opaque() {
+    log.push('opaque');
+    return {
+      Array: { of(value) { return ['custom', value]; } },
+      Map: { groupBy() { return 'custom'; } },
+    };
+  }
+  function read(flag) {
+    return (flag ? realm() : opaque()).Array.of(1);
+  }
+  function readAlias(flag) {
+    const held = (flag ? realm() : opaque()).Array;
+    return held.of(1);
+  }
+  function readStatic(flag) {
+    return (flag ? realm() : opaque()).Map.groupBy([1, 2], value => value % 2);
+  }
+  assert.deepEqual(read(true), [1]);
+  assert.deepEqual(read(false), ['custom', 1]);
+  assert.deepEqual(readAlias(true), [1]);
+  assert.deepEqual(readAlias(false), ['custom', 1]);
+  assert.deepEqual(readStatic(true).get(1), [1]);
+  assert.same(readStatic(false), 'custom');
+  assert.deepEqual(log, ['realm', 'opaque', 'realm', 'opaque', 'realm', 'opaque'], 'each selection ran once');
+});
+
+// a sequence prefix on the conditional realm's read names the same receiver as the bare alias: the
+// prefix runs once ahead of the identity test, the constructor keeps its statics and a static under
+// it dispatches
+QUnit.test('conditional realm reads through a sequence prefix keep the constructor namespace', assert => {
+  const log = [];
+  function readSymbol(enabled) {
+    if (enabled) { var realm = globalThis; }
+    return (log.push('s'), realm).Symbol.iterator;
+  }
+  function readStatic(enabled) {
+    if (enabled) { var realm = globalThis; }
+    return (log.push('g'), realm).Map.groupBy;
+  }
+  function callStatic(enabled) {
+    if (enabled) { var realm = globalThis; }
+    return (log.push('a'), realm).Array.of(7);
+  }
+  assert.same(readSymbol(true), Symbol.iterator);
+  assert.same(typeof readStatic(true), 'function');
+  assert.deepEqual(callStatic(true), [7]);
+  assert.deepEqual(log, ['s', 'g', 'a']);
+  assert.throws(() => readSymbol(false), TypeError);
+  assert.deepEqual(log, ['s', 'g', 'a', 's'], 'the prefix ran before the absent realm threw');
+});
+
+// a constructor read off the conditional realm and STORED whole keeps its statics through the
+// binding it lands in
+QUnit.test('a constructor read off a conditional realm keeps its statics through a local', assert => {
+  function read(enabled) {
+    if (enabled) { var realm = globalThis; }
+    const held = realm.Map;
+    return typeof held.groupBy;
+  }
+  assert.same(read(true), 'function');
+  assert.throws(() => read(false), TypeError);
+});
+
+// an optional hop past the conditional realm keeps the chain's short-circuit where the realm is
+// absent; the present realm's read stays the host's own slot (native on the karma floor)
+QUnit.test('an optional hop past a conditional realm keeps the short-circuit', assert => {
+  function readSymbol(enabled) {
+    if (enabled) { var realm = globalThis; }
+    return realm?.Symbol.iterator;
+  }
+  function readStatic(enabled) {
+    if (enabled) { var realm = globalThis; }
+    return realm?.Map.groupBy;
+  }
+  function readSurface(enabled) {
+    if (enabled) { var realm = globalThis; }
+    return realm?.Map.prototype;
+  }
+  assert.same(readSymbol(false), undefined);
+  assert.same(readStatic(false), undefined);
+  assert.same(readSurface(false), undefined);
+  assert.same(typeof readSurface(true), 'object');
+  if (!Symbol.sham) assert.same(readSymbol(true), Symbol.iterator);
+});
+
 QUnit.test('guarded and direct constructor reads use one imported identity', assert => {
   function read(enabled) {
     if (enabled) { var realm = globalThis; }
@@ -4084,3 +4181,36 @@ QUnit.test('unbacked window: computed probe effects precede the optional continu
   }
 });
 /* eslint-enable unicorn/prefer-global-this, no-sequences -- end of the source forms above */
+
+/* eslint-disable no-var, block-scoped-var -- the guarded realm alias (a `var` written under a branch) is the source form */
+QUnit.test('a constructor without a pure entry held off a guarded realm alias dispatches its static', assert => {
+  let count = 0;
+  function eff() { return count++; }
+  function read(flag) {
+    if (flag) { var realm = globalThis; }
+    const held = realm.Array;
+    const heldPure = (0, realm).Array;
+    const heldEffect = (eff(), realm).Array;
+    return [realm.Array.of(7)[0], held.of(7)[0], heldPure.of(7)[0], heldEffect.of(7)[0], typeof realm.Map.groupBy];
+  }
+  assert.deepEqual(read(true), [7, 7, 7, 7, 'function']);
+  assert.same(count, 1, 'the prefix effect runs once, in the held read');
+});
+/* eslint-enable no-var, block-scoped-var -- end of the guarded-alias form */
+
+// A run of optional hops sharing the probe's name reads one value under the realm-self-reference
+// assumption: the guard tests `globalThis.window` alone and the deeper `?.` are dead text, on both
+// legs. The rig's third level is a full realm, so the collapsed static answers there like a browser.
+QUnit.test('unbacked window: a self-reference run of optional hops tests the probe alone', assert => {
+  withNestedWindow(false, () => {
+    const g = globalThis;
+    assert.deepEqual(globalThis?.window?.window?.window?.Array?.of(1), [1]);
+    assert.deepEqual(globalThis.window?.window?.window?.Array?.of(2), [2]);
+    // eslint-disable-next-line no-restricted-globals, unicorn/prefer-global-this -- the self root is the shape under test
+    assert.deepEqual(self?.window?.window?.window?.Array?.of(3), [3]);
+    assert.deepEqual(g?.window?.window?.window?.Array?.from([4]), [4]);
+    let n = 0;
+    assert.deepEqual((n++, globalThis?.window?.window?.window?.Array?.of(5)), [5]);
+    assert.same(n, 1);
+  });
+});

@@ -545,8 +545,10 @@ export function isTypeAnnotationWrapper(node) {
   return type === 'TSTypeAnnotation' || type === 'TypeAnnotation';
 }
 
-// Parentheses around a TS type carry no type semantics; both parser dialects answer
-// through this peel before comparing the contained type shape.
+// Parentheses around a TS type carry no type semantics, but only one dialect keeps them: oxc
+// preserves `(T)` as a `TSParenthesizedType` node where the babel parser drops it, so a caller
+// matching the inner type's discriminator (`TSUnionType`, `TSIntersectionType`, `TSTypeQuery`)
+// peels here first or the wrapped shape leaks past its dispatch on the oxc path alone.
 export function peelTSParenthesized(node) {
   while (node?.type === 'TSParenthesizedType') node = node.typeAnnotation;
   return node;
@@ -1217,8 +1219,7 @@ export function paramsHaveInvisibleCallers(path, { paramNeverOverridden = null }
   // interpolations, so its params stay unaccounted for
   const call = immediateInvocationOf(fnPath);
   if (call && isIifeCallNode(call.node) && !namedFunctionSelfReferences(fnPath)) return false;
-  if (paramNeverOverridden?.(paramPath)) return false;
-  return true;
+  return !paramNeverOverridden?.(paramPath);
 }
 
 // a BARE JSX tag name that starts lowercase names an intrinsic element (`<div />` -> the string
@@ -4342,6 +4343,13 @@ export function followConstIdentifierInit(hop, { maybe = false, onReassignedHop 
       continue;
     }
     onReassignedHop?.(binding, cur.name, hopAt);
+    // ... and the initializer has to have RUN by the read: a hoisted `var` declared below the use
+    // holds `undefined` there, and the source throws where the followed literal would bind. the same
+    // rule the static walk applies per hop - usage-pure resolves on proof alone (it rewrites the read
+    // receiver-less), global / entry keep the call site and stay sound on either answer
+    if (adapter.method === 'usage-pure' && path && !varInitDominatesUsage({
+      declaratorNode: binding.path?.node ?? binding.node, usagePath: path, usageNode: readNode, kind: binding.kind,
+    })) break;
     // a pattern declarator binds the name to a SLOT of the init, not the init itself: the canon
     // pairing follows only a unique slot value (`const [wrapper] = [[globalThis]]` holds
     // `[[globalThis]]`'s element), and only `maybe` may lean on a spread-shifted lone candidate
@@ -5272,6 +5280,26 @@ export function effectiveArgsLength(args) {
   return length;
 }
 
+// does ONE argument list put a real value in the parameter's slot at `argIndex`? a missing slot and
+// an `undefined` / `void` argument both leave the default standing. the wrappers a source may spell
+// around the argument (`(undefined)`, `undefined as any`, `undefined!`) leave the VALUE alone, and
+// only one leg's parser keeps a paren as a node - reading the raw slot answers "a real arg" for the
+// paren dialect and "the default" for the other on one source, and costs the narrow on both TS
+// spellings. a spread at or before the slot can supply the param from the spread iterable, so it
+// counts as an override, matching the arg->param spread guard in resolveDirectParam /
+// paramHasOverridingArg. `undefinedShadowed` answers whether a binding hides the global `undefined`
+// at the call - a shadowed name is a real value. one answer for the type resolver's call-site scan
+// and the destructure dispatches' caller-lossiness gate
+export function argumentOverridesSlot(args, argIndex, undefinedShadowed) {
+  const length = effectiveArgsLength(args);
+  if (length === null) return true;
+  const arg = argIndex < length ? resolveCallArgument(args, argIndex) : null;
+  if (!arg) return false;
+  const value = unwrapRuntimeExpr(arg);
+  if (isVoidExpression(value)) return false;
+  return !(isBareUndefinedIdentifier(value) && !undefinedShadowed());
+}
+
 // for `(({p} = D) => body)(R)` or plain `(({p}) => body)(R)`, locate the IIFE call site
 // invoking THIS function. adapter-agnostic: works on babel paths and estree-toolkit paths
 // since both expose `.node` and `.parentPath`. callee-identity check rejects `dec(arrow)`
@@ -5296,9 +5324,17 @@ export function findIifeCallSite(fnParentPath, paramNode) {
 // `paramNode`, or null when the call isn't an IIFE invoking THIS function. handles `...[lit]`
 // inline-array spread via `resolveCallArgument`. for synth-swap (path-form) callers, use
 // `findIifeCallSite` directly and walk the args paths
+// ... and a DEFAULTED param reads the argument only where the call really overrides the default:
+// an absent / `undefined` / `void` slot runs the default, which is then the receiver the pattern
+// reads (`(({ Array: { of } } = globalThis) => ...)(undefined)` reads `globalThis.Array.of`) - the
+// shared slot rule, so every lifter of the argument answers as the call-site scans do
 export function findIifeArgForParam(fnParentPath, paramNode) {
   const site = findIifeCallSite(fnParentPath, paramNode);
-  return site ? resolveCallArgument(site.callPath.node.arguments ?? [], site.paramIndex) : null;
+  if (!site) return null;
+  const args = site.callPath.node.arguments ?? [];
+  if (paramNode.type === 'AssignmentPattern'
+    && !argumentOverridesSlot(args, site.paramIndex, () => !!site.callPath.scope?.getBinding?.('undefined'))) return null;
+  return resolveCallArgument(args, site.paramIndex);
 }
 
 // the argument PATH a `resolveCallArgumentCoords` coordinate names among a call's argument paths:
@@ -5453,15 +5489,17 @@ export function findArrayWrappedDestructureHost(objectPatternPath) {
     } else if (node.type === 'Property' || node.type === 'ObjectProperty') {
       cur = parent.parentPath;
     } else if (node.type === 'VariableDeclarator') {
-      // for-init hosts cannot take a preceding extraction statement (the loop header forbids
-      // it: babel's insert crashed on scope re-registration, unplugin's produced
-      // two `const` statements inside the parens) - route them to the cascade flatten, whose
-      // sibling-sink machinery already handles loop headers
+      // loop-head hosts cannot take a preceding extraction statement (the header forbids it:
+      // babel's insert crashed on scope re-registration, unplugin's produced two `const`
+      // statements inside the parens) - a for-INIT slot routes to the cascade flatten, whose
+      // sibling-sink machinery already handles loop headers, and a for-x LEFT to the head mirror
+      // (`forOfHeadIterableElements`), which rewrites the iterated literal's elements in place
       const declarationNode = parent.parentPath?.node;
-      const isForInit = declarationNode?.type === 'VariableDeclaration'
-        && parent.parentPath.parentPath?.node?.type === 'ForStatement'
-        && parent.parentPath.parentPath.node.init === declarationNode;
-      return { declarator: parent, needsResidualExtraction: needsResidualExtraction && !isForInit };
+      const loop = parent.parentPath.parentPath?.node;
+      const isLoopHead = declarationNode?.type === 'VariableDeclaration'
+        && ((loop?.type === 'ForStatement' && loop.init === declarationNode)
+          || ((loop?.type === 'ForOfStatement' || loop?.type === 'ForInStatement') && loop.left === declarationNode));
+      return { declarator: parent, needsResidualExtraction: needsResidualExtraction && !isLoopHead };
     } else return null;
   }
 }
@@ -5623,8 +5661,7 @@ function iifeParameterArgument(host, patternNode) {
   const type = host?.node?.type;
   const fn = type === 'AssignmentPattern' && FUNCTION_LIKE_NODE_TYPES.has(host.parentPath?.node?.type) ? host.parentPath
     : FUNCTION_LIKE_NODE_TYPES.has(type) && patternNode && host.node.params?.includes(patternNode) ? host : null;
-  const site = fn ? findIifeCallSite(fn, type === 'AssignmentPattern' ? host.node : patternNode) : null;
-  return site ? resolveCallArgument(site.callPath.node.arguments ?? [], site.paramIndex) ?? null : null;
+  return fn ? findIifeArgForParam(fn, type === 'AssignmentPattern' ? host.node : patternNode) : null;
 }
 
 // walk a (possibly nested) ObjectPattern to find the keyPath leading to a leaf Identifier
@@ -5704,17 +5741,14 @@ export function resolveFallbackReceiver(wrapperPath, paramNode) {
   // default only when there is no call site. detect-usage passes the function itself and skips this arm
   if (wrapperNode.type === 'AssignmentPattern' && FN_NODE_TYPES.has(wrapperPath.parentPath?.node?.type)) {
     const site = findIifeCallSite(wrapperPath.parentPath, wrapperNode);
-    if (site) {
-      const rhsNode = resolveCallArgument(site.callPath.node.arguments ?? [], site.paramIndex);
-      if (rhsNode) return { rhsNode, slot: null, callPath: site.callPath, paramIndex: site.paramIndex };
-    }
+    const rhsNode = site ? findIifeArgForParam(wrapperPath.parentPath, wrapperNode) : null;
+    if (rhsNode) return { rhsNode, slot: null, callPath: site.callPath, paramIndex: site.paramIndex };
     return { rhsNode: wrapperNode.right, slot: 'right', callPath: null, paramIndex: -1 };
   }
   const slot = destructureReceiverSlot(wrapperNode);
   if (slot) return { rhsNode: wrapperNode[slot], slot, callPath: null, paramIndex: -1 };
   const site = findIifeCallSite(wrapperPath, paramNode);
-  if (!site) return null;
-  const rhsNode = resolveCallArgument(site.callPath.node.arguments ?? [], site.paramIndex);
+  const rhsNode = site ? findIifeArgForParam(wrapperPath, paramNode) : null;
   return rhsNode ? { rhsNode, slot: null, callPath: site.callPath, paramIndex: site.paramIndex } : null;
 }
 
@@ -5727,16 +5761,23 @@ function isPatternPropertyOf(node, valueNode) {
 // it level by level - an ARRAY level by position (the canonical index read: an inline-array spread
 // expands, any other spread at or before the slot shifts it and the pairing bails), an OBJECT level
 // by its plainly spelled key (a computed hop key is no spelling to pair by)
+// ... and a pattern with an inner DEFAULT of its own reads that default exactly where the host's
+// literal pairs nothing with its slot - the key absent, the array shorter, a hole or an `undefined`
+// there, or a slot no literal spells (a spread, a computed key, a getter, an opaque host) - so the
+// default is the receiver wherever the pairing fails: rewriting a default's own arms is sound whatever
+// the host holds (a present slot never runs it, an outer level read as `undefined` throws before it)
 function resolveWrappedFallbackReceiver(wrapperPath, paramNode) {
   const steps = [];
   let cur = wrapperPath;
   let slotNode = paramNode;
+  let ownDefault = null;
   for (;;) {
     const node = cur?.node;
     // an INNER default is stepped through; a host default (a parameter's) is the host itself and
     // answers below through its own arm
     if (node?.type === 'AssignmentPattern' && node.left === slotNode
       && (cur.parentPath?.node?.type === 'ArrayPattern' || isPatternPropertyOf(cur.parentPath?.node, node))) {
+      if (!steps.length && !ownDefault) ownDefault = cur;
       slotNode = node;
       cur = cur.parentPath;
       continue;
@@ -5757,9 +5798,14 @@ function resolveWrappedFallbackReceiver(wrapperPath, paramNode) {
     cur = cur.parentPath;
   }
   const host = steps.length ? resolveFallbackReceiver(cur, slotNode) : null;
-  if (!host) return null;
+  // a host with no receiver of its own (a for-x HEAD, whose elements the iterated literal holds)
+  // pairs nothing here and proves nothing about the default either: the head's own plan reads
+  // the elements, so the answer stays null rather than the default
+  if (!host?.rhsNode) return null;
   let { rhsNode } = host;
   const descend = [];
+  const unpaired = ownDefault
+    ? { rhsNode: ownDefault.node.right, slot: 'right', callPath: null, paramIndex: -1, hostPath: ownDefault } : null;
   for (const step of steps) {
     const literal = unwrapRuntimeExpr(rhsNode);
     if (literal?.type === 'ArrayExpression') {
@@ -5768,18 +5814,18 @@ function resolveWrappedFallbackReceiver(wrapperPath, paramNode) {
       // spread expanded on the way (`[...[R]]` is a longer literal - `spreadIndex` says which item)
       const index = step.key === undefined ? step.index : canonicalArrayIndex(step.key);
       const coords = index === null ? null : resolveCallArgumentCoords(literal.elements, index);
-      if (!coords) return null;
+      if (!coords) return unpaired;
       rhsNode = resolveCallArgument(literal.elements, index);
-      if (!rhsNode) return null;
+      if (!rhsNode || isUndefinedNode(unwrapRuntimeExpr(rhsNode))) return unpaired;
       descend.push({ container: 'elements', index: coords.argIndex, spreadIndex: coords.elementIndex });
     } else if (step.key === undefined || literal?.type !== 'ObjectExpression') {
-      return null;
+      return unpaired;
     } else {
       // the LAST property spelling the key, a DATA one: the mirror swaps the value in place and keeps
       // the level whole, so a spread or a key nothing names standing later overrides the mirrored slot
       // exactly as it overrides the source's - only a getter's body is out of its reach
       const match = literal.properties.findLast(prop => prop?.type !== 'SpreadElement' && spelledSlotName(prop) === step.key);
-      if (!match || objectPropertyReadValue(match) !== match.value) return null;
+      if (!match || objectPropertyReadValue(match) !== match.value) return unpaired;
       rhsNode = match.value;
       descend.push({ container: 'properties', index: literal.properties.indexOf(match) });
     }
@@ -6926,19 +6972,29 @@ export function tsImportEqualsProxyName(node, adapter, packages = null) {
 // (the adapters surface its source on the binding like an import's, and `module.exports` of a
 // pure global-proxy entry IS the global object with no `.default` hop between). a consumer
 // branching on just one form goes blind to the others' receiver - the member-read channel missed
-// the TS twin exactly that way, and the guard channels erased over the require twin's probe
+// the TS twin exactly that way, and the guard channels erased over the require twin's probe. the
+// three-form rule itself is `boundModuleDefaultSource` below; this is its proxy-name reading
 export function importedGlobalProxyName(binding, packages, adapter = null) {
-  if (binding?.node?.type === 'TSImportEqualsDeclaration') {
-    return tsImportEqualsProxyName(binding.node, adapter, packages);
+  return globalProxyNameFromImportSource(boundModuleDefaultSource(binding, adapter), packages);
+}
+
+// the pure module SOURCE a binding holds the DEFAULT of, or null - the three-form rule above,
+// stated once: the ES default specifier (a namespace / named specifier and a type-only import
+// bind something else), the TS `import x = require(...)` declaration, and the bare-CJS require
+// declarator, whose reassignment gate mirrors the require-source recogniser's (a rebound name no
+// longer provably holds the module object; the Identifier-id gate is the declarator-slot canon).
+// the proxy-name channel above and the symbol-key channel read through here alike - the symbol
+// channel took the ES specifier alone, and a read keyed by a require-bound `symbol/iterator`
+// (`o[_Symbol$iterator]` off `var _Symbol$iterator = require(...)`, the spelling the require
+// import style leaves for a later pass) folded to nothing and stayed a raw read
+export function boundModuleDefaultSource(binding, adapter = null) {
+  const node = binding?.node;
+  if (node?.type === 'TSImportEqualsDeclaration') return tsImportEqualsRequireSource(node, adapter);
+  if (node?.type === 'VariableDeclarator') {
+    return binding.importSource && node.id?.type === 'Identifier' && !isReassignedBeyondDeclarator(binding)
+      ? binding.importSource : null;
   }
-  // reassignment gate mirrors the require-source recogniser's: a rebound name no longer provably
-  // holds the module object; the Identifier-id gate is the declarator-slot canon
-  if (binding?.node?.type === 'VariableDeclarator' && binding.importSource
-    && binding.node.id?.type === 'Identifier' && !isReassignedBeyondDeclarator(binding)) {
-    return globalProxyNameFromImportSource(binding.importSource, packages);
-  }
-  return bindsModuleDefault(binding?.node) && !importBindingIsTypeOnly(binding)
-    ? globalProxyNameFromImportSource(binding?.importSource, packages) : null;
+  return bindsModuleDefault(node) && !importBindingIsTypeOnly(binding) ? binding?.importSource ?? null : null;
 }
 
 export function isMutatedGlobalSlot(adapter, key) {
@@ -7741,7 +7797,10 @@ const PURE_TYPE_ERASE_STOP_TYPES = new Set([
 // the codebase. accepts babel NodePath or estree-toolkit path - both expose the same triple.
 // `isInImplementsHeritage` covers both the direct case (`class X implements Foo<T>` where
 // Foo's path matches via own parent + listKey) AND nested type-args (`Foo<Map<...>>` where
-// Map's path needs ancestor walk past TSTypeReference / TSTypeParameterInstantiation hops)
+// Map's path needs ancestor walk past TSTypeReference / TSTypeParameterInstantiation hops).
+// the path also owns the one question the flat triple cannot answer - a CONDITIONAL type's
+// `extends` side reads nothing, and its check side only where an `infer` capture carries the
+// subtree into the true result (`conditionalInferenceInputs`) - since that needs the ancestor climb
 export function isTSTypeOnlyIdentifierPath(path) {
   if (isTSTypeOnlyIdentifier(path?.parent, path?.key, path?.parentPath?.parent)) return true;
   // Comparison operands select the result; only a check-side subtree captured into that
@@ -7918,7 +7977,7 @@ export function relocatedHostPattern(declaratorPath) {
   const { init } = declaratorPath.node;
   if (init?.type !== 'Identifier') return null;
   if (host?.node?.type === 'CatchClause') {
-    return host.node.param?.type === 'Identifier' && init.name === host.node.param.name
+    return host.node.param?.type === 'Identifier' && relocatedInitNamesHost(init, host.node.param.name, host.node.body)
       ? { body: host.node.body, skip: declaration.node } : null;
   }
   // ... and the LOOP HEAD's relocation is the same shape one host over: the head binds the minted
@@ -7927,10 +7986,22 @@ export function relocatedHostPattern(declaratorPath) {
     const { left } = host.node;
     const loopId = left?.type === 'VariableDeclaration' && left.declarations?.length === 1
       ? left.declarations[0].id : null;
-    return loopId?.type === 'Identifier' && init.name === loopId.name
+    return loopId?.type === 'Identifier' && relocatedInitNamesHost(init, loopId.name, host.node.body)
       ? { body: host.node.body, skip: declaration.node } : null;
   }
   return null;
+}
+
+// does a relocated pattern's init name the host's own binding? directly, or through ONE memo of it
+// the drain declared beside the pattern - as a sibling declarator or a statement of its own
+// (`let _ref2 = _ref, { ... } = _ref2;`): a later round re-detects the pattern off that memo, and
+// its host is still the clause
+function relocatedInitNamesHost(init, hostName, body) {
+  if (init.name === hostName) return true;
+  // a BODYLESS host (a nested loop is the outer one's unbraced body) holds no statement list
+  return (Array.isArray(body?.body) ? body.body : []).some(statement => statement.type === 'VariableDeclaration'
+    && statement.declarations.some(item => item.id?.type === 'Identifier' && item.id.name === init.name
+      && item.init?.type === 'Identifier' && item.init.name === hostName));
 }
 
 // is a catch-hosted prop's `_ref`-bound rewrite OBSERVABLE? it costs an import and a dispatcher
@@ -7979,6 +8050,33 @@ export function relocatedCatchPropUnobservable({ declaratorPath, propNode, patte
 // narrow single-type tests on the same decision path route through here instead
 export function isRestProperty(prop) {
   return prop?.type === 'RestElement' || prop?.type === 'SpreadElement';
+}
+
+// object-prop node across parsers: estree `Property`, babel `ObjectProperty`
+export function isPropertyNode(node) {
+  return node?.type === 'Property' || node?.type === 'ObjectProperty';
+}
+
+// does the pattern subtree carry ANY slot default (`X = d`) at ANY depth? a residual leaf default
+// must defer anchoring at every nesting level, not just the top - a nested default (`nested: { x = d }`)
+// re-anchored to the pure ctor renders verbatim, so a polyfillable `d` is never injected
+export function patternHasAnyDefault(node) {
+  while (isRestProperty(node)) node = node.argument;
+  switch (node?.type) {
+    case 'AssignmentPattern': return true;
+    case 'ArrayPattern': return node.elements.some(patternHasAnyDefault);
+    case 'ObjectPattern': return node.properties.some(prop => patternHasAnyDefault(
+      isRestProperty(prop) ? prop.argument : prop.value));
+    default: return false;
+  }
+}
+
+// a pattern value a mirror may hand the ponyfill to: an object pattern of property leaves alone -
+// no rest (it would gather the ponyfill's own members) and no default at any depth (a polyfillable
+// default would render verbatim) - so its leaves read the ponyfill's own members, and a computed
+// key runs once inside the pattern, where the source wrote it
+export function isMirrorablePatternValue(node) {
+  return node?.type === 'ObjectPattern' && !patternHasAnyDefault(node) && node.properties.every(isPropertyNode);
 }
 
 // what dropping an object LITERAL would take with it: a property whose value runs an effect, and a

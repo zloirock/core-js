@@ -118,12 +118,13 @@ export function planArrayWrapperCapture({
     && !restPattern.properties?.some(computedKeyHasSideEffects)) return null;
   const array = peelTransparentExpr(init);
   if (pattern?.type !== 'ArrayPattern' || !init || (!force && array?.type !== 'ArrayExpression')) return null;
-  // The declaration fallback captures one opaque nested claim before a sibling can stage an extraction.
-  // Explicit object literals keep their existing slot pairing and carried initializer.
-  if (nestedOnly && (pattern.elements.length !== 1 || array?.elements?.length !== 1
-    || peelTransparentExpr(array.elements[0])?.type === 'ObjectExpression'
-    || planNestedKeyedPatternCapture({ pattern: pattern.elements[0], init: array.elements[0], force: true })
-      ?.leafPattern.properties.length !== 1)) return null;
+  // The declaration fallback captures the positions of a literal wrapper whose element carries an
+  // opaque NESTED claim (a call, a member, a selection - anything but an object literal, which keeps
+  // its slot pairing and carried initializer) before a sibling can stage an extraction. The whole
+  // literal is captured, so every element reads once, in source order, ahead of the per-element
+  // patterns - a sibling beside the claim rides the same capture (`[{ y: { at } }, tail] = [mk(),
+  // eff()]`), and a wrapper nested one level deeper descends to its own element.
+  if (nestedOnly && !wrapperCarriesOpaqueNestedClaim(pattern, array)) return null;
   const elements = [];
   function collectCaptureElements(level, value, path = []) {
     const literal = peelTransparentExpr(value);
@@ -143,8 +144,35 @@ export function planArrayWrapperCapture({
     });
   }
   if (!collectCaptureElements(pattern, array)) return null;
-  if (!elements.length || (!force && array.elements.every(element => !mayHaveSideEffects(element)) && elements.length === 1)) return null;
+  // ... an effect-free sole element needs no capture of its own - unless it is the opaque nested
+  // claim the fallback exists for: a member element (`[h.g]`) is a getter a re-read would fire twice
+  if (!elements.length || (!force && !nestedOnly && array.elements.every(element => !mayHaveSideEffects(element))
+    && elements.length === 1)) return null;
   return { pattern, init, elements };
+}
+
+// does a literal wrapper hold, at some element, a nested keyed pattern over an OPAQUE value - the
+// shape the declaration fallback captures? the pattern and the literal pair position for position
+// (a spread shifts them, a default re-reads a missing slot), a nested wrapper descends to its own
+// element, and the claim's slot is a value the source COMPUTES - a call, a member (a getter a
+// re-read would fire twice), a selection, a kept write. a bare name re-reads for free and keeps its own routes
+// (`[rec]`, `[globalThis]` - the user-key twin off the global object must stay native), and an
+// object literal pairs by key already
+function wrapperCarriesOpaqueNestedClaim(pattern, array) {
+  if (array?.type !== 'ArrayExpression' || pattern.elements.length !== array.elements.length
+    || array.elements.some(element => element?.type === 'SpreadElement')
+    || pattern.elements.some(element => element?.type === 'AssignmentPattern' || element?.type === 'RestElement')) return false;
+  return pattern.elements.some((element, index) => {
+    const source = array.elements[index];
+    if (!element || !source) return false;
+    if (element.type === 'ArrayPattern') return wrapperCarriesOpaqueNestedClaim(element, peelTransparentExpr(source));
+    const value = peelTransparentExpr(peelNestedSequenceExpressions(peelTransparentExpr(source)).tail);
+    const opaque = value?.type === 'CallExpression' || value?.type === 'OptionalCallExpression'
+      || value?.type === 'MemberExpression' || value?.type === 'OptionalMemberExpression'
+      || value?.type === 'ConditionalExpression' || value?.type === 'LogicalExpression' || value?.type === 'AssignmentExpression';
+    return opaque && element.type === 'ObjectPattern'
+      && planNestedKeyedPatternCapture({ pattern: element, init: source, force: true })?.leafPattern.properties.length === 1;
+  });
 }
 
 // The capture and the per-element declarations share one reference per consumed position. `embed`

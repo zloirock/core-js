@@ -4124,6 +4124,25 @@ function * generateUnbackedWindowOptionals() {
       }
     }
   }
+  // A run of OPTIONAL hops sharing the probe's name (`globalThis?.window?.window?.window?.Array?.of`)
+  // is one source of undefined under the realm-self-reference assumption: the guard test reads the
+  // shortest prefix carrying it (`null == _globalThis.window`) and the deeper `?.` are dead text, on
+  // both legs alike. Only the DEFINED nested host is a row, at the depth where the rig's nested
+  // window is a full realm (its third level): a nested `window` that is not the global object
+  // contradicts the assumption the collapse rests on, so the absent rig and the shallower levels
+  // are outside the model - the SPELLING of every depth is the fixture's lock
+  for (const [rootId, root] of [['globalThis', 'globalThis'], ['window', 'window'], ['self', 'self'], ['alias', 'g']]) {
+    for (const firstOptional of [true, false]) {
+      for (const prefix of ['none', 'seq']) {
+        const hops = `${ firstOptional ? '?.window' : '.window' }?.window?.window`;
+        const nav = `${ root }${ hops }?.Array?.of(1).length`;
+        const expr = prefix === 'seq' ? `(log.push('p'), ${ nav })` : nav;
+        const row = snippet(`unbacked-window-optionals/self-reference-run/${ rootId }/${ firstOptional ? 'optional' : 'plain' }-first/${ prefix }`,
+          `withNestedWindow(false, () => { const g = globalThis; return ${ expr }; })`);
+        yield { ...row, code: `${ rigImport }\n${ row.code }`, strip: true };
+      }
+    }
+  }
 }
 
 // --- Opaque (inline-call) proxy-nav root: a static / fallback reached THROUGH `f()?.window` ---
@@ -5035,11 +5054,49 @@ function * generateAwSymbolIterDestructure() {
 // assignment host would double-read the receiver, so those legitimately stay native (strip:false).
 // a getter-backed receiver that counts its reads, so the observed count proves single vs double read
 const NI_GETTER = 'let n = 0; const h = { get g() { n++; return Array.prototype; } };';
+// getters that LOG their reads, so the observed order proves which read the emitted shape performs first
+const NI_ORDER = 'const mk = () => ({ get y() { log.push("y"); return [7, 8]; } }); const box = { get z() { log.push("z"); return 2; } };';
 const NESTED_INSTANCE = [
   { id: 'member-sole', pre: 'const { y: { at } } = { y: Array.prototype };', obs: 'typeof at', strip: true },
   { id: 'array-index-sole', pre: 'const { y: { at } } = { y: [1, 2, 3] };', obs: 'typeof at', strip: true },
   { id: 'getter-read-once', pre: `${ NI_GETTER } const { y: { at } } = { y: h.g };`, obs: '[typeof at, n]', strip: true },
   { id: 'multi-binding-native', pre: `${ NI_GETTER } const { y: { at }, z } = { y: h.g, z: 1 };`, obs: '[typeof at, n, z]', strip: false },
+  // an ARRAY-WRAPPED host pairs the leaf with an element the source COMPUTES: the literal is captured
+  // whole, position for position, and the dispatch reads its element's binding (`[_ref] = [mk()]; at =
+  // _at(_ref.y)`); a SIBLING beside the claim rides the same capture, its slot bound after the claim's
+  // in source order (`[_ref, tail] = [mk(), log.push("t")]`)
+  { id: 'wrapped-computed-element-sole', pre: 'const mk = () => ({ y: [7, 8] }); const [{ y: { at } }] = [mk()];', obs: 'typeof at', strip: true },
+  { id: 'wrapped-computed-element-sibling',
+    pre: 'const mk = () => ({ y: [7, 8] }); const [{ y: { at } }, tail] = [mk(), log.push("t")];', obs: '[typeof at, tail]', strip: true },
+  // ... and a getter beside the claim pins the ORDER a memo of the whole literal would flip: native
+  // reads the claim's own level first (`y` before `z`), and the capture keeps it - the literal is
+  // captured position for position, then each element's own pattern reads in source order
+  { id: 'wrapped-sibling-getter-order', pre: `${ NI_ORDER } const [{ y: { at } }, { z }] = [mk(), box];`, obs: '[typeof at, z, log.join()]', strip: true },
+  // the POSITIONAL route (an init that is no literal) keeps the same order: a slot AFTER the claim's
+  // that READS - a pattern, a default, a rest that destructures - declines the rename, a bare binding
+  // or a plain rest lets it through, and a reader BEFORE the claim reads first either way
+  { id: 'positional-trailing-pattern-order', pre: `${ NI_ORDER } const pair = [mk(), box]; const [{ y: { at } }, { z }] = pair;`, obs: '[typeof at, z, log.join()]', strip: false },
+  { id: 'positional-trailing-default-order', pre: `${ NI_ORDER } const solo = [mk()]; const [{ y: { at } }, tail = log.push("d")] = solo;`, obs: '[typeof at, tail, log.join()]', strip: false },
+  { id: 'positional-trailing-rest-pattern-order', pre: `${ NI_ORDER } const pair = [mk(), box]; const [{ y: { at } }, ...[{ z }]] = pair;`, obs: '[typeof at, z, log.join()]', strip: false },
+  { id: 'positional-trailing-identifier', pre: `${ NI_ORDER } const pair = [mk(), box]; const [{ y: { at } }, tail] = pair;`, obs: '[typeof at, typeof tail, log.join()]', strip: true },
+  { id: 'positional-trailing-rest-identifier', pre: `${ NI_ORDER } const pair = [mk(), box]; const [{ y: { at } }, ...rest] = pair;`, obs: '[typeof at, rest.length, log.join()]', strip: true },
+  { id: 'positional-leading-pattern', pre: `${ NI_ORDER } const pair = [box, mk()]; const [{ z }, { y: { at } }] = pair;`, obs: '[typeof at, z, log.join()]', strip: true },
+  // two claims side by side: the LATER slot's rename is what lets the earlier one rename too (the
+  // babel twin's requeue, the other leg's revisit), and the extractions keep the source order
+  { id: 'positional-two-claims-order', pre: `${ NI_ORDER } const pair = [mk(), { at: [1, 2].at }]; let out = []; for (const [{ y: { at } }, { at: second }] of [pair]) out = [typeof at, typeof second];`, obs: '[out, log.join()]', strip: true },
+  // ... the rename frees the earlier slots of EVERY array level on its way (a claim inside a nested
+  // wrapper beside another), in a loop HEAD too, and the two dispatches keep the source's getter order
+  { id: 'positional-nested-array-levels', pre: `${ NI_ORDER } const rows = [[mk()], [{ z: { includes: [1].includes } }]].map(x => x); const [[{ y: { at } }], [{ z: { includes } }]] = rows;`, obs: '[typeof at, typeof includes, log.join()]', strip: true },
+  { id: 'positional-for-init-two-claims', pre: `${ NI_ORDER } const rows = [mk(), { z: { includes: [1].includes } }].map(x => x); let out; for (const [{ y: { at } }, { z: { includes } }] = rows; !out;) out = [typeof at, typeof includes];`, obs: '[out, log.join()]', strip: true },
+  { id: 'positional-getter-order-two-claims', pre: `${ NI_ORDER } const rows = [mk(), { get z() { log.push("z"); return { includes: [1].includes }; } }].map(x => x); const [{ y: { at } }, { z: { includes } }] = rows;`, obs: '[typeof at, typeof includes, log.join()]', strip: true },
+  // an ASSIGNMENT host whose right the overwrite channel cannot spell (a call) still takes the
+  // positional route: the babel channel used to report the claim handled after emitting nothing
+  { id: 'positional-assignment-call-right',
+    pre: 'const f = () => [[1, 2], [3, 4]]; let a, b; [{ at: a }, { at: b }] = f();', obs: '[typeof a, typeof b]', strip: true },
+  { id: 'positional-assignment-nested-call-right',
+    pre: 'const f = () => [[[1, 2]], [[3, 4]]]; let a, b; [[{ at: a }], [{ at: b }]] = f();', obs: '[typeof a, typeof b]', strip: true },
+  { id: 'positional-assignment-rewritten-right',
+    pre: 'const rows = [[1, 2], [3, 4]]; let a, b; [{ at: a }, { at: b }] = rows.map(x => x);', obs: '[typeof a, typeof b]', strip: true },
 ];
 function * generateNestedInstanceReceiver() {
   for (const c of NESTED_INSTANCE) {
@@ -5243,6 +5300,198 @@ function * generateAssignAliasReassign() {
       + ' select(true, null); return select(false, null);'],
   ]) {
     yield { ...snippet(`alias-branch-reachability/${ id }`, `(() => { try { ${ body } } catch (error) { return error.name; } })()`), strip: true, ts };
+  }
+  // the well-known symbol `in` test read off such a realm carries the is-iterable rewrite inside the
+  // realm guard (`realm === _globalThis ? _isIterable(x) : realm.Symbol.iterator in x`). what the
+  // rewrite changes is visible only on a SHAM-symbol host (the karma floor, locked by the e2e suite);
+  // here the rows lock the throw on the absent realm, the custom arm's own membership test, the
+  // operand effect order and the shapes that keep the member route (an optional hop, a non-identifier
+  // operand, another well-known symbol)
+  for (const [id, body, ts = false] of [
+    ['symbol-in-var-guard', 'function read(flag, value) { if (flag) { var realm = globalThis; } return realm.Symbol.iterator in value; }'
+      + ' return [read(true, arr), read(true, {})];'],
+    ['symbol-in-absent-realm', 'function read(flag, value) { if (flag) { var realm = globalThis; } return realm.Symbol.iterator in value; } return read(false, arr);'],
+    ['symbol-in-let-assign', 'function read(flag, value) { let realm; if (flag) realm = globalThis; return realm.Symbol.iterator in value; }'
+      + ' return [read(true, arr), read(false, arr)];'],
+    ['symbol-in-custom-arm', 'function read(flag, value) { let realm; if (flag) realm = globalThis; else realm = { Symbol: { iterator: "k" } };'
+      + ' return realm.Symbol.iterator in value; } return [read(true, arr), read(false, { k: 1 }), read(false, arr)];'],
+    ['symbol-in-two-realms', 'function read(flag, value) { let realm; if (flag) realm = globalThis; else realm = self;'
+      + ' return realm.Symbol.iterator in value; } return [read(true, arr), read(false, arr), read(false, {})];'],
+    ['symbol-in-nullish-operand', 'function read(flag, value) { if (flag) { var realm = globalThis; } return realm.Symbol.iterator in value; } return read(true, null);'],
+    ['symbol-in-operand-effect', 'function read(flag) { if (flag) { var realm = globalThis; } return realm.Symbol.iterator in (log.push("v"), arr); }'
+      + ' const first = read(true); try { read(false); } catch (error) { log.push(error.name); } return [first, log.join("|")];'],
+    ['symbol-in-member-operand', 'function read(flag, box) { if (flag) { var realm = globalThis; } return realm.Symbol.iterator in box.value; }'
+      + ' return [read(true, { value: arr }), read(true, { value: {} })];'],
+    ['symbol-in-async-iterator', 'function read(flag, value) { if (flag) { var realm = globalThis; } return realm.Symbol.asyncIterator in value; }'
+      + ' return [read(true, {}), read(true, { [Symbol.asyncIterator]: 1 })];'],
+    ['symbol-in-effectful-key', 'function read(flag, value) { if (flag) { var realm = globalThis; } return realm.Symbol[(log.push("k"), "iterator")] in value; }'
+      + ' return [read(true, arr), log.length];'],
+    ['symbol-in-paren-spelling', 'function read(flag, value) { if (flag) { var realm = globalThis; } return ((realm).Symbol).iterator in value; }'
+      + ' return [read(true, arr), read(true, {})];'],
+    ['symbol-in-ts-cast', 'function read(flag: boolean, value: object) { if (flag) { var realm = globalThis; } return (realm as any).Symbol.iterator in value; }'
+      + ' return [read(true, arr), read(true, {})];', true],
+    ['symbol-in-reentered', 'let realm; function read(flag, value) { if (flag) realm = globalThis; return realm.Symbol.iterator in value; } read(true, arr);'
+      + ' return [read(false, arr), read(false, {})];'],
+    // the guarded realm read through a SEQUENCE PREFIX names the same receiver as the bare alias: the
+    // constructor takes its family entry (a narrow one answered `undefined` for `.iterator` / `.groupBy`
+    // in the full env), a static under it gets the captured-receiver guard, and the prefix's own claims
+    // (`log.push`) dispatch on both legs
+    ['seq-prefix-symbol', 'function read(flag) { if (flag) { var realm = globalThis; } return (log.push("r"), realm).Symbol.iterator; }'
+      + ' return [typeof read(true), read(true) === Symbol.iterator, log.length];'],
+    ['seq-prefix-pure-symbol', 'function read(flag) { if (flag) { var realm = globalThis; } return (0, realm).Symbol.iterator; }'
+      + ' return [read(true) === Symbol.iterator];'],
+    ['seq-prefix-static-read', 'function read(flag) { if (flag) { var realm = globalThis; } return (log.push("r"), realm).Map.groupBy; } return [typeof read(true), log.length];'],
+    ['seq-prefix-static-call', 'function read(flag) { if (flag) { var realm = globalThis; } return (log.push("r"), realm).Array.of(7)[0]; } return [read(true), log.length];'],
+    ['seq-prefix-symbol-in', 'function read(flag, value) { if (flag) { var realm = globalThis; } return (log.push("r"), realm).Symbol.iterator in value; }'
+      + ' return [read(true, arr), log.length];'],
+    // ... and a constructor read off the realm and STORED whole is read through its binding: the entry
+    // carries the statics (the narrow one answered `undefined` there in the full env)
+    ['held-ctor-static', 'function read(flag) { if (flag) { var realm = globalThis; } const held = realm.Map; return typeof held.groupBy; }'
+      + ' return [read(true)];'],
+    ['held-ctor-pure-prefix', 'function read(flag) { if (flag) { var realm = globalThis; } const held = (0, realm).Map; return typeof held.groupBy; }'
+      + ' return [read(true)];'],
+    // an OPTIONAL hop the chain continues past keeps the raw member: the identity guard cannot carry
+    // the `?.`, and the source short-circuits the whole chain on the absent realm (a guard there threw)
+    ['optional-hop-symbol', 'function read(flag) { if (flag) { var realm = globalThis; } return realm?.Symbol.iterator; } return [typeof read(true), read(false)];'],
+    ['optional-hop-symbol-in', 'function read(flag, value) { if (flag) { var realm = globalThis; } return realm?.Symbol.iterator in value; }'
+      + ' return [read(true, arr), read(false, arr)];'],
+    ['optional-last-hop', 'function read(flag) { if (flag) { var realm = globalThis; } return realm?.Map; } return [typeof read(true), read(false)];'],
+  ]) {
+    yield { ...snippet(`alias-branch-reachability/${ id }`, `(() => { try { ${ body } } catch (error) { return error.name; } })()`), strip: true, ts };
+  }
+  // a USER key off the global object itself names no surface the plugin models: an instance leaf
+  // under it is a name match both legs keep native (the unplugin's declaration hosts dispatched a
+  // generic `_at(_globalThis.y)` there). the rows throw natively (no such slot) and lock the import
+  // parity; the user-object control keeps its typed claim
+  // the ASSIGNMENT host asks the typed base the declaration host asks: an instance leaf under a
+  // polyfillable STATIC dispatches on the static's ponyfill (the raw static is absent on the floor,
+  // and a re-anchored residual read `_Map.groupBy` off the narrow constructor entry - a TypeError in
+  // the full env), a typed user nav the claim owns dispatches on the nav; the array-wrapped twin and
+  // the sequence / bodyless slots answer alike
+  for (const [id, body] of [
+    ['static-hop-junk', 'let name, junk; ({ Array: { of: { name }, junk } } = globalThis); return [typeof name, typeof junk];'],
+    ['static-hop-sole', 'let name; ({ Array: { of: { name } } } = globalThis); return typeof name;'],
+    ['static-hop-seq-element', 'let name, x; (x = 1, ({ Array: { of: { name } } } = globalThis)); return [typeof name, x];'],
+    ['static-hop-bodyless', 'let name; if (log.length === 0) ({ Array: { of: { name } } } = globalThis); return typeof name;'],
+    ['static-hop-wrapped', 'let name; [{ Array: { of: { name } } }] = [globalThis]; return typeof name;'],
+    ['static-hop-defaulted', 'let name; ({ Array: { of: { name = "d" } } } = globalThis); return typeof name;'],
+    ['static-hop-minted-ctor', 'let name; ({ Map: { groupBy: { name } } } = globalThis); return typeof name;'],
+    ['typed-user-nav', 'let at; const source = { y: [1, 2] }; ({ y: { at } } = source); return typeof at;'],
+    ['typed-user-nav-getter-once', 'let at; const source = { get y() { log.push("y"); return [1, 2]; } }; ({ y: { at } } = source);'
+      + ' return [typeof at, log.length];'],
+    ['named-default', 'let fb; const foreign = { y: {} }; ({ y: { at: fb = () => -1 } } = foreign); return [fb.name, fb()];'],
+    ['named-class-default', 'let fb; const foreign = { y: {} }; ({ y: { at: fb = class {} } } = foreign); return [fb.name, typeof fb];'],
+  ]) {
+    yield { ...snippet(`assignment-static-hop/${ id }`, `(() => { try { ${ body } } catch (error) { return error.name; } })()`), strip: true };
+  }
+  // a catch parameter's relocated pattern is a multi-declarator host once a hop memo joins it: a
+  // defaulted nav leaf beside a HOP-level sibling (the in-place declarator rewrite), beside a
+  // LEAF-level sibling (the fold's test ref on the per-declarator channel), and an anonymous
+  // default's inferred name - the same answers on both legs
+  const CATCH_PRELUDE = 'const source = { codes: {}, other: { x: 1 } }; const arrays = { codes: [3, 4] };';
+  for (const [id, body] of [
+    ['hop-sibling-arrow', 'try { throw source; } catch ({ codes: { findIndex: m = () => -1 }, other }) { return [m.name, m(), other.x]; }'],
+    ['hop-sibling-literal', 'try { throw source; } catch ({ codes: { findIndex: m = 1 }, other }) { return [m, other.x]; }'],
+    ['sibling-first', 'try { throw source; } catch ({ other, codes: { findIndex: m = () => -1 } }) { return [m.name, other.x]; }'],
+    ['nested-sibling', 'try { throw source; } catch ({ codes: { findIndex: m = () => -1 }, other: { x } }) { return [m.name, x]; }'],
+    ['two-nav-leaves', 'try { throw source; } catch ({ codes: { findIndex: m = () => -1 }, other: { toFixed: t = () => 0 } }) { return [m.name, t.name]; }'],
+    ['hop-default-sibling', 'try { throw source; } catch ({ codes: { findIndex: m = () => -1 } = {}, other }) { return [m.name, other.x]; }'],
+    ['leaf-sibling-arrow', 'try { throw source; } catch ({ codes: { findIndex: m = () => -1, keys: k } }) { return [m.name, m(), typeof k]; }'],
+    ['leaf-sibling-class', 'try { throw source; } catch ({ codes: { findIndex: m = class {}, keys: k } }) { return [m.name, typeof m, typeof k]; }'],
+    ['leaf-sibling-live', 'try { throw arrays; } catch ({ codes: { findIndex: m = () => -1, keys: k } }) { return [m.call([1, 2, 3], x => x === 2), typeof k]; }'],
+    ['hop-sibling-live', 'try { throw arrays; } catch ({ codes: { findIndex: m = () => -1 }, other }) { return [m.call([1, 2, 3], x => x === 2), typeof other]; }'],
+  ]) {
+    yield { ...snippet(`catch-born-leaf-siblings/${ id }`, `(() => { ${ CATCH_PRELUDE } try { ${ body } } catch (error) { return error.name; } })()`), strip: true };
+  }
+  // a DEFAULTED instance leaf under a deeper hop beside a sibling leaf, off a realm init that runs
+  // effects first: the whole-init memo route admits the defaulted leaf like its bare twin, and the
+  // guard keeps an anonymous default's inferred name
+  for (const [id, body] of [
+    ['static-sibling', 'const { Array: { prototype: { flat: f = () => 1 }, of: o } } = (log.push("e"), globalThis); return [f.call([[1, 2]]).length, typeof o, log.length];'],
+    ['instance-sibling', 'const { Array: { prototype: { flat: f = () => 1, at: a } } } = (log.push("e"), globalThis);'
+      + ' return [f.call([[1, 2]]).length, a.call([5], -1), log.length];'],
+    ['self-root', 'const { Array: { prototype: { flat: f = () => 1 }, of: o } } = (log.push("e"), self); return [f.call([[1, 2]]).length, typeof o, log.length];'],
+    ['two-defaults', 'const { Array: { prototype: { flat: f = () => 1, at: a = () => 2 }, of: o } } = (log.push("e"), globalThis);'
+      + ' return [f.call([[1, 2]]).length, a.call([5], -1), typeof o, log.length];'],
+    ['assign-host', 'let f, o; ({ Array: { prototype: { flat: f = () => 1 }, of: o } } = (log.push("e"), globalThis));'
+      + ' return [f.call([[1, 2]]).length, typeof o, log.length];'],
+    ['user-root-named-default', 'function pick(u) { const { codes: { findIndex: m = () => 1 }, other } = (log.push("e"), u); return [m.name, m(), other]; }'
+      + ' return [pick({ codes: {}, other: 1 }), log.length];'],
+    ['user-root-live-dispatch', 'function pick(u) { const { codes: { findIndex: m = () => 1 }, other } = (log.push("e"), u); return [m.call([1, 2, 3], x => x === 2), other]; }'
+      + ' return [pick({ codes: [3, 4], other: 1 }), log.length];'],
+  ]) {
+    yield { ...snippet(`se-init-defaulted-leaf/${ id }`, `(() => { try { ${ body } } catch (error) { return error.name; } })()`), strip: true };
+  }
+  // a chain ROOTED at a selection names its candidates by the arms: usage-pure mints the captured
+  // identity guard (`_ref === Array ? _Array$of(1) : _ref.of(1)`) and reads a constructor's statics off
+  // the family entry, usage-global injects what the realm arm reaches; an opaque arm keeps its own value
+  const SELECTING_PRELUDE = 'function realm() { log.push("realm"); return globalThis; }'
+    + ' function opaque() { log.push("opaque"); return { Array: { of(x) { return ["custom", x]; } }, Map: { groupBy() { return "custom"; } } }; }';
+  for (const [id, body] of [
+    ['direct-realm-taken', 'const c = log.length === 0; return [(c ? realm() : opaque()).Array.of(1), log.join("|")];'],
+    ['direct-opaque-taken', 'const c = log.length !== 0; return [(c ? realm() : opaque()).Array.of(1), log.join("|")];'],
+    ['alias', 'const c = log.length === 0; const held = (c ? realm() : opaque()).Array; return [held.of(1), log.join("|")];'],
+    ['spelled-realm-arm', 'const c = log.length === 0; return [(c ? globalThis : opaque()).Array.of(1), log.join("|")];'],
+    ['or-selection', 'const c = log.length === 0; return [((c && realm()) || opaque()).Array.of(1), log.join("|")];'],
+    ['nullish-selection', 'const c = log.length === 0; return [((c ? null : opaque()) ?? realm()).Array.of(1), log.join("|")];'],
+    ['nested-selection', 'const c = log.length === 0; return [(c ? (c ? realm() : opaque()) : opaque()).Array.of(1), log.join("|")];'],
+    ['effect-test', 'return [(log.push("t") === 1 ? realm() : opaque()).Array.of(1), log.join("|")];'],
+    ['ctor-static', 'const c = log.length === 0; return [(c ? realm() : opaque()).Map.groupBy([1, 2], x => x % 2).get(1), log.join("|")];'],
+    ['ctor-static-opaque-taken', 'const c = log.length !== 0; return [(c ? realm() : opaque()).Map.groupBy([1, 2]), log.join("|")];'],
+    ['instance-leaf', 'const c = log.length === 0; return [(c ? realm() : opaque()).Array.prototype.at.call([7], -1), log.join("|")];'],
+    ['alias-reassigned', 'const c = log.length === 0; let held = (c ? realm() : opaque()).Array; held = opaque().Array; return [held.of(1), log.join("|")];'],
+    ['seq-prefix-root', 'const c = log.length === 0; return [(log.push("p"), c ? realm() : opaque()).Array.of(1), log.join("|")];'],
+  ]) {
+    yield { ...snippet(`selecting-receiver-realm-arm/${ id }`, `(() => { ${ SELECTING_PRELUDE } ${ body } })()`), strip: true };
+  }
+  // a destructure off a nav INTO the built-in namespace whose root is a call the census resolves to a
+  // realm: the discarded init keeps the call alone where it bears effects (its hops are dead reads),
+  // and a pure call leaves nothing - on both legs, on every host
+  for (const [id, body] of [
+    ['decl-effect', 'function realm() { log.push("r"); return globalThis; } const { groupBy: g } = realm().Map; return [typeof g, log.length];'],
+    ['decl-pure', 'function quiet() { return globalThis; } const { groupBy: g } = quiet().Map; return [typeof g, log.length];'],
+    ['decl-paren-call', 'function realm() { log.push("r"); return globalThis; } const { groupBy: g } = (0, realm)().Map; return [typeof g, log.length];'],
+    ['decl-no-entry-ctor', 'function realm() { log.push("r"); return globalThis; } const { of: o } = realm().Array; return [typeof o, log.length];'],
+    ['assign-effect', 'function realm() { log.push("r"); return globalThis; } let g; ({ groupBy: g } = realm().Map); return [typeof g, log.length];'],
+    ['decl-two-leaves', 'function realm() { log.push("r"); return globalThis; } const { groupBy: g, name } = realm().Map; return [typeof g, typeof name, log.length];'],
+    // ... and a nested INSTANCE leaf under a hop off a call the inline canon proves to yield the realm
+    // with no effect on the way: the call reads as the global on both legs (the fold drops it)
+    ['nested-beside-static', 'const g = () => globalThis; const { Array: { prototype: { flat: f }, of: o } } = g(); return [f.call([[1, 2]]).length, typeof o];'],
+    ['nested-se-beside-static', 'const g = () => globalThis; const { Array: { prototype: { flat: f }, of: o } } = (log.push("e"), g());'
+      + ' return [f.call([[1, 2]]).length, typeof o, log.length];'],
+    ['nested-se-sole', 'const g = () => globalThis; const { Array: { prototype: { flat: f } } } = (log.push("e"), g()); return [f.call([[1, 2]]).length, log.length];'],
+    ['nested-sole', 'const g = () => globalThis; const { Array: { prototype: { flat: f } } } = g(); return [f.call([[1, 2]]).length];'],
+    ['nested-defaulted-se', 'const g = () => globalThis; const { Array: { prototype: { flat: f = () => 1 }, of: o } } = (log.push("e"), g());'
+      + ' return [f.call([[1, 2]]).length, typeof o, log.length];'],
+    ['nested-effectful-call-stays', 'const g = () => { log.push("g"); return globalThis; }; const { Array: { prototype: { flat: f }, of: o } } = g();'
+      + ' return [f.call([[1, 2]]).length, typeof o, log.length];'],
+    ['nested-minted-alias-call', 'const g = () => self; const { Array: { prototype: { flat: f }, of: o } } = g(); return [f.call([[1, 2]]).length, typeof o];'],
+  ]) {
+    yield { ...snippet(`call-rooted-realm-destructure/${ id }`, `(() => { try { ${ body } } catch (error) { return error.name; } })()`), strip: true };
+  }
+  // a constructor WITHOUT a pure entry read off a GUARDED realm alias and HELD in a local: the held
+  // alias reads through the chain the direct read does, so the static takes the captured-receiver
+  // narrow - direct, prefixed and held spellings alike; the entry-bearing ctor keeps its family entry
+  for (const [id, body] of [
+    ['direct', 'if (log.length === 0) { var realm = globalThis; } return realm.Array.of(7)[0];'],
+    ['held', 'if (log.length === 0) { var realm = globalThis; } const h = realm.Array; return h.of(7)[0];'],
+    ['held-pure-prefix', 'if (log.length === 0) { var realm = globalThis; } const h = (0, realm).Array; return h.of(7)[0];'],
+    ['held-effect-prefix', 'if (log.length === 0) { var realm = globalThis; } const h = (log.push("r"), realm).Array; return [h.of(7)[0], log.length];'],
+    ['held-twice', 'if (log.length === 0) { var realm = globalThis; } const h = realm.Array; return [h.of(7)[0], h.of(8)[0]];'],
+    ['held-map-entry', 'if (log.length === 0) { var realm = globalThis; } const h = realm.Map; return typeof h.groupBy;'],
+    ['held-reassigned-stays', 'if (log.length === 0) { var realm = globalThis; } let h = realm.Array; h = { of: x => [x, "custom"] }; return h.of(7)[1];'],
+  ]) {
+    yield { ...snippet(`held-static-guarded-realm/${ id }`, `(() => { try { ${ body } } catch (error) { return error.name; } })()`), strip: true };
+  }
+  for (const [id, body] of [
+    ['const-host', 'const { y: { at } } = globalThis; return typeof at;'],
+    ['let-host', 'let { y: { at } } = globalThis; return typeof at;'],
+    ['array-wrapped', 'const [{ y: { at } }] = [globalThis]; return typeof at;'],
+    ['array-wrapped-sibling', 'const [{ y: { at } }, tail] = [globalThis, 1]; return [typeof at, tail];'],
+    ['multi-declarator', 'const first = 1, { y: { at } } = globalThis; return [typeof at, first];'],
+    ['user-object-control', 'const source = { y: [1, 2] }; const { y: { at } } = source; return typeof at;'],
+  ]) {
+    yield { ...snippet(`user-key-off-global/${ id }`, `(() => { try { ${ body } } catch (error) { return error.name; } })()`), strip: false };
   }
   // a REFUSED registration keeps the value swap (polyfill provision in write order) and leaves
   // member reads RAW - exact in ORDER and FLOW on every path: untaken throws on the undefined
@@ -6388,6 +6637,29 @@ function * generateMutatedStatic() {
   }
 }
 
+// A static patched through a route the census pairs with the call's ARGUMENT: the pure leg must keep
+// the native read (the author's patch wins), on both legs alike. Each route hands `Array` to a
+// function and writes `from` through what comes back - or through what the parameter reached.
+const ESCAPE_ROUTES = [
+  { id: 'identity-return-second-param', setup: 'function pick(a, b) { return b; }', write: 'pick(1, Array).from = patched;' },
+  { id: 'identity-return-first-param', setup: 'function pick(a, b) { return a; }', write: 'pick(Array, 1).from = patched;' },
+  { id: 'held-identity-result', setup: 'function pick(a, b) { return b; }', write: 'const h = pick(1, Array); h.from = patched;' },
+  { id: 'spread-argument', setup: 'function m(a, b) { return b; }', write: 'm(...[1, Array]).from = patched;' },
+  { id: 'tagged-template', setup: 'const tag = (s, x) => x;', write: ['tag`$', '{ Array }`.from = patched;'].join('') },
+  { id: 'returned-in-array', setup: 'function box(x) { return [x]; }', write: 'box(Array)[0].from = patched;' },
+  { id: 'returned-in-object', setup: 'function box(x) { return { x }; }', write: 'box(Array).x.from = patched;' },
+  { id: 'arguments-slot', setup: 'function m(x) { arguments[0].from = patched; }', write: 'm(Array);' },
+  { id: 'arguments-alias', setup: 'function m(x) { const a = arguments; a[0].from = patched; }', write: 'm(Array);' },
+  { id: 'parameter-stored-outside', setup: 'let held; function keep(x) { held = x; }', write: 'keep(Array); held.from = patched;' },
+];
+function * generateEscapeCensusRoutes() {
+  for (const route of ESCAPE_ROUTES) {
+    const body = `(() => { const _o = Array.from; const patched = () => "patched"; ${ route.setup }`
+      + ` try { ${ route.write } return Array.from([1]); } finally { Array.from = _o; } })()`;
+    yield { ...snippet(`escape-census-route/${ route.id }`, body), strip: false };
+  }
+}
+
 // the bail is per-KEY: mutate ONE static, USE a DIFFERENT static of the same constructor - the used one
 // must STILL inject (a regression to a whole-constructor bail would drop that import on one emitter only)
 const M_SIBLINGS = [
@@ -6723,6 +6995,23 @@ function * generateForXHeadKind() {
           `(() => { const seen = []; for (${ kind } { from } of [${ element.src }]) seen.push(${ element.obs }); return seen; })()`),
         strip: true,
       };
+    }
+    // A multi-element array wrapper in the head has no statement slot for a residual extraction, so
+    // the mirror rewrites the iterated element in place, beside the sibling slot - a nested hop
+    // reads the same way through the wrapper. Seed: the residual route crashed babel here.
+    // An EFFECTFUL sibling beside a second element declines the mirror on both legs (the head
+    // elements no longer read as one value), so the claim stays native there: a documented gap,
+    // observed in the full environment only, not a strip row
+    for (const sibling of ['plain', 'effect']) {
+      const tail = sibling === 'effect' ? 'log.push("tail")' : '1';
+      for (const [shape, pattern, element] of [['flat', '{ from }', 'Array'], ['nested-hop', '{ Array: { from } }', 'globalThis']]) {
+        yield {
+          ...snippet(`for-x-head-kind/${ kind }/wrapped-${ sibling }/${ shape }`,
+            `(() => { const seen = []; for (${ kind } [${ pattern }, tail] of [[${ element }, ${ tail }], [${ element }, ${ tail }]])`
+            + ' seen.push(from([7])[0], tail); return seen; })()'),
+          strip: sibling === 'plain',
+        };
+      }
     }
     // A returned argument remains a local receiver regardless of its parameter position.
     // Mixed receivers observe guard selection; deferred reads distinguish var from let/const.
@@ -10197,6 +10486,418 @@ function * generateClassKeyOrder() {
   }
 }
 
+// A receiver-bearing INNER default (`[{ from } = Array]`, `{ k: { from } = Array }`) names the arm the
+// outer slot leaves open. The host axis spells the live receiver or not: a for-x head over a literal
+// (every defined element mirrored in place, the default for the passes whose slot provably holds
+// `undefined`), a declarator / assignment / catch / IIFE parameter over a slot nothing proves (the
+// default alone is swapped, and the user object arriving in the live slot survives), and a declarator
+// whose literal pairs the hop (the default is dead and the static binds outright). The slot axis:
+// `undefined`, a hole, a defined constructor, a mix, a call the source computes, a user object.
+// each host spells the slot's VALUE two ways - as an array element (`[v]`) and as a key (`{ k: v }`) -
+// and a head takes a list of them
+const INNER_DEFAULT_HOSTS = [
+  { id: 'head-array', code: ({ elements }) => `for (const [{ from } = Array] of [${ elements }]) seen.push(from([7])[0]);` },
+  { id: 'head-array-tail', code: ({ elementsTail }) => `for (const [{ from } = Array, tail] of [${ elementsTail }]) seen.push(from([7])[0], tail);` },
+  { id: 'head-object', code: ({ objects }) => `for (const { k: { from } = Array } of [${ objects }]) seen.push(from([7])[0]);` },
+  { id: 'decl-array', code: ({ element }) => `{ const [{ from } = Array] = ${ element }; seen.push(from([7])[0]); }` },
+  { id: 'decl-array-tail', code: ({ elementTail }) => `{ const [{ from } = Array, tail] = ${ elementTail }; seen.push(from([7])[0], tail); }` },
+  { id: 'assign-array', code: ({ element }) => `{ let from; [{ from } = Array] = ${ element }; seen.push(from([7])[0]); }` },
+  { id: 'catch-array', code: ({ element }) => `try { throw ${ element }; } catch ([{ from } = Array]) { seen.push(from([7])[0]); }` },
+  { id: 'iife-object', code: ({ object }) => `(({ k: { from } = Array }) => seen.push(from([7])[0]))(${ object });` },
+];
+// `hole` is the absent slot: no element at all, no key at all; `user-object` and `user-binding` prove
+// a value (a literal, a binding holding one), so the default there is dead and stays as written
+const INNER_DEFAULT_SLOTS = [
+  { id: 'undefined', value: 'undefined' },
+  { id: 'hole', value: null },
+  { id: 'ctor', value: 'Array' },
+  { id: 'call', value: 'pick()' },
+  { id: 'user-object', value: '{ from: () => ["mine"] }' },
+  { id: 'user-binding', value: 'held' },
+];
+// ... and a MIXED pattern under the same default - a flat constructor beside a nested static - takes
+// the one plan on every host: the default mirrored whole where the slot proves `undefined` or stays
+// open (a call), left as written where the slot proves a value (the user's object binds its own
+// members), and a named function whose every caller the census sees settles the arm at the call
+const MIXED_INNER_DEFAULT_HOSTS = [
+  { id: 'iife-array', code: ({ element }) => `(([{ Set: S, Array: { of } } = globalThis]) => seen.push(typeof S, of(7)[0]))(${ element });` },
+  { id: 'iife-block', code: ({ element }) => `(([{ Set: S, Array: { of } } = globalThis]) => { seen.push(typeof S, of(7)[0]); })(${ element });` },
+  { id: 'iife-object', code: ({ object }) => `(({ p: { Set: S, Array: { of } } = globalThis }) => seen.push(typeof S, of(7)[0]))(${ object });` },
+  { id: 'decl-array', code: ({ element }) => `{ const [{ Set: S, Array: { of } } = globalThis] = ${ element }; seen.push(typeof S, of(7)[0]); }` },
+  { id: 'decl-object', code: ({ object }) => `{ const { p: { Set: S, Array: { of } } = globalThis } = ${ object }; seen.push(typeof S, of(7)[0]); }` },
+  { id: 'assign-array', code: ({ element }) => `{ let S, of; [{ Set: S, Array: { of } } = globalThis] = ${ element }; seen.push(typeof S, of(7)[0]); }` },
+  { id: 'named-once', code: ({ element }) => `{ const f = ([{ Set: S, Array: { of } } = globalThis]) => seen.push(typeof S, of(7)[0]); f(${ element }); }` },
+  { id: 'named-twice', code: ({ element }) => `{ function f([{ Set: S, Array: { of } } = globalThis]) { seen.push(typeof S, of(7)[0]); } f(${ element }); f([globalThis]); }` },
+  // ... and the hosts no slot can be paired for - a thrown value, a spread call the census cannot
+  // pair, a head over an iterable the source holds - mirror the default alone
+  { id: 'catch-array', code: ({ element }) => `try { throw ${ element }; } catch ([{ Set: S, Array: { of } } = globalThis]) { seen.push(typeof S, of(7)[0]); }` },
+  { id: 'named-spread', code: ({ element }) => `{ const f = ([{ Set: S, Array: { of } } = globalThis]) => seen.push(typeof S, of(7)[0]); const args = [${ element }]; f(...args); }` },
+  { id: 'head-held', code: ({ element }) => `{ const rows = [${ element }]; for (const [{ Set: S, Array: { of } } = globalThis] of rows) seen.push(typeof S, of(7)[0]); }` },
+  // ... and a declarator whose init is an OPAQUE binding (a parameter): the element has no walk, the
+  // default's walk alone answers for the level
+  { id: 'decl-opaque', code: ({ element }) => `{ const g = slot => { const [{ Set: S, Array: { of } } = globalThis] = slot; seen.push(typeof S, of(7)[0]); }; g(${ element }); }` },
+];
+const MIXED_INNER_DEFAULT_SLOTS = [
+  { id: 'hole', value: null },
+  { id: 'realm', value: 'globalThis' },
+  { id: 'call', value: 'pick()' },
+  { id: 'user-binding', value: 'mixedHeld' },
+];
+function * generateInnerDefaultReceivers() {
+  const prelude = 'const seen = []; const pick = () => undefined; const held = { from: () => ["held"] };'
+    + ' const mixedHeld = { Set: function HeldSet() {}, Array: { of: x => [x, "held"] } };';
+  for (const host of INNER_DEFAULT_HOSTS) {
+    for (const slot of INNER_DEFAULT_SLOTS) {
+      const element = slot.value === null ? '[]' : `[${ slot.value }]`;
+      const object = slot.value === null ? '{}' : `{ k: ${ slot.value } }`;
+      // a head iterates the mixed pair too: one pass reads the element, the next takes the default
+      const mixed = slot.id === 'ctor';
+      const spelled = {
+        element, object,
+        elementTail: slot.value === null ? '[, 1]' : `[${ slot.value }, 1]`,
+        elements: mixed ? `${ element }, [undefined]` : element,
+        elementsTail: mixed ? `[${ slot.value }, 1], [undefined, 2]` : slot.value === null ? '[, 1]' : `[${ slot.value }, 1]`,
+        objects: mixed ? `${ object }, {}` : object,
+      };
+      const expr = `(() => { ${ prelude } ${ host.code(spelled) } return seen; })()`;
+      // the user's own object must survive in the live slot, which no polyfill answers, and a
+      // CONSTRUCTOR in a slot nothing proves (a thrown value) keeps its native read the same way -
+      // the default alone is swapped there: full-env rows
+      const provable = !slot.id.startsWith('user-') && !(slot.id === 'ctor' && host.id === 'catch-array');
+      yield { ...snippet(`inner-default-receiver/${ host.id }/${ slot.id }`, expr), strip: provable };
+    }
+  }
+  // ... and an OPAQUE container standing ABOVE the default's level (a parameter the destructure reads
+  // through, at any depth): the descent loses the element there, and the nearest default's walk
+  // alone answers for its level - on an object hop, an array hop, and through transparent levels
+  for (const [id, body] of [
+    ['object-hop', 'const g = o => { const { p: { Set: S, Array: { of } } = globalThis } = o; seen.push(typeof S, of(7)[0]); }; g({});'],
+    ['object-hop-realm', 'const g = o => { const { p: { Set: S, Array: { of } } = globalThis } = o; seen.push(typeof S, of(7)[0]); }; g({ p: globalThis });'],
+    ['two-level', 'const g = o => { const [{ k: { Set: S, Array: { of } } = globalThis } = {}] = o; seen.push(typeof S, of(7)[0]); }; g([]);'],
+    ['two-level-keyed', 'const g = o => { const { a: { k: { Set: S, Array: { of } } = globalThis } = {} } = o; seen.push(typeof S, of(7)[0]); }; g({});'],
+    ['three-level', 'const g = o => { const [[{ k: { Set: S, Array: { of } } = globalThis } = {}] = []] = o; seen.push(typeof S, of(7)[0]); }; g([]);'],
+    ['array-hop-second-slot', 'const g = o => { const [, { Set: S, Array: { of } } = globalThis] = o; seen.push(typeof S, of(7)[0]); }; g([1]);'],
+  ]) {
+    yield { ...snippet(`inner-default-receiver/opaque/${ id }`, `(() => { const seen = []; ${ body } return seen; })()`), strip: !id.endsWith('realm') };
+  }
+  // a host no slot can be paired for keeps the LIVE value's read native (the realm in the thrown /
+  // spread / held slot): full-env rows there, like the flat family's thrown constructor
+  const hostless = new Set(['catch-array', 'named-spread', 'head-held', 'decl-opaque']);
+  for (const host of MIXED_INNER_DEFAULT_HOSTS) {
+    for (const slot of MIXED_INNER_DEFAULT_SLOTS) {
+      const spelled = { element: slot.value === null ? '[]' : `[${ slot.value }]`, object: slot.value === null ? '{}' : `{ p: ${ slot.value } }` };
+      const expr = `(() => { ${ prelude } ${ host.code(spelled) } return seen; })()`;
+      const provable = slot.id !== 'user-binding' && !(slot.id === 'realm' && hostless.has(host.id));
+      yield { ...snippet(`inner-default-receiver/mixed/${ host.id }/${ slot.id }`, expr), strip: provable };
+    }
+  }
+  // the literal pairs the hop: the default is dead and the static binds outright, on both hosts
+  for (const [id, code] of [
+    ['decl-object-paired', 'const { k: { from } = Array } = { k: Array }; seen.push(from([7])[0]);'],
+    ['decl-object-paired-renamed', 'const { k: { from: kf } = Array } = { k: Array }; seen.push(kf([7])[0]);'],
+    ['head-object-paired', 'for (const { k: { from } = Array } of [{ k: Array }, {}]) seen.push(from([7])[0]);'],
+  ]) {
+    yield { ...snippet(`inner-default-receiver/${ id }`, `(() => { const seen = []; ${ code } return seen; })()`), strip: true };
+  }
+}
+
+// A STATIC hop whose slot holds a PATTERN with no claim of its own destructures the ponyfill itself
+// (`{ Array: { of: { length } } } = globalThis` reads `_Array$of.length`), on a declarator and an
+// assignment host alike, off the realm and off a constructor init (`{ from: { length } } = Array`, an
+// alias of it, the member spelling, a static with its own entry); a leaf claim beside the pattern keeps
+// its dispatch. A default or a rest under the hop keeps the source (full-env rows). A call init keeps
+// the pattern native on the unplugin leg alone - the recorded residual, locked by the fixture's sidecar
+// rather than a row the import-parity oracle would refuse.
+const STATIC_HOP_PATTERNS = [
+  { id: 'ctor-declarator', body: 'const { from: { length: arity } } = Array; return [arity];', strip: true },
+  { id: 'ctor-assignment', body: 'let arity; ({ from: { length: arity } } = Array); return [arity];', strip: true },
+  { id: 'ctor-alias', body: 'const A = Array; const { from: { length: arity } } = A; return [arity];', strip: true },
+  { id: 'ctor-member-init', body: 'const { from: { length: arity } } = globalThis.Array; return [arity];', strip: true },
+  { id: 'ctor-entry', body: 'const { groupBy: { length: arity } } = Map; return [arity];', strip: true },
+  { id: 'declarator', body: 'const { Array: { of: { length: arity } } } = globalThis; return [arity];', strip: true },
+  { id: 'assignment', body: 'let arity; ({ Array: { of: { length: arity } } } = globalThis); return [arity];', strip: true },
+  { id: 'declarator-two-leaves', body: 'const { Array: { of: { name, length: arity } } } = globalThis; return [typeof name, arity];', strip: true },
+  { id: 'assignment-two-leaves', body: 'let name, arity; ({ Array: { of: { name, length: arity } } } = globalThis); return [typeof name, arity];', strip: true },
+  { id: 'map-groupby', body: 'const { Map: { groupBy: { length: arity } } } = globalThis; return [arity];', strip: true },
+  { id: 'sequence-prefix', body: 'const { Array: { of: { length: arity } } } = (log.push("e"), globalThis); return [arity, log.length];', strip: true },
+  { id: 'sibling-static', body: 'const { Array: { of: { length: arity }, from } } = globalThis; return [arity, typeof from];', strip: true },
+  { id: 'self-root', body: 'const { Array: { of: { length: arity } } } = self; return [arity];', strip: true },
+  { id: 'default-stays', body: 'const { Array: { of: { length: arity = 9 } } } = globalThis; return [arity];', strip: false },
+  { id: 'rest-stays', body: 'const { Array: { of: { ...rest } } } = globalThis; return [typeof rest];', strip: false },
+];
+function * generateStaticHopPatternAnchor() {
+  for (const row of STATIC_HOP_PATTERNS) {
+    yield { ...snippet(`static-hop-pattern/${ row.id }`, `(() => { ${ row.body } })()`), strip: row.strip };
+  }
+}
+
+// A nested claim beside a LATER positional slot keeps its rename over an array the source holds:
+// nothing runs between the slots, so the getter's read lands where native reads it. An iterable the
+// source COMPUTES (a generator logging between its steps) is outside the model - the provider's
+// AGENTS.md declares that boundary, and no row here probes it.
+function * generateIteratorStepEffects() {
+  const prelude = 'const mk = () => ({ get y() { log.push("y"); return [7, 8]; } }); const pair = [mk(), { z: 2 }];';
+  const expr = `(() => { ${ prelude } const [{ y: { at } }, tail] = pair; return [typeof at, typeof tail, log.join()]; })()`;
+  yield { ...snippet('iterator-step-effects/array-trailing-identifier', expr), strip: true };
+  // ... and a TRAILING sibling declarator behind an effect-bearing neighbour: the element's reads
+  // belong to the wrapper's own destructure, ahead of that sibling's init, so an extraction pinned
+  // behind the residual still precedes the sibling - the getter's log order is the oracle
+  const trailing = '(() => { const r = { get w() { log.push("w"); return [1, 2]; }, get y() { log.push("y"); return [3]; } };'
+    + ' const [{ w: { at: aw }, y: { at: ay } }] = [r, log.push("n")], zTail = log.push("t");'
+    + ' return [typeof aw, typeof ay, zTail, log.join()]; })()';
+  yield { ...snippet('iterator-step-effects/array-trailing-declarator-effect', trailing), strip: true };
+}
+
+// A binding read ahead of its own initializer holds `undefined` (a hoisted `var` declared below the
+// read) or throws (a lexical binding in its TDZ): every resolution that follows a binding to the
+// literal it holds - the static container, the alias chain, the array-wrapper slot, the folded key,
+// the inner default's slot - has to prove the initializer ran first, or the rewrite binds where the
+// source throws. The throwing rows are full-env; the declared-before twins prove the follow itself.
+const HOISTED_BINDING_READS = [
+  { id: 'container-var-after', body: 'let r; try { const { a: { from } } = w; r = from([1]).length; } catch (e) { r = e.name; } var w = { a: Array }; return r;', strip: false },
+  { id: 'container-var-before', body: 'var w = { a: Array }; const { a: { from } } = w; return from([1]).length;', strip: true },
+  { id: 'alias-var-after',
+    body: 'let r; try { const a = w; const { k: { from } } = a; r = from([1]).length; } catch (e) { r = e.name; } var w = { k: Array }; return r;', strip: false },
+  { id: 'wrapper-slot-var-after', body: 'let r; try { const [{ from }] = w; r = from([1]).length; } catch (e) { r = e.name; } var w = [Array]; return r;', strip: false },
+  { id: 'wrapper-slot-var-before', body: 'var w = [Array]; const [{ from }] = w; return from([1]).length;', strip: true },
+  { id: 'key-fold-var-after', body: 'const { [k]: from } = Array; var k = "from"; return typeof from;', strip: false },
+  { id: 'key-fold-let-tdz', body: 'let r; try { const { [k]: from } = Array; r = typeof from; } catch (e) { r = e.name; } let k = "from"; return r;', strip: false },
+  { id: 'inner-default-slot-var-after', body: 'const [{ of } = Array] = [u]; var u = { of: x => [x, "late"] }; return of(1);', strip: true },
+  { id: 'inner-default-slot-var-before', body: 'var u = { of: x => [x, "early"] }; const [{ of } = Array] = [u]; return of(1);', strip: false },
+  // ... and a CALLEE read ahead of its initializer: inlining its body would erase the source's throw
+  { id: 'callee-var-after', body: 'let r; try { r = f().Array.from([1]).length; } catch (e) { r = e.name; } var f = () => globalThis; return r;', strip: false },
+  { id: 'callee-var-after-destructure',
+    body: 'let r; try { const { Array: { from } } = f(); r = from([1]).length; } catch (e) { r = e.name; } var f = () => globalThis; return r;', strip: false },
+  { id: 'callee-var-before', body: 'var f = () => globalThis; const { Array: { from } } = f(); return from([1]).length;', strip: true },
+];
+function * generateHoistedBindingReads() {
+  for (const row of HOISTED_BINDING_READS) {
+    yield { ...snippet(`hoisted-binding-read/${ row.id }`, `(() => { ${ row.body } })()`), strip: row.strip };
+  }
+}
+
+// An inner default on a NON-function host - a declarator's array wrapper, an assignment, a catch
+// parameter, a for-of head, an object key - takes the per-key fallback chain a parameter's does: the
+// mirror where the pattern spells, the inline default on every static leaf, flat or nested, where the
+// mirror declines (a computed, duplicate or non-identifier key, a rest or a member target beside the
+// leaves), and a pattern spelling only nested leaves mirrors from them. The function hosts are the
+// controls. A member target is an assignment-only shape (a binding pattern cannot spell one).
+const INNER_DEFAULT_HOST_LEAVES = [
+  { id: 'ckey', pattern: 'Set: S, [getKey()]: y, Array: { of }', read: '[typeof S, of(7)[0]]', strip: false },
+  { id: 'nonid', pattern: 'Set: S, "with-dash": d, Array: { of }', read: '[typeof S, of(7)[0], typeof d]', strip: true },
+  { id: 'dup', pattern: 'Map: M, ["Map"]: alias, Array: { of }', read: '[typeof M, of(7)[0]]', strip: false },
+  { id: 'rest', pattern: 'Set: S, Array: { of }, ...rest', read: '[typeof S, of(7)[0], typeof rest]', strip: false },
+  { id: 'nested-only', pattern: 'Array: { of }', read: '[of(7)[0]]', strip: true },
+  { id: 'nested-only-nonid', pattern: 'Array: { of }, "with-dash": d', read: '[of(7)[0], typeof d]', strip: true },
+  { id: 'nested-two', pattern: 'Array: { of }, "with-dash": d, Promise: { race }', read: '[of(7)[0], typeof d, typeof race]', strip: true },
+  { id: 'member', pattern: 'Set: S, Array: { of: box.of }', read: '[typeof S, typeof box.of]', strip: false, hosts: ['assign'] },
+  { id: 'member-nested', pattern: 'Set: S, Array: { of }, Promise: { race: box.race }', read: '[typeof S, of(7)[0], typeof box.race]', strip: false, hosts: ['assign'] },
+];
+const INNER_DEFAULT_FALLBACK_HOSTS = {
+  decl: pattern => `const [{ ${ pattern } } = globalThis] = []; return READ;`,
+  assign: pattern => `let S, M, y, d, alias, of, rest, race; [{ ${ pattern } } = globalThis] = []; return READ;`,
+  catch: pattern => `let r; try { throw []; } catch ([{ ${ pattern } } = globalThis]) { r = READ; } return r;`,
+  forof: pattern => `let r; for (const [{ ${ pattern } } = globalThis] of [[]]) { r = READ; } return r;`,
+  objkey: pattern => `const { k: { ${ pattern } } = globalThis } = {}; return READ;`,
+  'param-expr': pattern => `return (([{ ${ pattern } } = globalThis]) => READ)([]);`,
+  'param-stmt': pattern => `return (([{ ${ pattern } } = globalThis]) => { return READ; })([]);`,
+};
+// ... and inside a FUNCTION body the same hosts have no caller analysis to prove the slot absent:
+// the receiver's own element, present at the call, keeps binding its own value (a body-top hoist
+// of the polyfill would override it), the absent element takes the default as everywhere
+const INNER_DEFAULT_IN_FUNCTION_HOSTS = {
+  decl: pattern => `function f(arr) { const [{ ${ pattern } } = globalThis] = arr; return READ; }`,
+  catch: pattern => `function f(v) { try { throw v; } catch ([{ ${ pattern } } = globalThis]) { return READ; } }`,
+  objkey: pattern => `function f(arr) { const { k: { ${ pattern } } = globalThis } = { k: arr[0] }; return READ; }`,
+  assign: pattern => `function f(arr) { let S, d, of; [{ ${ pattern } } = globalThis] = arr; return READ; }`,
+};
+function * generateInnerDefaultHostFallbacks() {
+  for (const [host, wrap] of Object.entries(INNER_DEFAULT_FALLBACK_HOSTS)) {
+    for (const leaf of INNER_DEFAULT_HOST_LEAVES) {
+      if (leaf.hosts && !leaf.hosts.includes(host)) continue;
+      const body = `const getKey = () => "Map"; const box = {}; ${ wrap(leaf.pattern).replace('READ', leaf.read) }`;
+      yield { ...snippet(`inner-default-host-fallback/${ host }/${ leaf.id }`, `(() => { ${ body } })()`), strip: leaf.strip };
+    }
+  }
+  const leaf = { pattern: 'Set: S, "with-dash": d, Array: { of }', read: '[typeof S, of(1).length]' };
+  for (const [host, wrap] of Object.entries(INNER_DEFAULT_IN_FUNCTION_HOSTS)) {
+    const fn = wrap(leaf.pattern).replace('READ', leaf.read);
+    yield { ...snippet(`inner-default-host-fallback/in-function/${ host }`,
+      `(() => { ${ fn } return [f([{ Set: 'X', Array: { of: x => [x, 'own'] } }]), f([])]; })()`), strip: false };
+  }
+  // ... and a DEFAULTED parameter of an immediately invoked function is accounted for only where the
+  // one call leaves the slot to the default: a real argument binds the caller's own value (the inline
+  // default keeps it, the body-top hoist would not), a missing / `undefined` / `void` argument runs
+  // the default and takes the hoist; a spread that expands to the slot is a real argument too
+  const IIFE_ARGUMENTS = {
+    present: "({ Set: 'X', Array: { of: x => [x, 'own'] } })",
+    spread: "(...[{ Set: 'X', Array: { of: x => [x, 'own'] } }])",
+    absent: '()',
+    undefined: '(undefined)',
+    void: '(void 0)',
+  };
+  for (const [id, args] of Object.entries(IIFE_ARGUMENTS)) {
+    yield snippet(`inner-default-host-fallback/iife/top-stmt-${ id }`,
+      `((({ ${ leaf.pattern } } = globalThis) => { return ${ leaf.read }; })${ args })`);
+  }
+  // ... and the `undefined` argument runs the default for the FLAT and the nested-only pattern too:
+  // the argument lifter answers "the default" there, so the leaf resolves against it
+  yield snippet('inner-default-host-fallback/iife/flat-stmt-undefined',
+    "((({ from } = Array) => { return from('ab').length; })(undefined))");
+  yield snippet('inner-default-host-fallback/iife/nested-only-stmt-undefined',
+    '((({ Array: { of } } = globalThis) => { return of(1).length; })(undefined))');
+  // ... and the same defaulted parameter inside a class field initializer, a catch parameter's
+  // object-key inner default, and a declarator with an unknown receiver inside a static block
+  yield snippet('inner-default-host-fallback/iife/class-field-present',
+    "(() => { class A { x = (({ Set: S, 'with-dash': d, Array: { of } } = globalThis) => { return [typeof S, of(1).length]; })"
+      + "({ Set: 'X', Array: { of: x => [x, 'own'] } }); } return new A().x; })()");
+  yield snippet('inner-default-host-fallback/iife/class-field-absent',
+    "(() => { class A { x = (({ Set: S, 'with-dash': d, Array: { of } } = globalThis) => { return [typeof S, of(1).length]; })(); } return new A().x; })()");
+  yield snippet('inner-default-host-fallback/catch/objkey-inner-default',
+    "(() => { let r; try { throw {}; } catch ({ k: { Set: S, 'with-dash': d, Array: { of } } = globalThis }) { r = [typeof S, of(1).length]; } return r; })()");
+  yield snippet('inner-default-host-fallback/iife/key-stmt-present',
+    `((({ k: { ${ leaf.pattern } } = globalThis }) => { return ${ leaf.read }; })({ k: { Set: 'X', Array: { of: x => [x, 'own'] } } }))`);
+  yield snippet('inner-default-host-fallback/iife/inner-stmt-present',
+    `((([{ ${ leaf.pattern } } = globalThis]) => { return ${ leaf.read }; })([{ Set: 'X', Array: { of: x => [x, 'own'] } }]))`);
+}
+
+// A residual leaf naming one of the anchored ctor's OWN statics with no extraction to serve it - a
+// member target, which the raw canon keeps - reads the native receiver on both legs: the pure ctor
+// binding is the `*/constructor` entry, which carries none of the statics (`_Promise.race` is
+// `undefined`). The sole-hop residual keeps the native receiver instead of re-anchoring, and a
+// mirrored literal spells the leaf as a raw read through the proxy that the later passes leave alone
+// (the ponyfill never lands in the user's object). A binding leaf and a non-polyfillable key are the
+// controls: the first extracts, the second re-anchors.
+const RESIDUAL_CTOR_STATIC_ROWS = [
+  { id: 'promise-race-member', body: 'const box = {}; ({ Promise: { race: box.race } } = globalThis); return [typeof box.race];', strip: false },
+  { id: 'map-group-by-member', body: 'const box = {}; ({ Map: { groupBy: box.g } } = globalThis); return [typeof box.g];', strip: false },
+  { id: 'iterator-from-member', body: 'const box = {}; ({ Iterator: { from: box.f } } = globalThis); return [typeof box.f];', strip: false },
+  { id: 'symbol-for-member', body: 'const box = {}; ({ Symbol: { for: box.sf } } = globalThis); return [typeof box.sf];', strip: false },
+  { id: 'promise-race-member-beside-custom',
+    body: 'const box = {}; let customZ; ({ Promise: { race: box.race, customZ } } = globalThis); return [typeof box.race, typeof customZ];', strip: false },
+  { id: 'custom-key-control', body: 'let customZ; ({ Promise: { customZ } } = globalThis); return [typeof customZ];', strip: true },
+  { id: 'binding-control', body: 'let race; ({ Promise: { race } } = globalThis); return [typeof race];', strip: true },
+  { id: 'mirror-bailed-promise',
+    body: 'const box = {}; let S, of; [{ Set: S, Array: { of }, Promise: { race: box.race } } = globalThis] = []; return [typeof S, of(7)[0], typeof box.race];', strip: false },
+  { id: 'mirror-bailed-array',
+    body: 'const box = {}; let race; [{ Array: { of: box.of }, Promise: { race } } = globalThis] = []; return [typeof box.of, typeof race];', strip: false },
+  { id: 'mirror-bailed-array-after',
+    body: 'const box = {}; let race; [{ Promise: { race }, Array: { of: box.of } } = globalThis] = []; return [typeof race, typeof box.of];', strip: false },
+  // ... and the key spelled COMPUTED names the static as the literal does where it folds (`[k]` with
+  // `const k = 'race'`, `['race']`), on every re-anchor route of the assignment host; a key nothing
+  // folds (an effect, an unknown binding) may name any static at runtime, so the anchor declines too
+  { id: 'folded-key-statement', body: "const box = {}; const k = 'race'; ({ Promise: { [k]: box.race } } = globalThis); return [typeof box.race];", strip: false },
+  { id: 'folded-key-bodyless-if',
+    body: "const box = {}; const k = 'race'; const c = true; if (c) ({ Promise: { [k]: box.race } } = globalThis); return [typeof box.race];", strip: false },
+  { id: 'folded-key-seq-prefix',
+    body: "const box = {}; const k = 'race'; let n = 0; ({ Promise: { [k]: box.race } } = (n++, globalThis)); return [typeof box.race, n];", strip: false },
+  { id: 'folded-key-array-element',
+    body: "const box = {}; const k = 'race'; [{ Promise: { [k]: box.race } }] = [globalThis]; return [typeof box.race];", strip: false },
+  { id: 'folded-key-beside-consumed',
+    body: "const box = {}; const k = 'race'; let S; ({ Set: S, Promise: { [k]: box.race } } = globalThis); return [typeof S, typeof box.race];", strip: false },
+  { id: 'literal-computed-key', body: "const box = {}; ({ Promise: { ['race']: box.race } } = globalThis); return [typeof box.race];", strip: false },
+  { id: 'se-computed-key',
+    body: "const box = {}; let n = 0; ({ Promise: { [(n++, 'race')]: box.race } } = globalThis); return [typeof box.race, n];", strip: false },
+  { id: 'unfoldable-key-custom', body: "const box = {}; const k = 'customZ'; ({ Promise: { [k]: box.z } } = globalThis); return [typeof box.z];", strip: false },
+  // ... and a PATTERN under the folded static key destructures the static's own ponyfill on both
+  // legs (`{ Promise: { [k]: { length } } }` reads `_Promise$race.length`), as the literal key does
+  { id: 'folded-key-pattern-value-decl', body: "const k = 'race'; const { Promise: { [k]: { length: L } } } = globalThis; return [L];" },
+  { id: 'folded-key-pattern-value-beside', body: "const k = 'race'; const { Set: S, Promise: { [k]: { length: L } } } = globalThis; return [typeof S, L];" },
+  { id: 'folded-key-pattern-value-assign', body: "const k = 'race'; let L; ({ Promise: { [k]: { length: L } } } = globalThis); return [L];" },
+  { id: 'template-key-member', body: 'const box = {}; ({ Promise: { [`race`]: box.race } } = globalThis); return [typeof box.race];', strip: false },
+  { id: 'symbol-key-beside-custom',
+    body: 'const box = {}; ({ Map: { [Symbol.iterator]: box.it, customK: box.c } } = globalThis); return [typeof box.it, typeof box.c];', strip: false },
+  { id: 'numeric-key-beside-custom', body: 'const box = {}; ({ Map: { 0: box.zero, customK: box.c } } = globalThis); return [typeof box.zero, typeof box.c];', strip: false },
+  // ... and under a SELECTING receiver (`window ?? globalThis`, `||`, an optional nav) the fallback
+  // arm's mirror keeps the member target as a RAW slot beside the ponyfilled siblings, or does not
+  // fire at all where every leaf is one; a defaulted member target keeps the user's default
+  { id: 'nullish-fallback-member', body: 'const box = {}; ({ Promise: { race: box.race } } = globalThis.window ?? globalThis); return [typeof box.race];', strip: false },
+  { id: 'nullish-fallback-mixed',
+    body: 'const box = {}; let all; ({ Promise: { race: box.race, all } } = globalThis.window ?? globalThis); return [typeof box.race, typeof all];', strip: false },
+  { id: 'nullish-fallback-member-default',
+    body: 'const box = {}; ({ Promise: { race: box.race = 1 } } = globalThis.window ?? globalThis); return [typeof box.race];', strip: false },
+  { id: 'or-fallback-member', body: 'const box = {}; ({ Promise: { race: box.race } } = globalThis.window || globalThis); return [typeof box.race];', strip: false },
+  { id: 'optional-nav-fallback-member',
+    body: 'const box = {}; ({ Promise: { race: box.race } } = globalThis.window?.self ?? globalThis); return [typeof box.race];', strip: false },
+  { id: 'nullish-fallback-pattern-value', body: 'const { Promise: { race: { length: len } } } = globalThis.window ?? globalThis; return [len];', strip: false },
+  // ... and a MULTI-hop pattern under the selecting receiver renders one literal: a hop with nothing
+  // to polyfill (a member target, a custom key, a well-known-symbol leaf) joins it as a passthrough
+  // beside the sibling hop's ponyfill, and a hop the literal cannot spell at all leaves the branch
+  // with its proxy root substituted rather than raw
+  { id: 'two-hops-mixed-nullish',
+    body: 'const box = {}; let gb; ({ Map: { groupBy: gb }, Promise: { race: box.race } } = globalThis.window ?? globalThis); return [typeof gb, typeof box.race];', strip: false },
+  { id: 'two-hops-custom-hop-nullish',
+    body: 'let gb, z; ({ Map: { groupBy: gb }, Promise: { customZ: z } } = globalThis.window ?? globalThis); return [typeof gb, typeof z];', strip: false },
+  { id: 'two-hops-wks-hop-nullish',
+    body: 'let gb, it; ({ Map: { groupBy: gb }, Symbol: { [Symbol.iterator]: it } } = globalThis.window ?? globalThis); return [typeof gb, typeof it];', strip: false },
+  { id: 'two-hops-member-nullish',
+    body: 'const box = {}; ({ Set: { union: box.u }, Map: { groupBy: box.g } } = globalThis.window ?? globalThis); return [typeof box.u, typeof box.g];', strip: false },
+  { id: 'flat-mixed-nullish',
+    body: 'const box = {}; let all; ({ race: box.race, all } = globalThis.window?.Promise ?? Promise); return [typeof box.race, typeof all];', strip: false },
+  { id: 'effect-key-member-nullish',
+    body: "const box = {}; let n = 0, all; ({ Promise: { [(n++, 'race')]: box.race, all } } = globalThis.window ?? globalThis);"
+      + ' return [typeof box.race, typeof all, n];', strip: false },
+  { id: 'wrapper-selecting-element-member',
+    body: 'const box = {}; let S; [{ Set: S, Promise: { race: box.race } }] = [globalThis.window ?? globalThis]; return [typeof S, typeof box.race];', strip: false },
+  { id: 'wrapper-member-default',
+    body: 'const box = {}; let S; [{ Set: S, Promise: { race: box.race = 1 } } = globalThis] = []; return [typeof S, typeof box.race];', strip: false },
+];
+function * generateResidualCtorStatics() {
+  for (const row of RESIDUAL_CTOR_STATIC_ROWS) {
+    yield { ...snippet(`residual-ctor-static/${ row.id }`, `(() => { ${ row.body } })()`), strip: row.strip };
+  }
+}
+
+// A value-SELECTING inner default (`{ k: { Map: { groupBy } } = w ?? globalThis } = {}`) is the
+// per-branch mirror's shape on every host - an object key, an array element, a catch parameter, a
+// function parameter: the leaf reads that default exactly when the host's slot is empty, and the
+// mirror fills the default's arms (a member target riding raw beside the ponyfilled leaf). A slot
+// the host's literal provably leaves empty is what hands the pattern its own default.
+const SELECTING_INNER_DEFAULT_ROWS = [
+  { id: 'objkey-assign',
+    body: 'const box = {}; let gb; ({ k: { Map: { groupBy: gb }, Promise: { race: box.race } '
+      + '} = globalThis.window ?? globalThis } = {}); return [typeof gb, typeof box.race];', strip: false },
+  { id: 'objkey-decl',
+    body: 'const { k: { Map: { groupBy: gb }, Promise: { customZ: z } } = globalThis.window ?? globalThis } = {}; return [typeof gb, typeof z];', strip: false },
+  { id: 'objkey-decl-binding-only', body: 'const { k: { Map: { groupBy: gb } } = globalThis.window ?? globalThis } = {}; return [typeof gb];' },
+  { id: 'element-assign',
+    body: 'const box = {}; let gb; [{ Map: { groupBy: gb }, Promise: { race: box.race } '
+      + '} = globalThis.window ?? globalThis] = []; return [typeof gb, typeof box.race];', strip: false },
+  { id: 'element-decl',
+    body: 'const [{ Map: { groupBy: gb }, Promise: { customZ: z } } = globalThis.window ?? globalThis] = []; return [typeof gb, typeof z];', strip: false },
+  { id: 'catch-param',
+    body: 'let r; try { throw []; } catch ([{ Map: { groupBy: gb }, Promise: { customZ: z } '
+      + '} = globalThis.window ?? globalThis]) { r = [typeof gb, typeof z]; } return r;', strip: false },
+  { id: 'function-param',
+    body: 'return (([{ Map: { groupBy: gb }, Promise: { customZ: z } } = globalThis.window ?? globalThis]) => [typeof gb, typeof z])([]);', strip: false },
+  // ... whatever the host's literal holds for the slot: absent, a spread / computed key / getter no
+  // pairing can read through, a hole or an `undefined` element, an outer level that throws natively
+  // before the default runs - the default's own arms are the mirror's, and a present slot wins
+  { id: 'outer-level-absent-throws',
+    body: 'let gb, r; try { ({ w: { k: { Map: { groupBy: gb } } = globalThis.window ?? globalThis } } = {}); r = typeof gb; } catch (e) { r = e.name; } return r;', strip: false },
+  { id: 'host-spread', body: 'let gb; const extra = {}; ({ k: { Map: { groupBy: gb } } = globalThis.window ?? globalThis } = { ...extra }); return [typeof gb];', strip: false },
+  { id: 'host-computed-key-present',
+    body: "let gb; const kk = 'k'; ({ k: { Map: { groupBy: gb } } = globalThis.window ?? globalThis } = { [kk]: { Map: { groupBy: () => 'own' } } });"
+      + ' return [gb()];', strip: false },
+  { id: 'host-getter', body: 'let gb; ({ k: { Map: { groupBy: gb } } = globalThis.window ?? globalThis } = { get k() { return undefined; } }); return [typeof gb];', strip: false },
+  { id: 'element-hole', body: 'let gb; [, { Map: { groupBy: gb } } = globalThis.window ?? globalThis] = [1, , 3]; return [typeof gb];', strip: false },
+  { id: 'element-undefined', body: 'let gb; [{ Map: { groupBy: gb } } = globalThis.window ?? globalThis] = [undefined]; return [typeof gb];', strip: false },
+  { id: 'element-present-wins', body: "let gb; [{ Map: { groupBy: gb } } = globalThis.window ?? globalThis] = [{ Map: { groupBy: () => 'own' } }]; return [gb()];", strip: false },
+  { id: 'spread-array-host', body: 'let gb; [{ Map: { groupBy: gb } } = globalThis.window ?? globalThis] = [...[]]; return [typeof gb];', strip: false },
+  { id: 'two-nested-defaults', body: 'const { k: { m: { Map: { groupBy: gb } } = globalThis.window ?? globalThis } = {} } = {}; return [typeof gb];', strip: false },
+  // ... and an ALL-proxy selecting default (`self ?? globalThis`) takes the shared plan's literal:
+  // the arm behind a truthy proxy is dead and the literal replaces the whole selection
+  { id: 'all-proxy-arms-assign', body: 'let gb; ({ k: { Map: { groupBy: gb } } = self ?? globalThis } = {}); return [typeof gb];' },
+  { id: 'all-proxy-arms-decl', body: 'const { k: { Map: { groupBy: gb } } = self ?? globalThis } = {}; return [typeof gb];' },
+  { id: 'objkey-present-key',
+    body: "const box = {}; let gb; ({ k: { Map: { groupBy: gb } } = globalThis.window ?? globalThis } = { k: { Map: { groupBy: () => 'own' } } }); return [gb()];", strip: false },
+];
+function * generateSelectingInnerDefaults() {
+  for (const row of SELECTING_INNER_DEFAULT_ROWS) {
+    yield { ...snippet(`selecting-inner-default/${ row.id }`, `(() => { ${ row.body } })()`), strip: row.strip };
+  }
+}
+
 // A relocated nested loop head reads each returned constructor separately. The custom and null
 // elements refute a blanket static substitution, and a closure observes let/const versus var capture.
 function * generateReturnedStaticLoopHeads() {
@@ -10359,6 +11060,7 @@ export function * generate() {
   yield * generateComputedInnerCallChain();
   yield * generateIn();
   yield * generateMutatedStatic();
+  yield * generateEscapeCensusRoutes();
   yield * generateMutatedSibling();
   yield * generateMutatedSealChain();
   yield * generateMutatedDestructure();
@@ -10408,4 +11110,11 @@ export function * generate() {
   yield * generateConstructorArgumentWrites();
   yield * generateClassKeyOrder();
   yield * generateReturnedStaticLoopHeads();
+  yield * generateInnerDefaultReceivers();
+  yield * generateStaticHopPatternAnchor();
+  yield * generateIteratorStepEffects();
+  yield * generateHoistedBindingReads();
+  yield * generateInnerDefaultHostFallbacks();
+  yield * generateResidualCtorStatics();
+  yield * generateSelectingInnerDefaults();
 }

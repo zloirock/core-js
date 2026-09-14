@@ -89,14 +89,12 @@ import {
   renameSplitPropsToSentinels,
   restoreUnclaimedFlattens,
   staticContainerReceiverName,
+  provenRealmCallName,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import { isKnownGlobalName, SYMBOL_ITERATOR_PURE_RESULT } from '@core-js/polyfill-provider/detect-usage/globals';
 import {
   aliasHeldClaimProbe,
   aliasRootedReadMayThrow,
-  callValueCanBeUndefined,
-  inlineCallHasObservableEffects,
-  inlineCallProxyGlobalRoot,
   resolveObjectName,
   isAliasProxyHopChain,
   sealedChainBoundary,
@@ -215,7 +213,7 @@ export default function plugin(api, options) {
     isMutatedStatic: (object, key) => adapter.isMutatedStaticSlot(object, key),
   });
   const {
-    resolveClaimableComputedKeyName, resolvePropertyObjectType, resolveNodeType, resolvedType, toHint,
+    resolveClaimableComputedKeyName, resolvePropertyObjectType, forgetDestructureReceiverTypes, resolveNodeType, resolvedType, toHint,
   } = typeResolvers;
 
   const { resolver, createDebugOutput, importStyle: importStyleOption } = createPolyfillResolver(options, {
@@ -1428,12 +1426,8 @@ export default function plugin(api, options) {
             function provenCallRootName() {
               const callNode = carriedCallRoot ?? chainRootPath.node;
               if (callNode.optional || !path.scope) return null;
-              const callCtx = { scope: path.scope, adapter, path };
-              const rootId = inlineCallProxyGlobalRoot({ callNode, ...callCtx, rejectConditional: true });
-              if (!rootId || callValueCanBeUndefined(callNode, callCtx, m => resolvePure(m, path))
-                || inlineCallHasObservableEffects({ callNode, ...callCtx })) return null;
-              return POSSIBLE_GLOBAL_OBJECTS.has(rootId.name) ? rootId.name
-                : resolveObjectName({ objectNode: rootId, ...callCtx, usageNode: rootId });
+              return provenRealmCallName(callNode, { scope: path.scope, adapter, path },
+                { rejectConditional: true, definedBy: m => resolvePure(m, path) });
             }
             const rootName = chainRootPath.isIdentifier() ? asProxyGlobalName(chainRootPath.node.name)
               : chainAssignRootValueName ?? seqRootName ?? storedNavRootName ?? asProxyGlobalName(provenCallRootName());
@@ -1954,6 +1948,7 @@ export default function plugin(api, options) {
           isEntryNeeded,
           isEntryAvailable,
           resolvePropertyObjectType,
+          forgetDestructureReceiverTypes,
           resolveNodeType,
           toHint,
           skippedNodes,
