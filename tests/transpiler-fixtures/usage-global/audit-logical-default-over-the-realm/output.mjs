@@ -7,9 +7,11 @@ import "core-js/modules/es.map.get-or-insert";
 import "core-js/modules/es.map.get-or-insert-computed";
 import "core-js/modules/es.number.constructor";
 import "core-js/modules/es.number.epsilon";
+import "core-js/modules/es.number.is-finite";
 import "core-js/modules/es.number.is-integer";
 import "core-js/modules/es.number.max-safe-integer";
 import "core-js/modules/es.number.min-safe-integer";
+import "core-js/modules/es.number.parse-float";
 import "core-js/modules/es.set.constructor";
 import "core-js/modules/es.set.species";
 import "core-js/modules/es.set.difference";
@@ -25,9 +27,9 @@ import "core-js/modules/web.self";
 // a `??` / `||` over a guaranteed realm name yields its left operand - `globalThis` by the
 // language, `self` by the entry the injection itself provides - so a static read THROUGH the
 // carrier injects its module and types as the realm's static, at every nesting level of the
-// default: no `.name` here pulls es.function.name, every one reads off a NUMBER. the boundary:
-// `window` has no entry and keeps the carrier opaque (no es.number.parse-float), like a nav
-// that can short-circuit (no es.number.is-finite)
+// default: no `.name` here pulls es.function.name, every one reads off a NUMBER. a selection with
+// an OPAQUE arm still names what its realm arm reaches: `window ?? {}` reaches Number (so
+// es.number.parse-float), and so does a nav that can short-circuit (es.number.is-finite)
 const overRealm = (globalThis ?? {}).Number.MAX_SAFE_INTEGER.name;
 const overProbeName = (self ?? {}).Number.EPSILON.name;
 const overProbeNameOr = (self || {}).Number.MIN_SAFE_INTEGER.name;

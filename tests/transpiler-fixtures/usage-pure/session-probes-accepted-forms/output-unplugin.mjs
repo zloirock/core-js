@@ -104,17 +104,19 @@ function mark(t, v) {
 }
 
 {
-	const [{}] = [r, eff('n')], zTail = 1;
+	const [{}] = [r, eff('n')];
 	const values = _values(r.w);
 	const at = _at(r.y);
+	const zTail = 1;
 
 	[values, at, zTail];
 }
 
 {
-	const [{}] = [r, eff('n')], zTail = eff('t');
+	const [{}] = [r, eff('n')];
 	const values = _values(r.w);
 	const at = _at(r.y);
+	const zTail = eff('t');
 
 	[values, at, zTail];
 }
@@ -257,14 +259,14 @@ function mark(t, v) {
 
 {
 	const soleResidual = _nameMaybeFunction(_Array$of);
-	const { Array: { junk: soleResidualJunk } } = _globalThis;
+	const { junk: soleResidualJunk } = _globalThis.Array;
 
 	[soleResidual, soleResidualJunk];
 }
 
 {
 	const soleInstanceResidual = _atMaybeArray(_globalThis.Array.prototype);
-	const { Array: { junk: soleInstanceJunk } } = _globalThis;
+	const { junk: soleInstanceJunk } = _globalThis.Array;
 
 	[soleInstanceResidual, soleInstanceJunk];
 }

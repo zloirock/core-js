@@ -12,6 +12,7 @@ import {
   realmRootIsSpellable,
   sealedChainBoundary,
   sealedClaimLeafGuardPlan,
+  unbackedProxyHopKey,
   vestigialNavOptionals,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
@@ -48,7 +49,6 @@ import {
   markSubtreeSkipped,
   navComputedKeyEffects,
   optionalHeirAbove,
-  unbackedProxyHopKey,
 } from './nav-spine.js';
 
 // does the receiver below a member hop end on an optional CALL (`arr.flat?.()`)? that segment
@@ -109,7 +109,9 @@ function parenSealedCalleeTail(hopPath) {
 }
 
 // the guard climb: how far above the replaced hop the alternate reaches, and which TS wrappers
-// it swallowed on the way. extracted from `replaceGuardedHop` for its size
+// it swallowed on the way. extracted from `replaceGuardedHop` for its size. `preserveOptionalHops`
+// (a probe the source reads on past the replaced hop) keeps a `?.` the climb would otherwise fold
+// with its always-defined value, so the read above still short-circuits where the source did
 function climbAbsorbedTail(hopPath, { alwaysDefined, navAlternate, unbackedHopKey = null, preserveOptionalHops }) {
   const absorbedWrappers = [];
   // the realm hops the alternate reads THROUGH: over an always-defined ponyfill each of them names
