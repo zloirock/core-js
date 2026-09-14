@@ -622,6 +622,19 @@ for (const [source, expected] of [
   check(`bindingSymbolKey/${ source }`,
     bindingSymbolKey({ node: { type: 'ImportDefaultSpecifier' }, importSource: source }), expected);
 }
+// the module default reaches the key through every import form the surface serves: the bare-CJS
+// require declarator (the spelling the require import style leaves for a later pass) and the TS
+// require-import alike; a named specifier and a pattern-bound require hold something else
+const symbolSource = '@core-js/pure/actual/symbol/iterator';
+for (const [label, binding, expected] of [
+  ['require declarator', { node: { type: 'VariableDeclarator', id: { type: 'Identifier', name: 's' } }, importSource: symbolSource }, 'Symbol.iterator'],
+  ['pattern-bound require', { node: { type: 'VariableDeclarator', id: { type: 'ObjectPattern' } }, importSource: symbolSource }, null],
+  ['ts import-equals', { node: { type: 'TSImportEqualsDeclaration', id: { type: 'Identifier', name: 's' },
+    moduleReference: { type: 'TSExternalModuleReference', expression: { type: 'StringLiteral', value: symbolSource } } } }, 'Symbol.iterator'],
+  ['named specifier', { node: { type: 'ImportSpecifier', imported: { name: 'foo' } }, importSource: symbolSource }, null],
+]) {
+  check(`bindingSymbolKey/${ label }`, bindingSymbolKey(binding), expected);
+}
 // every entry the statics table names is spelled kebab-case under `symbol/`; the allowlist is that
 // table, so a new Symbol static becomes recognized by data, not by editing the regex
 checkTruthy('SYMBOL_STATIC_KEYS covers iterator', SYMBOL_STATIC_KEYS.has('iterator'));

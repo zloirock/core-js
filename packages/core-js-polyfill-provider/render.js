@@ -89,11 +89,6 @@ export function objectExpression(properties) {
   return { type: 'ObjectExpression', properties };
 }
 
-// A local callback over generated operands; source expressions stay outside its scope.
-export function arrowFunctionExpression(params, body) {
-  return { type: 'ArrowFunctionExpression', params, body, expression: true, async: false };
-}
-
 export function objectProperty(key, value, { computed = false } = {}) {
   return { type: 'Property', kind: 'init', method: false, shorthand: false, computed, key, value };
 }
@@ -344,13 +339,30 @@ export function renderInExpressionPlan(plan, { injectImport, embed = node => nod
   // the membership test stays LIVE (it carries the throw) and the answer follows it
   if (plan.kind === 'fold-after-test') return { replace: sequenceExpression([embed(cloneSource()), literal(true)]) };
   if (plan.kind === 'symbol') {
-    const id = identifier(injectImport(plan.entry, plan.hint));
-    if (!plan.call) return { swapLeft: id, leadingSe };
+    const name = injectImport(plan.entry, plan.hint);
+    if (!plan.call) return { swapLeft: identifier(name), leadingSe };
+    function helperCall() {
+      return callExpression(identifier(name), [embed(cloneNode(plan.right))]);
+    }
+    // the realm-guarded spelling: one identity branch per realm the receiver was written with
+    // answers the helper, innermost-last, and the source test is what a receiver matching none of
+    // them falls through to (`realm === _globalThis ? _isIterable(x) : realm.Symbol.iterator in x`).
+    // the operand is spelled again in each branch - a bare identifier by the plan's own gate - and
+    // the raw branch's own `Symbol` read stays a read off a written binding, which the member
+    // census recognises as the alternate of an emitted guard and leaves alone
+    if (plan.realmGuard) {
+      const guarded = plan.realmGuard.realms.reduceRight((alternate, realm) => conditionalExpression(
+        binaryExpression('===', embed(cloneNode(plan.realmGuard.receiver)), identifier(injectImport(realm.entry, realm.hintName))),
+        helperCall(),
+        alternate,
+      ), embed(cloneSource()));
+      return { replace: withLeadingSe(guarded) };
+    }
     // the helper CONSUMES the operand the way `in` did - it throws on a nullish one, and that
     // CALL is the node that throws. it sits at the TAIL when leading effects wrap it: a
     // binding marking the whole replacement would mark the sequence, and the reader - which asks
     // the node it is about to lift a guard out of - would never see the mark
-    return { replace: withLeadingSe(callExpression(id, [embed(cloneNode(plan.right))])), throwsAtTail: true };
+    return { replace: withLeadingSe(helperCall()), throwsAtTail: true };
   }
   // the polyfill is always defined, so the membership test is constantly true
   return { replace: withLeadingSe(literal(true)) };
@@ -367,6 +379,9 @@ export function renderAliasHeldProbeRead(probe, object) {
     : memberExpression(base, identifier(probe.key));
 }
 
+// the render half of `planKeptSequenceTail`: the tail folds onto its outermost hop's own ponyfill,
+// and a plan that keeps the environment PROBE wraps it in the short-circuit guard (`null == <probe>
+// ? void 0 : _self`), so the test reads at most the probe hop and never dereferences past it
 export function renderKeptSequenceTail(plan, { injectImport, embed = node => node }) {
   const value = identifier(injectImport(plan.pure.entry, plan.pure.hintName));
   return plan.probe ? renderShortCircuitGuard(nullFirstGuardTest(plan.probe, { embed }), value) : value;

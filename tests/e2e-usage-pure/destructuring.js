@@ -3301,9 +3301,10 @@ QUnit.test('symbol-keyed pattern: prop default fires for a non-iterable receiver
   assert.true(done);
 });
 
-// rest inside the extracted pattern gathers the method's own keys, excluding the named one -
-// same reads a raw destructure of the method performs (`length`, not `name`: IE-safe arity)
-QUnit.test('symbol-keyed pattern: inner rest destructures the helper result', assert => {
+// rest inside the symbol-keyed value pattern keeps that level native: the method is read off the
+// array by the source's own key, and the rest gathers its own keys, excluding the named one
+// (`length`, not `name`: IE-safe arity). a sham host reads nothing under that key
+if (!Symbol.sham) QUnit.test('symbol-keyed pattern: inner rest keeps the level native', assert => {
   const { [Symbol.iterator]: { length: iterArity, ...restOfMethod } } = [3];
   assert.same(iterArity, 0);
   assert.same(typeof restOfMethod, 'object');
@@ -3972,12 +3973,10 @@ QUnit.test('destructuring: a probed init throws for every consuming position', a
     assert.deepEqual(stringKeyFirst(), ['function', 'function'], 'the string-key order resolves');
     assert.same(arrayWrapped(), 'function', 'the array-wrapped extraction resolves');
     assert.same(aliasHeld(), 'function', 'the alias-held extraction resolves');
-    // the `??` row is a DECLINE (swapping a value-selecting nullish-able left would flip the
-    // branch), so the read stays native and answers the host's own slot - absent on the karma
-    // floor, where the probe below reads the real constructor rather than a rewritten member
-    const hostArrayHasOf = Object.hasOwn(Array, 'of');
-    assert.same(fallbackRescued(), hostArrayHasOf ? 'function' : 'undefined',
-      'a present host never reads the fallback - the declined row answers the host slot');
+    // the `??` row swaps its left for a synth that carries the probe's own nullish guard, so the
+    // fallback still fires exactly off-env and a present host reads the ponyfill - the karma
+    // floor included, where the host's own slot is absent
+    assert.same(fallbackRescued(), 'function', 'a present host never reads the fallback - the guarded synth answers');
   } else {
     assert.throws(ctorLeaf, TypeError, 'the ctor-leaf extraction throws, as the source does');
     assert.throws(anchoredFirst, TypeError, 'the anchored-first order throws');
@@ -5982,14 +5981,21 @@ QUnit.test('destructuring: a comma run in front of a hop slot runs once on every
   const [{ w: { at: wrappedAt } }] = [{ w: (bump(), [5, 6]) }];
   assert.same(wrappedAt.call([5, 6], 0), 5, '... under an array wrapper too');
   assert.same(hits, 2, 'and once there as well');
+  // a ctor leaf beside a REST stays the host's own slot (the rest-bearing level keeps its reads
+  // native; the post-lowered legs re-read the lowered member), so the probe uses only what every
+  // matrix cell's `Map` has - the floor's takes no iterable and its `set` returns nothing
   const { w: { Map: RestCtor }, ...rest } = { w: globalThis, z: 1 };
-  assert.same(new RestCtor([[1, 2]]).get(1), 2, 'a ctor leaf beside a rest');
+  const restMap = new RestCtor();
+  restMap.set(1, 2);
+  assert.same(restMap.get(1), 2, 'a ctor leaf beside a rest');
   assert.deepEqual(rest, { z: 1 }, '... and the rest keeps the other keys');
   let AssignCtor;
   let assignRest;
   // eslint-disable-next-line prefer-const -- the assignment-host spelling is the case
   ({ w: { Map: AssignCtor }, ...assignRest } = { w: globalThis, z: 2 });
-  assert.same(new AssignCtor([[3, 4]]).get(3), 4, '... on an assignment host');
+  const assignMap = new AssignCtor();
+  assignMap.set(3, 4);
+  assert.same(assignMap.get(3), 4, '... on an assignment host');
   assert.deepEqual(assignRest, { z: 2 }, 'where the rest gathers too');
   const order = [];
   const [{ w: { at: liftedAt } }] = [{ w: (order.push('a'), [9]) }, order.push('b')];
@@ -7439,7 +7445,10 @@ export function readNestedRetainedDefault(factory, key, fallback) {
   return [method, after];
 }
 
-testUnlessDetectLowered('destructuring retained defaults preserve inferred function names', assert => {
+// an engine without `Function.prototype.name` (the karma floor) infers no names, so the
+// preservation claim has nothing to observe there
+const FUNCTION_NAMES = !!Object.getOwnPropertyDescriptor(() => { /* empty */ }, 'name');
+(FUNCTION_NAMES ? testUnlessDetectLowered : QUnit.skip)('destructuring retained defaults preserve inferred function names', assert => {
   const log = [];
   const source = {};
   recordGetter(source, 'at', log, undefined);
@@ -7566,14 +7575,167 @@ QUnit.test('destructuring static candidates keep a selected user branch', assert
   assert.deepEqual(rest, { extra: 17 });
 });
 
+// the rest-bearing level reads its named slot natively off the ponyfill (`length`, not `name`:
+// IE-safe arity - the floor has no `name` on functions and that level takes no polyfill)
 QUnit.test('destructuring a static function with rest uses the ponyfill receiver', assert => {
-  const { of: { name: methodName, ...rest } } = Array;
-  assert.same(typeof methodName, 'string');
-  assert.same(Object.hasOwn(rest, 'name'), false);
-  const { name: ctorName, of: { name: nestedName, ...nestedRest } } = Array;
+  const { of: { length: methodArity, ...rest } } = Array;
+  assert.same(methodArity, 0);
+  assert.same(Object.hasOwn(rest, 'length'), false);
+  const { name: ctorName, of: { length: nestedArity, ...nestedRest } } = Array;
   assert.same(typeof ctorName, 'string');
-  assert.same(typeof nestedName, 'string');
-  assert.same(Object.hasOwn(nestedRest, 'name'), false);
+  assert.same(nestedArity, 0);
+  assert.same(Object.hasOwn(nestedRest, 'length'), false);
+});
+
+// the ASSIGNMENT host dispatches an instance leaf under a static hop on the static's ponyfill, the
+// declaration host's answer: the raw static is absent on the floor, and a re-anchored residual read
+// the static off the narrow constructor entry (`_Map.groupBy` - undefined everywhere)
+QUnit.test('destructuring assignment: an instance leaf under a static hop uses the ponyfill receiver', assert => {
+  let name;
+  let junk;
+  ({ Array: { of: { name }, junk } } = globalThis);
+  assert.same(typeof name, 'string', 'beside a surviving sibling');
+  assert.same(junk, undefined, '... which keeps reading the constructor');
+  ({ Array: { of: { name } } } = globalThis);
+  assert.same(typeof name, 'string', 'as the sole slot');
+  [{ Array: { of: { name } } }] = [globalThis];
+  assert.same(typeof name, 'string', 'under an array wrapper');
+  ({ Map: { groupBy: { name } } } = globalThis);
+  assert.same(typeof name, 'string', 'off a constructor with a pure entry of its own');
+});
+
+QUnit.test('destructuring assignment: a typed user nav the claim owns dispatches on the nav', assert => {
+  let at;
+  const reads = [];
+  const source = {};
+  recordGetter(source, 'y', reads, [7, 8]);
+  // eslint-disable-next-line prefer-const -- the assignment-host spelling is the case
+  ({ y: { at } } = source);
+  assert.same(at.call([7, 8], -1), 8);
+  assert.deepEqual(reads, ['y'], 'the nav is read once');
+});
+
+QUnit.test('destructuring assignment: an anonymous default under a user nav fires where the dispatch reads undefined', assert => {
+  let fallback;
+  const foreign = { y: {} };
+  // eslint-disable-next-line prefer-const -- the assignment-host spelling is the case
+  ({ y: { at: fallback = () => -1 } } = foreign);
+  assert.same(fallback(), -1);
+});
+
+(FUNCTION_NAMES ? testUnlessDetectLowered : QUnit.skip)('destructuring assignment: an anonymous default under a user nav keeps its inferred name', assert => {
+  let fallback;
+  // a receiver the type channel cannot name: a TYPED plain object claims nothing here (the
+  // declaration host's answer, and a lowering of the native statement names nothing), so only the
+  // emitted guard carries the inferred name through
+  const foreign = JSON.parse('{"y":{}}');
+  // eslint-disable-next-line prefer-const -- the assignment-host spelling is the case
+  ({ y: { at: fallback = () => -1 } } = foreign);
+  assert.same(fallback.name, 'fallback');
+});
+
+QUnit.test('catch parameter: a defaulted nav leaf beside a hop-level sibling', assert => {
+  const source = { codes: {}, other: { x: 1 } };
+  const seen = (() => {
+    try {
+      throw source;
+    } catch ({ codes: { findIndex: m = () => -1 }, other }) {
+      return [m(), other.x];
+    }
+  })();
+  assert.deepEqual(seen, [-1, 1]);
+  const arrays = { codes: [3, 4], other: { x: 2 } };
+  const live = (() => {
+    try {
+      throw arrays;
+    } catch ({ codes: { findIndex: m = () => -1 }, other }) {
+      return [m.call([1, 2, 3], x => x === 2), other.x];
+    }
+  })();
+  assert.deepEqual(live, [1, 2]);
+});
+
+QUnit.test('catch parameter: a defaulted nav leaf beside a leaf-level sibling', assert => {
+  const source = { codes: {} };
+  const seen = (() => {
+    try {
+      throw source;
+    } catch ({ codes: { findIndex: m = () => -1, keys: k } }) {
+      return [m(), typeof k];
+    }
+  })();
+  assert.deepEqual(seen, [-1, 'undefined']);
+  const arrays = { codes: [3, 4] };
+  const live = (() => {
+    try {
+      throw arrays;
+    } catch ({ codes: { findIndex: m = () => -1, keys: k } }) {
+      return [m.call([1, 2, 3], x => x === 2), typeof k];
+    }
+  })();
+  assert.deepEqual(live, [1, 'function']);
+});
+
+(FUNCTION_NAMES ? testUnlessDetectLowered : QUnit.skip)('catch parameter: an anonymous default beside a sibling keeps its inferred name', assert => {
+  const source = { codes: {}, other: { x: 1 } };
+  const hop = (() => {
+    try {
+      throw source;
+    } catch ({ codes: { findIndex: m = () => -1 }, other }) {
+      return [m.name, other.x];
+    }
+  })();
+  assert.deepEqual(hop, ['m', 1]);
+  const leaf = (() => {
+    try {
+      throw source;
+    } catch ({ codes: { findIndex: m = () => -1, keys: k } }) {
+      return [m.name, typeof k];
+    }
+  })();
+  assert.deepEqual(leaf, ['m', 'undefined']);
+});
+
+QUnit.test('a defaulted instance leaf beside a sibling off an effectful realm init is polyfilled', assert => {
+  let eff = 0;
+  const { Array: { prototype: { flat: f = () => 'default' }, of: o } } = (eff++, globalThis);
+  assert.same(eff, 1);
+  assert.same(typeof o, 'function');
+  assert.deepEqual(f.call([[1, 2], [3]]), [1, 2, 3]);
+  const { Array: { prototype: { flat: f2 = () => 'default', at } } } = (eff++, globalThis);
+  assert.same(eff, 2);
+  assert.same(at.call([5, 6], -1), 6);
+  assert.deepEqual(f2.call([[1]]), [1]);
+  const user = { codes: {}, other: 1 };
+  const { codes: { findIndex: m = () => -1 }, other } = (eff++, user);
+  assert.same(m(), -1);
+  assert.same(other, 1);
+  assert.same(eff, 3);
+});
+
+QUnit.test('a nested instance leaf off a call that provably yields the realm is polyfilled', assert => {
+  let eff = 0;
+  function g() { return globalThis; }
+  const { Array: { prototype: { flat: f }, of: o } } = g();
+  assert.deepEqual(f.call([[1, 2], [3]]), [1, 2, 3]);
+  assert.same(typeof o, 'function');
+  const { Array: { prototype: { flat: f2 }, of: o2 } } = (eff++, g());
+  assert.deepEqual(f2.call([[1]]), [1]);
+  assert.same(typeof o2, 'function');
+  const { Array: { prototype: { flat: f3 } } } = (eff++, g());
+  assert.deepEqual(f3.call([[[1]]]), [[1]]);
+  assert.same(eff, 2, 'each prefix runs once');
+});
+
+(FUNCTION_NAMES ? testUnlessDetectLowered : QUnit.skip)('a defaulted instance leaf beside a sibling off an effectful init keeps its inferred name', assert => {
+  let eff = 0;
+  // a receiver of unknown type: the dispatch reads the leaf off the memo and the default fires
+  function pick(user) {
+    const { codes: { findIndex: m = () => -1 }, other } = (eff++, user);
+    return [m.name, m(), other];
+  }
+  assert.deepEqual(pick({ codes: {}, other: 1 }), ['m', -1, 1]);
+  assert.same(eff, 1);
 });
 
 QUnit.test('destructuring under outer rest keeps the native constructor slot', assert => {
@@ -7800,4 +7962,441 @@ QUnit.test('destructuring: computed default and rest capture a getter once', ass
     assert.deepEqual([caught.call(leaf, -1), caughtRest.extra], [value, 7]);
   }
   assert.deepEqual(events, ['getter', 'key', ...defaultEvent]);
+});
+
+QUnit.test('destructuring: a for-of head reads a static through a multi-element array wrapper', assert => {
+  const events = [];
+  const seen = [];
+  function eff(tag) {
+    events.push(tag);
+    return tag;
+  }
+  for (const [{ from }, tail] of [[Array, eff('first')], [Array, eff('second')]]) seen.push(from([7])[0], tail);
+  for (const [{ of }, count] of [[Array, 1]]) seen.push(of(8)[0], count);
+  for (const [{ Array: { isArray } }, tail] of [[globalThis, eff('third')]]) seen.push(isArray([]), tail);
+  for (const [[{ from }], tail] of [[[Array], 4]]) seen.push(from([9])[0], tail);
+  assert.deepEqual(seen, [7, 'first', 7, 'second', 8, 1, true, 'third', 9, 4]);
+  assert.deepEqual(events, ['first', 'second', 'third']);
+});
+
+QUnit.test('destructuring: a positional slot renames only where no later slot reads first', assert => {
+  const events = [];
+  function mk() {
+    return {
+      // eslint-disable-next-line es/no-accessor-properties -- observable read order
+      get y() { events.push('y'); return [7, 8]; },
+    };
+  }
+  const box = {
+    // eslint-disable-next-line es/no-accessor-properties -- observable read order
+    get z() { events.push('z'); return 2; },
+  };
+  const pair = [mk(), box];
+  const [{ y: { at: first } }, { z }] = pair;
+  const [{ y: { at: second } }, tail] = pair;
+  const [{ z: lead }, { y: { at: third } }] = pair.slice().reverse();
+  // `first` keeps its native read: a later slot that reads declines the rename on both legs
+  assert.deepEqual([typeof first !== 'number', z, second.call([1, 2], -1), tail === box, lead, third.call([1, 2], -1)], [true, 2, 2, true, 2, 2]);
+  assert.deepEqual(events, ['y', 'z', 'y', 'z', 'y']);
+});
+
+QUnit.test('destructuring: a captured wrapper element that names the global object keeps its instance leaf', assert => {
+  const events = [];
+  function realm() { return globalThis; }
+  const [{ Array: { prototype: { at: soleAt } } }] = [realm()];
+  let out;
+  for (const [{ Array: { prototype: { at: headAt } } }, tail] = [realm(), events.push('t')]; !out;) out = [headAt, tail];
+  assert.same(soleAt.call([1, 2], -1), 2);
+  assert.same(out[0].call([3, 4], -1), 4);
+  assert.deepEqual([out[1], events], [1, ['t']]);
+});
+
+QUnit.test('destructuring: a receiver-bearing inner default mirrors beside the live slot', assert => {
+  const seen = [];
+  function pick() {
+    return { from: () => ['mine'] };
+  }
+  for (const [{ from } = Array] of [[undefined], [], [Array]]) seen.push(from([7])[0]);
+  for (const [{ from } = Array, tail] of [[undefined, 1], [Array, 2]]) seen.push(from([7])[0], tail);
+  for (const { k: { from } = Array } of [{}, { k: Array }, { k: undefined }]) seen.push(from([7])[0]);
+  for (const { k: [{ from } = Array] } of [{ k: [undefined] }]) seen.push(from([7])[0]);
+  for (const [{ groupBy } = Map] of [[undefined]]) seen.push(groupBy([1, 2], x => x % 2).size);
+  // a slot nothing proves keeps the user's own value; the default alone is swapped
+  for (const [{ from } = Array] of [[pick()]]) seen.push(from([7])[0]);
+  const [{ from: dynamicFrom } = Array] = [pick()];
+  const [{ from: dynamicSibling } = Array, count] = [pick(), 1];
+  let assigned;
+  // eslint-disable-next-line prefer-const -- the assignment host is the shape under test
+  [{ from: assigned } = Array] = [pick()];
+  const { k: { from: keyedFrom } = Array } = { k: Array };
+  const { k: { from: keyedAbsent } = Array } = { k: undefined };
+  let caught;
+  try {
+    throw [undefined];
+  } catch ([{ from: thrown } = Array]) {
+    caught = thrown;
+  }
+  const iife = (({ k: { from } = Array }) => from)({ k: Array });
+  // a slot that proves a value (a binding holding the user's literal) never fires the default: the
+  // user's own member binds
+  const held = { from: () => ['held'] };
+  const [{ from: heldFrom } = Array] = [held];
+  assert.deepEqual(seen, [7, 7, 7, 7, 1, 7, 2, 7, 7, 7, 7, 2, 'mine']);
+  assert.deepEqual([dynamicFrom([7])[0], dynamicSibling([7])[0], count, assigned([7])[0]], ['mine', 'mine', 1, 'mine']);
+  assert.deepEqual([keyedFrom([7])[0], keyedAbsent([7])[0], caught([7])[0], iife([7])[0], heldFrom([7])[0]], [7, 7, 7, 7, 'held']);
+});
+
+// a MIXED pattern under the default - a flat constructor beside a nested static - takes the same
+// plan on every host: mirrored where the slot proves `undefined` or stays open (a call), left as
+// written where the slot proves a value (the user's object binds its own members), and settled at
+// the call for a named function whose every caller is seen
+QUnit.test('destructuring: a mixed pattern under an inner default takes one plan on every host', assert => {
+  function pickUndefined() {
+    return [][0];
+  }
+  const held = { Set: class HeldSet {}, Array: { of: x => [x, 'held'] } };
+  const iifeAbsent = (([{ Set: S, Array: { of } } = globalThis]) => [typeof S, of(7)[0]])([]);
+  const iifeBlock = (([{ Set: S, Array: { of } } = globalThis]) => {
+    return [typeof S, of(7)[0]];
+  })([]);
+  const iifeHeld = (([{ Set: S, Array: { of } } = globalThis]) => [S === held.Set, of(7)[1]])([held]);
+  const iifeOpen = (([{ Set: S, Array: { of } } = globalThis]) => [typeof S, of(7)[0]])([pickUndefined()]);
+  const iifeRealm = (([{ Set: S, Array: { of } } = globalThis]) => [typeof S, of(7)[0]])([globalThis]);
+  const iifeKeyed = (({ p: { Set: S, Array: { of } } = globalThis }) => [typeof S, of(7)[0]])({});
+  const [{ Set: declSet, Array: { of: declOf } } = globalThis] = [];
+  const [{ Set: heldSet, Array: { of: heldOf } } = globalThis] = [held];
+  const [{ Set: openSet, Array: { of: openOf } } = globalThis] = [pickUndefined()];
+  const { p: { Set: keyedSet, Array: { of: keyedOf } } = globalThis } = {};
+  let assignedSet, assignedOf;
+  // eslint-disable-next-line prefer-const -- the assignment host is the shape under test
+  [{ Set: assignedSet, Array: { of: assignedOf } } = globalThis] = [];
+  function once([{ Set: S, Array: { of } } = globalThis]) {
+    return [typeof S, of(7)[0]];
+  }
+  function twice([{ Set: S, Array: { of } } = globalThis]) {
+    return [typeof S, of(7)[0]];
+  }
+  assert.deepEqual([iifeAbsent, iifeBlock, iifeHeld, iifeOpen], [['function', 7], ['function', 7], [true, 'held'], ['function', 7]]);
+  assert.deepEqual([iifeRealm, iifeKeyed], [['function', 7], ['function', 7]]);
+  assert.deepEqual([typeof declSet, declOf(7)[0], heldSet === held.Set, heldOf(7)[1]], ['function', 7, true, 'held']);
+  assert.deepEqual([typeof openSet, openOf(7)[0], typeof keyedSet, keyedOf(7)[0]], ['function', 7, 'function', 7]);
+  assert.deepEqual([typeof assignedSet, assignedOf(7)[0]], ['function', 7]);
+  assert.deepEqual([once([]), twice([pickUndefined()]), twice([globalThis])], [['function', 7], ['function', 7], ['function', 7]]);
+  // ... and a host no slot can be paired for - a thrown value, a spread call, a head over a held
+  // iterable - mirrors the default alone, so the arm still lands where the slot is empty
+  let caught;
+  try {
+    throw [];
+  } catch ([{ Set: S, Array: { of } } = globalThis]) {
+    caught = [typeof S, of(7)[0]];
+  }
+  const spreadArgs = [[pickUndefined()]];
+  const rows = [[], [held]];
+  const heads = [];
+  for (const [{ Set: S, Array: { of } } = globalThis] of rows) heads.push(typeof S, of(7)[1]);
+  assert.deepEqual([caught, once(...spreadArgs), heads], [['function', 7], ['function', 7], ['function', undefined, 'function', 'held']]);
+  // ... and a declarator over an opaque binding (a parameter): the default's walk alone answers
+  function viaOpaque(slot) {
+    const [{ Set: S, Array: { of } } = globalThis] = slot;
+    return [typeof S, of(7)[1]];
+  }
+  assert.deepEqual([viaOpaque([]), viaOpaque([held])], [['function', undefined], ['function', 'held']]);
+  // ... at any depth above the default: the descent loses the element in the opaque container and
+  // the nearest default's walk alone answers for its level
+  function viaOpaqueKey(o) {
+    const { p: { Set: S, Array: { of } } = globalThis } = o;
+    return [typeof S, of(7)[0]];
+  }
+  function viaOpaqueTwoLevels(o) {
+    const [{ k: { Set: S, Array: { of } } = globalThis } = {}] = o;
+    return [typeof S, of(7)[0]];
+  }
+  assert.deepEqual([viaOpaqueKey({}), viaOpaqueTwoLevels([])], [['function', 7], ['function', 7]]);
+});
+
+// a binding read ahead of its own initializer holds `undefined` (a hoisted `var` declared below) or
+// throws (a lexical binding in its TDZ): a resolution following the binding to its literal has to
+// prove the initializer ran first, or the rewrite binds where the source throws
+QUnit.test('destructuring: a binding read ahead of its initializer keeps the throw', assert => {
+  const outcomes = [];
+  function record(read) {
+    try {
+      outcomes.push(read());
+    } catch (error) {
+      outcomes.push(error.name);
+    }
+  }
+  record(() => {
+    const { a: { from } } = container;
+    return from([1]).length;
+  });
+  record(() => {
+    const alias = container;
+    const { a: { from } } = alias;
+    return from([1]).length;
+  });
+  record(() => {
+    const [{ from }] = wrapper;
+    return from([1]).length;
+  });
+  record(() => {
+    const { [key]: from } = Array;
+    return typeof from;
+  });
+  record(() => {
+    const [{ of } = Array] = [slot];
+    return of(1)[0];
+  });
+  record(() => {
+    const { Array: { from } } = realm();
+    return from([1]).length;
+  });
+  // eslint-disable-next-line no-var -- the hoisted declaration below the reads is the shape under test
+  var container = { a: Array };
+  // eslint-disable-next-line no-var, unicorn/consistent-function-style -- the hoisted var holding a function is the shape under test
+  var realm = () => globalThis;
+  // eslint-disable-next-line no-var -- the hoisted declaration below the reads is the shape under test
+  var wrapper = [Array];
+  // eslint-disable-next-line no-var -- the hoisted declaration below the reads is the shape under test
+  var key = 'from';
+  // eslint-disable-next-line no-var -- the hoisted declaration below the reads is the shape under test
+  var slot = { of: x => [x, 'late'] };
+  record(() => {
+    const { a: { from } } = container;
+    return from([1]).length;
+  });
+  record(() => {
+    const [{ of } = Array] = [slot];
+    return of(1)[1];
+  });
+  record(() => {
+    const { Array: { from } } = realm();
+    return from([1]).length;
+  });
+  assert.deepEqual(outcomes, ['TypeError', 'TypeError', 'TypeError', 'undefined', 1, 'TypeError', 1, 'late', 1]);
+});
+
+QUnit.test('destructuring: a static hop holding a claim-free pattern reads the ponyfill', assert => {
+  const events = [];
+  const { Array: { of: { length: declared } } } = globalThis;
+  let assigned;
+  // eslint-disable-next-line prefer-const -- the assignment host is the shape under test
+  ({ Array: { of: { length: assigned } } } = globalThis);
+  const { Array: { of: { name: declaredName, length: declaredTwo } } } = globalThis;
+  let assignedName, assignedTwo;
+  // eslint-disable-next-line prefer-const -- the assignment host is the shape under test
+  ({ Array: { of: { name: assignedName, length: assignedTwo } } } = globalThis);
+  const { Map: { groupBy: { length: grouped } } } = globalThis;
+  const { Array: { of: { length: prefixed } } } = (events.push('e'), globalThis);
+  const { Array: { of: { length: beside }, from } } = globalThis;
+  // ... and off a constructor init: bare, aliased, spelled through the realm, with its own entry
+  const { from: { length: ctorDeclared } } = Array;
+  let ctorAssigned;
+  // eslint-disable-next-line prefer-const -- the assignment host is the shape under test
+  ({ from: { length: ctorAssigned } } = Array);
+  const Aliased = Array;
+  const { from: { length: ctorAlias } } = Aliased;
+  const { from: { length: ctorMember } } = globalThis.Array;
+  const { groupBy: { length: ctorEntry } } = Map;
+  assert.deepEqual([declared, assigned, declaredTwo, assignedTwo, prefixed, beside], [0, 0, 0, 0, 0, 0]);
+  assert.deepEqual([declaredName, assignedName, grouped], ['of', 'of', 2]);
+  assert.deepEqual([ctorDeclared, ctorAssigned, ctorAlias, ctorMember, ctorEntry], [1, 1, 1, 1, 2]);
+  assert.deepEqual(from([1, 2]), [1, 2]);
+  assert.deepEqual(events, ['e']);
+});
+
+QUnit.test('destructuring: a wrapper literal with a computed element is captured beside its sibling', assert => {
+  const events = [];
+  function eff(t) {
+    events.push(t);
+    return t;
+  }
+  function realm() {
+    return globalThis;
+  }
+  function mk() {
+    return {
+      // eslint-disable-next-line es/no-accessor-properties -- observable read order
+      get y() { events.push('y'); return [7, 8]; },
+    };
+  }
+  const box = {
+    // eslint-disable-next-line es/no-accessor-properties -- observable read order
+    get z() { events.push('z'); return 2; },
+  };
+  const [{ Array: { prototype: { at: viaCall } } }, tail] = [realm(), eff('t')];
+  const [{ y: { at: viaGetter } }, { z }] = [mk(), box];
+  const [[{ Array: { prototype: { at: nested } } }], count] = [[realm()], 4];
+  assert.same(viaCall.call([1, 2], -1), 2);
+  assert.same(viaGetter.call([3, 4], -1), 4);
+  assert.same(nested.call([5, 6], -1), 6);
+  assert.deepEqual([tail, z, count, events], ['t', 2, 4, ['t', 'y', 'z']]);
+});
+
+// an inner default on a NON-function host - an assignment, a catch parameter, an object key - takes
+// the same per-key fallback a parameter's does where the mirror declines (a non-identifier key
+// beside the leaves): every static leaf, flat or nested, reads the polyfill, and a pattern spelling
+// only nested leaves mirrors the default from them
+QUnit.test('destructuring: an inner default on a non-function host keeps the per-key fallback for every leaf', assert => {
+  /* eslint-disable prefer-const -- the ASSIGNMENT host is the shape under test */
+  let S, of, d;
+  [{ Set: S, 'with-dash': d, Array: { of } } = globalThis] = [];
+  /* eslint-enable prefer-const -- end of the assignment host */
+  assert.same(typeof S, 'function');
+  assert.deepEqual(of(7), [7]);
+  assert.same(d, undefined);
+  let caughtOf;
+  try {
+    throw [];
+  } catch ([{ Array: { of: inner }, 'with-dash': d2 } = globalThis]) {
+    caughtOf = inner;
+    assert.same(d2, undefined);
+  }
+  assert.deepEqual(caughtOf(8), [8]);
+  const { k: { Array: { of: keyed } } = globalThis } = {};
+  assert.deepEqual(keyed(9), [9]);
+  const { k: { Set: S3, Array: { of: keyed3 }, 'with-dash': d3 } = globalThis } = {};
+  assert.same(typeof S3, 'function');
+  assert.deepEqual(keyed3(1), [1]);
+  assert.same(d3, undefined);
+});
+
+// a residual leaf naming one of the ctor's OWN statics with no extraction to serve it - a member
+// target, which the raw canon keeps - reads the native receiver: re-anchored on the pure ctor
+// binding it would read `undefined` (the `*/constructor` entry carries no statics), and inside a
+// mirrored literal it stays a raw read through the proxy. on a stripped realm the global is absent
+// and the raw read throws like the source does - the live-global legs carry the value oracle
+QUnit.test('destructuring: a residual member target of a ctor static keeps the native receiver', assert => {
+  // the realm's own ctor and statics, read through calls a member spelling would be resolved
+  // through the ponyfill (`Reflect.get` hands the live value back untouched); absent on a
+  // stripped realm
+  const live = Reflect.get(globalThis, 'Promise');
+  const box = {};
+  function viaResidual() {
+    ({ Promise: { race: box.race } } = globalThis);
+    return box.race;
+  }
+  function viaMirror() {
+    let S;
+    [{ Set: S, Promise: { all: box.all } } = globalThis] = [];
+    return [S, box.all];
+  }
+  // a PATTERN under the folded static key destructures the static's own ponyfill, as the literal
+  // key does - the same arity in every realm
+  function viaFoldedPattern() {
+    const key = 'race';
+    const { Promise: { [key]: { length } } } = globalThis;
+    return length;
+  }
+  if (!POST_LOWERED) assert.same(viaFoldedPattern(), 1);
+  // an ALL-proxy selecting inner default takes the shared plan's literal: the leaf reads the
+  // polyfill in every realm, whatever the host's slot holds (a spread host pairs nothing)
+  function viaAllProxyDefault() {
+    /* eslint-disable prefer-const, no-restricted-globals, unicorn/prefer-global-this -- the ASSIGNMENT host and a bare proxy name are the shape under test */
+    let gb;
+    const extra = {};
+    ({ k: { Map: { groupBy: gb } } = self ?? globalThis } = { ...extra });
+    /* eslint-enable prefer-const, no-restricted-globals, unicorn/prefer-global-this -- end of the shape under test */
+    return typeof gb;
+  }
+  assert.same(viaAllProxyDefault(), 'function');
+  if (POST_LOWERED) {
+    // a leg whose emission lands on the LOWERED text sees a plain member read where the pattern
+    // stood (`box.race = globalThis.Promise.race`), and a member read resolves to the ponyfill by
+    // the usual rule in every realm - the raw canon is a destructuring shape; the pre-lowering
+    // legs hold it
+    assert.same(typeof viaResidual(), 'function');
+    const [S, all] = viaMirror();
+    assert.same(typeof S, 'function');
+    assert.same(typeof all, 'function');
+  } else if (live) {
+    assert.same(viaResidual(), Reflect.get(live, 'race'));
+    const [S, all] = viaMirror();
+    assert.same(typeof S, 'function');
+    assert.same(all, Reflect.get(live, 'all'));
+    // a computed key that folds names the static as the literal does; one nothing folds (an effect)
+    // may name any static at runtime, so that anchor declines too
+    const k = 'race';
+    let n = 0;
+    ({ Promise: { [k]: box.folded } } = globalThis);
+    ({ Promise: { [(n++, 'race')]: box.effect } } = globalThis);
+    assert.same(box.folded, Reflect.get(live, 'race'));
+    assert.same(box.effect, Reflect.get(live, 'race'));
+    assert.same(n, 1);
+    // under a SELECTING receiver the fallback arm's mirror keeps the member target raw beside
+    // the ponyfilled sibling, and a defaulted member target keeps the user's default
+    let viaAll;
+    ({ Promise: { race: box.selected, all: viaAll } } = globalThis.window ?? globalThis);
+    assert.same(box.selected, Reflect.get(live, 'race'));
+    assert.same(typeof viaAll, 'function');
+    ({ Promise: { race: box.defaulted = 1 } } = globalThis.window ?? globalThis);
+    assert.same(box.defaulted, Reflect.get(live, 'race'));
+    // ... and a MULTI-hop pattern renders one literal: the member target rides raw beside the
+    // sibling hop's ponyfill
+    let gb;
+    ({ Map: { groupBy: gb }, Promise: { race: box.beside } } = globalThis.window ?? globalThis);
+    assert.same(typeof gb, 'function');
+    assert.same(box.beside, Reflect.get(live, 'race'));
+    // ... and a value-selecting INNER default (the host's slot provably empty) takes the same
+    // mirror on an object-key host: the leaf reads the polyfill, the member target stays raw
+    let gbk;
+    ({ k: { Map: { groupBy: gbk }, Promise: { race: box.keyed } } = globalThis.window ?? globalThis } = {});
+    assert.same(typeof gbk, 'function');
+    assert.same(box.keyed, Reflect.get(live, 'race'));
+  } else {
+    assert.throws(viaResidual, TypeError);
+    assert.throws(viaMirror, TypeError);
+  }
+});
+
+// ... and inside a FUNCTION body the same hosts have no caller analysis to prove the slot absent:
+// the receiver's own element, present at the call, keeps binding its own value - a body-top hoist
+// of the polyfill (the parameter route's shape) would override it. the absent element takes the
+// default, and the polyfill, as everywhere
+QUnit.test('destructuring: an inner default on a non-function host inside a function keeps the present element', assert => {
+  function viaDeclarator(arr) {
+    const [{ Set: S, 'with-dash': d, Array: { of } } = globalThis] = arr;
+    return [typeof S, of(1).length, d];
+  }
+  function viaCatch(v) {
+    try {
+      throw v;
+    } catch ([{ Set: S, 'with-dash': d, Array: { of } } = globalThis]) {
+      return [typeof S, of(1).length, d];
+    }
+  }
+  const own = [{ Set: 'X', Array: { of: x => [x, 'own'] } }];
+  assert.deepEqual(viaDeclarator(own), ['string', 2, undefined]);
+  assert.deepEqual(viaDeclarator([]), ['function', 1, undefined]);
+  assert.deepEqual(viaCatch(own), ['string', 2, undefined]);
+  assert.deepEqual(viaCatch([]), ['function', 1, undefined]);
+});
+
+// ... and a DEFAULTED parameter of an immediately invoked function is accounted for only where the
+// one call leaves the slot to the default: a real argument binds the caller's own value (the inline
+// default keeps it; a body-top hoist of the polyfill would override it), a missing or `undefined`
+// argument runs the default and reads the polyfill
+QUnit.test('destructuring: a defaulted parameter of an immediately invoked function keeps the argument the call passes', assert => {
+  // the arguments are spelled AT the call: a value handed in through a binding is a caller the
+  // analysis cannot see through, and the leaves then stay native by design
+  assert.deepEqual((({ Set: S, 'with-dash': d, Array: { of } } = globalThis) => {
+    return [typeof S, of(1).length, d];
+  })({ Set: 'X', Array: { of: x => [x, 'own'] } }), ['string', 2, undefined]);
+  assert.deepEqual((({ Set: S, 'with-dash': d, Array: { of } } = globalThis) => {
+    return [typeof S, of(1).length, d];
+  })(), ['function', 1, undefined]);
+  // an explicit `undefined` argument runs the default, and the leaves read the polyfill through it
+  assert.deepEqual((({ Set: S, 'with-dash': d, Array: { of } } = globalThis) => {
+    return [typeof S, of(1).length, d];
+  })(undefined), ['function', 1, undefined]);
+  const own = { Set: 'X', Array: { of: x => [x, 'own'] } };
+  assert.same((({ Array: { of } } = globalThis) => {
+    return of(1).length;
+  })(undefined), 1);
+  assert.deepEqual((({ k: { Set: S, 'with-dash': d, Array: { of } } = globalThis }) => {
+    return [typeof S, of(1).length, d];
+  })({ k: own }), ['string', 2, undefined]);
+  assert.deepEqual((({ k: { Set: S, 'with-dash': d, Array: { of } } = globalThis }) => {
+    return [typeof S, of(1).length, d];
+  })({}), ['function', 1, undefined]);
 });

@@ -6,6 +6,7 @@ import "core-js/modules/es.object.freeze";
 import "core-js/modules/es.object.get-own-property-names";
 import "core-js/modules/es.object.get-prototype-of";
 import "core-js/modules/es.object.keys";
+import "core-js/modules/es.object.seal";
 import "core-js/modules/es.object.to-string";
 import "core-js/modules/es.object.values";
 import "core-js/modules/es.array.iterator";
@@ -50,7 +51,8 @@ export const [{
 export const [[{
   freeze
 }]] = [[globalThis.self.Object]];
-// a pattern DEFAULT puts the nav in the slot the flatten rewrites rather than in the init
+// a pattern DEFAULT puts the nav in the slot the flatten rewrites rather than in the init; the hole
+// fires it, so the default is mirrored whole
 export const [{
   seal
 } = globalThis.self.Object] = [];

@@ -5,7 +5,8 @@ import _globalThis from "@core-js/pure/actual/global-this";
 import _Object$keys from "@core-js/pure/actual/object/keys";
 import _atMaybeString from "@core-js/pure/actual/string/instance/at";
 var _ref, _ref2, _ref3, _ref5, _ref6;
-// Identifier slots receive pure statics; nested/member assignment targets retain native slots.
+// Identifier slots receive pure statics; a nested pattern under a static anchors on that static's
+// ponyfill (its computed key runs there), while member assignment targets retain native slots.
 // Computed keys and target effects stay live on both paths.
 const events = [];
 const pureFrom = _Array$from;
@@ -15,20 +16,15 @@ let defaults = 0;
 ({
   Array: {
     [(_pushMaybeArray(events).call(events, 'first'), 'from')]: from
-  },
-  Object: {
-    keys: {
-      [(_pushMaybeArray(events).call(events, _atMaybeString(_ref = 'x').call(_ref, 0)), 'bind')]: bind
-    }
   }
 } = {
   Array: {
     from: _Array$from
-  },
-  Object: {
-    keys: _globalThis.Object.keys
   }
 });
+({
+  [(_pushMaybeArray(events).call(events, _atMaybeString(_ref = 'x').call(_ref, 0)), 'bind')]: bind
+} = _Object$keys);
 ({
   Array: {
     [(_pushMaybeArray(events).call(events, 'second'), 'from')]: from

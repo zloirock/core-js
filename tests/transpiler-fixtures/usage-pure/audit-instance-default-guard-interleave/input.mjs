@@ -18,7 +18,8 @@ const { [(e8(), 'flatMap')]: fm = dfltG(), [(e9(), 'entries')]: en } = recvD,
 // both defaults dead at runtime, the shape still locks ref sharing and numbering)
 const { [(e12(), 'fill')]: fi = dfltI(), [(e13(), 'find')]: fnd = dfltJ() } = [7, 8];
 
-// nested assignment stays NATIVE (the receiver gate admits no member receivers) - negative
+// a nested assignment under a USER nav the extraction owns dispatches on the nav (`recvF.codes`,
+// read once) and the consumed slot leaves with the host - the declaration host's answer
 let m;
 ({ codes: { findIndex: m = dfltK() } } = recvF);
 

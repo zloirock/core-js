@@ -8,7 +8,7 @@ import _toFixedMaybeNumber from "@core-js/pure/actual/number/instance/to-fixed";
 import _Number$MAX_SAFE_INTEGER from "@core-js/pure/actual/number/max-safe-integer";
 import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
 import _self from "@core-js/pure/actual/self";
-var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _ref10, _ref11, _ref12, _ref13, _ref14, _ref15, _ref16, _ref17, _ref18, _ref19, _ref20, _ref21, _ref22, _ref23, _ref24, _ref25, _ref26, _ref29, _ref30, _ref31, _ref32, _ref36, _ref37;
+var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _ref10, _ref11, _ref12, _ref13, _ref14, _ref15, _ref16, _ref17, _ref18, _ref19, _ref20, _ref21, _ref22, _ref23, _ref24, _ref25, _ref26, _ref29, _ref30, _ref31, _ref32, _ref33, _ref37, _ref38;
 // a static reached through an OPAQUE inline-call proxy-nav root under an OUTER instance
 // dispatch: the guard memoizes the raw root once (its SE + short-circuit), and the guarded
 // branch collapses the static onto the ponyfill - call and FIELD spellings alike, in BOTH
@@ -184,17 +184,18 @@ function shadowWrap(globalThis) {
 export const viaShadowedGlobal = shadowWrap;
 
 // a VALUE-OBSERVING carrier (`??`) between the guarded chain and the static keeps the read on
-// the carrier RESULT (the fallback object may own the key) - no collapse past the carrier; the
-// root SE runs once inside the kept test
+// the carrier RESULT (the fallback object may own the key): the static is read off the carrier
+// once and dispatched by IDENTITY - the realm constructor takes the ponyfill, any other value its
+// own raw read - and the root SE runs once inside the kept test
 const nc = () => _globalThis;
-export const viaNullishCarrier = _at(_ref29 = ((null == nc().window ? void 0 : _self) ?? {
+export const viaNullishCarrier = _at(_ref29 = (_ref30 = ((null == nc().window ? void 0 : _self) ?? {
   Array
-}).Array.of(29)).call(_ref29, 0);
+}).Array, _ref30 === Array ? _Array$of(29) : _ref30.of(29))).call(_ref29, 0);
 
 // a LOGICAL retest spells each leg through the same nested canon - the left leg keeps its own
 // guarded read, the right leg guards the dispatch
 const lg = () => _globalThis;
-export const viaLogicalRetest = (null == lg().window ? void 0 : _self) && (null == lg()?.window ? void 0 : _atMaybeArray(_ref30 = _Array$of(30)).call(_ref30, 0));
+export const viaLogicalRetest = (null == lg().window ? void 0 : _self) && (null == lg()?.window ? void 0 : _atMaybeArray(_ref31 = _Array$of(30)).call(_ref31, 0));
 
 // a CTOR read through the guarded identity chain: the guard tests the window prefix, both
 // legs construct the ponyfill (`new _Map`) - the arrow-paren reprint differs cosmetically
@@ -206,27 +207,27 @@ export const viaIdentityCtorNew = (null == (x => x)(_globalThis).window ? void 0
 // claim composes PLAIN into the single outer test
 let navAlias;
 navAlias = null == _globalThis.window ? void 0 : _self.window;
-export const viaAliasNavRead = navAlias == null ? void 0 : _atMaybeArray(_ref31 = _Array$of(31)).call(_ref31, 0);
+export const viaAliasNavRead = navAlias == null ? void 0 : _atMaybeArray(_ref32 = _Array$of(31)).call(_ref32, 0);
 
 // an ALIAS of the provable callee follows transitively (identifier hops re-anchor at their
 // own declaration scope), so the aliased call proves like the direct one
 const mkRoot = () => _globalThis;
 const aliasedMk = mkRoot;
-export const viaCalleeAlias = null == aliasedMk()?.window ? void 0 : _atMaybeArray(_ref32 = _Array$of(32)).call(_ref32, 0);
+export const viaCalleeAlias = null == aliasedMk()?.window ? void 0 : _atMaybeArray(_ref33 = _Array$of(32)).call(_ref33, 0);
 
 // NEGATIVE: an alias of a PARAM-bound callee is an arbitrary caller value - the chain keeps
 // the raw guarded read
 export function viaCalleeParamAlias(mkRoot) {
-  var _ref33, _ref34;
+  var _ref34, _ref35;
   const inner = mkRoot;
-  return null == (_ref33 = inner()?.window?.self) ? void 0 : _at(_ref34 = _ref33.Array.of(33)).call(_ref34, 0);
+  return null == (_ref34 = inner()?.window?.self) ? void 0 : _at(_ref35 = _ref34.Array.of(33)).call(_ref35, 0);
 }
 
 // the callee alias still proves under a same-name param SHADOW of the source binding - the
 // alias holds the module-level arrow, the shadow never feeds it
 export function viaCalleeAliasShadowed(mkRoot) {
-  var _ref35;
-  return null == aliasedMk()?.window ? void 0 : _atMaybeArray(_ref35 = _Array$of(34)).call(_ref35, 0);
+  var _ref36;
+  return null == aliasedMk()?.window ? void 0 : _atMaybeArray(_ref36 = _Array$of(34)).call(_ref36, 0);
 }
 
 // NEGATIVE: the callee alias captured the SOURCE before its reassignment - the reassigned
@@ -237,4 +238,4 @@ let swapMk = () => ({
 });
 const heldMk = swapMk;
 swapMk = () => _globalThis;
-export const viaReassignedSourceCallee = null == (_ref36 = heldMk()?.window?.self) ? void 0 : _at(_ref37 = _ref36.Array.of(35)).call(_ref37, 0);
+export const viaReassignedSourceCallee = null == (_ref37 = heldMk()?.window?.self) ? void 0 : _at(_ref38 = _ref37.Array.of(35)).call(_ref38, 0);

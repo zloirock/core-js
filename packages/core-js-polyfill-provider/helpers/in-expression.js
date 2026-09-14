@@ -80,9 +80,12 @@ export function planInExpression({ meta, left, right, isEntryNeeded, resolveFall
     // discarded whole - the unplugin emitter must mark it (and any polyfillable subtree it buries, e.g. a
     // sequence-prefix proxy-global `(globalThis, Symbol.iterator) in x`) skipped or that rewrite has no
     // target in the replacement. the RHS survives, re-emitted verbatim, so it is NOT in `skip`
+    // a realm-guarded LHS (detection's `guardedRealmSymbolIn`) carries its guard to the render:
+    // the helper answers only where the receiver IS one of the realms, the source test elsewhere
     return {
       kind: 'symbol', call: meta.key === 'Symbol.iterator',
       entry: symbolIn.entry, hint: symbolIn.hint, leadingSe, right, skip: [left],
+      ...meta.realmGuard ? { realmGuard: meta.realmGuard } : {},
     };
   }
   // bare-name LHS with a statically-known polyfilled key (`'from' in Array`) folds to `true` (the
