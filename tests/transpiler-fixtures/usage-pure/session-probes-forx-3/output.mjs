@@ -124,9 +124,13 @@ function mark(t, v) {
       keys
     } = {}
   } of [{
-    w: Object
+    w: {
+      keys: _Object$keys
+    }
   }, {
-    w: Object
+    w: {
+      keys: _Object$keys
+    }
   }]) keys;
 }
 {

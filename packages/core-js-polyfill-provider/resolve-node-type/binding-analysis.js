@@ -492,6 +492,21 @@ export function createBindingAnalysis({
     return heldResultRetainsArgument(callNode, argNode, argPath);
   }
 
+  // the PATTERN a destructuring host reads a value through: a declarator's id over its init, an
+  // assignment's left over its right. the value is matched as written or through its runtime peel,
+  // since one caller climbs a reference to its outermost wrapper and another holds the raw literal
+  // under an unpeeled slot. both spellings read the value alike - the slots the pattern names and
+  // nothing else - so every classifier asks this one question of both; a declarator-only arm left
+  // `({ x } = o)` a leak that killed the holder's field narrow for every read after it
+  function destructuringPatternOver(host, valueNode) {
+    let pattern = null;
+    let slot = null;
+    if (host?.type === 'VariableDeclarator') ({ id: pattern, init: slot } = host);
+    else if (host?.type === 'AssignmentExpression' && host.operator === '=') ({ left: pattern, right: slot } = host);
+    if (!slot || (slot !== valueNode && unwrapRuntimeExpr(slot) !== valueNode)) return null;
+    return isDestructurePattern(pattern) ? pattern : null;
+  }
+
   // The nested pattern consuming a literal's slot, or null. Array slots cannot shift through a
   // spread; an object wrapper must have just the one named slot on both sides of the pairing.
   // Return the pattern so method-aware callers also check which of the receiver's methods it binds.
@@ -501,18 +516,18 @@ export function createBindingAnalysis({
     if (!array && (!property || parent.value !== refNode)) return null;
     const literalPath = array ? refPath?.parentPath : refPath?.parentPath?.parentPath;
     const literal = literalPath?.node;
-    const declarator = peelTransparentExprAncestorPath(literalPath)?.parentPath?.node;
-    if (declarator?.type !== 'VariableDeclarator' || unwrapRuntimeExpr(declarator.init) !== literal) return null;
+    const hostPattern = destructuringPatternOver(peelTransparentExprAncestorPath(literalPath)?.parentPath?.node, literal);
+    if (!hostPattern) return null;
     let slot;
     if (array) {
-      if (declarator.id?.type !== 'ArrayPattern' || literal.elements.some(item => item?.type === 'SpreadElement')) return null;
+      if (hostPattern.type !== 'ArrayPattern' || literal.elements.some(item => item?.type === 'SpreadElement')) return null;
       const index = literal.elements.indexOf(refNode);
       if (index === -1) return null;
-      slot = declarator.id.elements[index];
+      slot = hostPattern.elements[index];
     } else {
       if (literal?.type !== 'ObjectExpression' || literal.properties.length !== 1
-        || declarator.id?.type !== 'ObjectPattern' || declarator.id.properties.length !== 1) return null;
-      const [paired] = declarator.id.properties;
+        || hostPattern.type !== 'ObjectPattern' || hostPattern.properties.length !== 1) return null;
+      const [paired] = hostPattern.properties;
       const key = propertyKeyName(parent);
       if (key === null || key === undefined || propertyKeyName(paired) !== key) return null;
       slot = paired.value;
@@ -544,12 +559,11 @@ export function createBindingAnalysis({
     // of an assignment's result, with the same method-aware classifier used for direct references.
     if (parent?.type === 'VariableDeclarator' && parent.init === refNode && aliasTargetName(parent)) return 'alias';
     if (parent?.type === 'AssignmentExpression' && parent.right === refNode && aliasTargetName(parent)) return 'alias';
-    // VariableDeclarator destructure init `const {x} = o` / `const [x] = o` - destructure
-    // only reads named/indexed properties off `o`, no mutation channel. equivalent to a
-    // bag of `o.x` / `o[N]` member-receiver reads
-    if (parent?.type === 'VariableDeclarator' && parent.init === refNode
-      && isDestructurePattern(parent.id)) return 'trivial';
-    // ... and the same read one WRAPPER deep (`const [{ x }] = [o]`): the literal is built only to be
+    // a destructure reading off `o` - `const { x } = o` / `const [x] = o`, and the assignment
+    // spelling `({ x } = o)` / `([x] = o)` - only reads named / indexed properties off `o`, no
+    // mutation channel: equivalent to a bag of `o.x` / `o[N]` member-receiver reads
+    if (destructuringPatternOver(parent, refNode)) return 'trivial';
+    // ... and the same read one WRAPPER deep (`const [{ x }] = [o]`, `([{ x }] = [o])`): the literal is built only to be
     // destructured, so nothing downstream reaches `o` through it. the matching pattern slot decides:
     // a nested PATTERN reads properties off it like the direct form, including a sole-key object
     // wrapper (`const { w: { x } } = { w: o }`); a bare name would bind the value itself
@@ -826,8 +840,7 @@ export function createBindingAnalysis({
       // iterator is free to yield `this` straight to the consumer. `for...in` is NOT one of them:
       // it enumerates keys and never calls into the holder
       if (methodInfo.mayIterate && invokesOwnIterator(parent, refNode, refPath)) return 'leak';
-      if (parent?.type === 'VariableDeclarator' && parent.init === refNode
-        && patternBindsMethodKey(parent.id, methodInfo)) return 'leak';
+      if (patternBindsMethodKey(destructuringPatternOver(parent, refNode), methodInfo)) return 'leak';
       // the walker hands `refNode` as the OUTERMOST wrapper, so a cast-wrapped argument
       // (`Object.setPrototypeOf(x, o as any)`) IS the argument node - compare by identity
       if ((parent?.type === 'CallExpression' || parent?.type === 'NewExpression'
@@ -944,8 +957,8 @@ export function createBindingAnalysis({
       }
       if (isForXStatement(parent) && parent.right === refNode) return 'leak';
       if (parent?.type === 'SpreadElement') return 'leak';
-      if (parent?.type === 'VariableDeclarator' && parent.init === refNode
-        && isDestructurePattern(parent.id) && destructureReachesAnon(parent.id, fieldPath)) return 'leak';
+      const hostPattern = destructuringPatternOver(parent, refNode);
+      if (hostPattern && destructureReachesAnon(hostPattern, fieldPath)) return 'leak';
       if (isMemberRefReceiver(parent, refNode)) {
         const memberOuter = peelTransparentExprAncestorPath(refPath?.parentPath);
         const use = memberOuter?.parentPath?.node;

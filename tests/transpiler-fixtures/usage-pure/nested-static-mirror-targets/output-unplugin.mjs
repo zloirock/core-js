@@ -1,4 +1,5 @@
-// Identifier slots receive pure statics; nested/member assignment targets retain native slots.
+// Identifier slots receive pure statics; a nested pattern under a static anchors on that static's
+// ponyfill (its computed key runs there), while member assignment targets retain native slots.
 // Computed keys and target effects stay live on both paths.
 import _Array$from from "@core-js/pure/actual/array/from";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
@@ -27,10 +28,7 @@ let defaults = 0;
 			)]: bind
 		}
 	}
-} = {
-	Array: { from: _Array$from },
-	Object: { keys: _globalThis.Object.keys }
-});
+} = { Array: { from: _Array$from }, Object: { keys: _Object$keys } });
 
 ({
 	Array: {

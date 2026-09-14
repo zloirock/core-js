@@ -12,7 +12,9 @@
 // hung on an object, and that second reference decides the reads on its own. The rest of the closed
 // slot table - member root, intrinsic spelling, attribute name, member tail, namespaced halves - is
 // locked in the `audit-jsx-*-census` fixtures, where the decision is visible without running.
+import { execFile } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
+import { promisify } from 'node:util';
 import { transformAsync } from '@babel/core';
 import { transform as swcTransform } from '@swc/core';
 import createUnplugin from '../../packages/core-js-unplugin/internals/plugin.js';
@@ -99,7 +101,8 @@ await runRow('tag behind a conditional', 'true ? <Component from="SUPPLIED" othe
     const file = path.join(DIR, `prop-${ leg }.mjs`);
     await fs.outputFile(file, lowered);
     const script = `delete Map.groupBy; const { value } = await import(${ JSON.stringify(pathToFileURL(file).href) }); process.stdout.write(value);`;
-    const { stdout } = await $({ quiet: true })`${ process.execPath } --input-type=module -e ${ script }`;
+    // spawned without a shell: through zx's bash a Windows `execPath` loses its backslashes
+    const { stdout } = await promisify(execFile)(process.execPath, ['--input-type=module', '-e', script]);
     if (stdout === 'function') pass();
     else fail(`runtime JSX prop [${ leg }]`, `missing namespace static: ${ stdout }`);
   }

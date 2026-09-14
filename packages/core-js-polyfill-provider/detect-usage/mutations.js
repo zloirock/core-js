@@ -15,105 +15,111 @@
 import { entryToGlobalHint, hasOwnStaticDefinition } from '../index.js';
 import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
 import {
-  CLASS_NODE_TYPES,
-  FN_NODE_TYPES,
-  FUNCTION_LIKE_NODE_TYPES,
-  MUTATED_MEMBERS_UNKNOWN,
-  MUTATED_STATIC_PINNED,
-  positionalElements,
-  POSSIBLE_GLOBAL_OBJECTS,
-  PRIMITIVE_LITERAL_TYPES,
-  resolveCallArgumentCoords,
-  TS_EXPR_WRAPPERS,
-  VALUE_FLOW_ASSIGN_OPS,
-  arrayLiteralSlotValue,
   aliasDeclScope,
-  findNearestVarScopeOwner,
-  noReassignmentReachesUsage,
-  ownerWritePathIndex,
-  varInitDominatesUsage,
+  allProxySelectingInit,
+  arrayLiteralSlotValue,
+  bindsModuleDefault,
   canHoldBuiltIn,
+  CLASS_NODE_TYPES,
+  classStaticSlotValue,
   collectFileCensus,
   collectForXWriteMembers,
+  collectOwnReturns,
   computedKeyStaticName,
   createDeclaredNameIndex,
-  declaredIdentifierNodes,
   declarationScopeIn,
   declarationScopesOf,
+  declaredIdentifierNodes,
   definitionTimeSlotOf,
+  ESCAPED_CONTAINER_NAMES,
+  ESCAPED_CTOR_NAMES,
+  ESCAPED_CTOR_REFS,
   escapeStampedName,
+  findNearestVarScopeOwner,
   findObjectKeyBeforeSpread,
-  classStaticSlotValue,
-  collectOwnReturns,
-  foldedPropertyKeyName,
   flattenBranchKeys,
-  inlineCallYieldedContainer,
-  isMemberAccessNode,
-  parameterStaticSource,
-  PARAMETER_STATIC_SOURCES,
-  literalIdentifierSlots,
-  LOCAL_MEMBER_CALLEES,
-  getFallbackBranchSlots,
-  forOfIterableElements,
+  FN_NODE_TYPES,
+  foldedPropertyKeyName,
   followConstLiteralAlias,
+  forOfIterableElements,
+  FUNCTION_LIKE_NODE_TYPES,
+  getFallbackBranchSlots,
+  globalProxyNameFromImportSource,
   identifierDeclaratorInit,
+  identifierReferencedInSubtree,
+  IMPORT_SPECIFIER_TYPES,
+  inlineCallYieldedContainer,
   installedWriteValue,
   invocationCalleeOf,
   isASTNode,
   isBindingPosition,
-  identifierReferencedInSubtree,
   isCalleeReference,
-  isTaggedTemplateTagPosition,
   isDestructurePattern,
   isGuardedAliasingWrite,
-  jsxIdentifierReferencesBinding,
+  isMemberAccessNode,
   isMemberMutationContext,
   isMemberWriteOnlyContext,
   isMutatedStaticPair,
   isNonReferencePosition,
   isQuietLiteralOperand,
-  IMPORT_SPECIFIER_TYPES,
+  isTaggedTemplateTagPosition,
   isTopLevelThisContext,
   isVarScopeBoundary,
+  jsxIdentifierReferencesBinding,
   kebabToCamel,
+  literalIdentifierSlots,
+  LOCAL_MEMBER_CALLEES,
   memberChainKeys,
   memberKeyName,
+  MUTATED_MEMBERS_UNKNOWN,
+  MUTATED_STATIC_PINNED,
   mutatedStaticKey,
   nodePositionKey,
+  noReassignmentReachesUsage,
   objectLiteralPrototypeValue,
+  ownerWritePathIndex,
+  PARAMETER_STATIC_SOURCES,
+  parameterStaticSource,
   patternBindsName,
   patternReceiverSlotNodes,
+  patternSlotSpreadShifted,
   patternSlotTarget,
   patternSlotValues,
-  patternSlotSpreadShifted,
-  referencesArgumentsObject,
+  peelFallbackReceiver,
   peelIifeReturnTarget,
   peelSequenceTail,
   plainSynthKeyName,
+  positionalElements,
+  POSSIBLE_GLOBAL_OBJECTS,
+  PRIMITIVE_LITERAL_TYPES,
   propertyKeyName,
   provablyPrecedes,
   pureImportEntryOf,
   pureImportEntryOfProgram,
   reassignmentDominatesUsage,
   reassignmentValueNodes,
+  referencesArgumentsObject,
+  requireCallSource,
   resolveCallArgument,
+  resolveCallArgumentCoords,
   spineHasOptionalHop,
+  staticMemberKeyName,
+  TS_EXPR_WRAPPERS,
+  tsImportEqualsProxyName,
   unwrapRuntimeExpr,
+  VALUE_FLOW_ASSIGN_OPS,
+  varInitDominatesUsage,
   walkAstChildren,
   walkAstNodes,
   walkPatternIdentifiers,
-  ESCAPED_CONTAINER_NAMES,
-  ESCAPED_CTOR_NAMES,
-  ESCAPED_CTOR_REFS,
-  requireCallSource,
-  bindsModuleDefault,
-  globalProxyNameFromImportSource,
-  tsImportEqualsProxyName,
 } from '../helpers/ast-patterns.js';
 import {
+  inlineCallReturnExpression,
   interopDefaultProxyName,
-  requireBoundProxyGlobalName,
   isStaticPlacement,
+  peelReceiverSequenceTail,
+  requireBoundProxyGlobalName,
+  resolveInlineCalleeFunction,
   resolveKey,
   resolveObjectName,
 } from './resolve.js';
@@ -221,9 +227,12 @@ function collectGateRoots(node, out, keys = [], depth = 0) {
     // whether the scoped stage can name it is decided by the CALLEE - it inlines a call only
     // through one that resolves to a function LITERAL, inline or under a name this file binds -
     // so the callee is reported and the verdict left to the reader, which knows every binding
+    // ... a TAGGED TEMPLATE is a call spelled otherwise: its tag is the callee, and the scoped
+    // stage pairs its expressions like arguments (`tag\`\${ Array }\`.from = patched`)
     case 'CallExpression':
-    case 'OptionalCallExpression': {
-      const callee = peelToBareExpr(root.callee);
+    case 'OptionalCallExpression':
+    case 'TaggedTemplateExpression': {
+      const callee = peelToBareExpr(root.type === 'TaggedTemplateExpression' ? root.tag : root.callee);
       out.push({
         name: '', keys, callRooted: true,
         calleeName: callee?.type === 'Identifier' ? callee.name : null,
@@ -538,7 +547,8 @@ function handedToDecorators(construct) {
 // what every call this file spells puts in each parameter, the DEFAULT a call omits included - the
 // pairs a parameter binding takes its values from. null where a value cannot be named: a REST
 // parameter takes a list rather than a value, a spread at or before a slot leaves no position to
-// pair by, and a parameter property (`constructor(private x)`) binds through a wrapper of its own
+// pair by, and a parameter property (`constructor(private x)`) binds through a wrapper of its own.
+// a parameter the body DISCARDS before its first read (`paramDropsTheValue`) pairs with nothing
 function parameterValuePairs(host, calls) {
   const pairs = [];
   for (const [index, param] of dropLeadingThisParam(host.params ?? []).entries()) {
@@ -568,6 +578,34 @@ export function censusWalkTruncations() {
   return censusTruncations;
 }
 const NO_CHAIN_SLOT = { expanded: true, indexable: false, values: [] };
+
+// the receivers whose constructor reads are HELD - read through a binding the pure flavor mints
+// rather than resolved by name - so their entry has to carry the statics itself: a member chain
+// whose root reaches a GUARDED alias, and one whose root SELECTS between a realm and something
+// else (`(c ? realm() : opaque()).Map.groupBy`), where the identity guard reads the static off the
+// entry it picks - held only for a read of one of the constructor's OWN statics (an intrinsic
+// function property is on the narrow entry too), and never for a selection between pristine proxy
+// surfaces alone, which collapses onto the root's own pure and reads by name (asked without an
+// adapter: the census runs ahead of one, and a mutated slot deopts its read elsewhere). a
+// DESTRUCTURE source stamps its slot's name straight into `heldInSlot`; a member receiver joins
+// `kept`, the values the escape walk stamps beside the call-argument facts already collected there
+function collectHeldReceivers({ memberReceivers, aliasInit, guardedAliases, heldState, heldInSlot, kept }) {
+  for (const [receiver, slot, readKey] of memberReceivers) {
+    // the alias question asks what the root's VALUE names: for a sequence that is its tail
+    // (`(0, realm).Map` reads through `realm`); the prefix is the emitters' to place
+    const root = peelReceiverSequenceTail(memberChainKeys(receiver).root);
+    const selectingRealm = !!getFallbackBranchSlots(peelFallbackReceiver(root))
+      && !allProxySelectingInit(root, { adapter: null, injectorState: null, allowEffectfulTest: true })
+      && typeof readKey === 'string' && hasOwnStaticDefinition(escapeStampedName(receiver), readKey);
+    if (!selectingRealm) {
+      const reached = new Set();
+      chainRootValues(aliasInit, root, reached, heldState.roots);
+      if ([...reached].every(name => !guardedAliases.has(name))) continue;
+    }
+    if (slot) heldInSlot.add(escapeStampedName(slot));
+    else kept.add(receiver);
+  }
+}
 
 // stamp every bare-identifier LEAF a value position forwards to, through the layers a value
 // flows untouched: wrappers, conditional / logical arms, a sequence tail, literal
@@ -690,20 +728,33 @@ function stampEscapesFrom(programNode, node, sideChannel = null) {
   if (work.length) censusTruncations++;
 }
 
+// a name's entries keyed by the scope that binds them, beside the ones bound elsewhere, each list
+// in recording order. the census APPENDS entries while it records and asks only afterwards, so the
+// index is rebuilt exactly when the array grew. it is what keeps the two asks below linear in the
+// scope chain: a file whose functions all spell a local alike records one entry per function under
+// that name, and a per-entry scan of the chain made every read of it walk every namesake
+const ENTRY_OWNERS = new WeakMap();
+function entryOwnerIndex(entries) {
+  let index = ENTRY_OWNERS.get(entries);
+  if (index?.length === entries.length) return index;
+  const byOwner = new Map();
+  const unowned = [];
+  entries.forEach((entry, ordinal) => {
+    if (entry.at === null) unowned.push([ordinal, entry]);
+    else if (byOwner.has(entry.at)) byOwner.get(entry.at).push([ordinal, entry]);
+    else byOwner.set(entry.at, [[ordinal, entry]]);
+  });
+  ENTRY_OWNERS.set(entries, index = { length: entries.length, byOwner, unowned });
+  return index;
+}
+
 // The innermost recorded owner reached by this scope chain. Parser positions cannot identify
 // an owner: a preceding transform may create distinct scopes with missing or copied spans.
 function innermostBindingScope(entries, scopes) {
   if (!scopes || !entries) return null;
-  let depth = -1;
-  let at = null;
-  for (const entry of entries) {
-    const found = entry.at === null ? -1 : scopes.lastIndexOf(entry.at);
-    if (found > depth) {
-      depth = found;
-      at = entry.at;
-    }
-  }
-  return at;
+  const { byOwner } = entryOwnerIndex(entries);
+  for (let depth = scopes.length - 1; depth >= 0; depth--) if (byOwner.has(scopes[depth])) return scopes[depth];
+  return null;
 }
 
 // which of a name's recorded values a reference standing under `scopes` can actually reach: the
@@ -712,11 +763,17 @@ function innermostBindingScope(entries, scopes) {
 // does. an entry with no binding scope of its own (a write into a name bound elsewhere) belongs to
 // whatever resolves it, and a leaf whose scope chain this census never recorded rules nothing out -
 // both keep every value, which is the widening side the census owes. A recorded chain reaching
-// none of the declarations cannot read a namesake in another function
+// none of the declarations cannot read a namesake in another function. the two lists merge back
+// into recording order, the order a plain filter over the entries kept
 function aliasEntriesInScope(entries, scopes) {
   if (!scopes) return entries;
-  const owner = innermostBindingScope(entries, scopes);
-  return entries.filter(({ at }) => at === null || owner !== null && at === owner);
+  const { byOwner, unowned } = entryOwnerIndex(entries);
+  const owned = byOwner.get(innermostBindingScope(entries, scopes)) ?? [];
+  const merged = [];
+  for (let i = 0, j = 0; i < unowned.length || j < owned.length;) {
+    merged.push(j >= owned.length || (i < unowned.length && unowned[i][0] < owned[j][0]) ? unowned[i++][1] : owned[j++][1]);
+  }
+  return merged;
 }
 
 // Defaults and definition-time keys cannot read declarations in their owner's body. A namesake
@@ -963,10 +1020,8 @@ function isPrivateClassSlot(container, slot) {
       || member.key?.type === 'PrivateIdentifier'));
 }
 
-// what a call hands its caller: the expression an arrow yields, or every return the body spells.
-// memoized per callee NODE: the answer is a property of the function, and a walk that reaches the
-// same helper twice would otherwise re-walk its whole body for the same list
-const CALLEE_RETURN_VALUES = new WeakMap();
+// the return STATEMENTS a block body spells, memoized per BODY node: the escape walk and the
+// value census both ask it of the same helpers, and `collectOwnReturns` walks the whole body
 const CALLEE_RETURN_STATEMENTS = new WeakMap();
 function calleeReturnStatements(callee) {
   const body = callee?.body;
@@ -975,6 +1030,11 @@ function calleeReturnStatements(callee) {
   if (!returns) CALLEE_RETURN_STATEMENTS.set(body, returns = collectOwnReturns(body));
   return returns;
 }
+
+// what a call hands its caller: the expression an arrow yields, or every return the body spells.
+// memoized per callee NODE: the answer is a property of the function, and a walk that reaches the
+// same helper twice would otherwise re-walk its whole body for the same list
+const CALLEE_RETURN_VALUES = new WeakMap();
 function calleeReturnValues(callee) {
   const memo = CALLEE_RETURN_VALUES.get(callee);
   if (memo) return memo;
@@ -1064,6 +1124,7 @@ function escapedNameAnswer(names, heldInSlot, globalOnly) {
   };
 }
 
+// eslint-disable-next-line max-statements -- the escape census factory: one closure per fact table it publishes
 export function escapedCtorReferencesReducer() {
   let stamps = null;
   let programNode = null;
@@ -1424,13 +1485,20 @@ export function escapedCtorReferencesReducer() {
     if (type === 'MemberExpression' || type === 'OptionalMemberExpression') {
       const owner = unwrapRuntimeExpr(node.object);
       if (owner?.type === 'Identifier') memberObjects.add(owner);
-      else if (isMemberAccessNode(owner) && isKnownGlobalName(escapeStampedName(owner))) memberReceivers.push([owner]);
+      // ... the key read off it travels too: a selecting root is held only for a read of one of the
+      // constructor's OWN statics (below)
+      else if (isMemberAccessNode(owner) && isKnownGlobalName(escapeStampedName(owner))) {
+        memberReceivers.push([owner, null, staticMemberKeyName(node)]);
+      }
     } else if (type === 'VariableDeclarator' || type === 'AssignmentExpression') {
       const pattern = type === 'VariableDeclarator' ? node.id : node.left;
       const source = unwrapRuntimeExpr(type === 'VariableDeclarator' ? node.init : node.right);
       if (source?.type === 'Identifier' && isDestructurePattern(pattern) && patternNamesEverySlot(pattern)) {
         memberObjects.add(source);
-      } else if (isDestructurePattern(pattern) && isMemberAccessNode(source)
+      // ... and a constructor read off a member chain STORED whole (`const h = realm.Map`) is a
+      // receiver the same way a destructuring source is: reads through the binding it lands in are
+      // never resolved past a guarded realm, so the entry it takes has to carry the statics itself
+      } else if ((isDestructurePattern(pattern) || pattern?.type === 'Identifier') && isMemberAccessNode(source)
         && isKnownGlobalName(escapeStampedName(source))) {
         memberReceivers.push([source]);
       }
@@ -1519,6 +1587,50 @@ export function escapedCtorReferencesReducer() {
     CALL_CALLEES.set(node, callCallees);
   }
 
+  // a NAMED export makes its bindings readable from OUTSIDE, which is the standing a bare read
+  // gives a container here: whatever an importer navigates through it, this walk cannot follow.
+  // a re-export (`export { x } from 'm'`) names no binding of this file at all
+  function recordNamedExport(node, frame) {
+    if (node.source) return;
+    for (const specifier of node.specifiers ?? []) {
+      if (specifier.local?.type !== 'Identifier') continue;
+      readsBare.add(specifier.local.name);
+      noteNameUse(specifier.local.name, false);
+      // ... and the VALUE goes with the binding: an importer reads whatever this name holds, so a
+      // constructor reaching it is handed out exactly as one handed to a call is. the walk follows
+      // the alias hops itself, so the reference is what escapes, never a re-derived leaf
+      escaped.add(specifier.local);
+    }
+    noteExportedNames(node.declaration);
+    if (CENSUS_CONTAINER_TYPES.has(node.declaration?.type)) escaped.add(node.declaration);
+    for (const declarator of node.declaration?.declarations ?? []) {
+      const namedPattern = isDestructurePattern(declarator.id) && patternNamesEverySlot(declarator.id);
+      walkPatternIdentifiers(declarator.id, id => {
+        readsBare.add(id.name);
+        if (declarator.init && namedPattern) {
+          referenceScopes.set(id, frame?.scopes ?? []);
+          escaped.add(id);
+        }
+      });
+      // ... but a DESTRUCTURING declarator hands out the SLOTS its pattern names, never the value
+      // it took them from: `export const { k } = C` exports `C.k` and leaves `C` where it was.
+      // the same export spelled through a specifier (`const { k } = C; export { k }`) already
+      // answered that way, so counting the init here made one export answer two ways. a pattern
+      // that cannot name every slot it takes - a rest element, a key it cannot fold - reaches
+      // past the ones it spells and hands the container out after all
+      if (declarator.init && !namedPattern) {
+        referenceScopes.set(declarator.id, frame?.scopes ?? []);
+        escaped.add(declarator.id.type === 'Identifier' ? declarator.id : declarator.init);
+      }
+    }
+    // ... and an exported FUNCTION hands out what it RETURNS, the way a method value does: an
+    // importer calls it and reads the result, so the returns escape even though the function
+    // itself is all this file spells
+    if (node.declaration?.body) {
+      for (const ret of calleeReturnStatements(node.declaration)) escaped.add(ret.argument);
+    }
+  }
+
   function visit(node, frame) {
     if (!stamps) registerProgramTables(node);
     // An identifier contributes only its reference facts; it declares no names or value shapes.
@@ -1590,49 +1702,7 @@ export function escapedCtorReferencesReducer() {
         noteExportedNames(node.declaration);
         escaped.add(node.declaration);
         break;
-      // a NAMED export makes its bindings readable from OUTSIDE, which is the standing a bare read
-      // gives a container here: whatever an importer navigates through it, this walk cannot follow.
-      // a re-export (`export { x } from 'm'`) names no binding of this file at all
-      case 'ExportNamedDeclaration':
-        if (node.source) break;
-        for (const specifier of node.specifiers ?? []) {
-          if (specifier.local?.type !== 'Identifier') continue;
-          readsBare.add(specifier.local.name);
-          noteNameUse(specifier.local.name, false);
-          // ... and the VALUE goes with the binding: an importer reads whatever this name holds, so a
-          // constructor reaching it is handed out exactly as one handed to a call is. the walk follows
-          // the alias hops itself, so the reference is what escapes, never a re-derived leaf
-          escaped.add(specifier.local);
-        }
-        noteExportedNames(node.declaration);
-        if (CENSUS_CONTAINER_TYPES.has(node.declaration?.type)) escaped.add(node.declaration);
-        for (const declarator of node.declaration?.declarations ?? []) {
-          const namedPattern = isDestructurePattern(declarator.id) && patternNamesEverySlot(declarator.id);
-          walkPatternIdentifiers(declarator.id, id => {
-            readsBare.add(id.name);
-            if (declarator.init && namedPattern) {
-              referenceScopes.set(id, frame?.scopes ?? []);
-              escaped.add(id);
-            }
-          });
-          // ... but a DESTRUCTURING declarator hands out the SLOTS its pattern names, never the value
-          // it took them from: `export const { k } = C` exports `C.k` and leaves `C` where it was.
-          // the same export spelled through a specifier (`const { k } = C; export { k }`) already
-          // answered that way, so counting the init here made one export answer two ways. a pattern
-          // that cannot name every slot it takes - a rest element, a key it cannot fold - reaches
-          // past the ones it spells and hands the container out after all
-          if (declarator.init && !namedPattern) {
-            referenceScopes.set(declarator.id, frame?.scopes ?? []);
-            escaped.add(declarator.id.type === 'Identifier' ? declarator.id : declarator.init);
-          }
-        }
-        // ... and an exported FUNCTION hands out what it RETURNS, the way a method value does: an
-        // importer calls it and reads the result, so the returns escape even though the function
-        // itself is all this file spells
-        if (node.declaration?.body) {
-          for (const ret of calleeReturnStatements(node.declaration)) escaped.add(ret.argument);
-        }
-        break;
+      case 'ExportNamedDeclaration': recordNamedExport(node, frame); break;
       // the alias hops an escape may travel through, joined in `result`
       case 'VariableDeclarator':
         {
@@ -1814,14 +1884,7 @@ export function escapedCtorReferencesReducer() {
     // leave one leg narrower than the other. the POSITION stamps stay one set for both, so a slot the
     // value canon declined is still the reference a pure destructure plan reads back
     const heldState = { names: new Set(), roots: new Map(), slots: new Map() };
-    for (const [receiver, slot] of memberReceivers) {
-      const { root } = memberChainKeys(receiver);
-      const reached = new Set();
-      chainRootValues(aliasInit, root, reached, heldState.roots);
-      if ([...reached].every(name => !guardedAliases.has(name))) continue;
-      if (slot) heldInSlot.add(escapeStampedName(slot));
-      else kept.add(receiver);
-    }
+    collectHeldReceivers({ memberReceivers, aliasInit, guardedAliases, heldState, heldInSlot, kept });
     for (const value of kept) stampEscapesFrom(programNode, value, { names: heldInSlot, state: heldState, heldInSlot: true });
     // read at QUERY time, when every reducer of this census has stamped: ONE answer object rather
     // than two census fields, since the flavor doing the asking is what picks the half
@@ -3417,6 +3480,9 @@ export function mutationShapesReducer(packages = null) {
     // down the alias chain. a callee this file never binds (`require`, an import, a host global)
     // resolves to no function there either, so the query may rule it out
     if (root.callRooted) return followableCallee(root, seen) ? null : [];
+    // `arguments[i]` stands for the argument the enclosing function's call sites pass at `i` -
+    // which only the scoped stage, standing at the write, can pair
+    if (root.name === 'arguments') return null;
     // a `this` root is the global object only in a top-level `this` context; anywhere else the
     // scoped stage attributes nothing, so `const scope = this` rules out instead of opening
     if (root.thisRooted && !root.viaTopLevelThis) return [];
@@ -3583,6 +3649,8 @@ export function mutationShapesReducer(packages = null) {
             || MINTED_CAPITALIZED_NAME.test(root.name)
             || POSSIBLE_GLOBAL_OBJECTS.has(root.name)
             || valueBound.has(root.name)
+            // `arguments[i].x = v` writes through the argument a call site passed
+            || root.name === 'arguments'
             // a container fires only for a CHAIN target (`NS.M.of = 1`): the write lands past
             // the slot the literal spells, so it can reach a built-in. the slot write itself
             // (`box.Array = Fake`) replaces no namespace - it rides the written-slot channel
@@ -4208,6 +4276,15 @@ function restArgumentValues(args, index) {
   }
 }
 
+// the calls this file makes of the function at `fnPath`, under the key the CALL side recorded it
+// by: its own name, the class name where the function is a constructor, and the node itself where
+// the callee is the literal
+function calleeCallSites(fnPath, callArguments) {
+  const owner = functionOwnerName(fnPath.node, fnPath.parentPath?.node);
+  const key = owner === 'constructor' ? enclosingClassName(fnPath) : owner ?? fnPath.node;
+  return (key === null ? null : callArguments?.get(key)) ?? [];
+}
+
 // the values a PARAMETER can hold, from the calls this file makes: climb the declaration to the
 // function that owns the parameter, name that function, and pair each call's argument at the
 // parameter's own position through the canonical pattern pairer (a destructured parameter selects
@@ -4233,11 +4310,7 @@ function paramReachingValues({ identNode, binding, callArguments, ctx }) {
     values.push(...param.left.type === 'Identifier' ? [param.right]
       : patternSlotValues(param.left, param.right, identNode.name, ctx));
   }
-  // the key the CALL side recorded this function under: its own name, the class name where the
-  // function is a constructor, and the node itself where the callee is the literal
-  const owner = functionOwnerName(fnPath.node, fnPath.parentPath?.node);
-  const key = owner === 'constructor' ? enclosingClassName(fnPath) : owner ?? fnPath.node;
-  for (const { args } of (key === null ? null : callArguments.get(key)) ?? []) {
+  for (const { args } of calleeCallSites(fnPath, callArguments)) {
     // the canonical positional resolver, spread expansion and its variadic bail included: a call
     // whose length is not statically decidable contributes nothing rather than the wrong value.
     // a REST parameter collects every argument from its position on
@@ -4354,7 +4427,9 @@ function slotPathPrefixes(object, keyPath) {
 // package view, closed over the same callbacks both plugin adapters receive. `buildHostMembers`
 // returns the host-specific scope machinery (it may close over the adapter it is handed - the
 // members only run after composition); `packages` stays a getter, so composition must go through
-// property descriptors - a spread would freeze the packages view at creation time
+// property descriptors - a spread would freeze the packages view at creation time.
+// `parameterCallSites` is the type engine's caller census, exposed on the adapter for the
+// destructure lanes that mirror a PARAMETER's receiver from the callers this file spells
 export function createDetectionAdapter({
   method = null, getMutatedStatics = () => null, getWrittenContainerSlots = () => null,
   getContainerSlotIndex = () => null, getPackages = () => null, getMutationRoots = () => null,
@@ -4808,6 +4883,70 @@ function resolveMutationSite({ targetNode, scope, adapter, path, callArguments =
     return binding.kind === 'param'
       ? paramReachingValues({ identNode, binding, callArguments, ctx: { scope, adapter, path, resolveKey } }) : [];
   }
+  // the values a CALL RESULT stands for, through the shared inline canon: the argument an identity
+  // callee hands back (any parameter position, an inline-array spread expanded, a tagged template's
+  // expressions paired like arguments), or the body a parameter-free callee yields - a write
+  // through the result patches THAT object (`pick(1, Array).from = patched`)
+  function callResultValues(callNode) {
+    const pairing = callPairing(callNode);
+    if (!pairing?.callee) return [];
+    const call = callNode.type === 'TaggedTemplateExpression'
+      ? { type: 'CallExpression', callee: callNode.tag, arguments: pairing.args } : callNode;
+    const inlined = inlineCallReturnExpression({ node: call, readNode: callNode, seen: new Set(), ctx: { scope, adapter, path } },
+      { rejectConditional: true, allowExtraParams: true });
+    return inlined ? [inlined.node] : [];
+  }
+  // ... and the argument a callee returns INSIDE a container it builds (`box(x) { return [x] }`, then
+  // `box(Array)[0].from = patched`): the slot the chain reads off the result holds a parameter, and
+  // the value there is the call's argument at that parameter's position
+  function callYieldedSlotValues(callNode, keys) {
+    if (callNode.type === 'TaggedTemplateExpression') return [];
+    const callee = resolveInlineCalleeFunction({ node: callNode, readNode: callNode, seen: new Set(), ctx: { scope, adapter, path } },
+      { allowIdentityParam: true, allowExtraParams: true, rejectConditional: true })?.node;
+    const params = dropLeadingThisParam(callee?.params ?? []);
+    if (!params.length || params.some(param => param.type !== 'Identifier') || referencesArgumentsObject(callee)) return [];
+    const returns = callee.body?.type === 'BlockStatement' ? collectOwnReturns(callee.body) : null;
+    const literal = unwrapRuntimeExpr(returns ? (returns.length === 1 ? returns[0]?.argument : null) : callee.body);
+    if (literal?.type !== 'ObjectExpression' && literal?.type !== 'ArrayExpression') return [];
+    const values = [];
+    for (const [keyPath, name] of literalIdentifierSlots(literal)) {
+      if (keyPath.length !== keys.length || keyPath.some((key, at) => String(key) !== String(keys[at]))) continue;
+      const index = params.findIndex(param => param.name === name);
+      const argument = index === -1 ? null : resolveCallArgument(callNode.arguments ?? [], index);
+      if (argument) values.push(argument);
+    }
+    return values;
+  }
+  // `arguments[i]` inside a function reads what its call sites pass at `i` (`function m(x) {
+  // arguments[0].from = patched } m(Array)`): an arrow has no `arguments` of its own
+  function argumentsSlotValues(index) {
+    let fnPath = path;
+    while (fnPath?.node && (!FUNCTION_LIKE_NODE_TYPES.has(fnPath.node.type) || fnPath.node.type === 'ArrowFunctionExpression')) {
+      fnPath = fnPath.parentPath;
+    }
+    if (!fnPath?.node || !Number.isInteger(index)) return [];
+    return calleeCallSites(fnPath, callArguments).map(({ args }) => resolveCallArgument(args, index)).filter(Boolean);
+  }
+  // a value a write took from a PARAMETER of the function the write sits in (`function keep(x) {
+  // held = x }`, then `keep(Array)` and `held.from = patched`): that name is bound nowhere at this
+  // site, so the function holding the reassignment is found by span, and its call sites name what
+  // the parameter carried
+  function enclosingParamValues(identNode) {
+    if (typeof identNode.start !== 'number') return [];
+    let programPath = path;
+    while (programPath.parentPath?.node) programPath = programPath.parentPath;
+    let fn = null;
+    walkAstNodes({ root: programPath.node, visit(node, parentNode) {
+      if (typeof node.start !== 'number' || node.start > identNode.start || node.end < identNode.end) return false;
+      if (FUNCTION_LIKE_NODE_TYPES.has(node.type)) fn = { node, parentPath: { node: parentNode } };
+      return true;
+    } });
+    const index = fn
+      ? dropLeadingThisParam(fn.node.params ?? []).findIndex(param => param.type === 'Identifier' && param.name === identNode.name)
+      : -1;
+    if (index === -1) return [];
+    return calleeCallSites(fn, callArguments).map(({ args }) => resolveCallArgument(args, index)).filter(Boolean);
+  }
   function visitAliasValues(valueNode, depth, thisPath = null) {
     if (!valueNode || depth > 8) return;
     for (const leaf of valueFanLeaves(valueNode, [])) {
@@ -4818,6 +4957,10 @@ function resolveMutationSite({ targetNode, scope, adapter, path, callArguments =
       // const alias = h.Array`) resolves no leaf name - fan its chain root like the target loop
       else if (!name && (leaf.type === 'MemberExpression' || leaf.type === 'OptionalMemberExpression')) {
         visitChainRootAlias(leaf, thisPath);
+      // ... and one bound to a CALL RESULT holds what the call hands back (`const h = pick(1, Array)`)
+      } else if (!name && (leaf.type === 'CallExpression' || leaf.type === 'OptionalCallExpression'
+        || leaf.type === 'TaggedTemplateExpression')) {
+        for (const value of callResultValues(leaf)) visitAliasValues(value, depth + 1, thisPath);
       }
     }
   }
@@ -4874,6 +5017,10 @@ function resolveMutationSite({ targetNode, scope, adapter, path, callArguments =
     const reCtx = { scope, adapter, path, resolveKey };
     for (const rhs of reassignmentValueNodes({ binding, usagePath: path, name: identNode.name, ctx: reCtx }) ?? []) {
       visitAliasValues(rhs, depth, bindingPath);
+      // ... a value the write took from a PARAMETER of its own function reaches no binding here
+      if (rhs.type === 'Identifier' && !adapter.hasBinding(scope, rhs.name, path)) {
+        for (const value of enclosingParamValues(rhs)) visitAliasValues(value, depth + 1, bindingPath);
+      }
     }
   }
   // a member-chain target whose root reaches a proxy global through a value fan keys the mutation
@@ -4884,6 +5031,17 @@ function resolveMutationSite({ targetNode, scope, adapter, path, callArguments =
   function visitChainRootAlias(leaf, thisPath = null) {
     const parts = chainPartsOf(leaf, siteCtx);
     if (!parts) return;
+    // a chain rooted at a CALL reads a slot of what the call returns, and a chain rooted at
+    // `arguments` reads what a call site passed: both name the argument, not the root
+    if (parts.keys && (parts.rootNode.type === 'CallExpression' || parts.rootNode.type === 'OptionalCallExpression')) {
+      for (const value of callYieldedSlotValues(parts.rootNode, parts.keys)) visitAliasValues(value, 1);
+      return;
+    }
+    if (parts.keys?.length === 1 && parts.rootNode.type === 'Identifier' && parts.rootNode.name === 'arguments'
+      && !adapter.hasBinding(scope, 'arguments', path)) {
+      for (const value of argumentsSlotValues(Number(parts.keys[0]))) visitAliasValues(value, 1);
+      return;
+    }
     // an unreadable HOP hides which value off the root was reached (`Array[k].x = v`) - the
     // mutation could sit anywhere under the root, so the ROOT deopts whole
     if (!parts.keys) {
@@ -4901,6 +5059,13 @@ function resolveMutationSite({ targetNode, scope, adapter, path, callArguments =
     }
     if (parts.keys.slice(0, -1).some(key => !POSSIBLE_GLOBAL_OBJECTS.has(key))) return;
     for (const { node: valueLeaf, thisPath: leafAnchor } of chainRootValueLeaves(parts.rootNode, thisPath)) {
+      // ... an alias of `arguments` (`const a = arguments; a[0].from = patched`) reads the slot the
+      // way the bare spelling does
+      if (valueLeaf.type === 'Identifier' && valueLeaf.name === 'arguments' && parts.keys.length === 1
+        && !adapter.hasBinding(scope, 'arguments', path)) {
+        for (const value of argumentsSlotValues(Number(parts.keys[0]))) visitAliasValues(value, 1);
+        continue;
+      }
       const rootName = resolveLeafName(valueLeaf, { ...siteCtx, thisPath: leafAnchor });
       if (rootName && POSSIBLE_GLOBAL_OBJECTS.has(rootName)) {
         names.add(parts.keys.at(-1));
@@ -4949,6 +5114,9 @@ function resolveMutationSite({ targetNode, scope, adapter, path, callArguments =
       const name = resolveLeafName(leaf, siteCtx);
       if (name) names.add(name);
       else if (leaf.type === 'MemberExpression' || leaf.type === 'OptionalMemberExpression') visitChainRootAlias(leaf);
+      else if (leaf.type === 'CallExpression' || leaf.type === 'OptionalCallExpression' || leaf.type === 'TaggedTemplateExpression') {
+        for (const value of callResultValues(leaf)) visitAliasValues(value, 1);
+      }
     }
   }
   return { names: [...names], receiverDeopts: [...receiverDeopts] };

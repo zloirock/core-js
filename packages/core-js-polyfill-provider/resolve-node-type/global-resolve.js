@@ -350,6 +350,7 @@ export function createGlobalResolve({
 
   // `isGlobalProxy` / `knownConstructorAt` stay cluster-private
   return {
+    isGlobalProxy,
     resolveGlobalName,
     resolvePrototypeAsInstance,
     resolveClassInheritance,

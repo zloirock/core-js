@@ -12,7 +12,6 @@
 // produce fresh identity and fragment the swap; coexistence with plugins that clone a
 // common ancestor remains unsupported
 import {
-  staticMemberKeyName,
   nestedSequenceValueSpelling,
   isRestProperty,
   peelTransparentWrapperPath,
@@ -64,7 +63,7 @@ import {
   shouldDropRescueReceiver,
 } from '@core-js/polyfill-provider/detect-usage/members';
 import {
-  proxyHopLacksPureEntry,
+  unbackedProxyHopKey,
   descendToChainRoot,
   discardRescueNodes,
   findProxyGlobal,
@@ -97,12 +96,12 @@ function runSwallowsStoreProbe(runNode, resolvePure) {
       hop = inner;
       continue;
     }
-    if (!proxyHopLacksPureEntry(staticMemberKeyName(hop), resolvePure)) return false;
+    if (!unbackedProxyHopKey(hop, resolvePure)) return false;
     // definedness of a sequence value is decided by its TAIL - the store canon's own peel
     const value = unwrapRuntimeExpr(peelReceiverSequenceTail(peelChainAssignment(inner).value ?? inner.right));
     if (value?.type === 'Identifier') return false;
     if (value?.type === 'MemberExpression' || value?.type === 'OptionalMemberExpression') {
-      return proxyHopLacksPureEntry(staticMemberKeyName(value), resolvePure);
+      return unbackedProxyHopKey(value, resolvePure);
     }
     return true;
   }
@@ -434,7 +433,7 @@ export default function createSynthSwapEmitter({
     // environment test the source asked for; every LONGER all-proxy run folds whole under the
     // navigation, probes included - the deep-nav canon the flat twins of this shape lock
     if (unwrapRuntimeExpr(runPath.node.object)?.type === 'Identifier'
-      && proxyHopLacksPureEntry(staticMemberKeyName(runPath.node), resolvePure)) return false;
+      && unbackedProxyHopKey(runPath.node, resolvePure)) return false;
     let rootNode = runPath.node;
     while (rootNode?.type === 'MemberExpression') {
       if (rootNode.computed || rootNode.optional || !POSSIBLE_GLOBAL_OBJECTS.has(rootNode.property?.name)) return false;

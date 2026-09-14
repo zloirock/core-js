@@ -39,8 +39,8 @@ function mark(t, v) {
 {
   for (const _ref3 of [[Object, [1]]]) {
     let [_ref, _ref2] = _ref3;
-    let at = _at(_ref2);
     let values = _values(_ref);
+    let at = _at(_ref2);
     [values, at];
   }
 }
@@ -274,8 +274,8 @@ function mark(t, v) {
   [andHop, andQ];
 }
 {
-  const _ref23 = _Array$of;
   const splitFrom = _Array$from;
+  const _ref23 = _Array$of;
   const splitBesideStatic = _nameMaybeFunction(_ref23);
   const {
     foo: splitFoo

@@ -1265,8 +1265,14 @@ export default function createPlugin(options) {
           // (walked manually, with nothing re-queued) hides the replacement's own claims
           // from the traversal - the second pass reaches them
         })));
-        const positionalRevisit = destructureEmit.drain();
-        if (positionalRevisit.size) {
+        // the drain hands back the patterns a rename just freed (an earlier slot's, a residual's):
+        // each round re-runs detection under them and drains again, so a claim behind SEVERAL later
+        // readers reaches its rename the way the babel requeue cascades (`[{ at }, { includes },
+        // { flat }] = rows` renames all three). the first revisit always runs; a further round only
+        // where the last drain renamed a slot, since only a rename frees an earlier one
+        let drained = destructureEmit.drain();
+        for (let round = 0; drained.revisit.size && (round === 0 || drained.renamed); round++) {
+          const { revisit } = drained;
           traverse(ast, mergeVisitors({
             $: { scope: true },
             Program(path) { injector.rootScope = path.scope; },
@@ -1274,12 +1280,12 @@ export default function createPlugin(options) {
             ...usageVisitorOptions,
             onUsage(meta, path) {
               let current = path;
-              while (current?.node && !positionalRevisit.has(current.node)) current = current.parentPath;
+              while (current?.node && !revisit.has(current.node)) current = current.parentPath;
               // eslint-disable-next-line promise/prefer-await-to-callbacks -- forwards a synchronous AST visitor hook
               if (current?.node) callback(meta, path);
             },
           })));
-          destructureEmit.drain();
+          drained = destructureEmit.drain();
         }
         // a file that injected nothing prints as written: the wrapper splices are undone (the babel
         // leg's rule, kept here for the reprint a surgery alone still triggers)

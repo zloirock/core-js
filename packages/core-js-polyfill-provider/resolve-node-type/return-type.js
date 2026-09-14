@@ -34,15 +34,13 @@ import {
 } from './base.js';
 import { isTypeQueryOverImportType, typeRefName } from './ast-shapes.js';
 import {
+  argumentOverridesSlot,
   effectiveArgsLength,
   getCallSiteTypeArgs,
   getTypeArgs,
   isDestructurePattern,
-  isVoidExpression,
   patternSlotTarget,
   positionalPathAt,
-  resolveCallArgument,
-  isBareUndefinedIdentifier,
   peelTSParenthesized,
 } from '../helpers/ast-patterns.js';
 import { nodeAlwaysExits } from './exit-analysis.js';
@@ -185,21 +183,11 @@ export function createReturnType({
   function paramHasOverridingArg(found, fnPath, callPath) {
     if (found.param.type !== 'AssignmentPattern') return false;
     const args = callArgumentPaths(callPath).map(a => a.node);
-    // align the call arg past a leading `this` pseudo-param (raw `found.index` indexes the AST params)
-    const argIndex = argIndexForParam(fnPath.node.params, found.index);
-    // a spread arg no static position survives makes the default possibly overridden: treat as
-    // overridden (return true) so the caller bails rather than narrowing the param to its default type
-    const length = effectiveArgsLength(args);
-    if (length === null) return true;
-    const arg = argIndex < length ? resolveCallArgument(args, argIndex) : null;
-    if (!arg) return false;
-    // an explicit `undefined` / `void <x>` arg TRIGGERS the param default rather than overriding
-    // it (JS coerces `undefined` at a defaulted param to the default), so the default's declared
-    // type stays authoritative - narrowing to the arg's `undefined` would drop the polyfill. any
-    // `void <x>` yields undefined; bare `undefined` only when unshadowed (it's a writable global)
-    if (isVoidExpression(arg)) return false;
-    if (isBareUndefinedIdentifier(arg) && !getScopeBinding(callPath.scope, 'undefined')) return false;
-    return true;
+    // align the call arg past a leading `this` pseudo-param (raw `found.index` indexes the AST params);
+    // the slot itself is the shared rule's (a spread no position survives, an `undefined` / `void`
+    // argument that runs the default - narrowing to it would drop the polyfill)
+    return argumentOverridesSlot(args, argIndexForParam(fnPath.node.params, found.index),
+      () => !!getScopeBinding(callPath.scope, 'undefined'));
   }
 
   // resolve expression type within a function body, with fallback to call-site parameter inference

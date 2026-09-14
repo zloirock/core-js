@@ -1,5 +1,6 @@
 import _fillMaybeArray from "@core-js/pure/actual/array/instance/fill";
 import _findMaybeArray from "@core-js/pure/actual/array/instance/find";
+import _findIndexMaybeArray from "@core-js/pure/actual/array/instance/find-index";
 import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
 import _findLastIndexMaybeArray from "@core-js/pure/actual/array/instance/find-last-index";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
@@ -11,7 +12,7 @@ import _at from "@core-js/pure/actual/instance/at";
 import _entries from "@core-js/pure/actual/instance/entries";
 import _includes from "@core-js/pure/actual/instance/includes";
 import _keys from "@core-js/pure/actual/instance/keys";
-var _ref3, _ref5, _ref8, _ref10, _ref12, _ref15, _ref17, _ref20, _ref24, _ref28, _ref30;
+var _ref3, _ref5, _ref8, _ref10, _ref12, _ref15, _ref17, _ref20, _ref24, _ref28, _ref30, _ref31;
 // PATTERN axis of the per-prop interleave: segments and guards alternate exactly like the
 // native per-prop evaluation (key, read, default, next key)
 
@@ -58,11 +59,8 @@ const _ref26 = [7, 8],
   _ref29 = _ref26,
   fnd = null == _ref29 ? _ref29[""] : (e13(), (_ref30 = _findMaybeArray(_ref29)) === void 0 ? dfltJ() : _ref30);
 
-// nested assignment stays NATIVE (the receiver gate admits no member receivers) - negative
+// a nested assignment under a USER nav the extraction owns dispatches on the nav (`recvF.codes`,
+// read once) and the consumed slot leaves with the host - the declaration host's answer
 let m;
-({
-  codes: {
-    findIndex: m = dfltK()
-  }
-} = recvF);
+m = (_ref31 = _findIndexMaybeArray(recvF.codes)) === void 0 ? dfltK() : _ref31;
 export { a, f, i, fl, fli, ts, tr, fm, en, w10, ks, fi, fnd, m };

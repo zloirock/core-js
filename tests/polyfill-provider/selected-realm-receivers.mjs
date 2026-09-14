@@ -5,7 +5,7 @@ import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/d
 import { resolveObjectName } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import { handleMemberExpressionNode, planGuardedStaticNarrow } from '../../packages/core-js-polyfill-provider/detect-usage/members.js';
 import { resolve } from '../../packages/core-js-polyfill-provider/index.js';
-import { ownEmittedNavClaim } from '../../packages/core-js-polyfill-provider/detect-usage/own-output.js';
+import { ownEmittedNavClaim, ownEmittedPatternClaim } from '../../packages/core-js-polyfill-provider/detect-usage/own-output.js';
 import { adapters, createChecker } from './harness.mjs';
 
 const { check, finish } = createChecker('selected-realm-receivers');
@@ -124,5 +124,22 @@ for (const parser of adapters) for (const [name, test, fallback, expected] of [
       isOwnPassBinding: () => ownPass,
     }), expected);
   }
+}
+// A member read keyed by a prior pass's `symbol/iterator` import is a lowered pattern key, so the
+// nav census lets it through to the iterator handler; every other minted key - another well-known
+// symbol, or the same key on a PATTERN prop - stays this plugin's own output
+for (const parser of adapters) for (const [name, source, funnel, pick, expected] of [
+  ['iterator key on a read', 'symbol/iterator', 'nav', 'MemberExpression', false],
+  ['async-iterator key on a read', 'symbol/async-iterator', 'nav', 'MemberExpression', true],
+  ['iterator key on a pattern prop', 'symbol/iterator', 'pattern', 'Property', true],
+]) {
+  const program = parser.parseAndScope(`
+    import key from '@core-js/pure/actual/${ source }';
+    function read(o) { const { [key]: it } = o; return [it, o[key]]; }
+  `);
+  const path = parser.pickPath(program, pick === 'Property' ? 'ObjectProperty' : pick) ?? parser.pickPath(program, pick);
+  const tests = { isPureImportSource: s => s.startsWith('@core-js/pure/'), isOwnPassBinding: () => false };
+  check(`${ parser.name }: minted key census: ${ name }`,
+    funnel === 'nav' ? ownEmittedNavClaim(path.node, path, tests) : ownEmittedPatternClaim(path, tests), expected);
 }
 finish();

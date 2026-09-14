@@ -19,9 +19,10 @@ export const { g: { raw } = String } = src;
 const { Array: { of } = {} } = globalThis;
 const { h: { plain } = {} } = src;
 const { Set: { union } = Set } = globalThis;
-// a BRANCHY default declines: this channel answers with a receiver NAME, and a name cannot say
-// "either branch" - mirroring one of them would emit the wrong branch's static whenever the other
-// fires. the flat twin affords these shapes only because its meta carries a fallback flag
+// a BRANCHY default is the per-branch mirror's shape, whatever the host's slot holds: the name
+// channel still declines (a name cannot say "either branch"), and the mirror fills each arm the
+// default can yield - a `||` collapses onto its truthy left, a ternary keeps both arms - so the
+// static reads the ponyfill exactly when the default runs, on both legs
 const { b1: { from: fromOr } = Array || Iterator } = src;
 const { b2: { from: fromTernary } = flag ? Array : Iterator } = src;
 // an INSTANCE claim answers differently: a dispatch can reach BOTH arms, so it folds them - one

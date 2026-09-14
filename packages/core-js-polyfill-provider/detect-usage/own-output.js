@@ -259,13 +259,23 @@ function patternDefaultHoldsPureImport(path, tests) {
 // a COMPUTED member whose key is a minted pure import (`[1, 2][_Symbol$iterator]` - the
 // symbol read our pass left through its own binding): re-claiming it re-resolves the alias
 // and upgrades the kept spelling (`_getIteratorMethod([1, 2])`) on a pass over our output
-function computedKeyIsMintedImport(node, path, tests) {
+// ... except, for a MEMBER read (`readOfIteratorIsNotOurs`), the ITERATOR key: the iterator
+// method's render is the helper itself, never the key spelling, so a read keyed by a prior
+// pass's `symbol/iterator` import is a pattern key a LOWERING turned into a read (the babel
+// sandwich lowers a kept `[_Symbol$iterator]: it` prop into `it = o[_Symbol$iterator]`) - and
+// standing down left that read raw, undefined where the engine has no native iterator. the
+// handler's own gates (`super`, a write target, an entry the targets do not need) answer the
+// same way on every pass, so the fixpoint needs no census there. a PATTERN prop keeps the
+// census: its spelling IS our render
+function computedKeyIsMintedImport(node, path, tests, { readOfIteratorIsNotOurs = false } = {}) {
   if (!node?.computed) return false;
   // a MemberExpression spells its key as `.property`, a destructure Property as `.key` -
   // and an SE-bearing key reads its VALUE from the sequence tail (`[(se, _Symbol$iterator)]`)
   let key = unwrapRuntimeExpr(node.property ?? node.key);
   while (key?.type === 'SequenceExpression') key = unwrapRuntimeExpr(key.expressions.at(-1));
-  return key?.type === 'Identifier' && pureDefaultImportBinding(path, key.name, tests);
+  if (key?.type !== 'Identifier' || !pureDefaultImportBinding(path, key.name, tests)) return false;
+  return !readOfIteratorIsNotOurs
+    || pureImportSourceEntry(defaultImportSourcesOf(rootProgramOf(path)).get(key.name)) !== 'symbol/iterator';
 }
 
 // the RENDERED GUARD spelling our collapse writes (`null == probe ? void 0 : _x.tail`):
@@ -546,7 +556,7 @@ function ownRenderedGuardAlternateClaim(path, tests) {
 export function ownEmittedNavClaim(node, metaPath, tests) {
   if (tests.programMayHoldOwnOutput && !tests.programMayHoldOwnOutput(rootProgramOf(metaPath))) return false;
   return guardedAliasAlternateRead(metaPath)
-    || computedKeyIsMintedImport(node, metaPath, tests)
+    || computedKeyIsMintedImport(node, metaPath, tests, { readOfIteratorIsNotOurs: true })
     || adoptedRefReceiverClaim(node, metaPath, tests)
     || ownDefaultedGuardFallbackClaim(metaPath, tests)
     || ownRenderedGuardAlternateClaim(metaPath, tests)
