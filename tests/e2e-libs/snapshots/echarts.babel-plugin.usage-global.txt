@@ -37,6 +37,7 @@ core-js/modules/es.array.unshift
 core-js/modules/es.array.values
 core-js/modules/es.array.with
 core-js/modules/es.date.to-json
+core-js/modules/es.date.to-primitive
 core-js/modules/es.function.name
 core-js/modules/es.global-this
 core-js/modules/es.iterator.constructor
@@ -67,8 +68,10 @@ core-js/modules/es.number.to-exponential
 core-js/modules/es.number.to-fixed
 core-js/modules/es.object.assign
 core-js/modules/es.object.get-own-property-descriptor
+core-js/modules/es.object.get-own-property-descriptors
 core-js/modules/es.object.get-own-property-names
 core-js/modules/es.object.get-own-property-symbols
+core-js/modules/es.object.get-prototype-of
 core-js/modules/es.object.has-own
 core-js/modules/es.object.keys
 core-js/modules/es.object.set-prototype-of
@@ -79,6 +82,7 @@ core-js/modules/es.promise.constructor
 core-js/modules/es.promise.finally
 core-js/modules/es.promise.reject
 core-js/modules/es.promise.resolve
+core-js/modules/es.reflect.construct
 core-js/modules/es.reflect.namespace
 core-js/modules/es.regexp.constructor
 core-js/modules/es.regexp.dot-all
@@ -111,7 +115,7 @@ core-js/modules/es.symbol.async-iterator
 core-js/modules/es.symbol.constructor
 core-js/modules/es.symbol.description
 core-js/modules/es.symbol.iterator
-core-js/modules/es.symbol.replace
+core-js/modules/es.symbol.to-primitive
 core-js/modules/es.typed-array.at
 core-js/modules/es.typed-array.copy-within
 core-js/modules/es.typed-array.entries
@@ -163,9 +167,6 @@ core-js/modules/es.uint8-array.set-from-base64
 core-js/modules/es.uint8-array.set-from-hex
 core-js/modules/es.uint8-array.to-base64
 core-js/modules/es.uint8-array.to-hex
-core-js/modules/es.weak-map.constructor
-core-js/modules/es.weak-map.get-or-insert
-core-js/modules/es.weak-map.get-or-insert-computed
 core-js/modules/esnext.async-iterator.constructor
 core-js/modules/esnext.async-iterator.filter
 core-js/modules/esnext.async-iterator.find
