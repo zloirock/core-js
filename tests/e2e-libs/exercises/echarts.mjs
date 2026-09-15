@@ -8,13 +8,22 @@
 // 158 from rxjs, 46 from htmlparser2 and 7 from three, whose dist is one bundled file. What that buys
 // is the cost NOTHING else in the repo measures - how much the injection adds for the bundler to
 // resolve, parse and render - and the modular entry points (`echarts/core` plus the four features
-// below) keep the artifact near three's own bundle size rather than the 3.7mb the whole package
-// would cost.
+// below) keep what echarts and zrender put into the cell to about half of what importing the whole
+// package does, measured on the `usage-global` cell.
 //
 // The artifact is the check. Every assertion below reads GEOMETRY out of the emitted SVG - bar
 // heights against their data, the linear scale behind a line, two projected polygons that have to
 // come out side by side - so a rewrite that lands wrong changes a number rather than throwing. An
 // identity renderer, one handing its input back, reddens every one of them.
+//
+// The render is READ by two more real packages rather than by code written for this file: the
+// document by fast-xml-parser, the path geometry by svg-pathdata. Both go through the same
+// down-compile and injection as echarts, so the cell takes three libraries to the floor - which is
+// the suite's whole subject. The one read left to this file is WHERE an element was placed, off its
+// `transform`, and that read stays bound to the form echarts writes. That does not let a broken
+// reader agree with a broken writer: the raw tier pins what both do untransformed, and the anchored
+// checks tie what is read to constants this file owns - the data, the categories, the placement the
+// option asked for - so a reader drifting in step with the writer still has to reproduce them.
 //
 // Canvas is deliberately not registered: `SVGRenderer` alone keeps the graph off `zrender`'s canvas
 // paths, which no realm here can execute. Interaction is out of scope for the same reason - mouse,
@@ -24,6 +33,13 @@ import * as echarts from 'echarts/core';
 import { BarChart, LineChart, MapChart } from 'echarts/charts';
 import { GeoComponent, GridComponent } from 'echarts/components';
 import { SVGRenderer } from 'echarts/renderers';
+// fast-xml-parser stays on its 4.x line, which is maintained. 5.x depends on `xml-naming`, and that
+// package runs `new RegExp(..., 'u')` at MODULE LOAD. The floor reaches engines with no `u` flag -
+// IE11, and the oldest Chrome, Safari and Firefox it names - and core-js does not emulate it, so on
+// those the page dies before a check runs. The flag arrives through a variable, from a transitive
+// dependency, which is why no grep and no local tier saw it
+import { XMLParser } from 'fast-xml-parser';
+import { SVGPathData } from 'svg-pathdata';
 import { checker } from './checks.mjs';
 
 echarts.use([BarChart, LineChart, MapChart, GeoComponent, GridComponent, SVGRenderer]);
@@ -78,66 +94,46 @@ function render(values) {
   return { svg, roundTrip, disposed: chart.isDisposed() };
 }
 
-// `<path>` elements with the series/datum echarts stamps on them, so a shape is found by WHAT IT IS
-// rather than by its position in the document
-function pathsOf(svg, series) {
+// every element of the document in order, with its attributes and the text directly inside it.
+// `preserveOrder` keeps siblings as a list, `parseTagValue: false` keeps a tick label the string it
+// was drawn as
+const XML = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '', preserveOrder: true, parseTagValue: false });
+
+function elementsOf(svg) {
   const found = [];
-  const chunks = svg.split('<path');
-  for (let i = 1; i < chunks.length; i++) {
-    const chunk = chunks[i].slice(0, chunks[i].indexOf('>'));
-    const seriesIndex = /ecmeta_series_index="(?<value>\d+)"/.exec(chunk);
-    if (!seriesIndex || Number(seriesIndex.groups.value) !== series) continue;
-    const data = /ecmeta_data_index="(?<value>\d+)"/.exec(chunk);
-    const d = /\sd="(?<value>[^"]*)"/.exec(chunk);
-    // the line series stamps its SYMBOLS rather than its polyline, and a symbol is an arc carried on
-    // a transform: its `d` describes the marker, so the datum is read off the matrix instead. That
-    // transform is also the one discriminator between the two - a plain shape carries none
-    if (!d) continue;
-    const matrix = /transform="matrix\((?<values>[^)]*)\)"/.exec(chunk);
-    const parts = matrix ? matrix.groups.values.split(',').map(Number) : null;
-    found.push({
-      index: data ? Number(data.groups.value) : null,
-      d: d.groups.value,
-      at: parts && parts.length === 6 ? [parts[4], parts[5]] : null,
-    });
-  }
-  return found.sort((a, b) => a.index - b.index);
+  (function walk(nodes) {
+    for (const node of nodes) {
+      const tag = Object.keys(node).find(key => key !== ':@');
+      if (!tag || tag === '#text') continue;
+      const children = node[tag];
+      found.push({
+        tag,
+        attrs: node[':@'] ?? {},
+        text: children.filter(child => '#text' in child).map(child => child['#text']).join(''),
+      });
+      walk(children);
+    }
+  })(XML.parse(svg));
+  return found;
 }
 
-// M/L in both cases, which is all bars, polygons and polylines are made of here. The renderer also
-// emits `A`, but only for the line's symbols, which are read off their transform instead - and a
-// shape that did arrive with one (a bar with a border radius, say) must not be parsed as if the arc
-// were not there: skipping its coordinates would hand back a box that looks plausible and is wrong.
-// An unknown command yields no points, which `boxOf` turns into the same NaN geometry a missing
-// shape gets, so the relation fails by name.
-function pointsOf(d) {
-  if (/[^\s\d+,\-.lmz]/i.test(d)) return [];
-  const tokens = d.match(/[lmz]|-?\d*\.?\d+/gi) || [];
-  const points = [];
-  let command = 'M';
-  let x = 0;
-  let y = 0;
-  for (let i = 0; i < tokens.length;) {
-    if (/[a-z]/i.test(tokens[i])) {
-      command = tokens[i];
-      i++;
-      continue;
-    }
-    // a close takes no coordinates, so a number after one is malformed - refuse the path rather than
-    // skip the number and hand back a box computed from the rest of it
-    if (command === 'Z' || command === 'z') return [];
-    const first = Number(tokens[i]);
-    const second = Number(tokens[i + 1]);
-    i += 2;
-    const relative = command === command.toLowerCase();
-    x = relative ? x + first : first;
-    y = relative ? y + second : second;
-    points.push([x, y]);
-    // a repeated coordinate pair after M continues as a line, per the SVG grammar
-    if (command === 'M') command = 'L';
-    else if (command === 'm') command = 'l';
-  }
-  return points;
+// the numbers inside a `transform` - `matrix(a,b,c,d,e,f)` on a symbol, `translate(x y)` on a label.
+// What is read off it is only where the element was PLACED; the geometry itself is svg-pathdata's.
+// It knows the ONE form echarts writes - a single transform, name first, no whitespace before the
+// parenthesis - and answers null for any other, including forms the SVG grammar allows: the checks
+// that depend on it then fail by name, which is the right outcome for a render whose format moved
+function transformOf(element, kind) {
+  const value = element.attrs.transform;
+  if (typeof value !== 'string' || value.indexOf(`${ kind }(`) !== 0) return null;
+  return value.slice(kind.length + 1, -1).trim().split(/[\s,]+/).map(Number);
+}
+
+// the `<path>` elements of one series, found by the indices echarts stamps on them in its
+// server-side mode rather than by their position in the document, in datum order
+function seriesOf(elements, series) {
+  return elements
+    .filter(element => element.tag === 'path' && element.attrs.ecmeta_series_index === String(series))
+    .sort((a, b) => Number(a.attrs.ecmeta_data_index) - Number(b.attrs.ecmeta_data_index));
 }
 
 // A shape the renderer did not emit must not take the exercise down with it: `run` would die on the
@@ -146,24 +142,25 @@ function pointsOf(d) {
 // below by value, so the cell stays diagnostic.
 const NOTHING = { left: NaN, right: NaN, top: NaN, bottom: NaN };
 
+// svg-pathdata throws on a path it cannot parse and answers an empty one with infinite bounds; both
+// are a shape that is not there, so both become NOTHING and fail by name rather than by exception
+function boxOf(d) {
+  try {
+    const bounds = new SVGPathData(d).toAbs().getBounds();
+    if (![bounds.minX, bounds.maxX, bounds.minY, bounds.maxY].every(Number.isFinite)) return NOTHING;
+    return { left: bounds.minX, right: bounds.maxX, top: bounds.minY, bottom: bounds.maxY };
+  } catch {
+    return NOTHING;
+  }
+}
+
 function boxAt(paths, index) {
   const path = paths[index];
-  return path ? boxOf(path.d) : NOTHING;
+  return path ? boxOf(path.attrs.d) : NOTHING;
 }
 
 function pointAt(points, index) {
   return points[index] ?? [NaN, NaN];
-}
-
-function boxOf(d) {
-  const points = pointsOf(d);
-  if (!points.length) return NOTHING;
-  const xs = points.map(point => point[0]);
-  const ys = points.map(point => point[1]);
-  return {
-    left: Math.min.apply(null, xs), right: Math.max.apply(null, xs),
-    top: Math.min.apply(null, ys), bottom: Math.max.apply(null, ys),
-  };
 }
 
 // pixel arithmetic lands on halves and thirds, so relations are compared at a tolerance rather than
@@ -172,21 +169,11 @@ function near(a, b, tolerance) {
   return Math.abs(a - b) <= (tolerance === undefined ? 0.5 : tolerance);
 }
 
-function textsOf(svg) {
-  const found = [];
-  const chunks = svg.split('<text');
-  for (let i = 1; i < chunks.length; i++) {
-    const end = chunks[i].indexOf('</text>');
-    if (end === -1) continue;
-    const open = chunks[i].slice(0, chunks[i].indexOf('>'));
-    const matrix = /transform="translate\((?<values>[^)]*)\)"/.exec(open);
-    const parts = matrix ? matrix.groups.values.trim().split(/[\s,]+/).map(Number) : null;
-    found.push({
-      text: chunks[i].slice(chunks[i].indexOf('>') + 1, end),
-      at: parts && parts.length === 2 ? parts : null,
-    });
-  }
-  return found;
+function textsOf(elements) {
+  return elements.filter(element => element.tag === 'text').map(element => {
+    const parts = transformOf(element, 'translate');
+    return { text: element.text, at: parts && parts.length === 2 ? parts : null };
+  });
 }
 
 // The tick labels are the only ABSOLUTE anchor in the picture. Every other assertion here is a
@@ -214,18 +201,21 @@ export function run() {
   const second = render(VALUES);
   const variant = render([5, 20, 12]);
   const { svg } = first;
+  const elements = elementsOf(svg);
+  const root = elements.find(element => element.tag === 'svg');
 
   // --- the document itself
   check('svg: rendered at the requested size',
-    svg.indexOf(`<svg width="${ WIDTH }" height="${ HEIGHT }"`), 0);
+    root ? [root.attrs.width, root.attrs.height] : null, [String(WIDTH), String(HEIGHT)]);
   check('svg: no NaN reached the output', /NaN/.test(svg), false);
   check('svg: the same option renders the same picture', normalize(second.svg), normalize(svg));
   check('svg: a changed datum renders a different one', normalize(variant.svg) === normalize(svg), false);
 
   // --- the bars: one per datum, and their heights ARE the data
-  const bars = pathsOf(svg, 0);
+  // a symbol carries a `matrix` transform and a plain shape carries none - the one discriminator
+  const bars = seriesOf(elements, 0);
   check('bars: a shape per datum', bars.length, VALUES.length);
-  const shapes = bars.filter(bar => !bar.at);
+  const shapes = bars.filter(bar => !transformOf(bar, 'matrix'));
   const boxes = VALUES.map((value, index) => boxAt(shapes, index));
   const ratios = boxes.map((box, index) => (box.bottom - box.top) / VALUES[index]);
   check('bars: height is proportional to value',
@@ -239,7 +229,12 @@ export function run() {
     near(boxes[0].bottom, boxes[1].bottom) && near(boxes[1].bottom, boxes[2].bottom), true);
 
   // --- the line: the same data through a linear scale, read off the symbol placed on each datum
-  const symbols = pathsOf(svg, 1).filter(path => path.at).map(path => path.at);
+  // the line stamps its SYMBOLS rather than its polyline, and a symbol is a marker carried on a
+  // transform: the datum is where the matrix PLACED it, which is its translation
+  const symbols = seriesOf(elements, 1)
+    .map(symbol => transformOf(symbol, 'matrix'))
+    .filter(matrix => matrix && matrix.length === 6)
+    .map(matrix => [matrix[4], matrix[5]]);
   const vertices = VALUES.map((value, index) => pointAt(symbols, index));
   check('line: a symbol per datum', symbols.length, VALUES.length);
   check('line: a larger value sits higher',
@@ -251,7 +246,7 @@ export function run() {
     near(vertices[1][0], (boxes[1].left + boxes[1].right) / 2, 1), true);
 
   // --- the axes
-  const texts = textsOf(svg);
+  const texts = textsOf(elements);
   const labels = texts.map(entry => entry.text);
   check('axis: every category is labelled',
     CATEGORIES.every(category => labels.indexOf(category) !== -1), true);
@@ -266,7 +261,7 @@ export function run() {
     axis ? VALUES.every((value, index) => near(vertices[index][1], axis(value), 1)) : false, true);
 
   // --- the map: two squares projected into the same picture
-  const regions = pathsOf(svg, 2);
+  const regions = seriesOf(elements, 2);
   check('geo: a shape per feature', regions.length, FEATURES.features.length);
   const west = boxAt(regions, 0);
   const east = boxAt(regions, 1);
