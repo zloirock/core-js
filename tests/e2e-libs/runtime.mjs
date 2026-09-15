@@ -59,8 +59,8 @@ async function runCell(cell) {
     const wire = await wireSize(code, cell.label);
     await writeCell(cell, code, checks);
 
-    // a drifting or missing baseline is a red cell too, so it may not be prefixed `ok`
-    const ok = !failingChecks.length && snapshotState !== 'drift' && snapshotState !== 'missing' && !strippedFailed;
+    // a baseline that is not green reddens its cell, so it may not be prefixed `ok`
+    const ok = !failingChecks.length && GREEN_SNAPSHOT_STATES.has(snapshotState) && !strippedFailed;
     if (failingChecks.length || strippedFailed) tally.failed.add(cell.label);
     reportCell(cell, { ok, checks, failingChecks, injected, delta, snapshotState, stripped, strippedFailed, rawKb, wire, buildMs });
     return {
@@ -82,11 +82,14 @@ async function runCell(cell) {
   }
 }
 
+// listed by the GREEN states, so a state nobody named here is red - `updated` among them: a baseline
+// written under OVERWRITE compared nothing
+const GREEN_SNAPSHOT_STATES = new Set(['ok', 'skipped', 'providers agree']);
+
 async function getSnapshotState(cell, injected, delta, origins) {
   if (cell.snapshot) {
     const state = await snapshots.compare(cell, cell.isReference ? injected : delta, origins);
-    if (state === 'drift') tally.drift++;
-    else if (state === 'missing') tally.missing++;
+    if (!GREEN_SNAPSHOT_STATES.has(state)) tally.redSnapshots.push(state);
     return state;
   }
   if (cell.isReference) return 'skipped';
@@ -113,8 +116,8 @@ async function wireSize(code, label) {
   }
 }
 
-// Rows and counters come back together: the three counters add up, `rows` is a list each shard
-// contributed a slice of and arrives concatenated in shard order.
+// Rows and counters come back together: `failed` adds up, `rows` and `redSnapshots` are lists each
+// shard contributed a slice of and arrive concatenated in shard order.
 async function collectShards() {
   const totals = await runShards({
     script: fileURLToPath(import.meta.url),
@@ -122,8 +125,7 @@ async function collectShards() {
     extraEnv: libraryFilter === undefined ? {} : { E2E_LIBS_LIB: libraryFilter },
   });
   rows.push(...totals.rows ?? []);
-  tally.drift += totals.drift ?? 0;
-  tally.missing += totals.missing ?? 0;
+  tally.redSnapshots.push(...totals.redSnapshots ?? []);
   tally.fromShards = totals.failed ?? 0;
 }
 
@@ -148,12 +150,12 @@ announceInput(input);
 announceRun({ libs, libraryMethodGroups, libraryFilter, shardCount });
 
 const rows = [];
-const tally = { failed: new Set(), drift: 0, missing: 0, fromShards: 0 };
+const tally = { failed: new Set(), redSnapshots: [], fromShards: 0 };
 
 for (const cell of cellsBuiltHere) rows.push(await runCell(cell));
 
 if (IS_SHARD) {
-  emitShardSummary({ failed: tally.failed.size, drift: tally.drift, missing: tally.missing, rows });
+  emitShardSummary({ failed: tally.failed.size, redSnapshots: tally.redSnapshots, rows });
 } else {
   if (shardCount > 1) await collectShards();
   if (!rows.length) throw new Error('no cells ran - the registry or METHODS is empty');
@@ -162,10 +164,12 @@ if (IS_SHARD) {
   await manifest.save({ input, scope: libraryFilter ?? 'all libraries', sharded: shardCount, cells: rows });
   announceArtifacts();
 
-  // an orphan reddens the run and is not one of the counters - no cell can report a baseline nothing produces
+  // an orphan reddens the run, since no cell can report a baseline nothing produces; one removed under
+  // OVERWRITE is counted as written
   const orphaned = await snapshots.orphans(libraries);
+  if (orphaned && process.env.OVERWRITE) tally.redSnapshots.push(...Array.from({ length: orphaned }, () => 'updated'));
   const failed = tally.failed.size + tally.fromShards;
-  const ok = !failed && !tally.drift && !tally.missing && !(orphaned && !process.env.OVERWRITE);
-  reportRuntimeTally({ drift: tally.drift, missing: tally.missing, failed, cells: rows.length, ok });
+  const ok = !failed && !tally.redSnapshots.length && !orphaned;
+  reportRuntimeTally({ redSnapshots: tally.redSnapshots, failed, cells: rows.length, ok });
   if (!ok) process.exitCode = 1;
 }

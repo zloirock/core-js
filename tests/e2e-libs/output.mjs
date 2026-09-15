@@ -116,10 +116,20 @@ export function announceArtifacts() {
   echo(green(`\nmanifest -> ${ cyan(MANIFEST) }`));
 }
 
+const RED_SNAPSHOT_TALLY = {
+  drift: count => `injection snapshot drifted in ${ count } cell(s) - rerun with OVERWRITE=1 if intended`,
+  missing: count => `${ count } cell(s) have no snapshot baseline - rerun with OVERWRITE=1 to author them`,
+  updated: count => `${ count } baseline(s) written or removed - an OVERWRITE run compares nothing, rerun without it to verify them`,
+};
+
 // `ok` is handed in, not derived from the counters beside it: an orphaned baseline reddens a run too
-export function reportRuntimeTally({ drift, missing, failed, cells, ok }) {
-  if (drift) echo(red(`\nFAIL injection snapshot drifted in ${ cyan(drift) } cell(s) - rerun with OVERWRITE=1 if intended`));
-  if (missing) echo(red(`\nFAIL ${ cyan(missing) } cell(s) have no snapshot baseline - rerun with OVERWRITE=1 to author them`));
+export function reportRuntimeTally({ redSnapshots, failed, cells, ok }) {
+  const counts = new Map();
+  for (const state of redSnapshots) counts.set(state, (counts.get(state) ?? 0) + 1);
+  for (const [state, count] of counts) {
+    const line = RED_SNAPSHOT_TALLY[state]?.(cyan(count)) ?? `${ cyan(count) } cell(s) ended with snapshot state ${ cyan(state) }`;
+    echo(red(`\nFAIL ${ line }`));
+  }
   // the shards' failures are counted, not named - each shard printed its own red lines
   if (failed) echo(red(`\nFAIL ${ cyan(failed) } cell(s) failed`));
   if (ok) echo(green(`\nruntime tier green - ${ cyan(cells) } cell(s)`));
