@@ -1304,12 +1304,17 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     return markGuardTestRendered(clone);
   }
 
+  // the leg's clone-and-embed: the callback every canon render takes to put a HOST node the source
+  // wrote inside a tree the canon built. a DEEP clone, so the copy carries a span of its own instead
+  // of the original's, then this binding's embed mark on it. spelled once because what embedding
+  // means is one rule - three renderers each writing it inline could only ever half-follow a change
+  function cloneHost(node) {
+    return hostSlot(t.cloneNode(node));
+  }
+
   // the AST spelling of a nav-collapse plan: the leaf and its tail are the canon's, this binding
   // clones its host nodes into them and keeps the traversal bookkeeping the canon knows nothing of
   function renderNavCollapseAst(plan, pureId) {
-    function cloneHost(node) {
-      return hostSlot(t.cloneNode(node));
-    }
     // the flush may land in a suppressed region no visitor re-enters, so the render reads the
     // key effects through the plan's LIVE accessor - the one liveness rule both emitters share.
     // the test's share is already inside the rendered prefix - only the hops ABOVE it re-emit here
@@ -1464,7 +1469,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     // the ponyfill, where the source runs them - the test's own share is already inside the probe
     chainStart.node[key] = seededRefClone(estreeToBabel(renderNavCollapseLeaf(
       composed.plan, hostSlot(injectPureGlobal(composed.pure.entry, composed.pure.hintName)),
-      { cloneHost: node => hostSlot(t.cloneNode(node)) })), memoType);
+      { cloneHost })), memoType);
     deoptionalizeNode(chainStart);
     for (let up = chainStart.parentPath; up && up !== path; up = up.parentPath) {
       if (isOptionalNode(up.node)) deoptionalizeNode(up);
@@ -3018,6 +3023,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     generateRef,
     generateLocalRef,
     generateUnusedId,
+    cloneHost,
     isWrappedInParens,
     normalizeOptionalChain,
     replaceInstanceLike,

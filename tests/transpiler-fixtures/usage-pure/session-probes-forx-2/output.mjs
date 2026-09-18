@@ -390,7 +390,7 @@ function mark(t, v) {
     y: [1]
   }]) {
     let entries = _Object$entries;
-    let at = _at(_ref20.y);
+    let at = _atMaybeArray(_ref20.y);
     [entries, at];
   }
 }

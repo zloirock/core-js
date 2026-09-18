@@ -4,6 +4,7 @@
 // plugin-injected ones
 import {
   declaresRequireBinding,
+  hostRequireCallLimit,
   tsImportEqualsRequireSource,
   unwrapExportedDeclaration,
   bindsModuleDefault,
@@ -153,8 +154,15 @@ export function scanExistingCoreJSImports(ast, {
   // still matches the user's source literal when they typed the lowercase canonical form
   const mainPkgs = pkg ? [pkg.toLowerCase()] : null;
   const modePrefix = mode ? `${ mode }/` : null;
-  const shadowScope = declaresRequireBinding(ast) ? REQUIRE_SHADOWED_SCOPE : null;
-  for (const node of ast.body ?? []) {
+  const requireShadowed = declaresRequireBinding(ast);
+  // ... and the shadow is POSITIONAL wherever the host's own loader is what the name starts out
+  // holding: inside the leading region an injection writes into, a `require('core-js/...')` is a
+  // real load - ours read back, or the author's, both reaching the host - while past the statement
+  // that rebinds the name it is a call into whatever that statement left, which nothing may adopt,
+  // remove and re-emit at the top. A file that binds the name nowhere carries no shadow at all
+  const hostRequireLimit = requireShadowed ? hostRequireCallLimit(ast) : 0;
+  for (const [position, node] of (ast.body ?? []).entries()) {
+    const shadowScope = requireShadowed && position >= hostRequireLimit ? REQUIRE_SHADOWED_SCOPE : null;
     // an opt-out directive means "do not touch this line": the statement is neither adopted as a
     // dedup target nor removed and re-emitted, so it stays exactly where the author wrote it. the
     // cost is deliberate - unknown to the injector, the module may be imported a second time beside

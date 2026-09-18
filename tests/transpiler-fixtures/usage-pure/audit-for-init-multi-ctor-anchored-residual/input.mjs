@@ -1,7 +1,10 @@
 // the FOR-INIT host twin of the anchored-residual: a multi-ctor declarator in a for-statement init
-// slot whose residual leaf off a MISSING-ABLE ctor (`Set.union`) must read off the pure CONSTRUCTOR
-// binding (`{ union } = _Set`) while the consumed leaf extracts via its own import (`from = _Array$from`).
+// slot whose residual leaf off a MISSING-ABLE ctor (`Set.customQ`) must read off the pure CONSTRUCTOR
+// binding (`{ customQ } = _Set`) while the consumed leaf extracts via its own import (`from = _Array$from`).
 // the for-init flatten renderer is a distinct host from the block declarator / assignment cascade
-for (let { Array: { from }, Set: { union } } = globalThis; from && union;) {
+// the residual keys here are ones NEITHER surface carries: a key core-js spells as a PROTOTYPE
+// entry of that constructor (`Set.union`) is handed out as a static by the pure binding and by
+// nothing else, so such a leaf declines the anchor and would measure that rule instead of this one
+for (let { Array: { from }, Set: { customQ } } = globalThis; from && customQ;) {
   break;
 }
