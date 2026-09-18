@@ -1111,14 +1111,20 @@ function buildMemberMeta({ node, scope, adapter, path, resolveStaticKey = null, 
     // the container walk collects the slot's OTHER reaching values (written / repositioned)
     // beside its primary answer - they join the usage-global union axis below
     const containerUnion = [];
+    const conditionalCalls = [];
     // the alias READ sits at the classify target, not at the claim above it: a kept write in the
     // same expression completes before it (`(g = globalThis, v = g.window.self).Promise`). the
     // anchor rides its OWN parameter - `usageNode` is a dominance ANCHOR PATH for the walks below,
     // and handing them a node silently passed the gate a conditional write must fail
-    const objectName = resolveObjectName({
+    let objectName = resolveObjectName({
       objectNode: classifyTarget, scope, adapter, path, readNode: classifyTarget, resolveStaticKey,
     })
-      ?? staticContainerReceiverName({ node: classifyTarget, scope, adapter, path, unionSink: containerUnion });
+      ?? staticContainerReceiverName({ node: classifyTarget, scope, adapter, path, unionSink: containerUnion,
+        conditionalSink: conditionalCalls });
+    // A conditional forwarder names the live result but cannot erase the source receiver:
+    // a continuous chain may short-circuit, and a sealed chain may throw before the static read.
+    const conditionalReceiver = objectName && conditionalCalls.length && adapter.method === 'usage-pure' ? objectName : null;
+    if (conditionalReceiver) objectName = null;
     // bail for plugin-injected polyfill bindings (`_flatMaybeArray`, `_Map`, ...) - they carry
     // `polyfillHint` and re-detection would chase the polyfill itself. user imports
     // (`import { items } from './data'`) have NO polyfillHint and must fall through so the
@@ -1133,6 +1139,17 @@ function buildMemberMeta({ node, scope, adapter, path, resolveStaticKey = null, 
     // `Array` constructor; `Array.name` resolves via the function variant). same gate the
     // destructure path already applies to `const { concat } = Array`
     meta = { kind: 'property', object: objectName, key, placement, receiverHint: staticReceiverHint(placement, objectName) };
+    // Unproven call returns still name possible constructors. Keep the receiver and let
+    // the existing identity guard choose its static only when that value actually arrived.
+    const guardedConstructors = conditionalReceiver ? [conditionalReceiver]
+      : !objectName && isCallShape(unwrapRuntimeExpr(classifyTarget)) && adapter.method === 'usage-pure'
+      ? containerUnion.filter(name => !POSSIBLE_GLOBAL_OBJECTS.has(name)
+        && isStaticPlacement(name) === 'static' && !isMutatedGlobalSlot(adapter, name)
+        && !adapter.isMutatedStatic?.(name, key)) : [];
+    if (guardedConstructors.length && !keyEffects.length) Object.assign(meta, {
+      guardedAliasHint: guardedConstructors[0], guardedWriteObjects: guardedConstructors, captureGuardReceiver: true,
+      definedGuardReceiver: Boolean(conditionalReceiver),
+    });
     // The container walk already collects getter returns as guarded candidates. Keep the
     // actual read: a getter, spread or later write can supply a different realm at runtime.
     const guardedRealms = containerUnion.filter(name => POSSIBLE_GLOBAL_OBJECTS.has(name));
@@ -1274,14 +1291,6 @@ function guardedNarrowChainTail(path, memberNode, absorbedCall = null) {
   return tail;
 }
 
-// `path` (optional) - the visitor path of `node`. threaded through to adapter.hasBinding so
-// TS-runtime shadow detection (`enum X {}` / `namespace X {}` / `import X = require()`)
-// inside a StaticBlock anchors at the actual visitor site instead of the enclosing
-// scope owner. estree-toolkit reports `scope.path = ClassDeclaration` for code inside a
-// StaticBlock since it doesn't register StaticBlock as a separate scope; without `path`,
-// `findTSRuntimeBindingInPath` walks UP from ClassDeclaration and never enters the
-// StaticBlock body, missing local enum/namespace shadows. babel's scope tracker does
-// anchor at StaticBlock so it works without path - the threaded form is a no-op for it
 // decision plan for the RUNTIME ctor guard - single-sourced so both emitters render the same
 // judgment. `parent` is the emitter-peeled semantic parent (each substrate peels its own
 // wrappers). returns: null = not a guard read (fall through to normal dispatch); { bail: true }
@@ -1309,14 +1318,17 @@ export function planGuardedStaticNarrow({ memberNode, parent, meta, path, resolv
   // the sealed value - the read above it throws where a hoisted guard would answer `void 0`. the
   // FLAG walk is the one answer both dialects give, babel promoting the node TYPES of a whole chain
   const optionalHops = ownChainOptionalObjects(memberNode);
+  // A proven conditional return can be absent only where this live chain short-circuits.
+  // Capture its entire spelling: sealed throws stay inside it, and its own ?. keeps its order.
+  const captureChain = Boolean(meta.definedGuardReceiver && captureReceiver && optionalHops.length);
   // the receiver's own last hop the guard can absorb: its base is an identifier, so the test reads that
   // base and the live branch re-reads it while re-spelling the receiver PLAIN (`realm?.Array.of` ->
   // `null == realm ? void 0 : (_ref = realm.Array, ...)`). a deeper hop would need a memo of its own
   // ahead of the test, and two live hops need two tests - both keep bailing
-  const receiverHop = !memberNode.optional && captureReceiver?.optional
+  const receiverHop = !captureChain && !memberNode.optional && captureReceiver?.optional
     && optionalHops[0] === captureReceiver.object && captureReceiver.object.type === 'Identifier'
     ? captureReceiver : null;
-  if (optionalHops.length > 1 || (optionalHops.length === 1 && !memberNode.optional && !receiverHop)) {
+  if (!captureChain && (optionalHops.length > 1 || (optionalHops.length === 1 && !memberNode.optional && !receiverHop))) {
     return { bail: true };
   }
   // every ctor this slot was written with is a candidate: the key may live on an EARLIER write's
@@ -1396,14 +1408,14 @@ export function planGuardedStaticNarrow({ memberNode, parent, meta, path, resolv
   // ... and for an absorbed OPTIONAL call the walk is also the proof there IS no continuation: the
   // steps the source wrote above a `?.()` short-circuit WITH it, and only a copy of them in every
   // branch would keep that, so a continuation over one keeps bailing
-  const chainTail = memberNode.optional || receiverHop || absorbedCall?.optional
+  const chainTail = captureChain || memberNode.optional || receiverHop || absorbedCall?.optional
     ? guardedNarrowChainTail(path, memberNode, absorbedCall) : [];
   if (absorbedCall?.optional && chainTail.length) return { bail: true };
   // WHERE the one short-circuit is spelled: over the whole render for a hop the RECEIVER's spelling
   // carries, and inside the capture for the member's own hop, whose test is the memo the branches
   // read. an empty tail over an uncaptured receiver needs none - the member-level narrow keeps the
   // source's `?.` in its raw branch, which is exact where the chain ends there
-  const hoisted = Boolean(receiverHop || (memberNode.optional && (captureReceiver || chainTail.length)));
+  const hoisted = Boolean(captureChain || receiverHop || (memberNode.optional && (captureReceiver || chainTail.length)));
   return {
     callInBranches,
     hoisted,
@@ -1471,6 +1483,14 @@ function resolveSymbolReceiverProxyRoot({ node, receiverChain, receiverValueName
   return { rootName, droppedSe: collectFoldedReceiverSideEffects(node.object, [], rescue), isOptionalAccess };
 }
 
+// `path` (optional) - the visitor path of `node`. threaded through to adapter.hasBinding so
+// TS-runtime shadow detection (`enum X {}` / `namespace X {}` / `import X = require()`)
+// inside a StaticBlock anchors at the actual visitor site instead of the enclosing
+// scope owner. estree-toolkit reports `scope.path = ClassDeclaration` for code inside a
+// StaticBlock since it doesn't register StaticBlock as a separate scope; without `path`,
+// `findTSRuntimeBindingInPath` walks UP from ClassDeclaration and never enters the
+// StaticBlock body, missing local enum/namespace shadows. babel's scope tracker does
+// anchor at StaticBlock so it works without path - the threaded form is a no-op for it
 // Build a member claim and mark only the receiver hops its eventual replacement consumes.
 // Unknown receivers may carry guarded candidates without becoming proven static owners.
 // eslint-disable-next-line max-statements -- per-form member dispatch sequence

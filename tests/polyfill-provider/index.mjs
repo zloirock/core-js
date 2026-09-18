@@ -18,6 +18,7 @@ import './guarded-alias-receiver-candidates.mjs';
 import './destructure-guarded-tdz.mjs';
 import './guarded-destructure-receiver-patterns.mjs';
 import './retained-getter-locals.mjs';
+import './retained-return-paths.mjs';
 import './selected-realm-receivers.mjs';
 import './destructure-host-shape.mjs';
 import './nested-receiver-base.mjs';

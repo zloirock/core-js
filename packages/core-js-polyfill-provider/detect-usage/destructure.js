@@ -3369,13 +3369,14 @@ export function walkStaticReceiverChain({
   unionSink = null,
   rescuesReceiverRead = false,
   rescueSink = null,
+  conditionalSink = null,
   navKeys = 0,
 }) {
   // `usageNode` overrides the walk's initial read site (a wrapper's capture point); the step
   // otherwise anchors at the host `path` node
   return walkStaticReceiverStep(
     { node: receiverNode, readNode: usageNode, ctx: { scope, adapter, path } },
-    { walkPath, ignoreWrittenSlots, unionSink, rescuesReceiverRead, rescueSink, navKeys },
+    { walkPath, ignoreWrittenSlots, unionSink, rescuesReceiverRead, rescueSink, conditionalSink, navKeys },
   );
 }
 
@@ -3409,6 +3410,7 @@ export function staticContainerReceiverName({
   unionSink = null,
   rescuesReceiverRead = false,
   rescueSink = null,
+  conditionalSink = null,
 }) {
   const { root: chainRoot, keys } = memberChainKeys(node, staticMemberKeyName);
   if (keys.includes(null)) return null;
@@ -3424,8 +3426,10 @@ export function staticContainerReceiverName({
   // spelled in place (`({ h: { g: globalThis } }).h.g.Map`), which its terminal descends - the same
   // root the fold accepts, only with nothing to dereference ahead of the descent
   if (isCallShape(root) || (canHoldBuiltIn(root) && root.type !== 'Identifier')) {
-    return keys.length
-      ? walkStaticReceiverStep({ node: root, readNode: root, ctx: { scope, adapter, path } }, { walkPath: keys, unionSink }) : null;
+    if (!keys.length && !unionSink) return null;
+    const name = walkStaticReceiverStep({ node: root, readNode: root, ctx: { scope, adapter, path } },
+      { walkPath: keys, unionSink, conditionalSink });
+    return keys.length ? name : null;
   }
   if (root?.type !== 'Identifier') return null;
   const binding = adapter.getBinding(scope, root.name, path);
@@ -3461,6 +3465,7 @@ export function staticContainerReceiverName({
     unionSink,
     rescuesReceiverRead,
     rescueSink,
+    conditionalSink,
     navKeys: rescuesReceiverRead ? keys.length : 0,
   });
 }
@@ -3553,6 +3558,7 @@ function walkStaticReceiverStep(hop, {
   slotReadNode = hop.readNode ?? hop.ctx.path?.node ?? null,
   rescuesReceiverRead = false,
   rescueSink = null,
+  conditionalSink = null,
   navKeys = 0,
 }) {
   if (depth > STATIC_WALK_DEPTH) return null;
@@ -3609,6 +3615,7 @@ function walkStaticReceiverStep(hop, {
         dereferencedHops: hops,
         rescuesReceiverRead,
         rescueSink,
+        conditionalSink,
         navKeys,
       },
     };
@@ -3790,25 +3797,33 @@ function collectBranchArmStatics({ hop, walk, branchArms }) {
 // through the shared inline-call canon, one step deeper, and then carries on down the remaining keys.
 // `callView` is that canon's view of the source node - a call, or one of the value-transparent
 // wrappers over one (`new R()`, `await g()`) - so this walk and the realm proof resolve the same
-// value. the proof is the STRICT one: a conditionally-assigned forwarder proves nothing. a shorthand
+// value. A conditional callee proves a container only to global or a caller collecting that
+// condition in `conditionalSink` and capturing the entire receiver before guarding its value. A shorthand
 // `Array` in the returned literal is the real global (an unbound leaf name), a user literal
 // (`{ of: fn }`) still resolves to nothing, and the container the walk stands in rides on unchanged,
 // so a written slot below the call is consulted against the binding that spells it
 function walkStaticReceiverCallArm(callView, { hop, walk }) {
   const { readNode } = hop;
-  const { adapter } = hop.ctx;
-  const { depth, unionSink } = walk;
-  const returned = inlineCallReturnExpression(
-    { node: callView, readNode, seen: hop.seen ?? new Set(), ctx: hop.ctx }, { rejectConditional: true },
-  );
-  // A mutating forwarder can still return its first argument. Its original slots are
-  // candidates only: the preserved call may replace them before the runtime identity test.
-  if (!returned && unionSink && adapter.method === 'usage-pure') {
+  const { depth, unionSink, conditionalSink } = walk;
+  const callHop = { node: callView, readNode, seen: hop.seen ?? new Set(), ctx: hop.ctx };
+  const rejectConditional = hop.ctx.adapter.method !== 'usage-global';
+  let returned = inlineCallReturnExpression(callHop, { rejectConditional });
+  // Global already admitted conditional callees; only a stricter first query can gain an answer.
+  if (!returned && conditionalSink && rejectConditional) {
+    returned = inlineCallReturnExpression(callHop);
+    if (returned) conditionalSink.push(callView);
+  }
+  // Mixed / missing returns and mutating argument forwarders contribute candidates only:
+  // the preserved call may return another value before the runtime identity test.
+  if (!returned && unionSink) {
+    const candidates = [];
     const candidate = inlineCallReturnExpression(
-      { node: callView, readNode, seen: hop.seen ?? new Set(), ctx: hop.ctx },
-      { rejectConditional: true, allowExtraParams: true },
+      callHop,
+      { allowExtraParams: true, returnSink: candidates },
     );
-    if (candidate) walkAlternativesIntoSink({ hop: candidate, walk, values: [candidate.node] });
+    for (const value of candidate ? [candidate] : candidates) {
+      walkAlternativesIntoSink({ hop: value, walk, values: [value.node] });
+    }
   }
   return returned ? walkStaticReceiverStep(
     { ...hop, node: returned.node, seen: returned.seen, ctx: returned.ctx }, { ...walk, depth: depth + 1 },
@@ -3859,9 +3874,7 @@ function walkStaticReceiverTerminal({ hop, walk }) {
     // a CALL names its return's constructor through the name channel (`{ w: e('a') }` holds Object)
     if (current?.type === 'CallExpression' || current?.type === 'OptionalCallExpression') {
       const name = resolveObjectName({ objectNode: current, scope: currentScope, adapter, path, usageNode: readNode });
-      const candidate = !name && unionSink && adapter.method === 'usage-pure'
-        ? inlineCallReturnExpression(hop, { rejectConditional: true, allowExtraParams: true }) : null;
-      if (candidate) walkAlternativesIntoSink({ hop: candidate, walk, values: [candidate.node] });
+      if (!name && unionSink) walkStaticReceiverCallArm(current, { hop, walk });
       return name;
     }
     if (current?.type === 'MemberExpression' || current?.type === 'OptionalMemberExpression') {
@@ -4810,15 +4823,18 @@ export function buildParameterArgumentSynthPlan({ leafPatternPath, meta, resolve
   return targets.length || settled ? { targets, settled } : null;
 }
 
-// A parameter without a default has no local receiver to name. Its proven callers can still carry
-// static receivers. Global injects that static; pure authorizes only the argument mirror,
+// A parameter's proven callers can carry static receivers independently of its default.
+// Global collects every caller's claim; pure authorizes only the argument mirror,
 // never a body/default rewrite.
-function parameterArgumentDestructureMeta(objectPattern, { key, adapter, parameterCallSites, resolvePure }) {
+function parameterArgumentDestructureMeta(objectPattern, { key, adapter, parameterCallSites, resolvePure, unionSink = null }) {
   if (!key || adapter.method === 'usage-pure' && !resolvePure) return null;
+  let primary = null;
   for (const source of parameterArgumentSources(objectPattern, adapter, parameterCallSites)?.sources ?? []) {
     if (!source.hops) continue;
+    // This query only names the supplied value. Plans separately preserve its complete spelling
+    // or decline the mirror; sequence prefixes and stored values cannot block the name query.
     const object = walkStaticReceiverChain({
-      receiverNode: source.node,
+      receiverNode: installedWriteValue(source.node),
       walkPath: source.hops.map(hop => hop.key ?? String(hop.index)),
       scope: source.host.scope, adapter, path: source.host,
     });
@@ -4827,11 +4843,16 @@ function parameterArgumentDestructureMeta(objectPattern, { key, adapter, paramet
       kind: 'property', object, key, placement: 'static', receiverHint: staticReceiverHint('static', object),
       parameterArgumentsOnly: true,
     };
-    if (adapter.method === 'usage-global') return meta;
+    if (adapter.method === 'usage-global') {
+      if (!unionSink) return meta;
+      unionSink.push(object);
+      primary ??= meta;
+      continue;
+    }
     const pure = resolvePure(meta);
     if (pure && pure.kind !== 'instance') return meta;
   }
-  return null;
+  return primary;
 }
 
 export function buildNestedParamSynthPlan({ leafPatternPath, meta, resolvePure, adapter, callSite = null }) {
@@ -6132,11 +6153,16 @@ function pairedBindingLeafMeta(objectPattern, { key, adapter, unionSink, resolve
 export function buildDestructureLeafMeta({
   descriptor, key, adapter, resolvePure = null, unionSink = null, resolveStaticKey = null, parameterCallSites = null,
 }) {
+  // A known caller and the default can name different receivers. Global owes each selected
+  // static even when the default already resolves; the caller census can then keep it local.
+  const objectPattern = descriptor.objectPattern ?? (descriptor.host === 'param-default' ? descriptor.pattern.get('left') : null);
+  const argumentMeta = adapter.method === 'usage-global' && unionSink && objectPattern
+    ? parameterArgumentDestructureMeta(objectPattern, { key, adapter, parameterCallSites, resolvePure, unionSink }) : null;
   switch (descriptor.host) {
     case 'none':
       return null;
     case 'parameter':
-      return parameterArgumentDestructureMeta(descriptor.objectPattern, { key, adapter, parameterCallSites, resolvePure });
+      return argumentMeta ?? parameterArgumentDestructureMeta(descriptor.objectPattern, { key, adapter, parameterCallSites, resolvePure });
     case 'opaque':
       return key ? { kind: 'property', object: null, key, placement: null } : null;
     case 'init':
@@ -6178,7 +6204,7 @@ export function buildDestructureLeafMeta({
         argPath: site?.callPath ?? pattern,
       });
       const argWins = argNode !== null && receiverNode === argNode;
-      return buildDestructuringInitMeta({
+      const meta = buildDestructuringInitMeta({
         initNode: receiverNode,
         key,
         scope: argWins ? site.callPath.scope : pattern.scope,
@@ -6186,6 +6212,14 @@ export function buildDestructureLeafMeta({
         path: argWins ? site.callPath : pattern,
         unionSink,
       });
+      // An opaque default cannot authorize a rewrite, but a known caller can still supply
+      // the static. This claim authorizes only that caller's argument mirror.
+      if (meta && meta.object === null && !meta.fromFallback && !meta.guardOnly && !resolveBuiltIn(meta)) {
+        return argumentMeta ?? parameterArgumentDestructureMeta(pattern.get('left'), {
+          key, adapter, parameterCallSites, resolvePure,
+        }) ?? meta;
+      }
+      return meta;
     }
     case 'nested': {
       const candidates = unionSink ?? [];
