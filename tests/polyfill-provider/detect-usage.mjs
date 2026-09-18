@@ -88,6 +88,7 @@ import {
   STATEMENT_LIST_HOST_TYPES,
   TS_EXPR_WRAPPERS,
   collectFileCensus,
+  nodePositionKey,
   ESCAPED_CTOR_REFS,
   reachingReassignmentValueNode,
   reassignmentValueEnumeration,
@@ -2824,7 +2825,7 @@ runBoth('container declaration scopes/aliases and repeated names', `
   for (const [initial, expected] of [['Map', []], ['Array', ['Set']], ['WeakMap', ['WeakSet']]]) {
     const declaration = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.init?.type === 'ObjectExpression'
       && p.node.init.properties[0].value.name === initial).node;
-    const key = containerSlotIndex.owners.get(declaration);
+    const key = containerSlotIndex.owners.get(nodePositionKey(declaration) ?? declaration);
     check(`${ lbl }/${ initial }: declaration indexed`, typeof key, 'string');
     const writes = writtenContainerSlots.get(`${ key }.value`) ?? [];
     checkDeep(`${ lbl }/${ initial }: own writes`, writes.map(node => node.name), expected);
