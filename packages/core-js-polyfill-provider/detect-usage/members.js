@@ -13,6 +13,7 @@ import {
   isMutatedGlobalSlot,
   isPristineProxyGlobal,
   isReusableReceiver,
+  ITERATED_STATIC_RECEIVERS,
   isTaggedTemplateTagPosition,
   mayHaveSideEffects,
   memberChainEndPath,
@@ -27,6 +28,7 @@ import {
   privateNameSpelling,
   proxyNavEffectsHarvestable,
   runStandsInLoweredGuardTest,
+  rootProgramOf,
   SKIPPABLE_WRAPPER_TYPES,
   spineHasOptionalHop,
   staticMemberKeyName,
@@ -53,7 +55,7 @@ import {
   staticContainerReceiverName,
   unionKeyedCarrierRides,
 } from './destructure.js';
-import { resolve as resolveBuiltIn } from '../index.js';
+import { hasStaticDefinitionKey, resolve as resolveBuiltIn } from '../index.js';
 import { planNestedKeyedPatternCapture } from '../destructure-host-shape.js';
 import {
   asSymbolRef,
@@ -1469,6 +1471,8 @@ function resolveSymbolReceiverProxyRoot({ node, receiverChain, receiverValueName
   return { rootName, droppedSe: collectFoldedReceiverSideEffects(node.object, [], rescue), isOptionalAccess };
 }
 
+// Build a member claim and mark only the receiver hops its eventual replacement consumes.
+// Unknown receivers may carry guarded candidates without becoming proven static owners.
 // eslint-disable-next-line max-statements -- per-form member dispatch sequence
 export function handleMemberExpressionNode({
   node, scope, adapter, handledObjects, suppressProxyGlobals, path, resolveMeta, isEntryAvailable,
@@ -1649,13 +1653,21 @@ export function handleMemberExpressionNode({
     // the receiver resolved to NOTHING (`meta` null / `object` null) or merely ECHOED the local
     // binding's own name (`object === recvIdent.name` - an unresolvable local): only those reads
     // are guard candidates; a receiver resolved to a real global keeps its normal dispatch
-    if ((!meta || !meta.object || echoesLocalName) && recvIdent?.type === 'Identifier') {
+    // Opaque iteration may carry a native-only namespace (Array has no whole-value ponyfill).
+    // Its known families are guard candidates, never proof that this receiver is that constructor.
+    const iteratedObjects = adapter.method === 'usage-pure' && hasStaticDefinitionKey(meta?.key ?? staticMemberKeyName(node))
+      ? [...ITERATED_STATIC_RECEIVERS.get(rootProgramOf(path))?.(recvIdent) ?? []]
+        .filter(name => !resolveBuiltIn({ kind: 'global', name })
+          && !isMutatedGlobalSlot(adapter, name) && !adapter.isMutatedStatic?.(name, meta?.key ?? staticMemberKeyName(node))) : [];
+    if ((!meta || !meta.object || echoesLocalName) && (recvIdent?.type === 'Identifier' || iteratedObjects.length)) {
       // a write whose RHS is itself a resolvable global (`M = globalThis.Map`) is swapped by the
       // member channel and registers NO alias, so the registry cannot name its ctor. the binding's
       // own write enumeration can - and the guard tests identity, so a name that never matches at
       // runtime costs nothing
-      const guardedBinding = adapter.getBinding(scope, recvIdent.name, path);
-      const writeObjects = aliasWriteCtorNames({ name: recvIdent.name, scope, adapter, path, binding: guardedBinding });
+      const guardedBinding = recvIdent?.type === 'Identifier' ? adapter.getBinding(scope, recvIdent.name, path) : null;
+      const writeObjects = recvIdent?.type === 'Identifier'
+        ? aliasWriteCtorNames({ name: recvIdent.name, scope, adapter, path, binding: guardedBinding }) : [];
+      for (const name of iteratedObjects) if (!writeObjects.includes(name)) writeObjects.push(name);
       // ... and when NOTHING registered an alias at all (`let M; if (c) M = globalThis.Map` -
       // the write's RHS resolves on its own, so the member channel swaps it and the registry
       // never sees the binding), the enumeration IS the hint: without it the read went out raw
@@ -1679,11 +1691,13 @@ export function handleMemberExpressionNode({
           Object.assign(meta, {
             guardedAliasHint: guardedHint,
             guardedWriteObjects: writeObjects,
+            captureGuardReceiver: meta.captureGuardReceiver || recvIdent?.type !== 'Identifier',
           });
         } else if (key) {
           return {
             kind: 'property', object: null, key, placement: 'static', guardedAliasHint: guardedHint,
             guardedWriteObjects: writeObjects,
+            captureGuardReceiver: recvIdent?.type !== 'Identifier',
             guardOnly: true,
           };
         }

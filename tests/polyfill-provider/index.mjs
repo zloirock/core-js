@@ -9,6 +9,7 @@ import './class-flow-order.mjs';
 import './container-navigation-opaque-values.mjs';
 import './container-alias-alternatives.mjs';
 import './container-wrapper-captures.mjs';
+import './census-alias-writes.mjs';
 import './reassigned-alias-lexical-scopes.mjs';
 import './kept-container-slot-values.mjs';
 import './guarded-container-receiver-candidates.mjs';

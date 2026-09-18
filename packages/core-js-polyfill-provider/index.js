@@ -296,6 +296,14 @@ export function hasOwnStaticDefinition(object, key) {
   return hasOwn(builtInDefinitions.statics, object) && hasOwn(builtInDefinitions.statics[object], key);
 }
 
+const STATIC_DEFINITION_KEYS = new Set(Object.values(builtInDefinitions.statics).flatMap(Object.keys));
+
+// Whether any built-in owns this static key. Receiver-family analysis cannot add a static
+// for an absent key; unknown or branching keys still need their ordinary conservative path.
+export function hasStaticDefinitionKey(key) {
+  return STATIC_DEFINITION_KEYS.has(key);
+}
+
 // `<entry head>` -> `<global name>`. one pass over pure-bearing entries in
 // `built-in-definitions`; per-class kebab heads in `*.pure.dependencies` make each
 // head unique to one global, so first hit wins. multi-segment entries are method /
