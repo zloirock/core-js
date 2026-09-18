@@ -1,9 +1,7 @@
 import _Map from "@core-js/pure/actual/map/constructor";
 import _Set from "@core-js/pure/actual/set/constructor";
-// IIFE body declares a local `var` / `let` binding before the return. local declarations
-// shadow free identifiers - inlining the return at the caller would mis-resolve the body's
-// free name (`Map` vs caller-scope `Map`), so receiver resolution must bail on a leading
-// VariableDeclaration. distinct shapes: `var` / `let` / `const` / function-decl / class-decl
+// Unrelated var / let / const declarations stay inside the call and permit resolving its return.
+// Function and class declarations remain outside the admitted body grammar.
 const a = (() => {
   var local = 1;
   return _Map;
