@@ -15,4 +15,4 @@ export const viaFallbackSealed = (
 	_Array$of
 );
 
-export const { self: { Array: { of: viaFallbackNested } } } = _globalThis.window ?? {};
+export const { self: { Array: { of: viaFallbackNested } } } = null == _globalThis.window ? {} : { self: { Array: { of: _Array$of } } };

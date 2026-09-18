@@ -8,8 +8,9 @@
 // gathers what no read names. A constructor init anchors the same way (`{ from: { length } } = Array`,
 // an alias of it, the member spelling, a static with its own entry). The unplugin sidecar spells one
 // accepted asymmetry - the assignment split reads the import binding twice instead of minting a ref
-// (the binding is that ref), the overwrite behind the residual - and one residual: a call init
-// (`= realm()`) the unplugin leg still leaves native.
+// (the binding is that ref), the overwrite behind the residual. A CALL init the inline canon proves
+// to yield the realm anchors on both legs: the call is dropped where it runs no effect and lifted
+// ahead of the assignment where it does, so it still evaluates exactly once, where the source ran it.
 const log = [];
 function realm() {
   log.push('r');

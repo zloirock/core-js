@@ -293,7 +293,7 @@ function mark(t, v) {
 	for (const _r of [{ w: Object, y: [1] }]) {
 		let _ref12 = _r;
 		let values = _Object$values;
-		let at = _at(_ref12.y);
+		let at = _atMaybeArray(_ref12.y);
 
 		[values, at];
 	}

@@ -40,7 +40,7 @@ function mark(t, v) {
   for (const _ref3 of [[Object, [1]]]) {
     let [_ref, _ref2] = _ref3;
     let values = _values(_ref);
-    let at = _at(_ref2);
+    let at = _atMaybeArray(_ref2);
     [values, at];
   }
 }

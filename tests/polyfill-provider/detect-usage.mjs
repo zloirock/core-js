@@ -844,6 +844,37 @@ runBoth('varInitDominatesUsage/in-scope conditional, use outside branch -> false
     check(lbl, varInitDominatesUsage({ declaratorNode, usagePath }), false);
   });
 
+// a LABELLED block whose body BREAKS OUT of it ends there: a declaration below the jump never runs,
+// while a read after the label still does. a label is not a conditional host by TYPE - it only names
+// a statement - so nothing in the branch table sees it, and without its own disjunct such a
+// declarator reads as unconditional
+runBoth('varInitDominatesUsage/label body breaks out -> false',
+  'function f(c){ lbl: { if (!c) break lbl; var M = Object; } M.fromEntries(); }', (adapter, prog, lbl) => {
+    const { declaratorNode, usagePath } = pickVarInit(adapter, prog, 'fromEntries');
+    check(lbl, varInitDominatesUsage({ declaratorNode, usagePath }), false);
+  });
+
+// ... and a break aimed at an OUTER label ends that outer body just the same
+runBoth('varInitDominatesUsage/break targets an outer label -> false',
+  'function f(c){ outer: { inner: { if (!c) break outer; var M = Object; } } M.fromEntries(); }', (adapter, prog, lbl) => {
+    const { declaratorNode, usagePath } = pickVarInit(adapter, prog, 'fromEntries');
+    check(lbl, varInitDominatesUsage({ declaratorNode, usagePath }), false);
+  });
+
+// a labelled block nothing jumps out of is the function's own straight line -> dominates
+runBoth('varInitDominatesUsage/label without a break -> true',
+  'function f(){ lbl: { var M = Object; } M.fromEntries(); }', (adapter, prog, lbl) => {
+    const { declaratorNode, usagePath } = pickVarInit(adapter, prog, 'fromEntries');
+    check(lbl, varInitDominatesUsage({ declaratorNode, usagePath }), true);
+  });
+
+// ... and a `break` inside it that targets a LOOP, not the label, leaves it straight-line
+runBoth('varInitDominatesUsage/label with a loop break -> true',
+  'function f(){ lbl: { for (let i = 0; i < 1; i++) { break; } var M = Object; } M.fromEntries(); }', (adapter, prog, lbl) => {
+    const { declaratorNode, usagePath } = pickVarInit(adapter, prog, 'fromEntries');
+    check(lbl, varInitDominatesUsage({ declaratorNode, usagePath }), true);
+  });
+
 // in-scope conditional declarator, use INSIDE the same branch -> dominates
 runBoth('varInitDominatesUsage/in-scope conditional, use inside branch -> true',
   'function f(c){ if (c) { var M = Object; M.fromEntries(); } }', (adapter, prog, lbl) => {

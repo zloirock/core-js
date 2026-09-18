@@ -1,3 +1,4 @@
+import _Array$from from "@core-js/pure/actual/array/from";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _findLastIndexMaybeArray from "@core-js/pure/actual/array/instance/find-last-index";
 import _Array$of from "@core-js/pure/actual/array/of";
@@ -15,8 +16,6 @@ let done = false;
 function eff() {
   return 0;
 }
-_ref = Array, null == _ref ? _ref[""] : (e++, o = _Array$of), {
-  from
-} = _ref, _ref;
+_ref = Array, null == _ref ? _ref[""] : (e++, o = _Array$of), from = _Array$from, _ref;
 for (const _ref2 = obj.recv, _ref3 = _ref2, fli = null == _ref3 ? _ref3[""] : (eff(), _findLastIndexMaybeArray(_ref3)), a = _atMaybeArray(_ref2); !done;) done = [fli, a];
 export const r = [from, o, done];

@@ -17,7 +17,7 @@ for (const _ref = (_globalThis.effect ??= 1, _globalThis),
 
 for (const _ref3 = (_globalThis.effect ??= 2, _globalThis),
 	tailKeys = _Object$keys,
-	tailAt = _atMaybeArray(_ref3.Array.prototype); !out2; ) out2 = [tailKeys, tailAt];
+	tailAt = _atMaybeArray(_globalThis.Array.prototype); !out2; ) out2 = [tailKeys, tailAt];
 
 export const r = [
 	typeof out1[0],
