@@ -25,7 +25,11 @@ export const LOCAL_MEMBER_CALLEES = new WeakMap();
 // resolver validates only these candidates; unrelated parameters never need its caller walk.
 export const PARAMETER_STATIC_SOURCES = new WeakMap();
 
-// ... and its position half, keyed by PROGRAM node -> `start:end` keys of the CONSTRUCTOR references
+// Program -> read-only query of possible constructor families behind an opaque iteration, asked
+// by receiver node. The census publishes it for global's member-key extras and pure's ctor guards.
+export const ITERATED_STATIC_RECEIVERS = new WeakMap();
+
+// The escape census's position half, keyed by PROGRAM node -> `start:end` keys of CONSTRUCTOR references
 // whose value escapes. a position survives every clone and region rebuild (babel's cloneNode keeps
 // source positions), where node identity does not
 export const ESCAPED_CTOR_REFS = new WeakMap();
@@ -4556,6 +4560,8 @@ function receiverSlotRead(receiver, key) {
 // such a read - it descends against that value, whose own node is where it stands
 // `includeNestedReceivers` also reports a receiver read whose value feeds a nested pattern: a
 // guarded constructor yielded there must carry the static slots that pattern subsequently reads.
+// `includeBindings` includes every named slot, so an opaque receiver's static reads are counted
+// even when no particular local binding is queried.
 export function patternReceiverSlotNodes(pattern, rhs, name, ctx) {
   const out = [];
   rhs = followConstLiteralAlias(unwrapExpressionChain(rhs), ctx);
@@ -4576,7 +4582,7 @@ export function patternReceiverSlotNodes(pattern, rhs, name, ctx) {
   for (const prop of pattern.properties) {
     if (prop.type !== 'Property' && prop.type !== 'ObjectProperty') continue;
     const slot = patternSlotTarget(prop.value);
-    if (slot?.type === 'Identifier' && slot.name !== name) continue;
+    if (slot?.type === 'Identifier' && slot.name !== name && !ctx?.includeBindings) continue;
     const key = patternPropKey(prop, ctx, pattern);
     if (key === null) continue;
     const paired = rhs?.type === 'ObjectExpression'
@@ -4595,7 +4601,7 @@ export function patternReceiverSlotNodes(pattern, rhs, name, ctx) {
       }
       continue;
     }
-    if (received && slot?.type === 'Identifier' && slot.name === name) out.push(prop);
+    if (received && slot?.type === 'Identifier' && (slot.name === name || ctx?.includeBindings)) out.push(prop);
   }
   return out;
 }
@@ -6883,6 +6889,13 @@ export function declarationScopesOf(node, frame) {
 export function createDeclaredNameIndex(names = null) {
   const declaredIn = new Map();
   return {
+    // An already-classified binding, for censuses that also record synthetic declarations.
+    recordName(name, scope) {
+      if (names && !names.has(name)) return;
+      let scopes = declaredIn.get(name);
+      if (!scopes) declaredIn.set(name, scopes = new Set());
+      scopes.add(scope);
+    },
     // one visited node's declarations, taken from the census walk that visits it. `select(id, node)`
     // narrows what is taken - a reducer indexing one PROPERTY of a binding rather than the whole
     // lattice passes it, and asks the same chain question of the narrower index
@@ -6891,18 +6904,21 @@ export function createDeclaredNameIndex(names = null) {
       if (!declared || isAmbientBindingShape(node, frame.parentNode)) return;
       const { own, named } = declarationScopesOf(node, frame);
       for (const id of declared) {
-        if (names && !names.has(id.name)) continue;
         if (select && !select(id, node)) continue;
-        let scopes = declaredIn.get(id.name);
-        if (!scopes) declaredIn.set(id.name, scopes = new Set());
-        scopes.add(id === node.id ? named : own);
+        this.recordName(id.name, id === node.id ? named : own);
       }
     },
-    // ... and the question itself. `null` stands for the file root, which every chain is inside
-    declares(name, scopes) {
+    // The nearest binding owner, including declarations without a value. `null` is the file
+    // root; `undefined` means the chain reaches no declaration in this file.
+    resolve(name, scopes) {
       const declaring = declaredIn.get(name);
-      if (!declaring) return false;
-      return declaring.has(null) || scopes.some(scope => declaring.has(scope));
+      if (!declaring) return undefined;
+      for (let index = scopes.length - 1; index >= 0; index--) if (declaring.has(scopes[index])) return scopes[index];
+      return declaring.has(null) ? null : undefined;
+    },
+    // ... and the existence question over the same scope lattice.
+    declares(name, scopes) {
+      return this.resolve(name, scopes) !== undefined;
     },
   };
 }
