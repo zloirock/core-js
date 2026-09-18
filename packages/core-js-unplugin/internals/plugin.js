@@ -58,7 +58,10 @@ import {
   restoreUnclaimedFlattens,
   staticContainerReceiverName,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
-import { resolveKey as sharedResolveKey } from '@core-js/polyfill-provider/detect-usage/resolve';
+import {
+  readFeedsOwnSlotWrite,
+  resolveKey as sharedResolveKey,
+} from '@core-js/polyfill-provider/detect-usage/resolve';
 import { planMinifierSequenceSplit } from '@core-js/polyfill-provider/destructure-host-shape';
 import { scanExistingCoreJSImports } from '@core-js/polyfill-provider/detect-usage/entries';
 import { nodeType, types } from './estree-compat.js';
@@ -466,8 +469,14 @@ export default function createPlugin(options) {
   // a static the user monkey-patches must never bind to the frozen receiver-less import:
   // every pipeline (member emission, destructure props, param synth) resolves through this
   // filter, so the read keeps flowing through the substituted constructor instead
+  // ... and the one read a mutation does NOT speak for is the DETECT the write itself computes from:
+  // `X.y = X.y || patch` reads the slot before the write lands, so the polyfill belongs there - it
+  // satisfies the detect, the third-party patch never installs, and what the slot then holds is
+  // core-js's own implementation, which every read after the write goes on reading raw
   function resolvePure(meta, path) {
-    return isMutatedStaticMeta(meta, currentMutatedStatics) ? null : resolvePureUnfiltered(meta, path);
+    return isMutatedStaticMeta(meta, currentMutatedStatics) && !readFeedsOwnSlotWrite(path, {
+      objectName: meta.object, keyName: meta.key, scope: path?.scope, adapter: estreeAdapter, path,
+    }) ? null : resolvePureUnfiltered(meta, path);
   }
   // `isWebpack` here is a behavior flag for the chunk-loader contract (see
   // `isChunkLoaderBundler` for the bundler set + rationale)
@@ -1227,7 +1236,9 @@ export default function createPlugin(options) {
           memberWritePositionBails,
           isInheritedStaticLookup,
           resolveStaticInheritedMember,
-          isMutatedStatics: m => isMutatedStaticMeta(m, mutatedStatics),
+          isMutatedStatics: (m, p) => isMutatedStaticMeta(m, mutatedStatics) && !readFeedsOwnSlotWrite(p, {
+            objectName: m.object, keyName: m.key, scope: p?.scope, adapter: estreeAdapter, path: p,
+          }),
           injectorState: injector,
           isEntryAvailable: isEntryNeeded,
           resolveGlobalPolyfill,

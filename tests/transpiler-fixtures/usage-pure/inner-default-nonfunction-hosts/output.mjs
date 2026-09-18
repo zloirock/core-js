@@ -7,10 +7,12 @@ import _Promise$race from "@core-js/pure/actual/promise/race";
 import _Set from "@core-js/pure/actual/set";
 // An inner default on a NON-function host - an assignment, a catch parameter, an object key, a
 // declarator's array wrapper - takes the per-key fallback chain a parameter's does. Where the
-// mirror declines (a non-identifier key, a duplicate key, a rest beside the leaves) every static
-// leaf keeps the inline default, the nested one included; a pattern spelling only nested leaves
+// mirror declines (a non-identifier key, a repeated HOP key, a rest beside the leaves) every static
+// leaf keeps the inline default, the nested one included; a key repeated over LEAVES does not
+// decline it - one slot is one property, and the literal replaces the default whole; a pattern spelling only nested leaves
 // mirrors the default from them; and a member target beside the leaves (an assignment-only shape)
-// leaves the flat leaf its inline default. Both legs print the same shapes.
+// rides the mirror like any slot once its ROOT proves writable, so the flat leaf keeps no inline
+// default there. Both legs print the same shapes.
 const getKey = () => 'Map';
 const box = {};
 let S, M, alias, of, rest, race, d;
@@ -22,12 +24,17 @@ let S, M, alias, of, rest, race, d;
   }
 } = _globalThis] = [];
 [{
-  Map: M = _Map,
-  ['Map']: alias = _Map,
+  Map: M,
+  ['Map']: alias,
   Array: {
-    of = _Array$of
+    of
   }
-} = _globalThis] = [];
+} = {
+  Map: _Map,
+  Array: {
+    of: _Array$of
+  }
+}] = [];
 [{
   Set: S,
   Array: {
@@ -54,11 +61,16 @@ let S, M, alias, of, rest, race, d;
   }
 } = _globalThis] = [];
 [{
-  Set: S = _Set,
+  Set: S,
   Array: {
     of: box.of
   }
-} = _globalThis] = [];
+} = {
+  Set: _Set,
+  Array: {
+    of: _Array$of
+  }
+}] = [];
 export const caught = (() => {
   try {
     throw [];
@@ -103,9 +115,11 @@ export const keyed = (() => {
   return [KS, y, kof, only];
 })();
 
-// ... and a value-SELECTING inner default is the per-branch mirror's shape on every host: the leaf
-// reads that default exactly when the host's slot is empty, and the mirror fills the default's arms
-// (a member target riding raw beside the ponyfilled leaf)
+// ... and a value-SELECTING inner default fills the default's arms, a member target taking the
+// ponyfill in its own slot beside the sibling leaf. A selection every arm of which is the REALM names ONE object, so the
+// literal replaces it whole - left standing, the probe selects natively wherever the host HAS
+// `window`, and the polyfill the fallback arm carries attaches nowhere. The slot a literal cannot
+// spell anchors on the operand the selection yields through, never on the probe's unbacked name
 export const selecting = (() => {
   let gb;
   ({
@@ -116,12 +130,12 @@ export const selecting = (() => {
       Promise: {
         race: box.race
       }
-    } = _globalThis.window ?? {
+    } = {
       Map: {
         groupBy: _Map$groupBy
       },
       Promise: {
-        race: _globalThis.Promise.race
+        race: _Promise$race
       }
     }
   } = {});
@@ -133,7 +147,7 @@ export const selecting = (() => {
       Promise: {
         customZ: z
       }
-    } = _globalThis.window ?? {
+    } = {
       Map: {
         groupBy: _Map$groupBy
       },
@@ -146,21 +160,23 @@ export const selecting = (() => {
     Map: {
       groupBy: gb3
     }
-  } = _globalThis.window ?? {
+  } = {
     Map: {
       groupBy: _Map$groupBy
     }
   }] = [];
-  // ... a host slot no pairing reads through (a spread) still hands the pattern its default, and an
-  // ALL-proxy selecting default takes the shared plan's literal in place of the whole selection
+  // ... a host slot no pairing reads through (a spread) still hands the pattern its default, and a
+  // BARE backed left reaches the same literal by the other road - its right is dead rather than
+  // realm-equal. A fallback the plan may not speak for is the negative: the selection stays whole
+  // and native, so neither arm is polyfilled
   const extra = {};
-  let gb4, gb5;
+  let gb4, gb5, gb6;
   ({
     k: {
       Map: {
         groupBy: gb4
       }
-    } = _globalThis.window ?? {
+    } = {
       Map: {
         groupBy: _Map$groupBy
       }
@@ -179,7 +195,18 @@ export const selecting = (() => {
       }
     }
   } = {});
-  return [gb, gb2, z, gb3, gb4, gb5, box];
+  ({
+    k: {
+      Map: {
+        groupBy: gb6
+      }
+    } = null == _globalThis.window ? extra : {
+      Map: {
+        groupBy: _Map$groupBy
+      }
+    }
+  } = {});
+  return [gb, gb2, z, gb3, gb4, gb5, gb6, box];
 })();
 export const wrapped = (() => {
   const [{

@@ -18,7 +18,7 @@ const { e: { f: { groupBy } = Map } } = src;
 export const { g: { raw } = String } = src;
 const { Array: { of } = {} } = globalThis;
 const { h: { plain } = {} } = src;
-const { Set: { union } = Set } = globalThis;
+const { Set: { customQ } = Set } = globalThis;
 // a BRANCHY default is the per-branch mirror's shape, whatever the host's slot holds: the name
 // channel still declines (a name cannot say "either branch"), and the mirror fills each arm the
 // default can yield - a `||` collapses onto its truthy left, a ternary keeps both arms - so the
@@ -32,4 +32,4 @@ const { b2: { from: fromTernary } = flag ? Array : Iterator } = src;
 const { i1: { flat } = list } = src;
 function withDefault({ i2: { includes } = list } = {}) { return includes; }
 const { i3: { at } = raise() } = src;
-use(from, entries, of, plain, union, groupBy, flat, at, withDefault(), fromOr, fromTernary);
+use(from, entries, of, plain, customQ, groupBy, flat, at, withDefault(), fromOr, fromTernary);

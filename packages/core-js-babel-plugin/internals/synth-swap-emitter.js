@@ -303,6 +303,8 @@ export default function createSynthSwapEmitter({
     // original `Symbol.iterator` MemberExpression)
     if (!patternComputedKeysSynthSafe({
       objectPatternNode: objectPattern.node, scope: objectPattern.scope, adapter, path: objectPattern,
+      resolveGlobalPolyfill: name => resolvePure({ kind: 'global', name }),
+      pureImportHint: name => injector.getPureImport?.(name)?.hint,
     })) return false;
     // a user-const computed key (`const k = 'from'; [k]`) resolves to its static name for the branch
     // viability lookup but registers under its synth SLOT key (`[k]`), so buildSynthLiteral emits
@@ -733,8 +735,17 @@ export default function createSynthSwapEmitter({
       const spelled = synthEntryKey(entry);
       // a CARRIED source key is already a node of this dialect - clone it; a respelled one is
       // canonical and converts at the boundary like every other render the canon hands over
-      const key = spelled.fromSource ? t.cloneNode(spelled.key) : estreeToBabel(spelled.key);
-      const { computed } = spelled;
+      let key = spelled.fromSource ? t.cloneNode(spelled.key) : estreeToBabel(spelled.key);
+      let { computed } = spelled;
+      // a bare GLOBAL key the pass substitutes spells the binding it is rewritten to, like the raw
+      // symbol spelling one case over: the pattern's own key is rewritten, so a cloned bare name would
+      // read a different property - and the passthrough below reads through this same key
+      if (entry.substitutedKey) {
+        const keyPure = resolvePure({ kind: 'global', name: entry.substitutedKey });
+        if (!keyPure) return null;
+        key = injectPureImport(keyPure.entry, keyPure.hintName);
+        computed = true;
+      }
       // an UNCOVERED `Symbol.iterator` slot reads through the method-lookup helper - the one
       // spelling both emitters print for that read anywhere else; a raw
       // `receiver[_Symbol$iterator]` answers undefined off-engine
@@ -747,7 +758,7 @@ export default function createSynthSwapEmitter({
             [t.cloneNode(getReceiverRef())])
           : estreeToBabel(renderSynthSlotRead({
             base: hostSlot(t.cloneNode(getReceiverRef())),
-            key: spelled.fromSource ? hostSlot(key) : spelled.key,
+            key: entry.substitutedKey ? hostSlot(t.cloneNode(key)) : spelled.fromSource ? hostSlot(key) : spelled.key,
             computed,
             lookupKey: entry.lookupKey,
           }));
@@ -798,7 +809,8 @@ export default function createSynthSwapEmitter({
         // the shared render PLAN of the pattern, joined with what each slot resolved to: one entry
         // per distinct slot, keyed the way both emitters register, so the two renders read one
         // classification instead of each deriving its own
-        const entries = (buildPatternRenderPlan(pending.objectPatternNode, { scope: path.scope, path, adapter }) ?? [])
+        const entries = (buildPatternRenderPlan(pending.objectPatternNode, { scope: path.scope, path, adapter,
+          resolveGlobalPolyfill: name => resolvePure({ kind: 'global', name }) }) ?? [])
           .map(planEntry => ({ ...planEntry, polyfill: pending.polyfills.get(planEntry.dedupKey) ?? null }));
         const needMemo = pending.callBranch && entries.some(entry => !entry.polyfill);
         // the memo param is minted via the injector's raw name generator: it must NOT enter

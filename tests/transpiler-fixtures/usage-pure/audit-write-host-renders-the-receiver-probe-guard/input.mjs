@@ -8,3 +8,7 @@ function eff() {}
 export const { trunc } = (eff(), globalThis.window?.self).Array.prototype.at.Math;
 out = (eff(), globalThis.window?.self).Array.prototype.at;
 export const read = out;
+
+// no claim stands over this read: the chain ENDS at a slot core-js does not ponyfill, so nothing
+// but the nav's own channel can render it - the shape the anchor decides alone
+export const protoRead = typeof (eff(), globalThis.window?.self).Array.prototype;

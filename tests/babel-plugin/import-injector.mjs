@@ -165,4 +165,23 @@ function ordering(lines) {
   checkTruthy('generateDeclaredRef/multiple param-property refs absent from constructor body', !/\bvar _ref/.test(ctorBody));
 }
 
+// --- pruneUnusedRefs: a receiver memo the emission ORPHANED (every reader re-spelled the receiver)
+// leaves with its declarator when its init is inert; one whose init still EVALUATES stays, unread or
+// not - it is the only place that call runs ---
+{
+  const code = await transform(`const ev = [];
+const { Array: { [(ev.push('k'), 'from')]: f },
+  Object: { keys: { [(ev.push('a'.at(0)), 'bind')]: b } } } = globalThis;
+use(f, b, ev);`, { siblingNames: [] });
+  checkTruthy('pruneUnusedRefs/orphaned inert receiver memo dropped', !/_ref\d*\s*=\s*_globalThis\s*;/u.test(code));
+}
+{
+  const code = await transform(`const ev = [];
+const getG = () => globalThis;
+const { Array: { [(ev.push('k'), 'from')]: f },
+  Object: { keys: { [(ev.push('a'.at(0)), 'bind')]: b } } } = getG();
+use(f, b, ev);`, { siblingNames: [] });
+  checkTruthy('pruneUnusedRefs/orphaned effectful receiver memo kept', /_ref\d*\s*=\s*getG\(\)/u.test(code));
+}
+
 finish();

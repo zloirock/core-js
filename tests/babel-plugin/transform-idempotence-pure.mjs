@@ -25,7 +25,49 @@ const CASES = [
   ['sealed synth default probe', 'export function f({ keys: r } = (globalThis.window?.self).Object) { return r; }'],
   ['sealed proto swap probe', 'export const r = (globalThis.window?.self).Map.prototype.has.call(new Map(), 1);'],
   ['delete through probe', 'export const r = delete globalThis.window?.self.customProp;'],
+  // the LOGICAL-assignment patch: its detect is the operator's own read, which no node spells, so the
+  // render leaves the `||=` host exactly as the source wrote it - and a pass that re-claims it
+  // prepends a second dispatch, one per pass, converging on nothing. a single-pass fixture is blind
+  // to it by construction
+  ['logical-assignment patch', 'Array.prototype.flatMap ||= shim;\nexport const r = typeof Array.prototype.flatMap;'],
+  ['nullish-assignment patch', 'Array.prototype.flatMap ??= shim;\nexport const r = typeof Array.prototype.flatMap;'],
   ['kept assign with seal', 'let d;\nexport const r = (d = globalThis.window?.self).Array;'],
+  // the BRANCH MIRROR's own literal: the render replaces one arm of the receiver and leaves the
+  // pattern where it stood, so a second pass meets a leaf whose paired slot already holds our
+  // import - and claiming it again turns the static into an INSTANCE dispatch on that slot and
+  // appends an entry per pass. a single-pass fixture cannot see it: pass one is correct
+  ['branch mirror literal',
+    "const src = { O: Object };\nlet gate = 1, se = 0, keys;\n({ [(se += 1, 'O')]: { keys } } = gate && src);\nexport const r = [typeof keys, se];"],
+  // the RECEIVER a prior pass narrowed onto its own ponyfill (`realm === _globalThis ? _Promise :
+  // realm.Promise`): the matching arm already IS the constructor's whole pure namespace, and
+  // mirroring it again lays a literal over our own import, one entry per pass
+  ['receiver narrowed onto its own ponyfill',
+    'export function read(enabled) {\n  if (enabled) { var realm = globalThis; }\n'
+      + '  const { allSettled } = realm.Promise;\n  return typeof allSettled;\n}'],
+  // ... and the same render's other spelling: the SELECTING receiver whose diverging arm a prior pass
+  // swapped for our own ponyfill (`nul || _Iterator.prototype`). the pattern here pairs a parameter
+  // DEFAULT, so the receiver is the default's own value and the climb stops there
+  ['selecting receiver arm swapped for its ponyfill',
+    'const nul = null;\nexport const r = (function ({ map } = nul || Iterator.prototype) {\n'
+      + '  return typeof map;\n})();'],
+  // a receiver CONSTRUCTED by a ponyfill this pass substituted: pass one rewrites `new Map()` to
+  // `new _Map()` while the name is still unbound, pass two reads that same `_Map` as the ordinary
+  // import it became - and a callee taken for an unknown value costs the receiver its whole type, so
+  // every method the ponyfill's own prototype carries is dispatched again
+  ['receiver constructed by a substituted ctor', 'const m = new Map();\nexport const r = typeof m.keys;'],
+  // a dropped REALM HOP whose SE key our render keeps beside the extraction the drop enabled: the
+  // sentinel in that key's slot is ours, but the key names the REALM and the extraction reads a
+  // member two levels down, so matching the two by entry leaves the sentinel unrecognised and the
+  // next pass re-extracts it as a live binding
+  ['realm-hop se key beside its extraction',
+    "const eff = k => k;\nconst { [(eff('k'), 'self')]: { Array: { from: f } } } = globalThis;\nexport const r = typeof f;"],
+  // the SUPER rewritten in place: pass one turns `extends Set` into `extends _Set` while the import
+  // is not yet a binding, pass two reads that same `_Set` as the ordinary import it now is - and a
+  // super that stops naming its global makes `this` untyped, so every instance method the polyfilled
+  // super already carries is dispatched again. the class is deliberately UNREFERENCED: any escape
+  // makes pass one dispatch too, and the row would measure nothing
+  ['super rewritten to its polyfill import',
+    'const C = class extends Set {\n  first() { return this.values().next().value; }\n};'],
   // the ALIAS-held claim probe: the render leaves the source read as the non-final element of a
   // sequence whose tail is the ponyfill (`(held.of, _Array$of)`). the span check that recognises a
   // render inside one pass cannot see it after a RE-PARSE, so the claim owes a shape-level check -
@@ -39,6 +81,12 @@ const CASES = [
   ['clouded binding, instance claim', 'let out;\nfor (const e of [Array]) { const { name } = e; out = name; }\nexport const r = out;'],
   ['alias-held probe call', 'const held = globalThis.window?.Array;\nexport const r = held.of(1);'],
   ['alias-held probe read', 'const held = globalThis.window?.Array;\nexport const r = held.from;'],
+  // the rendered guard a STORE hands on, read through the source's own `?.`: the receiver is this
+  // pass's own collapse, so the claim it deliberately left native comes back as a generic dispatch
+  // unless the census walks the store - and the family has to be asked on BOTH member spellings,
+  // since the other leg's parser calls an optional member a plain one
+  ['stored rendered guard behind an optional claim',
+    'let probeStored;\nexport const r = (probeStored = globalThis.window?.self.Object)?.keys({});\nuse(r);'],
   ['alias-held probe through a second alias',
     'const held = globalThis.window?.Array;\nconst chained = held;\nexport const r = chained.of(4);'],
   // the layer / sequence / chaining families: their renders are built from spans on the text side
@@ -75,6 +123,11 @@ const CASES = [
   // grew the file per pass before its census/adoption arm - the same classes the unplugin
   // engines lock, spelled through THIS emitter's renders
   ['overwrite rebind', 'let m;\n({ y: { flat: m } } = { y: [1, [2]] });\nconst { from } = Array;\nuse(m, from);'],
+  // ... and the two spellings that are NOT a call: the static channel writes the import binding
+  // itself, the defaulted one a memoized guard around the dispatch. a census that recognized only
+  // the call form appended one more copy of each per pass
+  ['static overwrite rebind under a multi wrapper', 'let g, zn;\n[{ Map: { groupBy: g } }, zn] = [globalThis, 7];\nuse(g, zn);'],
+  ['defaulted rebind under a multi wrapper', 'const arr = [1, [2]];\nlet k, other;\n[{ findIndex: k = fb }, other] = [arr, 1];\nuse(k, other);'],
   ['shadow-alias guard alternate', 'const B = Array;\nexport const r = (function () {\n'
     + '  { const B = {}; var h = B; }\n  { const { of } = h; return typeof of; }\n})();\nuse(r);'],
   ['dead default in the extraction guard', 'const log = [];\nexport const r = (() => { try { throw [1]; }'
@@ -82,6 +135,12 @@ const CASES = [
   ['sentinel pair under a bodyless if', 'const log = [];\nexport const r = (() => {'
     + ' if (1) var { [(log.push("k"), "at")]: a, other } = [3, [7]]; return [typeof a, typeof other]; })();\nuse(r, log);'],
   ['optional claim over a minted dispatch', 'export const r = [1, 2, 3].values()?.map(x => x * 2)?.toArray();\nuse(r);'],
+  // ... and the INVOKER spelling of the same render: an optional dispatch prints as
+  // `_x(_ref = recv)?.call(_ref, ...)`, whose hops one dialect spells with `Optional*` nodes while
+  // the other flags plain ones - the census that reads a single spelling answers per LEG, and the
+  // trailing member read pass one deliberately left native comes back a generic dispatch
+  ['trailing read over an optional minted dispatch',
+    'const arr = [1, 2];\nexport const r = arr?.at?.(1).includes?.(2);\nuse(r);'],
   // a sentinel standing in a PARAM pattern: our extraction for it went to the top of the
   // function BODY, so a census that only reads the list the FUNCTION sits in finds nothing and
   // the next pass re-extracts it as a live binding, minting a fresh sentinel every time. the
@@ -100,6 +159,11 @@ const CASES = [
   // covers the hop or a leaf; the second pass reads that residual and must not anchor it either
   ['opt-out on a sole ctor hop line', 'const {\n  // core-js-disable-next-line\n  Map: { groupBy: g },\n} = globalThis;\nexport const r = g;'],
   ['opt-out on a sole ctor hop leaf', 'const {\n  Object: {\n    // core-js-disable-next-line\n    groupBy: g,\n  },\n} = globalThis;\nexport const r = g;'],
+  // a proxy-key sentinel a PRIOR pass printed under a wrapper a spread keeps alive: the pattern
+  // binds nothing but the sentinel, and the unconditional hop trigger that consumes the residual
+  // without asking the census extracts it as a live binding and mints one more on every pass
+  ['nested proxy-key sentinel under a spread wrapper', 'const { w: { Map: m } } = { ...extra, w: globalThis };\nuse(m);'],
+  ['two-level proxy-key sentinel under a spread wrapper', 'const { w: { Array: { from: f } } } = { ...extra, w: globalThis };\nuse(f);'],
 ];
 
 for (const importStyle of ['import', 'require']) {

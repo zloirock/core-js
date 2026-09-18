@@ -29,10 +29,8 @@ if (log.length >= 0) {
 		null == _ref
 			? _ref[""]
 			: (
-				(
-					_pushMaybeArray(log).call(log, "k"),
-					keyed = _atMaybeArray(_ref)
-				)
+				_pushMaybeArray(log).call(log, "k"),
+				keyed = _atMaybeArray(_ref)
 			),
 		{ other } = _ref,
 		_ref

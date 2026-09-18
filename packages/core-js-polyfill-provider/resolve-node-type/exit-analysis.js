@@ -123,6 +123,82 @@ export function nodeAlwaysHardExits(node, depth = 0) {
   return alwaysExitsWithKind(node, depth, FUNCTION_EXIT_STATEMENTS, null);
 }
 
+// the DUAL of the exit walk: does every path THROUGH `node` satisfy `hit` - a statement-level
+// predicate - before control leaves it? the completeness rules are the exit walk's own, because they
+// are facts of control flow rather than of exits: an `if` needs its `alternate`, a `switch` its
+// `default` (with the same empty-consequent fall-through deferral), a `try` its block and handler.
+// an arm that unconditionally HARD-exits satisfies the question vacuously - control reaching the
+// statement after `node` did not come through it. a loop never qualifies (zero iterations) and a
+// labelled block is not summarised at all: `break label` skips the rest of its body. false for
+// everything else, which is the refusing direction every caller wants
+export function nodeAlwaysReaches(node, hit, depth = 0) {
+  if (!node || depth > MAX_DEPTH) return false;
+  if (hit(node) || nodeAlwaysHardExits(node, depth)) return true;
+  if (node.type === 'BlockStatement') return statementsReach(node.body, hit, depth);
+  if (node.type === 'IfStatement') {
+    return Boolean(node.alternate) && nodeAlwaysReaches(node.consequent, hit, depth + 1)
+      && nodeAlwaysReaches(node.alternate, hit, depth + 1);
+  }
+  if (node.type === 'TryStatement') {
+    if (node.finalizer && nodeAlwaysReaches(node.finalizer, hit, depth + 1)) return true;
+    if (!nodeAlwaysReaches(node.block, hit, depth + 1)) return false;
+    return !node.handler || nodeAlwaysReaches(node.handler.body, hit, depth + 1);
+  }
+  if (node.type !== 'SwitchStatement') return false;
+  let hasDefault = false;
+  const { cases } = node;
+  for (let i = 0; i < cases.length; i++) {
+    const branch = cases[i];
+    if (branch.test === null) hasDefault = true;
+    if (!branch.consequent.length && i < cases.length - 1) continue;
+    if (!statementsReach(branch.consequent, hit, depth)) return false;
+  }
+  return hasDefault;
+}
+
+// a statement a divert can leave through: the reach walk below asks whether EVERY path through a
+// list satisfies `hit`, and a path that leaves early satisfies nothing - so the question there is
+// whether a divert is POSSIBLE, never whether it is certain. `alwaysExits` is the wrong strength for
+// it: `if (c) break;` neither satisfies `hit` nor always exits, and a scan that walks past it credits
+// the write after it to a path that never runs it - which is how a receiver the source leaves
+// `undefined` became a receiver-less polyfill and the native TypeError went missing.
+// deliberately COARSE: any break / continue / return / throw the statement carries outside a nested
+// function counts, one a loop or switch inside it would have captured included. refusing is the
+// direction every caller of the reach walk wants, and a narrower answer here would have to model
+// which construct each divert targets - the exit walk's own question, asked the other way round
+const DIVERT_OPAQUE_TYPES = new Set([
+  'FunctionDeclaration',
+  'FunctionExpression',
+  'ArrowFunctionExpression',
+  'ClassDeclaration',
+  'ClassExpression',
+]);
+
+function nodeMayDivert(node, depth) {
+  if (!node || typeof node !== 'object' || depth > MAX_DEPTH) return true;
+  if (EXIT_STATEMENTS.has(node.type)) return true;
+  if (DIVERT_OPAQUE_TYPES.has(node.type)) return false;
+  for (const [key, value] of Object.entries(node)) {
+    if (key === 'loc' || key === 'leadingComments' || key === 'trailingComments') continue;
+    if (Array.isArray(value)) {
+      if (value.some(item => item && typeof item === 'object' && nodeMayDivert(item, depth + 1))) return true;
+    } else if (value && typeof value === 'object' && typeof value.type === 'string'
+      && nodeMayDivert(value, depth + 1)) return true;
+  }
+  return false;
+}
+
+// the statement-list half: scan IN ORDER and answer at the first statement that satisfies `hit`; a
+// statement a divert can leave the list through ends it without one - whatever follows is unreachable
+// through that path
+function statementsReach(body, hit, depth) {
+  for (let i = 0; i < body.length; i++) {
+    if (nodeAlwaysReaches(body[i], hit, depth + 1)) return true;
+    if (nodeMayDivert(body[i], depth + 1)) return false;
+  }
+  return false;
+}
+
 export function canFallThrough($case) {
   return !statementsExit($case.consequent, 0, EXIT_STATEMENTS, null);
 }

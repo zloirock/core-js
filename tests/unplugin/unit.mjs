@@ -1465,6 +1465,16 @@ function checkPhaseSnapshotFlow() {
       const two = createPlugin(reqOpts).transform(one, '/sm-req.mjs')?.code ?? one;
       check(`re-transform fixpoint: require import style (${ engine })`, two, one);
     }
+    // the CommonJS wrapper that REBINDS `require`: the format owner keeps the `require` spelling
+    // there (a `var` only redeclares a name the host handed in as a parameter), so the existing-
+    // import scan has to read that call back as the load it is instead of injecting a second one
+    {
+      const cjsOpts = { ...pureOpts, method: 'usage-global' };
+      const cjsSrc = 'var require = wrap(require);\nmodule.exports = [1, 2, 3].at(0);';
+      const one = createPlugin(cjsOpts).transform(cjsSrc, '/sm-cjs-wrapper.cjs')?.code ?? cjsSrc;
+      const two = createPlugin(cjsOpts).transform(one, '/sm-cjs-wrapper.cjs')?.code ?? one;
+      check(`re-transform fixpoint: require injection under a rebound require (${ engine })`, two, one);
+    }
     // require/import twins of the recognition arms the K2-tail matrix exposed: each shape
     // discriminates one arm (resolve hint fallback / the bare-callee pair arms / the
     // require-binding view and its detect-usage gate)
@@ -1497,6 +1507,8 @@ function checkPhaseSnapshotFlow() {
     // to a fixpoint - each was a growth class (FC-86) before its census arm
     for (const [label, fixSrc] of [
       ['kept-raw overwrite rebind', 'let m;\n({ y: { flat: m } } = { y: arr });\nuse(m);'],
+      ['static overwrite rebind under a multi wrapper', 'let g, zn;\n[{ Map: { groupBy: g } }, zn] = [globalThis, 7];\nuse(g, zn);'],
+      ['defaulted rebind under a multi wrapper', 'let k, other;\n[{ findIndex: k = fb }, other] = [arr, 1];\nuse(k, other);'],
       ['array-instance defaulted rebind', 'let m;\n[{ at: m = null }] = [[7, 8]];\nuse(m);'],
       ['defaulted static guard', 'const log = [];\nconst { [(log.push("e"), "from")]: f = 9 } = Array;\nuse(f, log);'],
       ['assignment-form sentinel pair', 'let from, rest;\n({ from, ...rest } = Array);\nuse(from, rest);'],
@@ -1511,6 +1523,10 @@ function checkPhaseSnapshotFlow() {
         + ' finally { dp(Array, "from", { value: o, configurable: true }); } })();\nuse(r);'],
       ['anchored symbol-key default', 'const { [Symbol.iterator]: it = "fb" } = WeakSet;\nuse(it);'],
       ['two-prop overwrite rebinds', 'const a2 = [3, [4]];\nlet m, n;\n({ y: { flat: m }, z: { flat: n } } = { y: arr, z: a2 });\nuse(m, n);'],
+      // the other leg's growth class, held on this one too: a sentinel standing in a proxy-key hop
+      // under a surviving spread wrapper stays exactly where the prior pass printed it
+      ['nested proxy-key sentinel under a spread wrapper', 'const { w: { Map: m } } = { ...extra, w: globalThis };\nuse(m);'],
+      ['two-level proxy-key sentinel under a spread wrapper', 'const { w: { Array: { from: f } } } = { ...extra, w: globalThis };\nuse(f);'],
       ['guard-alternate deep read', 'const D = cond ? Array : other;\nexport const r = (D === Array ? Array.from : D.from.bind(D))([1]);\nuse(r);'],
       ['sekey keyswap symbol pattern', 'const log = [];\nlet it;\n({ Set: { [(log.push(1), Symbol.iterator)]: it } } = globalThis);\nuse(it, log);'],
       ['double-key literal alias mutation deopt', 'const ND = { M: Array, M: Iterator };\nconst Md = ND.M;'
@@ -1527,6 +1543,38 @@ function checkPhaseSnapshotFlow() {
         + '\n  (nr().window?.self.probeGen.arr, nr().window?.self.probeGen.arr)?.flat()'
         + '\n    .concat((nr().window?.self.probeGen.arr, nr().window?.self.probeGen.arr)?.flat() ?? [])\n);\nuse(r);'],
       ['optional-first string chain claims', 'export const r = "abcde"?.slice(1).padStart(8, "0");\nuse(r);'],
+      // the rendered guard a STORE hands on, read through the source's own `?.`: the census that
+      // recognises our collapse has to walk the store, or the next pass re-claims the read
+      ['stored rendered guard behind an optional claim',
+        'let probeStored;\nexport const r = (probeStored = globalThis.window?.self.Object)?.keys({});\nuse(r);'],
+      // the INVOKER spelling an optional dispatch renders (`_x(_ref = recv)?.call(_ref, ...)`): the
+      // trailing read over it stays native, and the census recognising it owes both dialects' hops
+      ['trailing read over an optional minted dispatch',
+        'const arr = [1, 2];\nexport const r = arr?.at?.(1).includes?.(2);\nuse(r);'],
+      // the receiver a prior pass narrowed onto its own ponyfill: the matching arm already carries
+      // the constructor's whole pure namespace, and mirroring it lays a literal over our own import
+      ['receiver narrowed onto its own ponyfill',
+        'export function read(enabled) {\n  if (enabled) { var realm = globalThis; }\n'
+          + '  const { allSettled } = realm.Promise;\n  return typeof allSettled;\n}'],
+      // ... and the same render's other spelling: the SELECTING receiver whose diverging arm a prior
+      // pass swapped for our own ponyfill; the pattern pairs a parameter DEFAULT, whose own value is
+      // the receiver the climb has to stop at
+      ['selecting receiver arm swapped for its ponyfill',
+        'const nul = null;\nexport const r = (function ({ map } = nul || Iterator.prototype) {\n'
+          + '  return typeof map;\n})();\nuse(r);'],
+      // the receiver CONSTRUCTED by a ponyfill this pass substituted: the next pass reads `new _Map()`
+      // as an ordinary import and loses the receiver's type, re-dispatching what the ponyfill carries
+      ['receiver constructed by a substituted ctor', 'const m = new Map();\nexport const r = typeof m.keys;\nuse(r);'],
+      // the sentinel our render leaves in a dropped REALM HOP's SE key: the key names the realm, the
+      // extraction beside it reads a member two levels down, and matching them by entry left the
+      // sentinel unrecognised for the next pass to re-extract
+      ['realm-hop se key beside its extraction',
+        "const eff = k => k;\nconst { [(eff('k'), 'self')]: { Array: { from: f } } } = globalThis;\nuse(f);"],
+      // the other leg's growth class again: the `extends Set` super rewritten in place to `_Set`
+      // reads back as an ordinary import on the next pass, and a super that stops naming its global
+      // leaves `this` untyped. unreferenced on purpose - any escape makes pass one dispatch as well
+      ['super rewritten to its polyfill import',
+        'const C = class extends Set {\n  first() { return this.values().next().value; }\n};'],
       // exotic-but-valid module forms flow through the whole pipeline and settle
       ['import attributes on a sibling import', 'import data from "./d.json" with { type: "json" };\nexport const r = Array.from(data);\nuse(r);'],
       ['astral-plane identifier', 'const \u{1D4B6}b = [1];\nexport const r = \u{1D4B6}b.flat();\nuse(r);'],
