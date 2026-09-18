@@ -1,6 +1,5 @@
-// Inline-call resolution only fires for bodies whose top level is exactly one ReturnStatement.
-// if/else, try/catch, for, switch all hide the return one level deeper, so the receiver call must stay intact.
-// A prefix-then-return shape lifts cleanly because the prefix sits at top level alongside the single return.
+// Agreeing if/else returns prove one constructor while retaining the original body.
+// Try/catch, loops and switch remain unproven; expression prefixes keep their effects.
 const ifElseBody = () => { if (Math.random() > 0) return Promise; else return Promise; };
 const out1 = ifElseBody().resolve(1);
 const tryBody = () => { try { return Promise; } catch (e) { return Promise; } };

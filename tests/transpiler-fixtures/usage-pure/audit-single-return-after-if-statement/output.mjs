@@ -1,9 +1,7 @@
-import _Map from "@core-js/pure/actual/map";
-import _Set from "@core-js/pure/actual/set";
-// IIFE body contains an IfStatement before the trailing return. conditional branch
-// returns Map, tail returns Set - receiver depends on `cond`, so a scan that only saw
-// the tail would resolve wrong. any non-Expression / non-Return statement bails: outer
-// call stays raw, inner Map / Set still polyfill. distinct methods per line show the bail
+import _Map from "@core-js/pure/actual/map/constructor";
+import _Set from "@core-js/pure/actual/set/constructor";
+// Distinct Map / Set returns do not prove one receiver. Keep the conditional call and
+// prototype reads intact; neither namespace escapes, so the constructor entries stay narrow.
 const tailFrom = (() => {
   if (cond) return _Map;
   return _Set;

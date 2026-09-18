@@ -2509,9 +2509,6 @@ export function resolveInlineCalleeFunction(hop, { allowIdentityParam = false, a
     seen.add(name);
     hopScope = aliasDeclScope(binding, hopScope);
   }
-  // A named member value can read its own function binding, which is not the owner's scope.
-  if (isMemberAccessNode(unwrapTransparentSeq(hop.node.callee)) && callee.id?.name
-    && identifierReferencedInSubtree(callee.body, callee.id.name)) return null;
   return finishInlineCallee({ hop, callee, scope: hopScope, seen, allowIdentityParam, allowExtraParams });
 }
 
@@ -2522,6 +2519,9 @@ function finishInlineCallee({ hop, callee, scope, seen, allowIdentityParam, allo
     && callee.type !== 'FunctionDeclaration' && callee.type !== 'ObjectMethod')
     || (callee.params?.length && !identityParam({ callee, allowIdentityParam, allowExtraParams }))
     || callee.async || callee.generator) return null;
+  // A named function expression binds its own name, outside the declaration scope carried here.
+  if (callee.type === 'FunctionExpression' && callee.id?.name
+    && identifierReferencedInSubtree(callee.body, callee.id.name)) return null;
   return { ...hop, node: callee, seen, ctx: { ...hop.ctx, scope } };
 }
 
@@ -2554,20 +2554,23 @@ function identityParam({ callee, allowIdentityParam, allowExtraParams }) {
   return !paramReboundInBody(callee.body, new Set([callee.params[0].name]));
 }
 
-// resolve an inline-eligible call to its single-return expression. `null` if the callee
-// isn't inlineable or the body has multiple returns / local bindings (see
-// `singleReturnBodyExpression`). prefix ExpressionStatements ARE allowed - their effects
-// are preserved at the call site via `inlineCallHasObservableEffects` + `meta.sideEffects`.
+// Resolve an inline-eligible call to its proven return expression. Local declarations and
+// agreeing return paths keep the original call through `inlineCallHasObservableEffects`:
+// their body and scopes survive, while a returned local binding still proves nothing.
+// `returnSink` collects possible free returns as hops for a preserved receiver's identity guard;
+// a candidate never promises that the function returns it on every path.
 // takes the hop standing on the CALL and returns the hop standing on the returned expression: its
 // `ctx.scope` is where that expression's identifiers resolve - the callee's declaration scope for
 // a body return, the CALL site for an identity-arg return (the argument evaluates there) - and
 // its `seen` the advanced cycle-guard set a caller descending into the node threads on (the
 // caller's own set stays unmutated)
-export function inlineCallReturnExpression(hop, { rejectConditional = false, allowExtraParams = false } = {}) {
+export function inlineCallReturnExpression(hop, { rejectConditional = false, allowExtraParams = false, returnSink = null } = {}) {
   const resolved = resolveInlineCalleeFunction(hop, { allowIdentityParam: true, allowExtraParams, rejectConditional });
   if (!resolved) return null;
   const callee = resolved.node;
-  const body = singleReturnBodyExpression(callee.body);
+  const candidates = returnSink && !callee.params?.length ? [] : null;
+  const body = singleReturnBodyExpression(callee.body, { preservesBody: true, returnSink: candidates });
+  if (candidates) for (const node of candidates) returnSink.push({ ...resolved, node });
   if (!callee.params?.length) return body ? { ...resolved, node: body } : null;
   // identity passthrough (`(x) => x` applied to one arg): the body IS the param, so the receiver is
   // the ARG - recovers a call/IIFE-rooted receiver (`((x)=>x)(globalThis).Symbol`, and the nested

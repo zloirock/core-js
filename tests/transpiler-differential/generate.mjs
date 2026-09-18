@@ -10537,6 +10537,35 @@ function * generateParameterReceiverChannels() {
       }
     }
   }
+  // A shadowed default cannot name a static; the caller supplies it through each wrapper shape.
+  // A second call takes the opaque default and must keep its custom method.
+  for (const [patternId, pattern, wrap] of patterns) {
+    const expr = `(() => { function outer(Array) { function read(${ pattern }) { return from([7]); }`
+      + ` return [read(${ wrap('globalThis.Array') }), read(${ wrap('undefined') })]; }`
+      + " return outer({ from(xs) { log.push('custom'); return ['custom', xs[0]]; } }); })()";
+    yield { ...snippet(`parameter-receiver/opaque-default/${ patternId }`, expr), strip: true };
+    for (const [host, call] of calls) {
+      const effectful = `(() => { function outer(Array) { function read(${ pattern }, later) { log.push('body', later); return from([7]); }`
+        + ` return [${ call(`(log.push('argument'), ${ wrap('globalThis.Array') }), (log.push('later'), 1)`) },`
+        + ` ${ call(`${ wrap('undefined') }, 2`) }]; }`
+        + " return outer({ from(xs) { log.push('custom'); return ['custom', xs[0]]; } }); })()";
+      yield { ...snippet(`parameter-receiver/effectful-opaque-default/${ patternId }/${ host }`, effectful), strip: true };
+      // A write captures the supplied value, so pure may decline its argument mirror. The
+      // global stripped leg still owes the static, and full-env legs preserve the stored identity.
+      const stored = `(() => { let held; function outer(Array) { function read(${ pattern }) { return from([7]); }`
+        + ` return [${ call(`held = (log.push('argument'), ${ wrap('globalThis.Array') })`) }, held === globalThis.Array]; }`
+        + " return outer({ from(xs) { return ['custom', xs[0]]; } }); })()";
+      yield { ...snippet(`parameter-receiver/stored-opaque-default/${ patternId }/${ host }`, stored), strip: false };
+    }
+  }
+  // A known default and a supplied receiver can own different versions of the same static.
+  for (const [patternId, pattern, wrap] of patterns) {
+    const parameter = pattern.replaceAll('from', 'groupBy').replaceAll('Array', 'Object');
+    const expr = `(() => { function read(${ parameter }) { return groupBy([1], value => value); }`
+      + ` const supplied = read(${ wrap('Map') }); const fallback = read(${ wrap('undefined') });`
+      + ' return [supplied.get(1), fallback[1]]; })()';
+    yield { ...snippet(`parameter-receiver/different-default/${ patternId }`, expr), strip: true };
+  }
 }
 
 // Captures keep the identity they received, even when the alias is later rebound. Crossing the
@@ -12064,6 +12093,101 @@ function * generateCapturedContainerOwners() {
   }
 }
 
+// Retained bodies keep lexical declarations and branch effects. The stripped static is the
+// discriminator: native execution alone cannot detect a missing Array.of injection.
+function * generateInlineReturnPaths() {
+  for (const flag of ['false', 'true']) {
+    for (const [shape, body] of [
+      ['local', 'const local = [1, [2]].flat(); log.push(local.length); return Array;'],
+      ['early', 'const local = flag; if (local) { log.push("yes"); return Array; } log.push("no"); return Array;'],
+      ['if-else', 'if (flag) return Array; else return Array;'],
+      ['nested', 'if (flag) { if (log.push("test")) return Array; else return Array; } return Array;'],
+      ['mixed', 'if (flag) return Array; return { of: x => ["custom", x] };'],
+      ['mixed-this', 'if (flag) return Array; return { marker: "custom", of(x) { return [this.marker, x]; } };'],
+      ['mixed-getter', 'if (flag) return Array; return { get of() { log.push("get"); return undefined; } };'],
+      ['absent', 'if (flag) return Array;'],
+      ['shadow', 'const Array = { of: x => ["local", x] }; return Array;'],
+    ]) {
+      yield {
+        ...snippet(`inline-return-paths/${ shape }/${ flag }`,
+          `(() => { const flag = ${ flag }; try { return (() => { ${ body } })()?.of((log.push("arg"), 5)); }
+            catch (error) { return error.name; } })()`),
+        strip: true,
+      };
+    }
+    yield {
+      ...snippet(`inline-return-self-binding/${ flag }`,
+        `(() => { const flag = ${ flag }; return typeof (function Array() {
+          const local = flag; if (local) return Array; return Array;
+        })().of; })()`),
+      strip: true,
+    };
+    for (const [shape, read] of [
+      ['optional', 'forward?.()?.window?.Array.of((log.push("arg"), 7))'],
+      ['continuous', 'forward?.().window.Array.of((log.push("arg"), 7))'],
+      ['tail', 'forward?.().window.Array.of((log.push("arg"), 7)).at(0)'],
+      ['computed-tail', 'forward?.().window.Array.of((log.push("arg"), 7))[(log.push("key"), 0)]'],
+      ['plain', 'forward().window.Array.of((log.push("arg"), 7))'],
+      ['sealed', '(forward?.()?.window).Array.of((log.push("arg"), 7))'],
+    ]) {
+      yield {
+        ...snippet(`inline-return-forwarder/${ shape }/${ flag }`,
+          `(() => { let forward; if (${ flag }) forward = () => ({ window: { Array } });
+            try { return ${ read }; } catch (error) { return error.name; } })()`),
+        strip: true,
+      };
+    }
+  }
+  for (const flag of ['false', 'true']) for (const [host, source] of [
+    ['call', 'function outer() { return inner(); }'],
+    ['stored', 'const held = inner(); function outer() { return held; }'],
+    ['method', 'const box = { pick() { while (flag) return Map; return custom; } }; function outer() { return box.pick(); }'],
+  ]) {
+    yield {
+      ...snippet(`inline-return-opaque-forwarder/${ host }/${ flag }`,
+        `(() => { const flag = ${ flag }; const custom = { groupBy: () => ({ get: () => ["custom"] }) };
+          function inner() { while (flag) return Map; return custom; } ${ source }
+          return outer().groupBy([1, 2, 3], value => value % 2).get(1); })()`),
+      strip: true,
+    };
+  }
+  // An exported carrier exposes the returned namespace. Both the bare native namespace and
+  // a substituted pure constructor must retain the statics read through that carrier.
+  for (const flag of ['false', 'true']) {
+    const call = `(() => { if (${ flag }) return Map; return class {
+      static groupBy() { return { get: () => ["custom"] }; }
+    }; })()`;
+    for (const [shape, value, read] of [
+      ['direct', call, 'held'],
+      ['object', `{ Base: ${ call } }`, 'held.Base'],
+      ['array', `[${ call }]`, 'held[0]'],
+      ['subclass', `class extends ${ call } {}`, 'held'],
+      ['sequence', `(log.push("prefix"), ${ call })`, 'held'],
+      ['returned-call', `() => ${ call }`, 'held()'],
+    ]) {
+      yield {
+        name: `inline-return-escaped-carrier/${ shape }/${ flag }`,
+        code: [...PRELUDE, `export const held = ${ value };`,
+          `export const r = (${ read }).groupBy([1, 2, 3], value => value % 2).get(1);`,
+          'export const effects = log;'].join('\n'),
+        strip: true,
+      };
+    }
+    for (const [shape, body] of [
+      ['loop', 'while (flag) return Map; return custom;'],
+      ['try', 'try { if (flag) return Map; throw 0; } catch { return custom; }'],
+      ['switch', 'switch (flag) { case true: return Map; default: return custom; }'],
+    ]) {
+      yield {
+        ...snippet(`inline-return-opaque-static/${ shape }/${ flag }`,
+          `(() => { const flag = ${ flag }; const custom = { groupBy: () => ({ get: () => ["custom"] }) };
+            function pick() { ${ body } } return pick().groupBy([1, 2, 3], value => value % 2).get(1); })()`),
+        strip: true,
+      };
+    }
+  }
+}
+
 export function * generate() {
   yield * generateLoopAliasOwners();
   yield * generateDeferredReads();
@@ -12284,4 +12408,5 @@ export function * generate() {
   yield * generateAnchoredCtorResidualLeaf();
   yield * generateClonedContainerOwners();
   yield * generateCapturedContainerOwners();
+  yield * generateInlineReturnPaths();
 }
