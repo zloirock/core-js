@@ -234,4 +234,25 @@ for (const adapter of adapters) for (const [name, code] of [
   checkTruthy(`${ adapter.name }: ${ name }: source member stays invalidated`, paths.includes('source.part'));
   checkTruthy(`${ adapter.name }: ${ name }: paths stay bounded`, paths.length < 16 && paths.every(key => key.length < 128));
 }
+
+// A restored parameter closes a member-growing cycle through its wrapper. Once the holder
+// is opaque, concrete paths under that same root add no information and must not propagate.
+for (const adapter of adapters) for (const [name, capture, restore] of [
+  ['object slot', '{ value: link }', 'stack.value'],
+  ['array slot', '[link]', 'stack[0]'],
+  ['nested object slot', '{ inner: { value: link } }', 'stack.inner.value'],
+]) {
+  const code = `export function checkDirty(link) {
+    const stack = ${ capture };
+    link = link.deps;
+    link = ${ restore };
+    return link.sub;
+  }
+  const separate = { x: Number }; separate.x = Array;`;
+  const program = adapter.parseAndScope(code).node;
+  const { writtenContainerSlots } = collectFileCensus(program, [mutationShapesReducer()]);
+  const paths = writtenContainerSlots.keys().map(key => key.replace(/#\d+/u, '')).toArray().sort();
+  checkDeep(`${ adapter.name }: ${ name }: opaque paths subsume only their own root`, paths,
+    ['separate.x', 'stack.*']);
+}
 finish();
