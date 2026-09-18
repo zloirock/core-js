@@ -1,13 +1,11 @@
 import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
 import _toReversedMaybeArray from "@core-js/pure/actual/array/instance/to-reversed";
 import _includes from "@core-js/pure/actual/instance/includes";
-import _Map from "@core-js/pure/actual/map";
-import _Set from "@core-js/pure/actual/set";
-import _WeakMap from "@core-js/pure/actual/weak-map";
-// singleReturnBodyExpression bails on control flow: branches inside the IIFE body cannot
-// be statically picked, so the receiver is unresolved and the call site does not dispatch
-// a static polyfill on the inline-call result. distinct prototype methods (.includes /
-// .findLast / .toReversed) prove per-call no-static-resolution
+import _Map from "@core-js/pure/actual/map/constructor";
+import _Set from "@core-js/pure/actual/set/constructor";
+import _WeakMap from "@core-js/pure/actual/weak-map/constructor";
+// Mixed returns and unsupported try/loop bodies keep the original receiver. Prototype reads
+// dispatch independently and do not expose the returned constructors' static namespaces.
 const a = _includes((() => {
   if (cond) return Array;
   return _Set;

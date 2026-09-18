@@ -2867,11 +2867,11 @@ for (const [label, init, expected] of [
   // and the read through the slot lands on the argument, exactly as the identity call above resolves
   ['parameter placed in a slot', 'const ns = (x => ({ g: x }))(globalThis);', 'globalThis'],
   // ... and the shapes no proof reaches: a parameter read anywhere BUT a slot, a callee OTHER call
-  // sites can reach, a value only one path assigns, a callee with no binding, a body binding of its
+  // sites can reach, a callee with no binding, a body binding of its
   // own, and a container the source replaces
   ['parameter read beside its slot', 'const ns = (x => (use(x), { g: x }))(globalThis);', null],
   ['named callee fills the slot', 'function make(x) { return { g: x }; }\nconst ns = make(globalThis);', null],
-  ['conditionally assigned callee', 'let make;\nif (c) make = () => ({ g: globalThis });\nconst ns = make();', null],
+  ['conditionally assigned callee', 'let make;\nif (c) make = () => ({ g: globalThis });\nconst ns = make();', 'globalThis'],
   ['unbound callee', 'const ns = make();', null],
   ['body binding of its own', 'const ns = (() => { const box = { g: globalThis }; return box; })();', null],
   ['container reassigned before the read', 'let ns = (() => ({ g: globalThis }))();\nns = {};', null],
@@ -2903,6 +2903,40 @@ runBoth('inline-call container/a write after the capture leaves it standing',
 runBoth('inline-call container/a call with no keys left is not this walk\'s',
   'f((() => globalThis)().Map);', (adapter, prog, lbl) => {
     check(lbl, inlineCallContainerReceiver(adapter, prog), null);
+  });
+
+runBoth('inline-call container/a conditional pure receiver requires a capture',
+  'let make; if (c) make = () => ({ g: globalThis }); const ns = make?.(); f(ns.g.Map);', (adapter, prog, lbl) => {
+    const read = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'Map');
+    const object = read.get('object');
+    const options = { node: object.node, scope: object.scope, path: read, adapter: { ...superBaseAdapter, method: 'usage-pure' } };
+    check(`${ lbl }: no capture`, staticContainerReceiverName(options), null);
+    const conditionalSink = [];
+    check(`${ lbl }: retained receiver`, staticContainerReceiverName({ ...options, conditionalSink }), 'globalThis');
+    check(`${ lbl }: conditional call recorded`, conditionalSink.length, 1);
+  });
+
+// Adding a capture sink cannot make global retry the same failed callee query: its first query
+// already accepts conditional definitions. Count AST reads instead of relying on transform time.
+runBoth('inline-call container/global does not retry an unrestricted query',
+  'f(missing().g.Map);', (adapter, prog, lbl) => {
+    const read = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'Map');
+    const object = read.get('object');
+    const callee = adapter.pickPath(prog, 'Identifier', p => p.node.name === 'missing').node;
+    let reads = 0;
+    Object.defineProperty(callee, 'name', { configurable: true, get() {
+      reads++;
+      return 'missing';
+    } });
+    const options = { node: object.node, scope: object.scope, path: read, adapter: { ...superBaseAdapter, method: 'usage-global' } };
+    check(`${ lbl }: no capture`, staticContainerReceiverName({ ...options, unionSink: [] }), null);
+    const withoutCapture = reads;
+    reads = 0;
+    const conditionalSink = [];
+    check(`${ lbl }: with capture`, staticContainerReceiverName({ ...options, unionSink: [], conditionalSink }), null);
+    check(`${ lbl }: callee query is live`, withoutCapture > 0, true);
+    check(`${ lbl }: capture adds no duplicate query`, reads, withoutCapture);
+    check(`${ lbl }: no conditional candidate`, conditionalSink.length, 0);
   });
 
 // the usage-global slot union rides through the peel like the primary value does: an alternative
