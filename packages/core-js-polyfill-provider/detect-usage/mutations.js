@@ -36,7 +36,9 @@ import {
   ESCAPED_CTOR_REFS,
   escapeStampedName,
   findNearestVarScopeOwner,
+  arrayWrapSlotValueCandidates,
   findObjectKeyBeforeSpread,
+  objectPropertyReadValue,
   flattenBranchKeys,
   FN_NODE_TYPES,
   foldedPropertyKeyName,
@@ -1446,6 +1448,127 @@ export function escapedCtorReferencesReducer() {
     if (!values) aliasInit.set(name, values = []);
     values.push({ at, value });
   }
+  // the VALUES a container expression can hand the pattern: a selection reaches every arm, and each
+  // arm is read by the same pattern - the arm a run takes is not this census's to decide. an effect
+  // spelled ahead of the value belongs to the SOURCE and not to the value, so the write canon peels
+  // it first - `const box = (n++, { Map })` holds the literal exactly as the bare spelling does
+  function containerValuesOf(source, out = []) {
+    const value = unwrapRuntimeExpr(installedWriteValue(source));
+    switch (value?.type) {
+      case 'LogicalExpression':
+        containerValuesOf(value.right, containerValuesOf(value.left, out));
+        break;
+      case 'ConditionalExpression':
+        containerValuesOf(value.alternate, containerValuesOf(value.consequent, out));
+        break;
+      default:
+        if (value) out.push(value);
+    }
+    return out;
+  }
+
+  // the container NAMES a destructure can land on - the names standing among those values
+  function containerNamesOf(source) {
+    return containerValuesOf(source).filter(value => value.type === 'Identifier').map(value => value.name);
+  }
+
+  // the constructor a container LITERAL puts in `key`, if any: `{ Map }`, `{ M: Map }` and `[Map]`
+  // all hold one - a NUMERIC key names an array slot the same way - while a getter handing back the
+  // realm holds nothing
+  function ctorInContainerLiteralSlot(value, key) {
+    let paired = null;
+    if (value.type === 'ObjectExpression') {
+      paired = objectPropertyReadValue(
+        findObjectKeyBeforeSpread(value.properties, prop => plainSynthKeyName(prop.key) === key), {});
+    } else if (value.type === 'ArrayExpression' && /^\d+$/u.test(key)) {
+      [paired = null] = arrayWrapSlotValueCandidates(value.elements, Number(key));
+    }
+    const held = unwrapRuntimeExpr(paired);
+    return held?.type === 'Identifier' && isKnownGlobalName(held.name) ? held.name : null;
+  }
+
+  // the constructor the file puts in this container's `key`, through either half of the answer
+  function ctorHeldByContainerSlot(containerName, key, seen = new Set()) {
+    if (typeof key !== 'string' || seen.has(containerName)) return null;
+    seen.add(containerName);
+    const values = (aliasInit.get(containerName) ?? []).flatMap(record => containerValuesOf(record?.value));
+    // the file's OWN literal answers on its own: this index is keyed by NAME, so a declaration
+    // SHADOWING this one from another scope shares the bucket and does not speak for this read
+    for (const value of values) {
+      const named = ctorInContainerLiteralSlot(value, key);
+      if (named !== null) return named;
+    }
+    // a NAME standing where the literal would is an alias hop - what the pattern ends up reading is
+    // the container that name holds. here EVERY value the name can take has to answer alike, because
+    // a name that also takes something opaque carries no proof that OUR binding is what the slot
+    // holds. the obligation is not lost by declining: wherever pure does rewrite the slot, the
+    // substitution route answers for it on its own, and this half only covers the spellings it
+    // cannot see - a clean hop, a selection of literals, an effect spelled ahead of one
+    let held = null;
+    for (const value of values) {
+      const named = value.type === 'Identifier' ? ctorHeldByContainerSlot(value.name, key, new Set(seen)) : null;
+      if (named === null || (held !== null && named !== held)) return null;
+      held = named;
+    }
+    return held;
+  }
+
+  // a read that comes BACK off a container slot this file stored a constructor in: pure substitutes
+  // its own binding into that slot and never reads the slot back, so the static the pattern names
+  // under it has to be ON that binding - and the narrow `*/constructor` module installs none of the
+  // constructor's own statics. only an OWN static counts (an intrinsic property is on the narrow
+  // entry too), and only where the container's literal actually put the constructor there
+  // does this pattern level gather a REST? the object-rest boundary stops pure's extraction at the
+  // level that spells one, so every leaf under it keeps the source's own read
+  function gathersRest(patternNode) {
+    return (patternNode?.properties ?? patternNode?.elements ?? [])
+      .some(item => item?.type === 'RestElement');
+  }
+
+  function stampCtorStaticReadThroughSlot(pattern, source) {
+    const roots = containerNamesOf(source);
+    if (!roots.length) return;
+    // ... and whether the pattern reads that container DIRECTLY. A SELECTION hands the pattern one
+    // arm at runtime and only the realm arm is mirrored, so the container arm is destructured as it
+    // stands and every leaf under it reads the slot back - the extraction below served none of them
+    const directSource = unwrapRuntimeExpr(source)?.type === 'Identifier';
+    // an ARRAY pattern names its slots by INDEX, an object pattern by key - one walk over the pairs
+    const slots = pattern?.type === 'ArrayPattern'
+      ? pattern.elements.map((element, at) => [String(at), patternSlotTarget(element)])
+      : pattern?.type === 'ObjectPattern'
+        ? pattern.properties
+          .filter(prop => (prop.type === 'Property' || prop.type === 'ObjectProperty') && !prop.computed)
+          .map(prop => [plainSynthKeyName(prop.key), patternSlotTarget(prop.value)])
+        : null;
+    if (!slots) return;
+    for (const [key, inner] of slots) {
+      if (inner?.type !== 'ObjectPattern') continue;
+      const ctorName = roots.reduce((found, name) => found ?? ctorHeldByContainerSlot(name, key), null);
+      if (ctorName === null) continue;
+      for (const leaf of inner.properties) {
+        if (leaf.type !== 'Property' && leaf.type !== 'ObjectProperty') continue;
+        // ... but a leaf the EXTRACTION serves reads no slot at runtime: the pass binds the static's
+        // own import in its place (`const resolve = _Promise$resolve`), so nothing ever comes back
+        // through the container and the narrow entry answers everything this file spells. what does
+        // come back is the leaf an extraction cannot serve - a MEMBER target, a computed key nothing
+        // folds, a pattern-valued slot - and that one still reads its static off the binding pure put
+        // in the slot. asking of the whole pattern instead cost the FILE the constructor's namespace
+        // for a read the pass had already answered
+        // ... and a REST anywhere over that leaf bars the extraction outright (the declared
+        // object-rest boundary), so the read comes back through the slot however plain the leaf is
+        const target = patternSlotTarget(leaf.value);
+        const servedByExtraction = directSource && !leaf.computed && target?.type === 'Identifier'
+          && !gathersRest(inner) && !gathersRest(pattern);
+        if (servedByExtraction) continue;
+        const staticName = leaf.computed ? null : plainSynthKeyName(leaf.key);
+        if (staticName === null || hasOwnStaticDefinition(ctorName, staticName)) {
+          heldInSlot.add(ctorName);
+          break;
+        }
+      }
+    }
+  }
+
   // a DESTRUCTURED binding holds whatever its slot was paired with: recorded as the pattern plus
   // its source, so the canonical pattern reader answers the pairing once the source resolves
   function recordPatternAlias(pattern, source, at = null) {
@@ -1712,6 +1835,7 @@ export function escapedCtorReferencesReducer() {
             kind: frame?.parentNode?.kind,
             ownerNode: frame?.scopes?.findLast(scope => isVarScopeBoundary(scope.type)),
           })) walkPatternIdentifiers(node.id, id => guardedAliases.add(id.name));
+          if (isDestructurePattern(node.id)) stampCtorStaticReadThroughSlot(node.id, node.init);
           if (node.id.type === 'Identifier' && node.init) recordAliasInit(node.id.name, node.init, bindsIn);
           else if (isDestructurePattern(node.id)) recordPatternAlias(node.id, node.init, bindsIn);
         }

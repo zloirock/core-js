@@ -13,3 +13,7 @@ export const {
 } = _atMaybeArray((eff(), null == _globalThis.window ? void 0 : _self).Array.prototype).Math;
 out = _atMaybeArray((eff(), null == _globalThis.window ? void 0 : _self).Array.prototype);
 export const read = out;
+
+// no claim stands over this read: the chain ENDS at a slot core-js does not ponyfill, so nothing
+// but the nav's own channel can render it - the shape the anchor decides alone
+export const protoRead = typeof (eff(), null == _globalThis.window ? void 0 : _self).Array.prototype;

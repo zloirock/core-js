@@ -9,18 +9,18 @@ let eff = 0;
 eff++;
 const declFrom = _Array$from;
 const {
-  union: declUnion
+  customQ: declUnion
 } = _Set;
-let from, union;
+let from, customQ;
 eff++;
 from = _Array$from;
 ({
-  union
+  customQ
 } = _Set);
 let inner;
 inner = _Map$groupBy;
 from = _Array$from;
 ({
-  union
+  customQ
 } = _Set);
-export { eff, declFrom, declUnion, from, union, inner };
+export { eff, declFrom, declUnion, from, customQ, inner };

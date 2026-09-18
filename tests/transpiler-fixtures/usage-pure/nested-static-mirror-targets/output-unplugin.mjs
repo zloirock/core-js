@@ -1,6 +1,9 @@
-// Identifier slots receive pure statics; a nested pattern under a static anchors on that static's
-// ponyfill (its computed key runs there), while member assignment targets retain native slots.
-// Computed keys and target effects stay live on both paths.
+// Identifier slots receive pure statics; a nested pattern under a static rides the MIRROR SLOT where
+// the host holds more than that one prop - the statement stands and no key effect crosses another -
+// while member assignment targets retain native slots. The slot DESCENDS where a leaf under the
+// pattern carries a claim of its own, spelling it off the static's ponyfill. Only a host the pattern
+// occupies ALONE is lifted out as an extraction. Computed keys and target effects stay live on both
+// paths, and both legs print the same shape.
 import _Array$from from "@core-js/pure/actual/array/from";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
@@ -41,10 +44,7 @@ let defaults = 0;
 			'value'
 		)]
 	}
-} = {
-	Array: { from: _Array$from },
-	Object: { keys: _globalThis.Object.keys }
-});
+} = { Array: { from: _Array$from }, Object: { keys: _Object$keys } });
 
 ({
 	Array: {
@@ -57,10 +57,7 @@ let defaults = 0;
 			'value'
 		)] = (defaults++, null)
 	}
-} = {
-	Array: { from: _Array$from },
-	Object: { keys: _globalThis.Object.keys }
-});
+} = { Array: { from: _Array$from }, Object: { keys: _Object$keys } });
 
 export const result = [
 	from([7])[0],
@@ -79,26 +76,24 @@ function observe() {
 	}
 }
 
-const _ref5 = _globalThis,
-	{ Array: _ref4 } = _ref5,
-	_ref6 = _ref4,
-	boundFrom = null == _ref6
-		? _ref6[""]
-		: (
-			_pushMaybeArray(events).call(events, 'binding'),
-			observe(),
-			_Array$from
-		),
-	{
-		Object: {
-			keys: {
-				[(
-					_pushMaybeArray(events).call(events, _atMaybeString(_ref7 = 'a').call(_ref7, 0)),
-					'bind'
-				)]: boundBind
-			}
-		}
-	} = _ref5;
+const _ref5 = _globalThis;
+const { Array: _ref4 } = _ref5;
+const _ref6 = _ref4;
+
+const boundFrom = null == _ref6
+	? _ref6[""]
+	: (
+		_pushMaybeArray(events).call(events, 'binding'),
+		observe(),
+		_Array$from
+	);
+
+const {
+	[(
+		_pushMaybeArray(events).call(events, _atMaybeString(_ref7 = 'a').call(_ref7, 0)),
+		'bind'
+	)]: boundBind
+} = _Object$keys;
 
 function read(
 	{

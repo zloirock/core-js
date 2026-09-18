@@ -4,6 +4,8 @@
 // fields are already `_createClass` + assignments - the last-wins container fold this test
 // asserts never fires there, and the extraction keeps its native-faithful behavior (an
 // unbound this-sensitive static throws). the fold itself stays locked by the other legs
+import { withWindowWithoutSelf } from './window-without-self-host.js';
+
 const testUnlessDetectLowered = typeof E2E_DETECT_LOWERED === 'undefined' ? QUnit.test : QUnit.skip;
 
 const POST_LOWERED = typeof E2E_POST_LOWERED !== 'undefined';
@@ -2549,20 +2551,25 @@ QUnit.test('destructuring: nested param inner-default replaces receiver without 
 });
 
 QUnit.test('destructuring: multi-ctor declarator anchors a missing-able ctor residual', assert => {
-  // a multi-ctor proxy declarator: the poly leaf polyfills, and a missing-able ctor method must read off
-  // the pure constructor (`{ union } = _Set`) rather than collapse to a native residual (`_globalThis.Set
-  // .union`, undefined and a throw off-engine). reverting the anchor makes `union` native undefined here
-  const { Array: { from }, Set: { union } } = globalThis;
+  // a multi-ctor proxy declarator: the poly leaf polyfills, and the residual leaf beside it must read
+  // off the pure constructor (`{ customQ } = _Set`) rather than collapse to a native residual
+  // (`_globalThis.Set.customQ`, a throw off-engine where the realm carries no `Set` at all).
+  // reverting the anchor makes the read throw in the stripped realm instead of answering undefined.
+  // the key is deliberately one NEITHER surface carries: a key core-js spells as a PROTOTYPE entry is
+  // handed out as a static by the pure binding alone, and the row below is where that one belongs
+  // the leaf whose key only the PONYFILL carries (`Set.union`) is locked in the differential and in
+  // `usage-pure/ponyfill-static-surface-leaf`, never here: this suite runs a `pre+post` leg whose
+  // babel step LOWERS the destructure between the phases, and the post pass then reads a plain
+  // member chain, where the ordinary constructor substitution applies and the leaf is a ponyfill
+  // read again. A row asserting the realm's answer would hold on three legs and fail on that one
+  const { Array: { from }, Set: { customQ } } = globalThis;
   const { Object: { fromEntries }, Map: { groupBy } } = globalThis;
   assert.deepEqual(from([1, 2, 3]), [1, 2, 3]);
-  assert.strictEqual(typeof union, 'function');
+  assert.strictEqual(typeof customQ, 'undefined');
   assert.deepEqual(fromEntries([['a', 1]]), { a: 1 });
   assert.strictEqual(typeof groupBy, 'function');
 });
 
-// array-wrapper inner default resolves the receiver by the paired slot's definedness: a statically
-// `undefined` slot fires the default (the right IS the receiver), a defined slot keeps the element's
-// own member. mis-resolving the defined case would polyfill `of` as Array.of and break `carried:5`
 QUnit.test('destructuring: array-wrapper inner default resolves by slot definedness', assert => {
   const [{ from } = Array] = [undefined];
   assert.deepEqual(from([1, 2, 3]), [1, 2, 3]);
@@ -3940,17 +3947,17 @@ QUnit.test('destructuring: a probed init throws for every consuming position', a
     return typeof of;
   }
   function anchoredFirst() {
-    const { Set: { union }, Array: { of } } = globalThis.window?.self;
-    return [typeof union, typeof of];
+    const { Set: { customQ }, Array: { of } } = globalThis.window?.self;
+    return [typeof customQ, typeof of];
   }
   function consumedFirst() {
-    const { Array: { of }, Set: { union } } = globalThis.window?.self;
-    return [typeof of, typeof union];
+    const { Array: { of }, Set: { customQ } } = globalThis.window?.self;
+    return [typeof of, typeof customQ];
   }
   function stringKeyFirst() {
     // eslint-disable-next-line @stylistic/quote-props -- the string spelling IS the form under test
-    const { 'Array': { of }, Set: { union } } = globalThis.window?.self;
-    return [typeof of, typeof union];
+    const { 'Array': { of }, Set: { customQ } } = globalThis.window?.self;
+    return [typeof of, typeof customQ];
   }
   function arrayWrapped() {
     const [{ of }] = [globalThis.window?.Array];
@@ -3966,18 +3973,24 @@ QUnit.test('destructuring: a probed init throws for every consuming position', a
     return typeof of;
   }
   /* eslint-enable no-unsafe-optional-chaining -- end of the forms */
-  if (WINDOW_PRESENT) {
+  // the PRESENT-probe claims run wherever this suite does: the host is built around the read where
+  // the environment has none, so the composite exercises them instead of the browser leg alone -
+  // written under `WINDOW_PRESENT` they ran in karma only, and an impossible expectation sat there
+  // unread (`customQ` is a key NEITHER surface carries, so the residual anchored on the pure
+  // constructor answers undefined; what an order decides is where the POLYFILLED leaf lands)
+  withWindowWithoutSelf(() => {
     assert.same(ctorLeaf(), 'function', 'the ctor-leaf extraction resolves on a present host');
-    assert.deepEqual(anchoredFirst(), ['function', 'function'], 'the anchored-first order resolves');
-    assert.deepEqual(consumedFirst(), ['function', 'function'], 'the consumed-first order resolves');
-    assert.deepEqual(stringKeyFirst(), ['function', 'function'], 'the string-key order resolves');
+    assert.deepEqual(anchoredFirst(), ['undefined', 'function'], 'the anchored-first order resolves');
+    assert.deepEqual(consumedFirst(), ['function', 'undefined'], 'the consumed-first order resolves');
+    assert.deepEqual(stringKeyFirst(), ['function', 'undefined'], 'the string-key order resolves');
     assert.same(arrayWrapped(), 'function', 'the array-wrapped extraction resolves');
     assert.same(aliasHeld(), 'function', 'the alias-held extraction resolves');
     // the `??` row swaps its left for a synth that carries the probe's own nullish guard, so the
     // fallback still fires exactly off-env and a present host reads the ponyfill - the karma
     // floor included, where the host's own slot is absent
     assert.same(fallbackRescued(), 'function', 'a present host never reads the fallback - the guarded synth answers');
-  } else {
+  });
+  if (!WINDOW_PRESENT) {
     assert.throws(ctorLeaf, TypeError, 'the ctor-leaf extraction throws, as the source does');
     assert.throws(anchoredFirst, TypeError, 'the anchored-first order throws');
     assert.throws(consumedFirst, TypeError, 'the consumed-first order throws');
@@ -8266,7 +8279,7 @@ QUnit.test('destructuring: an inner default on a non-function host keeps the per
 // binding it would read `undefined` (the `*/constructor` entry carries no statics), and inside a
 // mirrored literal it stays a raw read through the proxy. on a stripped realm the global is absent
 // and the raw read throws like the source does - the live-global legs carry the value oracle
-QUnit.test('destructuring: a residual member target of a ctor static keeps the native receiver', assert => {
+QUnit.test('destructuring: a member target takes the static ponyfill unless its root is a global', assert => {
   // the realm's own ctor and statics, read through calls a member spelling would be resolved
   // through the ponyfill (`Reflect.get` hands the live value back untouched); absent on a
   // stripped realm
@@ -8300,52 +8313,67 @@ QUnit.test('destructuring: a residual member target of a ctor static keeps the n
     return typeof gb;
   }
   assert.same(viaAllProxyDefault(), 'function');
+  // the author's own object is a slot like a binding the author declares, so the ponyfill lands in
+  // it and the read answers in EVERY realm - the stripped one included, where reading the static
+  // off the native receiver would have thrown
+  assert.same(typeof viaResidual(), 'function');
+  const [S, all] = viaMirror();
+  assert.same(typeof S, 'function');
+  assert.same(typeof all, 'function');
+  // ... and a COMPUTED key that folds names the static as the literal does
+  const k = 'race';
+  ({ Promise: { [k]: box.folded } } = globalThis);
+  assert.same(typeof box.folded, 'function');
+  // ... and a SELECTING receiver collapses to the realm before any of this, so the target extracts
+  // off it beside the ponyfilled sibling
+  let viaAll;
+  ({ Promise: { race: box.selected, all: viaAll } } = globalThis.window ?? globalThis);
+  assert.same(typeof box.selected, 'function');
+  assert.same(typeof viaAll, 'function');
+  // ... and the leaf's own DEFAULT is dead text over an import that is never undefined
+  ({ Promise: { race: box.defaulted = 1 } } = globalThis.window ?? globalThis);
+  assert.same(typeof box.defaulted, 'function');
+  // ... and a MULTI-hop pattern answers per hop
+  let gb;
+  ({ Map: { groupBy: gb }, Promise: { race: box.beside } } = globalThis.window ?? globalThis);
+  assert.same(typeof gb, 'function');
+  assert.same(typeof box.beside, 'function');
+  // ... and a value-selecting INNER default (the host's slot provably empty) takes the same mirror
+  // on an object-key host, the member target riding it like any slot
+  let gbk;
+  ({ k: { Map: { groupBy: gbk }, Promise: { race: box.keyed } } = globalThis.window ?? globalThis } = {});
+  assert.same(typeof gbk, 'function');
+  assert.same(typeof box.keyed, 'function');
+  // a key carrying an EFFECT keeps its residual - that is where the effect still has to run - and
+  // the residual re-anchors on the constructor's pure binding like any other: the import is what a
+  // realm WITHOUT the constructor has instead of it, so the read stands there too. WHICH value the
+  // binding answers for a key the plan cannot name is the runtime's own business (the bare
+  // `*/constructor` entry installs no statics of its own until another entry decorates it), so the
+  // row asserts the effect count and that the read happens at all
+  function viaEffectKey() {
+    let n = 0;
+    ({ Promise: { [(n++, 'race')]: box.effect } } = globalThis);
+    return [box.effect, n];
+  }
+  // ... and a target whose ROOT stands for a global keeps the native read whatever the realm holds:
+  // the write would install the ponyfill in the realm, which pure never does
+  function viaGlobalRoot() {
+    globalThis.e2eMemberRootBox = {};
+    ({ Promise: { race: globalThis.e2eMemberRootBox.race } } = globalThis);
+    return globalThis.e2eMemberRootBox.race;
+  }
+  const [effect, effectReads] = viaEffectKey();
+  assert.same(effectReads, 1);
+  assert.same(typeof effect, 'function');
   if (POST_LOWERED) {
     // a leg whose emission lands on the LOWERED text sees a plain member read where the pattern
-    // stood (`box.race = globalThis.Promise.race`), and a member read resolves to the ponyfill by
-    // the usual rule in every realm - the raw canon is a destructuring shape; the pre-lowering
-    // legs hold it
-    assert.same(typeof viaResidual(), 'function');
-    const [S, all] = viaMirror();
-    assert.same(typeof S, 'function');
-    assert.same(typeof all, 'function');
+    // stood, and a member read takes the ponyfill by the usual rule in every realm - the global-root
+    // refusal is a destructuring shape, which the pre-lowering legs hold
+    assert.same(typeof viaGlobalRoot(), 'function');
   } else if (live) {
-    assert.same(viaResidual(), Reflect.get(live, 'race'));
-    const [S, all] = viaMirror();
-    assert.same(typeof S, 'function');
-    assert.same(all, Reflect.get(live, 'all'));
-    // a computed key that folds names the static as the literal does; one nothing folds (an effect)
-    // may name any static at runtime, so that anchor declines too
-    const k = 'race';
-    let n = 0;
-    ({ Promise: { [k]: box.folded } } = globalThis);
-    ({ Promise: { [(n++, 'race')]: box.effect } } = globalThis);
-    assert.same(box.folded, Reflect.get(live, 'race'));
-    assert.same(box.effect, Reflect.get(live, 'race'));
-    assert.same(n, 1);
-    // under a SELECTING receiver the fallback arm's mirror keeps the member target raw beside
-    // the ponyfilled sibling, and a defaulted member target keeps the user's default
-    let viaAll;
-    ({ Promise: { race: box.selected, all: viaAll } } = globalThis.window ?? globalThis);
-    assert.same(box.selected, Reflect.get(live, 'race'));
-    assert.same(typeof viaAll, 'function');
-    ({ Promise: { race: box.defaulted = 1 } } = globalThis.window ?? globalThis);
-    assert.same(box.defaulted, Reflect.get(live, 'race'));
-    // ... and a MULTI-hop pattern renders one literal: the member target rides raw beside the
-    // sibling hop's ponyfill
-    let gb;
-    ({ Map: { groupBy: gb }, Promise: { race: box.beside } } = globalThis.window ?? globalThis);
-    assert.same(typeof gb, 'function');
-    assert.same(box.beside, Reflect.get(live, 'race'));
-    // ... and a value-selecting INNER default (the host's slot provably empty) takes the same
-    // mirror on an object-key host: the leaf reads the polyfill, the member target stays raw
-    let gbk;
-    ({ k: { Map: { groupBy: gbk }, Promise: { race: box.keyed } } = globalThis.window ?? globalThis } = {});
-    assert.same(typeof gbk, 'function');
-    assert.same(box.keyed, Reflect.get(live, 'race'));
+    assert.same(viaGlobalRoot(), Reflect.get(live, 'race'));
   } else {
-    assert.throws(viaResidual, TypeError);
-    assert.throws(viaMirror, TypeError);
+    assert.throws(viaGlobalRoot, TypeError);
   }
 });
 
@@ -8399,4 +8427,117 @@ QUnit.test('destructuring: a defaulted parameter of an immediately invoked funct
   assert.deepEqual((({ k: { Set: S, 'with-dash': d, Array: { of } } = globalThis }) => {
     return [typeof S, of(1).length, d];
   })({}), ['function', 1, undefined]);
+});
+
+// a CAPTURE yields its right-hand side, so the selection under it is what the pattern reads. with an
+// opaque arm live there is no sound injection: the mirror would hand the capture our object, and
+// binding the ponyfill outright overrides whatever that arm holds. the source's own read stands
+QUnit.test('destructuring: a captured selection keeps the arm the source reads', assert => {
+  const own = { Array: { from: () => ['own'] } };
+  let held;
+  const { Array: { from } } = held = own || globalThis;
+  assert.deepEqual(from([1]), ['own']);
+  assert.same(held, own);
+  // the falsy twin of this arm lives in the generated corpus, where the realm read can be compared
+  // without a second claim standing in for the expectation
+});
+
+// an ASSIGNMENT host whose effectful computed key rebuilds the statement around a minted memo: what
+// the rebuild leaves for every SIBLING prop is a read off that memo, a receiver no later route can
+// name, so the sibling's own static has to be answered by the rebuild itself. read natively it is
+// `undefined` in a realm without the constructor, and the key still runs exactly once
+QUnit.test('destructuring: a rebuilt assignment keeps the sibling static polyfill', assert => {
+  let keyRuns = 0;
+  let of, from;
+  // eslint-disable-next-line prefer-const -- testing assignment destructuring
+  ({ [(keyRuns += 1, 'of')]: of, from } = Array);
+  assert.same(typeof from, 'function');
+  assert.deepEqual(of(7), [7]);
+  assert.deepEqual(from([1, 2]), [1, 2]);
+  assert.same(keyRuns, 1);
+  // ... and with the sibling spelled FIRST, where its claim is taken before the rebuild sees it
+  let headRuns = 0;
+  let head, tail;
+  // eslint-disable-next-line prefer-const -- testing assignment destructuring
+  ({ from: head, [(headRuns += 1, 'of')]: tail } = Array);
+  assert.same(typeof head, 'function');
+  assert.deepEqual(head([3]), [3]);
+  assert.deepEqual(tail(7), [7]);
+  assert.same(headRuns, 1);
+});
+
+// a TEST-selected receiver whose arms DISAGREE about definability: the probe arm is the one every
+// host that spells `window` takes, so leaving it raw bound the realm's own member there - the value
+// this polyfill exists to replace. the arm takes the literal through a null test on the probe's own
+// read, which keeps the native throw where the environment lacks the name
+QUnit.test('destructuring: a probe arm of a selecting receiver polyfills where the probe exists', assert => {
+  function pick(flagged) {
+    const { Array: { of } } = flagged ? globalThis.window : globalThis;
+    return of;
+  }
+  assert.same(typeof pick(false), 'function', 'the guaranteed arm binds the polyfill');
+  assert.deepEqual(pick(false)(7), [7], 'and it is the polyfill that runs');
+  // the host the probe arm is taken on, built around the read: Node has no `window` at all, and a
+  // browser's own `Array.of` makes the two arms indistinguishable - only a realm with the probe
+  // present and the native stripped tells the polyfill from the realm's own member
+  withWindowWithoutSelf(() => {
+    assert.same(typeof pick(true), 'function', 'the probe arm binds the polyfill where the probe exists');
+    assert.deepEqual(pick(true)(7), [7], 'reading the polyfill, not the realm own member');
+  });
+  if (typeof window === 'undefined') {
+    assert.throws(() => pick(true), TypeError, 'and an absent probe throws exactly as the source does');
+  }
+});
+
+// an effect the source runs AHEAD of the pattern belongs to the statement slot, and EXACTLY ONE
+// channel may perform it: the render that memoizes the receiver, or the lift that hoists it into
+// that slot. Both performing it ran the effect twice; neither, and it never ran at all - and which
+// channel is live depends on where the effect-bearing key sits among its siblings
+QUnit.test('destructuring: a receiver prefix effect runs exactly once whatever the prop order', assert => {
+  const log = [];
+  let a, b;
+  /* eslint-disable prefer-const -- testing assignment destructuring */
+  ({ of: b, [(log.push('k1'), 'from')]: a } = (log.push('recv'), Array));
+  assert.deepEqual(log, ['recv', 'k1'], 'a static sibling AHEAD of the effectful key');
+  assert.deepEqual([typeof a, typeof b], ['function', 'function'], 'and both slots bind their polyfill');
+  log.length = 0;
+  let c, d;
+  ({ [(log.push('k1'), 'from')]: c, of: d } = (log.push('recv'), Array));
+  assert.deepEqual(log, ['recv', 'k1'], 'the effectful key ahead of the sibling');
+  assert.deepEqual([typeof c, typeof d], ['function', 'function'], 'and both slots bind their polyfill');
+  log.length = 0;
+  let e, f;
+  ({ [(log.push('k1'), 'from')]: e, [(log.push('k2'), 'of')]: f } = (log.push('recv'), Array));
+  assert.deepEqual(log, ['recv', 'k1', 'k2'], 'two effectful keys keep their source order');
+  assert.deepEqual([typeof e, typeof f], ['function', 'function'], 'and both slots bind their polyfill');
+  log.length = 0;
+  let g, h, held;
+  // the prefix carries a claim of ITS own: whichever channel performs the effect owes that claim
+  // its polyfill, and a receiver read past the prefix takes it out of the pass's sight
+  ({ [(log.push('k1'), 'from')]: g, of: h } = (held = Array.of, Array));
+  assert.deepEqual(log, ['k1'], 'a prefix that claims performs once, ahead of the key');
+  assert.deepEqual([typeof g, typeof h, typeof held], ['function', 'function', 'function'], 'and the claim inside the prefix keeps its polyfill');
+  /* eslint-enable prefer-const -- end of the assignment forms */
+});
+
+// a key a pattern repeats names ONE slot: both readers read one value, so the synthesized literal
+// spells a single property for it. Declining the level over the repeat left a for-x head reading
+// raw off the element, which has no statement slot the polyfill could be extracted into
+QUnit.test('destructuring: a repeated key mirrors once on a for-of head', assert => {
+  let first, second;
+  // eslint-disable-next-line no-useless-computed-key -- the repeated key IS the subject here
+  for (const { of: a, ['of']: b } of [Array, Array]) {
+    first = a;
+    second = b;
+  }
+  assert.deepEqual([typeof first, typeof second], ['function', 'function'], 'both readers bind the polyfill');
+  assert.strictEqual(first, second, 'and both bind one value, as the source reads one slot twice');
+  const KEY = 'of';
+  let bound, plain;
+  for (const { [KEY]: c, of: d } of [Array, Array]) {
+    bound = c;
+    plain = d;
+  }
+  assert.deepEqual([typeof bound, typeof plain], ['function', 'function'], 'a bound key repeating a literal one mirrors alike');
+  assert.strictEqual(bound, plain, 'and lands the same value in both slots');
 });

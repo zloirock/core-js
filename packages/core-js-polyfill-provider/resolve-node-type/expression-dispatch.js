@@ -59,6 +59,7 @@ export function createExpressionDispatch({
   resolveUnionType,
   resolveDesugarDefaultTernary,
   ownCtorNarrowAlternatePath,
+  polyfillHintGlobalName,
   resolveNumericType,
   resolveTypeAnnotation,
   resolveAwaitExpressionType,
@@ -67,7 +68,11 @@ export function createExpressionDispatch({
 }) {
   function resolveNewExpressionType(path) {
     const callee = path.get('callee');
-    const name = resolveGlobalName(callee);
+    // the callee names its global through our own binding too: `new _Map()` is what a pass over our
+    // own output reads where the source wrote `new Map()`, and taking it for an unknown value cost
+    // the receiver its whole type - every method the ponyfill's prototype already carries was
+    // dispatched again on the next pass
+    const name = resolveGlobalName(callee) ?? polyfillHintGlobalName(callee);
     // a known global / class name resolves to its constructor type directly. an ambient binding
     // (`declare const Ctor: new () => T`) also resolves via resolveGlobalName to its bare name but
     // is NOT a known constructor (resolveConstructorType -> null) - fall through to the class /

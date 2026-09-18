@@ -12,6 +12,8 @@ import {
   programPrologueEndIndex,
   prologueEndIndex,
   isDirectiveStatement,
+  reEvaluationObservable,
+  walkAstNodes,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { resolveImportPath } from '@core-js/polyfill-provider/helpers/path-normalize';
 import {
@@ -195,6 +197,46 @@ function collectNodes(root) {
   return seen;
 }
 
+// a minted MEMO the emission ORPHANED - every reader re-spelled the receiver it held - is dead
+// text whose declarator carries the only surviving spelling of its name. it leaves with that
+// declarator, the same rule the other leg's prune applies through its scope graph: a name spelled
+// only in declarator-id positions has no reader, and only a provably INERT init may go with it - a
+// memo whose init still EVALUATES is the one place that call or member read runs, unread or not.
+// only a declaration standing in a statement LIST is swept: one in a for-head is the loop's own
+function dropOrphanedMemoDeclarations(program, { refCounts, refDeclIdCounts }) {
+  const dead = new Set();
+  for (const [name, count] of refCounts) {
+    if (count <= (refDeclIdCounts.get(name) ?? 0)) dead.add(name);
+  }
+  if (!dead.size) return;
+  const lists = [];
+  const heads = [];
+  walkAstNodes({ root: program, visit(node) {
+    if (Array.isArray(node?.body)) lists.push(node.body);
+    else if (node?.type === 'SwitchCase') lists.push(node.consequent);
+    if (node?.type === 'ForStatement' && node.init?.type === 'VariableDeclaration') heads.push(node.init);
+  } });
+  // the declarator a dead memo owns, gone from its declaration; the declaration goes too where
+  // nothing is left of it. a for-HEAD declaration is the loop's own - it keeps standing, one
+  // declarator lighter, and is never emptied away
+  function pruneDeclaration(declaration) {
+    const kept = declaration.declarations.filter(item => !(item.id?.type === 'Identifier' && dead.has(item.id.name)
+      && item.init && !reEvaluationObservable(item.init)));
+    if (kept.length === declaration.declarations.length) return false;
+    for (const gone of declaration.declarations) if (!kept.includes(gone)) refCounts.set(gone.id.name, 0);
+    declaration.declarations = kept;
+    return true;
+  }
+  for (const head of heads) if (head.declarations.length > 1) pruneDeclaration(head);
+  for (const list of lists) {
+    for (let at = list.length - 1; at >= 0; at--) {
+      const statement = list[at];
+      if (statement?.type !== 'VariableDeclaration' || !pruneDeclaration(statement)) continue;
+      if (!statement.declarations.length) list.splice(at, 1);
+    }
+  }
+}
+
 export function flushIntoProgram({ injector, program, refNames = [], renameOnly = [], refOrder = [] }) {
   function resolve(subpath, pkg) {
     return resolveImportPath(pkg ?? injector.pkg, subpath, injector.absoluteImports);
@@ -209,6 +251,8 @@ export function flushIntoProgram({ injector, program, refNames = [], renameOnly 
   // the write-only nested guard memos unwrap BEFORE the slot rank is read - a dropped name
   // must never receive a slot
   unwrapWriteOnlyGuardMemos(census);
+  // ... and an orphaned memo leaves before the slot rank is read, so its name takes no slot
+  dropOrphanedMemoDeclarations(program, census);
   const { referenceNames, refNodes, refCounts, printRank } = census;
   // generated-ref canon, the shared slot rule both emitters print through: a minted ref the
   // emission ended up not using is dropped, the survivors renumber into compact print-order

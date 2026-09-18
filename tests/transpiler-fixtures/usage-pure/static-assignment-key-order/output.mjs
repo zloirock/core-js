@@ -7,7 +7,7 @@ var _ref;
 const events = [];
 let method;
 let isArray;
-_ref = Array, null == _ref ? _ref[""] : (_pushMaybeArray(events).call(events, typeof method), method = _Array$from), null == _ref ? _ref[""] : ({
+_ref = Array, null == _ref ? _ref[""] : (_pushMaybeArray(events).call(events, typeof method), method = _Array$from), null == _ref ? _ref[""] : {
   [(_pushMaybeArray(events).call(events, typeof method), 'isArray')]: isArray
-} = _ref), _ref;
+} = _ref, _ref;
 export const result = [method('ab'), isArray([]), events];

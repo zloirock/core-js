@@ -29,4 +29,10 @@ export const {
       of: viaFallbackNested
     }
   }
-} = _globalThis.window ?? {};
+} = null == _globalThis.window ? {} : {
+  self: {
+    Array: {
+      of: _Array$of
+    }
+  }
+};

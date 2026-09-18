@@ -739,6 +739,56 @@ function * generateDisableDirectives() {
   }
 }
 
+// --- Assignment-host key spellings (which channel binds a static the pattern names) ---
+// the destructure grammar runs its ASSIGNMENT hosts full-env only, because a pattern there may
+// legitimately decline - and that is what let a whole class of LOST polyfills through: a slot left on
+// the minted memo reads its static raw, which a full realm answers natively and only a stripped one
+// catches. These rows are the shapes that never decline: every leaf is a nameable static of one
+// constructor, so each is injected on both legs, whatever the KEY's spelling (a side-effect key, a
+// key bound to a constant, a key the pattern repeats) and whatever the receiver carries ahead of it.
+// The log observes the key effects, so a channel that replays one twice or drops it reddens beside a
+// missing injection rather than silently agreeing.
+function * generateAssignmentKeySpelling() {
+  const rows = [
+    ['se-key-then-static', "let a, b; ({ [(log.push('k1'), 'from')]: a, of: b } = Array); return [typeof a, typeof b];"],
+    ['static-then-se-key', "let a, b; ({ of: b, [(log.push('k1'), 'from')]: a } = Array); return [typeof a, typeof b];"],
+    ['two-se-keys', "let a, b; ({ [(log.push('k1'), 'from')]: a, [(log.push('k2'), 'of')]: b } = Array); return [typeof a, typeof b];"],
+    ['bound-key-beside-se-key', "const K = 'of'; let a, b; ({ [(log.push('k1'), 'from')]: a, [K]: b } = Array); return [typeof a, typeof b];"],
+    ['repeated-leaf-key', "let a, b; ({ of: a, ['of']: b } = Array); return [typeof a, typeof b, a === b];"],
+    // ... and the same four behind a receiver that runs an effect of its own: what the memo holds is
+    // the value that receiver YIELDS, and a channel naming it off the unpeeled spelling answers for
+    // no constructor at all - every sibling it owed then read its static raw
+    ['se-key-then-static-behind-prefix', "let a, b; ({ [(log.push('k1'), 'from')]: a, of: b } = (log.push('recv'), Array)); return [typeof a, typeof b];"],
+    ['static-then-se-key-behind-prefix', "let a, b; ({ of: b, [(log.push('k1'), 'from')]: a } = (log.push('recv'), Array)); return [typeof a, typeof b];"],
+    ['two-se-keys-behind-prefix', "let a, b; ({ [(log.push('k1'), 'from')]: a, [(log.push('k2'), 'of')]: b } = (log.push('recv'), Array)); return [typeof a, typeof b];"],
+    ['bound-key-behind-prefix', "const K = 'of'; let a, b; ({ [(log.push('k1'), 'from')]: a, [K]: b } = (log.push('recv'), Array)); return [typeof a, typeof b];"],
+    // ... and the HEAD of a for-x, where the fallback has no statement slot to extract into: a key
+    // the pattern repeats is ONE slot the element literal spells once, and declining the level over
+    // the repeat left both readers on a raw element read
+    ['for-of-repeated-leaf-key', "let a, b; for (const { of: x, ['of']: y } of [Array]) { a = x; b = y; break; } return [typeof a, typeof b, a === b];"],
+    ['for-of-bound-key-repeat', "const K = 'of'; let a, b; for (const { [K]: x, of: y } of [Array]) { a = x; b = y; break; } return [typeof a, typeof b];"],
+    // ... and the same host under an array WRAPPER that keeps a sibling element: the destructure
+    // stays whole for the neighbour that still binds, and the claim appends its overwrite. Standing
+    // down there left the slot reading its static off the raw element
+    ['wrapper-sibling-flat-static', 'let a, zn; ([{ of: a }, zn] = [Array, 7]); return [typeof a, zn];'],
+    ['wrapper-sibling-two-patterns', 'let a, b; ([{ of: a }, { from: b }] = [Array, Array]); return [typeof a, typeof b];'],
+    ['wrapper-sibling-repeated-key', "let a, b, zn; ([{ of: a, ['of']: b }, zn] = [Array, 7]); return [typeof a, typeof b, a === b];"],
+    // ... and the constructor reached THROUGH the realm: what the mirror needs is the NAME, which the
+    // value canon answers whatever spelling carries it - refused for every non-Identifier, a for-x head
+    // over such a receiver read its statics raw off the element
+    ['realm-nav-receiver-head', 'let a, b; for (const { of: x, from: y } of [globalThis.Array]) { a = x; b = y; break; } return [typeof a, typeof b];'],
+    ['realm-nav-receiver-wrapper', 'let a, b, zn; ([{ of: a, from: b }, zn] = [globalThis.Array, 7]); return [typeof a, typeof b];'],
+    // ... and an SE-keyed INSTANCE claim inside that wrapper: its kept key makes the residual perform
+    // the source's one read of the member, so the dispatch SHARES it through a memo taking the
+    // element's own slot rather than spelling the member a second time
+    ['wrapper-se-key-instance', "let a, b, zn; ([{ [(log.push('k'), 'at')]: a, flat: b }, zn] = [Array.prototype, 7]); return [typeof a, typeof b, log.join(',')];"],
+    ['wrapper-se-key-instance-sole', "let a, b; ([{ [(log.push('k'), 'at')]: a, flat: b }] = [Array.prototype]); return [typeof a, typeof b, log.join(',')];"],
+  ];
+  for (const [id, body] of rows) {
+    yield { ...snippet(`assignment-key-spelling/${ id }`, `(() => { ${ body } })()`), strip: true };
+  }
+}
+
 function * generateDestructure() {
   for (const host of D_HOSTS) {
     for (const pat of D_PATTERNS) {
@@ -838,6 +888,51 @@ function * generateAnchorKeySpelling() {
         yield { ...snippet(`anchor-key-spelling/present/${ cell }`, present), strip: false };
         const absent = `(() => { ${ setup } ${ host.build(key.lhs, recv.src, 'from') } return typeof from; })()`;
         yield { ...snippet(`anchor-key-spelling/absent/${ cell }`, absent), strip: false };
+      }
+    }
+  }
+}
+
+// --- Several surviving ctor hops on ONE line (the anchor's N-hop split) ---
+// a CONSUMED sibling is what drives the split, and every hop left behind must land re-anchored on
+// its OWN constructor (`({ customY } = _Iterator)`), in the order the source wrote its hop and
+// interleaved with the extractions. a residual left on the realm ROOT instead reads a constructor
+// slot the stripped realm no longer carries and throws where native answers `undefined`, so the
+// stripped leg is this family's oracle - which is why `Iterator` rides every row: the strip manifest
+// removes no other constructor, and a hop whose constructor the realm keeps cannot arm the leg. the
+// NONE-sibling cell is the boundary: nothing drives a split there, the line stays whole on both
+// legs, and import parity is its oracle - a leg that split it would import the ctor entries the
+// other one does not. the leaves name nothing any constructor carries, so the hop SURVIVES the
+// consume instead of being extracted, which is the whole shape
+const MCH_HOPS = [
+  { key: 'Promise', leaf: 'customZ' },
+  { key: 'Iterator', leaf: 'customY' },
+  { key: 'WeakMap', leaf: 'customW' },
+];
+const MCH_SIBLINGS = [
+  { id: 'flat', prop: 'Set: S', names: ['S'], observe: 'typeof S' },
+  { id: 'nested', prop: 'Map: { groupBy: g }', names: ['g'], observe: 'typeof g' },
+  { id: 'none', prop: null, names: [], observe: '"none"' },
+];
+// the three hosts the split lands in by a route of its own: a declarator list, a statement
+// assignment spliced into its body, and a BODYLESS `if` that has no statement list at all and has to
+// grow a block around the pieces
+const MCH_HOSTS = [
+  { id: 'decl', build: pattern => `const { ${ pattern } } = globalThis;` },
+  { id: 'assign', build: (pattern, names) => `let ${ names }; ({ ${ pattern } } = globalThis);` },
+  { id: 'bodyless-if', build: (pattern, names) => `let ${ names }; if (cond) ({ ${ pattern } } = globalThis);` },
+];
+function * generateMultiCtorHopResidual() {
+  for (const host of MCH_HOSTS) {
+    for (const count of [2, 3]) {
+      for (const sibling of MCH_SIBLINGS) {
+        const hops = MCH_HOPS.slice(0, count);
+        const pattern = [...sibling.prop ? [sibling.prop] : [], ...hops.map(hop => `${ hop.key }: { ${ hop.leaf } }`)].join(', ');
+        const names = [...sibling.names, ...hops.map(hop => hop.leaf)].join(', ');
+        const observe = [sibling.observe, ...hops.map(hop => `typeof ${ hop.leaf }`)].join(', ');
+        const body = `(() => { ${ host.build(pattern, names) } return [${ observe }]; })()`;
+        yield { ...snippet(`multi-ctor-hop-residual/${ host.id }/${ count }-hops/${ sibling.id }`, body),
+          strip: sibling.prop !== null };
       }
     }
   }
@@ -3707,6 +3802,10 @@ function * generateBareProxyProbe() {
     ['optional-dispatch', root => `('x', ${ root }.probeGen.arr)?.flat()`],
     ['member-dispatch', root => `('x', ${ root }.probeGen).arr?.flat()`],
     ['leaf-dispatch', root => `('x', ${ root }).probeGen.arr?.flat()`],
+    // ... and the same leaf with NO dispatch above it: the sequence tail IS the run, so the member
+    // reading it is the run's consumer and owes the guard a plain read of the same nav gets. a climb
+    // that stops at the sequence anchors one span short and leaves the probe hop raw off the root
+    ['leaf-read', root => `('x', ${ root }).probeGen.n`],
     ['plain-dispatch', root => `('x', ${ root }.probeGen.arr).flat()`],
     // a CHAINED consumer moves the receiver text into the outer emission, so the repeated navs
     // inside it are rewritten from there rather than by the inner transform
@@ -4521,6 +4620,61 @@ function * generateStaticCollapseSEOrder() {
   }
 }
 
+// --- A GETTER receiver under a static descent ---
+// a descent may name a value only an object-literal getter could produce, and then the receiver read
+// is an EFFECT the render owes exactly once, where the source wrote it. the two legs spell that
+// differently and both are exact - babel keeps it as a sequence prefix inside the init
+// (`const { bind: b } = (holder.g, _Object$keys)`), this one lands it as its own statement ahead of
+// the declarator (`holder.g; const { bind: b } = _Object$keys;`) - so the corpus watches the LOG,
+// not the shape: exactly one `r`, ahead of the `b` the statement below pushes, plus import parity.
+// the receiver axis is what the resolution branches on (an effect as a statement, the same effect
+// inside the returned sequence, an INERT getter, a call, and the bare realm), the depth axis is
+// whether the leaf rides the static's own ponyfill or descends one level past it, and the host axis
+// is the channel: a declarator replays the read, an assignment and a PARTIAL consume (a live sibling
+// the residual keeps) have no placement for a replay and keep the source verbatim - still one read.
+const GRD_RECEIVERS = [
+  { id: 'getter-effect', setup: 'const holder = { get g() { log.push("r"); return globalThis; } };', src: 'holder.g' },
+  { id: 'getter-seq', setup: 'const holder = { get g() { return (log.push("r"), globalThis); } };', src: 'holder.g' },
+  { id: 'getter-inert', setup: 'const holder = { get g() { 0; return globalThis; } };', src: 'holder.g' },
+  { id: 'call', setup: 'const getG = () => globalThis;', src: 'getG()' },
+  { id: 'plain', setup: '', src: 'globalThis' },
+];
+const GRD_DEPTHS = [
+  { id: 'flat-static', pattern: 'Object: { keys: k }', names: 'k', observe: 'typeof k' },
+  { id: 'descended', pattern: 'Object: { keys: { bind: b } }', names: 'b', observe: 'typeof b' },
+  // the strip-armed depth: `Array.from` is a static the manifest removes, so a cell that SERVES the
+  // claim proves the injection there. the two cells below that do not serve it say so by name
+  { id: 'armed', pattern: 'Array: { from: f }', names: 'f', observe: 'typeof f' },
+];
+const GRD_HOSTS = [
+  { id: 'decl', build: (pattern, names, src) => `const { ${ pattern } } = ${ src };` },
+  { id: 'assign', build: (pattern, names, src) => `let ${ names }; ({ ${ pattern } } = ${ src });` },
+  { id: 'partial', build: (pattern, names, src) => `let ${ names }, q; ({ ${ pattern }, customQ: q } = ${ src });` },
+];
+// a cell NOT covered, with the reason: the sequence-returning getter on an ASSIGNMENT host makes the
+// babel leg narrow `Object.keys` to the GENERIC instance `keys` dispatcher (`_keys(holder.g.Object)`)
+// where this leg keeps the source - a wrong narrow whose `typeof` answers "function" either way, so
+// only the import set sees it. a gap in the product, never a row to carry red
+const GRD_SKIP = new Set(['getter-seq/flat-static/assign']);
+// ... and the cells where the same receiver leaves the ARMED static unserved on both legs: the kept
+// source reads the realm's own `Array.from`, which the stripped realm no longer carries, so import
+// parity is their oracle instead
+const GRD_NO_STRIP = new Set(['getter-seq/armed/assign', 'getter-seq/armed/partial']);
+function * generateGetterReceiverDescent() {
+  for (const recv of GRD_RECEIVERS) {
+    for (const depth of GRD_DEPTHS) {
+      for (const host of GRD_HOSTS) {
+        const cell = `${ recv.id }/${ depth.id }/${ host.id }`;
+        if (GRD_SKIP.has(cell)) continue;
+        const body = `${ recv.setup } ${ host.build(depth.pattern, depth.names, recv.src) }`
+          + ` log.push("b"); return [${ depth.observe }, log.join()];`;
+        yield { ...snippet(`getter-receiver-descent/${ cell }`, `(() => { ${ body } })()`),
+          strip: !GRD_NO_STRIP.has(cell) };
+      }
+    }
+  }
+}
+
 // --- `.name` memo on a proxy chain-root-call receiver: inner resolution ---
 // a `.name` (MaybeFunction get) on `(call).hop.Ctor` memoizes `(call, _Ctor)`, harvesting the call as a RAW
 // source prefix. the call's BODY must resolve EXACTLY as the natural visitor would (whole-receiver collapse
@@ -5105,6 +5259,55 @@ function * generateNestedInstanceReceiver() {
   }
 }
 
+// --- An INSTANCE leaf under a built-in SURFACE hop ---
+// `({ Promise: { name } } = globalThis)` reads a Function.prototype member THROUGH the constructor
+// the hop names, so the claim is the instance dispatcher on that hop's resolved value
+// (`name = _nameMaybeFunction(_Promise)`) - not the anchor, which serves a STATIC of the same hop.
+// the surface the hop lands on is the axis the route branches on: a constructor with a pure entry of
+// its own, a realm slot with none (the read stays on the proxy global), and a proxy STEP ahead of
+// the constructor. the oracle is IMPORT-SET PARITY - a full realm answers a leg that left the leaf
+// native exactly as it answers the dispatcher - so these rows claim no stripped realm.
+// the DEFAULTED SYMBOL leaf is the NEGATIVE: a well-known-symbol key carries a render of its own and
+// the user default must still fire, so both legs keep the key-swap off the anchored constructor
+// (`({ [_Symbol$iterator]: it = null } = _Promise)`) and neither may reach for `get-iterator-method`,
+// whose helper would answer `undefined` before the default could.
+// the DECLARATION and FOR-OF hosts are NOT covered for the two instance-name leaves: there the
+// unplugin leg still binds the leaf off the anchored constructor (`const { name } = _Promise`) where
+// babel dispatches, an open leg divergence rather than a shape this corpus may claim. they are named
+// per leaf in `skipHosts` so the gap stays enumerable from the corpus, and re-adding a host is the
+// gap's own fail-before. the symbol leaves route the same on every host and carry all four
+const NIS_RECEIVERS = [
+  { id: 'ctor-entry', build: inner => `Promise: { ${ inner } }` },
+  { id: 'realm-slot', build: inner => `Object: { ${ inner } }` },
+  { id: 'proxy-step-ctor', build: inner => `self: { Map: { ${ inner } } }`, rig: true },
+];
+const NIS_HOSTS = [
+  { id: 'decl', build: (pat, names, observe) => `const { ${ pat } } = globalThis; return ${ observe };` },
+  { id: 'assign', build: (pat, names, observe) => `let ${ names }; ({ ${ pat } } = globalThis); return ${ observe };` },
+  { id: 'for-of',
+    build: (pat, names, observe) => `let out; for (const { ${ pat } } of [globalThis]) out = ${ observe }; return out;` },
+  { id: 'bodyless-if',
+    build: (pat, names, observe) => `let ${ names }; if (cond) ({ ${ pat } } = globalThis); return ${ observe };` },
+];
+const NIS_LEAVES = [
+  { id: 'plain', leaf: 'name', name: 'name', observe: 'typeof name', skipHosts: ['decl', 'for-of'] },
+  { id: 'defaulted', leaf: 'name = "x"', name: 'name', observe: 'typeof name', skipHosts: ['decl', 'for-of'] },
+  { id: 'symbol', leaf: '[Symbol.iterator]: it', name: 'it', observe: 'typeof it' },
+  { id: 'symbol-defaulted', leaf: '[Symbol.iterator]: it = null', name: 'it', observe: 'String(it)' },
+];
+function * generateNestedInstanceSurfaceBase() {
+  for (const recv of NIS_RECEIVERS) {
+    for (const host of NIS_HOSTS) {
+      for (const leaf of NIS_LEAVES) {
+        if (leaf.skipHosts?.includes(host.id)) continue;
+        const body = `(() => { ${ host.build(recv.build(leaf.leaf), leaf.name, leaf.observe) } })()`;
+        yield { ...snippet(`nested-instance-surface/${ recv.id }/${ host.id }/${ leaf.id }`, body, { rig: !!recv.rig }),
+          strip: false };
+      }
+    }
+  }
+}
+
 // --- Param-default instance synth ---
 // `function f({ at } = R)` with a typed instance receiver R synths the DEFAULT itself
 // (`= { at: _atMaybeArray(R) }`) - caller-correct by construction: the synth only evaluates when the
@@ -5350,14 +5553,74 @@ function * generateAssignAliasReassign() {
       + ' return [read(true)];'],
     ['held-ctor-pure-prefix', 'function read(flag) { if (flag) { var realm = globalThis; } const held = (0, realm).Map; return typeof held.groupBy; }'
       + ' return [read(true)];'],
-    // an OPTIONAL hop the chain continues past keeps the raw member: the identity guard cannot carry
-    // the `?.`, and the source short-circuits the whole chain on the absent realm (a guard there threw)
+    // an OPTIONAL hop the chain CONTINUES past spells the short-circuit once over the whole
+    // continuation, with the raw branch plain - the member-level conditional cannot carry the `?.`
+    // to the hops above it. a tail the guard cannot absorb keeps that conditional and its `?.`,
+    // which is exact where the chain ENDS, where the next step short-circuits too, and where a SEAL
+    // makes the source read the short-circuited value and throw
     ['optional-hop-symbol', 'function read(flag) { if (flag) { var realm = globalThis; } return realm?.Symbol.iterator; } return [typeof read(true), read(false)];'],
     ['optional-hop-symbol-in', 'function read(flag, value) { if (flag) { var realm = globalThis; } return realm?.Symbol.iterator in value; }'
       + ' return [read(true, arr), read(false, arr)];'],
     ['optional-last-hop', 'function read(flag) { if (flag) { var realm = globalThis; } return realm?.Map; } return [typeof read(true), read(false)];'],
+    ['optional-hop-static', 'function read(flag) { if (flag) { var realm = globalThis; } return realm?.Map.groupBy; }'
+      + ' return [typeof read(true), String(read(false))];'],
+    ['optional-hop-midchain', 'function read(flag) { if (flag) { var realm = globalThis; } return realm?.Map?.groupBy; }'
+      + ' return [typeof read(true), String(read(false))];'],
+    ['optional-hop-sealed', 'function read(flag) { if (flag) { var realm = globalThis; } return (realm?.Map).groupBy; }'
+      + ' let absent; try { read(false); } catch (error) { absent = error.name; } return [typeof read(true), absent];'],
+    ['optional-hop-surface', 'function read(flag) { if (flag) { var realm = globalThis; } return realm?.Map.prototype; }'
+      + ' return [typeof read(true), String(read(false))];'],
+    ['optional-hop-seq-prefix', 'const seen = []; function read(flag) { if (flag) { var realm = globalThis; }'
+      + ' return (seen.push("r"), realm)?.Map.groupBy; } return [typeof read(true), String(read(false)), seen.length];'],
+    // ... and the CTOR NARROW under a live `?.`: the guard the hop owes and the identity test the
+    // narrow owes are one conditional, so the hop's own value is memoized once and both answers hang
+    // off it. the four spellings that reach it differ in WHERE the `?.` sits and in what consumes the
+    // tail - a bare read, a call whose hop is the optional one, an optional CALL over the static, and
+    // a hop the source SEALED in parens, which makes the absent arm read `undefined.of` and throw, so
+    // the seal's row watches that throw beside the value. every row runs the flag BOTH ways: the
+    // short-circuit arm is the half a narrow that swallowed the `?.` would silently change
+    ['optional-hop-read-member', 'function read(flag) { if (flag) { var realm = globalThis; } return typeof realm?.Array.of; }'
+      + ' return [read(true), read(false)];'],
+    ['optional-hop-member-call', 'function read(flag) { if (flag) { var realm = globalThis; } return realm.Array?.of(7); }'
+      + ' let absent; try { read(false); } catch (error) { absent = error.name; } return [read(true)[0], absent];'],
+    ['optional-hop-optional-call', 'function read(flag) { if (flag) { var realm = globalThis; } return realm.Array.of?.(7); }'
+      + ' let absent; try { read(false); } catch (error) { absent = error.name; } return [read(true)[0], absent];'],
+    ['optional-hop-sealed-call', 'function read(flag) { if (flag) { var realm = globalThis; } return (realm?.Array).of(7); }'
+      + ' let absent; try { read(false); } catch (error) { absent = error.name; } return [read(true)[0], absent];'],
+    // the two BEHAVIOUR rows: the narrow spells the argument once per branch, so only a COUNT says
+    // whether exactly one branch ran - and the absent arm must not run it at all; and the raw branch
+    // calls the static as a METHOD of the hop it read, so a foreign realm's own `of` still sees its
+    // holder as `this` (an extracted callee would hand it `undefined`)
+    ['optional-hop-call-args', 'const seen = []; function read(flag) { if (flag) { var realm = globalThis; }'
+      + ' return realm?.Array.of((seen.push(7), 7)); } const first = read(true); const absent = read(false);'
+      + ' return [first[0], String(absent), seen.length, seen.join()];'],
+    ['optional-hop-call-this', 'const holder = { of(value) { return [this === holder, value]; } };'
+      + ' function read(flag) { if (flag) { var realm = globalThis; } else { var realm = { Array: holder }; }'
+      + ' return realm?.Array.of(7); } return [read(true)[0], read(false)[0], read(false)[1]];'],
   ]) {
     yield { ...snippet(`alias-branch-reachability/${ id }`, `(() => { try { ${ body } } catch (error) { return error.name; } })()`), strip: true, ts };
+  }
+  // ... and the spellings the narrow DECLINES, each for a reason of its own: an optional call whose
+  // TAIL continues (the `?.()` short-circuits the call alone, and the tail read below it owes the
+  // throw the source owes), a callee the source SEALED out of the chain (the call is no longer part
+  // of it, so the sealed value is what must be called - and what must throw), TWO live `?.` hops (one
+  // conditional cannot carry both tests), a `?.` further above the constructor's own hop (the memo
+  // would have to sit under a second hop nothing guards), and a NON-NULL assertion between the hop
+  // and the static, which is a node the narrow does not model. these keep the source, which reads the
+  // realm's own static - so the stripped realm is not their oracle, import parity is
+  for (const [id, body, ts = false] of [
+    ['optional-hop-optional-call-tail', 'function read(flag) { if (flag) { var realm = globalThis; } return realm.Array.of?.(7)[0]; }'
+      + ' let absent; try { read(false); } catch (error) { absent = error.name; } return [read(true), absent];'],
+    ['optional-hop-sealed-callee-call', 'function read(flag) { if (flag) { var realm = globalThis; } return (realm?.Array.of)(7); }'
+      + ' let absent; try { read(false); } catch (error) { absent = error.name; } return [read(true)[0], absent];'],
+    ['optional-hop-two-hops', 'function read(flag) { if (flag) { var realm = globalThis; } return realm?.Array?.of(7); }'
+      + ' return [read(true)[0], String(read(false))];'],
+    ['optional-hop-deep', 'function read(flag) { if (flag) { var realm = globalThis; } return realm?.w.Array.of(7); }'
+      + ' let present; try { read(true); } catch (error) { present = error.name; } return [present, String(read(false))];'],
+    ['optional-hop-nonnull', 'function read(flag: boolean) { if (flag) { var realm = globalThis; } return realm?.Array!.of(7); }'
+      + ' return [read(true)[0], String(read(false))];', true],
+  ]) {
+    yield { ...snippet(`alias-branch-reachability/${ id }`, `(() => { try { ${ body } } catch (error) { return error.name; } })()`), strip: false, ts };
   }
   // a USER key off the global object itself names no surface the plugin models: an instance leaf
   // under it is a name match both legs keep native (the unplugin's declaration hosts dispatched a
@@ -6447,6 +6710,61 @@ function * generateConditionalMirror() {
   }
 }
 
+// --- Branch-mirror step slots ---
+// the nested branch mirror REPLACES the receiver with a literal, so that literal owes a key for
+// every slot the pattern reads off the step - and only a hop that injects earns the literal at all:
+//   - a plain CONSTRUCTOR prop beside a polyfilled hop is such a key (`Set: S` beside `Map: {
+//     groupBy }`), under a proxy step and flat off the branch root alike; a literal missing it
+//     answers `undefined` where the source read the realm
+//   - a ctor slot beside a hop that injects NOTHING earns no literal: the step keeps the realm
+//   - a well-known-symbol leaf has no slot to spell, so its hop joins as a raw passthrough - the
+//     step's whole-fit preflight has to model that route or the sibling hop's polyfill is lost
+//   - a static CONTAINER may hold the constructor under a key of its own (`{ O: Object }`): the
+//     receiver walk names the constructor and the literal keeps the source's key, the effect in a
+//     computed key still running exactly once where it stands
+//   - a USER value branch refuses the literal AND the leaf's inline default: there the slot's
+//     `undefined` is that object's own answer, and the polyfill must not bind over it
+// the step is spelled `globalThis` rather than `self`: bare Node has no `self`, so such a row would
+// throw natively and stop discriminating
+const BRANCH_MIRROR_STEP_SLOT_ROWS = [
+  { id: 'ctor-slot-under-proxy-step',
+    body: 'const { globalThis: { Map: { groupBy }, Set: S } } = globalThis.window ?? globalThis; '
+      + 'return [String(groupBy([1, 2, 3], x => x % 2).size), String(new S([1, 1, 2]).size)];', strip: true },
+  { id: 'ctor-slot-flat-off-root',
+    body: 'const { Map: { groupBy }, Set: S } = globalThis.window ?? globalThis; '
+      + 'return [String(groupBy([1, 2, 3], x => x % 2).size), String(new S([1, 1, 2]).size)];', strip: true },
+  // ... and a pattern of only flat ctor slots, which has no nested prop to lead a flatten: the host
+  // collapse is what leaves it a plain proxy receiver to resolve against, on both legs
+  { id: 'ctor-slot-sole-prop',
+    body: 'const { Set: S } = globalThis.window ?? globalThis; return [String(new S([1, 1, 2]).size)];', strip: true },
+  { id: 'ctor-slots-only-pair',
+    body: 'const { Set: S, Map: M } = globalThis.window ?? globalThis; '
+      + 'return [String(new S([1, 1, 2]).size), String(new M([[1, 2]]).size)];', strip: true },
+  { id: 'ctor-slot-earns-no-literal',
+    body: 'let S, customZ; ({ Set: S, Promise: { customZ } } = globalThis.window ?? globalThis); '
+      + 'return [typeof S, typeof customZ];', strip: false },
+  { id: 'wks-hop-rides-the-step',
+    body: 'const { globalThis: { Map: { groupBy }, Symbol: { [Symbol.iterator]: it } } } = globalThis.window ?? globalThis; '
+      + 'return [String(groupBy([1, 2, 3], x => x % 2).size), typeof it];', strip: true },
+  { id: 'container-key-aliases-ctor',
+    body: 'const src = { O: Object, A: Array }; let gate = 1; let se = 0; let keys, from; '
+      + '({ [(se += 1, "O")]: { keys } } = gate && src); ({ [(se += 1, "A")]: { from } } = gate && src); '
+      + 'return [String(keys({ a: 1 }).length), String(from([1, 2])[1]), String(se)];', strip: true },
+  { id: 'user-branch-refuses-default',
+    body: 'let reads = 0; const host = { Object, get Array() { reads += 1; return {}; } }; '
+      + 'const { Object: { keys }, Array: { from = "SENTINEL" } } = globalThis.window ?? host; '
+      + 'return [typeof keys, typeof from, String(reads)];', strip: false },
+  { id: 'named-container-keeps-the-mirror',
+    body: 'const plain = { Object, Array }; '
+      + 'const { Object: { keys }, Array: { from = "SENTINEL" } } = globalThis.window ?? plain; '
+      + 'return [String(keys({ a: 1 }).length), String(from([1, 2])[1])];', strip: true },
+];
+function * generateBranchMirrorStepSlots() {
+  for (const row of BRANCH_MIRROR_STEP_SLOT_ROWS) {
+    yield { ...snippet(`branch-mirror-step-slots/${ row.id }`, `(() => { ${ row.body } })()`), strip: row.strip };
+  }
+}
+
 // A mixed realm selection keeps its source evaluation and the custom member branch.
 // Constructors remain native in this oracle's strip set; e2e separately locks the
 // missing-constructor case. Here both selections expose wrong guards and lost effects.
@@ -6710,11 +7028,66 @@ function * generateMutatedSealChain() {
 const M_DESTRUCTURE = [
   { recv: 'Array', key: 'from', use: 'from([1])' },
   { recv: 'Object', key: 'fromEntries', use: 'fromEntries([["a", 1]])' },
+  // ... and the PROTOTYPE twin: the census names such a write by the receiver the source spelled
+  // (`Array.prototype.at`), while the read spells the slot as a constructor plus a placement, so
+  // the reader rebuilds that name before it asks. a member read off the patched prototype, and a
+  // capture taken BEFORE the write, ask the same question
+  { recv: 'Array.prototype', key: 'at', use: 'at.call([1, 2], -1)' },
+  { recv: 'String.prototype', key: 'at', use: 'at.call("ab", 1)' },
 ];
 function * generateMutatedDestructure() {
   for (const s of M_DESTRUCTURE) {
     const body = `(() => { const _o = ${ s.recv }.${ s.key }; try { ${ s.recv }.${ s.key } = () => "P"; const { ${ s.key } } = ${ s.recv }; return ${ s.use }; } finally { ${ s.recv }.${ s.key } = _o; } })()`;
     yield { ...snippet(`mutated-destructure/${ s.recv }.${ s.key }`, body), strip: false };
+  }
+}
+
+// a `var` the source writes on EVERY path through a COMPLETE branching construct is assigned
+// whichever way control went, so a read after it never observes the hoisted `undefined` and the
+// container it holds is followed to its literal. an INCOMPLETE construct - a lone `if`, a `switch`
+// with no `default`, a loop body, a labelled block - may leave the name unwritten and keeps
+// refusing, and so do arms that install DIFFERENT values: one node is handed on, so they must agree
+const BRANCH_COMPLETE_ROWS = [
+  { id: 'if-else-both-arms', body: 'if (c) { var w = { a: Array }; } else { var w = { a: Array }; }' },
+  { id: 'if-elseif-else', body: 'if (c) { var w = { a: Array }; } else if (!c) { var w = { a: Array }; } else { var w = { a: Array }; }' },
+  { id: 'switch-with-default', body: 'switch (c) { case 1: var w = { a: Array }; break; default: var w = { a: Array }; }' },
+  { id: 'try-catch-both', body: 'try { var w = { a: Array }; } catch { var w = { a: Array }; }' },
+  { id: 'early-return-arm', body: 'if (c) { var w = { a: Array }; } else { return [0]; }' },
+  { id: 'assignment-spelling', body: 'var w; if (c) { w = { a: Array }; } else { w = { a: Array }; }' },
+  // a LABEL only NAMES a statement, so a labelled block with nothing jumping out of it is the
+  // function's own straight line and the declaration below it always runs - and so it is when the
+  // only `break` inside targets a LOOP rather than the label
+  { id: 'label-straight-line', body: 'lbl: { var w = { a: Array }; }' },
+  { id: 'label-inner-loop-break', body: 'lbl: { for (let i = 0; i < 1; i++) { break; } var w = { a: Array }; }' },
+  // ... and a nested RE-DECLARATION of the same name, whose outer declarator stands on that same
+  // straight line: the inner one sits in a branch, so only the outer proves the value, and the
+  // grouping host it stands in - a bare block or a label - must not be read as a branch itself
+  { id: 'block-redecl', body: '{ if (c) { var w = { a: Array }; } var w = { a: Array }; }' },
+  { id: 'label-redecl', body: 'lbl: { if (c) { var w = { a: Array }; } var w = { a: Array }; }' },
+];
+const BRANCH_INCOMPLETE_ROWS = [
+  { id: 'single-arm-refuses', body: 'if (c) { var w = { a: Array }; }' },
+  { id: 'arms-disagree-refuses', body: 'if (c) { var w = { a: Array }; } else { var w = { a: 1 }; }' },
+  { id: 'switch-no-default-refuses', body: 'switch (c) { case 1: var w = { a: Array }; break; case 2: var w = { a: Array }; break; }' },
+  { id: 'loop-body-host-refuses', body: 'for (let i = 0; i < 0; i++) { var w = { a: Array }; }' },
+  // ... and the label that DOES break out: the jump ends the labelled body, so a declaration below it
+  // never runs while a read after the label still does. the label is not a conditional host by type -
+  // it names a statement - so nothing in the branch table above sees it, and a break aimed at an
+  // OUTER label ends that outer body just the same
+  { id: 'label-break-refuses', body: 'lbl: { if (!c) break lbl; var w = { a: Array }; }' },
+  { id: 'outer-label-break-refuses', body: 'outer: { inner: { if (!c) break outer; var w = { a: Array }; } }' },
+];
+function * generateBranchCompleteVar() {
+  for (const row of BRANCH_COMPLETE_ROWS) {
+    const body = `(() => { const c = 1; ${ row.body } const { a: { from } } = w; return [typeof from]; })()`;
+    yield { ...snippet(`branch-complete/${ row.id }`, body), strip: true };
+  }
+  // the refusing half runs the construct's arms UNTAKEN, so the name really is `undefined` at the
+  // read and the fallback's own slot holds no static: a wrong fold spells the ponyfill there and
+  // diverges from native, which is what makes these rows discriminate rather than merely pass
+  for (const row of BRANCH_INCOMPLETE_ROWS) {
+    const body = `(() => { const c = 0; ${ row.body } const { a: { from } } = w || { a: 1 }; return [typeof from]; })()`;
+    yield { ...snippet(`branch-complete/${ row.id }`, body), strip: false };
   }
 }
 
@@ -10032,7 +10405,14 @@ const log = [];
   observed.push(log);`],
   ];
   for (const [name, body] of cases) {
-    yield { ...snippet(`native-rest-semantics/${ name }`, `(() => { const observed = []; ${ body } return observed; })()`), strip: false };
+    // V8 12.4 (every Node 22) re-reads the getters of an object rest's EXCLUDED keys on a
+    // destructuring site's FIRST execution and spells the spec's order on every later one, so a leg
+    // that runs the site cold disagrees with one that does not. read twice and observe the SECOND
+    // read: every leg then sees the engine's settled protocol, and a rewrite that drops or
+    // duplicates a read still shows up, because each leg is handed the same warm read
+    const once = `(() => { const observed = []; ${ body } return observed; })`;
+    yield { ...snippet(`native-rest-semantics/${ name }`,
+      `(() => { const read = ${ once }; read(); log.length = 0; return read(); })()`), strip: false };
   }
 }
 
@@ -10254,11 +10634,17 @@ function * generateIteratorPatternOrder() {
           : host === 'array-wrapper' ? `const [${ pattern }] = [source]; return ${ observe };`
             : host === 'catch' ? `try { throw source; } catch (${ pattern }) { return ${ observe }; }`
               : `let missing, tail${ rest ? ', other' : '' }; const result = (${ pattern } = source); return [result === source, ${ observe }];`;
-        const expr = '(() => { const symbol = Symbol(\'other\'); const source = {'
+        // V8 12.4 (every Node 22) re-reads the getters of an object rest's EXCLUDED keys on a
+        // destructuring site's FIRST execution, so the forked stripped-realm worker - which always
+        // runs the site cold - disagrees with the native reference the shard process took warm.
+        // read twice and observe the SECOND read: the protocol is then the engine's settled one on
+        // every supported version, and a rewrite that drops or duplicates a read still shows up
+        const expr = '(() => { const symbol = Symbol(\'other\'); const read = () => { const source = {'
           + ` get [Symbol.iterator]() { log.push('iterator'); ${ mode === 'throw' ? 'throw new RangeError("iterator");'
             : `return ${ mode === 'null' ? 'null' : 'function () {}' };` } },`
           + ' get tail() { log.push("tail"); return 3; }, [symbol]: 4 };'
-          + ` try { ${ bind } } catch (error) { return ['throw', error.name]; } })()`;
+          + ` try { ${ bind } } catch (error) { return ['throw', error.name]; } };`
+          + ' read(); log.length = 0; return read(); })()';
         // The getter and default are user code; full-env compares their read protocol. This family
         // owes no removed iterator method, so it does not claim a missed-injection stripped oracle.
         yield { ...snippet(`iterator-pattern-order/${ host }/${ rest ? 'rest' : 'sibling' }/${ mode }`, expr), strip: false };
@@ -10605,9 +10991,10 @@ function * generateInnerDefaultReceivers() {
 // (`{ Array: { of: { length } } } = globalThis` reads `_Array$of.length`), on a declarator and an
 // assignment host alike, off the realm and off a constructor init (`{ from: { length } } = Array`, an
 // alias of it, the member spelling, a static with its own entry); a leaf claim beside the pattern keeps
-// its dispatch. A default or a rest under the hop keeps the source (full-env rows). A call init keeps
-// the pattern native on the unplugin leg alone - the recorded residual, locked by the fixture's sidecar
-// rather than a row the import-parity oracle would refuse.
+// its dispatch. A default or a rest under the hop keeps the source (full-env rows). A COMPUTED leaf key folds
+// through the shared namer and rides the anchor - an effect-bearing spelling runs once in place inside
+// the re-anchored pattern, and a numeric key names its slot on both dialects; only a folded name that
+// IS a prototype member (`name`) keeps its own dispatch and the source's pattern.
 const STATIC_HOP_PATTERNS = [
   { id: 'ctor-declarator', body: 'const { from: { length: arity } } = Array; return [arity];', strip: true },
   { id: 'ctor-assignment', body: 'let arity; ({ from: { length: arity } } = Array); return [arity];', strip: true },
@@ -10624,10 +11011,149 @@ const STATIC_HOP_PATTERNS = [
   { id: 'self-root', body: 'const { Array: { of: { length: arity } } } = self; return [arity];', strip: true },
   { id: 'default-stays', body: 'const { Array: { of: { length: arity = 9 } } } = globalThis; return [arity];', strip: false },
   { id: 'rest-stays', body: 'const { Array: { of: { ...rest } } } = globalThis; return [typeof rest];', strip: false },
+  { id: 'call-declarator', body: 'const g = () => globalThis; const { Array: { of: { length: arity } } } = g(); return [arity];', strip: true },
+  { id: 'call-assignment', body: 'const g = () => globalThis; let arity; ({ Array: { of: { length: arity } } } = g()); return [arity];', strip: true },
+  { id: 'call-effect-assignment',
+    body: 'function realm() { log.push("r"); return globalThis; } let arity;'
+      + ' ({ Array: { of: { length: arity } } } = realm()); return [arity, log.join("|")];', strip: true },
+  { id: 'call-seq-tail',
+    body: 'function realm() { log.push("r"); return globalThis; } let arity;'
+      + ' ({ Array: { of: { length: arity } } } = (log.push("p"), realm())); return [arity, log.join("|")];', strip: true },
+  { id: 'call-member-callee',
+    body: 'const h = { g: () => globalThis }; let arity; ({ Array: { of: { length: arity } } } = h.g()); return [arity];', strip: true },
+  { id: 'call-opaque-stays',
+    body: 'const mk = () => ({ Array: { of: { length: 7 } } }); let arity;'
+      + ' ({ Array: { of: { length: arity } } } = mk()); return [arity];', strip: true },
+  { id: 'call-captured-stays',
+    body: 'function realm() { log.push("r"); return globalThis; } let arity;'
+      + ' const held = ({ Array: { of: { length: arity } } } = realm()); return [arity, held === globalThis, log.join("|")];', strip: false },
+  // ... and the two value-transparent wrappers over a call that still yield the realm: `new` over a
+  // CONSTRUCTIBLE callee - the construction stays where the source ran it, which only a counter beside
+  // the neighbouring effects can say - and `await`, whose TICK is an effect of its own: the row watches
+  // the microtask that was queued first still landing first, which is what a dropped await destroys.
+  // an ARROW is not constructible at all, so `new` over one throws natively and the row keeps that
+  // throw (full-env: the realm's own static never runs). a FOR-OF head over the same call keeps the
+  // source - the head binds per iteration and the proof has no placement there
+  { id: 'call-new-declarator',
+    body: 'function Realm() { return globalThis; } const { Array: { of: { length: arity } } } = new Realm(); return [arity];', strip: true },
+  { id: 'call-new-effect',
+    body: 'let built = 0; function Realm() { built++; log.push("n"); return globalThis; } let arity; log.push("a");'
+      + ' ({ Array: { of: { length: arity } } } = new Realm()); log.push("b"); return [arity, built, log.join("|")];', strip: true },
+  { id: 'call-new-arrow-stays',
+    body: 'const Realm = () => globalThis; let arity, thrown;'
+      + ' try { ({ Array: { of: { length: arity } } } = new Realm()); } catch (error) { thrown = error.name; }'
+      + ' return [String(arity), thrown];', strip: false },
+  { id: 'call-await-declarator',
+    body: 'const realm = () => globalThis; const { Array: { of: { length: arity } } } = await realm(); return [arity];',
+    strip: true, asyncHost: true },
+  { id: 'call-await-tick',
+    body: 'const seen = []; const realm = () => globalThis; const tick = (async () => { await 0; seen.push("micro"); })();'
+      + ' const { Array: { of: { length: arity } } } = await realm(); seen.push("after"); await tick;'
+      + ' return [arity, seen.join()];', strip: true, asyncHost: true },
+  { id: 'call-assignment-two-leaves',
+    body: 'function realm() { return globalThis; } let name, arity;'
+      + ' ({ Array: { of: { name, length: arity } } } = realm()); return [typeof name, arity];', strip: true },
+  { id: 'forof-head-stays',
+    body: 'const realm = () => globalThis; let arity;'
+      + ' for (const { Array: { of: { length: seen } } } of [realm()]) arity = seen; return [arity];', strip: false },
+  { id: 'declarator-se-key-leaf', body: 'const { Array: { of: { [(log.push("k"), "length")]: arity } } } = globalThis; return [arity, log.join()];', strip: true },
+  { id: 'declarator-folded-key-leaf', body: 'const k = "length"; const { Array: { of: { [k]: arity } } } = globalThis; return [arity];', strip: true },
+  { id: 'declarator-numeric-key-leaf', body: 'const { Array: { of: { 0: z } } } = globalThis; return [typeof z];', strip: true },
+  { id: 'declarator-strlit-claiming-key-leaf', body: 'const { Array: { of: { ["name"]: n } } } = globalThis; return [typeof n];', strip: true },
+  { id: 'ctor-declarator-se-key-leaf', body: 'const { from: { [(log.push("c"), "length")]: arity } } = Array; return [arity, log.join()];', strip: true },
 ];
 function * generateStaticHopPatternAnchor() {
   for (const row of STATIC_HOP_PATTERNS) {
-    yield { ...snippet(`static-hop-pattern/${ row.id }`, `(() => { ${ row.body } })()`), strip: row.strip };
+    // an `await` needs a host that can hold one, and the module's own top-level await is what runs it
+    const expr = row.asyncHost ? `await (async () => { ${ row.body } })()` : `(() => { ${ row.body } })()`;
+    yield { ...snippet(`static-hop-pattern/${ row.id }`, expr), strip: row.strip };
+  }
+}
+
+// The MIRROR SLOT is the canon for a pattern-valued static the host does not hold ALONE: the consume
+// lifts the pattern out of the statement, so a sibling left behind would run its own key effects on the
+// wrong side of it - and a hop in the MIDDLE of its level has no placement that orders both sides at
+// all. The slot serves the static with the statement standing and nothing moved, and it DESCENDS where
+// a leaf under the pattern carries a claim of its own, spelling that claim off the static's ponyfill
+// (`keys: { name: _nameMaybeFunction(_Object$keys) }`) where the flat binding left it native. An
+// INSTANCE leaf of a mirrored hop is spelled the same way, dispatching on the hop read resolved the
+// way every other nav resolves it.
+const MIRROR_SLOT_CANON_ROWS = [
+  { id: 'reversed-order',
+    body: 'let from, bind; ({ Object: { keys: { [(log.push("x"), "bind")]: bind } },'
+      + ' Array: { [(log.push("f"), "from")]: from } } = globalThis); return [typeof from, typeof bind, log.join()];' },
+  { id: 'hop-middle',
+    body: 'let from, bind, nm; ({ Array: { [(log.push("a"), "from")]: from },'
+      + ' Object: { keys: { [(log.push("m"), "bind")]: bind } }, Set: { [(log.push("z"), "name")]: nm } } = globalThis);'
+      + ' return [typeof from, typeof bind, typeof nm, log.join()];' },
+  { id: 'claiming-leaf',
+    body: 'let from, name; ({ Array: { [(log.push("f"), "from")]: from }, Object: { keys: { name } } } = globalThis);'
+      + ' return [typeof from, typeof name, log.join()];' },
+  { id: 'two-leaves',
+    body: 'let from, name, len; ({ Array: { [(log.push("f"), "from")]: from },'
+      + ' Object: { keys: { name, length: len } } } = globalThis); return [typeof from, typeof name, len, log.join()];' },
+  { id: 'instance-leaf-under-hop',
+    body: 'let from, name; ({ Array: { [(log.push("f"), "from")]: from }, Object: { name } } = globalThis);'
+      + ' return [typeof from, typeof name, log.join()];' },
+  { id: 'sole-chain-keeps-the-lift',
+    body: 'let arity; ({ Array: { of: { length: arity } } } = globalThis); return [arity];' },
+];
+// ... and the proxy STEP the hops hang under is an axis of its own: a PRISTINE step descends into
+// EVERY hop below it, each carrying its own key path, and the drain merges them back under the step
+// they share - one object per path, or a second same-named prop would hide the first - and counts
+// the branch's arity in OUTER props, which one step may cover for several hops at once. the receiver
+// is a SELECTING one the source cannot decide (a user object beside the realm), because that is what
+// puts the read on the mirror at all: off a plain realm root the drain extracts instead and the step
+// is never spelled. BOTH arms are read, so a mirror that fired on the USER branch answers 'U' rather
+// than passing invisibly, and the realm arm is held to IDENTITY against the same claim read straight
+// off the realm - `typeof` says "function" for the user's own method just as loudly.
+// the NEGATIVES are the two rests: one at the OUTER level, where the arity gate counts a prop the
+// literal cannot reproduce, and one INSIDE the step, where a slot the literal cannot spell declines
+// the whole step. both keep the source on both legs, so import parity is their oracle, not a strip -
+// a kept source reads the realm's own statics, which the stripped realm no longer carries.
+// NOT here, and deliberately: a step whose set carries a non-hop sibling (`Set: S`) or a whole-hop
+// well-known-symbol slot (`Symbol: { [Symbol.iterator]: it }`). The legs disagree on both - babel
+// branches the step and spells the odd slot as a passthrough where this drain declines the step
+// whole - and they disagreed the same way before this descent existed, so the pair is a standing gap
+// to fix, never a row to carry red
+const MIRROR_STEP_HOP_ROWS = [
+  { id: 'proxy-step-branches',
+    user: "{ self: { Map: { groupBy: () => 'U' }, Array: { prototype: { at: () => 'U' } } } }",
+    pattern: 'self: { Map: { groupBy: gb }, Array: { prototype: { at } } }',
+    names: 'gb, at', read: '[gb, at]', anchor: '[Map.groupBy, Array.prototype.at]' },
+  { id: 'proxy-step-two-statics',
+    user: "{ self: { Map: { groupBy: () => 'U' }, Array: { of: () => 'U' } } }",
+    pattern: 'self: { Map: { groupBy: gb }, Array: { of } }',
+    names: 'gb, of', read: '[gb, of]', anchor: '[Map.groupBy, Array.of]' },
+  { id: 'proxy-step-nested',
+    user: "{ self: { self: { Map: { groupBy: () => 'U' }, Array: { of: () => 'U' } } } }",
+    pattern: 'self: { self: { Map: { groupBy: gb }, Array: { of } } }',
+    names: 'gb, of', read: '[gb, of]', anchor: '[Map.groupBy, Array.of]' },
+  { id: 'proxy-step-arity',
+    user: "{ self: { Map: { groupBy: () => 'U' }, Array: { of: () => 'U' } }, JSON: { parse: () => 'U' } }",
+    pattern: 'self: { Map: { groupBy: gb }, Array: { of } }, JSON: { parse: ps }',
+    names: 'gb, of, ps', read: '[gb, of, ps]', anchor: '[Map.groupBy, Array.of, JSON.parse]' },
+  { id: 'proxy-step-outer-rest',
+    user: "{ self: { Map: { groupBy: () => 'U' }, Array: { of: () => 'U' } } }",
+    pattern: 'self: { Map: { groupBy: gb }, Array: { of } }, ...rest',
+    names: 'gb, of, rest', read: '[gb, of]', kept: true },
+  { id: 'proxy-step-inner-rest',
+    user: "{ self: { Map: { groupBy: () => 'U' }, Array: { of: () => 'U' } } }",
+    pattern: 'self: { Map: { groupBy: gb }, ...rest }',
+    names: 'gb, rest', read: '[gb]', kept: true },
+];
+function * generateMirrorSlotCanon() {
+  for (const row of MIRROR_SLOT_CANON_ROWS) {
+    yield { ...snippet(`mirror-slot-canon/${ row.id }`, `(() => { ${ row.body } })()`), strip: true };
+  }
+  for (const row of MIRROR_STEP_HOP_ROWS) {
+    const body = `(() => { const U = ${ row.user };`
+      + ` const read = sel => { let ${ row.names }; ({ ${ row.pattern } } = sel ? U : globalThis); return ${ row.read }; };`
+      + ` const user = read(true); const realm = read(false);${ row.kept ? '' : ` const anchor = ${ row.anchor };` }`
+      + ` return [user.map(value => value()).join(), ${ row.kept
+        ? 'realm.map(value => typeof value).join()'
+        : 'realm.every((value, index) => value === anchor[index])' }]; })()`;
+    yield { ...snippet(`mirror-slot-canon/${ row.id }`, body, { rig: true }), strip: !row.kept };
   }
 }
 
@@ -10768,83 +11294,117 @@ function * generateInnerDefaultHostFallbacks() {
 // mirrored literal spells the leaf as a raw read through the proxy that the later passes leave alone
 // (the ponyfill never lands in the user's object). A binding leaf and a non-polyfillable key are the
 // controls: the first extracts, the second re-anchors.
+// ... and a FLAT consumed prop beside a surviving ctor hop: the assignment host re-anchors that hop
+// on the pure constructor exactly as the declarator twin does, so a realm without the constructor
+// does not throw on a residual read of it
 const RESIDUAL_CTOR_STATIC_ROWS = [
-  { id: 'promise-race-member', body: 'const box = {}; ({ Promise: { race: box.race } } = globalThis); return [typeof box.race];', strip: false },
-  { id: 'map-group-by-member', body: 'const box = {}; ({ Map: { groupBy: box.g } } = globalThis); return [typeof box.g];', strip: false },
-  { id: 'iterator-from-member', body: 'const box = {}; ({ Iterator: { from: box.f } } = globalThis); return [typeof box.f];', strip: false },
-  { id: 'symbol-for-member', body: 'const box = {}; ({ Symbol: { for: box.sf } } = globalThis); return [typeof box.sf];', strip: false },
+  { id: 'flat-consumed-beside-anchored-hop',
+    body: 'let S, customZ; ({ Set: S, Promise: { customZ } } = globalThis); return [typeof S, typeof customZ];' },
+  { id: 'flat-consumed-beside-anchored-hop-strip',
+    body: 'let S, customY; ({ Set: S, Iterator: { customY } } = globalThis); return [typeof S, typeof customY];', strip: true },
+  { id: 'anchored-hop-before-flat-consumed',
+    body: 'let S, customZ; ({ Promise: { customZ }, Set: S } = globalThis); return [typeof S, typeof customZ];' },
+  // object-rest stops pure extraction at its level, the accepted boundary: the whole pattern reads the
+  // realm natively, so a stripped realm throws here exactly as the source does - nothing to assert
+  { id: 'flat-consumed-beside-rest',
+    body: 'let S, customZ, rest; ({ Set: S, Promise: { customZ }, ...rest } = globalThis); return [typeof S, typeof customZ, typeof rest];',
+    strip: false },
+  { id: 'flat-consumed-beside-always-present',
+    body: 'let S, customZ; ({ Set: S, Array: { customZ } } = globalThis); return [typeof S, typeof customZ];' },
+  { id: 'flat-consumed-beside-selecting-init',
+    body: 'let S, customZ; ({ Set: S, Promise: { customZ } } = globalThis.window ?? globalThis); return [typeof S, typeof customZ];' },
+  { id: 'promise-race-member', body: 'const box = {}; ({ Promise: { race: box.race } } = globalThis); return [typeof box.race];' },
+  { id: 'map-group-by-member', body: 'const box = {}; ({ Map: { groupBy: box.g } } = globalThis); return [typeof box.g];' },
+  { id: 'iterator-from-member', body: 'const box = {}; ({ Iterator: { from: box.f } } = globalThis); return [typeof box.f];' },
+  { id: 'symbol-for-member', body: 'const box = {}; ({ Symbol: { for: box.sf } } = globalThis); return [typeof box.sf];' },
   { id: 'promise-race-member-beside-custom',
-    body: 'const box = {}; let customZ; ({ Promise: { race: box.race, customZ } } = globalThis); return [typeof box.race, typeof customZ];', strip: false },
+    body: 'const box = {}; let customZ; ({ Promise: { race: box.race, customZ } } = globalThis); return [typeof box.race, typeof customZ];' },
   { id: 'custom-key-control', body: 'let customZ; ({ Promise: { customZ } } = globalThis); return [typeof customZ];', strip: true },
   { id: 'binding-control', body: 'let race; ({ Promise: { race } } = globalThis); return [typeof race];', strip: true },
   { id: 'mirror-bailed-promise',
-    body: 'const box = {}; let S, of; [{ Set: S, Array: { of }, Promise: { race: box.race } } = globalThis] = []; return [typeof S, of(7)[0], typeof box.race];', strip: false },
+    body: 'const box = {}; let S, of; [{ Set: S, Array: { of }, Promise: { race: box.race } } = globalThis] = []; return [typeof S, of(7)[0], typeof box.race];' },
   { id: 'mirror-bailed-array',
-    body: 'const box = {}; let race; [{ Array: { of: box.of }, Promise: { race } } = globalThis] = []; return [typeof box.of, typeof race];', strip: false },
+    body: 'const box = {}; let race; [{ Array: { of: box.of }, Promise: { race } } = globalThis] = []; return [typeof box.of, typeof race];' },
   { id: 'mirror-bailed-array-after',
-    body: 'const box = {}; let race; [{ Promise: { race }, Array: { of: box.of } } = globalThis] = []; return [typeof race, typeof box.of];', strip: false },
+    body: 'const box = {}; let race; [{ Promise: { race }, Array: { of: box.of } } = globalThis] = []; return [typeof race, typeof box.of];' },
   // ... and the key spelled COMPUTED names the static as the literal does where it folds (`[k]` with
   // `const k = 'race'`, `['race']`), on every re-anchor route of the assignment host; a key nothing
   // folds (an effect, an unknown binding) may name any static at runtime, so the anchor declines too
-  { id: 'folded-key-statement', body: "const box = {}; const k = 'race'; ({ Promise: { [k]: box.race } } = globalThis); return [typeof box.race];", strip: false },
+  { id: 'folded-key-statement', body: "const box = {}; const k = 'race'; ({ Promise: { [k]: box.race } } = globalThis); return [typeof box.race];" },
   { id: 'folded-key-bodyless-if',
-    body: "const box = {}; const k = 'race'; const c = true; if (c) ({ Promise: { [k]: box.race } } = globalThis); return [typeof box.race];", strip: false },
+    body: "const box = {}; const k = 'race'; const c = true; if (c) ({ Promise: { [k]: box.race } } = globalThis); return [typeof box.race];" },
   { id: 'folded-key-seq-prefix',
-    body: "const box = {}; const k = 'race'; let n = 0; ({ Promise: { [k]: box.race } } = (n++, globalThis)); return [typeof box.race, n];", strip: false },
+    body: "const box = {}; const k = 'race'; let n = 0; ({ Promise: { [k]: box.race } } = (n++, globalThis)); return [typeof box.race, n];" },
   { id: 'folded-key-array-element',
-    body: "const box = {}; const k = 'race'; [{ Promise: { [k]: box.race } }] = [globalThis]; return [typeof box.race];", strip: false },
+    body: "const box = {}; const k = 'race'; [{ Promise: { [k]: box.race } }] = [globalThis]; return [typeof box.race];" },
   { id: 'folded-key-beside-consumed',
-    body: "const box = {}; const k = 'race'; let S; ({ Set: S, Promise: { [k]: box.race } } = globalThis); return [typeof S, typeof box.race];", strip: false },
-  { id: 'literal-computed-key', body: "const box = {}; ({ Promise: { ['race']: box.race } } = globalThis); return [typeof box.race];", strip: false },
+    body: "const box = {}; const k = 'race'; let S; ({ Set: S, Promise: { [k]: box.race } } = globalThis); return [typeof S, typeof box.race];" },
+  { id: 'literal-computed-key', body: "const box = {}; ({ Promise: { ['race']: box.race } } = globalThis); return [typeof box.race];" },
+  // ... a key carrying an EFFECT keeps its prop in the pattern, so the member cannot be extracted -
+  // and the RHS becomes a LITERAL carrying that member's own ponyfill instead, which is what makes
+  // the answer independent of the rest of the bundle. Reading it off the bare `*/constructor` was an
+  // UNDER-inject (that entry installs none of the ctor's own statics) and the index entry would be an
+  // OVER-inject. The counter is the other half: the effect runs once, where the source wrote it
   { id: 'se-computed-key',
-    body: "const box = {}; let n = 0; ({ Promise: { [(n++, 'race')]: box.race } } = globalThis); return [typeof box.race, n];", strip: false },
-  { id: 'unfoldable-key-custom', body: "const box = {}; const k = 'customZ'; ({ Promise: { [k]: box.z } } = globalThis); return [typeof box.z];", strip: false },
+    body: "const box = {}; let n = 0; ({ Promise: { [(n++, 'race')]: box.race } } = globalThis); return [typeof box.race, n];", strip: true },
+  { id: 'se-computed-key-binding',
+    body: "let v; let n = 0; ({ Promise: { [(n++, 'race')]: v } } = globalThis); return [typeof v, n];", strip: true },
+  { id: 'se-computed-key-beside-plain-sibling',
+    body: "let v, all; let n = 0; ({ Promise: { [(n++, 'race')]: v, all } } = globalThis); return [typeof v, typeof all, n];", strip: true },
+  // ... and a key no entry defines has nothing to spell into the literal, so the residual re-anchors
+  // on the constructor - which is still what a realm without that constructor has instead of it
+  { id: 'se-computed-key-unknown-member',
+    body: "const box = {}; let n = 0; ({ Promise: { [(n++, 'customZ')]: box.z } } = globalThis); return [typeof box.z, n];", strip: true },
+  { id: 'unfoldable-key-custom', body: "const box = {}; const k = 'customZ'; ({ Promise: { [k]: box.z } } = globalThis); return [typeof box.z];" },
   // ... and a PATTERN under the folded static key destructures the static's own ponyfill on both
   // legs (`{ Promise: { [k]: { length } } }` reads `_Promise$race.length`), as the literal key does
   { id: 'folded-key-pattern-value-decl', body: "const k = 'race'; const { Promise: { [k]: { length: L } } } = globalThis; return [L];" },
   { id: 'folded-key-pattern-value-beside', body: "const k = 'race'; const { Set: S, Promise: { [k]: { length: L } } } = globalThis; return [typeof S, L];" },
   { id: 'folded-key-pattern-value-assign', body: "const k = 'race'; let L; ({ Promise: { [k]: { length: L } } } = globalThis); return [L];" },
-  { id: 'template-key-member', body: 'const box = {}; ({ Promise: { [`race`]: box.race } } = globalThis); return [typeof box.race];', strip: false },
+  { id: 'template-key-member', body: 'const box = {}; ({ Promise: { [`race`]: box.race } } = globalThis); return [typeof box.race];' },
   { id: 'symbol-key-beside-custom',
-    body: 'const box = {}; ({ Map: { [Symbol.iterator]: box.it, customK: box.c } } = globalThis); return [typeof box.it, typeof box.c];', strip: false },
-  { id: 'numeric-key-beside-custom', body: 'const box = {}; ({ Map: { 0: box.zero, customK: box.c } } = globalThis); return [typeof box.zero, typeof box.c];', strip: false },
+    body: 'const box = {}; ({ Map: { [Symbol.iterator]: box.it, customK: box.c } } = globalThis); return [typeof box.it, typeof box.c];' },
+  { id: 'numeric-key-beside-custom', body: 'const box = {}; ({ Map: { 0: box.zero, customK: box.c } } = globalThis); return [typeof box.zero, typeof box.c];' },
   // ... and under a SELECTING receiver (`window ?? globalThis`, `||`, an optional nav) the fallback
   // arm's mirror keeps the member target as a RAW slot beside the ponyfilled siblings, or does not
   // fire at all where every leaf is one; a defaulted member target keeps the user's default
-  { id: 'nullish-fallback-member', body: 'const box = {}; ({ Promise: { race: box.race } } = globalThis.window ?? globalThis); return [typeof box.race];', strip: false },
+  { id: 'nullish-fallback-member', body: 'const box = {}; ({ Promise: { race: box.race } } = globalThis.window ?? globalThis); return [typeof box.race];' },
   { id: 'nullish-fallback-mixed',
-    body: 'const box = {}; let all; ({ Promise: { race: box.race, all } } = globalThis.window ?? globalThis); return [typeof box.race, typeof all];', strip: false },
+    body: 'const box = {}; let all; ({ Promise: { race: box.race, all } } = globalThis.window ?? globalThis); return [typeof box.race, typeof all];' },
   { id: 'nullish-fallback-member-default',
-    body: 'const box = {}; ({ Promise: { race: box.race = 1 } } = globalThis.window ?? globalThis); return [typeof box.race];', strip: false },
-  { id: 'or-fallback-member', body: 'const box = {}; ({ Promise: { race: box.race } } = globalThis.window || globalThis); return [typeof box.race];', strip: false },
+    body: 'const box = {}; ({ Promise: { race: box.race = 1 } } = globalThis.window ?? globalThis); return [typeof box.race];' },
+  { id: 'or-fallback-member', body: 'const box = {}; ({ Promise: { race: box.race } } = globalThis.window || globalThis); return [typeof box.race];' },
   { id: 'optional-nav-fallback-member',
-    body: 'const box = {}; ({ Promise: { race: box.race } } = globalThis.window?.self ?? globalThis); return [typeof box.race];', strip: false },
-  { id: 'nullish-fallback-pattern-value', body: 'const { Promise: { race: { length: len } } } = globalThis.window ?? globalThis; return [len];', strip: false },
+    body: 'const box = {}; ({ Promise: { race: box.race } } = globalThis.window?.self ?? globalThis); return [typeof box.race];' },
+  { id: 'nullish-fallback-pattern-value', body: 'const { Promise: { race: { length: len } } } = globalThis.window ?? globalThis; return [len];' },
   // ... and a MULTI-hop pattern under the selecting receiver renders one literal: a hop with nothing
   // to polyfill (a member target, a custom key, a well-known-symbol leaf) joins it as a passthrough
   // beside the sibling hop's ponyfill, and a hop the literal cannot spell at all leaves the branch
   // with its proxy root substituted rather than raw
   { id: 'two-hops-mixed-nullish',
-    body: 'const box = {}; let gb; ({ Map: { groupBy: gb }, Promise: { race: box.race } } = globalThis.window ?? globalThis); return [typeof gb, typeof box.race];', strip: false },
+    body: 'const box = {}; let gb; ({ Map: { groupBy: gb }, Promise: { race: box.race } } = globalThis.window ?? globalThis); return [typeof gb, typeof box.race];' },
   { id: 'two-hops-custom-hop-nullish',
-    body: 'let gb, z; ({ Map: { groupBy: gb }, Promise: { customZ: z } } = globalThis.window ?? globalThis); return [typeof gb, typeof z];', strip: false },
+    body: 'let gb, z; ({ Map: { groupBy: gb }, Promise: { customZ: z } } = globalThis.window ?? globalThis); return [typeof gb, typeof z];' },
   { id: 'two-hops-wks-hop-nullish',
-    body: 'let gb, it; ({ Map: { groupBy: gb }, Symbol: { [Symbol.iterator]: it } } = globalThis.window ?? globalThis); return [typeof gb, typeof it];', strip: false },
+    body: 'let gb, it; ({ Map: { groupBy: gb }, Symbol: { [Symbol.iterator]: it } } = globalThis.window ?? globalThis); return [typeof gb, typeof it];' },
   { id: 'two-hops-member-nullish',
-    body: 'const box = {}; ({ Set: { union: box.u }, Map: { groupBy: box.g } } = globalThis.window ?? globalThis); return [typeof box.u, typeof box.g];', strip: false },
+    body: 'const box = {}; ({ Set: { customQ: box.u }, Map: { groupBy: box.g } } = globalThis.window ?? globalThis); return [typeof box.u, typeof box.g];' },
   { id: 'flat-mixed-nullish',
-    body: 'const box = {}; let all; ({ race: box.race, all } = globalThis.window?.Promise ?? Promise); return [typeof box.race, typeof all];', strip: false },
+    body: 'const box = {}; let all; ({ race: box.race, all } = globalThis.window?.Promise ?? Promise); return [typeof box.race, typeof all];' },
   { id: 'effect-key-member-nullish',
     body: "const box = {}; let n = 0, all; ({ Promise: { [(n++, 'race')]: box.race, all } } = globalThis.window ?? globalThis);"
-      + ' return [typeof box.race, typeof all, n];', strip: false },
+      + ' return [typeof box.race, typeof all, n];' },
   { id: 'wrapper-selecting-element-member',
-    body: 'const box = {}; let S; [{ Set: S, Promise: { race: box.race } }] = [globalThis.window ?? globalThis]; return [typeof S, typeof box.race];', strip: false },
+    body: 'const box = {}; let S; [{ Set: S, Promise: { race: box.race } }] = [globalThis.window ?? globalThis]; return [typeof S, typeof box.race];' },
   { id: 'wrapper-member-default',
-    body: 'const box = {}; let S; [{ Set: S, Promise: { race: box.race = 1 } } = globalThis] = []; return [typeof S, typeof box.race];', strip: false },
+    body: 'const box = {}; let S; [{ Set: S, Promise: { race: box.race = 1 } } = globalThis] = []; return [typeof S, typeof box.race];' },
 ];
 function * generateResidualCtorStatics() {
+  // every row here asserts an INJECTION, so the stripped-realm leg is the oracle that matters: a
+  // member target the root gate admits must answer off the ponyfill in a realm that carries no
+  // native. a row that legitimately reads native opts out with `strip: false`
   for (const row of RESIDUAL_CTOR_STATIC_ROWS) {
-    yield { ...snippet(`residual-ctor-static/${ row.id }`, `(() => { ${ row.body } })()`), strip: row.strip };
+    yield { ...snippet(`residual-ctor-static/${ row.id }`, `(() => { ${ row.body } })()`), strip: row.strip !== false };
   }
 }
 
@@ -10889,12 +11449,503 @@ const SELECTING_INNER_DEFAULT_ROWS = [
   // the arm behind a truthy proxy is dead and the literal replaces the whole selection
   { id: 'all-proxy-arms-assign', body: 'let gb; ({ k: { Map: { groupBy: gb } } = self ?? globalThis } = {}); return [typeof gb];' },
   { id: 'all-proxy-arms-decl', body: 'const { k: { Map: { groupBy: gb } } = self ?? globalThis } = {}; return [typeof gb];' },
+  // ... and the selection wrapped in a SEQUENCE is the same default with an EFFECT ahead of it: the
+  // type set names the selection, not the sequence around it, so the host route has to answer the
+  // effect-bearing default in its own right - the assignment host consumed the pattern whole and
+  // dropped the mirror with it. the counter is the teeth: the prefix runs exactly where the source
+  // runs it, once, and only when the host's slot is empty
+  { id: 'seq-objkey-assign',
+    body: 'let h = 0; const box = {}; let gb; ({ k: { Map: { groupBy: gb }, Promise: { race: box.race } '
+      + '} = (h++, globalThis.window ?? globalThis) } = {}); return [typeof gb, typeof box.race, h];', strip: false },
+  { id: 'seq-objkey-decl',
+    body: 'let h = 0; const { k: { Map: { groupBy: gb }, Promise: { customZ: z } } = (h++, globalThis.window ?? globalThis) } = {}; '
+      + 'return [typeof gb, typeof z, h];', strip: false },
+  { id: 'seq-objkey-assign-present-key',
+    body: "let h = 0; let gb; ({ k: { Map: { groupBy: gb } } = (h++, globalThis.window ?? globalThis) } = { k: { Map: { groupBy: () => 'own' } } }); "
+      + 'return [gb(), h];', strip: false },
+  { id: 'seq-element-assign',
+    body: 'let h = 0; let gb; [{ Map: { groupBy: gb } } = (h++, globalThis.window ?? globalThis)] = []; return [typeof gb, h];', strip: false },
+  // ... and an SE-KEY sibling inside that default names a STATIC of its own receiver, which the
+  // generic instance ladder also answers: the leaf is the mirror's to spell, and a route that keeps
+  // the key alive and dispatches anyway bound `_keys(host)` - an array where the source binds the
+  // function. the row observes WHAT the leaf holds, not only that it was written
+  { id: 'se-key-sibling-decl',
+    body: "let h = 0; const { k: { Map: { groupBy: gb }, Object: { [(h++, 'keys')]: ks } } = (globalThis.window ?? globalThis) } = {}; "
+      + 'return [typeof gb, typeof ks, Array.isArray(ks), h];', strip: false },
+  { id: 'seq-se-key-sibling-decl',
+    body: "let h = 0; const { k: { Map: { groupBy: gb }, Object: { [(h++, 'keys')]: ks } } = (h++, globalThis.window ?? globalThis) } = {}; "
+      + 'return [typeof gb, typeof ks, Array.isArray(ks), h];', strip: false },
+  { id: 'seq-se-key-sibling-assign',
+    body: "let h = 0; let gb, ks; ({ k: { Map: { groupBy: gb }, Object: { [(h++, 'keys')]: ks } } = (h++, globalThis.window ?? globalThis) } = {}); "
+      + 'return [typeof gb, typeof ks, Array.isArray(ks), h];', strip: false },
   { id: 'objkey-present-key',
     body: "const box = {}; let gb; ({ k: { Map: { groupBy: gb } } = globalThis.window ?? globalThis } = { k: { Map: { groupBy: () => 'own' } } }); return [gb()];", strip: false },
 ];
 function * generateSelectingInnerDefaults() {
   for (const row of SELECTING_INNER_DEFAULT_ROWS) {
     yield { ...snippet(`selecting-inner-default/${ row.id }`, `(() => { ${ row.body } })()`), strip: row.strip };
+  }
+}
+
+// --- An instance-named leaf in an ANCHORED ctor residual ---
+// `({ Iterator: { map: box.m, from } } = globalThis)` re-anchors the surviving hop on the pure
+// constructor (`({ map: box.m } = _Iterator)`), and the leaf left inside that residual is a slot the
+// render already owns: re-entering the per-prop claim route over it spelled a GENERIC instance
+// dispatcher for a name several prototypes carry (`_mapMaybeArray(_Iterator)`), which is an entry
+// nothing on that line asks for. IMPORT-SET PARITY is the oracle: the leaf's VALUE is not comparable
+// against native at all, since the pure constructor carries every prototype name as a ponyfill static
+// (`_Iterator.map` is a function where `Iterator.map` is `undefined`) - that is the pure flavor's own
+// contract, so the rows observe that the slot was WRITTEN and leave its value alone.
+// the restriction is narrow on purpose and the BINDING control is what keeps it narrow:
+// the same leaf spelled as a binding is NOT in the residual - the render extracts it - and must keep
+// dispatching. Set carries no polyfilled static in these targets, so its sibling is a custom key,
+// which keeps the whole residual standing rather than driving a consume
+const ACRL_CTORS = [
+  { id: 'iterator', ctor: 'Iterator', keys: ['map', 'filter', 'reduce', 'toArray'], sibling: 'from' },
+  { id: 'promise', ctor: 'Promise', keys: ['catch', 'finally'], sibling: 'race' },
+  { id: 'set', ctor: 'Set', keys: ['union'], sibling: 'customS' },
+  { id: 'map', ctor: 'Map', keys: ['getOrInsert'], sibling: 'groupBy' },
+];
+// the two assignment hosts the re-anchor lands in: a statement, and a BODYLESS `if` that has to grow
+// a block. a DECLARATION host is absent by construction - a binding pattern cannot spell a member
+// target - and its binding-leaf twin is an open leg divergence of its own, so it is not covered here
+const ACRL_HOSTS = [
+  { id: 'assign', build: pattern => `({ ${ pattern } } = globalThis);` },
+  { id: 'bodyless-if', build: pattern => `if (cond) ({ ${ pattern } } = globalThis);` },
+];
+// A constructor this file STORES into a container slot binds the entry a later read comes back to:
+// the bare `*/constructor` module installs none of the constructor's own statics, so a read the
+// rewrite does not reach answers `undefined` where the realm's own constructor answers the function.
+// Object-rest is the shape that exposes it - it stops the extraction at that level - and the
+// container names its slot however it likes. The negatives ask nothing of the entry: a slot the
+// pattern merely REACHES through stores no constructor, and a key that names no static of the stored
+// one is answered alike by either entry.
+const CTOR_SLOT_ROWS = [
+  { id: 'shorthand-slot-rest',
+    body: 'const box = { Map }; const { Map: { groupBy: g }, ...rest } = box; return [typeof g, typeof rest];' },
+  { id: 'renamed-key-rest',
+    body: 'const box = { M: Map }; const { M: { groupBy: g }, ...rest } = box; return [typeof g, typeof rest];' },
+  { id: 'array-index-rest',
+    body: 'const box = [Map]; const [{ groupBy: g, ...rest }] = box; return [typeof g, typeof rest];' },
+  { id: 'nested-rest-under-the-hop',
+    body: 'const box = { Map }; const { Map: { groupBy: g, ...inner } } = box; return [typeof g, typeof inner];' },
+  { id: 'promise-slot-rest',
+    body: 'const box = { Promise }; const { Promise: { allSettled: a }, ...rest } = box; return [typeof a, typeof rest];' },
+  // ... and a SELECTION between values reaches every arm, so a container standing as one owes it too
+  { id: 'selection-arm-rest',
+    body: 'const box = { Map }; const { Map: { groupBy: g }, ...rest } = globalThis.window ?? box; return [typeof g, typeof rest];' },
+  // ... and the READ-BACK axis, which is what the obligation is actually about: a leaf the EXTRACTION
+  // serves reads no slot at runtime (the pass binds the static's own import in its place), so the
+  // narrow entry answers everything the file spells - while every leaf an extraction cannot serve
+  // does come back through the slot and needs the wide one. Asking of the whole pattern instead cost
+  // the file a constructor's whole namespace for a read the pass had already answered. Each row
+  // names the ONE thing that bars the extraction, and the stripped realm is what sees a lost static
+  { id: 'shorthand-slot-extracted',
+    body: 'const box = { Map }; const { Map: { groupBy: g } } = box; return [typeof g];' },
+  { id: 'read-back-member-target',
+    body: 'const out = {}; const box = { Map }; ({ Map: { groupBy: out.g } } = box); return [typeof out.g];' },
+  { id: 'read-back-computed-key',
+    body: "const k = 'groupBy'; const box = { Map }; const { Map: { [k]: g } } = box; return [typeof g];" },
+  { id: 'read-back-through-a-selection-arm',
+    body: 'const box = { Map }; const { Map: { groupBy: g } } = globalThis.window ?? box; return [typeof g];' },
+  { id: 'read-back-off-a-kept-alias',
+    body: 'const box = { Map }; const held = box.Map; return [typeof held.groupBy];' },
+  { id: 'extracted-beside-a-ctor-binding',
+    body: 'const box = { Map, Set }; const { Map: { groupBy: g }, Set: S } = box; return [typeof g, typeof S];' },
+  // the container SPELLING axis: the literal need not stand bare in the declarator for the file to
+  // have stored the constructor there - an effect ahead of it, a chain assignment through it, a name
+  // holding it, a selection between two such names, an array slot one hop away
+  { id: 'effect-ahead-of-the-literal',
+    body: 'let n = 0; const box = (n++, { Map }); const { Map: { groupBy: g }, ...rest } = box; return [typeof g, n];' },
+  { id: 'chain-assigned-literal',
+    body: 'let shared; const box = shared = { Map }; const { Map: { groupBy: g }, ...rest } = box; return [typeof g, typeof shared];' },
+  { id: 'name-holds-the-literal',
+    body: 'const src = { Map }; const box = src; const { Map: { groupBy: g }, ...rest } = box; return [typeof g, typeof rest];' },
+  { id: 'selection-between-two-names',
+    body: 'const a = { Map }; const b = { Map }; const box = a || b; const { Map: { groupBy: g }, ...rest } = box; return [typeof g, typeof rest];' },
+  { id: 'array-slot-one-hop-away',
+    body: 'const src = [Map]; const box = src; const { 0: { groupBy: g }, ...rest } = box; return [typeof g, typeof rest];' },
+  // ... and the spelling widens nothing on its own: a name holding a literal that stores no
+  // constructor asks the entry for nothing, and pure leaves that read where the source wrote it
+  { id: 'hop-to-a-slot-holding-no-ctor',
+    body: 'const src = { Map: {} }; const box = src; const { Map: { groupBy: g }, ...rest } = box; return [typeof g, typeof rest];',
+    strip: false },
+  // the negatives: nothing stored under the slot the read names, and a key that names no static
+  { id: 'getter-reaches-the-realm',
+    body: 'const box = { get realm() { return globalThis; } }; const { realm: { Map: { groupBy: g } } } = box; return [typeof g];',
+    strip: false },
+  { id: 'non-static-key-off-the-slot',
+    body: 'const box = { Set }; const { Set: { customZ: z }, ...rest } = box; return [typeof z, typeof rest];',
+    strip: false },
+];
+// A ternary selecting the realm is decided by its TEST, so an arm the environment may not have
+// cannot stand for the whole selection: naming the same proxy is not agreeing on definability.
+// The `||` row is the control - there the language rescues a nullish left with the right.
+const REALM_TERNARY_ROWS = [
+  { id: 'foreign-test-takes-the-realm-arm',
+    body: 'const flagged = false; const { Array: { of } } = flagged ? globalThis.window : globalThis; return [of(1)[0]];' },
+  { id: 'test-is-the-probe-itself',
+    body: 'const { Array: { of } } = globalThis.window ? globalThis.window : globalThis; return [of(2)[0]];' },
+  { id: 'probe-sits-in-the-alternate',
+    body: 'const flagged = true; const { Array: { of } } = flagged ? globalThis : globalThis.window; return [of(3)[0]];' },
+  { id: 'both-arms-guaranteed',
+    body: 'const flagged = false; const { Array: { of } } = flagged ? globalThis : globalThis; return [of(4)[0]];' },
+  { id: 'control-logical-fallback',
+    body: 'const { Array: { of } } = globalThis.window || globalThis; return [of(5)[0]];' },
+  // ... and the arm the test PICKS keeps its own value: taken off a host without the probe it
+  // throws, which an always-defined literal in that arm would have erased. no stripped leg - the
+  // realm never reaches the read
+  { id: 'test-picks-the-probe-arm',
+    body: 'const flagged = true; const { Array: { of } } = flagged ? globalThis.window : globalThis; return [typeof of];',
+    strip: false },
+];
+// --- Per-branch mirror, by host form ---
+// A SELECTING receiver under a nested pattern is mirrored arm by arm, and the two bindings reach
+// that mirror by different routes. The oracle here is IMPORT-SET PARITY plus the runtime: a leg
+// that leaves the arm native answers the same value in a full realm, so only the module sets
+// separate them. The axes are the ones a divergence moves between - the HOST the pattern sits in,
+// the selecting receiver, and whether a passthrough sibling shares the literal. `hits` rides every
+// observable so a receiver evaluated twice shows up as a value rather than as a passing test.
+const MIRROR_RECEIVERS = [
+  { id: 'logical-or', build: () => 'shim || globalThis' },
+  { id: 'logical-nullish', build: () => 'shim ?? globalThis' },
+  { id: 'ternary', build: () => 'cond ? other : globalThis' },
+  { id: 'ternary-probe-arm', build: () => 'cond ? globalThis.window : globalThis' },
+  { id: 'nested-selection', build: () => 'cond ? other : (globalThis.window ?? globalThis)' },
+  { id: 'sequence-prefixed', build: () => '(hits++, shim || globalThis)' },
+  // the chain assignment CAPTURES what the selection yields, so the row observes `held` too: a
+  // mirror literal swapped into the arm would hand the capture our object instead of the realm,
+  // and only a reader of the capture can tell that from a missing polyfill. every host is skipped,
+  // and the reason is a BOUNDARY rather than a gap: with a capture the mirror is unavailable (a
+  // literal in the arm would hand `held` our object), so the only way to inject would be to bind the
+  // ponyfill over whatever the opaque arm yields - which is wrong wherever that arm runs. both
+  // bindings therefore keep the source's own read here, and the stripped realm reports the absence
+  // it is designed to report. named host by host so the boundary stays enumerable from the corpus
+  { id: 'chain-assigned', build: () => '(held = shim || globalThis)', observeExtra: 'typeof held.Math',
+    skipHosts: ['decl', 'assign', 'inner-default', 'iife-argument', 'for-of', 'param-default'] },
+];
+const MIRROR_PATTERNS = [
+  { id: 'hop-leaf', pattern: '{ Array: { from } }', names: 'from', observe: '[typeof from, hits]' },
+  { id: 'leaf-beside-passthrough', pattern: '{ Array: { from }, Math: { floor } }', names: 'from, floor',
+    observe: '[typeof from, typeof floor, hits]' },
+];
+const MIRROR_HOSTS = [
+  { id: 'decl', build: (pat, names, observe, recv) => `const ${ pat } = ${ recv }; return ${ observe };` },
+  { id: 'assign', build: (pat, names, observe, recv) => `let ${ names }; (${ pat } = ${ recv }); return ${ observe };` },
+  { id: 'param-default',
+    build: (pat, names, observe, recv) => `function f(${ pat } = ${ recv }) { return ${ observe }; } return f();` },
+  { id: 'inner-default',
+    build: (pat, names, observe, recv) => `const { slot: ${ pat } = ${ recv } } = {}; return ${ observe };` },
+  { id: 'iife-argument', build: (pat, names, observe, recv) => `return ((${ pat }) => ${ observe })(${ recv });` },
+  { id: 'for-of',
+    build: (pat, names, observe, recv) => `let out; for (const ${ pat } of [${ recv }]) out = ${ observe }; return out;` },
+];
+const MIRROR_PRELUDE = 'const pick = () => null; const shim = pick(); const cond = pick(); let hits = 0; let held;'
+  + ' const other = { Array: { from: () => ["other"] }, Math: { floor: () => 0 } };';
+// --- Instance leaf under a sole hop ---
+// A leaf that is an instance member of the FUNCTION the hop names (`{ Promise: { name } }` reads
+// `Function.prototype.name` off the constructor) reads THROUGH the hop, which is exactly what the
+// untouched-ctor re-anchor never does: the anchor re-homes the residual onto the constructor's pure
+// binding and dispatches nothing, so the leaf stayed raw beside it on one leg. The two hosts that
+// dispatch are armed; what each remaining row costs is written beside it, and re-arming one is that
+// gap's own fail-before.
+const SOLE_HOP_INSTANCE_ROWS = [
+  { id: 'assignment-host',
+    body: 'let name; ({ Promise: { name } } = globalThis); return [typeof name];' },
+  { id: 'declaration-host',
+    body: 'const { Promise: { name } } = globalThis; return [typeof name];' },
+  // the head RELOCATES its pattern onto a minted name, and what that name carries is a TYPE: that
+  // the element IS the realm object is a value the stash has no slot for, so the hop resolves to a
+  // runtime identity guard on one leg and folds onto the constructor on the other. registering the
+  // minted name as an alias of the realm is refuted - it takes the guard away and the hop with it
+  { id: 'for-of-head', skip: 'the relocated head binds a minted name carrying the element type, not its realm identity',
+    body: 'let out; for (const { Promise: { name } } of [globalThis]) out = typeof name; return out;' },
+  // a REALM ALIAS is the same claim one binding out: the nested base reads a user binding raw
+  // whatever it holds, so the hop keeps the realm's own constructor where the direct spelling folds
+  { id: 'realm-alias-root', skip: 'the nested base reads a user binding raw, so the hop keeps the realm constructor',
+    body: 'const g = globalThis; const { Promise: { name } } = g; return [typeof name];' },
+  // the two SE-KEY rows are ONE decision: what the sentinel a kept computed key needs reads for the
+  // hop - the ponyfill constructor (an extra module entry, and the realm probe goes dead) or the
+  // realm's own read (no substitution for the hop at all). The mirror literal answers both and is
+  // what the assignment host already prints; until both legs ask it, the rows stay here
+  { id: 'se-key-leaf', skip: 'one leg dispatches off the ponyfill constructor, the other off the realm read',
+    body: 'let name; let n = 0; ({ Promise: { [(n++, "name")]: name } } = globalThis); return [typeof name, n];' },
+  { id: 'se-key-binding-leaf', skip: 'equal runtime, different module sets - the sentinel form against the mirror',
+    body: 'let race; let n = 0; ({ Promise: { [(n++, "race")]: race } } = globalThis); return [typeof race, n];' },
+];
+function * generateSoleHopInstanceLeaf() {
+  for (const row of SOLE_HOP_INSTANCE_ROWS) {
+    if (row.skip) continue;
+    yield { ...snippet(`sole-hop-instance-leaf/${ row.id }`, `(() => { ${ row.body } })()`), strip: false };
+  }
+}
+
+// --- A write a conditional divert skips ---
+// The branch gate credits a `var` write to every path through a switch / try, which is what lets a
+// later read resolve its receiver. A CONDITIONAL divert before that write (`if (c) break;`) leaves
+// one path with no write at all, and a gate that only refuses on an UNCONDITIONAL exit walks past it
+// - the read then becomes a receiver-less polyfill and the native TypeError goes missing. The throw
+// is the asserted semantics here, so each row catches it and reports the outcome as a value: a
+// snippet that threw would be skipped by the deep legs and compared by nothing.
+const BRANCH_DIVERT_ROWS = [
+  { id: 'switch-conditional-break',
+    body: 'function f(k, c) { switch (k) { case 1: if (c) break; var M = globalThis; break;'
+      + ' default: var M = globalThis; } return M.Array.from([1]); }'
+      + ' try { return [JSON.stringify(f(1, true))]; } catch (e) { return ["THREW"]; }' },
+  { id: 'switch-conditional-break-other-path',
+    body: 'function f(k, c) { switch (k) { case 1: if (c) break; var M = globalThis; break;'
+      + ' default: var M = globalThis; } return M.Array.from([1]); }'
+      + ' try { return [JSON.stringify(f(1, false)), JSON.stringify(f(2, true))]; } catch (e) { return ["THREW"]; }' },
+  { id: 'try-conditional-break-out',
+    body: 'function f(k, c) { switch (k) { case 1: try { if (c) break; var M = globalThis; } finally { } break;'
+      + ' default: var M = globalThis; } return M.Array.from([1]); }'
+      + ' try { return [JSON.stringify(f(1, true))]; } catch (e) { return ["THREW"]; }' },
+  { id: 'labelled-break-in-an-arm',
+    body: 'function f(c) { outer: { if (c) break outer; var M = globalThis; } return M.Array.from([1]); }'
+      + ' try { return [JSON.stringify(f(true)), JSON.stringify(f(false))]; } catch (e) { return ["THREW"]; }' },
+  { id: 'loop-conditional-continue',
+    body: 'function f(c) { for (let i = 0; i < 1; i++) { try { if (c) continue; var M = globalThis; } finally { } }'
+      + ' return M.Array.from([1]); }'
+      + ' try { return [JSON.stringify(f(true))]; } catch (e) { return ["THREW"]; }' },
+  // the NEGATIVES, which are what keeps the refusal off an ordinary complete branch: no divert at
+  // all, and a switch whose every arm writes
+  { id: 'negative-switch-complete',
+    body: 'function f(k) { switch (k) { case 1: var M = globalThis; break; default: var M = globalThis; }'
+      + ' return M.Array.from([1]); }'
+      + ' try { return [JSON.stringify(f(1)), JSON.stringify(f(2))]; } catch (e) { return ["THREW"]; }' },
+  { id: 'negative-try-complete',
+    body: 'function f() { try { var M = globalThis; } catch (e) { var M = globalThis; } return M.Array.from([1]); }'
+      + ' try { return [JSON.stringify(f())]; } catch (e) { return ["THREW"]; }' },
+];
+function * generateBranchDivertWrites() {
+  for (const row of BRANCH_DIVERT_ROWS) {
+    yield { ...snippet(`branch-divert-writes/${ row.id }`, `(() => { ${ row.body } })()`), strip: true };
+  }
+}
+
+// --- A residual leaf under a MISSING-ABLE constructor ---
+// A pattern that reads a member off a constructor the target may not have is what the ctor's pure
+// import exists for: the residual re-anchors onto that binding, and a route that declines the anchor
+// leaves the read on the realm's own slot - `undefined` there, so the destructure THROWS on exactly
+// the engines this package serves. The import set cannot see it (both legs decline alike and the
+// full environment still has the constructor), so every row here is `strip: true` - the stripped
+// realm is the only leg that sees a missed injection.
+// The key axis is spelled by KIND, not by member: what the pure binding answers for a given member
+// is the runtime's own business (it exposes instance methods as statics, a legacy duplication), and
+// a row keyed on that value would lock behaviour the runtime is free to change. These rows ask only
+// that the constructor be INJECTED and the read not throw.
+const MISSING_CTOR_RESIDUAL_ROWS = [
+  { id: 'prototype-member-leaf', body: 'const { Set: { union } } = globalThis; return [typeof union === "function" || typeof union === "undefined"];' },
+  { id: 'prototype-member-hop', body: 'const { Set: { union: { name } = {} } } = globalThis; return [typeof name === "string" || typeof name === "undefined"];' },
+  { id: 'unknown-key-leaf', body: 'const { Set: { customQ } } = globalThis; return [typeof customQ];' },
+  { id: 'member-target-leaf', body: 'const box = {}; ({ Set: { customQ: box.q } } = globalThis); return [typeof box.q];' },
+  { id: 'member-target-prototype-member',
+    body: 'const box = {}; ({ Iterator: { map: box.m, from } } = globalThis); return ["m" in box, typeof from];' },
+  { id: 'unfoldable-computed-key',
+    body: "const keys = ['customZ']; let n = 0; const { Promise: { [(n++, keys[0])]: x } } = globalThis; return [typeof x, n];" },
+  { id: 'se-computed-key',
+    body: "let n = 0; const { Set: { [(n++, 'union')]: v } } = globalThis; return [typeof v === 'function' || typeof v === 'undefined', n];" },
+  { id: 'assignment-host', body: 'let v; ({ Set: { union: v } } = globalThis); return [typeof v === "function" || typeof v === "undefined"];' },
+  { id: 'for-of-head',
+    body: 'let out; for (const { Set: { union: { name } = {} } } of [globalThis]) out = typeof name; return [out === "string" || out === "undefined"];' },
+  // ... and an INSTANCE leaf under a ctor hop whose key carries an EFFECT: the prop cannot leave the
+  // pattern, so the read happens at runtime off whatever the capture bound - and capturing the key
+  // off the REALM binds nothing on an engine without that constructor, which turned the miss into a
+  // throw on one leg while the other dispatched the ponyfill. the mirror has no slot for an instance
+  // leaf, so the capture binds the constructor's own ponyfill and the dispatch reads off that
+  { id: 'instance-leaf-se-key-declaration',
+    body: "let n = 0; const { Promise: { [(n++, 'name')]: v } } = globalThis; return [typeof v, n];" },
+  { id: 'instance-leaf-se-key-assignment',
+    body: "let v; let n = 0; ({ Promise: { [(n++, 'name')]: v } } = globalThis); return [typeof v, n];" },
+  { id: 'instance-leaf-plain-key-control',
+    body: 'const { Promise: { name: v } } = globalThis; return [typeof v];' },
+  // ... and through a USER ALIAS of the realm, which is the realm: a nested INSTANCE leaf there kept
+  // the source's raw read and lost the ponyfill outright, while its STATIC twin resolved. The MEMO
+  // control is what keeps the rule narrow - an effectful init is memoized precisely so the reads
+  // below go through the memo, and re-reading what it stands for is not this rule's business
+  { id: 'realm-alias-instance-leaf',
+    body: 'const g = globalThis; const { Promise: { name: v } } = g; return [typeof v];' },
+  { id: 'realm-alias-static-leaf',
+    body: 'const g = globalThis; const { Promise: { race: v } } = g; return [typeof v];' },
+  { id: 'realm-alias-effectful-init-control',
+    body: 'const log = []; const g = (log.push("r"), globalThis); const { Promise: { name: v } } = g; return [typeof v, log.length];' },
+  // ... and through a for-x HEAD, whose binding holds what the loop ITERATES - the one value no init
+  // can spell. An array literal whose every element names the realm hands the realm to every pass,
+  // in both spellings: the element bound to a name the body destructures, and the pattern written
+  // into the head itself, which relocates onto a minted binding. Reading them as a user object left
+  // the leaf raw and dropped the constructor with it. The MIXED control is the boundary - one
+  // element that is not the realm and the loop really does see two objects, so the read stays the
+  // source's own
+  { id: 'for-of-element-instance-leaf',
+    body: 'let out; for (const e of [globalThis]) { const { Promise: { name } } = e; out = typeof name; }'
+      + ' return [out === "string" || out === "undefined"];' },
+  { id: 'for-of-element-static-leaf',
+    body: 'let out; for (const e of [globalThis]) { const { Promise: { race } } = e; out = typeof race; } return [out];' },
+  { id: 'for-of-head-instance-leaf',
+    body: 'let out; for (const { Promise: { name } } of [globalThis]) out = typeof name;'
+      + ' return [out === "string" || out === "undefined"];' },
+  { id: 'for-of-head-static-leaf',
+    body: 'let out; for (const { Promise: { race } } of [globalThis]) out = typeof race; return [out];' },
+  // ... and an SE-key STATIC under the same ctor hop, whose receiver the mirror owns: the capture that
+  // owned it before bound the realm's own key, which an engine without the constructor has nothing in,
+  // and the guard over it turned the miss into a THROW on one binding while the other ponyfilled. the
+  // SIBLING form is the one that reached it - a surviving residual sends the host down the retaining
+  // capture - and the sole-static form is the economy twin, which bound the ctor and then guarded a
+  // value that cannot be nullish. The CONTROL is a hop naming a global with no constructor ponyfill:
+  // reading it off the realm is present on every floor, so the routes that fold it keep it
+  { id: 'se-key-static-sibling-declaration',
+    body: "let n = 0; const { Promise: { [(n++, 'race')]: v, all: w } } = globalThis;"
+      + ' return [typeof v, typeof w, n];' },
+  { id: 'se-key-static-sole-declaration',
+    body: "let n = 0; const { Promise: { [(n++, 'race')]: v } } = globalThis; return [typeof v, n];" },
+  { id: 'se-key-static-sibling-assignment',
+    body: "let n = 0; let v, w; ({ Promise: { [(n++, 'race')]: v, all: w } } = globalThis);"
+      + ' return [typeof v, typeof w, n];' },
+  { id: 'se-key-static-no-ctor-ponyfill-control',
+    body: "let n = 0; const { Array: { [(n++, 'from')]: v } } = globalThis; return [typeof v, n];" },
+  { id: 'for-of-head-mixed-iterable-control',
+    body: "const seen = []; try { for (const { Promise: { customQ } } of [{ Promise: { customQ: 'USER' } }, globalThis])"
+      + " seen.push(String(customQ)); } catch (e) { seen.push('THREW'); } return seen;" },
+];
+function * generateMissingCtorResidual() {
+  for (const row of MISSING_CTOR_RESIDUAL_ROWS) {
+    yield { ...snippet(`missing-ctor-residual/${ row.id }`, `(() => { ${ row.body } })()`), strip: true };
+  }
+}
+
+// --- SE receiver spelled as a getter ---
+// A receiver whose read carries an effect is spelled either as a CALL or as a GETTER, and the two
+// have to answer alike: the effect runs exactly once, where the source wrote it, and the claims
+// under it still take their ponyfills. The getter counts its own reads, so a dropped or doubled
+// read shows as a number rather than as a passing test. The sibling is a REAL static: a name the
+// pure constructor carries but the spec does not (`Set.union`) answers differently from native
+// whatever the emitters do, and the row would measure that instead.
+const SE_RECEIVER_ROWS = [
+  { id: 'getter-declaration',
+    body: 'let reads = 0; const holder = { get g() { reads++; return globalThis; } }; const k = "from";'
+      + ' const { Array: { [k]: f }, Object: { keys } } = holder.g; return [typeof f, typeof keys, reads];' },
+  { id: 'getter-assignment',
+    body: 'let reads = 0; const holder = { get g() { reads++; return globalThis; } }; const k = "from"; let f, keys;'
+      + ' ({ Array: { [k]: f }, Object: { keys } } = holder.g); return [typeof f, typeof keys, reads];' },
+  { id: 'call-declaration',
+    body: 'let reads = 0; const getG = () => { reads++; return globalThis; }; const k = "from";'
+      + ' const { Array: { [k]: f }, Object: { keys } } = getG(); return [typeof f, typeof keys, reads];' },
+  { id: 'call-assignment',
+    body: 'let reads = 0; const getG = () => { reads++; return globalThis; }; const k = "from"; let f, keys;'
+      + ' ({ Array: { [k]: f }, Object: { keys } } = getG()); return [typeof f, typeof keys, reads];' },
+];
+function * generateSeReceiverSpellings() {
+  for (const row of SE_RECEIVER_ROWS) {
+    yield { ...snippet(`se-receiver-spellings/${ row.id }`, `(() => { ${ row.body } })()`), strip: true };
+  }
+}
+
+// --- Opaque arm spellings ---
+// The arm a selection can take instead of the realm is written many ways, and the resolver has to
+// answer the same about all of them: a value that is NOT a known global constructor may be falsy,
+// so the right operand stays live and owes its mirror. Calling one of them truthy collapsed the
+// selection onto its left and took the right arm's polyfill with it. Every arm here still HOLDS an
+// `Array` slot: an alias of a plain constructor would make the nested read throw natively, which
+// says nothing about the resolver.
+const OPAQUE_ARM_ROWS = [
+  { id: 'opaque-call', pre: 'const pick = () => null; const shim = pick();' },
+  { id: 'alias-holding-a-realm-nav', pre: 'const shim = globalThis.shim;' },
+  { id: 'alias-holding-a-probe-nav', pre: 'const shim = globalThis.window;' },
+  { id: 'alias-holding-a-realm-name', pre: 'const shim = globalThis;' },
+];
+// ... crossed with the HOST, because that is the other half that branched: a leaf under an INNER
+// DEFAULT beside a PASSTHROUGH sibling reaches the mirror by a different route than a bare
+// declarator does, and one binding's route rendered the tree where the other's declined
+const OPAQUE_ARM_HOSTS = [
+  { id: 'declarator',
+    build: pre => `${ pre } const { Array: { from } } = shim || globalThis; return [typeof from];` },
+  { id: 'inner-default-beside-passthrough',
+    build: pre => `${ pre } let hits = 0;`
+      + ' const { slot: { Array: { from }, Math: { floor } } = (hits++, shim || globalThis) } = {};'
+      + ' return [typeof from, typeof floor, hits];' },
+];
+function * generateOpaqueArmSpellings() {
+  for (const row of OPAQUE_ARM_ROWS) {
+    for (const host of OPAQUE_ARM_HOSTS) {
+      yield { ...snippet(`opaque-arm-spellings/${ row.id }/${ host.id }`, `(() => { ${ host.build(row.pre) } })()`),
+        strip: true };
+    }
+  }
+}
+
+// --- Captured selection, opaque arm live ---
+// A capture (`held = shim || globalThis`) yields its RHS, so the SELECTION under it is what the
+// pattern reads. Where the opaque arm is TRUTHY native reads that arm's own member, and a binding
+// that extracts the ponyfill there overrides a user object - which is what these rows watch. The
+// two controls carry the halves apart: a capture without a selection and a selection without a
+// capture both polyfill on either binding, so only the conjunction is under test.
+const CAPTURED_SELECTION_ROWS = [
+  // no stripped leg: the value read here is the opaque arm's own, so a realm without the built-in
+  // says nothing about it
+  { id: 'opaque-arm-truthy', strip: false,
+    body: 'const shim = { Array: { from: () => ["SHIM"] } }; let held;'
+      + ' const { Array: { from } } = (held = shim || globalThis); return [from([1])[0], typeof held.Math];' },
+  // ... and none here either: with a capture in the way neither binding may inject (a literal in the
+  // arm would hand the capture our object), so the read stays the source's own by design
+  { id: 'opaque-arm-falsy', strip: false,
+    body: 'const shim = null; let held;'
+      + ' const { Array: { from } } = (held = shim || globalThis); return [String(from([1])[0]), typeof held.Math];' },
+  { id: 'capture-without-selection', strip: true,
+    body: 'let held; const { Array: { from } } = (held = globalThis); return [String(from([1])[0]), typeof held.Math];' },
+  // the arm is spelled OPAQUE on purpose: a const-bound object literal is provably truthy, which
+  // makes the realm arm dead text and turns the row into a question about dead code instead
+  { id: 'selection-without-capture', strip: false,
+    body: 'const own = () => ({ Array: { from: () => ["SHIM"] } }); const shim = own();'
+      + ' const { Array: { from } } = shim || globalThis; return [from([1])[0]];' },
+];
+function * generateCapturedSelection() {
+  for (const row of CAPTURED_SELECTION_ROWS) {
+    yield { ...snippet(`captured-selection/${ row.id }`, `(() => { ${ row.body } })()`), strip: row.strip };
+  }
+}
+
+function * generateMirrorHostForms() {
+  for (const recv of MIRROR_RECEIVERS) {
+    for (const host of MIRROR_HOSTS) {
+      for (const pat of MIRROR_PATTERNS) {
+        if (pat.skipHosts?.includes(host.id) || recv.skipHosts?.includes(host.id)) continue;
+        if (recv.skipCells?.includes(`${ host.id }/${ pat.id }`)) continue;
+        const observe = recv.observeExtra
+          ? `[...${ pat.observe }, ${ recv.observeExtra }]` : pat.observe;
+        const body = `${ MIRROR_PRELUDE } ${ host.build(pat.pattern, pat.names, observe, recv.build()) }`;
+        yield { ...snippet(`mirror-host-forms/${ recv.id }/${ host.id }/${ pat.id }`, `(() => { ${ body } })()`),
+          strip: true };
+      }
+    }
+  }
+}
+
+function * generateRealmTernaryArms() {
+  for (const row of REALM_TERNARY_ROWS) {
+    yield { ...snippet(`realm-ternary-arms/${ row.id }`, `(() => { ${ row.body } })()`), strip: true };
+  }
+}
+
+function * generateCtorHeldInContainerSlot() {
+  for (const row of CTOR_SLOT_ROWS) {
+    yield { ...snippet(`ctor-held-in-container-slot/${ row.id }`, `(() => { ${ row.body } })()`), strip: row.strip !== false };
+  }
+}
+
+function * generateAnchoredCtorResidualLeaf() {
+  for (const entry of ACRL_CTORS) {
+    for (const key of entry.keys) {
+      for (const host of ACRL_HOSTS) {
+        const pattern = `${ entry.ctor }: { ${ key }: box.x, ${ entry.sibling }: s }`;
+        const body = `const box = {}; let s; ${ host.build(pattern) } return ["x" in box, typeof s];`;
+        yield { ...snippet(`anchored-ctor-residual-leaf/${ entry.id }/${ key }/${ host.id }`, `(() => { ${ body } })()`),
+          strip: false };
+      }
+      const control = `let bound, s; ({ ${ entry.ctor }: { ${ key }: bound, ${ entry.sibling }: s } } = globalThis);`
+        + ' return [typeof s];';
+      yield { ...snippet(`anchored-ctor-residual-leaf/${ entry.id }/${ key }/binding-control`, `(() => { ${ control } })()`),
+        strip: false };
+    }
   }
 }
 
@@ -10948,9 +11999,11 @@ export function * generate() {
   yield * generateTsLeadingThis();
   yield * generateNullableTruthyFold();
   yield * generateDestructure();
+  yield * generateAssignmentKeySpelling();
   yield * generateSequencePrefixOrder();
   yield * generateReceiverBearingDefault();
   yield * generateAnchorKeySpelling();
+  yield * generateMultiCtorHopResidual();
   yield * generateAnchorInnerShape();
   yield * generateBracketedHopKey();
   yield * generateLoopHeadNestedSlot();
@@ -11016,6 +12069,7 @@ export function * generate() {
   yield * generateNestedSeHopReceiver();
   yield * generateBuriedFoldKeySE();
   yield * generateStaticCollapseSEOrder();
+  yield * generateGetterReceiverDescent();
   yield * generateNameChainRootCallInner();
   yield * generateOptionalNameChainRootCall();
   yield * generateNewArgMember();
@@ -11032,6 +12086,7 @@ export function * generate() {
   yield * generateArrayWrapperCtorAlias();
   yield * generateAwSymbolIterDestructure();
   yield * generateNestedInstanceReceiver();
+  yield * generateNestedInstanceSurfaceBase();
   yield * generateParamDefaultInstance();
   yield * generateAssignAliasReassign();
   yield * generateAliasScopeShadow();
@@ -11055,6 +12110,7 @@ export function * generate() {
   yield * generateAssertGuardStale();
   yield * generateChainTrailingContinuations();
   yield * generateConditionalMirror();
+  yield * generateBranchMirrorStepSlots();
   yield * generateSelectedRealmMembers();
   yield * generateChains();
   yield * generateComputedInnerCallChain();
@@ -11112,9 +12168,21 @@ export function * generate() {
   yield * generateReturnedStaticLoopHeads();
   yield * generateInnerDefaultReceivers();
   yield * generateStaticHopPatternAnchor();
+  yield * generateMirrorSlotCanon();
+  yield * generateBranchCompleteVar();
   yield * generateIteratorStepEffects();
   yield * generateHoistedBindingReads();
   yield * generateInnerDefaultHostFallbacks();
   yield * generateResidualCtorStatics();
   yield * generateSelectingInnerDefaults();
+  yield * generateSoleHopInstanceLeaf();
+  yield * generateMissingCtorResidual();
+  yield * generateBranchDivertWrites();
+  yield * generateSeReceiverSpellings();
+  yield * generateOpaqueArmSpellings();
+  yield * generateCapturedSelection();
+  yield * generateMirrorHostForms();
+  yield * generateRealmTernaryArms();
+  yield * generateCtorHeldInContainerSlot();
+  yield * generateAnchoredCtorResidualLeaf();
 }

@@ -292,20 +292,10 @@ export function createGlobalResolve({
   //    `globalProxyMemberName` resolves the chain uniformly with the direct-globalThis shape
   function resolveSuperGlobalName(superPath) {
     const direct = resolveGlobalName(superPath);
-    if (direct) {
-      // `extends _Set` (the `Set` super rewritten in place to its polyfill import) has no scope binding,
-      // so `resolveGlobalName` returns the bare alias `_Set` - NOT a known constructor. map it via its
-      // polyfillHint to the global it aliases (`_Set` -> `Set`) so `this` resolves to that global, whose
-      // instance methods the polyfilled super already provides - else they are redundantly re-injected on
-      // `this` (a `class extends Set` calling `this.values()` over-emitted `_values` past the `_Set` super)
-      if (!resolveKnownConstructor(direct)) {
-        const aliasPath = peelSkippableWrapperPath(superPath);
-        const hint = t.isIdentifier(aliasPath?.node)
-          && babelBindingAdapter.getBindingPolyfillHint?.(aliasPath.scope, aliasPath.node.name);
-        if (hint && resolveKnownConstructor(hint)) return hint;
-      }
-      return direct;
-    }
+    if (direct && resolveKnownConstructor(direct)) return direct;
+    const hint = polyfillHintGlobalName(superPath);
+    if (hint) return hint;
+    if (direct) return direct;
     // `resolveGlobalName` already peels the full TS/Flow wrapper chain (`(Base as any)`, `Base!`,
     // `<Base>x`, `Base satisfies Ctor`) and resolves a bare global under it, so the only shape left to
     // try is a proxy-global MEMBER chain that `globalProxyMemberName` accepts beyond `resolveGlobalName`
@@ -348,9 +338,25 @@ export function createGlobalResolve({
     return null;
   }
 
+  // the global a binding's polyfill HINT names, for a position whose bare name resolved to none.
+  // Our own render and a pass over that render spell ONE fact two ways, differing only in whether a
+  // BINDING exists yet: the in-place rewrite of `Set` to `_Set` leaves the name unbound, so it comes
+  // back as a global, while a pass over that output reads `_Set` as the ordinary import it has become
+  // and resolves nothing. A resolver that asks the bare name alone therefore sees the first spelling
+  // only - and the second pass then re-injects everything the ponyfill already carries, which is how
+  // a `class extends Set` re-emitted `_values` for `this.values()` and a `new _Map()` receiver
+  // re-emitted `_keys` for a method its own prototype has
+  function polyfillHintGlobalName(path) {
+    const aliasPath = peelSkippableWrapperPath(path);
+    const hint = t.isIdentifier(aliasPath?.node)
+      && babelBindingAdapter.getBindingPolyfillHint?.(aliasPath.scope, aliasPath.node.name);
+    return hint && resolveKnownConstructor(hint) ? hint : null;
+  }
+
   // `isGlobalProxy` / `knownConstructorAt` stay cluster-private
   return {
     isGlobalProxy,
+    polyfillHintGlobalName,
     resolveGlobalName,
     resolvePrototypeAsInstance,
     resolveClassInheritance,

@@ -78,7 +78,7 @@ const {
   } = {}
 } = src;
 const {
-  union
+  customQ
 } = _Set;
 // a BRANCHY default is the per-branch mirror's shape, whatever the host's slot holds: the name
 // channel still declines (a name cannot say "either branch"), and the mirror fills each arm the
@@ -115,4 +115,4 @@ function withDefault({
   return includes;
 }
 const at = _at((_ref2 = src.i3) === void 0 ? raise() : _ref2);
-use(from, entries, of, plain, union, groupBy, flat, at, withDefault(), fromOr, fromTernary);
+use(from, entries, of, plain, customQ, groupBy, flat, at, withDefault(), fromOr, fromTernary);
