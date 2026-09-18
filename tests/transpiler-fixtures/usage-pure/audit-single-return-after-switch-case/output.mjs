@@ -1,9 +1,7 @@
-import _Map from "@core-js/pure/actual/map";
-import _Set from "@core-js/pure/actual/set";
-// IIFE body has a SwitchStatement before the tail return. cases may early-return Map or
-// Set; tail returns Array. receiver resolution must bail on SwitchStatement - nested
-// ReturnStatements inside SwitchCase consequent are NOT visible to the top-level scan,
-// only the tail. outer call stays raw to preserve runtime branching
+import _Map from "@core-js/pure/actual/map/constructor";
+import _Set from "@core-js/pure/actual/set/constructor";
+// Switch cases can return Map or Set before the Array tail. The retained-body proof leaves
+// the switch intact. The local read needs constructor bindings, not their unused statics.
 const out = (() => {
   switch (kind) {
     case 'a':

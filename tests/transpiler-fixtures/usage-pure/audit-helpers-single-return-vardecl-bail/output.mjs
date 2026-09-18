@@ -3,10 +3,8 @@ import _keys from "@core-js/pure/actual/instance/keys";
 import _values from "@core-js/pure/actual/instance/values";
 import _WeakMap from "@core-js/pure/actual/weak-map/constructor";
 import _WeakSet from "@core-js/pure/actual/weak-set/constructor";
-// singleReturnBodyExpression bails on local-binding declarations: a `const` in the IIFE
-// body shadows the caller-scope free identifier the caller would resolve against. inline
-// resolution must NOT propagate `Map` here as a global polyfill candidate. distinct method
-// per line (.values / .keys / .entries) makes per-call dispatch observable
+// A returned local name never proves the same-spelled global in the caller scope.
+// Local constructor shadows retain their native prototype reads.
 const v = _values((() => {
   const Map = _WeakMap;
   return Map;
