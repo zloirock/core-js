@@ -19,6 +19,7 @@ import {
   allProxySelectingInit,
   arrayLiteralSlotValue,
   bindsModuleDefault,
+  bindingLoopAnchor,
   canHoldBuiltIn,
   CLASS_NODE_TYPES,
   classStaticSlotValue,
@@ -81,6 +82,7 @@ import {
   noReassignmentReachesUsage,
   objectLiteralPrototypeValue,
   ownerWritePathIndex,
+  ownerSourceWritePath,
   PARAMETER_STATIC_SOURCES,
   parameterStaticSource,
   patternBindsName,
@@ -2567,7 +2569,8 @@ function scopeId(scopeIds, scope) {
 // to the innermost declaration the chain reaches, so records and containers pair by binding, never
 // by spelling alone. `containers` maps each qualified container to its literals; `containerSlotIndex`
 // is the reader's map from a declaring node (or a bare name, as the union of its declarations) to
-// the key
+// the key. Source positions preserve declaration identity through clones and rebuilt regions;
+// synthesized declarations without a source span use their node identity. The index is file-local.
 function buildContainerIndex(declared, containerDeclarations) {
   const scopeIds = new Map([[null, 0]]);
   // the declaration key a name resolves to in a scope chain, or null for an undeclared (global) name
@@ -2577,7 +2580,7 @@ function buildContainerIndex(declared, containerDeclarations) {
   }
   const containers = new Map();
   const containerSlotIndex = {
-    owners: new WeakMap(), byName: new Map(), writes: new Map(), aliasedWrites: new WeakSet(), escapes: new Map(),
+    owners: new Map(), byName: new Map(), writes: new Map(), aliasedWrites: new WeakSet(), escapes: new Map(),
   };
   for (const declaration of containerDeclarations) {
     // An assignment installs its literal on the existing binding, even when the write runs in
@@ -2593,7 +2596,7 @@ function buildContainerIndex(declared, containerDeclarations) {
     entry.literals.push({ literal: declaration.literal, scopes: declaration.scopes });
     if (declaration.arrayLiteral) entry.arrayLiteral = true;
     else entry.container = true;
-    if (declaration.node) containerSlotIndex.owners.set(declaration.node, key);
+    if (declaration.node) containerSlotIndex.owners.set(nodePositionKey(declaration.node) ?? declaration.node, key);
     let keys = containerSlotIndex.byName.get(declaration.name);
     if (!keys) containerSlotIndex.byName.set(declaration.name, keys = []);
     if (!keys.includes(key)) keys.push(key);
@@ -4653,12 +4656,13 @@ export function createDetectionAdapter({
   const callWriteSummaries = new WeakMap();
   // the record keys a container is asked by: its DECLARATION where the caller hands the declaring
   // node (the receiver walk does), else every declaration of that name in the file - the
-  // conservative union a name-only question deserves
+  // conservative union a name-only question deserves. An unindexed declaration owns no records;
+  // falling back to its name would borrow writes from a different binding.
   function containerKeys(object, ownerNode) {
     const index = getContainerSlotIndex?.();
     if (!index) return [object];
-    const owned = ownerNode ? index.owners.get(ownerNode) : null;
-    return owned ? [owned] : index.byName.get(object) ?? [];
+    const owned = ownerNode ? index.owners.get(nodePositionKey(ownerNode) ?? ownerNode) : null;
+    return ownerNode ? (owned ? [owned] : []) : index.byName.get(object) ?? [];
   }
   const adapter = {
     parameterCallSites,
@@ -4682,7 +4686,9 @@ export function createDetectionAdapter({
     // so it is deliberately NOT part of the mutated-static set - reporting it there would deopt every
     // namespace gate in the file. its ONE reader is the receiver walk's container descent, which must
     // stop trusting the literal's initial member once the slot has been replaced
-    isWrittenContainerSlot(object, keyPath, ownerNode = null) {
+    // A positioned read may precede every recorded write. The same flow proof used for
+    // binding reassignments preserves that capture; incomplete and wildcard records still bail.
+    isWrittenContainerSlot(object, keyPath, ownerNode = null, usagePath = null, usageNode = null) {
       const slots = getWrittenContainerSlots?.();
       if (!slots) return false;
       // a write at any PREFIX of the path replaces the subtree the rest of it reads through, so
@@ -4690,7 +4696,23 @@ export function createDetectionAdapter({
       // while `w.a.b = X` leaves `w.c` alone. the wildcard at a prefix is "some slot under here"
       for (const key of containerKeys(object, ownerNode)) {
         for (const prefix of slotPathPrefixes(key, keyPath)) {
-          if (slots.has(prefix) || slots.has(`${ prefix }.*`)) return true;
+          if (slots.has(`${ prefix }.*`)) return true;
+          if (!slots.has(prefix)) continue;
+          const index = getContainerSlotIndex?.();
+          const writes = index?.writes.get(prefix);
+          const binding = usagePath && adapter.getBinding(usagePath.scope, object, usagePath);
+          const declaration = binding?.path?.node ?? binding?.node;
+          if (writes?.length && writes.length === slots.get(prefix)?.length && declaration
+            && index.owners.get(nodePositionKey(declaration) ?? declaration) === key) {
+            const owner = findNearestVarScopeOwner(usagePath);
+            const liveWrites = owner && writes.map(write => ownerSourceWritePath(owner, write)?.node);
+            if (liveWrites?.every(Boolean) && noReassignmentReachesUsage({
+              reassignmentNodes: liveWrites, usagePath, usageNode,
+              bindingScopeNode: binding.scope?.block ?? binding.scope?.path?.node,
+              bindingAnchor: bindingLoopAnchor(binding),
+            })) continue;
+          }
+          return true;
         }
       }
       return false;
@@ -4701,7 +4723,7 @@ export function createDetectionAdapter({
     // only fresh containers without held built-ins can exclude the initial candidate.
     containerSlotWriteDominatesUsage(keyPath, ownerNode, usagePath, usageNode, acceptValue = null) {
       const index = getContainerSlotIndex?.();
-      const key = index?.owners.get(ownerNode);
+      const key = index?.owners.get(nodePositionKey(ownerNode) ?? ownerNode);
       if (!key) return false;
       const slots = getWrittenContainerSlots?.(),
             slotKey = [key, ...keyPath].join('.'),

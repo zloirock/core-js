@@ -2,7 +2,8 @@
 // are two bindings, and the census keys its records by the declaring scope: the write taints its own
 // binding only, so the other's slot still binds the static - for a loop head (for-of, for-in, a
 // for-init declarator), a block, a switch case and a catch parameter shadowing the name alike. a `var` is one binding
-// across every block of its function, so a write through it in a sibling block reaches every read
+// across every block of its function, so its writes share one record; a read before those writes
+// still captures the initial value.
 const out = [];
 for (const item of [{ w: Object }]) {
   const { values: viaForOfHead } = item.w;
