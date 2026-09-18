@@ -35,12 +35,10 @@ const {
   }
 } = arr;
 // all-proxy ternary receiver: the collapse extracts the sibling static AND the symbol pattern
-const _ref4 = _Set ? _globalThis : _globalThis;
+const _ref4 = _globalThis;
 const {
-  Set: {
-    union
-  }
-} = _ref4;
+  customQ
+} = _Set;
 const {
   next: n2
 } = _getIteratorMethod(_ref4); // a computed well-known-symbol key INSIDE the extracted pattern stays live and substitutes
@@ -92,4 +90,4 @@ const {
   expQ
 } = _ref11;
 export { expArity, expQ };
-export { from, next, done, name, restOfMethod, union, n2, tp, of, iterName2, c, litArity, litCall, memArity, sib, brArity, alt, callArity, q, ts, mixArity };
+export { from, next, done, name, restOfMethod, customQ, n2, tp, of, iterName2, c, litArity, litCall, memArity, sib, brArity, alt, callArity, q, ts, mixArity };

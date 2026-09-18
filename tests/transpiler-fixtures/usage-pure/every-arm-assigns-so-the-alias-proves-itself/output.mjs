@@ -50,16 +50,13 @@ export function noAlternate(flag) {
   });
 }
 export function armShadowsTheRealmName(flag) {
-  var _ref3;
   if (flag) {
     const globalThis = {};
     var S = globalThis;
   } else {
     var S = _self;
   }
-  return _ref3 = S.Object, _ref3 === Object ? _Object$getOwnPropertyNames({
-    c: 3
-  }) : _ref3.getOwnPropertyNames({
+  return _Object$getOwnPropertyNames({
     c: 3
   });
 }

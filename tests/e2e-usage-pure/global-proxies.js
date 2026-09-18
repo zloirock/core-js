@@ -196,6 +196,46 @@ QUnit.test('global-proxy: buried IIFE root polyfills inside the kept guard test'
   })()?.window?.Array.of(7).at(0), windowValue === undefined ? undefined : 7);
 });
 
+// a ternary selecting the realm is decided by its TEST, not by its arms, so an arm the environment
+// may not have cannot stand for the selection: collapsed away, the read binds through a probe the
+// run never takes and throws off-window where the source hands back the realm. the arms have to
+// agree on DEFINABILITY, not merely name the same proxy
+QUnit.test('global-proxy: a realm ternary keeps the arm its test decides', assert => {
+  const onWindow = globalThis.window !== undefined;
+  const { Array: { of: viaForeignTest } } = onWindow ? globalThis.window : globalThis;
+  assert.same(viaForeignTest(8).at(0), 8);
+  // eslint-disable-next-line unicorn/prefer-logical-operator-over-ternary -- the TERNARY is the subject
+  const { Array: { of: viaProbeTest } } = globalThis.window ? globalThis.window : globalThis;
+  assert.same(viaProbeTest(9).at(0), 9);
+  // ... and the arm the test picks keeps its OWN value: the probe arm is not swapped for an
+  // always-defined literal, so a run that takes it off a host without the probe throws where the
+  // source throws, and a host that has it reads its own realm through it
+  let pickProbe = true;
+  function takeProbeArm() {
+    const { Array: { of } } = pickProbe ? globalThis.window : globalThis;
+    return of;
+  }
+  if (onWindow) assert.same(takeProbeArm()(10).at(0), 10);
+  else assert.throws(takeProbeArm, TypeError);
+  pickProbe = false;
+  assert.same(takeProbeArm()(11).at(0), 11);
+});
+
+// an arm of a selection keeps the OTHER arm live unless it is provably truthy, and only a known
+// global constructor is that: an alias holding an unbacked key off the realm is undefined wherever
+// the host lacks it, so the realm arm still runs and still owes its polyfill. in a stripped realm
+// the read answers only because that arm was mirrored
+QUnit.test('global-proxy: an unbacked realm key keeps the other arm of a selection live', assert => {
+  const unbacked = globalThis.coreJSUnbackedProbeKey;
+  const { Array: { of: viaUnbacked } } = unbacked || globalThis;
+  assert.same(viaUnbacked(3).at(0), 3);
+  // the control: an alias of the REALM itself is provably truthy, so the right arm is dead text and
+  // the read still answers - through the left
+  const realm = globalThis;
+  const { Array: { of: viaRealm } } = realm || globalThis;
+  assert.same(viaRealm(4).at(0), 4);
+});
+
 // the buried root under an effect-bearing body: the guard test runs the call exactly once, so the
 // substituted global rides the same single evaluation
 QUnit.test('global-proxy: buried root under an effectful body runs its call once', assert => {
@@ -3604,14 +3644,16 @@ QUnit.test('branch selection: a shadowed or custom arm keeps its own constructor
 });
 
 QUnit.test('branch selection: live optionals and plain sequence effects retain their boundaries', assert => {
-  const NativeMap = Object.getOwnPropertyDescriptor(globalThis, 'Map').value;
-  const ExpectedMap = typeof E2E_POST_LOWERED === 'undefined' ? NativeMap : Map;
+  // a realm-selected arm provides the polyfill whatever selects it, an optional hop included: the
+  // narrow tests the selected value against the realm and serves the ponyfill only where the two are
+  // the same object, so a foreign realm still answers with its own constructor. the sequence arm
+  // below and every operator in the test above it assert exactly this
   for (const flag of [false, true]) {
     let held;
     const events = [];
     const optional = (flag ? held = globalThis.window?.self : globalThis)?.Map;
     const absent = flag && typeof window === 'undefined';
-    assert.same(optional, absent ? undefined : ExpectedMap, 'the optional arm keeps its selected value');
+    assert.same(optional, absent ? undefined : Map, 'the optional arm keeps its selected value');
     assert.same(held === globalThis, flag && !absent, 'the optional store keeps its selected identity');
 
     const sequence = (flag ? (events.push('selected'), globalThis.self) : globalThis).Map;
@@ -3825,10 +3867,26 @@ QUnit.test('an optional hop past a conditional realm keeps the short-circuit', a
     if (enabled) { var realm = globalThis; }
     return realm?.Map.prototype;
   }
+  // a `?.` on the NEXT step reads the guard's own value, so the narrow stays at member level
+  function readMidChain(enabled) {
+    if (enabled) { var realm = globalThis; }
+    return realm?.Map?.groupBy;
+  }
+  // a SEAL makes the source read the short-circuited value: the native throw is kept
+  function readSealed(enabled) {
+    if (enabled) { var realm = globalThis; }
+    // eslint-disable-next-line no-unsafe-optional-chaining -- the throw IS what this asserts
+    return (realm?.Map).groupBy;
+  }
   assert.same(readSymbol(false), undefined);
   assert.same(readStatic(false), undefined);
   assert.same(readSurface(false), undefined);
+  assert.same(readMidChain(false), undefined);
   assert.same(typeof readSurface(true), 'object');
+  assert.same(typeof readStatic(true), 'function');
+  assert.same(typeof readMidChain(true), 'function');
+  assert.same(typeof readSealed(true), 'function');
+  assert.throws(() => readSealed(false), TypeError);
   if (!Symbol.sham) assert.same(readSymbol(true), Symbol.iterator);
 });
 
@@ -4212,5 +4270,86 @@ QUnit.test('unbacked window: a self-reference run of optional hops tests the pro
     let n = 0;
     assert.deepEqual((n++, globalThis?.window?.window?.window?.Array?.of(5)), [5]);
     assert.same(n, 1);
+  });
+});
+
+// A value-SELECTING receiver every branch of which yields the REALM is dead weight, not a branch to
+// swap: the probe reads undefined off-window and the fallback behind it is that same realm, so the
+// polyfill binds unconditionally and a host that HAS `window` - every browser - lands it too, where
+// a single-branch swap left the destructure reading the realm natively. A BARE name pure does not
+// back is no such selection: nothing stands in for the source's read of an undeclared binding.
+QUnit.test('realm selection: every branch the realm binds the polyfill on either host', assert => {
+  function viaProbeHop() {
+    const { Map: { groupBy } } = globalThis.window ?? globalThis;
+    return typeof groupBy;
+  }
+  function viaBackedHop() {
+    const { Map: { groupBy } } = globalThis.self ?? globalThis;
+    return typeof groupBy;
+  }
+  function viaBareBacked() {
+    // eslint-disable-next-line no-restricted-globals, unicorn/prefer-global-this -- a bare proxy name is the shape under test
+    const { Map: { groupBy } } = self ?? globalThis;
+    return typeof groupBy;
+  }
+  assert.same(viaProbeHop(), 'function');
+  assert.same(viaBackedHop(), 'function');
+  assert.same(viaBareBacked(), 'function');
+  // ... and on the host whose probe ANSWERS, which is the one the polyfill exists for
+  withWindowWithoutSelf(() => {
+    assert.same(viaProbeHop(), 'function');
+    assert.same(viaBackedHop(), 'function');
+    assert.same(viaBareBacked(), 'function');
+  });
+});
+
+// ... and what lands is the PONYFILL, not the realm's own static. On a host carrying the native -
+// every browser this rule exists for, where no strip makes the value question sharp - a
+// single-branch swap is visible by identity alone. The realm's own static is read through a key
+// nothing folds; a member spelling would resolve through the ponyfill and compare against itself.
+testUnlessDetectLowered('realm selection: the collapsed read binds the ponyfill, not the realm static', assert => {
+  function liveStatic(ctor, key) {
+    return globalThis[ctor] && globalThis[ctor][key];
+  }
+  function viaProbeHopValue() {
+    const { Map: { groupBy } } = globalThis.window ?? globalThis;
+    return groupBy;
+  }
+  const liveGroupBy = liveStatic('Map', 'groupBy');
+  if (typeof liveGroupBy !== 'function') return assert.same(typeof viaProbeHopValue(), 'function');
+  assert.notSame(viaProbeHopValue(), liveGroupBy);
+  withWindowWithoutSelf(() => {
+    assert.notSame(viaProbeHopValue(), liveGroupBy);
+  });
+});
+
+// ... and a BARE unbacked name reads the same way, which is the whole point of the rule: the three
+// proxy names are ONE object, so wherever that name resolves it IS the realm and the collapse binds
+// the ponyfill on every host - a host that HAS `window` included, where a standing mirror left the
+// source reading the realm natively. The price is the ReferenceError an undeclared read owes, which
+// the author's own fallback answers instead
+// ... and a flat CONSTRUCTOR slot rides the same collapse, where the pattern holds no nested prop to
+// lead a flatten. What it proves is the absence of the read: untransformed this source throws a
+// ReferenceError in every realm that does not spell the name
+testUnlessDetectLowered('realm selection: a flat ctor slot off a bare name collapses too', assert => {
+  function viaBareCtor() {
+    // eslint-disable-next-line unicorn/prefer-global-this -- the unbacked bare name is the shape under test
+    const { Set: S } = window ?? globalThis;
+    return S;
+  }
+  assert.same(new (viaBareCtor())([1, 1, 2]).size, 2);
+});
+
+testUnlessDetectLowered('realm selection: a bare unbacked name collapses like a probe hop', assert => {
+  function viaBareUnbacked() {
+    // eslint-disable-next-line unicorn/prefer-global-this -- the unbacked bare name is the shape under test
+    const { Map: { groupBy } } = window ?? globalThis;
+    return groupBy;
+  }
+  const liveGroupBy = Reflect.get(globalThis, 'Map') && Reflect.get(Reflect.get(globalThis, 'Map'), 'groupBy');
+  if (typeof liveGroupBy !== 'function') return assert.same(typeof viaBareUnbacked(), 'function');
+  assert.notSame(viaBareUnbacked(), liveGroupBy);
+  withWindowWithoutSelf(() => {
+    assert.notSame(viaBareUnbacked(), liveGroupBy);
   });
 });

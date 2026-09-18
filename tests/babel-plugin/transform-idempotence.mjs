@@ -24,6 +24,12 @@ const CASES = [
   ['patch through a proxy import', 'import g from "core-js/actual/global-this";\ng.Object.create = shim;\nvar o = Object.create(null);\nexport const r = o.at(0);'],
   ['patch through a lowered require', 'var g = require("core-js/actual/global-this");\ng.Object.create = shim;\nvar o = Object.create(null);\nexport const r = o.at(0);'],
   ['prototype patch', 'Array.prototype.at = shim;\nvar a = [1];\nexport const r = a.at(0);'],
+  // the LOGICAL-assignment spelling of that patch: its detect is the operator's own read, which no
+  // node spells - so the render leaves the `||=` host exactly as the source wrote it, and a pass
+  // that re-claims it prepends a second dispatch. the growth is one dispatch per pass and
+  // converges on nothing, which a single-pass fixture cannot see
+  ['logical-assignment patch', 'Array.prototype.flatMap ||= shim;\nexport const r = typeof Array.prototype.flatMap;'],
+  ['nullish-assignment patch', 'Array.prototype.flatMap ??= shim;\nexport const r = typeof Array.prototype.flatMap;'],
   // declaration-driven resolution: the type each of these reads is re-derived from source on the
   // second pass, so a rule that depends on statement ORDER or on a declaration's neighbours has to
   // land on the same answer once the injected imports sit in front of it
@@ -76,6 +82,10 @@ const CASES = [
   // the comment under a hashbang is the hashbang's trailing copy too: the import block unshifted
   // between them must not take the directive away from the statement it marks
   ['directive under a hashbang', '#!/usr/bin/env node\n// core-js-disable-next-line\nuse(a.at(0));\nexport const r = c.includes(0);'],
+  // the CommonJS wrapper that REBINDS `require`: a `var` only redeclares a name the host handed in
+  // as a parameter, so the format owner keeps the `require` spelling and the second pass has to
+  // read that call back as the load it is instead of injecting a second one beside it
+  ['require injection under a rebound require', 'var require = wrap(require);\nmodule.exports = [1, 2, 3].at(0);', false, 'input.cjs'],
 ];
 
 const OPTIONS = { method: 'usage-global', version: '4.0', targets: { ie: 11 } };
@@ -84,12 +94,13 @@ function injectedModules(code) {
   return code.matchAll(/modules\/(?<name>[\w\-.]+)"/g).map(match => match.groups.name).toArray();
 }
 
-for (const [label, source, ts] of CASES) {
+for (const [label, source, ts, file] of CASES) {
   // a TS case keeps its annotations in the output, so the second pass re-parses them - hence the
-  // parser plugin and a filename the pipeline reads as TS
+  // parser plugin and a filename the pipeline reads as TS; a case that NAMES its own file picks the
+  // module format instead, which is what the injection spelling follows from
   const config = {
     configFile: false, babelrc: false, plugins: [[babelPlugin, OPTIONS]],
-    filename: ts ? 'input.ts' : 'input.mjs',
+    filename: file ?? (ts ? 'input.ts' : 'input.mjs'),
     ...ts && { parserOpts: { plugins: ['typescript'] } },
   };
   const first = (await transformAsync(source, config)).code;

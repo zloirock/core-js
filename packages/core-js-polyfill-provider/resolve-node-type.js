@@ -6,6 +6,8 @@ import {
   findFunctionScopeVarDeclaratorInPath,
   findFunctionScopeVarInPath,
   findVarOwnerDeclaring,
+  forOfHeadElements,
+  forXHeadLoopPath,
   getTypeArgs,
   hopAnchorStart,
   isDestructurePattern,
@@ -859,6 +861,7 @@ function createResolveNodeType(babelNodeType, t, {
   // type-annotation-resolve cluster binds them later)
   const {
     isGlobalProxy,
+    polyfillHintGlobalName,
     resolveGlobalName,
     resolvePrototypeAsInstance,
     resolveClassInheritance,
@@ -1370,10 +1373,45 @@ function createResolveNodeType(babelNodeType, t, {
         path = initPath;
         continue;
       }
+      const elementPath = forXHeadElementPath(bindingPath);
+      if (elementPath) {
+        path = elementPath;
+        continue;
+      }
       if (isFunctionOrClassDeclaration(bindingPath.node)) return bindingPath;
       break;
     }
     return path;
+  }
+
+  // the value a for-x HEAD binding holds, which no init can spell: what the loop ITERATES. a SOLE
+  // element names one value and answers for the whole loop - the one clause of the shared primitive
+  // that is about the element's VALUE and not merely about the claims below it, which is what a walk
+  // standing ON the binding needs (`['a', 42]` reads the same to every static below and is still two
+  // values here). without it the walk stopped at the name, so a member read off such a head answered
+  // generically where the very same literal under a plain `const` resolves it - `for (const el of
+  // [{ w() {} }]) el.w.at` dispatched an instance helper for a member that is provably a function
+  function forXHeadElementPath(bindingPath) {
+    if (!t.isVariableDeclarator(bindingPath.node) || bindingPath.node.init
+      || isDestructurePattern(bindingPath.node.id)) return null;
+    const elements = forOfHeadElements(bindingPath, { sameCallee: true });
+    if (!elements?.length) return null;
+    // ... and only where that element is a VALUE the source spells inline. An element that NAMES a
+    // binding is one the walk reaches through the binding's own declaration anyway, and standing on
+    // the name here instead re-anchors every read below it at the loop - which is a different
+    // question, since a slot under a binding is reachable to a writer where one under an inline
+    // literal is not, and the answer flipped a claim to native (`of [pair]`)
+    if (unwrapRuntimeExpr(elements[0])?.type === 'Identifier') return null;
+    const loop = forXHeadLoopPath(bindingPath);
+    const literal = unwrapRuntimeExpr(loop?.node?.right);
+    const literalPath = literal ? walkPathToNode(loop.get('right'), literal) : null;
+    if (!literalPath) return null;
+    // ... and a LONGER literal answers only where its own COMMON TYPE resolves. The shared primitive's
+    // agreement is about the claims below a SLOT, not about the value a walk standing ON the binding
+    // reads - `['a', 42]` reads the same to every static below and is still two values - so the type
+    // ladder answers that half itself, with the same question it answers for any array literal
+    if (elements.length > 1 && !resolveArrayLiteralCommonType(literalPath)) return null;
+    return literalPath.get('elements')?.[0] ?? null;
   }
 
   // returns the init path to follow for `const X = init` style bindings, or null when:
@@ -2407,6 +2445,7 @@ function createResolveNodeType(babelNodeType, t, {
     resolveNodeType,
     resolveBindingType,
     unwrapTypeAnnotation,
+    polyfillHintGlobalName,
     resolveGlobalName,
     resolveConstructorType,
     resolveConstructorCallType,

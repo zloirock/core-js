@@ -11,7 +11,7 @@ const name = _nameMaybeFunction(_getIteratorMethod(_globalThis));
 const viaAlias = _nameMaybeFunction(_getIteratorMethod(_globalThis));
 const _ref = _globalThis;
 const {
-  union
+  customQ
 } = _Set;
 const viaSibling = _nameMaybeFunction(_getIteratorMethod(_ref)); // NEGATIVES. two leaves keep the destructure: each polyfilled leaf would need the receiver again,
 // and the receiver is the synth CALL - re-running it re-reads the source's `Symbol.iterator`
@@ -32,4 +32,4 @@ const viaSiblingCtor = _nameMaybeFunction(_getIteratorMethod(_ref2)); // NEGATIV
 const {
   name: viaDefault = fallback()
 } = _getIteratorMethod(Array);
-console.log(name, viaAlias, viaSibling, union, twoA, twoB, bind, plain, viaCtor, of, viaSiblingCtor, viaDefault);
+console.log(name, viaAlias, viaSibling, customQ, twoA, twoB, bind, plain, viaCtor, of, viaSiblingCtor, viaDefault);

@@ -5,9 +5,12 @@ import _globalThis from "@core-js/pure/actual/global-this";
 import _Object$keys from "@core-js/pure/actual/object/keys";
 import _atMaybeString from "@core-js/pure/actual/string/instance/at";
 var _ref, _ref2, _ref3, _ref5, _ref6;
-// Identifier slots receive pure statics; a nested pattern under a static anchors on that static's
-// ponyfill (its computed key runs there), while member assignment targets retain native slots.
-// Computed keys and target effects stay live on both paths.
+// Identifier slots receive pure statics; a nested pattern under a static rides the MIRROR SLOT where
+// the host holds more than that one prop - the statement stands and no key effect crosses another -
+// while member assignment targets retain native slots. The slot DESCENDS where a leaf under the
+// pattern carries a claim of its own, spelling it off the static's ponyfill. Only a host the pattern
+// occupies ALONE is lifted out as an extraction. Computed keys and target effects stay live on both
+// paths, and both legs print the same shape.
 const events = [];
 const pureFrom = _Array$from;
 const box = {};
@@ -16,15 +19,20 @@ let defaults = 0;
 ({
   Array: {
     [(_pushMaybeArray(events).call(events, 'first'), 'from')]: from
+  },
+  Object: {
+    keys: {
+      [(_pushMaybeArray(events).call(events, _atMaybeString(_ref = 'x').call(_ref, 0)), 'bind')]: bind
+    }
   }
 } = {
   Array: {
     from: _Array$from
+  },
+  Object: {
+    keys: _Object$keys
   }
 });
-({
-  [(_pushMaybeArray(events).call(events, _atMaybeString(_ref = 'x').call(_ref, 0)), 'bind')]: bind
-} = _Object$keys);
 ({
   Array: {
     [(_pushMaybeArray(events).call(events, 'second'), 'from')]: from
@@ -37,7 +45,7 @@ let defaults = 0;
     from: _Array$from
   },
   Object: {
-    keys: _globalThis.Object.keys
+    keys: _Object$keys
   }
 });
 ({
@@ -52,7 +60,7 @@ let defaults = 0;
     from: _Array$from
   },
   Object: {
-    keys: _globalThis.Object.keys
+    keys: _Object$keys
   }
 });
 export const result = [from([7])[0], from === pureFrom, typeof bind, typeof box.value, defaults, events];
@@ -63,14 +71,11 @@ function observe() {
     _pushMaybeArray(events).call(events, _nameMaybeFunction(error));
   }
 }
-const _ref7 = _globalThis;
 const _ref4 = _globalThis.Array;
 const boundFrom = null == _ref4 ? _ref4[""] : (_pushMaybeArray(events).call(events, 'binding'), observe(), _Array$from);
 const {
-  keys: {
-    [(_pushMaybeArray(events).call(events, _atMaybeString(_ref5 = 'a').call(_ref5, 0)), 'bind')]: boundBind
-  }
-} = _globalThis.Object;
+  [(_pushMaybeArray(events).call(events, _atMaybeString(_ref5 = 'a').call(_ref5, 0)), 'bind')]: boundBind
+} = _Object$keys;
 function read({
   Array: {
     [(_pushMaybeArray(events).call(events, 'parameter'), 'from')]: method

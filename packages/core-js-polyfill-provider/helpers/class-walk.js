@@ -1103,8 +1103,20 @@ function staticMemberReadValue(member, { preservesRead = false } = {}) {
 // has the same possible-overwrite standing, and a getter's effects do not erase its returned type
 // while that caller keeps the read itself.
 export function findNamespaceMemberValue(container, propName, scope, adapter, resolveKey, {
-  spreadVetoes = true, candidateSink = null,
+  spreadVetoes = true, candidateSink = null, rescuesRead = false, rescueSink = null,
 } = {}) {
+  // the winning member's value for a REWRITING caller: it keeps the spread veto - which value wins
+  // is still the literal's to say - and may keep the READ too, by re-emitting it where the source
+  // wrote it. that is a promise about EFFECTS, orthogonal to the veto, so it arrives as its own
+  // option: a getter whose body runs effects still names its returned value for such a caller, and
+  // the member it was read off joins `rescueSink` for that caller's discard channel to replay once
+  function readValue(member) {
+    const settled = staticMemberReadValue(member, { preservesRead: !spreadVetoes });
+    if (settled || !rescuesRead) return settled;
+    const rescued = staticMemberReadValue(member, { preservesRead: true });
+    if (rescued) rescueSink?.push(member);
+    return rescued;
+  }
   if (container?.type === 'ClassDeclaration' || container?.type === 'ClassExpression') {
     const members = container.body?.body ?? [];
     for (let i = members.length - 1; i >= 0; i--) {
@@ -1126,7 +1138,7 @@ export function findNamespaceMemberValue(container, propName, scope, adapter, re
       // a static method / setter winning the key is dynamic - bail; a static field returns its init,
       // and a static GETTER of one pure return names its value the same way (the object twin below)
       if (m.type !== 'ClassProperty' && m.type !== 'PropertyDefinition') {
-        return staticMemberReadValue(m, { preservesRead: !spreadVetoes });
+        return readValue(m);
       }
       return m.value ?? null;
     }
@@ -1163,7 +1175,7 @@ export function findNamespaceMemberValue(container, propName, scope, adapter, re
       // a method shorthand or a SETTER winning the key is dynamic - a function the reader would read
       // through, or a key whose read answers undefined; a GETTER is dynamic only in its body, so one
       // that RETURNS a pure expression names its value as plainly as a data property does
-      return staticMemberReadValue(p, { preservesRead: !spreadVetoes });
+      return readValue(p);
     }
   }
   return null;

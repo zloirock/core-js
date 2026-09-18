@@ -20,7 +20,7 @@ let result;
 
 for (const _ref = (observe(() => keys), _globalThis),
 	keys = _Object$keys,
-	at = _atMaybeArray(_ref.Array.prototype); !result; ) result = [keys, at];
+	at = _atMaybeArray(_globalThis.Array.prototype); !result; ) result = [keys, at];
 
 let single;
 
