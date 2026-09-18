@@ -1699,15 +1699,17 @@ const TYPE_SPACE_NODE_TYPES = new Set([
   'TSDeclareMethod',
 ]);
 
+// Whether a reference names the queried string or any name in the supplied Set. A set query
+// walks the subtree once, even when a retained body declares many candidate shadows.
 export function identifierReferencedInSubtree(node, name) {
-  return identifierReferencedIn(node, name, null);
+  return identifierReferencedIn(node, typeof name === 'string' ? id => id.name === name : id => name.has(id.name), null);
 }
 
 // `declared`: the identifier nodes an enclosing construct declares - a declaration of the name is
 // not a reference to it
-function identifierReferencedIn(node, name, declared) {
+function identifierReferencedIn(node, matches, declared) {
   if (!node || typeof node !== 'object' || typeof node.type !== 'string') return false;
-  if (node.type === 'Identifier') return node.name === name && !declared?.has(node);
+  if (node.type === 'Identifier') return matches(node) && !declared?.has(node);
   // a JSX tag name can be a runtime reference to the binding, and then it is the same KIND of extra
   // caller a bare `return f` is: the element hands the component to a renderer that calls it with
   // props, so the param default never runs there. namespaced parts name no binding
@@ -1717,17 +1719,17 @@ function identifierReferencedIn(node, name, declared) {
   if (node.type === 'JSXOpeningElement' || node.type === 'JSXClosingElement') {
     const tag = node.name;
     if (tag?.type === 'JSXIdentifier'
-      ? jsxIdentifierReferencesBinding(tag, node) && tag.name === name
-      : identifierReferencedIn(tag, name, declared)) return true;
-    return (node.attributes ?? []).some(attr => identifierReferencedIn(attr, name, declared));
+      ? jsxIdentifierReferencesBinding(tag, node) && matches(tag)
+      : identifierReferencedIn(tag, matches, declared)) return true;
+    return (node.attributes ?? []).some(attr => identifierReferencedIn(attr, matches, declared));
   }
   // reached only as a JSXMemberExpression root now - the referencing position
-  if (node.type === 'JSXIdentifier') return node.name === name;
+  if (node.type === 'JSXIdentifier') return matches(node);
   if (TYPE_SPACE_NODE_TYPES.has(node.type)) return false;
   const own = declaredIdentifierNodes(node);
-  // Only this spelling can match the query; unrelated declarations need not be copied down
+  // Only queried spellings can match; unrelated declarations need not be copied down
   // into every nested scope. The set belongs to this call, not to the declaration census.
-  if (own) for (const id of own) if (id.name !== name) own.delete(id);
+  if (own) for (const id of own) if (!matches(id)) own.delete(id);
   const inner = !own?.size ? declared : !declared ? own : new Set([...declared, ...own]);
   // recurse, skipping the source-text name slots `isNonReferencePosition` recognises (member tail,
   // object / class / method / field key, label, import / export specifier, JSX attribute name /
@@ -1737,8 +1739,8 @@ function identifierReferencedIn(node, name, declared) {
     const child = node[key];
     if (TYPE_SPACE_CHILD_KEYS.has(key) || isNonReferencePosition(node, child)) continue;
     if (Array.isArray(child)) {
-      for (const grandchild of child) if (identifierReferencedIn(grandchild, name, inner)) return true;
-    } else if (identifierReferencedIn(child, name, inner)) return true;
+      for (const grandchild of child) if (identifierReferencedIn(grandchild, matches, inner)) return true;
+    } else if (identifierReferencedIn(child, matches, inner)) return true;
   }
   return false;
 }
@@ -4595,7 +4597,7 @@ function receiverSlotRead(receiver, key) {
 // even when no particular local binding is queried.
 export function patternReceiverSlotNodes(pattern, rhs, name, ctx) {
   const out = [];
-  rhs = followConstLiteralAlias(unwrapExpressionChain(rhs), ctx);
+  rhs = followConstLiteralAlias(installedWriteValue(rhs), ctx);
   // an array WRAPPER holds the receiver in a slot of its own (`const [{ Map }] = [globalThis]`) - it
   // reads no member itself, so it only descends, against the same candidates the value pairing takes
   if (pattern?.type === 'ArrayPattern') {
@@ -4641,8 +4643,7 @@ export function patternReceiverSlotNodes(pattern, rhs, name, ctx) {
 // functions (their returns belong to them). babel spells a METHOD as a function node of its own
 // (`ObjectMethod` / `ClassMethod` / `ClassPrivateMethod`) where ESTree nests a `FunctionExpression`
 // under `value`, so the canon set is what has to stop the descent: a hand-rolled list missing those
-// three read a method's returns as its HOST's, escaping them twice and flipping the host's own
-// "more than one return" gate
+// three reads a method's returns as its HOST's and attributes the returned values to the wrong call
 export function collectOwnReturns(body) {
   const returns = [];
   const stack = [body];
@@ -4780,10 +4781,10 @@ export function patternSlotValues(pattern, rhs, name, ctx) {
   // half alone. keep that choice on the canonical pairing, including its nested descent
   const includeDefaults = ctx?.includeDefaults !== false;
   // a const-identifier rhs bound to a literal (`const arr = [Map]; [A] = arr`) - follow it so the
-  // pairing sees the underlying array / object, like the direct-literal form. the EFFECTIVE value
-  // peel comes first: a paren (an oxc NODE), a TS cast or a sequence tail all hand the same
+  // pairing sees the underlying array / object, like the direct-literal form. the installed value
+  // peel comes first: a paren (an oxc NODE), a TS cast, a sequence or a plain write all hand the same
   // runtime value, and judging the raw spelling split the legs on `([[globalThis]])`
-  rhs = followConstLiteralAlias(unwrapExpressionChain(rhs), ctx);
+  rhs = followConstLiteralAlias(installedWriteValue(rhs), ctx);
   if (ctx?.followIifeReturns) rhs = peelIifeReturnTarget(rhs);
   function propKey(prop) {
     return patternPropKey(prop, ctx, pattern);
@@ -4863,7 +4864,7 @@ export function patternSlotSpreadShifted(pattern, rhs, name, ctx = null) {
   // the SAME head normalization as `patternSlotValues`, or the two answer about DIFFERENT nodes:
   // values enumerated through a followed / peeled rhs with completeness judged on the raw spelling
   // would read a lone candidate as certain while an alias or a paren hides the shift
-  rhs = followConstLiteralAlias(unwrapExpressionChain(rhs), ctx);
+  rhs = followConstLiteralAlias(installedWriteValue(rhs), ctx);
   if (ctx?.followIifeReturns) rhs = peelIifeReturnTarget(rhs);
   if (pattern?.type === 'ObjectPattern') {
     for (const prop of pattern.properties) {
@@ -8638,8 +8639,9 @@ export const NESTED_BINDING_INTRODUCERS = new Set([
 // returns null for non-IIFE callees, async/generator functions, spread args, destructure
 // params, bodies with control flow / non-ExpressionStatement intermediates / prefix
 // reassignments to params, or bodies whose free variables overlap params without
-// matching the identity shape
-export function peelZeroArgIifeReturn(node) {
+// matching the identity shape. `preservesBody` admits the retained-body grammar: callers using it
+// keep the original call and only inspect the identity returned from its own scope.
+export function peelZeroArgIifeReturn(node, { preservesBody = false } = {}) {
   if (node?.type !== 'CallExpression' && node?.type !== 'OptionalCallExpression') return null;
   // peel paren / TS-wrappers + SequenceExpression tail off the callee. `unwrapRuntimeExpr`
   // stops at SE; `(0, () => Array)()` (comma-sequence prefix on the callee) is a common
@@ -8658,7 +8660,10 @@ export function peelZeroArgIifeReturn(node) {
   const params = callee.params ?? [];
   const paramNames = collectParamBindingNames(params);
   if (paramNames === null) return null;
-  const body = iifeBodyReturn(callee, paramNames);
+  const body = preservesBody
+    ? paramReboundInBody(callee.body, paramNames) ? null
+    : unwrapExpressionChain(singleReturnBodyExpression(callee.body, { preservesBody })) ?? null
+    : iifeBodyReturn(callee, paramNames);
   if (body === null) return null;
   // identity IIFE: body is a bare param Identifier - lift the matching arg by position.
   // requires effective args count === params.length so positional match is unambiguous
@@ -9819,12 +9824,61 @@ export function unwrapCollectingSePrefixes(node, prefixes) {
 // preserve those expressions through its side-effect channel, and cannot carry local declarations
 // into the caller's scope. `preservesBody` is the narrower promise that the original body keeps
 // running: local declarations then stay too, provided the returned expression reads none of their
-// bindings. that check includes declarations AFTER the return, whose var hoisting / lexical TDZ
-// still shadows outer names. control flow stays refused: one top-level return does not prove that
-// a nested branch cannot return another value
-export function singleReturnBodyExpression(body, { preservesBody = false } = {}) {
+// bindings, including declarations after a return and inside branches. A retained body may also
+// branch through blocks / if statements when every path returns the same free identifier.
+// Other control flow stays unproven: collecting returns alone cannot exclude an implicit undefined
+// result or a finally override. Completion is computed once per statement, without expanding paths.
+export function singleReturnBodyExpression(body, { preservesBody = false, returnSink = null } = {}) {
   if (!body) return null;
   if (body.type !== 'BlockStatement') return body;
+  if (preservesBody) {
+    const work = [body];
+    const statements = [];
+    const declaredNames = new Set();
+    const returns = [];
+    while (work.length) {
+      const stmt = work.pop();
+      statements.push(stmt);
+      switch (stmt.type) {
+        case 'BlockStatement':
+          work.push(...stmt.body);
+          break;
+        case 'IfStatement':
+          work.push(stmt.consequent);
+          if (stmt.alternate) work.push(stmt.alternate);
+          break;
+        case 'ReturnStatement':
+          returns.push(unwrapRuntimeExpr(stmt.argument));
+          break;
+        case 'VariableDeclaration':
+          for (const decl of stmt.declarations) walkPatternIdentifiers(decl.id, id => declaredNames.add(id.name));
+          break;
+        case 'ExpressionStatement':
+        case 'EmptyStatement':
+          break;
+        default: return null;
+      }
+    }
+    const freeReturns = returns.filter(value => value
+      && (!declaredNames.size || !identifierReferencedInSubtree(value, declaredNames)));
+    // Candidates are only identities to test against the preserved call's actual result.
+    // They do not prove that a return ran, or that another branch yielded the same value.
+    if (returnSink) returnSink.push(...freeReturns);
+    const [returned] = freeReturns;
+    if (!returned || freeReturns.length !== returns.length
+      || returns.some(value => value !== returned && (value.type !== 'Identifier'
+        || returned.type !== 'Identifier' || value.name !== returned.name))) return null;
+    const completes = new Set();
+    while (statements.length) {
+      const stmt = statements.pop();
+      if (stmt.type === 'ReturnStatement'
+        || (stmt.type === 'BlockStatement' && stmt.body.some(child => completes.has(child)))
+        || (stmt.type === 'IfStatement' && completes.has(stmt.consequent) && completes.has(stmt.alternate))) {
+        completes.add(stmt);
+      }
+    }
+    return completes.has(body) ? returned : null;
+  }
   let ret = null;
   for (const stmt of body.body) {
     if (stmt.type === 'ReturnStatement') {
@@ -9832,11 +9886,8 @@ export function singleReturnBodyExpression(body, { preservesBody = false } = {})
       ret = stmt;
       continue;
     }
-    if (stmt.type !== 'ExpressionStatement' && !(preservesBody && stmt.type === 'VariableDeclaration')) return null;
+    if (stmt.type !== 'ExpressionStatement') return null;
   }
-  if (preservesBody && body.body.some(stmt => stmt.type === 'VariableDeclaration'
-    && stmt.declarations.some(decl => patternBindsIdentifier(decl.id,
-      id => identifierReferencedInSubtree(ret?.argument, id.name))))) return null;
   return ret?.argument ?? null;
 }
 
@@ -9849,11 +9900,11 @@ export function singleReturnBodyExpression(body, { preservesBody = false } = {})
 // substitution would compose into the outer's emit (`_Map` -> `__Map`).
 // depth-bounded against malformed input (cyclic AST shouldn't reach this helper; cap
 // matches `unwrapExpressionChain`'s `MAX_DEPTH` defense)
-export function unwrapReceiverLeaf(node) {
+export function unwrapReceiverLeaf(node, { preservesBody = false } = {}) {
   for (let depth = 0; depth < MAX_DEPTH; depth++) {
     const before = node;
     node = unwrapInitValue(unwrapRuntimeExpr(node));
-    const iifeReturn = peelZeroArgIifeReturn(node);
+    const iifeReturn = peelZeroArgIifeReturn(node, { preservesBody });
     if (iifeReturn) {
       node = iifeReturn;
       continue;
@@ -9877,7 +9928,7 @@ export function staticFallbackSwapRedundant(receiverNode, sideEffects, { mintedA
   const direct = unwrapRuntimeExpr(receiverNode);
   if (direct?.type === 'Identifier' && mintedAliasRef?.(direct.name)) return true;
   if (!sideEffects?.length) return false;
-  const leaf = unwrapReceiverLeaf(receiverNode);
+  const leaf = unwrapReceiverLeaf(receiverNode, { preservesBody: true });
   return leaf?.type === 'Identifier'
     && sideEffects.some(se => se.start <= leaf.start && leaf.end <= se.end);
 }
