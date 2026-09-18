@@ -1,18 +1,18 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-import _globalThis from "@core-js/pure/actual/global-this";
+import _Set from "@core-js/pure/actual/set/constructor";
 var _ref;
-// a missing-able-ctor residual that re-anchors to the pure constructor must NOT swallow a polyfillable
-// default nested in a residual leaf: `nested: { customA = [1].at(0) }` keeps `Array.prototype.at`
-// reachable by the natural visitor. anchoring would render the residual verbatim and drop `_at` in both
-// emitters; a TOP-LEVEL residual default already bails anchoring, the nested one must bail the same way
+// a missing-able-ctor residual re-anchors to the pure constructor AND keeps a polyfillable default
+// nested in a residual leaf: the receiver swap never answered for `nested: { customA = [1].at(0) }`,
+// so the render owes it its visibility - one binding re-homes the pattern in place and the value stays
+// the live node it was, the other clones and rescues that subtree from its skip seeding. A TOP-LEVEL
+// residual default still bails the anchor: the two bindings split on whether they re-visit it, which
+// is a binding fact and not the plan's to decide.
 const from = _Array$from;
 const {
-  Set: {
-    union,
-    nested: {
-      customA = _atMaybeArray(_ref = [1]).call(_ref, 0)
-    }
+  union,
+  nested: {
+    customA = _atMaybeArray(_ref = [1]).call(_ref, 0)
   }
-} = _globalThis;
+} = _Set;
 export { from, union, customA };

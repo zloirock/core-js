@@ -45,8 +45,13 @@ export function memberExpression(object, property, { computed = false, optional 
   return { type: 'MemberExpression', object, property, computed, optional };
 }
 
+// a sequence of ONE is that one expression, and building the node anyway leaves a pair of printer
+// parens the next pass reparses away - a transform that is not a fixed point over its own output.
+// The vocabulary answers it here so no render has to remember: every caller splicing a list it
+// cannot count ahead of time (a guard wrapping the writes a prop produced, a prefix lift keeping
+// only what is observable) gets the same shape whether the list held one member or several
 export function sequenceExpression(expressions) {
-  return { type: 'SequenceExpression', expressions };
+  return expressions.length === 1 ? expressions[0] : { type: 'SequenceExpression', expressions };
 }
 
 export function variableDeclaration(kind, declarations) {
@@ -410,6 +415,20 @@ export function renderNavCollapseTail(plan, base, { cloneHost = node => node } =
   return built;
 }
 
+// the chain continuation a hoisted narrow guard absorbs, rebuilt over the guarded value. every step
+// lands PLAIN except a call, which keeps the `?.` the source wrote on it - the guard answers the
+// receiver's short-circuit, the call's own is still the source's. the host nodes are cloned by the
+// leg (`cloneHost`); a call's ARGUMENTS ride by identity, so their own claims stay live
+export function renderGuardedChainTail(tail, base, { cloneHost = node => node, cloneCall }) {
+  let built = base;
+  for (const step of tail) {
+    built = step.type === 'CallExpression' || step.type === 'OptionalCallExpression'
+      ? cloneCall(step, built)
+      : memberExpression(built, cloneHost(step.property), { computed: step.computed });
+  }
+  return built;
+}
+
 // the guard TEST a resolvable base supplies (`navGuardTestBase` decides there IS one): the probe
 // hop read off the ponyfilled base, with a kept root write riding ahead of it in a sequence
 // (`(w = _globalThis, _self).window`) - the write is the source's own act and evaluates first
@@ -426,13 +445,24 @@ export function renderBoundRawBranch(read, recv) {
   return callExpression(memberExpression(read, identifier('bind')), [recv]);
 }
 
+// the capture a guarded narrow reads its receiver through: the memo is written first and every branch
+// above it reads that ONE value. spelled here rather than by each leg, because what it wraps is either
+// the bare narrow or a whole hoisted short-circuit over it
+export function renderCapturedReceiver(recv, value, built) {
+  return sequenceExpression([assignmentExpression('=', recv, value), built]);
+}
+
 // the runtime CTOR-IDENTITY narrow: one branch per candidate constructor, innermost-last, each
 // testing the receiver against that ctor and yielding its static ponyfill; `rawBranch` is what a
 // receiver matching none of them falls through to. the DECISION - which ctors are candidates and
 // in what order - is the shared plan's; this spells it. `spellRecv` mints the test's receiver read
 // per binding (the babel leg marks its clone handled on the way out).
 // `invoke` clones the host invocation around each callee when the plan moves a call into
-// its branches. Arguments remain live for later transformation; only one branch executes.
+// its branches; its second argument says whether that callee is the RAW one, the only branch an
+// absorbed `?.()` keeps its short-circuit in - the pure entry is always callable, so its branch
+// spells a plain call. Arguments remain live for later transformation; only one branch executes.
+// `captureReceiver`, where the plan has one, is the receiver VALUE the branches read through: the
+// memo is written first and the whole narrow rides inside that sequence.
 // every branch is spelled by EITHER a pure entry or a name, and that is the plan's own invariant:
 // `planGuardedStaticNarrow` builds candidates only from truthy names, so neither slot is ever
 // empty here. a branch carrying neither would mint a nameless identifier and print `undefined`
@@ -446,10 +476,10 @@ export function renderCtorIdentityNarrow(plan, rawBranch, { injectImport, spellR
     binaryExpression('===', spellRecv(), branch.ctorRealmPure
       ? memberExpression(identifier(injectImport(branch.ctorRealmPure.entry, branch.ctorRealmPure.hintName)), identifier(branch.ctorName))
       : identifier(branch.ctorPure ? injectImport(branch.ctorPure.entry, branch.ctorPure.hintName) : branch.ctorName)),
-    invoke(identifier(injectImport(branch.staticPure.entry, branch.staticPure.hintName))),
+    invoke(identifier(injectImport(branch.staticPure.entry, branch.staticPure.hintName)), false),
     alternate,
-  ), invoke(rawBranch));
-  return captureReceiver ? sequenceExpression([assignmentExpression('=', spellRecv(), captureReceiver), guard]) : guard;
+  ), invoke(rawBranch, true));
+  return captureReceiver ? renderCapturedReceiver(spellRecv(), captureReceiver, guard) : guard;
 }
 
 // the `(ref = <dispatcher call>) === void 0 ? <default> : ref` guard for an instance

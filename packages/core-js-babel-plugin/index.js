@@ -13,6 +13,7 @@ import {
   isForXWriteTarget,
   isInUpdateOperand,
   isMemberWriteHost,
+  logicalSlotPatchHost,
   isThisReceiver,
   isDeoptedGlobalSlotRead,
   mutatedSlotLeftNativeWarning,
@@ -46,7 +47,7 @@ import {
   walkPatternIdentifiers,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
-  navHoldsMintedSeCall, ownEmittedNavClaim, ownOutputTests, restSentinelNamesReducer,
+  ownEmittedLogicalPatch, ownEmittedNavClaim, ownOutputTests, restSentinelNamesReducer,
 } from '@core-js/polyfill-provider/detect-usage/own-output';
 import {
   enrichMutatedStatics, escapedCtorReferencesReducer, mutationShapesReducer,
@@ -66,7 +67,9 @@ import {
   hostSlot,
   nullFirstGuardTest,
   renderBoundRawBranch,
+  renderCapturedReceiver,
   renderCtorIdentityNarrow,
+  renderGuardedChainTail,
   renderInExpressionPlan,
   renderShortCircuitGuard,
 } from '@core-js/polyfill-provider/render';
@@ -85,6 +88,7 @@ import { createModuleInjectors } from '@core-js/polyfill-provider/plugin-options
 import { createUsageGlobalCallback } from '@core-js/polyfill-provider/plugin-options/usage-callback';
 import {
   attachMemberUnionExtras,
+  destructureHostInitNode,
   enumerateFallbackDestructureBranches,
   renameSplitPropsToSentinels,
   restoreUnclaimedFlattens,
@@ -115,6 +119,8 @@ import {
   deletedRunCarriesMutatedRealmHop,
   resolveKey as sharedResolveKey,
   globalProxyMemberName,
+  readFeedsOwnSlotWrite,
+  realmSelectionCollapseOperand,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
   planGuardedDestructureNarrow,
@@ -271,8 +277,14 @@ export default function plugin(api, options) {
   // a static the user monkey-patches must never bind to the frozen receiver-less import:
   // every pipeline (member emission, destructure props, param synth) resolves through this
   // filter, so the read keeps flowing through the substituted constructor instead
+  // ... and the one read a mutation does NOT speak for is the DETECT the write itself computes from:
+  // `X.y = X.y || patch` reads the slot before the write lands, so the polyfill belongs there - it
+  // satisfies the detect, the third-party patch never installs, and what the slot then holds is
+  // core-js's own implementation, which every read after the write goes on reading raw
   function resolvePure(meta, path) {
-    return isMutatedStaticMeta(meta, mutatedStatics) ? null : resolvePureUnfiltered(meta, path);
+    return isMutatedStaticMeta(meta, mutatedStatics) && !readFeedsOwnSlotWrite(path, {
+      objectName: meta.object, keyName: meta.key, scope: path?.scope, adapter, path,
+    }) ? null : resolvePureUnfiltered(meta, path);
   }
 
   let injector, importStyle, format, debugOutput;
@@ -303,6 +315,7 @@ export default function plugin(api, options) {
     generateRef,
     generateLocalRef,
     generateUnusedId,
+    cloneHost,
     isWrappedInParens,
     normalizeOptionalChain,
     replaceInstanceLike,
@@ -834,6 +847,14 @@ export default function plugin(api, options) {
         if (!plan) return false;
         if (plan.bail) return true;
         if (plan.captureReceiver) plan.recvIdent = generateRef(path.scope, memberNode);
+        // the receiver hop the guard absorbed is captured PLAIN - its `?.` is answered once, above the
+        // whole render, by the short-circuit the plan hoists over that hop's own base
+        const captureSource = plan.receiverHop
+          ? t.memberExpression(t.cloneNode(plan.receiverHop.object),
+            plan.receiverHop.computed
+              ? t.cloneNode(plan.receiverHop.property) : t.identifier(plan.receiverHop.property.name),
+            plan.receiverHop.computed)
+          : plan.captureReceiver && t.cloneNode(plan.captureReceiver, true);
         // an effectful sequence prefix on the receiver runs ONCE, ahead of the test, exactly where
         // the source runs it - so the raw branch reads off the bare identifier instead of re-running
         // the sequence (`(n++, M === _Map ? _Map$groupBy : M.groupBy)`)
@@ -842,9 +863,16 @@ export default function plugin(api, options) {
             memberNode.computed ? t.cloneNode(memberNode.property) : t.identifier(memberNode.property.name),
             memberNode.computed)
           : memberNode;
-        const rawBranch = plan.isCallee && !plan.callInBranches
-          ? estreeToBabel(renderBoundRawBranch(hostSlot(t.cloneNode(readNode)), hostSlot(t.cloneNode(plan.recvIdent))))
+        // a hoisted chain guard has already proved the receiver, so the raw branch drops the `?.`
+        // the source wrote on the hop - the tail above it rides inside the guard's live branch
+        const plainRead = plan.hoisted && readNode === memberNode
+          ? t.memberExpression(t.cloneNode(memberNode.object),
+            memberNode.computed ? t.cloneNode(memberNode.property) : t.identifier(memberNode.property.name),
+            memberNode.computed)
           : readNode;
+        const rawBranch = plan.isCallee && !plan.callInBranches
+          ? estreeToBabel(renderBoundRawBranch(hostSlot(t.cloneNode(plainRead)), hostSlot(t.cloneNode(plan.recvIdent))))
+          : plainRead;
         guardedNarrowRendered.add(memberNode);
         // the whole chain is the canon's fold - one branch per candidate ctor, innermost-last.
         // the test reads the USER's binding, so its identifier is skipped like the raw branch's:
@@ -852,17 +880,47 @@ export default function plugin(api, options) {
         // is a global one (`var Map = Map`), and the test became `_Map === _Map` - constant true
         const callPath = plan.callInBranches ? peelParenAndTSSlotPath(path).parentPath : null;
         const narrow = estreeToBabel(renderCtorIdentityNarrow(plan, hostSlot(rawBranch), {
-          invoke: callPath ? callee => hostSlot({ ...t.cloneNode(callPath.node), callee: estreeToBabel(callee) }) : undefined,
+          invoke: callPath ? (callee, raw) => hostSlot({ ...t.cloneNode(callPath.node),
+            callee: estreeToBabel(callee), optional: raw && !!callPath.node.optional }) : undefined,
           injectImport: (entry, hintName) => injectPureImport(entry, hintName).name,
-          captureReceiver: plan.captureReceiver ? hostSlot(t.cloneNode(plan.captureReceiver, true)) : null,
+          captureReceiver: plan.captureReceiver && !plan.hoistInsideCapture ? hostSlot(captureSource) : null,
           spellRecv: () => {
             const testRecv = t.cloneNode(plan.recvIdent);
             skippedNodes.add(testRecv);
             return hostSlot(testRecv);
           },
         }));
+        // the plan's continuation rides inside the live branch and the short-circuit is spelled once
+        // above the whole thing; the replaced path climbs with it. the tail steps are REBUILT, never
+        // reused - the source spelling carries a `?.` the guard has already answered
+        let tailPath = path;
+        let hoisted = narrow;
+        if (plan.chainTail.length) {
+          for (const step of plan.chainTail) {
+            let up = tailPath.parentPath;
+            while (up?.node && up.node !== step) up = up.parentPath;
+            if (up?.node) tailPath = up;
+          }
+          hoisted = estreeToBabel(renderGuardedChainTail(plan.chainTail, hostSlot(narrow), {
+            cloneHost,
+            cloneCall: (step, built) => hostSlot(step.type === 'OptionalCallExpression' || step.optional
+              ? t.optionalCallExpression(estreeToBabel(built), step.arguments.map(argument => t.cloneNode(argument)), true)
+              : t.callExpression(estreeToBabel(built), step.arguments.map(argument => t.cloneNode(argument)))),
+          }));
+        }
+        // the short-circuit tests the value the source's own `?.` guards: the hop's base where the
+        // RECEIVER spelling carries it, the receiver itself otherwise - and where that receiver is a
+        // capture, the test rides inside the capture sequence, after the memo it reads
+        if (plan.hoisted) {
+          hoisted = estreeToBabel(renderShortCircuitGuard(nullFirstGuardTest(hostSlot(t.cloneNode(
+            plan.receiverHop ? plan.receiverHop.object : plan.recvIdent))), hostSlot(hoisted)));
+        }
+        if (plan.hoistInsideCapture) {
+          hoisted = estreeToBabel(renderCapturedReceiver(
+            hostSlot(t.cloneNode(plan.recvIdent)), hostSlot(captureSource), hostSlot(hoisted)));
+        }
         const guard = plan.seqPrefix.length
-          ? t.sequenceExpression([...plan.seqPrefix.map(expr => t.cloneNode(expr)), narrow]) : narrow;
+          ? t.sequenceExpression([...plan.seqPrefix.map(expr => t.cloneNode(expr)), hoisted]) : hoisted;
         t.traverseFast(rawBranch, n => skippedNodes.add(n));
         // the generator prints the `expr<T>` instantiation slot without the parens its precedence
         // needs (`c ? a : b<T>(x)` re-parses the call into the alternate, leaving the consequent
@@ -875,7 +933,8 @@ export default function plugin(api, options) {
         // a WRAPPER between the swap and the instantiation is not this rule's to compensate: the
         // slot then holds the wrapper, whose own priority the late restoration reads off the same
         // predicate - and every wrapper that owes the parens is a TS cast, which that pass covers
-        if (callPath) callPath.replaceWith(guard);
+        if (tailPath !== path) tailPath.replaceWith(guard);
+        else if (callPath) callPath.replaceWith(guard);
         else if (path.parentPath?.node?.type === 'TSInstantiationExpression'
           && instantiationSlotNeedsParens(guard)) path.replaceWith(t.parenthesizedExpression(guard));
         else path.replaceWith(guard);
@@ -1027,16 +1086,12 @@ export default function plugin(api, options) {
         // a pass over our own output must not claim the member again - the shared census
         // family (provider own-output), ahead of EVERY route: the guarded-narrow render's
         // alternate deliberately keeps this very read, and re-claiming nests the guard.
-        // PLAIN members only, as in both unplugin engines - an optional chain's own guarded
-        // handling stays live
-        if (path.isMemberExpression()
+        // BOTH spellings ask the whole family: the other leg's parser calls an optional member a
+        // plain one, so asking a single census here answered a different question per LEG about one
+        // source - and an optional claim's receiver carries our renders just the same (a stored
+        // guard read through `?.`, whose `?.` the first pass deliberately kept)
+        if ((path.isMemberExpression() || path.isOptionalMemberExpression())
           && ownEmittedNavClaim(path.node, path, ownOutputTests(injector))) return;
-        // an OPTIONAL claim gets only the minted-se-call census: its receiver carrying our
-        // own minted dispatch means the first pass deliberately declined this `?.` claim
-        // (re-claiming upgrades that verdict); the other censuses stay off optional chains -
-        // their guarded handling is live there
-        if (path.isOptionalMemberExpression()
-          && navHoldsMintedSeCall(path.node.object, path, ownOutputTests(injector))) return;
 
         if (meta.guardedAliasHint && (path.isObjectProperty()
           ? emitGuardedDestructureNarrow(meta, path) : emitGuardedStaticNarrow(meta, path))) return;
@@ -1054,9 +1109,18 @@ export default function plugin(api, options) {
             // whose key isn't viable as static (Promise.from, WeakMap.groupBy, ...) and bail
             // before reaching handleObjectPropertyResult. dispatch fromFallback up front so
             // per-branch synth-swap fires regardless of which branch the resolver picked
-            if (meta.fromFallback) return destructureEmit.handleObjectPropertyResult({
-              prop: path, meta, kind: null, entry: null, hintName: null,
-            });
+            // ... unless every value the selection can yield IS the realm: it names ONE object, so the
+            // prop resolves like a plain proxy receiver and keeps the ordinary route, which is what
+            // binds it an ENTRY - this dispatch hands the per-branch swap a meta with none, by design.
+            // on the per-branch route such a selection spells ONE arm as a literal and leaves the
+            // other reading the realm natively, which is the arm a browser takes
+            const realmInit = meta.fromFallback && destructureHostInitNode(path);
+            if (meta.fromFallback && !(realmInit && realmSelectionCollapseOperand(realmInit,
+              { adapter, injectorState: injector, scope: path.scope, path }))) {
+              return destructureEmit.handleObjectPropertyResult({
+                prop: path, meta, kind: null, entry: null, hintName: null,
+              });
+            }
           } else {
             if (!path.isMemberExpression() && !path.isOptionalMemberExpression()) return;
             // `path.isReferenced()` drops grandparent - pass it explicitly
@@ -1067,7 +1131,20 @@ export default function plugin(api, options) {
             // whole-swaps to the imported `_Set` const - reassigning a frozen import
             // `isMemberWriteHost` covers update operands too (`(obj.at)++` - the rewrite would
             // be a function call receiver, not writable), climbing the same wrapper set
-            if (isForXWriteTarget(path, adapter) || isMemberWriteHost(path)) return;
+            if (isForXWriteTarget(path, adapter) || isMemberWriteHost(path)) {
+              // ... except a logical-assignment PATCH, whose detect no node spells: this binding puts
+              // core-js's own dispatch ahead of the third-party value, leaving the write conditional
+              const patch = ownEmittedLogicalPatch(path, ownOutputTests(injector)) ? null : logicalSlotPatchHost(path);
+              const patchPure = patch && resolvePure(meta, path);
+              if (patch && patchPure?.kind === 'instance' && !skippedNodes.has(patch.host)) {
+                patch.host.right = t.logicalExpression(patch.operator, t.callExpression(
+                  t.cloneNode(injectPureImport(patchPure.entry, patchPure.hintName)),
+                  [t.cloneNode(patch.receiverNode, true)],
+                ), patch.host.right);
+                skippedNodes.add(patch.host);
+              }
+              return;
+            }
             // shadow check for `this.X` - polyfill would bypass the user's own member
             // (e.g. `class C extends Array { at() {} foo() { this.at(0) } }`)
             // shared `isThisReceiver` peels parens / TS wrappers / chain so `(this).at(0)`,
@@ -1480,7 +1557,12 @@ export default function plugin(api, options) {
           // hops (a BARE wrapper `nav!.X` erases and the short-circuit survives, a PARENTHESIZED
           // layer seals - the member above parses PLAIN, so the render keeps the source's throw
           // semantics by node type)
-          const chainEnd = memberChainEndPath({ path, unwrap: unwrapRuntimeExpr });
+          // ... and THROUGH a sequence the run stands in: the sequence hands its last operand on, so
+          // the member reading it is this run's consumer and the render belongs there. anchored at
+          // the sequence instead, this channel lands the run's bare ROOT and leaves the probe hop
+          // raw off it (`(eff(), _globalThis.window?.self).Array` - a native `self` read in exactly
+          // the realms the ponyfill answers for), where the other leg lowers the guard
+          const chainEnd = memberChainEndPath({ path, unwrap: unwrapRuntimeExpr, throughSequenceTail: true });
           if (chainEnd !== path && !synthSwap?.ownsReceiver(chainEnd.node)
             && collapseShortCircuitNavInPlace(chainEnd)) return;
         }
@@ -2236,6 +2318,13 @@ export default function plugin(api, options) {
 
       function preTraverse(path, visitors) {
         if (!beginFile(path) || skipFile) return;
+        // the HOST rewrite, ahead of detection: a realm-selecting destructure init names ONE object,
+        // so every meta below resolves against that object instead of against a branch of it, and no
+        // route has to unpick a selection the plan has already declared dead
+        path.traverse({
+          VariableDeclarator: hostPath => destructureEmit.collapseRealmSelectingHost(hostPath),
+          AssignmentExpression: hostPath => destructureEmit.collapseRealmSelectingHost(hostPath),
+        });
         path.traverse(visitors);
         processDeferredSideEffects(path);
         // the array-wrapped residuals the per-prop route emptied: the verdict needs the whole
