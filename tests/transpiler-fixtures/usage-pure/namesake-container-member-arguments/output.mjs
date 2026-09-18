@@ -1,0 +1,14 @@
+import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
+// Pure-mode control for the opaque member-argument recursion seen in usage-global.
+// A constructor result and an array in another function share a local name.
+// Writes to the array cannot supply values for the constructor result's member chain.
+// Repeated opaque arguments must terminate normally and retain the push polyfill.
+export function make(Format) {
+  const r = new Format();
+  return r.x.y;
+}
+export function collect(a) {
+  const r = [];
+  _pushMaybeArray(r).call(r, a.b, a.b);
+  return r;
+}
