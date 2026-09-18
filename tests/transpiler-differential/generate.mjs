@@ -11968,7 +11968,64 @@ function * generateReturnedStaticLoopHeads() {
   }
 }
 
+// A loop head carries each literal element into its lexical binding or assignment target.
+// The opaque consumer reads a constructor static at runtime; source and body log separately.
+function * generateLoopAliasOwners() {
+  for (const [shape, pattern, element] of [
+    ['plain', 'value', 'Map'], ['array', '[value]', '[Map]'], ['object', '{ item: value }', '{ item: Map }'],
+  ]) {
+    for (const kind of ['var', 'let', 'const', 'assignment']) for (const member of [false, true]) {
+      if (member && kind !== 'assignment') continue;
+      const target = member ? 'box.value' : 'value';
+      const head = pattern.replace('value', target);
+      for (const wrapped of [false, true]) for (const awaited of [false, true]) {
+        const rhs = wrapped ? `(log.push("source"), [${ element }])` : `[${ element }]`;
+        const loop = `for ${ awaited ? 'await ' : '' }(${ kind === 'assignment' ? '' : `${ kind } ` }${ head } of ${ rhs }) { log.push("body");`;
+        const body = kind === 'assignment'
+          ? `${ member ? 'const box = {};' : 'let value;' } ${ awaited ? 'async ' : '' }function install() { ${ loop } } } ${ awaited ? 'await ' : '' }install(); return hand(${ target });`
+          : `${ loop } return hand(${ target }); }`;
+        const expr = `${ awaited ? 'await (async ' : '(' }() => { const hand = Function("C", "return C.groupBy([1], function (x) { return x; }).get(1)[0]"); ${ body } })()`;
+        yield { ...snippet(`loop-alias-owner/${ shape }/${ kind }/${ member ? 'member' : 'binding' }/${ wrapped ? 'sequence' : 'plain' }/${ awaited ? 'await' : 'sync' }`, expr), strip: true };
+      }
+    }
+  }
+  // Opaque iteration records where the head came from without exposing its whole namespace.
+  // Static reads still have to work, including reads through a pattern or a local alias.
+  for (const source of ['await', 'spread', 'named', 'returned']) for (const use of ['static', 'pattern', 'alias', 'dynamic']) {
+    const read = use === 'pattern' ? 'const { groupBy } = value; return groupBy([1], x => x).get(1)[0];'
+      : use === 'alias' ? 'const alias = value; return hand(alias);'
+        : use === 'dynamic' ? 'return value[String.fromCharCode(103, 114, 111, 117, 112, 66, 121)]([1], x => x).get(1)[0];'
+          : 'return value.groupBy([1], x => x).get(1)[0];';
+    const rhs = source === 'named' ? 'values' : source === 'returned' ? 'values()' : source === 'spread' ? '[...[Map]]' : '[Map]';
+    const expr = `${ source === 'await' ? 'await (async ' : '(' }() => {
+      const hand = Function("C", "return C.groupBy([1], function (x) { return x; }).get(1)[0]");
+      ${ source === 'named' ? 'const values = [Map];' : '' }
+      ${ source === 'returned' ? 'function values() { return [Map]; }' : '' }
+      for ${ source === 'await' ? 'await ' : '' }(const value of ${ rhs }) { ${ read } }
+    })()`;
+    yield { ...snippet(`loop-opaque-read/${ source }/${ use }`, expr), strip: true };
+  }
+  yield { ...snippet('loop-opaque-read/await/rebound-array', `await (async () => {
+    let value = Object;
+    for await (value of [Array]) { break; }
+    return value.of(3)[0];
+  })()`), strip: true };
+  for (const member of [false, true]) {
+    const receiver = member ? 'box.value' : 'value';
+    yield { ...snippet(`loop-opaque-read/${ member ? 'member' : 'await' }/array-or-custom`, `await (async () => {
+      const box = {};
+      const custom = { value: 7, of() { return [this.value]; } };
+      let sum = 0;
+      for ${ member ? '' : 'await ' }(${ member ? '' : 'const ' }${ receiver } of [Array, custom]) {
+        sum += ${ receiver }.of(3)[0];
+      }
+      return sum;
+    })()`), strip: true };
+  }
+}
+
 export function * generate() {
+  yield * generateLoopAliasOwners();
   yield * generateDeferredReads();
   yield * generateGuardForms();
   yield * generatePredicateArms();
