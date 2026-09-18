@@ -270,9 +270,8 @@ export default function plugin(api, options) {
   let writtenContainerSlots = null;
   let containerSlotIndex = null;
   let fileCensus = null;
-  // the census's escape half, by NAME. the answer object is built outside the walk so it closes over
-  // the name sets alone - the slot outlives the file it was filled for, and one taken from the walk's
-  // own scope would hold that file's whole tree for as long as this instance lives
+  // the census's escape half, by NAME. Its sets also key AST-bearing escape-walk caches,
+  // so the answer must be released with the rest of the census after each file.
   let escapedCtorNames = null;
   // a static the user monkey-patches must never bind to the frozen receiver-less import:
   // every pipeline (member emission, destructure props, param synth) resolves through this
@@ -2557,7 +2556,7 @@ export default function plugin(api, options) {
         // the census is AST-bearing too: `writtenContainerSlots` maps each written slot to the
         // VALUE nodes assigned to it, so keeping it would pin the file's tree just as the
         // emitters do. its derived slots go with it - they are read only during traversal
-        fileCensus = mutatedStatics = mutationRoots = writtenContainerSlots = containerSlotIndex = null;
+        fileCensus = escapedCtorNames = mutatedStatics = mutationRoots = writtenContainerSlots = containerSlotIndex = null;
       }
 
       // every per-file slot that is NOT heap-allocated, in one place: postHook nulls the
