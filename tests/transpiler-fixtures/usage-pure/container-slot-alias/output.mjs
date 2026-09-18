@@ -15,8 +15,8 @@ import _Object$values from "@core-js/pure/actual/object/values";
 // and array indices. the alias holds the VALUE its init spells - the tail behind an effect prefix,
 // the value a chain assignment installs (`(eff(), r.w)`, `(installed = r.w)`) - since the prefix
 // ran at the declaration; a prefix that WRITES the slot is a write the census records like any other.
-// what still deopts: a slot written through the alias's container, a reassigned
-// alias, an alias handed to a call, a wrapper handed to a call, a mutated static through the alias.
+// A later container write cannot change an already captured slot value. Still conservative:
+// writes that may reach the capture, reassigned or escaped aliases, escaped wrappers and patched statics.
 // uncertain writes and escapes remain conservative, so each deopting row owns a container
 // declared in a block of its own:
 // beside the positive rows it would deopt them all and lock the instance dispatcher as the answer
@@ -70,7 +70,7 @@ _pushMaybeArray(out).call(out, viaConstValues, viaLowered, viaLoweredRoot, viaLo
   };
   const writtenAlias = written.w;
   written.w = Array;
-  const viaWrittenSlot = _values(writtenAlias);
+  const viaWrittenSlot = _Object$values;
   _pushMaybeArray(out).call(out, viaWrittenSlot);
 }
 {
