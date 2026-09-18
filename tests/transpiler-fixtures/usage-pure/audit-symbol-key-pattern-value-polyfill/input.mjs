@@ -9,7 +9,7 @@ const { [Symbol.iterator]: { done } = fb } = obj;
 const arr = [3];
 const { [Symbol.iterator]: { name, ...restOfMethod } } = arr;
 // all-proxy ternary receiver: the collapse extracts the sibling static AND the symbol pattern
-const { Set: { union }, [Symbol.iterator]: { next: n2 } } = globalThis.Set ? globalThis : globalThis;
+const { Set: { customQ }, [Symbol.iterator]: { next: n2 } } = globalThis.Set ? globalThis : globalThis;
 // a computed well-known-symbol key INSIDE the extracted pattern stays live and substitutes
 const { [Symbol.iterator]: { [Symbol.toPrimitive]: tp } } = [1];
 // A computed key and iterator pattern share one receiver and execute their reads in source order.
@@ -26,4 +26,4 @@ const { [Symbol.iterator]: { length: callArity }, q } = mk();
 const { [(k2(), 'toSorted')]: ts, [Symbol.iterator]: { length: mixArity } } = holder2.p;
 // EXPORT host: the memo plants as a bare statement before the export (never exported itself)
 export const { [Symbol.iterator]: { length: expArity }, expQ } = holder3.p;
-export { from, next, done, name, restOfMethod, union, n2, tp, of, iterName2, c, litArity, litCall, memArity, sib, brArity, alt, callArity, q, ts, mixArity };
+export { from, next, done, name, restOfMethod, customQ, n2, tp, of, iterName2, c, litArity, litCall, memArity, sib, brArity, alt, callArity, q, ts, mixArity };

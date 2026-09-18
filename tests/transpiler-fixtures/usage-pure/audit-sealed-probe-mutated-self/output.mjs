@@ -2,11 +2,12 @@ import _globalThis from "@core-js/pure/actual/global-this";
 import _entries from "@core-js/pure/actual/instance/entries";
 import _keys from "@core-js/pure/actual/instance/keys";
 import _Map from "@core-js/pure/actual/map/constructor";
+import _self from "@core-js/pure/actual/self";
 // a MUTATED `self` slot deopts the sealed probe forms FILE-WIDE (the slot write makes every
 // `self` read the user's replacement): the synth default, the claim and the destructure all
 // keep the raw sealed read - substituting a pony would bypass the mutation. isolated file:
 // the deopt is file-scoped by design, and would kill probe fixtures sharing the module
-_globalThis.self = _globalThis.self;
+_globalThis.self = _self;
 export function viaSealedMutatedSynth({
   getPrototypeOf: dm1
 } = (_globalThis.window?.self).Object) {

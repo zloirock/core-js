@@ -159,7 +159,7 @@ for (const _ref2 of [{
   y: [1]
 }]) {
   let viaDualBesideInstance = _Object$values;
-  let viaInstanceBeside = _at(_ref2.y);
+  let viaInstanceBeside = _atMaybeArray(_ref2.y);
   [viaDualBesideInstance, viaInstanceBeside];
 }
 for (const viaWritten of [{
