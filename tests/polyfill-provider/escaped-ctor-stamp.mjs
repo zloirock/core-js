@@ -38,6 +38,24 @@ const { check, checkTruthy, finish } = createChecker('escaped-ctor-stamp');
 // would borrow its span from
 const ROWS = [
   {
+    name: 'literal loop element through a plain binding',
+    code: 'for (const value of [globalThis.Map]) hand(value);',
+    stamped: ['globalThis.Map'],
+    bare: ['globalThis'],
+  },
+  {
+    name: 'loop assignment reaches its outer binding',
+    code: 'let value; { for ([value] of [[globalThis.Map]]) {} } hand(value);',
+    stamped: ['globalThis.Map'],
+    bare: ['globalThis'],
+  },
+  {
+    name: 'lexical loop binding does not reach an outer namesake',
+    code: 'let value = globalThis.Set; for (const [value] of [[globalThis.Map]]) {} hand(value);',
+    stamped: ['globalThis.Set'],
+    bare: ['globalThis.Map', ['globalThis', 1], ['globalThis', 2]],
+  },
+  {
     name: 'bare reference in a call argument',
     code: 'hand(Map);',
     stamped: ['Map'],
