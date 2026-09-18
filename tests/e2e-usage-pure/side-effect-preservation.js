@@ -878,3 +878,83 @@ QUnit.test('side effect: a two-element sequence-receiver prefix stays ahead of t
   assert.strictEqual(result, 2, 'the call still returns the polyfilled answer');
   assert.deepEqual(order, ['outer', 'inner', 'read', 'key'], 'both prefix effects, receiver read, key');
 });
+
+// the receiver read a static descent DISCARDS is owed back exactly once on the ASSIGNMENT host as on
+// the declaration one: `mayHaveSideEffects` calls a plain member read pure, so a value only an
+// object-literal getter could name reaches the render through the rescue channel alone - and without
+// that channel the descent had to refuse the host and the leaf stayed native
+QUnit.test('assignment host: a discarded getter receiver replays once and the descent is served', assert => {
+  let fires = 0;
+  const holder = {
+    // eslint-disable-next-line es/no-accessor-properties -- the getter behind the receiver read IS the case under test
+    get realm() {
+      fires++;
+      return globalThis;
+    },
+  };
+  let bound;
+  // eslint-disable-next-line prefer-const -- the ASSIGNMENT host is the shape under test, a declaration never reaches it
+  ({ Object: { groupBy: { bind: bound } } } = holder.realm);
+  assert.same(typeof bound, 'function');
+  assert.same(fires, 1);
+  // the declaration twin is the control: same descent, same single replay
+  let declFires = 0;
+  const twin = {
+    // eslint-disable-next-line es/no-accessor-properties -- the getter behind the receiver read IS the case under test
+    get realm() {
+      declFires++;
+      return globalThis;
+    },
+  };
+  const { Object: { groupBy: { bind: declBound } } } = twin.realm;
+  assert.same(typeof declBound, 'function');
+  assert.same(declFires, 1);
+});
+
+// an INNER DEFAULT fires wherever the outer slot reads undefined, and an effect spelled in its
+// value runs exactly there. a consume that takes the whole default takes the effect with it, and
+// no unconditional replay reproduces the condition - so the default stays where the source wrote it
+QUnit.test('side-effects: an inner default keeps the effect its own value carries', assert => {
+  let hits = 0;
+  function pick() { return null; }
+  const shim = pick();
+  const { slot: { Array: { from } } = (hits++, shim || globalThis) } = {};
+  assert.same(typeof from, 'function');
+  assert.same(hits, 1);
+  // the control: the same default over a slot that IS present never fires, so the effect must not run
+  let missHits = 0;
+  const { slot: { Array: { of } } = (missHits++, globalThis) } = { slot: { Array: { of: () => ['own'] } } };
+  assert.same(of(1)[0], 'own');
+  assert.same(missHits, 0);
+});
+
+// a receiver whose read runs an ACCESSOR is observable by that read alone, and a consume that takes
+// every prop discards it - so the rescue has to put it back. a getter has no shape that says
+// "effect", which is why the decision belongs to the rescue and not to a filter over the nodes
+QUnit.test('side-effects: a getter receiver runs once when every prop is consumed', assert => {
+  let reads = 0;
+  const holder = {
+    // eslint-disable-next-line es/no-accessor-properties -- the accessor behind the receiver IS the case
+    get realm() {
+      reads++;
+      return globalThis;
+    },
+  };
+  const { Array: { from }, Object: { keys } } = holder.realm;
+  assert.same(typeof from, 'function');
+  assert.same(typeof keys, 'function');
+  assert.same(reads, 1);
+  // the control: one claim beside a SURVIVING residual keeps the read where the source wrote it
+  let soleReads = 0;
+  const sole = {
+    // eslint-disable-next-line es/no-accessor-properties -- same receiver shape, one claim
+    get realm() {
+      soleReads++;
+      return globalThis;
+    },
+  };
+  const { Array: { of }, other } = sole.realm;
+  assert.same(of(1).length, 1);
+  assert.same(typeof other, 'undefined');
+  assert.same(soleReads, 1);
+});

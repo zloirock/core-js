@@ -42,6 +42,7 @@ import {
   isMutatedGlobalSlot,
   isNullLiteralNode,
   isPristineProxyGlobal,
+  isRestProperty,
   isReassignedBeyondDeclarator,
   isRenderedStoredValue,
   isTopLevelThisContext,
@@ -95,6 +96,8 @@ import {
   tsImportEqualsProxyName,
   tsImportEqualsRequireSource,
   unwrapParens,
+  forOfIterableElements,
+  isForXStatement,
   unwrapRuntimeExpr,
   unwrapTransparentSeq,
   varInitDominatesUsage,
@@ -1331,6 +1334,33 @@ export function proxyGlobalRootName({ node, scope, adapter, path, seen, binding 
   return isPristineProxyGlobal(adapter, node.name) ? node.name : null;
 }
 
+// a for-x HEAD's element binding holds what the loop ITERATES, which no init can carry: where the
+// iterable is an array literal whose EVERY element names the same proxy global, the element IS that
+// global on every pass (`for (const e of [globalThis])`). That is what tells a runtime ctor guard it
+// is dead - without it the hop under such a head reads as a user object and every claim below it
+// keeps the source's own read, losing the ponyfill the same shape gets on any other host. A single
+// element that is anything else takes the whole answer away: the loop then really does see two
+// different objects, and the guard is the right render
+function forXElementProxyGlobal({ name, scope, adapter, path, seen }) {
+  for (let up = path; up?.node; up = up.parentPath) {
+    if (!isForXStatement(up.node)) continue;
+    const { left } = up.node;
+    const declared = left?.type === 'VariableDeclaration' ? left.declarations?.[0]?.id : left;
+    if (declared?.type !== 'Identifier' || declared.name !== name) continue;
+    const elements = forOfIterableElements(up.node);
+    if (!elements?.length) return null;
+    let held = null;
+    for (const element of elements) {
+      const realm = element
+        && proxyGlobalRootName({ node: unwrapRuntimeExpr(element), scope, adapter, path: up, seen });
+      if (!realm || (held !== null && held !== realm)) return null;
+      held = realm;
+    }
+    return held;
+  }
+  return null;
+}
+
 // boolean view for the call sites that only ask "is it a proxy root", not "which one"
 export function isProxyGlobalIdentifierNode(args) {
   return proxyGlobalRootName(args) !== null;
@@ -1587,6 +1617,13 @@ function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, p
       });
       if (alias) return alias;
     }
+    // ... and a declarator the HEAD of a for-x owns carries no init because its value is what the
+    // loop ITERATES: the one value no init can spell, and the reason a hop under such a head read as
+    // a user object on one binding while the other folded it onto the constructor
+    const iterated = forXElementProxyGlobal({
+      name, scope, adapter, seen, path: path ?? binding.declarationPath ?? null,
+    });
+    if (iterated) return iterated;
   }
   // ... unless every value the binding can hold NAMES THE REALM: the writes spell one object under
   // several names, so a read through it answers the same whichever reached the use - there is no
@@ -1891,13 +1928,129 @@ export function guaranteedRealmObjectName(name) {
   return !!name && POSSIBLE_GLOBAL_OBJECTS.has(name) && !!resolveBuiltInMeta({ kind: 'global', name });
 }
 
-// walks a chain of proxy-global links (`globalThis.self.window.X`) to its root identifier;
-// returns true when the root is a proxy global and every intermediate link is also one.
-// IIFE-at-root (`(() => globalThis).Array.from(x)`) is inlined via `inlineCallReturnExpression`
-// so the chain bottoms out on the proxy-global identifier inside the IIFE body. caller is
-// responsible for marking the inner proxy-global identifier (`markSubsumedProxyChain`) so the
-// binding's own visitor does not rewrite `globalThis -> _globalThis` a second time inside a
-// span the outer polyfill replacement already owns
+// how a realm SELECTION leaf reads the realm: `surface` where its value is the realm object on every
+// host - `globalThis` by the language, `self` by its own ponyfill, and a hop of either read off one
+// of them - `probe` where the leaf names that same realm but only WHERE THE HOST SPELLS IT: a proxy
+// hop pure cannot back (`globalThis.window`) and the BARE name of one (`window`, `global`) alike.
+// the two spellings answer alike because the proxy globals ARE one object: where `window` resolves
+// it IS the realm, so a selection over it names the realm and the polyfill belongs on both of its
+// arms. Accepted price, and the only one: a bare name the realm does not spell reads as absent here
+// where the language throws a ReferenceError, so the selection the author wrote as a fallback takes
+// that fallback instead of throwing - the divergence a READ takes, the same one a `window` HOP
+// already takes. A SHADOWED name is not this question at all: `function f(self)` and `const window =
+// {}` bind the user's own object, which the root resolver answers through the binding, so a caller
+// that brings its scope gets the user's value left alone. null for everything else. `adapter` adds
+// the pristine-slot half for a caller that DECIDES on the answer; the peel below leaves it off by
+// its own convention, handing a mutated spelling to the identifier checks downstream. a MINTED root
+// (`_globalThis`, after the walk swapped the name for its ponyfill) names its realm through the
+// injector hint, so a caller asking after the rewrite reads the same answer as one asking before.
+// a deeper chain answers null - the multihop canon speaks for those
+export function realmSelectionLeafKind(node, { adapter = null, injectorState = null, scope = null, path = null } = {}) {
+  const core = unwrapTransparentSeq(node);
+  const member = core?.type === 'MemberExpression' || core?.type === 'OptionalMemberExpression';
+  const hop = member && !core.optional ? realmHopKeyName(core) : null;
+  if (member && !hop) return null;
+  const root = unwrapTransparentSeq(member ? core.object : core);
+  if (root?.type !== 'Identifier') return null;
+  const rootName = proxyGlobalRootName({ node: root, scope, adapter, path })
+    ?? injectorState?.getPureImport?.(root.name)?.hint;
+  if (!POSSIBLE_GLOBAL_OBJECTS.has(rootName)
+    || (adapter && !isPristineProxyGlobal(adapter, rootName))) return null;
+  if (!member) return guaranteedRealmObjectName(rootName) ? 'surface' : 'probe';
+  if (!POSSIBLE_GLOBAL_OBJECTS.has(hop) || (adapter && !isPristineProxyGlobal(adapter, hop))) return null;
+  return guaranteedRealmObjectName(hop) ? 'surface' : 'probe';
+}
+
+// the operand a value-SELECTING receiver always yields the REALM through, or null where some value it
+// can yield is not the realm. one answer for both legs' mirror-or-flatten decision: a selection every
+// value of which IS the realm has no branch worth swapping, so the flatten binds the polyfill to that
+// operand and the whole selection drops. a `??` / `||` LEFT that names the realm decides it and kills
+// the right (the bare-name half `peelRealmLogicalDefault` walks below); a left that can only VANISH
+// hands on to the RIGHT instead, and a right proving the realm proves the selection whichever host
+// runs it. a ternary keeps both arms and owes a pure test; `&&` keeps its FALSY left, which no realm
+// name can be, so its guarded path stays exactly as the source wrote it
+export function realmSelectionCollapseOperand(node, ctx) {
+  const core = unwrapTransparentSeq(node);
+  if (core?.type === 'ConditionalExpression') {
+    if (mayHaveSideEffects(core.test)) return null;
+    const consequent = realmSelectionCollapseOperand(core.consequent, ctx);
+    return consequent && realmSelectionCollapseOperand(core.alternate, ctx) ? consequent : null;
+  }
+  if (core?.type === 'LogicalExpression') {
+    if (core.operator === '&&') return null;
+    return realmSelectionCollapseOperand(core.left, ctx)
+      ?? (realmSelectionLeafKind(core.left, ctx) === 'probe'
+        ? realmSelectionCollapseOperand(core.right, ctx) : null);
+  }
+  return realmSelectionLeafKind(core, ctx) === 'surface' ? core : null;
+}
+
+// the DESTRUCTURE HOST whose realm-selecting init collapses, as the slot holding it, that init and
+// the operand it yields - null where the host spells no selection or a branch of it is not the realm.
+// the host rewrite both bindings apply at their first scoped look at the pattern, each with its own
+// surgery: what the pattern reads is ONE object, so the selection is dead text, and dropping it is
+// what lets a pattern with no nested prop - a flat constructor slot, which drives no flatten of its
+// own - resolve like the plain proxy receiver it is. applied on ONE leg it is a divergence rather
+// than a simplification: the other leg still walks the dropped branch and mints what it spells, so
+// each binding marks the discarded subtree skipped as it replaces it
+// does this selection put a realm PROBE on the arm its own test decides? that arm yields the realm
+// wherever the host spells the probe's name, so the mirror owes it a literal - and the shared plan is
+// the only route that renders one, re-spelling the selection as a null test on the probe's own read.
+// both bindings ask it in the same words, ahead of their own per-branch swap: left to their bespoke
+// mirrors the arm stays raw on whichever leg happens to own the shape, and a browser reads the realm
+export function realmProbeArmSelection(node, ctx) {
+  const core = unwrapTransparentSeq(node);
+  // a TEST-selected arm answers the same: what decides the arm is the test, so the probe rides the
+  // null test on its own read and the literal takes the branch it leaves. asked of BOTH arms - the
+  // one a browser takes is the probe's, and left raw there the pattern reads the realm's own member.
+  // only where the arms DISAGREE about definability: arms that agree have one value whichever branch
+  // runs, so the whole selection collapses onto it and spells the probe read it owes there
+  if (core?.type === 'ConditionalExpression') {
+    const arms = [core.consequent, core.alternate]
+      .map(arm => realmSelectionLeafKind(unwrapTransparentSeq(arm), ctx));
+    return arms.includes('probe') && arms.some(kind => kind !== 'probe');
+  }
+  if (core?.type !== 'LogicalExpression' || core.operator === '&&') return false;
+  return realmSelectionLeafKind(core.left, ctx) === 'probe';
+}
+
+// the SITES a destructure host offers the collapse above, as `{ container, key, init, operand }`:
+// the host's own init slot and, where that init is an array WRAPPER, each element paired with a
+// pattern element. empty where the host is not a destructure, gathers a rest, or the method only
+// reads. both bindings walk the list and do their own swap - the answer is one, the surgery theirs
+export function realmSelectingHostCollapses(hostNode, ctx) {
+  const slot = hostNode?.type === 'VariableDeclarator' ? 'init'
+    : hostNode?.type === 'AssignmentExpression' && hostNode.operator === '=' ? 'right' : null;
+  if (!slot) return [];
+  // a DESTRUCTURE host only - the pattern is what reads the selection's value member by member, and
+  // what every route below needs a plain receiver for. a plain binding holds the selection's value
+  // whole, where nothing has to name it
+  const target = hostNode.type === 'VariableDeclarator' ? hostNode.id : hostNode.left;
+  if (target?.type !== 'ObjectPattern' && target?.type !== 'ArrayPattern') return [];
+  // ... and not one gathering a REST: that is where pure stops extracting at the level, so the
+  // collapse enables nothing, and only a leg walking every host rather than every claim would
+  // perform it - the two would then spell one host two ways for no gain
+  if (target.type === 'ObjectPattern' && target.properties.some(isRestProperty)) return [];
+  // the REWRITING method only: `usage-global` prints the source verbatim and answers with imports
+  // alone, so a host rewrite there would edit code that method promises not to touch
+  if (ctx?.adapter?.method !== 'usage-pure') return [];
+  const sites = [];
+  function consider(container, key) {
+    const init = container[key];
+    if (init?.type !== 'LogicalExpression' && init?.type !== 'ConditionalExpression') return;
+    const operand = realmSelectionCollapseOperand(init, ctx);
+    if (operand && operand !== init) sites.push({ container, key, init, operand });
+  }
+  consider(hostNode, slot);
+  // an ARRAY WRAPPER pairs each of its elements with the pattern's own, so a selection standing in
+  // one IS that element's receiver and reads exactly as a bare host init would
+  const value = hostNode[slot];
+  if (value?.type === 'ArrayExpression') {
+    value.elements.forEach((element, at) => { if (element) consider(value.elements, at); });
+  }
+  return sites;
+}
+
 // the chain-root peel plus one more carrier only this walk may read through: a `??` / `||` over
 // a guaranteed realm name ITSELF yields that left operand - the binding is guaranteed (by the
 // language for `globalThis`, by the ponyfill entry for `self`) and an object is neither nullish
@@ -1918,6 +2071,13 @@ export function peelRealmLogicalDefault(node, { discarding = false } = {}) {
   while (current?.type === 'LogicalExpression' && (current.operator === '??' || current.operator === '||')) {
     const left = peelRoot(current.left);
     if (left?.type === 'Identifier' && guaranteedRealmObjectName(left.name)) return left;
+    // ... and a left that can only VANISH - the ENVIRONMENT PROBE, a proxy hop pure cannot back read
+    // off a realm name - hands the selection on to its RIGHT, so a right naming the realm names the
+    // whole selection (`globalThis.window ?? globalThis` IS the realm off-window and on it alike)
+    if (realmSelectionLeafKind(left) === 'probe') {
+      const fallback = peelRealmLogicalDefault(current.right, { discarding });
+      if (fallback?.type === 'Identifier' && guaranteedRealmObjectName(fallback.name)) return fallback;
+    }
     current = left;
   }
   return core;
@@ -1986,6 +2146,27 @@ function resolveProxyGlobalRoot({ receiver, scope, adapter, seen, path, usageNod
       && (isProxyGlobalIdentifier({ node: obj, scope, adapter, seen, path, usageNode, readNode: obj })
       || !!requireBoundProxyGlobalName({ node: obj, scope, adapter, path }));
   }
+}
+
+// may an extraction WRITE into this destructure target? a target the source spells as a MEMBER is the
+// author's own slot, and the ponyfill belongs in it exactly as it belongs in a binding the author
+// declares - unless the slot hangs off a GLOBAL, where the write would install the ponyfill in the
+// realm, which is the one thing pure never does. so the question is what the target's ROOT stands
+// for, never that the target IS a member: an unbound root reads the global object, and a bound one
+// may still HOLD the realm (`const box = globalThis`), which only the value canon can say. an
+// EFFECTFUL spelling is refused for a different reason - the extraction moves, and the effect with it
+export function memberTargetTakesExtraction(valueNode, { scope = null, adapter = null, path = null } = {}) {
+  // a leaf DEFAULT over a static is dead text either way - the extraction writes the import, which is
+  // never undefined - so the slot answers the same peeled as a binding leaf's does
+  const target = patternSlotTarget(valueNode);
+  if (!isMemberAccessNode(target) || !adapter || !scope) return null;
+  let root = target;
+  while (isMemberAccessNode(root)) {
+    if (root.computed || root.optional) return null;
+    root = root.object;
+  }
+  if (root?.type !== 'Identifier' || !adapter.hasBinding(scope, root.name, path)) return null;
+  return resolveObjectName({ objectNode: root, scope, adapter, path }) === null ? target : null;
 }
 
 // `seen` threaded from resolveBindingToGlobal so cyclic const chains
@@ -2540,6 +2721,27 @@ export function handsValueOn(host, child) {
     case 'LogicalExpression': return host.left === child || host.right === child;
     default: return SKIPPABLE_WRAPPER_TYPES.has(host?.type);
   }
+}
+
+// is this member READ the value the write to its OWN slot computes from? `X.y = X.y || patch` reads
+// the slot to DETECT it, and that read runs BEFORE the write lands - so the mutation the census
+// records for the pair says nothing about it, and the polyfill belongs exactly there: satisfied, the
+// detect never installs the third-party patch, and what the slot then holds is core-js's own
+// implementation, which is what every read AFTER the write goes on reading raw. the climb is the
+// value-carrier set's, so the detect is recognised through the shapes that hand a value on
+export function readFeedsOwnSlotWrite(readPath, { objectName, keyName, scope, adapter, path }) {
+  let child = readPath?.node;
+  let up = readPath?.parentPath;
+  while (up?.node && handsValueOn(up.node, child)) {
+    if (up.node.type === 'AssignmentExpression') {
+      const left = unwrapTransparentSeq(up.node.left);
+      if (staticMemberKeyName(left) !== keyName) return false;
+      return resolveObjectName({ objectNode: left.object, scope, adapter, path }) === objectName;
+    }
+    child = up.node;
+    up = up.parentPath;
+  }
+  return false;
 }
 
 // ... and WHO owns what such a store hands on. a store nothing reads through holds the value its own
@@ -4440,14 +4642,20 @@ export function findChainRootCallExpression(node, throughChainAssign = false) {
 
 // SE-bearing call at the root of a chain (`(() => { c++; return X; })()`, direct or under member
 // hops): a fold / flatten that DISCARDS the chain would silently drop the call's observable setup.
-// returns the call node when it carries effects, null otherwise - callers either harvest it for
-// re-emission or bail the discard entirely
+// answers the node the SOURCE wrote where the root owes an effect at all - a call that carries one,
+// a tagged template, an `await` whose tick is the effect, a `new` that runs its constructor - and
+// null otherwise; callers either harvest it for re-emission or bail the discard entirely
 export function seBearingChainRootCall({ node, scope, adapter, path }) {
   // a TAGGED TEMPLATE invokes its tag with the quasi's expressions - a call in every way that
   // matters to a discard, and one no callee resolution reaches through, so it never erases
   const { root } = descendToChainRoot(node);
   if (root?.type === 'TaggedTemplateExpression') return root;
-  const rootCall = findChainRootCallExpression(node);
+  // an `await` is an effect in ITSELF - the tick it costs is observable whatever it awaits - so it
+  // is always rescued; a `new` runs its constructor and is rescued on the same terms as a call.
+  // both are rescued as the node the SOURCE wrote: the call view the realm proof reads them through
+  // is the proof's alone and never reaches an emission
+  if (root?.type === 'AwaitExpression') return root;
+  const rootCall = findChainRootCallExpression(node) ?? (root?.type === 'NewExpression' ? root : null);
   if (!rootCall) return null;
   // an UNRESOLVABLE callee is UNKNOWN, not pure - erasing the call would drop whatever it does.
   // `inlineCallHasObservableEffects` answers the opposite question (may I INLINE this call), where

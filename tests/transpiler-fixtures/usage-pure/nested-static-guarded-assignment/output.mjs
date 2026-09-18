@@ -14,20 +14,21 @@ let keys = 'old-keys';
 let result;
 try {
   var _ref;
-  _pushMaybeArray(events).call(events, 'source');
-  var _unused;
   ({
     Array: {
       [(_pushMaybeArray(events).call(events, 'key'), 'from')]: from
     },
-    [(_pushMaybeArray(events).call(events, _atMaybeString(_ref = 'x').call(_ref, 0), typeof from), 'Object')]: _unused
-  } = ((null == _globalThis.window ? void 0 : _self).Array, {
+    [(_pushMaybeArray(events).call(events, _atMaybeString(_ref = 'x').call(_ref, 0), typeof from), 'Object')]: {
+      keys
+    }
+  } = (_pushMaybeArray(events).call(events, 'source'), (null == _globalThis.window ? void 0 : _self).Array, {
     Array: {
       from: _Array$from
     },
-    Object: _self.Object
+    Object: {
+      keys: _Object$keys
+    }
   }));
-  keys = _Object$keys;
   result = [from([7])[0], keys({
     x: 1
   })[0]];
@@ -54,7 +55,7 @@ try {
       from: _Array$from
     },
     Object: {
-      keys: _self.Object.keys
+      keys: _Object$keys
     }
   }));
 } catch (error) {

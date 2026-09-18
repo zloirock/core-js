@@ -26,6 +26,7 @@ import {
   isChainAssignment,
   isDestructurePattern,
   isEffectfulKeyHop,
+  isMemberAccessNode,
   isPropertyNode,
   isRestProperty,
   patternHasAnyDefault,
@@ -36,6 +37,7 @@ import {
   patternKeepsEffectfulHop,
   patternRootKeyPathsFor,
   patternSlotTarget,
+  soleChainToProp,
   peelNestedSequenceExpressions,
   peelZeroArgIifeReturn,
   plainSynthKeyName,
@@ -55,14 +57,17 @@ import { resolve as resolveBuiltIn } from '../index.js';
 import { computedPropKeyHostsMachinery } from './members.js';
 import {
   chainSealsAShortCircuit,
+  computedKeyIsWellKnownSymbol,
   consumableHopSlotName,
-  discardRescueNodes,
   guaranteedRealmObjectName,
   isStaticPlacement,
   navValueCanShortCircuit,
   peelRealmLogicalDefault,
+  realmSelectionCollapseOperand,
+  realmSelectionLeafKind,
   proxyReceiverValueCanBeUndefined,
   resolveKey as sharedResolveKey,
+  memberTargetTakesExtraction,
   resolveObjectName,
 } from './resolve.js';
 import {
@@ -71,6 +76,7 @@ import {
   destructureHostInitNode,
   destructurePatternHostPath,
   destructureRightIsReceiver,
+  discardRescueNodesWithReads,
   fallbackInitWhollyDiscardable,
   resolveBranchProxyName,
   walkStaticReceiverChain,
@@ -95,13 +101,18 @@ function collapseFallbackInit({ init, scope, adapter, path, resolveGlobalPolyfil
       // (the shared predicate the identification resolver uses); a diverging alternate means
       // the runtime may pick a receiver the polyfill is wrong for, so bail and stay native
       else if (init.type === 'ConditionalExpression') {
-        // NO `fallbackDropped` here: the agreement gate admits only branches naming the SAME
-        // proxy, so the dropped alternate is exactly as (un)definable as the kept consequent -
-        // it rescues nothing, and the probe question stays with the collapsed operand
-        // (`c ? globalThis.window : globalThis.window` still throws on a full consume)
-        init = resolveBranchProxyName({ branchNode: init.consequent, scope, adapter, path })
-          && resolveBranchProxyName({ branchNode: init.alternate, scope, adapter, path })
-          ? unwrapExpressionChain(init.consequent) : null;
+        // ... and agrees on DEFINABILITY too. naming the same proxy is not the same claim: an arm
+        // the environment may not have is the PROBE, and in a ternary the TEST picks the arm, so
+        // keeping one moves WHEN the value is undefined. only arms of the same kind may collapse -
+        // both guaranteed, or both probes (`c ? globalThis.window : globalThis.window` still throws
+        // on a full consume, which is why the probe question stays with the collapsed operand and
+        // no `fallbackDropped` is reported here)
+        const { alternate, consequent } = init;
+        const kindCtx = { scope, adapter, path };
+        init = resolveBranchProxyName({ branchNode: consequent, scope, adapter, path })
+          && resolveBranchProxyName({ branchNode: alternate, scope, adapter, path })
+          && realmSelectionLeafKind(consequent, kindCtx) === realmSelectionLeafKind(alternate, kindCtx)
+          ? unwrapExpressionChain(consequent) : null;
       } else if (init.type === 'LogicalExpression') {
         const collapsed = collapseLogicalInitOperand({ init, scope, adapter, path, resolveGlobalPolyfill });
         fallbackDropped ||= collapsed.dropped;
@@ -128,6 +139,12 @@ function collapseLogicalInitOperand({ init, scope, adapter, path, resolveGlobalP
     || chainSealsAShortCircuit(left, ({ name }) => resolveGlobalPolyfill(name), aliasCtx)) {
     return { value: left, dropped: false };
   }
+  // ... and a probed left is still no reason to keep the selection when EVERY value it can yield is
+  // the REALM: the probe reads undefined off-host and the fallback behind it is that same object, so
+  // the collapse binds a receiver no branch disagrees with and the whole selection drops. the shared
+  // answer, which the unplugin's own mirror gate asks in the same spelling
+  const realmOperand = realmSelectionCollapseOperand(init, { adapter, scope, path });
+  if (realmOperand) return { value: realmOperand, dropped: true };
   const leftName = resolveObjectName({ objectNode: left, scope, adapter, path });
   return {
     value: leftName && leftName === resolveObjectName({
@@ -397,6 +414,27 @@ function objectHopPairedValue(objectNode, key, dereferenced, keyCtx) {
   };
 }
 
+// does this pattern LEAF carry a claim of ITS OWN - a member read whose own route renders it off the
+// same ponyfill - so a consume around it would read that member raw off the pattern instead? ONE
+// answer for both bindings, parameterized by the receiver the leaf reads through: a WELL-KNOWN-SYMBOL
+// key carries a render of its own whatever it folds to, a key nothing folds stays unknowable (which
+// counts as a claim), and a folded one is asked of the registry. `foldsComputedKey` is the caller's
+// promise that the render KEEPS the key node where the source wrote it - the ctor-pattern re-anchor
+// does, so its effect still runs once in place; a caller that cannot keep it treats a computed key as
+// unknowable instead
+export function leafCarriesOwnClaim({ leaf, receiver, resolvePure, keyCtx, foldsComputedKey = false }) {
+  if (!isPropertyNode(leaf)) return true;
+  if (leaf.computed && !foldsComputedKey) return true;
+  if (computedKeyIsWellKnownSymbol({ keyNode: leaf.key, ...keyCtx })) return true;
+  const key = leaf.computed
+    ? sharedResolveKey({ node: leaf.key, computed: true, ...keyCtx, bailOnSideEffectKey: false, keepsKeyNode: true })
+    : plainSynthKeyName(leaf.key);
+  if (key === null) return true;
+  const { object, placement } = receiver;
+  return !!resolvePure({ kind: 'property', object, key, placement },
+    placement === 'prototype' ? null : keyCtx.path);
+}
+
 // structural check: outerProp is a Property with computed `[Symbol.iterator]` key. Symbol
 // shadow not tracked here - matches the detection layer's shadowing trust. true for
 // both extractable shape (`[Symbol.iterator]: ident`) and non-extractable shape
@@ -438,7 +476,9 @@ function hasExtractions(planNode) {
 // surviving sibling will be EXTRACTED - emptying the pattern and dropping a SE init's receiver tail).
 // the bare `resolveBuiltIn` instance pre-filter is required: a pathless `resolvePure` crashes on
 // `enhanceMeta`'s member-like check for instance resolutions
-export function resolvePolyfillableStaticProp({ prop, receiverName, resolvePure, isDisabled = null, keyName = null }) {
+export function resolvePolyfillableStaticProp({
+  prop, receiverName, resolvePure, isDisabled = null, keyName = null, memberRoot = null,
+}) {
   if (isDisabled?.(prop)) return null;
   // caller may pre-resolve a scope-aware key (an Identifier computed key `[K]` folds to its binding
   // value); structural propertyKeyName only reads literals, so without it an `[K]` residual reads an
@@ -446,30 +486,28 @@ export function resolvePolyfillableStaticProp({ prop, receiverName, resolvePure,
   const name = keyName ?? (isPropertyNode(prop) ? propertyKeyName(prop) : null);
   if (name === null) return null;
   const valueNode = propBindingIdentifier(prop.value);
-  if (!valueNode) return null;
+  // ... and a MEMBER target is a slot like any binding where its root proves writable; every gate
+  // below still answers for it, which is what keeps a PROTOTYPE member (`Set.union`) out of the slot
+  const targetNode = valueNode ? null : memberTargetTakesExtraction(prop.value, memberRoot ?? {});
+  if (!valueNode && !targetNode) return null;
   const meta = { kind: 'property', object: receiverName, key: name, placement: 'static' };
   if (resolveBuiltIn(meta)?.kind === 'instance') return null;
   const pure = resolvePure(meta);
   if (!pure || pure.kind === 'instance') return null;
-  return { pure, localName: valueNode.name };
+  return { pure, localName: valueNode?.name ?? null, targetNode };
 }
 
-// a residual leaf that NAMES one of the receiver ctor's own polyfillable statics while binding it
-// to a value no extraction serves (a member target - the raw canon keeps it): re-anchored on the
-// ctor's pure binding, the leaf would read that static off it, and the `*/constructor` entry a
-// ctor's pure import binds carries none of its statics (`_Promise.race`, `_Map.groupBy`,
-// `_Iterator.from` read `undefined` where the realm's own ctor answers the function). a pattern
-// holding such a leaf keeps the native receiver, on both legs and under every anchor
-// ... and a COMPUTED key nothing folds (an effect, an unknown binding) may name any of them at
-// runtime, so it counts as one: the anchor cannot prove otherwise, and the raw residual is right
-export function residualLeafReadsCtorStatic({ prop, receiverName, resolvePure, keyName = null }) {
-  if (!isPropertyNode(prop) || propBindingIdentifier(prop.value)) return false;
-  const name = keyName ?? propertyKeyName(prop);
-  if (name === null) return !!prop.computed;
-  const meta = { kind: 'property', object: receiverName, key: name, placement: 'static' };
-  if (resolveBuiltIn(meta)?.kind === 'instance') return false;
-  const pure = resolvePure(meta);
-  return !!pure && pure.kind !== 'instance';
+// would re-anchoring this residual leaf onto the ctor's PURE binding WRITE the ponyfill into the
+// realm? that binding is what a realm WITHOUT the constructor has instead of it, so the re-anchor is
+// what keeps the read working there and declining it is a lost polyfill - WHICH value the binding
+// answers for a given member is the runtime's own business (a `*/constructor` entry exposes the
+// ctor's prototype members as statics and installs none of its own until another entry decorates
+// it). The one thing the re-anchor may not do is land the ponyfill in the realm: a MEMBER target is
+// the author's own slot and takes the binding like a declared one, unless its ROOT stands for a
+// global, and that is the same question the extraction canon asks of the same target
+export function residualLeafWritesIntoRealm(prop, memberRoot = null) {
+  const target = patternSlotTarget(prop?.value);
+  return isMemberAccessNode(target) && !memberTargetTakesExtraction(prop.value, memberRoot ?? {});
 }
 
 // the extracted value IS the iterator method - a FUNCTION - so a leaf pulled out of it is an
@@ -603,7 +641,7 @@ export function buildNestedDestructurePlan({
   function planInnerProp(prop, receiverName) {
     const keyName = propKeyNameScoped(prop);
     const resolved = resolvePolyfillableStaticProp({
-      prop, receiverName, resolvePure, isDisabled: leafDisabled, keyName,
+      prop, receiverName, resolvePure, isDisabled: leafDisabled, keyName, memberRoot: { scope, adapter, path },
     });
     if (!resolved) {
       // ... a STATIC whose slot holds a PATTERN with no claim of its own (`{ of: { length: arity } }`):
@@ -620,27 +658,61 @@ export function buildNestedDestructurePlan({
     return {
       kind: 'consumed', prop, keyName,
       extractions: [{
-        entry: resolved.pure.entry, hint: resolved.pure.hintName, localName: resolved.localName,
+        entry: resolved.pure.entry,
+        hint: resolved.pure.hintName,
+        localName: resolved.localName,
+        targetNode: resolved.targetNode,
         defaultNode: leafDefaultNode(prop),
       }],
     };
   }
 
-  // ... a leaf that carries a claim of ITS own (`name` off the static, a computed or unknowable key)
-  // keeps the pattern out: the leaf's own route renders that claim (the typed chain, the hop split)
+  // ... a leaf that carries a claim of ITS own (`name` off the static) keeps the pattern out: the
+  // leaf's own route renders that claim off the SAME ponyfill, and a consume here would read it raw
+  // off the pattern instead. the key is asked through the level's own namer, which folds a COMPUTED
+  // spelling like any other and names a NUMERIC slot on both dialects (`keepsKey`: the re-anchored
+  // pattern keeps the key node where the source wrote it, so an effect-bearing key still runs once
+  // in place). a key nothing folds stays unknowable, which counts as a claim; a folded one naming no
+  // prototype member rides, the way the assignment host already rides every leaf - refusing over it
+  // left the residual reading the static raw off the realm, where the ponyfill is the point
   function leafMayClaim(leaf) {
-    if (!isPropertyNode(leaf) || leaf.computed) return true;
-    if (leaf.key?.type !== 'Identifier' && leaf.key?.type !== 'StringLiteral' && leaf.key?.type !== 'Literal') return true;
-    return !!resolvePure({ kind: 'property', object: undefined, key: leaf.key.name ?? leaf.key.value, placement: 'prototype' });
+    return leafCarriesOwnClaim({
+      leaf,
+      receiver: { object: undefined, placement: 'prototype' },
+      resolvePure,
+      keyCtx: { scope, adapter, path },
+      foldsComputedKey: true,
+    });
+  }
+
+  // does a residual leaf whose key NAMES one of this ctor's polyfillable statics belong to the MIRROR
+  // rather than to the anchor? the anchor reads that member off the bare `*/constructor` binding,
+  // which installs none of the ctor's own statics, so the slot answers `undefined` unless some
+  // unrelated module happens to import the same static and decorate the shared binding - an
+  // UNDER-inject that depends on the rest of the bundle. The mirror spells the member's own ponyfill
+  // into a literal right where the pattern reads it, which needs neither that shared decoration nor
+  // the index entry (an OVER-inject). Asked through the key's SECOND spelling, the one that folds
+  // THROUGH an effect: an effect-bearing key still names the member it names, and such a prop is
+  // exactly the one the flatten could not consume
+  function residualLeafBelongsToMirror(leafProp, ctorName) {
+    const leafKey = propKeyNameScoped(leafProp, true);
+    if (leafKey === null || adapter?.isMutatedStatic?.(ctorName, leafKey)) return false;
+    const leafMeta = { kind: 'property', object: ctorName, key: leafKey, placement: 'static' };
+    if (resolveBuiltIn(leafMeta)?.kind === 'instance') return false;
+    const leafPure = resolvePure(leafMeta);
+    return !!leafPure && leafPure.kind !== 'instance';
   }
 
   // ... on the ASSIGNMENT host (the cascade's synthetic `{ id, init }`) a claiming leaf rides
   // along: that host renders every leaf claim it consumed off the extraction (the overwrite
-  // channel), where a declaration's flatten keeps it for the hop split
+  // channel), where a declaration's flatten keeps it for the hop split. that host is also the one
+  // the lift takes WHOLE, so it is asked for a sole chain - every wider shape belongs to the
+  // mirror, whose slot serves the static with the statement standing and nothing moved
   function patternValuedStaticProp(prop, receiverName, keyName) {
     if (keyName === null || !isPropertyNode(prop) || leafDisabled(prop)) return null;
     const pattern = prop.value;
     const claimsRide = declarator.type !== 'VariableDeclarator';
+    if (claimsRide && !soleChainToProp(declarator.id, prop)) return null;
     if (pattern?.type !== 'ObjectPattern' || !pattern.properties.length
       || pattern.properties.some(item => isRestProperty(item) || patternHasAnyDefault(item.value) || leafDisabled(item)
         || (!claimsRide && leafMayClaim(item)))) return null;
@@ -787,21 +859,48 @@ export function buildNestedDestructurePlan({
     if (!anchorPure) return planned;
     const inner = patternSlotTarget(planned.prop.value);
     if (inner?.type !== 'ObjectPattern' || inner.properties.some(isRestProperty)) return planned;
-    const residualProps = planned.kind === 'verbatim'
+    // a `[Symbol.iterator]` leaf on an ASSIGNMENT host owes the iterator-method SYNTH rather than a
+    // residual slot: the other leg claims it there, and left on the residual it becomes a well-known-
+    // symbol key read off the ctor's pure binding, which is not what that leg spells. the DECLARATION
+    // host keeps the residual on both legs, so the split is by HOST - a view with no `type` is the
+    // assignment's, which is how this plan is handed one. the synth reads off the ANCHOR, the ctor the
+    // leaf names a member of, so the extraction carries it
+    const anchorWks = [];
+    const symbolShadowed = scope && adapter?.hasBinding(scope, 'Symbol', path);
+    const residualProps = (planned.kind === 'verbatim'
       ? inner.properties
-      : planned.children.filter(c => c.kind !== 'consumed').map(c => c.prop);
-    // a residual leaf with a DEFAULT (top-level OR nested) bails: anchoring renders the residual
-    // verbatim/skip-seeded, so a polyfillable default (`{ x = [1].at(0) }`) is dropped by both emitters,
-    // and a top-level default also splits babel (re-visits + polyfills) from unplugin (leaves native).
-    // a DISABLED leaf likewise stays native. the native residual (current behavior) keeps the default's
-    // polyfill reachable by the natural visitor and both emitters consistent
-    if (residualProps.some(p => patternHasAnyDefault(p.value) || leafDisabled(p))) return planned;
-    // ... and so does a residual leaf naming one of the ctor's OWN statics that no extraction serves:
-    // the pure binding carries no statics (`residualLeafReadsCtorStatic`)
-    if (residualProps.some(p => residualLeafReadsCtorStatic({
-      prop: p, receiverName: name, resolvePure, keyName: propKeyNameScoped(p),
-    }))) return planned;
-    return { kind: 'anchored', prop: planned.prop, keyName: name, anchorPure, residualProps, extractions: planned.extractions ?? [] };
+      : planned.children.filter(c => c.kind !== 'consumed').map(c => c.prop)).filter(item => {
+      const localName = declarator.type === 'VariableDeclarator' || symbolShadowed || leafDisabled(item)
+        ? null : symbolIteratorLocalName(item);
+      if (localName === null) return true;
+      anchorWks.push({ synth: 'symbol-iterator', localName, anchorPure });
+      return false;
+    });
+    // a TOP-LEVEL default on a residual leaf bails: the two bindings split there - one re-visits the
+    // residual and polyfills the default, the other leaves it native - and that split is a binding
+    // fact, not this plan's to decide. a DISABLED leaf likewise stays native.
+    // A NESTED default does NOT bail: the render was what dropped its polyfill, and by the canon a
+    // render silences only what it ANSWERS - a default's own claim is not this pattern's receiver
+    // question, so the seeding rescues that value's subtree and the anchor stands
+    if (residualProps.some(p => p.value?.type === 'AssignmentPattern' || leafDisabled(p))) return planned;
+    // ... and so does a residual leaf whose write would land the ponyfill in the realm
+    if (residualProps.some(p => residualLeafWritesIntoRealm(p, { scope, adapter, path }))) return planned;
+    // ... and a leaf whose key NAMES one of this ctor's polyfillable statics belongs to the MIRROR,
+    // not to the anchor: the anchor reads that member off the bare `*/constructor` binding, which
+    // installs none of the ctor's own statics, so the slot answers `undefined` unless some unrelated
+    // module happens to import the same static and decorate the shared binding - an UNDER-inject that
+    // depends on the rest of the bundle. The mirror spells the member's own ponyfill into a literal
+    // right where the pattern reads it, which needs neither the shared decoration nor the index entry
+    // (an OVER-inject). Asked through the key's SECOND spelling, the one that folds THROUGH an effect:
+    // an effect-bearing key still names the member it names, and that prop is exactly the one the
+    // flatten could not consume
+    if (residualProps.some(p => residualLeafBelongsToMirror(p, name))) return planned;
+    return { kind: 'anchored',
+      prop: planned.prop,
+      keyName: name,
+      anchorPure,
+      residualProps,
+      extractions: [...planned.extractions ?? [], ...anchorWks] };
   }
 
   // the constructor a hop's VALUE resolves to where the static walk names none: a CALL in the slot
@@ -861,6 +960,12 @@ export function buildNestedDestructurePlan({
     // (polyfill-always-wins) instead of bailing to the native-wins default-injection
     const constructor = walkStaticReceiverChain({
       receiverNode: hostInit, walkPath: newPath, scope, adapter, path,
+      // a DECLARATION and an ASSIGNMENT host both replay a discarded receiver read on both legs -
+      // the emptied-init rescue and the emptied-pattern one - so a value only an object-literal
+      // GETTER could name is answerable under either. the cascade's assignment host plans through a
+      // SYNTHETIC declarator carrying no type of its own, so the host is read off the path there
+      rescuesReceiverRead: declarator.type === 'VariableDeclarator'
+        || path?.node?.type === 'AssignmentExpression',
     }) ?? hopValueConstructor(hostInit, newPath);
     if (constructor && !POSSIBLE_GLOBAL_OBJECTS.has(constructor)) {
       return foldNestedPattern(outerProp, value, innerProp => planInnerProp(innerProp, constructor));
@@ -939,7 +1044,8 @@ export function buildNestedDestructurePlan({
     // (`const w = [(IIFE)()]; [{x}] = w`) whose init lives OUTSIDE the discarded slot - its
     // setup already runs at the alias declaration, so harvesting it would double-run - and so
     // would a RELOCATED head's element, evaluated by the loop head the body declarator reads
-    const probed = init && !headElement ? discardRescueNodes({ node: initBeforeCollapse, scope, adapter, path }) : [];
+    const probed = init && !headElement
+      ? discardRescueNodesWithReads({ node: initBeforeCollapse, scope, adapter, path }) : [];
     const inSlot = declarator.init
       ? probed.filter(n => spanWithinSlot(n, declarator.init)) : [];
     const discardSe = inSlot.length ? inSlot : null;
@@ -983,8 +1089,8 @@ export function buildNestedDestructurePlan({
       // the renders emit `<proxyBinding>.<K>` instead of the ctor binding. extractions stay
       // leaf-gated (a mutated LEAF already planned verbatim upstream). null when the key is not a
       // static non-proxy constructor, the inner is not a non-empty ObjectPattern, an opt-out
-      // covers the hop or a leaf under it, or a residual leaf names one of the ctor's OWN statics
-      // under a pure-binding anchor - that residual stays the user's raw read
+      // covers the hop or a leaf under it, a residual leaf's write would land the ponyfill in the
+      // realm, or the MIRROR can spell that leaf with the member's own ponyfill
       function planCtorKeyAnchor(hostPattern) {
         const prop = hostPattern.properties.length === 1 && isPropertyNode(hostPattern.properties[0])
           ? hostPattern.properties[0] : null;
@@ -1006,12 +1112,11 @@ export function buildNestedDestructurePlan({
         const outerProps = inner.properties.map(p => planSymbolIteratorProp(p)
           ?? (anchorSlotMutated ? { kind: 'verbatim', prop: p } : planInnerProp(p, key)));
         const anchorPure = anchorSlotMutated ? null : resolveGlobalPolyfill(key);
-        // ... and a residual leaf naming one of the ctor's OWN statics that no extraction serves
-        // declines an anchor on the PURE binding, which carries no statics (`residualLeafReadsCtorStatic`);
-        // the member read an always-present ctor anchors on answers the static as the realm does
-        if (anchorPure && outerProps.some(p => p.kind === 'verbatim' && residualLeafReadsCtorStatic({
-          prop: p.prop, receiverName: key, resolvePure, keyName: propKeyNameScoped(p.prop),
-        }))) return null;
+        // ... and a residual leaf whose write would land the ponyfill in the realm declines the anchor,
+        // and so does one the MIRROR can spell with the member's own ponyfill
+        if (anchorPure && outerProps.some(p => p.kind === 'verbatim'
+          && (residualLeafWritesIntoRealm(p.prop, { scope, adapter, path })
+            || residualLeafBelongsToMirror(p.prop, key)))) return null;
         return {
           receiver, anchor: key, probedNav, probedNavNode, anchorPure,
           outerProps, pattern: inner, discardSe, anchorSe, initElement: null, consumedLevelStrips,
@@ -1334,13 +1439,12 @@ export function planCatchClauseExtraction({
 }
 
 // can the mirror's literal carry EVERY key this pattern binds? the render spells one property per
-// key, so a shape its key predicate refuses leaves the literal unable to stand in for the receiver
+// SLOT - a key the pattern REPEATS is one slot both readers read - so a shape its key predicate
+// refuses is one the literal cannot stand in for at all, and a repeat is not such a shape
 function patternKeysMirrorable({ paramNode, scope, adapter, path }) {
-  const seenKeys = new Set();
+  const seenKeys = new Map();
   for (const prop of paramNode.properties) {
-    const key = mirrorAcceptedKey({ prop, scope, adapter, path, seenKeys });
-    if (key === null) return false;
-    seenKeys.add(key);
+    if (mirrorAcceptedKey({ prop, scope, adapter, path, seenKeys }) === null) return false;
   }
   return true;
 }

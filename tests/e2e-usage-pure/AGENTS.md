@@ -4,7 +4,7 @@ End to end: source is transformed with the `usage-pure` method, bundled, and exe
 
 ## Target environment
 
-Tests are written in modern syntax and transpiled to ES5. They run both in Node (`npm run test-e2e-usage-pure`) and in browsers via Karma (`npm run test-e2e-usage-pure-karma`), so assertions that depend on `window` - and the side-effect counters around them - must branch on the environment instead of assuming a browser.
+Tests are written in modern syntax and transpiled to ES5. They run both in Node (`npm run test-e2e-usage-pure`) and in browsers via Karma (`npm run test-e2e-usage-pure-karma`), so assertions that depend on `window` - and the side-effect counters around them - must branch on the environment instead of assuming a browser. A claim that lives ONLY in the window-present arm is checked by the karma run alone, which is not part of the composite: where the realm the claim needs can be BUILT around the read (`withWindowWithoutSelf` and its kin), build it instead of branching, and the composite - the stripped-realm leg included - exercises the claim too. Branch only on what a host cannot be given, and keep the environment arm for the absent-host answer.
 
 A browser is not a modern browser: the karma matrix floor is IE11, where `window` is present and `WeakSet`, `WeakRef`, `Promise` and `Symbol` are not. So a window-present branch may not assume a slot the floor lacks - read such a leaf only where the value comes from a ponyfill, or pick one every matrix cell has. The combination is unreachable in Node, so only the karma run says no.
 
