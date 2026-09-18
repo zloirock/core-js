@@ -304,6 +304,13 @@ const CASES = [
   { name: 'codemirror + lezer, mid-sized modules', source: () => packageModules(...CODEMIRROR_DIRECTORIES), injections: 3, bounds: {
     'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 2 },
   } },
+  // Two opaque member arguments used to branch recursively through the same wildcard write.
+  // These tiny inputs discriminate exponential work; push also proves detection stayed live.
+  ...['namesake-container-member-arguments', 'block-local-container-member-arguments'].map(name => ({
+    name,
+    source: () => readFile(join(HERE, '../transpiler-fixtures/usage-global', name, 'input.mjs'), 'utf8'),
+    bounds: { 'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 } },
+  })),
 ];
 
 // usage-pure rewrites sites to `@core-js/pure` imports; usage-global prepends `core-js/modules`
