@@ -1,7 +1,7 @@
 // A wrapper captures names in each installed literal's scope. Writes follow those captured
 // aliases and their paths to the original container, while replacing the wrapper slot does not.
 import { adapters, createChecker } from './harness.mjs';
-import { collectFileCensus } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import { collectFileCensus, nodePositionKey } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { mutationShapesReducer } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
 
 const { check, checkDeep, finish } = createChecker('container-wrapper-captures');
@@ -43,7 +43,7 @@ for (const adapter of adapters) {
     { const original = { x: Array }; alias = { box: original }; ${ replacement } }`);
   const { writtenContainerSlots, containerSlotIndex } = collectFileCensus(program.node, [mutationShapesReducer()]);
   const declarations = adapter.collectPaths(program, 'VariableDeclarator', path => path.node.id.name === 'original');
-  const [outer, inner] = declarations.map(path => containerSlotIndex.owners.get(path.node));
+  const [outer, inner] = declarations.map(path => containerSlotIndex.owners.get(nodePositionKey(path.node) ?? path.node));
   check(`${ adapter.name }: separate binding identities`, outer === inner, false);
   check(`${ adapter.name }: outer original stays clean`, writtenContainerSlots.has(`${ outer }.x`), false);
   check(`${ adapter.name }: inner original receives the write`, writtenContainerSlots.has(`${ inner }.x`), true);
