@@ -2726,7 +2726,9 @@ function canonicalSlotPaths(plainAliases, name, keys, memo) {
   for (const root of unresolved) {
     for (const target of plainAliases.get(root) ?? []) unresolved.add(target.root);
   }
-  const result = [...resolved, ...unresolved.values().map(root => [root, null])];
+  // A whole-root fallback subsumes its concrete paths. Keeping both lets a wrapper cycle
+  // prepend those redundant prefixes again on every propagation round, exhausting memory.
+  const result = [...resolved.filter(([root]) => !unresolved.has(root)), ...unresolved.values().map(root => [root, null])];
   memo.set(name, result);
   return keys.length ? result.map(([root, path, terminal]) => [
     root, path && [...path, ...keys], terminal,
