@@ -9,12 +9,13 @@ import {
   readJSON,
   buildAndCopyCoreJS,
   expandVersionsConfig,
+  isExists,
 } from './helpers.mjs';
 import childProcess from 'node:child_process';
 // eslint-disable-next-line node/no-unsupported-features/node-builtins -- ok
-import { cp, readdir, readlink } from 'node:fs/promises';
+import { cp, readdir, readlink, rename, rm, symlink, unlink } from 'node:fs/promises';
 import { promisify } from 'node:util';
-import { resolve, join } from 'node:path';
+import { dirname, relative, resolve, join } from 'node:path';
 
 const exec = promisify(childProcess.exec);
 
@@ -69,15 +70,15 @@ async function cloneRepo() {
   console.timeEnd('Cloned core-js repository');
 }
 
-async function switchToLatestBuild() {
-  console.log('Switching to the latest build...');
-  console.time('Switched to the latest build');
-  const absoluteBuildPath = resolve(`${ BUILD_DIR }${ BUILD_RESULT_DIR }`);
-  const absoluteLatestPath = resolve('./latest');
-  console.log(absoluteBuildPath, absoluteLatestPath);
-  await exec('rm -f ./latest');
-  await exec(`ln -sf ${ absoluteBuildPath } ${ absoluteLatestPath }`);
-  console.timeEnd('Switched to the latest build');
+async function switchToLatestBuild(link) {
+  console.log(`Switching "${ link }" to the latest build...`);
+  console.time(`Switched "${ link }" to the latest build`);
+  // one rename replaces the old link, which serves until then; no git branch name ends with `.lock`
+  const next = `${ link }.lock`;
+  await rm(next, { force: true });
+  await symlink(resolve(`${ BUILD_DIR }${ BUILD_RESULT_DIR }`), next);
+  await rename(next, link);
+  console.timeEnd(`Switched "${ link }" to the latest build`);
 }
 
 async function clearBuildDir() {
@@ -124,16 +125,6 @@ async function prepareBuilder(targetBranch) {
   console.timeEnd('Prepared builder');
 }
 
-async function switchBranchToLatestBuild(name) {
-  console.log(`Switching branch "${ name }" to the latest build...`);
-  console.time(`Switched branch "${ name }" to the latest build`);
-  const absoluteBuildPath = resolve(`${ BUILD_DIR }${ BUILD_RESULT_DIR }`);
-  const absoluteLatestPath = resolve(`./branches/${ name }`);
-  await exec(`rm -f ./branches/${ name }`);
-  await exec(`ln -sf ${ absoluteBuildPath } ${ absoluteLatestPath }`);
-  console.timeEnd(`Switched branch "${ name }" to the latest build`);
-}
-
 async function checkoutVersion(version) {
   if (version.branch) {
     await exec(`git checkout origin/${ version.branch }`, { cwd: BUILD_SRC_DIR });
@@ -142,37 +133,53 @@ async function checkoutVersion(version) {
   }
 }
 
-async function getExcludedBuilds() {
-  const branchBuilds = await readdir('./branches/');
-  const excluded = new Set();
-  for (const name of branchBuilds) {
-    const link = await readlink(`./branches/${ name }`);
-    if (!link) continue;
-    const parts = link.split('/');
-    const id = parts.at(-2);
-    excluded.add(id);
-  }
-  const latestBuildLink = await readlink('./latest');
-  if (latestBuildLink) {
-    const parts = latestBuildLink.split('/');
-    const id = parts.at(-2);
-    excluded.add(id);
-  }
+// the links the runner made in `branches/`; any other entry there is not its own
+async function readBranchLinks() {
+  if (!await isExists('./branches/')) return [];
+  const entries = await readdir('./branches/', { withFileTypes: true });
+  return entries.filter(entry => entry.isSymbolicLink()).map(({ name }) => name);
+}
 
-  return [...excluded];
+async function getExcludedBuilds() {
+  const links = (await readBranchLinks()).map(name => `./branches/${ name }`);
+  if (await isExists('./latest')) links.push('./latest');
+  // a target set by hand may be relative or end with a slash; the build is its first step under `builds/`
+  return Promise.all(links.map(async link => {
+    return relative(BUILDS_ROOT_DIR, resolve(dirname(link), await readlink(link))).split('/')[0];
+  }));
+}
+
+async function clearDeletedBranches() {
+  console.log('Clearing deleted branches...');
+  console.time('Cleared deleted branches');
+  const { stdout } = await exec("git for-each-ref --format='%(refname:lstrip=3)' refs/remotes/origin/", { cwd: BUILD_SRC_DIR });
+  const liveBranches = new Set(stdout.split('\n'));
+  for (const name of await readBranchLinks()) {
+    if (!liveBranches.has(name)) {
+      await unlink(`./branches/${ name }`);
+      console.log(`Branch removed: "${ name }"`);
+    }
+  }
+  console.timeEnd('Cleared deleted branches');
 }
 
 async function clearOldBuilds() {
   console.log('Clearing old builds...');
   console.time('Cleared old builds');
   const excluded = await getExcludedBuilds();
-  const builds = await readdir(BUILDS_ROOT_DIR);
-  for (const build of builds) {
-    if (!excluded.includes(build)) {
-      await exec(`rm -rf ${ join('./', BUILDS_ROOT_DIR, '/', build) }`);
-      console.log(`Build removed: "${ join('./', BUILDS_ROOT_DIR, '/', build) }"`);
+  const errors = [];
+  for (const build of await readdir(BUILDS_ROOT_DIR)) {
+    if (excluded.includes(build)) continue;
+    const dir = join('./', BUILDS_ROOT_DIR, '/', build);
+    try {
+      await exec(`rm -rf ${ dir }`);
+      console.log(`Build removed: "${ dir }"`);
+    } catch (error) {
+      errors.push(error);
     }
   }
+  // a build that resists removal must not keep the rest
+  if (errors.length) throw new AggregateError(errors, 'Some old builds were not removed');
   console.timeEnd('Cleared old builds');
 }
 
@@ -227,14 +234,14 @@ try {
   await copyWeb();
   await createLastDocsLink();
 
-  if (!BRANCH) {
-    await switchToLatestBuild();
-  } else {
-    await switchBranchToLatestBuild(targetBranch);
-  }
+  await switchToLatestBuild(BRANCH ? `./branches/${ BRANCH }` : './latest');
+  await clearDeletedBranches();
   await clearBuildDir();
   await clearOldBuilds();
   console.timeEnd('Finished in');
 } catch (error) {
   console.error(error);
+  process.exitCode = 1;
+  // takes this build too, unless a link already serves it
+  await clearOldBuilds();
 }
