@@ -206,12 +206,35 @@ function shadowedPatternParameter(name) {
 const NARROW = {
   'direct constructor read': name => `use(new ${ name }(s));`,
   'constructor alias': name => `const A = ${ name };\nuse(new A(s));`,
+  'branching local return': name => `use(new ((() => { if (flag) return ${ name }; return ${ name }; })())(s));`,
   'returned second argument': name => `function pick(label, value) { effect(label); return value; } use(new (pick(1, ${ name }))(s));`,
   'container literal slot': name => `const c = { k: ${ name } };\nuse(new c.k(s));`,
   'inline callee pattern parameter': name => `export const v = (({ name: got }) => got)(${ name });`,
   'inline callee pattern parameter, shadowed': shadowedPatternParameter,
   'inline arrow pattern parameter': name => `export const v = (({ name: got }) => got)(globalThis.${ name });`,
 };
+
+// Native constructors without a binding entry still expose their namespace when handed out.
+// A static read of a locally returned constructor exposes only that static's result.
+for (const [label, source, used, wide] of [
+  ['local IIFE', 'export const value = (() => { if (flag) return Array; return custom; })().of(3);', true, false],
+  ['named local call', 'function pick() { if (flag) return Array; return custom; } export const value = pick().of(3);', true, false],
+  ['unused function', 'function pick() { if (flag) return Array; return custom; }', false, false],
+  ['escaped value', 'hand(Array);', true, true],
+  ['escaped call', 'hand((() => { if (flag) return Array; return custom; })());', true, true],
+  ['escaped container call', 'hand({ value: (() => { if (flag) return Array; return custom; })() });', true, true],
+  ['exported function', 'export function pick() { if (flag) return Array; return custom; }', true, true],
+  ['exported subclass', 'export class Derived extends (() => { if (flag) return Array; return custom; })() {}', true, true],
+]) {
+  for (const [emitter, imports] of [
+    ['babel', await babelImports(source, GLOBAL)],
+    ['unplugin', unpluginImports(source, GLOBAL)],
+  ]) {
+    check(`${ emitter }: ${ label }: of obligation`, imports.has('core-js/modules/es.array.of'), used);
+    check(`${ emitter }: ${ label }: other statics`, imports.has('core-js/modules/es.array.from'), wide);
+    check(`${ emitter }: ${ label }: instance methods`, imports.has('core-js/modules/es.array.find'), wide);
+  }
+}
 
 for (const name of CONSTRUCTORS) {
   for (const [position, spell] of Object.entries(NARROW)) {
@@ -319,8 +342,8 @@ for (const [label, source, wide = true] of OPAQUE_PARAMETER_READS) {
 }
 
 // A default or known caller supplies the pattern's exact static claim. Only that SAME supplied
-// leaf is covered; different receivers, shadowed defaults, spread ambiguity and bare captures
-// still owe their independent family. Compare import sets so one import cannot mask another.
+// leaf is covered; known callers contribute their own statics independently of defaults. Spread ambiguity and bare
+// captures still owe their independent family. Compare import sets so one import cannot mask another.
 const DEFAULT_COVERAGE = [
   ['array wrapper', 'function f([{ of } = Array]) { return of(1); } f([Array]);', false],
   ['parameter default', 'function f({ of } = Array) { return of(1); } f(Array);', false],
@@ -333,7 +356,23 @@ const DEFAULT_COVERAGE = [
   ['custom first', 'const custom = { of: x => x }; function f([{ of }]) { return of; } f([custom]); f([Array]);', false],
   ['IIFE return', 'function f([{ of } = Array]) { return of; } f([(function source() { return Array; })()]);', false],
   ['bare capture', 'function f([value = Array]) { return value; } f([Array]);', true],
-  ['shadowed default', 'function outer(Array) { function f([{ of } = Array]) { return of(1); } f([globalThis.Array]); }', true],
+  ['proxy caller', 'function f([{ of }]) { return of(1); } f([globalThis.Array]);', false],
+  ['unrelated first caller', 'function f({ of }) { return of(1); } f(Object); f(Array);', false],
+  ['different default', 'function f([{ of } = Object]) { return of(1); } f([Array]);', false],
+  ['proxy default', 'function f([{ of } = globalThis.Array]) { return of(1); } f([globalThis.Array]);', false],
+  ['shadowed default', 'function outer(Array) { function f([{ of } = Array]) { return of(1); } f([globalThis.Array]); }', false],
+  ['effectful caller', 'function outer(Custom) { function f({ of } = Custom) { return of(1); } f((effect(), Array)); }', false],
+  ['effectful wrapped caller', 'function outer(Custom) { function f([{ of } = Custom]) { return of(1); } f((effect(), [Array])); }', false],
+  ['effectful nested caller', 'function outer(Custom) { function f({ x: { of } = Custom }) { return of(1); } f((effect(), { x: Array })); }', false],
+  ['stored caller', 'let held; function f({ of } = custom) { return of(1); } f.call(null, held = Array);', false],
+  ['stored sequence caller', 'let held; function f({ of } = custom) { return of(1); } f.apply(null, [held = (effect(), Array)]);', false],
+  ['stored nested caller', 'let held; function f({ x: { of } = custom }) { return of(1); } Reflect.apply(f, null, [held = { x: Array }]);', false],
+  ['stored direct caller', 'let held; function f({ of } = custom) { return of(1); } f(held = Array);', false],
+  ['stored direct nested caller', 'let held; function f([{ of } = custom]) { return of(1); } f(held = [Array]);', false],
+  ['stored array leaf', 'let held; function f([{ of } = custom]) { return of(1); } f([held = Array]);', false],
+  ['stored object leaf', 'let held; function f({ x: { of } = custom }) { return of(1); } f({ x: held = (effect(), Array) });', false],
+  ['stored argument handed out', 'let held; function f({ of } = custom) { return of(1); } f(held = Array); hand(held);', true],
+  ['stored unknown spread', 'let held; function f([{ of } = custom]) { return of(1); } f(held = [...values, Array]);', true],
 ];
 for (const [label, source, wide] of DEFAULT_COVERAGE) {
   for (const [emitter, imports] of [
@@ -344,6 +383,22 @@ for (const [label, source, wide] of DEFAULT_COVERAGE) {
     check(`default coverage/${ label } [${ emitter }]: unrelated family`, imports.has('core-js/modules/es.array.find'), wide);
   }
 }
+for (const [shape, pattern, wrap] of [
+  ['flat', '{ of } = Array', value => value],
+  ['array', '[{ of } = Array]', value => `[${ value }]`],
+  ['nested', '{ slot: [{ of } = Array] }', value => `{ slot: [${ value }] }`],
+]) {
+  const source = `export function outer(Array) { function f(${ pattern }) { return of(1); }`
+    + ` return [f(${ wrap('globalThis.Array') }), f(${ wrap('undefined') })]; }`;
+  for (const [emitter, imports] of [
+    ['babel', await babelImports(source, GLOBAL)],
+    ['unplugin', unpluginImports(source, GLOBAL)],
+  ]) {
+    check(`opaque default/${ shape } [${ emitter }]: own static`, imports.has('core-js/modules/es.array.of'), true);
+    check(`opaque default/${ shape } [${ emitter }]: unrelated family`, imports.has('core-js/modules/es.array.find'), false);
+  }
+}
+
 const differentDefault = 'function f([{ groupBy } = Object]) { return groupBy([], key); } f([Map]);';
 for (const [emitter, imports] of [
   ['babel', await babelImports(differentDefault, GLOBAL)],
@@ -351,6 +406,17 @@ for (const [emitter, imports] of [
 ]) {
   check(`default coverage/different receiver [${ emitter }]: default static`, imports.has('core-js/modules/es.object.group-by'), true);
   check(`default coverage/different receiver [${ emitter }]: supplied static`, imports.has('core-js/modules/es.map.group-by'), true);
+}
+
+// A caller's static remains actionable beside an opaque default. The pure argument mirror
+// patches that call without replacing the custom method supplied by the default.
+const opaqueDefault = 'function outer(Array) { function read([{ of } = Array]) { return of(1); }'
+  + ' return [read([globalThis.Array]), read([undefined])]; } outer({ of: x => x });';
+for (const [emitter, imports] of [
+  ['babel', await babelImports(opaqueDefault, PURE)],
+  ['unplugin', unpluginImports(opaqueDefault, PURE)],
+]) {
+  check(`opaque default [${ emitter }]: caller static`, imports.has('@core-js/pure/actual/array/of'), true);
 }
 
 finish();

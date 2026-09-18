@@ -44,6 +44,7 @@ later = self;
 const { w: { findLast: instanceRowsOverLater } } = { w: later };
 const [{ Iterator: viaLaterWrapped }] = [later];
 function assignHops() {
+  // The call below is inside an exported container, so its returned Symbol namespace escapes.
   let m;
   let n;
   ({ w: { indexOf: m } } = { w: orRealm });

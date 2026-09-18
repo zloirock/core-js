@@ -17,7 +17,7 @@ import _self from "@core-js/pure/actual/self";
 import _Set from "@core-js/pure/actual/set/constructor";
 import _String$fromCodePoint from "@core-js/pure/actual/string/from-code-point";
 import _padStartMaybeString from "@core-js/pure/actual/string/instance/pad-start";
-var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9;
+var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _ref10;
 // an inline-call chain root BURIES the proxy-global (an IIFE body, an identity argument), and the
 // only hop is one core-js does not ponyfill, so nothing collapses and the guard test keeps the root
 // text. the buried global carries no rewrite of its own there - the claim replaces the span it sits
@@ -86,7 +86,7 @@ export const swallowedReceiver = _Map$groupBy([1], x => x);
 // a call root FORWARDING the real global through an object literal: the shorthand binding IS
 // the global constructor (the container walk descends the returned literal like a const-bound
 // one), so the claim resolves and the polyfill lands; the user-object negative above stays raw,
-// and a CONDITIONALLY-assigned forwarder proves no value
+// and a conditionally assigned forwarder keeps its optional call as the guard
 const forwards = () => ({
   window: {
     Array
@@ -105,4 +105,4 @@ if (_globalThis.setTimeout) maybeForwards = () => ({
     Array
   }
 });
-export const conditionalForwarder = maybeForwards?.()?.window?.Array.of(15);
+export const conditionalForwarder = (_ref10 = maybeForwards?.()?.window?.Array, null == _ref10 ? void 0 : _ref10 === Array ? _Array$of(15) : _ref10.of(15));
