@@ -54,6 +54,7 @@ import {
   isPropertyNode,
   isRestProperty,
   installedWriteValue,
+  ITERATED_STATIC_RECEIVERS,
   isValidIdentifierName,
   leadingDiscardedEffectSlots,
   memberChainKeys,
@@ -153,7 +154,7 @@ import {
   symbolSourcedFoldedKey,
 } from './resolve.js';
 import { cloneNode, identifier, memberFromKeyName, objectExpression, synthProperty } from '../render.js';
-import { entryToGlobalHint, resolve as resolveBuiltIn } from '../index.js';
+import { entryToGlobalHint, hasStaticDefinitionKey, resolve as resolveBuiltIn } from '../index.js';
 import { isKnownGlobalName, staticReceiverHint } from './globals.js';
 
 // the init shapes a clean declarator may carry a ctor through (`aliasWriteCtorNames` below)
@@ -948,6 +949,14 @@ export function collectMemberUnionCandidates(options) {
       objectNode: node, scope: ctx.scope, adapter, path, usageNode: readNode,
     }),
   });
+  // An opaque loop may hide its element's identity without hiding the constructor families its
+  // source carries. Inject only this read's key; the provenance is not a whole-family escape.
+  // A computed key may reach a different static through the key union below.
+  if (computedKeyNode || primaryKey === null || hasStaticDefinitionKey(primaryKey)) {
+    for (const name of ITERATED_STATIC_RECEIVERS.get(rootProgramOf(path))?.(objectNode) ?? []) {
+      if (!objects.includes(name)) objects.push(name);
+    }
+  }
   // an UNRESOLVED receiver (a local instance, an unclassifiable expression) still dispatches every
   // reachable KEY at runtime, so it enumerates as the typeless receiver itself - each union key then
   // earns the same typeless prototype-placement meta the primary key gets (`let k = 'at'; if (c)

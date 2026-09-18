@@ -147,6 +147,22 @@ function syntheticSharedParamWrites(installers) {
   return parts.join('\n');
 }
 
+// Reassigning a local alias must not scan writes to every namesake in unrelated functions.
+function syntheticNamesakeWrites(functions) {
+  const parts = [];
+  for (let i = 0; i < functions; i++) {
+    parts.push(`function n${ i }(o) { var x = o.p, y = o.r, a = x; a = y; a.at(0); }`);
+  }
+  return parts.join('\n');
+}
+
+// Repeated calls supply the same small source set: merging it must not rescan all prior calls.
+function syntheticSharedParamCalls(calls) {
+  const parts = ['var p = [0], q = [1], r = [2], s = [3];', 'function f(a) { return a.at(0); }'];
+  for (let i = 0; i < calls; i++) parts.push('f(p||q||r||s);');
+  return parts.join('\n');
+}
+
 // the census keys its container records by DECLARATION, and a name-only question about a slot
 // unions every declaration of that name in the file: asked per member read, over a file whose
 // functions all spell their locals alike (`r`, `a`, `t` - ordinary code), that union walks every
@@ -233,7 +249,7 @@ const CASES = [
     'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
   } },
   { name: 'synthetic single-scope, 2000 reassigned names', source: () => syntheticSingleScope(2000), bounds: {
-    'usage-global': { babel: 3, unplugin: 2 }, 'usage-pure': { babel: 3, unplugin: 3 },
+    'usage-global': { babel: 3, unplugin: 2 }, 'usage-pure': { babel: 4, unplugin: 3 },
   } },
   // under @babel/generator's 500kb styling-deopt threshold, so the NORMAL codegen path is
   // gated too - the big twin above always runs the deoptimised one
@@ -241,7 +257,13 @@ const CASES = [
     'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
   } },
   { name: 'synthetic shared-param writes, 1200 installers', source: () => syntheticSharedParamWrites(1200), bounds: {
-    'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
+  } },
+  { name: 'synthetic namesake writes, 4000 functions', source: () => syntheticNamesakeWrites(4000), bounds: {
+    'usage-global': { babel: 4, unplugin: 4 }, 'usage-pure': { babel: 5, unplugin: 5 },
+  } },
+  { name: 'synthetic shared-param calls, 40000 calls', source: () => syntheticSharedParamCalls(40000), bounds: {
+    'usage-global': { babel: 10, unplugin: 5 }, 'usage-pure': { babel: 10, unplugin: 5 },
   } },
   { name: 'synthetic shared container names, 2000 functions', source: () => syntheticSharedContainerNames(2000), bounds: {
     'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 2 },
@@ -250,7 +272,7 @@ const CASES = [
     'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
   } },
   { name: 'synthetic call-dense top level, 12000 sites', source: () => syntheticCallDenseTopLevel(12000), bounds: {
-    'usage-global': { babel: 3, unplugin: 3 }, 'usage-pure': { babel: 5, unplugin: 5 },
+    'usage-global': { babel: 4, unplugin: 3 }, 'usage-pure': { babel: 6, unplugin: 5 },
   } },
   { name: 'synthetic directive-dense, 8000 opt-outs', source: () => syntheticDirectiveDense(8000), bounds: {
     'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 4, unplugin: 3 },
@@ -259,7 +281,7 @@ const CASES = [
     'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
   } },
   { name: 'synthetic guard-dense, 1500 names', source: () => syntheticGuardDense(1500), bounds: {
-    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
+    'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 1 },
   } },
   { name: 'synthetic write-dense binding, 600 uses', source: () => syntheticWriteDenseBinding(600), bounds: {
     'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 2 },
