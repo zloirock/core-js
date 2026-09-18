@@ -256,7 +256,9 @@ export function createBabelAdapter(options = {}) {
           // receiver-use scope where an inner shadow of that name would swallow the value.
           // deliberately NOT `b.scope`: babel hoists a `var` and reports the FUNCTION scope there,
           // which reads past a shadow local to the block the declarator sits in
-          scope: b.path.scope,
+          // A class declaration's path owns its INNER class-name scope. Its binding lives
+          // outside that class; treating the inner scope as its owner makes later reads deferred.
+          scope: b.path.isClassDeclaration() ? b.scope : b.path.scope,
           // ... and the declarator's own PATH, for the one question a node cannot answer: where in
           // the tree the declaration SITS (`const g = this` is the realm object only at top level,
           // and a write through `g` may sit in any function below). null where there is no

@@ -12024,6 +12024,46 @@ function * generateLoopAliasOwners() {
   }
 }
 
+// A rewritten argument clones local declarations. Cross the captured member shape with the
+// rewrite host so that losing the written-slot owner changes both the value and the effect log.
+// Aliases and class fields must establish that owner even before a host clones the declaration.
+function * generateClonedContainerOwners() {
+  const shapes = [
+    ['captured', 'const source = { slot: Array }; source.slot = custom; const holder = { item: source.slot };', 'holder.item'],
+    ['nested', 'const source = { slot: { ctor: Array } }; const holder = { item: source }; source.slot.ctor = custom;', 'holder.item.slot.ctor'],
+    ['aliased-pattern', 'const box = { item: Array }; const alias = box; box.item = custom; const { item } = alias;', 'item'],
+    ['class', 'class Box { static item = Array; } Box.item = custom;', 'Box.item'],
+    ['literal', 'const holder = { item: ({ slot: Array }).slot }; holder.item = custom;', 'holder.item'],
+  ];
+  for (const [shape, setup, receiver] of shapes) for (const host of ['direct', 'argument', 'loop', 'destructure']) {
+    const value = `(() => { const custom = { from() { log.push("custom"); return [9]; } }; ${ setup } return ${ receiver }.from([1, 2]); })()`;
+    const expression = host === 'direct' ? value : host === 'destructure'
+      ? `(() => { const { item } = { item: ${ value } }; return item; })()`
+      : `(() => { const acc = []; ${ host === 'loop' ? 'for (let i = 0; i < 1; i++)' : '' } acc.push(${ value }); return acc[0]; })()`;
+    // Full-runtime wrong substitutions are the oracle here; the custom method is never stripped.
+    yield { ...snippet(`cloned-container-owner/${ shape }/${ host }`, expression), fullEnv: true };
+  }
+}
+
+// A capture before a container write still holds Array. Stripping Array.from is necessary:
+// a conservative refusal prints a correct native read while silently dropping its polyfill.
+function * generateCapturedContainerOwners() {
+  for (const [shape, setup] of [
+    ['pattern', 'const box = { item: Array }; const alias = box; const { item } = alias; box.item = {};'],
+    ['class', 'class Box { static item = Array; } const item = Box.item; Box.item = {};'],
+    ['member', 'const box = { item: Array }; const item = box.item; box.item = {};'],
+    ['var-sibling', 'let item; { var box = { item: Array }; item = box.item; } { var box = { item: {} }; box.item = {}; }'],
+  ]) for (const host of ['direct', 'argument', 'loop', 'destructure', 'function']) {
+    const value = `(() => { ${ setup } return item.from([1, 2]); })()`;
+    const expression = host === 'function'
+      ? `(() => { function run() { const acc = []; acc.push(${ value }); return acc[0]; } return run(); })()`
+      : host === 'direct' ? value : host === 'destructure'
+      ? `(() => { const { item } = { item: ${ value } }; return item; })()`
+      : `(() => { const acc = []; ${ host === 'loop' ? 'for (let i = 0; i < 1; i++)' : '' } acc.push(${ value }); return acc[0]; })()`;
+    yield { ...snippet(`captured-container-owner/${ shape }/${ host }`, expression), strip: true };
+  }
+}
+
 export function * generate() {
   yield * generateLoopAliasOwners();
   yield * generateDeferredReads();
@@ -12242,4 +12282,6 @@ export function * generate() {
   yield * generateRealmTernaryArms();
   yield * generateCtorHeldInContainerSlot();
   yield * generateAnchoredCtorResidualLeaf();
+  yield * generateClonedContainerOwners();
+  yield * generateCapturedContainerOwners();
 }

@@ -85,6 +85,7 @@ import {
   pureImportEntryOf,
   pureImportSourceEntry,
   reachingContainerValueNode,
+  reachingReassignmentValueNode,
   reassignmentBlocksGlobalResolve,
   reassignmentValueEnumeration,
   receiverCarriesLiveOptional,
@@ -893,13 +894,6 @@ function resolvedAliasMayDispatchInstance({ objectNode, scope, adapter, path }) 
   return !receiverProvablyInstanceFree({ objectNode, scope, adapter, path });
 }
 
-// usage-global UNION of reachable member-dispatch targets for a conditionally reassigned receiver
-// and/or computed-key. `let K='from'; if(c) K='of'; Array[K]()` can call Array.from OR Array.of;
-// `var M={}; if(c) M=Array; M.from()` may dispatch on Array. when BOTH vary the reachable targets
-// are the cross product, so each is emitted (over-inject-safe; an impossible pair just resolves to no
-// polyfill). returns extra `{ kind:'property', object, key, placement }` metas minus the primary pair
-// the caller already emits, empty in the common no-reassignment case. global-only: usage-pure bails
-// on any reassignment upstream, so a reassigned alias never reaches a receiver-dropping substitute
 // REPOSITIONED-container candidates for the union axis: once an in-place mutator ran on a container
 // binding (the census wildcard - queried as the canonical `*` slot), the read slot may hold ANY of
 // the literal's values - repositioning permutes positions, never values - so every element that
@@ -928,10 +922,11 @@ function containerRepositionCandidates({ objectNode, scope, adapter, path, resol
   return names;
 }
 
-// the usage-global reachable union of a member read as extra metas: every reachable receiver value
-// (the alias's writes, its branching values, the container walk's other slot values) crossed with
-// every reachable key value, minus the primary pair; each hop of the enumeration resolves at the site
-// its value was spelled (the hop's `ctx.scope`) and anchors dominance at its read (`readNode`)
+// usage-global UNION of reachable receivers (alias writes, branches and container slots) crossed
+// with reachable keys: `let K = "from"; if (c) K = "of"; Array[K]()` needs both statics. Extra
+// property metas exclude the primary pair; impossible pairs resolve to no polyfill. Each hop
+// resolves where its value was spelled (`ctx.scope`) and anchors dominance at its `readNode`.
+// Pure bails on reassignment upstream, so this union never drives a receiver-dropping rewrite.
 export function collectMemberUnionCandidates(options) {
   const {
     objectNode, computedKeyNode, primaryObject, primaryKey,
@@ -3439,9 +3434,18 @@ export function staticContainerReceiverName({
   // a bare name walks only as an ALIAS - of a nav (`const a = r.w; a.values`), which the walk folds
   // into its path, or of another name it then follows; any other bare read has nothing to descend
   const aliasInit = unwrapTransparentSeq(installedWriteValue(declaratorNode.init ?? null));
-  // ... or of a SELECTION, whose arms the walk's terminal folds to one name where they agree
+  // ... or of a SELECTION, whose arms the walk's terminal folds to one name where they agree.
+  // A plain reaching write may capture a member instead. Pure leaves pattern writes to the
+  // alias registry, like the bare-binding resolver: the two hosts rewrite those at different times.
   if (!keys.length && aliasInit?.type !== 'Identifier' && !memberNavFold(aliasInit)
-    && !getFallbackBranchSlots(peelFallbackReceiver(aliasInit))) return null;
+    && !getFallbackBranchSlots(peelFallbackReceiver(aliasInit))) {
+    if (!isReassignedBeyondDeclarator(binding)) return null;
+    const reaching = reachingReassignmentValueNode({
+      binding, usagePath: path, usageNode: node, ctx: { scope, adapter, path, resolveKey: sharedResolveKey },
+      requireSingleObservation: adapter.method === 'usage-pure', plainWritesOnly: adapter.method === 'usage-pure',
+    });
+    if (!memberNavFold(unwrapTransparentSeq(reaching))) return null;
+  }
   // the entry half of the walk's own per-hop dominance gate, and it stands down on exactly what the
   // walk answers better: a REASSIGNED binding's init may be dead, and the hop's reassignment channel
   // resolves the value that reaches the read instead. an unreassigned binding has only its
@@ -3486,12 +3490,11 @@ function memberNavFold(node) {
 }
 
 // re-root the walk at a nav's fold: the fold's keys lead the remaining path and its root becomes the
-// hop. a root that is a NAME is dereferenced by the walk's loop, which re-establishes the container
-// bookkeeping itself. a root with no binding - a container literal - gets no such hop, so the keys
-// consumed from here on are the LITERAL's rather than the name's, and carrying the old name past the
-// re-root would offset every later slot consult by exactly the fold's keys. the name is dropped
-// instead, and pure - which may not rewrite a read whose slot was replaced - asks the write question
-// once here, against the whole path still to be read under that name
+// hop. The old container no longer owns the folded keys, even when the new root is a NAME that
+// cannot be bound in this scope. Drop its bookkeeping before the loop establishes the new owner;
+// otherwise an unknown root re-enters the old container's wildcard writes at every folded hop.
+// Pure checks the remaining path before dropping that original owner, since a reaching write
+// there prevents rewriting the read.
 function foldNavIntoWalk({ hop, walk }, node) {
   const fold = memberNavFold(node);
   if (!fold) return null;
@@ -3509,9 +3512,10 @@ function foldNavIntoWalk({ hop, walk }, node) {
     // Otherwise it captured a container whose remaining slots are read at the later use.
     slotReadNode: walkPath.length ? walk.slotReadNode : hop.readNode,
   };
-  if (fold.root.type === 'Identifier') return walkStaticReceiverStep({ ...hop, node: fold.root }, rerooted);
   if (containerName && adapter.method === 'usage-pure'
-    && adapter.isWrittenContainerSlot?.(containerName, [...containerPath, ...walkPath], containerNode)) return null;
+    && adapter.isWrittenContainerSlot?.(
+      containerName, [...containerPath, ...walkPath], containerNode, hop.ctx.path, walk.slotReadNode,
+    )) return null;
   return walkStaticReceiverStep({ ...hop, node: fold.root }, {
     ...rerooted,
     containerName: null,
@@ -3520,12 +3524,6 @@ function foldNavIntoWalk({ hop, walk }, node) {
   });
 }
 
-// the walk takes the hop standing on the receiver and the walk's OPTIONS beside it: `walkPath`
-// (the keys left to descend), `depth`, `ignoreWrittenSlots`, `unionSink` (see `walkStaticReceiverChain`),
-// plus where the walk stands relative to the CONTAINER it last dereferenced - the binding's name
-// and the keys consumed under it. those two ride the options rather than the step, or the
-// recursion into a nested literal would forget which container it is inside and the written-slot
-// consult could only ever fire on the first hop
 // the slot an inline call's yielded container fills from a PARAMETER, matched against the path this
 // walk still has to descend: what the read lands on there is the ARGUMENT passed at that parameter's
 // index, and the keys the slot consumes come off the remaining path with it
@@ -3537,6 +3535,12 @@ function yieldedContainerSlot(initNode, walkPath) {
   return argument ? { keyPath: hit[0], argument } : null;
 }
 
+// the walk takes the hop standing on the receiver and the walk's OPTIONS beside it: `walkPath`
+// (the keys left to descend), `depth`, `ignoreWrittenSlots`, `unionSink` (see `walkStaticReceiverChain`),
+// plus where the walk stands relative to the CONTAINER it last dereferenced - the binding's name
+// and the keys consumed under it. those two ride the options rather than the step, or the
+// recursion into a nested literal would forget which container it is inside and the written-slot
+// consult could only ever fire on the first hop
 // eslint-disable-next-line max-statements -- receiver proofs and guarded alternatives share the same walk
 function walkStaticReceiverStep(hop, {
   walkPath,
@@ -3624,7 +3628,7 @@ function walkStaticReceiverStep(hop, {
     return CONTINUE_HOP;
   }
   // the class-binding disposition, moved out whole: it advances the same three cursors the
-  // container arm does, and returns the walk's own answer when the class arm ends it
+  // container arm does, including the owner needed to consult writes to static fields.
   let classHopEnded = false;
   function takeClassBindingHop(binding) {
     const step = classBindingHop({ ...standing(), binding, name: current.name });
@@ -3636,6 +3640,7 @@ function walkStaticReceiverStep(hop, {
       readNode = step.follow;
       return CONTINUE_HOP;
     }
+    enterContainer(current.name, step.descend);
     current = step.descend;
     readNode = current;
     classHopEnded = true;
@@ -3708,7 +3713,7 @@ function walkStaticReceiverStep(hop, {
     // literal's old candidate is dead. Resolve at each write's scope; pure keeps the written
     // slot's native read, without manufacturing a guard for the discarded initial value.
     if (!ignoreWrittenSlots && walkPath.length
-      && adapter.isWrittenContainerSlot?.(current.name, walkPath, binding.path?.node ?? binding.node)) {
+      && adapter.isWrittenContainerSlot?.(current.name, walkPath, binding.path?.node ?? binding.node, path, slotReadNode)) {
       let replacementName = null;
       if (adapter.containerSlotWriteDominatesUsage?.(walkPath, binding.path?.node ?? binding.node, path, slotReadNode,
         (value, writePath) => {
@@ -3925,14 +3930,14 @@ function walkStaticReceiverTerminal({ hop, walk }) {
   // a slot REPLACED after the literal (`const w = { k: Object }; w.k = Map`) no longer holds what the
   // literal spells, so descending it resolves a DIFFERENT constructor's static - a wrong value, not a
   // missed one. the class arm already bails on a static block for exactly this reason.
-  // pure bails on any recorded write. Global's direct replacement proof runs before the binding
+  // Pure bails on writes that can reach this slot read. Global's direct replacement proof runs before the binding
   // descent above; the remaining records establish only possible writes, so this descent retains
   // the literal's candidate in that mode.
   // the MUTATION resolver walks these chains to REGISTER a patch - bailing it on the very record
   // its own writes feed would lose the patch (`const m = NS.M; m.groupBy = shim` must still route
   // reads through the injected constructor), so it opts out of the slot consult
   const slotWritten = !ignoreWrittenSlots && containerName && adapter.method === 'usage-pure'
-    && adapter.isWrittenContainerSlot?.(containerName, [...containerPath, walkPath[0]], containerNode);
+    && adapter.isWrittenContainerSlot?.(containerName, [...containerPath, walkPath[0]], containerNode, path, walk.slotReadNode);
   // usage-global union of the slot's OTHER reaching values, collected beside the primary descent:
   // the values recorded as written to this slot (including unknown-slot writes, which may land
   // anywhere), and - once an in-place mutator repositioned the container - every literal element
