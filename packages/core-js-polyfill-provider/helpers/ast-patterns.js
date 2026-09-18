@@ -2192,6 +2192,29 @@ export function ownerWritePathIndex(ownerPath) {
   return index;
 }
 
+const ownerSourceWritePaths = new WeakMap();
+
+// A census write and the live traversal may hold different copies of the SAME source node.
+// Index the existing owner walk by source position once; duplicate positions are ambiguous.
+// This lookup is only for writes from this file's census, never nodes from another program.
+export function ownerSourceWritePath(ownerPath, node) {
+  const paths = ownerWritePathIndex(ownerPath);
+  if (paths.has(node)) return paths.get(node);
+  const key = nodePositionKey(node);
+  if (key === null) return null;
+  let positions = ownerSourceWritePaths.get(paths);
+  if (!positions) {
+    ownerSourceWritePaths.set(paths, positions = new Map());
+    for (const [write, path] of paths) {
+      const span = nodePositionKey(write);
+      if (span === null) continue;
+      const stamp = `${ write.type }:${ span }`;
+      positions.set(stamp, positions.has(stamp) ? null : path);
+    }
+  }
+  return positions.get(`${ node.type }:${ key }`) ?? null;
+}
+
 // PATHS for the synthetic binding's declarator and its reassignment nodes, resolved through the
 // shared owner index. the node scan above stays the source of truth for WHICH nodes those are
 // (its shadow-stopping rules are subtle); this only maps them onto the live paths the flow layer
@@ -3158,10 +3181,13 @@ const nodeSitsInLoopRerunWithin = memoizeByNodePair((ownerNode, target) => {
 // loop back-edge anchor for a binding: its declaration identifier node + kind. position (which loop
 // slot the decl sits in) plus kind (`var` is function-scoped and carries; `let`/`const` are
 // block-scoped and re-created in a body) is the parser-robust signal - estree-toolkit attaches both a
-// for-body `var` and a for-body `let` to the ForStatement scope, so the scope node cannot tell them apart
+// for-body `var` and a for-body `let` to the ForStatement scope, so the scope node cannot tell them apart.
+// Class bindings expose their declaration directly rather than through the variable-declarator view.
 export function bindingLoopAnchor(binding) {
+  const node = binding?.path?.node ?? binding?.node;
   return {
-    decl: binding?.identifier ?? binding?.identifierPath?.node ?? bindingDeclaratorNode(binding)?.id ?? null,
+    decl: binding?.identifier ?? binding?.identifierPath?.node ?? bindingDeclaratorNode(binding)?.id
+      ?? (CLASS_NODE_TYPES.has(node?.type) ? node.id : null),
     kind: binding?.kind ?? null,
   };
 }
@@ -3193,9 +3219,11 @@ export function loopReExecRegionHasViolation(loopNode, violationNodes, bindingAn
 // one of `violationNodes` (a reassignment of the binding). the climb stops exactly where the
 // read-side deferral gate stops - at a deferred context, THROUGH an immediately invoked body: the
 // gate hands such a read to positional reasoning, so this half of it has to see the same loops
+// for bindings outside that invocation. Its own bindings start fresh on each call, including var.
 export function usageCrossesLoopBackEdgeReassign(usagePath, violationNodes, bindingAnchor, readNode = null) {
   if (!violationNodes?.length) return false;
   for (let cur = usagePath, parent; (parent = cur.parentPath) && !readStepIsDeferred(parent, cur); cur = parent) {
+    if (isVarScopeBoundary(parent.node.type) && nodeRangeContains(parent.node, bindingAnchor?.decl)) return false;
     // a read in the `for`-INIT slot runs once, before the first body write - the same once-only region
     // `loopReExecRegionHasViolation` excludes on the write side, mirrored here so one rule serves both
     if (parent.node.type === 'ForStatement' && cur.node === parent.node.init) continue;
@@ -4126,6 +4154,9 @@ export function reachingReassignmentValueNode({
   const dominating = before.filter(node => nodeDominatesUsage({ node, usagePath, owner, climb: true, usageNode }) === true);
   if (!dominating.length) return null;
   const last = dominating.reduce((a, b) => b.start > a.start ? b : a);
+  // A later non-dominating write can still replace this value before the read (a for-of
+  // head, for example). Dominance alone cannot prove that the read observes only this write.
+  if (requireSingleObservation && before.some(node => node !== last && !provablyPrecedes(node, last))) return null;
   if (plainWritesOnly && isDestructurePattern(plainWriteOf(last, owner.node)?.target)) return null;
   return reassignmentRhsForBinding(last, owner.node, bindingName, ctx);
 }

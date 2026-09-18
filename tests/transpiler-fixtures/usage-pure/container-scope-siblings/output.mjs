@@ -3,6 +3,7 @@ import _Map from "@core-js/pure/actual/map";
 import _Object$assign from "@core-js/pure/actual/object/assign";
 import _Object$entries from "@core-js/pure/actual/object/entries";
 import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
+import _Object$getOwnPropertyNames from "@core-js/pure/actual/object/get-own-property-names";
 import _Object$is from "@core-js/pure/actual/object/is";
 import _Object$keys from "@core-js/pure/actual/object/keys";
 import _Object$values from "@core-js/pure/actual/object/values";
@@ -10,7 +11,8 @@ import _Object$values from "@core-js/pure/actual/object/values";
 // are two bindings, and the census keys its records by the declaring scope: the write taints its own
 // binding only, so the other's slot still binds the static - for a loop head (for-of, for-in, a
 // for-init declarator), a block, a switch case and a catch parameter shadowing the name alike. a `var` is one binding
-// across every block of its function, so a write through it in a sibling block reaches every read
+// across every block of its function, so its writes share one record; a read before those writes
+// still captures the initial value.
 const out = [];
 for (const item of [{
   w: Object
@@ -96,9 +98,7 @@ _pushMaybeArray(out).call(out, viaCatchShadow);
   var shared = {
     w: Object
   };
-  const {
-    getOwnPropertyNames: viaVarWrittenElsewhere
-  } = shared.w;
+  const viaVarWrittenElsewhere = _Object$getOwnPropertyNames;
   _pushMaybeArray(out).call(out, viaVarWrittenElsewhere);
 }
 {

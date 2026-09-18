@@ -25,6 +25,7 @@ import {
   definedBranchOfGuardConditional,
   deleteHostAboveChain,
   firstProxyBranch,
+  followConstIdentifierInit,
   globalProxyNameFromImportSource,
   identifierDeclaratorInit,
   identifierReferencedInSubtree,
@@ -1706,7 +1707,9 @@ function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, p
     // Object }; w.k = Map; const { k } = w` binds Map) - the same rule the static receiver walk
     // applies to the `w.k` spelling, owed here because this route reads the pairing directly and
     // would otherwise resolve a DIFFERENT constructor's static: a wrong value, not a missed one
-    if (writtenSlotBlocksPatternRead({ pattern, init, name, scope, adapter, path })) return null;
+    if (writtenSlotBlocksPatternRead({
+      pattern, init, name, scope: initScope, adapter, path: binding.path ?? binding.declarationPath ?? path,
+    })) return null;
     const globals = new Set();
     for (const value of patternSlotValues(pattern, init, name, { scope, adapter, path, resolveKey })) {
       const global = resolveObjectName({
@@ -1722,20 +1725,24 @@ function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, p
 }
 
 // does a written container slot stand between this pattern and the value its literal spells?
-// method-aware like every other consult of that record: pure bails (a write anywhere in the file
-// may reach the read), global keeps resolving and over-injects, the safe direction there
+// Pure rejects writes that may reach the pattern capture; later writes cannot change its value.
+// Global keeps resolving and over-injects, the safe direction there.
 function writtenSlotBlocksPatternRead({ pattern, init, name, scope, adapter, path }) {
   if (adapter?.method !== 'usage-pure' || !adapter.isWrittenContainerSlot) return false;
   const container = unwrapRuntimeExpr(init);
   if (container?.type !== 'Identifier') return false;
   const paths = patternRootKeyPathsFor(pattern, name, { scope, adapter, path, resolveKey });
-  // asked of the container's own declaration, the binding the read reaches
+  // The pairing follows const aliases to their literal; ask about that same declaration's
+  // writes. An alias of the container has no slot records of its own.
+  const followed = followConstIdentifierInit({ node: container, readNode: init, ctx: { scope, adapter, path, resolveKey } });
   const containerBinding = adapter.getBinding(scope, container.name, path);
-  const ownerNode = containerBinding?.path?.node ?? containerBinding?.node ?? null;
+  const ownerNode = followed.readNode?.type === 'VariableDeclarator' ? followed.readNode
+    : containerBinding?.path?.node ?? containerBinding?.node ?? null;
+  const ownerName = ownerNode?.id?.name ?? container.name;
   // a slot this walk cannot name reads an UNKNOWN one, so any write on the container reaches it
   return paths === null
-    ? adapter.isWrittenContainerSlot(container.name, [MUTATED_MEMBERS_UNKNOWN], ownerNode)
-    : paths.some(keys => adapter.isWrittenContainerSlot(container.name, keys, ownerNode));
+    ? adapter.isWrittenContainerSlot(ownerName, [MUTATED_MEMBERS_UNKNOWN], ownerNode, path, init)
+    : paths.some(keys => adapter.isWrittenContainerSlot(ownerName, keys, ownerNode, path, init));
 }
 
 // resolve the VALUE an Identifier-pattern alias stores - the declarator init, or a trusted
