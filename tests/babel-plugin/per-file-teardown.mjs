@@ -17,6 +17,14 @@ import corejsPlugin from '../../packages/core-js-babel-plugin/index.js';
 // `cfg` is bound to an object literal, so the census records `cfg.at` with the assigned
 // FunctionExpression as its value node; the trailing call gives the file real work to do
 const CODE = 'const cfg = { at: 1 };\ncfg.at = function marker() {};\n[1].at(0);\n';
+// A restored parameter makes its wrapper opaque. The escape answer's held-name set then
+// keys an AST-bearing walk cache, even though the answer itself only closes over name sets.
+const RESTORED_CODE = `export function checkDirty(link) {
+  const stack = { value: link };
+  link = link.deps;
+  link = stack.value;
+  return link.sub;
+}`;
 // hoisted so babel reuses ONE plugin instance across files, as a real build does - an
 // instance that is itself garbage would hide the retention the check is looking for
 const OPTIONS = {
@@ -30,13 +38,16 @@ function noopPlugin() {
   return { name: 'noop', visitor: {} };
 }
 
-async function transformHoldingMarker(plugin, options, filename) {
-  const ast = await parseAsync(CODE, { filename, configFile: false, babelrc: false });
-  const marker = ast.program.body[1].expression.right;
-  if (marker.type !== 'FunctionExpression') throw new Error(`unexpected marker ${ marker.type }`);
+async function transformHoldingMarker(plugin, options, filename, restored = false) {
+  const source = restored ? RESTORED_CODE : CODE;
+  const ast = await parseAsync(source, { filename, configFile: false, babelrc: false });
+  const marker = restored ? ast.program.body[0].declaration.body.body[0].declarations[0].init
+    : ast.program.body[1].expression.right;
+  const expectedType = restored ? 'ObjectExpression' : 'FunctionExpression';
+  if (marker.type !== expectedType) throw new Error(`unexpected marker ${ marker.type }`);
   const ref = new WeakRef(marker);
   // `cloneInputAst: false` so the plugin walks the very nodes this WeakRef points at
-  await transformFromAstAsync(ast, CODE, {
+  await transformFromAstAsync(ast, source, {
     filename, configFile: false, babelrc: false, cloneInputAst: false, plugins: [[plugin, options]],
   });
   return ref;
@@ -52,16 +63,18 @@ async function collectable(make) {
 }
 
 async function measure() {
-  const results = {
+  const results = {};
+  for (const restored of [false, true]) {
+    const prefix = restored ? 'restored' : 'written';
     // harness gate: the same transform driven by a plugin that keeps nothing must collect.
     // if it does not, the environment cannot answer the question and the rest is noise
-    control: await collectable(() => transformHoldingMarker(noopPlugin, NOOP_OPTIONS, 'control.js')),
-  };
-  for (const [method, options] of Object.entries(OPTIONS)) {
-    // two files through one instance: the first also proves the instance itself outlives a
-    // collection, so a pass is teardown and not a dead plugin
-    results[`${ method }/earlier`] = await collectable(() => transformHoldingMarker(corejsPlugin, options, 'earlier.js'));
-    results[`${ method }/last`] = await collectable(() => transformHoldingMarker(corejsPlugin, options, 'last.js'));
+    results[`${ prefix }/control`] = await collectable(() => transformHoldingMarker(noopPlugin, NOOP_OPTIONS, 'control.js', restored));
+    for (const [method, options] of Object.entries(OPTIONS)) {
+      // two files through one instance: the first also proves the instance itself outlives a
+      // collection, so a pass is teardown and not a dead plugin
+      results[`${ prefix }/${ method }/earlier`] = await collectable(() => transformHoldingMarker(corejsPlugin, options, 'earlier.js', restored));
+      results[`${ prefix }/${ method }/last`] = await collectable(() => transformHoldingMarker(corejsPlugin, options, 'last.js', restored));
+    }
   }
   return results;
 }
@@ -76,10 +89,14 @@ if (typeof globalThis.gc === 'function') {
   checkTruthy('child measurement produced a result', !!line);
   if (line) {
     const results = JSON.parse(line.slice(RESULT_PREFIX.length));
-    checkTruthy('control: node from a state-free plugin is collectable', results.control);
-    // asserting the plugin's own rows against a broken environment would only add noise
-    if (results.control) for (const [label, value] of Object.entries(results)) {
-      if (label !== 'control') check(`${ label } file tree released`, value, true);
+    for (const prefix of ['written', 'restored']) {
+      const control = results[`${ prefix }/control`];
+      checkTruthy(`${ prefix } control: node from a state-free plugin is collectable`, control);
+      // asserting the plugin's own rows against a broken environment would only add noise
+      if (!control) continue;
+      for (const [label, value] of Object.entries(results)) {
+        if (label.startsWith(`${ prefix }/`) && !label.endsWith('/control')) check(`${ label } file tree released`, value, true);
+      }
     }
   }
   finish();
