@@ -55,7 +55,7 @@ for (const _ref5 = _self.Array, of = _Array$of; !out5;) {
 }
 export const r5 = [out5];
 let out6;
-for (const _ref6 = _Promise, withResolvers = _Promise$withResolvers; !out6;) {
+for (const withResolvers = _Promise$withResolvers; !out6;) {
   out6 = typeof withResolvers;
 }
 export const r6 = [out6];

@@ -31,15 +31,17 @@ import {
   unwrapRuntimeExpr,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   subtreeContainsNode,
+  logicalSlotPatchHost,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { remapInheritedStaticMeta } from '@core-js/polyfill-provider/helpers/class-walk';
-import { ownEmittedNavClaim, ownOutputTests } from '@core-js/polyfill-provider/detect-usage/own-output';
+import { ownEmittedLogicalPatch, ownEmittedNavClaim, ownOutputTests } from '@core-js/polyfill-provider/detect-usage/own-output';
 import {
   assignmentExpression,
   callExpression,
   chainExpression,
   cloneNode,
   identifier,
+  logicalExpression,
   memberExpression,
   sequenceExpression,
   nullGuardTest,
@@ -643,10 +645,38 @@ export default function createAstUsagePureCallback({
     replaceGuardedHop({ hopPath, test: nullGuardTest(check), built: withSideEffects(guardedCore, effects), skippedNodes });
   }
 
+  // a logical-assignment PATCH bails the write position like any other, but its DETECT is the
+  // operator's own read and no node spells it - so this binding spells it, putting core-js's own
+  // dispatch ahead of the third-party value and leaving the write as conditional as the source wrote it
+  function spellLogicalPatchDetect(meta, metaPath) {
+    if (ownEmittedLogicalPatch(metaPath, ownOutputTests(injectorState))) return;
+    const patch = logicalSlotPatchHost(metaPath);
+    const pure = patch && resolvePure(meta, metaPath);
+    if (!patch || pure?.kind !== 'instance' || skippedNodes.has(patch.host)) return;
+    patch.host.right = logicalExpression(patch.operator, callExpression(
+      identifier(injectPureImport(pure.entry, pure.hintName)),
+      [cloneNode(patch.receiverNode)],
+    ), patch.host.right);
+    markSubtreeSkipped(skippedNodes, patch.host.right);
+    skippedNodes.add(patch.host);
+    markRewrite();
+  }
+
   // the staged top bails: a conditional / logical destructure receiver routes to the
-  // per-branch mirror; a chain-assignment splice point inside the harvested SE stays raw
-  // (the effects must interleave at the recorded slot, not append)
+  // per-branch mirror - except one whose every live arm is the REALM, which the host rewrite below
+  // collapses before any route reads it; a chain-assignment splice point inside the harvested SE
+  // stays raw (the effects must interleave at the recorded slot, not append)
   function earlyStagedBail(meta, metaPath) {
+    // the host rewrite first: it decides what every route below reads, so it runs before the
+    // per-branch routing rather than beside it
+    if (metaPath.node.type === 'Property') destructureEmit.collapseRealmSelectingHost(metaPath);
+    // ... and a PROBE arm goes to the shared plan ahead of every route this binding owns: that arm is
+    // decided by the RECEIVER, so the leaf's own meta says nothing about it and a question asked inside
+    // the branching gate below never reaches a pattern whose leaves resolve flat. the plan is the only
+    // route that renders the arm - left to this binding's mirror it stays raw, and every host that
+    // spells the probe's name reads the realm there
+    if (metaPath.node.type === 'Property' && destructureEmit.realmProbeArmHostInit(metaPath)
+      && destructureEmit.renderNestedParamSynth({ metaPath, meta })) return true;
     // a HOP prop over an INLINE call yielding a proxy: the meta funnel marks no fallback there,
     // so the mirror is reachable only by the host's own shape
     if (metaPath.node.type === 'Property' && metaPath.node.value?.type === 'ObjectPattern' && !meta.fromFallback
@@ -656,16 +686,28 @@ export default function createAstUsagePureCallback({
     }
     if (meta.fromFallback) {
       if (metaPath.node.type === 'Property') {
-        // an ALL-proxy selecting receiver extracts like a plain proxy one - fall through to
-        // the ordinary destructure dispatch instead of the per-branch mirror. the ASSIGNMENT
-        // host reads it the same way: its own channels own the write
+        // an inner DEFAULT is a receiver of its own - the value the leaf reads wherever the slot
+        // above it is empty - so the climb steps through it and reads its arms rather than stopping
+        // at the pattern. innermost wins: that default is what this leaf actually reads
         let host = metaPath.parentPath;
-        while (host?.node && (host.node.type === 'ObjectPattern' || host.node.type === 'Property')) {
+        let innerDefault = null;
+        while (host?.node && (host.node.type === 'ObjectPattern' || host.node.type === 'Property'
+          || host.node.type === 'AssignmentPattern')) {
+          if (host.node.type === 'AssignmentPattern') innerDefault ??= host.node.right;
           host = host.parentPath;
         }
-        const selecting = host?.node?.type === 'VariableDeclarator' ? host.node.init
-          : host?.node?.type === 'AssignmentExpression' && host.node.operator === '=' ? host.node.right : null;
-        if (selecting && destructureEmit.isAllProxySelectingInit(selecting)) return false;
+        const selecting = innerDefault ?? (host?.node?.type === 'VariableDeclarator' ? host.node.init
+          : host?.node?.type === 'AssignmentExpression' && host.node.operator === '=' ? host.node.right : null);
+        // a selecting receiver every value of which IS the realm extracts like a plain proxy one, so
+        // it falls through to the ordinary dispatch instead of the per-branch mirror - the answer
+        // the other leg's own collapse gives it, the ASSIGNMENT host included: its channels own the
+        // write. an inner DEFAULT stands down only where something ACTUALLY serves the leaf, so the
+        // shared plan is asked rather than assumed - a shape it cannot mirror keeps the per-branch
+        // route, where standing down would leave that leaf with no polyfill at all on this leg. the
+        // HOST's own init needs no such question: its flatten owns the collapse, and asking the plan
+        // ahead of it mirrors a literal that flatten drops
+        if (selecting && destructureEmit.isRealmSelectingInit(selecting)
+          && (!innerDefault || destructureEmit.renderNestedParamSynth({ metaPath, meta }))) return false;
         // a DECLINED mirror leaves the key untouched, and which branch runs then decides whether
         // the polyfill applies at all - the shared diagnostic both other emitters emit
         if (!destructureEmit.handlePerBranch({ metaPath, meta })) {
@@ -718,7 +760,7 @@ export default function createAstUsagePureCallback({
         // - except the SOURCED well-known-symbol prop, whose render (`_getIteratorMethod`)
         // reads THROUGH the receiver and sees the patched slot
         if (chainAssignStaged(meta)
-          || (!isSourcedSymbolIteratorMeta(meta) && mutatedSlotWinsOverClaim(meta, node))) return;
+          || (!isSourcedSymbolIteratorMeta(meta) && mutatedSlotWinsOverClaim(meta, node, metaPath))) return;
         // the destructure pipeline: resolved claims route to the staged emitter, everything
         // else stays raw. a `[Symbol.iterator]` prop resolves to null - its pure resolution
         // IS the shared triple (`_getIteratorMethod`), gated on symbol provenance
@@ -730,7 +772,7 @@ export default function createAstUsagePureCallback({
         return;
       }
       if (node.type !== 'MemberExpression') return;
-      if (memberWritePositionBails(metaPath)) return;
+      if (memberWritePositionBails(metaPath)) return spellLogicalPatchDetect(meta, metaPath);
       // the iterator-method read outranks the inherited-static machinery on a `this`
       // receiver (`this[Symbol.iterator]` in a static block -> `_getIteratorMethod(this)`);
       // `super` still bails inside the handler
@@ -742,7 +784,7 @@ export default function createAstUsagePureCallback({
         if (isThisReceiver(node.object) && isShadowedByClassOwnMember(metaPath, meta.key)) return;
         if (isInheritedStaticLookup(metaPath)) {
           meta = remapInheritedStaticMeta(injectorState, meta, resolveStaticInheritedMember(metaPath));
-          if (!meta || isMutatedStatics(meta)) return;
+          if (!meta || isMutatedStatics(meta, metaPath)) return;
           return emitInheritedStatic(meta, metaPath);
         }
         // outside a static lookup `this` is an ordinary INSTANCE receiver, reusable like a
@@ -771,7 +813,7 @@ export default function createAstUsagePureCallback({
     // keeps the ponyfill its receiver still needs
     // ... and the slot-deopt DIAGNOSTIC rides the gate that acts on it: the report names the
     // written slot once, the gate keeps its reads native
-    if (result?.kind !== 'instance' && mutatedSlotWinsOverClaim(meta, node)) return noteDeoptedSlotRead(meta, deoptCtx);
+    if (result?.kind !== 'instance' && mutatedSlotWinsOverClaim(meta, node, metaPath)) return noteDeoptedSlotRead(meta, deoptCtx);
     // the traversal is pre-order, so by the time a hop fires every ancestor has had its own
     // verdict: a consumer that resolved will own the render, one that did not renders
     // nothing and must not silence this claim
@@ -1043,9 +1085,12 @@ export default function createAstUsagePureCallback({
     }
   }
 
-  function mutatedSlotWinsOverClaim(meta, node) {
-    if (isMutatedStatics(meta)) return true;
+  // `metaPath` rides along because the mutation does NOT speak for the DETECT the write computes
+  // from (`X.y = X.y || patch`): that read runs before the write lands, and the census answer is
+  // asked of the shared predicate with the read's own position rather than of the pair alone
+  function mutatedSlotWinsOverClaim(meta, node, metaPath = null) {
+    if (isMutatedStatics(meta, metaPath)) return true;
     return meta.kind === 'global' && node.type === 'Identifier'
-      && isMutatedStatics({ kind: 'property', object: 'globalThis', key: meta.name, placement: 'static' });
+      && isMutatedStatics({ kind: 'property', object: 'globalThis', key: meta.name, placement: 'static' }, metaPath);
   }
 }

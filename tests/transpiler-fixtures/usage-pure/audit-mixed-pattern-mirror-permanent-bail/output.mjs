@@ -10,10 +10,12 @@ import _WeakSet from "@core-js/pure/actual/weak-set";
 // Object-rest keeps named slots at that level and reads through it native in usage-pure.
 // Independent reads and key/default expressions still receive their own polyfills.
 // A mixed pattern - a nested-ObjectPattern value beside flat keys - belongs to the nested mirror
-// only while the mirror can actually render it. An unresolvable computed key, a duplicate resolved
-// key and a non-identifier key each make it bail for good, and deferring to it then drops the flat
-// sibling's polyfill to a native read. The last host is the control: with every key mirrorable the
-// whole default is replaced by the synthesized literal instead.
+// only while the mirror can actually render it. An unresolvable computed key and a non-identifier
+// key each make it bail for good, and deferring to it then drops the flat sibling's polyfill to a
+// native read; a key the pattern repeats over LEAVES is one slot the literal spells once, so it
+// rides the mirror instead - which is what binds the ponyfill of a ctor core-js REPLACES, where an
+// inline default would have bound the realm's own. The last host is the control: with every key
+// mirrorable the whole default is replaced by the synthesized literal instead.
 // usage-global is not paired: this rewrite exists only on the pure path, which is what binds a
 // polyfill to a destructured name.
 export const unresolvableKey = (({
@@ -24,12 +26,17 @@ export const unresolvableKey = (({
   [getKey()]: y
 } = _globalThis) => [Set, from, y])();
 export const duplicateKey = (({
-  Map = _Map,
-  ["Map"]: alias = _Map,
+  Map,
+  ["Map"]: alias,
   Array: {
-    of = _Array$of
+    of
   }
-} = _globalThis) => [Map, alias, of])();
+} = {
+  Map: _Map,
+  Array: {
+    of: _Array$of
+  }
+}) => [Map, alias, of])();
 export const nonIdentifierKey = (({
   WeakSet = _WeakSet,
   "with-dash": dashed,

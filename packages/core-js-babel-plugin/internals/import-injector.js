@@ -2,6 +2,7 @@ import { resolveImportPath } from '@core-js/polyfill-provider/helpers/path-norma
 import {
   isInitlessVarDecl,
   isNonReferencePosition,
+  reEvaluationObservable,
   isPrologueDirectiveStatement,
   isTopLevelImportLike,
   programPrologueEndIndex,
@@ -339,8 +340,18 @@ export default class ImportInjector extends ImportInjectorState {
   static #removeDeadBindings(bindings) {
     let survivor = false;
     for (const binding of bindings) {
-      // referenced / mutated / SE-init declarators MUST stay even when var itself is unused
-      if (binding.references || binding.constantViolations.length || binding.path.node?.init) {
+      // referenced / mutated declarators MUST stay, and so must an init whose EVALUATION is
+      // observable: a memo the emission orphaned is still the one place a call or a member read
+      // runs (`const _ref = getG();` whose readers all re-spelled the receiver). only a provably
+      // inert init - a bare binding read - may leave with its declarator
+      if (binding.references || binding.constantViolations.length
+        || (binding.path.node?.init && reEvaluationObservable(binding.path.node.init))) {
+        survivor = true;
+        continue;
+      }
+      // a PATTERN-bound slot (a rest sentinel) belongs to a destructure the residual still
+      // performs - the declarator is not the sentinel's to remove
+      if (binding.path.node?.id?.type !== 'Identifier') {
         survivor = true;
         continue;
       }
@@ -461,13 +472,15 @@ export default class ImportInjector extends ImportInjectorState {
     // use; a wholesale-discarded emission leaves zero. any slot-shaped identifier OUTSIDE the
     // generated registry (a nested user binding, a sibling-plugin introduction) routes to the
     // full path so the taken-aware renumber can keep avoiding it
-    const { refCounts, printRank, foreignSlotName } = this.#ensureExitCensus();
+    const { refCounts, refDeclIdCounts, printRank, foreignSlotName } = this.#ensureExitCensus();
     if (!foreignSlotName) {
       let hasDead = false;
       for (const [name, count] of refCounts) {
-        // a DECLARED ref needs a use beyond its declarator; a LOCAL / sentinel name's
-        // declarator carries its init or pattern slot, so one occurrence is a live emission
-        if (count <= (this.declaredRefNames.has(name) ? 1 : 0)) {
+        // one rule for every slot shape: a name spelled ONLY in declarator-id positions has no
+        // reader, whether a `var _refN;` declares it or an inline `const _refN = ...` memo does.
+        // a sentinel lives in a PATTERN slot, never a declarator id, so its own spelling keeps it
+        // live - and for a declared ref this is the same count the single-occurrence rule gave
+        if (count <= (refDeclIdCounts.get(name) ?? 0)) {
           hasDead = true;
           break;
         }
@@ -504,6 +517,23 @@ export default class ImportInjector extends ImportInjectorState {
       if (!ImportInjector.#removeDeadBindings(bindings)) {
         this.declaredRefNames.delete(name);
         this.generatedRefFamilies().get('_ref').delete(name);
+        byName.delete(name);
+        prunedNames.add(name);
+      }
+    }
+
+    // ... and the LOCAL slots: an inline `const _refN = <init>` memo is in the family registry but
+    // never in `declaredRefNames`, so the walk above never offered it. one the emission ORPHANED -
+    // every reader re-spelled the receiver it held - is dead text whose declarator carries the only
+    // surviving spelling of the name; the removal keeps any whose init still evaluates
+    for (const [, names] of families) {
+      // snapshot: the loop deletes from the very set it walks
+      // eslint-disable-next-line unicorn/no-useless-spread -- snapshot intentional
+      for (const name of [...names]) {
+        if (this.declaredRefNames.has(name)) continue;
+        const bindings = byName.get(name);
+        if (!bindings?.length || ImportInjector.#removeDeadBindings(bindings)) continue;
+        names.delete(name);
         byName.delete(name);
         prunedNames.add(name);
       }

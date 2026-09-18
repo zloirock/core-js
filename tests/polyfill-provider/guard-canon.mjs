@@ -206,11 +206,18 @@ runBoth('captured static with instance fallback keeps ordinary dispatch', 'held.
   check(`${ label }/ordinary dispatcher remains available`, plan, null);
 });
 
+// WHICH invocation a captured receiver may move into the guard's branches: an ordinary call and a
+// this-preserving wrapper over one, and an optional call, whose `?.` the RAW branch keeps - the pure
+// entry is always callable. what keeps bailing owes a test or a copy the branches have no slot for: a
+// continuation above an absorbed `?.()` short-circuits WITH it, and a tagged template is no call
+// this render spells. the SEALED callee slot - a paren'd member under a live `?.`, whose call runs on
+// the short-circuited value and owes its throw - is a whole-emitter shape, locked by its fixture rows
 for (const [source, expected] of [
   ['held.Array.of;', 'read'],
   ['held.Array.of(effect());', 'call'],
   ['(held.Array.of)(effect());', 'call'],
-  ['held.Array.of?.(effect());', 'bail'],
+  ['held.Array.of?.(effect());', 'call'],
+  ['held.Array.of?.(effect())[0];', 'bail'],
   ['held.Array.of`value`;', 'bail'],
 ]) runBoth(`captured static invocation/${ source }`, source, (adapter, program, label) => {
   const path = adapter.pickPath(program, 'MemberExpression', candidate => candidate.node.property?.name === 'of');
@@ -251,11 +258,17 @@ for (const [source, expected] of [
   check(`${ label }/guard candidate`, inlineCallReturnExpression(callHop, { allowExtraParams: true })?.node?.name ?? null, expected);
 });
 
+// the `?.` hops a captured receiver's guard can absorb - one, and only where the test has its value
+// at hand: the member's own hop tests the capture (the guard rides inside it), and the receiver's own
+// last hop tests that hop's base, which the live branch re-reads while spelling the receiver plain.
+// two live hops need two tests and a deeper one a memo of its own, so both keep bailing
 for (const [source, expected] of [
   ['source.w.WeakSet;', 'capture'],
   ['(effect(), source.w).WeakSet;', 'capture'],
-  ['source?.w.WeakSet;', 'bail'],
-  ['source.w?.WeakSet;', 'bail'],
+  ['source?.w.WeakSet;', 'capture'],
+  ['source.w?.WeakSet;', 'capture'],
+  ['source?.w?.WeakSet;', 'bail'],
+  ['source?.x.w.WeakSet;', 'bail'],
 ]) runBoth(`guarded member capture/${ source }`, source, (adapter, program, label) => {
   const path = adapter.pickPath(program, adapter.name === 'babel' && source.includes('?.')
     ? 'OptionalMemberExpression' : 'MemberExpression', candidate => candidate.node.property?.name === 'WeakSet');
@@ -267,6 +280,30 @@ for (const [source, expected] of [
       : { kind: 'global', entry: 'actual/weak-set/constructor', hintName: 'WeakSet' },
   });
   check(`${ label }/route`, plan?.bail ? 'bail' : plan?.captureReceiver ? 'capture' : 'none', expected);
+});
+
+// the continuation a hoisted chain guard absorbs, counted on BOTH dialects: the walk straddles two
+// spellings of an optional chain, so a per-leg answer would print two shapes for one rule. an empty
+// tail is the member-level narrow keeping its own `?.`, which is exact where the chain ends, where
+// the next step short-circuits too, and where a seal makes the source read the short-circuited value
+for (const [source, expected] of [
+  ['realm?.Map.groupBy;', 1],
+  ['realm?.Map.groupBy(1);', 2],
+  ['realm?.Map.prototype.at;', 2],
+  ['realm?.Map;', 0],
+  ['realm?.Map?.groupBy;', 0],
+  ['(realm?.Map).groupBy;', 0],
+]) runBoth(`guarded narrow chain tail/${ source }`, source, (adapter, program, label) => {
+  const path = adapter.pickPath(program, adapter.name === 'babel' ? 'OptionalMemberExpression' : 'MemberExpression',
+    candidate => candidate.node.property?.name === 'Map');
+  const plan = planGuardedStaticNarrow({
+    memberNode: path.node, parent: path.parentPath?.node, path,
+    meta: { key: 'Map', guardedAliasHint: 'globalThis' },
+    resolvePure: meta => meta.kind === 'global'
+      ? { kind: 'global', entry: 'actual/map/constructor', hintName: 'Map' }
+      : { kind: 'global', entry: 'actual/global-this', hintName: 'globalThis' },
+  });
+  check(`${ label }/absorbed steps`, plan?.bail ? 'bail' : plan?.chainTail?.length, expected);
 });
 
 for (const [source, expected] of [

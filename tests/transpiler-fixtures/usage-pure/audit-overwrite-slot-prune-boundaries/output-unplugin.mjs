@@ -44,7 +44,7 @@ wrapped = _flatMapMaybeArray(_globalThis.Array.prototype);
 		_ref3 = _ref2,
 		null == _ref3
 			? _ref3[""]
-			: ((effect(), computed = _includesMaybeArray(_ref3))),
+			: (effect(), computed = _includesMaybeArray(_ref3)),
 		_ref3
 	),
 	_ref

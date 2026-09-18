@@ -61,7 +61,7 @@ for (const _ref of [{ w: Object, at: 1 }]) {
 for (const _ref2 of [{ w: Object, y: [1] }]) {
 	let _ref3 = _ref2;
 	let viaDualBesideInstance = _Object$values;
-	let viaInstanceBeside = _at(_ref3.y);
+	let viaInstanceBeside = _atMaybeArray(_ref3.y);
 
 	[viaDualBesideInstance, viaInstanceBeside];
 }

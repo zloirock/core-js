@@ -42,7 +42,10 @@ import {
   proxyRunLandingPure,
 } from '@core-js/polyfill-provider/detect-usage/members';
 import { renameSplitPropsToSentinels } from '@core-js/polyfill-provider/detect-usage/destructure';
-import { renderNestedKeyedPatternCapture } from '@core-js/polyfill-provider/destructure-host-shape';
+import {
+  capturedRealmCtorPure,
+  renderNestedKeyedPatternCapture,
+} from '@core-js/polyfill-provider/destructure-host-shape';
 import {
   asProxyGlobalName,
   chainValueCarrier,
@@ -81,6 +84,9 @@ import {
   memberExpression,
   sequenceExpression,
   nullFirstGuardTest,
+  renderCapturedReceiver,
+  renderGuardedChainTail,
+  renderShortCircuitGuard,
   renderBoundRawBranch,
   renderCtorIdentityNarrow,
   renderNavCollapseLeaf,
@@ -213,11 +219,14 @@ export default function createProxySpineChannel(ctx) {
     return { splitSource, rewrapNonNull };
   }
 
-  // one guard branch per candidate ctor, innermost-last - both legs chain the same plan list
-  function guardChainNode(plan, rawBranch, invoke) {
+  // one guard branch per candidate ctor, innermost-last - both legs chain the same plan list.
+  // `captureSource` is the receiver VALUE the branches read through, handed to the render unless the
+  // plan hoists its short-circuit INSIDE that capture - there the hoist writes the memo itself, and
+  // passing it here too would assign the ref twice
+  function guardChainNode(plan, rawBranch, invoke, captureSource) {
     return renderCtorIdentityNarrow(plan, rawBranch, {
       injectImport: injectPureImport, spellRecv: () => identifier(plan.recvIdent.name), invoke,
-      captureReceiver: plan.captureReceiver ? cloneNode(plan.captureReceiver) : null,
+      captureReceiver: plan.hoistInsideCapture ? null : captureSource,
     });
   }
 
@@ -230,38 +239,80 @@ export default function createProxySpineChannel(ctx) {
     if (!plan) return false;
     if (plan.bail) return true;
     if (plan.captureReceiver) plan.recvIdent = identifier(injector.generateDeclaredRef(metaPath));
+    // the receiver hop the guard absorbed is captured PLAIN - its `?.` is answered once by the
+    // short-circuit the plan hoists over that hop's own base
+    const captureSource = plan.receiverHop ? { ...cloneNode(plan.receiverHop), optional: false }
+      : plan.captureReceiver ? cloneNode(plan.captureReceiver) : null;
     // an effectful sequence prefix on the receiver runs ONCE, ahead of the test - the raw
     // branch reads off the bare identifier
     const memberClone = plan.seqPrefix.length || plan.captureReceiver
       ? { ...cloneNode(memberNode), object: identifier(plan.recvIdent.name) }
       : cloneNode(memberNode);
+    // a hoisted chain guard has already proved the receiver, so the raw branch drops the `?.` the
+    // source wrote on the hop - and with it the chain wrapper that spelled it
+    if (plan.hoisted) memberClone.optional = false;
     const rawBranch = plan.isCallee && !plan.callInBranches
       ? renderBoundRawBranch(memberClone, identifier(plan.recvIdent.name))
       : memberClone.optional || receiverCarriesOptional(memberClone) ? chainExpression(memberClone) : memberClone;
     const liveArguments = plan.callInBranches ? new Set() : null;
-    let replacement = guardChainNode(plan, rawBranch, plan.callInBranches ? callee => {
-      const call = { ...cloneNode(parent), callee };
+    // arguments of an absorbed call keep their own claims: the guard's subtree mark walks around them
+    const tailArguments = new Set();
+    let replacement = guardChainNode(plan, rawBranch, plan.callInBranches ? (callee, raw) => {
+      const call = { ...cloneNode(parent), callee, optional: raw && Boolean(parent.optional) };
       for (const arg of call.arguments) liveArguments.add(arg);
-      return call;
-    } : undefined);
-    if (plan.seqPrefix.length) replacement = sequenceExpression([...plan.seqPrefix.map(expr => cloneNode(expr)), replacement]);
+      // an absorbed optional call is its own chain in the branch it lands in
+      return call.optional ? chainExpression(call) : call;
+    } : undefined, captureSource);
+    // the plan's continuation rides inside the live branch, the short-circuit is spelled once above
+    // it, and the replaced target climbs to the outermost absorbed step
+    let tailTarget = null;
+    if (plan.chainTail.length) {
+      replacement = renderGuardedChainTail(plan.chainTail, replacement, {
+        cloneHost: cloneNode,
+        cloneCall: (step, built) => {
+          const call = { ...cloneNode(step), callee: built };
+          for (const argument of call.arguments) tailArguments.add(argument);
+          return call;
+        },
+      });
+      const outermost = plan.chainTail.at(-1);
+      for (let up = metaPath.parentPath; up?.node && !tailTarget; up = up.parentPath) {
+        if (up.node === outermost) tailTarget = up;
+      }
+    }
+    // the short-circuit tests the value the source's own `?.` guards: the hop's base where the
+    // RECEIVER spelling carries it, the receiver itself otherwise - and where that receiver is a
+    // capture, the test rides inside the capture sequence, after the memo it reads
+    if (plan.hoisted) {
+      replacement = renderShortCircuitGuard(nullFirstGuardTest(plan.receiverHop
+        ? cloneNode(plan.receiverHop.object) : identifier(plan.recvIdent.name)), replacement);
+    }
+    if (plan.hoistInsideCapture) {
+      replacement = renderCapturedReceiver(identifier(plan.recvIdent.name), captureSource, replacement);
+    }
+    const prefixClones = plan.seqPrefix.map(expr => cloneNode(expr));
+    if (prefixClones.length) replacement = sequenceExpression([...prefixClones, replacement]);
+    let target = metaPath;
+    if (plan.callInBranches) target = peelParenAndTSSlotPath(metaPath).parentPath;
+    if (tailTarget) target = tailTarget;
     // the source `?.` arrived wrapped in a ChainExpression; the conditional replaces the whole
     // wrapper, the raw branch carries its own
-    let target = metaPath;
-    if (target.parentPath?.node?.type === 'ChainExpression' && target.parentPath.node.expression === memberNode) {
+    if (target.parentPath?.node?.type === 'ChainExpression' && target.parentPath.node.expression === target.node) {
       target = target.parentPath;
     }
-    if (plan.callInBranches) target = peelParenAndTSSlotPath(metaPath).parentPath;
     const consumed = target.node;
     markRewrite();
     target.replaceWith(replacement);
     markSubtreeSkipped(skippedNodes, consumed);
-    // the WHOLE guard: the raw branch respells the member, and a revisit re-claiming it would
-    // guard the guard. what rides AHEAD of it in the sequence - the captured receiver's write, the
-    // re-emitted effectful prefix - keeps its own claims (`(log.push("r"), M).groupBy` still owes
-    // `push` its dispatch, exactly as the babel leg's prefix clones do)
-    const guard = plan.captureReceiver || plan.seqPrefix.length ? replacement.expressions.at(-1) : replacement;
-    markSubtreeSkipped(skippedNodes, guard, liveArguments);
+    // the WHOLE render is ours: the raw branch respells the member, and a revisit re-claiming it
+    // would guard the guard. what the SOURCE still owes a claim rides in the live set the mark walks
+    // around - the captured receiver's own read, the re-emitted effectful prefix, the arguments of an
+    // absorbed call (`(log.push("r"), M).groupBy` still owes `push` its dispatch, exactly as the
+    // babel leg's prefix clones do)
+    const live = new Set([...liveArguments ?? [], ...tailArguments]);
+    if (captureSource) live.add(captureSource);
+    for (const expr of prefixClones) live.add(expr);
+    markSubtreeSkipped(skippedNodes, replacement, live);
     return true;
   }
 
@@ -313,6 +364,7 @@ export default function createProxySpineChannel(ctx) {
         assignment: hostKind !== 'declarator',
         preserveResult: hostKind === 'assignment-value',
         injectImport: injectPureImport,
+        anchorPure: capturedRealmCtorPure({ capture, scope: metaPath.scope, adapter, path: metaPath, resolveGlobalPolyfill }),
       });
       if (rendered.expression) {
         for (const [index, element] of rendered.elements.entries()) {

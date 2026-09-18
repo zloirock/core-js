@@ -10,16 +10,16 @@ import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 // the probe key is POSITION-INDEPENDENT: both property orders reproduce the source's throw,
 // and a string-literal / computed `[Symbol.iterator]` first key probes like the dotted one
 export const {
-  union: viaAnchoredFirstA
+  customQ: viaAnchoredFirstA
 } = ((null == _globalThis.window ? void 0 : _self).Set, _Set);
 export const viaAnchoredFirstB = _Array$of;
 export const viaConsumedFirstA = ((null == _globalThis.window ? void 0 : _self).Array, _Array$of);
 export const {
-  union: viaConsumedFirstB
+  customQ: viaConsumedFirstB
 } = _Set;
 export const viaStringKeyFirst = ((null == _globalThis.window ? void 0 : _self).Array, _Array$of);
 export const {
-  union: viaStringKeySibling
+  customQ: viaStringKeySibling
 } = _Set;
 export const viaSymbolFirst = ((null == _globalThis.window ? void 0 : _self)[_Symbol$iterator], _getIteratorMethod(_self));
 export const viaSymbolSibling = _Array$of;

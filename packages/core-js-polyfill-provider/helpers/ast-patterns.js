@@ -7,6 +7,7 @@ import {
   nodeRangeContains,
   PATTERN_WRAPPERS,
 } from '../resolve-node-type/base.js';
+import { nodeAlwaysReaches } from '../resolve-node-type/exit-analysis.js';
 import { moduleIdLanguage } from './path-normalize.js';
 
 // the escape census, keyed by PROGRAM node -> the NAMES a value handed out (a call argument, a
@@ -827,6 +828,23 @@ export function runStandsInLoweredGuardTest(startPath, unwrap) {
     if (!stepsOn && unwrap(node) === node && !chainValueCarrier(node, step.node)) return false;
   }
   return false;
+}
+
+// the DETECT a logical-assignment patch never spells. `X.prototype.m ||= patch` writes only where the
+// slot is EMPTY, and what it tests is the OPERATOR's own read rather than a node - so no read carries
+// the polyfill, and the third-party patch installs in exactly the realms core-js supplies the method
+// for. The explicit twin needs no channel of its own (`X.m = X.m || patch` - the member visitor
+// polyfills the read the source wrote), which is why this shape had none. Answering it keeps the
+// conditional write and puts core-js's own dispatch ahead of the patch (`||= _mMaybeX(X.prototype) ||
+// patch`): where the slot is empty it takes OURS and the patch never runs, and where the slot is
+// filled nothing is written, exactly as the source says. `&&=` is not this shape - it writes only
+// where the slot is ALREADY filled, so prepending ours would install where native does not
+export function logicalSlotPatchHost(memberPath) {
+  const target = climbTransparentWrapperPath(memberPath);
+  const host = target?.parentPath?.node;
+  if (host?.type !== 'AssignmentExpression' || host.left !== target.node) return null;
+  const operator = host.operator === '||=' ? '||' : host.operator === '??=' ? '??' : null;
+  return operator ? { host, operator, receiverNode: target.node.object } : null;
 }
 
 // canonical write-host enumeration: is the member-access at `memberPath` the WRITE TARGET of its
@@ -3303,7 +3321,12 @@ const collectVarGuardsToDeclarator = memoizeByNodePair((ownerNode, target) => {
     // under the same guard and stays dominated, while one outside it does not - a write that may
     // never have run cannot kill the init the read still observes. every OTHER deferred context is a
     // function-like node, which this climb already stops at as a var-scope boundary
-    else if (conditionalEvaluationEdge(parent, child) || isDeferredFieldValueNode(parent, child)) guards.push(child);
+    // ... and so does a LABEL whose body breaks out: the jump ends the body, so a declaration below
+    // the break never runs while a read AFTER the label still does. a label is not a conditional host
+    // by type - it only NAMES a statement - so the branch-field table above cannot see it, and
+    // without this disjunct such a declarator reads as unconditional
+    else if (conditionalEvaluationEdge(parent, child) || isDeferredFieldValueNode(parent, child)
+      || (parent.type === 'LabeledStatement' && labeledBodyBreaksOut(parent))) guards.push(child);
     child = parent;
   }
   guards.reverse();
@@ -3449,39 +3472,103 @@ function lexicalInitRunsBeforeUsage({ declaratorNode, usagePath, usageNode }) {
   return true;
 }
 
+// the statement shapes a branching construct is summarised through - the hosts whose arms are
+// mutually exclusive and statically enumerable. a loop is deliberately absent (zero iterations write
+// nothing) and so is a labelled block (`break label` skips the rest of its body)
+const BRANCHING_HOST_TYPES = new Set(['IfStatement', 'SwitchStatement', 'TryStatement']);
+
+// does `statement` WRITE `name`? a `var name = X` declaration or a plain `name = X` expression
+// statement - the unit an arm is credited with. a derived write (`name++`, `name += x`) is not one:
+// it READS the name first, so it cannot be what makes the hoisted `undefined` unreachable
+function statementWritesVarName(statement, name) {
+  if (statement?.type === 'VariableDeclaration' && statement.kind === 'var') {
+    return (statement.declarations ?? []).some(item => item.init && item.id?.type === 'Identifier' && item.id.name === name);
+  }
+  const write = statement?.type === 'ExpressionStatement' ? statement.expression : null;
+  if (write?.type !== 'AssignmentExpression' || write.operator !== '=') return false;
+  const target = unwrapRuntimeExpr(write.left);
+  return target?.type === 'Identifier' && target.name === name;
+}
+
+// the CONDITIONAL shape a POSITION settles on its own: a branching construct standing UNGUARDED in
+// the owner and provably before the read, every path through which writes `name` - or hard-exits, so
+// the read was not reached that way. whichever path ran, the read observes a write and never the
+// hoisted `undefined`. completeness is asked of the exit walk's dual, so an `if` needs its
+// `alternate`, a `switch` its `default` and a `try` its handler; a lone `if`, a loop and a labelled
+// block are not complete and keep refusing. the construct is located by climbing from the writes the
+// caller hands in - the DECLARATORS for the positional question, the violation set for the value
+// one. the answer is POSITIONAL only: whether the writes AGREE on a value is the caller's own
+function completeBranchWritesBefore({ ownerNode, name, writeNodes, readNode }) {
+  if (!name || !writeNodes?.length) return null;
+  function hit(statement) {
+    return statementWritesVarName(statement, name);
+  }
+  // the owner's parent index is asked ONCE, and WITHOUT the miss-rebuild: a write this index does
+  // not hold sits in a nested var scope, which is no path through the OWNER's own branching, so it
+  // is exactly the write this gate must ignore. asking the locating form per write re-walked the
+  // whole owner - deeply, since the rebuild indexes excluded scopes too - for every name on a
+  // write-dense file, and the walks compounded as the deeper index displaced the shallow one
+  const parents = ownerParentIndex(ownerNode);
+  const seen = new Set();
+  for (const write of writeNodes) {
+    if (!parents.has(write)) continue;
+    for (let cur = parents.get(write); cur && cur !== ownerNode; cur = parents.get(cur)) {
+      if (!BRANCHING_HOST_TYPES.has(cur.type) || seen.has(cur)) continue;
+      seen.add(cur);
+      if (collectVarGuardsToDeclarator(ownerNode, cur)?.length === 0
+        && provablyPrecedes(cur, readNode) && nodeAlwaysReaches(cur, hit)) return cur;
+    }
+  }
+  return null;
+}
+
+// the value a SETTLED write installs, read where the write stands: a declarator's init, a plain
+// assignment's right. the construct's completeness is already proved by the branching walk, so what
+// is left to ask is whether the writes AGREE - and the general reaching-value reader answers only
+// for the host shapes its own walk knows, which an arm of an else-if chain, a `switch` case or a
+// `catch` is not one of. null for anything else, which refuses the whole set
+function settledWriteValue(node) {
+  const write = unwrapRuntimeExpr(node);
+  if (write?.type === 'VariableDeclarator') return write.init ?? null;
+  if (write?.type === 'AssignmentExpression' && write.operator === '=') return write.right;
+  return null;
+}
+
+// do two write VALUES spell the same thing? asked of the writes a complete branching construct
+// settles, where the reaching value is whichever path ran - so one may be handed on only if every
+// other would resolve the same. deliberately SHALLOW and syntactic: a bare name, a static member
+// chain of names, an object literal whose non-computed keys pair one for one. everything else
+// answers false and the caller refuses, because a value this cannot compare is one the walk could
+// still resolve two ways
+function writeValuesAgree(a, b, depth = 0) {
+  if (a === b) return true;
+  if (!a || !b || depth > MAX_DEPTH || a.type !== b.type) return false;
+  if (a.type === 'Identifier') return a.name === b.name;
+  if (a.type === 'ThisExpression') return true;
+  if (a.type === 'MemberExpression') {
+    return !a.computed && !b.computed && a.property?.name === b.property?.name
+      && writeValuesAgree(a.object, b.object, depth + 1);
+  }
+  if (a.type !== 'ObjectExpression') return false;
+  const own = a.properties ?? [];
+  const other = b.properties ?? [];
+  return own.length === other.length && own.every((prop, index) => {
+    const twin = other[index];
+    const key = propertyKeyName(prop);
+    return key !== null && key !== undefined && !prop.computed && !twin?.computed
+      && key === propertyKeyName(twin) && writeValuesAgree(prop.value, twin.value, depth + 1);
+  });
+}
+
 // SOUND gate for resolving a function-scoped `var` alias to a global. `var` hoists to the whole
 // function, so `if (c) { var M = globalThis } M.Map()` binds M everywhere - but M holds the global
 // only when `c` was truthy; usage-pure would rewrite the use to a receiver-less polyfill and mask
-// the native TypeError on the c-falsy path. holds iff the declarator DOMINATES the use - via the
+// the native TypeError on the c-falsy path. holds where the declarator DOMINATES the use - via the
 // shared `nodeDominatesUsage` with `climb: true`, so an init captured from an OUTER scope by a
-// later-defined closure still counts. a declarator not located in any enclosing scope defaults to
-// dominating (it is the declaration)
-// the one CONDITIONAL shape a POSITION settles on its own: a `var` written on EVERY arm of an
-// if/else that itself stands unguarded is assigned whichever way the test went, so a read after it
-// observes one of those writes and never the hoisted `undefined`. nothing else is settled here - a
-// lone `if`, a loop body and a `switch` with no `default` may all leave the name unwritten, and a
-// nested pair is a chain of the same question this deliberately does not walk. the answer is
-// POSITIONAL only: whether the values those arms hold agree is the caller's own question
-function ifElseArmsAssignBefore({ ownerNode, name, usagePath, usageNode }) {
-  const declarators = cachedScopeVars(ownerNode)?.get(name);
-  if (!declarators || declarators.length < 2) return false;
-  const armsByHost = new Map();
-  for (const declarator of declarators) {
-    const host = declarator.init ? ifElseArmHostOf(ownerNode, declarator) : null;
-    if (!host) continue;
-    const [arm] = collectVarGuardsToDeclarator(ownerNode, declarator);
-    let covered = armsByHost.get(host);
-    if (!covered) armsByHost.set(host, covered = new Set());
-    covered.add(host.consequent === arm ? 'consequent' : 'alternate');
-  }
-  const readNode = usageNode ?? usagePath.node;
-  for (const [host, covered] of armsByHost) {
-    if (covered.size === 2 && collectVarGuardsToDeclarator(ownerNode, host)?.length === 0
-      && provablyPrecedes(host, readNode)) return true;
-  }
-  return false;
-}
-
+// later-defined closure still counts, and a declarator not located in any enclosing scope defaults
+// to dominating (it is the declaration). where none dominates it holds on the other proof a POSITION
+// can give: a branching construct that writes the name on EVERY path before the read, its writes
+// agreeing on one value
 export function varInitDominatesUsage({ declaratorNode, usagePath, usageNode = null, kind = null }) {
   // conditional-branch domination is a real question ONLY for hoisted `var` (a conditional
   // `if (c) { var M = ... }` binds everywhere but assigns on one path); a `let` / `const` is
@@ -3505,8 +3592,12 @@ export function varInitDominatesUsage({ declaratorNode, usagePath, usageNode = n
   if (dominates !== false) return dominates === null ? true : dominates;
   // ... and the conditional shape a position still settles: no single declarator dominates, yet the
   // name is written on every arm of an if/else standing before the read
-  return declaratorNode?.id?.type === 'Identifier'
-    && ifElseArmsAssignBefore({ ownerNode: owner.node, name: declaratorNode.id.name, usagePath, usageNode });
+  return declaratorNode?.id?.type === 'Identifier' && !!completeBranchWritesBefore({
+    ownerNode: owner.node,
+    name: declaratorNode.id.name,
+    writeNodes: cachedScopeVars(owner.node)?.get(declaratorNode.id.name) ?? [],
+    readNode: usageNode ?? usagePath.node,
+  });
 }
 
 // does some node in `reassignmentNodes` provably overwrite a `var` / `let` alias on EVERY path
@@ -3640,16 +3731,41 @@ function nestedDeclaratorInitReadsOwnerValue(declarator, ownerNode) {
   return declarator.id?.type === 'Identifier' && ifElseArmHostOf(ownerNode, declarator) !== null;
 }
 
-// does a `var` re-declaration sit at the OWNER's own statement level? its init is read by the
-// binding's consumers in the declaration scope they were handed, so a re-declaration inside a
-// nested block keeps its value to itself: a later one may overwrite it before the read. the one
-// exception the caller admits beside this is an if/else ARM, whose twin never runs alongside it
+// the statement hosts a `var` declaration nests under and still runs on its owner's own straight
+// line: a plain block only GROUPS statements (the function body's own block among them), a label
+// only NAMES one, and an export wrapper is not a statement host at all. every other host - an if
+// arm, a loop body, a switch case, a try block - is a branch `collectVarGuardsToDeclarator` already
+// records, so the two channels never answer the same question twice
+const STRAIGHT_LINE_VAR_HOSTS = new Set(['BlockStatement', 'LabeledStatement', 'ExportNamedDeclaration']);
+
+// does a `break` inside this LabeledStatement target its OWN label? such a break jumps past the rest
+// of the labelled body, so a declaration below it may never run while a read after the label still
+// does - the one way a label stops being a straight-line wrapper. answered conservatively (any
+// matching break in the body, not only one above the declaration): the shape is rare, and refusing
+// is the sound direction for a value channel usage-pure substitutes on
+function labeledBodyBreaksOut(node) {
+  const name = node.label?.name;
+  if (!name) return true;
+  let found = false;
+  walkAstNodes({ root: node.body, visit(child) {
+    if (child.type === 'BreakStatement' && child.label?.name === name) found = true;
+    return !found;
+  } });
+  return found;
+}
+
+// does this `var` re-declaration stand on the OWNER's own straight line? the declaration may nest
+// under any run of grouping hosts - what disqualifies it is a host that BRANCHES, which the guard
+// collector records separately, or a LABEL whose body breaks out: it groups by type, but the jump
+// ends the body, so a declaration below the break never runs while a read after the label does
 function ownerLevelDeclarator(declarator, ownerNode) {
   const parents = ownerParentIndexLocating(ownerNode, declarator);
-  let statement = parents.get(parents.get(declarator));
-  if (statement?.type === 'ExportNamedDeclaration') statement = parents.get(statement);
-  const list = parents.get(statement);
-  return list === ownerNode || (list?.type === 'BlockStatement' && parents.get(list) === ownerNode);
+  for (let cur = parents.get(parents.get(declarator)); cur; cur = parents.get(cur)) {
+    if (cur === ownerNode) return true;
+    if (!STRAIGHT_LINE_VAR_HOSTS.has(cur.type)) return false;
+    if (cur.type === 'LabeledStatement' && labeledBodyBreaksOut(cur)) return false;
+  }
+  return false;
 }
 
 // the VALUE a plain write installs, off its RHS: the tail of an SE-carrying sequence (`w = (se(),
@@ -3726,6 +3842,21 @@ export function patternSlotHasDefault(pattern, name) {
 // against values peels the same way
 export function patternSlotTarget(target) {
   return target?.type === 'AssignmentPattern' ? target.left : target;
+}
+
+// does the HOST pattern hold this prop ALONE, every level down to it spelling one key? asked by both
+// legs before LIFTING a prop's pattern out of its statement: a sibling the host keeps runs its own
+// key effects where the statement stands while the lifted pair runs after ALL of them - the source
+// ordered the two around each other - and a prop in the MIDDLE of its level has no placement that
+// orders both sides at all. a host nothing survives in is the only one the lift leaves in order
+export function soleChainToProp(hostPattern, target) {
+  let level = patternSlotTarget(hostPattern);
+  while (level?.type === 'ObjectPattern' && level.properties.length === 1) {
+    const [only] = level.properties;
+    if (only === target) return true;
+    level = patternSlotTarget(only.value);
+  }
+  return false;
 }
 
 // the key PATH from the pattern's root down to `name` - the slots a container read walks through
@@ -3913,8 +4044,10 @@ function writeSitsInGuardTest(ownerNode, writeNode) {
 
 // the ONE value node a reassigned binding holds at `usagePath`, or null when the value is
 // flow-dependent: the textually-last before-use write when it runs unconditionally in the read's own
-// var scope (and, for `requireSingleObservation`, nothing writes after the read), or the last
-// dominating write above a closure that reads the binding; a read that itself runs deferred below
+// var scope (and, for `requireSingleObservation`, nothing writes after the read), the last
+// dominating write above a closure that reads the binding, or - where no single write reaches - the
+// value a COMPLETE branching construct settles, every one of its writes agreeing on it; a read that
+// itself runs deferred below
 // that scope (an instance field initializer) has no textually-last write at all. `plainWritesOnly` leaves pattern writes
 // to the alias registry (see below). the caller resolves the returned node in the declarator's scope
 export function reachingReassignmentValueNode({
@@ -3944,6 +4077,18 @@ export function reachingReassignmentValueNode({
   const bindingName = bindingDeclaratorName(binding);
   const before = reassignmentNodesBeyondDeclarator(binding).filter(node => precedesOrUnordered(node, readNode));
   if (!before.length) return null;
+  // the GUARDED write set a POSITION still settles: the name is written on every path through a
+  // complete branching construct standing unguarded before the read, so whichever path ran is what
+  // the read observes. this channel hands ONE node on, so the writes must also AGREE on the value -
+  // a consumer that binds a polyfill into it would otherwise bind some other path's. a write OUTSIDE
+  // the construct and before the read would overwrite it and refuses the whole set; one BEFORE the
+  // construct is superseded by it, and one after the read cannot reach it
+  const settled = completeBranchWritesBefore({ ownerNode: owner.node, name: bindingName, writeNodes: before, readNode });
+  if (settled && before.every(node => nodeRangeContains(settled, node) || provablyPrecedes(node, settled))) {
+    const values = before.filter(node => nodeRangeContains(settled, node)).map(settledWriteValue);
+    const [first] = values;
+    if (first && values.every(value => writeValuesAgree(value, first))) return first;
+  }
   // SAME-SCOPE: every before-use write is a plain `name = <expr>` in the read's own var-scope. the
   // textually-last one overwrites every earlier write - it is the reaching definition only if it ALWAYS
   // runs (unconditional: no guards); a conditional last write leaves the value ambiguous
@@ -5555,6 +5700,11 @@ export function forOfHeadElements(declaratorPath, { sameCallee = false } = {}) {
   return elements.every(element => sameHeadElement(element, elements[0], sameCallee)) ? elements : null;
 }
 
+// a slot written as a METHOD, in either parser's spelling
+function isHeadMethodSlot(prop) {
+  return prop?.type === 'ObjectMethod' ? prop.kind === 'method' : !!prop?.method;
+}
+
 // one element against the first: the same identifier (or a proxy-global pair), or a container of
 // the same shape over such leaves - data properties by spelled key, array slots by position
 function sameHeadElement(rawNode, rawFirst, sameCallee = false) {
@@ -5584,8 +5734,15 @@ function sameHeadElement(rawNode, rawFirst, sameCallee = false) {
   if (node.type === 'ObjectExpression') {
     return node.properties.length === first.properties.length && node.properties.every((prop, index) => {
       const twin = first.properties[index];
+      if (spelledSlotName(prop) === null || spelledSlotName(prop) !== spelledSlotName(twin)) return false;
+      // a METHOD slot is the one shape whose value is a function with no value NODE to read
+      // (`objectPropertyReadValue` declines it, having no expression to hand back). For a reader that
+      // RESOLVES the element rather than mirroring it, two method slots of the same name read the same:
+      // every claim below the slot reads a function, whatever the body was written to do. Accessors are
+      // excluded - what THEY read is whatever the body returns
+      if (sameCallee && isHeadMethodSlot(prop) && isHeadMethodSlot(twin)) return true;
       return (prop.type === 'Property' || prop.type === 'ObjectProperty') && prop.type === twin.type
-        && !!objectPropertyReadValue(prop) && spelledSlotName(prop) !== null && spelledSlotName(prop) === spelledSlotName(twin)
+        && !!objectPropertyReadValue(prop)
         && sameHeadElement(prop.value, twin.value, sameCallee);
     });
   }
@@ -5610,14 +5767,27 @@ export function relocatedHeadElement(declaratorPath) {
   return forOfHeadElements(loop.get('left').get('declarations')[0], { sameCallee: true })?.[0] ?? null;
 }
 
+// the LOOP a for-x HEAD belongs to, from whichever path a reader holds: the head DECLARATOR
+// (`for (const [{ from }] of ...)`), the assignment PATTERN a head with no declaration writes
+// (`for ([{ from }] of ...)`), or the loop itself. one normalization, so no reader of a head has to
+// know which of the two spellings the source used - the element it reads per pass is the same
+export function forXHeadLoopPath(headPath) {
+  const node = headPath?.node;
+  if (!node) return null;
+  if (isForXStatement(node)) return headPath;
+  const parent = headPath.parentPath;
+  if (isForXStatement(parent?.node) && parent.node.left === node) return parent;
+  const loop = parent?.parentPath;
+  return parent?.node?.type === 'VariableDeclaration' && isForXStatement(loop?.node)
+    && loop.node.left === parent.node ? loop : null;
+}
+
 // ... and the same values as a BRANCH SET, making no claim that one receiver answers for the loop:
 // each is what the pattern reads on its own pass. an enumerate-every-candidate consumer (usage-global,
 // whose contract is inject-if-might) wants all of them where the one above insists on agreement
-export function forOfHeadIterableElements(declaratorPath) {
-  const declaration = declaratorPath?.parentPath;
-  const loop = declaration?.parentPath;
-  if (!declaration || loop?.node?.left !== declaration.node) return null;
-  return forOfIterableElements(loop.node);
+export function forOfHeadIterableElements(headPath) {
+  const loop = forXHeadLoopPath(headPath);
+  return loop ? forOfIterableElements(loop.node) : null;
 }
 
 // the values an iterated ARRAY LITERAL spells in turn - nothing else makes an iterated value's
@@ -5652,6 +5822,12 @@ export function forOfIterableElements(loopNode) {
 export function destructureReceiverNode(host, patternNode = null) {
   const iifeArgument = iifeParameterArgument(host, patternNode);
   if (iifeArgument) return iifeArgument;
+  // ... and a head that declares NOTHING holds its pattern in the loop's own `left`: no slot exists
+  // there either, and what the pattern reads is still the element the iterated literal spells
+  if (isForXStatement(host?.node)) {
+    return patternNode && host.node.left !== patternNode
+      ? null : forOfHeadElements(host, { sameCallee: true })?.[0] ?? null;
+  }
   const slot = destructureReceiverSlot(host?.node);
   if (!slot) return null;
   return host.node[slot] ?? forOfHeadElements(host, { sameCallee: true })?.[0] ?? null;
@@ -7052,7 +7228,7 @@ export function isPristineProxyGlobal(adapter, name) {
 // the pristine proxy surface an operand names, or null. a branch the walker already
 // substituted (`_globalThis`) is the same surface - the minted import's hint says which
 // global it holds
-export function proxySurfaceIdentifier(node, { adapter, injectorState, throughRealmHop = null }) {
+export function proxySurfaceIdentifier(node, { adapter, injectorState, throughRealmHop = null, scope = null, path = null }) {
   let inner = peelTransparentExpr(node);
   // a realm NAVIGATION names the surface its root does (`globalThis.self` IS the realm), so a caller
   // that can read through hops hands the verdict for one. refusing them outright answered "not a
@@ -7068,8 +7244,13 @@ export function proxySurfaceIdentifier(node, { adapter, injectorState, throughRe
     }
   }
   if (inner?.type !== 'Identifier') return null;
-  return isPristineProxyGlobal(adapter, inner.name)
-    || POSSIBLE_GLOBAL_OBJECTS.has(injectorState?.getPureImport?.(inner.name)?.hint) ? inner : null;
+  const minted = POSSIBLE_GLOBAL_OBJECTS.has(injectorState?.getPureImport?.(inner.name)?.hint);
+  // a proxy-global SPELLING that BINDS is the user's own object - `function f(self)`, `const window
+  // = {}` - and the surface question is about the realm, so a caller that brings its scope gets the
+  // binding's answer. only a MINTED name reads past it: the injector's own alias binds by design.
+  // no scope is the node-only convention this family keeps, and there the name alone answers
+  if (!minted && scope && adapter?.getBinding?.(scope, inner.name, path)?.node) return null;
+  return isPristineProxyGlobal(adapter, inner.name) || minted ? inner : null;
 }
 
 // a selecting init whose EVERY LIVE branch lands on the same pristine proxy surface
@@ -7079,6 +7260,7 @@ export function proxySurfaceIdentifier(node, { adapter, injectorState, throughRe
 // stored value while keeping its write, and it checks every leaf against the binding at the read.
 export function allProxySelectingInit(node, {
   adapter, injectorState, allowEffectfulTest = false, throughRealmHop = null, readSurface = null,
+  scope = null, path = null,
 }) {
   const stack = [{ node, branch: false }];
   while (stack.length) {
@@ -7098,7 +7280,8 @@ export function allProxySelectingInit(node, {
       // never nullish, so the right operand never evaluates and dies with the init. a LEFT that is
       // itself an all-proxy selection decides the same way, at every depth (`(globalThis ?? {}) ?? {}`)
       if (inner.operator !== '&&'
-        && allProxySelectingInit(inner.left, { adapter, injectorState, allowEffectfulTest, throughRealmHop, readSurface })) continue;
+        && allProxySelectingInit(inner.left,
+          { adapter, injectorState, allowEffectfulTest, throughRealmHop, readSurface, scope, path })) continue;
       stack.push({ node: inner.left, branch: true }, { node: inner.right, branch: true });
       continue;
     }
@@ -7115,7 +7298,7 @@ export function allProxySelectingInit(node, {
     if (branch) {
       while (value?.type === 'AssignmentExpression' && value.operator === '=') value = peelTransparentExpr(value.right);
     }
-    if (!proxySurfaceIdentifier(value, { adapter, injectorState, throughRealmHop })) return false;
+    if (!proxySurfaceIdentifier(value, { adapter, injectorState, throughRealmHop, scope, path })) return false;
   }
   return true;
 }
@@ -8071,6 +8254,29 @@ export function patternHasAnyDefault(node) {
   }
 }
 
+// the DEFAULT VALUES a pattern spells, at any depth, collected into `out`. Each carries a claim of
+// its own, so a render that replaces the pattern's receiver owes them their visibility - the twin of
+// the predicate above, for the caller that has to rescue what the predicate only counts
+export function collectPatternDefaultValues(node, out) {
+  while (isRestProperty(node)) node = node.argument;
+  switch (node?.type) {
+    case 'AssignmentPattern':
+      out.push(node.right);
+      collectPatternDefaultValues(node.left, out);
+      break;
+    case 'ArrayPattern':
+      for (const element of node.elements) collectPatternDefaultValues(element, out);
+      break;
+    case 'ObjectPattern':
+      for (const prop of node.properties) {
+        collectPatternDefaultValues(isRestProperty(prop) ? prop.argument : prop.value, out);
+      }
+      break;
+    default: break;
+  }
+  return out;
+}
+
 // a pattern value a mirror may hand the ponyfill to: an object pattern of property leaves alone -
 // no rest (it would gather the ponyfill's own members) and no default at any depth (a polyfillable
 // default would render verbatim) - so its leaves read the ponyfill's own members, and a computed
@@ -8226,6 +8432,19 @@ export function patternKeepsEffectfulHop(pattern) {
 // between them; a non-computed key is a static name and never carries an effect
 export function computedKeyHasSideEffects(propNode) {
   return !!propNode?.computed && mayHaveSideEffects(propNode.key);
+}
+
+// does a KEPT effectful key make the residual perform the receiver's ONE read - so a dispatch beside
+// it may not spell that member again, and has to SHARE the read through a memo instead? The key keeps
+// its slot wherever it carries an effect, and the residual then reads the receiver exactly where and
+// as often as the source does; a dispatch spelling the member a second time reads it twice, which is
+// what the memo in the receiver's own slot exists to prevent. The HOST facts are the caller's, one
+// per binding: a level NESTED under a property, and a REST sibling gathering beside the claim, each
+// keep the read on a route of their own
+export function seKeyKeepsReceiverRead({ prop, receiver, nested = false, restSibling = false }) {
+  if (nested || restSibling || !computedKeyHasSideEffects(prop)) return false;
+  const read = unwrapRuntimeExpr(receiver);
+  return read?.type === 'MemberExpression' || read?.type === 'OptionalMemberExpression';
 }
 
 // does an object pattern spell SEVERAL keys with effects, claimed or not? native runs key, read, key,
@@ -8848,11 +9067,14 @@ export function objectPatternHasNestedValue(objectPattern) {
 // a NESTED-value prop is owned by the nested mirror and declines here, see above.
 // callers bail to inline-default / native when this check fails. shared between babel-plugin and
 // unplugin; accepts both Babel `ObjectProperty` and ESTree `Property` node types
-export function isSynthSimpleObjectPattern(objectPattern) {
+export function isSynthSimpleObjectPattern(objectPattern, { allowNestedValue = false } = {}) {
   let bound = null;
   // a NESTED-value prop (`{ Array: { from } }`) belongs to the nested mirror (it replaces the WHOLE
   // receiver); a flat synth-swap here would race it on the same receiver and lose the nested polyfill
-  if (objectPatternHasNestedValue(objectPattern)) return false;
+  // ... except UNDER a constructor hop, where the mirror's own canon never descends again: the plan
+  // resolves such a slot as a static of that constructor and the literal carries it as a passthrough
+  // of the whole key path (`Array: { prototype: _globalThis.Array.prototype }`), losslessly
+  if (!allowNestedValue && objectPatternHasNestedValue(objectPattern)) return false;
   for (const p of objectPattern.properties) {
     if (p.type !== 'ObjectProperty' && p.type !== 'Property') return false;
     if (!p.computed) {
@@ -9128,13 +9350,37 @@ export function hasRealBinding(root, sentinelNames) {
 // have a binding and replay safely as `[k]: receiver[k]`. takes `scope` so it cannot fold into the
 // purely-structural `isSynthSimpleObjectPattern`. `scope.getBinding` is common to babel + estree scopes
 // `exempt(keyNode)`: a key the CALLER vouches for despite no scope binding yet - babel's
-// injected pure-symbol keys bind at the Program-exit flush, after this gate runs
-export function computedKeysAllBound(objectPattern, scope, exempt = null) {
+// injected pure-symbol keys bind at the Program-exit flush, after this gate runs.
+// `resolveGlobalPolyfill`: the pass's own substitution, which vouches for the rest of them. A bare
+// global THIS PASS replaces is never emitted raw - the slot takes the binding it is rewritten to, the
+// way a raw `Symbol.x` key already does - so the ReferenceError this rule exists for cannot happen,
+// and asking the PRE-rewrite spelling made one pass bail on a shape it then made safe itself. A bare
+// global the pass does NOT substitute stays unsafe: nothing replaces it, and raw it throws
+export function computedKeysAllBound(objectPattern, scope, exempt = null, resolveGlobalPolyfill = null) {
   for (const p of objectPattern.properties) {
     if (p.computed && p.key?.type === 'Identifier' && !scope.getBinding(p.key.name)
-      && !exempt?.(p.key)) return false;
+      && !exempt?.(p.key) && !substitutedGlobalKeyName(p.key, scope, resolveGlobalPolyfill)) return false;
   }
   return true;
+}
+
+// the GLOBAL a computed key names and the pass substitutes, or null. Its own spelling is rewritten
+// like any other read of that global, so a literal carrying the SOURCE node would read a different
+// property than the pattern does - and on a binding whose inserted clones the walk never revisits it
+// would print the bare name raw
+export function substitutedGlobalKeyName(keyNode, scope, resolveGlobalPolyfill) {
+  return keyNode?.type === 'Identifier' && !scope?.getBinding?.(keyNode.name)
+    && resolveGlobalPolyfill?.(keyNode.name) ? keyNode.name : null;
+}
+
+// ... and the SAME key once this pass has rewritten it: the substitution above replaces the key's
+// own spelling, so an asker reached later in the same pass sees our minted import, whose binding the
+// leg's scope tracker has not learned. it is answered by what that import STANDS FOR - the global
+// the pre-rewrite spelling named - or the gate answers one way for the props dispatched before the
+// rewrite and another for those after it, and prop ORDER decides whether the literal owns a sibling
+export function substitutedGlobalKeyImport(keyNode, pureImportHint, resolveGlobalPolyfill) {
+  const hint = keyNode?.type === 'Identifier' ? pureImportHint?.(keyNode.name) : null;
+  return hint && resolveGlobalPolyfill?.(hint) ? hint : null;
 }
 
 // prototype-method polyfills bind `this` to their first arg, but a tagged-template call
@@ -9708,6 +9954,31 @@ function bindsRequireAtProgramStart(program, sourceType) {
   if (program?.type !== 'Program') return false;
   if ((program.body ?? []).some(statementShadowsRequireAtProgramScope)) return true;
   return sourceType === 'module' && cachedScopeVars(program).has('require');
+}
+
+// how far into the body a `require` call still reads the loader the host passed in. In the CommonJS
+// wrapper the name starts out holding it, which is why the format owner lets an injection spell
+// `require` there at all; the wrapper's own `var require = wrap(require)` then hands every later
+// call a different one. So the count is the leading run of directives and import-like statements -
+// the region every injection writes into - and it stops at the first statement that binds the name
+// itself. 0 wherever the name is not the host's at the top of the body: a MODULE binding it, or a
+// hoisted function / class / lexical / import shadow, which carries its value (or its TDZ) from the
+// first line. Which of the two a program is comes from the format owner's published verdict, so a
+// program whose format was never resolved reports 0 and every call there stays the author's
+export function hostRequireCallLimit(program) {
+  if (program?.type !== 'Program') return 0;
+  if (bindsRequireAtProgramStart(program, programIsScript(program) ? 'script' : 'module')) return 0;
+  const body = program.body ?? [];
+  let limit = programPrologueEndIndex(body);
+  while (limit < body.length && isTopLevelImportLike(body[limit]) && !statementBindsRequireName(body[limit])) limit++;
+  return limit;
+}
+
+// a top-level declaration that binds `require` itself (`var require = require('m')` - import-like by
+// shape, and the statement where the name stops holding what the host passed in)
+function statementBindsRequireName(stmt) {
+  const node = unwrapExportedDeclaration(stmt);
+  return node?.type === 'VariableDeclaration' && declaratorsBindName(node.declarations, 'require');
 }
 
 // covers what babel's `scope.getBindingIdentifier('require')` (filtered by
@@ -10637,12 +10908,31 @@ export function stepOverChainWrappers(child, up, atRoot = false) {
 }
 
 // how far the member chain above this node runs, following only the OBJECT side: a node reached as
-// the computed PROPERTY of the member above it is a sibling expression, not a continuation
-export function memberChainEndPath({ path, unwrap = node => node }) {
+// the computed PROPERTY of the member above it is a sibling expression, not a continuation.
+// `throughSequenceTail` opts into climbing out of a SEQUENCE whose last operand the chain reads - the
+// branch below carries that rule and the reason it has to be asked for rather than always taken
+export function memberChainEndPath({ path, unwrap = node => node, throughSequenceTail = false }) {
   let end = path;
   for (;;) {
     const [inner, up] = stepOverChainWrappers(end.node, end.parentPath, end === path);
     const above = up?.node;
+    // a SEQUENCE evaluates to its LAST operand, so the member reading that operand continues this
+    // very chain and the run's consumer stands above it. a climb stopping at the sequence hands a
+    // render an anchor one span short of the run, and the landing there swaps the run's bare ROOT -
+    // freezing the native probe read the ponyfill exists to answer. opt-in, because a caller naming
+    // the chain's own TOP (a write slot, a delete target) may not walk out of the sequence it
+    // stands in, and the prefix beside the run is the source's act, not part of the navigation
+    // ... and the step OUT of the sequence takes the same wrapper walk the step into it takes: one
+    // dialect hangs the source parens on the sequence as a NODE, and a step reading `parentPath`
+    // raw stops there - the fix then goes inert in exactly the dialect the paren leg pins
+    if (throughSequenceTail && above?.type === 'SequenceExpression' && above.expressions.at(-1) === inner) {
+      const [seqOuter, host] = stepOverChainWrappers(above, up.parentPath);
+      const hostNode = host?.node;
+      if (hostNode?.type !== 'MemberExpression' && hostNode?.type !== 'OptionalMemberExpression') break;
+      if (unwrap(hostNode.object) !== unwrap(seqOuter)) break;
+      end = host;
+      continue;
+    }
     if (above?.type !== 'MemberExpression' && above?.type !== 'OptionalMemberExpression') break;
     if (unwrap(above.object) !== unwrap(inner)) break;
     end = up;
