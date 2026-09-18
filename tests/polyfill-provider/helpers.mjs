@@ -46,6 +46,7 @@ import {
   functionScopeBindsVarOrFunction,
   getDirectStatementBody,
   identifierReferencedInSubtree,
+  aliasReadGuardedAgainstNullish,
   inferTypeParameterNames,
   isBindingDeclarationPath,
   isConditionalExpressionSlot,
@@ -89,6 +90,7 @@ import {
   nodeSpan,
   paramListReadsName,
   patternReceiverSlotNodes,
+  patternSlotSpreadShifted,
   patternSlotValues,
   peelMemoizeWrappers,
   peelSequenceTail,
@@ -2404,8 +2406,22 @@ for (const adapter of adapters) {
   };
   for (const [name, body] of bodies) {
     check(`identifierReferencedInSubtree/${ name } [${ adapter.name }]`, identifierReferencedInSubtree(body, name), expected[name]);
+    check(`identifierReferencedInSubtree/set/${ name } [${ adapter.name }]`,
+      identifierReferencedInSubtree(body, new Set([name, 'absentName'])), expected[name]);
+    check(`identifierReferencedInSubtree/empty/${ name } [${ adapter.name }]`,
+      identifierReferencedInSubtree(body, new Set()), false);
   }
   check(`identifierReferencedInSubtree/every declaration probed [${ adapter.name }]`, bodies.length, Object.keys(expected).length);
+}
+
+// A logical-left read guards its own alias, but not an unrelated name.
+for (const adapter of adapters) {
+  for (const [left, expected] of [['value', true], ['other', false]]) {
+    const program = adapter.parseAndScope(`const out = ${ left } && value.member;`);
+    const read = adapter.pickPath(program, 'Identifier', p => p.node.name === 'value' && p.parentPath.node.type === 'MemberExpression');
+    check(`aliasReadGuardedAgainstNullish/logical/${ left } [${ adapter.name }]`,
+      aliasReadGuardedAgainstNullish(read, 'value'), expected);
+  }
 }
 
 // --- isBindingDeclarationPath: the complete declaration predicate, through pattern shells ---
@@ -2788,6 +2804,9 @@ for (const [label, source, name, all, supplied] of [
   ['array leaf', 'const [value = fallback] = [actual];', 'value', ['fallback', 'actual'], ['actual']],
   ['array nested', 'const [{ of } = Array] = [Map];', 'of', ['Map.of', 'Array.of'], ['Map.of']],
   ['object nested', 'const { x: { of } = Array } = { x: Map };', 'of', ['Map.of', 'Array.of'], ['Map.of']],
+  ['stored source', 'let held; const [{ of } = Array] = (held = [Map]);', 'of', ['Map.of', 'Array.of'], ['Map.of']],
+  ['stored array slot', 'let held; const [{ of } = Array] = [held = Map];', 'of', ['Map.of', 'Array.of'], ['Map.of']],
+  ['stored object slot', 'let held; const { x: { of } = Array } = { x: held = Map };', 'of', ['Map.of', 'Array.of'], ['Map.of']],
   ['absent slot', 'const [{ of } = Array] = [];', 'of', ['Array.of'], []],
   ['unknown source', 'const [{ of } = Array] = values;', 'of', ['Array.of'], []],
   ['array siblings', 'const [other, { of: value } = Array, ...rest] = [Boolean, Map];',
@@ -2799,7 +2818,7 @@ for (const [label, source, name, all, supplied] of [
 ]) {
   for (const adapter of adapters) {
     const program = adapter.parseAndScope(source);
-    const { id, init } = adapter.pickPath(program, 'VariableDeclarator').node;
+    const { id, init } = adapter.pickPath(program, 'VariableDeclarator', path => path.node.init !== null).node;
     function values(ctx) {
       return patternSlotValues(id, init, name, ctx).map(value => {
         const { root, keys } = memberChainKeys(value);
@@ -2811,15 +2830,32 @@ for (const [label, source, name, all, supplied] of [
   }
 }
 
+// Stored values must expose the same spread ambiguity to enumeration and its completeness gate.
+for (const adapter of adapters) for (const [source, shifted] of [
+  ['let held; const [{ of }] = (held = [Map]);', false],
+  ['let held; const [{ of }] = (held = [...values, Map]);', true],
+  ['let held; const { x: [{ of }] } = { x: held = [...values, Map] };', true],
+  ['let held; const [[{ of }]] = [held = [...values, Map]];', true],
+]) {
+  const program = adapter.parseAndScope(source);
+  const { id, init } = adapter.pickPath(program, 'VariableDeclarator', path => path.node.init !== null).node;
+  check(`stored spread completeness [${ adapter.name }]: ${ source }`, patternSlotSpreadShifted(id, init, 'of'), shifted);
+}
+
 for (const [source, keys] of [
   ['const { first: { Map: other }, wanted: { WeakSet: value }, last } = box;', ['WeakSet']],
   ['const [other, { Map: value = WeakMap }] = [Set, globalThis];', ['Map']],
   ['const { value: other, x: { Map: value }, ...rest } = globalThis;', ['Map']],
   ['const { value: other, ...rest } = globalThis;', []],
+  ['let held; const { Map: value } = (held = globalThis);', ['Map']],
+  ['let held; const { x: { Map: value } } = { x: held = globalThis };', ['Map']],
+  ['let held; const [{ Map: value }] = [held = globalThis];', ['Map']],
+  ['const [{ Map: value } = globalThis] = [];', ['Map']],
+  ['const { x: { Map: value } = globalThis } = {};', ['Map']],
 ]) {
   for (const adapter of adapters) {
     const program = adapter.parseAndScope(source);
-    const { id, init } = adapter.pickPath(program, 'VariableDeclarator').node;
+    const { id, init } = adapter.pickPath(program, 'VariableDeclarator', path => path.node.init !== null).node;
     checkDeep(`patternReceiverSlotNodes/sibling bindings [${ adapter.name }]: ${ source }`,
       patternReceiverSlotNodes(id, init, 'value').map(property => property.key.name), keys);
   }

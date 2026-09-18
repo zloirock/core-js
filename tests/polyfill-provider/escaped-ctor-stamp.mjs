@@ -156,9 +156,8 @@ const ROWS = [
     stamped: [],
     bare: ['M.m'],
   },
-  // ... and the same spelling on the other half of the census: a method's returns are the METHOD's,
-  // never its host function's. counting them as the host's escaped them twice and flipped the host's
-  // own "more than one return" gate, which escapes every return it has
+  // A method's returns belong to that method. A local host returning another value must not
+  // expose a constructor merely mentioned in its nested methods.
   {
     name: "a method's returns are not its host function's",
     code: 'const held = (() => { const box = { g() { return 1; } };\n  return Map; })();\nuse(new held());',
@@ -276,6 +275,52 @@ for (const adapter of adapters) {
 // escape spells while handing out a binding of the file's own. `plugins` extends the babel parser
 // where a spelling needs it; oxc keys the same grammar off the `.ts` name the harness parses under
 const NAME_ROWS = [
+  // Return count does not decide escape. The consumer of the function or its result does.
+  ...[
+    ['arrow IIFE static', 'export const value = (() => { if (flag) return Array; return custom; })().of(3);'],
+    ['function IIFE static', 'export const value = (function () { if (flag) return Array; return custom; })().of(3);'],
+    ['named local static', 'function pick() { if (flag) return Array; return custom; } export const value = pick().of(3);'],
+    ['unused function', 'function pick() { if (flag) return Array; return custom; }'],
+    ['unused object method', 'const box = { pick() { if (flag) return Array; return custom; } };'],
+    ['unused class method', 'class Box { pick() { if (flag) return Array; return custom; } }'],
+    ['unused loop return', 'function pick() { while (flag) return Array; return custom; }'],
+    ['returned wrapper is not its content', 'const box = (arg => [arg])(Array); const { from } = box; from([]);'],
+    ['loop-returned wrapper is not its content', 'function pick() { while (flag) return [Array]; return []; } pick().from([]);'],
+    ['async returns are wrapped', '(async () => { if (flag) return Array; return custom; })().of(3);'],
+    ['generator returns are deferred', '(function* () { if (flag) return Array; return custom; })().of(3);'],
+    ['private method of exported class', 'export class Box { #pick() { if (flag) return Array; return custom; } }'],
+  ].map(([name, code]) => ({ name: `multiple returns stay local: ${ name }`, code,
+    homeOnly: ['Array'], withContainerCensus: true })),
+  ...[
+    ['call result argument', 'hand((() => { if (flag) return Array; return custom; })());'],
+    ['named call result argument', 'function pick() { if (flag) return Array; return custom; } hand(pick());'],
+    ['method call result argument', 'const box = { pick() { if (flag) return Array; return custom; } }; hand(box.pick());'],
+    ['exported result', 'export const value = (() => { if (flag) return Array; return custom; })();'],
+    ['exported function', 'export function pick() { if (flag) return Array; return custom; }'],
+    ['function argument', 'hand(() => { if (flag) return Array; return custom; });'],
+    ['object method', 'hand({ pick() { if (flag) return Array; return custom; } });'],
+    ['nested object call', 'hand({ value: (() => { if (flag) return Array; return custom; })() });'],
+    ['nested array call', 'hand([(() => { if (flag) return Array; return custom; })()]);'],
+    ['nested selecting call', 'hand(flag ? (() => { if (other) return Array; return custom; })() : null);'],
+    ['nested sequence call', 'hand((effect(), (() => { if (flag) return Array; return custom; })()));'],
+    ['nested stored call', 'let held; hand(held = (() => { if (flag) return Array; return custom; })());'],
+    ['returned call', 'hand(() => (() => { if (flag) return Array; return custom; })());'],
+    ['class method', 'export class Box { pick() { if (flag) return Array; return custom; } }'],
+    ['inherited namespace', 'export class Box extends (() => { if (flag) return Array; return custom; })() {}'],
+    ['effect before local read', 'export const value = (() => { hand(Array); if (flag) return Array; return custom; })().of(3);'],
+  ].map(([name, code]) => ({ name: `multiple returns escape through ${ name }`, code,
+    realm: ['Array'], mintedToo: ['Array'], withContainerCensus: true })),
+  ...[
+    ['loop return', 'function pick() { while (flag) return Promise; return custom; } pick().all([]);'],
+    ['try return', 'function pick() { try { return Promise; } catch { return custom; } } pick().any([]);'],
+    ['forwarded loop return', 'function inner() { while (flag) return Promise; return custom; }'
+      + ' function outer() { return inner(); } outer().all([]);'],
+    ['stored loop return', 'function inner() { while (flag) return Promise; return custom; }'
+      + ' const value = inner(); function outer() { return value; } outer().all([]);'],
+    ['method loop return', 'const box = { pick() { while (flag) return Promise; return custom; } }; box.pick().all([]);'],
+    ['unknown member', '(() => { if (flag) return Promise; return custom; })()[key];'],
+  ].map(([name, code]) => ({ name: `unresolved local static still needs its namespace: ${ name }`, code,
+    realm: ['Promise'], mintedToo: ['Promise'], withContainerCensus: true })),
   ...[
     ['static comparison', 'Object.is(Map, Map);'],
     ['static enumeration', 'Object.keys(Map);'],
@@ -850,29 +895,38 @@ const NAME_ROWS = [
     withContainerCensus: true,
   },
   {
-    name: 'a selected property with no static entry cannot cover a later constructor',
+    name: 'a later caller supplies its static even when an earlier receiver lacks it',
     code: 'function f({ from }) { return from; } f(Object); f(Array);',
-    realm: ['Array'],
+    heldInSlot: ['Array'],
     withContainerCensus: true,
   },
   {
     name: 'an earlier constructor alias keeps a different receiver independently covered',
     code: 'const C = Set; function f({ from }) { return from; } f(C); f(Array);',
-    realm: ['Array'],
+    heldInSlot: ['Array'],
     withContainerCensus: true,
   },
   {
     name: 'an earlier member receiver keeps a different constructor independently covered',
     code: 'function f({ from }) { return from; } f(globalThis.Set); f(Array);',
-    realm: ['Array'],
+    heldInSlot: ['Array'],
     withContainerCensus: true,
   },
   {
-    name: 'an earlier shadowed receiver cannot supply the global static proof',
+    name: 'a shadowed earlier receiver does not hide a later caller static',
     code: 'function f({ from }) { return from; } { const Array = Set; f(Array); } f(Array);',
-    realm: ['Array'],
+    heldInSlot: ['Array'],
     withContainerCensus: true,
   },
+  ...[
+    ['flat', '{ of } = Array', 'globalThis.Array'],
+    ['array', '[{ of } = Array]', '[globalThis.Array]'],
+    ['nested', '{ slot: [{ of } = Array] }', '{ slot: [globalThis.Array] }'],
+  ].map(([name, parameter, argument]) => ({
+    name: `an opaque default does not expose a known caller: ${ name }`,
+    code: `export function outer(Array) { function f(${ parameter }) { return of(1); } return f(${ argument }); }`,
+    heldInSlot: ['Array'], withContainerCensus: true,
+  })),
   {
     name: 'a bare constructor selected from a wrapper still needs its namespace',
     code: 'function f({ value }) { return value; } use(f({ value: Array }));',
@@ -918,6 +972,12 @@ const NAME_ROWS = [
   {
     name: 'a plain parameter member read keeps its known constructor local',
     code: 'function f(ns) { return ns.groupBy; } f(Map);',
+    homeOnly: ['Map'],
+    withContainerCensus: true,
+  },
+  {
+    name: 'a computed parameter member read keeps its known constructor local',
+    code: 'function f(ns) { return ns["groupBy"]; } f(Map);',
     homeOnly: ['Map'],
     withContainerCensus: true,
   },
@@ -1462,6 +1522,40 @@ for (const adapter of adapters) {
           ESCAPED_CONTAINER_NAMES.get(program).has(name), true);
       }
     }
+  }
+}
+
+// Inert carrier slots need no escape bookkeeping. Count allocations, not elapsed time, with
+// parsing outside the measurement. Direct leaves, queued local returns and nested forwarding
+// calls must still expose the constructor without allocating a Set for every inert slot.
+const NativeSet = globalThis.Set;
+for (const adapter of adapters) {
+  for (const terminal of ['Map', 'globalThis.Map', 'getMap()', 'identity(identity(Map))']) {
+    const counts = [];
+    for (const width of [0, 256]) {
+      const source = `function getMap() { return Map; }
+        function identity(value) { return value; }
+        hand([${ '0,'.repeat(width) }${ terminal }]);`;
+      const program = adapter.parseAndScope(source).node;
+      let allocations = 0;
+      globalThis.Set = class extends NativeSet {
+        constructor(...args) {
+          super(...args);
+          allocations++;
+        }
+      };
+      let answer;
+      try {
+        answer = collectFileCensus(program, [escapedCtorReferencesReducer()]);
+      } finally {
+        globalThis.Set = NativeSet;
+      }
+      const label = `${ adapter.name }: ${ terminal } with ${ width } inert slots`;
+      check(`${ label }: global escape preserved`, answer.escapedCtorNames.has('Map'), true);
+      check(`${ label }: pure escape preserved`, answer.escapedCtorNames.has('Map', true), true);
+      counts.push(allocations);
+    }
+    check(`${ adapter.name }: ${ terminal } needs no additional Sets for inert slots`, counts[1], counts[0]);
   }
 }
 
