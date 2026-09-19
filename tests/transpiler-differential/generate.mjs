@@ -2353,6 +2353,14 @@ function * generateNestingDepth() {
     // descent used to give up past a fixed hop count on one emitter only
     yield { ...snippet(`nesting-depth/param-paired-${ depth }`,
       `(() => { function paired(${ open }{ from }${ close } = ${ open }Array${ close }) { return typeof from; } return paired(); })()`), strip: true };
+    // Every retained prefix still owns its claims after the outer read consumes a deep run.
+    // Cross a guard boundary and a rewritten receiver: both can re-home the inner paths.
+    const proxy = `(log.push(Array.of("receiver")[0]), globalThis)${ '.self'.repeat(depth) }`;
+    for (const guarded of [false, true]) for (const carried of [false, true]) {
+      const read = `${ proxy }${ guarded ? '.window?.self' : '' }.Array.from([7])[0]`;
+      yield { ...snippet(`nesting-depth/proxy-context-${ depth }-${ guarded }-${ carried }`,
+        carried ? `[${ read }].at(0)` : read, { rig: true }), strip: true };
+    }
     // a comma-sequence receiver nested `depth` deep: the descent to the tail is what resolves it,
     // and every prefix must still run - the effect log counts them
     yield { ...snippet(`nesting-depth/sequence-receiver-${ depth }`,

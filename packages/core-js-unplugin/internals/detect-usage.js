@@ -30,6 +30,7 @@ import {
   isTSTypeOnlyIdentifierPath,
   jsxTagRootReferencesBinding,
   LET_SCOPE_HOST_TYPES,
+  memberContextPath,
   memoizeBindingLookup,
   namespaceScopedBindingBlock,
   pathContainedBy,
@@ -153,19 +154,28 @@ function hasTSRuntimeBinding(scope, name, path = null) {
 // the declaration NODE behind a TSImportEquals name - the existence walk above answers only
 // a boolean, but the resolution canon must read the module reference off the declaration to
 // recognize a pure global-proxy require import (`import g = require('.../global-this')`)
+// Source declarations stay fixed during this pass, as in the TS-runtime binding index.
+const tsImportEqualsDeclarations = new WeakMap();
 function findTSImportEqualsDeclaration(path, name) {
-  for (let cur = path; cur; cur = cur.parentPath) {
+  for (let cur = memberContextPath(path); cur; cur = memberContextPath(cur.parentPath)) {
     // the statement list of a scope anchor, through the one reader of that question - a loop's
     // block is that block's own, and reading it off the loop let a head see the body's declaration
-    const body = getDirectStatementBody(cur.node);
-    if (!body) continue;
-    for (const stmt of body) {
-      // peel the `export import X = require()` wrapper (ExportNamedDeclaration) - the runtime
-      // declaration sits in `.declaration`. mirrors the shadow-binding walk (`getTSRuntimeBindings`);
-      // without it the exported form's mutation / interop receiver goes unrecognised
-      const decl = unwrapExportedDeclaration(stmt);
-      if (decl?.type === 'TSImportEqualsDeclaration' && decl.id?.name === name) return decl;
+    let declarations = tsImportEqualsDeclarations.get(cur.node);
+    if (!declarations) {
+      const body = getDirectStatementBody(cur.node);
+      if (!body) continue;
+      declarations = new Map();
+      for (const stmt of body) {
+        // Export wrappers carry the same declaration as the unexported spelling.
+        const decl = unwrapExportedDeclaration(stmt);
+        if (decl?.type === 'TSImportEqualsDeclaration' && !declarations.has(decl.id?.name)) {
+          declarations.set(decl.id?.name, decl);
+        }
+      }
+      tsImportEqualsDeclarations.set(cur.node, declarations);
     }
+    const declaration = declarations.get(name);
+    if (declaration) return declaration;
   }
   return null;
 }
@@ -1070,6 +1080,7 @@ export function createUsageVisitors({
   onSuppressedProxyHop = null,
   suppressKeptNavRoot = null,
   revisitDecorators = false,
+  keepLive = null,
 }) {
   const core = createUsageHandlerCore({
     adapter,
@@ -1084,6 +1095,20 @@ export function createUsageVisitors({
     suppressKeptNavRoot,
   });
   const { skipUpdateTargets } = core;
+
+  // estree-toolkit descends into the old children after replacing their parent. Reject
+  // detached paths before detection builds their metadata, including in decorator walks.
+  // Do not prune the walk: a nested effect re-emitted by identity can still be keepLive.
+  function liveVisitors(visitors) {
+    if (method !== 'usage-pure') return visitors;
+    return Object.fromEntries(Object.entries(visitors).map(([type, visit]) => [type, path => {
+      for (let up = path; up?.node; up = up.parentPath) {
+        if (keepLive?.has(up.node)) break;
+        if (up.removed) return;
+      }
+      visit(path);
+    }]));
+  }
 
   // destructure-only wrapper (sole caller is extractPropertyKey): a side-effecting computed key
   // resolves to its tail for identity; the emitter keeps the key in the pattern (it runs once) and
@@ -1177,13 +1202,13 @@ export function createUsageVisitors({
     onUsage({ kind: 'global', name: path.node.name }, path);
   }
 
-  const decoratorVisitors = {
+  const decoratorVisitors = liveVisitors({
     Identifier: identifierVisitor,
     MemberExpression: memberExpressionVisitor,
     BinaryExpression: core.emitBinaryInUsage,
     Property: propertyVisitor,
     JSXIdentifier: jsxIdentifierVisitor,
-  };
+  });
 
   function visitDecorators(path) {
     walkDecorators(path, decoratorVisitors, revisitDecorators);
@@ -1211,7 +1236,7 @@ export function createUsageVisitors({
     if (walkAnnotations) core.checkTypeAnnotation(path);
   }
 
-  return {
+  return liveVisitors({
     ...walkAnnotations ? {
       FunctionDeclaration: core.checkTypeAnnotation,
       FunctionExpression: core.checkTypeAnnotation,
@@ -1257,7 +1282,7 @@ export function createUsageVisitors({
     AccessorProperty: visitDecoratorsAndAnnotation,
     TSAbstractPropertyDefinition: visitDecoratorsAndAnnotation,
     TSAbstractAccessorProperty: visitDecoratorsAndAnnotation,
-  };
+  });
 }
 
 // --- Syntax visitors ---

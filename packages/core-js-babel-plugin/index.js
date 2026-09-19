@@ -21,6 +21,7 @@ import {
   isTSTypeOnlyIdentifierPath,
   collectFileCensus,
   methodReadsUsageCensus,
+  withMemberContextCache,
   memberKeyName,
   memberKeyNamesReducer,
   mutatedGlobalSlotNames,
@@ -2339,7 +2340,7 @@ export default function plugin(api, options) {
           VariableDeclarator: hostPath => destructureEmit.collapseRealmSelectingHost(hostPath),
           AssignmentExpression: hostPath => destructureEmit.collapseRealmSelectingHost(hostPath),
         });
-        path.traverse(visitors);
+        withMemberContextCache(!isPure, () => path.traverse(visitors));
         processDeferredSideEffects(path);
         // the array-wrapped residuals the per-prop route emptied: the verdict needs the whole
         // traversal, since a second polyfilled prop is what kept the per-prop consume test from
