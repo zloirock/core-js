@@ -2006,8 +2006,6 @@ const transpiledAndPolyfilled = {
       message: 'Use RegExp constructors for the d, s, v and y flags',
     },
   ],
-  // disallow accessor properties
-  'es/no-accessor-properties': ERROR,
   // disallow async functions
   'es/no-async-functions': ERROR,
   // disallow async iteration

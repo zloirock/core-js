@@ -109,7 +109,6 @@ QUnit.test('inline returns: guarded raw calls keep this and getter order', asser
       called = (() => {
         if (flag) return Array;
         return {
-          // eslint-disable-next-line es/no-accessor-properties -- observe the raw getter before the call argument
           get of() {
             log.push('get');
             return undefined;
