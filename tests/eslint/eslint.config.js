@@ -2014,8 +2014,6 @@ const polyfills = {
 
 const transpiledAndPolyfilled = {
   ...noAsyncAwait,
-  // disallow accessor properties
-  'es/no-accessor-properties': ERROR,
   // disallow async functions
   'es/no-async-functions': ERROR,
   // disallow async iteration
