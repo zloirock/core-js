@@ -350,10 +350,9 @@ const CASES = [
   { name: 'synthetic var-destructured globals, 800 pairs', source: () => syntheticVarDestructuredGlobals(800), bounds: {
     'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
   } },
-  ...[64, 128].map(depth => ({
-    name: `synthetic proxy depth ${ depth }, 120 reads`, source: () => syntheticDeepProxyReads(depth, 120),
-    bounds: { 'usage-global': { babel: 3, unplugin: 3 }, 'usage-pure': { babel: 1, unplugin: 3 } },
-  })),
+  ...[64, 128].map(depth => ({ name: `synthetic proxy depth ${ depth }, 120 reads`, source: () => syntheticDeepProxyReads(depth, 120), bounds: {
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 3 },
+  } })),
   { name: 'synthetic parameter body and callers, 400 each', source: () => syntheticParameterBodyCalls(400), bounds: {
     'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 1 },
   } },
@@ -364,10 +363,9 @@ const CASES = [
     name: `synthetic import width ${ width }, 4096 reads`, source: () => syntheticImportWidth(width), entries: width - 1,
     bounds: { 'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 } },
   })),
-  ...[32, 128].map(width => ({
-    name: `synthetic union width ${ width }, 200 reads`, source: () => syntheticUnionWidth(width), ts: true,
-    bounds: { 'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 } },
-  })),
+  ...[32, 128].map(width => ({ name: `synthetic union width ${ width }, 200 reads`, source: () => syntheticUnionWidth(width), ts: true, bounds: {
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
+  } })),
   // per-call axis, two granularities: rxjs spreads 233kb over ~210 tiny modules so call overhead
   // dominates, the codemirror set puts 402kb in 6 mid-sized ones so per-file work and bytes both show
   { name: 'rxjs esm, tiny modules', source: () => packageModules('rxjs/dist/esm'), injections: { 'usage-global': 65, 'usage-pure': 47 }, bounds: {

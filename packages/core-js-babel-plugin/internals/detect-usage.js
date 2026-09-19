@@ -30,6 +30,7 @@ import {
   buildOwnerWritePathIndex,
   buildScopeReassignmentIndex,
   findVarOwnerDeclaring,
+  memberContextPath,
   recomputedBindingWrites,
   useAnchorStart,
   walkPatternIdentifiers,
@@ -379,12 +380,6 @@ export function freshPathOfNode(scopeOwnerPath, targetNode) {
   return found;
 }
 
-// babel drops a binding from its scope registry after the destructure-assignment alias rewrite
-// (`({ Map: M } = globalThis)` -> `M = _Map`): the declaration survives in the AST while
-// `scope.getBinding` turns null, so the resolver's reassignment follow silently degrades to
-// generic (the estree side, resolving on the pristine AST, keeps the narrow - a parity gap).
-// rebuild the minimal binding shape the resolver reads ({ path, identifier, scope, kind,
-// constantViolations }) from the AST via the canonical scan (see `rebuildLaggedScopeBinding`)
 // the positional twin of the identity view for a REPLACED declarator: our decl-form swap
 // replaces the declarator node (identity dies, positions cloned), but the replacement stays
 // inside the registration's declaration span - a place no user shadow can occupy
@@ -416,6 +411,12 @@ function lexicalDeclIndex(containerNode) {
   return index;
 }
 
+// babel drops a binding from its scope registry after the destructure-assignment alias rewrite
+// (`({ Map: M } = globalThis)` -> `M = _Map`): the declaration survives in the AST while
+// `scope.getBinding` turns null, so the resolver's reassignment follow silently degrades to
+// generic (the estree side, resolving on the pristine AST, keeps the narrow - a parity gap).
+// rebuild the minimal binding shape the resolver reads ({ path, identifier, scope, kind,
+// constantViolations }) from the AST via the canonical scan
 export function rebuildLaggedScopeBinding(path, name) {
   // hoisted `var` (any nesting depth, pattern-aware): the canonical var-scope walker - the
   // same lookup the estree side's synthetic var-hoist binding uses, so the recovery shapes
@@ -428,7 +429,7 @@ export function rebuildLaggedScopeBinding(path, name) {
     // per-container lexical index answers each level in one lookup - no descent. the climb
     // starts AT `path`: a scope-host anchor (the guard machinery asks with the block / Program
     // path itself) must see its OWN body-level declarations, not only enclosing ones
-    for (let p = path; p && !declaratorNode; p = p.parentPath) {
+    for (let p = memberContextPath(path); p && !declaratorNode; p = memberContextPath(p.parentPath)) {
       if (!p.isProgram() && !p.isBlockStatement() && !p.isStaticBlock()) continue;
       declaratorNode = lexicalDeclIndex(p.node).get(name) ?? null;
       if (declaratorNode) ownerPath = p;
