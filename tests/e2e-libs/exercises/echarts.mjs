@@ -28,7 +28,7 @@
 // Canvas is deliberately not registered: `SVGRenderer` alone keeps the graph off `zrender`'s canvas
 // paths, which no realm here can execute. Interaction is out of scope for the same reason - mouse,
 // zoom and tooltips need a live document, and this exercise never builds one.
-import './echarts-env.mjs';
+import './process-env.mjs';
 import * as echarts from 'echarts/core';
 import { BarChart, LineChart, MapChart } from 'echarts/charts';
 import { GeoComponent, GridComponent } from 'echarts/components';
