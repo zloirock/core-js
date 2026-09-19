@@ -1020,7 +1020,7 @@ export function harvestDiscardedReceiverSE(node, { scope, adapter, path }) {
 // prototype navigation) crossed with the resolved key, its harvested side effects, and - for
 // usage-global - the reachable union of every other receiver x key pair the aliases can hold
 // eslint-disable-next-line max-statements -- member classification and guarded candidate selection
-function buildMemberMeta({ node, scope, adapter, path, resolveStaticKey = null, resolvePure = null }) {
+function buildMemberMeta({ node, scope, adapter, path, resolveStaticKey = null, resolvePure = null, proxySegments = null }) {
   // collect side effects from both the receiver and the computed-key so a polyfill
   // replacement on this MemberExpression (which discards the whole subtree) can re-emit
   // them via a SequenceExpression wrap in the plugin's emission path
@@ -1117,7 +1117,7 @@ function buildMemberMeta({ node, scope, adapter, path, resolveStaticKey = null, 
     // anchor rides its OWN parameter - `usageNode` is a dominance ANCHOR PATH for the walks below,
     // and handing them a node silently passed the gate a conditional write must fail
     let objectName = resolveObjectName({
-      objectNode: classifyTarget, scope, adapter, path, readNode: classifyTarget, resolveStaticKey,
+      objectNode: classifyTarget, scope, adapter, path, readNode: classifyTarget, resolveStaticKey, proxySegments,
     })
       ?? staticContainerReceiverName({ node: classifyTarget, scope, adapter, path, unionSink: containerUnion,
         conditionalSink: conditionalCalls });
@@ -1216,7 +1216,8 @@ function buildMemberMeta({ node, scope, adapter, path, resolveStaticKey = null, 
     // `rescue` - is pushed FIRST, ahead of the shallower hop-key SE, so a harvest-then-append cannot
     // reverse source `(call, key)` into `(key, call)`. an instance dispatch memoizes its receiver and
     // keeps source + SE, so only the static path needs this
-    if (placement === 'static' && !chainAssignOuter) {
+    // Global injection leaves the source receiver intact; only substitution needs to harvest it.
+    if (adapter.method !== 'usage-global' && placement === 'static' && !chainAssignOuter) {
       const rescue = seedChainRootCallRescue({ node: classifyTarget, scope, adapter, path });
       // a DEEP chain-assign (`(r = gt)[key(...)].X` - not the peeled outer) is skipped by the harvest and
       // spliced back by the emitter, so record where it EVALUATES: the assignment is the object being
@@ -1244,7 +1245,7 @@ function buildMemberMeta({ node, scope, adapter, path, resolveStaticKey = null, 
     // probe the chain root when there's no chain-assign wrapper. the STATIC case already harvested its
     // chain-root call (interleaved via the rescue above), so only NON-static dispatch reaches here - its
     // memoized receiver keeps the hop SE in place, leaving just the chain-root call to preserve
-    if (objectName && placement !== 'static' && !chainAssignOuter) {
+    if (adapter.method !== 'usage-global' && objectName && placement !== 'static' && !chainAssignOuter) {
       collectChainRootCallEffect({ node: classifyTarget, sideEffects, scope, adapter, path });
     }
   }
@@ -1496,7 +1497,7 @@ function resolveSymbolReceiverProxyRoot({ node, receiverChain, receiverValueName
 // eslint-disable-next-line max-statements -- per-form member dispatch sequence
 export function handleMemberExpressionNode({
   node, scope, adapter, handledObjects, suppressProxyGlobals, path, resolveMeta, isEntryAvailable,
-  resolvePure = null, keptProxyHops = null, resolveStaticKey = null,
+  resolvePure = null, keptProxyHops = null, resolveStaticKey = null, proxySegments = null,
 }) {
   // our own render read back on a SECOND pass stands down whole - not just its probe half
   if (claimAlreadyRendered(node, { scope, adapter, path })) return null;
@@ -1604,7 +1605,7 @@ export function handleMemberExpressionNode({
     if (sideEffects.length) meta.sideEffects = sideEffects;
     return meta;
   }
-  const meta = buildMemberMeta({ node, scope, adapter, path, resolveStaticKey, resolvePure });
+  const meta = buildMemberMeta({ node, scope, adapter, path, resolveStaticKey, resolvePure, proxySegments });
   // a static the user monkey-patches in this file is NOT a polyfillable static: binding the
   // read to the frozen receiver-less import would bypass the patch, and bailing whole leaves
   // code referencing a possibly-missing global. return no meta and leave the receiver
