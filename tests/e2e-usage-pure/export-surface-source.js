@@ -41,7 +41,6 @@ export var { before: keyedBefore, x: { [(nestedBindingEvents.push(typeof nestedF
 export const realmEvents = [];
 let realmSource = {
   before: undefined,
-  // eslint-disable-next-line es/no-accessor-properties -- the effectful getter is the exported constructor's source
   get realm() { realmEvents.push('getter'); return globalThis; },
   after: 2,
 };
@@ -49,7 +48,6 @@ const { before: realmBefore = (realmSource = {}, 1), realm: { Map: RealmMap }, a
 export { RealmMap, realmBefore, realmAfter };
 
 const exportedRealm = {
-  // eslint-disable-next-line es/no-accessor-properties -- the getter keeps its effect under an export declaration
   get realm() { realmEvents.push('export'); return globalThis; },
 };
 export const { realm: { Promise: RealmPromise } } = exportedRealm;
