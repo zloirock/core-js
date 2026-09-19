@@ -1,6 +1,11 @@
 // The comparison every exercise shares, and the shape they all report. Bundled and transpiled with
 // them, so what it reaches for is injected and snapshotted like anything else in the graph.
 
+// NOTHING a single exercise needs may move here, however duplicated it looks - the `round` that three
+// and planck each declare stays declared twice. A polyfill import is a SIDE-EFFECT import, so
+// tree-shaking cannot drop it: a helper added to this module injects into the baseline of EVERY
+// library, and those baselines are what the suite exists to hold still.
+
 // `toJSON` first, once, the way `JSON.stringify` does it: for a Date that method IS the value, and
 // walking own properties instead finds none, so every date would equal every other one and `{}`. The
 // cost is that a value compares EQUAL to what its `toJSON` renders, so where the point of a check is
