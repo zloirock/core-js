@@ -21,6 +21,7 @@ import "core-js/modules/es.array.from";
 import "core-js/modules/es.array.of";
 import "core-js/modules/es.array.values";
 import "core-js/modules/es.iterator.constructor";
+import "core-js/modules/es.iterator.concat";
 import "core-js/modules/es.iterator.dispose";
 import "core-js/modules/es.iterator.drop";
 import "core-js/modules/es.iterator.every";
@@ -50,8 +51,8 @@ import "core-js/modules/esnext.iterator.windows";
 import "core-js/modules/web.dom-collections.iterator";
 // a for-of HEAD rebinds the alias to each element of an array-literal iterable: every
 // element is a reachable receiver past the loop, so its statics join the union. a distinct
-// method-module per row attributes each head form; rows probe uniquely-attributable STATICS -
-// an instance method would inject from the bare constructor value-read alone, vacuously
+// method-module per row attributes each head form. Static probes distinguish the receiver;
+// the positional Iterator probe also keeps the typeless instance row beside that receiver.
 let M = Object;
 for (M of [Array]) {
   break;
@@ -103,7 +104,7 @@ for ([A3, B3] of [[Promise, Iterator]]) {
   break;
 }
 A3.race([]);
-B3.from(other);
+B3.concat([]);
 
 // a slot DEFAULT is a possible value too (fires on the undefined element)
 let D = Object;

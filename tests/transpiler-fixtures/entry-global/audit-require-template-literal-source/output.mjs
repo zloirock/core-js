@@ -1,3 +1,6 @@
+// require with a no-interpolation template literal as the source argument should still
+// be detected as an entry import - extractStaticString covers TemplateLiteral with
+// a single quasi.
 require("core-js/modules/es.object.to-string");
 require("core-js/modules/es.reflect.own-keys");
 require("core-js/modules/es.aggregate-error.constructor");

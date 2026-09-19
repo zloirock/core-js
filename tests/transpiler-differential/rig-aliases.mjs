@@ -1,3 +1,5 @@
+import { restoreProperty } from '../helpers/restore-property.cjs';
+
 // Runtime `self` / `window` aliases for the proxy-hop corpora: Node lacks both, so hop
 // chains need live slots. The rig lives OUTSIDE the generated snippet - an in-module
 // `globalThis.self = ...` write is a slot mutation under the mutated-statics canon and
@@ -9,14 +11,14 @@
 const REALM = Function('return this')();
 
 export function withRiggedAliases(fn) {
-  const s = REALM.self;
-  const w = REALM.window;
+  const s = Object.getOwnPropertyDescriptor(REALM, 'self');
+  const w = Object.getOwnPropertyDescriptor(REALM, 'window');
   REALM.self = REALM;
   REALM.window = REALM;
   try {
     return fn();
   } finally {
-    REALM.self = s;
-    REALM.window = w;
+    restoreProperty(REALM, 'self', s);
+    restoreProperty(REALM, 'window', w);
   }
 }

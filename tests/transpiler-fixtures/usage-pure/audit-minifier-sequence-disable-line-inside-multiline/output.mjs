@@ -14,5 +14,6 @@ eff();
 use(at);
 // core-js-disable-next-line
 eff2();
+// core-js-disable-line
 flat = _flatMaybeArray(arr);
 use(flat);

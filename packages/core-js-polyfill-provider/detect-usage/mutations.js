@@ -101,6 +101,7 @@ import {
   provablyPrecedes,
   pureImportEntryOf,
   pureImportEntryOfProgram,
+  pureImportSourceEntry,
   reassignmentDominatesUsage,
   reassignmentValueNodes,
   referencesArgumentsObject,
@@ -124,6 +125,7 @@ import {
   inlineCallReturnExpression,
   interopDefaultProxyName,
   isStaticPlacement,
+  moduleDefaultSource,
   peelReceiverSequenceTail,
   requireBoundProxyGlobalName,
   resolveInlineCalleeFunction,
@@ -181,7 +183,7 @@ function unnameableRoot() {
 // value fan stage 3 runs. `keys` is the member path off the root, root-nearest first (an unreadable
 // hop contributes `null`): naming and the container-chain check both read it. inline chain-assign
 // (`(h = globalThis).Array.of`) follows the RHS the same way the stage-3 value fan does
-function collectGateRoots(node, out, keys = [], depth = 0) {
+function collectGateRoots(node, out, programNode, keys = [], depth = 0) {
   // the ONE budget in this walk that guards a real recursion (nested value composites); the
   // caller cannot see what it dropped, so exhaustion reports the unnameable root instead of a
   // silent under-report - "the walk cannot say" is the channel the gate's soundness rides on
@@ -207,12 +209,12 @@ function collectGateRoots(node, out, keys = [], depth = 0) {
         root = root.right;
         continue;
       case 'ConditionalExpression':
-        collectGateRoots(root.consequent, out, keys, depth + 1);
-        collectGateRoots(root.alternate, out, keys, depth + 1);
+        collectGateRoots(root.consequent, out, programNode, keys, depth + 1);
+        collectGateRoots(root.alternate, out, programNode, keys, depth + 1);
         return out;
       case 'LogicalExpression':
-        collectGateRoots(root.left, out, keys, depth + 1);
-        collectGateRoots(root.right, out, keys, depth + 1);
+        collectGateRoots(root.left, out, programNode, keys, depth + 1);
+        collectGateRoots(root.right, out, programNode, keys, depth + 1);
         return out;
       case 'ParenthesizedExpression':
       case 'ChainExpression':
@@ -239,11 +241,14 @@ function collectGateRoots(node, out, keys = [], depth = 0) {
     case 'CallExpression':
     case 'OptionalCallExpression':
     case 'TaggedTemplateExpression': {
-      const callee = peelToBareExpr(root.type === 'TaggedTemplateExpression' ? root.tag : root.callee);
+      // The scoped pass follows the invoked function behind call/apply/bind too. Naming
+      // the invoker property here would incorrectly rule that function's return out.
+      const callee = peelToBareExpr(callPairing(root, programNode)?.callee);
       out.push({
         name: '', keys, callRooted: true,
         calleeName: callee?.type === 'Identifier' ? callee.name : null,
         calleeIsFunction: callee?.type === 'FunctionExpression' || callee?.type === 'ArrowFunctionExpression',
+        calleeIsDefault: isMemberAccessNode(callee) && memberKeyName(callee) === 'default',
       });
       break;
     }
@@ -3096,7 +3101,7 @@ export function mutationShapesReducer(packages = null) {
   // write does. the roots stay raw: naming them here would read a half-built alias map, so the
   // resolution is the reader's, at `result` time
   function sourceRoots(valueNode) {
-    const roots = collectGateRoots(valueNode, []);
+    const roots = collectGateRoots(valueNode, [], programNode);
     for (const root of roots) if (root.thisRooted) root.viaTopLevelThis = markTopLevelThis;
     return roots;
   }
@@ -3670,13 +3675,14 @@ export function mutationShapesReducer(packages = null) {
     return names;
   }
 
-  // can the scoped stage inline this call's return? only through a function literal it can name
+  // The scoped stage names function literals and pure invokers behind imports, aliases and default interop slots.
+  // The cheap pass cannot prove the latter's source, so it conservatively admits that spelling.
   function followableCallee(root, seen) {
-    if (root.calleeIsFunction) return true;
+    if (root.calleeIsFunction || root.calleeIsDefault) return true;
     if (root.calleeName === null) return false;
     if (functionBound.has(root.calleeName)) return true;
     const aliased = aliasClosure(root.calleeName, seen);
-    return !aliased || aliased.some(name => functionBound.has(name));
+    return !aliased || aliased.some(name => functionBound.has(name) || pureImportEntryOfProgram(programNode, name));
   }
 
   // is the value under this chain the GLOBAL OBJECT - by name, by a proxy-entry binding, or
@@ -3694,6 +3700,9 @@ export function mutationShapesReducer(packages = null) {
   // own path: a write consumes its last key as the slot it lands on
   function chainValueNames(root, keys, seen) {
     if (root.unnameable) return null;
+    // A default slot can carry a pure invoker through an alias; only the scoped pass
+    // can prove its module source. Do not discard that possible value here.
+    if (keys.length === 1 && keys[0] === 'default') return null;
     // whether the scoped stage can name a CALL root is decided by its callee: it inlines the
     // return through an inline function, or through a name this file binds to one - directly or
     // down the alias chain. a callee this file never binds (`require`, an import, a host global)
@@ -3807,7 +3816,7 @@ export function mutationShapesReducer(packages = null) {
     // pairing is coarse here - the whole argument, not the slot a destructured parameter selects -
     // because the gate only asks "could this reach a built-in"; the scoped stage pairs precisely
     function pairParam(param, valueNodes, atTopLevel) {
-      const roots = valueNodes.flatMap(value => collectGateRoots(value, []));
+      const roots = valueNodes.flatMap(value => collectGateRoots(value, [], programNode));
       for (const root of roots) if (root.thisRooted) root.viaTopLevelThis = atTopLevel;
       walkPatternIdentifiers(param, id => {
         valueBound.add(id.name);
@@ -3843,7 +3852,7 @@ export function mutationShapesReducer(packages = null) {
       // file binds to nothing of the sort (`foo(bar())`, in half of real files) classifies as no
       // mutator in the scoped stage either, so its arguments are no mutation targets
       if (bareCallee !== null && !valueBound.has(bareCallee) && !importBound.has(bareCallee)) continue;
-      for (const root of collectGateRoots(node, [])) {
+      for (const root of collectGateRoots(node, [], programNode)) {
         root.viaTopLevelThis = viaTopLevelThis;
         const firstKey = root.keys[0] ?? null;
         // a `this`-rooted target fires when the key nearest the root is built-in-shaped, or
@@ -4423,7 +4432,7 @@ function spreadArrayPairing(callee, arrayNode) {
 // census of installed values owes anyway. a consumer that REWRITES arguments also supplies
 // `staticIsMutated`: a user-installed invoker may observe those arguments without calling the
 // apparent function, so only its pristine form grants that consumer authority
-export function callPairing(node, programNode = null, { nameIsShadowed = null, staticIsMutated = null, getBindingEntry = null } = {}) {
+export function callPairing(node, programNode = null, { nameIsShadowed = null, staticIsMutated = null, getCalleeEntry = null } = {}) {
   if (node.type === 'TaggedTemplateExpression') {
     return { callee: peelToBareExpr(node.tag), args: [node.quasi, ...node.quasi.expressions] };
   }
@@ -4433,8 +4442,9 @@ export function callPairing(node, programNode = null, { nameIsShadowed = null, s
   // a prior pass replaced the member spelling with the helper it minted, so the same host arrives
   // as a bare name - the entry that name is bound to is what says which host it is, through the
   // one canon that already answers it for a mutator callee (both spellings, shadow guard included)
-  const mintedPair = callee?.type === 'Identifier' && (getBindingEntry || programNode)
-    ? mutatorPairFromEntry(getBindingEntry ? getBindingEntry(callee.name) : pureImportEntryOfProgram(programNode, callee.name)) : null;
+  const entry = getCalleeEntry ? getCalleeEntry(callee)
+    : callee?.type === 'Identifier' && programNode ? pureImportEntryOfProgram(programNode, callee.name) : null;
+  const mintedPair = mutatorPairFromEntry(entry);
   if (mintedPair?.namespace === 'Reflect' && mintedPair.method === 'apply') {
     return spreadArrayPairing(args[0], args[2]);
   }
@@ -4915,18 +4925,6 @@ export function createDetectionAdapter({
 // enrichment + one routed constructor) is untouched. the emitters consult
 // `isMutatedGlobalSlot` at their global-identifier usage callbacks and emit a debug note.
 
-// --- mutated-key enrichment (shared by both plugins) ---
-// imports each mutated key's own PURE entry up front, so core-js initializes from the
-// PRISTINE built-in before the patch statement runs:
-// - a STATIC key (`Iterator.from = patch`) gets its entry when the constructor itself
-//   ROUTES (the same `kind: 'global'` resolution the identifier machinery uses) - the
-//   method then exists on the ponyfill (polyfill-then-patch) and a native-staying receiver
-//   (Array on ie11 targets) skips the dead weight. instance-kind fallbacks are NOT statics
-//   (the key lives on the prototype) and are skipped
-// - an INSTANCE key (`String.prototype.at = patch`) gets its instance entry with NO
-//   ctor-routing gate: the point is initialization ORDER - core-js caches its own
-//   implementation and never adopts the third-party patch, so dispatch helpers keep
-//   serving the core-js polyfill in every file of the bundle
 // the inverse of `mutatedStaticKey`, and the two must stay readable as a pair. a recorded key is
 // `<object>.<key>`, and BOTH halves may carry a dot of their own: the object as
 // a `<Ctor>.prototype` placement, the key as a folded well-known symbol (`Symbol.iterator`). so the
@@ -4942,6 +4940,18 @@ function splitMutatedKey(mutatedKey) {
   return { object: mutatedKey.slice(0, dot), key: mutatedKey.slice(dot + 1), placement: 'static' };
 }
 
+// --- mutated-key enrichment (shared by both plugins) ---
+// imports each mutated key's own PURE entry up front, so core-js initializes from the
+// PRISTINE built-in before the patch statement runs:
+// - a STATIC key (`Iterator.from = patch`) gets its entry when the constructor itself
+//   ROUTES (the same `kind: 'global'` resolution the identifier machinery uses) - the
+//   method then exists on the ponyfill (polyfill-then-patch) and a native-staying receiver
+//   (Array on ie11 targets) skips the dead weight. instance-kind fallbacks are NOT statics
+//   (the key lives on the prototype) and are skipped
+// - an INSTANCE key (`String.prototype.at = patch`) gets its instance entry with NO
+//   ctor-routing gate: the point is initialization ORDER - core-js caches its own
+//   implementation and never adopts the third-party patch, so dispatch helpers keep
+//   serving the core-js polyfill in every file of the bundle
 export function enrichMutatedStatics({ mutatedStatics, resolvePure, injectPureImport }) {
   for (const mutatedKey of mutatedStatics ?? []) {
     const { object: ctorName, key, placement } = splitMutatedKey(mutatedKey);
@@ -5112,39 +5122,57 @@ function resolveLeafName(leaf, ctx) {
 // hop - `Array[k].x = v` could have patched anything under Array); the handler deopts them
 // whole. `thisPath` (alias fans only) anchors the top-level-`this` context check at the
 // declarator that captured the `this`, not the mutation site
-function resolveMutationSite({ targetNode, scope, adapter, path, callArguments = null, resolveStaticKey = null }) {
+function resolveMutationSite({
+  targetNode, scope: siteScope, adapter: siteAdapter, path: sitePath, callArguments = null, resolveStaticKey = null,
+}) {
   const names = new Set();
   const receiverDeopts = new Set();
   const seenBindings = new Set();
   const chainParts = new WeakMap();
-  const siteCtx = { scope, adapter, path, chainParts, resolveStaticKey };
+  const siteCtx = { scope: siteScope, adapter: siteAdapter, path: sitePath, chainParts, resolveStaticKey };
   // a PARAMETER has no declarator to fan, and BOTH value-resolution entry points owe the same
   // answer about it - the one asking about the binding itself, and the one asking about a chain
   // ROOTED at it (`function install(t) { t.box.groupBy = shim }`, `(...rest) { rest[0].x = shim }`)
-  function bindingParamValues(identNode, binding) {
+  function bindingParamValues(identNode, binding, ctx = siteCtx) {
+    const { scope, adapter, path } = ctx;
     return binding.kind === 'param'
       ? paramReachingValues({ identNode, binding, callArguments, ctx: { scope, adapter, path, resolveKey } }) : [];
+  }
+  // Normalize receiver invokers before resolving either a returned value or a returned
+  // container slot. Pairing only the arguments still asks the inline canon about `.apply`
+  // instead of the function it invokes (also the spelling a spread lowering produces).
+  function pairedMutationCall(callNode, ctx = siteCtx) {
+    const { scope, adapter, path } = ctx;
+    // The program's import name alone cannot distinguish a local shadow at this call site.
+    const pairing = callPairing(callNode, null, {
+      getCalleeEntry: callee => pureImportSourceEntry(moduleDefaultSource({ node: callee, scope, adapter, path })),
+    });
+    // Unknown arguments expose no pairable slots; free returns still resolve in their own scope.
+    // This is analysis only: the emitted call retains its original arguments and effects.
+    return pairing?.callee
+      ? { ...callNode, type: 'CallExpression', callee: pairing.callee, arguments: pairing.argsUnknown ? [] : pairing.args } : null;
   }
   // the values a CALL RESULT stands for, through the shared inline canon: the argument an identity
   // callee hands back (any parameter position, an inline-array spread expanded, a tagged template's
   // expressions paired like arguments), or the body a parameter-free callee yields - a write
   // through the result patches THAT object (`pick(1, Array).from = patched`)
-  function callResultValues(callNode) {
-    const pairing = callPairing(callNode);
-    if (!pairing?.callee) return [];
-    const call = callNode.type === 'TaggedTemplateExpression'
-      ? { type: 'CallExpression', callee: callNode.tag, arguments: pairing.args } : callNode;
+  function callResultValues(callNode, ctx = siteCtx) {
+    const { scope, adapter, path } = ctx;
+    const call = pairedMutationCall(callNode, ctx);
+    if (!call) return [];
     const inlined = inlineCallReturnExpression({ node: call, readNode: callNode, seen: new Set(), ctx: { scope, adapter, path } },
-      { rejectConditional: true, allowExtraParams: true });
-    return inlined ? [inlined.node] : [];
+      { rejectConditional: true, allowExtraParams: true, allowUninitializedCallee: true });
+    return inlined ? [inlined] : [];
   }
   // ... and the argument a callee returns INSIDE a container it builds (`box(x) { return [x] }`, then
   // `box(Array)[0].from = patched`): the slot the chain reads off the result holds a parameter, and
   // the value there is the call's argument at that parameter's position
-  function callYieldedSlotValues(callNode, keys) {
-    if (callNode.type === 'TaggedTemplateExpression') return [];
-    const callee = resolveInlineCalleeFunction({ node: callNode, readNode: callNode, seen: new Set(), ctx: { scope, adapter, path } },
-      { allowIdentityParam: true, allowExtraParams: true, rejectConditional: true })?.node;
+  function callYieldedSlotValues(callNode, keys, ctx = siteCtx) {
+    const { scope, adapter, path } = ctx;
+    const call = pairedMutationCall(callNode, ctx);
+    if (!call) return [];
+    const callee = resolveInlineCalleeFunction({ node: call, readNode: callNode, seen: new Set(), ctx: { scope, adapter, path } },
+      { allowIdentityParam: true, allowExtraParams: true, rejectConditional: true, allowUninitializedCallee: true })?.node;
     const params = dropLeadingThisParam(callee?.params ?? []);
     if (!params.length || params.some(param => param.type !== 'Identifier') || referencesArgumentsObject(callee)) return [];
     const returns = callee.body?.type === 'BlockStatement' ? collectOwnReturns(callee.body) : null;
@@ -5154,14 +5182,15 @@ function resolveMutationSite({ targetNode, scope, adapter, path, callArguments =
     for (const [keyPath, name] of literalIdentifierSlots(literal)) {
       if (keyPath.length !== keys.length || keyPath.some((key, at) => String(key) !== String(keys[at]))) continue;
       const index = params.findIndex(param => param.name === name);
-      const argument = index === -1 ? null : resolveCallArgument(callNode.arguments ?? [], index);
+      const argument = index === -1 ? null : resolveCallArgument(call.arguments, index);
       if (argument) values.push(argument);
     }
     return values;
   }
   // `arguments[i]` inside a function reads what its call sites pass at `i` (`function m(x) {
   // arguments[0].from = patched } m(Array)`): an arrow has no `arguments` of its own
-  function argumentsSlotValues(index) {
+  function argumentsSlotValues(index, ctx = siteCtx) {
+    const { path } = ctx;
     let fnPath = path;
     while (fnPath?.node && (!FUNCTION_LIKE_NODE_TYPES.has(fnPath.node.type) || fnPath.node.type === 'ArrowFunctionExpression')) {
       fnPath = fnPath.parentPath;
@@ -5173,7 +5202,8 @@ function resolveMutationSite({ targetNode, scope, adapter, path, callArguments =
   // held = x }`, then `keep(Array)` and `held.from = patched`): that name is bound nowhere at this
   // site, so the function holding the reassignment is found by span, and its call sites name what
   // the parameter carried
-  function enclosingParamValues(identNode) {
+  function enclosingParamValues(identNode, ctx = siteCtx) {
+    const { path } = ctx;
     if (typeof identNode.start !== 'number') return [];
     let programPath = path;
     while (programPath.parentPath?.node) programPath = programPath.parentPath;
@@ -5189,24 +5219,25 @@ function resolveMutationSite({ targetNode, scope, adapter, path, callArguments =
     if (index === -1) return [];
     return calleeCallSites(fn, callArguments).map(({ args }) => resolveCallArgument(args, index)).filter(Boolean);
   }
-  function visitAliasValues(valueNode, depth, thisPath = null) {
+  function visitAliasValues(valueNode, depth, thisPath = null, ctx = siteCtx) {
     if (!valueNode || depth > 8) return;
     for (const leaf of valueFanLeaves(valueNode, [])) {
-      const name = resolveLeafName(leaf, { ...siteCtx, thisPath });
+      const name = resolveLeafName(leaf, { ...ctx, thisPath });
       if (name) names.add(name);
-      if (leaf.type === 'Identifier') visitBinding(leaf, depth + 1);
+      if (leaf.type === 'Identifier') visitBinding(leaf, depth + 1, ctx);
       // an alias bound to a chain root off a reassigned proxy holder (`let h; h = globalThis;
       // const alias = h.Array`) resolves no leaf name - fan its chain root like the target loop
       else if (!name && (leaf.type === 'MemberExpression' || leaf.type === 'OptionalMemberExpression')) {
-        visitChainRootAlias(leaf, thisPath);
+        visitChainRootAlias(leaf, thisPath, ctx);
       // ... and one bound to a CALL RESULT holds what the call hands back (`const h = pick(1, Array)`)
       } else if (!name && (leaf.type === 'CallExpression' || leaf.type === 'OptionalCallExpression'
         || leaf.type === 'TaggedTemplateExpression')) {
-        for (const value of callResultValues(leaf)) visitAliasValues(value, depth + 1, thisPath);
+        for (const value of callResultValues(leaf, ctx)) visitAliasValues(value.node, depth + 1, thisPath, { ...ctx, ...value.ctx });
       }
     }
   }
-  function visitBinding(identNode, depth) {
+  function visitBinding(identNode, depth, ctx = siteCtx) {
+    const { scope, adapter, path } = ctx;
     if (!adapter.hasBinding(scope, identNode.name, path)) return;
     const binding = adapter.getBinding(scope, identNode.name, path);
     // keyed by the DECLARATION node: both adapters build a FRESH binding view per lookup, so
@@ -5231,7 +5262,7 @@ function resolveMutationSite({ targetNode, scope, adapter, path, callArguments =
     // without spelling `Map` anywhere near the write. no declarator to fan, so the call sites are
     // the reaching values
     if (binding.kind === 'param') {
-      for (const value of bindingParamValues(identNode, binding)) visitAliasValues(value, depth + 1);
+      for (const value of bindingParamValues(identNode, binding, ctx)) visitAliasValues(value, depth + 1, null, ctx);
       return;
     }
     // a destructure declarator binds a SELECTED slot: the canonical pattern / literal pairer
@@ -5248,20 +5279,20 @@ function resolveMutationSite({ targetNode, scope, adapter, path, callArguments =
     const patternDeclarator = decl?.type === 'VariableDeclarator' && decl.id && decl.id.type !== 'Identifier';
     if (patternDeclarator) {
       for (const slotValue of patternSlotValues(decl.id, decl.init, identNode.name, { scope, adapter, path, resolveKey })) {
-        visitAliasValues(slotValue, depth, bindingPath);
+        visitAliasValues(slotValue, depth, bindingPath, ctx);
       }
     }
     // a pattern declarator's init is the WHOLE rhs (`Array` for `{ prototype: P } = Array`):
     // fanning it would smuggle the CONTAINER name and record a spurious static beside the
     // slot fan's correct pair - the selected slot values above are the only sound fan there
     const init = binding.node?.init;
-    if (!patternDeclarator) visitAliasValues(init, depth, bindingPath);
+    if (!patternDeclarator) visitAliasValues(init, depth, bindingPath, ctx);
     const reCtx = { scope, adapter, path, resolveKey };
     for (const rhs of reassignmentValueNodes({ binding, usagePath: path, name: identNode.name, ctx: reCtx }) ?? []) {
-      visitAliasValues(rhs, depth, bindingPath);
+      visitAliasValues(rhs, depth, bindingPath, ctx);
       // ... a value the write took from a PARAMETER of its own function reaches no binding here
       if (rhs.type === 'Identifier' && !adapter.hasBinding(scope, rhs.name, path)) {
-        for (const value of enclosingParamValues(rhs)) visitAliasValues(value, depth + 1, bindingPath);
+        for (const value of enclosingParamValues(rhs, ctx)) visitAliasValues(value, depth + 1, bindingPath, ctx);
       }
     }
   }
@@ -5270,18 +5301,25 @@ function resolveMutationSite({ targetNode, scope, adapter, path, callArguments =
   // the safe direction). two root shapes fan: a BOUND identifier (`let h; h = c ? other : globalThis;
   // h.Array.of = patch`) fans its init + reassignment union; an INLINE value fan
   // (`(c ? globalThis : self).Array.of = patch`) fans the chain root's own branches
-  function visitChainRootAlias(leaf, thisPath = null) {
-    const parts = chainPartsOf(leaf, siteCtx);
+  function visitChainRootAlias(leaf, thisPath = null, ctx = siteCtx) {
+    const { scope, adapter, path } = ctx;
+    const parts = chainPartsOf(leaf, ctx);
     if (!parts) return;
     // a chain rooted at a CALL reads a slot of what the call returns, and a chain rooted at
     // `arguments` reads what a call site passed: both name the argument, not the root
-    if (parts.keys && (parts.rootNode.type === 'CallExpression' || parts.rootNode.type === 'OptionalCallExpression')) {
-      for (const value of callYieldedSlotValues(parts.rootNode, parts.keys)) visitAliasValues(value, 1);
+    if (parts.keys && (parts.rootNode.type === 'CallExpression' || parts.rootNode.type === 'OptionalCallExpression'
+      || parts.rootNode.type === 'TaggedTemplateExpression')) {
+      const call = pairedMutationCall(parts.rootNode, ctx);
+      const name = call && walkStaticReceiverChain({
+        receiverNode: call, walkPath: parts.keys, scope, adapter, path, ignoreWrittenSlots: true, allowUninitializedCallee: true,
+      });
+      if (name) names.add(name);
+      else for (const value of callYieldedSlotValues(parts.rootNode, parts.keys, ctx)) visitAliasValues(value, 1, null, ctx);
       return;
     }
     if (parts.keys?.length === 1 && parts.rootNode.type === 'Identifier' && parts.rootNode.name === 'arguments'
       && !adapter.hasBinding(scope, 'arguments', path)) {
-      for (const value of argumentsSlotValues(Number(parts.keys[0]))) visitAliasValues(value, 1);
+      for (const value of argumentsSlotValues(Number(parts.keys[0]), ctx)) visitAliasValues(value, 1, null, ctx);
       return;
     }
     // an unreadable HOP hides which value off the root was reached (`Array[k].x = v`) - the
@@ -5293,22 +5331,22 @@ function resolveMutationSite({ targetNode, scope, adapter, path, callArguments =
       }
       // every leaf the fan can name deopts: `box = c ? Array : Map` reaches BOTH constructors, and
       // stopping at the first left the other one trusted under a patch that may have hit it
-      for (const { node: valueLeaf, thisPath: leafAnchor } of chainRootValueLeaves(parts.rootNode, thisPath)) {
-        const rootName = resolveLeafName(valueLeaf, { ...siteCtx, thisPath: leafAnchor });
+      for (const { node: valueLeaf, thisPath: leafAnchor } of chainRootValueLeaves(parts.rootNode, thisPath, ctx)) {
+        const rootName = resolveLeafName(valueLeaf, { ...ctx, thisPath: leafAnchor });
         if (rootName) receiverDeopts.add(rootName);
       }
       return;
     }
     if (parts.keys.slice(0, -1).some(key => !POSSIBLE_GLOBAL_OBJECTS.has(key))) return;
-    for (const { node: valueLeaf, thisPath: leafAnchor } of chainRootValueLeaves(parts.rootNode, thisPath)) {
+    for (const { node: valueLeaf, thisPath: leafAnchor } of chainRootValueLeaves(parts.rootNode, thisPath, ctx)) {
       // ... an alias of `arguments` (`const a = arguments; a[0].from = patched`) reads the slot the
       // way the bare spelling does
       if (valueLeaf.type === 'Identifier' && valueLeaf.name === 'arguments' && parts.keys.length === 1
         && !adapter.hasBinding(scope, 'arguments', path)) {
-        for (const value of argumentsSlotValues(Number(parts.keys[0]))) visitAliasValues(value, 1);
+        for (const value of argumentsSlotValues(Number(parts.keys[0]), ctx)) visitAliasValues(value, 1, null, ctx);
         continue;
       }
-      const rootName = resolveLeafName(valueLeaf, { ...siteCtx, thisPath: leafAnchor });
+      const rootName = resolveLeafName(valueLeaf, { ...ctx, thisPath: leafAnchor });
       if (rootName && POSSIBLE_GLOBAL_OBJECTS.has(rootName)) {
         names.add(parts.keys.at(-1));
         return;
@@ -5319,7 +5357,8 @@ function resolveMutationSite({ targetNode, scope, adapter, path, callArguments =
   // reassignment union, an inline value composite fans its own branches. each leaf carries the
   // anchor its own `this` reads at - the DECLARATION that captured it, not the write's frame -
   // so a `const g = this` fan answers the same from a write anywhere below it
-  function chainRootValueLeaves(rootNode, thisPath = null) {
+  function chainRootValueLeaves(rootNode, thisPath = null, ctx = siteCtx) {
+    const { scope, adapter, path } = ctx;
     let rootValues;
     let anchor = thisPath;
     if (rootNode.type === 'Identifier') {
@@ -5334,7 +5373,7 @@ function resolveMutationSite({ targetNode, scope, adapter, path, callArguments =
       const patternDeclarator = decl?.type === 'VariableDeclarator' && decl.id && decl.id.type !== 'Identifier';
       const initValues = patternDeclarator
         ? patternSlotValues(decl.id, decl.init, rootNode.name, { scope, adapter, path, resolveKey })
-        : [identifierDeclaratorInit(binding), ...bindingParamValues(rootNode, binding)];
+        : [identifierDeclaratorInit(binding), ...bindingParamValues(rootNode, binding, ctx)];
       rootValues = [...initValues, ...reassignmentValueNodes({
         binding, usagePath: path, name: rootNode.name, ctx: { scope, adapter, path, resolveKey },
       }) ?? []];
@@ -5346,7 +5385,7 @@ function resolveMutationSite({ targetNode, scope, adapter, path, callArguments =
   const target = valueFanLeaves(targetNode, []);
   for (const leaf of target) {
     if (leaf.type === 'Identifier') {
-      if (!adapter.hasBinding(scope, leaf.name, path)) {
+      if (!siteAdapter.hasBinding(siteScope, leaf.name, sitePath)) {
         // unshadowed bare name - the direct global candidate, no alias machinery involved
         names.add(leaf.name);
       } else {
@@ -5357,7 +5396,7 @@ function resolveMutationSite({ targetNode, scope, adapter, path, callArguments =
       if (name) names.add(name);
       else if (leaf.type === 'MemberExpression' || leaf.type === 'OptionalMemberExpression') visitChainRootAlias(leaf);
       else if (leaf.type === 'CallExpression' || leaf.type === 'OptionalCallExpression' || leaf.type === 'TaggedTemplateExpression') {
-        for (const value of callResultValues(leaf)) visitAliasValues(value, 1);
+        for (const value of callResultValues(leaf)) visitAliasValues(value.node, 1, null, { ...siteCtx, ...value.ctx });
       }
     }
   }

@@ -1,4 +1,4 @@
-import { withChangingWindow, withNestedWindow } from './unbacked-window-host.js';
+import { withChangingWindow, withNestedWindow, withWindowPresence } from './unbacked-window-host.cjs';
 
 // Global proxies: globalThis - accessing globals and statics through it
 import { withRealmSlot, withWindowWithoutSelf } from './window-without-self-host.js';
@@ -8,6 +8,47 @@ import { withRealmSlot, withWindowWithoutSelf } from './window-without-self-host
 // these tests assert never fires there and the code keeps its native-faithful behavior
 // (a raw `.self` hop read throws in Node). the fold itself stays locked by the other legs
 const testUnlessDetectLowered = typeof E2E_DETECT_LOWERED === 'undefined' ? QUnit.test : QUnit.skip;
+
+QUnit.test('optional static calls keep an earlier environment guard over instance tails', assert => {
+  for (const present of [false, true]) withWindowPresence(present, live => {
+    let held;
+    let calls = 0;
+    const value = (held = globalThis.window)?.self.Array.from?.([++calls]).at?.(0);
+    assert.same(value, live ? 1 : undefined);
+    assert.same(calls, live ? 1 : 0, 'arguments stay inside the guard');
+    assert.same(held, globalThis.window, 'the root write runs on either branch');
+    assert.same(globalThis.window?.Array.of?.(2).at(0), live ? 2 : undefined);
+    assert.same(globalThis.window?.Array?.from?.([3]).at?.(0), live ? 3 : undefined);
+    function undefinedValue() {
+      return globalThis.window?.Array.of?.().at(0).at?.(0);
+    }
+    if (live) assert.throws(undefinedValue, TypeError, 'a returned undefined is not a short-circuit');
+    else assert.same(undefinedValue(), undefined);
+  });
+});
+
+QUnit.test('effectful proxy keys preserve the guard of a sealed mutation', assert => {
+  for (const present of [false, true]) withWindowPresence(present, live => {
+    const effects = [];
+    const descriptor = Object.getOwnPropertyDescriptor(Object, 'e2eGuardedWrite');
+    try {
+      function write() {
+        // eslint-disable-next-line no-unsafe-optional-chaining, no-sequences -- the sealed write must throw when the hop is absent
+        (globalThis[effects.push('self'), 'self'][effects.push('window'), 'window']?.Object).e2eGuardedWrite = 7;
+      }
+      if (live) {
+        write();
+        // eslint-disable-next-line es/no-nonstandard-object-properties -- the test's temporary slot
+        assert.same(Object.e2eGuardedWrite, 7);
+      } else assert.throws(write, TypeError);
+      assert.deepEqual(effects, ['self', 'window'], 'keys run once, including before a throw');
+    } finally {
+      if (descriptor) Object.defineProperty(Object, 'e2eGuardedWrite', descriptor);
+      // eslint-disable-next-line es/no-nonstandard-object-properties -- restore absence as well as value
+      else delete Object.e2eGuardedWrite;
+    }
+  });
+});
 
 // === globalThis ===
 QUnit.test('globalThis.Promise', assert => {

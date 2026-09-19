@@ -16,56 +16,14 @@
 // from the input, never from the output under test (a missed injection cannot un-arm itself), and
 // it arms the `strip:false` hosts (param-default / assignment) the pure leg must skip: under
 // usage-global's inject-if-might contract those have no "legitimately did not inject" escape.
-import { fileURLToPath } from 'node:url';
-import { Worker } from 'node:worker_threads';
+import { runInWorker } from './realm-runner.mjs';
 import { cached } from './cache-store.mjs';
 import { EMITTER, WANT_BABEL, WANT_UNPLUGIN, importSet, phaseNs, setEqual, transformBoth, writeModule } from './harness.mjs';
 
-const { dirname, join } = path;
-const WORKER = join(dirname(fileURLToPath(import.meta.url)), 'global-leg-worker.mjs');
-
-// run an already-written module file in a fresh stripped worker realm; resolves to its runtimeKey.
-// a worker-level crash (strip canary, loader failure) or a silent exit resolves to a sentinel that
-// can never equal a native reference, so it surfaces as a loud failure instead of a skip
-function runStripped(file) {
-  return new Promise(resolve => {
-    // the accessor pre-warm touches the lazy localStorage getter, which emits an
-    // ExperimentalWarning per fresh worker - thousands of them per run without the disable
-    const worker = new Worker(WORKER, { workerData: { file }, execArgv: ['--disable-warning=ExperimentalWarning'] });
-    let result = null;
-    function record(key) {
-      result ??= key;
-    }
-    worker.once('message', key => {
-      record(key);
-      // grace window: a snippet that left a live handle (a timer, an open port) keeps the
-      // thread alive past its natural wind-down - fall back to forcible teardown then.
-      // unref'd so the guard itself never holds the shard open; firing after a clean exit
-      // terminates an already-dead worker (a settled no-op)
-      const guard = setTimeout(() => {
-        // eslint-disable-next-line promise/prefer-await-to-then, no-empty-function -- fire-and-forget fallback teardown
-        worker.terminate().catch(() => {});
-      }, 2000);
-      guard.unref();
-    });
-    worker.once('error', error => {
-      record(`WORKER-CRASH|${ error?.message ?? error }`);
-      // an errored worker may never end on its own - forcible teardown only on this path
-      // eslint-disable-next-line promise/prefer-await-to-then, promise/no-promise-in-callback, no-empty-function -- fire-and-forget teardown of a dead worker
-      worker.terminate().catch(() => {});
-    });
-    // resolve on EXIT, not on message: the worker closes its own port after posting and the
-    // thread ends NATURALLY - no `terminate()` on the happy path, and no overlap between one
-    // worker's teardown and the next one's spawn (both belong to the forcible-disposal race
-    // class behind the Windows ACCESS_VIOLATION crashes at this spawn volume)
-    worker.once('exit', () => resolve(result ?? 'WORKER-CRASH|exited without result'));
-  });
-}
-
 // one stripped-realm evaluation, memoized by (snippet, type) in the shared cache: the worker spawn
 // is what this leg costs, and it only has to happen when the code that would run in it changed
-function runOutput({ type, code, ts }) {
-  return cached({ type, code, evaluate: async () => runStripped(await writeModule(code, ts)) });
+function runOutput({ type, code, ts, sourceType }) {
+  return cached({ type, code, evaluate: async () => runInWorker(await writeModule(code, ts, sourceType), { sourceType }) });
 }
 
 // arming is a property of the INPUT - the raw source's stripped-realm key - independent of the
@@ -74,11 +32,11 @@ function runOutput({ type, code, ts }) {
 // imports no core-js at all. The comparison against this run's native reference stays live.
 // never rejects: the promise floats unhandled while the transforms run, so a rejection here
 // (a temp-file write failure, say) would bypass the shard's per-snippet catch and kill the shard
-async function armingEval(code, ts) {
+async function armingEval(code, ts, sourceType) {
   const t0 = process.hrtime.bigint();
   let key;
   try {
-    key = await runOutput({ type: 'arming', code, ts });
+    key = await runOutput({ type: 'arming', code, ts, sourceType });
   } catch (error) {
     key = `WORKER-CRASH|arming: ${ error?.message ?? error }`;
   }
@@ -91,7 +49,7 @@ async function armingEval(code, ts) {
 // same gate as the pure stripped leg. returns { skip, failed, detail } - `skip` names why the
 // stripped-realm comparison did not run and is null when it did, which is what the run's coverage
 // accounting counts as this leg's ARMED snippets
-export async function checkGlobalSnippet({ code, ts = false, native, options, provenArmed = false }) {
+export async function checkGlobalSnippet({ code, ts = false, native, options, provenArmed = false, sourceType = 'module' }) {
   if (native.startsWith('ERR')) return { skip: 'native-throw', failed: false, detail: '' };
   // arming: a `strip:true` snippet is the generator's PROVEN manifest-builtin read - its
   // stripped-realm divergence holds by construction (this realm strips the same globals as
@@ -101,9 +59,9 @@ export async function checkGlobalSnippet({ code, ts = false, native, options, pr
   // test is sound and a prefilter would silently blind such snippets.
   // the arming evaluation only needs the ORIGINAL source - start it and run both transforms
   // while the worker spins, hiding its latency behind CPU work the shard must do anyway
-  const armingKey = provenArmed ? null : armingEval(code, ts);
+  const armingKey = provenArmed ? null : armingEval(code, ts, sourceType);
 
-  const { babelOut, unpluginOut, babelError, unpluginError } = await transformBoth({ src: code, options, ts });
+  const { babelOut, unpluginOut, babelError, unpluginError } = await transformBoth({ src: code, options, ts, sourceType });
   // a throwing transform fails BEFORE the arming gate: a crash is a plugin bug on any input,
   // and an unarmed verdict here would swallow it for exactly the snippets nothing else runs
   if (babelError || unpluginError) {
@@ -124,11 +82,11 @@ export async function checkGlobalSnippet({ code, ts = false, native, options, pr
     // ONE cell, not two: the twin is never read while the collapse holds - only the split branch
     // asks for `global-unplugin` - so recording it would add a copy per armed snippet that nothing
     // consumes. A snippet that later starts splitting pays one worker spawn for the miss
-    babelKey = unpluginKey = await runOutput({ type: 'global-babel', code: unpluginOut, ts });
+    babelKey = unpluginKey = await runOutput({ type: 'global-babel', code: unpluginOut, ts, sourceType });
   } else {
     [babelKey, unpluginKey] = await Promise.all([
-      WANT_BABEL ? runOutput({ type: 'global-babel', code: babelOut, ts }) : null,
-      WANT_UNPLUGIN ? runOutput({ type: 'global-unplugin', code: unpluginOut, ts }) : null,
+      WANT_BABEL ? runOutput({ type: 'global-babel', code: babelOut, ts, sourceType }) : null,
+      WANT_UNPLUGIN ? runOutput({ type: 'global-unplugin', code: unpluginOut, ts, sourceType }) : null,
     ]);
   }
   if ((!WANT_BABEL || babelKey === native) && (!WANT_UNPLUGIN || unpluginKey === native)) {

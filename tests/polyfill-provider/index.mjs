@@ -4,6 +4,7 @@
 // the list is hand-maintained, so it is reconciled against the directory at the end: a suite
 // added here and left out of the list is run by nothing and reported by nothing
 import { fileURLToPath } from 'node:url';
+import './harness-contracts.mjs';
 import './resolve-node-type.mjs';
 import './class-flow-order.mjs';
 import './container-navigation-opaque-values.mjs';
@@ -26,6 +27,7 @@ import './array-wrapper-drop.mjs';
 import './existing-imports.mjs';
 import './synth-wks-keys.mjs';
 import './destructure-collapse.mjs';
+import './mirror-decline-complexity.mjs';
 import './fallback-branches.mjs';
 import './parameter-call-sites.mjs';
 import './guard-canon.mjs';
@@ -52,6 +54,7 @@ import './holder-shape-equivalence.mjs';
 import './holder-position-domain.mjs';
 import './holder-call-slot-domain.mjs';
 import './holder-receiver-body-channels.mjs';
+import './mutation-return-channels.mjs';
 // the escape STAMP's node identity: the census writes a stamp and the pure claim reads one, and a
 // spelling only one half knows is a silently dropped widening, not a failure
 import './escaped-ctor-stamp.mjs';

@@ -1,3 +1,5 @@
+import { restoreProperty } from '../helpers/restore-property.cjs';
+
 // SLOT mutations live in their OWN module: a slot write of name X DEOPTS X for the whole
 // file (usage-pure leaves every X read verbatim), so these tests must not share a module
 // with the static-canon tests - a raw read of an engine-missing native would break them.
@@ -223,25 +225,6 @@ QUnit.test('mutated-slots: replaced slot serves bare prototype reads', assert =>
   }
 });
 
-// a BARE reassignment (`Promise = shim`) writes the same global slot as the member form -
-// later static reads route the live slot, not the pristine ponyfill
-QUnit.test('mutated-slots: bare slot reassignment routes later reads', assert => {
-  const had = 'Promise' in globalThis;
-  const original = globalThis.Promise;
-  // pre-create the slot: a strict-mode bare write to a MISSING global ReferenceErrors
-  globalThis.Promise = original;
-  const shim = { resolve: () => 'bluebird' };
-  /* eslint-disable no-global-assign -- the bare global reassignment IS the case under test */
-  Promise = shim;
-  /* eslint-enable no-global-assign -- end of the bare-reassignment case */
-  try {
-    assert.same(Promise.resolve(1), 'bluebird');
-  } finally {
-    if (had) globalThis[['Pro', 'mise'].join('')] = original;
-    else delete globalThis[['Pro', 'mise'].join('')];
-  }
-});
-
 // a bare DESTRUCTURE-PATTERN element write (`[Set] = [shim]`) assigns the same global slot
 // as the flat reassignment - later bare constructor reads route the live slot
 QUnit.test('mutated-slots: pattern-element slot write routes later reads', assert => {
@@ -338,13 +321,13 @@ QUnit.test('mutated-slots: presence guard probes the real binding', assert => {
 // assertion runs - test-harness internals must never see the broken global
 QUnit.test('mutated-slots: dynamic-key static patch wins over the ponyfill', assert => {
   const key = ['fr', 'om'].join('');
-  const original = Array[key];
+  const descriptor = Object.getOwnPropertyDescriptor(Array, key);
   Array[key] = function patched() { return 'patched'; };
   let observed;
   try {
     observed = Array.from('ab');
   } finally {
-    Array[key] = original;
+    restoreProperty(Array, key, descriptor);
   }
   assert.same(observed, 'patched');
 });

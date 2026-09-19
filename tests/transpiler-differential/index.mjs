@@ -100,11 +100,13 @@ if (EMITTER !== 'both') echo(red(`SINGLE-EMITTER RUN (${ EMITTER }): the other e
 // purpose - a changed output invalidates its own cell by its own hash, which is exactly the
 // property that makes an edit cost proportional to its size
 const CACHE_MACHINERY = [
+  '../helpers/restore-property.cjs',
   'cache-store.mjs',
   'global-leg.mjs',
   'global-leg-worker.mjs',
   'harness.mjs',
   'rig-aliases.mjs',
+  'realm-runner.mjs',
   'serialize.mjs',
   'shard.mjs',
   'strip-builtins.mjs',

@@ -21,6 +21,7 @@ function gp(v: unknown) {
 	}
 }
 
+// a method member of the target resolves its call return
 interface M { make(): string }
 
 function isM(o: unknown): o is M {
@@ -35,6 +36,7 @@ function gm(v: unknown) {
 	}
 }
 
+// inherited interface members resolve through the extends chain
 interface SubI extends F { tag: string }
 
 function isSub(o: unknown): o is SubI {
@@ -49,6 +51,7 @@ function gi(v: unknown) {
 	}
 }
 
+// composes with an && chain
 function ga(v: unknown) {
 	if (isSub(v) && v.tag) {
 		var _ref4;
@@ -57,6 +60,7 @@ function ga(v: unknown) {
 	}
 }
 
+// a UNION target composes with a discriminant guard on the result
 type W = { kind: 'a'; xs: number[] } | { kind: 'b'; xs: string };
 
 function isW(o: unknown): o is W {
@@ -71,6 +75,7 @@ function gw(v: unknown) {
 	}
 }
 
+// a generic target substitutes its type arguments
 interface Box<T> { val: T }
 
 function isBox(o: unknown): o is Box<number[]> {
@@ -85,6 +90,7 @@ function gx(v: unknown) {
 	}
 }
 
+// the ternary nullable fold composes with a predicate-narrowed receiver
 function gt(v: unknown, c: boolean) {
 	if (isBox(v)) {
 		var _ref7;
