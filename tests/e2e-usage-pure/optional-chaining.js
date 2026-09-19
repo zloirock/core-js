@@ -439,7 +439,6 @@ QUnit.test('optional chain: receiver-level short-circuit reaches the combined di
   // the receiver evaluates exactly once despite being tested and then read
   let reads = 0;
   const counted = {
-    // eslint-disable-next-line es/no-accessor-properties -- the single-evaluation count IS the case
     get b() {
       reads += 1;
       return { c: [[1], [2]] };
