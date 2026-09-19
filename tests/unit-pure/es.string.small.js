@@ -1,4 +1,4 @@
-import small from 'core-js-pure/es/string/small';
+import small from '@core-js/pure/es/string/small';
 
 QUnit.test('String#small', assert => {
   assert.isFunction(small);

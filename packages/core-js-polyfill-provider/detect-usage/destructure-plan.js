@@ -1,0 +1,1450 @@
+// nested-destructure flatten DECISION layer, shared by both emitters: classify every outer
+// prop of a flatten-eligible declarator (proxy-global / bare-constructor / static-object
+// receiver) into a parser-agnostic plan tree. both bindings RENDER the tree into their own
+// dialect - keys, sentinel names and import bindings are render concerns and stay out of it.
+// plan node kinds:
+//   - { kind: 'verbatim', prop }               keep the prop untouched (residual)
+//   - { kind: 'consumed', prop, extractions }  drop the prop, bind extractions instead
+//     (under a rest sibling the renderer keeps a `key: <throwaway>` sentinel so rest
+//     exclusion survives)
+//   - { kind: 'symbol-iterator-key', prop }    keep the prop, polyfilling only its computed
+//     `[Symbol.iterator]` key text (non-binding value - the synth extraction can't fire,
+//     but a raw `Symbol.iterator` key would throw on engines without `Symbol`)
+//   - { kind: 'rebuilt', prop, pattern, extractions, children }
+//     partially-consumed nested pattern: one child plan per inner prop, survivors re-render
+// extraction records: { entry, hint, localName } resolved pure entries, or
+// { synth: 'symbol-iterator', localName } for the `_getIteratorMethod(receiver)` shape.
+// a 'rebuilt' node's `extractions` already aggregates its children's - consumers read
+// extractions at the OUTER level only and use child lists for residual rendering
+import {
+  aliasEscaped,
+  aliasSlotWritten,
+  arrayLiteralIterableElements,
+  catchPropRewriteObservable,
+  createInstanceNodeCache,
+  followConstIdentifierInit,
+  isChainAssignment,
+  isDestructurePattern,
+  isEffectfulKeyHop,
+  isMemberAccessNode,
+  isPropertyNode,
+  isRestProperty,
+  patternHasAnyDefault,
+  mayHaveSideEffects,
+  objectInitSpreadSurvives,
+  objectLevelPairedProperty,
+  objectLiteralHoldsObservable,
+  patternKeepsEffectfulHop,
+  patternRootKeyPathsFor,
+  patternSlotTarget,
+  soleChainToProp,
+  peelNestedSequenceExpressions,
+  peelZeroArgIifeReturn,
+  plainSynthKeyName,
+  POSSIBLE_GLOBAL_OBJECTS,
+  propBindingIdentifier,
+  propertyKeyName,
+  receiverCarriesLiveOptional,
+  relocatedHeadElement,
+  resolveCallArgument,
+  spelledSlotName,
+  unwrapCollectingSePrefixes,
+  unwrapExpressionChain,
+  unwrapRuntimeExpr,
+  isUndefinedNode,
+} from '../helpers/ast-patterns.js';
+import { resolve as resolveBuiltIn } from '../index.js';
+import { computedPropKeyHostsMachinery } from './members.js';
+import {
+  chainSealsAShortCircuit,
+  computedKeyIsWellKnownSymbol,
+  consumableHopSlotName,
+  guaranteedRealmObjectName,
+  isStaticPlacement,
+  navValueCanShortCircuit,
+  peelRealmLogicalDefault,
+  realmSelectionCollapseOperand,
+  realmSelectionLeafKind,
+  proxyReceiverValueCanBeUndefined,
+  resolveKey as sharedResolveKey,
+  memberTargetTakesExtraction,
+  resolveObjectName,
+} from './resolve.js';
+import {
+  mirrorAcceptedKey,
+  buildDestructuringInitMeta,
+  destructureHostInitNode,
+  destructurePatternHostPath,
+  destructureRightIsReceiver,
+  discardRescueNodesWithReads,
+  fallbackInitWhollyDiscardable,
+  resolveBranchProxyName,
+  walkStaticReceiverChain,
+} from './destructure.js';
+
+// collapse a fallback init (logical / ternary / chain-assignment / transparent IIFE) to the
+// operand the flatten binds to, exactly like the flat meta - see the call site's contract
+// comments. `fallbackDropped` reports a REACHABLE branch was discarded: the fallback rescues
+// the nullish path there, so the full-consume throw probe stays off
+function collapseFallbackInit({ init, scope, adapter, path, resolveGlobalPolyfill }) {
+  let fallbackDropped = false;
+  if (init?.type === 'LogicalExpression' || init?.type === 'ConditionalExpression'
+    || isChainAssignment(init)
+    || ((init?.type === 'CallExpression' || init?.type === 'OptionalCallExpression') && peelZeroArgIifeReturn(init))) {
+    if (!fallbackInitWhollyDiscardable(init)) init = null;
+    else for (let guard = 0; guard < 8 && init; guard++) {
+      const inlined = peelZeroArgIifeReturn(init);
+      if (inlined) init = unwrapExpressionChain(inlined);
+      // a chain assignment evaluates to its RHS; the harvest rescues it WHOLE
+      else if (isChainAssignment(init)) init = unwrapExpressionChain(init.right);
+      // a ternary collapses to its consequent ONLY when the alternate agrees on a global proxy
+      // (the shared predicate the identification resolver uses); a diverging alternate means
+      // the runtime may pick a receiver the polyfill is wrong for, so bail and stay native
+      else if (init.type === 'ConditionalExpression') {
+        // ... and agrees on DEFINABILITY too. naming the same proxy is not the same claim: an arm
+        // the environment may not have is the PROBE, and in a ternary the TEST picks the arm, so
+        // keeping one moves WHEN the value is undefined. only arms of the same kind may collapse -
+        // both guaranteed, or both probes (`c ? globalThis.window : globalThis.window` still throws
+        // on a full consume, which is why the probe question stays with the collapsed operand and
+        // no `fallbackDropped` is reported here)
+        const { alternate, consequent } = init;
+        const kindCtx = { scope, adapter, path };
+        init = resolveBranchProxyName({ branchNode: consequent, scope, adapter, path })
+          && resolveBranchProxyName({ branchNode: alternate, scope, adapter, path })
+          && realmSelectionLeafKind(consequent, kindCtx) === realmSelectionLeafKind(alternate, kindCtx)
+          ? unwrapExpressionChain(consequent) : null;
+      } else if (init.type === 'LogicalExpression') {
+        const collapsed = collapseLogicalInitOperand({ init, scope, adapter, path, resolveGlobalPolyfill });
+        fallbackDropped ||= collapsed.dropped;
+        init = collapsed.value;
+      } else break;
+    }
+  }
+  return { init, fallbackDropped };
+}
+
+// one step of the fallback-init collapse over a `||` / `??`: those select their RIGHT operand
+// exactly when the left value is nullish / falsy - and a short-circuit hidden under a SEAL
+// never hands nullish on (the read above the seal THROWS instead), so a sealed-read left keeps
+// its fallback DEAD and collapses like a plain init. a genuinely nullish-able left makes the
+// fallback reachable: the flatten may bind the polyfill to the left only when the fallback
+// agrees on the same receiver (`nav ?? Array`); a diverging fallback (`nav ?? {}`) keeps the
+// source native - its legitimate value must not become the polyfill. `&&` never reaches this
+// arm: `fallbackInitWhollyDiscardable` refuses it. `dropped` reports a REACHABLE fallback was
+// discarded - the probe question stays off there, the fallback rescues the nullish path
+function collapseLogicalInitOperand({ init, scope, adapter, path, resolveGlobalPolyfill }) {
+  const left = unwrapExpressionChain(init.left);
+  const aliasCtx = { scope, adapter, path };
+  if (!proxyReceiverValueCanBeUndefined(left, ({ name }) => resolveGlobalPolyfill(name), aliasCtx)
+    || chainSealsAShortCircuit(left, ({ name }) => resolveGlobalPolyfill(name), aliasCtx)) {
+    return { value: left, dropped: false };
+  }
+  // ... and a probed left is still no reason to keep the selection when EVERY value it can yield is
+  // the REALM: the probe reads undefined off-host and the fallback behind it is that same object, so
+  // the collapse binds a receiver no branch disagrees with and the whole selection drops. the shared
+  // answer, which the unplugin's own mirror gate asks in the same spelling
+  const realmOperand = realmSelectionCollapseOperand(init, { adapter, scope, path });
+  if (realmOperand) return { value: realmOperand, dropped: true };
+  const leftName = resolveObjectName({ objectNode: left, scope, adapter, path });
+  return {
+    value: leftName && leftName === resolveObjectName({
+      objectNode: unwrapExpressionChain(init.right), scope, adapter, path,
+    }) ? left : null,
+    dropped: true,
+  };
+}
+
+// an SE-bearing init joins the ANCHORED family only when every effect rides a channel the
+// anchored renders re-emit: a sequence prefix (collected into `anchorSe` - the residual
+// render replays it, the full-consume path lifts it standalone, and the assignment-cascade
+// hosts null it in favor of their OWN standalone prefix lift) or a chain-assignment
+// rescued WHOLE by the discard harvest. deeper effects (a ternary branch, an IIFE body)
+// keep the nested handling - folding those would change the receiver shape the SE-lift
+// machinery expects
+function anchoredSeAccounting(declarator, peeledInit) {
+  if (!mayHaveSideEffects(declarator.init)) return { accounted: true, anchorSe: null };
+  const prefixes = [];
+  const seTail = unwrapCollectingSePrefixes(peeledInit, prefixes);
+  const accounted = !mayHaveSideEffects(seTail) || isChainAssignment(seTail);
+  return { accounted, anchorSe: accounted && prefixes.length ? prefixes : null };
+}
+
+// does the literal this leaf reads THROUGH outlive the pairing? the walk that pairs the level owns
+// the answer, and a slot over a surviving literal stays NAMED: it leaves a sentinel instead of
+// dropping, so the husk keeps the key the residual still reads and every effect the literal owes
+// `adapter` lets the pairing walk fold a BOUND or effectful hop key the way the plan's own walk does
+export function destructureHostLiteralSurvives(leafPath, adapter = null) {
+  const host = destructurePatternHostPath(leafPath);
+  // a DECLARATION host only: an assignment keeps its literal as a statement of its own
+  // (`({ v: (se(), arr) });` - the pattern goes, the read stays), which is its own channel
+  const pattern = host?.node?.type === 'VariableDeclarator' ? host.node.id : null;
+  const init = destructureHostInitNode(leafPath);
+  // asked of an OBJECT init only: an array wrapper answers the same flag for its own spread, and the
+  // routes that own that shape already read it off the plan - re-deciding it here would move them
+  return !!pattern && init?.type === 'ObjectExpression'
+    && peelArrayWrapperPair({ pattern, init, scope: leafPath.scope, adapter, path: leafPath, liftTrailing: true }).wrapperSurvives;
+}
+
+// peel parallel transparent destructure wrappers - a level is a SINGLE-slot pair on both sides:
+//   - single-element ArrayPattern + matching ArrayExpression layer (`[{...}] = [globalThis]`,
+//     `[[{...}]] = [[globalThis]]`, etc.)
+//   - sole-property ObjectPattern + the literal slot its key names (`{ w: {...} } = { w: globalThis }`),
+//     whose own gates live in `objectHopPairedValue`
+//   - inner AssignmentPattern default (`[{...} = {}] = [globalThis]`) - default never fires
+//     for proxy-global receivers since runtime value is always defined under polyfill-wins
+// bail (stop iterating) on depth divergence or an intermediate of the other shape - downstream
+// shape check will reject ambiguous shapes. when scope + adapter are passed, dereferences a
+// const-bound Identifier init through its binding so `const wrapper = [Array]; const
+// [{x}] = wrapper` descends to the leaf via the wrapper's init.
+// `liftTrailing`: the caller's host holds a statement slot ahead of the destructure, so an
+// SE-bearing element the pattern does not bind is HARVESTED into `trailingEffects` instead of
+// bailing the level - without it the level stays whole and every effect runs verbatim
+// eslint-disable-next-line max-statements -- the peel: one arm per wrapper shape a level may take
+export function peelArrayWrapperPair({ pattern, init, scope = null, adapter = null, path = null, liftTrailing = false }) {
+  // the capture the levels consumed so far anchor at - the host use first, then the innermost
+  // followed alias declarator (the detect side's `descendArrayWrapperInit` threads the same hop)
+  let readNode = null;
+  // sequence prefixes peeled off CONSUMED wrapper levels, source order. the flatten discards
+  // those levels, so their effects must surface to the caller's lift - silently peeling them
+  // lost the outer effect on the unplugin (`(outer(), [(inner(), R)])` kept only `inner`)
+  // while babel's own descent lost the inner one: both sides re-emit from THIS list.
+  // a bail level's prefixes are NOT committed - the returned `init` keeps them in place.
+  // `firstArray` / `lastArray` bracket the consumed ArrayExpression chain (null when no level
+  // was consumed): babel re-anchors `init` at the first and swaps the leaf element
+  // of the last, so its re-visit guard needs no descent of its own
+  const peeledPrefixes = [];
+  // committed consumed levels, outermost first: `wrapper` is the level's raw init (its text /
+  // AST includes the sequence prefixes lifted from that level), `array` the effective
+  // ArrayExpression after the unwrap. residual renders strip each INLINE level's wrapper down
+  // to its array - a kept `(mid(), [R])` would re-run the lifted effect (double-exec)
+  const consumedLevels = [];
+  // SE-bearing elements the pattern does not bind, per consumed INLINE level (outermost first).
+  // native evaluates them AFTER the paired element and everything below it, so a full consume
+  // re-emits them innermost level first, behind the element's own effects; a partial consume
+  // keeps the level's array, where they still stand
+  const trailingByLevel = [];
+  // a SPREAD extra iterates its argument, which no statement re-emits: the level is still consumed
+  // (the pattern below it plans), but its array has to SURVIVE the render - a sentinel keeps the
+  // consumed slot and the residual runs the iteration where the source did
+  let wrapperSurvives = false;
+  // ... and whether a REST beside a hop is what keeps it: the render then EMPTIES the consumed hop and
+  // binds the hop itself to a sentinel (`{ w: _unused, ...rest }`), the flat rest shape one level down,
+  // where a spread's survivor keeps the leaf sentinel inside the hop
+  let restKeepsLevel = false;
+  let firstArray = null;
+  let lastArray = null;
+  // STICKY across levels: once a level dereferenced a const-bound alias, every DEEPER level
+  // also lives in the alias's own init (outside the destructure host), so the trailing-extra
+  // rule below never applies to them either
+  let dereferenced = false;
+  // the context a HOP KEY folds in: the pattern never leaves the host, so its keys read in the
+  // host's scope however deep the INIT side has followed an alias out of it (the follow rebinds
+  // `scope` below to the alias declaration's - a shadowing `k` there must not answer for the
+  // pattern's own)
+  const hopKeyCtx = adapter ? { scope, adapter, path } : null;
+  // the peel's answer at whatever level the walk stopped: the pattern and init it reached plus
+  // everything the consumed levels committed
+  function done(peeledPattern, peeledInit) {
+    return {
+      pattern: peeledPattern, init: peeledInit, peeledPrefixes, firstArray, lastArray, consumedLevels,
+      trailingEffects: trailingByLevel.toReversed().flat(), wrapperSurvives, restKeepsLevel,
+    };
+  }
+  for (;;) {
+    if (pattern?.type === 'ObjectPattern' && pattern.properties.some(isRestProperty)) return done(pattern, init);
+    // strip AssignmentPattern wrapper on the destructure side - init has no AssignmentPattern
+    // equivalent (defaults sit on the LHS slot), so we only peel pattern here. EXCEPTION: a
+    // receiver-shaped inner default whose paired slot is literally `undefined` fires the default, so
+    // ITS right is the receiver (`[{ from } = Array] = [undefined]` -> from off Array) - surface it
+    // (the identification's resolveArrayInnerDefaultReceiver agrees, so both emitters stay consistent)
+    if (pattern?.type === 'AssignmentPattern') {
+      if (isUndefinedNode(init) && destructureRightIsReceiver(pattern.right)) return done(pattern.left, pattern.right);
+      pattern = pattern.left;
+      continue;
+    }
+    // a level is a single-slot wrapper on both sides: an array's SOLE element, or an object's SOLE
+    // property naming a slot whose value is one more pattern (`{ w: { Map } } = { w: globalThis }`
+    // pairs exactly as `[{ Map }] = [globalThis]` does). a wider level is the plan's own shape and
+    // stops the peel, and so does a leaf value - the flat routes own that. the slot is asked through
+    // the CONSUMING canon, so a bound computed key (`{ [k]: { Map } }`) names its level like a literal.
+    // a REST beside the hop (`{ w: { Map }, ...rest }`) pairs the same slot and keeps the level ALIVE
+    // exactly as a spread in the literal does: rest gathers what the pattern did not name, so the
+    // consumed hop stays as a sentinel keeping its key excluded, and the residual runs where it stood
+    const hopCandidates = pattern?.type === 'ObjectPattern' ? pattern.properties.filter(prop => !isRestProperty(prop)) : [];
+    // ... and a hop whose KEY carries an effect keeps its level exactly like a rest beside it
+    const hopRest = hopCandidates.length === 1 && (pattern.properties.length === 2 || isEffectfulKeyHop(hopCandidates[0]));
+    const hopProp = hopCandidates.length === 1 && (pattern.properties.length === 1 || hopRest)
+      && isDestructurePattern(patternSlotTarget(hopCandidates[0].value))
+      && consumableHopSlotName(hopCandidates[0], hopKeyCtx) !== null ? hopCandidates[0] : null;
+    if (!hopProp && (pattern?.type !== 'ArrayPattern' || pattern.elements.length !== 1)) {
+      return done(pattern, init);
+    }
+    // peel SE-tail / paren / TS wrappers first (`(se(), [Array])` descends into the tail's
+    // array); the crossed sequence prefixes are collected and committed only when this level's
+    // wrapper is actually consumed, so a bail below leaves the original init (effects in place)
+    const levelPrefixes = [];
+    let effectiveInit = unwrapCollectingSePrefixes(init, levelPrefixes);
+    // dereference const-bound Identifier (`= wrapper` where `const wrapper = [Array]`).
+    // flow-sensitive bail mirrors the object-wrapper static-receiver walk: only a reassignment
+    // that reaches the use aborts (a `wrapper = []` strictly AFTER the read leaves the read's
+    // value provably `[Array]`), instead of bailing on every constantViolation
+    if (scope && adapter) {
+      // the detect side's own alias follow, so the plan consumes exactly the levels detection
+      // classified: the pattern-gated init, each hop re-anchored in the followed binding's own
+      // declaration scope, and the read site carried from the capture the level above recorded (a
+      // write to the inner alias after that capture cannot change what the outer literal holds).
+      // this plan feeds the pure flatten, so the inject-if-might relaxation never applies. the
+      // followed value is EFFECTIVE - the alias's own paren / cast / sequence spelling evaluates at
+      // ITS declaration, so only the value flows here
+      const followed = followConstIdentifierInit({
+        node: effectiveInit, readNode, ctx: { scope, adapter, path, resolveKey: sharedResolveKey },
+      });
+      // a dereferenced alias is only as good as its SLOTS: a container this file writes into, or
+      // lets escape, may no longer hold what its literal spelled, and the level below binds a
+      // polyfill to that literal. asked of the OBJECT level alone: its key names the slot, so the
+      // question has an answer, while an array level's slot is positional and the census - keyed by
+      // NAME, per file - would bail every common wrapper name a file also uses elsewhere
+      if (followed.node !== effectiveInit && hopProp) {
+        // Peeling the outer level also forgets the owner of nested slots. Check known paths
+        // against the declaration the alias follow reached; opaque inner keys keep the outer check.
+        const keys = patternRootKeyPathsFor(pattern, null, hopKeyCtx) ?? [[spelledSlotName(hopProp)]];
+        const ownerNode = followed.readNode?.type === 'VariableDeclarator' ? followed.readNode : null;
+        if (aliasEscaped(effectiveInit, adapter, path)
+          || keys.some(key => aliasSlotWritten(effectiveInit, key, adapter, { scope, path, ownerNode }))) return done(pattern, init);
+      }
+      if (followed.node !== effectiveInit) dereferenced = true;
+      effectiveInit = followed.node;
+      ({ readNode } = followed);
+      scope = followed.ctx.scope;
+    }
+    if (hopProp) {
+      // the object level harvests nothing of its own - what keeps it whole is `objectHopPairedValue`'s
+      // to decide - so it commits an empty trailing list and rides the same level bookkeeping
+      // the hop key through the CONSUMING canon: a bound computed key folds to the slot it names
+      // (`{ [k]: { Map } }` with `const k = 'w'`), the way the other leg's consume already read it
+      const paired = objectHopPairedValue(effectiveInit, consumableHopSlotName(hopProp, hopKeyCtx), dereferenced,
+        adapter ? { scope, adapter, path } : null);
+      if (!paired) return done(pattern, init);
+      if (paired.survives || hopRest) wrapperSurvives = true;
+      if (hopRest) restKeepsLevel = true;
+      consumedLevels.push({ wrapper: init, array: effectiveInit });
+      trailingByLevel.push([]);
+      pattern = patternSlotTarget(hopProp.value);
+      init = paired.read;
+      continue;
+    }
+    if (effectiveInit?.type !== 'ArrayExpression') return done(pattern, init);
+    const [innerPattern] = pattern.elements;
+    const [innerInit] = effectiveInit.elements;
+    if (!innerPattern || !innerInit) return done(pattern, init);
+    // an INLINE trailing init element is evaluated-then-discarded by the destructure at
+    // runtime; its effect would vanish with the consumed wrapper level, so an SE-bearing extra
+    // bails the consume - the init stays whole and every effect runs verbatim - unless the
+    // caller lifts, where it is harvested for the host to re-emit. a SPREAD extra iterates,
+    // which no statement re-emits: a lifting host keeps that level's ARRAY alive instead
+    // (`wrapperSurvives`), with nothing harvested off it, and any other host bails. a pure
+    // extra stays peelable - dropping a value-dead pure element is silent. a DEREFERENCED
+    // wrapper is exempt: the alias's own declaration keeps the whole array (only the VALUE
+    // flows here), so its effects were never at risk - and bailing mid-follow desynced the
+    // peel from the detect pass
+    const extras = dereferenced ? [] : effectiveInit.elements.slice(1).filter(Boolean);
+    const spread = extras.some(el => el.type === 'SpreadElement');
+    if (!liftTrailing && (spread || extras.some(mayHaveSideEffects))) return done(pattern, init);
+    if (spread) wrapperSurvives = true;
+    peeledPrefixes.push(...levelPrefixes);
+    consumedLevels.push({ wrapper: init, array: effectiveInit });
+    trailingByLevel.push(spread ? [] : extras.filter(mayHaveSideEffects));
+    firstArray ??= effectiveInit;
+    lastArray = effectiveInit;
+    pattern = innerPattern;
+    init = innerInit;
+  }
+}
+
+// the value an object level's sole pattern property pairs with, or null when the level has to stay
+// whole: a SPREAD anywhere in the literal (it could override the key, and its read of the source's
+// own enumerable keys is an effect of its own), an unnameable key standing after the match that could
+// BE it at runtime (last wins), an accessor or method whose read runs a body the consumed level
+// would drop, a sibling effect with no re-emit channel here, and a value whose live `?.` belongs to
+// the probe channel. a DEREFERENCED level skips the sibling rule: the alias's own declaration keeps
+// the literal, so its siblings were never at risk
+function objectHopPairedValue(objectNode, key, dereferenced, keyCtx) {
+  // ... a key standing after the match is dangerous only where NOTHING can name it: the same
+  // scope-aware fold the hop's own key rides (`{ [K]: v }` with `const K = 'q'` names `q`), so a
+  // bound key that provably spells another slot leaves the match standing
+  const paired = objectLevelPairedProperty(objectNode, key, prop => consumableHopSlotName(prop, keyCtx));
+  if (!paired) return null;
+  const { match, read } = paired;
+  // ... a `?.` that cannot short-circuit is dead text (`globalThis?.globalThis` - the object is a
+  // guaranteed realm name): the value canon that every seal-aware channel asks answers here too, so
+  // the level pairs with the nav the way the walk already resolves it for a static claim
+  if (receiverCarriesLiveOptional(read) && (!keyCtx || navValueCanShortCircuit(
+    unwrapRuntimeExpr(read), ({ name }) => resolveBuiltIn({ kind: 'global', name }), keyCtx))) return null;
+  // ... and a value the level SELECTS between arms is not one value to pair with: which arm answers
+  // is the selecting-receiver channel's question, asked where the source wrote the branch
+  // ... EXCEPT the defensive realm default, where nothing selects: a guaranteed realm name is an
+  // object, so the right side is dead text and the level pairs with the name (`(globalThis ?? {})`
+  // names the realm, exactly as the flat spelling of the same receiver does)
+  // ... at every depth of the default (`(globalThis ?? {}) ?? {}`), the way the walk canon reads it -
+  // the discarding peel, since the level pairs with the name in place of the slot
+  const realmPeeled = read.type === 'LogicalExpression' ? peelRealmLogicalDefault(read, { discarding: true }) : null;
+  const realmNamed = realmPeeled?.type === 'Identifier' && guaranteedRealmObjectName(realmPeeled.name)
+    ? realmPeeled : null;
+  if (!realmNamed && (read.type === 'ConditionalExpression' || read.type === 'LogicalExpression')) return null;
+  if (dereferenced) return { match, read };
+  // a sibling's effect and a SPREAD's read of its source's own keys have no re-emit channel here -
+  // the array level's harvest rides `peeledPrefixes` / `trailingEffects`, which the renders read off
+  // the innermost consumed ARRAY - so a level holding either PAIRS AND SURVIVES, the way a
+  // spread-bearing array wrapper does: the claim is still spelled from the slot its key names, and
+  // the literal stays with its sentinels so every effect runs where the source wrote it
+  // ... and a SEQUENCE around a value the dispatch COLLAPSES owes its prefix: a realm name is
+  // re-spelled as its ponyfill (`_globalThis`), never as the comma run in front of it, so the
+  // literal keeps that prefix. every other value rides INSIDE the dispatch, prefix and all
+  // (`_at((log.push('c'), arr))`), which is the carry the corpus locks - asked through the wrappers
+  // a source may spell (one parser keeps parens as nodes), but never through the sequence itself
+  // ... read through the canon peel, so a NESTED run (`(f(), (g(), globalThis))`) and a realm default
+  // on the tail (`(f(), globalThis ?? {})`) owe their prefix exactly like the flat spelling - read by
+  // the outer level alone, the tail was no name, the level consumed, and the prefix vanished
+  const { prefix: readPrefix, tail: readTailRaw } = peelNestedSequenceExpressions(unwrapRuntimeExpr(read));
+  const readTail = readPrefix.length ? peelRealmLogicalDefault(unwrapRuntimeExpr(readTailRaw), { discarding: true }) : null;
+  const seqPrefixOwed = !!readTail && readPrefix.some(mayHaveSideEffects)
+    && readTail.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(readTail.name);
+  return {
+    match, read: realmNamed ?? read, survives: seqPrefixOwed || objectLiteralHoldsObservable(objectNode, match),
+  };
+}
+
+// does this pattern LEAF carry a claim of ITS OWN - a member read whose own route renders it off the
+// same ponyfill - so a consume around it would read that member raw off the pattern instead? ONE
+// answer for both bindings, parameterized by the receiver the leaf reads through: a WELL-KNOWN-SYMBOL
+// key carries a render of its own whatever it folds to, a key nothing folds stays unknowable (which
+// counts as a claim), and a folded one is asked of the registry. `foldsComputedKey` is the caller's
+// promise that the render KEEPS the key node where the source wrote it - the ctor-pattern re-anchor
+// does, so its effect still runs once in place; a caller that cannot keep it treats a computed key as
+// unknowable instead
+export function leafCarriesOwnClaim({ leaf, receiver, resolvePure, keyCtx, foldsComputedKey = false }) {
+  if (!isPropertyNode(leaf)) return true;
+  if (leaf.computed && !foldsComputedKey) return true;
+  if (computedKeyIsWellKnownSymbol({ keyNode: leaf.key, ...keyCtx })) return true;
+  const key = leaf.computed
+    ? sharedResolveKey({ node: leaf.key, computed: true, ...keyCtx, bailOnSideEffectKey: false, keepsKeyNode: true })
+    : plainSynthKeyName(leaf.key);
+  if (key === null) return true;
+  const { object, placement } = receiver;
+  return !!resolvePure({ kind: 'property', object, key, placement },
+    placement === 'prototype' ? null : keyCtx.path);
+}
+
+// structural check: outerProp is a Property with computed `[Symbol.iterator]` key. Symbol
+// shadow not tracked here - matches the detection layer's shadowing trust. true for
+// both extractable shape (`[Symbol.iterator]: ident`) and non-extractable shape
+// (`[Symbol.iterator]: {nestedPattern}` / spread / etc.) - the plan kind decides
+function isSymbolIteratorComputedKey(outerProp) {
+  if (!isPropertyNode(outerProp) || !outerProp.computed) return false;
+  const { key } = outerProp;
+  if (key?.type !== 'MemberExpression' || key.computed) return false;
+  if (key.object?.type !== 'Identifier' || key.object.name !== 'Symbol') return false;
+  if (key.property?.type !== 'Identifier' || key.property.name !== 'iterator') return false;
+  return true;
+}
+
+// narrowed to extractable shape: value must be a BARE binding Identifier. a defaulted
+// value (`[Symbol.iterator]: it = fb`) is NOT extractable here - unlike a static polyfill
+// import, the synth helper's result can be undefined (a non-iterable receiver), so the
+// default is live; peeling it would drop it entirely. defaults keep the key-swap
+// (see `planSymbolIteratorProp`). returns the local binding name when extractable
+function symbolIteratorLocalName(outerProp) {
+  if (!isSymbolIteratorComputedKey(outerProp)) return null;
+  return outerProp.value?.type === 'Identifier' ? outerProp.value.name : null;
+}
+
+// pattern-valued `[Symbol.iterator]` prop - the shape both emitters extract by destructuring
+// the get-iterator-method RESULT. the single predicate every dispatch / trigger / value gate
+// shares, so the shape decision can't drift between them
+export function isSymbolIteratorPatternProp(propNode) {
+  return !!propNode && isSymbolIteratorComputedKey(propNode) && propNode.value?.type === 'ObjectPattern';
+}
+
+function hasExtractions(planNode) {
+  return !!planNode.extractions?.length;
+}
+
+// resolve a destructure property to its polyfillable STATIC entry off `receiverName`, or null when it
+// is NOT a consumable static: a computed / non-Identifier-value / rest / default-only key, an
+// instance-kind member, an unresolved key, or a disabled leaf. shared by the flatten plan (which builds
+// extractions from the entry) and the babel collapse gate (which needs only the yes/no to know whether a
+// surviving sibling will be EXTRACTED - emptying the pattern and dropping a SE init's receiver tail).
+// the bare `resolveBuiltIn` instance pre-filter is required: a pathless `resolvePure` crashes on
+// `enhanceMeta`'s member-like check for instance resolutions
+export function resolvePolyfillableStaticProp({
+  prop, receiverName, resolvePure, isDisabled = null, keyName = null, memberRoot = null,
+}) {
+  if (isDisabled?.(prop)) return null;
+  // caller may pre-resolve a scope-aware key (an Identifier computed key `[K]` folds to its binding
+  // value); structural propertyKeyName only reads literals, so without it an `[K]` residual reads an
+  // unimported static off the pure ctor (undefined at runtime)
+  const name = keyName ?? (isPropertyNode(prop) ? propertyKeyName(prop) : null);
+  if (name === null) return null;
+  const valueNode = propBindingIdentifier(prop.value);
+  // ... and a MEMBER target is a slot like any binding where its root proves writable; every gate
+  // below still answers for it, which is what keeps a PROTOTYPE member (`Set.union`) out of the slot
+  const targetNode = valueNode ? null : memberTargetTakesExtraction(prop.value, memberRoot ?? {});
+  if (!valueNode && !targetNode) return null;
+  const meta = { kind: 'property', object: receiverName, key: name, placement: 'static' };
+  if (resolveBuiltIn(meta)?.kind === 'instance') return null;
+  const pure = resolvePure(meta);
+  if (!pure || pure.kind === 'instance') return null;
+  return { pure, localName: valueNode?.name ?? null, targetNode };
+}
+
+// would re-anchoring this residual leaf onto the ctor's PURE binding WRITE the ponyfill into the
+// realm? that binding is what a realm WITHOUT the constructor has instead of it, so the re-anchor is
+// what keeps the read working there and declining it is a lost polyfill - WHICH value the binding
+// answers for a given member is the runtime's own business (a `*/constructor` entry exposes the
+// ctor's prototype members as statics and installs none of its own until another entry decorates
+// it). The one thing the re-anchor may not do is land the ponyfill in the realm: a MEMBER target is
+// the author's own slot and takes the binding like a declared one, unless its ROOT stands for a
+// global, and that is the same question the extraction canon asks of the same target
+export function residualLeafWritesIntoRealm(prop, memberRoot = null) {
+  const target = patternSlotTarget(prop?.value);
+  return isMemberAccessNode(target) && !memberTargetTakesExtraction(prop.value, memberRoot ?? {});
+}
+
+// the extracted value IS the iterator method - a FUNCTION - so a leaf pulled out of it is an
+// INSTANCE member of that function. only the plan can say so: the extracted pattern's properties
+// are claimed (the re-visit must not re-enter the destructure pipeline on them), and that claim
+// equally silences the member dispatch that would otherwise resolve the leaf. a shorthand leaf is
+// not a member read either, so nothing downstream asks the question.
+// ONE leaf only, and that bound is load-bearing rather than incidental: each polyfilled leaf needs
+// the receiver again, and the receiver here is the synth CALL - re-running it would re-read the
+// source's `Symbol.iterator` a second time (a getter would fire twice). two leaves therefore need
+// a memo contract, which stays out of this plan
+export function symbolIteratorInstanceLeaf({ value, resolvePure, isDisabled, keyNameOf }) {
+  const inner = patternSlotTarget(value);
+  if (inner?.type !== 'ObjectPattern' || inner.properties.length !== 1) return null;
+  const [leaf] = inner.properties;
+  if (!isPropertyNode(leaf) || leaf.computed || isDisabled?.(leaf)) return null;
+  // a DEFAULTED leaf stays on the destructure: the dispatcher result would have to be guarded
+  // (`(ref = _m(x)) === void 0 ? <default> : ref`), which is the instance-default channel's shape,
+  // and binding it directly here would drop the user's default outright
+  if (leaf.value?.type === 'AssignmentPattern') return null;
+  const key = keyNameOf(leaf);
+  const bound = key === null ? null : propBindingIdentifier(leaf.value);
+  if (!bound) return null;
+  const pure = resolvePure({ kind: 'property', object: 'function', key, placement: 'prototype' });
+  return pure?.kind === 'instance'
+    ? { localName: bound.name, instanceEntry: pure.entry, instanceHint: pure.hintName } : null;
+}
+
+// plan cache keyed by declarator node identity (unique per parse, so a module-level
+// WeakMap is per-file safe; entries GC with the program). the FIRST build wins: the
+// AssignmentExpression cascade plans a synthetic `{ id, init }` host and the render-time
+// re-entry on the same object must read THAT plan (the cascade also neutralizes
+// `plan.discardSe` on the shared object before rendering)
+// the KEY a full-consume throw probe re-reads off the guarded PROBED value: native
+// destructuring of the probe value throws BEFORE any key read (CoerceToObject), so a read of
+// the source's own first key off the guard reproduces the TypeError ahead of the extractions.
+// the anchored hop IS that first key; a flat plan reads its first prop's recorded scoped key
+// name - which KIND the prop planned as ('consumed' extraction, 'anchored' re-homed residual)
+// is a render concern, not a probe one, and a plan that keeps a residual never asks. returns
+// `{ name }` for a nameable key, `{ symbolIterator: true }` for a computed `[Symbol.iterator]`
+// first key (the probe reads through the polyfilled symbol binding), or null (no probe)
+export function probedNavProbeKey(plan) {
+  if (!plan?.probedNav) return null;
+  if (plan.anchor) return { name: plan.anchor };
+  const first = plan.outerProps?.[0];
+  if (!first || (first.kind !== 'consumed' && first.kind !== 'anchored')) return null;
+  if (first.keyName) return { name: first.keyName };
+  return first.extractions?.[0]?.synth === 'symbol-iterator' ? { symbolIterator: true } : null;
+}
+
+const planCache = createInstanceNodeCache();
+
+// does a pattern HOP name a ctor the targets may lack - one the pure flavor ships as its own entry
+// (`Map`, `Iterator`, `AggregateError`)? a sentinel or a raw residual read under such a hop reads the
+// native ctor off the realm, which is what the stripped realm lacks; the anchor asks the same question
+export function hopNamesMissingAbleCtor(hopProp, resolveGlobalPolyfill) {
+  const name = propertyKeyName(hopProp);
+  return !!name && !POSSIBLE_GLOBAL_OBJECTS.has(name) && !!resolveGlobalPolyfill(name);
+}
+
+// does the host's LEVEL survive a consume, keeping every consumed leaf as a sentinel? an init whose
+// object literal spreads (the spread reads the source's own keys), an array wrapper the pairing walk
+// keeps (`peeled: false` asks it here; a caller that already peeled passes its own verdict), or a
+// pattern HOP whose key carries an effect (the key has to run once where it stands). one answer for
+// the plan and for the render that re-asks it
+export function hostLevelSurvives(declarator, { peeled = true } = {}) {
+  return objectInitSpreadSurvives(declarator.init) || patternKeepsEffectfulHop(declarator.id)
+    || (peeled && peelArrayWrapperPair({ pattern: declarator.id, init: declarator.init, liftTrailing: true }).wrapperSurvives);
+}
+
+// classify a destructure declarator (`{ id, init }` - a real VariableDeclarator or the
+// cascade's synthetic assignment host) into the plan tree, or null when the init isn't a
+// recognisable receiver shape or nothing extracts. dispatches across three receiver shapes:
+//   - proxy-global: `{Array: {from}} = globalThis` - outer key IS the constructor name
+//   - bare constructor: `{from} = Array` reached through an array-wrapper peel - props are
+//     direct static-method extractions
+//   - static-object: `{a: {from}} = wrapper` where `wrapper = {a: Array}` - constructor
+//     hidden behind const-bound ObjectExpression, walk init through the outer-key path
+// a fallback init (logical / ternary / chain-assignment / transparent IIFE) collapses for
+// identification like the flat meta, but the flatten BINDS the polyfill to the collapsed
+// operand, so the init must be wholly discardable (a guarded / diverging operand bails to
+// stay native) - for BOTH the declarator and the cascade. `discardSe` harvests the observable node
+// the discard would drop (a chain assignment, an SE-bearing chain-root call) for the
+// emitters to re-run exactly once; `initElement` is the descended array element within
+// the original init's span a residual receiver swap must target. `liftsTrailingEffects`: the
+// host can re-emit, as statements ahead of the extraction, the SE-bearing elements an array
+// wrapper evaluates beside the consumed one - the peel harvests them into `trailingEffects`
+// (innermost level first, behind the element's own effects) instead of keeping the wrapper
+// whole; a host with no statement slot (a for-init head) leaves the option off and stays native
+// eslint-disable-next-line max-statements -- sequential plan-building steps of one pattern
+export function buildNestedDestructurePlan({
+  declarator, scope, adapter, path = null, resolvePure, resolveGlobalPolyfill,
+  isDisabledProp = null, liftsTrailingEffects = false,
+}) {
+  if (planCache.has(adapter, declarator)) return planCache.get(adapter, declarator);
+
+  // a disable directive on a LEAF prop's line blocks that leaf's extraction (the prop plans
+  // verbatim - native semantics, the natural visitor honors the same directive on the
+  // residual). gated at extraction-producing leaves ONLY, matching the per-leaf dispatch
+  // gate (a directive on an OUTER `Map: {` line with leaves on other lines does not block
+  // them - the dispatch gate checks the leaf node's line). without this, the plan resolves
+  // a disabled SIBLING leaf the dispatch gate never visited and the directive is silently
+  // bypassed
+  function leafDisabled(prop) {
+    return !!isDisabledProp?.(prop);
+  }
+
+  // inner prop (static method on the nested global): `{ Array: { from } }` - `from` on `Array`. accepts
+  // `{ from }`, `{ from: alias }`, `{ from = default }`, `{ from: alias = default }`; rest / default-only /
+  // computed / instance / unresolved / disabled fall back to verbatim. user's default is dropped: the
+  // polyfill is always defined, so the user's default fires only on undefined property (dead code)
+  // a prop's key as a static name, scope-aware: an Identifier computed key `[K]` folds to its binding
+  // value like a literal `["from"]`, so the static extracts + imports its module rather than staying a
+  // residual reading the static off the pure ctor (unimported -> undefined at runtime, the unplugin
+  // break vs babel). a SIDE-EFFECTING key bails to null - it must stay a residual so its effect runs
+  // once in place (consuming would drop the key node). non-computed keys read structurally
+  // ... a HOP's key folds even with an effect (`keepsKey`): the level survives the render with the key
+  // in place (`hostLevelSurvives`), so nothing drops the effect - the leaves below it retire to sentinels
+  function propKeyNameScoped(prop, keepsKey = false) {
+    if (!isPropertyNode(prop)) return null;
+    return prop.computed
+      ? sharedResolveKey({
+        node: prop.key, computed: true, scope, adapter, path, bailOnSideEffectKey: !keepsKey, keepsKeyNode: keepsKey,
+      })
+      // through the synth namer, which also names a NUMERIC key: it addresses an array SLOT and the
+      // static descent reads that slot like any other container member. the narrower namer stays for
+      // the mutation pre-pass, which tracks NAMED statics a numeric slot can never be
+      : plainSynthKeyName(prop.key);
+  }
+
+  function planInnerProp(prop, receiverName) {
+    const keyName = propKeyNameScoped(prop);
+    const resolved = resolvePolyfillableStaticProp({
+      prop, receiverName, resolvePure, isDisabled: leafDisabled, keyName, memberRoot: { scope, adapter, path },
+    });
+    if (!resolved) {
+      // ... a STATIC whose slot holds a PATTERN with no claim of its own (`{ of: { length: arity } }`):
+      // the residual would read the static raw off the realm - undefined where the ponyfill is the
+      // point, and the pattern then throws - so the pattern destructures the ponyfill instead, the
+      // way a symbol-iterator pattern leaf does. a default, a rest or a disabled leaf keeps the source
+      const patternStatic = patternValuedStaticProp(prop, receiverName, keyName);
+      if (!patternStatic) return { kind: 'verbatim', prop };
+      return {
+        kind: 'consumed', prop, keyName,
+        extractions: [{ entry: patternStatic.pure.entry, hint: patternStatic.pure.hintName, pattern: patternStatic.pattern }],
+      };
+    }
+    return {
+      kind: 'consumed', prop, keyName,
+      extractions: [{
+        entry: resolved.pure.entry,
+        hint: resolved.pure.hintName,
+        localName: resolved.localName,
+        targetNode: resolved.targetNode,
+        defaultNode: leafDefaultNode(prop),
+      }],
+    };
+  }
+
+  // ... a leaf that carries a claim of ITS own (`name` off the static) keeps the pattern out: the
+  // leaf's own route renders that claim off the SAME ponyfill, and a consume here would read it raw
+  // off the pattern instead. the key is asked through the level's own namer, which folds a COMPUTED
+  // spelling like any other and names a NUMERIC slot on both dialects (`keepsKey`: the re-anchored
+  // pattern keeps the key node where the source wrote it, so an effect-bearing key still runs once
+  // in place). a key nothing folds stays unknowable, which counts as a claim; a folded one naming no
+  // prototype member rides, the way the assignment host already rides every leaf - refusing over it
+  // left the residual reading the static raw off the realm, where the ponyfill is the point
+  function leafMayClaim(leaf) {
+    return leafCarriesOwnClaim({
+      leaf,
+      receiver: { object: undefined, placement: 'prototype' },
+      resolvePure,
+      keyCtx: { scope, adapter, path },
+      foldsComputedKey: true,
+    });
+  }
+
+  // does a residual leaf whose key NAMES one of this ctor's polyfillable statics belong to the MIRROR
+  // rather than to the anchor? the anchor reads that member off the bare `*/constructor` binding,
+  // which installs none of the ctor's own statics, so the slot answers `undefined` unless some
+  // unrelated module happens to import the same static and decorate the shared binding - an
+  // UNDER-inject that depends on the rest of the bundle. The mirror spells the member's own ponyfill
+  // into a literal right where the pattern reads it, which needs neither that shared decoration nor
+  // the index entry (an OVER-inject). Asked through the key's SECOND spelling, the one that folds
+  // THROUGH an effect: an effect-bearing key still names the member it names, and such a prop is
+  // exactly the one the flatten could not consume
+  function residualLeafBelongsToMirror(leafProp, ctorName) {
+    const leafKey = propKeyNameScoped(leafProp, true);
+    if (leafKey === null || adapter?.isMutatedStatic?.(ctorName, leafKey)) return false;
+    const leafMeta = { kind: 'property', object: ctorName, key: leafKey, placement: 'static' };
+    if (resolveBuiltIn(leafMeta)?.kind === 'instance') return false;
+    const leafPure = resolvePure(leafMeta);
+    return !!leafPure && leafPure.kind !== 'instance';
+  }
+
+  // ... on the ASSIGNMENT host (the cascade's synthetic `{ id, init }`) a claiming leaf rides
+  // along: that host renders every leaf claim it consumed off the extraction (the overwrite
+  // channel), where a declaration's flatten keeps it for the hop split. that host is also the one
+  // the lift takes WHOLE, so it is asked for a sole chain - every wider shape belongs to the
+  // mirror, whose slot serves the static with the statement standing and nothing moved
+  function patternValuedStaticProp(prop, receiverName, keyName) {
+    if (keyName === null || !isPropertyNode(prop) || leafDisabled(prop)) return null;
+    const pattern = prop.value;
+    const claimsRide = declarator.type !== 'VariableDeclarator';
+    if (claimsRide && !soleChainToProp(declarator.id, prop)) return null;
+    if (pattern?.type !== 'ObjectPattern' || !pattern.properties.length
+      || pattern.properties.some(item => isRestProperty(item) || patternHasAnyDefault(item.value) || leafDisabled(item)
+        || (!claimsRide && leafMayClaim(item)))) return null;
+    if (adapter?.isMutatedStatic?.(receiverName, keyName)) return null;
+    const meta = { kind: 'property', object: receiverName, key: keyName, placement: 'static' };
+    if (resolveBuiltIn(meta)?.kind === 'instance') return null;
+    const pure = resolvePure(meta);
+    return pure && pure.kind !== 'instance' ? { pure, pattern } : null;
+  }
+
+  // the user's own default on a consumed leaf (`{ from: alias = d }`): the polyfill is always defined,
+  // so it is dead text at runtime - the render canon's static guard drops it on both legs; the plan
+  // still carries it so a renderer can spell the guard where the read is a memo rather than the import
+  function leafDefaultNode(prop) {
+    return prop.value?.type === 'AssignmentPattern' ? prop.value.right : null;
+  }
+
+  // fold an ObjectPattern-valued outer prop: plan each child, aggregate extractions, pick
+  // the node kind. no extraction anywhere -> the whole prop stays verbatim; every child
+  // consumed -> the prop is consumed whole; otherwise 'rebuilt' with per-child plans.
+  // A rest-bearing level stays native instead of creating exclusion sentinels.
+  function foldNestedPattern(outerProp, pattern, planChild) {
+    if (pattern.properties.some(isRestProperty)) return { kind: 'verbatim', prop: outerProp };
+    const children = pattern.properties.map(planChild);
+    const extractions = children.flatMap(c => c.extractions ?? []);
+    if (!extractions.length) return { kind: 'verbatim', prop: outerProp };
+    if (children.every(c => c.kind === 'consumed')) {
+      return { kind: 'consumed', prop: outerProp, keyName: propKeyNameScoped(outerProp), extractions };
+    }
+    return { kind: 'rebuilt', prop: outerProp, pattern, extractions, children };
+  }
+
+  // `[Symbol.iterator]`-keyed prop, shared by the proxy-outer level and the single-ctor-key
+  // ANCHOR hop (where the synth receiver is the anchored constructor): a binding value
+  // consumes into the synth extraction `ident = _getIteratorMethod(receiver)`; a nested
+  // ObjectPattern value consumes the same way, destructuring the helper RESULT
+  // (`{ next } = _getIteratorMethod(receiver)`) - value-correct on modern engines (the helper
+  // returns the same method a raw read yields) and polyfill-visible on engines without native
+  // Symbol, where a raw `receiver[_Symbol$iterator]` read misses the iterators the helper's
+  // fallbacks cover. a prop-level DEFAULT (`[Symbol.iterator]: {...} = fb`) keeps the key-swap
+  // instead: the helper result is defined where the raw read is undefined, so extracting would
+  // flip which side of the default runs. a disabled leaf stays verbatim (the directive-honoring
+  // natural visitor owns the key then). null for non-symbol keys
+  function planSymbolIteratorProp(prop) {
+    if (!isSymbolIteratorComputedKey(prop)) return null;
+    // a scope-shadowed `Symbol` is the user's own object, its computed key a PLAIN property
+    // read. the detection layer's shadow gate never dispatches these leaves themselves, but
+    // a SIBLING / ctor-key meta still dispatches the HOST - so the plan re-checks, else the
+    // structural match above steals the user's key into a synth extraction
+    if (scope && adapter?.hasBinding(scope, 'Symbol', path)) return { kind: 'verbatim', prop };
+    if (leafDisabled(prop)) return { kind: 'verbatim', prop };
+    const localName = symbolIteratorLocalName(prop);
+    if (localName !== null) {
+      return { kind: 'consumed', prop, extractions: [{ synth: 'symbol-iterator', localName }] };
+    }
+    if (isSymbolIteratorPatternProp(prop)) {
+      // The ordinary capture retains the live declarator for a relocated rest binding.
+      if (declarator.id.properties?.length === 1 && prop.value.properties.some(isRestProperty)) {
+        return { kind: 'verbatim', prop };
+      }
+      const leaf = symbolIteratorInstanceLeaf({
+        value: prop.value, resolvePure, isDisabled: leafDisabled, keyNameOf: propKeyNameScoped,
+      });
+      if (leaf) return { kind: 'consumed', prop, extractions: [{ synth: 'symbol-iterator', ...leaf }] };
+      return { kind: 'consumed', prop, extractions: [{ synth: 'symbol-iterator', pattern: prop.value }] };
+    }
+    return { kind: 'symbol-iterator-key', prop };
+  }
+
+  // the resolved proxy receiver name, mirrored to function scope for the closures above the
+  // resolution block (the mutation bail in `planOuterProp` reads it lazily at plan time)
+  let planReceiverName = null;
+
+  // proxy-global outer prop: five shapes
+  //   - `{ Foo: { bar, ... } }` where Foo is a real global - inner pattern holds static methods
+  //   - `{ Self: { ... } }` where Self is itself a proxy-global - alias hop, recurse keeping
+  //     the chain transparent. enables N-level nests like `{ self: { window: { Array: { from } } } } = globalThis`
+  //   - `{ Foo }` shorthand / `{ Foo: alias }` aliased - polyfill Foo as a global
+  //   - `{ [Symbol.iterator]: ident }` computed Symbol.iterator key - synth extraction
+  //     `ident = _getIteratorMethod(receiver)`
+  //   - `{ [Symbol.iterator]: {nested} }` non-binding value - keep the prop, polyfill the key
+  function planOuterProp(outerProp) {
+    const symbolPlanned = planSymbolIteratorProp(outerProp);
+    if (symbolPlanned) return symbolPlanned;
+    const name = propKeyNameScoped(outerProp, isDestructurePattern(patternSlotTarget(outerProp.value)));
+    if (name === null) return { kind: 'verbatim', prop: outerProp };
+    // a MUTATED slot (`globalThis.Promise = Shim` / `window.self = fake` in-file) must read off
+    // the patched native binding, not the pure import - the user's replacement wins for the
+    // VALUE leaf, for every static behind a mutated ctor key, and for every hop behind a
+    // mutated proxy key. mirrors the single-ctor anchor's `anchorSlotMutated` bail and the
+    // flat-path meta gate. `planReceiverName` is the function-scope mirror of the block-scoped
+    // receiver (canonical at every fold depth - the hops alias the one global object)
+    if (adapter.isMutatedStatic?.(planReceiverName, name)) return { kind: 'verbatim', prop: outerProp };
+    const value = patternSlotTarget(outerProp.value);
+    if (value?.type === 'ObjectPattern') {
+      // A retained iterator sentinel would repeat the read; let the capture own rest.
+      if (value.properties.some(isRestProperty) && value.properties.some(isSymbolIteratorComputedKey)) {
+        return { kind: 'verbatim', prop: outerProp };
+      }
+      const planChild = POSSIBLE_GLOBAL_OBJECTS.has(name)
+        ? planOuterProp
+        : innerProp => planInnerProp(innerProp, name);
+      return foldNestedPattern(outerProp, value, planChild);
+    }
+    if (value?.type === 'Identifier') {
+      if (leafDisabled(outerProp)) return { kind: 'verbatim', prop: outerProp };
+      // resolved by NAME with no node of its own, and needing none: the ctor a destructured slot
+      // hands out carries its statics exactly as a spelled-out member read of the same surface
+      // does, because the ENTRY is one file-wide answer per ctor name
+      const pure = resolveGlobalPolyfill(name);
+      if (!pure) return { kind: 'verbatim', prop: outerProp };
+      return {
+        kind: 'consumed', prop: outerProp, keyName: name,
+        // `kind: 'global'` lets renderers register the binding as a GLOBAL alias (member
+        // reads through the local must keep resolving: `const { Symbol } = globalThis;
+        // Symbol.iterator` -> `_Symbol$iterator`), unlike static-method extractions which
+        // register a body-extract alias
+        extractions: [{
+          kind: 'global', entry: pure.entry, hint: pure.hintName, localName: value.name, defaultNode: leafDefaultNode(outerProp),
+        }],
+      };
+    }
+    return { kind: 'verbatim', prop: outerProp };
+  }
+
+  // a DIRECT missing-able ctor whose residual leaves would otherwise read off the native proxy
+  // (`{ Set: { union } } = _globalThis` - throws off-engine and reads native undefined) re-anchors them on
+  // the pure CONSTRUCTOR binding (`{ union } = _Set` - the single-ctor anchor generalized per prop). poly
+  // leaves still extract through their dedicated imports. bails to the native residual for an outer / inner
+  // REST (rest gathers the ctor's OTHER keys, which differ on the pure ctor), a proxy-global nest (owned by
+  // the recursive fold), ALWAYS-PRESENT ctors (the native residual is safe - the ctor always exists), and a
+  // residual leaf naming one of the ctor's OWN statics (the pure binding carries none of them)
+  function anchorMissingAbleResidual(planned, outerPattern, receiver) {
+    if (planned.kind !== 'verbatim' && planned.kind !== 'rebuilt') return planned;
+    // a `core-js-disable`d prop opts out of polyfilling: keep it on the native residual
+    if (leafDisabled(planned.prop)) return planned;
+    if (outerPattern.properties.some(isRestProperty)) return planned;
+    const name = propKeyNameScoped(planned.prop);
+    if (name === null || POSSIBLE_GLOBAL_OBJECTS.has(name)) return planned;
+    // a MUTATED ctor (`globalThis.Map = Shim` in-file) must read off the PATCHED native binding, not the
+    // pure import - the user's replacement wins. mirror the single-ctor anchor's `anchorSlotMutated` bail
+    if (adapter.isMutatedStatic?.(receiver, name)) return planned;
+    const anchorPure = resolveGlobalPolyfill(name);
+    if (!anchorPure) return planned;
+    const inner = patternSlotTarget(planned.prop.value);
+    if (inner?.type !== 'ObjectPattern' || inner.properties.some(isRestProperty)) return planned;
+    // a `[Symbol.iterator]` leaf on an ASSIGNMENT host owes the iterator-method SYNTH rather than a
+    // residual slot: the other leg claims it there, and left on the residual it becomes a well-known-
+    // symbol key read off the ctor's pure binding, which is not what that leg spells. the DECLARATION
+    // host keeps the residual on both legs, so the split is by HOST - a view with no `type` is the
+    // assignment's, which is how this plan is handed one. the synth reads off the ANCHOR, the ctor the
+    // leaf names a member of, so the extraction carries it
+    const anchorWks = [];
+    const symbolShadowed = scope && adapter?.hasBinding(scope, 'Symbol', path);
+    const residualProps = (planned.kind === 'verbatim'
+      ? inner.properties
+      : planned.children.filter(c => c.kind !== 'consumed').map(c => c.prop)).filter(item => {
+      const localName = declarator.type === 'VariableDeclarator' || symbolShadowed || leafDisabled(item)
+        ? null : symbolIteratorLocalName(item);
+      if (localName === null) return true;
+      anchorWks.push({ synth: 'symbol-iterator', localName, anchorPure });
+      return false;
+    });
+    // a TOP-LEVEL default on a residual leaf bails: the two bindings split there - one re-visits the
+    // residual and polyfills the default, the other leaves it native - and that split is a binding
+    // fact, not this plan's to decide. a DISABLED leaf likewise stays native.
+    // A NESTED default does NOT bail: the render was what dropped its polyfill, and by the canon a
+    // render silences only what it ANSWERS - a default's own claim is not this pattern's receiver
+    // question, so the seeding rescues that value's subtree and the anchor stands
+    if (residualProps.some(p => p.value?.type === 'AssignmentPattern' || leafDisabled(p))) return planned;
+    // ... and so does a residual leaf whose write would land the ponyfill in the realm
+    if (residualProps.some(p => residualLeafWritesIntoRealm(p, { scope, adapter, path }))) return planned;
+    // ... and a leaf whose key NAMES one of this ctor's polyfillable statics belongs to the MIRROR,
+    // not to the anchor: the anchor reads that member off the bare `*/constructor` binding, which
+    // installs none of the ctor's own statics, so the slot answers `undefined` unless some unrelated
+    // module happens to import the same static and decorate the shared binding - an UNDER-inject that
+    // depends on the rest of the bundle. The mirror spells the member's own ponyfill into a literal
+    // right where the pattern reads it, which needs neither the shared decoration nor the index entry
+    // (an OVER-inject). Asked through the key's SECOND spelling, the one that folds THROUGH an effect:
+    // an effect-bearing key still names the member it names, and that prop is exactly the one the
+    // flatten could not consume
+    if (residualProps.some(p => residualLeafBelongsToMirror(p, name))) return planned;
+    return { kind: 'anchored',
+      prop: planned.prop,
+      keyName: name,
+      anchorPure,
+      residualProps,
+      extractions: [...planned.extractions ?? [], ...anchorWks] };
+  }
+
+  // the constructor a hop's VALUE resolves to where the static walk names none: a CALL in the slot
+  // the keys pair to, read through the name channel's return type (`{ w: eff() }` beside a sibling
+  // plans like the sole-hop peel does), or a selection between such values and names that yields
+  // one constructor - the residual keeps the whole value, so every arm runs where it ran. the arms
+  // a selection yields follow the other leg's selecting rule: a `||` / `??` LEFT that names an object
+  // selects (`eff() ?? Array` names Object - the fallback never fires), a ternary both arms, which
+  // have to agree; `&&` selects its falsy LEFT, whose native read has to survive, so it never plans
+  // here (`false && Object` binds `undefined`). calls and names only - a member nav the walk declined
+  // carries a probe (`{ a: globalThis.window?.Array }`) that a consume here would drop; a bare name
+  // is the walk's own answer
+  function hopValueConstructor(hostInit, walkPath) {
+    let node = hostInit;
+    for (const key of walkPath) {
+      node = objectLevelPairedProperty(unwrapRuntimeExpr(node), key)?.read ?? null;
+      if (!node) return null;
+    }
+    const arms = yieldedArms(node);
+    if (!arms || unwrapRuntimeExpr(node)?.type === 'Identifier') return null;
+    const names = arms.map(arm => resolveObjectName({ objectNode: arm, scope, adapter, path }));
+    const [name] = names;
+    return name && isStaticPlacement(name) && names.every(other => other === name) ? name : null;
+  }
+
+  // the value arms a selection yields; null where an arm is neither a call nor a name. a sequence
+  // yields its tail - the prefix stays in the residual with the rest of the value
+  function yieldedArms(node) {
+    let peeled = unwrapRuntimeExpr(node);
+    while (peeled?.type === 'SequenceExpression') peeled = unwrapRuntimeExpr(peeled.expressions.at(-1));
+    if (peeled?.type === 'CallExpression' || peeled?.type === 'Identifier') return [peeled];
+    const sides = peeled?.type === 'LogicalExpression' ? peeled.operator === '&&' ? null : [peeled.left]
+      : peeled?.type === 'ConditionalExpression' ? [peeled.consequent, peeled.alternate] : null;
+    if (!sides) return null;
+    const arms = sides.map(yieldedArms);
+    return arms.every(Boolean) ? arms.flat() : null;
+  }
+
+  // static-object descent. given an outer prop `key: ObjectPattern` at depth N (walkPath =
+  // [k1, k2, ...] from declarator-root to here), walk hostInit through `walkPath + key`:
+  //   - leaf Identifier (constructor name): plan inner ObjectPattern via `planInnerProp`
+  //   - proxy-global intermediate (`{root: {Array: {from}}} = {root: globalThis}`): NOT a
+  //     constructor - recurse one level deeper so the next hop reaches the real constructor
+  //     via `walkStaticReceiverStep`'s proxy-global mid-chain lift
+  // non-Property / computed / non-ObjectPattern values bail to verbatim. shorthand /
+  // Identifier-valued outer props are NOT supported here - they would name a local binding
+  // outside the static path, so static-object descent doesn't apply
+  function planOuterPropStatic(outerProp, hostInit, walkPath) {
+    const name = propKeyNameScoped(outerProp, isDestructurePattern(patternSlotTarget(outerProp.value)));
+    if (name === null) return { kind: 'verbatim', prop: outerProp };
+    const value = patternSlotTarget(outerProp.value);
+    if (value?.type !== 'ObjectPattern') return { kind: 'verbatim', prop: outerProp };
+    const newPath = [...walkPath, name];
+    // `path` (the declaration / assignment site) lets the usage-pure reassignment gate inside
+    // walkStaticReceiverStep prove a reassigned RECEIVER (`w = {}` after `{Arr:{from}} = w`) is
+    // written AFTER the read - so the flatten resolves and collapses to `const from = _Array$from`
+    // (polyfill-always-wins) instead of bailing to the native-wins default-injection
+    const constructor = walkStaticReceiverChain({
+      receiverNode: hostInit, walkPath: newPath, scope, adapter, path,
+      // a DECLARATION and an ASSIGNMENT host both replay a discarded receiver read on both legs -
+      // the emptied-init rescue and the emptied-pattern one - so a value only an object-literal
+      // GETTER could name is answerable under either. the cascade's assignment host plans through a
+      // SYNTHETIC declarator carrying no type of its own, so the host is read off the path there
+      rescuesReceiverRead: declarator.type === 'VariableDeclarator'
+        || path?.node?.type === 'AssignmentExpression',
+    }) ?? hopValueConstructor(hostInit, newPath);
+    if (constructor && !POSSIBLE_GLOBAL_OBJECTS.has(constructor)) {
+      return foldNestedPattern(outerProp, value, innerProp => planInnerProp(innerProp, constructor));
+    }
+    // a slot holding the REALM itself (`{ w: globalThis }`) is a proxy level: its ctor leaves consume
+    // like the ones read off a proxy-global init (`{ w: { Map } } = { w: globalThis }` -> `const Map
+    // = _Map`), and its ctor hops descend the same way - the static walk's own proxy lift, one level up
+    if (constructor && POSSIBLE_GLOBAL_OBJECTS.has(constructor)) return foldNestedPattern(outerProp, value, planOuterProp);
+    return foldNestedPattern(outerProp, value, innerProp => planOuterPropStatic(innerProp, hostInit, newPath));
+  }
+
+  // the ONE unknown-span rule (bias-safe = KEEP): a node a co-transform synthesized carries
+  // no positions, and its effect exists only where it stands - excluding it on
+  // `undefined >= X` silently DROPPED the rescue (the observable user effect vanished),
+  // while the sibling guards merely skipped an optimization in the opposite direction.
+  // containment applies only when both spans are known
+  function spanWithinSlot(node, host) {
+    if (typeof node?.start !== 'number' || typeof host?.start !== 'number') return true;
+    return node.start >= host.start && node.end <= host.end;
+  }
+  let plan = null;
+  const originalId = declarator.id;
+  const peeled = peelArrayWrapperPair({
+    pattern: originalId, init: declarator.init, scope, adapter, path, liftTrailing: liftsTrailingEffects,
+  });
+  const { pattern } = peeled;
+  // the harvested neighbours a FULL consume discards with the wrapper: the render re-emits them
+  // once, behind the element's own effects; a partial consume keeps the array they stand in
+  const trailingEffects = peeled.trailingEffects.length ? peeled.trailingEffects : null;
+  // a level a SPREAD keeps alive: the render keeps every consumed slot as a sentinel and the
+  // declarator with it, so the array still iterates where the source did
+  const { wrapperSurvives } = peeled;
+  const arrayPeelHappened = pattern !== originalId;
+  // the DESCENDED init element when an ArrayPattern wrapper was peeled WITHIN the original
+  // init's span: a receiver swap in the residual render must target this element, not the
+  // whole init (swapping the whole array dropped the brackets and broke the destructure).
+  // a const-alias dereference lands OUTSIDE the init span - the residual keeps the alias
+  // identifier verbatim, so no element targeting applies
+  const initElement = arrayPeelHappened && peeled.init !== declarator.init
+    && spanWithinSlot(peeled.init, declarator.init) ? peeled.init : null;
+  // INLINE consumed wrapper levels whose sequence prefixes were lifted: the residual render
+  // strips each down to its bare array so the lifted effect never re-runs. an alias-dereferenced
+  // level (array outside the wrapper span) keeps its identifier verbatim - nothing to strip
+  const consumedLevelStrips = (peeled.consumedLevels ?? []).filter(l => l.wrapper !== l.array
+    && spanWithinSlot(l.array, l.wrapper) && spanWithinSlot(l.wrapper, declarator.init));
+  if (pattern?.type === 'ObjectPattern' && pattern.properties.length && !pattern.properties.some(isRestProperty)) {
+    // peel parens / chain / TS wrappers AND SE tail to a fixpoint so `(se(), R) as any`
+    // (and nested forms like `(se(), (R as any))`) reach the receiver. without this,
+    // TS-wrapped destructure inits bail the flatten path and the SE prefix never lifts
+    let init = unwrapExpressionChain(peeled.init);
+    // a RELOCATED loop head's pattern reads the iterated literal's element, not the minted name the
+    // head now binds (the name channel's rule, `relocatedHeadElement`): the static-object descent
+    // walks that element, and the render still prunes the pattern where it stands
+    let declaratorPath = path;
+    while (declaratorPath?.node && declaratorPath.node !== declarator) declaratorPath = declaratorPath.parentPath;
+    const headElement = relocatedHeadElement(declaratorPath?.node === declarator ? declaratorPath : null);
+    if (headElement) init = unwrapExpressionChain(headElement);
+    // the discard-rescue harvest below must see the PRE-collapse node (a rescued IIFE call,
+    // a chain assignment) - the collapse rewrites `init` to the resolution representative
+    const initBeforeCollapse = init;
+    // a fallback init collapses for identification like the flat meta (left for `||` / `??`,
+    // right for `&&`, the consequent for an AGREEING ternary, the inlined return for a
+    // transparent IIFE) - but the flatten BINDS the polyfill to the collapsed operand, so that
+    // operand must be unconditionally taken: the init has to be wholly discardable (pure test,
+    // no `&&` guard - a guard can select its falsy LEFT and that path's native short-circuit /
+    // TypeError must survive). this holds for the cascade too - keeping the RHS tail verbatim
+    // does not make a conditionally-evaluated receiver safe to bind unconditionally
+    const fallback = collapseFallbackInit({ init, scope, adapter, path, resolveGlobalPolyfill });
+    init = fallback.init;
+    const { fallbackDropped } = fallback;
+    // observable node in the init the flatten DISCARDS: a chain-assignment (rescued WHOLE - it
+    // updates a binding and may contain an SE-bearing call) or an SE-bearing chain-root call.
+    // harvested into the plan so the emit re-runs it once ahead of the extraction (full consume)
+    // or keeps it verbatim in the residual init (partial consume).
+    // span guard: `peelArrayWrapperPair` may have DEREFERENCED a const-alias wrapper
+    // (`const w = [(IIFE)()]; [{x}] = w`) whose init lives OUTSIDE the discarded slot - its
+    // setup already runs at the alias declaration, so harvesting it would double-run - and so
+    // would a RELOCATED head's element, evaluated by the loop head the body declarator reads
+    const probed = init && !headElement
+      ? discardRescueNodesWithReads({ node: initBeforeCollapse, scope, adapter, path }) : [];
+    const inSlot = declarator.init
+      ? probed.filter(n => spanWithinSlot(n, declarator.init)) : [];
+    const discardSe = inSlot.length ? inSlot : null;
+    const receiver = init ? resolveObjectName({ objectNode: init, scope, adapter, path }) : null;
+    planReceiverName = receiver;
+    // an UNDEFINABLE probe nav as the init (`globalThis.window?.self`, `globalThis.window?.Array`,
+    // their sealed paren spellings): destructuring THROWS where the probe yields undefined, so an
+    // anchored / flattened render reading an always-defined binding would erase that throw (and
+    // run computed-key effects the source never reaches). asked of the init's VALUE - not its leaf
+    // NAME - so every receiver shape (proxy global, constructor leaf, static object) carries the
+    // verdict. a collapse that dropped a `||` / `??` / ternary fallback rescues the nullish path
+    // by construction - the fallback IS the value there - so the probe stays off
+    const probedNav = !!init && !fallbackDropped && proxyReceiverValueCanBeUndefined(init,
+      ({ name }) => resolveGlobalPolyfill(name), { scope, adapter, path });
+    // the PROBED value is the collapsed init - a fallback logical hands its selected operand
+    // on (`(nav).Array ?? {}` probes `(nav).Array`), and the renders must not re-derive the
+    // nav from the raw declarator slot, whose logical shape no guard render owns
+    const probedNavNode = probedNav ? init : null;
+    if (receiver && POSSIBLE_GLOBAL_OBJECTS.has(receiver)) {
+      // single-key proxy-hop ANCHOR: `{ K: <pattern> } = <proxy>` on a value-discarded host
+      // (the callers' contract - declarator inits are never read, the cascade gates on
+      // statement context) plans like its flat twin `<pattern> = <proxy>.K`: inner props are
+      // K's statics, and a residual re-anchors to the CONSTRUCTOR binding instead of reading
+      // the native key off the proxy root (patch-visible for mutated statics, defined on
+      // missing-global targets). qualification mirrors the retired normalize pre-passes:
+      // exactly one Property, static non-proxy constructor key, non-empty (default-peeled)
+      // inner ObjectPattern, effect-free init, no array wrapper. the anchored plan exists
+      // even with ZERO extractions - the re-anchored residual is the point (a slot-mutated
+      // ctor's patch lands on the routed binding). an SE-bearing init keeps the nested
+      // handling: a member synthesized off a sequence would change the receiver shape the
+      // SE-lift machinery expects; a side-effecting computed key keeps its in-place run
+      // a disabled host line opts out of the reshaping (cascade callers stamp loc/start
+      // onto their synthetic host so the per-line check reaches the real statement)
+      // single-key ctor ANCHOR plan over `hostPattern` (`{ K: <inner> }` on the proxy receiver):
+      // inner props are K's statics, and a residual re-anchors to the CONSTRUCTOR binding. a
+      // `[Symbol.iterator]` leaf under the anchor extracts like its proxy-outer twin, with the
+      // ANCHORED constructor as the synth receiver (`x = _getIteratorMethod(_Map)` /
+      // `(_globalThis.Array)`) - the emitters' synth renders read the anchor base. a SLOT-mutated
+      // ctor pair (`globalThis.Map = Shim` anywhere in the file) keeps the residual on the RAW
+      // member read - a user-installed replacement must win there, so `anchorPure` stays null and
+      // the renders emit `<proxyBinding>.<K>` instead of the ctor binding. extractions stay
+      // leaf-gated (a mutated LEAF already planned verbatim upstream). null when the key is not a
+      // static non-proxy constructor, the inner is not a non-empty ObjectPattern, an opt-out
+      // covers the hop or a leaf under it, a residual leaf's write would land the ponyfill in the
+      // realm, or the MIRROR can spell that leaf with the member's own ponyfill
+      function planCtorKeyAnchor(hostPattern) {
+        const prop = hostPattern.properties.length === 1 && isPropertyNode(hostPattern.properties[0])
+          ? hostPattern.properties[0] : null;
+        const key = prop ? propKeyNameScoped(prop) : null;
+        const inner = key && !POSSIBLE_GLOBAL_OBJECTS.has(key) && isStaticPlacement(key)
+          ? patternSlotTarget(prop.value) : null;
+        if (inner?.type !== 'ObjectPattern' || !inner.properties.length) return null;
+        if (inner.properties.some(isRestProperty)) return null;
+        // an opt-out on the hop or on any leaf under it keeps the residual the user's own raw read:
+        // anchored on the ponyfill constructor, a leaf the directive kept from importing its static
+        // reads `undefined` off it (`{ groupBy } = _Map` without `map/group-by`) where the realm
+        // object still carries the native - the unplugin's re-anchor render answers the same
+        if (leafDisabled(prop) || inner.properties.some(leafDisabled)) return null;
+        // a SLOT-mutated anchor holds the user's replacement: its STATICS are the shim's own,
+        // so static leaves stay verbatim on the raw residual instead of extracting pure
+        // statics. a `[Symbol.iterator]` leaf still extracts - the synth is receiver-based
+        // and reads off the RAW anchor member, so the replacement stays visible through it
+        const anchorSlotMutated = !!adapter.isMutatedStatic?.(receiver, key);
+        const outerProps = inner.properties.map(p => planSymbolIteratorProp(p)
+          ?? (anchorSlotMutated ? { kind: 'verbatim', prop: p } : planInnerProp(p, key)));
+        const anchorPure = anchorSlotMutated ? null : resolveGlobalPolyfill(key);
+        // ... and a residual leaf whose write would land the ponyfill in the realm declines the anchor,
+        // and so does one the MIRROR can spell with the member's own ponyfill
+        if (anchorPure && outerProps.some(p => p.kind === 'verbatim'
+          && (residualLeafWritesIntoRealm(p.prop, { scope, adapter, path })
+            || residualLeafBelongsToMirror(p.prop, key)))) return null;
+        return {
+          receiver, anchor: key, probedNav, probedNavNode, anchorPure,
+          outerProps, pattern: inner, discardSe, anchorSe, initElement: null, consumedLevelStrips,
+        };
+      }
+      const { accounted: anchoredSeAccounted, anchorSe } = anchoredSeAccounting(declarator, peeled.init);
+      const hopHostEligible = !arrayPeelHappened && anchoredSeAccounted
+        && !isDisabledProp?.(declarator) && pattern.properties.length === 1
+        && isPropertyNode(pattern.properties[0]);
+      if (hopHostEligible) plan = planCtorKeyAnchor(pattern);
+      if (!plan) {
+        const planned = pattern.properties.map(planOuterProp);
+        // re-anchor missing-able ctor residuals only in the CLEAN case: an SE-free init where EVERY prop is
+        // already consumed or anchorable. a verbatim sibling (always-present ctor / global alias / disabled
+        // leaf) or an SE init routes through native-residual / proxy-hop handling that does not split per-
+        // ctor, so those stay on the native residual (current behavior - bounded, no regression).
+        // the SE that matters is the init's TAIL: a sequence prefix lifts to its own statement on every
+        // host ahead of the render, so what the anchored residual would read is the quiet tail - the
+        // same init the prefix-less twin anchors on (`{ Array: { from }, Set: { union } } = (eff(),
+        // globalThis)` left `Set` on the proxy while its twin anchored `{ union } = _Set`). a chain
+        // ASSIGNMENT tail is accounted the same way the single-key anchor accounts it: the discard
+        // harvest rescues the write whole, and the residual reads the value it stored
+        // ... and a wrapper a SPREAD keeps alive changes nothing here: the anchored prop leaves the
+        // pattern for a declarator of its own like anywhere else, and the emitters keep the wrapper
+        // standing as a husk for the iteration (the native residual would read the missing ctor)
+        const initTail = unwrapCollectingSePrefixes(peeled.init, []);
+        const reanchored = mayHaveSideEffects(initTail) && !isChainAssignment(initTail)
+          ? planned : planned.map(p => anchorMissingAbleResidual(p, pattern, receiver));
+        // require at least one CONSUMED (extracting) prop alongside the anchored one: babel's flatten
+        // dispatch is usage-driven (it fires on a polyfillable leaf), so an ALL-anchored multi-ctor
+        // declarator with no poly leaf never triggers babel while the shape-driven unplugin would - those
+        // stay on the native residual (current behavior). a verbatim/rebuilt sibling also bails
+        const outerProps = reanchored.every(p => p.kind === 'consumed' || p.kind === 'anchored')
+          && reanchored.some(p => p.kind === 'anchored') && reanchored.some(p => p.kind === 'consumed')
+          ? reanchored : planned;
+        if (outerProps.some(hasExtractions)) {
+          plan = { receiver, probedNav, probedNavNode, outerProps, pattern, discardSe, initElement, consumedLevelStrips };
+        }
+      }
+      // a pattern hop that is ITSELF a proxy-global alias (`{ self: { x } } = globalThis`, deeper
+      // `{ self: { window: { y } } }`, `{ globalThis: { Map: {...} } }`) binds nothing at the hop
+      // levels: without a resolvable leaf it falls between the recursive fold (all-verbatim, no
+      // plan) and the missing-able re-anchor (proxy names bail), and the raw residual reads the
+      // hop off the pure root - undefined off-engine, destructure TypeError. peel consecutive
+      // single-prop proxy hops like the member-chain prefix walk (`globalThis.self.x` ->
+      // `_globalThis.x`), then re-try the ctor anchor on the peeled pattern (`{ globalThis:
+      // { Map: { x } } }` -> `({ x } = _Map)`) or anchor the remainder on the receiver's own
+      // always-defined binding. a slot-mutated hop, an opted-out one or an un-importable receiver
+      // keeps the raw residual (patch visibility / the user's own read / no binding to anchor on)
+      function planPeeledProxyHop() {
+        const receiverPure = resolveGlobalPolyfill(receiver);
+        if (!receiverPure) return null;
+        let effPattern = pattern;
+        let lastHop = null;
+        while (effPattern.properties.length === 1 && isPropertyNode(effPattern.properties[0])) {
+          const [prop] = effPattern.properties;
+          const key = propKeyNameScoped(prop);
+          if (!key || !POSSIBLE_GLOBAL_OBJECTS.has(key) || adapter.isMutatedStatic?.(receiver, key) || leafDisabled(prop)) break;
+          const inner = patternSlotTarget(prop.value);
+          if (inner?.type !== 'ObjectPattern' || !inner.properties.length
+            || inner.properties.some(isRestProperty)) break;
+          effPattern = inner;
+          lastHop = key;
+        }
+        if (!lastHop) return null;
+        return planCtorKeyAnchor(effPattern) ?? {
+          receiver, anchor: lastHop, anchorPure: receiverPure, probedNav, probedNavNode,
+          outerProps: effPattern.properties.map(planOuterProp),
+          pattern: effPattern, discardSe, anchorSe, initElement: null, consumedLevelStrips,
+        };
+      }
+      if (!plan && hopHostEligible) plan = planPeeledProxyHop();
+    } else if (receiver && isStaticPlacement(receiver)) {
+      // receiver is a known constructor (`Array` / `Map` / ...): pattern's properties
+      // are direct method extractions. an ArrayPattern wrapper (with or without a rest
+      // sibling) survives the residual render - the rebuilt pattern is spliced back into
+      // the original LHS text
+      const outerProps = pattern.properties.map(p => planInnerProp(p, receiver));
+      if (outerProps.some(hasExtractions)) {
+        plan = { receiver, probedNav, probedNavNode, outerProps, pattern, discardSe, initElement, consumedLevelStrips };
+      }
+    } else if (init) {
+      const outerProps = pattern.properties.map(p => planOuterPropStatic(p, init, []));
+      if (outerProps.some(hasExtractions)) {
+        plan = { receiver: null, probedNav, probedNavNode, outerProps, pattern, discardSe, initElement, consumedLevelStrips };
+      }
+    }
+  }
+  // a hop VALUE that runs (`{ w: eff() }`, its constructor resolved through the call's return type)
+  // is what a consumed level discards: it joins the rescue, so a full consume replays it once and a
+  // partial one keeps it in the residual - without it the effect left with the level
+  const initLiteral = plan ? unwrapRuntimeExpr(unwrapExpressionChain(peeled.init)) : null;
+  // ... and the peeled level's own value where the peel stepped INTO a hop (`{ w: eff() }` plans
+  // the inner pattern over `eff()`): a call there is the discarded value itself
+  // ... an ARRAY wrapper's element is not this: its effects ride `trailingEffects` / the anchored
+  // replay, so the rescue asks only of a peel that stepped through an OBJECT level
+  const peeledIsElement = (function elementOf(node) {
+    const literal = unwrapExpressionChain(node);
+    return literal?.type === 'ArrayExpression' && literal.elements.some(element => element === peeled.init
+      || unwrapExpressionChain(element) === peeled.init || elementOf(element));
+  })(declarator.init);
+  // ... and only INSIDE the host's own init: a peel that dereferenced an alias (`const w = [call()];
+  // [{ x }] = w`) reads a value whose setup already ran at the alias declaration
+  const peeledInSlot = typeof peeled.init?.start === 'number' && typeof declarator.init?.start === 'number'
+    && peeled.init.start >= declarator.init.start && peeled.init.end <= declarator.init.end;
+  if (plan && peeled.init !== declarator.init && !peeledIsElement && peeledInSlot
+    && mayHaveSideEffects(peeled.init) && !plan.discardSe?.includes(peeled.init)) {
+    plan.discardSe = [...plan.discardSe ?? [], peeled.init];
+  }
+  if (initLiteral?.type === 'ObjectExpression') {
+    const hopEffects = [];
+    (function collect(patternNode, literal, planned) {
+      patternNode.properties.forEach((prop, index) => {
+        if (!isPropertyNode(prop) || planned?.[index]?.kind === 'verbatim') return;
+        const key = spelledSlotName(prop);
+        const value = key === null ? null : objectLevelPairedProperty(unwrapRuntimeExpr(literal), key)?.read;
+        if (!value) return;
+        if (mayHaveSideEffects(value)) hopEffects.push(value);
+        const below = patternSlotTarget(prop.value);
+        if (below?.type === 'ObjectPattern') collect(below, value, planned?.[index]?.children);
+      });
+    })(pattern, initLiteral, plan.outerProps);
+    if (hopEffects.length) plan.discardSe = [...plan.discardSe ?? [], ...hopEffects.filter(node => !plan.discardSe?.includes(node))];
+  }
+  if (plan && trailingEffects) plan.trailingEffects = trailingEffects;
+  if (plan && (wrapperSurvives || hostLevelSurvives(declarator, { peeled: false }))) plan.wrapperSurvives = true;
+  // an effectful hop key keeps its level the way a rest does: the hop retires to a sentinel
+  if (plan && (peeled.restKeepsLevel || patternKeepsEffectfulHop(pattern))) plan.restKeepsLevel = true;
+  planCache.set(adapter, declarator, plan);
+  return plan;
+}
+
+// --- catch-clause relocation ---
+
+// whether `catch ({ pattern })` has to become `catch (_ref) { let { pattern } = _ref;` - the
+// receiver a key lookup and a defaulted key both rewrite against. the answer is per PATTERN
+// but composed of per-prop ones: a computed key hosting machinery forces the relocation on
+// its own, and a plainly-resolvable key earns it only where the body actually READS what it
+// binds - an unread one would buy an import plus a dead dispatcher call for nothing. those
+// unread props come back so the caller can skip them, keeping them native reads in the
+// residual. shallow by design: a nested pattern without outer-level machinery destructures
+// in place, and its leaf bindings are catch-local, not polyfill candidates. an ARRAY pattern asks
+// none of these questions - its bindings are positional, so there is no key to rewrite against a
+// named receiver - and takes the single question its own branch asks instead
+// does a leaf ANYWHERE below this pattern name a polyfillable member? this is the relocation's own
+// question - what it buys is a DECLARATION HOST, and every claim below takes it, whatever else the
+// pattern binds. the positional walk beside it answers a different one (may this element be RENAMED
+// to a minted binding), and its sole-slot and bare-leaf rules exist because a rename drops what the
+// pattern's other slots bind - restrictions with no bearing here, which is why a leaf with a
+// SIBLING (`{ y: { flat, keep } }`) or under a DEFAULT (`{ y: { flat = x } }`) stayed native
+// `undefaultedOnly`: the ELEMENT routes bind the dispatch IN PLACE of the slot, which leaves a
+// default no arm to run - they decline it, so a pattern whose only claim carries one buys nothing
+// from the relocation. the direct hosts fold that arm with a test ref and keep counting it
+function patternHoldsClaim(node, resolvePure, undefaultedOnly = false, keyCtx = null) {
+  const pattern = patternSlotTarget(node);
+  if (pattern?.type === 'ArrayPattern') {
+    return (pattern.elements ?? []).some(element => patternHoldsClaim(element, resolvePure, undefaultedOnly, keyCtx));
+  }
+  if (pattern?.type !== 'ObjectPattern' || pattern.properties.some(isRestProperty)) return false;
+  return (pattern.properties ?? []).some(prop => {
+    if (!isPropertyNode(prop)) return false;
+    const key = consumableHopSlotName(prop, keyCtx);
+    const defaulted = prop.value?.type === 'AssignmentPattern';
+    const value = defaulted ? prop.value.left : prop.value;
+    if (key !== null && value?.type === 'Identifier' && !(undefaultedOnly && defaulted)
+      && resolvePure({ kind: 'property', object: null, key, placement: null })) return true;
+    return patternHoldsClaim(prop.value, resolvePure, undefaultedOnly, keyCtx);
+  });
+}
+
+// the receiver a level hands the claim below it: the slot the literal pairs, or - where that slot
+// holds `undefined` and the level spells a receiver-bearing DEFAULT (`[{ from } = Array]`,
+// `{ k: { from } = Array }`) - the default, which the mirror then swaps in place of it. an unpaired
+// slot with no such default stays null: nothing the head spells answers for it
+function slotOrInnerDefault(elementNode, slotNode) {
+  const fallback = elementNode?.type === 'AssignmentPattern' && destructureRightIsReceiver(elementNode.right)
+    ? elementNode.right : null;
+  return fallback && (slotNode === null || slotNode === undefined || isUndefinedNode(unwrapRuntimeExpr(slotNode))) ? fallback : slotNode;
+}
+
+// the mirror's own answer for a NESTED claim: does every element the head spells pair the hop path
+// down to a pristine constructor the leaf's static resolves off? such a claim is the receiver
+// mirror's (a static swapped into the element), not a reason to relocate - a dual-named leaf
+// (`entries`, `keys`) resolves TYPELESSLY as an instance method, and counted that way it relocated
+// a pattern whose claim then read `_ref.w` with the constructor's name lost
+function nestedClaimBeyondMirror(node, receivers, { scope, adapter, path, resolvePure, nestedOnly = false }) {
+  const pattern = patternSlotTarget(node);
+  if (pattern?.type === 'ArrayPattern') {
+    return (pattern.elements ?? []).some((element, index) => element && element.type !== 'RestElement'
+      && nestedClaimBeyondMirror(element, receivers.map(receiver => {
+        const literal = unwrapRuntimeExpr(receiver);
+        return slotOrInnerDefault(element, literal?.type === 'ArrayExpression' ? resolveCallArgument(literal.elements, index) : null);
+      }), { scope, adapter, path, resolvePure }));
+  }
+  if (pattern?.type !== 'ObjectPattern' || pattern.properties.some(isRestProperty)) return false;
+  return (pattern.properties ?? []).some(prop => {
+    if (!isPropertyNode(prop)) return false;
+    const key = consumableHopSlotName(prop, { scope, adapter, path });
+    const value = patternSlotTarget(prop.value);
+    if (key !== null && value?.type === 'Identifier') {
+      if (nestedOnly) return false;
+      const claims = resolvePure({ kind: 'property', object: null, key, placement: null })
+        || receivers.some(receiver => {
+          const candidates = [];
+          const object = walkStaticReceiverChain({ receiverNode: receiver, walkPath: [], scope, adapter, path, unionSink: candidates });
+          return resolvePure(buildDestructuringInitMeta({ initNode: receiver, key, scope, adapter, path }))
+            || [object, ...candidates].some(name => name && resolvePure({ kind: 'property', object: name, key, placement: 'static' }));
+        });
+      if (!claims) return false;
+      return !receivers.length || !receivers.every(receiver => {
+        const element = unwrapRuntimeExpr(receiver);
+        if (element?.type !== 'Identifier' || adapter?.hasBinding?.(scope, element.name, path)) return false;
+        const meta = buildDestructuringInitMeta({ initNode: element, key, scope, adapter, path });
+        return meta?.object === element.name
+          && !!resolvePolyfillableStaticProp({ prop, receiverName: meta.object, resolvePure, keyName: key });
+      });
+    }
+    const below = key === null ? [] : receivers.map(receiver => slotOrInnerDefault(prop.value,
+      objectLevelPairedProperty(unwrapRuntimeExpr(receiver), key)?.read ?? null));
+    return nestedClaimBeyondMirror(prop.value, below, { scope, adapter, path, resolvePure });
+  });
+}
+
+export function planCatchClauseExtraction({
+  paramNode, bodyNode, scope, adapter, path, resolvePure, walkNode,
+  objectHint = null, iterableNode = null, mirrorHosts = false,
+}) {
+  // an ARRAY param relocates for a claim under any of its elements: they bind by ITERATION, so the
+  // per-prop questions below (which key is resolvable, which rewrite is observable) have no subject
+  // here - what the relocation buys is a DECLARATION HOST, and the element rename takes it from
+  // there, with everything the pattern binds beside the claim riding the residual that host can now
+  // hold. the rename's own walk re-asks the narrower questions (plain key, statement slot) at emit
+  const elementNodes = arrayLiteralIterableElements(iterableNode)?.filter(Boolean) ?? [];
+  if (paramNode?.type === 'ArrayPattern') {
+    // ... unless every claim below is the receiver mirror's, like the object pattern's below
+    if (mirrorHosts && !nestedClaimBeyondMirror(paramNode, elementNodes, { scope, adapter, path, resolvePure })) return null;
+    return (paramNode.elements ?? []).some(element => patternHoldsClaim(element, resolvePure, true, { scope, adapter, path }))
+      ? { unobservable: [] } : null;
+  }
+  if (paramNode?.type !== 'ObjectPattern' || !paramNode.properties?.length || paramNode.properties.some(isRestProperty)) return null;
+  // WHICH channel answers decides whether the relocation is needed at all. the type channel buys a
+  // DECLARATION HOST its dispatch cannot do without; a static off an element the source SPELLS is
+  // something the receiver mirror puts in that element instead - no host, no minted name, no guard,
+  // and it survives a later for-of lowering, which the relocated shape does not
+  const viaElement = [];
+  const resolvableProps = paramNode.properties.filter(prop => {
+    if (!isPropertyNode(prop)) return false;
+    // through the consuming canon: a bound computed key (`{ [k]: { at } }`) names the slot its
+    // fold spells, so the relocation buys that claim its host like the literal spelling's
+    const key = consumableHopSlotName(prop, adapter ? { scope, adapter, path } : null);
+    if (key === null) return false;
+    // `objectHint` is what the relocated value is KNOWN to be - a loop head can type its element
+    // where a catch clause never can. asking with it keeps the relocation to claims that are
+    // really lost: a plain data key off a typed element resolves to no polyfill and the pattern
+    // stays where it is, with the binding types its own destructure still carries
+    if (resolvePure(objectHint
+      ? { kind: 'property', object: objectHint, key, placement: 'prototype' }
+      : { kind: 'property', object: null, key, placement: null })) return true;
+    // ... and where the value's IDENTITY is spelled rather than its type, ask the question the
+    // relocated declaration itself will ask (`const { K } = <element>`). a CONSTRUCTOR has no
+    // value-type for the hint to carry, so a static claim off one is invisible above and only
+    // this name channel sees it - which is the whole of `{ fromEntries } of [Object]`. the meta
+    // must NAME its receiver: the typeless one resolves for any plain data key, and relocating on
+    // that answer moves a pattern whose claim then reads a receiver the ladder can no longer type
+    // (a `{ name }` off a string-valued slot degraded from the string helper to the generic one)
+    const spelled = elementNodes.some(element => {
+      // a PRISTINE global read is the only element that proves its own identity: a bound name may
+      // hold whatever its scope writes, and a minted import alias is exactly the shape the
+      // downstream routes refuse to judge stable - predicting an extraction there relocates a
+      // pattern for nothing
+      if (element?.type !== 'Identifier' || adapter?.hasBinding?.(scope, element.name, path)) return false;
+      // a DEFAULTED prop is out: the relocated read reaches its receiver through a guard (the
+      // minted binding is the iterated value, not the element the source spelled), and that guard
+      // picks between the polyfill and the raw read - a default is a third arm it has no shape for,
+      // so the extraction declines and the relocation buys nothing. the direct-receiver hosts fold
+      // the same default because they need no guard at all
+      if (prop.value?.type === 'AssignmentPattern') return false;
+      const meta = buildDestructuringInitMeta({ initNode: element, key, scope, adapter, path });
+      // ... and it must SPELL what it names: an alias resolves to the same constructor while
+      // holding whatever was written into it, and a plugin-minted one (`_Symbol`) is invisible to
+      // the scope check above because the import that binds it is born mid-transform
+      if (meta?.object !== element.name) return false;
+      // ask the question the EXTRACTION asks, not a weaker one: a prop this predicts and the
+      // static route then declines is a pattern relocated for nothing
+      return !!resolvePolyfillableStaticProp({ prop, receiverName: meta.object, resolvePure, keyName: key });
+    });
+    if (spelled) viaElement.push(prop);
+    return spelled;
+  });
+  const hasMachinery = paramNode.properties.some(prop => computedPropKeyHostsMachinery({
+    propNode: prop, scope, adapter, path, resolvePure,
+  }));
+  // ... and a prop whose VALUE is a nested pattern buys the same thing the array param buys: the
+  // key here names no member, the claim sits below it, and what it lacks is a declaration host -
+  // the relocation gives it one and its own route takes it from there (`catch ({ y: { flat } })`
+  // stayed native while both its neighbours in this host - the flat prop and the array element -
+  // claimed)
+  // ... under a key the consume can NAME: a bound computed one folds, an evaluating one stays out
+  const nestedClaim = paramNode.properties.some(prop => isPropertyNode(prop)
+    && consumableHopSlotName(prop, adapter ? { scope, adapter, path } : null) !== null
+    && patternHoldsClaim(prop.value, resolvePure, false, { scope, adapter, path }));
+  // ... and a nested claim the mirror answers on every element is the mirror's, not a host's
+  const nestedBeyondMirror = mirrorHosts
+    ? nestedClaimBeyondMirror(paramNode, elementNodes, { scope, adapter, path, resolvePure, nestedOnly: true }) : nestedClaim;
+  if (!hasMachinery && !nestedClaim && !nestedBeyondMirror && !resolvableProps.length) return null;
+  // ... so a pattern the mirror HOSTS, whose every claim came from the element channel and whose
+  // every key the literal can carry, is left to it: a rest gathers what no read names, a duplicate
+  // key would need one property twice, and a key with no static spelling has no slot to sit in
+  if (mirrorHosts && !hasMachinery && !nestedBeyondMirror && viaElement.length === resolvableProps.length
+    && patternKeysMirrorable({ paramNode, scope, adapter, path })) return null;
+  const unobservable = resolvableProps.filter(prop => !catchPropRewriteObservable({
+    propNode: prop,
+    patternNode: paramNode,
+    bodyNode,
+    localName: prop.value?.type === 'Identifier' ? prop.value.name : null,
+    walkNode,
+  }));
+  if (!hasMachinery && !nestedClaim && !nestedBeyondMirror && unobservable.length === resolvableProps.length) return null;
+  return { unobservable };
+}
+
+// can the mirror's literal carry EVERY key this pattern binds? the render spells one property per
+// SLOT - a key the pattern REPEATS is one slot both readers read - so a shape its key predicate
+// refuses is one the literal cannot stand in for at all, and a repeat is not such a shape
+function patternKeysMirrorable({ paramNode, scope, adapter, path }) {
+  const seenKeys = new Map();
+  for (const prop of paramNode.properties) {
+    if (mirrorAcceptedKey({ prop, scope, adapter, path, seenKeys }) === null) return false;
+  }
+  return true;
+}

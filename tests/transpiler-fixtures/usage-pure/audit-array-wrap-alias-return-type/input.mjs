@@ -1,0 +1,17 @@
+// an array-wrap alias (`const [{ Array: A }] = [globalThis]`) resolves to the global constructor
+// for RETURN-TYPE inference too, so a static call off it (`A.of(...)`) is known to return an Array
+// and the chained instance method resolves array-specific - matching the plain-destructure form
+const [{ Array: A }] = [globalThis];
+const built = A.of(1, 2, 3);
+export const viaArrayWrap = built.at(-1);
+
+// a DEEP array-wrap resolves positionally through every layer
+const [[{ Array: D }]] = [[globalThis]];
+const deep = D.of(4, 5, 6);
+export const viaDeepWrap = deep.at(-1);
+
+// an array-wrap off a USER object stays generic: A reads `userObj.Array`, not the global
+const userObj = { Array: class {} };
+const [{ Array: U }] = [userObj];
+const user = U.of(7);
+export const viaUserObject = user.at(-1);

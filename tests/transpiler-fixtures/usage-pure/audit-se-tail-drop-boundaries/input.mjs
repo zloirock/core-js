@@ -1,0 +1,12 @@
+// Object-rest keeps named slots at that level and reads through it native in usage-pure.
+// Independent reads and key/default expressions still receive their own polyfills.
+// the dead-tail drop applies to fully-static full-consume patterns; each line below
+// probes one boundary:
+// a bodyless host block-wraps and trims like any other lift
+if (cond) var { from } = (effB(), Array);
+// a for-init head can't host a statement-level SE
+for (var { of } = (effF(), Array); ; ) break;
+// an instance entry needs the receiver at runtime
+const { at } = (effI(), [1, 2]);
+const { keys, ...rest } = (effR(), globalThis.Object);
+export const r = [from, of, at, keys, rest];

@@ -1,0 +1,21 @@
+import _Array$from from "@core-js/pure/actual/array/from";
+import _Array$of from "@core-js/pure/actual/array/of";
+import _Number$isFinite from "@core-js/pure/actual/number/is-finite";
+import _Number$isInteger from "@core-js/pure/actual/number/is-integer";
+import _Object$entries from "@core-js/pure/actual/object/entries";
+import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
+import _Object$values from "@core-js/pure/actual/object/values";
+import _String$raw from "@core-js/pure/actual/string/raw";
+import _Symbol$for from "@core-js/pure/actual/symbol/for";
+// many independent, non-nested polyfills in one file. each line triggers a distinct
+// polyfill so their rewrites shouldn't leak into each other
+_Array$from(a);
+_Object$fromEntries(b);
+_Array$of(1, 2, 3);
+Array.isArray(c);
+_Number$isInteger(d);
+_Number$isFinite(e);
+_String$raw`${f}`;
+_Symbol$for('x');
+_Object$values(g);
+_Object$entries(h);

@@ -1,0 +1,2 @@
+let resolve;
+({ resolve } = Promise);

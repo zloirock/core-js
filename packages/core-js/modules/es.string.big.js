@@ -8,5 +8,5 @@ var forcedStringHTMLMethod = require('../internals/string-html-forced');
 $({ target: 'String', proto: true, forced: forcedStringHTMLMethod('big') }, {
   big: function big() {
     return createHTML(this, 'big', '', '');
-  }
+  },
 });

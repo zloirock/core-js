@@ -20,12 +20,15 @@ class %TypedArray% {
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
-core-js/proposals/change-array-by-copy-stage-4
-core-js(-pure)/es|stable|actual|full/array(/virtual)/to-reversed
-core-js(-pure)/es|stable|actual|full/array(/virtual)/to-sorted
-core-js(-pure)/es|stable|actual|full/array(/virtual)/to-spliced
-core-js(-pure)/es|stable|actual|full/array(/virtual)/with
+core-js/proposals/change-array-by-copy
+core-js(-pure)/es|stable|actual|full/array(/prototype)/to-reversed
+core-js(-pure)/es|stable|actual|full/array(/prototype)/to-sorted
+core-js(-pure)/es|stable|actual|full/array(/prototype)/to-spliced
+core-js(-pure)/es|stable|actual|full/array(/prototype)/with
 core-js/es|stable|actual|full/typed-array/to-reversed
 core-js/es|stable|actual|full/typed-array/to-sorted
 core-js/es|stable|actual|full/typed-array/with
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/change-array-by-copy`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/change-array-by-copy.d.ts)

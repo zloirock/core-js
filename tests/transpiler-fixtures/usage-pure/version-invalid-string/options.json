@@ -1,0 +1,11 @@
+{
+  "plugins": [
+    [
+      "@core-js",
+      {
+        "method": "usage-pure",
+        "version": "not-a-version"
+      }
+    ]
+  ]
+}

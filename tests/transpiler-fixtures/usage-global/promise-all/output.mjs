@@ -1,0 +1,13 @@
+import "core-js/modules/es.object.to-string";
+import "core-js/modules/es.promise.constructor";
+import "core-js/modules/es.promise.catch";
+import "core-js/modules/es.promise.finally";
+import "core-js/modules/es.promise.resolve";
+import "core-js/modules/es.promise.all";
+import "core-js/modules/es.promise.race";
+import "core-js/modules/es.array.iterator";
+import "core-js/modules/es.string.iterator";
+import "core-js/modules/web.dom-collections.iterator";
+Promise.all([p1, p2]);
+Promise.race([p1, p2]);
+Promise.resolve(x);

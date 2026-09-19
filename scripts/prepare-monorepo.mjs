@@ -1,12 +1,13 @@
 import childProcess from 'node:child_process';
-import { readdir, rm } from 'node:fs/promises';
-import { promisify } from 'node:util';
+import { copyFile, glob, readdir, rm } from 'node:fs/promises';
+import { promisify, styleText } from 'node:util';
 
 const exec = promisify(childProcess.exec);
 
 const { UPDATE_DEPENDENCIES } = process.env;
 
 const ignore = new Set([
+  'scripts/canon',
   'scripts/check-actions',
   'scripts/usage',
   'tests/test262',
@@ -29,8 +30,16 @@ await Promise.all(folders.map(async folder => {
   } catch { /* empty */ }
 }));
 
-console.log('\u001B[32mdependencies cleaned\u001B[0m');
+console.log(styleText('green', 'dependencies cleaned'));
+
+for await (const source of glob('packages/*/package.tpl.json')) {
+  const target = source.replace(/\.tpl\.json$/, '.json');
+  try {
+    await copyFile(source, target);
+    console.log(`${ styleText('cyan', source) } ${ styleText('green', 'copied to') } ${ styleText('cyan', target) }`);
+  } catch { /* empty */ }
+}
 
 await exec(UPDATE_DEPENDENCIES ? 'npm i' : 'npm ci');
 
-console.log('\u001B[32mdependencies installed\u001B[0m');
+console.log(styleText('green', 'dependencies installed'));

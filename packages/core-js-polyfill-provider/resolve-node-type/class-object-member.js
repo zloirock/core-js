@@ -1,0 +1,635 @@
+// Class / object member resolution. dispatches `Cls.x` / `obj.x` / `Cls.method()` /
+// `obj.method()` against both bodies (class member walks + object literal properties) +
+// merged-interface declarations + index signatures. covers four shapes:
+//   - own class body (`class C { x: T; static y(){} }`) - walks reverse so duplicate keys
+//     pick the runtime last-wins entry
+//   - superClass chain (real `extends` + ambient `declare class`)
+//   - merged sibling interface (`class C {}; interface C { extra: ... }`) - subst built
+//     per-iface so renamed type-params resolve positionally
+//   - object literal properties (regular / shorthand / getter / setter / method shorthand /
+//     spread bailout)
+//
+// Public surface (exactly what the factory returns; everything else in this file is
+// cluster-private and listed at the return statement):
+//   findClassMember({ classPath, name, isStatic, classSubst, depth, visited })
+//   resolveClassMember({ classPath, name, isStatic, callPath, receiverArgs })
+//   methodFnPath(memberPath)
+//   classSubstInner(annotation, subst)
+//   findObjectMember(objectPath, name)
+//   resolveObjectMember(objectPath, name, callPath)
+//   applySubstToTypeRefArgs(typeRef, subst)
+import { $Object, MAX_DEPTH } from './base.js';
+import { internedTypeRef, isOpenKeywordAnnotation, isPrivateMemberNode } from './ast-shapes.js';
+import { createClassMemberShape } from './class-member-shapes.js';
+import { cachedContainerPaths, classBodyMemberPaths, getTypeArgs, withTypeArgParams } from '../helpers/ast-patterns.js';
+
+const NAMESPACE_FN_PATH_TYPES = new Set(['FunctionDeclaration', 'TSDeclareFunction']);
+
+export function createClassObjectMember({
+  t,
+  keyMatchesName,
+  literalKeyValue,
+  singleQuasiString,
+  buildSubstMap,
+  unwrapTypeAnnotation,
+  typesEqual,
+  commonType,
+  collectReturnPaths,
+  resolveRuntimeExpression,
+  resolveNodeType,
+  resolveReturnType,
+  foldOverloadReturns,
+  resolveTypeAnnotation,
+  applySubst,
+  applyAliasSubstDeep,
+  resolveSuperClassPath,
+  buildParentClassSubst,
+  resolveClassFieldType,
+  staticFieldShadowable,
+  instanceMemberShadowable,
+  getTypeMembers,
+  findNamespacedFunctionPath,
+  findOverloadsForName,
+  classCallableSlotReassigned,
+}) {
+  // computed key matches only when statically resolvable to a string (`['foo']` literal,
+  // `[`foo`]` single-quasi, `[42]` numeric). binding-Identifier computed (`[sym]` over
+  // `const sym = Symbol()`) is disjoint from same-named string key per ECMA-262 13.2.5.5,
+  // so `{ items: 'a', [items]: 'b' }` does NOT shadow `items: 'a'`
+  function memberKeyMatches(key, computed, name) {
+    return computed
+      ? (literalKeyValue(key) ?? singleQuasiString(key)) === name
+      : keyMatchesName(key, name);
+  }
+  // class BODY node -> (name -> the positions of the members whose key matches it). one member
+  // resolution asks `memberKeyMatches` against the same body array three times over - the read
+  // walk, the own-accessor probe and the bodyless-overload filter - so the array is scanned once
+  // per (body, name) instead. POSITIONS, not paths: the path array is re-materialized per query,
+  // and a stored path could outlive the traversal that produced it
+  const classBodyNameIndex = new WeakMap();
+
+  function memberPositionsFor(bodyNode, members, name) {
+    let byName = classBodyNameIndex.get(bodyNode);
+    if (!byName) classBodyNameIndex.set(bodyNode, byName = new Map());
+    let positions = byName.get(name);
+    if (!positions) {
+      positions = [];
+      for (let i = 0; i < members.length; i++) {
+        const node = members[i]?.node;
+        if (node && memberKeyMatches(node.key, node.computed, name)) positions.push(i);
+      }
+      byName.set(name, positions);
+    }
+    return positions;
+  }
+
+  // babel splits public/private/accessor into distinct types; ESTree uses MethodDefinition /
+  // PropertyDefinition with a PrivateIdentifier key. shared `./class-member-shapes.js`
+  // collapses both shapes so `resolveClassMemberNode` doesn't miss private members
+  const { isMethodMember, isPropertyMember, isDataFieldMember } = createClassMemberShape({ t });
+
+  // does the class body own a getter / setter for `name` matching `isStatic`? used to
+  // gate `resolveMergedNamespaceStatic` fallback - setter-only members own the slot even
+  // though `findClassMember` skips them. own-scope only (no super-chain walk): an INHERITED
+  // setter-only slot reads `undefined`, so the merged-namespace fn that would resolve there
+  // throws at runtime regardless of which type-specific helper is emitted - bias-safe to ignore
+  function hasOwnAccessor({ classPath, name, isStatic }) {
+    const members = classBodyMemberPaths(classPath);
+    for (const position of memberPositionsFor(classPath.node.body, members, name)) {
+      const { node } = members[position];
+      if (!!node.static !== isStatic) continue;
+      if (node.kind === 'get' || node.kind === 'set') return true;
+    }
+    return false;
+  }
+
+  function findClassMember({ classPath, name, isStatic, classSubst, viaPrototype = false, depth = 0, visited = undefined }) {
+    // instance-only: the nearest prototype member seen so far, held back in case a FIELD turns up
+    // further along the chain (see the walk-up note below). it may only be taken once the walk has
+    // seen the WHOLE chain - a walk cut short by the depth cap or the cycle guard cannot rule out an
+    // ancestor field, and answering with the prototype member there would narrow to a type the
+    // shadowing field contradicts
+    let heldPrototype = null;
+    while (true) {
+      if (depth > MAX_DEPTH) return null;
+      // which member answers a READ of `name`. a FIELD is defined by [[DefineOwnProperty]] AFTER the
+      // body's methods and accessors are installed - instance fields at construction, static fields
+      // once the class is evaluated - so a field always wins, whatever the source order and whether
+      // the member is static. with no field the read lands on the method / accessor, where duplicate
+      // keys make the LAST definition win and a setter is skipped (setter-only reads `undefined`).
+      // NOTE this legitimately diverges from `findObjectMember`: an object literal defines its keys
+      // in source order on ONE object, so there a later setter really does shadow an earlier value
+      const members = classBodyMemberPaths(classPath);
+      const positions = memberPositionsFor(classPath.node.body, members, name);
+      let onPrototype = null;
+      for (let p = positions.length - 1; p >= 0; p--) {
+        const member = members[positions[p]];
+        if (!!member.node.static !== isStatic) continue;
+        // reverse order, so the first field reached is the source-LAST one - the define that stands.
+        // a prototype-routed read (instance `super.x`) never sees one: the field is an own property
+        // of the instance, so such a read falls through to the methods and accessors
+        if (isDataFieldMember(member.node)) {
+          if (viaPrototype) continue;
+          return { member, subst: classSubst ?? null };
+        }
+        if (member.node.kind === 'set') continue;
+        onPrototype ??= member;
+      }
+      // a STATIC read walks the CONSTRUCTOR chain, so the nearest class declaring the name answers
+      // and an own accessor there shadows a field inherited from a base. an INSTANCE field is
+      // different: wherever in the chain it is declared, it lands as an own property of the ONE
+      // instance and shadows every prototype member in the chain - so hold the prototype member and
+      // keep walking, taking it only if no ancestor supplies a field
+      if (onPrototype) {
+        if (isStatic) return { member: onPrototype, subst: classSubst ?? null };
+        heldPrototype ??= { member: onPrototype, subst: classSubst ?? null };
+      }
+      // `class A extends B; class B extends A` cycle: MAX_DEPTH bottoms out via 64-frame
+      // CPU-burn. visited Set on class nodes short-circuits at the second visit (parallels
+      // `collectClassLikeMembers`'s `seen` and the type-alias decl-set guard)
+      const seen = visited ?? new Set();
+      if (seen.has(classPath.node)) return null;
+      seen.add(classPath.node);
+      const parentPath = resolveSuperClassPath(classPath);
+      // no superclass: the chain is fully walked, so a held prototype member is now the answer
+      if (!parentPath) return heldPrototype;
+      const parentSubst = buildParentClassSubst(classPath, parentPath, classSubst, classPath.scope);
+      classPath = parentPath;
+      classSubst = parentSubst;
+      depth += 1;
+      visited = seen;
+    }
+  }
+
+  // single returned expression as a path - used to resolve getters like properties
+  function resolveBodyReturnValue(fnPath) {
+    const body = fnPath.get('body');
+    if (!t.isBlockStatement(body.node)) return resolveRuntimeExpression(body);
+    let result = null;
+    let resultType; // lazy: only resolved once, on first cross-node compare
+    for (const returnPath of collectReturnPaths(body)) {
+      const arg = returnPath.get('argument');
+      if (!arg.node) return null;
+      const value = resolveRuntimeExpression(arg);
+      if (!value.node) return null;
+      if (result === null || result.node === value.node) {
+        result = value;
+        continue;
+      }
+      // distinct nodes - accept only on matching resolved type (e.g. two `return [1,2,3]`)
+      if (resultType === undefined) resultType = resolveNodeType(result);
+      if (!resultType) return null;
+      const valueType = resolveNodeType(value);
+      if (!valueType || !typesEqual(resultType, valueType)) return null;
+    }
+    return result;
+  }
+
+  // a via-`this` member narrow is unsound when a subclass can shadow the slot with an
+  // incompatible runtime value (the runtime receiver of an inherited method is the subclass);
+  // `staticFieldShadowable` / `instanceMemberShadowable` carry that reasoning and decide
+  // reachability. this wrapper only gates entry: explicit `Base.<member>` / `inst.<member>`
+  // reads (viaThis false) hit the named type's own slot and stay narrowed, and a private
+  // `this.#x` read always binds the lexical class's brand (never an override) so it's exempt.
+  // `foundNode` is the resolved class-body member, or null for the merged-interface /
+  // merged-namespace fall-throughs (whose members are never private class slots)
+  function viaThisShadowBail({ classPath, name, isStatic, viaThis, foundNode }) {
+    if (!viaThis || (foundNode && isPrivateMemberNode(foundNode))) return false;
+    // a non-null foundNode means the member resolved OUTSIDE the anchor's merged namespace
+    // (own body or an ancestor) - a same-named export on the anchor's namespace is then a
+    // runtime override, not the resolution source
+    return isStatic ? staticFieldShadowable(classPath, name, foundNode !== null) : instanceMemberShadowable(classPath, name);
+  }
+
+  function resolveClassMember({ classPath, name, isStatic, callPath, receiverArgs, viaThis, viaPrototype }) {
+    const classSubst = buildSubstMap(classPath.node.typeParameters?.params, receiverArgs, classPath.scope);
+    const found = findClassMember({ classPath, name, isStatic, classSubst, viaPrototype });
+    // hoisted above the found / fall-through dispatch so the shadow bail also guards the
+    // merged-interface instance and merged-namespace static paths below - a via-`this` narrow
+    // off a merged declaration is just as unsound under a subclass override as off the class body
+    if (viaThisShadowBail({ classPath, name, isStatic, viaThis, foundNode: found?.member.node ?? null })) return null;
+    if (found) return resolveClassMemberNode(found.member, callPath, found.subst);
+    if (!classPath.node.id?.name) return null;
+    // static lookup miss: try TS declaration-merging fallback. when `namespace Foo { export
+    // function bar(): T {} }` merges with `class Foo {}`, `Foo.bar` is a runtime callable
+    // but doesn't appear in the class body. without this branch the resolver falls through
+    // and the call's return type stays unknown, costing instance-method polyfill narrowing
+    // on downstream chains like `Foo.bar([...]).map(...)`.
+    // setter-only (`static set foo(v)` with no getter) own the name even though
+    // `findClassMember` skips them - falling through to namespace lookup would resolve a
+    // same-named merged function and emit a polyfill for a value that's actually a setter
+    if (isStatic && !hasOwnAccessor({ classPath, name, isStatic })) {
+      return resolveMergedNamespaceStatic({ classPath, name, callPath });
+    }
+    if (isStatic) return null;
+    // body chain exhausted - delegate annotation-only fallback to `getTypeMembers`, which
+    // walks the super chain merging interface members at each hop with proper per-hop
+    // type-arg propagation. real class-body methods always win on collision (handled above)
+    // through the shared intern table: the memo `getTypeMembers` keys on node identity, so the
+    // reference must be one node per (class, type-args) rather than a fresh literal per ask. this is
+    // the fall-through for a member the body chain did NOT answer (a merged-interface member), so it
+    // is reached about once per class, not per member read - the point is the KEY, since an
+    // identity-keyed memo handed an unstable key is a broken contract whatever its traffic.
+    // the class's own `id` is the parse node, so it is both the spelling and the intern key
+    const members = getTypeMembers({
+      objectType: internedTypeRef(classPath.node.id, receiverArgs ?? null), scope: classPath.scope,
+    });
+    return resolveMemberFromMembers({ members, name, scope: classPath.scope, callPath });
+  }
+
+  // TS declaration merging: `class Foo {}` + `namespace Foo { export function bar(): T {} }`.
+  // `findNamespacedFunctionPath` walks scope chain for a matching `TSModuleDeclaration` whose
+  // body exports `bar`. `isFunctionOrClassDeclaration` leaf-match covers FunctionDeclaration,
+  // TSDeclareFunction (ambient), and ClassDeclaration. only FunctionDeclaration-like nodes
+  // carry an inferable `returnType` annotation we can resolve here - `export class Inner {}`
+  // falls through silently because synthesising a TSTypeReference back to the inner class
+  // would face scope-binding issues (inner names aren't bound in the outer scope) and the
+  // user-class member path doesn't over-inject without that signal. `export const x = ...`
+  // and other VariableDeclaration shapes don't match the leaf at all - not common in real
+  // TS code for class-namespace merging.
+  //
+  // walks the parent-class chain (visited-set guards cycles) so `class Child extends Base`
+  // sees `Base`'s merged namespace exports as inherited statics. mirrors `findClassMember`'s
+  // super-walk semantics for class body
+  // ONE host's merged-namespace export, without any notion of a class: the segments an export is
+  // declared under, the overload fold when the set is ambiguous, the single declaration otherwise.
+  // `undefined` means "no export of that name HERE", which is what lets the class loop below keep
+  // walking its super chain while a standalone namespace - which has no chain - asks exactly once
+  function namespaceExportReturn({ hostName, scope, name, callPath }) {
+    if (!findNamespacedFunctionPath || !hostName) return undefined;
+    const segments = [hostName, name];
+    // a merged namespace declares overloads the same way an ambient scope does, and the single
+    // lookup below answers with the FIRST declaration whatever the call passes - the arms have
+    // to be discriminated by the arguments, or a divergent set folded, exactly as elsewhere
+    const overloads = findOverloadsForName?.(segments, scope) ?? [];
+    if (overloads.length >= 2) {
+      return foldOverloadReturns(overloads, p => p.node.params,
+        p => resolveReturnType(p, callPath), p => p.node.returnType, callPath);
+    }
+    const found = findNamespacedFunctionPath(segments, scope);
+    if (!found) return undefined;
+    // matched in THIS host's namespace - own export wins. route through `resolveReturnType` which
+    // handles BOTH annotated returns (with type-param subst from call-site args -
+    // `identity<T>(item: T): T` + `Box.identity('hello')` -> T=string) AND body-return inference
+    // (`function build() { return [1,2,3] }` -> Array). ClassDeclaration leaves
+    // (`export class Inner {}`) miss the visitor list and fall through to null - synthesising a
+    // TSTypeReference back to the inner class would face scope-binding issues and the user-class
+    // member path doesn't over-inject without that signal. returning null rather than `undefined`
+    // is load-bearing for the class caller: it stops the parent walk, because a parent's same-named
+    // export has a different return type and would emit the wrong family for the child override.
+    // a TYPE filter, spelled as one: `found` is already the NodePath, so asking `nodePathInScope`
+    // to recover it hid a whole-program traversal behind that helper's hits-only cache - and the
+    // class caller runs this inside its super-chain loop. the filter is this lane's stated
+    // contract, not a behaviour gate: probed over the namespace-class forms (called / `new` /
+    // read / interface call-signature) it changes no answer, because `resolveReturnType` declines
+    // a class leaf on its own today. it stays so the accepted kinds are named here rather than
+    // resting on that coincidence
+    return NAMESPACE_FN_PATH_TYPES.has(found.node.type) ? resolveReturnType(found, callPath, null) : null;
+  }
+
+  function resolveMergedNamespaceStatic({ classPath, name, callPath, depth = 0, visited }) {
+    while (true) {
+      if (!callPath || depth > MAX_DEPTH) return null;
+      // an ANONYMOUS class stops the walk rather than continuing to its parent: the name is what
+      // an export would be declared under, so without one there is nothing to look up at any hop
+      if (!findNamespacedFunctionPath || !classPath.node.id?.name) return null;
+      const own = namespaceExportReturn({
+        hostName: classPath.node.id.name, scope: classPath.scope, name, callPath,
+      });
+      if (own !== undefined) return own;
+      const seen = visited ?? new Set();
+      if (seen.has(classPath.node)) return null;
+      seen.add(classPath.node);
+      const parentPath = resolveSuperClassPath(classPath);
+      if (!parentPath) return null;
+      classPath = parentPath;
+      depth += 1;
+      visited = seen;
+    }
+  }
+
+  // ESTree MethodDefinition / ObjectMethod wrap the function in `.value`; babel ClassMethod /
+  // ClassPrivateMethod carry body and params directly on the member. caller pre-filters to
+  // method shapes; helper just picks the path that owns the function body
+  function methodFnPath(memberPath) {
+    const value = memberPath.get('value');
+    return value?.node ? value : memberPath;
+  }
+
+  // peel TSTypeAnnotation wrapper if present, then apply class type-arg subst when set.
+  // returns the inner type (or null) - downstream consumers either feed it back to
+  // `resolveTypeAnnotation` (which itself peels, idempotent on inner) or use it directly
+  function classSubstInner(annotation, subst) {
+    const inner = unwrapTypeAnnotation(annotation);
+    return inner ? applySubst(inner, subst) : inner;
+  }
+
+  // dispatch for "calling a method-shaped or getter member": for a regular method, resolve
+  // its return type at the call site; for a getter, resolve the body's returned value
+  // and (when callable) invoke. shared between class member resolution (with `classSubst`
+  // for type-arg substitution) and object member resolution (no subst). returns null when
+  // neither path produces a type, letting the caller fall through to other strategies
+  function resolveMethodOrGetterCallReturn({ methodFn, kind, callPath, classSubst }) {
+    if (kind !== 'get') return resolveReturnType(methodFn, callPath, classSubst);
+    const value = resolveBodyReturnValue(methodFn);
+    if (!t.isFunction(value?.node)) return null;
+    // `obj.getter()` invokes the function the getter returns. `value` is ONE representative -
+    // resolveBodyReturnValue accepted the getter's return branches as type-equal, but two
+    // functions can be type-equal yet return different types (`()=>number[]` vs `()=>string`).
+    // invoking must reflect EVERY branch, so fold each branch's invoke-return via commonType; a
+    // mismatch / unresolvable branch bails to null (generic receiver) rather than narrowing to
+    // the first branch. a non-block getter body has the single returned value `value`
+    const body = methodFn.get('body');
+    if (!t.isBlockStatement(body.node)) return resolveReturnType(value, callPath, classSubst);
+    let folded = null;
+    for (const returnPath of collectReturnPaths(body)) {
+      // resolve the returned expression to its function value first (it may be an identifier
+      // alias like `return createItems`, not a literal `() => ...`), then invoke - mirrors how
+      // resolveBodyReturnValue resolved the representative
+      const branchFn = resolveRuntimeExpression(returnPath.get('argument'));
+      if (!t.isFunction(branchFn?.node)) return null;
+      const branchReturn = resolveReturnType(branchFn, callPath, classSubst);
+      if (!branchReturn) return null;
+      folded = commonType(folded, branchReturn);
+      if (!folded) return null;
+    }
+    return folded;
+  }
+
+  // path resolveReturnType should read for a bodyless method's declared signature, or null. babel
+  // models `abstract get x(): T` / `declare class { x(): T }` as a TSDeclareMethod with the
+  // returnType ON the node; oxc/estree as a (TSAbstract)MethodDefinition whose `.value` is a
+  // TSEmptyBodyFunctionExpression carrying the returnType. both expose the params / returnType /
+  // typeParameters resolveReturnType needs - unifying them keeps the two plugins in sync
+  function bodylessReturnPath(member) {
+    if (member.node.type === 'TSDeclareMethod' && member.node.returnType) return member;
+    const { value } = member.node;
+    if (value?.type === 'TSEmptyBodyFunctionExpression' && value.returnType) return member.get('value');
+    return null;
+  }
+
+  // bodyless method SHAPE, return annotation NOT required: an implicit-any overload arm
+  // (`m(x: number);`) must stay in the overload set so the fold's widen sees it - filtering
+  // membership through `bodylessReturnPath` dropped it before arg-discrimination, and the
+  // surviving annotated arm narrowed a call TS types as `any`
+  function isBodylessMethodShape(member) {
+    return member.node.type === 'TSDeclareMethod' || member.node.value?.type === 'TSEmptyBodyFunctionExpression';
+  }
+
+  // a callable field's CALL return follows its DECLARED signature when annotated, not the init
+  // function body alone: `make: () => number[] | string` yields the folded union return, so a
+  // reassignment to a different-family function (which TS permits only under such a union) leaks
+  // no init-body narrowing. returns the folded return type, `null` to bail (union spanning
+  // differing polyfill families -> ambiguous), or `undefined` when there's no function-type
+  // annotation to read (caller falls back to inferring from the init body)
+  function declaredCallableReturn(annotationNode, scope) {
+    const fnType = annotationNode && unwrapTypeAnnotation(annotationNode);
+    if (fnType?.type !== 'TSFunctionType' && fnType?.type !== 'TSConstructorType') return undefined;
+    // babel stores the function-type return on `.typeAnnotation`, oxc/ESTree on `.returnType`
+    const retAnno = fnType.typeAnnotation ?? fnType.returnType;
+    const ret = retAnno && unwrapTypeAnnotation(retAnno);
+    if (!ret) return undefined;
+    // delegate union folding to `resolveTypeAnnotation` (it already handles TSUnionType via
+    // `foldUnionTypes`, which SKIPS nullable/never members and folds the rest). the prior inline loop
+    // hard-bailed the whole union when any branch was unresolvable, dropping `() => number[] | undefined`
+    // to the generic helper instead of `number[]` (the `undefined` arm throws regardless of the
+    // polyfill choice, so narrowing past it is sound)
+    return resolveTypeAnnotation(ret, scope);
+  }
+
+  // `declare class` / `abstract` method OVERLOADS: several same-named bodyless signatures (with no
+  // implementation, or whose impl callers never see). findClassMember's last-wins reverse-walk picks
+  // ONE signature regardless of the call args - an over-resolve emitting a type-specific Maybe on a
+  // foreign return. returns a type, null (generic), or undefined when this isn't an arg-discriminable
+  // overload set (single sig / accessor) so the caller resolves the single signature instead
+  function resolveBodylessMethodOverloads({ member, callPath, classSubst }) {
+    if (member.node.kind === 'get' || member.node.kind === 'set') return undefined;
+    const siblings = member.parentPath ? cachedContainerPaths(member.parentPath, 'body') : undefined;
+    if (!Array.isArray(siblings) || siblings.length < 2) return undefined;
+    const { key } = member.node;
+    const name = member.node.computed
+      ? (literalKeyValue(key) ?? singleQuasiString(key))
+      : (key?.type === 'Identifier' ? key.name : literalKeyValue(key));
+    if (name === undefined || name === null) return undefined;
+    const isStatic = !!member.node.static;
+    const overloads = memberPositionsFor(member.parentPath.node, siblings, name)
+      .map(position => siblings[position])
+      .filter(m => !!m.node.static === isStatic
+        && m.node.kind !== 'get' && m.node.kind !== 'set' && isBodylessMethodShape(m));
+    if (overloads.length < 2) return undefined;
+    return foldOverloadReturns(overloads, m => m.node.params ?? m.node.value?.params, m => {
+      const declared = bodylessReturnPath(m);
+      return declared ? resolveReturnType(declared, callPath, classSubst) : null;
+    }, m => bodylessReturnPath(m)?.node.returnType, callPath);
+  }
+
+  function resolveClassMemberNode(member, callPath, classSubst) {
+    const methodFn = isMethodMember(member.node) ? methodFnPath(member) : null;
+    // bodyless method (ambient `declare class` / `abstract`) - no body, only the return-type
+    // annotation. babel models it as TSDeclareMethod with returnType ON the node; oxc/estree as a
+    // (TSAbstract)MethodDefinition whose `.value` is a TSEmptyBodyFunctionExpression carrying the
+    // returnType. `declaredReturnPath` is the node resolveReturnType should read (params /
+    // returnType / typeParameters) on either parser, or null when there's no declared signature
+    const declaredReturnPath = bodylessReturnPath(member);
+    if (callPath) {
+      // EVERY callable member is a writable slot: `this.m = ...` replaces a method shorthand just
+      // as it replaces a function-valued field, and the replacement may return a foreign family.
+      // an OBSERVED write unseats the declared narrowing for every shape alike, or dispatch picks
+      // a type-specific helper and throws on the replacement's value. a merely unknown writer set
+      // is not enough here - a method body exists whatever an external monkey-patch might do.
+      // it gates the OVERLOAD set too: a written slot answers with the replacement's value, which
+      // no arm of the declared set describes
+      if (classCallableSlotReassigned(member) === 'written') return null;
+      // arg-discriminated bodyless overload set wins over findClassMember's single last-match
+      const overloaded = resolveBodylessMethodOverloads({ member, callPath, classSubst });
+      if (overloaded !== undefined) return overloaded;
+      if (methodFn) {
+        const r = resolveMethodOrGetterCallReturn({ methodFn, kind: member.node.kind, callPath, classSubst });
+        if (r) return r;
+      }
+      // a bodyless member reaches here either with no `methodFn` at all (babel models the ambient
+      // method as its own node type) or with one whose empty body gave nothing - both parsers land
+      // on the declared signature, so the fall-through is shared rather than parser-shaped
+      if (declaredReturnPath) {
+        // a GETTER read yields its declared return type; CALLING it then invokes that value, so the
+        // call result is that type's own call return - the two-step the concrete getter path takes.
+        // a declared method needs no step: its return type already IS the call result
+        if (member.node.kind === 'get') {
+          return declaredCallableReturn(classSubstInner(declaredReturnPath.node.returnType, classSubst), member.scope) ?? null;
+        }
+        // the bodyless signature exposes `params` / `returnType` / `typeParameters` the same shape
+        // `resolveReturnType` reads from. routing through it picks up method-level type-args from
+        // `<T>(...)` plus call-site `<string>` so `static make<T>(): T[]` with `Box.make<string>()`
+        // resolves to `string[]` instead of leaking the bare type-param T (which loses precision
+        // and degrades `_atMaybeArray` to generic `_at`)
+        return resolveReturnType(declaredReturnPath, callPath, classSubst);
+      }
+      if (isPropertyMember(member.node)) {
+        // a function-valued FIELD narrows from its INITIALIZER, which any write replaces - so an
+        // unenumerable writer set unseats it too, not just an observed write
+        if (classCallableSlotReassigned(member)) return null;
+        // resolve the CALL return from the declared signature when annotated (folds a union return
+        // across families); only an un-annotated field falls back to inferring from the init body
+        if (member.node.typeAnnotation) {
+          const declared = declaredCallableReturn(classSubstInner(member.node.typeAnnotation, classSubst), member.scope);
+          if (declared !== undefined) return declared;
+        }
+        const value = resolveRuntimeExpression(member.get('value'));
+        if (value.node && t.isFunction(value.node)) return resolveReturnType(value, callPath, classSubst);
+      }
+      return null;
+    }
+    // property access: foo.bar or foo.#bar. an optional field (`a?: T`) admits undefined
+    // even when declared (it may never be assigned), so the resolved value shape is marked
+    // for the logical truthy-fold gate - mirror of findTypeMember's optional wrapper
+    if (isPropertyMember(member.node)) {
+      function markFieldOptional(resolved) {
+        return resolved && member.node.optional ? resolved.mark('mayBeNullish') : resolved;
+      }
+      if (member.node.typeAnnotation) {
+        const inner = classSubstInner(member.node.typeAnnotation, classSubst);
+        const resolved = resolveTypeAnnotation(inner, member.scope);
+        if (resolved) return markFieldOptional(resolved);
+        // open keyword annotation (`any` / `unknown` / `object` / Flow mixed) lets the
+        // RHS-write flow scan still pin a concrete runtime type
+        if (isOpenKeywordAnnotation(unwrapTypeAnnotation(inner))) return markFieldOptional(resolveClassFieldType(member));
+        return null;
+      }
+      return markFieldOptional(resolveClassFieldType(member));
+    }
+    // method: getter returns its return type, regular method returns Function
+    if (methodFn) return member.node.kind === 'get' ? resolveReturnType(methodFn, undefined, classSubst) : new $Object('Function');
+    // bodyless method (no body): a getter's property access still yields its declared return type -
+    // only a non-getter declared method evaluates to a Function value
+    if (declaredReturnPath) {
+      return member.node.kind === 'get'
+        ? resolveReturnType(declaredReturnPath, undefined, classSubst)
+        : new $Object('Function');
+    }
+    return null;
+  }
+
+  // clone a TSTypeReference with each typeParameters arg substituted via `subst`. used to
+  // compose an outer subst into a `Base<T>` ref before building the parent decl-param subst -
+  // otherwise the parent's decl-param map binds raw `T` instead of the substituted concrete
+  function applySubstToTypeRefArgs(typeRef, subst) {
+    if (!subst) return typeRef;
+    const args = getTypeArgs(typeRef);
+    if (!args?.params?.length) return typeRef;
+    return withTypeArgParams(typeRef, args.params.map(a => applyAliasSubstDeep(a, subst)));
+  }
+
+  function resolveMemberFromMembers({ members, name, scope, callPath }) {
+    if (!members) return null;
+    // overload-aware call resolution: a merged-interface / super walk can surface several same-named
+    // TS call signatures. returning the FIRST arm over-resolves a divergent overload set, so match the
+    // args to one / fold to generic (mirrors the bodyless class-method + interface paths)
+    if (callPath) {
+      const sigs = members.filter(m => !m.computed && keyMatchesName(m.key, name)
+        && m.type === 'TSMethodSignature' && m.kind !== 'get' && m.kind !== 'set');
+      if (sigs.length >= 2) {
+        return foldOverloadReturns(sigs, m => m.parameters ?? m.params, m => {
+          const rt = m.returnType ?? m.typeAnnotation;
+          return rt ? resolveTypeAnnotation(rt, scope) : null;
+        }, m => m.returnType ?? m.typeAnnotation, callPath);
+      }
+    }
+    for (const member of members) {
+      if (member.computed) continue;
+      if (!keyMatchesName(member.key, name)) continue;
+      // method-shaped members: a TS method signature, or a Flow object-type method /
+      // function-valued property (its `value` is a FunctionTypeAnnotation). a call resolves the
+      // return type; a bare access yields Function. handled before the generic property branch
+      // so a Flow method isn't mis-resolved to the function type itself, which would lose the
+      // narrow on `obj.m().at(...)`
+      const isTsMethod = member.type === 'TSMethodSignature';
+      const isFlowMethod = member.type === 'ObjectTypeProperty' && member.value?.type === 'FunctionTypeAnnotation';
+      if (isTsMethod || isFlowMethod) {
+        // honor accessor kind like findTypeMember: a getter access yields its RETURN type (NOT a
+        // Function value - that would drop the polyfill on the real array/string the getter returns);
+        // a setter is write-only, skip to a paired getter; a plain method access is a Function value
+        // while a call resolves the return
+        if (member.kind === 'set') continue;
+        if (member.kind !== 'get' && !callPath) return new $Object('Function');
+        const returnType = isTsMethod ? (member.returnType ?? member.typeAnnotation) : member.value.returnType;
+        return returnType ? resolveTypeAnnotation(returnType, scope) : null;
+      }
+      if (member.type === 'TSPropertySignature' || member.type === 'ObjectTypeProperty') {
+        const annotation = member.typeAnnotation ?? member.value;
+        const resolved = annotation ? resolveTypeAnnotation(annotation, scope) : null;
+        // an OPTIONAL property (`items?: number[]`) may be undefined at runtime - carry the
+        // marker so an enclosing `??`/`||` fold keeps its two-operand union (the class-body
+        // twin already marks via markFieldOptional; this is the merged-interface/object path)
+        return resolved && member.optional ? resolved.mark('mayBeNullish') : resolved;
+      }
+    }
+    return null;
+  }
+
+  function findObjectMember(objectPath, name) {
+    const properties = cachedContainerPaths(objectPath, 'properties');
+    for (let i = properties.length - 1; i >= 0; i--) {
+      const prop = properties[i];
+      if (t.isSpreadElement(prop.node)) return null;
+      if (!memberKeyMatches(prop.node.key, prop.node.computed, name)) continue;
+      // the LAST declaration for `name` decides its nature (later object-literal members override).
+      // a setter as that last declaration makes the key an ACCESSOR: reading it yields the paired
+      // getter's value, or `undefined` when setter-only - either way the earlier data property is
+      // shadowed and must NOT be returned (stale). search for a getter of the same key behind the
+      // setter; return it if present, else bail (setter-only -> undefined, generic helper)
+      if (prop.node.kind === 'set') {
+        for (let j = i - 1; j >= 0; j--) {
+          const earlier = properties[j];
+          if (t.isSpreadElement(earlier.node)) return null;
+          if (!memberKeyMatches(earlier.node.key, earlier.node.computed, name)) continue;
+          // the nearest earlier definition decides: a getter pairs with the setter and supplies the
+          // read value, while a DATA definition resets the slot to a data descriptor - which the
+          // later setter then turns into a setter-only accessor, so any getter behind it is dead
+          return earlier.node.kind === 'get' ? earlier : null;
+        }
+        return null;
+      }
+      return prop;
+    }
+    return null;
+  }
+
+  function resolveObjectMember(objectPath, name, callPath) {
+    const prop = findObjectMember(objectPath, name);
+    if (!prop) return null;
+    // method call: obj.foo()
+    const propFn = t.isObjectMethod(prop.node) ? methodFnPath(prop) : null;
+    if (callPath) {
+      if (propFn) {
+        const r = resolveMethodOrGetterCallReturn({ methodFn: propFn, kind: prop.node.kind, callPath });
+        if (r) return r;
+      } else if (t.isObjectProperty(prop.node)) {
+        const value = resolveRuntimeExpression(prop.get('value'));
+        if (value.node && t.isFunction(value.node)) return resolveReturnType(value, callPath);
+      }
+      return null;
+    }
+    // property access: obj.foo
+    if (t.isObjectProperty(prop.node)) return resolveNodeType(prop.get('value'));
+    // method: getter returns its return type, regular method returns Function
+    if (propFn) return prop.node.kind === 'get' ? resolveReturnType(propFn) : new $Object('Function');
+    return null;
+  }
+
+  // cluster-private (consumed only by other cluster functions, never reach the factory surface):
+  // `resolveClassMemberNode` / `resolveMethodOrGetterCallReturn` / `resolveBodyReturnValue` /
+  // `resolveMemberFromMembers` / `isDataFieldMember` / `isMethodMember` / `isPropertyMember` /
+  // `memberKeyMatches` / `hasOwnAccessor` / `viaThisShadowBail` / `resolveMergedNamespaceStatic` /
+  // `bodylessReturnPath` / `isBodylessMethodShape` / `declaredCallableReturn` /
+  // `resolveBodylessMethodOverloads`
+  return {
+    findClassMember,
+    namespaceExportReturn,
+    resolveClassMember,
+    methodFnPath,
+    classSubstInner,
+    findObjectMember,
+    resolveObjectMember,
+    applySubstToTypeRefArgs,
+  };
+}

@@ -1,5 +1,5 @@
 // based on https://github.com/davidchambers/Base64.js/blob/master/test/base64.js
-import atob from 'core-js-pure/stable/atob';
+import atob from '@core-js/pure/stable/atob';
 
 QUnit.test('atob', assert => {
   assert.isFunction(atob);

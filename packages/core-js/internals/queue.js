@@ -19,7 +19,7 @@ Queue.prototype = {
       if (next === null) this.tail = null;
       return entry.item;
     }
-  }
+  },
 };
 
 module.exports = Queue;
