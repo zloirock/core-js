@@ -1,5 +1,6 @@
 # Changelog
 ### Unreleased
+- Added polyfill for `requestIdleCallback`
 - Compat data improvements:
   - [`Iterator.{ zip, zipKeyed }`](https://github.com/tc39/proposal-joint-iteration) marked as [shipped in V8 ~ Chrome 153](https://issues.chromium.org/issues/465357675)
   - [`Iterator.prototype.includes`](https://github.com/tc39/proposal-iterator-includes) marked as [shipped in V8 ~ Chrome 154](https://issues.chromium.org/issues/504886973)
