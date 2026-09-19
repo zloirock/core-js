@@ -159,6 +159,9 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
           cache: npm
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
       - run: npm run prepare-monorepo
       - run: npm run test-transpiling
 
@@ -171,4 +174,4 @@ jobs:
           node-version: 26
           cache: npm
       - run: npm run prepare-monorepo
-      - run: npm run test-transpiler-perf
+      - run: npm run test-transpiler-perf -- --samples=3

@@ -3486,14 +3486,11 @@ export function isGuardedAliasingWrite(binding) {
   return !!guards?.length;
 }
 
-// SOUND gate for the LEXICAL kinds: has the initializer of a `let` / `const` run by the time the read
-// does? one that has not is a temporal dead zone, and a read there throws instead of producing a value -
-// folding it would stand a polyfill under an access the engine never completes. inside the declarator's
-// own var scope statements run in textual order, so a read placed above the declarator always throws;
-// a DEFERRED read - a closure called later, a per-construction field value - escapes that order and
-// keeps the permissive answer. the textual test comes first and settles every ordinary declare-then-use
-// without a scope walk, which is what keeps this gate off the hot path
-function lexicalInitRunsBeforeUsage({ declaratorNode, usagePath, usageNode }) {
+// Temporal ordering of an initializer and a read, without conditional-branch domination.
+// Reads in the same execution frame cannot observe a later initializer; deferred bodies may.
+// Lexical reads and possible mutation callees share this question. The textual test settles
+// ordinary declare-then-use before a scope walk, keeping the common case off the hot path.
+export function initializerMayRunBeforeUsage({ declaratorNode, usagePath, usageNode }) {
   const readNode = usageNode ?? usagePath?.node;
   if (!usagePath || precedesOrUnordered(declaratorNode, readNode)) return true;
   for (let owner = findNearestVarScopeOwner(usagePath); owner; owner = findNearestVarScopeOwner(owner.parentPath)) {
@@ -3614,7 +3611,7 @@ export function varInitDominatesUsage({ declaratorNode, usagePath, usageNode = n
   // capture even though the declarator precedes the use)
   if (kind && kind !== 'var') {
     return kind === 'let' || kind === 'const'
-      ? lexicalInitRunsBeforeUsage({ declaratorNode, usagePath, usageNode }) : true;
+      ? initializerMayRunBeforeUsage({ declaratorNode, usagePath, usageNode }) : true;
   }
   // no position to prove dominance against: a hoisted `var` init may be conditional or sit
   // after the read, and every pure caller of this gate rewrites on proof - bail the var kind

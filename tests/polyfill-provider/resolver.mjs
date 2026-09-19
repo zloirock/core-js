@@ -8,6 +8,7 @@ import {
   resolve,
 } from '../../packages/core-js-polyfill-provider/index.js';
 import { createPolyfillResolver } from '../../packages/core-js-polyfill-provider/resolver.js';
+import { enrichMutatedStatics } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
 import { createChecker } from './harness.mjs';
 
 const { check, checkTruthy, doesNotThrow, finish, throwsWith } = createChecker('resolver');
@@ -71,10 +72,10 @@ check('resolve/.unknownMethod prototype returns undefined',
 check('resolve/kind=instance unsupported (falls through)',
   resolve({ kind: 'instance', key: 'at' }), undefined);
 
-// `in` operator meta: `Symbol.iterator in x` - resolves via instance lookup
+// A bare string key is not symbol provenance and must not manufacture an iterator helper.
 {
   const r = resolve({ kind: 'in', key: 'iterator' });
-  checkTruthy('resolve/in iterator resolves', r === undefined || r?.desc, JSON.stringify(r));
+  check('resolve/in ordinary iterator key has no entry', r, undefined);
 }
 
 // `in` operator with `placement: 'static'` on POSSIBLE_GLOBAL_OBJECTS: `'X' in window` etc.
@@ -84,38 +85,35 @@ check('resolve/kind=instance unsupported (falls through)',
   checkTruthy('resolve/in Promise in globalThis -> global', r?.kind === 'global');
 }
 
-// --- entryToGlobalHint(entry): reverse `entry path` -> global constructor name ---
-
-check('entryToGlobalHint/promise/constructor', entryToGlobalHint('promise/constructor'), 'Promise');
-check('entryToGlobalHint/array (top-level)', entryToGlobalHint('array'), 'Array');
-check('entryToGlobalHint/symbol', entryToGlobalHint('symbol'), 'Symbol');
-check('entryToGlobalHint/url/constructor', entryToGlobalHint('url/constructor'), 'URL');
-check('entryToGlobalHint/regexp/constructor', entryToGlobalHint('regexp/constructor'), 'RegExp');
-check('entryToGlobalHint/error/constructor', entryToGlobalHint('error/constructor'), 'Error');
-// instance-method-like entry (`array/from`): rest=['from'] !== 'constructor', returns null.
-// derive only succeeds for single-segment OR `<head>/constructor`
-check('entryToGlobalHint/array/from returns null (multi-seg non-constructor)',
-  entryToGlobalHint('array/from'), null);
-// instance-only method (`array/instance/at`): rest=['instance','at'], non-constructor, null
-check('entryToGlobalHint/array/instance/at returns null',
-  entryToGlobalHint('array/instance/at'), null);
-// kebab-derived hint validates against KNOWN_GLOBAL_NAMES (globals + statics in
-// built-in-definitions). single-segment entries like `get-iterator`, `is-iterable`,
-// `not-a-real-thing-xyz` derive a plausible PascalCase but bail when the result isn't
-// a registered global - prevents downstream resolveSuperImportName from over-injecting
-// against fabricated names
-check('entryToGlobalHint/single-segment kebab bails on unknown global',
-  entryToGlobalHint('not-a-real-thing-xyz'), null);
-// `eval-error` -> `EvalError`: kebab-derived AND registered as a global with pure ctor.
-// `entryHintIndex` already covers it via the constructor-deps scan; this checks the
-// fallback path stays sound for entries whose registry registration could lapse
-check('entryToGlobalHint/single-segment kebab returns registered global',
-  entryToGlobalHint('eval-error'), 'EvalError');
-// digit-leading: kebab→Pascal first char fails uppercase check → null
-check('entryToGlobalHint/digit-leading returns null',
-  entryToGlobalHint('42foo'), null);
-// empty: null
-check('entryToGlobalHint/empty returns null', entryToGlobalHint(''), null);
+// Entry hints have one truth table, including acronym and malformed-path boundaries.
+for (const [entry, expected] of [
+  ['promise/constructor', 'Promise'],
+  ['array', 'Array'],
+  ['symbol', 'Symbol'],
+  ['url/constructor', 'URL'],
+  ['regexp/constructor', 'RegExp'],
+  ['error/constructor', 'Error'],
+  ['array/from', null],
+  ['array/instance/at', null],
+  ['not-a-real-thing-xyz', null],
+  ['eval-error', 'EvalError'],
+  ['42foo', null],
+  ['', null],
+  ['promise', 'Promise'],
+  ['weak-map', 'WeakMap'],
+  ['is-iterable', null],
+  ['promise/try', null],
+  ['array-buffer/is-view', null],
+  ['typed-array/instance/to-sorted', null],
+  ['/promise', null],
+  ['promise/', null],
+  ['42', null],
+  ['_foo', null],
+  [null, null],
+  ['url', 'URL'],
+  ['url-search-params', 'URLSearchParams'],
+  ['dom-exception', 'DOMException'],
+]) check(`entryToGlobalHint/${ entry }`, entryToGlobalHint(entry), expected);
 
 // --- createPolyfillContext: top-level operations ---
 
@@ -301,6 +299,26 @@ function makeFilterEnv() {
     isSpreadElement: arg => arg?.type === 'SpreadElement',
   };
   return { typeResolvers: stubTypeResolvers, astPredicates: stubAstPredicates };
+}
+
+// Exercise enrichment with the real resolver. Prototype entries live in the instance
+// namespace; methods carried by a routed constructor have no separate instance entry.
+for (const [key, expectedEntry] of [
+  ['String.prototype.at', 'string/instance/at'],
+  ['Array.prototype.flat', 'array/instance/flat'],
+  ['Map.prototype.has', null],
+  ['Iterator.prototype.map', null],
+]) {
+  const { resolver } = createPolyfillResolver({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } }, makeFilterEnv());
+  const entries = [];
+  let lookups = 0;
+  enrichMutatedStatics({
+    mutatedStatics: new Set([key]),
+    resolvePure(meta) { lookups++; return resolver.resolvePure(meta); },
+    injectPureImport(entry) { entries.push(entry); },
+  });
+  check(`enrichment/${ key }/lookup`, lookups, 1);
+  check(`enrichment/${ key }/entry`, entries.join(','), expectedEntry ?? '');
 }
 
 // `Error` global has `[['min-args', 2]]` filter - `new Error('msg')` (1 arg) gets filtered,
