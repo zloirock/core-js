@@ -594,10 +594,22 @@ export default function createOptionalDispatchChannel(ctx) {
       return clone;
     }
     const split = { reusabilityView, superReceiver, reusableThisArg, cloneReceiverValue };
+    // Only the callee's own optional call is redundant. A guard below the static
+    // receiver still owns the outer instance dispatch, so thread that split through.
+    // Undefined means no static claim; null is a static claim needing no receiver split.
+    const staticSplit = staticCalleeStandsDown({ callee, calleeObject, metaPath })
+      ? splitOptionalReceiver(callee.object, metaPath) : undefined;
+    if (staticSplit && staticSplit !== STAGED_SPLIT) return {
+      ...staticSplit,
+      hopKind: 'call',
+      receiver: stampSourceCallType(callExpression(
+        { ...cloneNode(callee), object: staticSplit.receiver, optional: false },
+        node.arguments.map(argument => cloneNode(argument))), node, metaPath, typeStampCtx),
+    };
+    if (staticSplit !== undefined && (!callee.optional || staticSplit === STAGED_SPLIT)) return staticSplit;
     if (callee.optional) {
       return splitDoublyOptionalCall({ node, metaPath, callee, split });
     }
-    if (staticCalleeStandsDown({ callee, calleeObject, metaPath })) return null;
     if (!isReusableReceiver(reusabilityView) && !superReceiver) {
       const refRecv = injector.generateDeclaredRef(metaPath);
       const refMethod = injector.generateDeclaredRef(metaPath);

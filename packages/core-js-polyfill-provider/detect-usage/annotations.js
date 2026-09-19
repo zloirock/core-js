@@ -472,9 +472,10 @@ export function isPolyfillableOptional({
   // a proxy HOP only, so `(v = globalThis.self).Number?.MAX_SAFE_INTEGER.name` found no name at all,
   // kept the guard live, and the claim under it died into a raw read off the ponyfill. asked of the
   // HOST - it has to be proxy navigation - because that is what makes the read a real constructor off
-  // the realm. it feeds the STATIC arm only: the global early-return reasons about the receiver being
+  // the realm. An optional call asks about the static binding too; its earlier receiver guard
+  // remains the emitter's responsibility. It feeds the STATIC arm only: the global early-return reasons about the receiver being
   // the always-defined realm, which a constructor read is not
-  const ctorRead = !objName && member === node
+  const ctorRead = !objName
     && (objCore?.type === 'MemberExpression' || objCore?.type === 'OptionalMemberExpression')
     // the host is read through its CARRIERS - a store, a sequence tail, the wrappers around either,
     // nested in any order - which is the chain-root peel's own fixpoint

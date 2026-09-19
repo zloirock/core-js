@@ -26,6 +26,7 @@ export function bothHalvesOfACyclicPair() {
 	return "";
 }
 
+// the cycle is reached THROUGH a union alias rather than directly
 export function cycleReachedThroughAUnionAlias() {
 	if (viaUnion.kind === "a") {
 		var _ref2;

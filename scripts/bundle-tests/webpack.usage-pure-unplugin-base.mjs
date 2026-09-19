@@ -54,7 +54,7 @@ export default function buildConfig(phase) {
     module: {
       rules: [{
         // test files - same babel pipeline as the babel leg minus `@core-js`
-        test: /\.(?:js|ts)$/,
+        test: /\.(?:c?js|ts)$/,
         include: e2eUsagePure,
         use: {
           loader: 'babel-loader',

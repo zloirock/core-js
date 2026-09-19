@@ -67,6 +67,7 @@ import {
   annotationNameIsGlobal,
   typeOnlyImportShadows,
   walkTypeAnnotationGlobals,
+  isPolyfillableOptional,
 } from '../../packages/core-js-polyfill-provider/detect-usage/annotations.js';
 import {
   bareAssignmentPatternLeafPath,
@@ -529,7 +530,15 @@ runBoth('resolveSymbolIteratorEntry/computed access', 'obj[Symbol.iterator];', (
   if (!member) return;
   const inner = member.node.property; // Symbol.iterator member-expr
   // call resolveSymbolIteratorEntry with the inner Symbol.iterator node + its parent
-  checkTruthy(lbl, resolveSymbolIteratorEntry(inner, member.node) !== null);
+  check(lbl, resolveSymbolIteratorEntry(inner, member.node), 'get-iterator-method');
+});
+for (const [code, expected] of [
+  ['obj[Symbol.iterator]()', 'get-iterator'],
+  ['obj[Symbol.iterator](1)', 'get-iterator-method'],
+  ['obj[Symbol.iterator]?.()', 'get-iterator-method'],
+]) runBoth(`resolveSymbolIteratorEntry/${ code }`, code, (adapter, prog, lbl) => {
+  const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.computed);
+  check(lbl, resolveSymbolIteratorEntry(member.node, member.parentPath.node), expected);
 });
 
 // --- walkTypeAnnotationGlobals: the Flow member/param slots of the child-key table ---
@@ -2020,6 +2029,38 @@ runBoth('flattenFallbackBranches/nested conditional flattens static branches',
     ]);
   });
 
+// Logical assignment retains a left value or installs the right value. Usage-global needs
+// the union without changing the expression; usage-pure keeps its existing residual boundary.
+for (const op of ['??=', '||=', '&&=']) {
+  runBoth(`flattenFallbackBranches/logical method boundary ${ op }`,
+    `let a = null; const result = a ${ op } Array;`, (adapter, prog, lbl) => {
+      const assignment = adapter.pickPath(prog, 'AssignmentExpression');
+      for (const method of ['usage-global', 'usage-pure']) {
+        const metas = flattenFallbackBranches({
+          node: assignment.node, key: 'of', scope: assignment.scope, path: assignment,
+          adapter: { ...unionAdapter, method },
+        });
+        checkDeep(`${ lbl }/${ method }`, metas.map(meta => meta.object), method === 'usage-global' ? ['Array'] : []);
+        check(`${ lbl }/${ method } keeps source operator`, assignment.node.operator, op);
+      }
+    });
+  for (const receiver of [`a ${ op } Array`, `(a ${ op } globalThis).Array`]) {
+    runBoth(`collectMemberUnionCandidates/logical receiver ${ receiver }`,
+      `let a = null; const result = ${ receiver };`, (adapter, prog, lbl) => {
+        const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id.name === 'result');
+        const args = { objectNode: decl.node.init, primaryObject: null, primaryKey: 'of',
+          scope: decl.scope, path: decl, adapter: unionAdapter };
+        checkDeep(lbl, collectMemberUnionCandidates(args).map(m => [m.object, m.key, m.placement]), [['Array', 'of', 'static']]);
+        checkDeep(`${ lbl }/pure residual`, collectMemberUnionCandidates({ ...args, adapter: { ...unionAdapter, method: 'usage-pure' } }), []);
+      });
+  }
+  runBoth(`collectDestructureUnionCandidates/effect-bearing array slot ${ op }`,
+    `let a = null; const [{ of }] = [(a ${ op } (effect(), globalThis)).Array];`, (adapter, prog, lbl) => {
+      checkDeep(lbl, destructureExtras(adapter, prog, { kind: 'property', object: null, key: 'of', placement: null })
+        .map(m => [m.object, m.key, m.placement]), [['Array', 'of', 'static']]);
+    });
+}
+
 // the `in`-branch and prototype-branch ATTACH sites are exercised through the fixture pipeline
 // (real emitter adapters): their PRIMARY key resolution needs the full binding-wrapper contract
 // (reaching-value walk) a minimal test adapter cannot supply, so a unit here would only fake it.
@@ -2129,6 +2170,7 @@ function mutationHopPure(name) {
 }
 for (const [variant, code, expected] of [
   ['write slot keeps it', 'function w(v) { (globalThis.self.window?.self).Box = v; }', true],
+  ['effectful hop keys keep it', 'function w(v) { (globalThis[(effect(), "self")][(effect(), "window")]?.Object).Box = v; }', true],
   ['delete keeps it', 'const d = () => delete (globalThis.self.window?.self).Box;', true],
   ['delete without the seal keeps it', 'const d = () => delete globalThis.self.window?.self.Box;', true],
   ['update slot keeps it', 'function u() { (globalThis.self.window?.self).Box++; }', true],
@@ -2769,11 +2811,11 @@ for (const [source, namespace, key] of [
 runBoth('callPairing/pending Reflect.apply binding', '_apply(f, null, [Array]);', (adapter, prog, label) => {
   const call = adapter.pickPath(prog, 'CallExpression').node;
   const [supplied] = call.arguments[2].elements;
-  const pairing = callPairing(call, null, { getBindingEntry: name => name === '_apply' ? 'reflect/apply' : null });
+  const pairing = callPairing(call, null, { getCalleeEntry: callee => callee.name === '_apply' ? 'reflect/apply' : null });
   check(`${ label }: target`, pairing.callee.name, 'f');
   check(`${ label }: supplied argument`, pairing.args[0] === supplied, true);
   check(`${ label }: shadow or reassignment removes authority`,
-    callPairing(call, prog.node, { getBindingEntry: () => null }).callee.name, '_apply');
+    callPairing(call, prog.node, { getCalleeEntry: () => null }).callee.name, '_apply');
 });
 
 // --- the container slot an ESCAPE names: the whole key path, not the hop above it ---
@@ -3204,6 +3246,26 @@ for (const [name, setup, call, expected] of [
   if (expected) check(`${ label }: preserves call`, inlineCallHasObservableEffects({
     callNode: unwrapRuntimeExpr(value.node), scope: value.scope, adapter, path: value,
   }), true);
+});
+
+// A static call guards its method binding; an earlier optional member still guards the receiver.
+for (const [name, expression, mutated, expected] of [
+  ['from call', '(held = globalThis.window)?.self.Array.from?.([1])', [], true],
+  ['of call', '(held = globalThis.window)?.self.Array.of?.(1)', [], true],
+  ['computed call', '(held = globalThis.window)?.self.Array["from"]?.([1])', [], true],
+  ['missing method', '(held = globalThis.window)?.self.Array.custom?.([1])', [], false],
+  ['mutated method', '(held = globalThis.window)?.self.Array.from?.([1])', ['Array.from'], false],
+  ['receiver guard', '(held = globalThis.window)?.Array', [], false],
+]) runBoth(`optional static callee/${ name }`, `let held; const result = ${ expression };`, (parser, program, label) => {
+  const value = parser.pickPath(program, 'VariableDeclarator', p => p.node.id.name === 'result').get('init');
+  const adapter = parser.name === 'babel' ? createBabelAdapter({ method: 'usage-pure' }) : createEstreeAdapter({ method: 'usage-pure' });
+  check(label, isPolyfillableOptional({
+    node: unwrapRuntimeExpr(value.node), scope: value.scope, adapter, path: value, mutatedSet: new Set(mutated),
+    resolve(meta) {
+      if (meta.kind === 'global' && ['globalThis', 'self', 'Array'].includes(meta.name)) return { kind: 'global' };
+      return meta.object === 'Array' && ['from', 'of'].includes(meta.key) ? { kind: 'static' } : null;
+    },
+  }), expected);
 });
 
 finish();
