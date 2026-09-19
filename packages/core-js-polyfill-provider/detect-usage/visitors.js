@@ -41,6 +41,7 @@ export function createUsageHandlerCore({
   // must polyfill - otherwise `Map` ReferenceError's in engines where the native is missing
   const skipUpdateTargets = method === 'usage-pure';
   let handledObjects = new WeakSet();
+  let proxySegments = method === 'usage-global' ? new WeakMap() : null;
 
   // the identifier tail every host runs after its own referenced-position gates
   function emitGlobalUsage(path) {
@@ -85,8 +86,18 @@ export function createUsageHandlerCore({
 
   function emitMemberUsage(path) {
     const meta = handleMemberExpressionNode({
-      node: path.node, scope: path.scope, adapter, handledObjects, suppressProxyGlobals, path, resolveMeta, isEntryAvailable,
-      resolvePure, keptProxyHops, resolveStaticKey,
+      node: path.node,
+      scope: path.scope,
+      adapter,
+      handledObjects,
+      suppressProxyGlobals,
+      path,
+      resolveMeta,
+      isEntryAvailable,
+      resolvePure,
+      keptProxyHops,
+      resolveStaticKey,
+      proxySegments,
     });
     if (meta) {
       onUsage(meta, path);
@@ -193,6 +204,7 @@ export function createUsageHandlerCore({
   // per-file state drop for the host that reuses one visitor object across files (babel)
   function reset() {
     handledObjects = new WeakSet();
+    proxySegments = method === 'usage-global' ? new WeakMap() : null;
   }
 
   return {

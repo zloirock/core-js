@@ -103,6 +103,7 @@ import {
   pureImportEntryOfProgram,
   pureImportSourceEntry,
   reassignmentDominatesUsage,
+  runtimeChainRoot,
   reassignmentValueNodes,
   referencesArgumentsObject,
   requireCallSource,
@@ -611,6 +612,7 @@ function collectHeldReceivers({
   const opaqueFamilies = new WeakMap();
   const returnReads = new WeakMap();
   const retainedReads = new WeakMap();
+  const receiverRoots = new WeakMap();
   // Candidate queries share the escape walk without publishing escape or position facts.
   // Iteration keys are provenance records; receiver keys are source callees. Calls to one
   // callee share its return graph, so neither that graph nor its completeness is scanned per use.
@@ -643,7 +645,8 @@ function collectHeldReceivers({
   // The same provenance answers pure's retained-static obligation and global's per-key union.
   // Its private walk must not turn a speculative candidate query into an actual container escape.
   function iteratedFamilies(receiver) {
-    const root = peelReceiverSequenceTail(memberChainKeys(receiver).root);
+    // This callback also runs after pure rewrites; only the census loop below uses the index.
+    const root = peelReceiverSequenceTail(runtimeChainRoot(receiver));
     const families = new Set();
     const values = isMemberAccessNode(receiver)
       ? chainSlotValues(aliasInit, receiver, heldState, WRITTEN_SLOT_VALUES.get(programNode)).values
@@ -657,12 +660,11 @@ function collectHeldReceivers({
   for (const [receiver, slot, readKey, opaqueOnly] of memberReceivers) {
     // the alias question asks what the root's VALUE names: for a sequence that is its tail
     // (`(0, realm).Map` reads through `realm`); the prefix is the emitters' to place
-    const chain = memberChainKeys(receiver);
-    const root = peelReceiverSequenceTail(chain.root);
+    const root = peelReceiverSequenceTail(runtimeChainRoot(receiver, receiverRoots));
     // A local call is not an escape by itself. An unresolved static read still needs the
     // returned namespace when the retained-body canon cannot enumerate every return candidate.
     // Otherwise each flavor answers the read through its per-key claim.
-    const callValues = !chain.keys.length && (readKey === null || hasStaticDefinitionKey(readKey))
+    const callValues = !isMemberAccessNode(unwrapRuntimeExpr(receiver)) && (readKey === null || hasStaticDefinitionKey(readKey))
       ? chainRootValues(aliasInit, root, new Set(), heldState.roots) : [];
     // Root answers share a source array per binding. Repeated reads of the same key must not
     // rescan every caller's argument; different keys still carry different family obligations.
@@ -1716,7 +1718,7 @@ export function escapedCtorReferencesReducer() {
         fileSlotWrite(target, { opaqueSource: node.right }, frame?.scopes ?? []);
       }
       for (const target of targets) {
-        const { root } = memberChainKeys(target);
+        const root = runtimeChainRoot(target);
         if (root?.type === 'Identifier') writtenCallOwners.add(root.name);
       }
     }
@@ -2443,7 +2445,7 @@ function parameterStaticsCoverArgument(callee, index, argument, scopeFacts) {
     const key = staticMemberKeyName(member);
     const receivers = aliasedValues(scopeFacts.aliases, peelIifeReturnTarget(installedWriteValue(member.object)), new Set());
     const receiver = receivers.length === 1 ? receivers[0] : null;
-    const root = peelIifeReturnTarget(memberChainKeys(receiver).root);
+    const root = peelIifeReturnTarget(runtimeChainRoot(receiver));
     if (root?.type !== 'Identifier'
       || scopeFacts.declarations.declares(root.name, scopeFacts.referenceScopes.get(root) ?? [])) return null;
     const object = receiver.type === 'Identifier' ? receiver.name : globalProxyMemberName({ node: receiver });

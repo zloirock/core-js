@@ -370,3 +370,10 @@ QUnit.test('container alias: a later opaque source preserves a captured member w
   assert.same(run(() => ({})), 'custom member');
 });
 /* eslint-enable no-useless-assignment -- end of the source forms above */
+
+QUnit.test('complex: deep proxy collapse preserves a prefix claim once', assert => {
+  const effects = [];
+  const result = (effects.push(Array.of('prefix')[0]), globalThis).self.self.self.self.self.self.self.self.Array.from([7]);
+  assert.deepEqual(result, [7]);
+  assert.deepEqual(effects, ['prefix']);
+});
