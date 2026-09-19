@@ -2200,7 +2200,6 @@ QUnit.test('destructuring: defaulted binding generic dispatch', assert => {
 QUnit.test('destructuring: literal presence and accessor fold', assert => {
   const [d = 0] = ['hi'];
   assert.same(d.at(-1), 'i');
-  // eslint-disable-next-line es/no-accessor-properties -- the accessor-supplied member IS the shape under test
   const { g = 's' } = { get g() { return [9]; } };
   assert.same(g.at(0), 9);
 });
@@ -2793,7 +2792,6 @@ QUnit.test('destructuring: nested partial consume keeps the hop-key effect once'
 QUnit.test('destructuring: SE-key off a member receiver memoizes - getter and key effect fire once', assert => {
   const eff = [];
   const holder = {
-    // eslint-disable-next-line es/no-accessor-properties -- the getter receiver IS the case under test
     get p() {
       eff.push('get');
       return [1, [2]];
@@ -2810,7 +2808,6 @@ QUnit.test('destructuring: SE-key off a member receiver memoizes - getter and ke
 QUnit.test('destructuring: SE-key member memo keeps sibling-init order in a multi-declarator host', assert => {
   const eff = [];
   const holder = {
-    // eslint-disable-next-line es/no-accessor-properties -- the getter receiver IS the case under test
     get p() {
       eff.push('get');
       return [1, [2]];
@@ -3692,9 +3689,7 @@ QUnit.test('destructure: a replaced container slot reads the installed construct
   assert.same(viaHeld([9], value => value).get(9)[0], 9);
   const effects = [];
   const accessor = {
-    // eslint-disable-next-line es/no-accessor-properties -- the getter/setter pair is the source form under test
     get k() { effects.push('get'); return Object; },
-    // eslint-disable-next-line es/no-accessor-properties -- the setter preserves the getter's returned constructor
     set k(value) { effects.push('set'); },
   };
   accessor.k = Map;
@@ -6251,7 +6246,6 @@ QUnit.test('destructuring: nested twin beside siblings of its level', assert => 
   assert.deepEqual(log, ['y', 'junk', 'junk', 'y']);
 });
 
-/* eslint-disable es/no-accessor-properties -- ordinary getters expose the order of nested extraction */
 QUnit.test('destructuring: a nested read stays between earlier and later user getters', assert => {
   const log = [];
   const source = {
@@ -6264,7 +6258,6 @@ QUnit.test('destructuring: a nested read stays between earlier and later user ge
   assert.same(at.call([4, 8], -1), 8);
   assert.deepEqual([before, after], [1, 2]);
 });
-/* eslint-enable es/no-accessor-properties -- end of nested extraction order */
 
 QUnit.test('destructuring: retained static assignments keep key and binding order', assert => {
   const log = [];
@@ -6628,8 +6621,6 @@ QUnit.test('destructuring computed key precedes the getter throw and its default
   assert.deepEqual(log, ['key-throw']);
 });
 
-/* eslint-disable es/no-accessor-properties -- the getter body and read order are under test */
-
 QUnit.test('destructuring: retained getter locals precede the guarded assignment', assert => {
   const order = [];
   let Value = 'before';
@@ -6666,9 +6657,6 @@ QUnit.test('destructuring: getter locals keep their own returned value', assert 
   assert.same(new Value().value, 41, 'a getter-local realm is not the global object');
   assert.deepEqual(order, ['realm']);
 });
-/* eslint-enable es/no-accessor-properties -- end of the source forms above */
-
-/* eslint-disable es/no-accessor-properties -- getter reads are the behavior under test */
 
 QUnit.test('destructuring: effectful getters retain their constructor slots', assert => {
   const order = [];
@@ -6737,9 +6725,6 @@ QUnit.test('destructuring: getter slot binding stays between sibling reads', ass
   assert.same(leading, 1);
   assert.same(trailing, 2);
 });
-/* eslint-enable es/no-accessor-properties -- end of the source forms above */
-
-/* eslint-disable es/no-accessor-properties -- getter order is the source behavior under test */
 
 export function readChangedContainer(change) {
   const box = { value: Object };
@@ -6960,9 +6945,7 @@ for (const mode of ['value', 'null', 'throw']) {
     }
   });
 }
-/* eslint-enable es/no-accessor-properties -- end of the source forms above */
 
-/* eslint-disable es/no-accessor-properties -- getter order is the source behavior under test */
 QUnit.test('destructuring: nested assignment reads its native slot before rest', assert => {
   const log = [];
   let at;
@@ -6977,9 +6960,6 @@ QUnit.test('destructuring: nested assignment reads its native slot before rest',
   assert.same(returned, source);
   assert.deepEqual(log, ['w', typeof restArrayAt]);
 });
-/* eslint-enable es/no-accessor-properties -- end of the source forms above */
-
-/* eslint-disable es/no-accessor-properties -- getter order and single evaluation are the source forms under test */
 
 // Standalone post receives Babel's lowered destructuring instead of these source patterns.
 
@@ -7173,7 +7153,6 @@ testUnlessDetectLowered('destructuring: inner siblings keep the computed key bef
   assert.throws(() => captureBesideInner({ q: 1, p: null }, () => events.push('key')), TypeError);
   assert.deepEqual(events, []);
 });
-/* eslint-enable es/no-accessor-properties -- end of the source forms above */
 
 // A constructor's instance slot is polyfilled whether its receiver is spelled bare or through
 // the realm. Wrapped constructors do not promise a particular name, only the string API.
@@ -7231,7 +7210,6 @@ QUnit.test('Retained sibling capture stops at a throwing initializer', assert =>
   assert.deepEqual(log, ['source']);
 });
 
-/* eslint-disable es/no-accessor-properties -- user getter order is the behavior under test */
 QUnit.test('Guarded sibling capture preserves user getters and queued claims', assert => {
   let held;
   const log = [];
@@ -7282,7 +7260,6 @@ QUnit.test('Guarded sibling capture stops at a throwing user getter', assert => 
   assert.same(held, source);
   assert.deepEqual(log, ['source', 'Array', 'Object']);
 });
-/* eslint-enable es/no-accessor-properties -- end of getter capture cases */
 
 QUnit.test('Destructuring a wrapped method preserves calls on another receiver', assert => {
   const holder = { rows: ['a', 'b'], read() { return this.rows.includes('a,b'); } };
@@ -7948,11 +7925,8 @@ QUnit.test('destructuring: computed default and rest capture a getter once', ass
   // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- own rest property on this array
   leaf.extra = 7;
   const source = {
-    // eslint-disable-next-line es/no-accessor-properties -- observable extraction order
     get before() { events.push('before'); return 1; },
-    // eslint-disable-next-line es/no-accessor-properties -- observable extraction order
     get data() { events.push('getter'); return leaf; },
-    // eslint-disable-next-line es/no-accessor-properties -- observable extraction order
     get after() { events.push('after'); return 2; },
   };
   function fallback() {
@@ -7996,12 +7970,10 @@ QUnit.test('destructuring: a positional slot renames only where no later slot re
   const events = [];
   function mk() {
     return {
-      // eslint-disable-next-line es/no-accessor-properties -- observable read order
       get y() { events.push('y'); return [7, 8]; },
     };
   }
   const box = {
-    // eslint-disable-next-line es/no-accessor-properties -- observable read order
     get z() { events.push('z'); return 2; },
   };
   const pair = [mk(), box];
@@ -8229,12 +8201,10 @@ QUnit.test('destructuring: a wrapper literal with a computed element is captured
   }
   function mk() {
     return {
-      // eslint-disable-next-line es/no-accessor-properties -- observable read order
       get y() { events.push('y'); return [7, 8]; },
     };
   }
   const box = {
-    // eslint-disable-next-line es/no-accessor-properties -- observable read order
     get z() { events.push('z'); return 2; },
   };
   const [{ Array: { prototype: { at: viaCall } } }, tail] = [realm(), eff('t')];

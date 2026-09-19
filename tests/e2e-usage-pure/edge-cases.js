@@ -392,13 +392,13 @@ QUnit.test('flow: anonymous object literal in array, this.X access', assert => {
 });
 
 QUnit.test('flow: this.X through getter resolves at runtime', assert => {
-  /* eslint-disable es/no-accessor-properties, no-underscore-dangle -- getter access pattern */
+  /* eslint-disable no-underscore-dangle -- getter access pattern */
   const o = {
     _arr: [10, 20, 30],
     get arr() { return this._arr; },
     first() { return this.arr.at(0); },
   };
-  /* eslint-enable es/no-accessor-properties, no-underscore-dangle -- end */
+  /* eslint-enable no-underscore-dangle -- end */
   assert.same(o.first(), 10);
 });
 
