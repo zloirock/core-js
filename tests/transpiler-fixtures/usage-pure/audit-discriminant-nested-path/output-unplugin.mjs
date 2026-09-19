@@ -16,6 +16,7 @@ function gn(u: U) {
 	}
 }
 
+// switch over a nested discriminant narrows its cases
 function gs(u: U) {
 	var _ref2;
 
@@ -34,6 +35,7 @@ function go(u: U) {
 	}
 }
 
+// deeper chains walk hop by hop
 type D = 
 	{ a: { b: { c: 'x' } }; xs: number[] } |
 	{ a: { b: { c: 'y' } }; xs: string };

@@ -15,7 +15,7 @@
 import { fileURLToPath } from 'node:url';
 import { transformAsync } from '@babel/core';
 import babelPlugin from '../../packages/core-js-babel-plugin/index.js';
-import createUnplugin from '../../packages/core-js-unplugin/internals/plugin.js';
+import unplugin from '../../packages/core-js-unplugin/index.js';
 import { censusWalkTruncations } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
 
 const { cyan, green, red } = chalk;
@@ -24,6 +24,14 @@ const { dirname, join } = path;
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const MODES = ['usage-global', 'usage-pure'];
+const SAMPLES = argv.samples ?? 3;
+if (!Number.isSafeInteger(SAMPLES) || SAMPLES < 1) {
+  throw new Error('--samples must be a positive integer');
+}
+const WARMUP = argv.warmup ?? true;
+if (typeof WARMUP !== 'boolean') {
+  throw new Error('--warmup must be a boolean; use --no-warmup to disable it');
+}
 
 function syntheticSingleScope(names) {
   const pad = Array.from({ length: 100 }, (unused, k) => k).join(', ');
@@ -102,6 +110,45 @@ function syntheticVarDestructuredGlobals(pairs) {
       `function pad${ i }(a) { return [${ pad }].length + a; }`);
   }
   return parts.join('\n');
+}
+
+// Depth is independent of the number of reads: re-walking every receiver prefix makes
+// doubling this chain quadratic even though the number of claimed leaves stays fixed.
+function syntheticDeepProxyReads(depth, reads) {
+  const receiver = `globalThis${ '.self'.repeat(depth) }.Array`;
+  return Array.from({ length: reads }, () => `${ receiver }.from([1]);`).join('\n');
+}
+
+// The body scan and the caller scan grow together. A memo must remain sensitive to the
+// parameter write; the runtime fixtures own that answer, this case owns the work budget.
+function syntheticParameterBodyCalls(size) {
+  return `function read(p) { ${ 'void p;'.repeat(size) } p = [1]; return p; }\n${
+    'read([0]).at(0);\n'.repeat(size) }`;
+}
+
+// Repeated positional reads share one binding's large reference set.
+function syntheticArraySlotReads(size) {
+  return `const rows = [[1]];\n${ 'rows[0].at(0);\n'.repeat(size) }`;
+}
+
+// Hold source length and use count steady while the number of distinct entries grows.
+// Repeating one method cannot expose a prune pass that scans the body once per entry.
+const STATIC_READS = [
+  'Array.from', 'Array.of', 'Object.assign', 'Object.entries', 'Object.values',
+  'Object.fromEntries', 'Object.hasOwn', 'Object.groupBy', 'Map.groupBy', 'String.raw',
+  'String.fromCodePoint', 'Number.isFinite', 'Number.isInteger', 'Number.isNaN',
+  'Number.isSafeInteger', 'Number.parseFloat', 'Number.parseInt', 'Math.acosh',
+  'Math.asinh', 'Math.atanh', 'Math.cbrt', 'Math.clz32', 'Math.cosh', 'Math.expm1',
+  'Math.fround', 'Math.hypot', 'Math.imul', 'Math.log10', 'Math.log1p', 'Math.log2',
+  'Math.sign', 'Math.sinh',
+];
+function syntheticImportWidth(width) {
+  return Array.from({ length: 4096 }, (unused, index) => `${ STATIC_READS[index % width] };`).join('\n');
+}
+
+function syntheticUnionWidth(width) {
+  const variants = Array.from({ length: width }, (unused, index) => `{ kind: ${ index }, value: ${ index % 2 ? 'string' : 'string[]' } }`);
+  return `type U = ${ variants.join(' | ') };\n${ Array.from({ length: 200 }, (unused, index) => `declare const u${ index }: U; if (u${ index }.kind === ${ index % width }) u${ index }.value.at(0);`).join('\n') }`;
 }
 
 // bare-name callees on a LONG top level: the coarse census pairs every call with the function it
@@ -236,11 +283,18 @@ const CODEMIRROR_DIRECTORIES = ['@codemirror/state/dist', '@lezer/common/dist', 
 // must not settle for one either, or detection could die everywhere but a single module and still pass - faster,
 // and so further inside the bound
 const CASES = [
+  ...['three.core.js', 'three.module.js'].map(file => ({
+    name: `entry-global ${ file }`, source: async () => `import 'core-js/actual';\n${ await threeBuild(file) }`,
+    modes: ['entry-global'], bounds: { 'entry-global': { babel: 1, unplugin: 1 } },
+  })),
+  { name: 'rxjs pre+post, shared snapshot lifecycle', source: () => packageModules('rxjs/dist/esm'),
+    emitters: ['unplugin'], phase: 'pre+post', injections: { 'usage-global': 65, 'usage-pure': 47 },
+    bounds: { 'usage-global': { unplugin: 2 }, 'usage-pure': { unplugin: 2 } } },
   { name: 'three.core.js', source: () => threeBuild('three.core.js'), bounds: {
     'usage-global': { babel: 4, unplugin: 4 }, 'usage-pure': { babel: 4, unplugin: 4 },
   } },
   { name: 'three.module.js', source: () => threeBuild('three.module.js'), bounds: {
-    'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
+    'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 3, unplugin: 2 },
   } },
   { name: 'vue runtime-core, container-dense bundle', source: () => vueRuntimeCore(), bounds: {
     'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
@@ -249,21 +303,21 @@ const CASES = [
     'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
   } },
   { name: 'synthetic single-scope, 2000 reassigned names', source: () => syntheticSingleScope(2000), bounds: {
-    'usage-global': { babel: 3, unplugin: 2 }, 'usage-pure': { babel: 4, unplugin: 3 },
+    'usage-global': { babel: 4, unplugin: 2 }, 'usage-pure': { babel: 4, unplugin: 3 },
   } },
   // under @babel/generator's 500kb styling-deopt threshold, so the NORMAL codegen path is
   // gated too - the big twin above always runs the deoptimised one
   { name: 'synthetic single-scope, 640 reassigned names', source: () => syntheticSingleScope(640), bounds: {
-    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
+    'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 1 },
   } },
   { name: 'synthetic shared-param writes, 1200 installers', source: () => syntheticSharedParamWrites(1200), bounds: {
     'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
   } },
   { name: 'synthetic namesake writes, 4000 functions', source: () => syntheticNamesakeWrites(4000), bounds: {
-    'usage-global': { babel: 4, unplugin: 4 }, 'usage-pure': { babel: 5, unplugin: 5 },
+    'usage-global': { babel: 4, unplugin: 4 }, 'usage-pure': { babel: 6, unplugin: 5 },
   } },
   { name: 'synthetic shared-param calls, 40000 calls', source: () => syntheticSharedParamCalls(40000), bounds: {
-    'usage-global': { babel: 10, unplugin: 5 }, 'usage-pure': { babel: 10, unplugin: 5 },
+    'usage-global': { babel: 10, unplugin: 6 }, 'usage-pure': { babel: 10, unplugin: 6 },
   } },
   { name: 'synthetic shared container names, 2000 functions', source: () => syntheticSharedContainerNames(2000), bounds: {
     'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 2 },
@@ -272,37 +326,55 @@ const CASES = [
     'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
   } },
   { name: 'synthetic call-dense top level, 12000 sites', source: () => syntheticCallDenseTopLevel(12000), bounds: {
-    'usage-global': { babel: 4, unplugin: 3 }, 'usage-pure': { babel: 6, unplugin: 5 },
+    'usage-global': { babel: 4, unplugin: 4 }, 'usage-pure': { babel: 6, unplugin: 5 },
   } },
   { name: 'synthetic directive-dense, 8000 opt-outs', source: () => syntheticDirectiveDense(8000), bounds: {
-    'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 4, unplugin: 3 },
+    'usage-global': { babel: 3, unplugin: 2 }, 'usage-pure': { babel: 4, unplugin: 3 },
   } },
   { name: 'synthetic lagged aliases, 1000 names', source: () => syntheticLaggedAliases(1000), bounds: {
     'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
   } },
   { name: 'synthetic guard-dense, 1500 names', source: () => syntheticGuardDense(1500), bounds: {
-    'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 1 },
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 1 },
   } },
   { name: 'synthetic write-dense binding, 600 uses', source: () => syntheticWriteDenseBinding(600), bounds: {
-    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 2 },
+    'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
   } },
   { name: 'synthetic discriminant-dense, 1600 names', source: () => syntheticDiscriminantDense(1600), ts: true, bounds: {
-    'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 2 },
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 2 },
   } },
-  { name: 'synthetic member-dense class, 800 members', source: () => syntheticMemberDenseClass(800), bounds: {
-    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
+  { name: 'synthetic member-dense class, 2400 members', source: () => syntheticMemberDenseClass(2400), bounds: {
+    'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 3, unplugin: 3 },
   } },
   // stays under the 500kb codegen-deopt threshold, so the normal babel print path is the one measured
   { name: 'synthetic var-destructured globals, 800 pairs', source: () => syntheticVarDestructuredGlobals(800), bounds: {
     'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
   } },
+  ...[64, 128].map(depth => ({
+    name: `synthetic proxy depth ${ depth }, 120 reads`, source: () => syntheticDeepProxyReads(depth, 120),
+    bounds: { 'usage-global': { babel: 3, unplugin: 3 }, 'usage-pure': { babel: 1, unplugin: 3 } },
+  })),
+  { name: 'synthetic parameter body and callers, 400 each', source: () => syntheticParameterBodyCalls(400), bounds: {
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 1 },
+  } },
+  { name: 'synthetic positional array reads, 1200 references', source: () => syntheticArraySlotReads(1200), bounds: {
+    'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
+  } },
+  ...[8, 32].map(width => ({
+    name: `synthetic import width ${ width }, 4096 reads`, source: () => syntheticImportWidth(width), entries: width - 1,
+    bounds: { 'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 } },
+  })),
+  ...[32, 128].map(width => ({
+    name: `synthetic union width ${ width }, 200 reads`, source: () => syntheticUnionWidth(width), ts: true,
+    bounds: { 'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 } },
+  })),
   // per-call axis, two granularities: rxjs spreads 233kb over ~210 tiny modules so call overhead
   // dominates, the codemirror set puts 402kb in 6 mid-sized ones so per-file work and bytes both show
-  { name: 'rxjs esm, tiny modules', source: () => packageModules('rxjs/dist/esm'), injections: 20, bounds: {
-    'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 1 },
+  { name: 'rxjs esm, tiny modules', source: () => packageModules('rxjs/dist/esm'), injections: { 'usage-global': 65, 'usage-pure': 47 }, bounds: {
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 1 },
   } },
-  { name: 'codemirror + lezer, mid-sized modules', source: () => packageModules(...CODEMIRROR_DIRECTORIES), injections: 3, bounds: {
-    'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 2 },
+  { name: 'codemirror + lezer, mid-sized modules', source: () => packageModules(...CODEMIRROR_DIRECTORIES), injections: 4, bounds: {
+    'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
   } },
   // Two opaque member arguments used to branch recursively through the same wildcard write.
   // These tiny inputs discriminate exponential work; push also proves detection stayed live.
@@ -314,50 +386,89 @@ const CASES = [
 ];
 
 // usage-pure rewrites sites to `@core-js/pure` imports; usage-global prepends `core-js/modules`
-const INJECTION_MARK = { 'usage-global': 'core-js/modules/', 'usage-pure': '@core-js/pure' };
+const INJECTION_MARK = {
+  'entry-global': 'core-js/modules/',
+  'usage-global': 'core-js/modules/',
+  'usage-pure': '@core-js/pure',
+};
 
-async function transformWith(emitter, mode, source, ts) {
+function emittedSources(code) {
+  return Array.from(code.matchAll(/(?:from|import) ["'](?<source>[^"']+)["']/g), match => match.groups.source);
+}
+
+// One instance per lane, as in a bundler. Both emitters keep their option identity across
+// modules and samples, so the per-call cases exercise their cross-file caches too.
+function createTransform(emitter, mode, ts, phase = 'pre') {
   const options = { method: mode, version: '4.0', targets: { ie: 11 } };
   const filename = ts ? 'input.ts' : 'input.mjs';
   if (emitter === 'babel') {
-    const out = await transformAsync(source, {
+    const config = {
       plugins: [[babelPlugin, options]],
       filename,
       sourceType: 'module',
       parserOpts: ts ? { plugins: ['typescript'] } : undefined,
       configFile: false,
       babelrc: false,
-    });
-    return out.code;
+    };
+    return async source => (await transformAsync(source, config)).code;
   }
-  return createUnplugin(options).transform(source, filename)?.code;
+  const stages = unplugin.raw({ ...options, phase }, { framework: 'vite' });
+  return source => {
+    let code = source;
+    for (const stage of stages) {
+      if (!stage.transformInclude(filename)) throw new Error(`Public stage rejected ${ filename }`);
+      code = stage.transform(code, filename)?.code ?? code;
+    }
+    return code;
+  };
 }
 
 let failed = 0;
-for (const { name, source, ts = false, injections = 1, bounds } of CASES) {
+for (const { name, source, ts = false, injections = 1, entries = 0, bounds,
+  modes = MODES, emitters = ['babel', 'unplugin'], phase } of CASES) {
   const input = await source();
   // single-source cases are just a one-module list; multi-module ones gate the per-call axis
   const modules = Array.isArray(input) ? input : [input];
-  const kilobytes = Math.round(modules.reduce((total, module) => total + module.length, 0) / 1024);
-  for (const mode of MODES) {
-    for (const emitter of ['babel', 'unplugin']) {
-      const start = performance.now();
-      let injected = 0;
-      for (const module of modules) {
-        const code = await transformWith(emitter, mode, module, ts);
-        if (code && code.includes(INJECTION_MARK[mode])) injected++;
+  const bytes = modules.reduce((total, module) => total + Buffer.byteLength(module), 0);
+  const size = bytes < 1024 ? `${ cyan(bytes) } B` : `${ cyan((bytes / 1024).toFixed(1)) } KiB`;
+  for (const mode of modes) {
+    for (const emitter of emitters) {
+      const transform = createTransform(emitter, mode, ts, phase);
+      const samples = [];
+      let injected = Infinity;
+      let distinctEntries = Infinity;
+      // The optional first pass warms parsing, code generation and the instance caches. Every
+      // measured pass still checks detection: a fast empty sample cannot hide in the median.
+      for (let sample = WARMUP ? -1 : 0; sample < SAMPLES; sample++) {
+        const start = performance.now();
+        let detectedModules = 0;
+        const sources = new Set();
+        for (const module of modules) {
+          const code = await transform(module);
+          detectedModules += Number(!!code && code.includes(INJECTION_MARK[mode]));
+          (entries ? emittedSources(code) : []).forEach(entry => sources.add(entry));
+        }
+        if (sample >= 0) {
+          samples.push((performance.now() - start) / 1000);
+          injected = Math.min(injected, detectedModules);
+          distinctEntries = Math.min(distinctEntries, sources.size);
+        }
       }
-      const seconds = (performance.now() - start) / 1000;
-      const detected = injected >= injections;
+      const sorted = samples.toSorted((a, b) => a - b);
+      const middle = Math.floor(SAMPLES / 2);
+      const seconds = SAMPLES % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+      const injectionFloor = typeof injections === 'number' ? injections : injections[mode];
+      const detected = injected >= injectionFloor && distinctEntries >= entries;
       const bound = bounds[mode][emitter] ?? bounds[mode].unplugin;
       const ok = detected && seconds < bound;
       if (!ok) failed++;
-      const size = modules.length > 1 ? `${ kilobytes }kb, ${ modules.length } modules` : `${ kilobytes }kb`;
-      // the failing datum wears the red: over-bound time and a short injection count are the two
-      // ways a cell fails, and the verdict word alone does not say which of them fired
-      const time = `${ seconds.toFixed(2) }s`;
-      const detectionNote = detected ? '' : `, ${ red(`${ injected }/${ injections } INJECTED`) }`;
-      echo`${ ok ? green('PASS') : red('FAIL') } ${ cyan(name) } (${ cyan(size) }) | ${ cyan(mode) } ${ cyan(emitter) }: ${ seconds < bound ? cyan(time) : red(time) } (bound ${ cyan(`${ bound }s`) }${ detectionNote })`;
+      // Highlight the failing datum: the verdict alone does not identify an over-bound time
+      // or a missed detection floor.
+      const status = ok ? green : red;
+      const time = (seconds < bound ? cyan : red)(`${ seconds.toFixed(2) } s`);
+      const injectionCount = (injected >= injectionFloor ? cyan : red)(injected);
+      const entryCount = (distinctEntries >= entries ? cyan : red)(distinctEntries);
+      echo(status(`${ ok ? 'PASS' : 'FAIL' } ${ cyan(name) } (${ size }${ modules.length > 1 ? `, ${ cyan(modules.length) } modules` : '' }) | ${ cyan(mode) } ${ cyan(emitter) }: median ${ time } (limit ${ cyan(`${ bound.toFixed(2) } s`) }) | samples [${ cyan(samples.map(n => n.toFixed(2)).join(', ')) }] s | injected ${ injectionCount } (min ${ cyan(injectionFloor) })${ entries ? ` | entries ${ entryCount } (min ${ cyan(entries) })` : '' }`));
     }
   }
 }

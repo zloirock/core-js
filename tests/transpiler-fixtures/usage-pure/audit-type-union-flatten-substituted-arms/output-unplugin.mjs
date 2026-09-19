@@ -24,6 +24,7 @@ export function referencesDisagreeOnTypeArgs() {
 	return "";
 }
 
+// the two references agree, so the proven arm is an array on every path and the narrow holds
 export function referencesAgreeOnTypeArgs() {
 	if (agreeing.kind === "a") {
 		var _ref2;

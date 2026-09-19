@@ -910,7 +910,7 @@ export function createPatternBindings({
     const shadowCheck = {
       nameIsShadowed: name => Boolean(getScopeBinding(scope, name, anchor)),
       staticIsMutated,
-      getBindingEntry: getBindingEntry && (name => getBindingEntry(scope, name, anchor)),
+      getCalleeEntry: getBindingEntry && (callee => callee?.type === 'Identifier' ? getBindingEntry(scope, callee.name, anchor) : null),
     };
     for (let cur = refPath, hops = 0; hops <= 2; hops++) {
       // the same peel answers nothing at the top of the tree, and no host there ends the hop climb

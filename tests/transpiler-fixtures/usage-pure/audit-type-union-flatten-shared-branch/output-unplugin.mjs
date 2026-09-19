@@ -32,6 +32,7 @@ export function branchesShareOneUnionDecl() {
 	return "";
 }
 
+// the control: one declaration per branch, so nothing is re-reached either way
 export function branchesUseDistinctDecls() {
 	if (distinct.kind === "a") {
 		var _ref2;
