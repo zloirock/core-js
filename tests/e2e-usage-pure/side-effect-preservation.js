@@ -487,7 +487,6 @@ QUnit.test('SE-sequence nested fragment: prefix runs once, the ponyfill lands', 
 QUnit.test('literal receiver with member read: source getter fires once', assert => {
   let fires = 0;
   const holder = {
-    // eslint-disable-next-line es/no-accessor-properties -- the getter behind the member read IS the case under test
     get p() {
       fires++;
       return [1, [2]];
@@ -505,7 +504,6 @@ QUnit.test('literal receiver with member read: source getter fires once', assert
 QUnit.test('literal receiver with class static member read: getter fires once', assert => {
   let fires = 0;
   const holder = {
-    // eslint-disable-next-line es/no-accessor-properties -- the getter behind the static init IS the case under test
     get p() {
       fires++;
       return 1;
@@ -539,7 +537,6 @@ QUnit.test('shared memo: SE key and symbol pattern read the receiver once', asse
   let fires = 0;
   let keyEval = 0;
   const holder = {
-    // eslint-disable-next-line es/no-accessor-properties -- the getter behind the shared memo IS the case under test
     get p() {
       fires++;
       return [3, [4]];
@@ -557,7 +554,6 @@ QUnit.test('shared memo: SE key and symbol pattern read the receiver once', asse
 QUnit.test('literal receiver with member read: sole binding extracts, getter fires once', assert => {
   let fires = 0;
   const holder = {
-    // eslint-disable-next-line es/no-accessor-properties -- the getter behind the member read IS the case under test
     get p() {
       fires++;
       return [1, [2]];
@@ -852,7 +848,6 @@ QUnit.test('side effect: sequence-receiver prefix runs before an array-wrapped e
 QUnit.test('side effect: sequence-receiver prefix, receiver read, then key effect', assert => {
   const order = [];
   const box = {
-    // eslint-disable-next-line es/no-accessor-properties -- the accessor IS what makes the receiver read observable
     get list() {
       order.push('read');
       return [1, 2];
@@ -868,7 +863,6 @@ QUnit.test('side effect: sequence-receiver prefix, receiver read, then key effec
 QUnit.test('side effect: a two-element sequence-receiver prefix stays ahead of the receiver read', assert => {
   const order = [];
   const box = {
-    // eslint-disable-next-line es/no-accessor-properties -- the accessor IS what makes the receiver read observable
     get list() {
       order.push('read');
       return [1, 2];
@@ -886,7 +880,6 @@ QUnit.test('side effect: a two-element sequence-receiver prefix stays ahead of t
 QUnit.test('assignment host: a discarded getter receiver replays once and the descent is served', assert => {
   let fires = 0;
   const holder = {
-    // eslint-disable-next-line es/no-accessor-properties -- the getter behind the receiver read IS the case under test
     get realm() {
       fires++;
       return globalThis;
@@ -900,7 +893,6 @@ QUnit.test('assignment host: a discarded getter receiver replays once and the de
   // the declaration twin is the control: same descent, same single replay
   let declFires = 0;
   const twin = {
-    // eslint-disable-next-line es/no-accessor-properties -- the getter behind the receiver read IS the case under test
     get realm() {
       declFires++;
       return globalThis;
@@ -934,7 +926,6 @@ QUnit.test('side-effects: an inner default keeps the effect its own value carrie
 QUnit.test('side-effects: a getter receiver runs once when every prop is consumed', assert => {
   let reads = 0;
   const holder = {
-    // eslint-disable-next-line es/no-accessor-properties -- the accessor behind the receiver IS the case
     get realm() {
       reads++;
       return globalThis;
@@ -947,7 +938,6 @@ QUnit.test('side-effects: a getter receiver runs once when every prop is consume
   // the control: one claim beside a SURVIVING residual keeps the read where the source wrote it
   let soleReads = 0;
   const sole = {
-    // eslint-disable-next-line es/no-accessor-properties -- same receiver shape, one claim
     get realm() {
       soleReads++;
       return globalThis;
