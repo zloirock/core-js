@@ -56,6 +56,7 @@ function reportMismatch(label, babelImports, unpluginImports) {
 
 async function runEquivalence(label, source, pluginOptions, {
   parserPlugins = ['typescript'],
+  expectEmpty = false,
   // forwarded to babel's parser to let scenarios opt in to `createParenthesizedExpressions:true`
   // and other parse-time controls that the unplugin (oxc) doesn't have a switch for. oxc keeps
   // its native node shape regardless; the asymmetry IS the point - both walkers must agree
@@ -87,6 +88,8 @@ async function runEquivalence(label, source, pluginOptions, {
   } catch (error) {
     return fail(label, `unplugin threw: ${ error.message }`);
   }
+  if (expectEmpty) return !babelImports.length && !unpluginImports.length ? pass() : fail(label, 'expected no imports');
+  if (!babelImports.length && !unpluginImports.length) return fail(label, 'both emitters produced no imports');
   if (importsAgree(babelImports, unpluginImports)) return pass();
   reportMismatch(label, babelImports, unpluginImports);
 }
@@ -329,16 +332,16 @@ await runEquivalence('for-x write alias: cast body read',
 await runEquivalence('for-x write alias: cast head object',
   'const o = [1, 2];\nfor ((o as any).includes of fns) { o.includes(1); }', USAGE_GLOBAL_IE11);
 await runEquivalence('for-x write alias: paren body read - usage-pure flavor',
-  'const o = [1, 2];\nfor (o.at of fns) { (o).at(0); }', USAGE_PURE);
+  'const o = [1, 2];\nfor (o.at of fns) { (o).at(0); }', USAGE_PURE, { expectEmpty: true });
 await runEquivalence('for-x write alias: cast head object - usage-pure flavor',
-  'const o = [1, 2];\nfor ((o as any).includes of fns) { o.includes(1); }', USAGE_PURE);
+  'const o = [1, 2];\nfor ((o as any).includes of fns) { o.includes(1); }', USAGE_PURE, { expectEmpty: true });
 // optionality resolves the SAME written slot, and the parsers model it with different node
 // TYPES (OptionalMemberExpression vs ChainExpression-wrapped member) - a type-literal shape
 // compare desyncs the emitters here (babel injected es.array.at while unplugin skipped)
 await runEquivalence('for-x write alias: optional body read',
   'const o = [1, 2];\nfor (o.at of fns) { o?.at(0); }', USAGE_GLOBAL_IE11);
 await runEquivalence('for-x write alias: optional body read - usage-pure flavor',
-  'const o = [1, 2];\nfor (o.at of fns) { o?.at(0); }', USAGE_PURE);
+  'const o = [1, 2];\nfor (o.at of fns) { o?.at(0); }', USAGE_PURE, { expectEmpty: true });
 await runEquivalence('for-x write alias: optional non-aliased receiver still polyfills',
   'const a = [1];\nconst b = [2];\nfor (a.flat of fns) { b?.flat(); }', USAGE_PURE);
 
@@ -509,7 +512,12 @@ for (const init of ENUM_INITIALISERS) {
     ['a quoted member name', `enum E { "A" = ${ init } }\nconst v = E.A;\nv.at(0);`],
   ]) {
     for (const options of [USAGE_GLOBAL_IE11, USAGE_PURE]) {
-      await runEquivalence(`enum member kind: ${ init } -> ${ shape } [${ options.method }]`, source, options);
+      // A merged block starts at zero; numeric members cannot have an at method. Invalid
+      // TS initializers are deliberately admitted here to compare conservative parser behavior.
+      const numeric = ['1', '1 + 2', '-1', '(1 + 2)'].includes(init);
+      const expectEmpty = shape === 'bare opening a merged block' || numeric
+        || (init === '1n' && shape !== 'bare successor');
+      await runEquivalence(`enum member kind: ${ init } -> ${ shape } [${ options.method }]`, source, options, { expectEmpty });
     }
   }
 }

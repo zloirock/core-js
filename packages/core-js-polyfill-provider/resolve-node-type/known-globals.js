@@ -26,13 +26,21 @@
 //   resolveGlobalStaticReference(path)
 //   resolveKnownGlobalReference(path)
 import {
-  PRIMITIVES, PRIMITIVE_WRAPPERS, PROMISE_SYNONYMS, RESOLUTION_DIRECTIVES,
-  $Object, $Primitive, callArgumentPaths,
+  PRIMITIVES,
+  PRIMITIVE_WRAPPERS,
+  PROMISE_SYNONYMS,
+  RESOLUTION_DIRECTIVES,
+  $Object,
+  $Primitive,
+  callArgumentPaths,
 } from './base.js';
 import { isTypeReferenceNode, typeRefName } from './ast-shapes.js';
 import {
   callArgumentPathAt,
-  FUNCTION_LIKE_NODE_TYPES, getTypeArgs, peelTransparentWrapperPath, resolveCallArgumentCoords,
+  FUNCTION_LIKE_NODE_TYPES,
+  getTypeArgs,
+  peelTransparentWrapperPath,
+  resolveCallArgumentCoords,
   SKIPPABLE_WRAPPER_TYPES,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
 } from '../helpers/ast-patterns.js';
@@ -72,6 +80,10 @@ export function createKnownGlobals({
   resolveReturnType,
   resolveRuntimeExpression,
 }) {
+  // Registry membership needs no receiver type. Resolving an impossible property first
+  // recursively re-resolves every prefix of a deep member chain, even for a plain proxy.
+  const instancePropertyNames = new Set(Object.values(KNOWN_INSTANCE_PROPERTY_RETURN_TYPES).flatMap(Object.keys));
+
   // decode a return-type hint. object form: `type` is itself a string hint, optional
   // `element` / `resolved` inner hint, optional `nullable` - the spec return admits
   // undefined / null (`find` / `at` / `pop` / `exec` / ...), so the decoded type is
@@ -336,7 +348,8 @@ export function createKnownGlobals({
   }
 
   function resolveKnownPropertyReturnType(path) {
-    return resolveKnownInstanceMember(path, KNOWN_INSTANCE_PROPERTY_RETURN_TYPES);
+    return instancePropertyNames.has(resolveMemberPropertyName(path))
+      ? resolveKnownInstanceMember(path, KNOWN_INSTANCE_PROPERTY_RETURN_TYPES) : null;
   }
 
   // resolve type of a known global static member (e.g. Math.PI, Number.MAX_SAFE_INTEGER, Math.max)

@@ -562,7 +562,8 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
   // function body, unreachable from a parameter-default use (ReferenceError at call time for
   // a TS parameter-property default)
   function memoize(node, scope, anchorNode = node) {
-    if (isReusableReceiver(node)) return [t.cloneNode(node), t.cloneNode(node)];
+    // The first evaluation owns the source comments; a reread must not duplicate them.
+    if (isReusableReceiver(node)) return [t.cloneNode(node), t.removeComments(t.cloneNode(node))];
     const ref = generateRef(scope, anchorNode);
     const assign = t.assignmentExpression('=', t.cloneNode(ref), node);
     // register the synthetic write so a RE-VISIT of the memo body can follow the ref back to
@@ -2270,14 +2271,6 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     pendingKeptNavCollapses.length = 0;
   }
 
-  // a guard target that is PURE PROXY NAVIGATION over a chain-assign root: the memo must
-  // bind the ROOT (the assignment result - the one value that can be undefined), not the hop
-  // nav. memoizing the nav lets the natural rewrite self-collapse the memo RHS into an
-  // always-defined ponyfill (`(n = w, _self)`) - the guard then never fires (silent wrong
-  // value, worse than the sealed throw). the hops re-hang RAW off the ref and their `?.`
-  // folds into the root guard - the proxy-collapse assumption (`self` is a realm-local
-  // self-reference), the unplugin emitter's canon for the same shape. returns the check or null
-  // when the target is not this shape (caller falls back to the plain memoize)
   // symmetric with `normalizeOptionalChain`'s parent-walk: descend to the deepest-scanned
   // optional link (`chainStart`), remembering the step ABOVE it - the probe-yield fold's
   // landing slot - and whether the INITIAL receiver was TS-wrapped (`throughTS` signals
@@ -2285,7 +2278,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
   // on the two-step replace). transparent wrappers re-peel at every hop: a mid-chain `!`
   // between optional links would otherwise abort the chain detection, emit without the
   // null-check guard, and throw on null where native short-circuits the whole chain
-  function descendToOptionalChainStart(path) {
+  function descendToOptionalChainStart(path, skipOptional) {
     let chainStart = null;
     let current = path.get('object');
     let aboveChainStart = path;
@@ -2293,8 +2286,17 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     current = peelSkippableWrapperPath(current);
     while (isOptionalNode(current.node)) {
       if (current.node.optional) {
-        chainStart = current;
-        break;
+        // A static callee's binding is defined after substitution. Erase that call's
+        // guard and keep descending: an earlier receiver probe still guards the chain.
+        if (current.isOptionalCallExpression() && skipOptional?.(current.node, current.scope, current)) {
+          deoptionalizeNode(current);
+          const callee = peelSkippableWrapperPath(current.get('callee'));
+          if (callee.isOptionalMemberExpression() && callee.node.optional
+            && receiverCarriesLiveOptional(callee.node.object)) deoptionalizeNode(callee);
+        } else {
+          chainStart = current;
+          break;
+        }
       }
       aboveChainStart = current;
       const next = current.isOptionalMemberExpression() ? current.get('object') : current.get('callee');
@@ -2348,6 +2350,14 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       ? memoTarget : null;
   }
 
+  // a guard target that is PURE PROXY NAVIGATION over a chain-assign root: the memo must
+  // bind the ROOT (the assignment result - the one value that can be undefined), not the hop
+  // nav. memoizing the nav lets the natural rewrite self-collapse the memo RHS into an
+  // always-defined ponyfill (`(n = w, _self)`) - the guard then never fires (silent wrong
+  // value, worse than the sealed throw). the hops re-hang RAW off the ref and their `?.`
+  // folds into the root guard - the proxy-collapse assumption (`self` is a realm-local
+  // self-reference), the unplugin emitter's canon for the same shape. returns the check or null
+  // when the target is not this shape (caller falls back to the plain memoize)
   function memoizeProxyNavRoot(navNode, scope, ownerNode, anchorPath = null) {
     const adapter = getAdapter?.();
     if (!adapter || !scope) return null;
@@ -2476,7 +2486,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       return [memoCheck, memoRef, false];
     }
     if (!path.isOptionalMemberExpression()) return [null, node.object, false];
-    const descended = descendToOptionalChainStart(path);
+    const descended = descendToOptionalChainStart(path, skipOptional);
     const { chainStart, aboveChainStart, throughTS } = descended;
     if (!chainStart) return [null, node.object, throughTS];
     const key = chainStart.isOptionalMemberExpression() ? 'object' : 'callee';
@@ -2734,6 +2744,24 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     return { seMode, effectiveSE };
   }
 
+  // Keep consumed trivia after a surviving receiver, or on the replacement of a dropped one.
+  // Folded keys can contain comments below their root; collect the consumed subtrees once.
+  // Shared comment identity lets Babel suppress attachments also carried by surviving effects.
+  function inheritConsumedMemberComments(id, member, keepsReceiver = false) {
+    t.inheritLeadingComments(id, member);
+    t.inheritInnerComments(id, member);
+    const target = keepsReceiver && member.object || id;
+    const trailingComments = [];
+    for (const node of [keepsReceiver ? null : member.object, member.property]) {
+      if (node) t.traverseFast(node, part => {
+        trailingComments.push(...part.leadingComments || [], ...part.innerComments || [], ...part.trailingComments || []);
+      });
+    }
+    trailingComments.push(...member.trailingComments || []);
+    t.inheritTrailingComments(target, { trailingComments });
+    target.trailingComments?.sort((a, b) => a.start - b.start);
+  }
+
   // parenthesized optional member followed by a NON-optional outer call: `(arr?.includes)(1)`.
   // native semantics:
   //   - arr nullish: `(undefined)(1)` -> TypeError ("not a function") - chain ENDS at `?.`,
@@ -2751,6 +2779,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
   // optional outer call `(arr?.at)?.(0)` goes through the standard buildMethodCall path
   // since Reference Type preserves through parens and short-circuits properly on nullish
   function replaceInstanceLike({ path, id, skipOptional, sideEffects, receiverEffectCount }) {
+    inheritConsumedMemberComments(id, path.node, true);
     const { seMode, effectiveSE } = applyReceiverSeMode(path, sideEffects, receiverEffectCount);
     const { callerPath, parent, isCall, isParenLookupOnly } = classifyCallerContext(path);
     const [check, extracted, embed] = extractCheck(path, skipOptional);
@@ -2819,6 +2848,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
   }
 
   function replaceCallWithSimple(path, id, skipOptional, sideEffects, receiverEffectCount) {
+    inheritConsumedMemberComments(id, path.node, true);
     // peel TS wrappers so the call (and not its `as X` / `!` envelope) is what we replace
     const { callerPath, isParenLookupOnly } = classifyCallerContext(path);
     const { seMode, effectiveSE } = applyReceiverSeMode(path, sideEffects, receiverEffectCount);
@@ -2908,6 +2938,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     const mCall = t.callExpression(
       t.memberExpression(t.cloneNode(mRef), t.identifier('call')),
       [t.cloneNode(aRef), ...innerArgs.map(a => t.cloneNode(a))]);
+    t.inheritInnerComments(mCall, chainStartNode);
     if (chainStartType) resolvedType?.set(mCall, chainStartType);
 
     // `arr.flat?.()`: the `?.` guards the CALL, not the `.flat` access - reading `.flat` on a
@@ -3026,6 +3057,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     cloneHost,
     isWrappedInParens,
     normalizeOptionalChain,
+    inheritConsumedMemberComments,
     replaceInstanceLike,
     replaceInstanceChainCombined,
     replaceCallWithSimple,

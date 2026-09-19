@@ -77,6 +77,7 @@ export function mergeCoverage(parts) {
 // the reason names are re-checked rather than trusted: the shard validates its own bookkeeping, and
 // a gate that reads only the shard's word for it is the same unread number one level up
 export function coverageShortfalls(coverage, total) {
+  if (total === 0) return ['the corpus is empty: no oracle compared a snippet'];
   const shortfalls = [];
   for (const [leg, stats] of Object.entries(coverage)) {
     const skipped = skippedTotal(stats);

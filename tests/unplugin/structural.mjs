@@ -15,6 +15,13 @@
 // is compared: within each top-level statement a minted name maps to its order of first appearance
 // there (a hoisted `var _ref;` and the statement reading it each number their own)
 let mintedNames = null;
+
+// Comments are a separate parser channel. Block indentation can reflow; text, kind,
+// multiplicity and order still participate in fixture comparison.
+export function commentSignature(comments) {
+  return comments.map(comment => [comment.type,
+    comment.type === 'Block' ? comment.value.replaceAll(/\n[\t ]*/g, '\n') : comment.value]);
+}
 function canonicalMinted(name) {
   if (!mintedNames || !/^_(?:ref|unused)\d*$/.test(name)) return name;
   if (!mintedNames.has(name)) mintedNames.set(name, `${ name.replace(/\d+$/, '') }#${ mintedNames.size }`);

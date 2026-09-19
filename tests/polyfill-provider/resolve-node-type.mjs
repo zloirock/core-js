@@ -2621,9 +2621,8 @@ runBoth('discriminant union: bigint guard does not narrow same-digit number memb
     // no branch matches the bigint guard, so `u.x` stays the union (`string | number[]`) - the
     // resolver yields the union, not a single narrowed primitive / ctor
     const resolved = resolver.resolveNodeType(refs[0]);
-    if (resolved && resolved.primitive === true && resolved.kind === 'string') {
-      throw new Error(`${ lbl }: bigint guard wrongly narrowed a same-digit NUMBER member to string`);
-    }
+    check(`${ lbl }: bigint guard does not select the number-tagged string arm`,
+      resolved?.primitive === true && resolved.type === 'string', false);
   });
 
 // the guard's value side is a closed set of fold paths: a bare literal, a single-quasi template,
@@ -3520,7 +3519,8 @@ for (const [label, code] of [
     (adapter, prog) => {
       const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id?.name ?? p.node.id?.value) === 'r');
       const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
-      return type && { primitive: type.primitive, ctor: type.constructor?.name ?? null };
+      checkType(`${ label } [${ adapter.name }]`, type, { primitive: false, ctor: 'Array' });
+      return type && { primitive: type.primitive, ctor: type.constructor ?? null };
     });
 }
 
@@ -13404,7 +13404,7 @@ for (const [label, source, want] of ARGUMENT_DIRECTIVE_ROWS) {
 // drift that pair invites, and the answer must not be "unknown" - that reads as "could not resolve"
 // and the narrow the row was written for silently stops. Both sides are driven through the factory
 // with a doctored vocabulary, which is the only way to build that mismatch.
-function knownGlobalsWithVocabulary(directives) {
+function knownGlobalsWithVocabulary(directives, overrides = {}) {
   const table = {};
   return createKnownGlobals({
     babelNodeType: node => node?.type,
@@ -13422,7 +13422,36 @@ function knownGlobalsWithVocabulary(directives) {
     commonType: () => null,
     resolveReturnType: () => null,
     resolveRuntimeExpression: () => null,
+    ...overrides,
   });
+}
+
+// An absent registry key must decline without resolving the receiver. The positive
+// controls still resolve its family; a name belonging to another family cannot narrow it.
+{
+  let receiverCalls = 0;
+  let receiver = new $Object('Array');
+  const { resolveKnownPropertyReturnType } = knownGlobalsWithVocabulary({}, {
+    KNOWN_INSTANCE_PROPERTY_RETURN_TYPES: { Array: { length: 'number' }, Set: { size: 'number' } },
+    resolveMemberPropertyName: path => path.name,
+    resolveNodeType() { receiverCalls++; return receiver; },
+  });
+  for (const [name, family, wanted, calls] of [
+    ['self', 'Array', null, 0],
+    ['unknown', 'Array', null, 0],
+    [null, 'Array', null, 0],
+    ['length', 'Array', 'number', 1],
+    ['size', 'Set', 'number', 1],
+    ['size', 'Array', null, 1],
+    ['length', null, null, 1],
+  ]) {
+    receiverCalls = 0;
+    receiver = family ? new $Object(family) : null;
+    const value = resolveKnownPropertyReturnType({ name, get: () => ({}) });
+    if ((value?.type ?? null) !== wanted || receiverCalls !== calls) {
+      fail(`known property work: ${ name } on ${ family }`, `type=${ value?.type }, receiver calls=${ receiverCalls }`);
+    } else pass();
+  }
 }
 
 for (const [label, directives, hint, wanted] of [
