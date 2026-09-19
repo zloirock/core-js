@@ -5,6 +5,6 @@ import _includes from "@core-js/pure/actual/instance/includes";
 // each comment in turn and look at the structural next token. each line uses a
 // different polyfilled method to make the per-line resolution visible: at / flatMap /
 // includes
-const a = arr == null ? void 0 : _at(arr).call(arr, 0);
-const b = arr == null ? void 0 : _flatMapMaybeArray(arr).call(arr, _ => [_]);
-const c = arr == null ? void 0 : _includes(arr).call(arr, 1);
+const a = arr /* a */ /* b */ == null ? void 0 : _at(arr).call(arr, 0);
+const b = arr /* a */ /* b */ == null ? void 0 : _flatMapMaybeArray(arr).call(arr, _ => [_]);
+const c = arr /* a */ /* b */ == null ? void 0 : _includes(arr).call(arr, 1);

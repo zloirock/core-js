@@ -5,8 +5,10 @@
 //     is a provable-injection case, so its stripped run must reproduce the full-env reference).
 // Keeping them in one place is the point - the previous hand-mirrored lists let the two sides
 // disagree (a strip:true family whose target was never stripped ran a vacuous leg).
-// Strip ONLY leaf feature methods/statics that core-js IMPLEMENTS and never consumes internally,
-// and that the transpiled OUTPUTS themselves don't need to run. NOT foundational primitives
+// Strip leaf features core-js implements and either does not consume internally or reads only
+// behind a load-time fallback/probe: Array.from makes iteration checks force the polyfill;
+// Object.hasOwn and Number.isInteger select their ES5 fallbacks. Full-env legs cover the
+// native detection paths. The transpiled OUTPUTS themselves must not need a removed primitive. NOT foundational primitives
 // (slice / push / indexOf / Function.prototype.call / defineProperty), NOT constructors
 // (Promise / Map / Set), NOT Symbol / Symbol.iterator - removing those would break core-js's own
 // internals or the realm itself, not exercise a polyfill (see the array-iterator note in
@@ -17,7 +19,7 @@ export const STRIP_PROTO = {
     'at', 'flat', 'flatMap', 'includes', 'findLast', 'findLastIndex',
     'toReversed', 'toSorted', 'toSpliced', 'with',
   ],
-  String: ['at', 'includes', 'padStart', 'padEnd', 'replaceAll', 'trimStart', 'trimEnd'],
+  String: ['at', 'includes', 'padStart', 'padEnd', 'replaceAll', 'trimStart', 'trimEnd', 'isWellFormed', 'toWellFormed'],
   // the new-Set-methods leaf ops: core-js implements each on its own pure Set and never consumes
   // them internally, so removing them from the native prototype (the constructor stays) only
   // forces a missed `new Set` -> pure-Set rewrite to surface instead of silently using native
@@ -40,6 +42,7 @@ export const STRIP_STATIC = {
   // Number.isInteger: the pure static stands alone (is-integral-number falls back to its own
   // impl when the native is absent - evaluated at load, after the preload)
   Number: ['isInteger'],
+  RegExp: ['escape'],
 };
 
 // usage-pure also rewrites the `Iterator` constructor and every `globalThis` reference to pure
@@ -101,7 +104,7 @@ export const E2E_STRIP_REALM_GLOBALS = [...STRIP_GLOBALS, ...E2E_STRIP_GLOBALS];
 // note above) - the broad legs strip them together with it
 export const ITERATOR_PROTO_HELPERS = [
   'map', 'filter', 'take', 'drop', 'flatMap',
-  'reduce', 'toArray', 'forEach', 'some', 'every', 'find',
+  'reduce', 'toArray', 'forEach', 'some', 'every', 'find', 'Symbol.dispose',
 ];
 
 // ONE applier for both strip consumers - the differential preload evaluates it in its worker
@@ -109,7 +112,7 @@ export const ITERATOR_PROTO_HELPERS = [
 // ES5 source (lists embedded as JSON) so a realm boundary never has to import anything; ends
 // with a CANARY - a consumer realm where the strip silently failed to apply must die loudly,
 // not run a vacuous full-env pass under a stripped-realm label
-export function buildStripScript(globalNames, iteratorProtoHelpers = [], extraStatics = {}) {
+export function buildStripScript(globalNames, iteratorProtoHelpers = [], extraStatics = {}, assertOnly = false) {
   const statics = { ...STRIP_STATIC };
   for (const [name, keys] of Object.entries(extraStatics)) statics[name] = [...statics[name] ?? [], ...keys];
   return `
@@ -118,16 +121,29 @@ export function buildStripScript(globalNames, iteratorProtoHelpers = [], extraSt
   var GLOBAL_NAMES = ${ JSON.stringify(globalNames) };
   var ITER_HELPERS = ${ JSON.stringify(iteratorProtoHelpers) };
   var ITER_PROTO = Object.getPrototypeOf(Object.getPrototypeOf([].values()));
-  ITER_HELPERS.forEach(function (name) { try { delete ITER_PROTO[name]; } catch (e) { /* skip */ } });
   var GLOBAL = Function('return this')();
-  var CTORS = { Array: Array, String: String, Set: Set, Object: Object, Map: Map, Number: Number, Error: Error };
-  Object.keys(STRIP_PROTO).forEach(function (name) {
+  ${ assertOnly ? '' : `
+  // Materialize lazy host globals while their loaders still have the native primitives.
+  Object.getOwnPropertyNames(GLOBAL).forEach(function (name) {
+    // Storage is not used by the oracle; reading it without a backing file warns in Node.
+    if (name === 'localStorage') return;
+    var descriptor = Object.getOwnPropertyDescriptor(GLOBAL, name);
+    if (descriptor && descriptor.get) {
+      try { descriptor.get.call(GLOBAL); } catch (e) { /* host getter may throw */ }
+    }
+  });
+  ITER_HELPERS.forEach(function (name) {
+    var key = name === 'Symbol.dispose' ? Symbol.dispose : name;
+    if (key !== undefined) { try { delete ITER_PROTO[key]; } catch (e) { /* skip */ } }
+  });` }
+  var CTORS = { Array: Array, String: String, Set: Set, Object: Object, Map: Map, Number: Number, Error: Error, RegExp: RegExp };
+  ${ assertOnly ? '' : `Object.keys(STRIP_PROTO).forEach(function (name) {
     STRIP_PROTO[name].forEach(function (method) { try { delete CTORS[name].prototype[method]; } catch (e) { /* frozen - skip */ } });
   });
   Object.keys(STRIP_STATIC).forEach(function (name) {
     STRIP_STATIC[name].forEach(function (key) { try { delete CTORS[name][key]; } catch (e) { /* skip */ } });
   });
-  GLOBAL_NAMES.forEach(function (name) { delete GLOBAL[name]; });
+  GLOBAL_NAMES.forEach(function (name) { delete GLOBAL[name]; });` }
   var leftovers = [];
   Object.keys(STRIP_PROTO).forEach(function (name) {
     STRIP_PROTO[name].forEach(function (method) { if (method in CTORS[name].prototype) leftovers.push(name + '.prototype.' + method); });
@@ -136,7 +152,10 @@ export function buildStripScript(globalNames, iteratorProtoHelpers = [], extraSt
     STRIP_STATIC[name].forEach(function (key) { if (key in CTORS[name]) leftovers.push(name + '.' + key); });
   });
   GLOBAL_NAMES.forEach(function (name) { if (name in GLOBAL) leftovers.push(name); });
-  ITER_HELPERS.forEach(function (name) { if (name in ITER_PROTO) leftovers.push('%IteratorPrototype%.' + name); });
+  ITER_HELPERS.forEach(function (name) {
+    var key = name === 'Symbol.dispose' ? Symbol.dispose : name;
+    if (key !== undefined && key in ITER_PROTO) leftovers.push('%IteratorPrototype%.' + name);
+  });
   if (leftovers.length) throw new Error('strip-manifest: strip did not apply: ' + leftovers.join(', '));
   `;
 }

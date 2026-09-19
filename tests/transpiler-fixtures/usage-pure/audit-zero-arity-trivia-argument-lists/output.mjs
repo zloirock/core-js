@@ -19,7 +19,7 @@ export const optionalCall = _includesMaybeArray(a)?.call(a);
 export const guardBody = null == (_ref = o.m) ? void 0 : _flatMaybeArray(_ref2 = _ref.call(o) /* none */).call(_ref2);
 export const hops = _flatMaybeArray(_ref3 = _flatMaybeArray(a).call(a)).call(_ref3) // tail
 ;
-export const combinedInner = null == (_ref4 = _flatMaybeArray(a)) ? void 0 : _atMaybeArray(_ref5 = _ref4.call(a)).call(_ref5, 0);
+export const combinedInner = null == (_ref4 = _flatMaybeArray(a)) ? void 0 : _atMaybeArray(_ref5 = _ref4.call(a) /* none */).call(_ref5, 0);
 export const combinedOuter = null == (_ref6 = _flatMaybeArray(a)) || null == (_ref7 = _ref6.call(a)) ? void 0 : _atMaybeArray(_ref7).call(_ref7);
 class A extends Array {
   static f() {

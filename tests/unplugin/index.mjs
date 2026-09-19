@@ -1,7 +1,7 @@
 import { parseSync } from 'oxc-parser';
 import { LEAST_UPPER_BOUND, TraceMap, originalPositionFor } from '@jridgewell/trace-mapping';
 import createPlugin from '../../packages/core-js-unplugin/internals/plugin.js';
-import { strip } from './structural.mjs';
+import { commentSignature, strip } from './structural.mjs';
 import { extractPluginOptions, inferTestId, loadBabelOptions, normalizeMachinePaths, shouldSkip } from './fixture-lang.mjs';
 import { fileURLToPath } from 'node:url';
 import {
@@ -355,10 +355,8 @@ function compareNormalized(directory, actual, expected) {
   else fail(directory, firstDiff(actual, expected));
 }
 
-// full-text comparator (used when `output-unplugin.mjs` is present in any mode, or as
-// the default for usage-pure). babel and unplugin differ in codegen minutiae - both
-// sides go through `normalize` + `collapseWhitespace` so whitespace-only divergence
-// doesn't fail
+// A sidecar holds the whole emitted text, including comments. Only machine paths and
+// surrounding whitespace are normalized; the cross-parser baseline has its structural lane.
 async function compareStrict(directory, actual, directFile) {
   compareNormalized(directory, actual, normalize(await readFile(directFile, UTF8)));
 }
@@ -389,6 +387,10 @@ async function compareMainOutput({ directory, actual, babelOutput, babelOptions,
       const actualParsed = parseOrNull(parseId, actual);
       if (!actualParsed) return fail(directory, 'output does not parse for the structural compare');
       agrees = JSON.stringify(strip(actualParsed.program)) === JSON.stringify(strip(baselineParsed.program));
+      // Comments live beside the AST in oxc. Structural equality alone would silently erase
+      // the entire claim of a comment fixture, including sidecar creation in overwrite mode.
+      agrees &&= JSON.stringify(commentSignature(actualParsed.comments))
+        === JSON.stringify(commentSignature(baselineParsed.comments));
     }
   }
   if (OVERWRITE) {

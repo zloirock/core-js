@@ -1,13 +1,13 @@
 // Transpiler-differential harness: run the same source through BOTH plugins (usage-pure), then compare
 // only what actually matters - the injected import-set (strict) and runtime behaviour (native ==
-// babel == unplugin). Body-shape (AST codegen vs text rewrite) is deliberately NOT compared: that
-// divergence is architectural (the `output-unplugin.mjs` sidecars), not a bug.
+// babel == unplugin). Body structure and comments are held separately by the fixture comparator;
+// both plugins render ASTs, and a sidecar requires its own divergence verdict.
 //
 // On top of the full-environment three-way, a STRIPPED-realm oracle re-runs each polyfilled output
 // in a realm where the leaf builtins are gone (a persistent worker preloaded with strip-builtins.mjs).
 // That run must still reproduce the full-env native reference - which catches a MISSED injection (the
 // leftover native call now throws instead of being masked by the present builtin) and proves the
-// polyfill stands alone. See strip-builtins.mjs / stripped-worker.mjs.
+// polyfill stands alone. Modules use stripped-worker.mjs; Scripts use a fresh worker per evaluation.
 //
 // The unplugin rides both oracles as a leg of its own: one detection feeds both plugins, so its
 // import set must equal babel's exactly, while the BODY is its own reprint - the thing the fixture
@@ -25,6 +25,7 @@ import classStaticBlockPlugin from '@babel/plugin-transform-class-static-block';
 import babelPlugin from '../../packages/core-js-babel-plugin/index.js';
 import createPlugin from '../../packages/core-js-unplugin/internals/plugin.js';
 import { printProgram } from '../../packages/core-js-unplugin/internals/print.js';
+import { runInWorker } from './realm-runner.mjs';
 import { cached } from './cache-store.mjs';
 import { runtimeKey } from './serialize.mjs';
 
@@ -61,11 +62,11 @@ const TS_PARSER = { plugins: ['typescript', 'decorators-legacy'] };
 // with nothing red to show for it
 const STRIP_PLUGINS = [[decoratorsPlugin, { version: 'legacy' }], classPropsPlugin, classStaticBlockPlugin, tsStrip];
 
-export async function transformBabel(src, options, ts = false) {
+export async function transformBabel(src, options, ts = false, sourceType = 'module') {
   const out = await transformAsync(src, {
     plugins: [[babelPlugin, options]],
-    filename: ts ? 'input.ts' : 'input.mjs',
-    sourceType: 'module',
+    filename: ts ? 'input.ts' : sourceType === 'script' ? 'input.cjs' : 'input.mjs',
+    sourceType,
     parserOpts: ts ? TS_PARSER : undefined,
     configFile: false,
     babelrc: false,
@@ -73,20 +74,20 @@ export async function transformBabel(src, options, ts = false) {
   return out.code;
 }
 
-export function transformUnplugin(src, options, ts = false) {
-  return createPlugin(options).transform(src, ts ? 'input.ts' : 'input.mjs')?.code ?? src;
+export function transformUnplugin(src, options, ts = false, sourceType = 'module') {
+  return createPlugin(options).transform(src, ts ? 'input.ts' : sourceType === 'script' ? 'input.cjs' : 'input.mjs')?.code ?? src;
 }
 
 // the AST-engine print-through leg: the esrap printer alone over the SOURCE, no mutations.
 // the corpus then EXECUTES what the roundtrip gate can only structurally compare - a paren
 // the printer failed to re-derive is a runtime divergence here. returns null when oxc
 // cannot parse the snippet (the leg abstains; the emitters' own transform is the verdict there)
-export function printThroughAst(src, ts = false) {
-  const file = ts ? 'input.ts' : 'input.mjs';
+export function printThroughAst(src, ts = false, sourceType = 'module') {
+  const file = ts ? 'input.ts' : sourceType === 'script' ? 'input.cjs' : 'input.mjs';
   let parsed;
   try {
     // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
-    parsed = parseSync(file, src, { sourceType: 'module' });
+    parsed = parseSync(file, src, { sourceType });
   } catch {
     return null;
   }
@@ -97,7 +98,7 @@ export function printThroughAst(src, ts = false) {
 // run the active emitters over one source, capturing a transform crash as a message instead of
 // propagating - a throwing transform is itself a verdict, not a harness failure. `timed` feeds
 // the per-emitter phase buckets; the usage-global leg omits it, staying inside its own aggregate
-export async function transformBoth({ src, options, ts = false, timed = false }) {
+export async function transformBoth({ src, options, ts = false, timed = false, sourceType = 'module' }) {
   let babelOut;
   let unpluginOut;
   let babelError = null;
@@ -105,7 +106,7 @@ export async function transformBoth({ src, options, ts = false, timed = false })
   let t0 = process.hrtime.bigint();
   if (WANT_BABEL) {
     try {
-      babelOut = await transformBabel(src, options, ts);
+      babelOut = await transformBabel(src, options, ts, sourceType);
     } catch (error) {
       babelError = error?.message ?? String(error);
     }
@@ -114,7 +115,7 @@ export async function transformBoth({ src, options, ts = false, timed = false })
   t0 = process.hrtime.bigint();
   if (WANT_UNPLUGIN) {
     try {
-      unpluginOut = transformUnplugin(src, options, ts);
+      unpluginOut = transformUnplugin(src, options, ts, sourceType);
     } catch (error) {
       unpluginError = error?.message ?? String(error);
     }
@@ -151,8 +152,8 @@ let counter = 0;
 // per-process counter would collide (shard A's `m0.mjs` overwriting shard B's mid-import ->
 // cross-contaminated results). exported for the usage-global leg, whose modules run in
 // ShadowRealms instead of this realm
-export async function writeModule(code, ts = false) {
-  const file = join(TMP, `m${ process.pid }_${ counter++ }.mjs`);
+export async function writeModule(code, ts = false, sourceType = 'module') {
+  const file = join(TMP, `m${ process.pid }_${ counter++ }.${ sourceType === 'script' ? 'cjs' : 'mjs' }`);
   // fs-extra's outputFile creates the directory chain itself, so the tree needs no separate mkdir
   await outputFile(file, ts ? await stripTypeScript(code) : code);
   return file;
@@ -160,12 +161,13 @@ export async function writeModule(code, ts = false) {
 // a module file written ON DEMAND: the cache answers most evaluations, and an answered one needs no
 // file at all. memoized, because a stripped MISS behind a full-env HIT still needs the same file -
 // and both legs must run the identical bytes, not two writes of them
-function lazyModule(code, ts) {
+function lazyModule(code, ts, sourceType) {
   let promise = null;
-  return () => promise ??= writeModule(code, ts);
+  return () => promise ??= writeModule(code, ts, sourceType);
 }
-// execute a module in THIS realm (full builtins) and reduce it to its observable key
-async function evalInRealm(file) {
+// Evaluate with full builtins: Modules share this realm; Scripts get a fresh CommonJS worker.
+async function evalInRealm(file, sourceType = 'module', nativeAlias = false) {
+  if (sourceType === 'script') return runInWorker(await file(), { sourceType, strip: false, nativeAlias });
   try {
     const mod = await import(pathToFileURL(await file()).href);
     return runtimeKey({ ok: true, r: mod.r, effects: mod.effects });
@@ -214,7 +216,8 @@ function ensureWorker() {
   return workerReady;
 }
 // re-run an already-written module file in the builtin-stripped realm; returns its runtimeKey
-async function evalStripped(file) {
+async function evalStripped(file, sourceType = 'module') {
+  if (sourceType === 'script') return runInWorker(file, { sourceType, nativeAlias: false });
   await ensureWorker();
   // the worker may have died while we awaited readiness - retry once against a fresh fork
   if (!worker) await ensureWorker();
@@ -252,8 +255,8 @@ export function setEqual(a, b) {
 // `stripCoverage` / `astCoverage` say, for each deep leg, whether the snippet was CHECKED or the
 // NAMED reason it was not: the shard turns them into the run's coverage accounting, and a leg that
 // stops deep-checking then shows as a shortfall instead of as a silently smaller number
-export async function checkSnippet(src, options, ts = false, stripCheck = false) {
-  const { babelOut, unpluginOut, babelError, unpluginError } = await transformBoth({ src, options, ts, timed: true });
+export async function checkSnippet(src, options, ts = false, stripCheck = false, sourceType = 'module') {
+  const { babelOut, unpluginOut, babelError, unpluginError } = await transformBoth({ src, options, ts, timed: true, sourceType });
   if (babelError || unpluginError) {
     return { transformCrash: true, babelError, unpluginError, stripCoverage: 'transform-crash', astCoverage: 'transform-crash' };
   }
@@ -278,7 +281,7 @@ export async function checkSnippet(src, options, ts = false, stripCheck = false)
     evaluate: async () => {
       Object.defineProperty(globalThis, 'self', { value: globalThis, configurable: true, enumerable: false, writable: true });
       try {
-        return await evalInRealm(lazyModule(src, ts));
+        return await evalInRealm(lazyModule(src, ts, sourceType), sourceType, true);
       } finally {
         delete globalThis.self;
       }
@@ -299,7 +302,7 @@ export async function checkSnippet(src, options, ts = false, stripCheck = false)
   let astCoverage = 'native-throw';
   if (!native.startsWith('ERR')) {
     t0 = process.hrtime.bigint();
-    const astPrinted = printThroughAst(src, ts);
+    const astPrinted = printThroughAst(src, ts, sourceType);
     astCoverage = astPrinted === null ? 'unparsable' : 'checked';
     if (astPrinted !== null) {
       astPrintRun = await cached({
@@ -308,7 +311,7 @@ export async function checkSnippet(src, options, ts = false, stripCheck = false)
         evaluate: async () => {
           Object.defineProperty(globalThis, 'self', { value: globalThis, configurable: true, enumerable: false, writable: true });
           try {
-            return await evalInRealm(lazyModule(astPrinted, ts));
+            return await evalInRealm(lazyModule(astPrinted, ts, sourceType), sourceType, true);
           } finally {
             delete globalThis.self;
           }
@@ -321,10 +324,10 @@ export async function checkSnippet(src, options, ts = false, stripCheck = false)
   t0 = process.hrtime.bigint();
   // the two files are shared with the stripped legs below: same bytes, written at most once, and
   // not written at all when both realms answer from the cache
-  const babelFile = lazyModule(babelOut, ts);
-  const unpluginFile = lazyModule(unpluginOut, ts);
-  const babelRun = WANT_BABEL ? await cached({ type: 'pure-babel', code: babelOut, evaluate: () => evalInRealm(babelFile) }) : null;
-  const unpluginRun = WANT_UNPLUGIN ? await cached({ type: 'pure-unplugin', code: unpluginOut, evaluate: () => evalInRealm(unpluginFile) }) : null;
+  const babelFile = lazyModule(babelOut, ts, sourceType);
+  const unpluginFile = lazyModule(unpluginOut, ts, sourceType);
+  const babelRun = WANT_BABEL ? await cached({ type: 'pure-babel', code: babelOut, evaluate: () => evalInRealm(babelFile, sourceType) }) : null;
+  const unpluginRun = WANT_UNPLUGIN ? await cached({ type: 'pure-unplugin', code: unpluginOut, evaluate: () => evalInRealm(unpluginFile, sourceType) }) : null;
   mark('eval transformed x2', t0);
 
   // stripped-realm oracle: gated on the snippet's `strip` flag - the generator's assertion that this
@@ -348,10 +351,10 @@ export async function checkSnippet(src, options, ts = false, stripCheck = false)
   if (stripCoverage === 'checked') {
     t0 = process.hrtime.bigint();
     babelStripped = WANT_BABEL
-      ? await cached({ type: 'strip-babel', code: babelOut, evaluate: async () => evalStripped(await babelFile()) })
+      ? await cached({ type: 'strip-babel', code: babelOut, evaluate: async () => evalStripped(await babelFile(), sourceType) })
       : null;
     unpluginStripped = WANT_UNPLUGIN
-      ? await cached({ type: 'strip-unplugin', code: unpluginOut, evaluate: async () => evalStripped(await unpluginFile()) })
+      ? await cached({ type: 'strip-unplugin', code: unpluginOut, evaluate: async () => evalStripped(await unpluginFile(), sourceType) })
       : null;
     strippedMismatch = (WANT_BABEL && babelStripped !== native) || (WANT_UNPLUGIN && unpluginStripped !== native);
     mark('stripped worker x2', t0);

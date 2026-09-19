@@ -256,6 +256,10 @@ function synthesizeLocs(program, comments, source) {
         // (and anchors its minted innards) exactly where the host stood
         node.loc = { start: locate(node.replacedSpan.start), end: locate(node.replacedSpan.end) };
         anchor = node.loc;
+      } else if (node.type === 'BlockStatement' && anchor) {
+        // esrap resets its comment cursor on entering a body. A relocated loop body
+        // without a location resets it to EOF and loses comments after the loop.
+        node.loc = { start: anchor.start, end: anchor.end };
       } else if (/(?:Declaration|Statement)$/.test(node.type)) {
         // an INJECTED statement is fully synthetic - nothing under it derives from a user
         // region, and its own loc would drive esrap's blank-line margins besides

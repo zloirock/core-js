@@ -1,3 +1,6 @@
+// `require((0, 'core-js/...'))` - safe SequenceExpression around the string literal argument
+// (no observable side effects in the prefix). shared adapter unwrap peels the safe SE tail
+// so the entry registers in both babel-plugin and unplugin paths
 require("core-js/modules/es.object.to-string");
 require("core-js/modules/es.reflect.own-keys");
 require("core-js/modules/es.aggregate-error.constructor");

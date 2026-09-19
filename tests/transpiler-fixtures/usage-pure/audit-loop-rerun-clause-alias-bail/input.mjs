@@ -2,10 +2,8 @@
 // TEST and the for-in/of LEFT (its pattern defaults and computed keys) all re-execute per
 // iteration, so an alias-keyed static read there observes a textually-later write on iteration
 // 2+ and must NOT resolve the first-iteration key. the for INIT and the for-of RIGHT run once
-// per ENTRY, so reads there still resolve - but only where the entry itself happens once: inside a
-// re-invocable function the next call re-runs them AFTER the write, so those cells sit at module
-// level to keep the once-per-entry claim true. distinct constructor per cell so each import set is
-// attributable
+// per ENTRY, but a re-invocable function can enter again AFTER the write, so those reads must
+// also bail. Distinct constructors keep each cell's import set attributable.
 let kTest = "from";
 export function inForTest(stop) {
   for (; Array[kTest]([1]).length && !stop(); kTest = "of") {}
@@ -23,13 +21,17 @@ const sink = {};
 export function inForInLeftKey(obj) {
   for (sink[Math[kIn](1.5)] in obj) { kIn = "sign"; }
 }
-// once-per-entry slots keep resolving - at module level the entry happens exactly once
+// Once-per-entry does not mean once over the lifetime of the outer binding.
 let kInit = "fromEntries";
-export let initAcc;
-for (let acc = Object[kInit]([["a", 1]]); false; kInit = "keys") { initAcc = acc; }
+export function inForInit() {
+  for (let acc = Object[kInit]([["a", 1]]); false; kInit = "keys") { return acc; }
+}
 let kRight = "fromCodePoint";
-export const rightChars = [];
-for (const ch of String[kRight](66, 67)) { rightChars.push(ch); kRight = "raw"; }
+export function inForOfRight() {
+  const chars = [];
+  for (const ch of String[kRight](66, 67)) { chars.push(ch); kRight = "raw"; }
+  return chars;
+}
 // a for-UPDATE write runs 0+ times (never on a zero-iteration loop), so it must not pin the
 // post-loop static to the updated key
 let kP = "allSettled";

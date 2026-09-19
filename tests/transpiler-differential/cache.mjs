@@ -9,8 +9,10 @@
 // chunk twice and compares the two verdicts, which is the property the whole design rests on: a hot
 // run must produce exactly what the cold one did.
 import { fileURLToPath } from 'node:url';
+import { createContext, runInContext } from 'node:vm';
 import { createChecker } from '../polyfill-provider/harness.mjs';
-import { skippedTotal } from './coverage.mjs';
+import { coverageShortfalls, emptyCoverage, skippedTotal } from './coverage.mjs';
+import { buildStripScript } from './strip-manifest.mjs';
 
 const { ensureDir, outputFile, readJson, removeSync, writeJson } = fs;
 const { dirname, join } = path;
@@ -80,6 +82,9 @@ check('a source-code cell is stored bare', (await readJson(CACHE)).cases.live.na
 // realm's answer to the other
 checkDeep('a second type over the SAME code evaluates', await evaluated('live', 'strip-babel', OUT, 'OK|stripped'), { ran: true, key: 'OK|stripped', name: 'live' });
 checkDeep('both cells survive in the working set', [collectCases().live['pure-babel'].r, collectCases().live['strip-babel'].r], ['OK|planted-out', 'OK|stripped']);
+
+await beginCase({ name: 'live', code: SRC, sourceType: 'script' });
+check('the same source in another source goal evaluates', (await evaluated('live', 'pure-babel', OUT)).ran, true);
 
 await beginCase({ name: 'moved', code: SRC });
 check('a cell whose code moved evaluates', (await evaluated('moved', 'pure-babel', OUT)).ran, true);
@@ -342,4 +347,48 @@ checkDeep('a torn cache file evaluates instead of failing', verdictOf(afterTorn)
 const missing = await runShard({ cache: join(TMP, 'no-such-file.json') });
 checkDeep('an absent cache file does the same', verdictOf(missing), verdictOf(cold));
 
+check('zero corpus fails its coverage canary', coverageShortfalls(emptyCoverage(), 0).length > 0, true);
+check('source goal is part of the cache address',
+  store.hashCode('var x;', false, 'script') !== store.hashCode('var x;', false, 'module'), true);
+// A cleanup audit must observe a leaked property, never delete it before checking.
+const realm = createContext({});
+runInContext(buildStripScript([]), realm);
+runInContext('Array.from = undefined;', realm);
+let pollution = '';
+try {
+  runInContext(buildStripScript([], [], {}, true), realm);
+} catch (error) {
+  pollution = error.message;
+}
+check('realm audit detects an own-undefined leak', pollution.includes('Array.from'), true);
+check('realm audit leaves the evidence intact', runInContext('"from" in Array', realm), true);
+const lazyRealm = createContext({ storageReads: 0 });
+runInContext(`Object.defineProperty(this, 'localStorage', { configurable: true, get() {
+  storageReads++;
+  return {};
+} });
+Object.defineProperty(this, 'lazyFeature', { configurable: true, get() {
+  const value = Array.from([7])[0];
+  Object.defineProperty(this, 'lazyFeature', { value, configurable: true });
+  return value;
+} });`, lazyRealm);
+runInContext(buildStripScript([]), lazyRealm);
+check('every strip consumer warms lazy host accessors before removing their primitives', runInContext('lazyFeature', lazyRealm), 7);
+check('stripping does not open localStorage', lazyRealm.storageReads, 0);
+check('stripping leaves localStorage available on demand', runInContext('typeof Object.getOwnPropertyDescriptor(this, "localStorage").get', lazyRealm), 'function');
+
+const iteratorRealm = createContext({});
+runInContext(`if (!Symbol.dispose) Object.defineProperty(Symbol, 'dispose', { value: Symbol('dispose') });
+Object.getPrototypeOf(Object.getPrototypeOf([].values()))[Symbol.dispose] = function () {};`, iteratorRealm);
+runInContext(buildStripScript([], ['Symbol.dispose']), iteratorRealm);
+check('iterator disposal is stripped with the named helpers',
+  runInContext('Symbol.dispose in Object.getPrototypeOf(Object.getPrototypeOf([].values()))', iteratorRealm), false);
+runInContext('Object.getPrototypeOf(Object.getPrototypeOf([].values()))[Symbol.dispose] = undefined;', iteratorRealm);
+let iteratorPollution = '';
+try {
+  runInContext(buildStripScript([], ['Symbol.dispose'], {}, true), iteratorRealm);
+} catch (error) {
+  iteratorPollution = error.message;
+}
+check('the final audit detects symbol-keyed iterator pollution', iteratorPollution.includes('%IteratorPrototype%.Symbol.dispose'), true);
 finish();

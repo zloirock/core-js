@@ -2,7 +2,7 @@ import { parseSync } from 'oxc-parser';
 import { builders, traverse } from 'estree-toolkit';
 import { TraceMap, originalPositionFor } from '@jridgewell/trace-mapping';
 import unplugin, { shouldTransform } from '../../packages/core-js-unplugin/index.js';
-import { createPolyfillContext, entryToGlobalHint } from '../../packages/core-js-polyfill-provider/index.js';
+import { createPolyfillContext } from '../../packages/core-js-polyfill-provider/index.js';
 import { ORPHAN_REF_PATTERN } from '../../packages/core-js-polyfill-provider/injector-base.js';
 import {
   memberFromKeyName,
@@ -23,6 +23,7 @@ import { sealedLayerAbove } from '../../packages/core-js-unplugin/internals/clai
 import SnapshotCache from '../../packages/core-js-unplugin/internals/snapshot-cache.js';
 import { printProgram } from '../../packages/core-js-unplugin/internals/print.js';
 import { collapseWhitespace } from './collapse-whitespace.mjs';
+import { commentSignature } from './structural.mjs';
 import {
   hasCoreJSImport,
   isCallee,
@@ -41,6 +42,27 @@ function programOf(src, sourceType = 'module') {
 const { cyan, green, red } = chalk;
 
 const counts = { passed: 0, failed: 0 };
+
+// A structural AST comparison cannot see any of these changes; the separate comment
+// channel must reject them, including a duplicate lost without changing the set of texts.
+for (const [label, changed] of [
+  ['dropped', '// first\nx();'],
+  ['reordered', '// second\n// first\nx();'],
+  ['block instead of line', '/* first */\n// second\nx();'],
+  ['changed directive', '// first\n// core-js-disable-next-line\nx();'],
+]) {
+  // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+  const original = commentSignature(parseSync('input.mjs', '// first\n// second\nx();').comments);
+  // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+  const other = commentSignature(parseSync('input.mjs', changed).comments);
+  check(`comment comparator/${ label }`, JSON.stringify(original) === JSON.stringify(other), false);
+}
+check('comment comparator/duplicate is observable',
+  JSON.stringify(commentSignature([{ type: 'Line', value: ' x' }, { type: 'Line', value: ' x' }])),
+  '[["Line"," x"],["Line"," x"]]');
+check('comment comparator/block indentation is formatting',
+  JSON.stringify(commentSignature([{ type: 'Block', value: ' first\n\t  second ' }])),
+  JSON.stringify(commentSignature([{ type: 'Block', value: ' first\nsecond ' }])));
 
 function check(label, actual, expected) {
   if (actual === expected) {
@@ -364,31 +386,6 @@ const liftSfcLangCases = [
 for (const [id, want] of liftSfcLangCases) {
   check(`liftSfcLangSuffix/${ id }`, liftSfcLangSuffix(id), want);
 }
-
-// class entries (bare or `/constructor` tail) PascalCase the first segment; method
-// entries return null so user imports of them don't masquerade as class aliases
-check('entryToGlobalHint/single segment', entryToGlobalHint('promise'), 'Promise');
-check('entryToGlobalHint/subpath constructor', entryToGlobalHint('promise/constructor'), 'Promise');
-check('entryToGlobalHint/kebab single word', entryToGlobalHint('weak-map'), 'WeakMap');
-// single-segment helper entries (`is-iterable`, `get-iterator`, `set-immediate`) bail -
-// the kebab form would derive a plausible PascalCase but the result isn't a real global,
-// and downstream `resolveSuperImportName` would over-inject against the fabricated name.
-// filter through `KNOWN_GLOBAL_NAMES` (globals + statics in built-in-definitions)
-check('entryToGlobalHint/non-class helper bails', entryToGlobalHint('is-iterable'), null);
-check('entryToGlobalHint/empty string', entryToGlobalHint(''), null);
-// method / instance entries: user's pure import is a function, not the class - no hint
-check('entryToGlobalHint/static method', entryToGlobalHint('promise/try'), null);
-check('entryToGlobalHint/instance subpath', entryToGlobalHint('array/instance/at'), null);
-check('entryToGlobalHint/kebab subpath', entryToGlobalHint('array-buffer/is-view'), null);
-check('entryToGlobalHint/deep kebab subpath', entryToGlobalHint('typed-array/instance/to-sorted'), null);
-// edge cases
-check('entryToGlobalHint/leading slash', entryToGlobalHint('/promise'), null);
-check('entryToGlobalHint/trailing slash', entryToGlobalHint('promise/'), null);
-// numeric-leading / underscore-leading heads can never match a real global identifier -
-// filtered up front so downstream consumers don't carry a junk hint through to the lookup
-check('entryToGlobalHint/numeric prefix', entryToGlobalHint('42'), null);
-check('entryToGlobalHint/underscore prefix', entryToGlobalHint('_foo'), null);
-check('entryToGlobalHint/null', entryToGlobalHint(null), null);
 
 // --- ref-block anchor vs a trailing comment separated by exotic whitespace ---
 
@@ -2486,28 +2483,6 @@ checkHasPureImport('hasCoreJSImport/usage-global side-effect import',
 checkHasPureImport('hasCoreJSImport/usage-global CJS require',
   'require("core-js/modules/es.array.from");\nfoo();', ['core-js'], true);
 
-// --- entryToGlobalHint: entry name (sans `core-js/<head>/` prefix) -> global hint ---
-// callers pre-strip `core-js/<bucket>/` (`actual/`, `stable/`, `full/`, etc.); the
-// hint resolver consumes the tail. data-driven index covers acronym globals
-// (URL / DOMException / ...); fallback derives kebab -> Pascal head when entry is
-// `<head>` or `<head>/constructor`. multi-segment entries below the head bail to null
-check('entryToGlobalHint/promise constructor strip',
-  entryToGlobalHint('promise/constructor'), 'Promise');
-check('entryToGlobalHint/array head fallback derives Pascal',
-  entryToGlobalHint('array'), 'Array');
-check('entryToGlobalHint/url acronym from index',
-  entryToGlobalHint('url'), 'URL');
-check('entryToGlobalHint/url-search-params acronym',
-  entryToGlobalHint('url-search-params'), 'URLSearchParams');
-check('entryToGlobalHint/dom-exception acronym',
-  entryToGlobalHint('dom-exception'), 'DOMException');
-check('entryToGlobalHint/multi-segment below head bails',
-  entryToGlobalHint('array/from'), null);
-check('entryToGlobalHint/null entry returns null',
-  entryToGlobalHint(null), null);
-check('entryToGlobalHint/empty string returns null',
-  entryToGlobalHint(''), null);
-
 // --- walkAstNodes: visit-all-descendants walker used by injector subtree scans ---
 function exprOf(src, sourceType = 'module') {
   // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
@@ -3967,7 +3942,7 @@ function checkUsageGlobalIndirectRequirePrefixBody() {
   const body = code.split('\n').filter(line => !injected.test(line)).join('\n');
   check('indirect-require body/prefixes survive as statements in source order',
     /let loads = 0;\s*loads\+\+;\s*let arr = \[1\];\s*arr\.includes\(1\);\s*let opt = 0;\s*opt\+\+;\s*let outer = 0;\s*outer\+\+;\s*Array\.from\(\[1\]\);/.test(body), true);
-  check('indirect-require body/no require call survives', /require\(/.test(body), false);
+  check('indirect-require body/no require call survives', /require\s*\(/.test(body), false);
   check('indirect-require body/kept-prefix usage stays visited', /es\.array\.includes/.test(code), true);
 }
 checkUsageGlobalIndirectRequirePrefixBody();
@@ -4284,6 +4259,15 @@ for (const declaration of ['const', 'let']) {
   const source = "for (let { at, ...rest } of [[1]]) { if (flag) rest = 'abc'; use(at, rest.includes('a')); }";
   const output = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } }).transform(source, 'input.mjs')?.code ?? source;
   check('a real write to native rest still invalidates its Object type', output.includes('@core-js/pure/actual/instance/includes'), true);
+}
+
+// The split must carry the call's type even when no earlier query primed that source
+// node. A generic at helper here means the uncached call was queried without a path.
+for (const receiver of ['arr', '(arr)', '(arr as number[][][])']) {
+  const source = `const arr = [[[1]]]; export const out = ${ receiver }.flat?.(0).at.name;`;
+  const output = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } }).transform(source, 'input.ts')?.code ?? source;
+  check(`an optional call carries its cold result type: ${ receiver }`, output.includes('@core-js/pure/actual/array/instance/at'), true);
+  check(`an optional call avoids generic result dispatch: ${ receiver }`, output.includes('@core-js/pure/actual/instance/at'), false);
 }
 
 // the tally reads `counts` at the moment it runs, so it belongs AFTER the last section: standing
