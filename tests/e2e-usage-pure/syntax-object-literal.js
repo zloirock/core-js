@@ -7,7 +7,6 @@ import PureWeakSet from '@core-js/pure/actual/weak-set/constructor';
 // element. A literal that merely stores a polyfill RESULT would pass regardless, so those are absent.
 
 // --- Accessors: evaluated exactly once on access ---
-/* eslint-disable es/no-accessor-properties -- accessor evaluation count is the construct under test */
 
 QUnit.test('object: getter returning a polyfill runs once per read', assert => {
   let calls = 0;
@@ -49,7 +48,6 @@ QUnit.test('object: getter building via a polyfill is not invoked until read', a
   assert.deepEqual(obj.pairs, { a: 1 });
   assert.same(calls, 1);
 });
-/* eslint-enable es/no-accessor-properties -- end accessor block */
 
 // --- Computed keys: key expressions evaluate left to right, once each ---
 
@@ -221,7 +219,6 @@ QUnit.test('object: computed member key feeding a chained polyfill runs once', a
 
 QUnit.test('object: accessor result chained into a polyfill keeps its receiver', assert => {
   const obj = {
-    // eslint-disable-next-line es/no-accessor-properties -- getter feeding a chained polyfill
     get nums() {
       return [[1], [2], [3]];
     },
@@ -236,7 +233,7 @@ QUnit.test('object: polyfill result stored then read back through the literal', 
   assert.same(wrap.data.at(-1), 3);
 });
 
-/* eslint-disable es/no-accessor-properties, unicorn/no-unused-properties -- computed slot and getter regression shapes */
+/* eslint-disable unicorn/no-unused-properties -- computed slot regression shapes */
 QUnit.test('destructure: an unknown later key preserves the selected receiver', assert => {
   function read(key, replacement) {
     const ns = { Q: Array, [key]: replacement };
@@ -367,9 +364,7 @@ QUnit.test('destructure: an inline assignment source keeps its own polyfill read
   assert.same(overridden[0], undefined);
   assert.same(overridden[1].Q, Map);
 });
-/* eslint-enable es/no-accessor-properties, unicorn/no-unused-properties -- end of the source forms above */
-
-/* eslint-disable es/no-accessor-properties -- getter effects are the source behavior under test */
+/* eslint-enable unicorn/no-unused-properties -- end of the source forms above */
 
 QUnit.test('getter member read supplies the pure constructor after running the getter once', assert => {
   const order = [];
@@ -488,4 +483,3 @@ QUnit.test('destructuring: a getter escaping through this keeps its returned obj
   assert.same(leaked.w, globalThis);
   assert.same(value, PureWeakSet);
 });
-/* eslint-enable es/no-accessor-properties -- end of the source forms above */

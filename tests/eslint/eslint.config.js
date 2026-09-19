@@ -1994,8 +1994,6 @@ const transpiledAndPolyfilled = {
   // allow RegExp syntax handled by Babel
   'es/no-regexp-duplicate-named-capturing-groups': OFF,
   'es/no-regexp-modifiers': OFF,
-  // disallow accessor properties
-  'es/no-accessor-properties': ERROR,
   // disallow async functions
   'es/no-async-functions': ERROR,
   // disallow async iteration
