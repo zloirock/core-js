@@ -16,7 +16,7 @@ module.exports = {
       // test files — apply usage-pure plugin + standard transforms; `.ts` files run the plugin
       // against the TYPED AST first (type-driven dispatch is the point of the TS e2e leg), then
       // strip types before the standard ES transforms
-      test: /\.(?:js|ts)$/,
+      test: /\.(?:c?js|ts)$/,
       include: e2eUsagePure,
       use: {
         loader: 'babel-loader',

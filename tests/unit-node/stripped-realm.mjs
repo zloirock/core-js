@@ -16,6 +16,7 @@ import { readFile } from 'node:fs/promises';
 import { createContext, runInContext } from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { deepStrictEqual } from 'node:assert/strict';
 import { E2E_STRIP_REALM_GLOBALS, E2E_STRIP_STATIC, ITERATOR_PROTO_HELPERS, buildStripScript } from '../transpiler-differential/strip-manifest.mjs';
 import QUnit from 'qunit';
 import quietReporter from './quiet-reporter.js';
@@ -33,6 +34,19 @@ const sandbox = {
   process,
 };
 const context = createContext(sandbox);
+const withWindow = process.argv.includes('--window');
+// A realm alias exercises browser-only proxy branches with all native features still stripped.
+// Minimal non-polyfilled host slots serve the raw-tail assertions; now() rejects a lost receiver.
+// The ordinary absent-window leg remains alongside this one.
+if (withWindow) runInContext(`Object.defineProperties(Function('return this')(), {
+  window: { configurable: true, writable: true, value: Function('return this')() },
+  self: { configurable: true, writable: true, value: Function('return this')() },
+  document: { configurable: true, value: {} },
+  performance: { configurable: true, value: { now: function () {
+    if (this !== Function('return this')().performance) throw new TypeError('Wrong performance receiver');
+    return 1;
+  } } }
+});`, context);
 
 // the realm is deliberately BARE of Node's host globals (DOMException / URL / structuredClone
 // / atob / ...): their pure ponyfills then run their standalone paths, which is exactly the
@@ -48,6 +62,19 @@ runInContext('Function("return this")().global = Function("return this")();', co
 // inside via `Function('return this')()`. the applier's tail CANARY throws if the strip
 // silently failed to apply - a vacuous full-env pass must never wear the stripped label
 runInContext(buildStripScript(E2E_STRIP_REALM_GLOBALS, ITERATOR_PROTO_HELPERS, E2E_STRIP_STATIC), context);
+const checkScript = buildStripScript(E2E_STRIP_REALM_GLOBALS, ITERATOR_PROTO_HELPERS, E2E_STRIP_STATIC, true);
+const errorDescriptorScript = 'Object.getOwnPropertyDescriptor(Error, "isError")';
+sandbox.checkStrippedRealm = () => {
+  deepStrictEqual(runInContext(errorDescriptorScript, context), errorDescriptorAfterImport,
+    'tests must restore the Error.isError descriptor present after bundle import');
+  try {
+    runInContext(checkScript, context);
+  } catch (error) {
+    // The pending pure Error defect is checked separately below. Match the COMPLETE diagnostic:
+    // any additional restored feature must still fail, including an own-undefined property.
+    if (!errorDescriptorAfterImport || error.message !== 'strip-manifest: strip did not apply: Error.isError') throw error;
+  }
+};
 
 QUnit.config.autostart = false;
 quietReporter.init(QUnit);
@@ -55,10 +82,17 @@ quietReporter.init(QUnit);
 const { 2: name } = process.argv;
 const bundle = await readFile(join(HERE, `../bundles/${ name }.js`), 'utf8');
 runInContext(bundle, context, { filename: `${ name }.js` });
+const errorDescriptorAfterImport = runInContext(errorDescriptorScript, context);
+// Pure Error currently reuses the native constructor when Error.cause is supported, so loading
+// its static installs Error.isError globally. Keep this separate runtime defect visible while
+// the end-of-run audit still rejects test pollution. An unexpected TODO pass requires removal.
+if (name.startsWith('e2e-usage-pure-')) QUnit.todo('pure Error import keeps the stripped Error.isError absent', assert => {
+  assert.strictEqual(errorDescriptorAfterImport, undefined, 'pure import must not modify native Error');
+});
 
 QUnit.on('runEnd', run => {
-  const { passed, failed, total } = run.testCounts;
-  console.log(`# stripped-realm ${ name }: ${ passed }/${ total } passed, ${ failed } failed`);
-  if (failed > 0 || run.status === 'failed') process.exitCode = 1;
+  const { passed, failed, todo, total } = run.testCounts;
+  console.log(`# stripped-realm ${ name }${ withWindow ? ' (window present)' : '' }: ${ passed }/${ total } passed, ${ failed } failed, ${ todo } todo`);
+  if (total === todo || failed > 0 || run.status === 'failed') process.exitCode = 1;
 });
 QUnit.start();

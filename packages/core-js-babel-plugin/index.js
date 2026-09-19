@@ -171,6 +171,14 @@ import createSynthSwapEmitter from './internals/synth-swap-emitter.js';
 function splitMinifierSequence(programPath, t) {
   for (const { statements, host, key, statement, products } of planMinifierSequenceSplit(programPath.node, { embed: hostSlot })) {
     const converted = products.map(product => estreeToBabel(product));
+    // The operand is now a statement. Transfer its outer comments to that host so
+    // replacing the operand later cannot discard a comment between sequence products.
+    for (const product of converted) {
+      t.inheritLeadingComments(product, product.expression);
+      t.inheritTrailingComments(product, product.expression);
+      product.expression.leadingComments = null;
+      product.expression.trailingComments = null;
+    }
     t.inheritLeadingComments(converted[0], statement);
     t.inheritTrailingComments(converted[converted.length - 1], statement);
     if (statements) statements.splice(statements.indexOf(statement), 1, ...converted);
@@ -317,6 +325,7 @@ export default function plugin(api, options) {
     cloneHost,
     isWrappedInParens,
     normalizeOptionalChain,
+    inheritConsumedMemberComments,
     replaceInstanceLike,
     replaceInstanceChainCombined,
     replaceCallWithSimple,
@@ -1586,6 +1595,9 @@ export default function plugin(api, options) {
             && aliasRootedReadMayThrow(path.node.object, resolveBuiltIn, { scope: path.scope, adapter, path })
             && !aliasHeldClaimProbe(path.node, resolveBuiltIn, { scope: path.scope, adapter, path })) return;
           const id = injectPureImport(entry, hintName);
+          // A static replacement consumes the member spine, including comments between
+          // its hops. The injected leaf carries those attachments into the guarded form.
+          if (kind === 'static') inheritConsumedMemberComments(id, path.node);
           // a WRITE host is never a read: the member is being assigned, updated or DELETED, so swapping
           // it changes what the statement acts on - `delete X.flat.name` became `delete _nameMaybeFunction(...)`,
           // whose operand is a CALL, so the delete stopped deleting anything at all. the property-meta
@@ -1815,6 +1827,9 @@ export default function plugin(api, options) {
           } else if (replaceSet.has(node)) {
             path.replaceWith(t.expressionStatement(t.numericLiteral(0)));
           } else {
+            // Babel transfers comments to siblings on removal. The last entry has no
+            // sibling yet: imports flush later, so the program must retain its comments.
+            if (body.length === 1) t.inheritsComments(programPath.node, node);
             path.remove();
           }
         }

@@ -29,6 +29,7 @@ import {
   globalProxyNameFromImportSource,
   identifierDeclaratorInit,
   identifierReferencedInSubtree,
+  initializerMayRunBeforeUsage,
   IMPORT_SPECIFIER_TYPES,
   importBindingIsTypeOnly,
   importedGlobalProxyName,
@@ -515,7 +516,9 @@ export function mutationGuardKeepingHop(node, resolvePure, aliasCtx) {
   // the value under the `?.` has to BE a realm span this build can name, hop for hop: a user slot
   // in it holds the user's own object, and the value canon - which models realm hops alone - answers
   // "defined" for it by saying nothing at all
-  if (maximalProxyGlobalPrefix(below, aliasCtx, { throughChainAssign: true }) !== below) return null;
+  // This proof keeps the guarded run rather than dropping its keys, so effectful spellings
+  // name the same realm hops here. Their effects remain with the original guarded read.
+  if (maximalProxyGlobalPrefix(below, aliasCtx, { throughChainAssign: true, allowSideEffectKeys: true }) !== below) return null;
   return proxyReceiverValueCanBeUndefined(below, resolvePure, aliasCtx) ? null : hop;
 }
 
@@ -770,11 +773,6 @@ export function staticMayEraseReceiver(memberNode, resolvePure, aliasCtx = null)
   return !undefinableProxyRootValue(peelChainRootValue(root), resolvePure, aliasCtx);
 }
 
-// the one question every guard-keep decision asks about a chain root's VALUE: can it
-// genuinely be undefined on-target? true for a nav through an unponyfilled proxy hop
-// (`globalThis.window`) and for an ALIAS of one (`const w = globalThis.window` - the binding
-// hides the same navigation; the POSSIBLE gate keeps non-proxy resolutions - a follow that
-// lands on a plain local - out of the refusal); false for resolvable navs and other values
 // evaluation of a claim RECEIVER may itself throw: its own member get reads off a
 // nullish-able base (an undefinable probe nav, a guard-shaped alias). a migrated
 // computed-key SE must then ride BEHIND a receiver memo - ECMA receiver-before-key: native
@@ -793,6 +791,11 @@ export function claimReceiverEvaluationMayThrow(receiverObj, resolvePure, aliasC
     resolvePure, aliasCtx);
 }
 
+// the one question every guard-keep decision asks about a chain root's VALUE: can it
+// genuinely be undefined on-target? true for a nav through an unponyfilled proxy hop
+// (`globalThis.window`) and for an ALIAS of one (`const w = globalThis.window` - the binding
+// hides the same navigation; the POSSIBLE gate keeps non-proxy resolutions - a follow that
+// lands on a plain local - out of the refusal); false for resolvable navs and other values
 export function undefinableProxyRootValue(value, resolvePure, aliasCtx = null) {
   const seen = new Set();
   while (true) {
@@ -1142,60 +1145,56 @@ function isInteropDefaultCallee(callee, scope, adapter, path) {
   return typeof source === 'string' && INTEROP_HELPER_SOURCE.test(source);
 }
 
-// `_interopRequireDefault(require('<pkg>/<mode>/global-this'))` call -> the proxy name its
-// `.default` member carries, or null
-function interopCallProxySource({ callNode, scope, adapter, path = null }) {
+// The module source carried by a recognized interop call's default slot, or null.
+function interopCallSource({ callNode, scope, adapter, path = null }) {
   if (callNode?.type !== 'CallExpression' || callNode.arguments?.length !== 1
     || !isInteropDefaultCallee(callNode.callee, scope, adapter, path)) return null;
-  const required = requireCallSource(callNode.arguments[0], { adapter, scope, path });
-  return required ? globalProxyNameFromImportSource(required, adapter.packages) : null;
+  return requireCallSource(callNode.arguments[0], { adapter, scope, path });
 }
 
-// the proxy name a `.default` member read carries, or null. babel's module lowering wraps a
-// CJS module as `{ default: module.exports }` and bundler namespace interop does the same, so
-// for a pure GLOBAL-PROXY entry the WRAPPER / NAMESPACE is not the global - its `.default`
-// is. three shapes of the same fact, all folded here so the member branch of
-// `resolveObjectName` keeps taint and reads symmetric across them:
-//   `var X = _interopRequireDefault(require('.../global-this')); X.default.Map = shim`
-//   `import * as X from '.../global-this'; X.default.Map = shim`
-//   `_interopRequireDefault(require('.../global-this')).default.Map = shim`
-// dropping the inline call on a READ substitution is sound: a pure entry module evaluates
-// with no user-visible effects, so skipping its load changes nothing observable
-export function interopDefaultProxyName({ objectNode, scope, adapter, path }) {
-  // peel parens / TS casts (`(_g).default`, `(_g as any).default` - oxc keeps the
-  // ParenthesizedExpression babel strips) so both parsers reach the same shape check;
-  // an effect-bearing sequence prefix stops the peel and stays unrecognized (bail)
-  objectNode = unwrapTransparentSeq(objectNode);
-  if (objectNode?.type === 'CallExpression') return interopCallProxySource({ callNode: objectNode, scope, adapter, path });
-  if (objectNode?.type !== 'Identifier') return null;
-  // follow single-assignment Identifier alias hops down to the interop-call / namespace-import
-  // binding - babel's merged-import lowering emits `var ns = _globalThis;` between the use and
-  // the wrapper var. every hop must itself be write-free (a reassigned name no longer provably
-  // holds the wrapper); the seen-set guards alias cycles
+// The module source whose default value a node carries, through write-free aliases.
+// A namespace/wrapper needs a default-member hop; a default binding already holds the value.
+// The same source walk serves proxy-global reads and pure invoker pairing.
+export function moduleDefaultSource({ node, scope, adapter, path, namespace = false }) {
   const seen = new Set();
-  let { name } = objectNode;
-  let lookupScope = scope;
-  while (!seen.has(name)) {
-    seen.add(name);
-    const binding = adapter.getBinding(lookupScope, name, path);
+  while (node) {
+    node = unwrapTransparentSeq(node);
+    if (!node) return null;
+    if (!namespace) {
+      const source = requireCallSource(node, { scope, adapter, path });
+      if (source) return source;
+      if (isMemberAccessNode(node) && memberKeyName(node) === 'default') {
+        node = node.object;
+        namespace = true;
+        continue;
+      }
+    }
+    if (node.type === 'CallExpression') {
+      return namespace ? interopCallSource({ callNode: node, scope, adapter, path }) : null;
+    }
+    if (node.type !== 'Identifier' || seen.has(node.name)) return null;
+    seen.add(node.name);
+    const binding = adapter.getBinding(scope, node.name, path);
     if (!binding || isReassignedBeyondDeclarator(binding)) return null;
-    if (binding.node?.type === 'ImportNamespaceSpecifier') {
-      // `import type * as X` erases like every type-only form - same gate as the default-import arm
-      return importBindingIsTypeOnly(binding)
-        ? null : globalProxyNameFromImportSource(binding.importSource, adapter.packages);
+    const declaratorNode = bindingDeclaratorNode(binding);
+    if (declaratorNode?.type === 'VariableDeclarator'
+      && !initializerMayRunBeforeUsage({ declaratorNode, usagePath: path, usageNode: node })) return null;
+    if (namespace && binding.node?.type === 'ImportNamespaceSpecifier') {
+      return importBindingIsTypeOnly(binding) ? null : binding.importSource;
     }
-    const init = binding.node?.type === 'VariableDeclarator' && binding.node.id?.type === 'Identifier'
-      ? unwrapTransparentSeq(binding.node.init) : null;
-    if (!init) return null;
-    if (init.type === 'Identifier') {
-      // the init resolves in the alias's OWN declaration scope, not the use scope
-      lookupScope = aliasDeclScope(binding, lookupScope);
-      ({ name } = init);
-      continue;
-    }
-    return interopCallProxySource({ callNode: init, scope: aliasDeclScope(binding, lookupScope), adapter, path });
+    const source = !namespace && boundModuleDefaultSource(binding, adapter);
+    if (source) return source;
+    node = identifierDeclaratorInit(binding);
+    // Each alias captures its initializer at its declaration point and in its own scope.
+    scope = aliasDeclScope(binding, scope);
+    path = binding.path ?? binding.declarationPath ?? binding.resolveDeclaratorPath?.() ?? path;
   }
   return null;
+}
+
+// The default slot of a pure global-proxy module holds the realm, not its interop wrapper.
+export function interopDefaultProxyName({ objectNode, ...ctx }) {
+  return globalProxyNameFromImportSource(moduleDefaultSource({ node: objectNode, ...ctx, namespace: true }), ctx.adapter.packages);
 }
 
 // the proxy name a binding bound to a bare `require('<pkg>/<mode>/global-this')` carries: for the
@@ -2415,7 +2414,9 @@ export function reachableAliasValues({
 // takes the hop standing on the CALL and returns the hop standing on the callee function: its
 // `ctx.scope` anchors the callee's BODY - identifiers resolve where the callee was declared, not
 // at the call site (a use-site shadow of a name the body reads must not capture it)
-export function resolveInlineCalleeFunction(hop, { allowIdentityParam = false, allowExtraParams = false, rejectConditional = false } = {}) {
+export function resolveInlineCalleeFunction(hop, {
+  allowIdentityParam = false, allowExtraParams = false, rejectConditional = false, allowUninitializedCallee = false,
+} = {}) {
   const { adapter, path } = hop.ctx;
   const seen = new Set(hop.seen);
   // SE-bail (unwrapTransparentSeq), NOT peel-to-tail: recognizing a SE-callee IIFE (`(eff(), () => Array)()`)
@@ -2423,38 +2424,49 @@ export function resolveInlineCalleeFunction(hop, { allowIdentityParam = false, a
   // over the SE-wrapped callee. the SE-bail keeps the shape unresolved (native call survives)
   let callee = unwrapTransparentSeq(hop.node.callee);
   let hopScope = hop.ctx.scope;
+  let lookupPath = path;
+  const initAvailable = allowUninitializedCallee ? initializerMayRunBeforeUsage : varInitDominatesUsage;
   if (isMemberAccessNode(callee)) {
     const local = LOCAL_MEMBER_CALLEES.get(callee);
     if (!local) return null;
     const owner = unwrapTransparentSeq(callee.object);
     const binding = owner?.type === 'Identifier' ? adapter.getBinding(hop.ctx.scope, owner.name, path) : null;
-    if (!binding || !varInitDominatesUsage({
+    if (!binding || !initAvailable({
       declaratorNode: binding.path?.node ?? binding.node, usagePath: path, usageNode: hop.node, kind: binding.kind,
     })) return null;
     // The selected value is still in its owner's scope. Identifier-valued slots use the
     // ordinary alias walk below, without looking up a path by scanning the file again.
     callee = local;
     hopScope = aliasDeclScope(binding, hopScope);
+    lookupPath = binding.path ?? binding.declarationPath ?? binding.resolveDeclaratorPath?.() ?? lookupPath;
   }
   // identifier hops follow transitively (`const f = () => X; const q = f; q()`), each hop
   // re-anchored at the alias's own declaration scope (per-hop advance like the key/global
   // alias walks) with the seen-set guarding cycles
   while (callee.type === 'Identifier') {
     const { name } = callee;
-    if (!adapter.hasBinding(hopScope, name, path) || seen.has(name)) return null;
-    const binding = adapter.getBinding(hopScope, name, path);
+    if (!adapter.hasBinding(hopScope, name, lookupPath) || seen.has(name)) return null;
+    const binding = adapter.getBinding(hopScope, name, lookupPath);
     if (!binding) return null;
-    const isDeclarator = adapter.getBindingNodeType(hopScope, name, path) === 'VariableDeclarator';
+    const isDeclarator = adapter.getBindingNodeType(hopScope, name, lookupPath) === 'VariableDeclarator';
     // the shared accessor covers both binding shapes (detect adapters carry `.node`, the
     // type-resolver channel only `.path`) AND gates on a plain-Identifier declarator: a
     // pattern-bound name (`const { f } = g`) holds a SLOT of the init, so following the whole
     // init inlined the CONTAINER as the callee (`f().from` ran where native throws)
     const initNode = isDeclarator ? identifierDeclaratorInit(binding) : null;
+    // the dominance question anchors at THIS read - the callee identifier itself (a clone with no
+    // span falls back to the hop's read site): a write earlier in the same sequence (`(f = () =>
+    // globalThis, f().Array)`) precedes it and dominates, a write after an alias captured the call
+    // (`const G = mk().Array; mk = ...`) does not and leaves the init live. anchored at the outer
+    // expression both were misjudged - the in-sequence write read as "after" (the FC-144 lesson)
+    const anchor = typeof callee.start === 'number' ? callee : hop.readNode;
     // ... and the initializer has to have RUN by the call: a hoisted `var f = () => ...` declared
     // below the call is `undefined` there, and inlining its body would erase the throw the source
     // makes - the same gate the member-callee branch above applies
-    if (initNode && !varInitDominatesUsage({
-      declaratorNode: bindingDeclaratorNode(binding), usagePath: path, usageNode: hop.node, kind: binding.kind,
+    // Mutation census admits conditional initialization, but a definitely earlier read or
+    // alias capture cannot observe that initializer and still declines.
+    if (initNode && !initAvailable({
+      declaratorNode: bindingDeclaratorNode(binding), usagePath: lookupPath, usageNode: anchor, kind: binding.kind,
     })) return null;
     if (isDeclarator && !initNode) {
       // an init-less binding whose ONE write assigns a function literal (`let f; if (c) f =
@@ -2477,20 +2489,18 @@ export function resolveInlineCalleeFunction(hop, { allowIdentityParam = false, a
       // the write's RHS resolves in the binding's own declaration scope, like a declarator init
       return finishInlineCallee({ hop, callee, scope: aliasDeclScope(binding, hopScope), seen, allowIdentityParam, allowExtraParams });
     }
-    // the dominance question anchors at THIS read - the callee identifier itself (a clone with no
-    // span falls back to the hop's read site): a write earlier in the same sequence (`(f = () =>
-    // globalThis, f().Array)`) precedes it and dominates, a write after an alias captured the call
-    // (`const G = mk().Array; mk = ...`) does not and leaves the init live. anchored at the outer
-    // expression both were misjudged - the in-sequence write read as "after" (the FC-144 lesson)
-    const anchor = typeof callee.start === 'number' ? callee : hop.readNode;
-    if (reassignmentBlocksGlobalResolve({ binding, adapter, path, usageNode: anchor })) {
+    if (reassignmentBlocksGlobalResolve({ binding, adapter, path: lookupPath, usageNode: anchor })) {
       // a dominating write replaced the callee, and its value IS the callee now: the enumerable
       // reaching value for usage-global, the single observable one for usage-pure - the callee twin
       // of `reachingContainerValueNode` (the init is dead, inlining it would name a callee the
       // runtime never calls); a value neither can determine leaves the call unresolved
       const { method } = adapter;
       const reaching = method === 'usage-global' || method === 'usage-pure' ? reachingReassignmentValueNode({
-        binding, usagePath: path, ctx: { ...hop.ctx, resolveKey }, usageNode: anchor, requireSingleObservation: method === 'usage-pure',
+        binding,
+        usagePath: lookupPath,
+        ctx: { ...hop.ctx, scope: hopScope, path: lookupPath, resolveKey },
+        usageNode: anchor,
+        requireSingleObservation: method === 'usage-pure',
       }) : null;
       if (!reaching) return null;
       callee = unwrapTransparentSeq(reaching);
@@ -2508,6 +2518,7 @@ export function resolveInlineCalleeFunction(hop, { allowIdentityParam = false, a
     }
     seen.add(name);
     hopScope = aliasDeclScope(binding, hopScope);
+    lookupPath = binding.path ?? binding.declarationPath ?? binding.resolveDeclaratorPath?.() ?? lookupPath;
   }
   return finishInlineCallee({ hop, callee, scope: hopScope, seen, allowIdentityParam, allowExtraParams });
 }
@@ -2564,8 +2575,12 @@ function identityParam({ callee, allowIdentityParam, allowExtraParams }) {
 // a body return, the CALL site for an identity-arg return (the argument evaluates there) - and
 // its `seen` the advanced cycle-guard set a caller descending into the node threads on (the
 // caller's own set stays unmutated)
-export function inlineCallReturnExpression(hop, { rejectConditional = false, allowExtraParams = false, returnSink = null } = {}) {
-  const resolved = resolveInlineCalleeFunction(hop, { allowIdentityParam: true, allowExtraParams, rejectConditional });
+export function inlineCallReturnExpression(hop, {
+  rejectConditional = false, allowExtraParams = false, returnSink = null, allowUninitializedCallee = false,
+} = {}) {
+  const resolved = resolveInlineCalleeFunction(hop, {
+    allowIdentityParam: true, allowExtraParams, rejectConditional, allowUninitializedCallee,
+  });
   if (!resolved) return null;
   const callee = resolved.node;
   const candidates = returnSink && !callee.params?.length ? [] : null;

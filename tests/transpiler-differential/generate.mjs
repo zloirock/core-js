@@ -1459,11 +1459,11 @@ const C_SLOTS = [
   { id: 'reposition-concat-key', setup: 'const b = [{ q: 1 }, Array]; b["rev" + "erse"]();', use: 'typeof b[0].of', strip: false },
   { id: 'reposition-dynamic-key', setup: 'const b = [{ q: 1 }, Array]; const m = "reverse"; b[m]();', use: 'typeof b[0].of', strip: false },
   { id: 'reposition-optional-call', setup: 'const b = [{ q: 1 }, Array]; b?.reverse();', use: 'typeof b[0].of', strip: false },
-  { id: 'reposition-destructured', setup: 'const b = [{ q: 1 }, Array]; const { reverse } = b; reverse.call(b);', use: 'typeof b[0].of', strip: false },
+  { id: 'reposition-reflect-apply', setup: 'const b = [{ q: 1 }, Array]; const { reverse } = b; Reflect.apply(reverse, b, []);', use: 'typeof b[0].of', strip: false },
   // the REACHING-VALUE family: the value a write installs is a receiver of later slot reads -
   // usage-global unions its statics beside the literal candidate's, pure keeps the bail. member
   // and destructure spellings read through the same walk, so both lock the union channel
-  { id: 'write-reaching-member', setup: 'const w = { k: Object }; w.k = Map;', use: 'typeof w.k.groupBy', strip: false },
+  { id: 'write-reaching-member', setup: 'const w = { k: Object }; w.k = Map;', use: 'JSON.stringify(w.k.groupBy([1], x => x))', strip: false },
   // The old Object candidate is dead after a definite replacement. Observe the result's
   // kind as well as the method's presence; Object.groupBy and Map.groupBy both exist.
   ...[
@@ -1535,31 +1535,35 @@ const C_SLOTS = [
     ['optional-absent-owner', 'if (false) { var o = { m() { return Map; } }; }', 'typeof o?.m().groupBy'],
   ].map(([id, setup, use]) => ({ id: `method-return-${ id }`, setup, use, strip: true })),
   { id: 'getter-return-ctor', setup: 'const o = { get m() { return Map; } };', use: 'typeof o.m.groupBy', strip: false, fullEnvSnippet: true },
-  { id: 'write-reaching-destructure', setup: 'void Map.groupBy; const w = { k: Object }; w.k = Map; const { k: { groupBy: g } } = w;', use: 'typeof g', strip: false },
+  { id: 'write-reaching-destructure', setup: 'void Map.groupBy; const w = { k: Object }; w.k = Map; const { k: { groupBy: g } } = w;',
+    use: 'JSON.stringify(g([1], x => x))', strip: false },
   {
     id: 'write-reaching-dynamic-key',
     setup: 'void Map.groupBy; const w = { k: Object }; const dk = "k"; w[dk] = Map; const { k: { groupBy: g } } = w;',
-    use: 'typeof g', strip: false,
+    use: 'JSON.stringify(g([1], x => x))', strip: false,
   },
   {
     id: 'write-reaching-nested',
     setup: 'void Map.groupBy; const i = { g: Object }; const w = { k: i }; i.g = Map; const { k: { g: { groupBy: g } } } = w;',
-    use: 'typeof g', strip: false,
+    use: 'JSON.stringify(g([1], x => x))', strip: false,
   },
-  { id: 'reposition-destructure-read', setup: 'const b = [{ q: 1 }, Array]; b.reverse(); const { 0: { of: o } } = b;', use: 'typeof o', strip: false },
+  { id: 'reposition-destructure-read', setup: 'const b = [{ q: 1 }, Array]; b.reverse(); const { 0: { of: o } } = b;', use: 'JSON.stringify(o(7))', strip: false },
   // the FLAT destructure spelling over a container member asks the same walk: clean extracts
   // (strippable - the pure static must be polyfill-backed), written unions in global and bails pure
   { id: 'flat-destructure-clean', setup: 'const w = { k: Array }; const { of: o } = w.k;', use: 'JSON.stringify(o(6))', strip: true },
-  { id: 'flat-destructure-written', setup: 'void Map.groupBy; const w = { k: Object }; w.k = Map; const { groupBy: g } = w.k;', use: 'typeof g', strip: false },
+  { id: 'flat-destructure-written', setup: 'void Map.groupBy; const w = { k: Object }; w.k = Map; const { groupBy: g } = w.k;',
+    use: 'JSON.stringify(g([1], x => x))', strip: false },
   // a REASSIGNED container binding: the dominating write's value is the reaching primary, a
   // conditional write joins the union, a wrapper chain follows the same hop canon. pure bails all
-  { id: 'reassigned-dominating', setup: 'void Map.groupBy; let w = { k: Object }; w = { k: Map }; const { k: { groupBy: g } } = w;', use: 'typeof g', strip: false },
+  { id: 'reassigned-dominating', setup: 'void Map.groupBy; let w = { k: Object }; w = { k: Map }; const { k: { groupBy: g } } = w;',
+    use: 'JSON.stringify(g([1], x => x))', strip: false },
   {
     id: 'reassigned-conditional',
     setup: 'void Map.groupBy; let w = { k: Object }; if (Math.random() < 2) w = { k: Map }; const { groupBy: g } = w.k;',
-    use: 'typeof g', strip: false,
+    use: 'JSON.stringify(g([1], x => x))', strip: false,
   },
-  { id: 'reassigned-wrapper', setup: 'void Map.groupBy; let w = [{ p: Object }]; w = [{ p: Map }]; const [{ p: { groupBy: g } }] = w;', use: 'typeof g', strip: false },
+  { id: 'reassigned-wrapper', setup: 'void Map.groupBy; let w = [{ p: Object }]; w = [{ p: Map }]; const [{ p: { groupBy: g } }] = w;',
+    use: 'JSON.stringify(g([1], x => x))', strip: false },
   // reassignment VALUE semantics: an identity self-assign is a no-op (pure still resolves -
   // strippable), an SE-carrying write installs its sequence tail, cross-writes capture at the
   // write site (`a = b` reads b BEFORE `b = a` overwrites it)
@@ -1567,32 +1571,33 @@ const C_SLOTS = [
   {
     id: 'reassigned-se-tail',
     setup: 'void Map.groupBy; let n = 0; const eff = () => n++; let w = { k: Object }; w = (eff(), { k: Map }); const { k: { groupBy: g } } = w;',
-    use: 'typeof g + n', strip: false,
+    use: 'JSON.stringify(g([1], x => x)) + n', strip: false,
   },
   {
     id: 'reassigned-cross-write',
     setup: 'void Map.groupBy; let a = { k: Object }; let b = { k: Map }; a = b; b = a; const { k: { groupBy: g } } = a;',
-    use: 'typeof g', strip: false,
+    use: 'JSON.stringify(g([1], x => x))', strip: false,
   },
   // an object-pattern key spelling an array index pairs cross-form - the written value reaches
   {
     id: 'reassigned-pattern-obj-lhs',
     setup: 'void Map.groupBy; let w = { k: Object }; ({ 0: w } = [{ k: Map }]); const { k: { groupBy: g } } = w;',
-    use: 'typeof g', strip: false,
+    use: 'JSON.stringify(g([1], x => x))', strip: false,
   },
   // a branching / ambiguous write installs one of its arm values - each arm joins the union
   {
     id: 'reassigned-branching-write',
     setup: 'void Map.groupBy; let w = { k: Object }; w = Math.random() < 2 ? { k: Map } : { k: Object }; const { k: { groupBy: g } } = w;',
-    use: 'typeof g', strip: false,
+    use: 'JSON.stringify(g([1], x => x))', strip: false,
   },
   {
     id: 'reassigned-ambiguous-default',
     setup: 'void Map.groupBy; let w = { k: Object }; ({ 0: w = { k: Map } } = [{ k: Object }]); const { k: { groupBy: g } } = w;',
-    use: 'typeof g', strip: false,
+    use: 'JSON.stringify(g([1], x => x))', strip: false,
   },
   // a logical BINDING assign flows its RHS as a possible value
-  { id: 'reassigned-logical-binding', setup: 'void Map.groupBy; let w = null; w ||= { k: Map }; const { k: { groupBy: g } } = w;', use: 'typeof g', strip: false },
+  { id: 'reassigned-logical-binding', setup: 'void Map.groupBy; let w = null; w ||= { k: Map }; const { k: { groupBy: g } } = w;',
+    use: 'JSON.stringify(g([1], x => x))', strip: false },
 ];
 
 // --- A patch installed through a PARAMETER: the call is what says which object it lands on ---
@@ -3418,9 +3423,13 @@ const KPR_SHAPES = [
   // BLIND (unresolvable-value) triple chain: three stacked dispatches rebind on one guard memo,
   // and the middle transform's stitch boundary must reach the compose hint (crash class)
   { id: 'blind-triple-instance', value: 'globalThis.window', tail: '?.self.Array.prototype.at.name.at?.(0)' },
-  // instance dispatch OVER a blind call tail: the static claim inside the tail dies at enter
-  // (a late drop strands a dead import), and the memo re-reads the call verbatim
+  // The static callee's own guard erases, but the environment guard owns every tail.
   { id: 'blind-call-tail', value: 'globalThis.window', tail: '?.self.Array.from?.([1]).at?.(0)' },
+  { id: 'blind-call-plain-tail', value: 'globalThis.window', tail: '?.self.Array.from?.([2]).at(0)' },
+  { id: 'blind-call-double-optional', value: 'globalThis.window', tail: '?.self.Array?.from?.([3]).at?.(0)' },
+  { id: 'blind-call-of-tail', value: 'globalThis.window', tail: '?.self.Array.of?.(4).at?.(0)' },
+  { id: 'blind-call-key-effect', value: 'globalThis.window', tail: '?.self.Array[(log.push("key"), "from")]?.([5]).at?.(0)' },
+  { id: 'blind-call-value-undefined', value: 'globalThis.window', tail: '?.self.Array.of?.().at(0).at?.(0)' },
   // claimable ctor under a blind kept tail: the blocked claim keeps the tail verbatim including
   // the `.self` hop (dropping the hop desyncs from babel)
   { id: 'blind-ctor-leaf', value: 'globalThis.window', tail: '?.self.Set.name.at?.(0)' },
@@ -3569,6 +3578,7 @@ function * generateKeptProxyRoot() {
     const expr = shape.seal ? `(${ assign }${ shape.tail })` : `${ assign }${ shape.tail }`;
     const inner = `(() => { let t; const v = ${ expr }; log.push(t === globalThis.window); return v; })()`;
     yield { ...snippet(`kept-proxy-root/${ shape.id }`, inner, { rig: true }), strip: false };
+    if (shape.tail.startsWith('?.')) yield { ...snippet(`kept-proxy-root/${ shape.id }/absent`, inner), strip: false };
   }
 }
 
@@ -4190,7 +4200,7 @@ function * generateBareProxyProbe() {
 // Rig writes stay outside the source so neither emitter can deoptimize these clean reads.
 function * generateUnbackedWindowOptionals() {
   const changingRig = `import { withChangingWindow } from ${ JSON.stringify(
-    new URL('../e2e-usage-pure/unbacked-window-host.js', import.meta.url).href) };`;
+    new URL('../e2e-usage-pure/unbacked-window-host.cjs', import.meta.url).href) };`;
   // A computed unbacked prefix must retain the optional above it when stored. The first
   // window exists, while the second may disappear: dropping ?.Array then invents a throw.
   for (const [keyId, key] of [['dotted', '.window'], ['computed', "['window']"]]) {
@@ -4207,7 +4217,7 @@ function * generateUnbackedWindowOptionals() {
     }
   }
   const rigImport = `import { withNestedWindow } from ${ JSON.stringify(
-    new URL('../e2e-usage-pure/unbacked-window-host.js', import.meta.url).href) };`;
+    new URL('../e2e-usage-pure/unbacked-window-host.cjs', import.meta.url).href) };`;
   for (const [keyId, probe] of [
     ['dotted', 'window.window.window'],
     ['computed-effect', "window.window[(log.push('key'), 'window')]"],
@@ -6172,7 +6182,7 @@ const DEFERRED_UNION = [
   // shapes whose family only the scope-dependent routes can name - the axis the two parsers disagreed on
   { id: 'member-write', body: 'const holder = { rows: ["a", "b"] }; let x = null; const read = () => String(x.at(-1)); x = holder.rows; return read();' },
   { id: 'call-write', body: 'function mk() { return ["a", "b"]; } let x = null; const read = () => String(x.at(-1)); x = mk(); return read();' },
-  { id: 'instance-write', body: 'class P { constructor() { this.v = "z"; } } let x = null; const read = () => String(x.v); x = new P(); return read();' },
+  { id: 'instance-write', strip: false, body: 'class P { constructor() { this.v = "z"; } } let x = null; const read = () => String(x.v); x = new P(); return read();' },
   { id: 'shadowed-undefined-write', body: 'let x = null; const read = () => String(x.at(-1)); { const undefined = ["a", "b"]; x = undefined; } return read();' },
   { id: 'compound-write', body: 'let x = null; const read = () => String(x.at(-1)); x = "a"; x += "b"; return read();' },
   { id: 'instance-field-read', body: 'let x = null; class C { held = String(x.at(-1)); } x = ["a", "b"]; return new C().held;' },
@@ -6182,7 +6192,7 @@ const DEFERRED_UNION = [
 ];
 function * generateDeferredUnion() {
   for (const c of DEFERRED_UNION) {
-    yield { ...snippet(`deferred-read-union/${ c.id }`, `(() => { ${ c.body } })()`), strip: true };
+    yield { ...snippet(`deferred-read-union/${ c.id }`, `(() => { ${ c.body } })()`), strip: c.strip ?? true };
   }
 }
 
@@ -6916,41 +6926,34 @@ const M_STATICS = [
   { recv: 'Object', key: 'hasOwn', use: 'Object.hasOwn({ a: 1 }, "a")' },
   { recv: 'Number', key: 'isInteger', use: 'Number.isInteger(3)' },
 ];
+// Cleanup runs in a foreign module, so it cannot make an unrecognized patch channel
+// appear recorded. Save exact descriptors: absent properties must stay absent afterwards.
+const RESTORE_IMPORT = `import { restoreProperty } from ${ JSON.stringify(new URL('../helpers/restore-property.cjs', import.meta.url).href) };`;
+function mutationSnippet(name, body) {
+  const row = snippet(name, body);
+  return { ...row, code: `${ RESTORE_IMPORT }\nconst _nativeObject = Object;\n${ row.code }`, strip: true };
+}
 const M_MUTATORS = [
   { id: 'assign', patch: s => `${ s.recv }.${ s.key } = () => "P";` },
   { id: 'defineprop', patch: s => `Object.defineProperty(${ s.recv }, "${ s.key }", { value: () => "P", writable: true, configurable: true });` },
   { id: 'reflect', patch: s => `Reflect.defineProperty(${ s.recv }, "${ s.key }", { value: () => "P", writable: true, configurable: true });` },
-  // a COMPUTED mutator callee and a proxy-global mutator under a local namespace shadow are their own
-  // detection channels: patch AND restore stay on the SAME channel - a bare-assign restore would
-  // self-mark the key and mask whether the channel under test is the thing detected. the shadow
-  // prologue skips Object receivers (the READ would hit the local shadow at runtime)
-  { id: 'computed-defineprop',
-    patch: s => `Object["defineProperty"](${ s.recv }, "${ s.key }", { value: () => "P", writable: true, configurable: true });`,
-    restore: s => `Object["defineProperty"](${ s.recv }, "${ s.key }", { value: _o, writable: true, configurable: true });` },
+  { id: 'computed-defineprop', patch: s => `Object["defineProperty"](${ s.recv }, "${ s.key }", { value: () => "P", writable: true, configurable: true });` },
   { id: 'proxy-shadow-defineprop',
     prologue: 'const Object = { defineProperty() { return 0; } }; void Object.defineProperty;',
     skipObjectRecv: true,
-    patch: s => `globalThis.Object.defineProperty(${ s.recv }, "${ s.key }", { value: () => "P", writable: true, configurable: true });`,
-    restore: s => `globalThis.Object.defineProperty(${ s.recv }, "${ s.key }", { value: _o, writable: true, configurable: true });` },
-  // an ALIASED namespace and an EXTRACTED mutator binding resolve through the same canons as the
-  // dotted callee - the patch and restore reuse the alias so the channel under test stays the
-  // only mutation channel in the snippet
-  { id: 'aliased-ns-defineprop',
-    prologue: 'const O = Object;',
-    patch: s => `O.defineProperty(${ s.recv }, "${ s.key }", { value: () => "P", writable: true, configurable: true });`,
-    restore: s => `O.defineProperty(${ s.recv }, "${ s.key }", { value: _o, writable: true, configurable: true });` },
-  { id: 'extracted-defineprop',
-    prologue: 'const dp = Object.defineProperty;',
-    patch: s => `dp(${ s.recv }, "${ s.key }", { value: () => "P", writable: true, configurable: true });`,
-    restore: s => `dp(${ s.recv }, "${ s.key }", { value: _o, writable: true, configurable: true });` },
+    patch: s => `globalThis.Object.defineProperty(${ s.recv }, "${ s.key }", { value: () => "P", writable: true, configurable: true });` },
+  { id: 'aliased-ns-defineprop', prologue: 'const O = Object;',
+    patch: s => `O.defineProperty(${ s.recv }, "${ s.key }", { value: () => "P", writable: true, configurable: true });` },
+  { id: 'extracted-defineprop', prologue: 'const dp = Object.defineProperty;',
+    patch: s => `dp(${ s.recv }, "${ s.key }", { value: () => "P", writable: true, configurable: true });` },
 ];
 function * generateMutatedStatic() {
   for (const s of M_STATICS) {
     for (const mut of M_MUTATORS) {
       if (mut.skipObjectRecv && s.recv === 'Object') continue;
-      const restore = mut.restore ? mut.restore(s) : `${ s.recv }.${ s.key } = _o;`;
-      const body = `(() => { ${ mut.prologue ?? '' } const _o = ${ s.recv }.${ s.key }; try { ${ mut.patch(s) } return ${ s.use }; } finally { ${ restore } } })()`;
-      yield { ...snippet(`mutated-static/${ mut.id }/${ s.recv }.${ s.key }`, body), strip: false };
+      const body = `(() => { ${ mut.prologue ?? '' } const descriptor = _nativeObject.getOwnPropertyDescriptor(${ s.recv }, "${ s.key }");`
+        + ` try { ${ mut.patch(s) } return ${ s.use }; } finally { restoreProperty(${ s.recv }, "${ s.key }", descriptor); } })()`;
+      yield mutationSnippet(`mutated-static/${ mut.id }/${ s.recv }.${ s.key }`, body);
     }
   }
 }
@@ -6971,10 +6974,22 @@ const ESCAPE_ROUTES = [
   { id: 'parameter-stored-outside', setup: 'let held; function keep(x) { held = x; }', write: 'keep(Array); held.from = patched;' },
 ];
 function * generateEscapeCensusRoutes() {
-  for (const route of ESCAPE_ROUTES) {
-    const body = `(() => { const _o = Array.from; const patched = () => "patched"; ${ route.setup }`
-      + ` try { ${ route.write } return Array.from([1]); } finally { Array.from = _o; } })()`;
-    yield { ...snippet(`escape-census-route/${ route.id }`, body), strip: false };
+  const invokers = [
+    ['call', 'pick.call(null, 1, Array)'],
+    ['apply', 'pick.apply(null, [1, Array])'],
+    ['reflect', 'Reflect.apply(pick, null, [1, Array])'],
+    ['bind', 'pick.bind(null, 1, Array)()'],
+    ['tag', ['pick`$', '{ Array }`'].join('')],
+  ];
+  const pairedRoutes = invokers.flatMap(([invoker, call]) => [
+    { id: `${ invoker }-returned-value`, setup: 'function pick(a, b) { return b; }', write: `${ call }.from = patched;` },
+    { id: `${ invoker }-returned-array-slot`, setup: 'function pick(a, b) { return [b]; }', write: `${ call }[0].from = patched;` },
+    { id: `${ invoker }-returned-object-slot`, setup: 'function pick(a, b) { return { x: b }; }', write: `${ call }.x.from = patched;` },
+  ]);
+  for (const route of [...ESCAPE_ROUTES, ...pairedRoutes]) {
+    const body = `(() => { const descriptor = _nativeObject.getOwnPropertyDescriptor(Array, "from"); const patched = () => "patched"; ${ route.setup }`
+      + ` try { ${ route.write } return Array.from([1]); } finally { restoreProperty(Array, "from", descriptor); } })()`;
+    yield mutationSnippet(`escape-census-route/${ route.id }`, body);
   }
 }
 
@@ -7873,8 +7888,8 @@ const EXPR_FAMILIES = {
       + 'const f = Cd.m; try { return f.call({}); } catch (e) { return "throw"; } })()',
     // a PATCHED inherited static through the optional this-call keeps the patch (no deopt to the
     // pure static; the combine keeps the guard so the trailing polys compose - crashed before)
-    '(() => { const orig = Array.from; Array.from = function () { return [8, [9]]; }; '
-      + 'class Cm extends Array { static m() { return this.from?.([1, 2]).flat().at(-1); } } const out = Cm.m(); Array.from = orig; return out; })()',
+    '(() => { const orig = Object.getOwnPropertyDescriptor(Array, "from"); Array.from = function () { return [8, [9]]; }; '
+      + 'class Cm extends Array { static m() { return this.from?.([1, 2]).flat().at(-1); } } const out = Cm.m(); restoreProperty(Array, "from", orig); return out; })()',
     // single-element array wrapper with inner rest keeps the residual (rest collects remaining keys)
     '(() => { const [{ from, ...rest }] = [Array]; return [typeof from, typeof rest]; })()',
     // for-init host: the polyfill rides a sibling declarator in the loop header
@@ -7891,35 +7906,43 @@ const EXPR_FAMILIES = {
     // alias-mutation canonicalization: the user patch through the alias wins over the polyfill
     // (the original static is RESTORED so the shared runtime stays clean for other cases;
     // the mutation marks Array.of, so the restore read stays native too)
-    '(() => { const A2 = Array; const orig = A2.of; A2.of = function () { return "patched"; }; const out = A2.of(1); A2.of = orig; return out; })()',
+    '(() => { const A2 = Array; const orig = Object.getOwnPropertyDescriptor(A2, "of"); A2.of = function () { return "patched"; '
+      + '}; const out = A2.of(1); restoreProperty(A2, "of", orig); return out; })()',
     // a reassigned alias: reads of EVERY reachable canonical stay native (mutation honored,
     // original restored for runtime hygiene)
-    '(() => { let R = Array; R = Map; const orig = R.of; R.of = function () { return "patched"; }; const out = [Map.of === R.of, typeof Array.of]; R.of = orig; return out; })()',
+    '(() => { let R = Array; R = Map; const orig = Object.getOwnPropertyDescriptor(R, "of"); '
+      + 'R.of = function () { return "patched"; }; const out = [Map.of === R.of, typeof Array.of]; restoreProperty(R, "of", orig); return out; })()',
     // logical-assignment alias value: the mutation through it stays on the NATIVE constructor
-    '(() => { let L = null; L ||= Map; const orig = L.of; L.of = function () { return "lp"; }; const out = [Map.of === L.of]; L.of = orig; return out; })()',
+    '(() => { let L = null; L ||= Map; const orig = Object.getOwnPropertyDescriptor(L, "of"); L.of = function () { return "lp"; '
+      + '}; const out = [Map.of === L.of]; restoreProperty(L, "of", orig); return out; })()',
     // ternary alias value: the mutation through it stays on the NATIVE live branch
-    '(() => { const T = 1 ? Map : Iterator; const orig = T.of; T.of = function () { return "tp"; }; const out = [Map.of === T.of]; T.of = orig; return out; })()',
+    '(() => { const T = 1 ? Map : Iterator; const orig = Object.getOwnPropertyDescriptor(T, "of"); '
+      + 'T.of = function () { return "tp"; }; const out = [Map.of === T.of]; restoreProperty(T, "of", orig); return out; })()',
     // IIFE-returned ctor alias: the mutation through it stays on the NATIVE constructor
-    '(() => { const F = (() => Map)(); const orig = F.of; F.of = function () { return "fp"; }; const out = [Map.of === F.of]; F.of = orig; return out; })()',
+    '(() => { const F = (() => Map)(); const orig = Object.getOwnPropertyDescriptor(F, "of"); F.of = function () { return "fp"; '
+      + '}; const out = [Map.of === F.of]; restoreProperty(F, "of", orig); return out; })()',
     // bound-fn-returned and static-object-member aliases keep mutations on the NATIVE ctor
-    '(() => { const fb = () => Map; const Fb = fb(); const orig = Fb.of; Fb.of = function () { return "bf"; }; const out = [Map.of === Fb.of]; Fb.of = orig; return out; })()',
-    '(() => { const NSo = { M: Map }; const Mo = NSo.M; const orig = Mo.of; Mo.of = function () { return "so"; }; const out = [Map.of === Mo.of]; Mo.of = orig; return out; })()',
+    '(() => { const fb = () => Map; const Fb = fb(); const orig = Object.getOwnPropertyDescriptor(Fb, "of"); '
+      + 'Fb.of = function () { return "bf"; }; const out = [Map.of === Fb.of]; restoreProperty(Fb, "of", orig); return out; })()',
+    '(() => { const NSo = { M: Map }; const Mo = NSo.M; const orig = Object.getOwnPropertyDescriptor(Mo, "of"); '
+      + 'Mo.of = function () { return "so"; }; const out = [Map.of === Mo.of]; restoreProperty(Mo, "of", orig); return out; })()',
     // class-static-field alias keeps the mutation on the NATIVE constructor
-    '(() => { class NSf { static M = Map; } const Mf = NSf.M; const orig = Mf.of; '
-      + 'Mf.of = function () { return "cs"; }; const out = [Map.of === Mf.of]; Mf.of = orig; return out; })()',
+    '(() => { class NSf { static M = Map; } const Mf = NSf.M; const orig = Object.getOwnPropertyDescriptor(Mf, "of"); '
+      + 'Mf.of = function () { return "cs"; }; const out = [Map.of === Mf.of]; restoreProperty(Mf, "of", orig); return out; })()',
     // duplicate container keys: the mutation lands on the LAST (live) value
-    '(() => { const ND = { M: Array, M: Iterator }; const Md = ND.M; const orig = Md.from; '
-      + 'Md.from = function () { return "dk"; }; const out = [Iterator.from === Md.from, typeof Array.from]; Md.from = orig; return out; })()',
+    '(() => { const ND = { M: Array, M: Iterator }; const Md = ND.M; const orig = Object.getOwnPropertyDescriptor(Md, "from"); '
+      + 'Md.from = function () { return "dk"; }; const out = [Iterator.from === Md.from, typeof Array.from]; restoreProperty(Md, "from", orig); return out; })()',
     // assign-source computed static key: the patch wins over substitution
-    '(() => { const orig = Array.of; Object.assign(Array, { ["of"]: function () { return "ac"; } }); '
-      + 'const out = Array.of(1); Array.of = orig; return out; })()',
+    '(() => { const orig = Object.getOwnPropertyDescriptor(Array, "of"); Object.assign(Array, { ["of"]: function () { return "ac"; } }); '
+      + 'const out = Array.of(1); restoreProperty(Array, "of", orig); return out; })()',
     // delete through an alias suppresses the in-check fold (restored for runtime hygiene)
-    '(() => { const A = Array; const orig = A.of; delete A.of; const out = "of" in Array; A.of = orig; return out; })()',
+    '(() => { const A = Array; const orig = Object.getOwnPropertyDescriptor(A, "of"); delete A.of; const out = "of" in Array; restoreProperty(A, "of", orig); return out; })()',
     // SE-wrapped proxy-member destructure init: effect exactly once, polyfill binds
     '(() => { let n = 0; const { from } = (n++, globalThis.Array); return [from([3])[0], n]; })()',
     // a shadowed bound-fn alias: the mutation through the INNER twin keeps outer reads native
     '(() => { const fs = () => Map; const out = (function () { const fs2 = () => Iterator; const T = fs2(); '
-      + 'const orig = T.from; T.from = function () { return "sh"; }; const r = [Iterator.from === T.from]; T.from = orig; return r; })(); return out; })()',
+      + 'const orig = Object.getOwnPropertyDescriptor(T, "from"); T.from = function () { return "sh"; }; '
+      + 'const r = [Iterator.from === T.from]; restoreProperty(T, "from", orig); return r; })(); return out; })()',
     // an IIFE-returned extends target resolves its super statics like the target itself
     '(() => { class Fi extends (() => globalThis.Array)() { static m() { return super.of(6); } } return Fi.m()[0]; })()',
     // an SE-buried extends target resolves its super statics (effect runs once at class-def)
@@ -7946,9 +7969,9 @@ const EXPR_FAMILIES = {
     '(() => { let x; const v = ({ Map: { x } } = globalThis); return [v === globalThis, typeof x]; })()',
     // a single-key proxy-hop destructure reads a patched static through the routed
     // constructor (the original key state is restored for runtime hygiene)
-    '(() => { const orig = Iterator.dispose; Iterator.dispose = () => 41; '
+    '(() => { const orig = Object.getOwnPropertyDescriptor(Iterator, "dispose"); Iterator.dispose = () => 41; '
       + 'const { Iterator: { dispose: read } } = globalThis; const r = read(); '
-      + 'if (orig === undefined) delete Iterator.dispose; else Iterator.dispose = orig; return [r]; })()',
+      + 'restoreProperty(Iterator, "dispose", orig); return [r]; })()',
     // a braceless case-consequent hosts the deferred destructure SE (the drain's
     // consequent-array branch); the effect lands before the extraction, once
     '(() => { const calls = []; switch (calls.push(1)) { case 1: const { of: o9 } = (calls.push(2), globalThis.Array); return [typeof o9, o9(7).length, calls.length]; } })()',
@@ -8008,25 +8031,25 @@ const EXPR_FAMILIES = {
       + 'const r = Map.customShimKey(); delete Map.customShimKey; return [r]; })()',
     // method-aware routing precision: the patched key reads the patch, a CLEAN key on the
     // same constructor keeps its polyfilled receiver-less import
-    '(() => { const orig = Iterator.from; Iterator.from = function () { return "mk"; }; '
-      + 'const a = Iterator.from(0); const b = typeof [1].values().drop(0).toArray; Iterator.from = orig; return [a, b]; })()',
+    '(() => { const orig = Object.getOwnPropertyDescriptor(Iterator, "from"); Iterator.from = function () { return "mk"; }; '
+      + 'const a = Iterator.from(0); const b = typeof [1].values().drop(0).toArray; restoreProperty(Iterator, "from", orig); return [a, b]; })()',
     // mutated-static routing: the patch and the read share the constructor object (native
     // or injected), so the patched value flows through reads, destructures and in-checks
-    '(() => { const orig = Iterator.from; Iterator.from = function () { return "rt"; }; '
+    '(() => { const orig = Object.getOwnPropertyDescriptor(Iterator, "from"); Iterator.from = function () { return "rt"; }; '
       + 'const a = Iterator.from(0); const { from } = Iterator; const b = from(0); '
-      + 'const c = "from" in Iterator; Iterator.from = orig; return [a, b, c]; })()',
+      + 'const c = "from" in Iterator; restoreProperty(Iterator, "from", orig); return [a, b, c]; })()',
     // a pattern HOLE shifts nothing: the slot still pairs positionally for the mutation set
-    '(() => { const orig = Iterator.from; let A = Array; [, A] = [0, Iterator]; '
-      + 'A.from = function () { return "hs"; }; const out = [Iterator.from === A.from]; Iterator.from = orig; return out; })()',
+    '(() => { const orig = Object.getOwnPropertyDescriptor(Iterator, "from"); let A = Array; [, A] = [0, Iterator]; '
+      + 'A.from = function () { return "hs"; }; const out = [Iterator.from === A.from]; restoreProperty(Iterator, "from", orig); return out; })()',
     // a REASSIGNED alias reaching a proxy global keys the chain mutation under the ctor leaf
-    '(() => { const orig = Array.of; let h; h = (() => false)() ? null : globalThis; '
-      + 'h.Array.of = function () { return "tp"; }; const out = [Array.of(3)]; Array.of = orig; return out; })()',
+    '(() => { const orig = Object.getOwnPropertyDescriptor(Array, "of"); let h; h = (() => false)() ? null : globalThis; '
+      + 'h.Array.of = function () { return "tp"; }; const out = [Array.of(3)]; restoreProperty(Array, "of", orig); return out; })()',
     // alias-of-proxy chain mutation: the patch through `const g = globalThis` wins over reads
-    '(() => { const orig = Array.of; const gp = globalThis; gp.Array.of = function () { return "ga"; }; '
-      + 'const out = [Array.of(2)]; Array.of = orig; return out; })()',
+    '(() => { const orig = Object.getOwnPropertyDescriptor(Array, "of"); const gp = globalThis; gp.Array.of = function () { return "ga"; }; '
+      + 'const out = [Array.of(2)]; restoreProperty(Array, "of", orig); return out; })()',
     // a proxy-chain mutation (SE-buried root included) keeps the patch winning over reads
-    '(() => { const orig = Array.of; let n = 0; (n++, globalThis).Array.of = function () { return "pc"; }; '
-      + 'const out = [Array.of(1), n]; Array.of = orig; return out; })()',
+    '(() => { const orig = Object.getOwnPropertyDescriptor(Array, "of"); let n = 0; (n++, globalThis).Array.of = function () { return "pc"; }; '
+      + 'const out = [Array.of(1), n]; restoreProperty(Array, "of", orig); return out; })()',
     // the in-check fold keeps the receiver's SE prefix evaluating
     '(() => { let n = 0; const has = "groupBy" in (n++, globalThis).Map; return [has, n]; })()',
     // synth-literal receiver with an SE prefix: effect once, unpolyfilled key reads through
@@ -8826,7 +8849,7 @@ const STRIP_TARGET_RE = new RegExp([
 // families whose snippets DELIBERATELY keep a native call live (a bail, a dynamic key, a
 // null/unknown receiver) - the surviving native call throws in the stripped realm BY DESIGN,
 // so the strip leg stays off no matter how provable the family's other reads look
-const FULL_ENV_FAMILIES = new Set([
+const PURE_FULL_ENV_FAMILIES = new Set([
   // adversarial residual/patch/dead-default shapes: monkey-patched statics, typeof-guarded dead
   // assigns, rest/dup-key siblings that stay native-residual, `??=`-rooted and IIFE-ternary
   // receivers the canon bails on - the family's oracle is the full-env VALUE set (patched
@@ -12188,7 +12211,76 @@ function * generateInlineReturnPaths() {
   }
 }
 
+// Source goal changes Annex-B block-function bindings. Script means the CommonJS wrapper
+// supported by both emitters: program vars remain local, including a var with no initializer.
+function * generateSourceGoals() {
+  const rows = [
+    ['program-var', 'var Array; var r = typeof Array === "undefined" ? "local" : Array.from([7])[0];', true],
+    ['program-var-proxy', 'var Array; var r = [typeof Array, globalThis.Array.from([8])[0]];', true],
+    ['annex-b-untaken', 'if (false) { function Array() {} } var r = typeof Array === "undefined" ? "local" : Array.of(9)[0];', true],
+    ['annex-b-taken', 'if (true) { function Array() { return "own"; } } var r = typeof Array.from;', false],
+    ['lexical-control', 'let Array = { from: () => "own" }; var r = Array.from([7]);', false],
+  ];
+  for (const [id, body, strip] of rows) {
+    for (const sourceType of ['script', 'module']) {
+      yield {
+        name: `source-goal/${ sourceType }/${ id }`,
+        code: sourceType === 'script'
+          ? `${ body }\nvar effects = []; module.exports = { r, effects };`
+          : `${ body }\nvar effects = []; export { r, effects };`,
+        sourceType,
+        strip: strip && (id === 'program-var-proxy' || (sourceType === 'module' && id === 'annex-b-untaken')),
+      };
+    }
+  }
+}
+
+// An effectful key naming an unbacked proxy hop must keep both the effect and the absent
+// slot. Sealed writes are valid optional-root consumers; optional assignment is not JS.
+function * generateUnbackedSequenceHops() {
+  const roots = [
+    ['root', 'globalThis'],
+    ['backed-hop', 'globalThis[(log.push("self"), "self")]'],
+  ];
+  const consumers = [
+    ['stored', nav => `const held = ${ nav }; return typeof held;`],
+    ['probe', nav => `let held; return (held = ${ nav }) == null ? "absent" : typeof held.Array;`],
+    ['kept-write', nav => `let held; const value = (held = ${ nav }); return [typeof value, typeof held];`],
+    ['sealed-write', nav => `try { (${ nav }?.Object).fc45Probe = 7; return (${ nav }?.Object).fc45Probe; } finally { delete Object.fc45Probe; }`],
+  ];
+  for (const [rootId, root] of roots) {
+    for (const [consumerId, consume] of consumers) {
+      const nav = `${ root }[(log.push("window"), "window")]`;
+      const expression = `(() => { try { ${ consume(nav) } } catch (e) { return e.name; } })()`;
+      for (const rig of [false, true]) {
+        yield { ...snippet(`unbacked-sequence/${ rootId }/${ consumerId }/${ rig ? 'present' : 'absent' }`, expression, { rig }), strip: true };
+      }
+    }
+  }
+}
+
+// Logical assignment can select either constructor. A pure residual is intentional here;
+// the global leg must still inject for every reachable built-in and preserve RHS effects.
+function * generateLogicalDestructure() {
+  for (const op of ['??=', '||=', '&&=']) {
+    for (const shape of ['direct', 'navigated', 'array-wrapper', 'alias']) {
+      const navigated = shape !== 'direct';
+      const rhs = navigated ? 'globalThis' : 'Array';
+      for (const retained of [false, true]) {
+        const lhs = retained ? (op === '&&=' ? 'false' : rhs) : (op === '&&=' ? 'true' : 'null');
+        const receiver = navigated ? `(a ${ op } (n++, ${ rhs })).Array` : `a ${ op } (n++, ${ rhs })`;
+        const extraction = shape === 'array-wrapper' ? `const [{ of }] = [${ receiver }];`
+          : shape === 'alias' ? `const holder = ${ receiver }; const { of } = holder;` : `const { of } = ${ receiver };`;
+        yield { ...snippet(`logical-destructure/${ op }/${ shape }/${ retained ? 'retain' : 'install' }`,
+          `(() => { let a = ${ lhs }, n = 0; ${ extraction } return [typeof of, n, of?.(7)]; })()`), strip: false };
+      }
+    }
+  }
+}
+
 export function * generate() {
+  yield * generateSourceGoals();
+  yield * generateUnbackedSequenceHops();
   yield * generateLoopAliasOwners();
   yield * generateDeferredReads();
   yield * generateGuardForms();
@@ -12364,15 +12456,15 @@ export function * generate() {
   yield * generateDisableDirectives();
   for (const [family, exprs] of Object.entries(EXPR_FAMILIES)) {
     for (const expr of exprs) {
-      const fullEnv = FULL_ENV_FAMILIES.has(family);
-      const strip = !fullEnv && STRIP_TARGET_RE.test(expr);
-      // fullEnv rides along for the usage-global leg: its empirical arming must also skip the
-      // by-design-residual shapes (their stripped-realm divergence is the family's point, not a miss)
-      yield { ...snippet(`${ family }: ${ expr }`, expr), strip, fullEnv };
+      const strip = !PURE_FULL_ENV_FAMILIES.has(family) && STRIP_TARGET_RE.test(expr);
+      const row = snippet(`${ family }: ${ expr }`, expr);
+      // A pure residual does not exempt injection-only usage-global from its own stripped oracle.
+      if (expr.includes('restoreProperty(')) row.code = `${ RESTORE_IMPORT }\n${ row.code }`;
+      yield { ...row, strip };
     }
   }
   for (const [family, exprs] of Object.entries(TS_FAMILIES)) {
-    for (const expr of exprs) yield { ...snippet(`${ family }: ${ expr }`, expr), ts: true };
+    for (const expr of exprs) yield { ...snippet(`${ family }: ${ expr }`, expr), ts: true, strip: STRIP_TARGET_RE.test(expr) };
   }
   yield * generateNativeRestSemantics();
   yield * generateRetainedPatternOrder();
@@ -12409,4 +12501,5 @@ export function * generate() {
   yield * generateClonedContainerOwners();
   yield * generateCapturedContainerOwners();
   yield * generateInlineReturnPaths();
+  yield * generateLogicalDestructure();
 }

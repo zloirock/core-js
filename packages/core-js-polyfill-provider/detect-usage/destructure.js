@@ -108,6 +108,7 @@ import {
   unwrapExpressionChain,
   unwrapRuntimeExpr,
   unwrapSafeSequenceTail,
+  VALUE_FLOW_ASSIGN_OPS,
   varInitDominatesUsage,
   walkAstNodes,
   writeIsInOppositeBranch,
@@ -609,6 +610,14 @@ export function undefinedArmEffectiveReceiver({ branch, paramDefaultNode }) {
   return paramDefaultNode;
 }
 
+// Injection-only view of a logical assignment: either retained value or installed RHS
+// can supply the receiver. This synthetic view never drives a pure rewrite.
+function peelUnionReceiver(node) {
+  const peeled = peelFallbackReceiver(node);
+  return peeled?.type === 'AssignmentExpression' && peeled.operator !== '=' && VALUE_FLOW_ASSIGN_OPS.has(peeled.operator)
+    ? { ...peeled, type: 'LogicalExpression', operator: peeled.operator.slice(0, -1) } : peeled;
+}
+
 // recursive walk of a fallback-receiver expression collecting per-branch resolved metas.
 // `cond1 ? (cond2 ? Array : Iterator) : Set` flattens to [Array, Iterator, Set] - inner
 // conditional's both branches reach their own dispatch. each step peels chain-assign /
@@ -619,7 +628,7 @@ export function undefinedArmEffectiveReceiver({ branch, paramDefaultNode }) {
 // every meta it yields carries a resolved `object`: an arm that named no known global is dropped
 // HERE, so no consumer owes that test - one filtering again describes a shape this cannot produce
 export function flattenFallbackBranches({ node, key, scope, adapter, path, followAliasLeaves = false, seen = new Set() }) {
-  const peeled = peelFallbackReceiver(node);
+  const peeled = adapter.method === 'usage-global' ? peelUnionReceiver(node) : peelFallbackReceiver(node);
   const branchSlots = getFallbackBranchSlots(peeled);
   if (branchSlots) {
     // fork-before-recurse: each sibling branch walks its own copy of the cycle guard, so a name
@@ -692,7 +701,7 @@ function resolveIndirectBranchingReceiver({ node, seen = new Set(), ctx }) {
       scope = ret.ctx.scope;
       seen = ret.seen;
     } else return null;
-    if (getFallbackBranchSlots(peelFallbackReceiver(cur))) return { node: cur, readNode: readSite, seen, ctx: { ...ctx, scope } };
+    if (getFallbackBranchSlots(peelUnionReceiver(cur))) return { node: cur, readNode: readSite, seen, ctx: { ...ctx, scope } };
   }
   return null;
 }
@@ -1016,7 +1025,7 @@ export function collectMemberUnionCandidates(options) {
   // caller-arg supersede (a real IIFE arg wins over the branching default) - and structurally
   // re-enumerating the raw node would resurrect the dead branch it excluded
   if (objectNode && primaryObject === null) {
-    const branching = getFallbackBranchSlots(peelFallbackReceiver(objectNode))
+    const branching = getFallbackBranchSlots(peelUnionReceiver(objectNode))
       ? { node: objectNode, ctx: { scope, adapter, path } }
       : resolveIndirectBranchingReceiver({ node: objectNode, ctx: { scope, adapter, path } });
     if (branching) {
@@ -1077,12 +1086,13 @@ export function collectMemberUnionCandidates(options) {
 // the ARMS a value SELECTS between, innermost-flat, as nodes: a conditional's two, a `||` / `??`'s
 // two, an `&&`'s right alone (its left is handed on only where falsy, which a receiver never is).
 // null where the value selects nothing
-function selectingArmNodes(node) {
-  if (!getFallbackBranchSlots(peelFallbackReceiver(node))) return null;
+function selectingArmNodes(node, union = false) {
+  const peel = union ? peelUnionReceiver : peelFallbackReceiver;
+  if (!getFallbackBranchSlots(peel(node))) return null;
   const arms = [];
   const work = [node];
   while (work.length) {
-    const selection = peelFallbackReceiver(work.pop());
+    const selection = peel(work.pop());
     const slots = getFallbackBranchSlots(selection);
     if (!slots) {
       arms.unshift(selection);
@@ -1102,7 +1112,7 @@ function selectingArmNodes(node) {
 // reaches. the arms are handed back with the keys the chain read through, or null for any other shape
 export function navigatedSelectionArms(node, ctx) {
   const chain = navigatedChainKeys(node, ctx);
-  const arms = chain && selectingArmNodes(chain.root);
+  const arms = chain && selectingArmNodes(chain.root, ctx.adapter?.method === 'usage-global');
   return arms ? { arms, keys: chain.keys } : null;
 }
 
@@ -1234,10 +1244,12 @@ export function prepareDestructureUnion({
   // value is the receiver the union enumerates - the flat meta of `{ w: { at } } = { w: g }` already
   // reads `g`, and an instance-free proof asked of the host's literal instead proved nothing, so the
   // typeless rows the flat twin never made were fabricated here
+  // Usage-global keeps the entire initializer, so an effect-bearing paired value is safe to
+  // enumerate too. The pure extraction's reread restrictions do not apply to this union.
   const nestedHost = host?.type === 'Property' || host?.type === 'ObjectProperty' || host?.type === 'ArrayPattern';
   let hostInitNode = host?.type === 'VariableDeclarator' ? host.init
     : host?.type === 'AssignmentExpression' ? host.right
-      : nestedHost ? resolveNestedReceiverNode(path, { adapter }) : null;
+      : nestedHost ? resolveNestedReceiverNode(path, { adapter, allowInitCarriedEffects: true }) : null;
   // an AssignmentPattern host routes through the SAME receiver selection as the per-branch
   // synth (`resolveFallbackReceiver` + caller-arg-wins): for an IIFE param-default the LIVE
   // call-arg supersedes the dead default, so the union enumerates the arg's reachables -
@@ -1657,27 +1669,10 @@ export function qualifiesForParamBodyExtract({ propPath, localId }) {
   return { fnPath };
 }
 
-// gate for the param-default INSTANCE synth (`function f({ at } = Array.prototype)` -> default replaced
-// by `{ at: _atMaybeArray(Array.prototype) }`). the synth is caller-correct by construction (the default
-// only evaluates when the caller omits the arg; passed values destructure natively), so the gates are
-// about the RECEIVER re-emitted inside the synth literal:
-//   - pattern: plain non-computed Identifier / string keys binding Identifiers (a prop default is dead
-//     code under polyfill-always-wins, so `{ at = x }` is accepted); rest changes what the synth would
-//     have to carry -> bail
-//   - re-referenceable receiver (Identifier / this / constant literal): any entry count - each synth
-//     entry's read matches native value semantics
-//   - side-effect-free MEMBER receiver (`Array.prototype`, `h.g`): single-property pattern only - the
-//     synth reads it once, exactly when the native default would (a getter fires once); a second entry
-//     (another polyfill or a passthrough `R.other`) would double-read it
-//   - a receiver CONTAINING an unbound identifier that resolves to a pure global (or names a proxy
-//     global) is out: the synth re-emits it VERBATIM after the natural visitor is gone, so a
-//     rewritable global inside would leak raw (`Iterator.prototype` -> a bare `Iterator`, a
-//     ReferenceError off-engine). a global the render replaces WHOLE with its injected pure binding
-//     is the exception, whether spelled bare or through an effect-free proxy navigation
 // the pure entry an instance synth reads its RECEIVER through, or null for a receiver it spells as
 // written. a synth literal re-emits its receiver where no visitor reaches it again, so a global
 // this build polyfills has to arrive as the injected binding - `Iterator` there would be a raw read
-// of a name the pass replaces everywhere else. ONE answer for both emitters: the gate above admits
+// of a name the pass replaces everywhere else. ONE answer for both emitters: the synth gate admits
 // exactly the receivers this resolves, and each render spells what it returns
 export function instanceSynthReceiverPure(receiverNode, { adapter, scope, path, resolvePure }) {
   if (receiverNode?.type !== 'Identifier') {
@@ -1694,6 +1689,11 @@ export function instanceSynthReceiverPure(receiverNode, { adapter, scope, path, 
   return pure && pure.kind !== 'instance' ? pure : null;
 }
 
+// Qualify an instance synth for a parameter default: supplied arguments still destructure natively.
+// Keys must be replayable and bind identifiers; folded computed keys and dead property defaults
+// qualify, rest does not. Each receiver branch must be safe to reproduce: names, this and constants
+// can serve several properties; a plain member is limited to one read unless a pure entry replaces
+// it whole. Raw rewritable globals, live optional members and slots owned by typed navigation decline.
 export function paramDefaultInstanceSynthAllowed({ objectPatternNode, receiverNode, scope, adapter, path, resolvePure }) {
   if (!receiverNode || !objectPatternNode?.properties?.length) return false;
   // ... but a default the TYPED-NAV dispatch owns is NOT this route's: that one reads the slot's
@@ -1772,6 +1772,12 @@ export function refineInstanceEntryByReceiver({ pureResult, key, receiverPath, r
   return refined?.kind === 'instance' ? refined : pureResult;
 }
 
+const REFERENCEABLE_LITERAL_TYPES = new Set([
+  ...PRIMITIVE_LITERAL_TYPES,
+  'ArrayExpression',
+  'ObjectExpression',
+]);
+
 // a receiver SAFE TO REFERENCE TWICE: the residual destructure reads it, and the extracted instance
 // polyfill `_m(recv)` reads it again. a bare Identifier / `this` is safe; so is a re-eval-inert literal
 // value (array / object / primitive with no nested call, spread, member read, or getter / setter) -
@@ -1780,12 +1786,6 @@ export function refineInstanceEntryByReceiver({ pureResult, key, receiverPath, r
 // re-referenced (a getter / Proxy trap would re-fire on the copy), so they bail. a CONSTANT
 // (no-interpolation) template is a string constant, so it parallels a StringLiteral - but an interpolated
 // `` `${x}` `` bails (re-evaluating would re-run x's string coercion, a possible effect)
-const REFERENCEABLE_LITERAL_TYPES = new Set([
-  ...PRIMITIVE_LITERAL_TYPES,
-  'ArrayExpression',
-  'ObjectExpression',
-]);
-
 export function isReReferenceableReceiver(node) {
   if (!node) return false;
   if (node.type === 'Identifier' || node.type === 'ThisExpression') return true;
@@ -3090,10 +3090,6 @@ export function nestedAssignmentStatementOf(leafPath) {
   return host?.node?.type === 'ExpressionStatement' ? host : null;
 }
 
-// the node a pattern leaf's own chain climbs out into - the declarator, assignment, parameter or
-// catch clause the destructure belongs to. one climb, several questions asked of its result. NOT a
-// `findParent`, which crosses function and assignment boundaries and latches onto an OUTER host
-// (`const r = (() => { ({ m } = x) })()` would answer the declarator)
 export const PATTERN_CHAIN_TYPES = new Set([
   'ArrayPattern',
   'AssignmentPattern',
@@ -3106,6 +3102,10 @@ export const PATTERN_CHAIN_TYPES = new Set([
   'SpreadElement',
 ]);
 
+// the node a pattern leaf's own chain climbs out into - the declarator, assignment, parameter or
+// catch clause the destructure belongs to. one climb, several questions asked of its result. NOT a
+// `findParent`, which crosses function and assignment boundaries and latches onto an OUTER host
+// (`const r = (() => { ({ m } = x) })()` would answer the declarator)
 export function destructurePatternHostPath(leafPath) {
   let path = leafPath.parentPath;
   while (path && PATTERN_CHAIN_TYPES.has(path.node?.type)) path = path.parentPath;
@@ -3366,6 +3366,7 @@ export function walkStaticReceiverChain({
   path = null,
   usageNode = null,
   ignoreWrittenSlots = false,
+  allowUninitializedCallee = false,
   unionSink = null,
   rescuesReceiverRead = false,
   rescueSink = null,
@@ -3376,7 +3377,7 @@ export function walkStaticReceiverChain({
   // otherwise anchors at the host `path` node
   return walkStaticReceiverStep(
     { node: receiverNode, readNode: usageNode, ctx: { scope, adapter, path } },
-    { walkPath, ignoreWrittenSlots, unionSink, rescuesReceiverRead, rescueSink, conditionalSink, navKeys },
+    { walkPath, ignoreWrittenSlots, allowUninitializedCallee, unionSink, rescuesReceiverRead, rescueSink, conditionalSink, navKeys },
   );
 }
 
@@ -3551,6 +3552,7 @@ function walkStaticReceiverStep(hop, {
   walkPath,
   depth = 0,
   ignoreWrittenSlots = false,
+  allowUninitializedCallee = false,
   unionSink = null,
   containerName: enteredName = null,
   containerNode: enteredNode = null,
@@ -3605,6 +3607,7 @@ function walkStaticReceiverStep(hop, {
         walkPath,
         depth,
         ignoreWrittenSlots,
+        allowUninitializedCallee,
         unionSink,
         containerName,
         containerNode,
@@ -3807,7 +3810,7 @@ function walkStaticReceiverCallArm(callView, { hop, walk }) {
   const { depth, unionSink, conditionalSink } = walk;
   const callHop = { node: callView, readNode, seen: hop.seen ?? new Set(), ctx: hop.ctx };
   const rejectConditional = hop.ctx.adapter.method !== 'usage-global';
-  let returned = inlineCallReturnExpression(callHop, { rejectConditional });
+  let returned = inlineCallReturnExpression(callHop, { rejectConditional, allowUninitializedCallee: walk.allowUninitializedCallee });
   // Global already admitted conditional callees; only a stricter first query can gain an answer.
   if (!returned && conditionalSink && rejectConditional) {
     returned = inlineCallReturnExpression(callHop);

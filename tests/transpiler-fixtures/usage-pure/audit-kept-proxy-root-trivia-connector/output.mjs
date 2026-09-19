@@ -6,9 +6,10 @@ import _Object$entries from "@core-js/pure/actual/object/entries";
 // guarded claim must swallow the hop TOGETHER with its trailing trivia - trivia stranded between the
 // guard and the claim body would desync the emitters or break the parse
 let a;
-export const viaBlockComment = null == (a = _globalThis.window) ? void 0 : _Array$from([3]);
+export const viaBlockComment = null == (a = _globalThis.window) ? void 0 : _Array$from /* gap */([3]);
 // a dotted leaf behind trivia claims the same way - the claim is connector-independent
 let b;
-export const viaDottedGap = null == (b = _globalThis.window) ? void 0 : _Array$of(4);
+export const viaDottedGap = null == (b = _globalThis.window) ? void 0 : _Array$of /* gap */(4);
 let c;
-export const viaLineComment = null == (c = _globalThis.window) ? void 0 : _Object$entries('q');
+export const viaLineComment = null == (c = _globalThis.window) ? void 0 : _Object$entries // gap
+('q');

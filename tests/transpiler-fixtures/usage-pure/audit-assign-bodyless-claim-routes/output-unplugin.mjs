@@ -37,6 +37,7 @@ if (log.length >= 0) {
 	);
 }
 
+// An unconsumed sibling remains a native read while the nested static receives its polyfill.
 if (log.length >= 0) {
 	({ sibling } = _globalThis);
 	nested = _Map$groupBy;

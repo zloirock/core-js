@@ -855,7 +855,18 @@ export function nodeTypeRefinement(node, scope, resolveNodeType) {
 // ABOVE resolves generic over the minted spelling (`arr.flat?.(0).at` reads the untyped `_at`
 // where the array-typed `_atMaybeArray` is owed)
 export function stampSourceCallType(built, sourceNode, metaPath, ctx) {
-  const type = nodeTypeRefinement(sourceNode, metaPath.scope, ctx.resolveNodeType);
+  // A node-only query cannot descend an uncached call. Recover its path inside the
+  // current receiver subtree, rather than relying on an unrelated query priming it.
+  let sourcePath = metaPath.node === sourceNode ? metaPath : null;
+  if (!sourcePath) metaPath.traverse?.({
+    [sourceNode.type](path) {
+      if (path.node !== sourceNode) return;
+      sourcePath = path;
+      this.stop();
+    },
+  });
+  const type = sourcePath ? ctx.resolveNodeType(sourcePath)
+    : nodeTypeRefinement(sourceNode, metaPath.scope, ctx.resolveNodeType);
   if (type) ctx.resolvedType.set(built, type);
   return built;
 }
