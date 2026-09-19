@@ -2,11 +2,12 @@
 // CSS selectors, entity decoding - a wide graph of small modules across ten packages, all pure
 // computation, so it runs in node AND down-compiles to ES5.
 //
-// THIS IS THE SUITE'S TYPESCRIPT FIXTURE and that is its reason to exist: the runtime tier builds
-// these libraries from their own `src/**/*.ts` (`TS_SOURCE_PACKAGES` in ts-sources.mjs) while the
-// packages shipping no sources stay JS, so the graph is deliberately mixed. Here alone the phases
-// separate in BOTH directions - `pre` resolves receivers from type annotations no later phase can
-// see, so `pre+post` is strictly larger than `post` and its cells gate exactly that union.
+// THIS IS THE SUITE'S MIXED TYPESCRIPT FIXTURE and that is its reason to exist: the runtime tier
+// builds these libraries from their own `src/**/*.ts` (`TS_SOURCE_PACKAGES` in ts-sources.mjs) while
+// the packages shipping no sources stay JS, so the graph is deliberately mixed - planck, the other
+// source-built entry, is TypeScript end to end. The phases separate in BOTH directions here - `pre`
+// resolves receivers from type annotations no later phase can see, so `pre+post` is strictly larger
+// than `post` and its cells gate exactly that union.
 //
 // The exercise imports BARE specifiers, so `check-exercise` runs against the published JS while the
 // runtime tier builds the sources: the redirect belongs to the bundler, and keeping it there is what

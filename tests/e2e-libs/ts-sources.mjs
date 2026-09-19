@@ -10,6 +10,7 @@ import { NODE_MODULES, toPosix } from './paths.mjs';
 // declaration is what makes npm hoist it to this directory's node_modules root, the only place looked at
 export const TS_SOURCE_PACKAGES = new Set([
   'htmlparser2', 'domutils', 'dom-serializer', 'entities', 'css-select', 'css-what', 'nth-check',
+  'planck',
 ]);
 
 // `.d.ts` is deliberately NOT TypeScript here. Stripping one would erase it to an empty module and
