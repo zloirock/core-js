@@ -21,4 +21,6 @@ await Promise.all([
   // single-pass stripped coverage lives in the transpiler-differential worker
   $`node tests/unit-node/stripped-realm.mjs e2e-usage-pure-babel`,
   $`node tests/unit-node/stripped-realm.mjs e2e-usage-pure-unplugin-pre-post`,
+  $`node tests/unit-node/stripped-realm.mjs e2e-usage-pure-babel --window`,
+  $`node tests/unit-node/stripped-realm.mjs e2e-usage-pure-unplugin-pre-post --window`,
 ));

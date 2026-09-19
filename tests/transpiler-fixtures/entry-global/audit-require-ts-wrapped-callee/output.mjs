@@ -1,3 +1,6 @@
+// `(require as any)('core-js/...')` - TS-wrapped require callee. Entry detection peels
+// the parenthesized wrapper plus TS expression wrappers so the identifier check sees `require`
+// and the entry expands to per-module imports
 require("core-js/modules/es.object.to-string");
 require("core-js/modules/es.reflect.own-keys");
 require("core-js/modules/es.aggregate-error.constructor");
