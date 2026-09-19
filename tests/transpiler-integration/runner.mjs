@@ -1,3 +1,4 @@
+import { runInWorker } from '../transpiler-differential/realm-runner.mjs';
 import { deepEqual } from 'node:assert/strict';
 import { censusWalkTruncations } from '@core-js/polyfill-provider/detect-usage/mutations';
 import { promisify } from 'node:util';
@@ -16,7 +17,7 @@ function inputOf(method) {
 }
 
 function pluginOpts(method, phase) {
-  const opts = { method, version: '4.0', mode: 'full' };
+  const opts = { method, version: '4.0', mode: 'full', targets: { ie: 11 } };
   if (phase) opts.phase = phase;
   return opts;
 }
@@ -24,10 +25,9 @@ function pluginOpts(method, phase) {
 // every cell of every leg goes through `runLeg`, so this is the run's denominator. `failures`
 // counts what went WRONG and never what was attempted, so a phase / builder / method list that
 // stops yielding prints the same final line and exits 0 (measured: 19 cells instead of 93).
-// the floor sits under the 86 a machine WITHOUT bun runs (the bun row costs 7 of the 93), which
-// is the only legitimate narrowing this matrix has
+// Missing or outdated Bun skips its seven cells; every other cell remains required.
 let cells = 0;
-const CELL_FLOOR = 82;
+const CELL_FLOOR = 100;
 
 // `entry-global` rejects `phase`; everything else runs across all three.
 function phasesFor(method) {
@@ -41,8 +41,8 @@ const expected = {
 
 // --- helpers ---
 
-async function withTmpDir(fn) {
-  const dir = await mkdtemp(join(os.tmpdir(), 'transpiler-test-'));
+async function withTmpDir(fn, prefix = 'transpiler-test-') {
+  const dir = await mkdtemp(join(os.tmpdir(), prefix));
   try {
     return await fn(dir);
   } finally {
@@ -111,6 +111,12 @@ async function verifyDynamic(code, label, ext = '.mjs') {
     const mod = await import(pathToFileURL(file).href);
     const results = mod.results ?? mod.default?.results ?? mod.default ?? mod;
     deepEqual(await results.lazy, 2, `${ label }: lazy chunk value`);
+    const probe = join(dir, 'stripped-probe.mjs');
+    await writeFile(probe, `import * as mod from ${ JSON.stringify(pathToFileURL(file).href) };
+      const results = mod.results ?? mod.default?.results ?? mod.default ?? mod;
+      export const r = [await results.lazy, results.control];
+      export const effects = [];`);
+    deepEqual(await runInWorker(probe, { stripGlobals: [] }), 'OK|[2,4]|[]', `${ label }: lazy chunk in a fresh stripped realm`);
     deepEqual(results.control, expected.clamp, `${ label }: control`);
   });
 }
@@ -138,11 +144,11 @@ async function verifyInBun(code, label, method) {
       const exp = ${ exp };${ body }
     `);
     try {
-      await $({ quiet: true })`bun ${ script }`;
+      await $({ quiet: true, cwd: dir })`bun ./verify.mjs`;
     } catch (error) {
       throw new Error(`${ label }: ${ error.stderr ?? error.message }`, { cause: error });
     }
-  });
+  }, "transpiler bun's test-");
 }
 
 async function esbuildBundle(stdinOrEntry) {
@@ -220,6 +226,17 @@ const siblingMangler = createUnplugin(() => ({
   },
 }));
 
+const globalSibling = createUnplugin(() => ({
+  name: 'integration-global-sibling',
+  transform(code) {
+    if (!code.includes('GLOBAL_SIBLING_INJECTS_HERE')) return null;
+    return {
+      code: code.replace('Array.from([1]);', '').replace("'GLOBAL_SIBLING_INJECTS_HERE'", '[4].at(0)'),
+      map: null,
+    };
+  },
+}));
+
 const builders = {
   // babel-plugin has no `phase` option - receives base opts regardless
   async babel(input, method) {
@@ -228,6 +245,8 @@ const builders = {
     const { code } = await transformAsync(source, {
       filename: input,
       plugins: [['@core-js', pluginOpts(method)]],
+      configFile: false,
+      babelrc: false,
     });
     return esbuildBundle({ stdin: { contents: code, resolveDir: dirname(input), loader: 'js' } });
   },
@@ -386,9 +405,10 @@ const builders = {
         });
         if (!result.success) { for (const l of result.logs) console.error(l); process.exit(1); }
       `);
-      await $({ quiet: true })`bun ${ buildScript }`;
+      // Native paths go through cwd, not shell quoting; the directory exercises spaces and quotes.
+      await $({ quiet: true, cwd: dir })`bun ./build.mjs`;
       return { code: await readFile(join(dir, 'bundle.js'), 'utf8'), verifier: 'bun' };
-    });
+    }, "transpiler bun's test-");
   },
 };
 
@@ -492,6 +512,25 @@ for (const name of ['rollup', 'rolldown', 'vite', 'webpack', 'rspack', 'rsbuild'
     echo(`${ cyan(label) } ${ green('passed') }`);
   } catch (error) {
     echo(red(`${ cyan(label) } failed: ${ error.message }`));
+    failures++;
+  }
+  const globalLabel = `${ name }/usage-global/pre+post contract`;
+  try {
+    await runLeg(name, async () => {
+      const input = resolve(testDir, 'input-phases-global.js');
+      const { code, ext = '.mjs' } = await builders[name](input, 'usage-global', 'pre+post',
+        { siblings: [globalSibling[name]()] });
+      await withTmpDir(async dir => {
+        const file = join(dir, `bundle${ ext }`);
+        await writeFile(file, code);
+        // The bundler bootstrap precedes module imports and owns its host globals. Strip
+        // feature methods here; the differential separately checks global-root injection.
+        deepEqual(await runInWorker(file, { stripGlobals: [] }), 'OK|[3,4]|[]', globalLabel);
+      });
+    });
+    echo(`${ cyan(globalLabel) } ${ green('passed') }`);
+  } catch (error) {
+    echo(red(`${ cyan(globalLabel) } failed: ${ error.message }`));
     failures++;
   }
 }
@@ -709,6 +748,7 @@ for (const form of idFlowForms) {
 // converge regression in the analysis, not a slow machine
 const truncated = censusWalkTruncations();
 if (truncated) throw new Error(`the escape census truncated ${ truncated } walk(s) at its step ceiling`);
-if (cells < CELL_FLOOR) throw new Error(`integration matrix collapsed: ${ cells } cells ran, under the floor of ${ CELL_FLOOR }`);
+const requiredCells = CELL_FLOOR - (hasBun ? 0 : 7);
+if (cells < requiredCells) throw new Error(`integration matrix collapsed: ${ cells } cells ran, under the floor of ${ requiredCells }`);
 if (failures) throw new Error(`${ failures } integration test(s) failed`);
-echo(green('\nAll integration tests passed'));
+echo(green(`\nIntegration: ${ cells } cells passed${ hasBun ? '' : '; 7 bun cells skipped' }`));

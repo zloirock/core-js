@@ -18,6 +18,10 @@ The `.ts` files are not decoration: the plugin sees a typed AST before the types
 
 Mutation tests live in their own modules, one per channel rather than one per kind: mutated statics, global-object slot writes, load-time slot writes, and the pure-import channel. The reason is contagion - a slot write of a name deoptimizes *that name* for the whole file, so a module that mutates one name cannot host the clean reads of another.
 
+Static and call-host channels live in `mutation-cases/`, imported by the corresponding root modules. Cleanup uses `tests/helpers/restore-property.cjs` in a foreign compilation unit: it restores the exact descriptor without contributing a second recognized write to the channel under test. The stripped runner exposes a final check of the whole manifest to `zz-realm-still-stripped.js`.
+
+The known pure Error runtime defect has a separate `QUnit.todo`: bundle import reinstalls `Error.isError` on the native constructor. The final audit permits only that exact leftover and requires its descriptor to match the one captured immediately after import; every other restored feature still fails. Remove the TODO and its narrow exception when the runtime defect is fixed.
+
 What the import PRUNE left standing is not a claim this suite can hold. The bundle is one realm shared by every module in it, so a sibling's import of the same core-js module attaches the static whether or not the module under test kept its own - a row asserting the polyfilled static is present passes either way, in the stripped legs too. The emitted import SET is the fixture gate's claim, and it stays there.
 
 TypedArrays are not polyfilled in pure at all and need no coverage here.
@@ -26,7 +30,7 @@ TypedArrays are not polyfilled in pure at all and need no coverage here.
 
 ## Stripped realms
 
-The babel bundle and unplugin's `pre+post` bundle are also run in realms with the native built-ins removed. That leg is the primary guard against vacuous tests, the ones that pass on the native implementation without any polyfill being involved. Unplugin's `pre` and `post` legs stay full-environment on purpose: each side of the babel sandwich is blind to what the other side introduces, and in a stripped realm that blindness fails wholesale by design. It models an engine with nothing, never a browser with old natives - which is why the strip set carries the constructors the karma floor is missing, and why a wrong expectation about a window-present host still shows up in karma alone.
+The babel bundle and unplugin's `pre+post` bundle also run in realms with the native built-ins removed, both with and without a `window` alias. The present-window realm provides only the raw `document` marker and a receiver-checking `performance.now` stub needed by the proxy tests; the browser suite still verifies real host APIs. That leg is the primary guard against vacuous tests, the ones that pass on the native implementation without any polyfill being involved. Unplugin's `pre` and `post` legs stay full-environment on purpose: each side of the babel sandwich is blind to what the other side introduces, and in a stripped realm that blindness fails wholesale by design. It models an engine with nothing, never a browser with old natives - which is why the strip set carries the constructors the karma floor is missing, and why a wrong expectation about a window-present host still shows up in karma alone.
 
 `Object.assign` is the static the lowered outputs call themselves, so a bundle carrying that lowering cannot lose it - the `pre`-only leg. Neither stripped bundle does, so the broad legs strip it too (`E2E_STRIP_STATIC`), and an expectation resting on its absence is answered here rather than by the karma floor alone.
 

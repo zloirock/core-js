@@ -38,8 +38,10 @@ Those runners only compare text, which settles cosmetic work; a change in BEHAVI
 - `npm run test-transpiler-differential` - both emitters against native at runtime, on the generated corpus. Run it bare (evaluations are cached, a repeat costs what the edit changed); the `babel` token narrows the run to this emitter and turns the import-parity oracle off - use it to isolate a suspect, never to save time
 - `npm run test-e2e-usage-pure` - executes the transformed code; this plugin owns one of the four bundles, and one of the two that also run in a stripped realm
 - `npm run test-transpiler-integration` - only when the change faces a real build pipeline; the matrix runs this plugin with no phase of its own
-- `npm run test-transpiler-perf` - guards the complexity class
+- `npm run test-transpiler-perf-smoke` - routine agent check of the complexity class; use the full command for performance work
 
-The finish line, once, right before handoff and never mid-loop: `npm run test-transpiling` (a VERY heavy composite of every suite named here including this package's own runners), then `npm run test-transpiler-perf` - never with a member on the same invocation line.
+The finish line, once, right before handoff and never mid-loop: `npm run test-transpiling` (a VERY heavy composite of every suite named here including this package's own runners), then the perf check described below - never with a member on the same invocation line.
+
+Routine agent perf checks use `npm run test-transpiler-perf-smoke` (1 measured pass, no warmup); performance work uses `npm run test-transpiler-perf` (warmup and 3 measured passes by default). See `tests/transpiler-perf/AGENTS.md` for the sampling and comparison rules.
 
 When comparing this emitter against unplugin by hand, normalize whitespace and run each emitter in a separate process - they share provider module state, and a shared-state leak looks exactly like a desync. The same state also accumulates across sequential `transformSync` calls within one process, so an injected-set probe is only valid as one probe per process. The differential harness deliberately does the opposite, running both in one process; do not "fix" it to match this advice.

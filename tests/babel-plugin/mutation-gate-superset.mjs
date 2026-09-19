@@ -93,6 +93,22 @@ const CHANNELS = [
   ['unreadable key on a prototype alias', 'var p = Object.prototype; p[k] = x;'],
 ];
 
+// Returned values and container slots must use the same invoker pairing as argument writes.
+for (const [invoker, call] of [
+  ['call', 'pick.call(null, 0, Object)'],
+  ['apply', 'pick.apply(null, [0, Object])'],
+  ['reflect', 'Reflect.apply(pick, null, [0, Object])'],
+  ['bind', 'pick.bind(null, 0, Object)()'],
+  ['tag', `pick\`${ TEMPLATE_HOLE }\``],
+]) {
+  for (const [shape, returned, tail] of [
+    ['value', 'value', ''],
+    ['array', '[value]', '[0]'],
+    ['object', '{ value }', '.value'],
+  ]) CHANNELS.push([`${ invoker } returns ${ shape }`,
+    `function pick(ignored, value) { return ${ returned }; } ${ call }${ tail }.create = x;`]);
+}
+
 async function programOf(code) {
   const ast = await parseAsync(code, { configFile: false, babelrc: false, sourceType: 'script' });
   let programPath = null;
@@ -124,6 +140,8 @@ for (const [label, source] of CHANNELS) {
   const census = collectFileCensus(programPath.node, [mutationShapesReducer(null)]);
   const adapter = createBabelAdapter({ method: 'usage-pure', getMutatedStatics: () => null });
   const scoped = [...collectMutationPrePass(programPath, adapter, census).mutated ?? []];
+  checkTruthy(`scoped channel is nonempty: ${ label }`, scoped.length > 0);
+  if (label.includes(' returns ')) checkTruthy(`returned mutation is observed: ${ label }`, scoped.includes('Object.create'));
   // the PINNED marker is not a slot fact: it says only that the ctor's ENTRY has to carry a member
   // the file patched, and no reader ever asks the cheap roots for it. the superset property is about
   // the slots those readers do ask about, so counting this key here would compare two questions

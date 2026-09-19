@@ -55,15 +55,15 @@ export function auditDrifted() {
   return currentAuditDrift;
 }
 
-export function hashCode(code, ts = false) {
+export function hashCode(code, ts = false, sourceType = 'module') {
   // the fixed-width flag goes FIRST, so the variable-length code needs no delimiter after it
-  return createHash('sha256').update(ts ? '1' : '0').update(code).digest('hex').slice(0, 16);
+  return createHash('sha256').update(ts ? '1' : '0').update(sourceType === 'script' ? 'S' : 'M').update(code).digest('hex').slice(0, 16);
 }
 
 // a group's address: the snippet's own bytes AND the chunk prefix it runs behind (see `beginCase`).
 // exported so nothing has to re-derive the formula - a second spelling of it would drift silently
-export function caseSrc({ code, ts = false, prefix = '' }) {
-  return hashCode(`${ prefix }\u0000${ code }`, ts);
+export function caseSrc({ code, ts = false, prefix = '', sourceType = 'module' }) {
+  return hashCode(`${ prefix }\u0000${ code }`, ts, sourceType);
 }
 
 // --- shard side ---
@@ -78,6 +78,7 @@ const collected = {};
 const evicted = new Set();
 let currentName = null;
 let currentTs = false;
+let currentSourceType = 'module';
 let currentSrc = '';
 // the snippet's own bytes, WITHOUT the prefix: the prefix gates the whole group through `src`, so a
 // cell inside a live group is addressed by its own code alone - and a compact cell is one whose code
@@ -128,18 +129,19 @@ function cellValue(cell) {
 // depends on more than its own code (the corpus has shapes that read how many properties `globalThis`
 // carries, which grows as modules load) would otherwise be judged by mixing a value recorded in one
 // run with one produced in another, and diverge for a reason the product had nothing to do with.
-export async function beginCase({ name, code, ts = false, live = false, prefix = '' }) {
+export async function beginCase({ name, code, ts = false, live = false, prefix = '', sourceType = 'module' }) {
   const cases = await loadedCases();
   currentName = name;
   currentTs = ts;
+  currentSourceType = sourceType;
   // the PREFIX is part of the address, not decoration: snippets run sequentially in one realm and
   // the corpus mutates globals on purpose (`Array.of = patched`, `globalThis.Map = shim`), so what a
   // snippet observes depends on which ones ran before it in its chunk. Fold it into `src` and a
   // shifted prefix voids the whole group, which is exactly right - the recorded values described a
   // realm that no longer exists. A plugin edit leaves the prefix untouched and keeps the cache warm;
   // a corpus edit invalidates what follows it, which is the work that genuinely has to be redone
-  currentSrc = caseSrc({ code, ts, prefix });
-  currentSourceHash = hashCode(code, ts);
+  currentSrc = caseSrc({ code, ts, prefix, sourceType });
+  currentSourceHash = hashCode(code, ts, sourceType);
   const stored = cases[name];
   currentStored = !live && stored?.src === currentSrc ? stored : null;
   // the audit keeps the stored group for COMPARISON while running every cell of it: sampling one
@@ -172,7 +174,7 @@ function auditDue(hash) {
 
 // the memoized evaluation. `evaluate` returns the runtimeKey of running `code` in this type's realm
 export async function cached({ type, code, evaluate }) {
-  const hash = hashCode(code, currentTs);
+  const hash = hashCode(code, currentTs, currentSourceType);
   const stored = currentStored?.[type];
   const hit = cellHash(stored, currentSourceHash) === hash ? cellValue(stored) : undefined;
   if (hit !== undefined && !currentAuditing) {

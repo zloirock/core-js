@@ -200,7 +200,8 @@ for (const [method, read] of FLAVORS) {
     // oxc rejects the decorator syntax the babel leg parses; the channel it guards is covered above
     if (code.includes('@dec')) continue;
     const viaOxc = createUnplugin({ method, version: '4.0', targets: { ie: 11 } }).transform(code, 'channel.mjs');
-    check(`${ label } (${ method }, oxc)`, read(viaOxc?.code ?? code), expected);
+    if (expected !== 'no-polyfill') check(`${ label } (${ method }, oxc)/emitted`, !!viaOxc?.code, true);
+    check(`${ label } (${ method }, oxc)`, read(viaOxc?.code ?? ''), expected);
   }
 }
 

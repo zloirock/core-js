@@ -292,10 +292,10 @@ function anchorDisableDirectives({ ast, comments, code, offsetToLine, disabledLi
     if (typeof node.start !== 'number') return anchorText;
     const line = offsetToLine(node.start);
     // the directive standing directly above the node: a `-next-line` covering its line with nothing
-    // but whitespace between the two - the slice is at most the indent, the directive ends on the
-    // line above
+    // but whitespace or opening parens between them. Splitting a parenthesized sequence
+    // gives its first operand a statement host after those parens.
     const own = (coveringByLine.get(line) ?? []).find(comment => isNextLineDisableDirective(comment.value)
-      && comment.end <= node.start && code.slice(comment.end, node.start).trim() === '');
+      && comment.end <= node.start && /^[\s(]*$/.test(code.slice(comment.end, node.start)));
     if (!own) return anchorText;
     removed.add(own);
     return code.slice(own.start, own.end);

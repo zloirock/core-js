@@ -2760,6 +2760,11 @@ export default function createDestructureEmitter({
     const forInitSE = forInitSESinkParts(declarator.node, isForInit);
     const declCount = declaration.node?.declarations?.length ?? 1;
     const extracted = buildExtractionDeclarators(plan, declarator);
+    // Consumed properties lose their own comment attachments with the pattern.
+    for (const item of extracted) {
+      const sourceProp = extractionPropOf.get(item);
+      if (sourceProp) t.inheritsComments(item, sourceProp);
+    }
     prunePatternByPlanAndRest(plan, declarator.node.id, { keepSentinels: !!plan.wrapperSurvives });
     // a wrapper a spread keeps alive never EMPTIES: what leaves it (an anchored prop reading its
     // own ctor binding) leaves a `{}` husk that still coerces the slot and lets the spread iterate
@@ -6026,9 +6031,6 @@ export default function createDestructureEmitter({
     });
   }
 
-  // move leading comments from `from` AST node onto `to` (clears them on the source).
-  // shared by cascade insert paths and `splitDeclarationAtSlot` so the relocated
-  // first statement inherits the host's leading docblock
   // nested-proxy cascade split gate: fires on multi-decl + willRemove + non-for-init.
   // peels the consumed declarator's SE prefix (empty array when no SE) and delegates
   // to the shared `splitDeclarationAtSlot`. for-init / single-decl take legacy paths

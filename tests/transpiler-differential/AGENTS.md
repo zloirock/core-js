@@ -2,6 +2,8 @@
 
 A differential oracle over generated inputs. A snippet passes when the two emitters agree on the injected import set and when native, babel and unplugin all produce the same runtime result - and, for grammar snippets, when the polyfilled output still reproduces native in a realm without the built-in. A fourth leg reprints the SOURCE through the unplugin's printer with zero mutations and executes it: the printed form must reproduce native, which puts a runtime oracle behind what the roundtrip gate can only compare structurally. That execution is the point throughout: the fixture corpus can only compare a rewrite structurally, and a dropped effect or a receiver read twice is a runtime fact. The usage-global leg carries the same rules for `usage-global` output - import-set parity, and the rewrite reproducing native in the stripped realm.
 
+A pure residual disables only its pure stripped comparison; it does not exempt usage-global from empirical arming. Mutation and realm-alias cleanup restores exact descriptors through the foreign restore helper.
+
 Body shape is deliberately not compared: two printers differ in formatting by construction, and the runtime result is the stronger claim - the structural divergence that remains is what the fixture sidecars record.
 
 ## Target environment
@@ -14,6 +16,7 @@ Run it with `npm run test-transpiler-differential`. The corpus is large and ever
 
 - `generate.mjs` - the corpus, deterministic rather than random: families expand as a cross-product of syntactic contexts, receivers and methods, which reaches combinations nobody would write by hand. Snippets are grouped into families and each exports the observed value plus a side-effect log, so a duplicated receiver evaluation shows up as a duplicated entry rather than as a passing test
 - `harness.mjs` - runs one snippet through the pure legs (native, both emitters, the print-through) and compares them
+- `realm-runner.mjs` - starts an isolated evaluation worker; Script snippets use a CommonJS wrapper, matching the transpiler's script host, and have a distinct cache identity from Modules
 - `strip-manifest.mjs` - what may be removed from a realm, and the pairing rules that make a strip meaningful
 - `strip-builtins.mjs`, `stripped-worker.mjs`, `global-leg.mjs`, `global-leg-worker.mjs` - the leg implementations
 - `index.mjs`, `shard.mjs` - the coordinator and one chunk of work (`DIFF_SHARD="k/N"` selects a chunk by hand)
