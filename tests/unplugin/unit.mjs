@@ -9,7 +9,12 @@ import {
   expressionStatement as mintStatement,
   literal as mintLiteral,
 } from '../../packages/core-js-polyfill-provider/render.js';
-import { collectPrePassSites, createEstreeAdapter, withoutPhantomDeclarationViolations } from '../../packages/core-js-unplugin/internals/detect-usage.js';
+import {
+  collectPrePassSites,
+  createEstreeAdapter,
+  createUsageVisitors,
+  withoutPhantomDeclarationViolations,
+} from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { patternToRegExp } from '../../packages/core-js-polyfill-provider/helpers/pattern-matching.js';
 import { buildOffsetToLoc } from '../../packages/core-js-polyfill-provider/helpers/source-scan.js';
 import { normalizeMachinePaths, slashifyPath } from './fixture-lang.mjs';
@@ -3750,6 +3755,79 @@ function checkWalkerMutationContract() {
   check('an inserted declaration binds only after scope.crawl', `${ bindingBeforeCrawl },${ bindingAfterCrawl }`, 'false,true');
 }
 checkWalkerMutationContract();
+
+// Replacing an outer read must not resolve every prefix of its discarded receiver.
+// Count scope queries, not elapsed time, so this also fails on a fast machine.
+for (const depth of [8, 64, 128]) {
+  const reads = 120;
+  const receiver = `globalThis${ '.self'.repeat(depth) }.Array`;
+  const ast = programOf(Array.from({ length: reads }, () => `${ receiver }.from([1]);`).join('\n'));
+  const adapter = createEstreeAdapter({ method: 'usage-pure' });
+  const { hasBinding } = adapter;
+  let liveQueries = 0;
+  let deadQueries = 0;
+  let replacements = 0;
+  adapter.hasBinding = (scope, name, path) => {
+    let current = path;
+    while (current && !current.removed) current = current.parentPath;
+    if (current) deadQueries++;
+    else liveQueries++;
+    return hasBinding(scope, name, path);
+  };
+  traverse(ast, {
+    $: { scope: true },
+    ...createUsageVisitors({
+      adapter,
+      method: 'usage-pure',
+      walkAnnotations: false,
+      isEntryAvailable: () => true,
+      onUsage(meta, path) {
+        if (meta.key === 'from') {
+          replacements++;
+          path.replaceWith(builders.identifier('replacement'));
+        }
+      },
+    }),
+  });
+  check(`discarded receiver/${ depth }/every outer read was replaced`, replacements, reads);
+  check(`discarded receiver/${ depth }/live reads were analyzed`, liveQueries > 0, true);
+  check(`discarded receiver/${ depth }/no scope queries in removed subtrees`, deadQueries, 0);
+}
+
+// A retained effect can sit BELOW a discarded intermediate member. It is rewritten on
+// the old tree before the emitter reuses it, so rejecting a parent must not prune children.
+for (const [effect, claim] of [
+  ['Array.of(1)', 'property/of'],
+  ['Promise', 'global/Promise'],
+  ['"all" in Promise', 'in/all'],
+  ['(() => { const { resolve } = Promise; return resolve; })()', 'property/resolve'],
+]) for (const retain of [false, true]) {
+  const ast = programOf(`(${ effect }, globalThis).self.Array.from([1]); Array.isArray([]);`);
+  const keepLive = new Set();
+  const seen = [];
+  traverse(ast, {
+    $: { scope: true },
+    ...createUsageVisitors({
+      adapter: createEstreeAdapter({ method: 'usage-pure' }),
+      method: 'usage-pure',
+      walkAnnotations: false,
+      isEntryAvailable: () => true,
+      keepLive,
+      onUsage(meta, path) {
+        seen.push(`${ meta.kind }/${ meta.key ?? meta.name }`);
+        if (meta.key === 'from') {
+          if (retain) {
+            const sequence = unwrapNode(path.node.object.object.object);
+            keepLive.add(sequence.expressions[0]);
+          }
+          path.replaceWith(builders.identifier('replacement'));
+        }
+      },
+    }),
+  });
+  check(`discarded receiver/${ claim }/retained ${ retain }`, seen.includes(claim), retain);
+  check(`discarded receiver/${ claim }/live sibling ${ retain }`, seen.includes('property/isArray'), true);
+}
 
 // --- phase: 'pre+post' bundler-specific downgrade (PRE_POST_UNSAFE_BUNDLERS) ---
 // bun and esbuild can't honor sibling pre-then-post ordering (bun drops `enforce`; esbuild's

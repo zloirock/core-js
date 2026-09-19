@@ -78,18 +78,6 @@ import { SYMBOL_ITERATOR_PURE_RESULT } from '@core-js/polyfill-provider/detect-u
 // counts it against the babel baseline. the bail is the honest state: raw source plus a
 // missing import is a visible divergence, never a silently wrong rewrite
 
-function claimIsMoot(metaPath, node, { isDisabled, skippedNodes, isInTypeAnnotation }) {
-  // DETACHMENT is this leg's own question - estree-toolkit reports it as `removed` on the path,
-  // and a claim under a subtree a render RE-EMITS BY IDENTITY stays live: its rewrite lands on
-  // the (possibly detached) original, which the re-emission carries into the output
-  for (let up = metaPath; up?.node; up = up.parentPath) {
-    if (skippedNodes.keepLive?.has(up.node)) break;
-    if (up.removed) return true;
-  }
-  // ... the four SHAPE questions are the shared ones
-  return claimIsInert({ node, path: metaPath, isDisabled, skippedNodes, isInTypeAnnotation });
-}
-
 function markDeleteHostedSpine(node, marks, storeKeepsShortCircuit) {
   for (let cur = unwrapRuntimeExpr(node); cur;) {
     const key = sourceSpanKey(cur);
@@ -728,7 +716,7 @@ export default function createAstUsagePureCallback({
 
     // the shadow-alias guard's kept raw read (`h === Ctor ? _X : h.of`) is already ours -
     // and so is a nav whose SE spells a minted pure call (a prior pass's spent claim)
-    if (claimIsMoot(metaPath, node, { isDisabled, skippedNodes, isInTypeAnnotation })
+    if (claimIsInert({ node, path: metaPath, isDisabled, skippedNodes, isInTypeAnnotation })
       || (node.type === 'MemberExpression' && ownEmittedNavClaim(node, metaPath, ownOutputTests(injectorState)))) return;
     if (node.type === 'MemberExpression' && !deleteHostedSpines.has(sourceSpanKey(node))
       && deleteHostAboveChain(metaPath, node, unwrapRuntimeExpr)) {
