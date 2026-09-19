@@ -960,15 +960,27 @@ export function memberChainKeys(node, keyName = memberKeyName) {
   const keys = [];
   let root = unwrapRuntimeExpr(node);
   while (root?.type === 'MemberExpression' || root?.type === 'OptionalMemberExpression') {
-    keys.unshift(keyName(root));
+    keys.push(keyName(root));
     root = unwrapRuntimeExpr(root.object);
   }
-  return { root, keys };
+  return { root, keys: keys.toReversed() };
 }
 
-// ... the root alone
-function runtimeChainRoot(node) {
-  return memberChainKeys(node, () => null).root;
+// The root alone needs neither key resolution nor a path array. A read-only census can
+// supply its own weak index to share prefixes; live-tree callers leave it uncached.
+export function runtimeChainRoot(node, cache = null) {
+  let root = unwrapRuntimeExpr(node);
+  const pending = cache ? [] : null;
+  while (isMemberAccessNode(root)) {
+    if (cache?.has(root)) {
+      root = cache.get(root);
+      break;
+    }
+    pending?.push(root);
+    root = unwrapRuntimeExpr(root.object);
+  }
+  if (cache) for (const member of pending) cache.set(member, root);
+  return root;
 }
 
 // memoization peels parens + chain wrappers but deliberately NOT TS wrappers: keeping a TS cast
@@ -1837,12 +1849,47 @@ export function isForXStatement(node) {
   return FOR_X_STATEMENT_TYPES.has(node?.type);
 }
 
+// Member ancestry is reusable only inside a read-only traversal. Replacing an interior
+// ancestor can preserve both endpoint paths, so endpoint checks cannot validate a cached run.
+// Scope the index to the synchronous walk; pure emission and later sibling passes stay live.
+let memberContextPaths = null;
+export function withMemberContextCache(readOnly, visit) {
+  const previous = memberContextPaths;
+  memberContextPaths = readOnly ? new WeakMap() : null;
+  try {
+    return visit();
+  } finally {
+    memberContextPaths = previous;
+  }
+}
+
+// Member links introduce no scope or type context, on either their object or key side.
+// Share their outermost path during read-only walks; otherwise follow the current tree.
+export function memberContextPath(path) {
+  if (!isMemberAccessNode(path?.node) || !isMemberAccessNode(path.parentPath?.node)) return path;
+  // A single link is already the answer; ordinary short accesses need no cache entry.
+  if (!isMemberAccessNode(path.parentPath.parentPath?.node)) return path.parentPath;
+  const pending = memberContextPaths ? [] : null;
+  let current = path;
+  while (isMemberAccessNode(current?.node) && isMemberAccessNode(current.parentPath?.node)) {
+    const hit = memberContextPaths?.get(current);
+    if (hit) {
+      current = hit;
+      break;
+    }
+    pending?.push(current);
+    current = current.parentPath;
+  }
+  if (pending) for (const step of pending) memberContextPaths.set(step, current);
+  return current;
+}
+
 // walk `path`'s ancestor chain (inclusive) and return the first path whose node owns a
 // var scope - the boundary a `var` declared anywhere below it hoists to. returns null if
 // the chain reaches the root without one (shouldn't happen for an attached node: Program
 // is always a boundary). shared by the var-membership walk and the namespace-scope check
 export function findNearestVarScopeOwner(path) {
-  for (let cur = path; cur; cur = cur.parentPath) {
+  for (let cur = memberContextPath(path); cur; cur = memberContextPath(cur.parentPath)) {
     if (isVarScopeBoundary(cur.node?.type)) return cur;
   }
   return null;
@@ -1896,8 +1943,8 @@ function collectScopeVars(scopeNode) {
 // closure written in the default answers null - that closure captures the parameter scope too, but
 // neither tracker models it and widening there is a separate decision
 export function enclosingParameterListOwner(usePath) {
-  let child = usePath;
-  for (let p = usePath?.parentPath; p?.node; child = p, p = p.parentPath) {
+  let child = memberContextPath(usePath);
+  for (let p = child?.parentPath; p?.node; child = memberContextPath(p), p = child.parentPath) {
     if (!FUNCTION_LIKE_NODE_TYPES.has(p.node.type)) continue;
     return p.node.params?.includes(child.node) ? p : null;
   }
@@ -1980,6 +2027,7 @@ export function enclosingParameterDecoratorOwner(usePath) {
 const NO_USE_REGION_FRAMES = { paramOwner: null, decoratedOwner: null, definitionTimeFrames: null };
 const useRegionFramesCache = new WeakMap();
 function useRegionFrames(usePath) {
+  usePath = memberContextPath(usePath);
   const node = usePath?.node;
   if (!node) return NO_USE_REGION_FRAMES;
   let frames = useRegionFramesCache.get(node);
@@ -6137,8 +6185,8 @@ export function peelParenAndTSSlotChild(startPath, wrappers) {
 // nothing to rewrite here, by SHAPE: the claim is disabled by a directive, already consumed by an
 // earlier emission, a JSX identifier (a tag name is not a value read), type-only, or written inside
 // a declaration that never reaches the emit. what this does NOT answer is DETACHMENT - whether the
-// node still hangs in the tree - because each binding's path API reports that its own way, and each
-// ORs its own check onto this one. the shape questions were spelled twice, once per binding, with
+// node still hangs in the tree - because each binding's path API reports that its own way.
+// The bindings check detachment separately. the shape questions were spelled twice, once per binding, with
 // the JSX one inside on one leg and beside it on the other
 export function claimIsInert({ node, path, isDisabled, skippedNodes, isInTypeAnnotation }) {
   return !!isDisabled?.(node) || !!skippedNodes?.has(node)
@@ -7052,12 +7100,13 @@ export function collectFileCensus(programNode, reducers) {
 // numbering
 export function memberKeyNamesReducer() {
   const memberKeyNames = new Set();
+  const roots = new WeakMap();
   return {
     visit(node) {
       if (node.type !== 'MemberExpression' && node.type !== 'OptionalMemberExpression') return;
       const key = memberKeyName(node);
       if (key === null) return;
-      if (runtimeChainRoot(node.object)?.type === 'Identifier') memberKeyNames.add(key);
+      if (runtimeChainRoot(node.object, roots)?.type === 'Identifier') memberKeyNames.add(key);
     },
     result() { return { memberKeyNames }; },
   };
@@ -7528,7 +7577,7 @@ export function findTSRuntimeBindingInPath(path, name) {
   // a use in a function's PARAMETER LIST sees the parameter properties beside it, but nothing
   // the body declares - the same region rule the var climb and the native trackers apply
   const paramFrame = frames.paramOwner?.node ?? null;
-  for (let cur = path; cur; cur = cur.parentPath) {
+  for (let cur = memberContextPath(path); cur; cur = memberContextPath(cur.parentPath)) {
     if (definitionTimeFrames?.has(cur.node)) continue;
     if (cur.node !== paramFrame && getTSRuntimeBindings(cur.node)?.has(name)) return true;
     if (getParameterPropertyNames(cur.node)?.has(name)) return true;
@@ -7873,7 +7922,7 @@ const EMIT_QUESTION_SUBJECT_TYPES = new Set([
 //     (TS1206), so there is no valid program whose emit the erasure would change
 export function nonEmittedExpressionAncestor(path) {
   if (!EMIT_QUESTION_SUBJECT_TYPES.has(path?.node?.type)) return null;
-  for (let current = path?.parentPath; current; current = current.parentPath) {
+  for (let current = memberContextPath(path?.parentPath); current; current = memberContextPath(current.parentPath)) {
     const { type } = current.node ?? {};
     if (!type || isTypeAnnotationNodeType(type) || type === 'Decorator') return null;
     if (isNonEmittedDeclarationNode(current.node)) return current.node;
@@ -7887,7 +7936,7 @@ export function nonEmittedExpressionAncestor(path) {
 // a host that TypeScript erases whole answers: a member signature, a type literal, an alias, a
 // body-less overload. the same walk `isInImplementsHeritage` runs, asked of the wider question
 function erasedTypeHostAbove(path) {
-  for (let current = path?.parentPath; current; current = current.parentPath) {
+  for (let current = memberContextPath(path?.parentPath); current; current = memberContextPath(current.parentPath)) {
     const type = current.node?.type;
     if (!type || PURE_TYPE_ERASE_STOP_TYPES.has(type) || isRuntimeExpressionHost(type)) return null;
     if (isTypeAnnotationNodeType(type)) return current.node;
@@ -8064,7 +8113,7 @@ export function isTSTypeOnlyIdentifierPath(path) {
 // distinct from `type T = Map<...>` / `interface I extends Set<...>` / `(x as Map<...>)`
 // where the user-referenced type IS expected at runtime (those keep emitting polyfills)
 function isInImplementsHeritage(path) {
-  for (let current = path?.parentPath; current; current = current.parentPath) {
+  for (let current = memberContextPath(path?.parentPath); current; current = memberContextPath(current.parentPath)) {
     const type = current.node?.type;
     if (!type || PURE_TYPE_ERASE_STOP_TYPES.has(type)) return false;
     if (type === 'TSClassImplements') return true;
@@ -9611,7 +9660,7 @@ export function isForXWriteTarget(path, adapter = null) {
   // MemberExpression once the entry peel strips its ChainExpression
   if (node?.type !== 'MemberExpression' && node?.type !== 'OptionalMemberExpression') return false;
   let crossedFunction = false;
-  for (let current = path.parentPath; current; current = current.parentPath) {
+  for (let current = memberContextPath(path.parentPath); current; current = memberContextPath(current.parentPath)) {
     const parent = current.node;
     if (!parent) break;
     // function-like boundary: a nested function that REBINDS the receiver reads its own slot,
