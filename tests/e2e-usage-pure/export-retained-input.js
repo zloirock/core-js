@@ -1,5 +1,4 @@
 // Kept in another module so the consuming transform must handle an opaque receiver.
-/* eslint-disable es/no-accessor-properties -- observable getters verify extraction order */
 export const events = [];
 export function before() {
   events.push('before');
