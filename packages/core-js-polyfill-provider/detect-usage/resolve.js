@@ -2089,7 +2089,36 @@ export function peelRealmLogicalDefault(node, { discarding = false } = {}) {
   return core;
 }
 
-function resolveProxyGlobalRoot({ receiver, scope, adapter, seen, path, usageNode = null, resolveStaticKey = null }) {
+// Global detection keeps member trees intact. Cache only their dotted proxy segments, never
+// a scope-, read- or mutation-dependent verdict. Each prefix shares its terminal node and a
+// bounded set of hop names; computed keys and value wrappers stay with the ordinary resolver.
+// The usage handler owns this per-traversal weak index. Like other source-shape indexes, it
+// assumes sibling plugins do not mutate an already indexed subtree during the same traversal.
+// Pure detection rewrites these trees and must not use the index.
+function plainProxySegment(node, cache) {
+  const pending = [];
+  let segment;
+  while (node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression') {
+    segment = cache.get(node);
+    if (segment) break;
+    if (node.computed) break;
+    const name = memberKeyName(node);
+    if (!POSSIBLE_GLOBAL_OBJECTS.has(name)) break;
+    pending.push({ node, name });
+    node = node.object;
+  }
+  if (!pending.length) return segment;
+  segment ??= { tail: node, names: [] };
+  for (let i = pending.length - 1; i >= 0; i--) {
+    const { node: member, name } = pending[i];
+    if (!segment.names.includes(name)) segment = { tail: segment.tail, names: [...segment.names, name] };
+    cache.set(member, segment);
+  }
+  return segment;
+}
+
+function resolveProxyGlobalRoot({ receiver, scope, adapter, seen, path, usageNode = null, resolveStaticKey = null,
+  proxySegments = null }) {
   while (true) {
     // peel chain-assign AND SE-tail to fixpoint at every step: `((a = globalThis).Array).from(x)`
     // buries the assignment inside .object's .object, and `(eff(), globalThis).Map.groupBy` buries the
@@ -2097,6 +2126,12 @@ function resolveProxyGlobalRoot({ receiver, scope, adapter, seen, path, usageNod
     // classification: the SE prefix stays in the source and is collected by the emit side
     let obj = peelRealmLogicalDefault(receiver);
     while (obj.type === 'MemberExpression' || obj.type === 'OptionalMemberExpression') {
+      const segment = proxySegments && plainProxySegment(obj, proxySegments);
+      if (segment) {
+        if (segment.names.some(name => !isPristineProxyGlobal(adapter, name))) return false;
+        obj = peelRealmLogicalDefault(segment.tail);
+        continue;
+      }
       // carry `seen` into computed-key resolution so a shared alias chain across the
       // proxy-global walk and its intermediate member keys can't exceed the cycle guard
       const memberKey = obj.computed
@@ -2181,6 +2216,7 @@ export function memberTargetTakesExtraction(valueNode, { scope = null, adapter =
 // the caller passed one - matches resolveBindingToGlobal's convention
 export function resolveObjectName({
   objectNode, scope, adapter, seen, path, usageNode = null, readNode = null, resolveStaticKey = null,
+  proxySegments = null,
 }) {
   seen ??= new Set();
   // peel chain-assign rhs + parens to a fixpoint (`(a = Array)`, `(a = b = Array)`,
@@ -2275,7 +2311,7 @@ export function resolveObjectName({
     if (interopProxy) return interopProxy;
   }
   if (!resolveProxyGlobalRoot({
-    receiver: objectNode.object, scope, adapter, seen, path, usageNode, resolveStaticKey,
+    receiver: objectNode.object, scope, adapter, seen, path, usageNode, resolveStaticKey, proxySegments,
   })) return null;
   // a mutated ctor slot read THROUGH the global (`globalThis.Map = Shim; globalThis.Map.<...>`)
   // holds the user's replacement - the member chain no longer names the pristine built-in, so
