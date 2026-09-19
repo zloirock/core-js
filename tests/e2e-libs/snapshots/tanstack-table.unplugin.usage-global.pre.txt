@@ -1,0 +1,5 @@
+-core-js/modules/es.date.to-primitive
+-core-js/modules/es.function.name
+-core-js/modules/es.object.get-own-property-descriptor
+-core-js/modules/es.regexp.test
+-core-js/modules/es.symbol.to-primitive

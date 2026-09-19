@@ -14,6 +14,7 @@
     "@rollup/plugin-babel": "^7.1.0",
     "@rollup/plugin-commonjs": "^29.0.3",
     "@rollup/plugin-node-resolve": "^16.0.3",
+    "@tanstack/table-core": "^9.2.4",
     "core-js": "file:../../packages/core-js",
     "css-select": "^7.0.0",
     "css-what": "^8.0.0",
