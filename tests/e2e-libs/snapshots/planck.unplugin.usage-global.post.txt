@@ -1,0 +1,3 @@
+-core-js/modules/es.object.assign
++core-js/modules/es.iterator.every
++core-js/modules/esnext.async-iterator.every

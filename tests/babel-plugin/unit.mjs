@@ -19,3 +19,4 @@ import './per-file-teardown.mjs';
 import './late-cjs-diagnostic.mjs';
 import './entry-directive-promotion.mjs';
 import './injection-spelling-domain.mjs';
+import './fixture-shard-protocol.mjs';
