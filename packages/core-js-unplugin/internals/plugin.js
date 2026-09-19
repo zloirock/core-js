@@ -15,6 +15,7 @@ import {
   isThisReceiver,
   memberKeyNamesReducer,
   methodReadsUsageCensus,
+  withMemberContextCache,
   mutatedGlobalSlotNames,
   namespaceScopedBindingBlock,
   peelParenAndTSParentPath,
@@ -1046,11 +1047,11 @@ export default function createPlugin(options) {
         });
         const syntaxVisitors = createSyntaxVisitors({ injectModulesForModeEntry, injectModulesForEntry, isDisabled, isWebpack });
 
-        traverse(ast, mergeVisitors({
+        withMemberContextCache(true, () => traverse(ast, mergeVisitors({
           $: { scope: true },
           Program(path) { injector.rootScope = path.scope; },
           ...usageVisitors,
-        }, syntaxVisitors));
+        }, syntaxVisitors)));
       }
 
       // usage-global: the shared provider collection, the sweep's body
@@ -1090,7 +1091,8 @@ export default function createPlugin(options) {
       function runUsagePure() {
         // `keepLive`: effect subtrees a render RE-EMITS BY IDENTITY - claims under them stay
         // live even inside consumed / detached spans, and land in place (the keep-live carve)
-        const skippedNodes = Object.assign(new WeakSet(), { keepLive: new Set() });
+        const keepLive = new Set();
+        const skippedNodes = Object.assign(new WeakSet(), { keepLive });
         // a `_unused` sentinel carries its own declarator, so the flush owes it no `var` - but
         // it SHARES the minted-name family and must be in the census, or a sentinel the drain
         // dropped strands its slot and the survivors never renumber
@@ -1252,6 +1254,7 @@ export default function createPlugin(options) {
         });
         const usageVisitorOptions = {
           adapter: estreeAdapter,
+          keepLive,
           parameterCallSites: typeResolvers.parameterCallSites,
           resolveStaticKey: (node, scope, path) => typeResolvers.resolveClaimableComputedKeyName(node, scope, path),
           method,
