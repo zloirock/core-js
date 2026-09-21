@@ -1,4 +1,5 @@
 import { WINDOWS_UNC_PREFIX_RE } from '@core-js/polyfill-provider/helpers/path-normalize';
+import { brand } from '@core-js/polyfill-provider/helpers/error-tag';
 import { parseModuleId } from './sfc-shapes.js';
 
 // pre->post snapshot handoff for `phase: 'pre+post'`, keyed by the ENVIRONMENT plus the whole
@@ -103,7 +104,7 @@ export default class SnapshotCache {
     // post will see, so its snapshot is the current truth
     if (this.#debug && this.#snapshots.has(key) && typeof console !== 'undefined') {
       // eslint-disable-next-line no-console -- opt-in diagnostic
-      console.warn(`[core-js] pre-pass called twice for ${ id }; latest snapshot wins`);
+      console.warn(brand(`pre-pass called twice for ${ id }; latest snapshot wins`));
     }
     this.#snapshots.set(key, entry);
   }

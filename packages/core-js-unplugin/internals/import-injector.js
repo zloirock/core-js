@@ -245,6 +245,9 @@ function dropOrphanedMemoDeclarations(program, { refCounts, refDeclIdCounts, mem
   }
 }
 
+// land the injector's imports and minted `var` refs in the program: the census over the final
+// tree decides which minted names are live, the survivors renumber into canonical slots, the live
+// pure imports render behind the prologue and each ref declaration lands at its host's head
 export function flushIntoProgram({ injector, program, refNames = [], renameOnly = [], refOrder = [] }) {
   function resolve(subpath, pkg) {
     return resolveImportPath(pkg ?? injector.pkg, subpath, injector.absoluteImports);
@@ -293,8 +296,13 @@ export function flushIntoProgram({ injector, program, refNames = [], renameOnly 
     existingPureImports: injector.existingPureImports,
     census,
   });
-  const activePure = [...injector.pureImports]
-    .filter(([source, name]) => !injector.existingPureImports.has(source) && liveInProgram(source, name));
+  // a minted import nothing reads any more leaves the registry as well as the output, so the
+  // registry IS the emission afterwards: the snapshot pre hands post and the debug report both
+  // describe what was printed (the babel leg prunes its registry the same way at program exit)
+  for (const [source, name] of injector.pureImports) {
+    if (!liveInProgram(source, name)) injector.pureImports.delete(source);
+  }
+  const activePure = [...injector.pureImports].filter(([source]) => !injector.existingPureImports.has(source));
   const nodes = renderInjectedImportNodes({
     globalModules: injector.globalImports,
     pureEntries: activePure,
