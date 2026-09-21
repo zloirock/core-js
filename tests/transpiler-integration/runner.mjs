@@ -4,9 +4,16 @@ import { censusWalkTruncations } from '@core-js/polyfill-provider/detect-usage/m
 import { pathToFileURL } from 'node:url';
 import { KNOWN_BUNDLERS, isChunkLoaderBundler } from '../../packages/core-js-unplugin/internals/plugin-helpers.js';
 import { makeBundlers, withTmpDir } from './bundlers.mjs';
-import { METHODS as methods, phasesFor, pluginOpts } from './matrix.mjs';
+import { METHODS as methods, phasesFor, pluginOpts as matrixPluginOpts } from './matrix.mjs';
 
 const { readFile, writeFile } = fs;
+
+// The targets are this suite's: every builder is handed the same explicit IE11 list, so a cell that
+// differs differs by the bundler rather than by whatever browserslist the working directory answers
+// with. `matrix.mjs` leaves `targets` to its caller for exactly this reason.
+function pluginOpts(method, phase) {
+  return matrixPluginOpts(method, phase, { targets: { ie: 11 } });
+}
 const { dirname, join, resolve } = path;
 const { cyan, green, red, yellow } = chalk;
 
@@ -22,7 +29,7 @@ function inputOf(method) {
 // stops yielding prints the same final line and exits 0 (measured: 19 cells instead of 93).
 // Missing or outdated Bun skips its seven cells; every other cell remains required.
 let cells = 0;
-const CELL_FLOOR = 82;
+const CELL_FLOOR = 100;
 const expected = {
   clamp: 4,
   cooked: 'hello',
