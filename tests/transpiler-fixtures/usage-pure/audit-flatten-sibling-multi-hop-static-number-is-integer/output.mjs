@@ -5,7 +5,15 @@ import _Number$isInteger from "@core-js/pure/actual/number/is-integer";
 // receiver-ref skip-check must recognise the static-on-constructor shape for any known
 // constructor, not just Object - otherwise the shared `globalThis` root is double-substituted
 // and compose crashes
-const from = _Array$from;
-const isInt = _Number$isInteger(2);
+const {
+    Array: {
+      from
+    }
+  } = {
+    Array: {
+      from: _Array$from
+    }
+  },
+  isInt = _Number$isInteger(2);
 from([1]);
 isInt;

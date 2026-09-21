@@ -5,8 +5,15 @@ import _globalThis from "@core-js/pure/actual/global-this";
 // receiver); the host statement survives because the residual still has a consumer
 let from, x;
 ({
+  Array: {
+    from
+  },
   custom: {
     x
   }
-} = _globalThis);
-from = _Array$from;
+} = {
+  Array: {
+    from: _Array$from
+  },
+  custom: _globalThis.custom
+});

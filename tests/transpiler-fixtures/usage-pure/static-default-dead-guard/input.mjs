@@ -1,8 +1,5 @@
-// Object-rest keeps named slots at that level and reads through it native in usage-pure.
-// Independent reads and key/default expressions still receive their own polyfills.
-// Defaults on claimed static leaves are dead because pure imports are defined. Direct and computed
-// static extractions drop those defaults while retaining computed-key effects. Instance leaves
-// still test the dispatch result before choosing their default.
+// Known static imports are defined, so their user defaults remain dead.
+// Instance leaves still test the dispatch result before choosing a fallback.
 const fb = 0;
 const K = 'from';
 function k() { return 'from'; }

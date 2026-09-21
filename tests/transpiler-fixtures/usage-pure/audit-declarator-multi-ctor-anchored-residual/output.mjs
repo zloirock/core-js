@@ -11,15 +11,37 @@ import _Set from "@core-js/pure/actual/set/constructor";
 // the residual keys here are ones NEITHER surface carries: a key core-js spells as a PROTOTYPE
 // entry of that constructor (`Set.union`) is handed out as a static by the pure binding and by
 // nothing else, so such a leaf declines the anchor and would measure that rule instead of this one
-const from = _Array$from;
 const {
-  customQ
-} = _Set;
-const fromEntries = _Object$fromEntries;
-const groupBy = _Map$groupBy;
+  Array: {
+    from
+  },
+  Set: {
+    customQ
+  }
+} = {
+  Array: {
+    from: _Array$from
+  },
+  Set: _Set
+};
 const {
-  customZ
-} = _Map; // all-anchored, no consuming sibling: stays native (bail)
+  Object: {
+    fromEntries
+  },
+  Map: {
+    groupBy,
+    customZ
+  }
+} = {
+  Object: {
+    fromEntries: _Object$fromEntries
+  },
+  Map: {
+    groupBy: _Map$groupBy,
+    customZ: _Map.customZ
+  }
+};
+// all-anchored, no consuming sibling: stays native (bail)
 const {
   Set: {
     customR

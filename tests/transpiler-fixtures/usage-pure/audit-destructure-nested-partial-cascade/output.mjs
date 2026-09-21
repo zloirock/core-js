@@ -1,10 +1,20 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Set from "@core-js/pure/actual/set/constructor";
-// 3-level nest with siblings at the middle level: `{ self: { Array: { from }, Set } }`.
-// `from` flattens to `const from = _Array$from`; inner `{from}` pattern empties fully but
-// middle pattern retains `Set`, so the outer `self` property is NOT removed - partial cascade
-// stops at the first non-empty pattern
-const from = _Array$from;
-const Set = _Set;
+// A nested static and a constructor sibling both receive pure values through proxy hops.
+const {
+  self: {
+    Array: {
+      from
+    },
+    Set
+  }
+} = {
+  self: {
+    Array: {
+      from: _Array$from
+    },
+    Set: _Set
+  }
+};
 from(xs);
 new Set();

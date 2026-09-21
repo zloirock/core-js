@@ -11,11 +11,9 @@ export function viaDiscriminantIf() {
 	}
 
 	{
-		if (box.kind === "a") {
-			var _ref;
+		var _ref;
 
-			return _atMaybeArray(_ref = box.v).call(_ref, 0);
-		}
+		if (box.kind === "a") return _atMaybeArray(_ref = box.v).call(_ref, 0);
 	}
 }
 

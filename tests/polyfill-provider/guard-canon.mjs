@@ -19,9 +19,25 @@ import {
 } from '../../packages/core-js-polyfill-provider/render.js';
 import { planSynthReceiverGuard } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
 import { planGuardedStaticNarrow, planProxyReceiver } from '../../packages/core-js-polyfill-provider/detect-usage/members.js';
-import { inlineCallReturnExpression, navRootPrefixNodes, planKeptSequenceTail } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
-import { walkAstNodes, unwrapRuntimeExpr, wrapScopeBindingLookup, peelParenAndTSSlotPath } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import {
+  inlineCallHasObservableEffects,
+  inlineCallReturnExpression,
+  moduleDefaultSource,
+  resolveInlineCalleeFunction,
+  navRootPrefixNodes,
+  planKeptSequenceTail,
+} from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
+import {
+  walkAstNodes,
+  unwrapRuntimeExpr,
+  wrapScopeBindingLookup,
+  peelParenAndTSSlotPath,
+  paramReboundInBody,
+  calleeYieldedContainer,
+} from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createChecker } from './harness.mjs';
+import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
+import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 
 const { check, checkTruthy, finish, runBoth } = createChecker('guard-canon');
 
@@ -242,20 +258,131 @@ for (const [source, expected] of [
   check(`${ label }/raw argument`, rendered.alternate.arguments[0].name, 'argument');
 });
 
-for (const [source, expected] of [
-  ['((value, key) => (value[key] = 1, value))(source, key);', 'source'],
-  ['((value, key) => (key = other, value))(source, key);', 'source'],
-  ['((value, key) => (value = other, value))(source, key);', null],
-  ['((value, key) => key)(source, key);', 'key'],
-  ['((value, key) => (key = other, key))(source, key);', null],
-  ['((value, key) => { function mutate() { key = other; } mutate(); return key; })(source, key);', null],
-  ['((value, key = fallback()) => value)(source, key);', null],
-  ['(async (value, key) => value)(source, key);', null],
+// which slot a call hands back is found whatever the parameter LIST looks like - a tagged template
+// always spends one on its strings array, a default or a rest element spells a slot nobody returns -
+// so the value answer parts from the CALL's fate: the fold names the slot, and a list that RUNS (a
+// destructuring pattern, a default initializer with effects) keeps the call through the effect
+// channel instead of refusing the value. The two folds themselves part on the WRITE: a callee that
+// writes through the slot it returns yields a value its call site's literal no longer describes, and
+// only a caller that keeps the call and tests the value at runtime may weigh it
+// (`allowMutatingForwarder`). A REBOUND returned slot - from the body or from another slot's default -
+// is refused on both, a rebind of ANOTHER slot refuses neither, and an async wrapper returns a promise
+for (const [source, proven, guarded, keeps] of [
+  ['((value, key) => (value[key] = 1, value))(source, key);', null, 'source', true],
+  ['((value, key) => (key = other, value))(source, key);', 'source', 'source', true],
+  ['((first, value) => (first = other, value))(source, key);', 'key', 'key', true],
+  ['(value => { value = other; return Map; })(source);', 'Map', 'Map', true],
+  ['((value, key) => (value = other, value))(source, key);', null, null, null],
+  ['((value, key) => key)(source, key);', 'key', 'key', false],
+  ['((value, key) => (key = other, key))(source, key);', null, null, null],
+  ['((value, key) => { function mutate() { key = other; } mutate(); return key; })(source, key);', null, null, true],
+  ['((value, key = fallback()) => value)(source, key);', 'source', 'source', true],
+  ['((value, key = 1) => value)(source, key);', 'source', 'source', false],
+  ['((value, ...rest) => value)(source, key);', 'source', 'source', false],
+  ['((value, { key }) => value)(source, key);', 'source', 'source', true],
+  ['((value, key = (value = other)) => value)(source, key);', null, null, true],
+  ['((value = other) => value)(source);', null, null, null],
+  ['(async (value, key) => value)(source, key);', null, null, null],
 ]) runBoth(`guarded returned container/${ source }`, source, (adapter, program, label) => {
   const path = adapter.pickPath(program, 'CallExpression', candidate => candidate.node.arguments[0]?.name === 'source');
   const callHop = { node: path.node, ctx: { adapter, scope: path.scope, path }, seen: new Set() };
-  check(`${ label }/ordinary fold stays refused`, inlineCallReturnExpression(callHop), null);
-  check(`${ label }/guard candidate`, inlineCallReturnExpression(callHop, { allowExtraParams: true })?.node?.name ?? null, expected);
+  check(`${ label }/proven fold`, inlineCallReturnExpression(callHop)?.node?.name ?? null, proven);
+  check(`${ label }/guard candidate`,
+    inlineCallReturnExpression(callHop, { allowMutatingForwarder: true })?.node?.name ?? null, guarded);
+  // the value answer never decides the call's fate: a list that RUNS keeps it. the gate answers
+  // about a callee it can REACH, so a row the fold refuses outright carries no expectation here
+  if (keeps !== null) {
+    check(`${ label }/keeps the call`,
+      inlineCallHasObservableEffects({ callNode: path.node, scope: path.scope, adapter, path }), keeps);
+  }
+});
+
+// Callee identity does not require scanning an argument's flow through the body.
+// Only the later return proof may pay for that walk; repeated speculative queries stay constant.
+runBoth('callee lookup does not scan parameter writes',
+  `(value => { ${ 'padding;'.repeat(128) } return Map; })(source);`, (adapter, program, label) => {
+    const path = adapter.pickPath(program, 'CallExpression');
+    const padding = adapter.pickPath(program, 'Identifier', candidate => candidate.node.name === 'padding').node;
+    let reads = 0;
+    Object.defineProperty(padding, 'type', { configurable: true, get() {
+      reads++;
+      return 'Identifier';
+    } });
+    const callHop = { node: path.node, ctx: { adapter, scope: path.scope, path }, seen: new Set() };
+    for (let i = 0; i < 128; i++) {
+      check(`${ label }/callee ${ i }`, resolveInlineCalleeFunction(callHop, { allowIdentityParam: true })?.node.type,
+        'ArrowFunctionExpression');
+    }
+    check(`${ label }/no speculative body visits`, reads, 0);
+    check(`${ label }/return proof stays live`, inlineCallReturnExpression(callHop)?.node.name, 'Map');
+    const callee = resolveInlineCalleeFunction(callHop, { allowIdentityParam: true }).node;
+    check(`${ label }/explicit write proof`, paramReboundInBody(callee.body, new Set(['value'])), false);
+    check(`${ label }/body counter is live`, reads > 0, true);
+  });
+
+// The binding record already carries its declaration. Following a callee alias must
+// not repeat scope searches just to ask whether that record exists or is a declarator.
+runBoth('callee aliases reuse their binding records',
+  'const first = () => Map; const second = first; second();', (adapter, program, label) => {
+    const path = adapter.pickPath(program, 'CallExpression');
+    const reader = (adapter.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    let extraLookups = 0;
+    let bindingReads = 0;
+    let unrelatedReads = 0;
+    let firstAvailable = true;
+    const counted = {
+      ...reader,
+      get unrelatedFact() { unrelatedReads++; return null; },
+      getBinding(scope, name, readPath) {
+        bindingReads++;
+        return name === 'first' && !firstAvailable ? null : reader.getBinding(scope, name, readPath);
+      },
+      hasBinding(...args) { extraLookups++; return reader.hasBinding(...args); },
+      getBindingNodeType(...args) { extraLookups++; return reader.getBindingNodeType(...args); },
+    };
+    const callHop = { node: path.node, ctx: { adapter: counted, scope: path.scope, path }, seen: new Set() };
+    const resolved = resolveInlineCalleeFunction(callHop);
+    check(`${ label }/resolved body`, resolved?.node.body.name, 'Map');
+    check(`${ label }/no repeated existence or type searches`, extraLookups, 0);
+    check(`${ label }/module and callee share each binding read`, bindingReads, 2);
+    check(`${ label }/lookup does not read unrelated adapter facts`, unrelatedReads, 0);
+    check(`${ label }/returned context keeps the original adapter`, resolved?.ctx.adapter, counted);
+    firstAvailable = false;
+    check(`${ label }/the next query sees an unavailable binding`, resolveInlineCalleeFunction(callHop), null);
+  });
+
+// Speculative module lookup must not ask for writes on ordinary local callees.
+// A real module binding still owes that proof before its source is returned.
+for (const imported of [false, true]) {
+  let writeQueries = 0;
+  const binding = {
+    node: imported ? { type: 'ImportDefaultSpecifier' } : {
+      type: 'VariableDeclarator', id: identifier('local'),
+      init: { type: 'ArrowFunctionExpression', params: [], body: identifier('Map') },
+    },
+    importSource: imported ? '@core-js/pure/actual/reflect/apply' : null,
+    get constantViolations() {
+      writeQueries++;
+      return [];
+    },
+  };
+  const source = moduleDefaultSource({ node: identifier('local'), adapter: { getBinding: () => binding } });
+  check(`module source lookup/${ imported }`, source, binding.importSource);
+  check(`module source write proof/${ imported }`, writeQueries > 0, imported);
+}
+
+// a leading `this` pseudo-param fills an AST slot and no runtime argument, so the slot the fold
+// names is read at the argument position one lower - reading the raw index hands back the NEXT
+// argument, which is a different value with the same shape
+for (const [source, proven] of [
+  ['(function (this: unknown, value) { return value; })(source, other);', 'source'],
+  ['(function (this: unknown, first, value) { return value; })(first, source);', 'source'],
+  ['(function (first, value) { return value; })(first, source);', 'source'],
+]) runBoth(`this-parameter slot/${ source }`, source, (adapter, program, label) => {
+  const path = adapter.pickPath(program, 'CallExpression',
+    candidate => (candidate.node.arguments ?? []).some(argument => argument?.name === 'source'));
+  const callHop = { node: path.node, ctx: { adapter, scope: path.scope, path }, seen: new Set() };
+  check(`${ label }/proven fold`, inlineCallReturnExpression(callHop)?.node?.name ?? null, proven);
 });
 
 // the `?.` hops a captured receiver's guard can absorb - one, and only where the test has its value
@@ -583,5 +710,35 @@ for (const [source, collapsible] of [
   check(`${ label }/exact proof`, !!planProxyReceiver(receiver,
     { aliasCtx, resolvePure, guardedProbe: guard.probe }), collapsible);
 });
+
+// Adding candidate parameters must not repeat the returned-container body's occurrence walk.
+for (const literal of ['{ p0 }', '[p0]']) {
+  runBoth(`yielded container/one occurrence walk/${ literal }`, 'function seed() {}', (adapter, _program, label) => {
+    const counts = [];
+    for (const width of [2, 64]) {
+      const names = Array.from({ length: width }, (_, index) => `p${ index }`);
+      const program = adapter.parseAndScope(`function pack(${ names.join(', ') }) {
+        padding; observe(p1); return ${ literal };
+      }`);
+      const callee = adapter.pickPath(program, 'FunctionDeclaration').node;
+      const padding = callee.body.body[0].expression;
+      let reads = 0;
+      Object.defineProperty(padding, 'type', { configurable: true, get() {
+        reads++;
+        return 'Identifier';
+      } });
+      const yielded = calleeYieldedContainer(callee, { unwrap: unwrapRuntimeExpr });
+      counts.push(reads);
+      checkTruthy(`${ label }/${ width }/counter is live`, reads > 0);
+      check(`${ label }/${ width }/returned slot`, yielded?.slots[0][1], 0);
+      check(`${ label }/${ width }/confined returned parameter`, yielded?.confined.has(0), true);
+      check(`${ label }/${ width }/observed parameter escapes`, yielded?.confined.has(1), false);
+      check(`${ label }/${ width }/unused parameters stay confined`, yielded?.confined.size, width - 1);
+      check(`${ label }/${ width }/whole-callee confinement refuses the observed parameter`,
+        calleeYieldedContainer(callee, { confined: true, unwrap: unwrapRuntimeExpr }), null);
+    }
+    check(`${ label }/body walk count is independent of parameter count`, counts[1], counts[0]);
+  });
+}
 
 finish();

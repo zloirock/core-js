@@ -1,5 +1,4 @@
-// Object-rest keeps named slots at that level and reads through it native in usage-pure.
-// Independent reads and key/default expressions still receive their own polyfills.
+// Instance reads preserve receiver, key and default order across host forms.
 export function read(factory, key, fallback) {
   const { before = fallback(), [(key(), 'at')]: value = fallback(), after, ...rest } = factory();
   return [before, value, after, rest];

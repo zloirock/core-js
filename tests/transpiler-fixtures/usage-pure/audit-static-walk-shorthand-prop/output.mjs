@@ -10,5 +10,13 @@ const Array = _globalThis.Array;
 const wrapper = {
   Array
 };
-const from = _Array$from;
+const {
+  Array: {
+    from
+  }
+} = {
+  Array: {
+    from: _Array$from
+  }
+};
 _atMaybeArray(_ref = from(['x'])).call(_ref, 0);

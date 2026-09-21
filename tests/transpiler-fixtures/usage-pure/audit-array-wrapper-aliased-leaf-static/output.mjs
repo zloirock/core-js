@@ -4,5 +4,9 @@ import _Array$from from "@core-js/pure/actual/array/from";
 // `from` drops. regression: a raw-name-only Identifier branch missed the alias - babel usage-pure dropped
 // the substitution while unplugin rescued it (divergence); usage-global dropped the dep in both
 const A = Array;
-const from = _Array$from;
+const [{
+  from
+}] = [{
+  from: _Array$from
+}];
 from([1, 2]);

@@ -1,5 +1,4 @@
-// two declarators in the same VariableDeclaration each destructuring from a proxy global.
-// both should fully consume their receiver via nested-proxy flatten, with each declarator
-// planned and rewritten independently
+// Two nested static declarators in one declaration independently receive pure values.
+// Neither rewrite consumes the sibling claim.
 const { Array: { from } } = globalThis, { Object: { fromEntries } } = self;
 export { from, fromEntries };

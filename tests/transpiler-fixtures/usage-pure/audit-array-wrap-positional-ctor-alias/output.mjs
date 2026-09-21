@@ -29,22 +29,24 @@ import _WeakSet from "@core-js/pure/actual/weak-set/constructor";
 const userObj = {
   Set: function () {}
 };
-const M = _Map;
 const [{
   Set: A
 }, {
-  Map: _unused
-}] = [userObj, _globalThis];
+  Map: M
+}] = [userObj, {
+  Map: _Map
+}];
 export const viaUserElem = A.union(other);
 export const viaGlobalElem = _Map$groupBy([], x => x);
 
 // both-global multi-element: each folds to its own positional global
-const P = _Promise;
 const [{
   Array: F
 }, {
-  Promise: _unused2
-}] = [_globalThis, _globalThis];
+  Promise: P
+}] = [_globalThis, {
+  Promise: _Promise
+}];
 export const viaBothA = _Array$from([1]);
 export const viaBothB = _Promise$allSettled([]);
 
@@ -56,19 +58,25 @@ const [{
   Map: U
 }] = [only];
 export const viaSingleUser = U.groupBy([], x => x);
-const S = _Set;
+const [{
+  Set: S
+}] = [{
+  Set: _Set
+}];
 export const viaSingleGlobal = new S(singleSeed);
 
 // two whole-ctor extractions off ONE declarator keep their own per-name registrations: each
 // alias's STATIC read folds through its own hint (a single per-declarator entry let the second
 // registration clobber the first, stranding the first alias's reads on the local name)
-const SM = _Symbol;
-const MG = _Promise;
 const [{
-  Symbol: _unused3
+  Symbol: SM
 }, {
-  Promise: _unused4
-}] = [_globalThis, _globalThis];
+  Promise: MG
+}] = [{
+  Symbol: _Symbol
+}, {
+  Promise: _Promise
+}];
 export const viaMultiExtractFirst = _Symbol$for(dedupeKey);
 export const viaMultiExtractSecond = _Promise$resolve(ready);
 
@@ -77,13 +85,15 @@ export const viaMultiExtractSecond = _Promise$resolve(ready);
 // global the bound identity callee hands back, and the SIBLING element narrows through its sound
 // positional pairing; a slot write of ONE hint's global deopts only that alias - the sibling keeps
 // folding
-const WS = _WeakSet;
-const PR = _Promise;
 const [{
-  ['WeakSet']: _unused5
+  ['WeakSet']: WS
 }, {
-  Promise: _unused6
-}] = [_globalThis, _globalThis];
+  Promise: PR
+}] = [{
+  WeakSet: _WeakSet
+}, {
+  Promise: _Promise
+}];
 export const viaComputedLiteralKey = new WS();
 export const viaComputedSibling = _Promise$allSettled([]);
 let seKey = () => 'Number';
@@ -107,21 +117,23 @@ export const viaDeoptedAlias = OB.groupBy(items, tag);
 // guard is a recursion stack - a completed hop must not poison the sibling's identical init);
 // a mutated proxy KEY declines only its own slot, the sibling still narrows
 const g = _globalThis;
-const RE = _Reflect;
 const [{
-  Reflect: _unused7
+  Reflect: RE
 }, {
   JSON: JS
-}] = [g, g];
+}] = [{
+  Reflect: _Reflect
+}, g];
 export const viaSharedAliasFirst = _Reflect$ownKeys(target);
 export const viaSharedAliasSecond = _JSON$rawJSON(input);
 _globalThis.RegExp = fake;
-const WM = _WeakMap;
 const [{
   RegExp: RX
 }, {
-  WeakMap: _unused8
-}] = [_globalThis, _globalThis];
+  WeakMap: WM
+}] = [_globalThis, {
+  WeakMap: _WeakMap
+}];
 export const viaMutatedKeySlot = RX.escape(text);
 export const viaMutatedKeySibling = new WM(entries);
 
@@ -129,12 +141,24 @@ export const viaMutatedKeySibling = new WM(entries);
 // use - runtime last-write-wins); a CONDITIONAL `var` refuses flow-trust and folds through the
 // runtime constructor guard instead, keeping the untaken path faithful
 /* eslint-disable no-redeclare, vars-on-top, block-scoped-var -- redeclaration shapes under test */
-var VB = _Symbol;
-var VB = _Promise;
+var [{
+  Symbol: VB
+}] = [{
+  Symbol: _Symbol
+}];
+var [{
+  Promise: VB
+}] = [{
+  Promise: _Promise
+}];
 export const viaVarRedecl = _Promise$try(fn);
 function condVar(c) {
   if (c) {
-    var CB = _Iterator;
+    var [{
+      Iterator: CB
+    }] = [{
+      Iterator: _Iterator
+    }];
   }
   return CB && CB.range(0, c);
 }
@@ -144,12 +168,13 @@ export const viaCondVar = condVar(cond);
 // a nested wrapper sibling that does NOT bind the name must not abort the positional scan
 // (its subtree's "not found" is not a terminal answer) - the later element still resolves;
 // a slot that DOES bind the name but cannot pair (spread-shifted inner init) keeps bailing
-const XU = _URL;
 const [[{
-  URL: _unused9
+  URL: XU
 }], {
   Number: NP
-}] = [[_globalThis], _globalThis];
+}] = [[{
+  URL: _URL
+}], _globalThis];
 export const viaScanPastNestedSibling = _Number$parseFloat(text);
 let unp = [{}];
 const [[{
@@ -176,7 +201,11 @@ var [{
 export const viaStaticsRedecl = _Math$cbrt(value2);
 
 // DEEP array-wrap layers pair positionally too: the global slot folds even when nested two levels
-const D = _Promise;
+const [[{
+  Promise: D
+}]] = [[{
+  Promise: _Promise
+}]];
 export const viaDeepGlobal = _Promise$any([]);
 // a deep user-object slot stays native at depth (positional protection recurses)
 const box = {

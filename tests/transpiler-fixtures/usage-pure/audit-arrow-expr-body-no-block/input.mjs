@@ -1,6 +1,4 @@
-// Arrow with expression body (not block) and a computed-key sibling: the computed
-// `[Symbol.iterator]` key swaps to the pure symbol binding; `from` stays VERBATIM - the
-// pattern carries no parameter default to swap, and a declared arrow's callers are not
-// provably enumerable, so an injected inline default could override a caller-passed value
+// An arrow with an expression body mirrors the supplied constructor at its closed call site.
+// The symbol slot keeps its own value beside the static, without needing a body extraction.
 const fn = ({ [Symbol.iterator]: iter, from }) => from([1, 2]);
 fn(Array);

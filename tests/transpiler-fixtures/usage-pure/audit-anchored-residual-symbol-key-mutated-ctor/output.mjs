@@ -8,7 +8,16 @@ import _WeakMap from "@core-js/pure/actual/weak-map/constructor";
 // entry by hand here bypassed the rule and minted a second import beside the one it already had.
 delete _Symbol[k];
 const {
-  [_Symbol.foo]: c
-} = _WeakMap;
-const fe = _Object$fromEntries;
+  WeakMap: {
+    [_Symbol.foo]: c
+  },
+  Object: {
+    fromEntries: fe
+  }
+} = {
+  WeakMap: _WeakMap,
+  Object: {
+    fromEntries: _Object$fromEntries
+  }
+};
 export default [c, fe];

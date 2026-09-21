@@ -1,6 +1,5 @@
-// nested-proxy flatten declaration sits INSIDE a class static block, after a sibling
-// static block. tests pushBlockScope routing for StaticBlock + flatten coexistence,
-// asserting the flatten path queues correctly when the host block is a StaticBlock
+// A static block can capture a nested static after another static block.
+// The binding remains scoped to the block containing the pattern.
 let captured;
 class Holder {
   static {

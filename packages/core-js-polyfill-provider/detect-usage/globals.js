@@ -6,14 +6,17 @@ import { POSSIBLE_GLOBAL_OBJECTS } from '../helpers/ast-patterns.js';
 export const KNOWN_FUNCTION_GLOBALS = new Set([
   ...Object.keys(knownBuiltInReturnTypes.constructors),
   ...Object.keys(knownBuiltInReturnTypes.globalMethods),
+  // Abstract constructors need no return-type hint to identify their own function value.
+  ...Object.entries(builtInDefinitions.globals)
+    .filter(([, entry]) => entry.global?.dependencies.some(dependency => dependency.endsWith('/constructor')))
+    .map(([name]) => name),
 ]);
 export const KNOWN_NAMESPACE_GLOBALS = new Set(knownBuiltInReturnTypes.namespaces);
 // every polyfillable global, from built-in-definitions. this is a DIFFERENT axis than
 // known-built-in-return-types (KNOWN_FUNCTION_GLOBALS), which catalogues names by inferred return
-// type: the two overlap but neither contains the other - return-types lists always-present built-ins
-// (Array / Boolean / Date / ...) that aren't injectable globals, and omits injectable globals it
-// tracks no return type for (Iterator / AsyncIterator / structuredClone / setImmediate). without
-// this set a self-reference `var Iterator = Iterator` injects nothing
+// type and constructor entries: those include always-present built-ins (Array / Boolean / Date)
+// that aren't injectable globals, but omit injectable methods with no return hint (setImmediate).
+// Keep the complete injection catalogue separate from the function-value classification.
 const INJECTABLE_GLOBALS = new Set(Object.keys(builtInDefinitions.globals));
 
 // the `Symbol.<key>` statics core-js ships an entry for - the allowlist a `symbol/<kebab>` module

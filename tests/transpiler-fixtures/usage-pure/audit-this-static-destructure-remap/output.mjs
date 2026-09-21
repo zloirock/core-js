@@ -5,8 +5,8 @@ import _Map from "@core-js/pure/actual/map/constructor";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Promise$try from "@core-js/pure/actual/promise/try";
-// Object-rest keeps named slots at that level and reads through it native in usage-pure.
-// Independent reads and key/default expressions still receive their own polyfills.
+// Claimed statics retain their polyfills beside object rest.
+// Rest keeps its source and exclusions; instance slots remain native.
 class Basic extends Array {
   static m() {
     const from = _Array$from;
@@ -23,8 +23,9 @@ class Renamed extends _Map {
 export const viaRenamed = Renamed.m();
 class WithRest extends Array {
   static m() {
+    const of = _Array$of;
     const {
-      of,
+      of: _unused,
       ...rest
     } = this;
     return [of, rest];

@@ -7,7 +7,15 @@ const Foo = Array;
 const wrapper = {
   a: Foo
 };
-const from = _Array$from;
+const {
+  a: {
+    from
+  }
+} = {
+  a: {
+    from: _Array$from
+  }
+};
 const arr = from(['x']);
 _atMaybeArray(arr).call(arr, 0);
 _includesMaybeArray(arr).call(arr, 'x');

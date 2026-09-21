@@ -42,7 +42,11 @@ function mark(t, v) {
   }
 }
 {
-  const f = _Array$from;
+  const [[{
+    from: f
+  }]] = [[...[{
+    from: _Array$from
+  }]] as any];
 }
 {
   const at = _atMaybeArray([1, 2]);
@@ -61,7 +65,11 @@ function mark(t, v) {
   const at = _atMaybeArray([1, 2] as any);
 }
 {
-  const f = _Array$from;
+  const [{
+    from: f
+  }] = [...[{
+    from: _Array$from
+  }]] as any;
 }
 {
   const [{
@@ -71,14 +79,18 @@ function mark(t, v) {
   } : userObj) as any];
 }
 {
-  const f = _Array$from;
+  const [{
+    from: f
+  }] = [...([{
+    from: _Array$from
+  }] as any)];
 }
 {
   const [{
     from: f
-  }] = [pick ? {
+  }] = [...([pick ? {
     from: _Array$from
-  } : userObj];
+  } : userObj] as any)];
 }
 {
   const k = (tag: string) => (_pushMaybeArray(log).call(log, tag), tag)!;
@@ -121,7 +133,11 @@ function mark(t, v) {
 }
 {
   const r = ((a: any) => a)(...([Array] as any));
-  const o = _Array$of;
+  const [{
+    of: o
+  }] = [...[{
+    of: _Array$of
+  }]];
 }
 {
   const r = (({

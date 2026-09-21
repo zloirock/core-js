@@ -202,6 +202,14 @@ for (const parser of adapters) for (const method of ['usage-global', 'usage-pure
     }), expected);
   }
   const writesTree = parser.parseAndScope('let box; box = 1; box = 2;');
+  let indexWalks = 0;
+  const unreadOwner = { traverse() { indexWalks++; } };
+  for (const node of [
+    { type: 'Identifier', name: 'box' },
+    { type: 'MemberExpression', object: { type: 'Identifier', name: 'box' }, property: { type: 'Identifier', name: 'x' }, computed: false },
+    { type: 'ArrayExpression', elements: [] },
+  ]) check(`${ label }: ${ node.type } cannot be a source write`, ownerSourceWritePath(unreadOwner, node), null);
+  check(`${ label }: read queries do not build an owner write index`, indexWalks, 0);
   const [firstWrite, secondWrite] = parser.collectPaths(writesTree, 'AssignmentExpression');
   check(`${ label }: live source write`, ownerSourceWritePath(writesTree, firstWrite.node)?.node, firstWrite.node);
   check(`${ label }: cloned source write`, ownerSourceWritePath(writesTree, { ...firstWrite.node })?.node, firstWrite.node);

@@ -1,7 +1,6 @@
-// a SELECTING receiver under a WRAPPER mirrors per branch the way the bare init does: the host's
-// literal pairs the level's slot - an element by position, a property by its plain key - and the
-// polyfill lands in the constructor arm alone, the user arm staying raw. one static per row, so a
-// row's mirror is attributable to its own host shape
+// Wrapped selecting receivers keep the static and user arms distinct.
+// Static-only keys mirror the constructor arm; shared instance keys retain runtime dispatch.
+// Each row names a distinct static so its host remains observable in the import set.
 const [{ of: viaElementDefault } = {}] = [c ? Array : userObj];
 const [{ from: viaAnd }] = [c && Array];
 const [{ trunc: viaPrefix }] = [(mark++, c ? Math : userObj)];

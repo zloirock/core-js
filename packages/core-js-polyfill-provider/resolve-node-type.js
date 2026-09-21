@@ -190,6 +190,7 @@ function createResolveNodeType(babelNodeType, t, {
   // `_atMaybeArray` over a patched return that may be a non-array (ie:11 wrong-Maybe). emitters wire
   // their per-file mutated-static accessor; default no-op keeps standalone resolver tests unchanged
   isMutatedStatic = () => false,
+  isWrittenContainerSlot = () => false,
   // scope-binding lookup hook: the estree caller filters bindings its tracker OVER-HOISTS out
   // of `namespace N { ... }` bodies (a raw `scope.getBinding` surfaced the namespace twin for
   // a use OUTSIDE the block and narrowed to the WRONG flavor); babel scopes namespaces
@@ -2053,6 +2054,7 @@ function createResolveNodeType(babelNodeType, t, {
     babelBindingAdapter,
     isMemberLike,
     isMutatedStatic,
+    isWrittenContainerSlot,
     isFunctionLike,
     isNullableOrNever,
     resolveNodeType,
@@ -2069,7 +2071,6 @@ function createResolveNodeType(babelNodeType, t, {
     staticPairFromPolyfillEntry,
     lookupNested,
     KNOWN_STATIC_METHOD_RETURN_TYPES,
-    findDestructuredKeyPath,
     swapAliasToTSTypeQueryWithSubst,
     resolveReturnTypeFromTypeQuery,
     resolveTypeAnnotation: (...args) => resolveTypeAnnotation(...args),

@@ -1,10 +1,5 @@
-// A constructor this file STORES into a container slot must bind the entry that carries the ctor's
-// own statics, because pure substitutes its binding into that slot and a read can come back off it
-// where no rewrite reaches - the bare `*/constructor` module installs none of them, so `_Map.groupBy`
-// answers `undefined` where the realm's own `Map.groupBy` answers the function. Object-rest is the
-// shape that exposes it: it stops the extraction at that level, so the static read stays native and
-// lands on the substituted slot. The container names its slot however it likes - shorthand, a
-// renamed key, an array index - and the obligation follows the VALUE it stores, not the key.
+// A constructor stored in a container carries its statics for reads the transform cannot replace.
+// The obligation follows the stored value through named properties and array slots.
 const shorthand = { Map };
 const { Map: { groupBy: viaShorthand }, ...shorthandRest } = shorthand;
 const renamed = { M: Map };

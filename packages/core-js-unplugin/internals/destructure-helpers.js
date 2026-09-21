@@ -1,3 +1,5 @@
+// Destructure visits queue claims; the drain applies pattern edits after traversal.
+// This preserves sibling visits and default values rewritten by ordinary visitors.
 // the destructure pipeline's shared vocabulary: pattern/host shape probes, plan builders
 // and render spellings both the visit half and the drain half of the emitter speak
 import {
@@ -32,6 +34,7 @@ import {
   proxyReceiverValueCanBeUndefined,
   realmSelectionCollapseOperand,
   resolveObjectName,
+  agreeingTernaryArm,
   resolveSynthKeys,
   sealedChainBoundary,
   sealedClaimLeafGuardPlan,
@@ -60,6 +63,7 @@ import {
   objectLiteralHoldsObservable,
   objectPropertyReadValue,
   observableSequenceElements,
+  ownRelocatedHeadElement,
   patternBindingCount,
   patternHasSeveralSeKeys,
   patternKeepsEffectfulKey,
@@ -116,16 +120,7 @@ import {
   memberFromKeyName,
 } from '@core-js/polyfill-provider/render';
 
-// the AST engine's destructure pipeline - the STAGED port of babel's destructure-emitter
-// (the design's MIG-14 blueprint): the plan layer's decisions replay over estree nodes.
-// an unported shape BAILS with the pattern untouched - raw source is the honest divergence.
-//
-// the port's own architectural choice: the per-prop visits only VALIDATE and record into a
-// per-host ledger; every pattern surgery runs in ONE drain over the final tree, after the
-// traversal. babel mutates per prop and re-queues; a live estree walk would skip the sibling
-// that shifts into the removed prop's slot, and the drain sidesteps that class entirely -
-// it also means a prop VALUE rewritten by the ordinary visitors (a polyfilled default) is
-// already in place when the residual is rebuilt
+// The local binding name, including a slot default (`{ flat: method = fallback }`).
 export function propLocalName(prop) {
   return prop.value.type === 'AssignmentPattern' ? prop.value.left.name : prop.value.name;
 }
@@ -136,16 +131,10 @@ export const SELECTING_INIT_TYPES = new Set(['ConditionalExpression', 'LogicalEx
 // our own output): nothing routes it again, ahead of EVERY route in the claim funnel -
 // through the shared sibling proof. `symbolIterator`
 // derives from the meta - the funnel runs before any entry resolution
-// the prop's LOCAL binding name - through a slot default (`{ flat: m = fb }` binds `m`)
 export function overwriteRebindEmitted({ metaPath, injectorState }) {
   return ownEmittedPatternClaim(metaPath, ownOutputTests(injectorState));
 }
 
-// the OUTERMOST hop prop of a nested claim - the per-branch mirror anchors there (its
-// pattern hangs on the receiver wrapper), while a leaf claim's own path sits levels below.
-// the mirror fallbacks route through EVERY hop prop of that pattern: the fromFallback
-// dispatch delivers each prop claim on its own, while a fallback fires ONCE (sibling
-// claims die on the mirror-owned head gate) - a half-registered multi-hop plan emits nothing
 // a STATIC nested DEFAULTED sole leaf over a discardable receiver extracts as the overwrite
 // (`({ Array: { from = fb } } = _globalThis)` -> `from = _Array$from;`): the extraction always
 // defines, so the user default is dead text and drops with the receiver read - a pure nav or a
@@ -216,6 +205,11 @@ export function routeSelectionMirror(metaPath, handlePerBranch, claimObject = nu
     if (propPath.node?.type === 'Property') handlePerBranch({ metaPath: propPath, claimObject });
   }
 }
+// the OUTERMOST hop prop of a nested claim - the per-branch mirror anchors there (its
+// pattern hangs on the receiver wrapper), while a leaf claim's own path sits levels below.
+// the mirror fallbacks route through EVERY hop prop of that pattern: the fromFallback
+// dispatch delivers each prop claim on its own, while a fallback fires ONCE (sibling
+// claims die on the mirror-owned head gate) - a half-registered multi-hop plan emits nothing
 function outermostHopProp(metaPath) {
   let prop = metaPath;
   while (prop.parentPath?.node?.type === 'ObjectPattern'
@@ -349,11 +343,7 @@ export function liveTailOf(declarator, seqPrefix, initTail) {
 // the FIRST extraction's value, which the loop header evaluates where the source ran it
 // (`for (var m = (eff(), _Map), { other } = _globalThis; ...)`)
 export function carryForInitPrefixIntoFirst(declarator, declJobs, extracted) {
-  // a FLAT consume off a plain residual only: a nested hop or a rest sibling re-reads the
-  // receiver through the residual, and there the whole read stays with it
-  if (!extracted.length || declJobs.some(job => job.chain?.length)
-    || (declarator.id.properties ?? [])
-      .some(item => item.type === 'RestElement' || item.value?.type === 'ObjectPattern')) return;
+  if (!extracted.length || declJobs.some(job => job.readsReceiver)) return;
   const init = peelTransparentExpr(declarator.init);
   if (init?.type !== 'SequenceExpression' || !Number.isInteger(init.start)) return;
   const { prefix, tail } = peelNestedSequenceExpressions(init);
@@ -1708,22 +1698,8 @@ export function planSentinelMemo({ sentinel, declarator, kind, allProxyInit }) {
   return { sentinelMemoEligible, memoSibling: sentinelMemoEligible };
 }
 
-// the fallback logical whose LEFT detection statically selected (the meta's object
-// resolved through it, no fromFallback): the plain-ctor extraction stands and the dead
-// right drops with the residual - null everywhere else (the per-branch mirror's shapes)
-// the ARM a ternary selects when both name the same surface - null when they differ or when
-// the test itself observes something (its read would be dropped with the selection)
-function agreeingTernaryArm(selecting, metaPath, adapter) {
-  if (mayHaveSideEffects(selecting.test)) return null;
-  function armName(arm) {
-    return resolveObjectName({
-      objectNode: peelTransparentExpr(peelReceiverSequenceTail(peelTransparentExpr(arm))), ...nodeSite(arm, metaPath), adapter,
-    });
-  }
-  const name = armName(selecting.consequent);
-  return name && name === armName(selecting.alternate) ? peelTransparentExpr(selecting.consequent) : null;
-}
-
+// Returns the matching logical left or an agreeing ternary arm with no test effects.
+// Instance claims and unproven selections return null.
 export function staticallySelectedLeft({ selecting, meta, metaPath, soleBinding, chain, adapter, kind }) {
   // only a STATIC / ctor claim proves the left operand IS the named built-in, so the
   // fallback right is dead. an INSTANCE claim resolved off an opaque receiver proves
@@ -2443,9 +2419,9 @@ export function emitDeclaratorMemo({ refName, declarator, statements, declJobs, 
 
 // a re-anchored declarator standing beside siblings takes its own statement: the flatten
 // rebuilds the declaration, and every sibling keeps its own slot (babel's split)
-export function splitMultiDeclaratorHost({ program, declarator, markRewrite }) {
-  let target = null;
-  walkAstNodes({
+export function splitMultiDeclaratorHost({ program, declarator, declaration, body, markRewrite }) {
+  let target = declaration && body ? { declaration, body } : null;
+  if (!target) walkAstNodes({
     root: program,
     visit(node, parent) {
       if (target || node.type !== 'VariableDeclaration' || node.declarations.length < 2) return;
@@ -2454,7 +2430,7 @@ export function splitMultiDeclaratorHost({ program, declarator, markRewrite }) {
       target = { declaration: node, body: list };
     },
   });
-  const at = target ? target.body.indexOf(target.declaration) : -1;
+  const at = target?.declaration.declarations.length > 1 ? target.body.indexOf(target.declaration) : -1;
   if (at === -1) return;
   target.body.splice(at, 1, ...target.declaration.declarations.map(item => variableDeclaration(target.declaration.kind, [item])));
   markRewrite();
@@ -2799,8 +2775,11 @@ export function resolveArrayWrappedReceiver(patternPath, aliasCtx = null, {
   // [{ resolve }] = wrap`); a caller whose extraction re-reads the element passes none
   // ... unless the wrapper was reached through a CONST ALIAS: the array literal lives in its own
   // declaration and evaluates there, so dropping this destructure erases none of its elements
-  let element = hostParent.node.init;
-  let aliased = false;
+  // A moved head reads the same iterated element. Receiverless statics can name it
+  // through the head's binding; the native wrapper still owns its iteration.
+  let element = aliasCtx && ownRelocatedHeadElement(hostParent)
+    || hostParent.node.init;
+  let aliased = element !== hostParent.node.init;
   for (const step of indices) {
     const peeledElement = peelTransparentExpr(element);
     // EVERY level follows its alias: an alias inside an alias (`const inner = [Array]; const outer =
@@ -2827,7 +2806,7 @@ export function resolveArrayWrappedReceiver(patternPath, aliasCtx = null, {
     // by the time the rewrite reaches a level (`flattenArrayWrapperInits`) - one left as written
     // (its pairing landed on a hole) keeps the level native
     const coords = element?.type === 'ArrayExpression' ? resolveCallArgumentCoords(element.elements, index) : null;
-    if (!coords || coords.elementIndex >= 0 || coords.argIndex !== index) return null;
+    if (!coords || coords.length !== 1 || coords[0] !== index) return null;
     // an element the pattern does not bind still EVALUATES - a spread ITERATES its argument, a
     // call runs. a SOLE slot drops the wrapper whole, which would ERASE that value. a READING claim
     // keeps such a wrapper instead, exactly as one with a bound neighbour does: the residual keeps
@@ -2911,33 +2890,34 @@ export function liveHostStatement(body, hostNode, declaratorNode) {
 // the sibling-declarator canon of a memoized element beside SIBLING declarators: each claimed
 // declarator's memo statements stand behind the declarators written AHEAD of it (their inits run
 // first, so they split off as a statement of their own), and the declaration resumes as one statement
-// - the surviving residual, its extractions, the siblings up to the next claimed one. false where a
-// claimed declarator did not survive, or an extraction is not a plain declaration of the host's kind,
-// and the caller falls to its own split
+// - any surviving residual, its extractions, the siblings up to the next claimed one. A consumed
+// host still places its extractions in its source slot. Non-declaration extractions decline the join.
 export function groupExtractionBesideResidual({
   hostNode, body, at, declarations, claimed, extractedByDeclarator, memoByDeclarator, rescueStatements = [],
 }) {
   const exported = body[at] !== hostNode && body[at]?.declaration === hostNode;
   if (body[at] !== hostNode && !exported) return false;
-  const surviving = declarations.filter(declarator => claimed.has(declarator));
-  if (!surviving.length || surviving.length !== claimed.size || declarations.length <= 1) return false;
+  const claimedDeclarators = hostNode.declarations.filter(declarator => claimed.has(declarator));
+  if (!claimedDeclarators.length || claimedDeclarators.length !== claimed.size || hostNode.declarations.length <= 1) return false;
+  // A consumed wrapper has no residual to join. Its ordinary split owns the extracted
+  // statements and keeps trailing source declarators behind them.
+  if (claimedDeclarators.some(declarator => !declarations.includes(declarator) && leadingOf(declarator).length)) return false;
   function extractionsOf(declarator) {
     return (extractedByDeclarator.get(declarator) ?? [])
       .map(item => item?.type === 'ExportNamedDeclaration' ? item.declaration : item);
   }
-  if (surviving.some(declarator => extractionsOf(declarator).some(item => item?.type !== 'VariableDeclaration'
+  if (claimedDeclarators.some(declarator => extractionsOf(declarator).some(item => item?.type !== 'VariableDeclaration'
     || item.kind !== hostNode.kind || item.declarations.length !== 1))) return false;
   function leadingOf(declarator) {
-    return [...declarator === surviving[0] ? rescueStatements : [], ...memoByDeclarator.get(declarator) ?? []];
+    return [...declarator === claimedDeclarators[0] ? rescueStatements : [], ...memoByDeclarator.get(declarator) ?? []];
   }
-  if (surviving.every(declarator => !leadingOf(declarator).length)) return false;
   const statements = [];
   let group = [];
   function flush() {
     if (group.length) statements.push(exportWrap(variableDeclaration(hostNode.kind, group), exported));
     group = [];
   }
-  for (const declarator of declarations) {
+  for (const declarator of hostNode.declarations) {
     if (!claimed.has(declarator)) {
       group.push(declarator);
       continue;
@@ -2949,7 +2929,8 @@ export function groupExtractionBesideResidual({
     }
     const own = extractionsOf(declarator).map(item => item.declarations[0]);
     for (const item of own) appendedExtractions.add(item);
-    group.push(declarator, ...own);
+    if (declarations.includes(declarator)) group.push(declarator);
+    group.push(...own);
   }
   flush();
   body.splice(at, 1, ...statements);

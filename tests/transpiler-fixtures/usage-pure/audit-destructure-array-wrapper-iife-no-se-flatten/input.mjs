@@ -1,3 +1,2 @@
-// the no-SE twin: nothing observable is lost by discarding the IIFE, so the leaf classifies
-// through the inline call and the extraction flattens to the pure import
+// A pure IIFE in an array wrapper supplies the mirrored static receiver.
 const [{ from }] = [(() => Array)()];

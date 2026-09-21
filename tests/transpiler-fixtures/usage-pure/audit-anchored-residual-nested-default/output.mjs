@@ -8,11 +8,20 @@ var _ref;
 // the live node it was, the other clones and rescues that subtree from its skip seeding. A TOP-LEVEL
 // residual default still bails the anchor: the two bindings split on whether they re-visit it, which
 // is a binding fact and not the plan's to decide.
-const from = _Array$from;
 const {
-  union,
-  nested: {
-    customA = _atMaybeArray(_ref = [1]).call(_ref, 0)
+  Array: {
+    from
+  },
+  Set: {
+    union,
+    nested: {
+      customA = _atMaybeArray(_ref = [1]).call(_ref, 0)
+    }
   }
-} = _Set;
+} = {
+  Array: {
+    from: _Array$from
+  },
+  Set: _Set
+};
 export { from, union, customA };

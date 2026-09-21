@@ -10,11 +10,51 @@ import _Set from "@core-js/pure/actual/set/constructor";
 // A fallback that is NOT the realm is the negative - off-window that plain object is the value.
 // A pattern of only flat CONSTRUCTOR slots collapses the same way, with no nested prop to lead.
 /* eslint-disable no-restricted-globals, unicorn/prefer-global-this -- bare proxy names are the shape under test */
-const viaProbeHop = _Map$groupBy;
-const viaBackedHop = _Map$groupBy;
-const viaBareBacked = _Map$groupBy;
-const viaSecondProbe = _Map$groupBy;
-const viaBareUnbacked = _Map$groupBy;
+const {
+  Map: {
+    groupBy: viaProbeHop
+  }
+} = {
+  Map: {
+    groupBy: _Map$groupBy
+  }
+};
+const {
+  Map: {
+    groupBy: viaBackedHop
+  }
+} = {
+  Map: {
+    groupBy: _Map$groupBy
+  }
+};
+const {
+  Map: {
+    groupBy: viaBareBacked
+  }
+} = {
+  Map: {
+    groupBy: _Map$groupBy
+  }
+};
+const {
+  Map: {
+    groupBy: viaSecondProbe
+  }
+} = {
+  Map: {
+    groupBy: _Map$groupBy
+  }
+};
+const {
+  Map: {
+    groupBy: viaBareUnbacked
+  }
+} = {
+  Map: {
+    groupBy: _Map$groupBy
+  }
+};
 const {
   Map: {
     groupBy: viaPlainFallback

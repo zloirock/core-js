@@ -7,12 +7,20 @@ import _at from "@core-js/pure/actual/instance/at";
 // inner body opens AFTER the substitution site, so both splices must apply in a single
 // descending-order pass over the original source - substituting first would shift the body
 // anchor offset and `var _ref;` would land mid-token instead of after `{`.
-const from = _Array$from;
-const val = function () {
-  const x = _globalThis;
-  return function inner() {
-    var _ref;
-    return null == (_ref = _flatMaybeArray(arr)) ? void 0 : _at(_ref.call(arr));
+const {
+    Array: {
+      from
+    }
+  } = {
+    Array: {
+      from: _Array$from
+    }
+  },
+  val = function () {
+    const x = _globalThis;
+    return function inner() {
+      var _ref;
+      return null == (_ref = _flatMaybeArray(arr)) ? void 0 : _at(_ref.call(arr));
+    }();
   }();
-}();
 console.log(from, val);

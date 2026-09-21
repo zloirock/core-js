@@ -5,6 +5,126 @@
 // polyfill on the live value (the narrowed helper must keep its generic fallback). Generic
 // "polyfill in a loop" tests are absent.
 
+// --- A head element built by a call reads THAT call's argument on its own pass ---
+
+QUnit.test('loop: relocated array slots retain a static beside an instance claim', assert => {
+  const seen = [];
+  for (const [{ values }, { at }] of [[Object, [1]]]) {
+    seen.push(values({ x: 7 }), at.call([2, 3], -1));
+  }
+  for (const { w: { entries }, y: { at } } of [{ w: Object, y: [1] }]) {
+    seen.push(entries({ x: 8 }), at.call([4, 5], -1));
+  }
+  assert.deepEqual(seen, [[7], 3, [['x', 8]], 5]);
+});
+
+QUnit.test('loop: a call-built head element keeps each pass its own receiver', assert => {
+  function pick(value) { return value; }
+  const custom = { from: () => 'CUSTOM' };
+  const seen = [];
+  for (const { w: { from } } of [{ w: pick(Array) }, { w: pick(custom) }]) seen.push(from([7]));
+  assert.deepEqual(seen, [[7], 'CUSTOM']);
+});
+
+QUnit.test('loop: one callee under primitive arguments answers for every pass', assert => {
+  // the body reads no parameter, so every call hands back the same value and the leaf extracts once
+  // eslint-disable-next-line no-unused-vars -- the IGNORED parameter is what the row is about
+  function constant(tag) { return Array; }
+  const seen = [];
+  for (const { w: { of } } of [{ w: constant('a') }, { w: constant('b') }]) seen.push(of(9));
+  assert.deepEqual(seen, [[9], [9]]);
+});
+
+QUnit.test('loop: an effectful head element runs once per pass and still binds the polyfill', assert => {
+  const log = [];
+  function make(tag) {
+    log.push(tag);
+    return Array;
+  }
+  for (let round = 0; round < 3; round += 1) {
+    for (const { from } of [make(round)]) log.push(from([round]));
+  }
+  // the element keeps its position ahead of what replaces it: one call per pass, in source order
+  assert.deepEqual(log, [0, [0], 1, [1], 2, [2]]);
+});
+
+QUnit.test('loop: a head element built through an invoker keeps the polyfill', assert => {
+  function make() { return Array; }
+  const seen = [];
+  for (const { from } of [make.call(null)]) seen.push(from([1]));
+  for (const { of } of [Reflect.apply(make, null, [])]) seen.push(of(2));
+  for (const { from } of [make.bind(null)()]) seen.push(from([3]));
+  assert.deepEqual(seen, [[1], [2], [3]]);
+});
+
+QUnit.test('loop: a branching head element resolves the arm the runtime takes', assert => {
+  const seen = [];
+  const absent = null;
+  const takesLeft = true;
+  for (const { from } of [takesLeft ? Array : Object]) seen.push(from([1]));
+  for (const { from } of [absent || Array]) seen.push(from([2]));
+  for (const { from } of [takesLeft ? Object : Array]) seen.push(typeof from);
+  assert.deepEqual(seen, [[1], [2], 'undefined']);
+});
+
+QUnit.test('loop: a head element read off a container written in place binds the polyfill', assert => {
+  const seen = [];
+  for (const { from } of [{ w: Array }.w]) seen.push(from([1]));
+  for (const { of } of [[Array][0]]) seen.push(of(2));
+  const alias = Array;
+  for (const { from } of [alias]) seen.push(from([3]));
+  assert.deepEqual(seen, [[1], [2], [3]]);
+});
+
+QUnit.test('loop: a head slot holding a PATTERN still binds the ponyfill', assert => {
+  const log = [];
+  function realm() {
+    log.push('r');
+    return globalThis;
+  }
+  const seen = [];
+  // the head hosts no statement for an extraction and no slot for a value swap, so the static is
+  // served by the MIRROR of the iterated element or by nothing: read raw, it is undefined on a
+  // realm without it and the pattern under it throws
+  for (const { Array: { of: { length: arity } } } of [realm(), realm()]) seen.push(arity);
+  assert.deepEqual(seen, [0, 0]);
+  assert.deepEqual(log, ['r', 'r'], 'the element call runs once per pass, ahead of what replaces it');
+});
+
+QUnit.test('loop: a pattern-valued head slot mirrors through a wrapper and beside a claim', assert => {
+  const seen = [];
+  for (const [{ Array: { of: { length: arity } } }] of [[globalThis]]) seen.push(arity);
+  for (const { Array: { of: { length: arity }, from } } of [globalThis]) seen.push(arity, from([5]));
+  assert.deepEqual(seen, [0, 0, [5]]);
+});
+
+QUnit.test('loop: a head reads its iterable once per entry, so a write in the body misses it', assert => {
+  const seen = [];
+  const box = { w: Array };
+  for (const { from } of [box.w]) {
+    box.w = Map;
+    seen.push(from([1]));
+  }
+  // the write landed after the iterable was read, so the pass still binds what the element spelled
+  assert.deepEqual(seen, [[1]]);
+});
+
+QUnit.test('loop: an OUTER loop re-enters the head, and the second entry reads the replaced slot', assert => {
+  const seen = [];
+  const replacement = { from() { return 'REPLACED'; } };
+  replacement.from.replaced = true;
+  const box = { w: Array };
+  for (let round = 0; round < 2; round += 1) {
+    for (const { from } of [box.w]) {
+      box.w = replacement;
+      // identity, not a call: what the first entry binds is absent in a realm without the static,
+      // and the claim here is WHICH slot each entry read, which holds in every realm
+      seen.push(from && from.replaced ? 'replacement' : 'entry value');
+    }
+  }
+  assert.deepEqual(seen, ['entry value', 'replacement']);
+});
+
 // --- Iterator helpers are lazy: one user-callback invocation per consumed element ---
 
 QUnit.test('loop: iterator-helper map is lazy, one call per pulled element', assert => {
@@ -384,7 +504,7 @@ QUnit.test('binding: a for-of head re-declaration rebinds and the last value is 
 /* eslint-enable no-var, no-redeclare, block-scoped-var, no-lone-blocks, no-useless-assignment
    -- back to the suite's modern-syntax default; the `var` shapes above are the tested form */
 
-/* eslint-disable es/no-accessor-properties, no-unreachable-loop -- getters and one-pass loop heads are the forms under test */
+/* eslint-disable no-unreachable-loop -- one-pass loop heads are the forms under test */
 
 // Loop-head wrappers keep initializer effects ahead of method extraction.
 function nestedTrailing(receiver, effect) {
@@ -479,7 +599,7 @@ QUnit.test('destructuring: loop-head wrapper captures a receiver before its neig
     break;
   }
 });
-/* eslint-enable es/no-accessor-properties, no-unreachable-loop -- end of the source forms above */
+/* eslint-enable no-unreachable-loop -- end of the source forms above */
 
 // Each iterated receiver keeps its own static value and the head keeps its source binding.
 
@@ -509,7 +629,6 @@ QUnit.test('for-of: custom getter, default and per-iteration capture retain orde
   const reads = [];
   for (const { from = (log.push('default'), 'fallback') } of [
     Array,
-    // eslint-disable-next-line es/no-accessor-properties -- the getter's order is the behavior under test
     { get from() { log.push('get'); return undefined; } },
   ]) {
     log.push(typeof from);
@@ -569,4 +688,65 @@ QUnit.test('loop: mixed nested static receivers keep lexical closures and null t
   }, TypeError);
   assert.deepEqual(values, [7, 'custom']);
   assert.deepEqual(reads.map(read => read()), [8, 'custom']);
+});
+
+// --- A for-x head that DECLARES nothing: the iterated element is the pattern's only slot ---
+
+QUnit.test('loop: a symbol slot keeps its static neighbours in an assignment head', assert => {
+  let tag, from, of;
+  const seen = [];
+  for ({ [Symbol.toStringTag]: tag, from, of } of [Array, Array]) {
+    seen.push(from([1]), of(2), typeof tag);
+  }
+  assert.deepEqual(seen, [[1], [2], 'undefined', [1], [2], 'undefined']);
+});
+
+QUnit.test('loop: a declaration-less head reads a nested level under a static through the polyfill', assert => {
+  const seen = [];
+  let via;
+  for ({ of: { name: via } } of [Array, Array]) seen.push(typeof via);
+  assert.deepEqual(seen, ['string', 'string']);
+});
+
+QUnit.test('loop: a declaration-less head runs its element effect once, ahead of the pass', assert => {
+  const log = [];
+  let via;
+  for ({ of: { name: via } } of [(log.push('element'), Array)]) log.push(typeof via);
+  assert.deepEqual(log, ['element', 'string']);
+});
+
+QUnit.test('loop: a branching head element serves the arm the runtime takes', assert => {
+  const custom = { of: { name: 'CUSTOM' } };
+  const takesLeft = Date.now() > 0;
+  const seen = [];
+  let via;
+  for ({ of: { name: via } } of [takesLeft ? Array : custom]) seen.push(typeof via);
+  for ({ of: { name: via } } of [takesLeft ? custom : Array]) seen.push(via);
+  assert.deepEqual(seen, ['string', 'CUSTOM']);
+});
+
+QUnit.test('loop: a declaration-less head reaches the static through every level it spells', assert => {
+  const seen = [];
+  let span;
+  for ({ of: { name: { length: span } } } of [Array]) seen.push(typeof span);
+  assert.deepEqual(seen, ['number']);
+});
+
+/* eslint-disable no-labels, no-extra-label -- relocation must preserve the labeled continue target */
+QUnit.test('loop: assignment heads retain instance methods and call effects', assert => {
+  const seen = [];
+  let at, name;
+  const target = {};
+  outer: for ({ at: target.method } of [[1, 2], [3, 4]]) {
+    seen.push(target.method.call([5, 6], -1));
+    continue outer;
+  }
+  for ({ at } of [[7, 8]]) { /* read outside the body */ }
+  seen.push(at.call([9, 10], 0));
+  function make() {
+    seen.push('make');
+    return Array;
+  }
+  for ({ of: { name } } of [make()]) seen.push(typeof name);
+  assert.deepEqual(seen, [6, 6, 9, 'make', 'string']);
 });

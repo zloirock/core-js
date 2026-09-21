@@ -10,7 +10,7 @@ let liveRoot = Array;
 const liveLink = liveRoot;
 liveRoot = Object;
 export function viaReassignAfterCapture(liveRoot) {
-  const of = liveLink === Array ? _Array$of : liveLink.of;
+  const of = _Array$of;
   return of(1);
 }
 

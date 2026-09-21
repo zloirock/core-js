@@ -6,7 +6,18 @@ import _Object$keys from "@core-js/pure/actual/object/keys";
 let counter = 0;
 const se1 = () => counter++;
 const se2 = () => counter += 10;
-se1();
-se2();
-const from = _Array$from;
-const keys = _Object$keys;
+const {
+  Array: {
+    from
+  },
+  Object: {
+    keys
+  }
+} = (se1(), se2(), {
+  Array: {
+    from: _Array$from
+  },
+  Object: {
+    keys: _Object$keys
+  }
+});

@@ -1,7 +1,6 @@
-// Writes inside assignment targets prevent treating the result as the original argument.
-// The default keeps the global fixture's conservative escape classification, not a real leak.
-// Deeper flow analysis for this uncommon shape is deliberately omitted. Pure keeps Array and
-// the affected method reads native, while Promise is still substituted.
+// Writes inside assignment targets invalidate the returned-argument proof.
+// Pure keeps Array and the affected method reads native, while Promise is still substituted.
+// Local argument retention does not imply an escape or a whole-family obligation in global.
 let x;
 const viaLhsDefault = (arg => {
   ({ x = (arg = Promise) } = {});

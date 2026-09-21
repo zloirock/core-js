@@ -8,7 +8,6 @@
 // SE1: a polyfilled instance method reached via a parenthesized OPTIONAL member with a side-effecting
 // computed key. The key effect fires once on a non-null receiver, and NOT at all when the optional chain
 // short-circuits - native evaluates the key only after the receiver is confirmed non-null.
-const restArrayFrom = typeof E2E_POST_LOWERED !== 'undefined' ? Array.from : Object.getOwnPropertyDescriptor(Array, 'from')?.value;
 
 QUnit.test('side effect: paren-lookup optional computed-key fires once on a non-null receiver', assert => {
   let probe = 0;
@@ -349,7 +348,7 @@ QUnit.test('cascade partial consume: rest sibling keeps the init effect', assert
   let from;
   // eslint-disable-next-line prefer-const -- the assignment CASCADE (not a declaration) is the case under test
   ({ Array: { from }, ...rest } = (effectRan = true, globalThis).self);
-  assert.same(from, restArrayFrom);
+  assert.same(from, Array.from);
   assert.same(typeof rest, 'object');
   assert.true(effectRan);
 });
@@ -618,7 +617,7 @@ QUnit.test('side effect: an SE-key pair routed into a flatten slot leaves the in
   assert.strictEqual(evaluated, 1);
   assert.strictEqual(keyEval, 1);
   assert.true(isArray([]));
-  assert.same(of, typeof E2E_POST_LOWERED !== 'undefined' ? Array.of : Object.getOwnPropertyDescriptor(Array, 'of')?.value);
+  assert.same(of, Array.of);
   assert.same(typeof rest, 'object');
 });
 

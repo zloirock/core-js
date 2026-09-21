@@ -15,9 +15,7 @@ function f({
   Array: {
     from: _Array$from
   },
-  Set: {
-    union: _Set.union
-  }
+  Set: _Set
 }) {
   return [from, union];
 }

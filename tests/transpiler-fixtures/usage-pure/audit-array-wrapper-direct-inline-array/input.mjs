@@ -1,5 +1,4 @@
-// direct inline ArrayExpression init - no Identifier alias hop. simplest ArrayPattern-
-// rooted destructure shape: peel one level of ArrayExpression to reach Array, extract
-// `from` as a flat const binding pointing to the polyfill
+// An inline array wrapper pairs its object pattern with Array.
+// The static binding receives the pure method.
 const [{ from }] = [Array];
 from([1, 2]);

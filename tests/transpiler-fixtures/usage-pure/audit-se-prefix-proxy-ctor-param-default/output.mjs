@@ -1,6 +1,6 @@
-import _Promise from "@core-js/pure/actual/promise/constructor";
-// Object-rest keeps named slots at that level and reads through it native in usage-pure.
-// Independent reads and key/default expressions still receive their own polyfills.
+import _Promise from "@core-js/pure/actual/promise";
+// Constructor rest uses the full index where a constructor entry exists.
+// Other sources keep their rest exclusions and independently claimed statics.
 function effect() {
   return 0;
 }

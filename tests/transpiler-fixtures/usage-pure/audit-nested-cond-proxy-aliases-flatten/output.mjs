@@ -1,7 +1,14 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-// a PURE ternary over global-proxy ALIASES (`c ? globalThis : self` - the same object either
-// way) is wholly discardable: both branches resolve identically, so the declarator flattens
-// to the polyfill binding regardless of the selection
+// A pure selection whose arms name the same realm serves one pure static.
+// No runtime branch is needed to choose the method.
 let c = true;
-const from = _Array$from;
+const {
+  Array: {
+    from
+  }
+} = {
+  Array: {
+    from: _Array$from
+  }
+};
 from([1]);

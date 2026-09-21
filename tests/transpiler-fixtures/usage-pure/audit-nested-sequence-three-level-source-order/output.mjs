@@ -19,5 +19,13 @@ let from;
 tagA();
 tagB();
 tagC();
-from = _Array$from;
+({
+  Array: {
+    from
+  }
+} = {
+  Array: {
+    from: _Array$from
+  }
+});
 [log, from];

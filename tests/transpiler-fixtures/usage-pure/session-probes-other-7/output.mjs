@@ -3,6 +3,7 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _mapMaybeArray from "@core-js/pure/actual/array/instance/map";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
+import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _at from "@core-js/pure/actual/instance/at";
 import _values from "@core-js/pure/actual/instance/values";
@@ -11,8 +12,6 @@ import _Object$hasOwn from "@core-js/pure/actual/object/has-own";
 import _Object$is from "@core-js/pure/actual/object/is";
 import _Set from "@core-js/pure/actual/set";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
-// Object-rest keeps named slots at that level and reads through it native in usage-pure.
-// Independent reads and key/default expressions still receive their own polyfills.
 // probe corpus of the defense cycles over the destructure wrappers, family "other", part 7:
 // every block is one probed form, self-contained over the header bindings, locked on both legs
 let pick = 1;
@@ -163,8 +162,7 @@ function mark(t, v) {
       p: _ref2
     } = _ref,
     _ref3 = _ref2,
-    _ref4 = _ref3,
-    m2 = null == _ref4 ? _ref4[""] : (eff.push('key'), _flatMaybeArray(_ref4)),
+    m2 = null == _ref3 ? _ref3[""] : (eff.push('key'), _flatMaybeArray(_ref3)),
     {
       other2
     } = _ref3;
@@ -173,7 +171,7 @@ function mark(t, v) {
 {
   const {
       root: {
-        Array: _ref5
+        Array: _ref4
       }
     } = {
       root: {
@@ -181,7 +179,7 @@ function mark(t, v) {
         ...more
       }
     },
-    f = _ref5 === Array ? _Array$from : _ref5.from;
+    f = _ref4 === Array ? _Array$from : _ref4.from;
 }
 {
   const at = _atMaybeArray([1]);
@@ -214,7 +212,15 @@ function mark(t, v) {
   _pushMaybeArray(log).call(log, f === _Array$from);
 }
 {
-  const hasOwn = _Object$hasOwn;
+  const {
+    w: [{
+      hasOwn
+    }]
+  } = {
+    w: [{
+      hasOwn: _Object$hasOwn
+    }]
+  };
 }
 {
   const {
@@ -246,14 +252,29 @@ function mark(t, v) {
     },
     ...rest
   } = {
-    w: _globalThis,
+    w: {
+      Array: {
+        of: _Array$of
+      }
+    },
     z: 1
   };
   use(m, rest);
 }
 {
-  const _ref6 = {
+  const _ref5 = {
     z: 1,
+    w: tick('w', _globalThis)
+  };
+  const m = _at(_ref5.w.Array.prototype);
+  const {
+    z
+  } = _ref5;
+  use(m, z);
+}
+{
+  const _ref6 = {
+    z: tick('z', 1),
     w: tick('w', _globalThis)
   };
   const m = _at(_ref6.w.Array.prototype);
@@ -264,44 +285,50 @@ function mark(t, v) {
 }
 {
   const _ref7 = {
-    z: tick('z', 1),
-    w: tick('w', _globalThis)
-  };
-  const m = _at(_ref7.w.Array.prototype);
-  const {
-    z
-  } = _ref7;
-  use(m, z);
-}
-{
-  const _ref8 = {
     w: _globalThis,
     z: 5
   };
-  const besideSibling = _mapMaybeArray(_ref8.w.Array.prototype);
+  const besideSibling = _mapMaybeArray(_ref7.w.Array.prototype);
   const {
     z
-  } = _ref8;
+  } = _ref7;
   use(besideSibling, z);
 }
 {
-  const M = _Map;
+  const {
+    w: {
+      Map: M = fb
+    }
+  } = {
+    w: {
+      Map: _Map
+    }
+  };
   M();
 }
 {
-  const m = _Map;
   const {
     w: {
-      Map: _unused
+      Map: m
     }
   } = {
     ...extra,
-    w: _globalThis
+    w: {
+      Map: _Map
+    }
   };
   use(m);
 }
 {
-  const m = _Map;
+  const {
+    w: {
+      Map: m
+    }
+  } = {
+    w: {
+      Map: _Map
+    }
+  };
   use(m);
 }
 {
@@ -311,7 +338,9 @@ function mark(t, v) {
     },
     ...rest
   } = {
-    w: _globalThis,
+    w: {
+      Map: _Map
+    },
     z: 1
   };
   use(m, rest);
@@ -336,7 +365,10 @@ function mark(t, v) {
     },
     ...rest
   } = {
-    w: _globalThis,
+    w: {
+      Map: _Map,
+      Set: _Set
+    },
     z: 1
   };
   use(m, s, rest);
@@ -348,7 +380,9 @@ function mark(t, v) {
     },
     ...r
   } = {
-    w: Array
+    w: {
+      from: _Array$from
+    }
   };
 }
 {

@@ -1,6 +1,5 @@
-// an INLINE-array spread in a wrapper literal is a longer literal: the pairing reads its items at
-// their static positions, and the rewrite splices them into the level before any route edits it by
-// slot. one static per row, so a row's extraction is attributable to its own shape
+// Literal array spreads pair their elements at known positions.
+// Each supported static receives its own pure value; unknown spreads keep uncertain slots native.
 const [{ from: viaSole }] = [...[Array]];
 const [, { of: viaShifted }] = [...[0, Array]];
 const [[{ fromEntries: viaNested }]] = [...[[...[Object]]]];
@@ -16,8 +15,8 @@ const viaDirective = Object.seal(...([[1]]));
 viaDirective.at(0);
 export { viaSole, viaShifted, viaNested, viaInstance, viaSelecting, viaParens, viaIifeParens, viaIifeSwap, viaDirective };
 
-// NEGATIVES: a spread of a BINDING and a spread nested inside the spread array have no static
-// length; a hole spreads as `undefined`, which binds no claim - the literal stays as written
+// Nested literal spreads still pair exactly; binding spreads remain unknown.
+// A hole spreads as `undefined` and supplies no static claim.
 const [{ keys: viaAlias }] = [...wrapped];
 const [{ values: viaDoubleSpread }] = [...[...[Object]]];
 const [{ assign: viaHole }] = [...[, Object]];

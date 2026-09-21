@@ -122,3 +122,55 @@ QUnit.test('inline returns: guarded raw calls keep this and getter order', asser
     assert.deepEqual(log, flag ? ['arg'] : ['get', 'arg']);
   }
 });
+
+QUnit.test('inline returns: a destructuring parameter list still proves the returned value', assert => {
+  const log = [];
+  function viaObject({ p }) {
+    log.push(p);
+    return Array;
+  }
+  function viaArray([q]) {
+    log.push(q);
+    return Object;
+  }
+  const { of } = viaObject({ p: 'object' });
+  const { fromEntries } = viaArray.call(null, ['array']);
+  assert.deepEqual(of(1, 2), [1, 2]);
+  assert.deepEqual(fromEntries([['k', 1]]), { k: 1 });
+  // the parameter list runs where the source ran it: a dropped read would lose these
+  assert.deepEqual(log, ['object', 'array']);
+});
+
+QUnit.test('inline returns: a running parameter list keeps the read it owes', assert => {
+  const log = [];
+  // concise body, effect-free argument: the LIST is the only thing that runs, and what it runs is
+  // observable twice over - the slot's own read, and the throw an absent source owes
+  // eslint-disable-next-line no-unused-vars -- the body reading NO bound name is the claim
+  const { of } = (({ p }) => Array)({
+    get p() {
+      log.push('getter');
+      return 1;
+    },
+  });
+  assert.deepEqual(of(1, 2), [1, 2]);
+  assert.deepEqual(log, ['getter']);
+  assert.throws(() => {
+    // eslint-disable-next-line no-unused-vars -- same claim, over a source the slot cannot read
+    const { from } = (({ q }) => Array)(undefined);
+    return from;
+  }, TypeError);
+});
+
+QUnit.test('unknown container selections keep named statics available', assert => {
+  function box(value) { return [value]; }
+  const key = [0].pop();
+  const nested = { values: [Promise] };
+  assert.deepEqual(box(Array)[key].from([1, 2]), [1, 2]);
+  const grouped = [Object][key].groupBy([1, 2], value => value % 2);
+  assert.deepEqual([grouped[0], grouped[1]], [[2], [1]]);
+  assert.same(Object.getPrototypeOf(grouped), null);
+  const result = nested.values[key].withResolvers();
+  assert.same(typeof result.resolve, 'function');
+  assert.same(typeof result.reject, 'function');
+  assert.same(typeof result.promise.then, 'function');
+});

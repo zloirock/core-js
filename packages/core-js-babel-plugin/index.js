@@ -48,10 +48,17 @@ import {
   walkPatternIdentifiers,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
-  ownEmittedLogicalPatch, ownEmittedNavClaim, ownOutputTests, restSentinelNamesReducer,
+  ownEmittedLogicalPatch,
+  ownEmittedNavClaim,
+  ownEmittedPatternClaim,
+  ownOutputTests,
+  restSentinelNamesReducer,
+  sentinelAlreadyProcessed,
 } from '@core-js/polyfill-provider/detect-usage/own-output';
 import {
-  enrichMutatedStatics, escapedCtorReferencesReducer, mutationShapesReducer,
+  enrichMutatedStatics,
+  escapedCtorReferencesReducer,
+  mutationShapesReducer,
 } from '@core-js/polyfill-provider/detect-usage/mutations';
 import { isSymbolIteratorPatternProp } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
 import { planMinifierSequenceSplit, renderNestedKeyedPatternCapture } from '@core-js/polyfill-provider/destructure-host-shape';
@@ -226,6 +233,7 @@ export default function plugin(api, options) {
     // `adapter` (and its per-file `mutatedStatics`) is created below; the closure only runs during
     // traversal, after init, so the deferred reference is safe
     isMutatedStatic: (object, key) => adapter.isMutatedStaticSlot(object, key),
+    isWrittenContainerSlot: (...args) => adapter.isWrittenContainerSlot(...args),
   });
   const {
     resolveClaimableComputedKeyName, resolvePropertyObjectType, forgetDestructureReceiverTypes, resolveNodeType, resolvedType, toHint,
@@ -988,7 +996,7 @@ export default function plugin(api, options) {
           adapter,
         });
         if (!admitted) return false;
-        const { plan, split, restResidual, bindingName, hostKind, nested, capture, keepPatternLive } = admitted;
+        const { plan, split, restResidual, bindingName, hostKind, nested, capture, captureFirst, keepPatternLive } = admitted;
         if (nested) {
           const declaration = nested.host.parentPath;
           if (capture && declaration.parentPath?.isExportNamedDeclaration()) {
@@ -1002,7 +1010,8 @@ export default function plugin(api, options) {
             ]);
             return true;
           }
-          if (destructureEmit.renderNestedParamSynth({ prop, meta, fallbackOnBail: !!capture })) return true;
+          if (!captureFirst
+            && destructureEmit.renderNestedParamSynth({ prop, meta, fallbackOnBail: !!capture })) return true;
           if (!capture) return false;
           const rendered = renderNestedKeyedPatternCapture(capture, {
             mintRef: () => (hostKind === 'declarator' ? generateLocalRef : generateRef)(prop.scope).name,
@@ -1101,6 +1110,8 @@ export default function plugin(api, options) {
         // guard read through `?.`, whose `?.` the first pass deliberately kept)
         if ((path.isMemberExpression() || path.isOptionalMemberExpression())
           && ownEmittedNavClaim(path.node, path, ownOutputTests(injector))) return;
+        if (path.isObjectProperty() && (ownEmittedPatternClaim(path, ownOutputTests(injector))
+          || sentinelAlreadyProcessed(path, { node: path.node, meta, injector }))) return;
 
         if (meta.guardedAliasHint && (path.isObjectProperty()
           ? emitGuardedDestructureNarrow(meta, path) : emitGuardedStaticNarrow(meta, path))) return;
@@ -1108,12 +1119,20 @@ export default function plugin(api, options) {
         let inheritedStatic = false;
         if (meta.kind === 'property') {
           if (path.isObjectProperty()) {
+            if (destructureEmit.tryPatternMirror({ prop: path, meta })
+              || destructureEmit.capturePatternForExtraction({ prop: path, meta })) return;
             // a pattern-valued `[Symbol.iterator]` prop still dispatches: its extraction
             // destructures the get-iterator-method result (helper canon, matching the
             // identifier-valued form); every other pattern-valued prop stays native
+            // ... a pattern-valued prop is turned away with ONE route still owed it: a for-x HEAD
+            // hosts no statement for the shared plan's extraction, so its static is served by the
+            // mirror of the iterated element or by nothing at all. the emitter's narrow entry asks
+            // exactly that and returns - the routes below own a binding value, never a pattern
             if (!t.isIdentifier(path.node.value) && !t.isAssignmentPattern(path.node.value)
               && !isMemberAccessNode(unwrapRuntimeExpr(path.node.value))
-              && !(isSymbolIteratorPatternProp(path.node) && isSourcedSymbolIteratorMeta(meta))) return;
+              && !(isSymbolIteratorPatternProp(path.node) && isSourcedSymbolIteratorMeta(meta))) {
+              return;
+            }
             // ConditionalExpression / LogicalExpression init - resolver may pick a branch
             // whose key isn't viable as static (Promise.from, WeakMap.groupBy, ...) and bail
             // before reaching handleObjectPropertyResult. dispatch fromFallback up front so
@@ -2208,13 +2227,14 @@ export default function plugin(api, options) {
         if (!isPure) return visitors;
         return mergeVisitors(visitors, {
           'VariableDeclarator|AssignmentExpression': {
-            enter(path) { destructureEmit.tryFlattenProxyHopHost(path); },
+            enter(path) { destructureEmit.tryFlattenProxyHopHost(path, true); },
             // probed-anchor guard retypes land at the HOST's exit: every per-prop channel of
             // the pattern has dispatched by then (the traversal-time resolvable spelling never
             // leaks), and a sibling plugin's later lowering (preset-env destructuring in a
             // composed pipeline) clones the emitted node - a Program-exit flush would retype
             // the orphaned original and lose the guard
             exit(path) {
+              destructureEmit.tryFlattenProxyHopHost(path);
               destructureEmit.flushProbedAnchorSwaps(path.node);
               // kept nav-collapse renders land here too - requeued, so the remaining merged
               // passes (ES5 lowerings included) still visit everything they carry

@@ -4,6 +4,14 @@ import _Map from "@core-js/pure/actual/map";
 // (`globalThis.Map`), letting computed-string `globalThis['Map']` through. result
 // raced with the outer member-access `_Map` rewrite, corrupted to `__Map`. fixed
 // filter: skip both `obj.Map` and `obj['Map']` shapes
-const from = _Array$from;
-const y = _Map;
+const {
+    Array: {
+      from
+    }
+  } = {
+    Array: {
+      from: _Array$from
+    }
+  },
+  y = _Map;
 export { from, y };
