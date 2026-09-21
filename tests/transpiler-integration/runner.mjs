@@ -5,13 +5,20 @@ import { pathToFileURL } from 'node:url';
 import { KNOWN_BUNDLERS, isChunkLoaderBundler } from '../../packages/core-js-unplugin/internals/plugin-helpers.js';
 import './runtime-tests.mjs';
 import { makeBundlers } from './bundlers.mjs';
-import { METHODS as methods, phasesFor, pluginOpts } from './matrix.mjs';
+import { METHODS as methods, phasesFor, pluginOpts as matrixPluginOpts } from './matrix.mjs';
 import { withTmpDir, verifyInNode, verifyPhases, verifyDynamic } from './runtime.mjs';
 import { hostBoundaries } from './host-boundaries.mjs';
 import { assetExternals } from './asset-externals.mjs';
 import { leadingCommentsAndMaps } from './leading-comments-maps.mjs';
 
 const { readFile, writeFile } = fs;
+
+// The targets are this suite's: every builder is handed the same explicit IE11 list, so a cell that
+// differs differs by the bundler rather than by whatever browserslist the working directory answers
+// with. `matrix.mjs` leaves `targets` to its caller for exactly this reason.
+function pluginOpts(method, phase) {
+  return matrixPluginOpts(method, phase, { targets: { ie: 11 } });
+}
 const { dirname, join, resolve } = path;
 const { cyan, green, red, yellow } = chalk;
 
