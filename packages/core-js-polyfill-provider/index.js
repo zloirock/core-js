@@ -3,50 +3,54 @@ import builtInDefinitions from '@core-js/compat/built-in-definitions' with { typ
 import { normalizeCoreJSVersion } from '@core-js/compat/helpers';
 import getEntriesListForTargetVersion from '@core-js/compat/get-entries-list-for-target-version';
 import getModulesListForTargetVersion from '@core-js/compat/get-modules-list-for-target-version';
+import { createRequire } from 'node:module';
 import { HELPER_CANON_ENTRIES } from './detect-usage/globals.js';
 import { POSSIBLE_GLOBAL_OBJECTS } from './helpers/ast-patterns.js';
-import { isEntryPattern, isModulePattern, patternToRegExp, validatePatternList } from './helpers/pattern-matching.js';
-import { WINDOWS_UNC_PREFIX_RE, lookupEntryModules, stripQueryHash } from './helpers/path-normalize.js';
-import { validatePackageShape } from './plugin-options/validate.js';
+import { brand, wrapWithCause } from './helpers/error-tag.js';
+import { isEntryPattern, isModulePattern, patternToRegExp, safeErrorMessage, validatePatternList } from './helpers/pattern-matching.js';
+import { WINDOWS_UNC_PREFIX_RE, canonicalisePackage, stripQueryHash } from './helpers/path-normalize.js';
+import { VALID_MODES, expectEnum, validatePackageShape } from './plugin-options/validate.js';
 
 const { hasOwn } = Object;
+const { globals, statics, instance } = builtInDefinitions;
 
-function createMetaResolver({ globals, statics, instance }) {
-  return function resolve(meta) {
-    if (meta.kind === 'global') {
-      if (!hasOwn(globals, meta.name)) return undefined;
-      return { kind: 'global', desc: globals[meta.name], name: meta.name };
+// the built-in definitions are the one table every question in this module reads, so the meta
+// resolver reads them where they are: the static own-key test is `hasOwnStaticDefinition` below,
+// spelled once for the resolver and its callers alike
+export function resolve(meta) {
+  if (meta.kind === 'global') {
+    if (!hasOwn(globals, meta.name)) return undefined;
+    return { kind: 'global', desc: globals[meta.name], name: meta.name };
+  }
+  if (meta.kind === 'property' || meta.kind === 'in') {
+    const { placement, object, key } = meta;
+    if (placement === 'static' && POSSIBLE_GLOBAL_OBJECTS.has(object) && hasOwn(globals, key)) {
+      return { kind: 'global', desc: globals[key], name: key };
     }
-    if (meta.kind === 'property' || meta.kind === 'in') {
-      const { placement, object, key } = meta;
-      if (placement === 'static' && POSSIBLE_GLOBAL_OBJECTS.has(object) && hasOwn(globals, key)) {
-        return { kind: 'global', desc: globals[key], name: key };
-      }
-      if (placement === 'static' && hasOwn(statics, object) && hasOwn(statics[object], key)) {
-        return { kind: 'static', desc: statics[object][key], name: `${ object }$${ key }` };
-      }
-      // a `key in <namespace>` membership test with a STATIC-placement receiver is true ONLY for
-      // the receiver's own statics/globals, resolved just above. instance (prototype) methods are
-      // never own properties of the constructor/global, so a static-receiver `in` must NOT fall
-      // through to the placement-agnostic instance map: that resolves `'flat' in Array` to the
-      // `Array.prototype.flat` desc and folds the `in` to a wrong `true` (native: false). an
-      // INSTANCE presence probe (`'flat' in []` - the prototype-placement carrier) DOES consult
-      // it: usage-global injects so the probe yields native parity, and usage-pure noops on the
-      // null-object meta before its fold. a member ACCESS (`kind: 'property'`, e.g. `Array.name`)
-      // is different - the receiver-type narrowing in `enhanceMeta` keeps genuinely-present
-      // Function.prototype members and drops prototype-only ones
-      if (meta.kind === 'in' && meta.placement !== 'prototype') return undefined;
-      // an exhaustively-enumerated receiver alias with no instance-capable value (the union
-      // choke's verdict): its static rows carry the injection - the placement-agnostic
-      // instance fallback would fabricate variants the receiver provably never dispatches
-      // (`let O = null; O ||= Object; 'entries' in O` pulled es.array.entries + web.dom-*)
-      if (meta.receiverInstanceFree) return undefined;
-      if (!hasOwn(instance, key)) return undefined;
-      const desc = instance[key];
-      if (desc) return { kind: 'instance', desc, name: key };
+    if (placement === 'static' && hasOwnStaticDefinition(object, key)) {
+      return { kind: 'static', desc: statics[object][key], name: `${ object }$${ key }` };
     }
-    return undefined;
-  };
+    // a `key in <namespace>` membership test with a STATIC-placement receiver is true ONLY for
+    // the receiver's own statics/globals, resolved just above. instance (prototype) methods are
+    // never own properties of the constructor/global, so a static-receiver `in` must NOT fall
+    // through to the placement-agnostic instance map: that resolves `'flat' in Array` to the
+    // `Array.prototype.flat` desc and folds the `in` to a wrong `true` (native: false). an
+    // INSTANCE presence probe (`'flat' in []` - the prototype-placement carrier) DOES consult
+    // it: usage-global injects so the probe yields native parity, and usage-pure noops on the
+    // null-object meta before its fold. a member ACCESS (`kind: 'property'`, e.g. `Array.name`)
+    // is different - the receiver-type narrowing in `enhanceMeta` keeps genuinely-present
+    // Function.prototype members and drops prototype-only ones
+    if (meta.kind === 'in' && meta.placement !== 'prototype') return undefined;
+    // an exhaustively-enumerated receiver alias with no instance-capable value (the union
+    // choke's verdict): its static rows carry the injection - the placement-agnostic
+    // instance fallback would fabricate variants the receiver provably never dispatches
+    // (`let O = null; O ||= Object; 'entries' in O` pulled es.array.entries + web.dom-*)
+    if (meta.receiverInstanceFree) return undefined;
+    if (!hasOwn(instance, key)) return undefined;
+    const desc = instance[key];
+    if (desc) return { kind: 'instance', desc, name: key };
+  }
+  return undefined;
 }
 
 // canonical key for include/exclude lookup: strip mode prefix and instance/prototype segment
@@ -59,11 +63,11 @@ function normalizeEntryPath(entry) {
     .replaceAll('/prototype/', '/');
 }
 
+// the lists arrive validated (`validatePatternList`): arrays of patterns, or absent
 function collectEntryPaths(patterns) {
-  if (!Array.isArray(patterns)) return new Set();
   const result = new Set();
-  for (const pattern of patterns) {
-    if (lookupEntryModules(pattern)) result.add(normalizeEntryPath(pattern));
+  for (const pattern of patterns ?? []) {
+    if (isEntryPattern(pattern)) result.add(normalizeEntryPath(pattern));
   }
   return result;
 }
@@ -100,7 +104,8 @@ function formatError(message, patterns) {
   return `  - ${ message }:\n${ patterns.map(p => `    ${ p }\n`).join('') }`;
 }
 
-function validateIncludeExclude({ include, exclude, modules, method }) {
+// `entriesAtMode`: the entries the configured layer ships, in the canonical include/exclude spelling
+function validateIncludeExclude({ include, exclude, modules, method, mode, entriesAtMode }) {
   validatePatternList('include', include);
   validatePatternList('exclude', exclude);
   if (!include && !exclude) return;
@@ -126,8 +131,12 @@ function validateIncludeExclude({ include, exclude, modules, method }) {
     if ($entries.length && method !== 'usage-pure') {
       errors.push(formatError(`Entry-path patterns in "${ label }" are only allowed with method: 'usage-pure'`, $entries));
     } else {
-      const unusedEntries = $entries.filter(p => !lookupEntryModules(p));
-      if (unusedEntries.length) errors.push(formatError(`The following "${ label }" entry paths didn't match any polyfill`, unusedEntries));
+      // an included entry is imported from the configured layer, so it has to exist THERE: a
+      // proposal the `full` layer alone carries would be imported from a file `actual` does not
+      // ship, and the bundler fails to resolve it. an excluded one absent there is a no-op, which
+      // the module patterns already report as "matched nothing"
+      const unavailable = $entries.filter(p => !entriesAtMode.has(normalizeEntryPath(p)));
+      if (unavailable.length) errors.push(formatError(`The following "${ label }" entry paths are not available at mode: '${ mode }'`, unavailable));
     }
   }
   // duplicate detection across include/exclude covers both module and entry patterns -
@@ -142,11 +151,28 @@ function validateIncludeExclude({ include, exclude, modules, method }) {
       errors.push(formatError('The following polyfills were matched both by "include" and "exclude" patterns', duplicates));
     }
   }
-  if (errors.length) throw new Error(`[core-js] error while validating provider options:\n${ errors.join('') }`);
+  if (errors.length) throw new Error(brand(`error while validating provider options:\n${ errors.join('') }`));
+}
+
+const require = createRequire(import.meta.url);
+
+// the installed version, read off whichever of the two packages the project carries: a usage-pure
+// project need not install `core-js` at all, and `@core-js/pure` ships the same version. with
+// neither installed the compat probe runs and raises its own diagnostic
+function installedCoreJSVersion() {
+  try {
+    return require('core-js/package.json').version;
+  } catch { /* not installed here */ }
+  try {
+    return require('@core-js/pure/package.json').version;
+  } catch { /* not installed here */ }
+  return 'node_modules';
 }
 
 // options assumed already validated by `initPluginOptions` in plugin-options.js;
 // for direct callers without `initPluginOptions`, the first hard type check will surface a bug
+// `targetsNeedPolyfill`: the targets' own verdict with no user filter in it (`buildTargetsNeedPolyfill`),
+// which the helper entries are decided by; a direct caller without one needs everything
 export function createPolyfillContext({
   method,
   mode,
@@ -156,11 +182,15 @@ export function createPolyfillContext({
   include,
   exclude,
   shouldInjectPolyfill = () => true,
+  targetsNeedPolyfill = () => true,
 }) {
   // explicit `null` (common in conditional config spreads) skips destructuring defaults -
   // every nullable Options field must use `??=` to mirror the convention "null = same as
   // absent" advertised in `index.d.ts` (`version?: string | null` / `mode?: Mode | null` / ...)
   mode ??= 'actual';
+  // the published surface: a caller bypassing `initPluginOptions` gets the validator's verdict on
+  // a layer that ships nothing, not a context that quietly answers "no polyfill" to every question
+  expectEnum('mode', VALID_MODES, mode);
   version ??= 'node_modules';
 
   const includeEntries = method === 'usage-pure' ? collectEntryPaths(include) : new Set();
@@ -175,38 +205,37 @@ export function createPolyfillContext({
   // per-index label + `formatReceived` diagnostic instead of a divergent error wording
   validatePackageShape(pkg, additionalPackages);
 
-  version = normalizeCoreJSVersion(version);
-
-  // dedup: users sometimes list the main `pkg` inside `additionalPackages` or repeat an alias.
-  // Set preserves first-match order - hot-loop in `getCoreJSEntry` hits main pkg first.
-  // strip trailing slashes: `getCoreJSEntry` joins via `${pkg}/` so `'my-core-js/'` would yield
-  // `'my-core-js//foo'` (double slash) and silently miss every entry detection. apply to `pkg`
-  // too (not just packages-array members) so emitted import paths stay clean: injector-base
-  // joins via `resolveImportPath(this.pkg, subpath)` which would otherwise produce
-  // `'@core-js/pure///actual/array/from'` from `package: '@core-js/pure///'`.
-  // also collapse interior `//` runs: `normalizeImportPath` canonicalises sources with
-  // slash-collapse, so a package name `'my//core-js'` would silently never match its own
-  // normalised imports
-  function canonicalisePackage(p) {
-    const collapsed = p.replaceAll(/\/{2,}/g, '/');
-    let end = collapsed.length;
-    while (end > 0 && collapsed[end - 1] === '/') end--;
-    return end === collapsed.length ? collapsed : collapsed.slice(0, end);
+  // the compat normaliser raises its own diagnostics for a version it cannot use (no minor
+  // component, a foreign major, no `core-js` in the project's `package.json`): user-facing, so they
+  // leave branded like every other option verdict
+  try {
+    version = normalizeCoreJSVersion(version === 'node_modules' ? installedCoreJSVersion() : version);
+  } catch (error) {
+    throw wrapWithCause(`invalid \`version\` option: ${ safeErrorMessage(error) }`, error);
   }
 
+  // canonicalised like every package name below (`canonicalisePackage`), so the emitted import
+  // paths and the entry detection agree on one spelling
   pkg = canonicalisePackage(pkg);
+  // dedup: users sometimes list the main `pkg` inside `additionalPackages` or repeat an alias.
+  // Set preserves first-match order - hot-loop in `getCoreJSEntry` hits main pkg first
   const packages = [...new Set([pkg, ...additionalPackages ?? []]
     .map(p => canonicalisePackage(p.toLowerCase())))];
   const entriesSetForTargetVersion = new Set(getEntriesListForTargetVersion(version));
   const modulesSetForTargetVersion = new Set(getModulesListForTargetVersion(version));
   const modulesForEntryCache = new Map();
 
-  // semantic check (do patterns match any known module for the target version?) runs in
-  // createPolyfillContext rather than initPluginOptions because `modulesSetForTargetVersion`
-  // is target-derived and not available at options-parsing time. `buildShouldInjectPolyfill`
-  // already ran in initPluginOptions but returns a lazy fn - no observable behavior depends
-  // on this order, so the split is acceptable
-  validateIncludeExclude({ include, exclude, modules: modulesSetForTargetVersion, method });
+  const entriesAtMode = new Set();
+  for (const key of entriesSetForTargetVersion) {
+    if (key.startsWith(`${ mode }/`)) entriesAtMode.add(normalizeEntryPath(key));
+  }
+
+  // semantic check (do patterns match any known module for the target version, do entry paths
+  // exist at the configured mode?) runs in createPolyfillContext rather than initPluginOptions
+  // because both sets are version-derived and not available at options-parsing time.
+  // `buildShouldInjectPolyfill` already ran in initPluginOptions but returns a lazy fn - no
+  // observable behavior depends on this order, so the split is acceptable
+  validateIncludeExclude({ include, exclude, modules: modulesSetForTargetVersion, method, mode, entriesAtMode });
 
   function resolveModule(mod) {
     if (modulesSetForTargetVersion.has(mod)) return mod;
@@ -254,23 +283,31 @@ export function createPolyfillContext({
   // filter precedence convention: `exclude` wins over `include` over targets-default.
   // mirrors `buildShouldInjectPolyfill` in `plugin-options/targets.js` for module-level
   // filtering. flipping one without the other would desync - change both sites in lockstep.
+  // an included entry exists at the configured mode by validation (`validateIncludeExclude`),
+  // so the include branch needs no existence gate of its own; the entry-path sets hold only
+  // canonical spellings, so the canonical form is the one to ask.
   // `HELPER_CANON_ENTRIES` (the emit-canon `$helper` entries, single-sourced next to their
-  // detect-side resolvers) are exempt from `exclude`: filtering the entry must not flip the
-  // canonical emit to a raw static-symbol read - the helper wraps native lookups and stays
-  // correct with its polyfill modules filtered; only the targets branch (nothing to polyfill
-  // at all) may drop the emit and keep raw source
+  // detect-side resolvers) cannot be DROPPED by a user filter: neither the entry-path nor the
+  // module form of `exclude` may flip the canonical emit to a raw static-symbol read - the
+  // helper wraps native lookups and stays correct with its polyfill modules filtered. a filter
+  // may still ADD one (an include forces substitution beyond the targets, in this channel as in
+  // every other), so the helper is needed when its entry is included, when a module of its is
+  // injected, or when the targets alone need one - and only targets needing none of them
+  // (nothing to polyfill at all) drop the emit and keep the raw source
   function isEntryNeeded(entry) {
-    if (entry === '') entry = 'index';
     if (isEntryNeededCache.has(entry)) return isEntryNeededCache.get(entry);
     const normalized = normalizeEntryPath(entry);
-    const helper = HELPER_CANON_ENTRIES.has(entry) || HELPER_CANON_ENTRIES.has(normalized);
+    const modeEntry = `${ mode }/${ entry }`;
     let result;
-    if (!helper && (excludeEntries.has(entry) || excludeEntries.has(normalized))) result = false;
-    else if (includeEntries.has(entry) || includeEntries.has(normalized)) result = true;
-    else {
-      const modeEntry = `${ mode }/${ entry }`;
-      result = entriesSetForTargetVersion.has(modeEntry) && !!getModulesForEntry(modeEntry).length;
-    }
+    if (HELPER_CANON_ENTRIES.has(entry)) {
+      result = entriesSetForTargetVersion.has(modeEntry) && (includeEntries.has(normalized)
+        || entries[modeEntry].some(mod => {
+          const resolved = resolveModule(mod);
+          return resolved !== null && (targetsNeedPolyfill(resolved) || shouldInjectPolyfill(resolved));
+        }));
+    } else if (excludeEntries.has(normalized)) result = false;
+    else if (includeEntries.has(normalized)) result = true;
+    else result = entriesSetForTargetVersion.has(modeEntry) && !!getModulesForEntry(modeEntry).length;
     isEntryNeededCache.set(entry, result);
     return result;
   }
@@ -286,17 +323,15 @@ export function createPolyfillContext({
   };
 }
 
-export const resolve = createMetaResolver(builtInDefinitions);
-
 // whether `key` is <object>'s OWN static in the definitions. such a static's module defines /
 // patches the receiver global itself (directly or through its compat dependency chain), so
 // injecting it guarantees the receiver exists at runtime; a generic-hint resolution
 // (`Promise.name` -> Function.prototype.name) carries no such guarantee
 export function hasOwnStaticDefinition(object, key) {
-  return hasOwn(builtInDefinitions.statics, object) && hasOwn(builtInDefinitions.statics[object], key);
+  return hasOwn(statics, object) && hasOwn(statics[object], key);
 }
 
-const STATIC_DEFINITION_KEYS = new Set(Object.values(builtInDefinitions.statics).flatMap(Object.keys));
+const STATIC_DEFINITION_KEYS = new Set(Object.values(statics).flatMap(Object.keys));
 
 // Whether any built-in owns this static key. Receiver-family analysis cannot add a static
 // for an absent key; unknown or branching keys still need their ordinary conservative path.
@@ -309,31 +344,29 @@ const CONSTRUCTOR_TAIL = '/constructor';
 // A constructor entry can widen to its whole static family; a namespace alone cannot.
 // Pure is the default; the global flavor can additionally supply unsupported pure constructors.
 export function hasConstructorEntry(name, flavor = 'pure') {
-  return builtInDefinitions.globals[name]?.[flavor]?.dependencies?.some(entry => entry.endsWith(CONSTRUCTOR_TAIL)) ?? false;
+  return globals[name]?.[flavor]?.dependencies?.some(entry => entry.endsWith(CONSTRUCTOR_TAIL)) ?? false;
 }
 
-function * iterPureDeps({ globals, statics }) {
-  for (const [name, desc] of Object.entries(globals)) yield [name, desc?.pure?.dependencies];
-  for (const [name, methods] of Object.entries(statics)) {
-    for (const desc of Object.values(methods)) yield [name, desc?.pure?.dependencies];
-  }
-}
-
-// Map entry heads to globals in one pass over pure dependencies; the first owner wins.
-function buildEntryHintIndex(definitions) {
+// entry heads mapped to their globals, in one pass over the pure dependencies of the globals and
+// the statics; the first owner wins
+function buildEntryHintIndex() {
   const index = new Map();
-  for (const [name, deps] of iterPureDeps(definitions)) {
-    if (!Array.isArray(deps)) continue;
+  function addOwner(name, deps) {
+    if (!Array.isArray(deps)) return;
     for (const dep of deps) {
       if (typeof dep !== 'string') continue;
       const [head] = dep.split('/', 1);
       if (head && !index.has(head)) index.set(head, name);
     }
   }
+  for (const [name, desc] of Object.entries(globals)) addOwner(name, desc?.pure?.dependencies);
+  for (const [name, methods] of Object.entries(statics)) {
+    for (const desc of Object.values(methods)) addOwner(name, desc?.pure?.dependencies);
+  }
   return index;
 }
 
-const entryHintIndex = buildEntryHintIndex(builtInDefinitions);
+const entryHintIndex = buildEntryHintIndex();
 
 // Name the global supplied by a namespace or constructor entry. Method, instance and helper
 // subpaths supply another value, so reject them before looking up the entry head.

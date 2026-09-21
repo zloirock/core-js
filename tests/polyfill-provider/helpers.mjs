@@ -9,12 +9,14 @@ import {
   isEntryPattern,
   isModulePattern,
   patternToRegExp,
+  safeErrorMessage,
   safeStringify,
   toStatelessRegExp,
   validatePatternList,
 } from '../../packages/core-js-polyfill-provider/helpers/pattern-matching.js';
 import {
   WINDOWS_UNC_PREFIX_RE,
+  canonicalisePackage,
   isCoreJSFile,
   lookupEntryModules,
   normalizeImportSource,
@@ -117,11 +119,11 @@ import {
   zeroArgIifeSideEffectFree,
   usableAliasInfo,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
-import { tagError } from '../../packages/core-js-polyfill-provider/helpers/error-tag.js';
+import { brand, tagError, wrapWithCause } from '../../packages/core-js-polyfill-provider/helpers/error-tag.js';
 import { subsume } from '../../packages/core-js-polyfill-provider/helpers/subsumption.js';
 import { adapters, babelAdapter, createChecker, findTypeNode } from './harness.mjs';
 
-const { check, checkDeep, checkTruthy, finish, runBoth, throwsWith } = createChecker('helpers');
+const { check, checkDeep, checkTruthy, doesNotThrow, finish, runBoth, throwsWith } = createChecker('helpers');
 
 // --- toStatelessRegExp ---
 
@@ -132,10 +134,26 @@ const { check, checkDeep, checkTruthy, finish, runBoth, throwsWith } = createChe
   check('toStatelessRegExp/source preserved', stateless.source, 'foo');
 }
 
-// y (sticky) flag: also stripped
+// y (sticky) flag: the flag goes, the ANCHOR it carried moves into the source. `/array/y` was
+// written to match at the start and nothing else - stripped bare, it matched 99 of 363 module names
+// and silently excluded them all. sticky beats global, so `gy` anchors the same way; and the copy is
+// exactly as stateless as a plain strip: three tests, three hits, `lastIndex` untouched
 {
-  const stateless = toStatelessRegExp(/foo/y);
+  const stateless = toStatelessRegExp(/array/y);
   check('toStatelessRegExp/y flag stripped', stateless.sticky, false);
+  check('toStatelessRegExp/y keeps its anchor: no match past the start', stateless.test('es.array.at'), false);
+  check('toStatelessRegExp/y keeps its anchor: a match at the start', stateless.test('array.at'), true);
+  // eslint-disable-next-line sonarjs/stateful-regex -- the shadowed `g` beside `y` is the shape under test
+  const globalSticky = toStatelessRegExp(/array/gy);
+  check('toStatelessRegExp/gy anchors too', globalSticky.test('es.array.at'), false);
+  check('toStatelessRegExp/gy flags stripped', globalSticky.flags, '');
+  check('toStatelessRegExp/other flags survive', toStatelessRegExp(/array/iy).flags, 'i');
+  checkDeep('toStatelessRegExp/anchored copy is stateless',
+    [stateless.test('array.at'), stateless.test('array.at'), stateless.test('array.at'), stateless.lastIndex],
+    [true, true, true, 0]);
+  // the raw sticky is the state the helper exists to remove: the second test starts at lastIndex 5
+  const raw = /array/y;
+  checkDeep('toStatelessRegExp/control - the raw sticky is stateful', [raw.test('array.at'), raw.test('array.at')], [true, false]);
 }
 
 // non-stateful already (no g/y): returns same instance (no clone)
@@ -184,6 +202,9 @@ check('patternToRegExp/malformed returns null', patternToRegExp('(unclosed'), nu
 
 // --- isModulePattern / isEntryPattern ---
 
+// the entries map decides: a string it resolves is an entry path, every other string is raw regex
+// source over module names. the spelling test it replaced (`es.` prefix, a `*`) read the documented
+// raw regex `es\.array\.from` as an entry path and refused the build
 check('isModulePattern/es. prefix', isModulePattern('es.array.at'), true);
 check('isModulePattern/esnext. prefix', isModulePattern('esnext.array.foo'), true);
 check('isModulePattern/web. prefix', isModulePattern('web.url'), true);
@@ -191,11 +212,52 @@ check('isModulePattern/wildcard contains', isModulePattern('actual/*/at'), true)
 check('isModulePattern/RegExp instance', isModulePattern(/foo/), true);
 check('isModulePattern/non-string non-regex', isModulePattern(42), false);
 check('isModulePattern/entry path (no prefix)', isModulePattern('actual/promise'), false);
+check('isModulePattern/escaped-dot regex source', isModulePattern('es\\.array\\.from'), true);
+check('isModulePattern/regex source with alternation', isModulePattern('es\\.(array|string)\\.at'), true);
+check('isModulePattern/entry-shaped typo is not an entry', isModulePattern('array/at/'), true);
 
 check('isEntryPattern/entry path', isEntryPattern('actual/promise'), true);
+check('isEntryPattern/mode-less entry path', isEntryPattern('array/at'), true);
+check('isEntryPattern/full-only entry path', isEntryPattern('iterator/range'), true);
 check('isEntryPattern/module pattern rejected', isEntryPattern('es.array.at'), false);
+check('isEntryPattern/escaped-dot regex source rejected', isEntryPattern('es\\.array\\.from'), false);
 check('isEntryPattern/wildcard rejected', isEntryPattern('actual/*/at'), false);
+check('isEntryPattern/trailing slash is no entry', isEntryPattern('array/at/'), false);
+check('isEntryPattern/inherited key is no entry', isEntryPattern('constructor'), false);
 check('isEntryPattern/non-string', isEntryPattern(42), false);
+// the two are a partition of the strings: nothing is both, nothing is neither
+for (const pattern of ['array/at', 'es.array.at', 'es\\.array\\.at', 'array/at/', 'constructor', 'actual']) {
+  check(`isEntryPattern|isModulePattern/partition: ${ pattern }`, isEntryPattern(pattern) !== isModulePattern(pattern), true);
+}
+
+// --- canonicalisePackage ---
+
+// the one spelling of a package name: interior `//` runs collapse, trailing slashes drop, and a
+// slash-only name reaches `''` - the null-space the option validator rejects by asking this function
+check('canonicalisePackage/plain', canonicalisePackage('core-js'), 'core-js');
+check('canonicalisePackage/trailing slash', canonicalisePackage('@core-js/pure/'), '@core-js/pure');
+check('canonicalisePackage/trailing run', canonicalisePackage('@core-js/pure///'), '@core-js/pure');
+check('canonicalisePackage/interior run', canonicalisePackage('my//core-js'), 'my/core-js');
+check('canonicalisePackage/slash only', canonicalisePackage('/'), '');
+check('canonicalisePackage/slash run only', canonicalisePackage('///'), '');
+check('canonicalisePackage/empty', canonicalisePackage(''), '');
+
+// --- safeErrorMessage ---
+
+// always a STRING - every call site interpolates the result into a diagnostic, so a raw non-string
+// `.message` (a Symbol) would throw at the interpolation the function exists to protect
+check('safeErrorMessage/Error', safeErrorMessage(new Error('plain')), 'plain');
+check('safeErrorMessage/primitive throw', safeErrorMessage('oops'), 'oops');
+check('safeErrorMessage/number', safeErrorMessage(42), '42');
+check('safeErrorMessage/null', safeErrorMessage(null), 'null');
+check('safeErrorMessage/symbol payload', safeErrorMessage(Symbol('x')), 'Symbol(x)');
+check('safeErrorMessage/symbol message', typeof safeErrorMessage({ message: Symbol('m') }), 'string');
+check('safeErrorMessage/null-prototype object', safeErrorMessage(Object.create(null)), '<unreadable>');
+check('safeErrorMessage/throwing toString', safeErrorMessage({ toString() { throw new Error('inner'); } }), '<unreadable>');
+{
+  const hostile = new Proxy({}, { get() { throw new Error('trap'); } });
+  check('safeErrorMessage/throwing message getter', safeErrorMessage(hostile), '<unreadable>');
+}
 
 // --- safeStringify ---
 
@@ -623,6 +685,21 @@ check('isCoreJSFile/core-js configurator', isCoreJSFile('node_modules/core-js/co
 check('parseDisableDirectives/no comments', parseDisableDirectives({ comments: null }), null);
 check('parseDisableDirectives/empty array', parseDisableDirectives({ comments: [] }), null);
 
+// a sibling plugin's synthesized comment can lack `value` as it can lack a position, and the
+// comments array can carry a hole: neither is a directive, and neither aborts the whole file
+{
+  const synthetic = [{ type: 'CommentLine' }, null, { type: 'CommentBlock', value: undefined }];
+  doesNotThrow('parseDisableDirectives/value-less and null comments do not throw',
+    () => parseDisableDirectives({ comments: synthetic, firstStmtStart: 10 }));
+  check('parseDisableDirectives/value-less comments are no directive',
+    parseDisableDirectives({ comments: synthetic, firstStmtStart: 10 }), null);
+  // ... and the real directive beside them is still read
+  const mixed = [...synthetic, { type: 'CommentLine', value: ' core-js-disable-file', start: 0, end: 25 }];
+  check('parseDisableDirectives/a real directive beside synthesized comments still counts',
+    parseDisableDirectives({ comments: mixed, firstStmtStart: 30 }), true);
+  check('disableDirectiveKind/non-string value', disableDirectiveKind(undefined), null);
+}
+
 // `core-js-disable-file` above first statement: returns true
 {
   const result = parseDisableDirectives({
@@ -1014,23 +1091,50 @@ check('isNextLineDisableDirective/JSDoc continuation', isNextLineDisableDirectiv
   check('tagError/idempotent on same tag', error.message, '[core-js] [input.ts] already tagged');
 }
 
-// bare `[core-js]` (no `[tag]`) does NOT block re-tagging: file marker still useful
+// bare `[core-js]` (no `[tag]`): the brand and the tag are ONE stamp, so the tag joins the brand
+// the message already carries - an option error raised inside a transform prints one brand, with
+// its file, not `[core-js] [file] [core-js] ...`
 {
   const error = new Error('[core-js] inner callback failed');
   tagError(error, 'input.ts');
-  check('tagError/re-tags bare core-js prefix', error.message,
-    '[core-js] [input.ts] [core-js] inner callback failed');
+  check('tagError/tags a branded message behind its brand', error.message,
+    '[core-js] [input.ts] inner callback failed');
 }
 
-// non-string tag: defensive short-circuit (caller plumbing typo would otherwise stringify)
+// non-string tag: the brand alone. on babel's `unknown file:` path the host names no file and the
+// brand is the only signal left; dropping the whole stamp with the tag dropped that too
 {
   const error = new Error('boom');
   tagError(error, undefined);
-  check('tagError/undefined tag skips', error.message, 'boom');
+  check('tagError/undefined tag stamps the brand alone', error.message, '[core-js] boom');
   tagError(error, null);
-  check('tagError/null tag skips', error.message, 'boom');
+  check('tagError/null tag is idempotent on the brand', error.message, '[core-js] boom');
   tagError(error, 42);
-  check('tagError/number tag skips', error.message, 'boom');
+  check('tagError/number tag is idempotent on the brand', error.message, '[core-js] boom');
+  const later = new Error('[core-js] boom');
+  tagError(later, 'input.ts');
+  check('tagError/a tag can still join a bare brand later', later.message, '[core-js] [input.ts] boom');
+}
+
+// the idempotency anchor is the whole stamp, separator included: `[core-js] [t]x` is not a head
+// the stamp can produce, so it is stamped like any other message rather than mistaken for done
+{
+  const error = new Error('[core-js] [t]x');
+  tagError(error, 't');
+  check('tagError/anchor includes the separator', error.message, '[core-js] [t] [t]x');
+}
+
+// --- brand / wrapWithCause ---
+
+check('brand/stamps', brand('boom'), '[core-js] boom');
+check('brand/idempotent', brand('[core-js] boom'), '[core-js] boom');
+check('brand/bracket without the separator is not the brand', brand('[core-js]boom'), '[core-js] [core-js]boom');
+{
+  const inner = new Error('inner');
+  const wrapped = wrapWithCause('failed: inner', inner);
+  check('wrapWithCause/brands the message', wrapped.message, '[core-js] failed: inner');
+  check('wrapWithCause/keeps the cause', wrapped.cause, inner);
+  check('wrapWithCause/does not double a branded message', wrapWithCause('[core-js] failed', inner).message, '[core-js] failed');
 }
 
 // non-string `.message`: user Error subclass with object message, missing-message object
@@ -1144,13 +1248,13 @@ check('isNextLineDisableDirective/JSDoc continuation', isNextLineDisableDirectiv
   check('tagError/head-tagged idempotent', error.message, '[core-js] [input.ts] boom');
 }
 
-// head-tagged with DIFFERENT tag: re-stamp (outer wrapper sees a different file context).
-// startsWith on the new tag's prefix fails -> outer stamp prepends
+// head-tagged with DIFFERENT tag: the outer file context joins behind the one brand, the inner
+// tag stays as the nesting it is (an inner transform of another file)
 {
   const error = new Error('[core-js] [inner.ts] inner failure');
   tagError(error, 'outer.ts');
   check('tagError/head-tagged different tag re-stamps', error.message,
-    '[core-js] [outer.ts] [core-js] [inner.ts] inner failure');
+    '[core-js] [outer.ts] [inner.ts] inner failure');
 }
 
 // --- peelSequenceTail ---
