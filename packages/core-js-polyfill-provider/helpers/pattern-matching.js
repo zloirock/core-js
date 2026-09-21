@@ -1,9 +1,17 @@
-// strip g/y flags from RegExp to prevent lastIndex state between calls.
-// null / undefined / non-RegExp inputs surface as a more readable error than
-// the opaque `Cannot read properties of null (reading 'global')` crash
+import { lookupEntryModules } from './path-normalize.js';
+import { brand } from './error-tag.js';
+
+// a stateless copy of a RegExp: `g` and `y` write `lastIndex` on a hit, so a shared instance
+// answers `test()` differently from call to call. `g` only adds that state and is dropped; `y` is
+// ALSO an anchor - it matches at `lastIndex` alone, which for a fresh test is the start - so its
+// meaning moves into the source (`^(?:...)`) while the flag goes, and the pattern keeps matching
+// what its author wrote. sticky wins over global (`/a/gy` never matches past the start either), so
+// any sticky pattern anchors. null / undefined / non-RegExp inputs surface as a more readable
+// error than the opaque `Cannot read properties of null (reading 'global')` crash
 export function toStatelessRegExp(re) {
-  if (!(re instanceof RegExp)) throw new TypeError('[core-js] toStatelessRegExp: expected RegExp');
-  return re.global || re.sticky ? new RegExp(re.source, re.flags.replaceAll(/[gy]/g, '')) : re;
+  if (!(re instanceof RegExp)) throw new TypeError(brand('toStatelessRegExp: expected RegExp'));
+  if (!re.global && !re.sticky) return re;
+  return new RegExp(re.sticky ? `^(?:${ re.source })` : re.source, re.flags.replaceAll(/[gy]/g, ''));
 }
 
 // compile an include/exclude pattern (raw regex source string or RegExp) to a stateless
@@ -28,28 +36,29 @@ export function patternToRegExp(pattern) {
   }
 }
 
-// known namespace prefix or wildcard -> module-name pattern; everything else is an entry path
-export function isModulePattern(pattern) {
-  if (pattern instanceof RegExp) return true;
-  if (typeof pattern !== 'string') return false;
-  return pattern.startsWith('es.')
-    || pattern.startsWith('esnext.')
-    || pattern.startsWith('web.')
-    || pattern.includes('*');
-}
-
+// an include/exclude string names either an ENTRY PATH the entries map knows (`array/at`,
+// `actual/promise`) or a raw regex over MODULE names, and the entries map is the one authority
+// on which - the same lookup `collectEntryPaths` reads the entry through. a spelling test
+// (`es.` prefix, a `*`) routed `es\\.array\\.from`, a documented raw regex, to the entry-path
+// bucket and refused the build. a RegExp is always a module pattern
 export function isEntryPattern(pattern) {
-  return typeof pattern === 'string' && !isModulePattern(pattern);
+  return typeof pattern === 'string' && lookupEntryModules(pattern) !== null;
 }
 
-// safe `.message ?? String(error)` extraction for diagnostic wrapping. adversarial
-// Proxy on the thrown payload can make `.message` access AND `String(error)`
-// re-throw - swallow secondary errors so the primary diagnostic still renders with
-// a readable wrapper. shared by the provider's targets / user-callback catches and
-// the unplugin import-injector's append fallbacks
+// the complement over the accepted pattern forms: a RegExp, or a string the entries map does not know
+export function isModulePattern(pattern) {
+  return pattern instanceof RegExp || (typeof pattern === 'string' && !isEntryPattern(pattern));
+}
+
+// the message of a thrown payload as a STRING, for interpolation into a diagnostic: `.message`
+// when it is one, otherwise the payload's own string form. every read is guarded - an adversarial
+// Proxy on the payload can make `.message` throw, a null-prototype object or a throwing `toString`
+// makes `String(error)` throw, and a Symbol message would throw at the caller's interpolation -
+// so the primary diagnostic always renders. consumed by the targets / user-callback catches
 export function safeErrorMessage(error) {
   try {
-    return error?.message ?? String(error);
+    const { message } = Object(error);
+    return typeof message === 'string' ? message : String(error);
   } catch {
     return '<unreadable>';
   }
@@ -83,12 +92,12 @@ export function safeStringify(value) {
 export function validatePatternList(name, list) {
   if (list === undefined || list === null) return;
   if (!Array.isArray(list)) {
-    throw new TypeError(`[core-js] \`${ name }\` must be an array, or undefined (received ${ safeStringify(list) })`);
+    throw new TypeError(brand(`\`${ name }\` must be an array, or undefined (received ${ safeStringify(list) })`));
   }
   for (const [i, item] of list.entries()) {
-    if (item === '') throw new TypeError(`[core-js] \`${ name }[${ i }]\` must be a non-empty string`);
+    if (item === '') throw new TypeError(brand(`\`${ name }[${ i }]\` must be a non-empty string`));
     if (typeof item !== 'string' && !(item instanceof RegExp)) {
-      throw new TypeError(`[core-js] \`${ name }[${ i }]\` must be a string or RegExp (received ${ safeStringify(item) })`);
+      throw new TypeError(brand(`\`${ name }[${ i }]\` must be a string or RegExp (received ${ safeStringify(item) })`));
     }
   }
 }
@@ -101,16 +110,16 @@ export function validatePatternList(name, list) {
 // iteration cap (2^20) bounds collision-storm pathologies; isTaken=true forever throws
 export function findUniqueName(prefix, startSuffix, isTaken) {
   if (startSuffix === undefined) {
-    throw new TypeError('[core-js] findUniqueName: startSuffix must be null (try-bare-first) '
-      + 'or a finite non-negative number; got undefined');
+    throw new TypeError(brand('findUniqueName: startSuffix must be null (try-bare-first) '
+      + 'or a finite non-negative number; got undefined'));
   }
   if (startSuffix !== null) {
     if (typeof startSuffix !== 'number' || !Number.isFinite(startSuffix)) {
       const got = typeof startSuffix === 'number' ? startSuffix : typeof startSuffix;
-      throw new TypeError(`[core-js] findUniqueName: startSuffix must be null or a finite non-negative number; got ${ got }`);
+      throw new TypeError(brand(`findUniqueName: startSuffix must be null or a finite non-negative number; got ${ got }`));
     }
     if (startSuffix < 0) {
-      throw new RangeError(`[core-js] findUniqueName: startSuffix must be non-negative; got ${ startSuffix }`);
+      throw new RangeError(brand(`findUniqueName: startSuffix must be non-negative; got ${ startSuffix }`));
     }
   }
   if (startSuffix === null) {
@@ -124,7 +133,7 @@ export function findUniqueName(prefix, startSuffix, isTaken) {
     // report the last name actually tried (counter - 1): the pre-increment value is the taken
     // candidate that exhausted the space; the post-increment counter is the over-limit index
     // that was never constructed
-    if (++counter > limit) throw new Error(`[core-js] findUniqueName: collision space exhausted at \`${ prefix }${ counter - 1 }\` (isTaken always returns true?)`);
+    if (++counter > limit) throw new Error(brand(`findUniqueName: collision space exhausted at \`${ prefix }${ counter - 1 }\` (isTaken always returns true?)`));
     name = `${ prefix }${ counter }`;
   }
   return name;
