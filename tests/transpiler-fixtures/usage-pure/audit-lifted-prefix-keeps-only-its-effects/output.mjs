@@ -6,11 +6,8 @@ import _Promise from "@core-js/pure/actual/promise";
 import _Set from "@core-js/pure/actual/set";
 import _WeakMap from "@core-js/pure/actual/weak-map";
 import _WeakSet from "@core-js/pure/actual/weak-set";
-// a lifted prefix keeps exactly what can be observed: the statement it becomes discards every value,
-// so an effect-free element is a comma the source wrote rather than work it did, and a prefix with
-// nothing to observe leaves no statement at all. the trim is one canon for every channel that lifts
-// one - the whole-prefix one a discarded receiver takes, and the per-element one the surviving
-// residual, the nested flatten, the array wrapper and the bodyless slot print.
+// Discarded receiver prefixes preserve their observable effects once.
+// Effect-free reads need no replay; prefixes kept inside a live expression retain their source order.
 function eff() {}
 function eff2() {}
 let a, b, c, d, e;
@@ -27,10 +24,24 @@ var f = _Map;
 var {
   other
 } = _globalThis;
-eff();
-var g = _Array$from;
-eff();
-const h = _Array$of;
+var {
+  Array: {
+    from: g
+  }
+} = (0, eff(), {
+  Array: {
+    from: _Array$from
+  }
+});
+const [{
+  Array: {
+    of: h
+  }
+}] = [(0, eff(), {
+  Array: {
+    of: _Array$of
+  }
+})];
 if (1) {
   eff();
   var i = _Set;

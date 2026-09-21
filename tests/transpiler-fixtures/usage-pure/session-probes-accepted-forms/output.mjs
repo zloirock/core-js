@@ -6,12 +6,13 @@ import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _at from "@core-js/pure/actual/instance/at";
 import _values from "@core-js/pure/actual/instance/values";
+import _Map from "@core-js/pure/actual/map";
 import _Object$keys from "@core-js/pure/actual/object/keys";
 import _Object$values from "@core-js/pure/actual/object/values";
 import _atMaybeString from "@core-js/pure/actual/string/instance/at";
 import _includesMaybeString from "@core-js/pure/actual/string/instance/includes";
-// Object-rest keeps named slots at that level and reads through it native in usage-pure.
-// Independent reads and key/default expressions still receive their own polyfills.
+// Claimed statics retain their polyfills beside object rest.
+// Rest keeps its source and exclusions; instance slots remain native.
 let pick = 1;
 const c = 1;
 const userObj = {};
@@ -37,15 +38,17 @@ function mark(t, v) {
   return v;
 }
 {
-  for (const _ref3 of [[Object, [1]]]) {
-    let [_ref, _ref2] = _ref3;
-    let values = _values(_ref);
-    let at = _atMaybeArray(_ref2);
+  for (const _ref2 of [[Object, [1]]]) {
+    let values = _Object$values;
+    let [{
+      values: _unused
+    }, _ref] = _ref2;
+    let at = _atMaybeArray(_ref);
     [values, at];
   }
 }
 {
-  for (const _ref4 of [{
+  for (const _ref3 of [{
     w() {
       return Object;
     }
@@ -58,33 +61,32 @@ function mark(t, v) {
       w: {
         keys
       }
-    } = _ref4;
+    } = _ref3;
     keys;
   }
 }
 {
-  for (let [_ref5] = [r, eff()], _ref6 = _ref5, values = _values(_ref6.w), at = _at(_ref6.y);;) {
+  for (let [_ref4] = [r, eff()], _ref5 = _ref4, values = _values(_ref5.w), at = _at(_ref5.y);;) {
     [values, at];
     break;
   }
 }
 {
-  const _ref7 = [1, 2];
-  const at = _atMaybeArray(_ref7);
+  const at = _atMaybeArray([1, 2]);
 }
 {
-  const _ref8 = [1];
-  const a = _atMaybeArray(_ref8);
+  const _ref6 = [1];
+  const a = _atMaybeArray(_ref6);
   const [{
-    [(eff('k'), 'w')]: _unused
+    [(eff('k'), 'w')]: _unused2
   }] = [{
-    w: _ref8
+    w: _ref6
   }];
 }
 {
-  const _ref9 = [1, 2];
-  const [{}] = [_ref9, ...rest];
-  const at = _atMaybeArray(_ref9);
+  const _ref7 = [1, 2];
+  const [{}] = [_ref7, ...rest];
+  const at = _atMaybeArray(_ref7);
 }
 {
   let zLead = 1,
@@ -115,17 +117,17 @@ function mark(t, v) {
 }
 {
   const {
+      prototype: _ref8
+    } = _globalThis.Array,
+    _ref9 = _ref8,
+    a = null == _ref9 ? _ref9[""] : (eff('k2'), _atMaybeArray(_ref9));
+}
+{
+  const {
       prototype: _ref10
     } = _globalThis.Array,
     _ref11 = _ref10,
     a = null == _ref11 ? _ref11[""] : (eff('k2'), _atMaybeArray(_ref11));
-}
-{
-  const {
-      prototype: _ref12
-    } = _globalThis.Array,
-    _ref13 = _ref12,
-    a = null == _ref13 ? _ref13[""] : (eff('k2'), _atMaybeArray(_ref13));
   _pushMaybeArray(log).call(log, a.call([3], 0));
 }
 {
@@ -139,41 +141,50 @@ function mark(t, v) {
   } = _globalThis;
 }
 {
-  const _ref15 = {
+  const _ref13 = {
       w: 'x'
     },
     {
-      [(eff(), 'w')]: _ref14
-    } = null == _ref15 ? _ref15[""] : _ref15,
-    _ref16 = _ref14,
-    a = null == _ref16 ? _ref16[""] : _atMaybeString(_ref16);
+      [(eff(), 'w')]: _ref12
+    } = null == _ref13 ? _ref13[""] : _ref13,
+    _ref14 = _ref12,
+    a = null == _ref14 ? _ref14[""] : _atMaybeString(_ref14);
 }
 {
-  const _ref18 = {
+  const _ref16 = {
       w: 'str'
     },
     {
-      [(eff(), 'w')]: _ref17
-    } = null == _ref18 ? _ref18[""] : _ref18,
-    _ref19 = _ref17,
-    i3 = null == _ref19 ? _ref19[""] : _includesMaybeString(_ref19);
+      [(eff(), 'w')]: _ref15
+    } = null == _ref16 ? _ref16[""] : _ref16,
+    _ref17 = _ref15,
+    i3 = null == _ref17 ? _ref17[""] : _includesMaybeString(_ref17);
 }
 {
-  const keys = _Object$keys;
   const {
     w: [, {
-      keys: _unused2
+      keys
     }]
   } = {
-    w: [0, Object]
+    w: [0, {
+      keys: _Object$keys
+    }]
   };
 }
 {
-  const F = _Array$from;
   const {
+    w: {
+      Array: {
+        from: F = fb
+      }
+    },
     z
   } = {
-    w: _globalThis,
+    w: {
+      Array: {
+        from: _Array$from
+      }
+    },
     z: 1
   };
   F(z);
@@ -186,7 +197,10 @@ function mark(t, v) {
     },
     ...rest
   } = {
-    w: _globalThis,
+    w: {
+      Map: _Map,
+      keep: _globalThis.keep
+    },
     z: 1
   };
   use(m, keep, rest);
@@ -201,24 +215,31 @@ function mark(t, v) {
     w: eff(),
     z: 1
   };
-  const k = _Object$keys;
   const {
+    w: {
+      keys: k
+    },
     q
   } = {
-    w: eff(),
+    w: (eff(), {
+      keys: _Object$keys
+    }),
     q: 1
   };
   use(m, z, k, q);
 }
 {
-  const k = _Object$keys;
   const {
     w: {
-      at: m
+      at: m,
+      keys: k
     },
     z
   } = {
-    w: eff(),
+    w: (eff(), {
+      at: Object.at,
+      keys: _Object$keys
+    }),
     z: 1
   };
   use(m, k, z);
@@ -234,17 +255,18 @@ function mark(t, v) {
   };
 }
 {
-  const values = _Object$values;
-  const _ref20 = [1];
-  const at = _atMaybeArray(_ref20);
-  const {
-    y: {
-      at: _unused3
-    }
-  } = {
-    w: Object,
-    y: _ref20
+  const _ref18 = {
+    w: {
+      values: _Object$values
+    },
+    y: [1]
   };
+  const {
+    w: {
+      values
+    }
+  } = _ref18;
+  const at = _atMaybeArray(_ref18.y);
   [values, at];
 }
 {
@@ -252,12 +274,10 @@ function mark(t, v) {
   const f = _Array$from;
 }
 {
-  const _ref21 = [1, 2];
-  const at = _atMaybeArray(_ref21);
+  const at = _atMaybeArray([1, 2]);
 }
 {
-  const _ref22 = [1, 2];
-  const at = _atMaybeArray(_ref22);
+  const at = _atMaybeArray([1, 2]);
 }
 {
   const {
@@ -274,35 +294,75 @@ function mark(t, v) {
   [andHop, andQ];
 }
 {
-  const splitFrom = _Array$from;
-  const _ref23 = _Array$of;
-  const splitBesideStatic = _nameMaybeFunction(_ref23);
   const {
-    foo: splitFoo
-  } = _ref23;
+    Array: {
+      of: {
+        name: splitBesideStatic,
+        foo: splitFoo
+      },
+      from: splitFrom
+    }
+  } = {
+    Array: {
+      of: {
+        name: _nameMaybeFunction(_Array$of),
+        foo: _Array$of.foo
+      },
+      from: _Array$from
+    }
+  };
   [splitBesideStatic, splitFoo, splitFrom];
 }
 {
-  const _ref24 = _Array$of;
-  const defaultName = _nameMaybeFunction(_ref24);
   const {
-    foo: defaultFoo
-  } = _ref24;
-  const {
-    junk: defaultJunk
-  } = Array;
+    junk: defaultJunk,
+    of: {
+      name: defaultName,
+      foo: defaultFoo
+    } = {}
+  } = {
+    junk: Array.junk,
+    of: {
+      name: _nameMaybeFunction(_Array$of),
+      foo: _Array$of.foo
+    }
+  };
   [defaultJunk, defaultName, defaultFoo];
 }
 {
-  const soleOrderFrom = _Array$from;
-  const soleOrder = _nameMaybeFunction(_Array$of);
+  const {
+    Array: {
+      of: {
+        name: soleOrder
+      },
+      from: soleOrderFrom
+    }
+  } = {
+    Array: {
+      of: {
+        name: _nameMaybeFunction(_Array$of)
+      },
+      from: _Array$from
+    }
+  };
   [soleOrder, soleOrderFrom];
 }
 {
-  const soleResidual = _nameMaybeFunction(_Array$of);
   const {
-    junk: soleResidualJunk
-  } = _globalThis.Array;
+    Array: {
+      of: {
+        name: soleResidual
+      },
+      junk: soleResidualJunk
+    }
+  } = {
+    Array: {
+      of: {
+        name: _nameMaybeFunction(_Array$of)
+      },
+      junk: _globalThis.Array.junk
+    }
+  };
   [soleResidual, soleResidualJunk];
 }
 {

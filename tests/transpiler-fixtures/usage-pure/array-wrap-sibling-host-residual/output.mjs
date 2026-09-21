@@ -21,24 +21,34 @@ const lead = eff('w'),
 const lead2 = eff('ab'),
   [{}] = [_globalThis, eff('ac')],
   besideParen = _atMaybeArray(_globalThis.Array.prototype);
-const nestedSpread = _Object$groupBy;
 const [[{
   Object: {
-    groupBy: _unused
+    groupBy: nestedSpread
   }
-}]] = [[_globalThis, ...xs]];
-eff('y');
-eff('z');
-const getOwnPropertyDescriptors = _Object$getOwnPropertyDescriptors;
+}]] = [[{
+  Object: {
+    groupBy: _Object$groupBy
+  }
+}, ...xs]];
+const [{
+  Object: {
+    getOwnPropertyDescriptors
+  }
+}] = [(eff('y'), {
+  Object: {
+    getOwnPropertyDescriptors: _Object$getOwnPropertyDescriptors
+  }
+}), eff('z')];
 let bodylessGb, bodylessZn;
-if (lead) {
-  [{
-    Map: {
-      groupBy: bodylessGb
-    }
-  }, bodylessZn] = [kw = (eff('aa'), _globalThis), 7];
-  bodylessGb = _Map$groupBy;
-}
+if (lead) [{
+  Map: {
+    groupBy: bodylessGb
+  }
+}, bodylessZn] = [(kw = (eff('aa'), _globalThis), {
+  Map: {
+    groupBy: _Map$groupBy
+  }
+}), 7];
 let outSpread;
 for (const [_ref] = [_globalThis, ...xs], toSorted = _toSortedMaybeArray(_ref.Array.prototype); !outSpread;) outSpread = toSorted;
 export { lead, besideLead, lead2, besideParen, nestedSpread, getOwnPropertyDescriptors, bodylessGb, bodylessZn, outSpread, seen, kw };

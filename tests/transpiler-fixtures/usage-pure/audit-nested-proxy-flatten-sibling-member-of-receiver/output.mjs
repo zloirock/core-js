@@ -4,6 +4,14 @@ import _Map from "@core-js/pure/actual/map";
 // `globalThis.Map` is a polyfillable global member, so the member-access transform replaces
 // the whole `globalThis.Map` range. text-substituting `globalThis` -> `_globalThis` inside it
 // would compose to garbage `__Map`; skip the inner substitution when the access is polyfillable
-const from = _Array$from;
-const y = _Map;
+const {
+    Array: {
+      from
+    }
+  } = {
+    Array: {
+      from: _Array$from
+    }
+  },
+  y = _Map;
 export { from, y };

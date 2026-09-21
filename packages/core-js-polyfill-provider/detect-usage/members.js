@@ -13,7 +13,7 @@ import {
   isMutatedGlobalSlot,
   isPristineProxyGlobal,
   isReusableReceiver,
-  ITERATED_STATIC_RECEIVERS,
+  CENSUS_STATIC_RECEIVERS,
   isTaggedTemplateTagPosition,
   mayHaveSideEffects,
   memberChainEndPath,
@@ -49,13 +49,16 @@ import {
   aliasWriteCtorNames,
   attachMemberUnionExtras,
   flattenFallbackBranches,
+  importedStaticReadMeta,
   navigatedChainKeys,
   navigatedSelectionArms,
   nestedAssignmentStatementOf,
   staticContainerReceiverName,
   unionKeyedCarrierRides,
 } from './destructure.js';
-import { hasStaticDefinitionKey, resolve as resolveBuiltIn } from '../index.js';
+import {
+  hasStaticDefinitionKey, resolve as resolveBuiltIn,
+} from '../index.js';
 import { planNestedKeyedPatternCapture } from '../destructure-host-shape.js';
 import {
   asSymbolRef,
@@ -446,8 +449,8 @@ export function planMemoReadTarget(memoReceiver, { aliasCtx, resolvePure }) {
 
 // The destructured guarded-alias narrow (`const { groupBy: g } = M`): admit a named binding
 // and an uncomputed key, and return the existing identity guard. Direct hosts can replace their
-// binding or split a fully answered pattern. A sole nested declaration can capture its receiver
-// for that same guard; other nested hosts retain the source-mirror route.
+// binding or split a fully answered pattern. Nested hosts can capture their receiver for
+// the same guard; an instance fallback takes that capture before a static-only mirror.
 export function planGuardedDestructureNarrow({
   propNode, patternNode, hostNode, hostInStatement, meta, path, resolvePure, adapter = null,
 }) {
@@ -552,6 +555,7 @@ export function planGuardedDestructureNarrow({
     plan,
     nested,
     capture: captureCandidate?.leaf === propNode ? captureCandidate : null,
+    captureFirst: captureCandidate?.leaf === propNode && plan.instanceFallback?.kind === 'instance',
     keepPatternLive: binding.type === 'ObjectPattern',
     split,
     restResidual,
@@ -1605,7 +1609,8 @@ export function handleMemberExpressionNode({
     if (sideEffects.length) meta.sideEffects = sideEffects;
     return meta;
   }
-  const meta = buildMemberMeta({ node, scope, adapter, path, resolveStaticKey, resolvePure, proxySegments });
+  const meta = importedStaticReadMeta({ node: node.object, scope, adapter, path,
+    meta: buildMemberMeta({ node, scope, adapter, path, resolveStaticKey, resolvePure, proxySegments }) });
   // a static the user monkey-patches in this file is NOT a polyfillable static: binding the
   // read to the frozen receiver-less import would bypass the patch, and bailing whole leaves
   // code referencing a possibly-missing global. return no meta and leave the receiver
@@ -1674,10 +1679,10 @@ export function handleMemberExpressionNode({
     // the receiver resolved to NOTHING (`meta` null / `object` null) or merely ECHOED the local
     // binding's own name (`object === recvIdent.name` - an unresolvable local): only those reads
     // are guard candidates; a receiver resolved to a real global keeps its normal dispatch
-    // Opaque iteration may carry a native-only namespace (Array has no whole-value ponyfill).
+    // Opaque iteration or selection may carry a namespace with no whole-value ponyfill (Array).
     // Its known families are guard candidates, never proof that this receiver is that constructor.
     const iteratedObjects = adapter.method === 'usage-pure' && hasStaticDefinitionKey(meta?.key ?? staticMemberKeyName(node))
-      ? [...ITERATED_STATIC_RECEIVERS.get(rootProgramOf(path))?.(recvIdent) ?? []]
+      ? [...CENSUS_STATIC_RECEIVERS.get(rootProgramOf(path))?.(recvIdent) ?? []]
         .filter(name => !resolveBuiltIn({ kind: 'global', name })
           && !isMutatedGlobalSlot(adapter, name) && !adapter.isMutatedStatic?.(name, meta?.key ?? staticMemberKeyName(node))) : [];
     if ((!meta || !meta.object || echoesLocalName) && (recvIdent?.type === 'Identifier' || iteratedObjects.length)) {

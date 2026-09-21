@@ -7,8 +7,6 @@ import _values from "@core-js/pure/actual/instance/values";
 import _Object$entries from "@core-js/pure/actual/object/entries";
 import _Object$is from "@core-js/pure/actual/object/is";
 import _Object$keys from "@core-js/pure/actual/object/keys";
-// Object-rest keeps the affected loop pattern native at its original evaluation point.
-// Independent reads and key/default expressions still receive their own polyfills.
 // probe corpus of the defense cycles over the destructure wrappers, family "forx", part 3:
 // every block is one probed form, self-contained over the header bindings, locked on both legs
 let pick = 1;
@@ -321,7 +319,7 @@ function mark(t, v) {
   }]) keys;
 }
 {
-  for (const _ref12 of [{
+  for (const _ref13 of [{
     w: _globalThis.Object
   }]) {
     let keys = _Object$keys;
@@ -335,16 +333,18 @@ function mark(t, v) {
   }
 }
 {
-  for (const {
-    w: {
-      keys
-    },
-    ...rest
-  } of [{
+  for (const _ref11 of [{
     w: Object
   }, {
     w: Object
-  }]) keys;
+  }]) {
+    let keys = _Object$keys;
+    let {
+      w: _unused,
+      ...rest
+    } = _ref11;
+    keys;
+  }
 }
 {
   for (const {
@@ -371,7 +371,7 @@ function mark(t, v) {
   }]) _atMaybeArray(x).call(x, 0);
 }
 {
-  for (let _ref11 = r, values = _values(_ref11.w), at = _at(_ref11.y);;) {
+  for (let _ref12 = r, values = _values(_ref12.w), at = _at(_ref12.y);;) {
     [values, at];
     break;
   }

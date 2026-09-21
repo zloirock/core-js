@@ -14,7 +14,33 @@ function observe(read) {
   }
 }
 let result;
-for (const _unused2 = (observe(() => keys), _globalThis), keys = _Object$keys, at = _atMaybeArray(_globalThis.Array.prototype); !result;) result = [keys, at];
+for (const {
+  Object: {
+    keys
+  },
+  Array: {
+    prototype: {
+      at
+    }
+  }
+} = (observe(() => keys), {
+  Object: {
+    keys: _Object$keys
+  },
+  Array: {
+    prototype: {
+      at: _atMaybeArray(_globalThis.Array.prototype)
+    }
+  }
+}); !result;) result = [keys, at];
 let single;
-for (const _unused = (observe(() => of), _globalThis), of = _Array$of; !single;) single = of(1);
+for (const {
+  Array: {
+    of
+  }
+} = (observe(() => of), {
+  Array: {
+    of: _Array$of
+  }
+}); !single;) single = of(1);
 export { log, result, single };

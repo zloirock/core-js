@@ -37,11 +37,13 @@ export { at4, rest };
 
 // NEGATIVE: a receiver-less STATIC reads nothing, so the residual is the only reader of its
 // element's key and keeps its sentinel
-const from = _Array$from;
-const of = _Array$of;
 const [{
-  from: _unused
+  from
 }, {
-  of: _unused2
-}] = [Array, Array];
+  of
+}] = [{
+  from: _Array$from
+}, {
+  of: _Array$of
+}];
 export { from, of };

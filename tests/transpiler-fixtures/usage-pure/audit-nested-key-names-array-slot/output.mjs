@@ -91,7 +91,15 @@ const constructorSlot = function () {
 }();
 // the object-literal twin IS a static container, so it resolves
 const constructorUnderObjectKey = function () {
-  const entries = _Object$entries;
+  const {
+    k: {
+      entries
+    }
+  } = {
+    k: {
+      entries: _Object$entries
+    }
+  };
   return entries;
 }();
 // NEGATIVE: out of bounds
@@ -576,7 +584,15 @@ const aliasLeakIsPairPrecise = function () {
   };
   const aliasM = twoSlots.M;
   void aliasM;
-  const keys = _Object$keys;
+  const {
+    P: {
+      keys
+    }
+  } = {
+    P: {
+      keys: _Object$keys
+    }
+  };
   return keys;
 }();
 const branchEscapeBothArms = function () {
@@ -699,7 +715,15 @@ const containerWhollyReassigned = function () {
   swapped = {
     k: _Map
   };
-  const groupBy = _Map$groupBy;
+  const {
+    k: {
+      groupBy
+    }
+  } = {
+    k: {
+      groupBy: _Map$groupBy
+    }
+  };
   return groupBy;
 }();
 // a CONDITIONAL slot write still bails - reach is not disprovable without positions
@@ -779,7 +803,15 @@ const varIndexOnDataArray = function () {
   const untouchedNeighbour = {
     k: Object
   };
-  const entries = _Object$entries;
+  const {
+    k: {
+      entries
+    }
+  } = {
+    k: {
+      entries: _Object$entries
+    }
+  };
   return [dataArr[dataIdx], entries];
 }();
 // the escape channel's NOISE boundary: a config object without a constructor in its values is no
@@ -797,7 +829,15 @@ const configObjectIsNoContainer = function () {
   const neighbour = {
     k: Object
   };
-  const keys = _Object$keys;
+  const {
+    k: {
+      keys
+    }
+  } = {
+    k: {
+      keys: _Object$keys
+    }
+  };
   return keys;
 }();
 const readOnlyCalleeStillBails = function () {
@@ -822,7 +862,15 @@ const selfMethodCallLeaksNothing = function () {
     }
   };
   selfCall.ping();
-  const getOwnPropertyNames = _Object$getOwnPropertyNames;
+  const {
+    k: {
+      getOwnPropertyNames
+    }
+  } = {
+    k: {
+      getOwnPropertyNames: _Object$getOwnPropertyNames
+    }
+  };
   return getOwnPropertyNames;
 }();
 // async hosts ride the same channels: an async callee taking the container escapes it, and
@@ -885,7 +933,15 @@ const switchDiscriminantLeaksNothing = function () {
     default:
       break;
   }
-  const viaSwitch = _Object$seal;
+  const {
+    k: {
+      seal: viaSwitch
+    }
+  } = {
+    k: {
+      seal: _Object$seal
+    }
+  };
   return viaSwitch;
 }();
 const escapedByForOfHead = function () {
@@ -906,7 +962,15 @@ const forInKeysLeakNothing = function () {
   let last;
   for (const key in inBox) last = key;
   void last;
-  const defineProperty = _Object$defineProperty;
+  const {
+    k: {
+      defineProperty
+    }
+  } = {
+    k: {
+      defineProperty: _Object$defineProperty
+    }
+  };
   return defineProperty;
 }();
 const escapedByYieldedArgument = function () {

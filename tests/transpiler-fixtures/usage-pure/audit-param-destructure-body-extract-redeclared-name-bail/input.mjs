@@ -1,9 +1,5 @@
-// a destructured param may be legally redeclared by a body `var <name>` / `function <name>(){}`.
-// the body-extract would emit a body-top `let <name> = <polyfill>`, but `let` + `var`/`function`
-// on one name in a scope is a SyntaxError - so it must BAIL to the inline-default (no `let`) when
-// the body already binds the name. `run` covers `var`, `make` the function-decl shape; `keep` is
-// the no-over-bail control (its `var resolve` is in a NESTED scope, no collision, extract fires).
-// EXPORTED, so callers are invisible and params can't be proven lossless - locked by the IIFE twin
+// Exported callers keep their supplied properties, including names redeclared in the body.
+// No body extraction may introduce a conflicting let. Promise rest uses its index default.
 function run({ from, ...rest } = Array) {
   var from = 7;
   return [from, rest];

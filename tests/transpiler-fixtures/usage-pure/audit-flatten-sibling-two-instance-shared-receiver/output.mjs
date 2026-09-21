@@ -8,6 +8,14 @@ import _values from "@core-js/pure/actual/instance/values";
 const _ref = _globalThis.navigator;
 const values = _values(_ref);
 const keys = _keys(_ref);
-const from = _Array$from;
+const {
+  Array: {
+    from
+  }
+} = {
+  Array: {
+    from: _Array$from
+  }
+};
 from([1]);
 console.log(values, keys);

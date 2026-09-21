@@ -1,14 +1,6 @@
-// Object-rest keeps named slots at that level and reads through it native in usage-pure.
-// Independent reads and key/default expressions still receive their own polyfills.
-// A mixed pattern - a nested-ObjectPattern value beside flat keys - belongs to the nested mirror
-// only while the mirror can actually render it. An unresolvable computed key and a non-identifier
-// key each make it bail for good, and deferring to it then drops the flat sibling's polyfill to a
-// native read; a key the pattern repeats over LEAVES is one slot the literal spells once, so it
-// rides the mirror instead - which is what binds the ponyfill of a ctor core-js REPLACES, where an
-// inline default would have bound the realm's own. The last host is the control: with every key
-// mirrorable the whole default is replaced by the synthesized literal instead.
-// usage-global is not paired: this rewrite exists only on the pure path, which is what binds a
-// polyfill to a destructured name.
+// Mirrorable mixed defaults bind constructor ponyfills beside nested native reads.
+// A declined mirror permits only a proven body extraction, never parameter leaf defaults.
+// Wrappers and parameter-scope uses must preserve the same constructor choice.
 export const unresolvableKey = (({ Set, Array: { from }, [getKey()]: y } = globalThis) => [Set, from, y])();
 export const duplicateKey = (({ Map, ["Map"]: alias, Array: { of } } = globalThis) => [Map, alias, of])();
 export const nonIdentifierKey = (({ WeakSet, "with-dash": dashed, Array: { isArray } } = globalThis) => [WeakSet, dashed, isArray])();
@@ -39,9 +31,8 @@ export const nameBoundInBody = (([{ Set: S6, Array: { of: of6 } } = globalThis])
   return [S6, of6];
 })([]);
 
-// ... where the mirror bails for good one level down (an unresolvable key beside the flat sibling)
-// the other emission paths return: a statement body hoists the flat sibling as a binding at the body
-// top, an expression body takes the inline default
+// An unresolvable nested key declines the mirror in both body forms.
+// The default-only block extracts its flat constructor; the expression body stays native.
 export const statementBodyBail = (([{ Set: S7, [getKey()]: y7, Array: { of: of7 } } = globalThis]) => {
   return [S7, of7, y7];
 })([]);
