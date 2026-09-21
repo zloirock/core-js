@@ -1,9 +1,11 @@
 import _globalThis from "@core-js/pure/actual/global-this";
+import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Promise$try from "@core-js/pure/actual/promise/try";
-// Object-rest keeps named slots at that level and reads through it native in usage-pure.
-// Independent reads and key/default expressions still receive their own polyfills.
+const MyP = _Promise;
+// Claimed statics retain their polyfills beside object rest.
+// Rest keeps its source and exclusions; instance slots remain native.
 const {
-  Promise: MyP,
+  Promise: _unused,
   ...rest
 } = _globalThis;
 class C extends MyP {

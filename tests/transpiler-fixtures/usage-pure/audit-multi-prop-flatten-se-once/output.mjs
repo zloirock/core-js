@@ -7,6 +7,18 @@ import _Object$keys from "@core-js/pure/actual/object/keys";
 // times instead of once)
 let sideEffectCount = 0;
 const sideEffect = () => sideEffectCount++;
-sideEffect();
-const from = _Array$from;
-const keys = _Object$keys;
+const {
+  Array: {
+    from
+  },
+  Object: {
+    keys
+  }
+} = (sideEffect(), {
+  Array: {
+    from: _Array$from
+  },
+  Object: {
+    keys: _Object$keys
+  }
+});

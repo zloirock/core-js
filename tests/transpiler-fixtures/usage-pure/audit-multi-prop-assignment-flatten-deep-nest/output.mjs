@@ -4,5 +4,22 @@ import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 // polyfills resolve through the self-alias receiver. each assignment emits independently;
 // the empty destructure is removed
 let from, fromEntries;
-from = _Array$from;
-fromEntries = _Object$fromEntries;
+({
+  self: {
+    Array: {
+      from
+    },
+    Object: {
+      fromEntries
+    }
+  }
+} = {
+  self: {
+    Array: {
+      from: _Array$from
+    },
+    Object: {
+      fromEntries: _Object$fromEntries
+    }
+  }
+});

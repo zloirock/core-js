@@ -4,8 +4,6 @@ import { readArrayIteratorBeforeStatic, readNestedRealmIterator, readRealmIterat
 // NOTE: typeof checks use notSame(_, undefined) instead of typeof === 'symbol'
 // because pure-mode Symbol on engines without native symbols returns strings, not real symbols
 
-const nativeArrayFrom = Object.getOwnPropertyDescriptor(Array, 'from')?.value;
-
 QUnit.test('Symbol.iterator exists', assert => {
   assert.notSame(Symbol.iterator, undefined);
   assert.same(typeof [][Symbol.iterator], 'function');
@@ -273,8 +271,7 @@ QUnit.test('destructuring: nested static and iterator read once before rest', as
     });
     Object.defineProperty(globalThis, retainedKey, { configurable: true, enumerable: true, value: 42 });
     const result = readRealmIteratorWithStatic();
-    if (typeof E2E_POST_LOWERED !== 'undefined') assert.deepEqual(result[0]([1]), [1]);
-    else assert.same(result[0], nativeArrayFrom);
+    assert.deepEqual(result[0]([1]), [1]);
     assert.same(result[1], ownIterator);
     assert.same(reads, 1);
     assert.same(Object.getOwnPropertyDescriptor(result[2], 'Array'), undefined);
@@ -293,7 +290,7 @@ QUnit.test('destructuring: nested static and iterator read once before rest', as
   }
 });
 
-QUnit.test('destructuring: an iterator read retains its native static sibling', assert => {
+QUnit.test('destructuring: an iterator read keeps its polyfilled static sibling', assert => {
   const receiver = globalThis.Array;
   const descriptor = Object.getOwnPropertyDescriptor(receiver, Symbol.iterator);
   const retainedKey = Symbol('retained');
@@ -308,8 +305,7 @@ QUnit.test('destructuring: an iterator read retains its native static sibling', 
     Object.defineProperty(receiver, retainedKey, { configurable: true, enumerable: true, value: 42 });
     const result = readArrayIteratorBeforeStatic();
     assert.same(result[0], ownIterator);
-    if (typeof E2E_POST_LOWERED !== 'undefined') assert.deepEqual(result[1]([1]), [1]);
-    else assert.same(result[1], nativeArrayFrom);
+    assert.deepEqual(result[1]([1]), [1]);
     assert.same(reads, 1);
     assert.same(Object.getOwnPropertyDescriptor(result[2], 'from'), undefined);
     assert.same(Object.getOwnPropertyDescriptor(result[2], Symbol.iterator), undefined);

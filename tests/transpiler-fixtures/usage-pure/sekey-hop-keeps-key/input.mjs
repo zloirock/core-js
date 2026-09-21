@@ -1,5 +1,5 @@
-// Object-rest keeps named slots at that level and reads through it native in usage-pure.
-// Independent reads and key/default expressions still receive their own polyfills.
+// Claimed statics retain their polyfills beside object rest.
+// Rest keeps its source and exclusions; instance slots remain native.
 const order = [];
 const eff = tag => (order.push(tag), tag);
 const { [(eff('static'), 'Array')]: { from: viaStatic } } = globalThis;

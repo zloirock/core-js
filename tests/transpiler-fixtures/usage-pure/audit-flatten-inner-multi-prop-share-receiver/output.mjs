@@ -6,6 +6,14 @@ import _Array$of from "@core-js/pure/actual/array/of";
 // duplicates the lifted statement
 let sideEffectCount = 0;
 const sideEffect = () => sideEffectCount++;
-sideEffect();
-const from = _Array$from;
-const of = _Array$of;
+const {
+  Array: {
+    from,
+    of
+  }
+} = (sideEffect(), {
+  Array: {
+    from: _Array$from,
+    of: _Array$of
+  }
+});

@@ -31,7 +31,15 @@ export const b2 = (() => {
 })();
 // ... while a STATIC leaf under the same hop never needed that receiver - its own pure is the value
 export const b3 = (() => {
-  if (cond) var o = _Array$of;
+  if (cond) var {
+    Array: {
+      of: o
+    }
+  } = {
+    Array: {
+      of: _Array$of
+    }
+  };
   return typeof o;
 })();
 // a `delete` consumer needs the SLOT: the member survives with its key swapped, and the

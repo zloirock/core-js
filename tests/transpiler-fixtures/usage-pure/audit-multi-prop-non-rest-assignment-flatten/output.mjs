@@ -4,5 +4,18 @@ import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 // both inner names (Array.from, Object.fromEntries) are polyfill-eligible; each assignment
 // must emit independently; the empty destructure is removed (no consumers left)
 let from, fromEntries;
-from = _Array$from;
-fromEntries = _Object$fromEntries;
+({
+  Array: {
+    from
+  },
+  Object: {
+    fromEntries
+  }
+} = {
+  Array: {
+    from: _Array$from
+  },
+  Object: {
+    fromEntries: _Object$fromEntries
+  }
+});

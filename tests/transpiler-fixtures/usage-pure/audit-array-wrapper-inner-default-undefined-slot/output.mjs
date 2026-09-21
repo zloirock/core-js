@@ -7,14 +7,22 @@ import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 // slot keeps the native element receiver: `[{ of } = Array] = [obj]` -> `of` is `obj.of`, left native.
 // both the identification and the flatten plan resolve the same slot through one shared predicate, so
 // the two emitters stay consistent
-const from = _Array$from;
+const [{
+  from
+} = {
+  from: _Array$from
+}] = [undefined];
 const obj = {
   of: x => [x]
 };
 const [{
   of
 } = Array] = [obj];
-const fromEntries = _Object$fromEntries;
+const [{
+  fromEntries
+} = {
+  fromEntries: _Object$fromEntries
+}] = [void 0];
 export const a = from([1, 2, 3]);
 export const b = of(5);
 export const c = fromEntries([['k', 1]]);

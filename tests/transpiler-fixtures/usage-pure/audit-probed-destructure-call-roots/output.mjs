@@ -10,12 +10,36 @@ import _self from "@core-js/pure/actual/self";
 // stays verbatim in the test; an SE call must not be replayed by the discard harvest; an
 // identity-IIFE root substitutes its buried global)
 const dhPure = () => _globalThis;
-export const viaCallRootPure = ((null == dhPure().window ? void 0 : _self).Math, _Math$expm1);
+export const {
+  Math: {
+    expm1: viaCallRootPure
+  }
+} = ({} = null == dhPure().window ? void 0 : _self, {
+  Math: {
+    expm1: _Math$expm1
+  }
+});
 let callRootEff = 0;
 const dhSe = () => {
   callRootEff++;
   return _globalThis;
 };
-export const viaCallRootSe = ((null == dhSe().window ? void 0 : _self).JSON, _JSON$parse);
-export const viaCallRootIife = ((null == (x => x)(_globalThis).window ? void 0 : _self).Object, _Object$values);
+export const {
+  JSON: {
+    parse: viaCallRootSe
+  }
+} = ({} = null == dhSe().window ? void 0 : _self, {
+  JSON: {
+    parse: _JSON$parse
+  }
+});
+export const {
+  Object: {
+    values: viaCallRootIife
+  }
+} = ({} = null == (x => x)(_globalThis).window ? void 0 : _self, {
+  Object: {
+    values: _Object$values
+  }
+});
 export { callRootEff };

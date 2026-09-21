@@ -4,7 +4,11 @@ import _globalThis from "@core-js/pure/actual/global-this";
 // binding update AND the setup, each exactly once, with the inner globalThis still rewritten
 let calls = 0;
 let a;
-const from = (a = (() => {
+const [{
+  from
+}] = [((a = (() => {
   calls++;
   return _globalThis;
-})(), _Array$from);
+})()).Array, {
+  from: _Array$from
+})];

@@ -8,13 +8,34 @@ import _Promise$withResolvers from "@core-js/pure/actual/promise/with-resolvers"
 // key (`{ Ctor: { [K]: m } }`) and the OUTER ctor key (`{ [K]: { m } }`), const-bound and reassigned-
 // dominating alike. distinct static per line
 const K1 = 'groupBy';
-const gb = _Map$groupBy;
+const {
+  Map: {
+    [K1]: gb
+  }
+} = {
+  Map: {
+    groupBy: _Map$groupBy
+  }
+};
 let K2 = 'of';
 K2 = 'from';
 const af = _Array$from;
 const K3 = 'Object';
-const og = _Object$groupBy;
-const pwr = _Promise$withResolvers;
+const {
+  [K3]: {
+    groupBy: og
+  },
+  Promise: {
+    withResolvers: pwr
+  }
+} = {
+  Object: {
+    groupBy: _Object$groupBy
+  },
+  Promise: {
+    withResolvers: _Promise$withResolvers
+  }
+};
 gb([[1]]);
 af([1]);
 og([1, 2], x => x % 2);

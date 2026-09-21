@@ -57,14 +57,34 @@ export function literalHop(flag) {
 // ... and the same four off an alias whose assignment DOMINATES every read
 export function unconditionalNested() {
   var G = _globalThis;
-  const entries = _Object$entries;
+  const {
+    Object: {
+      entries
+    }
+  } = {
+    Object: {
+      entries: _Object$entries
+    }
+  };
   return entries({
     a: 1
   });
 }
 export function unconditionalHop() {
   var G = _globalThis;
-  const values = _Object$values;
+  const {
+    w: {
+      Object: {
+        values
+      }
+    }
+  } = {
+    w: {
+      Object: {
+        values: _Object$values
+      }
+    }
+  };
   return values({
     b: 2
   });
