@@ -37,7 +37,9 @@ import { SVGRenderer } from 'echarts/renderers';
 // package runs `new RegExp(..., 'u')` at MODULE LOAD. The floor reaches engines with no `u` flag -
 // IE11, and the oldest Chrome, Safari and Firefox it names - and core-js does not emulate it, so on
 // those the page dies before a check runs. The flag arrives through a variable, from a transitive
-// dependency, which is why no grep and no local tier saw it
+// dependency, which is why no grep and no local tier saw it. 4.x and its `strnum` are also the corpus'
+// only CommonJS, and what the providers inject into them is what holds the recorder in `bundle.mjs` to
+// its pass in front of `commonjs()` - a reader swapped for an ESM one takes that coverage with it
 import { XMLParser } from 'fast-xml-parser';
 import { SVGPathData } from 'svg-pathdata';
 import { checker } from './checks.mjs';

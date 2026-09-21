@@ -36,29 +36,32 @@ function entryPlugin({ exercise, entryGlobal }) {
 // NOT `importSet` next door: it folds `@core-js/pure` into `core-js`, the very thing a baseline records
 const SPEC_RE = /(?:from|import|require\()\s*["'](?<spec>(?:core-js|@core-js\/pure)\/[^"']+)["']/g;
 
-// `order: 'post'` is required, not tidy: unplugin declares one too, and an unordered recorder would run
-// first and see nothing. Ids go posix so baselines compare across platforms.
+// The recorder reads TEXT, so it answers for a specifier only while it is still spelled the way a
+// provider wrote it - and it reads at two points, because no single one sees every provider. The
+// unordered pass stands in front of `commonjs()` in the chain: by the post bucket, commonjs has turned
+// every `require` in a CommonJS module into an import of a resolved `\0` id this scan cannot read, and
+// that is where the babel-plugin and unplugin's `pre` write. The `post` pass is for unplugin's own
+// `post`, which runs in that same bucket, ahead of it and after commonjs. Ids go posix so baselines
+// compare across platforms.
 function recorder() {
   const specifiers = new Set();
   const origins = new Map();
+  function scan(code, id) {
+    for (const m of code.matchAll(SPEC_RE)) {
+      const spec = m.groups.spec.replace(/\.m?js$/, '');
+      specifiers.add(spec);
+      let where = origins.get(spec);
+      if (!where) origins.set(spec, where = new Set());
+      where.add(toPosix(relative(HERE, id)));
+    }
+    return null;
+  }
   return {
     result: () => ({ injected: [...specifiers].sort(), origins }),
-    plugin: {
-      name: 'injection-recorder',
-      transform: {
-        order: 'post',
-        handler(code, id) {
-          for (const m of code.matchAll(SPEC_RE)) {
-            const spec = m.groups.spec.replace(/\.m?js$/, '');
-            specifiers.add(spec);
-            let where = origins.get(spec);
-            if (!where) origins.set(spec, where = new Set());
-            where.add(toPosix(relative(HERE, id)));
-          }
-          return null;
-        },
-      },
-    },
+    plugins: [
+      { name: 'injection-recorder', transform: scan },
+      { name: 'injection-recorder-post', transform: { order: 'post', handler: scan } },
+    ],
   };
 }
 
@@ -91,12 +94,14 @@ function injected({ injected: specifiers }, label) {
 
 const GATES = [noExternals, es5, payload, injected];
 
-// ONE provider per bundle: both would inject the union and the cell would describe neither. Every
-// library here resolves to ESM, which is what makes injection safe - `@rollup/plugin-commonjs` refuses
-// an injected ESM import inside a CJS module unless `transformMixedEsModules` is on.
+// ONE provider per bundle: both would inject the union and the cell would describe neither. A graph may
+// hold CommonJS - echarts' does, through the packages its exercise reads the SVG with - and a provider
+// writes a `require` into such a module rather than an import, which `commonjs()` then converts with the
+// module's own; unplugin's `post` writes an import into the module it has already converted.
 export async function buildCell(cell) {
   const record = recorder();
-  // `nodeResolve` LAST: asked first it answers a bare `htmlparser2` with the published JS
+  // `nodeResolve` LAST: asked first it answers a bare `htmlparser2` with the published JS; the
+  // recorder's unordered pass in front of `commonjs()`, which rewrites what it has to read
   const bundle = await rollup({
     input: VIRTUAL_ENTRY,
     plugins: [
@@ -104,7 +109,7 @@ export async function buildCell(cell) {
       tsSources(),
       makeBabelPlugin(cell.isReference ? pluginOpts(cell) : null),
       ...cell.isReference ? [] : [unplugin.rollup(pluginOpts(cell))],
-      record.plugin,
+      ...record.plugins,
       nodeResolve(),
       commonjs(),
     ],
