@@ -1,5 +1,5 @@
-// raw regex source as string include: `es\.(array|string)\.at` does not begin with `es.`
-// (literal dot-escape), so it is not treated as a module pattern. classified as a literal
-// entry-path, matches no module, surfaces "didn't match any polyfill". users wanting
-// alternation must pass an actual RegExp object, not a regex source string. by design
+// a string `include` is raw regex source, as documented: `es\.(array|string)\.at` names the two
+// modules with an escaped dot and an alternation. the entries map decides what is an entry path;
+// a string it does not resolve is a module pattern, however entry-like or dotted it looks
 'str'.at(-1);
+[1].at(0);

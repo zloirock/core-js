@@ -12,6 +12,7 @@ import {
 import { TYPE_HINTS } from './resolve-node-type/base.js';
 import { initPluginOptions } from './plugin-options/init.js';
 import { createPolyfillContext, entryToGlobalHint, resolve } from './index.js';
+import { brand } from './helpers/error-tag.js';
 
 const { hasOwn } = Object;
 
@@ -170,10 +171,11 @@ export function createPolyfillResolver(options, {
     exclude,
     importStyle,
     shouldInjectPolyfill,
+    targetsNeedPolyfill,
     createDebugOutput,
   } = initPluginOptions(options, { getBabelTargets });
   const ctx = createPolyfillContext({
-    method, mode, version, package: pkg, additionalPackages, include, exclude, shouldInjectPolyfill,
+    method, mode, version, package: pkg, additionalPackages, include, exclude, shouldInjectPolyfill, targetsNeedPolyfill,
   });
 
   // any inherited `receiverHint` from destructure-meta is stale once `enhanceMeta` derives
@@ -259,7 +261,7 @@ export function createPolyfillResolver(options, {
       // a path-anchored codeframe (when the caller exposes one) points at the offending call
       // site, so the bad filter entry is findable without grep
       default: {
-        const msg = `[core-js] unknown filter name: ${ name }`;
+        const msg = brand(`unknown filter name: ${ name }`);
         throw typeof path?.buildCodeFrameError === 'function' ? path.buildCodeFrameError(msg) : new Error(msg);
       }
     }

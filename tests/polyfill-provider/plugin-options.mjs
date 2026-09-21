@@ -8,17 +8,20 @@ import {
 } from '../../packages/core-js-polyfill-provider/plugin-options/validate.js';
 import {
   createModuleInjectors,
+  isPolyfillModule,
   polyfillOrderComparator,
   sortByPolyfillOrder,
 } from '../../packages/core-js-polyfill-provider/plugin-options/inject.js';
 import {
   buildShouldInjectPolyfill,
+  buildTargetsNeedPolyfill,
   formatTargets,
   getUnsupportedTargets,
   resolveTargets,
 } from '../../packages/core-js-polyfill-provider/plugin-options/targets.js';
 import { createDebugOutputFactory } from '../../packages/core-js-polyfill-provider/plugin-options/debug-output.js';
 import { initPluginOptions } from '../../packages/core-js-polyfill-provider/plugin-options/init.js';
+import { createPolyfillContext } from '../../packages/core-js-polyfill-provider/index.js';
 import knownBuiltInReturnTypes from '../../packages/core-js-compat/known-built-in-return-types.json' with { type: 'json' };
 import builtInDefinitions from '../../packages/core-js-compat/built-in-definitions.json' with { type: 'json' };
 import compatEntries from '../../packages/core-js-compat/entries.json' with { type: 'json' };
@@ -327,9 +330,10 @@ doesNotThrow('validateOptions/targets object',
   () => validateOptions({ ...validBase, targets: { ie: 11 } }));
 doesNotThrow('validateOptions/targets array',
   () => validateOptions({ ...validBase, targets: ['last 2 versions'] }));
-// an empty targets OBJECT is a no-constraint object and is accepted, unlike an empty ARRAY /
-// empty STRING (both rejected below as a suspicious env-var-passthrough mistake) - asymmetry by design
-doesNotThrow('validateOptions/targets empty object OK',
+// an empty targets OBJECT passes the SHAPE check here, unlike an empty ARRAY / empty STRING (both
+// rejected below as a suspicious env-var-passthrough mistake); the engine set it resolves to is the
+// resolve step's question, and there an empty one is diagnosed (`resolveTargets` below)
+doesNotThrow('validateOptions/targets empty object passes the shape check',
   () => validateOptions({ ...validBase, targets: {} }));
 throwsWith('validateOptions/targets function',
   () => validateOptions({ ...validBase, targets: () => ({}) }),
@@ -586,25 +590,54 @@ check('sortByPolyfillOrder/single element unknown', JSON.stringify(sortByPolyfil
 
 {
   const injected = [];
-  const debugAdds = [];
   const injectors = createModuleInjectors({
     mode: 'actual',
     getModulesForEntry: entry => entry === 'actual/promise/constructor'
       ? ['es.object.to-string', 'es.promise.constructor']
       : entry === 'modules/es.array.at' ? ['es.array.at'] : [],
-    getDebugOutput: () => ({ add: m => debugAdds.push(m) }),
+    getDebugOutput: () => null,
     injectGlobal: m => injected.push(m),
+    getEmitted: () => injected,
   });
 
   injectors.injectModulesForModeEntry('promise/constructor');
   check('createModuleInjectors/forModeEntry injectGlobal[0]', injected[0], 'es.object.to-string');
   check('createModuleInjectors/forModeEntry injectGlobal[1]', injected[1], 'es.promise.constructor');
-  check('createModuleInjectors/forModeEntry debug[0]', debugAdds[0], 'es.object.to-string');
 
   injectors.injectModulesForEntry('modules/es.array.at');
   check('createModuleInjectors/forEntry injectGlobal[2]', injected[2], 'es.array.at');
-  check('createModuleInjectors/forEntry debug[2]', debugAdds[2], 'es.array.at');
 }
+
+// the report prints what the injector holds when it is asked, not a ledger of the requests: a
+// request the emission later dropped is absent, and an import the emission added without a request
+// through here (a re-homed user import) is present
+{
+  const emitted = new Set(['es.array.at']);
+  const logs = [];
+  const { log } = console;
+  console.log = (...args) => logs.push(args.join(' '));
+  try {
+    const injectors = createModuleInjectors({
+      mode: 'actual',
+      getModulesForEntry: () => ['es.array.from'],
+      getDebugOutput: () => ({ format: items => `report:${ [...items].join(',') }` }),
+      injectGlobal: m => emitted.add(m),
+      getEmitted: () => emitted,
+    });
+    injectors.injectModulesForModeEntry('array/from');
+    emitted.delete('es.array.from');
+    injectors.outputDebug();
+  } finally {
+    console.log = log;
+  }
+  checkDeep('createModuleInjectors/outputDebug prints the emitted set', logs, ['report:es.array.at']);
+}
+
+// --- isPolyfillModule ---
+
+check('isPolyfillModule/module', isPolyfillModule('es.array.at'), true);
+check('isPolyfillModule/entry path', isPolyfillModule('array/at'), false);
+check('isPolyfillModule/inherited key', isPolyfillModule('constructor'), false);
 
 // WIDENING THE MODE MAY NEVER NARROW THE INJECTED SET, over the real definitions rather than over
 // a scenario someone remembered. The receiver's own obligation is asked at the STABLE layer
@@ -703,6 +736,7 @@ check('sortByPolyfillOrder/single element unknown', JSON.stringify(sortByPolyfil
     getModulesForEntry: () => [],
     getDebugOutput: () => ({ format: () => 'debug output' }),
     injectGlobal: m => injected.push(m),
+    getEmitted: () => injected,
   });
   const savedConsole = globalThis.console;
   let threw = false;
@@ -740,6 +774,24 @@ throwsWith('resolveTargets/wraps error with prefix', () => resolveTargets({
   targets: 'not a valid browserslist query xyz',
 }), '[core-js] failed to resolve targets');
 
+// explicit targets that NAME engines and resolve to none compat knows are an EMPTY engine set, on
+// which every module answers "no target needs it": a build that polyfills nothing and says nothing.
+// that is a diagnostic, for the option and for babel's own targets alike. the empty object names no
+// engine on purpose and keeps its documented meaning (no engine to serve, nothing to polyfill); the
+// browserslist-config probe keeps its empty-means-no-config fallback (`ignoreBrowserslistConfig`
+// without targets polyfills everything, as documented)
+for (const targets of [{ op_mini: 'all' }, { browsers: {} }, { unknown_engine: '1' }]) {
+  throwsWith(`resolveTargets/explicit targets ${ JSON.stringify(targets) } resolving to no engine throw`,
+    () => resolveTargets({ targets }), '`targets` resolved to no engine');
+}
+check('resolveTargets/the empty object is the documented no-engine set', resolveTargets({ targets: {} })?.size, 0);
+throwsWith('resolveTargets/babel targets resolving to no engine throw',
+  () => resolveTargets({ getBabelTargets: () => ({ unknown_engine: '1' }) }), 'the babel targets resolved to no engine');
+check('resolveTargets/ignoreBrowserslistConfig without targets is the polyfill-everything fallback',
+  resolveTargets({ ignoreBrowserslistConfig: true }), null);
+check('resolveTargets/an empty babel targets object is "not configured", not "no engine"',
+  resolveTargets({ ignoreBrowserslistConfig: true, getBabelTargets: () => ({}) }), null);
+
 // --- buildShouldInjectPolyfill ---
 
 // no targets, no callback - everything polyfilled by default
@@ -752,6 +804,31 @@ throwsWith('resolveTargets/wraps error with prefix', () => resolveTargets({
 {
   const should = buildShouldInjectPolyfill({ include: ['es.array.at'] });
   check('buildShouldInjectPolyfill/include hits', should('es.array.at'), true);
+}
+
+// the option's FORM has one policy, the validator's: a scalar that reaches this layer is a caller
+// bug and fails here as one, instead of being quietly read as a one-element list the documented
+// input rejects (the third policy, `collectEntryPaths`, reads nothing but a list either)
+throwsWith('buildShouldInjectPolyfill/a scalar include is not coerced into a list',
+  () => buildShouldInjectPolyfill({ include: 'es.array.at' }), 'map');
+throwsWith('validateOptions/the one policy on the form rejects the scalar',
+  () => validateOptions({ ...validBase, include: 'es.array.at' }), '`include` must be an array');
+
+// --- buildTargetsNeedPolyfill ---
+
+// the targets' verdict with no user filter in it: what the helper entries are decided by
+{
+  const needsAll = buildTargetsNeedPolyfill(null);
+  check('buildTargetsNeedPolyfill/no targets need everything', needsAll('es.array.at'), true);
+  const ie = buildTargetsNeedPolyfill(resolveTargets({ targets: { ie: 11 } }));
+  check('buildTargetsNeedPolyfill/ie 11 needs es.array.at', ie('es.array.at'), true);
+  const modern = buildTargetsNeedPolyfill(resolveTargets({ targets: { chrome: 200 } }));
+  check('buildTargetsNeedPolyfill/a modern engine does not need es.array.at', modern('es.array.at'), false);
+  check('buildTargetsNeedPolyfill/a module without a compat row is needed', modern('esnext.array.unknown-proposal'), true);
+  // the fused predicate is this answer under the user filters: an exclude flips it, the targets do not
+  const should = buildShouldInjectPolyfill({ exclude: ['es.array.at'], parsedTargets: resolveTargets({ targets: { ie: 11 } }) });
+  check('buildShouldInjectPolyfill/exclude beats the targets', should('es.array.at'), false);
+  check('buildTargetsNeedPolyfill/... while the targets alone still need it', ie('es.array.at'), true);
 }
 
 // exclude wins over include
@@ -867,9 +944,18 @@ check('formatTargets/multi', formatTargets({ ie: '11', chrome: '60' }),
   const factory = createDebugOutputFactory({ method: 'usage-global', parsedTargets: parsed });
   const file1 = factory();
   const file2 = factory();
-  file1.add('es.array.at');
-  // file2's collector must not see file1's added modules
-  checkTruthy('debugOutput/per-file isolation', !file2.format().includes('es.array.at'));
+  file1.warn('file-one-note');
+  // file2's collector must not see file1's notes
+  checkTruthy('debugOutput/per-file isolation', !file2.format([]).includes('file-one-note'));
+}
+
+// the report is rendered over the EMITTED set handed to `format`: the collector keeps no ledger of
+// requests, so what it prints cannot drift from what the injector holds
+{
+  const factory = createDebugOutputFactory({ method: 'usage-global', parsedTargets: null });
+  const collector = factory();
+  checkTruthy('debugOutput/lists the emitted set', collector.format(['es.array.at']).includes('  es.array.at'));
+  checkTruthy('debugOutput/an empty emitted set is "did not add"', collector.format([]).includes('did not add any polyfill'));
 }
 
 // each listed module carries ITS OWN unsupported-target suffix. the two halves are unit-tested
@@ -880,9 +966,7 @@ check('formatTargets/multi', formatTargets({ ie: '11', chrome: '60' }),
 {
   const parsed = resolveTargets({ targets: { chrome: 60 } });
   const collector = createDebugOutputFactory({ method: 'usage-global', parsedTargets: parsed })();
-  collector.add('es.array.at');
-  collector.add('es.array.from');
-  const lines = collector.format().split('\n');
+  const lines = collector.format(['es.array.at', 'es.array.from']).split('\n');
   function lineFor(mod) {
     return lines.find(line => line.trimStart().startsWith(`${ mod } `) || line.trimStart() === mod);
   }
@@ -895,24 +979,29 @@ check('formatTargets/multi', formatTargets({ ie: '11', chrome: '60' }),
   check('debugOutput/suffix of the supported module',
     lineFor('es.array.from')?.trimStart(),
     `es.array.from ${ formatTargets(getUnsupportedTargets('es.array.from', parsed)) }`);
-  // usage-pure prints no suffix at all - the same line, the other arm
+  // the suffix belongs to a MODULE, whose compat row names the targets that made it necessary; an
+  // ENTRY (the pure emission) has no row and prints bare. the rule is per item, not per method: a
+  // report holding both prints each in its own form
   const pureCollector = createDebugOutputFactory({ method: 'usage-pure', parsedTargets: parsed })();
-  pureCollector.add('es.array.at');
-  check('debugOutput/usage-pure prints the bare module',
-    pureCollector.format().split('\n').find(line => line.trimStart().startsWith('es.array.at'))?.trimStart(), 'es.array.at');
+  const pureLines = pureCollector.format(['array/at', 'es.array.at']).split('\n');
+  check('debugOutput/an entry prints bare',
+    pureLines.find(line => line.trimStart().startsWith('array/at'))?.trimStart(), 'array/at');
+  check('debugOutput/a re-homed module prints its suffix in a pure report',
+    pureLines.find(line => line.trimStart().startsWith('es.array.at'))?.trimStart(),
+    `es.array.at ${ formatTargets(getUnsupportedTargets('es.array.at', parsed)) }`);
 }
 
 // empty modules + usage-global -> "did not add any polyfill"
 {
   const factory = createDebugOutputFactory({ method: 'usage-global', parsedTargets: null });
-  const out = factory().format();
+  const out = factory().format([]);
   checkTruthy('debugOutput/empty usage-global', out.includes('did not add any polyfill'));
 }
 
 // entry-global without markEntryFound -> "entry point not found"
 {
   const factory = createDebugOutputFactory({ method: 'entry-global', parsedTargets: null });
-  const out = factory().format();
+  const out = factory().format([]);
   checkTruthy('debugOutput/entry-global no entry found', out.includes('entry point for the core-js@4 polyfill has not been found'));
 }
 
@@ -920,9 +1009,8 @@ check('formatTargets/multi', formatTargets({ ie: '11', chrome: '60' }),
 {
   const factory = createDebugOutputFactory({ method: 'usage-global', parsedTargets: null });
   const collector = factory();
-  collector.add('es.array.at');
   collector.warn('test-warning-message');
-  const out = collector.format();
+  const out = collector.format(['es.array.at']);
   checkTruthy('debugOutput/warnings block', out.includes('Warnings:') && out.includes('test-warning-message'));
 }
 
@@ -933,8 +1021,51 @@ check('formatTargets/multi', formatTargets({ ie: '11', chrome: '60' }),
   const collector = factory();
   collector.warn('zeta-warning');
   collector.warn('alpha-warning');
-  const out = collector.format();
+  const out = collector.format([]);
   checkTruthy('debugOutput/warnings sorted', out.indexOf('alpha-warning') < out.indexOf('zeta-warning'));
+}
+
+// --- configuration -> a non-empty module set, or an explicit diagnostic ---
+
+// the product class: a configuration under which injection is entirely off with nothing said. every
+// row either polyfills the probe (`es.array.at` under ie 11, which every sane configuration owes) or
+// refuses at construction with a branded diagnostic. the rows are the silent-zero shapes found:
+// targets naming no known engine, a sticky exclude stripped to a substring, an escaped-dot regex
+// string read as an entry path, an entry included from a layer the mode does not ship, a `mode`
+// outside the enum. two silences are the user's own decision and are not rows: an exclude that
+// names everything, and the empty targets object (no engine to serve, as its fixtures document)
+{
+  const PROBE = 'actual/array/at';
+  const rows = [
+    ['control: ie 11', { method: 'usage-global', targets: { ie: 11 } }],
+    ['targets naming no known engine', { method: 'usage-global', targets: { op_mini: 'all' } }],
+    ['targets naming an unknown engine', { method: 'usage-global', targets: { unknown_engine: '1' } }],
+    ['sticky exclude', { method: 'usage-global', targets: { ie: 11 }, exclude: [/array/y] }],
+    ['escaped-dot regex string exclude', { method: 'usage-global', targets: { ie: 11 }, exclude: ['es\\.array\\.from'] }],
+    ['escaped-dot regex string exclude, pure', { method: 'usage-pure', targets: { ie: 11 }, exclude: ['es\\.array\\.from'] }],
+    ['entry included outside its mode', { method: 'usage-pure', targets: { ie: 11 }, include: ['iterator/range'] }],
+    ['entry included at its mode', { method: 'usage-pure', targets: { ie: 11 }, mode: 'full', include: ['iterator/range'] }],
+  ];
+  for (const [label, options] of rows) {
+    let outcome;
+    try {
+      const resolved = initPluginOptions({ version: '4.0', ...options });
+      const ctx = createPolyfillContext(resolved);
+      outcome = ctx.getModulesForEntry(PROBE).length ? 'polyfills' : 'silent zero';
+    } catch (error) {
+      outcome = error.message.startsWith('[core-js] ') ? 'diagnostic' : `unbranded: ${ error.message }`;
+    }
+    checkTruthy(`configuration-outcome/${ label }: ${ outcome }`, outcome === 'polyfills' || outcome === 'diagnostic');
+  }
+  // the enum on the published context surface, for a caller that never ran `initPluginOptions`
+  let direct;
+  try {
+    createPolyfillContext({ method: 'usage-global', mode: 'bogus', version: '4.0' });
+    direct = 'silent zero';
+  } catch (error) {
+    direct = error.message.startsWith('[core-js] `mode` must be one of') ? 'diagnostic' : `unbranded: ${ error.message }`;
+  }
+  check('configuration-outcome/mode outside the enum on the direct surface', direct, 'diagnostic');
 }
 
 // --- initPluginOptions: integration ---

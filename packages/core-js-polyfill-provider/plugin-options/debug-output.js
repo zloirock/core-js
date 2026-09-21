@@ -1,8 +1,9 @@
 // debug factory: when `debug: true` option is set, returns a per-file debug-output
 // collector factory. each plugin invocation calls the factory once per file so concurrent
 // transforms (Vite parallel workers, etc.) get isolated state. the collector accumulates
-// added modules + warnings + entryFound flag and renders a human-readable report at file end
-import { sortByPolyfillOrder } from './inject.js';
+// warnings + the entryFound flag and renders a human-readable report at file end over the
+// polyfills the host's injector actually emitted
+import { isPolyfillModule, sortByPolyfillOrder } from './inject.js';
 import { formatTargets, getUnsupportedTargets, targetsToObject } from './targets.js';
 
 // returns a factory: each call creates an isolated per-file debug collector
@@ -14,26 +15,27 @@ export function createDebugOutputFactory({ method, parsedTargets }) {
     ? JSON.stringify(targetsToObject(parsedTargets), null, 2)
     : '{}';
 
+  // one collector per pass: a `pre+post` file prints its one report at post, and post derives every
+  // note from its own parse of pre's output, so nothing of pre's collector has to be carried over
   return function createFileDebugOutput() {
-    const modules = new Set();
     const warnings = new Set();
     let entryFound = false;
 
     return {
-      add(mod) {
-        modules.add(mod);
-      },
       warn(message) {
         warnings.add(message);
       },
       markEntryFound() {
         entryFound = true;
       },
-      format() {
+      // `emitted`: the polyfills the injector holds at the end of the file - the side-effect modules
+      // and the pure entries, whichever the method emits. a module is attributed to the targets that
+      // made it necessary; an entry has no compat row to read
+      format(emitted) {
         // sort to match the canonical polyfill emission order (es.* before web.*, etc.)
         // so debug output is reproducible across files / parser orders / detection cadence.
         // insertion order would surface visitor traversal noise that's not user-meaningful
-        const items = sortByPolyfillOrder(modules);
+        const items = sortByPolyfillOrder(emitted);
         let result;
         if (method === 'entry-global' && !entryFound) {
           result = 'The entry point for the core-js@4 polyfill has not been found.';
@@ -42,9 +44,9 @@ export function createDebugOutputFactory({ method, parsedTargets }) {
           result = `Based on ${ scope }, the core-js@4 polyfill did not add any polyfill.`;
         } else {
           const verb = method === 'entry-global' ? 'entry has been replaced with' : 'added';
-          const polyfillLines = items.map(mod => method === 'usage-pure'
-            ? `  ${ mod }`
-            : `  ${ mod } ${ formatTargets(getUnsupportedTargets(mod, parsedTargets)) }`);
+          const polyfillLines = items.map(item => isPolyfillModule(item)
+            ? `  ${ item } ${ formatTargets(getUnsupportedTargets(item, parsedTargets)) }`
+            : `  ${ item }`);
           result = `The core-js@4 polyfill ${ verb } the following polyfills:\n${ polyfillLines.join('\n') }`;
         }
         const warningBlock = warnings.size

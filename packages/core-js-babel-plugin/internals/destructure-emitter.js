@@ -21,6 +21,7 @@ import {
   nullGuardTest,
   renderStaticDefaultGuard,
 } from '@core-js/polyfill-provider/render';
+import { brand } from '@core-js/polyfill-provider/helpers/error-tag';
 import estreeToBabel from './estree-to-babel.js';
 import { freshPathOfNode } from './detect-usage.js';
 import {
@@ -6064,7 +6065,7 @@ export default function createDestructureEmitter({
         return insertedDeclaration;
       }
       default:
-        throw new Error(`[core-js] destructure-emitter: unhandled destructure strategy ${ strategy }`);
+        throw new Error(brand(`destructure-emitter: unhandled destructure strategy ${ strategy }`));
     }
   }
 
@@ -6241,7 +6242,7 @@ export default function createDestructureEmitter({
         return host.insertBefore(assignment);
       }
       default:
-        throw new Error(`[core-js] destructure-emitter: unhandled destructure strategy ${ strategy }`);
+        throw new Error(brand(`destructure-emitter: unhandled destructure strategy ${ strategy }`));
     }
   }
 

@@ -179,6 +179,16 @@ export default class ImportInjectorState {
     return name;
   }
 
+  // what this injector emits, in the vocabulary of the debug report: the side-effect modules and,
+  // for the pure package, the entries behind its minted bindings - read once the host is done with
+  // the file, after every dedup and prune, so the report describes the emission rather than the
+  // requests that led to it. the entries drop the mode their sources carry, the spelling the
+  // user configures them in
+  emittedPolyfills() {
+    const entries = this.pureImports.keys().map(source => source.slice(this.mode.length + 1)).toArray();
+    return [...this.globalImports, ...entries];
+  }
+
   // Rehydration and incremental registration apply the same span ordering to the index.
   #importSpanIndex(primary, added = null) {
     let index = this.#importSpanIndexes.get(primary);

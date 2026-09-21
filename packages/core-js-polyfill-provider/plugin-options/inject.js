@@ -29,18 +29,20 @@ export function sortByPolyfillOrder(modules) {
   return [...modules].sort(polyfillOrderComparator);
 }
 
-// getDebugOutput returns per-file collector or null when debug is off
-export function createModuleInjectors({ mode, getModulesForEntry, getDebugOutput, injectGlobal }) {
-  function injectModule(moduleName) {
-    injectGlobal(moduleName);
-    getDebugOutput()?.add(moduleName);
-  }
+// a module the compat data knows, as opposed to an entry path the pure package imports
+export function isPolyfillModule(name) {
+  return polyfillOrder.has(name);
+}
 
+// `getDebugOutput` returns the per-file collector, or null when debug is off; `getEmitted` the
+// polyfills the host's injector holds once the file is done - after every dedup and prune - which
+// is what the report prints: the emission, not the requests that led to it
+export function createModuleInjectors({ mode, getModulesForEntry, getDebugOutput, injectGlobal, getEmitted }) {
   // returns the count of modules the entry resolved to (after mode + target filtering) so callers
   // can distinguish a recognized-but-out-of-current-layer entry (0 modules) from one that injected
   function injectModulesForEntry(entry) {
     const mods = getModulesForEntry(entry);
-    for (const mod of mods) injectModule(mod);
+    for (const mod of mods) injectGlobal(mod);
     return mods.length;
   }
 
@@ -63,7 +65,7 @@ export function createModuleInjectors({ mode, getModulesForEntry, getDebugOutput
     // be a hygiene regression in that exotic environment
     if (!debugOutput || typeof console === 'undefined') return;
     // eslint-disable-next-line no-console -- debug output
-    console.log(debugOutput.format());
+    console.log(debugOutput.format(getEmitted()));
   }
 
   return { injectModulesForEntry, injectModulesForModeEntry, isProposalEntry, outputDebug };

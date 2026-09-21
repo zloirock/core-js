@@ -355,7 +355,6 @@ export default function plugin(api, options) {
     },
     // late-bound like getInjector: the per-file injector exists only inside the program visit
     injectPureGlobal(entry, hintName) {
-      debugOutput?.add(entry);
       return injector.addPureImport(entry, hintName);
     },
     // late-bound like the injector - the synth-swap emitter exists only inside the program visit.
@@ -485,10 +484,11 @@ export default function plugin(api, options) {
         getModulesForEntry,
         getDebugOutput() { return debugOutput; },
         injectGlobal: moduleName => injector.addGlobalImport(moduleName),
+        // the report reads the injector once the file is done, so a per-file injector is read late
+        getEmitted: () => injector?.emittedPolyfills() ?? [],
       });
 
       function injectPureImport(entry, hint) {
-        debugOutput?.add(entry);
         return injector.addPureImport(entry, hint);
       }
 
@@ -2630,17 +2630,17 @@ export default function plugin(api, options) {
       }
 
       // wrap a plugin-lifecycle handler (pre / post / programExit / Program.exit visitor)
-      // so any thrown error picks up the current file's id before re-propagation. babel
-      // itself decorates errors with file context at top-level transform boundary, but
-      // messages emitted from pre/post + programExit-deep helper calls round-trip without
-      // it; this wrapper closes that gap. visitor handlers receive `this === pluginPass`
-      // from babel just like pre/post, so the same wrapper covers all four call shapes
-      function withFileTag(fn) {
+      // so any thrown error carries the brand before re-propagation. the file is babel's to name:
+      // `@babel/core` (7 and 8 alike) prefixes `<filename>: ` - or `unknown file: ` - to every
+      // error leaving pre / traverse / post, so a file tag of our own printed the path twice.
+      // visitor handlers receive `this === pluginPass` from babel just like pre/post, so the
+      // same wrapper covers all four call shapes
+      function withBrand(fn) {
         return function wrappedHandler(...args) {
           try {
             return fn.apply(this, args);
           } catch (error) {
-            tagError(error, this?.file?.opts?.filename);
+            tagError(error);
             throw error;
           }
         };
@@ -2649,12 +2649,12 @@ export default function plugin(api, options) {
       // --- mode-specific plugin objects ---
 
       // every pre/post handler below is a named function expression, not an arrow, because it needs
-      // babel's `this` (`this === pluginPass`, carrying `.file.path` and `.file.opts.filename` for
-      // `withFileTag`); an arrow would inherit the enclosing IIFE-scope `this` and drop the file
+      // babel's `this` (`this === pluginPass`, carrying `.file.path`); an arrow would inherit the
+      // enclosing IIFE-scope `this` and drop the file
 
       if (method === 'entry-global') {
         return {
-          pre: withFileTag(function entryGlobalPre() {
+          pre: withBrand(function entryGlobalPre() {
             // an uninitialized file must not reach the flush below: the injector would still be the
             // PREVIOUS file's, and flushing it emits into a program it does not belong to
             if (!beginFile(this.file.path)) return;
@@ -2678,7 +2678,7 @@ export default function plugin(api, options) {
             originalBodyNodes = new WeakSet(this.file.path.node.body);
           }),
           visitor: {},
-          post: withFileTag(function entryGlobalPost() {
+          post: withBrand(function entryGlobalPost() {
             // the twin of `postHook`'s first line, for the same reasons spelled out there: last
             // reachable point, and ahead of every bail because a skipped file is reprinted too
             restoreParenCompensations(this.file?.path, parensPending ? null : originalBodyNodes);
@@ -2705,20 +2705,20 @@ export default function plugin(api, options) {
           injectModulesForModeEntry, injectModulesForEntry, isDisabled, isWebpack,
         });
         return {
-          pre: withFileTag(function usageGlobalPre() {
+          pre: withBrand(function usageGlobalPre() {
             preTraverse(this.file.path, mergeVisitors(usageVisitors, syntaxVisitors));
           }),
-          visitor: { Program: { exit: withFileTag(programExit) } },
-          post: withFileTag(postHook),
+          visitor: { Program: { exit: withBrand(programExit) } },
+          post: withBrand(postHook),
         };
       }
 
       return {
-        pre: withFileTag(function usagePurePre() {
+        pre: withBrand(function usagePurePre() {
           preTraverse(this.file.path, usageWalkVisitors);
         }),
-        visitor: { Program: { exit: withFileTag(programExit) } },
-        post: withFileTag(postHook),
+        visitor: { Program: { exit: withBrand(programExit) } },
+        post: withBrand(postHook),
       };
     })(),
     /* eslint-enable max-statements -- close defer-block opened above */
