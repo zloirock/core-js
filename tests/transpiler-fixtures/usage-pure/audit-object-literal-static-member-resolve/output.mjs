@@ -16,7 +16,15 @@ const withComputed = {
   N: Array,
   ["N"]: _Promise
 };
-const allSettled = _Promise$allSettled;
+const {
+  N: {
+    allSettled
+  }
+} = {
+  N: {
+    allSettled: _Promise$allSettled
+  }
+};
 export const viaComputed = allSettled([]);
 
 // An unknown computed key may replace the slot; dispatch on the stored constructor.
@@ -64,5 +72,13 @@ export function accessorBails() {
 const clean = {
   S: _Iterator
 };
-const from = _Iterator$from;
+const {
+  S: {
+    from
+  }
+} = {
+  S: {
+    from: _Iterator$from
+  }
+};
 export const viaClean = from([3, 4]);

@@ -17,5 +17,13 @@ const cleanBox = {
   k: Object
 };
 void tagShape`plain`;
-const keys = _Object$keys;
+const {
+  k: {
+    keys
+  }
+} = {
+  k: {
+    keys: _Object$keys
+  }
+};
 export { values, keys };

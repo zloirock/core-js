@@ -1,11 +1,6 @@
-// A leaf whose target is a MEMBER SLOT takes the static's ponyfill exactly as a binding leaf does:
-// the extraction writes it into the slot the source named (`box.race = _Promise$race`). What decides
-// is the target's ROOT, never that the target is a member - a root that stands for a global would
-// make the write install the ponyfill in the realm, which pure never does, so only a root the value
-// canon proves ordinary (a local binding holding no realm object) takes the extraction. A leaf whose
-// key names no polyfillable static of the ctor keeps reading through the residual, which re-anchors
-// on the ctor's pure binding as always, and a leaf DEFAULT is dead text over an import that is never
-// undefined, so it drops the way a binding leaf's does.
+// A static assigned to a local member target receives its pure method.
+// Targets that would mutate a global stay native; residual members keep their constructor.
+// Defaults over a defined pure static remain dead.
 const box = {};
 let S, of, race, customZ;
 

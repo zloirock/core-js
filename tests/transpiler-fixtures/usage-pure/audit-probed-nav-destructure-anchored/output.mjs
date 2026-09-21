@@ -6,15 +6,20 @@ import _Object$freeze from "@core-js/pure/actual/object/freeze";
 import _Object$keys from "@core-js/pure/actual/object/keys";
 import _Reflect$ownKeys from "@core-js/pure/actual/reflect/own-keys";
 import _self from "@core-js/pure/actual/self";
-var _ref;
-// Object-rest keeps named slots at that level and reads through it native in usage-pure.
-// Independent reads and key/default expressions still receive their own polyfills.
 // A computed static leaf captures the guarded Object value first.
 // An absent nav throws before the key effect; a defined nav runs the key effect
 // before initializing the pure binding.
 
 let f1 = 0;
-export const viaAnchoredSealedSeKey = (_ref = (null == _globalThis.window ? void 0 : _self).Object, null == _ref ? _ref[""] : (f1++, _Object$freeze));
+export const {
+  Object: {
+    [(f1++, 'freeze')]: viaAnchoredSealedSeKey
+  }
+} = ({} = null == _globalThis.window ? void 0 : _self, {
+  Object: {
+    freeze: _Object$freeze
+  }
+});
 export { f1 };
 
 // unresolvable custom leaf under a resolvable ctor hop: the residual re-anchors onto the
@@ -30,9 +35,37 @@ export const {
 
 // FULL consume: the extraction carries the guarded anchor read as a throw probe, once per
 // pattern (native throws before any prop read)
-export const viaAnchoredSealedFull = ((null == _globalThis.window ? void 0 : _self).JSON, _JSON$stringify); // DEFINED navs keep the plain anchored collapses - no guard, no probe
-export const viaDefinedAnchoredTrunc = _Math$trunc;
-export const viaDefinedAnchoredOwnKeys = _Reflect$ownKeys; // for-init hosts ride the same guard renders (member-read anchor in the for-head, SE-key
+export const {
+  JSON: {
+    stringify: viaAnchoredSealedFull
+  }
+} = ({} = null == _globalThis.window ? void 0 : _self, {
+  JSON: {
+    stringify: _JSON$stringify
+  }
+});
+
+// DEFINED navs keep the plain anchored collapses - no guard, no probe
+export const {
+  Math: {
+    trunc: viaDefinedAnchoredTrunc
+  }
+} = {
+  Math: {
+    trunc: _Math$trunc
+  }
+};
+export const {
+  Reflect: {
+    ownKeys: viaDefinedAnchoredOwnKeys
+  }
+} = {
+  Reflect: {
+    ownKeys: _Reflect$ownKeys
+  }
+};
+
+// for-init hosts ride the same guard renders (member-read anchor in the for-head, SE-key
 // leaf via the trailing sink declarator)
 let f2 = 0;
 for (const {
@@ -41,7 +74,7 @@ for (const {
   void viaForInitAnchor;
 }
 let f3 = 0;
-for (const _ref2 = (null == _globalThis.window ? void 0 : _self).Object, viaForInitSeKey = null == _ref2 ? _ref2[""] : (f3++, _Object$keys); f3 < 2;) {
+for (const _ref = (null == _globalThis.window ? void 0 : _self).Object, viaForInitSeKey = null == _ref ? _ref[""] : (f3++, _Object$keys); f3 < 2;) {
   void viaForInitSeKey;
   break;
 }
@@ -58,7 +91,10 @@ export const {
 export const viaDefinedRoot = _Array$of;
 export const viaResolvableHop = _Array$of;
 export const viaAllPlainNav = _Array$of;
-export const {
-  of: viaPartialConsume,
-  ...viaPartialRest
-} = _globalThis.window?.Array;
+const _ref2 = _globalThis.window?.Array,
+  viaPartialConsume = null == _ref2 ? _ref2[""] : _Array$of,
+  {
+    of: _unused,
+    ...viaPartialRest
+  } = _ref2;
+export { viaPartialConsume, viaPartialRest };

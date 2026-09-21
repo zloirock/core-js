@@ -2,36 +2,30 @@ import _globalThis from "@core-js/pure/actual/global-this";
 import _Map from "@core-js/pure/actual/map";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Set from "@core-js/pure/actual/set/constructor";
-// A constructor this file STORES into a container slot must bind the entry that carries the ctor's
-// own statics, because pure substitutes its binding into that slot and a read can come back off it
-// where no rewrite reaches - the bare `*/constructor` module installs none of them, so `_Map.groupBy`
-// answers `undefined` where the realm's own `Map.groupBy` answers the function. Object-rest is the
-// shape that exposes it: it stops the extraction at that level, so the static read stays native and
-// lands on the substituted slot. The container names its slot however it likes - shorthand, a
-// renamed key, an array index - and the obligation follows the VALUE it stores, not the key.
+// A constructor stored in a container carries its statics for reads the transform cannot replace.
+// The obligation follows the stored value through named properties and array slots.
 const shorthand = {
   Map: _Map
 };
+const viaShorthand = _Map$groupBy;
 const {
-  Map: {
-    groupBy: viaShorthand
-  },
+  Map: _unused,
   ...shorthandRest
 } = shorthand;
 const renamed = {
   M: _Map
 };
+const viaRenamed = _Map$groupBy;
 const {
-  M: {
-    groupBy: viaRenamed
-  },
+  M: _unused2,
   ...renamedRest
 } = renamed;
 const indexed = [_Map];
-const [{
-  groupBy: viaIndex,
-  ...indexRest
-}] = indexed;
+const [_ref] = indexed,
+  {
+    groupBy: viaIndex,
+    ...indexRest
+  } = _Map;
 // ... and a SELECTION between values reaches every arm, so a container standing as one arm owes the
 // same entry - the arm a run takes is not the census's to decide
 const selected = {
@@ -51,7 +45,19 @@ const reached = {
     return _globalThis;
   }
 };
-const viaGetter = _Map$groupBy;
+const {
+  realm: {
+    Map: {
+      groupBy: viaGetter
+    }
+  }
+} = {
+  realm: {
+    Map: {
+      groupBy: _Map$groupBy
+    }
+  }
+};
 const custom = {
   Set: _Set
 };

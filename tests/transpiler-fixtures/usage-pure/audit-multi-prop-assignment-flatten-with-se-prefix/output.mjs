@@ -4,6 +4,18 @@ import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 // outer props without rest spread. the side effect lifts as a standalone statement before
 // the polyfill assigns; the empty destructure is removed (no consumers left)
 let from, fromEntries;
-sideEffect();
-from = _Array$from;
-fromEntries = _Object$fromEntries;
+({
+  Array: {
+    from
+  },
+  Object: {
+    fromEntries
+  }
+} = (sideEffect(), {
+  Array: {
+    from: _Array$from
+  },
+  Object: {
+    fromEntries: _Object$fromEntries
+  }
+}));

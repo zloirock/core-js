@@ -6,5 +6,17 @@ import _globalThis from "@core-js/pure/actual/global-this";
 const ns = {
   root: _globalThis
 };
-const from = _Array$from;
+const {
+  root: {
+    Array: {
+      from
+    }
+  }
+} = {
+  root: {
+    Array: {
+      from: _Array$from
+    }
+  }
+};
 export const arr = from([1, 2, 3]);

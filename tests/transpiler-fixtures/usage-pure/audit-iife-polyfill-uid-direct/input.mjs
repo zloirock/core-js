@@ -7,7 +7,7 @@ const out1 = _Promise.resolve(1).then(v => v + 1);
 // inline arrow whose body returns a polyfill-bound Identifier: `() => _Map`. the receiver call
 // `f()` inline-resolves to the Map constructor, and the instance-method `.keys` is gated off it:
 // keys lives on `Map.prototype`, not on the constructor itself, so no polyfill emits and the call
-// stays `_Map.keys()` - a runtime TypeError, exactly as the original `f().keys()`
+// stays `f().keys()` and keeps its original runtime TypeError
 import _Map from "@core-js/pure/actual/map/constructor";
 const f = () => _Map;
 const out2 = f().keys();

@@ -1,7 +1,5 @@
-// Object-rest keeps named slots at that level and reads through it native in usage-pure.
-// Independent reads and key/default expressions still receive their own polyfills.
-// probe corpus of the defense cycles over the destructure wrappers, family "other", part 8:
-// every block is one probed form, self-contained over the header bindings, locked on both legs
+// Nested literal containers preserve sibling effects and receiver uncertainty.
+// Object rest keeps instance slots native; proven static leaves receive their pure entries.
 let pick = 1;
 const c = 1;
 const userObj = {};

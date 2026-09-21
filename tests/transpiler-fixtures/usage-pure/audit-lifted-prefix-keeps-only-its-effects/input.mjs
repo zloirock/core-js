@@ -1,8 +1,5 @@
-// a lifted prefix keeps exactly what can be observed: the statement it becomes discards every value,
-// so an effect-free element is a comma the source wrote rather than work it did, and a prefix with
-// nothing to observe leaves no statement at all. the trim is one canon for every channel that lifts
-// one - the whole-prefix one a discarded receiver takes, and the per-element one the surviving
-// residual, the nested flatten, the array wrapper and the bodyless slot print.
+// Discarded receiver prefixes preserve their observable effects once.
+// Effect-free reads need no replay; prefixes kept inside a live expression retain their source order.
 function eff() {}
 function eff2() {}
 let a, b, c, d, e;

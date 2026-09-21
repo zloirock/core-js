@@ -10,8 +10,6 @@ import _Object$hasOwn from "@core-js/pure/actual/object/has-own";
 import _Object$is from "@core-js/pure/actual/object/is";
 import _Object$keys from "@core-js/pure/actual/object/keys";
 import _Object$values from "@core-js/pure/actual/object/values";
-// Object-rest keeps the affected loop pattern native at its original evaluation point.
-// Independent reads and key/default expressions still receive their own polyfills.
 // probe corpus of the defense cycles over the destructure wrappers, family "forx", part 1:
 // every block is one probed form, self-contained over the header bindings, locked on both legs
 let pick = 1;
@@ -141,9 +139,12 @@ function mark(t, v) {
   }]]) entries;
 }
 {
-  for (const [{
-    hasOwn
-  }] of [[Object], [, Object]]) hasOwn;
+  for (const _ref5 of [[Object], [, Object]]) {
+    let [{
+      hasOwn
+    }] = _ref5;
+    hasOwn;
+  }
 }
 {
   for (const [{
@@ -187,9 +188,9 @@ function mark(t, v) {
   }]]) values;
 }
 {
-  for (const _ref6 of [[Object], [userObj]]) {
-    let [_ref5] = _ref6;
-    let values = _values(_ref5);
+  for (const _ref7 of [[Object], [userObj]]) {
+    let [_ref6] = _ref7;
+    let values = _values(_ref6);
     values;
   }
 }
@@ -201,11 +202,11 @@ function mark(t, v) {
   }]]) values;
 }
 {
-  for (const _ref8 of [[r]]) {
-    let [_ref7] = _ref8;
-    let _ref9 = _ref7.w;
-    let values = _values(_ref9);
-    let at = _at(_ref7.y);
+  for (const _ref9 of [[r]]) {
+    let [_ref8] = _ref9;
+    let _ref10 = _ref8.w;
+    let values = _values(_ref10);
+    let at = _at(_ref8.y);
     [values, at];
   }
 }
@@ -217,14 +218,23 @@ function mark(t, v) {
 }
 {
   for (const _r of [[Object]]) {
-    let [_ref10] = _r;
-    let values = _values(_ref10);
+    let [{
+      values
+    }] = _r;
     values;
   }
 }
 {
   for (const _r of [_globalThis]) {
-    let from = _Array$from;
+    let {
+      Array: {
+        from
+      }
+    } = {
+      Array: {
+        from: _Array$from
+      }
+    };
     from;
   }
 }
@@ -287,10 +297,9 @@ function mark(t, v) {
   for (const _r of [{
     w: Object
   }]) {
+    let entries = _Object$entries;
     let {
-      w: {
-        entries
-      },
+      w: _unused,
       ...rest
     } = _r;
     entries;

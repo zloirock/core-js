@@ -1,12 +1,5 @@
-// An SE-key static under a CONSTRUCTOR hop owes the receiver spelling its non-SE twin gets on the
-// same host: the MIRROR literal, one import per member read and the key left in the untouched LHS,
-// where its effect runs exactly once. The capture that owned this before bound the realm's own key -
-// nothing on an engine without the constructor - and its guard turned that miss into a throw.
-// The boundary - a hop naming a global with no constructor ponyfill, whose realm read is present on
-// every floor and keeps its fold - is pinned by the corpus row of the same name, which asks for the
-// runtime and the import parity rather than for a spelling neither binding owes the other. The
-// sibling row carries a sidecar: one binding renames the consumed slot to a sentinel where the other
-// drops it, and reading a slot off a literal we minted has no effect either way.
+// Computed keys under a constructor hop keep their original effects and receive pure statics.
+// Sibling statics share the mirror; a missing native constructor must not cause an extra throw.
 let n = 0;
 const { Promise: { [(n++, 'race')]: sole } } = globalThis;
 const { Promise: { [(n++, 'all')]: sibling, allSettled } } = globalThis;

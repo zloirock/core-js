@@ -3,34 +3,51 @@ import _Array$fromAsync from "@core-js/pure/actual/array/from-async";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
-// a BODYLESS control-slot host with an SE-bearing init: the SE lift block-wraps the
-// statement in place, so the flatten render must re-anchor onto the moved declaration
-// (a stale path pointed at the wrapper block and built an invalid declaration - a hard
-// build abort on valid input). the effect stays inside the guarded block
+// Bodyless control statements keep initializer effects and pure bindings under the same guard.
 const seen = [];
 const eff = t => (_pushMaybeArray(seen).call(seen, t), t);
 let c = 1;
-if (c) {
-  eff('a');
-  var from = _Array$from;
-}
+if (c) var {
+  Array: {
+    from
+  }
+} = (eff('a'), {
+  Array: {
+    from: _Array$from
+  }
+});
 
 // array-wrapped twin: the wrapper descent and the block-wrap compose
-if (c) {
-  eff('b');
-  var of = _Array$of;
-}
+if (c) var [{
+  Array: {
+    of
+  }
+}] = [(eff('b'), {
+  Array: {
+    of: _Array$of
+  }
+})];
 
 // bodyless loop arm
-while (c--) {
-  eff('c');
-  var fromAsync = _Array$fromAsync;
-}
+while (c--) var {
+  Array: {
+    fromAsync
+  }
+} = (eff('c'), {
+  Array: {
+    fromAsync: _Array$fromAsync
+  }
+});
 
 // assignment host on a bodyless slot keeps its own channel
 let groupBy;
-if (seen.length) {
-  eff('d');
-  groupBy = _Map$groupBy;
-}
+if (seen.length) ({
+  Map: {
+    groupBy
+  }
+} = (eff('d'), {
+  Map: {
+    groupBy: _Map$groupBy
+  }
+}));
 export { from, of, fromAsync, groupBy, seen };

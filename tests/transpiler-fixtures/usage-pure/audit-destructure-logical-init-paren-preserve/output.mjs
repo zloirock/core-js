@@ -1,15 +1,19 @@
+import _Array$from from "@core-js/pure/actual/array/from";
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Map from "@core-js/pure/actual/map/constructor";
-import _Set from "@core-js/pure/actual/set/constructor";
-import _WeakMap from "@core-js/pure/actual/weak-map/constructor";
-// Object-rest keeps named slots at that level and reads through it native in usage-pure.
-// Independent reads and key/default expressions still receive their own polyfills.
+import _Map from "@core-js/pure/actual/map";
+import _Map$groupBy from "@core-js/pure/actual/map/group-by";
+import _Set from "@core-js/pure/actual/set";
+import _WeakMap from "@core-js/pure/actual/weak-map";
+const from = _Array$from;
+// Constructor rest uses the full index where a constructor entry exists.
+// Other sources keep their rest exclusions and independently claimed statics.
 const {
-  from,
+  from: _unused,
   ...rest
 } = _globalThis.Array ?? (_Set || _Map);
+const groupBy = _Map$groupBy;
 const {
-  groupBy,
+  groupBy: _unused2,
   ...others
 } = _Map ?? (_WeakMap || _Set);
 export { from, rest, groupBy, others };

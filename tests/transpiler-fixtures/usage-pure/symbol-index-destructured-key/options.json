@@ -1,0 +1,14 @@
+{
+  "plugins": [
+    [
+      "@core-js",
+      {
+        "method": "usage-pure",
+        "mode": "full",
+        "targets": {
+          "ie": 11
+        }
+      }
+    ]
+  ]
+}

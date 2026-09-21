@@ -7,8 +7,16 @@ var _ref;
 // one comma-joined declaration; the residual `seed` default `[5].at(0)` must still be polyfilled
 // in place. its memo `_ref` binding is declared BEFORE the loop, not inside the body after its
 // use in the header (distinct instance `at` vs the flattened static `from`)
-for (var from = _Array$from, {
-    seed = _atMaybeArray(_ref = [5]).call(_ref, 0)
-  } = _globalThis; seed; seed--) {
+for (var {
+  Array: {
+    from
+  },
+  seed = _atMaybeArray(_ref = [5]).call(_ref, 0)
+} = {
+  Array: {
+    from: _Array$from
+  },
+  seed: _globalThis.seed
+}; seed; seed--) {
   from([seed]);
 }

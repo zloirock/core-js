@@ -7,9 +7,18 @@ import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 // so this case cannot share a module with the pristine spellings.
 _globalThis.Symbol = Fake;
 const {
-  [Symbol.iterator]: kept
-} = _Map;
-const fe = _Object$fromEntries;
+  Map: {
+    [Symbol.iterator]: kept
+  },
+  Object: {
+    fromEntries: fe
+  }
+} = {
+  Map: _Map,
+  Object: {
+    fromEntries: _Object$fromEntries
+  }
+};
 kept;
 fe(x);
 export { kept, fe };

@@ -1,5 +1,6 @@
-// Object-rest keeps named slots at that level and reads through it native in usage-pure.
-// Independent reads and key/default expressions still receive their own polyfills.
+import _Array$of from "@core-js/pure/actual/array/of";
+// Claimed statics retain their polyfills beside object rest.
+// Rest keeps its source and exclusions; instance slots remain native.
 const tagged = function tag({
   from,
   ...rest
@@ -13,9 +14,10 @@ const anonymous = function ({
   return [from, rest];
 }`y`;
 const invoked = function keep({
-  of,
+  of: _unused,
   ...others
 } = Array) {
+  let of = _Array$of;
   return [of, others];
 }();
 export default [anonymous, invoked, tagged];

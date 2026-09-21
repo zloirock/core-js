@@ -7,15 +7,23 @@ import _globalThis from "@core-js/pure/actual/global-this";
 // SwitchStatement as block scope, else `[globalThis].values()` is wrongly aliased to `_globalThis`
 // the DISCRIMINANT is evaluated in the ENCLOSING scope (before the case block's lexical
 // environment exists), so the case-body `let` must NOT shadow it - it still substitutes
-const from = _Array$from;
-const val = function (kind) {
-  var _ref, _ref2;
-  switch (kind === 'a' ? _globalThis : kind) {
-    case 'a':
-      let globalThis = 'shadow';
-      return _valuesMaybeArray(_ref = [globalThis]).call(_ref);
-    default:
-      return _valuesMaybeArray(_ref2 = []).call(_ref2);
-  }
-}('a');
+const {
+    Array: {
+      from
+    }
+  } = {
+    Array: {
+      from: _Array$from
+    }
+  },
+  val = function (kind) {
+    var _ref, _ref2;
+    switch (kind === 'a' ? _globalThis : kind) {
+      case 'a':
+        let globalThis = 'shadow';
+        return _valuesMaybeArray(_ref = [globalThis]).call(_ref);
+      default:
+        return _valuesMaybeArray(_ref2 = []).call(_ref2);
+    }
+  }('a');
 export { from, val };

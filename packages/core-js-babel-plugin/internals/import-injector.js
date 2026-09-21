@@ -181,8 +181,7 @@ export default class ImportInjector extends ImportInjectorState {
     return this.#memoDeclarators.get(name) ?? null;
   }
 
-  generateDeclaredRef(scope, useNode) {
-    const id = this.#generateRefId(scope);
+  generateDeclaredRef(scope, useNode, id = this.#generateRefId(scope)) {
     // `scope.push` unshifts `var _ref;` into the scope's own block. when the use site sits in a
     // HEADER/SIGNATURE position - a loop header or a function parameter list - that block-hosted var
     // is unreachable from the use, so hoist to the enclosing scope instead (matching unplugin's
@@ -275,9 +274,8 @@ export default class ImportInjector extends ImportInjectorState {
   // must run post-pass: in-visit block-convert races with sibling `replaceWith` calls whose
   // container pointers still point at the pre-convert arrow.body slot - they clobber the
   // new block when they fire.
-  // safety: `refNames.has(p.name)` requires the trailing param to be in `declaredRefNames`,
-  // which only contains names this injector allocated. user-written `_ref` params never enter
-  // it because `generateRefName` consults `scope.hasBinding` to skip them
+  // Only trailing refs or unused sentinels allocated by this injector may move. The minters
+  // avoid existing bindings, so a user-written parameter with a similar name stays in place.
   normalizeArrowRefParams() {
     // the walk is needed only when at least one `scope.push` landed a ref OUTSIDE a var
     // declaration (trailing param / any unlocatable landing). it stays a WHOLE-program
@@ -287,13 +285,14 @@ export default class ImportInjector extends ImportInjectorState {
     if (!this.#hasParamLandedRef) return;
     const t = this.#t;
     const refNames = this.declaredRefNames;
+    const isSentinel = this.hasGeneratedUnusedName.bind(this);
     function normalize(path) {
       const params = path.node?.params;
       if (!params) return;
       let n = params.length;
       while (n > 0) {
         const p = params[n - 1];
-        if (p?.type !== 'Identifier' || !refNames.has(p.name)) break;
+        if (p?.type !== 'Identifier' || (!refNames.has(p.name) && !isSentinel(p.name))) break;
         n--;
       }
       if (n === params.length) return;

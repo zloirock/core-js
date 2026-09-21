@@ -1,5 +1,4 @@
-// Object-rest keeps named slots at that level and reads through it native in usage-pure.
-// Independent reads and key/default expressions still receive their own polyfills.
+// Instance reads preserve receiver, key and default order across host forms.
 const log = [];
 const k = tag => (log.push(tag), tag);
 const { [k('at')]: viaSeq, [k('flat')]: viaSeqFlat, z } = eff(), viaSeqTail = 1;

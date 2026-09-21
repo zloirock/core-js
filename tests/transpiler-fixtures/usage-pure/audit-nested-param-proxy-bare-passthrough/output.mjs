@@ -17,9 +17,7 @@ function selfProxy({
   Array: {
     of: _Array$of
   },
-  Math: {
-    floor: _self.Math.floor
-  }
+  Math: _self.Math
 }) {
   return [of, floor];
 }
@@ -34,9 +32,7 @@ function windowProxy({
   Object: {
     fromEntries: _Object$fromEntries
   },
-  Array: {
-    isArray: window.Array.isArray
-  }
+  Array: window.Array
 }) {
   return [fromEntries, isArray];
 }

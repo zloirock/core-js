@@ -5,7 +5,13 @@ import _Set from "@core-js/pure/actual/set/constructor";
 // each inner reference (`Set`, `Map`) needs its own polyfill emission - the lift mechanism
 // preserves the SE expressions and natural visitor pass picks up each global usage
 const arr = [1, 2];
-new _Set(arr);
-new _Map();
-const from = _Array$from;
+const {
+  Array: {
+    from
+  }
+} = (new _Set(arr), new _Map(), {
+  Array: {
+    from: _Array$from
+  }
+});
 export { from };

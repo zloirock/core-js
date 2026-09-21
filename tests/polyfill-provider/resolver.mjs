@@ -430,6 +430,12 @@ function makeTypedEnv(objType, hint) {
 }
 const typedMemberPath = { node: { type: 'MemberExpression' }, parent: {}, parentPath: null, get: () => null };
 const typedOptions = { method: 'usage-global', version: '4.0', targets: { ie: 11 } };
+for (const [hint, expected] of [['set', false], ['array', false], ['number', false], ['function', true], ['object', true], [null, true]]) {
+  const { resolver } = createPolyfillResolver(typedOptions, makeTypedEnv(null, hint));
+  check(`parameter static candidate/${ hint }`, !!resolver.resolveUsage({
+    kind: 'property', placement: 'static', object: 'Object', key: 'values', parameterStaticCandidate: true,
+  }, typedMemberPath), expected);
+}
 {
   const { resolver } = createPolyfillResolver(typedOptions, makeTypedEnv({ primitive: false, constructor: 'Element' }, 'element'));
   check('enhanceMeta/a known type outside the hint domain takes the desc rest',

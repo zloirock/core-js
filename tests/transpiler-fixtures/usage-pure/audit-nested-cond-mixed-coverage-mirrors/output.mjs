@@ -1,4 +1,6 @@
+import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$of from "@core-js/pure/actual/array/of";
+import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 // a MIXED nested mirror: the polyfillable leaf takes its import, the always-present
@@ -29,12 +31,16 @@ const {
 } = useGlobal ? _globalThis : userObj;
 export { alone };
 
-// NEGATIVE: a wks-key sibling still declines the nested mirror on both legs - the raw
-// key-swap keeps parity (the wks admission is a joint follow-up)
+// A symbol slot passes through beside the mirrored static; the foreign branch stays native.
 const {
   Array: {
     from: mixedFrom,
     [_Symbol$iterator]: mixedIt
   }
-} = useGlobal ? _globalThis : userObj;
+} = useGlobal ? {
+  Array: {
+    from: _Array$from,
+    [_Symbol$iterator]: _getIteratorMethod(_globalThis.Array)
+  }
+} : userObj;
 export { mixedFrom, mixedIt };

@@ -1,4 +1,4 @@
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
 import _self from "@core-js/pure/actual/self";
 // optional proxy chains in a body-extracted param default collapse onto the substituted
 // root with exactly ONE connector: an optional ROOT connector belongs to the root rewrite

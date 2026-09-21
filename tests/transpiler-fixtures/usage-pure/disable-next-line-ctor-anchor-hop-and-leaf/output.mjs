@@ -16,5 +16,13 @@ const {
     groupBy: leafOptOut
   }
 } = _globalThis;
-const live = _Array$from;
+const {
+  Array: {
+    from: live
+  }
+} = {
+  Array: {
+    from: _Array$from
+  }
+};
 use(hopOptOut, leafOptOut, live);

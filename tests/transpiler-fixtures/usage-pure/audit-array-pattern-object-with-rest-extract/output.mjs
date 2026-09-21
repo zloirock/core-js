@@ -1,9 +1,13 @@
-// Object-rest keeps named slots at that level and reads through it native in usage-pure.
-// Independent reads and key/default expressions still receive their own polyfills.
-const [{
-  from,
-  ...rest
-}] = [Array];
+import _Array$from from "@core-js/pure/actual/array/from";
+// Claimed statics retain their polyfills beside object rest.
+// Rest keeps its source and exclusions; instance slots remain native.
+const [_ref] = [Array],
+  _ref2 = _ref,
+  from = null == _ref2 ? _ref2[""] : _Array$from,
+  {
+    from: _unused,
+    ...rest
+  } = _ref2;
 from([1]);
 rest;
 const nb = {

@@ -1,78 +1,165 @@
 import _Array$of from "@core-js/pure/actual/array/of";
 import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
-// Object-rest keeps named slots at that level and reads through it native in usage-pure.
-// Independent reads and key/default expressions still receive their own polyfills.
+// Claimed statics retain their polyfills beside object rest.
+// Rest keeps its source and exclusions; instance slots remain native.
 const c = 1;
 function eff() {}
-const _ref = _Array$of;
-const viaFlat = _nameMaybeFunction(_ref);
 const {
-  foo: f1
-} = _ref;
-const _ref2 = _Array$of;
-const viaDefault = _nameMaybeFunction(_ref2);
+  of: {
+    name: viaFlat,
+    foo: f1
+  }
+} = {
+  of: {
+    name: _nameMaybeFunction(_Array$of),
+    foo: _Array$of.foo
+  }
+};
 const {
-  foo: f2
-} = _ref2;
-const _ref3 = _Array$of;
-const viaWrapped = _nameMaybeFunction(_ref3);
+  of: {
+    name: viaDefault,
+    foo: f2
+  } = {}
+} = {
+  of: {
+    name: _nameMaybeFunction(_Array$of),
+    foo: _Array$of.foo
+  }
+};
 const [{
-  foo: f3
-}] = [_ref3];
-const _ref4 = _Array$of;
-const viaWrappedDefault = _nameMaybeFunction(_ref4);
+  of: {
+    name: viaWrapped,
+    foo: f3
+  }
+}] = [{
+  of: {
+    name: _nameMaybeFunction(_Array$of),
+    foo: _Array$of.foo
+  }
+}];
 const [{
-  foo: f4
-}] = [_ref4];
-const _ref5 = _Array$of;
-const viaWrappedSibling = _nameMaybeFunction(_ref5);
+  of: {
+    name: viaWrappedDefault,
+    foo: f4
+  } = {}
+}] = [{
+  of: {
+    name: _nameMaybeFunction(_Array$of),
+    foo: _Array$of.foo
+  }
+}];
 const [{
-  foo: f5
-}, z1] = [_ref5, 1];
-const [z2, {}] = [eff(), Array];
-const _ref6 = _Array$of;
-const viaWrappedBehindEffect = _nameMaybeFunction(_ref6);
-const {
-  foo: f6
-} = _ref6;
-for (const _ref7 = _Array$of, viaForInit = _nameMaybeFunction(_ref7), {
+  of: {
+    name: viaWrappedSibling,
+    foo: f5
+  }
+}, z1] = [{
+  of: {
+    name: _nameMaybeFunction(_Array$of),
+    foo: _Array$of.foo
+  }
+}, 1];
+const [z2, {
+  of: {
+    name: viaWrappedBehindEffect,
+    foo: f6
+  }
+}] = [eff(), {
+  of: {
+    name: _nameMaybeFunction(_Array$of),
+    foo: _Array$of.foo
+  }
+}];
+for (const {
+  of: {
+    name: viaForInit,
     foo: f7
-  } = _ref7;;) {
+  }
+} = {
+  of: {
+    name: _nameMaybeFunction(_Array$of),
+    foo: _Array$of.foo
+  }
+};;) {
   [viaForInit, f7];
   break;
 }
-if (c) var _ref8 = _Array$of,
-  viaBodyless = _nameMaybeFunction(_ref8),
-  {
+if (c) var {
+  of: {
+    name: viaBodyless,
     foo: f8
-  } = _ref8;
-const _ref9 = _Array$of;
-const viaLeadingDeclarator = _nameMaybeFunction(_ref9);
+  }
+} = {
+  of: {
+    name: _nameMaybeFunction(_Array$of),
+    foo: _Array$of.foo
+  }
+};
 const {
-  foo: f9
-} = _ref9;
-const z3 = 1;
-const z4 = 1;
-const _ref10 = _Array$of;
-const viaTrailingDeclarator = _nameMaybeFunction(_ref10);
+    of: {
+      name: viaLeadingDeclarator,
+      foo: f9
+    }
+  } = {
+    of: {
+      name: _nameMaybeFunction(_Array$of),
+      foo: _Array$of.foo
+    }
+  },
+  z3 = 1;
+const z4 = 1,
+  {
+    of: {
+      name: viaTrailingDeclarator,
+      foo: f10
+    } = {}
+  } = {
+    of: {
+      name: _nameMaybeFunction(_Array$of),
+      foo: _Array$of.foo
+    }
+  };
 const {
-  foo: f10
-} = _ref10;
-const _ref11 = _Array$of;
-const viaHop = _nameMaybeFunction(_ref11);
-const {
-  foo: f11
-} = _ref11;
+  Array: {
+    of: {
+      name: viaHop,
+      foo: f11
+    } = {}
+  }
+} = {
+  Array: {
+    of: {
+      name: _nameMaybeFunction(_Array$of),
+      foo: _Array$of.foo
+    }
+  }
+};
 const {
   of: {
     name: viaRest,
     ...r1
   }
-} = Array;
-const _ref12 = _Array$of;
-const viaLength = _nameMaybeFunction(_ref12);
+} = {
+  of: _Array$of
+};
 const {
-  length: l1
-} = _ref12;
-const viaSole = _nameMaybeFunction(_Array$of);
+  of: {
+    name: viaLength,
+    length: l1
+  } = {}
+} = {
+  of: {
+    name: _nameMaybeFunction(_Array$of),
+    length: _Array$of.length
+  }
+};
+const {
+  of: {
+    name: viaSole
+  }
+} = {
+  of: {
+    name: _nameMaybeFunction(_Array$of)
+  }
+};
 export { viaFlat, f1, viaDefault, f2, viaWrapped, f3, viaWrappedDefault, f4, viaWrappedSibling, f5, z1, z2, viaWrappedBehindEffect, f6, viaBodyless, f8, viaLeadingDeclarator, f9, z3, z4, viaTrailingDeclarator, f10, viaHop, f11, viaRest, r1, viaLength, l1, viaSole };

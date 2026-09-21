@@ -14,15 +14,36 @@ import _Set from "@core-js/pure/actual/set/constructor";
 // entry of that constructor (`Set.union`) is handed out as a static by the pure binding and by
 // nothing else, so such a leaf declines the anchor and would measure that rule instead of this one
 let from, customQ, fromEntries, groupBy, customZ, customR, customW;
-from = _Array$from;
 ({
-  customQ
-} = _Set);
-fromEntries = _Object$fromEntries;
-groupBy = _Map$groupBy;
+  Array: {
+    from
+  },
+  Set: {
+    customQ
+  }
+} = {
+  Array: {
+    from: _Array$from
+  },
+  Set: _Set
+});
 ({
-  customZ
-} = _Map);
+  Object: {
+    fromEntries
+  },
+  Map: {
+    groupBy,
+    customZ
+  }
+} = {
+  Object: {
+    fromEntries: _Object$fromEntries
+  },
+  Map: {
+    groupBy: _Map$groupBy,
+    customZ: _Map.customZ
+  }
+});
 ({
   Set: {
     customR

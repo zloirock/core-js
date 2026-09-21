@@ -21,6 +21,7 @@ import {
   isViableBranchForKey,
   paramDefaultInstanceSynthAllowed,
   patternHopKeysToHost,
+  planSideEffectKeyStrategy,
   planSynthReceiverGuard,
   qualifiesForParamBodyExtract,
   receiverPerformsEveryInitEffect,
@@ -32,6 +33,7 @@ import {
   hopSplitPlan,
   resolveNestedReceiverChain,
   resolveNestedReceiverNode,
+  patternClaimOwesMirror,
   resolvePassthroughRef,
   resolvePositionalElementSlot,
   staticHopPure as sharedStaticHopPure,
@@ -90,7 +92,6 @@ import {
   FUNCTION_LIKE_NODE_TYPES,
   getFallbackBranchSlots,
   hasRestSiblingExcept,
-  isDestructurePattern,
   isForXStatement,
   isMirrorablePatternValue,
   isPristineProxyGlobal,
@@ -204,7 +205,7 @@ import {
   warnConditionalFallbackUntouched,
 } from './destructure-helpers.js';
 import { sentinelAlreadyProcessed } from '@core-js/polyfill-provider/detect-usage/own-output';
-import { planProxyReceiver } from '@core-js/polyfill-provider/detect-usage/members';
+import { planGuardedStaticNarrow, planProxyReceiver } from '@core-js/polyfill-provider/detect-usage/members';
 import createDestructureDrains from './destructure-drain.js';
 
 // an assignment-position sentinel writes an undeclared name: the drain plants its `var _unusedN;`
@@ -285,6 +286,7 @@ export default function createAstDestructureEmitter({
   // than spelling - and performing - the write a second time
   const slotMemoWrites = new WeakMap();
   const forInitCaptures = new WeakMap();
+  const capturedSiblingHosts = new WeakSet();
   // a sole ctor hop the extraction never touched still flattens - over a MUTATED slot (no
   // static behind the shim resolves, so no job records) and over a PRISTINE proxy one; the
   // proxy-root claim notes the host, the drain re-anchors
@@ -370,15 +372,17 @@ export default function createAstDestructureEmitter({
   });
   const { buildValue, drain, extractCatchClause, extractLoopLeft, planMemoArg, recordJob } = drains;
 
-  // the provider-normalized nested-param synth plan rendered as NODES replacing the
-  // parameter DEFAULT (the semantics - tree mirror, validation, leaf resolution - live in
-  // the shared `buildNestedParamSynthPlan`; babel renders the same plan)
+  // Render the shared receiver-mirror plan, or its caller-argument variant, into live source slots.
+  // Keep preserved receiver/probe nodes live and retire only completed claims. With `argumentSites`,
+  // return whether every caller settles the inner default arm; otherwise return the application
+  // result, preserving null when no plan exists.
   function renderNestedParamSynth({ metaPath, meta, withinNode = null, argumentSites = null, fallbackOnBail = false }) {
     const leafPattern = metaPath.parentPath;
     if (!argumentSites && synthDone.has(leafPattern.node)) return true;
     const options = {
       leafPatternPath: leafPattern, meta, resolvePure: m => resolvePure(m, metaPath), adapter,
       parameterCallSites: argumentSites,
+      isDisabledProp: isDisabled,
     };
     const plan = argumentSites ? buildParameterArgumentSynthPlan(options) : buildNestedParamSynthPlan(options);
     const applied = applyNestedParamSynthPlan({
@@ -404,6 +408,9 @@ export default function createAstDestructureEmitter({
         if (withinNode && !nodeHoldsSubtree(withinNode, targetNode)) return false;
         // the PROBE arm's re-spelling: the selection becomes a null test on the probe's own read, so
         // the fallback still runs where the source ran it while the realm arm carries the literal
+        // ... and a KEPT PREFIX stands ahead of the literal that takes its place, so the element runs
+        // where the source wrote it and only its value is dropped. a COPY, so the replacement does not
+        // contain the node it replaces, and so the walk still owes the reads inside it
         const value = target?.nullTestOn
           ? conditionalExpression(nullGuardTest(target.nullTestOn), target.keepArm, rendered)
           : rendered;
@@ -412,15 +419,42 @@ export default function createAstDestructureEmitter({
         return true;
       },
       skipSubtree: targetNode => markSubtreeSkipped(skippedNodes, targetNode),
+      claimStaticBindings(bindings) {
+        for (const [property, entry] of bindings) {
+          const name = propBindingIdentifier(property.value)?.name;
+          if (name) injectorState.registerBodyExtractAlias(name, entry, metaPath.scope.getBinding(name));
+        }
+      },
+      claimProperties(properties, alwaysDefined = true) {
+        for (const property of properties) {
+          skippedNodes.add(property);
+          if (alwaysDefined && property.value?.type === 'AssignmentPattern') {
+            markSubtreeSkipped(skippedNodes, property.value.right);
+          }
+        }
+      },
     });
     if (applied && !argumentSites) synthDone.add(leafPattern.node);
     // the caller mirror answers a different question than the host's: not "did a mirror render" but
     // "is the leaf's inner default arm closed for every caller" (the plan's `settled`) - a rendered
     // argument beside an open default still leaves the parameter's own rewrite to run
     // ... and a plan that DECLINED as null (an un-mirrorable pattern over a proxy-only receiver, where
-    // the sound inline default is the answer) reads as null, so a caller can tell it from a bail
+    // a host-specific fallback may apply) reads as null, so a caller can tell it from a bail
     if (argumentSites) return !!plan?.settled;
     return applied || (plan === null ? null : false);
+  }
+
+  // Ask the shared mirror obligation before competing extraction routes, provided this host
+  // has no queued job already owning it. Declaration, assignment and loop receivers may qualify.
+  function tryPatternMirror({ metaPath, meta }) {
+    // A queued extraction still reads this receiver at drain time. Leave its host to
+    // the ordinary flatten so a later mirror cannot change that earlier read.
+    const host = destructurePatternHostPath(metaPath);
+    if (queuedJobsFor(host)?.jobs.some(job => host.node.type !== 'VariableDeclarator'
+      || (job.declarator ?? job.declaratorNode) === host.node)) return false;
+    const pure = resolvePure(meta, metaPath);
+    if (!patternClaimOwesMirror(pure?.kind, metaPath)) return false;
+    return renderNestedParamSynth({ metaPath, meta, fallbackOnBail: true }) === true;
   }
 
   // a MINTED well-known-symbol key (`[_Symbol$iterator]` - the wks swap ran before this claim)
@@ -1279,7 +1313,16 @@ export default function createAstDestructureEmitter({
     // keeps its native read - spelling the tail beside it would run the tail twice
     const seqElement = kind === 'instance' && wrapped.elementNode?.type === 'SequenceExpression'
       && wrapped.elementNode !== wrapped.element && !isReReferenceableReceiver(wrapped.element);
-    if (seqElement && (keepsRaw || !consumedAssignmentSlotDropsHost(metaPath))) return;
+    // ... unless the key's own effect keeps the receiver read: the memo then takes the element SLOT
+    // and holds the run WHOLE, so the tail is spelled once and the residual reads the ref in its
+    // place. that is the one shape where spelling the element beside the destructure runs nothing
+    // twice, and refusing it lost the claim on both legs alike
+    const seKeySharesElement = kind === 'instance' && seKeyKeepsReceiverRead({
+      prop,
+      receiver: wrapped.elementNode ?? wrapped.element,
+      restSibling: hasRestSibling(pattern),
+    });
+    if (seqElement && !seKeySharesElement && (keepsRaw || !consumedAssignmentSlotDropsHost(metaPath))) return;
     let twinReceiver = twinDeepReceiver ?? (seqElement ? wrapped.elementNode : wrapped.element);
     let receiverIsSlotMemo = false;
     // a sibling meeting the memo's own write reads the ref it published, before any gate judges the
@@ -1306,6 +1349,7 @@ export default function createAstDestructureEmitter({
     // a receiver-less STATIC spells nothing beside that slot, so it extracts whatever the element
     // (`[{ Object: { fe }, ...rest }] = [kw = (eff(), globalThis)]` keeps the write in the residual)
     if ((kind === 'instance' || symbolProp)
+      && !seKeySharesElement
       && (keepsRaw || defaulted || pattern.properties?.length > 1
         || chain.some(level => level.outerRest))
       && !isReReferenceableReceiver(twinReceiver)
@@ -1325,10 +1369,13 @@ export default function createAstDestructureEmitter({
       // ... unless the element has a SLOT the memo can take: the write stands where the source
       // evaluates it, so the member is read once, the residual reads the memo in its place and the
       // dispatch reads it again for free - the other leg's answer for the same shape
-      const slotMemo = wrapped.assignment && !seqElement
-        ? elementMemoFor(wrapped.element, wrapped.assignment, { inSlot: true, metaPath }) : null;
+      // a SEQUENCE element hands its slot the WHOLE run, prefix and all: the memo write stands
+      // where the source evaluated it, so the order the native form runs in does not move
+      const memoSource = seqElement ? wrapped.elementNode : wrapped.element;
+      const slotMemo = wrapped.assignment
+        ? elementMemoFor(memoSource, wrapped.assignment, { inSlot: true, metaPath }) : null;
       if (!slotMemo?.refName || !slotMemo.slot) return;
-      const slotWrite = assignmentExpression('=', identifier(slotMemo.refName), wrapped.element);
+      const slotWrite = assignmentExpression('=', identifier(slotMemo.refName), memoSource);
       slotMemoWrites.set(slotWrite, slotMemo.refName);
       slotMemo.slot.owner[slotMemo.slot.key] = slotWrite;
       twinReceiver = identifier(slotMemo.refName);
@@ -1584,48 +1631,24 @@ export default function createAstDestructureEmitter({
     for (const job of queuedJobsFor(hostPath)?.jobs ?? []) if (job.seqPrefix?.length) job.seqPrefix = null;
   }
 
-  // eslint-disable-next-line max-statements -- per-form prop dispatch sequence
-  function handleObjectPropertyResult({ metaPath, meta, kind, entry, hintName }) {
-    // the caller mirror first: where it settles the leaf's inner default arm for every caller
-    // (mirrored the default, or proved it dead at each call), the rewrites below would only add
-    // dead text beside it - an inline default the mirror's literal never leaves undefined
-    if (parameterCallSites && renderNestedParamSynth({ metaPath, meta, argumentSites: parameterCallSites })) return;
-    if (meta?.parameterArgumentsOnly) return;
-    // Expand literal array spreads before choosing their capture, as on the Babel host.
-    flattenArrayWrapperInits(metaPath);
-
-    // THE mirror's one ask, at the same point in both bindings' dispatch and ahead of every route that
-    // CONSUMES the hop (the keyed capture, the proxy flatten, the key-read plan). The canon FC-472
-    // states it: an SE computed key owes the same receiver spelling its non-SE twin gets on the same
-    // host, and the literal is that spelling - it needs no constructor binding to hang the member off,
-    // so it neither under-injects (the bare `*/constructor` carries none of the ctor's own statics)
-    // nor over-injects (the index entry pulls the whole surface), while the key stays in the untouched
-    // LHS where its effect runs exactly once. Asked LATER it met a pattern with no hop left, which is
-    // why the same source printed a dead null-guard on a declarator and the literal on an assignment.
-    // Every other condition is the shared PLAN's - the throw the receiver's read owes, the hop, the
-    // captured assignment value - so neither leg carries a gate of its own, and `fallbackOnBail` is
-    // what keeps a declined plan falling through to those routes instead of swallowing the claim
-    // the MIRROR's one ask, at the same point in both bindings' dispatch and ahead of every route that
-    // CONSUMES the hop (the keyed capture, the proxy flatten, the key-read plan). Every condition of
-    // it is the provider's `seKeyStaticOwesTheMirror`, so neither leg carries a gate of its own, and
-    // `fallbackOnBail` is what keeps a declined plan falling through to those routes instead of
-    // swallowing the claim
-    if (seKeyStaticOwesTheMirror({ propPath: metaPath, meta, kind, adapter,
-      resolvePure: (value, at) => resolvePure(value, at ?? metaPath) })
-      && renderNestedParamSynth({ metaPath, meta, fallbackOnBail: true })) return;
+  // Bind the shared ordered capture before a host-specific route can consume its pattern.
+  function capturePatternForExtraction({ metaPath, meta, kind, entry, hintName }) {
+    if (!entry && !meta.fromFallback) return false;
     const restHost = destructurePatternHostPath(metaPath);
     // Its selected branch already supplies each leaf; capture must not replace it again.
     if (restHost && branchMirrorPatterns.has(restHost.node.type === 'AssignmentExpression'
-      ? restHost.node.left : restHost.node.id)) return;
+      ? restHost.node.left : restHost.node.id)) return false;
     const assignment = restHost?.node?.type === 'AssignmentExpression';
 
     const restPlan = (restHost?.node?.type === 'VariableDeclarator' || assignment)
       && planRetainedObjectCapture({ pattern: assignment ? restHost.node.left : restHost.node.id,
         init: assignment ? restHost.node.right : restHost.node.init, assignment, prop: metaPath.node,
-        hostPath: restHost, adapter, resolveNodeType, injectorState, kind, entry,
+        hostPath: restHost, adapter, resolveNodeType, injectorState, kind, entry, meta,
         resolvePure: (value, at) => resolvePure(value, at ?? metaPath),
-        resolveStaticProp: resolvePolyfillableStaticProp,
-        isClaimedProp: item => propHasQueuedJob(restHost, item) });
+        resolveStaticProp: resolvePolyfillableStaticProp, planGuardedNarrow: planGuardedStaticNarrow,
+        isConsumedProp: item => queuedJobsFor(restHost)?.jobs.some(job => job.prop === item && !job.sentinel),
+        isClaimedProp: item => propHasQueuedJob(restHost, item)
+          || injectorState.hasGeneratedUnusedName(propBindingIdentifier(item.value)?.name) });
     if (restPlan) {
       // Capture only the source export names before any private bindings are inserted.
       const declaration = restHost.parentPath;
@@ -1638,15 +1661,19 @@ export default function createAstDestructureEmitter({
           specifiers: names.map(name => ({ type: 'ExportSpecifier', local: identifier(name), exported: identifier(name) })),
         }]);
         markRewrite();
-        return;
+        return true;
       }
       const rendered = renderRetainedObjectCapture(restPlan, {
         mintRef: mintRefName,
         mintDeclaredRef: () => injector.generateDeclaredRef(metaPath),
         injectImport: injectPureImport, entry, hintName,
+        mintUnused: declared => declared ? injector.declareUnusedRef(metaPath) : mintUnusedName(),
+        claimProperties: properties => { for (const item of properties) skippedNodes.add(item); },
+        noteStaticAlias: (name, aliasEntry) => injectorState.registerBodyExtractAlias(name, aliasEntry, metaPath.scope.getBinding(name)),
         // the capture binds the constructor's ponyfill where its single key reads the pristine realm
         anchorPure: capturedRealmCtorPure({
-          capture: restPlan.capture, scope: metaPath.scope, adapter, path: metaPath, resolveGlobalPolyfill,
+          capture: restPlan.capture ?? restPlan.elementPlan?.capture,
+          scope: metaPath.scope, adapter, path: metaPath, resolveGlobalPolyfill,
         }),
       });
       if (rendered.expression) {
@@ -1655,13 +1682,43 @@ export default function createAstDestructureEmitter({
       } else {
         const sourceType = resolveNodeType(restHost.get('init'));
         if (sourceType) resolvedType?.set(rendered.declarations[0].id, sourceType);
+        // Another pattern in this declaration still owns a drain. Keep the captured
+        // group together until that sibling places its own memo and extractions.
+        if (declaration.node.declarations.some(node => node !== restHost.node
+          && (node.id.type === 'ArrayPattern' || node.id.type === 'ObjectPattern'))) {
+          for (const node of rendered.declarations.slice(1)) capturedSiblingHosts.add(node);
+        }
         const [capture] = restHost.replaceWithMultiple(rendered.declarations);
         // The re-detected siblings resolve statics through this newly inserted binding.
         capture.scope.registerBinding(capture.parentPath.node.kind, capture.get('id'), capture);
       }
       markRewrite();
-      return;
+      return true;
     }
+    return false;
+  }
+
+  // eslint-disable-next-line max-statements -- per-form prop dispatch sequence
+  function handleObjectPropertyResult({ metaPath, meta, kind, entry, hintName }) {
+    // the caller mirror first: where it settles the leaf's inner default arm for every caller
+    // (mirrored the default, or proved it dead at each call), the rewrites below would only add
+    // dead text beside it - an inline default the mirror's literal never leaves undefined
+    if (parameterCallSites && renderNestedParamSynth({ metaPath, meta, argumentSites: parameterCallSites, fallbackOnBail: true })) return;
+    // A declined caller mirror must retain absent properties and the caller's own defaults.
+    if (meta?.parameterArgumentsOnly) return;
+    // Expand literal array spreads before choosing their capture, as on the Babel host.
+    flattenArrayWrapperInits(metaPath);
+
+    // the MIRROR's one ask, at the same point in both bindings' dispatch and ahead of every route that
+    // CONSUMES the hop (the keyed capture, the proxy flatten, the key-read plan). Every condition of
+    // it is the provider's `seKeyStaticOwesTheMirror`, so neither leg carries a gate of its own, and
+    // `fallbackOnBail` is what keeps a declined plan falling through to those routes instead of
+    // swallowing the claim
+    if (seKeyStaticOwesTheMirror({ propPath: metaPath, meta, kind, adapter,
+      resolvePure: (value, at) => resolvePure(value, at ?? metaPath) })
+      && renderNestedParamSynth({ metaPath, meta, fallbackOnBail: true })) return;
+    const restHost = destructurePatternHostPath(metaPath);
+    const assignment = restHost?.node?.type === 'AssignmentExpression';
     const arrayRest = (kind === 'instance' || (kind === 'static' && computedKeyHasSideEffects(metaPath.node)))
       && restHost?.node?.type === 'VariableDeclarator'
       && restHost.parentPath?.parentPath?.node?.type !== 'ExportNamedDeclaration'
@@ -2031,6 +2088,17 @@ export default function createAstDestructureEmitter({
     // GUARDLESS under both (the pairing proved the element, so the default arm is dead -
     // babel drops it, the assignment twin's own static rule)
     if (arrayHost) {
+      // a for-x HEAD holds no statement for any of the routes below to land in, and its declarator
+      // no init: what the wrapper pairs is an ELEMENT of the iterated literal, which the shared
+      // mirror swaps in place, wrapper and all. asked AHEAD of them - the declined-wrapper fallback
+      // below asks the same plan bounded to the declarator, out of whose span the head's element
+      // stands, and a refused replacement still leaves the plan planned, so the ask arriving after
+      // it renders nothing. the wrappers pair a slot and host nothing, so the walk through them -
+      // every pattern level the head may nest, a key's property and a transparent inner default
+      // included - ends at the same slot-less declarator, or at the loop whose `left` is the
+      // pattern where the head declares nothing; the shared primitive answers both and nothing else
+      if (kind !== 'instance' && forOfHeadIterableElements(destructurePatternHostPath(metaPath))
+        && renderNestedParamSynth({ metaPath, meta, fallbackOnBail: true })) return;
       // a wrapper reached through a CONST BINDING resolves like the inline literal only for a
       // claim that never RE-READS the element: a static substitutes its own pure and spells no
       // receiver, while an instance / symbol extraction would re-read a value the wrapper's own
@@ -2170,7 +2238,18 @@ export default function createAstDestructureEmitter({
         const wrapperTrailingEffect = wrapperInit?.type === 'ArrayExpression'
           && wrapperInit.elements.slice(wrapperNode?.elements?.indexOf(hostPatternPath.node) + 1 || 0)
             .some(item => mayHaveSideEffects(item));
-        const nestedSlotMemo = (resolvedDeep && kind === 'instance' && !wrapped.single
+        // A surviving key or wrapper shares its constant container with the extraction,
+        // using the flat channel's memo policy rather than duplicating the literal.
+        const literalMemoNode = resolvedDeep ?? wrapped.element;
+        const constantMemo = isConstantLiteralReceiver(literalMemoNode) && planSideEffectKeyStrategy({
+          polyfillKind: kind, receiverNode: literalMemoNode, initIsPure: true,
+          soleBindingInDeclaration: wrapperHolesBeside && !wrapperTrailingEffect
+            && chain.every(row => !computedKeyHasSideEffects(row.hopProp)),
+          propKeyIsPure: !computedKeyHasSideEffects(prop),
+        })?.memoizeReceiver;
+        const nestedSlotMemo = (resolvedDeep && constantMemo
+          ? elementMemoFor(resolvedDeep, wrapped.declarator, { inSlot: !wrapped.precedingPure, metaPath }) : null)
+          ?? (resolvedDeep && kind === 'instance' && !wrapped.single
           && (!wrapperHolesBeside || wrapperTrailingEffect)
           && !isReReferenceableReceiver(resolvedDeep)
           && (wrapped.precedingPure || !wrapperHolesBeside)
@@ -2209,7 +2288,7 @@ export default function createAstDestructureEmitter({
               const at = decls.indexOf(wrapped.declarator);
               return at === -1 || decls.slice(at + 1).every(item => !mayHaveSideEffects(item.init));
             })()))
-          && !isReReferenceableReceiver(wrapped.element)
+          && (!isReReferenceableReceiver(wrapped.element) || constantMemo)
           // ... and a RE-READABLE built-in surface needs no memo whatever keeps the residual: the dispatch
           // reads it inline and the residual re-reads it for free (`[{}] = [_globalThis.Array.prototype,
           // ...t]; _at(_globalThis.Array.prototype)`); only an effectful KEY memoizes it, its sentinel
@@ -2334,21 +2413,6 @@ export default function createAstDestructureEmitter({
       // ... and where NO literal pairs the element, nothing spells it at all - the slot takes a
       // minted binding instead, which is the one route a positional segment has
       if (!wrapped && registerPositionalElementJob({ metaPath, prop, kind, entry, hintName })) return;
-      // ... and a for-x HEAD holds no statement for any of these routes to land in: the mirror
-      // answers in the ELEMENT instead, wrapper and all. the wrappers pair a slot, they host
-      // nothing, so the walk through them ends at the same slot-less declarator
-      // ... the walk climbs every pattern level the head may nest - a key's property and a
-      // transparent inner default included, not only the bare pattern nodes
-      let headHost = hostPatternPath;
-      while (headHost?.node && (isDestructurePattern(headHost.node) || headHost.node.type === 'Property'
-        || headHost.node.type === 'ObjectProperty' || (headHost.node.type === 'AssignmentPattern'
-        && isDestructurePattern(headHost.node.left)))) {
-        headHost = headHost.parentPath;
-      }
-      // the head in either spelling - the declarator, or the loop whose `left` is the pattern where
-      // the head declares nothing; the shared primitive answers both and nothing else
-      if (kind !== 'instance' && forOfHeadIterableElements(headHost)
-        && renderNestedParamSynth({ metaPath, meta, fallbackOnBail: true })) return;
       // ... and an element DEFAULT bearing a receiver (`[{ from } = Array]`) names the arm the slot
       // leaves open: the shared plan reads the slot first - it mirrors the default where the slot
       // proves `undefined` or stays open, and closes the arm where the slot proves a value - and the
@@ -2372,11 +2436,6 @@ export default function createAstDestructureEmitter({
       && chain.length > 0 && !receiverSeOnly
       && (hostPatternPath.listKey === 'params' || hostPatternPath.key === 'params')) {
       if (renderNestedParamSynth({ metaPath, meta })) return;
-      // no mirror (a nav past the literal, an unpaired slot): a receiver-less claim takes the slot's
-      // inline default, the other leg's shape for the same parameter
-      if (kind !== 'instance') {
-        applyInlineDefault({ prop, entry, hintName, injectPureImport, markRewrite, skippedNodes, markSubtreeSkipped });
-      }
       return;
     }
     if ((hostParent?.node?.type === 'ArrowFunctionExpression' || hostParent?.node?.type === 'FunctionExpression')
@@ -2447,7 +2506,7 @@ export default function createAstDestructureEmitter({
           // receiver - and the flat leaf's simple swap declined too, a static leaf, flat or nested,
           // keeps the sound inline default, which fires only where the receiver's own static is
           // absent: the babel leg's per-key fallback for the same shape on every host. (a parameter
-          // list never lands here - its own chain above hoists or inlines the leaf)
+          // list never lands here - its own chain above extracts or keeps the native leaf)
           if (!mirrored && !(chain.length === 0 && registerSimpleSynthSlot({ metaPath, pattern, hostParent, kind, entry, hintName }))
             && mirrored === null && kind !== 'instance' && namedDefaultReceiver(hostParent.node.right)) {
             applyInlineDefault({ prop: metaPath.node, entry, hintName, injectPureImport, markRewrite, skippedNodes, markSubtreeSkipped });
@@ -2458,10 +2517,8 @@ export default function createAstDestructureEmitter({
     }
   }
 
-  // synth-swap and the nested mirror both bailed: body-extract `let X = _polyfill;` at the
-  // function body head (the prop leaves, or renames to `_unused` under a rest sibling), or
-  // the inline default `{ p = _polyfill }` when an SE computed key must stay spelled -
-  // babel's fallback chain, gated by the SAME shared predicates (caller-lossiness first)
+  // A declined parameter mirror may still use a proven body extraction. Otherwise keep
+  // the parameter native; a leaf default would change a supplied undefined property.
   function paramExtractFallback({ metaPath, kind, entry, hintName, pattern }) {
     const prop = metaPath.node;
     if (kind === 'instance') return;
@@ -2471,8 +2528,7 @@ export default function createAstDestructureEmitter({
     if (branchMirrorPatterns.has(pattern)) return;
     if (paramsHaveInvisibleCallers(metaPath, { paramNeverOverridden: paramDefaultNeverOverridden })) return;
     const keyHasSideEffect = computedKeyHasSideEffects(prop);
-    if (!keyHasSideEffect && tryBodyExtractParam({ metaPath, prop, pattern, entry, hintName })) return;
-    applyInlineDefault({ prop, entry, hintName, injectPureImport, markRewrite, skippedNodes, markSubtreeSkipped });
+    if (!keyHasSideEffect) tryBodyExtractParam({ metaPath, prop, pattern, entry, hintName });
   }
 
   function tryBodyExtractParam({ metaPath, prop, pattern, entry, hintName }) {
@@ -2640,13 +2696,8 @@ export default function createAstDestructureEmitter({
       && !staticallySelectedLeft({ selecting: captured, meta, metaPath, soleBinding, chain, adapter, kind });
   }
 
-  // a sentinel-kept declarator whose init cannot be re-read RAW (a member's getter, a
-  // constant literal's bloat) memoizes into a shared leading `_ref` declarator; the for-init
-  // sentinel is implementable exactly there. a PROXY-rooted member init keeps the
-  // split-statement memo shape (its collapse channel owns the ordering); a plain member /
-  // constant literal joins as sibling declarators
   // an OPAQUE / effect-bearing init with no direct receiver: the defaulted sole-consume
-  // takes it whole, the statically selected logical LEFT extracts, everything else records
+  // takes it whole, a proven logical left or agreeing ternary arm extracts, otherwise it records
   // the whole-init memo job ('handled') or stands down
   // eslint-disable-next-line max-statements -- per-route init dispatch sequence
   function routeOpaqueInit({
@@ -2719,6 +2770,7 @@ export default function createAstDestructureEmitter({
           metaPath,
         });
         if (forInitValue) {
+          registerExtractAliases({ metaPath, kind, entry, hintName, prop, declaration: declarationPath.node, declarationPath });
           recordJob({
             hostPath: exported ? declarationPath.parentPath : declarationPath,
             job: {
@@ -3288,6 +3340,8 @@ export default function createAstDestructureEmitter({
       typedNavChain: typedNavChainFor({ kind, entry, chain, metaPath, rootMemoized: !!capturedElement }),
     });
     if (!value) return false;
+    registerExtractAliases({ metaPath, kind, entry, hintName, prop,
+      declaration: wrap.declarationPath.node, declarationPath: wrap.declarationPath });
     recordJob({
       hostPath: wrap.declarationPath,
       job: {
@@ -3857,7 +3911,8 @@ export default function createAstDestructureEmitter({
         // a slot memo WRITTEN in its slot: the residual performs the write, so the extraction
         // reading the ref lands after it (the array wrapper's effectful-neighbour order)
         extractAfterResidual: !!memoRecv?.inSlot,
-        siblingAppend,
+        capturedSibling: capturedSiblingHosts.has(declarator),
+        siblingAppend: siblingAppend || capturedSiblingHosts.has(declarator),
         memoSibling,
         // a SENTINEL chain job dispatches on the RESOLVED nested element - the memo must hold
         // THAT node, with the residual keeping the wrapper around the swapped slot
@@ -3964,6 +4019,13 @@ export default function createAstDestructureEmitter({
     // so it owes the source's own spelling (peeling there moves neither corpus, measured)
     const guardCtx = navGuardCtx(metaPath);
     const rhs = peelDeadChainMarker(hostParent.node.right, guardCtx);
+    // A logical guard keeps its falsy path and all rest reads. The static fallback lives
+    // in the leaf, as on the declaration host; a mirror cannot replace a rest receiver.
+    if (rhs?.type === 'LogicalExpression' && rhs.operator === '&&' && chain.length > 0
+      && kind !== 'instance' && hasRestSibling(pattern) && prop.value.type === 'Identifier') {
+      applyInlineDefault({ prop, entry, hintName, injectPureImport, markRewrite, skippedNodes, markSubtreeSkipped });
+      return;
+    }
     // the extraction's validity proof through a CAPTURE, the declarator host's own question asked
     // where the pattern is an assignment target: a captured selection whose arms do not all resolve
     // keeps the source's own read, or the ponyfill lands over whatever the opaque arm holds. the
@@ -4299,7 +4361,7 @@ export default function createAstDestructureEmitter({
     // effect the arm carries, and leaves a residual the emitters cannot spell. Measured: the output
     // threw where native and the other leg bound the user's own members
     const innerDefaultArm = levelRhs !== rhs;
-    const staticInMultiConsume = !pureNavRhs && !bodylessSeqPrefix && !sentinel && !innerDefaultArm
+    const staticInMultiConsume = !pureNavRhs && !bodylessSeqPrefix && (!sentinel || restSentinelOnly) && !innerDefaultArm
             && residualSurvives && plainOrDefaultedLeaf && kind !== 'instance';
     // a NESTED receiver-less claim over a literal RHS consumes the destructure whole: the
     // statement becomes the plain re-bind (`({ a: { from: f } } = { a: Array })` ->
@@ -4386,7 +4448,7 @@ export default function createAstDestructureEmitter({
     registerAssignmentExtractAlias({ prop, kind, entry, hintName, hostParent, exprStmtPath, metaPath },
       { adapter, injectorState });
     markRewrite();
-    const keepSentinelBinding = sentinel && !hasRestSibling(pattern) && prop.value.type === 'Identifier'
+    const keepSentinelBinding = sentinel && !restSentinelOnly && prop.value.type === 'Identifier'
       && chain.every(level => !level.outerRest);
     // an SE-keyed STATIC prop in an ASSIGNMENT host takes an INLINE DEFAULT instead of an
     // overwrite: the native slot wins when present, the ponyfill fills the gap
@@ -4493,6 +4555,7 @@ export default function createAstDestructureEmitter({
   // effect-bearing consumed init stays live as an `_unused` dummy declarator
 
   return {
+    capturePatternForExtraction,
     // the probe renders read their channel members off this object, and the channel that owns
     // them is built after this one - the two cross-reference, like the sealed-probe context
     probeRenderCtx,
@@ -4505,6 +4568,7 @@ export default function createAstDestructureEmitter({
     handleObjectPropertyResult,
     handlePerBranch,
     renderNestedParamSynth,
+    tryPatternMirror,
     retireDeclaratorJobs,
     drain,
     sentinelAlreadyProcessed({ metaPath, meta }) {

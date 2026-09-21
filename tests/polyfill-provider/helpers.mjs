@@ -33,6 +33,8 @@ import {
   parseDisableDirectives,
 } from '../../packages/core-js-polyfill-provider/helpers/source-scan.js';
 import {
+  arrayLiteralIterableElements,
+  forOfIterableElements,
   bindingBoundName,
   buildScopeReassignmentIndex,
   callArgumentPathAt,
@@ -58,6 +60,7 @@ import {
   positionalElementPath,
   positionalElements,
   resolveCallArgumentCoords,
+  resolveCallArgument,
   resolveFallbackReceiverPath,
   stepOverChainWrappers,
   suspensionPointBefore,
@@ -1206,6 +1209,32 @@ check('isNextLineDisableDirective/JSDoc continuation', isNextLineDisableDirectiv
   }
 }
 
+// A cycle guard is needed only after a sequence step, including when wrappers were peeled first.
+for (const adapter of adapters) {
+  const program = adapter.parseAndScope('const value = [ordinary, (ordinary as unknown), (first(), ordinary)];');
+  const { elements } = adapter.pickPath(program, 'ArrayExpression').node;
+  const { Set: NativeSet } = globalThis;
+  const allocations = [];
+  for (const element of elements) {
+    let count = 0;
+    let answer;
+    globalThis.Set = class extends NativeSet {
+      constructor(...args) {
+        super(...args);
+        count++;
+      }
+    };
+    try {
+      answer = peelSequenceTail(unwrapRuntimeExpr(element), { step: unwrapRuntimeExpr });
+    } finally {
+      globalThis.Set = NativeSet;
+    }
+    check(`peelSequenceTail/allocation probe preserves value [${ adapter.name }]`, answer.name, 'ordinary');
+    allocations.push(count);
+  }
+  checkDeep(`peelSequenceTail/only sequence descent allocates [${ adapter.name }]`, allocations, [0, 0, 1]);
+}
+
 // --- the sequence descent's REFUSING consumers ---
 
 // a zero-arg IIFE reached through a comma-sequence callee: the descent must refuse an effectful
@@ -1667,7 +1696,7 @@ check('spreadAtOrBefore/empty + null safe', spreadAtOrBefore([], 3) || spreadAtO
 
 // the positional pairing expands an INLINE-array spread (a longer literal) and still declines any
 // other spread at or before the slot; `flattenInlineArraySpreads` writes that expansion into the
-// literal, nested spreads staying (their length is variadic)
+// literal, opaque nested spreads staying unresolved
 check('pairedArrayWrapInitElement/inline spread expands', pairedArrayWrapInitElement([INLINE, EL('c')], 1)?.name, 'y');
 check('pairedArrayWrapInitElement/bare spread declines', pairedArrayWrapInitElement([SP, EL('c')], 1), null);
 check('pairedArrayWrapInitElement/parenthesized inline spread expands',
@@ -1680,7 +1709,7 @@ for (const [label, code] of [['cast', 'f(...([[1, 2]] as any));'], ['parens', 'f
   runBoth(`callArgumentPathAt/${ label } spread array steps into the element`, code, (adapter, programPath, name) => {
     const argPaths = programPath.get('body')[0].get('expression').get('arguments');
     const coords = resolveCallArgumentCoords(argPaths.map(path => path.node), 0);
-    checkDeep(`${ name } coordinate`, coords, { argIndex: 0, elementIndex: 0 });
+    checkDeep(`${ name } coordinate`, coords, [0, 0]);
     const path = callArgumentPathAt(argPaths, coords);
     checkDeep(`${ name } element`, path?.node?.elements?.map(el => el.value), [1, 2]);
   });
@@ -1703,6 +1732,57 @@ runBoth('positionalElementPath/positions through an inline spread and a hole', '
 check('positionalElements/inline spread expands, hole stays null',
   positionalElements([INLINE, null, EL('c')]).map(el => el?.name ?? null).join(','), 'x,y,,c');
 check('positionalElements/spread of a binding has no list', positionalElements([EL('a'), SP]), null);
+
+// Nested literal spreads share one coordinate for node and path readers. Unknown spreads
+// stop only the positions they can shift; empty arrays and holes retain their runtime widths.
+for (const [source, expected] of [
+  ['f(...[...[a]], b);', ['a', 'b']],
+  ['f(...[...[], a, ...[b, ...[c]]], d);', ['a', 'b', 'c', 'd']],
+  ['f(...([...[, ...[a]]] as any), b);', [null, 'a', 'b']],
+  ['f(...[...[a, ...unknown]], b);', ['a', null, null]],
+]) {
+  runBoth(`nested positional spread/${ source }`, source, (adapter, programPath, name) => {
+    const args = programPath.get('body')[0].get('expression').get('arguments');
+    const nodes = args.map(path => path.node);
+    for (const [index, value] of expected.entries()) {
+      const coords = resolveCallArgumentCoords(nodes, index);
+      check(`${ name } node ${ index }`, resolveCallArgument(nodes, index)?.name ?? null, value);
+      check(`${ name } path ${ index }`, (coords && callArgumentPathAt(args, coords)?.node?.name) ?? null, value);
+    }
+    const opaque = source.includes('unknown');
+    check(`${ name } length`, effectiveArgsLength(nodes), opaque ? null : expected.length);
+    checkDeep(`${ name } list`, positionalElements(nodes)?.map(node => node?.name ?? null) ?? null, opaque ? null : expected);
+  });
+}
+runBoth('nested spread keeps the selected receiver path',
+  'const [{ values }] = [...[...[Object]]];', (adapter, programPath, name) => {
+    const [statement] = programPath.get('body');
+    const [declarator] = statement.get('declarations');
+    const pattern = declarator.get('id');
+    const [object] = pattern.get('elements');
+    check(`${ name } receiver`, resolveFallbackReceiverPath(pattern, object.node)?.node?.name, 'Object');
+  });
+
+// Loop readers expand only fully known literal spreads; the path keeps raw coordinates.
+for (const [source, expected] of [
+  ['for (const { from } of [...[...[Array]]]) {}', 'Array'],
+  ['for (const { from } of ([...[...[Array]]] as const)) {}', 'Array'],
+  ['for (const { from } of [...[...unknown]]) {}', null],
+  ['for (const { from } of [...[Array, Object]]) {}', null],
+  ['for (const { from } of [...[, Array]]) {}', null],
+  ['for await (const { from } of [...[Array]]) {}', null],
+]) {
+  runBoth(`loop spread receiver/${ source }`, source, (adapter, programPath, name) => {
+    const [loop] = programPath.get('body');
+    const [declarator] = loop.get('left').get('declarations');
+    check(`${ name } path`, resolveFallbackReceiverPath(declarator, declarator.node.id)?.node?.name ?? null, expected);
+    const list = arrayLiteralIterableElements(loop.node.right);
+    check(`${ name } literal expansion`, list?.length ?? null,
+      source.includes('unknown') ? null : source.includes('Object') || source.includes('[,') ? 2 : 1);
+    check(`${ name } iterable proof`, !!forOfIterableElements(loop.node),
+      !source.includes('unknown') && !source.includes('[,') && !source.includes('await'));
+  });
+}
 
 // --- IIFE argument reads through a cast spread array (both adapters) ---
 // the per-branch mirror, the bare-pattern locator and the coordinate read all step into
@@ -1732,11 +1812,11 @@ runBoth('call argument coordinates: cast spread, nested spread, later positional
     function nodes(callPath) {
       return callPath.get('arguments').map(path => path.node);
     }
-    checkDeep(`${ name } first slot inside the cast`, resolveCallArgumentCoords(nodes(first), 0), { argIndex: 0, elementIndex: 0 });
-    checkDeep(`${ name } ahead of a nested spread`, resolveCallArgumentCoords(nodes(first), 1), { argIndex: 1, elementIndex: 0 });
+    checkDeep(`${ name } first slot inside the cast`, resolveCallArgumentCoords(nodes(first), 0), [0, 0]);
+    checkDeep(`${ name } ahead of a nested spread`, resolveCallArgumentCoords(nodes(first), 1), [1, 0]);
     check(`${ name } past a nested spread`, resolveCallArgumentCoords(nodes(first), 2), null);
     check(`${ name } nested spread has no length`, effectiveArgsLength(nodes(first)), null);
-    checkDeep(`${ name } later positional`, resolveCallArgumentCoords(nodes(second), 2), { argIndex: 2, elementIndex: -1 });
+    checkDeep(`${ name } later positional`, resolveCallArgumentCoords(nodes(second), 2), [2]);
     check(`${ name } length`, effectiveArgsLength(nodes(second)), 3);
   });
 {
@@ -2414,6 +2494,31 @@ for (const adapter of adapters) {
   check(`identifierReferencedInSubtree/every declaration probed [${ adapter.name }]`, bodies.length, Object.keys(expected).length);
 }
 
+// Metadata is not a reference position. Its width must not multiply source-slot queries.
+for (const adapter of adapters) {
+  const reads = [];
+  for (const width of [0, 64]) {
+    const program = adapter.parseAndScope('receiver.property;');
+    const member = adapter.pickPath(program, 'MemberExpression').node;
+    const { property } = member;
+    let count = 0;
+    Object.defineProperty(member, 'property', { enumerable: true, get() {
+      count++;
+      return property;
+    } });
+    for (let index = 0; index < width; index++) member[`metadata${ index }`] = index;
+    check(`identifierReferencedInSubtree/metadata/${ width } [${ adapter.name }]`,
+      identifierReferencedInSubtree(member, 'absentName'), false);
+    reads.push(count);
+    check(`identifierReferencedInSubtree/property name [${ adapter.name }]`,
+      identifierReferencedInSubtree(member, 'property'), false);
+    member.computed = true;
+    check(`identifierReferencedInSubtree/computed property [${ adapter.name }]`,
+      identifierReferencedInSubtree(member, 'property'), true);
+  }
+  check(`identifierReferencedInSubtree/metadata width budget [${ adapter.name }]`, reads[1], reads[0]);
+}
+
 // A logical-left read guards its own alias, but not an unrelated name.
 for (const adapter of adapters) {
   for (const [left, expected] of [['value', true], ['other', false]]) {
@@ -2828,6 +2933,19 @@ for (const [label, source, name, all, supplied] of [
     checkDeep(`patternSlotValues/${ label } [${ adapter.name }]: complete union`, values(), all);
     checkDeep(`patternSlotValues/${ label } [${ adapter.name }]: supplied alone`, values({ includeDefaults: false }), supplied);
   }
+}
+
+// Object-rest receivers are a separate proof input, never aliases of the copied rest binding.
+for (const adapter of adapters) for (const source of [
+  'const { from, ...rest } = Array;',
+  'const [{ from, ...rest }] = [Array];',
+  'const { value: { from, ...rest } } = { value: Array };',
+]) {
+  const program = adapter.parseAndScope(source);
+  const { id, init } = adapter.pickPath(program, 'VariableDeclarator').node;
+  const restSources = [];
+  checkDeep(`object-rest slot values [${ adapter.name }]: ${ source }`, patternSlotValues(id, init, 'rest', { restSources }), []);
+  checkDeep(`object-rest source [${ adapter.name }]: ${ source }`, restSources.map(value => value.name), ['Array']);
 }
 
 // Stored values must expose the same spread ambiguity to enumeration and its completeness gate.

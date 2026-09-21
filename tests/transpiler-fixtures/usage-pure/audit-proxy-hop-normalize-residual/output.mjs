@@ -11,10 +11,17 @@ const {
   customY
 } = _Map;
 // a resolvable sibling extracts; the survivor still re-anchors
-const tryFn = _Promise$try;
 const {
-  customZ
-} = _Promise;
+  Promise: {
+    try: tryFn,
+    customZ
+  }
+} = {
+  Promise: {
+    try: _Promise$try,
+    customZ: _Promise.customZ
+  }
+};
 // boundary: a multi-key outer pattern keeps the proxy-root residual
 const {
   Iterator: {

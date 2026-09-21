@@ -197,14 +197,20 @@ function collectNodes(root) {
   return seen;
 }
 
-// a minted MEMO the emission ORPHANED - every reader re-spelled the receiver it held - is dead
-// text whose declarator carries the only surviving spelling of its name. it leaves with that
-// declarator, the same rule the other leg's prune applies through its scope graph: a name spelled
-// only in declarator-id positions has no reader, and only a provably INERT init may go with it - a
-// memo whose init still EVALUATES is the one place that call or member read runs, unread or not.
-// only a declaration standing in a statement LIST is swept: one in a for-head is the loop's own
-function dropOrphanedMemoDeclarations(program, { refCounts, refDeclIdCounts }) {
+// Remove unread minted memos whose initializers are inert. A sole statement write may also
+// retire when its RHS is inert; observable writes and initializers stay in place.
+// Prune empty declarations from statement lists. Multi-declarator for-heads also lose dead
+// memos; a sole-declarator head stays intact.
+function dropOrphanedMemoDeclarations(program, { refCounts, refDeclIdCounts, memoStatementWrites }) {
   const dead = new Set();
+  const deadWrites = new Set();
+  // A consumed outer assignment can leave its inner receiver memo as a bare
+  // write. The census proves there is no read; retain any observable RHS.
+  for (const { statement, name, value } of memoStatementWrites) {
+    if (refCounts.get(name) !== (refDeclIdCounts.get(name) ?? 0) + 1 || reEvaluationObservable(value)) continue;
+    deadWrites.add(statement);
+    refCounts.set(name, refCounts.get(name) - 1);
+  }
   for (const [name, count] of refCounts) {
     if (count <= (refDeclIdCounts.get(name) ?? 0)) dead.add(name);
   }
@@ -216,9 +222,7 @@ function dropOrphanedMemoDeclarations(program, { refCounts, refDeclIdCounts }) {
     else if (node?.type === 'SwitchCase') lists.push(node.consequent);
     if (node?.type === 'ForStatement' && node.init?.type === 'VariableDeclaration') heads.push(node.init);
   } });
-  // the declarator a dead memo owns, gone from its declaration; the declaration goes too where
-  // nothing is left of it. a for-HEAD declaration is the loop's own - it keeps standing, one
-  // declarator lighter, and is never emptied away
+  // Remove eligible declarators; the caller owns the enclosing statement or for-head slot.
   function pruneDeclaration(declaration) {
     const kept = declaration.declarations.filter(item => !(item.id?.type === 'Identifier' && dead.has(item.id.name)
       && item.init && !reEvaluationObservable(item.init)));
@@ -231,6 +235,10 @@ function dropOrphanedMemoDeclarations(program, { refCounts, refDeclIdCounts }) {
   for (const list of lists) {
     for (let at = list.length - 1; at >= 0; at--) {
       const statement = list[at];
+      if (deadWrites.has(statement)) {
+        list.splice(at, 1);
+        continue;
+      }
       if (statement?.type !== 'VariableDeclaration' || !pruneDeclaration(statement)) continue;
       if (!statement.declarations.length) list.splice(at, 1);
     }

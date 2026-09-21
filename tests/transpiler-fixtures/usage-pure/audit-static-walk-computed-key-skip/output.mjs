@@ -8,6 +8,14 @@ const dynamicKey = 'a';
 const wrapper = {
   [dynamicKey]: Array
 };
-const from = _Array$from;
+const {
+  a: {
+    from
+  }
+} = {
+  a: {
+    from: _Array$from
+  }
+};
 from;
 _atMaybeArray(_ref = [1]).call(_ref, 0);

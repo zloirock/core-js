@@ -1,12 +1,9 @@
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _globalThis from "@core-js/pure/actual/global-this";
+import _keys from "@core-js/pure/actual/instance/keys";
 import _Object$keys from "@core-js/pure/actual/object/keys";
-// a hop whose VALUE the walk cannot name but the name channel can - a call's return type, or a
-// selection the other leg reads by its selecting arm - beside a sibling the pattern keeps: the leaf
-// extracts off the constructor and the residual keeps the whole value, so the call runs where it ran.
-// a `||` / `??` LEFT naming an object selects, a ternary needs agreeing arms (disagreeing arms
-// mirror per branch); `&&` may yield its falsy left and stays whole, and so does a member nav under
-// a probe
+// A static reached through a call keeps that call and neighboring effects in source order.
+// Known constructor arms receive pure values; user branches keep their own members.
 const c = 1;
 const userObj = {};
 const log = [];
@@ -14,21 +11,28 @@ function eff() {
   _pushMaybeArray(log).call(log, 1);
   return Object;
 }
-const viaCall = _Object$keys;
-const {
-  q: q1
-} = {
-  w: eff(),
-  q: 1
-};
-const viaTwoLeavesStatic = _Object$keys;
 const {
   w: {
-    at: viaTwoLeaves
+    keys: viaCall
+  },
+  q: q1
+} = {
+  w: (eff(), {
+    keys: _Object$keys
+  }),
+  q: 1
+};
+const {
+  w: {
+    at: viaTwoLeaves,
+    keys: viaTwoLeavesStatic
   },
   q: q2
 } = {
-  w: eff(),
+  w: (eff(), {
+    at: Object.at,
+    keys: _Object$keys
+  }),
   q: 1
 };
 const viaNullish = _Object$keys;
@@ -58,40 +62,42 @@ const {
   },
   q: q7
 } = {
-  w: c ? (eff(), {
-    keys: _Object$keys
-  }) : {
+  w: c ? eff() : {
     keys: _Object$keys
   },
   q: 1
 };
+const _ref2 = {
+    w: c ? eff() : userObj,
+    q: 1
+  },
+  {
+    w: _ref
+  } = _ref2,
+  viaTernaryUser = _ref === Object ? _Object$keys : _keys(_ref),
+  {
+    q: q8
+  } = _ref2;
+const _ref4 = {
+    w: userObj || eff(),
+    q: 1
+  },
+  {
+    w: _ref3
+  } = _ref4,
+  viaUserLeft = _ref3 === Object ? _Object$keys : _ref3.keys,
+  {
+    q: q9
+  } = _ref4;
 const {
   w: {
-    keys: viaTernaryUser
+    keys: viaSequence
   },
-  q: q8
-} = {
-  w: c ? (eff(), {
-    keys: _Object$keys
-  }) : userObj,
-  q: 1
-};
-const {
-  w: {
-    keys: viaUserLeft
-  },
-  q: q9
-} = {
-  w: userObj || (eff(), {
-    keys: _Object$keys
-  }),
-  q: 1
-};
-const viaSequence = _Object$keys;
-const {
   q: q10
 } = {
-  w: (_pushMaybeArray(log).call(log, 2), eff()),
+  w: (_pushMaybeArray(log).call(log, 2), eff(), {
+    keys: _Object$keys
+  }),
   q: 1
 };
 const viaSole = (eff() ?? Object, _Object$keys);

@@ -21,7 +21,7 @@ try {
     [(_pushMaybeArray(events).call(events, _atMaybeString(_ref = 'x').call(_ref, 0), typeof from), 'Object')]: {
       keys
     }
-  } = (_pushMaybeArray(events).call(events, 'source'), (null == _globalThis.window ? void 0 : _self).Array, {
+  } = (_pushMaybeArray(events).call(events, 'source'), {} = null == _globalThis.window ? void 0 : _self, {
     Array: {
       from: _Array$from
     },
@@ -50,13 +50,11 @@ try {
     Object: {
       keys: box[_pushMaybeArray(events).call(events, method === pureFrom, _atMaybeString(_ref2 = 'y').call(_ref2, 0)), 'value']
     }
-  } = (_pushMaybeArray(events).call(events, 'partial-source'), (null == _globalThis.window ? void 0 : _self).Array, {
+  } = (_pushMaybeArray(events).call(events, 'partial-source'), {} = null == _globalThis.window ? void 0 : _self, {
     Array: {
       from: _Array$from
     },
-    Object: {
-      keys: _Object$keys
-    }
+    Object: _self.Object
   }));
 } catch (error) {
   _pushMaybeArray(events).call(events, _nameMaybeFunction(error));

@@ -1,47 +1,35 @@
 # @core-js/babel-plugin
 
-Automatic polyfill injection for Babel: the adapter between Babel's plugin API and `@core-js/polyfill-provider`, plus the emitter that renders what the provider decides. The semantics belong there, not here.
+Babel binding for `@core-js/polyfill-provider`. Read [the provider contract](../core-js-polyfill-provider/AGENTS.md) for shared decisions, rendering, canon search and validation. This package owns Babel tree insertion, scope registration, requeueing and sibling-plugin compatibility.
 
 ## Target environment
 
-Build-time only, ESM. Node `^22.18.0 || >=24.11.0`. Works with both `@babel/core` 7 and 8. `@core-js/compat` in `dependencies` is runtime-unused on purpose: `index.d.ts` type-imports `@core-js/compat/compat`, so the package must resolve for consumers' tsc - do not drop it as a leftover.
+Build-time only, ESM. Node `^22.18.0 || >=24.11.0`; Babel 7 and 8. Keep `@core-js/compat` in dependencies: although unused at runtime, `index.d.ts` imports its types for consumers' tsc.
 
 ## Layout
 
-- `index.js` - the plugin itself: options, the Babel visitors, and the dispatch between the injection methods
-- `internals/detect-entry.js` - recognizes the entry-import shapes that `entry-global` replaces
-- `internals/detect-usage.js` - the Babel side of the provider's usage detection: it adapts Babel paths to what the provider expects
-- `internals/import-injector.js` - inserts the imports or requires, respecting directives and the existing import block; the import set itself comes from the core's render canon, converted at insertion
-- `internals/estree-to-babel.js` - the converter at the insertion boundary: the core's canonical ESTree render becomes babel nodes, total over the builder vocabulary and defined on nothing else
-- `internals/babel-compat.js` - the Babel-specific AST primitives: ref memoization, optional-chain deoptionalization, instance-method replacement, TS-wrapper peeling. Despite the name it knows nothing about Babel versions: the 7-versus-8 difference is bridged in `internals/import-injector.js`, where the scope bag hides `scope.references` / `scope.uids` becoming `referencesSet` / `uidsSet`
-- `internals/destructure-emission-plan.js`, `internals/destructure-emitter.js` - destructure rewrites, planning separated from emission
-- `internals/synth-swap-emitter.js`, `internals/synth-key-utils.js` - the receiver-targeted synth-swap and the safety gate deciding when a computed key may be mirrored into a synth literal
+- `index.js`: plugin lifecycle, options, visitors and method dispatch.
+- `internals/detect-entry.js`, `internals/detect-usage.js`: Babel adapters for shared detection.
+- `internals/import-injector.js`: imports, directives, generated names and scope bookkeeping.
+- `internals/estree-to-babel.js`: insertion-boundary conversion, total over the provider's builder vocabulary, not arbitrary source ASTs.
+- `internals/babel-compat.js`: Babel AST operations. The Babel 7/8 scope-bag differences belong to the import injector.
+- `internals/destructure-emission-plan.js`, `internals/destructure-emitter.js`, `internals/synth-swap-emitter.js`, `internals/synth-key-utils.js`: host emission. Shared decisions and render forms belong in the provider.
 
-## Emitter model
+## Host contracts
 
-Mutates the AST in place during traversal, inside Babel's own parse. Detect and apply run as one pass in `pre()`, on the tree no sibling plugin has touched yet, and `Program:exit` only backstops what siblings insert afterwards - a deferred cross-phase apply would land on a tree they have since mutated. What is left behind still has to survive the lowerings that run after: a `ParenthesizedExpression` exists only under `createParenthesizedExpressions` and regenerator throws on any holding an `await` or `yield`, so grouping a reprint drops is restructured into plain nodes where it can be, and spelled as that node only where the printed text is genuinely misread without it. Those two halves sit on opposite sides of the lowerings: restructuring REMOVES a node they misread, so it runs with the emitters, while the paren node they cannot walk waits for `post()` - the one hook after every sibling's `Program:exit`. The other adapter, `@core-js/unplugin`, parses separately and reprints through its own printer; the two may differ in formatting, never in semantics.
+- Detect and apply together in `pre()`, while source types and patterns remain intact. `Program:exit` backstops later sibling output; do not defer the main apply across phases onto a changed tree.
+- Emitted nodes must survive subsequent Babel lowerings. Restructure unnecessary grouping during emission; restore necessary `ParenthesizedExpression` nodes in `post()`, after sibling `Program:exit` hooks. Earlier insertion can break regenerator on `await` / `yield`.
+- Clone through `rangePreservingTypes`. Babel cloning drops `start` / `end`; the wrapper restores them from `loc` for the provider's positional proofs.
+- Use the injector's scope bags for Babel 7 object maps and Babel 8 `referencesSet` / `uidsSet`.
+- Ask `resolveModuleFormat` with the filename and explicit parse goal. A declared script is evidence; Babel's default `module` goal is not.
 
-Every clone goes through `rangePreservingTypes`, which wraps the types object once where babel hands it over. Babel's own `cloneNode` keeps a node's `loc` but drops its `start` / `end` offsets, and the provider's positional rules read exactly those - so a read the emitter carries into a rewritten host answers "no position" to all of them, and they do not degrade alike: the suspension rule then keeps a guard the write had already invalidated and emits a helper of the wrong family. The offsets survive inside `loc`, so the copy is re-stamped from its own loc.
+## Validation
 
-The file's format is the provider's answer (`resolveModuleFormat`), asked with what this host knows: the filename and the goal babel parsed with. Only a declared SCRIPT speaks there - `module` is babel's default, not a statement about the file.
+- `npm run test-babel-plugin` and `npm run test-babel-plugin-unit`: Babel 8 fixtures and internals.
+- `npm run test-babel-plugin-v7` and `npm run test-babel-plugin-unit-v7`: Babel 7 coverage. Legitimate differences use fixture siblings; `tests/babel-plugin-v7/skip.mjs` is the last resort. See [fixture rules](../../tests/transpiler-fixtures/AGENTS.md).
 
-This package is a BINDING under the provider's "Core and bindings" contract (its `AGENTS.md`): it owes the babel host obligations - a foreign tree other plugins read after us, scope registration, requeueing, sibling-plugin etiquette - and the insertion of the provider's canonical ESTree render converted at the boundary, holding no decisions and no render forms of its own. Until a given render is shared, the live smell is: anything that has to be fixed in this package *and* in unplugin belongs in the provider instead. Before writing a helper or a branch, run the canon check the provider's `AGENTS.md` prescribes (`npm run canon`; reference in `scripts/canon/AGENTS.md`) - what you need may already exist in the provider or in unplugin under an unguessable name.
+For behavior changes, run bare `npm run test-transpiler-differential` and `npm run test-e2e-usage-pure`; the `babel` filter is diagnostic and omits import parity. Babel has a runtime bundle and a stripped-realm leg. Use `npm run test-transpiler-integration` for pipeline changes.
 
-## Tests
+At final handoff of code changes, run `npm run test-transpiling` once, then the performance gate specified by [the shared validation rules](../core-js-polyfill-provider/AGENTS.md#validation). Do not also run composite members on the same invocation line.
 
-- `npm run test-babel-plugin` - shared fixtures from `tests/transpiler-fixtures/`, against `@babel/core@8` (the default)
-- `npm run test-babel-plugin-unit` - internals
-- `npm run test-babel-plugin-v7` and `npm run test-babel-plugin-unit-v7` - the same against `@babel/core@7`, whose cosmetic divergences live in `<stem>.babel-v7.<ext>` fixture siblings; `tests/babel-plugin-v7/skip.mjs` is the last resort for what a sibling cannot express
-
-Those runners only compare text, which settles cosmetic work; a change in BEHAVIOR is verified while you work by the correctness suite nearest to it, scoped to what changed:
-
-- `npm run test-transpiler-differential` - both emitters against native at runtime, on the generated corpus. Run it bare (evaluations are cached, a repeat costs what the edit changed); the `babel` token narrows the run to this emitter and turns the import-parity oracle off - use it to isolate a suspect, never to save time
-- `npm run test-e2e-usage-pure` - executes the transformed code; this plugin owns one of the four bundles, and one of the two that also run in a stripped realm
-- `npm run test-transpiler-integration` - only when the change faces a real build pipeline; the matrix runs this plugin with no phase of its own
-- `npm run test-transpiler-perf-smoke` - routine agent check of the complexity class; use the full command for performance work
-
-The finish line, once, right before handoff and never mid-loop: `npm run test-transpiling` (a VERY heavy composite of every suite named here including this package's own runners), then the perf check described below - never with a member on the same invocation line.
-
-Routine agent perf checks use `npm run test-transpiler-perf-smoke` (1 measured pass, no warmup); performance work uses `npm run test-transpiler-perf` (warmup and 3 measured passes by default). See `tests/transpiler-perf/AGENTS.md` for the sampling and comparison rules.
-
-When comparing this emitter against unplugin by hand, normalize whitespace and run each emitter in a separate process - they share provider module state, and a shared-state leak looks exactly like a desync. The same state also accumulates across sequential `transformSync` calls within one process, so an injected-set probe is only valid as one probe per process. The differential harness deliberately does the opposite, running both in one process; do not "fix" it to match this advice.
+For independent manual output/import-set comparisons, normalize formatting and use one probe per process to exclude prior module state. The differential harness deliberately runs both emitters in one process; retain that coverage.

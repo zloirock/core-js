@@ -10,10 +10,21 @@ import _self from "@core-js/pure/actual/self";
 const events = [];
 let result;
 try {
-  const _ref = (_pushMaybeArray(events).call(events, 'source'), null == _globalThis.window ? void 0 : _self);
-  const _ref2 = (null == _ref ? void 0 : _ref).Array;
-  const from = null == _ref2 ? _ref2[""] : (_pushMaybeArray(events).call(events, 'key'), _Array$from);
-  const keys = ((null == _ref ? void 0 : _ref).Object, _Object$keys);
+  const {
+    Array: {
+      [(_pushMaybeArray(events).call(events, 'key'), 'from')]: from
+    },
+    Object: {
+      keys
+    }
+  } = (_pushMaybeArray(events).call(events, 'source'), {} = null == _globalThis.window ? void 0 : _self, {
+    Array: {
+      from: _Array$from
+    },
+    Object: {
+      keys: _Object$keys
+    }
+  });
   result = [from([7])[0], keys({
     x: 1
   })[0]];

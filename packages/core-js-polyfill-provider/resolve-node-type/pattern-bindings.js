@@ -47,8 +47,14 @@ import {
   POSITION_CONSUMES,
   walkPatternIdentifiers,
   isBareUndefinedIdentifier,
+  callPairing,
+  foldedPropertyKeyName,
+  isMemberAccessNode,
+  isMemberMutationContext,
+  staticMemberKeyName,
+  unwrapRuntimeExpr,
+  walkAstNodes,
 } from '../helpers/ast-patterns.js';
-import { callPairing } from '../detect-usage/mutations.js';
 
 // the class whose CONSTRUCTOR this function is, or null. one climb for both parsers: babel keeps
 // the parameters on the `ClassMethod` that carries `kind`, estree nests a `FunctionExpression`
@@ -86,6 +92,26 @@ function constructorCallerNames(fnPath) {
     outerNamed = true;
   }
   return { sources, outerNamed };
+}
+
+// A method's external name is a slot of its local literal owner. Unlike a class constructor,
+// every reference to that owner must account for the selected slot, and a `this` read anywhere
+// in the literal could expose it without spelling that owner's binding.
+function methodCallerNames(fnPath) {
+  const member = fnPath.node.type === 'ObjectMethod' ? fnPath : fnPath.parentPath;
+  const object = member?.parentPath;
+  const anchor = object?.parentPath;
+  if (object?.node.type !== 'ObjectExpression' || anchor?.node.type !== 'VariableDeclarator'
+    || anchor.node.id.type !== 'Identifier' || member.node.kind === 'get' || member.node.kind === 'set') return null;
+  const key = foldedPropertyKeyName(member.node);
+  if (key === null || object.node.properties.some(prop => foldedPropertyKeyName(prop) === null)
+    || object.node.properties.filter(prop => foldedPropertyKeyName(prop) === key).length !== 1) return null;
+  let readsThis = false;
+  walkAstNodes({ root: object.node, visit(node) {
+    if (node.type === 'ThisExpression') readsThis = true;
+    return !readsThis;
+  } });
+  return readsThis ? null : { name: anchor.node.id.name, scope: anchor.scope, anchor, key };
 }
 
 // the positions from which a value can still reach a CALLER of the function it carries, and so
@@ -945,6 +971,7 @@ export function createPatternBindings({
   // it can replace, and owns its additional consumed-value / arguments-object restrictions.
   // that consumer also supplies the mutation hook: the call canon alone decides whether an invoker
   // still calls the apparent function, without a second pairing at the rewrite site.
+  // eslint-disable-next-line max-statements -- one census accounts for function, constructor and method owners
   function parameterCallSites(bindingPath, { staticIsMutated = null, getBindingEntry = null } = {}) {
     const fnPath = bindingPath.parentPath;
     if (!fnPath?.node || !t.isFunction(fnPath.node)) return null;
@@ -980,6 +1007,8 @@ export function createPatternBindings({
     }
     const viaClass = constructorCallerNames(fnPath);
     if (viaClass) sources.push(...viaClass.sources);
+    const viaMethod = methodCallerNames(fnPath);
+    if (viaMethod) sources.push(viaMethod);
     // ... and the caller set must ACCOUNT for the outside, which the NFE internal name alone never
     // does. two spellings do: an OUTER NAME the outside can write (a declaration's own id, a
     // declarator's, the class of a constructor), or - for a function reached as a VALUE - the
@@ -992,11 +1021,14 @@ export function createPatternBindings({
     // the list non-simple, whose unmapped arguments object answers `callee` with the poison pill
     const ownInvocation = invocationPairingAt(fnPath, fnPath.scope, fnPath, staticIsMutated, getBindingEntry);
     const outerNamed = fnPath.node.type === 'FunctionDeclaration'
-      || declaresTheName || Boolean(viaClass?.outerNamed);
+      || declaresTheName || Boolean(viaClass?.outerNamed) || Boolean(viaMethod);
     if (!outerNamed && !ownInvocation) return null;
     const sites = ownInvocation ? [{ ...ownInvocation, argIndex }] : [];
     const seenCalls = new Set(sites.map(site => site.callPath.node));
-    for (const { name: fnName, scope, anchor } of sources) {
+    const seenSources = new Set();
+    for (const { name: fnName, scope, anchor, key } of sources) {
+      if (seenSources.has(anchor.node)) continue;
+      seenSources.add(anchor.node);
       const binding = getScopeBinding(scope, fnName, anchor);
       // an identically named binding is not a callable identity. a source anchor is the function,
       // its declarator, or its constructor's class, and only that exact declaration qualifies.
@@ -1004,15 +1036,29 @@ export function createPatternBindings({
       // an NFE's internal name cannot be exported from the file. its value may escape through
       // a reference (checked below), or through its outer declarator (checked separately), but
       // exporting an IIFE's RESULT does not export the function literal that produced it.
-      if (anchor.node.type !== 'FunctionExpression' && functionNameEscapesFile(fnPath, fnName)) return null;
+      if (anchor.node.type !== 'FunctionExpression' && functionNameEscapesFile(anchor, fnName)) return null;
       // a NULL reference set means the callers could not be enumerated, not that there are none;
       // treating unknown-references as proof-of-absence would let the default narrow the param over
       // a foreign-typed call arg (bias-unsafe) - bail rather than claim "never overridden"
       const refs = collectBindingReferences(binding, anchor);
       if (refs === null) return null;
-      for (const ref of refs) {
+      for (let ref of refs) {
+        if (key !== undefined) {
+          const member = peelTransparentExprAncestorPath(ref)?.parentPath;
+          if (!isMemberAccessNode(member?.node) || unwrapRuntimeExpr(member.node.object) !== ref.node
+            || staticMemberKeyName(member.node) === null
+            || isMemberMutationContext(member.node, member.parentPath?.node, member.parentPath?.parentPath?.node)) return null;
+          if (staticMemberKeyName(member.node) !== key) continue;
+          ref = member;
+        }
         const site = invocationPairingAt(ref, ref.scope, ref, staticIsMutated, getBindingEntry);
         if (!site) {
+          const alias = peelTransparentExprAncestorPath(ref)?.parentPath;
+          if (alias?.node.type === 'VariableDeclarator' && alias.node.id.type === 'Identifier'
+            && unwrapRuntimeExpr(alias.node.init) === ref.node) {
+            sources.push({ name: alias.node.id.name, scope: alias.scope, anchor: alias });
+            continue;
+          }
           if (valueIsDroppedAt(ref)) continue;
           return null;
         }

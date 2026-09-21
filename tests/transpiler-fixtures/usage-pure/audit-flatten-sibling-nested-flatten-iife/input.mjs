@@ -1,5 +1,3 @@
-// Single declaration with two declarators: outer flattens `{Array:{from}} = globalThis`,
-// sibling is an IIFE whose body has its own inner `{Map:{groupBy}} = globalThis`. Each
-// destructure flattens independently and the IIFE wrapper is preserved.
+// Nested statics in an outer declaration and sibling IIFE are served independently.
 const { Array: { from } } = globalThis, outer = (function () { const { Map: { groupBy } } = globalThis; return groupBy; })();
 console.log(from, outer);

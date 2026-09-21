@@ -248,9 +248,12 @@ for (const _ref7 of [{
     viaSpread = _ref6 === Object ? _Object$fromEntries : _ref6.fromEntries;
   viaSpread;
 }
-for (const [{
-  getOwnPropertyNames: viaHole
-}] of [[Object], [, Object]]) viaHole;
+for (const _ref8 of [[Object], [, Object]]) {
+  let [{
+    getOwnPropertyNames: viaHole
+  }] = _ref8;
+  viaHole;
+}
 // ... and a pattern written further down the body reads the loop variable as a binding of its
 // element: the static walk reads a for-of head's sole element as the init the head never had
 for (const viaLater of [{
@@ -263,9 +266,9 @@ for (const viaLater of [{
 
 // an emptied SOLE host with a pure init leaves on both legs, the wrapper husk included; a neighbour
 // element that runs lifts as a statement ahead, in source order (the `push` claims are carriers)
-let _ref8 = rec;
-let viaEmptiedObject = _entries(_ref8.w);
-let viaEmptiedObjectAt = _at(_ref8.y);
+let _ref9 = rec;
+let viaEmptiedObject = _entries(_ref9.w);
+let viaEmptiedObjectAt = _at(_ref9.y);
 [viaEmptiedObject, viaEmptiedObjectAt];
 const viaEmptiedWrap = _values(rec.w);
 const viaEmptiedWrapAt = _at(rec.y);

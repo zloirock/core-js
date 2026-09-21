@@ -1,7 +1,6 @@
-// Writes inside assignment targets prevent treating the result as the original argument.
-// Accepted limitation: the default write is not proven to discard the incoming Array.
-// This injects the full Array family despite no real constructor escape; the extra injection
-// is retained to avoid deeper flow analysis for this uncommon shape.
+// Writes inside assignment targets invalidate the returned-argument proof.
+// The local calls keep their arguments in this file; global injection covers the selected
+// static keys across the possible receivers without loading whole constructor families.
 let x;
 const viaLhsDefault = (arg => {
   ({ x = (arg = Promise) } = {});

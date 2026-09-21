@@ -1,7 +1,5 @@
-// A DEFAULTED instance leaf under a deeper hop, beside a sibling leaf, off a realm init that runs
-// effects first: the whole init memoizes and the leaf dispatches off the memo through the canonical
-// default guard - the route its undefaulted twin takes, which once admitted the bare identifier
-// alone and left the defaulted leaf native on the unplugin leg. The anonymous default keeps its name.
+// A defaulted instance leaf beside a static keeps its dispatch and live fallback.
+// Receiver effects run once before either binding; anonymous defaults keep their inferred names.
 let eff = 0;
 const { Array: { prototype: { flat: f1 = () => 1 }, of: o1 } } = (eff++, globalThis);
 const { Array: { prototype: { flat: f2 = () => 1, at: a2 } } } = (eff++, globalThis);

@@ -1,8 +1,5 @@
-// a SPREAD after the slot keeps the wrapper alive because no statement re-emits an iteration:
-// a receiver-less static leaves a leaf sentinel, its prefix lifts, a write stays, a live sibling
-// needs no sentinel; a reading claim on a re-readable element reads inline beside the residual,
-// and one on an element that is not re-readable takes the positional slot instead of a ref and a
-// husk; a spread BEFORE the slot leaves that slot to the positional pair too
+// A spread preserves array iteration and the positions it can affect.
+// Known static slots receive pure values while uncertain slots retain their native reads.
 const seen = [];
 const eff = t => (seen.push(t), t);
 const xs = [1];

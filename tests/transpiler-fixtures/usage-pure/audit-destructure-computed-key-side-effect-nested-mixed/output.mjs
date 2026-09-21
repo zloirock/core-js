@@ -4,17 +4,19 @@ import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 // Each branch reads its receiver, evaluates its key prefix, and initializes its
 // binding in source order; both bindings receive the corresponding polyfill.
 const arr = [1, [2]];
-const _ref2 = {
-    x: Array,
+const _ref = {
+    x: {
+      from: _Array$from
+    },
     y: arr
   },
   {
-    x: _ref
-  } = _ref2,
-  _ref3 = _ref,
-  f = null == _ref3 ? _ref3[""] : (before(), _Array$from),
+    x: {
+      [(before(), 'from')]: f
+    }
+  } = _ref,
   {
-    y: _ref4
-  } = _ref2,
-  _ref5 = _ref4,
-  m = null == _ref5 ? _ref5[""] : (after(), _flatMaybeArray(_ref5));
+    y: _ref2
+  } = _ref,
+  _ref3 = _ref2,
+  m = null == _ref3 ? _ref3[""] : (after(), _flatMaybeArray(_ref3));

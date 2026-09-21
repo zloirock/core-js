@@ -1,5 +1,5 @@
-// The later slot read stays as written. Global retains conservative Map injection;
-// narrowing a value installed by a builtin is deferred.
+// Object.assign installs the constructor into a retained slot.
+// Its later static read needs the namespace entry.
 const w = { k: Object };
 Object.assign(w, { k: Map });
 const result = typeof w.k.groupBy;

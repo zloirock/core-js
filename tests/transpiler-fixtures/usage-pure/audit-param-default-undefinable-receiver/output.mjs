@@ -106,9 +106,7 @@ export function viaMirrorPassthrough({
     of
   }
 } = {
-  Math: {
-    floor: _self.Math.floor
-  },
+  Math: _self.Math,
   Array: {
     of: _Array$of
   }

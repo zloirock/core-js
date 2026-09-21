@@ -1,5 +1,5 @@
-// Object-rest keeps the affected assignment pattern native and preserves its RHS value.
-// Independent reads and key/default expressions still receive their own polyfills.
+// Bodyless assignments retain their receiver and assignment result.
+// Missing pristine constructors use pure bindings; unknown members remain residual reads.
 let custom1, custom2, r, g;
 if (c1()) ({ Map: { custom: custom1 } } = globalThis);
 if (c2()) ({ Promise: { custom: custom2, ...r } } = globalThis);

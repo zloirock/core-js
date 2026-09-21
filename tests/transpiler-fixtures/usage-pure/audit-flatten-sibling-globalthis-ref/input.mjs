@@ -1,5 +1,3 @@
-// multi-declarator: first declarator is a flattened `globalThis` proxy destructure;
-// sibling holds a bare `globalThis` reference that must also be rewritten to the
-// polyfill binding even though it sits outside any arrow / function body
+// A bare global read beside a nested static keeps its own pure binding.
 const { Array: { from } } = globalThis, host = globalThis;
 export { from, host };

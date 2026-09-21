@@ -1,24 +1,102 @@
 import _Array$of from "@core-js/pure/actual/array/of";
 import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
-// an instance leaf under a STATIC hop composes off the static's ponyfill - an import binding, always
-// defined - so an inner default is dead text and drops, never mirroring a dead branch. the
-// constructor may stand behind hops of its own or be the init's own member read, and leaf siblings
-// take the flat twin off one memo of that same ponyfill
-const viaHop = _nameMaybeFunction(_Array$of);
-const viaNoOuterDefault = _nameMaybeFunction(_Array$of);
-const viaNoDefault = _nameMaybeFunction(_Array$of);
-const viaMemberInit = _nameMaybeFunction(_Array$of);
-const viaMemberInitBare = _nameMaybeFunction(_Array$of);
+// An instance leaf under a static reads through that static's ponyfill.
+// A dead pattern default must not hide the live leaf claim; siblings read the same pure value.
+const {
+  Array: {
+    of: {
+      name: viaHop
+    } = {}
+  } = {}
+} = {
+  Array: {
+    of: {
+      name: _nameMaybeFunction(_Array$of)
+    }
+  }
+};
+const {
+  Array: {
+    of: {
+      name: viaNoOuterDefault
+    } = {}
+  }
+} = {
+  Array: {
+    of: {
+      name: _nameMaybeFunction(_Array$of)
+    }
+  }
+};
+const {
+  Array: {
+    of: {
+      name: viaNoDefault
+    }
+  }
+} = {
+  Array: {
+    of: {
+      name: _nameMaybeFunction(_Array$of)
+    }
+  }
+};
+const {
+  of: {
+    name: viaMemberInit
+  } = {}
+} = {
+  of: {
+    name: _nameMaybeFunction(_Array$of)
+  }
+};
+const {
+  of: {
+    name: viaMemberInitBare
+  }
+} = {
+  of: {
+    name: _nameMaybeFunction(_Array$of)
+  }
+};
 let viaAssign;
-viaAssign = _nameMaybeFunction(_Array$of);
-const _ref = _Array$of;
-const withSibling = _nameMaybeFunction(_ref);
+({
+  Array: {
+    of: {
+      name: viaAssign
+    } = {}
+  } = {}
+} = {
+  Array: {
+    of: {
+      name: _nameMaybeFunction(_Array$of)
+    }
+  }
+});
 const {
-  foo
-} = _ref;
-const _ref2 = _Array$of;
-const hopWithSibling = _nameMaybeFunction(_ref2);
+  of: {
+    name: withSibling,
+    foo
+  } = {}
+} = {
+  of: {
+    name: _nameMaybeFunction(_Array$of),
+    foo: _Array$of.foo
+  }
+};
 const {
-  length
-} = _ref2;
+  Array: {
+    of: {
+      name: hopWithSibling,
+      length
+    }
+  }
+} = {
+  Array: {
+    of: {
+      name: _nameMaybeFunction(_Array$of),
+      length: _Array$of.length
+    }
+  }
+};
 export { viaHop, viaNoOuterDefault, viaNoDefault, viaMemberInit, viaMemberInitBare, viaAssign, withSibling, foo, hopWithSibling, length };

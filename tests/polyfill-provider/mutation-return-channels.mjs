@@ -34,6 +34,10 @@ for (const [value, tail] of [['value', ''], ['[value]', '[0]'], ['{ value }', '.
     `${ prefix } function pick(value) { return ${ value }; } invoke(pick, null, [Array])${ tail }.from = patched; Array.from([1]);`]);
 }
 rows.push(
+  ['selected argument inside a returned container',
+    'function box(value) { return [value]; } box(flag ? Array : Object)[0].from = patched; Array.from([1]);'],
+  ['parameter stored through a nested spread caller',
+    'let held; function save(value) { held = value; } save(...[...[Array]]); held.from = patched; Array.from([1]);'],
   ['caller shadow does not capture a free return',
     'function pick() { return Array; } function run(Array) { pick.apply(null, []).from = patched; } run({}); Array.from([1]);'],
   ['nested return keeps declaration scope',
@@ -64,6 +68,12 @@ for (const helper of ['_interopRequireDefault', '_interopRequireWildcard', '_int
 rows.push(['namespace invoker',
   'import * as invoke from "@core-js/pure/actual/reflect/apply";'
     + ' function pick(value) { return value; } invoke.default(pick, null, [Array]).from = patched; Array.from([1]);']);
+// The pure Reflect namespace binding invokes through its `apply` member like the entry does.
+for (const [value, tail] of [['value', ''], ['[value]', '[0]'], ['{ value }', '.value']]) {
+  rows.push([`Reflect namespace import: ${ value }`,
+    'import Reflect from "@core-js/pure/actual/reflect";'
+      + ` function pick(value) { return ${ value }; } Reflect.apply(pick, null, [Array])${ tail }.from = patched; Array.from([1]);`]);
+}
 // Invoker identity follows aliases at their declarations, including the lowered default slot.
 for (const [prefix, value] of [
   ['import invoke from "@core-js/pure/actual/reflect/apply";', 'invoke'],
@@ -102,6 +112,22 @@ for (const [emitter, transform] of transforms) {
   }
 
   check(`${ emitter }: untouched static is injected`, (await transform('Array.from([1]);')).includes('/array/from'), true);
+  for (const [label, source, expected, entry = 'from'] of [
+    ['later handout', 'const source = [Array]; const [{ from }] = source; use(source); from([1]);', true],
+    ['earlier handout', 'const source = [Array]; use(source); const [{ from }] = source; from([1]);', false],
+    ['selected container identity',
+      'const source = [Array]; function read([{ from, ...rest }]) { return from([1]); } read(source);'
+        + ' const [{ of }] = source; of(2);', true, 'of'],
+    ['selected leaf can write a static',
+      'const source = [Array]; function install([held]) { held.from = patched; } install(source);'
+        + ' const [{ from }] = source; from([1]);', false],
+    ['selected leaf can replace a deeper slot',
+      'const source = [{ w: Array }]; function install([held]) { held.w = {}; } install(source);'
+        + ' const [{ w: { from } }] = source; from([1]);', false],
+    ['arguments retains the container',
+      'const source = [Array]; function install([{}]) { arguments[0][0] = {}; } install(source);'
+        + ' const [{ from }] = source; from([1]);', false],
+  ]) check(`${ emitter }: container read ${ label }`, (await transform(source)).includes(`/array/${ entry }`), expected);
   for (const [label, source] of rows) {
     let output = source;
     for (let pass = 1; pass <= 2; pass++) {
@@ -127,6 +153,7 @@ for (const [emitter, transform] of transforms) {
 // A namespace wrapper and its default value are distinct: a second default hop stays opaque.
 for (const [prefix, expression, expected] of [
   ['import value from "@core-js/pure/actual/reflect/apply";', 'value', true],
+  ['import value from "@core-js/pure/actual/reflect/apply"; const alias = (effect(), value);', 'alias', true],
   ['import * as ns from "@core-js/pure/actual/reflect/apply";', 'ns', false],
   ['import * as ns from "@core-js/pure/actual/reflect/apply";', 'ns.default', true],
   ['import * as ns from "@core-js/pure/actual/reflect/apply"; const value = ns.default;', 'value.default', false],

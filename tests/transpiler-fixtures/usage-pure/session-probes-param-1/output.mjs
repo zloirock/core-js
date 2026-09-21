@@ -102,10 +102,15 @@ function mark(t, v) {
 {
   const order = [];
   const eff = t => (_pushMaybeArray(order).call(order, t), t);
-  const f1 = _Array$from;
   const {
-    [(eff('k'), 'Array')]: _unused
-  } = _globalThis;
+    [(eff('k'), 'Array')]: {
+      from: f1
+    }
+  } = {
+    Array: {
+      from: _Array$from
+    }
+  };
 }
 {
   // The computed outer key runs before the nested prototype read and instance-method extraction.
@@ -124,11 +129,14 @@ function mark(t, v) {
 {
   const order = [];
   const eff = t => (_pushMaybeArray(order).call(order, t), t);
-  const f4 = _Array$from;
   const {
-    [(eff('k'), 'w')]: _unused2
+    [(eff('k'), 'w')]: {
+      from: f4
+    }
   } = {
-    w: Array
+    w: {
+      from: _Array$from
+    }
   };
 }
 {
@@ -139,8 +147,7 @@ function mark(t, v) {
     return t;
   }
   const _ref5 = [1, 2],
-    _ref6 = _ref5,
-    a = null == _ref6 ? _ref6[""] : (eff('k'), _atMaybeArray(_ref6)),
+    a = null == _ref5 ? _ref5[""] : (eff('k'), _atMaybeArray(_ref5)),
     {
       z
     } = _ref5;

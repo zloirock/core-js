@@ -1,9 +1,5 @@
-// a lifted side-effect that re-roots a destructure-overwrite on a hazard char (`/re/` divides, `+x` / `-x`
-// continue a binary) must not fuse LEFTWARD into a `;`-less prev statement at statement-list position. the
-// original `const` / ASI-split `(` parsed statement-separate, but the rewrite carries no such guarantee:
-// `i++` followed by `/x/...` divides into an unparsable line. babel is immune (AST insert); unplugin prepends
-// a `;` to the overwrite - a whitespace-only `;`-placement difference the comparator tolerates, so there is
-// no sidecar. the flatten + cascade overwrites both route through the guard
+// Sequence effects beginning with a regexp or unary operator keep their statement boundary.
+// Neither a declaration nor an assignment rewrite may fuse with the preceding expression.
 
 // flatten host (declaration): a `/`-leading lifted SE after a `;`-less `i++`
 i++

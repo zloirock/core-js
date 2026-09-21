@@ -1,3 +1,4 @@
+import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 // Rest-bearing parameters keep their native bindings and defaults in parameter scope.
 // Independent reads and key/default expressions still receive their own polyfills.
 function TagName({
@@ -31,9 +32,10 @@ function lowerRoot({
   return [values, rest];
 }
 function noTag({
-  fromEntries,
+  fromEntries: _unused,
   ...rest
 } = Object) {
+  let fromEntries = _Object$fromEntries;
   return [fromEntries, rest];
 }
 export const control = noTag();

@@ -10,10 +10,32 @@ import _Set from "@core-js/pure/actual/set/constructor";
 // the branch alive is the receiver: a fallback that is not the realm, or an arm a TEST selects -
 // a selection every arm of which IS the realm names one object and drops instead.
 /* eslint-disable no-restricted-globals, unicorn/prefer-global-this -- the bare proxy names are the shape under test */
-const grouped = _Map$groupBy;
-const SetCtor = _Set;
-const flatGrouped = _Map$groupBy;
-const FlatSet = _Set;
+const {
+  self: {
+    Map: {
+      groupBy: grouped
+    },
+    Set: SetCtor
+  }
+} = {
+  self: {
+    Map: {
+      groupBy: _Map$groupBy
+    },
+    Set: _Set
+  }
+};
+const {
+  Map: {
+    groupBy: flatGrouped
+  },
+  Set: FlatSet
+} = {
+  Map: {
+    groupBy: _Map$groupBy
+  },
+  Set: _Set
+};
 const box = {
   Map: _Map,
   Set: _Set

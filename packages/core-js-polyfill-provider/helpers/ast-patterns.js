@@ -2,6 +2,7 @@ import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types
 import {
   canonicalArrayIndex,
   DESTRUCTURE_PATTERN_TYPES,
+  dropLeadingThisParam,
   hasRange,
   MAX_DEPTH,
   nodeRangeContains,
@@ -25,9 +26,20 @@ export const LOCAL_MEMBER_CALLEES = new WeakMap();
 // resolver validates only these candidates; unrelated parameters never need its caller walk.
 export const PARAMETER_STATIC_SOURCES = new WeakMap();
 
-// Program -> read-only query of possible constructor families behind an opaque iteration, asked
-// by receiver node. The census publishes it for global's member-key extras and pure's ctor guards.
-export const ITERATED_STATIC_RECEIVERS = new WeakMap();
+const capturedKeyedPatterns = new WeakSet();
+// Record the original pattern before moving its leaf onto a captured receiver.
+export function markCapturedKeyedPattern(pattern) {
+  capturedKeyedPatterns.add(pattern);
+}
+
+// A moved leaf still owes the coercion and reads its source pattern performed before capture.
+export function isCapturedKeyedPattern(pattern) {
+  return capturedKeyedPatterns.has(pattern);
+}
+
+// Program -> read-only receiver candidate query. Global includes local call/parameter flows;
+// pure asks for opaque iteration/selection families. Candidates alone never prove a replacement.
+export const CENSUS_STATIC_RECEIVERS = new WeakMap();
 
 // The escape census's position half, keyed by PROGRAM node -> `start:end` keys of CONSTRUCTOR references
 // whose value escapes. a position survives every clone and region rebuild (babel's cloneNode keeps
@@ -1749,10 +1761,11 @@ function identifierReferencedIn(node, matches, declared) {
   // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
   for (const key in node) {
     const child = node[key];
-    if (TYPE_SPACE_CHILD_KEYS.has(key) || isNonReferencePosition(node, child)) continue;
+    if (TYPE_SPACE_CHILD_KEYS.has(key)) continue;
     if (Array.isArray(child)) {
+      if (isNonReferencePosition(node, child)) continue;
       for (const grandchild of child) if (identifierReferencedIn(grandchild, matches, inner)) return true;
-    } else if (identifierReferencedIn(child, matches, inner)) return true;
+    } else if (isASTNode(child) && !isNonReferencePosition(node, child) && identifierReferencedIn(child, matches, inner)) return true;
   }
   return false;
 }
@@ -2219,6 +2232,14 @@ export function findFunctionScopeVarDeclaratorInPath(path, name) {
 // AssignmentExpression, so it needs its own. no early stop: the parsers disagree on the
 // traversal-abort API, and indexing every write costs one bounded walk total
 const ownerWritePathIndexCache = new WeakMap();
+const OWNER_WRITE_PATH_TYPES = new Set([
+  'VariableDeclarator',
+  'AssignmentExpression',
+  'UpdateExpression',
+  'ForOfStatement',
+  'ForInStatement',
+  'FunctionDeclaration',
+]);
 // uncached builder: babel's lagged-binding recovery must read the LIVE AST (the plugin's own
 // alias rewrite replaces write nodes, so a cached index may hold replaced originals)
 export function buildOwnerWritePathIndex(ownerPath) {
@@ -2226,14 +2247,7 @@ export function buildOwnerWritePathIndex(ownerPath) {
   function add(p) {
     if (!index.has(p.node)) index.set(p.node, p);
   }
-  ownerPath.traverse({
-    VariableDeclarator: add,
-    AssignmentExpression: add,
-    UpdateExpression: add,
-    ForOfStatement: add,
-    ForInStatement: add,
-    FunctionDeclaration: add,
-  });
+  ownerPath.traverse(Object.fromEntries([...OWNER_WRITE_PATH_TYPES].map(type => [type, add])));
   return index;
 }
 export function ownerWritePathIndex(ownerPath) {
@@ -2248,6 +2262,9 @@ const ownerSourceWritePaths = new WeakMap();
 // Index the existing owner walk by source position once; duplicate positions are ambiguous.
 // This lookup is only for writes from this file's census, never nodes from another program.
 export function ownerSourceWritePath(ownerPath, node) {
+  // A read-shaped capture can never match this write-only index. Reject it before
+  // a speculative query pays for a traversal of the whole enclosing owner.
+  if (!OWNER_WRITE_PATH_TYPES.has(node?.type)) return null;
   const paths = ownerWritePathIndex(ownerPath);
   if (paths.has(node)) return paths.get(node);
   const key = nodePositionKey(node);
@@ -3228,6 +3245,48 @@ const nodeSitsInLoopRerunWithin = memoizeByNodePair((ownerNode, target) => {
   return false;
 });
 
+// the slots a for-x HEAD spells a pure BINDING TARGET in - the positions that name what the pattern
+// binds without reading anything there. every other slot inside a head (a leaf DEFAULT's value, a
+// COMPUTED key) is an expression the back-edge really does re-evaluate, so a climb stops at it
+const HEAD_BINDING_TARGET_FIELDS = {
+  VariableDeclaration: ['declarations'],
+  VariableDeclarator: ['id'],
+  ObjectPattern: ['properties'],
+  ArrayPattern: ['elements'],
+  Property: ['value'],
+  ObjectProperty: ['value'],
+  AssignmentPattern: ['left'],
+  RestElement: ['argument'],
+};
+
+// the POSITION a question about the VALUE a for-x HEAD destructures has to be asked at. the head's
+// pattern stands in the loop's `left`, which the back-edge re-binds once per pass, but what that
+// pattern destructures is an element of the loop's `right` - the iterable, evaluated ONCE when the
+// loop is ENTERED, ahead of the first pass. anchored on the head itself, a positional narrow answers
+// for the binding slot instead of for the read, and calls re-runnable a value read that never
+// re-runs. re-entry needs no case of its own: a head standing in an OUTER loop's re-running region
+// is climbed into from `right` exactly as it was from `left`, which is precisely when the head IS
+// re-entered. the climb crosses BINDING-TARGET slots only, so a default's value and a computed key -
+// the expressions a head really does re-run - keep their own position
+function loopHeadValueReadAnchor(ownerNode, node) {
+  if (!node) return node;
+  const parents = ownerParentIndexLocating(ownerNode, node);
+  for (let child = node; child !== ownerNode;) {
+    const parent = parents.get(child);
+    if (!parent) return node;
+    // only a head that DESTRUCTURES - or declares - reads a value at all: a bare `for (M of it)`
+    // target is a per-pass WRITE, and nothing about it is answered by the iterable's position
+    if (isForXStatement(parent)) {
+      return parent.left === child && (child.type === 'VariableDeclaration' || isDestructurePattern(child))
+        ? parent.right ?? node : node;
+    }
+    const fields = HEAD_BINDING_TARGET_FIELDS[parent.type];
+    if (!fields || !parentFieldOf(parent, child, fields)) return node;
+    child = parent;
+  }
+  return node;
+}
+
 // loop back-edge anchor for a binding: its declaration identifier node + kind. position (which loop
 // slot the decl sits in) plus kind (`var` is function-scoped and carries; `let`/`const` are
 // block-scoped and re-created in a body) is the parser-robust signal - estree-toolkit attaches both a
@@ -3273,6 +3332,9 @@ export function loopReExecRegionHasViolation(loopNode, violationNodes, bindingAn
 export function usageCrossesLoopBackEdgeReassign(usagePath, violationNodes, bindingAnchor, readNode = null) {
   if (!violationNodes?.length) return false;
   for (let cur = usagePath, parent; (parent = cur.parentPath) && !readStepIsDeferred(parent, cur); cur = parent) {
+    // A binding can retain a path through a declaration an earlier rewrite removed.
+    // Lost ancestry supplies no ordering proof for a later read of that binding.
+    if (!parent.node) return true;
     if (isVarScopeBoundary(parent.node.type) && nodeRangeContains(parent.node, bindingAnchor?.decl)) return false;
     // a read in the `for`-INIT slot runs once, before the first body write - the same once-only region
     // `loopReExecRegionHasViolation` excludes on the write side, mirrored here so one rule serves both
@@ -3733,9 +3795,20 @@ export function noReassignmentReachesUsage({
 }) {
   if (!usagePath) return false;
   if (!reassignmentNodes?.length) return true;
-  const owner = findNearestVarScopeOwner(usagePath);
+  let owner = findNearestVarScopeOwner(usagePath);
   if (!owner) return false;
-  const readNode = usageNode ?? usagePath.node;
+  // A container may capture this value outside the eventual consumer's closure.
+  // Its declaration is the read site for both position and execution-frame checks.
+  if (usageNode && !nodeRangeContains(owner.node, usageNode)) {
+    if (!OWNER_WRITE_PATH_TYPES.has(usageNode.type)) return false;
+    const captured = climbVarScopeOwners(usagePath, outer => nodeRangeContains(outer.node, usageNode)
+      ? ownerSourceWritePath(outer, usageNode) ?? undefined : undefined);
+    if (!captured) return false;
+    usagePath = captured;
+    owner = findNearestVarScopeOwner(captured);
+    if (!owner) return false;
+  }
+  const readNode = loopHeadValueReadAnchor(owner.node, usageNode ?? usagePath.node);
   if ((!bindingAnchor || usageNode) && nodeSitsInLoopRerunWithin(owner.node, readNode)) return false;
   // "textually after the read" proves nothing beyond ONE activation of that owner. when the owner
   // is re-invocable while the binding outlives it, the previous activation's write runs before the
@@ -4364,14 +4437,14 @@ export function pairedArrayWrapInitElement(initElements, index) {
 
 // the same expansion written INTO the literal: the rewriting flavor splices an inline-array spread
 // in place before any route edits the literal by slot, so a positional answer and a positional edit
-// name one element. a spread with a spread inside stays (its length is variadic)
+// name one element. A spread with an opaque nested spread keeps its original shape.
 export function flattenInlineArraySpreads(elements) {
   if (!Array.isArray(elements)) return;
   for (let i = 0; i < elements.length; i++) {
     const item = elements[i];
-    const spread = item?.type === 'SpreadElement' ? unwrapRuntimeExpr(item.argument) : null;
-    if (spread?.type !== 'ArrayExpression' || spread.elements.some(inner => inner?.type === 'SpreadElement')) continue;
-    elements.splice(i, 1, ...spread.elements);
+    const spread = item?.type === 'SpreadElement' ? inlineArrayElements(item.argument) : null;
+    if (!spread) continue;
+    elements.splice(i, 1, ...spread);
     i -= 1;
   }
 }
@@ -4503,18 +4576,15 @@ export function aliasEscaped(aliasNode, adapter, path) {
   return !!program && !!ESCAPED_CONTAINER_NAMES.get(program)?.has(aliasNode.name);
 }
 
-// has a MEMBER write landed on the slot this level reads off a dereferenced alias? the escape gate's
-// twin for a write the census CAN name (`const c = { k: Object }; c.k = Map`): the follow's own flow
-// analysis tracks the binding, never its members, so the level that descends a named key asks here.
-// usage-pure alone bails, for the reason the container channel gives - a write anywhere in the file
-// may reach the read, while the other flavors over-inject and stay safe
-// asked of the alias's own declaration where `scope` / `path` reach it, the name-wide union otherwise
+// Check a dereferenced alias's member path for writes in usage-pure. Binding-flow analysis
+// alone does not track its contents. Use the declaration owner when known, otherwise the
+// name-wide union; anchor slot timing at the final read, even if the alias was captured earlier.
 export function aliasSlotWritten(aliasNode, key, adapter, { scope = null, path = null, ownerNode = null } = {}) {
   if (aliasNode?.type !== 'Identifier' || adapter?.method !== 'usage-pure' || key === null || key === undefined) return false;
   const binding = scope ? adapter.getBinding?.(scope, aliasNode.name, path) : null;
   // the record keys slots by their STRING spelling, and a numeric key names one like any other
   return !!adapter.isWrittenContainerSlot?.(aliasNode.name, Array.isArray(key) ? key.map(String) : [String(key)],
-    ownerNode ?? binding?.path?.node ?? binding?.node ?? null);
+    ownerNode ?? binding?.path?.node ?? binding?.node ?? null, path, path?.node);
 }
 
 // the ONE const-alias follow: an Identifier through its binding's init at each hop, peeling parens /
@@ -4640,6 +4710,7 @@ function receiverSlotRead(receiver, key) {
 // guarded constructor yielded there must carry the static slots that pattern subsequently reads.
 // `includeBindings` includes every named slot, so an opaque receiver's static reads are counted
 // even when no particular local binding is queried.
+// `restSources` collects the source values of object-rest levels during the same pairing walk.
 export function patternReceiverSlotNodes(pattern, rhs, name, ctx) {
   const out = [];
   rhs = followConstLiteralAlias(installedWriteValue(rhs), ctx);
@@ -4658,6 +4729,7 @@ export function patternReceiverSlotNodes(pattern, rhs, name, ctx) {
   }
   if (pattern?.type !== 'ObjectPattern') return out;
   for (const prop of pattern.properties) {
+    if (prop.type === 'RestElement' && rhs) ctx?.restSources?.push(rhs);
     if (prop.type !== 'Property' && prop.type !== 'ObjectProperty') continue;
     const slot = patternSlotTarget(prop.value);
     if (slot?.type === 'Identifier' && slot.name !== name && !ctx?.includeBindings) continue;
@@ -4735,7 +4807,7 @@ export function parameterStaticSource(sites, paramIndex, resolveSource) {
   for (const site of sites) {
     if (!site.pairing || site.pairing.argsUnknown) return null;
     const argument = unwrapRuntimeExpr(resolveCallArgument(site.pairing.args ?? [], site.argIndex ?? paramIndex));
-    if (argument?.type !== 'Identifier') return null;
+    if (!argument) return null;
     const name = resolveSource(argument, site);
     if (!name || source && source !== name) return null;
     source = name;
@@ -4763,42 +4835,60 @@ export function literalIdentifierSlots(literal, prefix = []) {
   return slots;
 }
 
-// how many times `name` is spelled as an identifier under this node - the COUNT, not the fact of
-// one: a value put in a container slot and read a second time elsewhere is no longer accounted for
-// by that slot alone
-function identifierOccurrences(node, name) {
-  if (!node || typeof node !== 'object' || typeof node.type !== 'string') return 0;
-  if (node.type === 'Identifier') return node.name === name ? 1 : 0;
-  let total = 0;
-  walkAstChildren(node, child => { total += identifierOccurrences(child, name); });
-  return total;
+// Increment every queried name in `counts` in one walk, conservatively including nested scopes.
+// Ignore noncomputed property names; a second value reference is distinct from a container slot.
+function identifierOccurrences(node, counts) {
+  if (!node || typeof node !== 'object' || typeof node.type !== 'string') return;
+  if (node.type === 'Identifier') {
+    if (counts.has(node.name)) counts.set(node.name, counts.get(node.name) + 1);
+    return;
+  }
+  walkAstChildren(node, (child, slot) => {
+    // a non-computed KEY spells no reference: `{ value }` names its slot and reads the parameter
+    // once, and a member's own property is the same name in another role
+    if (!node.computed && (slot === 'key' || slot === 'property')) return;
+    identifierOccurrences(child, counts);
+  });
 }
 
-// the container a call spelled INLINE yields, with the slots its body fills from PARAMETERS: the
-// call's value IS that literal, and each such slot holds the argument passed at the parameter's own
-// index. so a binding it initializes holds a container of THIS file, and a read of that slot lands
-// on the argument. read as an opaque call instead, both sides lose it - the escape census counts
-// every constructor handed to the call as let go, and the receiver walk resolves the slot to nothing.
-// a NAMED callee answers nothing here (other call sites fill the same slots), and a parameter spelled
-// anywhere but a slot is a reference neither side can follow, so the whole shape stands down
-export function inlineCallYieldedContainer(node, unwrap = expr => expr) {
-  if (node?.type !== 'CallExpression') return null;
-  let callee = unwrap(node.callee);
-  while (callee?.type === 'SequenceExpression') callee = unwrap(callee.expressions.at(-1));
-  if (!FUNCTION_LIKE_NODE_TYPES.has(callee?.type) || referencesArgumentsObject(callee)) return null;
-  const params = callee.params ?? [];
+// the container a FUNCTION yields, with the slots its body fills from PARAMETERS: a single returned
+// literal whose identifier slots name parameters, each holding the argument the call passed at that
+// parameter's index. the call's value IS that literal, so a read through one of those slots lands on
+// the argument - the receiver walks descend it that way, and the escape census lets the argument
+// stay home on the same recognizer, so nothing is narrowed that cannot then be resolved. `confined`
+// names the parameters spelled NOWHERE but in such a slot, whose argument therefore reaches nothing
+// else through the call - per parameter, since a sibling read elsewhere (`log(s)`) lets ITS argument
+// out and no other; the `confined` option asks it of every parameter at once. a parameter the body
+// rebinds holds another value by the return, and answers nothing in either mode
+export function calleeYieldedContainer(callee, { confined = false, unwrap = expr => expr } = {}) {
+  if (!FUNCTION_LIKE_NODE_TYPES.has(callee?.type) || callee.async || callee.generator) return null;
+  const params = dropLeadingThisParam(callee.params ?? []);
   if (!params.length || params.some(param => param?.type !== 'Identifier')) return null;
   const returns = callee.body?.type === 'BlockStatement' ? collectOwnReturns(callee.body) : null;
   const returned = returns ? returns.length === 1 && returns[0]?.argument : callee.body;
   const literal = unwrap(returned || null);
   if (literal?.type !== 'ObjectExpression' && literal?.type !== 'ArrayExpression') return null;
+  if (referencesArgumentsObject(callee)) return null;
   const index = new Map(params.map((param, at) => [param.name, at]));
+  if (paramReboundInBody(callee.body, new Set(index.keys()))) return null;
   const slots = literalIdentifierSlots(literal).filter(([, name]) => index.has(name));
-  for (const param of params) {
-    const inSlots = slots.filter(([, name]) => name === param.name).length;
-    if (identifierOccurrences(callee.body, param.name) !== inSlots) return null;
-  }
-  return { literal, slots: slots.map(([keyPath, name]) => [keyPath, index.get(name)]), args: node.arguments ?? [] };
+  const remaining = new Map(params.map(param => [param.name, 0]));
+  identifierOccurrences(callee.body, remaining);
+  for (const [, name] of slots) remaining.set(name, remaining.get(name) - 1);
+  const confinedParams = new Set([...remaining].filter(([, count]) => count === 0).map(([name]) => index.get(name)));
+  if (confined && confinedParams.size !== params.length) return null;
+  return { literal, slots: slots.map(([keyPath, name]) => [keyPath, index.get(name)]), confined: confinedParams };
+}
+
+// ... the same container read off a call spelled with its callee INLINE, the one spelling a census
+// without bindings can pair by itself; a callee reached by NAME or through a receiver invoker is the
+// inline canon's to resolve first (`callYieldedContainer`)
+export function inlineCallYieldedContainer(node, unwrap = expr => expr) {
+  if (node?.type !== 'CallExpression') return null;
+  let callee = unwrap(node.callee);
+  while (callee?.type === 'SequenceExpression') callee = unwrap(callee.expressions.at(-1));
+  const yielded = calleeYieldedContainer(callee, { confined: true, unwrap });
+  return yielded ? { ...yielded, args: node.arguments ?? [] } : null;
 }
 
 // the value a class's own STATIC holds for one key, or null - the LAST static member spelling it,
@@ -4820,6 +4910,7 @@ export function classStaticSlotValue(classNode, key) {
 // `includeDefaults: false` selects the supplied half for callers proving independent obligations.
 // `followIifeReturns` exposes inline receivers for analysis, retaining each returned node's scope.
 // `preservesBody` permits getter effects only for callers retaining the original property read.
+// `restSources` collects object-rest receivers separately; those receivers are not binding values.
 export function patternSlotValues(pattern, rhs, name, ctx) {
   const out = [];
   // a caller comparing supplied values with a default's existing obligations needs the source
@@ -4868,6 +4959,9 @@ export function patternSlotValues(pattern, rhs, name, ctx) {
     }
   } else if (pattern?.type === 'ObjectPattern') {
     for (const prop of pattern.properties) {
+      if (prop.type === 'RestElement' && ctx?.restSources && patternBindsName(prop.argument, name)) {
+        ctx.restSources.push(rhs);
+      }
       if (prop.type !== 'Property' && prop.type !== 'ObjectProperty') continue;
       const slot = patternSlotTarget(prop.value);
       // A sibling binding contributes no value to this name. Resolving its key against every
@@ -5447,65 +5541,146 @@ export function namespaceScopedBindingBlock(binding) {
   return block;
 }
 
-// resolve which raw position in `args` holds the effective argument at `index`, expanding `...[lit]`
-// spreads of inline array literals. returns { argIndex, elementIndex } (elementIndex < 0 for a
-// top-level arg, else the position WITHIN the spread array) or null when undecidable: a non-inline-
-// array spread, OR a NESTED spread inside the inline array (`...[a, ...rest]`) - either makes the
-// expanded length variadic at compile time, so a later positional can't be statically located.
-// shared by the node lifter (`resolveCallArgument`) and the babel synth-swap path so they can't drift.
-// the list is any POSITIONAL one - a call's arguments or an array literal's elements: an inline-array
-// spread in either is a longer list, read at its static positions, and a hole reads as null.
-// a positional answer is not a whole-list one: the mutation census reads a spread's elements as a LIST
-// and refuses it entirely once any element is a spread, which is stricter than this walk on purpose
+// Locate a runtime position through inline-array spreads. Coordinates are the raw index at
+// each nested list, from the outer argument/element list to the selected value. An opaque
+// spread blocks positions at or after it; earlier positions remain exact. Holes occupy a slot.
 export function resolveCallArgumentCoords(args, index) {
+  const stack = [{ list: args, next: 0 }];
+  const coords = [];
   let effective = 0;
-  for (let argIndex = 0; argIndex < args.length; argIndex++) {
-    const arg = args[argIndex];
-    if (arg?.type === 'SpreadElement') {
-      // through the transparent wrappers a source may spell around the spread array (`...([a])`,
-      // `...([a] as any)` - one parser keeps the paren node)
-      const spread = unwrapRuntimeExpr(arg.argument);
-      if (spread?.type !== 'ArrayExpression') return null;
-      const { elements } = spread;
-      for (let elementIndex = 0; elementIndex < elements.length; elementIndex++) {
-        if (elements[elementIndex]?.type === 'SpreadElement') return null;
-        if (effective === index) return { argIndex, elementIndex };
-        effective++;
-      }
+  while (stack.length) {
+    const frame = stack.at(-1);
+    if (frame.next === frame.list.length) {
+      stack.pop();
+      coords.pop();
       continue;
     }
-    if (effective === index) return { argIndex, elementIndex: -1 };
-    effective++;
+    const slot = frame.next++;
+    const arg = frame.list[slot];
+    if (arg?.type === 'SpreadElement') {
+      const spread = unwrapRuntimeExpr(arg.argument);
+      if (spread?.type !== 'ArrayExpression') return null;
+      coords.push(slot);
+      stack.push({ list: spread.elements, next: 0 });
+    } else if (effective++ === index) return [...coords, slot];
   }
   return null;
 }
 
-// resolve the argument NODE at `index` in a call's `arguments` list (see resolveCallArgumentCoords)
+// Resolve the node at a runtime position with the same coordinates as path consumers.
 export function resolveCallArgument(args, index) {
   const coords = resolveCallArgumentCoords(args, index);
   if (!coords) return null;
-  return coords.elementIndex < 0 ? args[coords.argIndex] : unwrapRuntimeExpr(args[coords.argIndex].argument).elements[coords.elementIndex];
+  let node = args[coords[0]];
+  for (const slot of coords.slice(1)) node = unwrapRuntimeExpr(node.argument).elements[slot];
+  return node;
 }
 
-// effective argument count after expanding inline-array spreads (`...[a, b, c]` -> 3).
-// returns null when undecidable: a non-inline-array spread, or a NESTED spread inside the inline
-// array (`...[a, ...rest]`) whose own length is variadic - same bail as resolveCallArgumentCoords,
-// so counting and lifting agree. used by IIFE-identity callers to validate `params.length ===
-// effective args.length` symmetric with `resolveCallArgument`'s expansion semantics
+// Count the whole expanded list. Unlike a positional read, any opaque spread prevents an answer.
 export function effectiveArgsLength(args) {
   let length = 0;
   for (const arg of args) {
     if (arg?.type === 'SpreadElement') {
       const spread = unwrapRuntimeExpr(arg.argument);
       if (spread?.type !== 'ArrayExpression') return null;
-      const elements = spread.elements ?? [];
-      if (elements.some(el => el?.type === 'SpreadElement')) return null;
-      length += elements.length;
-      continue;
-    }
-    length++;
+      const nested = effectiveArgsLength(spread.elements);
+      if (nested === null) return null;
+      length += nested;
+    } else length++;
   }
   return length;
+}
+
+// peel runtime wrappers and a comma-sequence tail off a node, so `(0, Object)` and `(eff(), Reflect)`
+// reach the bare identifier
+export function peelToBareExpr(node) {
+  return peelSequenceTail(unwrapRuntimeExpr(node), { step: unwrapRuntimeExpr });
+}
+
+// Read a spread array as a complete positional list. Opaque spreads make that list unknown,
+// even when individual positions before them could still be resolved.
+function inlineArrayElements(node) {
+  const array = unwrapRuntimeExpr(node);
+  return array?.type === 'ArrayExpression' ? positionalElements(array.elements) : null;
+}
+
+// a pairing whose arguments come out of an ARRAY the call spreads - `f.apply(t, a)` and
+// `Reflect.apply(f, t, a)`. an array the walk cannot read leaves the list UNDECIDED, which is not
+// the same fact as an empty one: a consumer recording what a call installs owes nothing either way,
+// but one PROVING that no argument reaches a slot must refuse an undecided list, and the list alone
+// cannot tell them apart
+function spreadArrayPairing(callee, arrayNode) {
+  const elements = inlineArrayElements(arrayNode);
+  return { callee: peelToBareExpr(callee), args: elements ?? [], argsUnknown: elements === null };
+}
+
+// A caller's scoped entry proof takes precedence over the program's import table.
+function invocationEntryOf(bound, programNode, getCalleeEntry) {
+  if (getCalleeEntry) return getCalleeEntry(bound);
+  return bound?.type === 'Identifier' && programNode ? pureImportEntryOfProgram(programNode, bound.name) : null;
+}
+
+// the function a call-like host invokes and the arguments that land in its parameters - the ONE
+// invocation canon, asked by every consumer of a call: the escape census, the inline-callee walk on
+// the receiver side, the mutation pairing and the type engine's caller census, so an invoker
+// spelling reads alike wherever a call is read. a TAGGED TEMPLATE is such a host: its first
+// parameter takes the strings array - the quasi itself - and the interpolations follow. the
+// RECEIVER INVOKERS name their function one hop further in - `f.call(t, x)` and `f.apply(t, [x])`
+// invoke F, not a method called `call`, so the receiver slot comes off the list; `Reflect.apply`
+// spells the same call with the function in the first slot, and a `bind` invoked on the spot
+// prepends the arguments it captured
+// the CALLEE comes back peeled to the bare expression it invokes, so an identity compare against a
+// candidate node answers alike whichever wrapper - a paren, a TS cast, a sequence whose tail is the
+// function - the source spelled around it.
+// `argsUnknown` marks the pairings whose ARGUMENT LIST is not statically decidable: an unreadable
+// spread array, and a receiver slot holding a SPREAD - dropping the receiver by position cannot
+// know how many arguments that spread put ahead of it. `nameIsShadowed` is the scope question the
+// `Reflect` spelling owes; a caller without a scope passes nothing and over-pairs, the direction a
+// census of installed values owes anyway. a consumer that REWRITES arguments also supplies
+// `staticIsMutated`: a user-installed invoker may observe those arguments without calling the
+// apparent function, so only its pristine form grants that consumer authority. `getCalleeEntry`
+// names the pure ENTRY a callee position is bound to - a prior pass or the author replaced the
+// member spelling with the helper it imports, in any of its lowered spellings - and the namespace
+// binding's `apply` read reaches the same invoker through the entry the ROOT is bound to
+export function callPairing(node, programNode = null, { nameIsShadowed = null, staticIsMutated = null, getCalleeEntry = null } = {}) {
+  if (node.type === 'TaggedTemplateExpression') {
+    return { callee: peelToBareExpr(node.tag), args: [node.quasi, ...node.quasi.expressions] };
+  }
+  if (node.type !== 'CallExpression' && node.type !== 'OptionalCallExpression' && node.type !== 'NewExpression') return null;
+  const args = node.arguments ?? [];
+  const callee = peelToBareExpr(node.callee);
+  if (invocationEntryOf(callee, programNode, getCalleeEntry) === 'reflect/apply') return spreadArrayPairing(args[0], args[2]);
+  if (callee?.type === 'MemberExpression' || callee?.type === 'OptionalMemberExpression') {
+    const key = memberKeyName(callee);
+    const target = peelToBareExpr(callee.object);
+    if (key === 'apply' && target?.type === 'Identifier' && target.name === 'Reflect' && !nameIsShadowed?.('Reflect')
+      && !staticIsMutated?.('Reflect', 'apply')) {
+      return spreadArrayPairing(args[0], args[2]);
+    }
+    if (key === 'apply' && invocationEntryOf(target, programNode, getCalleeEntry) === 'reflect') {
+      return spreadArrayPairing(args[0], args[2]);
+    }
+    if (key === 'call' && !staticIsMutated?.('Function.prototype', 'call')) {
+      return { callee: peelToBareExpr(callee.object), args: args.slice(1), argsUnknown: args[0]?.type === 'SpreadElement' };
+    }
+    if (key === 'apply' && !staticIsMutated?.('Function.prototype', 'apply')) return spreadArrayPairing(callee.object, args[1]);
+  }
+  // `f.bind(t, x)()`: the invoked value is the bind's own callee, holding the captured arguments
+  // ahead of the call's. a bind STORED first is a function value this census does not track
+  if (callee?.type === 'CallExpression') {
+    const inner = peelToBareExpr(callee.callee);
+    const isBind = (inner?.type === 'MemberExpression' || inner?.type === 'OptionalMemberExpression')
+      && memberKeyName(inner) === 'bind' && !staticIsMutated?.('Function.prototype', 'bind');
+    const captured = callee.arguments ?? [];
+    if (isBind) {
+      return {
+        callee: peelToBareExpr(inner.object),
+        args: [...captured.slice(1), ...args],
+        argsUnknown: captured[0]?.type === 'SpreadElement',
+      };
+    }
+  }
+  return { callee, args };
 }
 
 // does ONE argument list put a real value in the parameter's slot at `argIndex`? a missing slot and
@@ -5572,16 +5747,26 @@ export function findIifeArgForParam(fnParentPath, paramNode) {
 // trailing peel: babel unwraps a sequence tail, unplugin peels transparent wrappers, and baking
 // either one in here would impose it on the other
 export function callArgumentPathAt(argPaths, coords) {
-  const argPath = argPaths[coords.argIndex];
-  if (coords.elementIndex < 0) return argPath;
-  return cachedContainerPaths(peelTransparentWrapperPath(argPath?.get('argument')), 'elements')[coords.elementIndex] ?? null;
+  let path = argPaths[coords[0]];
+  for (const slot of coords.slice(1)) {
+    path = cachedContainerPaths(peelTransparentWrapperPath(path?.get('argument')), 'elements')[slot];
+  }
+  return path ?? null;
 }
 
 // a positional list read WHOLE at its runtime positions (inline-array spreads expanded, a hole
 // null), or null where no static length exists - the list twin of `resolveCallArgument`
 export function positionalElements(list) {
-  const length = effectiveArgsLength(list);
-  return length === null ? null : Array.from({ length }, (_, index) => resolveCallArgument(list, index));
+  const elements = [];
+  for (const element of list) {
+    if (element?.type !== 'SpreadElement') elements.push(element);
+    else {
+      const nested = inlineArrayElements(element.argument);
+      if (!nested) return null;
+      elements.push(...nested);
+    }
+  }
+  return elements;
 }
 
 // the PATH at runtime position `index` of a positional list of paths (call arguments, array-literal
@@ -5770,7 +5955,7 @@ export function destructureReceiverSlot(node) {
 // or a literal container spelling the same keys and positions over such leaves - which
 // makes the head's claim resolve to the same static on every pass, while the RENDER still mirrors
 // each element on its own, so nothing is shared between the passes but the answer.
-// a HOLE has no element to read (its `undefined` must keep throwing natively) and a SPREAD hides
+// a HOLE has no element to read (its `undefined` must keep throwing natively) and an opaque SPREAD hides
 // what the pattern will see; for-IN is out (it binds the key, never the element), and so is
 // for-await (the head awaits what the literal holds, which is not the node written there)
 // `sameCallee`: for a reader that RESOLVES the element rather than mirroring it, a call of the same
@@ -5788,8 +5973,10 @@ function isHeadMethodSlot(prop) {
   return prop?.type === 'ObjectMethod' ? prop.kind === 'method' : !!prop?.method;
 }
 
-// one element against the first: the same identifier (or a proxy-global pair), or a container of
-// the same shape over such leaves - data properties by spelled key, array slots by position
+// Compare head-element receiver shapes: identifiers/proxy globals and matching container slots.
+// Primitive values are interchangeable for this shape test. With `sameCallee`, also admit
+// same-named calls whose arguments match recursively, and corresponding literal method slots.
+// This is a receiver-shape check, not runtime value equality.
 function sameHeadElement(rawNode, rawFirst, sameCallee = false) {
   // read through the transparent wrappers a source may spell (`(Object)`, `Object as any`)
   const node = unwrapRuntimeExpr(rawNode);
@@ -5807,7 +5994,14 @@ function sameHeadElement(rawNode, rawFirst, sameCallee = false) {
   if (node.type === 'CallExpression') {
     const callee = unwrapRuntimeExpr(node.callee);
     const firstCallee = unwrapRuntimeExpr(first.callee);
-    return sameCallee && callee?.type === 'Identifier' && firstCallee?.type === 'Identifier' && callee.name === firstCallee.name;
+    // ... and the ARGUMENTS with the callee: a function handing one of them back reads what THIS call
+    // was passed, so two calls of one name agree only where their arguments agree as well. the
+    // primitive rule above keeps the shape this option exists for (`e('a')` beside `e('b')`), while a
+    // constructor beside a user object now parts them - read as agreeing, the head took the first
+    // element's static for every pass and the later element's own value was never read at all
+    return sameCallee && callee?.type === 'Identifier' && firstCallee?.type === 'Identifier'
+      && callee.name === firstCallee.name && node.arguments.length === first.arguments.length
+      && node.arguments.every((argument, index) => sameHeadElement(argument, first.arguments[index], sameCallee));
   }
   if (node.type === 'ArrayExpression') {
     return node.elements.length === first.elements.length
@@ -5832,21 +6026,50 @@ function sameHeadElement(rawNode, rawFirst, sameCallee = false) {
   return false;
 }
 
+// the names each leg's relocation minted for one loop head. WHICH declaration is the moved pattern
+// is a fact only the pass that moved it holds: a source `for (const ctor of [Array]) { const { from }
+// = ctor; }` wears the same shape, and reading the element through it would take the clouded-alias
+// guard off a binding the source, not this pass, named
+const relocatedHeadNames = new WeakMap();
+
+export function noteRelocatedHeadName(loopNode, name) {
+  if (!loopNode || typeof name !== 'string') return;
+  let names = relocatedHeadNames.get(loopNode);
+  if (!names) relocatedHeadNames.set(loopNode, names = new Set());
+  names.add(name);
+}
+
 // a RELOCATED loop head's element: the head binds a minted name and the pattern moved into the body
 // as `let <pattern> = <name>` (the body's first statement), so the NAME channel asking that declarator
 // for its receiver would read a bare identifier - the iterated literal's element is what the pattern
 // reads, exactly as before the move. the type ladder is handed the element's type the same way; this
 // is its identity twin, asked by the name channel alone (an emitter rewrite keys on the init as written)
 export function relocatedHeadElement(declaratorPath) {
-  const { init } = declaratorPath?.node ?? {};
-  if (declaratorPath?.node?.type !== 'VariableDeclarator' || init?.type !== 'Identifier') return null;
+  return headElementThroughName(declaratorPath, false);
+}
+
+// ... and the same element for a declaration THIS pass moved, wherever in the body it ended up: an
+// emitter that splits an extraction out ahead of the moved pattern leaves it one statement down, and
+// the position test above dropped every claim after the first. Position cannot be relaxed for the
+// structural reader - a SOURCE `for (const r of [Array]) { const { from } = r; }` wears the same
+// shape and owns its own policy - so the registered name is what parts them
+export function ownRelocatedHeadElement(declaratorPath) {
+  return headElementThroughName(declaratorPath, true);
+}
+
+function headElementThroughName(declaratorPath, ownOnly) {
+  const node = declaratorPath?.node;
+  const init = node?.type === 'VariableDeclarator' ? node.init
+    : node?.type === 'AssignmentExpression' && node.operator === '=' ? node.right : null;
+  if (init?.type !== 'Identifier') return null;
   const declaration = declaratorPath.parentPath;
   const loop = declaration?.parentPath?.parentPath;
   const left = loop?.node?.left;
   if ((loop?.node?.type !== 'ForOfStatement' && loop?.node?.type !== 'ForInStatement')
     || left?.type !== 'VariableDeclaration' || left.declarations?.length !== 1
-    || left.declarations[0].id?.type !== 'Identifier' || left.declarations[0].id.name !== init.name
-    || loop.node.body?.body?.[0] !== declaration.node) return null;
+    || left.declarations[0].id?.type !== 'Identifier' || left.declarations[0].id.name !== init.name) return null;
+  if (ownOnly ? !relocatedHeadNames.get(loop.node)?.has(init.name)
+    : loop.node.body?.body?.[0] !== declaration.node) return null;
   return forOfHeadElements(loop.get('left').get('declarations')[0], { sameCallee: true })?.[0] ?? null;
 }
 
@@ -5874,16 +6097,17 @@ export function forOfHeadIterableElements(headPath) {
 }
 
 // the values an iterated ARRAY LITERAL spells in turn - nothing else makes an iterated value's
-// identity provable - or null: a SPREAD anywhere hides every later position and takes the whole
+// identity provable - or null: an opaque SPREAD hides later positions and takes the whole
 // answer away. the literal is read through the transparent wrappers a source may spell (`of ([a])`,
 // `of ([a] as const)`) - one parser keeps them, the other drops them, and the loop reads the same
 // elements either way. a HOLE stays in its position as `null`: the relocation plan skips it, the
-// readers below need every position to hold a node
+// readers below need every position to hold a node. Inline-array spreads expand by the same
+// positional canon as call arguments and array-pattern sources.
 export function arrayLiteralIterableElements(node) {
   const literal = unwrapRuntimeExpr(node);
   if (literal?.type !== 'ArrayExpression') return null;
   const elements = literal.elements ?? [];
-  return elements.some(element => element?.type === 'SpreadElement') ? null : elements;
+  return elements.some(element => element?.type === 'SpreadElement') ? positionalElements(elements) : elements;
 }
 
 // ... the elements a for-of LOOP iterates, or null: the node-level half every reader of the head
@@ -5967,19 +6191,10 @@ export function arrayWrapSlotBindsName(slot, name, ctx = null) {
   return false;
 }
 
-// destructure-receiver value bound to an ObjectPattern. unifies the three wrapper shapes
-// that drive `meta.fromFallback` per-branch synth-swap:
-//   1. slot-bearing wrapper (VariableDeclarator / AssignmentExpression / AssignmentPattern):
-//      `const {p} = R`, `({p} = R)`, `function f({p} = D)` -> RHS read from slot
-//   2. function-like IIFE wrapper (Arrow / FunctionExpression invoked at the call site):
-//      `(({p}) => body)(R)` -> RHS is the call-arg at this param's index
-//   3. a WRAPPER level of either literal shape (ArrayPattern element, a pattern property's value,
-//      a transparent inner default around them): `[{p}] = [R]`, `{ w: {p} } = { w: R }` -> the
-//      host resolves through 1 / 2, and its literal pairs the level's slot with R
-// returns `{ rhsNode, slot, callPath, paramIndex }` (slot XOR callPath set) so node-form
-// callers consume `rhsNode`, path-form callers derive a NodePath via the path companion; a
-// wrapped answer adds `hostPath` (where `slot` reads) and `descend` (the literal steps below it).
-// null when the wrapper is none of the shapes - synth-swap then warns and leaves code intact
+// Find a destructure receiver in an initializer/default slot, IIFE argument, paired literal
+// wrapper or sole inline loop element. Return `{ rhsNode, slot, callPath, paramIndex }`;
+// wrapped/loop answers add `hostPath` and `descend` for live path recovery.
+// Null means no supported source; the caller decides whether to warn or try another route.
 export function resolveFallbackReceiver(wrapperPath, paramNode) {
   const wrapperNode = wrapperPath?.node;
   if (!wrapperNode) return null;
@@ -6005,10 +6220,38 @@ export function resolveFallbackReceiver(wrapperPath, paramNode) {
     return { rhsNode: wrapperNode.right, slot: 'right', callPath: null, paramIndex: -1 };
   }
   const slot = destructureReceiverSlot(wrapperNode);
-  if (slot) return { rhsNode: wrapperNode[slot], slot, callPath: null, paramIndex: -1 };
+  // ... and a for-x HEAD declares no slot value at all: what its pattern reads is the element the
+  // iterated literal spells, exactly as the receiver canon answers it. reading the empty slot raw
+  // handed every caller a receiver-less descriptor, and a BRANCHING head (`of [flag ? Array : Set]`)
+  // fell out of the per-branch channel that is its only route. paired by POSITION off the loop's own
+  // `right`, the same step a wrapped array level takes, so the path companion needs nothing new
+  const head = slot ? forOfHeadReceiverPair(wrapperPath) : null;
+  if (head) {
+    return {
+      rhsNode: head.node, slot: 'right', callPath: null, paramIndex: -1,
+      hostPath: head.loopPath, descend: [{ container: 'elements', coords: head.coords }],
+    };
+  }
+  if (slot && wrapperNode[slot]) return { rhsNode: wrapperNode[slot], slot, callPath: null, paramIndex: -1 };
   const site = findIifeCallSite(wrapperPath, paramNode);
   const rhsNode = site ? findIifeArgForParam(wrapperPath, paramNode) : null;
   return rhsNode ? { rhsNode, slot: null, callPath: site.callPath, paramIndex: site.paramIndex } : null;
+}
+
+// the head element a declarator's pattern reads, with the loop path that holds it. SOLE elements
+// only: the per-branch channel rewrites the receiver where it stands, and a literal spelling two of
+// them would leave every later pass reading the one it did not rewrite
+function forOfHeadReceiverPair(declaratorPath) {
+  // A pattern this pass moved into the body still owns its original element's mirror.
+  const relocated = ownRelocatedHeadElement(declaratorPath);
+  const loopPath = relocated ? declaratorPath.parentPath?.parentPath?.parentPath : declaratorPath.parentPath?.parentPath;
+  const headPath = relocated ? loopPath.get('left').get('declarations')[0] : declaratorPath;
+  const elements = forOfHeadElements(headPath, { sameCallee: true });
+  if (elements?.length !== 1) return null;
+  const iterable = unwrapRuntimeExpr(loopPath?.node?.right);
+  if (!isForXStatement(loopPath?.node) || iterable?.type !== 'ArrayExpression') return null;
+  const coords = resolveCallArgumentCoords(iterable.elements, 0);
+  return coords ? { node: elements[0], loopPath, coords } : null;
 }
 
 // is `node` the pattern property (either parser's spelling) whose value is `valueNode`?
@@ -6062,7 +6305,7 @@ function resolveWrappedFallbackReceiver(wrapperPath, paramNode) {
   // the elements, so the answer stays null rather than the default
   if (!host?.rhsNode) return null;
   let { rhsNode } = host;
-  const descend = [];
+  const descend = [...host.descend ?? []];
   const unpaired = ownDefault
     ? { rhsNode: ownDefault.node.right, slot: 'right', callPath: null, paramIndex: -1, hostPath: ownDefault } : null;
   for (const step of steps) {
@@ -6070,13 +6313,13 @@ function resolveWrappedFallbackReceiver(wrapperPath, paramNode) {
     if (literal?.type === 'ArrayExpression') {
       // an OBJECT-pattern key can still name an array SLOT (`{ 0: { p } } = [R]` reads property '0'
       // off the array, exactly as the language does): the one canonical index read, an INLINE-array
-      // spread expanded on the way (`[...[R]]` is a longer literal - `spreadIndex` says which item)
+      // spread expanded through the same coordinates as call arguments.
       const index = step.key === undefined ? step.index : canonicalArrayIndex(step.key);
       const coords = index === null ? null : resolveCallArgumentCoords(literal.elements, index);
       if (!coords) return unpaired;
       rhsNode = resolveCallArgument(literal.elements, index);
       if (!rhsNode || isUndefinedNode(unwrapRuntimeExpr(rhsNode))) return unpaired;
-      descend.push({ container: 'elements', index: coords.argIndex, spreadIndex: coords.elementIndex });
+      descend.push({ container: 'elements', coords });
     } else if (step.key === undefined || literal?.type !== 'ObjectExpression') {
       return unpaired;
     } else {
@@ -6089,7 +6332,7 @@ function resolveWrappedFallbackReceiver(wrapperPath, paramNode) {
       descend.push({ container: 'properties', index: literal.properties.indexOf(match) });
     }
   }
-  return { ...host, rhsNode, hostPath: cur, descend };
+  return { ...host, rhsNode, hostPath: host.hostPath ?? cur, descend };
 }
 
 // path-form companion of `resolveFallbackReceiver` for AST-mutation callers (babel's
@@ -6104,12 +6347,11 @@ export function resolveFallbackReceiverPath(wrapperPath, paramNode) {
   // way (the node form peeled them), so the path lands on the value the pair names - an array's
   // element, or an object property's value (a getter's returned value is not a path this walk
   // takes: the node form already declined to a plain data property)
-  for (const { container, index, spreadIndex = -1 } of desc.descend ?? []) {
+  for (const { container, index, coords } of desc.descend ?? []) {
     path = peelTransparentWrapperPath(path);
     if (path?.node?.type !== (container === 'elements' ? 'ArrayExpression' : 'ObjectExpression')) return null;
-    path = cachedContainerPaths(path, container)[index];
-    if (container === 'properties') path = path?.get('value');
-    else if (spreadIndex >= 0) path = cachedContainerPaths(peelTransparentWrapperPath(path?.get('argument')), 'elements')[spreadIndex];
+    const paths = cachedContainerPaths(path, container);
+    path = container === 'properties' ? paths[index]?.get('value') : callArgumentPathAt(paths, coords);
   }
   return path ?? null;
 }
@@ -6171,13 +6413,14 @@ export function peelParenAndTSParentPath(startPath, wrappers = TRANSPARENT_EXPR_
 // IDENTITY against the parent's slots (`parent.right === node` and kin), so asking with the bare
 // inner node answers "in no slot at all" on the parser that keeps parens as real nodes - the
 // wrapper is what the parent holds, and the two peels have to be taken as a PAIR. this is the PATH
-// form, for a caller that keeps walking from there; `peelParenAndTSSlotChild` below is its node
+// form, for a caller that keeps walking from there.
 export function peelParenAndTSSlotPath(startPath, wrappers = TRANSPARENT_EXPR_WRAPPER_TYPES) {
   let path = startPath;
   while (path?.parentPath?.node && wrappers.has(path.parentPath.node.type)) path = path.parentPath;
   return path ?? null;
 }
 
+// The node-only companion of `peelParenAndTSSlotPath`, for slot identity comparisons.
 export function peelParenAndTSSlotChild(startPath, wrappers) {
   return peelParenAndTSSlotPath(startPath, wrappers)?.node ?? null;
 }
@@ -7086,6 +7329,8 @@ export function collectFileCensus(programNode, reducers) {
       }
     }
   }
+  // Finalize shared facts before a result consumes another reducer's observations.
+  for (const reducer of reducers) reducer.prepare?.();
   const census = {};
   for (const reducer of reducers) Object.assign(census, reducer.result());
   return census;
@@ -8371,12 +8616,11 @@ export function collectPatternDefaultValues(node, out) {
   return out;
 }
 
-// a pattern value a mirror may hand the ponyfill to: an object pattern of property leaves alone -
-// no rest (it would gather the ponyfill's own members) and no default at any depth (a polyfillable
-// default would render verbatim) - so its leaves read the ponyfill's own members, and a computed
-// key runs once inside the pattern, where the source wrote it
+// Accept an object or array pattern value with no defaults anywhere and no rest at its root.
+// The mirror supplies the ponyfill while keys and nested pattern operations remain in place.
 export function isMirrorablePatternValue(node) {
-  return node?.type === 'ObjectPattern' && !patternHasAnyDefault(node) && node.properties.every(isPropertyNode);
+  return !patternHasAnyDefault(node) && (node?.type === 'ObjectPattern' && node.properties.every(isPropertyNode)
+    || node?.type === 'ArrayPattern' && node.elements.every(element => !element || element.type !== 'RestElement'));
 }
 
 // what dropping an object LITERAL would take with it: a property whose value runs an effect, and a
@@ -8537,7 +8781,10 @@ export function computedKeyHasSideEffects(propNode) {
 // keep the read on a route of their own
 export function seKeyKeepsReceiverRead({ prop, receiver, nested = false, restSibling = false }) {
   if (nested || restSibling || !computedKeyHasSideEffects(prop)) return false;
-  const read = unwrapRuntimeExpr(receiver);
+  // a SEQUENCE hands its TAIL on, and the memo takes the element WHOLE - its prefix included - so
+  // the read the key keeps is that tail's, and the prefix stays exactly where the source ran it.
+  // reading the sequence node itself instead answered "no member here" and left the claim native
+  const read = peelSequenceTail(unwrapRuntimeExpr(receiver), { step: unwrapRuntimeExpr });
   return read?.type === 'MemberExpression' || read?.type === 'OptionalMemberExpression';
 }
 
@@ -8771,18 +9018,112 @@ function exprSideEffectFree(node) {
   return !mayHaveSideEffects(node) || zeroArgIifeSideEffectFree(node);
 }
 
-// collect Identifier names introduced by the param list. supports simple Identifier
-// params, AssignmentPattern wraps (`x = 1`), and RestElement (`...x`). returns null for
-// destructure patterns and other shapes we don't statically track -- caller bails on
+// does the body WRITE through this parameter - an assignment, update or `delete` landing in a slot
+// of the value it holds? such a callee hands its caller an object the call site's own literal no
+// longer describes (`_defineProperty(obj, key, value)`, the computed-key lowering every ES5 output
+// carries, is that shape), so a reader resolving the call to that argument reads the slot the write
+// already replaced. a plain READ of the parameter - handing it to another call, logging it - moves
+// no slot and is no reason to refuse: that is the ESCAPE census's question, not this one
+export function bodyWritesThroughParameter(callee, paramName) {
+  let written = false;
+  walkAstNodes({ root: callee?.body, visit(node, parentNode) {
+    if (written) return false;
+    if (isMemberAccessNode(node) && isMemberMutationContext(node, parentNode)
+      && unwrapRuntimeExpr(runtimeChainRoot(node))?.name === paramName) written = true;
+    return !written;
+  } });
+  return written;
+}
+
+// WHICH shapes hand their contents out, read by every walk that follows a container: the literals a
+// name can be bound to, plus the class whose own statics are the same named surface
+export const CENSUS_CONTAINER_TYPES = new Set([
+  'ArrayExpression',
+  'ClassDeclaration',
+  'ClassExpression',
+  'ObjectExpression',
+]);
+
+// did the argument reach ONLY the return - no other reference anywhere in the callee? two readers
+// ask it, for reasons that meet on the same answer. The ESCAPE census asks because a second READ
+// hands the value somewhere it must account for. The VALUE fold asks about a CONTAINER argument,
+// which its reader descends by SLOT: any reference the callee keeps can replace one - a member
+// write, a handout to something that writes, a write through a local alias of it - and the literal
+// the reader trusts no longer describes the object handed back. A bare NAME needs no such proof:
+// what it resolves to does not move, and a write into that object's own slots is the mutated-static
+// census's question rather than this one.
+// An identity return carries its argument back to the call site. Unrelated prefix effects stay
+// in the source and do not expose that argument. The returned slot may be at any parameter
+// position; a second read in the body or parameter defaults/keys remains opaque.
+export function paramReturnsTheValue(callee, paramIndex, referencesArguments = undefined) {
+  if (callee?.async || callee?.generator) return false;
+  const params = dropLeadingThisParam(callee?.params ?? []);
+  const param = params[paramIndex];
+  if (param?.type !== 'Identifier') return false;
+  const { body } = callee;
+  const { name: paramName } = param;
+  const statements = body?.type === 'BlockStatement' ? body.body : null;
+  const returned = !statements ? body : statements.at(-1)?.type === 'ReturnStatement' ? statements.at(-1).argument : null;
+  const value = unwrapRuntimeExpr(returned);
+  const tail = value?.type === 'SequenceExpression' ? unwrapRuntimeExpr(value.expressions.at(-1)) : value;
+  if (tail?.type !== 'Identifier' || tail.name !== paramName) return false;
+  if (params.some((slot, index) => index < paramIndex && slot.type === 'RestElement')
+    || params.some((slot, index) => index !== paramIndex && identifierReferencedInSubtree(slot, paramName))
+    || statements?.slice(0, -1).some(stmt => stmt.type !== 'ExpressionStatement'
+      || identifierReferencedInSubtree(stmt, paramName))) return false;
+  // a SEQUENCE hands its TAIL on, so a body spelled `(0, a)` returns the parameter exactly as the
+  // bare `a` does. the PREFIX has to be clear of the parameter, though: a read there is a second
+  // reference, and this answer exists to say the value went nowhere else
+  const prefix = value?.type === 'SequenceExpression' ? value.expressions.slice(0, -1) : [];
+  if (prefix.some(expr => identifierReferencedInSubtree(expr, paramName))) return false;
+  return !(referencesArguments ?? referencesArgumentsObject(callee));
+}
+
+// Does parameter binding carry work a call discard must preserve? Destructuring may read or
+// throw; defaults count when their target destructures or their initializer has effects.
+// Plain identifiers and rest allocation are inert here. Return-value proofs are separate.
+export function paramListRunsWork(params) {
+  return (params ?? []).some(param => {
+    if (param?.type === 'RestElement' || param?.type === 'Identifier') return false;
+    if (param?.type === 'AssignmentPattern') return param.left?.type !== 'Identifier' || mayHaveSideEffects(param.right);
+    return true;
+  });
+}
+
+// collect the Identifier names the param list introduces, so a body read can be told from an outer
+// one. returns null only for a slot whose bindings this walk cannot enumerate -- caller bails on
 // null to keep the peel sound
-function collectParamBindingNames(params) {
+export function collectParamBindingNames(params) {
   const names = new Set();
-  for (const p of params) {
-    const base = p?.type === 'AssignmentPattern' ? p.left : p?.type === 'RestElement' ? p.argument : p;
-    if (base?.type !== 'Identifier') return null;
-    names.add(base.name);
-  }
+  for (const param of params) if (!collectPatternBindingNames(param, names)) return null;
   return names;
+}
+
+// the names ONE slot binds, whatever pattern spells it. a destructuring slot binds the identifiers
+// its leaves spell, and refusing the whole list on its mere PRESENCE made every destructuring callee
+// prove nothing about the value it hands back. a MEMBER target is the one leaf that keeps the
+// refusal: it writes the destructured value through an object the caller already holds, so a name
+// this set does not carry still reaches it, and an escape census reading the set would miss that
+function collectPatternBindingNames(node, names) {
+  // a rest element and a default wrap ONE target, so they peel in place; a container's slots are
+  // several targets and each asks this same question of itself
+  let target = node;
+  while (target?.type === 'RestElement' || target?.type === 'AssignmentPattern') {
+    target = target.type === 'RestElement' ? target.argument : target.left;
+  }
+  switch (target?.type) {
+    case 'Identifier':
+      names.add(target.name);
+      return true;
+    case 'ArrayPattern':
+      return target.elements.every(element => element === null || collectPatternBindingNames(element, names));
+    case 'ObjectPattern':
+      return target.properties.every(property => collectPatternBindingNames(
+        property.type === 'RestElement' ? property.argument : property.value, names,
+      ));
+    default:
+      return false;
+  }
 }
 
 // shallow free-variable scan: true if any Identifier in `node`'s reference positions
@@ -8934,27 +9275,14 @@ function patternBindsIdentifier(pattern, predicate) {
   return found;
 }
 
-// recursive peel of nested SequenceExpressions through paren wrappers: `(se1(), (se2(), G))`
-// yields preceding-effect list `[se1(), se2()]` and tail `G`. used by destructure-flatten
-// emitters (babel `liftSEPrefixSwap`, the unplugin drain's memo-receiver
-// peel) so every SE layer's preceding expressions lift instead of only
-// the outermost. without recursion, inner se2() silently elides under the rewrite. peel
-// parens + TS expression wrappers (`as` / `satisfies` / `!` / chain) so SE through casts
-// (`(logCall(), R) as any`) lifts the same as bare SE - otherwise the prefix gets dropped
-// when the declarator is flattened. returns `{ prefix: Node[], tail: Node }`
-// descend a comma-sequence to the value it evaluates to - its TAIL, repeatedly. the one spelling of
-// that descent: it used to be hand-written at a dozen sites that agreed on the walk and disagreed on
-// everything around it (whether an empty sequence bails or dereferences `undefined`, whether the step
-// re-unwraps, and whether a self-referential tail spins forever - only two of them carried the guard).
-// `step` is the per-hop unwrap the caller needs on the tail (runtime wrappers / parens / its own
-// transparent peel); `onPrefix` sees the whole expression list of each hop and returning `false` from
-// it stops the descent on the current node, which is how a caller that must REFUSE an effectful prefix
-// reports it. `visited` is accepted so a caller whose outer loop alternates with this one guards the
-// whole alternation with a single set
-export function peelSequenceTail(node, { step = null, onPrefix = null, visited = new Set() } = {}) {
+// Descend nonempty sequence tails, returning the final node or the node where descent stops.
+// `step` unwraps each tail; `onPrefix` sees the entire expression list and may stop with false.
+// An optional shared `visited` set guards callers that alternate this descent with another walk.
+export function peelSequenceTail(node, { step = null, onPrefix = null, visited = null } = {}) {
   while (node?.type === 'SequenceExpression' && node.expressions.length) {
     if (onPrefix && onPrefix(node.expressions) === false) return node;
     const tail = node.expressions.at(-1);
+    visited ??= new Set();
     if (visited.has(tail)) return node;
     visited.add(tail);
     node = step ? step(tail) : tail;
@@ -8962,6 +9290,9 @@ export function peelSequenceTail(node, { step = null, onPrefix = null, visited =
   return node;
 }
 
+// Collect nested sequence prefixes through runtime wrappers, returning `{ prefix, tail }`.
+// `(a(), (b(), R))` yields `[a(), b()]` and `R`; callers replay the prefixes in that order.
+// Empty and single-element sequences stay as the tail.
 export function peelNestedSequenceExpressions(node) {
   const prefix = [];
   // a single-element sequence carries no prefix to harvest, so the descent stops ON it rather
@@ -9142,13 +9473,12 @@ export function propBindingIdentifier(value) {
 
 export const isIdentifierPropValue = value => propBindingIdentifier(value) !== null;
 
-// a prop whose VALUE is a nested ObjectPattern (`{ Array: { from } }`, peeling an `= {}` default). such a
-// pattern is owned by the nested mirror (`buildNestedParamSynthPlan`), which replaces the WHOLE receiver
-// default - flat synth-swap / body-extract / inline-default fallbacks must DEFER to it, never race it
+// Does a property hold an object or array pattern, possibly behind a default?
+// Such a nested value belongs to the mirror before flat synth/default/extraction fallbacks.
 export function objectPatternHasNestedValue(objectPattern) {
   return objectPattern.properties.some(p => {
     const value = p.value?.type === 'AssignmentPattern' ? p.value.left : p.value;
-    return value?.type === 'ObjectPattern';
+    return isDestructurePattern(value);
   });
 }
 
@@ -10461,13 +10791,7 @@ export function createTypeAnnotationChecker() {
   return isInTypeAnnotation;
 }
 
-// conservative: true when the subtree may observe/cause side effects, false only when provably pure.
-// per-node WeakMap cache - same subtree is queried by nested destructure / SE-extract paths.
-// depth cap: pathological deeply-nested AST (template-literal bombs, oxc bug-emitted cycles)
-// would stack-overflow without it. 256 covers realistic depths (deepest in test fixtures < 30);
-// hitting the cap conservatively returns true so callers don't accidentally drop SE awareness.
-// NOT cleared on `typeResolvers.reset()` - WeakMap entries GC naturally when AST nodes go out
-// of scope; per-file plugin instances each see fresh nodes anyway. documented for parity check
+// Node-identity caches survive resolver resets; fresh files own fresh nodes and old keys are weak.
 const SIDE_EFFECTS_CACHE = new WeakMap();
 // strict-mode cache for `reEvaluationObservable` (same walker, wider verdict)
 const RE_EVAL_CACHE = new WeakMap();
@@ -10490,6 +10814,45 @@ export function observableSequenceElements(expressions) {
   return expressions.filter(expression => mayHaveSideEffects(expression));
 }
 
+// the accessor-or-spread slots a literal carries, memoized on the literal: the container-dense
+// shape reads thirty-to-fifty slots back through member chains, so asking the whole property list
+// once per READ turns a linear answer into a product over the bundle. null where the literal
+// carries neither, which is the overwhelming majority and the answer every later read reuses
+const OBJECT_LITERAL_ACCESSOR_SLOTS = new WeakMap();
+function objectLiteralAccessorSlots(object) {
+  if (OBJECT_LITERAL_ACCESSOR_SLOTS.has(object)) return OBJECT_LITERAL_ACCESSOR_SLOTS.get(object);
+  let slots = null;
+  for (const prop of object.properties) {
+    // a spread or a computed accessor key cannot be paired with a member's own key, so either
+    // answers for any accessor the literal may carry - the bias a dropped read cannot get wrong
+    if (prop.type === 'SpreadElement' || ((prop.kind === 'get' || prop.kind === 'set') && prop.computed)) {
+      slots = true;
+      break;
+    }
+    if (prop.kind !== 'get' && prop.kind !== 'set') continue;
+    (slots ??= new Set()).add(prop.key?.name ?? prop.key?.value ?? null);
+  }
+  OBJECT_LITERAL_ACCESSOR_SLOTS.set(object, slots);
+  return slots;
+}
+
+// does this member read land on an accessor the object LITERAL spells in place? a spread or a
+// computed accessor key cannot be paired with the member's own key, so either answers for any
+// accessor the literal may carry - the bias a dropped read cannot afford to get wrong
+function objectLiteralAccessorRead(node) {
+  let { object } = node;
+  while (object && (TRANSPARENT_WRAPPER_TYPES.has(object.type) || TS_EXPR_WRAPPERS.has(object.type))) {
+    object = object.expression ?? object.argument;
+  }
+  if (object?.type !== 'ObjectExpression') return false;
+  const slots = objectLiteralAccessorSlots(object);
+  if (!slots) return false;
+  if (slots === true || node.computed) return true;
+  return slots.has(node.property?.name ?? node.property?.value ?? null);
+}
+
+// False only for a provably quiet subtree; repeated questions share the node-identity cache.
+// The walker treats the depth limit as observable, keeping pathological trees conservative.
 export function mayHaveSideEffects(node) {
   if (!node) return false;
   if (SIDE_EFFECTS_CACHE.has(node)) return SIDE_EFFECTS_CACHE.get(node);
@@ -10621,6 +10984,9 @@ function computeSideEffects(node, depth, strict) {
       && node.object.consequent?.type === 'UnaryExpression' && node.object.consequent.operator === 'void') {
       return true;
     }
+    // ... and a read off an in-place literal that spells the key as an ACCESSOR runs that accessor
+    // right here: the READ is the effect, and every channel that may drop the literal asks here first
+    if (objectLiteralAccessorRead(node)) return true;
     return recurse(node.object, depth, strict) || (node.computed && recurse(node.property, depth, strict));
   }
   if (type === 'Property' || type === 'ObjectProperty') {
@@ -11389,6 +11755,13 @@ export function patternDead(node) {
   if (node.type === 'ArrayPattern') return node.elements.every(element => patternDead(element));
   if (node.type === 'ObjectPattern') return node.properties.length === 0;
   return false;
+}
+
+// Whether queued claims consume every object slot, including quiet nested hops.
+// Effectful keys and rest keep their native reads even after their leaves are claimed.
+export function patternFullyConsumed(pattern, isConsumed) {
+  return pattern?.type === 'ObjectPattern' && pattern.properties.every(prop => isConsumed(prop)
+    || (isPropertyNode(prop) && !computedKeyHasSideEffects(prop) && patternFullyConsumed(prop.value, isConsumed)));
 }
 
 // does the pattern bind sentinels alone (`isSentinel(identifierNode)` - a minted node on one leg, a

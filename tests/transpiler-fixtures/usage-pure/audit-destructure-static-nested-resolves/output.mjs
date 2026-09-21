@@ -6,7 +6,15 @@ import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 const wrapper = {
   a: Array
 };
-const from = _Array$from;
+const {
+  a: {
+    from
+  }
+} = {
+  a: {
+    from: _Array$from
+  }
+};
 const arr = from('hi');
 _atMaybeArray(arr).call(arr, 0);
 _includesMaybeArray(arr).call(arr, 'h');
