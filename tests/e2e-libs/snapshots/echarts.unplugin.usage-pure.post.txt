@@ -1,9 +1,2 @@
 -@core-js/pure/full/reflect/namespace
-+@core-js/pure/full/array/instance/includes
-+@core-js/pure/full/instance/includes
-+@core-js/pure/full/number/parse-int
 +@core-js/pure/full/reflect
-+@core-js/pure/full/string/from-code-point
-+@core-js/pure/full/string/instance/ends-with
-+@core-js/pure/full/string/instance/starts-with
-+@core-js/pure/full/string/instance/trim-start

@@ -1,5 +1,4 @@
 +core-js/modules/es.iterator.every
-+core-js/modules/es.iterator.some
 +core-js/modules/es.reflect.apply
 +core-js/modules/es.reflect.define-property
 +core-js/modules/es.reflect.delete-property
@@ -13,12 +12,4 @@
 +core-js/modules/es.reflect.set
 +core-js/modules/es.reflect.set-prototype-of
 +core-js/modules/es.reflect.to-string-tag
-+core-js/modules/es.string.ends-with
-+core-js/modules/es.string.from-code-point
-+core-js/modules/es.string.includes
-+core-js/modules/es.string.search
-+core-js/modules/es.string.starts-with
-+core-js/modules/es.string.trim-start
 +core-js/modules/esnext.async-iterator.every
-+core-js/modules/esnext.async-iterator.some
-+core-js/modules/esnext.iterator.includes
