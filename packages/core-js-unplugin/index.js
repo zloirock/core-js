@@ -1,6 +1,7 @@
 import { createUnplugin } from 'unplugin';
 import createPlugin from './internals/plugin.js';
 import { moduleIdLanguage } from '@core-js/polyfill-provider/helpers/path-normalize';
+import { brand } from '@core-js/polyfill-provider/helpers/error-tag';
 import {
   isHtmlProxyScript,
   isSfcScriptBlock,
@@ -55,7 +56,7 @@ const unplugin = createUnplugin((options, meta) => {
   // treat explicit `null` like `undefined` so `{ phase: cond ? 'post' : null }` falls back.
   // explicit `'pre'` is also accepted as a no-op (matches the d.ts contract: `phase?: 'pre'`)
   if (isEntryGlobal && phase !== undefined && phase !== null && phase !== 'pre') {
-    throw new TypeError('[core-js] `phase` option is not supported for `entry-global` - it always runs at pre');
+    throw new TypeError(brand('`phase` option is not supported for `entry-global` - it always runs at pre'));
   }
 
   const effective = isEntryGlobal ? 'pre' : phase ?? 'pre';
@@ -63,7 +64,7 @@ const unplugin = createUnplugin((options, meta) => {
     // show the string value quoted, otherwise show its type - avoids JSON.stringify
     // blowing up on BigInt, circular objects, Symbol, etc.
     const got = typeof phase === 'string' ? `'${ phase }'` : typeof phase;
-    throw new TypeError(`[core-js] invalid \`phase\` option: ${ got } - expected 'pre', 'post', or 'pre+post'`);
+    throw new TypeError(brand(`invalid \`phase\` option: ${ got } - expected 'pre', 'post', or 'pre+post'`));
   }
 
   // bundler-specific phase fallback. on bun the upstream sibling-ordering machinery doesn't
@@ -77,7 +78,7 @@ const unplugin = createUnplugin((options, meta) => {
   const fallbackToPost = effective === 'pre+post' && PRE_POST_UNSAFE_BUNDLERS.has(bundler);
   if (fallbackToPost) {
     // eslint-disable-next-line no-console -- one-time bundler-specific cadence warning
-    console.warn(`[core-js] \`phase: 'pre+post'\` is not reliably honored on \`${ bundler }\` (upstream sibling-ordering gap); falling back to single-mode 'post'`);
+    console.warn(brand(`\`phase: 'pre+post'\` is not reliably honored on \`${ bundler }\` (upstream sibling-ordering gap); falling back to single-mode 'post'`));
   }
   const resolvedPhase = fallbackToPost ? 'post' : effective;
   const plugin = createPlugin({ ...rest, bundler });

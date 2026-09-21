@@ -250,11 +250,10 @@ export function hasCoreJSImport(ast, packages) {
   return false;
 }
 
-// `UnpluginContextMeta.framework` union (upstream unplugin). validating here so typos
-// like `webpaaack` fail loudly instead of silently falling to the non-webpack default.
-// `unloader` is the farm-family unloader bundler (upstream groups it alongside
-// rollup/vite/rolldown/farm in one overloaded framework union) - keep in sync with
-// `node_modules/unplugin/dist/*.d.ts` `framework:` string-literal declarations
+// the bundlers this package supports: exactly the public entries (`<bundler>.js` / `.d.ts`, the
+// `./<bundler>` export). a value outside the set degrades to generic handling with a warning.
+// upstream unplugin's `framework` union is wider (it carries `unloader`), and that is not support:
+// an unknown host is reported as unknown, never quietly handled as a neighbour
 export const KNOWN_BUNDLERS = new Set([
   'bun',
   'esbuild',
@@ -263,7 +262,6 @@ export const KNOWN_BUNDLERS = new Set([
   'rollup',
   'rsbuild',
   'rspack',
-  'unloader',
   'vite',
   'webpack',
 ]);
@@ -272,18 +270,18 @@ export const KNOWN_BUNDLERS = new Set([
 // as `Promise.all([...])` of chunk fetches, so the resolved value is itself a Promise.all
 // result rather than a bare module promise. detect-syntax adds `es.promise.all` polyfill
 // only for these bundlers. rspack mirrors webpack semantics by design, and rsbuild builds
-// on rspack (same chunk runtime); farm + unloader share the same Promise.all chunk envelope
-// (per their upstream loader runtime). rolldown / vite / rollup return a bare module Promise
+// on rspack (same chunk runtime); farm uses the same Promise.all chunk envelope (per its
+// upstream loader runtime). rolldown / vite / rollup return a bare module Promise
 // for dynamic import and do NOT need the extra polyfill. unknown bundler value already
 // drops to `false` upstream
 const CHUNK_LOADER_BUNDLERS = new Set([
   'farm',
   'rsbuild',
   'rspack',
-  'unloader',
   'webpack',
 ]);
 
+// the chunk-loader contract above, asked by bundler name; an unknown or absent name has none
 export function isChunkLoaderBundler(bundler) {
   return CHUNK_LOADER_BUNDLERS.has(bundler);
 }

@@ -1,6 +1,7 @@
 import { POSSIBLE_GLOBAL_OBJECTS, unwrapRuntimeExpr } from '@core-js/polyfill-provider/helpers/ast-patterns';
 
 import { cloneNode, sequenceExpression } from '@core-js/polyfill-provider/render';
+import { brand } from '@core-js/polyfill-provider/helpers/error-tag';
 
 // helpers shared by the AST engine's emitters (usage-pure and the destructure pipeline) -
 // they live outside both so neither imports the other
@@ -46,7 +47,7 @@ export function findNodeSlot(root, target, depth = 0) {
   // read the answer at all. a real tree comes nowhere near this (the corpora peak at 14), so reaching
   // it means a cycle or a graph this walker should never have been handed - both are bugs, not inputs
   if (depth >= 1024) {
-    throw new TypeError('[core-js] findNodeSlot: object graph deeper than the walk supports (cycle, or a non-AST graph)');
+    throw new TypeError(brand('findNodeSlot: object graph deeper than the walk supports (cycle, or a non-AST graph)'));
   }
   if (Array.isArray(root)) {
     const at = root.indexOf(target);
@@ -75,7 +76,7 @@ export function replaceNodeInTree(root, target, next, depth = 0) {
   // callers ignore it entirely - a give-up that spells itself the same way leaves the tree unrewritten
   // while the statements built around the swap go out regardless
   if (depth >= 1024) {
-    throw new TypeError('[core-js] replaceNodeInTree: object graph deeper than the walk supports (cycle, or a non-AST graph)');
+    throw new TypeError(brand('replaceNodeInTree: object graph deeper than the walk supports (cycle, or a non-AST graph)'));
   }
   if (Array.isArray(root)) {
     const at = root.indexOf(target);

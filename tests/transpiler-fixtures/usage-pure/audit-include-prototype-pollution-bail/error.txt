@@ -1,5 +1,5 @@
 [BABEL] unknown file: [core-js] error while validating provider options:
-  - The following "include" entry paths didn't match any polyfill:
+  - The following "include" patterns didn't match any polyfill:
     constructor
     toString
     __proto__
