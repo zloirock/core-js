@@ -1,7 +1,5 @@
-// an array-wrapper static extract (`[{ k: v }, tail] = [Ctor, ...]`) binds the polyfill BEFORE the surviving
-// residual array destructure. in a bodyless control body the two join as the declarators of ONE `var` - a
-// do-while body holding two bare statements is unparsable, and a while/if residual would otherwise escape
-// the loop / guard
+// Array-wrapped statics and surviving siblings stay inside their control body.
+// A bodyless loop or conditional must keep all reads and writes under its guard.
 
 // bodyless do-while: two bare statements in the body would be unparsable without the join
 do var [{ of: o }, tail] = [Array, 0]; while (c);

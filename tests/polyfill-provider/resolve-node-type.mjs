@@ -297,6 +297,29 @@ runBoth('aliased static via assignment-destructure -> Array', 'let x; ({ from: x
     { primitive: false, ctor: 'Array' });
 });
 
+// Static aliases retain their result type through array patterns and repeated loop binding.
+for (const [name, source, expected] of [
+  ['array declaration', 'const [{ from: make }] = [Array]; make([]);', 'Array'],
+  ['array assignment', 'let make; ([{ from: make }] = [Array]); make([]);', 'Array'],
+  ['array sequence', 'const [{ from: make }] = (effect(), [Array]); make([]);', 'Array'],
+  ['array nested object', 'const [{ w: { from: make } }] = [{ w: Array }]; make([]);', 'Array'],
+  ['loop object', 'for (const { from: make, ...rest } of [Array]) make([]);', 'Array'],
+  ['loop array', 'for (const [{ from: make }] of [[Array], [Array]]) make([]);', 'Array'],
+  ['loop nested object', 'for (const { w: { from: make } } of [{ w: Array }]) make([]);', 'Array'],
+  ['loop initializer', 'for (const [{ from: make }] = (effect(), [Array]); go();) make([]);', 'Array'],
+  ['mixed loop', 'for (const { from: make } of [Array, foreign]) make([]);', null],
+  ['unknown spread', 'const [{ from: make }] = [...unknown, Array]; make([]);', null],
+  ['reassigned alias', 'let [{ from: make }] = [Array]; make = foreign; make([]);', null],
+  ['shadowed constructor', 'function f(Array) { const [{ from: make }] = [Array]; make([]); }', null],
+]) {
+  runBoth(`destructured static call/${ name }`, source, (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression', path => path.node.callee.name === 'make');
+    const type = adapter.makeResolver().resolveNodeType(call);
+    if (expected) checkType(lbl, type, { primitive: false, ctor: expected });
+    else check(lbl, type, null);
+  });
+}
+
 runBoth('String(...) (coerce) -> string primitive', 'const x = String(42);', (adapter, prog, lbl) => {
   const call = adapter.pickPath(prog, 'CallExpression');
   checkType(lbl, adapter.makeResolver().resolveNodeType(call),
@@ -13755,7 +13778,7 @@ for (const [label, sourceType, code, narrowed] of [
     'let inst;\nclass C {\n  constructor() { inst = this; }\n  m(x = "abc") { return x.at(0); }\n}\nnew C();\ninst.m([1, 2]);', false],
   ['... not even beside a class whose own census is clean', 'module',
     'class C { m(x = "abc") { return x.at(0); } }\nnew C();', false],
-  ['an object method likewise', 'module', 'const o = { m(x = "abc") { return x.at(0); } };\no.m();', false],
+  ['a local object method has a closed slot census', 'module', 'const o = { m(x = "abc") { return x.at(0); } };\no.m();', true],
 ]) {
   runBoth(`default-param constructor census: ${ label }`, code, (adapter, prog, lbl) => {
     const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
@@ -13798,8 +13821,8 @@ for (const [label, sourceType, code, narrowed] of [
     'sink(function f(x = "abc") { return x.at(0); });', false],
   ['... and one stored in an array', 'module',
     'const a = [function f(x = "abc") { return x.at(0); }];', false],
-  ['one stored in an object literal likewise', 'module',
-    'const o = { m: function (x = "abc") { return x.at(0); } };', false],
+  ['one stored in a private unused object has no caller', 'module',
+    'const o = { m: function (x = "abc") { return x.at(0); } };', true],
   ['an unnamed IIFE is private at a sloppy top level too', 'script',
     '(function (x = "abc") { return x.at(0); })();', true],
 ]) {

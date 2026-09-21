@@ -34,7 +34,11 @@ export function viaSymbolVarShadow() {
 const wrapRoot = Array;
 const wrapLink = wrapRoot;
 export function viaArrayWrapChain(wrapRoot) {
-  const from = _Array$from;
+  const [{
+    from
+  }] = [{
+    from: _Array$from
+  }];
   return from([1]);
 }
 

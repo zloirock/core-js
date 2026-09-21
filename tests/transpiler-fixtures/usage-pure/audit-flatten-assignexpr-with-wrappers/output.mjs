@@ -4,7 +4,23 @@ import _Array$of from "@core-js/pure/actual/array/of";
 // Cascade flatten must track the outermost wrapper as LHS so the polyfill alias survives the wrapper layer.
 let from;
 let of;
-from = _Array$from;
-of = _Array$of;
+({
+  Array: {
+    from
+  } = {}
+} = {
+  Array: {
+    from: _Array$from
+  }
+});
+({
+  Array: {
+    of
+  } = {}
+} = {
+  Array: {
+    of: _Array$of
+  }
+});
 from('hi');
 of(1, 2);

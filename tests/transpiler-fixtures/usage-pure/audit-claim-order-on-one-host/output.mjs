@@ -10,13 +10,44 @@ let instanceSecond;
 let instanceFirst;
 let staticSecond;
 let other;
-eff += 1;
-staticFirst = _Object$keys;
-instanceSecond = _atMaybeArray(_globalThis.Array.prototype);
-eff += 1;
 ({
+  Object: {
+    keys: staticFirst
+  },
+  Array: {
+    prototype: {
+      at: instanceSecond
+    }
+  }
+} = (eff += 1, {
+  Object: {
+    keys: _Object$keys
+  },
+  Array: {
+    prototype: {
+      at: _atMaybeArray(_globalThis.Array.prototype)
+    }
+  }
+}));
+({
+  Array: {
+    prototype: {
+      at: instanceFirst
+    }
+  },
+  Object: {
+    keys: staticSecond
+  },
   other
-} = _globalThis);
-instanceFirst = _atMaybeArray(_globalThis.Array.prototype);
-staticSecond = _Object$keys;
+} = (eff += 1, {
+  Array: {
+    prototype: {
+      at: _atMaybeArray(_globalThis.Array.prototype)
+    }
+  },
+  Object: {
+    keys: _Object$keys
+  },
+  other: _globalThis.other
+}));
 export const r = [typeof staticFirst, typeof instanceSecond, typeof instanceFirst, typeof staticSecond, typeof other, eff];

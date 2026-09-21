@@ -6,7 +6,16 @@ import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 // inner pattern plus the outer `Array:` property. `Symbol` remains in a single-sibling
 // outer destructure which the existing top-level proxy-global path rewrites to
 // `const Symbol = _Symbol`
-const from = _Array$from;
-const Symbol = _Symbol;
+const {
+  Array: {
+    from
+  },
+  Symbol
+} = {
+  Array: {
+    from: _Array$from
+  },
+  Symbol: _Symbol
+};
 from([1]);
 _Symbol$iterator;

@@ -7,5 +7,17 @@ import _self from "@core-js/pure/actual/self";
 const ns = {
   root: _self
 };
-const groupBy = _Map$groupBy;
+const {
+  root: {
+    Map: {
+      groupBy
+    }
+  }
+} = {
+  root: {
+    Map: {
+      groupBy: _Map$groupBy
+    }
+  }
+};
 export const grouped = groupBy([1, 2, 3], n => n % 2);

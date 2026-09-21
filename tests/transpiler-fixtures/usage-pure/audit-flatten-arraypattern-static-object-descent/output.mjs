@@ -6,7 +6,15 @@ import _Object$entries from "@core-js/pure/actual/object/entries";
 const wrapper = {
   ns: Object
 };
-const entries = _Object$entries;
+const [{
+  ns: {
+    entries
+  }
+}] = [{
+  ns: {
+    entries: _Object$entries
+  }
+}];
 const arr = entries({
   k: 1
 });

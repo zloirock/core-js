@@ -311,6 +311,12 @@ export function createPolyfillResolver(options, {
   }
 
   function resolveUsage(meta, path, { skipFilters = false } = {}) {
+    // A parameter's source census contributes possible static owners.
+    // Its independently known instance type can exclude those candidates.
+    if (meta.parameterStaticCandidate && path) {
+      const hint = toHint(resolvePropertyObjectType(path));
+      if (hint && hint !== 'function' && hint !== 'object') return null;
+    }
     const resolved = resolve(meta);
     if (!resolved || !hasOwn(resolved.desc, 'global')) return escapedNamespaceEntry(meta);
     let { kind, desc: { global: desc } } = resolved;

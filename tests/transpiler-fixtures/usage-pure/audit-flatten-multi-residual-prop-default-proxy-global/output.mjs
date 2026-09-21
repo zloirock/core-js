@@ -7,11 +7,19 @@ var _ref, _ref2;
 // instance call. both residual defaults (`a` -> `[1].at(0)`, `b` -> `[2].flat()`) must be
 // polyfilled in place; their rewrites land independently in the rebuilt destructure,
 // and `from` is the flatten extraction
-var from = _Array$from;
 var {
+  Array: {
+    from
+  },
   a = _atMaybeArray(_ref = [1]).call(_ref, 0),
   b = _flatMaybeArray(_ref2 = [2]).call(_ref2)
-} = _globalThis;
+} = {
+  Array: {
+    from: _Array$from
+  },
+  a: _globalThis.a,
+  b: _globalThis.b
+};
 from([3]);
 a;
 b;

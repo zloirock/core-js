@@ -15,8 +15,15 @@ let from;
 export let x = 4;
 (null == _globalThis.window ? void 0 : _self.hostBox.field) + 1;
 export let y = 5;
-[(+eff(), _globalThis)];
-from = _Array$from;
+[{
+  Array: {
+    from
+  }
+}] = [(+eff(), {
+  Array: {
+    from: _Array$from
+  }
+})];
 export let z = 6;
 _atMaybeArray(_ref = [1]).call(_ref, 0);
 export { from };

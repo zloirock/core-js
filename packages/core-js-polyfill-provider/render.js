@@ -94,6 +94,10 @@ export function objectExpression(properties) {
   return { type: 'ObjectExpression', properties };
 }
 
+export function objectPattern(properties) {
+  return { type: 'ObjectPattern', properties };
+}
+
 export function objectProperty(key, value, { computed = false } = {}) {
   return { type: 'Property', kind: 'init', method: false, shorthand: false, computed, key, value };
 }

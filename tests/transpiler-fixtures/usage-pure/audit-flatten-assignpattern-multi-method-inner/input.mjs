@@ -1,8 +1,5 @@
-// Multi-method inner pattern wrapped in AssignmentPattern: `{ Array: { from, of } = {} }`.
-// Single AssignmentPattern wraps the inner ObjectPattern containing two static-method
-// extractions. Wrapper peel happens once at the innermost level; willRemoveDeclarator
-// holds (every level has exactly one outer prop and the inner has both methods consumed),
-// so the declarator collapses to two separate `const from = _Array$from; const of = _Array$of`
+// A default around a nested static pattern retains both independent method claims.
+// The pristine Array receiver makes the object default unreachable.
 const { Array: { from, of } = {} } = globalThis;
 from('hi');
 of(1, 2);

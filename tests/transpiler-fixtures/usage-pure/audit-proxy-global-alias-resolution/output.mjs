@@ -13,7 +13,11 @@ const M = [_globalThis];
 export const notSubstitutedWhole = () => M.resolve(1);
 
 // the POSITIONAL array-wrap spelling keeps resolving (the guard must not over-tighten)
-const MW = _Map;
+const [{
+  Map: MW
+}] = [{
+  Map: _Map
+}];
 export const stillResolves = new MW([[1, 2]]);
 
 // a PATCH through the interop `.default` chain routes onto the SAME injected constructor the

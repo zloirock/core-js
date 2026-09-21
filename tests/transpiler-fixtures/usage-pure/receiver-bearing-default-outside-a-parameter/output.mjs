@@ -71,7 +71,15 @@ export const {
     raw: _String$raw
   }
 } = src;
-const of = _Array$of;
+const {
+  Array: {
+    of
+  } = {}
+} = {
+  Array: {
+    of: _Array$of
+  }
+};
 const {
   h: {
     plain

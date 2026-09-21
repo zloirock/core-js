@@ -12,6 +12,7 @@ import {
   memberKeyName,
   memberKeyNamesReducer,
   staticMemberFromEntrySegment,
+  statementListOf,
   unwrapRuntimeExpr,
   walkAstNodes,
 } from './helpers/ast-patterns.js';
@@ -894,6 +895,7 @@ export function collectInjectorCensus(program, { mintedRefNames = EMPTY_NAME_SET
   const pureImportBoundCounts = new Map();
   let foreignSlotName = false;
   const nestedGuardMemoCandidates = [];
+  const memoStatementWrites = [];
   const memberKeys = memberKeyNamesReducer();
   walkAstNodes({ root: program, visit(node, parent) {
     // a `:` slot is where babel's uid scan stops: a name written past one claims nothing
@@ -942,6 +944,12 @@ export function collectInjectorCensus(program, { mintedRefNames = EMPTY_NAME_SET
     }
     memberKeys.visit(node);
     collectWriteOnlyGuardMemoCandidate(node, mintedRefNames, nestedGuardMemoCandidates);
+    const write = node.type === 'ExpressionStatement' && statementListOf(parent)
+      ? unwrapRuntimeExpr(node.expression) : null;
+    if (write?.type === 'AssignmentExpression' && write.operator === '='
+      && write.left?.type === 'Identifier' && mintedRefNames.has(write.left.name)) {
+      memoStatementWrites.push({ statement: node, name: write.left.name, value: write.right });
+    }
   } });
   // an id-rooted member KEY reserves its name too - a slot-shaped spelling there is source
   // text, and the renumber must keep avoiding it
@@ -960,6 +968,7 @@ export function collectInjectorCensus(program, { mintedRefNames = EMPTY_NAME_SET
     pureImportBoundCounts,
     foreignSlotName,
     nestedGuardMemoCandidates,
+    memoStatementWrites,
   };
 }
 

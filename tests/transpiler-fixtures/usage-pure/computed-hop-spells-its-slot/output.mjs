@@ -28,8 +28,13 @@ const _ref2 = _globalThis,
   } = _ref,
   _ref4 = _ref3,
   values = null == _ref4 ? _ref4[""] : _valuesMaybeArray(_ref4);
-const of = _Array$of;
 const {
-  [(eff(2), 'Array')]: _unused
-} = _globalThis;
+  [(eff(2), 'Array')]: {
+    of
+  }
+} = {
+  Array: {
+    of: _Array$of
+  }
+};
 use(at, includes, forEach, map, values, of);

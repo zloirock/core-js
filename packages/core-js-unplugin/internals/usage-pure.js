@@ -30,6 +30,7 @@ import {
   receiverCarriesLiveOptional,
   unwrapRuntimeExpr,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
+  staticFallbackSwapRedundant,
   subtreeContainsNode,
   logicalSlotPatchHost,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
@@ -650,14 +651,10 @@ export default function createAstUsagePureCallback({
     markRewrite();
   }
 
-  // the staged top bails: a conditional / logical destructure receiver routes to the
-  // per-branch mirror - except one whose every live arm is the REALM, which the host rewrite below
-  // collapses before any route reads it; a chain-assignment splice point inside the harvested SE
-  // stays raw (the effects must interleave at the recorded slot, not append)
+  // Route probe and fallback receivers through the shared mirror before ordinary emission.
+  // The caller has already normalized realm selections; unresolved conditional claims warn
+  // and end dispatch, while a realm selection may continue through the ordinary host route.
   function earlyStagedBail(meta, metaPath) {
-    // the host rewrite first: it decides what every route below reads, so it runs before the
-    // per-branch routing rather than beside it
-    if (metaPath.node.type === 'Property') destructureEmit.collapseRealmSelectingHost(metaPath);
     // ... and a PROBE arm goes to the shared plan ahead of every route this binding owns: that arm is
     // decided by the RECEIVER, so the leaf's own meta says nothing about it and a question asked inside
     // the branching gate below never reaches a pattern whose leaves resolve flat. the plan is the only
@@ -707,6 +704,7 @@ export default function createAstUsagePureCallback({
     return false;
   }
 
+  // eslint-disable-next-line max-statements -- host dispatch keeps the shared decisions ahead of mutations
   return function astUsagePureCallback(meta, metaPath) {
     const { node } = metaPath;
     // the hop-host note is taken BEFORE any render: a guard replaces the whole nav, and the root
@@ -717,7 +715,9 @@ export default function createAstUsagePureCallback({
     // the shadow-alias guard's kept raw read (`h === Ctor ? _X : h.of`) is already ours -
     // and so is a nav whose SE spells a minted pure call (a prior pass's spent claim)
     if (claimIsInert({ node, path: metaPath, isDisabled, skippedNodes, isInTypeAnnotation })
-      || (node.type === 'MemberExpression' && ownEmittedNavClaim(node, metaPath, ownOutputTests(injectorState)))) return;
+      || (node.type === 'MemberExpression' && ownEmittedNavClaim(node, metaPath, ownOutputTests(injectorState)))
+      || (node.type === 'Property' && (destructureEmit.sentinelAlreadyProcessed({ metaPath, meta })
+        || destructureEmit.overwriteRebindEmitted({ metaPath })))) return;
     if (node.type === 'MemberExpression' && !deleteHostedSpines.has(sourceSpanKey(node))
       && deleteHostAboveChain(metaPath, node, unwrapRuntimeExpr)) {
       markDeleteHostedSpine(node, deleteHostedSpines, value => navValueCanShortCircuit(value,
@@ -737,9 +737,19 @@ export default function createAstUsagePureCallback({
     // surface with the guard, and stopping here dropped the INSTANCE half of it outright
     // (`for (const e of [Array]) { const { name } = e; }`, which the babel twin dispatches)
     if (meta.guardedAliasHint && node.type === 'MemberExpression' && meta.placement !== 'prototype') return;
-    // OUR rest sentinel from a prior pass never re-routes - ahead of every claim route
-    if ((node.type === 'Property' && (destructureEmit.sentinelAlreadyProcessed({ metaPath, meta })
-      || destructureEmit.overwriteRebindEmitted({ metaPath }))) || earlyStagedBail(meta, metaPath)) return;
+    // Normalize the selected realm before any capture or mirror replaces its live arm.
+    if (node.type === 'Property') destructureEmit.collapseRealmSelectingHost(metaPath);
+    // Prior-pass claims were retired above. Ask the mirror ahead of the routes below: a pattern-valued
+    // claim on that host has no statement slot to extract into, so the iterated ELEMENT is the only
+    // place a rewrite can land. the per-branch dispatch inside the staged bail and the consume gate
+    // in the prop handler each reached such a claim first and dropped it, leaving the head reading
+    // the static raw - the babel binding asks the same plan at the same point in its own dispatch
+    if ((node.type === 'Property' && meta.kind === 'property'
+      && (destructureEmit.tryPatternMirror({ metaPath, meta }) || destructureEmit.capturePatternForExtraction({
+        metaPath, meta, ...isSourcedSymbolIteratorMeta(meta)
+          ? SYMBOL_ITERATOR_PURE_RESULT : resolvePureOrGlobalFallback(meta, metaPath).result ?? { kind: null },
+      })))
+      || earlyStagedBail(meta, metaPath)) return;
 
     if (meta.kind === 'property') {
       if (node.type === 'Property') {
@@ -753,10 +763,9 @@ export default function createAstUsagePureCallback({
         // else stays raw. a `[Symbol.iterator]` prop resolves to null - its pure resolution
         // IS the shared triple (`_getIteratorMethod`), gated on symbol provenance
         const { result } = resolvePureOrGlobalFallback(meta, metaPath);
-        if (result) destructureEmit.handleObjectPropertyResult({ metaPath, meta, ...result });
-        else if (isSourcedSymbolIteratorMeta(meta)) {
+        if (isSourcedSymbolIteratorMeta(meta)) {
           destructureEmit.handleObjectPropertyResult({ metaPath, meta, ...SYMBOL_ITERATOR_PURE_RESULT });
-        }
+        } else if (result) destructureEmit.handleObjectPropertyResult({ metaPath, meta, ...result });
         return;
       }
       if (node.type !== 'MemberExpression') return;
@@ -885,8 +894,27 @@ export default function createAstUsagePureCallback({
       && !probeRenderedReceiver(node.object, { scope: metaPath.scope, adapter, path: metaPath });
     // the object swap ERASES the receiver spelling - an observable buried in it (a
     // chain-assignment, an SE-bearing root call) has no slot in this shape yet
-    const fallbackStaged = fallbackSwappable && (!!meta.sideEffects?.length || !!meta.receiverEffectCount
-      || discardRescueNodes({ node: node.object, scope: metaPath.scope, adapter, path: metaPath }).length > 0);
+    // the receiver-SE the harvest recorded: the swap ERASES the receiver spelling, so these re-emit
+    // as a sequence prefix ahead of the substituted ctor. only RECEIVER effects ride - a computed
+    // KEY survives the swap and re-runs its own
+    const fallbackRecvSe = (meta.sideEffects ?? []).slice(0, meta.receiverEffectCount ?? 0);
+    // an observable the prefix does NOT carry (a chain-assignment, whose kept write has no slot in
+    // this shape) still stages - the prefix channel cannot express it
+    const rescuedNodes = fallbackSwappable
+      ? discardRescueNodes({ node: node.object, scope: metaPath.scope, adapter, path: metaPath }) : [];
+    function carriedByThePrefix(rescued) {
+      return fallbackRecvSe.some(effect => effect === rescued || subtreeContainsNode(effect, rescued));
+    }
+    const carriedByPrefix = rescuedNodes.filter(carriedByThePrefix);
+    const fallbackUncarried = carriedByPrefix.length !== rescuedNodes.length;
+    // a kept SE-bearing inline-call receiver already yields the substituted binding through its own
+    // rewritten return leaf - swapping over it would spell the binding twice
+    // ... and a LIVE `?.` in the receiver belongs to the guard family, which reads this staging to
+    // know it owns the render: un-staging there steals the short-circuit from the only arm spelling it
+    const fallbackStaged = fallbackSwappable && (fallbackUncarried
+      || staticFallbackSwapRedundant(node.object, meta.sideEffects,
+        { mintedAliasRef: name => injector?.getBindingInfo?.(name)?.minted === true })
+      || (!!fallbackRecvSe.length && receiverCarriesLiveOptional(node.object)));
     if (fallbackStaged) stagedFallbackHosts.add(node);
     if (fallbackSwappable && !fallbackStaged) {
       const id = injectPureImport(fallback.entry, fallback.hintName);
@@ -940,8 +968,11 @@ export default function createAstUsagePureCallback({
       if (!objectProbe && !node.optional && aliasRootedReadMayThrow(node.object, m => resolvePure(m, metaPath),
         { scope: metaPath.scope, adapter, path: metaPath })) return;
       markRewrite();
-      metaPath.get('object').replaceWith(objectProbe
-        ? sequenceExpression([objectProbe.node, identifier(id)]) : identifier(id));
+      // the probe render SPELLS the folded key effects itself (its `consumed` channel) - replaying
+      // them beside it would run the source's single evaluation twice
+      const probeSe = objectProbe && new Set(objectProbe.consumed);
+      metaPath.get('object').replaceWith(withSideEffects(identifier(id), objectProbe
+        ? [objectProbe.node, ...fallbackRecvSe.filter(effect => !probeSe.has(effect))] : fallbackRecvSe));
       return;
     }
     dropDeclinedNavSpine({ meta, metaPath, node });

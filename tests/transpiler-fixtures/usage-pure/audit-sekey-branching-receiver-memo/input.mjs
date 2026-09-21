@@ -1,5 +1,4 @@
-// Object-rest keeps named slots at that level and reads through it native in usage-pure.
-// Independent reads and key/default expressions still receive their own polyfills.
+// Instance reads preserve receiver, key and default order across host forms.
 let k1 = 0;
 var { [(k1++, 'at')]: a1, other1 } = Promise.prototype ? [7, 8] : [];
 export const r1 = [typeof a1, k1];
