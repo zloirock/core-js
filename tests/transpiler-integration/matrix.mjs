@@ -37,7 +37,8 @@ export function phasesFor(method, provider = 'unplugin') {
   return provider === 'babel-plugin' || method === 'entry-global' ? [undefined] : PHASES;
 }
 
-// `targets` is the caller's: this suite passes none on purpose, e2e-libs is about IE11. Everything
+// `targets` is the caller's: transpiler-integration hands every builder the same explicit IE11 list,
+// e2e-libs states the floor its own way. Everything
 // else is identical by intent - two suites that pin different core-js versions would be measuring
 // different libraries and calling the difference a plugin change.
 //
