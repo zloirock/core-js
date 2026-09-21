@@ -74,7 +74,11 @@ function mark(t, v) {
   use(m);
 }
 {
-  const f = _Array$from;
+  const [{
+    from: f
+  } = {}] = [{
+    from: _Array$from
+  }];
 }
 {
   const [{
@@ -105,14 +109,15 @@ function mark(t, v) {
   } : userObj, eff()];
 }
 {
-  const M = _Map;
   const [{
     from: f
   }, {
-    Map: _unused
+    Map: M
   }] = [pick ? {
     from: _Array$from
-  } : userObj, _globalThis];
+  } : userObj, {
+    Map: _Map
+  }];
   _pushMaybeArray(log).call(log, f === _Array$from, typeof M);
 }
 {
@@ -137,11 +142,18 @@ function mark(t, v) {
   }] = [...wrapped];
 }
 {
-  eff();
-  const f = _Array$from;
+  const [{
+    from: f
+  }] = [{
+    from: _Array$from
+  }, eff()];
 }
 {
-  const f = _Array$from;
+  const [{
+    from: f
+  }] = [{
+    from: _Array$from
+  }];
 }
 {
   const [{
@@ -217,13 +229,14 @@ function mark(t, v) {
   } : _Set];
 }
 {
-  const [{
-    from: f,
-    at: a
-  }] = [pick ? {
+  const _ref2 = pick ? {
     from: _Array$from,
     at: Array.at
-  } : userObj];
+  } : userObj;
+  const a = _at(_ref2);
+  const [{
+    from: f
+  }] = [_ref2];
   _pushMaybeArray(log).call(log, f === _Array$from, typeof a);
 }
 {
@@ -232,7 +245,15 @@ function mark(t, v) {
   }] = [pick ? Array : _Set];
 }
 {
-  const hasOwn = _Object$hasOwn;
+  const [{
+    w: [{
+      hasOwn
+    }]
+  }] = [{
+    w: [{
+      hasOwn: _Object$hasOwn
+    }]
+  }];
 }
 {
   const m = _atMaybeArray((mark(), arr));

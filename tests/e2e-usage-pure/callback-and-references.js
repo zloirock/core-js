@@ -133,3 +133,14 @@ QUnit.test('stored: String.fromCodePoint as map callback', assert => {
   const fromCp = String.fromCodePoint;
   assert.deepEqual([65, 66, 67].map(cp => fromCp(cp)), ['A', 'B', 'C']);
 });
+
+// A parameter shadowing a proxy global is the PARAMETER: the call runs, the argument it was given is
+// what the body reads, and no static of the realm is substituted for what that argument holds.
+QUnit.test('callbacks: a body reading a shadowing parameter keeps the call and its own read', assert => {
+  const fake = { Array: { from: () => 'FAKE' }, Promise: { resolve: () => 'FAKE' } };
+  assert.same((globalThis => globalThis.Array)(fake).from([1]), 'FAKE');
+  assert.same((function (window) { return window.Array; })(fake).from([2]), 'FAKE');
+  assert.same((self => self.Promise)(fake).resolve(3), 'FAKE');
+  // ... and an absent argument keeps the native throw the read owes
+  assert.throws(() => (globalThis => globalThis.Array)(undefined).from([4]));
+});

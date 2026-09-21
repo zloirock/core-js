@@ -5,7 +5,23 @@ import _Array$of from "@core-js/pure/actual/array/of";
 // iterations of the while loop); classifier does the same plus tracks `arrayIndex` for
 // ArrayExpression init lookup. distinct methods (from / of) per declarator probe per-prop
 // classification through the same combined chain
-const from = _Array$from;
-const of = _Array$of;
+const [{
+  Array: {
+    from
+  } = {}
+}] = [{
+  Array: {
+    from: _Array$from
+  }
+}];
+const [{
+  Array: {
+    of
+  } = {}
+}] = [{
+  Array: {
+    of: _Array$of
+  }
+}];
 from('hi');
 of(1, 2);

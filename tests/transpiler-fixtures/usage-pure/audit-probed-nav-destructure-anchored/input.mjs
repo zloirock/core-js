@@ -1,5 +1,3 @@
-// Object-rest keeps named slots at that level and reads through it native in usage-pure.
-// Independent reads and key/default expressions still receive their own polyfills.
 // A computed static leaf captures the guarded Object value first.
 // An absent nav throws before the key effect; a defined nav runs the key effect
 // before initializing the pure binding.

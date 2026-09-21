@@ -1,8 +1,6 @@
-import _Promise from "@core-js/pure/actual/promise/constructor";
-// three function params each with a polyfilled prop + rest sibling, three distinct
-// constructors (Array.from, Object.keys, Promise.resolve) so imports identify each.
-// EXPORTED, so external callers are invisible: the call-site scan can't prove the default
-// always applies, params stay VERBATIM (body-extract is locked by the immediately-invoked twin)
+import _Promise from "@core-js/pure/actual/promise";
+// Exported parameters keep caller-supplied properties; body extraction cannot prove a default.
+// Promise has a constructor entry, so its rest-bearing default uses the full index.
 function f({
   from,
   ...r1

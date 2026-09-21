@@ -1,5 +1,3 @@
-// Object-rest keeps named slots at that level and reads through it native in usage-pure.
-// Independent reads and key/default expressions still receive their own polyfills.
 // A sole-key object hop pairs with the slot it names, like an array wrapper with its element.
 // Pure getters may collapse; effectful getters keep their reads and use the actual slot's identity
 // to select the ponyfill. A later spread or unknown key keeps the runtime override in that choice.

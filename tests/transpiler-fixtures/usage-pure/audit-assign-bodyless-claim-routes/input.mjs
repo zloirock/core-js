@@ -1,5 +1,5 @@
-// Object-rest keeps the affected assignment pattern native and preserves its RHS value.
-// Independent reads and key/default expressions still receive their own polyfills.
+// Claimed statics retain their polyfills beside object rest.
+// Rest keeps its source and exclusions; instance slots remain native.
 const log = [];
 let from, rest, keyed, other, nested, sibling, kw, prefixed;
 if (log.length >= 0) ({ from, ...rest } = Array);

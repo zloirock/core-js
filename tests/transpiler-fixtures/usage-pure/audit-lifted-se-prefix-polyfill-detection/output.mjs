@@ -6,6 +6,13 @@ import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
 // must still get its polyfill emission. marking the whole declarator / init as skipped was
 // over-aggressive and suppressed polyfill detection for SE-prefix exprs the flatten leaves behind
 const noop = () => {};
-_Promise$resolve(1).then(noop);
-const from = _Array$from;
+const {
+  Array: {
+    from
+  }
+} = (_Promise$resolve(1).then(noop), {
+  Array: {
+    from: _Array$from
+  }
+});
 export { from };

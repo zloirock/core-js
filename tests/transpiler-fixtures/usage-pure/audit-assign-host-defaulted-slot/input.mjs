@@ -1,7 +1,5 @@
-// Object-rest keeps the affected assignment pattern native and preserves its RHS value.
-// Independent reads and key/default expressions still receive their own polyfills.
-// a DEFAULTED leaf in an assignment host is flat like its undefaulted twin: the default costs a
-// guard, not a route, and the consume spells the receiver once whether or not it is re-readable
+// Assignment defaults compose with instance dispatch and nested static patterns.
+// The receiver is evaluated once; a rest-bearing instance level remains native.
 const arr = [1, 2];
 const nb = { y: arr };
 let m1, m2, m3, m4, m5, restOf, m6, m7, n7, m8, m9, m10, x;

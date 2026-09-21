@@ -16,6 +16,7 @@ import {
 import {
   asSymbolRef,
   bindingSymbolKey,
+  computedKeyWellKnownSymbolName,
   chainReadsThroughSeal,
   descendToChainRoot,
   foldableRealmHop,
@@ -23,6 +24,7 @@ import {
   inlineCallHasObservableEffects,
   keySideEffectsOnly,
   mutationGuardKeepingHop,
+  moduleDefaultSource,
   ownChainOptionalCount,
   proxyGlobalMemberCtorPureSwap,
   PROXY_HOP_VALUE_CARRIERS,
@@ -100,9 +102,9 @@ import {
   unwrapTransparentSeq,
   unwrapRuntimeExpr,
   isTypeAnnotationNodeType,
+  callPairing,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import {
-  callPairing,
   escapedCtorReferencesReducer,
   mutationShapesReducer,
 } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
@@ -208,6 +210,9 @@ for (const method of ['usage-global', 'usage-pure']) {
 // constructor (`Array.concat`) while resolving genuine Function.prototype methods (`Array.name`)
 check('staticReceiverHint/constructor', staticReceiverHint('static', 'Array'), 'function');
 check('staticReceiverHint/constructor Map', staticReceiverHint('static', 'Map'), 'function');
+for (const name of ['Iterator', 'AsyncIterator']) {
+  check(`staticReceiverHint/abstract constructor ${ name }`, staticReceiverHint('static', name), 'function');
+}
 // namespaces / proxy globals -> 'object'
 check('staticReceiverHint/namespace', staticReceiverHint('static', 'Math'), 'object');
 check('staticReceiverHint/proxy-global', staticReceiverHint('static', 'globalThis'), 'object');
@@ -1432,7 +1437,7 @@ runBoth('collectDestructureUnionCandidates/reassigned key on unresolved receiver
 runBoth('collectDestructureUnionCandidates/receiver alias reaching a constructor',
   'var M = [1]; if (c) M = Iterator; const { from } = M;', (adapter, prog, lbl) => {
     checkDeep(lbl, destructureExtras(adapter, prog, { kind: 'property', object: null, key: 'from', placement: null }),
-      [{ kind: 'property', object: 'Iterator', key: 'from', placement: 'static', receiverHint: null }]);
+      [{ kind: 'property', object: 'Iterator', key: 'from', placement: 'static', receiverHint: 'function' }]);
   });
 runBoth('collectDestructureUnionCandidates/usage-pure yields none',
   'let k = "at"; if (c) k = "flat"; const arr = [1]; const { [k]: v } = arr;', (adapter, prog, lbl) => {
@@ -1442,7 +1447,7 @@ runBoth('collectDestructureUnionCandidates/usage-pure yields none',
 runBoth('collectDestructureUnionCandidates/param-default host supplies the receiver alias',
   'var M = [1]; if (c) M = Iterator; function f({ from } = M) { return from; }', (adapter, prog, lbl) => {
     checkDeep(lbl, destructureExtras(adapter, prog, { kind: 'property', object: null, key: 'from', placement: null }),
-      [{ kind: 'property', object: 'Iterator', key: 'from', placement: 'static', receiverHint: null }]);
+      [{ kind: 'property', object: 'Iterator', key: 'from', placement: 'static', receiverHint: 'function' }]);
   });
 
 // the array-wrapper peel COLLECTS the sequence prefixes of every CONSUMED wrapper level
@@ -2027,6 +2032,49 @@ runBoth('flattenFallbackBranches/nested conditional flattens static branches',
       { object: 'Iterator', placement: 'static' },
       { object: 'Map', placement: 'static' },
     ]);
+  });
+
+// A constructor arm cannot suppress an instance-only key on the other receiver.
+for (const source of ['flag ? Array : user', 'flag ? user : Array', 'user || Array', 'user ?? Array', 'user && Array']) {
+  runBoth(`destructure instance selection/${ source }`, `const value = ${ source };`, (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const meta = buildDestructuringInitMeta({
+      initNode: decl.node.init, key: 'at', scope: decl.scope, adapter: unionAdapter, path: decl,
+    });
+    check(`${ lbl } object`, meta?.object, null);
+    check(`${ lbl } fallback`, !!meta?.fromFallback, false);
+  });
+}
+
+// Global destructures need the unresolved receiver arm as well as named static owners.
+for (const [source, objects] of [
+  ['flag ? Array : user', ['Array', null]],
+  ['flag ? user : Array', [null, 'Array']],
+  ['user || Array', [null, 'Array']],
+  ['user ?? Array', [null, 'Array']],
+  ['flag ? Array : (other ? Iterator : user)', ['Array', 'Iterator', null]],
+  ['flag ? Array : Iterator', ['Array', 'Iterator']],
+]) {
+  runBoth(`flattenFallbackBranches/instance arm ${ source }`, `const value = ${ source };`, (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    for (const includeUnresolved of [false, true]) {
+      const metas = flattenFallbackBranches({
+        node: decl.node.init, key: 'at', scope: decl.scope, adapter: unionAdapter, path: decl, includeUnresolved,
+      });
+      checkDeep(`${ lbl }/${ includeUnresolved }`, metas.map(meta => meta.object),
+        includeUnresolved ? objects : objects.filter(object => object !== null));
+    }
+  });
+}
+
+runBoth('flattenFallbackBranches/null alias adds no instance receiver',
+  'const empty = null; const value = flag ? empty : Object;', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id.name === 'value');
+    const metas = flattenFallbackBranches({
+      node: decl.node.init, key: 'entries', scope: decl.scope, adapter: unionAdapter, path: decl,
+      followAliasLeaves: true, includeUnresolved: true,
+    });
+    checkDeep(lbl, metas.map(meta => meta.object), ['Object']);
   });
 
 // Logical assignment retains a left value or installs the right value. Usage-global needs
@@ -2722,6 +2770,16 @@ runBoth('resolvePositionalElementSlot/effectful computed key declines even when 
     check(lbl, resolvePositionalElementSlot(leaf), null);
   });
 
+for (const [init, paired] of [['[receiver]', true], ['[...[...[receiver]]]', true], ['[...unknown, receiver]', false]]) {
+  runBoth('resolvePositionalElementSlot/wrapped rest carrier', `const [{ y: { at: method }, ...rest }] = ${ init };`,
+    (parser, program, label) => {
+      const leaf = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property', p => p.node.key?.name === 'at');
+      const slot = resolvePositionalElementSlot(leaf);
+      check(label, !!slot?.declarator, paired);
+      if (paired) check(`${ label } keeps the exclusion hop`, slot.hopProp.node.key.name, 'y');
+    });
+}
+
 // --- the escaping-constructor census over the slots a source can leave ABSENT ---
 
 function censusStamps(programNode) {
@@ -2821,7 +2879,8 @@ runBoth('callPairing/pending Reflect.apply binding', '_apply(f, null, [Array]);'
 // --- the container slot an ESCAPE names: the whole key path, not the hop above it ---
 
 // the census records what a value handed out of the file re-homes. the slot that leaks is the one
-// the read LANDS on, so a multi-hop member escape (`f(ns.g.Map)`) owes `ns.g.Map` - recording the
+// the read LANDS on, so a call receiving `ns.g.Map` may mutate `ns.g.Map.*` but cannot replace
+// the argument value already captured from that slot. Recording the
 // `ns.g` it navigates through poisons the very container slot the receiver walk descends, and every
 // value read through a container then stopped resolving while `new` / `extends` (no escape) kept
 // working. one spelling serves the write recorder and this one
@@ -2831,10 +2890,10 @@ function censusSlots(programNode) {
   return writtenContainerSlots.keys().map(key => key.replaceAll(/#\d+/g, '')).toArray().sort();
 }
 for (const [label, code, expected] of [
-  ['a member escape names its own slot', 'const ns = { g: globalThis }; f(ns.g.Map);', ['ns.g.Map']],
-  ['a deeper chain keeps every hop', 'const ns = { a: { g: globalThis } }; f(ns.a.g.Map);', ['ns.a.g.Map']],
-  ['an element index is a key like any other', 'const arr = [{ g: globalThis }]; f(arr[0].g.Map);', ['arr.0.g.Map']],
-  ['a single hop is unchanged', 'const w = { k: Map }; f(w.k);', ['w.k']],
+  ['a member escape names its own slot', 'const ns = { g: globalThis }; f(ns.g.Map);', ['ns.g.Map.*']],
+  ['a deeper chain keeps every hop', 'const ns = { a: { g: globalThis } }; f(ns.a.g.Map);', ['ns.a.g.Map.*']],
+  ['an element index is a key like any other', 'const arr = [{ g: globalThis }]; f(arr[0].g.Map);', ['arr.0.g.Map.*']],
+  ['a single hop exposes its members', 'const w = { k: Map }; f(w.k);', ['w.k.*']],
   ['an unreadable hop ends the path in the wildcard', 'const w = { a: { b: Map } }; f(w.a[k]);', ['w.a.*']],
   ['a bare container escapes whole', 'const w = { a: { b: Map } }; f(w);', ['w.*']],
   ['a write spells the same path', 'const w = { a: { b: Map } }; w.a.b = Map;', ['w.a.b']],
@@ -2908,11 +2967,14 @@ for (const [label, init, expected] of [
   // an argument the body only PLACES IN A SLOT is what that slot holds: the call yields the literal
   // and the read through the slot lands on the argument, exactly as the identity call above resolves
   ['parameter placed in a slot', 'const ns = (x => ({ g: x }))(globalThis);', 'globalThis'],
-  // ... and the shapes no proof reaches: a parameter read anywhere BUT a slot, a callee OTHER call
-  // sites can reach, a callee with no binding, a body binding of its
-  // own, and a container the source replaces
+  // ... a callee reached by NAME fills the slot per call, and so does one reached through a
+  // receiver invoker: the call's own argument is what its slot holds
+  ['named callee fills the slot', 'function make(x) { return { g: x }; }\nconst ns = make(globalThis);', 'globalThis'],
+  ['named callee through call', 'function make(x) { return { g: x }; }\nconst ns = make.call(null, globalThis);', 'globalThis'],
+  ['named callee through Reflect.apply', 'function make(x) { return { g: x }; }\nconst ns = Reflect.apply(make, null, [globalThis]);', 'globalThis'],
+  // ... and the shapes no proof reaches: a parameter read anywhere BUT a slot, a callee with no
+  // binding, a body binding of its own, and a container the source replaces
   ['parameter read beside its slot', 'const ns = (x => (use(x), { g: x }))(globalThis);', null],
-  ['named callee fills the slot', 'function make(x) { return { g: x }; }\nconst ns = make(globalThis);', null],
   ['conditionally assigned callee', 'let make;\nif (c) make = () => ({ g: globalThis });\nconst ns = make();', 'globalThis'],
   ['unbound callee', 'const ns = make();', null],
   ['body binding of its own', 'const ns = (() => { const box = { g: globalThis }; return box; })();', null],
@@ -3266,6 +3328,75 @@ for (const [name, expression, mutated, expected] of [
       return meta.object === 'Array' && ['from', 'of'].includes(meta.key) ? { kind: 'static' } : null;
     },
   }), expected);
+});
+
+// A mixed static/instance key needs candidates, never one arm's receiver type.
+for (const receiver of ['flag ? Object : user', 'user || Object', 'user ?? Object', 'flag && Object']) {
+  for (const [key, guarded] of [['entries', true], ['at', false]]) {
+    runBoth('mixed destructure receiver identity', `const { ${ key } } = ${ receiver };`, (parser, program, label) => {
+      const adapter = parser.name === 'babel' ? createBabelAdapter({ method: 'usage-pure' })
+        : createEstreeAdapter({ method: 'usage-pure' });
+      const host = parser.pickPath(program, 'VariableDeclarator');
+      const meta = buildDestructuringInitMeta({ initNode: host.node.init, key, scope: host.scope, path: host, adapter });
+      check(`${ label } ${ receiver } ${ key }`, meta?.guardedAliasHint ?? null, guarded ? 'Object' : null);
+      check(`${ label } keeps the unknown arm untyped`, meta?.object, null);
+    });
+  }
+}
+
+for (const [name, setup, receiver, expected] of [
+  ['raw selection', '', 'flag ? Object : user', ['Object']],
+  ['two raw candidates', '', 'flag ? Object : Math', ['Object', 'Math']],
+  ['imported namespace', 'import Pony from "@core-js/pure/actual/map";', 'flag ? Pony : user', []],
+  ['required namespace', 'const Pony = require("@core-js/pure/actual/map");', 'flag ? Pony : user', []],
+  ['aliased namespace', 'import Pony from "@core-js/pure/actual/map"; const Another = Pony;', 'flag ? Another : user', []],
+  ['import beside raw', 'import Pony from "@core-js/pure/actual/map";', 'flag ? Pony : Object', ['Object']],
+]) runBoth(`selecting alias candidates/${ name }`, `${ setup } const held = ${ receiver }; held.entries;`, (parser, program, label) => {
+  const adapter = parser.name === 'babel' ? createBabelAdapter({ method: 'usage-pure' })
+    : createEstreeAdapter({ method: 'usage-pure' });
+  const read = parser.pickPath(program, 'MemberExpression', p => p.node.object.name === 'held');
+  checkDeep(label, aliasWriteCtorNames({ name: 'held', scope: read.scope, adapter, path: read }), expected);
+});
+
+// Index-backed destructures retain their reads, but the resulting protocol key must
+// remain recognizable without a body-extraction registration from either emitter.
+for (const [name, source, expected] of [
+  ['plain', 'import S from "@core-js/pure/full/symbol"; const { iterator: key } = S;', 'iterator'],
+  ['default', 'import S from "@core-js/pure/full/symbol"; const { iterator: key = fallback } = S;', 'iterator'],
+  ['alias', 'import S from "@core-js/pure/full/symbol"; const T = S; const { iterator: key } = T;', 'iterator'],
+  ['require', 'const S = require("@core-js/pure/full/symbol"); const { iterator: key } = S;', 'iterator'],
+  ['index extension', 'import S from "core-js-pure/features/symbol/index.js"; const { iterator: key } = S;', 'iterator'],
+  ['narrow constructor', 'import S from "@core-js/pure/full/symbol/constructor"; const { iterator: key } = S;', null],
+  ['foreign package', 'import S from "foreign/full/symbol"; const { iterator: key } = S;', null],
+  ['nested binding', 'import S from "@core-js/pure/full/symbol"; const { iterator: { x: key } } = S;', null],
+  ['reassigned key', 'import S from "@core-js/pure/full/symbol"; let { iterator: key } = S; key = other;', null],
+  ['reassigned receiver', 'import S from "@core-js/pure/full/symbol"; let T = S; T = other; const { iterator: key } = T;', null],
+  ['conditional capture', 'import S from "@core-js/pure/full/symbol"; if (flag) { var { iterator: key } = S; }', null],
+  ['rest binding', 'import S from "@core-js/pure/full/symbol"; const { ...key } = S;', null],
+]) runBoth(`index-backed symbol key/${ name }`, `${ source } arr[key];`, (parser, program, label) => {
+  const adapter = parser.name === 'babel' ? createBabelAdapter({ method: 'usage-pure' })
+    : createEstreeAdapter({ method: 'usage-pure' });
+  const read = parser.pickPath(program, 'MemberExpression', p => p.node.object.name === 'arr');
+  check(label, computedKeyWellKnownSymbolName({ keyNode: read.node.property, scope: read.scope, adapter, path: read }), expected);
+});
+
+// Pending emission changes the initializer, not the binding's scope or write history.
+for (const [name, source, expected] of [
+  ['capture', 'const { Symbol: S } = globalThis; use(S);', '@core-js/pure/full/symbol'],
+  ['alias', 'const { Symbol: S } = globalThis; const T = S; use(T);', '@core-js/pure/full/symbol'],
+  ['reassigned', 'let { Symbol: S } = globalThis; S = other; use(S);', null],
+  ['shadow', 'const { Symbol: S } = globalThis; function f(S) { use(S); }', null],
+  ['sibling binding', 'const { Symbol: S, Object: O } = globalThis; use(O);', null],
+  ['before capture', 'use(S); var { Symbol: S } = globalThis;', null],
+]) runBoth(`pending module capture/${ name }`, source, (parser, program, label) => {
+  const adapter = parser.name === 'babel' ? createBabelAdapter({ method: 'usage-pure' })
+    : createEstreeAdapter({ method: 'usage-pure' });
+  const declaration = parser.pickPath(program, 'VariableDeclarator', p => p.node.id.type === 'ObjectPattern');
+  const [read] = parser.pickPath(program, 'CallExpression', p => p.node.callee.name === 'use').get('arguments');
+  const query = { node: read.node, scope: read.scope, adapter, path: read };
+  check(`${ label } before commit`, moduleDefaultSource(query), null);
+  adapter.recordEmittedBindingSource(declaration.node, 'S', '@core-js/pure/full/symbol');
+  check(label, moduleDefaultSource(query), expected);
 });
 
 finish();

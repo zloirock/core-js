@@ -1,11 +1,16 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _globalThis from "@core-js/pure/actual/global-this";
-// combination: for-init with nested proxy-global destructure + comma-expression head
-// + body reads the destructured binding. for-init can't host a lifted statement outside
-// the loop header, so the comma-expression migrates into a sibling sink declarator within
-// the same declaration; the polyfill is extracted as `from = _polyfill` so it always wins
-// regardless of native receiver field
+// A loop initializer keeps its sequence prefix once inside the header.
+// The nested static always receives its pure method before the loop body reads it.
 function se() {
   return _globalThis;
 }
-for (const _unused = (se(), _globalThis), from = _Array$from; false;) from([]);
+for (const {
+  Array: {
+    from
+  }
+} = (se(), {
+  Array: {
+    from: _Array$from
+  }
+}); false;) from([]);

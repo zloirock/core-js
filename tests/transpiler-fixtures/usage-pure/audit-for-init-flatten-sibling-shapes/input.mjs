@@ -1,5 +1,5 @@
-// Object-rest keeps the affected loop pattern native at its original evaluation point.
-// Independent reads and key/default expressions still receive their own polyfills.
+// Static claims in a loop initializer compose with independent instance siblings.
+// Rest-bearing instance slots stay native; receiver effects run in the initializer.
 for (const { Array: { from } } = globalThis, { at, ...rest } = arr; cond(); next()) use(from, at, rest);
 for (const { Array: { of: of2 } } = globalThis, { flat, plain } = arr; cond(); next()) use(of2, flat, plain);
 for (const { Array: { isArray } } = globalThis, { ['includes']: inc } = arr; cond(); next()) use(isArray, inc);

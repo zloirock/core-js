@@ -419,7 +419,10 @@ for (const [id, want] of liftSfcLangCases) {
     } catch (error) {
       out = `THROW ${ error.message }`;
     }
-    check('destructure: array-assign twin stands down on an anchored hop', /f = _Iterator\$from/.test(out), true);
+    // The shared mirror now supplies the static in its source slot while preserving
+    // the missing constructor's anchor beside it; extraction is also a valid render.
+    check('destructure: array-assign keeps the static beside an anchored hop',
+      /(?:f =|from:) _Iterator\$from/.test(out) && out.includes('_AggregateError'), true);
   }
   for (const [label, gap] of GAPS) {
     const source = `import x from "y";${ gap }// keep\nexport const r = [...x].at(0);\n`;
@@ -1845,6 +1848,16 @@ async function checkAstFlushContracts() {
   const requireInjector = { ...injector, importStyle: 'require', globalImports: new Set(['es.array.at']) };
   const requireShape = flushOver('use(_self);\n', requireInjector);
   check('flush spells require() in the require style', requireShape.split('|', 1)[0], 'ExpressionStatement');
+  const memoInjector = { ...injector, globalImports: new Set(), pureImports: new Map(), reservedNames: new Set() };
+  for (const [source, expected] of [
+    ['_ref = Array;', ''],
+    ['_ref = read();', 'VariableDeclaration|ExpressionStatement'],
+    ['_ref = object.value;', 'VariableDeclaration|ExpressionStatement'],
+    ['_ref = Array; use(_ref);', 'VariableDeclaration|ExpressionStatement|ExpressionStatement'],
+    ['if (yes) _ref = Array;', 'VariableDeclaration|IfStatement'],
+    ['foreign = Array;', 'ExpressionStatement'],
+  ]) check(`flush prunes only an unread inert memo: ${ source }`,
+    flushOver(source, memoInjector, { refNames: [{ name: '_ref', registrationIndex: 0 }] }), expected);
 }
 await checkAstFlushContracts();
 
@@ -1944,32 +1957,38 @@ function checkPostKeepsRelocatedCatchLiveness() {
 }
 checkPostKeepsRelocatedCatchLiveness();
 
-// Native rest is stable across pre and post, including user bindings named like legacy
-// sentinels. Previously emitted sentinel output remains accepted without another rewrite.
+// Static extraction keeps rest exclusions stable across pre and post. User bindings
+// named like sentinels still extract; only an owned, unread exclusion is adopted.
 function checkPostAdoptsUnusedSentinels() {
   const code = 'const { from, ...rest } = Array;\nexport const r = [from, rest];';
   const opts = { method: 'usage-pure', version: '4.0', targets: { ie: 11 } };
   const pre = createPlugin(opts).transform(code, '/x30.mjs', 'pre');
-  check('post-adopt-unused/pre preserves rest without a sentinel', (pre?.code ?? code).includes('_unused'), false);
+  check('post-adopt-unused/pre retains the static exclusion', /from: _unused, \.\.\.rest/.test(pre?.code ?? code), true);
   const post = createPlugin(opts).transform(pre?.code ?? code, '/x30.mjs', 'post');
   check('post-adopt-unused/post-without-pre is idempotent', post?.code ?? null, null);
   const nested = 'function f() {\n  const { from, ...rest } = Array;\n  return [from, rest];\n}\nexport default f;';
   const nestedPre = createPlugin(opts).transform(nested, '/x30n.mjs', 'pre');
-  check('post-adopt-unused/nested pre preserves rest without a sentinel', (nestedPre?.code ?? nested).includes('_unused'), false);
+  check('post-adopt-unused/nested pre retains the static exclusion', /from: _unused, \.\.\.rest/.test(nestedPre?.code ?? nested), true);
   const nestedPost = createPlugin(opts).transform(nestedPre?.code ?? nested, '/x30n.mjs', 'post');
   check('post-adopt-unused/nested post-without-pre is idempotent', nestedPost?.code ?? null, null);
   const both = 'const { from, ...rest } = Array;\nexport const r = [from, rest, (arr ?? [1]).at(0)];';
   const bothPre = createPlugin(opts).transform(both, '/x30b.mjs', 'pre');
   check('post-adopt-unused/independent receiver memo remains beside native rest',
-    !bothPre?.code?.includes('_unused') && bothPre?.code?.includes('var _ref'), true);
+    bothPre?.code?.includes('_unused') && bothPre?.code?.includes('var _ref'), true);
   const bothPost = createPlugin(opts).transform(bothPre.code, '/x30b.mjs', 'post');
   check('post-adopt-unused/both channels post is idempotent', bothPost?.code ?? null, null);
   const shadow = 'import "@core-js/pure/actual/array/from";\nconst { from: _unused, ...rest } = Array;\nexport const r = [_unused, rest];';
   const shadowPost = createPlugin(opts).transform(shadow, '/x30s.mjs', 'post');
-  check('post-adopt-unused/shadow native rest stays intact', shadowPost?.code ?? shadow, shadow);
+  check('post-adopt-unused/a user sentinel name still extracts',
+    /_unused = null == _ref \? _ref\[""\] : _Array\$from/.test(shadowPost?.code ?? ''), true);
+  check('post-adopt-unused/a user sentinel name keeps a distinct exclusion',
+    /from: _unused2, \.\.\.rest/.test(shadowPost?.code ?? ''), true);
   const unread = 'import "@core-js/pure/actual/array/from";\nexport const { from: _unused, ...rest } = Array;';
   const unreadPost = createPlugin(opts).transform(unread, '/x30u.mjs', 'post');
-  check('post-adopt-unused/unread native rest stays intact', unreadPost?.code ?? unread, unread);
+  check('post-adopt-unused/an exported sentinel name still extracts',
+    /export const _unused = _Array\$from;/.test(unreadPost?.code ?? ''), true);
+  check('post-adopt-unused/an exported sentinel name keeps a distinct exclusion',
+    /from: _unused2, \.\.\.rest/.test(unreadPost?.code ?? ''), true);
   const ours = 'import _Array$from from "@core-js/pure/actual/array/from";\nexport const from = _Array$from;\nexport const { from: _unused, ...rest } = Array;';
   const oursPost = createPlugin(opts).transform(ours, '/x30o.mjs', 'post');
   check('post-adopt-unused/our exported sentinel beside its extraction adopts', oursPost?.code ?? null, null);
@@ -3118,9 +3137,9 @@ function checkTypedOuterInnerDefault() {
   // a sibling prop keeps its residual beside the extraction
   const withSibling = transformed('const { at: { name } = {}, other } = src;');
   check('typed-outer inner default/multi-prop keeps the residual',
-    withSibling.includes('const _ref2 = src;') && withSibling.includes('const { other } = _ref2;'), true);
+    withSibling.includes('const _ref = src;') && withSibling.includes('const { other } = _ref;'), true);
   check('typed-outer inner default/captured source keeps its array type',
-    withSibling.includes('_nameMaybeFunction((_ref = _atMaybeArray(_ref2)) === void 0 ? {} : _ref)'), true);
+    /_nameMaybeFunction\(null == _ref\s*\? _ref\[""\]\s*: \(_ref2 = _atMaybeArray\(_ref\)\) === void 0 \? \{\} : _ref2\)/.test(withSibling), true);
   // the receiver-bearing default folds through the SAME guard (the climb's carriesReceiver
   // answers false on the typed outer, so the hop stays and the composition owns the claim)
   check('typed-outer inner default/receiver default folds into the guard',
@@ -4282,7 +4301,8 @@ checkSealedLayerAbove();
 {
   const source = 'const { [Symbol.iterator]: it, from, ...rest } = globalThis.Array; use(it, from, rest);';
   const output = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } }).transform(source, 'input.mjs')?.code ?? source;
-  check('iterator and static slots beside rest stay native', output.includes('@core-js/pure/actual/array/from'), false);
+  check('a static beside an iterator and rest extracts', output.includes('@core-js/pure/actual/array/from'), true);
+  check('the iterator and static exclusion stay beside rest', /\[_Symbol\$iterator\]: it, from: _unused, \.\.\.rest/.test(output), true);
 }
 
 {
@@ -4299,14 +4319,16 @@ checkSealedLayerAbove();
 {
   const source = "const [{ 'from': f, [Symbol.iterator]: it, ...rest }] = [Array]; use(f, it, rest);";
   const output = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } }).transform(source, 'input.mjs')?.code ?? source;
-  check('array-wrapped static slots beside rest stay native', output.includes('@core-js/pure/actual/array/from'), false);
+  check('array-wrapped static slots beside rest extract', output.includes('@core-js/pure/actual/array/from'), true);
+  check('array-wrapped static extraction preserves its exclusion', /'from': _unused, \[_Symbol\$iterator\]: it, \.\.\.rest/.test(output), true);
   check('array-wrapped iterator slots beside rest stay native', output.includes('@core-js/pure/actual/get-iterator-method'), false);
 }
 
 {
   const source = 'const { of: { name, ...rest }, junk } = Array; use(name, rest, junk);';
   const output = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } }).transform(source, 'input.mjs')?.code ?? source;
-  check('a static hop into a rest-bearing level stays native', output.includes('@core-js/pure/actual/array/of'), false);
+  check('a static hop into a rest-bearing level extracts', output.includes('@core-js/pure/actual/array/of'), true);
+  check('a static hop retains the nested rest operand', output.includes('of: { name, ...rest }'), true);
 }
 
 for (const pattern of ['{ y: { flat: method, ...rest } }', '[{ flat: method, ...rest }]']) {

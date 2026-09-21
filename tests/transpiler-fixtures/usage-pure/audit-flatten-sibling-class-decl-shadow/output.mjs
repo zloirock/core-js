@@ -4,13 +4,21 @@ import _Array$from from "@core-js/pure/actual/array/from";
 // confirms scope tracking handles BOTH `ClassExpression` AND `ClassDeclaration` (only the
 // former is reachable as a direct sibling declarator init; the latter only via a function
 // body that contains class declarations).
-const from = _Array$from;
-const fn = () => {
-  class globalThis {
-    m() {
-      return globalThis;
+const {
+    Array: {
+      from
     }
-  }
-  return new globalThis().m();
-};
+  } = {
+    Array: {
+      from: _Array$from
+    }
+  },
+  fn = () => {
+    class globalThis {
+      m() {
+        return globalThis;
+      }
+    }
+    return new globalThis().m();
+  };
 console.log(from, fn);

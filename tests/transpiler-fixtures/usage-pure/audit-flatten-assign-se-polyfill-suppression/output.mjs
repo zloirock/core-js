@@ -5,5 +5,12 @@ import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
 // covers the prefix's identifiers, Promise.resolve gets suppressed and _Promise$resolve
 // import never emits. expected: both _Promise$resolve AND _Array$from imports
 let from;
-_Promise$resolve(0).then(noop);
-from = _Array$from;
+({
+  Array: {
+    from
+  }
+} = (_Promise$resolve(0).then(noop), {
+  Array: {
+    from: _Array$from
+  }
+}));

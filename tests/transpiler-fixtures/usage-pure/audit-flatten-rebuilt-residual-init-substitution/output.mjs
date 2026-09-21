@@ -7,61 +7,77 @@ import _Map from "@core-js/pure/actual/map/constructor";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Object$keys from "@core-js/pure/actual/object/keys";
 var _ref2;
-const from = _Array$from;
 // a flatten whose residual keeps a REBUILT pattern re-emits the init: the detect pass
 // suppressed the natural visitor on the init's proxy globals (expecting the emit to own
 // them), so the re-emitted tail must route through the same init-globals resolver the flat
 // route uses - a raw `globalThis` here is a ReferenceError on engines without the global
 const {
+  from,
   deep: {
     other
   }
-} = _globalThis.Array;
+} = {
+  from: _Array$from,
+  deep: Array.deep
+};
 use(from, other);
 
 // each operand of a LOGICAL init substitutes the same way in the rebuilt residual
-const of = _Array$of;
 const {
+  of,
   nested: {
     more
   }
-} = _globalThis.Array || Fallback;
+} = {
+  of: _Array$of,
+  nested: Array.nested
+};
 use(of, more);
 
 // a symbol-iterator-keyed PATTERN sibling extracts through the helper off the shared memo
 // (the init substitutes into the memo); the polyfillable default inside the pattern stays live
-const _ref = _globalThis.Array;
-const {
-  isArray
-} = _ref;
-const {
-  x = _atMaybeArray(_ref2 = [1]).call(_ref2, 0)
-} = _getIteratorMethod(_ref);
+const _ref = _globalThis.Array,
+  {
+    isArray
+  } = _ref,
+  {
+    x = _atMaybeArray(_ref2 = [1]).call(_ref2, 0)
+  } = null == _ref ? _ref[""] : _getIteratorMethod(_ref);
 use(isArray, x);
 
 // the for-init host cannot lift the SE prefix (loop header forbids statements): the sink
 // re-embeds `(SE, <tail>)`, and the tail must own the same substitution
-for (const ff = _Array$from, {
-    deep: {
-      other: oo
-    }
-  } = (eff(), _globalThis.Array); cond;) {
+for (const {
+  from: ff,
+  deep: {
+    other: oo
+  }
+} = (eff(), {
+  from: _Array$from,
+  deep: Array.deep
+}); cond;) {
   use(ff, oo);
 }
 
 // controls: a pure-ctor leaf whole-swaps; a const-alias root keeps the user identifier
-const groupBy = _Map$groupBy;
 const {
+  groupBy,
   deeper: {
     rest
   }
-} = _Map;
+} = {
+  groupBy: _Map$groupBy,
+  deeper: _Map.deeper
+};
 use(groupBy, rest);
 const g = _globalThis;
-const k = _Object$keys;
 const {
+  keys: k,
   wrapped: {
     last
   }
-} = g.Object;
+} = {
+  keys: _Object$keys,
+  wrapped: Object.wrapped
+};
 use(k, last);

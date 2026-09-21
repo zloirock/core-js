@@ -1,5 +1,3 @@
-// Object-rest keeps named slots at that level and reads through it native in usage-pure.
-// Independent reads and key/default expressions still receive their own polyfills.
 // A sole-key object hop pairs with the slot it names, like an array wrapper with its element.
 // Pure getters may collapse; effectful getters keep their reads and use the actual slot's identity
 // to select the ponyfill. A later spread or unknown key keeps the runtime override in that choice.
@@ -22,14 +20,19 @@ import _WeakSet from "@core-js/pure/actual/weak-set";
 
 var _ref29;
 const other = {};
-const hopCtor = _Map;
+const { w: { Map: hopCtor } } = { w: { Map: _Map } };
 const src = { P: Array };
-const hopStatic = _Array$from;
-const hopThroughGetter = _WeakMap;
+const { P: { from: hopStatic } } = { P: { from: _Array$from } };
+
+const { w: { WeakMap: hopThroughGetter } } = {
+	get w() {
+		return { WeakMap: _WeakMap };
+	}
+};
 
 // ... and a hop VALUE that navigates to the realm names the constructor its key spells, the way the
 // flat spelling of the same receiver does - the leaf answers a ctor ON the realm, not a static OF it
-const hopThroughNav = _Array$from;
+const { w: { Array: { from: hopThroughNav } } } = { w: { Array: { from: _Array$from } } };
 
 const { w: { WeakSet: keptByGetterEffect } } = {
 	get w() {
@@ -52,7 +55,7 @@ let realmAlias = _globalThis;
 
 realmAlias = _self;
 
-const viaRealmAlias = _Map;
+const { w: { Map: viaRealmAlias } } = { w: { Map: _Map } };
 
 // ... and only while the slots stand: a name the file REPLACES holds the user's object, and the
 // values are no longer one realm - the leaf below it stays native
@@ -83,8 +86,7 @@ function symbolBehindSpread(extra) {
 // ... a STATIC claim behind the same spread keeps it too: the extraction takes the pure binding
 // and the husk stays, so the read the spread performs still runs where the source wrote it
 function staticBehindSpread(extra) {
-	const aheadStatic = _Array$from;
-	const { w: { Array: { from: _unused3 } } } = { ...extra, w: _globalThis };
+	const { w: { Array: { from: aheadStatic } } } = { ...extra, w: { Array: { from: _Array$from } } };
 
 	return aheadStatic;
 }
@@ -94,8 +96,7 @@ function staticBehindSpread(extra) {
 // (the effect-bearing SIBLING spelling of this row lives in the differential instead: the legs print
 // one runtime there in two shapes - husk against sequence prefix - which bytes cannot hold)
 function ctorBehindSpread(extra) {
-	const behindSpread = _Map;
-	const { w: { Map: _unused4 } } = { ...extra, w: _globalThis };
+	const { w: { Map: behindSpread } } = { ...extra, w: { Map: _Map } };
 
 	return behindSpread;
 }
@@ -149,25 +150,23 @@ const { 0: _ref5 } = holder,
 // is the value the flat spelling reads, and the ASSIGNMENT host reads it the same way. the
 // assignment host lifts a comma run ahead of the extraction and reads a nav past the literal's
 // slot for a receiver-less claim, where a kept literal shipped the claim native
-const viaOrDefault = _Map;
+const { w: { Map: viaOrDefault } } = { w: { Map: _Map } };
 
 function nestedSeqKeepsLiteral(f, g) {
-	const viaNestedSeq = _Array$from;
-	const { w: { Array: { from: _unused5 } } } = { w: (f(), (g(), _globalThis)) };
+	const { w: { Array: { from: viaNestedSeq } } } = { w: (f(), (g(), { Array: { from: _Array$from } })) };
 
 	return viaNestedSeq;
 }
 
 function seqDefaultKeepsLiteral(f) {
-	const viaSeqDefault = _Map;
-	const { w: { Map: _unused6 } } = { w: (f(), _globalThis ?? {}) };
+	const { w: { Map: viaSeqDefault } } = { w: (f(), { Map: _Map }) };
 
 	return viaSeqDefault;
 }
 
-const viaNestedDefault = _Map;
-const wrapNestedDefault = _Map;
-const viaOptionalNav = _Map;
+const { w: { Map: viaNestedDefault } } = { w: { Map: _Map } };
+const [{ Map: wrapNestedDefault }] = [{ Map: _Map }];
+const { w: { Map: viaOptionalNav } } = { w: { Map: _Map } };
 const viaOptionalNavInstance = _atMaybeArray(_globalThis.Array.prototype);
 const viaOptionalNavSymbol = _getIteratorMethod(_globalThis);
 
@@ -178,14 +177,12 @@ function assignForms(f, g) {
 	let hopNav;
 	let hopOptional;
 
-	f();
-	g();
-	nestedSeq = _Array$from;
+	({ Array: { from: nestedSeq } } = (f(), (g(), { Array: { from: _Array$from } })));
 	f();
 	seqDefault = _Map;
-	hopOrDefault = _Map;
-	hopNav = _Array$from;
-	hopOptional = _Map;
+	({ w: { Map: hopOrDefault } } = { w: { Map: _Map } });
+	({ w: { Array: { from: hopNav } } } = { w: { Array: { from: _Array$from } } });
+	({ w: { Map: hopOptional } } = { w: { Map: _Map } });
 
 	// ... and a SLOT carrying the prefix: the literal stays as a statement of its own, running the
 	// prefix where the source ran it, and the level consumes
@@ -193,10 +190,8 @@ function assignForms(f, g) {
 
 	let hopSeqDefault;
 
-	({ w: (f(), (g(), _globalThis)) });
-	hopSeq = _Array$from;
-	({ w: (f(), _globalThis ?? {}) });
-	hopSeqDefault = _Map;
+	({ w: { Array: { from: hopSeq } } } = { w: (f(), (g(), { Array: { from: _Array$from } })) });
+	({ w: { Map: hopSeqDefault } } = { w: (f(), { Map: _Map }) });
 
 	return [
 		nestedSeq,
@@ -218,7 +213,7 @@ function closeOver() {
 	closedAlias = _self;
 }
 
-const viaClosedAlias = _Array$from;
+const { w: { Array: { from: viaClosedAlias } } } = { w: { Array: { from: _Array$from } } };
 const { w: { at: noClaimOnClosedAlias } } = { w: closedAlias };
 
 // An optional write may not run, and a block-scoped shadow can change a var initializer's value.
@@ -325,7 +320,7 @@ function mark() {}
 // like one standing over it, on the declaration and the assignment host alike
 const hopSlot = 'w';
 
-const viaBoundHopCtor = _Map;
+const { [hopSlot]: { Map: viaBoundHopCtor } } = { w: { Map: _Map } };
 const viaBoundHopAt = _atMaybeArray([1, 2]);
 const hopAlias = { w: [3, 4] };
 const viaBoundHopAlias = _atMaybeArray(hopAlias.w);
@@ -386,13 +381,13 @@ function viaSeqSlot(mark, arr) {
 }
 
 function ctorUnderRest() {
-	const { w: { Map: restCtor }, ...restDecl } = { w: _globalThis, z: 1 };
+	const { w: { Map: restCtor }, ...restDecl } = { w: { Map: _Map }, z: 1 };
 	let restAssign;
 	let restAssignRest;
 
-	({ w: { Map: restAssign }, ...restAssignRest } = { w: _globalThis, z: 2 });
+	({ w: { Map: restAssign }, ...restAssignRest } = { w: { Map: _Map }, z: 2 });
 
-	const { w: { Array: { of: restStatic } }, ...restStaticRest } = { w: _globalThis, z: 3 };
+	const { w: { Array: { of: restStatic } }, ...restStaticRest } = { w: { Array: { of: _Array$of } }, z: 3 };
 
 	return [
 		restCtor,
@@ -419,7 +414,7 @@ function liftedHusk(eff, eff2) {
 function literalBehindSpread(extra) {
 	const _ref13 = [1, 2];
 	const behindSpreadAt = _atMaybeArray(_ref13);
-	const { w: { at: _unused7 } } = { ...extra, w: _ref13 };
+	const { w: { at: _unused3 } } = { ...extra, w: _ref13 };
 
 	return behindSpreadAt;
 }
@@ -477,10 +472,8 @@ function slotMemoSiblingDecl(eff) {
 	const { a } = _ref20;
 	const sibInSlot = _at(_ref20.w);
 	const sibQ2 = 3;
-
-	const _ref21 = { b: eff(), w: eff() },
-		{ b } = _ref21;
-
+	const _ref21 = { b: eff(), w: eff() };
+	const { b } = _ref21;
 	const _ref22 = _ref21.w;
 	const twinAt = _at(_ref22);
 	const twinFlat = _flatMaybeArray(_ref22);
@@ -562,28 +555,26 @@ export { exportLead2, exportHopBehindLead, ed };
 
 // ... and a wrapped STATIC beside its sibling declarator joins the same way, exported with its host
 // - two of them, one per host; a mixed pair splits by declarator, the static joining its own host
-export const [{ Set: _unused8 }, ee] = [_globalThis, 2],
-	exportWrappedSet = _Set,
-	[{ Map: _unused9 }, ef] = [_globalThis, 3],
-	exportWrappedMap = _Map;
+export const [{ Set: exportWrappedSet }, ee] = [{ Set: _Set }, 2],
+	[{ Map: exportWrappedMap }, ef] = [{ Map: _Map }, 3];
 
-export const exportHopMap = _Map;
-export const { eg } = { w: _globalThis, eg: 4 };
-
-export const [{ Set: _unused10 }, eh] = [_globalThis, 5],
-	exportWrappedBeside = _Set;
+export const { w: { Map: exportHopMap }, eg } = { w: { Map: _Map }, eg: 4 },
+	[{ Set: exportWrappedBeside }, eh] = [{ Set: _Set }, 5];
 
 // two claimed hosts in ONE declaration take the sibling-declarator canon each: an object hop beside
 // an array wrapper (either order), two array wrappers, each memo standing behind the declarators
 // written ahead of its host and the join resuming after it; a symbol leaf under a hop beside a
 // sibling takes the slot memo like the instance leaf of the same slot
 function twoHostsOneDeclaration(eff) {
-	const _ref32 = { a: eff(), w: eff() };
-	const { a } = _ref32;
-	const hostObjAt = _at(_ref32.w);
+	const _ref32 = { a: eff(), w: eff() },
+		{ a } = _ref32,
+		hostObjAt = _at(_ref32.w);
+
 	const _ref33 = eff();
-	const hostArrFlat = _flatMaybeArray(_ref33);
-	const [{}, hz] = [_ref33, 1];
+
+	const [{}, hz] = [_ref33, 1],
+		hostArrFlat = _flatMaybeArray(_ref33);
+
 	const _ref34 = eff();
 
 	const [{}, fz] = [_ref34, 1],
@@ -626,14 +617,11 @@ function twoHostsOneDeclaration(eff) {
 // a ctor under a literal hop whose level keeps a SIBLING prop consumes on both legs, like a static
 // under the same hop: the leaf leaves with its emptied hop, the sibling keeps the residual
 function ctorBesideSibling(eff) {
-	const sibMap = _Map;
-	const { z } = { w: _globalThis, z: 1 };
-	const sibSet = _Set;
-	const sibWeakMap = _WeakMap;
-	const { a } = { a: eff(), w: _globalThis };
-	const sibMultiMap = _Map;
-	const { y } = { w: _self, y: 2 };
-	const sibQ = 3;
+	const { w: { Map: sibMap }, z } = { w: { Map: _Map }, z: 1 };
+	const { a, w: { Set: sibSet, WeakMap: sibWeakMap } } = { a: eff(), w: { Set: _Set, WeakMap: _WeakMap } };
+
+	const { w: { Map: sibMultiMap }, y } = { w: { Map: _Map }, y: 2 },
+		sibQ = 3;
 
 	return [sibMap, z, sibSet, sibWeakMap, a, sibMultiMap, y, sibQ];
 }
@@ -641,12 +629,10 @@ function ctorBesideSibling(eff) {
 // Defined constructor and static ponyfills make these source defaults unreachable at every
 // depth: under an object hop, under an array wrapper, and beside a sibling.
 function defaultKeepsGuard() {
-	const dfMap = _Map;
-	const { z } = { w: _globalThis, z: 1 };
-	const dfFrom = _Array$from;
-	const dfOf = _Array$of;
-	const [{ of: _unused11 }, y] = [Array, 2];
-	const dfDeep = _Array$from;
+	const { w: { Map: dfMap = null }, z } = { w: { Map: _Map }, z: 1 };
+	const { Array: { from: dfFrom = null } } = { Array: { from: _Array$from } };
+	const [{ of: dfOf = null }, y] = [{ of: _Array$of }, 2];
+	const { w: { Array: { from: dfDeep = null } } } = { w: { Array: { from: _Array$from } } };
 
 	return [dfMap, z, dfFrom, dfOf, y, dfDeep];
 }
@@ -674,12 +660,11 @@ function navBelowMemoSlot(hit) {
 	const _ref41 = { w: (hit(), _globalThis), y: 2 };
 	const navHoist = _atMaybeArray(_ref41.w.Array.prototype);
 	const { y: ny } = _ref41;
-
-	const _ref42 = { x: (hit(), 3), w: (hit(), _globalThis) },
-		_ref43 = _ref42.w.Array.prototype,
-		navTwinAt = _atMaybeArray(_ref43),
-		navTwinFlat = _flatMaybeArray(_ref43),
-		{ x: nx } = _ref42;
+	const _ref42 = { x: (hit(), 3), w: (hit(), _globalThis) };
+	const _ref43 = _ref42.w.Array.prototype;
+	const navTwinAt = _atMaybeArray(_ref43);
+	const navTwinFlat = _flatMaybeArray(_ref43);
+	const { x: nx } = _ref42;
 
 	let navAssign,
 		na,
@@ -712,11 +697,8 @@ function navBelowMemoSlot(hit) {
 // a declaration hosting an object hop AND a wrapped static: the hop's declarator splits off, and
 // the static still joins the host it was written beside (the split does not undo the join)
 function mixedHopAndWrappedStatic() {
-	const mixedMap = _Map;
-	const { z: mz } = { w: _globalThis, z: 1 };
-
-	const [{ Set: _unused12 }, my] = [_globalThis, 2],
-		mixedSet = _Set;
+	const { w: { Map: mixedMap }, z: mz } = { w: { Map: _Map }, z: 1 },
+		[{ Set: mixedSet }, my] = [{ Set: _Set }, 2];
 
 	return [mixedMap, mz, mixedSet, my];
 }

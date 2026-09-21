@@ -1,13 +1,16 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _valuesMaybeArray from "@core-js/pure/actual/array/instance/values";
-import _globalThis from "@core-js/pure/actual/global-this";
-// for-init nested-proxy flatten with a SE-prefix IIFE: the for-statement init has no
-// statement slot to host the lifted SE prefix, so the destructure synthesizes a
-// `_unused = (SE-prefix, tail)` sink. The instance-method polyfill inside the arrow body
-// needs a `var _ref;` declaration whose offset is local to the synthesized buffer, not
-// the original source. If the insert uses original-source coordinates, it corrupts the
-// sink and the adjacent `globalThis` substitution emits invalid syntax.
-for (const _unused = ((() => {
-    var _ref;
-    return _valuesMaybeArray(_ref = []).call(_ref);
-  })(), _globalThis), from = _Array$from; false;) from([]);
+// A loop initializer retains its prefix IIFE and the instance call inside it.
+// The function owns its receiver temporary before the static binding initializes.
+for (const {
+  Array: {
+    from
+  }
+} = ((() => {
+  var _ref;
+  return _valuesMaybeArray(_ref = []).call(_ref);
+})(), {
+  Array: {
+    from: _Array$from
+  }
+}); false;) from([]);

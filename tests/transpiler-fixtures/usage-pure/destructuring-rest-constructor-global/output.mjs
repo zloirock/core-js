@@ -1,6 +1,5 @@
-import _Promise from "@core-js/pure/actual/promise/constructor";
-// Object-rest keeps named slots at that level and reads through it native in usage-pure.
-// Independent reads and key/default expressions still receive their own polyfills.
+import _Promise from "@core-js/pure/actual/promise";
+// A constructor entry makes its index the source of both named properties and rest.
 const {
   resolve,
   ...rest

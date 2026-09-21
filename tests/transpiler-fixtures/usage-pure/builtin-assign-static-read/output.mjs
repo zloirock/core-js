@@ -1,8 +1,7 @@
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
 import _Object$assign from "@core-js/pure/actual/object/assign";
-// Passing Map to a builtin does not require its full namespace.
-// Pure deliberately leaves the later slot read native: following a value installed
-// by a builtin is deferred. The constructor entry alone does not provide groupBy.
+// Object.assign installs the constructor into a retained slot.
+// Its later static read needs the namespace entry.
 const w = {
   k: Object
 };

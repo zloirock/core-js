@@ -1,11 +1,15 @@
+import _Array$from from "@core-js/pure/actual/array/from";
+import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
-// Object-rest keeps the affected method slots native; computed symbol keys still polyfill.
-// Independent reads and key/default expressions still receive their own polyfills.
+const from = _Array$from;
+const of = _Array$of;
+// Claimed statics retain their polyfills beside object rest.
+// Rest keeps its source and exclusions; instance slots remain native.
 const {
   [_Symbol$iterator]: it,
-  from,
-  of,
+  from: _unused,
+  of: _unused2,
   ...rest
 } = _globalThis.Array;
 it;

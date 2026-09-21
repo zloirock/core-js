@@ -6,9 +6,16 @@ var _ref;
 // the flatten extracts `from = _Array$from` and rebuilds the residual destructure; the
 // residual `other` default `[1].at(0)` must still be polyfilled in place (was dropped when
 // the whole pattern was blanket-skipped), so both plugins emit the `_atMaybeArray` rewrite
-var from = _Array$from;
 var {
+  Array: {
+    from
+  },
   other = _atMaybeArray(_ref = [1]).call(_ref, 0)
-} = _globalThis;
+} = {
+  Array: {
+    from: _Array$from
+  },
+  other: _globalThis.other
+};
 from([2]);
 other;

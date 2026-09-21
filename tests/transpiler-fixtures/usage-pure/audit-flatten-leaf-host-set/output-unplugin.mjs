@@ -39,11 +39,11 @@ const sharedDeclaration = (function () {
 })();
 
 const middleDeclarator = (function () {
-	var z = 1,
-		_ref4 = box.y,
-		at = _atMaybeArray(_ref4),
-		{ other } = _ref4,
-		zTail = 2;
+	var z = 1;
+	var _ref4 = box.y;
+	var at = _atMaybeArray(_ref4);
+	var { other } = _ref4;
+	var zTail = 2;
 
 	return [z, at, other, zTail];
 })();

@@ -12,21 +12,20 @@ var _ref = function () {
     var flat = _flatMaybeArray(src);
     return [flat];
   }(),
-  _ref2 = _ref,
-  a = null == _ref2 ? _ref2[""] : (k++, _atMaybeArray(_ref2)),
+  a = null == _ref ? _ref[""] : (k++, _atMaybeArray(_ref)),
   {
     other
   } = _ref;
 export { a, other };
 try {
   risky();
-} catch (_ref3) {
-  let at = _at(_ref3);
+} catch (_ref2) {
+  let at = _at(_ref2);
   let {
     code = function () {
       var concat = _concatMaybeArray(src);
       return concat;
     }
-  } = _ref3;
+  } = _ref2;
   use(at, code);
 }

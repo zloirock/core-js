@@ -4,9 +4,9 @@
 // the same booleans because the strategy planner is shared between babel-plugin and
 // unplugin (decision tree is plugin-specific, the underlying facts are not).
 import {
+  capturedRealmCtorPure,
   classifyVariableDeclarationHost,
   isBodylessStatementSlot,
-  isCapturedKeyedPattern,
   isForInitDeclaration,
   isLoopStatement,
   peelLabeledStatements,
@@ -16,13 +16,190 @@ import {
   planRetainedObjectCapture,
   renderArrayWrapperCapture,
   renderNestedKeyedPatternCapture,
+  renderRetainedObjectCapture,
 } from '../../packages/core-js-polyfill-provider/destructure-host-shape.js';
 import { createChecker } from './harness.mjs';
-import { hasObjectRestAncestor } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
-import { destructureKeyReadPlan } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
+import { hasObjectRestAncestor, isCapturedKeyedPattern } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import { buildDestructuringInitMeta, destructureKeyReadPlan } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
+import { resolvePolyfillableStaticProp } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
 import { hostSlot, identifier, renderInstanceDefaultGuard } from '../../packages/core-js-polyfill-provider/render.js';
 
+import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
+import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
+import { handleMemberExpressionNode } from '../../packages/core-js-polyfill-provider/detect-usage/members.js';
+import { hasConstructorEntry, resolve } from '../../packages/core-js-polyfill-provider/index.js';
+
 const { check, checkDeep, finish, runBoth } = createChecker('destructure-host-shape');
+
+for (const [name, pure, global] of [
+  ['Promise', true, true], ['Map', true, true], ['ArrayBuffer', false, true],
+  ['Array', false, false], ['Object', false, false], ['Reflect', false, false],
+]) {
+  check(`${ name } pure constructor availability`, hasConstructorEntry(name), pure);
+  check(`${ name } global constructor availability`, hasConstructorEntry(name, 'global'), global);
+}
+
+for (const method of ['usage-global', 'usage-pure']) for (const [source, claimed] of [
+  ['import P from "@core-js/pure/actual/promise"; P.all;', false],
+  ['const P = require("@core-js/pure/actual/promise"); P.all;', false],
+  ['import P from "@core-js/pure/actual/promise"; Promise.all;', true],
+  ['import P from "@core-js/pure/actual/promise"; let R = P; R = Promise; R.all;', true],
+  ['import P from "@core-js/pure/actual/promise"; const R = (effect(), P); R.all;', false],
+  ['import P from "@core-js/pure/actual/promise/constructor"; P.all;', method === 'usage-pure'],
+  ['import P from "@core-js/pure/actual/promise"; function f(P) { P.all; }', false],
+]) runBoth(`constructor index already supplies its statics/${ method }`, source, (parser, program, label) => {
+  const usage = parser.pickPath(program, 'MemberExpression', path => path.node.property.name === 'all');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method });
+  const meta = handleMemberExpressionNode({ node: usage.node, scope: usage.scope, path: usage, adapter,
+    handledObjects: new WeakSet(), suppressProxyGlobals: new WeakSet(), resolvePure: resolve });
+  check(label, meta?.placement === 'static' && meta.object === 'Promise', claimed);
+});
+
+for (const method of ['usage-global', 'usage-pure']) for (const [source, claimed] of [
+  ['import P from "@core-js/pure/actual/promise"; const { all } = P;', false],
+  ['const P = require("@core-js/pure/actual/promise"); const { all } = P;', false],
+  ['import P from "@core-js/pure/actual/promise"; const R = (effect(), P); const { all } = R;', false],
+  ['import P from "@core-js/pure/actual/promise/constructor"; const { all } = P;', method === 'usage-pure'],
+  ['import P from "@core-js/pure/actual/promise"; const { all } = Promise;', true],
+]) runBoth(`constructor index supplies destructured statics/${ method }`, source, (parser, program, label) => {
+  const usage = parser.pickPath(program, 'VariableDeclarator', path => path.node.id.type === 'ObjectPattern');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method });
+  const meta = buildDestructuringInitMeta({ initNode: usage.node.init, key: 'all', scope: usage.scope, path: usage, adapter });
+  check(label, meta?.placement === 'static' && meta.object === 'Promise', claimed);
+});
+
+for (const method of ['usage-global', 'usage-pure']) {
+  for (const entry of ['promise', 'promise/constructor']) for (const receiver of ['P', 'R', 'f()', 'box.P', 'list[0]', 'g().P']) {
+    runBoth(`pure import receiver provenance/${ method }/${ entry }/${ receiver }`,
+      `import P from "@core-js/pure/actual/${ entry }";
+       const R = P, box = { P }, list = [P]; function f() { return P; } function g() { return { P }; } ${ receiver }.all;`,
+      (parser, program, label) => {
+        const usage = parser.pickPath(program, 'MemberExpression', path => path.node.property.name === 'all');
+        const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method });
+        const meta = handleMemberExpressionNode({ node: usage.node, scope: usage.scope, path: usage, adapter,
+          handledObjects: new WeakSet(), suppressProxyGlobals: new WeakSet(), resolvePure: resolve });
+        check(label, meta?.placement === 'static' && meta.object === 'Promise',
+          method === 'usage-pure' && entry === 'promise/constructor');
+      });
+  }
+}
+
+for (const method of ['usage-global', 'usage-pure']) for (const key of ['at', 'name']) {
+  runBoth(`pure constructor keeps function instance typing/${ method }/${ key }`,
+    `import P from "@core-js/pure/actual/promise/constructor"; const box = { P }; box.P.${ key };`,
+    (parser, program, label) => {
+      const usage = parser.pickPath(program, 'MemberExpression', path => path.node.property.name === key);
+      const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method });
+      const meta = handleMemberExpressionNode({ node: usage.node, scope: usage.scope, path: usage, adapter,
+        handledObjects: new WeakSet(), suppressProxyGlobals: new WeakSet(), resolvePure: resolve });
+      check(label, meta?.receiverHint, 'function');
+    });
+}
+
+for (const [source, retained] of [['Promise', false], ['Source', true]]) {
+  runBoth(`constructor rest keeps its local source/${ source }`, `const Source = Promise; const { all, ...rest } = ${ source };`,
+    (parser, program, label) => {
+      const host = parser.pickPath(program, 'VariableDeclarator', path => path.node.id.type === 'ObjectPattern');
+      const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+      const plan = planRetainedObjectCapture({
+        pattern: host.node.id, init: host.node.init, prop: host.node.id.properties[0], hostPath: host, adapter,
+        kind: 'static', meta: { object: 'Promise', key: 'all', placement: 'static' },
+        resolvePure: () => ({ entry: 'promise', hintName: 'Promise' }),
+      });
+      check(`${ label } constructor index`, plan?.restPure?.entry, 'promise');
+      check(`${ label } local source`, !!plan?.restSource, retained);
+    });
+}
+
+for (const source of [
+  'const { w: { entries } } = { w: flag ? Object : user };',
+  'const [{ w: { entries } }] = [{ w: flag ? Object : user }];',
+  'const { w: [{ entries }] } = { w: [flag ? Object : user] };',
+]) runBoth('retained mixed-key capture crosses object and array levels', source, (parser, program, label) => {
+  const host = parser.pickPath(program, 'VariableDeclarator');
+  const prop = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property', p => p.node.key.name === 'entries').node;
+  const plan = planRetainedObjectCapture({
+    pattern: host.node.id, init: host.node.init, prop, meta: { key: 'entries', guardedAliasHint: 'Object' },
+    resolvePure: () => ({}), planGuardedNarrow: () => ({ instanceFallback: { kind: 'instance' } }),
+  });
+  let leaf = plan;
+  while (leaf?.innerPlan || leaf?.elementPlan) leaf = leaf.innerPlan ?? leaf.elementPlan;
+  check(label, leaf?.narrow?.instanceFallback.kind, 'instance');
+});
+
+for (const claimed of [false, true]) runBoth('queued consumption retires a quiet sibling hop',
+  'const { w: { values }, y: { at } } = receiver;', (adapter, program, label) => {
+    const host = adapter.pickPath(program, 'VariableDeclarator');
+    const [first, second] = host.node.id.properties;
+    const [consumed] = first.value.properties;
+    const plan = planRetainedObjectCapture({
+      pattern: host.node.id, init: host.node.init, prop: second.value.properties[0],
+      isConsumedProp: item => claimed && item === consumed,
+    });
+    check(label, !!plan, !claimed);
+  });
+
+for (const [name, entry, anchored] of [
+  ['Promise', 'promise', true], ['Map', 'map', true],
+  ['Array', 'array', false], ['Object', 'object', false],
+  ['Reflect', 'reflect/namespace', false], ['ArrayBuffer', 'array-buffer/constructor', false],
+]) for (const rest of ['', ', ...rest']) {
+  runBoth('captured rest requires a pure constructor entry',
+    `const { ${ name }: { method${ rest } } } = globalThis;`, (adapter, program, label) => {
+      const host = adapter.pickPath(program, 'VariableDeclarator');
+      const capture = planNestedKeyedPatternCapture({ pattern: host.node.id, init: host.node.init, force: !rest });
+      const pure = { entry, hintName: name };
+      const anchorPure = capturedRealmCtorPure({
+        capture, scope: host.scope, path: host,
+        adapter: { hasBinding: () => false, getBinding: () => null, isMutatedStatic: () => false },
+        resolveGlobalPolyfill: () => pure,
+      });
+      check(`${ label }: ${ name }`, anchorPure, !rest || anchored ? pure : null);
+      const rendered = renderNestedKeyedPatternCapture(capture, {
+        mintRef: () => '_held', anchorPure, injectImport: () => '_Constructor',
+      });
+      checkDeep(`${ label }: ${ name } source`, rendered.capture.init,
+        anchorPure ? identifier('_Constructor') : host.node.init);
+    });
+}
+
+for (const [source, expected, mutated = false] of [
+  ['const { from, of, ...rest } = Array;', true],
+  ['const { "from": from, "of": of, ...rest } = Array;', true],
+  ['const { [(effect(), "from")]: from, [(effect(), "isArray")]: check, ...rest } = Array;', true],
+  ['const { from, unknown, ...rest } = Array;', false],
+  ['const { from, isArray, ...rest } = Array;', false, true],
+  ['const { from, ...rest } = custom;', false],
+]) runBoth('static rest capture admission', source, (adapter, program, label) => {
+  const host = adapter.pickPath(program, 'VariableDeclarator');
+  const plan = planRetainedObjectCapture({
+    pattern: host.node.id, init: host.node.init, prop: host.node.id.properties[0], hostPath: host,
+    kind: 'static', adapter: {
+      hasBinding: () => false, getBinding: () => null, isMutatedStatic: () => mutated,
+      isStringLiteral: node => node.type === 'StringLiteral' || node.type === 'Literal' && typeof node.value === 'string',
+      getStringValue: node => node.value,
+    },
+    resolvePure: meta => meta.object === 'Array' && ['from', 'of'].includes(meta.key)
+      ? { kind: 'static', entry: `array/${ meta.key }`, hintName: meta.key } : null,
+    resolveStaticProp: resolvePolyfillableStaticProp,
+  });
+  check(label, !!plan, expected);
+  if (!plan) return;
+  const rendered = renderRetainedObjectCapture(plan, {
+    mintRef: () => 'memo', injectImport: entry => entry.replace('/', '$'),
+  });
+  const exclusions = rendered.declarations.at(-1).id.properties.slice(0, -1);
+  for (const [index, exclusion] of exclusions.entries()) {
+    const sourceProp = host.node.id.properties[index];
+    check(`${ label }/exclusion is not computed`, exclusion.computed, false);
+    if (sourceProp.computed) {
+      check(`${ label }/computed exclusion uses the folded key`, exclusion.key.type, 'Literal');
+    } else {
+      checkDeep(`${ label }/plain exclusion preserves key spelling`, exclusion.key, sourceProp.key);
+      check(`${ label }/plain exclusion owns its key`, exclusion.key === sourceProp.key, false);
+    }
+  }
+});
 
 for (const [source, expected, kind = 'static'] of [
   ['const { [Symbol.iterator]: iter, Map: { custom }, ...rest } = globalThis;', false, 'instance'],
@@ -67,6 +244,25 @@ runBoth('retained static capture through an array element path',
     });
     check(label, !!plan, false);
   });
+
+for (const [key, kind] of [['of', 'static'], ['Set', 'global']]) {
+  runBoth(`static beside iterator pattern/${ kind }`, `const { ${ key }, [Symbol.iterator]: { name } } = source;`,
+    (parser, program, label) => {
+      const host = parser.pickPath(program, 'VariableDeclarator');
+      const plan = planRetainedObjectCapture({
+        pattern: host.node.id, init: host.node.init, prop: host.node.id.properties[0], hostPath: host, kind,
+        adapter: {
+          isStringLiteral: node => node.type === 'StringLiteral' || node.type === 'Literal' && typeof node.value === 'string',
+          getStringValue: node => node.value,
+          hasBinding: (scope, name) => !!scope?.getBinding(name),
+          getBinding: (scope, name) => scope?.getBinding(name),
+          method: 'usage-pure',
+        },
+        resolveNodeType: parser.makeResolver().resolveNodeType,
+      });
+      check(`${ label }: import is a value, not an instance dispatcher`, plan?.retainedStatic, true);
+    });
+}
 
 for (const [pattern, expected] of [
   ['{ w: { at }, ...rest }', false],
@@ -401,6 +597,27 @@ runBoth('retained assignment capture/one computed slot keeps its read in order',
     check(`${ lbl }/a sole computed slot needs capture`, !!plan, true);
   });
 
+for (const source of [
+  'const held = ({ of } = Array);',
+  'const held = (before(), ({ of } = Array));',
+  'if (yes) ({ of } = Array);',
+  'label: ({ of } = Array);',
+]) runBoth('ordered assignment capture/preserves the RHS identity', source, (adapter, prog, lbl) => {
+  const host = adapter.pickPath(prog, 'AssignmentExpression');
+  const { left: pattern, right: init } = host.node;
+  const plan = planRetainedObjectCapture({ pattern, init, assignment: true, prop: pattern.properties[0],
+    hostPath: host, kind: 'static', adapter: { hasBinding: () => false },
+    resolveStaticProp: () => ({ pure: { kind: 'static', entry: 'actual/array/of', hintName: 'Array$of' } }) });
+  check(`${ lbl }/plans`, !!plan, true);
+  const rendered = renderRetainedObjectCapture(plan, {
+    mintDeclaredRef: () => 'memo', injectImport: () => 'ofImport',
+  });
+  const { expressions } = rendered.expression;
+  check(`${ lbl }/RHS evaluates first`, expressions[0].right === init, true);
+  check(`${ lbl }/the claim follows`, expressions[1].right.name, 'ofImport');
+  check(`${ lbl }/the result is the captured receiver`, expressions.at(-1).name, 'memo');
+});
+
 runBoth('array wrapper capture/effects before a nested pattern and its sibling',
   'for (let [, [{ w: { values }, y: { at } }], { z }] = [eff(), [r], other]; ;) {}',
   (adapter, prog, lbl) => {
@@ -676,5 +893,15 @@ runBoth('planMinifierSequenceSplit/slot inside an operand', 'const src = [1];\n(
 runBoth('planMinifierSequenceSplit/no shape, no entry', 'const src = [1];\n({ at } = src);\n(a(), b());\n', (adapter, prog, lbl) => {
   check(lbl, planMinifierSequenceSplit(prog.node).length, 0);
 });
+
+for (const siblings of ['', ', tail']) runBoth('retained wrapper computed key shares one call result',
+  `let method, tail; [{ [(key(), "at")]: method }${ siblings }] = [source(), 7];`, (parser, program, label) => {
+    const host = parser.pickPath(program, 'AssignmentExpression');
+    const [prop] = host.node.left.elements[0].properties;
+    const plan = planRetainedObjectCapture({ pattern: host.node.left, init: host.node.right, assignment: true, prop });
+    check(`${ label }/keeps native iteration`, !!plan?.arrayCapture, true);
+    check(`${ label }/owns the keyed element`, plan?.elementPattern, host.node.left.elements[0]);
+    check(`${ label }/keeps sibling positions`, plan?.arrayCapture.elements.length, siblings ? 2 : 1);
+  });
 
 finish();

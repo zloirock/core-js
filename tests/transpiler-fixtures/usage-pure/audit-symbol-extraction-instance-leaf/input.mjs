@@ -1,7 +1,5 @@
-// the value a `[Symbol.iterator]` extraction pulls out IS the iterator method - a function - so a
-// leaf destructured from it is an INSTANCE member of that function and keeps its polyfill. only the
-// plan can decide this: the extracted pattern's properties are claimed against a re-visit, and a
-// shorthand leaf is no member read, so nothing downstream would ask
+// A symbol-iterator value keeps the claims nested beneath its pattern.
+// Sibling statics must not hide instance properties read from that value.
 const { [Symbol.iterator]: { name } } = globalThis;
 const { [Symbol.iterator]: { name: viaAlias } } = globalThis;
 const { Set: { customQ }, [Symbol.iterator]: { name: viaSibling } } = globalThis;

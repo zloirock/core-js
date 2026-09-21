@@ -12,45 +12,42 @@ const holder = {
   p: [1, [2]]
 };
 var _ref = holder.p,
-  _ref2 = _ref,
-  m = null == _ref2 ? _ref2[""] : (_pushMaybeArray(logv).call(logv, 1), _flatMaybeArray(_ref2)),
+  m = null == _ref ? _ref[""] : (_pushMaybeArray(logv).call(logv, 1), _flatMaybeArray(_ref)),
   {
     other
   } = _ref;
 export const r1 = [typeof m, typeof other, logv.length];
 var x = 1,
-  _ref3 = holder.p,
-  _ref4 = _ref3,
-  a2 = null == _ref4 ? _ref4[""] : (_pushMaybeArray(logv).call(logv, 2), _atMaybeArray(_ref4)),
+  _ref2 = holder.p,
+  a2 = null == _ref2 ? _ref2[""] : (_pushMaybeArray(logv).call(logv, 2), _atMaybeArray(_ref2)),
   {
     rest
-  } = _ref3;
+  } = _ref2;
 export const r2 = [typeof a2, typeof rest, x];
 let out;
-for (var _ref5 = holder.p, _ref6 = _ref5, inc = null == _ref6 ? _ref6[""] : (_pushMaybeArray(logv).call(logv, 3), _includesMaybeArray(_ref6)), {
+for (var _ref3 = holder.p, inc = null == _ref3 ? _ref3[""] : (_pushMaybeArray(logv).call(logv, 3), _includesMaybeArray(_ref3)), {
     tail
-  } = _ref5; !out;) {
+  } = _ref3; !out;) {
   out = typeof inc;
 }
 export const r3 = [out, typeof tail];
-var _ref7 = holder.p,
-  fm = null == _ref7 ? _ref7[""] : (_pushMaybeArray(logv).call(logv, 4), _flatMapMaybeArray(_ref7));
+var _ref4 = holder.p,
+  fm = null == _ref4 ? _ref4[""] : (_pushMaybeArray(logv).call(logv, 4), _flatMapMaybeArray(_ref4));
 export const r4 = [typeof fm, logv.length];
 const eff = [];
-const _ref8 = {
+const _ref5 = {
     q: (_pushMaybeArray(eff).call(eff, 'se'), 1),
     p: holder.p
   },
   {
     q: qq
-  } = _ref8,
+  } = _ref5,
   {
-    p: _ref9
-  } = _ref8,
-  _ref10 = _ref9,
-  _ref11 = _ref10,
-  m2 = null == _ref11 ? _ref11[""] : (_pushMaybeArray(eff).call(eff, 'key'), _flatMaybeArray(_ref11)),
+    p: _ref6
+  } = _ref5,
+  _ref7 = _ref6,
+  m2 = null == _ref7 ? _ref7[""] : (_pushMaybeArray(eff).call(eff, 'key'), _flatMaybeArray(_ref7)),
   {
     other2
-  } = _ref10;
+  } = _ref7;
 export const r5 = [typeof m2, typeof other2, qq, _joinMaybeArray(eff).call(eff, ',')];

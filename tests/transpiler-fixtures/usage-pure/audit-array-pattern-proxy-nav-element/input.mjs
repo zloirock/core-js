@@ -1,7 +1,5 @@
-// an ARRAY-pattern element whose value navigates the proxy globals: the receiver collapse claims
-// the nav span first, then the flatten / cascade replaces the whole statement with text that does
-// not carry it - the queue reported that as a build error and the module never compiled. the render
-// owns those spans, so it declares them and the composer drops what they consumed.
+// An array element navigating proxy globals receives the same static as the plain receiver.
+// Nested receiver and host rewrites must compose without losing the claim.
 let n = 0;
 let w;
 let getPrototypeOf;

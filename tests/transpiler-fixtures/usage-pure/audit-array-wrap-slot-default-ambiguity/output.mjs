@@ -43,7 +43,11 @@ export const viaLiteralDefault = N.range(0, 3);
 
 // control: a provably-defined pair keeps the pair fold (the slot default is dead)
 let fallback = {};
-const C = _Set;
+const [{
+  Set: C
+} = fallback] = [{
+  Set: _Set
+}];
 export const viaSoundPair = new C(soundSeed);
 
 // absent element with a receiver default: the hole fires the default, which is mirrored whole
@@ -56,7 +60,11 @@ export const viaAbsentPair = new K();
 
 // deep nesting: a dead default under a sound deep pair extracts the same way
 let deepFb = {};
-const I = _Iterator;
+const [[{
+  Iterator: I
+} = deepFb]] = [[{
+  Iterator: _Iterator
+}]];
 export const viaDeepDeadDefault = _Iterator.range(0, 3);
 
 // control: the flat extraction channel keeps its runtime-guarded default handling

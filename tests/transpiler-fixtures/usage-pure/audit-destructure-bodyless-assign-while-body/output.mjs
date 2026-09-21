@@ -5,6 +5,6 @@ import _Array$from from "@core-js/pure/actual/array/from";
 // module scope and run exactly once.
 let from;
 while (cond) {
-  sideEffect();
-  from = _Array$from;
+  var _ref;
+  _ref = (sideEffect(), Array), from = _Array$from, _ref;
 }

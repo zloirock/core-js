@@ -1,5 +1,3 @@
-// Object-rest keeps named slots at that level and reads through it native in usage-pure.
-// Independent reads and key/default expressions still receive their own polyfills.
 // A proxy-global member chain with a redundant `.self` hop inside a LOGICAL-expression PARAM-DEFAULT
 // receiver must collapse the hop in each live non-pure operand, exactly as a const-init receiver does:
 // `globalThis.self` is undefined on ie:11 / non-browser hosts, so an evaluated operand throws BEFORE

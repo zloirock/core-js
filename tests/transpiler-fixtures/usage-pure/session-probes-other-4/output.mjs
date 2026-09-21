@@ -9,8 +9,6 @@ import _values from "@core-js/pure/actual/instance/values";
 import _Map from "@core-js/pure/actual/map";
 import _Object$freeze from "@core-js/pure/actual/object/freeze";
 import _Object$is from "@core-js/pure/actual/object/is";
-// Object-rest keeps named slots at that level and reads through it native in usage-pure.
-// Independent reads and key/default expressions still receive their own polyfills.
 // probe corpus of the defense cycles over the destructure wrappers, family "other", part 4:
 // every block is one probed form, self-contained over the header bindings, locked on both legs
 let pick = 1;
@@ -56,7 +54,15 @@ function mark(t, v) {
 {
   const k = 'w';
   let m;
-  m = _Map;
+  ({
+    [k]: {
+      Map: m
+    }
+  } = {
+    w: {
+      Map: _Map
+    }
+  });
   use(m);
 }
 {
@@ -228,17 +234,32 @@ function mark(t, v) {
   } : userObj];
 }
 {
-  const _ref9 = _globalThis.Array,
-    f6 = null == _ref9 ? _ref9[""] : (eff('k'), _Array$from);
-}
-{
-  const _ref10 = _globalThis.Array,
-    f = null == _ref10 ? _ref10[""] : (eff('k2'), _Array$from);
+  const {
+    Array: {
+      [(eff('k'), 'from')]: f6
+    }
+  } = {
+    Array: {
+      from: _Array$from
+    }
+  };
 }
 {
   const {
     Array: {
       [(eff('k2'), 'from')]: f
+    }
+  } = {
+    Array: {
+      from: _Array$from
+    }
+  };
+}
+{
+  const f = _Array$from;
+  const {
+    Array: {
+      [(eff('k2'), 'from')]: _unused
     },
     ...r
   } = _globalThis;
@@ -251,41 +272,61 @@ function mark(t, v) {
   } = id(_globalThis);
 }
 {
+  const from = _Array$from;
   const {
-    Array: {
-      from
-    },
+    Array: _unused2,
     ...rest
   } = _globalThis;
   use(from, rest);
 }
 {
-  const F = _Array$from;
-  F();
-}
-{
-  const F = _Array$from;
   const {
-    z
-  } = _globalThis;
-  F(z);
+    Array: {
+      from: F = fb
+    }
+  } = {
+    Array: {
+      from: _Array$from
+    }
+  };
+  F();
 }
 {
   const {
     Array: {
-      from: f
+      from: F = fb
     },
+    z
+  } = {
+    Array: {
+      from: _Array$from
+    },
+    z: _globalThis.z
+  };
+  F(z);
+}
+{
+  const f = _Array$from;
+  const {
+    Array: _unused3,
     ...r
   } = _globalThis;
 }
 {
-  const f1 = _Array$from;
-}
-{
   const {
     Array: {
-      from: f2
-    },
+      from: f1
+    }
+  } = {
+    Array: {
+      from: _Array$from
+    }
+  };
+}
+{
+  const f2 = _Array$from;
+  const {
+    Array: _unused4,
     ...r2
   } = _globalThis;
 }

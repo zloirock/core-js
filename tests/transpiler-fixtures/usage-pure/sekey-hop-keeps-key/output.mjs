@@ -10,18 +10,24 @@ import _Math$sign from "@core-js/pure/actual/math/sign";
 import _Math$trunc from "@core-js/pure/actual/math/trunc";
 import _Object$assign from "@core-js/pure/actual/object/assign";
 import _Object$entries from "@core-js/pure/actual/object/entries";
+import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 import _Object$groupBy from "@core-js/pure/actual/object/group-by";
 import _Object$hasOwn from "@core-js/pure/actual/object/has-own";
 import _Object$keys from "@core-js/pure/actual/object/keys";
 import _Object$values from "@core-js/pure/actual/object/values";
-// Object-rest keeps named slots at that level and reads through it native in usage-pure.
-// Independent reads and key/default expressions still receive their own polyfills.
+// Claimed statics retain their polyfills beside object rest.
+// Rest keeps its source and exclusions; instance slots remain native.
 const order = [];
 const eff = tag => (_pushMaybeArray(order).call(order, tag), tag);
-const viaStatic = _Array$from;
 const {
-  [(eff('static'), 'Array')]: _unused
-} = _globalThis;
+  [(eff('static'), 'Array')]: {
+    from: viaStatic
+  }
+} = {
+  Array: {
+    from: _Array$from
+  }
+};
 const _ref2 = _globalThis,
   {
     [(eff('nav'), 'Array')]: _ref
@@ -31,11 +37,14 @@ const _ref2 = _globalThis,
   } = _ref,
   _ref4 = _ref3,
   viaNav = null == _ref4 ? _ref4[""] : _valuesMaybeArray(_ref4);
-const viaLiteral = _Array$of;
 const {
-  [(eff('literal'), 'w')]: _unused2
+  [(eff('literal'), 'w')]: {
+    of: viaLiteral
+  }
 } = {
-  w: Array
+  w: {
+    of: _Array$of
+  }
 };
 const _ref6 = {
     w: src
@@ -54,28 +63,43 @@ const _ref9 = {
   } = null == _ref9 ? _ref9[""] : _ref9,
   _ref10 = _ref8,
   viaLiteralSlot = null == _ref10 ? _ref10[""] : _includesMaybeArray(_ref10);
-const viaSibling = _Object$entries;
 const {
-  [(eff('sibling'), 'Object')]: _unused3,
-  z
-} = _globalThis;
-const viaPairA = _Object$keys;
-const viaPairB = _Object$values;
-const {
-  [(eff('pair'), 'Object')]: _unused4
-} = _globalThis;
-const {
-  [(eff('rest'), 'Object')]: {
-    fromEntries: viaRest
+  [(eff('sibling'), 'Object')]: {
+    entries: viaSibling
   },
+  z
+} = {
+  Object: {
+    entries: _Object$entries
+  },
+  z: _globalThis.z
+};
+const {
+  [(eff('pair'), 'Object')]: {
+    keys: viaPairA,
+    values: viaPairB
+  }
+} = {
+  Object: {
+    keys: _Object$keys,
+    values: _Object$values
+  }
+};
+const viaRest = _Object$fromEntries;
+const {
+  [(eff('rest'), 'Object')]: _unused,
   ...rest
 } = _globalThis;
 let viaAssign;
-var _unused5;
 ({
-  [(eff('assign'), 'Object')]: _unused5
-} = _globalThis);
-viaAssign = _Object$groupBy;
+  [(eff('assign'), 'Object')]: {
+    groupBy: viaAssign
+  }
+} = {
+  Object: {
+    groupBy: _Object$groupBy
+  }
+});
 function viaParam({
   [(eff('param'), 'Object')]: {
     hasOwn: h
@@ -87,22 +111,41 @@ function viaParam({
 }) {
   return h;
 }
-const viaProxyHop = _Math$trunc;
 const {
-  [(eff('proxy'), 'self')]: _unused6
-} = _globalThis;
-const viaDeep = _Math$sign;
-const {
-  a: {
-    [(eff('deep'), 'Math')]: _unused7
+  [(eff('proxy'), 'self')]: {
+    Math: {
+      trunc: viaProxyHop
+    }
   }
 } = {
-  a: _globalThis
+  self: {
+    Math: {
+      trunc: _Math$trunc
+    }
+  }
 };
-const viaDefault = _Object$assign;
 const {
-  [(eff('default'), 'Object')]: _unused8
-} = _globalThis;
+  a: {
+    [(eff('deep'), 'Math')]: {
+      sign: viaDeep
+    }
+  }
+} = {
+  a: {
+    Math: {
+      sign: _Math$sign
+    }
+  }
+};
+const {
+  [(eff('default'), 'Object')]: {
+    assign: viaDefault = null
+  }
+} = {
+  Object: {
+    assign: _Object$assign
+  }
+};
 const _ref12 = _globalThis,
   {
     [(eff('symbol'), 'Array')]: _ref11

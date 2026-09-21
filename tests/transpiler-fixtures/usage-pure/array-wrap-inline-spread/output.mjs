@@ -2,31 +2,42 @@ import _Array$from from "@core-js/pure/actual/array/from";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _at from "@core-js/pure/actual/instance/at";
+import _entries from "@core-js/pure/actual/instance/entries";
 import _keys from "@core-js/pure/actual/instance/keys";
-import _values from "@core-js/pure/actual/instance/values";
 import _Object$entries from "@core-js/pure/actual/object/entries";
 import _Object$freeze from "@core-js/pure/actual/object/freeze";
 import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 import _Object$groupBy from "@core-js/pure/actual/object/group-by";
 import _Object$hasOwn from "@core-js/pure/actual/object/has-own";
 import _Object$seal from "@core-js/pure/actual/object/seal";
-// an INLINE-array spread in a wrapper literal is a longer literal: the pairing reads its items at
-// their static positions, and the rewrite splices them into the level before any route edits it by
-// slot. one static per row, so a row's extraction is attributable to its own shape
-const viaSole = _Array$from;
-const viaShifted = _Array$of;
-const [, {
-  of: _unused
-}] = [0, Array];
-const viaNested = _Object$fromEntries;
-const viaInstance = _atMaybeArray([1]);
+import _Object$values from "@core-js/pure/actual/object/values";
+// Literal array spreads pair their elements at known positions.
+// Each supported static receives its own pure value; unknown spreads keep uncertain slots native.
 const [{
-  entries: viaSelecting
-}] = [c ? {
-  entries: _Object$entries
-} : userObj];
+  from: viaSole
+}] = [...[{
+  from: _Array$from
+}]];
+const [, {
+  of: viaShifted
+}] = [...[0, {
+  of: _Array$of
+}]];
+const [[{
+  fromEntries: viaNested
+}]] = [...[[...[{
+  fromEntries: _Object$fromEntries
+}]]]];
+const viaInstance = _atMaybeArray([1]);
+const [_ref] = [...[c ? Object : userObj]],
+  _ref2 = _ref,
+  viaSelecting = null == _ref2 ? _ref2[""] : _ref2 === Object ? _Object$entries : _entries(_ref2);
 // ... and through the transparent wrappers a source may spell around the spread array
-const viaParens = _Object$groupBy;
+const [{
+  groupBy: viaParens
+}] = [...[{
+  groupBy: _Object$groupBy
+}]];
 const viaIifeParens = (([{
   freeze: fr
 }]) => fr)(...[[c ? {
@@ -43,15 +54,18 @@ const viaDirective = _Object$seal(...[[1]]);
 _atMaybeArray(viaDirective).call(viaDirective, 0);
 export { viaSole, viaShifted, viaNested, viaInstance, viaSelecting, viaParens, viaIifeParens, viaIifeSwap, viaDirective };
 
-// NEGATIVES: a spread of a BINDING and a spread nested inside the spread array have no static
-// length; a hole spreads as `undefined`, which binds no claim - the literal stays as written
-const [_ref] = [...wrapped];
-const viaAlias = _keys(_ref);
-const [_ref2] = [...[...[Object]]];
-const viaDoubleSpread = _values(_ref2);
+// Nested literal spreads still pair exactly; binding spreads remain unknown.
+// A hole spreads as `undefined` and supplies no static claim.
+const [_ref3] = [...wrapped];
+const viaAlias = _keys(_ref3);
+const [{
+  values: viaDoubleSpread
+}] = [...[...[{
+  values: _Object$values
+}]]];
 const [{
   assign: viaHole
 }] = [...[, Object]];
-const [_ref3] = [...[, [1]]];
-const viaHoleInstance = _at(_ref3);
+const [_ref4] = [...[, [1]]];
+const viaHoleInstance = _at(_ref4);
 export { viaAlias, viaDoubleSpread, viaHole, viaHoleInstance };

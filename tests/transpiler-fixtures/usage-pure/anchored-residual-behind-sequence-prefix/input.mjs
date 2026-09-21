@@ -1,7 +1,5 @@
-// a multi-prop ctor-hop pattern whose init carries a SEQUENCE PREFIX still re-anchors its residual on
-// the pure constructor: the prefix lifts to its own statement on every host, so what the residual
-// reads is the quiet tail - the same init its prefix-less twin anchors on - and never the proxy root's
-// native slot. a destructure host buried in that prefix flattens ahead of it
+// A sequence prefix runs once before a constructor residual is read.
+// Assignments nested in that prefix keep their own effects and polyfills.
 let eff = 0;
 const { Array: { from: declFrom }, Set: { customQ: declUnion } } = (eff++, globalThis);
 let from, customQ;

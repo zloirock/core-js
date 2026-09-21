@@ -48,13 +48,13 @@ M4 = _Map;
 // whole function
 {
   let BlockScoped = _Set;
-  export_.inBlock = _Set.union;
+  export_.inBlock = BlockScoped.union;
 }
 export const i = BlockScoped.union;
 {
   var HoistedTwin = _WeakMap;
 }
-export const j = _WeakMap.getOrInsert;
+export const j = HoistedTwin.getOrInsert;
 
 // a NON-global pattern slot off the proxy surface is a plain property read (`globalThis.x`,
 // likely undefined) - classifying it as the proxy root would un-throw the native failure;

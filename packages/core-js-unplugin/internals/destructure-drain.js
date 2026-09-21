@@ -55,10 +55,12 @@ import {
   invalidateScopeVarIndex,
   isPristineProxyGlobal,
   mayHaveSideEffects,
+  noteRelocatedHeadName,
   observableSequenceElements,
   patternBindingCount,
   patternBindsOnlySentinels,
   patternDead,
+  patternFullyConsumed,
   patternKeepsEffectfulKey,
   patternSlotTarget,
   peelNestedSequenceExpressions,
@@ -489,6 +491,7 @@ export default function createDestructureDrains(ctx) {
     toHint,
   } = ctx;
   const positionalRevisit = new Set();
+  const pendingSplits = new Map();
   // the slots the last drain renamed - what tells the revisit cascade it may go another round
   let renamedSlots = 0;
 
@@ -819,20 +822,27 @@ export default function createDestructureDrains(ctx) {
       return thunk;
     }
     const id = injectPureImport(entry, hintName);
-    if (!withDefault) return () => identifier(id);
     const staticValueNode = prop.value;
-    return () => renderStaticDefaultGuard({
+    const value = withDefault ? () => renderStaticDefaultGuard({
       read: identifier(id),
       defaultValue: staticValueNode.right,
       reread: identifier(id),
       alwaysDefined: true,
-    });
+    }) : () => identifier(id);
+    if (kind === 'global') value.moduleSource = injectorState.getBindingInfo(id)?.source;
+    return value;
   }
 
   function recordJob({ hostPath, job }) {
     const key = hostPath.node;
     if (!ledger.has(key)) ledger.set(key, { hostPath, jobs: [] });
     ledger.get(key).jobs.push(job);
+    // Babel exposes the replacement initializer immediately. Publish the same
+    // module source only after this deferred declaration extraction is committed.
+    const binding = job.value?.moduleSource && job.metaPath?.scope.getBinding(job.local);
+    if (job.declarator && binding?.path?.node === job.declarator) {
+      adapter.recordEmittedBindingSource(job.declarator, job.local, job.value.moduleSource);
+    }
   }
 
   // the RAW passthrough of a whole hop the branch literal keeps as the source read it (a wks leaf
@@ -1381,6 +1391,7 @@ export default function createDestructureDrains(ctx) {
         anchorPure: anchoredCtor,
       }) : null;
       // The final leaf is emitted below; every preceding source hop belongs before it.
+      if (capture) reanchorSoleCtorHopResidual(capture.capture, { metaPath: job.metaPath, wholeDeclarator: true });
       const captureDeclarations = capture ? [capture.capture, ...capture.elements.slice(0, -1).map(element => element.declarator)] : [];
       const receiverRef = job.receiverName ?? mintRefName();
       const liveKeys = destructureKeyReadPlan({
@@ -1500,6 +1511,11 @@ export default function createDestructureDrains(ctx) {
         }
       }
     }
+    // Keep shared declaration nodes alive until every sibling's queued job has drained.
+    for (const [declaration, body] of pendingSplits) {
+      splitMultiDeclaratorHost({ declaration, body, markRewrite });
+    }
+    pendingSplits.clear();
     const jobHostSiblings = jobHostSiblingDeclarators(ledger);
     // the hop-host notes drain AFTER the jobs: a host an extraction entered leaves a RESIDUAL
     // behind (`{ Array: { junk } } = _globalThis` beside the claims it consumed), and that residual
@@ -1596,14 +1612,14 @@ export default function createDestructureDrains(ctx) {
   // native-miss semantics through the guard ternary; a STATIC re-reads its import
   // directly (`_Array$from === void 0 ? [] : _Array$from`), an instance dispatch
   // memoizes through a ref (recorded in `guardRefs`, so the caller can lead with it)
-  function memoJobValue({ job, refName, guardRefs }) {
+  function memoJobValue({ job, refName, guardRefs, receiver = identifier(refName) }) {
     const id = injectPureImport(job.entry, job.hintName);
     // a CHAINED instance job dispatches on the surface its hops NAME, read off the memo the init
     // holds (`const _ref = (eff(), _globalThis); const a = _flat(_ref.Array.prototype)`)
     let value = job.kind === 'instance'
       ? callExpression(identifier(id), [job.chain?.length
-        ? hopChainKeys(job.chain).reduce(memberFromKeyName, identifier(refName))
-        : identifier(refName)])
+        ? hopChainKeys(job.chain).reduce(memberFromKeyName, receiver)
+        : receiver])
       : identifier(id);
     // the collapsed symbol leaf dispatches on what the extraction just built
     if (job.collapseLeaf) {
@@ -1760,11 +1776,8 @@ export default function createDestructureDrains(ctx) {
     const liftedRescues = [];
     for (const rescue of rescues) {
       const rescueAssign = peelTransparentExpr(rescue);
-      // an EFFECT-BEARING call that IS the discarded receiver rides the extraction's own
-      // sequence prefix (`const from = (IIFE(), _Array$from)`, babel's inject shape); a
-      // fragment of the init, a kept READ over the call, and a call whose body proves pure
-      // (the statement is all that survives of it) stay statements of their own
-      // ... and a KEY effect buried in a CHAINED consume's spine rides too: the source ran it
+      // Calls discarded with the receiver stay ahead as statements. A KEY effect
+      // buried in a CHAINED consume's spine rides the value: the source ran it
       // inside the read the extraction replaced (`{ Symbol: { iterator } } = globalThis[(c++,
       // 'self')]` -> `const iterator = (c++, _Symbol$iterator)`)
       // ... and only a SPELLABLE store rides it: a window-terminated value has no pure of its
@@ -1795,13 +1808,6 @@ export default function createDestructureDrains(ctx) {
       // write lifts as its own statement ahead of the extraction
       const ridesTheValue = (!readOverWrite && !storeRead && spellableStore
         && declJobs.some(job => job.kind !== 'global'))
-        || (rescueAssign?.type === 'CallExpression' && rescueAssign === peelTransparentExpr(declarator.init)
-          && inlineCallHasObservableEffects({
-            callNode: rescueAssign,
-            scope: metaPath.scope,
-            adapter,
-            path: metaPath,
-          }))
         || declJobs.some(job => job.buriedKeyEffect && job.chain?.length);
       if (ridesTheValue) seqRescues.push(rescue);
       else liftedRescues.push(readOverWrite ?? rescue);
@@ -1832,16 +1838,11 @@ export default function createDestructureDrains(ctx) {
     // nested pattern does
     // ... a key that EVALUATES something keeps its level whatever it binds; a bound computed one
     // is as plain as a literal
-    function patternFullyConsumed(patternNode) {
-      return patternNode.properties.every(item => consumed.has(item)
-        || (item.type === 'Property' && !computedKeyHasSideEffects(item) && item.value?.type === 'ObjectPattern'
-          && patternFullyConsumed(item.value)));
-    }
     // ... and an init whose LITERAL still owes something is never consumed WHOLE, however empty the
     // pattern gets: a spread reads the source's own enumerable keys, a sibling value runs its effect,
     // and nothing here re-emits either - so the declarator stays with its sentinels, the partial
     // shape the other leg's plan prints. the pairing walk owns the rule (`wrapperSurvives`)
-    if (!patternFullyConsumed(declarator.id) || hostLevelSurvives(declarator)) {
+    if (!patternFullyConsumed(declarator.id, item => consumed.has(item)) || hostLevelSurvives(declarator)) {
       return emitPartialMemo({ hostNode, declarator, declJobs, consumed, statements, exported });
     }
     const needsValue = declJobs.some(job => job.kind === 'instance');
@@ -1855,10 +1856,9 @@ export default function createDestructureDrains(ctx) {
       ? chainAssignOverPureNav(declarator.init) : null;
     if (chainAssignInline) {
       const [job] = declJobs;
-      const id = injectPureImport(job.entry, job.hintName);
-      const read = callExpression(identifier(id), [chainAssignInline]);
-      statements.push(exportWrap(variableDeclaration(hostNode.kind,
-        [variableDeclarator(memoJobBindingTarget(job), read)]), exported));
+      const guardRefs = new Map();
+      const value = memoJobValue({ job, guardRefs, receiver: chainAssignInline });
+      statements.push(...memoJobStatements({ job, value, guardRefs, kind: hostNode.kind, exported }));
       markSubtreeSkipped(skippedNodes, job.prop);
       return 'consumed';
     }
@@ -1871,10 +1871,9 @@ export default function createDestructureDrains(ctx) {
     if (needsValue && declJobs.length === 1 && !declJobs[0].collapseLeaf
       && (declJobs[0].prop.value?.type !== 'ObjectPattern' || declJobs[0].symbolPattern)) {
       const [job] = declJobs;
-      const id = injectPureImport(job.entry, job.hintName);
-      const dispatch = callExpression(identifier(id), [duplicateReceiver(declarator.init, injector)]);
-      statements.push(exportWrap(variableDeclaration(hostNode.kind,
-        [variableDeclarator(memoJobBindingTarget(job), dispatch)]), exported));
+      const guardRefs = new Map();
+      const value = memoJobValue({ job, guardRefs, receiver: duplicateReceiver(declarator.init, injector) });
+      statements.push(...memoJobStatements({ job, value, guardRefs, kind: hostNode.kind, exported }));
       markSubtreeSkipped(skippedNodes, job.prop);
       return 'consumed';
     }
@@ -1883,8 +1882,8 @@ export default function createDestructureDrains(ctx) {
     // -> `se(); const it = _gim(_globalThis)`, babel's lift)
     // ... and a kept WRITE lifts whole the same way - the statement performs the store, and the tail
     // every extraction reads is what it stored (`(kw = (se(), globalThis))` -> `kw = (se(), _globalThis);`)
-    // ... but only a token the emitter itself MINTED: a source identifier may be shadowed or
-    // rebound between the lifted statement and the read, so its residual keeps the memo
+    // The whole pattern was consumed above: a bare binding is re-readable by the
+    // adjacent extractions, as in the other binding's whole-init memo demotion.
     const lift = liftableInitPrefix(declarator.init);
     // ... and a tail that is a CALL the inline canon proves to yield a proxy global lifts the same
     // way: the prefix as statements, the call dropped for the global it stands for (its run has no
@@ -1892,8 +1891,8 @@ export default function createDestructureDrains(ctx) {
     const provenTail = lift && provenRealmCallRoot(lift.tail, declJobs[0].metaPath, adapter);
     const provenPure = provenTail && bareProxyGlobalPure(provenTail, declJobs[0].metaPath, { adapter, resolveGlobalPolyfill });
     const liftTail = provenPure ? identifier(injectPureImport(provenPure.entry, provenPure.hintName)) : lift?.tail;
-    if (needsValue && liftTail?.type === 'Identifier' && isMintedOrProxyName(liftTail.name, injectorState)) {
-      for (const expr of lift.prefix) statements.push(expressionStatement(expr));
+    if (needsValue && liftTail?.type === 'Identifier') {
+      for (const expr of observableSequenceElements(lift.prefix)) statements.push(expressionStatement(expr));
       declarator.init = liftTail;
       refName = liftTail.name;
     }
@@ -2061,6 +2060,7 @@ export default function createDestructureDrains(ctx) {
     if (!live) return;
     const { at } = live;
     const declarators = live.declaration?.declarations ?? job.declarationNode.declarations;
+    if (!job.wrapperNode && live.declaration) pendingSplits.set(live.declaration, body);
     if (job.split) {
       for (const item of jobs) markSubtreeSkipped(item.prop);
       if (splitHopOutOfHost({ job, kept, statements, body, at, declarators })) markRewrite(hostNode);
@@ -2345,7 +2345,7 @@ export default function createDestructureDrains(ctx) {
       leading: [...memoStatements, ...rescueStatements], relocated }, markRewrite)) return;
     // the sibling-declarator canon first: the memo behind the leading siblings, the declaration
     // otherwise one statement - residual, extractions, trailing siblings
-    if (!after.length && groupExtractionBesideResidual({
+    if (groupExtractionBesideResidual({
       hostNode, body, at, declarations, claimed, extractedByDeclarator, memoByDeclarator, rescueStatements,
     })) return;
     const ahead = hostNode.declarations.slice(0, firstClaimed);
@@ -3087,15 +3087,18 @@ export default function createDestructureDrains(ctx) {
     body.splice(at, 1, ...keepRhs, ...extracted);
   }
 
-  // sibling-declarator mode: the declaration stays ONE statement, each extraction appended
-  // as a declarator after its residual (babel's multi-declarator kept-key shape)
+  // Append extractions beside each surviving residual in source order. A fully consumed host
+  // splits its extractions and following declarators into statements; captured siblings keep
+  // their shared declaration group until the sibling drain finishes.
   function drainSiblingAppend({ hostNode, body, at, jobs, jobsByDeclarator }) {
     if (jobs.every(job => !job.siblingAppend)) return false;
     const appendExported = jobs.some(job => job.exported);
     const appendStatements = [];
     let group = [];
+    let splitRemaining = false;
     function flushGroup() {
-      if (group.length) appendStatements.push(exportWrap(variableDeclaration(hostNode.kind, group), appendExported));
+      if (group.length) appendStatements.push(...(splitRemaining ? group.map(item => [item]) : [group])
+        .map(items => exportWrap(variableDeclaration(hostNode.kind, items), appendExported)));
       group = [];
     }
     for (const declarator of hostNode.declarations) {
@@ -3114,8 +3117,13 @@ export default function createDestructureDrains(ctx) {
       // emptied residual dropped (`const { Array: { from } } = globalThis, <rest>` ->
       // `const from = _Array$from;` ahead of the rest) - babel's shape
       if (declarator.id.type === 'ObjectPattern' && !declarator.id.properties.length) {
+        if (declJobsHere.some(job => job.capturedSibling)) {
+          group.push(...extractions);
+          continue;
+        }
         flushGroup();
-        appendStatements.push(exportWrap(variableDeclaration(hostNode.kind, extractions), appendExported));
+        splitRemaining = true;
+        appendStatements.push(...extractions.map(item => exportWrap(variableDeclaration(hostNode.kind, [item]), appendExported)));
         if (declJobsHere.length) rescueEmptiedDeclaratorInit({ declarator, declJobsHere, statements: appendStatements });
         continue;
       }
@@ -3923,18 +3931,17 @@ export default function createDestructureDrains(ctx) {
     path.scope.crawl();
   }
 
-  // the LOOP HEAD is the catch param's twin on this substrate too: the loop variable binds per
-  // iteration with no declaration a claim could extract into, so the head takes a minted name and
-  // the pattern moves to the body's first statement. the KIND travels (that is what keeps `const`
-  // per-iteration) and a bodyless loop is braced around the pair; the plan is the catch host's own
+  // Relocate a loop-head pattern when the shared catch/head plan needs a body extraction slot.
+  // The head binds a fresh name; the first body statement declares the bindings or assigns the
+  // original targets. Keep the head kind, use `let` for a moved `const` pattern, and brace a
+  // bodyless loop. Record the generated head name for subsequent receiver resolution.
   function extractLoopLeft(path) {
     const { left, body } = path.node;
-    if (left?.type !== 'VariableDeclaration' || left.declarations?.length !== 1) return;
-    const [declarator] = left.declarations;
-    // an assignment target (`for ({ at } of rows)`) declares nothing to relocate, and an
-    // already-plain binding needs no host
+    const assignment = left?.type === 'ObjectPattern' || left?.type === 'ArrayPattern';
+    if (!assignment && (left?.type !== 'VariableDeclaration' || left.declarations?.length !== 1)) return;
+    const declarator = assignment ? { id: left } : left.declarations[0];
     if (declarator.init || !declarator.id || declarator.id.type === 'Identifier') return;
-    const idPath = path.get('left').get('declarations')[0].get('id');
+    const idPath = assignment ? path.get('left') : path.get('left').get('declarations')[0].get('id');
     const typeProbe = firstPatternProp(idPath);
     const elementType = typeProbe ? resolvePropertyObjectType?.(typeProbe) ?? null : null;
     const plan = planCatchClauseExtraction({
@@ -3947,7 +3954,8 @@ export default function createDestructureDrains(ctx) {
       walkNode: (root, visit) => walkAstNodes({ root, visit }),
       objectHint: toHint?.(elementType) ?? null,
       iterableNode: path.node.right,
-      mirrorHosts: !!forOfHeadIterableElements(path.get('left').get('declarations')[0]),
+      mirrorHosts: !!forOfHeadIterableElements(assignment ? path.get('left') : path.get('left').get('declarations')[0]),
+      assignment,
     });
     if (!plan) return;
     for (const prop of plan.unobservable) skippedNodes.add(prop);
@@ -3961,10 +3969,16 @@ export default function createDestructureDrains(ctx) {
     // initializer-less declarator, which `const` cannot carry - the per-iteration binding comes from
     // the HEAD, which keeps its kind
     const relocatedKind = left.kind === 'const' ? 'let' : left.kind;
-    const relocated = variableDeclaration(relocatedKind, [variableDeclarator(declarator.id, slot)]);
+    const relocated = assignment
+      ? expressionStatement(assignmentExpression('=', declarator.id, slot))
+      : variableDeclaration(relocatedKind, [variableDeclarator(declarator.id, slot)]);
     if (body.type !== 'BlockStatement') path.node.body = { type: 'BlockStatement', body: [body] };
     path.node.body.body.unshift(relocated);
-    declarator.id = identifier(refName);
+    if (assignment) path.get('left').replaceWith(variableDeclaration('const', [variableDeclarator(identifier(refName))]));
+    else declarator.id = identifier(refName);
+    // the receiver canon reads the element back through this name; registering it is what tells
+    // the canon the declaration below is OURS and not a source one wearing the same shape
+    noteRelocatedHeadName(path.node, refName);
     // the head now declares a MINTED name, and a `var` one hoists into an owner whose var index
     // may already be built - drop it, or the relocated pattern reads a receiver with no writes
     if (left.kind === 'var') invalidateScopeVarIndex(path);
@@ -3974,7 +3988,7 @@ export default function createDestructureDrains(ctx) {
     // members alone, and a constructor has no value-type to stash. the babel twin registers the
     // same fact through its own scope
     const [headDeclarator] = path.get('left').get('declarations');
-    path.scope?.registerBinding?.(left.kind, headDeclarator.get('id'), headDeclarator);
+    path.scope?.registerBinding?.(assignment ? 'const' : left.kind, headDeclarator.get('id'), headDeclarator);
   }
 
   return {

@@ -13,8 +13,7 @@ import "core-js/modules/es.set.symmetric-difference";
 import "core-js/modules/es.set.union";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
-// A computed Symbol.iterator key retains its own extraction path under a constructor.
-// The ordinary instance capture must not replace that path; the key effect runs once.
+// A computed Symbol.iterator slot stays native under a constructor; its key effect runs once.
 let method;
 ({
   Set: {

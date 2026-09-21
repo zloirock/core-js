@@ -15,14 +15,30 @@ export const b = _getIteratorMethod([3, 4]);
 
 // a DESTRUCTURED constructor alias folds through a DEFAULTED consumer (babel resolves the
 // destructured chain in place when the default drives an inline)
-const DestructuredSymbol = _Symbol;
+const {
+  self: {
+    Symbol: DestructuredSymbol
+  }
+} = {
+  self: {
+    Symbol: _Symbol
+  }
+};
 const viaDestructuredDefault = _Symbol$iterator;
 export const c = _getIteratorMethod([5, 6]);
 
 // the same destructured alias with a NON-defaulted consumer folds through the registered
 // alias hint - the registration verified the alias shape, so the chain resolves without
 // the defaulted-consumer inline
-const DestructuredSymbol2 = _Symbol;
+const {
+  self: {
+    Symbol: DestructuredSymbol2
+  }
+} = {
+  self: {
+    Symbol: _Symbol
+  }
+};
 const viaDestructuredPlain = _Symbol$iterator;
 export const d = _getIteratorMethod([7, 8]);
 
@@ -35,7 +51,11 @@ export const e = [9, 10][viaArray];
 
 // an array-wrapped destructured constructor alias (`const [{ Symbol: S }] = [globalThis]`) folds
 // through the same positional peel when the consumer is defaulted
-const ArrayWrapSymbol = _Symbol;
+const [{
+  Symbol: ArrayWrapSymbol
+}] = [{
+  Symbol: _Symbol
+}];
 const viaArrayWrap = _Symbol$iterator;
 export const f = _getIteratorMethod([11, 12]);
 

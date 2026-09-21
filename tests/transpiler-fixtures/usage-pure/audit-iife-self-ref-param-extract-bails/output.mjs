@@ -1,3 +1,5 @@
+import _Array$from from "@core-js/pure/actual/array/from";
+import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
 // Rest-bearing parameters keep their native bindings and defaults in parameter scope.
 // Independent reads and key/default expressions still receive their own polyfills.
@@ -22,21 +24,24 @@ export const viaParamDefault = function h({
   return [from, rest];
 }();
 export const viaUnnamed = function ({
-  from,
+  from: _unused,
   ...rest
 } = Array) {
+  let from = _Array$from;
   return [from, rest];
 }();
 export const viaNamedNoRef = function keep({
-  of,
+  of: _unused2,
   ...rest
 } = Array) {
+  let of = _Array$of;
   return [of, rest];
 }();
 export const viaPropKey = function h({
-  from,
+  from: _unused3,
   ...rest
 } = Array) {
+  let from = _Array$from;
   const table = {
     h: 1
   };

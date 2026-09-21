@@ -7,8 +7,6 @@ import _at from "@core-js/pure/actual/instance/at";
 import _Object$freeze from "@core-js/pure/actual/object/freeze";
 import _Object$hasOwn from "@core-js/pure/actual/object/has-own";
 import _self from "@core-js/pure/actual/self";
-// Object-rest keeps named slots at that level and reads through it native in usage-pure.
-// Independent reads and key/default expressions still receive their own polyfills.
 // probe corpus of the defense cycles over the destructure wrappers, family "other", part 6:
 // every block is one probed form, self-contained over the header bindings, locked on both legs
 let pick = 1;
@@ -66,18 +64,26 @@ function mark(t, v) {
     a3 = null == _ref9 ? _ref9[""] : _at(_ref9);
 }
 {
-  const f4 = _Array$from;
   const {
-    [(eff(), 'w')]: _unused
+    [(eff(), 'w')]: {
+      from: f4
+    }
   } = {
-    w: Array
+    w: {
+      from: _Array$from
+    }
   };
 }
 {
-  const f1 = _Array$from;
   const {
-    [(effectful(), 'Array')]: _unused2
-  } = _globalThis;
+    [(effectful(), 'Array')]: {
+      from: f1
+    }
+  } = {
+    Array: {
+      from: _Array$from
+    }
+  };
 }
 {
   const {
@@ -149,10 +155,9 @@ function mark(t, v) {
 }
 {
   const _ref11 = arr,
+    s = null == _ref11 ? _ref11[""] : (k(), _atMaybeArray(_ref11)),
     _ref12 = _ref11,
-    s = null == _ref12 ? _ref12[""] : (k(), _atMaybeArray(_ref12)),
-    _ref13 = _ref11,
-    f = null == _ref13 ? _ref13[""] : (k2(), _flatMaybeArray(_ref13)),
+    f = null == _ref12 ? _ref12[""] : (k2(), _flatMaybeArray(_ref12)),
     {
       z
     } = _ref11;
@@ -168,9 +173,17 @@ function mark(t, v) {
   s(z, q, f);
 }
 {
-  const _ref14 = [1, 2],
-    _ref15 = _ref14,
-    s = null == _ref15 ? _ref15[""] : (k(), _atMaybeArray(_ref15)),
+  const _ref13 = [1, 2],
+    s = null == _ref13 ? _ref13[""] : (k(), _atMaybeArray(_ref13)),
+    {
+      z
+    } = _ref13,
+    q = 2;
+  s(z, q);
+}
+{
+  const _ref14 = arr,
+    s = null == _ref14 ? _ref14[""] : (k(), _atMaybeArray(_ref14)),
     {
       z
     } = _ref14,
@@ -178,31 +191,19 @@ function mark(t, v) {
   s(z, q);
 }
 {
-  const _ref16 = arr,
-    _ref17 = _ref16,
-    s = null == _ref17 ? _ref17[""] : (k(), _atMaybeArray(_ref17)),
+  const _ref15 = arr,
+    s = null == _ref15 ? _ref15[""] : (k(), _atMaybeArray(_ref15)),
     {
       z
-    } = _ref16,
-    q = 2;
-  s(z, q);
-}
-{
-  const _ref18 = arr,
-    _ref19 = _ref18,
-    s = null == _ref19 ? _ref19[""] : (k(), _atMaybeArray(_ref19)),
-    {
-      z
-    } = _ref18;
+    } = _ref15;
   s(z);
 }
 {
-  const _ref20 = c ? a1 : a2,
-    _ref21 = _ref20,
-    s = null == _ref21 ? _ref21[""] : (k(), _at(_ref21)),
+  const _ref16 = c ? a1 : a2,
+    s = null == _ref16 ? _ref16[""] : (k(), _at(_ref16)),
     {
       z
-    } = _ref20,
+    } = _ref16,
     q = 2;
   s(z, q);
 }
@@ -215,12 +216,11 @@ function mark(t, v) {
   s(z, q);
 }
 {
-  const _ref22 = eff().constructor.prototype,
-    _ref23 = _ref22,
-    s = null == _ref23 ? _ref23[""] : (k(), _at(_ref23)),
+  const _ref17 = eff().constructor.prototype,
+    s = null == _ref17 ? _ref17[""] : (k(), _at(_ref17)),
     {
       z
-    } = _ref22,
+    } = _ref17,
     q = 2;
   s(z, q);
 }
@@ -232,50 +232,45 @@ function mark(t, v) {
   s(z);
 }
 {
-  const _ref24 = _globalThis.Array.prototype,
-    _ref25 = _ref24,
-    s = null == _ref25 ? _ref25[""] : (k(), _atMaybeArray(_ref25)),
+  const _ref18 = _globalThis.Array.prototype,
+    s = null == _ref18 ? _ref18[""] : (k(), _atMaybeArray(_ref18)),
     {
       z
-    } = _ref24,
+    } = _ref18,
     q = 2;
   s(z, q);
 }
 {
-  const _ref26 = _globalThis.Array.prototype,
-    _ref27 = _ref26,
-    s = null == _ref27 ? _ref27[""] : (k(), _atMaybeArray(_ref27)),
+  const _ref19 = _globalThis.Array.prototype,
+    s = null == _ref19 ? _ref19[""] : (k(), _atMaybeArray(_ref19)),
     {
       z
-    } = _ref26;
+    } = _ref19;
   s(z);
 }
 {
-  const _ref28 = holder.p,
-    _ref29 = _ref28,
-    s = null == _ref29 ? _ref29[""] : (k(), _at(_ref29)),
+  const _ref20 = holder.p,
+    s = null == _ref20 ? _ref20[""] : (k(), _at(_ref20)),
     {
       z
-    } = _ref28,
+    } = _ref20,
     q = 2;
   s(z, q);
 }
 {
-  const _ref30 = holder.p,
-    _ref31 = _ref30,
-    s = null == _ref31 ? _ref31[""] : (k(), _at(_ref31)),
+  const _ref21 = holder.p,
+    s = null == _ref21 ? _ref21[""] : (k(), _at(_ref21)),
     {
       z
-    } = _ref30;
+    } = _ref21;
   s(z);
 }
 {
-  const _ref32 = _self.Array.prototype,
-    _ref33 = _ref32,
-    s = null == _ref33 ? _ref33[""] : (k(), _atMaybeArray(_ref33)),
+  const _ref22 = _self.Array.prototype,
+    s = null == _ref22 ? _ref22[""] : (k(), _atMaybeArray(_ref22)),
     {
       z
-    } = _ref32;
+    } = _ref22;
   s(z);
 }
 {
@@ -294,11 +289,11 @@ function mark(t, v) {
   v(w);
 }
 {
-  const _ref34 = _globalThis.Object,
-    fr = null == _ref34 ? _ref34[""] : (k(), _Object$freeze),
+  const _ref23 = _globalThis.Object,
+    fr = null == _ref23 ? _ref23[""] : (k(), _Object$freeze),
     {
       z
-    } = _ref34;
+    } = _ref23;
   fr(z);
 }
 {
@@ -314,14 +309,14 @@ function mark(t, v) {
   use(a, m);
 }
 {
-  const _ref35 = {
+  const _ref24 = {
     a: g(),
     w: obj.p
   };
   const {
     a
-  } = _ref35;
-  const m = _at(_ref35.w);
+  } = _ref24;
+  const m = _at(_ref24.w);
   use(a, m);
 }
 {
@@ -339,7 +334,15 @@ function mark(t, v) {
   use(a, m, z);
 }
 {
-  const hasOwn = _Object$hasOwn;
+  const {
+    a: [{
+      hasOwn
+    }]
+  } = {
+    a: [{
+      hasOwn: _Object$hasOwn
+    }]
+  };
 }
 {
   const {
@@ -356,13 +359,18 @@ function mark(t, v) {
   _pushMaybeArray(log).call(log, f === _Array$from, eff1);
 }
 {
-  const f14 = _Array$from;
   const {
     a: {
-      [(eff('k'), 'Array')]: _unused3
+      [(eff('k'), 'Array')]: {
+        from: f14
+      }
     }
   } = {
-    a: _globalThis
+    a: {
+      Array: {
+        from: _Array$from
+      }
+    }
   };
 }
 {

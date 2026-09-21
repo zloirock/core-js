@@ -1,5 +1,3 @@
-// Object-rest keeps named slots at that level and reads through it native in usage-pure.
-// Independent reads and key/default expressions still receive their own polyfills.
 // a destructure assignment in ANY slot of a statement-position SequenceExpression is
 // split into per-expression statements by the shared minifier-shape pre-pass (statement
 // context discards every slot's value, so the split is sound at any position) - the

@@ -1,7 +1,5 @@
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Map from "@core-js/pure/actual/map/constructor";
-// Object-rest keeps named slots at that level and reads through it native in usage-pure.
-// Independent reads and key/default expressions still receive their own polyfills.
+import _Map from "@core-js/pure/actual/map";
 // A const-aliased proxy-global whole-CONSTRUCTOR receiver behind a side-effect prefix AND a
 // redundant `.self` hop: the alias-aware leaf lookup must recognise the Map constructor so the
 // receiver resolves to the pure `_Map`, instead of the proxy-root fallback collapsing

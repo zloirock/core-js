@@ -5,8 +5,7 @@ import _at from "@core-js/pure/actual/instance/at";
 // Only the source bindings are exported, including every extracted binding.
 const lead = before();
 const _ref = make();
-const _ref2 = _ref;
-const at = null == _ref2 ? _ref2[""] : (key(), _at(_ref2));
+const at = null == _ref ? _ref[""] : (key(), _at(_ref));
 const {
   custom
 } = _ref;

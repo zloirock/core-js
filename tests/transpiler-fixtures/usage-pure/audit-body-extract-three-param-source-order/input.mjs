@@ -1,7 +1,5 @@
-// three function params each with a polyfilled prop + rest sibling, three distinct
-// constructors (Array.from, Object.keys, Promise.resolve) so imports identify each.
-// EXPORTED, so external callers are invisible: the call-site scan can't prove the default
-// always applies, params stay VERBATIM (body-extract is locked by the immediately-invoked twin)
+// Exported parameters keep caller-supplied properties; body extraction cannot prove a default.
+// Promise has a constructor entry, so its rest-bearing default uses the full index.
 function f({ from, ...r1 } = Array, { keys, ...r2 } = Object, { resolve, ...r3 } = Promise) {
   return [from([1]), keys({}), resolve(0), r1, r2, r3];
 }

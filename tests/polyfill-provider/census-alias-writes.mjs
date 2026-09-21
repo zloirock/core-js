@@ -7,7 +7,7 @@ import {
   collectFileCensus,
   ESCAPED_CONTAINER_NAMES,
   ESCAPED_CTOR_REFS,
-  ITERATED_STATIC_RECEIVERS,
+  CENSUS_STATIC_RECEIVERS,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { handleMemberExpressionNode, planGuardedStaticNarrow } from '../../packages/core-js-polyfill-provider/detect-usage/members.js';
 import { collectMemberUnionCandidates } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
@@ -121,7 +121,7 @@ for (const parser of adapters) {
   const { escapedCtorNames } = collectFileCensus(program.node, [escapedCtorReferencesReducer(), mutationShapesReducer()]);
   const containers = [...ESCAPED_CONTAINER_NAMES.get(program.node)];
   const stamps = [...ESCAPED_CTOR_REFS.get(program.node)];
-  const query = ITERATED_STATIC_RECEIVERS.get(program.node);
+  const query = CENSUS_STATIC_RECEIVERS.get(program.node);
   checkDeep(`${ parser.name }: opaque head's possible family`, [...query(head)], ['Map']);
   checkDeep(`${ parser.name }: query leaves container escape facts unchanged`, [...ESCAPED_CONTAINER_NAMES.get(program.node)], containers);
   checkDeep(`${ parser.name }: query leaves position stamps unchanged`, [...ESCAPED_CTOR_REFS.get(program.node)], stamps);
@@ -168,9 +168,9 @@ for (const parser of adapters) for (const method of ['usage-global', 'usage-pure
     const program = parser.parseAndScope(`async function f() { for await (const value of [Array]) value${ spelling }(0); }`);
     collectFileCensus(program.node, [escapedCtorReferencesReducer(), mutationShapesReducer()]);
     const usage = parser.pickPath(program, 'MemberExpression', path => path.parentPath?.node.type === 'CallExpression');
-    const query = ITERATED_STATIC_RECEIVERS.get(program.node);
+    const query = CENSUS_STATIC_RECEIVERS.get(program.node);
     let queries = 0;
-    ITERATED_STATIC_RECEIVERS.set(program.node, receiver => {
+    CENSUS_STATIC_RECEIVERS.set(program.node, receiver => {
       queries++;
       return query(receiver);
     });
@@ -189,4 +189,55 @@ for (const parser of adapters) for (const method of ['usage-global', 'usage-pure
     check(`${ parser.name }: ${ method }: ${ member }: needs family query`, queries > 0, method === 'usage-global' ? globalQuery : pureQuery);
   }
 }
+for (const parser of adapters) {
+  const program = parser.parseAndScope('const box = {}; export const result = Object.assign(box, { M: Map });').node;
+  const { escapedCtorNames } = collectFileCensus(program, [escapedCtorReferencesReducer()]);
+  check(`${ parser.name }/retained mutator result carries installed statics`, escapedCtorNames.has('Map', true), true);
+}
+
+// One unknown alias disproves a builtin callee. Expanding later cyclic alternatives
+// eagerly turns this small graph into an exponential walk before the depth limit.
+for (const parser of adapters) {
+  const program = parser.parseAndScope('let fn = unknown; fn = fn.next; fn = fn.other; fn(Map);');
+  let reads = 0;
+  for (const path of parser.collectPaths(program, 'Identifier')) {
+    const { name } = path.node;
+    Object.defineProperty(path.node, 'name', { configurable: true, get() {
+      if (++reads > 2000) throw new Error('Cyclic builtin candidates expanded after an unknown alternative');
+      return name;
+    } });
+  }
+  const { escapedCtorNames } = collectFileCensus(program.node, [escapedCtorReferencesReducer()]);
+  check(`${ parser.name }/unknown cyclic callee keeps argument escape`, escapedCtorNames.has('Map', true), true);
+  checkTruthy(`${ parser.name }/builtin candidate walk stays bounded`, reads < 2000);
+}
+
+// Known property-writing builtins retain exactly the same constructor values as assignment.
+for (const parser of adapters) for (const store of [
+  'box.M = Map',
+  'Object.defineProperty(box, "M", { value: Map })',
+  'Object.defineProperties(box, { M: { value: Map } })',
+  'Object.assign(box, { M: Map })',
+  'Reflect.defineProperty(box, "M", { value: Map })',
+  'Reflect.set(box, "M", Map)',
+  'Reflect.set({}, "M", Map, box)',
+  'Object.defineProperty.call(null, box, "M", { value: Map })',
+  'Reflect.apply(Object.assign, null, [box, { M: Map }])',
+  'const install = Object.defineProperty; install(box, "M", { value: Map })',
+]) for (const reducers of orders) {
+  const program = parser.parseAndScope(`function swap(box) { ${ store }; return box; } swap({}).M.groupBy;`).node;
+  const { escapedCtorNames } = collectFileCensus(program, reducers());
+  check(`${ parser.name }/${ store } carries installed statics`, escapedCtorNames.has('Map', true), true);
+}
+for (const parser of adapters) for (const call of [
+  'Object.keys(Map)', 'Object.is(Map, Map)', 'Object.assign({}, { M: Map })',
+  'Object.defineProperty({}, "M", { value: Map })',
+  'const box = {}; Object.assign(box, { M: Map })',
+  'const box = {}; Object.defineProperty(box, "M", { value: Map })',
+]) {
+  const program = parser.parseAndScope(`${ call };`).node;
+  const { escapedCtorNames } = collectFileCensus(program, [escapedCtorReferencesReducer()]);
+  check(`${ parser.name }/${ call } does not retain a namespace`, escapedCtorNames.has('Map', true), false);
+}
+
 finish();

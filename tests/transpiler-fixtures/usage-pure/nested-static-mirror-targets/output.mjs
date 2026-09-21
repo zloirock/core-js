@@ -4,7 +4,7 @@ import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Object$keys from "@core-js/pure/actual/object/keys";
 import _atMaybeString from "@core-js/pure/actual/string/instance/at";
-var _ref, _ref2, _ref3, _ref5, _ref6;
+var _ref, _ref2, _ref3, _ref4, _ref5;
 // Identifier slots receive pure statics; a nested pattern under a static rides the MIRROR SLOT where
 // the host holds more than that one prop - the statement stands and no key effect crosses another -
 // while member assignment targets retain native slots. The slot DESCENDS where a leaf under the
@@ -44,9 +44,7 @@ let defaults = 0;
   Array: {
     from: _Array$from
   },
-  Object: {
-    keys: _Object$keys
-  }
+  Object: _globalThis.Object
 });
 ({
   Array: {
@@ -59,9 +57,7 @@ let defaults = 0;
   Array: {
     from: _Array$from
   },
-  Object: {
-    keys: _Object$keys
-  }
+  Object: _globalThis.Object
 });
 export const result = [from([7])[0], from === pureFrom, typeof bind, typeof box.value, defaults, events];
 function observe() {
@@ -71,18 +67,30 @@ function observe() {
     _pushMaybeArray(events).call(events, _nameMaybeFunction(error));
   }
 }
-const _ref4 = _globalThis.Array;
-const boundFrom = null == _ref4 ? _ref4[""] : (_pushMaybeArray(events).call(events, 'binding'), observe(), _Array$from);
 const {
-  [(_pushMaybeArray(events).call(events, _atMaybeString(_ref5 = 'a').call(_ref5, 0)), 'bind')]: boundBind
-} = _Object$keys;
+  Array: {
+    [(_pushMaybeArray(events).call(events, 'binding'), observe(), 'from')]: boundFrom
+  },
+  Object: {
+    keys: {
+      [(_pushMaybeArray(events).call(events, _atMaybeString(_ref4 = 'a').call(_ref4, 0)), 'bind')]: boundBind
+    }
+  }
+} = {
+  Array: {
+    from: _Array$from
+  },
+  Object: {
+    keys: _Object$keys
+  }
+};
 function read({
   Array: {
     [(_pushMaybeArray(events).call(events, 'parameter'), 'from')]: method
   },
   Object: {
     keys: {
-      [(_pushMaybeArray(events).call(events, _atMaybeString(_ref6 = 'b').call(_ref6, 0)), 'bind')]: bound
+      [(_pushMaybeArray(events).call(events, _atMaybeString(_ref5 = 'b').call(_ref5, 0)), 'bind')]: bound
     }
   }
 } = {

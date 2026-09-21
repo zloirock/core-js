@@ -6,12 +6,35 @@ import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 // with the rebuilt text: TWO consumed receiver slots drop two source occurrences of the name
 // before the verbatim sibling, whose own references (several in one initializer) must each
 // land on their own occurrence - a drifted ordinal would rename a later occurrence instead
-const from = _Array$from;
-const groupBy = _Map$groupBy;
-const keep = [_globalThis, _globalThis.x];
+const {
+    Array: {
+      from
+    }
+  } = {
+    Array: {
+      from: _Array$from
+    }
+  },
+  {
+    Map: {
+      groupBy
+    }
+  } = {
+    Map: {
+      groupBy: _Map$groupBy
+    }
+  },
+  keep = [_globalThis, _globalThis.x];
 export { from, groupBy, keep };
 let c = 0;
-c++;
-const of = _Array$of;
-const tail = [_globalThis];
+const {
+    Array: {
+      of
+    }
+  } = (c++, {
+    Array: {
+      of: _Array$of
+    }
+  }),
+  tail = [_globalThis];
 export { of, tail };

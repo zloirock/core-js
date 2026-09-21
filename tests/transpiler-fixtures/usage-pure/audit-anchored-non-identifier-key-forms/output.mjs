@@ -27,7 +27,16 @@ const {
 const {
   token
 } = _globalThis.Abé;
-const groupBy = _Map$groupBy; // the binding host decides the route as much as the key does: an assignment reaches the same anchor
+const {
+  Map: {
+    groupBy
+  }
+} = {
+  Map: {
+    groupBy: _Map$groupBy
+  }
+};
+// the binding host decides the route as much as the key does: an assignment reaches the same anchor
 // render as the declaration, while a parameter default goes through the synth-swap mirror and never
 // spelled the key after a dot in the first place
 let union;

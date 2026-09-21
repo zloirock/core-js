@@ -22,5 +22,13 @@ const {
   customQ: viaProbe
 } = _Set;
 const realm = _globalThis;
-const viaRealm = _Promise$race;
+const {
+  Promise: {
+    race: viaRealm
+  }
+} = {
+  Promise: {
+    race: _Promise$race
+  }
+};
 export { viaUnbacked, viaProbe, viaRealm };

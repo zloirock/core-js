@@ -10,7 +10,15 @@ const Foo = Array;
 const wrapper = {
   a: Foo
 };
-const from = _Array$from;
+const {
+  a: {
+    from
+  }
+} = {
+  a: {
+    from: _Array$from
+  }
+};
 const arr = from('hi');
 _findLastMaybeArray(arr).call(arr, x => x);
 _fillMaybeArray(arr).call(arr, 0);

@@ -8,4 +8,12 @@ let second = {
   x: String
 };
 first = second;
-const raw = _String$raw;
+const {
+  x: {
+    raw
+  }
+} = {
+  x: {
+    raw: _String$raw
+  }
+};

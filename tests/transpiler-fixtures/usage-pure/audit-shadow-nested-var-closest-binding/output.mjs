@@ -3,7 +3,6 @@ import _Array$of from "@core-js/pure/actual/array/of";
 import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Map from "@core-js/pure/actual/map";
-import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 import _WeakMap from "@core-js/pure/actual/weak-map/constructor";
 // a nested-block `var` hoists to its function scope and SHADOWS an outer same-name binding for
@@ -32,7 +31,7 @@ function viaCtor(flag) {
 }
 export const c = [viaCtor(true)];
 var M = _Map;
-export const viaTop = _Map$groupBy(['a'], x => x);
+export const viaTop = M.groupBy(['a'], x => x);
 function viaShadow() {
   {
     var M = {

@@ -95,7 +95,8 @@ export const E2E_STRIP_GLOBALS = [
 // static answers `undefined` there and a method here, so only their absence tells an unresolved
 // alias of a container slot (`var _r$w = r.w, values = _r$w.values` - the lowering's spelling) apart
 // from a resolved one
-export const E2E_STRIP_STATIC = { Object: ['assign', 'values', 'entries', 'is'] };
+// Math.trunc also distinguishes a nested extraction beside rest from the absent host slot.
+export const E2E_STRIP_STATIC = { Object: ['assign', 'values', 'entries', 'is'], Math: ['trunc'] };
 
 // the composed global-strip set for the broad stripped-realm legs (e2e / unit-pure bundles)
 export const E2E_STRIP_REALM_GLOBALS = [...STRIP_GLOBALS, ...E2E_STRIP_GLOBALS];
@@ -136,7 +137,7 @@ export function buildStripScript(globalNames, iteratorProtoHelpers = [], extraSt
     var key = name === 'Symbol.dispose' ? Symbol.dispose : name;
     if (key !== undefined) { try { delete ITER_PROTO[key]; } catch (e) { /* skip */ } }
   });` }
-  var CTORS = { Array: Array, String: String, Set: Set, Object: Object, Map: Map, Number: Number, Error: Error, RegExp: RegExp };
+  var CTORS = { Array: Array, String: String, Set: Set, Object: Object, Map: Map, Number: Number, Error: Error, RegExp: RegExp, Math: Math };
   ${ assertOnly ? '' : `Object.keys(STRIP_PROTO).forEach(function (name) {
     STRIP_PROTO[name].forEach(function (method) { try { delete CTORS[name].prototype[method]; } catch (e) { /* frozen - skip */ } });
   });

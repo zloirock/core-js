@@ -18,10 +18,25 @@ const viaMemo = _atMaybeArray(_ref);
 const [, {
   length: memoLength
 }] = [, _ref];
-_pushMaybeArray(log).call(log, 'x');
-const mixedInstance = _atMaybeArray(_globalThis.Array.prototype);
-const mixedStatic = _Object$keys;
 const [, {
+  Array: {
+    prototype: {
+      at: mixedInstance
+    }
+  },
+  Object: {
+    keys: mixedStatic
+  },
   other
-}] = [, _globalThis];
+}] = [_pushMaybeArray(log).call(log, 'x'), {
+  Array: {
+    prototype: {
+      at: _atMaybeArray(_globalThis.Array.prototype)
+    }
+  },
+  Object: {
+    keys: _Object$keys
+  },
+  other: _globalThis.other
+}];
 export const r = [typeof viaSurface, viaMemo(0), memoLength, typeof mixedInstance, typeof mixedStatic, typeof other, log.length];

@@ -47,11 +47,13 @@ import {
 import { isAmbientFunctionNode } from './name-resolution.js';
 import {
   cleanDestructureAliasWrites,
+  forOfHeadElements,
   getCallSiteTypeArgs,
   getTypeArgs,
   isCleanDestructureAliasBinding,
   isGuardedAliasingWrite,
   peelTSParenthesized,
+  unwrapExpressionChain,
 } from '../helpers/ast-patterns.js';
 
 const { hasOwn } = Object;
@@ -66,6 +68,7 @@ export function createCallResolution({
   babelBindingAdapter,
   isMemberLike,
   isMutatedStatic = () => false,
+  isWrittenContainerSlot = () => false,
   isFunctionLike,
   isNullableOrNever,
   commonType,
@@ -90,7 +93,6 @@ export function createCallResolution({
   staticPairFromPolyfillEntry,
   lookupNested,
   KNOWN_STATIC_METHOD_RETURN_TYPES,
-  findDestructuredKeyPath,
   swapAliasToTSTypeQueryWithSubst,
   resolveReturnTypeFromTypeQuery,
   resolveTypeAnnotation,
@@ -110,6 +112,8 @@ export function createCallResolution({
   effectiveParam,
   resolveIndexedAccessMemberAnnotationAST,
 }) {
+  // Return-type narrowing needs a stable receiver, including writes to container slots.
+  const staticPairAdapter = { ...babelBindingAdapter, method: 'usage-pure', isWrittenContainerSlot };
   // --- Call-return dispatch ---
 
   function resolveMemberCallType(memberPath, callPath) {
@@ -247,7 +251,7 @@ export function createCallResolution({
   }
 
   // resolve `const { from } = Array` / nested `const { a: { from } } = wrapper` patterns
-  // to a (constructor, method) pair. `findDestructuredKeyPath` peels shorthand / rename /
+  // to a (constructor, method) pair. `findPatternKeyPath` peels shorthand / rename /
   // AssignmentPattern wrappers; init walk delegated to `walkStaticReceiverChain`.
   // reassigned bindings bail (current value may differ from pattern-init), except the
   // single-violation `let x; ({x} = Source)` shape which routes to `pairFromAssignmentDestructure`
@@ -272,8 +276,10 @@ export function createCallResolution({
       // a valueless re-declaration / self-violation the gate deliberately excluded, and pairing off
       // that phantom resolves the alias against an assignment that never happened
       const [write] = cleanDestructureAliasWrites(binding);
-      const assignment = write && violationToAssignment(write);
-      return assignment ? pairFromAssignmentDestructure(assignment, name, binding.scope) : null;
+      if (write) {
+        const assignment = violationToAssignment(write);
+        return assignment ? pairFromAssignmentDestructure(assignment, name, binding.scope) : null;
+      }
     }
     return pairFromDeclaratorDestructure(binding, name);
   }
@@ -291,13 +297,15 @@ export function createCallResolution({
     return null;
   }
 
+  // Array wrappers and for-of heads bind the same static as a direct object pattern.
   function pairFromDeclaratorDestructure(binding, name) {
     let declarator = binding.path;
     while (declarator && !t.isVariableDeclarator(declarator.node)) declarator = declarator.parentPath;
     if (!declarator) return null;
     const { id, init } = declarator.node;
-    if (id?.type !== 'ObjectPattern' || !init) return null;
-    return pairFromPatternAndSource({ pattern: id, source: init, name, scope: declarator.scope, path: declarator });
+    if (id?.type !== 'ObjectPattern' && id?.type !== 'ArrayPattern') return null;
+    const source = init ?? forOfHeadElements(declarator, { sameCallee: true })?.[0];
+    return source ? pairFromPatternAndSource({ pattern: id, source, name, scope: declarator.scope, path: declarator }) : null;
   }
 
   // `let x; ({x} = Source)` style: violationPath is the AssignmentExpression containing
@@ -306,18 +314,19 @@ export function createCallResolution({
   function pairFromAssignmentDestructure(violationPath, name, scope) {
     const node = violationPath?.node;
     if (node?.type !== 'AssignmentExpression' || node.operator !== '=') return null;
-    if (node.left?.type !== 'ObjectPattern' || !node.right) return null;
+    if (node.left?.type !== 'ObjectPattern' && node.left?.type !== 'ArrayPattern' || !node.right) return null;
     return pairFromPatternAndSource({ pattern: node.left, source: node.right, name, scope, path: violationPath });
   }
 
   function pairFromPatternAndSource({ pattern, source, name, scope, path = null }) {
-    const keyPath = findDestructuredKeyPath(pattern, name, scope);
+    const keyPath = findPatternKeyPath(pattern, name, scope);
     if (!keyPath?.length) return null;
+    // Type inference preserves evaluation, so a sequence prefix does not prevent naming its tail.
     // thread the anchor `path` so the estree adapter resolves a function-scope-hoisted var
     // source (`if (c) { var G = Array } const { from } = G`) the same way babel does; without
     // it the static-receiver walk loses the source binding and the narrow diverges
     const constructor = walkStaticReceiverChain({
-      receiverNode: source, walkPath: keyPath.slice(0, -1), scope, adapter: babelBindingAdapter, path,
+      receiverNode: unwrapExpressionChain(source), walkPath: keyPath.slice(0, -1), scope, adapter: staticPairAdapter, path,
     });
     if (!constructor || !hasOwn(KNOWN_STATIC_METHOD_RETURN_TYPES, constructor)) return null;
     return { constructor, method: keyPath.at(-1) };
