@@ -1,11 +1,13 @@
-// Object-rest keeps named slots at that level and reads through it native in usage-pure.
-// Independent reads and key/default expressions still receive their own polyfills.
+import _Object$keys from "@core-js/pure/actual/object/keys";
+// Claimed statics retain their polyfills beside object rest.
+// Rest keeps its source and exclusions; instance slots remain native.
 const src = {
   o: Object
 };
+const k = _Object$keys;
 const {
   o: {
-    "keys": k,
+    "keys": _unused,
     ...rest
   }
 } = src;

@@ -111,4 +111,21 @@ for (const parser of adapters) for (const [name, source, key, expected] of [
   });
   check(`${ parser.name }: ${ name }: captured candidate`, meta?.captureGuardReceiver ? meta.guardedAliasHint : null, expected);
 }
+// A finite loop binds candidates even though its declaration has no initializer.
+for (const [shape, head, source] of [
+  ['plain', 'held', '[Map]'],
+  ['nested spread', 'held', '[...[...[Map]]]'],
+  ['array binding', '[held]', '[...[[Map]]]'],
+  ['object binding', '{ value: held }', '[...[{ value: Map }]]'],
+  ['several elements', 'held', '[Map, Object]'],
+  ['opaque', 'held', '[...unknown]'],
+]) for (const parser of adapters) for (const method of ['usage-global', 'usage-pure']) {
+  const program = parser.parseAndScope(`for (const ${ head } of ${ source }) observe(held);`);
+  const [usage] = parser.pickPath(program, 'CallExpression', path => path.node.callee.name === 'observe').get('arguments');
+  const adapter = parser.name === 'babel' ? createBabelAdapter({ method }) : createEstreeAdapter({ method });
+  checkDeep(`${ parser.name }: ${ method }: loop candidates ${ shape }`, reachableAliasValues({
+    aliasNode: usage.node, scope: usage.scope, adapter, path: usage,
+    resolve: hop => resolveObjectName({ objectNode: hop.node, ...hop.ctx, usageNode: hop.readNode }),
+  }), shape === 'opaque' ? [] : shape === 'several elements' ? ['Map', 'Object'] : ['Map']);
+}
 finish();

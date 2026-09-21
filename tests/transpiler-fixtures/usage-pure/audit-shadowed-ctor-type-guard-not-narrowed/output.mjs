@@ -18,6 +18,6 @@ export function viaInstanceof(x) {
 // isArray channel, NEGATED branch: a real array flows here (an array is not a Map), so its generic
 // binding must survive - narrowing it away from the array type drops the polyfill the real array needs
 export function viaIsArray(x) {
-  if (!_Map.isArray(x)) return _includes(x).call(x, 1);
+  if (!Array.isArray(x)) return _includes(x).call(x, 1);
   return null;
 }

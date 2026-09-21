@@ -1,10 +1,18 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-// Object-rest keeps named slots at that level and reads through it native in usage-pure.
-// Independent reads and key/default expressions still receive their own polyfills.
-const from = _Array$from;
+// A static declaration and a rest-bearing instance sibling keep their evaluation order.
+// The instance slot remains native because its level copies object rest.
 const {
-  at,
-  ...rest
-} = getArr();
+    Array: {
+      from
+    }
+  } = {
+    Array: {
+      from: _Array$from
+    }
+  },
+  {
+    at,
+    ...rest
+  } = getArr();
 from([1]);
 console.log(at, rest);

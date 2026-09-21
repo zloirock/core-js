@@ -72,6 +72,17 @@ runBoth('class decorator precedes static write', "let key = 'from'; @deco(Array[
   }, ['decorators']);
 
 for (const [name, source, expected] of [
+  ['capture before write', "let key = 'from'; const captured = key; key = 'of'; function read() { return Array[captured]; }", true],
+  ['capture after write', "let key = 'from'; key = 'of'; const captured = key; function read() { return Array[captured]; }", false],
+  ['capture in repeated loop', "let key = 'from'; for (;;) { const captured = key; key = 'of'; function read() { return Array[captured]; } }", false],
+]) runBoth(`outer capture frame/${ name }`, source, (parser, program, label) => {
+  const usagePath = parser.pickPath(program, 'MemberExpression');
+  const usageNode = parser.pickPath(program, 'VariableDeclarator', path => path.node.id.name === 'captured').node;
+  const reassignmentNodes = parser.collectPaths(program, 'AssignmentExpression').map(path => path.node);
+  check(label, noReassignmentReachesUsage({ reassignmentNodes, usagePath, usageNode, bindingScopeNode: program.node }), expected);
+});
+
+for (const [name, source, expected] of [
   ['alternate nested block', "function f(flag) { let v = 'abc'; if (flag) throw 0; else { { v = [1]; } return v.at(0); } }", [false, 'Array']],
   ['consequent nested block', "function f(flag) { let v = 'abc'; if (flag) { { v = [1]; } return v.at(0); } else throw 0; }", [false, 'Array']],
   ['branch without exit', "function f(flag) { let v = 'abc'; if (flag) { { v = [1]; } return v.at(0); } }", [false, 'Array']],

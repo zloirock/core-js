@@ -1,37 +1,72 @@
+import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _Map from "@core-js/pure/actual/map/constructor";
 import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 import _Set from "@core-js/pure/actual/set/constructor";
 import _Symbol$asyncIterator from "@core-js/pure/actual/symbol/async-iterator";
 import _Symbol from "@core-js/pure/actual/symbol/constructor";
-import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 import _WeakMap from "@core-js/pure/actual/weak-map/constructor";
 // a computed `Symbol.X` key kept inside an ANCHORED residual re-keys to the polyfilled
 // symbol binding (the whole-prop render must not leak raw `Symbol` text - a ReferenceError
 // on symbol-less engines): a well-known name uses its dedicated entry, an unknown name
 // polyfills the constructor read, and a scope-shadowed `Symbol` stays the user's own object
+const _ref = {
+  Map: _Map,
+  Object: {
+    fromEntries: _Object$fromEntries
+  }
+};
+const a = _getIteratorMethod(_ref.Map);
 const {
-  [_Symbol$iterator]: a
-} = _Map;
-const fe = _Object$fromEntries;
+  Object: {
+    fromEntries: fe
+  }
+} = _ref;
 a;
 fe(x);
 const {
-  [_Symbol$asyncIterator]: b
-} = _Set;
-const fe2 = _Object$fromEntries;
+  Set: {
+    [_Symbol$asyncIterator]: b
+  },
+  Object: {
+    fromEntries: fe2
+  }
+} = {
+  Set: _Set,
+  Object: {
+    fromEntries: _Object$fromEntries
+  }
+};
 b;
 fe2(y);
 const {
-  [_Symbol.foo]: c
-} = _WeakMap;
-const fe3 = _Object$fromEntries;
+  WeakMap: {
+    [_Symbol.foo]: c
+  },
+  Object: {
+    fromEntries: fe3
+  }
+} = {
+  WeakMap: _WeakMap,
+  Object: {
+    fromEntries: _Object$fromEntries
+  }
+};
 c;
 fe3(z);
 function shadowed(Symbol) {
   const {
-    [Symbol.iterator]: d
-  } = _Map;
-  const fe4 = _Object$fromEntries;
+    Map: {
+      [Symbol.iterator]: d
+    },
+    Object: {
+      fromEntries: fe4
+    }
+  } = {
+    Map: _Map,
+    Object: {
+      fromEntries: _Object$fromEntries
+    }
+  };
   return [d, fe4];
 }
 shadowed({
@@ -43,37 +78,78 @@ shadowed({
 // opposite direction and must NOT re-key: the user's replacement does not carry the well-known
 // symbols, so the read stays on their object
 const Sym = _Symbol;
+const _ref2 = {
+  Map: _Map,
+  Object: {
+    fromEntries: _Object$fromEntries
+  }
+};
+const aliased = _getIteratorMethod(_ref2.Map);
 const {
-  [_Symbol$iterator]: aliased
-} = _Map;
-const fe6 = _Object$fromEntries;
+  Object: {
+    fromEntries: fe6
+  }
+} = _ref2;
 aliased;
 fe6(u1);
+const _ref3 = {
+  Map: _Map,
+  Object: {
+    fromEntries: _Object$fromEntries
+  }
+};
+const viaProxy = _getIteratorMethod(_ref3.Map);
 const {
-  [_Symbol$iterator]: viaProxy
-} = _Map;
-const fe7 = _Object$fromEntries;
+  Object: {
+    fromEntries: fe7
+  }
+} = _ref3;
 viaProxy;
 fe7(u2);
+const _ref4 = {
+  Map: _Map,
+  Object: {
+    fromEntries: _Object$fromEntries
+  }
+};
+const viaHop = _getIteratorMethod(_ref4.Map);
 const {
-  [_Symbol$iterator]: viaHop
-} = _Map;
-const fe8 = _Object$fromEntries;
+  Object: {
+    fromEntries: fe8
+  }
+} = _ref4;
 viaHop;
 fe8(u3);
 // the re-key must not depend on WHICH sibling dispatched the flatten (the key visitor may
 // or may not have fired on the original before the residual is cloned / sliced), nor on the
 // host kind - an assignment host re-keys the same way
-const fe5 = _Object$fromEntries;
+const _ref5 = {
+  Object: {
+    fromEntries: _Object$fromEntries
+  },
+  Map: _Map
+};
 const {
-  [_Symbol$iterator]: e
-} = _Map;
+  Object: {
+    fromEntries: fe5
+  }
+} = _ref5;
+const e = _getIteratorMethod(_ref5.Map);
 fe5(w);
 e;
 let f2, g2;
-g2 = _Object$fromEntries;
 ({
-  [_Symbol$asyncIterator]: f2
-} = _Set);
+  Object: {
+    fromEntries: g2
+  },
+  Set: {
+    [_Symbol$asyncIterator]: f2
+  }
+} = {
+  Object: {
+    fromEntries: _Object$fromEntries
+  },
+  Set: _Set
+});
 g2(v);
 f2;

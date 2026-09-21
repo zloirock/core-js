@@ -10,17 +10,53 @@ import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 // the probe key is POSITION-INDEPENDENT: both property orders reproduce the source's throw,
 // and a string-literal / computed `[Symbol.iterator]` first key probes like the dotted one
 export const {
-  customQ: viaAnchoredFirstA
-} = ((null == _globalThis.window ? void 0 : _self).Set, _Set);
-export const viaAnchoredFirstB = _Array$of;
-export const viaConsumedFirstA = ((null == _globalThis.window ? void 0 : _self).Array, _Array$of);
+  Set: {
+    customQ: viaAnchoredFirstA
+  },
+  Array: {
+    of: viaAnchoredFirstB
+  }
+} = ({} = null == _globalThis.window ? void 0 : _self, {
+  Set: _Set,
+  Array: {
+    of: _Array$of
+  }
+});
 export const {
-  customQ: viaConsumedFirstB
-} = _Set;
-export const viaStringKeyFirst = ((null == _globalThis.window ? void 0 : _self).Array, _Array$of);
+  Array: {
+    of: viaConsumedFirstA
+  },
+  Set: {
+    customQ: viaConsumedFirstB
+  }
+} = ({} = null == _globalThis.window ? void 0 : _self, {
+  Array: {
+    of: _Array$of
+  },
+  Set: _Set
+});
 export const {
-  customQ: viaStringKeySibling
-} = _Set;
-export const viaSymbolFirst = ((null == _globalThis.window ? void 0 : _self)[_Symbol$iterator], _getIteratorMethod(_self));
-export const viaSymbolSibling = _Array$of;
+  'Array': {
+    of: viaStringKeyFirst
+  },
+  Set: {
+    customQ: viaStringKeySibling
+  }
+} = ({} = null == _globalThis.window ? void 0 : _self, {
+  Array: {
+    of: _Array$of
+  },
+  Set: _Set
+});
+export const {
+  [_Symbol$iterator]: viaSymbolFirst,
+  Array: {
+    of: viaSymbolSibling
+  }
+} = ({} = null == _globalThis.window ? void 0 : _self, {
+  [_Symbol$iterator]: _getIteratorMethod(_self),
+  Array: {
+    of: _Array$of
+  }
+});
 export const viaSymbolOnly = _getIteratorMethod(null == _globalThis.window ? void 0 : _self.Array.prototype);

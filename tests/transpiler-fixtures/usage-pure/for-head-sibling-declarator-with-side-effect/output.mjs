@@ -10,7 +10,15 @@ function bump() {
   calls++;
   return JSON;
 }
-for (const from = _Array$from, _ref = bump(), parse = _JSON$parse; flag;) break;
+for (const {
+    Array: {
+      from
+    }
+  } = {
+    Array: {
+      from: _Array$from
+    }
+  }, _ref = bump(), parse = _JSON$parse; flag;) break;
 for (const {
     of
   } = _Set, _ref2 = bump(), stringify = _JSON$stringify, z = 1; flag;) break;

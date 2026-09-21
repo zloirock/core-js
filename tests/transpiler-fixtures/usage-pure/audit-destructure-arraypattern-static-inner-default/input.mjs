@@ -1,6 +1,4 @@
-// inner-default AssignmentPattern inside a multi-element ArrayPattern (`[, { from } = {}]`): the
-// transparent default is peeled, `from` extracts to `_Array$from` and the residual keeps both the
-// default (`{ from: _unused } = {}`) and the `_Set` slot. detect-usage resolves the receiver
-// through the AssignmentPattern + ArrayPattern wrappers on both plugins (array-wrapper resolver)
+// A defined array element keeps its object-pattern default dead.
+// The static receives its pure method and preceding elements retain their values.
 const [, { from } = {}] = [Set, Array];
 from([1]);

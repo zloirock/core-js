@@ -7,7 +7,15 @@ import _atMaybeString from "@core-js/pure/actual/string/instance/at";
 // carries the name itself and pulls nothing, once where it is a STRING and `at` says which family
 // answered, which is what a lost type would show as the generic dispatcher
 const proxyRoot = function () {
-  const from = _Array$from;
+  const [{
+    Array: {
+      from
+    }
+  }] = [{
+    Array: {
+      from: _Array$from
+    }
+  }];
   return from;
 }();
 const opaqueHopOwnName = function () {

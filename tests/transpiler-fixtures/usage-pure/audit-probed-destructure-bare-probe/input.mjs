@@ -1,5 +1,3 @@
-// Object-rest keeps named slots at that level and reads through it native in usage-pure.
-// Independent reads and key/default expressions still receive their own polyfills.
 // The exported constructor includes its static methods for external consumers.
 export const { Promise: viaBareProbePoly } = globalThis.window;
 export const { customThing: viaBareProbeCustom } = globalThis.window;

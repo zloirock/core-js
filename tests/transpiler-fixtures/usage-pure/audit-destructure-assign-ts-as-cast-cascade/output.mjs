@@ -5,6 +5,14 @@ import _Array$from from "@core-js/pure/actual/array/from";
 // match the bare assignment. the shared peeler walks through TSAsExpression so the
 // cascade fires and `from` is rewritten to the polyfill assignment
 let from;
-from = _Array$from;
+({
+  Array: {
+    from
+  }
+} = {
+  Array: {
+    from: _Array$from
+  }
+}) as any;
 const arr = from([1, 2, 3]);
 export { arr };

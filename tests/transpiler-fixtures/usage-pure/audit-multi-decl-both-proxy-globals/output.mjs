@@ -1,8 +1,23 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
-// two declarators in the same VariableDeclaration each destructuring from a proxy global.
-// both should fully consume their receiver via nested-proxy flatten, with each declarator
-// planned and rewritten independently
-const from = _Array$from;
-const fromEntries = _Object$fromEntries;
+// Two nested static declarators in one declaration independently receive pure values.
+// Neither rewrite consumes the sibling claim.
+const {
+    Array: {
+      from
+    }
+  } = {
+    Array: {
+      from: _Array$from
+    }
+  },
+  {
+    Object: {
+      fromEntries
+    }
+  } = {
+    Object: {
+      fromEntries: _Object$fromEntries
+    }
+  };
 export { from, fromEntries };

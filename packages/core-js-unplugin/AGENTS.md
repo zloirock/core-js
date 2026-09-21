@@ -1,69 +1,45 @@
 # @core-js/unplugin
 
-Automatic polyfill injection for bundlers: the adapter between the unplugin hooks of every supported bundler and `@core-js/polyfill-provider`, plus the emitter that renders what the provider decides. The semantics belong there, not here.
+Bundler binding for `@core-js/polyfill-provider`. Read [the provider contract](../core-js-polyfill-provider/AGENTS.md) for shared decisions, rendering, canon search and validation. This package owns parsing, traversal, ESTree insertion, printing, sourcemaps and bundler integration.
 
 ## Target environment
 
-Build-time only, ESM. Node `^22.18.0 || >=24.11.0`, plus Bun for the `bun` entry. `@core-js/compat` in `dependencies` is runtime-unused on purpose: `index.d.ts` type-imports `@core-js/compat/compat`, so the package must resolve for consumers' tsc - do not drop it as a leftover.
+Build-time only, ESM. Node `^22.18.0 || >=24.11.0`, plus Bun for its entry. Keep `@core-js/compat` in dependencies: although unused at runtime, `index.d.ts` imports its types for consumers' tsc.
 
-## Layout
+## Entry points and layout
 
-At the package root, one `<bundler>.js` and `<bundler>.d.ts` pair per bundler - Vite, Webpack, Rspack, Rsbuild, Rollup, Rolldown, esbuild, Farm, Bun. Each is a one-line re-export of the corresponding binding from `index.js`. A pair is not the whole story though: bundlers are also named in `KNOWN_BUNDLERS`, in the hook-shape branch for Rollup and Rolldown, in `PRE_POST_UNSAFE_BUNDLERS` (where `pre+post` degrades to `post`), and in `CHUNK_LOADER_BUNDLERS`. `unloader` has no entry pair on purpose and must not get one, but it *is* present in `KNOWN_BUNDLERS` and `CHUNK_LOADER_BUNDLERS` because upstream can hand it to us - do not delete it there.
+Each public bundler has a `<bundler>.js` / `<bundler>.d.ts` pair re-exporting `index.js`. Adding one also requires checking `KNOWN_BUNDLERS`, `CHUNK_LOADER_BUNDLERS`, the Rollup/Rolldown hook branch and `PRE_POST_UNSAFE_BUNDLERS` (`pre+post` falls back to `post`). Keep upstream `unloader` recognized in the first two sets; it deliberately has no public entry.
 
-`index.js` builds those bindings through `createUnplugin` and decides which module ids are transformed at all: virtual modules, commonjs proxies and asset queries are filtered out there. Admission takes the sub-plugin's `enforce`, the one phase-dependent question in the file: at `pre` a framework SFC id still holds the author's markup, at `post` the JavaScript its plugin compiled it into. Every other rule there is the id's language fact, which is the provider's (`moduleIdLanguage`); `sourceDialectOf` only translates it into oxc's `lang` / `sourceType` vocabulary - the same `lang` the PRINTER takes, so the two cannot disagree.
+`index.js` builds the adapters and filters module ids. SFC admission depends on `enforce`: source markup at `pre`, compiled JavaScript at `post`. Other language facts come from the provider's `moduleIdLanguage`; `sourceDialectOf` translates them for oxc. Parser and printer must use the same language.
 
-`internals/` holds the pipeline. The core and detection:
+Key files under `internals/`:
 
-- `plugin.js` - the core: parse with oxc-parser, walk with estree-toolkit, apply as body surgery, print through esrap; every pass shape (`pre` / `post` / `pre+post`) runs here. The provider's minifier-sequence split plan lands here as body surgery ahead of the walk. Detection-convenience tree mutations (`neutralizeUnwalkedParamPatterns`) record undo thunks the print replays first
-- `detect-entry.js`, `detect-usage.js` - the unplugin side of detection, on top of the provider; `entry.js` applies the entry plan as body surgery
-- `print.js` - the esrap printer adapter: loc synthesis, paren normalization to the minimal structural set, the corpus-measured esrap gap overrides, the sourcemap anchors of minted spellings, the anchored-comment channel that prints a directive ahead of its node whatever the loc heuristics do
-- `import-injector.js` - the injector: import and generated-ref bookkeeping, name allocation, the pre-to-post snapshot shape, and the flush that sweeps, injects and retires dead memos
-- `emit-shared.js` - this leg's own render idioms; emitters import the render canon directly from `@core-js/polyfill-provider/render`
-- `estree-compat.js` - ESTree to Babel literal-type mapping, the seam between the two AST dialects
-- `sfc-shapes.js` - module ids of SFC virtual modules (Vue, Svelte, Astro), whose metadata lives in query params
-- `snapshot-cache.js` - the pre-to-post handoff for `phase: 'pre+post'`, keyed by environment plus the whole id. Query and fragment are IDENTITY: a dev server runs `/dep.js` and `/dep.js?v=<hash>` as two interleaved modules, and one plugin instance serves several environments at once. Only the HMR timestamp is noise. What pre hands post is its injector state, never its tree - emission mutates that tree, so post re-parses its own input
-- `plugin-helpers.js` - directive prologues, the walk helpers, the census reducers
+- `plugin.js`: oxc parse, estree-toolkit traversal, body edits and esrap print, for every phase. Applies the provider's minifier-sequence split before detection.
+- `detect-entry.js`, `detect-usage.js`, `entry.js`: detection adapters and entry insertion.
+- `import-injector.js`, `snapshot-cache.js`: imports, generated refs and phase-state handoff.
+- `print.js`, `estree-compat.js`, `sfc-shapes.js`, `plugin-helpers.js`: printing, dialect translation, module ids and host helpers.
+- `usage-pure.js`: claim dispatch; `proxy-spine.js`, `optional-dispatch.js`, `se-dispatch.js`, `claim-guards.js` and `nav-spine.js` provide its host channels.
+- `destructure.js`, `destructure-drain.js`, `destructure-helpers.js`, `destructure-emit-utils.js`: visit, deferred insertion and supporting operations.
 
-The usage-pure emitter is layered bottom-up and acyclic; `proxy-spine`, `optional-dispatch` and `destructure-drain` are per-transform channel factories, the rest are plain modules:
+Keep the emitter dependency graph acyclic. `proxy-spine`, `optional-dispatch` and `destructure-drain` are per-transform factories; shared decisions and render forms belong in the provider, not another host helper.
 
-- `usage-pure.js` - the visit callback itself: claim dispatch, and the wiring that instantiates the channels below
-- `proxy-spine.js` - the proxy-global spine: hop collapses, static and hop claims, the kept-write and navigated-collapse canon
-- `optional-dispatch.js` - optional and split dispatch: receiver splits, instance and inherited-static emission, guard composition
-- `se-dispatch.js` - the side-effect lifts: bare-optional SE dispatch, SE-key reads, sealed-key consumes
-- `claim-guards.js` - guard rendering over claims: probe spellings, sealed forms, guarded-hop replacement
-- `nav-spine.js` - the navigation walks and shared bottom helpers: spine climbs, peels, probes, skip marking, and the per-node stamps a clone has to carry (resolved type, evaluation frame)
-- `destructure.js`, `destructure-drain.js`, `destructure-helpers.js` - the destructure pipeline: the visit half and facade, the drains that render at flush, and the shared helper vocabulary
-- `destructure-emit-utils.js` - pure receiver-classification helpers, no file-scope state
+## Host contracts
 
-## Emitter model
+- Each phase parses its own tree. `pre+post` transfers injector state, never the AST; post re-scans imports inserted by siblings.
+- Snapshot identity includes the environment, query and fragment. Only numeric HMR timestamps are noise. Do not add eviction that can discard a pending pre-to-post handoff; build-end reset and watch invalidation own its lifetime. See `snapshot-cache.js` for path normalization.
+- Undo detection-only mutations such as `neutralizeUnwalkedParamPatterns` before printing.
+- Normalize TS instantiation before optional calls in every method: `((X)<T>)?.(a)` becomes `(X)?.<T>(a)`. Babel's later optional-call lowering otherwise loses `this`; doing it only at post is too late.
+- Nodes acquired from another evaluation frame need `stampNodeSite`; scope-aware queries use `nodeSite`, and copies use `cloneStamped`. Do not substitute an unrelated `metaPath`.
+- Clone host source nodes before embedding them in another tree position, including keys marked `fromSource` by `synthEntryKey`. Reusing one node aliases subsequent mutations even when printed output looks correct.
 
-Mutates the parsed tree during traversal and reprints the whole file through esrap afterwards. Three consequences:
+## Validation and sidecars
 
-- Output is held STRUCTURALLY to babel-plugin's: both are AST renderers, so a difference that survives the structural comparator (`tests/unplugin/structural.mjs` - parens, literal `raw` spellings, statement-list empties and their kin are formatting) is a defect of one of the two, never a spelling preference. The reprint normalizes what the author's bytes spelled; the roundtrip gate holds the printer to a no-op on untransformed input
-- One spelling is normalized in every method, polyfilled or not: a type instantiation directly in front of `?.` (`((X)<T>)?.(a)` -> `(X)?.<T>(a)`). It is the one shape a later lowering reads *wrong* rather than differently - babel's `isTransparentExprWrapper` does not list `TSInstantiationExpression`, so the lowered call silently loses its `this`, and `post` runs too late to fix it
-- Siblings never share the tree - each phase parses its own - so sibling interaction moves between the phases instead: `pre+post` hands its state across through the snapshot, and post re-scans the imports siblings inserted in between rather than trusting what pre saw
+- `npm run test-unplugin`: shared fixtures, structurally compared with Babel through `tests/unplugin/structural.mjs`.
+- `npm run test-unplugin-unit`: internals.
+- `npm run test-unplugin-roundtrip`: no-op reprint preserves structure, comments and directive associations, and reaches a print fixed point.
 
-This package is a BINDING under the provider's "Core and bindings" contract (its `AGENTS.md`): it owes the host plumbing - parse, traversal, scope, print, sourcemaps, id filtering, SFC - and the insertion of the provider's canonical ESTree render (no conversion needed: ESTree is native here), holding no decisions and no render forms of its own. Until a given render is shared, the live smell is: anything that has to be fixed in this package *and* in babel-plugin belongs in the provider instead. Before writing a helper or a branch, run the canon check the provider's `AGENTS.md` prescribes (`npm run canon`; reference in `scripts/canon/AGENTS.md`) - what you need may already exist in the provider or in babel-plugin under an unguessable name.
+An `output-unplugin.mjs` sidecar records a reviewed divergence and is checked byte-for-byte. Accepted classes remain environmental differences (targets, require dialect), parser acceptance, and documented structural spellings (kept aliases, ref-hoist placement, TS type reprints). These are debt, not permission to accept any runtime-equivalent output. Explain the exact difference; formatting is already normalized by the comparator. Regenerate and remove obsolete sidecars through the runner, following [fixture rules](../../tests/transpiler-fixtures/AGENTS.md).
 
-This leg passes NODES where babel passes paths, so a receiver acquired from ANOTHER frame (an IIFE call-ARG evaluates at the CALL SITE) carries its frame as a stamp: `stampNodeSite` wherever such a receiver enters, `nodeSite` at every scope-aware question about it - never a free-floating `metaPath` - and `cloneStamped` for every clone, since a copy inherits no stamp.
+For behavior changes, run bare `npm run test-transpiler-differential` and `npm run test-e2e-usage-pure`; the `unplugin` filter is diagnostic and omits import parity. Runtime e2e covers every phase, with stripped-realm coverage on `pre+post`. Hook, module-id and bundler-facing changes also need `npm run test-transpiler-integration`.
 
-A render the core hands over may CARRY one of this leg's own nodes: `synthEntryKey` marks such a key `fromSource`, and the caller must clone before embedding it. The node still sits in the source pattern, so one object in two tree positions aliases every later mutation across both - and no gate sees it, because printing the same node twice prints the same text.
-
-## Tests
-
-- `npm run test-unplugin` - shared fixtures from `tests/transpiler-fixtures/`: the output must be STRUCTURALLY identical to the babel baseline (`tests/unplugin/structural.mjs` owns what counts as formatting)
-- `npm run test-unplugin-unit` - internals, in `tests/unplugin/unit.mjs`
-- `npm run test-unplugin-roundtrip` - the no-op print gate: every fixture input reprints through `print.js` with zero mutations, and the reparse must be structurally identical, keep every comment with its directive line association, and reach a print fixed point
-
-A divergence from babel-plugin is recorded in a sidecar `output-unplugin.mjs` next to the fixture, byte-held; the gate's OVERWRITE mode regenerates the whole sidecar set - one exists exactly where the compare against babel differs. A sidecar is a proof obligation: show what the difference actually is before accepting it. The accepted classes: environmental divergence (targets resolution babel@8 does differently, the `require` dialect on SFC virtuals), an accepted spelling the structural compare sees (a kept alias receiver babel folds, ref-hoist placement, a TS type reprint), and parser acceptance (oxc transforms what babel@8 rejects, e.g. legacy TS `module N {}`).
-
-Those runners only compare output, which settles cosmetic work; a change in BEHAVIOR is verified while you work by the correctness suite nearest to it, scoped to what changed:
-
-- `npm run test-transpiler-differential` - both emitters against native at runtime, on the generated corpus. Run it bare (evaluations are cached, a repeat costs what the edit changed); the `unplugin` token narrows the run to this emitter and turns the import-parity oracle off - use it to isolate a suspect, never to save time
-- `npm run test-e2e-usage-pure` - executes the transformed code; this plugin gets a leg per phase, because each side of the babel sandwich is blind to the other, and only the `pre+post` one also runs in a stripped realm
-- `npm run test-transpiler-integration` - when the change touches a hook, a module-id assumption or anything bundler-facing: the matrix exercises every bundler, method and phase, which is where those break instead of in a fixture
-- `npm run test-transpiler-perf-smoke` - routine agent check of the complexity class; use the full command for performance work
-
-The finish line, once, right before handoff and never mid-loop: `npm run test-transpiling` (a VERY heavy composite of every suite named here including this package's own runners), then the perf check described below - never with a member on the same invocation line.
-
-Routine agent perf checks use `npm run test-transpiler-perf-smoke` (1 measured pass, no warmup); performance work uses `npm run test-transpiler-perf` (warmup and 3 measured passes by default). See `tests/transpiler-perf/AGENTS.md` for the sampling and comparison rules.
+At final handoff of code changes, run `npm run test-transpiling` once, then the performance gate specified by [the shared validation rules](../core-js-polyfill-provider/AGENTS.md#validation). Do not also run composite members on the same invocation line.

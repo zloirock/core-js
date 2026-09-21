@@ -1,8 +1,12 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$of from "@core-js/pure/actual/array/of";
+import _entries from "@core-js/pure/actual/instance/entries";
+import _keys from "@core-js/pure/actual/instance/keys";
+import _values from "@core-js/pure/actual/instance/values";
 import _Math$sign from "@core-js/pure/actual/math/sign";
 import _Math$trunc from "@core-js/pure/actual/math/trunc";
 import _Object$assign from "@core-js/pure/actual/object/assign";
+import _Object$create from "@core-js/pure/actual/object/create";
 import _Object$defineProperties from "@core-js/pure/actual/object/define-properties";
 import _Object$entries from "@core-js/pure/actual/object/entries";
 import _Object$freeze from "@core-js/pure/actual/object/freeze";
@@ -12,11 +16,11 @@ import _Object$groupBy from "@core-js/pure/actual/object/group-by";
 import _Object$hasOwn from "@core-js/pure/actual/object/has-own";
 import _Object$is from "@core-js/pure/actual/object/is";
 import _Object$keys from "@core-js/pure/actual/object/keys";
+import _Object$seal from "@core-js/pure/actual/object/seal";
 import _Object$values from "@core-js/pure/actual/object/values";
-// a SELECTING receiver under a WRAPPER mirrors per branch the way the bare init does: the host's
-// literal pairs the level's slot - an element by position, a property by its plain key - and the
-// polyfill lands in the constructor arm alone, the user arm staying raw. one static per row, so a
-// row's mirror is attributable to its own host shape
+// Wrapped selecting receivers keep the static and user arms distinct.
+// Static-only keys mirror the constructor arm; shared instance keys retain runtime dispatch.
+// Each row names a distinct static so its host remains observable in the import set.
 const [{
   of: viaElementDefault
 } = {}] = [c ? {
@@ -34,9 +38,11 @@ const [{
 } : userObj)];
 function viaParamDefault([{
   entries: e
-}] = [c ? {
-  entries: _Object$entries
-} : userObj]) {
+}] = [{
+  entries: _entries(c ? {
+    entries: _Object$entries
+  } : userObj)
+}]) {
   return e;
 }
 const viaIife = (([{
@@ -50,23 +56,19 @@ const [[{
   groupBy: _Object$groupBy
 } : userObj]];
 const {
-  w: {
-    keys: viaKeyed
-  }
-} = {
-  w: c ? {
-    keys: _Object$keys
-  } : userObj
-};
+    w: _ref
+  } = {
+    w: c ? Object : userObj
+  },
+  viaKeyed = _ref === Object ? _Object$keys : _keys(_ref);
 const {
-  w: [{
-    values: viaKeyedArray
-  }]
-} = {
-  w: [c ? {
-    values: _Object$values
-  } : userObj]
-};
+    w: _ref2
+  } = {
+    w: [c ? Object : userObj]
+  },
+  [_ref3] = _ref2,
+  _ref4 = _ref3,
+  viaKeyedArray = null == _ref4 ? _ref4[""] : _ref4 === Object ? _Object$values : _values(_ref4);
 const [{
   w: {
     sign: viaArrayKeyed
@@ -94,7 +96,15 @@ const {
 } : userObj];
 // ... and a hop default over a PLAIN constructor level is dead text: the extraction consumes the
 // whole pattern and the emptied host leaves with it, on both legs
-const viaHopDefaultPlain = _Object$hasOwn;
+const {
+  w: {
+    hasOwn: viaHopDefaultPlain
+  } = {}
+} = {
+  w: {
+    hasOwn: _Object$hasOwn
+  }
+};
 export { viaElementDefault, viaAnd, viaPrefix, viaParamDefault, viaIife, viaDouble, viaKeyed, viaKeyedArray, viaArrayKeyed, viaHopDefault, viaIndexKey, viaHopDefaultPlain };
 
 // the mirror swaps the arm IN PLACE and keeps the level whole, so what a dropping consumer has to
@@ -102,12 +112,12 @@ export { viaElementDefault, viaAnd, viaPrefix, viaParamDefault, viaIife, viaDoub
 // nothing names overrides the mirrored slot exactly as it overrides the source's (last wins)
 const [{
   hasOwn: viaSpreadShift
-}] = [c ? {
+}] = [...[c ? {
   hasOwn: _Object$hasOwn
-} : userObj];
+} : userObj]];
 const [, {
   getOwnPropertyNames: viaSpreadAhead
-}] = [0, c ? {
+}] = [...[0], c ? {
   getOwnPropertyNames: _Object$getOwnPropertyNames
 } : userObj];
 const {
@@ -144,7 +154,9 @@ const {
   }
 } = {
   get w() {
-    return c ? Object : userObj;
+    return c ? {
+      seal: _Object$seal
+    } : userObj;
   }
 };
 const {
@@ -162,7 +174,9 @@ const {
     create: viaComputedHop
   }
 } = {
-  w: c ? Object : userObj
+  w: c ? {
+    create: _Object$create
+  } : userObj
 };
 // ... and a CAPTURED assignment yields the receiver itself, so a mirrored arm would change the
 // captured value - wrapped or flat, the assignment stays raw

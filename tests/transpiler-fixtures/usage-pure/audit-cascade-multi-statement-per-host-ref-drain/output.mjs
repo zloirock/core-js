@@ -8,15 +8,29 @@ import _Array$of from "@core-js/pure/actual/array/of";
 // into the other's range. `.at` in the first IIFE and `.includes` in the second keep them distinct
 let from;
 let of;
-(function () {
+({
+  Array: {
+    from
+  }
+} = (function () {
   var _ref;
   return _atMaybeArray(_ref = [1]).call(_ref, 0);
-})();
-from = _Array$from;
-(function () {
+}(), {
+  Array: {
+    from: _Array$from
+  }
+}));
+({
+  Array: {
+    of
+  }
+} = (function () {
   var _ref2;
   return _includesMaybeArray(_ref2 = [2]).call(_ref2, 1);
-})();
-of = _Array$of;
+}(), {
+  Array: {
+    of: _Array$of
+  }
+}));
 from([3]);
 of(4);

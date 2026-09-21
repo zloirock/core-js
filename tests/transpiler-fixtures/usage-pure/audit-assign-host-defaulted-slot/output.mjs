@@ -5,10 +5,8 @@ import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
 import _at from "@core-js/pure/actual/instance/at";
 var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7;
-// Object-rest keeps the affected assignment pattern native and preserves its RHS value.
-// Independent reads and key/default expressions still receive their own polyfills.
-// a DEFAULTED leaf in an assignment host is flat like its undefaulted twin: the default costs a
-// guard, not a route, and the consume spells the receiver once whether or not it is re-readable
+// Assignment defaults compose with instance dispatch and nested static patterns.
+// The receiver is evaluated once; a rest-bearing instance level remains native.
 const arr = [1, 2];
 const nb = {
   y: arr
@@ -48,5 +46,13 @@ n7 = _includesMaybeArray(arr);
 // the composed two-step in this host: a TYPED outer hop feeds the leaf dispatch, whether the hop
 // is an instance method or a static of the constructor the receiver names
 m9 = _at((_ref7 = _flatMaybeArray(arr)) === void 0 ? [] : _ref7);
-m10 = _nameMaybeFunction(_Array$from);
+({
+  from: {
+    name: m10
+  } = {}
+} = {
+  from: {
+    name: _nameMaybeFunction(_Array$from)
+  }
+});
 export { m1, m2, m3, m4, m5, restOf, m6, m7, n7, m8, m9, m10 };

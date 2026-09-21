@@ -52,24 +52,30 @@ let ax, AM, AS;
   Promise: AM
 }] = [...tail, _globalThis];
 export const viaAssignSpread = (AM === _Promise ? _Promise$try : AM.try.bind(AM))(task);
-AS = _Set;
+[{
+  Set: AS
+}] = [{
+  Set: _Set
+}];
 export const viaAssignSound = new AS(soundSeed);
 
 // control: a HOLE before the slot is not a spread - positions stay static and the pairing
 // folds (only a spread makes later positions runtime-determined)
-const HM = _Map;
 const [, {
-  Map: _unused
-}] = [, _globalThis];
+  Map: HM
+}] = [, {
+  Map: _Map
+}];
 export const viaHoleBeforeSlot = _Map$groupBy([3, 4], v => v);
 
 // control: a spread strictly AFTER the slot keeps earlier positions static - the sound slot
 // folds while the sibling slot AT the spread bails, with no orphan imports left behind
-const C = _Set;
 const [{
-  Set: _unused2
+  Set: C
 }, {
   WeakMap: W
-}] = [_globalThis, ...tail];
+}] = [{
+  Set: _Set
+}, ...tail];
 export const viaSpreadAfter = new C(afterSeed);
 export const viaSlotAtSpread = new W();

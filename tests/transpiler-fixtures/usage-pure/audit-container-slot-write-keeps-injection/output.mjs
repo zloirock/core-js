@@ -30,7 +30,15 @@ const reachingValue = _Map$groupBy;
 const cleanContainer = {
   k: Object
 };
-const viaCleanContainer = _Object$groupBy;
+const {
+  k: {
+    groupBy: viaCleanContainer
+  }
+} = {
+  k: {
+    groupBy: _Object$groupBy
+  }
+};
 export function unknownReceiverNoStaticInjection(anything) {
   const {
     groupBy: nothingInjected

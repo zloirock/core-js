@@ -6,9 +6,9 @@
 // effect must run ONLY when the default fires, and the scope-gate / per-branch paths must stay
 // runtime-correct. Generic "default value works" tests are intentionally absent.
 
-// --- Synth-swap: a caller-passed receiver overrides the polyfilled default ---
+const nativeArrayOf = Object.getOwnPropertyDescriptor(Array, 'of')?.value;
 
-const nativeArrayFrom = Object.getOwnPropertyDescriptor(Array, 'from')?.value;
+// --- Synth-swap: a caller-passed receiver overrides the polyfilled default ---
 
 QUnit.test('params: param-default no-arg uses the polyfill, caller receiver overrides it', assert => {
   function fn({ of } = Array) {
@@ -117,7 +117,7 @@ QUnit.test('params: computed key reading a sibling binding stays correct', asser
     return [typeof of, picked];
   }
   const [ofType, picked] = fn();
-  assert.same(ofType, 'function');
+  assert.same(ofType, typeof E2E_POST_LOWERED === 'undefined' ? typeof nativeArrayOf : 'function');
   assert.same(picked, undefined);
 });
 
@@ -188,12 +188,12 @@ QUnit.test('params: destructured array param feeds a polyfill', assert => {
   assert.same(fn(), undefined);
 });
 
-QUnit.test('params: rest sibling next to a native binding excludes that key', assert => {
+QUnit.test('params: rest sibling next to a polyfilled binding excludes that key', assert => {
   function fn({ from, ...rest } = Array) {
     return [typeof from, 'from' in rest];
   }
   const [fromType, inRest] = fn();
-  assert.same(fromType, typeof nativeArrayFrom);
+  assert.same(fromType, typeof Array.from);
   assert.false(inRest);
 });
 
@@ -408,12 +408,12 @@ QUnit.test('params: instance multi-key member receiver stays native (double-read
 // distinct sentinel receiver through such an invisible caller and asserts IT wins - a regression to
 // the lossy extract would bind `_Array$from` (a function on every engine, including IE) instead.
 
-QUnit.test('params: a named IIFE with rest retains the native slot', assert => {
+QUnit.test('params: a named IIFE with rest receives the static', assert => {
   // eslint-disable-next-line no-unused-vars -- the rest sibling forces the caller-lossy extract
   const bound = (function keep({ from, ...rest } = Array) {
     return from;
   })();
-  assert.same(bound, nativeArrayFrom);
+  assert.same(bound, Array.from);
 });
 
 QUnit.test('params: named self-referencing IIFE - the self-call receiver wins over the polyfill', assert => {
@@ -1096,4 +1096,19 @@ function readReflectedParameter({ from } = Array) { return from; }
 QUnit.test('consumed parameters: private exported result and earlier Reflect.apply', assert => {
   assert.deepEqual(privateParameterResult, [7]);
   assert.deepEqual(reflectedParameterResult, [8]);
+});
+
+QUnit.test('consumed parameters: method aliases preserve custom receivers and effects', assert => {
+  const events = [];
+  const box = {
+    read({ slot: [{ from }] }) { events.push('body'); return from; },
+  };
+  const first = box.read;
+  const read = first;
+  const custom = {
+    get from() { events.push('get'); return value => ['custom', value]; },
+  };
+  assert.deepEqual(read({ slot: [Array] })([7]), [7]);
+  assert.deepEqual(read({ slot: [custom] })(3), ['custom', 3]);
+  assert.deepEqual(events, ['body', 'get', 'body']);
 });

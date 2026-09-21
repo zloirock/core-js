@@ -1,6 +1,4 @@
-// A flatten declarator shares its declaration with a sibling extracting a Symbol.iterator method.
-// the bailed sibling reuses the full byStatement emit, so the iterator helper survives instead of
-// rendering the pattern verbatim
+// A symbol-iterator sibling keeps its helper beside the nested static claim.
 const { Array: { from } } = globalThis, { [Symbol.iterator]: it } = obj;
 from([1]);
 console.log(it);

@@ -11,10 +11,39 @@ import _structuredClone from "@core-js/pure/actual/structured-clone";
 // FULL consumes outside the anchor gate carry the same once-per-pattern probe: multi-prop
 // nested, single-level flat (the probe read is the pattern key itself), array-wrapped
 // (the probe value is the descended element), and the assignment-host cascade
-export const viaMultiPropA = ((null == _globalThis.window ? void 0 : _self).Math, _Math$cbrt);
-export const viaMultiPropB = _Object$seal;
+export const {
+  Math: {
+    cbrt: viaMultiPropA
+  },
+  Object: {
+    seal: viaMultiPropB
+  }
+} = ({} = null == _globalThis.window ? void 0 : _self, {
+  Math: {
+    cbrt: _Math$cbrt
+  },
+  Object: {
+    seal: _Object$seal
+  }
+});
 export const viaFlatBareNav = ((null == _globalThis.window ? void 0 : _self).structuredClone, _structuredClone);
-export const viaArrayWrapped = ((null == _globalThis.window ? void 0 : _self).Math, _Math$hypot);
+export const [{
+  Math: {
+    hypot: viaArrayWrapped
+  }
+}] = [({} = null == _globalThis.window ? void 0 : _self, {
+  Math: {
+    hypot: _Math$hypot
+  }
+})];
 let viaAssignFull;
-viaAssignFull = ((null == _globalThis.window ? void 0 : _self).Math, _Math$sign);
+({
+  Math: {
+    sign: viaAssignFull
+  }
+} = ({} = null == _globalThis.window ? void 0 : _self, {
+  Math: {
+    sign: _Math$sign
+  }
+}));
 export { viaAssignFull };

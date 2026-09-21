@@ -1,6 +1,5 @@
-// A destructure off a nav INTO the built-in namespace whose root is a call the census resolves to a
-// realm: the discarded init keeps the call alone where it bears effects - its hops are dead reads,
-// and their fold printed a bare ponyfill read (`realm(), _Map;`) with an import for nothing.
+// A call supplying the realm keeps its effects while nested static and instance claims compose.
+// Pristine namespace hops need no independent value read after the call.
 function realm() { log.push('r'); return globalThis; }
 function quiet() { return globalThis; }
 export const { groupBy: fromCall } = realm().Map;
