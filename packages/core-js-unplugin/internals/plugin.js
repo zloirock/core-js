@@ -36,7 +36,7 @@ import {
   ctorAliasShapesReducer,
   proxyWriteOriginsReducer,
 } from '@core-js/polyfill-provider/helpers/class-walk';
-import { tagError } from '@core-js/polyfill-provider/helpers/error-tag';
+import { brand, tagError } from '@core-js/polyfill-provider/helpers/error-tag';
 import { isCoreJSFile, isDeclarationFile } from '@core-js/polyfill-provider/helpers/path-normalize';
 import {
   DISABLE_NEXT_LINE_DIRECTIVE,
@@ -339,10 +339,9 @@ function combineHeadAndBody(head, body) {
   return body ? `${ head }\n${ body }` : head;
 }
 
-// warn-path: bundler's `this.warn` hook receives the message standalone, so the `[core-js]`
-// prefix lives inline
+// warn-path: bundler's `this.warn` hook receives the message standalone, so the brand lives inline
 export function formatParseErrorForWarn({ id, error, code }) {
-  return combineHeadAndBody(`[core-js] could not parse ${ id }: ${ error.message }`, buildParseErrorBody(error, code));
+  return combineHeadAndBody(brand(`could not parse ${ id }: ${ error.message }`), buildParseErrorBody(error, code));
 }
 
 // throw-path: bundler-less callers rely on `runTransform`'s outer catch to stamp
@@ -417,13 +416,14 @@ export default function createPlugin(options) {
     },
   });
 
-  // upstream unplugin's framework union drifts - unknown values degrade to generic handling
-  // (`isWebpack = false`) instead of hard-crashing every transform
+  // the host names itself through upstream unplugin's `framework`, and that union is wider than
+  // the bundlers this package ships for: an unknown value degrades to generic handling
+  // (`isWebpack = false`) instead of hard-crashing every transform, and says so once
   const { bundler, ...providerOptions } = options;
   if (bundler !== undefined && bundler !== null && !KNOWN_BUNDLERS.has(bundler)) {
     const list = [...KNOWN_BUNDLERS].map(b => `'${ b }'`).join(', ');
     // eslint-disable-next-line no-console -- first-run diagnostic
-    console.warn(`[core-js] unknown \`bundler\` ${ JSON.stringify(bundler) } - falling back to generic handling (expected one of ${ list })`);
+    console.warn(brand(`unknown bundler ${ JSON.stringify(bundler) } - falling back to generic handling (supported: ${ list })`));
   }
 
   const snapshots = new SnapshotCache({ debug: !!providerOptions.debug });
@@ -840,6 +840,8 @@ export default function createPlugin(options) {
           ast.body = ast.body.filter(n => !removed.has(n) || kept.has(n));
         }
       }
+      // the one report of a `pre+post` file goes out at post, off a collector of its own: every note
+      // pre could make, post makes again from its own parse of pre's output
       debugOutput = createDebugOutput?.() ?? null;
       // the format owner's two reports, emitted once the debug sink exists. the babel leg says the
       // same words through the same channel: what the source SPELLS is one answer, and a user
@@ -861,6 +863,7 @@ export default function createPlugin(options) {
         getModulesForEntry,
         getDebugOutput() { return debugOutput; },
         injectGlobal: moduleName => injector.addGlobalImport(moduleName),
+        getEmitted: () => injector.emittedPolyfills(),
       });
 
       // resolve a bare global name (`Array`, `Promise`, `globalThis`) to its pure polyfill
@@ -874,7 +877,6 @@ export default function createPlugin(options) {
       }
 
       function injectPureImport(entry, hint) {
-        debugOutput?.add(entry);
         return injector.addPureImport(entry, hint);
       }
 
@@ -930,15 +932,18 @@ export default function createPlugin(options) {
       }
 
       // entry-global: the detection and disposition policy (`planEntries`) applied as body
-      // surgery and printed. the debug report emits once per file (single pass)
+      // surgery and printed. the debug report emits once per file (single pass), after the
+      // surgery, so it lists the module set that landed
       function runEntryGlobal() {
         const plan = planEntries(ast, { adapter: estreeAdapter, getCoreJSEntry, injectModulesForEntry, isDisabled });
-        if (plan.found) debugOutput?.markEntryFound();
-        outputDebug();
         // `found` mirrors babel's answer: a module-import input re-expands to itself -
         // this engine reprints like babel does, and the structural gate holds it to that
         // baseline rather than bailing to the untouched bytes
-        if (!plan.found) return null;
+        if (!plan.found) {
+          outputDebug();
+          return null;
+        }
+        debugOutput?.markEntryFound();
         applyEntryProgram({
           program: ast,
           plan,
@@ -947,6 +952,7 @@ export default function createPlugin(options) {
           pkg: injector.pkg,
           absoluteImports: injector.absoluteImports,
         });
+        outputDebug();
         return finalizeAst();
       }
 
@@ -1058,12 +1064,11 @@ export default function createPlugin(options) {
       // usage-global: the shared provider collection, the sweep's body
       // surgery already applied above, imports spliced in and printed. in `pre` the collection
       // rides the snapshot and the merged side-effect block lands ONCE in post (the
-      // deferImports rule) - pre prints only what the sweep / normalization already changed
+      // deferImports rule) - pre prints only what the sweep / normalization already changed.
+      // the report goes out from the pass that emits, once the imports are in: post carries
+      // pre's union, so a report from both passes would double-print every diagnostic
       function runUsageGlobal() {
         collectUsageGlobal();
-        // pre stores its work in the snapshot and the post pass carries the union - emitting
-        // the report from both passes would double-print every diagnostic (finalize's rule)
-        if (pass !== 'pre') outputDebug();
         const surgeryChanged = !!astSweptImports || astNormalized;
         if (pass === 'pre') {
           computeDirectiveAnchors();
@@ -1072,7 +1077,10 @@ export default function createPlugin(options) {
           if (!preChanged) return null;
           return finalizeAst();
         }
-        if (!injector.globalImports.size && !surgeryChanged) return null;
+        if (!injector.globalImports.size && !surgeryChanged) {
+          outputDebug();
+          return null;
+        }
         injectImportStatements({
           program: ast,
           modules: injector.globalImports,
@@ -1080,6 +1088,7 @@ export default function createPlugin(options) {
           pkg: injector.pkg,
           absoluteImports: injector.absoluteImports,
         });
+        outputDebug();
         return finalizeAst();
       }
       if (method === 'usage-global') return runUsageGlobal();
@@ -1306,8 +1315,6 @@ export default function createPlugin(options) {
         // a file that injected nothing prints as written: the wrapper splices are undone (the babel
         // leg's rule, kept here for the reprint a surgery alone still triggers)
         if (!injector.pureImports.size && !injector.globalImports.size) restoreUnclaimedFlattens(ast);
-        // pre stores its work in the snapshot and the post pass carries the union (finalize's rule)
-        if (pass !== 'pre') outputDebug();
         const collected = injector.pureImports.size || injector.globalImports.size || astRefNames.length;
         // the re-anchor is computed BEFORE the no-op bail: a file whose only core-js-relevant
         // content is the disabled claim still transforms, or the sibling lowering eats the
@@ -1315,7 +1322,9 @@ export default function createPlugin(options) {
         // re-claims the very read the user opted out
         if (pass === 'pre') computeDirectiveAnchors();
         if (!astRewrote && !collected && !astNormalized && !astSweptImports && !directiveAnchors) {
+          // pre stores its work in the snapshot and the post pass carries the union (finalize's rule)
           if (pass === 'pre') storeAstPreSnapshot(false);
+          else outputDebug();
           return null;
         }
         flushIntoProgram({
@@ -1325,6 +1334,9 @@ export default function createPlugin(options) {
           renameOnly: astRenameOnly,
           refOrder: astRefOrder,
         });
+        // after the flush pruned what nothing reads: the report lists the emission, and the post
+        // pass of a `pre+post` file lists pre's imports with it (the injector union it inherited)
+        if (pass !== 'pre') outputDebug();
         const out = finalizeAst();
         // usage-pure emits its imports inline in pre (the self-contained `deferImports`
         // rule above): the snapshot still carries the injector union, so post

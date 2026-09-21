@@ -5,7 +5,7 @@
 // `plugin-options/` cover the individual stages (validate / targets / debug-output);
 // `inject.js` and `usage-callback.js` are independently consumed by the host plugins
 import { isEmpty, validateOptions } from './validate.js';
-import { buildShouldInjectPolyfill, resolveTargets } from './targets.js';
+import { buildShouldInjectPolyfill, buildTargetsNeedPolyfill, resolveTargets } from './targets.js';
 import { createDebugOutputFactory } from './debug-output.js';
 
 export function initPluginOptions(options, { getBabelTargets } = {}) {
@@ -38,6 +38,7 @@ export function initPluginOptions(options, { getBabelTargets } = {}) {
     getBabelTargets,
   });
   const shouldInjectPolyfill = buildShouldInjectPolyfill({ include, exclude, parsedTargets, userCallback });
+  const targetsNeedPolyfill = buildTargetsNeedPolyfill(parsedTargets);
   const createDebugOutput = debug ? createDebugOutputFactory({ method: rest.method, parsedTargets }) : null;
   return {
     ...rest,
@@ -49,5 +50,6 @@ export function initPluginOptions(options, { getBabelTargets } = {}) {
     importStyle: isEmpty(importStyle) ? undefined : importStyle,
     include,
     shouldInjectPolyfill,
+    targetsNeedPolyfill,
   };
 }

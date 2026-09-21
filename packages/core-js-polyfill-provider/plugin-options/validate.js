@@ -2,6 +2,8 @@
 // defensive try/catch around foreign attribute reads keeps an adversarial Proxy
 // from masking the primary error with a secondary stringify/getter crash
 import { safeStringify, validatePatternList } from '../helpers/pattern-matching.js';
+import { canonicalisePackage } from '../helpers/path-normalize.js';
+import { brand } from '../helpers/error-tag.js';
 
 // accepts `Object.create(null)` alongside `Object.prototype`-backed objects.
 // throwing Proxy `getPrototypeOf` -> conservatively NOT plain (falls through to ctor-named path)
@@ -41,7 +43,7 @@ function formatReceived(value) {
 }
 
 function optionTypeError(name, expected, received) {
-  return new TypeError(`[core-js] \`${ name }\` must be ${ expected } (received ${ formatReceived(received) })`);
+  return new TypeError(brand(`\`${ name }\` must be ${ expected } (received ${ formatReceived(received) })`));
 }
 
 export const VALID_METHODS = new Set(['entry-global', 'usage-global', 'usage-pure']);
@@ -55,19 +57,20 @@ function expectOptional(name, type, value) {
   if (!isEmpty(value) && typeof value !== type) throw optionTypeError(name, `a ${ type }, null, or undefined`, value);
 }
 
-function expectEnum(name, set, value, { required = true } = {}) {
+// shared with `createPolyfillContext`, whose published surface re-asks the `mode` enum of a caller
+// that bypassed `validateOptions`
+export function expectEnum(name, set, value, { required = true } = {}) {
   if (required ? !set.has(value) : !isEmpty(value) && !set.has(value)) {
     throw optionTypeError(name, formatOptions(set), value);
   }
 }
 
-// pure-slash names (`/`, `///`) are collapsed to `''` by the package canonicaliser in
-// createPolyfillContext and would let any `/`-prefixed user import match a core-js entry
-const PURE_SLASH_RE = /^\/+$/;
-
+// a name the package canonicaliser collapses to `''` (`/`, `///`) would let any `/`-prefixed user
+// import match a core-js entry - rejected by asking the canonicaliser itself, so a new
+// canonicalisation rule cannot widen the set of names that reach `''` behind the validator's back
 function expectPackageName(label, value) {
   if (typeof value !== 'string') throw optionTypeError(label, 'a string', value);
-  if (value === '' || PURE_SLASH_RE.test(value)) {
+  if (value === '' || canonicalisePackage(value) === '') {
     throw optionTypeError(label, 'a non-empty, non-slash-only string', value);
   }
 }
@@ -111,7 +114,7 @@ export function validateOptions({
   // users a clearer error than the downstream `expectOptional` would
   const unknownKeys = Object.keys(unknown);
   if (unknownKeys.length) {
-    throw new TypeError(`[core-js] Unknown plugin option${ unknownKeys.length > 1 ? 's' : '' }: ${ unknownKeys.join(', ') }`);
+    throw new TypeError(brand(`Unknown plugin option${ unknownKeys.length > 1 ? 's' : '' }: ${ unknownKeys.join(', ') }`));
   }
   expectEnum('method', VALID_METHODS, method);
   expectEnum('mode', VALID_MODES, mode, { required: false });
@@ -135,7 +138,7 @@ export function validateOptions({
   validatePatternList('include', include);
   validatePatternList('exclude', exclude);
   if (typeof shouldInjectPolyfill === 'function' && (include?.length || exclude?.length)) {
-    throw new TypeError('[core-js] `include` and `exclude` are not supported when using `shouldInjectPolyfill`');
+    throw new TypeError(brand('`include` and `exclude` are not supported when using `shouldInjectPolyfill`'));
   }
   validatePackageShape(pkg, additionalPackages);
   // positive whitelist; non-string/non-object falls through to opaque `targetsParser` error.

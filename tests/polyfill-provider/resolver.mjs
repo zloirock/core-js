@@ -8,6 +8,7 @@ import {
   resolve,
 } from '../../packages/core-js-polyfill-provider/index.js';
 import { createPolyfillResolver } from '../../packages/core-js-polyfill-provider/resolver.js';
+import { initPluginOptions } from '../../packages/core-js-polyfill-provider/plugin-options/init.js';
 import { enrichMutatedStatics } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
 import { createChecker } from './harness.mjs';
 
@@ -226,9 +227,80 @@ throwsWith('createPolyfillContext/additionalPackages invalid entry',
   const ctx = createPolyfillContext({ method: 'usage-global', mode: 'actual' });
   checkTruthy('isEntryNeeded/known entry resolves to bool',
     typeof ctx.isEntryNeeded('promise/constructor') === 'boolean');
-  // empty entry === 'index'
-  checkTruthy('isEntryNeeded/empty resolves to bool',
-    typeof ctx.isEntryNeeded('') === 'boolean');
+  // the empty entry names no layer file, so it is needed nowhere
+  check('isEntryNeeded/empty entry is not needed', ctx.isEntryNeeded(''), false);
+}
+
+// an included entry is imported from the configured layer, so it has to exist there: a proposal the
+// `full` layer alone carries, included at the default `actual`, made both emitters import a file the
+// package does not ship. the verdict is the validator's, at construction, and names the mode
+throwsWith('createPolyfillContext/include of an entry outside the mode is refused',
+  () => createPolyfillContext({ method: 'usage-pure', mode: 'actual', include: ['iterator/range'] }),
+  "\"include\" entry paths are not available at mode: 'actual':\n    iterator/range");
+throwsWith('createPolyfillContext/exclude of an entry outside the mode is refused too',
+  () => createPolyfillContext({ method: 'usage-pure', mode: 'actual', exclude: ['iterator/range'] }),
+  "\"exclude\" entry paths are not available at mode: 'actual'");
+{
+  const ctx = createPolyfillContext({ method: 'usage-pure', mode: 'full', include: ['iterator/range'] });
+  check('createPolyfillContext/the same include at the layer that ships it is needed', ctx.isEntryNeeded('iterator/range'), true);
+  // the mode prefix and the instance segment are spelling, not identity: the include names the same entry
+  const spelled = createPolyfillContext({ method: 'usage-pure', mode: 'actual', include: ['actual/array/instance/at'] });
+  check('createPolyfillContext/an include spelled with mode and instance segment is accepted', spelled.isEntryNeeded('array/at'), true);
+}
+
+// the published surface re-asks the `mode` enum: a caller that never ran `initPluginOptions` gets the
+// validator's verdict, not a context that answers "no polyfill" to every entry of a layer that ships nothing
+throwsWith('createPolyfillContext/mode outside the enum is refused',
+  () => createPolyfillContext({ method: 'usage-global', mode: 'bogus' }),
+  "[core-js] `mode` must be one of 'es', 'stable', 'actual', 'full' (received \"bogus\")");
+
+// the helper entries (the emit canon of a `[Symbol.iterator]` read) are decided by the targets alone.
+// the entry-path form of `exclude` was already exempt; the module form reached the same helper through
+// its module list, emptied it, and flipped the canon to a raw static-symbol read on every target
+{
+  // through `initPluginOptions`: the module form of `exclude` lives in the fused predicate it
+  // builds, and the targets' own verdict travels beside it
+  function context(options) {
+    return createPolyfillContext(initPluginOptions({ version: '4.0', targets: { ie: 11 }, ...options }));
+  }
+  const helperModules = ['es.object.to-string', 'es.array.iterator', 'es.string.iterator', 'web.dom-collections.iterator'];
+  const excluded = context({ method: 'usage-pure', mode: 'actual', exclude: helperModules });
+  check('isEntryNeeded/control - the module exclude empties the helper module list',
+    excluded.getModulesForEntry('actual/get-iterator').length, 0);
+  check('isEntryNeeded/the helper survives a module-form exclude', excluded.isEntryNeeded('get-iterator'), true);
+  const callback = context({ method: 'usage-pure', mode: 'actual', shouldInjectPolyfill: () => false });
+  check('isEntryNeeded/the helper survives a user callback dropping every module', callback.isEntryNeeded('get-iterator'), true);
+  const entryExcluded = context({ method: 'usage-pure', mode: 'actual', exclude: ['get-iterator'] });
+  check('isEntryNeeded/the helper survives an entry-path exclude', entryExcluded.isEntryNeeded('get-iterator'), true);
+  // ... and only the targets may drop it: an engine that has every module natively
+  const modern = context({ method: 'usage-pure', mode: 'actual', targets: { chrome: 200 } });
+  check('isEntryNeeded/control - the modern engine needs none of the helper modules',
+    modern.getModulesForEntry('actual/get-iterator').length, 0);
+  check('isEntryNeeded/targets needing none of its modules drop the helper', modern.isEntryNeeded('get-iterator'), false);
+  // a filter may still ADD it beyond the targets: the entry-path include and the module include alike
+  check('isEntryNeeded/an entry-path include forces the helper beyond the targets',
+    context({ method: 'usage-pure', mode: 'actual', targets: { chrome: 200 }, include: ['get-iterator'] }).isEntryNeeded('get-iterator'), true);
+  check('isEntryNeeded/a module include forces the helper beyond the targets',
+    context({ method: 'usage-pure', mode: 'actual', targets: { chrome: 200 }, include: ['es.array.iterator'] }).isEntryNeeded('get-iterator'), true);
+  // an ordinary entry keeps the user filters: the same exclude drops it
+  check('isEntryNeeded/control - an ordinary entry still follows the module exclude',
+    context({ method: 'usage-pure', mode: 'actual', exclude: ['es.array.at'] }).isEntryNeeded('array/at'), false);
+}
+
+// the version autodetect reads the installed package, `core-js` or `@core-js/pure` - a usage-pure
+// project need not carry `core-js` at all
+{
+  const ctx = createPolyfillContext({ method: 'usage-pure' });
+  checkTruthy('createPolyfillContext/version autodetect resolves a layer', ctx.getModulesForEntry('actual/array/at').length > 0);
+}
+
+// a version the compat normaliser cannot use is a user-facing verdict on the `version` option and
+// leaves branded like every other option verdict, its cause kept: bare it read as a crash of ours
+for (const [version, reason] of [['4', 'minor component required'], ['3.0', 'works only with `core-js@4`']]) {
+  throwsWith(`createPolyfillContext/version ${ version } is refused with the brand`,
+    () => createPolyfillContext({ method: 'usage-global', version }), '[core-js] invalid `version` option: ');
+  throwsWith(`createPolyfillContext/version ${ version } keeps the normaliser's reason`,
+    () => createPolyfillContext({ method: 'usage-global', version }), reason);
 }
 
 // exclude wins over default
