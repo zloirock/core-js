@@ -8,7 +8,7 @@ Build-time only, ESM. Node `^22.18.0 || >=24.11.0`, plus Bun for its entry. Keep
 
 ## Entry points and layout
 
-Each public bundler has a `<bundler>.js` / `<bundler>.d.ts` pair re-exporting `index.js`. Adding one also requires checking `KNOWN_BUNDLERS`, `CHUNK_LOADER_BUNDLERS`, the Rollup/Rolldown hook branch and `PRE_POST_UNSAFE_BUNDLERS` (`pre+post` falls back to `post`). Keep upstream `unloader` recognized in the first two sets; it deliberately has no public entry.
+Each public bundler has a `<bundler>.js` / `<bundler>.d.ts` pair re-exporting `index.js`. Adding one also requires checking `KNOWN_BUNDLERS`, `CHUNK_LOADER_BUNDLERS`, the Rollup/Rolldown hook branch and `PRE_POST_UNSAFE_BUNDLERS` (`pre+post` falls back to `post`). `KNOWN_BUNDLERS` is exactly the public entries: a bundler upstream unplugin names but this package does not ship (`unloader`) belongs in no set, so it is reported as unknown rather than handled as a neighbour.
 
 `index.js` builds the adapters and filters module ids. SFC admission depends on `enforce`: source markup at `pre`, compiled JavaScript at `post`. Other language facts come from the provider's `moduleIdLanguage`; `sourceDialectOf` translates them for oxc. Parser and printer must use the same language.
 

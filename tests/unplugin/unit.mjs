@@ -30,12 +30,15 @@ import { printProgram } from '../../packages/core-js-unplugin/internals/print.js
 import { collapseWhitespace } from './collapse-whitespace.mjs';
 import { commentSignature } from './structural.mjs';
 import {
+  KNOWN_BUNDLERS,
   hasCoreJSImport,
   isCallee,
   isChunkLoaderBundler,
   skipDirectivePrologue,
   stripLeadingBOMs,
 } from '../../packages/core-js-unplugin/internals/plugin-helpers.js';
+import unpluginPackage from '../../packages/core-js-unplugin/package.json' with { type: 'json' };
+import { captureLogs, importedPolyfills, reportCount, reportedPolyfills } from '../polyfill-provider/debug-report.mjs';
 import { unwrapRuntimeExpr as unwrapNode, isTopLevelImportLike, walkAstNodes } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { liftSfcLangSuffix } from '../../packages/core-js-unplugin/internals/sfc-shapes.js';
 
@@ -76,6 +79,11 @@ function check(label, actual, expected) {
   }
   counts.failed++;
   echo`${ red('FAIL') } ${ cyan(label) } :: got ${ JSON.stringify(actual) }, want ${ JSON.stringify(expected) }`;
+}
+
+// structural equality for lists and plain records, through their JSON spelling
+function checkDeep(label, actual, expected) {
+  check(label, JSON.stringify(actual), JSON.stringify(expected));
 }
 
 // --- shouldTransform ---
@@ -2312,18 +2320,42 @@ function checkSnapshotPrePassTwiceWarn() {
 }
 checkSnapshotPrePassTwiceWarn();
 
-// --- bundler adapter named exports ---
-// supported bundlers per package.json description + exports map: 9 adapters with both
-// named export AND `./<name>` sub-entry. unloader is upstream-exposed but core-js does
-// not target it (no sub-entry, no docs, no test wiring) - intentionally not exported
-async function checkBundlerAdapterExports() {
+// --- bundler support is one set, spelled in three places ---
+// `KNOWN_BUNDLERS` is the support policy, and the public surface has to be exactly it: a named
+// export, a `./<name>` sub-entry in the exports map and the `<name>.js` / `<name>.d.ts` pair for
+// every member, none of them for anything else. `unloader` is the bundler upstream unplugin names
+// and this package does not support: it belongs in no internal set and on no public surface, so
+// an attempt to quietly handle it as a neighbour again (a set entry without an entry point) fails
+// here rather than surviving as a warning that lies about what is supported
+async function checkBundlerSupportSurface() {
   const exported = await import('../../packages/core-js-unplugin/index.js');
-  for (const name of ['vite', 'webpack', 'rollup', 'esbuild', 'rspack', 'rsbuild', 'rolldown', 'farm', 'bun']) {
-    check(`adapter export '${ name }' is callable`, typeof exported[name], 'function');
+  const subEntries = new Set(Object.keys(unpluginPackage.exports).filter(key => key !== '.').map(key => key.slice(2)));
+  const packageDir = path.resolve('../../packages/core-js-unplugin');
+  for (const name of KNOWN_BUNDLERS) {
+    check(`bundler support/'${ name }' has a named export`, typeof exported[name], 'function');
+    check(`bundler support/'${ name }' has a sub-entry`, subEntries.has(name), true);
+    check(`bundler support/'${ name }' ships its entry files`,
+      await fs.pathExists(path.join(packageDir, `${ name }.js`)) && await fs.pathExists(path.join(packageDir, `${ name }.d.ts`)), true);
   }
-  check('unloader: not exported (upstream-only, core-js does not target)', exported.unloader, undefined);
+  checkDeep('bundler support/the sub-entries are exactly the known bundlers', [...subEntries].sort(), [...KNOWN_BUNDLERS].sort());
+  check('bundler support/unloader is not a known bundler', KNOWN_BUNDLERS.has('unloader'), false);
+  check('bundler support/unloader is no chunk loader', isChunkLoaderBundler('unloader'), false);
+  check('bundler support/unloader is not exported', exported.unloader, undefined);
+  check('bundler support/unloader has no sub-entry', subEntries.has('unloader'), false);
+  check('bundler support/unloader ships no entry file', await fs.pathExists(path.join(packageDir, 'unloader.js')), false);
+  // and the diagnostic is honest about it: an unknown host, not a supported one
+  const captured = [];
+  const orig = console.warn;
+  console.warn = (...a) => captured.push(a.map(String).join(' '));
+  try {
+    createPlugin({ method: 'usage-global', bundler: 'unloader', targets: { ie: '11' } });
+  } finally {
+    console.warn = orig;
+  }
+  check('bundler support/unloader is reported as unknown', captured.length === 1 && captured[0].includes('unknown bundler "unloader"'), true);
+  check('bundler support/the supported list does not advertise it', captured[0]?.split('supported:', 2)[1]?.includes('unloader'), false);
 }
-await checkBundlerAdapterExports();
+await checkBundlerSupportSurface();
 
 // --- estree-compat nodeType mapper (adapter divergence: babel vs oxc) ---
 // `nodeType()` translates oxc's narrower node taxonomy back to babel's discriminator
@@ -2718,6 +2750,67 @@ function checkSnapshotPeek() {
 }
 checkSnapshotPeek();
 
+// --- the debug report prints the emission, once per file, across both passes ---
+// the report is read off the injector after the flush, so it lists what the output carries and
+// nothing else: for `pre+post` that is pre's imports (the injector union post inherits) together
+// with post's, printed once at post - a report of "did not add any polyfill" over a file pre
+// rewrote is the shape this locks out. an orphan post (no snapshot) and a single pass answer the
+// same. the readers are shared with the babel suite (`debug-report.mjs`), so one oracle serves both
+function transformWithReport(plugin, source, id, passes) {
+  let code = source;
+  const { logs } = captureLogs(() => {
+    for (const pass of passes) code = plugin.transform(code, id, pass)?.code ?? code;
+  });
+  return { code, logs };
+}
+const DEBUG_PASSES = [['single', ['single']], ['pre+post', ['pre', 'post']], ['orphan post', ['post']]];
+function checkDebugReportIsTheEmission() {
+  const pureSource = 'export const a = [1].at(0);\nexport const b = Array.from([]);\n';
+  for (const [label, passes] of DEBUG_PASSES) {
+    const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 }, debug: true });
+    const { code, logs } = transformWithReport(plugin, pureSource, `/src/debug-pure-${ label }.js`, passes);
+    check(`debug report/usage-pure ${ label }: one report`, reportCount(logs), 1);
+    checkDeep(`debug report/usage-pure ${ label }: lists exactly the emitted entries`, reportedPolyfills(logs), importedPolyfills(code));
+    check(`debug report/usage-pure ${ label }: the emission is non-empty`, importedPolyfills(code).length > 0, true);
+  }
+  // usage-global: the modules the usage pulled in; a core-js import the user wrote stays theirs -
+  // kept as written, it is no emission of ours and is not reported as one
+  const globalSource = "import 'core-js/actual/array/at';\nexport const p = Promise.resolve(1);\n";
+  for (const [label, passes] of DEBUG_PASSES) {
+    const plugin = createPlugin({ method: 'usage-global', version: '4.0', targets: { ie: 11 }, debug: true });
+    const { code, logs } = transformWithReport(plugin, globalSource, `/src/debug-global-${ label }.js`, passes);
+    check(`debug report/usage-global ${ label }: one report`, reportCount(logs), 1);
+    checkDeep(`debug report/usage-global ${ label }: lists exactly the emitted modules`, reportedPolyfills(logs), importedPolyfills(code));
+    check(`debug report/usage-global ${ label }: the emission is non-empty`, importedPolyfills(code).length > 0, true);
+    check(`debug report/usage-global ${ label }: the user's own import is kept and not reported`,
+      code.includes("'core-js/actual/array/at'") && !reportedPolyfills(logs).includes('es.array.at'), true);
+  }
+  // entry-global: the report goes out after the entry surgery and lists the modules that replaced
+  // the entry; a file without an entry says so instead of listing an empty emission
+  {
+    const plugin = createPlugin({ method: 'entry-global', version: '4.0', targets: { ie: 11 }, debug: true });
+    const { code, logs } = transformWithReport(plugin, "import 'core-js/actual/array/at';\nexport const p = [1].at(0);\n", '/src/debug-entry.js', ['single']);
+    check('debug report/entry-global: one report', reportCount(logs), 1);
+    checkDeep('debug report/entry-global: lists exactly the modules the entry became', reportedPolyfills(logs), importedPolyfills(code));
+    check('debug report/entry-global: the entry became modules', importedPolyfills(code).includes('es.array.at'), true);
+    const absent = transformWithReport(plugin, 'export const p = [1].at(0);\n', '/src/debug-no-entry.js', ['single']);
+    check('debug report/entry-global without an entry: one report', reportCount(absent.logs), 1);
+    check('debug report/entry-global without an entry: says so', reportedPolyfills(absent.logs), 'The entry point for the core-js@4 polyfill has not been found.');
+  }
+  // the one report of a `pre+post` file carries the notes of the file (the slot-deopt warning here):
+  // post derives them again from its own parse of pre's output, the same notes a single pass makes
+  const notedSource = 'globalThis.Map = shim;\nexport const g = Map.groupBy([1], x => x);\n';
+  const noted = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 }, debug: true });
+  const single = transformWithReport(noted, notedSource, '/src/debug-note-single.js', ['single']);
+  const twoPass = transformWithReport(noted, notedSource, '/src/debug-note-two.js', ['pre', 'post']);
+  function noteOf(logs) {
+    return logs.find(line => line.includes('DEBUG'))?.split('Warnings:', 2)[1]?.trim() ?? null;
+  }
+  check('debug report/control - the single pass notes the deopted slot', noteOf(single.logs) !== null, true);
+  check('debug report/the post report of a pre+post file carries the same notes as a single pass', noteOf(twoPass.logs), noteOf(single.logs));
+}
+checkDebugReportIsTheEmission();
+
 // --- collectMutatedStaticMembers ---
 // pre-pass scan that backs the usage-pure substitution gate. detects every shape of
 // `Object.key` mutation - direct `=`, compound `+=`, update `++`, `delete`, and
@@ -2824,7 +2917,8 @@ function checkChunkLoaderBundler() {
   check('chunk-loader/rspack', isChunkLoaderBundler('rspack'), true);
   check('chunk-loader/rsbuild', isChunkLoaderBundler('rsbuild'), true);
   check('chunk-loader/farm', isChunkLoaderBundler('farm'), true);
-  check('chunk-loader/unloader', isChunkLoaderBundler('unloader'), true);
+  // unsupported host (see the support surface check): in no set, so no chunk-loader contract
+  check('chunk-loader/unloader', isChunkLoaderBundler('unloader'), false);
   // roll-family / esbuild / native: dynamic import returns bare module Promise
   check('chunk-loader/rollup', isChunkLoaderBundler('rollup'), false);
   check('chunk-loader/rolldown', isChunkLoaderBundler('rolldown'), false);
@@ -3866,10 +3960,10 @@ function checkPrePostBundlerDowngrade() {
     }
     // membership = EVERY known adapter minus the unsafe pair - a newly added safe bundler
     // must keep both stages by default, and the stages must run pre-THEN-post (the enforce
-    // pair is the ordering contract the downgrade exists to protect)
-    const KNOWN_BUNDLERS = ['vite', 'webpack', 'rollup', 'esbuild', 'rspack', 'rsbuild', 'rolldown', 'farm', 'bun'];
+    // pair is the ordering contract the downgrade exists to protect). read off the package's
+    // own set, so a member added there is covered here without a second list to update
     const PRE_POST_UNSAFE = new Set(['bun', 'esbuild']);
-    const keepBothBundlers = KNOWN_BUNDLERS.filter(name => !PRE_POST_UNSAFE.has(name));
+    const keepBothBundlers = [...KNOWN_BUNDLERS].filter(name => !PRE_POST_UNSAFE.has(name));
     for (const fw of keepBothBundlers) {
       const subs = unplugin.raw({ ...opts }, { framework: fw });
       check(`phase pre+post keeps both stages on ${ fw }`, subs.length, 2);

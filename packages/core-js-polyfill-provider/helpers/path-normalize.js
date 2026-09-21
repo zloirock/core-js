@@ -58,6 +58,20 @@ export function lookupEntryModules(pattern) {
   return null;
 }
 
+// the package name as entry detection and import emission spell it: interior `//` runs collapsed
+// and trailing slashes dropped. `getCoreJSEntry` joins via `${ pkg }/`, so `'my-core-js/'` would
+// yield `'my-core-js//foo'` and miss every entry; `normalizeImportPath` canonicalises sources with
+// slash-collapse, so `'my//core-js'` would never match its own normalised imports; and the injector
+// joins the same way, so `'@core-js/pure///'` would print `'@core-js/pure///actual/array/from'`.
+// a name made of slashes alone collapses to `''`, and the option validator rejects exactly that
+// null-space by asking this function rather than a second spelling of the rule
+export function canonicalisePackage(name) {
+  const collapsed = name.replaceAll(/\/{2,}/g, '/');
+  let end = collapsed.length;
+  while (end > 0 && collapsed[end - 1] === '/') end--;
+  return end === collapsed.length ? collapsed : collapsed.slice(0, end);
+}
+
 // `import.meta.resolve` is a pure function of the specifier for the whole process life (the
 // resolver reads the on-disk package layout, which a build does not mutate), yet it was hit once
 // per emitted import per file. cached by specifier - the key space is the polyfill entry set.
