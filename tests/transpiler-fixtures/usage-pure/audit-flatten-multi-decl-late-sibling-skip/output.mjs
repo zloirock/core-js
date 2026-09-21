@@ -5,6 +5,14 @@ import _Set from "@core-js/pure/actual/set";
 // VariableDeclaration overwrite - the inner edit now sits inside the outer edit range.
 // If the two are not composed, either the inner substitution silently disappears (runtime
 // ReferenceError against unpolyfilled `Set`) or the bundler aborts on overlapping edits.
-const sib = _Set;
-const from = _Array$from;
+const sib = _Set,
+  {
+    Array: {
+      from
+    }
+  } = {
+    Array: {
+      from: _Array$from
+    }
+  };
 console.log(sib, from);

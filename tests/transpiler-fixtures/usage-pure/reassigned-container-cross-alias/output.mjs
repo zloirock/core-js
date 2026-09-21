@@ -9,4 +9,12 @@ let second = {
 };
 first = second;
 second = first;
-const raw = _String$raw;
+const {
+  x: {
+    raw
+  }
+} = {
+  x: {
+    raw: _String$raw
+  }
+};

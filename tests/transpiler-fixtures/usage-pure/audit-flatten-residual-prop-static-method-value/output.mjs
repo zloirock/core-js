@@ -5,9 +5,16 @@ import _Object$getOwnPropertyNames from "@core-js/pure/actual/object/get-own-pro
 // call. the flatten extracts `from = _Array$from`; the residual `names` default
 // `Object.getOwnPropertyNames({})` must still resolve to `_Object$getOwnPropertyNames`
 // in place (a static call has no receiver memo, unlike the instance-call shape)
-var from = _Array$from;
 var {
+  Array: {
+    from
+  },
   names = _Object$getOwnPropertyNames({})
-} = _globalThis;
+} = {
+  Array: {
+    from: _Array$from
+  },
+  names: _globalThis.names
+};
 from([4]);
 names;

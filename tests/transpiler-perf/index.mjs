@@ -168,6 +168,13 @@ function syntheticNamespaceParameterReads(sites) {
   return `function read(ns) { ${ 'ns.ownKeys({});'.repeat(sites) } } ${ 'read(Reflect);'.repeat(sites) }`;
 }
 
+// Every store must find its own data slot without rescanning the wide returned literal.
+function syntheticReturnedContainerWrites(slots) {
+  const keys = Array.from({ length: slots }, (_, index) => `k${ index }`);
+  return `function install(box) { ${ keys.map(key => `box.${ key } = Map;`).join('') } return box; }
+    install({ ${ keys.map(key => `${ key }: Object`).join(',') } }).k0.groupBy([1], x => x);`;
+}
+
 // an opt-out directive per statement on a long top level: the directive scan spans each `-next-line`
 // over the statement it covers, and a scan that re-reads the whole top level per directive is
 // quadratic in (directives x statements) - the esrap leg pays it again in the channel that re-anchors
@@ -181,8 +188,7 @@ function syntheticDirectiveDense(optOuts) {
 // the mutation census pairs a call's arguments with the parameters they land in, keyed by NAME -
 // so every function sharing a parameter name shares one fan, and a write through that parameter
 // walks the whole accumulated fan. real code shares those names constantly (`t`, `e`, `v`), which
-// makes this the one shape where the pre-pass, not the resolver, is the quadratic risk; no other
-// case here writes through a parameter at all. the fan is closed once per NAME rather than once per
+// makes the pre-pass, not the resolver, the quadratic risk. The fan is closed once per NAME rather than once per
 // write, so what is left grows with the fan's own length - this case is the discriminator for that
 // memo, and it is the shape that says so first
 function syntheticSharedParamWrites(installers) {
@@ -311,6 +317,9 @@ const CASES = [
     'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 1 },
   } },
   { name: 'synthetic shared-param writes, 1200 installers', source: () => syntheticSharedParamWrites(1200), bounds: {
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
+  } },
+  { name: 'synthetic returned container writes, 3000 slots', source: () => syntheticReturnedContainerWrites(3000), bounds: {
     'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
   } },
   { name: 'synthetic namesake writes, 4000 functions', source: () => syntheticNamesakeWrites(4000), bounds: {

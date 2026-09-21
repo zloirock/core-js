@@ -61,7 +61,11 @@ const {
   window: extractedNested
 } = _globalThis;
 export const destructuredNested = null == extractedNested ? void 0 : _Object$fromEntries([['d', 4]]);
-const fromArray = _self;
+const [{
+  self: fromArray
+}] = [{
+  self: _self
+}];
 export const destructuredThroughArray = _Promise$resolve(1);
 const withDefault = _self;
 export const destructuredWithDefault = _Promise$allSettled([]);

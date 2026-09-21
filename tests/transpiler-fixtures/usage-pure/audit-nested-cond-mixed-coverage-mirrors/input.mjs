@@ -10,7 +10,6 @@ export { of, isArray };
 const { Array: { isArray: alone } } = useGlobal ? globalThis : userObj;
 export { alone };
 
-// NEGATIVE: a wks-key sibling still declines the nested mirror on both legs - the raw
-// key-swap keeps parity (the wks admission is a joint follow-up)
+// A symbol slot passes through beside the mirrored static; the foreign branch stays native.
 const { Array: { from: mixedFrom, [Symbol.iterator]: mixedIt } } = useGlobal ? globalThis : userObj;
 export { mixedFrom, mixedIt };

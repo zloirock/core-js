@@ -1468,22 +1468,18 @@ testUnlessDetectLowered('proxy-hop: SE-prefixed init folds the self hop and repl
   assert.same(typeof gop18, 'function');
   const M18 = m18;
   assert.same(new M18([[1, 2]]).get(1), 2);
-  // Rest keeps the original constructor lookup; an absent constructor throws.
+  // Rest keeps a present constructor; an absent one takes its ponyfill before coercion.
   let fv19, rv19, ov19;
   let failure;
   try {
     // eslint-disable-next-line @stylistic/no-extra-parens -- the buried assignment host is the form under test
     for (const { defineProperty: dp19 } = (({ Promise: { allSettled: fv19, ...rv19 } } = globalThis), Object); !ov19;) ov19 = dp19;
   } catch (error) { failure = error; }
-  const nativePromise = Object.getOwnPropertyDescriptor(globalThis, 'Promise')?.value;
-  if (typeof E2E_POST_LOWERED !== 'undefined' || nativePromise) {
-    assert.same(failure, undefined);
-    assert.same(typeof ov19, 'function');
-    assert.same(typeof fv19, typeof E2E_POST_LOWERED !== 'undefined' ? 'function' : typeof Object.getOwnPropertyDescriptor(nativePromise, 'allSettled')?.value);
-    assert.same(typeof rv19, 'object');
-  } else {
-    assert.same(failure?.name, 'TypeError');
-  }
+  assert.same(failure, undefined);
+  assert.same(typeof ov19, 'function');
+  assert.same(typeof fv19, 'function');
+  assert.same(typeof rv19, 'object');
+  assert.false(Object.hasOwn(rv19, 'allSettled'));
 });
 
 QUnit.test('lagged alias binding: sibling redeclarations and for-of head write', assert => {
@@ -2697,13 +2693,11 @@ testUnlessDetectLowered('global-proxy: destructure off the bare probe keeps the 
     flat = 'threw';
   }
   assert.same(flat, hasWindow ? 'function' : 'threw');
-  // the ctor slot beside the REST stays the host's own (the rest-bearing level keeps its reads
-  // native); the post-lowered legs re-read the lowered member and answer the ponyfill instead
-  const hostArrayOf = typeof E2E_POST_LOWERED !== 'undefined' ? Array.of : Object.getOwnPropertyDescriptor(Array, 'of')?.value;
+  // The static below the rest-bearing level is polyfilled on the present probe branch.
   let withRest;
   try {
     const { Array: { of: ofX }, ...others } = globalThis.window;
-    withRest = `${ ofX === hostArrayOf }:${ typeof others }`;
+    withRest = `${ ofX(1)[0] === 1 }:${ typeof others }`;
   } catch {
     withRest = 'threw';
   }

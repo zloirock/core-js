@@ -4,5 +4,4 @@ import _Map from "@core-js/pure/actual/map/constructor";
 // Capture the literal once, keep the computed-key effect in place, and dispatch the instance method
 // from that captured value; the constructor member still rewrites to `_Map`.
 const _ref = [1, _Map],
-  _ref2 = _ref,
-  m = null == _ref2 ? _ref2[""] : (eff(), _flatMaybeArray(_ref2));
+  m = null == _ref ? _ref[""] : (eff(), _flatMaybeArray(_ref));

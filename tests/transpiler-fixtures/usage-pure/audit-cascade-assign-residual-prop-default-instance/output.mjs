@@ -8,8 +8,15 @@ var _ref;
 // skip used to blanket-suppress the whole pattern, dropping the `_includesMaybeArray` rewrite)
 let from, other;
 ({
+  Array: {
+    from
+  },
   other = _includesMaybeArray(_ref = [7]).call(_ref, 8)
-} = _globalThis);
-from = _Array$from;
+} = {
+  Array: {
+    from: _Array$from
+  },
+  other: _globalThis.other
+});
 from([9]);
 other;

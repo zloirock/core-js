@@ -1,15 +1,9 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
-// A receiver-bearing INNER default (`[{ from } = Array]`, `{ k: { from } = Array }`) names the arm the
-// outer slot leaves open, and the live arm is whatever the slot holds. Where the host spells the live
-// receiver - the iterated elements of a for-x head, an IIFE argument, a literal init - the shared plan
-// mirrors both arms: every defined element in place, and the default itself for the passes whose slot
-// provably holds `undefined` (absent key, hole, a key spelled `undefined`). A slot nothing proves (a call) keeps its
-// native read and only the default is swapped, so a user object arriving there survives; a slot that
-// proves a value (a binding holding the user's literal) never fires the default, which stays as
-// written; a slot the pairing proves `undefined` still takes the declaration rename. Both legs read
-// one plan.
+// An inner receiver default serves only an undefined source slot.
+// Known live slots are mirrored where safe; unknown or foreign slots keep native reads.
+// Calls, loop elements, array wrappers and nested properties share that boundary.
 const out = [];
 const pick = () => ({
   from: () => [7]
@@ -84,7 +78,17 @@ const [{
 } = {
   from: _Array$from
 }, count] = [pick(), 1];
-const keyedFrom = _Array$from;
+const {
+  k: {
+    from: keyedFrom
+  } = {
+    from: _Array$from
+  }
+} = {
+  k: {
+    from: _Array$from
+  }
+};
 const {
   k: {
     from: keyedAbsent

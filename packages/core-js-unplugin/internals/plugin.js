@@ -391,6 +391,7 @@ export default function createPlugin(options) {
     // a monkey-patched static no longer returns its known type - drop the static-call return narrow
     // to generic so a patched `Array.from(x).at(0)` isn't type-locked to `_atMaybeArray`
     isMutatedStatic: (object, key) => estreeAdapter.isMutatedStaticSlot(object, key),
+    isWrittenContainerSlot: (...args) => estreeAdapter.isWrittenContainerSlot(...args),
     // estree-toolkit OVER-HOISTS `namespace N { export var x }` bindings to the enclosing
     // program / function scope - a raw lookup surfaced the namespace twin for a use OUTSIDE
     // the block and narrowed the outer binding to the WRONG flavor. position-aware (the
@@ -1106,9 +1107,10 @@ export default function createPlugin(options) {
         // PARAMS skips its function (the param scope cannot see body vars)
         // the canonical single-statement slots MINUS `LabeledStatement`: a label names the
         // statement it wraps, so a block minted in that slot would sit INSIDE the label and a
-        // `continue` past the memo would re-enter it - the ref belongs outside the label
+        // `continue` past the memo would re-enter it - the ref belongs outside the label.
+        // An unbraced if creates no Babel scope either; its refs use the enclosing scope.
         const BODYLESS_HOST_SLOTS = new Map([...SINGLE_STATEMENT_SLOTS]
-          .filter(([type]) => type !== 'LabeledStatement'));
+          .filter(([type]) => type !== 'LabeledStatement' && type !== 'IfStatement'));
         function refHostOf(metaPath) {
           for (let from = metaPath, cur = metaPath.parentPath; cur; from = cur, cur = cur.parentPath) {
             const { type } = cur.node ?? {};

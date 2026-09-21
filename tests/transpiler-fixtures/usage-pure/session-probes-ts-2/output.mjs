@@ -45,9 +45,9 @@ function mark(t, v) {
 {
   for (const [{
     from
-  }] of [[{
+  }] of [[...([{
     from: _Array$from
-  }]]) from;
+  }] as any)]]) from;
 }
 {
   for (const {

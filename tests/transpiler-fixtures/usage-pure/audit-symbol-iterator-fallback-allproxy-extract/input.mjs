@@ -1,5 +1,5 @@
-// Object-rest keeps the affected method slots native; computed symbol keys still polyfill.
-// Independent reads and key/default expressions still receive their own polyfills.
+// Static and symbol-iterator claims share the same selected realm.
+// Each keeps its own pure value and any rest exclusions.
 const { [Symbol.iterator]: it, ...r } = c ? globalThis : self;
 it;
 r;

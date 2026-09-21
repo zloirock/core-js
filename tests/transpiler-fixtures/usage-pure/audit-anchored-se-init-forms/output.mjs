@@ -39,11 +39,27 @@ const {
 } = (eff(), _Set);
 // chain-assignment + full consume - the assignment rides the extraction prefix
 let w;
-const groupBy = (w = _globalThis, _Map$groupBy); // mixed extraction + residual - the prefix runs exactly once (lift, not lift + replay)
-const tryFn = _Promise$try;
 const {
-  customP
-} = (eff(), _Promise);
+  Map: {
+    groupBy
+  }
+} = (w = _globalThis, {
+  Map: {
+    groupBy: _Map$groupBy
+  }
+});
+// mixed extraction + residual - the prefix runs exactly once (lift, not lift + replay)
+const {
+  Promise: {
+    try: tryFn,
+    customP
+  }
+} = (eff(), {
+  Promise: {
+    try: _Promise$try,
+    customP: _Promise.customP
+  }
+});
 // negative: a ternary-branch effect keeps the nested handling (branch may not be taken)
 const {
   Iterator: {
@@ -77,9 +93,17 @@ for (const _ref = ({
 // for-init FULL-consume host whose receiver is a proxy global (the flatten-route sink):
 // the buried host folds before the sink assembly captures it
 let customY2, outFC;
-for (const _unused = ({
-    onlanguagechange: customY2
-  } = _globalThis, _globalThis), g2 = _Map$groupBy; !outFC;) outFC = g2;
+for (const {
+  Map: {
+    groupBy: g2
+  }
+} = ({
+  onlanguagechange: customY2
+} = _globalThis, {
+  Map: {
+    groupBy: _Map$groupBy
+  }
+}); !outFC;) outFC = g2;
 // recursion boundary: a host buried in the prefix an ANCHORED RESIDUAL itself replays
 // stays verbatim (root substituted, effect once) - replayed slices are not re-folded
 let customFR, outFR;
@@ -148,10 +172,18 @@ const {
   customML
 } = (eff(), _globalThis.RegExp);
 // FULL-consume multi-declarator: the split machinery keeps the lifted effect between siblings
-const sC = sideA();
-eff();
-const fe = _Object$fromEntries;
-const sD = sideB(); // bodyless-if var host keeps the inline replay in the bodyless slot (effect stays conditional)
+const sC = sideA(),
+  {
+    Object: {
+      fromEntries: fe
+    }
+  } = (eff(), {
+    Object: {
+      fromEntries: _Object$fromEntries
+    }
+  }),
+  sD = sideB();
+// bodyless-if var host keeps the inline replay in the bodyless slot (effect stays conditional)
 if (cond) var {
   oncut: bod
 } = (eff(), _globalThis);

@@ -23,7 +23,15 @@ export function bothArmsDestructure(flag) {
   } else {
     var H = _self;
   }
-  const entries = _Object$entries;
+  const {
+    Object: {
+      entries
+    }
+  } = {
+    Object: {
+      entries: _Object$entries
+    }
+  };
   return entries({
     a: 1
   });

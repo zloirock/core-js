@@ -1,6 +1,6 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
-var _ref;
+var _ref, _ref2;
 // a receiver that carries a CLAIM OF ITS OWN: the extraction spells that receiver, so the spelling
 // has to be read LIVE - a copy captured when the job registered predates the inner step's own
 // rewrite and ships the source read with its polyfill lost. every host that spells a receiver owes
@@ -20,12 +20,8 @@ viaStatement = _atMaybeArray(_flatMaybeArray(arr).call(arr));
 const viaDefaultedLeaf = (_ref = _atMaybeArray(_flatMaybeArray(arr).call(arr))) === void 0 ? null : _ref; // ... and a BODYLESS slot hosts the multi-prop consume the statement slot does: its drain opens a
 // block, and the memo, the extraction and the residual all go in there
 let viaBodylessMulti, viaBodylessMultiLen;
-if (1) {
-  const _ref2 = _flatMaybeArray(arr).call(arr);
-  viaBodylessMulti = _atMaybeArray(_ref2);
-  ({
-    length: viaBodylessMultiLen
-  } = _ref2);
-}
+if (1) _ref2 = _flatMaybeArray(arr).call(arr), viaBodylessMulti = _atMaybeArray(_ref2), {
+  length: viaBodylessMultiLen
+} = _ref2, _ref2;
 export { viaBodylessIf, viaDoWhile, viaForInit, viaWrapAssign, viaDeclarator, viaStatement, out };
 export { viaDefaultedLeaf, viaBodylessMulti, viaBodylessMultiLen };

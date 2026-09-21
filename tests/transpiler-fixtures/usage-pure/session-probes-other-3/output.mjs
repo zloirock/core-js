@@ -132,7 +132,15 @@ function mark(t, v) {
   const _r = {
     w: Object
   };
-  let keys = _Object$keys;
+  let {
+    w: {
+      keys
+    }
+  } = {
+    w: {
+      keys: _Object$keys
+    }
+  };
   keys;
 }
 {
@@ -200,7 +208,15 @@ function mark(t, v) {
 }
 {
   const k = 'Map';
-  const m = _Map;
+  const {
+    w: {
+      [k]: m
+    }
+  } = {
+    w: {
+      Map: _Map
+    }
+  };
   use(m);
 }
 {
@@ -225,17 +241,46 @@ function mark(t, v) {
 }
 {
   const k = 'w';
-  const m = _Array$of;
+  const {
+    [k]: {
+      Array: {
+        of: m
+      }
+    }
+  } = {
+    w: {
+      Array: {
+        of: _Array$of
+      }
+    }
+  };
   use(m);
 }
 {
   const k = 'w';
-  const m = _Map;
+  const {
+    [k]: {
+      Map: m
+    }
+  } = {
+    w: {
+      Map: _Map
+    }
+  };
   use(m);
 }
 {
   const k = 'w';
-  const m = _Map;
+  const {
+    [k]: {
+      Map: m
+    }
+  } = {
+    w: {
+      Map: _Map
+    },
+    z: other
+  };
   use(m);
 }
 {

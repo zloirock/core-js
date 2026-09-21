@@ -264,11 +264,10 @@ export default function createSynthSwapEmitter({
     } else markSynthReceiverSkipped(receiver, skippedNodes);
     let pending = synthSwapByReceiver.get(receiver);
     if (!pending) {
-      // capture the ObjectPattern NODE (not path) for the same node-identity reason -
-      // we don't need the live path; the captured key set is final at registration
-      // time and apply() emits synth properties from the captured properties array
+      // Keep the registered keys when a sibling extraction removes its pattern property.
+      // The mirror still supplies that receiver read to the extracted instance dispatcher.
       pending = {
-        objectPatternNode: objectPatternPath.node,
+        objectPatternNode: { ...objectPatternPath.node, properties: [...objectPatternPath.node.properties] },
         polyfills: new Map(),
         callBranch,
         rescueSe,

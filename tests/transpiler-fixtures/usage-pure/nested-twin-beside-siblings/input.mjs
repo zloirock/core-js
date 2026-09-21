@@ -1,5 +1,3 @@
-// Object-rest keeps named slots at that level and reads through it native in usage-pure.
-// Independent reads and key/default expressions still receive their own polyfills.
 // Nested leaves retain unrelated siblings at every enclosing level.
 // User-object getters and defaults keep their source order; pristine built-in reads
 // follow the built-in-read contract across declarations and control-flow hosts.

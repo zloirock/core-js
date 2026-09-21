@@ -17,21 +17,61 @@ import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 // identifier, so the sibling receiver substitution must stand down instead of landing a
 // competing rewrite inside that overwrite
 let c = 0;
-const f2 = _Array$from;
-const g2 = (c++, _Map$groupBy);
+const {
+    Array: {
+      from: f2
+    }
+  } = {
+    Array: {
+      from: _Array$from
+    }
+  },
+  g2 = (c++, _Map$groupBy);
 export const r = [typeof f2, typeof g2, c];
 const k2 = 'Set';
-const o2 = _Array$of;
-const S2 = _Set;
+const {
+    Array: {
+      of: o2
+    }
+  } = {
+    Array: {
+      of: _Array$of
+    }
+  },
+  S2 = _Set;
 export const s = [typeof o2, typeof S2];
-const en = _Object$entries;
-const P2 = _Promise;
+const {
+    Object: {
+      entries: en
+    }
+  } = {
+    Object: {
+      entries: _Object$entries
+    }
+  },
+  P2 = _Promise;
 export const p = [typeof en, typeof _Promise$resolve];
 const part = 'bol';
-const va = _Object$values;
-const Y2 = _Symbol;
+const {
+    Object: {
+      values: va
+    }
+  } = {
+    Object: {
+      values: _Object$values
+    }
+  },
+  Y2 = _Symbol;
 export const y = [typeof va, typeof _Symbol$iterator];
 let d = 0;
-const as = _Object$assign;
-const fe = (d++, _Object$fromEntries);
+const {
+    Object: {
+      assign: as
+    }
+  } = {
+    Object: {
+      assign: _Object$assign
+    }
+  },
+  fe = (d++, _Object$fromEntries);
 export const f = [typeof as, typeof fe, d];

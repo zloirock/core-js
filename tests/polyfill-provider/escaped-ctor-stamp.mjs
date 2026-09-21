@@ -275,6 +275,32 @@ for (const adapter of adapters) {
 // escape spells while handing out a binding of the file's own. `plugins` extends the babel parser
 // where a spelling needs it; oxc keys the same grammar off the `.ts` name the harness parses under
 const NAME_ROWS = [
+  ...[
+    ['getter rest source', 'const source = { get p() { effect(); return Promise; } }; const { p: { all, ...rest } } = source;'],
+    ['default rest source', 'function f({ all, ...rest } = Promise) {} f();'],
+    ['direct rest source', 'const { all, ...rest } = Promise;'],
+    ['nested rest source', 'const { Promise: { all, ...rest } } = globalThis;'],
+    ['computed proxy rest source', 'function f({ all, ...rest } = globalThis[(effect(), "self")].Promise) {} f();'],
+    ['both rest levels', 'let all, inner, outer; ({ Promise: { all, ...inner }, ...outer } = globalThis);'],
+    ['captured rest source', 'const source = Promise; const { all, ...rest } = source;'],
+    ['wrapped rest source', 'const [{ all, ...rest }] = [Promise];'],
+  ].map(([name, code]) => ({ name, code, realm: ['Promise'], mintedToo: ['Promise'], withContainerCensus: true })),
+  {
+    name: 'rest on a global-only constructor requires only the global family',
+    code: 'const { isView, ...rest } = ArrayBuffer;',
+    globalOnly: ['ArrayBuffer'], withContainerCensus: true,
+  },
+  {
+    name: 'a local constructor namesake cannot require a constructor rest family',
+    code: 'const Promise = {}; const { all, ...rest } = Promise;',
+    homeOnly: ['Promise'], withContainerCensus: true,
+  },
+  {
+    name: 'a shadowed realm cannot require a constructor rest family',
+    code: 'const globalThis = { Promise: {} }; const { Promise: { all, ...rest } } = globalThis;',
+    homeOnly: ['Promise'], withContainerCensus: true,
+  },
+
   // Return count does not decide escape. The consumer of the function or its result does.
   ...[
     ['arrow IIFE static', 'export const value = (() => { if (flag) return Array; return custom; })().of(3);'],
@@ -319,14 +345,16 @@ const NAME_ROWS = [
       + ' const value = inner(); function outer() { return value; } outer().all([]);'],
     ['method loop return', 'const box = { pick() { while (flag) return Promise; return custom; } }; box.pick().all([]);'],
     ['unknown member', '(() => { if (flag) return Promise; return custom; })()[key];'],
-  ].map(([name, code]) => ({ name: `unresolved local static still needs its namespace: ${ name }`, code,
-    realm: ['Promise'], mintedToo: ['Promise'], withContainerCensus: true })),
+  ].map(([name, code]) => ({ name: `unresolved local receiver: ${ name }`, code,
+    ...name === 'unknown member' ? { realm: ['Promise'], mintedToo: ['Promise'] } : { heldInSlot: ['Promise'] },
+    withContainerCensus: true })),
   ...[
     ['static comparison', 'Object.is(Map, Map);'],
     ['static enumeration', 'Object.keys(Map);'],
+    ['static enumeration through apply', 'Object.keys.apply(null, [Map]);'],
+    ['static enumeration through Reflect.apply', 'Reflect.apply(Object.keys, null, [Map]);'],
     ['bare conversion', 'String(Map);'],
     ['constructor argument', 'new Set([Map]);'],
-    ['native invoker', 'Reflect.apply(fn, null, [Map]);'],
     ['callback argument', 'JSON.stringify(Map, callback);'],
     ['spread arguments', 'Object.is(...args, Map);'],
     ['static alias', 'const compare = Object.is; compare(Map, Map);'],
@@ -354,6 +382,8 @@ const NAME_ROWS = [
   },
   ...[
     ['unknown function', 'unknown(Map);'],
+    ['unknown function through apply', 'unknown.apply(null, [Map]);'],
+    ['undecidable invoker argument list', 'Object.keys.apply(null, [...args, Map]);'],
     ['unknown member', 'unknown.keys(Map);'],
     ['unknown realm member', 'globalThis.unknown(Map);'],
     ['shadowed namespace', 'function read(Object) { Object.keys(Map); } read(unknown);'],
@@ -812,9 +842,10 @@ const NAME_ROWS = [
     local: [],
   },
   {
-    name: '... a REST element takes every own property in one binding',
+    name: '... constructor rest requires the full family despite non-enumerable statics',
     code: 'use((({ groupBy, ...rest }) => rest)(Map));',
     realm: ['Map'],
+    mintedToo: ['Map'],
     local: [],
   },
   {
@@ -888,10 +919,9 @@ const NAME_ROWS = [
     withContainerCensus: true,
   },
   {
-    name: 'a selected static does not cover a different supplied constructor',
+    name: 'a missing selected static does not expose the supplied constructor',
     code: 'function f({ from }) { return from; } f(Array); f(Set);',
-    heldInSlot: ['Array'],
-    realm: ['Set'],
+    heldInSlot: ['Array', 'Set'],
     withContainerCensus: true,
   },
   {
@@ -940,9 +970,9 @@ const NAME_ROWS = [
     withContainerCensus: true,
   },
   {
-    name: 'rest exposes properties beyond the selected static',
+    name: 'rest on a namespace without a constructor entry keeps its global reads narrow',
     code: 'function f({ from, ...rest }) { return rest; } use(f(Array)); f({});',
-    realm: ['Array'],
+    heldInSlot: ['Array'],
     withContainerCensus: true,
   },
   {
@@ -964,7 +994,7 @@ const NAME_ROWS = [
     withContainerCensus: true,
   },
   {
-    name: 'an IIFE returning a spread-shifted wrapper cannot prove the supplied receiver',
+    name: 'a spread-shifted wrapper leaves its selected receiver unaccounted for',
     code: 'function f([, { from }]) { return from; } f((() => [...values, Array])());',
     realm: ['Array'],
     withContainerCensus: true,
@@ -982,11 +1012,16 @@ const NAME_ROWS = [
     withContainerCensus: true,
   },
   {
-    name: 'an inline member read beside a yielded slot keeps both argument obligations',
+    name: 'an inline member read beside a yielded slot narrows the global obligation to its keys',
     code: 'const box = ((M, S) => ({ first: M, from: S.from }))(Map, Set); use(box.first.groupBy);',
-    realm: ['Map', 'Set'],
-    mintedToo: ['Map', 'Set'],
+    homeOnly: ['Map'],
+    heldInSlot: ['Set'],
     withContainerCensus: true,
+  },
+  {
+    name: 'a native invoker hands the argument to the function it invokes',
+    code: 'Reflect.apply(fn, null, [Map]);',
+    realm: ['Map'], mintedToo: ['Map'], withContainerCensus: true,
   },
   {
     name: 'an inline literal holding only parameter values keeps its tracked slots narrow',
@@ -1044,8 +1079,23 @@ const NAME_ROWS = [
     realm: ['Map'],
   },
   {
-    name: '... a name read anywhere but the callee slot can be called from where that read lands',
+    name: '... a local callee alias preserves the closed caller set',
     code: 'function f(Map) { return [Map]; }\nconst g = f;\nuse(g(1));',
+    homeOnly: ['Map'],
+  },
+  {
+    name: '... handing out a local callee alias opens the original caller set',
+    code: 'function f(Map) { return [Map]; }\nconst alias = f;\nhand(alias);\nuse(f(1));',
+    realm: ['Map'],
+  },
+  {
+    name: '... handing out a method of a sequence-initialized owner opens its caller set',
+    code: 'const box = (0, { f(Map) { return [Map]; } });\nhand(box.f);\nuse(box.f(1));',
+    realm: ['Map'],
+  },
+  {
+    name: '... handing out a method of an assignment-initialized owner opens its caller set',
+    code: 'let assigned;\nconst box = assigned = { f(Map) { return [Map]; } };\nhand(box.f);\nuse(box.f(1));',
     realm: ['Map'],
   },
   {
@@ -1305,7 +1355,6 @@ const NAME_ROWS = [
     ['exported wrapper after a slot write', 'const b = { k: Object }; export const host = { b }; b.k = Map;'],
     ['exported alias after a slot write', 'const b = { k: Object }; export const host = b; b.k = Map;'],
     ['transitive installed container escape', 'const a = {}; const b = {}; a.b = b; b.k = Map; hand(a);'],
-    ['unknown container key', 'const b = [Map]; use(b[key].groupBy);'],
     ['reassigned container key', 'const b = [Map]; let key = "reverse"; key = pick(); b[key]();'],
   ].map(([name, code]) => ({ name, code, realm: ['Map'], mintedToo: ['Map'], withContainerCensus: true })),
   ...[
@@ -1345,13 +1394,18 @@ const NAME_ROWS = [
   ...[
     ['member read before parameter write', 'void ctor.groupBy; ctor.groupBy = patch;'],
     ['unknown parameter write key', 'ctor[key] = patch;'],
-    ['parameter in write key effect', 'ctor[(hand(ctor), "groupBy")] = patch;'],
-    ['parameter on write right side', 'ctor.groupBy = hand(ctor);'],
     ['parameter compound write', 'ctor.groupBy ||= patch;'],
     ['parameter update', 'ctor.groupBy++;'],
     ['returned parameter after write', 'ctor.groupBy = patch; return ctor;'],
-    ['truthy parameter handed out', 'if (ctor) hand(ctor);'],
     ['truthy parameter returned', 'if (ctor) return ctor;'],
+  ].map(([name, body]) => ({
+    name, code: `function install(ctor) { ${ body } } install(Map);`,
+    heldInSlot: ['Map'], withContainerCensus: true,
+  })),
+  ...[
+    ['parameter in write key effect', 'ctor[(hand(ctor), "groupBy")] = patch;'],
+    ['parameter on write right side', 'ctor.groupBy = hand(ctor);'],
+    ['truthy parameter handed out', 'if (ctor) hand(ctor);'],
     ['thrown parameter after write', 'ctor.groupBy = patch; throw ctor;'],
     ['stored parameter after write', 'ctor.groupBy = patch; sink.value = ctor;'],
     ['arguments after parameter write', 'ctor.groupBy = patch; hand(arguments);'],
@@ -1465,6 +1519,104 @@ const NAME_ROWS = [
     code: 'namespace N { export const Map = 1; } new Map();',
     homeOnly: ['Map'], withContainerCensus: true,
   },
+  // a receiver invoker, the pure `reflect/apply` entry in any of its spellings and a tag are calls
+  // of the function they invoke: the argument pairs with that function's parameter and takes the
+  // disposition a plain call gives it
+  ...[
+    ['nested spread', 'pick(...[...[Map]])'],
+    ['call with nested spread', 'pick.call(null, ...[...[Map]])'],
+    ['apply with nested spread', 'pick.apply(null, [...[...[Map]]])'],
+    ['bind with nested spread', 'pick.bind(null, ...[...[Map]])()'],
+    ['call', 'pick.call(null, Map)'],
+    ['apply', 'pick.apply(null, [Map])'],
+    ['Reflect.apply', 'Reflect.apply(pick, null, [Map])'],
+    ['bind invoked on the spot', 'pick.bind(null, Map)()'],
+  ].flatMap(([name, call]) => [
+    {
+      name: `returned argument stays local through an invoker: ${ name }`,
+      code: `function pick(value) { return value; } const ctor = ${ call }; use(ctor.groupBy);`,
+      homeOnly: ['Map'], withContainerCensus: true,
+    },
+    {
+      name: `returned argument escapes through an invoker: ${ name }`,
+      code: `function pick(value) { return value; } hand(${ call });`,
+      realm: ['Map'], mintedToo: ['Map'], withContainerCensus: true,
+    },
+    {
+      name: `a parameter static read pairs through an invoker: ${ name }`,
+      code: `function pick(value) { use(value.groupBy); } ${ call };`,
+      homeOnly: ['Map'], withContainerCensus: true,
+    },
+  ]),
+  ...[
+    ['default import', 'import invoke from "@core-js/pure/actual/reflect/apply";', 'invoke'],
+    ['require binding', 'const invoke = require("@core-js/pure/actual/reflect/apply");', 'invoke'],
+    ['alias of the import', 'import invoke from "@core-js/pure/actual/reflect/apply"; const alias = invoke;', 'alias'],
+    ['interop default slot', 'var invoke = _interopRequireDefault(require("@core-js/pure/actual/reflect/apply"));', '(0, invoke.default)'],
+  ].map(([name, prefix, invoker]) => ({
+    name: `the pure invoker is the invoker: ${ name }`,
+    code: `${ prefix } function pick(value) { return value; } const ctor = ${ invoker }(pick, null, [Map]); use(ctor.groupBy);`,
+    homeOnly: ['Map'], withContainerCensus: true,
+  })),
+  {
+    name: 'the pure namespace binding invokes through its apply member',
+    code: 'import Reflect from "@core-js/pure/actual/reflect"; function pick(value) { return value; }'
+      + ' const ctor = Reflect.apply(pick, null, [Map]); use(ctor.groupBy);',
+    homeOnly: ['Map'], withContainerCensus: true,
+  },
+  {
+    name: 'a local function under the invoker name is not the invoker',
+    code: 'import invoke from "@core-js/pure/actual/reflect/apply"; function pick(value) { return value; }'
+      + ' { function invoke() { return {}; } use(invoke(pick, null, [Map]).groupBy); }',
+    homeOnly: ['Map'], withContainerCensus: true,
+  },
+  {
+    name: 'a parameter under the invoker name is an unknown callee',
+    code: 'import invoke from "@core-js/pure/actual/reflect/apply"; function pick(value) { return value; }'
+      + ' function run(invoke) { use(invoke(pick, null, [Map]).groupBy); }',
+    realm: ['Map'], mintedToo: ['Map'], withContainerCensus: true,
+  },
+  // a callee that puts its parameter in a container it yields keeps the argument home per call,
+  // by name and through an invoker alike, and only that parameter has to stay in its slot; a read
+  // through the yielded container by a key the census cannot fold hands the container out
+  ...[
+    ['named callee', 'function box(v) { return [v]; }', 'box(Map)[0]'],
+    ['object slot', 'function box(v) { return { held: v }; }', 'box(Map).held'],
+    ['invoker spelling', 'function box(v) { return [v]; }', 'box.call(null, Map)[0]'],
+    ['sibling parameter read elsewhere', 'function box(s, v) { effect(s); return [v]; }', 'box(1, Map)[0]'],
+    ['tag', 'function box(s, v) { return [v]; }', 'box`${Map}`[0]'],
+  ].map(([name, declaration, read]) => ({
+    name: `yielded container keeps the argument home: ${ name }`,
+    code: `${ declaration } use(${ read }.groupBy);`,
+    homeOnly: ['Map'], withContainerCensus: true,
+  })),
+  {
+    name: 'a yielded container stored in a binding keeps the argument home',
+    code: 'function box(v) { return [v]; } const held = box(Map); use(held[0].groupBy);',
+    homeOnly: ['Map'], withContainerCensus: true,
+  },
+  ...[
+    ['the parameter is read beside its slot', 'function box(v) { effect(v); return [v]; } use(box(Map)[0].groupBy);'],
+    ['the container is handed out', 'function box(v) { return [v]; } hand(box(Map));'],
+    ['the stored container is handed out', 'function box(v) { return [v]; } const held = box(Map); hand(held);'],
+  ].map(([name, code]) => ({ name, code, realm: ['Map'], mintedToo: ['Map'], withContainerCensus: true })),
+  ...[
+    ['unknown container key', 'const b = [Map]; use(b[key].groupBy);'],
+    ['the yielded slot is read through an unfoldable key', 'function box(v) { return [v]; } use(box(Map)[k].groupBy);'],
+    ['the stored slot is read through an unfoldable key', 'function box(v) { return [v]; } const held = box(Map); use(held[k].groupBy);'],
+    ['a literal in place is read through an unfoldable key', 'use([Map][k].groupBy);'],
+    ['a nested slot is read through an unfoldable key', 'const nested = { a: [Map] }; use(nested.a[k].groupBy);'],
+  ].map(([name, code]) => ({ name, code, heldInSlot: ['Map'], withContainerCensus: true })),
+  {
+    name: 'an unfoldable key off the realm constructor itself is a tracked read',
+    code: 'use(Map[k]);',
+    homeOnly: ['Map'], withContainerCensus: true,
+  },
+  {
+    name: 'a key bound to a constant string folds',
+    code: 'function box(v) { return [v]; } const k = "0"; use(box(Map)[k].groupBy);',
+    homeOnly: ['Map'], withContainerCensus: true,
+  },
 ];
 
 // the container census owns the second stamper, and the two bindings list it on OPPOSITE sides of
@@ -1556,6 +1708,83 @@ for (const adapter of adapters) {
       counts.push(allocations);
     }
     check(`${ adapter.name }: ${ terminal } needs no additional Sets for inert slots`, counts[1], counts[0]);
+  }
+}
+
+// A returned-container proof belongs to the callee for this census, including a
+// rejection. More calls must not repeat a walk of the same immutable body.
+for (const adapter of adapters) {
+  for (const [returned, escaped] of [
+    ['return { M: value };', false],
+    ['if (flag) return { M: value }; return { M: value };', true],
+  ]) {
+    const counts = [];
+    for (const calls of [1, 64]) {
+      const source = `function pack(value) { padding; ${ returned } }\n${ 'pack(Map).M.groupBy([], x => x);\n'.repeat(calls) }`;
+      const program = adapter.parseAndScope(source).node;
+      const padding = findNode(program, node => node.type === 'Identifier' && node.name === 'padding');
+      let reads = 0;
+      Object.defineProperty(padding, 'type', { configurable: true, get() {
+        reads++;
+        return 'Identifier';
+      } });
+      const answer = collectFileCensus(program, [escapedCtorReferencesReducer()]);
+      const label = `${ adapter.name }: ${ returned } with ${ calls } calls`;
+      check(`${ label }: global escape`, answer.escapedCtorNames.has('Map'), false);
+      check(`${ label }: pure escape`, answer.escapedCtorNames.has('Map', true), escaped);
+      checkTruthy(`${ label }: body counter is live`, reads > 0);
+      counts.push(reads);
+    }
+    check(`${ adapter.name }: ${ returned } body walks stay constant`, counts[1], counts[0]);
+  }
+}
+
+// Losing a return-value proof does not itself hand the argument out. The same binding graph
+// must still find real handouts through body reads, returned containers and method aliases.
+for (const adapter of adapters) for (const [name, code, names, escapes] of [
+  ['nested spread static extraction', 'const entries = (({ entries: read }) => read)(...[...[Object]]); export { entries };', ['Object'], false],
+  ['nested spread returned argument', 'function id(value) { return value; } hand(id(...[...[Object]]));', ['Object'], true],
+  ['nested spread arguments handout', 'function read({ entries }) { hand(arguments); return entries; } read(...[...[Object]]);', ['Object'], true],
+  ['unknown spread before static', 'function read({ entries }) { return entries; } read(...unknown, ...[Object]);', ['Object'], true],
+  ['hole before static', 'function read(ignored, { entries }) { return entries; } read(...[...[, Object]]);', ['Object'], false],
+  ['nested parameter write', 'const source = [{ value: Array }]; function install([box]) { box.value = {}; } install(source);', ['Array'], false],
+  ['parameter default rebind', 'function select(value, other = (value = Array)) { return value; } select(Promise).of(1);', ['Array', 'Promise'], false],
+  ['written return', 'function select(box, value) { box.value = value; return box; } select({ value: Array }, Promise).value.withResolvers();', ['Array', 'Promise'], false],
+  ['written return handed out', 'function select(box, value) { box.value = value; return box; } hand(select({ value: Array }, Promise));', ['Array', 'Promise'], true],
+  ['nested member read', 'function read(box) { return box.value.of(1); } read({ value: Array });', ['Array'], false],
+  ['nested member handed out', 'function read(box) { hand(box.value); } read({ value: Array });', ['Array'], true],
+  ['method caller', 'const box = { read({ of }) { return of(1); } }; box.read(Array);', ['Array'], false],
+  ['method alias chain', 'const box = { read({ of }) { return of(1); } }; const first = box.read; const second = first; second(Array);', ['Array'], false],
+  ['method alias export', 'const box = { read({ of }) { return of(1); } }; export const read = box.read; read(Array);', ['Array'], true],
+  ['method read outside calls', 'const box = { read({ of }) { return of(1); } }; const read = box.read; hand(box.read); read(Array);', ['Array'], true],
+  ['unknown method selection', 'const box = { read({ of }) { return of(1); } }; hand(box[key]); box.read(Array);', ['Array'], true],
+  ['method replaced through owner alias', 'const box = { read({ of }) { return of(1); } }; const owner = box; owner.read = unknown; box.read(Array);', ['Array'], true],
+  ['rest nested array', 'function read([{ from, ...rest }]) { return [from([1]), rest]; } read([Array]);', ['Array'], false],
+  ['rest aliased array', 'const source = [Array]; function read([{ from, ...rest }]) { return rest; } hand(read(source));', ['Array'], false],
+  ['rest custom source', 'function read({ of, ...rest }) { return rest; } hand(read({ value: Promise }));', ['Promise'], true],
+  ['rest arguments handout', 'function read({ from, ...rest }) { return arguments[0]; } hand(read(Array));', ['Array'], true],
+  ['rest open callee', 'export function read({ from, ...rest }) { return rest; } read(Array);', ['Array'], true],
+  ['rest shifted array', 'function read([{ from, ...rest }]) { return rest; } hand(read([...unknown, Array]));', ['Array'], true],
+  ['opaque selection handout', 'hand([Array][key]);', ['Array'], true],
+  ['opaque call result', 'const box = [Array]; hand(box[key]());', ['Array'], true],
+  ['opaque nested property handout', 'hand([{ groupBy: Array }][key].groupBy);', ['Array'], true],
+  ['opaque alias property handout', 'const value = [{ ns: Promise }][key]; hand(value.ns);', ['Promise'], true],
+  ['opaque source slot written', 'const box = [Object]; box[0] = { groupBy: Array }; hand(box[key].groupBy);', ['Array'], true],
+  ['opaque alias slot written', 'const source = [Object]; const alias = source; alias[0] = { groupBy: Object }; hand(source[key].groupBy);', ['Object'], true],
+  ['opaque nested slot written', 'const source = { a: [Object] }; source.a[0] = { groupBy: Object }; hand(source.a[key].groupBy);', ['Object'], true],
+  ['opaque static key', 'const box = [Array]; hand(box[key][other]);', ['Array'], true],
+  ['default handout', 'function select(value, other = hand(value)) { return value; } select(Array).of(1);', ['Array'], true],
+  ['unknown selected key', 'function read({ [key]: value }) { return value; } read(Array);', ['Array'], true],
+  ['rest receiver', 'function read({ of, ...rest }) { return rest; } hand(read(Array));', ['Array'], false],
+  ['concatenated static key', "(() => Array)()['fr' + 'om']([1]);", ['Array'], false],
+  ['template static key', "(() => Array)()[`fr${'om'}`]([1]);", ['Array'], false],
+  ['effectful static key', "(() => Array)()[(effect(), 'fr' + 'om')]([1]);", ['Array'], false],
+  ['unknown static key', "(() => Array)()['fr' + key]([1]);", ['Array'], true],
+]) {
+  for (const [order, reducers] of Object.entries(REDUCER_ORDERS)) {
+    const program = adapter.parseAndScope(code).node;
+    const { escapedCtorNames } = collectFileCensus(program, reducers());
+    for (const ctor of names) check(`${ adapter.name }: closed-call boundary: ${ name }: ${ order }: ${ ctor }`, escapedCtorNames.has(ctor), escapes);
   }
 }
 

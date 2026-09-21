@@ -4,10 +4,8 @@ import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _at from "@core-js/pure/actual/instance/at";
 import _Object$entries from "@core-js/pure/actual/object/entries";
 import _structuredClone from "@core-js/pure/actual/structured-clone";
-// Object-rest keeps named slots at that level and reads through it native in usage-pure.
-// Independent reads and key/default expressions still receive their own polyfills.
-// probe corpus of the defense cycles over the destructure wrappers, family "other", part 8:
-// every block is one probed form, self-contained over the header bindings, locked on both legs
+// Nested literal containers preserve sibling effects and receiver uncertainty.
+// Object rest keeps instance slots native; proven static leaves receive their pure entries.
 let pick = 1;
 const c = 1;
 const userObj = {};
@@ -258,7 +256,15 @@ function mark(t, v) {
   use(m, z);
 }
 {
-  const entries = _Object$entries;
+  const {
+    w: {
+      entries
+    }
+  } = {
+    w: {
+      entries: _Object$entries
+    }
+  };
   entries;
 }
 {
@@ -301,7 +307,9 @@ function mark(t, v) {
     }
   } = {
     get w() {
-      return pick ? Array : userObj;
+      return pick ? {
+        from: _Array$from
+      } : userObj;
     }
   };
 }
@@ -318,7 +326,15 @@ function mark(t, v) {
   _pushMaybeArray(log).call(log, f());
 }
 {
-  const f = _Array$from;
+  const {
+    w: {
+      from: f
+    }
+  } = {
+    w: {
+      from: _Array$from
+    }
+  };
 }
 {
   const {

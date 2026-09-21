@@ -28,6 +28,7 @@ import {
   logicalExpression,
   memberExpression,
   objectExpression,
+  objectPattern,
   objectProperty,
   sequenceExpression,
   unaryExpression,
@@ -92,6 +93,11 @@ check('unaryExpression keeps prefix', print(unaryExpression('!', identifier('x')
 check('assignmentExpression', print(assignmentExpression('=', identifier('a'), identifier('b'))), 'a = b');
 check('objectExpression + objectProperty',
   print(objectExpression([objectProperty(identifier('k'), identifier('v'))])), '{\n  k: v\n}');
+const restPattern = objectPattern([objectProperty(literal('from'), identifier('unused')),
+  hostSlot({ type: 'RestElement', argument: { type: 'Identifier', name: 'rest' } })]);
+const restDeclarator = variableDeclarator(restPattern, identifier('source'));
+check('objectPattern + native rest', print(variableDeclaration('const', [restDeclarator])),
+  'const {\n  "from": unused,\n  ...rest\n} = source;');
 check('objectProperty/computed becomes ObjectProperty',
   estreeToBabel(objectProperty(identifier('k'), identifier('v'), { computed: true })).type, 'ObjectProperty');
 check('bareImport', print(bareImport('core-js/modules/es.array.flat')), 'import "core-js/modules/es.array.flat";');

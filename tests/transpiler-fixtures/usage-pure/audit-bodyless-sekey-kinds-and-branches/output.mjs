@@ -20,7 +20,6 @@ while (c) var first = init,
 
 // Two instance keys retain their alternating key-effect and read order in one var body.
 do var _ref2 = rows,
+  fl = null == _ref2 ? _ref2[""] : (log(), _findLastMaybeArray(_ref2)),
   _ref3 = _ref2,
-  fl = null == _ref3 ? _ref3[""] : (log(), _findLastMaybeArray(_ref3)),
-  _ref4 = _ref2,
-  fli = null == _ref4 ? _ref4[""] : (log(), _findLastIndexMaybeArray(_ref4)); while (c);
+  fli = null == _ref3 ? _ref3[""] : (log(), _findLastIndexMaybeArray(_ref3)); while (c);

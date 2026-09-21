@@ -126,11 +126,11 @@ function mark(t, v) {
   }] = [...rest, Array];
 }
 {
-  eff();
-  const f = _Array$from;
   const [, {
-    from: _unused
-  }] = [, Array];
+    from: f
+  }] = [eff(), {
+    from: _Array$from
+  }];
 }
 {
   const [, {
@@ -220,7 +220,15 @@ function mark(t, v) {
   use(a, m);
 }
 {
-  const hasOwn = _Object$hasOwn;
+  const [{
+    a: [{
+      hasOwn
+    }]
+  }] = [{
+    a: [{
+      hasOwn: _Object$hasOwn
+    }]
+  }];
 }
 {
   const [{

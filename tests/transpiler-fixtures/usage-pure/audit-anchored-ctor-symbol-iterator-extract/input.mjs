@@ -1,5 +1,5 @@
-// Object-rest keeps the affected method slots native; computed symbol keys still polyfill.
-// Independent reads and key/default expressions still receive their own polyfills.
+// Known static slots and computed symbol keys receive their own pure entries.
+// Constructor rest reads the symbol slot and remaining keys from the full index.
 const { Array: { [Symbol.iterator]: a } } = globalThis;
 a;
 const { Map: { [Symbol.iterator]: m } } = globalThis;

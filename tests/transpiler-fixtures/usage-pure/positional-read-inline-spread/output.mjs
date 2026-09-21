@@ -10,7 +10,6 @@ import _toReversedMaybeArray from "@core-js/pure/actual/array/instance/to-revers
 import _toSortedMaybeArray from "@core-js/pure/actual/array/instance/to-sorted";
 import _toSplicedMaybeArray from "@core-js/pure/actual/array/instance/to-spliced";
 import _withMaybeArray from "@core-js/pure/actual/array/instance/with";
-import _globalThis from "@core-js/pure/actual/global-this";
 import _at from "@core-js/pure/actual/instance/at";
 import _entries from "@core-js/pure/actual/instance/entries";
 import _values from "@core-js/pure/actual/instance/values";
@@ -50,12 +49,17 @@ const {
     toSpliced: _unused
   }
 } = [...[_ref]];
-const ViaProxy = _Map;
+const [{
+  Map: ViaProxy
+}] = [...[{
+  Map: _Map
+}]];
 new ViaProxy();
-const ViaProxyShifted = _Set;
 const [, {
-  Set: _unused2
-}] = [0, _globalThis];
+  Set: ViaProxyShifted
+}] = [...[0, {
+  Set: _Set
+}]];
 new ViaProxyShifted();
 for (const viaCommon of [...[[1], [2]]]) _findLastIndexMaybeArray(viaCommon).call(viaCommon, Boolean);
 for (const {

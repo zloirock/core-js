@@ -12,10 +12,30 @@ import _WeakSet from "@core-js/pure/actual/weak-set";
 // flat and through a proxy hop, where the level is a synthesized read no position of its own names
 const Map = _Map;
 const S = _Set;
-const WeakMap = _WeakMap;
+const {
+  self: {
+    WeakMap
+  }
+} = {
+  self: {
+    WeakMap: _WeakMap
+  }
+};
 const Promise = _Promise;
-const W = _WeakSet;
-const R = _Set;
+const [{
+  WeakSet: W
+}] = [{
+  WeakSet: _WeakSet
+}];
+const {
+  g: {
+    Set: R
+  }
+} = {
+  g: {
+    Set: _Set
+  }
+};
 export const held = [Map, S, WeakMap, Promise, W, R];
 for (const {
   Symbol: Y

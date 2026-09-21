@@ -7,12 +7,20 @@ import _at from "@core-js/pure/actual/instance/at";
 // return EXPR; }`) is anchored at the original-source body span, which sits AFTER a
 // `globalThis -> _globalThis` substitution. wrap and substitution splices must apply
 // in one descending-order pass to keep both anchors valid against the unmutated source
-const from = _Array$from;
-const val = function () {
-  const x = _globalThis;
-  return (() => {
-    var _ref;
-    return null == (_ref = _flatMaybeArray(arr)) ? void 0 : _at(_ref.call(arr));
-  })();
-}();
+const {
+    Array: {
+      from
+    }
+  } = {
+    Array: {
+      from: _Array$from
+    }
+  },
+  val = function () {
+    const x = _globalThis;
+    return (() => {
+      var _ref;
+      return null == (_ref = _flatMaybeArray(arr)) ? void 0 : _at(_ref.call(arr));
+    })();
+  }();
 console.log(from, val);

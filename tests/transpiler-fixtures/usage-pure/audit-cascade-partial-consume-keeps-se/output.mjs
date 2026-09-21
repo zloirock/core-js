@@ -1,16 +1,17 @@
+import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _self from "@core-js/pure/actual/self";
-// Object-rest keeps named slots at that level and reads through it native in usage-pure.
-// Independent reads and key/default expressions still receive their own polyfills.
+// Claimed statics retain their polyfills beside object rest.
+// Rest keeps its source and exclusions; instance slots remain native.
 let effectRan = false,
   rest;
 let from;
+var _unused;
 ({
-  Array: {
-    from
-  },
+  Array: _unused,
   ...rest
 } = (effectRan = true, _self));
+from = _Array$from;
 let counted = 0,
   keep;
 let of;

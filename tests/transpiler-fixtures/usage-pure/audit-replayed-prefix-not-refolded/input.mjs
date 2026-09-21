@@ -1,10 +1,5 @@
-// Where an SE prefix ends up decides where the host buried in it LANDS, not what it may claim: the
-// buried host is a discarded sequence element either way, so it folds its proxy hop and reads off
-// the substituted root wherever it sits. What differs is the slot the render owns - a residual that
-// RE-ANCHORS onto the hop's own pure carries the prefix inside its rebuilt init and the fold happens
-// in place there; a FULL consume LIFTS the prefix into a statement of its own and the fold happens
-// there. The for-init sink asks the same question, and its re-anchored residual keeps the ONE
-// declarator with the prefix in its value instead of a discard slot beside it.
+// An assignment buried in a receiver prefix keeps its own polyfill and effects.
+// Declaration, assignment and loop-header hosts preserve the prefix's evaluation order.
 function eff() { return 0; }
 let cf, cf2, cf3, outFR;
 // RE-ANCHORED residual: the prefix rides the rebuilt init, and the buried host folds inside it

@@ -2,6 +2,7 @@ import _Array$from from "@core-js/pure/actual/array/from";
 import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Map from "@core-js/pure/actual/map/constructor";
+import _self from "@core-js/pure/actual/self";
 // a whole-CTOR slot mutation (`globalThis.Ctor = Shim`) DEOPTS the name: the pure import
 // would discard the user's shim, so every value read stays verbatim on the live binding.
 // the mutated set is FILE-wide and order-insensitive: a read placed BEFORE the write deopts
@@ -12,8 +13,14 @@ _globalThis.Promise = function ShimPromise() {};
 _globalThis.Set = function ShimSet() {};
 // nested proxy-hop value read anchors on the raw proxy member (the shim), not the pure ctor
 const {
-  Promise
-} = _globalThis;
+  self: {
+    Promise
+  }
+} = {
+  self: {
+    Promise: _self.Promise
+  }
+};
 export const p = Promise;
 // the nested-mirror passthrough keeps the mutated slot as the raw proxy member while the
 // unmutated sibling still extracts its polyfill

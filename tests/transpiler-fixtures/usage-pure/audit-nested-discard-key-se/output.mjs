@@ -12,21 +12,52 @@ import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 // content inside the harvested key keeps its own rewrite; a chain-root call interleaves
 // with the key effect in source-eval order
 let c = 0;
-const iterator = (c++, _Symbol$iterator);
+const {
+  Symbol: {
+    iterator
+  }
+} = (c++, _self, {
+  Symbol: {
+    iterator: _Symbol$iterator
+  }
+});
 export const r1 = [typeof iterator, c];
 let d = 0;
-const resolve = _Promise$resolve;
 const {
+  Promise: {
+    resolve
+  },
   other
-} = (d++, _self);
+} = (d++, _self, {
+  Promise: {
+    resolve: _Promise$resolve
+  },
+  other: _self.other
+});
 export const r2 = [typeof resolve, typeof other, d];
 let a;
-const groupBy = (a = _Array$of(3), _Map$groupBy);
+const {
+  Map: {
+    groupBy
+  }
+} = (a = _Array$of(3), _self, {
+  Map: {
+    groupBy: _Map$groupBy
+  }
+});
 export const r3 = [typeof groupBy, a.length];
 let k = 0;
 function mk() {
   k++;
   return _globalThis;
 }
-const entries = (mk(), k++, _Object$entries);
+const {
+  Object: {
+    entries
+  }
+} = (mk(), k++, _self, {
+  Object: {
+    entries: _Object$entries
+  }
+});
 export const r4 = [typeof entries, k];

@@ -304,12 +304,13 @@ export function hasStaticDefinitionKey(key) {
   return STATIC_DEFINITION_KEYS.has(key);
 }
 
-// `<entry head>` -> `<global name>`. one pass over pure-bearing entries in
-// `built-in-definitions`; per-class kebab heads in `*.pure.dependencies` make each
-// head unique to one global, so first hit wins. multi-segment entries are method /
-// instance / helper paths (`array/from`, `array/instance/at`) - user's binding is the
-// function, not the class - so `entryToGlobalHint` filters them out before lookup
 const CONSTRUCTOR_TAIL = '/constructor';
+
+// A constructor entry can widen to its whole static family; a namespace alone cannot.
+// Pure is the default; the global flavor can additionally supply unsupported pure constructors.
+export function hasConstructorEntry(name, flavor = 'pure') {
+  return builtInDefinitions.globals[name]?.[flavor]?.dependencies?.some(entry => entry.endsWith(CONSTRUCTOR_TAIL)) ?? false;
+}
 
 function * iterPureDeps({ globals, statics }) {
   for (const [name, desc] of Object.entries(globals)) yield [name, desc?.pure?.dependencies];
@@ -318,6 +319,7 @@ function * iterPureDeps({ globals, statics }) {
   }
 }
 
+// Map entry heads to globals in one pass over pure dependencies; the first owner wins.
 function buildEntryHintIndex(definitions) {
   const index = new Map();
   for (const [name, deps] of iterPureDeps(definitions)) {
@@ -333,6 +335,8 @@ function buildEntryHintIndex(definitions) {
 
 const entryHintIndex = buildEntryHintIndex(builtInDefinitions);
 
+// Name the global supplied by a namespace or constructor entry. Method, instance and helper
+// subpaths supply another value, so reject them before looking up the entry head.
 export function entryToGlobalHint(entry) {
   if (!entry) return null;
   const canonical = entry.endsWith(CONSTRUCTOR_TAIL) ? entry.slice(0, -CONSTRUCTOR_TAIL.length) : entry;

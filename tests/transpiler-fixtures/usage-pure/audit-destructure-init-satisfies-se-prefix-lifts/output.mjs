@@ -1,10 +1,15 @@
 import _Object$entries from "@core-js/pure/actual/object/entries";
-// `satisfies` TS wrapper around an SE-tail destructure init: same TS-peel path as `as`,
-// must reach the receiver through the wrapper so the flatten fires AND `recordCall()`
-// gets lifted as a standalone statement, not silently swallowed by the rewrite
+// A TypeScript satisfies wrapper preserves the sequence effect before its static binding.
 declare function recordCall(): void;
-recordCall();
-const entries = _Object$entries;
+const {
+  Object: {
+    entries
+  }
+} = (recordCall(), {
+  Object: {
+    entries: _Object$entries
+  }
+}) satisfies any;
 entries({
   a: 1
 });

@@ -1,5 +1,5 @@
-// A stored argument still names its selected static for global injection.
-// Pure keeps the captured value and declines the argument mirror; the opaque default stays intact.
+// A stored argument identifies its selected static for global injection.
+// Pure retains the captured receiver, opaque parameter default and native leaf read.
 export function outer(Custom, effect) {
   let held;
   function read({ of } = Custom) { return of(1); }

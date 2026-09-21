@@ -87,7 +87,7 @@ function canonicalizeEntrySubpath(s) {
 // `{ entry, pkg }` for the FIRST package this specifier belongs to, or null. the package travels
 // with the entry because a recognised import is re-emitted, and re-emitting it under the plugin's
 // own package would silently retarget a user's polyfill at another one
-function matchEntrySubpath(source, pkgs, subPrefix) {
+export function matchEntrySubpath(source, pkgs, subPrefix) {
   const clean = normalizeImportSource(source);
   for (const pkg of pkgs) {
     const afterPkg = subpathAfterPackage(clean, pkg);

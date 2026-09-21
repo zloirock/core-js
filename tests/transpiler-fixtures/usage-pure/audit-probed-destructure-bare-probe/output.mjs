@@ -2,17 +2,14 @@ import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Promise from "@core-js/pure/actual/promise";
 import _structuredClone from "@core-js/pure/actual/structured-clone";
-// Object-rest keeps named slots at that level and reads through it native in usage-pure.
-// Independent reads and key/default expressions still receive their own polyfills.
 // The exported constructor includes its static methods for external consumers.
 export const viaBareProbePoly = ((null == _globalThis.window ? void 0 : _globalThis.window).Promise, _Promise);
 export const {
   customThing: viaBareProbeCustom
 } = _globalThis.window;
+export const viaBareProbeRestPoly = _Array$of;
 export const {
-  Array: {
-    of: viaBareProbeRestPoly
-  },
+  Array: _unused,
   ...viaBareProbeRest
 } = _globalThis.window;
 
@@ -21,12 +18,72 @@ export const {
 // a value that is absent exactly off-env - the probe reads the first key off the guard whose
 // test operand doubles as the alternate. resolvable roots keep their collapse, and the deep
 // unresolvable hop keeps the accepted realm-self-reference collapse
-export const viaBareProbe = ((null == _globalThis.window ? void 0 : _globalThis.window).Array, _Array$of);
-export const viaBareProbeSealed = ((null == _globalThis.window ? void 0 : _globalThis.window).Array, _Array$of);
+export const {
+  Array: {
+    of: viaBareProbe
+  }
+} = ({} = _globalThis.window, {
+  Array: {
+    of: _Array$of
+  }
+});
+export const {
+  Array: {
+    of: viaBareProbeSealed
+  }
+} = ({} = _globalThis.window, {
+  Array: {
+    of: _Array$of
+  }
+});
 export const viaBareProbeFlat = ((null == _globalThis.window ? void 0 : _globalThis.window).structuredClone, _structuredClone);
-export const viaBareProbeTernary = ((null == _globalThis.window ? void 0 : _globalThis.window).Array, _Array$of);
+export const {
+  Array: {
+    of: viaBareProbeTernary
+  }
+} = _globalThis.setTimeout ? null == _globalThis.window ? _globalThis.window : {
+  Array: {
+    of: _Array$of
+  }
+} : null == _globalThis.window ? _globalThis.window : {
+  Array: {
+    of: _Array$of
+  }
+};
 const heldProbe = _globalThis.window;
-export const viaBareProbeAlias = ((null == heldProbe ? void 0 : heldProbe).Array, _Array$of);
-export const viaDefinedGlobal = _Array$of;
-export const viaDefinedSelf = _Array$of;
-export const viaDeepSelfRef = _Array$of;
+export const {
+  Array: {
+    of: viaBareProbeAlias
+  }
+} = ({} = heldProbe, {
+  Array: {
+    of: _Array$of
+  }
+});
+export const {
+  Array: {
+    of: viaDefinedGlobal
+  }
+} = {
+  Array: {
+    of: _Array$of
+  }
+};
+export const {
+  Array: {
+    of: viaDefinedSelf
+  }
+} = {
+  Array: {
+    of: _Array$of
+  }
+};
+export const {
+  Array: {
+    of: viaDeepSelfRef
+  }
+} = {
+  Array: {
+    of: _Array$of
+  }
+};

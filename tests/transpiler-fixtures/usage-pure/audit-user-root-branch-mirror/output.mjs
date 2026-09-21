@@ -97,9 +97,18 @@ let aliasBind, aliasFrom;
     keys: {
       bind: aliasBind
     }
+  },
+  A: {
+    from: aliasFrom
   }
-} = aliased);
-aliasFrom = _Array$from;
+} = {
+  O: {
+    keys: _Object$keys
+  },
+  A: {
+    from: _Array$from
+  }
+});
 export const unnamed = [typeof aliasBind, typeof aliasFrom];
 let capturedBind, capturedFrom;
 const captured = {

@@ -11,10 +11,18 @@ import {
   walkTypeAnnotationGlobals,
 } from './annotations.js';
 import { isKnownGlobalName } from './globals.js';
-import { collectDestructureUnionCandidates, prepareDestructureUnion } from './destructure.js';
+import {
+  classifyDestructureLeafHost,
+  collectDestructureUnionCandidates,
+  destructurePatternHostPath,
+  prepareDestructureUnion,
+} from './destructure.js';
+import { agreeingTernaryArm, resolveObjectName } from './resolve.js';
 import { handleBinaryIn, handleMemberExpressionNode, tagSymbolSourcedMeta } from './members.js';
 import {
+  destructureReceiverNode,
   hasObjectRestAncestor,
+  ownRelocatedHeadElement,
   hasRestSiblingExcept,
   isTypeAnnotationNodeType,
   patternSlotTarget,
@@ -135,7 +143,23 @@ export function createUsageHandlerCore({
     if (method === 'usage-pure') {
       const target = patternSlotTarget(path.node.value);
       if (hasObjectRestAncestor(path) || (target?.type === 'ObjectPattern'
-        && hasRestSiblingExcept(target.properties, null))) return;
+        && hasRestSiblingExcept(target.properties, null))) {
+        const pure = meta && resolvePure?.(meta, path);
+        // Native rest still performs the excluded reads. A receiverless static import does
+        // not repeat them; an instance helper would read its slot a second time.
+        if (!pure || pure.kind === 'instance') return;
+        // Rest retains the selected receiver. When both arms name this same constructor,
+        // the static can extract without erasing the condition or its effects.
+        if (meta.fromFallback) {
+          const descriptor = classifyDestructureLeafHost({ objectPattern: path.parentPath });
+          const host = descriptor.pattern ?? destructurePatternHostPath(path);
+          const source = ownRelocatedHeadElement(host) ?? destructureReceiverNode(host);
+          const arm = agreeingTernaryArm(source, host, adapter, { preservesEffects: true });
+          if (arm && resolveObjectName({ objectNode: arm, scope: host.scope, adapter, path: host }) === meta.object) {
+            meta = { ...meta, fromFallback: false };
+          }
+        }
+      }
     }
     const { scope } = path;
     const tagged = meta ? tagSymbolSourcedMeta({ meta, keyNode, computed, scope, adapter, path }) : null;

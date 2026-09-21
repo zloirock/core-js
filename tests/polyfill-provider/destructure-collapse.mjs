@@ -169,6 +169,19 @@ for (const [receiver, expected, flat = false, leaf = 'is'] of [
     check(lbl, !!plan, expected);
   });
 
+for (const assignment of [false, true]) runBoth(`loop/outside read assignment=${ assignment }`,
+  assignment ? 'let at; for ({ at } of [[1]]) {} use(at);' : 'for (const { at } of [[1]]) {}',
+  (adapter, prog, lbl) => {
+    const loop = adapter.pickPath(prog, 'ForOfStatement');
+    const plan = planCatchClauseExtraction({
+      paramNode: assignment ? loop.node.left : loop.node.left.declarations[0].id,
+      bodyNode: loop.node.body, scope: loop.scope, path: loop, assignment,
+      resolvePure: catchResolvePure,
+      walkNode: (root, visit) => walkAstNodes({ root, visit }),
+    });
+    check(lbl, !!plan, assignment);
+  });
+
 function catchResolvePure(meta) {
   return meta.kind === 'property' && meta.key === 'at'
     ? { entry: 'actual/instance/at', hintName: 'at', kind: 'instance' } : null;

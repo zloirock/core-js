@@ -707,12 +707,11 @@ QUnit.test('optional chaining: anchored destructure over a probe nav keeps the s
 // AND hand rest the realm global's own keys where native throws
 QUnit.test('optional chaining: rest sibling over a probe nav keeps the source throw', assert => {
   if (WINDOW_PRESENT) {
-    // the leaf beside the REST stays the host's own slot (the rest-bearing level keeps its reads
-    // native), absent on the karma floor
-    const hostMathTrunc = Object.getOwnPropertyDescriptor(Math, 'trunc')?.value;
+    // The nested static extracts beside the native rest copy, including on IE11.
     // eslint-disable-next-line no-unsafe-optional-chaining, @stylistic/no-extra-parens -- the sealed probe source IS the case
     const { Math: { trunc: pickedTrunc }, ...restBag } = (globalThis.window?.self);
-    assert.same(pickedTrunc, hostMathTrunc);
+    assert.same(pickedTrunc(3.9), 3);
+    assert.same(pickedTrunc(-3.9), -3);
     assert.same(typeof restBag, 'object');
   } else {
     assert.throws(() => {

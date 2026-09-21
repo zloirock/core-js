@@ -1,9 +1,5 @@
-// a KEPT WRITE at the receiver's spine root with a LATER key side effect: the discarded
-// read re-emits WHOLE (or splices flat in the array wrapper), so the write keeps LEADING
-// the effects that followed it in the source - the split channels used to lift the key SE
-// ahead of the write (`log` saw `undefined` where native sees `object`)
-// the text sidecar differs in spelling only: the splice keeps the AUTHOR'S key parens
-// (`[(se, "Array")]`) where the reprinters emit the minimal form
+// An assignment in the receiver runs before a later computed-key effect.
+// The stored value and the static polyfill survive the receiver rewrite.
 const log = [];
 let r1;
 const { of: o1 } = (r1 = globalThis)[(log.push(typeof r1), "Array")];

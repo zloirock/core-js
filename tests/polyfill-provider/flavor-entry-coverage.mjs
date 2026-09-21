@@ -31,14 +31,19 @@ function polyfillImports(code) {
 // `configFile` / `babelrc` off: the repository root carries a babel config, so an invocation whose
 // cwd is the root would lower the source before the plugin sees it and the answer would depend on
 // how the suite was started rather than on what the provider decided
-async function babelImports(source, options) {
-  const out = await transformAsync(source,
-    { plugins: [['@core-js', options]], filename: 'input.mjs', configFile: false, babelrc: false });
+async function babelImports(source, options, filename = 'input.mjs') {
+  const out = await transformAsync(source, {
+    plugins: [['@core-js', options]],
+    filename,
+    configFile: false,
+    babelrc: false,
+    parserOpts: filename.endsWith('.ts') ? { plugins: ['typescript'] } : undefined,
+  });
   return polyfillImports(out?.code);
 }
 
-function unpluginImports(source, options) {
-  return polyfillImports(createUnplugin(options).transform(source, 'input.mjs')?.code ?? source);
+function unpluginImports(source, options, filename = 'input.mjs') {
+  return polyfillImports(createUnplugin(options).transform(source, filename)?.code ?? source);
 }
 
 // the modules a WIDE pure entry carries beyond its constructor sibling - the statics an escaped
@@ -304,8 +309,9 @@ for (const [label, source, needed] of PARAMETER_READS) {
   }
 }
 
-// Narrowing requires a closed caller set and a named, read-only receiver. Each row is transformed
-// independently so an unrelated namespace import cannot cover a missed obligation.
+// Pure narrowing requires a named receiver at every caller. Global injection can retain only
+// the closed body's read-only keys even when another caller supplies an opaque value.
+// Each row is transformed independently so another namespace import cannot cover a miss.
 const OPAQUE_PARAMETER_READS = [
   ['unknown key', 'function read(ns) { return ns[key]({}); } read(Reflect);'],
   ['rest pattern', 'function read({ ownKeys, ...rest }) { return rest; } use(read(Reflect));'],
@@ -313,25 +319,37 @@ const OPAQUE_PARAMETER_READS = [
   ['passed namespace', 'function read(ns) { use(ns); return ns.ownKeys({}); } read(Reflect);'],
   ['escaped callable', 'function read(ns) { return ns.ownKeys({}); } use(read); read(Reflect);'],
   ['exported callable', 'export function read(ns) { return ns.ownKeys({}); } read(Reflect);'],
-  ['other caller', 'function read(ns) { return ns.ownKeys({}); } read(Reflect); read(custom);'],
-  ['missing argument', 'function read(ns) { return ns.ownKeys({}); } read(Reflect); read();'],
+  ['other caller', 'function read(ns) { return ns.ownKeys({}); } read(Reflect); read(custom);', true, false],
+  ['missing argument', 'function read(ns) { return ns.ownKeys({}); } read(Reflect); read();', true, false],
   ['spread argument', 'function read(ns) { return ns.ownKeys({}); } read(Reflect); read(...args);'],
   ['arguments object', 'function read(ns) { arguments[0] = custom; return ns.ownKeys({}); } read(Reflect);'],
   // A leading overwrite drops the supplied value altogether; it must not create a static claim.
   ['overwritten parameter', 'function read(ns) { ns = custom; return ns.ownKeys({}); } read(Reflect);', false],
-  ['conditionally reassigned parameter', 'function read(ns) { if (flag) ns = custom; return ns.ownKeys({}); } read(Reflect);'],
-  ['nested closure', 'function read(ns) { return () => ns.ownKeys({}); } use(read(Reflect));'],
+  ['conditionally reassigned parameter', 'function read(ns) { if (flag) ns = custom; return ns.ownKeys({}); } read(Reflect);', true, false],
+  ['nested closure', 'function read(ns) { return () => ns.ownKeys({}); } use(read(Reflect));', true, false],
   ['mixed read and write', 'function read(ns) { ns.ownKeys = patch; return ns.get({}, "x"); } read(Reflect);'],
-  ['compound write', 'function read(ns) { ns.ownKeys += patch; } read(Reflect);'],
-  ['updated member', 'function read(ns) { ns.ownKeys++; } read(Reflect);'],
-  ['deleted member', 'function read(ns) { delete ns.ownKeys; } read(Reflect);'],
+  ['compound write', 'function read(ns) { ns.ownKeys += patch; } read(Reflect);', true, false],
+  ['updated member', 'function read(ns) { ns.ownKeys++; } read(Reflect);', true, false],
+  ['deleted member', 'function read(ns) { delete ns.ownKeys; } read(Reflect);', true, false],
 ];
-for (const [label, source, wide = true] of OPAQUE_PARAMETER_READS) {
+for (const [label, source, expected] of [
+  ['known instance', 'function read(value: Set<number>) { return value.values(); } read(new Set<number>());', false],
+  ['unknown caller', 'function read(value) { return value.values(); } read(Object); read(custom);', true],
+  ['known static', 'function read(value) { return value.values({}); } read(Object);', true],
+]) {
+  for (const [emitter, imports] of [
+    ['babel', await babelImports(source, GLOBAL, 'input.ts')], ['unplugin', unpluginImports(source, GLOBAL, 'input.ts')],
+  ]) check(`parameter candidate/${ label } [${ emitter }]`, imports.has('core-js/modules/es.object.values'), expected);
+}
+for (const [label, source, wide = true, globalWide = wide] of OPAQUE_PARAMETER_READS) {
   for (const [emitter, imports] of [
     ['babel', await babelImports(source, GLOBAL)],
     ['unplugin', unpluginImports(source, GLOBAL)],
   ]) {
-    check(`opaque parameter/${ label } [${ emitter }]: family stays`, imports.has('core-js/modules/es.reflect.get'), wide);
+    check(`opaque parameter/${ label } [${ emitter }]: family stays`, imports.has('core-js/modules/es.reflect.get'), globalWide);
+    if (wide && !globalWide && label !== 'deleted member') {
+      check(`opaque parameter/${ label } [${ emitter }]: the read key stays`, imports.has('core-js/modules/es.reflect.own-keys'), true);
+    }
   }
   for (const [emitter, imports] of [
     ['babel', await babelImports(source, PURE)],
@@ -372,6 +390,7 @@ const DEFAULT_COVERAGE = [
   ['stored array leaf', 'let held; function f([{ of } = custom]) { return of(1); } f([held = Array]);', false],
   ['stored object leaf', 'let held; function f({ x: { of } = custom }) { return of(1); } f({ x: held = (effect(), Array) });', false],
   ['stored argument handed out', 'let held; function f({ of } = custom) { return of(1); } f(held = Array); hand(held);', true],
+  ['aliased unknown spread', 'const values = [...unknown, Array]; function f([{ of } = custom]) { return of(1); } f(values);', true],
   ['stored unknown spread', 'let held; function f([{ of } = custom]) { return of(1); } f(held = [...values, Array]);', true],
 ];
 for (const [label, source, wide] of DEFAULT_COVERAGE) {

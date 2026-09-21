@@ -18,9 +18,7 @@ function divergingProxy({
   Array: {
     from: _Array$from
   },
-  Math: {
-    floor: _globalThis.Math.floor
-  }
+  Math: _globalThis.Math
 } : user) {
   return [from, floor];
 }
