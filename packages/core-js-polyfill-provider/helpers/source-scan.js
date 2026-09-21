@@ -108,9 +108,11 @@ export function mergeVisitors(base, extra) {
 // through the same scan as the author's
 export const DISABLE_NEXT_LINE_DIRECTIVE = 'core-js-disable-next-line';
 
-// the kind a comment's directive names - `file`, `line` or `next-line` - and null for a plain comment
+// the kind a comment's directive names - `file`, `line` or `next-line` - and null for a plain
+// comment. a value that is no string names nothing: a sibling plugin's synthesized comment may
+// lack `value` as it may lack a position, and every consumer reads it through here
 export function disableDirectiveKind(value) {
-  return DIRECTIVE.exec(value)?.groups.kind ?? null;
+  return typeof value === 'string' ? DIRECTIVE.exec(value)?.groups.kind ?? null : null;
 }
 
 // a `-line` / `-next-line` directive pins its LINE association; consumers that reflow
@@ -149,9 +151,8 @@ export function parseDisableDirectives({ comments, offsetToLine, firstStmtStart,
   if (!comments) return null;
   const lines = new Set();
   for (const comment of comments) {
-    const match = comment.value.match(DIRECTIVE);
-    if (!match) continue;
-    const { kind } = match.groups;
+    const kind = disableDirectiveKind(comment?.value);
+    if (kind === null) continue;
     if (kind === 'file') {
       // `firstStmtStart` is conventionally undefined when the file has no statements;
       // accept null too (`a == null` covers both) so callers that prefer null-default
