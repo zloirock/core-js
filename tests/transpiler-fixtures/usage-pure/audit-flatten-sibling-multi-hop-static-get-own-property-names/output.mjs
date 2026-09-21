@@ -5,7 +5,15 @@ import _Object$getOwnPropertyNames from "@core-js/pure/actual/object/get-own-pro
 // whole-constructor polyfill, so the receiver-ref skip-check must walk the full enclosing member
 // chain to the static method - otherwise the receiver root gets double-substituted and compose
 // crashes. distinct static method and flatten key from the sibling-static fixtures
-const of = _Array$of;
-const names = _Object$getOwnPropertyNames({});
+const {
+    Array: {
+      of
+    }
+  } = {
+    Array: {
+      of: _Array$of
+    }
+  },
+  names = _Object$getOwnPropertyNames({});
 of([1]);
 names.length;

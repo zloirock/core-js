@@ -12,7 +12,7 @@ import {
   wksComputedKeyName,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { computedKeyWellKnownSymbolName } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
-import { buildPatternRenderPlan } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
+import { buildNestedParamSynthPlan, buildPatternRenderPlan } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
 import { synthEntryKey } from '../../packages/core-js-polyfill-provider/render.js';
 import { createChecker } from './harness.mjs';
 
@@ -227,5 +227,102 @@ check('folded/se-folding key', synthSlotName(prop(sequenceKey('from'), true)), '
 runBoth('plan/rest declines', 'const { at, ...r } = o;', (adapter, prog, lbl) => {
   check(lbl, planOf(adapter, prog), null);
 });
+
+// A head that binds existing names cannot relocate. Its mirror keeps the symbol slot
+// beside the static, while an unknown key still prevents replacing the receiver.
+for (const [key, prelude, expected] of [
+  ['Symbol.toStringTag', '', true],
+  ['tagKey', 'const tagKey = Symbol.toStringTag;', true],
+  ['Symbol.iterator', '', true],
+  ['unknown', '', false],
+  ['(effect(), Symbol.toStringTag)', '', false],
+  ['Symbol.toStringTag', 'const Symbol = source;', false],
+]) runBoth(`head mirror/${ key }/${ prelude }`,
+  `${ prelude } let tag, of; for ({ [${ key }]: tag, of } of [Array]) {}`,
+  (parser, program, label) => {
+    const leafPatternPath = parser.pickPath(program, 'ObjectPattern');
+    const plan = buildNestedParamSynthPlan({
+      leafPatternPath, adapter: keyAdapter, meta: { object: 'Array', key: 'of', placement: 'static' },
+      resolvePure(meta) {
+        return meta.kind === 'property' && (meta.object === 'Symbol' || (meta.object === 'Array' && meta.key === 'of'))
+          ? { kind: 'static', entry: `${ meta.object }/${ meta.key }`, hintName: meta.key } : null;
+      },
+    });
+    check(label, !!plan?.targets?.length, expected);
+  });
+
+for (const [receiver, aliases, targets] of [
+  ['flag ? globalThis : self', 1, 2],
+  ['flag ? globalThis : custom', 0, 1],
+]) runBoth(`mirror/static binding agreement/${ receiver }`,
+  `let of; ({ Array: { of } } = ${ receiver });`, (parser, program, label) => {
+    const leafPatternPath = parser.pickPath(program, 'ObjectPattern');
+    const plan = buildNestedParamSynthPlan({
+      leafPatternPath, adapter: keyAdapter, meta: { object: 'globalThis', key: 'Array', placement: 'static', fromFallback: true },
+      resolvePure: meta => meta.object === 'Array' && meta.key === 'of'
+        ? { kind: 'static', entry: 'array/of', hintName: 'Array$of' } : null,
+    });
+    check(`${ label } targets`, plan?.targets?.length, targets);
+    check(`${ label } agreed aliases`, plan?.staticBindings?.length, aliases);
+  });
+
+for (const defaulted of [false, true]) runBoth(`mirror/descended instance beside static/${ defaulted }`,
+  `let flat, of; ({ Array: { prototype: { flat ${ defaulted ? '= fallback' : '' } }, of } } = globalThis);`,
+  (parser, program, label) => {
+    const leafPatternPath = parser.pickPath(program, 'ObjectPattern');
+    const plan = buildNestedParamSynthPlan({
+      leafPatternPath, adapter: keyAdapter, meta: { object: 'globalThis', key: 'Array', placement: 'static' },
+      resolvePure(meta) {
+        if (meta.object === 'Array' && meta.key === 'of') return { kind: 'static', entry: 'array/of', hintName: 'Array$of' };
+        if (meta.key === 'flat') return { kind: 'instance', entry: 'array/instance/flat', hintName: 'flatMaybeArray' };
+        return null;
+      },
+    });
+    const array = plan?.targets?.[0]?.tree.entries.find(item => item.key === 'Array')?.child;
+    check(`${ label } keeps the descended claim`, array?.entries.find(item => item.key === 'prototype')?.child.kind,
+      'descended-pattern');
+  });
+
+for (const [receiver, coerces] of [['globalThis', false], ['globalThis.window?.self', true]]) {
+  runBoth(`mirror/receiver coercion/${ receiver }`, `const { Array: { from } } = ${ receiver };`,
+    (parser, program, label) => {
+      const leafPatternPath = parser.pickPath(program, 'ObjectPattern');
+      const plan = buildNestedParamSynthPlan({
+        leafPatternPath, adapter: keyAdapter, meta: { object: 'globalThis', key: 'Array', placement: 'static' },
+        resolvePure: meta => meta.object === 'Array' && meta.key === 'from'
+          ? { kind: 'static', entry: 'array/from', hintName: 'Array$from' } : null,
+      });
+      check(`${ label } planned`, !!plan?.targets?.length, true);
+      check(`${ label } coerces before pattern keys`, !!plan?.targets?.[0]?.coerceReceiver, coerces);
+    });
+}
+
+for (const [name, key, expected] of [['Promise', 'all', 'polyfill'], ['Array', 'from', undefined]]) {
+  runBoth(`mirror/constructor rest default/${ name }`, `function f({ ${ key }, ...rest } = ${ name }) {}`,
+    (parser, program, label) => {
+      const leafPatternPath = parser.pickPath(program, 'ObjectPattern');
+      const plan = buildNestedParamSynthPlan({
+        leafPatternPath, adapter: keyAdapter, meta: { object: name, key, placement: 'static' },
+        resolvePure(meta) {
+          if (meta.kind === 'global' && meta.name === name) return { entry: name.toLowerCase(), hintName: name };
+          if (meta.object === name && meta.key === key) return { kind: 'static', entry: `${ name.toLowerCase() }/${ key }` };
+          return null;
+        },
+      });
+      check(`${ label } whole default`, plan?.targets?.[0]?.tree.kind, expected);
+      if (expected) check(`${ label } served property`, plan.targets[0].tree.readProperties.length, 1);
+    });
+}
+
+runBoth('mirror/constructor rest with an effectful default stays on its index',
+  'function f({ all, ...rest } = globalThis[(effect(), "self")].Promise) {} f();', (parser, program, label) => {
+    const plan = buildNestedParamSynthPlan({
+      leafPatternPath: parser.pickPath(program, 'ObjectPattern'), adapter: keyAdapter,
+      meta: { object: 'Promise', key: 'all', placement: 'static' },
+      resolvePure: meta => meta.kind === 'global' && meta.name === 'Promise'
+        ? { entry: 'promise', hintName: 'Promise' } : null,
+    });
+    check(`${ label } no body extraction`, plan?.bail, true);
+  });
 
 finish();

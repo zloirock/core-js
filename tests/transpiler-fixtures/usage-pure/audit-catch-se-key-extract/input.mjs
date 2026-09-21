@@ -1,5 +1,4 @@
-// Object-rest keeps the affected catch pattern native, including its named method slots.
-// Independent reads and key/default expressions still receive their own polyfills.
+// Instance reads preserve receiver, key and default order across host forms.
 try { risky(); } catch ({ [(e1(), 'at')]: v }) { console.log(typeof v); }
 try { risky(); } catch ({ [(e2(), 'flat')]: f, message }) { console.log(typeof f, message); }
 try { risky(); } catch ({ [(e3(), 'includes')]: i = dflt() }) { console.log(typeof i); }

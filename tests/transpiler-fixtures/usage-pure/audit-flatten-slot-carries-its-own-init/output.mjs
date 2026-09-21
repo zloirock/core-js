@@ -13,21 +13,44 @@ function eff() {}
 function getArr() {
   return [1];
 }
-const from = _Array$from;
+const {
+  Array: {
+    from
+  }
+} = {
+  Array: {
+    from: _Array$from
+  }
+};
 const _ref = (log(), getArr());
 const at = _atMaybeArray(_ref);
 const concat = _concatMaybeArray(_ref);
-const of = _Array$of;
-const _ref2 = getArr();
 const {
-  indexOf
-} = _ref2;
-const _ref3 = _ref2;
-const fl = null == _ref3 ? _ref3[""] : (k++, _flatMaybeArray(_ref3));
-var f4 = _Object$entries;
-var _ref4 = (eff(), Array);
-var of4 = null == _ref4 ? _ref4[""] : (k4++, _Array$of);
+    Array: {
+      of
+    }
+  } = {
+    Array: {
+      of: _Array$of
+    }
+  },
+  _ref2 = getArr(),
+  {
+    indexOf
+  } = _ref2,
+  fl = null == _ref2 ? _ref2[""] : (k++, _flatMaybeArray(_ref2));
 var {
-  other4
-} = _ref4;
+    Object: {
+      entries: f4
+    }
+  } = {
+    Object: {
+      entries: _Object$entries
+    }
+  },
+  _ref3 = (eff(), Array),
+  of4 = null == _ref3 ? _ref3[""] : (k4++, _Array$of),
+  {
+    other4
+  } = _ref3;
 export { from, at, concat, of, indexOf, fl, f4, of4, other4 };

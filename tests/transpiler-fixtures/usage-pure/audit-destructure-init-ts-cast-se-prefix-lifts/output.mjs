@@ -4,6 +4,13 @@ import _Array$from from "@core-js/pure/actual/array/from";
 // silently drops `logCall()` from the output. peeling parens-only would have missed the
 // TSAsExpression layer and the call would be lost
 declare function logCall(): void;
-logCall();
-const from = _Array$from;
+const {
+  Array: {
+    from
+  }
+} = (logCall(), {
+  Array: {
+    from: _Array$from
+  }
+}) as any;
 from([1, 2, 3]);

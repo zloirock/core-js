@@ -14,7 +14,15 @@ export const result = invoke(() => {
   };
   first = second;
   second = first;
-  const from = _Array$from;
+  const {
+    x: {
+      from
+    }
+  } = {
+    x: {
+      from: _Array$from
+    }
+  };
   return from({
     0: 'callback',
     length: 1

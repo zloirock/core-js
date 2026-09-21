@@ -1,11 +1,17 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _valuesMaybeArray from "@core-js/pure/actual/array/instance/values";
-// flatten declarator NOT first in multi-decl - sibling IIFE block-body precedes the
-// flattenable destructure. asserts the bug fires regardless of declarator order in
-// the multi-decl
+// An effectful sibling before the nested static keeps its position and local receiver temporary.
 const kls = (() => {
-  var _ref;
-  return _valuesMaybeArray(_ref = []).call(_ref);
-})();
-const from = _Array$from;
+    var _ref;
+    return _valuesMaybeArray(_ref = []).call(_ref);
+  })(),
+  {
+    Array: {
+      from
+    }
+  } = {
+    Array: {
+      from: _Array$from
+    }
+  };
 export { from, kls };

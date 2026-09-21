@@ -10,8 +10,9 @@ function observe() {
     seen = _nameMaybeFunction(error);
   }
 }
-const [_ref, _ref2] = [Array, {}],
-  _ref3 = _ref,
-  from = null == _ref3 ? _ref3[""] : (observe(), _Array$from),
-  other = _ref2;
+const [{
+  [(observe(), 'from')]: from
+}, other] = [{
+  from: _Array$from
+}, {}];
 export const result = [seen, from([7]), other];

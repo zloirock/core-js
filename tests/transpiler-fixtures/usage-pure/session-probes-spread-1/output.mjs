@@ -1,7 +1,6 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
-import _globalThis from "@core-js/pure/actual/global-this";
 import _at from "@core-js/pure/actual/instance/at";
 import _Map from "@core-js/pure/actual/map/constructor";
 import _Object$freeze from "@core-js/pure/actual/object/freeze";
@@ -32,10 +31,11 @@ function mark(t, v) {
   return v;
 }
 {
-  const M = _Map;
   const [, {
-    Map: _unused
-  }] = [0, _globalThis];
+    Map: M
+  }] = [...[0, {
+    Map: _Map
+  }]];
   new M();
 }
 {
@@ -43,15 +43,16 @@ function mark(t, v) {
   const at = _atMaybeArray([1]);
 }
 {
-  const f = _Array$from;
   const [, {
-    from: _unused2
-  }] = [0, Array];
+    from: f
+  }] = [...[0, {
+    from: _Array$from
+  }]];
 }
 {
   const [, {
     from: f
-  }] = [0, pick ? {
+  }] = [...[0], pick ? {
     from: _Array$from
   } : userObj];
 }
@@ -66,7 +67,11 @@ function mark(t, v) {
   const at = _atMaybeArray([1, 2]);
 }
 {
-  const f = _Array$from;
+  const [[{
+    from: f
+  }]] = [...[[...[{
+    from: _Array$from
+  }]]]];
 }
 {
   const [[{
@@ -90,7 +95,11 @@ function mark(t, v) {
   _atMaybeArray(x).call(x, 0);
 }
 {
-  const M = _Map;
+  const [{
+    Map: M
+  }] = [...[{
+    Map: _Map
+  }]];
   new M();
 }
 {
@@ -121,7 +130,11 @@ function mark(t, v) {
   const a = _atMaybeArray([1]);
 }
 {
-  const f = _Array$from;
+  const [{
+    from: f
+  }] = [...[{
+    from: _Array$from
+  }]];
 }
 {
   const [{
@@ -131,7 +144,9 @@ function mark(t, v) {
 {
   const [{
     from: f
-  }] = [...[...[Array]]];
+  }] = [...[...[{
+    from: _Array$from
+  }]]];
 }
 {
   const [{
@@ -146,16 +161,26 @@ function mark(t, v) {
 {
   const [{
     from: f
-  }] = [...[Array, ...rest]];
+  }] = [...[{
+    from: _Array$from
+  }, ...rest]];
 }
 {
-  const f = _Array$from;
   const [{
-    z
-  }] = [...[nb]];
+      from: f
+    }] = [...[{
+      from: _Array$from
+    }]],
+    [{
+      z
+    }] = [...[nb]];
 }
 {
-  const f = _Array$from;
+  const [{
+    from: f
+  }] = [...[{
+    from: _Array$from
+  }]];
 }
 {
   const [{
@@ -165,9 +190,9 @@ function mark(t, v) {
 {
   const [{
     from: f
-  }] = [pick ? {
+  }] = [...[pick ? {
     from: _Array$from
-  } : userObj];
+  } : userObj]];
 }
 {
   var _ref3;

@@ -4,7 +4,11 @@ import _Array$from from "@core-js/pure/actual/array/from";
 // the binding still gets the polyfill (a bail here would silently lose it)
 let calls = 0;
 let a;
-const from = (a = (() => {
+const [{
+  from
+}] = [(a = (() => {
   calls++;
   return Array;
-})(), _Array$from);
+})(), {
+  from: _Array$from
+})];

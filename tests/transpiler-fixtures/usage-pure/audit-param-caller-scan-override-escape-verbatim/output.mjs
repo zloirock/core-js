@@ -1,3 +1,4 @@
+import _Array$of from "@core-js/pure/actual/array/of";
 // the call-site scan's NEGATIVE cases keep params VERBATIM: `over` is called with a real
 // argument (the caller value must win over any lossy emission), `leak` escapes through an
 // alias (external calls are unknown). distinct methods per function
@@ -11,9 +12,10 @@ over({
   from: 'custom'
 });
 function leak({
-  of,
+  of: _unused,
   ...rest
 } = Array) {
+  let of = _Array$of;
   return [of, rest];
 }
 const alias = leak;

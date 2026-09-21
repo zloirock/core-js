@@ -1,6 +1,3 @@
-// Object-rest keeps named slots at that level and reads through it native in usage-pure.
-// Independent reads and key/default expressions still receive their own polyfills.
-
 // A single property keeps its key effect before the extraction and default.
 const { [(e1(), 'at')]: a = dfltA() } = recvA;
 

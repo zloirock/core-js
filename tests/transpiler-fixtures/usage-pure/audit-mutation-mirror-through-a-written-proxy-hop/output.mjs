@@ -14,9 +14,7 @@ function read({
     of
   }
 } = {
-  window: {
-    Array: _globalThis.window.Array
-  },
+  window: _globalThis.window,
   Array: {
     of: _Array$of
   }

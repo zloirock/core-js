@@ -18,9 +18,7 @@ let flat, at, deep, kept, kw, named, keyed, other, stat, zn;
 // question the marked nav answers is the plain one's
 let markedName;
 [{ Array: { keys: markedName } }] = [globalThis?.globalThis];
-// ... and a FLAT SE-keyed prop over a MEMBER read SHARES that read rather than repeating it: the
-// memo takes the element's own slot, so the member is evaluated where and as often as the source
-// evaluates it, the residual reads the memo in its place, and the dispatch reads it again for free
+// A computed key runs before its method read; the captured receiver also serves the sibling.
 [{ [(log.push("k"), "flatMap")]: keyed, other }] = [Array.prototype];
 // ... and a FLAT static under a multi wrapper is claimed like the instance one above it: the
 // OVERWRITE channel owns the shape, so the destructure stays whole for the sibling that still binds

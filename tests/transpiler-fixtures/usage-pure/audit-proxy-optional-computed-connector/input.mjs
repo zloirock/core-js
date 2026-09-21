@@ -1,5 +1,3 @@
-// Object-rest keeps named slots at that level and reads through it native in usage-pure.
-// Independent reads and key/default expressions still receive their own polyfills.
 // An OPTIONAL-COMPUTED connector on a substituted proxy-global root must normalize to a plain
 // computed access: `globalThis?.['Array']` -> `_globalThis['Array']` (drop the whole `?.`, a
 // computed access takes no dot). Stripping only the `?` would leave `_globalThis.['Array']`,

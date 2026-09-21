@@ -4,7 +4,18 @@ import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 // if body. without block-wrapping the second polyfill assignment escapes the gate
 // and runs unconditionally, breaking the if's runtime semantics
 let from, fromEntries;
-if (cond) {
-  from = _Array$from;
-  fromEntries = _Object$fromEntries;
-}
+if (cond) ({
+  Array: {
+    from
+  },
+  Object: {
+    fromEntries
+  }
+} = {
+  Array: {
+    from: _Array$from
+  },
+  Object: {
+    fromEntries: _Object$fromEntries
+  }
+});

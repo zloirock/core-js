@@ -1,0 +1,88 @@
+import _Array$from from "@core-js/pure/actual/array/from";
+import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
+import _Map from "@core-js/pure/actual/map";
+// A head whose LEFT is a pattern unpacks the element it binds, and unpacking is a read: it re-homes
+// what its own leaves bind, exactly as the declarator twin does. Filing it as an escape instead
+// marked every container slot the element NAMES as written, and the pure receiver walk then declined
+// the very literal the twin resolves through - so a container reached by BINDING lost the polyfill
+// in the head while the same container written in place kept it.
+const out = [];
+const W = {
+  w: Array
+};
+const WA = [Array];
+const WN = {
+  a: {
+    b: Array
+  }
+};
+for (const {
+  from
+} of [{
+  from: _Array$from
+}]) _pushMaybeArray(out).call(out, typeof from);
+for (const {
+  from
+} of [{
+  from: _Array$from
+}]) _pushMaybeArray(out).call(out, typeof from);
+for (const {
+  from
+} of [{
+  from: _Array$from
+}]) _pushMaybeArray(out).call(out, typeof from);
+for (const {
+  w: {
+    from
+  }
+} of [{
+  w: {
+    from: _Array$from
+  }
+}]) _pushMaybeArray(out).call(out, typeof from);
+// NEGATIVE: a slot the source WRITES holds whatever was written, so the walk owes the live read
+const written = {
+  w: Array
+};
+written.w = _Map;
+for (const {
+  from
+} of [written.w]) _pushMaybeArray(out).call(out, typeof from);
+// a write through the head's own binding lands AFTER the iterable was read: a head reads its source
+// once per ENTRY, so the literal the element spells is what every pass of that entry binds
+const throughHead = {
+  w: Array
+};
+for (const {
+  from
+} of [{
+  from: _Array$from
+}]) {
+  throughHead.w = _Map;
+  _pushMaybeArray(out).call(out, typeof from);
+}
+// NEGATIVE: ... and that same write does reach the read once an OUTER loop RE-ENTERS the head,
+// which evaluates the iterable again, against the slot the previous entry replaced
+const reentered = {
+  w: Array
+};
+for (let round = 0; round < 2; round += 1) {
+  for (const {
+    from
+  } of [reentered.w]) {
+    reentered.w = _Map;
+    _pushMaybeArray(out).call(out, typeof from);
+  }
+}
+// NEGATIVE: the container's slot is read by a GETTER, so the read is the effect and no literal
+// stands in for it; an effectful key is the same refusal spelled on the other side
+const observed = {
+  get w() {
+    _pushMaybeArray(out).call(out, 'got');
+    return Array;
+  }
+};
+for (const {
+  from
+} of [observed.w]) _pushMaybeArray(out).call(out, typeof from);
+export { out };

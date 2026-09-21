@@ -5,9 +5,16 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 // while the cascade rewrite is still pending. if the cascade overwrite lands before that ref
 // binding is baked into the lifted slice, `_ref` ends up undeclared and overlapping edits throw
 let from;
-(function () {
+({
+  Array: {
+    from
+  }
+} = (function () {
   var _ref;
   return _atMaybeArray(_ref = [1]).call(_ref, 0);
-})();
-from = _Array$from;
+}(), {
+  Array: {
+    from: _Array$from
+  }
+}));
 from([2, 3]);

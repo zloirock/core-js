@@ -29,10 +29,11 @@ export const viaNestedShift = P.allSettled([]);
 
 // CONTROL: a slot strictly BEFORE the spread pairs exactly and still resolves - the residual stays,
 // since the spread ITERATES and no rescue re-emits that
-const W = _WeakSet;
 const [{
-  WeakSet: _unused
-}] = [_globalThis, ...tail];
+  WeakSet: W
+}] = [{
+  WeakSet: _WeakSet
+}, ...tail];
 export const viaPreSpreadExact = new W();
 
 // a union candidate in the shifted slot changes nothing for pure: the shift alone already

@@ -1,4 +1,5 @@
 import _Map from "@core-js/pure/actual/map";
+import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 // The obligation a stored constructor puts on the entry follows the container however the file
 // SPELLS it, not only where the literal stands bare in the declarator: an effect ahead of the value,
 // a chain assignment through it, a name holding it, a selection between two names that each hold
@@ -9,30 +10,27 @@ let spellingHits = 0;
 const prefixed = (spellingHits++, {
   Map: _Map
 });
+const viaPrefix = _Map$groupBy;
 const {
-  Map: {
-    groupBy: viaPrefix
-  },
+  Map: _unused,
   ...prefixRest
 } = prefixed;
 let sharedSlot;
 const chained = sharedSlot = {
   Map: _Map
 };
+const viaChain = _Map$groupBy;
 const {
-  Map: {
-    groupBy: viaChain
-  },
+  Map: _unused2,
   ...chainRest
 } = chained;
 const hopSource = {
   Map: _Map
 };
 const hopped = hopSource;
+const viaHop = _Map$groupBy;
 const {
-  Map: {
-    groupBy: viaHop
-  },
+  Map: _unused3,
   ...hopRest
 } = hopped;
 const leftArm = {
@@ -50,10 +48,11 @@ const {
 } = armed;
 const indexedSource = [_Map];
 const indexedHop = indexedSource;
-const [{
-  groupBy: viaIndexHop,
-  ...indexHopRest
-}] = indexedHop;
+const [_ref] = indexedHop,
+  {
+    groupBy: viaIndexHop,
+    ...indexHopRest
+  } = _Map;
 // ... and the spelling alone widens nothing: a name holding a literal whose slot stores no
 // constructor asks the entry for nothing, and the read stays exactly where the source wrote it
 const plainSource = {

@@ -1,5 +1,5 @@
-// Object-rest keeps named slots at that level and reads through it native in usage-pure.
-// Independent reads and key/default expressions still receive their own polyfills.
+// Instance slots beside object rest keep their native reads.
+// Keys and defaults retain their independent polyfills and evaluation order.
 const arr = [3, [1, 2]];
 const log = [];
 const eff = () => { log.push('e'); return arr; };

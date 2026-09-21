@@ -1,6 +1,5 @@
-// assignment-form hosts with collapsible fallback RHS: a pure logical / ternary RHS is
-// discarded by the cascade entirely, a transparent IIFE keeps its call as a statement
-// (one evaluation, exactly as native) - the binding always gets the polyfill
+// Assignment receivers preserve call effects while serving the pure static.
+// A collapsible realm selection needs no runtime choice of the method.
 let from;
 let of;
 let c = true;

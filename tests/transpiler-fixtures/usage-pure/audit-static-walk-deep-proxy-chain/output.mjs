@@ -10,5 +10,21 @@ const ns = {
     b: _globalThis
   }
 };
-const from = _Array$from;
+const {
+  a: {
+    b: {
+      Array: {
+        from
+      }
+    }
+  }
+} = {
+  a: {
+    b: {
+      Array: {
+        from: _Array$from
+      }
+    }
+  }
+};
 export const arr = from([1, 2, 3]);

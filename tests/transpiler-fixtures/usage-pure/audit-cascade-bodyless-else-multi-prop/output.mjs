@@ -4,7 +4,18 @@ import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 // slot wrap: the bodyless detector covers both consequent and alternate, the second
 // polyfill must stay inside the gate when else has no block
 let from, fromEntries;
-if (cond) noop();else {
-  from = _Array$from;
-  fromEntries = _Object$fromEntries;
-}
+if (cond) noop();else ({
+  Array: {
+    from
+  },
+  Object: {
+    fromEntries
+  }
+} = {
+  Array: {
+    from: _Array$from
+  },
+  Object: {
+    fromEntries: _Object$fromEntries
+  }
+});

@@ -1,10 +1,10 @@
 import _Map from "@core-js/pure/actual/map/constructor";
+import _Math$clz32 from "@core-js/pure/actual/math/clz32";
 import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Reflect from "@core-js/pure/actual/reflect/namespace";
-// the pure twin of the global branching-container union, and its regression guard: the union is a
-// usage-global concept - this flavor has to REWRITE the read, and a branching hop names no single
-// receiver to rewrite it to - so every static read below stays native. what pure does polyfill is
-// the arms themselves, in place, where each constructor is spelled. distinct method per line.
+// Branching container slots do not prove a single static receiver; their reads stay native.
+// Constructor arms can still receive pure entries. A bare selecting alias can instead
+// guard its named static against the captured constructor. Each row names a distinct method.
 const c = Math.random() > 0.5;
 
 // branching IN the slot
@@ -43,6 +43,6 @@ const nested = {
 };
 export const viaNested = nested.inner.Base.ownKeys({});
 
-// the bare-alias spelling of the same reachability is declined the same way
+// A bare alias exposes constructor candidates for an identity guard.
 const aliasBase = c ? Object : Math;
-export const viaBareAlias = aliasBase.clz32(1);
+export const viaBareAlias = (aliasBase === Math ? _Math$clz32 : aliasBase.clz32.bind(aliasBase))(1);

@@ -1,5 +1,5 @@
-// Rest-bearing parameters keep their native bindings and defaults in parameter scope.
-// Independent reads and key/default expressions still receive their own polyfills.
+// Constructor defaults with rest use the full index; supplied objects keep their properties.
+// Other static extractions require closed callers; key/default effects remain independent.
 var cond = true;
 
 export const viaTagName = (function F({ from, ...rest } = Array) {

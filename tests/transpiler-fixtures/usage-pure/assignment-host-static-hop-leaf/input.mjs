@@ -1,6 +1,5 @@
-// An assignment host asks the typed static base the declaration host asks: a nav ending on a
-// polyfillable STATIC dispatches its instance leaf on the static's ponyfill, never on the raw
-// static off the realm, and the consumed slot prunes out of the residual.
+// A nested assignment reads instance members through the static's ponyfill.
+// The same rule holds through bare, nested and wrapped constructor receivers.
 let name, junk, arity;
 ({ Array: { of: { name }, junk } } = globalThis);
 ({ Array: { of: { name } } } = globalThis);

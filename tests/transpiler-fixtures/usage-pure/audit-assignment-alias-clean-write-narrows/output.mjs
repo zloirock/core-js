@@ -8,5 +8,9 @@ let M;
 M = _Map;
 export const r = typeof _Map$groupBy;
 let A;
-A = _Map;
+[{
+  Map: A
+}] = [{
+  Map: _Map
+}];
 export const q = typeof _Map$groupBy;

@@ -10,23 +10,43 @@ import _Object$keys from "@core-js/pure/actual/object/keys";
 import _Object$seal from "@core-js/pure/actual/object/seal";
 import _Object$values from "@core-js/pure/actual/object/values";
 import _self from "@core-js/pure/actual/self";
-// an ARRAY-pattern element whose value navigates the proxy globals: the receiver collapse claims
-// the nav span first, then the flatten / cascade replaces the whole statement with text that does
-// not carry it - the queue reported that as a build error and the module never compiled. the render
-// owns those spans, so it declares them and the composer drops what they consumed.
+// An array element navigating proxy globals receives the same static as the plain receiver.
+// Nested receiver and host rewrites must compose without losing the claim.
 let n = 0;
 let w;
 let getPrototypeOf;
-export const of = _Array$of;
+export const [{
+  of
+}] = [{
+  of: _Array$of
+}];
 export const trunc = _Math$trunc;
 export const from = _Array$from;
 export const keys = ((null == _globalThis.window ? void 0 : Object).keys, _Object$keys);
-export const entries = (n++, _Object$entries);
-export const values = (w = _self, _Object$values); // the ASSIGNMENT form takes the CASCADE render instead of the flatten's - and only when the
+export const [{
+  entries
+}] = [((n++, _self).Object, {
+  entries: _Object$entries
+})];
+export const [{
+  values
+}] = [((w = _self).Object, {
+  values: _Object$values
+})];
+// the ASSIGNMENT form takes the CASCADE render instead of the flatten's - and only when the
 // destructured name resolves to a static, which is what makes that render replace the statement
+[{
+  getPrototypeOf
+}] = [{
+  getPrototypeOf: _Object$getPrototypeOf
+}];
 // a NESTED array pattern reaches the same render through one more wrapper
-getPrototypeOf = _Object$getPrototypeOf;
-export const freeze = _Object$freeze; // a pattern DEFAULT puts the nav in the slot the flatten rewrites rather than in the init; the hole
+export const [[{
+  freeze
+}]] = [[{
+  freeze: _Object$freeze
+}]];
+// a pattern DEFAULT puts the nav in the slot the flatten rewrites rather than in the init; the hole
 // fires it, so the default is mirrored whole
 export const [{
   seal

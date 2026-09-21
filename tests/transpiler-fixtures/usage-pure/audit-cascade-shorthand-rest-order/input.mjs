@@ -1,5 +1,5 @@
-// Object-rest keeps named slots at that level and reads through it native in usage-pure.
-// Independent reads and key/default expressions still receive their own polyfills.
+// Claimed statics retain their polyfills beside object rest.
+// Rest keeps its source and exclusions; instance slots remain native.
 ({ Symbol, Array: { from }, ...rest } = globalThis);
 export const viaShorthandRest = [from([1]), rest];
 

@@ -10,8 +10,16 @@ const holder = {
   p: [1, 2, 3]
 };
 let k = 0;
-export const from = _Array$from;
-export const fl = (_ref = holder.p, null == _ref ? _ref[""] : (k++, _flatMaybeArray(_ref)));
+export const {
+    Array: {
+      from
+    }
+  } = {
+    Array: {
+      from: _Array$from
+    }
+  },
+  fl = (_ref = holder.p, null == _ref ? _ref[""] : (k++, _flatMaybeArray(_ref)));
 console.log(from, fl, k);
 for (const {
     of2

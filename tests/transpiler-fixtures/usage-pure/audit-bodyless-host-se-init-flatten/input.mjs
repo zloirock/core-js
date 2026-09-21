@@ -1,7 +1,4 @@
-// a BODYLESS control-slot host with an SE-bearing init: the SE lift block-wraps the
-// statement in place, so the flatten render must re-anchor onto the moved declaration
-// (a stale path pointed at the wrapper block and built an invalid declaration - a hard
-// build abort on valid input). the effect stays inside the guarded block
+// Bodyless control statements keep initializer effects and pure bindings under the same guard.
 const seen = [];
 const eff = t => (seen.push(t), t);
 let c = 1;

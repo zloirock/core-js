@@ -1,5 +1,4 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-import _globalThis from "@core-js/pure/actual/global-this";
 import _at from "@core-js/pure/actual/instance/at";
 import _keys from "@core-js/pure/actual/instance/keys";
 import _Set from "@core-js/pure/actual/set";
@@ -17,10 +16,11 @@ export { at, keys, viaCall };
 
 // ... a receiver-LESS static neither reads the element nor reorders anything, so the same
 // neighbour leaves it free to extract
-const PureSet = _Set;
 const [{
-  Set: _unused
-}, viaSpread] = [_globalThis, ...tail];
+  Set: PureSet
+}, viaSpread] = [{
+  Set: _Set
+}, ...tail];
 export { PureSet, viaSpread };
 
 // a PURE neighbour pins nothing: the consumed props leave the residual (their extractions bind
@@ -31,10 +31,13 @@ const [{}, plain] = [arr, 7];
 export { at2, keys2, plain };
 
 // ... while a receiver-less static keeps its sentinel there - it reads nothing to re-read
-const from = _Array$from;
 const [{
   Array: {
-    from: _unused2
+    from
   }
-}, plain2] = [_globalThis, 1];
+}, plain2] = [{
+  Array: {
+    from: _Array$from
+  }
+}, 1];
 export { from, plain2 };

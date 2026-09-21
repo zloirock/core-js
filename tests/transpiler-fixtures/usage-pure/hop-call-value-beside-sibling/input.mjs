@@ -1,9 +1,5 @@
-// a hop whose VALUE the walk cannot name but the name channel can - a call's return type, or a
-// selection the other leg reads by its selecting arm - beside a sibling the pattern keeps: the leaf
-// extracts off the constructor and the residual keeps the whole value, so the call runs where it ran.
-// a `||` / `??` LEFT naming an object selects, a ternary needs agreeing arms (disagreeing arms
-// mirror per branch); `&&` may yield its falsy left and stays whole, and so does a member nav under
-// a probe
+// A static reached through a call keeps that call and neighboring effects in source order.
+// Known constructor arms receive pure values; user branches keep their own members.
 const c = 1;
 const userObj = {};
 const log = [];

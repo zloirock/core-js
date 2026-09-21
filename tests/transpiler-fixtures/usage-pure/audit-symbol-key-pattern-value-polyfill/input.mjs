@@ -1,5 +1,5 @@
-// Object-rest keeps the affected method slots native; computed symbol keys still polyfill.
-// Independent reads and key/default expressions still receive their own polyfills.
+// Claimed statics retain their polyfills beside object rest.
+// Rest keeps its source and exclusions; instance slots remain native.
 const obj = {};
 const { Array: { from }, [Symbol.iterator]: { next = [1].at(0) } } = obj;
 // prop-level default: the helper result is guarded (a memoized `=== void 0` test), so a genuinely

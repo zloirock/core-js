@@ -20,8 +20,11 @@ import {
   bindingPolyfillHint,
   bindsModuleDefault,
   boundModuleDefaultSource,
+  calleeYieldedContainer,
+  callPairing,
   chainValueCarrier,
   collectFoldedReceiverSideEffects,
+  collectParamBindingNames,
   definedBranchOfGuardConditional,
   deleteHostAboveChain,
   firstProxyBranch,
@@ -59,7 +62,12 @@ import {
   memberProxyHopName,
   nodeCarriesSourceSpan,
   noReassignmentReachesUsage,
+  objectPatternLiteralKeyPath,
+  bodyWritesThroughParameter,
+  CENSUS_CONTAINER_TYPES,
+  paramListRunsWork,
   paramReboundInBody,
+  paramReturnsTheValue,
   MUTATED_MEMBERS_UNKNOWN,
   patternRootKeyPathsFor,
   patternSlotHasDefault,
@@ -76,6 +84,7 @@ import {
   POSSIBLE_GLOBAL_OBJECTS,
   pureCtorNameFromImportSource,
   pureImportEntryOf,
+  pureImportSourceEntry,
   reachingReassignmentValueNode,
   reassignBailApplies,
   reassignmentBlocksGlobalResolve,
@@ -99,6 +108,7 @@ import {
   tsImportEqualsRequireSource,
   unwrapParens,
   forOfIterableElements,
+  forOfHeadIterableElements,
   isForXStatement,
   unwrapRuntimeExpr,
   unwrapTransparentSeq,
@@ -110,8 +120,8 @@ import {
   rootProgramOf,
   anyWriteOutrunsUse,
 } from '../helpers/ast-patterns.js';
-import { SYMBOL_STATIC_KEYS, symbolKeyToEntry } from './globals.js';
-import { nodeRangeContains } from '../resolve-node-type/base.js';
+import { SYMBOL_STATIC_KEYS, isKnownGlobalName, symbolKeyToEntry } from './globals.js';
+import { argIndexForParam, dropLeadingThisParam, nodeRangeContains } from '../resolve-node-type/base.js';
 
 // same ceiling as `resolve-node-type.MAX_DEPTH`; 10 is too low for cross-module alias chains.
 // exported so cohort recursive walkers (`isSymbolSourcedKey` in members.js) share the bound
@@ -1062,7 +1072,8 @@ function enterIdentifierBindingFollow(hop) {
   return { ...hop, node: init, seen: nextSeen, binding, ctx: { ...hop.ctx, scope: aliasDeclScope(binding, scope) } };
 }
 
-// resolve a plugin-managed binding to its Symbol.X key if any. covers two markers:
+// Resolve a binding to its Symbol.X key through registered/imported provenance, or,
+// with a usage context, a retained destructure from a full Symbol index. Markers:
 // `polyfillHint` (in-place AST mutation leaves this on the binding) and `importSource`
 // (real `import X from '.../symbol/iterator'` that the plugin emitted). an entry for a `Symbol.X`
 // static exports that static as its default - only default bindings count as Symbol.X refs, and
@@ -1072,7 +1083,7 @@ function enterIdentifierBindingFollow(hop) {
 // whose `*/symbol/X` suffix would otherwise match the regex and route through Symbol.X polyfill.
 // optional `packages` array extends the prefix check to user-aliased polyfill packages
 // (`additionalPackages` config) so monorepo / vendor-fork imports are recognised
-export function bindingSymbolKey(binding, packages = null) {
+export function bindingSymbolKey(binding, packages = null, ctx = null) {
   if (binding.polyfillHint?.startsWith('Symbol.')) return binding.polyfillHint;
   // a registered destructure alias whose import source is a Symbol.X module (`const { iterator } =
   // Symbol` / `= globalThis.Symbol`): the binding is a pattern, not a module default, so the
@@ -1083,7 +1094,23 @@ export function bindingSymbolKey(binding, packages = null) {
   if (aliasKey) return aliasKey;
   // ... and the module-default forms through the shared three-form rule: the ES default specifier,
   // the TS require-import, the bare-CJS require declarator the require import style leaves behind
-  return symbolKeyFromSource(boundModuleDefaultSource(binding), packages);
+  const importedKey = symbolKeyFromSource(boundModuleDefaultSource(binding), packages);
+  if (importedKey || !ctx) return importedKey;
+  // A full Symbol index keeps its static reads instead of extracting another import.
+  // The retained destructure still supplies a protocol key to later instance dispatch.
+  const declarator = bindingDeclaratorNode(binding);
+  if (declarator?.id?.type !== 'ObjectPattern' || !declarator.init
+    || isReassignedBeyondDeclarator(binding)
+    || !varInitDominatesUsage({ declaratorNode: declarator, usagePath: ctx.path,
+      usageNode: ctx.usageNode, kind: binding.kind })) return null;
+  const keys = objectPatternLiteralKeyPath(declarator.id, ctx.name);
+  if (keys?.length !== 1 || !SYMBOL_STATIC_KEYS.has(keys[0])
+    || ctx.adapter.isMutatedStatic?.('Symbol', keys[0])) return null;
+  const source = moduleDefaultSource({ node: declarator.init, adapter: ctx.adapter,
+    scope: aliasDeclScope(binding, ctx.scope), path: binding.declarationPath ?? binding.path ?? ctx.path });
+  if (!source || (!CORE_JS_SOURCE_PREFIX.test(source) && !importSourceMatchesUserPackage(source, packages))) return null;
+  const entry = pureImportSourceEntry(source)?.replace(/\/index(?:\.js)?$|\.js$/u, '');
+  return entry === 'symbol' ? `Symbol.${ keys[0] }` : null;
 }
 
 // `<pkg>/.../symbol/<name>` module source -> `Symbol.<name>`, or null when the source is absent /
@@ -1152,17 +1179,30 @@ function interopCallSource({ callNode, scope, adapter, path = null }) {
   return requireCallSource(callNode.arguments[0], { adapter, scope, path });
 }
 
+// ... the same slot read by the helper's NAME convention alone: the half a census holding no
+// bindings can ask, for the interop wrapper module lowering leaves ahead of it
+export function inlineInteropCallSource(node) {
+  const call = unwrapRuntimeExpr(node);
+  if (call?.type !== 'CallExpression' || call.arguments?.length !== 1) return null;
+  const callee = unwrapRuntimeExpr(call.callee);
+  return callee?.type === 'Identifier' && INTEROP_DEFAULT_CALLEE.test(callee.name) ? requireCallSource(call.arguments[0]) : null;
+}
+
 // The module source whose default value a node carries, through write-free aliases.
 // A namespace/wrapper needs a default-member hop; a default binding already holds the value.
 // The same source walk serves proxy-global reads and pure invoker pairing.
-export function moduleDefaultSource({ node, scope, adapter, path, namespace = false }) {
+// A caller may share its binding lookup without copying the adapter's other facts.
+// Committed deferred extractions carry the same source before their initializer is inserted.
+export function moduleDefaultSource({ node, scope, adapter, path, namespace = false, getBinding = null }) {
   const seen = new Set();
+  const followed = [];
+  let source = null;
   while (node) {
-    node = unwrapTransparentSeq(node);
+    node = peelReceiverSequenceTail(node);
     if (!node) return null;
     if (!namespace) {
-      const source = requireCallSource(node, { scope, adapter, path });
-      if (source) return source;
+      source = requireCallSource(node, { scope, adapter, path });
+      if (source) break;
       if (isMemberAccessNode(node) && memberKeyName(node) === 'default') {
         node = node.object;
         namespace = true;
@@ -1170,26 +1210,37 @@ export function moduleDefaultSource({ node, scope, adapter, path, namespace = fa
       }
     }
     if (node.type === 'CallExpression') {
-      return namespace ? interopCallSource({ callNode: node, scope, adapter, path }) : null;
+      source = namespace ? interopCallSource({ callNode: node, scope, adapter, path }) : null;
+      break;
     }
     if (node.type !== 'Identifier' || seen.has(node.name)) return null;
     seen.add(node.name);
-    const binding = adapter.getBinding(scope, node.name, path);
-    if (!binding || isReassignedBeyondDeclarator(binding)) return null;
-    const declaratorNode = bindingDeclaratorNode(binding);
-    if (declaratorNode?.type === 'VariableDeclarator'
-      && !initializerMayRunBeforeUsage({ declaratorNode, usagePath: path, usageNode: node })) return null;
+    const binding = getBinding ? getBinding(scope, node.name, path) : adapter.getBinding(scope, node.name, path);
+    if (!binding) return null;
+    followed.push({ binding, node, path });
     if (namespace && binding.node?.type === 'ImportNamespaceSpecifier') {
-      return importBindingIsTypeOnly(binding) ? null : binding.importSource;
+      source = importBindingIsTypeOnly(binding) ? null : binding.importSource;
+      break;
     }
-    const source = !namespace && boundModuleDefaultSource(binding, adapter);
-    if (source) return source;
+    source = !namespace && (boundModuleDefaultSource(binding, adapter)
+      ?? adapter.emittedBindingSources?.get(bindingDeclaratorNode(binding))?.get(node.name));
+    if (source) break;
     node = identifierDeclaratorInit(binding);
     // Each alias captures its initializer at its declaration point and in its own scope.
     scope = aliasDeclScope(binding, scope);
     path = binding.path ?? binding.declarationPath ?? binding.resolveDeclaratorPath?.() ?? path;
   }
-  return null;
+  if (!source) return null;
+  // Only a module-valued chain owes availability and write proofs. Ordinary local
+  // callees reach this speculative query too; their bodies cannot name a module.
+  for (const followedBinding of followed) {
+    const { binding } = followedBinding;
+    if (isReassignedBeyondDeclarator(binding)) return null;
+    const declaratorNode = bindingDeclaratorNode(binding);
+    if (declaratorNode?.type === 'VariableDeclarator'
+      && !initializerMayRunBeforeUsage({ declaratorNode, usagePath: followedBinding.path, usageNode: followedBinding.node })) return null;
+  }
+  return source;
 }
 
 // The default slot of a pure global-proxy module holds the realm, not its interop wrapper.
@@ -1520,20 +1571,27 @@ function resolveGuardedBindingToGlobal({ name, scope, adapter, seen, path, usage
   if (binding?.kind === 'param' && bindingType === 'Identifier' && !binding.constantViolations?.length) {
     const parameter = binding.path ?? binding.declarationPath;
     const candidate = PARAMETER_STATIC_SOURCES.get(parameter?.node);
-    if (!candidate) return null;
+    if (typeof candidate !== 'string') {
+      const source = adapter.parameterStaticSources?.get(parameter?.node);
+      return typeof source === 'string' ? source : null;
+    }
     // The closed-source proof describes the original parameter, like the file census. Own
     // rewrites only replace its proven reads; a new parse/relocated parameter has a new node.
     // Cache refusals too: an opaque receiver must not rescan the body at every member read.
     const cache = adapter.parameterStaticSources;
-    if (cache?.has(parameter.node)) return cache.get(parameter.node);
+    if (cache?.has(parameter.node)) {
+      const source = cache.get(parameter.node);
+      return typeof source === 'string' ? source : null;
+    }
     cache?.set(parameter.node, null);
     const sites = adapter.parameterCallSites?.(parameter, { staticIsMutated: adapter.isMutatedStatic });
     if (!sites?.length) return null;
     const source = parameterStaticSource(sites, null, (value, { callPath }) => {
-      const sourceBinding = adapter.getBinding(callPath.scope, value.name, callPath);
-      if (sourceBinding && !bindingPolyfillHint({ binding: sourceBinding, scope: callPath.scope, name: value.name, adapter })) return null;
+      const sourceBinding = value.type === 'Identifier' && adapter.getBinding(callPath.scope, value.name, callPath);
+      if (adapter.method !== 'usage-global' && sourceBinding
+        && !bindingPolyfillHint({ binding: sourceBinding, scope: callPath.scope, name: value.name, adapter })) return null;
       const object = resolveObjectName({ objectNode: value, scope: callPath.scope, adapter, path: callPath, seen: new Set() });
-      return object === candidate ? object : null;
+      return object && (typeof candidate === 'string' ? object === candidate : isKnownGlobalName(object)) ? object : null;
     });
     cache?.set(parameter.node, source);
     return source;
@@ -2210,6 +2268,17 @@ export function memberTargetTakesExtraction(valueNode, { scope = null, adapter =
   return resolveObjectName({ objectNode: root, scope, adapter, path }) === null ? target : null;
 }
 
+// A ternary's arms naming one receiver can share its extraction. A consumer keeping the
+// complete selection may retain an effectful test; a consumer dropping it must refuse.
+export function agreeingTernaryArm(selecting, path, adapter, { preservesEffects = false } = {}) {
+  if (selecting?.type !== 'ConditionalExpression' || !preservesEffects && mayHaveSideEffects(selecting.test)) return null;
+  const ctx = { scope: path?.scope, adapter, path };
+  const left = peelReceiverSequenceTail(selecting.consequent);
+  const right = peelReceiverSequenceTail(selecting.alternate);
+  const name = resolveObjectName({ objectNode: left, ...ctx });
+  return name && name === resolveObjectName({ objectNode: right, ...ctx }) ? selecting.consequent : null;
+}
+
 // `seen` threaded from resolveBindingToGlobal so cyclic const chains
 // (`const a = b.x; const b = a.x;`) don't restart the cycle guard and stack-overflow.
 // initialize at entry so the cycle guard accumulates across recursion regardless of whether
@@ -2272,18 +2341,9 @@ export function resolveObjectName({
     // member-tail hop already decline it; this is the binding-less name's own spelling)
     return bindingLessGlobalName(objectNode.name, { scope, adapter });
   }
-  // call expression: inline the function-like callee's body return when it bottoms out on
-  // a resolvable receiver. covers IIFE (`(() => Map)()`), function-expression IIFE, and
-  // identifier-bound arrow/fn (`const f = () => Map; 'X' in f()`). recursion through
-  // resolveObjectName handles chains like `(() => globalThis)().Map`.
-  // identity / param-free / SE-prefix IIFE peel (`peelZeroArgIifeReturn`) is intentionally
-  // NOT applied at this generic call site -- it'd let `((Map) => Map)(WeakMap).has(1)`
-  // resolve as a polyfillable receiver, and unplugin's text-rewrite would queue a wide
-  // replacement overlapping the identifier-visitor's inner-arg rewrite (`WeakMap` ->
-  // `_WeakMap`), producing broken `__WeakMap` output. binding-init walks apply the peel
-  // separately (`resolveVariableBindingToGlobal`); direct member-receiver IIFE preserves
-  // its AST shape so identifier-visitor's inner rewrite stays the single source of truth
-  if (objectNode.type === 'CallExpression' || objectNode.type === 'OptionalCallExpression') {
+  // Calls and tags share the scoped return proof, including returned arguments.
+  // This classifies the value only; emitters preserve call and argument effects.
+  if (isCallShape(objectNode) || objectNode.type === 'TaggedTemplateExpression') {
     const inlined = inlineCallReturnExpression({ node: objectNode, readNode: usageNode, seen, ctx: { scope, adapter, path } });
     // an SE-arrow body inlines to a SEQUENCE (`() => (r++, globalThis)`) - classify through its
     // tail value like the proxy-root walk does; SE preservation stays the emit side's concern
@@ -2319,15 +2379,11 @@ export function resolveObjectName({
   return isMutatedGlobalSlot(adapter, propertyName) ? null : propertyName;
 }
 
-// the distinct values an alias can hold at the use for the usage-global union: the resolved primary
-// (declarator init) plus every reachable reassignment RHS that resolves, deduped. a non-Identifier
-// alias or one with no reassignment contributes only the primary. `resolve` maps a value HOP to its
-// receiver name / key string: the hop's `ctx.scope` re-anchors the resolution at the scope the value
-// was SPELLED in (a write RHS / init resolves where the binding lives, not at the alias read - a
-// use-site shadow of an RHS name must not capture it), its `readNode` at the site it was read
-// Guard-only callers may include declared candidates even when flow does not prove the initializer
-// reaches the read: their runtime identity check decides whether that candidate actually applies.
-// A proven overwrite, later initializer or opposite branch in the same execution excludes it.
+// Collect distinct receiver/key candidates from an identifier alias or named-call receiver:
+// the supplied primary, literal loop elements, reachable writes and alias hops in their source scope.
+// Other shapes contribute only the primary. Each hop carries its capture position.
+// `includeDeclaredCandidates` also admits initializers for a preserved runtime identity guard;
+// a proven overwrite, later initializer or opposite branch in the same execution excludes them.
 export function reachableAliasValues({
   aliasNode, primary, resolve, scope, adapter, path, seen, usageNode = null, includeDeclaredCandidates = false,
 }) {
@@ -2368,6 +2424,21 @@ export function reachableAliasValues({
   if (aliasNode?.type === 'Identifier') {
     const binding = adapter.getBinding(scope, aliasNode.name, path);
     const declScope = binding ? aliasDeclScope(binding, scope) : scope;
+    // A loop declaration has no initializer. Its finite elements are candidates just like
+    // written values, even when no single one proves the receiver's identity.
+    const declaration = binding?.path ?? binding?.declarationPath;
+    if (declaration?.node?.type === 'VariableDeclarator' && !declaration.node.init) {
+      const ctx = { scope: declScope, adapter, path: declaration, resolveKey };
+      for (const element of forOfHeadIterableElements(declaration) ?? []) {
+        const nodes = declaration.node.id.type === 'Identifier' ? [element]
+          : patternSlotValues(declaration.node.id, element, aliasNode.name, ctx);
+        for (const node of nodes) {
+          const value = resolve({ node, readNode: node, ctx });
+          if (value) values.push(value);
+          pushAliasHop(node, aliasNode.name, false, declScope);
+        }
+      }
+    }
     if (binding && isReassignedBeyondDeclarator(binding)) {
       // the alias name activates pattern-LHS pairing (`[A] = [Iterator]`) in the enumerator -
       // adapter binding wrappers do not all surface the bound identifier
@@ -2432,33 +2503,65 @@ export function reachableAliasValues({
   return [...new Set(values)];
 }
 
-// resolve a call-expression callee to a function-like node (arrow / fn-expr) suitable
-// for inlining. handles direct IIFE (callee = arrow/fn-expr) AND identifier-bound callees
-// (`const f = () => X; f()` walks through the binding's init to the same form, following
-// identifier-to-identifier hops transitively).
-// rejects shapes where inlining would change semantics: non-VariableDeclarator bindings,
-// reassigned bindings (constantViolations), parameter-bearing fn (would shadow free
-// identifiers), async / generator fn (wrapped return value misrepresents the result type
-// for downstream `resolveObjectName` consumers - `(async()=>Map)().has(1)` tags the
-// receiver as Map and emits es.map.* polyfills for a Promise call site).
-// the hop's `seen` tracks binding names already in the resolution chain for cycle protection
-// (`const f = () => g(); const g = () => f();`); pass an empty Set when recursion isn't
-// possible at the call site. the caller's set is never mutated - the walk forks it
-// (fork-before-recurse, the `enterIdentifierBindingFollow` discipline) and returns the fork, so
-// a name consumed while proving one branch cannot block the SAME name in a SIBLING branch; a
-// caller descending into the returned body threads the returned set.
-// takes the hop standing on the CALL and returns the hop standing on the callee function: its
-// `ctx.scope` anchors the callee's BODY - identifiers resolve where the callee was declared, not
-// at the call site (a use-site shadow of a name the body reads must not capture it)
+// the invocation a call-like node spells, as the CALL the inline canon walks: a receiver invoker
+// (`f.call`, `f.apply`, `Reflect.apply`, a `bind` invoked on the spot, the pure `reflect/apply`
+// entry under whatever binding a prior pass or the author left it) and a tagged template all invoke
+// the function the pairing names, with the arguments it pairs. null where the node spells its call
+// plainly - the source node answers for itself there, SE-bail included - and where it is no call at
+// all. the view is LOCAL to the proof: every emitter keeps re-emitting the source's own node
+function pairedCallView(node, { scope, adapter, path }, getBinding = null) {
+  if (!isCallShape(node) && node?.type !== 'TaggedTemplateExpression' && node?.type !== 'NewExpression') return null;
+  const pairing = callPairing(node, null, {
+    nameIsShadowed: name => adapter.hasBinding(scope, name, path),
+    staticIsMutated: adapter.isMutatedStatic ?? null,
+    getCalleeEntry: callee => pureImportSourceEntry(moduleDefaultSource({ node: callee, scope, adapter, path, getBinding })),
+  });
+  if (!pairing?.callee) return null;
+  if (node.type !== 'TaggedTemplateExpression' && pairing.args === node.arguments) return null;
+  return { ...node, type: 'CallExpression', callee: pairing.callee, arguments: pairing.argsUnknown ? [] : pairing.args };
+}
+
+// Resolve a call's returned literal and its parameter-filled slots through the shared callee proof.
+// Return the canonical argument list alongside slot indices; consumers use `resolveCallArgument`
+// to read a runtime position through any remaining inline-array spreads.
+export function callYieldedContainer(hop, options = {}) {
+  if (!isCallShape(hop.node) && hop.node?.type !== 'TaggedTemplateExpression') return null;
+  const resolved = resolveInlineCalleeFunction(hop, { allowIdentityParam: true, ...options });
+  const yielded = resolved && calleeYieldedContainer(resolved.node, { unwrap: unwrapTransparentSeq });
+  return yielded ? { ...yielded, args: resolved.args } : null;
+}
+
+// Resolve the paired invocation to a synchronous function and its declaration scope.
+// Follow local declarations, aliases, proven reaching writes and census-resolved methods;
+// initializer availability and `rejectConditional` bound the weaker conditional-callee proof.
+// Parameters require `allowIdentityParam`; the consumer still proves which value is returned.
+// Return canonical `args` and a forked, advanced `seen` set. Async/generator functions and
+// unresolved or cyclic callees return null; the caller's cycle set is never mutated.
 export function resolveInlineCalleeFunction(hop, {
-  allowIdentityParam = false, allowExtraParams = false, rejectConditional = false, allowUninitializedCallee = false,
+  allowIdentityParam = false, rejectConditional = false, allowUninitializedCallee = false,
 } = {}) {
   const { adapter, path } = hop.ctx;
+  // A named call asks about its module entry before following the same bindings as
+  // callees. Share full records only during this proof, at the same scope and read.
+  // The returned hop keeps the original adapter, so no lookup cache escapes.
+  const bindings = hop.node.callee?.type === 'Identifier' ? new Map() : null;
+  function calleeBinding(scope, name, readPath) {
+    if (!bindings) return adapter.getBinding(scope, name, readPath);
+    const hit = bindings.get(name);
+    if (hit && hit.scope === scope && hit.path === readPath) return hit.binding;
+    const binding = adapter.getBinding(scope, name, readPath);
+    bindings.set(name, { scope, path: readPath, binding });
+    return binding;
+  }
   const seen = new Set(hop.seen);
-  // SE-bail (unwrapTransparentSeq), NOT peel-to-tail: recognizing a SE-callee IIFE (`(eff(), () => Array)()`)
-  // makes the resolver inline it, but the emit layer has no receiver-less static spelling
-  // over the SE-wrapped callee. the SE-bail keeps the shape unresolved (native call survives)
-  let callee = unwrapTransparentSeq(hop.node.callee);
+  // a receiver invoker, a pure invoker binding or a tag names its function through the pairing
+  // canon; a plain call is read as the source spells it - SE-bail (unwrapTransparentSeq), NOT
+  // peel-to-tail: recognizing a SE-callee IIFE (`(eff(), () => Array)()`) makes the resolver inline
+  // it, but the emit layer has no receiver-less static spelling over the SE-wrapped callee. the
+  // SE-bail keeps the shape unresolved (native call survives)
+  const call = pairedCallView(hop.node, hop.ctx, bindings ? calleeBinding : null) ?? hop.node;
+  const args = call.arguments ?? [];
+  let callee = unwrapTransparentSeq(call.callee);
   let hopScope = hop.ctx.scope;
   let lookupPath = path;
   const initAvailable = allowUninitializedCallee ? initializerMayRunBeforeUsage : varInitDominatesUsage;
@@ -2466,7 +2569,7 @@ export function resolveInlineCalleeFunction(hop, {
     const local = LOCAL_MEMBER_CALLEES.get(callee);
     if (!local) return null;
     const owner = unwrapTransparentSeq(callee.object);
-    const binding = owner?.type === 'Identifier' ? adapter.getBinding(hop.ctx.scope, owner.name, path) : null;
+    const binding = owner?.type === 'Identifier' ? calleeBinding(hop.ctx.scope, owner.name, path) : null;
     if (!binding || !initAvailable({
       declaratorNode: binding.path?.node ?? binding.node, usagePath: path, usageNode: hop.node, kind: binding.kind,
     })) return null;
@@ -2481,10 +2584,10 @@ export function resolveInlineCalleeFunction(hop, {
   // alias walks) with the seen-set guarding cycles
   while (callee.type === 'Identifier') {
     const { name } = callee;
-    if (!adapter.hasBinding(hopScope, name, lookupPath) || seen.has(name)) return null;
-    const binding = adapter.getBinding(hopScope, name, lookupPath);
+    if (seen.has(name)) return null;
+    const binding = calleeBinding(hopScope, name, lookupPath);
     if (!binding) return null;
-    const isDeclarator = adapter.getBindingNodeType(hopScope, name, lookupPath) === 'VariableDeclarator';
+    const isDeclarator = bindingDeclaratorNode(binding)?.type === 'VariableDeclarator';
     // the shared accessor covers both binding shapes (detect adapters carry `.node`, the
     // type-resolver channel only `.path`) AND gates on a plain-Identifier declarator: a
     // pattern-bound name (`const { f } = g`) holds a SLOT of the init, so following the whole
@@ -2523,7 +2626,9 @@ export function resolveInlineCalleeFunction(hop, {
       callee = rhs;
       seen.add(name);
       // the write's RHS resolves in the binding's own declaration scope, like a declarator init
-      return finishInlineCallee({ hop, callee, scope: aliasDeclScope(binding, hopScope), seen, allowIdentityParam, allowExtraParams });
+      return finishInlineCallee({
+        hop, callee, args, scope: aliasDeclScope(binding, hopScope), seen, allowIdentityParam,
+      });
     }
     if (reassignmentBlocksGlobalResolve({ binding, adapter, path: lookupPath, usageNode: anchor })) {
       // a dominating write replaced the callee, and its value IS the callee now: the enumerable
@@ -2556,20 +2661,20 @@ export function resolveInlineCalleeFunction(hop, {
     hopScope = aliasDeclScope(binding, hopScope);
     lookupPath = binding.path ?? binding.declarationPath ?? binding.resolveDeclaratorPath?.() ?? lookupPath;
   }
-  return finishInlineCallee({ hop, callee, scope: hopScope, seen, allowIdentityParam, allowExtraParams });
+  return finishInlineCallee({ hop, callee, args, scope: hopScope, seen, allowIdentityParam });
 }
 
 // the shared callee-shape validation every proof arm funnels through; on success the hop advanced
-// onto the callee, at `scope`
-function finishInlineCallee({ hop, callee, scope, seen, allowIdentityParam, allowExtraParams }) {
+// onto the callee, at `scope`, carrying the ARGUMENTS the invocation pairs with its parameters
+function finishInlineCallee({ hop, callee, args, scope, seen, allowIdentityParam }) {
   if ((callee.type !== 'ArrowFunctionExpression' && callee.type !== 'FunctionExpression'
     && callee.type !== 'FunctionDeclaration' && callee.type !== 'ObjectMethod')
-    || (callee.params?.length && !identityParam({ callee, allowIdentityParam, allowExtraParams }))
+    || (callee.params?.length && !allowIdentityParam)
     || callee.async || callee.generator) return null;
   // A named function expression binds its own name, outside the declaration scope carried here.
   if (callee.type === 'FunctionExpression' && callee.id?.name
     && identifierReferencedInSubtree(callee.body, callee.id.name)) return null;
-  return { ...hop, node: callee, seen, ctx: { ...hop.ctx, scope } };
+  return { ...hop, node: callee, seen, args, ctx: { ...hop.ctx, scope } };
 }
 
 // the ASSIGNMENT a constant-violation records, across the parser duality: babel points the
@@ -2587,20 +2692,6 @@ function violationAssignment(violation) {
 // effect the collapse must keep in the output (throw / short-circuit fidelity)
 const conditionallyProvenCallees = new WeakSet();
 
-// an `(x) => x` identity callee is inlineable when `allowIdentityParam` is set: its single Identifier
-// param is substituted with the call arg by `inlineCallReturnExpression`. every other param shape
-// needs substitution we don't do, so it still bails (params?.length && !identity -> null above).
-// `allowExtraParams` admits a longer all-Identifier list for a PRESERVED call returning one of its
-// arguments; the rebinding check below covers the first slot, the caller checks the returned one
-function identityParam({ callee, allowIdentityParam, allowExtraParams }) {
-  if (!allowIdentityParam || !callee.params?.length || (!allowExtraParams && callee.params.length !== 1)
-    || callee.params.some(param => param.type !== 'Identifier')) return false;
-  // the param must flow UNCHANGED to the return - a body write (`arg = x`, `[arg] = e`, `arg++`, or
-  // one inside a nested closure that runs) makes `return arg` yield the new value, not the call arg,
-  // so the passthrough would over-resolve (native throws / diverges on the reassigned value)
-  return !paramReboundInBody(callee.body, new Set([callee.params[0].name]));
-}
-
 // Resolve an inline-eligible call to its proven return expression. Local declarations and
 // agreeing return paths keep the original call through `inlineCallHasObservableEffects`:
 // their body and scopes survive, while a returned local binding still proves nothing.
@@ -2608,15 +2699,13 @@ function identityParam({ callee, allowIdentityParam, allowExtraParams }) {
 // a candidate never promises that the function returns it on every path.
 // takes the hop standing on the CALL and returns the hop standing on the returned expression: its
 // `ctx.scope` is where that expression's identifiers resolve - the callee's declaration scope for
-// a body return, the CALL site for an identity-arg return (the argument evaluates there) - and
-// its `seen` the advanced cycle-guard set a caller descending into the node threads on (the
-// caller's own set stays unmutated)
+// a body return, the CALL site for an identity-arg return (the argument evaluates there).
+// Body returns carry the callee's advanced `seen`; argument returns fork the call site's set.
+// The caller's own set stays unmutated.
 export function inlineCallReturnExpression(hop, {
-  rejectConditional = false, allowExtraParams = false, returnSink = null, allowUninitializedCallee = false,
+  rejectConditional = false, allowMutatingForwarder = false, returnSink = null, allowUninitializedCallee = false,
 } = {}) {
-  const resolved = resolveInlineCalleeFunction(hop, {
-    allowIdentityParam: true, allowExtraParams, rejectConditional, allowUninitializedCallee,
-  });
+  const resolved = resolveInlineCalleeFunction(hop, { allowIdentityParam: true, rejectConditional, allowUninitializedCallee });
   if (!resolved) return null;
   const callee = resolved.node;
   const candidates = returnSink && !callee.params?.length ? [] : null;
@@ -2634,18 +2723,51 @@ export function inlineCallReturnExpression(hop, {
   const tail = bodyExpr?.type === 'SequenceExpression' ? unwrapTransparentSeq(bodyExpr.expressions.at(-1)) : bodyExpr;
   const index = tail?.type === 'Identifier' ? callee.params.findIndex(param => param.name === tail.name) : -1;
   if (index !== -1) {
-    if (index && paramReboundInBody(callee.body, new Set([tail.name]))) return null;
-    const argument = resolveCallArgument(hop.node.arguments, index);
-    return argument ? { ...hop, node: argument, seen: resolved.seen } : null;
+    const returnedName = new Set([tail.name]);
+    // Only the returned parameter needs this proof. Scanning the first parameter while
+    // resolving every callee repeated whole-body walks even when no argument was returned.
+    if (paramReboundInBody(callee.body, returnedName)) return null;
+    // a slot that is not a plain Identifier carries expressions of its own, and a DEFAULT may write
+    // the returned slot (`(value, n = (value = Other)) => value`): the argument then describes a
+    // value the call no longer hands back. asked only of a list that HAS such a slot - a plain
+    // Identifier param spells no expression, and walking one subtree per parameter to learn that
+    // is a cost every ordinary callee would pay
+    if (callee.params.some(param => param.type !== 'Identifier')
+      && callee.params.some((param, slot) => slot !== index && param.type !== 'Identifier'
+        && paramReboundInBody(param, returnedName))) return null;
+    // a callee that WRITES through the parameter hands back a value the call site's literal no longer
+    // describes, so the argument is no PROOF of what the call yields. a caller that keeps the call and
+    // tests the value it gets at runtime asks for such a forwarder by name (`allowMutatingForwarder`);
+    // one taking the answer as proven would read the slot the write already replaced
+    if (!allowMutatingForwarder && bodyWritesThroughParameter(callee, tail.name)) return null;
+    // a leading `this` pseudo-param fills an AST slot and no runtime argument, so the slot's
+    // ARGUMENT stands one position lower - the raw index reads the next argument instead
+    const argument = resolveCallArgument(resolved.args, argIndexForParam(callee.params, index));
+    // ... and a CONTAINER argument is read by its SLOTS, so the literal standing at the call site has
+    // to describe the object that comes back: every channel that can replace a slot - a handout to
+    // something that writes, a write through a local alias - is a reference the callee kept, and the
+    // one proof that rules them all out is that the parameter reached the RETURN and nothing else
+    if (!allowMutatingForwarder && CENSUS_CONTAINER_TYPES.has(unwrapRuntimeExpr(argument)?.type)
+      && !paramReturnsTheValue(callee, dropLeadingThisParam(callee.params).indexOf(callee.params[index]))) return null;
+    // the argument is a SIBLING sub-expression of the source, not a continuation of the binding and
+    // return chain the cycle set guards, so it resolves in the context the call was reached in.
+    // carrying the ADVANCED set read a second hop through the same callee NAME as a cycle and
+    // answered nothing at all (`pick(pick(Array)).from` lost its polyfill on both methods); what
+    // ends this descent is the finite tree, since every step moves strictly inward
+    return argument ? { ...hop, node: argument, seen: new Set(hop.seen) } : null;
   }
-  // Extra parameters are admitted only for a preserved call returning one of its arguments.
-  if (callee.params.length > 1) return null;
-  // a body that never READS the param yields the same value for every argument (`(x) => globalThis`),
-  // so the call resolves to the body itself. bailing here on the param's mere PRESENCE left the shape
-  // unproven: the guard test substituted the root while the static behind it kept reading native off
-  // the memo. the param may still carry an effect in a prefix statement - that is the SE channel's
-  // business, not the value's
-  return !body || identifierReferencedInSubtree(body, callee.params[0].name)
+  // a body that never READS a param yields the same value for every argument (`(x) => globalThis`,
+  // and the tagged spelling that ignores its strings slot the same way), so the call resolves to the
+  // body itself. bailing here on a param's mere PRESENCE left the shape unproven: the guard test
+  // substituted the root while the static behind it kept reading native off the memo. a param may
+  // still carry an effect in a prefix statement - that is the SE channel's business, not the value's
+  // the body is resolved in the scope the callee was DECLARED in, where a parameter name is unbound -
+  // so a body reading one would silently re-bind it to whatever stands outside under that name, and a
+  // parameter spelling a proxy global would capture the realm the call never produced
+  const names = collectParamBindingNames(callee.params);
+  // ... asked of the NAMES the list binds, a destructuring slot's leaves included: a slot whose
+  // bindings the walk cannot enumerate leaves the body unreadable and proves nothing
+  return !body || !names || [...names].some(name => identifierReferencedInSubtree(body, name))
     ? null : { ...resolved, node: body };
 }
 
@@ -3406,8 +3528,11 @@ export function inlineCallHasObservableEffects({ callNode, scope, adapter, path 
 function hasObservableEffectsRec(hop) {
   while (true) {
     // the call's own ARGUMENTS run when the call runs; folding the call down to its inlined receiver
-    // drops them, so a side-effecting argument (`(() => Array)(c++)`) must force SE preservation
-    if (hop.node.arguments?.some(mayHaveSideEffects)) return true;
+    // drops them, so a side-effecting argument (`(() => Array)(c++)`) must force SE preservation -
+    // in both spellings of the list: the raw one carries a receiver slot (`f.call(eff(), x)`), the
+    // paired one a tag's interpolations and a bind's captured arguments
+    if (hop.node.arguments?.some(mayHaveSideEffects)
+      || pairedCallView(hop.node, hop.ctx)?.arguments.some(mayHaveSideEffects)) return true;
     // `allowIdentityParam` MUST mirror the fold (`inlineCallReturnExpression`): the fold inlines an
     // identity-param IIFE (`((x) => { g(); return x; })(Array)`), so the effect gate has to inspect its
     // block body too - a stricter gate here misses the `g()` prefix and drops it at the source
@@ -3417,6 +3542,9 @@ function hasObservableEffectsRec(hop) {
     // be uninitialized, and optional calls must retain their original short-circuit.
     if (isMemberAccessNode(unwrapTransparentSeq(hop.node.callee))) return true;
     const callee = resolved.node;
+    // a parameter LIST that runs - a destructuring pattern, a default initializer with effects -
+    // does its work when the call runs, so a fold that drops the call would drop that work with it
+    if (paramListRunsWork(callee.params)) return true;
     // a conditionally-proven callee makes the CALL itself observable: the unassigned path
     // must keep its native throw / short-circuit, so the collapse may not drop the call
     if (conditionallyProvenCallees.has(callee)) return true;
@@ -3602,7 +3730,7 @@ export function resolveKey({ node, computed, scope, adapter, seen, path, depth =
         // a registered Symbol.X alias resolves the key regardless of the binding's (possibly mutated /
         // pattern) init: `const { iterator } = Symbol; obj[iterator]`. must run BEFORE the init branch -
         // following a destructure init resolves the WHOLE receiver (`Symbol`), losing the `.iterator` slot
-        const aliasKey = bindingSymbolKey(entry.binding, adapter.packages);
+        const aliasKey = bindingSymbolKey(entry.binding, adapter.packages, { name: node.name, scope, adapter, path, usageNode });
         if (aliasKey) return aliasKey;
         if (entry.node) {
           // usage-pure: a conditionally-initialized key alias (`if (c) var K = 'fromEntries'`) holds
@@ -4789,7 +4917,7 @@ export function isSymbolSourcedKey({ node, scope, adapter, seen, path, depth = 0
     // a registered Symbol.X alias resolves regardless of the binding's init (`const { iterator } =
     // Symbol; iterator in X`) - run before the init branch, which would follow the destructure init
     // to the whole receiver and lose the `.iterator` slot
-    if (bindingSymbolKey(entry.binding, adapter.packages) !== null) return true;
+    if (bindingSymbolKey(entry.binding, adapter.packages, { name: node.name, scope, adapter, path }) !== null) return true;
     // alias indirection (`const k = Symbol.iterator; k in X`) else plugin-managed binding
     // (`polyfillHint` in-place mutation / real `core-js/.../symbol/X` import, incl.
     // user-aliased polyfill packages from `additionalPackages`)

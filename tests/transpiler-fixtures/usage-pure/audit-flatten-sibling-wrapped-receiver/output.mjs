@@ -17,19 +17,61 @@ import _Set from "@core-js/pure/actual/set";
 // question - the chain is still the one rooted at this receiver - so stopping there claimed a receiver
 // the member's own rewrite then replaced wholesale. every wrapper the language puts in that position,
 // with the key resolved in a nested scope and in place
-const of = _Array$of;
-const cast = _Promise;
-const from = _Array$from;
-const nonNull = _Set;
-const entries = _Object$entries;
-const paren = _Promise;
-const assign = _Object$assign;
-const satisfied = _Map;
-const isInteger = _Number$isInteger;
-const nested = () => {
-  const NAME = 'Promise';
-  return _Promise;
-}; // a claim does not have to be ROOTED at the receiver to erase it: one that merely CONTAINS it takes
+const {
+    Array: {
+      of
+    }
+  } = {
+    Array: {
+      of: _Array$of
+    }
+  },
+  cast = _Promise;
+const {
+    Array: {
+      from
+    }
+  } = {
+    Array: {
+      from: _Array$from
+    }
+  },
+  nonNull = _Set;
+const {
+    Object: {
+      entries
+    }
+  } = {
+    Object: {
+      entries: _Object$entries
+    }
+  },
+  paren = _Promise;
+const {
+    Object: {
+      assign
+    }
+  } = {
+    Object: {
+      assign: _Object$assign
+    }
+  },
+  satisfied = _Map;
+const {
+    Number: {
+      isInteger
+    }
+  } = {
+    Number: {
+      isInteger: _Number$isInteger
+    }
+  },
+  nested = () => {
+    const NAME = 'Promise';
+    return _Promise;
+  };
+
+// a claim does not have to be ROOTED at the receiver to erase it: one that merely CONTAINS it takes
 // it along, so the walk stands down there too. the argument of a call whose result is claimed, in
 // both key spellings and through a static off a constructor
 function identity(value) {
@@ -39,13 +81,47 @@ const {
   isArray
 } = _globalThis.Array;
 const callArg = _Promise;
-const isSafeInteger = _Number$isSafeInteger;
-const callArgComputed = _Set;
-const freeze = _Object$freeze;
-const callArgStatic = _Object$fromEntries([]); // negatives: no wrapper at all, and a containing member whose key claims nothing
-const isFinite = _Number$isFinite;
-const plain = _Promise;
-const keys = _Object$keys;
-const unclaimed = identity(_globalThis).noSuchThing;
+const {
+    Number: {
+      isSafeInteger
+    }
+  } = {
+    Number: {
+      isSafeInteger: _Number$isSafeInteger
+    }
+  },
+  callArgComputed = _Set;
+const {
+    Object: {
+      freeze
+    }
+  } = {
+    Object: {
+      freeze: _Object$freeze
+    }
+  },
+  callArgStatic = _Object$fromEntries([]);
+
+// negatives: no wrapper at all, and a containing member whose key claims nothing
+const {
+    Number: {
+      isFinite
+    }
+  } = {
+    Number: {
+      isFinite: _Number$isFinite
+    }
+  },
+  plain = _Promise;
+const {
+    Object: {
+      keys
+    }
+  } = {
+    Object: {
+      keys: _Object$keys
+    }
+  },
+  unclaimed = identity(_globalThis).noSuchThing;
 export { of, cast, from, nonNull, entries, paren, assign, satisfied, isInteger, nested, isFinite, plain };
 export { isArray, callArg, isSafeInteger, callArgComputed, freeze, callArgStatic, keys, unclaimed };

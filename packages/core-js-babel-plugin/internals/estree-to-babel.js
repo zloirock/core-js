@@ -190,7 +190,8 @@ function build(node) {
     case 'AssignmentExpression':
       return { type: 'AssignmentExpression', operator: node.operator, left: convert(node.left), right: convert(node.right) };
     case 'ObjectExpression':
-      return { type: 'ObjectExpression', properties: node.properties.map(property => convert(property)) };
+    case 'ObjectPattern':
+      return { type: node.type, properties: node.properties.map(property => convert(property)) };
     case 'Property':
       return {
         type: 'ObjectProperty',

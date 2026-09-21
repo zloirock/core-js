@@ -5,14 +5,22 @@ import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 // polyfilled `globalThis.Symbol.iterator` access. Both rewrites cover overlapping source
 // ranges with the sibling receiver substitution; if their edits are not composed, the
 // bundler aborts on overlapping edits and the class fails to emit.
-const from = _Array$from;
-const kls = (() => {
-  class C {
-    [_Symbol$iterator]() {
-      var _ref;
-      return _valuesMaybeArray(_ref = []).call(_ref);
+const {
+    Array: {
+      from
     }
-  }
-  return C;
-})();
+  } = {
+    Array: {
+      from: _Array$from
+    }
+  },
+  kls = (() => {
+    class C {
+      [_Symbol$iterator]() {
+        var _ref;
+        return _valuesMaybeArray(_ref = []).call(_ref);
+      }
+    }
+    return C;
+  })();
 export { from, kls };

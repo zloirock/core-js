@@ -1,7 +1,4 @@
-// for-statement init with multi-decl: nested-proxy-flattenable destructure plus a
-// counter declarator. asserts isForInit branch in renderFlattened produces single
-// kind statement with comma-separated parts (multi-statement output would be invalid
-// for-init)
+// A loop header keeps the nested static and counter in one valid declaration.
 let result = 0;
 for (let { Array: { from } } = globalThis, i = 0; i < 1; i++) {
   result = from([1, 2]).length;

@@ -4,10 +4,17 @@ import _globalThis from "@core-js/pure/actual/global-this";
 // import - the user's replacement wins. the multi-ctor anchor bails the mutated ctor (mirrors the single-ctor
 // anchorSlotMutated bail), so the pattern stays on the native residual; the poly sibling still extracts
 _globalThis.Map = function () {};
-const from = _Array$from;
 const {
+  Array: {
+    from
+  },
   Map: {
     customY
   }
-} = _globalThis;
+} = {
+  Array: {
+    from: _Array$from
+  },
+  Map: _globalThis.Map
+};
 export const out = [from, customY];

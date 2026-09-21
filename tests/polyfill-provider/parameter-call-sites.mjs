@@ -73,7 +73,29 @@ checkCalls('read that drops the callable value', 'function f(value = []) {} type
 checkCalls('direct export', 'export function f(value = []) {} f();', null);
 checkCalls('separate export', 'function f(value = []) {} export { f }; f();', null);
 checkCalls('exported declarator NFE', 'export const f = function inner(value = []) {}; f();', null);
-checkCalls('callee alias opens an untracked caller', 'function f(value = []) {} const alias = f; alias();', null);
+checkCalls('callee alias contributes its callers', 'function f(value = []) {} const alias = f; alias();', ['<missing>'], true);
+checkCalls('method and its alias share callers',
+  'const box = { read(value = []) {} }; const alias = box.read; box.read([1]); alias([2]);', ['[1]', '[2]']);
+checkCalls('method alias export opens the caller set',
+  'const box = { read(value = []) {} }; export const alias = box.read; alias();', null);
+checkCalls('method owner escape opens the caller set',
+  'const box = { read(value = []) {} }; sink(box); box.read();', null);
+checkCalls('method owner export opens the caller set',
+  'export const box = { read(value = []) {} }; box.read();', null);
+checkCalls('method mutation opens the caller set',
+  'const box = { read(value = []) {} }; box.read = other; box.read();', null);
+checkCalls('method unknown key opens the caller set',
+  'const box = { read(value = []) {} }; box[key](); box.read();', null);
+checkCalls('method duplicate key cannot name the function',
+  'const box = { read(value = []) {}, read: other }; box.read();', null);
+checkCalls('method this can reach an unspelled caller',
+  'const box = { read(value = []) {}, expose() { return this; } }; box.read();', null);
+checkCalls('method spread can replace the slot',
+  'const box = { read(value = []) {}, ...other }; box.read();', null);
+checkCalls('method alias reassignment opens the caller set',
+  'const box = { read(value = []) {} }; let alias = box.read; alias = other; alias();', null);
+checkCalls('method computed key and invokers',
+  'const box = { ["read"](value = []) {} }; box.read.call(null, [1]); Reflect.apply(box.read, null, [[2]]);', ['[1]', '[2]']);
 checkCalls('callee reassignment', 'let f = function(value = []) {}; f = other; f();', null);
 checkCalls('self-return escapes callable identity',
   'export const result = (function inner(value = []) { return inner; })();', null);

@@ -1,5 +1,3 @@
-// Object-rest keeps the affected loop pattern native at its original evaluation point.
-// Independent reads and key/default expressions still receive their own polyfills.
 // probe corpus of the defense cycles over the destructure wrappers, family "forx", part 3:
 // every block is one probed form, self-contained over the header bindings, locked on both legs
 let pick = 1;

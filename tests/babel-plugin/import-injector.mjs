@@ -166,8 +166,8 @@ function ordering(lines) {
 }
 
 // --- pruneUnusedRefs: a receiver memo the emission ORPHANED (every reader re-spelled the receiver)
-// leaves with its declarator when its init is inert; one whose init still EVALUATES stays, unread or
-// not - it is the only place that call runs ---
+// leaves with its declarator when its init is inert. An effectful receiver still evaluates once,
+// either in its memo or as the prefix of a mirror that no longer needs that memo ---
 {
   const code = await transform(`const ev = [];
 const { Array: { [(ev.push('k'), 'from')]: f },
@@ -181,7 +181,7 @@ const getG = () => globalThis;
 const { Array: { [(ev.push('k'), 'from')]: f },
   Object: { keys: { [(ev.push('a'.at(0)), 'bind')]: b } } } = getG();
 use(f, b, ev);`, { siblingNames: [] });
-  checkTruthy('pruneUnusedRefs/orphaned effectful receiver memo kept', /_ref\d*\s*=\s*getG\(\)/u.test(code));
+  checkTruthy('pruneUnusedRefs/orphaned effectful receiver evaluated once', code.match(/\bgetG\(\)/gu)?.length === 1);
 }
 
 finish();

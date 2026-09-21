@@ -1,5 +1,5 @@
-// Object-rest keeps the affected pattern native, including inside an array wrapper.
-// Independent reads and key/default expressions still receive their own polyfills.
+// Claimed statics retain their polyfills beside object rest.
+// Rest keeps its source and exclusions; instance slots remain native.
 const [{ 'from': f, ...r }, o] = [Array, {}];
 f([1]);
 r;

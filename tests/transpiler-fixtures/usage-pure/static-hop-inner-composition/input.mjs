@@ -1,7 +1,5 @@
-// an instance leaf under a STATIC hop composes off the static's ponyfill - an import binding, always
-// defined - so an inner default is dead text and drops, never mirroring a dead branch. the
-// constructor may stand behind hops of its own or be the init's own member read, and leaf siblings
-// take the flat twin off one memo of that same ponyfill
+// An instance leaf under a static reads through that static's ponyfill.
+// A dead pattern default must not hide the live leaf claim; siblings read the same pure value.
 const { Array: { of: { name: viaHop } = {} } = {} } = globalThis;
 const { Array: { of: { name: viaNoOuterDefault } = {} } } = globalThis;
 const { Array: { of: { name: viaNoDefault } } } = globalThis;

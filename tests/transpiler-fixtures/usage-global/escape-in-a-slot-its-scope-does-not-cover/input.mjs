@@ -1,9 +1,6 @@
-// a parameter list is a slot the function HOLDS but does not COVER: a default and a parameter
-// decorator both run before the body exists, so a body declaration of the name shadows neither and
-// the escape spelled there hands the realm's constructor out - the family is owed. the last row is
-// the boundary: the block AROUND the function does cover its default, so what escapes there is
-// that block's own binding. one global per row, since a name is answered once per FILE, and each
-// is a global whose family is a strict superset of its constructor in both flavors
+// Parameter defaults and decorators see the outer scope, before body declarations apply.
+// The local identity call retains Map without exposing it; the external decorator exposes Promise.
+// An enclosing block still shadows a default's Symbol reference.
 function hand(x) {
   return x;
 }

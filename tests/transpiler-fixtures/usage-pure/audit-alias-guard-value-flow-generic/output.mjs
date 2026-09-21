@@ -4,13 +4,14 @@ import _mapMaybeArray from "@core-js/pure/actual/array/instance/map";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _at from "@core-js/pure/actual/instance/at";
 import _Object$keys from "@core-js/pure/actual/object/keys";
+var _ref;
 // A conditionally-executed aliasing write assigns on one path only: the value-flow return
 // resolver must refuse the (constructor, method) pair exactly like the body-extract route,
 // keeping the call-result dispatch GENERIC on both emitters (a pristine-tree walk used to
 // narrow it array-typed while the other emitter's post-rewrite scope stayed generic).
 // guarded assignment-form write - the call result dispatches generic
 let make;
-if (cond) make = _Array$from;
+if (cond) _ref = Array, make = _Array$from, _ref;
 export const r = make([1]);
 export const x = _at(r).call(r, 0);
 // a guarded hoisted-var declarator still EXTRACTS (polyfill always wins on the write

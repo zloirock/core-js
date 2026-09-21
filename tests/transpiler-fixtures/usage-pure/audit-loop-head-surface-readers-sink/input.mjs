@@ -1,6 +1,5 @@
-// A loop head keeps the effectful initializer in a capture before its extracted readers.
-// Statics and instance methods then retain source property order. An emptied residual
-// may disappear once that leading capture owns the initializer evaluation.
+// A loop initializer evaluates its effect before the first extracted binding.
+// Static and instance reads retain their source property order.
 let out1;
 let out2;
 for (const { Array: { prototype: { values: headValues, at: headAt } }, Object: { keys: headKeys } } = (globalThis.effect ??= 1, globalThis); !out1;) out1 = [headValues, headAt, headKeys];

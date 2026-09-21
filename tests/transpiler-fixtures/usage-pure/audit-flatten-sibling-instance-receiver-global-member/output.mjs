@@ -5,6 +5,14 @@ import _values from "@core-js/pure/actual/instance/values";
 // extracting an instance method off a polyfillable-global member chain. the retained receiver gets
 // its proxy-global root substituted so it can't leak bare on engines without globalThis
 const values = _values(_globalThis.navigator);
-const from = _Array$from;
+const {
+  Array: {
+    from
+  }
+} = {
+  Array: {
+    from: _Array$from
+  }
+};
 from([1]);
 console.log(values);
