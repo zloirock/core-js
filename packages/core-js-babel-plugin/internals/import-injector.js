@@ -19,6 +19,7 @@ import ImportInjectorState, {
   unwrapWriteOnlyGuardMemos,
 } from '@core-js/polyfill-provider/injector-base';
 import { polyfillOrderComparator } from '@core-js/polyfill-provider/plugin-options/inject';
+import { brand } from '@core-js/polyfill-provider/helpers/error-tag';
 
 // babel@7 exposes `scope.references` / `scope.uids` as object maps; babel@8 replaced them
 // with `scope.referencesSet` / `scope.uidsSet` (real Sets) and throws on the legacy
@@ -402,17 +403,13 @@ export default class ImportInjector extends ImportInjectorState {
     return { byName, taken };
   }
 
-  // drop `var _refN;` declarators left by stale visits (outer `replaceWith` discarded the
-  // emission but kept the scope.push), then renumber survivors so the output matches unplugin.
-  // `scope.crawl()` is O(program size) but runs once per file at programExit - amortized
-  // over all in-file polyfill rewrites it's negligible vs the O(N) traversal that already
-  // happened. necessary: stale paths from sibling `replaceWith` leave the scope-binding map
-  // out of sync with the live AST
   // a pure-import binding whose ONLY occurrence is its own import specifier is an ORPHAN:
   // a claim requested it and a later routing superseded the read (a user-mutated static rides
   // the injected CONSTRUCTOR, stranding the static's earlier-ordered import). bundle weight,
   // not correctness. liveness comes from the shared flush census - the same one answer the
-  // unplugin emitter's emission filter reads, ctor-static exception included
+  // unplugin emitter's emission filter reads, ctor-static exception included. the pruned
+  // import leaves the registry with its node, so the registry is the emission afterwards -
+  // what the debug report lists
   pruneUnusedPureImports() {
     const nameBySource = new Map();
     for (const [source, name] of this.pureImports) nameBySource.set(name, source);
@@ -431,6 +428,7 @@ export default class ImportInjector extends ImportInjectorState {
           && requireCallSource(node.declarations[0].init) !== null ? node.declarations[0].id.name : null;
       if (!local || !nameBySource.has(local) || isLive(nameBySource.get(local), local)) continue;
       bodyPath.remove();
+      this.pureImports.delete(nameBySource.get(local));
     }
   }
 
@@ -457,6 +455,12 @@ export default class ImportInjector extends ImportInjectorState {
     return census;
   }
 
+  // drop `var _refN;` declarators left by stale visits (outer `replaceWith` discarded the
+  // emission but kept the scope.push), then renumber survivors so the output matches unplugin.
+  // `scope.crawl()` is O(program size) but runs once per file at programExit - amortized
+  // over all in-file polyfill rewrites it's negligible vs the O(N) traversal that already
+  // happened. necessary: stale paths from sibling `replaceWith` leave the scope-binding map
+  // out of sync with the live AST
   pruneUnusedRefs() {
     const families = [...this.generatedRefFamilies()].filter(([, names]) => names.size);
     if (!families.length) return;
@@ -734,7 +738,7 @@ export default class ImportInjector extends ImportInjectorState {
 
   reorderRefsAfterImports() {
     if (!this.#importRegionSorted) {
-      throw new Error('[core-js] import-injector: reorderRefsAfterImports() must follow reorderImportRegion()');
+      throw new Error(brand('import-injector: reorderRefsAfterImports() must follow reorderImportRegion()'));
     }
     const { body } = this.#programPath.node;
     if (!body?.length) return;
