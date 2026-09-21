@@ -7,8 +7,18 @@ import _Set from "@core-js/pure/actual/set/constructor";
 // the residual keys here are ones NEITHER surface carries: a key core-js spells as a PROTOTYPE
 // entry of that constructor (`Set.union`) is handed out as a static by the pure binding and by
 // nothing else, so such a leaf declines the anchor and would measure that rule instead of this one
-for (let from = _Array$from, {
+for (let {
+  Array: {
+    from
+  },
+  Set: {
     customQ
-  } = _Set; from && customQ;) {
+  }
+} = {
+  Array: {
+    from: _Array$from
+  },
+  Set: _Set
+}; from && customQ;) {
   break;
 }

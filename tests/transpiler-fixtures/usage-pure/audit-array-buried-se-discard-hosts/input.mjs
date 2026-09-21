@@ -1,5 +1,3 @@
-// Object-rest keeps named slots at that level and reads through it native in usage-pure.
-// Independent reads and key/default expressions still receive their own polyfills.
 // an effect buried in a transparent single-element array wrapper must survive every
 // discard-and-rebuild host: the consumed wrapper drops, the effect lifts / re-embeds in
 // source order (a top-level-only sequence peel dropped it with the discarded init)

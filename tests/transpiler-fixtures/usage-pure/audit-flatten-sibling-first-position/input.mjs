@@ -1,5 +1,3 @@
-// flatten declarator NOT first in multi-decl - sibling IIFE block-body precedes the
-// flattenable destructure. asserts the bug fires regardless of declarator order in
-// the multi-decl
+// An effectful sibling before the nested static keeps its position and local receiver temporary.
 const kls = (() => { return [].values(); })(), { Array: { from } } = globalThis;
 export { from, kls };

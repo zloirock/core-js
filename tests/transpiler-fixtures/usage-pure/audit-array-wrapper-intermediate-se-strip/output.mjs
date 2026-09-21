@@ -7,16 +7,28 @@ let mid = 0;
 function midEffect() {
   mid++;
 }
-midEffect();
-const from = _Array$from;
 const [[{
+  Array: {
+    from
+  },
   keep
-}]] = [[_globalThis]];
+}]] = [(midEffect(), [{
+  Array: {
+    from: _Array$from
+  },
+  keep: _globalThis.keep
+}])];
 // single-level control: the prefix lifts and the consumed wrapper strips the same way
 let e1 = 0;
-e1++;
-const of = _Array$of;
 const [{
+  Array: {
+    of
+  },
   tail
-}] = [_globalThis];
+}] = (e1++, [{
+  Array: {
+    of: _Array$of
+  },
+  tail: _globalThis.tail
+}]);
 export const r = [from, of, keep, tail, mid, e1];

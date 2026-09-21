@@ -1,15 +1,19 @@
-// Object-rest keeps the affected loop pattern native at its original evaluation point.
-// Independent reads and key/default expressions still receive their own polyfills.
-for (const [{
-  of,
-  ...r
-}] = [Array];;) {
+import _Array$from from "@core-js/pure/actual/array/from";
+import _Array$of from "@core-js/pure/actual/array/of";
+// Claimed statics retain their polyfills beside object rest.
+// Rest keeps its source and exclusions; instance slots remain native.
+for (const [_ref] = [Array], _ref2 = _ref, of = null == _ref2 ? _ref2[""] : _Array$of, {
+    of: _unused,
+    ...r
+  } = _ref2;;) {
   of(1);
   break;
 }
 for (const [{
   from
-}, extra] = [Array, 1];;) {
+}, extra] = [{
+  from: _Array$from
+}, 1];;) {
   from([2, extra]);
   break;
 }

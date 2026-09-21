@@ -30,7 +30,17 @@ let rw1 = {
 rw1 = {
   k: _Map
 };
-const viaDominating = _Map$groupBy; // the member-read spelling follows the same reaching value
+const {
+  k: {
+    groupBy: viaDominating
+  }
+} = {
+  k: {
+    groupBy: _Map$groupBy
+  }
+};
+
+// the member-read spelling follows the same reaching value
 let rw2 = {
   s: Object
 };
@@ -91,7 +101,17 @@ let rw8 = {
   m: Object
 };
 rw8 = rw8;
-const viaSelfAssign = _Object$values; // an SE-carrying write is a real reassignment, and an unconditional one: its value is the single
+const {
+  m: {
+    values: viaSelfAssign
+  }
+} = {
+  m: {
+    values: _Object$values
+  }
+};
+
+// an SE-carrying write is a real reassignment, and an unconditional one: its value is the single
 // observable, so pure follows it - the effect stays where the source wrote it
 let effCount = 0;
 const eff9 = () => effCount++;
@@ -101,7 +121,17 @@ let rw9 = {
 rw9 = (eff9(), {
   d: _Promise
 });
-const viaSeWrite = _Promise$allSettled; // Cross-writes capture their values at each assignment. The first captures the String holder;
+const {
+  d: {
+    allSettled: viaSeWrite
+  }
+} = {
+  d: {
+    allSettled: _Promise$allSettled
+  }
+};
+
+// Cross-writes capture their values at each assignment. The first captures the String holder;
 // the later write back to that same holder does not escape it or change the earlier capture.
 let ma = {
   x: Object
@@ -111,7 +141,17 @@ let mb = {
 };
 ma = mb;
 mb = ma;
-const viaCrossWrite = _String$raw; // an identity write beside a REAL one: the identity is a no-op, the real write dominates alone
+const {
+  x: {
+    raw: viaCrossWrite
+  }
+} = {
+  x: {
+    raw: _String$raw
+  }
+};
+
+// an identity write beside a REAL one: the identity is a no-op, the real write dominates alone
 let wIR = {
   k: Object
 };
@@ -119,7 +159,17 @@ wIR = wIR;
 wIR = {
   k: _Reflect
 };
-const viaIdentityThenReal = _Reflect$ownKeys; // a cross-form pattern write pairs its slot to one value - the single observable, so pure follows it
+const {
+  k: {
+    ownKeys: viaIdentityThenReal
+  }
+} = {
+  k: {
+    ownKeys: _Reflect$ownKeys
+  }
+};
+
+// a cross-form pattern write pairs its slot to one value - the single observable, so pure follows it
 let wPL = {
   n: Object
 };
@@ -128,7 +178,17 @@ let wPL = {
 } = [{
   n: Number
 }]);
-const viaPatternObjLhs = _Number$isInteger; // a BRANCHING write is a real reassignment - pure bails
+const {
+  n: {
+    isInteger: viaPatternObjLhs
+  }
+} = {
+  n: {
+    isInteger: _Number$isInteger
+  }
+};
+
+// a BRANCHING write is a real reassignment - pure bails
 let wBr = {
   b: Object
 };
@@ -218,7 +278,17 @@ let wSh = {
   let wSh = null;
   void wSh;
 }
-const viaShadowClean = _Symbol$asyncIterator; // a closure write is a real reassignment - pure bails
+const {
+  y: {
+    asyncIterator: viaShadowClean
+  }
+} = {
+  y: {
+    asyncIterator: _Symbol$asyncIterator
+  }
+};
+
+// a closure write is a real reassignment - pure bails
 let wCl = {
   c: Object
 };

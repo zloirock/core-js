@@ -2,30 +2,45 @@ import _Array$from from "@core-js/pure/actual/array/from";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _at from "@core-js/pure/actual/instance/at";
 import _includes from "@core-js/pure/actual/instance/includes";
+import _Map$groupBy from "@core-js/pure/actual/map/group-by";
+import _Object$entries from "@core-js/pure/actual/object/entries";
 import _Object$keys from "@core-js/pure/actual/object/keys";
 var _ref2;
-// Object-rest keeps named slots at that level and reads through it native in usage-pure.
-// Independent reads and key/default expressions still receive their own polyfills.
-const from = _Array$from;
-export const r1 = from([1]);
-const keys = _Object$keys;
+// Claimed statics retain their polyfills beside object rest.
+// Rest keeps its source and exclusions; instance slots remain native.
 const {
+  "Array": {
+    from
+  }
+} = {
+  Array: {
+    from: _Array$from
+  }
+};
+export const r1 = from([1]);
+const {
+  "Object": {
+    keys
+  },
   other
-} = _globalThis;
+} = {
+  Object: {
+    keys: _Object$keys
+  },
+  other: _globalThis.other
+};
 export const r2 = [keys({
   a: 1
 }), other];
+const g8 = _Map$groupBy;
 const {
-  "Map": {
-    groupBy: g8
-  },
+  "Map": _unused,
   ...others
 } = _globalThis;
 export const r6 = [g8, others];
+const e8 = _Object$entries;
 const {
-  ['Object']: {
-    entries: e8
-  },
+  ['Object']: _unused2,
   ...rest3
 } = _globalThis;
 export const r7 = [e8, rest3];

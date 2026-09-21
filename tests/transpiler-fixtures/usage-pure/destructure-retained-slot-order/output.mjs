@@ -1,7 +1,6 @@
 import _findMaybeArray from "@core-js/pure/actual/array/instance/find";
 import _values from "@core-js/pure/actual/instance/values";
-// Object-rest keeps named slots at that level and reads through it native in usage-pure.
-// Independent reads and key/default expressions still receive their own polyfills.
+// Instance reads preserve receiver, key and default order across host forms.
 export function read(factory, key, fallback) {
   const {
     before = fallback(),
@@ -33,10 +32,9 @@ export function assignPlain(factory, target) {
   } = _ref, target().y = _findMaybeArray(_ref), _ref;
 }
 export function forwardDefault(factory, key) {
-  var _ref4;
+  var _ref3;
   const _ref2 = factory(),
-    _ref3 = _ref2,
-    value = null == _ref3 ? _ref3[""] : (key(), (_ref4 = _values(_ref3)) === void 0 ? after : _ref4),
+    value = null == _ref2 ? _ref2[""] : (key(), (_ref3 = _values(_ref2)) === void 0 ? after : _ref3),
     {
       after
     } = _ref2;

@@ -6,7 +6,7 @@ import _flatMapMaybeArray from "@core-js/pure/actual/array/instance/flat-map";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
-var _ref;
+var _ref, _ref2, _ref3;
 // an assignment host under an array WRAPPER claims what the statement host claims: the element the
 // pattern is paired with IS the receiver, so a FLAT claim has one even with no hop chain to resolve,
 // and a `?.` the source wrote is a nav all the same - the hop short-circuits the whole chain, so the
@@ -39,20 +39,17 @@ let markedName;
     keys: markedName
   }
 }] = [_globalThis];
-// ... and a FLAT SE-keyed prop over a MEMBER read SHARES that read rather than repeating it: the
-// memo takes the element's own slot, so the member is evaluated where and as often as the source
-// evaluates it, the residual reads the memo in its place, and the dispatch reads it again for free
-[{
-  [(_pushMaybeArray(log).call(log, "k"), "flatMap")]: keyed,
+// A computed key runs before its method read; the captured receiver also serves the sibling.
+[_ref] = _ref2 = [Array.prototype], _ref3 = _ref, null == _ref3 ? _ref3[""] : (_pushMaybeArray(log).call(log, "k"), keyed = _flatMapMaybeArray(_ref3)), {
   other
-}] = [_ref = Array.prototype];
+} = _ref3, _ref3, _ref2;
 // ... and a FLAT static under a multi wrapper is claimed like the instance one above it: the
 // OVERWRITE channel owns the shape, so the destructure stays whole for the sibling that still binds
 // and the ponyfill is written after it. Left to the cascade rebuild - which never descends a
 // multi-element wrapper - the slot read its static off the raw element instead
-keyed = _flatMapMaybeArray(_ref);
 [{
   of: stat
-}, zn] = [Array, 7];
-stat = _Array$of;
+}, zn] = [{
+  of: _Array$of
+}, 7];
 export { flat, at, deep, kept, kw, named, markedName, keyed, other, stat, zn, log };

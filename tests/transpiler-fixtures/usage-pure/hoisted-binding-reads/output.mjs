@@ -72,11 +72,27 @@ var key = 'from';
 var slot = {
   of: x => [x, 'late']
 };
-const declaredFrom = _Array$from;
+const {
+  a: {
+    from: declaredFrom
+  }
+} = {
+  a: {
+    from: _Array$from
+  }
+};
 const wrappedFrom = _Array$from;
 const keyedFrom = _Array$from;
 const [{
   of: slotOf
 } = Array] = [slot];
-const calledFrom = _Array$from;
+const {
+  Array: {
+    from: calledFrom
+  }
+} = (realm(), {
+  Array: {
+    from: _Array$from
+  }
+});
 export { r1, r2, r3, r4, r5, r6, declaredFrom, wrappedFrom, keyedFrom, slotOf, calledFrom };

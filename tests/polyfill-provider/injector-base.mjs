@@ -20,6 +20,14 @@ const { check, checkTruthy, finish, runBoth } = createChecker('injector-base');
 
 // --- collectInjectorCensus: counts, rank, positions ---
 
+runBoth('census/standalone owned memo writes',
+  'var _ref; _ref = Array; if (yes) _ref = Object; user = Array; use(_ref = Array);',
+  (adapter, programPath, label) => {
+    const census = collectInjectorCensus(programPath.node, { mintedRefNames: new Set(['_ref']) });
+    check(`${ label } :: only a standalone owned write is eligible`, census.memoStatementWrites.length, 1);
+    check(`${ label } :: candidate retains its RHS`, census.memoStatementWrites[0].value.name, 'Array');
+  });
+
 runBoth('census/counts and rank', 'var _ref; _ref = root; use(_ref);', (adapter, programPath, label) => {
   const census = collectInjectorCensus(programPath.node, { mintedRefNames: new Set(['_ref']) });
   check(`${ label } :: ref occurrences counted`, census.refCounts.get('_ref'), 3);

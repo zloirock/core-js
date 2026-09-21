@@ -340,7 +340,7 @@ export default function createProxySpineChannel(ctx) {
       adapter,
     });
     if (!admitted) return false;
-    const { plan, split, restResidual, bindingName, hostKind, nested, capture, keepPatternLive } = admitted;
+    const { plan, split, restResidual, bindingName, hostKind, nested, capture, captureFirst, keepPatternLive } = admitted;
     if (nested) {
       const declarationPath = nested.host.parentPath;
       if (capture && declarationPath.parentPath?.node?.type === 'ExportNamedDeclaration') {
@@ -355,7 +355,8 @@ export default function createProxySpineChannel(ctx) {
         markRewrite();
         return true;
       }
-      if (destructureEmit.renderNestedParamSynth({ metaPath, meta, fallbackOnBail: !!capture })) return true;
+      if (!captureFirst
+        && destructureEmit.renderNestedParamSynth({ metaPath, meta, fallbackOnBail: !!capture })) return true;
       if (!capture) return false;
       const rendered = renderNestedKeyedPatternCapture(capture, {
         mintRef: hostKind === 'declarator' ? destructureEmit.mintRefName : () => injector.generateDeclaredRef(metaPath),

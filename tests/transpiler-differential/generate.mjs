@@ -180,7 +180,7 @@ const D_PATTERNS = [
   { id: 'shorthand', recv: 'Array', lhs: '{ from }', names: ['from'], observe: 'typeof from', strip: true },
   { id: 'alias', recv: 'Array', lhs: '{ from: f }', names: ['f'], observe: 'typeof f', strip: true },
   { id: 'multi', recv: 'Array', lhs: '{ from, of }', names: ['from', 'of'], observe: '[typeof from, typeof of]', strip: true },
-  { id: 'rest', recv: 'Array', lhs: '{ from, ...rest }', names: ['from', 'rest'], observe: 'typeof from', strip: true, nativeRest: true },
+  { id: 'rest', recv: 'Array', lhs: '{ from, ...rest }', names: ['from', 'rest'], observe: 'typeof from', strip: true },
   // a receiver that carries a CLAIM OF ITS OWN: the extraction spells that receiver, and a copy of
   // it taken before its own step rendered ships the source read with the polyfill lost. the axis is
   // the SPELLING channel, so it belongs beside the plain receivers rather than in a type family
@@ -786,6 +786,115 @@ function * generateAssignmentKeySpelling() {
   ];
   for (const [id, body] of rows) {
     yield { ...snippet(`assignment-key-spelling/${ id }`, `(() => { ${ body } })()`), strip: true };
+  }
+}
+
+// --- Destructure hosts that READ the assignment's value, and heads with a symbol neighbour ---
+// two host classes the grammar cross-product reaches only through `strip: false` cells, so nothing
+// there has an oracle at all. The rows are written so no shape in them can decline - a flat pattern,
+// two statics the strip manifest removes, a receiver every route resolves - and each one OBSERVES
+// the statics by CALLING them, so a slot left reading the raw native throws in the stripped realm.
+//
+// CONSUMED hosts: something reads what the assignment yields, which is its RIGHT. A render may land
+// wherever it likes as long as the slot still hands that value back, so each row pins the value
+// beside the leaves; a receiver with its own effect pins call-once through `log`.
+//
+// HEAD + SYMBOL: a for-x head hosts no statement, so a claim under it is served either by the
+// relocation that mints one or by the mirror of the iterated element. A leaf whose key FOLDS FROM A
+// SYMBOL can take neither route by itself, and the rows watch whether it takes its plain-string
+// NEIGHBOURS down with it - the declaration spelling (relocated) and the assignment spelling
+// (mirror only) are different mechanisms and each carries its own row.
+const CONSUMED_HOST_ROWS = [
+  ['init-bare', 'let of, from; const zd = ({ of, from } = Array); return [OBS, zd === Array];'],
+  ['init-realm', 'let of, from; const zd = ({ of, from } = globalThis.Array); return [OBS, zd === Array];'],
+  ['init-call', 'let of, from; const zd = ({ of, from } = g()); return [OBS, zd === Array, log.join(",")];'],
+  ['init-seq', 'let of, from; const zd = ({ of, from } = (0, Array)); return [OBS, zd === Array];'],
+  ['seq-tail', 'let of, from; const zd = (7, ({ of, from } = Array)); return [OBS, zd === Array];'],
+  ['seq-tail-call', 'let of, from; const zd = (7, ({ of, from } = g())); return [OBS, zd === Array, log.join(",")];'],
+  ['test-if', 'let of, from, ran = 0; if (({ of, from } = Array)) ran = 1; return [OBS, ran];'],
+  ['test-while', 'let of, from, n = 0; while (({ of, from } = g())) { if (n++) break; } return [OBS, n, log.join(",")];'],
+  ['return-value', 'let of, from; function h() { return ({ of, from } = Array); } const zd = h(); return [OBS, zd === Array];'],
+  ['arrow-body', 'let of, from; const h = () => ({ of, from } = g()); const zd = h(); return [OBS, zd === Array, log.join(",")];'],
+  ['logical-operand', 'let of, from; const zd = ({ of, from } = Array) || 1; return [OBS, zd === Array];'],
+  // the value is DISCARDED here, but the receiver SELECTS - the mirror is the only render that
+  // answers a selection, and it needs a statement slot the sequence element does not offer
+  ['seq-head-branch', 'let of, from; const zd = (({ of, from } = (cond ? Array : Array)), 7); return [OBS, zd];'],
+  // a LABEL wraps the statement without being one: the render has a slot here, and a leg reaching
+  // for `parentPath.isExpressionStatement()` does not find it
+  ['label-call', 'let of, from; lbl: ({ of, from } = g()); return [OBS, log.join(",")];'],
+];
+const HEAD_SYMBOL_ROWS = [
+  ['forof-decl-tag-neighbour',
+    'let of, from, tag; for (const { [Symbol.toStringTag]: t, of: o, from: f } of [Array]) { of = o; from = f; tag = typeof t; } return [OBS, tag];'],
+  ['forof-decl-iterator-neighbour',
+    'let of, from, it; for (const { [Symbol.iterator]: i, of: o, from: f } of [Array]) { of = o; from = f; it = typeof i; } return [OBS, it];'],
+  // several elements that AGREE: the head still resolves one element, and the relocated pattern
+  // must read it on every pass
+  ['forof-decl-tag-multi-element',
+    'let of, from, tag; for (const { [Symbol.toStringTag]: t, of: o, from: f } of [Array, Array]) { of = o; from = f; tag = typeof t; } return [OBS, tag];'],
+  // the head that DECLARES nothing: no relocation is possible, so the mirror of the iterated
+  // element is the only route left and a key it cannot spell must not take the level down with it
+  ['forof-assign-tag-neighbour',
+    'let of, from, tag; for ({ [Symbol.toStringTag]: tag, of, from } of [Array]) break; return [OBS, typeof tag];'],
+];
+const CONSUMED_HOST_PRELUDE = 'function g() { log.push("g"); return Array; } ';
+// the leaves are OBSERVED BY CALLING them: a row that only read `typeof` would pass on a slot left
+// reading the stripped native, which is `undefined` on both legs and agrees with itself
+const CONSUMED_HOST_OBSERVE = 'String(of(1, 2)) + "|" + String(from([3, 4]))';
+
+function * generateConsumedDestructureHosts() {
+  const rows = [
+    ...CONSUMED_HOST_ROWS.map(row => ['consumed-destructure-host', ...row]),
+    ...HEAD_SYMBOL_ROWS.map(row => ['head-symbol-neighbour', ...row]),
+  ];
+  for (const [family, id, body] of rows) {
+    const code = CONSUMED_HOST_PRELUDE + body.replaceAll('OBS', CONSUMED_HOST_OBSERVE);
+    yield { ...snippet(`${ family }/${ id }`, `(() => { ${ code } })()`), strip: true };
+  }
+}
+
+// Static extraction must retain the rest receiver and exclusions on every supported host.
+// Calling both leaves arms the stripped oracle independently of the surrounding corpus.
+function * generateStaticRestHosts() {
+  // These parameter forms cannot mirror the receiver or extract the leaf into the body.
+  // Keep full-env/global coverage, but do not require injection through a synthesized default.
+  const nativeHosts = {
+    parameter: ['flat', 'inner', 'proxy', 'proxy-inner', 'array', 'alias-array', 'call', 'effect', 'select'],
+    default: ['inner', 'proxy', 'proxy-inner', 'array', 'alias-array'],
+  };
+  const shapes = [
+    ['flat', '{ of, from, ...rest }', 'Array'],
+    ['outer', '{ w: { of, from }, ...rest }', '{ w: Array, extra: 1 }'],
+    ['inner', '{ w: { of, from, ...rest } }', '{ w: Array }'],
+    ['proxy', '{ Array: { of, from }, ...rest }', 'globalThis'],
+    ['proxy-inner', '{ Array: { of, from, ...rest } }', 'globalThis'],
+    ['array', '[{ of, from, ...rest }]', '[Array]'],
+    ['alias-array', '[{ of, from, ...rest }]', 'source', 'const source = [Array];'],
+    ['written-array', '[{ of, from, ...rest }]', 'source',
+      'const source = [Array]; source[0] = { of: () => [7], from: () => [8] };'],
+    ['written-array-string', '[{ of, from, ...rest }]', 'source',
+      "const source = [Array]; source[0] = { of: () => 'abc', from: () => 'def' };"],
+    ['call', '{ of, from, ...rest }', 'get()'],
+    ['effect', '{ of, from, ...rest }', '(log.push("receiver"), Array)'],
+    ['select', '{ of, from, ...rest }', 'cond ? Array : Array'],
+  ];
+  const observe = '[of(1).at(-1), from([2]).at(-1)]';
+  for (const [shape, lhs, rhs, setup = ''] of shapes) {
+    const hosts = [
+      ['declaration', `const ${ lhs } = ${ rhs }; return ${ observe };`],
+      ['assignment', `let of, from, rest; (${ lhs } = ${ rhs }); return ${ observe };`],
+      ['retained', `let of, from, rest; const held = (${ lhs } = ${ rhs }); return [${ observe }, typeof held];`],
+      ['chained', `let of, from, rest; const held = (${ lhs } = (${ lhs } = ${ rhs })); return [${ observe }, typeof held];`],
+      ['for-init', `let result; for (const ${ lhs } = (log.push((() => { try { return typeof from; } catch (e) { return e.name; } })()), ${ rhs }); !result;) result = ${ observe }; return result;`],
+      ['parameter', `function f(${ lhs }) { return ${ observe }; } return f(${ rhs });`],
+      ['default', `function f(${ lhs } = ${ rhs }) { return ${ observe }; } return f();`],
+      ['head', `let result; for (const ${ lhs } of [${ rhs }]) result = ${ observe }; return result;`],
+    ];
+    for (const [host, body] of hosts) yield {
+      ...snippet(`static-rest-host/${ shape }/${ host }`,
+        `(() => { function get() { log.push("get"); return Array; } ${ setup } ${ body } })()`),
+      strip: !nativeHosts[host]?.includes(shape),
+    };
   }
 }
 
@@ -1669,6 +1778,174 @@ const P_HOSTS = [
   { id: 'reflect-apply', setter: 'function set(t, v) { t.groupBy = v; }', use: v => `Reflect.apply(set, null, [Map, ${ v }]);` },
   { id: 'immediate-bind', setter: 'function set(t, v) { t.groupBy = v; }', use: v => `set.bind(null, Map)(${ v });` },
 ];
+// --- Invoker receiver reads ---
+// the invocation canon read from the RECEIVER side: a call-like host invokes a local function, and a
+// static is read either off the parameter inside it or off the value the call hands back - an
+// identity return, a container the callee builds around the parameter, that container stored
+// first. each host spells the invocation another way, and the polyfill lands only where the escape
+// census pairs the argument with the parameter AND the receiver walk follows the same pairing: a
+// host paired by one side alone reads a native static, which the stripped realm has no more
+const IR_HOSTS = [
+  { id: 'plain-call', params: 't', call: 'read(Map)' },
+  { id: 'dot-call', params: 't', call: 'read.call(null, Map)' },
+  { id: 'dot-apply', params: 't', call: 'read.apply(null, [Map])' },
+  { id: 'reflect-apply', params: 't', call: 'Reflect.apply(read, null, [Map])' },
+  { id: 'immediate-bind', params: 't', call: 'read.bind(null, Map)()' },
+  // eslint-disable-next-line no-template-curly-in-string -- the source under test spells the interpolation
+  { id: 'tagged-template', params: 's, t', call: 'read`${ Map }`' },
+];
+const IR_READS = [
+  { id: 'parameter-static', body: 'return typeof t.groupBy;', observe: call => call },
+  { id: 'identity-return', body: 'return t;', observe: call => `typeof ${ call }.groupBy` },
+  { id: 'array-slot', body: 'return [t];', observe: call => `typeof ${ call }[0].groupBy` },
+  { id: 'object-slot', body: 'return { held: t };', observe: call => `typeof ${ call }.held.groupBy` },
+  { id: 'stored-slot', body: 'return [t];', observe: call => `(() => { const held = ${ call }; return typeof held[0].groupBy; })()` },
+];
+// --- What a call hands back ---
+// the value a call yields is its ARGUMENT only where the callee handed it back untouched, and the
+// channels that can touch it are not one spelling: a member write, a handout to anything that
+// writes, a write through a local alias. Each row reads a static off the value, so a fold that
+// trusts the call site's literal answers the slot the write replaced - a WRONG value the full-env
+// three-way sees. Missing injection is not this family's subject, so the rows stay full-env
+const CV_CALLEES = [
+  { id: 'identity', body: 'return a;', yields: '' },
+  { id: 'identity-logged', body: 'log.push(1); return a;', yields: '' },
+  { id: 'identity-reads-arg', body: 'log.push(a); return a;', yields: '' },
+  { id: 'yields-array', body: 'return [a];', yields: '[0]' },
+  { id: 'yields-object', body: 'return { M: a };', yields: '.M' },
+  { id: 'writes-member', body: 'a.M = REPLACEMENT; return a;', yields: '' },
+  { id: 'writes-builtin', body: 'Object.defineProperty(a, "M", { value: REPLACEMENT, configurable: true }); return a;', yields: '' },
+  { id: 'writes-alias', body: 'const c = a; c.M = REPLACEMENT; return a;', yields: '' },
+  { id: 'writes-helper', body: 'put(a); return a;', yields: '' },
+];
+const CV_HOSTS = [
+  { id: 'plain', params: 'a, b', call: arg => `f(${ arg }, 1)` },
+  { id: 'dot-call', params: 'a, b', call: arg => `f.call(null, ${ arg }, 1)` },
+  { id: 'dot-apply', params: 'a, b', call: arg => `f.apply(null, [${ arg }, 1])` },
+  { id: 'reflect-apply', params: 'a, b', call: arg => `Reflect.apply(f, null, [${ arg }, 1])` },
+  { id: 'bind-now', params: 'a, b', call: arg => `f.bind(null, ${ arg })(1)` },
+  { id: 'tag', params: 's, a', call: arg => `f\`x\${ ${ arg } }\`` },
+];
+function * generateCallValueProof() {
+  const setup = 'const REPLACEMENT = { M: { groupBy: function () { return "REPLACED"; } } };'
+    + ' function put(o) { o.M = REPLACEMENT; }';
+  for (const callee of CV_CALLEES) {
+    for (const host of CV_HOSTS) {
+      // every host names the value slot `a`, the tag included - its strings array takes the slot ahead
+      yield {
+        ...snippet(`call-value-proof/${ callee.id }-${ host.id }`,
+          `(() => { ${ setup } function f(${ host.params }) { ${ callee.body } }`
+          + ` return String(${ host.call('{ M: Map }') }${ callee.yields }.M.groupBy([1], x => x)); })()`),
+        strip: false,
+      };
+    }
+  }
+}
+
+// --- Which value a loop head element stands for ---
+// a head element built by a CALL answers for its own pass: two calls of one name agree only where
+// their arguments agree, so a constructor beside a user object keeps the leaf's runtime guard. The
+// rows read the slot on every pass and compare the sequence, which is where taking the first
+// element's answer for the whole loop shows up
+const LH_ELEMENTS = [
+  { id: 'plain-pair', pair: '{ w: Array }, { w: CUSTOM }' },
+  { id: 'same-plain', pair: '{ w: Array }, { w: Array }' },
+  { id: 'identity-calls-differ', pair: '{ w: pick(Array) }, { w: pick(CUSTOM) }' },
+  { id: 'identity-calls-same', pair: '{ w: pick(Array) }, { w: pick(Array) }' },
+  { id: 'shifted-identity-differ', pair: '{ w: labelled(1, Array) }, { w: labelled(2, CUSTOM) }' },
+  { id: 'shifted-identity-primitive-args', pair: '{ w: labelled(1, Array) }, { w: labelled(2, Array) }' },
+  { id: 'container-yield-differ', pair: 'box(Array), box(CUSTOM)' },
+  { id: 'constant-callee', pair: '{ w: constant(1) }, { w: constant(2) }' },
+];
+const LH_HEADS = [
+  { id: 'const', head: pair => `for (const { w: { from } } of [${ pair }]) seen.push(from([7]));` },
+  { id: 'var', head: pair => `for (var { w: { from } } of [${ pair }]) seen.push(from([7]));` },
+  { id: 'relocated', head: pair => `for (const e of [${ pair }]) { const { w: { from } } = e; seen.push(from([7])); }` },
+];
+function * generateLoopHeadElements() {
+  const setup = 'const CUSTOM = { from: function () { return "CUSTOM"; } };'
+    + ' function pick(v) { return v; } function labelled(n, v) { return v; }'
+    + ' function box(v) { return { w: v }; } function constant(v) { return Array; }';
+  for (const element of LH_ELEMENTS) {
+    for (const head of LH_HEADS) {
+      yield {
+        ...snippet(`loop-head-element/${ element.id }-${ head.id }`,
+          `(() => { ${ setup } const seen = []; ${ head.head(element.pair) } return String(seen); })()`),
+        strip: false,
+      };
+    }
+  }
+}
+
+// --- What a receiver SPELLING buys each destructure host ---
+// a for-x head has no statement slot, so its only route is the mirror that REPLACES the element,
+// while a declaration leaves the receiver standing and binds beside it. One receiver is written in
+// every form a source can spell it in and read from BOTH hosts, so a route that serves one and not
+// the other shows up as the stripped realm losing the static on one row of an otherwise equal pair.
+// the effect log is read too: the head's mirror must not drop the element's own run or repeat it
+const HR_RECEIVERS = [
+  { id: 'bare', setup: '', expr: 'Array' },
+  { id: 'alias', setup: 'const A = Array;', expr: 'A' },
+  { id: 'realm', setup: '', expr: 'globalThis.Array' },
+  { id: 'container', setup: '', expr: '({ w: Array }).w' },
+  { id: 'indexed', setup: '', expr: '[Array][0]' },
+  { id: 'container-binding', setup: 'const W = { w: Array };', expr: 'W.w' },
+  { id: 'call', setup: 'function make() { log.push("ran"); return Array; }', expr: 'make()' },
+  { id: 'call-arg', setup: 'function pick(v) { log.push("ran"); return v; }', expr: 'pick(Array)' },
+  { id: 'tagged', setup: 'function tag() { log.push("ran"); return Array; }', expr: 'tag`x`' },
+  { id: 'dotcall', setup: 'function make() { log.push("ran"); return Array; }', expr: 'make.call(null)' },
+  { id: 'dotapply', setup: 'function make() { log.push("ran"); return Array; }', expr: 'make.apply(null, [])' },
+  { id: 'reflect', setup: 'function make() { log.push("ran"); return Array; }', expr: 'Reflect.apply(make, null, [])' },
+  { id: 'bindcall', setup: 'function make() { log.push("ran"); return Array; }', expr: 'make.bind(null)()' },
+  { id: 'ternary-left', setup: 'const flag = true;', expr: 'flag ? Array : CUSTOM' },
+  { id: 'ternary-right', setup: 'const flag = false;', expr: 'flag ? CUSTOM : Array' },
+  { id: 'logical', setup: 'const absentReceiver = null;', expr: 'absentReceiver || Array' },
+  { id: 'nullish', setup: 'const absentReceiver = null;', expr: 'absentReceiver ?? Array' },
+];
+const HR_PATTERNS = [
+  { id: 'pattern', pattern: '{ from: { name } }', read: 'log.push(typeof name);' },
+  { id: 'sole', pattern: '{ from }', read: 'log.push(String(from([1])));' },
+  { id: 'two-keys', pattern: '{ from, of }', read: 'log.push(String(from([1])), String(of(2)));' },
+  // a slot the literal cannot spell and a rest both DECLINE by design - the receiver's live value is
+  // what they read - so they carry no stripped oracle: there they would fail on the refusal itself
+  { id: 'absent-key', pattern: '{ from, absent }', read: 'log.push(String(from([1])), typeof absent);', mayDecline: true },
+  { id: 'rest', pattern: '{ from, ...rest }', read: 'log.push(String(from([1])), "of" in rest);', mayDecline: true },
+];
+const HR_HOSTS = [
+  { id: 'head-assignment', wrap: (pattern, expr, read) => `let from, of, absent, rest, name; for (${ pattern } of [${ expr }]) { ${ read } }` },
+  { id: 'head', wrap: (pattern, expr, read) => `for (const ${ pattern } of [${ expr }]) { ${ read } }` },
+  { id: 'head-reentered',
+    wrap: (pattern, expr, read) => `for (let i = 0; i < 2; i += 1) { for (const ${ pattern } of [${ expr }]) { ${ read } } }` },
+  { id: 'declaration', wrap: (pattern, expr, read) => `{ const ${ pattern } = ${ expr }; ${ read } }` },
+];
+function * generateHeadReceiverShapes() {
+  const setup = 'const CUSTOM = { from: function () { return "CUSTOM"; }, of: function () { return "CUSTOM-of"; } };';
+  for (const receiver of HR_RECEIVERS) {
+    for (const pattern of HR_PATTERNS) {
+      for (const host of HR_HOSTS) {
+        yield {
+          ...snippet(`head-receiver-shape/${ receiver.id }-${ pattern.id }-${ host.id }`,
+            `(() => { const log = []; ${ setup } ${ receiver.setup }`
+            + ` ${ host.wrap(pattern.pattern, receiver.expr, pattern.read) } return String(log); })()`),
+          strip: !pattern.mayDecline,
+        };
+      }
+    }
+  }
+}
+
+function * generateInvokerReceiverReads() {
+  for (const host of IR_HOSTS) {
+    for (const read of IR_READS) {
+      yield {
+        ...snippet(`invoker-receiver-read/${ host.id }-${ read.id }`,
+          `(() => { function read(${ host.params }) { ${ read.body } } return ${ read.observe(host.call) }; })()`),
+        strip: true,
+      };
+    }
+  }
+}
+
 function * generateParamInstalledPatchHosts() {
   for (const host of P_HOSTS) {
     yield {
@@ -10813,6 +11090,20 @@ function * generateCapturedSiblingClaims() {
 // A module-local consumed argument has a closed caller set. Keep this next to the IIFE and
 // arguments-observing forms: treating every supplied receiver as native misses this route.
 function * generateModuleParameterReceivers() {
+  // A fixed method and its aliases share the same closed caller set, including custom receivers.
+  for (const [host, declaration, call] of [
+    ['method', '', 'box.read'],
+    ['method-alias', 'const read = box.read;', 'read'],
+    ['method-alias-chain', 'const first = box.read; const read = first;', 'read'],
+  ]) for (const [patternId, pattern, wrap] of [
+    ['flat', '{ from }', value => value],
+    ['nested', '{ slot: [{ from }] }', value => `{ slot: [${ value }] }`],
+  ]) {
+    const expr = `(() => { const box = { read(${ pattern }) { log.push('body'); return from; } };
+      ${ declaration } const custom = { get from() { log.push('get'); return value => ['custom', value]; } };
+      return [${ call }(${ wrap('Array') })([7]), ${ call }(${ wrap('custom') })(3)]; })()`;
+    yield { ...snippet(`module-parameter-receiver/${ patternId }/${ host }`, expr), strip: true };
+  }
   for (const [patternId, pattern, value] of [
     ['flat', '{ from } = Array', 'Array'],
     ['nested', '[{ from } = Array]', '[Array]'],
@@ -11263,19 +11554,22 @@ function * generateHoistedBindingReads() {
 }
 
 // An inner default on a NON-function host - a declarator's array wrapper, an assignment, a catch
-// parameter, a for-of head, an object key - takes the per-key fallback chain a parameter's does: the
+// parameter, a for-of head, an object key - takes the per-key fallback chain: the
 // mirror where the pattern spells, the inline default on every static leaf, flat or nested, where the
 // mirror declines (a computed, duplicate or non-identifier key, a rest or a member target beside the
 // leaves), and a pattern spelling only nested leaves mirrors from them. The function hosts are the
-// controls. A member target is an assignment-only shape (a binding pattern cannot spell one).
+// controls, but never gain leaf defaults when their mirror declines. A member target is assignment-only.
 const INNER_DEFAULT_HOST_LEAVES = [
   { id: 'ckey', pattern: 'Set: S, [getKey()]: y, Array: { of }', read: '[typeof S, of(7)[0]]', strip: false },
-  { id: 'nonid', pattern: 'Set: S, "with-dash": d, Array: { of }', read: '[typeof S, of(7)[0], typeof d]', strip: true },
+  { id: 'nonid', pattern: 'Set: S, "with-dash": d, Array: { of }', read: '[typeof S, of(7)[0], typeof d]', strip: true,
+    nativeHosts: ['param-expr', 'param-stmt'] },
   { id: 'dup', pattern: 'Map: M, ["Map"]: alias, Array: { of }', read: '[typeof M, of(7)[0]]', strip: false },
   { id: 'rest', pattern: 'Set: S, Array: { of }, ...rest', read: '[typeof S, of(7)[0], typeof rest]', strip: false },
   { id: 'nested-only', pattern: 'Array: { of }', read: '[of(7)[0]]', strip: true },
-  { id: 'nested-only-nonid', pattern: 'Array: { of }, "with-dash": d', read: '[of(7)[0], typeof d]', strip: true },
-  { id: 'nested-two', pattern: 'Array: { of }, "with-dash": d, Promise: { race }', read: '[of(7)[0], typeof d, typeof race]', strip: true },
+  { id: 'nested-only-nonid', pattern: 'Array: { of }, "with-dash": d', read: '[of(7)[0], typeof d]', strip: true,
+    nativeHosts: ['param-expr', 'param-stmt'] },
+  { id: 'nested-two', pattern: 'Array: { of }, "with-dash": d, Promise: { race }', read: '[of(7)[0], typeof d, typeof race]', strip: true,
+    nativeHosts: ['param-expr', 'param-stmt'] },
   { id: 'member', pattern: 'Set: S, Array: { of: box.of }', read: '[typeof S, typeof box.of]', strip: false, hosts: ['assign'] },
   { id: 'member-nested', pattern: 'Set: S, Array: { of }, Promise: { race: box.race }', read: '[typeof S, of(7)[0], typeof box.race]', strip: false, hosts: ['assign'] },
 ];
@@ -11302,7 +11596,8 @@ function * generateInnerDefaultHostFallbacks() {
     for (const leaf of INNER_DEFAULT_HOST_LEAVES) {
       if (leaf.hosts && !leaf.hosts.includes(host)) continue;
       const body = `const getKey = () => "Map"; const box = {}; ${ wrap(leaf.pattern).replace('READ', leaf.read) }`;
-      yield { ...snippet(`inner-default-host-fallback/${ host }/${ leaf.id }`, `(() => { ${ body } })()`), strip: leaf.strip };
+      yield { ...snippet(`inner-default-host-fallback/${ host }/${ leaf.id }`, `(() => { ${ body } })()`),
+        strip: leaf.strip && !leaf.nativeHosts?.includes(host) };
     }
   }
   const leaf = { pattern: 'Set: S, "with-dash": d, Array: { of }', read: '[typeof S, of(1).length]' };
@@ -11311,10 +11606,8 @@ function * generateInnerDefaultHostFallbacks() {
     yield { ...snippet(`inner-default-host-fallback/in-function/${ host }`,
       `(() => { ${ fn } return [f([{ Set: 'X', Array: { of: x => [x, 'own'] } }]), f([])]; })()`), strip: false };
   }
-  // ... and a DEFAULTED parameter of an immediately invoked function is accounted for only where the
-  // one call leaves the slot to the default: a real argument binds the caller's own value (the inline
-  // default keeps it, the body-top hoist would not), a missing / `undefined` / `void` argument runs
-  // the default and takes the hoist; a spread that expands to the slot is a real argument too
+  // A supplied argument retains its own values. Only an omitted/undefined slot can permit
+  // body extraction; nested leaves that cannot be mirrored remain native.
   const IIFE_ARGUMENTS = {
     present: "({ Set: 'X', Array: { of: x => [x, 'own'] } })",
     spread: "(...[{ Set: 'X', Array: { of: x => [x, 'own'] } }])",
@@ -11581,6 +11874,89 @@ const ACRL_HOSTS = [
 // pattern merely REACHES through stores no constructor, and a key that names no static of the stored
 // one is answered alike by either entry.
 const CTOR_SLOT_ROWS = [
+  { id: 'mixed-ctor-native-getter-order',
+    body: `let ctor = 0, value;
+      Object.defineProperty(globalThis, 'mixedCtorProbe', {
+        configurable: true, value: { get x() { return typeof ctor; } }
+      });
+      ({ Set: ctor, mixedCtorProbe: { x: value } } = globalThis);
+      delete globalThis.mixedCtorProbe;
+      return [typeof ctor, value];` },
+  ...['flat', 'array', 'nested'].flatMap(shape => [false, true].map(supplied => {
+    const inner = '{ Math: { floor }, Set: Ctor } = globalThis';
+    const pattern = shape === 'flat' ? inner : shape === 'array' ? `[${ inner }]` : `[[${ inner }]]`;
+    function wrap(value) {
+      return shape === 'flat' ? value : shape === 'array' ? `[${ value }]` : `[[${ value }]]`;
+    }
+    return { id: `mixed-ctor-default-${ shape }-${ supplied ? 'supplied' : 'omitted' }`,
+      body: `function read(${ pattern }) { return [floor(1.9), Ctor]; }
+        const value = read(${ wrap('') });
+        ${ supplied ? `function Custom() {} const own = read(${ wrap('{ Math: { floor: () => 9 }, Set: Custom }') });` : '' }
+        return [value[0], value[1] === Set, new value[1]([7]).has(7)
+          ${ supplied ? ', own[0], own[1] === Custom' : '' }];` };
+  })),
+  ...['flat', 'array', 'nested', 'keyed-array', 'spread', 'alias', 'assignment', 'iife', 'default', 'loop'].flatMap(shape => [
+    'static', 'array', 'custom',
+  ].map(arm => {
+    const binding = shape === 'flat' ? 'const { entries } = flag ? Object : user;'
+        : shape === 'array' ? 'const [[{ entries }]] = [[flag ? Object : user]];'
+          : shape === 'nested' ? 'const { w: { entries } } = { w: flag ? Object : user };'
+            : shape === 'keyed-array' ? 'const { w: [{ entries }] } = { w: [flag ? Object : user] };'
+              : shape === 'spread' ? 'const [{ entries }] = [...[flag ? Object : user]];'
+                : shape === 'alias' ? 'const receiver = flag ? Object : user; const { entries } = receiver;'
+                  : shape === 'assignment' ? 'let entries; ({ entries } = flag ? Object : user);'
+                    : shape === 'iife' ? 'const entries = (({ entries }) => entries)(flag ? Object : user);'
+                      : shape === 'default' ? 'const entries = (({ entries } = flag ? Object : user) => entries)();'
+                        : 'for (const { entries } of [flag ? Object : user]) return entries;';
+    // Entries is not in the differential strip manifest; broad e2e owns absence.
+    return { id: `mixed-static-instance-${ shape }-${ arm }`, strip: false, body:
+        `function read(flag, user) { ${ binding } return entries; } ${
+         arm === 'static' ? 'return read(true, null)({ a: 4 });'
+          : arm === 'array' ? 'const value = [7]; return read(false, value).call(value).next().value;'
+            : "const value = { get entries() { log.push('get'); return function () { return this === value; }; } }; return read(false, value).call(value);" }` };
+  })),
+  ...['declaration', 'assignment', 'loop', 'iife', 'call', 'apply'].map(shape => {
+    const source = "[...[...[(log.push('receiver'), Array)]]]";
+    const body = shape === 'declaration' ? `const [{ from }] = ${ source }; return from('xy');`
+      : shape === 'assignment' ? `let from; ([{ from }] = ${ source }); return from('xy');`
+        : shape === 'loop' ? `for (const { from } of ${ source }) return from('xy');`
+          : shape === 'iife' ? `return (({ from }) => from('xy'))(...${ source });`
+            : shape === 'call' ? `function read({ from }) { return from('xy'); } return read(...${ source });`
+              : `return (({ from }) => from('xy')).apply(null, ${ source });`;
+    return { id: `nested-inline-spread-${ shape }`, body };
+  }),
+  // The unknown arm remains live beside a constructor, including a wrapped destructure.
+  ...['flat', 'array', 'nested', 'loop', 'or', 'nullish'].flatMap(shape => ['[3, 4]', "'ab'", '{ at() { return 9; } }'].map((value, index) => {
+    const binding = shape === 'flat' ? 'const { from, at } = flag ? Array : user;'
+        : shape === 'array' ? 'const [{ from, at }] = [flag ? Array : user];'
+          : shape === 'nested' ? 'const { w: { from, at } } = { w: flag ? Array : user };'
+            : shape === 'loop' ? 'for (const { from, at } of [flag ? Array : user]) return [typeof from, at.call(user, -1)];'
+              : `const { from, at } = user ${ shape === 'or' ? '||' : '??' } Array;`;
+    return { id: `selected-constructor-instance-${ shape }-${ index }`, strip: index !== 2,
+      body: `function read(flag, user) { ${ binding } ${ shape === 'loop' ? '' : 'return [typeof from, at.call(user, -1)];' } } return read(false, ${ value });` };
+  })),
+  ...['flat', 'array', 'nested', 'loop'].map(shape => {
+    const binding = shape === 'flat' ? 'const { from, at } = flag ? Array : user;'
+      : shape === 'array' ? 'const [{ from, at }] = [flag ? Array : user];'
+        : shape === 'nested' ? 'const { w: { from, at } } = { w: flag ? Array : user };'
+          : 'for (const { from, at } of [flag ? Array : user]) return [typeof at, from([1, 2]).join(",")];';
+    return { id: `selected-constructor-static-${ shape }`,
+      body: `function read(flag, user) { ${ binding } ${ shape === 'loop' ? '' : 'return [typeof at, from([1, 2]).join(",")];' } } return read(true);` };
+  }),
+  ...[false, true].map(flag => ({ id: `nested-loop-selected-static-${ flag }`,
+    body: `function read(flag, user) { for (const { w: [{ is }] } of [{ w: [flag ? Object : user] }]) return is; }
+      return read(${ flag }, { is() { return 'custom'; } })(1, 1);`, strip: flag })),
+  { id: 'array-pattern-static-call-result',
+    body: "const [{ from: make }] = (log.push('source'), [Array]); let keys; ([{ keys }] = [Object]);"
+      + ' let result; for (const [{ of: wrap }] of [[Array], [Array]]) result = wrap(2).at(0);'
+      + " return [make([1]).at(0), keys({ a: 1 }).includes('a'), result];" },
+  { id: 'opaque-returned-array-static',
+    body: 'function box(value) { return [value]; } const key = [0].pop(); return box(Array)[key].from([1, 2]);' },
+  { id: 'opaque-literal-object-static',
+    body: 'const key = [0].pop(); return [Object][key].groupBy([1, 2], value => value % 2);' },
+  { id: 'opaque-nested-promise-static',
+    body: 'const box = { values: [Promise] }; const key = [0].pop(); const value = box.values[key].withResolvers();'
+      + ' return [typeof value.resolve, typeof value.reject, typeof value.promise.then];' },
   { id: 'shorthand-slot-rest',
     body: 'const box = { Map }; const { Map: { groupBy: g }, ...rest } = box; return [typeof g, typeof rest];' },
   { id: 'renamed-key-rest',
@@ -12049,19 +12425,24 @@ function * generateLoopAliasOwners() {
       }
     }
   }
-  // Opaque iteration records where the head came from without exposing its whole namespace.
+  // Finite and opaque iteration record where the head came from without exposing its whole namespace.
   // Static reads still have to work, including reads through a pattern or a local alias.
-  for (const source of ['await', 'spread', 'named', 'returned']) for (const use of ['static', 'pattern', 'alias', 'dynamic']) {
+  for (const source of [
+    'await', 'plain', 'spread', 'nested-spread', 'array-binding', 'object-binding', 'named', 'returned',
+  ]) for (const use of ['static', 'pattern', 'alias', 'dynamic']) {
     const read = use === 'pattern' ? 'const { groupBy } = value; return groupBy([1], x => x).get(1)[0];'
       : use === 'alias' ? 'const alias = value; return hand(alias);'
         : use === 'dynamic' ? 'return value[String.fromCharCode(103, 114, 111, 117, 112, 66, 121)]([1], x => x).get(1)[0];'
           : 'return value.groupBy([1], x => x).get(1)[0];';
-    const rhs = source === 'named' ? 'values' : source === 'returned' ? 'values()' : source === 'spread' ? '[...[Map]]' : '[Map]';
+    const rhs = source === 'named' ? 'values' : source === 'returned' ? 'values()'
+      : source === 'spread' ? '[...[Map]]' : source === 'nested-spread' ? '[...[...[Map]]]'
+        : source === 'array-binding' ? '[...[[Map]]]' : source === 'object-binding' ? '[...[{ value: Map }]]' : '[Map]';
+    const head = source === 'array-binding' ? '[value]' : source === 'object-binding' ? '{ value }' : 'value';
     const expr = `${ source === 'await' ? 'await (async ' : '(' }() => {
       const hand = Function("C", "return C.groupBy([1], function (x) { return x; }).get(1)[0]");
       ${ source === 'named' ? 'const values = [Map];' : '' }
       ${ source === 'returned' ? 'function values() { return [Map]; }' : '' }
-      for ${ source === 'await' ? 'await ' : '' }(const value of ${ rhs }) { ${ read } }
+      for ${ source === 'await' ? 'await ' : '' }(const ${ head } of ${ rhs }) { ${ read } }
     })()`;
     yield { ...snippet(`loop-opaque-read/${ source }/${ use }`, expr), strip: true };
   }
@@ -12219,6 +12600,92 @@ function * generateInlineReturnPaths() {
   }
 }
 
+// Definite stores replace the initial candidate; accessor and descriptor bailouts keep it.
+function * generateReturnedContainerWrites() {
+  for (const [write, statement] of [
+    ['assignment', 'box.M = Map;'],
+    ['define-property', 'Object.defineProperty(box, "M", { value: Map });'],
+    ['assign', 'Object.assign(box, { M: Map });'],
+    ['define-properties', 'Object.defineProperties(box, { M: { value: Map } });'],
+    ['reflect-define', 'Reflect.defineProperty(box, "M", { value: Map });'],
+    ['reflect-set', 'Reflect.set(box, "M", Map);'],
+    ['reflect-receiver', 'Reflect.set({}, "M", Map, box);'],
+    ['aliased-mutator', 'const install = Object.defineProperty; install(box, "M", { value: Map });'],
+    ['invoked-mutator', 'Reflect.apply(Object.assign, null, [box, { M: Map }]);'],
+  ]) for (const [host, call] of [
+    ['direct', 'swap({ M: Object })'],
+    ['invoker', 'Reflect.apply(swap, null, [{ M: Object }])'],
+  ]) yield {
+    ...snippet(`returned-container-write/${ write }/${ host }`,
+      `(() => { function swap(box) { ${ statement } return box; }
+        return ${ call }.M.groupBy([1, 2], value => value % 2).get(1)[0]; })()`),
+    // Pure retains the written receiver and carries the installed constructor namespace.
+    strip: true,
+  };
+  for (const [write, statement] of [
+    ['assignment', 'box.M = Map;'],
+    ['assign', 'Object.assign(box, { M: Map });'],
+    ['reflect-set', 'Reflect.set(box, "M", Map);'],
+    ['define-property', 'Object.defineProperty(box, "M", { value: Map });'],
+  ]) for (const [shape, source, suffix] of [
+    ['getter-first', '{ get M() { log.push("get"); return Object; }, set M(value) {} }', ''],
+    ['setter-first', '{ set M(value) {}, get M() { log.push("get"); return Object; } }', ''],
+    ['data-last', '{ get M() { return Object; }, set M(value) {}, M: Object }', ''],
+    ['last-write', '{ M: Object }', 'box.M = Object;'],
+  ]) yield {
+    ...snippet(`returned-container-write/${ write }/${ shape }`,
+      `(() => { function swap(box) { ${ statement } ${ suffix } return box; }
+        const groups = swap(${ source }).M.groupBy([1, 2], value => value % 2);
+        return typeof groups.get === "function" ? groups.get(1) : groups[1]; })()`),
+    // Object has no pure constructor entry; retained Object reads still bail in pure.
+    // Global's stripped leg remains armed for those rows.
+    strip: shape === 'data-last' || shape !== 'last-write' && write === 'define-property',
+  };
+}
+
+// Closed callers carry static sources across values and pattern selection.
+function * generateParameterStaticSources() {
+  for (const [source, setup, argument] of [
+    ['member', 'const box = { value: Array };', 'box.value'],
+    ['literal', '', '({ value: Array }).value'],
+    ['nested', '', '({ box: { value: Array } }).box.value'],
+    ['returned', 'function get() { log.push("get"); return Array; }', 'get()'],
+  ]) yield { ...snippet(`parameter-static-source/${ source }`,
+    `(() => { ${ setup } function read(held) { return held.from([7]); } return read(${ argument }); })()`), strip: true };
+  yield { ...snippet('parameter-static-source/assigned-getter',
+    `(() => { const box = { value: Array };
+      Object.assign(box, { get value() { log.push("getter"); return { from: () => "custom" }; } });
+      function read(held) { return held.from([1]); } return read(box.value); })()`), strip: true };
+  yield { ...snippet('parameter-static-source/scoped-callable-namesakes',
+    `(() => { function first() { const box = { value: Array };
+      function read(held) { return held.from([1]); } return read(box.value); }
+      function second() { function read(held) { return held.from([2]); }
+      return read({ from: values => values }); } return [first(), second()]; })()`), strip: true };
+  for (const selection of [true, false]) yield { ...snippet(`parameter-static-source/selection/${ selection }`,
+    `(() => { function choose() { log.push("test"); return ${ selection }; }
+      function read({ value: { of } }, other) { log.push("body"); return of(7); }
+      return read(choose() ? { value: Array } : { value: Array }, log.push("argument")); })()`), strip: true };
+  yield { ...snippet('parameter-static-source/member-pattern',
+    '(() => { const box = { value: Array }; function read({ of }) { return of(7); } return read(box.value); })()'), strip: true };
+}
+
+// Each element is evaluated once; a key's effect precedes the method read, including a getter.
+function * generateWrapperKeyEffects() {
+  for (const siblings of [false, true]) for (const receiver of ['Array.prototype', 'own']) {
+    yield { ...snippet(`wrapper-key-effects/${ siblings }/${ receiver }`,
+      `(() => { const own = { get at() { log.push("getter"); return function () { return 9; }; } };
+        function mark(tag, value) { log.push(tag); return value; }
+        let at, tail; [{ [(mark("key"), "at")]: at }${ siblings ? ', tail' : '' }] = [mark("receiver", ${ receiver })${ siblings ? ', 7' : '' }];
+        return [at.call([3, 4], -1), ${ siblings ? 'tail' : '0' }]; })()`), strip: true };
+  }
+  yield { ...snippet('wrapper-key-effects/opaque-getter',
+    `(() => { function read(input) { function mark(tag, value) { log.push(tag); return value; }
+      let at, tail; [{ [(mark("key"), "at")]: at }, tail] = [mark("receiver", input), 7];
+      return [at.call([3, 4], -1), tail]; }
+      const own = { get at() { log.push("getter"); return function () { return 9; }; } };
+      return [read(Array.prototype), read(own)]; })()`), strip: true };
+}
+
 // Source goal changes Annex-B block-function bindings. Script means the CommonJS wrapper
 // supported by both emitters: program vars remain local, including a var with no initializer.
 function * generateSourceGoals() {
@@ -12320,6 +12787,8 @@ export function * generate() {
   yield * generateTsLeadingThis();
   yield * generateNullableTruthyFold();
   yield * generateDestructure();
+  yield * generateConsumedDestructureHosts();
+  yield * generateStaticRestHosts();
   yield * generateAssignmentKeySpelling();
   yield * generateSequencePrefixOrder();
   yield * generateReceiverBearingDefault();
@@ -12335,6 +12804,10 @@ export function * generate() {
   yield * generateDestructureAlias();
   yield * generateParamInstalledPatch();
   yield * generateParamInstalledPatchHosts();
+  yield * generateInvokerReceiverReads();
+  yield * generateCallValueProof();
+  yield * generateLoopHeadElements();
+  yield * generateHeadReceiverShapes();
   yield * generateContainerSlots();
   yield * generateDominatingWrites();
   yield * generateProxyAliasCells();
@@ -12509,5 +12982,8 @@ export function * generate() {
   yield * generateClonedContainerOwners();
   yield * generateCapturedContainerOwners();
   yield * generateInlineReturnPaths();
+  yield * generateReturnedContainerWrites();
+  yield * generateParameterStaticSources();
+  yield * generateWrapperKeyEffects();
   yield * generateLogicalDestructure();
 }

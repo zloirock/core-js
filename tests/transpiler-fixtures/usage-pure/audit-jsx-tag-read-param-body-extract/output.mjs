@@ -1,6 +1,9 @@
-import _Promise from "@core-js/pure/actual/promise/constructor";
-// Rest-bearing parameters keep their native bindings and defaults in parameter scope.
-// Independent reads and key/default expressions still receive their own polyfills.
+import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
+import _Object$groupBy from "@core-js/pure/actual/object/group-by";
+import _Object$hasOwn from "@core-js/pure/actual/object/has-own";
+import _Promise from "@core-js/pure/actual/promise";
+// Constructor defaults with rest use the full index; supplied objects keep their properties.
+// Other static extractions require closed callers; key/default effects remain independent.
 
 const tagRead = function ({
   from: From,
@@ -21,25 +24,28 @@ const intrinsicTag = function ({
   return [race, x, rest];
 }();
 const attributeName = function ({
-  hasOwn: H,
+  hasOwn: _unused,
   ...rest
 } = Object, x = <div H={1} />) {
+  let H = _Object$hasOwn;
   return [H, x, rest];
 }();
 const classMethodKey = function ({
-  fromEntries,
+  fromEntries: _unused2,
   ...rest
 } = Object, x = class {
   fromEntries() {}
 }) {
+  let fromEntries = _Object$fromEntries;
   return [fromEntries, x, rest];
 }();
 const classFieldKey = function ({
-  groupBy,
+  groupBy: _unused3,
   ...rest
 } = Object, x = class {
   groupBy = 1;
 }) {
+  let groupBy = _Object$groupBy;
   return [groupBy, x, rest];
 }();
 export { tagRead, memberRootRead, intrinsicTag, attributeName, classMethodKey, classFieldKey };

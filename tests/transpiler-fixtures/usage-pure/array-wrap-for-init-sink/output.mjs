@@ -12,8 +12,24 @@ const eff = t => (_pushMaybeArray(seen).call(seen, t), t);
 const xs = [1];
 let kw;
 let out1, out2, out3;
-for (const _unused = (eff('p'), _globalThis), defineProperty = _Object$defineProperty; !out1;) out1 = defineProperty;
-for (const defineProperties = (kw = (eff('q'), _globalThis), _Object$defineProperties); !out2;) out2 = defineProperties;
+for (const [{
+  Object: {
+    defineProperty
+  }
+}] = [(eff('p'), {
+  Object: {
+    defineProperty: _Object$defineProperty
+  }
+}), 7]; !out1;) out1 = defineProperty;
+for (const [{
+  Object: {
+    defineProperties
+  }
+}] = [(kw = (eff('q'), _globalThis), {
+  Object: {
+    defineProperties: _Object$defineProperties
+  }
+})]; !out2;) out2 = defineProperties;
 for (const [{
   Object: {
     getOwnPropertyNames

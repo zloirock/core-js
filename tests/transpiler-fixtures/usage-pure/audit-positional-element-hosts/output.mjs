@@ -1,10 +1,8 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _at from "@core-js/pure/actual/instance/at";
-// the pair lands by the slot its host stands in: an unbraced control body JOINS it into its `var`, a
-// LOOP HEAD takes it as declarators (they evaluate in order, so the minted name is bound first), a
-// CATCH param relocates into the body and extracts there, a flatten sibling splits the declaration
-// around it, and an exported host binding nothing else drops its wrapper onto the extraction
+// Positional captures keep native evaluation order across loop headers, control bodies, catches and exports.
+// Sibling rewrites retain their own claims and internal temporaries.
 const rows = [[1, [2]], [3]];
 const bodyless = function () {
   if (rows.length) var [_ref] = rows,
@@ -25,8 +23,16 @@ const caught = function () {
   }
 }();
 const besideFlatten = function () {
-  var xf = _Array$from;
-  var [_ref5] = rows;
+  var {
+      Array: {
+        from: xf
+      }
+    } = {
+      Array: {
+        from: _Array$from
+      }
+    },
+    [_ref5] = rows;
   var at = _atMaybeArray(_ref5);
   return [typeof xf, at];
 }();

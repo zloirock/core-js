@@ -36,9 +36,9 @@ let S, M, alias, of, rest, race, d;
   }
 }] = [];
 [{
-  Set: S,
+  Set: S = _Set,
   Array: {
-    of
+    of = _Array$of
   },
   ...rest
 } = _globalThis] = [];
@@ -85,11 +85,10 @@ export const caught = (() => {
   }
 })();
 export const keyed = (() => {
-  const y = _Map;
   const {
     k: {
       Set: KS,
-      [getKey()]: _unused,
+      [getKey()]: y,
       Array: {
         of: kof
       }
@@ -151,9 +150,7 @@ export const selecting = (() => {
       Map: {
         groupBy: _Map$groupBy
       },
-      Promise: {
-        customZ: _Promise.customZ
-      }
+      Promise: _Promise
     }
   } = {};
   const [{
