@@ -4,7 +4,7 @@
 import { join } from 'node:path';
 import { HERE } from './paths.mjs';
 
-const NAMES = ['rxjs', 'codemirror', 'three', 'htmlparser2', 'echarts', 'planck', 'tanstack-table'];
+const NAMES = ['rxjs', 'codemirror', 'three', 'htmlparser2', 'echarts', 'planck', 'tanstack-table', 'es-toolkit'];
 
 const PLAIN_SEGMENT = /^[\w\-.]+$/;
 for (const name of NAMES) {
