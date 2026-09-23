@@ -95,9 +95,10 @@ function injected({ injected: specifiers }, label) {
 const GATES = [noExternals, es5, payload, injected];
 
 // ONE provider per bundle: both would inject the union and the cell would describe neither. A graph may
-// hold CommonJS - echarts' does, through the packages its exercise reads the SVG with - and a provider
-// writes a `require` into such a module rather than an import, which `commonjs()` then converts with the
-// module's own; unplugin's `post` writes an import into the module it has already converted.
+// hold CommonJS - ml-matrix's implementation is one such file behind an ESM wrapper, and echarts'
+// exercise reads the SVG with two such packages - and a provider writes a `require` into such a module
+// rather than an import, which `commonjs()` then converts with the module's own; unplugin's `post` writes
+// an import into the module it has already converted.
 export async function buildCell(cell) {
   const record = recorder();
   // `nodeResolve` LAST: asked first it answers a bare `htmlparser2` with the published JS; the
