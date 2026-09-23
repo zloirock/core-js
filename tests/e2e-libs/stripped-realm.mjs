@@ -1,6 +1,7 @@
-// The `usage-pure` oracle: a missed REWRITE is a raw read that throws here, where every other realm
-// still answers it with the native. In-process, unlike the pre-flight beside it - the pure flavor
-// writes no global, and a fresh context per cell is then the whole isolation.
+// The `usage-pure` oracle: a missed REWRITE of a built-in the manifest strips is a raw read that throws
+// here, where every other realm still answers it with the native; one it keeps answers here too.
+// In-process, unlike the pre-flight beside it - the pure flavor writes no global, and a fresh context
+// per cell is then the whole isolation.
 import { createContext, runInContext } from 'node:vm';
 import { errorReason } from './diagnostics.mjs';
 import { E2E_STRIP_REALM_GLOBALS, ITERATOR_PROTO_HELPERS, buildStripScript } from '../transpiler-differential/strip-manifest.mjs';
