@@ -7,6 +7,7 @@
 +core-js/modules/es.reflect.get-prototype-of
 +core-js/modules/es.reflect.has
 +core-js/modules/es.reflect.is-extensible
++core-js/modules/es.reflect.own-keys
 +core-js/modules/es.reflect.prevent-extensions
 +core-js/modules/es.reflect.set
 +core-js/modules/es.reflect.set-prototype-of
