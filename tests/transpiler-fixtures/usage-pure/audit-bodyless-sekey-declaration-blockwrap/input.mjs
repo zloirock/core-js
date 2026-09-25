@@ -1,5 +1,6 @@
 // A computed instance key runs after receiver evaluation and before the property read.
-// A bodyless control keeps the receiver, key effect, and binding in its one guarded statement.
+// A bodyless control keeps the key effect, the binding and a receiver that may be nullish in its one
+// guarded statement; a proven constructor receiver needs no nullish test and is not kept.
 
 // bodyless `if`: a static extract - the key effect must run only when `c` is taken
 if (c) var { [(log(), 'from')]: f } = Array;

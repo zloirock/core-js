@@ -3,7 +3,7 @@ import _Array$from from "@core-js/pure/actual/array/from";
 // Rest keeps its source and exclusions; instance slots remain native.
 const [_ref] = [Array],
   _ref2 = _ref,
-  from = null == _ref2 ? _ref2[""] : _Array$from,
+  from = _Array$from,
   {
     from: _unused,
     ...rest

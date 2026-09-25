@@ -12,8 +12,9 @@ let viaAssignCall, viaAssignWrap, viaAssignBodyless;
 viaAssignCall = _atMaybeArray(_flatMaybeArray(arr).call(arr));
 viaAssignWrap = _atMaybeArray(_flatMaybeArray(arr).call(arr));
 if (1) viaAssignBodyless = _atMaybeArray(_flatMaybeArray(arr).call(arr));
-// ... and it stands down wherever a reader SURVIVES the slot: a sibling binding, a sibling KEY off
-// the same receiver, and a second effect-bearing part of the init the dispatch does not spell
+// ... and it stands down wherever a reader SURVIVES the slot: a sibling binding and a second
+// effect-bearing part of the init the dispatch does not spell; a sibling KEY off the same receiver
+// instead reads the slot's memo, which the claim reads too - the slot still evaluates once
 let keptSibling, keptOther, keptKey, keptLen, twoEffects, twoEffectsZ;
 ({
   y: {
@@ -24,14 +25,11 @@ let keptSibling, keptOther, keptKey, keptLen, twoEffects, twoEffectsZ;
   y: _flatMaybeArray(arr).call(arr),
   o: 1
 });
+const _ref = _flatMaybeArray(arr).call(arr);
+keptKey = _atMaybeArray(_ref);
 ({
-  y: {
-    at: keptKey,
-    length: keptLen
-  }
-} = {
-  y: _flatMaybeArray(arr).call(arr)
-});
+  length: keptLen
+} = _ref);
 ({
   y: {
     at: twoEffects
@@ -41,9 +39,8 @@ let keptSibling, keptOther, keptKey, keptLen, twoEffects, twoEffectsZ;
   y: _flatMaybeArray(arr).call(arr),
   z: _flatMaybeArray(arr).call(arr)
 });
-// ... and an element that SPELLS A SEQUENCE stands down on both legs: a claim INSIDE it renders by
-// lifting its own prefix into the residual, so dropping that residual would drop the lift while
-// keeping it would re-read what the dispatch spells
+// ... and an element that SPELLS A SEQUENCE keeps the whole sequence inside the dispatch: its prefix
+// runs where the source ran it, once, and nothing re-reads what the dispatch spells
 let out, seqElement;
 // the assignment DISCARDED as a sequence element drops its residual by a route of its own, and it
 // owes the same pairing: the dispatch carries the init, so the element must not re-emit it

@@ -1,5 +1,4 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-import _at from "@core-js/pure/actual/instance/at";
 // the slot-rename route needs a BINDING SITE for the minted name, not a declaration, and these two
 // hosts have one: an ASSIGNMENT host takes a hoisted `var` and writes the claim's binding right after
 // its statement; an EXPORTED host binding MORE than the claim drops its wrapper - the extraction
@@ -19,7 +18,7 @@ export { alsoExported }; // ... and the element the pattern pairs with may be a 
 // the dispatch is the only read of it and spelling it once costs nothing
 const memberElement = function () {
   let at;
-  at = _at(rows[0]);
+  at = _atMaybeArray(rows[0]);
   return at;
 }();
 export { assigned, memberElement };

@@ -1,6 +1,5 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
-import _at from "@core-js/pure/actual/instance/at";
 var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _ref10, _ref11, _ref12;
 // a call-optional chain start with an ADJACENT member-optional hop folds the inner call into the
 // chainStart test, so one test covers both short-circuits. a NON-polyfilled inner folds as the
@@ -16,7 +15,7 @@ export const withArgs = null == (_ref5 = arr.getIt?.(1)) ? void 0 : _atMaybeArra
 const mk = () => ({
   getIt: () => [[3]]
 });
-export const seReceiver = null == (_ref7 = mk().getIt?.()) ? void 0 : _at(_ref8 = _flatMaybeArray(_ref7).call(_ref7)).call(_ref8);
+export const seReceiver = null == (_ref7 = mk().getIt?.()) ? void 0 : _atMaybeArray(_ref8 = _flatMaybeArray(_ref7).call(_ref7)).call(_ref8);
 const nested = [[[4]]];
 export const polyfilledInner = null == (_ref9 = _flatMaybeArray(nested)?.call(nested)) ? void 0 : _atMaybeArray(_ref10 = _flatMaybeArray(_ref9).call(_ref9)).call(_ref10);
 

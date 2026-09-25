@@ -750,3 +750,37 @@ QUnit.test('loop: assignment heads retain instance methods and call effects', as
   for ({ of: { name } } of [make()]) seen.push(typeof name);
   assert.deepEqual(seen, [6, 6, 9, 'make', 'string']);
 });
+
+// a for-of head pattern reads its element behind no identity guard: a reassigned name iterated there
+// keeps the whole entry of what it may hold
+QUnit.test('for-of: a head pattern reads the statics of a reassigned element', assert => {
+  const pick = [].length === 0;
+  let source = Set;
+  if (pick) source = URL;
+  const seen = [];
+  for (const { canParse } of [source]) seen.push(typeof canParse);
+  assert.deepEqual(seen, ['function']);
+});
+
+// a `var` a for-of head binds holds the element after the loop, even where it hoists out of a nested
+// block, on both parsers
+QUnit.test('for-of: a var head hoisted out of a nested block holds its element', assert => {
+  function read(run) {
+    if (run) {
+      // eslint-disable-next-line no-var -- the hoisted head binding is the case under test
+      for (var M of [Map]) { /* the head binds the element */ }
+    }
+    // eslint-disable-next-line block-scoped-var -- read after the loop, through the hoisted binding
+    return typeof M.groupBy;
+  }
+  assert.same(read(true), 'function');
+});
+
+// a for-of head destructuring INTO a member target reads each element's key like its binding twin:
+// the target is the write the loop performs, the KEY is a read that asks for its polyfill
+QUnit.test('syntax loops: a member target in a for-of head reads the element key', assert => {
+  const seen = [];
+  const target = {};
+  for ({ groupBy: target.fn } of [Map, { groupBy: 7 }]) seen.push(typeof target.fn);
+  assert.deepEqual(seen, ['function', 'number']);
+});

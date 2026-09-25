@@ -59,6 +59,8 @@ import './holder-position-domain.mjs';
 import './holder-call-slot-domain.mjs';
 import './holder-receiver-body-channels.mjs';
 import './mutation-return-channels.mjs';
+// ... and the mutation gate's alias closure cost, counted in global-object probes on namesake alias chains
+import './mutation-gate-complexity.mjs';
 // the escape STAMP's node identity: the census writes a stamp and the pure claim reads one, and a
 // spelling only one half knows is a silently dropped widening, not a failure
 import './escaped-ctor-stamp.mjs';

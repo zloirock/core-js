@@ -7,6 +7,7 @@ import {
   fallbackBranchSwapKeepsSelection,
   instanceSynthReceiverPure,
   isViableBranchForKey,
+  selectionLeftAlwaysTruthy,
   paramDefaultInstanceSynthAllowed,
   planSynthReceiverGuard,
 } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
@@ -180,5 +181,27 @@ for (const [label, source, selection, guarded, viable, mutated = false] of [
   check(`${ lbl } guard`, !!planSynthReceiverGuard({ receiver: logical.node.left, ...ctx }), guarded);
   check(`${ lbl } static`, !!isViableBranchForKey({ branch: logical.node.left, key: 'from', ...ctx }), viable);
 });
+
+// --- selectionLeftAlwaysTruthy ---
+
+// the dead right arm of a `||` / `??` is the plan's own question: its leaf walk over its root
+// classification, asked of the left operand - an IIFE handing back a static container and a named call
+// proven to yield the realm are truthy exactly as the flat static and the realm are; a falsy binding
+// and an unbacked key off the realm keep the right arm live
+for (const [name, source, expected] of [
+  ['static container', 'const b = { Array }; const { Array: { of } } = b || globalThis;', true],
+  ['iife over a static alias', 'const b = { Array }; const { Array: { of } } = (() => b)() || globalThis;', true],
+  ['named call yielding the realm', 'function realm() { return globalThis; } const { Array: { of } } = realm() || globalThis;', true],
+  ['the realm', 'const { Array: { of } } = globalThis || shim;', true],
+  ['falsy binding', 'let m = 0; const { Array: { of } } = m || globalThis;', false],
+  ['unbacked key off the realm', 'const shim = globalThis.shim; const { Array: { of } } = shim || globalThis;', false],
+]) {
+  runBoth(`truthy left/${ name }`, source, (adapter, prog, lbl) => {
+    const logical = adapter.pickPath(prog, 'LogicalExpression');
+    check(lbl, selectionLeftAlwaysTruthy({
+      node: logical.node.left, scope: logical.scope, adapter: pluginAdapter(adapter), path: logical, resolvePure,
+    }), expected);
+  });
+}
 
 finish();

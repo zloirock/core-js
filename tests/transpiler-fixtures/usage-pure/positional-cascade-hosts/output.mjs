@@ -1,7 +1,6 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
-import _at from "@core-js/pure/actual/instance/at";
 import _includes from "@core-js/pure/actual/instance/includes";
 var _ref7, _ref8, _ref9;
 // Several positional claims in one array pattern: a later slot's rename frees the earlier slots
@@ -41,7 +40,7 @@ const [_ref12, _ref13, ...rest4] = rows;
 const a4 = _atMaybeArray(_ref12);
 const b4 = _atMaybeArray(_ref13);
 const [[_ref14], [_ref15]] = nested;
-const a5 = _at(_ref14.y);
+const a5 = _atMaybeArray(_ref14.y);
 const b5 = _atMaybeArray(_ref15);
 const [_ref16, _ref17] = rows;
 const a6 = _atMaybeArray(_ref16);
@@ -69,6 +68,6 @@ const x10 = 1,
 const a10 = _atMaybeArray(_ref25);
 const b10 = _includesMaybeArray(_ref26);
 const [_ref27, _ref28] = pair;
-const a11 = _at(_ref27.y);
+const a11 = _atMaybeArray(_ref27.y);
 const b11 = _includesMaybeArray(_ref28.z);
 export { a1, b1, c1, d1, e1, f1, a2, b2, c2, a3, c3, a4, b4, rest4, a5, b5, r7, r8, r9, x10, a10, b10, y10, a11, b11, seen };
