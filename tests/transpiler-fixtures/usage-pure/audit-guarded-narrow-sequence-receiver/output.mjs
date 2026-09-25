@@ -31,12 +31,12 @@ export const destructuredSeq = (() => {
   const g = (n++, M === _Map ? _Map$groupBy : M.groupBy);
   return g;
 })();
-// NEGATIVE: more than one property in the pattern - the split is not this render's business
+// ... and a pattern with an unanswered sibling detaches the claim at its edge behind the same guard
 export const destructuredPair = (() => {
-  const {
-    groupBy: g,
-    get: h
-  } = M;
+  const g = M === _Map ? _Map$groupBy : M.groupBy,
+    {
+      get: h
+    } = M;
   return [g, h];
 })();
 export { n, k };

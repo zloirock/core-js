@@ -1,5 +1,5 @@
 import _Map from "@core-js/pure/actual/map/constructor";
-import _Promise from "@core-js/pure/actual/promise/constructor";
+import _Promise from "@core-js/pure/actual/promise";
 // the mirror of the resolving rows: every alias here reads a shadow that legitimately WINS, so the
 // receiver is not the built-in and no static may fold onto it. distinct static per row - a regression
 // surfaces as that row's module appearing in the usage-global import set

@@ -5,7 +5,7 @@ import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Set from "@core-js/pure/actual/set/constructor";
 import _Symbol$asyncIterator from "@core-js/pure/actual/symbol/async-iterator";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
-import _WeakMap from "@core-js/pure/actual/weak-map/constructor";
+import _WeakMap from "@core-js/pure/actual/weak-map";
 import _WeakSet from "@core-js/pure/actual/weak-set/constructor";
 // boundaries of the anchored symbol extraction: only the well-known ITERATOR key takes the
 // synth route - an asyncIterator sibling keeps its re-keyed binding beside the extraction;

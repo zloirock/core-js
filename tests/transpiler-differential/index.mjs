@@ -277,7 +277,7 @@ const CORPUS_FLOOR = 8000;
 // regression can drop most of the corpus from a leg and the run still exits 0
 const coverageFailures = seen === corpusTotal ? [] : [`the chunks reported ${ seen } snippets of ${ corpusTotal } in the corpus`];
 if (corpusTotal < CORPUS_FLOOR) coverageFailures.push(`the generated corpus collapsed to ${ corpusTotal } snippets, under its floor of ${ CORPUS_FLOOR }`);
-coverageFailures.push(...coverageShortfalls(coverage, corpusTotal));
+coverageFailures.push(...coverageShortfalls(coverage, corpusTotal, { off: PURE_ONLY ? ['global-stripped'] : [] }));
 for (const f of failures) echo`${ red('FAIL') } ${ cyan(f) }`;
 for (const f of coverageFailures) echo`${ red('COVERAGE') } ${ cyan(f) }`;
 

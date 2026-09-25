@@ -1,6 +1,7 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
+import _flatMapMaybeArray from "@core-js/pure/actual/array/instance/flat-map";
 import _toReversedMaybeArray from "@core-js/pure/actual/array/instance/to-reversed";
 import _toSortedMaybeArray from "@core-js/pure/actual/array/instance/to-sorted";
 import _withMaybeArray from "@core-js/pure/actual/array/instance/with";
@@ -51,8 +52,10 @@ const viaSelecting = (([{
 }]);
 export { viaIife, viaDefault, viaHopThenWrap, viaDouble, viaSibling, viaBinding, viaSelecting };
 
-// NEGATIVE: an element that RUNS is read once natively - a mirror would spell it a second time
+// an element that RUNS is spelled once, inside the mirror that replaces it, where the source ran it
 const viaEffect = (([{
   flatMap: fm
-}]) => fm)([eff()]);
+}]) => fm)([{
+  flatMap: _flatMapMaybeArray(eff())
+}]);
 export { viaEffect };

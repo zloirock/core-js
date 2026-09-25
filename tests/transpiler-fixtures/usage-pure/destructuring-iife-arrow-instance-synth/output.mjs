@@ -1,7 +1,10 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _concatMaybeArray from "@core-js/pure/actual/array/instance/concat";
+import _copyWithinMaybeArray from "@core-js/pure/actual/array/instance/copy-within";
 import _entriesMaybeArray from "@core-js/pure/actual/array/instance/entries";
+import _fillMaybeArray from "@core-js/pure/actual/array/instance/fill";
 import _findIndexMaybeArray from "@core-js/pure/actual/array/instance/find-index";
+import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
 import _findLastIndexMaybeArray from "@core-js/pure/actual/array/instance/find-last-index";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _flatMapMaybeArray from "@core-js/pure/actual/array/instance/flat-map";
@@ -13,7 +16,7 @@ import _atMaybeString from "@core-js/pure/actual/string/instance/at";
 // an instance method destructured off an IIFE ARGUMENT synths the argument itself - the call is
 // the parameter's only call site, so the replacement is caller-correct and the argument's value is
 // read once, inside the literal. an unresolvable receiver gets the generic dispatcher; a literal
-// receiver refines to the typed variant; a receiver the shared gate rejects (a call) stays native.
+// receiver refines to the typed variant; a CALL argument runs once, inside the literal.
 // (kept lazy: the bare dispatcher call throws exactly like the native extraction would - see the
 // e2e THROW-parity oracle - and a top-level throw would cut the module's runtime oracle short)
 export const viaBareCallThrowsLazily = () => (({
@@ -26,9 +29,11 @@ export const viaLiteralArg = (({
 }) => at)({
   at: _atMaybeArray([1, 2])
 });
-export const viaCallArgBails = (({
+export const viaCallArgRunsOnce = (({
   findLast
-}) => findLast)(mk());
+}) => findLast)({
+  findLast: _findLastMaybeArray(mk())
+});
 
 // the SE-tail peel reaches the inner receiver; the prefix effect stays in place and runs once
 export const viaSeTailArg = (({
@@ -53,8 +58,10 @@ export const viaAliasedProp = (({
   findLastIndex: _findLastIndexMaybeArray([1, 2])
 });
 export const viaDefaultedProp = (({
-  indexOf = null
-}) => indexOf)([1, 2]);
+  copyWithin = null
+}) => copyWithin)({
+  copyWithin: _copyWithinMaybeArray([1, 2])
+});
 export const viaOptionalCall = (({
   keys
 }) => keys)?.({
@@ -108,12 +115,14 @@ export const viaNumberArg = (({
   toFixed: _toFixedMaybeNumber(1.5)
 });
 export const viaNestedIifes = (({
-  lastIndexOf
+  fill
 }) => (({
   concat
 }) => concat)({
   concat: _concatMaybeArray([1, [2]])
-}))([3, 4]);
+}))({
+  fill: _fillMaybeArray([3, 4])
+});
 
 // the argument position is read from the SAME resolver that located the receiver, so an argument
 // the resolver expanded out of an inline-array spread keeps its receiver TYPING - deriving the

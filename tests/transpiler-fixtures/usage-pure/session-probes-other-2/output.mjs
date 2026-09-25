@@ -229,14 +229,13 @@ function mark(t, v) {
   } : _Set];
 }
 {
-  const _ref2 = pick ? {
+  const [{
+    from: f,
+    at: a
+  }] = [pick ? {
     from: _Array$from,
     at: Array.at
-  } : userObj;
-  const a = _at(_ref2);
-  const [{
-    from: f
-  }] = [_ref2];
+  } : userObj];
   _pushMaybeArray(log).call(log, f === _Array$from, typeof a);
 }
 {

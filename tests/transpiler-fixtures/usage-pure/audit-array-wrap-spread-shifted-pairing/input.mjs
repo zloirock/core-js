@@ -3,14 +3,17 @@
 // spread element instead. resolving past the spread judges a foreign element: the ctor alias
 // would over-substitute the pure static, the symbol alias would fold a user value to the
 // well-known symbol, and the type channel would narrow `.at` to the array-specific helper on a
-// foreign runtime receiver. every spread-shifted binding must stay verbatim / widen to generic
+// foreign runtime receiver. a spread-shifted binding never substitutes: a static read off it takes
+// the runtime identity guard against its lone candidate (the raw branch reads the runtime value),
+// a well-known-symbol read folds only when the guard proves the realm Symbol, and the type
+// channel widens to generic
 let tail = [{}, {}];
 
-// ctor-alias channel: M lands on `tail[1].Map` at runtime, the static stays untouched
+// ctor-alias channel: M lands on `tail[1].Map` at runtime - the guard's raw branch reads that static
 const [m0, { Map: M }] = [...tail, globalThis];
 export const viaCtorAlias = M.groupBy([1, 2], v => v);
 
-// symbol-alias channel: S lands on a user value, the well-known key must not fold
+// symbol-alias channel: S lands on a user value - the guard folds the key only for the realm Symbol
 const [s0, { Symbol: S }] = [...tail, globalThis];
 export const viaSymbolAlias = [1, 2][S.iterator];
 
@@ -27,7 +30,7 @@ let head = [globalThis];
 const [{ Promise: P }] = [...head];
 export const viaSpreadAt = P.allSettled([]);
 
-// the ASSIGNMENT form pairs the same way: a spread-shifted slot stays verbatim, a sound
+// the ASSIGNMENT form pairs the same way: a spread-shifted slot takes the guard, a sound
 // pairing folds (paren drop around the pattern statement is the babel reprint)
 let ax, AM, AS;
 ([ax, { Promise: AM }] = [...tail, globalThis]);

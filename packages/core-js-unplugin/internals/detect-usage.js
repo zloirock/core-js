@@ -1,8 +1,5 @@
 // detect polyfillable usage patterns (usage-global and usage-pure modes)
-import {
-  buildDestructureLeafMeta,
-  classifyDestructureLeafHost,
-} from '@core-js/polyfill-provider/detect-usage/destructure';
+import { destructurePropLeafMeta } from '@core-js/polyfill-provider/detect-usage/destructure';
 import { walkTypeAnnotationGlobals } from '@core-js/polyfill-provider/detect-usage/annotations';
 import { beginMutationPrePass, createDetectionAdapter, mutationSiteVisitors } from '@core-js/polyfill-provider/detect-usage/mutations';
 import { resolveKey as sharedResolveKey } from '@core-js/polyfill-provider/detect-usage/resolve';
@@ -655,7 +652,7 @@ export function createEstreeAdapter(options = {}) {
       }) ? info.source : null;
       return {
         node: b.path.node,
-        kind: b.kind,
+        kind: b.kind === 'hoisted' && b.path.node?.type === 'ClassDeclaration' ? 'let' : b.kind,
         name,
         constantViolations,
         importSource,
@@ -1110,40 +1107,21 @@ export function createUsageVisitors({
     }]));
   }
 
-  // destructure-only wrapper (sole caller is extractPropertyKey): a side-effecting computed key
-  // resolves to its tail for identity; the emitter keeps the key in the pattern (it runs once) and
-  // adds an inline default `= _Array$from`, so the static is polyfilled, not bailed
-  // `path` anchors the key canon's flow gates (init-dominance, reaching-value) at the
-  // pattern holding the key - the key EVALUATES there; a pathless call defaults the
-  // dominance gate open and folds a conditionally-initialized key
-  // ... and `keepsKeyNode`: the pattern KEEPS an effectful key where it stands, so a key spelled
-  // through a bound identity call (`[k('at')]`) may fold to its argument
-  function resolveKey(node, computed, scope, path = null) {
-    return sharedResolveKey({ node, computed, scope, adapter, path, resolveStaticKey, keepsKeyNode: true });
-  }
-
-  function extractPropertyKey(propNode, scope, path = null) {
-    if (!propNode.computed) {
-      return propNode.key.type === 'Identifier' ? propNode.key.name
-        : adapter.isStringLiteral(propNode.key) ? propNode.key.value
-          : null;
-    }
-    return resolveKey(propNode.key, true, scope, path);
-  }
-
-  // build meta for destructuring property: const { from } = Array, ({ from } = Array)
-
-  function buildDestructuringMeta(propNode, parentPath, containerUnionSink = null) {
-    const objectPattern = parentPath;
+  // build meta for destructuring property: const { from } = Array, ({ from } = Array) - the funnel
+  // choke shared with the babel leg; the key is read at the pattern holding it, where it EVALUATES
+  function buildDestructuringMeta(propNode, objectPattern, containerUnionSink = null) {
     if (!objectPattern?.parentPath) return null;
-    // the funnel choke: ONE host classification and ONE meta rule, shared with the babel
-    // leg - the per-shape switch this replaces is where the two funnels drifted apart
-    const descriptor = classifyDestructureLeafHost({ objectPattern });
-    const scope = objectPattern.parentPath.scope || objectPattern.scope;
-    const key = extractPropertyKey(propNode, scope, objectPattern);
-    return buildDestructureLeafMeta({
-      descriptor, key, adapter, resolvePure, unionSink: containerUnionSink, resolveStaticKey, parameterCallSites,
-    });
+    return destructurePropLeafMeta({
+      prop: propNode,
+      objectPattern,
+      scope: objectPattern.parentPath.scope || objectPattern.scope,
+      path: objectPattern,
+      adapter,
+      resolvePure,
+      resolveStaticKey,
+      parameterCallSites,
+      unionSink: containerUnionSink,
+    }).meta;
   }
 
   function identifierVisitor(path) {

@@ -1,7 +1,7 @@
 import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _at from "@core-js/pure/actual/instance/at";
-import _Promise from "@core-js/pure/actual/promise/constructor";
+import _Promise from "@core-js/pure/actual/promise";
 import _Promise$race from "@core-js/pure/actual/promise/race";
 // a receiver that SPLITS off its own memo, over a navigation the kept-nav plan already collapses
 // to a ponyfill under one probe: the memo must compose with that probe rather than test its own

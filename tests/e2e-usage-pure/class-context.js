@@ -522,3 +522,42 @@ QUnit.test('each fresh loop binding is read before its own class initializer', a
   }
 });
 /* eslint-enable unicorn/no-static-only-class, no-lone-blocks -- end of the source forms above */
+
+// a static block and a later static field read a static DATA field of their own class through the
+// class name: the class-scope binding is initialized before any static element runs, and the field
+// before the reader has evaluated
+QUnit.test('class context: a static block and a static field read an earlier static field', assert => {
+  let fromBlock;
+  class Holder {
+    static M = Map;
+    static {
+      fromBlock = Holder.M.groupBy;
+    }
+    static G = Holder.M.groupBy;
+  }
+  assert.same(typeof fromBlock, 'function');
+  assert.same(typeof Holder.G, 'function');
+  assert.same(fromBlock, Holder.G);
+});
+
+// a class EXPRESSION binds its inner name inside its own body: a static read through that name takes
+// its polyfill in a static block, a method and a field, whatever outer binding holds the class
+QUnit.test('class context: a class expression reads its own statics through its inner name', assert => {
+  let fromBlock;
+  const Outer = class Inner {
+    static P = Promise;
+    static {
+      fromBlock = Inner.P.withResolvers;
+    }
+
+    static attempt() {
+      return Inner.P.try;
+    }
+
+    static I = Iterator;
+    static concat = Inner.I.concat;
+  };
+  assert.same(typeof fromBlock, 'function');
+  assert.same(typeof Outer.attempt(), 'function');
+  assert.deepEqual(Outer.concat([1], [2]).toArray(), [1, 2]);
+});

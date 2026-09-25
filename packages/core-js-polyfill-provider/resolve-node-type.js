@@ -3,6 +3,7 @@ import { entryToGlobalHint } from './index.js';
 import {
   allProxySelectingInit,
   cachedContainerPaths,
+  containerSlotWritten,
   findFunctionScopeVarDeclaratorInPath,
   findFunctionScopeVarInPath,
   findVarOwnerDeclaring,
@@ -16,6 +17,7 @@ import {
   isVoidExpression,
   objectLevelPairedProperty,
   ownerWritePathIndex,
+  patternSlotCertainDefault,
   positionalElementPath,
   POSSIBLE_GLOBAL_OBJECTS,
   peelParenAndTSParentPath,
@@ -61,6 +63,7 @@ import {
   typeRefName,
   typeRefSegments,
 } from './resolve-node-type/ast-shapes.js';
+import { staticReceiverHint } from './detect-usage/globals.js';
 import { createAwaited } from './resolve-node-type/awaited.js';
 import { createBindingAnalysis } from './resolve-node-type/binding-analysis.js';
 import { createCallResolution } from './resolve-node-type/call-resolution.js';
@@ -1176,32 +1179,48 @@ function createResolveNodeType(babelNodeType, t, {
     return null;
   }
 
+  // does a write the file recorded reach slot `keys` - or a prefix of it - of the container the
+  // binding at `holderPath` holds? the detection census's record, the one every reader of such a slot
+  // consults (`containerSlotWritten`, asked through the type layer's binding adapter): a literal
+  // walk past a written slot reads a value the runtime may no longer hold. the same record answers
+  // which prototype slots the file writes (`prototypeChainMayLend`)
+  const slotCensusAdapter = { ...babelBindingAdapter, isWrittenContainerSlot, isMutatedStaticSlot: isMutatedStatic };
+  function pathSlotWritten(holderPath, keys) {
+    return keys.length > 0 && containerSlotWritten(unwrapRuntimeExpr(holderPath?.node), keys.map(String), {
+      scope: holderPath?.scope, adapter: slotCensusAdapter, path: holderPath,
+    });
+  }
+
   // walk an RHS path (`right` of an AssignmentExpression with destructure LHS) along the
   // key-path produced by `findPatternKeyPath`, returning the path bound to that slot - or
-  // null when the RHS shape doesn't match (annotation fallback handled by callers). path-
-  // returning companion to `resolveObjectMemberPath` which produces a Type; used in
-  // resolvePath where downstream needs the live Path
+  // null when the RHS shape doesn't match (annotation fallback handled by callers), or where a
+  // binding on the way holds a slot the file wrote (`pathSlotWritten`). path-returning
+  // companion to `resolveObjectMemberPath` which produces a Type; used in resolvePath where
+  // downstream needs the live Path
   function followKeyPathInRhs(rhsPath, keyPath) {
-    if (!keyPath?.length) return null;
+    if (!keyPath?.length || pathSlotWritten(rhsPath, keyPath)) return null;
     let cur = resolveRuntimeExpression(rhsPath);
     // no numeric-string fold here, unlike the twin `resolveObjectMemberPath`: the sole producer of
     // this key-path is `findPatternKeyPath`, whose object-pattern namer hands a numeric key over as
     // a NUMBER, so a string step over an array host cannot arrive. the twin serves producers that
     // do not normalise, which is why the fold lives there and not here
-    for (const step of keyPath) {
+    for (const [at, step] of keyPath.entries()) {
+      let next;
       if (typeof step === 'number') {
         // -1 marks rest-element ("whole tail" slice) - no single Path to surface
         if (step < 0) return null;
         if (!t.isArrayExpression(cur.node)) return null;
-        const next = positionalElementPath(cur, step);
+        next = positionalElementPath(cur, step);
         if (!next) return null;
-        cur = resolveRuntimeExpression(next);
       } else {
         if (!t.isObjectExpression(cur.node)) return null;
         const prop = findObjectMember(cur, step);
         if (!prop?.node || !t.isObjectProperty(prop.node)) return null;
-        cur = resolveRuntimeExpression(prop.get('value'));
+        next = prop.get('value');
       }
+      // ... and a slot holding another BINDING reads that binding's container on
+      if (pathSlotWritten(next, keyPath.slice(at + 1))) return null;
+      cur = resolveRuntimeExpression(next);
     }
     return cur;
   }
@@ -1956,6 +1975,7 @@ function createResolveNodeType(babelNodeType, t, {
     arrayElementOfType: (...args) => memberResolveCluster.arrayElementOfType(...args),
     walkObjectLiteralPropertyPath,
     isGetterFreshLiteral,
+    pathSlotWritten,
     resolveTypeAnnotation: (...args) => resolveTypeAnnotation(...args),
     resolveComputedKeyName,
     getKeyName,
@@ -2277,6 +2297,7 @@ function createResolveNodeType(babelNodeType, t, {
     resolveObjectFieldFlow,
     walkObjectLiteralPropertyPath,
     isGetterFreshLiteral,
+    pathSlotWritten,
     isMemberLike,
     findAmbientClassPath,
     resolveArrayLiteralElement,
@@ -2295,6 +2316,7 @@ function createResolveNodeType(babelNodeType, t, {
     memberCallParams,
     resolveFromMemberExpression,
     resolveArrayIndexAccess,
+    arrayElementsMayBeRetyped,
     resolveEnumMemberAccess,
   } = memberResolveCluster;
 
@@ -2433,7 +2455,7 @@ function createResolveNodeType(babelNodeType, t, {
   // patternBindings / classContext / awaited / known-globals / global-resolve / value-ops)
   // are bound as direct const refs. `resolvedTypeCache` shared via factory `let` (reassigned
   // in `reset()` below)
-  const { resolveNodeTypeExpression, installedPrototypeFamilies } = createExpressionDispatch({
+  const expressionDispatchCluster = createExpressionDispatch({
     t,
     isMutatedStatic,
     getScopeBinding,
@@ -2476,6 +2498,7 @@ function createResolveNodeType(babelNodeType, t, {
     generatorTypeParams,
     resolveGeneratorTypeParam,
   });
+  const { resolveNodeTypeExpression, installedPrototypeFamilies } = expressionDispatchCluster;
   // pre-mutation Type cache for plugin-side rewrites: babel mutates the AST in-place, so
   // when a sibling rewrite later re-resolves a node whose CallExpression callee was swapped
   // (`arr.concat(x)` -> `_concatMaybeArray(arr).call(arr, x)`), the new shape isn't recognized
@@ -2505,6 +2528,7 @@ function createResolveNodeType(babelNodeType, t, {
     typeMembersCluster.reset();
     typeAnnotationResolveCluster.reset();
     callResolutionCluster.resetExpressionAnnotationCache();
+    expressionDispatchCluster.reset();
     resolveCache = new WeakMap();
     resolvedTypeCache = new WeakMap();
   }
@@ -2799,6 +2823,22 @@ function createResolveNodeType(babelNodeType, t, {
     return folded;
   }
 
+  // does the literal the init spells leave the slot a pattern level's DEFAULT pairs provably undefined
+  // (`patternSlotCertainDefault`)? the level holding that slot is read off the init through inline
+  // literals alone: a binding on the way holds a container the file may have written since
+  function slotDefaultFiresCertainly(initPath, keyPath, defaultPath) {
+    let level = initPath;
+    for (const step of keyPath.slice(0, -1)) {
+      const literal = unwrapRuntimeExpr(level?.node);
+      if (!t.isObjectExpression(literal) && !t.isArrayExpression(literal)) return false;
+      level = walkObjectLiteralPropertyPath(level, step);
+    }
+    const holder = defaultPath.parentPath?.node?.type === 'ArrayPattern' ? defaultPath.parentPath : defaultPath.parentPath?.parentPath;
+    return !!level?.node && !!patternSlotCertainDefault(holder?.node, unwrapRuntimeExpr(level.node), defaultPath.node, {
+      scope: defaultPath.scope, adapter: slotCensusAdapter, path: defaultPath,
+    });
+  }
+
   function resolvePropertyObjectTypeUncached(path, verdict = {}) {
     if (isMemberLike(path)) return resolveNodeType(path.get('object'));
     // `key in obj` presence probe: the receiver whose prototype answers is the RIGHT operand
@@ -2850,6 +2890,9 @@ function createResolveNodeType(babelNodeType, t, {
         // ... and where it names nothing, the VALUE routes read THROUGH it: both dialects spell the
         // wrapper `TSAsExpression`, and only its expression carries what runs
         const valueInit = annotated ? initPath.get('expression') ?? initPath : initPath;
+        // ... and a default the init's LITERAL provably leaves firing is the receiver ALONE: the slot's
+        // own arm never runs (`{ A: { at } = fa() } = {}` reads `at` off `fa()` and nothing else)
+        if (slotDefault?.node && slotDefaultFiresCertainly(valueInit, keyPath, parent)) return resolveNodeType(slotDefault);
         // the init path travels UNRESOLVED as well: the slot read asks it whether a binding stands
         // between the literal and this read, and answers flow-aware where one does
         const member = resolveObjectMemberPath(resolveRuntimeExpression(valueInit), keyPath, valueInit);
@@ -2910,9 +2953,38 @@ function createResolveNodeType(babelNodeType, t, {
       } else {
         const initPath = getPatternInit(objectPattern.parentPath);
         if (initPath?.node) hints = unionReceiverHints(resolveRuntimeExpression(initPath), 0);
+        else hints = nestedElementUnionHints(objectPattern, path);
       }
     }
     return hints?.size ? hints : null;
+  }
+
+  // ... and a NESTED pattern one index into an array its host destructures (`{ 0: { values } } = rows`,
+  // `[{ values }] = rows`) reads the element the member spelling `rows[0]` reads, so the element union
+  // answers it the same way
+  function nestedElementUnionHints(objectPattern, anchorPath) {
+    const keyPath = collectPatternKeyPath(objectPattern);
+    let ancestor = objectPattern.parentPath;
+    while (ancestor && PATTERN_WRAPPERS.has(babelNodeType(ancestor.node))) ancestor = ancestor.parentPath;
+    const initPath = keyPath?.length === 1 ? getPatternInit(ancestor) : null;
+    const index = initPath?.node ? canonicalArrayIndex(keyPath[0]) : null;
+    const arms = index === null ? null : literalElementUnionPaths(initPath, index, anchorPath);
+    return arms ? mergeArmHints(arms, 0) : null;
+  }
+
+  // the element paths an index read off an array LITERAL - spelled in place, or held by a binding whose
+  // references only read or reorder it - may land on: the literal's own element at a known index, and
+  // every element once a reordering call ran or where the index is unknown. null where a reference may
+  // put another value there (a write, a hand-out, an installing mutator) or a spread shifts the positions
+  function literalElementUnionPaths(holderPath, index, anchorPath) {
+    const literal = resolveRuntimeExpression(holderPath);
+    if (!t.isArrayExpression(literal?.node) || literal.node.elements.some(element => element?.type === 'SpreadElement')) return null;
+    const permutes = [];
+    if (t.isIdentifier(holderPath.node) && arrayElementsMayBeRetyped(holderPath, anchorPath, null, permutes)) return null;
+    const elements = cachedContainerPaths(literal, 'elements').filter(element => element?.node);
+    if (index === null || permutes.length) return elements;
+    const element = cachedContainerPaths(literal, 'elements')[index];
+    return element?.node ? [element] : [];
   }
 
   function unionReceiverHints(path, depth) {
@@ -2929,11 +3001,30 @@ function createResolveNodeType(babelNodeType, t, {
     const info = findExpressionAnnotation(path);
     const annotation = info && unwrapTypeAnnotation(info.annotation);
     if (isUnionType(annotation)) return annotationUnionHints(annotation, info.scope);
+    // a constructor or namespace the realm holds is a FUNCTION or a plain object value, whatever
+    // the arm spells (`c ? Map : Set`, `globalThis.Math`, the binding our own render swapped in) -
+    // never an instance of its own family. only a name no binding captures reads the realm: an
+    // alias or a destructured name is a binding, whose values the arms below follow write by write.
+    // the realm object itself stays untyped: its own reads are the proxy walks', and an emitter that
+    // captures it re-asks off the capture, which no answer here would reach
+    const realmName = type === 'Identifier' ? babelBindingAdapter.hasBinding(path.scope, path.node.name, path) ? null : path.node.name
+      : isMemberLike(path) ? resolveGlobalName(path) : null;
+    const globalHint = POSSIBLE_GLOBAL_OBJECTS.has(realmName) ? null
+      : staticReceiverHint('static', realmName) ?? staticReceiverHint('static', polyfillHintGlobalName(path));
+    if (globalHint) return new Set([globalHint]);
     // a mutable binding's reachable VALUES form a union exactly as an annotation's arms do - fold
     // the declarator init with every write the resolver could enumerate. reached only after the
     // single-Type resolution already failed, so a narrow the positional analysis DID prove is
     // never widened by this
-    return type === 'Identifier' ? bindingValueUnionHints(path, depth) : null;
+    if (type === 'Identifier') return bindingValueUnionHints(path, depth);
+    // ... and an index read off an array literal is each element it may land on - any index, where the
+    // key is unknown
+    if (!isMemberLike(path)) return null;
+    const key = resolveMemberPropertyName(path);
+    const index = key === null || key === undefined ? null : canonicalArrayIndex(key);
+    if (index === null && key !== null && key !== undefined) return null;
+    const arms = literalElementUnionPaths(path.get('object'), index, path);
+    return arms ? mergeArmHints(arms, depth) : null;
   }
 
   // the binding must be a declarator that binds the name DIRECTLY: a param / for-x / catch value is
@@ -2945,9 +3036,16 @@ function createResolveNodeType(babelNodeType, t, {
     const binding = getScopeBinding(path.scope, path.node.name, path);
     const declaratorPath = binding?.path;
     const declarator = declaratorPath?.node;
-    if (!declarator || declarator.type !== 'VariableDeclarator' || !declarator.init
+    if (!declarator || declarator.type !== 'VariableDeclarator'
       || declarator.id?.type !== 'Identifier' || declarator.id.name !== path.node.name
       || binding.kind === 'var') return null;
+    // a `const` for-of HEAD holds each element of the literal it iterates, one per pass
+    if (!declarator.init) {
+      const loop = forXHeadLoopPath(declaratorPath);
+      const elements = t.isForOfStatement(loop?.node) && binding.kind === 'const'
+        ? literalElementUnionPaths(loop.get('right'), null, path) : null;
+      return elements?.length ? mergeArmHints(elements, depth) : null;
+    }
     const arms = reachableValuePaths(binding, declaratorPath, path.node.name, path);
     return arms?.length ? mergeArmHints(arms, depth) : null;
   }

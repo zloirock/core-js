@@ -1,5 +1,7 @@
+import _Array$from from "@core-js/pure/actual/array/from";
 // Pattern pairing follows aliases to their container literal. Its write gate must follow
-// the same owner: replacing box.item invalidates the value captured through alias.
+// the same owner: replacing box.item invalidates the value captured through alias, so the
+// read guards on the literal's value instead of substituting it.
 export function read() {
   const box = {
     item: Array
@@ -13,5 +15,5 @@ export function read() {
   const {
     item
   } = alias;
-  return item.from([1]);
+  return (item === Array ? _Array$from : item.from.bind(item))([1]);
 }

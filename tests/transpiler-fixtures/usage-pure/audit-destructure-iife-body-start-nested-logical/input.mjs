@@ -1,8 +1,7 @@
 // the IIFE arrow body is a nested logical whose leftmost operand is parenthesized in source
-// (`(globalThis || x) || y`): the mirrored object at the deepest-left is protected by the source
-// paren, so both emitters stay parseable. babel reprints (flattening the source paren and
-// parenthesizing the object at the now-body-start); the unplugin text splice preserves the source
-// paren and marks the leaf conservatively - a redundant but valid extra paren, hence the sidecar
+// (`(globalThis || x) || y`): the realm leftmost is always truthy, so every right arm is dead and the
+// body collapses to the mirrored object, parenthesised at the body start on both emitters. the nested
+// logical a kept right arm leaves standing is the nested-kept-right-arm twin's
 function f({ Array: { from } } = (() => (globalThis || x) || y)()) {
   return from;
 }

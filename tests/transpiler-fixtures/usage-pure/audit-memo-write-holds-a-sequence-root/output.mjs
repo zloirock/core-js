@@ -1,6 +1,6 @@
 import _globalThis from "@core-js/pure/actual/global-this";
 import _at from "@core-js/pure/actual/instance/at";
-import _Promise from "@core-js/pure/actual/promise/constructor";
+import _Promise from "@core-js/pure/actual/promise";
 import _self from "@core-js/pure/actual/self";
 // the memo a dispatch mints over a SEQUENCE root stores that sequence: read through the assign peel
 // alone the binding resolved to nothing, and every claim spelled off it stayed raw off the ponyfill.

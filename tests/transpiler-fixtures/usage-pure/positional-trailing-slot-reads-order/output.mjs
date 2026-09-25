@@ -1,3 +1,4 @@
+import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _sliceMaybeArray from "@core-js/pure/actual/array/instance/slice";
 import _at from "@core-js/pure/actual/instance/at";
@@ -41,9 +42,9 @@ const [{
   z: z3
 }]] = pair;
 const [_ref, t4] = pair;
-const a4 = _at(_ref.y);
+const a4 = _atMaybeArray(_ref.y);
 const [_ref2, ...r5] = pair;
-const a5 = _at(_ref2.y);
+const a5 = _atMaybeArray(_ref2.y);
 const [{
   z: z6
 }, _ref3] = _sliceMaybeArray(pair).call(pair).reverse();

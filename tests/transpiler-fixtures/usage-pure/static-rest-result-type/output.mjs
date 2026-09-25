@@ -3,7 +3,7 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 var _ref2;
 // A static extracted beside rest keeps its known call-result type.
 const _ref = Array,
-  make = null == _ref ? _ref[""] : _Array$from,
+  make = _Array$from,
   {
     from: _unused,
     ...rest

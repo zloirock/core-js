@@ -46,7 +46,22 @@ for (const adapter of adapters) {
     ['if (flag) return Map; return Set;', 'Map,Set'],
     ['if (flag) return; return Array;', 'Array'],
     ['if (flag) { const Map = other; return Map; } return Set;', 'Set'],
-    ['try { return Map; } finally { return Set; }', ''],
+    // control flow the single-return proof leaves unproven still hands over every free return - a
+    // candidate promises no path, so the overridden `Map` of a finally rides along - and the bindings
+    // it declares shadow a return like any other local
+    ['try { return Map; } finally { return Set; }', 'Map,Set'],
+    ['switch (key) { case 0: return Map; default: return Set; }', 'Map,Set'],
+    ['switch (key) { case 0: let Map = other; return Map; } return Set;', 'Set'],
+    ['for (const item of list) { if (item) return Map; } return Set;', 'Map,Set'],
+    ['for (let Map = 0; ; ) return Map; return Set;', 'Set'],
+    ['for (const Map of list) return Map; return Set;', 'Set'],
+    ['while (flag) { return Map; } return Set;', 'Map,Set'],
+    ['do { return Map; } while (flag); return Set;', 'Map,Set'],
+    ['label: { if (flag) break label; return Map; } return Set;', 'Map,Set'],
+    ['try { return Map; } catch (Set) { return Set; }', 'Map'],
+    ['try { work(); } catch { return Map; } if (flag) throw error; return Set;', 'Map,Set'],
+    ['if (flag) return Map; return Set; function Map() {}', 'Set'],
+    ['if (flag) return Map; return Set; class Set {}', 'Map'],
   ]) {
     const program = adapter.parseAndScope(`const f = () => { ${ source } };`);
     const body = adapter.pickPath(program, 'BlockStatement').node;
@@ -57,7 +72,7 @@ for (const adapter of adapters) {
     checked += 2;
   }
 }
-check('candidate rows were checked', checked, adapters.length * (rows.length * 3 + 10));
+check('candidate rows were checked', checked, adapters.length * (rows.length * 3 + 34));
 // A return-path analysis must scale with the body, not with declarations times returns.
 // Access counts separate that complexity class without relying on machine timing.
 let reads = 0;
@@ -114,11 +129,14 @@ for (const adapter of adapters) {
 }
 // Repeated local calls share the same source return graph, including aliases and fixed methods.
 // Count source reads: a cache keyed by call sites revisits every return for every static use.
-for (const adapter of adapters) for (const [name, declaration, callee] of [
-  ['named', 'function read() { BODY }', 'read'],
-  ['alias', 'function read() { BODY } const alias = read;', 'alias'],
-  ['method', 'const box = { read() { BODY } };', 'box.read'],
-  ['forwarded', 'function source() { BODY } function read() { return source(); }', 'read'],
+// pure guards a static read on the call it reads off with the returned candidates, and holds the
+// namespace only where it cannot: an optional call keeps its read raw
+for (const adapter of adapters) for (const [name, declaration, callee, held] of [
+  ['named', 'function read() { BODY }', 'read', false],
+  ['alias', 'function read() { BODY } const alias = read;', 'alias', false],
+  ['method', 'const box = { read() { BODY } };', 'box.read', false],
+  ['forwarded', 'function source() { BODY } function read() { return source(); }', 'read', false],
+  ['optional', 'function read() { BODY }', 'read?.', true],
 ]) {
   const size = 128;
   const body = `while (true) { ${ 'if (flag) return Map;'.repeat(size) } return Map; }`;
@@ -131,7 +149,7 @@ for (const adapter of adapters) for (const [name, declaration, callee] of [
     } });
   }
   const { escapedCtorNames } = collectFileCensus(program.node, [escapedCtorReferencesReducer()]);
-  check(`${ adapter.name }: ${ name }: retained static is covered`, escapedCtorNames.has('Map', true), true);
+  check(`${ adapter.name }: ${ name }: retained static holds the namespace where no guard serves it`, escapedCtorNames.has('Map', true), held);
   check(`${ adapter.name }: ${ name }: return query is live`, nameReads > size, true);
   check(`${ adapter.name }: ${ name }: return graph is scanned once per callee`, nameReads < size * 40, true);
 }
@@ -161,8 +179,12 @@ for (const adapter of adapters) {
   check(`${ adapter.name }: repeated candidate queries share their source walk`, sourceReads - censusReads < size * 24, true);
 }
 // Reusing one root answer must preserve each key's obligation, including an unknown key after
-// a named read. Two bindings spelling the same name must never share that answer.
-for (const adapter of adapters) for (const [name, body, expected] of [
+// a named read. Two bindings spelling the same name must never share that answer. a read through
+// an ALIAS of the call is one pure cannot guard, whichever control flow the returns sit in
+for (const adapter of adapters) for (const returns of [
+  'while (flag) { return Map; } return Promise;',
+  'if (flag) return Map; return Promise;',
+]) for (const [name, body, expected] of [
   ['one key', 'const ns = choose(); ns.groupBy([]); ns.groupBy([]);', ['Map']],
   ['two keys', 'const ns = choose(); ns.groupBy([]); ns.race([]);', ['Map', 'Promise']],
   ['reversed keys', 'const ns = choose(); ns.race([]); ns.groupBy([]);', ['Map', 'Promise']],
@@ -174,16 +196,14 @@ for (const adapter of adapters) for (const [name, body, expected] of [
     { const ns = object(); ns.groupBy([]); }
   `, ['Map', 'Object']],
 ]) {
-  const program = adapter.parseAndScope(`function choose() {
-    while (flag) { return Map; } return Promise;
-  } ${ body }`);
+  const program = adapter.parseAndScope(`function choose() { ${ returns } } ${ body }`);
   const { escapedCtorNames } = collectFileCensus(program.node, [escapedCtorReferencesReducer()]);
   const receivers = adapter.collectPaths(program, 'MemberExpression', path => path.node.object?.name === 'ns');
   const candidates = receivers.map(path => [...CENSUS_STATIC_RECEIVERS.get(program.node)(path.node.object, true)].sort().join(','));
-  check(`${ adapter.name }: ${ name }: receiver candidates stay local`, [...new Set(candidates)].sort().join(';'),
+  check(`${ adapter.name }: ${ returns }: ${ name }: receiver candidates stay local`, [...new Set(candidates)].sort().join(';'),
     name === 'separate bindings' ? 'Map,Promise;Object' : 'Map,Promise');
   for (const ctor of ['Map', 'Promise', 'Object', 'Array']) for (const pure of [false, true]) {
-    check(`${ adapter.name }: ${ name }: ${ ctor }: pure=${ pure }`, escapedCtorNames.has(ctor, pure),
+    check(`${ adapter.name }: ${ returns }: ${ name }: ${ ctor }: pure=${ pure }`, escapedCtorNames.has(ctor, pure),
       (pure || name.startsWith('unknown key')) && expected.includes(ctor));
   }
 }

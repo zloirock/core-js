@@ -2,12 +2,15 @@
 // spelling of a proxy-receiver plan, the memo re-read target, the catch-clause relocation
 // gate and the own-output sentinel census. All four were written twice - once per binding -
 // and a fixture only proves the two agreed on the shapes the corpus happens to carry
+import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
+import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { planMemoReadTarget } from '../../packages/core-js-polyfill-provider/detect-usage/members.js';
 import { buildNestedDestructurePlan, planCatchClauseExtraction } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
+import { residualInitRunsEffects } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
 import { sentinelAlreadyProcessed } from '../../packages/core-js-polyfill-provider/detect-usage/own-output.js';
 import { HOST_SLOT, hostSlot, renderProxyReceiverPlan } from '../../packages/core-js-polyfill-provider/render.js';
 import { buildOffsetToLine } from '../../packages/core-js-polyfill-provider/helpers/source-scan.js';
-import { walkAstNodes } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import { isPropertyNode, patternFullyConsumed, walkAstNodes } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createChecker } from './harness.mjs';
 
 const { check, checkTruthy, finish, runBoth } = createChecker('destructure-collapse');
@@ -359,6 +362,55 @@ runBoth('sentinel/a param sentinel with no body extraction is not processed',
   });
   runBoth('plan/an opt-out on the leaf line declines the anchor', code, (adapter, prog, lbl) => {
     check(lbl, planFor(adapter, prog, prop => lineOf(prop) === 3)?.anchor, undefined);
+  });
+}
+
+// --- residualInitRunsEffects ---
+
+// a surviving residual whose init is an INVOCATION running an effect keeps the extraction behind it:
+// the destructure reads its receiver off that run, so no lift moves the run ahead of the bindings.
+// the effects a literal init carries - an element's call, a sequence prefix - are the lifts' own, and
+// a quiet callee or a plain alias runs nothing the binding could observe
+for (const [name, source, expected] of [
+  ['effectful call', 'const f = () => (log.push(1), [Array]); const [{ from } = {}, x] = f();', true],
+  ['effectful iife', 'const [{ from } = {}, x] = (() => (log.push(1), [Array]))();', true],
+  ['call behind a sequence prefix', 'const f = () => (log.push(1), [Array]); const [{ from } = {}, x] = (log.push(0), f());', true],
+  ['store of an effectful call', 'let w; const f = () => (log.push(1), [Array]); const [{ from } = {}, x] = w = f();', true],
+  ['quiet call', 'const f = () => [Array]; const [{ from } = {}, x] = f();', false],
+  ['effect inside a literal element', 'const [{ from } = {}, x] = [Array, log.push(1)];', false],
+  ['sequence prefix before a literal', 'const [{ from } = {}, x] = (log.push(0), [Array, 1]);', false],
+  ['plain alias', 'const w = [Array, 1]; const [{ from } = {}, x] = w;', false],
+]) {
+  runBoth(`residual runs/${ name }`, source, (parser, prog, lbl) => {
+    const path = parser.pickPath(prog, 'VariableDeclarator', item => item.node.id.type === 'ArrayPattern');
+    // the plugins' own adapters: whether a callee is quiet is the inline-call canon's answer, which
+    // resolves the callee through the binding surface a stub withholds
+    const adapter = parser.name === 'babel' ? createBabelAdapter({ method: 'usage-pure' }) : createEstreeAdapter({ method: 'usage-pure' });
+    check(lbl, residualInitRunsEffects({ init: path.node.init, scope: path.scope, adapter, path }), expected);
+  });
+}
+
+// --- patternFullyConsumed ---
+
+// a hop whose slot DEFAULT is quiet is consumed once the pattern in its left is; an effectful default
+// runs where it stands, and an unclaimed sibling or a rest keeps the level
+for (const [name, source, expected] of [
+  ['quiet default under a hop', 'const { 0: { from } = {} } = w;', true],
+  ['hop without a default', 'const { 0: { from } } = w;', true],
+  ['effectful default under a hop', 'const { 0: { from } = make() } = w;', false],
+  ['unclaimed sibling', 'const { 0: { from } = {}, 1: x } = w;', false],
+  ['rest beside the claim', 'const { 0: { from } = {}, ...rest } = w;', false],
+]) {
+  runBoth(`fully consumed/${ name }`, source, (adapter, prog, lbl) => {
+    const { id } = adapter.pickPath(prog, 'VariableDeclarator').node;
+    const claimed = new Set();
+    walkAstNodes({
+      root: id,
+      visit(node) {
+        if (isPropertyNode(node) && node.key?.name === 'from') claimed.add(node);
+      },
+    });
+    check(lbl, patternFullyConsumed(id, prop => claimed.has(prop)), expected);
   });
 }
 

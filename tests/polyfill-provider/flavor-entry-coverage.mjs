@@ -438,4 +438,75 @@ for (const [emitter, imports] of [
   check(`opaque default [${ emitter }]: caller static`, imports.has('@core-js/pure/actual/array/of'), true);
 }
 
+// A computed key off a constructor whose VALUES the file spells names those keys and no others:
+// usage-global owes exactly the statics among them, and a key none of whose values is a static
+// leaves the constructor narrow in both flavors. only a key no spelling settles owes the family.
+// usage-pure serves a key naming one static by that static's own entry and reads a key naming several
+// off the binding it mints, which then has to carry them.
+// one row per fold the key is read through, every row its own transform, and a destructure
+// selecting the slot its member spelling reads answers alike
+/* eslint-disable no-template-curly-in-string -- the template-key row spells a template literal */
+const FOLDED_KEYS = [
+  ['a literal read in place', 'use(Symbol[[1, 2][0]] in obj);', 'symbol', []],
+  ['a concat over bindings', 'const half = "iter"; use(Symbol[half + half] in obj);', 'symbol', []],
+  ['a template over bindings', 'const half = "iter"; use(Symbol[`${ half }${ half }`] in obj);', 'symbol', []],
+  ['a bare undefined', 'use(Promise[undefined]);', 'promise', []],
+  ['a void', 'use(Map[void 0]);', 'map', []],
+  ['a selection of literals', 'use(Promise[flag ? "any" : "allSettled"]([]));', 'promise', ['any', 'all-settled']],
+  ['a name bound to a selection', 'const k = flag ? "any" : "allSettled"; use(Promise[k]([]));', 'promise', ['any', 'all-settled']],
+  ['a slot default over a filled literal', 'let k; [k = "allSettled"] = ["any"]; use(Promise[k]([]));', 'promise', ['any', 'all-settled']],
+  ['a void, destructured', 'const { [void 0]: f } = Map; use(f);', 'map', []],
+  ['a selection of literals, destructured', 'const { [flag ? "any" : "allSettled"]: f } = Promise; use(f([]));', 'promise', ['any', 'all-settled']],
+  ['a name bound to a selection, destructured', 'const k = flag ? "any" : "allSettled"; const { [k]: f } = Promise; use(f([]));', 'promise', ['any', 'all-settled']],
+  ['a selection assigned through a pattern', 'let f; ({ [flag ? "any" : "allSettled"]: f } = Promise); use(f([]));', 'promise', ['any', 'all-settled']],
+  ['an enum member', 'enum E { a = "any" } use(Promise[E.a]([]));', 'promise', ['any'], 'input.ts'],
+  ['an enum member, destructured', 'enum E { a = "any" } const { [E.a]: f } = Promise; use(f([]));', 'promise', ['any'], 'input.ts'],
+  ['an enum member off a call', 'enum E { a = "name" } function mk() { return Promise; } use(mk()[E.a]);', 'promise', [], 'input.ts'],
+  ['an enum member naming no static', 'enum E { a = "other" } const { [E.a]: f } = Promise; use(f);', 'promise', [], 'input.ts'],
+  ['a selection off a proxy member', 'use(globalThis.Promise[flag ? "any" : "allSettled"]([]));', 'promise', ['any', 'all-settled']],
+  ['a selection through a proxy level, destructured', 'const { Promise: { [flag ? "any" : "allSettled"]: f } } = globalThis; use(f([]));', 'promise', ['any', 'all-settled']],
+  ['a presence test by a selection', 'use((flag ? "any" : "allSettled") in Promise);', 'promise', ['any', 'all-settled']],
+  ['a presence test on a container', 'const o = { P: Promise }; use(key in o);', 'promise', []],
+  ['a well-known symbol', 'use(Map[Symbol.iterator]);', 'map', []],
+  ['a well-known symbol off a proxy hop', 'use(Map[globalThis.self.Symbol.iterator]);', 'map', []],
+];
+/* eslint-enable no-template-curly-in-string -- the source snippet table ends here */
+for (const [label, source, entry, statics, filename] of [
+  ...FOLDED_KEYS,
+  ['an opaque key', 'use(Promise[key]([]));', 'promise', null],
+  ['an opaque key, destructured', 'const { [key]: f } = Promise; use(f([]));', 'promise', null],
+  ['an opaque key in a parameter default', 'function g({ [key]: f } = Promise) { return f([]); } use(g());', 'promise', null],
+  ['an opaque key through a proxy level, destructured', 'const { Promise: { [key]: f } } = globalThis; use(f([]));', 'promise', null],
+  ['a presence test by an opaque key', 'use(key in Promise);', 'promise', null],
+  ['a presence test through an alias', 'const P = Promise; use(key in P);', 'promise', null],
+  ['a presence test off a proxy member', 'use(key in globalThis.Promise);', 'promise', null],
+  // a well-known symbol is read off the realm's own `Symbol` only, never off a slot of some other object
+  ['a symbol member off a foreign hop', 'use(Map[globalThis.box.Symbol.iterator]);', 'map', null],
+  // a literal read in place is a spelling only the census folds, so a slot naming a static stays unnamed
+  ['a literal read in place naming a static', 'use(Map[[1, "groupBy"][1]]([], x => x));', 'map', null],
+  ['a name bound to a literal read in place', 'const k = ["groupBy"][0]; use(Map[k]([], x => x));', 'map', null],
+  // an enum member names its key only through a literal initializer of the enum the name binds
+  ['a computed enum initializer', 'enum E { a = "an" + "y" } use(Promise[E.a]([]));', 'promise', null, 'input.ts'],
+  ['a written enum member', 'enum E { a = "any" } (E as any).a = key; use(Promise[E.a]([]));', 'promise', null, 'input.ts'],
+  ['an enum handed on', 'enum E { a = "any" } patch(E); use(Promise[E.a]([]));', 'promise', null, 'input.ts'],
+  ['a name shadowing the enum', 'enum E { a = "any" } export function g(E) { return Promise[E.a]([]); }', 'promise', null, 'input.ts'],
+]) {
+  // what the named statics owe, read off their own entries: the part of the namespace they share
+  const owed = new Set((statics ?? []).flatMap(name => entries[`actual/${ entry }/${ name }`]));
+  for (const [emitter, imports] of [
+    ['babel', await babelImports(source, GLOBAL, filename)],
+    ['unplugin', unpluginImports(source, GLOBAL, filename)],
+  ]) {
+    for (const module of wideEntryExtras(`@core-js/pure/actual/${ entry }`)) {
+      check(`folded key/${ label } [${ emitter }]: ${ module }`, imports.has(`core-js/modules/${ module }`), !statics || owed.has(module));
+    }
+  }
+  for (const [emitter, imports] of [
+    ['babel', await babelImports(source, PURE, filename)],
+    ['unplugin', unpluginImports(source, PURE, filename)],
+  ]) {
+    check(`folded key/${ label } [${ emitter }]: pure namespace`, imports.has(`@core-js/pure/actual/${ entry }`), !statics || statics.length > 1);
+  }
+}
+
 finish();

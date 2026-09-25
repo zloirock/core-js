@@ -1,7 +1,7 @@
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Map from "@core-js/pure/actual/map/constructor";
 import _Promise from "@core-js/pure/actual/promise/constructor";
-import _Set from "@core-js/pure/actual/set/constructor";
+import _Set from "@core-js/pure/actual/set";
 import _WeakMap from "@core-js/pure/actual/weak-map/constructor";
 import _WeakSet from "@core-js/pure/actual/weak-set/constructor";
 // A PURE constructor reached through a proxy-global HOP (`.self` / `.window`) and consumed by a terminal

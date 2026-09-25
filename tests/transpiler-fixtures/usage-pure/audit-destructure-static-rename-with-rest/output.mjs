@@ -5,7 +5,7 @@ import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 // Claimed statics retain their polyfills beside object rest.
 // Rest keeps its source and exclusions; instance slots remain native.
 const _ref = Array,
-  customFrom = null == _ref ? _ref[""] : _Array$from,
+  customFrom = _Array$from,
   {
     from: _unused,
     ...rest

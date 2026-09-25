@@ -6,5 +6,5 @@ import _self from "@core-js/pure/actual/self";
 export function read(flag) {
   var _ref;
   let effects = 0;
-  return [(_ref = flag ? (effects++, _self) : _globalThis, _ref === _self ? _Map : _ref.Map), effects];
+  return [(_ref = flag ? (effects++, _self) : _globalThis, _ref === _globalThis ? _Map : _ref.Map), effects];
 }

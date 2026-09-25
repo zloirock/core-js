@@ -183,3 +183,21 @@ QUnit.test('static: SE prefix below a forwarder member runs once, receiver colla
   assert.deepEqual(r, [1, 2, 3]);
   assert.deepEqual(log, ['e']);
 });
+
+// a static getter with an effect is no value an identity guard names: a reassigned name it feeds keeps
+// the whole entry of the constructor it returns, and the getter runs once
+QUnit.test('static: a name fed by an effectful static getter keeps its statics', assert => {
+  let reads = 0;
+  // eslint-disable-next-line unicorn/no-static-only-class -- a class static getter is the case under test
+  class Getters {
+    static get made() {
+      reads++;
+      return Promise;
+    }
+  }
+  let got;
+  // eslint-disable-next-line prefer-const -- a name the getter's value is WRITTEN to is the case under test
+  got = Getters.made;
+  assert.same(typeof got.withResolvers, 'function');
+  assert.same(reads, 1);
+});

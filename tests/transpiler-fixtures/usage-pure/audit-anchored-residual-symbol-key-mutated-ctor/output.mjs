@@ -1,6 +1,6 @@
 import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 import _Symbol from "@core-js/pure/actual/symbol";
-import _WeakMap from "@core-js/pure/actual/weak-map/constructor";
+import _WeakMap from "@core-js/pure/actual/weak-map";
 // The residual's fallback read goes through the polyfilled `Symbol` BINDING, so which entry that
 // binding names is the resolver's question, not this render's. A `Symbol` whose members the census
 // cannot name (`delete Symbol[k]`) must carry its statics itself - the bare constructor entry
