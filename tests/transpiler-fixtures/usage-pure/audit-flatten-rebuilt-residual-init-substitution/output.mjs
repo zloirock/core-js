@@ -7,10 +7,10 @@ import _Map from "@core-js/pure/actual/map/constructor";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Object$keys from "@core-js/pure/actual/object/keys";
 var _ref2;
-// a flatten whose residual keeps a REBUILT pattern re-emits the init: the detect pass
-// suppressed the natural visitor on the init's proxy globals (expecting the emit to own
-// them), so the re-emitted tail must route through the same init-globals resolver the flat
-// route uses - a raw `globalThis` here is a ReferenceError on engines without the global
+// a flatten over a proxy-global init whose residual keeps a NESTED pattern rebuilds the init as a
+// literal: the extracted static takes its ponyfill and each kept slot reads the realm constructor
+// by its own name - the detect pass suppressed the natural visitor on the init's proxy globals, and
+// a raw `globalThis` left behind is a ReferenceError on engines without the global
 const {
   from,
   deep: {
@@ -22,7 +22,8 @@ const {
 };
 use(from, other);
 
-// each operand of a LOGICAL init substitutes the same way in the rebuilt residual
+// a LOGICAL init whose left operand names the realm constructor folds to it, and the rebuilt
+// literal takes its place
 const {
   of,
   nested: {
@@ -42,7 +43,7 @@ const _ref = _globalThis.Array,
   } = _ref,
   {
     x = _atMaybeArray(_ref2 = [1]).call(_ref2, 0)
-  } = null == _ref ? _ref[""] : _getIteratorMethod(_ref);
+  } = _getIteratorMethod(_ref);
 use(isArray, x);
 
 // the for-init host cannot lift the SE prefix (loop header forbids statements): the sink
@@ -59,7 +60,8 @@ for (const {
   use(ff, oo);
 }
 
-// controls: a pure-ctor leaf whole-swaps; a const-alias root keeps the user identifier
+// controls: a kept slot of a pure-ctor init reads off the pure constructor; a const-alias root
+// folds to the realm, and its kept slot reads the realm constructor by name
 const {
   groupBy,
   deeper: {

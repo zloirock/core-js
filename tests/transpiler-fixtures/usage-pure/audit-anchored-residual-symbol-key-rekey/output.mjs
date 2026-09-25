@@ -1,10 +1,10 @@
 import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
 import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 import _Set from "@core-js/pure/actual/set/constructor";
 import _Symbol$asyncIterator from "@core-js/pure/actual/symbol/async-iterator";
 import _Symbol from "@core-js/pure/actual/symbol/constructor";
-import _WeakMap from "@core-js/pure/actual/weak-map/constructor";
+import _WeakMap from "@core-js/pure/actual/weak-map";
 // a computed `Symbol.X` key kept inside an ANCHORED residual re-keys to the polyfilled
 // symbol binding (the whole-prop render must not leak raw `Symbol` text - a ReferenceError
 // on symbol-less engines): a well-known name uses its dedicated entry, an unknown name

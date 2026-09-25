@@ -290,7 +290,7 @@ function mark(t, v) {
 }
 {
   const _ref23 = _globalThis.Object,
-    fr = null == _ref23 ? _ref23[""] : (k(), _Object$freeze),
+    fr = (k(), _Object$freeze),
     {
       z
     } = _ref23;

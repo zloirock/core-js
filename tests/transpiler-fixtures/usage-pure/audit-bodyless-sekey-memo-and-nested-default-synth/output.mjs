@@ -65,7 +65,8 @@ export const b1 = (() => {
   }
   return typeof f();
 })();
-// negatives: a second slot would read it twice, and a CALL receiver stays out whatever the count
+// negative: a second slot would read the receiver twice; a sole slot over a CALL receiver spells
+// the call once, inside the mirror
 export const b2 = (() => {
   function f({
     at,
@@ -78,7 +79,9 @@ export const b2 = (() => {
 export const b3 = (() => {
   function f({
     at
-  } = getArr()) {
+  } = {
+    at: _at(getArr())
+  }) {
     return at;
   }
   return typeof f();

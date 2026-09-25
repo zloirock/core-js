@@ -1,5 +1,5 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-import _Iterator from "@core-js/pure/actual/iterator/constructor";
+import _Iterator from "@core-js/pure/actual/iterator";
 import _Iterator$from from "@core-js/pure/actual/iterator/from";
 import _Set from "@core-js/pure/actual/set/constructor";
 // The parameter-default form of that same fold, which is a different host from the declarator one:

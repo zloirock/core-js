@@ -947,3 +947,38 @@ QUnit.test('side-effects: a getter receiver runs once when every prop is consume
   assert.same(typeof other, 'undefined');
   assert.same(soleReads, 1);
 });
+
+// a sequence prefix element that reads through a GETTER is work the source does: every lift and trim
+// of a destructure's prefix keeps it, once, where the source ran it - beside a sibling declarator,
+// in a loop head, ahead of a memo, in a bodyless slot and on an assignment host
+QUnit.test('side effect: a getter read in a lifted prefix runs once on every host', assert => {
+  let reads = 0;
+  // eslint-disable-next-line unicorn/no-static-only-class -- a class static getter is the prefix under test
+  class Probe {
+    static get read() {
+      reads++;
+      return 0;
+    }
+  }
+  function make() {
+    return Object;
+  }
+  // eslint-disable-next-line @stylistic/one-var-declaration-per-line -- the sibling declarator is the host under test
+  const lead = 1, { from: fromSibling, foo: siblingFoo } = (Probe.read, Array);
+  for (let { of: fromHeader } = (Probe.read, Array), pass = 0; pass < 1; pass++) {
+    assert.deepEqual(fromHeader(4), [4]);
+  }
+  const { fromEntries, name: objectName } = (Probe.read, make());
+  // eslint-disable-next-line no-var -- the bodyless slot hosts a `var`
+  if (lead) var { groupBy: fromSlot } = (Probe.read, Map);
+  let fromAssigned;
+  // eslint-disable-next-line prefer-const -- the assignment host is the case under test
+  ({ try: fromAssigned } = (Probe.read, make() && Promise));
+  assert.same(reads, 5);
+  assert.deepEqual(fromSibling('ab'), ['a', 'b']);
+  assert.same(siblingFoo, undefined);
+  assert.deepEqual(fromEntries([['k', 1]]), { k: 1 });
+  assert.same(typeof objectName, 'string');
+  assert.same(typeof fromSlot, 'function');
+  assert.same(typeof fromAssigned, 'function');
+});

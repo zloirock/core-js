@@ -8,6 +8,8 @@ import {
   ESCAPED_CONTAINER_NAMES,
   ESCAPED_CTOR_REFS,
   CENSUS_STATIC_RECEIVERS,
+  walkAstNodes,
+  writtenPatternSlotValues,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { handleMemberExpressionNode, planGuardedStaticNarrow } from '../../packages/core-js-polyfill-provider/detect-usage/members.js';
 import { collectMemberUnionCandidates } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
@@ -53,7 +55,9 @@ const rows = [
   ['aliased iterable keeps its possible sources', 'function expose() { const values = [Map]; for (const a of values) hand(a); }'],
   ['member head exposes its written value', 'function expose() { const box = {}; for (box.value of [Map]) {} hand(box.value); }'],
   ['pattern member head exposes its written value', 'function expose() { const box = {}; for ({ value: box.value } of [{ value: Map }]) {} hand(box.value); }'],
-  ['a member in a pattern key is not a target', 'function expose() { for (const { [box.key]: a } of [{ value: Map }]) void a.name; }', false],
+  ['a member in a pattern key is not a target', 'function expose() { for (const { [["value"][0]]: a } of [{ value: Map }]) void a.name; }', false],
+  // ... while a key the census cannot fold selects any slot of the element, as its member spelling does
+  ['an unfoldable pattern key reads every slot', 'function expose() { for (const { [box.key]: a } of [{ value: Map }]) void a.name; }'],
   ['awaited head is unused', 'async function expose() { for await (const a of [Map]) {} }', false],
   ['awaited head reads an intrinsic property', 'async function expose() { for await (const a of [Map]) void a.name; }', false],
   ['awaited alias stays local', 'async function expose() { for await (const a of [Map]) { const b = a; void b.name; } }', false],
@@ -75,6 +79,16 @@ const rows = [
   ['unused member head stays local', 'function expose() { const box = {}; for (box.value of [Map]) {} }', false],
   ['unused pattern member head stays local', 'function expose() { const box = {}; for ({ value: box.value } of [{ value: Map }]) {} }', false],
   ['member head static is held only in pure', 'function expose() { const box = {}; for (box.value of [Map]) {} box.value.groupBy([], x => x); }', true, false, false],
+  // a slot write through a plain alias lands on the container its source holds - and the alias class
+  // ties bindings, so namesakes in other functions bridge nothing
+  ['write through an alias reaches its source', 'function expose() { const o = {}; const a = o; a.g = Map; hand(o); }'],
+  [
+    'namesakes bridge no alias class',
+    'function f(p) { const q = p; return q; } function g(q) { const r = q; r.g = Map; } function expose(p) { hand(p); }',
+    false,
+  ],
+  // ... a parameter records no value of its own, and its declaration still makes it a binding apart
+  ['namesake parameters bridge no alias class', 'function install(p) { const q = p; q.g = Map; } function expose(p) { hand(p); }', false],
 ];
 const orders = [
   () => [escapedCtorReferencesReducer()],
@@ -93,14 +107,9 @@ for (const adapter of adapters) {
     checked++;
   }
 
+  // a parameter holds its own default; what the calls pass is not followed
   for (const [name, code, expected, absent = []] of [
-    ['all call alternatives', 'function f(a) { a.x = 0; } f(Object); f(Array); f(Reflect);', ['Object', 'Array', 'Reflect']],
-    ['repeated selecting arguments', 'function f(a) { a.x = 0; } f(Object || Array); f(Object || Array);', ['Object', 'Array']],
-    ['parameter defaults and callers', 'function f(a = Object) { a.x = 0; } f(Array);', ['Object', 'Array']],
-    ['pattern bindings keep separate sinks', 'function f({ a, b }) { a.x = 0; } f(Object); function g(b) {} g(Array);',
-      ['Object'], ['Array']],
-    ['foreign member adds no namespace', 'function f(a) { a.x = 0; } f(unknown[key]); f(Object);', ['Object']],
-    ['dynamic global source stays open', 'function f(a) { a.x = 0; } f(globalThis[key]); f(Object);', null],
+    ['parameter default without callers', 'function f(a = Object) { a.x = 0; } f(Array);', ['Object'], ['Array']],
   ]) {
     const program = adapter.parseAndScope(code).node;
     const { mutationRoots } = collectFileCensus(program, [mutationShapesReducer()]);
@@ -111,7 +120,7 @@ for (const adapter of adapters) {
     checked++;
   }
 }
-check('all rows were checked', checked, adapters.length * (rows.length * orders.length + 6));
+check('all rows were checked', checked, adapters.length * (rows.length * orders.length + 1));
 checkTruthy('coverage floor', checked >= 96);
 
 // Speculatively asking which families an opaque head may hold must not make its source escape.
@@ -229,11 +238,87 @@ for (const parser of adapters) for (const store of [
   const { escapedCtorNames } = collectFileCensus(program, reducers());
   check(`${ parser.name }/${ store } carries installed statics`, escapedCtorNames.has('Map', true), true);
 }
+// The container census files an explicit store through every spelling the callee canon resolves,
+// a pure import included: the stored value becomes the slot's write, and the target it owns keeps no
+// wildcard escape. A local namesake is no store, and a Reflect receiver is the target the store owns.
+const storeSpellings = [
+  'Object.assign(box, { M: Map })',
+  'const { assign } = Object; assign(box, { M: Map })',
+  'globalThis.Reflect.set(box, "M", Map)',
+  'Reflect["defineProperty"](box, "M", { value: Map })',
+  'Object.defineProperty.call(null, box, "M", { value: Map })',
+  'Reflect.apply(Reflect.set, null, [box, "M", Map])',
+  'import set from "@core-js/pure/actual/reflect/set"; set(box, "M", Map)',
+  'var _set = _interopRequireDefault(require("@core-js/pure/actual/reflect/set")); (0, _set.default)(box, "M", Map)',
+];
+function boxSlots(parser, source, reducers) {
+  const { writtenContainerSlots } = collectFileCensus(parser.parseAndScope(source).node, reducers());
+  const slots = {};
+  for (const [key, values] of writtenContainerSlots) {
+    const { name, slot } = /^(?<name>box|src)#\d+\.(?<slot>.+)$/.exec(key)?.groups ?? {};
+    if (name) slots[`${ name }.${ slot }`] = values.map(value => value?.name ?? value?.type);
+  }
+  return slots;
+}
+for (const parser of adapters) for (const reducers of orders.slice(1)) {
+  for (const store of storeSpellings) {
+    checkDeep(`${ parser.name }/${ store } writes the slot it stores`,
+      boxSlots(parser, `const box = { M: Math }; ${ store };`, reducers), { 'box.M': ['Map'] });
+  }
+  checkDeep(`${ parser.name }/a local Object.assign namesake is no store`,
+    boxSlots(parser, 'const Object = { assign() {} }; const box = { M: Math }; Object.assign(box, { M: Map });', reducers),
+    { 'box.*': [] });
+  checkDeep(`${ parser.name }/a Reflect.set receiver is the target the store owns`,
+    boxSlots(parser, 'const src = { M: Math }; const box = { M: Math }; Reflect.set(src, "M", Map, box);', reducers),
+    { 'box.M': ['Map'], 'src.*': [] });
+}
+
+// A pattern read of a written slot holds each value a write that may run ahead of it put there, and
+// none a write it runs ahead of: the read captured the slot before that write landed
+for (const parser of adapters) for (const [name, source, expected] of [
+  ['write before the read', 'const h = { a: Object }; h.a = Map; const { a: v } = h;', ['Map']],
+  ['write after the read', 'const h = { a: Object }; const { a: v } = h; h.a = Map;', []],
+  ['write in a function the file may call first', 'const h = { a: Object }; function swap() { h.a = Map; } const { a: v } = h;', ['Map']],
+  ['write after the read in a loop', 'const h = { a: Object }; for (;;) { const { a: v } = h; h.a = Map; }', ['Map']],
+]) {
+  const program = parser.parseAndScope(source);
+  const census = collectFileCensus(program.node, [mutationShapesReducer()]);
+  const options = { method: 'usage-global', getWrittenContainerSlots: () => census.writtenContainerSlots,
+    getContainerSlotIndex: () => census.containerSlotIndex };
+  const adapter = parser.name === 'babel' ? createBabelAdapter(options) : createEstreeAdapter(options);
+  const declaration = parser.pickPath(program, 'VariableDeclarator', path => path.node.id.type === 'ObjectPattern');
+  const written = writtenPatternSlotValues({ pattern: declaration.node.id, init: declaration.node.init, name: 'v',
+    ctx: { scope: declaration.scope, adapter, path: declaration } });
+  checkDeep(`${ parser.name }/pattern read of a written slot: ${ name }`, written.map(value => value.name), expected);
+}
+
+// A write through a SELECTING target lands on one of its arms: it is filed under each, and proves
+// none of them replaced - the same standing an aliased write has. a sequence or a literal read in
+// place names one target, whose write stays the definite one
+for (const parser of adapters) for (const [target, definite] of [
+  ['(flag ? a : b).P', false],
+  ['(b ?? a).P', false],
+  ['[flag ? a : b][0].P', false],
+  ['a.P', true],
+  ['(0, a).P', true],
+  ['[a][0].P', true],
+]) {
+  const program = parser.parseAndScope(`const a = { P: Promise }; const b = { P: Map }; ${ target } = Set; a.P.try(fn);`).node;
+  const { containerSlotIndex } = collectFileCensus(program, [mutationShapesReducer()]);
+  let write = null;
+  walkAstNodes({ root: program, visit: node => {
+    if (node.type === 'AssignmentExpression') write = node;
+    return !write;
+  } });
+  check(`${ parser.name }/a write through ${ target } is definite`, !containerSlotIndex.aliasedWrites.has(write), definite);
+}
+
 for (const parser of adapters) for (const call of [
   'Object.keys(Map)', 'Object.is(Map, Map)', 'Object.assign({}, { M: Map })',
   'Object.defineProperty({}, "M", { value: Map })',
   'const box = {}; Object.assign(box, { M: Map })',
   'const box = {}; Object.defineProperty(box, "M", { value: Map })',
+  'import set from "@core-js/pure/actual/reflect/set"; set({}, "M", Map)',
 ]) {
   const program = parser.parseAndScope(`${ call };`).node;
   const { escapedCtorNames } = collectFileCensus(program, [escapedCtorReferencesReducer()]);

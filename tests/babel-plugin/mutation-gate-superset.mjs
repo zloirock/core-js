@@ -71,21 +71,8 @@ const CHANNELS = [
   ['call-rooted namespace', 'function gn() { return Object; } gn().create = x;'],
   ['call-bound alias', 'function gg() { return globalThis; } var g = gg(); g.Object.create = x;'],
   ['iife-rooted receiver', '(function () { return globalThis; })().Object.create = x;'],
-  // the write's receiver is a PARAMETER, so the pairing between a call's argument and the
-  // parameter it lands in is the whole attribution - and the call spells the function it binds
-  // differently per host. every one of these is a channel the scoped pass records, so the cheap
-  // roots owe the namespace in every one of them
-  ['param through a plain call', 'function s(t) { t.create = x; } s(Object);'],
-  ['param through a class constructor', 'class I { constructor(t) { t.create = x; } } new I(Object);'],
-  ['param through an immediately-invoked literal', '(function (t) { t.create = x; })(Object);'],
-  ['param through a tagged template', `function tag(q, t) { t.create = x; } tag\`${ TEMPLATE_HOLE }\`;`],
-  ['param through f.call', 'function s(t) { t.create = x; } s.call(null, Object);'],
-  ['param through f.apply', 'function s(t) { t.create = x; } s.apply(null, [Object]);'],
-  ['param through Reflect.apply', 'function s(t) { t.create = x; } Reflect.apply(s, null, [Object]);'],
-  ['param through an immediate bind', 'function s(t) { t.create = x; } s.bind(null, Object)();'],
-  ['param through super', 'class B { constructor(t) { t.create = x; } }'
-    + ' class D extends B { constructor() { super(Object); } } new D();'],
-  ['param through a spread of an inline array', 'function s(t) { t.create = x; } s(...[Object]);'],
+  // the write's receiver is a PARAMETER: it holds its own default, the one value its function
+  // spells - what a call passes is not followed by either stage
   ['param through its own default', 'function s(t = Object) { t.create = x; } s();'],
   // an unreadable key deopts its receiver whole, in both receiver spellings
   ['unreadable key on a namespace', 'Object[k] = x;'],

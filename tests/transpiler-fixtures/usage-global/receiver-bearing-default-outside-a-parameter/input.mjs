@@ -1,7 +1,8 @@
 // a nested default that CARRIES the receiver: the outer slot is unknown, so what runs when it is
 // undefined IS the default - and a mirror of that default fires under exactly the same condition,
-// which makes it correct on every host, not only in a parameter list. one static per host so a
-// dropped host is visible in the import set. the last three are controls: a proxy-global receiver
+// which makes it correct on every host, not only in a parameter list. where the slot IS defined its
+// own value is read, so an instance key (`entries`) dispatches off it as well. one static per host so
+// a dropped host is visible in the import set. the last three are controls: a proxy-global receiver
 // still resolves through the OUTER chain and flattens, a default carrying no receiver stays native,
 // and a resolvable outer chain leaves its dead default alone
 const src = {};
@@ -9,12 +10,12 @@ const flag = true;
 const list = [];
 function use() { /* empty */ }
 function raise() { /* empty */ }
-const { a: { from } = Array } = src;
+const { a: { fromAsync } = Array } = src;
 let entries;
 ({ b: { entries } = Object } = src);
 try { raise(); } catch ({ c: { allSettled } = Promise }) { use(allSettled); }
 for (const { d: { isFinite } = Number } of list) use(isFinite);
-const { e: { f: { groupBy } = Map } } = src;
+const { e: { f: { sumPrecise } = Math } } = src;
 export const { g: { raw } = String } = src;
 const { Array: { of } = {} } = globalThis;
 const { h: { plain } = {} } = src;
@@ -23,7 +24,7 @@ const { Set: { union } = Set } = globalThis;
 // "either branch" - mirroring one of them would emit the wrong branch's static whenever the other
 // fires. the flat twin affords these shapes only because its meta carries a fallback flag
 const { b1: { from: fromOr } = Array || Iterator } = src;
-const { b2: { from: fromTernary } = flag ? Array : Iterator } = src;
+const { b2: { groupBy: groupTernary } = flag ? Map : Object } = src;
 // the same rule on an INSTANCE receiver: the default is the receiver, so the mirror carries the
 // bound helper and the caller's own object still destructures natively. the last row is the
 // control - a receiver the shared shape gate rejects (a call, which re-evaluating would repeat)
@@ -31,4 +32,4 @@ const { b2: { from: fromTernary } = flag ? Array : Iterator } = src;
 const { i1: { flat } = list } = src;
 function withDefault({ i2: { includes } = list } = {}) { return includes; }
 const { i3: { at } = raise() } = src;
-use(from, entries, of, plain, union, groupBy, flat, at, withDefault(), fromOr, fromTernary);
+use(fromAsync, entries, of, plain, union, sumPrecise, flat, at, withDefault(), fromOr, groupTernary);

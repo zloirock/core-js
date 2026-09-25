@@ -2,6 +2,7 @@ import "core-js/modules/es.symbol.constructor";
 import "core-js/modules/es.symbol.description";
 import "core-js/modules/es.symbol.iterator";
 import "core-js/modules/es.object.entries";
+import "core-js/modules/es.object.group-by";
 import "core-js/modules/es.object.to-string";
 import "core-js/modules/es.promise.constructor";
 import "core-js/modules/es.promise.catch";
@@ -9,7 +10,9 @@ import "core-js/modules/es.promise.finally";
 import "core-js/modules/es.promise.resolve";
 import "core-js/modules/es.promise.all-settled";
 import "core-js/modules/es.array.iterator";
+import "core-js/modules/es.array.from-async";
 import "core-js/modules/es.array.at";
+import "core-js/modules/es.array.entries";
 import "core-js/modules/es.array.flat";
 import "core-js/modules/es.array.from";
 import "core-js/modules/es.array.includes";
@@ -25,7 +28,6 @@ import "core-js/modules/es.iterator.filter";
 import "core-js/modules/es.iterator.find";
 import "core-js/modules/es.iterator.flat-map";
 import "core-js/modules/es.iterator.for-each";
-import "core-js/modules/es.iterator.from";
 import "core-js/modules/es.iterator.map";
 import "core-js/modules/es.iterator.reduce";
 import "core-js/modules/es.iterator.some";
@@ -36,6 +38,7 @@ import "core-js/modules/es.map.species";
 import "core-js/modules/es.map.group-by";
 import "core-js/modules/es.map.get-or-insert";
 import "core-js/modules/es.map.get-or-insert-computed";
+import "core-js/modules/es.math.sum-precise";
 import "core-js/modules/es.number.constructor";
 import "core-js/modules/es.number.is-finite";
 import "core-js/modules/es.set.constructor";
@@ -56,10 +59,12 @@ import "core-js/modules/esnext.iterator.includes";
 import "core-js/modules/esnext.iterator.join";
 import "core-js/modules/esnext.iterator.windows";
 import "core-js/modules/web.dom-collections.iterator";
+import "core-js/modules/web.dom-collections.entries";
 // a nested default that CARRIES the receiver: the outer slot is unknown, so what runs when it is
 // undefined IS the default - and a mirror of that default fires under exactly the same condition,
-// which makes it correct on every host, not only in a parameter list. one static per host so a
-// dropped host is visible in the import set. the last three are controls: a proxy-global receiver
+// which makes it correct on every host, not only in a parameter list. where the slot IS defined its
+// own value is read, so an instance key (`entries`) dispatches off it as well. one static per host so
+// a dropped host is visible in the import set. the last three are controls: a proxy-global receiver
 // still resolves through the OUTER chain and flattens, a default carrying no receiver stays native,
 // and a resolvable outer chain leaves its dead default alone
 const src = {};
@@ -69,7 +74,7 @@ function use() {/* empty */}
 function raise() {/* empty */}
 const {
   a: {
-    from
+    fromAsync
   } = Array
 } = src;
 let entries;
@@ -95,8 +100,8 @@ for (const {
 const {
   e: {
     f: {
-      groupBy
-    } = Map
+      sumPrecise
+    } = Math
   }
 } = src;
 export const {
@@ -129,8 +134,8 @@ const {
 } = src;
 const {
   b2: {
-    from: fromTernary
-  } = flag ? Array : Iterator
+    groupBy: groupTernary
+  } = flag ? Map : Object
 } = src;
 // the same rule on an INSTANCE receiver: the default is the receiver, so the mirror carries the
 // bound helper and the caller's own object still destructures natively. the last row is the
@@ -153,4 +158,4 @@ const {
     at
   } = raise()
 } = src;
-use(from, entries, of, plain, union, groupBy, flat, at, withDefault(), fromOr, fromTernary);
+use(fromAsync, entries, of, plain, union, sumPrecise, flat, at, withDefault(), fromOr, groupTernary);

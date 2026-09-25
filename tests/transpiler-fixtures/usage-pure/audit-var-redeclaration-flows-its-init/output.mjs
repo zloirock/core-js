@@ -1,5 +1,5 @@
 import _Array$of from "@core-js/pure/actual/array/of";
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 // a `var name = X` re-declaration writes X exactly as `name = X` would, so the value channels read

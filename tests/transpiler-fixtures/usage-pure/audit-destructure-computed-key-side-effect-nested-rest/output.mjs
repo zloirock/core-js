@@ -7,7 +7,7 @@ const {
     x: Array
   },
   _ref2 = _ref,
-  f = null == _ref2 ? _ref2[""] : (effectful(), _Array$from),
+  f = (effectful(), _Array$from),
   {
     "from": _unused,
     ...rest

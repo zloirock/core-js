@@ -3,7 +3,7 @@ import _self from "@core-js/pure/actual/self";
 // Claimed statics retain their polyfills beside object rest.
 // Rest keeps its source and exclusions; instance slots remain native.
 const _ref = (sideEffect(), _self.Array),
-  from = null == _ref ? _ref[""] : _Array$from,
+  from = _Array$from,
   {
     from: _unused,
     ...rest

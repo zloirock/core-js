@@ -8,7 +8,7 @@ const _ref = Array,
   {
     [(before(), 'x')]: x
   } = _ref,
-  f = null == _ref ? _ref[""] : (effectful(), _Array$from),
+  f = (effectful(), _Array$from),
   {
     [(after(), 'y')]: y
   } = _ref;

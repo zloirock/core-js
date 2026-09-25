@@ -7,8 +7,8 @@ import "core-js/modules/es.map.get-or-insert";
 import "core-js/modules/es.map.get-or-insert-computed";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
-// The loop keeps the call result opaque to static extraction. Its actual member read still
-// needs the possible Map namespace, even though the constructor itself stays local.
+// The loop keeps the call result opaque to static extraction, but its returns still name the
+// candidates: pure guards the member read on Map, and global injects for the possible Map.
 export const value = (() => {
   while (flag) return Map;
   return custom;

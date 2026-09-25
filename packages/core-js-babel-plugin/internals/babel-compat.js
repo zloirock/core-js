@@ -453,7 +453,7 @@ function collapseClaimlessCallRootedNav({
     case 'fold-whole': {
       if (!withSideEffects) return collapseNav(endPath);
       // the sequence prefixes the fold's peel stepped over re-emit ahead of the base
-      const prefixes = collectFoldedReceiverSideEffects(endPath.node.object);
+      const prefixes = collectFoldedReceiverSideEffects(endPath.node.object, { ctx: { scope: endPath.scope, adapter, path: endPath } });
       const navPath = endPath.get('object');
       navPath.replaceWith(withSideEffects(injectPureGlobal(plan.rootPure.entry, plan.rootPure.hintName), prefixes));
       deoptionalizeDanglingOptionalParent(navPath);
@@ -822,7 +822,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     // the acts the run performs BELOW its keys - a sequence prefix, a kept write, an SE-bearing
     // computed key - have no slot in this render, and the plan's own fallback arms spell the value
     // without them: an effect-bearing run keeps the landing it already takes
-    if (collectFoldedReceiverSideEffects(prefix).length) return null;
+    if (collectFoldedReceiverSideEffects(prefix, { ctx: aliasCtx }).length) return null;
     const value = probedNavGuardValueNode(prefix, path);
     if (value?.node?.type !== 'ConditionalExpression') return null;
     for (const [index, hop] of rehang.entries()) {

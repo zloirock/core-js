@@ -4794,15 +4794,15 @@ QUnit.test('destructuring: an assigned effectful slot is read exactly once', ass
   const viaSibling = typeof at;
   assert.same(kept, 7, 'a surviving sibling keeps the destructure');
   assert.same(log.join(','), 'rows,rows,rows,rows', 'and its slot still evaluates once');
+  // ... while a sibling KEY off the same receiver reads the slot's memo, which the dispatch reads too
   ({ y: { at, length: kept } } = { y: rows().flat() });
-  const viaKey = typeof at;
-  assert.same(kept, 2, 'a sibling KEY off the same receiver keeps it too');
+  assert.same(typeof at, 'function', 'a sibling key beside the leaf leaves the dispatch its memo');
+  assert.same(kept, 2, 'and the key reads the same memoized slot');
   assert.same(log.join(','), 'rows,rows,rows,rows,rows', 'read exactly once');
   ({ y: { at }, z: kept } = { y: rows().flat(), z: rows().flat() });
   assert.same(kept.length, 2, 'a second effect-bearing part binds natively');
   assert.same(log.join(','), 'rows,rows,rows,rows,rows,rows,rows', 'and both parts ran once each');
-  assert.same(viaSibling, viaKey, 'the declined shapes all bind the same raw read');
-  assert.same(viaKey, typeof at, 'whatever the realm holds for it');
+  assert.same(viaSibling, typeof at, 'the declined shapes all bind the same raw read');
 });
 
 // a DECLARATION host reads its receiver once whatever keeps the declaration alive: a consumed
@@ -8833,3 +8833,12 @@ for (const shape of ['flat', 'array', 'nested', 'keyedArray', 'spread', 'assigne
     if (read === flat) assert.same(flat(false, {}, [])(), 'default', 'a user default remains live');
   });
 }
+
+// a pattern reading a static and an instance member off a call memoizes the call's value ahead of
+// both reads: no read may precede the memo's declaration
+QUnit.test('destructuring: a static beside an instance member off a call reads the memo', assert => {
+  function make() { return Map; }
+  const { groupBy, name } = make();
+  assert.same(typeof groupBy, 'function');
+  assert.same(name, 'Map');
+});

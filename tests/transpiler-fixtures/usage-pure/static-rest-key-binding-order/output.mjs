@@ -1,7 +1,7 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 // Each key observes the binding at that point in the pattern; rest excludes both slots.
 var _ref = Array,
-  from = null == _ref ? _ref[""] : (log(typeof from), _Array$from),
+  from = (log(typeof from), _Array$from),
   check = (log(typeof from), _ref["isArray"]),
   {
     "from": _unused,

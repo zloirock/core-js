@@ -9,6 +9,7 @@ import {
   getFallbackBranchSlots,
   isAliasProxyRoot,
   isForXWriteTarget,
+  isMemberMutationContext,
   isMemberWriteHost,
   isMutatedGlobalSlot,
   isPristineProxyGlobal,
@@ -31,10 +32,12 @@ import {
   rootProgramOf,
   SKIPPABLE_WRAPPER_TYPES,
   spineHasOptionalHop,
+  propertyKeyName,
   staticMemberKeyName,
   stepOverChainWrappers,
   unwrapRuntimeExpr,
   isTransparentWrapper,
+  patternEdgeSide,
   peelChainAssignment,
   unwrapTransparentSeq,
 } from '../helpers/ast-patterns.js';
@@ -55,6 +58,7 @@ import {
   nestedAssignmentStatementOf,
   staticContainerReceiverName,
   unionKeyedCarrierRides,
+  discardRescueNodesWithReads,
 } from './destructure.js';
 import {
   hasStaticDefinitionKey, resolve as resolveBuiltIn,
@@ -104,6 +108,7 @@ import {
   proxyGlobalMemberCtorPureSwap,
   claimAlreadyRendered,
   readFeedsOwnSlotWrite,
+  readKeepingAdapter,
 } from './resolve.js';
 
 // is this read the RAW branch of a ctor-identity guard this plugin already emitted (`M === _Map ?
@@ -207,7 +212,7 @@ function resolveCallRootedProxyCollapse({ receiver, scope, adapter, path }) {
   // buried in a computed hop (`globalThis[(c++, 'self')]`). returning only the chain-root call missed a
   // key-buried effect in the memo path, silently dropping it on babel while unplugin kept it (desync + lost SE)
   const rescue = seedChainRootCallRescue({ node: receiver, scope, adapter, path });
-  return { rootName, droppedSe: collectFoldedReceiverSideEffects(hop, [], rescue) };
+  return { rootName, droppedSe: collectFoldedReceiverSideEffects(hop, { rescue, ctx: { scope, adapter, path } }) };
 }
 
 // whole-swap plan for a DISCARDED call/IIFE-rooted proxy receiver whose LEAF is a pure global
@@ -231,7 +236,7 @@ export function planCallRootDiscardedProxySwap({ receiver, scope, adapter, path,
   const nav = resolveCallRootedProxyCollapse({ receiver, scope, adapter, path });
   if (!nav) return null;
   const harvestedSE = nav.droppedSe;
-  if (receiver.computed) collectFoldedReceiverSideEffects(receiver.property, harvestedSE);
+  if (receiver.computed) collectFoldedReceiverSideEffects(receiver.property, { out: harvestedSE, ctx: { scope, adapter, path } });
   return { leafPure, harvestedSE };
 }
 
@@ -406,7 +411,7 @@ export function planProxyReceiver(receiver, {
     for (let cur = objectCore; cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression';
       cur = peelReceiverSequenceTail(cur.object)) hops.unshift(cur);
     for (const hop of hops) {
-      if (hop.computed) keyPrefixSE.push(...collectFoldedReceiverSideEffects(hop.property));
+      if (hop.computed) keyPrefixSE.push(...collectFoldedReceiverSideEffects(hop.property, { ctx: aliasCtx }));
     }
   }
   const keyPrefixSet = new Set(keyPrefixSE);
@@ -419,7 +424,7 @@ export function planProxyReceiver(receiver, {
     // exempt. effects the sequence around it carries (`(b++, (q = globalThis.window)).self.X`) are not the
     // assignment and still have to ride ahead, in source order. dropped-hop KEY effects are exempt too:
     // they ride the surviving key instead (`keyPrefixSE`), where the native order puts them
-    harvestedSE: collectFoldedReceiverSideEffects(receiver.object)
+    harvestedSE: collectFoldedReceiverSideEffects(receiver.object, { ctx: aliasCtx })
       .filter(effect => effect !== keptAssignRoot && !keyPrefixSet.has(effect)),
     keyPrefixSE,
     // the `?.` of the hop READING the kept root slides onto the leaf that now reads off it - the
@@ -449,8 +454,10 @@ export function planMemoReadTarget(memoReceiver, { aliasCtx, resolvePure }) {
 
 // The destructured guarded-alias narrow (`const { groupBy: g } = M`): admit a named binding
 // and an uncomputed key, and return the existing identity guard. Direct hosts can replace their
-// binding or split a fully answered pattern. Nested hosts can capture their receiver for
-// the same guard; an instance fallback takes that capture before a static-only mirror.
+// binding or split a fully answered pattern; a pattern with an unanswered prop keeps it in the
+// original node and `detach`es only a claim at its EDGE ('before' / 'after'), so source order holds.
+// Nested hosts can capture their receiver for the same guard; an instance fallback takes that
+// capture before a static-only mirror.
 export function planGuardedDestructureNarrow({
   propNode, patternNode, hostNode, hostInStatement, meta, path, resolvePure, adapter = null,
 }) {
@@ -530,7 +537,12 @@ export function planGuardedDestructureNarrow({
     });
     return sibling && !sibling.bail ? { key, name: item.value.name, plan: sibling, self: false } : null;
   });
-  if (split && split.some(item => !item)) return null;
+  let detach = null;
+  if (split && split.some(item => !item)) {
+    detach = patternEdgeSide(patternNode, propNode);
+    if (!detach || nested || restResidual || binding.type !== 'Identifier' || (!isDeclarator && !hostInStatement)
+      || unwrapRuntimeExpr(receiverNode)?.type !== 'Identifier') return null;
+  }
   // ... and the split needs a host whose VALUE nobody reads: a declaration, or an assignment
   // standing as its own statement - an assignment in value position yields the receiver, and the
   // pieces of a split cannot
@@ -545,19 +557,21 @@ export function planGuardedDestructureNarrow({
     path,
     resolvePure,
     adapter,
+    pattern: binding.type === 'ObjectPattern' ? binding : null,
   });
   if (!plan || plan.bail) return null;
   // ... and never beside an effect: the prefix runs ONCE, ahead of the whole init, where a split
   // would leave it standing in front of whichever read the claim happens to be
-  if (split && plan.seqPrefix.length) return null;
-  for (const item of split ?? []) if (item.self) item.plan = plan;
+  if ((split || detach) && plan.seqPrefix.length) return null;
+  for (const item of detach ? [] : split ?? []) if (item.self) item.plan = plan;
   return {
     plan,
+    detach,
     nested,
     capture: captureCandidate?.leaf === propNode ? captureCandidate : null,
     captureFirst: captureCandidate?.leaf === propNode && plan.instanceFallback?.kind === 'instance',
     keepPatternLive: binding.type === 'ObjectPattern',
-    split,
+    split: detach ? null : split,
     restResidual,
     bindingName: binding.name,
     hostKind: isDeclarator ? 'declarator' : hostInStatement ? 'assignment-statement' : 'assignment-value',
@@ -717,7 +731,7 @@ export function planClaimlessCallRootedNav({
       // takes the WHOLE run - with everything the run did, which this render re-emits either way
       const consumed = storedValueConsumedAbove(endPath);
       const swapNode = consumed ? endNode : backed?.span ?? root;
-      const droppedSe = backed || consumed ? collectFoldedReceiverSideEffects(swapNode) : [];
+      const droppedSe = backed || consumed ? collectFoldedReceiverSideEffects(swapNode, { ctx }) : [];
       if (!consumed && storedUserAssignmentOf(endPath) && !droppedSe.length) return { verdict: 'kept-value', endPath };
       if (backed) return { verdict: 'swap-call', swapNode, basePure: backed.pure, droppedSe, endPath };
       return rootPure ? { verdict: 'swap-call', swapNode, basePure: rootPure, droppedSe, endPath } : declined;
@@ -895,7 +909,7 @@ export function landRunOnDeepestBackedSpan({ navNode, ctx, resolvePure, mintPure
   // ... and what the span spells BELOW its key is discarded with it - a sequence prefix, a kept
   // write, an SE-bearing computed key. those are acts the source performs, so the mint re-emits
   // them ahead of the binding, where the source ran them (`(c++, globalThis).self` -> `(c++, _self)`)
-  const discarded = collectFoldedReceiverSideEffects(found.span);
+  const discarded = collectFoldedReceiverSideEffects(found.span, { ctx });
   if (found.span === run) {
     const minted = mintPure(found.pure, discarded);
     if (!store.outer) return minted;
@@ -933,10 +947,8 @@ function collectChainRootCallEffect({ node, sideEffects, scope, adapter, path })
 // TERMINUS (deepest object, evaluated first) - interleaved ahead of shallower hop-key SE in a single pass.
 // a two-step harvest-then-append would put the deep call LAST, reversing source `(call, key)` to `(key, call)`
 function seedChainRootCallRescue({ node, scope, adapter, path }) {
-  const rescue = new Set();
   const rootCall = seBearingChainRootCall({ node, scope, adapter, path });
-  if (rootCall) rescue.add(rootCall);
-  return rescue;
+  return new Set(rootCall ? [rootCall] : []);
 }
 
 // resolve the ROOT proxy-global NAME of a member chain - the collapse substitutes the ROOT (`_globalThis`),
@@ -1016,7 +1028,7 @@ export function harvestDiscardedReceiverSE(node, { scope, adapter, path }) {
   const effects = [];
   const rescue = seedChainRootCallRescue({ node, scope, adapter, path });
   const chainAssignAt = { at: null };
-  collectFoldedReceiverSideEffects(node, effects, rescue, chainAssignAt);
+  collectFoldedReceiverSideEffects(node, { out: effects, rescue, chainAssignAt, ctx: { scope, adapter, path } });
   return prependChainAssignmentEffect(node, effects, chainAssignAt.at ?? effects.length);
 }
 
@@ -1035,7 +1047,8 @@ function buildMemberMeta({ node, scope, adapter, path, resolveStaticKey = null, 
   // receiver-SE comes first (source eval order). the emit decides how to replay it: peel +
   // prepend (non-optional) vs the null-guard memoize (optional, where it re-runs) - in the
   // memoize case the suppress path drops this prefix and folds only the trailing key-SE
-  const obj = unwrapParensCollectingEffects(node.object, sideEffects);
+  const obj = unwrapParensCollectingEffects(node.object, sideEffects,
+    element => discardRescueNodesWithReads({ node: element, scope, adapter, path }).length > 0);
   // `this.#foo` / `obj.#field` - private field access; not a candidate for any polyfill
   // table (keys never carry `#` prefix). skip explicitly so downstream resolver scans
   // don't chase a doomed key lookup. the canon recognises the private-name node under either
@@ -1053,10 +1066,16 @@ function buildMemberMeta({ node, scope, adapter, path, resolveStaticKey = null, 
   // with the member, so a SE buried in a `+` / template operand must re-emit too, not just a top-level
   // sequence prefix. peel + collect are split so the side channel still collects exactly once
   const computedKeyNode = node.computed ? peelReceiverSequenceTail(node.property) : null;
-  if (node.computed) collectFoldedReceiverSideEffects(node.property, keyEffects);
-  const key = node.computed
+  if (node.computed) collectFoldedReceiverSideEffects(node.property, { out: keyEffects, ctx: { scope, adapter, path } });
+  let key = node.computed
     ? resolveKey({ node: computedKeyNode, computed: true, scope, adapter, path, resolveStaticKey })
     : memberKeyName(node);
+  // ... and an effectful IDENTITY call key names its argument's key where the replacement replays
+  // the call itself - the key-effect channel keeps the key node's evaluation in its slot
+  if (!key && node.computed && isCallShape(unwrapRuntimeExpr(computedKeyNode)) && mayHaveSideEffects(computedKeyNode)) {
+    key = resolveKey({ node: computedKeyNode, computed: true, scope, adapter, path, resolveStaticKey, keepsKeyNode: true });
+    if (key) keyEffects.push(computedKeyNode);
+  }
   // a computed key with no single dominating name - a BRANCHING literal (`arr[cond ? "flat" :
   // "at"]()`), or a REASSIGNED alias whose only value sits in a pattern slot default - still reaches
   // every written name at runtime: fall through with the null key so the union choke enumerates
@@ -1083,7 +1102,7 @@ function buildMemberMeta({ node, scope, adapter, path, resolveStaticKey = null, 
     // `(a = globalThis).self[(c++, 'Map')].prototype.has` ran `c++` before the assignment where the
     // source runs it after (both emitters, so only a runtime oracle sees it)
     const chainAssignAt = { at: null };
-    collectFoldedReceiverSideEffects(obj.object, protoCtorReceiverSE, null, chainAssignAt);
+    collectFoldedReceiverSideEffects(obj.object, { out: protoCtorReceiverSE, chainAssignAt, ctx: { scope, adapter, path } });
     if (protoCtorReceiverSE.length) meta.protoCtorReceiverSE = protoCtorReceiverSE;
     if (chainAssignAt.at !== null) meta.protoCtorChainAssignAt = chainAssignAt.at;
   }
@@ -1143,9 +1162,20 @@ function buildMemberMeta({ node, scope, adapter, path, resolveStaticKey = null, 
     // `Array` constructor; `Array.name` resolves via the function variant). same gate the
     // destructure path already applies to `const { concat } = Array`
     meta = { kind: 'property', object: objectName, key, placement, receiverHint: staticReceiverHint(placement, objectName) };
+    // ... and a container read the pure proof declines only because the var holding the container may
+    // not be initialized by then (`if (c) { var box = { A: Array } } box.A.from`) - a plain chain, whose read throws on
+    // that path, so what it names where it completes is the identity guard's candidate - the guard keeps
+    // the read, and the pure proof it lacks is the one the receiver-dropping rewrite owes. a REALM hop is
+    // not one: the realm guard below swaps the pure ctor in for it
+    const keptReadReceiver = !objectName && !conditionalReceiver && adapter.method === 'usage-pure'
+      && unwrapRuntimeExpr(classifyTarget)?.type === 'MemberExpression' && !ownChainOptionalObjects(classifyTarget).length
+      && !resolveObjectName({ objectNode: classifyTarget, scope, adapter: readKeepingAdapter(adapter), path })
+      ? staticContainerReceiverName({ node: classifyTarget, scope, adapter: readKeepingAdapter(adapter), path }) : null;
     // Unproven call returns still name possible constructors. Keep the receiver and let
     // the existing identity guard choose its static only when that value actually arrived.
     const guardedConstructors = conditionalReceiver ? [conditionalReceiver]
+      : keptReadReceiver && !POSSIBLE_GLOBAL_OBJECTS.has(keptReadReceiver) && isStaticPlacement(keptReadReceiver) === 'static'
+        && !isMutatedGlobalSlot(adapter, keptReadReceiver) && !adapter.isMutatedStatic?.(keptReadReceiver, key) ? [keptReadReceiver]
       : !objectName && isCallShape(unwrapRuntimeExpr(classifyTarget)) && adapter.method === 'usage-pure'
       ? containerUnion.filter(name => !POSSIBLE_GLOBAL_OBJECTS.has(name)
         && isStaticPlacement(name) === 'static' && !isMutatedGlobalSlot(adapter, name)
@@ -1197,7 +1227,10 @@ function buildMemberMeta({ node, scope, adapter, path, resolveStaticKey = null, 
         : chainRoot?.type === 'Identifier' ? aliasWriteCtorNames({ name: chainRoot.name, scope, adapter, path }) : [];
     if (!objectName && !keyEffects.length && (chainRoot || navigated)
       && receiverKey && !POSSIBLE_GLOBAL_OBJECTS.has(receiverKey) && isStaticPlacement(receiverKey)
-      && !resolveBuiltIn({ kind: 'global', name: receiverKey })
+      // ... or none these targets need, where an ALIAS spells the hop (the direct hop is the hop guard's)
+      && (!resolveBuiltIn({ kind: 'global', name: receiverKey })
+        || (unwrapRuntimeExpr(receiver)?.type === 'Identifier' && resolvePure
+          && !resolvePure({ kind: 'global', name: receiverKey }, null)))
       && resolveBuiltIn({ kind: 'property', object: receiverKey, key, placement: 'static' })
       && !isMutatedGlobalSlot(adapter, receiverKey)
       && rootRealmNames.some(name => isPristineProxyGlobal(adapter, name))) {
@@ -1228,7 +1261,7 @@ function buildMemberMeta({ node, scope, adapter, path, resolveStaticKey = null, 
       // read, so it runs before any key above it, and `chainAssignInsertAt` puts the splice there rather
       // than at the receiver/key boundary. a READ needs that slot exactly as much as a terminal call
       const chainAssignAt = { at: null };
-      collectFoldedReceiverSideEffects(classifyTarget, sideEffects, rescue, chainAssignAt);
+      collectFoldedReceiverSideEffects(classifyTarget, { out: sideEffects, rescue, chainAssignAt, ctx: { scope, adapter, path } });
       if (chainAssignAt.at !== null) meta.chainAssignInsertAt = chainAssignAt.at;
     }
     // inline-resolved receiver call (`(() => Promise)()`, `f()` where `const f = () => Promise`)
@@ -1304,8 +1337,9 @@ function guardedNarrowChainTail(path, memberNode, absorbedCall = null) {
 // render inputs - the unwrapped receiver identifier (or, for a meta asking `captureGuardReceiver`,
 // the receiver NODE the emitter captures into a ref of its own - `captureReceiver`), the static's
 // pure entry, callee-ness (the raw branch then binds `this`), and the ctor comparator (the swapped
-// pure binding, or its raw global name when the ctor does not polyfill for the targets)
-export function planGuardedStaticNarrow({ memberNode, parent, meta, path, resolvePure, adapter = null }) {
+// pure binding; its raw global name when the ctor does not polyfill for the targets; a member of
+// the realm entry when that raw name is shadowed; realm proxies share the realm root's comparator)
+export function planGuardedStaticNarrow({ memberNode, parent, meta, path, resolvePure, adapter = null, pattern = null }) {
   if (memberNode.type !== 'MemberExpression' && memberNode.type !== 'OptionalMemberExpression') return null;
   // A lowered optional still observes the environment probe; substituting a backed
   // realm hop here would let the following unguarded reads run on an absent host.
@@ -1313,8 +1347,8 @@ export function planGuardedStaticNarrow({ memberNode, parent, meta, path, resolv
   // an EFFECTFUL sequence prefix on the receiver (`(n++, M).groupBy`) keeps the guard: the value
   // tested is the sequence's tail, and the prefix runs once ahead of the whole render (the emitters
   // re-emit it there). the transparent peel stops at such a prefix by design - it answers "what is
-  // this value", and the effect is the caller's to place
-  const objCore = unwrapTransparentSeq(memberNode.object);
+  // this value", and the effect is the caller's to place - a prefix READ an accessor answers included
+  const objCore = unwrapTransparentSeq(memberNode.object, adapter && path ? { scope: path.scope, adapter, path } : null);
   const seqPrefix = objCore?.type === 'SequenceExpression' ? objCore.expressions.slice(0, -1) : [];
   const recvIdent = seqPrefix.length ? unwrapTransparentSeq(objCore.expressions.at(-1)) : objCore;
   const captureReceiver = meta.captureGuardReceiver ? memberNode.object : null;
@@ -1341,11 +1375,30 @@ export function planGuardedStaticNarrow({ memberNode, parent, meta, path, resolv
   // Map's). the guard tests identity, so each candidate is one more branch that either matches at
   // runtime or falls through - never a wrong answer. ordered: the kept hint first, then the rest
   const candidates = [];
+  // the STATIC keys the source goes on to read off the value a realm hop yields - a member above it
+  // (`other.Promise.withResolvers`) or a pattern destructuring it (`{ withResolvers } = other.Promise`,
+  // the `pattern` a destructured claim hands in): the swapped-in constructor has to carry them, whether
+  // or not the targets need the constructor itself
+  const readerPattern = pattern ?? (parent?.type === 'VariableDeclarator' && unwrapRuntimeExpr(parent.init) === memberNode ? parent.id
+    : parent?.type === 'AssignmentExpression' && unwrapRuntimeExpr(parent.right) === memberNode ? parent.left : null);
+  const readKeys = (parent?.type === 'MemberExpression' || parent?.type === 'OptionalMemberExpression')
+    && unwrapRuntimeExpr(parent.object) === memberNode ? [staticMemberKeyName(parent)]
+    : readerPattern?.type === 'ObjectPattern'
+      ? readerPattern.properties.map(item => item.type === 'RestElement' ? null : propertyKeyName(item)) : [];
   for (const name of [meta.guardedAliasHint, ...meta.guardedAliasHints ?? [], ...meta.guardedWriteObjects ?? []]) {
-    if (!name || candidates.some(candidate => candidate.ctorName === name)) continue;
-    const pure = resolvePure({ kind: 'property', object: name, key: meta.key, placement: 'static' }, path);
+    if (!name) continue;
+    // every realm proxy (`window`, `self`, `globalThis`) names the ONE realm object, so they share
+    // one comparator, spelled as the realm root: a bare `window` / `self` would throw where the
+    // realm lacks it, while `globalThis` is the realm under every spelling
+    const ctorName = POSSIBLE_GLOBAL_OBJECTS.has(name) ? 'globalThis' : name;
+    if (candidates.some(candidate => candidate.ctorName === ctorName)) continue;
+    const readsStatic = POSSIBLE_GLOBAL_OBJECTS.has(name) ? readKeys.find(key => typeof key === 'string'
+      && resolvePure({ kind: 'property', object: meta.key, key, placement: 'static' }, null)?.kind === 'static') : undefined;
+    const pure = resolvePure({
+      kind: 'property', object: name, key: meta.key, placement: 'static', ...readsStatic ? { readsStatic } : {},
+    }, path);
     if (pure?.kind === 'static' || (pure?.kind === 'global' && POSSIBLE_GLOBAL_OBJECTS.has(name))) {
-      candidates.push({ ctorName: name, staticPure: pure });
+      candidates.push({ ctorName, staticPure: pure });
     }
   }
   if (!candidates.length) return meta.guardOnly ? { bail: true } : null;
@@ -1383,7 +1436,8 @@ export function planGuardedStaticNarrow({ memberNode, parent, meta, path, resolv
     const ctorPure = pure && pure.kind !== 'instance' ? pure : null;
     // A native constructor has no imported comparator. Under a local shadow its raw name means
     // the user's value, so compare through the realm entry instead; without that entry no safe
-    // comparator can be emitted at this site.
+    // comparator can be emitted at this site. the realm root itself needs none: with no entry
+    // every target carries `globalThis` natively, and the raw name IS the realm
     const shadowed = !ctorPure && adapter?.hasBinding?.(path?.scope, candidate.ctorName, path);
     const ctorRealmPure = shadowed ? resolvePure({ kind: 'global', name: 'globalThis' }, null) : null;
     if (shadowed && (!ctorRealmPure || ctorRealmPure.kind === 'instance')) return [];
@@ -1460,8 +1514,10 @@ function resolveSymbolReceiverProxyRoot({ node, receiverChain, receiverValueName
     // the same kept-root harvest rule the shared receiver plan applies
     return {
       keepRoot: keptAssign.outer,
-      droppedSe: collectFoldedReceiverSideEffects(node.object, [],
-        seedChainRootCallRescue({ node: node.object, scope, adapter, path }))
+      droppedSe: collectFoldedReceiverSideEffects(node.object, {
+        rescue: seedChainRootCallRescue({ node: node.object, scope, adapter, path }),
+        ctx: { scope, adapter, path },
+      })
         .filter(effect => effect !== keptAssign.outer),
       isOptionalAccess,
     };
@@ -1485,7 +1541,8 @@ function resolveSymbolReceiverProxyRoot({ node, receiverChain, receiverValueName
   // flags only the introducing hop - emitter-local re-derivation from either shape diverges on a
   // mid-chain `?.`). the walk stops at SEALING wrappers: a paren / cast / sequence-terminated `?.` is not
   // live for this access, and the emitters' non-optional route is the one that preserves its hop SE
-  return { rootName, droppedSe: collectFoldedReceiverSideEffects(node.object, [], rescue), isOptionalAccess };
+  const droppedSe = collectFoldedReceiverSideEffects(node.object, { rescue, ctx: { scope, adapter, path } });
+  return { rootName, droppedSe, isOptionalAccess };
 }
 
 // `path` (optional) - the visitor path of `node`. threaded through to adapter.hasBinding so
@@ -1668,7 +1725,7 @@ export function handleMemberExpressionNode({
     // an EFFECTFUL sequence prefix is the caller's to place, not a reason to lose the guard: the
     // value read is the sequence's tail, and the render re-emits the prefix once ahead of the test.
     // the transparent peel stops there by design, so peel the tail explicitly (the plan does the same)
-    const recvCore = unwrapTransparentSeq(node.object);
+    const recvCore = unwrapTransparentSeq(node.object, { scope, adapter, path });
     const recvIdent = recvCore?.type === 'SequenceExpression'
             ? unwrapTransparentSeq(recvCore.expressions.at(-1)) : recvCore;
     // a local whose name COINCIDES with the global it aliases (`const { Map } = globalThis`)
@@ -1706,7 +1763,10 @@ export function handleMemberExpressionNode({
       // and would skip the key's effect on the taken path (native always evaluates it). a RECEIVER
       // effect is not that - it runs once ahead of the test, where the source runs it, so the count
       // that matters is what is left once the receiver's share is taken out
-      if (guardedHint && (meta?.sideEffects?.length ?? 0) === (meta?.receiverEffectCount ?? 0)) {
+      // ... and a member the source WRITES through (`A.from += x`, `A.from++`, `delete A.from`) is
+      // no read the guard may split: its alternate would hold the write while the consequent drops it
+      if (guardedHint && (meta?.sideEffects?.length ?? 0) === (meta?.receiverEffectCount ?? 0)
+        && !isMemberMutationContext(node, path.parentPath?.node, path.parentPath?.parentPath?.node)) {
         // an OPTIONAL member on an unknown receiver builds no meta at all - synthesize a
         // guard-only one so the pure callbacks still see the read (they render and return).
         // `bailOnSideEffectKey` keeps the same raw canon for the synthesized shape
@@ -1783,7 +1843,7 @@ export function handleMemberExpressionNode({
     // `self` read off the ponyfill (`v = (c++, globalThis.self).window`)
     const declinedProbeRead = !subsumesReceiver && POSSIBLE_GLOBAL_OBJECTS.has(meta.object)
       && !!resolvePure && proxyHopLacksPureEntry(meta.key, resolvePure)
-      && !(storedUserAssignmentOf(path) && !collectFoldedReceiverSideEffects(node.object).length);
+      && !(storedUserAssignmentOf(path) && !collectFoldedReceiverSideEffects(node.object, { ctx: { scope, adapter, path } }).length);
     // ... and the same rule for the OTHER render that may never come: the hops of a DECLINED claim
     // are folded by the ROOT's own substitution, so a root this build cannot spell (an excluded
     // entry) leaves nobody to own them - marking them handled stranded the whole run raw, where it
@@ -1893,9 +1953,9 @@ export function symbolIteratorHint(entry) {
 // globalThis; } ... realm.Symbol.iterator in x`): no unconditional symbol ref names that receiver,
 // and the member route alone would swap the `Symbol` read (`(realm === _globalThis ? _Symbol :
 // realm.Symbol).iterator in x`), whose membership test answers `false` for an iterable under sham
-// symbols. the test travels with the realm guard instead: every pristine proxy global the binding
-// was WRITTEN with is one identity branch answering the is-iterable helper, and the source `in`
-// stays the raw branch. the shape is kept narrow because the raw branch re-spells the source: the
+// symbols. the test travels with the realm guard instead: the pristine proxy globals the binding
+// was WRITTEN with name the one realm, so one identity branch against the realm root answers the
+// is-iterable helper, and the source `in` stays the raw branch. the shape is kept narrow because the raw branch re-spells the source: the
 // LHS is a plainly spelled `<binding>.Symbol.<name>` (no optional hop, sequence prefix or effectful
 // key - each would run twice, once ahead of the test and once in the raw branch), the RHS a bare
 // identifier the branches may repeat, the name the iterator entry (the one `in` rewrite with a
@@ -1913,12 +1973,13 @@ function guardedRealmSymbolIn({ left, right, scope, adapter, path, resolvePure, 
     node: left.property, computed: left.computed, scope, adapter, path, resolveStaticKey, bailOnSideEffectKey: true,
   });
   if (name !== 'iterator') return null;
-  const realms = [];
-  for (const candidate of aliasWriteCtorNames({ name: receiver.name, scope, adapter, path })) {
-    if (!isPristineProxyGlobal(adapter, candidate)) continue;
-    const pure = resolvePure({ kind: 'global', name: candidate }, null);
-    if (pure && pure.kind !== 'instance') realms.push(pure);
-  }
+  // every pristine realm proxy the binding was written with names the ONE realm object, so the
+  // guard carries one identity branch, spelled as the realm root's entry (the rule the ctor-identity
+  // narrow applies to its realm candidates); a build without that entry keeps the member route
+  const realm = aliasWriteCtorNames({ name: receiver.name, scope, adapter, path })
+    .some(candidate => isPristineProxyGlobal(adapter, candidate))
+    ? resolvePure({ kind: 'global', name: 'globalThis' }, null) : null;
+  const realms = realm && realm.kind !== 'instance' ? [realm] : [];
   if (!realms.length) return null;
   return {
     symbolNode,
@@ -1927,6 +1988,29 @@ function guardedRealmSymbolIn({ left, right, scope, adapter, path, resolvePure, 
       sideEffects: [], realmGuard: { receiver, realms },
     },
   };
+}
+
+// the receiver an `in` test probes. 'key' in Object - string key in static/global object. fresh
+// `seen` Set because this is a top-level entry point; downstream recursion through
+// `resolveObjectName` reuses it. peel a SequenceExpression tail off the RHS (`'k' in (fn(), Object)`):
+// the `in` detection only decides whether to inject (the expression is never rewritten), so the SE
+// prefix runs as written at runtime and the tail names the object to classify. ... through the
+// container walk a member read falls back to (`buildMemberMeta`), on its terms: a conditional
+// forwarder names a live result the pure fold would erase with its receiver
+function inOperandReceiver({ node, scope, adapter, path }) {
+  const rightObject = peelReceiverSequenceTail(node.right);
+  const containerUnion = [];
+  const conditionalCalls = [];
+  const objectName = resolveObjectName({ objectNode: rightObject, scope, adapter, seen: new Set(), path })
+    ?? staticContainerReceiverName({
+      node: rightObject,
+      scope,
+      adapter,
+      path,
+      unionSink: containerUnion,
+      conditionalSink: conditionalCalls,
+    });
+  return { rightObject, objectName: conditionalCalls.length && adapter.method === 'usage-pure' ? null : objectName, containerUnion };
 }
 
 // seeds `handledObjects` only for polyfillable Symbol.X. `isEntryAvailable`, when
@@ -2010,14 +2094,7 @@ export function handleBinaryIn({
     && isSymbolSourcedKey({ node: node.left, scope, adapter, path })) {
     return { kind: 'in', key: resolvedLeft, object: null, placement: null, symbolSourced: true };
   }
-  // 'key' in Object - string key in static/global object. fresh `seen` Set because this
-  // is a top-level entry point; downstream recursion through `resolveObjectName` reuses it.
-  // peel a SequenceExpression tail off the RHS (`'k' in (fn(), Object)`): the `in` detection
-  // only decides whether to inject (the expression is never rewritten), so the SE prefix runs
-  // as written at runtime and the tail names the object to classify
-  let rightObject = unwrapTransparentSeq(node.right);
-  if (rightObject?.type === 'SequenceExpression') rightObject = unwrapTransparentSeq(rightObject.expressions.at(-1));
-  const objectName = resolveObjectName({ objectNode: rightObject, scope, adapter, seen: new Set(), path });
+  const { rightObject, objectName, containerUnion } = inOperandReceiver({ node, scope, adapter, path });
   const placement = objectName ? isStaticPlacement(objectName) : null;
   if (resolvedLeft && objectName && placement) {
     // a monkey-patched static must not FOLD: the fold's `true` assumes the polyfill key,
@@ -2029,8 +2106,14 @@ export function handleBinaryIn({
     // each candidate at runtime, and the `in` RESULT depends on the injected polyfill - each
     // extra target earns its side-effect import (property-shaped extras inject identically)
     attachMemberUnionExtras(meta, {
-      objectNode: rightObject, computedKeyNode: node.left,
-      primaryObject: objectName, primaryKey: resolvedLeft, scope, adapter, path,
+      objectNode: rightObject,
+      computedKeyNode: node.left,
+      primaryObject: objectName,
+      primaryKey: resolvedLeft,
+      scope,
+      adapter,
+      path,
+      containerWalkObjects: containerUnion,
     });
     // usage-pure FOLDS this meta to `true`, discarding the RHS. the planner harvests the
     // discarded operand's STRUCTURAL effects (sequence prefixes + tails, computed keys, buried
@@ -2062,9 +2145,14 @@ export function handleBinaryIn({
   const carrier = attachMemberUnionExtras({
     kind: 'in', key: resolvedLeft ?? null, object: null, placement: instanceProbeKey ? 'prototype' : null,
   }, {
-    objectNode: rightObject, computedKeyNode: node.left,
-    primaryObject: objectName && placement ? objectName : null, primaryKey: resolvedLeft ?? null,
-    scope, adapter, path,
+    objectNode: rightObject,
+    computedKeyNode: node.left,
+    primaryObject: objectName && placement ? objectName : null,
+    primaryKey: resolvedLeft ?? null,
+    scope,
+    adapter,
+    path,
+    containerWalkObjects: containerUnion,
   });
   // the instance probe FOLDS the same way the static one does, so it owes the same scope-aware
   // bit the structural harvest cannot decide: a provably-IMPURE receiver call at the chain root
@@ -2086,7 +2174,8 @@ export function handleBinaryIn({
 function resolveComputedSymbolKey({ node, scope, adapter, path }) {
   if (!node.computed) return null;
   const sideEffects = [];
-  const prop = unwrapParensCollectingEffects(node.property, sideEffects);
+  const prop = unwrapParensCollectingEffects(node.property, sideEffects,
+    element => discardRescueNodesWithReads({ node: element, scope, adapter, path }).length > 0);
   if (prop?.type !== 'MemberExpression' && prop?.type !== 'OptionalMemberExpression') return null;
   const ref = asSymbolRef({ node: prop.object, scope, adapter, path });
   if (!ref) return null;
@@ -2105,9 +2194,14 @@ function resolveComputedSymbolKey({ node, scope, adapter, path }) {
   while (symbolReceiver && isTransparentWrapper(symbolReceiver)) symbolReceiver = symbolReceiver.expression;
   if (symbolReceiver?.type === 'MemberExpression' || symbolReceiver?.type === 'OptionalMemberExpression') {
     const rescue = seedChainRootCallRescue({ node: prop, scope, adapter, path });
-    collectFoldedReceiverSideEffects(symbolReceiver, sideEffects, rescue);
+    collectFoldedReceiverSideEffects(symbolReceiver, { out: sideEffects, rescue, ctx: { scope, adapter, path } });
   } else {
     collectChainRootCallEffect({ node: prop, sideEffects, scope, adapter, path });
+    if (symbolReceiver?.type === 'SequenceExpression') {
+      for (const element of symbolReceiver.expressions.slice(0, -1)) {
+        if (mayHaveSideEffects(element, { scope, adapter, path })) sideEffects.push(element);
+      }
+    }
   }
   const keyNode = prop.computed
     ? unwrapParensCollectingEffects(prop.property, sideEffects) : prop.property;

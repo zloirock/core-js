@@ -4,7 +4,7 @@
 // a member read off the alias injects the union's method-aware set as a MAYBE. the type channel
 // still must not NARROW a spread-shifted binding: `.at` on a foreign runtime receiver keeps BOTH
 // the array and the string leg (narrowing to the array leg alone under-injects the string polyfill)
-let tail = [{}, {}];
+let tail = globalThis.tail;
 
 // ctor-alias member channel: M MIGHT be the global Map (a length-1 spread pairs it), so the
 // method-aware maybe-set injects
@@ -18,7 +18,7 @@ export const viaSymbolAlias = [1, 2][S.iterator];
 
 // ctor CONSTRUCTION through the maybe-alias: the single static candidate classifies the receiver,
 // so the constructor modules inject; TWO distinct candidates stay ambiguous and inject nothing
-const [c1, { Map: MC }] = [...tail, globalThis];
+const [c1, { URL: MC }] = [...tail, globalThis];
 export const viaCtorConstruct = new MC(ctorSeed);
 const [c2, { WeakSet: WS }] = [...tail, globalThis, otherHolder];
 export const viaTwoCandidatesBail = new WS();
@@ -31,7 +31,8 @@ export const viaTypeNarrow = new A().at(0);
 const [[i0, { Iterator: I }]] = [[...tail, globalThis]];
 export const viaDeepSpread = I.range(0, 3);
 
-// spread AT the slot bails too (position is runtime-determined from the spread on)
+// spread AT the slot: the spread source's own items are its candidates (a literal `head` holding
+// the realm), so the realm constructor's modules inject as a maybe
 let head = [globalThis];
 const [{ Promise: P }] = [...head];
 export const viaSpreadAt = P.allSettled([]);

@@ -6,7 +6,7 @@ import _globalThis from "@core-js/pure/actual/global-this";
 // before the polyfilled extraction and the remaining-key copy.
 const g = _globalThis;
 const _ref = g.Array,
-  from = null == _ref ? _ref[""] : _Array$from,
+  from = _Array$from,
   {
     from: _unused,
     ...rest

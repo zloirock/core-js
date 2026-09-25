@@ -1,7 +1,7 @@
 // a BRANCHING alias init registers only when every completing path yields the global.
 // negatives: a mixed ternary, a reversed `||` (the left operand wins when truthy) and an
-// `&&` (its falsy path yields the left operand) - the member reads stay native and keep
-// their TypeError on the non-global path; the branch substitutions stay value-correct
+// `&&` (its falsy path yields the left operand) - the member reads take the static behind an
+// identity check on the substituted constructor and keep their TypeError on the non-global path
 const cond = Math.random() > 2;
 
 var { Map: M1 } = cond ? globalThis : { Map: null };

@@ -8,8 +8,9 @@ import _self from "@core-js/pure/actual/self";
 // a for-x HEAD holds no init: what it destructures is an ELEMENT of the iterated literal, so the
 // receiver mirror swaps the polyfill into the element itself. a multi-element literal binds a
 // different element per pass, and each is mirrored where it is written - a single binding lifted
-// out of the head could only answer while the head runs once. a non-proxy element declines the
-// whole head: its value is not the global's, and the pattern must keep reading it natively
+// out of the head could only answer while the head runs once. a non-proxy element keeps its own
+// read native: its value is not the global's, so the pattern reads it as written on its pass,
+// while the proxy elements beside it still mirror on theirs
 for (const {
   Array: {
     from
@@ -30,7 +31,11 @@ for (const {
   Array: {
     of
   }
-} of [_globalThis, {
+} of [{
+  Array: {
+    of: _Array$of
+  }
+}, {
   Array: {
     of: null
   }

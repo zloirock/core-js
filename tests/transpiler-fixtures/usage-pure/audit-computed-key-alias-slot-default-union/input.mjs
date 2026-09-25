@@ -1,8 +1,8 @@
-// a computed-key alias written through a pattern slot DEFAULT (`[k = "from"] = src`) has no single
-// dominating value - the default fires only for an absent slot - so no primary key resolves; the
-// written keys are still enumerable, and usage-global unions them exactly as it unions a conditional
-// key write - through a member read and a computed-key destructure alike. dropping the read for the
-// missing primary lost every key. usage-pure keeps its bail
+// a computed-key alias written through a pattern slot DEFAULT over a literal that provably leaves the
+// slot absent (`[k = "from"] = []`) holds that default and nothing else, so the key resolves - pure
+// substitutes the static it names; a slot the literal FILLS keeps the default beside its value, a
+// union usage-global injects for and usage-pure bails on. usage-global reads the same keys through a
+// member read and a computed-key destructure alike
 
 let arrayKey = 'isArray';
 [arrayKey = 'fromAsync'] = [];

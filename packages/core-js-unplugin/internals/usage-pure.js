@@ -332,6 +332,7 @@ export default function createAstUsagePureCallback({
       receiverHint: !meta.object && meta.key && !meta.symbolSourced
         ? toHint(resolveNodeType(metaPath.get('right'))) : null,
       parent: metaPath.parentPath?.node ?? null,
+      ctx: { scope: metaPath.scope, adapter, path: metaPath },
     });
     if (plan.kind === 'noop') return;
     const rendered = renderInExpressionPlan(plan, {

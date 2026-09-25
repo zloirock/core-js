@@ -1,7 +1,4 @@
-import {
-  buildDestructureLeafMeta,
-  classifyDestructureLeafHost,
-} from '@core-js/polyfill-provider/detect-usage/destructure';
+import { destructurePropLeafMeta } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
   resolveKey as sharedResolveKey,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
@@ -830,17 +827,6 @@ export function createUsageVisitors({
   });
   const { skipUpdateTargets } = core;
 
-  // destructure-only wrapper (every caller is inside handleDestructuring): a side-effecting
-  // computed key resolves to its tail for identity; the emitter keeps the key in the pattern (it
-  // runs once) and adds an inline default `= _Array$from`, so the static is polyfilled, not bailed
-  // threads the key's own path: the key EVALUATES there, so the canon's flow gates
-  // (init-dominance, reaching-value) anchor at the capture instead of defaulting open
-  // ... and `keepsKeyNode`: the pattern KEEPS an effectful key where it stands, so a key spelled
-  // through a bound identity call (`[k('at')]`) may fold to its argument
-  function resolveKey(path, computed) {
-    return sharedResolveKey({ node: path.node, computed, scope: path.scope, adapter, path, resolveStaticKey, keepsKeyNode: true });
-  }
-
   // `skipReferencedCheck` bypasses babel's `isReferencedIdentifier` for callers that have
   // already established the read context (e.g., assignment LHS - strict-mode binding lookup)
   function handleIdentifier(path, skipReferencedCheck = false) {
@@ -909,16 +895,23 @@ export function createUsageVisitors({
   function handleDestructuring(path) {
     const objectPattern = path.parentPath;
     if (!objectPattern.isObjectPattern()) return;
-    // the funnel choke: ONE host classification and ONE meta rule, shared with the
-    // unplugin leg - the per-shape else-chain this replaces is where the two funnels
-    // drifted apart. `host: 'none'` (a non-destructure parent) emits nothing at all
-    const descriptor = classifyDestructureLeafHost({ objectPattern });
-    if (descriptor.host === 'none') return;
-    const key = resolveKey(path.get('key'), path.node.computed);
+    // the funnel choke, shared with the unplugin leg: `host: 'none'` (a non-destructure parent)
+    // emits nothing at all. the key is read at its own path, where it EVALUATES
     const containerUnion = [];
-    let meta = buildDestructureLeafMeta({
-      descriptor, key, adapter, resolvePure, unionSink: containerUnion, resolveStaticKey, parameterCallSites,
+    const keyPath = path.get('key');
+    const { descriptor, meta: leafMeta } = destructurePropLeafMeta({
+      prop: path.node,
+      objectPattern,
+      scope: keyPath.scope,
+      path: keyPath,
+      adapter,
+      resolvePure,
+      resolveStaticKey,
+      parameterCallSites,
+      unionSink: containerUnion,
     });
+    if (descriptor.host === 'none') return;
+    let meta = leafMeta;
     // follow memoized reference type (e.g. `const _ref = [1, 2, 3]` after memoization) -
     // a binding-half post-step: the resolvedType cache is this leg's scope tracker's.
     // spread instead of in-place mutation: the choke doesn't promise mutable meta

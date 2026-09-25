@@ -3,7 +3,7 @@ import _Array$of from "@core-js/pure/actual/array/of";
 var _ref, _unused;
 // The consumed assignment keeps its receiver and runs each key before its write.
 let of, from, rest;
-const held = (_ref = get(), null == _ref ? _ref[""] : (log(typeof of), of = _Array$of), from = _Array$from, {
+const held = (_ref = get(), log(typeof of), of = _Array$of, from = _Array$from, {
   "of": _unused,
   from: _unused,
   ...rest

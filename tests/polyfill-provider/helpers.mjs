@@ -3058,10 +3058,54 @@ for (const adapter of adapters) for (const [source, shifted] of [
   ['let held; const [{ of }] = (held = [...values, Map]);', true],
   ['let held; const { x: [{ of }] } = { x: held = [...values, Map] };', true],
   ['let held; const [[{ of }]] = [held = [...values, Map]];', true],
+  // the keyed spelling of an array slot reports the shift the positional spelling reports (a
+  // ctx-less pairing reads literal STRING keys; the numeric spelling folds through the ctx resolver)
+  ["let held; const { '1': { of } } = (held = [...values, Map]);", true],
+  ["let held; const { '0': { of } } = (held = [Map, ...values]);", false],
+  ["let held; const { x: { '1': { of } } } = { x: held = [...values, Map] };", true],
 ]) {
   const program = adapter.parseAndScope(source);
   const { id, init } = adapter.pickPath(program, 'VariableDeclarator', path => path.node.init !== null).node;
   check(`stored spread completeness [${ adapter.name }]: ${ source }`, patternSlotSpreadShifted(id, init, 'of'), shifted);
+}
+
+// Every read of a literal's slot asks both lookups below, so a lookup that scans the literal makes N
+// reads of one literal quadratic. A leaf slot's shift check reads no key of the literal, and a plain
+// key never reaches the key canon; the nested and computed rows are the controls that the counter
+// sees the literal's keys at all
+const SLOT_KEYS = Array.from({ length: 32 }, (unused, i) => `a${ i }`);
+function countingKeyCtx() {
+  const reads = [];
+  return {
+    reads,
+    resolveKey({ node, computed }) {
+      reads.push(node);
+      return computed ? node.value : node.name;
+    },
+  };
+}
+for (const adapter of adapters) {
+  for (const [label, entries, pattern, shifted, scanned] of [
+    ['leaf slot', SLOT_KEYS.map(key => `['${ key }']: Map`), 'a0: value', false, false],
+    ['nested slot', [...SLOT_KEYS.map(key => `['${ key }']: Map`), "['a0']: [...values, Map]"], 'a0: [, value]', true, true],
+  ]) {
+    const program = adapter.parseAndScope(`const { ${ pattern } } = { ${ entries.join(', ') } };`);
+    const { id, init } = adapter.pickPath(program, 'VariableDeclarator').node;
+    const ctx = countingKeyCtx();
+    check(`literal slot shift [${ adapter.name }]: ${ label }`, patternSlotSpreadShifted(id, init, 'value', ctx), shifted);
+    const literalKeys = new Set(init.properties.map(({ key }) => key));
+    check(`literal slot shift [${ adapter.name }]: ${ label } reads literal keys`, ctx.reads.some(node => literalKeys.has(node)), scanned);
+  }
+  for (const [label, entries, reads] of [
+    ['plain keys', SLOT_KEYS.map(key => `${ key }: Map`), 0],
+    ['computed key', ["['a0']: Map"], 1],
+  ]) {
+    const program = adapter.parseAndScope(`const { a0: value } = { ${ entries.join(', ') } };`);
+    const { id, init } = adapter.pickPath(program, 'VariableDeclarator').node;
+    const ctx = countingKeyCtx();
+    checkDeep(`literal slot values [${ adapter.name }]: ${ label }`, patternSlotValues(id, init, 'value', ctx).map(value => value.name), ['Map']);
+    check(`literal slot values [${ adapter.name }]: ${ label } key canon reads`, ctx.reads.length, reads);
+  }
 }
 
 for (const [source, keys] of [

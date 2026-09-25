@@ -20,6 +20,6 @@ export const seqKeyEffect = (n++, M)[(k++, 'groupBy')];
 export const destructured = (() => { const { groupBy: g } = M; return g; })();
 export const destructuredShorthand = (() => { const { groupBy } = M; return groupBy; })();
 export const destructuredSeq = (() => { const { groupBy: g } = (n++, M); return g; })();
-// NEGATIVE: more than one property in the pattern - the split is not this render's business
+// ... and a pattern with an unanswered sibling detaches the claim at its edge behind the same guard
 export const destructuredPair = (() => { const { groupBy: g, get: h } = M; return [g, h]; })();
 export { n, k };
