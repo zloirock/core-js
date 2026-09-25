@@ -29,7 +29,7 @@ function isTrueLiteralNode(node) {
 
 // the fold discards BOTH operands whole (each replayed only through the structural SE harvest),
 // shared by the static-receiver and typed-instance-receiver branches below
-function foldPlan({ meta, left, right }) {
+function foldPlan({ meta, left, right, ctx }) {
   // BOTH receiver branches ask this before folding, so it lives with the fold itself: the operand
   // the constant would DISCARD must not be able to hand `in` something it throws on (a value that
   // short-circuits, whatever the resolved type hint claims) and must not carry an `in` of its own
@@ -40,8 +40,8 @@ function foldPlan({ meta, left, right }) {
   }
   const rescue = new Set(meta.sideEffects);
   const leadingSe = [
-    ...collectFoldedReceiverSideEffects(unwrapRuntimeExpr(left)),
-    ...collectFoldedReceiverSideEffects(unwrapRuntimeExpr(right), [], rescue),
+    ...collectFoldedReceiverSideEffects(unwrapRuntimeExpr(left), { ctx }),
+    ...collectFoldedReceiverSideEffects(unwrapRuntimeExpr(right), { rescue, ctx }),
   ];
   // defensive: a chain-root call the structural walk could not position (shape mismatch) keeps the
   // old append slot rather than being dropped
@@ -49,7 +49,8 @@ function foldPlan({ meta, left, right }) {
   return { kind: 'fold', leadingSe, skip: [left, right] };
 }
 
-export function planInExpression({ meta, left, right, isEntryNeeded, resolveFallback, receiverHint = null, parent = null }) {
+// `ctx` is the host's scope, which the discarded operands' harvest asks its questions in
+export function planInExpression({ meta, left, right, isEntryNeeded, resolveFallback, receiverHint = null, parent = null, ctx = null }) {
   // the kept-test spelling re-enters on a SECOND pass - the unplugin emitter runs before AND after babel
   // in the sandwich, and the test it keeps still reads as a foldable probe. recognising our own
   // output by shape is what stops the wrap from wrapping itself. a hand-written `(k in o, true)`
@@ -74,7 +75,7 @@ export function planInExpression({ meta, left, right, isEntryNeeded, resolveFall
     // threads in as `rescue` so it INTERLEAVES at its true source position - a lexical prefix runs before
     // it (`(p(), IIFE()).Symbol.iterator` -> source order [p, IIFE]) - with any unplaced rescue appended
     const rescue = new Set(meta.sideEffects);
-    const leadingSe = collectFoldedReceiverSideEffects(unwrapRuntimeExpr(left), [], rescue);
+    const leadingSe = collectFoldedReceiverSideEffects(unwrapRuntimeExpr(left), { rescue, ctx });
     for (const e of meta.sideEffects ?? []) if (rescue.has(e)) leadingSe.push(e);
     // the rewrite REPLACES the LHS value (`Symbol.iterator in x` -> `_isIterable(x)`), so the LHS is
     // discarded whole - the unplugin emitter must mark it (and any polyfillable subtree it buries, e.g. a
@@ -107,7 +108,7 @@ export function planInExpression({ meta, left, right, isEntryNeeded, resolveFall
   // replacing the node). rescued leadingSe subtrees are excluded from the skip - they are re-emitted
   if (meta.object) {
     if (!resolveFallback(meta).result) return { kind: 'noop' };
-    return foldPlan({ meta, left, right });
+    return foldPlan({ meta, left, right, ctx });
   }
   // an UNAMBIGUOUSLY typed receiver folds like a static host: every actual use of the probed
   // method is substituted by the pure transform, so the polyfilled world's answer is `true`
@@ -117,7 +118,7 @@ export function planInExpression({ meta, left, right, isEntryNeeded, resolveFall
   // fold off the Maybe-dispatch resolution - its runtime truth is genuinely engine-dependent
   if (meta.key && !meta.symbolSourced && receiverHint
     && resolveFallback({ kind: 'property', object: receiverHint, key: meta.key, placement: 'prototype' }).result) {
-    return foldPlan({ meta, left, right });
+    return foldPlan({ meta, left, right, ctx });
   }
   return { kind: 'noop' };
 }

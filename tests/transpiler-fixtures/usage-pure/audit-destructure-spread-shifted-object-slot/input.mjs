@@ -1,7 +1,8 @@
 // a spread contributes an unknown NUMBER of items, so the slot a later index pairs with is not
 // the literal sitting there: the enumerated candidates are an incomplete over-approximation and
-// a precision-needing consumer must not read a lone candidate as certain. that holds just as well
-// when the shifted array sits under an object key, or nested deeper
+// a precision-needing consumer must not read a lone candidate as certain: the static read takes
+// the runtime identity guard against it. that holds just as well when the shifted array sits
+// under an object key, or nested deeper
 const tail = [];
 const { x: [, Shifted] } = { x: [...tail, Object] };
 export const shifted = Shifted.groupBy([1, 2], x => x);

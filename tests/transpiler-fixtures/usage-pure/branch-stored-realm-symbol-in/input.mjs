@@ -1,5 +1,6 @@
 // The realm-guarded well-known symbol `in` test beyond its base form (`conditional-realm-symbol-members`):
-// two written realms chain their identity branches, and a custom arm keeps its own membership test.
+// two written realm proxies name one realm and share one identity branch, and a custom arm keeps
+// its own membership test.
 export function readEither(flag, value) {
   let realm;
   if (flag) realm = globalThis; else realm = self;

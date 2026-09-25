@@ -15,7 +15,7 @@ for (var _ref2 = (effF(), Array), of = _Array$of;;) break;
 // an instance entry needs the receiver at runtime
 const at = _atMaybeArray((effI(), [1, 2]));
 const _ref = (effR(), _globalThis.Object),
-  keys = null == _ref ? _ref[""] : _Object$keys,
+  keys = _Object$keys,
   {
     keys: _unused,
     ...rest

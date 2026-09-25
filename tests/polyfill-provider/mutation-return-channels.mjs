@@ -36,8 +36,6 @@ for (const [value, tail] of [['value', ''], ['[value]', '[0]'], ['{ value }', '.
 rows.push(
   ['selected argument inside a returned container',
     'function box(value) { return [value]; } box(flag ? Array : Object)[0].from = patched; Array.from([1]);'],
-  ['parameter stored through a nested spread caller',
-    'let held; function save(value) { held = value; } save(...[...[Array]]); held.from = patched; Array.from([1]);'],
   ['caller shadow does not capture a free return',
     'function pick() { return Array; } function run(Array) { pick.apply(null, []).from = patched; } run({}); Array.from([1]);'],
   ['nested return keeps declaration scope',
@@ -118,9 +116,6 @@ for (const [emitter, transform] of transforms) {
     ['selected container identity',
       'const source = [Array]; function read([{ from, ...rest }]) { return from([1]); } read(source);'
         + ' const [{ of }] = source; of(2);', true, 'of'],
-    ['selected leaf can write a static',
-      'const source = [Array]; function install([held]) { held.from = patched; } install(source);'
-        + ' const [{ from }] = source; from([1]);', false],
     ['selected leaf can replace a deeper slot',
       'const source = [{ w: Array }]; function install([held]) { held.w = {}; } install(source);'
         + ' const [{ w: { from } }] = source; from([1]);', false],

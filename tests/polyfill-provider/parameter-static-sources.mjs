@@ -15,6 +15,9 @@ for (const parser of adapters) for (const method of ['usage-global', 'usage-pure
     ['returned value', 'function get() { return Array; }', 'get()', 'Array'],
     // Global keeps the possible native family; pure cannot replace a written receiver.
     ['written slot', 'const box = { value: Array }; box.value = custom;', 'box.value', method === 'usage-global' ? 'Array' : null],
+    // a container bound to a NAMED call is indexed through the callee's literal: the write reaches
+    // the read the same way
+    ['written call-bound slot', 'const f = () => ({ value: Array }); const box = f(); box.value = custom;', 'box.value', method === 'usage-global' ? 'Array' : null],
     ['assign getter', 'const box = { value: Array }; Object.assign(box, { get value() { return custom; } });', 'box.value', method === 'usage-global' ? 'Array' : null],
     ['assign spread', 'const box = { value: Array }; Object.assign(box, { ...custom });', 'box.value', method === 'usage-global' ? 'Array' : null],
     ['assign method', 'const box = { value: Array }; Object.assign(box, { value() {} });', 'box.value', method === 'usage-global' ? 'Array' : null],
@@ -45,6 +48,45 @@ for (const parser of adapters) for (const method of ['usage-global', 'usage-pure
       'box.value', method === 'usage-global' ? 'Array' : null],
     ['assign mixed callers', 'const box = { value: Array }; Object.assign(box, { get value() { return {}; } });', 'box.value); read(Array', null],
     ['scoped callable namesake', 'other(() => { function read(held) { return held.from([2]); } read(custom); }); const box = { value: Array };', 'box.value', 'Array'],
+    // a namesake of the callee bound elsewhere (a foreign parameter) is no read of the callee, so
+    // its caller set stays closed - and stays closed when an escaping literal makes the escape
+    // census ask the accountability question first, the order that once answered on names alone
+    ['namesake parameter', 'function swap(read) {} const box = { value: Array };', 'box.value', 'Array'],
+    [
+      'namesake parameter beside an exported literal',
+      'function swap(read) {} export const custom = { of: () => other }; const box = { value: Array };',
+      'box.value',
+      'Array',
+    ],
+    [
+      'namesake parameter beside a handed-out literal',
+      'function swap(read) {} const custom = { of: () => other }; hand(custom); const box = { value: Array };',
+      'box.value',
+      'Array',
+    ],
+    [
+      'namesake pattern parameter beside an exported literal',
+      'function swap({ read }) {} export const custom = { of: () => other }; const box = { value: Array };',
+      'box.value',
+      'Array',
+    ],
+    [
+      'namesake local beside an exported literal',
+      'function swap() { const read = 1; return read; } export const custom = { of: () => other }; const box = { value: Array };',
+      'box.value',
+      'Array',
+    ],
+    ['callee handed out through an exported literal', 'export const custom = { of: () => read }; const box = { value: Array };', 'box.value', null],
+    // the method of a local literal resolves the way a function does: a namesake of the LITERAL's
+    // name read bare, written or destructured in another scope opens nothing, while a bare read
+    // of the literal itself does
+    ['literal method', 'const lit = { of() { return Array; } };', 'lit.of()', 'Array'],
+    ['literal method beside a namesake parameter', 'function swap(lit) { return lit; } const lit = { of() { return Array; } };', 'lit.of()', 'Array'],
+    ['literal method beside a namesake pattern parameter', 'function swap({ lit }) { return lit; } const lit = { of() { return Array; } };', 'lit.of()', 'Array'],
+    ['literal method beside a namesake local', 'function elsewhere() { const lit = 1; return lit; } const lit = { of() { return Array; } };', 'lit.of()', 'Array'],
+    ['literal method beside a namesake member write', 'function elsewhere(lit) { lit.of = 1; } const lit = { of() { return Array; } };', 'lit.of()', 'Array'],
+    ['literal method shadowed by a parameter', 'const lit = { of() { return Array; } }; function inner(lit) { read(lit.of()); }', 'custom', null],
+    ['literal read bare', 'const lit = { of() { return Array; } }; hand(lit);', 'lit.of()', null],
     ['local shadow', 'function get() { const Array = custom; return Array; }', 'get()', null],
     ['mixed callers', 'const box = { value: Array };', 'box.value); read(custom', null],
   ]) {

@@ -9,6 +9,6 @@ for (const [{ from }, extra] = [Array, 1]; ; ) {
   break;
 }
 // a multi-declarator header takes the sibling polyfill mid-list
-for (let i = 0, [{ isArray, ...more }] = [Array]; i < 1; i++) {
-  isArray([i]);
+for (let i = 0, [{ fromAsync, ...more }] = [Array]; i < 1; i++) {
+  fromAsync([i]);
 }

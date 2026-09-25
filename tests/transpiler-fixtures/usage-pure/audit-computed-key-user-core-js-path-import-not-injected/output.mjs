@@ -1,5 +1,5 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-import _Set from "@core-js/pure/actual/set/constructor";
+import _Set from "@core-js/pure/actual/set";
 // A user default import whose source merely CONTAINS the `core-js` substring is NOT a
 // plugin-injected pure reference - it stays a stable in-scope value, so a per-branch synth
 // receiver (`cond ? Array : Set`, which has no body-extract fallback) must still mirror the

@@ -23,6 +23,6 @@ export const testSlotKeepsIt = _nameMaybeFunction(((held = (e++, _self).window) 
 let c = 0;
 export const navArms = _nameMaybeFunction(_Map);
 export const navBothArms = _nameMaybeFunction(_Map);
-export const liveOptionalArm = _nameMaybeFunction((_ref = c ? null == _globalThis.window ? void 0 : _self : _globalThis, _ref === _self ? _Map : _ref.Map));
-export const seqArm = _nameMaybeFunction((_ref2 = c ? (c++, _self) : _globalThis, _ref2 === _self ? _Map : _ref2.Map));
+export const liveOptionalArm = _nameMaybeFunction((_ref = c ? null == _globalThis.window ? void 0 : _self : _globalThis, _ref === _globalThis ? _Map : _ref.Map));
+export const seqArm = _nameMaybeFunction((_ref2 = c ? (c++, _self) : _globalThis, _ref2 === _globalThis ? _Map : _ref2.Map));
 export { c, e, held };

@@ -1987,8 +1987,9 @@ function checkPostAdoptsUnusedSentinels() {
   check('post-adopt-unused/both channels post is idempotent', bothPost?.code ?? null, null);
   const shadow = 'import "@core-js/pure/actual/array/from";\nconst { from: _unused, ...rest } = Array;\nexport const r = [_unused, rest];';
   const shadowPost = createPlugin(opts).transform(shadow, '/x30s.mjs', 'post');
+  // ... over a PROVEN receiver (`Array` is never nullish), so the extraction owes no nullish probe
   check('post-adopt-unused/a user sentinel name still extracts',
-    /_unused = null == _ref \? _ref\[""\] : _Array\$from/.test(shadowPost?.code ?? ''), true);
+    /_unused = _Array\$from,/.test(shadowPost?.code ?? ''), true);
   check('post-adopt-unused/a user sentinel name keeps a distinct exclusion',
     /from: _unused2, \.\.\.rest/.test(shadowPost?.code ?? ''), true);
   const unread = 'import "@core-js/pure/actual/array/from";\nexport const { from: _unused, ...rest } = Array;';

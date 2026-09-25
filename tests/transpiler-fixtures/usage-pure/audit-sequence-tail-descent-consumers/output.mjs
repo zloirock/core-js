@@ -11,8 +11,7 @@ import _Promise$allSettled from "@core-js/pure/actual/promise/all-settled";
 // classifies through the tail, it never discards what runs before it.
 export class Sub extends (a(), _globalThis).Array {}
 export const chained = (b(), _Array$of)(1, 2);
-const _ref = Array,
-  made = null == _ref ? _ref[""] : (c(), _Array$from);
+const made = (c(), _Array$from);
 export const viaKey = made([3]);
 export function branch(cond) {
   const flat = _flatMaybeArray(cond ? (d(), Array.prototype) : _Iterator.prototype);

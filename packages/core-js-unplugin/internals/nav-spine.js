@@ -431,13 +431,13 @@ export function navRootIsProxyIdentifier(node, metaPath, adapter, { requireBareN
 // a rebuild from the root swallows a DEAD sequence wrapper above it - the wrapper carried
 // nothing but the spelling that just folded (`(0, globalThis.window).Promise = f` ->
 // `_globalThis.Promise = f`); an effectful prefix keeps its wrapper, and so does an alias
-// base, which keeps the source spelling whole
-export function swallowDeadSeqWrapper(targetPath) {
+// base, which keeps the source spelling whole - a prefix READ an accessor answers is no dead comma either
+export function swallowDeadSeqWrapper(targetPath, adapter = null) {
   let at = targetPath;
   for (;;) {
     const up = at.parentPath?.node;
     if (up?.type !== 'SequenceExpression' || up.expressions.at(-1) !== at.node
-      || up.expressions.slice(0, -1).some(expr => mayHaveSideEffects(expr))) return at;
+      || up.expressions.slice(0, -1).some(expr => mayHaveSideEffects(expr, { scope: at.scope, adapter, path: at }))) return at;
     at = at.parentPath;
   }
 }
@@ -599,9 +599,9 @@ export function spineHoldsKeptWrite(objectNode, { throughHops = true } = {}) {
 // EFFECTS through the harvest that mirrors exactly those shapes. spelled here by hand it peeled one
 // sequence layer and declined everything deeper, so a nested key took a heavier route than its
 // single-layer twin - two rules for one question
-export function foldSeqKeyLiteralTail(property) {
+export function foldSeqKeyLiteralTail(property, ctx = null) {
   const key = computedKeyStaticName(property);
-  return key === null ? null : { key, effects: collectFoldedReceiverSideEffects(property) };
+  return key === null ? null : { key, effects: collectFoldedReceiverSideEffects(property, { ctx }) };
 }
 
 export function noteMutatedCtorHopDestructure(metaPath, node, { adapter, destructureEmit }) {

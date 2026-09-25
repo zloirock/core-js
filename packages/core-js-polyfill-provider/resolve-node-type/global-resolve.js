@@ -29,7 +29,7 @@ import {
   isTopLevelThisContext,
   getSuperTypeArgs,
   isAmbientBindingShape,
-  objectPatternLiteralKeyPath,
+  patternLiteralKeyPath,
   peelArrayWrapBindingLayers,
   peelSkippableWrapperPath,
   POSSIBLE_GLOBAL_OBJECTS,
@@ -53,7 +53,7 @@ export function createGlobalResolve({
   getKeyName,
   babelBindingAdapter,
 }) {
-  // a destructure key-path context for `objectPatternLiteralKeyPath`: a computed key that is a
+  // a destructure key-path context for `patternLiteralKeyPath`: a computed key that is a
   // const-bound string (`const k = 'Array'; { [k]: A } = globalThis`) folds through the canonical
   // scope-aware resolver, a plain key reads its literal name - without this the const key resolves
   // to nothing and the whole destructured-global alias degrades to a generic dispatch
@@ -216,7 +216,7 @@ export function createGlobalResolve({
     if (!peeled) return null;
     const { id, init } = peeled;
     if (id?.type !== 'ObjectPattern') return null;
-    const keyPath = objectPatternLiteralKeyPath(id, path.node.name, keyCtx);
+    const keyPath = patternLiteralKeyPath(id, path.node.name, keyCtx);
     if (!keyPath?.length) return null;
     return walkStaticReceiverChain({
       receiverNode: init,
