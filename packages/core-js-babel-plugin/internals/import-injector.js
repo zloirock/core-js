@@ -187,9 +187,22 @@ export default class ImportInjector extends ImportInjectorState {
     // HEADER/SIGNATURE position - a loop header or a function parameter list - that block-hosted var
     // is unreachable from the use, so hoist to the enclosing scope instead (matching unplugin's
     // enclosing-scope anchor); see #refUseEscapesScopeBlock for the two cases
-    const target = this.#refUseEscapesScopeBlock(scope, useNode) ? scope.parent : scope;
+    const target = this.#refUseEscapesScopeBlock(scope, useNode) ? scope.parent : this.#varSlotBlockHost(scope) ?? scope;
     this.#pushRefDeclarator(target, id);
     return id;
+  }
+
+  // a block the PLUGIN minted around a bodyless `var` host - a lift needed a statement slot - is no
+  // scope the source has: its `var` hoists the bindings past it, and the ref goes the same way, to
+  // the statement list the slot's owner stands in (the other leg's `refHostOf` anchor)
+  #varSlotBlockHost(scope) {
+    const { path } = scope;
+    if (!path.isBlockStatement() || Number.isInteger(path.node.start)) return null;
+    const owner = path.parentPath;
+    const slot = owner?.isIfStatement() ? path.key === 'consequent' || path.key === 'alternate'
+      : (owner?.isLoop() || owner?.isLabeledStatement() || owner?.isWithStatement()) && path.key === 'body';
+    if (!slot || path.node.body.every(statement => statement.type !== 'VariableDeclaration' || statement.kind !== 'var')) return null;
+    return owner.parentPath?.scope ?? null;
   }
 
   // append a `var <id>;` declarator to `target`'s scope. first ref per scope goes through

@@ -25,7 +25,9 @@ const values = [
   ['null data', 'null', false],
   ['asserted data', '(1 as any)', false],
   ['sequence data', '(effect(), 1)', false],
-  ['unknown call', 'factory()', false],
+  // a call may return one, read through the slot holding it (`[factory()][0].from`); the walk asks the
+  // call canon, which names nothing for an unknown callee
+  ['call result', 'factory()', true],
 ];
 
 const accesses = [

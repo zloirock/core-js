@@ -1,11 +1,12 @@
-// a flatten whose residual keeps a REBUILT pattern re-emits the init: the detect pass
-// suppressed the natural visitor on the init's proxy globals (expecting the emit to own
-// them), so the re-emitted tail must route through the same init-globals resolver the flat
-// route uses - a raw `globalThis` here is a ReferenceError on engines without the global
+// a flatten over a proxy-global init whose residual keeps a NESTED pattern rebuilds the init as a
+// literal: the extracted static takes its ponyfill and each kept slot reads the realm constructor
+// by its own name - the detect pass suppressed the natural visitor on the init's proxy globals, and
+// a raw `globalThis` left behind is a ReferenceError on engines without the global
 const { from, deep: { other } } = globalThis.Array;
 use(from, other);
 
-// each operand of a LOGICAL init substitutes the same way in the rebuilt residual
+// a LOGICAL init whose left operand names the realm constructor folds to it, and the rebuilt
+// literal takes its place
 const { of, nested: { more } } = globalThis.Array || Fallback;
 use(of, more);
 
@@ -18,7 +19,8 @@ use(isArray, x);
 // re-embeds `(SE, <tail>)`, and the tail must own the same substitution
 for (const { from: ff, deep: { other: oo } } = (eff(), globalThis.Array); cond;) { use(ff, oo); }
 
-// controls: a pure-ctor leaf whole-swaps; a const-alias root keeps the user identifier
+// controls: a kept slot of a pure-ctor init reads off the pure constructor; a const-alias root
+// folds to the realm, and its kept slot reads the realm constructor by name
 const { groupBy, deeper: { rest } } = globalThis.Map;
 use(groupBy, rest);
 const g = globalThis;

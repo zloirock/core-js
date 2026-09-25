@@ -1,5 +1,5 @@
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Promise from "@core-js/pure/actual/promise/constructor";
+import _Promise from "@core-js/pure/actual/promise";
 import _self from "@core-js/pure/actual/self";
 // an alias WRITTEN in the sequence that reads it holds what the write stored, so the probe read off
 // it is the same environment probe its bare twin performs, and the store keeps the guard. asked by

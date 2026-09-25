@@ -28,9 +28,8 @@ let hits = 0;
 const { Object: { groupBy: objGroupBy } } = c4 ? (() => { hits++; return globalThis; })() : globalThis;
 export const viaIifeBody = objGroupBy([1, 2], v => v % 2);
 
-// BOTH branches chain-assign to the proxy: writes survive on their native paths and the
-// leaf takes the sound inline default (fires only when the selected global's static is
-// genuinely absent) - both emitters agree
+// BOTH branches chain-assign to the proxy: each write survives on its native path, sequenced ahead
+// of a per-branch mirror that serves the static - both emitters agree
 let c5 = Math.random() < 0.5;
 let q5, w5;
 const { Object: { fromEntries: objFromEntries } } = c5 ? (q5 = globalThis) : (w5 = globalThis);

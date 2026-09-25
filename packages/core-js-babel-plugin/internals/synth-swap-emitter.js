@@ -28,6 +28,8 @@ import {
   bindingPolyfillHint,
   trustedIdentifierAliasWrite,
   peelChainAssignment,
+  invocationNode,
+  runtimeChainRoot,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   isClassifiableReceiverArg,
@@ -43,6 +45,7 @@ import {
   fallbackBranchSwapKeepsSelection,
   planSynthReceiverGuard,
   isViableBranchForKey,
+  instanceHopDispatch,
   resolvableArgSupersedesDeadDefault,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import estreeToBabel from './estree-to-babel.js';
@@ -67,6 +70,7 @@ import {
   descendToChainRoot,
   discardRescueNodes,
   findProxyGlobal,
+  globalProxyMemberName,
   maximalProxyGlobalHop,
   maximalProxyGlobalPrefix,
   navHasUnresolvableProxyHop,
@@ -197,14 +201,15 @@ export default function createSynthSwapEmitter({
         argNode: argPath.node, defaultNode: rightPath.node, objectPattern: objectPattern.node,
         scope: argPath.scope, adapter, path: argPath, resolvePure,
       })) return argPath;
-      // a fallback-shaped default (`Array || Iterator`, `Array ?? Iterator`) resolves its meta
+      // a fallback-shaped default (`Array || Iterator`, `Array ?? Iterator`, a CALL left `f() || Set`) resolves its meta
       // through the LEFT branch (detection peels fallback wrappers deterministically), so the
       // synth replaces the WHOLE expression with the literal - the same left-collapse the
       // declarator flatten applies. `&&` selects its RIGHT side at runtime and stays out.
       // unresolved keys re-read through the peeled LEFT alone - the right operand is skip-marked
       // at registration and never reaches emission
+      const leftTail = rightPath.isLogicalExpression() ? unwrapSequenceTail(rightPath.get('left')).node : null;
       const fallbackCollapse = rightPath.isLogicalExpression() && rightPath.node.operator !== '&&'
-        && isReceiverShapedNode(unwrapSequenceTail(rightPath.get('left')).node);
+        && (isReceiverShapedNode(leftTail) || !!invocationNode(leftTail));
       // accept OptionalMemberExpression too (`{from} = globalThis?.Array`) - symmetric with
       // `isExpandedClassifiableReceiver`'s `globalProxyMemberName` walk which already handles
       // optional-chain shapes. without OME the OME-default silently bails to inline-default
@@ -250,6 +255,15 @@ export default function createSynthSwapEmitter({
       });
       if (synthGuard) keepSe.push(synthGuard.probe);
       markReplacedReceiverSkipped({ receiver: receiver.left, keepSe, skippedNodes, walkNode: t.traverseFast });
+    } else if ((receiver.type === 'MemberExpression' && !rescueSe && !synthGuard
+      && !POSSIBLE_GLOBAL_OBJECTS.has(runtimeChainRoot(receiver)?.name)
+      && !proxyGlobalMemberCtorPure({ receiver, aliasCtx: { scope: targetPath.scope, adapter, path: targetPath }, resolvePure })
+      && !planProxyReceiver(receiver, { aliasCtx: { scope: targetPath.scope, adapter, path: targetPath }, resolvePure }))
+      // ... and an INVOCATION an instance slot dispatches on: the literal spells the call whole
+      || (instance && invocationNode(receiver))) {
+      // a receiver over a literal or a name keeps its own inner claims live; one over the realm is
+      // rendered through the proxy collapse whole, as the unplugin twin renders it
+      skippedNodes.add(receiver);
     } else if (!rescueSe || shouldDropRescueReceiver(receiver)) {
       // case 3 (plain replace) + case 1 (rescue-drop): the synth literal supplants the receiver value
       // (a drop re-emits only its harvested SE ahead). skip the WHOLE receiver - a spine-only skip stops
@@ -697,6 +711,12 @@ export default function createSynthSwapEmitter({
     const receiverPure = readReceiver.type === 'Identifier'
       ? resolvePure({ kind: 'global', name: readReceiver.name }) : null;
     const isPolyfillableGlobal = receiverPure && receiverPure.kind !== 'instance';
+    // the constructor a whole-swapped receiver stands for: the bare global, or the leaf of a proxy
+    // member its pure constructor replaces (`globalThis.Map` -> `_Map`) - the name an uncovered
+    // instance slot dispatches through (`instanceHopDispatch`)
+    const receiverCtorName = isPolyfillableGlobal ? readReceiver.name
+      : aliasCtx && proxyGlobalMemberCtorPure({ receiver: readReceiver, aliasCtx, resolvePure })
+        ? globalProxyMemberName({ node: readReceiver, ...aliasCtx }) : null;
     let receiverRef = null;
 
     // an INSTANCE entry binds the method to the receiver's VALUE, so a SELECTING receiver is spelled
@@ -748,7 +768,13 @@ export default function createSynthSwapEmitter({
       // an UNCOVERED `Symbol.iterator` slot reads through the method-lookup helper - the one
       // spelling both emitters print for that read anywhere else; a raw
       // `receiver[_Symbol$iterator]` answers undefined off-engine
-      const value = polyfill
+      // ... and an uncovered slot the constructor's pure binding answers through an INSTANCE dispatch
+      // reads through it (`instanceHopDispatch`): this literal is emitted where no visitor reaches it again
+      const dispatch = !polyfill && wks !== 'iterator' && !computed && !entry.substitutedKey && receiverCtorName
+        ? instanceHopDispatch({ ctorName: receiverCtorName, key: entry.lookupKey, resolvePure }) : null;
+      const value = dispatch
+        ? t.callExpression(injectPureImport(dispatch.entry, dispatch.hintName), [t.cloneNode(getReceiverRef())])
+        : polyfill
         ? polyfill.instance
           ? t.callExpression(injectPureImport(polyfill.entry, polyfill.hintName), [t.cloneNode(instanceReceiverRef())])
           : injectPureImport(polyfill.entry, polyfill.hintName)
@@ -872,8 +898,9 @@ export default function createSynthSwapEmitter({
         // what the literal's discard of this receiver would silently drop (the rescue canon). a
         // fallback-logical has its own harvest below - the leftSe plan asks the same canon about the
         // LEFT branch, and asking about the whole `||` here as well would run the effects twice
+        // ... and an INSTANCE slot spells the receiver inside its dispatch: nothing is discarded there
         const discardedReceiverSe = needMemo || throwProbe || dropRescueReceiver
-          || path.node.type === 'LogicalExpression'
+          || path.node.type === 'LogicalExpression' || entries.some(entry => entry.polyfill?.instance)
           ? [] : discardRescueNodes({ node: path.node, scope: path.scope, adapter, path });
         let replacement = needMemo
           ? t.callExpression(

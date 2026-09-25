@@ -1612,9 +1612,11 @@ const C_SLOTS = [
     use: 'JSON.stringify(groupBy([1], x => x))', strip: true,
   })),
   // Detached call/apply insertion still covers the later static read. Deferred insertion
-  // routes are locked in builtin-*-static-read fixtures instead.
-  { id: 'mutator-arg-call', setup: 'const b = []; b.push.call(b, Map);', use: 'typeof b[0].groupBy', strip: false },
-  { id: 'mutator-arg-apply', setup: 'const b = []; b.push.apply(b, [Map]);', use: 'typeof b[0].groupBy', strip: false },
+  // routes - and which modules each spelling injects - are locked in builtin-*-static-read
+  // fixtures instead: pure leaves the read off the inserted constructor native by design, so the
+  // snippet touches the static itself and reads what its own output imports, never a neighbour's
+  { id: 'mutator-arg-call', setup: 'void Map.groupBy; const b = []; b.push.call(b, Map);', use: 'typeof b[0].groupBy', strip: false },
+  { id: 'mutator-arg-apply', setup: 'void Map.groupBy; const b = []; b.push.apply(b, [Map]);', use: 'typeof b[0].groupBy', strip: false },
   { id: 'param-default-ctor', setup: 'function f(M = Map) { return typeof M.groupBy; }', use: 'f()', strip: false, fullEnvSnippet: true },
   { id: 'branchy-return-ctor', setup: 'let c = 1; function h() { if (c) return Map; return Set; }', use: 'typeof h().groupBy', strip: false, fullEnvSnippet: true },
   { id: 'method-return-ctor', setup: 'const o = { m() { return Map; } };', use: 'typeof o.m().groupBy', strip: true },
@@ -1709,75 +1711,36 @@ const C_SLOTS = [
     use: 'JSON.stringify(g([1], x => x))', strip: false },
 ];
 
-// --- A patch installed through a PARAMETER: the call is what says which object it lands on ---
-// the receiver of the write never spells the constructor, so the pairing between a call's argument
-// and the parameter it lands in IS the whole detection. the cross-product is the two halves of that
-// pairing: HOW the function is named (declaration, declarator-bound arrow, method key) x HOW the
-// value reaches the parameter (positional argument, inline-array spread, a later slot, the
-// parameter's own default). the restore travels through a parameter TOO, and that is load-bearing
-// twice over: it keeps the realm clean without leaving a flat write in the file, and a flat write
-// would deopt the read on its own - pinning every row green whether the pairing works or not. a
-// REST collection is the one spelling left out: the value lands in an array this pass does not
-// open, so a row on it would lock a divergence instead of the pairing
+// --- A patch installed through a PARAMETER's own default ---
+// a default is the one value a parameter holds that its function spells: what a call passes is not
+// followed, past the static spellings the provider covers. the rows reach the parameter through its
+// default under each way a function is named (declaration, declarator-bound arrow, method key). the
+// restore travels through a parameter TOO: a flat write would deopt the read on its own, pinning
+// every row green whether the default is followed or not
 const P_NAMED = [
   { id: 'declaration', head: 'function install', call: 'install' },
   { id: 'declarator-arrow', head: 'const install = ', arrow: true, call: 'install' },
   { id: 'method-key', method: true, call: 'holder.install' },
 ];
-const P_REACHES = [
-  { id: 'positional', params: 'target', args: 'Map' },
-  { id: 'spread-literal', params: 'target', args: '...[Map]' },
-  { id: 'second-slot', params: 'first, target', args: '0, Map' },
-  { id: 'own-default', params: 'target = Map', args: '' },
-];
-// NEGATIVES: no call hands the constructor over, so nothing is patched and nothing needs restoring
-const P_UNTOUCHED = [
-  { id: 'plain-object-arg', call: 'install({});' },
-  { id: 'never-called', call: '' },
-];
 function * generateParamInstalledPatch() {
   const read = 'return String(Map.groupBy([1], x => x));';
   const put = 'function put(t, v) { t.groupBy = v; }';
+  const write = 'target.groupBy = function () { return "P"; }';
   for (const named of P_NAMED) {
-    for (const reach of P_REACHES) {
-      const write = 'target.groupBy = function () { return "P"; }';
-      const body = named.method
-        ? `const holder = { install(${ reach.params }) { ${ write }; } };`
-        : named.arrow
-          ? `${ named.head }(${ reach.params }) => { ${ write }; };`
-          : `${ named.head }(${ reach.params }) { ${ write }; }`;
-      yield {
-        ...snippet(`param-installed-patch/${ named.id }-${ reach.id }`,
-          `(() => { ${ put } const _o = Map.groupBy; ${ body }`
-          + ` try { ${ named.call }(${ reach.args }); ${ read } } finally { put(Map, _o); } })()`),
-        strip: false,
-      };
-    }
-  }
-  for (const untouched of P_UNTOUCHED) {
+    const body = named.method
+      ? `const holder = { install(target = Map) { ${ write }; } };`
+      : named.arrow
+        ? `${ named.head }(target = Map) => { ${ write }; };`
+        : `${ named.head }(target = Map) { ${ write }; }`;
     yield {
-      ...snippet(`param-installed-patch/untouched-${ untouched.id }`,
-        '(() => { function install(target) { target.groupBy = function () { return "P"; }; }'
-        + ` ${ untouched.call } ${ read } })()`),
+      ...snippet(`param-installed-patch/${ named.id }-own-default`,
+        `(() => { ${ put } const _o = Map.groupBy; ${ body }`
+        + ` try { ${ named.call }(); ${ read } } finally { put(Map, _o); } })()`),
       strip: false,
     };
   }
 }
 
-// ... and the same pairing asked of every call-like HOST, since not all of them spell the callee
-// the way a plain call does. one setter per row takes the receiver and the value, and the row calls
-// it twice through the host under test - patch, read, put back - so the host is the only thing in
-// the file that can name the write and the realm is clean either way
-const P_HOSTS = [
-  { id: 'plain-call', setter: 'function set(t, v) { t.groupBy = v; }', use: v => `set(Map, ${ v });` },
-  { id: 'class-constructor', setter: 'class Set_ { constructor(t, v) { t.groupBy = v; } }', use: v => `new Set_(Map, ${ v });` },
-  { id: 'immediate-literal', setter: '', use: v => `(function (t, v) { t.groupBy = v; })(Map, ${ v });` },
-  { id: 'tagged-template', setter: 'function set(s, t, v) { t.groupBy = v; }', use: v => `set\`\${ Map }\${ ${ v } }\`;` },
-  { id: 'dot-call', setter: 'function set(t, v) { t.groupBy = v; }', use: v => `set.call(null, Map, ${ v });` },
-  { id: 'dot-apply', setter: 'function set(t, v) { t.groupBy = v; }', use: v => `set.apply(null, [Map, ${ v }]);` },
-  { id: 'reflect-apply', setter: 'function set(t, v) { t.groupBy = v; }', use: v => `Reflect.apply(set, null, [Map, ${ v }]);` },
-  { id: 'immediate-bind', setter: 'function set(t, v) { t.groupBy = v; }', use: v => `set.bind(null, Map)(${ v });` },
-];
 // --- Invoker receiver reads ---
 // the invocation canon read from the RECEIVER side: a call-like host invokes a local function, and a
 // static is read either off the parameter inside it or off the value the call hands back - an
@@ -1943,19 +1906,6 @@ function * generateInvokerReceiverReads() {
         strip: true,
       };
     }
-  }
-}
-
-function * generateParamInstalledPatchHosts() {
-  for (const host of P_HOSTS) {
-    yield {
-      ...snippet(`param-installed-patch/host-${ host.id }`,
-        `(() => { ${ host.setter } const _o = Map.groupBy;`
-        + ` try { ${ host.use('function () { return "P"; }') }`
-        + ' return String(Map.groupBy([1], x => x)); }'
-        + ` finally { ${ host.use('_o') } } })()`),
-      strip: false,
-    };
   }
 }
 
@@ -5422,11 +5372,14 @@ const AW_SYMBOL_ITER = [
   { id: 'synth-param-passed-argument',
     pre: 'const k = ({ at, [Symbol.iterator]: it } = [9]) => [typeof at, typeof it]; const psyn = k({ at: "own-at", [Symbol.iterator]: "own-it" });',
     obs: 'psyn', fullEnv: true },
-  // a UNION-typed default (`[9] : "s"`) belongs to the type resolver's own axis, not this
-  // channel: both legs inject the STRING method for an ARRAY-valued arm, which the stripped
-  // leg sees as a missing polyfill. tracked in the queue; holding it here would color this
-  // family red for a defect it does not own
-
+  // a UNION-typed default (`[9] : "s"`) serves BOTH arms: the array arm the test selects keeps
+  // its own instance method beside the string arm's (a leg injecting the string method alone
+  // reads `at` as undefined off the array in a stripped realm)
+  {
+    id: 'synth-param-default-union',
+    pre: 'const u = ({ at, [Symbol.iterator]: it } = cond ? [9] : "s") => [typeof at, typeof it]; const usyn = u();',
+    obs: 'usyn',
+  },
   { id: 'const-chain-decline', pre: 'const chain = [[9]]; const [{ [Symbol.iterator]: chained, ...cr }] = chain;', obs: 'typeof chained' },
   // a getter-backed element: the sole-binding extraction is the receiver's ONLY read, so the
   // count proves single vs double read (native evaluates the element exactly once too)
@@ -5492,6 +5445,561 @@ function * generateAwSymbolIterDestructure() {
   for (const c of AW_SYMBOL_ITER) {
     const body = `(() => { ${ c.pre } return ${ c.obs }; })()`;
     yield { ...snippet(`aw-symbol-iter/${ c.id }`, body), strip: false, fullEnv: c.fullEnv };
+  }
+}
+
+// --- The possible-value union of an alias ---
+// an alias whose value BRANCHES (`c ? Array : Map`, `nul || Array`) holds any arm at the use, and
+// every spelling that binds it - an array slot, an object slot, a nested one, a slot default, a
+// reassignment - reaches the same union: usage-global injects for each arm, so the arm the runtime
+// takes finds its static in a stripped realm. the rows below then hold the union's edges: a
+// spread-shifted pairing is an OPEN set (the instance dispatch stays beside the static candidate
+// whatever spelling reads the slot), a deep branching write unfolds to its last arm, and a nested
+// destructure over a fallback `||` / `??` reaches the proxy on either operand whatever the left
+// spells. the usage-global leg arms on the static the source reads, and pure reads a static off an
+// open alias - a branching slot as much as a reassigned one - through a runtime identity guard
+// against every candidate it can name, so every row is under both stripped oracles
+const VU_HOSTS = [
+  ['arr-slot', v => `const [A] = [${ v }];`],
+  ['obj-slot', v => `const { a: A } = { a: ${ v } };`],
+  ['nested-obj-slot', v => `const { n: { a: A } } = { n: { a: ${ v } } };`],
+  ['obj-slot-default', v => `const { a: A = ${ v } } = {};`],
+  ['reassign', v => `let A = Map; if (cond) A = ${ v };`],
+];
+const VU_VALUES = [
+  ['ternary', 'cond ? Array : Map'],
+  ['logical-or', 'nul || Array'],
+  ['logical-and', 'cond && Array'],
+  ['nested-ternary', 'cond ? (cond ? Array : Map) : Map'],
+  ['seq-arm', 'cond ? (log.push(1), Array) : Map'],
+];
+const VU_EDGES = [
+  // LF-09: a REACHABLE `&&` arm under a `||` fallback keeps its guard - the falsy left selects the
+  // user's fallback (`a = 0`), the truthy one the realm's static (`a = 1`); the guarded arm must
+  // neither lose its throw path nor bind the polyfill where the fallback fires
+  { id: 'and-arm-under-or-fallback-taken',
+    pre: 'const fb = { Array: { from: () => "FB" } }; const a = 0; const { Array: { from } } = (cond ? (a && globalThis) : globalThis) || fb;',
+    obs: 'String(from([1]))' },
+  { id: 'and-arm-under-or-realm-taken',
+    pre: 'const fb = { Array: { from: () => "FB" } }; const a = 1; const { Array: { from } } = (cond ? (a && globalThis) : globalThis) || fb;',
+    obs: 'String(from([1, 2]))' },
+  // a nested destructure over `||` / `??` reaches the proxy on EITHER operand whatever the left spells
+  { id: 'nested-or-member-left', pre: 'const obj = { p: 0 }; const { Array: { from } } = obj.p || globalThis;', obs: 'String(from([1, 2]))' },
+  { id: 'nested-nullish-member-left', pre: 'const obj = { p: null }; const { Array: { from } } = obj.p ?? globalThis;', obs: 'String(from([3]))' },
+  { id: 'nested-or-call-left', pre: 'const mk = () => 0; const { Array: { from } } = mk() || globalThis;', obs: 'String(from([4, 5]))' },
+  { id: 'nested-or-member-left-truthy', pre: 'const obj = { p: { Array: { from: () => "U" } } }; const { Array: { from } } = obj.p || globalThis;', obs: 'String(from([1]))' },
+  // a spread-shifted pairing is an OPEN set: the slot holds a spread item at runtime, and the
+  // instance dispatch must stay beside the lone static candidate in every spelling of the read.
+  // the constructor element is that candidate and nothing more - the runtime pairs the spread
+  // item, the only arm carrying `at`, which is what the stripped realm can observe (the static
+  // twin with a name both arms carry, `Object.entries` against a collection's `entries`, has no
+  // strippable method and lives in the fixtures instead)
+  { id: 'shifted-reassign-positional', pre: 'const xs = [0, [7]]; let O = Array; if (cond) [, O] = [...xs, Array];', obs: 'String(O.at(0))' },
+  { id: 'shifted-reassign-keyed', pre: 'const xs = [0, [7]]; let O = Array; if (cond) ({ 1: O } = [...xs, Array]);', obs: 'String(O.at(0))' },
+  { id: 'shifted-declarator-positional', pre: 'const xs = [0, [7]]; const [, O] = [...xs, Array];', obs: 'String(O.at(0))' },
+  { id: 'shifted-declarator-keyed', pre: 'const xs = [0, [7]]; const { 1: O } = [...xs, Array];', obs: 'String(O.at(0))' },
+  // a keyed read of an array literal past a LEADING spread enumerates the statics after it, as
+  // the positional spelling does: a short spread lands the static in the slot. a stored `Map`
+  // holds pure to the guard: its narrow constructor entry carries no statics, so a read that
+  // substituted the entry for the alias instead of guarding it would answer `undefined`
+  { id: 'leading-spread-keyed-static', pre: 'const rest = [1]; const { 1: w } = [...rest, Map];', obs: 'typeof w.groupBy' },
+  { id: 'leading-spread-positional-static', pre: 'const rest = [1]; const [, w] = [...rest, Map];', obs: 'typeof w.groupBy' },
+  // a deeply nested branching write unfolds to its LAST arm: the open value at the bottom of
+  // forty levels keeps the instance dispatch the way a shallow chain does
+  { id: 'deep-branching-write-bottom-arm',
+    pre: `const maybe = [7]; let O = Array; O = ${ Array.from({ length: 40 }).reduce(expr => `(cond ? ${ expr } : Array)`, 'maybe') };`,
+    obs: 'String(O.at(0))' },
+  // a UNION-typed parameter default serves the arm the runtime takes: the array arm keeps its own
+  // instance method beside the string arm's
+  { id: 'union-param-default-array-arm', pre: 'const f = ({ at } = cond ? [9] : "s") => at; const got = f();', obs: 'typeof got' },
+];
+function * generateValueUnion() {
+  for (const [host, wrap] of VU_HOSTS) for (const [value, expr] of VU_VALUES) {
+    const body = `(() => { ${ wrap(expr) } return String(A.from([1, 2])); })()`;
+    yield { ...snippet(`value-union/${ host }/${ value }`, body), strip: true };
+  }
+  for (const c of VU_EDGES) {
+    const body = `(() => { ${ c.pre } return ${ c.obs }; })()`;
+    yield { ...snippet(`value-union/${ c.id }`, body), strip: true };
+  }
+}
+
+// --- A namesake of a local callee bound in another scope ---
+// a callee's caller set is decided once, and the decision resolves every reference of the name
+// through the scope facts: a namesake bound elsewhere - a parameter of another function, a local
+// of another body - is no read of the callee, so the argument still pairs with the parameter and
+// the returned slot's static read is rewritten. the handed-out literal makes the escape census ask
+// that question before the container census does, the order that once decided the caller set on
+// names alone. the literal-method host reads the static through a method of a local literal spelled
+// like the namesake: the route asks whether THIS binding is read bare, written or destructured, so a
+// namesake's own reads open nothing here either
+const NC_NAMESAKES = [
+  ['none', ''],
+  ['other-name', 'function relabel(crate) { return crate; }'],
+  ['param', 'function relabel(box) { return box; }'],
+  ['defaulted-param', 'function relabel(box = 1) { return box; }'],
+  ['pattern-param', 'function relabel({ box }) { return box; }'],
+  ['arrow-param', 'const relabel = box => box;'],
+  ['method-param', 'const relabelling = { relabel(box) { return box; } };'],
+  ['foreign-local', 'function elsewhere() { const box = 1; return box; }'],
+];
+const NC_HANDOUTS = [
+  ['plain', ''],
+  ['handout', 'const handout = { of: () => key }; JSON.stringify(handout);'],
+];
+const NC_HOSTS = [
+  ['fn-slot', 'function box(value) { return [value]; }', 'String(box(Array)[key].from([1, 2]))'],
+  ['literal-method', 'const box = { of() { return Array; } };', 'String(box.of().from([1, 2]))'],
+];
+function * generateNamesakeCallee() {
+  for (const [host, decl, obs] of NC_HOSTS) for (const [namesake, bound] of NC_NAMESAKES) for (const [handout, extra] of NC_HANDOUTS) {
+    const body = `(() => { const key = [0].pop(); ${ decl } ${ bound } ${ extra } return ${ obs }; })()`;
+    yield { ...snippet(`namesake-callee/${ host }/${ namesake }/${ handout }`, body), strip: true };
+  }
+}
+
+// --- A static read on a receiver that may hold more than one value ---
+// no single constructor is named there, so pure reads the static raw off whatever arrived, and the arm
+// it minted a pure constructor into has to be the entry carrying that constructor's statics. each
+// row touches the static it reads, so its answer is its own and never a neighbour's import; which
+// entry the arm takes is the fixture `ambiguous-static-receiver-holds-entry`'s to lock
+const AMBIGUOUS_STATIC_ROWS = [
+  ['selection-alias', 'void Map.groupBy; const ns = on ? Map : Promise;', 'String(ns.groupBy([1, 2], x => x % 2).size)'],
+  ['logical-alias', 'void Promise.try; const ns = off || Promise;', 'typeof ns.try'],
+  ['inline-selection', 'void Iterator.from;', 'String((on ? Iterator : Map).from([1, 2]).toArray())'],
+  ['slot-over-selection', 'void Promise.allSettled; const box = on ? { A: Promise } : { A: Map };', 'typeof box.A.allSettled'],
+  ['selection-in-slot', 'void Promise.any; const box = { A: on ? Promise : Map };', 'typeof box.A.any'],
+  [
+    'slot-of-disagreeing-returns',
+    'void Promise.withResolvers; function make() { if (on) return { A: Promise }; return { A: Map }; }',
+    'typeof make().A.withResolvers',
+  ],
+];
+function * generateAmbiguousStaticReceivers() {
+  for (const [name, decl, obs] of AMBIGUOUS_STATIC_ROWS) {
+    const body = `(() => { const on = [1].length > 0; const off = [].pop(); ${ decl } return ${ obs }; })()`;
+    yield { ...snippet(`ambiguous-static/${ name }`, body), strip: true };
+  }
+}
+
+// --- A static read off a constructor a container slot, a call or a receiver hands on ---
+// the read side names the constructor where it can and the census holds the entry where it cannot:
+// a selecting return with a parameter arm, a callback a local function calls, a tagged template in a
+// slot, a guarded alias in a slot or a selection, a member stored in a slot, a getter behind one -
+// effectful or not - an `in` probe, a for-of head, a parameter default, a const-folded key, a receiver
+// an invoker hands on. each row touches the static it reads, so its answer is its own
+const CONTAINER_STATIC_ROWS = [
+  [
+    'parameter-arm-for-of',
+    'void Promise.try; function f(opt) { return opt || Promise; }',
+    '(() => { for (const { try: t } of [f()]) return typeof t; })()',
+  ],
+  [
+    'returned-default-to-parameter',
+    'void URL.canParse; function f(U = URL) { return U; } function g({ canParse }) { return typeof canParse; }',
+    'g(f())',
+  ],
+  [
+    'callback-result-in-slot',
+    'void URL.canParse; function run(cb) { return cb(); } const list = [run(() => URL)];',
+    'String(list[0].canParse("a:b"))',
+  ],
+  [
+    'tagged-template-in-slot',
+    'void Iterator.from; function tag() { return Iterator; } const list = [tag`x`];',
+    'String(list[0].from([5]).toArray())',
+  ],
+  ['static-block-alias-in-slot', 'void Map.groupBy; let M0; class K { static { M0 = Map; } }', 'typeof [M0][0].groupBy'],
+  ['cross-function-alias-in-slot', 'void Promise.try; let M0; function init() { M0 = Promise; } init();', 'typeof [M0][0].try'],
+  ['assigned-alias-selection', 'void Iterator.from; let M0; M0 = Iterator;', 'typeof (on ? M0 : M0).from'],
+  ['static-field-in-slot', 'void Map.groupBy; class K { static M = Map; } const list = [K.M];', 'typeof list[0].groupBy'],
+  [
+    'static-getter-in-slot',
+    'void Promise.withResolvers; class K { static get P() { return Promise; } } const list = [K.P];',
+    'typeof list[0].withResolvers',
+  ],
+  ['effectful-static-getter', 'void Map.groupBy; let n = 0; class K { static get M() { n++; return Map; } }', 'typeof K.M.groupBy + n'],
+  [
+    'effectful-getter-destructured',
+    'void Map.groupBy; let n = 0; const o = { get M() { n++; return Map; } }; const { groupBy } = o.M;',
+    'typeof groupBy + n',
+  ],
+  [
+    'effectful-getter-behind-sequence',
+    'void Map.groupBy; let n = 0; class K { static get M() { n++; return Map; } } const { groupBy } = (n++, K.M);',
+    'typeof groupBy + n',
+  ],
+  [
+    'effectful-getter-assigned',
+    'void Map.groupBy; let n = 0; class K { static get M() { n++; return Map; } } let g; ({ groupBy: g } = (n++, K.M));',
+    'typeof g + n',
+  ],
+  ['sequence-call-assigned', 'void Map.groupBy; let n = 0; function f() { return Map; } let g; ({ groupBy: g } = (n++, f()));', 'typeof g + n'],
+  ['tagged-template-assigned', 'void Map.groupBy; function tag() { return Map; } let g; ({ groupBy: g } = tag`x`);', 'typeof g'],
+  ['in-over-slot', 'void Map.groupBy; class K { static M = Map; } const box = { M: K.M };', 'String("groupBy" in box.M)'],
+  ['for-of-member-element', 'void Promise.try; class K { static P = Promise; }', '(() => { for (const P of [K.P]) return typeof P.try; })()'],
+  [
+    'disagreeing-returns-destructured',
+    'void Promise.try; function f() { if (on) return Promise; return Set; } const { try: t } = f();',
+    'typeof t',
+  ],
+  [
+    'disagreeing-returns-for-of',
+    'void Map.groupBy; function f() { if (on) return Map; return Set; }',
+    '(() => { for (const { groupBy } of [f()]) return typeof groupBy; })()',
+  ],
+  ['parameter-default-member', 'void Map.groupBy; class K { static M = Map; } function f({ groupBy } = K.M) { return typeof groupBy; }', 'f()'],
+  [
+    'parameter-default-nested',
+    'void Map.groupBy; class K { static M = Map; } function f({ M: { groupBy } } = K) { return typeof groupBy; }',
+    'f()',
+  ],
+  [
+    'parameter-default-open-caller',
+    'void Map.groupBy; const o = { M: Map }; function f({ groupBy } = o.M) { return typeof groupBy; }',
+    'f() + f({})',
+  ],
+  ['const-folded-key', "void Map.groupBy; const o = { g: Map }; const k = 'g';", 'typeof o[k].groupBy'],
+  ['invoker-receiver', 'void Map.groupBy; function g() { return typeof this.groupBy; }', 'g.call(Map)'],
+  ['bound-receiver', 'void Promise.try; function g() { return typeof this.try; }', 'g.bind(Promise)()'],
+  [
+    'closure-over-member-alias',
+    'void Promise.try; class K { static P = Promise; } const kept = K.P; const get = () => kept; const list = [get()];',
+    'typeof list[0].try',
+  ],
+];
+function * generateContainerStaticReceivers() {
+  for (const [name, decl, obs] of CONTAINER_STATIC_ROWS) {
+    const body = `(() => { const on = [1].length > 0; ${ decl } return ${ obs }; })()`;
+    yield { ...snippet(`container-static/${ name }`, body), strip: true };
+  }
+}
+
+// --- A destructure off the container a call returns ---
+// a pattern declarator whose init is a CALL pairs through the call canon's returned literal the way
+// an inline literal pairs: a factory, its array twin, a block body with a statement ahead of the
+// return, an IIFE, a slot the callee fills from a parameter (the call's argument), a nested slot, a
+// method of a literal. a branching slot and disagreeing free returns pair as a union - usage-global
+// injects every arm, pure guards the read - and a callee-spelled name resolves in the callee's
+// scope, so a namesake at the call site cannot capture it
+const CP_ROWS = [
+  ['factory-obj', 'const f = () => ({ a: Array }); const { a: A } = f();', 'String(A.from([1, 2]))'],
+  ['factory-arr', 'const f = () => [Array]; const [A] = f();', 'String(A.from([1, 2]))'],
+  ['block-effect', 'function f() { log.push(1); return { a: Array }; } const { a: A } = f();', 'String(A.from([1, 2])) + log.length'],
+  ['iife', 'const { a: A } = (() => ({ a: Array }))();', 'String(A.from([1, 2]))'],
+  ['param-slot', 'const f = x => ({ a: x }); const { a: A } = f(Array);', 'String(A.from([1, 2]))'],
+  ['param-beside-literal', 'const f = x => ({ a: Array, b: x }); const { a: A, b: B } = f(Map);', 'String(A.from([1, 2])) + typeof B.groupBy'],
+  ['nested', 'const f = () => ({ n: { a: Array } }); const { n: { a: A } } = f();', 'String(A.from([1, 2]))'],
+  ['method', 'const o = { f() { return { a: Array }; } }; const { a: A } = o.f();', 'String(A.from([1, 2]))'],
+  ['branching', 'const f = () => ({ a: cond ? Array : Map }); const { a: A } = f();', 'String(A.from([1, 2]))'],
+  ['returns-disagree', 'function f() { if (cond) return { a: Array }; return { a: Map }; } const { a: A } = f();', 'String(A.from([1, 2]))'],
+  ['default-beside-call', 'const f = () => ({}); const { a: A = Array } = f();', 'String(A.from([1, 2]))'],
+  ['callee-scope-name', 'const f = () => ({ a: Map }); let got; { const Map = { groupBy: () => "shadow" }; const { a: A } = f(); got = typeof A.groupBy; }', 'got'],
+  // ... and the MEMBER forms of the same reads: the walk goes on from the argument or from the
+  // callee's literal, through a binding of the call and a binding of a slot off it alike
+  ['member-literal-slot', 'const f = x => ({ a: Array, b: x });', 'String(f(Map).a.from([1, 2]))'],
+  ['member-param-slot', 'const f = x => ({ a: Array, b: x });', 'typeof f(Map).b.groupBy'],
+  ['member-bound-call', 'const f = x => ({ a: Array, b: x }); const o = f(Map);', 'String(o.a.from([1, 2])) + typeof o.b.groupBy'],
+  ['member-captured-container', 'const f = x => ({ n: { c: Array, d: x } }); const n = f(Map).n;', 'String(n.c.from([1, 2])) + typeof n.d.groupBy'],
+  ['member-captured-container-plain', 'const f = () => ({ n: { c: Array } }); const n = f().n;', 'String(n.c.from([1, 2]))'],
+  ['member-effectful-callee', 'const f = x => { log.push(x); return { a: Array, b: x }; };', 'String(f(Map).a.from([1, 2])) + log.length'],
+  // a slot handed out carries the callee-spelled constructor out WHOLE - the namespace, statics
+  // included - and a slot the file WROTE before the pattern read it reaches the read with its
+  // written value: usage-global injects for it (the literal's own beside), pure declines such a read
+  // outright, so those two rows run without the pure stripped oracle
+  // ... read back through the handout (pure: the namespace carries the static) and through the
+  // slot's own name (usage-global attributes the static there, never through the opaque handout)
+  [
+    'handout-of-call-slot',
+    'const f = () => ({ a: Map }); const { a: A } = f(); const kept = []; function keep(v) { kept.push(v); } keep(A);',
+    'typeof kept[0].groupBy + typeof A.groupBy',
+  ],
+  ['written-call-bound-slot', 'const f = () => ({ a: Object }); const o = f(); o.a = Map; const { a: A } = o;', 'typeof A.groupBy', false],
+  ['written-literal-slot', 'const o = { a: Object }; o.a = Map; const { a: A } = o;', 'typeof A.groupBy', false],
+  // ... and a READ stepping through a call or a selection on its way out carries the constructor out
+  // whole too: a member of a call, one of a callee with several returns, a nested pattern level over
+  // a call, a member of a selecting container and a pattern over a logical one, each handed to a
+  // function the file cannot see into. the static is read off the handed-out value alone, so only the
+  // entry the constructor takes can supply it
+  ['handout-member-of-call', 'const sink = new Function("v", "return v"); const f = x => ({ a: x }); const held = sink(f(Map).a);', 'typeof held.groupBy'],
+  [
+    'handout-member-of-returns',
+    'const sink = new Function("v", "return v"); function f() { if (!cond) return { a: Math }; return { a: Map }; }'
+      + ' const held = sink(f().a);',
+    'typeof held.groupBy',
+  ],
+  [
+    'handout-nested-pattern-over-call',
+    'const sink = new Function("v", "return v"); const f = x => ({ a: x }); const { k: { a: A } } = { k: f(Map) };'
+      + ' const held = sink(A);',
+    'typeof held.groupBy',
+  ],
+  [
+    'handout-member-of-selection',
+    'const sink = new Function("v", "return v"); const o = cond ? { a: Map } : { a: Math }; const held = sink(o.a);',
+    'typeof held.groupBy',
+  ],
+  [
+    'handout-pattern-over-logical',
+    'const sink = new Function("v", "return v"); const { a: A } = !cond || { a: Map }; const held = sink(A);',
+    'typeof held.groupBy',
+  ],
+  // ... and a pattern level whose value is a selection or a call pairs every arm and what the call canon
+  // pairs the call with, nested levels included
+  ['pattern-over-selection-read', 'const { a: A } = cond ? { a: Array } : { a: Math };', 'String(A.from([1, 2]))'],
+  ['nested-pattern-over-selection-read', 'const { k: { a: A } } = { k: cond ? { a: Array } : { a: Math } };', 'String(A.from([1, 2]))'],
+  ['nested-pattern-over-call-read', 'const f = () => ({ a: Array }); const { k: { a: A } } = { k: f() };', 'String(A.from([1, 2]))'],
+  [
+    'nested-pattern-over-returns-read',
+    'function f() { if (!cond) return { a: Math }; return { a: Array }; } const { k: { a: A } } = { k: f() };',
+    'String(A.from([1, 2]))',
+  ],
+  // the pattern ASSIGNMENT forms pair the same way
+  ['assign-obj', 'const f = () => ({ a: Array }); let A; ({ a: A } = f());', 'String(A.from([1, 2]))'],
+  ['assign-arr', 'const f = () => [Array]; let A; [A] = f();', 'String(A.from([1, 2]))'],
+  // the for-of HEAD and the assignment head over a call element, a computed key and a container
+  // primary reached through a pattern write over a call, an array wrapper over a call (the callee's
+  // literal, a parameter-filled slot), and a SEQUENCE return whose effect the callee keeps
+  ['for-of-head', 'const f = () => ({ a: Array }); let got; for (const { a: A } of [f()]) got = String(A.from([1, 2]));', 'got'],
+  ['for-of-head-nested', 'const f = () => ({ n: Array }); let got; for (const { n: { from: F } } of [f()]) got = String(F([1, 2]));', 'got'],
+  ['assign-head', 'const f = () => ({ a: Array }); let A, got; for ({ a: A } of [f()]) got = String(A.from([1, 2]));', 'got'],
+  ['computed-key-write', 'const f = () => ({ K: "from" }); let K = "x"; ({ K } = f());', 'String(Array[K]([1, 2]))'],
+  ['container-write', 'const f = () => ({ w: { k: Array } }); let w = {}; ({ w } = f());', 'String(w.k.from([1, 2]))'],
+  ['wrapper-literal', 'const f = () => [{ a: Array }]; const [{ a: A }] = f();', 'String(A.from([1, 2]))'],
+  ['wrapper-param', 'const g = x => [x]; const [{ from: F }] = g(Array);', 'String(F([1, 2]))'],
+  ['wrapper-param-keyed', 'const g = x => [{ a: x }]; const [{ a: { from: F } }] = g(Array);', 'String(F([1, 2]))'],
+  ['for-of-array-head-alias', 'const w = [Array, 1]; let got; for (const [{ from: F }, x] of [w]) got = String(F([1, 2])) + x;', 'got'],
+  ['for-of-array-head-call', 'const f = () => [Array]; let got; for (const [{ from: F }] of [f()]) got = String(F([1, 2]));', 'got'],
+  // ... an IIFE element is mirrored inside its body (the sibling slot and the effect stay), a call
+  // element beside a bound sibling takes the slot default; an ARRAY pattern under a KEY descends
+  // after the key - a container, a call, a parameter slot, a default - and only an array literal
+  // at that level answers (an object with a numeric key throws, a truncated level throws, a
+  // repositioned level reads what the runtime holds)
+  ['for-of-array-head-iife', 'let got; for (const [{ from: F }, x] of [(() => [Array, 1])()]) got = String(F([1, 2])) + x;', 'got'],
+  [
+    'for-of-array-head-iife-body',
+    'let got; for (const [{ from: F }] of [(() => { log.push(1); return [Array]; })()]) got = String(F([1, 2])) + log.length;',
+    'got',
+  ],
+  ['for-of-array-head-call-sibling', 'const f = () => [Array, 1]; let got; for (const [{ from: F }, x] of [f()]) got = String(F([1, 2])) + x;', 'got'],
+  ['array-under-key-alias', 'const w = { k: [Array] }; const { k: [{ from: F }] } = w;', 'String(F([1, 2]))'],
+  ['array-under-key-call', 'const f = () => ({ k: [Array] }); const { k: [{ from: F }] } = f();', 'String(F([1, 2]))'],
+  ['array-under-key-param', 'const g = x => ({ k: [1, x] }); const { k: [, { from: F }] } = g(Array);', 'String(F([1, 2]))'],
+  ['array-under-key-head', 'const w = { k: [Array] }; let got; for (const { k: [{ from: F }] } of [w]) got = String(F([1, 2]));', 'got'],
+  ['array-under-key-default', 'const f = () => ({ k: [Array] }); function g({ k: [{ from: F }] } = f()) { return String(F([1, 2])); }', 'g()'],
+  [
+    'array-under-key-object-level',
+    'const w = { k: { 0: Array } }; let got; try { const { k: [{ from: F }] } = w; got = typeof F; } catch (error) { got = error.constructor.name; }',
+    'got',
+  ],
+  ['array-under-key-shifted', 'const w = { k: [Array] }; w.k.unshift({ from: () => "shifted" }); const { k: [{ from: F }] } = w;', 'F()'],
+  [
+    'array-length-truncated',
+    'const w = [Array]; w.length = 0; let got; try { const [{ from: F }] = w; got = typeof F; } catch (error) { got = error.constructor.name; }',
+    'got',
+  ],
+  // a call with a PASSTHROUGH sibling runs once into a memo the sibling reads off (a head, a parameter
+  // default, a call argument); a head over several elements mirrors each; a parameter default over a
+  // bound container reads the sibling by name; a call argument over a call keeps the call ahead
+  ['memo-head-object', 'const f = () => (log.push(1), { k: Array, z: 2 }); let got; for (const { k: { from: F }, z } of [f()]) got = String(F([1, 2])) + z + log.length;', 'got'],
+  ['memo-head-array', 'const f = () => (log.push(1), [Array, 2]); let got; for (const [{ from: F }, x] of [f()]) got = String(F([1, 2])) + x + log.length;', 'got'],
+  ['memo-param-default',
+    'const f = () => (log.push(1), { k: Array, z: 2 }); function g({ k: { from: F }, z } = f()) { return String(F([1, 2])) + z + log.length; }',
+    'g() + g({ k: { from: () => [] }, z: 9 })'],
+  ['memo-call-argument', 'const f = () => (log.push(1), [Array, 2]); function g([{ from: F }, x]) { return String(F([1, 2])) + x + log.length; }', 'g(f())'],
+  ['call-argument-array', 'const f = () => [Array]; function g([{ from: F }]) { return String(F([1, 2])); }', 'g(f())'],
+  ['call-argument-object', 'const f = () => ({ k: Array }); function g({ k: { from: F } }) { return String(F([1, 2])); }', 'g(f())'],
+  ['mixed-head-alias-literal', 'const w = [Array]; let got = ""; for (const [{ from: F }] of [w, [Array]]) got += String(F([1, 2]));', 'got'],
+  ['mixed-head-call-literal', 'const f = () => [Array]; let got = ""; for (const [{ from: F }] of [f(), [Array]]) got += String(F([1, 2]));', 'got'],
+  ['mixed-head-literal-iife', 'let got = ""; for (const [{ from: F }] of [[Array], (() => [Array])()]) got += String(F([1, 2]));', 'got'],
+  ['param-default-container-sibling', 'const w = [Array, 2]; function g([{ from: F }, x] = w) { return String(F([1, 2])) + x; }', 'g()'],
+  ['param-default-call', 'const f = () => ({ k: Array }); function g({ k: { from: F } } = f()) { return String(F([1, 2])); }', 'g()'],
+  // a NAME bound to the call pairs as the call does; a head over several elements claims per element,
+  // IIFEs and parameter-filled slots among them; the assignment form beside a bound sibling over a
+  // foreign wrapper takes the overwrite
+  ['alias-of-call-head', 'const f = () => ({ k: [Array] }); const w = f(); let got; for (const { k: [{ from: F }] } of [w]) got = String(F([1, 2]));', 'got'],
+  ['alias-of-call-default', 'const f = () => ({ k: Array }); const w = f(); function g({ k: { from: F } } = w) { return String(F([1, 2])); }', 'g()'],
+  ['alias-of-call-argument', 'const f = () => [Array, 1]; const w = f(); function g([{ from: F }, x]) { return String(F([1, 2])) + x; }', 'g(w)'],
+  ['two-iife-head', 'let got = ""; for (const { k: { from: F } } of [(() => ({ k: Array }))(), (() => ({ k: Array }))()]) got += String(F([1, 2]));', 'got'],
+  ['mixed-head-param-nested', 'const g = x => [{ k: x }]; let got = ""; for (const [{ k: { from: F } }] of [g(Array), [{ k: Array }]]) got += String(F([1, 2]));', 'got'],
+  ['assign-sibling-foreign-wrapper', 'const f = () => [Array, 1]; let F, x; [{ from: F }, x] = f();', 'String(F([1, 2])) + x'],
+  ['seq-return', 'const f = () => (log.push(1), { a: Array }); const { a: A } = f();', 'String(A.from([1, 2])) + log.length'],
+  ['seq-return-nested', 'const f = () => (log.push(1), { n: Array }); const { n: { from: F } } = f();', 'String(F([1, 2])) + log.length'],
+  ['for-of-seq-return-nested', 'const f = () => (log.push(1), { n: Array }); let got; for (const { n: { from: F } } of [f()]) got = String(F([1, 2])) + log.length;', 'got'],
+  // the write census over an ARRAY a call yields: a slot write, a truncation and a handout through the
+  // binding each leave the read native (pure declines by design, so the global leg is the oracle);
+  // a keyed element and an alias of the call run the call exactly once
+  ['written-call-array', 'const f = () => [Array, Map]; const w = f(); w[0] = {}; const [{ from: F } = {}] = w;', 'typeof F', false],
+  ['truncated-call-array', 'const f = () => [Array, Map]; const w = f(); w.length = 0; const [{ of: F } = {}] = w;', 'typeof F', false],
+  ['handout-call-array', 'const f = () => [Array, Map]; function put(a) { a[0] = {}; } const w = f(); put(w); const [{ from: F } = {}] = w;', 'typeof F', false],
+  ['keyed-call-runs-once', 'const f = () => (log.push(1), [Array]); const { 0: { from: F } = {} } = f();', 'String(F([1, 2])) + log.length'],
+  ['alias-of-call-runs-once', 'const f = () => (log.push(1), [Array]); const w = f(); const [{ from: F } = {}] = w;', 'String(F([1, 2])) + log.length'],
+  // ... and the shapes both legs keep native: a call returning another call (the census does not follow
+  // the chain), a call behind an effect prefix (its order), a named callee's return in a selection arm
+  // (every caller reads it), and the dead fallback beside an IIFE of a static alias
+  ['call-of-call-native', 'const f = () => (log.push(1), [Array]); const g = () => f(); const [{ from: F } = {}] = g();', 'typeof F + log.length', false],
+  ['prefix-then-call-order', 'const f = () => (log.push("f"), [Array]); const [{ from: F } = {}] = (log.push("pre"), f());', 'typeof F + log.join(">")', false],
+  ['named-realm-selection-arm', 'function r() { return globalThis; } const { Array: { from: F } } = r() || globalThis;', 'typeof F + (r() === globalThis)', false],
+  ['iife-static-alias-selection', 'const b = { Array }; const { Array: { of: F } } = (() => b)() || globalThis;', 'String(F(1, 2))', false],
+  // every INVOCATION spelling the walks follow pairs the same container: a tag (its substitutions fill
+  // the parameters after the strings), a `new` over a constructible callee - a chain root included -
+  // and an optional call of a proven callee, which never short-circuits. a write through a binding of
+  // such a call, or through a binding of a call whose slot a parameter fills, leaves the read native
+  ['tag-leaf', 'const t = () => [Array]; const [{ from: F }] = t`x`;', 'String(F([1, 2]))'],
+  ['tag-binding', 'const t = () => [Array]; const [A] = t`x`;', 'String(A.from([1, 2]))'],
+  ['tag-param-slot', ['const t = (s, x) => [x]; const [{ from: F }] = t`$', '{ Array }`;'].join(''), 'String(F([1, 2]))'],
+  ['tag-written', 'const t = () => [Array, Map]; const w = t`x`; w[0] = {}; const [{ from: F } = {}] = w;', 'typeof F', false],
+  ['new-leaf', 'function N() { return [Array]; } const [{ from: F }] = new N();', 'String(F([1, 2]))'],
+  ['new-written', 'function N() { return [Array, Map]; } const w = new N(); w[0] = {}; const [{ from: F } = {}] = w;', 'typeof F', false],
+  ['new-realm-root', 'function R() { return globalThis; } const F = new R().Array.from;', 'String(F([1, 2]))'],
+  ['optional-call', 'const f = () => [Array]; const [{ of: F }] = f?.();', 'String(F(1, 2))'],
+  ['optional-member-call', 'const o = { make: () => [Array] }; const [{ of: F }] = o?.make();', 'String(F(1, 2))'],
+  ['alias-param-slot', 'const f = x => [x, Map]; const w = f(Array); const [{ from: F }] = w;', 'String(F([1, 2]))'],
+  ['alias-param-slot-written', 'const f = x => [x, Map]; const w = f(Array); w[0] = {}; const [{ from: F } = {}] = w;', 'typeof F', false],
+  [
+    'alias-param-slot-handout',
+    'const f = x => [x, Map]; const w = f(Array); (function put(a) { a[0] = {}; })(w); const [{ from: F } = {}] = w;',
+    'typeof F',
+    false,
+  ],
+  ['tag-written-member', 'const t = () => [Array, Map]; const w = t`x`; w[0] = {};', 'typeof w[0].from', false],
+  ['new-written-member', 'function N() { return [Array, Map]; } const w = new N(); w[0] = {};', 'typeof w[0].from', false],
+  ['alias-param-slot-written-member', 'const f = x => [x, Map]; const w = f(Array); w[0] = {};', 'typeof w[0].from', false],
+  ['alias-param-slot-handout-member', 'const f = x => [x, Map]; const w = f(Array); (function put(a) { a[0] = {}; })(w);', 'typeof w[0].from', false],
+  // a callee-spelled name resolves where the callee is declared, so a PARAMETER or a body local
+  // spelling a global's name is no such global there: the slot holds what the call bound to it
+  ['namesake-param', 'const f = Array => (void Array, [Array]); const [{ of: F } = {}] = f(Map);', 'typeof F', false],
+  ['namesake-body-local', 'const f = x => { const Array = Map; return [Array, x]; }; const [{ of: F } = {}] = f(1);', 'typeof F', false],
+  // a slot's type is the one THIS call filled it with, never an earlier call's
+  ['per-call-slot-type', 'const build = x => ({ b: x }); void build([1, 2]).b.at(-1);', 'String(build("ab").b.at(-1))'],
+  // a slot default takes over where the literal provably leaves the slot undefined; a present slot
+  // keeps its own value
+  ['certain-default-empty', 'const { a: A = Array } = {};', 'String(A.from([1, 2]))'],
+  ['certain-default-undefined', 'const { a: A = Array } = { a: undefined };', 'String(A.from([1, 2]))'],
+  ['present-slot-default', 'const { a: A = Map } = { a: Array };', 'String(A.from([1, 2]))'],
+  // a for-of head over elements holding DIFFERENT constructors reads each one's static in turn
+  ['head-mixed-constructors', 'let got = ""; for (const [{ groupBy: G }] of [[Object], [Map]]) got += G([1], () => "k") instanceof Map ? "m" : "o";', 'got'],
+  // a slot the file WROTE holds the written value beside the literal's: a pattern write reads it as
+  // a declarator does, and an instance method off it serves the written value's type
+  ['pattern-write-written-slot', 'const o = { a: Math }; o.a = Array; let A = Math; ({ a: A } = o);', 'String(A.of(1, 2))'],
+  ['pattern-write-written-index', 'const w = [Math]; w[0] = Array; let A = Math; [A] = w;', 'String(A.from([1, 2]))'],
+  ['written-slot-instance', 'const o = { a: Math }; o.a = [1, 2]; const { a: L } = o;', 'String(L.at(-1))'],
+  ['written-slot-instance-nested', 'const o = { k: { m: Math } }; o.k.m = "ab"; const { k: { m: T } } = o;', 'String(T.at(-1))'],
+  // ... and a default is certain only over a slot the literal itself leaves undefined: not over a key
+  // its prototype lends, a bare `undefined` that names a binding, or a literal reached through a name
+  ['default-inherited-key', 'const { constructor: C = Array } = {};', 'typeof C.from', false],
+  ['default-prototype-key', 'const { __proto__: P = Array } = {};', 'typeof P.of', false],
+  // ... and a key the FILE writes onto a prototype is one every literal of that chain inherits too, an
+  // array hole included; the write is taken back before the snippet returns, since the realm is shared
+  [
+    'default-written-prototype-key',
+    'let seen; Object.prototype.lent = Set;'
+      + ' try { const { lent: L = Array } = {}; seen = typeof L.from; } finally { delete Object.prototype.lent; }',
+    'seen',
+    false,
+  ],
+  [
+    'default-defined-prototype-key',
+    'let seen; Object.defineProperty(Object.prototype, "given", { value: Set, configurable: true });'
+      + ' try { const { given: G = Array } = {}; seen = typeof G.of; } finally { delete Object.prototype.given; }',
+    'seen',
+    false,
+  ],
+  [
+    'default-written-array-hole',
+    'let seen; Array.prototype[0] = Set;'
+      + ' try { const [H = Array] = [,]; seen = typeof H.from; } finally { delete Array.prototype[0]; }',
+    'seen',
+    false,
+  ],
+  ['default-bare-undefined', 'function pick(undefined) { const [A = Array] = [undefined]; return A.of(); }', 'pick({ of: () => "param" })', false],
+  ['default-held-written', 'const w = []; w[0] = { from: () => "held" }; const [A = Array] = w;', 'A.from()', false],
+  // a for-of head, declared or assigned, over a written slot reads the written value too, and an array
+  // literal that held no constructor becomes a container once the file writes one into it (the member
+  // read of such a slot stays native in pure, so the global leg alone is its oracle)
+  ['head-written-slot', 'const o = { a: Math }; o.a = Array; let got; for (const { a: A } of [o]) got = String(A.of(1, 2));', 'got'],
+  ['assigned-head-written-slot', 'const o = { a: Math }; o.a = Array; let A = Math; for ({ a: A } of [o]);', 'String(A.of(1, 2))'],
+  ['inert-array-written-index', 'const w = [1]; w[0] = Object; const { 0: O } = w;', 'String(Object.keys(O.groupBy([1], x => "k")))'],
+  ['inert-array-written-member', 'const w = [1]; w[0] = Array;', 'String(w[0].of(1, 2))', false],
+  // ... and the TYPE of a written slot is the written value's: an instance method dispatches on it
+  // (a string written over an array literal, an array over a string one), whichever spelling reads it
+  ['written-slot-typed-call-member', 'const make = () => ({ a: [1, 2] }); const w = make(); w.a = "ab";', 'w.a.at(-1)'],
+  ['written-slot-typed-reassign', 'const w = { a: [1, 2] }; w.a = "ab"; let a = []; ({ a } = w);', 'a.at(-1)'],
+  ['written-slot-typed-head', 'const w = { a: [1, 2] }; w.a = "ab"; let got; for (const { a } of [w]) got = a.at(-1);', 'got'],
+  ['written-slot-typed-array', 'const w = [[1, 2]]; w[0] = "ab"; const [a] = w;', 'a.at(-1)'],
+  ['written-slot-typed-alias', 'const w = [[1, 2]]; w[0] = "ab"; const [x] = [w]; const [a] = x;', 'a.at(-1)'],
+  ['written-slot-typed-to-array', 'const make = () => ({ f: "ef" }); const w = make(); w.f = [[1], [2]];', 'String(w.f.flat())'],
+  ['written-slot-typed-hop', 'const w = { k: { a: [1, 2] } }; w.k = { a: "ab" };', 'w.k.a.at(-1)'],
+  ['written-slot-typed-getter-held', 'const o = { get g() { return { a: [1, 2] }; } }; const w = o.g; w.a = "ab";', 'w.a.at(-1)'],
+  // a pattern read BELOW a written prefix reaches the constructor the written literal holds
+  ['written-prefix-pattern', 'const box = { a: { N: Math } }; box.a = { N: Array }; const { a: { N: A } } = box;', 'String(A.of(1, 2))'],
+  ['define-property-pattern', 'const box = { a: Math }; Object.defineProperty(box, "a", { value: Array }); const { a: A } = box;', 'String(A.of(1, 2))'],
+  ['reflect-set-pattern', 'const box = { a: Math }; Reflect.set(box, "a", Array); const { a: A } = box;', 'String(A.of(1, 2))'],
+  // ... and whatever spelling the store's callee takes
+  ['destructured-store-pattern', 'const { assign } = Object; const box = { a: Math }; assign(box, { a: Array }); const { a: A } = box;', 'String(A.of(1, 2))'],
+  ['call-store-pattern', 'const box = { a: Math }; Reflect.set.call(null, box, "a", Array); const { a: A } = box;', 'String(A.of(1, 2))'],
+];
+// ... and under `await`: a non-thenable result is what the await hands on, while a thenable one hands
+// on what its `then` resolves, so its slot stays native
+const CP_AWAIT_ROWS = [
+  ['await-leaf', 'const f = () => [Array]; const [{ from: F }] = await f();', 'String(F([1, 2]))'],
+  ['await-written', 'const f = () => [Array, Map]; const w = await f(); w[0] = {}; const [{ from: F } = {}] = w;', 'typeof F', false],
+  ['await-written-member', 'const f = () => [Array, Map]; const w = await f(); w[0] = {};', 'typeof w[0].from', false],
+  ['await-thenable', 'const f = () => ({ then(r) { r({ a: { from: () => "then" } }); }, a: Array }); const { a: { from: F } } = await f();', 'F()', false],
+  // ... and a `then` the FILE writes onto a prototype makes every literal a thenable; the `then` takes
+  // itself back first, since the realm is shared
+  [
+    'await-written-object-then',
+    'Object.prototype.then = function (r) { delete Object.prototype.then; r({ a: Set }); };'
+      + ' const f = () => ({ a: Array }); const { a: A } = await f();',
+    'typeof A.from',
+    false,
+  ],
+  [
+    'await-written-array-then',
+    'Array.prototype.then = function (r) { delete Array.prototype.then; r([Set]); };'
+      + ' const f = () => [Array]; const [A] = await f();',
+    'typeof A.of',
+    false,
+  ],
+  ['await-realm-root', 'const r = () => globalThis; const F = (await r()).Array.from;', 'String(F([1, 2]))'],
+];
+function * generateCallPairedSlot() {
+  for (const [id, pre, obs, strip = true] of CP_ROWS) {
+    yield { ...snippet(`call-paired-slot/${ id }`, `(() => { const log = []; ${ pre } return ${ obs }; })()`), strip };
+  }
+  for (const [id, pre, obs, strip = true] of CP_AWAIT_ROWS) {
+    yield { ...snippet(`call-paired-slot/${ id }`, `await (async () => { const log = []; ${ pre } return ${ obs }; })()`), strip };
+  }
+}
+
+// --- A read of a container slot the file WROTE ---
+// the slot holds the literal's value or a written one, and every read route owes the written one:
+// usage-global injects for it, pure guards a binding's read on it and keeps a read with no binding to
+// guard - a member, a leaf - native, which leaves those rows to the global leg alone. the literal spells
+// `Math` (no `of`) and the write installs `Array`, so a lost polyfill throws in the stripped realm
+const WS_CONTAINERS = [
+  { id: 'object', decl: 'const w = { a: Math };', write: 'w.a = Array;', slot: '{ a: A }', leaf: '{ a: { of: F } }', member: 'w.a' },
+  { id: 'object-computed', decl: 'const w = { a: Math };', write: 'w["a"] = Array;', slot: '{ a: A }', leaf: '{ a: { of: F } }', member: 'w.a' },
+  { id: 'array', decl: 'const w = [Math];', write: 'w[0] = Array;', slot: '[A]', leaf: '[{ of: F }]', member: 'w[0]' },
+  // an array literal that held no constructor becomes a container once the file writes one into it
+  { id: 'array-inert', decl: 'const w = [1];', write: 'w[0] = Array;', slot: '[A]', leaf: '[{ of: F }]', member: 'w[0]' },
+  { id: 'object-assign', decl: 'const w = { a: Math };', write: 'Object.assign(w, { a: Array });', slot: '{ a: A }', leaf: '{ a: { of: F } }', member: 'w.a' },
+  { id: 'call-object', decl: 'const make = () => ({ a: Math }); const w = make();', write: 'w.a = Array;', slot: '{ a: A }', leaf: '{ a: { of: F } }', member: 'w.a' },
+  { id: 'nested', decl: 'const w = { k: { a: Math } };', write: 'w.k.a = Array;', slot: '{ k: { a: A } }', leaf: '{ k: { a: { of: F } } }', member: 'w.k.a' },
+];
+const WS_READS = [
+  { id: 'declared', body: c => `const ${ c.slot } = w;`, obs: () => 'String(A.of(1, 2))', strip: true },
+  { id: 'reassigned', body: c => `let A = Math; (${ c.slot } = w);`, obs: () => 'String(A.of(1, 2))', strip: true },
+  { id: 'head', body: c => `let got; for (const ${ c.slot } of [w]) got = String(A.of(1, 2));`, obs: () => 'got', strip: true },
+  { id: 'assigned-head', body: c => `let A = Math; for (${ c.slot } of [w]);`, obs: () => 'String(A.of(1, 2))', strip: true },
+  { id: 'member', body: () => '', obs: c => `String(${ c.member }.of(1, 2))`, strip: false },
+  { id: 'leaf', body: c => `const ${ c.leaf } = w;`, obs: () => 'String(F(1, 2))', strip: false },
+];
+function * generateWrittenSlotReads() {
+  for (const c of WS_CONTAINERS) for (const r of WS_READS) {
+    const body = `(() => { ${ c.decl } ${ c.write } ${ r.body(c) } return ${ r.obs(c) }; })()`;
+    yield { ...snippet(`written-slot-read/${ c.id }/${ r.id }`, body), strip: r.strip };
   }
 }
 
@@ -7245,7 +7753,7 @@ function * generateMutatedStatic() {
 
 // A static patched through a route the census pairs with the call's ARGUMENT: the pure leg must keep
 // the native read (the author's patch wins), on both legs alike. Each route hands `Array` to a
-// function and writes `from` through what comes back - or through what the parameter reached.
+// function and writes `from` through what comes back.
 const ESCAPE_ROUTES = [
   { id: 'identity-return-second-param', setup: 'function pick(a, b) { return b; }', write: 'pick(1, Array).from = patched;' },
   { id: 'identity-return-first-param', setup: 'function pick(a, b) { return a; }', write: 'pick(Array, 1).from = patched;' },
@@ -7254,9 +7762,17 @@ const ESCAPE_ROUTES = [
   { id: 'tagged-template', setup: 'const tag = (s, x) => x;', write: ['tag`$', '{ Array }`.from = patched;'].join('') },
   { id: 'returned-in-array', setup: 'function box(x) { return [x]; }', write: 'box(Array)[0].from = patched;' },
   { id: 'returned-in-object', setup: 'function box(x) { return { x }; }', write: 'box(Array).x.from = patched;' },
-  { id: 'arguments-slot', setup: 'function m(x) { arguments[0].from = patched; }', write: 'm(Array);' },
-  { id: 'arguments-alias', setup: 'function m(x) { const a = arguments; a[0].from = patched; }', write: 'm(Array);' },
-  { id: 'parameter-stored-outside', setup: 'let held; function keep(x) { held = x; }', write: 'keep(Array); held.from = patched;' },
+  // ... and the slot a PATTERN declarator takes off the container a NAMED call yields, the callee's
+  // effect kept where its return is a SEQUENCE
+  { id: 'destructured-call-slot', setup: 'const build = () => ({ x: Array });', write: 'const { x: A } = build(); A.from = patched;' },
+  { id: 'seq-return-call-slot', setup: 'let n = 0; const build = () => (n++, { x: Array });', write: 'const { x: A } = build(); A.from = patched;' },
+  // ... and other INVOCATION spellings of such a call: a slot a parameter of an IIFE or of a `new`
+  // fills, a destructured `new`, a tag's substitution and an awaited call
+  { id: 'iife-param-slot', setup: '', write: 'const w = (x => [x, Map])(Array); w[0].from = patched;' },
+  { id: 'new-param-slot', setup: 'function N(x) { return [x, Map]; }', write: 'const w = new N(Array); w[0].from = patched;' },
+  { id: 'new-destructured-slot', setup: 'function N() { return [Array]; }', write: 'const [A] = new N(); A.from = patched;' },
+  { id: 'tag-param-destructured-slot', setup: 'const t = (s, x) => [x];', write: ['const [A] = t`$', '{ Array }`; A.from = patched;'].join('') },
+  { id: 'await-destructured-slot', setup: 'const build = () => [Array];', write: 'const [A] = await build(); A.from = patched;', awaits: true },
 ];
 function * generateEscapeCensusRoutes() {
   const invokers = [
@@ -7272,9 +7788,11 @@ function * generateEscapeCensusRoutes() {
     { id: `${ invoker }-returned-object-slot`, setup: 'function pick(a, b) { return { x: b }; }', write: `${ call }.x.from = patched;` },
   ]);
   for (const route of [...ESCAPE_ROUTES, ...pairedRoutes]) {
-    const body = `(() => { const descriptor = _nativeObject.getOwnPropertyDescriptor(Array, "from"); const patched = () => "patched"; ${ route.setup }`
+    const body = `${ route.awaits ? 'await (async' : '(' } () => { const descriptor = _nativeObject.getOwnPropertyDescriptor(Array, "from");`
+      + ` const patched = () => "patched"; ${ route.setup }`
       + ` try { ${ route.write } return Array.from([1]); } finally { restoreProperty(Array, "from", descriptor); } })()`;
-    yield mutationSnippet(`escape-census-route/${ route.id }`, body);
+    const row = mutationSnippet(`escape-census-route/${ route.id }`, body);
+    yield route.head ? { ...row, code: `${ route.head }\n${ row.code }` } : row;
   }
 }
 
@@ -12333,6 +12851,20 @@ const CAPTURED_SELECTION_ROWS = [
   { id: 'selection-without-capture', strip: false,
     body: 'const own = () => ({ Array: { from: () => ["SHIM"] } }); const shim = own();'
       + ' const { Array: { from } } = shim || globalThis; return [from([1])[0]];' },
+  // ... and the literal-bound twin: a static container is always truthy, so the realm arm is dead on
+  // both legs - neither mirrors it, neither ships its import
+  {
+    id: 'selection-truthy-literal-left',
+    strip: false,
+    body: 'const shim = { Array: { from: () => ["SHIM"] } };'
+      + ' const { Array: { from } } = shim || globalThis; return [from([1])[0]];',
+  },
+  {
+    id: 'selection-truthy-call-left',
+    strip: false,
+    body: 'const own = () => ({ Array: { from: () => ["SHIM"] } });'
+      + ' const { Array: { from } } = own() || globalThis; return [from([1])[0]];',
+  },
 ];
 function * generateCapturedSelection() {
   for (const row of CAPTURED_SELECTION_ROWS) {
@@ -12803,7 +13335,6 @@ export function * generate() {
   yield * generateWrappedSelectingReceiver();
   yield * generateDestructureAlias();
   yield * generateParamInstalledPatch();
-  yield * generateParamInstalledPatchHosts();
   yield * generateInvokerReceiverReads();
   yield * generateCallValueProof();
   yield * generateLoopHeadElements();
@@ -12879,6 +13410,12 @@ export function * generate() {
   yield * generateFlattenSeKeySibling();
   yield * generateArrayWrapperCtorAlias();
   yield * generateAwSymbolIterDestructure();
+  yield * generateValueUnion();
+  yield * generateNamesakeCallee();
+  yield * generateAmbiguousStaticReceivers();
+  yield * generateContainerStaticReceivers();
+  yield * generateCallPairedSlot();
+  yield * generateWrittenSlotReads();
   yield * generateNestedInstanceReceiver();
   yield * generateNestedInstanceSurfaceBase();
   yield * generateParamDefaultInstance();

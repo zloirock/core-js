@@ -4,9 +4,9 @@ import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Promise$withResolvers from "@core-js/pure/actual/promise/with-resolvers";
 // A finite loop element remains a static receiver through its binding and literal spreads.
 // Member and destructured reads need their named static, without a whole namespace escape.
-for (const ctor of [Array]) (ctor === Array ? _Array$of : ctor.of.bind(ctor))(1);
+for (const ctor of [Array]) _Array$of(1);
 for (const ctor of [...[Object]]) {
-  const hasOwn = ctor === Object ? _Object$hasOwn : ctor.hasOwn;
+  const hasOwn = _Object$hasOwn;
   use(hasOwn({}, 'x'));
 }
-for (const [ctor] of [...[[_Promise]]]) (ctor === _Promise ? _Promise$withResolvers : ctor.withResolvers.bind(ctor))();
+for (const [ctor] of [...[[_Promise]]]) _Promise$withResolvers();

@@ -9,7 +9,8 @@ import _keys from "@core-js/pure/actual/instance/keys";
 import _values from "@core-js/pure/actual/instance/values";
 import _Map from "@core-js/pure/actual/map";
 import _Object$entries from "@core-js/pure/actual/object/entries";
-// Each block locks an independent destructuring assignment form.
+// Each block locks an independent form: a destructuring assignment, declaration or catch parameter,
+// or a computed member write.
 // Computed keys, stored receiver values and sibling bindings keep their source order.
 let pick = 1;
 const c = 1;
@@ -276,7 +277,7 @@ function mark(t, v) {
   });
 }
 {
-  const _ref5 = eff();
+  let _ref5 = eff();
   let values = _values(_ref5.w);
   let at = _at(_ref5.y);
   [values, at];
