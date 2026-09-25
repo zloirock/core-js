@@ -12,7 +12,7 @@ The suite rebuilds its bundles itself; only the inner scripts (`test-e2e-usage-p
 
 ## Coverage axis
 
-New coverage is keyed on **syntactic form** - destructuring, parameter defaults, optional chaining, class context, iterators, chaining, globals - not on which polyfill is involved. Ask which form is untested, not which method. Files named after a polyfill do exist here, but they are not the axis to extend.
+New coverage is keyed on **syntactic form** - destructuring, parameter defaults, optional chaining, class context, iterators, chaining, globals - not on which polyfill is involved. Ask which form is untested, not which method. Files named after a polyfill do exist here, but they are not the axis to extend. For statics, globals and global proxies the form axis ends where the provider's covered spellings end (`Statics and globals: realistic spellings only` in its `AGENTS.md`): a rarer route is an accepted limitation, not an untested form.
 
 The `.ts` files are not decoration: the plugin sees a typed AST before the types are stripped, so they are the only runtime oracle for type-driven dispatch. What they cannot host is a claim that depends on a TYPE the later phases no longer have: an enum-spelled key folds in `pre`, where the enum declaration is still there, and reads as an ordinary property in `post`, where it is lowered - so a lane asserting the polyfilled answer for such a form fails in the post and stripped legs by construction. Lock those byte-wise in a fixture and keep this suite to answers that hold whether the claim fired or not.
 

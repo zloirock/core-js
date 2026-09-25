@@ -5,8 +5,7 @@ import _Array$of from "@core-js/pure/actual/array/of";
 // The key effect runs once before either binding is initialized, and both bindings
 // receive their distinct polyfills without duplicate declarations.
 let log = [];
-const _ref = Array;
-const x = null == _ref ? _ref[""] : (_pushMaybeArray(log).call(log, 1), _Array$from);
+const x = (_pushMaybeArray(log).call(log, 1), _Array$from);
 const y = _Array$of;
 x([1]);
 y(2);

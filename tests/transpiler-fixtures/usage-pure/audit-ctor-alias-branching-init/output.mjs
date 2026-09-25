@@ -3,8 +3,8 @@ import _Map from "@core-js/pure/actual/map/constructor";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 // a BRANCHING alias init registers only when every completing path yields the global.
 // negatives: a mixed ternary, a reversed `||` (the left operand wins when truthy) and an
-// `&&` (its falsy path yields the left operand) - the member reads stay native and keep
-// their TypeError on the non-global path; the branch substitutions stay value-correct
+// `&&` (its falsy path yields the left operand) - the member reads take the static behind an
+// identity check on the substituted constructor and keep their TypeError on the non-global path
 const cond = Math.random() > 2;
 var {
   Map: M1
@@ -13,7 +13,7 @@ var {
 } : {
   Map: null
 };
-export const viaMixedTernary = cond && M1.groupBy(['a'], x => x);
+export const viaMixedTernary = cond && (M1 === _Map ? _Map$groupBy : M1.groupBy.bind(M1))(['a'], x => x);
 const fake = {
   Map: null
 };
@@ -28,7 +28,7 @@ var {
 } = cond && {
   Map: _Map
 };
-export const viaAnd = cond && M3.groupBy(['b'], x => x);
+export const viaAnd = cond && (M3 === _Map ? _Map$groupBy : M3.groupBy.bind(M3))(['b'], x => x);
 
 // defaulted forms keep folding: the fallback only runs where the global is absent
 var {

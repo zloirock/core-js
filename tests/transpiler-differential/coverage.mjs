@@ -76,7 +76,9 @@ export function mergeCoverage(parts) {
 // do. a leg missing from every shard's payload lands here too - `mergeCoverage` seeds all of them.
 // the reason names are re-checked rather than trusted: the shard validates its own bookkeeping, and
 // a gate that reads only the shard's word for it is the same unread number one level up
-export function coverageShortfalls(coverage, total) {
+// `off` names the legs the RUN switched off (the pure-only edit loop): no floor applies there, but
+// every snippet has to be skipped under that very switch - and a leg the run keeps on may not use it
+export function coverageShortfalls(coverage, total, { off = [] } = {}) {
   if (total === 0) return ['the corpus is empty: no oracle compared a snippet'];
   const shortfalls = [];
   for (const [leg, stats] of Object.entries(coverage)) {
@@ -84,7 +86,11 @@ export function coverageShortfalls(coverage, total) {
     const accounted = stats.checked + skipped;
     const unnamed = Object.keys(stats.skipped).filter(reason => !LEGS[leg].includes(reason));
     if (unnamed.length) shortfalls.push(`${ leg } skipped snippets under reasons it does not declare: ${ unnamed.join(', ') }`);
-    const floor = Math.ceil(total * LEG_FLOORS[leg]);
+    const switchedOff = off.includes(leg);
+    const runSwitch = stats.skipped['pure-only'] ?? 0;
+    if (switchedOff && runSwitch !== total) shortfalls.push(`${ leg } is off for this run, yet ${ total - runSwitch } snippets left it otherwise`);
+    if (!switchedOff && runSwitch) shortfalls.push(`${ leg } skipped ${ runSwitch } snippets as pure-only in a run that keeps it on`);
+    const floor = switchedOff ? 0 : Math.ceil(total * LEG_FLOORS[leg]);
     if (stats.checked < floor) {
       shortfalls.push(`${ leg } deep-checked ${ stats.checked } of ${ total } snippets, under its floor of ${ floor }`
         + ' - the leg stopped checking rather than abstained');

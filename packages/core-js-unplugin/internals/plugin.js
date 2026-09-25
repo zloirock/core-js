@@ -1228,6 +1228,7 @@ export default function createPlugin(options) {
           },
           paramDefaultNeverOverridden: typeResolvers.paramDefaultNeverOverridden,
           parameterCallSites: typeResolvers.parameterCallSites,
+          resolveStaticKey: (node, scope, path) => typeResolvers.resolveClaimableComputedKeyName(node, scope, path),
           resolveNodeType: typeResolvers.resolveNodeType,
           resolvePropertyObjectType: typeResolvers.resolvePropertyObjectType,
           resolvedType: typeResolvers.resolvedType,

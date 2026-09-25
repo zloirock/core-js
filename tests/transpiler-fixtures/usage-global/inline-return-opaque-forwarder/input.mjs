@@ -1,5 +1,5 @@
-// A transparent forwarder does not make the inner loop's return attributable.
-// Keep the namespace needed by the unresolved static read after both calls.
+// A transparent forwarder hands on the inner loop's returns as candidates: pure guards the
+// static read after both calls on them, and global injects for the possible Map.
 function inner() {
   while (flag) return Map;
   return custom;

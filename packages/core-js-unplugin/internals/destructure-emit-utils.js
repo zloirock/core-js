@@ -4,6 +4,7 @@
 // registry below, which lives and dies with the parse
 import {
   isReceiverShapedNode,
+  invocationNode,
   findIifeArgForParam,
   findIifeCallSite,
   unwrapSafeSequenceTail,
@@ -74,7 +75,7 @@ export function findSynthSwapReceiver(wrapperPath, objectPattern, scope, adapter
     // a fallback-shaped default (`Array || Iterator`, `?? Iterator`) collapses LEFT - the synth
     // replaces the whole expression (babel-twin contract); `&&` selects its right side and stays out
     const fallbackCollapse = peeled?.type === 'LogicalExpression' && peeled.operator !== '&&'
-      && isReceiverShapedNode(unwrapSafeSequenceTail(peeled.left));
+      && (isReceiverShapedNode(unwrapSafeSequenceTail(peeled.left)) || !!invocationNode(unwrapSafeSequenceTail(peeled.left)));
     // a `this` default inside a STATIC method reads the inherited static surface: the meta
     // funnel already resolved it against the extends host (resolution is the drain gate -
     // an unresolved `this` never reaches the synth registration), so the shape is admitted

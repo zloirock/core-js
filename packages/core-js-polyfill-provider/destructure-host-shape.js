@@ -27,6 +27,7 @@ import {
   peelTransparentExpr,
   peelToExpressionStatement,
   unwrapRuntimeExpr,
+  valueMayBeNullish,
   POSSIBLE_GLOBAL_OBJECTS,
 } from './helpers/ast-patterns.js';
 import {
@@ -51,13 +52,21 @@ import {
   agreeingTernaryArm,
   globalProxyMemberName,
   isStaticPlacement,
+  memberTargetTakesExtraction,
   resolveKey,
   proxyGlobalRootName,
   resolveObjectName,
   symbolSourcedFoldedKey,
 } from './detect-usage/resolve.js';
 import { toHint } from './resolve-node-type/base.js';
-import { discardRescueNodesWithReads, staticContainerReceiverName } from './detect-usage/destructure.js';
+import {
+  discardRescueNodesWithReads,
+  isReReadableSurfaceNav,
+  destructurePropLeafMeta,
+  isReReferenceableReceiver,
+  residualInitRunsEffects,
+  staticContainerReceiverName,
+} from './detect-usage/destructure.js';
 import { hasConstructorEntry, resolve as resolveBuiltIn } from './index.js';
 
 // shape classification for destructure hosts (VariableDeclaration / AssignmentExpression
@@ -370,18 +379,42 @@ export function renderNestedKeyedPatternCapture(plan, {
   };
 }
 
+// does a destructure key RUN code where it stands: a member target's setter, a nested pattern's reads,
+// a default or a computed key that runs? a plain binding write only ever observes
+function destructureKeyRunsCode(item) {
+  if (!isPropertyNode(item)) return true;
+  if (computedKeyHasSideEffects(item)) return true;
+  if (item.value?.type === 'AssignmentPattern' && mayHaveSideEffects(item.value.right)) return true;
+  return patternSlotTarget(item.value)?.type !== 'Identifier';
+}
+
 // An effectful key cannot keep a sentinel: that reads its getter twice. Split the level
 // into native single-property patterns. Rest only admits pristine static-only captures.
 // Nested patterns remain native operands, so their iterator/default effects keep their position.
 // A mixed static/instance claim uses the supplied identity planner over the captured receiver.
 // eslint-disable-next-line max-statements -- ordered capture admission across flat, nested and array hosts
 export function planRetainedObjectCapture({
-  pattern, init, assignment = false, prop = null, hostPath = null, adapter = null, resolveNodeType = null, injectorState = null,
-  kind = 'instance', entry = null, patternPath = null, probedInit = false, resolvePure = null,
-  resolveStaticProp = null, planGuardedNarrow = null,
+  pattern,
+  init,
+  assignment = false,
+  prop = null,
+  hostPath = null,
+  adapter = null,
+  resolveNodeType = null,
+  injectorState = null,
+  kind = 'instance',
+  entry = null,
+  patternPath = null,
+  probedInit = false,
+  resolvePure = null,
+  resolveStaticProp = null,
+  planGuardedNarrow = null,
+  resolveStaticKey = null,
+  parameterCallSites = null,
   isClaimedProp = null,
   isConsumedProp = null,
-  meta: resolvedMeta = null, provenCtorName = null,
+  meta: resolvedMeta = null,
+  provenCtorName = null,
 }) {
   if (prop && isClaimedProp?.(prop)) return null;
   const guarded = !!resolvedMeta?.guardedAliasHint && kind === 'instance';
@@ -423,6 +456,11 @@ export function planRetainedObjectCapture({
   }
 
   if (!init || pattern?.type !== 'ObjectPattern') return null;
+  // A selecting receiver with a user branch belongs to the per-branch mirror.
+  const selection = kind === 'static' && computedKeyHasSideEffects(prop)
+    ? unwrapRuntimeExpr(peelNestedSequenceExpressions(init).tail) : null;
+  if ((selection?.type === 'ConditionalExpression' || selection?.type === 'LogicalExpression')
+    && !allProxySelectingInit(selection, { adapter, injectorState })) return null;
   const guardedPlan = guarded && pattern.properties.includes(prop) && resolvePure ? planGuardedNarrow?.({
     memberNode: memberExpression(identifier(''), identifier(resolvedMeta.key)), parent: null,
     meta: resolvedMeta, path: hostPath, resolvePure, adapter,
@@ -511,27 +549,39 @@ export function planRetainedObjectCapture({
 
   // Resolve sibling statics that this capture must emit itself: assignment hosts and rest
   // captures cannot rely on later visitors to recover every claim from the minted receiver.
-  // Rest may also retain a known pristine native static. Only binding targets qualify.
+  // Rest may also retain a known pristine native static. Only binding targets qualify - and, on an
+  // assignment host, a MEMBER target the extraction canon admits: the render writes whatever it is.
   function siblingStaticEntries() {
     const ctor = initCtorName();
     if ((!assignment && !rest) || !resolveStaticProp || !resolvePure || !ctor || !isStaticPlacement(ctor)) return null;
     const entries = new Map();
     for (const item of pattern.properties) {
-      if (item === prop || !isPropertyNode(item) || !propBindingIdentifier(item.value)) continue;
+      const memberRoot = { scope: hostPath?.scope, adapter, path: hostPath };
+      if (item === prop || !isPropertyNode(item) || !(propBindingIdentifier(item.value)
+        || (assignment && !rest && memberTargetTakesExtraction(item.value, memberRoot)))) continue;
       // the key names its slot through the SCOPE-AWARE canon, effects and all: a sibling spelled
       // `[(eff(), 'of')]` or `[K]` reads the same static as the bare `of` beside it, and named by a
       // literal-only reader it stayed on the memo reading that static raw. the key's own effects are
       // replayed by the render below, which is why nothing bails on them here; an effectful identity
       // CALL still declines, since only a consumer keeping the key node where it stands may fold one
-      const keyName = resolveKey({ node: item.key, computed: item.computed, scope: hostPath?.scope, adapter, path: hostPath });
-      const resolved = resolveStaticProp({ prop: item, receiverName: ctor, keyName,
+      const keyName = resolveKey({
+        node: item.key, computed: item.computed, scope: hostPath?.scope, adapter, path: hostPath, keepsKeyNode: true,
+      });
+      const resolved = resolveStaticProp({
+        prop: item,
+        receiverName: ctor,
+        keyName,
+        memberRoot,
         resolvePure: meta => resolvePure(meta) ?? (rest && !adapter?.isMutatedStatic?.(ctor, keyName)
           && item.value.type === 'Identifier' && (resolveBuiltIn(meta)?.kind === 'static'
             || Object.hasOwn(knownBuiltInReturnTypes.staticMethods[ctor] ?? {}, keyName))
-          ? { kind: 'static', native: true } : null) });
-      if (resolved?.localName && (resolved.pure.entry || resolved.pure.native && resolved.pure.kind === 'static')) entries.set(item, {
-        entry: resolved.pure.entry, hint: resolved.pure.hintName, native: resolved.pure.native, key: keyName,
+          ? { kind: 'static', native: true } : null),
       });
+      const takes = (resolved?.localName || resolved?.targetNode)
+        && (resolved.pure.entry || (resolved.pure.native && resolved.pure.kind === 'static'));
+      if (takes) {
+        entries.set(item, { entry: resolved.pure.entry, hint: resolved.pure.hintName, native: resolved.pure.native, key: keyName });
+      }
     }
     return entries.size ? entries : null;
   }
@@ -540,10 +590,64 @@ export function planRetainedObjectCapture({
   // nothing else: an effect spelled ahead of it runs again on every re-read, so what the tail
   // names answers the memo's question, never this one
   const initReReadsFree = !peelNestedSequenceExpressions(init).prefix.length
-    && isStaticPlacement(initCtorName() ?? '');
+    && isStaticPlacement(initCtorName() ?? '')
+    // ... and where the init SPELLS it for free: a user getter typed to that name (`KE.A`) fires again
+    && (isReReferenceableReceiver(init) || isReReadableSurfaceNav(unwrapRuntimeExpr(init),
+      name => !!injectorState?.getBindingInfo?.(name), { ctx: { scope: hostPath?.scope, adapter, path: hostPath } }));
 
-  // A nested extraction stays between the outer siblings instead of overtaking their getters.
-  const nestedSibling = !assignment && (kind === 'instance' || (kind === 'static' && computedKeyHasSideEffects(prop)))
+  // An extraction beside a SURVIVING residual crosses the keys that residual still performs: ahead
+  // of it (an instance dispatch, a static over a quiet init) it overtakes every earlier key, behind
+  // it (a static whose init runs code, the residual canon) it trails every later one. The order is
+  // observable where either operation of a crossed pair runs code - a member target's setter, a
+  // nested pattern's reads, a default or a key that runs, an instance read a user function's or
+  // object's own accessor may answer - and only the ordered capture keeps every key in its slot.
+  // A sibling CLAIM is no residual key: its own route extracts it in order beside this one, except
+  // an instance claim whose target runs code, which takes this capture over what is left
+  // (asked of the HOST's own pattern only: a nested or element level recursing here carries the host's
+  // init, not the value that level reads)
+  const keyOrderSplit = !!hostPath && !!adapter && !rest && pattern.properties.includes(prop)
+    && pattern === (assignment ? hostPath.node?.left : hostPath.node?.id) && extractionCrossesResidualKeys();
+  function extractionCrossesResidualKeys() {
+    const index = pattern.properties.indexOf(prop);
+    const ahead = kind === 'instance' || !residualInitRunsEffects({ init, scope: hostPath.scope, adapter, path: hostPath });
+    const crossed = pattern.properties.filter(item => item !== prop && pattern.properties.indexOf(item) < index === ahead
+      && !isClaimedProp?.(item) && !isConsumedProp?.(item));
+    if (!crossed.length) return false;
+    const claimRuns = destructureKeyRunsCode(prop) || claimReadRunsCode();
+    return crossed.some(item => {
+      const runs = destructureKeyRunsCode(item);
+      if (!runs && !claimRuns) return false;
+      const siblingKind = siblingClaimKind(item);
+      return runs ? siblingKind !== 'static' : !siblingKind;
+    });
+  }
+  function claimReadRunsCode() {
+    if (kind !== 'instance' || isStaticPlacement(initCtorName() ?? '')) return false;
+    const type = resolveNodeType?.(hostPath.get?.(assignment ? 'right' : 'init'));
+    return type?.constructor === 'Function' || type?.constructor === 'Object';
+  }
+  function siblingClaimKind(item) {
+    if (!isPropertyNode(item) || !resolvePure) return null;
+    const levelPath = patternPath ?? hostPath.get?.(assignment ? 'left' : 'id');
+    const { meta } = destructurePropLeafMeta({
+      prop: item,
+      objectPattern: levelPath,
+      scope: hostPath.scope,
+      path: levelPath,
+      adapter,
+      resolvePure,
+      resolveStaticKey,
+      parameterCallSites,
+    });
+    return meta ? resolvePure(meta)?.kind ?? null : null;
+  }
+
+  // A nested extraction stays between the outer siblings instead of overtaking their getters. An
+  // assignment host re-spells an instance receiver in its overwrite, so it takes the capture wherever
+  // reading the init again runs code (`KE.A` fires its getter a second time) - the residual canon's question.
+  const nestedSibling = (!assignment || (kind === 'instance' && !!adapter
+    && residualInitRunsEffects({ init, scope: hostPath?.scope, adapter, path: hostPath })))
+    && (kind === 'instance' || (kind === 'static' && computedKeyHasSideEffects(prop)))
     && pattern.properties.filter(item => !isConsumedProp || !(isConsumedProp(item)
       || !computedKeyHasSideEffects(item) && patternFullyConsumed(item.value, isConsumedProp))).length > 1
     && !pattern.properties.includes(prop)
@@ -569,14 +673,19 @@ export function planRetainedObjectCapture({
   if (!narrow && !consumed && !rest && !nestedDefault && !symbolPattern && !nestedSibling
     && !((assignment || pattern.properties.length > 1 || proxyMemberElement)
       && pattern.properties.includes(prop) && computedKeyHasSideEffects(prop))
-    && !(assignment && target?.type === 'MemberExpression' && pattern.properties.includes(prop))) return null;
+    && !(assignment && target?.type === 'MemberExpression' && pattern.properties.includes(prop))
+    && !keyOrderSplit) return null;
   const primaryStatic = (consumed || rest) && kind !== 'instance' && initCtorName() && resolveStaticProp
     ? resolveStaticProp({ prop, receiverName: initCtorName(), resolvePure,
-      keyName: resolveKey({ node: prop.key, computed: prop.computed, scope: hostPath.scope, adapter, path: hostPath }) }) : null;
+      keyName: resolveKey({
+        node: prop.key, computed: prop.computed, scope: hostPath.scope, adapter, path: hostPath, keepsKeyNode: true,
+      }) }) : null;
   if ((consumed || rest) && kind !== 'instance' && !primaryStatic) return null;
   const retainedStatic = (consumed || rest ? !!primaryStatic : kind === 'static' || kind === 'global')
-    && (!assignment || target?.type === 'Identifier') && pattern.properties.includes(prop)
-    && (consumed || rest || symbolPattern || computedKeyHasSideEffects(prop));
+    && (!assignment || target?.type === 'Identifier' || (keyOrderSplit
+      && !!memberTargetTakesExtraction(prop.value, { scope: hostPath.scope, adapter, path: hostPath })))
+    && pattern.properties.includes(prop)
+    && (consumed || rest || symbolPattern || computedKeyHasSideEffects(prop) || keyOrderSplit);
   if (kind !== 'instance' && !symbolPattern && !retainedStatic && !nestedSibling) return null;
   if (!provenCtorName && !symbolPattern && !nestedSibling && adapter
     && allProxySelectingInit(init, { adapter, injectorState })) return null;
@@ -588,8 +697,21 @@ export function planRetainedObjectCapture({
     && (!propBindingIdentifier(item.value) || (item !== prop && !siblingStatics?.has(item)))))) return null;
   return { pattern, init, assignment, prop, narrow, retainedStatic, primaryPure: primaryStatic?.pure,
     siblingStatics, rest,
-    primaryKey: rest ? resolveKey({ node: prop.key, computed: prop.computed,
-      scope: hostPath.scope, adapter, path: hostPath }) : null,
+    // the receiver IS a constructor the read side names, on a spelling that cannot come out nullish
+    // (no `?.`, no lowered short-circuit): the null rejection the keyed read would keep in front of
+    // the key's effects is dead there
+    provenReceiver: !narrow && !!isStaticPlacement(initCtorName() ?? '') && !valueMayBeNullish(init),
+    // ... and a receiver that cannot come out nullish at all, narrowed or not (a selection whose
+    // fallback is proven, `x || Object`): the guarded read keeps no rejection in front of it either
+    receiverNeverNullish: keyedReadReceiverProven({ init, hostPath, adapter }),
+    primaryKey: rest ? resolveKey({
+      node: prop.key,
+      computed: prop.computed,
+      keepsKeyNode: true,
+      scope: hostPath.scope,
+      adapter,
+      path: hostPath,
+    }) : null,
     // the props an EARLIER channel already owns: its write stands where the source's claim was
     // taken, so this render neither re-extracts them nor re-spells them off the memo - a native
     // re-read there would overwrite that write with the realm's own value. one binding's channel
@@ -597,6 +719,21 @@ export function planRetainedObjectCapture({
     // and the render owes the same output either way
     claimedProps: assignment && isClaimedProp
       ? new Set(pattern.properties.filter(item => isClaimedProp(item))) : null };
+}
+
+// the receiver of a keyed destructure read IS a constructor the read side names, on a spelling that
+// cannot come out nullish (no `?.`, no lowered short-circuit): the null-first rejection the read keeps
+// in front of the key's effects is dead there
+export function keyedReadReceiverProven({ init, hostPath, adapter }) {
+  if (!adapter || !init || valueMayBeNullish(init)) return false;
+  let value = installedWriteValue(init);
+  // a `||` / `??` selection yields its LEFT only where that is truthy / non-nullish, so a right operand
+  // proven here proves the whole value (`x || Object`): the null probe would guard a value never nullish
+  for (let selection = unwrapRuntimeExpr(value); selection?.type === 'LogicalExpression' && selection.operator !== '&&';
+    selection = unwrapRuntimeExpr(value)) value = installedWriteValue(selection.right);
+  const name = resolveObjectName({ objectNode: value, scope: hostPath?.scope, adapter, path: hostPath })
+    ?? staticContainerReceiverName({ node: value, scope: hostPath?.scope, adapter, path: hostPath, rescuesReceiverRead: true });
+  return !!isStaticPlacement(name ?? '');
 }
 
 // Keep native property patterns around the claimed read so keys, defaults and sibling
@@ -613,6 +750,7 @@ export function renderRetainedObjectCapture(plan, {
   noteStaticAlias = null,
   mintUnused = mintRef,
   claimProperties = null,
+  ctx = null,
 }) {
   if (plan.restPure) {
     claimProperties?.(plan.pattern.properties.filter(item => item.type !== 'RestElement'));
@@ -685,11 +823,11 @@ export function renderRetainedObjectCapture(plan, {
       const target = prop.value.type === 'AssignmentPattern' ? prop.value.left : prop.value;
       if (plan.primaryPure?.kind !== 'global' && target.type === 'Identifier') noteStaticAlias?.(target.name, entry);
       const { prefix, tail } = peelNestedSequenceExpressions(prop.key);
-      declarations.push(renderKeyedDestructureRead({
-        receiverName: ref.name, receiver: ref, binding: embed(target),
-        keys: observableSequenceElements([...prefix, tail]).map(embed),
-        read: identifier(injectImport(entry, hintName)),
-      }).at(-1));
+      const keys = observableSequenceElements([...prefix, tail], ctx).map(embed);
+      const read = identifier(injectImport(entry, hintName));
+      declarations.push(plan.provenReceiver
+        ? variableDeclarator(embed(target), keys.length ? sequenceExpression([...keys, read]) : read)
+        : renderKeyedDestructureRead({ receiverName: ref.name, receiver: ref, binding: embed(target), keys, read }).at(-1));
     } else if (!plan.assignment && prop === plan.prop && entry) {
       const defaulted = prop.value.type === 'AssignmentPattern';
       const target = defaulted ? prop.value.left : prop.value;
@@ -702,9 +840,15 @@ export function renderRetainedObjectCapture(plan, {
           defaultValue: embed(prop.value.right), defaultName: target.name });
       }
       const { prefix, tail } = peelNestedSequenceExpressions(prop.key);
-      const keyEffects = prop.computed ? observableSequenceElements([...prefix, tail]).map(embed) : [];
-      declarations.push(renderKeyedDestructureRead({ receiverName: ref.name, receiver: ref,
-        binding: embed(target), keys: keyEffects, read }).at(-1));
+      const keyEffects = prop.computed ? observableSequenceElements([...prefix, tail], ctx).map(embed) : [];
+      declarations.push(renderKeyedDestructureRead({
+        receiverName: ref.name,
+        receiver: ref,
+        binding: embed(target),
+        keys: keyEffects,
+        read,
+        proven: plan.receiverNeverNullish,
+      }).at(-1));
     } else if (plan.assignment && prop === plan.prop) {
       const defaulted = prop.value.type === 'AssignmentPattern';
       const target = defaulted ? prop.value.left : prop.value;
@@ -722,7 +866,7 @@ export function renderRetainedObjectCapture(plan, {
       }
       const write = assignmentExpression('=', embed(target), read);
       const { prefix, tail } = peelNestedSequenceExpressions(prop.key);
-      const keyEffects = prop.computed ? observableSequenceElements([...prefix, tail]).map(embed) : [];
+      const keyEffects = prop.computed ? observableSequenceElements([...prefix, tail], ctx).map(embed) : [];
       assignments.push(keyEffects.length ? sequenceExpression([...keyEffects, write]) : write);
     } else if (plan.siblingStatics?.has(prop)) {
       // the polyfill is always defined, so the user's default over it is dead text and drops
@@ -734,7 +878,7 @@ export function renderRetainedObjectCapture(plan, {
       // the read is gone, the key's own effects are not: they ran where the source spelled them
       const { prefix: siblingPrefix, tail: siblingTail } = peelNestedSequenceExpressions(prop.key);
       const siblingKeyEffects = prop.computed
-        ? observableSequenceElements([...siblingPrefix, siblingTail]).map(embed) : [];
+        ? observableSequenceElements([...siblingPrefix, siblingTail], ctx).map(embed) : [];
       if (plan.assignment) {
         assignments.push(siblingKeyEffects.length
           ? sequenceExpression([...siblingKeyEffects, siblingWrite]) : siblingWrite);
@@ -747,7 +891,7 @@ export function renderRetainedObjectCapture(plan, {
     }
     // A computed key rejects null before its effects. A plain member target is evaluated
     // first, so keep its native assignment ahead of the property read's null rejection.
-    if (plan.assignment && prop.computed) {
+    if (plan.assignment && prop.computed && !plan.provenReceiver) {
       assignments.push(conditionalExpression(nullFirstGuardTest(ref),
         memberExpression(ref, valueLiteral(''), { computed: true }), sequenceExpression(assignments.splice(assignmentStart))));
     }

@@ -30,7 +30,7 @@ var {
 let kk = 0;
 var lead = pre(),
   _ref2 = (eff(), Array),
-  ko = null == _ref2 ? _ref2[""] : (kk++, _Array$of),
+  ko = (kk++, _Array$of),
   {
     alsoMore
   } = _ref2;

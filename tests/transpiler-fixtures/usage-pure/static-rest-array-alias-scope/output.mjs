@@ -8,7 +8,7 @@ A = {
 function read(A) {
   const [_ref] = source,
     _ref2 = _ref,
-    from = null == _ref2 ? _ref2[""] : _Array$from,
+    from = _Array$from,
     {
       from: _unused,
       ...rest

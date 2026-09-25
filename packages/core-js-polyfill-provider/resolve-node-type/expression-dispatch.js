@@ -183,8 +183,19 @@ export function createExpressionDispatch({
   // every prototype installed on the object `path`, as the value PATHS the channels write. null when
   // the reference set itself cannot be enumerated - an install may then exist that this never saw.
   // the ONE walk of the install channels: both the "is any prototype installed" question and the
-  // family read below run off it, so the channel list cannot drift between them
+  // family read below run off it, so the channel list cannot drift between them. remembered per
+  // literal for the file: every reference to a binding resolves to its ONE initializer, and walking
+  // that binding's references again for each of them is quadratic in the references
+  let prototypeInstalls = new WeakMap();
   function installedPrototypeValuePaths(path) {
+    if (prototypeInstalls.has(path.node)) return prototypeInstalls.get(path.node);
+    const values = collectPrototypeInstalls(path);
+    prototypeInstalls.set(path.node, values);
+    return values;
+  }
+
+  // ... the walk itself, once per literal
+  function collectPrototypeInstalls(path) {
     const undefinedShadowed = !!getScopeBinding(path.scope, 'undefined', path);
     const values = [];
     if (path.node?.type === 'ObjectExpression') {
@@ -447,5 +458,8 @@ export function createExpressionDispatch({
   return {
     installedPrototypeFamilies,
     resolveNodeTypeExpression,
+    reset() {
+      prototypeInstalls = new WeakMap();
+    },
   };
 }

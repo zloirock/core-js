@@ -4,7 +4,7 @@ import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internal
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { staticContainerReceiverName } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
 import { resolveObjectName } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
-import { mutationShapesReducer } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
+import { escapedCtorReferencesReducer, mutationShapesReducer } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
 import {
   bindingLoopAnchor, collectFileCensus, ownerSourceWritePath, reachingContainerValueNode, usageCrossesLoopBackEdgeReassign,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
@@ -225,4 +225,49 @@ for (const parser of adapters) for (const method of ['usage-global', 'usage-pure
   checked++;
 }
 check('all rows were checked', checked, adapters.length * 2 * (rows.length + 1));
+
+// a mutator invoked through a MEMBER chain repositions the slot that chain names, the way a bare
+// name repositions its own container, and a `length` write truncates or empties the level it is
+// read off: both are the wildcard under that level. a plain method that repositions nothing and a
+// write to another slot leave the level's slots alone
+for (const parser of adapters) for (const [name, source, slot, expected] of [
+  ['member-chain mutator', 'const w = { k: [Array] }; w.k.unshift(x);', ['k', '0'], true],
+  ['member-chain mutator, hop spelling', 'const w = { k: [Array] }; w.k.push.call(w.k, x);', ['k', '0'], true],
+  ['member-chain mutator, apply spelling', 'const w = { k: [Array] }; w.k.push.apply(w.k, [x]);', ['k', '0'], true],
+  ['member-chain non-mutator', 'const w = { k: [Array] }; w.k.at(0);', ['k', '0'], false],
+  ['length write on the container', 'const w = [Array]; w.length = 0;', ['0'], true],
+  ['length write under a key', 'const w = { k: [Array] }; w.k.length = 0;', ['k', '0'], true],
+  ['length write leaves a sibling key alone', 'const w = { k: [Array], j: [Map] }; w.k.length = 0;', ['j', '0'], false],
+  ['length update', 'const w = [Array]; w.length++;', ['0'], true],
+  // ... and an ARRAY a call yields is the container of the binding holding it, as an inline one is: a
+  // write, a truncation and a handout through the binding count, whether the callee is named, an
+  // IIFE or a CHAIN (a callee returning another call); an untouched binding and a recursive callee
+  // that yields nothing record none
+  ['call-yielded array, slot write', 'const f = () => [Array, Map]; const w = f(); w[0] = Map;', ['0'], true],
+  ['call-yielded array, truncation', 'const f = () => [Array, Map]; const w = f(); w.length = 0;', ['0'], true],
+  ['call-yielded array, handout', 'const f = () => [Array, Map]; const w = f(); put(w);', ['0'], true],
+  ['call-yielded array, untouched', 'const f = () => [Array, Map]; const w = f(); w.at(0);', ['0'], false],
+  ['iife-yielded array, slot write', 'const w = (() => [Array, Map])(); w[0] = Map;', ['0'], true],
+  ['call chain, slot write', 'const f = () => [Array, Map]; const g = () => f(); const w = g(); w[0] = Map;', ['0'], true],
+  ['call chain, untouched', 'const f = () => [Array, Map]; const g = () => f(); const w = g(); w.at(0);', ['0'], false],
+  ['recursive callee', 'const g = () => g(); const w = g(); w[0] = Map;', ['0'], false],
+]) {
+  // the escape census resolves the callees a NAMED call's container is filed through: both reducers
+  // run, in either order - the answer must not move with which of them publishes first
+  for (const reducers of [
+    () => [mutationShapesReducer(), escapedCtorReferencesReducer()],
+    () => [escapedCtorReferencesReducer(), mutationShapesReducer()],
+  ]) {
+    const program = parser.parseAndScope(source);
+    const census = collectFileCensus(program.node, reducers());
+    const options = {
+      method: 'usage-pure',
+      getWrittenContainerSlots: () => census.writtenContainerSlots,
+      getContainerSlotIndex: () => census.containerSlotIndex,
+    };
+    const adapter = parser.name === 'babel' ? createBabelAdapter(options) : createEstreeAdapter(options);
+    const [declarator] = parser.collectPaths(program, 'VariableDeclarator', path => path.node.id.name === 'w');
+    check(`${ parser.name }: ${ name }`, adapter.isWrittenContainerSlot('w', slot, declarator.node), expected);
+  }
+}
 finish();

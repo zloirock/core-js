@@ -1,8 +1,9 @@
 // pure resolves a REASSIGNED container binding only on proof: a dominating write it follows when
 // that write is the ONLY value the read can observe (unconditional, nothing written after the
 // read) - the single-observation half of the reaching canon usage-global unions over. every other
-// write shape below (conditional, branching, closure, logical, ambiguous pattern) leaves
-// the read verbatim; the union stays a usage-global-only over-inject axis
+// write shape below (conditional, branching, closure, logical, ambiguous pattern) leaves the
+// container read verbatim, save a logical write that provably stores; a bare branching name reads
+// through the identity guard its route renders
 let rw1 = { k: Object };
 rw1 = { k: Map };
 const { k: { groupBy: viaDominating } } = rw1;
@@ -12,8 +13,8 @@ let rw2 = { s: Object };
 rw2 = { s: Array };
 export const viaDominatingMember = rw2.s.from([1]);
 
-// a CONDITIONAL reassignment keeps both candidates: the live init resolves as the primary
-// (its own marker) and the written value joins the union
+// a CONDITIONAL reassignment keeps both candidates, so pure names neither: a static read stays
+// verbatim, and a key an instance carries too takes the generic instance dispatch
 let rw3 = { c: Object };
 if (Math.random() > 0.5) rw3 = { c: Promise };
 const { try: viaConditionalWrite, entries: viaLiveInit } = rw3.c;
@@ -43,7 +44,7 @@ R7 = { M: Promise };
 const { withResolvers: viaClassReassign } = R7.M;
 
 // an identity self-assign is a value NO-OP - it is NOT a reassignment, so pure RESOLVES the
-// container read (the only cell here whose walk stays alive besides the after-read one)
+// container read
 let rw8 = { m: Object };
 rw8 = rw8;
 const { m: { values: viaSelfAssign } } = rw8;
@@ -85,12 +86,13 @@ let wAd = { d: Object };
 ({ 0: wAd = { d: Number } } = [{ d: Object }]);
 const { d: { parseFloat: viaAmbiguousDefault } } = wAd;
 
-// bare branching writes bail pure as ever
+// a bare branching write takes the identity guard over the arm the route names
 let bBr = Object;
 bBr = Math.random() > 0.5 ? Reflect : Object;
 export const bareBranching = typeof bBr.has;
 
-// logical binding assigns are real reassignments - pure bails all spellings
+// logical binding assigns are real reassignments - pure bails, except where the write provably
+// stores: `??=` / `||=` over a binding still unset (`wNu`); `&&=` over one never stores
 let wLg = null;
 wLg ||= { l: Object };
 const { l: { hasOwn: viaLogicalBinding } } = wLg;

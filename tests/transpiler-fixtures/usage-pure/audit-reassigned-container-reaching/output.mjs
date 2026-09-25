@@ -2,15 +2,16 @@ import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$fromAsync from "@core-js/pure/actual/array/from-async";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _entries from "@core-js/pure/actual/instance/entries";
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Number$isInteger from "@core-js/pure/actual/number/is-integer";
 import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
+import _Object$getOwnPropertyNames from "@core-js/pure/actual/object/get-own-property-names";
 import _Object$keys from "@core-js/pure/actual/object/keys";
 import _Object$values from "@core-js/pure/actual/object/values";
+import _Promise from "@core-js/pure/actual/promise";
 import _Promise$allSettled from "@core-js/pure/actual/promise/all-settled";
 import _Promise$any from "@core-js/pure/actual/promise/any";
-import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Promise$race from "@core-js/pure/actual/promise/race";
 import _Promise$withResolvers from "@core-js/pure/actual/promise/with-resolvers";
 import _Reflect$has from "@core-js/pure/actual/reflect/has";
@@ -22,8 +23,9 @@ import _Symbol from "@core-js/pure/actual/symbol/constructor";
 // pure resolves a REASSIGNED container binding only on proof: a dominating write it follows when
 // that write is the ONLY value the read can observe (unconditional, nothing written after the
 // read) - the single-observation half of the reaching canon usage-global unions over. every other
-// write shape below (conditional, branching, closure, logical, ambiguous pattern) leaves
-// the read verbatim; the union stays a usage-global-only over-inject axis
+// write shape below (conditional, branching, closure, logical, ambiguous pattern) leaves the
+// container read verbatim, save a logical write that provably stores; a bare branching name reads
+// through the identity guard its route renders
 let rw1 = {
   k: Object
 };
@@ -49,8 +51,8 @@ rw2 = {
 };
 export const viaDominatingMember = _Array$from([1]);
 
-// a CONDITIONAL reassignment keeps both candidates: the live init resolves as the primary
-// (its own marker) and the written value joins the union
+// a CONDITIONAL reassignment keeps both candidates, so pure names neither: a static read stays
+// verbatim, and a key an instance carries too takes the generic instance dispatch
 let rw3 = {
   c: Object
 };
@@ -96,7 +98,7 @@ R7 = {
   M: _Promise
 };
 const viaClassReassign = _Promise$withResolvers; // an identity self-assign is a value NO-OP - it is NOT a reassignment, so pure RESOLVES the
-// container read (the only cell here whose walk stays alive besides the after-read one)
+// container read
 let rw8 = {
   m: Object
 };
@@ -220,12 +222,13 @@ const {
   }
 } = wAd;
 
-// bare branching writes bail pure as ever
+// a bare branching write takes the identity guard over the arm the route names
 let bBr = Object;
 bBr = Math.random() > 0.5 ? _Reflect : Object;
 export const bareBranching = typeof (bBr === _Reflect ? _Reflect$has : bBr.has);
 
-// logical binding assigns are real reassignments - pure bails all spellings
+// logical binding assigns are real reassignments - pure bails, except where the write provably
+// stores: `??=` / `||=` over a binding still unset (`wNu`); `&&=` over one never stores
 let wLg = null;
 wLg ||= {
   l: Object
@@ -239,11 +242,7 @@ let wNu;
 wNu ??= {
   u: Object
 };
-const {
-  u: {
-    getOwnPropertyNames: viaNullishBinding
-  }
-} = wNu;
+const viaNullishBinding = _Object$getOwnPropertyNames;
 let wAn = {
   i: Object
 };

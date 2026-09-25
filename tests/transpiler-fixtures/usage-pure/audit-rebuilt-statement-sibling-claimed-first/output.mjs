@@ -8,5 +8,5 @@ let e = 0,
   from,
   o;
 from = _Array$from;
-_ref = Array, null == _ref ? _ref[""] : (e++, o = _Array$of), _ref;
+_ref = Array, e++, o = _Array$of, _ref;
 export const r = [from, o, e];

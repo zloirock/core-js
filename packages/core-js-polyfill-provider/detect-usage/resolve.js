@@ -9,18 +9,22 @@
 // realm names off the answer, so the narrow lives with the canon instead of forking it
 import { entryToGlobalHint, resolve as resolveBuiltInMeta } from '../index.js';
 import {
+  argumentOverridesSlot,
+  ALWAYS_TRUTHY_OBJECT_NODES,
   aliasDeclScope,
   aliasReadGuardedAgainstNullish,
   aliasSpanDominatesUse,
   allProxySelectingInit,
   asProxyGlobalName,
   assignmentAliasHintSoundAtRead,
+  bindingDeclarationPath,
   bindingDeclaratorNode,
   bindingLoopAnchor,
   bindingPolyfillHint,
   bindsModuleDefault,
   boundModuleDefaultSource,
   calleeYieldedContainer,
+  prototypeChainMayLend,
   callPairing,
   chainValueCarrier,
   collectFoldedReceiverSideEffects,
@@ -28,16 +32,21 @@ import {
   definedBranchOfGuardConditional,
   deleteHostAboveChain,
   firstProxyBranch,
+  flattenBranchingValueNodes,
   followConstIdentifierInit,
+  foldedPropertyKeyName,
   globalProxyNameFromImportSource,
   identifierDeclaratorInit,
   identifierReferencedInSubtree,
   initializerMayRunBeforeUsage,
+  initializerReachesRead,
   IMPORT_SPECIFIER_TYPES,
   importBindingIsTypeOnly,
   importedGlobalProxyName,
   importSourceMatchesUserPackage,
   inCallerCorrectFallbackSlot,
+  installedWriteValue,
+  invocationNode,
   isAliasProxyRoot,
   isChainAssignment,
   isDestructurePattern,
@@ -62,18 +71,19 @@ import {
   memberProxyHopName,
   nodeCarriesSourceSpan,
   noReassignmentReachesUsage,
-  objectPatternLiteralKeyPath,
+  pathOfNode,
+  patternLiteralKeyPath,
+  findObjectKeyBeforeSpread,
+  followConstLiteralAlias,
   bodyWritesThroughParameter,
   CENSUS_CONTAINER_TYPES,
   paramListRunsWork,
   paramReboundInBody,
   paramReturnsTheValue,
-  MUTATED_MEMBERS_UNKNOWN,
-  patternRootKeyPathsFor,
-  patternSlotHasDefault,
-  patternSlotSpreadShifted,
+  patternSlotValueAmbiguous,
   patternSlotTarget,
   patternSlotValues,
+  patternSlotWritten,
   peelChainAssignment,
   peelChainAssignmentDeep,
   peelMemoizeWrappers,
@@ -88,6 +98,7 @@ import {
   reachingReassignmentValueNode,
   reassignBailApplies,
   reassignmentBlocksGlobalResolve,
+  reassignmentValueEnumeration,
   reassignmentValueNodes,
   requireCallSource,
   resolveCallArgument,
@@ -110,10 +121,13 @@ import {
   forOfIterableElements,
   forOfHeadIterableElements,
   isForXStatement,
+  unwrapExpressionChain,
   unwrapRuntimeExpr,
+  subtreeContainsNode,
   unwrapTransparentSeq,
   varInitDominatesUsage,
   writeIsInOppositeBranch,
+  writtenPatternSlotValues,
   provablyPrecedes,
   zeroArgIifeSideEffectFree,
   ESCAPED_CONTAINER_NAMES,
@@ -131,12 +145,12 @@ const MAX_KEY_DEPTH = 64;
 // the caller to re-attach via a SequenceExpression wrap around the polyfill replacement.
 // the deliberate counterpart of the plain `unwrapParens` (helpers/ast-patterns.js), which peels
 // parens only: merging the two would hand peeled effects to callers with nowhere to re-attach them
-export function unwrapParensCollectingEffects(node, effects) {
+export function unwrapParensCollectingEffects(node, effects, keeps = null) {
   while (node) {
     if (isTransparentWrapper(node)) {
       node = node.expression;
     } else if (node.type === 'SequenceExpression') {
-      for (const e of node.expressions.slice(0, -1)) if (mayHaveSideEffects(e)) effects.push(e);
+      for (const e of node.expressions.slice(0, -1)) if (mayHaveSideEffects(e) || keeps?.(e)) effects.push(e);
       node = node.expressions.at(-1);
     } else break;
   }
@@ -1103,7 +1117,7 @@ export function bindingSymbolKey(binding, packages = null, ctx = null) {
     || isReassignedBeyondDeclarator(binding)
     || !varInitDominatesUsage({ declaratorNode: declarator, usagePath: ctx.path,
       usageNode: ctx.usageNode, kind: binding.kind })) return null;
-  const keys = objectPatternLiteralKeyPath(declarator.id, ctx.name);
+  const keys = patternLiteralKeyPath(declarator.id, ctx.name);
   if (keys?.length !== 1 || !SYMBOL_STATIC_KEYS.has(keys[0])
     || ctx.adapter.isMutatedStatic?.('Symbol', keys[0])) return null;
   const source = moduleDefaultSource({ node: declarator.init, adapter: ctx.adapter,
@@ -1228,7 +1242,7 @@ export function moduleDefaultSource({ node, scope, adapter, path, namespace = fa
     node = identifierDeclaratorInit(binding);
     // Each alias captures its initializer at its declaration point and in its own scope.
     scope = aliasDeclScope(binding, scope);
-    path = binding.path ?? binding.declarationPath ?? binding.resolveDeclaratorPath?.() ?? path;
+    path = bindingDeclarationPath(binding) ?? path;
   }
   if (!source) return null;
   // Only a module-valued chain owes availability and write proofs. Ordinary local
@@ -1535,7 +1549,7 @@ function resolveGuardedBindingToGlobal({ name, scope, adapter, seen, path, usage
     // binds everywhere but assigns on one path)
     const hintFlowSound = assignmentAliasHintSoundAtRead({ binding, adapter, readNode: usageNode ?? path?.node })
       && (adapter.method !== 'usage-pure' || binding.aliasWrite || !binding.node
-        || varInitDominatesUsage({ declaratorNode: binding.node, usagePath: path, usageNode, kind: binding.kind }));
+        || initializerReachesRead({ adapter, binding, declaratorNode: binding.node, usagePath: path, usageNode }));
     if (hintFlowSound) return hint;
   }
   const bindingType = adapter.getBindingNodeType(scope, name, path);
@@ -1597,6 +1611,30 @@ function resolveGuardedBindingToGlobal({ name, scope, adapter, seen, path, usage
     return source;
   }
   return null;
+}
+
+// the ONE value a reassigned KEY binding holds at the read, with the scope it is spelled in: the
+// reaching write's value (usage-pure: the single observable one), or - where that write is a pattern
+// over a CALL (`({ K } = f())`) - the one value the site pairs through the call canon, in the scope
+// the callee spelled it. null where the value is flow-dependent
+function reachingKeyValue({ binding, name, scope, adapter, path, usageNode, seen }) {
+  const callSites = [];
+  const reaching = reachingReassignmentValueNode({
+    binding,
+    usagePath: path,
+    ctx: { scope, adapter, path, resolveKey },
+    usageNode,
+    requireSingleObservation: adapter.method === 'usage-pure',
+    callSites,
+  });
+  if (reaching) return { node: reaching, scope };
+  return callSites.length === 1 ? certainPairedSlotValue({
+    pattern: callSites[0].pattern,
+    init: callSites[0].value,
+    name,
+    seen,
+    ctx: { scope: aliasDeclScope(binding, scope), adapter, path, resolveKey },
+  }) : null;
 }
 
 // usage-global: when following a reassigned alias's declarator init, an unconditional reassignment can
@@ -1704,7 +1742,7 @@ function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, p
   // native undefined-access on the skipped-branch path. global / entry modes keep the call site
   // (side-effect import only) and stay sound regardless, so the gate is pure-only
   if (adapter.method === 'usage-pure'
-    && !varInitDominatesUsage({ declaratorNode: declarator, usagePath: path, usageNode, kind: binding.kind })) return null;
+    && !initializerReachesRead({ adapter, binding, declaratorNode: declarator, usagePath: path, usageNode })) return null;
   // dead-init across a closure: resolve the reaching value as the receiver instead of the dead init
   // (`let M = Object; M = Array; () => M.assign()` resolves to Array, not the unreachable Object).
   // the write's RHS was spelled where the binding lives, not at the use - resolve it in the
@@ -1751,6 +1789,10 @@ function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, p
   // here and falls through to null (resolved by the destructure detection instead). diverging slot
   // values (a default that disagrees with the paired value) stay unresolved - bail-safe both modes
   if (isDestructurePattern(pattern) && init) {
+    // a CALL init pairs through the call canon's returned literal, each value in the scope its
+    // identifiers resolve in; an inline literal pairs where the declaration stands
+    const called = callInitSlotValues({ pattern, init, name, scope: initScope, adapter, path, seen, resolveKey });
+    const pairingCtx = called ? called.ctx : { scope, adapter, path, resolveKey };
     // a slot default makes the value default-or-runtime, and this union sees only the values
     // `patternSlotValues` could pair (its contract is over-approximation - a dynamic / spread-
     // shifted / foreign pair contributes nothing), so a lone resolved default wrongly reads as
@@ -1758,19 +1800,25 @@ function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, p
     // default-aware extraction channels keep their runtime-guarded handling); usage-global
     // keeps the maybe-union (inject-if-might is sound and desirable there)
     if (adapter?.method === 'usage-pure'
-      && (patternSlotHasDefault(pattern, name)
-        || patternSlotSpreadShifted(pattern, init, name, { scope, adapter, path, resolveKey }))) return null;
+      && patternSlotValueAmbiguous(pattern, called ? called.literal : init, name, pairingCtx)) return null;
     // a slot the file REPLACED no longer holds what the container's literal spells (`const w = { k:
     // Object }; w.k = Map; const { k } = w` binds Map) - the same rule the static receiver walk
     // applies to the `w.k` spelling, owed here because this route reads the pairing directly and
-    // would otherwise resolve a DIFFERENT constructor's static: a wrong value, not a missed one
-    if (writtenSlotBlocksPatternRead({
-      pattern, init, name, scope: initScope, adapter, path: binding.path ?? binding.declarationPath ?? path,
+    // would otherwise resolve a DIFFERENT constructor's static: a wrong value, not a missed one.
+    // usage-global keeps resolving - the union injects for the written values beside it
+    if (adapter?.method === 'usage-pure' && patternSlotWritten({
+      pattern, init, name, ctx: { scope: initScope, adapter, path: bindingDeclarationPath(binding) ?? path, resolveKey },
     })) return null;
+    // a NAME answers only where every possible value agrees (a realm-selecting value collapses
+    // inside the receiver resolver). a disagreeing set is not this resolver's to collapse - the
+    // usage-global union (`reachableAliasValues`) reads the same slot values arm by arm and
+    // injects for each
     const globals = new Set();
-    for (const value of patternSlotValues(pattern, init, name, { scope, adapter, path, resolveKey })) {
+    const slotValues = called ? called.complete ? called.values : []
+      : patternSlotValues(pattern, init, name, pairingCtx).map(value => ({ node: value, scope: initScope }));
+    for (const { node: value, scope: valueScope } of slotValues) {
       const global = resolveObjectName({
-        objectNode: value, scope: initScope, adapter, seen: new Set(seen).add(name), path, usageNode: value,
+        objectNode: value, scope: valueScope, adapter, seen: new Set(seen).add(name), path, usageNode: value,
       });
       if (global) globals.add(global);
     }
@@ -1779,27 +1827,6 @@ function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, p
   if (pattern && pattern.type !== 'Identifier') return null;
   if (!init) return null;
   return resolveAliasValueNode({ value: init, name, binding, scope, adapter, seen, path });
-}
-
-// does a written container slot stand between this pattern and the value its literal spells?
-// Pure rejects writes that may reach the pattern capture; later writes cannot change its value.
-// Global keeps resolving and over-injects, the safe direction there.
-function writtenSlotBlocksPatternRead({ pattern, init, name, scope, adapter, path }) {
-  if (adapter?.method !== 'usage-pure' || !adapter.isWrittenContainerSlot) return false;
-  const container = unwrapRuntimeExpr(init);
-  if (container?.type !== 'Identifier') return false;
-  const paths = patternRootKeyPathsFor(pattern, name, { scope, adapter, path, resolveKey });
-  // The pairing follows const aliases to their literal; ask about that same declaration's
-  // writes. An alias of the container has no slot records of its own.
-  const followed = followConstIdentifierInit({ node: container, readNode: init, ctx: { scope, adapter, path, resolveKey } });
-  const containerBinding = adapter.getBinding(scope, container.name, path);
-  const ownerNode = followed.readNode?.type === 'VariableDeclarator' ? followed.readNode
-    : containerBinding?.path?.node ?? containerBinding?.node ?? null;
-  const ownerName = ownerNode?.id?.name ?? container.name;
-  // a slot this walk cannot name reads an UNKNOWN one, so any write on the container reaches it
-  return paths === null
-    ? adapter.isWrittenContainerSlot(ownerName, [MUTATED_MEMBERS_UNKNOWN], ownerNode, path, init)
-    : paths.some(keys => adapter.isWrittenContainerSlot(ownerName, keys, ownerNode, path, init));
 }
 
 // resolve the VALUE an Identifier-pattern alias stores - the declarator init, or a trusted
@@ -1968,7 +1995,12 @@ function everyReachableValueNamesRealm({ binding, path, name, ctx = null, usageN
   const init = bindingNode?.type === 'VariableDeclarator' && bindingNode.id?.type === 'Identifier'
     ? unwrapRuntimeExpr(bindingNode.init) : null;
   if (!init) return false;
-  const values = [init, ...reassignmentValueNodes({ binding, usagePath: path, name, ctx, usageNode })];
+  const enumeration = reassignmentValueEnumeration({ binding, usagePath: path, name, ctx, usageNode });
+  // a value set the enumerator could not close - a site it could not read, a pattern write whose
+  // value is a call, a head it cannot enumerate - names nothing for certain, whatever its listed
+  // values name
+  if (!enumeration.complete) return false;
+  const values = [init, ...enumeration.nodes];
   return values.length > 1 && values.every(value => {
     const named = peelRealmLogicalDefault(unwrapRuntimeExpr(value));
     if (named?.type !== 'Identifier') return false;
@@ -2010,11 +2042,12 @@ export function guaranteedRealmObjectName(name) {
 // injector hint, so a caller asking after the rewrite reads the same answer as one asking before.
 // a deeper chain answers null - the multihop canon speaks for those
 export function realmSelectionLeafKind(node, { adapter = null, injectorState = null, scope = null, path = null } = {}) {
-  const core = unwrapTransparentSeq(node);
+  // a prefix READ an accessor answers is no dead comma: the leaf is then the sequence, which names no realm
+  const core = unwrapTransparentSeq(node, { scope, adapter, path });
   const member = core?.type === 'MemberExpression' || core?.type === 'OptionalMemberExpression';
   const hop = member && !core.optional ? realmHopKeyName(core) : null;
   if (member && !hop) return null;
-  const root = unwrapTransparentSeq(member ? core.object : core);
+  const root = unwrapTransparentSeq(member ? core.object : core, { scope, adapter, path });
   if (root?.type !== 'Identifier') return null;
   const rootName = proxyGlobalRootName({ node: root, scope, adapter, path })
     ?? injectorState?.getPureImport?.(root.name)?.hint;
@@ -2034,9 +2067,9 @@ export function realmSelectionLeafKind(node, { adapter = null, injectorState = n
 // runs it. a ternary keeps both arms and owes a pure test; `&&` keeps its FALSY left, which no realm
 // name can be, so its guarded path stays exactly as the source wrote it
 export function realmSelectionCollapseOperand(node, ctx) {
-  const core = unwrapTransparentSeq(node);
+  const core = unwrapTransparentSeq(node, ctx);
   if (core?.type === 'ConditionalExpression') {
-    if (mayHaveSideEffects(core.test)) return null;
+    if (mayHaveSideEffects(core.test, ctx)) return null;
     const consequent = realmSelectionCollapseOperand(core.consequent, ctx);
     return consequent && realmSelectionCollapseOperand(core.alternate, ctx) ? consequent : null;
   }
@@ -2193,7 +2226,7 @@ function resolveProxyGlobalRoot({ receiver, scope, adapter, seen, path, usageNod
       // carry `seen` into computed-key resolution so a shared alias chain across the
       // proxy-global walk and its intermediate member keys can't exceed the cycle guard
       const memberKey = obj.computed
-        ? resolveKey({ node: obj.property, computed: true, scope, adapter, seen, path, usageNode, resolveStaticKey })
+        ? resolveKey({ node: obj.property, computed: true, scope, adapter, seen, path, usageNode, resolveStaticKey, keepsKeyNode: true })
         : memberKeyName(obj);
       // a mutated hop slot (`window.self = fake`) is the user's replacement, not the global -
       // the chain no longer re-enters the pristine global-object surface.
@@ -2271,8 +2304,8 @@ export function memberTargetTakesExtraction(valueNode, { scope = null, adapter =
 // A ternary's arms naming one receiver can share its extraction. A consumer keeping the
 // complete selection may retain an effectful test; a consumer dropping it must refuse.
 export function agreeingTernaryArm(selecting, path, adapter, { preservesEffects = false } = {}) {
-  if (selecting?.type !== 'ConditionalExpression' || !preservesEffects && mayHaveSideEffects(selecting.test)) return null;
   const ctx = { scope: path?.scope, adapter, path };
+  if (selecting?.type !== 'ConditionalExpression' || !preservesEffects && mayHaveSideEffects(selecting.test, ctx)) return null;
   const left = peelReceiverSequenceTail(selecting.consequent);
   const right = peelReceiverSequenceTail(selecting.alternate);
   const name = resolveObjectName({ objectNode: left, ...ctx });
@@ -2341,10 +2374,11 @@ export function resolveObjectName({
     // member-tail hop already decline it; this is the binding-less name's own spelling)
     return bindingLessGlobalName(objectNode.name, { scope, adapter });
   }
-  // Calls and tags share the scoped return proof, including returned arguments.
-  // This classifies the value only; emitters preserve call and argument effects.
-  if (isCallShape(objectNode) || objectNode.type === 'TaggedTemplateExpression') {
-    const inlined = inlineCallReturnExpression({ node: objectNode, readNode: usageNode, seen, ctx: { scope, adapter, path } });
+  // Every invocation the value walks follow (`realmYieldingCallView`) shares the scoped return proof,
+  // including returned arguments. This classifies the value only; emitters preserve its effects.
+  const call = realmYieldingCallView(objectNode, { scope, adapter, path });
+  if (call) {
+    const inlined = inlineCallReturnExpression({ node: call, readNode: usageNode, seen, ctx: { scope, adapter, path } });
     // an SE-arrow body inlines to a SEQUENCE (`() => (r++, globalThis)`) - classify through its
     // tail value like the proxy-root walk does; SE preservation stays the emit side's concern
     // (`inlineCallHasObservableEffects`), this is pure shape classification.
@@ -2359,7 +2393,7 @@ export function resolveObjectName({
   const propertyName = objectNode.computed
     // `seen` shared with the receiver walk, matching the chain-root walker's convention (a shared
     // alias chain across the walk and its member keys must not restart the cycle guard)
-    ? resolveKey({ node: objectNode.property, computed: true, scope, adapter, seen, path, usageNode, resolveStaticKey })
+    ? resolveKey({ node: objectNode.property, computed: true, scope, adapter, seen, path, usageNode, resolveStaticKey, keepsKeyNode: true })
     : memberKeyName(objectNode);
   if (!propertyName) return null;
   // `X.default` of a CJS-interop-wrapped pure GLOBAL-PROXY require resolves to the proxy
@@ -2379,9 +2413,41 @@ export function resolveObjectName({
   return isMutatedGlobalSlot(adapter, propertyName) ? null : propertyName;
 }
 
+// the values a reassigned alias's reachable writes install, each with the scope and path its
+// identifiers resolve at: the enumerator's paired values, spelled at their WRITE - a loop body or a
+// nested block the write stands in sees names the declaration's scope does not (`for (const h of
+// xs) h0 = h`), and a use-site shadow cannot swallow them either - and every pattern write whose
+// value is a CALL, paired through the call canon - the enumerator hands such a site back unpaired,
+// and the callee's literal resolves in the callee's scope. the alias name activates pattern-LHS
+// pairing (`[A] = [Iterator]`) in the enumerator: adapter binding wrappers do not all surface the
+// bound identifier
+function reassignedAliasValues({ binding, name, scope, declScope, adapter, path, usageNode, seen }) {
+  const enumeration = reassignmentValueEnumeration({
+    binding, usagePath: path, name, ctx: { scope, adapter, path, resolveKey }, usageNode,
+  });
+  const called = enumeration.callSites.flatMap(({ pattern, value: init }) => callInitSlotValues({
+    pattern, init, name, scope: declScope, adapter, path, seen, resolveKey,
+  })?.values ?? []);
+  return [...enumeration.nodes.map(node => {
+    const site = pathOfNode(path, node);
+    return { node, scope: site?.scope ?? declScope, path: site };
+  }), ...called];
+}
+
+// ... and each such value is READ where the write evaluates it: every reader of the union keeps that
+// read (an identity guard's candidate, a global import), so the init-order gates ask it as one
+// (`initializerReachesRead`) - the view every reader that keeps its read resolves through
+const WRITE_VALUE_ADAPTERS = new WeakMap();
+export function readKeepingAdapter(adapter) {
+  let view = WRITE_VALUE_ADAPTERS.get(adapter);
+  if (!view) WRITE_VALUE_ADAPTERS.set(adapter, view = { ...adapter, keepsReads: true });
+  return view;
+}
+
 // Collect distinct receiver/key candidates from an identifier alias or named-call receiver:
-// the supplied primary, literal loop elements, reachable writes and alias hops in their source scope.
-// Other shapes contribute only the primary. Each hop carries its capture position.
+// the supplied primary, literal loop elements, reachable writes, the arms of a pattern-bound
+// declarator's slot and alias hops in their source scope. Other shapes contribute only the
+// primary. Each hop carries its capture position.
 // `includeDeclaredCandidates` also admits initializers for a preserved runtime identity guard;
 // a proven overwrite, later initializer or opposite branch in the same execution excludes them.
 export function reachableAliasValues({
@@ -2396,7 +2462,7 @@ export function reachableAliasValues({
   // the source does not enter the union); `asCall` re-enters the factory branch for an `f()` receiver;
   // `seen` guards alias cycles. `sourceScope` is where the source expression lives - the hop's own
   // binding resolves there
-  function pushAliasHop(source, currentName, asCall, sourceScope) {
+  function pushAliasHop(source, currentName, asCall, sourceScope, sourcePath = path) {
     let node = source && unwrapTransparentSeq(source);
     // a source wrapped in zero-arg IIFEs (`const f = (() => f0)()`, nested `(() => (() => f0)())()`)
     // aliases the IIFEs' return, so peel to a fixpoint to reach the underlying binding - the same
@@ -2415,42 +2481,53 @@ export function reachableAliasValues({
     // already gets its declared value from the caller's primary, so re-resolving it would double-count
     // (and mis-anchor a dead init) - it stays null
     values.push(...reachableAliasValues({
-      aliasNode: recursed, resolve,
-      primary: asCall ? resolve({ node: recursed, readNode: node, ctx: { scope: sourceScope, adapter, path } }) : null,
-      scope: sourceScope, adapter, path,
-      seen: new Set(seen).add(currentName), usageNode: node, includeDeclaredCandidates,
+      aliasNode: recursed,
+      resolve,
+      primary: asCall ? resolve({ node: recursed, readNode: node, ctx: { scope: sourceScope, adapter, path: sourcePath } }) : null,
+      scope: sourceScope,
+      adapter,
+      path: sourcePath,
+      seen: new Set(seen).add(currentName),
+      usageNode: node,
+      includeDeclaredCandidates,
     }));
   }
   if (aliasNode?.type === 'Identifier') {
     const binding = adapter.getBinding(scope, aliasNode.name, path);
     const declScope = binding ? aliasDeclScope(binding, scope) : scope;
     // A loop declaration has no initializer. Its finite elements are candidates just like
-    // written values, even when no single one proves the receiver's identity.
-    const declaration = binding?.path ?? binding?.declarationPath;
-    if (declaration?.node?.type === 'VariableDeclarator' && !declaration.node.init) {
+    // written values, even when no single one proves the receiver's identity. a PATTERN head pairs
+    // each element as a declarator pairs its init - a call element through the call canon
+    const declaration = bindingDeclarationPath(binding);
+    // ... where the declaration still binds this name: a relocation re-spells a pattern head in place
+    const id = declaration?.node?.id;
+    if (declaration?.node?.type === 'VariableDeclarator' && !declaration.node.init
+      && (id?.type !== 'Identifier' || id.name === aliasNode.name)) {
       const ctx = { scope: declScope, adapter, path: declaration, resolveKey };
       for (const element of forOfHeadIterableElements(declaration) ?? []) {
-        const nodes = declaration.node.id.type === 'Identifier' ? [element]
-          : patternSlotValues(declaration.node.id, element, aliasNode.name, ctx);
-        for (const node of nodes) {
-          const value = resolve({ node, readNode: node, ctx });
+        const read = { pattern: declaration.node.id, init: element, name: aliasNode.name, ctx, seen };
+        // ... beside every value the file wrote into that slot of the element's container
+        const slotValues = declaration.node.id.type === 'Identifier' ? [{ node: installedWriteValue(element), scope: declScope }]
+          : [...pairedSlotValues(read), ...writtenPatternSlotValues(read).map(node => ({ node, scope: declScope }))];
+        for (const { node, scope: valueScope } of slotValues) {
+          const value = resolve({ node, readNode: node, ctx: { ...ctx, scope: valueScope } });
           if (value) values.push(value);
-          pushAliasHop(node, aliasNode.name, false, declScope);
+          pushAliasHop(node, aliasNode.name, false, valueScope);
         }
       }
     }
     if (binding && isReassignedBeyondDeclarator(binding)) {
-      // the alias name activates pattern-LHS pairing (`[A] = [Iterator]`) in the enumerator -
-      // adapter binding wrappers do not all surface the bound identifier
-      for (const rhs of reassignmentValueNodes({
-        binding, usagePath: path, name: aliasNode.name, ctx: { scope, adapter, path, resolveKey }, usageNode,
+      for (const { node: rhs, scope: valueScope, path: valuePath } of reassignedAliasValues({
+        binding, name: aliasNode.name, scope, declScope, adapter, path, usageNode, seen,
       })) {
         // the written value was READ at its write site - anchor its own resolution there, so a
         // cross-write (`a = b; b = x`) resolves b's value as captured BEFORE `b = x` overwrote it,
-        // and in the binding's own scope, so a use-site shadow cannot swallow the RHS name
-        const value = resolve({ node: rhs, readNode: rhs, ctx: { scope: declScope, adapter, path } });
+        // and in the write's own scope, so a use-site shadow cannot swallow the RHS name
+        const value = resolve({
+          node: rhs, readNode: rhs, ctx: { scope: valueScope, adapter: readKeepingAdapter(adapter), path: valuePath ?? path },
+        });
         if (value) values.push(value);
-        pushAliasHop(rhs, aliasNode.name, false, declScope);
+        pushAliasHop(rhs, aliasNode.name, false, valueScope, valuePath ?? path);
       }
     }
     // pattern-gated init follow: a destructure declarator binds the name to a SLOT of the init -
@@ -2474,6 +2551,26 @@ export function reachableAliasValues({
         if (value) values.push(value);
       }
       pushAliasHop(init, aliasNode.name, false, declScope);
+      // a PATTERN declarator binds the name to a slot of its init, and that slot's possible values
+      // are the declared candidates: the same pairing the reassignment walk reads for a pattern
+      // write, each branching value unfolded to its arms (`const { a: A } = { a: c ? Array : Map }`
+      // reaches both). the primary names the slot only where every arm agrees, so a disagreeing
+      // slot reaches the union through these arms alone; a lone agreeing arm just repeats it
+      if (!init && declarator?.type === 'VariableDeclarator' && declarator.init) {
+        const ctx = { scope: declScope, adapter, path: declaration, resolveKey };
+        const slotValues = pairedSlotValues({ pattern: declarator.id, init: declarator.init, name: aliasNode.name, ctx, seen });
+        // ... and the values the file WROTE into that slot: the read lands on one of them where the
+        // write reached the container, so each joins the union beside the literal's own
+        const written = writtenPatternSlotValues({ pattern: declarator.id, init: declarator.init, name: aliasNode.name, ctx })
+          .map(node => ({ node, scope: declScope }));
+        const arms = [...slotValues, ...written]
+          .flatMap(({ node, scope: valueScope }) => flattenBranchingValueNodes([node]).map(arm => [arm, valueScope]));
+        for (const [arm, valueScope] of arms) {
+          const value = resolve({ node: arm, readNode: arm, ctx: { ...ctx, scope: valueScope } });
+          if (value) values.push(value);
+          pushAliasHop(arm, aliasNode.name, false, valueScope);
+        }
+      }
     }
   } else if (aliasNode?.type === 'CallExpression' || aliasNode?.type === 'OptionalCallExpression') {
     // IIFE-callee receiver `f()` whose factory `f` is a reassigned alias: each reachable `() => X`
@@ -2510,7 +2607,7 @@ export function reachableAliasValues({
 // plainly - the source node answers for itself there, SE-bail included - and where it is no call at
 // all. the view is LOCAL to the proof: every emitter keeps re-emitting the source's own node
 function pairedCallView(node, { scope, adapter, path }, getBinding = null) {
-  if (!isCallShape(node) && node?.type !== 'TaggedTemplateExpression' && node?.type !== 'NewExpression') return null;
+  if (invocationNode(node) !== node) return null;
   const pairing = callPairing(node, null, {
     nameIsShadowed: name => adapter.hasBinding(scope, name, path),
     staticIsMutated: adapter.isMutatedStatic ?? null,
@@ -2523,12 +2620,193 @@ function pairedCallView(node, { scope, adapter, path }, getBinding = null) {
 
 // Resolve a call's returned literal and its parameter-filled slots through the shared callee proof.
 // Return the canonical argument list alongside slot indices; consumers use `resolveCallArgument`
-// to read a runtime position through any remaining inline-array spreads.
+// to read a runtime position through any remaining inline-array spreads. the callee itself rides
+// along with the scope its literal's identifiers resolve in and the advanced cycle set, for a
+// consumer pairing the literal's OTHER slots
 export function callYieldedContainer(hop, options = {}) {
-  if (!isCallShape(hop.node) && hop.node?.type !== 'TaggedTemplateExpression') return null;
+  if (!isPairedCallShape(hop.node)) return null;
   const resolved = resolveInlineCalleeFunction(hop, { allowIdentityParam: true, ...options });
-  const yielded = resolved && calleeYieldedContainer(resolved.node, { unwrap: unwrapTransparentSeq });
-  return yielded ? { ...yielded, args: resolved.args } : null;
+  // the return is read for its VALUE: an effect prefix in a sequence return stays in the callee,
+  // which every reader of the yielded container keeps running in place
+  const yielded = resolved && calleeYieldedContainer(resolved.node, { unwrap: unwrapExpressionChain });
+  return yielded ? { ...yielded, args: resolved.args, callee: resolved.node, scope: resolved.ctx.scope, seen: resolved.seen } : null;
+}
+
+// ... the same container as a VALUE reader pairs it: `paramArgs` holds the literal, the argument each
+// CONFINED parameter holds where this call spells one (`args`), and every other parameter's name
+// (`unproven`) - its argument may have been handed on to a writer, or this call leaves it unknown
+// (missing, behind an opaque spread). a reader takes each slot through `yieldedSlotValue`; a patch
+// census pairs the raw container instead, since any slot argument may be patched
+export function pairedYieldedContainer(hop, options = {}) {
+  const yielded = callYieldedContainer(hop, options);
+  if (!yielded) return null;
+  const args = new Map();
+  const unproven = new Set();
+  for (const [at, param] of dropLeadingThisParam(yielded.callee.params).entries()) {
+    const argument = yielded.confined.has(at) ? resolveCallArgument(yielded.args, at) : null;
+    if (argument) args.set(param.name, argument);
+    else unproven.add(param.name);
+  }
+  return { ...yielded, paramArgs: { literal: yielded.literal, args, unproven } };
+}
+
+// the values a PATTERN binding takes from an init that is an INVOCATION the value walks follow
+// (`realmYieldingCallView`: a call, a tag, a `new` over a constructible callee, an `await`): the call
+// canon's returned literal pairs exactly as an inline one does, so a destructure off a factory
+// (`const { a: A } = f()`, an IIFE, a method) reads the slot the literal spells. a slot the callee fills from a PARAMETER holds
+// the call's argument at that index, spelled at the call site; every other value is spelled in the
+// callee's declaration scope - each value carries the scope its identifiers resolve in, since a
+// namesake at the call site must not capture a callee-spelled name. ONE proven literal - a
+// parameter-filled one, or the single agreeing return - pairs COMPLETELY: `literal` and `ctx` are
+// then the pairing's rhs and its context for the gates that ask the literal itself (a default, a
+// spread-shifted slot) - `ctx.held` where an ALIAS holds the call's result, which the file may have
+// written the literal through since. disagreeing free returns pair as the UNION of what each spells, which is all
+// the return sink promises (a path it cannot see may yield anything): `complete` is false, and a
+// consumer needing certainty reads nothing from such values, and so is a slot reading a parameter the
+// pairing cannot prove (`yieldedSlotValue`: no value). null where the init is no call the inline
+// canon reaches, or no return spells a literal
+// `nested` - the level hooks a consumer pairing every level asks (`pairedSlotValues`) - reaches the
+// literal's own levels too.
+export function callInitSlotValues({
+  pattern, init, name, scope, adapter, path, seen = new Set(), resolveKey: keyResolver = null, nested = null,
+}) {
+  const paired = callPairingSources({ init, scope, adapter, path, seen });
+  if (!paired) return null;
+  const values = [];
+  let ctx = null;
+  let open = false;
+  for (const source of paired.sources) {
+    const sourceCtx = { scope: source.scope, adapter, path, resolveKey: keyResolver, seen: source.seen, held: paired.held, ...nested };
+    ctx ??= sourceCtx;
+    for (const value of patternSlotValues(pattern, source.literal, name, sourceCtx)) {
+      const read = yieldedSlotValue(paired.paramArgs, value);
+      if (value && !read) open = true;
+      else values.push({ node: read, scope: nested?.valueScopes.get(read) ?? (read === value ? source.scope : paired.argumentScope) });
+    }
+  }
+  return { literal: paired.sources[0].literal, ctx, values, complete: !!paired.proven && !open };
+}
+
+// the containers an INVOCATION init pairs against through the call canon, with where each resolves:
+// `{ sources, paramArgs, argumentScope, proven, held }` - `sources` the ONE proven literal (a
+// parameter-filled one, or the single agreeing return) or every literal the free returns spell, each
+// `{ literal, scope, seen }`; `paramArgs` the slots a parameter fills (`yieldedSlotValue`), spelled at
+// `argumentScope`; `held` where an ALIAS holds the call's result. null where the init is no call the
+// value walks follow (`realmYieldingCallView`) or no return spells a literal
+function callPairingSources({ init, scope, adapter, path, seen }) {
+  // ... an ALIAS of a call holds what the call yields - the value the wrapper and member walks read
+  // through it (`const w = f(); const [A] = w`), with the call run where the alias was declared
+  const initNode = unwrapTransparentSeq(installedWriteValue(init));
+  const followed = followConstIdentifierInit({ node: initNode, readNode: init, seen, ctx: { scope, adapter, path } });
+  const call = realmYieldingCallView(followed.node, { scope: followed.ctx.scope, adapter, path });
+  if (!call) return null;
+  const rejectConditional = adapter.method !== 'usage-global';
+  let hop = {
+    node: call,
+    readNode: followed.readNode ?? init,
+    seen,
+    ctx: { scope: followed.ctx.scope, adapter, path },
+    awaited: unwrapTransparentSeq(followed.node)?.type === 'AwaitExpression',
+  };
+  let yielded = null;
+  let returned = null;
+  let returnSink = [];
+  // ... and a returned CALL stands for what ITS callee yields: usage-global unions on through the
+  // chain, pure declines it - the flavor rule of `callYieldedLiteral`. each level reads its arguments
+  // where its own call stands
+  for (let depth = 0; depth < MAX_KEY_DEPTH; depth++) {
+    yielded = pairedYieldedContainer(hop, { rejectConditional });
+    returnSink = [];
+    returned = yielded ? null : inlineCallReturnExpression(hop, { rejectConditional, returnSink });
+    const chained = returned && adapter.method === 'usage-global'
+      && realmYieldingCallView(unwrapExpressionChain(returned.node), { scope: returned.ctx.scope, adapter, path });
+    if (!chained) break;
+    hop = { node: chained, readNode: chained, seen: returned.seen, ctx: { scope: returned.ctx.scope, adapter, path } };
+  }
+  const proven = yielded ?? returned;
+  const sources = (proven ? [proven] : returnSink).map(source => ({
+    literal: unwrapExpressionChain(source.literal ?? source.node), scope: source.scope ?? source.ctx.scope, seen: source.seen,
+  })).filter(({ literal }) => literal?.type === 'ObjectExpression' || literal?.type === 'ArrayExpression');
+  return sources.length
+    ? { sources, paramArgs: yielded?.paramArgs, argumentScope: hop.ctx.scope, proven, held: followed.node !== initNode } : null;
+}
+
+// the values a PATTERN binding `name` takes from `init`, each with the scope it is spelled in: a
+// CALL init through the call canon above, any other through the literal pairer at `ctx` - the one
+// pairing every reader of a pattern's slot asks, whatever the init's spelling. a level whose value
+// is a selection or such a call pairs every arm and what the call canon pairs the call with, at the
+// head and at every nested level (`pairedSources`), each value keeping the scope it is spelled in. a
+// consumer that reads the slot as PROVEN asks `certainPairedSlotValue`
+export function pairedSlotValues({ pattern, init, name, ctx, seen = new Set() }) {
+  return pairSlotValues({ pattern, init, name, ctx, seen }).values;
+}
+
+// the ONE value a pattern slot CERTAINLY takes, with the scope it is spelled in: the pairing's single
+// value, where a call init's pairing is complete and no default may fire in its place nor a spread
+// shift the slot (`patternSlotValueAmbiguous`, asked of the literal the pairing read - a call's
+// returned one included). null where the slot may hold anything else
+export function certainPairedSlotValue({ pattern, init, name, ctx, seen = new Set() }) {
+  const { called, values } = pairSlotValues({ pattern, init, name, ctx, seen });
+  if (values.length !== 1 || !values[0].node || (called && !called.complete)) return null;
+  return patternSlotValueAmbiguous(pattern, called ? called.literal : init, name, called ? called.ctx : ctx) ? null : values[0];
+}
+
+// the shared pairing of the two above, with the call canon's own answer (`called`) beside its values
+function pairSlotValues({ pattern, init, name, ctx, seen }) {
+  const valueScopes = new Map();
+  function levelSources(rhs, levelCtx) {
+    const arms = flattenBranchingValueNodes([rhs]);
+    if (arms.length !== 1 || arms[0] !== rhs) return arms.map(arm => ({ source: arm }));
+    const paired = callPairingSources({ init: rhs, scope: levelCtx.scope, adapter: ctx.adapter, path: ctx.path, seen });
+    return paired?.sources.map(({ literal, scope }) => ({
+      source: literal,
+      scope,
+      argumentScope: paired.argumentScope,
+      filled: value => yieldedSlotValue(paired.paramArgs, value) ?? undefined,
+    })) ?? null;
+  }
+  const nested = { pairedSources: levelSources, valueScopes };
+  const called = callInitSlotValues({
+    pattern, init, name, scope: ctx.scope, adapter: ctx.adapter, path: ctx.path, seen, resolveKey: ctx.resolveKey ?? null, nested,
+  });
+  return {
+    called,
+    values: called ? called.values : patternSlotValues(pattern, init, name, { ...ctx, ...nested })
+      .map(node => ({ node, scope: valueScopes.get(node) ?? ctx.scope })),
+  };
+}
+
+// the ONE value an invocation provably stands for - any spelling the value walks follow
+// (`realmYieldingCallView`, an optional call to a proven callee included: it never short-circuits)
+// - with the scope it is spelled in: the container the callee fills from its parameters, `paramArgs`
+// pairing its parameter slots with this call's arguments (`yieldedSlotValue`), or the single agreeing
+// return expression, in the callee's scope, a literal or a name the caller follows on. the read a
+// descent takes where it wants the value itself rather than a slot's values; null where the
+// invocation yields neither. a returned INVOCATION stands for what ITS callee yields: usage-global
+// unions on through the chain, while pure declines it - only one leg's routes would step a chain the
+// other reads natively
+export function callYieldedLiteral(hop, { allowUninitializedCallee = false } = {}) {
+  const call = realmYieldingCallView(hop.node, hop.ctx);
+  if (!call) return null;
+  const callHop = { ...hop, node: call };
+  const rejectConditional = hop.ctx.adapter.method !== 'usage-global';
+  const yielded = pairedYieldedContainer(callHop, { rejectConditional, allowUninitializedCallee });
+  if (yielded) return { literal: yielded.literal, scope: yielded.scope, seen: yielded.seen, paramArgs: yielded.paramArgs };
+  const returned = inlineCallReturnExpression(callHop, { rejectConditional, allowUninitializedCallee });
+  const literal = returned && unwrapExpressionChain(returned.node);
+  return literal && !(invocationNode(literal) && hop.ctx.adapter.method === 'usage-pure')
+    ? { literal, scope: returned.ctx.scope, seen: returned.seen, paramArgs: null } : null;
+}
+
+// what a slot of that literal holds for a reader (`paramArgs` from `pairedYieldedContainer`): the call's
+// ARGUMENT where the slot names a confined parameter it spells one for, nothing (null) where the slot
+// reads any other parameter - the literal's names resolve where the callee is declared, where no
+// parameter is bound - and the node itself anywhere else, a node outside that literal included
+export function yieldedSlotValue(paramArgs, node) {
+  if (!paramArgs || !node || !subtreeContainsNode(paramArgs.literal, node)) return node;
+  const value = unwrapRuntimeExpr(node);
+  if (value?.type === 'Identifier' && paramArgs.args.has(value.name)) return paramArgs.args.get(value.name);
+  return paramArgs.unproven.size && identifierReferencedInSubtree(node, paramArgs.unproven) ? null : node;
 }
 
 // Resolve the paired invocation to a synchronous function and its declaration scope.
@@ -2536,9 +2814,16 @@ export function callYieldedContainer(hop, options = {}) {
 // initializer availability and `rejectConditional` bound the weaker conditional-callee proof.
 // Parameters require `allowIdentityParam`; the consumer still proves which value is returned.
 // Return canonical `args` and a forked, advanced `seen` set. Async/generator functions and
-// unresolved or cyclic callees return null; the caller's cycle set is never mutated.
+// unresolved or cyclic callees return null; the caller's cycle set is never mutated. `allowAsync`
+// admits an async function for a caller reading what an AWAIT of the call settles to; `declinedSink`
+// collects the call where a hop's initializer cannot have run by the read - the call throws there,
+// which a caller holding another answer about it must not override.
 export function resolveInlineCalleeFunction(hop, {
-  allowIdentityParam = false, rejectConditional = false, allowUninitializedCallee = false,
+  allowIdentityParam = false,
+  rejectConditional = false,
+  allowUninitializedCallee = false,
+  allowAsync = hop.awaited === true,
+  declinedSink = null,
 } = {}) {
   const { adapter, path } = hop.ctx;
   // A named call asks about its module entry before following the same bindings as
@@ -2565,24 +2850,77 @@ export function resolveInlineCalleeFunction(hop, {
   let hopScope = hop.ctx.scope;
   let lookupPath = path;
   const initAvailable = allowUninitializedCallee ? initializerMayRunBeforeUsage : varInitDominatesUsage;
-  if (isMemberAccessNode(callee)) {
-    const local = LOCAL_MEMBER_CALLEES.get(callee);
-    if (!local) return null;
-    const owner = unwrapTransparentSeq(callee.object);
-    const binding = owner?.type === 'Identifier' ? calleeBinding(hop.ctx.scope, owner.name, path) : null;
-    if (!binding || !initAvailable({
-      declaratorNode: binding.path?.node ?? binding.node, usagePath: path, usageNode: hop.node, kind: binding.kind,
-    })) return null;
-    // The selected value is still in its owner's scope. Identifier-valued slots use the
-    // ordinary alias walk below, without looking up a path by scanning the file again.
+  // a member the census resolved to a method, called in place or read into an alias (`const mk =
+  // o.make; mk()`): its owner's initializer has to have run by the read. The selected value is still
+  // in its owner's scope; Identifier-valued slots use the ordinary alias walk, without looking up a
+  // path by scanning the file again
+  function memberHop(member) {
+    const owner = unwrapTransparentSeq(member.object);
+    const binding = owner?.type === 'Identifier' ? calleeBinding(hopScope, owner.name, lookupPath) : null;
+    if (binding && !initAvailable({
+      declaratorNode: binding.path?.node ?? binding.node,
+      usagePath: lookupPath,
+      usageNode: lookupPath === path ? hop.node : member,
+      kind: binding.kind,
+    })) {
+      declinedSink?.push(hop.node);
+      return false;
+    }
+    const local = !seen.has(member) && LOCAL_MEMBER_CALLEES.get(member);
+    if (!binding || !local) return false;
+    seen.add(member);
     callee = local;
     hopScope = aliasDeclScope(binding, hopScope);
-    lookupPath = binding.path ?? binding.declarationPath ?? binding.resolveDeclaratorPath?.() ?? lookupPath;
+    lookupPath = bindingDeclarationPath(binding) ?? lookupPath;
+    return true;
+  }
+  // an init-less binding whose ONE write assigns a function literal (`let f; if (c) f = () =>
+  // globalThis;`) proves through that write: on every path the value is either undefined or that
+  // literal. the CALL ITSELF becomes an observable effect (it may throw / short-circuit on the
+  // unassigned path), so the collapse must keep it - the marker feeds `inlineCallHasObservableEffects`,
+  // which every dropping caller consults. `{ next, scope }` goes on through the callee a pattern slot
+  // or a member write names, `{ done }` ends the walk with its answer
+  function initlessHop(binding, name, anchor) {
+    const write = binding.constantViolations?.length === 1
+      ? unwrapTransparentSeq(violationAssignment(binding.constantViolations[0])) : null;
+    const rhs = write?.type === 'AssignmentExpression' && write.operator === '='
+      && write.left?.type === 'Identifier' && write.left.name === name
+      ? unwrapTransparentSeq(write.right) : null;
+    // a PATTERN-bound name holds the slot its declarator pairs (`const { make } = o`)
+    const bound = write ? null : patternBoundCallee({
+      binding, name, hop, scope: hopScope, readPath: lookupPath, readNode: anchor, initAvailable,
+    });
+    if (bound?.declined) declinedSink?.push(hop.node);
+    if (bound?.declined || bound?.open) return { done: null };
+    // ... and the one write storing a MEMBER the census resolved (`let mk; mk = o.make`) hands the
+    // walk that member, the conditional proof of the literal write below applying to it alike
+    const next = bound?.callee ?? (isMemberAccessNode(rhs) ? rhs : null);
+    if (next && (!rhs || !rejectConditional)) return { next, scope: bound?.scope ?? (rhs && pathOfNode(lookupPath, write)?.scope) };
+    if (rhs?.type !== 'ArrowFunctionExpression' && rhs?.type !== 'FunctionExpression') return { done: null };
+    // callers asking whether the call's VALUE is defined get no proof from a conditional
+    // one: the unassigned path is exactly the value they must keep guarding
+    if (rejectConditional) return { done: null };
+    conditionallyProvenCallees.add(rhs);
+    seen.add(name);
+    // the write's RHS resolves in the binding's own declaration scope, like a declarator init
+    return { done: finishInlineCallee({
+      hop,
+      callee: rhs,
+      args,
+      scope: pathOfNode(lookupPath, write)?.scope ?? aliasDeclScope(binding, hopScope),
+      seen,
+      allowIdentityParam,
+      allowAsync,
+    }) };
   }
   // identifier hops follow transitively (`const f = () => X; const q = f; q()`), each hop
   // re-anchored at the alias's own declaration scope (per-hop advance like the key/global
   // alias walks) with the seen-set guarding cycles
-  while (callee.type === 'Identifier') {
+  while (callee.type === 'Identifier' || isMemberAccessNode(callee)) {
+    if (isMemberAccessNode(callee)) {
+      if (!memberHop(callee)) return null;
+      continue;
+    }
     const { name } = callee;
     if (seen.has(name)) return null;
     const binding = calleeBinding(hopScope, name, lookupPath);
@@ -2606,29 +2944,18 @@ export function resolveInlineCalleeFunction(hop, {
     // alias capture cannot observe that initializer and still declines.
     if (initNode && !initAvailable({
       declaratorNode: bindingDeclaratorNode(binding), usagePath: lookupPath, usageNode: anchor, kind: binding.kind,
-    })) return null;
+    })) {
+      declinedSink?.push(hop.node);
+      return null;
+    }
     if (isDeclarator && !initNode) {
-      // an init-less binding whose ONE write assigns a function literal (`let f; if (c) f =
-      // () => globalThis;`) proves through that write: on every path the value is either
-      // undefined or that literal. the CALL ITSELF becomes an observable effect (it may
-      // throw / short-circuit on the unassigned path), so the collapse must keep it - the
-      // marker feeds `inlineCallHasObservableEffects`, which every dropping caller consults
-      const write = binding.constantViolations?.length === 1
-        ? unwrapTransparentSeq(violationAssignment(binding.constantViolations[0])) : null;
-      const rhs = write?.type === 'AssignmentExpression' && write.operator === '='
-        && write.left?.type === 'Identifier' && write.left.name === name
-        ? unwrapTransparentSeq(write.right) : null;
-      if (rhs?.type !== 'ArrowFunctionExpression' && rhs?.type !== 'FunctionExpression') return null;
-      // callers asking whether the call's VALUE is defined get no proof from a conditional
-      // one: the unassigned path is exactly the value they must keep guarding
-      if (rejectConditional) return null;
-      conditionallyProvenCallees.add(rhs);
-      callee = rhs;
+      const hopped = initlessHop(binding, name, anchor);
+      if (!hopped.next) return hopped.done;
+      callee = hopped.next;
       seen.add(name);
-      // the write's RHS resolves in the binding's own declaration scope, like a declarator init
-      return finishInlineCallee({
-        hop, callee, args, scope: aliasDeclScope(binding, hopScope), seen, allowIdentityParam,
-      });
+      hopScope = hopped.scope ?? aliasDeclScope(binding, hopScope);
+      lookupPath = bindingDeclarationPath(binding) ?? lookupPath;
+      continue;
     }
     if (reassignmentBlocksGlobalResolve({ binding, adapter, path: lookupPath, usageNode: anchor })) {
       // a dominating write replaced the callee, and its value IS the callee now: the enumerable
@@ -2659,18 +2986,50 @@ export function resolveInlineCalleeFunction(hop, {
     }
     seen.add(name);
     hopScope = aliasDeclScope(binding, hopScope);
-    lookupPath = binding.path ?? binding.declarationPath ?? binding.resolveDeclaratorPath?.() ?? lookupPath;
+    lookupPath = bindingDeclarationPath(binding) ?? lookupPath;
   }
-  return finishInlineCallee({ hop, callee, args, scope: hopScope, seen, allowIdentityParam });
+  return finishInlineCallee({ hop, callee, args, scope: hopScope, seen, allowIdentityParam, allowAsync });
+}
+
+// the callee a PATTERN-bound name holds (`const { make } = o`): the one value the pairer names for its
+// slot, with the scope that value resolves in, or else the method the literal spells there. `open`
+// where the file wrote the slot before the capture - it then holds no one certain function - and
+// `declined` where the declarator has not run by the read
+function patternBoundCallee({ binding, name, hop, scope, readPath, readNode, initAvailable }) {
+  const declarator = bindingDeclaratorNode(binding);
+  if (!declarator?.init) return null;
+  const ctx = { scope: aliasDeclScope(binding, scope), adapter: hop.ctx.adapter, path: readPath, resolveKey };
+  if (patternSlotWritten({
+    pattern: declarator.id, init: declarator.init, name, ctx: { ...ctx, path: bindingDeclarationPath(binding) ?? readPath },
+  })) return { open: true };
+  const paired = certainPairedSlotValue({ pattern: declarator.id, init: declarator.init, name, ctx });
+  if (paired) {
+    return initAvailable({ declaratorNode: declarator, usagePath: readPath, usageNode: readNode, kind: binding.kind })
+      ? { callee: unwrapTransparentSeq(paired.node), scope: paired.scope } : { declined: true };
+  }
+  const method = patternMethodSlot(declarator, name, { ...hop.ctx, scope, path: readPath });
+  return method ? { callee: method } : null;
+}
+
+// the METHOD a pattern name takes off a literal its declarator spells or aliases (`const { make } =
+// o`): the pairer names no value for a method slot - a reader reads through it - but a callee IS one
+function patternMethodSlot(declarator, name, ctx) {
+  const keys = patternLiteralKeyPath(declarator?.id, name);
+  const literal = keys?.length === 1 ? followConstLiteralAlias(unwrapTransparentSeq(declarator.init), ctx) : null;
+  if (literal?.type !== 'ObjectExpression') return null;
+  const prop = findObjectKeyBeforeSpread(literal.properties, item => plainSynthKeyName(item.key) === keys[0] && !item.computed);
+  const value = prop?.type === 'ObjectMethod' ? prop : prop?.value;
+  return (prop?.type === 'ObjectMethod' ? prop.kind === 'method' : prop?.kind !== 'get' && prop?.kind !== 'set')
+    && (value?.type === 'ObjectMethod' || value?.type === 'FunctionExpression' || value?.type === 'ArrowFunctionExpression') ? value : null;
 }
 
 // the shared callee-shape validation every proof arm funnels through; on success the hop advanced
 // onto the callee, at `scope`, carrying the ARGUMENTS the invocation pairs with its parameters
-function finishInlineCallee({ hop, callee, args, scope, seen, allowIdentityParam }) {
+function finishInlineCallee({ hop, callee, args, scope, seen, allowIdentityParam, allowAsync }) {
   if ((callee.type !== 'ArrowFunctionExpression' && callee.type !== 'FunctionExpression'
     && callee.type !== 'FunctionDeclaration' && callee.type !== 'ObjectMethod')
     || (callee.params?.length && !allowIdentityParam)
-    || callee.async || callee.generator) return null;
+    || (callee.async && !allowAsync) || callee.generator) return null;
   // A named function expression binds its own name, outside the declaration scope carried here.
   if (callee.type === 'FunctionExpression' && callee.id?.name
     && identifierReferencedInSubtree(callee.body, callee.id.name)) return null;
@@ -2708,9 +3067,16 @@ export function inlineCallReturnExpression(hop, {
   const resolved = resolveInlineCalleeFunction(hop, { allowIdentityParam: true, rejectConditional, allowUninitializedCallee });
   if (!resolved) return null;
   const callee = resolved.node;
-  const candidates = returnSink && !callee.params?.length ? [] : null;
+  // a return that reads no parameter, nor the arguments object, hands back the same value whatever
+  // the call passed, so a parameter list alone keeps no candidate out; one that reads either is the
+  // caller's to pair
+  const paramNames = returnSink && callee.params?.length ? collectParamBindingNames(callee.params) : null;
+  const candidates = returnSink && (!callee.params?.length || paramNames) ? [] : null;
   const body = singleReturnBodyExpression(callee.body, { preservesBody: true, returnSink: candidates });
-  if (candidates) for (const node of candidates) returnSink.push({ ...resolved, node });
+  if (candidates) for (const node of candidates) {
+    if (paramNames && (identifierReferencedInSubtree(node, paramNames) || identifierReferencedInSubtree(node, 'arguments'))) continue;
+    returnSink.push({ ...resolved, node });
+  }
   if (!callee.params?.length) return body ? { ...resolved, node: body } : null;
   // identity passthrough (`(x) => x` applied to one arg): the body IS the param, so the receiver is
   // the ARG - recovers a call/IIFE-rooted receiver (`((x)=>x)(globalThis).Symbol`, and the nested
@@ -2721,7 +3087,9 @@ export function inlineCallReturnExpression(hop, {
   // parens oxc keeps around an arrow's expression body and babel strips
   const bodyExpr = unwrapTransparentSeq(body);
   const tail = bodyExpr?.type === 'SequenceExpression' ? unwrapTransparentSeq(bodyExpr.expressions.at(-1)) : bodyExpr;
-  const index = tail?.type === 'Identifier' ? callee.params.findIndex(param => param.name === tail.name) : -1;
+  // the parameter BINDING the returned name: itself, under a default, or as a leaf its pattern destructures
+  const index = tail?.type === 'Identifier' ? callee.params.findIndex(param => patternSlotTarget(param).name === tail.name
+    || isDestructurePattern(patternSlotTarget(param)) && !!collectParamBindingNames([param])?.has(tail.name)) : -1;
   if (index !== -1) {
     const returnedName = new Set([tail.name]);
     // Only the returned parameter needs this proof. Scanning the first parameter while
@@ -2742,19 +3110,48 @@ export function inlineCallReturnExpression(hop, {
     if (!allowMutatingForwarder && bodyWritesThroughParameter(callee, tail.name)) return null;
     // a leading `this` pseudo-param fills an AST slot and no runtime argument, so the slot's
     // ARGUMENT stands one position lower - the raw index reads the next argument instead
-    const argument = resolveCallArgument(resolved.args, argIndexForParam(callee.params, index));
-    // ... and a CONTAINER argument is read by its SLOTS, so the literal standing at the call site has
-    // to describe the object that comes back: every channel that can replace a slot - a handout to
-    // something that writes, a write through a local alias - is a reference the callee kept, and the
-    // one proof that rules them all out is that the parameter reached the RETURN and nothing else
-    if (!allowMutatingForwarder && CENSUS_CONTAINER_TYPES.has(unwrapRuntimeExpr(argument)?.type)
-      && !paramReturnsTheValue(callee, dropLeadingThisParam(callee.params).indexOf(callee.params[index]))) return null;
+    const param = callee.params[index];
+    const target = patternSlotTarget(param);
+    const argIndex = argIndexForParam(callee.params, index);
+    // the value the parameter TAKES: the argument, or the parameter's own default where the call leaves
+    // the slot to it (`argumentOverridesSlot`) - spelled where the callee is declared, where no
+    // parameter is bound, so a default reading one proves nothing
     // the argument is a SIBLING sub-expression of the source, not a continuation of the binding and
     // return chain the cycle set guards, so it resolves in the context the call was reached in.
     // carrying the ADVANCED set read a second hop through the same callee NAME as a cycle and
     // answered nothing at all (`pick(pick(Array)).from` lost its polyfill on both methods); what
     // ends this descent is the finite tree, since every step moves strictly inward
-    return argument ? { ...hop, node: argument, seen: new Set(hop.seen) } : null;
+    let source;
+    if (param.type === 'AssignmentPattern' && !argumentOverridesSlot(resolved.args, argIndex,
+      () => !!hop.ctx.adapter.getBinding(hop.ctx.scope, 'undefined', hop.ctx.path))) {
+      const names = collectParamBindingNames(callee.params);
+      if (!names || identifierReferencedInSubtree(param.right, names)
+        || identifierReferencedInSubtree(param.right, 'arguments')) return null;
+      source = { ...resolved, node: param.right };
+    } else {
+      const argument = resolveCallArgument(resolved.args, argIndex);
+      if (!argument) return null;
+      // ... where a DEFAULT stands behind it, the argument is the value only if it cannot come out
+      // undefined - an object-valued literal, a global constructor - or the default answers instead
+      const value = unwrapRuntimeExpr(argument);
+      const globalName = value?.type === 'Identifier' && isStaticPlacement(value.name)
+        && !hop.ctx.adapter.getBinding(hop.ctx.scope, value.name, hop.ctx.path);
+      if (param.type === 'AssignmentPattern' && !ALWAYS_TRUTHY_OBJECT_NODES.has(value?.type) && !globalName) return null;
+      source = { ...hop, node: argument, seen: new Set(hop.seen) };
+    }
+    // ... and a CONTAINER argument is read by its SLOTS, so the literal standing at the call site has
+    // to describe the object that comes back: every channel that can replace a slot - a handout to
+    // something that writes, a write through a local alias - is a reference the callee kept, and the
+    // one proof that rules them all out is that the parameter reached the RETURN and nothing else.
+    // asked of the argument's VALUE - the tail of a sequence spelling (`f((log(), { M: Object }))`),
+    // which is what the readers of the returned argument descend
+    if (target.type === 'Identifier') {
+      return !allowMutatingForwarder && CENSUS_CONTAINER_TYPES.has(unwrapExpressionChain(source.node)?.type)
+        && !paramReturnsTheValue(callee, dropLeadingThisParam(callee.params).indexOf(param)) ? null : source;
+    }
+    // ... while a destructured parameter's leaf holds the slot its pattern names, read at the call
+    const value = certainPairedSlotValue({ pattern: target, init: source.node, name: tail.name, ctx: source.ctx, seen: source.seen });
+    return value ? { ...source, node: value.node, ctx: { ...source.ctx, scope: value.scope } } : null;
   }
   // a body that never READS a param yields the same value for every argument (`(x) => globalThis`,
   // and the tagged spelling that ignores its strings slot the same way), so the call resolves to the
@@ -2773,6 +3170,62 @@ export function inlineCallReturnExpression(hop, {
 
 export function isCallShape(node) {
   return node?.type === 'CallExpression' || node?.type === 'OptionalCallExpression';
+}
+
+// the spellings the invocation canon pairs DIRECTLY: a call, or a tagged template - its tag the
+// callee, its expressions the arguments. a value reader reaches `new` and `await` through
+// `realmYieldingCallView`, which proves the callee constructible and the awaited value no thenable
+export function isPairedCallShape(node) {
+  return isCallShape(node) || node?.type === 'TaggedTemplateExpression';
+}
+
+// is a `new` callee CONSTRUCTIBLE? only a named function the inline walk resolves to a plain
+// declaration or expression: an arrow, an async / generator function and a method are not
+// constructible at all - `new` over one throws - and a MEMBER callee hides which of those it holds
+function constructibleRealmCallee(node, ctx) {
+  if (unwrapTransparentSeq(node.callee)?.type !== 'Identifier') return false;
+  const callee = resolveInlineCalleeFunction({ node, seen: new Set(), ctx }, { allowIdentityParam: true })?.node;
+  return (callee?.type === 'FunctionDeclaration' || callee?.type === 'FunctionExpression')
+    && !callee.async && !callee.generator;
+}
+
+// the value-transparent wrappers over a call, as the CALL the inline canon walks: `new` over a
+// constructible callee yields what the constructor returns where that is an object - a proxy global
+// always is - and `await` yields its operand where the operand is not a thenable (`awaitedValueNoThenable`).
+// the view is LOCAL to the proof: every caller keeps re-emitting the source's own node, and the
+// await's TICK stays an effect its keepers weigh, never a value difference
+export function realmYieldingCallView(node, ctx) {
+  const cur = invocationNode(node);
+  const call = cur?.type === 'NewExpression'
+    ? constructibleRealmCallee(cur, ctx) ? { ...cur, type: 'CallExpression', optional: false } : null : cur;
+  return call && (unwrapTransparentSeq(node)?.type !== 'AwaitExpression' || awaitedValueNoThenable(call, ctx)) ? call : null;
+}
+
+// is what a call yields provably no THENABLE, so that awaiting it hands that value on? an await
+// resolves a thenable through its `then`. the callee's literal qualifies where it is an array, or an
+// object spelling no `then` - no such key, no spread, no unfoldable computed key, no `__proto__` - and
+// so does a returned proxy global (the realm is none); anything the proof cannot see does not. every
+// one of them inherits from `Object.prototype`, an array from `Array.prototype` too, so a `then` the
+// FILE writes onto either makes it a thenable after all
+const THENABLE_KEYS = new Set([null, 'then', '__proto__']);
+function awaitedValueNoThenable(call, ctx) {
+  if (prototypeChainMayLend('then', ctx, ['Object'])) return false;
+  // an async callee settles the await to what it returns, which the proof reads the same way
+  const hop = { node: call, seen: new Set(), ctx, awaited: true };
+  const returned = inlineCallReturnExpression(hop, { allowUninitializedCallee: true });
+  const followed = returned && followConstIdentifierInit({ ...returned, node: unwrapExpressionChain(returned.node) });
+  const value = callYieldedContainer(hop, { allowUninitializedCallee: true })?.literal ?? followed?.node;
+  if (value?.type === 'ArrayExpression') return !prototypeChainMayLend('then', ctx, ['Array']);
+  if (value?.type === 'ObjectExpression') {
+    return value.properties.every(prop => prop.type !== 'SpreadElement' && !THENABLE_KEYS.has(foldedPropertyKeyName(prop)));
+  }
+  const name = !!value && resolveObjectName({
+    objectNode: value, scope: followed.ctx.scope, adapter: ctx.adapter, path: ctx.path,
+  });
+  if (POSSIBLE_GLOBAL_OBJECTS.has(name)) return true;
+  return !!name && isKnownGlobalName(name) && !!isStaticPlacement(name)
+    && !!inlineCallReturnExpression({ ...hop, awaited: false }, { allowUninitializedCallee: true })
+    && !prototypeChainMayLend('then', ctx, ['Function']) && !ctx.adapter?.isMutatedStaticSlot?.(name, 'then');
 }
 
 // the identifier's name when it IS a proxy-global or a transitive alias of the BARE global
@@ -3531,8 +3984,8 @@ function hasObservableEffectsRec(hop) {
     // drops them, so a side-effecting argument (`(() => Array)(c++)`) must force SE preservation -
     // in both spellings of the list: the raw one carries a receiver slot (`f.call(eff(), x)`), the
     // paired one a tag's interpolations and a bind's captured arguments
-    if (hop.node.arguments?.some(mayHaveSideEffects)
-      || pairedCallView(hop.node, hop.ctx)?.arguments.some(mayHaveSideEffects)) return true;
+    if (hop.node.arguments?.some(argument => mayHaveSideEffects(argument, hop.ctx))
+      || pairedCallView(hop.node, hop.ctx)?.arguments.some(argument => mayHaveSideEffects(argument, hop.ctx))) return true;
     // `allowIdentityParam` MUST mirror the fold (`inlineCallReturnExpression`): the fold inlines an
     // identity-param IIFE (`((x) => { g(); return x; })(Array)`), so the effect gate has to inspect its
     // block body too - a stricter gate here misses the `g()` prefix and drops it at the source
@@ -3544,7 +3997,7 @@ function hasObservableEffectsRec(hop) {
     const callee = resolved.node;
     // a parameter LIST that runs - a destructuring pattern, a default initializer with effects -
     // does its work when the call runs, so a fold that drops the call would drop that work with it
-    if (paramListRunsWork(callee.params)) return true;
+    if (paramListRunsWork(callee.params, resolved.ctx)) return true;
     // a conditionally-proven callee makes the CALL itself observable: the unassigned path
     // must keep its native throw / short-circuit, so the collapse may not drop the call
     if (conditionallyProvenCallees.has(callee)) return true;
@@ -3563,7 +4016,7 @@ function hasObservableEffectsRec(hop) {
     // the peeled-away prefix runs at the source too, so its effects count when the fold drops the call
     const peeled = peelReceiverSequenceTail(next);
     if (peeled !== next && next?.type === 'SequenceExpression'
-      && next.expressions.slice(0, -1).some(mayHaveSideEffects)) return true;
+      && next.expressions.slice(0, -1).some(expression => mayHaveSideEffects(expression, resolved.ctx))) return true;
     // recurse when the (peeled) target is an inline-resolvable call (`() => inner()` with its own effects)
     if (isCallShape(peeled)) {
       // the inner call sits in the callee's body - resolve it there, with the advanced cycle set
@@ -3573,7 +4026,7 @@ function hasObservableEffectsRec(hop) {
     // else the returned value IS the inlined receiver; it carries observable effects only when the
     // receiver is wrapped in a write or an SE-prefixed sequence (`a = Array`, `(eff(), Array)`) - the
     // substitution drops the whole call, so those must be preserved. a bare receiver ref has none
-    return returnedReceiverHasEffects(next);
+    return returnedReceiverHasEffects(next, resolved.ctx);
   }
 }
 
@@ -3583,12 +4036,13 @@ function hasObservableEffectsRec(hop) {
 // has no such effect (a CallExpression receiver is handled by the recursion above). peel transparent
 // wrappers first: oxc keeps the arrow-body parens (`() => (a = Array)`) babel strips, so the write
 // hides under a ParenthesizedExpression on one adapter only
-export function returnedReceiverHasEffects(node) {
-  node &&= unwrapTransparentSeq(node);
+export function returnedReceiverHasEffects(node, ctx = null) {
+  node &&= unwrapTransparentSeq(node, ctx);
   if (!node) return false;
   if (node.type === 'AssignmentExpression' || node.type === 'UpdateExpression') return true;
   if (node.type === 'SequenceExpression') {
-    return node.expressions.slice(0, -1).some(mayHaveSideEffects) || returnedReceiverHasEffects(node.expressions.at(-1));
+    return node.expressions.slice(0, -1).some(expression => mayHaveSideEffects(expression, ctx))
+      || returnedReceiverHasEffects(node.expressions.at(-1), ctx);
   }
   return false;
 }
@@ -3626,7 +4080,7 @@ function normalizeComputedKeyNode(node, bailOnSideEffectKey, adapter, ctx = null
     if (bailOnSideEffectKey && node?.type === 'SequenceExpression' && sequencePrefixWithSideEffects(node)) return KEY_SIDE_EFFECT_BAIL;
     node = peelSequenceTail(node, { step: unwrapTransparentSeq });
     if (node?.type !== 'CallExpression' && node?.type !== 'OptionalCallExpression') return node;
-    if (adapter.method === 'usage-pure' && !zeroArgIifeSideEffectFree(node)) {
+    if (adapter.method === 'usage-pure' && !zeroArgIifeSideEffectFree(node, ctx && { ...ctx, adapter })) {
       const argument = ctx && !bailOnSideEffectKey ? identityCallKeyArgument(node, adapter, ctx) : null;
       if (!argument) return node;
       node = argument;
@@ -3737,8 +4191,8 @@ export function resolveKey({ node, computed, scope, adapter, seen, path, depth =
           // the literal only on the guarded path, so following it would rewrite `Builtin[K]()` to a
           // receiver-less polyfill and mask the native TypeError on the skipped path. gate on
           // init-dominance like the receiver branch (usage-global over-injects, so it keeps following)
-          if (adapter.method === 'usage-pure' && !varInitDominatesUsage({
-            declaratorNode: entry.binding.node, usagePath: path, usageNode, kind: entry.binding.kind,
+          if (adapter.method === 'usage-pure' && !initializerReachesRead({
+            adapter, binding: entry.binding, declaratorNode: entry.binding.node, usagePath: path, usageNode,
           })) return null;
           // usage-global: an unconditional reassignment can kill the init before the use - including one
           // that completes before a capturing closure is defined (`let K = 'of'; K = 'from'; () =>
@@ -3757,16 +4211,13 @@ export function resolveKey({ node, computed, scope, adapter, seen, path, depth =
         // `let K = 'from'; K = 'of'; Array[K]()`) when it is unambiguous. null when flow-dependent
         const binding = adapter.getBinding(scope, node.name, path);
         const reaching = binding && isReassignedBeyondDeclarator(binding)
-          ? reachingReassignmentValueNode({
-            binding, usagePath: path, ctx: { scope, adapter, path, resolveKey }, usageNode,
-            requireSingleObservation: adapter.method === 'usage-pure',
-          }) : null;
+          ? reachingKeyValue({ binding, name: node.name, scope, adapter, path, usageNode, seen }) : null;
         if (reaching) {
           // extend the cycle-guard set BEFORE overwriting `node` - it reads the current name
           seen = new Set(seen).add(node.name);
-          node = reaching;
+          ({ node, scope } = reaching);
           depth += 1;
-          usageNode = reaching;
+          usageNode = node;
           continue;
         }
       }
@@ -4870,7 +5321,7 @@ export function seBearingChainRootCall({ node, scope, adapter, path }) {
 // routing it through here would double-rescue
 export function discardRescueNodes({ node, scope, adapter, path }) {
   const rootCall = seBearingChainRootCall({ node, scope, adapter, path });
-  return collectFoldedReceiverSideEffects(node, [], rootCall ? new Set([rootCall]) : null);
+  return collectFoldedReceiverSideEffects(node, { rescue: rootCall ? new Set([rootCall]) : null, ctx: { scope, adapter, path } });
 }
 
 // `resolveKey` can fold StringLiteral / TemplateLiteral / `+` concat to the string

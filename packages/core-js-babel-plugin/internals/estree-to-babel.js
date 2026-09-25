@@ -192,6 +192,9 @@ function build(node) {
     case 'ObjectExpression':
     case 'ObjectPattern':
       return { type: node.type, properties: node.properties.map(property => convert(property)) };
+    // a hole stays a hole
+    case 'ArrayExpression':
+      return { type: node.type, elements: node.elements.map(element => element ? convert(element) : null) };
     case 'Property':
       return {
         type: 'ObjectProperty',

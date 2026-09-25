@@ -1,9 +1,10 @@
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
 import _Math$clz32 from "@core-js/pure/actual/math/clz32";
-import _Promise from "@core-js/pure/actual/promise/constructor";
+import _Promise from "@core-js/pure/actual/promise";
 import _Reflect from "@core-js/pure/actual/reflect/namespace";
 // Branching container slots do not prove a single static receiver; their reads stay native.
-// Constructor arms can still receive pure entries. A bare selecting alias can instead
+// Constructor arms can still receive pure entries - whole ones, whose statics the native read
+// then finds. A bare selecting alias can instead
 // guard its named static against the captured constructor. Each row names a distinct method.
 const c = Math.random() > 0.5;
 

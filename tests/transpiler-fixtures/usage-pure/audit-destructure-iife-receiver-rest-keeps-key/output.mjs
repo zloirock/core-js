@@ -7,7 +7,7 @@ const _ref = (() => {
     _pushMaybeArray(log).call(log, 1);
     return Array;
   })(),
-  of = null == _ref ? _ref[""] : _Array$of,
+  of = _Array$of,
   {
     of: _unused,
     ...rest

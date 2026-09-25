@@ -94,6 +94,11 @@ export function objectExpression(properties) {
   return { type: 'ObjectExpression', properties };
 }
 
+// `elements` may hold null for a hole
+export function arrayExpression(elements) {
+  return { type: 'ArrayExpression', elements };
+}
+
 export function objectPattern(properties) {
   return { type: 'ObjectPattern', properties };
 }
@@ -186,6 +191,11 @@ export function hostSlot(node) {
   return { type: HOST_SLOT, node };
 }
 
+// ... and the host node a slot carries, for a render that asks about its shape
+function hostSlotNode(node) {
+  return node?.type === HOST_SLOT ? node.node : node;
+}
+
 // --- destructure renders (growing per cluster demand) ---
 
 // the literal spelling of one render-plan entry: the source key node when the prop was
@@ -254,10 +264,11 @@ export function renderProxyReceiverPlan(plan, { injectImport, embed = node => no
 
 // a member hop spelled by KEY NAME: a valid identifier reads after a dot, anything else
 // reads computed with its string (`_globalThis["App-Key"]`)
+// a canonical array index reads as a number (`w[1]`), every other non-identifier key as its string
 export function memberFromKeyName(object, keyName, options = {}) {
-  return isValidIdentifierName(keyName)
-    ? memberExpression(object, identifier(keyName), options)
-    : memberExpression(object, literal(keyName), { ...options, computed: true });
+  if (isValidIdentifierName(keyName)) return memberExpression(object, identifier(keyName), options);
+  const key = /^(?:0|[1-9]\d*)$/.test(keyName) ? Number(keyName) : keyName;
+  return memberExpression(object, literal(key), { ...options, computed: true });
 }
 
 // one property of a synthesized literal, keyed by the SLOT NOTATION the synth families use:
@@ -276,7 +287,7 @@ export function synthProperty(key, value) {
 // dot at all; every other key reads through its resolved name
 export function renderSynthSlotRead({ base, key, computed, lookupKey }) {
   // a host-slotted key is the caller's own node passing through - its SPELLING still decides
-  const spelled = key.type === HOST_SLOT ? key.node : key;
+  const spelled = hostSlotNode(key);
   const literalKey = !computed && (spelled.type === 'Literal' || spelled.type === 'StringLiteral');
   return memberExpression(base, computed || literalKey ? cloneNode(key) : identifier(lookupKey),
     { computed: computed || literalKey });
@@ -492,7 +503,7 @@ export function renderCtorIdentityNarrow(plan, rawBranch, { injectImport, spellR
 // only always-defined static/global bindings. every operand arrives ALREADY embedded (the
 // leg clones and wraps its host nodes); this spells the ONE guard shape both legs print
 export function renderInstanceDefaultGuard({ assignedRef, call, defaultValue, reread, defaultName = null }) {
-  const source = unwrapRuntimeExpr(defaultValue?.type === HOST_SLOT ? defaultValue.node : defaultValue);
+  const source = unwrapRuntimeExpr(hostSlotNode(defaultValue));
   // Moving an anonymous default into a conditional must preserve the binding's inferred name.
   if (defaultName && (source?.type === 'ArrowFunctionExpression'
     || ((source?.type === 'FunctionExpression' || source?.type === 'ClassExpression') && !source.id))) {
@@ -510,14 +521,16 @@ export function renderInstanceDefaultGuard({ assignedRef, call, defaultValue, re
 // A sole computed-key extraction captures the initializer before the key runs. The
 // dispatch owns the single property read; keeping a sentinel would read that slot twice.
 // Both bindings pass embedded source nodes and their already-built default guard.
-export function renderKeyedDestructureRead({ receiverName, receiver, binding, keys, read, storeReceiver = false }) {
-  const value = conditionalExpression(
+export function renderKeyedDestructureRead({ receiverName, receiver, binding, keys, read, storeReceiver = false, proven = false }) {
+  const keyed = keys.length ? sequenceExpression([...keys, read]) : read;
+  const value = proven ? keyed : conditionalExpression(
     nullFirstGuardTest(identifier(receiverName)),
     memberExpression(identifier(receiverName), literal(''), { computed: true }),
-    keys.length ? sequenceExpression([...keys, read]) : read,
+    keyed,
   );
   return [
-    ...storeReceiver ? [] : [variableDeclarator(identifier(receiverName), receiver)],
+    ...storeReceiver || (proven && hostSlotNode(receiver)?.type === 'Identifier') ? []
+      : [variableDeclarator(identifier(receiverName), receiver)],
     variableDeclarator(binding, storeReceiver
       ? sequenceExpression([assignmentExpression('=', identifier(receiverName), receiver), value]) : value),
   ];

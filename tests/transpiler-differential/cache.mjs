@@ -348,6 +348,21 @@ const missing = await runShard({ cache: join(TMP, 'no-such-file.json') });
 checkDeep('an absent cache file does the same', verdictOf(missing), verdictOf(cold));
 
 check('zero corpus fails its coverage canary', coverageShortfalls(emptyCoverage(), 0).length > 0, true);
+// the pure-only edit loop switches the usage-global leg off: its floor does not apply there, but a
+// run that keeps the leg on may not skip under that switch, and an off leg may not skip otherwise
+function coverageWith(legSkips) {
+  const coverage = emptyCoverage();
+  coverage['pure-stripped'].checked = 10;
+  coverage['ast-print-through'].checked = 10;
+  coverage['global-stripped'].skipped = legSkips;
+  return coverage;
+}
+check('a pure-only run accounts for its switched-off leg',
+  coverageShortfalls(coverageWith({ 'pure-only': 10 }), 10, { off: ['global-stripped'] }).length, 0);
+check('a full run may not skip under the pure-only switch',
+  coverageShortfalls(coverageWith({ 'pure-only': 10 }), 10).length > 0, true);
+check('a switched-off leg may not skip for another reason',
+  coverageShortfalls(coverageWith({ 'pure-only': 9, 'not-armed': 1 }), 10, { off: ['global-stripped'] }).length > 0, true);
 check('source goal is part of the cache address',
   store.hashCode('var x;', false, 'script') !== store.hashCode('var x;', false, 'module'), true);
 // A cleanup audit must observe a leaked property, never delete it before checking.

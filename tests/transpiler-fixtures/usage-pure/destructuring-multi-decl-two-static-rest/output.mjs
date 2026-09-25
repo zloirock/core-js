@@ -3,7 +3,7 @@ import _Promise from "@core-js/pure/actual/promise";
 // Constructor rest uses the full index where a constructor entry exists.
 // Other sources keep their rest exclusions and independently claimed statics.
 var _ref = Array,
-  from = null == _ref ? _ref[""] : _Array$from,
+  from = _Array$from,
   {
     from: _unused,
     ...r1

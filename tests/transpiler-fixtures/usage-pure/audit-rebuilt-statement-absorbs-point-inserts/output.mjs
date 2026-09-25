@@ -16,6 +16,6 @@ let done = false;
 function eff() {
   return 0;
 }
-_ref = Array, null == _ref ? _ref[""] : (e++, o = _Array$of), from = _Array$from, _ref;
+_ref = Array, e++, o = _Array$of, from = _Array$from, _ref;
 for (const _ref2 = obj.recv, fli = null == _ref2 ? _ref2[""] : (eff(), _findLastIndexMaybeArray(_ref2)), a = _atMaybeArray(_ref2); !done;) done = [fli, a];
 export const r = [from, o, done];

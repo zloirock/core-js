@@ -35,25 +35,37 @@ const {
   }),
   q: 1
 };
-const viaNullish = _Object$keys;
 const {
+  w: {
+    keys: viaNullish
+  },
   q: q3
 } = {
-  w: eff() ?? Object,
+  w: (eff(), {
+    keys: _Object$keys
+  }) ?? Object,
   q: 1
 };
-const viaNullishOther = _Object$keys;
 const {
+  w: {
+    keys: viaNullishOther
+  },
   q: q4
 } = {
-  w: eff() ?? Array,
+  w: (eff(), {
+    keys: _Object$keys
+  }) ?? Array,
   q: 1
 };
-const viaOr = _Object$keys;
 const {
+  w: {
+    keys: viaOr
+  },
   q: q5
 } = {
-  w: eff() || userObj,
+  w: (eff(), {
+    keys: _Object$keys
+  }) || userObj,
   q: 1
 };
 const {
@@ -62,7 +74,9 @@ const {
   },
   q: q7
 } = {
-  w: c ? eff() : {
+  w: c ? (eff(), {
+    keys: _Object$keys
+  }) : {
     keys: _Object$keys
   },
   q: 1
@@ -100,7 +114,15 @@ const {
   }),
   q: 1
 };
-const viaSole = (eff() ?? Object, _Object$keys);
+const {
+  w: {
+    keys: viaSole
+  }
+} = {
+  w: (eff(), {
+    keys: _Object$keys
+  }) ?? Object
+};
 const {
   a: {
     of: viaProbe

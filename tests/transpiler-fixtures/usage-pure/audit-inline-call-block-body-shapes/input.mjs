@@ -1,5 +1,6 @@
 // Agreeing if/else returns prove one constructor while retaining the original body.
-// Try/catch, loops and switch remain unproven; expression prefixes keep their effects.
+// Try/catch, loops and switch remain unproven - their returns guard each read as candidates -
+// and expression prefixes keep their effects.
 const ifElseBody = () => { if (Math.random() > 0) return Promise; else return Promise; };
 const out1 = ifElseBody().resolve(1);
 const tryBody = () => { try { return Promise; } catch (e) { return Promise; } };

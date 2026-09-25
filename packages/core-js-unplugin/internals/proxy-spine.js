@@ -340,7 +340,7 @@ export default function createProxySpineChannel(ctx) {
       adapter,
     });
     if (!admitted) return false;
-    const { plan, split, restResidual, bindingName, hostKind, nested, capture, captureFirst, keepPatternLive } = admitted;
+    const { plan, split, restResidual, bindingName, hostKind, nested, capture, captureFirst, keepPatternLive, detach } = admitted;
     if (nested) {
       const declarationPath = nested.host.parentPath;
       if (capture && declarationPath.parentPath?.node?.type === 'ExportNamedDeclaration') {
@@ -387,6 +387,20 @@ export default function createProxySpineChannel(ctx) {
     }
     const host = hostPath.node;
     const chain = guardChainNode(plan, memberExpression(identifier(plan.recvIdent.name), identifier(meta.key)));
+    if (detach) {
+      const list = hostKind === 'declarator' ? hostPath.parentPath.node.declarations : stmtUp?.parentPath?.node?.[stmtUp.listKey];
+      const anchorNode = hostKind === 'declarator' ? host : stmtUp?.node;
+      if (!Array.isArray(list) || !list.includes(anchorNode)) return false;
+      markRewrite();
+      markSubtreeSkipped(skippedNodes, prop);
+      markSubtreeSkipped(skippedNodes, chain);
+      pattern.properties.splice(pattern.properties.indexOf(prop), 1);
+      const placed = hostKind === 'declarator'
+        ? { type: 'VariableDeclarator', id: identifier(bindingName), init: chain }
+        : { type: 'ExpressionStatement', expression: assignmentExpression('=', identifier(bindingName), chain) };
+      list.splice(list.indexOf(anchorNode) + (detach === 'after' ? 1 : 0), 0, placed);
+      return true;
+    }
     markRewrite();
     if (!keepPatternLive) markSubtreeSkipped(skippedNodes, pattern);
     markSubtreeSkipped(skippedNodes, chain);
@@ -516,7 +530,10 @@ export default function createProxySpineChannel(ctx) {
         if (cur?.type === 'SequenceExpression') {
           // observable elements only - a dead prefix (`(0, globalThis)`) re-emits nothing,
           // exactly what the other leg's fold spells
-          if (!keptWrite) rootPrefix.push(...cur.expressions.slice(0, -1).filter(mayHaveSideEffects));
+          if (!keptWrite) {
+            rootPrefix.push(...cur.expressions.slice(0, -1)
+              .filter(expression => mayHaveSideEffects(expression, { scope: metaPath?.scope, adapter, path: metaPath })));
+          }
           cur = unwrapRuntimeExpr(cur.expressions.at(-1));
           continue;
         }
@@ -1905,7 +1922,7 @@ export default function createProxySpineChannel(ctx) {
     // shared with the fold - a `!` or a cast left over the binding is a spelling only this dialect
     // would print
     const replaceAt = landingOverSubstitutedSpan(
-      navigated && !collapsed.aliasRoot ? swallowDeadSeqWrapper(target) : target);
+      navigated && !collapsed.aliasRoot ? swallowDeadSeqWrapper(target, adapter) : target);
     replaceAt.replaceWith(replacement);
     markSubtreeSkipped(skippedNodes, consumed);
     skippedNodes.add(replaceAt.node);
