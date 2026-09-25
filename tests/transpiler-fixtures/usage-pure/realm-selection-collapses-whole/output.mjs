@@ -1,7 +1,7 @@
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
-import _Set from "@core-js/pure/actual/set/constructor";
+import _Set from "@core-js/pure/actual/set";
 // A value-SELECTING receiver every branch of which yields the REALM has no branch worth swapping:
 // the proxy globals are ONE object, so wherever a branch resolves it IS that realm, and the flatten
 // binds the polyfill while the whole selection drops - where a single-branch swap left a host that

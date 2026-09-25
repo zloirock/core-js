@@ -6,5 +6,5 @@ import _self from "@core-js/pure/actual/self";
 export function read(flag) {
   var _ref;
   let held;
-  return _ref = flag ? held = null == _globalThis.window ? void 0 : _self : _globalThis, _ref === _self ? _Map : _ref.Map;
+  return _ref = flag ? held = null == _globalThis.window ? void 0 : _self : _globalThis, _ref === _globalThis ? _Map : _ref.Map;
 }

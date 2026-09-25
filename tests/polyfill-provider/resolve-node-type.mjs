@@ -118,7 +118,7 @@ import {
   isTypeAnnotationWrapper,
   isThisReceiver,
   isTransparentDestructureWrapper,
-  objectPatternLiteralKeyPath,
+  patternLiteralKeyPath,
   isTypeOnlyImportBinding,
   isTypeOnlyImportKind,
   isTypeOnlyImportEquals,
@@ -148,6 +148,7 @@ import {
   paramReboundInBody,
   paramsHaveInvisibleCallers,
   arrayWrapSlotValueCandidates,
+  flattenBranchingValueNodes,
   patternSlotSpreadShifted,
   patternSlotValues,
   unwrapRuntimeExpr,
@@ -286,6 +287,26 @@ runBoth('Array.from(...) -> Array', 'const x = Array.from([]);', (adapter, prog,
   const call = adapter.pickPath(prog, 'CallExpression');
   checkType(lbl, adapter.makeResolver().resolveNodeType(call),
     { primitive: false, ctor: 'Array' });
+});
+
+// a member of the literal a CALL yields is typed off that literal - the member spelling, a binding of
+// the call, the destructure spelling, a slot the callee fills from a parameter (the argument's type),
+// a for-of head over the call, a block body of plain statements ending in its return; control flow
+// ahead of the return keeps the generic answer
+for (const [name, source, expected] of [
+  ['member spelling', 'const f = () => ({ arr: [1] }); f().arr.at(0);', 'Array'],
+  ['binding of the call', 'const f = () => ({ arr: [1] }); const o = f(); o.arr.at(0);', 'Array'],
+  ['destructure spelling', 'const f = () => ({ arr: [1] }); const { arr } = f(); arr.at(0);', 'Array'],
+  ['parameter-filled slot', 'const g = x => ({ arr: x }); const { arr } = g([1]); arr.at(0);', 'Array'],
+  ['for-of head over the call', 'const f = () => ({ arr: [1] }); for (const { arr } of [f()]) arr.at(0);', 'Array'],
+  ['block body, plain statements', 'function f() { const m = 1; return { arr: [m] }; } const { arr } = f(); arr.at(0);', 'Array'],
+  ['branching body stays generic', 'function f(c) { if (c) return { arr: "s" }; return { arr: [1] }; } const { arr } = f(c); arr.at(0);', null],
+  ['declared return type stays the declaration', 'const f = (): { arr: unknown } => ({ arr: [1] }); const { arr } = f(); arr.at(0);', null],
+]) runBoth(`call-yielded literal member type/${ name }`, source, (adapter, prog, lbl) => {
+  const at = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+  const type = adapter.makeResolver().resolveNodeType(at.get('object'));
+  if (expected) checkType(lbl, type, { primitive: false, ctor: expected });
+  else check(lbl, type?.ctor ?? null, null);
 });
 
 // aliased static via assignment-destructure: the call-return type must resolve identically on
@@ -3687,6 +3708,34 @@ runBoth('destructure default with hex pattern key matches decimal init key',
       { primitive: true, kind: 'string' });
   });
 
+// a NESTED pattern level's default is the receiver alone where the init's literal provably leaves the
+// slot it pairs undefined - absent, past an array's end, `void` - and folds with the slot wherever
+// something may supply it: a value, an inherited or file-written prototype key, a spread, `__proto__`,
+// a binding the file may have written
+for (const [label, source, expected, opts] of [
+  ['an absent key', 'function fa() { return [1]; } const { A: { at } = fa() } = {};', 'Array'],
+  ['a slot past an array end', 'function fa() { return [1]; } const [{ at } = fa()] = [];', 'Array'],
+  ['a key under a literal level', 'function fa() { return [1]; } const { B: { A: { at } = fa() } } = { B: {} };', 'Array'],
+  ['a void slot', 'function fa() { return [1]; } const { A: { at } = fa() } = { A: void 0 };', 'Array'],
+  ['a slot holding a value', 'function fa() { return [1]; } const { A: { at } = fa() } = { A: s };', null],
+  ['an inherited key', 'function fa() { return [1]; } const { toString: { at } = fa() } = {};', null],
+  ['a key the file writes onto the prototype', 'function fa() { return [1]; } const { A: { at } = fa() } = {};', null,
+    { isMutatedStatic: (object, key) => object === 'Object.prototype' && key === 'A' }],
+  ['a spread', 'function fa() { return [1]; } const { A: { at } = fa() } = { ...o };', null],
+  ['a `__proto__` key', 'function fa() { return [1]; } const { A: { at } = fa() } = { __proto__: q };', null],
+  ['a binding', 'function fa() { return [1]; } const h = {}; const { A: { at } = fa() } = h;', null],
+  ['a binding under a level', 'function fa() { return [1]; } const { B: { A: { at } = fa() } } = { B: h };', null],
+  ['a written binding holding the level', 'function fa() { return [1]; } const h = { B: {} }; h.B.A = s; const { B: { A: { at } = fa() } } = h;', null],
+]) {
+  runBoth(`nested pattern default: ${ label }`, source, (adapter, prog, lbl) => {
+    const prop = adapter.pickPath(prog, 'ObjectProperty', p => p.node.key?.name === 'at')
+      ?? adapter.pickPath(prog, 'Property', p => p.node.key?.name === 'at');
+    const type = adapter.makeResolver(opts).resolvePropertyObjectType(prop);
+    if (expected) checkType(lbl, type, { primitive: false, ctor: expected });
+    else check(lbl, type?.constructor ?? null, null);
+  });
+}
+
 // --- wrapper-peel divergence: runtime-object peel must snip the same wrapper set across sites ---
 
 // optional-chain-wrapped global ctor: `new (globalThis?.Array)()` is an Array instance, so `.at`
@@ -5669,7 +5718,7 @@ runBoth('the subclass own namespace export outranks the parent one',
   const multi = patternSlotValues(arrayPattern(null, ident('C')), arrayExpr(spread, ident('G1'), ident('G2')), 'C');
   check('ast-patterns: every static past the spread is a candidate',
     multi.map(v => v.name).join(','), 'G1,G2');
-  // objectPatternLiteralKeyPath names a non-computed key through the plain-key canon, so every
+  // patternLiteralKeyPath names a non-computed key through the plain-key canon, so every
   // spelling a pattern key can take is covered by ONE enumeration. numeric is the spelling the
   // hand-rolled copy in detect-usage resolved and this one dropped - the two have to agree, since
   // both answer "which key path binds this name"
@@ -5680,22 +5729,69 @@ runBoth('the subclass own namespace export outranks the parent one',
     return { type: 'ObjectPattern', properties };
   }
   checkDeep('ast-patterns: key path through an Identifier key',
-    objectPatternLiteralKeyPath(objPattern(objProp(ident('Array'), ident('A'))), 'A'), ['Array']);
+    patternLiteralKeyPath(objPattern(objProp(ident('Array'), ident('A'))), 'A'), ['Array']);
   checkDeep('ast-patterns: key path through a string key',
-    objectPatternLiteralKeyPath(objPattern(objProp({ type: 'StringLiteral', value: 'Array' }, ident('A'))), 'A'), ['Array']);
+    patternLiteralKeyPath(objPattern(objProp({ type: 'StringLiteral', value: 'Array' }, ident('A'))), 'A'), ['Array']);
   checkDeep('ast-patterns: key path through an estree string key',
-    objectPatternLiteralKeyPath(objPattern(objProp({ type: 'Literal', value: 'Array' }, ident('A'))), 'A'), ['Array']);
+    patternLiteralKeyPath(objPattern(objProp({ type: 'Literal', value: 'Array' }, ident('A'))), 'A'), ['Array']);
   checkDeep('ast-patterns: key path through a numeric key',
-    objectPatternLiteralKeyPath(objPattern(objProp({ type: 'NumericLiteral', value: 0 }, ident('A'))), 'A'), ['0']);
+    patternLiteralKeyPath(objPattern(objProp({ type: 'NumericLiteral', value: 0 }, ident('A'))), 'A'), ['0']);
   checkDeep('ast-patterns: key path through an estree numeric key',
-    objectPatternLiteralKeyPath(objPattern(objProp({ type: 'Literal', value: 0 }, ident('A'))), 'A'), ['0']);
+    patternLiteralKeyPath(objPattern(objProp({ type: 'Literal', value: 0 }, ident('A'))), 'A'), ['0']);
   const nestedPattern = objPattern(objProp(ident('Map'), ident('M')));
   checkDeep('ast-patterns: nested key path',
-    objectPatternLiteralKeyPath(objPattern(objProp(ident('ns'), nestedPattern)), 'M'), ['ns', 'Map']);
+    patternLiteralKeyPath(objPattern(objProp(ident('ns'), nestedPattern)), 'M'), ['ns', 'Map']);
   // a computed key needs the ctx resolver; without it the walk finds nothing rather than guessing
   check('ast-patterns: computed key without ctx yields no path',
-    objectPatternLiteralKeyPath(objPattern({ type: 'ObjectProperty', computed: true, key: ident('k'), value: ident('A') }), 'A'), null);
+    patternLiteralKeyPath(objPattern({ type: 'ObjectProperty', computed: true, key: ident('k'), value: ident('A') }), 'A'), null);
+  // a position names the index it reads - past a hole, under a key, behind a default - and a rest
+  // collects a fresh array, so nothing under it is a slot of the source
+  checkDeep('ast-patterns: key path through a position past a hole',
+    patternLiteralKeyPath(arrayPattern(null, ident('A')), 'A'), ['1']);
+  checkDeep('ast-patterns: key path through a position under a key',
+    patternLiteralKeyPath(objPattern(objProp(ident('ns'), arrayPattern(nestedPattern))), 'M'), ['ns', '0', 'Map']);
+  checkDeep('ast-patterns: key path through a defaulted position',
+    patternLiteralKeyPath(arrayPattern({ type: 'AssignmentPattern', left: ident('A'), right: ident('B') }), 'A'), ['0']);
+  check('ast-patterns: a rest yields no path',
+    patternLiteralKeyPath(arrayPattern(ident('B'), { type: 'RestElement', argument: arrayPattern(ident('A')) }), 'A'), null);
 
+  // an object-pattern key naming an ARRAY index reads the slot under the same positional contract:
+  // past the spread every static is a candidate and the pairing reports itself shifted; before
+  // the spread it pairs exactly. the union's flattener hands a branching candidate out per arm,
+  // in source order, and keeps an `&&` whole for the receiver resolver
+  // (a ctx-less pairing reads literal STRING keys; the numeric spelling of the same index folds
+  // through the ctx resolver the detect layer supplies, locked by its own scenarios)
+  const slotOne = objPattern(objProp({ type: 'StringLiteral', value: '1' }, ident('D')));
+  const slotZero = objPattern(objProp({ type: 'StringLiteral', value: '0' }, ident('E')));
+  const keyed = patternSlotValues(slotOne, arrayExpr(spread, ident('G1'), ident('G2')), 'D');
+  check('ast-patterns: a keyed array slot past the spread enumerates every static',
+    keyed.map(v => v.name).join(','), 'G1,G2');
+  const keyedExact = patternSlotValues(slotZero, arrayExpr(ident('G'), spread), 'E');
+  check('ast-patterns: a keyed array slot before the spread pairs exactly',
+    keyedExact.length === 1 && keyedExact[0].name, 'G');
+  checkTruthy('ast-patterns: the keyed spelling reports the shift',
+    patternSlotSpreadShifted(slotOne, arrayExpr(spread, ident('G')), 'D'));
+  check('ast-patterns: the keyed spelling before the spread is not shifted',
+    patternSlotSpreadShifted(slotZero, arrayExpr(ident('G'), spread), 'E'), false);
+  const unionArm = { type: 'ConditionalExpression', test: ident('c'), consequent: ident('G1'), alternate: ident('G2') };
+  const guardArm = { type: 'LogicalExpression', operator: '&&', left: ident('c'), right: ident('G3') };
+  const unionArms = patternSlotValues(arrayPattern(null, ident('F')), arrayExpr(spread, unionArm, guardArm), 'F');
+  check('ast-patterns: shifted union candidate flattens per arm in source order and keeps && whole',
+    unionArms.map(v => v.name ?? v.type).join(','), 'G1,G2,LogicalExpression');
+  // the arms peel to a fixpoint through the wrappers a dialect keeps (parens on the oxc leg, a TS
+  // assertion) and the write-value canon (a sequence tail, a chain assignment) in any nesting
+  const wrapped = { type: 'ParenthesizedExpression', expression: { type: 'TSAsExpression', expression: unionArm, typeAnnotation: { type: 'TSAnyKeyword' } } };
+  const chained = { type: 'SequenceExpression', expressions: [ident('se'), { type: 'AssignmentExpression', operator: '=', left: ident('w'), right: wrapped }] };
+  check('ast-patterns: wrapped and chain-written arms flatten to the same leaves',
+    flattenBranchingValueNodes([wrapped, chained]).map(v => v.name).join(','), 'G1,G2,G1,G2');
+  const guardedInside = { type: 'ParenthesizedExpression', expression: guardArm };
+  check('ast-patterns: keepAndWhole keeps a wrapped && whole after the peel',
+    flattenBranchingValueNodes([guardedInside], { keepAndWhole: true }).map(v => v.type).join(','), 'LogicalExpression');
+  check('ast-patterns: && splits into both operands by default',
+    flattenBranchingValueNodes([guardedInside]).map(v => v.name).join(','), 'c,G3');
+  const logicalWrite = { type: 'AssignmentExpression', operator: '||=', left: ident('x'), right: ident('G4') };
+  check('ast-patterns: a logical assignment yields either operand',
+    flattenBranchingValueNodes([logicalWrite]).map(v => v.name).join(','), 'x,G4');
   checkTruthy('ast-patterns: spread-shifted predicate fires past the spread',
     patternSlotSpreadShifted(arrayPattern(null, ident('A')), arrayExpr(spread, ident('G')), 'A'));
   check('ast-patterns: spread-shifted predicate quiet before the spread',
@@ -7065,6 +7161,8 @@ runBoth('the subclass own namespace export outranks the parent one',
     ['const f = () => Map; function g() { const f = () => Iterator; const A = f(); A.from = 1; }', ['Iterator.from'], ['Map.from']],
     ['function f(Array) { Array.from = 1; }', [], ['Array.from']],
     ['export default class Array {} Array.from = 1;', [], ['Array.from']],
+    // a for-of HEAD over a container literal names its element slot's constructor
+    ['for (const { x: A } of [{ x: Array }]) A.from = 1;', ['Array.from'], []],
     // namespace-veto provenance: a local Object / Reflect shadow silences only the BARE callee -
     // a proxy-global chain (direct or aliased) names the REAL namespace regardless of the shadow,
     // while a shadowed proxy ROOT is not the global at all
@@ -11186,6 +11284,44 @@ runBoth('union hints: a nested destructure stays conservative (null)',
     const hints = adapter.makeResolver().resolvePropertyUnionHints(prop);
     check(lbl, hints, null);
   });
+
+// a constructor or namespace the realm holds is a function or a plain object, never an instance of
+// its own family; the realm object itself stays untyped, and a destructured NAME is a binding, whose
+// written values the realm spelling of its literal does not speak for
+for (const [label, source, expected] of [
+  ['constructor arms', 'function f(c) { (c ? Map : Set).at(0); }', 'function'],
+  ['a namespace arm', 'function f(c) { (c ? Math : Object).at(0); }', 'function,object'],
+  ['the realm object', 'function f(c) { (c ? globalThis : []).at(0); }', null],
+  ['a written slot read through a destructured name',
+    'const box = { a: Math }; box.a = [1, 2]; const { a: list } = box; list.at(0);', null],
+]) {
+  runBoth(`union hints: ${ label }`, source, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkHintSet(lbl, adapter.makeResolver().resolvePropertyUnionHints(member), expected);
+  });
+}
+
+// an index read off an array literal lands on its elements: the one at a known index, and every
+// element once a reordering call ran or where the index is unknown. an installing mutator, a hand-out
+// or a spread leaves the set open. the member, the keyed-pattern and the array-pattern spellings and a
+// for-of head over the literal read the same elements
+for (const [label, source, expected] of [
+  ['after a reorder', 'const rd = [{ n: 1 }, Object]; rd.reverse(); rd[0].values;', 'function,object'],
+  ['at an unknown index', 'function f(i) { [Set, Map][i].values; }', 'function'],
+  ['after an installing mutator', 'const rd = [{ n: 1 }, Object]; rd.push(x); rd[0].values;', null],
+  ['after a hand-out', 'const rd = [{ n: 1 }, Object]; use(rd); rd[0].values;', null],
+  ['past a spread', 'const rd = [...xs, Object]; rd[1].values;', null],
+  ['a keyed pattern', 'const rd = [{ n: 1 }, Object]; rd.reverse(); const { 0: { values } } = rd;', 'function,object'],
+  ['an array pattern', 'const rd = [{ n: 1 }, Object]; rd.reverse(); const [{ values }] = rd;', 'function,object'],
+  ['a for-of head', 'for (const ctor of [Array, Set]) { const { values } = ctor; }', 'function'],
+]) {
+  runBoth(`union hints: array elements ${ label }`, source, (adapter, prog, lbl) => {
+    const read = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'values')
+      ?? adapter.pickPath(prog, 'ObjectProperty', p => p.node.key?.name === 'values')
+      ?? adapter.pickPath(prog, 'Property', p => p.node.key?.name === 'values');
+    checkHintSet(lbl, adapter.makeResolver().resolvePropertyUnionHints(read), expected);
+  });
+}
 
 // marker propagation through value-flow channels: object-literal field init, sequence
 // tail and assignment value all carry the nullish-strip marker to the logical gate

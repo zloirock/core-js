@@ -1,5 +1,6 @@
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Map from "@core-js/pure/actual/map";
+import _Object$groupBy from "@core-js/pure/actual/object/group-by";
 import _Set from "@core-js/pure/actual/set";
 import _WeakMap from "@core-js/pure/actual/weak-map";
 import _WeakSet from "@core-js/pure/actual/weak-set";
@@ -23,14 +24,15 @@ hand(_WeakMap);
 export function taken() {
   return _WeakSet;
 }
-// the escaped slot ITSELF: `handed.a.b` was passed out, so a static read through it stays raw
+// the escaped VALUE: passing `handed.a.b` out replaces no slot of `handed`, so a static read through
+// it resolves as its flat spelling does (`hand(Object); Object.groupBy`)
 const handed = {
   a: {
     b: Object
   }
 };
 hand(handed.a.b);
-use(handed.a.b.groupBy([], item => item));
+use(_Object$groupBy([], item => item));
 // the replaced slot: the literal no longer says what `rep.g` holds
 const rep = {
   g: _globalThis

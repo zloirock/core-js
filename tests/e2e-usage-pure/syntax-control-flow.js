@@ -386,3 +386,35 @@ QUnit.test('control-flow: a deferred read folds the writes past an undescribable
   assert.same(throughSlot(false), 'a');
   assert.same(throughSlot(true), 'c');
 });
+
+// a `var` initialized in a BRANCH names the value a later reassigning write takes from it: the write
+// keeps its own read, so the static read through the written name takes its polyfill
+QUnit.test('control flow: a write off a branch-initialized var takes its polyfill', assert => {
+  const on = [1].length > 0;
+  let held = Set;
+  function write() {
+    if (on) {
+      // eslint-disable-next-line no-var -- the branch-initialized var is the case under test
+      var realm = globalThis;
+    }
+    // eslint-disable-next-line block-scoped-var -- read past the branch that initialized it
+    held = realm.Array;
+  }
+  write();
+  assert.deepEqual(held.of(1, 2), [1, 2]);
+});
+
+// a read off a container `var` initialized in a branch keeps its read behind a guard: the static read
+// through it takes its polyfill where the branch ran
+QUnit.test('control flow: a read off a branch-initialized container takes its polyfill', assert => {
+  const on = [1].length > 0;
+  function read() {
+    if (on) {
+      // eslint-disable-next-line no-var -- the branch-initialized var is the case under test
+      var box = { A: Array };
+    }
+    // eslint-disable-next-line block-scoped-var -- read past the branch that initialized it
+    return box.A.of(1, 2);
+  }
+  assert.deepEqual(read(), [1, 2]);
+});

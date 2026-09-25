@@ -25,6 +25,7 @@ const ALLOWED = new Map([
   ['audit-realm-fold-drops-its-guard', Array(3).fill('globalThis')],
   ['audit-realm-run-under-an-excluded-root', Array(2).fill('globalThis')],
   ['excluded-realm-root-guard-stored-carriers', Array(4).fill('globalThis')],
+  ['guarded-alias-realm-proxy-comparator-native-realm', ['globalThis', 'globalThis', 'globalThis', 'self', 'globalThis']],
   // Slot writes deopt the original live binding, including compound writes and aliases.
   ['audit-mutated-globalthis-container', ['globalThis']],
   ['audit-mutated-hop-slot-reads', ['self']],

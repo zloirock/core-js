@@ -377,17 +377,23 @@ function mark(t, v) {
 {
   const v = (({
     at
-  }) => at)(...[mark('e', [0])]);
+  }) => at)(...[{
+    at: _atMaybeArray(mark('e', [0]))
+  }]);
 }
 {
   const v = (({
     at
-  }) => at)(mark('e', [0]));
+  }) => at)({
+    at: _atMaybeArray(mark('e', [0]))
+  });
 }
 {
   const v = (({
     at
-  }, x) => at)(mark('e', [0]), 1);
+  }, x) => at)({
+    at: _atMaybeArray(mark('e', [0]))
+  }, 1);
 }
 {
   const v = _Promise$resolve(...[[1, 2]]);
@@ -396,7 +402,9 @@ function mark(t, v) {
 {
   const viaIife = (({
     at
-  }, x) => [at.call([8, 9], -1), x])(...[mark('e', [0]), mark('f', 1)]);
+  }, x) => [at.call([8, 9], -1), x])(...[{
+    at: _atMaybeArray(mark('e', [0]))
+  }, mark('f', 1)]);
 }
 {
   function f() {

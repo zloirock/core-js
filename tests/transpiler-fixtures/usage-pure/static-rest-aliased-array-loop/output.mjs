@@ -5,7 +5,7 @@ let result;
 for (const _ref2 of [source]) {
   let [_ref] = _ref2,
     _ref3 = _ref,
-    from = null == _ref3 ? _ref3[""] : _Array$from,
+    from = _Array$from,
     {
       from: _unused,
       ...rest

@@ -5,7 +5,7 @@
 // caller treats the enum as opaque rather than mis-narrow to one kind.
 //
 // Public surface (the two resolvers take the whole merge-set of `enum E {}` blocks):
-//   findEnumMember(declaration, name)  - lookup by member name in ONE block
+//   findEnumMember(declaration, name)  - lookup by member name in ONE block, also exported alone
 //   resolveEnumMemberType(decls, name) - $Primitive for the named member, or null
 //   resolveEnumType(decls)             - $Primitive for the whole enum, or null
 //
@@ -24,6 +24,21 @@ import { unwrapParens } from '../helpers/ast-patterns.js';
 // operator table reports (boolean from a comparison, undefined, unknown) bails the member
 // to null so the caller treats the enum as opaque instead of mis-narrowing
 const ENUM_VALUE_KINDS = new Set(['string', 'number', 'bigint']);
+
+// ESTree (oxc-parser): members under body.members; Babel: directly on declaration
+function enumMembers(declaration) {
+  return declaration.members ?? declaration.body?.members;
+}
+
+// member's id may be Identifier (babel) or StringLiteral (oxc) - handle both shapes
+function enumMemberName(member) {
+  return member.id?.name ?? member.id?.value;
+}
+
+// the member `name` of ONE enum block, or null
+export function findEnumMember(declaration, name) {
+  return enumMembers(declaration)?.find(m => enumMemberName(m) === name) ?? null;
+}
 
 export function createEnumTypes({ babelNodeType }) {
   // ESTree preserves ParenthesizedExpression wrappers (babel strips them); unwrap so
@@ -51,20 +66,6 @@ export function createEnumTypes({ babelNodeType }) {
         () => resolveEnumMemberKind(init.left), () => resolveEnumMemberKind(init.right));
     }
     return ENUM_VALUE_KINDS.has(kind) ? kind : null;
-  }
-
-  // ESTree (oxc-parser): members under body.members; Babel: directly on declaration
-  function enumMembers(declaration) {
-    return declaration.members ?? declaration.body?.members;
-  }
-
-  // member's id may be Identifier (babel) or StringLiteral (oxc) - handle both shapes
-  function enumMemberName(member) {
-    return member.id?.name ?? member.id?.value;
-  }
-
-  function findEnumMember(declaration, name) {
-    return enumMembers(declaration)?.find(m => enumMemberName(m) === name) ?? null;
   }
 
   // an initialiser-less member is auto-numbered from the preceding member, so its kind is decided
@@ -136,7 +137,7 @@ export function createEnumTypes({ babelNodeType }) {
     return kind ? new $Primitive(kind) : null;
   }
 
-  // `enumMembers` / `resolveEnumMemberKind` / `eachMemberKind` stay cluster-private
+  // `resolveEnumMemberKind` / `eachMemberKind` stay cluster-private
   return {
     findEnumMember,
     resolveEnumMemberType,

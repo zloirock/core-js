@@ -180,15 +180,17 @@ const memberReadThroughObjectKey = function () {
   };
   return _Object$getOwnPropertyDescriptor({}, 'a');
 }();
-// NEGATIVE: a hoisted `var` container declared on a path the read ESCAPES is not the value read
-// here, so the same dominance gate the key-alias fold uses keeps it native
+// a hoisted `var` container declared on a path the read ESCAPES is not provably the value read here:
+// the read keeps its own spelling behind an identity guard on the constructor the slot holds, so a
+// path that skipped the declaration still throws where the source does
 export function escapingContainer(cond) {
+  var _ref;
   if (cond) {
     var late = {
       k: Object
     };
   }
-  return late.k.getOwnPropertyNames({});
+  return _ref = late.k, _ref === Object ? _Object$getOwnPropertyNames({}) : _ref.getOwnPropertyNames({});
 }
 // NEGATIVE: a slot REPLACED after the literal no longer holds what the literal spells, so descending
 // it would resolve a DIFFERENT constructor's static - a wrong value, not a missed one. this is not a
@@ -449,9 +451,9 @@ const assignedViaObjectAssign = function () {
     k: _Map
   });
   const {
-      k: _ref
+      k: _ref2
     } = merged,
-    groupBy = _ref === Object ? _Object$groupBy : _ref.groupBy;
+    groupBy = _ref2 === Object ? _Object$groupBy : _ref2.groupBy;
   return groupBy;
 }();
 const assignedViaDefineProperty = function () {
@@ -462,9 +464,9 @@ const assignedViaDefineProperty = function () {
     value: _Map
   });
   const {
-      k: _ref2
+      k: _ref3
     } = defined,
-    groupBy = _ref2 === Object ? _Object$groupBy : _ref2.groupBy;
+    groupBy = _ref3 === Object ? _Object$groupBy : _ref3.groupBy;
   return groupBy;
 }();
 const assignedViaLogicalWrite = function () {
@@ -473,9 +475,9 @@ const assignedViaLogicalWrite = function () {
   };
   logical.k &&= _Map;
   const {
-      k: _ref3
+      k: _ref4
     } = logical,
-    groupBy = _ref3 === Object ? _Object$groupBy : _ref3.groupBy;
+    groupBy = _ref4 === Object ? _Object$groupBy : _ref4.groupBy;
   return groupBy;
 }();
 const deletedSlot = function () {
@@ -502,9 +504,9 @@ const escapedBySpread = function () {
   };
   consume(...[spreadBox]);
   const {
-      k: _ref4
+      k: _ref5
     } = spreadBox,
-    groupBy = _ref4 === Object ? _Object$groupBy : _ref4.groupBy;
+    groupBy = _ref5 === Object ? _Object$groupBy : _ref5.groupBy;
   return groupBy;
 }();
 // the container may sit INSIDE the argument's value - the walk descends literals, member reads
@@ -515,9 +517,9 @@ const escapedInsideArrayLiteral = function () {
   };
   consume([litBox][0]);
   const {
-      k: _ref5
+      k: _ref6
     } = litBox,
-    getOwnPropertyNames = _ref5 === Object ? _Object$getOwnPropertyNames : _ref5.getOwnPropertyNames;
+    getOwnPropertyNames = _ref6 === Object ? _Object$getOwnPropertyNames : _ref6.getOwnPropertyNames;
   return getOwnPropertyNames;
 }();
 const escapedViaApplyArray = function () {
@@ -526,9 +528,9 @@ const escapedViaApplyArray = function () {
   };
   consume.apply(null, [applyBox]);
   const {
-      k: _ref6
+      k: _ref7
     } = applyBox,
-    getOwnPropertyDescriptor = _ref6 === Object ? _Object$getOwnPropertyDescriptor : _ref6.getOwnPropertyDescriptor;
+    getOwnPropertyDescriptor = _ref7 === Object ? _Object$getOwnPropertyDescriptor : _ref7.getOwnPropertyDescriptor;
   return getOwnPropertyDescriptor;
 }();
 const escapedInsideObjectValue = function () {
@@ -539,9 +541,9 @@ const escapedInsideObjectValue = function () {
     inner: objBox
   }.inner);
   const {
-      k: _ref7
+      k: _ref8
     } = objBox,
-    isFrozen = _ref7 === Object ? _Object$isFrozen : _ref7.isFrozen;
+    isFrozen = _ref8 === Object ? _Object$isFrozen : _ref8.isFrozen;
   return isFrozen;
 }();
 // Writes through a definite alias or wrapper reach the same container slot. An unconditional
@@ -605,13 +607,13 @@ const branchEscapeBothArms = function () {
   const picked = _globalThis.cond ? armA : armB;
   picked.k = _Map;
   const {
-      k: _ref8
-    } = armA,
-    fromA = _ref8 === Object ? _Object$getOwnPropertyNames : _ref8.getOwnPropertyNames;
-  const {
       k: _ref9
+    } = armA,
+    fromA = _ref9 === Object ? _Object$getOwnPropertyNames : _ref9.getOwnPropertyNames;
+  const {
+      k: _ref10
     } = armB,
-    fromB = _ref9 === Object ? _Object$getOwnPropertyDescriptor : _ref9.getOwnPropertyDescriptor;
+    fromB = _ref10 === Object ? _Object$getOwnPropertyDescriptor : _ref10.getOwnPropertyDescriptor;
   return [fromA, fromB];
 }();
 // iterating hands each VALUE to the loop binding, so the for-of head escapes like an argument;
@@ -625,9 +627,9 @@ const escapedByArrayPatternInit = function () {
   const [reHomed] = [patBox];
   reHomed.k = _Map;
   const {
-      k: _ref10
+      k: _ref11
     } = patBox,
-    getOwnPropertySymbols = _ref10 === Object ? _Object$getOwnPropertySymbols : _ref10.getOwnPropertySymbols;
+    getOwnPropertySymbols = _ref11 === Object ? _Object$getOwnPropertySymbols : _ref11.getOwnPropertySymbols;
   return getOwnPropertySymbols;
 }();
 const escapedByObjectPatternInit = function () {
@@ -641,9 +643,9 @@ const escapedByObjectPatternInit = function () {
   };
   taken.k = _Map;
   const {
-      k: _ref11
+      k: _ref12
     } = objPatBox,
-    fromEntries = _ref11 === Object ? _Object$fromEntries : _ref11.fromEntries;
+    fromEntries = _ref12 === Object ? _Object$fromEntries : _ref12.fromEntries;
   return fromEntries;
 }();
 // the matching is POSITIONAL: only members landing on an IDENTIFIER binding re-home, a nested
@@ -660,9 +662,9 @@ const escapedByNestedPatternLiteral = function () {
   }];
   reBound.k = _Map;
   const {
-      k: _ref12
+      k: _ref13
     } = deepBox,
-    deepRead = _ref12 === Object ? _Object$getOwnPropertyNames : _ref12.getOwnPropertyNames;
+    deepRead = _ref13 === Object ? _Object$getOwnPropertyNames : _ref13.getOwnPropertyNames;
   return deepRead;
 }();
 // a throw re-homes its value into some catch binding; a switch DISCRIMINANT only compares, so it
@@ -733,9 +735,9 @@ const conditionalSlotWrite = function (flag) {
   };
   if (flag) maybe.k = _Map;
   const {
-      k: _ref13
+      k: _ref14
     } = maybe,
-    entries = _ref13 === Object ? _Object$entries : _entries(_ref13);
+    entries = _ref14 === Object ? _Object$entries : _entries(_ref14);
   return entries;
 }(1);
 // a container arriving AS A PARAMETER is unknown - no static name, only the dispatcher
@@ -849,9 +851,9 @@ const readOnlyCalleeStillBails = function () {
   };
   onlyReads(readOnlyEscape);
   const {
-      k: _ref14
+      k: _ref15
     } = readOnlyEscape,
-    entries = _ref14 === Object ? _Object$entries : _entries(_ref14);
+    entries = _ref15 === Object ? _Object$entries : _entries(_ref15);
   return entries;
 }();
 const selfMethodCallLeaksNothing = function () {
@@ -884,9 +886,9 @@ const escapedByAsyncCallee = function () {
   }
   void takeAsync(asyncEscape);
   const {
-      k: _ref15
+      k: _ref16
     } = asyncEscape,
-    keys = _ref15 === Object ? _Object$keys : _keys(_ref15);
+    keys = _ref16 === Object ? _Object$keys : _keys(_ref16);
   return keys;
 }();
 const escapedThroughPromiseResolve = function () {
@@ -895,9 +897,9 @@ const escapedThroughPromiseResolve = function () {
   };
   void _Promise$resolve(awaitedBox);
   const {
-      k: _ref16
+      k: _ref17
     } = awaitedBox,
-    entries = _ref16 === Object ? _Object$entries : _entries(_ref16);
+    entries = _ref17 === Object ? _Object$entries : _entries(_ref17);
   return entries;
 }();
 const repositionedByOptionalCall = function () {
@@ -920,9 +922,9 @@ const escapedByThrow = function () {
     caught.k = _Map;
   }
   const {
-      k: _ref17
+      k: _ref18
     } = thrownBox,
-    viaThrow = _ref17 === Object ? _Object$create : _ref17.create;
+    viaThrow = _ref18 === Object ? _Object$create : _ref18.create;
   return viaThrow;
 }();
 const switchDiscriminantLeaksNothing = function () {
@@ -950,9 +952,9 @@ const escapedByForOfHead = function () {
   };
   for (const x of [loopBox]) x.k = _Map;
   const {
-      k: _ref18
+      k: _ref19
     } = loopBox,
-    defineProperties = _ref18 === Object ? _Object$defineProperties : _ref18.defineProperties;
+    defineProperties = _ref19 === Object ? _Object$defineProperties : _ref19.defineProperties;
   return defineProperties;
 }();
 const forInKeysLeakNothing = function () {
@@ -994,9 +996,9 @@ const escapedByOptionalCall = function () {
   };
   consume?.(optionalBox);
   const {
-      k: _ref19
+      k: _ref20
     } = optionalBox,
-    isSealed = _ref19 === Object ? _Object$isSealed : _ref19.isSealed;
+    isSealed = _ref20 === Object ? _Object$isSealed : _ref20.isSealed;
   return isSealed;
 }();
 const escapedByNew = function () {
@@ -1008,9 +1010,9 @@ const escapedByNew = function () {
   };
   void new TakerShape(newBox);
   const {
-      k: _ref20
+      k: _ref21
     } = newBox,
-    entries = _ref20 === Object ? _Object$entries : _entries(_ref20);
+    entries = _ref21 === Object ? _Object$entries : _entries(_ref21);
   return entries;
 }();
 const escapedByTemplateTag = function () {
@@ -1032,9 +1034,9 @@ const dynamicWriteKey = function (key) {
   };
   dynamic[key] = _Map;
   const {
-      k: _ref21
+      k: _ref22
     } = dynamic,
-    groupBy = _ref21 === Object ? _Object$groupBy : _ref21.groupBy;
+    groupBy = _ref22 === Object ? _Object$groupBy : _ref22.groupBy;
   return groupBy;
 }('k');
 function poisonContainer(target) {
@@ -1046,9 +1048,9 @@ const closureWrite = function () {
   };
   poisonContainer(closed);
   const {
-      k: _ref22
+      k: _ref23
     } = closed,
-    entries = _ref22 === Object ? _Object$entries : _entries(_ref22);
+    entries = _ref23 === Object ? _Object$entries : _entries(_ref23);
   return entries;
 }();
 export { memberSiblingEffectSurvives, memberOptionalHop, memberComputedStringKey, letReassignedAfterRead, escapedBySpread, escapedByNew, escapedByTemplateTag, escapedInsideArrayLiteral, escapedViaApplyArray, escapedInsideObjectValue, escapedByOptionalCall, escapedByAlias, escapedByWrapperLiteral, aliasLeakIsPairPrecise, branchEscapeBothArms, escapedByForOfHead, forInKeysLeakNothing, escapedByYieldedArgument, escapedByArrayPatternInit, escapedByObjectPatternInit, escapedByNestedPatternLiteral, escapedByThrow, switchDiscriminantLeaksNothing, memberChainReceiverStringKey, constBoundComputedInstanceKey, classInSlotStaysNative, nestedSeSlotKeepsEffect, nestedSlotEffects, containerWhollyReassigned, conditionalSlotWrite, parameterContainer, repositionedByFill, repositionedBySort, repositionedByOptionalCall, repositionedByBoundKey, varIndexOverBail, varIndexOnDataArray, configObjectIsNoContainer, readOnlyCalleeStillBails, selfMethodCallLeaksNothing, escapedByAsyncCallee, escapedThroughPromiseResolve, assignedViaObjectAssign, assignedViaDefineProperty, assignedViaLogicalWrite, deletedSlot, dynamicWriteKey, closureWrite, memberEffects, patternConcatDetaches, patternDynamicDetaches, foldedReadOnlyKeyStillResolves, repositionedByConcatKey, repositionedByDynamicKey, repositionedByDestructuredMethod, repositionedByStoredMethod, repositionedByDetachedCall, repositionedByReflectApply, detachedReadOnlyStillResolves, repositionedByUnshift, repositionedBySplice, repositionedByReverse, objectSlotReplaced, arraySlotReplaced, unrelatedKeyWritten, memberReadThroughSlot, memberReadThroughObjectKey, firstSlot, stringSpelling, laterSlot, overHole, overSpread, nonIndexName, nonCanonicalSpelling, outOfBounds, constructorSlot, constructorUnderObjectKey, patchedSlotStaysNative, patchedStringSpellingStaysNative, siblingEffectSurvives, objectSiblingEffectSurvives, twoLevelContainer, effects };

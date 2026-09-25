@@ -370,3 +370,20 @@ if (!Symbol.sham) {
     assert.true(globalThis.self?.Symbol.iterator in [], 'control: a resolvable hop keeps the rewrite');
   });
 }
+
+// a reassigned name is served through the identity guard its host renders, and an `in` test renders
+// none: the name keeps the whole entry of each constructor it may hold, and the test answers as native
+QUnit.test('in: a reassigned name answers for the constructor it holds', assert => {
+  const pick = [].length === 0;
+  let probed = Set;
+  if (pick) probed = Map;
+  assert.true('groupBy' in probed);
+  let filled = null;
+  filled ||= Promise;
+  assert.true('try' in filled);
+  function reassigned(value) {
+    if (pick) value = Iterator;
+    return 'from' in value;
+  }
+  assert.true(reassigned(Set));
+});

@@ -221,7 +221,9 @@ check('all bounded rows were checked', boundedChecks,
   adapters.length * bounded.reduce((sum, row) => sum + row.names.length * 2, 0));
 checkTruthy('the bounded rows keep their coverage floor', boundedChecks >= 1800);
 
-// An opaque member cycle must retain its invalidation without expanding wrapper paths.
+// An opaque member cycle must retain its invalidation without expanding wrapper paths. what the
+// re-homed member leaks is UNDER its slot - the wildcard there unsettles every read through it, and
+// never which value the slot itself holds
 for (const adapter of adapters) for (const [name, code] of [
   ['source aliases its own captured member', 'let source = { part: { x: Array } }; let alias = source.part;'
     + 'source = alias; alias = external(); alias.x = {};'],
@@ -231,7 +233,7 @@ for (const adapter of adapters) for (const [name, code] of [
   const program = adapter.parseAndScope(code).node;
   const { writtenContainerSlots } = collectFileCensus(program, [mutationShapesReducer()]);
   const paths = writtenContainerSlots.keys().map(key => key.replace(/#\d+/u, '')).toArray();
-  checkTruthy(`${ adapter.name }: ${ name }: source member stays invalidated`, paths.includes('source.part'));
+  checkTruthy(`${ adapter.name }: ${ name }: source member stays invalidated`, paths.includes('source.part.*'));
   checkTruthy(`${ adapter.name }: ${ name }: paths stay bounded`, paths.length < 16 && paths.every(key => key.length < 128));
 }
 

@@ -23,7 +23,6 @@ import {
   catchPropRewriteObservable,
   createInstanceNodeCache,
   followConstIdentifierInit,
-  followConstLiteralAlias,
   isChainAssignment,
   isDestructurePattern,
   isEffectfulKeyHop,
@@ -54,11 +53,13 @@ import {
   unwrapExpressionChain,
   unwrapRuntimeExpr,
   isUndefinedNode,
+  invocationNode,
 } from '../helpers/ast-patterns.js';
 import { nodeRangeContains } from '../resolve-node-type/base.js';
 import { hasConstructorEntry, resolve as resolveBuiltIn } from '../index.js';
 import { computedPropKeyHostsMachinery } from './members.js';
 import {
+  discardRescueNodes,
   chainSealsAShortCircuit,
   computedKeyIsWellKnownSymbol,
   consumableHopSlotName,
@@ -72,14 +73,18 @@ import {
   resolveKey as sharedResolveKey,
   memberTargetTakesExtraction,
   resolveObjectName,
+  callYieldedLiteral,
+  yieldedSlotValue,
 } from './resolve.js';
 import {
+  STATIC_WALK_DEPTH,
   mirrorAcceptedKey,
   buildDestructuringInitMeta,
   destructureHostInitNode,
   destructurePatternHostPath,
   destructureRightIsReceiver,
   discardRescueNodesWithReads,
+  observablePrefixElements,
   fallbackInitWhollyDiscardable,
   importedStaticReadMeta,
   resolveBranchProxyName,
@@ -96,7 +101,7 @@ function collapseFallbackInit({ init, scope, adapter, path, resolveGlobalPolyfil
   if (init?.type === 'LogicalExpression' || init?.type === 'ConditionalExpression'
     || isChainAssignment(init)
     || ((init?.type === 'CallExpression' || init?.type === 'OptionalCallExpression') && peelZeroArgIifeReturn(init))) {
-    if (!fallbackInitWhollyDiscardable(init)) init = null;
+    if (!fallbackInitWhollyDiscardable(init, true, { scope, adapter, path })) init = null;
     else for (let guard = 0; guard < 8 && init; guard++) {
       const inlined = peelZeroArgIifeReturn(init);
       if (inlined) init = unwrapExpressionChain(inlined);
@@ -166,11 +171,14 @@ function collapseLogicalInitOperand({ init, scope, adapter, path, resolveGlobalP
 // rescued WHOLE by the discard harvest. deeper effects (a ternary branch, an IIFE body)
 // keep the nested handling - folding those would change the receiver shape the SE-lift
 // machinery expects
-function anchoredSeAccounting(declarator, peeledInit) {
-  if (!mayHaveSideEffects(declarator.init)) return { accounted: true, anchorSe: null };
+function anchoredSeAccounting(declarator, peeledInit, ctx) {
   const prefixes = [];
   const seTail = unwrapCollectingSePrefixes(peeledInit, prefixes);
-  const accounted = !mayHaveSideEffects(seTail) || isChainAssignment(seTail);
+  // ... and a prefix READ only a getter answers is observable too, though `mayHaveSideEffects` calls it pure
+  if (!mayHaveSideEffects(declarator.init) && !observablePrefixElements(prefixes, ctx).length) {
+    return { accounted: true, anchorSe: null };
+  }
+  const accounted = !mayHaveSideEffects(seTail, ctx) || isChainAssignment(seTail);
   return { accounted, anchorSe: accounted && prefixes.length ? prefixes : null };
 }
 
@@ -195,7 +203,9 @@ export function destructureHostLiteralSurvives(leafPath, adapter = null) {
 // so far. With scope/adapter, follow fixed aliases in their declaration context.
 // Inner defaults unwrap; a receiver default paired with explicit undefined becomes the source.
 // `liftTrailing` permits inline array neighbours with effects: harvest replayable effects in
-// `trailingEffects`, or keep the wrapper when a spread must still iterate.
+// `trailingEffects`, or keep the wrapper when a spread must still iterate. The same lift lets the
+// peel step through a CALL yielding a literal - one no crossed sequence prefix precedes, which would
+// lift through another channel and run after it; the calls it steps through return in `steppedCalls`.
 // eslint-disable-next-line max-statements -- the peel: one arm per wrapper shape a level may take
 export function peelArrayWrapperPair({ pattern, init, scope = null, adapter = null, path = null, liftTrailing = false }) {
   // the capture the levels consumed so far anchor at - the host use first, then the innermost
@@ -234,6 +244,13 @@ export function peelArrayWrapperPair({ pattern, init, scope = null, adapter = nu
   // also lives in the alias's own init (outside the destructure host), so the trailing-extra
   // rule below never applies to them either
   let dereferenced = false;
+  // the CALLS the peel stepped through, source order: each is a value the flatten discards with the
+  // consumed level, and the plan replays it ahead of the extractions so it still runs where it stood
+  const steppedCalls = [];
+  // the parameters of the call the peel stepped into, each holding the argument the call passes: a
+  // slot naming one reads that argument, at the call site (`callScope`), where the peel goes on
+  let paramArgs = null;
+  let callScope = null;
   // the context a HOP KEY folds in: the pattern never leaves the host, so its keys read in the
   // host's scope however deep the INIT side has followed an alias out of it (the follow rebinds
   // `scope` below to the alias declaration's - a shadowing `k` there must not answer for the
@@ -243,9 +260,28 @@ export function peelArrayWrapperPair({ pattern, init, scope = null, adapter = nu
   // everything the consumed levels committed
   function done(peeledPattern, peeledInit) {
     return {
-      pattern: peeledPattern, init: peeledInit, peeledPrefixes, firstArray, lastArray, consumedLevels,
-      trailingEffects: trailingByLevel.toReversed().flat(), wrapperSurvives, restKeepsLevel,
+      pattern: peeledPattern,
+      init: peeledInit,
+      initScope: scope,
+      peeledPrefixes,
+      firstArray,
+      lastArray,
+      consumedLevels,
+      trailingEffects: trailingByLevel.toReversed().flat(),
+      wrapperSurvives,
+      restKeepsLevel,
+      steppedCalls,
     };
+  }
+  // the value a consumed level hands the next one: the slot's own node, or - where that node names a
+  // parameter of the call the peel stepped into - the argument the call passes, read at the call site.
+  // a slot reading a parameter the call proves nothing for (`yieldedSlotValue`) keeps its level whole
+  function slotValue(child) {
+    const read = yieldedSlotValue(paramArgs, child);
+    if (read === child) return child;
+    scope = callScope;
+    paramArgs = null;
+    return read;
   }
   for (;;) {
     if (pattern?.type === 'ObjectPattern' && pattern.properties.some(isRestProperty)) return done(pattern, init);
@@ -285,7 +321,9 @@ export function peelArrayWrapperPair({ pattern, init, scope = null, adapter = nu
     // flow-sensitive bail mirrors the object-wrapper static-receiver walk: only a reassignment
     // that reaches the use aborts (a `wrapper = []` strictly AFTER the read leaves the read's
     // value provably `[Array]`), instead of bailing on every constantViolation
-    if (scope && adapter) {
+    // ... to a fixpoint: a call may return an alias, an alias may hold a call
+    for (let step = 0; step < STATIC_WALK_DEPTH; step++) {
+      if (!scope || !adapter) break;
       // the detect side's own alias follow, so the plan consumes exactly the levels detection
       // classified: the pattern-gated init, each hop re-anchored in the followed binding's own
       // declaration scope, and the read site carried from the capture the level above recorded (a
@@ -313,6 +351,25 @@ export function peelArrayWrapperPair({ pattern, init, scope = null, adapter = nu
       effectiveInit = followed.node;
       ({ readNode } = followed);
       scope = followed.ctx.scope;
+      // a CALL in the slot yields the value the callee built (the same step the detect side's
+      // descent takes): the peel goes on inside that value, in the callee's scope, dereferenced
+      // exactly like an alias - the callee keeps the literal, only the value flows here. the call
+      // itself is a value the consumed level discards, so only a host that LIFTS such effects
+      // (`liftTrailing`) may step through it; any other keeps the level whole. so does a call that
+      // runs AFTER a prefix the peel already crossed (`(log(), f())`, or one an outer level spelled):
+      // the prefixes lift through their own channel and the call through the discard replay, which
+      // the renders emit first - stepping would run the call ahead of the effect it follows
+      if (!liftTrailing || peeledPrefixes.length || levelPrefixes.length
+        || !invocationNode(effectiveInit)) break;
+      const yielded = callYieldedLiteral({ node: effectiveInit, readNode, seen: new Set(), ctx: { scope, adapter, path } });
+      if (!yielded) return done(pattern, init);
+      steppedCalls.push(effectiveInit);
+      ({ paramArgs } = yielded);
+      callScope = scope;
+      readNode = effectiveInit;
+      effectiveInit = yielded.literal;
+      scope = yielded.scope;
+      dereferenced = true;
     }
     if (hopProp) {
       // the object level harvests nothing of its own - what keeps it whole is `objectHopPairedValue`'s
@@ -321,7 +378,7 @@ export function peelArrayWrapperPair({ pattern, init, scope = null, adapter = nu
       // (`{ [k]: { Map } }` with `const k = 'w'`), the way the other leg's consume already read it
       const paired = objectHopPairedValue(effectiveInit, consumableHopSlotName(hopProp, hopKeyCtx), dereferenced,
         adapter ? { scope, adapter, path } : null);
-      if (!paired) return done(pattern, init);
+      if (!paired || (paired.read && !yieldedSlotValue(paramArgs, paired.read))) return done(pattern, init);
       if (paired.survives || hopRest) wrapperSurvives = true;
       if (hopRest) restKeepsLevel = true;
       // an OBJECT hop level holds its child at the property its key names, not at an element: the
@@ -330,13 +387,13 @@ export function peelArrayWrapperPair({ pattern, init, scope = null, adapter = nu
       consumedLevels.push({ wrapper: init, array: effectiveInit, hopSlot: paired.match });
       trailingByLevel.push([]);
       pattern = patternSlotTarget(hopProp.value);
-      init = paired.read;
+      init = slotValue(paired.read);
       continue;
     }
     if (effectiveInit?.type !== 'ArrayExpression') return done(pattern, init);
     const [innerPattern] = pattern.elements;
     const [innerInit] = effectiveInit.elements;
-    if (!innerPattern || !innerInit) return done(pattern, init);
+    if (!innerPattern || !innerInit || !yieldedSlotValue(paramArgs, innerInit)) return done(pattern, init);
     // an INLINE trailing init element is evaluated-then-discarded by the destructure at
     // runtime; its effect would vanish with the consumed wrapper level, so an SE-bearing extra
     // bails the consume - the init stays whole and every effect runs verbatim - unless the
@@ -357,7 +414,7 @@ export function peelArrayWrapperPair({ pattern, init, scope = null, adapter = nu
     firstArray ??= effectiveInit;
     lastArray = effectiveInit;
     pattern = innerPattern;
-    init = innerInit;
+    init = slotValue(innerInit);
   }
 }
 
@@ -369,6 +426,7 @@ export function peelArrayWrapperPair({ pattern, init, scope = null, adapter = nu
 // the probe channel. a DEREFERENCED level skips the sibling rule: the alias's own declaration keeps
 // the literal, so its siblings were never at risk
 function objectHopPairedValue(objectNode, key, dereferenced, keyCtx) {
+  // the key fold's scope is the literal's own: every "does this slot run?" question below asks it
   // ... a key standing after the match is dangerous only where NOTHING can name it: the same
   // scope-aware fold the hop's own key rides (`{ [K]: v }` with `const K = 'q'` names `q`), so a
   // bound key that provably spells another slot leaves the match standing
@@ -407,10 +465,10 @@ function objectHopPairedValue(objectNode, key, dereferenced, keyCtx) {
   // the outer level alone, the tail was no name, the level consumed, and the prefix vanished
   const { prefix: readPrefix, tail: readTailRaw } = peelNestedSequenceExpressions(unwrapRuntimeExpr(read));
   const readTail = readPrefix.length ? peelRealmLogicalDefault(unwrapRuntimeExpr(readTailRaw), { discarding: true }) : null;
-  const seqPrefixOwed = !!readTail && readPrefix.some(mayHaveSideEffects)
+  const seqPrefixOwed = !!readTail && readPrefix.some(expression => mayHaveSideEffects(expression, keyCtx))
     && readTail.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(readTail.name);
   return {
-    match, read: realmNamed ?? read, survives: seqPrefixOwed || objectLiteralHoldsObservable(objectNode, match),
+    match, read: realmNamed ?? read, survives: seqPrefixOwed || objectLiteralHoldsObservable(objectNode, match, keyCtx),
   };
 }
 
@@ -993,6 +1051,9 @@ export function buildNestedDestructurePlan({
     pattern: originalId, init: declarator.init, scope, adapter, path, liftTrailing: liftsTrailingEffects,
   });
   const { pattern } = peeled;
+  // the scope the peeled init is spelled in: the host's, or the callee's where the peel stepped
+  // through a call, so a name the callee's literal spells resolves where it was written
+  const initScope = peeled.initScope ?? scope;
   // the harvested neighbours a FULL consume discards with the wrapper: the render re-emits them
   // once, behind the element's own effects; a partial consume keeps the array they stand in
   const trailingEffects = peeled.trailingEffects.length ? peeled.trailingEffects : null;
@@ -1034,7 +1095,7 @@ export function buildNestedDestructurePlan({
     // no `&&` guard - a guard can select its falsy LEFT and that path's native short-circuit /
     // TypeError must survive). this holds for the cascade too - keeping the RHS tail verbatim
     // does not make a conditionally-evaluated receiver safe to bind unconditionally
-    const fallback = collapseFallbackInit({ init, scope, adapter, path, resolveGlobalPolyfill });
+    const fallback = collapseFallbackInit({ init, scope: initScope, adapter, path, resolveGlobalPolyfill });
     init = fallback.init;
     const { fallbackDropped } = fallback;
     // observable node in the init the flatten DISCARDS: a chain-assignment (rescued WHOLE - it
@@ -1056,14 +1117,14 @@ export function buildNestedDestructurePlan({
     // leaf lost the ponyfill its flat twin extracts. a PROXY name is not this fallback's to give: the
     // name resolver declines those deliberately (a mutated `globalThis.self` holds the user's own
     // object) and handing one back would open the proxy branch on the receiver it refused
-    const proxyReceiver = init ? resolveObjectName({ objectNode: init, scope, adapter, path }) : null;
+    const proxyReceiver = init ? resolveObjectName({ objectNode: init, scope: initScope, adapter, path }) : null;
     // ... asked with the SAME rescue permission the static descent below gets: a declaration and an
     // assignment host both replay a receiver read they discard - the harvest above already names this
     // very read - so a container only an object-literal GETTER can name is answerable on them too.
     // refused here, a sole hop peeled down to that read resolved no receiver at all and every leaf
     // under it stayed native, where its effect-free twin extracts
     const containerReceiver = init && !proxyReceiver
-      ? staticContainerReceiverName({ node: init, scope, adapter, path, rescuesReceiverRead }) : null;
+      ? staticContainerReceiverName({ node: init, scope: initScope, adapter, path, rescuesReceiverRead }) : null;
     const receiver = proxyReceiver
       ?? (containerReceiver && !POSSIBLE_GLOBAL_OBJECTS.has(containerReceiver) ? containerReceiver : null);
     planReceiverName = receiver;
@@ -1075,7 +1136,7 @@ export function buildNestedDestructurePlan({
     // verdict. a collapse that dropped a `||` / `??` / ternary fallback rescues the nullish path
     // by construction - the fallback IS the value there - so the probe stays off
     const probedNav = !!init && !fallbackDropped && proxyReceiverValueCanBeUndefined(init,
-      ({ name }) => resolveGlobalPolyfill(name), { scope, adapter, path });
+      ({ name }) => resolveGlobalPolyfill(name), { scope: initScope, adapter, path });
     // the PROBED value is the collapsed init - a fallback logical hands its selected operand
     // on (`(nav).Array ?? {}` probes `(nav).Array`), and the renders must not re-derive the
     // nav from the raw declarator slot, whose logical shape no guard render owns
@@ -1139,7 +1200,8 @@ export function buildNestedDestructurePlan({
           outerProps, pattern: inner, discardSe, anchorSe, initElement: null, consumedLevelStrips,
         };
       }
-      const { accounted: anchoredSeAccounted, anchorSe } = anchoredSeAccounting(declarator, peeled.init);
+      const { accounted: anchoredSeAccounted, anchorSe } = anchoredSeAccounting(declarator, peeled.init,
+        { scope: initScope, adapter, path });
       const hopHostEligible = !arrayPeelHappened && anchoredSeAccounted
         && !isDisabledProp?.(declarator) && pattern.properties.length === 1
         && isPropertyNode(pattern.properties[0]);
@@ -1222,6 +1284,19 @@ export function buildNestedDestructurePlan({
       }
     }
   }
+  // the CALLS the peel stepped through are values the flatten discards with their levels: what a
+  // discard of each would silently drop is rescued (the same question every discarded init is
+  // asked, so a callee without an observable effect falls away on both legs), and - the consumed
+  // wrapper's neighbour rule - handed back to the statement lift ahead of the extractions
+  // (`f(); const from = _Array$from`). only a call standing INSIDE the host's own init is one the
+  // host runs: the peel reaches any other through a dereference - an alias's init ran at its
+  // declaration, and a call a callee RETURNS runs inside the call that invokes it
+  if (plan && peeled.steppedCalls.length) {
+    const rescued = peeled.steppedCalls.filter(call => spanWithinSlot(call, declarator.init))
+      .flatMap(call => discardRescueNodes({ node: call, scope, adapter, path }));
+    if (rescued.length) plan.discardSe = [...plan.discardSe ?? [], ...rescued];
+    plan.trailingEffects ??= [];
+  }
   // a hop VALUE that runs (`{ w: eff() }`, its constructor resolved through the call's return type)
   // is what a consumed level discards: it joins the rescue, so a full consume replays it once and a
   // partial one keeps it in the residual - without it the effect left with the level
@@ -1258,13 +1333,14 @@ export function buildNestedDestructurePlan({
     })(pattern, initLiteral, plan.outerProps);
     if (hopEffects.length) plan.discardSe = [...plan.discardSe ?? [], ...hopEffects.filter(node => !plan.discardSe?.includes(node))];
   }
-  // a harvested node that CONTAINS another replays it: the peeled-hop rescue takes `<call>.w` where the
-  // discard rescue already took the `<call>` it reads off, and the render ran the call twice. identity
-  // dedupe cannot see that - the nodes differ - so the containing span wins. asked once, BELOW every
-  // harvest, since the two collectors reach the same effect through spans neither of them compares
+  // a harvested node replays ONCE: the same node taken by two collectors (a call the host init IS,
+  // rescued as the init and again as the call the peel stepped through) keeps its first entry, and a
+  // node that CONTAINS another replays it - the peeled-hop rescue takes `<call>.w` where the discard
+  // rescue already took the `<call>` it reads off, nodes identity cannot match - so the containing
+  // span wins. asked once, BELOW every harvest, since the collectors reach one effect independently
   if (plan?.discardSe?.length > 1) {
     const harvested = plan.discardSe;
-    plan.discardSe = harvested.filter((node, index) => harvested
+    plan.discardSe = harvested.filter((node, index) => harvested.indexOf(node) === index && harvested
       .every((other, otherIndex) => otherIndex === index || !spanStrictlyContains(other, node)));
   }
   if (plan && trailingEffects) plan.trailingEffects = trailingEffects;
@@ -1323,6 +1399,55 @@ function slotOrInnerDefault(elementNode, slotNode) {
   return fallback && (slotNode === null || slotNode === undefined || isUndefinedNode(unwrapRuntimeExpr(slotNode))) ? fallback : slotNode;
 }
 
+// the literal a LEVEL of a head element holds, as the mirror reaches it: an inline one, a bound
+// one, the one a transparent IIFE returns (descended in its body), the one a CALL yields - bound or
+// not - spelled whole ahead of the call, with the slots the callee fills from its PARAMETERS mapped to
+// the call's arguments (`paramArgs`); any other element passes through as written
+function headLevelLiteral(receiver, ctx) {
+  let node = unwrapRuntimeExpr(receiver);
+  for (let inlined = peelZeroArgIifeReturn(node); inlined; inlined = peelZeroArgIifeReturn(node)) node = unwrapRuntimeExpr(inlined);
+  let hop = { node, readNode: node, seen: new Set(), ctx };
+  if (node?.type === 'Identifier') {
+    const followed = followConstIdentifierInit(hop);
+    const value = followed.node;
+    if (value?.type === 'ArrayExpression' || value?.type === 'ObjectExpression') return { literal: value, paramArgs: null };
+    if (invocationNode(value)) hop = followed;
+  }
+  if (!invocationNode(hop.node)) return { literal: hop.node, paramArgs: null };
+  const yielded = callYieldedLiteral(hop);
+  const literal = yielded?.literal;
+  return literal?.type === 'ArrayExpression' || literal?.type === 'ObjectExpression'
+    ? { literal, paramArgs: yielded.paramArgs } : { literal: node, paramArgs: null };
+}
+
+// the slots a callee's literal fills from PARAMETERS, read as the call's arguments at EVERY depth
+// (`x => [{ k: x }]`): a clone of the literal with those names replaced, for the predicate's
+// descent - it reads the shape and resolves names, and never emits the clone
+function substituteParamSlots(node, paramArgs) {
+  if (!paramArgs?.args.size) return node;
+  const value = unwrapRuntimeExpr(node);
+  if (value?.type === 'Identifier') return yieldedSlotValue(paramArgs, node) ?? node;
+  if (value?.type === 'ArrayExpression') {
+    return { ...value, elements: value.elements.map(element => element && substituteParamSlots(element, paramArgs)) };
+  }
+  if (value?.type === 'ObjectExpression') {
+    return { ...value, properties: value.properties.map(prop => isPropertyNode(prop) && !prop.computed
+      ? { ...prop, value: substituteParamSlots(prop.value, paramArgs) } : prop) };
+  }
+  return node;
+}
+
+// the value a level's SLOT holds for the predicate: the element or property of that level's literal,
+// a parameter-filled one read as the call's argument, at any depth below it - none where it reads a
+// parameter the call proves nothing for (`yieldedSlotValue`)
+function headLevelSlot(receiver, step, ctx) {
+  const { literal, paramArgs } = headLevelLiteral(receiver, ctx);
+  const slot = step.index !== undefined
+    ? literal?.type === 'ArrayExpression' ? resolveCallArgument(literal.elements, step.index) : null
+    : literal?.type === 'ObjectExpression' ? objectLevelPairedProperty(literal, step.key)?.read ?? null : null;
+  return slot && yieldedSlotValue(paramArgs, slot) && substituteParamSlots(slot, paramArgs);
+}
+
 // Does a nested claim need relocation beyond what the receiver mirror can serve?
 // A static paired with every pristine receiver stays in the mirror, including supported
 // pattern-valued statics. Rest or an unproven receiver leaves a binding claim to relocation.
@@ -1330,10 +1455,8 @@ function nestedClaimBeyondMirror(node, receivers, { scope, adapter, path, resolv
   const pattern = patternSlotTarget(node);
   if (pattern?.type === 'ArrayPattern') {
     return (pattern.elements ?? []).some((element, index) => element && element.type !== 'RestElement'
-      && nestedClaimBeyondMirror(element, receivers.map(receiver => {
-        const literal = followConstLiteralAlias(unwrapRuntimeExpr(receiver), { scope, adapter, path });
-        return slotOrInnerDefault(element, literal?.type === 'ArrayExpression' ? resolveCallArgument(literal.elements, index) : null);
-      }), { scope, adapter, path, resolvePure }));
+      && nestedClaimBeyondMirror(element, receivers.map(receiver => slotOrInnerDefault(element,
+        headLevelSlot(receiver, { index }, { scope, adapter, path }))), { scope, adapter, path, resolvePure }));
   }
   if (pattern?.type !== 'ObjectPattern') return false;
   return (pattern.properties ?? []).some(prop => {
@@ -1367,7 +1490,7 @@ function nestedClaimBeyondMirror(node, receivers, { scope, adapter, path, resolv
         return pure?.kind === 'static';
       })) return false;
     const below = key === null ? [] : receivers.map(receiver => slotOrInnerDefault(prop.value,
-      objectLevelPairedProperty(unwrapRuntimeExpr(receiver), key)?.read ?? null));
+      headLevelSlot(receiver, { key }, { scope, adapter, path })));
     return nestedClaimBeyondMirror(prop.value, below, { scope, adapter, path, resolvePure });
   });
 }

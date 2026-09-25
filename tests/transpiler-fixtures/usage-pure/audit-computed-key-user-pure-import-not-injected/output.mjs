@@ -1,5 +1,5 @@
 import _Array$of from "@core-js/pure/actual/array/of";
-import _Set from "@core-js/pure/actual/set/constructor";
+import _Set from "@core-js/pure/actual/set";
 // The user's OWN deduped `@core-js/pure` import is a binding the user typed, NOT a reference the
 // plugin placed - so using it as a computed key must not bail the sibling synth. A name-based
 // identity check would over-bail here (the import shares the plugin's UID convention); node

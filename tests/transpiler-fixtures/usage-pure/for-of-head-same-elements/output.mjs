@@ -4,6 +4,7 @@ import _at from "@core-js/pure/actual/instance/at";
 import _entries from "@core-js/pure/actual/instance/entries";
 import _keys from "@core-js/pure/actual/instance/keys";
 import _values from "@core-js/pure/actual/instance/values";
+import _Object$assign from "@core-js/pure/actual/object/assign";
 import _Object$entries from "@core-js/pure/actual/object/entries";
 import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 import _Object$groupBy from "@core-js/pure/actual/object/group-by";
@@ -185,7 +186,8 @@ for (const {
   z: 2
 }]) [viaPrimitiveSlots, z];
 
-// Different values, keys, getters, spreads and holes refuse a single-receiver mirror.
+// Different values, keys, spreads and holes refuse a single-receiver mirror; a GETTER element reads
+// through its own body, whose one returned leaf the mirror rewrites in place (the getter still runs).
 // Enumerable static candidates may still receive a guard; unknown receivers stay native.
 for (const _ref3 of [{
   w: [Object]
@@ -215,10 +217,14 @@ for (const {
     assign: viaGetter
   }
 } of [{
-  w: Object
+  w: {
+    assign: _Object$assign
+  }
 }, {
   get w() {
-    return Object;
+    return {
+      assign: _Object$assign
+    };
   }
 }]) viaGetter;
 for (const {

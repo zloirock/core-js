@@ -347,6 +347,15 @@ export function hasConstructorEntry(name, flavor = 'pure') {
   return globals[name]?.[flavor]?.dependencies?.some(entry => entry.endsWith(CONSTRUCTOR_TAIL)) ?? false;
 }
 
+const CONSTRUCTOR_STATIC_KEYS = new Set(Object.keys(statics).filter(name => hasConstructorEntry(name))
+  .flatMap(name => Object.keys(statics[name])));
+
+// Whether this key is an own static of some global with a pure constructor entry: only such a
+// family has a narrow entry that lacks it, and so a whole entry to widen to.
+export function hasConstructorStaticKey(key) {
+  return CONSTRUCTOR_STATIC_KEYS.has(key);
+}
+
 // entry heads mapped to their globals, in one pass over the pure dependencies of the globals and
 // the statics; the first owner wins
 function buildEntryHintIndex() {

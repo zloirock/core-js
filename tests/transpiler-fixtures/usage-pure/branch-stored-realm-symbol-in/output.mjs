@@ -3,11 +3,12 @@ import _isIterable from "@core-js/pure/actual/is-iterable";
 import _self from "@core-js/pure/actual/self";
 import _Symbol from "@core-js/pure/actual/symbol";
 // The realm-guarded well-known symbol `in` test beyond its base form (`conditional-realm-symbol-members`):
-// two written realms chain their identity branches, and a custom arm keeps its own membership test.
+// two written realm proxies name one realm and share one identity branch, and a custom arm keeps
+// its own membership test.
 export function readEither(flag, value) {
   let realm;
   if (flag) realm = _globalThis;else realm = _self;
-  return realm === _globalThis ? _isIterable(value) : realm === _self ? _isIterable(value) : realm.Symbol.iterator in value;
+  return realm === _globalThis ? _isIterable(value) : realm.Symbol.iterator in value;
 }
 export function readCustom(flag, value) {
   let realm;

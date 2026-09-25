@@ -2,8 +2,11 @@ import { subsume } from './subsumption.js';
 import { isKnownGlobalName } from '../detect-usage/globals.js';
 import { matchSelfDefaultTernarySlot } from '../resolve-node-type/value-ops.js';
 import {
+  CLASS_DATA_FIELD_TYPES,
+  privateNameSpelling,
   CLASS_FIELD_TYPES,
   FUNCTION_LIKE_NODE_TYPES,
+  FUSED_METHOD_TYPES,
   LET_SCOPE_HOST_TYPES,
   patternSlotTarget,
   POSSIBLE_GLOBAL_OBJECTS,
@@ -25,8 +28,8 @@ import {
   isPristineProxyGlobal,
   isReassignedBeyondDeclarator,
   isVarScopeBoundary,
-  objectPatternLiteralKeyPath,
   pairedArrayWrapInitElement,
+  patternLiteralKeyPath,
   peelArrayWrapBindingLayers,
   peelChainAssignmentDeep,
   peelProxyGlobalObject,
@@ -39,6 +42,10 @@ import {
   varInitDominatesUsage,
   pureReturnBodyValue,
   singleReturnBodyExpression,
+  staticEvaluationReaderIndex,
+  isMemberAccessNode,
+  memberKeyName,
+  walkAstNodes,
 } from './ast-patterns.js';
 // the proxy-global recogniser lives with the value canon it narrows ():
 // asking "does this binding hold a proxy global" is asking the canon what the binding holds and
@@ -768,7 +775,7 @@ function userAliasBindingResolvesToSymbol(node, scope, adapter, injector, seen, 
   // consumer); a CONSTANT-RESOLVED computed hop collapses to a simple alias on babel
   // (`{ [k]: S }` -> `S = _Symbol`), whose hint propagation crosses UNCONDITIONALLY - the
   // estree side follows it likewise or the non-defaulted consumer desyncs
-  const literalPath = objectPatternLiteralKeyPath(peeled.id, node.name);
+  const literalPath = patternLiteralKeyPath(peeled.id, node.name);
   if (literalPath) {
     return followDestructured && destructuredGlobalKeyPathNamesSymbol(peeled.init, literalPath, nextScope, adapter, next);
   }
@@ -777,7 +784,7 @@ function userAliasBindingResolvesToSymbol(node, scope, adapter, injector, seen, 
   // key canon's dominance / reaching-value analysis there via `usageNode`, or a key reassigned
   // AFTER the capture would resolve to the post-capture value - a wrong-value fold
   return destructuredGlobalKeyPathNamesSymbol(peeled.init,
-    objectPatternLiteralKeyPath(peeled.id, node.name,
+    patternLiteralKeyPath(peeled.id, node.name,
       { resolveKey: keyCtx.resolveKey, scope: nextScope, adapter, path: binding.path ?? keyCtx.path ?? null, usageNode: declarator }),
     nextScope, adapter, next);
 }
@@ -1061,8 +1068,9 @@ export function buildSuperStaticMeta(classNode, key, resolveSuperType) {
 // SpreadElement bail); 'skip' - a different named key, or a non-computed unresolvable key
 // (PrivateName) that can never collide with a public propName
 function memberKeyVerdict(key, computed, scope, propName, adapter, resolveKey) {
-  const name = resolveKey({ node: key, computed, scope, adapter });
-  if (name === propName) return 'match';
+  const privateName = privateNameSpelling(key);
+  const name = privateName ?? resolveKey({ node: key, computed, scope, adapter });
+  if (name === propName) return privateName || !propName.startsWith('#') ? 'match' : 'bail';
   return name === null && computed ? 'bail' : 'skip';
 }
 
@@ -1078,16 +1086,32 @@ function isNamespaceContainer(node) {
 // `undefined`, and a getter answers whatever its body computes - so only a body that is ONE PURE
 // RETURN names a value this walk may hand on. A caller preserving the read may also classify a
 // single return whose body has effects or unrelated local declarations, because the getter still
-// runs where the source reads it. returned references to getter-local names remain unclassified.
+// runs where the source reads it. returned references to getter-local names remain unclassified,
+// and a body the single-return proof cannot settle hands its returns to `returnSink` when given.
 // babel spells accessors and method shorthands as
 // `ObjectMethod` / `ClassMethod`, ESTree as a `Property` / `MethodDefinition` carrying `kind` and
 // `method` - both spellings reach one reading, or the two legs answer differently about one source
-function staticMemberReadValue(member, { preservesRead = false } = {}) {
-  const kind = member.type === 'ObjectMethod' || member.type === 'ClassMethod' || member.type === 'MethodDefinition'
-    ? member.kind : member.method ? 'method' : member.kind;
+function staticMemberReadValue(member, { preservesRead = false, returnSink = null, ctx = null } = {}) {
+  const kind = FUSED_METHOD_TYPES.has(member.type) || member.type === 'MethodDefinition' ? member.kind
+    : member.method ? 'method' : member.kind;
   if (kind !== 'get') return kind === 'init' || kind === undefined ? member.value ?? null : null;
-  const body = member.type === 'ObjectMethod' || member.type === 'ClassMethod' ? member.body : member.value?.body;
-  return preservesRead ? singleReturnBodyExpression(body, { preservesBody: true }) : pureReturnBodyValue(body);
+  const body = FUSED_METHOD_TYPES.has(member.type) ? member.body : member.value?.body;
+  return preservesRead ? singleReturnBodyExpression(body, { preservesBody: true, returnSink }) : pureReturnBodyValue(body, ctx);
+}
+
+// does `root` write the key `key` of some receiver - an assignment, an update or a `delete` spelling it -
+// anywhere ahead of `readNode`?
+function writesKeyBefore(root, key, readNode) {
+  let writes = false;
+  walkAstNodes({ root, visit: node => {
+    if (writes || !(node.start < readNode.start)) return false;
+    const target = node.type === 'AssignmentExpression' ? node.left
+      : node.type === 'UpdateExpression' || (node.type === 'UnaryExpression' && node.operator === 'delete') ? node.argument : null;
+    const member = target && unwrapRuntimeExpr(target);
+    if (member && isMemberAccessNode(member) && memberKeyName(member) === key) writes = true;
+    return !writes;
+  } });
+  return writes;
 }
 
 // the value a namespace-shaped container binds to `propName`, scanning its members in REVERSE so the
@@ -1103,7 +1127,7 @@ function staticMemberReadValue(member, { preservesRead = false } = {}) {
 // has the same possible-overwrite standing, and a getter's effects do not erase its returned type
 // while that caller keeps the read itself.
 export function findNamespaceMemberValue(container, propName, scope, adapter, resolveKey, {
-  spreadVetoes = true, candidateSink = null, rescuesRead = false, rescueSink = null,
+  spreadVetoes = true, candidateSink = null, rescuesRead = false, rescueSink = null, getterSink = null, readNode = null,
 } = {}) {
   // the winning member's value for a REWRITING caller: it keeps the spread veto - which value wins
   // is still the literal's to say - and may keep the READ too, by re-emitting it where the source
@@ -1111,36 +1135,57 @@ export function findNamespaceMemberValue(container, propName, scope, adapter, re
   // option: a getter whose body runs effects still names its returned value for such a caller, and
   // the member it was read off joins `rescueSink` for that caller's discard channel to replay once
   function readValue(member) {
-    const settled = staticMemberReadValue(member, { preservesRead: !spreadVetoes });
+    if (member.kind === 'get') getterSink?.push(member);
+    // ... a getter the proof cannot settle still hands an injecting caller the returns it spells
+    const returns = candidateSink && !spreadVetoes && member.kind === 'get' ? [] : null;
+    // the body's own reads are asked in the container's scope: a getter reading another getter runs it
+    const settled = staticMemberReadValue(member,
+      { preservesRead: !spreadVetoes, returnSink: returns, ctx: { scope, adapter, path: null } });
+    if (!settled && returns?.length) candidateSink.push(...returns);
     if (settled || !rescuesRead) return settled;
     const rescued = staticMemberReadValue(member, { preservesRead: true });
     if (rescued) rescueSink?.push(member);
     return rescued;
   }
   if (container?.type === 'ClassDeclaration' || container?.type === 'ClassExpression') {
-    const members = container.body?.body ?? [];
-    for (let i = members.length - 1; i >= 0; i--) {
-      const m = members[i];
-      // a static block runs in source order and may reassign any static via `NS.field = ...`; one at
-      // a LATER position than the matched field could redefine its value (the class analog of a
-      // trailing object spread) - bail. an earlier block is overridden by the field, so it is
-      // reached only after the field already returned and stays irrelevant
-      if (m.type === 'StaticBlock') return null;
-      if (!m.static) continue;
-      const verdict = memberKeyVerdict(m.key, m.computed, scope, propName, adapter, resolveKey);
-      if (verdict === 'bail') {
-        const candidate = candidateSink ? staticMemberReadValue(m, { preservesRead: true }) : null;
-        if (candidate) candidateSink.push(candidate);
-        if (spreadVetoes) return null;
-        continue;
+    let members = container.body?.body ?? [];
+    // a read the class's own static evaluation performs sees only the static elements run before it
+    const readerAt = staticEvaluationReaderIndex(container, readNode);
+    if (readerAt >= 0) {
+      // ... and the reader's OWN block counts where it writes the key ahead of the read: that write, not
+      // the field, is what the read sees there
+      const ownWrite = members[readerAt].type === 'StaticBlock' && writesKeyBefore(members[readerAt], propName, readNode);
+      members = members.filter((m, index) => index < readerAt || (ownWrite && index === readerAt)
+        || !(m.type === 'StaticBlock' || (m.static && CLASS_DATA_FIELD_TYPES.has(m.type))));
+    }
+    // the class DEFINES its static methods and accessors first and runs its static data fields and
+    // blocks after, in source order: a FIELD spelling the key wins over any method or accessor
+    // wherever it stands, so the fields and blocks are scanned first and the methods only where no
+    // field spells the key
+    const late = members.filter(m => m.type === 'StaticBlock' || (m.static && CLASS_DATA_FIELD_TYPES.has(m.type)));
+    const early = members.filter(m => m.static && !CLASS_DATA_FIELD_TYPES.has(m.type));
+    for (const phase of [late, early]) {
+      // every block runs after the methods are defined, and any of them may redefine the key
+      if (phase === early && late.some(m => m.type === 'StaticBlock')) return null;
+      for (let i = phase.length - 1; i >= 0; i--) {
+        const m = phase[i];
+        // a static block runs in source order and may reassign any static via `NS.field = ...`; one at
+        // a LATER position than the matched field could redefine its value (the class analog of a
+        // trailing object spread) - bail. an earlier block is overridden by the field, so it is
+        // reached only after the field already returned and stays irrelevant
+        if (m.type === 'StaticBlock') return null;
+        const verdict = memberKeyVerdict(m.key, m.computed, scope, propName, adapter, resolveKey);
+        if (verdict === 'bail') {
+          const candidate = candidateSink ? staticMemberReadValue(m, { preservesRead: true }) : null;
+          if (candidate) candidateSink.push(candidate);
+          if (spreadVetoes) return null;
+          continue;
+        }
+        if (verdict === 'skip') continue;
+        // a static method / setter winning the key is dynamic - bail; a static field returns its init,
+        // and a static GETTER of one pure return names its value the same way (the object twin below)
+        return phase === late ? m.value ?? null : readValue(m);
       }
-      if (verdict === 'skip') continue;
-      // a static method / setter winning the key is dynamic - bail; a static field returns its init,
-      // and a static GETTER of one pure return names its value the same way (the object twin below)
-      if (m.type !== 'ClassProperty' && m.type !== 'PropertyDefinition') {
-        return readValue(m);
-      }
-      return m.value ?? null;
     }
   } else if (container?.type === 'ObjectExpression') {
     const props = container.properties ?? [];

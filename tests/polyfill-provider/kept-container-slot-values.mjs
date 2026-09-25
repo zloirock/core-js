@@ -67,6 +67,24 @@ for (const adapter of adapters) {
 check('all rows were checked', checked, adapters.length * (rows.length + candidateRows.length) * 2);
 check('the suite keeps its coverage floor', checked >= 76, true);
 
+// A read the class's own static evaluation performs sees the static elements run before it - and
+// where its own block writes the key ahead of it, that write, which no field names
+for (const adapter of adapters) for (const [name, body, expected] of [
+  ['block reads the field', 'static w = Array; static { use(C.w.from); }', 'Array'],
+  ['block writes the key first', 'static w = Array; static { C.w = Set; use(C.w.from); }', null],
+  ['block writes it through this', 'static w = Array; static { this.w = Set; use(C.w.from); }', null],
+  ['block writes another key', 'static w = Array; static { C.v = Set; use(C.w.from); }', 'Array'],
+  ['block writes the key after the read', 'static w = Array; static { use(C.w.from); C.w = Set; }', 'Array'],
+]) {
+  const program = adapter.parseAndScope(`class C { ${ body } }`);
+  const container = adapter.pickPath(program, 'ClassDeclaration').node;
+  const readNode = adapter.pickPath(program, 'MemberExpression', path => path.node.property?.name === 'from').node.object;
+  const value = findNamespaceMemberValue(container, 'w', null, { method: 'usage-global' }, ({ node, computed }) => {
+    return computed ? node.value ?? null : node.name ?? node.value ?? null;
+  }, { readNode });
+  check(`${ adapter.name }: static evaluation reader/${ name }`, value?.name ?? null, expected);
+}
+
 // A definitely replaced slot loses its initial constructor candidate. A write that may not
 // have run, or that may put the same constructor back, must keep that candidate in global.
 const slotRows = [

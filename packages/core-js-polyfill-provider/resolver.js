@@ -402,6 +402,18 @@ export function createPolyfillResolver(options, {
     const effectiveMeta = kind === 'instance' ? enhanceMeta(meta, path, desc) : meta;
     if (!effectiveMeta) return null;
     let entry = resolvePureEntry({ kind, desc, meta: effectiveMeta, path });
+    // ... and a caller swapping this constructor in to read a STATIC off it (`readsStatic`) where the
+    // targets keep the bare constructor native needs the entry that carries the static - the family the
+    // bare `*/constructor` widens to - but only where they lack that static itself. a constructor the
+    // targets need answers as before: the census already widens the one a static is read through
+    if (!entry && kind === 'global' && typeof meta.readsStatic === 'string') {
+      const narrow = getDependencies(desc)?.[0];
+      const family = typeof narrow === 'string' && NARROW_ENTRY.test(narrow) ? ctorFamilyEntry(narrow) : null;
+      if (family && ctx.isEntryNeeded(family)
+        && resolvePure({ kind: 'property', object: resolved.name, key: meta.readsStatic, placement: 'static' }, null)?.kind === 'static') {
+        entry = family;
+      }
+    }
     if (!entry) return null;
     // a bare global-ctor reference whose value ESCAPES the tracked-read positions (the
     // source-anchored census in detect-usage/mutations.js) resolves to the NAMESPACE entry

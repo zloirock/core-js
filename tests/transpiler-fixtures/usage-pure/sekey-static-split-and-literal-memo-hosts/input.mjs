@@ -32,8 +32,8 @@ var { [(k++, 'at')]: a8, m8b, [(k++, 'of')]: o8 } = [1];
 do var { Array: { from: f9 }, keep9 } = globalThis, tail9 = 1; while (k < 0);
 if (k) var lead10 = pre(), { [(k++, 'at')]: a10, m10 } = [1, 2];
 
-// several claimed array hosts of one declaration stand in separate statements once an object hop
-// beside them split the declaration; each keeps its extraction as the declarator after itself
+// several claimed hosts of one declaration - an object hop and the array wrappers beside it - stay one
+// declaration: each literal takes its mirror in place
 const { w: { Map: M11 }, z11 } = { w: globalThis, z11: 1 }, [{ Set: S11 }, y11] = [globalThis, 2], [{ WeakMap: W11 }, q11] = [globalThis, 3];
 
 export default [f, m, ko, alsoMore, lead, ko2, m2, P, m3, ko4, r4, ko5, fr5, m5, ko6, m6, ko7, m7, ko8, m8, a1, a2, a3, other3, a4, a5, a6, t1, t2, t3, t4, t5, t6, o7, a7, m7b, a8, m8b, o8, f9, keep9, tail9, a10, m10, M11, z11, S11, y11, W11, q11, lead2, lead3, lead4, lead5, lead6, lead7, lead8, lead10, k];

@@ -97,7 +97,7 @@ const [headSlot] = [[7], [8]];
 export const viaDestructureSlot = _includesMaybeArray(headSlot).call(headSlot, 7);
 const source = [[1], [2]];
 const [drawn] = source;
-export const viaDestructureSource = _at(_ref17 = source[0]).call(_ref17, 10);
+export const viaDestructureSource = _atMaybeArray(_ref17 = source[0]).call(_ref17, 10);
 
 // a SHADOWING inner binding's mutator does not poison the outer binding - references are
 // scope-discriminated

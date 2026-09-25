@@ -1,10 +1,16 @@
 import "core-js/modules/es.symbol.constructor";
 import "core-js/modules/es.symbol.description";
 import "core-js/modules/es.symbol.iterator";
+import "core-js/modules/es.object.assign";
 import "core-js/modules/es.object.to-string";
 import "core-js/modules/es.reflect.own-keys";
 import "core-js/modules/es.aggregate-error.constructor";
 import "core-js/modules/es.aggregate-error.cause";
+import "core-js/modules/es.promise.constructor";
+import "core-js/modules/es.promise.catch";
+import "core-js/modules/es.promise.finally";
+import "core-js/modules/es.promise.resolve";
+import "core-js/modules/es.promise.all-settled";
 import "core-js/modules/es.array.iterator";
 import "core-js/modules/es.array.at";
 import "core-js/modules/es.array.entries";
@@ -39,6 +45,7 @@ import "core-js/modules/es.set.is-superset-of";
 import "core-js/modules/es.set.symmetric-difference";
 import "core-js/modules/es.set.union";
 import "core-js/modules/es.string.at";
+import "core-js/modules/es.string.from-code-point";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/es.typed-array.from";
 import "core-js/modules/es.typed-array.of";
@@ -92,13 +99,19 @@ import "core-js/modules/web.dom-exception.to-string-tag";
 import "core-js/modules/web.dom-collections.iterator";
 import "core-js/modules/web.self";
 import "core-js/modules/web.structured-clone";
+import "core-js/modules/web.url.constructor";
+import "core-js/modules/web.url.to-json";
+import "core-js/modules/web.url-search-params.constructor";
+import "core-js/modules/web.url-search-params.delete";
+import "core-js/modules/web.url-search-params.has";
+import "core-js/modules/web.url-search-params.size";
 // a spread BEFORE an array-wrap slot shifts every later runtime position, so the pattern slot
 // no longer pairs EXACTLY with the literal init element at the same index - but every static
 // element from the spread on is still a POSSIBLE slot value, and inject-if-might is sound here:
 // a member read off the alias injects the union's method-aware set as a MAYBE. the type channel
 // still must not NARROW a spread-shifted binding: `.at` on a foreign runtime receiver keeps BOTH
 // the array and the string leg (narrowing to the array leg alone under-injects the string polyfill)
-let tail = [{}, {}];
+let tail = globalThis.tail;
 
 // ctor-alias member channel: M MIGHT be the global Map (a length-1 spread pairs it), so the
 // method-aware maybe-set injects
@@ -117,7 +130,7 @@ export const viaSymbolAlias = [1, 2][S.iterator];
 // ctor CONSTRUCTION through the maybe-alias: the single static candidate classifies the receiver,
 // so the constructor modules inject; TWO distinct candidates stay ambiguous and inject nothing
 const [c1, {
-  Map: MC
+  URL: MC
 }] = [...tail, globalThis];
 export const viaCtorConstruct = new MC(ctorSeed);
 const [c2, {
@@ -137,7 +150,8 @@ const [[i0, {
 }]] = [[...tail, globalThis]];
 export const viaDeepSpread = I.range(0, 3);
 
-// spread AT the slot bails too (position is runtime-determined from the spread on)
+// spread AT the slot: the spread source's own items are its candidates (a literal `head` holding
+// the realm), so the realm constructor's modules inject as a maybe
 let head = [globalThis];
 const [{
   Promise: P

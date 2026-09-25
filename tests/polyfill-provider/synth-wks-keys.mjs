@@ -14,6 +14,8 @@ import {
 import { computedKeyWellKnownSymbolName } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import { buildNestedParamSynthPlan, buildPatternRenderPlan } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
 import { synthEntryKey } from '../../packages/core-js-polyfill-provider/render.js';
+import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
+import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { createChecker } from './harness.mjs';
 
 const { check, checkDeep, checkTruthy, finish, runBoth } = createChecker('synth-wks-keys');
@@ -323,6 +325,57 @@ runBoth('mirror/constructor rest with an effectful default stays on its index',
         ? { entry: 'promise', hintName: 'Promise' } : null,
     });
     check(`${ label } no body extraction`, plan?.bail, true);
+  });
+
+// ... while a CALL in that slot keeps running ahead of the literal that stands in for its value, the
+// declarator's own shape - and reproduces no throw: the slot fires only on the omitted argument
+runBoth('mirror/constructor rest with a call default keeps the call ahead of its index',
+  'const mk = () => Promise; function f({ all, ...rest } = mk()) {} f();', (parser, program, label) => {
+    const plan = buildNestedParamSynthPlan({
+      leafPatternPath: parser.pickPath(program, 'ObjectPattern'),
+      adapter: keyAdapter,
+      meta: { object: 'Promise', key: 'all', placement: 'static' },
+      resolvePure: meta => meta.kind === 'global' && meta.name === 'Promise'
+        ? { entry: 'promise', hintName: 'Promise' } : null,
+    });
+    check(`${ label } whole default`, plan?.targets?.[0]?.tree.kind, 'polyfill');
+    check(`${ label } call kept ahead`, plan?.targets?.[0]?.keepPrefix, true);
+    check(`${ label } no coercion`, plan?.targets?.[0]?.coerceReceiver, undefined);
+  });
+
+// a call with a PASSTHROUGH sibling is MEMOIZED where the host holds the sequence: the target asks
+// the emitter for a ref the passthrough reads off, and the call runs once into it
+for (const [name, source] of [
+  ['for-of head', 'const mk = () => ({ p: Promise, z: 1 }); for (const { p: { all }, z } of [mk()]) use(all, z);'],
+  ['parameter default', 'const mk = () => ({ p: Promise, z: 1 }); function f({ p: { all }, z } = mk()) {} f();'],
+]) runBoth(`mirror/call with a passthrough sibling is memoized/${ name }`, source, (parser, program, label) => {
+  const plan = buildNestedParamSynthPlan({
+    leafPatternPath: parser.pickPath(program, 'ObjectPattern', path => path.node.properties[0]?.key?.name === 'all'),
+    adapter: keyAdapter,
+    meta: { object: 'Promise', key: 'all', placement: 'static' },
+    resolvePure: meta => meta.object === 'Promise' && meta.key === 'all'
+      ? { kind: 'static', entry: 'promise/all', hintName: 'Promise$all' } : null,
+  });
+  check(`${ label } memoized`, plan?.targets?.[0]?.memo, true);
+  check(`${ label } call kept ahead`, plan?.targets?.[0]?.keepPrefix, true);
+});
+
+// a NAME bound to a call yielding a container is a static root of the mirror, as a name bound to
+// the literal is: the keys descend the receiver walk's alias and call arms, the read of the name is
+// what the mirror replaces
+runBoth('mirror/alias of a call is a static root', 'const mk = () => ({ p: Promise }); const w = mk(); for (const { p: { all } } of [w]) use(all);',
+  (parser, program, label) => {
+    // the walk dereferences the name, which asks the adapter's binding-type channel: the real one
+    const adapter = parser.name === 'babel' ? createBabelAdapter({ method: 'usage-pure' }) : createEstreeAdapter({ method: 'usage-pure' });
+    const plan = buildNestedParamSynthPlan({
+      leafPatternPath: parser.pickPath(program, 'ObjectPattern', path => path.node.properties[0]?.key?.name === 'all'),
+      adapter,
+      meta: { object: 'Promise', key: 'all', placement: 'static' },
+      resolvePure: meta => meta.object === 'Promise' && meta.key === 'all'
+        ? { kind: 'static', entry: 'promise/all', hintName: 'Promise$all' } : null,
+    });
+    check(`${ label } planned`, plan?.targets?.length, 1);
+    check(`${ label } replaces the name`, plan?.targets?.[0]?.node?.name, 'w');
   });
 
 finish();
