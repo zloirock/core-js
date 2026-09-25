@@ -1,7 +1,7 @@
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Map from "@core-js/pure/actual/map";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
-import _Set from "@core-js/pure/actual/set/constructor";
+import _Set from "@core-js/pure/actual/set";
 // A prop the pattern reads as a plain CONSTRUCTOR is a SLOT of the branch literal, not a reason to
 // decline it: the mirror REPLACES the receiver, so a literal missing that key would answer
 // `undefined` where the source read the realm. It rides the hop's literal as the constructor's own

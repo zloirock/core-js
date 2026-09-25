@@ -2,7 +2,8 @@
 // paren at parse time and the other keeps it as a node, so an unpeeled pairing resolves on one
 // emitter and bails on the other. a cast erases at runtime and must not change the answer either,
 // and a sequence prefix contributes only its tail. the last line is the negative: peeling a wrapper
-// does not weaken the spread gate, whose slot still has no static position. distinct method per line.
+// does not weaken the spread gate, whose slot still has no static position and reads through the
+// runtime identity guard instead of a substitution. distinct method per line.
 const [parenWrap] = ([globalThis]);
 const [castWrap] = [globalThis] as any;
 const [seqWrap] = (effect(), [globalThis]);

@@ -10,7 +10,8 @@ hand(boxes[0].g.WeakMap);
 export function taken() {
   return ns.g.WeakSet;
 }
-// the escaped slot ITSELF: `handed.a.b` was passed out, so a static read through it stays raw
+// the escaped VALUE: passing `handed.a.b` out replaces no slot of `handed`, so a static read through
+// it resolves as its flat spelling does (`hand(Object); Object.groupBy`)
 const handed = { a: { b: Object } };
 hand(handed.a.b);
 use(handed.a.b.groupBy([], item => item));

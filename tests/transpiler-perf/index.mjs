@@ -151,8 +151,8 @@ function syntheticUnionWidth(width) {
   return `type U = ${ variants.join(' | ') };\n${ Array.from({ length: 200 }, (unused, index) => `declare const u${ index }: U; if (u${ index }.kind === ${ index % width }) u${ index }.value.at(0);`).join('\n') }`;
 }
 
-// bare-name callees on a LONG top level: the coarse census pairs every call with the function it
-// names and asks, per call, whether that name is a minted pure import - a fact of the whole program.
+// bare-name callees on a LONG top level: pairing a call asks whether its callee's name is a minted
+// pure import - a fact of the whole program.
 // re-deriving it per call by scanning the top-level statements is quadratic in (calls x top-level
 // statements) and invisible on every other shape here: the guard and reassignment synthetics keep
 // their call density low, the real bundles keep their top levels short
@@ -168,7 +168,8 @@ function syntheticNamespaceParameterReads(sites) {
   return `function read(ns) { ${ 'ns.ownKeys({});'.repeat(sites) } } ${ 'read(Reflect);'.repeat(sites) }`;
 }
 
-// Every store must find its own data slot without rescanning the wide returned literal.
+// A wide literal handed to a writer that returns it: no store through the parameter may rescan the
+// literal it lands in.
 function syntheticReturnedContainerWrites(slots) {
   const keys = Array.from({ length: slots }, (_, index) => `k${ index }`);
   return `function install(box) { ${ keys.map(key => `box.${ key } = Map;`).join('') } return box; }
@@ -185,12 +186,9 @@ function syntheticDirectiveDense(optOuts) {
   return parts.join('\n');
 }
 
-// the mutation census pairs a call's arguments with the parameters they land in, keyed by NAME -
-// so every function sharing a parameter name shares one fan, and a write through that parameter
-// walks the whole accumulated fan. real code shares those names constantly (`t`, `e`, `v`), which
-// makes the pre-pass, not the resolver, the quadratic risk. The fan is closed once per NAME rather than once per
-// write, so what is left grows with the fan's own length - this case is the discriminator for that
-// memo, and it is the shape that says so first
+// every writer here writes through a parameter spelled `t`, which the scope-blind gate names as one
+// alias: a parameter takes no value from the calls there, so its closure stays one name however many
+// writers share it - pairing each write with every caller's arguments would make this quadratic
 function syntheticSharedParamWrites(installers) {
   const parts = [];
   for (let i = 0; i < installers; i++) {
@@ -206,6 +204,92 @@ function syntheticNamesakeWrites(functions) {
   for (let i = 0; i < functions; i++) {
     parts.push(`function n${ i }(o) { var x = o.p, y = o.r, a = x; a = y; a.at(0); }`);
   }
+  return parts.join('\n');
+}
+
+// Namesake methods share the key their calls are recorded under: an analysis that pairs every
+// namesake with every call under that key is quadratic in a bundle of classes, where one host per
+// key, or a resolved callee, stays linear
+function syntheticNamesakeMethods(classes) {
+  const parts = [];
+  for (let i = 0; i < classes; i++) {
+    parts.push(`class C${ i } { set(v) { this.v = v; return this; } put(t) { t.v = this.v; return t; } }`,
+      `new C${ i }().set(${ i }).put({ v: Map });`);
+  }
+  parts.push('Array.from([1]);');
+  return parts.join('\n');
+}
+
+// the synthetic lines `line(i)` spells for every i below `count`, one per line
+function syntheticLines(count, line) {
+  return Array.from({ length: count }, (_, i) => line(i)).join('\n');
+}
+
+// A pattern read of every slot a file wrote: each guard the reads render attaches a subtree, and the
+// positional proofs that meet it must not re-index the whole program per render
+function syntheticWrittenSlotReads(slots) {
+  return [
+    `const box = { ${ syntheticLines(slots, i => `a${ i }: Math,`) } };`,
+    syntheticLines(slots, i => `box.a${ i } = Array;`),
+    syntheticLines(slots, i => `const { a${ i }: X${ i } } = box; X${ i }.of(${ i });`),
+  ].join('\n');
+}
+
+// Writes under unknown keys against patches pending on named slots: each chain fires once per value
+// a slot can hold, never once per write, and an unknown slot keeps each candidate once. the patched
+// static stays native in pure, so an unrelated static carries the injection floor
+function syntheticUnknownKeyWrites(writes) {
+  return [
+    'const box = {};',
+    syntheticLines(writes, i => `box[k${ i }] = Array;`),
+    syntheticLines(writes, i => `box.p${ i }.from = patch;`),
+    'Array.from([1]);',
+    'Object.groupBy([], x => x);',
+  ].join('\n');
+}
+
+// One slot written through many aliases and read many times: a write's definiteness and the name its
+// value hands on are the write's own facts, proved once however many reads ask. pure keeps the member
+// read of a written slot native, so an unrelated static carries the injection floor
+function syntheticAliasedSlotWrites(aliases) {
+  return [
+    'const box = { a: Math };',
+    syntheticLines(aliases, i => `const h${ i } = box; h${ i }.a = Array;`),
+    syntheticLines(aliases, i => `box.a.of(${ i });`),
+    'Object.groupBy([], x => x);',
+  ].join('\n');
+}
+
+// Many destructures of one factory's calls, in every call spelling: a slot the factory fills from a
+// parameter holds each call's own argument - paired against the parameter, every pattern read every
+// caller's argument, quadratic in the calls
+function syntheticFactoryPatterns(calls) {
+  const reads = [
+    i => `const { a: A${ i } } = pick(Array);`,
+    i => `const { a: A${ i } } = pick.call(null, Array);`,
+    i => `const { a: A${ i } } = tag\`\${ Array }\`;`,
+  ];
+  return [
+    'function pick(x) { return { a: x }; }',
+    'function tag(s, x) { return { a: x }; }',
+    syntheticLines(calls, i => `${ reads[i % reads.length](i) } A${ i }.of(${ i });`),
+  ].join('\n');
+}
+
+// Many handouts of a slot of one helper's calls where the helper returns something other than one
+// literal: what it returns to every call is read once, never once per call - pushed per call, the
+// values every caller's arguments hold are walked again for each of them
+function syntheticSharedReturnHandouts(calls) {
+  return ['const kept = []; function keep(value) { kept.push(value); }',
+    'function interop(object) { return object && object.__esModule ? object : { default: object }; }',
+    syntheticLines(calls, i => `const m${ i } = interop({ default: Map }); keep(m${ i }.default);`)].join('\n');
+}
+
+// Every reference to one object-literal binding types through its single initializer: walking the
+// binding's references for a prototype install once per reference is quadratic in the references
+function syntheticLiteralStores(stores) {
+  const parts = ['const box = {};'];
+  for (let i = 0; i < stores; i++) parts.push(`Object.assign(box, { k${ i }: ${ i } });`);
   return parts.join('\n');
 }
 
@@ -324,6 +408,27 @@ const CASES = [
   } },
   { name: 'synthetic namesake writes, 4000 functions', source: () => syntheticNamesakeWrites(4000), bounds: {
     'usage-global': { babel: 4, unplugin: 4 }, 'usage-pure': { babel: 6, unplugin: 5 },
+  } },
+  { name: 'synthetic namesake methods, 3000 classes', source: () => syntheticNamesakeMethods(3000), bounds: {
+    'usage-global': { babel: 3, unplugin: 2 }, 'usage-pure': { babel: 3, unplugin: 2 },
+  } },
+  { name: 'synthetic written slot reads, 2000 slots', source: () => syntheticWrittenSlotReads(2000), bounds: {
+    'usage-global': { babel: 3, unplugin: 2 }, 'usage-pure': { babel: 6, unplugin: 5 },
+  } },
+  { name: 'synthetic unknown-key writes, 2000 pending chains', source: () => syntheticUnknownKeyWrites(2000), bounds: {
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
+  } },
+  { name: 'synthetic aliased slot writes, 2000 aliases', source: () => syntheticAliasedSlotWrites(2000), bounds: {
+    'usage-global': { babel: 4, unplugin: 4 }, 'usage-pure': { babel: 4, unplugin: 4 },
+  } },
+  { name: 'synthetic factory patterns, 6000 calls', source: () => syntheticFactoryPatterns(6000), bounds: {
+    'usage-global': { babel: 4, unplugin: 3 }, 'usage-pure': { babel: 5, unplugin: 4 },
+  } },
+  { name: 'synthetic shared return handouts, 4000 calls', source: () => syntheticSharedReturnHandouts(4000), bounds: {
+    'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
+  } },
+  { name: 'synthetic literal stores, 4000 calls', source: () => syntheticLiteralStores(4000), bounds: {
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 1 },
   } },
   { name: 'synthetic shared-param calls, 40000 calls', source: () => syntheticSharedParamCalls(40000), bounds: {
     'usage-global': { babel: 10, unplugin: 6 }, 'usage-pure': { babel: 10, unplugin: 6 },

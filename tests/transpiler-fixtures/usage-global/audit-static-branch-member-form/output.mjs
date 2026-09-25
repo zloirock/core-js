@@ -11,7 +11,6 @@ import "core-js/modules/es.array.iterator";
 import "core-js/modules/es.array.from-async";
 import "core-js/modules/es.array.entries";
 import "core-js/modules/es.array.from";
-import "core-js/modules/es.array.keys";
 import "core-js/modules/es.global-this";
 import "core-js/modules/es.iterator.constructor";
 import "core-js/modules/es.iterator.dispose";
@@ -40,7 +39,6 @@ import "core-js/modules/esnext.iterator.join";
 import "core-js/modules/esnext.iterator.windows";
 import "core-js/modules/web.dom-collections.iterator";
 import "core-js/modules/web.dom-collections.entries";
-import "core-js/modules/web.dom-collections.keys";
 // a BRANCHING static receiver in member form enumerates its branches like the destructure twin
 // already did: each resolved branch's STATIC earns a side-effect import (the typeless primary
 // resolves nothing for static-only keys, so both branches broke on old engines). one operator

@@ -4,7 +4,7 @@ Using targets: <RESOLVED>
 
 Using polyfills with `usage-pure` method:
 The core-js@4 polyfill added the following polyfills:
-  iterator/constructor
+  iterator
 
 Warnings:
   conditional destructure with polyfill candidate left untouched ("from" on fallback branch) - runtime availability depends on the selected branch

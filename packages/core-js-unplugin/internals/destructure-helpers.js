@@ -11,6 +11,7 @@ import {
   destructureKeyReadPlan,
   fallbackDestructureHasPolyfillableBranch,
   isConstantLiteralReceiver,
+  isReReferenceableAcrossReads,
   isReReferenceableReceiver,
   nestedSlotMemoPlan,
   paramDefaultInstanceSynthAllowed,
@@ -19,6 +20,7 @@ import {
   resolveNestedReceiverNode,
   synthPropDedupKey,
   discardRescueNodesWithReads,
+  observablePrefixElements,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import { maybeRegisterAssignmentAliasWrite, registerBindinglessCtorAlias } from '@core-js/polyfill-provider/helpers/class-walk';
 import { readStandsOverAbsentableStore, shouldDropRescueReceiver } from '@core-js/polyfill-provider/detect-usage/members';
@@ -34,6 +36,8 @@ import {
   proxyReceiverValueCanBeUndefined,
   realmSelectionCollapseOperand,
   resolveObjectName,
+  callYieldedLiteral,
+  yieldedSlotValue,
   agreeingTernaryArm,
   resolveSynthKeys,
   sealedChainBoundary,
@@ -47,6 +51,7 @@ import {
   dropDeadSequenceElements,
   findIifeArgPath,
   findObjectKeyBeforeSpread,
+  followConstIdentifierInit,
   followConstLiteralAlias,
   hasRestSiblingExcept,
   isMemberAccessNode,
@@ -70,6 +75,7 @@ import {
   patternLevelKeepsEffectfulHop,
   peelNestedSequenceExpressions,
   peelParenAndTSParentPath,
+  peelSequenceTail,
   peelSkippableWrapperPath,
   peelTransparentExpr,
   POSSIBLE_GLOBAL_OBJECTS,
@@ -85,6 +91,7 @@ import {
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   unwrapRuntimeExpr,
   walkAstNodes,
+  invocationNode,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { ownEmittedPatternClaim, ownOutputTests } from '@core-js/polyfill-provider/detect-usage/own-output';
 import {
@@ -319,15 +326,16 @@ export function initSeqRootHasKeptWrite(initNode) {
 // the ONE expression a lifted prefix becomes, through the shared trim canon: the value slot is
 // gone, so an element with nothing to observe is a comma the source wrote rather than work it did,
 // and a prefix left with no observable at all is not a statement the source ran
-export function liftedPrefixExpression(prefix) {
+export function liftedPrefixExpression(prefix, ctx = null) {
   if (!prefix.length) return null;
-  const kept = dropDeadSequenceElements(prefix);
-  const lifted = sequenceExpression(kept);
-  return mayHaveSideEffects(lifted) ? lifted : null;
+  const kept = ctx ? observableSequenceElements(prefix, ctx) : dropDeadSequenceElements(prefix);
+  if (!kept.length) return null;
+  const lifted = kept.length === 1 ? kept[0] : sequenceExpression(kept);
+  return ctx || mayHaveSideEffects(lifted) ? lifted : null;
 }
 
-export function liftedPrefixStatements(prefix) {
-  const lifted = liftedPrefixExpression(prefix);
+export function liftedPrefixStatements(prefix, ctx = null) {
+  const lifted = liftedPrefixExpression(prefix, ctx);
   return lifted ? [expressionStatement(lifted)] : [];
 }
 
@@ -342,32 +350,32 @@ export function liveTailOf(declarator, seqPrefix, initTail) {
 // a for-init hosts no statement of its own, so the prefix of a SURVIVING residual's receiver rides
 // the FIRST extraction's value, which the loop header evaluates where the source ran it
 // (`for (var m = (eff(), _Map), { other } = _globalThis; ...)`)
-export function carryForInitPrefixIntoFirst(declarator, declJobs, extracted) {
+export function carryForInitPrefixIntoFirst(declarator, declJobs, extracted, ctx = null) {
   if (!extracted.length || declJobs.some(job => job.readsReceiver)) return;
   const init = peelTransparentExpr(declarator.init);
   if (init?.type !== 'SequenceExpression' || !Number.isInteger(init.start)) return;
   const { prefix, tail } = peelNestedSequenceExpressions(init);
   if (!prefix.length) return;
   declarator.init = tail;
-  const lifted = liftedPrefixExpression(prefix);
+  const lifted = liftedPrefixExpression(prefix, ctx);
   if (!lifted) return;
   const carried = lifted.type === 'SequenceExpression' ? lifted.expressions : [lifted];
   extracted[0].init = sequenceExpression([...carried, extracted[0].init]);
 }
 
-// the prefix of a SOURCE sequence init, taken off the declarator so the surviving residual reads
-// the bare tail. one the collapse MINTED is the value's own spelling and stays whole, which its
-// missing span tells us; an element with nothing to observe is a comma the source wrote, not a
-// statement it ran (`var { Map: m, other } = (0, globalThis)`)
-export function liftSurvivingInitPrefix(declarator, declJobs) {
+// the prefix of a SOURCE sequence init, taken off the declarator (`key`: an assignment's `right`) so
+// the surviving residual reads the bare tail. one the collapse MINTED is the value's own spelling and
+// stays whole, which its missing span tells us; an element with nothing to observe is a comma the
+// source wrote, not a statement it ran (`var { Map: m, other } = (0, globalThis)`)
+export function liftSurvivingInitPrefix(declarator, declJobs, ctx = null, key = 'init') {
   if (!declJobs.length) return [];
-  const init = peelTransparentExpr(declarator.init);
+  const init = peelTransparentExpr(declarator[key]);
   if (init?.type !== 'SequenceExpression' || !Number.isInteger(init.start)) return [];
   const { prefix, tail } = peelNestedSequenceExpressions(init);
   if (!prefix.length) return [];
-  declarator.init = tail;
+  declarator[key] = tail;
   // per element, the grouping the other leg's declarator lift prints for the same shape
-  return observableSequenceElements(prefix).map(expr => expressionStatement(expr));
+  return observableSequenceElements(prefix, ctx).map(expr => expressionStatement(expr));
 }
 
 // a BODYLESS assignment host (`if (c) ({ Map: M } = g);`) has no statement list to splice into:
@@ -507,9 +515,14 @@ export function drainBodylessAssignment({ hostNode, jobs }, {
 // plus injector state) is what lets the realm clause below run - every caller passes it, so the two
 // host spellings answer alike
 export function assignmentMemoRef(assignment, jobs, mintRefName, ctx = null) {
-  if (jobs.every(job => !job.readsReceiver) || jobs.some(job => job.seqPrefix?.length)) return null;
-  const right = peelTransparentExpr(assignment.right);
-  if (right?.type === 'Identifier' || right?.type === 'ThisExpression') return null;
+  if (jobs.every(job => !job.readsReceiver)) return null;
+  const whole = peelTransparentExpr(assignment.right);
+  // a lifted sequence PREFIX leaves the readers the tail: one they re-read for free keeps the lift,
+  // any other takes the memo, the prefix riding it where the source ran it
+  const right = jobs.some(job => job.seqPrefix?.length) ? peelNestedSequenceExpressions(whole).tail : whole;
+  const [{ metaPath }] = jobs;
+  if (right?.type === 'ThisExpression' || (right?.type === 'Identifier'
+    && isReReferenceableAcrossReads(right, { scope: metaPath?.scope, adapter: ctx?.adapter, path: metaPath }))) return null;
   // ... and a selection every value of which IS the realm needs none either: every branch hands back
   // the same object, free to re-read, so its readers share an identity without a ref of their own -
   // the declarator host's `allProxyInit` clause, asked here on the REWRITTEN spelling
@@ -817,7 +830,7 @@ export function hopSlotPrefixRidesLiteral(right, chainKeys, guardCtx = null) {
     if (node?.type !== 'ObjectExpression') break;
     const match = findObjectKeyBeforeSpread(node.properties, prop => spelledSlotName(prop) === key);
     const read = objectPropertyReadValue(match);
-    if (!read || objectLiteralHoldsObservable(node, match)) return null;
+    if (!read || objectLiteralHoldsObservable(node, match, guardCtx?.aliasCtx)) return null;
     const { prefix: levelPrefix, tail } = peelNestedSequenceExpressions(read);
     prefix.push(...levelPrefix);
     node = peelTransparentExpr(tail);
@@ -974,7 +987,8 @@ export function planLiteralRoute({ metaPath, prop, sentinel, chain, declarator, 
       // carried effect a second time beside the dispatch
       if (!literalReceiver && declaratorConsumedWhole && !sentinel && !hostLevelSurvives(declarator)) {
         const carried = resolveNestedReceiverNode(metaPath, { allowInitCarriedEffects: true, adapter, throughNamedDefaults }) ?? null;
-        if (carried && receiverPerformsEveryInitEffect(declarator.init, carried)) {
+        if (carried && receiverPerformsEveryInitEffect(declarator.init, carried,
+          adapter ? { scope: metaPath.scope, adapter, path: metaPath } : null)) {
           literalReceiver = carried;
           relaxedReceiver = true;
           // the slot is re-resolved at DRAIN: a claim INSIDE it renders by replacing its node, and
@@ -1467,13 +1481,14 @@ export function isMintedOrProxyName(name, injectorState) {
 }
 
 // does this nav spine bottom out on a CALL? that read belongs to the source, so a full
-// consume owes it a throw probe - a plain proxy nav from a bare root owes nothing
+// consume owes it a throw probe - a plain proxy nav from a bare root owes nothing. every spelling
+// the invocation canon reads (a tagged template, an `await`), standing under a sequence prefix too
 export function navSpineHasCall(node) {
   // through the CHAIN wrapper an optional spelling wears: `mk()?.self.Object` roots in the same
   // call as its plain twin, and the paren-only peel stopped at the wrapper - the discarded read
   // then lost the throw probe the call root owes
-  for (let cur = unwrapRuntimeExpr(node); cur;) {
-    if (cur.type === 'CallExpression') return true;
+  for (let cur = peelSequenceTail(unwrapRuntimeExpr(node), { step: unwrapRuntimeExpr }); cur;) {
+    if (invocationNode(cur)) return true;
     if (cur.type === 'MemberExpression') {
       cur = unwrapRuntimeExpr(cur.object);
       continue;
@@ -1558,7 +1573,8 @@ function drainSequenceAssignment({ hostNode, jobs }, { program, drainAssignment,
   // what the enclosing sequence evaluates AHEAD of this element: discarded values, so they lift to
   // statements of their own and a declaration hoisted past them keeps the source's order. without the
   // lift an initialized hoist would read its receiver before those effects ran
-  const leading = liftLeadingSequenceElements(program, hostNode);
+  // ... only where a declaration hoists past them: with none, the folded elements keep their slots
+  const leading = body.some(stmt => stmt.type !== 'ExpressionStatement') ? liftLeadingSequenceElements(program, hostNode) : null;
   const hoisted = [];
   const exprs = [];
   for (const stmt of body) {
@@ -1843,8 +1859,6 @@ export function applyInlineDefault({ prop, entry, hintName, injectPureImport, ma
   if (prop.value) skippedNodes.add(prop.value);
 }
 
-// does the surviving residual sit SOURCE-EARLIER than everything the extraction consumed?
-// then it keeps that slot and the extractions follow it
 // the discarded siblings of a LITERAL CONTAINER the extraction consumed whole: they run ahead
 // of the slot the extraction read, so they belong in the value, not in a statement after it.
 // every other init shape keeps the statement lift (`rescueEmptiedDeclaratorInit`)
@@ -2265,7 +2279,8 @@ export function forInitMemoVerdicts(byDeclarator, mintRefName) {
     const consumed = declJobs.reduce((total, job) => total + patternBindingCount(job.prop.value), 0);
     const residualLives = patternBindingCount(declarator.id) !== consumed;
     if (declJobs.some(job => job.sentinel && job.readsReceiver) || readers > 1
-      || (readers === 1 && residualLives && declJobs.every(job => !job.sentinel))) {
+      || (readers === 1 && residualLives && declJobs.every(job => !job.sentinel))
+      || (readers === 1 && declJobs.length > 1 && mayHaveSideEffects(init))) {
       memoRefs.set(declarator, mintRefName());
     }
   }
@@ -2537,7 +2552,7 @@ function bodylessExtractionFollows(job) {
 // sibling join above; a rest-kept residual takes the split shape (extraction ahead), and a lifted
 // prefix without a memo needs its statements - those slots become a block, each declarator its own
 // statement
-export function drainBodylessMultiMemo({ hostNode, declaration, jobs },
+export function drainBodylessMultiMemo({ hostNode, declaration, jobs, adapter = null },
   { program, mintRefName, removeConsumedProps, markRewrite }) {
   const byDeclarator = new Map();
   for (const job of jobs) {
@@ -2560,7 +2575,10 @@ export function drainBodylessMultiMemo({ hostNode, declaration, jobs },
     // MEMOIZED init keeps its sequence WHOLE - the memo is where it evaluates
     const [{ seqPrefix, initTail }] = declJobs;
     if (seqPrefix?.length && !memoRef) {
-      for (const expr of observableSequenceElements(seqPrefix)) statements.push(expressionStatement(expr));
+      const { metaPath } = declJobs.at(0);
+      const lifted = adapter ? observablePrefixElements(seqPrefix, { scope: metaPath.scope, adapter, path: metaPath })
+        : observableSequenceElements(seqPrefix);
+      for (const expr of lifted) statements.push(expressionStatement(expr));
       declarator.init = initTail;
     }
     const values = declJobs.map(job => job.value(memoRef));
@@ -2646,6 +2664,16 @@ export function arrayWrapperDeclarator(patternPath) {
 
 function arrayWrapperInDeclarator(patternPath) {
   return !!arrayWrapperDeclarator(patternPath);
+}
+
+// the value a wrapper LEVEL holds through a const alias: the literal the binding holds, or the
+// CALL it holds (`const w = f()`), which the call step of the walks below reads on - the plain
+// alias-of-literal follow, widened to a call; any other binding keeps the name
+function followLevelValue(node, aliasCtx) {
+  const held = followConstLiteralAlias(node, aliasCtx);
+  if (held !== node || !aliasCtx?.adapter || node?.type !== 'Identifier') return held;
+  const value = followConstIdentifierInit({ node, readNode: node, seen: aliasCtx.seen, ctx: aliasCtx }).node;
+  return invocationNode(value) ? value : node;
 }
 
 // one descent step into a literal: an INDEX reads an array element (the positional read, an
@@ -2746,10 +2774,21 @@ export function resolveArrayWrappedReceiver(patternPath, aliasCtx = null, {
     // the overwrite appends after it, which makes the element a SECOND read the registration gates
     const multi = !sole || (cur.node.type === 'ArrayPattern' && cur.node.elements.length !== 1);
     let element = hostParent.node.right;
+    // the parameters of a CALL the walk stepped into, each holding the call's argument (below)
+    let assignParamArgs = null;
     for (const step of indices) {
-      element = followConstLiteralAlias(peelTransparentExpr(element), aliasCtx);
+      element = followLevelValue(peelTransparentExpr(element), aliasCtx);
+      // a CALL yields the container the callee built (the provider's step): the RHS stays as an
+      // expression statement when the pattern dies, so the call still runs where it stood
+      if (aliasCtx && invocationNode(element)) {
+        const yielded = callYieldedLiteral({ node: element, readNode: element, seen: new Set(), ctx: aliasCtx });
+        if (!yielded) return null;
+        element = peelTransparentExpr(yielded.literal);
+        assignParamArgs = yielded.paramArgs;
+      }
       if (element?.type === 'SequenceExpression') element = peelTransparentExpr(element.expressions.at(-1));
       element = stepIntoLiteral(element, step);
+      element = yieldedSlotValue(assignParamArgs, element);
       if (!element) return null;
     }
     element = peelTransparentExpr(element);
@@ -2780,17 +2819,32 @@ export function resolveArrayWrappedReceiver(patternPath, aliasCtx = null, {
   let element = aliasCtx && ownRelocatedHeadElement(hostParent)
     || hostParent.node.init;
   let aliased = element !== hostParent.node.init;
+  // the parameters of a CALL the walk stepped into, each holding the call's argument: a slot of the
+  // callee's literal naming one reads that argument
+  let paramArgs = null;
   for (const step of indices) {
     const peeledElement = peelTransparentExpr(element);
     // EVERY level follows its alias: an alias inside an alias (`const inner = [Array]; const outer =
     // [inner]; const [[{ from }]] = outer`) is followed at the second level exactly like the first -
     // folding the follow into the `aliased ||=` update short-circuited it away once one level had
     // aliased, and the leg stayed native where the babel plan flattened
-    element = followConstLiteralAlias(peeledElement, aliasCtx);
+    element = followLevelValue(peeledElement, aliasCtx);
     aliased ||= element !== peeledElement;
+    // ... and a CALL yields the container the callee built (the provider's step): the levels below
+    // live in the callee's literal, outside this host like an alias's, and the wrapper SURVIVES as
+    // a residual - dropping it would drop the call (the babel canon keeps the call the same way)
+    if (aliasCtx && invocationNode(element)) {
+      const yielded = callYieldedLiteral({ node: element, readNode: element, seen: new Set(), ctx: aliasCtx });
+      if (!yielded) return null;
+      element = peelTransparentExpr(yielded.literal);
+      ({ paramArgs } = yielded);
+      aliased = true;
+      sole = false;
+    }
     if (element?.type === 'SequenceExpression') element = peelTransparentExpr(element.expressions.at(-1));
     if (step.key !== undefined) {
-      const next = stepIntoLiteral(element, step);
+      const stepped = stepIntoLiteral(element, step);
+      const next = yieldedSlotValue(paramArgs, stepped);
       if (!next) return null;
       // a keyed level's OTHER properties are neighbours the same way an element's are: they
       // evaluate before the read a hoist would perform, and the walk has no route that reorders
@@ -2844,7 +2898,7 @@ export function resolveArrayWrappedReceiver(patternPath, aliasCtx = null, {
     // only an effect the literal keeps ahead of the slot keeps the memo out of the lead
     const lifted = new Set(leadingDiscardedEffectSlots(element, step.pattern));
     precedingPure &&= element.elements.slice(0, index).every((item, at) => !mayHaveSideEffects(item) || lifted.has(at));
-    element = element.elements[index];
+    element = yieldedSlotValue(paramArgs, element.elements[index]);
     if (!element) return null;
   }
   if (neighbourForcedResidual && aliased && readsReceiver) return null;

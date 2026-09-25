@@ -171,6 +171,7 @@ export function createPatternBindings({
   arrayElementOfType,
   walkObjectLiteralPropertyPath,
   isGetterFreshLiteral,
+  pathSlotWritten,
   resolveTypeAnnotation,
   resolveComputedKeyName,
   getKeyName,
@@ -455,7 +456,10 @@ export function createPatternBindings({
       const element = positionalElementPath(arrayPath, i);
       if (!element) return null;
       // ... elements stay on the init-only read: the flow resolver has no alias closure for a slot
-      // inside an array literal, so asking it there declines every narrow, held container or not
+      // inside an array literal, so asking it there declines every narrow, held container or not -
+      // but an element that NAMES a binding holds that binding's container, whose written slots
+      // the detection census knows (`pathSlotWritten`)
+      if (pathSlotWritten(element, keyPath)) return null;
       const member = resolveObjectMemberPath(resolveRuntimeExpression(element), keyPath);
       if (!member) return null;
       common = commonType(common, member);
@@ -538,9 +542,12 @@ export function createPatternBindings({
         if (initResult) return initResult;
       }
       // runtime init: resolve through variables to the actual value
-      const initPath = resolveRuntimeExpression(bindingPath.get('init'));
+      const initSource = bindingPath.get('init');
+      const initPath = resolveRuntimeExpression(initSource);
       if (index >= 0) {
-        // direct element: const [a] = typedArr -> resolve inner type or literal element
+        // direct element: const [a] = typedArr -> resolve inner type or literal element - unless the
+        // init names a binding whose element the file wrote (`pathSlotWritten`)
+        if (pathSlotWritten(initSource, [index])) return null;
         const initType = resolveNodeType(initPath);
         const inner = resolveInnerType(initType);
         if (inner) return inner;
@@ -549,10 +556,11 @@ export function createPatternBindings({
           if (elemType) return elemType;
         }
       } else {
-        // nested pattern: const [{ a }] = [{ a: 'x' }] or const [[b]] = [['x']]
+        // nested pattern: const [{ a }] = [{ a: 'x' }] or const [[b]] = [['x']] - the init travels
+        // UNRESOLVED too, so a binding standing before the literal is asked about its writes
         const arrPath = findArrayPatternKeyPath(arrayPattern, varName, bindingPath.scope);
         if (arrPath) {
-          const result = resolveObjectMemberPath(initPath, arrPath);
+          const result = resolveObjectMemberPath(initPath, arrPath, initSource);
           if (result) return result;
         }
       }
@@ -570,6 +578,11 @@ export function createPatternBindings({
     // or rest binding (rest handled above) must not pick up the iterable element type here
     const forOfPath = findForLoopParent(bindingPath);
     if (t.isForOfStatement(forOfPath?.node) && index >= 0) {
+      // ... an iterated element that NAMES a binding holds that binding's container, and an element
+      // of it the file wrote (`pathSlotWritten`) has no type the iterable's literal spells
+      const iterable = resolveRuntimeExpression(forOfPath.get('right'));
+      if (t.isArrayExpression(iterable.node)
+        && iterable.get('elements').some(element => pathSlotWritten(element, [index]))) return null;
       // resolve for-of element, then unwrap one more level for array destructuring
       const inner = resolveInnerType(resolveForOfResolvedElement(forOfPath));
       if (inner) return inner;
@@ -684,10 +697,22 @@ export function createPatternBindings({
     // the UNRESOLVED path the current container was reached through - what a member read of it
     // would stand on, for the step that has no literal to walk
     let rawPath = sourcePath ?? objPath;
+    // the last BINDING the walk stood on and the keys taken off it since: a step into a slot the
+    // file wrote through that binding (`pathSlotWritten`) reads no value off the literal - an
+    // element, a hop, and a final key of a literal the binding does not declare itself (a call's),
+    // whose writes the flow-aware field read cannot see
+    let holder = flowAware ? sourcePath : null;
+    let holderKeys = [];
+    // is this the final key of the literal the holder DECLARES? that one is the flow-aware field read's to fold
+    function ownFinalField(step, rest) {
+      return !rest.length && typeof step === 'string' && !holderKeys.length
+        && unwrapRuntimeExpr(getScopeBinding(holder.scope, holder.node.name, holder)?.path?.node?.init) === objPath.node;
+    }
     while (true) {
       if (keyPath.length === 0) return resolveNodeType(objPath);
       const [step] = keyPath;
       const rest = keyPath.slice(1);
+      if (holder && !ownFinalField(step, rest) && pathSlotWritten(holder, [...holderKeys, step])) return null;
       if (typeof step === 'number') {
         // -1 = rest element. with no further keys the binding IS the rest Array; a remaining
         // key-path (`const [...{ length }] = a`) reads off that Array, but resolving it precisely
@@ -713,6 +738,7 @@ export function createPatternBindings({
         const elementPath = positionalElementPath(objPath, step);
         if (!elementPath) return null;
         flowAware ||= elementPath.node.type === 'Identifier';
+        [holder, holderKeys] = elementPath.node.type === 'Identifier' ? [elementPath, []] : [holder, [...holderKeys, step]];
         rawPath = elementPath;
         objPath = resolveRuntimeExpression(elementPath);
         keyPath = rest;
@@ -751,6 +777,7 @@ export function createPatternBindings({
       const valuePath = walkObjectLiteralPropertyPath(objPath, step);
       if (!valuePath?.node) return null;
       flowAware ||= valuePath.node.type === 'Identifier';
+      [holder, holderKeys] = valuePath.node.type === 'Identifier' ? [valuePath, []] : [holder, [...holderKeys, step]];
       rawPath = valuePath;
       objPath = resolveRuntimeExpression(valuePath);
       keyPath = rest;

@@ -4388,3 +4388,18 @@ testUnlessDetectLowered('realm selection: a bare unbacked name collapses like a 
     assert.notSame(viaBareUnbacked(), liveGroupBy);
   });
 });
+
+// a computed hop key spelled by a CALL runs exactly once where the source runs it, when the hop
+// collapses onto its polyfill - a read, a destructure and an optional member alike
+QUnit.test('global proxies: a call-keyed hop runs its key once', assert => {
+  let calls = 0;
+  function key(name) {
+    calls++;
+    return name;
+  }
+  assert.same(typeof globalThis[key('Map')].groupBy, 'function');
+  const { try: attempt } = globalThis[key('Promise')];
+  assert.same(typeof attempt, 'function');
+  assert.same(typeof globalThis[key('Iterator')]?.from, 'function');
+  assert.same(calls, 3);
+});

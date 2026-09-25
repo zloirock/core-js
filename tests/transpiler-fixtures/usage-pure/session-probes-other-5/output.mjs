@@ -243,8 +243,7 @@ function mark(t, v) {
     a = null == _ref13 ? _ref13[""] : (eff('k'), _at(_ref13));
 }
 {
-  const _ref14 = Array,
-    f3 = null == _ref14 ? _ref14[""] : (eff('k'), _Array$from);
+  const f3 = (eff('k'), _Array$from);
 }
 {
   const {
@@ -262,14 +261,14 @@ function mark(t, v) {
   };
 }
 {
-  const _ref16 = {
+  const _ref15 = {
       w: src
     },
     {
-      [(eff('k'), 'w')]: _ref15
-    } = null == _ref16 ? _ref16[""] : _ref16,
-    _ref17 = _ref15,
-    a = null == _ref17 ? _ref17[""] : (eff('k2'), _at(_ref17));
+      [(eff('k'), 'w')]: _ref14
+    } = null == _ref15 ? _ref15[""] : _ref15,
+    _ref16 = _ref14,
+    a = null == _ref16 ? _ref16[""] : (eff('k2'), _at(_ref16));
 }
 {
   const {
@@ -283,44 +282,44 @@ function mark(t, v) {
   };
 }
 {
-  const _ref19 = {
+  const _ref18 = {
       w: [1]
     },
     {
-      [(eff('k'), 'w')]: _ref18
-    } = null == _ref19 ? _ref19[""] : _ref19,
-    _ref20 = _ref18,
-    a = null == _ref20 ? _ref20[""] : _atMaybeArray(_ref20);
+      [(eff('k'), 'w')]: _ref17
+    } = null == _ref18 ? _ref18[""] : _ref18,
+    _ref19 = _ref17,
+    a = null == _ref19 ? _ref19[""] : _atMaybeArray(_ref19);
 }
 {
-  const _ref22 = {
+  const _ref21 = {
       w: [1]
     },
     {
-      [(eff('k'), 'w')]: _ref21
-    } = null == _ref22 ? _ref22[""] : _ref22,
-    _ref23 = _ref21,
-    f13 = null == _ref23 ? _ref23[""] : _atMaybeArray(_ref23);
+      [(eff('k'), 'w')]: _ref20
+    } = null == _ref21 ? _ref21[""] : _ref21,
+    _ref22 = _ref20,
+    f13 = null == _ref22 ? _ref22[""] : _atMaybeArray(_ref22);
 }
 {
-  const _ref25 = {
+  const _ref24 = {
       w: g()
     },
     {
-      [(eff('k'), 'w')]: _ref24
-    } = null == _ref25 ? _ref25[""] : _ref25,
-    _ref26 = _ref24,
-    f19 = null == _ref26 ? _ref26[""] : _at(_ref26);
+      [(eff('k'), 'w')]: _ref23
+    } = null == _ref24 ? _ref24[""] : _ref24,
+    _ref25 = _ref23,
+    f19 = null == _ref25 ? _ref25[""] : _at(_ref25);
 }
 {
-  const _ref28 = {
+  const _ref27 = {
       w: arr
     },
     {
-      [(eff('k'), 'w')]: _ref27
-    } = null == _ref28 ? _ref28[""] : _ref28,
-    _ref29 = _ref27,
-    f20 = null == _ref29 ? _ref29[""] : _atMaybeArray(_ref29);
+      [(eff('k'), 'w')]: _ref26
+    } = null == _ref27 ? _ref27[""] : _ref27,
+    _ref28 = _ref26,
+    f20 = null == _ref28 ? _ref28[""] : _atMaybeArray(_ref28);
 }
 {
   const {
@@ -369,13 +368,13 @@ function mark(t, v) {
   };
 }
 {
-  const _ref31 = _globalThis,
+  const _ref30 = _globalThis,
     {
-      [(eff(), 'Array')]: _ref30
-    } = null == _ref31 ? _ref31[""] : _ref31,
+      [(eff(), 'Array')]: _ref29
+    } = null == _ref30 ? _ref30[""] : _ref30,
     {
-      prototype: _ref32
-    } = _ref30,
-    _ref33 = _ref32,
-    v2 = null == _ref33 ? _ref33[""] : _valuesMaybeArray(_ref33);
+      prototype: _ref31
+    } = _ref29,
+    _ref32 = _ref31,
+    v2 = null == _ref32 ? _ref32[""] : _valuesMaybeArray(_ref32);
 }

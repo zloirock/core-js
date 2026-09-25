@@ -1,5 +1,6 @@
 import _valuesMaybeArray from "@core-js/pure/actual/array/instance/values";
 import _globalThis from "@core-js/pure/actual/global-this";
+import _Iterator$from from "@core-js/pure/actual/iterator/from";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 import _Object$groupBy from "@core-js/pure/actual/object/group-by";
@@ -20,7 +21,11 @@ const {
   Iterator: {
     from: iterFrom
   }
-} = c1 ? q = _globalThis : x1;
+} = c1 ? (q = _globalThis, {
+  Iterator: {
+    from: _Iterator$from
+  }
+}) : x1;
 export const viaChainAssign = iterFrom(_valuesMaybeArray(_ref = [1]).call(_ref));
 
 // a chain assignment wrapping a logical fallback keeps both the write and the fallback
@@ -78,14 +83,21 @@ const {
 };
 export const viaIifeBody = objGroupBy([1, 2], v => v % 2);
 
-// BOTH branches chain-assign to the proxy: writes survive on their native paths and the
-// leaf takes the sound inline default (fires only when the selected global's static is
-// genuinely absent) - both emitters agree
+// BOTH branches chain-assign to the proxy: each write survives on its native path, sequenced ahead
+// of a per-branch mirror that serves the static - both emitters agree
 let c5 = Math.random() < 0.5;
 let q5, w5;
 const {
   Object: {
-    fromEntries: objFromEntries = _Object$fromEntries
+    fromEntries: objFromEntries
   }
-} = c5 ? q5 = _globalThis : w5 = _globalThis;
+} = c5 ? (q5 = _globalThis, {
+  Object: {
+    fromEntries: _Object$fromEntries
+  }
+}) : (w5 = _globalThis, {
+  Object: {
+    fromEntries: _Object$fromEntries
+  }
+});
 export const viaDualChain = objFromEntries([["k", 1]]);
