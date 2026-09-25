@@ -100,8 +100,9 @@ const memberReadThroughObjectKey = (function () {
   const w = { k: Object };
   return w.k.getOwnPropertyDescriptor({}, 'a');
 })();
-// NEGATIVE: a hoisted `var` container declared on a path the read ESCAPES is not the value read
-// here, so the same dominance gate the key-alias fold uses keeps it native
+// a hoisted `var` container declared on a path the read ESCAPES is not provably the value read here:
+// the read keeps its own spelling behind an identity guard on the constructor the slot holds, so a
+// path that skipped the declaration still throws where the source does
 export function escapingContainer(cond) {
   if (cond) { var late = { k: Object }; }
   return late.k.getOwnPropertyNames({});

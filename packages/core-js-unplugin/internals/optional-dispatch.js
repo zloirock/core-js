@@ -914,7 +914,8 @@ export default function createOptionalDispatchChannel(ctx) {
       // constructor off the memo - the ponyfill this claim exists for, dropped by an effect
       const surfaceKey = inner.proxySurface
         ? (node.computed
-          ? foldSeqKeyLiteralTail(node.property) ?? foldedResolvedKey(node.property, metaPath, adapter)
+          ? foldSeqKeyLiteralTail(node.property, { scope: metaPath.scope, adapter, path: metaPath })
+            ?? foldedResolvedKey(node.property, metaPath, adapter)
           : node.property?.type === 'Identifier' ? { key: node.property.name, effects: [] } : null)
         : null;
       if (surfaceKey) {
@@ -933,7 +934,7 @@ export default function createOptionalDispatchChannel(ctx) {
         // computed key folds to its literal tail, the prefix riding the substitution
         // (`[(k++, 'values')]` -> `(k++, _Object$values)`, babel's requeue); an
         // unresolved pair falls back to the spelled members off the memo base
-        const folded = node.computed ? foldSeqKeyLiteralTail(node.property)
+        const folded = node.computed ? foldSeqKeyLiteralTail(node.property, { scope: metaPath.scope, adapter, path: metaPath })
           : node.property?.type === 'Identifier' ? { key: node.property.name, effects: [] } : null;
         if (folded && inner.provenChain.length === 1) {
           const claim = resolvePure({

@@ -19,39 +19,28 @@ b = _Array$of;
 
 (
 	_ref = (_pushMaybeArray(log).call(log, 'recv'), Array),
-	null == _ref
-		? _ref[""]
-		: (_pushMaybeArray(log).call(log, 'k1'), a = _Array$from),
+	(_pushMaybeArray(log).call(log, 'k1'), a = _Array$from),
 	_ref
 );
 
 (
 	_ref2 = Array,
-	null == _ref2
-		? _ref2[""]
-		: (_pushMaybeArray(log).call(log, 'k2'), c = _Array$from),
-
-	null == _ref2
-		? _ref2[""]
-		: (_pushMaybeArray(log).call(log, 'k3'), d = _Array$of),
+	(_pushMaybeArray(log).call(log, 'k2'), c = _Array$from),
+	(_pushMaybeArray(log).call(log, 'k3'), d = _Array$of),
 	_ref2
 );
 
 (
 	_ref3 = (held = _Map, Array),
-	null == _ref3
-		? _ref3[""]
-		: (_pushMaybeArray(log).call(log, 'k4'), e = _Array$from),
+	(_pushMaybeArray(log).call(log, 'k4'), e = _Array$from),
 	f = _Array$of,
 	_ref3
 );
 
 (
 	_ref4 = Array,
-	null == _ref4
-		? _ref4[""]
-		: (_pushMaybeArray(log).call(log, 'k5'), g = _Array$from),
-	null == _ref4 ? _ref4[""] : h = _Array$of,
+	(_pushMaybeArray(log).call(log, 'k5'), g = _Array$from),
+	h = _Array$of,
 	_ref4
 );
 

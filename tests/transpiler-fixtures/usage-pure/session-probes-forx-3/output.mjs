@@ -192,10 +192,14 @@ function mark(t, v) {
       keys
     }
   } of [{
-    w: Object
+    w: {
+      keys: _Object$keys
+    }
   }, {
     get w() {
-      return Object;
+      return {
+        keys: _Object$keys
+      };
     }
   }]) keys;
 }

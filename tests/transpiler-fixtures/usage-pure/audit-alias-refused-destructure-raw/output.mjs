@@ -1,15 +1,17 @@
 import _Map from "@core-js/pure/actual/map/constructor";
+import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Promise from "@core-js/pure/actual/promise/constructor";
-// destructure FROM a refused ctor alias stays RAW: an untaken path throws on the destructure
-// exactly like untranspiled code; a param DEFAULT keeps the alias verbatim (caller args always
-// win natively)
+// destructure FROM a conditionally-assigned ctor alias keeps the throw of an untaken path: the
+// claim at the pattern's edge detaches behind the identity guard, whose raw branch reads the static
+// off the alias exactly as the pattern would, and the rest stays raw; a param DEFAULT keeps the alias
+// verbatim (caller args always win natively)
 function viaDecl(c) {
   let M;
   if (c) M = _Map;
-  const {
-    groupBy,
-    getOrInsert
-  } = M;
+  const groupBy = M === _Map ? _Map$groupBy : M.groupBy,
+    {
+      getOrInsert
+    } = M;
   return [typeof groupBy, typeof getOrInsert];
 }
 function viaParamDefault(c) {

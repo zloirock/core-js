@@ -65,7 +65,7 @@ var {
     }
   },
   _ref5 = Array,
-  of4 = null == _ref5 ? _ref5[""] : (k4++, _Array$of),
+  of4 = (k4++, _Array$of),
   {
     other4
   } = _ref5;

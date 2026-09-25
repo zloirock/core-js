@@ -10,15 +10,15 @@ let viaAssignCall, viaAssignWrap, viaAssignBodyless;
 ({ y: { at: viaAssignCall } } = { y: arr.flat() });
 ([{ y: { at: viaAssignWrap } }] = [{ y: arr.flat() }]);
 if (1) ({ y: { at: viaAssignBodyless } } = { y: arr.flat() });
-// ... and it stands down wherever a reader SURVIVES the slot: a sibling binding, a sibling KEY off
-// the same receiver, and a second effect-bearing part of the init the dispatch does not spell
+// ... and it stands down wherever a reader SURVIVES the slot: a sibling binding and a second
+// effect-bearing part of the init the dispatch does not spell; a sibling KEY off the same receiver
+// instead reads the slot's memo, which the claim reads too - the slot still evaluates once
 let keptSibling, keptOther, keptKey, keptLen, twoEffects, twoEffectsZ;
 ({ y: { at: keptSibling }, o: keptOther } = { y: arr.flat(), o: 1 });
 ({ y: { at: keptKey, length: keptLen } } = { y: arr.flat() });
 ({ y: { at: twoEffects }, z: twoEffectsZ } = { y: arr.flat(), z: arr.flat() });
-// ... and an element that SPELLS A SEQUENCE stands down on both legs: a claim INSIDE it renders by
-// lifting its own prefix into the residual, so dropping that residual would drop the lift while
-// keeping it would re-read what the dispatch spells
+// ... and an element that SPELLS A SEQUENCE keeps the whole sequence inside the dispatch: its prefix
+// runs where the source ran it, once, and nothing re-reads what the dispatch spells
 let out, seqElement;
 ([{ at: seqElement }] = [(out = 1, arr).flat()]);
 // the assignment DISCARDED as a sequence element drops its residual by a route of its own, and it

@@ -791,6 +791,7 @@ export default function plugin(api, options) {
           receiverHint: !meta.object && meta.key && !meta.symbolSourced
             ? toHint(resolveNodeType(path.get('right'))) : null,
           parent: path.parentPath?.node ?? null,
+          ctx: { scope: path.scope, adapter, path },
         });
         if (plan.kind === 'noop') return;
         const rendered = renderInExpressionPlan(plan, {
@@ -996,7 +997,7 @@ export default function plugin(api, options) {
           adapter,
         });
         if (!admitted) return false;
-        const { plan, split, restResidual, bindingName, hostKind, nested, capture, captureFirst, keepPatternLive } = admitted;
+        const { plan, split, restResidual, bindingName, hostKind, nested, capture, captureFirst, keepPatternLive, detach } = admitted;
         if (nested) {
           const declaration = nested.host.parentPath;
           if (capture && declaration.parentPath?.isExportNamedDeclaration()) {
@@ -1048,6 +1049,17 @@ export default function plugin(api, options) {
         }));
         const value = plan.seqPrefix.length
           ? t.sequenceExpression([...plan.seqPrefix.map(expr => t.cloneNode(expr)), narrow]) : narrow;
+        if (detach) {
+          const anchor = hostKind === 'declarator' ? host : peelParenAndTSSlotPath(host).parentPath;
+          if (!Array.isArray(anchor.container)) return false;
+          prop.remove();
+          const placed = hostKind === 'declarator'
+            ? t.variableDeclarator(t.identifier(bindingName), value)
+            : t.expressionStatement(t.assignmentExpression('=', t.identifier(bindingName), value));
+          if (detach === 'before') anchor.insertBefore(placed);
+          else anchor.insertAfter(placed);
+          return true;
+        }
         // a MULTI-prop pattern becomes one read per prop, in source order, each taking its own guard:
         // the plan answered for all of them, so nothing here waits on a later visit
         if (split) {
@@ -1550,7 +1562,7 @@ export default function plugin(api, options) {
               // (w = globalThis).self.k` -> `delete (w = _globalThis, _globalThis).k`) and the
               // effect buried in a hop's computed KEY, which the deleted member's own key does
               // not carry (`delete globalThis[(eff(), 'self')].k`)
-              const dropped = collectFoldedReceiverSideEffects(path.node);
+              const dropped = collectFoldedReceiverSideEffects(path.node, { ctx: { scope: path.scope, adapter, path } });
               landFoldedRoot(dropped.length ? t.sequenceExpression([...dropped, base]) : base);
               return;
             }
@@ -1772,7 +1784,7 @@ export default function plugin(api, options) {
               // the user's own chain-assign, an effect buried in a hop's computed key: the delete
               // fold's own harvest canon, asked of the span this fold drops
               const dropped = fold && deletedRun && !fold.carriesOwnEffects
-                ? collectFoldedReceiverSideEffects(fold.path.node) : [];
+                ? collectFoldedReceiverSideEffects(fold.path.node, { ctx: { scope: fold.path.scope, adapter, path: fold.path } }) : [];
               if (fold) {
                 fold.path.replaceWith(dropped.length
                   ? t.sequenceExpression([...dropped, fold.node]) : fold.node);
@@ -2054,6 +2066,7 @@ export default function plugin(api, options) {
           generateRef,
           paramDefaultNeverOverridden: typeResolvers.paramDefaultNeverOverridden,
           parameterCallSites: typeResolvers.parameterCallSites,
+          resolveStaticKey: (node, scope, keyPath) => resolveClaimableComputedKeyName(node, scope, keyPath),
           resolvePure,
           generateLocalRef,
           generateUnusedId,

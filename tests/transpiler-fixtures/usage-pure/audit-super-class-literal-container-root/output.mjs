@@ -3,8 +3,9 @@ import _Promise from "@core-js/pure/actual/promise";
 import _Promise$allSettled from "@core-js/pure/actual/promise/all-settled";
 import _Promise$any from "@core-js/pure/actual/promise/any";
 // Literal containers can bind the realm object and resolve the Promise superclass directly.
-// A property read from the realm is uncertain and selects the polyfill only after an identity check.
-// Unresolved unions, defaults and non-global containers keep their native superclass reads.
+// A property read from the realm is no container this file spells, so its superclass read stays native.
+// A union with the realm takes the polyfill behind an identity check on its realm arm; defaults and
+// non-global containers keep their native superclass reads.
 // Distinct static methods make every row observable.
 const [arrayWrap] = [_globalThis];
 const {
@@ -38,7 +39,7 @@ export class BailNonGlobal extends nonGlobal.Promise {
     return super.reject();
   }
 }
-export class BailUnion extends unionWrap.Promise {
+export class GuardedUnion extends (unionWrap === _globalThis ? _Promise : unionWrap.Promise) {
   static m() {
     return super.resolve();
   }

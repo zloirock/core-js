@@ -10,7 +10,7 @@ const leaked = { y: arr };
 const leakHost = { slot: (leaked) };
 const { y: { at: viaParenLeak } } = leaked;
 // ... but a SEQUENCE is NOT such a wrapper: its prefix is an effect the receiver does not spell, so
-// the residual stays and performs it where the source wrote it
+// the claim carries it inside the one read it performs, where the source ran it
 let out;
 const { y: { at: viaSeqPrefix } } = (out = 4, { y: arr.flat() });
 export { viaParenAlias, leakHost, viaParenLeak, viaSeqPrefix, out };
