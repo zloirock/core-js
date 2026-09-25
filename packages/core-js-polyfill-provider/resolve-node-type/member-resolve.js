@@ -26,7 +26,7 @@
 //
 // `findExpressionAnnotation` / `substituteTypeParams` / `applySubst` / `applyAliasSubstDeep` /
 // `functionTypeReturnAnnotation` thunk through forward-decl `let` bindings
-import { MAX_DEPTH, $Primitive, nodePathInScope } from './base.js';
+import { MAX_DEPTH, $Primitive, dropLeadingThisParam, nodePathInScope } from './base.js';
 import {
   collectQualifiedSegments,
   isMethodShapeMember,
@@ -37,7 +37,9 @@ import {
 } from './ast-shapes.js';
 import { isAmbientFunctionNode } from './name-resolution.js';
 import {
+  calleeYieldedContainer,
   getTypeArgs,
+  isDestructurePattern,
   isMemberWriteHost,
   memberKeyName,
   nodeHoldsChild,
@@ -99,6 +101,7 @@ export function createMemberResolve({
   resolveObjectFieldFlow,
   walkObjectLiteralPropertyPath,
   isGetterFreshLiteral,
+  pathSlotWritten,
   isMemberLike,
   findAmbientClassPath,
   resolveArrayLiteralElement,
@@ -701,11 +704,89 @@ export function createMemberResolve({
     const key = resolveMemberPropertyName(memberPath);
     if (key === null || key === undefined) return null;
     const objectPath = resolveRuntimeExpression(memberPath.get('object'));
-    const base = t.isObjectExpression(objectPath.node)
-      ? objectPath : resolveMemberLiteralPath(objectPath, depth + 1);
-    if (!base || !t.isObjectExpression(base.node) || !resolveObjectFieldFlow(base, key)) return null;
+    const base = literalPathOf(objectPath, depth + 1);
+    // ... and a hop the file WROTE holds the written value, not the init this walk would descend: the
+    // fold above still answers for the slot itself, whatever it holds
+    if (!base || !resolveObjectFieldFlow(base, key) || memberHopWritten(memberPath)) return null;
     const valuePath = walkObjectLiteralPropertyPath(base, key);
-    return valuePath?.node ? resolveRuntimeExpression(valuePath) : null;
+    const value = valuePath?.node ? resolveRuntimeExpression(valuePath) : null;
+    // ... a literal nested in a call-fresh one belongs to the same call: its parameter slots read
+    // that call's arguments too
+    if (value?.node?.type === 'ObjectExpression' && callFreshLiterals.has(base.node)) {
+      callFreshLiterals.set(value.node, callFreshLiterals.get(base.node));
+    }
+    return value;
+  }
+
+  // does a write the file recorded reach the slot a member chain names, off the binding it is rooted
+  // at (`pathSlotWritten`)? a chain the key canon cannot read names no slot to ask about
+  function memberHopWritten(memberPath) {
+    const keys = [];
+    let cur = memberPath;
+    while (isMemberLike(cur)) {
+      const key = resolveMemberPropertyName(cur);
+      if (key === null || key === undefined) return false;
+      keys.unshift(key);
+      cur = cur.get('object');
+    }
+    return pathSlotWritten(cur, keys);
+  }
+
+  // the literals CALLS yield: fresh per call like a getter's, so a member reads off the literal
+  // itself - the writer fold has no earlier holder to account for. each records the call that
+  // yielded it last - the literal node is the callee's, shared by every call of it, and the typing
+  // read that asks follows the call it names right away - with the parameters the detect canon
+  // proves hold their arguments in its slots (`calleeYieldedContainer`), so a slot naming one of
+  // them reads that call's argument
+  const callFreshLiterals = new WeakMap();
+  // the ARGUMENT path a fresh literal's slot holds where the slot names such a parameter, or null:
+  // the literal's own value is the slot's otherwise, and so is one behind a spread argument
+  function freshLiteralSlotArgument(literalNode, valueNode) {
+    const fresh = callFreshLiterals.get(literalNode);
+    const at = valueNode?.type === 'Identifier' ? fresh?.params.get(valueNode.name) : undefined;
+    if (at === undefined) return null;
+    const args = fresh.callPath.get('arguments');
+    return args.slice(0, at + 1).some(argument => argument.node?.type === 'SpreadElement') ? null : args[at] ?? null;
+  }
+  // the object literal PATH a resolved value stands for: the literal itself, the one a member
+  // spine names, or the one a CALL yields - so every hop reads off the shape the source wrote
+  function literalPathOf(objectPath, depth = 0) {
+    if (t.isObjectExpression(objectPath?.node)) return objectPath;
+    const spine = resolveMemberLiteralPath(objectPath, depth) ?? callYieldedLiteralPath(objectPath);
+    return t.isObjectExpression(spine?.node) ? spine : null;
+  }
+
+  // node types are compared by NAME: the statement and function shapes spell the same on both
+  // parsers, and the estree bridge exposes no predicate for them
+  const CALLEE_TYPES = new Set(['ArrowFunctionExpression', 'FunctionExpression', 'FunctionDeclaration']);
+  const PLAIN_STATEMENT_TYPES = new Set(['VariableDeclaration', 'ExpressionStatement']);
+  // the literal PATH a call to a local function yields (`f()` over `const f = () => ({ k: X })`):
+  // its sole return expression - an expression body, or a block of plain statements ending in a
+  // `return` - resolved to an object literal, off a callee with no return annotation (a declared
+  // type stays the answer) and no wrapper (an async / generator body yields a promise / iterator).
+  // a slot the callee fills from a PARAMETER reads this call's argument where the detect canon proves
+  // the parameter holds it, and stays the parameter's own read - typed by the caller census from
+  // every argument this file passes - otherwise. the shape is what typing reads; which VALUE the
+  // call hands back is the detect canon's question, asked there with its own proofs
+  function callYieldedLiteralPath(callPath) {
+    if (callPath?.node?.type !== 'CallExpression') return null;
+    const callee = resolveRuntimeExpression(callPath.get('callee'));
+    const fn = callee?.node;
+    if (!fn || !CALLEE_TYPES.has(fn.type) || fn.async || fn.generator || fn.returnType || fn.declare) return null;
+    const body = callee.get('body');
+    if (!body?.node) return null;
+    const statements = body.node.type === 'BlockStatement' ? body.get('body') : null;
+    const last = statements?.at(-1);
+    if (statements && (last?.node?.type !== 'ReturnStatement' || !last.node.argument
+      || statements.slice(0, -1).some(item => !PLAIN_STATEMENT_TYPES.has(item.node?.type)))) return null;
+    const literal = resolveRuntimeExpression(statements ? last.get('argument') : body);
+    if (literal?.node?.type !== 'ObjectExpression') return null;
+    const yielded = calleeYieldedContainer(fn, { unwrap: unwrapRuntimeExpr });
+    const params = dropLeadingThisParam(fn.params);
+    callFreshLiterals.set(literal.node, {
+      params: new Map(yielded?.literal === literal.node ? yielded.slots.map(([, at]) => [params[at].name, at]) : []), callPath,
+    });
+    return literal;
   }
 
   function resolveFromMemberExpressionInner(path, callPath) {
@@ -746,8 +827,14 @@ export function createMemberResolve({
     // the first. without it the receiver's type is lost past hop one, which costs both ways - an
     // unknown type injects a single-family method's family even where the literal provably is not
     // of it, and degrades a multi-family one to the generic dispatcher
-    const spine = t.isObjectExpression(objectPath.node) ? objectPath : resolveMemberLiteralPath(objectPath);
-    if (spine && t.isObjectExpression(spine.node)) {
+    const spine = literalPathOf(objectPath);
+    // ... a fresh literal - a call's, a getter's - a BINDING holds (`const w = make()`) is that
+    // binding's container, and a slot the file wrote through it holds no value the literal spells: the
+    // census knows a call's (`pathSlotWritten`), a getter's is asked of the binding's own uses
+    const heldFresh = spine && t.isIdentifier(originalObjectPath.node)
+      && (callFreshLiterals.has(spine.node) ? pathSlotWritten(originalObjectPath, [name])
+        : isGetterFreshLiteral(spine.node) && arrayElementsMayBeRetyped(originalObjectPath, originalObjectPath));
+    if (spine && !heldFresh) {
       // resolveObjectFieldFlow is the flow-aware superset of resolveObjectMember: it delegates
       // method / getter / function-valued props to resolveObjectMember, but for a plain data
       // property it folds the init type with every reachable reassignment (`o.data = "s"`) and
@@ -757,8 +844,12 @@ export function createMemberResolve({
       // ambiguous writer set, so we do NOT fall back to the init-type-only path
       // ... and a literal a GETTER builds fresh per read is read off itself: the writer fold has no
       // earlier caller to account for, and refusing there lost the type of every slot below a getter
+      // a slot of a call-fresh literal naming a callee PARAMETER holds the argument the call passed
+      const argument = callFreshLiterals.has(spine.node)
+        ? freshLiteralSlotArgument(spine.node, walkObjectLiteralPropertyPath(spine, name)?.node) : null;
+      if (argument?.node) return resolveNodeType(argument);
       const flowResult = resolveObjectFieldFlow(spine, name, callPath)
-        ?? (isGetterFreshLiteral(spine.node) ? resolveObjectMember(spine, name, callPath) : null);
+        ?? (isGetterFreshLiteral(spine.node) || callFreshLiterals.has(spine.node) ? resolveObjectMember(spine, name, callPath) : null);
       if (flowResult) return flowResult;
     }
     const ctx = resolveClassContext(objectPath);
@@ -840,6 +931,9 @@ export function createMemberResolve({
   const ELEMENT_SAFE_METHODS = new Set(Object.entries(ARRAY_METHOD_HINTS)
     .filter(([, hint]) => hint !== null && typeof hint === 'object' && !hint.mutatesElements)
     .map(([key]) => key));
+  // ... and the mutators that only MOVE or drop elements the array already holds: after one, an index
+  // may read any element, but never a value the literal did not spell (`permutes`)
+  const ELEMENT_PERMUTING_METHODS = new Set(['copyWithin', 'pop', 'reverse', 'shift', 'sort']);
 
   // descend a member chain to the identifier it is rooted at; anything else returns as-is
   function memberChainRootPath(path) {
@@ -850,7 +944,10 @@ export function createMemberResolve({
     return cur;
   }
 
-  function arrayElementsMayBeRetyped(objectPath, anchorPath, elementWrites = null) {
+  // `permutes`, where the caller passes a list, asks the UNION question instead: which values may an
+  // element hold at all. a permuting mutator is admitted there and records its key, and a destructure
+  // of the binding - which copies elements out and puts none back - reads like any other read
+  function arrayElementsMayBeRetyped(objectPath, anchorPath, elementWrites = null, permutes = null) {
     // a receiver that is a STORED SLOT rather than a binding (`o.xs[0]`) is UNKNOWN, not clean: this
     // walk enumerates a binding's references and finds nothing for a member path, so answering "no
     // retype" kept the element narrow over writes nobody looked for - `o.xs[0] = "abc"` then
@@ -895,6 +992,9 @@ export function createMemberResolve({
         || memberNode?.type === 'DoWhileStatement' || memberNode?.type === 'ConditionalExpression')
         && memberNode.test === ref.node) continue;
       if (memberNode?.type === 'SwitchStatement' && memberNode.discriminant === ref.node) continue;
+      if (permutes && ((memberNode?.type === 'VariableDeclarator' && memberNode.init === ref.node
+        && isDestructurePattern(memberNode.id)) || (memberNode?.type === 'AssignmentExpression'
+        && memberNode.right === ref.node && isDestructurePattern(memberNode.left)))) continue;
       const isMemberRead = (memberNode?.type === 'MemberExpression' || memberNode?.type === 'OptionalMemberExpression')
         && memberNode.object === ref.node;
       if (!isMemberRead) return true;
@@ -941,7 +1041,8 @@ export function createMemberResolve({
         && !nodeHoldsChild(parentOfMember, memberNode);
       const key = memberKeyName(memberNode);
       if (calleeOfParent || rewiredParent) {
-        if (key === null || key === undefined || !ELEMENT_SAFE_METHODS.has(key)) return true;
+        if (permutes && ELEMENT_PERMUTING_METHODS.has(key)) permutes.push(key);
+        else if (key === null || key === undefined || !ELEMENT_SAFE_METHODS.has(key)) return true;
       } else if (key !== null && key !== undefined && Object.hasOwn(ARRAY_METHOD_HINTS, key)) {
         // a registry METHOD read OUTSIDE a call position extracts the function value
         // (`const m = a.fill; m(v)` / `use(a.splice)`) - its later call is untrackable,
@@ -1088,6 +1189,7 @@ export function createMemberResolve({
     resolveArrayIndexAccess,
     typedIndexElement,
     arrayElementOfType,
+    arrayElementsMayBeRetyped,
     resolveEnumMemberAccess,
   };
 }

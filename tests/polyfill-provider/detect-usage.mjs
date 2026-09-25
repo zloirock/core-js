@@ -16,6 +16,7 @@ import {
 import {
   asSymbolRef,
   bindingSymbolKey,
+  callYieldedLiteral,
   computedKeyWellKnownSymbolName,
   chainReadsThroughSeal,
   descendToChainRoot,
@@ -109,8 +110,8 @@ import {
   mutationShapesReducer,
 } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
 import { createUsageHandlerCore } from '../../packages/core-js-polyfill-provider/detect-usage/visitors.js';
-import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
-import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
+import { collectMutationPrePass, createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
+import { collectPrePassSites, createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { parse as babelParse } from '@babel/parser';
 import * as babelTypes from '@babel/types';
 import { types as estreeTypes } from '../../packages/core-js-unplugin/internals/estree-compat.js';
@@ -1267,11 +1268,37 @@ for (const [source, expected] of [
   ['for (const ctor in [Array]) { ctor.from; }', []],
   ['for (const ctor of values) { ctor.from; }', []],
   ['for (const ctor of [{ from: custom }]) { ctor.from; }', []],
+  // a PATTERN head pairs each element as a declarator pairs its init: an inline literal, and a
+  // CALL element through the call canon - a factory, a parameter-filled slot, the assignment head
+  ['for (const { a: ctor } of [{ a: Array }]) { ctor.from; }', ['Array']],
+  ['const f = () => ({ a: Array }); for (const { a: ctor } of [f()]) { ctor.from; }', ['Array']],
+  ['const f = x => ({ a: x }); for (const { a: ctor } of [f(Array)]) { ctor.from; }', ['Array']],
+  ['const f = () => ({ a: Array }); let ctor; for ({ a: ctor } of [f()]) { ctor.from; }', ['Array']],
+  ['const f = () => ({ a: Array }); for (const { a: ctor } of [f(), { a: Map }]) { ctor.from; }', ['Array', 'Map']],
 ]) runBoth(`alias guard candidates from a for-of head/${ source }`, source, (adapter, prog, lbl) => {
   const read = adapter.pickPath(prog, 'MemberExpression', p => p.node.object?.name === 'ctor');
   const getBinding = wrapScopeBindingLookup((scope, name) => scope.getBinding(name));
   const bindingAdapter = { ...unionAdapter, getBinding, hasBinding: (scope, name, path) => !!getBinding(scope, name, path) };
   checkDeep(lbl, aliasWriteCtorNames({ name: 'ctor', scope: read.scope, path: read, adapter: bindingAdapter }), expected);
+});
+// ... and a DECLARATOR pattern pairs its init the same way at every level: a level whose value is a
+// selection pairs each arm, one that is a call pairs what the call canon yields - a parameter-filled
+// slot, every literal disagreeing returns spell - each value resolving where it is spelled, so a
+// callee's local namesake is not the global
+for (const [source, expected] of [
+  ['const { a: ctor } = flag ? { a: Array } : { a: Map }; ctor.from;', ['Array', 'Map']],
+  ['const { k: { a: ctor } } = { k: flag ? { a: Array } : { a: Map } }; ctor.from;', ['Array', 'Map']],
+  ['const f = () => ({ a: Array }); const { k: { a: ctor } } = { k: f() }; ctor.from;', ['Array']],
+  ['const f = x => ({ a: x }); const { k: { a: ctor } } = { k: f(Array) }; ctor.from;', ['Array']],
+  ['function f() { if (flag) return { a: Array }; return { a: Map }; } const { k: { a: ctor } } = { k: f() }; ctor.from;', ['Array', 'Map']],
+  ['const f = () => ({ k: flag ? { a: Array } : { a: Map } }); const { k: { a: ctor } } = f(); ctor.from;', ['Array', 'Map']],
+  ['function f() { const Array = {}; return { a: Array }; } const { k: { a: ctor } } = { k: f() }; ctor.from;', []],
+  ['{ const Array = {}; var f = () => ({ a: Array }); } const { k: { a: ctor } } = { k: f() }; ctor.from;', []],
+]) runBoth(`alias guard candidates from a declarator pattern/${ source }`, source, (adapter, prog, lbl) => {
+  const read = adapter.pickPath(prog, 'MemberExpression', p => p.node.object?.name === 'ctor');
+  const getBinding = wrapScopeBindingLookup((scope, name) => scope.getBinding(name));
+  const bindingAdapter = { ...unionAdapter, getBinding, hasBinding: (scope, name, path) => !!getBinding(scope, name, path) };
+  checkDeep(lbl, aliasWriteCtorNames({ name: 'ctor', scope: read.scope, path: read, adapter: bindingAdapter }).toSorted(), expected);
 });
 function unionExtras(adapter, prog, receiverIsStatic) {
   const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.computed);
@@ -1295,6 +1322,110 @@ runBoth('collectMemberUnionCandidates/no reassignment yields no extras',
   'const k = "at"; const arr = [1]; arr[k];', (adapter, prog, lbl) => {
     checkDeep(lbl, unionExtras(adapter, prog, false), []);
   });
+// a PATTERN-bound alias reaches the union through its slot's values, each branching value
+// unfolded to its arms: the object-slot, array-slot and nested spellings of one union enumerate
+// alike (`m` is unbound and resolves to nothing; `Array` and `Map` are the arms)
+for (const [source, expected] of [
+  ['const { a: A } = { a: c ? Array : Map }; A.from;', ['Array', 'Map']],
+  ['const { a: A } = { a: m || Array }; A.from;', ['Array']],
+  ['const { a: A = Map } = { a: Array }; A.from;', ['Map', 'Array']],
+  ['const { n: { a: A } } = { n: { a: c ? Array : Map } }; A.from;', ['Array', 'Map']],
+  ['const [A] = [c ? Array : Map]; A.from;', ['Array', 'Map']],
+  ['const { a: A } = { a: Array }; A.from;', ['Array']],
+  // ... and an init that is a CALL pairs through the call canon's returned literal: a factory, the
+  // array twin, a parameter-filled slot, a nested slot, an IIFE, a branching slot, and disagreeing
+  // free returns as a union (a method of a literal needs the binding node types this adapter
+  // withholds; the fixture pair holds that shape)
+  ['const f = () => ({ a: Array }); const { a: A } = f(); A.from;', ['Array']],
+  ['const f = () => [Array]; const [A] = f(); A.from;', ['Array']],
+  ['const f = x => ({ a: x }); const { a: A } = f(Array); A.from;', ['Array']],
+  ['const f = x => ({ a: Array, b: x }); const { b: A } = f(Map); A.from;', ['Map']],
+  ['const f = () => ({ n: { a: Array } }); const { n: { a: A } } = f(); A.from;', ['Array']],
+  ['const { a: A } = (() => ({ a: Array }))(); A.from;', ['Array']],
+  ['const f = () => ({ a: c ? Array : Map }); const { a: A } = f(); A.from;', ['Array', 'Map']],
+  ['function f() { if (c) return { a: Map }; return { a: Array }; } const { a: A } = f(); A.from;', ['Array', 'Map']],
+  // ... and the pattern ASSIGNMENT forms of the same pairing, reached through the reassignment
+  // enumeration's call sites
+  ['const f = () => ({ a: Array }); let A; ({ a: A } = f()); A.from;', ['Array']],
+  ['const f = () => [Array]; let A; [A] = f(); A.from;', ['Array']],
+  ['const f = x => ({ a: x }); let A; ({ a: A } = f(Map)); A.from;', ['Map']],
+  // ... and a CHAIN (a callee returning another call) unions on through to the literal, and an
+  // OPTIONAL call pairs like a plain one on both parsers - the union reads through the chain marker
+  ['const f = () => ({ a: Array }); const g = () => f(); const { a: A } = g(); A.from;', ['Array']],
+  ['const f = () => ({ a: Array }); const { a: A } = f?.(); A.from;', ['Array']],
+]) runBoth(`collectMemberUnionCandidates/pattern-bound alias slot union ${ source }`, source, (adapter, prog, lbl) => {
+  const read = adapter.pickPath(prog, 'MemberExpression', p => p.node.object?.name === 'A');
+  const extras = collectMemberUnionCandidates({
+    objectNode: read.node.object,
+    computedKeyNode: null,
+    primaryObject: null,
+    primaryKey: 'from',
+    scope: read.scope,
+    adapter: unionAdapter,
+    path: read,
+  });
+  checkDeep(lbl, extras.map(m => [m.object, m.key, m.placement]), expected.map(object => [object, 'from', 'static']));
+});
+// the ONE value an invocation stands for: a literal return in both flavors, whatever spelling the
+// value walks follow - an optional call to a proven callee (the ESTree chain marker peeled like a
+// paren), a tag, a `new` over a constructible callee, an `await` of a non-thenable. a returned CALL
+// unions on in usage-global and is declined by pure, where not every route steps the chain; a `new`
+// over an arrow throws and an awaited thenable resolves through its `then`, so both yield nothing
+for (const [name, source, pure, global] of [
+  ['literal return', 'const f = () => [Array]; f();', 'ArrayExpression', 'ArrayExpression'],
+  ['returned call', 'const f = () => [Array]; const g = () => f(); g();', null, 'CallExpression'],
+  ['optional call', 'const f = () => [Array]; f?.();', 'ArrayExpression', 'ArrayExpression'],
+  ['tagged call', 'const f = () => [Array]; f`x`;', 'ArrayExpression', 'ArrayExpression'],
+  ['constructor call', 'function F() { return [Array]; } new F();', 'ArrayExpression', 'ArrayExpression'],
+  ['arrow constructed', 'const F = () => [Array]; new F();', null, null],
+  ['awaited call', 'const f = () => [Array]; await f();', 'ArrayExpression', 'ArrayExpression'],
+  ['awaited thenable', 'const f = () => ({ then() {}, k: Array }); await f();', null, null],
+  ['awaited spread', 'const f = () => ({ ...o, k: Array }); await f();', null, null],
+]) {
+  runBoth(`callYieldedLiteral/${ name }`, source, (adapter, prog, lbl) => {
+    const statements = adapter.collectPaths(prog, 'ExpressionStatement');
+    const call = unwrapRuntimeExpr(statements.at(-1).node.expression);
+    for (const [method, expected] of [['usage-pure', pure], ['usage-global', global]]) {
+      const answer = callYieldedLiteral({
+        node: call, readNode: call, seen: new Set(), ctx: { scope: statements.at(-1).scope, adapter: { ...unionAdapter, method }, path: statements.at(-1) },
+      });
+      check(`${ lbl } ${ method }`, answer?.literal?.type ?? null, expected);
+    }
+  });
+}
+// the reassignment enumeration's `complete` is an INCOMPLETENESS verdict: a pattern write pairing
+// the alias past a spread reads only the statics after it (open), an exact pairing before the
+// spread is closed, and a deeply nested branching write unfolds to every arm with no step budget
+// truncating the set - the open arm at the bottom stays enumerable
+function enumerate(adapter, prog, name) {
+  const declarator = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === name);
+  const usage = adapter.pickPath(prog, 'MemberExpression', p => p.node.object?.name === name);
+  const binding = declarator.scope?.getBinding?.(name);
+  if (!binding) throw new Error(`no binding for ${ name }`);
+  const { nodes, complete } = reassignmentValueEnumeration({
+    binding, usagePath: usage, name, ctx: { scope: usage.scope, adapter: unionAdapter, path: usage },
+  });
+  return { names: nodes.map(node => node.name), complete };
+}
+for (const [source, names, complete] of [
+  ['let O = Object; if (c) [, O] = [...xs, Object]; O.entries;', ['Object'], false],
+  ['let O = Object; if (c) ({ "1": O } = [...xs, Object]); O.entries;', ['Object'], false],
+  ['let O = Object; if (c) [O] = [Map, ...xs]; O.entries;', ['Map'], true],
+  ['let O = Object; if (c) ({ "0": O } = [Map, ...xs]); O.entries;', ['Map'], true],
+  ['let O = Object; if (c) O = d ? Map : Object; O.entries;', ['Map', 'Object'], true],
+]) runBoth(`reassignmentValueEnumeration/completeness ${ source }`, source, (adapter, prog, lbl) => {
+  checkDeep(lbl, enumerate(adapter, prog, 'O'), { names, complete });
+});
+{
+  let chain = 'maybe';
+  for (let i = 0; i < 40; i++) chain = `(c${ i } ? ${ chain } : Object)`;
+  runBoth('reassignmentValueEnumeration/deep branching write unfolds every arm',
+    `let O = Object; O = ${ chain }; O.entries;`, (adapter, prog, lbl) => {
+      const { names, complete } = enumerate(adapter, prog, 'O');
+      checkDeep(lbl, { first: names[0], arms: names.length, objects: names.filter(n => n === 'Object').length, complete },
+        { first: 'maybe', arms: 41, objects: 40, complete: true });
+    });
+}
 // the prototype-navigated producer forces prototype placement: a reachable ctor value read
 // through `.prototype` dispatches the key as ITS prototype method, never as a static
 runBoth('collectMemberUnionCandidates/placement override types the reachable ctor as prototype',
@@ -2847,6 +2978,20 @@ runBoth('callPairing/a bind capturing a spread cannot place the arguments', 'f.b
   checkDeep(lbl, [pairing.args.length, pairing.argsUnknown], [0, true]);
 });
 
+// the receiver slot an invoker spells comes off the argument list into `thisArg`, in every spelling
+for (const [source, expected] of [
+  ['f.call(Map, 1);', 'Map'],
+  ['f.apply(Map, [1]);', 'Map'],
+  ['Reflect.apply(f, Map, [1]);', 'Map'],
+  ['f.bind(Map, 1)();', 'Map'],
+  ['f(Map);', undefined],
+]) {
+  runBoth(`callPairing/receiver of ${ source }`, source, (adapter, prog, lbl) => {
+    const pairing = callPairing(adapter.pickPath(prog, 'CallExpression', p => p.parentPath?.node?.type === 'ExpressionStatement').node);
+    checkDeep(lbl, [pairing.thisArg?.name, pairing.args.length], [expected, expected ? 1 : 1]);
+  });
+}
+
 // A rewrite needs the invoker's authority, whereas the mutation census keeps its over-pairing.
 // Redirected methods may inspect the argument's identity without invoking the apparent callee.
 for (const [source, namespace, key] of [
@@ -3354,6 +3499,77 @@ for (const [name, setup, receiver, expected] of [
 ]) runBoth(`selecting alias candidates/${ name }`, `${ setup } const held = ${ receiver }; held.entries;`, (parser, program, label) => {
   const adapter = parser.name === 'babel' ? createBabelAdapter({ method: 'usage-pure' })
     : createEstreeAdapter({ method: 'usage-pure' });
+  const read = parser.pickPath(program, 'MemberExpression', p => p.node.object.name === 'held');
+  checkDeep(label, aliasWriteCtorNames({ name: 'held', scope: read.scope, adapter, path: read }), expected);
+});
+
+// an OPEN pattern slot names its candidates the way a reassigned alias does - a slot paired past
+// a spread holds its lone static as a maybe, a branching value holds every arm it resolves - so a
+// static read off it earns the identity guard (a leaf spells its default before its paired value,
+// and a default alone is a maybe where a pair the enumerator cannot see may fill the slot instead);
+// a CERTAIN slot answers nothing, since pure substitutes that binding outright and there is no guard
+// to justify - a default over a literal that provably leaves its slot undefined included. only the
+// literal ITSELF proves that: a name holding it may have been written through, `undefined` may be
+// a binding, and a key the literal lacks may still be inherited
+for (const [name, source, expected] of [
+  ['spread-shifted keyed', 'const xs = [1]; const { 1: held } = [...xs, Map];', ['Map']],
+  ['spread-shifted positional', 'const xs = [1]; const [, held] = [...xs, Map];', ['Map']],
+  ['spread-shifted nested', 'const xs = [1]; const [, { m: held }] = [...xs, { m: Map }];', ['Map']],
+  ['branching array slot', 'const [held] = [flag ? Map : Object];', ['Map', 'Object']],
+  ['branching object slot', 'const { a: held } = { a: flag || Map };', ['Map']],
+  ['branching nested slot', 'const { n: { a: held } } = { n: { a: flag ? Map : Object } };', ['Map', 'Object']],
+  ['branching slot default', 'const { a: held = flag ? Map : Object } = {};', ['Map', 'Object']],
+  ['value beside a default', 'const { a: held = Object } = { a: Map };', ['Object', 'Map']],
+  ['lone default, empty pair', 'const { a: held = Map } = {};', []],
+  ['lone default, void pair', 'const [, held = Map] = [1, void 0];', []],
+  ['lone default, fresh call pair', 'const f = () => ({}); const { a: held = Map } = f();', []],
+  ['lone default, bare undefined pair', 'const [, held = Map] = [1, undefined];', ['Map']],
+  ['lone default, inherited key', 'const { constructor: held = Map } = {};', ['Map']],
+  ['lone default, pattern prototype key', 'const { __proto__: held = Map } = {};', ['Map']],
+  ['lone default, aliased pair', 'const empty = []; const [held = Map] = empty;', ['Map']],
+  ['lone default, aliased call pair', 'const f = () => ({}); const made = f(); const { a: held = Map } = made;', ['Map']],
+  ['lone default, opaque pair', 'const [held = Map] = src;', ['Map']],
+  ['lone default, spread pair', 'const { a: held = Map } = { ...src };', ['Map']],
+  ['lone default, prototype pair', 'const { a: held = Map } = { __proto__: src };', ['Map']],
+  ['lone default, unfoldable key', 'const { a: held = Map } = { [src]: 1 };', ['Map']],
+  ['certain array slot', 'const [held] = [Map];', []],
+  ['certain keyed slot', 'const { 1: held } = [Object, Map];', []],
+  ['spread after the slot', 'const xs = [1]; const [held] = [Map, ...xs];', []],
+  ['certain object slot', 'const { a: held } = { a: Map };', []],
+  // a CALL init pairs through the call canon: a proven literal is as certain as an inline one, a
+  // branching slot or disagreeing returns are open
+  ['certain call slot', 'const f = () => ({ a: Map }); const { a: held } = f();', []],
+  ['certain parameter-filled call slot', 'const f = x => ({ a: x }); const { a: held } = f(Map);', []],
+  ['branching call slot', 'const f = () => ({ a: flag ? Map : Object }); const { a: held } = f();', ['Map', 'Object']],
+  ['disagreeing returns', 'function f() { if (flag) return { a: Map }; return { a: Object }; } const { a: held } = f();', ['Object', 'Map']],
+]) runBoth(`open pattern slot candidates/${ name }`, `${ source } held.groupBy;`, (parser, program, label) => {
+  const adapter = parser.name === 'babel' ? createBabelAdapter({ method: 'usage-pure' })
+    : createEstreeAdapter({ method: 'usage-pure' });
+  const read = parser.pickPath(program, 'MemberExpression', p => p.node.object.name === 'held');
+  checkDeep(label, aliasWriteCtorNames({ name: 'held', scope: read.scope, adapter, path: read }), expected);
+});
+
+// ... and a key the FILE writes onto a prototype is one every literal of that chain inherits too - an
+// array literal's hole included, never a slot past its end, which the iterator stops before reading.
+// the write is the mutation pre-pass's to name, so it runs ahead of the question here
+for (const [name, source, expected] of [
+  ['lone default, key the file writes onto the prototype', 'Object.prototype.held = 1; const { held = Map } = {};', ['Map']],
+  [
+    'lone default, key the file defines onto the prototype',
+    'Object.defineProperty(Object.prototype, "held", { value: 1 }); const { held = Map } = {};',
+    ['Map'],
+  ],
+  ['lone default, unknown key the file writes onto the prototype', 'Object.prototype[key] = 1; const { held = Map } = {};', ['Map']],
+  ['lone default, another key the file writes onto the prototype', 'Object.prototype.other = 1; const { held = Map } = {};', []],
+  ['lone default, array hole the file writes onto the array prototype', 'Array.prototype[0] = 1; const [held = Map] = [,];', ['Map']],
+  ['lone default, array hole the file writes onto the object prototype', 'Object.prototype[1] = 1; const [, held = Map] = [1, ,];', ['Map']],
+  ['lone default, past the end whatever the prototype holds', 'Array.prototype[0] = 1; const [held = Map] = [];', []],
+]) runBoth(`open pattern slot candidates/${ name }`, `${ source } held.groupBy;`, (parser, program, label) => {
+  const census = collectFileCensus(program.node, [mutationShapesReducer()]);
+  const { mutated } = parser.name === 'babel'
+    ? collectMutationPrePass(program, createBabelAdapter({ method: 'usage-pure' }), census)
+    : collectPrePassSites({ ast: program.node, adapter: createEstreeAdapter({ method: 'usage-pure' }), census, collectMutations: true });
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure', getMutatedStatics: () => mutated });
   const read = parser.pickPath(program, 'MemberExpression', p => p.node.object.name === 'held');
   checkDeep(label, aliasWriteCtorNames({ name: 'held', scope: read.scope, adapter, path: read }), expected);
 });

@@ -120,9 +120,10 @@ function closeOver() {
 }
 const { w: { Array: { from: viaClosedAlias } } } = { w: closedAlias };
 const { w: { at: noClaimOnClosedAlias } } = { w: closedAlias };
-// An optional write may not run, and a block-scoped shadow can change a var initializer's value.
-// These uncertain aliases require the actual slot's identity before selecting a constructor;
-// a non-realm value keeps its own property result.
+// An optional write may not run: that uncertain alias requires the actual slot's identity before
+// selecting a constructor. A block-scoped shadow can change a var initializer's value: the later
+// `var` write reaches the read with the shadow's value, and a non-realm value keeps its own
+// property result.
 const maybeNull = null;
 let underOptional = other;
 maybeNull?.[underOptional = globalThis];

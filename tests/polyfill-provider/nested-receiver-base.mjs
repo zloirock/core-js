@@ -3,10 +3,16 @@
 // `resolveNestedReceiverBase` (the base reference the chain reads through) is exercised
 // over a stub adapter - it consumes names, not AST, so the parsers have nothing to add
 import {
+  classifyDestructureLeafHost,
+  instanceHopDispatch,
   resolveNestedDestructureReceiver,
   resolveNestedReceiverBase,
   resolveNestedReceiverChain,
 } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
+import { mutationShapesReducer } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
+import { collectFileCensus } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
+import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { createChecker } from './harness.mjs';
 
 const { check, checkDeep, finish, runBoth } = createChecker('nested-receiver-base');
@@ -183,7 +189,7 @@ checkDeep('base/mutated proxy hop stays a key',
   { pure: PURE.globalThis, path: ['self', 'inner'] });
 
 // a missing-able ctor hop under a proxy root reads through its pure constructor
-checkDeep('base/ctor hop substitutes pure', base({ rootName: 'globalThis', keys: ['Map', 'x'], adapter: stubAdapter() }), { pure: PURE.Map, path: ['x'] });
+checkDeep('base/ctor hop substitutes pure', base({ rootName: 'globalThis', keys: ['Map', 'x'], adapter: stubAdapter() }), { pure: PURE.Map, ctor: 'Map', path: ['x'] });
 
 // ... unless that ctor slot is mutated - the raw proxy member keeps the user's shim
 checkDeep('base/mutated ctor hop reads raw proxy member',
@@ -191,7 +197,7 @@ checkDeep('base/mutated ctor hop reads raw proxy member',
   { pure: PURE.globalThis, path: ['Map', 'x'] });
 
 // an unbound ctor ROOT reads through its pure constructor
-checkDeep('base/ctor root substitutes pure', base({ rootName: 'Map', keys: ['x'], adapter: stubAdapter() }), { pure: PURE.Map, path: ['x'] });
+checkDeep('base/ctor root substitutes pure', base({ rootName: 'Map', keys: ['x'], adapter: stubAdapter() }), { pure: PURE.Map, ctor: 'Map', path: ['x'] });
 
 // a root with no NAME (the chain walk's call / `new` / member root) is the caller's to spell:
 // the answer is the path alone
@@ -225,7 +231,20 @@ checkDeep('base/static off minted ctor alias',
 checkDeep('base/non-static key keeps the raw read',
   base({ rootName: 'Array', keys: ['prototype'], adapter: stubAdapter(), resolveStaticPolyfill: staticOf }), { name: 'Array', path: ['prototype'] });
 checkDeep('base/ctor pure wins where no static answers',
-  base({ rootName: 'Map', keys: ['x'], adapter: stubAdapter(), resolveStaticPolyfill: staticOf }), { pure: PURE.Map, path: ['x'] });
+  base({ rootName: 'Map', keys: ['x'], adapter: stubAdapter(), resolveStaticPolyfill: staticOf }), { pure: PURE.Map, ctor: 'Map', path: ['x'] });
+
+// a member of the constructor's own VALUE - a function's `name` - dispatches off the constructor, asked
+// with the hint a static read of it carries; a static of it, or a name that is no static placement,
+// answers nothing (`instanceHopDispatch`)
+const NAME_DISPATCH = { kind: 'instance', entry: 'function/instance/name', hintName: 'nameMaybeFunction' };
+function dispatchPure(meta) {
+  if (meta.key === 'name' && meta.receiverHint === 'function') return NAME_DISPATCH;
+  return meta.object === 'Map' && meta.key === 'groupBy' ? { kind: 'static', ...GROUP_BY } : null;
+}
+checkDeep('dispatch/function member off a ctor', instanceHopDispatch({ ctorName: 'Map', key: 'name', resolvePure: dispatchPure }), NAME_DISPATCH);
+check('dispatch/static of the ctor', instanceHopDispatch({ ctorName: 'Map', key: 'groupBy', resolvePure: dispatchPure }), null);
+check('dispatch/no static placement', instanceHopDispatch({ ctorName: 'box', key: 'name', resolvePure: dispatchPure }), null);
+check('dispatch/computed key', instanceHopDispatch({ ctorName: 'Map', key: null, resolvePure: dispatchPure }), null);
 
 // a mutated static slot keeps the user's own value on the raw read, and so does a mutated ctor slot
 checkDeep('base/mutated static stays raw',
@@ -269,5 +288,116 @@ checkDeep('base/no static resolver, no static answer',
       check(`${ lbl } pristine instance again`, resolveNestedDestructureReceiver(outer, nestedAdapter(null)), 'Array');
     });
 }
+
+// --- resolveNestedDestructureReceiver: an ARRAY PATTERN under a key ---
+
+// the wrapper indexes the level the key reached, so the hops descend in runtime order (the key,
+// then the index) through a bound container, a call yielding one and a slot the callee fills from a
+// parameter - and only an array LITERAL at that level answers: an object with a numeric key, a
+// repositioned, truncated or written level keep the leaf receiver-less, since the source throws or
+// reads the replacement there. the leaf's host is classified the way the funnel classifies it, and
+// the census the real adapters consult is collected from the file
+for (const [name, source, expected] of [
+  ['bound container', 'const w = { k: [Array] }; const { k: [{ from }] } = w;', 'Array'],
+  ['call yielding the container', 'const f = () => ({ k: [Array] }); const { k: [{ from }] } = f();', 'Array'],
+  ['parameter slot under the key', 'const g = x => ({ k: [1, x] }); const { k: [, { from }] } = g(Array);', 'Array'],
+  ['nested wrappers under the key', 'const w = { k: [[Array]] }; const { k: [[{ from }]] } = w;', 'Array'],
+  ['wrapper above and under the key', 'const w = [{ k: [Array] }]; const [{ k: [{ from }] }] = w;', 'Array'],
+  ['for-of head', 'const w = { k: [Array] }; for (const { k: [{ from }] } of [w]) use(from);', 'Array'],
+  ['parameter default', 'const w = { k: [Array] }; function g({ k: [{ from }] } = w) { use(from); }', 'Array'],
+  ['object where the pattern iterates', 'const w = { k: { 0: Array } }; const { k: [{ from }] } = w;', null],
+  ['repositioned level', 'const w = { k: [Array] }; w.k.unshift(x); const { k: [{ from }] } = w;', null],
+  ['repositioned through a hop spelling', 'const w = { k: [Array] }; w.k.unshift.call(w.k, x); const { k: [{ from }] } = w;', null],
+  ['truncated level', 'const w = { k: [Array] }; w.k.length = 0; const { k: [{ from }] } = w;', null],
+  ['written slot', 'const w = { k: [Array] }; w.k[0] = x; const { k: [{ from }] } = w;', null],
+  ['replaced level', 'const w = { k: [Array] }; w.k = [x]; const { k: [{ from }] } = w;', null],
+]) runBoth(`keyed wrapper/${ name }`, source, (parser, prog, lbl) => {
+  const type = parser.name === 'babel' ? 'ObjectProperty' : 'Property';
+  const leaf = parser.pickPath(prog, type, p => p.node.key?.name === 'from');
+  const census = collectFileCensus(prog.node, [mutationShapesReducer()]);
+  const options = {
+    method: 'usage-pure',
+    getWrittenContainerSlots: () => census.writtenContainerSlots,
+    getContainerSlotIndex: () => census.containerSlotIndex,
+  };
+  const adapter = parser.name === 'babel' ? createBabelAdapter(options) : createEstreeAdapter(options);
+  const descriptor = classifyDestructureLeafHost({ objectPattern: leaf.parentPath });
+  check(`${ lbl } host`, descriptor.host, 'nested');
+  check(`${ lbl } receiver`, resolveNestedDestructureReceiver(descriptor.outerProp, adapter, null, { leafPattern: descriptor.objectPattern }), expected);
+});
+
+// a for-of HEAD over SEVERAL elements has no single receiver: each element is resolved in its own
+// right (`element`), uncached, and a name bound to a call reads as the container the call yields
+for (const [name, source, expected] of [
+  ['two elements, keyed wrapper', 'const w = { k: [Array] }; const f = () => ({ k: [Array] }); for (const { k: [{ from }] } of [w, f()]) use(from);', ['Array', 'Array']],
+  ['two elements, one opaque', 'const w = { k: [Array] }; for (const { k: [{ from }] } of [w, other]) use(from);', ['Array', null]],
+  ['alias of a call', 'const f = () => ({ k: [Array] }); const w = f(); const { k: [{ from }] } = w;', ['Array']],
+  ['alias of a call, parameter slot', 'const g = x => ({ k: [x] }); const w = g(Array); const { k: [{ from }] } = w;', ['Array']],
+]) runBoth(`keyed wrapper per element/${ name }`, source, (parser, prog, lbl) => {
+  const type = parser.name === 'babel' ? 'ObjectProperty' : 'Property';
+  const leaf = parser.pickPath(prog, type, p => p.node.key?.name === 'from');
+  const census = collectFileCensus(prog.node, [mutationShapesReducer()]);
+  const options = {
+    method: 'usage-pure',
+    getWrittenContainerSlots: () => census.writtenContainerSlots,
+    getContainerSlotIndex: () => census.containerSlotIndex,
+  };
+  const adapter = parser.name === 'babel' ? createBabelAdapter(options) : createEstreeAdapter(options);
+  const descriptor = classifyDestructureLeafHost({ objectPattern: leaf.parentPath });
+  const head = parser.pickPath(prog, 'ForOfStatement');
+  const elements = head ? head.node.right.elements : [null];
+  checkDeep(`${ lbl } receivers`, elements.map(element => resolveNestedDestructureReceiver(descriptor.outerProp, adapter, null,
+    { leafPattern: descriptor.objectPattern, element })), expected);
+});
+
+// a receiver an inner DEFAULT supplies answers the arm that takes it: where the source may supply the
+// slot as well, usage-global's union keeps a typeless candidate for that arm beside the name - at the
+// leaf's own level and at a level above it alike. a source that provably lacks the slot leaves the
+// default the only arm, and usage-pure asks nothing of the union
+for (const [name, source, method, expected] of [
+  ['own level over an opaque source', 'function f(o) { const { A: { at: x } = Map } = o; }', 'usage-global', ['Map', [null]]],
+  ['level above over an opaque source', 'function f(o) { const { A: { B: { at: x } } = { B: Iterator } } = o; }', 'usage-global', ['Iterator', [null]]],
+  ['own level over a present slot', 'const { A: { at: x } = Math } = { A: [1] };', 'usage-global', [null, []]],
+  ['own level over an absent slot', 'const { A: { at: x } = Math } = {};', 'usage-global', ['Math', []]],
+  ['own level in usage-pure', 'function f(o) { const { A: { at: x } = Map } = o; }', 'usage-pure', ['Map', []]],
+]) runBoth(`inner default arms/${ name }`, source, (parser, prog, lbl) => {
+  const type = parser.name === 'babel' ? 'ObjectProperty' : 'Property';
+  const leaf = parser.pickPath(prog, type, p => p.node.key?.name === 'at');
+  const census = collectFileCensus(prog.node, [mutationShapesReducer()]);
+  const options = {
+    method,
+    getWrittenContainerSlots: () => census.writtenContainerSlots,
+    getContainerSlotIndex: () => census.containerSlotIndex,
+  };
+  const adapter = parser.name === 'babel' ? createBabelAdapter(options) : createEstreeAdapter(options);
+  const descriptor = classifyDestructureLeafHost({ objectPattern: leaf.parentPath });
+  const union = [];
+  const receiver = resolveNestedDestructureReceiver(descriptor.outerProp, adapter, union, { leafPattern: descriptor.objectPattern });
+  checkDeep(`${ lbl } receiver and union`, [receiver, union], expected);
+});
+
+// a `||` / `??` whose LEFT spells no proxy hands identification to a proxy-carrying right - unless
+// that left is always truthy (a container, bound or returned by an inline IIFE): the right is dead
+// then, and the leaf reads the left's own slot - certain off a bound literal, a candidate off a call
+for (const [name, source, expected] of [
+  ['container left', 'const box = { Math }; const { Math: { cbrt: v } } = box || globalThis;', ['Math', []]],
+  ['IIFE-returned container left', 'const box = { Math }; const { Math: { cbrt: v } } = (() => box)() || globalThis;', [null, ['Math']]],
+  ['possibly falsy left', 'const { Math: { cbrt: v } } = m || globalThis;', ['Math', []]],
+  ['nullish test over a member left', 'const { Math: { cbrt: v } } = obj.p ?? globalThis;', ['Math', []]],
+]) runBoth(`dead fallback arm/${ name }`, source, (parser, prog, lbl) => {
+  const type = parser.name === 'babel' ? 'ObjectProperty' : 'Property';
+  const leaf = parser.pickPath(prog, type, p => p.node.key?.name === 'cbrt');
+  const census = collectFileCensus(prog.node, [mutationShapesReducer()]);
+  const options = {
+    method: 'usage-pure',
+    getWrittenContainerSlots: () => census.writtenContainerSlots,
+    getContainerSlotIndex: () => census.containerSlotIndex,
+  };
+  const adapter = parser.name === 'babel' ? createBabelAdapter(options) : createEstreeAdapter(options);
+  const descriptor = classifyDestructureLeafHost({ objectPattern: leaf.parentPath });
+  const union = [];
+  const receiver = resolveNestedDestructureReceiver(descriptor.outerProp, adapter, union, { leafPattern: descriptor.objectPattern });
+  checkDeep(`${ lbl } receiver and union`, [receiver, union], expected);
+});
 
 finish();

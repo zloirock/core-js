@@ -6,16 +6,19 @@
 // leaves live (unknown, absent) is mirrored in its own slot - it fires exactly where native fires it
 let t = [{}, {}];
 
-// defined foreign pair: the default is dead, the pair is unresolvable - stays native
+// defined foreign pair: the default is dead, the pair is unresolvable - no substitution; the static
+// read is guarded against the default's candidate and reads the runtime value
 let userObj = {};
 const [p0, { Map: M } = globalThis] = [{}, userObj];
 export const viaForeignPair = M.groupBy([1, 2], v => v);
 
-// spread-shifted pair: the pair is unknown, the default may or may not fire - stays native
+// spread-shifted pair: the pair is unknown, the default may or may not fire - the static read
+// takes the runtime identity guard against the lone candidate instead of a substitution
 const [s0, { Array: A } = globalThis] = [...t];
 export const viaSpreadPair = A.from([1, 2]);
 
-// dynamic init: no pairing evidence at all - the live slot stays native, the default is mirrored
+// dynamic init: no pairing evidence at all - the live slot's static read is guarded against the
+// default's candidate, the default is mirrored
 const [d0, { Promise: P } = globalThis] = dyn;
 export const viaDynamicInit = P.allSettled([]);
 
@@ -37,7 +40,8 @@ let deepFb = {};
 const [[{ Iterator: I } = deepFb]] = [[globalThis]];
 export const viaDeepDeadDefault = I.range(0, 3);
 
-// control: the flat extraction channel keeps its runtime-guarded default handling
+// control: the flat extraction channel serves the static outright - its pure import is never
+// undefined, so the default is dead
 let shim = () => [];
 const { of = shim } = Array;
 export const viaGuardedExtraction = of(1, 2);

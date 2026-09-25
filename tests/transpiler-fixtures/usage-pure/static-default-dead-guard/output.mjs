@@ -22,7 +22,7 @@ for (const viaForInit = _Array$from;;) {
   break;
 }
 const _ref = Array,
-  viaRestSibling = null == _ref ? _ref[""] : _Array$from,
+  viaRestSibling = _Array$from,
   {
     from: _unused,
     ...restOf
@@ -102,6 +102,5 @@ const {
   }
 };
 const viaInstance = (_ref2 = _atMaybeArray([1])) === void 0 ? fb : _ref2;
-const _ref3 = Array,
-  viaSeKey = null == _ref3 ? _ref3[""] : (k(), _Array$from);
+const viaSeKey = (k(), _Array$from);
 export { viaAlias, of, viaAssign, viaRestSibling, restOf, viaComputed, viaComputedSibling, ofBeside, viaStringKey, viaHop, viaHopComputed, viaBesideSibling, z, viaWrapped, viaPatternDefault, viaAssignPatternDefault, viaHopPatternDefault, viaInstance, viaSeKey };

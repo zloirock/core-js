@@ -4,7 +4,7 @@ import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 // Rest keeps its source and exclusions; instance slots remain native.
 let log = [];
 const _ref = (_pushMaybeArray(log).call(log, 1), Array),
-  from = null == _ref ? _ref[""] : _Array$from,
+  from = _Array$from,
   {
     from: _unused,
     ...rest

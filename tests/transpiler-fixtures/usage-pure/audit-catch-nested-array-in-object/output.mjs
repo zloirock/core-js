@@ -9,10 +9,11 @@ try {
     flat: "x"
   };
 } catch (_ref) {
-  let flat = _flatMaybeArray(_ref);
-  let {
-    inner: [first]
-  } = _ref;
+  let _ref2 = _ref,
+    {
+      inner: [first]
+    } = _ref2,
+    flat = null == _ref2 ? _ref2[""] : _flatMaybeArray(_ref2);
   _at(first).call(first, 0);
   _at(flat).call(flat, 0);
 }
