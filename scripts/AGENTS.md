@@ -39,6 +39,7 @@ Type definitions come from that same directory (`npm run build-types`), but not 
 Run them through the npm script, never with a bare `node` - the bootstrap is what supplies the ambient globals and the local dependencies. Several script names do not match their file names, which is the other reason not to guess.
 
 - `zxi.mjs` (`npm run zxi`) - the bootstrap described above
+- `assert-es5.mjs` - the ES5 parse gate, shared by `bundle-tests/` and `tests/e2e-libs`: both ship what they build to real IE11, and both are otherwise only ever checked in a modern realm
 - `prepare-monorepo.mjs` (`npm run prepare-monorepo`, alias `p`) - the dependency side: wipes `node_modules`, copies `package.tpl.json` to `package.json`, installs
 - `bundle-package/` (`npm run bundle-package`) - the browser bundle of the library, plain and minified. The modern variant is a second run, `npm run bundle-package esmodules`; the full set of shipped bundles is both
 - `bundle-tests/` (`npm run bundle-tests`, or `bundle-tests-unit` and `bundle-e2e-usage-pure` separately) - the QUnit and e2e bundles under `tests/bundles/`, and the index files that list what goes into them. `npm run bundle` is this plus `bundle-package`

@@ -25,3 +25,4 @@ import './late-cjs-diagnostic.mjs';
 import './entry-directive-promotion.mjs';
 import './injection-spelling-domain.mjs';
 import './proxy-global-invariant.mjs';
+import './fixture-shard-protocol.mjs';
