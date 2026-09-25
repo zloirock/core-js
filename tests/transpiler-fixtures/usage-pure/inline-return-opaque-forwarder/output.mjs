@@ -1,6 +1,8 @@
-import _Map from "@core-js/pure/actual/map";
-// A transparent forwarder does not make the inner loop's return attributable.
-// Keep the namespace needed by the unresolved static read after both calls.
+import _Map from "@core-js/pure/actual/map/constructor";
+import _Map$groupBy from "@core-js/pure/actual/map/group-by";
+var _ref;
+// A transparent forwarder hands on the inner loop's returns as candidates: pure guards the
+// static read after both calls on them, and global injects for the possible Map.
 function inner() {
   while (flag) return _Map;
   return custom;
@@ -8,4 +10,4 @@ function inner() {
 function outer() {
   return inner();
 }
-export const value = outer().groupBy([1, 2, 3], value => value % 2);
+export const value = (_ref = outer(), _ref === _Map ? _Map$groupBy([1, 2, 3], value => value % 2) : _ref.groupBy([1, 2, 3], value => value % 2));

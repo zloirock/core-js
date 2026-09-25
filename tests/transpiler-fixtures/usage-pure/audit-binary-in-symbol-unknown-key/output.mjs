@@ -1,10 +1,11 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _isIterable from "@core-js/pure/actual/is-iterable";
-import _Symbol from "@core-js/pure/actual/symbol/constructor";
+import _Symbol from "@core-js/pure/actual/symbol";
 var _ref;
 // `Symbol[Symbol.foo]` references an unknown well-known name; the `in` check must NOT
-// polyfill-dispatch since `foo` isn't a recognized Symbol. the inner `Symbol` identifier
-// still polyfills on its own. paired with a known-good `Symbol.iterator in obj`
+// polyfill-dispatch since `foo` isn't a recognized Symbol. both `Symbol` references still
+// polyfill on their own, as the whole family: a key no fold names may read any of its statics.
+// paired with a known-good `Symbol.iterator in obj`
 const a = _Symbol[_Symbol.foo] in obj;
 const b = _isIterable(obj);
 _atMaybeArray(_ref = [a, b]).call(_ref, 0);

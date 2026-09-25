@@ -134,27 +134,40 @@ const ROWS = [
     bare: ['Map: Held', 'globalThis'],
   },
   // babel spells a method as a function node of its own where ESTree nests a `FunctionExpression`
-  // under `value`: a slot read reaching only `value` answered a HOLE for the babel spelling, and a
-  // chain landing on a hole reads as an escape - so these three stamped the READ on one parser only.
-  // the level is MIXED on purpose (the binding also holds a proxy-global member): a level of
-  // containers alone is indexable, where the hole and the value answer the same
+  // under `value`: a slot read reaching only `value` answered a HOLE for the babel spelling, which
+  // hands nothing out - so the constructor a method returns escaped on one parser only, and a read
+  // going on past an accessor's hole landed nowhere and was stamped on one parser only
   {
-    name: 'method slot off a mixed level holds the method',
-    code: 'let M;\nM = globalThis.Map;\nM = { groupBy() { return 1; } };\nhand(M.groupBy);',
-    stamped: [],
+    name: 'method slot holds the method',
+    code: 'let M;\nM = { groupBy() { return Set; } };\nhand(M.groupBy);',
+    stamped: ['Set'],
     bare: ['M.groupBy'],
   },
   {
-    name: 'accessor slot off a mixed level holds the accessor',
-    code: 'let M;\nM = globalThis.Map;\nM = { get groupBy() { return 1; } };\nhand(M.groupBy);',
+    name: 'accessor slot holds the accessor',
+    code: 'let M;\nM = { get groupBy() { return { k: 1 }; } };\nhand(M.groupBy.k);',
     stamped: [],
-    bare: ['M.groupBy'],
+    bare: ['M.groupBy.k'],
   },
   {
-    name: 'class static method slot off a mixed level holds the method',
-    code: 'class NS { static m() { return 1; } }\nlet M;\nM = globalThis.Map;\nM = NS;\nhand(M.m);',
-    stamped: [],
+    name: 'class static method slot holds the method',
+    code: 'class NS { static m() { return Set; } }\nlet M;\nM = NS;\nhand(M.m);',
+    stamped: ['Set'],
     bare: ['M.m'],
+  },
+  // a MIXED level reads each value it holds: a read off the realm member one write stored is read
+  // outside the file beside the container another stored, and so is the realm arm of a selection
+  {
+    name: 'a mixed level reads its realm member too',
+    code: 'let M;\nM = globalThis.Map;\nM = { groupBy() { return Set; } };\nhand(M.groupBy);',
+    stamped: ['M.groupBy', 'Set'],
+    bare: ['globalThis.Map'],
+  },
+  {
+    name: 'a selection of the realm and a container reads the realm arm',
+    code: 'const o = flag ? globalThis : { Map: 1 };\nhand(o.Map);',
+    stamped: ['o.Map'],
+    bare: ['globalThis'],
   },
   // A method's returns belong to that method. A local host returning another value must not
   // expose a constructor merely mentioned in its nested methods.
@@ -336,18 +349,232 @@ const NAME_ROWS = [
     ['effect before local read', 'export const value = (() => { hand(Array); if (flag) return Array; return custom; })().of(3);'],
   ].map(([name, code]) => ({ name: `multiple returns escape through ${ name }`, code,
     realm: ['Array'], mintedToo: ['Array'], withContainerCensus: true })),
+  // a return, a class member's value, a write in a static block and a slot of a literal whose functions
+  // read `this` are routes the census does not follow, whatever reaches the value later - a call no
+  // callee answers, a read through `this` or an instance, a construction: it holds nothing for them, so
+  // a static read through one finds the narrow entry without its statics, as on every unsupported route
   ...[
-    ['loop return', 'function pick() { while (flag) return Promise; return custom; } pick().all([]);'],
-    ['try return', 'function pick() { try { return Promise; } catch { return custom; } } pick().any([]);'],
-    ['forwarded loop return', 'function inner() { while (flag) return Promise; return custom; }'
-      + ' function outer() { return inner(); } outer().all([]);'],
-    ['stored loop return', 'function inner() { while (flag) return Promise; return custom; }'
-      + ' const value = inner(); function outer() { return value; } outer().all([]);'],
-    ['method loop return', 'const box = { pick() { while (flag) return Promise; return custom; } }; box.pick().all([]);'],
-    ['unknown member', '(() => { if (flag) return Promise; return custom; })()[key];'],
-  ].map(([name, code]) => ({ name: `unresolved local receiver: ${ name }`, code,
-    ...name === 'unknown member' ? { realm: ['Promise'], mintedToo: ['Promise'] } : { heldInSlot: ['Promise'] },
-    withContainerCensus: true })),
+    ['static method', 'class K { static make() { return Map; } } K.make().groupBy([], x => x);'],
+    ['prototype method', 'class K { make() { return Map; } } new K().make().groupBy([], x => x);'],
+    ['private method', 'class K { static #make() { return Map; } static run() { return K.#make().groupBy([], x => x); } } K.run();'],
+    ['method through this', 'class K { static make() { return Map; } static run() { return this.make().groupBy([], x => x); } } K.run();'],
+    ['method through super', 'class A { static make() { return Map; } }'
+      + ' class B extends A { static run() { return super.make().groupBy([], x => x); } } B.run();'],
+    ['instance getter', 'class K { get M() { return Map; } } new K().M.groupBy([], x => x);'],
+    ['instance field', 'class K { M = Map; } new K().M.groupBy([], x => x);'],
+    ['instance arrow field', 'class K { make = () => Map; } new K().make().groupBy([], x => x);'],
+    ['static arrow field', 'class K { static make = () => Map; } K.make().groupBy([], x => x);'],
+    ['static field through this', 'class K { static M = Map; static run() { return this.M.groupBy([], x => x); } } K.run();'],
+    ['static field through a static block', 'class K { static M = Map; static { this.M.groupBy([], x => x); } }'],
+    ['static field through a field initializer', 'class K { static M = Map; static N = this.M; } K.N.groupBy([], x => x);'],
+    ['static field through a function field', 'class K { static M = Map; static f = function () { return this.M.groupBy([], x => x); }; } K.f();'],
+    ['static field through a subclass', 'class A { static M = Map; }'
+      + ' class B extends A { static run() { return super.M.groupBy([], x => x); } } B.run();'],
+    ['literal method reading this', 'const o = { tag: 1, make() { this.tag; return Map; } }; o.make().groupBy([], x => x);'],
+    ['literal slot through this', 'const o = { M: Map, run() { return this.M.groupBy([], x => x); } }; o.run();'],
+    ['literal method through an alias', 'const o = { make() { return Map; } }; const p = o; p.make().groupBy([], x => x);'],
+    ['nested literal method', 'const o = { p: { make() { return Map; } } }; o.p.make().groupBy([], x => x);'],
+    ['destructured literal method', 'const o = { make() { return Map; } }; const { make } = o; make().groupBy([], x => x);'],
+    ['array slot', 'const a = [() => Map]; a[0]().groupBy([], x => x);'],
+    ['array slot behind a spread', '[...list, () => Map][0]().groupBy([], x => x);'],
+    ['named function in an array slot', 'function f() { return Map; } const list = [f]; list[0]().groupBy([], x => x);'],
+    ['class constructed through an array slot', 'class A { constructor() { return Map; } } const list = [A]; new list[0]().groupBy([], x => x);'],
+    ['inherited constructor', 'class A { constructor() { return Map; } } class B extends A {} new B().groupBy([], x => x);'],
+    ['constructor inherited through super', 'class A { constructor() { return Map; } }'
+      + ' class B extends A { constructor() { super(); } } new B().groupBy([], x => x);'],
+    ['returned function', 'function outer() { return () => Map; } outer()().groupBy([], x => x);'],
+    ['alias of the result', 'class K { static make() { return Map; } } const ns = K.make(); ns.groupBy([], x => x);'],
+    ['result handed on', 'class K { static make() { return Map; } } hand(K.make());'],
+    ['result of a name holding the function handed on', 'let h = () => Map; if (flag) h = () => Set; hand(h());'],
+    // a construction pure never inlines hands what the constructor returns to every reader of it
+    ...[
+      'new K().groupBy([], x => x);',
+      'const { groupBy } = new K();',
+      'const list = [new K()]; list[0].groupBy([], x => x);',
+      'for (const { groupBy } of [new K()]) groupBy([], x => x);',
+    ].map((read, index) => [`constructor return ${ index }`,
+      `class K { constructor() { return Map; } } ${ read }`]),
+    ['static method read into a name', 'class K { static make() { return Map; } } const mk = K.make; mk().groupBy([], x => x);'],
+    ['awaited async call', 'async function f() { return Map; } export async function run() { return (await f()).groupBy([], x => x); }'],
+    ['awaited value that is no call', 'export async function run() { return (await Map).groupBy([], x => x); }'],
+    ['alias of an awaited async call', 'async function f() { return Map; } export async function run() { const M = await f(); return M.groupBy; }'],
+    ['parameter arm of a single return, in a slot', 'function f(opt) { return opt || Map; } const list = [f()]; list[0].groupBy([], x => x);'],
+  ].map(([name, code]) => ({ name: `unsupported route: ${ name }`, code, homeOnly: ['Map'], withContainerCensus: true })),
+  // ... a single return that selects, whatever spelling reads the call, and a call through a name holding
+  // several functions are such returns too
+  ...[
+    ['name holding the function', 'let h = () => Map; if (flag) h = () => Set; h().groupBy([], x => x);'],
+    ['local shadowing an import', "import { make } from 'lib';"
+      + ' export function run() { let make = () => Map; if (flag) make = () => Set; return make().groupBy([], x => x); }'],
+    ['conditional', 'function f() { return flag ? Map : Set; } f().groupBy([], x => x);'],
+    ['same family', 'function f() { return flag ? Map : Map; } f().groupBy([], x => x);'],
+    ['logical', 'function f() { return opt || Map; } f().groupBy([], x => x);'],
+    ['selecting alias', 'const M = flag ? Map : Set; function f() { return M; } f().groupBy([], x => x);'],
+    ['concise arrow', 'const f = () => flag ? Map : Set; f().groupBy([], x => x);'],
+    ['alias of the result', 'function f() { return flag ? Map : Set; } const ns = f(); ns.groupBy([], x => x);'],
+    // ... whatever spelling reads the call
+    ['destructured result', 'function f() { return flag ? Map : Set; } const { groupBy } = f();'],
+    ['destructured result with a default', 'function f() { return flag ? Map : Set; } const { groupBy = null } = f();'],
+    ['result in an array slot', 'function f() { return flag ? Map : Set; } const list = [f()]; list[0].groupBy([], x => x);'],
+    ['result as a for-of element', 'function f() { return flag ? Map : Set; } for (const { groupBy } of [f()]) groupBy([], x => x);'],
+  ].map(([name, code]) => ({ name: `unsupported selecting return: ${ name }`, code, homeOnly: ['Map'], withContainerCensus: true })),
+  // ... and where the constructor stays home - read by name off its class or literal, constructed,
+  // discarded, read for a key no static has - the census owes nothing either
+  ...[
+    ['static field by name', 'class K { static M = Map; } K.M.groupBy([], x => x);'],
+    ['static getter by name', 'class K { static get M() { return Map; } } K.M.groupBy([], x => x);'],
+    ['static side beside an instance this', 'class K { static M = Map; run() { return this; } } K.M.groupBy([], x => x);'],
+    ['returned instance', 'class K { make() { return new Map(); } } new K().make().size;'],
+    ['constructor without a return', 'class K { constructor() { this.x = 1; } } new K(); new Map();'],
+    ['literal without this', 'const o = { M: Map, f() { return 1; } }; o.M.groupBy([], x => x); o.f();'],
+    ['arrow reading the outer this', 'const o = { M: Map, f: () => this }; o.M.groupBy([], x => x);'],
+    ['closed method as a constructor', 'const o = { make() { return Map; } }; new (o.make())();'],
+    ['discarded result', 'class K { static make() { return Map; } } K.make();'],
+    ['result read for a key no static has', 'class K { static make() { return Map; } } K.make().prototype;'],
+    ['no call through its key', 'class K { static make() { return Map; } } other.build().groupBy([], x => x);'],
+    ['function no call reaches', 'const f = (() => () => Map)(); f.name; other.build().groupBy([], x => x);'],
+    ['array slot no call reads', 'const a = [() => Map]; a[1]().groupBy([], x => x);'],
+    ['named function in a slot no call reads', 'function f() { return Map; } const list = [f]; list.length; other.x().groupBy([], x => x);'],
+    ['return reading a parameter', 'class K { static id(Map) { return Map; } } K.id(1).groupBy([], x => x);'],
+    ['imported callee', "import { make } from 'lib'; class K { static map() { return Map; } } make().groupBy([], x => x);"],
+    ['constructed local class', 'class K { static map() { return Map; } } export const k = new K();'],
+    ['name holding other functions', 'let h = () => 1; if (flag) h = () => 2; export const v = h(); const a = [() => Map]; a.length;'],
+    ['result read for a key only a namespace has', 'let h = () => Map; if (flag) h = () => Set; h().has(1);'],
+    // ... and beside a call no callee answers alike
+    ...[
+      ['accessor', 'class K { static get M() { return Map; } } K.M.groupBy([], x => x);'],
+      ['attributed callee', 'const o = { make() { return Map; } }; new (o.make())();'],
+      ['builtin callback', 'export const list = [0].map(() => Map);'],
+    ].map(([kind, code]) => [`${ kind } beside a call no callee answers`, `${ code } export function run(cb) { return cb(); }`]),
+  ].map(([name, code]) => ({ name: `home constructor owes nothing: ${ name }`, code, homeOnly: ['Map'], withContainerCensus: true })),
+  // the receiver an invoker hands a function reading `this` reaches readers no walk here follows: both
+  // flavors owe the family
+  ...[
+    ['receiver of a call', 'function g() { return this.groupBy; } g.call(Map);'],
+    ['receiver of an apply', 'function g() { return this.groupBy; } g.apply(Map, []);'],
+    ['receiver of a bound call', 'function g() { return this.groupBy; } g.bind(Map)();'],
+    ['receiver of Reflect.apply', 'function g() { return this.groupBy; } Reflect.apply(g, Map, []);'],
+    ['receiver an unknown callee takes', 'u.call(Map);'],
+  ].map(([name, code]) => ({ name: `handed on: ${ name }`, code, realm: ['Map'], mintedToo: ['Map'], withContainerCensus: true })),
+  ...[
+    ['discarded await of an async call', 'async function f() { return Map; } export async function run() { await f(); }'],
+    ['receiver of a function reading no this', 'function g() { return 1; } g.call(Map);'],
+    ['receiver of an arrow', 'const g = () => 1; g.call(Map);'],
+  ].map(([name, code]) => ({ name: `handed on owes nothing: ${ name }`, code, homeOnly: ['Map'], withContainerCensus: true })),
+  // ... and a read the read side names only by running what it cannot replay, or through a slot it
+  // does not trust: pure reads the static raw, off the entry that carries it
+  ...[
+    ['effectful static getter', 'let n = 0; class K { static get M() { n++; return Map; } } K.M.groupBy([], x => x);'],
+    ['effectful static getter in an in probe', "let n = 0; class K { static get M() { n++; return Map; } } 'groupBy' in K.M;"],
+    ['in probe over a selection', "'groupBy' in (flag ? Map : Set);"],
+    ['alias written in another function, in a slot', 'let M0; function init() { M0 = Map; } init(); [M0][0].groupBy([], x => x);'],
+    ['disagreeing returns destructured', 'function f() { if (flag) return Map; return Set; } const { groupBy } = f();'],
+    ['disagreeing returns as a for-of element', 'function f() { if (flag) return Map; return Set; } for (const { groupBy } of [f()]) groupBy([], x => x);'],
+    ['parameter default over an effectful getter', 'let n = 0; class K { static get M() { n++; return Map; } } function f({ groupBy } = K.M) { return groupBy; } f();'],
+    ['nested level over a written static', 'class W { static T = Map; static { W.T = Set; } } const { T: { groupBy } } = W;'],
+    ['closure over a member alias', 'class K { static M = Map; } const kept = K.M; const get = () => kept; const { groupBy } = get();'],
+    // the write census records a read through a key it folds only later as a read of ANY slot
+    ['const-folded key', "const o = { g: Map }; const k = 'g'; o[k].groupBy([], x => x);"],
+  ].map(([name, code]) => ({ name: `raw read: ${ name }`, code, heldInSlot: ['Map'], withContainerCensus: true })),
+  ...[
+    ['pure static getter', 'class K { static get M() { return Map; } } K.M.groupBy([], x => x);'],
+    ['static field in a slot', 'class K { static M = Map; } const list = [K.M]; list[0].groupBy([], x => x);'],
+    ['member alias in a slot', 'class K { static M = Map; } const kept = K.M; const list = [kept]; list[0].groupBy([], x => x);'],
+  ].map(([name, code]) => ({ name: `named read owes nothing: ${ name }`, code, homeOnly: ['Map'], withContainerCensus: true })),
+  // a local call whose returns sit in control flow this census still lists: pure guards a static read
+  // on the CALL with those candidates and owes nothing, while a read it cannot guard - through an
+  // alias of the result, or off an optional call - owes the family a minted binding stands for
+  ...[
+    ['loop return', 'function pick() { while (flag) return Promise; return custom; }', 'pick', 'all'],
+    ['try return', 'function pick() { try { return Promise; } catch { return custom; } }', 'pick', 'any'],
+    [
+      'forwarded loop return',
+      'function inner() { while (flag) return Promise; return custom; }'
+        + ' function outer() { return inner(); }',
+      'outer',
+      'all',
+    ],
+    [
+      'stored loop return',
+      'function inner() { while (flag) return Promise; return custom; }'
+        + ' const value = inner(); function outer() { return value; }',
+      'outer',
+      'all',
+    ],
+    ['method loop return', 'const box = { pick() { while (flag) return Promise; return custom; } };', 'box.pick', 'all'],
+  ].flatMap(([name, declarations, callee, key]) => [
+    { name: `guarded local receiver: ${ name }`, code: `${ declarations } ${ callee }().${ key }([]);`, homeOnly: ['Promise'] },
+    {
+      name: `guarded local receiver: ${ name } behind an effect prefix`,
+      code: `${ declarations } (effect(), ${ callee }()).${ key }([]);`,
+      homeOnly: ['Promise'],
+    },
+    {
+      name: `unresolved local receiver: ${ name } through an alias`,
+      code: `${ declarations } const held = ${ callee }(); held.${ key }([]);`,
+      heldInSlot: ['Promise'],
+    },
+    {
+      name: `unresolved local receiver: ${ name } off an optional call`,
+      code: `${ declarations } ${ callee }?.().${ key }([]);`,
+      heldInSlot: ['Promise'],
+    },
+  ].map(row => ({ ...row, withContainerCensus: true }))),
+  {
+    name: 'unresolved local receiver: unknown member',
+    code: '(() => { if (flag) return Promise; return custom; })()[key];',
+    realm: ['Promise'],
+    mintedToo: ['Promise'],
+    withContainerCensus: true,
+  },
+  // a static read on a receiver that may hold more than one value is served by no name, so pure reads
+  // it raw off whatever arrived - where it minted the constructor into that value's spelling, the entry
+  // it picks has to carry the statics. a single proven value, a reassigned name its writes guard, a
+  // static of another family, a namespace with no constructor entry and a destructure the plan
+  // mirrors arm by arm hold nothing
+  ...[
+    ['selection alias', 'const ns = flag ? Map : Promise; ns.groupBy([], x => x);', 'Map'],
+    ['logical alias', 'const ns = maybe || Promise; ns.try(() => 1);', 'Promise'],
+    ['inline selection', '(flag ? Iterator : Map).from([1]);', 'Iterator'],
+    ['slot over a selection', 'const box = flag ? { A: Promise } : { A: Map }; box.A.allSettled([]);', 'Promise'],
+    ['selection in a slot', 'const box = { A: flag ? AsyncIterator : Map }; box.A.from([1]);', 'AsyncIterator'],
+    [
+      'slot of disagreeing returns',
+      'function make() { if (flag) return { A: Promise }; return { A: Map }; } make().A.withResolvers();',
+      'Promise',
+    ],
+  ].map(([name, code, held]) => ({ name: `ambiguous static receiver: ${ name }`, code, heldInSlot: [held], withContainerCensus: true })),
+  // ... and an effect prefix ahead of a receiver names nothing: the read lands on the prefix's tail, so
+  // every twin behind one owes what its bare twin owes - a selecting realm and an opaque iteration too
+  ...[
+    ['slot over a selection', 'const box = flag ? { A: Promise } : { A: Map };', 'box.A', 'allSettled([])', 'Promise'],
+    ['slot of disagreeing returns', 'function make() { if (flag) return { A: Promise }; return { A: Map }; }', 'make().A', 'withResolvers()', 'Promise'],
+    ['selecting realm', 'function realm() { return globalThis; }', '(flag ? realm() : opaque()).Map', 'groupBy([], x => x)', 'Map'],
+  ].flatMap(([name, setup, receiver, read, held]) => [['bare', receiver], ['behind an effect prefix', `(effect(), ${ receiver })`]]
+    .map(([spelling, spelled]) => ({
+      name: `static receiver ${ spelling }: ${ name }`,
+      code: `${ setup } ${ spelled }.${ read };`,
+      heldInSlot: [held],
+      withContainerCensus: true,
+    }))),
+  ...['x.A', '(effect(), x.A)'].map(spelled => ({
+    name: `opaque iteration member${ spelled === 'x.A' ? '' : ' behind an effect prefix' }`,
+    code: `export function run(source) { for (const x of [{ A: Map }, ...source]) ${ spelled }.groupBy([], y => y); }`,
+    heldInSlot: ['Map'],
+    withContainerCensus: true,
+  })),
+  ...[
+    ['one proven value', 'const ns = Map; ns.groupBy([], x => x);', 'Map'],
+    ['reassigned name its writes guard', 'let ns = Map; if (flag) ns = Promise; ns.groupBy([], x => x);', 'Map'],
+    ['static of another family', 'const ns = flag ? Map : Promise; ns.canParse("x");', 'Map'],
+    ['namespace without a constructor entry', 'const ns = flag ? Reflect : Math; ns.ownKeys({});', 'Reflect'],
+    ['destructure that mirrors each arm', 'const { any } = flag ? Promise : Map; any([]);', 'Promise'],
+  ].map(([name, code, name2]) => ({
+    name: `ambiguous static receiver holds nothing: ${ name }`,
+    code,
+    homeOnly: [name2],
+    withContainerCensus: true,
+  })),
   ...[
     ['static comparison', 'Object.is(Map, Map);'],
     ['static enumeration', 'Object.keys(Map);'],
@@ -1106,8 +1333,20 @@ const NAME_ROWS = [
   },
   {
     name: '... a base class is constructed by every `super()` its subclasses spell',
-    code: 'class B { constructor(Map) { return [Map]; } }\nclass D extends B {}\nuse(new B(1));',
+    code: 'class B { constructor(Map) { use(Map); } }\nclass D extends B {}\nnew B(1);',
     realm: ['Map'],
+  },
+  {
+    name: '... while the container ONE call yields holds that call\'s argument alone, whatever `super()` passes',
+    code: 'class B { constructor(Map) { return [Map]; } }\nclass D extends B {}\nuse(new B(1));',
+    realm: [],
+    homeOnly: ['Map'],
+  },
+  {
+    name: '... and one call handing its container out sends only its own argument along',
+    code: 'function f(Map) { return [Map]; }\nconst kept = f(globalThis.Map);\nuse(f(1));',
+    realm: [],
+    homeOnly: ['Map'],
   },
   // ... and the argument shapes that leave no value to pair the slot with
   {
@@ -1607,16 +1846,173 @@ const NAME_ROWS = [
     ['a literal in place is read through an unfoldable key', 'use([Map][k].groupBy);'],
     ['a nested slot is read through an unfoldable key', 'const nested = { a: [Map] }; use(nested.a[k].groupBy);'],
   ].map(([name, code]) => ({ name, code, heldInSlot: ['Map'], withContainerCensus: true })),
+  // an unfoldable key off the constructor ITSELF may read any of its statics: it answers for the
+  // realm as its alias spelling does, and the minted binding owes the whole family
   {
-    name: 'an unfoldable key off the realm constructor itself is a tracked read',
+    name: 'an unfoldable key off the realm constructor itself reads the whole family',
     code: 'use(Map[k]);',
-    homeOnly: ['Map'], withContainerCensus: true,
+    realm: ['Map'],
+    mintedToo: ['Map'],
+    withContainerCensus: true,
   },
+  // ... and so does a pattern key the pairing cannot name, in every host a pattern reads through: it
+  // selects the slot its member spelling reads, and answers the same - a key folding to several
+  // statics is owed by the minted binding alone, and a container read through it hands its slots out
+  ...[
+    ['declarator', 'const { [k]: v } = Map; use(v);'],
+    ['assignment', 'let v; ({ [k]: v } = Map); use(v);'],
+    ['parameter default', 'function g({ [k]: v } = Map) { use(v); } g();'],
+    ['for-of head', 'for (const { [k]: v } of [Map]) use(v);'],
+    ['container slot', 'const { [k]: v } = { a: Map }; use(v.groupBy);'],
+  ].map(([name, code]) => ({
+    name: `an unfoldable pattern key reads what its member spelling reads: ${ name }`,
+    code,
+    realm: ['Map'],
+    mintedToo: ['Map'],
+    withContainerCensus: true,
+  })),
+  ...[
+    ['member spelling', 'const k = flag ? "groupBy" : "keys"; use(Map[k]);'],
+    ['declarator', 'const k = flag ? "groupBy" : "keys"; const { [k]: v } = Map; use(v);'],
+  ].map(([name, code]) => ({
+    name: `a key folding to several statics is owed by the minted binding: ${ name }`,
+    code,
+    heldInSlot: ['Map'],
+    withContainerCensus: true,
+  })),
+  // ... and a member of an enum the file declares folds to its literal initializer, which the claims
+  // name too: a key naming one static keeps the constructor home
+  ...[
+    ['member spelling', 'enum E { a = "groupBy" } use(Map[E.a]);'],
+    ['declarator', 'enum E { a = "groupBy" } const { [E.a]: v } = Map; use(v);'],
+  ].map(([name, code]) => ({
+    name: `an enum member key names its initializer: ${ name }`,
+    code,
+    plugins: ['typescript'],
+    homeOnly: ['Map'],
+    withContainerCensus: true,
+  })),
   {
     name: 'a key bound to a constant string folds',
     code: 'function box(v) { return [v]; } const k = "0"; use(box(Map)[k].groupBy);',
     homeOnly: ['Map'], withContainerCensus: true,
   },
+  // a pattern over a NAMED call pairs through the callee's yielded literal, whichever census asks
+  // first: a slot value handed out carries the callee-spelled constructor out, a static read off
+  // it keeps the constructor home
+  ...[
+    ['a factory', 'const f = () => ({ a: Map }); const { a: A } = f(); hand(A);'],
+    ['the array twin', 'const f = () => [Map]; const [A] = f(); hand(A);'],
+    ['a parameter-filled slot', 'const f = x => ({ a: x }); const { a: A } = f(Map); hand(A);'],
+    ['a block body', 'function f() { effect(); return { a: Map }; } const { a: A } = f(); hand(A);'],
+  ].map(([name, code]) => ({
+    name: `a slot of a named call handed out escapes the constructor it holds: ${ name }`,
+    code,
+    realm: ['Map'],
+    mintedToo: ['Map'],
+    withContainerCensus: true,
+  })),
+  {
+    name: 'a static read off a slot of a named call keeps the constructor home',
+    code: 'const f = () => ({ a: Map }); const { a: A } = f(); use(A.groupBy);',
+    homeOnly: ['Map'],
+    withContainerCensus: true,
+  },
+  // ... and a slot a parameter fills holds THIS call's argument, never every caller's: of two calls of
+  // one factory, the slot one hands out carries its own argument out and the other stays home - in
+  // every spelling of the call and of the literal, and through a chain that continues past a
+  // zero-parameter callee to the call whose arguments fill the slot
+  ...[
+    ['direct', 'f(Map)', 'f(Set)'],
+    ['call', 'f.call(null, Map)', 'f.call(null, Set)'],
+    ['apply', 'f.apply(null, [Map])', 'f.apply(null, [Set])'],
+    ['Reflect.apply', 'Reflect.apply(f, null, [Map])', 'Reflect.apply(f, null, [Set])'],
+    ['bound invoker', 'f.bind(null, Map)()', 'f.bind(null, Set)()'],
+    ['construction', 'new f(Map)', 'new f(Set)'],
+    ['optional call', 'f?.(Map)', 'f?.(Set)'],
+    ['awaited call', 'await f(Map)', 'await f(Set)'],
+    ['inline spread', 'f(...[Map])', 'f(...[Set])'],
+  ].map(([name, first, second]) => ({
+    name: `a parameter-filled slot holds its own call's argument: ${ name }`,
+    code: `function f(x) { return { a: x }; } const { a: m } = ${ first }; ${ second }; hand(m);`,
+    realm: ['Map'],
+    mintedToo: ['Map'],
+    homeOnly: ['Set'],
+    withContainerCensus: true,
+  })),
+  ...[
+    ['tag', 'function f(s, x) { return { a: x }; }', 'const { a: m } = f`${Map}`; f`${Set}`;'],
+    ['array literal', 'function f(x) { return [x]; }', 'const [m] = f(Map); f(Set);'],
+    ['nested literal', 'function f(x) { return { k: { a: x } }; }', 'const { k: { a: m } } = f(Map); f(Set);'],
+    ['second parameter', 'function f(y, x) { return { a: x }; }', 'const { a: m } = f(0, Map); f(0, Set);'],
+    ['shorthand', 'function f(x) { return { x }; }', 'const { x: m } = f(Map); f(Set);'],
+    ['a later key wins', 'function f(x, y) { return { a: x, a: y }; }', 'const { a: m } = f(Set, Map); f(Map, Set);'],
+    ['pattern assignment', 'function f(x) { return { a: x }; }', 'let m; ({ a: m } = f(Map)); f(Set);'],
+    ['nested pattern level', 'function f(x) { return { a: x }; }', 'const { k: { a: m } } = { k: f(Map) }; f(Set);'],
+    ['member read', 'function f(x) { return { a: x }; }', 'const m = f(Map).a; f(Set);'],
+    [
+      'chain past a zero-parameter callee',
+      'function inner(x) { return { a: x }; } function f() { return inner(Map); }',
+      'const { a: m } = f(Set);',
+    ],
+    ['an argument handed straight back', 'const f = x => x;', 'const m = f({ a: Map }).a; f({ a: Set });'],
+  ].map(([name, declaration, reads]) => ({
+    name: `a parameter-filled slot holds its own call's argument: ${ name }`,
+    code: `${ declaration } ${ reads } hand(m);`,
+    realm: ['Map'],
+    mintedToo: ['Map'],
+    homeOnly: ['Set'],
+    withContainerCensus: true,
+  })),
+  // a READ stepping through a call's result or a selection reads every value it may hold: a member
+  // of a call - its literal slot, a parameter-filled one, a bound or aliased result, a nested slot,
+  // a callee with several returns, an IIFE, an awaited call, an argument handed straight back - a
+  // member of a selecting container, the realm arm of a selection, and a pattern over any of them at
+  // any level. what the read lands on is handed out, and a slot holding no constructor hands nothing
+  ...[
+    ['member of a call, parameter slot', 'const f = x => ({ a: x, b: 1 }); hand(f(Map).a);'],
+    ['member of a call, literal slot', 'const f = () => ({ a: Map }); hand(f().a);'],
+    ['member of a bound call', 'const f = x => ({ a: x, b: 1 }); const o = f(Map); hand(o.a);'],
+    ['member of an alias of a bound call', 'const f = x => ({ a: x, b: 1 }); const o = f(Map); const q = o; hand(q.a);'],
+    ['computed member of a call', 'const f = x => ({ a: x, b: 1 }); hand(f(Map)["a"]);'],
+    ['nested member of a call', 'const f = x => ({ k: { a: x } }); hand(f(Map).k.a);'],
+    ['member of a call held in a slot', 'const f = x => ({ a: x, b: 1 }); const o = { k: f(Map) }; hand(o.k.a);'],
+    ['member of a call with two returns', 'function f() { if (flag) return { a: Map }; return { a: Math }; } hand(f().a);'],
+    ['member of an IIFE', 'hand((() => ({ a: Map }))().a);'],
+    ['member of an awaited call', 'const f = x => ({ a: x, b: 1 }); hand((await f(Map)).a);'],
+    ['member of an argument handed straight back', 'const id = x => x; hand(id({ a: Map }).a);'],
+    ['member of a conditional container', 'const o = flag ? { a: Map } : { a: Math }; hand(o.a);'],
+    ['member of a logical container', 'const o = flag || { a: Map }; hand(o.a);'],
+    ['the realm arm of a selection beside a container slot', 'const o = flag ? globalThis : { Map: Set }; hand(o.Map);'],
+    ['pattern over a call with two returns', 'function f() { if (flag) return { a: Map }; return { a: Math }; } const { a: A } = f(); hand(A);'],
+    ['pattern over a call returning a selection', 'const f = () => flag ? { a: Map } : { a: Math }; const { a: A } = f(); hand(A);'],
+    ['pattern over a conditional container', 'const { a: A } = flag ? { a: Map } : { a: Math }; hand(A);'],
+    ['pattern over a logical container', 'const { a: A } = flag || { a: Map }; hand(A);'],
+    ['nested pattern over a call', 'const f = x => ({ a: x, b: 1 }); const { k: { a: A } } = { k: f(Map) }; hand(A);'],
+    ['nested pattern over an IIFE', 'const { k: { a: A } } = { k: (() => ({ a: Map }))() }; hand(A);'],
+    ['nested pattern over a selection', 'const { k: { a: A } } = { k: flag ? { a: Map } : { a: Math } }; hand(A);'],
+    ['nested array pattern over a call', 'const f = x => [x]; const [[A]] = [f(Map)]; hand(A);'],
+    ['for-of head over a selecting element', 'for (const { a: A } of [flag ? { a: Map } : { a: Math }]) hand(A);'],
+    ['parameter default over a selection', 'function g({ a: A } = flag ? { a: Map } : { a: Math }) { hand(A); } g();'],
+  ].map(([name, code]) => ({
+    name: `a read through a call or a selection hands out what it lands on: ${ name }`,
+    code,
+    realm: ['Map'],
+    mintedToo: ['Map'],
+    withContainerCensus: true,
+  })),
+  ...[
+    ['member of a call, another slot', 'const f = x => ({ a: x, b: 1 }); hand(f(Map).b);'],
+    ['member of a conditional container, a hole', 'const o = flag ? { a: Map } : { a: Math }; hand(o.b);'],
+    ['pattern over a call, another slot', 'const f = x => ({ a: x, b: 1 }); const { b: B } = f(Map); hand(B);'],
+    ['nested pattern over a call, another slot', 'const f = x => ({ a: x, b: 1 }); const { k: { b: B } } = { k: f(Map) }; hand(B);'],
+    ['a static read through a call slot', 'const f = x => ({ a: x, b: 1 }); use(f(Map).a.groupBy);'],
+  ].map(([name, code]) => ({
+    name: `a read through a call or a selection hands out what it lands on: ${ name }`,
+    code,
+    homeOnly: ['Map'],
+    withContainerCensus: true,
+  })),
 ];
 
 // the container census owns the second stamper, and the two bindings list it on OPPOSITE sides of
@@ -1675,6 +2071,21 @@ for (const adapter of adapters) {
       }
     }
   }
+}
+
+// A selection or a call handing its argument straight back, reached through a long alias chain, is
+// read off a stack, never by one recursion per level: generated code chains such values far deeper
+// than the call stack reaches - a member read and a pattern over the chain's end alike.
+for (const adapter of adapters) for (const [name, step, read] of [
+  ['chained selections', i => `c${ i } ? x${ i } : x${ i }`, last => `hand(${ last }.a);`],
+  ['chained passthrough calls read by a member', i => `id(x${ i })`, last => `hand(${ last }.a);`],
+  ['chained passthrough calls read by a pattern', i => `id(x${ i })`, last => `const { a: A } = ${ last }; hand(A);`],
+]) {
+  const depth = 5000;
+  const chain = Array.from({ length: depth }, (_, i) => `const x${ i + 1 } = ${ step(i) };`).join('\n');
+  const program = adapter.parseAndScope(`const id = v => v; const x0 = { a: Map };\n${ chain }\n${ read(`x${ depth }`) }`).node;
+  const { escapedCtorNames } = collectFileCensus(program, [escapedCtorReferencesReducer(), mutationShapesReducer(null)]);
+  check(`${ adapter.name }: a slot read through ${ depth } ${ name } is handed out`, escapedCtorNames.has('Map', true), true);
 }
 
 // Inert carrier slots need no escape bookkeeping. Count allocations, not elapsed time, with

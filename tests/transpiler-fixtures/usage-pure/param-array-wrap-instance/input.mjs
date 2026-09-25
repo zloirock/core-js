@@ -10,6 +10,6 @@ const viaBinding = (([{ includes: inc }]) => inc)([arr]);
 const viaSelecting = (([{ with: w }]) => w)([c ? [1] : [2]]);
 export { viaIife, viaDefault, viaHopThenWrap, viaDouble, viaSibling, viaBinding, viaSelecting };
 
-// NEGATIVE: an element that RUNS is read once natively - a mirror would spell it a second time
+// an element that RUNS is spelled once, inside the mirror that replaces it, where the source ran it
 const viaEffect = (([{ flatMap: fm }]) => fm)([eff()]);
 export { viaEffect };

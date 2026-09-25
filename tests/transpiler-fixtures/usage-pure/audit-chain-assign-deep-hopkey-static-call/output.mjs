@@ -1,3 +1,4 @@
+import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _at from "@core-js/pure/actual/instance/at";
@@ -11,4 +12,4 @@ let r;
 let c = 0;
 const k = () => (c++, 'self');
 export const dottedKey = (r = _globalThis, c++, _Array$of)(1, 2);
-export const callKey = _at(_ref = (r = _globalThis)[k()].Array.from([3])).call(_ref, 0);
+export const callKey = _at(_ref = (r = _globalThis, k(), _Array$from)([3])).call(_ref, 0);

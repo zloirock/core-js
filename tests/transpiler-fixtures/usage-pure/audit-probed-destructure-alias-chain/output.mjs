@@ -26,7 +26,7 @@ export const {
 export const viaAliasChainMultiA = (heldProbe.Array, _Array$of);
 export const viaAliasChainMultiB = _Array$from;
 const _ref = heldProbe.Array,
-  viaAliasChainRestA = null == _ref ? _ref[""] : _Array$of,
+  viaAliasChainRestA = _Array$of,
   {
     of: _unused,
     ...viaAliasChainRest

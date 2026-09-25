@@ -1,7 +1,7 @@
 import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _at from "@core-js/pure/actual/instance/at";
-import _Promise from "@core-js/pure/actual/promise/constructor";
+import _Promise from "@core-js/pure/actual/promise";
 import _Promise$race from "@core-js/pure/actual/promise/race";
 import _self from "@core-js/pure/actual/self";
 // when the split receiver keeps a PROVEN chain above its memo, the chain's first key may still name

@@ -38,7 +38,7 @@ const {
 const _ref4 = _globalThis;
 const {
   customQ
-} = null == _ref4 ? _ref4[""] : _Set;
+} = _Set;
 const {
   next: n2
 } = _getIteratorMethod(_ref4); // a computed well-known-symbol key INSIDE the extracted pattern stays live and substitutes

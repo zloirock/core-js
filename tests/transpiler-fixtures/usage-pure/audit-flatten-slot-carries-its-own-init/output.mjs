@@ -49,7 +49,7 @@ var {
     }
   },
   _ref3 = (eff(), Array),
-  of4 = null == _ref3 ? _ref3[""] : (k4++, _Array$of),
+  of4 = (k4++, _Array$of),
   {
     other4
   } = _ref3;

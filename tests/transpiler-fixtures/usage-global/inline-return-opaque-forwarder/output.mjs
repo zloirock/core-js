@@ -7,8 +7,8 @@ import "core-js/modules/es.map.get-or-insert";
 import "core-js/modules/es.map.get-or-insert-computed";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
-// A transparent forwarder does not make the inner loop's return attributable.
-// Keep the namespace needed by the unresolved static read after both calls.
+// A transparent forwarder hands on the inner loop's returns as candidates: pure guards the
+// static read after both calls on them, and global injects for the possible Map.
 function inner() {
   while (flag) return Map;
   return custom;
