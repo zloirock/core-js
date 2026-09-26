@@ -1,5 +1,5 @@
-// A symbol-iterator claim and nested static share one receiver rewrite.
-// Both values survive in either property order, with initializer effects running once.
+// A computed read before a nested static stays native when rest must exclude that read.
+// Without rest, the ordinary shared receiver mirror still serves both claims.
 const [{ [Symbol.iterator]: it, Array: { from: f }, ...r }] = [globalThis];
 it;
 f(x);

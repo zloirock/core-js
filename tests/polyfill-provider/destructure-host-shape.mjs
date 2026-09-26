@@ -1,9 +1,7 @@
-// Cross-parser tests for `destructure-host-shape`. The classifier operates on raw
-// AST nodes - parent + host pair for `isBodylessStatementSlot`, declaration +
-// declarationParent for `classifyVariableDeclarationHost`. Both parsers must produce
-// the same booleans because the strategy planner is shared between babel-plugin and
-// unplugin (decision tree is plugin-specific, the underlying facts are not).
+// Cross-parser tests for shared destructure host classification and placement.
+// Both bindings consume these decisions before inserting into their own ASTs.
 import {
+  bodylessSlotReplacement,
   capturedRealmCtorPure,
   classifyVariableDeclarationHost,
   isBodylessStatementSlot,
@@ -13,6 +11,7 @@ import {
   planArrayWrapperCapture,
   planMinifierSequenceSplit,
   planNestedKeyedPatternCapture,
+  planNestedLeafHost,
   planRetainedObjectCapture,
   renderArrayWrapperCapture,
   renderNestedKeyedPatternCapture,
@@ -20,16 +19,69 @@ import {
 } from '../../packages/core-js-polyfill-provider/destructure-host-shape.js';
 import { createChecker } from './harness.mjs';
 import { hasObjectRestAncestor, isCapturedKeyedPattern } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
-import { buildDestructuringInitMeta, destructureKeyReadPlan } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
+import { buildDestructuringInitMeta, destructureKeyReadPlan, resolveNestedReceiverChain } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
 import { resolvePolyfillableStaticProp } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
 import { hostSlot, identifier, renderInstanceDefaultGuard } from '../../packages/core-js-polyfill-provider/render.js';
 
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
-import { handleMemberExpressionNode } from '../../packages/core-js-polyfill-provider/detect-usage/members.js';
+import { handleMemberExpressionNode, planGuardedStaticNarrow } from '../../packages/core-js-polyfill-provider/detect-usage/members.js';
 import { hasConstructorEntry, resolve } from '../../packages/core-js-polyfill-provider/index.js';
 
 const { check, checkDeep, finish, runBoth } = createChecker('destructure-host-shape');
+
+{
+  const expression = { type: 'ExpressionStatement', expression: identifier('effect') };
+  const declaration = { type: 'VariableDeclaration', kind: 'var', declarations: [{ type: 'VariableDeclarator', id: identifier('a') }] };
+  const next = { type: 'VariableDeclaration', kind: 'const', declarations: [{ type: 'VariableDeclarator', id: identifier('b') }] };
+  check('bodyless single statement retains identity', bodylessSlotReplacement(expression, [expression]), expression);
+  checkDeep(
+    'bodyless declarations join their original var',
+    bodylessSlotReplacement(declaration, [declaration, next]),
+    { type: 'VariableDeclaration', kind: 'var', declarations: [...declaration.declarations, ...next.declarations] },
+  );
+  checkDeep('bodyless assignment and its reads stay together', bodylessSlotReplacement(expression, [expression, next]), { type: 'BlockStatement', body: [expression, next] });
+  checkDeep(
+    'bodyless joined host declarators stay embedded',
+    bodylessSlotReplacement(declaration, [declaration, next], hostSlot),
+    { type: 'VariableDeclaration', kind: 'var', declarations: [...declaration.declarations, ...next.declarations].map(hostSlot) },
+  );
+  checkDeep(
+    'bodyless mixed host statements stay embedded',
+    bodylessSlotReplacement(declaration, [expression, next], hostSlot),
+    { type: 'BlockStatement', body: [expression, next].map(hostSlot) },
+  );
+  checkDeep('bodyless sole host statement stays embedded', bodylessSlotReplacement(declaration, [expression], hostSlot), hostSlot(expression));
+}
+
+for (const [source, expected] of [
+  ['const [{ y: { at, other } }] = [box];', ['lead', false, false, false]],
+  ['const [{ y: { at, other } }, tail] = [box, effect()];', ['trail', false, false, false]],
+  ['const [{ y: { at, other } }] = ([box]);', ['lead', false, false, false]],
+  ['const before = 1, [{ y: { at, other } }] = [box];', ['lead', false, false, false]],
+  ['const [{ y: { at, other } }] = [box], after = 2;', ['lead', false, false, false]],
+  ['const before = 1, [{ y: { at, other } }] = [box], after = 2;', null],
+  ['export const [{ y: { at, other } }] = [box];', null],
+  ['for (const before = 1, [{ y: { at, other } }] = [box], after = 2;;) break;', ['lead', false, true, false]],
+  ['if (flag) var [{ y: { at, other } }] = [box];', ['lead', false, false, true]],
+  ['const { y: { at, other } } = box;', [null, false, false, false]],
+  ['const before = 1, { y: { at, other } } = box, after = 2;', [null, false, false, false]],
+  ['const { y: { at, other }, keep } = box;', [null, true, false, false]],
+  ['const before = 1, { y: { at, other }, keep } = box;', [null, true, false, false]],
+  ['const { y: { at, other }, keep } = box, after = 2;', null],
+  ['for (const { y: { at, other }, keep } = box;;) break;', null],
+  ['if (flag) var { y: { at, other }, keep } = box;', null],
+]) runBoth('nested leaf placement', `const box = source; ${ source }`, (parser, program, label) => {
+  const prop = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property', path => path.node.key?.name === 'at');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)();
+  const walk = resolveNestedReceiverChain(prop, { soleSlots: true, allowLeafSiblings: true, allowSlotDefault: true, siblingLevels: true, adapter, allowAssignmentHost: true });
+  check(`${ label } source walk`, !!walk, true);
+  if (!walk) return;
+  const original = JSON.stringify(walk.declarator.node);
+  const plan = planNestedLeafHost(walk);
+  checkDeep(`${ label } placement`, plan ? [plan.navPlacement, plan.siblingLevel, plan.forInit, plan.bodyless] : null, expected);
+  check(`${ label } source unchanged`, JSON.stringify(walk.declarator.node), original);
+});
 
 for (const [name, pure, global] of [
   ['Promise', true, true], ['Map', true, true], ['ArrayBuffer', false, true],
@@ -690,6 +742,16 @@ runBoth('array wrapper capture/leaves realm rest to the receiver mirror',
     check(lbl, planArrayWrapperCapture({ pattern, init, force: true, restPattern: pattern.elements[0], adapter: {} }), null);
   });
 
+for (const [source, captured] of [
+  ['const [{ at }] = [source, ...tail];', true],
+  ['const [{ at }, other] = [source, ...tail];', false],
+]) runBoth('array wrapper capture/opaque trailing spread', source, (adapter, program, label) => {
+  const { id: pattern, init } = adapter.pickPath(program, 'VariableDeclarator').node;
+  const plan = planArrayWrapperCapture({ pattern, init, force: true, trailingSpread: true });
+  check(`${ label } preserves fixed positions`, !!plan, captured);
+  if (plan) check(`${ label } keeps source iteration`, plan.init, init);
+});
+
 runBoth('nested keyed capture/outer keys and source leaf survive',
   'const { [(outer(), "w")]: { middle: { [(inner(), "at")]: method } } } = make();',
   (adapter, prog, lbl) => {
@@ -903,5 +965,38 @@ for (const siblings of ['', ', tail']) runBoth('retained wrapper computed key sh
     check(`${ label }/owns the keyed element`, plan?.elementPattern, host.node.left.elements[0]);
     check(`${ label }/keeps sibling positions`, plan?.arrayCapture.elements.length, siblings ? 2 : 1);
   });
+
+for (const [capture, expected] of [
+  ['const result = ({ from, of = fallback } = source || Array);', true],
+  ['({ from, of = fallback } = source || Array);', false],
+  ['function read() { return ({ from, of = fallback } = source || Array); }', true],
+  ['consume(({ from, of = fallback } = source || Array));', true],
+]) runBoth('selected assignment capture', `let from, of; ${ capture }`, (parser, program, label) => {
+  const host = parser.pickPath(program, 'AssignmentExpression', path => path.node.left.type === 'ObjectPattern');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  function resolvePure(meta) {
+    return meta.kind === 'property' && meta.object === 'Array'
+      && (meta.key === 'from' || meta.key === 'of') ? { kind: 'static', entry: `array/${ meta.key }`, hintName: meta.key } : null;
+  }
+  const plan = planRetainedObjectCapture({
+    pattern: host.node.left,
+    init: host.node.right,
+    assignment: true,
+    prop: host.node.left.properties[0],
+    hostPath: host,
+    adapter,
+    kind: 'static',
+    entry: 'array/from',
+    meta: { kind: 'property', object: 'Array', key: 'from', placement: 'static', fromFallback: true },
+    resolvePure,
+    resolveStaticProp: resolvePolyfillableStaticProp,
+    planGuardedNarrow: planGuardedStaticNarrow,
+  });
+  check(`${ label } guards the captured receiver`, !!plan?.narrow, expected);
+  if (expected) {
+    check(`${ label } primary candidate`, plan.narrow.branches[0].ctorName, 'Array');
+    check(`${ label } sibling candidate`, plan.siblingStatics.get(host.node.left.properties[1])?.narrow.branches[0].ctorName, 'Array');
+  }
+});
 
 finish();

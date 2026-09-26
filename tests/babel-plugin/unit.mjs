@@ -15,6 +15,7 @@ import './consumed-member-comments.mjs';
 import './post-sweep-introduced-global.mjs';
 import './late-paren-compensation-gate.mjs';
 import './parser-dialect-equivalence.mjs';
+import './bodyless-array-capture.mjs';
 import './statement-order-independence.mjs';
 import './per-file-teardown.mjs';
 // synchronous, and ahead of the suite below on purpose: both capture the debug report off

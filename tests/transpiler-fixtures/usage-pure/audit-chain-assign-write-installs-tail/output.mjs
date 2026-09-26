@@ -30,6 +30,10 @@ export const callee = _Array$of(1);
 let wrap = [Object],
   w2;
 wrap = w2 = [_Promise];
+const [_ref] = wrap;
+const {
+  allSettled: _unused
+} = _ref;
 const allSettled = _Promise$allSettled;
 export const wrapperAlias = allSettled([]);
 let base = Object,

@@ -1,4 +1,4 @@
-// Claimed statics retain their polyfills beside object rest.
-// Rest keeps its source and exclusions; instance slots remain native.
+// A computed exclusion before a nested static and rest keeps the pure pattern native.
+// Native getter order wins over polyfill coverage; global injection remains active.
 const [{ [Symbol.iterator]: iterator, Array: { from }, ...rest }] = [globalThis];
 export { iterator, from, rest };

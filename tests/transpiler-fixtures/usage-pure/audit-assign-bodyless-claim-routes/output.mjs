@@ -5,7 +5,7 @@ import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _withMaybeArray from "@core-js/pure/actual/array/instance/with";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
-var _ref, _ref2, _unused;
+var _ref, _ref2, _ref3, _unused;
 // Claimed statics retain their polyfills beside object rest.
 // Rest keeps its source and exclusions; instance slots remain native.
 const log = [];
@@ -39,7 +39,7 @@ if (log.length >= 0) {
 // must not run when the control condition is false.
 let kwWrap, wrapped;
 if (log.length < 0) {
-  [kwWrap = _globalThis];
-  wrapped = _withMaybeArray(_globalThis.Array.prototype);
+  [_ref3] = [kwWrap = _globalThis];
+  wrapped = _withMaybeArray(_ref3.Array.prototype);
 }
 export { from, rest, keyed, other, nested, sibling, kw, prefixed, kwWrap, wrapped, log };

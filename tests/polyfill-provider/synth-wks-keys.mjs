@@ -12,7 +12,7 @@ import {
   wksComputedKeyName,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { computedKeyWellKnownSymbolName } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
-import { buildNestedParamSynthPlan, buildPatternRenderPlan } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
+import { buildNestedParamSynthPlan, buildPatternRenderPlan, patternComputedKeysSynthSafe } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
 import { synthEntryKey } from '../../packages/core-js-polyfill-provider/render.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
@@ -187,6 +187,25 @@ function planOf(adapter, prog) {
   const pattern = adapter.pickPath(prog, 'ObjectPattern');
   return buildPatternRenderPlan(pattern.node, { scope: pattern.scope, path: pattern, adapter: keyAdapter });
 }
+
+for (const [label, source, expected, distinctReads = false] of [
+  ['plain', 'function f({ at } = []) {}', true],
+  ['known string', 'const key = "length"; function f({ at, [key]: other } = []) {}', true],
+  ['literal', 'function f({ at, ["length"]: other } = []) {}', true],
+  ['symbol', 'function f({ at, [Symbol.iterator]: other } = []) {}', true],
+  ['symbol alias', 'const key = Symbol.iterator; function f({ at, [key]: other } = []) {}', true],
+  ['parameter', 'function f(key, { at, [key]: other } = []) {}', false],
+  ['object coercion', 'const key = { toString() { return "at"; } }; function f({ at, [key]: other } = []) {}', false],
+  ['unknown import', 'import key from "key"; function f({ at, [key]: other } = []) {}', false],
+  ['unbound', 'function f({ at, [key]: other } = []) {}', false],
+  ['duplicate instance', 'function f({ at, at: other } = []) {}', false, true],
+  ['aliased duplicate instance', 'const key = "at"; function f({ at, [key]: other } = []) {}', false, true],
+  ['distinct instance', 'const key = "length"; function f({ at, [key]: other } = []) {}', true, true],
+  ['immutable static duplicate', 'function f({ from, from: other } = Array) {}', true],
+]) runBoth(`mirror key proof/${ label }`, source, (adapter, prog, lbl) => {
+  const pattern = adapter.pickPath(prog, 'ObjectPattern');
+  check(lbl, patternComputedKeysSynthSafe({ objectPatternNode: pattern.node, scope: pattern.scope, path: pattern, adapter: keyAdapter, distinctReads }), expected);
+});
 
 // the numeric and string spellings name ONE slot, and the literal may hold a key once - the
 // plan collapses them, so both reads destructure the value the single entry renders
