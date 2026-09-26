@@ -48,9 +48,9 @@ function mark(t, v) {
 }
 {
   const [_ref3] = [r, ...rest];
-  const _ref4 = _ref3.w;
-  const values = _values(_ref4);
-  const at = _at(_ref3.y);
+  const _ref4 = _ref3;
+  const values = _values(_ref4.w);
+  const at = _at(_ref4.y);
   [values, at];
 }
 {
@@ -106,18 +106,20 @@ function mark(t, v) {
   [values, at];
 }
 {
-  const [{
-    w: {
-      values,
-      is
-    }
-  }] = [r, eff('n')];
-  const at = _at(r.y);
+  const [_ref5] = [r, eff('n')];
+  const {
+    w: _ref6
+  } = _ref5;
+  const values = _values(_ref6);
+  const {
+    is
+  } = _ref6;
+  const at = _at(_ref5.y);
   [values, is, at];
 }
 {
-  eff('n');
-  const at = _at(r.y);
+  const [_ref7] = [r, eff('n')];
+  const at = _at(_ref7.y);
   at;
 }
 {
@@ -125,7 +127,10 @@ function mark(t, v) {
   at;
 }
 {
-  const ci = _at(getArr());
+  const [_ref8] = [{
+    y: getArr()
+  }];
+  const ci = _at(_ref8.y);
   use(ci);
 }
 {
@@ -156,23 +161,23 @@ function mark(t, v) {
   _atMaybeArray(box).call(box, 0);
 }
 {
-  var _ref5;
+  var _ref9;
   const box = [[1]];
-  _atMaybeArray(_ref5 = box[0]).call(_ref5, 0);
+  _atMaybeArray(_ref9 = box[0]).call(_ref9, 0);
 }
 {
-  var _ref6;
+  var _ref10;
   const box = [[1]];
   const [a] = [...rest, box];
   _pushMaybeArray(a).call(a, 's');
-  _at(_ref6 = box[0]).call(_ref6, 0);
+  _at(_ref10 = box[0]).call(_ref10, 0);
 }
 {
-  var _ref7;
+  var _ref11;
   const box = [[1]];
   const [a] = [box];
   _pushMaybeArray(a).call(a, 's');
-  _at(_ref7 = box[0]).call(_ref7, 0);
+  _at(_ref11 = box[0]).call(_ref11, 0);
 }
 {
   const f = id(Array).from;
@@ -231,12 +236,21 @@ function mark(t, v) {
 }
 {
   const k = 'w';
-  const m = _atMaybeArray([1, 2]);
+  const [_ref12] = [{
+    w: [1, 2]
+  }];
+  const m = _atMaybeArray(_ref12.w);
   use(m);
 }
 {
   const k = 'w';
-  const m = _atMaybeArray([1, 2]);
+  const {
+    [k]: _ref13
+  } = {
+    w: [[1, 2]]
+  };
+  const [_ref14] = _ref13;
+  const m = _atMaybeArray(_ref14);
   use(m);
 }
 {
@@ -285,15 +299,15 @@ function mark(t, v) {
 }
 {
   const k = 'w';
-  const _ref8 = [1, 2];
-  const m = _atMaybeArray(_ref8);
+  const _ref15 = [1, 2];
+  const m = _atMaybeArray(_ref15);
   const {
     [k]: {
       at: _unused
     }
   } = {
     ...spread,
-    w: _ref8
+    w: _ref15
   };
   use(m);
 }

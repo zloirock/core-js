@@ -8,10 +8,18 @@ import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 let inner = [Array];
 const outer = [inner];
 inner = [Object];
+const [[_ref]] = outer;
+const {
+  from: _unused
+} = _ref;
 const from = _Array$from;
 export const afterCapture = from('ab');
 let inner2 = [Array];
 inner2 = [Object];
 const outer2 = [inner2];
+const [[_ref2]] = outer2;
+const {
+  fromEntries: _unused2
+} = _ref2;
 const fromEntries = _Object$fromEntries;
 export const beforeCapture = fromEntries([]);

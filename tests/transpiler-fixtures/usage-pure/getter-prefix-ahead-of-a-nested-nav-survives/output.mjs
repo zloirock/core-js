@@ -48,12 +48,17 @@ K.g;
 m6 = _toReversedMaybeArray(_globalThis.Array.prototype);
 f6 = _toSortedMaybeArray(_globalThis.Array.prototype);
 const m7 = _toSplicedMaybeArray((K.g, Array.prototype));
-K.g;
-const m8 = _findLastIndexMaybeArray(_globalThis.Array.prototype);
-const f8 = _includesMaybeArray(_globalThis.Array.prototype);
-K.g;
-const m9 = _sortMaybeArray(_globalThis.Array.prototype);
-const [{}, z9] = [_globalThis, 1];
+const [_ref] = [(K.g, _globalThis)];
+const {
+  Array: {
+    prototype: _ref2
+  }
+} = _ref;
+const m8 = _findLastIndexMaybeArray(_ref2);
+const f8 = _includesMaybeArray(_ref2);
+const [_ref3, _ref4] = [(K.g, _globalThis), 1];
+const m9 = _sortMaybeArray(_ref3.Array.prototype);
+const z9 = _ref4;
 for (const _unused = (K.g, _globalThis), m10 = _entriesMaybeArray(_globalThis.Array.prototype), f10 = _keysMaybeArray(_globalThis.Array.prototype);;) break;
 K.g;
 export const m11 = _valuesMaybeArray(_globalThis.Array.prototype);

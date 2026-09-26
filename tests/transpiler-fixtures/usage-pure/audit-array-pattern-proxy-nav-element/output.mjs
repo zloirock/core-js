@@ -20,9 +20,24 @@ export const [{
 }] = [{
   of: _Array$of
 }];
-export const trunc = _Math$trunc;
-export const from = _Array$from;
-export const keys = ((null == _globalThis.window ? void 0 : Object).keys, _Object$keys);
+const [_ref] = [_self.Math],
+  {
+    trunc: _unused
+  } = _ref,
+  trunc = _Math$trunc;
+export { trunc };
+const [_ref2] = [_self.Array],
+  {
+    from: _unused2
+  } = _ref2,
+  from = _Array$from;
+export { from };
+const [_ref3] = [null == _globalThis.window ? void 0 : _self.Object],
+  {
+    keys: _unused3
+  } = _ref3,
+  keys = _Object$keys;
+export { keys };
 export const [{
   entries
 }] = [((n++, _self).Object, {

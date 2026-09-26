@@ -17,8 +17,7 @@ export { at2, keys2, z };
 const [{ at: at3 }] = [c ? arr : o1], [{ keys: keys3 }] = [c ? arr : o2];
 export { at3, keys3 };
 
-// a SURVIVING prop keeps the residual, and the extraction still lands BEFORE it - the shape the
-// flat channel emits for the same receiver, whatever order the pattern spells the props in
+// A surviving property reads from the captured element in source property order.
 const [{ at: at4, other: other4 }] = [c ? arr : o3];
 export { at4, other4 };
 

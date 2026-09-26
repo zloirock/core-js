@@ -8,7 +8,15 @@ import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
 // not just Array
 const promiseWrap = [_Promise];
 const mapWrap = [_Map];
+const [_ref] = promiseWrap;
+const {
+  resolve: _unused
+} = _ref;
 const resolve = _Promise$resolve;
+const [_ref2] = mapWrap;
+const {
+  groupBy: _unused2
+} = _ref2;
 const groupBy = _Map$groupBy;
 resolve(1);
 groupBy([1, 2, 3], x => x);

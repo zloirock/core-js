@@ -215,9 +215,8 @@ function restAssignSentinel() {
   return [restAt, restRest];
 }
 
-// an instance leaf over a slot with a COMMA RUN in front of it rides the prefix inside its dispatch,
-// exactly as the flat spelling does (`_at((mark(), arr))`) - on the declaration and under an array
-// wrapper alike; a claim INSIDE the prefix is rewritten where it stands
+// A comma prefix in the source slot runs once before the property read, both directly and under
+// an array wrapper. A claim inside the prefix is rewritten where it stands.
 function viaSeqSlot(mark, arr) {
   const { w: { at: viaSeq } } = { w: (mark(), arr) };
   const [{ w: { at: viaSeqWrapped } }] = [{ w: (mark(), arr) }];
@@ -232,8 +231,7 @@ function ctorUnderRest() {
   const { w: { Array: { of: restStatic } }, ...restStaticRest } = { w: globalThis, z: 3 };
   return [restCtor, restDecl, restAssign, restAssignRest, restStatic, restStaticRest];
 }
-// a dead wrapper whose init still carries a DISCARDED effect re-emits it as a statement where the
-// declaration stood (`eff2();`), never a `[{}]` husk
+// The discarded array element still runs before the nested property read.
 function liftedHusk(eff, eff2) {
   const [{ w: { at: liftedAt } }] = [{ w: eff() }, eff2()];
   return liftedAt;
@@ -252,16 +250,13 @@ function slotMemoHoist(eff, holder) {
   return [slotHoist, z, slotInSlot, a, slotRest, slotRestRest, slotNested, q, slotMember, b];
 }
 
-// a hop under a wrapper that DIES behind an effectful hole: the hole's effect lifts ahead, and the
-// slot value memoizes like the flat twin's element (`eff(); const _ref = getArr(); _at(_ref)`) rather
-// than riding the dispatch
+// A hole keeps its initializer effect ahead of the captured nested property read.
 function holeThenSlot(eff, getArr) {
   const [, { y: { at: holeAt } }] = [eff(), { y: getArr() }];
   return holeAt;
 }
 
-// ... and beside a SIBLING DECLARATOR the slot memo takes the same two shapes: hoisted ahead of the
-// declaration, or written in its slot - never the sibling-append the plain kept-key residual takes;
+// A sibling declarator and the captured array positions keep their source order;
 // two leaves off one slot share the one write (`w: _ref = eff()`, both dispatches reading `_ref`)
 function slotMemoSiblingDecl(eff) {
   const { w: { at: sibHoist }, z } = { w: eff(), z: 1 }, sibQ = 2;
@@ -270,6 +265,7 @@ function slotMemoSiblingDecl(eff) {
   return [sibHoist, z, sibQ, sibInSlot, a, sibQ2, twinAt, twinFlat, b];
 }
 
+// Native bindings on either side of a claimed slot retain their order, including array rest.
 function inSlotFlatFamily(eff, eff2, eff3) {
   const [fa, { at: flatInSlot }] = [eff(), eff()];
   const [fb, { at: flatRestSlot }, ...flatRest] = [eff(), eff()];
@@ -298,7 +294,7 @@ export const { w: { Map: exportHopMap }, eg } = { w: globalThis, eg: 4 }, [{ Set
 
 // two claimed hosts in ONE declaration take the sibling-declarator canon each: an object hop beside
 // an array wrapper (either order), two array wrappers, each memo standing behind the declarators
-// written ahead of its host and the join resuming after it; a symbol leaf under a hop beside a
+// written ahead of its host and the join retaining binding order; a symbol leaf under a hop beside a
 // sibling takes the slot memo like the instance leaf of the same slot
 function twoHostsOneDeclaration(eff) {
   const { a, w: { at: hostObjAt } } = { a: eff(), w: eff() }, [{ flat: hostArrFlat }, hz] = [eff(), 1];

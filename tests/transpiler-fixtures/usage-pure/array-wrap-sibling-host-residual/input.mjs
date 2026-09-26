@@ -1,8 +1,6 @@
-// a SIBLING-declarator host keeps the wrapper a trailing neighbour holds alive for a reading claim:
-// the residual stays comma-joined between its siblings (a lift would carry the neighbour over the
-// leading sibling's own effect), and the dispatch reads the surface inline beside it. a spread
-// buried one wrapper level down keeps its wrapper the same way, a parenthesized init reads like
-// the bare one, and a bodyless assignment slot braces around the raw destructure and its overwrite
+// A sibling declarator keeps its order around a captured literal element and its trailing
+// neighbour. A nested spread keeps its native wrapper, a parenthesized initializer reads like
+// the bare one, and a bodyless assignment remains inside its conditional branch.
 const seen = [];
 const eff = t => (seen.push(t), t);
 const xs = [1];

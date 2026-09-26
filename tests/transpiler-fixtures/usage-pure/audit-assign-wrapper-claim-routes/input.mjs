@@ -1,12 +1,10 @@
-// an assignment host under an array WRAPPER claims what the statement host claims: the element the
-// pattern is paired with IS the receiver, so a FLAT claim has one even with no hop chain to resolve,
-// and a `?.` the source wrote is a nav all the same - the hop short-circuits the whole chain, so the
-// residual and the dispatch read one value
+// An assignment under an array wrapper reads the paired element once. A flat method claim
+// needs no object hop, while an optional hop still short-circuits as the source wrote it.
 const log = [];
 let flat, at, deep, kept, kw, named, keyed, other, stat, zn;
-// the SOLE wrapper: the consumed slot leaves and the dispatch takes the statement
+// A sole wrapper assigns its captured method after the native array step.
 [{ flat }] = [globalThis.Array.prototype];
-// ... a MULTI one keeps the destructure - its neighbour still binds - and appends the dispatch
+// A neighbouring element binds after the first captured method read.
 [{ at }, zn] = [globalThis.Array.prototype, 7];
 // a marked nav resolves like the plain one
 [{ findLast: deep }] = [globalThis?.globalThis.Array.prototype];

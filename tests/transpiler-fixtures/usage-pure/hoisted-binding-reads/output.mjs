@@ -81,6 +81,10 @@ const {
     from: _Array$from
   }
 };
+const [_ref] = wrapper;
+const {
+  from: _unused
+} = _ref;
 const wrappedFrom = _Array$from;
 const keyedFrom = _Array$from;
 const [{

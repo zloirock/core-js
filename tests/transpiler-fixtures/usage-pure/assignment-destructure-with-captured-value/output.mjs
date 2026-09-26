@@ -1,20 +1,15 @@
 import _Object$assign from "@core-js/pure/actual/object/assign";
-// a destructuring assignment yields its right side, so a conditional receiver whose branch is
-// replaced by a synth mirror hands the CAPTURED value that literal instead of the branch object.
-// only the value-discarding statement form may mirror; every consuming position keeps the source
+var _ref, _ref2;
+// A consumed assignment yields its selected receiver and dispatches its static by identity.
+// The value-discarding statement keeps the branch mirror.
 let a1, a2, a3, a4;
 const shim = null;
-const host1 = {
-  assign: a1
-} = shim || Object;
+const host1 = (_ref = shim || Object, a1 = _ref === Object ? _Object$assign : _ref["assign"], _ref);
 let host2;
-host2 = {
-  assign: a2
-} = shim ? shim : Object;
+host2 = (_ref2 = shim ? shim : Object, a2 = _ref2 === Object ? _Object$assign : _ref2["assign"], _ref2);
 export function reader() {
-  return {
-    assign: a3
-  } = shim || Object;
+  var _ref3;
+  return _ref3 = shim || Object, a3 = _ref3 === Object ? _Object$assign : _ref3["assign"], _ref3;
 }
 ({
   assign: a4

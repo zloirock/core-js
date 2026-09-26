@@ -1,4 +1,5 @@
 import { parseSync } from 'oxc-parser';
+import './per-file-teardown.mjs';
 import { builders, traverse } from 'estree-toolkit';
 import { TraceMap, originalPositionFor } from '@jridgewell/trace-mapping';
 import unplugin, { shouldTransform } from '../../packages/core-js-unplugin/index.js';

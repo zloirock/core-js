@@ -9,8 +9,17 @@ const viaCastInit = _atMaybeArray(_flatMaybeArray(arr).call(arr));
 const viaCastSlot = _atMaybeArray(_flatMaybeArray(arr).call(arr));
 const viaNonNullInit = _atMaybeArray(_flatMaybeArray(arr).call(arr));
 const viaSatisfiesInit = _atMaybeArray(_flatMaybeArray(arr).call(arr));
-const viaCastElement = _atMaybeArray(_flatMaybeArray(arr).call(arr));
-const viaCastWrapInit = _atMaybeArray(_flatMaybeArray(arr).call(arr));
-const viaNonNullElement = _atMaybeArray(_flatMaybeArray(arr).call(arr));
+const [_ref] = [{
+  y: _flatMaybeArray(arr).call(arr)
+} as any];
+const viaCastElement = _atMaybeArray(_ref.y);
+const [_ref2] = [{
+  y: _flatMaybeArray(arr).call(arr)
+}] as any;
+const viaCastWrapInit = _atMaybeArray(_ref2.y);
+const [_ref3] = [{
+  y: _flatMaybeArray(arr).call(arr)
+}!];
+const viaNonNullElement = _atMaybeArray(_ref3.y);
 export { viaCastInit, viaCastSlot, viaNonNullInit, viaSatisfiesInit };
 export { viaCastElement, viaCastWrapInit, viaNonNullElement };

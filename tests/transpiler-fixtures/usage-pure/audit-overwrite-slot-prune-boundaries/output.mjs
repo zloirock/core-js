@@ -4,7 +4,7 @@ import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _flatMapMaybeArray from "@core-js/pure/actual/array/instance/flat-map";
 import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 import _globalThis from "@core-js/pure/actual/global-this";
-var _ref, _ref2, _ref3;
+var _ref, _ref2, _ref3, _ref4;
 // Object-rest keeps named slots at that level and reads through it native in usage-pure.
 // Independent reads and key/default expressions still receive their own polyfills.
 declare const userNs: {
@@ -32,12 +32,13 @@ let rest;
   },
   ...rest
 } = _globalThis);
-// an ARRAY-wrapped element has no way to drop: pruning the leaf under it would leave `[{}]` behind
+// An array-wrapped element captures the source before the dispatched read.
+[_ref] = [_globalThis];
 // a COMPUTED key is the one part of the pattern the dispatch never re-spells, so the slot is what
 // runs it - the legs part on how far that surviving residual COLLAPSES its receiver, which is the
 // SE-key channel's own question, not this one's
-wrapped = _flatMapMaybeArray(_globalThis.Array.prototype);
-_ref = {
-  prototype: _ref2
-} = _globalThis.Array, _ref3 = _ref2, null == _ref3 ? _ref3[""] : (effect(), computed = _includesMaybeArray(_ref3)), _ref3, _ref;
+wrapped = _flatMapMaybeArray(_ref.Array.prototype);
+_ref2 = {
+  prototype: _ref3
+} = _globalThis.Array, _ref4 = _ref3, null == _ref4 ? _ref4[""] : (effect(), computed = _includesMaybeArray(_ref4)), _ref4, _ref2;
 export { dropped, kept, sibling, other, rest, wrapped, computed, z };

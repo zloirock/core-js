@@ -1,7 +1,7 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
-var _ref, _ref2, _ref3, _ref4, _ref6;
+var _ref, _ref2, _ref3, _ref4, _ref6, _ref7;
 // Every host keeps the RHS value and runs its effects before the target writes.
 let of, from;
 function make() {
@@ -25,8 +25,5 @@ const foreign = {
   of: undefined,
   from: undefined
 };
-const custom = {
-  of,
-  from
-} = consume() ? foreign : Array;
+const custom = (_ref7 = consume() ? foreign : Array, of = _ref7 === Array ? _Array$of : _ref7["of"], from = _ref7 === Array ? _Array$from : _ref7["from"], _ref7);
 consume(custom, of, from, branch);

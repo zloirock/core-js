@@ -302,25 +302,29 @@ function mark(t, v) {
   }] = [...rest, Array];
 }
 {
+  var _ref8, _ref10, _ref9;
   let a;
-  var _unused;
-  [{
-    [(eff('k'), 'w')]: _unused
-  }] = [{
+  [_ref8] = [{
     w: src
   }];
-  a = _at(src);
+  _ref9 = _ref8;
+  ({
+    [(eff('k'), 'w')]: _ref10
+  } = null == _ref9 ? _ref9[""] : _ref9);
+  a = _at(_ref10);
 }
 {
+  var _ref11;
   let a;
-  [(_pushMaybeArray(log).call(log, 'c'), arr)];
-  a = _atMaybeArray(arr);
+  [_ref11] = [(_pushMaybeArray(log).call(log, 'c'), arr)];
+  a = _atMaybeArray(_ref11);
   use(a);
 }
 {
+  var _ref12, _ref13;
   let e, k;
-  [{
-    at: e
-  }, k] = [(g(), f()), 1];
+  [_ref12, _ref13] = [(g(), f()), 1];
+  e = _at(_ref12);
+  k = _ref13;
   use(e, k);
 }
