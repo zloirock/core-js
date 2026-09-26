@@ -2,7 +2,7 @@
 // The named-type resolver maps Pick to STRUCTURE_PRESERVING_WRAPPERS, returning
 // the resolved inner T (full T regardless of K). Probe whether picked
 // member access still narrows when K limits keys but the inner shape is
-// still queried by member name. Documented precision limit per CLAUDE.md.
+// still queried by member name. This fixture records the precision limit.
 type Source = { items: number[]; tags: string[]; meta: { ok: boolean } };
 type Picked = Pick<Source, 'items' | 'tags'>;
 declare const v: Picked;
