@@ -13,7 +13,7 @@ Build-time only, ESM. Node `^22.18.0 || >=24.11.0`; Babel 7 and 8. Keep `@core-j
 - `internals/import-injector.js`: imports, directives, generated names and scope bookkeeping.
 - `internals/estree-to-babel.js`: insertion-boundary conversion, total over the provider's builder vocabulary, not arbitrary source ASTs.
 - `internals/babel-compat.js`: Babel AST operations. The Babel 7/8 scope-bag differences belong to the import injector.
-- `internals/destructure-emission-plan.js`, `internals/destructure-emitter.js`, `internals/synth-swap-emitter.js`, `internals/synth-key-utils.js`: host emission. Shared decisions and render forms belong in the provider.
+- `internals/destructure-emission-plan.js`, `internals/destructure-emitter.js`, `internals/synth-swap-emitter.js`: host emission. Shared decisions and render forms belong in the provider.
 
 ## Host contracts
 

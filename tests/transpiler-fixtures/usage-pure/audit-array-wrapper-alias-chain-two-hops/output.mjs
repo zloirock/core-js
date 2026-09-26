@@ -4,5 +4,9 @@ import _Array$from from "@core-js/pure/actual/array/from";
 // const-binding cycle guard prevents infinite recursion on pathological re-aliases
 const a = [Array];
 const b = a;
+const [_ref] = b;
+const {
+  from: _unused
+} = _ref;
 const from = _Array$from;
 from([1, 2]);

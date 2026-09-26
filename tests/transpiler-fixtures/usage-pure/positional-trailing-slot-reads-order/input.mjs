@@ -1,8 +1,6 @@
-// The positional route renames the claimed array slot and reads it after the pattern binds. A slot
-// AFTER the claim's that reads or evaluates when the pattern binds - a nested pattern, a default,
-// a rest that destructures - would then run before the claim's own read, where native reads the
-// claim's level first; those keep the pattern native. A bare binding, a plain rest and a reader
-// BEFORE the claim keep the rename.
+// Native object neighbours share the positional capture and read after earlier claims.
+// Later plain bindings and array rest bind after those reads; earlier bindings stay in place.
+// A later default or destructuring rest keeps the pattern native.
 const seen = [];
 const mk = () => ({ get y() { seen.push('y'); return [7, 8]; } });
 const box = { get z() { seen.push('z'); return 2; } };

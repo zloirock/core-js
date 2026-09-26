@@ -57,6 +57,9 @@ const {
   y: nb.y,
   z: nb.z
 };
-const v5 = _flatMaybeArray(nb.y);
+const [_ref] = [{
+  y: nb.y
+}];
+const v5 = _flatMaybeArray(_ref.y);
 const it6 = _getIteratorMethod(nb.y);
 use(a1, a2, a3, v4, v5, it6);

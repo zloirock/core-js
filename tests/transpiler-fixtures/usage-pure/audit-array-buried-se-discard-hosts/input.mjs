@@ -1,6 +1,5 @@
-// an effect buried in a transparent single-element array wrapper must survive every
-// discard-and-rebuild host: the consumed wrapper drops, the effect lifts / re-embeds in
-// source order (a top-level-only sequence peel dropped it with the discarded init)
+// Effects inside array wrappers survive static extraction and residual capture.
+// Each initializer keeps its effects in source order and runs once.
 const seen = [];
 const eff = t => (seen.push(t), t);
 
@@ -45,9 +44,8 @@ const [{ Reflect: { ownKeys } }] = wrap;
 const wrap2 = [[(eff('j'), globalThis), eff('k')]];
 const [[{ Object: { entries } }]] = wrap2;
 
-// an INLINE SE-bearing extra ABOVE a dereferenced element lifts like any inline neighbour: the
-// alias's declaration is foreign (other readers observe it) and keeps its literal untouched,
-// while the inline level drops and re-emits its own effect ahead of the extraction
+// An inline trailing effect stays in the native initializer ahead of both array iterations.
+// The alias keeps its own literal; the native static read precedes the pure binding.
 const w3 = [globalThis];
 const [[{ Object: { hasOwn } }]] = [w3, eff('m')];
 

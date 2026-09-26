@@ -1,7 +1,5 @@
-// an array-wrapped element several claims read memoizes - but behind an EFFECTFUL predecessor
-// nothing may hoist, so the memo takes the SLOT itself: a write the literal performs exactly where
-// native evaluates the element, every reader following the declaration. a PURE predecessor keeps
-// the leading memo, which is the same question answered the other way
+// The wrapper evaluates its elements in order before any property reads.
+// A captured element is shared by the extracted method and the native length binding.
 const log = [];
 const rows = [[1, 2]];
 const [, { at: behindEffect, length: behindLength }] = [log.push('n'), rows.flat()];

@@ -1,11 +1,8 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _atMaybeString from "@core-js/pure/actual/string/instance/at";
-// over a plain array LITERAL the pairing OWNS the element: the claim resolves through the value the
-// element names, so the slot-rename route stands down and no minted name appears in any row. the
-// sides of that: a PROXY-GLOBAL element, whose claim reads the substituted root, and an OPAQUE hop
-// through a getter, whose claim reads the literal that getter returns - once where that literal
-// carries the name itself and pulls nothing, once where it is a STRING and `at` says which family
-// answered, which is what a lost type would show as the generic dispatcher
+// A plain array literal gives the paired claim its element value. A proxy-global element reads
+// the substituted root; an opaque getter hop keeps the returned value's type, including the
+// string instance family for `at`. The literal's own `at` value needs no polyfill.
 const proxyRoot = function () {
   const [{
     Array: {
@@ -45,7 +42,8 @@ const opaqueHopTyped = function () {
       };
     }
   };
-  const at = _atMaybeString(box.Array.prototype);
+  const [_ref] = [box];
+  const at = _atMaybeString(_ref.Array.prototype);
   return at;
 }();
 export { proxyRoot, opaqueHopOwnName, opaqueHopTyped };

@@ -7,11 +7,26 @@ import _Object$groupBy from "@core-js/pure/actual/object/group-by";
 // and a sequence tail all extract like the bare spelling. the NEGATIVE pins the boundary: a
 // spread hidden by the wrapper still makes the union incomplete, and the follow declines whole
 const [parenElement] = [[_globalThis]];
+const [{
+  Object: {
+    fromEntries: _unused
+  }
+}] = parenElement;
 export const viaParenElement = _Object$fromEntries;
 const [parenInit] = [[_globalThis]];
+const [{
+  Object: {
+    groupBy: _unused2
+  }
+}] = parenInit;
 export const viaParenInit = _Object$groupBy;
 let seq = 0;
 const [seqInit] = (seq++, [[_globalThis]]);
+const [{
+  Array: {
+    from: _unused3
+  }
+}] = seqInit;
 export const viaSeqInit = _Array$from;
 const xs = [];
 const [spreadUnderParen] = [...xs, [_globalThis]];

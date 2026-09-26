@@ -15,6 +15,7 @@ const generateModule = requireBabel('@babel/generator');
 import estreeToBabel from '../../packages/core-js-babel-plugin/internals/estree-to-babel.js';
 import {
   assignmentExpression,
+  blockStatement,
   bareImport,
   bareRequire,
   binaryExpression,
@@ -79,6 +80,7 @@ checkTruthy('literal/misminted negative bigint throws', caught({ type: 'Literal'
 check('literal/plain zero stays a NumericLiteral', estreeToBabel(literal(0)).type, 'NumericLiteral');
 check('literal/fraction stays a NumericLiteral', print(literal(1.5)), '1.5');
 check('expressionStatement', print(expressionStatement(identifier('x'))), 'x;');
+check('blockStatement', print(blockStatement([expressionStatement(identifier('x'))])), '{\n  x;\n}');
 check('callExpression', print(callExpression(identifier('f'), [literal(1)])), 'f(1)');
 check('memberExpression/plain', print(memberExpression(identifier('a'), identifier('b'))), 'a.b');
 check('memberExpression/computed', print(memberExpression(identifier('a'), literal('k'), { computed: true })), 'a["k"]');

@@ -1,13 +1,13 @@
+import _Array$from from "@core-js/pure/actual/array/from";
 import _Iterator from "@core-js/pure/actual/iterator";
-// the boundary of that fold: a computed key off an unbound name this pass does NOT substitute cannot
-// be spelled in a synth literal at all - raw it ReferenceErrors on the target - so the pattern keeps
-// the source's read and the genuine candidate beside it is reported, once, as left untouched. The key
-// itself is reported by nothing: it names no polyfill to leave behind. Keeps that diagnostic covered,
-// which the folding rows above no longer do.
+import _Iterator$from from "@core-js/pure/actual/iterator/from";
+// An unbound computed key stays in the native pattern and may still throw.
+// The preceding named static is guarded against the selected constructor.
 const cond = true;
-const {
-  from,
-  [appProvidedKey]: ctor
-} = cond ? Array : _Iterator;
+const _ref = cond ? Array : _Iterator,
+  from = null == _ref ? _ref[""] : _ref === Array ? _Array$from : _ref === _Iterator ? _Iterator$from : _ref["from"],
+  {
+    [appProvidedKey]: ctor
+  } = _ref;
 from([1, 2, 3]);
 ctor;

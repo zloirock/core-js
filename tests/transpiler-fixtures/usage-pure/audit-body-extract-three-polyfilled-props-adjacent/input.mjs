@@ -1,6 +1,5 @@
-// three adjacent polyfilled props + computed-key sibling scale the synthesized default
-// literal. three distinct methods (.from / .of / .fromAsync) so the imports identify
-// which key triggered which entry
+// An unknown computed sibling prevents a mirror. All calls use the default,
+// so the three adjacent statics extract into the body independently.
 const SYM = Symbol();
 function run({ from, of, fromAsync, [SYM]: x } = Array) {
   return [from, of, fromAsync, x];

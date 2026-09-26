@@ -8,18 +8,30 @@ const nb = {
   y: [1, [2]]
 };
 const nested = function () {
-  const flat = _flatMaybeArray(nb.y);
+  const {
+    pair: _ref
+  } = {
+    pair: [nb]
+  };
+  const [_ref2] = _ref;
+  const flat = _flatMaybeArray(_ref2.y);
   return flat;
 }();
 const flatClaim = function () {
-  const flat = _flatMaybeArray(nb.y);
+  const {
+    pair: _ref3
+  } = {
+    pair: [nb.y]
+  };
+  const [_ref4] = _ref3;
+  const flat = _flatMaybeArray(_ref4);
   return flat;
 }();
 // NEGATIVE: a NEIGHBOUR key that carries an effect pins the order - native builds the whole literal
 // before it destructures, so a read moved to the pairing would step over that effect
 const log = [];
 const besideAnEffect = function () {
-  const _ref = {
+  const _ref5 = {
       pair: [nb],
       zn: _pushMaybeArray(log).call(log, 'n')
     },
@@ -29,10 +41,10 @@ const besideAnEffect = function () {
           flat
         }
       }]
-    } = _ref,
+    } = _ref5,
     {
       zn
-    } = _ref;
+    } = _ref5;
   return [typeof flat, zn];
 }();
 export { nested, flatClaim, besideAnEffect };

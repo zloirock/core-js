@@ -15,7 +15,7 @@ let dropped, kept, sibling, wrapped, computed, other, z;
 ({ Array: { prototype: { at: sibling } }, z } = globalThis);
 let rest;
 ({ Array: { prototype: { fill: other } }, ...rest } = globalThis);
-// an ARRAY-wrapped element has no way to drop: pruning the leaf under it would leave `[{}]` behind
+// An array-wrapped element captures the source before the dispatched read.
 [{ Array: { prototype: { flatMap: wrapped } } }] = [globalThis];
 // a COMPUTED key is the one part of the pattern the dispatch never re-spells, so the slot is what
 // runs it - the legs part on how far that surviving residual COLLAPSES its receiver, which is the

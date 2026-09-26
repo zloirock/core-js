@@ -22,22 +22,26 @@ import {
   patternSlotTarget,
   positionalElements,
   resolveCallArgument,
+  statementListOf,
   patternFullyConsumed,
   peelNestedSequenceExpressions,
   peelTransparentExpr,
   peelToExpressionStatement,
   unwrapRuntimeExpr,
+  walkAstNodes,
   valueMayBeNullish,
   POSSIBLE_GLOBAL_OBJECTS,
 } from './helpers/ast-patterns.js';
 import {
   assignmentExpression,
+  blockStatement,
   callExpression,
   cloneNode,
   conditionalExpression,
   expressionStatement,
   identifier,
   literal as valueLiteral,
+  memberFromKeyName,
   memberExpression,
   objectPattern,
   objectProperty,
@@ -45,7 +49,9 @@ import {
   renderCtorIdentityNarrow,
   renderInstanceDefaultGuard,
   renderKeyedDestructureRead,
+  renderPositionalDestructurePlan,
   sequenceExpression,
+  variableDeclaration,
   variableDeclarator,
 } from './render.js';
 import {
@@ -63,9 +69,12 @@ import {
   discardRescueNodesWithReads,
   isReReadableSurfaceNav,
   destructurePropLeafMeta,
+  flattenFallbackBranches,
   isReReferenceableReceiver,
+  patternComputedKeysSynthSafe,
   residualInitRunsEffects,
   staticContainerReceiverName,
+  wrapperElementNavPlacement,
 } from './detect-usage/destructure.js';
 import { hasConstructorEntry, resolve as resolveBuiltIn } from './index.js';
 
@@ -86,6 +95,20 @@ export function isBodylessStatementSlot(parent, host) {
   if (!parent) return false;
   if (parent.type === 'ArrowFunctionExpression') return parent.body === host;
   return (SINGLE_STATEMENT_SLOTS.get(parent.type) ?? []).some(slot => parent[slot] === host);
+}
+
+// the shape a bodyless slot takes back from its drain: ONE statement stays bare, several brace a
+// block - unless the host is a `var` declaration and every statement declares: those join as the
+// declarators of ONE `var`, the slot's own statement (babel's shape; a memo minted `const` rides
+// along as `var`, the function-scoped binding the other leg declares there too).
+// `embed` preserves host nodes at the render boundary, after classifying their shapes.
+export function bodylessSlotReplacement(hostNode, statements, embed = node => node) {
+  if (statements.length === 1) return embed(statements[0]);
+  if (hostNode?.type === 'VariableDeclaration' && hostNode.kind === 'var'
+    && statements.every(stmt => stmt.type === 'VariableDeclaration')) {
+    return variableDeclaration('var', statements.flatMap(stmt => stmt.declarations.map(embed)));
+  }
+  return blockStatement(statements.map(embed));
 }
 
 // iteration statements: `continue <label>` can target a label on one of these, and value flow has
@@ -139,13 +162,50 @@ export function classifyVariableDeclarationHost({ declaration, declarationParent
   };
 }
 
+// Place a nested leaf's flat twin without crossing another declarator. A paired array
+// element keeps the wrapper's existing nav placement; an outer object sibling requires
+// a separate statement at the declaration's end. Exports retain their existing route.
+// Assignment callers supply the already-admitted discarded statement; its leaf checks
+// remain with the assignment plan. This query neither rewrites nor registers the host.
+export function planNestedLeafHost(walk, assignmentStatement = null) {
+  if (assignmentStatement === false) return null;
+  const { declarator } = walk;
+  const wrapper = walk.wrapper && unwrapRuntimeExpr(declarator?.node?.init) === walk.wrapperRoot ? walk.wrapper : null;
+  const navPlacement = wrapper ? wrapperElementNavPlacement(walk) : null;
+  const siblingLevel = !wrapper && walk.climbed.slice(1).some(level => level.pattern.properties.length > 1);
+  const pattern = declarator?.node?.id ?? declarator?.node?.left;
+  if (wrapper ? !navPlacement || walk.hostPattern?.node?.properties?.length !== 1
+    : pattern?.type !== 'ObjectPattern' || (pattern.properties.length !== 1 && !siblingLevel)) return null;
+  const declaration = assignmentStatement ?? declarator.parentPath;
+  if (!assignmentStatement && (declaration?.node?.type !== 'VariableDeclaration'
+    || declaration.parentPath?.node?.type === 'ExportNamedDeclaration')) return null;
+  const parent = declaration.parentPath?.node;
+  const forInit = isForInitDeclaration(parent, declaration.node);
+  const bodyless = !forInit && !statementListOf(parent);
+  if (bodyless && !isBodylessStatementSlot(parent, declaration.node)) return null;
+  if (siblingLevel && (forInit || bodyless)) return null;
+  const declarators = declaration.node.declarations ?? [];
+  const index = declarators.indexOf(declarator.node);
+  if (wrapper && !forInit && index !== 0 && index !== declarators.length - 1) return null;
+  if (siblingLevel && index !== declarators.length - 1) return null;
+  return { declaration, wrapper, navPlacement, siblingLevel, forInit, bodyless };
+}
+
 // A loop-head extraction cannot re-read an element after its neighbours have evaluated: they may
 // replace its binding. A later pattern also reads in source order, after the earlier extraction.
 // Capture the positions once, then let each element's own declarations consume its captured value.
-// Rest positions and opaque spreads keep their original route. A forced capture can
-// retain a literal spread whose expanded positions are statically known.
+// This query declines array rest and opaque spreads. A forced capture can retain
+// a literal spread whose expanded positions are statically known, or one after
+// every captured position when its caller proves that prefix is fixed.
 export function planArrayWrapperCapture({
-  pattern, init, force = false, restPattern = null, adapter = null, injectorState = null, nestedOnly = false,
+  pattern,
+  init,
+  force = false,
+  restPattern = null,
+  adapter = null,
+  injectorState = null,
+  nestedOnly = false,
+  trailingSpread = false,
 }) {
   if (restPattern && restPattern.properties?.at(-1)?.type !== 'RestElement'
     && !restPattern.properties?.some(computedKeyHasSideEffects)) return null;
@@ -164,7 +224,9 @@ export function planArrayWrapperCapture({
     if ((!force && literal?.type !== 'ArrayExpression')
       || level.elements.some(element => element?.type === 'RestElement')
       || (literal?.elements?.some(element => element?.type === 'SpreadElement')
-        && (!force || !positionalElements(literal.elements)))) return false;
+        && (!force || !positionalElements(literal.elements)
+          && (!trailingSpread
+            || literal.elements.findIndex(element => element?.type === 'SpreadElement') < level.elements.length)))) return false;
     return level.elements.every((element, index) => {
       if (!element) return true;
       const position = [...path, index];
@@ -211,6 +273,7 @@ function wrapperCarriesOpaqueNestedClaim(pattern, array) {
 
 // The capture and the per-element declarations share one reference per consumed position. `embed`
 // is the binding's source-node boundary; the patterns move rather than being interpreted here.
+// A rest keeps its native collection in the capture and binds its argument at the source slot.
 export function renderArrayWrapperCapture(plan, { mintRef, embed = node => node }) {
   const refs = new Map();
   const elements = plan.elements.map(element => {
@@ -219,18 +282,236 @@ export function renderArrayWrapperCapture(plan, { mintRef, embed = node => node 
     return {
       ...element,
       ref,
-      declarator: variableDeclarator(embed(element.pattern), identifier(ref)),
+      declarator: variableDeclarator(
+        embed(element.pattern.type === 'RestElement' ? element.pattern.argument : element.pattern),
+        identifier(ref),
+      ),
     };
   });
   function capturePattern(pattern) {
     if (!pattern) return null;
     const ref = refs.get(pattern);
-    return ref ? identifier(ref) : { ...pattern, elements: pattern.elements.map(capturePattern) };
+    if (ref) return pattern.type === 'RestElement' ? { ...pattern, argument: identifier(ref) } : identifier(ref);
+    return pattern.type === 'ArrayPattern' ? { ...pattern, elements: pattern.elements.map(capturePattern) } : pattern;
   }
   return {
     capture: variableDeclarator(embed(capturePattern(plan.pattern)), embed(plan.init)),
     elements,
   };
+}
+
+// Retain a sole static leaf's native pattern reads, replacing only its binding/default.
+// The source plan has already proved every surrounding hop safe to read natively.
+function renderStaticSentinelPattern(pattern, mintUnused) {
+  const native = cloneNode(pattern);
+  walkAstNodes({
+    root: native,
+    visit(node, parent) {
+      if (parent?.type === 'ObjectPattern' && isPropertyNode(node) && propBindingIdentifier(node.value)) {
+        node.value = identifier(mintUnused());
+        node.shorthand = false;
+      }
+    },
+  });
+  return native;
+}
+
+// Render the complete array host. A capture keeps each element's original value;
+// its native fragments and independent reads then follow source property order.
+// Bindings supply imports, memo names, source embedding and comment attachments only.
+export function renderArrayDestructurePlan(plan, {
+  kind,
+  init,
+  embed,
+  retain = embed,
+  read,
+  injectImport,
+  mintRef,
+  mintDeclaredRef,
+  mintUnused,
+  decorate = node => node,
+}) {
+  if (plan.array.objectCapture) {
+    const outer = renderNestedKeyedPatternCapture(plan.array.objectCapture, { mintRef, embed });
+    const leaf = outer.elements.find(element => element.pattern === plan.array.objectCapture.leafPattern);
+    const inner = renderArrayDestructurePlan({
+      ...plan,
+      array: { ...plan.array, objectCapture: null, capture: { ...plan.array.capture, init: identifier(leaf.ref) } },
+    }, { kind, init, embed, retain, read, injectImport, mintRef, mintDeclaredRef, mintUnused, decorate });
+    return [{ declarator: outer.capture }, ...outer.elements].flatMap(element => element === leaf ? inner
+      : [plan.array.assignment
+        ? expressionStatement(assignmentExpression('=', element.declarator.id, element.declarator.init))
+        : variableDeclaration(kind, [element.declarator])]);
+  }
+  function extract(extraction, receiver) {
+    let value = read(extraction, receiver);
+    if (extraction.defaultNode) {
+      const memo = identifier(mintDeclaredRef());
+      value = renderInstanceDefaultGuard({
+        assignedRef: memo,
+        call: value,
+        reread: memo,
+        defaultValue: embed(extraction.defaultNode),
+        defaultName: extraction.localName,
+      });
+    }
+    return decorate(
+      plan.array.assignment
+        ? expressionStatement(assignmentExpression('=', embed(extraction.targetNode), value))
+        : plan.array.joinResidual ? variableDeclarator(embed(extraction.targetNode), value)
+          : variableDeclaration(kind, [variableDeclarator(embed(extraction.targetNode), value)]),
+      extraction.prop,
+      extraction.localName === plan.array.inlineExport,
+    );
+  }
+  if (plan.array.nativeStatic) {
+    const native = renderStaticSentinelPattern(plan.pattern, mintUnused);
+    return [
+      variableDeclaration(kind, [variableDeclarator(embed(native), embed(init))]),
+      ...plan.extractions.map(extraction => extract(extraction, null)),
+    ];
+  }
+  if (plan.array.capture) {
+    const captured = renderArrayWrapperCapture(plan.array.capture, { mintRef, embed });
+    if (plan.array.normalize) {
+      return [captured.capture, ...captured.elements.map(element => element.declarator)].map(declarator => plan.array.assignment
+        ? expressionStatement(assignmentExpression('=', declarator.id, declarator.init))
+        : variableDeclaration(kind, [declarator]));
+    }
+    const plannedElements = new Map(plan.array.elements.map(element => [element.sourceNode ?? element.node, element]));
+    const capture = plan.array.assignment
+      ? expressionStatement(assignmentExpression('=', captured.capture.id, captured.capture.init))
+      : variableDeclaration(kind, [captured.capture]);
+    return [
+      capture,
+      ...captured.elements.flatMap(element => {
+        const planned = plannedElements.get(element.pattern);
+        if (planned.retained) {
+          const ref = identifier(element.ref);
+          const rendered = renderRetainedObjectCapture(
+            {
+              ...planned.retained,
+              init: ref,
+              // Iteration already evaluated this source, including its prefix and stores.
+              restEffects: [],
+              restSource: planned.retained.restSource ? ref : null,
+            },
+            {
+              mintRef,
+              mintDeclaredRef,
+              mintUnused: mintDeclaredRef,
+              injectImport,
+              embed,
+              entry: planned.extraction.entry,
+              hintName: planned.extraction.hint,
+            },
+          );
+          return rendered.expression ? [expressionStatement(rendered.expression)]
+            : rendered.declarations.map(declarator => variableDeclaration(kind, [declarator]));
+        }
+        if (planned.kind === 'verbatim') return [plan.array.assignment
+          ? expressionStatement(assignmentExpression('=', element.declarator.id, element.declarator.init))
+          : variableDeclaration(kind, [element.declarator])];
+        const groups = [];
+        for (const child of planned.children) {
+          if (plan.array.positional && child.kind === 'verbatim'
+            && groups.at(-1)?.kind === 'verbatim') groups.at(-1).props.push(child.prop);
+          else groups.push(child.kind === 'verbatim' ? { ...child, props: [child.prop] } : child);
+        }
+        function renderLeaf(receiver, children = groups) {
+          return children.flatMap(child => {
+            if (child.kind === 'verbatim') return [plan.array.assignment
+              ? expressionStatement(assignmentExpression('=', objectPattern((child.props ?? [child.prop]).map(embed)), receiver))
+              : variableDeclaration(kind, [variableDeclarator(objectPattern((child.props ?? [child.prop]).map(embed)), receiver)])];
+            if (child.keyedCapture) {
+              const keyed = renderNestedKeyedPatternCapture({ ...child.keyedCapture, init: receiver }, { mintRef, embed });
+              const fragments = [{ declarator: keyed.capture }, ...keyed.elements];
+              return fragments.flatMap(fragment => {
+                if (fragment.pattern === child.keyedCapture.leafPattern) {
+                  return renderLeaf(identifier(fragment.ref), child.children);
+                }
+                return [plan.array.assignment
+                  ? expressionStatement(assignmentExpression('=', fragment.declarator.id, fragment.declarator.init))
+                  : variableDeclaration(kind, [fragment.declarator])];
+              });
+            }
+            const reads = child.extractions.map(extraction => extract(extraction, child.nested
+              ? child.nestedKeys.reduce(memberFromKeyName, receiver) : receiver));
+            if (child.nativeStatic) {
+              const native = renderStaticSentinelPattern(objectPattern([child.prop]), mintUnused);
+              reads.unshift(variableDeclaration(kind, [variableDeclarator(embed(native), receiver)]));
+            } else if ((plan.array.capturedStatic || plan.array.capturedKey) && child.sentinel) {
+              const sentinel = objectProperty(embed(child.prop.key), identifier(mintUnused()), { computed: child.prop.computed });
+              reads.unshift(variableDeclaration(kind, [variableDeclarator(objectPattern([sentinel]), receiver)]));
+            }
+            return reads;
+          });
+        }
+        if (planned.positional) {
+          if (planned.anchorPure) return renderLeaf(identifier(injectImport(planned.anchorPure.entry, planned.anchorPure.hintName)));
+          const rendered = renderPositionalDestructurePlan(planned, { kind, refName: element.ref, mintRef, embed, renderLeaf });
+          return [...rendered.leading, ...rendered.body, ...rendered.trailing];
+        }
+        let receiver = (planned.nestedKeys ?? []).reduce(memberFromKeyName, identifier(element.ref));
+        const leading = [];
+        if (planned.nested && planned.children.length > 1) {
+          const ref = identifier(mintRef());
+          leading.push(variableDeclaration(kind, [variableDeclarator(ref, receiver)]));
+          receiver = ref;
+        }
+        return [...leading, ...renderLeaf(receiver)];
+      }),
+    ];
+  }
+  const refs = new Map();
+  const memos = plan.array.memos.map(receiver => {
+    const ref = identifier(mintRef());
+    refs.set(receiver, ref);
+    return variableDeclaration(plan.array.inDeclaration ? kind : 'const', [variableDeclarator(ref, embed(receiver))]);
+  });
+  const extracted = plan.extractions.map(extraction => extract(
+    extraction,
+    extraction.kind === 'static' ? null : refs.get(extraction.receiver) ?? embed(extraction.receiver),
+  ));
+  const leading = plan.array.leading.map(node => expressionStatement(embed(node)));
+  if (plan.array.dropsResidual) return [
+    ...leading,
+    ...plan.array.discarded.map(node => expressionStatement(embed(node))),
+    ...memos,
+    ...extracted,
+  ];
+  const residualInit = cloneNode(plan.array.liftedInit ?? init);
+  unwrapRuntimeExpr(residualInit).elements = plan.array.initElements.map(node => refs.get(node) ?? cloneNode(node));
+  const residualPattern = { ...plan.array.residualPattern, elements: [...plan.array.residualPattern.elements] };
+  for (const element of plan.array.elements) {
+    const sentinels = element.children?.filter(child => child.sentinel).map(child => child.prop);
+    if (!sentinels?.length) continue;
+    let pattern = residualPattern.elements[element.index];
+    const levels = element.staticLevels ?? [];
+    for (let index = levels.length - 1; index >= 0; index--) pattern = pattern.properties[0].value;
+    pattern = {
+      ...pattern,
+      properties: pattern.properties.map(prop => sentinels.includes(prop)
+        ? { ...prop, value: identifier(mintUnused()), shorthand: false } : prop),
+    };
+    for (const level of levels) pattern = { ...level.pattern, properties: [{ ...level.prop, value: pattern }] };
+    residualPattern.elements[element.index] = pattern;
+  }
+  const residual = variableDeclarator(embed(residualPattern), embed(residualInit));
+  if (plan.array.joinResidual) {
+    const { before, after, exported } = plan.array.joinResidual;
+    return [
+      ...before.length ? [decorate(variableDeclaration(kind, before.map(retain)), null, exported)] : [],
+      ...leading,
+      ...memos,
+      decorate(variableDeclaration(kind, [
+        ...plan.array.after ? [residual, ...extracted] : [...extracted, residual],
+        ...after.map(retain),
+      ]), null, exported),
+    ];
+  }
+  const declaration = variableDeclaration(kind, [residual]);
+  return [...leading, ...memos, ...plan.array.after ? [declaration, ...extracted] : [...extracted, declaration]];
 }
 
 // Split an object-pattern hop chain at its innermost binding when a computed key must stay
@@ -417,7 +698,31 @@ export function planRetainedObjectCapture({
   provenCtorName = null,
 }) {
   if (prop && isClaimedProp?.(prop)) return null;
-  const guarded = !!resolvedMeta?.guardedAliasHint && kind === 'instance';
+  // The existing identity guard also serves a selecting receiver whose unknown key
+  // prevents a mirror. Its original pattern reads each unclaimed property separately.
+  const guardedFallback = hostPath && resolvedMeta?.fromFallback && pattern?.properties?.includes(prop)
+    && (assignment && !assignmentValueDiscarded(hostPath)
+      || kind === 'static' && !patternComputedKeysSynthSafe({
+        objectPatternNode: pattern,
+        scope: hostPath.scope,
+        adapter,
+        path: hostPath,
+      }));
+  const fallbackObjects = guardedFallback ? flattenFallbackBranches({
+    node: init,
+    key: resolvedMeta.key,
+    scope: hostPath.scope,
+    adapter,
+    path: hostPath,
+  }).map(meta => meta.object) : [];
+  const guardMeta = fallbackObjects.length ? {
+    ...resolvedMeta,
+    object: null,
+    guardedAliasHint: fallbackObjects[0],
+    guardedWriteObjects: fallbackObjects,
+    guardOnly: true,
+  } : resolvedMeta;
+  const guarded = !!guardMeta?.guardedAliasHint && (kind === 'instance' || guardedFallback);
   if (guarded && pattern?.type === 'ObjectPattern' && !pattern.properties.includes(prop)) {
     const capture = planNestedKeyedPatternCapture({ pattern, init, allowArray: true })
       ?? planNestedKeyedPatternCapture({ pattern, init, force: true, allowArray: true });
@@ -457,15 +762,20 @@ export function planRetainedObjectCapture({
 
   if (!init || pattern?.type !== 'ObjectPattern') return null;
   // A selecting receiver with a user branch belongs to the per-branch mirror.
-  const selection = kind === 'static' && computedKeyHasSideEffects(prop)
+  const selection = !guardedFallback && kind === 'static' && computedKeyHasSideEffects(prop)
     ? unwrapRuntimeExpr(peelNestedSequenceExpressions(init).tail) : null;
   if ((selection?.type === 'ConditionalExpression' || selection?.type === 'LogicalExpression')
     && !allProxySelectingInit(selection, { adapter, injectorState })) return null;
   const guardedPlan = guarded && pattern.properties.includes(prop) && resolvePure ? planGuardedNarrow?.({
-    memberNode: memberExpression(identifier(''), identifier(resolvedMeta.key)), parent: null,
-    meta: resolvedMeta, path: hostPath, resolvePure, adapter,
+    memberNode: memberExpression(identifier(''), identifier(resolvedMeta.key)),
+    parent: null,
+    meta: guardMeta,
+    path: hostPath,
+    resolvePure,
+    adapter,
   }) : null;
-  const narrow = guardedPlan?.instanceFallback?.kind === 'instance' ? guardedPlan : null;
+  const narrow = guardedPlan && !guardedPlan.bail
+    && (guardedFallback || guardedPlan.instanceFallback?.kind === 'instance') ? guardedPlan : null;
   const rest = pattern.properties.find(isRestProperty);
   if (rest && kind === 'instance') return null;
   if ((assignment || hasConstructorEntry(resolvedMeta?.object)) && kind === 'static' && !pattern.properties.includes(prop)) {
@@ -493,8 +803,7 @@ export function planRetainedObjectCapture({
       const inner = ctor && planRetainedObjectCapture({ pattern: nested.value, init: receiver, assignment, prop,
         hostPath, adapter, resolveNodeType, injectorState, kind, entry, resolvePure, resolveStaticProp,
         isClaimedProp, provenCtorName: ctor });
-      if (inner && (assignment || inner.restPure)) return { pattern, init, assignment, prop: nested, rest, primaryKey: key,
-        nestedRest: { prop: nested, plan: inner, key } };
+      if (inner) return { pattern, init, assignment, prop: nested, rest, primaryKey: key, nestedRest: { prop: nested, plan: inner, key } };
     }
   }
   if (assignment && kind === 'instance' && entry !== 'get-iterator-method' && !pattern.properties.includes(prop)) {
@@ -504,10 +813,13 @@ export function planRetainedObjectCapture({
   const target = prop?.value?.type === 'AssignmentPattern' ? prop.value.left : prop?.value;
   // A consumed assignment yields its original receiver. The existing ordered capture already
   // keeps that receiver once, writes each claimed slot in source order, and yields the memo.
+  // A proven nested constructor under an array capture uses the same ordered binding
+  // before its parent's rest copy. Ordinary object declarations retain their existing plan.
   const statement = assignment && hostPath ? peelToExpressionStatement(hostPath)?.exprStmt : null;
-  const consumed = assignment && hostPath
-    && (!assignmentValueDiscarded(hostPath) || kind !== 'global' && discardedSequenceElement(hostPath)
-      || statement && isBodylessStatementSlot(statement.parentPath?.node, statement.node))
+  const consumed = hostPath
+    && (assignment ? provenCtorName || !assignmentValueDiscarded(hostPath) || kind !== 'global' && discardedSequenceElement(hostPath)
+      || statement && isBodylessStatementSlot(statement.parentPath?.node, statement.node)
+      : provenCtorName && hostPath.node?.id?.type === 'ArrayPattern')
     && pattern.properties.includes(prop) && target?.type === 'Identifier';
   const nestedDefault = !assignment && pattern.properties.length > 1
     && pattern.properties.some(item => item.value?.type === 'AssignmentPattern' && item.value.left?.type === 'ObjectPattern');
@@ -553,7 +865,8 @@ export function planRetainedObjectCapture({
   // assignment host, a MEMBER target the extraction canon admits: the render writes whatever it is.
   function siblingStaticEntries() {
     const ctor = initCtorName();
-    if ((!assignment && !rest) || !resolveStaticProp || !resolvePure || !ctor || !isStaticPlacement(ctor)) return null;
+    if ((!assignment && !rest && !narrow) || !resolveStaticProp || !resolvePure
+      || (!narrow && (!ctor || !isStaticPlacement(ctor)))) return null;
     const entries = new Map();
     for (const item of pattern.properties) {
       const memberRoot = { scope: hostPath?.scope, adapter, path: hostPath };
@@ -567,6 +880,18 @@ export function planRetainedObjectCapture({
       const keyName = resolveKey({
         node: item.key, computed: item.computed, scope: hostPath?.scope, adapter, path: hostPath, keepsKeyNode: true,
       });
+      if (narrow && keyName !== null) {
+        const siblingNarrow = planGuardedNarrow?.({
+          memberNode: memberExpression(identifier(''), valueLiteral(keyName), { computed: true }),
+          parent: null,
+          meta: { ...guardMeta, key: keyName },
+          path: hostPath,
+          resolvePure,
+          adapter,
+        });
+        if (siblingNarrow && !siblingNarrow.bail) entries.set(item, { narrow: siblingNarrow, key: keyName });
+        continue;
+      }
       const resolved = resolveStaticProp({
         prop: item,
         receiverName: ctor,
@@ -680,13 +1005,13 @@ export function planRetainedObjectCapture({
       keyName: resolveKey({
         node: prop.key, computed: prop.computed, scope: hostPath.scope, adapter, path: hostPath, keepsKeyNode: true,
       }) }) : null;
-  if ((consumed || rest) && kind !== 'instance' && !primaryStatic) return null;
+  if ((consumed || rest) && kind !== 'instance' && !primaryStatic && !narrow) return null;
   const retainedStatic = (consumed || rest ? !!primaryStatic : kind === 'static' || kind === 'global')
     && (!assignment || target?.type === 'Identifier' || (keyOrderSplit
       && !!memberTargetTakesExtraction(prop.value, { scope: hostPath.scope, adapter, path: hostPath })))
     && pattern.properties.includes(prop)
     && (consumed || rest || symbolPattern || computedKeyHasSideEffects(prop) || keyOrderSplit);
-  if (kind !== 'instance' && !symbolPattern && !retainedStatic && !nestedSibling) return null;
+  if (kind !== 'instance' && !symbolPattern && !retainedStatic && !nestedSibling && !narrow) return null;
   if (!provenCtorName && !symbolPattern && !nestedSibling && adapter
     && allProxySelectingInit(init, { adapter, injectorState })) return null;
   const siblingStatics = siblingStaticEntries();
@@ -695,8 +1020,16 @@ export function planRetainedObjectCapture({
   // Key effects run with their ordered writes, then the exclusions use their folded keys.
   if (rest && (!retainedStatic || pattern.properties.some(item => item !== rest
     && (!propBindingIdentifier(item.value) || (item !== prop && !siblingStatics?.has(item)))))) return null;
-  return { pattern, init, assignment, prop, narrow, retainedStatic, primaryPure: primaryStatic?.pure,
-    siblingStatics, rest,
+  return {
+    pattern,
+    init,
+    assignment,
+    prop,
+    narrow,
+    retainedStatic,
+    primaryPure: primaryStatic?.pure,
+    siblingStatics,
+    rest,
     // the receiver IS a constructor the read side names, on a spelling that cannot come out nullish
     // (no `?.`, no lowered short-circuit): the null rejection the keyed read would keep in front of
     // the key's effects is dead there
@@ -704,7 +1037,7 @@ export function planRetainedObjectCapture({
     // ... and a receiver that cannot come out nullish at all, narrowed or not (a selection whose
     // fallback is proven, `x || Object`): the guarded read keeps no rejection in front of it either
     receiverNeverNullish: keyedReadReceiverProven({ init, hostPath, adapter }),
-    primaryKey: rest ? resolveKey({
+    primaryKey: narrow ? resolvedMeta.key : rest ? resolveKey({
       node: prop.key,
       computed: prop.computed,
       keepsKeyNode: true,
@@ -718,7 +1051,8 @@ export function planRetainedObjectCapture({
     // removes such a prop before this render sees it, the other's defers the removal to its drain,
     // and the render owes the same output either way
     claimedProps: assignment && isClaimedProp
-      ? new Set(pattern.properties.filter(item => isClaimedProp(item))) : null };
+      ? new Set(pattern.properties.filter(item => isClaimedProp(item))) : null,
+  };
 }
 
 // the receiver of a keyed destructure read IS a constructor the read side names, on a spelling that
@@ -831,8 +1165,12 @@ export function renderRetainedObjectCapture(plan, {
     } else if (!plan.assignment && prop === plan.prop && entry) {
       const defaulted = prop.value.type === 'AssignmentPattern';
       const target = defaulted ? prop.value.left : prop.value;
-      // The guarded plan owns both the static branch and its instance fallback.
-      let read = plan.narrow ? renderCtorIdentityNarrow(plan.narrow, null, { injectImport, spellRecv: () => ref })
+      // The guarded plan owns the static branch and its instance or native fallback.
+      let read = plan.narrow ? renderCtorIdentityNarrow(
+        plan.narrow,
+        memberExpression(ref, valueLiteral(plan.primaryKey), { computed: true }),
+        { injectImport, spellRecv: () => ref },
+      )
         : callExpression(identifier(injectImport(entry, hintName)), [ref]);
       if (defaulted) {
         const memo = identifier(mintDeclaredRef());
@@ -856,8 +1194,12 @@ export function renderRetainedObjectCapture(plan, {
         noteStaticAlias?.(target.name, entry);
       }
       const pure = plan.narrow ? null : identifier(injectImport(entry, hintName));
-      // The guarded plan owns both the static branch and its instance fallback.
-      let read = plan.narrow ? renderCtorIdentityNarrow(plan.narrow, null, { injectImport, spellRecv: () => ref })
+      // The guarded plan owns the static branch and its instance or native fallback.
+      let read = plan.narrow ? renderCtorIdentityNarrow(
+        plan.narrow,
+        memberExpression(ref, valueLiteral(plan.primaryKey), { computed: true }),
+        { injectImport, spellRecv: () => ref },
+      )
         : plan.retainedStatic ? pure : callExpression(pure, [ref]);
       if (defaulted && !plan.retainedStatic) {
         const memo = identifier(mintDeclaredRef());
@@ -869,11 +1211,23 @@ export function renderRetainedObjectCapture(plan, {
       const keyEffects = prop.computed ? observableSequenceElements([...prefix, tail], ctx).map(embed) : [];
       assignments.push(keyEffects.length ? sequenceExpression([...keyEffects, write]) : write);
     } else if (plan.siblingStatics?.has(prop)) {
-      // the polyfill is always defined, so the user's default over it is dead text and drops
-      const { entry: siblingEntry, hint, native, key } = plan.siblingStatics.get(prop);
+      // A direct polyfill drops the dead default; a guarded native fallback keeps it.
+      const { entry: siblingEntry, hint, native, key, narrow } = plan.siblingStatics.get(prop);
       const target = prop.value.type === 'AssignmentPattern' ? prop.value.left : prop.value;
-      if (!native && target.type === 'Identifier') noteStaticAlias?.(target.name, siblingEntry);
-      const read = native ? memberExpression(ref, valueLiteral(key), { computed: true }) : identifier(injectImport(siblingEntry, hint));
+      if (!native && !narrow && target.type === 'Identifier') noteStaticAlias?.(target.name, siblingEntry);
+      const raw = narrow || native ? memberExpression(ref, valueLiteral(key), { computed: true }) : null;
+      let read = narrow ? renderCtorIdentityNarrow(narrow, raw, { injectImport, spellRecv: () => ref })
+        : native ? raw : identifier(injectImport(siblingEntry, hint));
+      if (narrow && prop.value.type === 'AssignmentPattern') {
+        const memo = identifier(mintDeclaredRef());
+        read = renderInstanceDefaultGuard({
+          assignedRef: memo,
+          call: read,
+          reread: memo,
+          defaultValue: embed(prop.value.right),
+          defaultName: target.name,
+        });
+      }
       const siblingWrite = assignmentExpression('=', embed(target), read);
       // the read is gone, the key's own effects are not: they ran where the source spelled them
       const { prefix: siblingPrefix, tail: siblingTail } = peelNestedSequenceExpressions(prop.key);

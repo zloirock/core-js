@@ -3,9 +3,8 @@ import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _includes from "@core-js/pure/actual/instance/includes";
 var _ref7, _ref8, _ref9;
-// Several positional claims in one array pattern: a later slot's rename frees the earlier slots
-// (they declined while the later slot still read as a pattern), on every host and through every
-// array level, and the extractions keep the source order. Both legs cascade the same way.
+// Positional captures retain nested array slots and read their claims in source order.
+// Each declarator completes before the next one evaluates, across the supported host forms.
 const seen = [];
 const mk = () => ({
   get y() {
@@ -36,38 +35,39 @@ c2 = _atMaybeArray(_ref9);
 const [_ref10,, _ref11] = rows;
 const a3 = _atMaybeArray(_ref10);
 const c3 = _atMaybeArray(_ref11);
-const [_ref12, _ref13, ...rest4] = rows;
+const [_ref12, _ref13, ..._ref14] = rows;
 const a4 = _atMaybeArray(_ref12);
 const b4 = _atMaybeArray(_ref13);
-const [[_ref14], [_ref15]] = nested;
-const a5 = _atMaybeArray(_ref14.y);
-const b5 = _atMaybeArray(_ref15);
-const [_ref16, _ref17] = rows;
-const a6 = _atMaybeArray(_ref16);
-export const b6 = _includesMaybeArray(_ref17);
+const rest4 = _ref14;
+const [[_ref15], [_ref16]] = nested;
+const a5 = _atMaybeArray(_ref15.y);
+const b5 = _atMaybeArray(_ref16);
+const [_ref17, _ref18] = rows;
+const a6 = _atMaybeArray(_ref17);
+export const b6 = _includesMaybeArray(_ref18);
 export { a6 };
 let r7;
-for (const _ref20 of [rows]) {
-  let [_ref18, _ref19] = _ref20;
-  let a7 = _atMaybeArray(_ref18);
-  let b7 = _includes(_ref19);
+for (const _ref21 of [rows]) {
+  let [_ref19, _ref20] = _ref21;
+  let a7 = _atMaybeArray(_ref19);
+  let b7 = _includes(_ref20);
   r7 = [a7, b7];
 }
 let r8;
-for (const [_ref21, _ref22] = rows, a8 = _atMaybeArray(_ref21), b8 = _includesMaybeArray(_ref22); !r8;) r8 = [a8, b8];
+for (const [_ref22, _ref23] = rows, a8 = _atMaybeArray(_ref22), b8 = _includesMaybeArray(_ref23); !r8;) r8 = [a8, b8];
 let r9;
 if (rows) {
-  const [_ref23, _ref24] = rows;
-  const a9 = _atMaybeArray(_ref23);
-  const b9 = _includesMaybeArray(_ref24);
+  const [_ref24, _ref25] = rows;
+  const a9 = _atMaybeArray(_ref24);
+  const b9 = _includesMaybeArray(_ref25);
   r9 = [a9, b9];
 }
-const x10 = 1,
-  [_ref25, _ref26] = rows,
-  y10 = 2;
-const a10 = _atMaybeArray(_ref25);
-const b10 = _includesMaybeArray(_ref26);
-const [_ref27, _ref28] = pair;
-const a11 = _atMaybeArray(_ref27.y);
-const b11 = _includesMaybeArray(_ref28.z);
+const x10 = 1;
+const [_ref26, _ref27] = rows;
+const a10 = _atMaybeArray(_ref26);
+const b10 = _includesMaybeArray(_ref27);
+const y10 = 2;
+const [_ref28, _ref29] = pair;
+const a11 = _atMaybeArray(_ref28.y);
+const b11 = _includesMaybeArray(_ref29.z);
 export { a1, b1, c1, d1, e1, f1, a2, b2, c2, a3, c3, a4, b4, rest4, a5, b5, r7, r8, r9, x10, a10, b10, y10, a11, b11, seen };

@@ -26,13 +26,12 @@ const at3 = _at(c ? arr : o1);
 const keys3 = _keys(c ? arr : o2);
 export { at3, keys3 };
 
-// a SURVIVING prop keeps the residual, and the extraction still lands BEFORE it - the shape the
-// flat channel emits for the same receiver, whatever order the pattern spells the props in
-const _ref3 = c ? arr : o3;
+// A surviving property reads from the captured element in source property order.
+const [_ref3] = [c ? arr : o3];
 const at4 = _at(_ref3);
-const [{
+const {
   other: other4
-}] = [_ref3];
+} = _ref3;
 export { at4, other4 };
 
 // a loop header has no statement list to spread declarators into, so the up-front elimination

@@ -218,9 +218,11 @@ function mark(t, v) {
 }
 {
   for (const _r of [[Object]]) {
-    let [{
-      values
-    }] = _r;
+    let [_ref11] = _r;
+    let {
+      values: _unused
+    } = _ref11;
+    let values = _Object$values;
     values;
   }
 }
@@ -245,9 +247,9 @@ function mark(t, v) {
     w: userObj
   }]) {
     let {
-        w: _ref11
+        w: _ref12
       } = _r,
-      keys = _ref11 === Object ? _Object$keys : _keys(_ref11);
+      keys = _ref12 === Object ? _Object$keys : _keys(_ref12);
     keys;
   }
 }
@@ -299,7 +301,7 @@ function mark(t, v) {
   }]) {
     let entries = _Object$entries;
     let {
-      w: _unused,
+      w: _unused2,
       ...rest
     } = _r;
     entries;
@@ -350,13 +352,13 @@ function mark(t, v) {
   }
 }
 {
-  for (const _ref13 of [_globalThis, {
+  for (const _ref14 of [_globalThis, {
     Array
   }]) {
     let {
-        Array: _ref12
-      } = _ref13,
-      from = _ref12 === Array ? _Array$from : _ref12.from;
+        Array: _ref13
+      } = _ref14,
+      from = _ref13 === Array ? _Array$from : _ref13.from;
     from;
   }
 }

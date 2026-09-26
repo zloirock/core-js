@@ -2,11 +2,9 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _sliceMaybeArray from "@core-js/pure/actual/array/instance/slice";
 import _at from "@core-js/pure/actual/instance/at";
-// The positional route renames the claimed array slot and reads it after the pattern binds. A slot
-// AFTER the claim's that reads or evaluates when the pattern binds - a nested pattern, a default,
-// a rest that destructures - would then run before the claim's own read, where native reads the
-// claim's level first; those keep the pattern native. A bare binding, a plain rest and a reader
-// BEFORE the claim keep the rename.
+// Native object neighbours share the positional capture and read after earlier claims.
+// Later plain bindings and array rest bind after those reads; earlier bindings stay in place.
+// A later default or destructuring rest keeps the pattern native.
 const seen = [];
 const mk = () => ({
   get y() {
@@ -22,13 +20,11 @@ const box = {
 };
 const pair = [mk(), box];
 const solo = [mk()];
-const [{
-  y: {
-    at: a1
-  }
-}, {
+const [_ref, _ref2] = pair;
+const a1 = _atMaybeArray(_ref.y);
+const {
   z: z1
-}] = pair;
+} = _ref2;
 const [{
   y: {
     at: a2
@@ -41,14 +37,16 @@ const [{
 }, ...[{
   z: z3
 }]] = pair;
-const [_ref, t4] = pair;
-const a4 = _atMaybeArray(_ref.y);
-const [_ref2, ...r5] = pair;
-const a5 = _atMaybeArray(_ref2.y);
+const [_ref3, _ref4] = pair;
+const a4 = _atMaybeArray(_ref3.y);
+const t4 = _ref4;
+const [_ref5, ..._ref6] = pair;
+const a5 = _atMaybeArray(_ref5.y);
+const r5 = _ref6;
 const [{
   z: z6
-}, _ref3] = _sliceMaybeArray(pair).call(pair).reverse();
-const a6 = _at(_ref3.y);
+}, _ref7] = _sliceMaybeArray(pair).call(pair).reverse();
+const a6 = _at(_ref7.y);
 let a7, z7;
 [{
   y: {
