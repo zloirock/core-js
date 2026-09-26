@@ -2537,8 +2537,6 @@ const markdown = {
 
 const globalsESNext = {
   AsyncIterator: READONLY,
-  compositeKey: READONLY,
-  compositeSymbol: READONLY,
 };
 
 const globalsZX = {
