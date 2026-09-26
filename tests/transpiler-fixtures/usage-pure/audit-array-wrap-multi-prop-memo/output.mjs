@@ -21,12 +21,12 @@ const keys = _keys(_ref);
 export { at, keys };
 
 // ... and a surviving USER binding keeps the residual, reading through that same ref
-const _ref2 = c ? arr : o2;
+const [_ref2] = [c ? arr : o2];
 const at3 = _at(_ref2);
 const keys3 = _keys(_ref2);
-const [{
+const {
   other: other3
-}] = [_ref2];
+} = _ref2;
 export { at3, keys3, other3 };
 const [{
   at: at4,

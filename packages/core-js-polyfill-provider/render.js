@@ -37,6 +37,10 @@ export function expressionStatement(expression) {
   return { type: 'ExpressionStatement', expression };
 }
 
+export function blockStatement(body) {
+  return { type: 'BlockStatement', body };
+}
+
 export function callExpression(callee, args, { optional = false } = {}) {
   return { type: 'CallExpression', callee, arguments: args, optional };
 }
@@ -534,6 +538,35 @@ export function renderKeyedDestructureRead({ receiverName, receiver, binding, ke
     variableDeclarator(binding, storeReceiver
       ? sequenceExpression([assignmentExpression('=', identifier(receiverName), receiver), value]) : value),
   ];
+}
+
+// Render a captured element's outer hops around its ordered leaf reads. Each hop is
+// read once; surrounding native fragments retain their source order. The host supplies
+// source embedding, local names and the already-planned leaf render.
+export function renderPositionalDestructurePlan(plan, { kind, refName, mintRef, embed, renderLeaf }) {
+  const { keys, outer, memoizeHop } = plan.positional;
+  const hopName = memoizeHop ? mintRef() : null;
+  const leading = [];
+  const trailing = [];
+  let receiver = keys.reduce(memberFromKeyName, identifier(refName));
+  if (hopName && outer.some(level => level.before.length || level.after.length)) {
+    let root = refName;
+    for (const [index, level] of outer.entries()) {
+      if (level.before.length) leading.push(variableDeclaration(kind, [variableDeclarator(
+        objectPattern(level.before.map(embed)),
+        identifier(root),
+      )]));
+      const next = index === outer.length - 1 ? hopName : mintRef();
+      leading.push(variableDeclaration(kind, [variableDeclarator(identifier(next), memberFromKeyName(identifier(root), keys[index]))]));
+      if (level.after.length) trailing.unshift(variableDeclaration(kind, [variableDeclarator(
+        objectPattern(level.after.map(embed)),
+        identifier(root),
+      )]));
+      root = next;
+    }
+  } else if (hopName) leading.push(variableDeclaration(kind, [variableDeclarator(identifier(hopName), receiver)]));
+  if (hopName) receiver = identifier(hopName);
+  return { leading, body: renderLeaf(receiver), trailing };
 }
 
 // the static twin: the read needs no memo (an import binding or a plain ref re-reads for

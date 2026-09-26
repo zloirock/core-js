@@ -40,6 +40,7 @@ import {
 import {
   synthPropDedupKey,
   buildPatternRenderPlan,
+  patternComputedKeysSynthSafe,
   undefinedArmEffectiveReceiver,
   classifyCallBranchForSynth,
   fallbackBranchSwapKeepsSelection,
@@ -82,7 +83,6 @@ import {
   resolveSynthKeys,
   peelReceiverSequenceTail,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
-import { patternComputedKeysSynthSafe } from './synth-key-utils.js';
 import { SYMBOL_ITERATOR_PURE_RESULT } from '@core-js/polyfill-provider/detect-usage/globals';
 
 // does the run swallow a hop pure cannot back that reads a KEPT WRITE whose value the collapse
@@ -311,13 +311,13 @@ export default function createSynthSwapEmitter({
     // its static `["from"]` slot (no effect in the synth literal) while the effect stays in the residual
     // LHS pattern and runs exactly once - so the proxy branch polyfills instead of bailing to native
     if (!objectPattern || !isSynthSimpleObjectPattern(objectPattern.node)) return false;
-    // bail when any computed-key sibling is a generated import (polyfill-rewritten symbol) rather
-    // than a user const-key, so per-branch synth stays aligned with unplugin (which bails on the
-    // original `Symbol.iterator` MemberExpression)
+    // Unknown keys can overwrite a polyfilled sibling. The shared proof also recognizes
+    // well-known symbols before and after the emitter replaces their spelling.
     if (!patternComputedKeysSynthSafe({
-      objectPatternNode: objectPattern.node, scope: objectPattern.scope, adapter, path: objectPattern,
-      resolveGlobalPolyfill: name => resolvePure({ kind: 'global', name }),
-      pureImportHint: name => injector.getPureImport?.(name)?.hint,
+      objectPatternNode: objectPattern.node,
+      scope: objectPattern.scope,
+      adapter,
+      path: objectPattern,
     })) return false;
     // a user-const computed key (`const k = 'from'; [k]`) resolves to its static name for the branch
     // viability lookup but registers under its synth SLOT key (`[k]`), so buildSynthLiteral emits

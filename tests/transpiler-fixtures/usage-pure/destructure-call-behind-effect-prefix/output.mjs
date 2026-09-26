@@ -10,7 +10,9 @@ const make = () => (_pushMaybeArray(log).call(log, 'make'), [Math]);
 const [{
   trunc: viaPrefixed
 } = {}] = (_pushMaybeArray(log).call(log, 'prefix'), make());
-make?.();
+const [{
+  sign: _unused
+} = {}] = make?.();
 const viaOptional = _Math$sign;
 const [{
   cbrt: viaLiteral

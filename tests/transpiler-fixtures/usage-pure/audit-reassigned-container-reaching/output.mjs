@@ -80,7 +80,14 @@ let rw5 = [{
 rw5 = [{
   p: _Promise
 }];
-const viaWrapper = _Promise$race; // `extends` captures the base at class-definition time - the dominating reassignment IS the base
+const [{
+  p: {
+    race: _unused
+  }
+}] = rw5;
+const viaWrapper = _Promise$race;
+
+// `extends` captures the base at class-definition time - the dominating reassignment IS the base
 let base6 = Object;
 base6 = Array;
 class R6 extends base6 {

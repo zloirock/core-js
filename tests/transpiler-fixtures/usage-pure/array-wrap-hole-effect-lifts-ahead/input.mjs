@@ -1,7 +1,5 @@
-// a wrapper slot the pattern DISCARDS still evaluates, and what it runs happens before the element
-// the claim reads: that effect lifts ahead of the declaration, in source order, and the slot it
-// leaves reads as the elision the pattern already had. the claims then serve as they do without a
-// neighbour - a surface read, a memo of the element, a sentinel residual beside a live binding
+// Discarded wrapper slots still evaluate in source order before the property reads.
+// Their effects remain in the captured array or lift with a fully consumed wrapper.
 const log = [];
 const rows = [[1, 2]];
 const [, { Array: { prototype: { at: viaSurface } } }] = [log.push('n'), (log.push('e'), globalThis)];

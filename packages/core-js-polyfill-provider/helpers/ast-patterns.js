@@ -697,7 +697,7 @@ const IIFE_CALL_NODE_TYPES = new Set([
   'OptionalCallExpression',
   'NewExpression',
 ]);
-export function isIifeCallNode(node) {
+function isIifeCallNode(node) {
   return !!node && IIFE_CALL_NODE_TYPES.has(node.type);
 }
 
@@ -1281,7 +1281,7 @@ export function paramsHaveInvisibleCallers(path, { paramNeverOverridden = null }
 // a MEMBER tag (`<f.Sub />`) is an expression whatever its case and is NOT covered here
 const JSX_INTRINSIC_TAG_RE = /^[a-z]/;
 
-export function isIntrinsicJsxTagName(tagName) {
+function isIntrinsicJsxTagName(tagName) {
   return JSX_INTRINSIC_TAG_RE.test(tagName);
 }
 
@@ -5323,11 +5323,9 @@ export function classStaticSlotMember(classNode, key) {
   return members.findLast(member => CLASS_DATA_FIELD_TYPES.has(member.type)) ?? members.at(-1) ?? null;
 }
 
-// ... and the value it holds. ONE answer for the two walks that ask it: the census's container
-// descent and the pattern pairer below, so a destructure off a class resolves the slot a member read
-// off it already resolves. without it the pairer indexed the two LITERAL shapes alone, and a class
-// source handed its container out WHOLE - every constructor under it read as escaped
-export function classStaticSlotValue(classNode, key) {
+// The pattern pairer reads the value of the same own static slot that member consumers resolve.
+// Without class pairing, the source would escape whole, including every constructor stored in it.
+function classStaticSlotValue(classNode, key) {
   const member = classStaticSlotMember(classNode, key);
   if (!member) return null;
   return FUNCTION_LIKE_NODE_TYPES.has(member.type) ? member : member.value ?? null;
@@ -7720,7 +7718,7 @@ const SCOPE_REBINDING_TYPES = new Set([
 
 // does this node open a VAR-scope of its own (the set above)? the census keys a `var` declaration
 // on the nearest of these, a lexical one on the nearest `let` host
-export function isScopeRebinding(node) {
+function isScopeRebinding(node) {
   return SCOPE_REBINDING_TYPES.has(node.type);
 }
 
@@ -9408,6 +9406,37 @@ export function patternKeepsEffectfulHop(pattern) {
   return node.properties.some(prop => isEffectfulKeyHop(prop) || patternKeepsEffectfulHop(prop.value));
 }
 
+const restReadBeforeNestedBinding = createInstanceNodeCache();
+// A computed exclusion before a nested binding cannot split around that binding
+// without repeating its getter. Such rest patterns stay native in pure mode.
+// Inspect pattern targets only; computed keys and default expressions have their own hosts.
+// This is an admission fact about the original syntax, shared by sibling claims before
+// emission. Pruning leaves must not reopen that source boundary. A replacement pattern
+// or a new adapter gets its own fact; no claim, receiver or mutable plan is cached here.
+export function patternHasRestReadBeforeNestedBinding(pattern, adapter) {
+  const node = patternSlotTarget(pattern);
+  if (!isDestructurePattern(node)) return false;
+  if (restReadBeforeNestedBinding.has(adapter, node)) return restReadBeforeNestedBinding.get(adapter, node);
+  let result = false;
+  if (node.type === 'ArrayPattern') {
+    result = node.elements.some(element => patternHasRestReadBeforeNestedBinding(element, adapter));
+  } else {
+    const rest = node.properties.some(isRestProperty);
+    let computedRead = false;
+    for (const prop of node.properties) {
+      if (!isPropertyNode(prop)) continue;
+      if ((rest && computedRead && isDestructurePattern(patternSlotTarget(prop.value)))
+        || patternHasRestReadBeforeNestedBinding(prop.value, adapter)) {
+        result = true;
+        break;
+      }
+      computedRead ||= prop.computed;
+    }
+  }
+  restReadBeforeNestedBinding.set(adapter, node, result);
+  return result;
+}
+
 // side-effecting COMPUTED key of a destructure prop (`[(eff(), 'from')]`, `[(eff(), 'fr') + 'om']`).
 // the single gate both flatten emitters dispatch on, so the key-effect decision can't drift
 // between them; a non-computed key is a static name and never carries an effect
@@ -10020,21 +10049,7 @@ function isForXHeadAssignTarget(path) {
   return isForXStatement(parent) && parent.left === path.node;
 }
 
-// usage-pure: a global at an assignment / for-x-head LHS cannot be rewritten to a frozen
-// import binding (the write TypeErrors at runtime). a transparent wrapper (`Map! = x`,
-// `(Map) ||= x`, `for (Map! of arr)`) keeps the identifier in a read-looking position so
-// the adapter's `isReferenced` stays true; peel transparent ancestors before testing the
-// LHS shapes. plain `=` and every compound form (`||=`, `+=`, ...) write the LHS, so any
-// AssignmentExpression carrying the peeled node as `.left` qualifies
-// a bare Identifier leaf of an ASSIGNMENT-position destructure pattern (`[Promise] = arr`,
-// `({ p: Set } = obj)`, `[...WeakMap] = arr`, `[X = dflt] = arr`, `for ([X] of xs)`) - the
-// leaf WRITES the name, exactly like the flat `X = Y` twin. climbs the pattern chain
-// verifying each hop fills a TARGET slot, so a BINDING pattern (`const [X] = arr`, params,
-// catch) never matches - its host is a declarator, not an assignment / for-x head. wrappers
-// (parens / TS casts) peel at entry, so `[Promise!] = arr` classifies like the plain form.
-// serves the emitters' write-position policy split: usage-global treats the leaf as a USAGE
-// (the slot must exist or the strict-mode write ReferenceErrors on engines missing the
-// global - same rescue as the flat form), usage-pure treats it as a write target
+// Does this parent slot belong to a binding or assignment target pattern?
 function isPatternTargetSlot(pn, cn) {
   if (pn.type === 'ArrayPattern') return pn.elements?.includes(cn);
   if (pn.type === 'RestElement' || pn.type === 'SpreadElement') return pn.argument === cn;
@@ -10045,14 +10060,25 @@ function isPatternTargetSlot(pn, cn) {
 
 // A rest-bearing object level keeps all its reads native. Follow only pattern target
 // slots: a separate destructure in a computed key or default has its own boundary.
-export function hasObjectRestAncestor(path) {
+// An optional predicate restricts the question to rest levels with that additional shape.
+export function hasObjectRestAncestor(path, accepts = null) {
   for (const [parent, cur] of ancestorPathSteps(path)) {
     if (!parent.node || !isPatternTargetSlot(parent.node, cur.node)) return false;
-    if (parent.node.type === 'ObjectPattern' && hasRestSiblingExcept(parent.node.properties, null)) return true;
+    if (parent.node.type === 'ObjectPattern' && hasRestSiblingExcept(parent.node.properties, null)
+      && (!accepts || accepts(parent.node))) return true;
   }
   return false;
 }
 
+// a bare Identifier leaf of an ASSIGNMENT-position destructure pattern (`[Promise] = arr`,
+// `({ p: Set } = obj)`, `[...WeakMap] = arr`, `[X = dflt] = arr`, `for ([X] of xs)`) - the
+// leaf WRITES the name, exactly like the flat `X = Y` twin. climbs the pattern chain
+// verifying each hop fills a TARGET slot, so a BINDING pattern (`const [X] = arr`, params,
+// catch) never matches - its host is a declarator, not an assignment / for-x head. wrappers
+// (parens / TS casts) peel at entry, so `[Promise!] = arr` classifies like the plain form.
+// serves the emitters' write-position policy split: usage-global treats the leaf as a USAGE
+// (the slot must exist or the strict-mode write ReferenceErrors on engines missing the
+// global - same rescue as the flat form), usage-pure treats it as a write target
 export function bareAssignmentPatternLeafPath(path) {
   let hops = 0;
   for (const [parent, cur] of ancestorPathSteps(peelTransparentExprAncestorPath(path))) {
@@ -10068,6 +10094,12 @@ export function bareAssignmentPatternLeafPath(path) {
   return false;
 }
 
+// usage-pure: a global at an assignment / for-x-head LHS cannot be rewritten to a frozen
+// import binding (the write TypeErrors at runtime). a transparent wrapper (`Map! = x`,
+// `(Map) ||= x`, `for (Map! of arr)`) keeps the identifier in a read-looking position so
+// the adapter's `isReferenced` stays true; peel transparent ancestors before testing the
+// LHS shapes. plain `=` and every compound form (`||=`, `+=`, ...) write the LHS, so any
+// AssignmentExpression carrying the peeled node as `.left` qualifies
 export function isAssignOrForXWriteTargetPath(path) {
   const anchor = peelTransparentExprAncestorPath(path);
   const parent = anchor?.parentPath?.node;
@@ -10423,27 +10455,6 @@ export function hasRealBinding(root, sentinelNames) {
   return false;
 }
 
-// computed-key synth-swap safety: a bare-global computed key (`[Set]` with no in-scope binding) gets
-// emitted RAW into the synth literal (`{ [Set]: receiver[Set] }`), throwing ReferenceError on a target
-// engine where the global is absent (ie:11). a pattern with any unbound computed key is therefore NOT
-// synth-swap-safe - callers bail (param-default -> body-extract). user-local / imported computed keys
-// have a binding and replay safely as `[k]: receiver[k]`. takes `scope` so it cannot fold into the
-// purely-structural `isSynthSimpleObjectPattern`. `scope.getBinding` is common to babel + estree scopes
-// `exempt(keyNode)`: a key the CALLER vouches for despite no scope binding yet - babel's
-// injected pure-symbol keys bind at the Program-exit flush, after this gate runs.
-// `resolveGlobalPolyfill`: the pass's own substitution, which vouches for the rest of them. A bare
-// global THIS PASS replaces is never emitted raw - the slot takes the binding it is rewritten to, the
-// way a raw `Symbol.x` key already does - so the ReferenceError this rule exists for cannot happen,
-// and asking the PRE-rewrite spelling made one pass bail on a shape it then made safe itself. A bare
-// global the pass does NOT substitute stays unsafe: nothing replaces it, and raw it throws
-export function computedKeysAllBound(objectPattern, scope, exempt = null, resolveGlobalPolyfill = null) {
-  for (const p of objectPattern.properties) {
-    if (p.computed && p.key?.type === 'Identifier' && !scope.getBinding(p.key.name)
-      && !exempt?.(p.key) && !substitutedGlobalKeyName(p.key, scope, resolveGlobalPolyfill)) return false;
-  }
-  return true;
-}
-
 // the GLOBAL a computed key names and the pass substitutes, or null. Its own spelling is rewritten
 // like any other read of that global, so a literal carrying the SOURCE node would read a different
 // property than the pattern does - and on a binding whose inserted clones the walk never revisits it
@@ -10451,16 +10462,6 @@ export function computedKeysAllBound(objectPattern, scope, exempt = null, resolv
 export function substitutedGlobalKeyName(keyNode, scope, resolveGlobalPolyfill) {
   return keyNode?.type === 'Identifier' && !scope?.getBinding?.(keyNode.name)
     && resolveGlobalPolyfill?.(keyNode.name) ? keyNode.name : null;
-}
-
-// ... and the SAME key once this pass has rewritten it: the substitution above replaces the key's
-// own spelling, so an asker reached later in the same pass sees our minted import, whose binding the
-// leg's scope tracker has not learned. it is answered by what that import STANDS FOR - the global
-// the pre-rewrite spelling named - or the gate answers one way for the props dispatched before the
-// rewrite and another for those after it, and prop ORDER decides whether the literal owns a sibling
-export function substitutedGlobalKeyImport(keyNode, pureImportHint, resolveGlobalPolyfill) {
-  const hint = keyNode?.type === 'Identifier' ? pureImportHint?.(keyNode.name) : null;
-  return hint && resolveGlobalPolyfill?.(hint) ? hint : null;
 }
 
 // prototype-method polyfills bind `this` to their first arg, but a tagged-template call
@@ -11243,7 +11244,7 @@ function containsTopLevelAwait(node) {
 // name itself, and B.3.3.1 blocks the Annex-B hoist of a block function for a parameter name, so
 // `{ function require(){} }` shadows nothing inside the wrapper while `{ function Map(){} }` still
 // does - measured against a real Node CommonJS module
-export const CJS_WRAPPER_PARAM_NAMES = new Set(['module', 'exports', 'require', '__dirname', '__filename']);
+const CJS_WRAPPER_PARAM_NAMES = new Set(['module', 'exports', 'require', '__dirname', '__filename']);
 
 // the module-format census: ONE walk collecting both sides of "what is this file", plus the
 // declarations that void a CommonJS spelling. only the module side is PROOF - a live top-level
@@ -11752,7 +11753,7 @@ export const CLASS_DATA_FIELD_TYPES = new Set(['ClassProperty', 'ClassPrivatePro
 // walk that indexes ancestors by node holds no path and so cannot ask for a slot `key`. one home for
 // the rule all the same - the predicate below reads it. the function arm needs no node twin: every
 // function-like type is a var-scope boundary, and the node climbs already stop at one
-export function isDeferredFieldValueNode(node, childNode) {
+function isDeferredFieldValueNode(node, childNode) {
   return CLASS_FIELD_TYPES.has(node.type) && !node.static && node.value === childNode;
 }
 

@@ -12,13 +12,16 @@ const assigned = function () {
   at = _atMaybeArray(_ref);
   return at;
 }();
-const [_ref2, alsoExported] = rows;
+const [_ref2, _ref3] = rows;
 export const exportedMulti = _atMaybeArray(_ref2);
+const alsoExported = _ref3;
 export { alsoExported }; // ... and the element the pattern pairs with may be a side-effect-free MEMBER: the residual dies, so
 // the dispatch is the only read of it and spelling it once costs nothing
 const memberElement = function () {
+  var _ref4;
   let at;
-  at = _atMaybeArray(rows[0]);
+  [_ref4] = [rows[0]];
+  at = _atMaybeArray(_ref4);
   return at;
 }();
 export { assigned, memberElement };

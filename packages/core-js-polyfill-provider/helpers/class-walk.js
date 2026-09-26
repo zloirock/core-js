@@ -1648,8 +1648,8 @@ export function createClassHelpers({
   // destructure funnel resolves it through this hook (same gate + shadow rules as the member
   // remap). the two emitters build this factory differently - unplugin per transform, babel ONCE
   // per plugin instance with `reset()` doing the per-file isolation - so the hook MUTATES the
-  // shared per-instance adapter and the last build wins. that is outside unplugin's documented
-  // save/restore re-entrancy contract; it holds only because both emitters install the same shape
+  // shared per-instance adapter. unplugin saves/restores the hook with its other per-transform
+  // slots: leaving this closure installed would retain the last transform's injector and AST
   adapter.resolveThisStaticHost = function (path, key) {
     if (!isInStaticContext(path) || isShadowedByClassOwnMember(path, key)) return null;
     return resolveStaticInheritedMember(path, key);

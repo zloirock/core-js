@@ -292,8 +292,13 @@ const known = {
   w: Object,
   y: [1]
 };
-_pushMaybeArray(log).call(log, 's');
+const [_ref10] = [known, _pushMaybeArray(log).call(log, 's')];
+const {
+  w: {
+    is: _unused
+  }
+} = _ref10;
 const viaEmptiedStatic = _Object$is;
-const viaEmptiedStaticAt = _atMaybeArray(known.y);
+const viaEmptiedStaticAt = _atMaybeArray(_ref10.y);
 [viaEmptiedStatic, viaEmptiedStaticAt];
 export { viaEmptiedObject, viaEmptiedWrap, viaEmptiedEffect, viaEmptiedLead, viaEmptiedStatic };
