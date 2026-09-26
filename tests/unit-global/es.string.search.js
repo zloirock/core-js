@@ -1,10 +1,10 @@
 /* eslint-disable prefer-regex-literals -- required for testing */
-import { GLOBAL, STRICT } from '../helpers/constants.js';
+import { GLOBAL } from '../helpers/constants.js';
 import { patchRegExp$exec } from '../helpers/helpers.js';
 
 const Symbol = GLOBAL.Symbol || {};
 
-const run = assert => {
+function run(assert) {
   assert.isFunction(''.search);
   assert.arity(''.search, 1);
   assert.name(''.search, 'search');
@@ -74,7 +74,7 @@ const run = assert => {
   assert.same(string.search(/of/), string.search(/of/g), 'S15.5.4.12_A3_T2');
 
   assert.throws(() => ''.search.call(Symbol('search test'), /./), 'throws on symbol context');
-};
+}
 
 QUnit.test('String#search regression', run);
 
@@ -93,9 +93,10 @@ QUnit.test('RegExp#@@search basic behavior', assert => {
 });
 
 QUnit.test('String#search delegates to @@search', assert => {
-  const string = STRICT ? 'string' : Object('string');
-  const number = STRICT ? 42 : Object(42);
+  const string = 'string';
+  const number = 42;
   const object = {};
+  /* eslint-disable es/no-nonstandard-number-prototype-properties -- @@search */
   object[Symbol.search] = function (it) {
     return { value: it };
   };
@@ -107,6 +108,7 @@ QUnit.test('String#search delegates to @@search', assert => {
   };
   assert.same(string.search(regexp).value, string);
   assert.same(''.search.call(number, regexp).value, number);
+  /* eslint-enable es/no-nonstandard-number-prototype-properties -- @@search */
 });
 
 QUnit.test('RegExp#@@search delegates to exec', assert => {

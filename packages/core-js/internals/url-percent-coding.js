@@ -1,14 +1,12 @@
 'use strict';
-// TODO: in core-js@4, move /modules/ dependencies to public entries for better optimization by tools like `preset-env`
-require('../modules/es.string.from-code-point');
-var getBuiltIn = require('../internals/get-built-in');
+var getBuiltInStaticMethod = require('../internals/get-built-in-static-method');
 var uncurryThis = require('../internals/function-uncurry-this');
 
 var fromCharCode = String.fromCharCode;
-var fromCodePoint = getBuiltIn('String', 'fromCodePoint');
+// @dependency: es.string.from-code-point
+var fromCodePoint = getBuiltInStaticMethod('String', 'fromCodePoint');
 var $encodeURIComponent = encodeURIComponent;
 var $parseInt = parseInt;
-var charAt = uncurryThis(''.charAt);
 var push = uncurryThis([].push);
 var replace = uncurryThis(''.replace);
 var stringSlice = uncurryThis(''.slice);
@@ -75,10 +73,10 @@ var decode = function (input) {
   var i = 0;
 
   while (i < length) {
-    var decodedChar = charAt(input, i);
+    var decodedChar = input[i];
 
     if (decodedChar === '%') {
-      if (charAt(input, i + 1) === '%' || i + 3 > length) {
+      if (input[i + 1] === '%' || i + 3 > length) {
         result += '%';
         i++;
         continue;
@@ -110,7 +108,7 @@ var decode = function (input) {
 
         while (sequenceIndex < byteSequenceLength) {
           i++;
-          if (i + 3 > length || charAt(input, i) !== '%') break;
+          if (i + 3 > length || input[i] !== '%') break;
 
           var nextByte = parseHexOctet(input, i + 1);
 
@@ -140,9 +138,8 @@ var decode = function (input) {
           for (var replacement = 0; replacement < byteSequenceLength; replacement++) result += FALLBACK_REPLACER;
           i++;
           continue;
-        } else {
-          decodedChar = fromCodePoint(codePoint);
         }
+        decodedChar = fromCodePoint(codePoint);
       }
     }
 
@@ -167,5 +164,5 @@ var encode = function (input) {
 
 module.exports = {
   decode: decode,
-  encode: encode
+  encode: encode,
 };

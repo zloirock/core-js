@@ -1,20 +1,23 @@
 'use strict';
 var call = require('../internals/function-call');
 var anObject = require('../internals/an-object');
-var create = require('../internals/object-create');
 var getMethod = require('../internals/get-method');
 var defineBuiltIns = require('../internals/define-built-ins');
-var InternalStateModule = require('../internals/internal-state');
+var setInternalState = require('../internals/internal-state').set;
+var internalStateGetterFor = require('../internals/internal-state-getter-for');
 var iteratorClose = require('../internals/iterator-close');
 var getBuiltIn = require('../internals/get-built-in');
 var AsyncIteratorPrototype = require('../internals/async-iterator-prototype');
 var createIterResultObject = require('../internals/create-iter-result-object');
 
+// @dependency: es.promise.constructor
+// @dependency: es.promise.catch
+// @dependency: es.promise.finally
+// @dependency: es.promise.resolve
 var Promise = getBuiltIn('Promise');
 
 var ASYNC_FROM_SYNC_ITERATOR = 'AsyncFromSyncIterator';
-var setInternalState = InternalStateModule.set;
-var getInternalState = InternalStateModule.getterFor(ASYNC_FROM_SYNC_ITERATOR);
+var getInternalState = internalStateGetterFor(ASYNC_FROM_SYNC_ITERATOR);
 
 var asyncFromSyncIteratorContinuation = function (result, resolve, reject, syncIterator, closeOnRejection) {
   var done = result.done;
@@ -38,7 +41,7 @@ var AsyncFromSyncIterator = function AsyncIterator(iteratorRecord) {
   setInternalState(this, iteratorRecord);
 };
 
-AsyncFromSyncIterator.prototype = defineBuiltIns(create(AsyncIteratorPrototype), {
+AsyncFromSyncIterator.prototype = defineBuiltIns(Object.create(AsyncIteratorPrototype), {
   next: function next() {
     var state = getInternalState(this);
     var hasValue = arguments.length > 0;
@@ -48,7 +51,7 @@ AsyncFromSyncIterator.prototype = defineBuiltIns(create(AsyncIteratorPrototype),
       asyncFromSyncIteratorContinuation(result, resolve, reject, state.iterator, true);
     });
   },
-  'return': function () {
+  return: function () {
     var state = getInternalState(this);
     var iterator = state.iterator;
     var hasValue = arguments.length > 0;
@@ -60,7 +63,7 @@ AsyncFromSyncIterator.prototype = defineBuiltIns(create(AsyncIteratorPrototype),
       asyncFromSyncIteratorContinuation(result, resolve, reject, iterator);
     });
   },
-  'throw': function () {
+  throw: function () {
     var state = getInternalState(this);
     var iterator = state.iterator;
     var hasValue = arguments.length > 0;
@@ -78,7 +81,7 @@ AsyncFromSyncIterator.prototype = defineBuiltIns(create(AsyncIteratorPrototype),
       var result = anObject(hasValue ? call($throw, iterator, value) : call($throw, iterator));
       asyncFromSyncIteratorContinuation(result, resolve, reject, iterator, true);
     });
-  }
+  },
 });
 
 module.exports = AsyncFromSyncIterator;

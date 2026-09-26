@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 QUnit.test('Array#findIndex', assert => {
   const { findIndex } = Array.prototype;
   assert.isFunction(findIndex);
@@ -20,10 +18,10 @@ QUnit.test('Array#findIndex', assert => {
   assert.same([1, 3, NaN, 42, {}].findIndex(it => it === 42), 3);
   // eslint-disable-next-line unicorn/prefer-array-index-of -- ignore
   assert.same([1, 3, NaN, 42, {}].findIndex(it => it === 43), -1);
-  if (STRICT) {
-    assert.throws(() => findIndex.call(null, 0), TypeError);
-    assert.throws(() => findIndex.call(undefined, 0), TypeError);
-  }
+
+  assert.throws(() => findIndex.call(null, 0), TypeError);
+  assert.throws(() => findIndex.call(undefined, 0), TypeError);
+
   assert.notThrows(() => findIndex.call({
     length: -1,
     0: 1,

@@ -1,0 +1,1 @@
+(({ includes }) => includes("x"))(arr);

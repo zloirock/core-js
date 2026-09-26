@@ -1,0 +1,11 @@
+// preceding early-exit via `throw`: `if (w.kind !== 'a') throw ...;` narrows w to the 'a' branch
+// for the rest of the block. the preceding-sibling walk must identify the if-with-throw as an
+// unconditional exit and emit the negated clause as a discriminant guard. mirrors the `return`
+// form already covered by `audit-narrow-discriminated-early-exit`.
+type Shape = { kind: 'a'; data: string } | { kind: 'b'; data: number[] };
+declare const w: Shape;
+function probe() {
+  if (w.kind !== 'a') throw new Error('expected a');
+  w.data.at(0);
+}
+probe();

@@ -5,7 +5,6 @@ var hasOwn = require('../internals/has-own-property');
 var $SyntaxError = SyntaxError;
 var $parseInt = parseInt;
 var fromCharCode = String.fromCharCode;
-var at = uncurryThis(''.charAt);
 var slice = uncurryThis(''.slice);
 var exec = uncurryThis(/./.exec);
 
@@ -17,7 +16,7 @@ var codePoints = {
   '\\f': '\f',
   '\\n': '\n',
   '\\r': '\r',
-  '\\t': '\t'
+  '\\t': '\t',
 };
 
 var IS_4_HEX_DIGITS = /^[\da-f]{4}$/i;
@@ -28,8 +27,8 @@ module.exports = function (source, i) {
   var unterminated = true;
   var value = '';
   while (i < source.length) {
-    var chr = at(source, i);
-    if (chr === '\\') {
+    var char = source[i];
+    if (char === '\\') {
       var twoChars = slice(source, i, i + 2);
       if (hasOwn(codePoints, twoChars)) {
         value += codePoints[twoChars];
@@ -41,13 +40,13 @@ module.exports = function (source, i) {
         value += fromCharCode($parseInt(fourHexDigits, 16));
         i += 4;
       } else throw new $SyntaxError('Unknown escape sequence: "' + twoChars + '"');
-    } else if (chr === '"') {
+    } else if (char === '"') {
       unterminated = false;
       i++;
       break;
     } else {
-      if (exec(IS_C0_CONTROL_CODE, chr)) throw new $SyntaxError('Bad control character in string literal at: ' + i);
-      value += chr;
+      if (exec(IS_C0_CONTROL_CODE, char)) throw new $SyntaxError('Bad control character in string literal at: ' + i);
+      value += char;
       i++;
     }
   }

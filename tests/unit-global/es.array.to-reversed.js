@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 QUnit.test('Array#toReversed', assert => {
   const { toReversed } = Array.prototype;
 
@@ -53,10 +51,8 @@ QUnit.test('Array#toReversed', assert => {
   } };
   assert.true(array.toReversed() instanceof Array, 'non-generic');
 
-  if (STRICT) {
-    assert.throws(() => toReversed.call(null), TypeError);
-    assert.throws(() => toReversed.call(undefined), TypeError);
-  }
+  assert.throws(() => toReversed.call(null), TypeError);
+  assert.throws(() => toReversed.call(undefined), TypeError);
 
   assert.true('toReversed' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
 });

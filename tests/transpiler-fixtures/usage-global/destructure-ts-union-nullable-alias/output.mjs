@@ -1,0 +1,16 @@
+import "core-js/modules/es.symbol.constructor";
+import "core-js/modules/es.symbol.description";
+import "core-js/modules/es.symbol.iterator";
+import "core-js/modules/es.object.to-string";
+import "core-js/modules/es.array.iterator";
+import "core-js/modules/es.array.from";
+import "core-js/modules/es.string.at";
+import "core-js/modules/es.string.iterator";
+import "core-js/modules/es.string.bold";
+import "core-js/modules/es.string.strike";
+import "core-js/modules/web.dom-collections.iterator";
+type Nullable = null | undefined;
+declare const items: string[] | Nullable;
+const [first, second] = items;
+first.at(0).strike();
+second.at(0).bold();

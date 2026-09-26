@@ -1,0 +1,6 @@
+import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+// callee wrapped in TS cast (`as`) - call-return resolver must reach annotation
+// through expression-annotation lookup even when callee.node is not bare Identifier
+declare const fn: () => string[];
+const r = (fn as () => string[])();
+_atMaybeArray(r).call(r, 0);

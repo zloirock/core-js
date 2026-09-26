@@ -1,0 +1,11 @@
+{
+  "extends": "../tsconfig.json",
+  "include": ["./**/*.ts"],
+  "exclude": [
+    "./**/*es2018*test.ts",
+    "./**/*dom*test.ts"
+  ],
+  "compilerOptions": {
+    "types": ["@core-js/types"]
+  }
+}

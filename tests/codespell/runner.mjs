@@ -10,10 +10,16 @@ const skip = [
 ];
 
 const ignoreWords = [
+  'ND',
   'aNumber',
+  'forHead',
+  'forIn',
+  'importEnd',
   'larg',
   'outLow',
+  'prevEnd',
   'statics',
+  'throughTS',
 ];
 
 // edit-loop scoping: positional paths narrow the run to them, gates run the unscoped default

@@ -1,3 +1,4 @@
+// @types: proposals/array-grouping
 'use strict';
 var $ = require('../internals/export');
 var uncurryThis = require('../internals/function-uncurry-this');
@@ -30,6 +31,9 @@ $({ target: 'Map', stat: true, forced: IS_PURE || DOES_NOT_WORK_WITH_PRIMITIVES 
     aCallable(callbackfn);
     var map = new Map();
     var k = 0;
+    // @dependency: es.array.iterator
+    // @dependency: es.string.iterator
+    // @dependency: web.dom-collections.iterator
     iterate(items, function (value) {
       doesNotExceedSafeInteger(k);
       var key = callbackfn(value, k++);
@@ -37,5 +41,5 @@ $({ target: 'Map', stat: true, forced: IS_PURE || DOES_NOT_WORK_WITH_PRIMITIVES 
       else push(get(map, key), value);
     });
     return map;
-  }
+  },
 });

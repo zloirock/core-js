@@ -1,0 +1,11 @@
+const v1 = [1, 2, 3];
+const v2 = v1;
+const v3 = v2;
+const v4 = v3;
+const v5 = v4;
+const v6 = v5;
+const v7 = v6;
+const v8 = v7;
+const v9 = v8;
+const v10 = v9;
+v10.at(-1);

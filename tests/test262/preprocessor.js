@@ -56,7 +56,7 @@ const exclude = [
 
 module.exports = test => {
   const { file } = test;
-  if (!include.some(namespace => file.includes(`built-ins/${ namespace }/`))) return null;
+  if (include.every(namespace => !file.includes(`built-ins/${ namespace }/`))) return null;
   if (exclude.some(it => file.includes(it))) return null;
   return test;
 };

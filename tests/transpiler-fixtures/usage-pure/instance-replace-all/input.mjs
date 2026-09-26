@@ -1,0 +1,1 @@
+s.replaceAll("a", "b");

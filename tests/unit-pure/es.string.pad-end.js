@@ -1,7 +1,5 @@
-import { STRICT } from '../helpers/constants.js';
-
-import Symbol from 'core-js-pure/es/symbol';
-import padEnd from 'core-js-pure/es/string/pad-end';
+import Symbol from '@core-js/pure/es/symbol';
+import padEnd from '@core-js/pure/es/string/pad-end';
 
 QUnit.test('String#padEnd', assert => {
   assert.isFunction(padEnd);
@@ -22,8 +20,6 @@ QUnit.test('String#padEnd', assert => {
   assert.throws(() => padEnd('a', 10, symbol), 'throws on symbol argument');
   assert.same(padEnd('abc', 2, symbol), 'abc', 'does not throw on symbol fillString when no padding needed');
 
-  if (STRICT) {
-    assert.throws(() => padEnd(null, 0), TypeError);
-    assert.throws(() => padEnd(undefined, 0), TypeError);
-  }
+  assert.throws(() => padEnd(null, 0), TypeError);
+  assert.throws(() => padEnd(undefined, 0), TypeError);
 });

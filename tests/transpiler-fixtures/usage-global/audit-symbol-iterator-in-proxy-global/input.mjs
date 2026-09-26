@@ -1,0 +1,6 @@
+// `Symbol.iterator in <array>` through a proxy-global (`globalThis.Symbol`). Resolves to the
+// Symbol global behind the proxy, triggering the iterator-protocol polyfill on both plugins.
+// usage-global keeps the `in` text verbatim, so the surviving `globalThis` leaf also earns
+// `es.global-this`; usage-pure rewrites the whole check to is-iterable and the leaf disappears.
+// parity counterpart to the const-alias and bare forms.
+globalThis.Symbol.iterator in [];

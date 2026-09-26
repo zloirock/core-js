@@ -1,0 +1,16 @@
+{
+  "plugins": [
+    [
+      "@core-js",
+      {
+        "method": "usage-global",
+        "version": "4.0",
+        "targets": {
+          "chrome": "10",
+          "unknown_engine": "99",
+          "netscape": "4"
+        }
+      }
+    ]
+  ]
+}

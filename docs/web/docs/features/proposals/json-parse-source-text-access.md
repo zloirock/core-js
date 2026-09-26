@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-json-parse-with-source)
 
 ## Modules
-[`es.json.is-raw-json`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.json.is-raw-json.js), [`es.json.parse`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.json.parse.js), [`es.json.raw-json`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.json.raw-json.js).
+[`es.json.is-raw-json`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.json.is-raw-json.js), [`es.json.parse`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.json.parse.js), [`es.json.raw-json`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.json.raw-json.js).
 
 ## Built-ins signatures
 ```ts
@@ -25,6 +25,9 @@ core-js(-pure)/es|stable|actual|full/json/parse
 core-js(-pure)/es|stable|actual|full/json/raw-json
 core-js(-pure)/es|stable|actual|full/json/stringify
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/json-parse-with-source`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/json-parse-with-source.d.ts)
 
 ## Examples
 ```js
