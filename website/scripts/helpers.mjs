@@ -9,8 +9,8 @@ const exec = promisify(childProcess.exec);
 
 const BABEL_PATH = 'website/node_modules/@babel/standalone/babel.min.js';
 
-// agent instruction files live next to the blog posts, but are not content
-const NOT_BLOG_POSTS = new Set(['AGENTS.md', 'CLAUDE.md']);
+// agent instructions live next to the blog posts, but are not content
+const NOT_BLOG_POSTS = new Set(['AGENTS.md']);
 
 export async function isExists(target) {
   try {
