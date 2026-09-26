@@ -17,6 +17,9 @@ const { check, finish } = createChecker('transform-idempotence-pure');
 
 // one representative per probe/seal render family
 const CASES = [
+  ['array capture with a live default and native sibling', 'export function read(receiver) { const [{ other, at = () => "abc".at(-1) }] = [receiver]; return [at, other]; }'],
+  ['array capture with exported siblings', 'export const head = before(), [{ other, at = fallback() }] = [receiver], tail = after();'],
+  ['selecting declaration with an unknown key', 'export function read(source, key) { const { from, [key]: other } = source || Array; return [from, other]; }'],
   ['bare probe claimless', "let c = 0;\nexport const r = globalThis.window?.[(c++, 'self')]?.Array;"],
   ['bare probe plain tail', "let c = 0;\nexport const r = globalThis.window?.[(c++, 'self')].Number;"],
   ['sealed plain read', 'export const r = (globalThis.window?.self).Array;'],

@@ -21,5 +21,8 @@ const [{
   trunc: viaHanded
 } = {}] = handed;
 const kept = () => [Array, 0];
+const [{
+  of: _unused
+} = {}] = kept();
 const viaKept = _Array$of;
 export { viaWritten, viaTruncated, viaHanded, viaKept };

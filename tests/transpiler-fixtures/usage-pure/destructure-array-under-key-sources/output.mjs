@@ -6,7 +6,8 @@ import _Object$is from "@core-js/pure/actual/object/is";
 import _Object$values from "@core-js/pure/actual/object/values";
 // the level under the key may come from a CALL yielding the container - under a declarator, a for-of
 // head and a parameter default - from a slot the callee fills from a parameter, from a nested array
-// level, or from a container wrapped in an outer array. one static per row
+// level, or from a container wrapped in an outer array. One static per row; the last still iterates
+// both array levels before binding its pure method.
 const build = () => ({
   k: [Object]
 });
@@ -70,5 +71,10 @@ use(viaDeep({}, {}));
 const wrapped = [{
   k: [Object]
 }];
+const [{
+  k: [{
+    is: _unused
+  }]
+}] = wrapped;
 const viaWrapped = _Object$is;
 use(viaWrapped(1, 1));

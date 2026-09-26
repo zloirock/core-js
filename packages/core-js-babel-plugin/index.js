@@ -2375,10 +2375,6 @@ export default function plugin(api, options) {
         });
         withMemberContextCache(!isPure, () => path.traverse(visitors));
         processDeferredSideEffects(path);
-        // the array-wrapped residuals the per-prop route emptied: the verdict needs the whole
-        // traversal, since a second polyfilled prop is what kept the per-prop consume test from
-        // firing. BEFORE the split, which replaces the host declaration this verdict is recorded against
-        destructureEmit.pruneArrayResiduals();
         destructureEmit.pruneEmptiedHostDeclarators();
         // multi-decl split canon AFTER the SE drain - deferred indices were captured
         // against the pre-split body
@@ -2540,7 +2536,6 @@ export default function plugin(api, options) {
         // the same body-index ordering as the primary pass
         processDeferredSideEffects(path);
         // helper-body re-traversal may have touched fresh multi-decl declarations
-        destructureEmit.pruneArrayResiduals();
         destructureEmit.pruneEmptiedHostDeclarators();
         destructureEmit.prepareSplitLiftedPrefixes();
         destructureEmit.splitFlatMultiDecls();

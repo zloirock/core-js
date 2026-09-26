@@ -1,6 +1,7 @@
 // the level under the key may come from a CALL yielding the container - under a declarator, a for-of
 // head and a parameter default - from a slot the callee fills from a parameter, from a nested array
-// level, or from a container wrapped in an outer array. one static per row
+// level, or from a container wrapped in an outer array. One static per row; the last still iterates
+// both array levels before binding its pure method.
 const build = () => ({ k: [Object] });
 const { k: [{ entries: viaCall }] } = build();
 use(viaCall({}));

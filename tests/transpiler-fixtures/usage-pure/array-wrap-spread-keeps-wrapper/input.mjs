@@ -1,5 +1,6 @@
 // A spread preserves array iteration and the positions it can affect.
 // Known static slots receive pure values while uncertain slots retain their native reads.
+// Known instance slots read their original receiver after the spread evaluates.
 const seen = [];
 const eff = t => (seen.push(t), t);
 const xs = [1];

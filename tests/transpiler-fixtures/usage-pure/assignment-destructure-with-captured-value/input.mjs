@@ -1,6 +1,5 @@
-// a destructuring assignment yields its right side, so a conditional receiver whose branch is
-// replaced by a synth mirror hands the CAPTURED value that literal instead of the branch object.
-// only the value-discarding statement form may mirror; every consuming position keeps the source
+// A consumed assignment yields its selected receiver and dispatches its static by identity.
+// The value-discarding statement keeps the branch mirror.
 let a1, a2, a3, a4;
 const shim = null;
 const host1 = ({ assign: a1 } = shim || Object);

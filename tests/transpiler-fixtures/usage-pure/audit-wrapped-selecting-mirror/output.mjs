@@ -115,11 +115,12 @@ const [{
 }] = [...[c ? {
   hasOwn: _Object$hasOwn
 } : userObj]];
-const [, {
-  getOwnPropertyNames: viaSpreadAhead
-}] = [...[0], c ? {
+const [, _ref5] = [...[0], c ? {
   getOwnPropertyNames: _Object$getOwnPropertyNames
 } : userObj];
+const {
+  getOwnPropertyNames: viaSpreadAhead
+} = _ref5;
 const {
   w: {
     is: viaSpreadLevel

@@ -10,6 +10,7 @@ import _Object$keys from "@core-js/pure/actual/object/keys";
 import _Object$seal from "@core-js/pure/actual/object/seal";
 // A spread preserves array iteration and the positions it can affect.
 // Known static slots receive pure values while uncertain slots retain their native reads.
+// Known instance slots read their original receiver after the spread evaluates.
 const seen = [];
 const eff = t => (_pushMaybeArray(seen).call(seen, t), t);
 const xs = [1];
@@ -52,18 +53,18 @@ const [{
 }] = [(eff('k'), {
   isFrozen: _Object$isFrozen
 }), ...xs];
-const [{}] = [_globalThis.Array.prototype, ...xs];
-const inlineSurface = _atMaybeArray(_globalThis.Array.prototype);
-const [_ref] = [f(), ...xs];
-const viaCall = _atMaybeArray(_ref);
-const [_ref2] = [o.b, ...xs];
-const viaMember = _atMaybeArray(_ref2);
-const [, _ref3] = [...xs, _globalThis];
-const behindSpread = _at(_ref3.Array.prototype);
-const [, _ref4] = [...xs, [6, 7]];
+const [_ref] = [_globalThis.Array.prototype, ...xs];
+const inlineSurface = _atMaybeArray(_ref);
+const [_ref2] = [f(), ...xs];
+const viaCall = _atMaybeArray(_ref2);
+const [_ref3] = [o.b, ...xs];
+const viaMember = _atMaybeArray(_ref3);
+const [, _ref4] = [...xs, _globalThis];
+const behindSpread = _at(_ref4.Array.prototype);
+const [, _ref5] = [...xs, [6, 7]];
 // a leaf off a ctor the targets may lack re-anchors on the ponyfilled ctor as a declarator of its own,
 // and the wrapper's husk keeps only the sentinel of a hop the realm always carries
-const slotBehindSpread = _at(_ref4);
+const slotBehindSpread = _at(_ref5);
 const [{
   AggregateError: {
     customZ

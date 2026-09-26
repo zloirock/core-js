@@ -95,8 +95,8 @@ export const E2E_STRIP_GLOBALS = [
 // static answers `undefined` there and a method here, so only their absence tells an unresolved
 // alias of a container slot (`var _r$w = r.w, values = _r$w.values` - the lowering's spelling) apart
 // from a resolved one
-// Math.trunc also distinguishes a nested extraction beside rest from the absent host slot.
-export const E2E_STRIP_STATIC = { Object: ['assign', 'values', 'entries', 'is'], Math: ['trunc'] };
+// Math.sign and Math.trunc distinguish nested extractions beside rest from absent host slots.
+export const E2E_STRIP_STATIC = { Object: ['assign', 'values', 'entries', 'is'], Math: ['sign', 'trunc'] };
 
 // the composed global-strip set for the broad stripped-realm legs (e2e / unit-pure bundles)
 export const E2E_STRIP_REALM_GLOBALS = [...STRIP_GLOBALS, ...E2E_STRIP_GLOBALS];

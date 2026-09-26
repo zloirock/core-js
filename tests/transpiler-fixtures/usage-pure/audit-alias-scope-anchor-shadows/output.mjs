@@ -22,6 +22,11 @@ export function keepsNativeThrow() {
 
 // a const-bound array wrapper reached through a PATTERN slot still descends to its real value
 const [wrapper] = [[_globalThis]];
+const [{
+  Array: {
+    from: _unused
+  }
+}] = wrapper;
 export const viaWrapper = _Array$from;
 export const wrapperResolved = viaWrapper([5]);
 

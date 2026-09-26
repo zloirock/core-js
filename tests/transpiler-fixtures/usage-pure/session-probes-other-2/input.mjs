@@ -58,6 +58,7 @@ const [{ from: f }, z] = [pick ? Array : userObj, eff()];
 const [{ from: f }, { Map: M }] = [pick ? Array : userObj, globalThis]; log.push(f === Array.from, typeof M);
 }
 {
+// The native first slot reads before the second slot's instance extraction.
 const [{ from: f }, { at: a }] = [pick ? Array : userObj, arr]; log.push(f === Array.from, typeof a);
 }
 {
