@@ -60,4 +60,4 @@ npm workspaces; the packages:
 - Every code change requires a related test, and the whole suite must pass
 - A test that exposes a bug is never deleted or retargeted to make a run green - the fix belongs in the code; `tests/AGENTS.md` and the suites carry the rest
 - Code and test comments are in English, and in ASCII where possible
-- A new package or test area brings its own `AGENTS.md` and the one-line `CLAUDE.md` next to it, a row in the map above or in `tests/AGENTS.md`, and, for a package, both of those file names in its `.npmignore`
+- A new package or test / tool area brings its own `AGENTS.md`, a row in the map above or in `tests/AGENTS.md`, and, for a package, that file name in its `.npmignore`

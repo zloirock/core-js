@@ -1,6 +1,6 @@
 # unit-pure
 
-The pure-flavor half of the unit tests. Everything about naming, the generated index, the shared assertions and how the suites run is in `tests/unit-global/AGENTS.md`; only the differences are below.
+The pure-flavor half of the unit tests. Read `tests/unit-global/AGENTS.md` for naming, the generated index, shared assertions and how the suites run; only the differences are below.
 
 ## Target environment
 
