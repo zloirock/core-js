@@ -9,6 +9,9 @@ const make = () => (hits++, [Math]);
 make();
 const viaKeyed = _Math$trunc;
 const held = make();
+const [{
+  sign: _unused
+} = {}] = held;
 const viaHeld = _Math$sign;
 const outer = () => make();
 const [{

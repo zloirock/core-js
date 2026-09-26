@@ -30,6 +30,7 @@ import './existing-imports.mjs';
 import './synth-wks-keys.mjs';
 import './destructure-collapse.mjs';
 import './mirror-decline-complexity.mjs';
+import './rest-boundary-complexity.mjs';
 import './mirror-ctor-passthrough.mjs';
 import './fallback-branches.mjs';
 import './parameter-call-sites.mjs';

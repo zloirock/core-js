@@ -27,10 +27,19 @@ const {
 export const fromLiteralBeside = _Object$fromEntries([]);
 export const fromParamBeside = _Math$log10(100);
 const wrapArr = value => [value];
+const [_ref] = wrapArr(String);
+const {
+  raw: _unused
+} = _ref;
 const viaWrappedParam = _String$raw;
 export const fromWrappedParam = viaWrappedParam`x`;
 const wrapKeyed = value => [{
   a: value
 }];
+const [{
+  a: {
+    of: _unused2
+  }
+}] = wrapKeyed(Array);
 const viaWrappedKeyed = _Array$of;
 export const fromWrappedKeyed = viaWrappedKeyed(13);

@@ -182,10 +182,22 @@ function mark(t, v) {
     f = _ref4 === Array ? _Array$from : _ref4.from;
 }
 {
-  const at = _atMaybeArray([1]);
+  const {
+    w: _ref5
+  } = {
+    w: [[1]]
+  };
+  const [_ref6] = _ref5;
+  const at = _atMaybeArray(_ref6);
 }
 {
-  const m = _atMaybeArray([1, 2]);
+  const {
+    w: _ref7
+  } = {
+    w: [[1, 2]]
+  };
+  const [_ref8] = _ref7;
+  const m = _atMaybeArray(_ref8);
   use(m);
 }
 {
@@ -262,36 +274,36 @@ function mark(t, v) {
   use(m, rest);
 }
 {
-  const _ref5 = {
+  const _ref9 = {
     z: 1,
     w: tick('w', _globalThis)
   };
-  const m = _at(_ref5.w.Array.prototype);
+  const m = _at(_ref9.w.Array.prototype);
   const {
     z
-  } = _ref5;
+  } = _ref9;
   use(m, z);
 }
 {
-  const _ref6 = {
+  const _ref10 = {
     z: tick('z', 1),
     w: tick('w', _globalThis)
   };
-  const m = _at(_ref6.w.Array.prototype);
+  const m = _at(_ref10.w.Array.prototype);
   const {
     z
-  } = _ref6;
+  } = _ref10;
   use(m, z);
 }
 {
-  const _ref7 = {
+  const _ref11 = {
     w: _globalThis,
     z: 5
   };
-  const besideSibling = _mapMaybeArray(_ref7.w.Array.prototype);
+  const besideSibling = _mapMaybeArray(_ref11.w.Array.prototype);
   const {
     z
-  } = _ref7;
+  } = _ref11;
   use(besideSibling, z);
 }
 {

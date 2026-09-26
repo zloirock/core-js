@@ -12,20 +12,17 @@ import {
   destructurePatternHostPath,
   fallbackBranchSwapKeepsSelection,
   flattenArrayWrapperInits,
-  isBuiltInSurfaceNav,
   isConstantLiteralReceiver,
   isInstanceSurfaceNav,
   isReReadableSurfaceNav,
   isReReferenceableAcrossReads,
   isReReferenceableReceiver,
-  isSeFreeMemberReceiver,
   isViableBranchForKey,
   paramDefaultInstanceSynthAllowed,
+  patternComputedKeysSynthSafe,
   patternHopKeysToHost,
-  planSideEffectKeyStrategy,
   planSynthReceiverGuard,
   qualifiesForParamBodyExtract,
-  receiverPerformsEveryInitEffect,
   renderSynthTree,
   resolveNestedDestructureReceiver,
   selectionLeftAlwaysTruthy,
@@ -37,7 +34,6 @@ import {
   resolveNestedReceiverNode,
   patternClaimOwesMirror,
   resolvePassthroughRef,
-  resolvePositionalElementSlot,
   staticHopPure as sharedStaticHopPure,
   synthPropDedupKey,
   typedNavClaimChain,
@@ -45,7 +41,6 @@ import {
   typedNavClaimShape,
   undefinedArmEffectiveReceiver,
   walkStaticReceiverChain,
-  wrapperElementNavPlacement,
   provenRealmCallRoot,
   discardRescueNodesWithReads,
   destructureRightIsReceiver,
@@ -53,16 +48,16 @@ import {
   observablePrefixElements,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
+  bodylessSlotReplacement,
   capturedRealmCtorPure,
-  isBodylessStatementSlot,
-  isForInitDeclaration,
-  planArrayWrapperCapture,
+  planNestedLeafHost,
   planNestedKeyedPatternCapture,
   planRetainedObjectCapture,
   keyedReadReceiverProven,
   renderRetainedObjectCapture,
   renderNestedKeyedPatternCapture,
   renderArrayWrapperCapture,
+  renderArrayDestructurePlan,
 } from '@core-js/polyfill-provider/destructure-host-shape';
 import {
   buildNestedDestructurePlan,
@@ -73,7 +68,6 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
 import { registerBindinglessCtorAlias, registerDeclAliasIfSound } from '@core-js/polyfill-provider/helpers/class-walk';
 import {
-  computedKeyIsWellKnownSymbol,
   discardRescueNodes,
   findProxyGlobal,
   inlineCallReturnExpression,
@@ -92,8 +86,6 @@ import {
 
 import {
   computedKeyHasSideEffects,
-  computedKeysAllBound,
-  substitutedGlobalKeyImport,
   forOfHeadIterableElements,
   FUNCTION_LIKE_NODE_TYPES,
   getFallbackBranchSlots,
@@ -132,7 +124,6 @@ import {
   firstProxyBranch,
   invocationNode,
   proxySurfaceIdentifier,
-  seKeyKeepsReceiverRead,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { detectIifeArgReceiver, findSynthSwapReceiver } from './destructure-emit-utils.js';
 import { nodeSite, stampNodeSite } from './nav-spine.js';
@@ -143,7 +134,6 @@ import {
   conditionalExpression,
   memberFromKeyName,
   nullGuardTest,
-  assignmentExpression,
   callExpression,
   cloneNode,
   identifier,
@@ -167,6 +157,7 @@ import {
   duplicateReceiver,
   eagerSentinelMemoName,
   emitAssignStaticDefaultOverwrite,
+  exportWrap,
   guardedSlotValue,
   hasRestSibling,
   hopChainKeys,
@@ -190,7 +181,6 @@ import {
   planLiteralRoute,
   planSealedNavProbe,
   planSentinelMemo,
-  propBindingTarget,
   propLocalName,
   proxyNavSynthBase,
   proxyPassthroughBase,
@@ -198,7 +188,6 @@ import {
   registerHopInstanceSynthSlot,
   registerInstanceSynthSlot,
   registerSeKeyDefaultOverwrite,
-  resolveArrayWrappedReceiver,
   routeSelectionMirror,
   seCarriedHopNav,
   SELECTING_INIT_TYPES,
@@ -236,30 +225,6 @@ function attachAssignmentSentinelMinter(job, { seqHostStatement, metaPath, injec
   };
 }
 
-// the non-tail expressions of every sequence on a node's receiver SPINE - the node itself, a call's
-// callee, a member's object, through the transparent wrappers - in evaluation order. the sealed-nav
-// walk (`navHopSequencePrefixes`) asks a narrower question: member objects only, of a nav it guards
-function spineSequencePrefixes(node) {
-  const prefixes = [];
-  for (let cur = peelTransparentExpr(node); cur; cur = peelTransparentExpr(cur)) {
-    switch (cur.type) {
-      case 'SequenceExpression':
-        prefixes.push(...cur.expressions.slice(0, -1));
-        cur = cur.expressions.at(-1);
-        break;
-      case 'CallExpression':
-        cur = cur.callee;
-        break;
-      case 'MemberExpression':
-        cur = cur.object;
-        break;
-      default:
-        return prefixes;
-    }
-  }
-  return prefixes;
-}
-
 // eslint-disable-next-line max-statements -- per-transform ledgers and the binding channels sharing them
 export default function createAstDestructureEmitter({
   adapter,
@@ -286,16 +251,12 @@ export default function createAstDestructureEmitter({
 }) {
   // hostNode (VariableDeclaration | ExpressionStatement) -> { hostPath, jobs }
   const ledger = new Map();
+  const pendingSplits = new Map();
   // the per-function insertion cursor keeping consecutive body-extracts in SOURCE order
   const bodyExtractInsertAt = new Map();
   // literal-route receiver memo names, shared per receiver NODE across that receiver's leaves
   const literalMemoNames = new Map();
 
-  // the in-slot memo writes this channel planted, keyed by the write left standing in the slot: a
-  // SIBLING claim off the same element meets that write as its receiver and reads the one ref rather
-  // than spelling - and performing - the write a second time
-  const slotMemoWrites = new WeakMap();
-  const forInitCaptures = new WeakMap();
   const capturedSiblingHosts = new WeakSet();
   // a sole ctor hop the extraction never touched still flattens - over a MUTATED slot (no
   // static behind the shim resolves, so no job records) and over a PRISTINE proxy one; the
@@ -375,6 +336,7 @@ export default function createAstDestructureEmitter({
     mintRefName,
     mintUnusedName,
     pendingBranchSynths,
+    pendingSplits,
     probeRenderCtx,
     program,
     resolveGlobalPolyfill,
@@ -475,14 +437,9 @@ export default function createAstDestructureEmitter({
       || (job.declarator ?? job.declaratorNode) === host.node)) return false;
     const pure = resolvePure(meta, metaPath);
     if (!patternClaimOwesMirror(pure?.kind, metaPath)) return false;
+    // The array plan records the mirror before moving its neighbouring reads.
+    if (meta.fromFallback && renderArrayFlattenPlan(metaPath)) return true;
     return renderNestedParamSynth({ metaPath, meta, fallbackOnBail: true }) === true;
-  }
-
-  // a MINTED well-known-symbol key (`[_Symbol$iterator]` - the wks swap ran before this claim)
-  // has no tree binding until the import flush; the shared fold vouches for it
-  function mintedKeyExempt(metaPath) {
-    return keyNode => computedKeyIsWellKnownSymbol({ keyNode, scope: metaPath.scope, adapter, path: metaPath })
-      || !!substitutedGlobalKeyImport(keyNode, name => injectorState.getPureImport?.(name)?.hint, resolveGlobalPolyfill);
   }
 
   // one slot of the simple synth literal; the drain renders the whole pattern at once
@@ -529,7 +486,7 @@ export default function createAstDestructureEmitter({
         });
     }
     if (!isSynthSimpleObjectPattern(pattern)
-      || !computedKeysAllBound(pattern, metaPath.scope, mintedKeyExempt(metaPath), resolveGlobalPolyfill)) return false;
+      || !patternComputedKeysSynthSafe({ objectPatternNode: pattern, scope: metaPath.scope, adapter, path: metaPath })) return false;
     const receiver = findSynthSwapReceiver(hostParent, pattern, metaPath.scope, adapter, resolvePure);
     let baseIdent = receiver;
     let leadingEffects = null;
@@ -789,7 +746,7 @@ export default function createAstDestructureEmitter({
       return;
     }
     if (!isSynthSimpleObjectPattern(pattern)
-      || !computedKeysAllBound(pattern, metaPath.scope, mintedKeyExempt(metaPath), resolveGlobalPolyfill)) return;
+      || !patternComputedKeysSynthSafe({ objectPatternNode: pattern, scope: metaPath.scope, adapter, path: metaPath })) return;
     const { lookupKey } = resolveSynthKeys({ node: prop, scope: metaPath.scope, adapter, path: metaPath });
     const dedupKey = synthPropDedupKey(prop, { scope: metaPath.scope, path: metaPath, adapter });
     if (!lookupKey || !dedupKey) return;
@@ -886,7 +843,12 @@ export default function createAstDestructureEmitter({
     // a ctor SLOT carries no leaf pattern of its own - what it binds is the constructor itself
     if (!ctorSlot
       && ((!partialTargets && !isSynthSimpleObjectPattern(leafPattern, { allowNestedValue: nestedValuesRideTheHop }))
-        || !computedKeysAllBound(leafPattern, metaPath.scope, mintedKeyExempt(metaPath), resolveGlobalPolyfill))) return false;
+        || !patternComputedKeysSynthSafe({
+          objectPatternNode: leafPattern,
+          scope: metaPath.scope,
+          adapter,
+          path: metaPath,
+        }))) return false;
     let inner = peelFallbackBranchInner(branch);
     let discardedInitProbePlan = null;
     let discardedProbeProp = null;
@@ -1266,295 +1228,6 @@ export default function createAstDestructureEmitter({
     return true;
   }
 
-  // is this member read rooted in a PLAIN local value? a nav into a built-in namespace is the
-  // proxy / anchored machinery's shape and answers its own way - a leaf off the object those hops
-  // merely REACH is a name match, not a claim - so only a member whose root is an ordinary binding
-  // may be spelled once by the literal route
-  function plainLocalMemberRoot(node) {
-    let root = node;
-    while (root?.type === 'MemberExpression' || root?.type === 'OptionalMemberExpression') root = root.object;
-    return root?.type === 'Identifier' && !POSSIBLE_GLOBAL_OBJECTS.has(root.name)
-      && !resolvePure({ kind: 'global', name: root.name }, null);
-  }
-
-  // the array-wrapped ASSIGNMENT twin's registration, extracted for its size - see the
-  // arrayHost branch in handleObjectPropertyResult
-  function registerArrayAssignTwinJob({ wrapped, prop, pattern, chain, kind, entry, hintName, metaPath,
-    symbolProp, patternPath }) {
-    // a BODYLESS twin and an INSTANCE-defaulted prop both keep the raw destructure (the
-    // native slot assigns first, the overwrite re-binds after), so the element is read
-    // TWICE - only a re-referenceable one qualifies. a STATIC default is DEAD (the pairing
-    // proved the element) and the consume drops it with the destructure, the declaration
-    // route's own rule
-    // ... unless the slot PRUNES: nothing ran the default then, so it neither keeps the raw slot nor
-    // falls back to the binding - the default node is the one reader left
-    // a prop with no LOCAL of its own - a hop the plan anchored (`AggregateError: { customZ }`) - has no
-    // overwrite to append here: this route binds a name after the raw destructure, and a pattern is
-    // not one. it stands down and leaves the slot to the residual (the anchored render is not yet
-    // this host's), where recording it printed an identifier with no name
-    // ... a MEMBER target the root gate admits is the exception: the source already named the slot
-    // this route would have bound, so the overwrite writes straight into it
-    if (propLocalName(prop) === undefined && !symbolProp
-      && !memberTargetTakesExtraction(prop.value, { scope: metaPath.scope, path: metaPath, adapter })) return;
-    const prunes = consumedAssignmentSlotPrunes(metaPath);
-    const defaulted = prop.value.type === 'AssignmentPattern' && kind === 'instance' && !prunes;
-    // ... and a MULTI-element wrapper is the third such keeper: its siblings still bind, so the
-    // destructure stays whole and this claim only appends its overwrite - a FLAT static included,
-    // which the other leg claims through its own overwrite channel for the same reason
-    const keepsRaw = wrapped.bodyless || wrapped.multi;
-    const chainKeys = hopChainKeys(chain);
-    // the dead default peels out of the VALUE only - the raw prop keeps its own binding
-    // a STATIC leaf's default rides the value builder, where the canon drops it (dead text: the pure
-    // is always defined); an INSTANCE leaf keeps the overwrite's own guard, which falls back to the
-    // raw slot the residual already defaulted - so its value peels the default out
-    const twinProp = kind === 'instance' && prop.value.type === 'AssignmentPattern' ? { ...prop, value: prop.value.left } : prop;
-    // an INSTANCE claim resolves its receiver through the canonical NESTED walk - the
-    // wrapper pairing proved the element, and a chain reads through the literal to the
-    // value that actually dispatches (`[{ y: { flat: m } }] = [{ y: arr }]` ->
-    // `_flatMaybeArray(arr)`); the pairing-proven single read is the literal route
-    // ... and it resolves like every other nested claim: through an SE-peeled fragment (a kept WRITE
-    // is a prefix of its own) and through the nav segments the hops name. a receiver that came back
-    // WITH those segments has consumed the pattern's hops, so they must not be appended twice
-    // ... and where the residual dies WHOLE an effect-bearing one qualifies too: the dispatch is then
-    // the only reader and performs the effects the dropped RHS would have, exactly once
-    // (`([{ y: { at: v } }] = [{ y: eff() }])`)
-    const twinPlainDeep = kind === 'instance' && chain.length
-        ? resolveNestedReceiverNode(metaPath, { allowSePeeledFragment: true, allowNavSegments: true, adapter }) : null;
-    const twinCarriedDeep = kind === 'instance' && chain.length && !twinPlainDeep
-      && consumedAssignmentSlotDropsHost(metaPath)
-      ? carriedInitReceiverNode({
-        path: metaPath,
-        initNode: wrapped.assignment?.right,
-        resolveOptions: { allowSePeeledFragment: true, allowNavSegments: true },
-        adapter,
-      }) : null;
-    // ... and a nav ending on a polyfillable STATIC dispatches on that static's ponyfill - an import
-    // binding, re-referenceable by nature - never on the raw static off the realm (`[{ Array: { of: {
-    // name } } }] = [globalThis]` -> `_name(_Array$of)`): the typed-base question the plain assignment
-    // host asks, so the wrapper answers like it
-    const twinTypedChain = kind === 'instance' && chain.length && twinPlainDeep && !symbolProp
-      ? typedNavClaimChain(metaPath, { adapter, allowAssignmentHost: true }) : null;
-    const twinTypedBase = twinTypedChain && resolveNestedReceiverBase({
-      rootName: twinTypedChain.root.name,
-      keys: twinTypedChain.keys,
-      binding: adapter.getBinding(metaPath.scope, twinTypedChain.root.name, metaPath),
-      adapter,
-      resolveGlobalPolyfill,
-      resolveStaticPolyfill: (ctor, key) => staticHopPure(ctor, key, metaPath),
-    });
-    const twinStaticReceiver = twinTypedBase?.static
-      ? identifier(injectPureImport(twinTypedBase.pure.entry, twinTypedBase.pure.hintName)) : null;
-    const twinDeepReceiver = twinStaticReceiver ?? twinPlainDeep ?? twinCarriedDeep;
-    // a SEQUENCE element whose tail cannot be spelled twice rides WHOLE where the raw destructure
-    // leaves: the dispatch is then the one reader and spells the comma run where the source did
-    // (`e = _at((out = 1, f()))`, the flat spelling's shape); where the destructure STAYS the level
-    // keeps its native read - spelling the tail beside it would run the tail twice
-    const seqElement = kind === 'instance' && wrapped.elementNode?.type === 'SequenceExpression'
-      && wrapped.elementNode !== wrapped.element && !isReReferenceableReceiver(wrapped.element);
-    // ... unless the key's own effect keeps the receiver read: the memo then takes the element SLOT
-    // and holds the run WHOLE, so the tail is spelled once and the residual reads the ref in its
-    // place. that is the one shape where spelling the element beside the destructure runs nothing
-    // twice, and refusing it lost the claim on both legs alike
-    const seKeySharesElement = kind === 'instance' && seKeyKeepsReceiverRead({
-      prop,
-      receiver: wrapped.elementNode ?? wrapped.element,
-      restSibling: hasRestSibling(pattern),
-    });
-    if (seqElement && !seKeySharesElement && (keepsRaw || !consumedAssignmentSlotDropsHost(metaPath))) return;
-    let twinReceiver = twinDeepReceiver ?? (seqElement ? wrapped.elementNode : wrapped.element);
-    let receiverIsSlotMemo = false;
-    // a sibling meeting the memo's own write reads the ref it published, before any gate judges the
-    // write as though it were the receiver the source wrote
-    const plantedSlotRef = slotMemoWrites.get(peelTransparentExpr(twinReceiver));
-    if (plantedSlotRef) {
-      twinReceiver = identifier(plantedSlotRef);
-      receiverIsSlotMemo = true;
-    }
-    // the questions below are asked WITH the guard context, never on a PEELED marker: a receiver
-    // wearing a dead chain marker is a provable nav all the same, and peeling it ahead of them
-    // strips the wrapper and leaves the hop flags saying the opposite - the marked twin then shipped
-    // native where the plain one extracts (`[{ Array: { from } }, zn] = [globalThis?.globalThis, 7]`)
-    const twinGuardCtx = navGuardCtx(metaPath);
-    // the raw slot the shapes above KEEP reads the receiver a second time, so what the dispatch
-    // spells beside it must be safe to spell twice: a re-referenceable token, or a nav into the
-    // built-in namespace the polyfill already models as stable - the same pair babel's own
-    // overwrite gate asks, now asked of the RESOLVED receiver instead of the raw element
-    // ... and a PROXY nav answers the same question through its own resolution, which is what reads
-    // the `?.` hops the surface predicate cannot judge on its own (`globalThis?.globalThis`)
-    // ... and the LEAF's own siblings keep that raw slot just as surely: the consumed prop leaves,
-    // the pattern stays for them, and what it reads is the same hop the dispatch spells. so does a
-    // REST above the hop - it keeps the hop's key in the pattern, and the key IS that read.
-    // a receiver-less STATIC spells nothing beside that slot, so it extracts whatever the element
-    // (`[{ Object: { fe }, ...rest }] = [kw = (eff(), globalThis)]` keeps the write in the residual)
-    if ((kind === 'instance' || symbolProp)
-      && !seKeySharesElement
-      && (keepsRaw || defaulted || pattern.properties?.length > 1
-        || chain.some(level => level.outerRest))
-      && !isReReferenceableReceiver(twinReceiver)
-      && !isReReadableSurfaceNav(twinReceiver, name => !!injectorState?.getBindingInfo?.(name))
-      && !resolveProxyNavReceiver(twinReceiver, twinGuardCtx)) return;
-    // ... and an SE-keyed INSTANCE prop over a MEMBER receiver owes that member exactly ONE
-    // evaluation, whatever the wrapper and whether or not it is defaulted: the kept key leaves the
-    // residual performing the source's own read, so the dispatch SHARES it through the memo below
-    // and stands down only where the element has no slot to take. asked of the RESOLVED receiver,
-    // not the raw element: a chain that resolved to a nav (`[{ y: { [se()]: m } }] = [nb]` dispatches
-    // on `nb.y`) is the same member read
-    if (kind === 'instance' && seKeyKeepsReceiverRead({
-      prop,
-      receiver: twinReceiver,
-      restSibling: hasRestSibling(pattern),
-    })) {
-      // ... unless the element has a SLOT the memo can take: the write stands where the source
-      // evaluates it, so the member is read once, the residual reads the memo in its place and the
-      // dispatch reads it again for free - the other leg's answer for the same shape
-      // a SEQUENCE element hands its slot the WHOLE run, prefix and all: the memo write stands
-      // where the source evaluated it, so the order the native form runs in does not move
-      const memoSource = seqElement ? wrapped.elementNode : wrapped.element;
-      const slotMemo = wrapped.assignment
-        ? elementMemoFor(memoSource, wrapped.assignment, { inSlot: true, metaPath }) : null;
-      if (!slotMemo?.refName || !slotMemo.slot) return;
-      const slotWrite = assignmentExpression('=', identifier(slotMemo.refName), memoSource);
-      slotMemoWrites.set(slotWrite, slotMemo.refName);
-      slotMemo.slot.owner[slotMemo.slot.key] = slotWrite;
-      twinReceiver = identifier(slotMemo.refName);
-      // the live re-resolve below reads the SLOT, which now holds the memo's own write: re-spelling
-      // it in the dispatch would perform that write - and the member read inside it - a second time
-      receiverIsSlotMemo = true;
-    }
-    // ... and a COMPUTED key over a resolved NAV stands down here whatever its effects: the plain
-    // assignment host leaves that shape native on BOTH legs, and the wrapper is the same host one
-    // literal further in - claiming it here would make this the only place the family rewrites.
-    // the SYMBOL claim is not this shape: its computed key is the route's own subject
-    if (kind === 'instance' && !symbolProp && prop.computed && chain.length) return;
-    // ... and a nav into the BUILT-IN namespace must NAME the instance surface it dispatches on: a
-    // leaf off the object the hops merely REACH is a name match (`[{ Array: { keys: k } }] =
-    // [globalThis]`), which every other host of both legs keeps native. the RESOLVED receiver is what
-    // answers, since the resolution consumed the pattern's hops
-    if (kind === 'instance' && twinDeepReceiver
-      && isBuiltInSurfaceNav(twinDeepReceiver) && !isInstanceSurfaceNav(twinDeepReceiver)) return;
-    // the dispatch SPELLS this element, effects included, so the dead residual must not re-emit the
-    // RHS beside it - the two halves disagreeing about that ran `[eff()]` twice. it is also what
-    // tells the value builder to keep an SE PREFIX inside the dispatch: the peel exists to leave it
-    // to the residual, and there is no residual left to run it
-    // ... but an element that SPELLS A SEQUENCE stands down entirely, as the other leg does: a claim
-    // INSIDE it renders by lifting its own prefix into the residual, so dropping the residual drops
-    // that lift, and keeping it re-reads what the dispatch spells (`[(log.push("f"), arr).flat()]`)
-    // a STATIC claim spells no receiver at all - it substitutes its own pure import - so it carries
-    // nothing and the residual keeps every effect the element owes
-    const carriesInit = kind === 'instance'
-      && receiverPerformsEveryInitEffect(wrapped.assignment?.right, twinReceiver, { scope: metaPath.scope, adapter, path: metaPath });
-    // ... and so does an element the PEEL reduced to a sequence's TAIL: the residual keeps the whole
-    // sequence while the dispatch spells that tail, so spelling it is a SECOND evaluation unless it
-    // is free to re-read. a second pass over this leg's own output is where the shape appears, with
-    // the prefix lifted to the top (`[(push, _flat(arr).call(arr))]`)
-    const value = buildValue({
-      guardCtx: twinGuardCtx,
-      kind,
-      entry,
-      hintName,
-      receiverNode: twinReceiver,
-      carriesInit,
-      // the element is re-resolved at DRAIN through the same walk: a claim INSIDE it renders by
-      // replacing its node, and the copy this job captured predates that. only where the walk
-      // itself named the element - a resolved deep receiver keeps the spelling it resolved
-      // ... a CARRIED one re-resolves through its own walk: the claim may sit INSIDE it, and rendering
-      // that claim replaces the node this job captured
-      liveReceiver: receiverIsSlotMemo ? null : twinCarriedDeep
-        ? () => resolveNestedReceiverNode(metaPath,
-          { allowSePeeledFragment: true, allowNavSegments: true, allowInitCarriedEffects: true, adapter }) ?? twinReceiver
-        : twinDeepReceiver || !patternPath ? null
-          // ... a dispatch that CARRIES the init spells the element's own prefix ahead of the
-          // rewritten tail (`_at((out = 1, _flatMaybeArray(arr).call(arr)))`), the other leg's peel
-          : () => {
-            const spelled = resolveArrayWrappedReceiver(patternPath, null, { adapter })?.element ?? twinReceiver;
-            if (!carriesInit) return spelled;
-            // ... every comma run on the element's own spine, outermost first - the element itself
-            // (`(out = 1, f())`) or a receiver inside it (`(out = 1, arr).flat()`), whose prefix the
-            // claim's rewrite left beside the residual that is now leaving
-            const prefixes = spineSequencePrefixes(wrapped.elementNode)
-              .filter(expr => !subtreeContainsNode(spelled, expr));
-            return prefixes.length ? sequenceExpression([...prefixes, spelled]) : spelled;
-          },
-      prop: twinProp,
-      nested: !twinDeepReceiver && chain.length > 0,
-      chainKeys: twinDeepReceiver ? [] : chainKeys, metaPath,
-      // ... a POSSIBLE-GLOBAL identifier stays off the literal route: the barePure /
-      // proxy machinery owns its substitution (`globalThis` -> `_globalThis`)
-      // ... and a side-effect-free MEMBER element rides it too where the residual DIES: the gate above
-      // already refused every shape that keeps a raw reader, so the dispatch is the only read and
-      // spelling it once costs nothing - the plain assignment host's own rule, which is why the two
-      // legs answered this element differently
-      // ... and where the residual DIES the element has exactly ONE reader - the dispatch - so it may
-      // be spelled whatever its shape, effects included: that is the single read native performs.
-      // the gate above already refused every shape that keeps a raw reader beside it
-      // ... and a CARRIED receiver is that route by construction: it only resolved because the whole
-      // residual dies, so the dispatch is the single read - whatever the element's shape
-      literalRoute: kind === 'instance' && (!!twinCarriedDeep
-          || (!keepsRaw && !defaulted && pattern.properties?.length === 1
-            && !chain.length && !(prop.computed && computedKeyHasSideEffects(prop)))
-          || isConstantLiteralReceiver(peelTransparentExpr(twinReceiver))
-          || (isSeFreeMemberReceiver(peelTransparentExpr(twinReceiver))
-            && plainLocalMemberRoot(peelTransparentExpr(twinReceiver))
-            && pattern.properties?.length === 1
-            && !(prop.computed && computedKeyHasSideEffects(prop)))
-          || (isReReferenceableReceiver(twinReceiver)
-            && !(peelTransparentExpr(twinReceiver)?.type === 'Identifier'
-              && POSSIBLE_GLOBAL_OBJECTS.has(peelTransparentExpr(twinReceiver).name)))),
-    });
-    if (!value) return;
-    // the kept raw slot already ran the source's default exactly once, so the overwrite falls back
-    // to the BINDING - a dispatch that answers undefined must not bury it
-    const twinRef = defaulted || (prunes && prop.value.type === 'AssignmentPattern' && kind === 'instance')
-      ? injector.generateDeclaredRef(metaPath) : null;
-    const guardedValue = twinRef
-      ? override => overwriteDefaultGuard({
-        call: value(override),
-        localName: propLocalName(prop),
-        ref: twinRef,
-        defaultNode: prunes ? prop.value.right : null,
-      })
-      : value;
-    markRewrite();
-    recordJob({
-      hostPath: wrapped.exprStmtPath,
-      job: (() => {
-        const job = {
-          prop,
-          pattern,
-          chain,
-          // a rest sibling keeps the residual reading past the consumed key - the prop
-          // renames to `_unused` there; without one the prop leaves and the left dies
-          // ... and a computed KEY carrying an effect keeps its slot too: the key runs where it
-          // stands, and a removed prop takes that effect with it
-          // ... and a MULTI wrapper keeps the slot only where the shared canon says it must: a
-          // consumed prop whose own hop chain may leave still leaves (`[{ a, y: { flat: m } }, zn]`
-          // sheds `y` and keeps `a`), and it is the WRAPPER level that pins the flat one
-          sentinel: defaulted || wrapped.multi || computedKeyHasSideEffects(prop)
-            || hasRestSibling(pattern) || chain.some(level => level.outerRest),
-          // ... except a SYMBOL target, which has no declaration to host an extraction: the
-          // destructure assigns it natively first and the overwrite rebinds it through the
-          // helper, so the prop keeps its own binding (`[{ [S]: it, ...r }] = [arr]`) -
-          // and a DEFAULTED one, whose default must run natively before the re-bind
-          keepSentinelBinding: symbolProp || defaulted || wrapped.multi
-            || computedKeyHasSideEffects(prop),
-          local: propLocalName(prop), value: guardedValue, prunesSlot: prunes,
-          // the dispatch SPELLS this element, effects included, so the dead residual must not
-          // re-emit the RHS beside it - the two halves disagreeing about that ran `[eff()]` twice.
-          carriesInit,
-          host: 'array-assign', assignment: wrapped.assignment, metaPath, bodyless: wrapped.bodyless,
-          mintedSentinels: [],
-        };
-          // assignment position writes an undeclared name: the drain plants `var _unusedN`
-        job.mintSentinel = () => {
-          const name = mintUnusedName();
-          job.mintedSentinels.push(name);
-          return name;
-        };
-        return job;
-      })(),
-    });
-  }
-
   // the shared static-hop question, asked with this leg's path-bound entry resolver
   function staticHopPure(ctorName, key, metaPath) {
     return sharedStaticHopPure({ ctorName, key, resolvePure: m => resolvePure(m, metaPath) });
@@ -1753,6 +1426,93 @@ export default function createAstDestructureEmitter({
     return false;
   }
 
+  // The first claim chooses its host's route. A later property must not plan a
+  // partially consumed host and move ahead of extractions already placed for it.
+  const arrayPlanHosts = new WeakSet();
+
+  // Apply the complete array branch before this host has any per-property jobs.
+  // The provider owns its residual and order; the binding inserts the planned declarations.
+  function renderArrayFlattenPlan(metaPath) {
+    const declarator = destructurePatternHostPath(metaPath);
+    if (declarator?.node?.type !== 'VariableDeclarator' && declarator?.node?.type !== 'AssignmentExpression') return false;
+    if (arrayPlanHosts.has(declarator.node)) return false;
+    arrayPlanHosts.add(declarator.node);
+    const plan = buildNestedDestructurePlan({
+      arrayPath: declarator,
+      arrayProp: metaPath,
+      adapter,
+      resolvePure,
+      isDisabledProp: isDisabled,
+      isClaimedProp: (path, meta) => skippedNodes.has(path.node)
+        || sentinelAlreadyProcessed(path, { node: path.node, meta, injector: injectorState }),
+    });
+    if (!plan) return false;
+    const declaration = declarator.parentPath;
+    const exported = declaration.parentPath.node.type === 'ExportNamedDeclaration';
+    for (const mirror of plan.array.mirrors ?? []) renderNestedParamSynth({
+      metaPath: mirror.propPath,
+      meta: mirror.meta,
+      fallbackOnBail: true,
+    });
+    const rendered = renderArrayDestructurePlan(plan, {
+      kind: declaration.node.kind ?? 'const',
+      injectImport: injectPureImport,
+      init: declarator.node.init,
+      embed: cloneNode,
+      retain: node => node,
+      mintRef: plan.array.assignment ? () => injector.generateDeclaredRef(metaPath) : mintRefName,
+      mintDeclaredRef: () => injector.generateDeclaredRef(metaPath),
+      mintUnused: mintUnusedName,
+      decorate: (node, source, isExport) => exportWrap(node, isExport),
+      read: (extraction, receiver) => {
+        const id = identifier(injectPureImport(extraction.entry, extraction.hint));
+        if (extraction.kind !== 'static') return callExpression(id, [receiver]);
+        injectorState.registerBodyExtractAlias(extraction.localName, extraction.entry, metaPath.scope.getBinding(extraction.localName));
+        return id;
+      },
+    });
+    if (exported && !plan.array.inDeclaration && plan.array.exportedSiblings?.length) rendered.push({
+      type: 'ExportNamedDeclaration',
+      declaration: null,
+      source: null,
+      specifiers: plan.array.exportedSiblings.map(name => ({
+        type: 'ExportSpecifier',
+        local: identifier(name),
+        exported: identifier(name),
+      })),
+    });
+    if (!plan.array.assignment) retireDeclaratorJobs(declarator);
+    for (const extraction of plan.extractions) skippedNodes.add(extraction.prop);
+    if (plan.array.assignment) {
+      const statement = declarator.findParent(item => item.node === plan.array.statement);
+      declarator.get('left').replaceWith(rendered[0].expression.left);
+      if (plan.array.bodyless) statement.replaceWith(bodylessSlotReplacement(statement.node, [statement.node, ...rendered.slice(1)]));
+      else statement.insertAfter(rendered.slice(1));
+    } else if (plan.array.inDeclaration) {
+      const names = exported ? declaration.node.declarations.flatMap(node => collectPatternNames(node.id)) : null;
+      declarator.replaceWithMultiple(rendered.flatMap(node => node.declarations));
+      if (exported) declaration.parentPath.replaceWithMultiple([
+        declaration.node,
+        {
+          type: 'ExportNamedDeclaration',
+          declaration: null,
+          source: null,
+          specifiers: names.map(name => ({ type: 'ExportSpecifier', local: identifier(name), exported: identifier(name) })),
+        },
+      ]);
+      if (plan.array.splitDeclaration) pendingSplits.set(declaration.node, statementListOf(declaration.parentPath?.node));
+    } else if (plan.array.positional && !exported) {
+      declarator.get('id').replaceWith(rendered[0].declarations[0].id);
+      declaration.insertAfter(rendered.slice(1));
+    } else (exported ? declaration.parentPath : declaration).replaceWithMultiple(rendered.map((node, index) => exportWrap(
+      node,
+      exported && node.type !== 'ExportNamedDeclaration' && plan.array.exportFrom !== null && index >= plan.array.exportFrom,
+    )));
+    markRewrite();
+    // Retained claims are visited in the replacement; the source path is retired.
+    return true;
+  }
+
   // eslint-disable-next-line max-statements -- per-form prop dispatch sequence
   function handleObjectPropertyResult({ metaPath, meta, kind, entry, hintName }) {
     // the caller mirror first: where it settles the leaf's inner default arm for every caller
@@ -1774,13 +1534,14 @@ export default function createAstDestructureEmitter({
       && renderNestedParamSynth({ metaPath, meta, fallbackOnBail: true })) return;
     const restHost = destructurePatternHostPath(metaPath);
     const assignment = restHost?.node?.type === 'AssignmentExpression';
-    const arrayRest = (kind === 'instance' || (kind === 'static' && computedKeyHasSideEffects(metaPath.node)))
-      && restHost?.node?.type === 'VariableDeclarator'
+    const arrayRest = restHost?.node?.type === 'VariableDeclarator'
       && restHost.parentPath?.parentPath?.node?.type !== 'ExportNamedDeclaration'
-      && (planArrayWrapperCapture({ pattern: restHost.node.id, init: restHost.node.init,
-        force: true, restPattern: metaPath.parentPath.node, adapter, injectorState })
-        ?? planArrayWrapperCapture({ pattern: restHost.node.id, init: restHost.node.init,
-          nestedOnly: !isForInitDeclaration(restHost.parentPath?.parentPath?.node, restHost.parentPath?.node) }));
+      && buildNestedDestructurePlan({
+        arrayPath: restHost,
+        adapter,
+        injectorState,
+        captureFor: { prop: metaPath.node, pattern: metaPath.parentPath.node, kind },
+      })?.array.capture;
     if (arrayRest) {
       const rendered = renderArrayWrapperCapture(arrayRest, { mintRef: mintRefName });
       // Re-detection owns the moved pattern; queued claims still name the old array host.
@@ -1813,6 +1574,7 @@ export default function createAstDestructureEmitter({
       markRewrite();
       return;
     }
+    if (renderArrayFlattenPlan(metaPath)) return;
     const prop = metaPath.node;
     // a MEMBER target rides the literal like a binding does: what the mirror puts in the slot is a
     // VALUE, and the pattern writes it into the author's own object exactly as it would a binding -
@@ -2076,13 +1838,6 @@ export default function createAstDestructureEmitter({
     // memo, or the hop it spells for itself is a second getter call
     if (chain.length > 0 && kind === 'instance'
       && registerFlattenLeafJob({ metaPath, prop, kind, entry, hintName })) return;
-    // ... and where a REST sibling keeps the hop in the pattern, neither flatten nor extraction can
-    // take it - the hop stays and would read a second time. the minted PAIR can: the hop's value
-    // takes the name, the dispatch reads it, and the key stays excluding itself from rest. asked
-    // only for that shape here; the array-element twin keeps its own call site in the wrapper branch
-    if (chain.length > 0 && hostPatternPath?.node?.type === 'ObjectPattern'
-      && hasRestSibling(hostPatternPath.node)
-      && registerPositionalElementJob({ metaPath, prop, kind, entry, hintName })) return;
     // a receiver-bearing DEFAULT one level in (`{ inner: { at } = [1, 2] } = {}`): the climb sees
     // THROUGH the AssignmentPattern and lands the claim on the outer host, but the swap belongs to
     // the default - the same simple synth the parameter form takes, whatever that outer host is
@@ -2169,73 +1924,7 @@ export default function createAstDestructureEmitter({
           return applyInlineDefault({ prop, entry, hintName, injectPureImport, markRewrite, skippedNodes, markSubtreeSkipped });
         }
       }
-      // a wrapper reached through a CONST BINDING resolves like the inline literal only for a
-      // claim that never RE-READS the element: a static substitutes its own pure and spells no
-      // receiver, while an instance / symbol extraction would re-read a value the wrapper's own
-      // statement holds (`const chain = [arr]; const [{ at }] = chain` stays native)
-      const wrapped = resolveArrayWrappedReceiver(hostPatternPath,
-        kind === 'instance' || symbolProp ? null : { scope: metaPath.scope, adapter, path: metaPath },
-        {
-          adapter, allowBodylessMulti: true, readsReceiver: kind === 'instance' || symbolProp,
-          // the babel order: the positional route answers only a claim whose nested receiver the
-          // canonical walk cannot name (`[{ y: { flat } }] = [{ y: arr }, ...t]` pairs `arr` and
-          // takes the memo route on both legs)
-          // ... where "cannot name" is asked the way that leg asks it: the plain walk, and past a
-          // slot's own effect prefix only where what it reaches is an INSTANCE surface the memo
-          // route dispatches on (`[(eff(), globalThis)]` under `{ Array: { prototype: { flat } } }`)
-          // ... and a RE-READABLE element needs no slot ref at all: it reads inline beside the
-          // residual the spread keeps, on both legs (`[{}] = [_globalThis.Array.prototype, ...t]`)
-          positionalTakes: elementNode => {
-            if (resolveNestedReceiverNode(metaPath, { adapter })) return false;
-            if (isReReadableSurfaceNav(peelTransparentExpr(elementNode), name => !!injectorState?.getBindingInfo?.(name))) return false;
-            const peeled = resolveNestedReceiverNode(metaPath, { allowSePeeledFragment: true, allowNavSegments: true, adapter });
-            return !(peeled && isInstanceSurfaceNav(peeled)) && !!resolvePositionalElementSlot(metaPath, adapter);
-          },
-        });
-      // a BODYLESS slot has no statement list for the array drain to splice into: the
-      // element is the receiver and the shared bodyless registration owns the rewrite,
-      // its own SE lift included
-      if (wrapped?.host?.bodyless && wrapped.single) {
-        return registerBodylessDeclJob({
-          host: wrapped.host,
-          kind,
-          entry,
-          hintName,
-          prop,
-          pattern,
-          chain,
-          sentinel,
-          metaPath,
-          initNode: wrapped.elementNode,
-        });
-      }
-      // a diverging SELECTION declines only the branch-bound claims: a receiver-based one
-      // (instance / symbol) reads the selected VALUE once inside its dispatch, exactly the
-      // native read (`[{ at }] = [c ? a : b]` -> `at = _at(c ? a : b)` - babel's canon)
-      if ((receiverSeOnly && wrapped) || (wrapped && kind !== 'instance' && !symbolProp
-        && divergingSelection(wrapped.element, { adapter, injectorState }))) return;
-      if (wrapped?.assignment) {
-        registerArrayAssignTwinJob({ wrapped, prop, pattern, chain, kind, entry, hintName, metaPath, symbolProp,
-          patternPath: metaPath.parentPath });
-        return;
-      }
-      // a FOR-INIT wrapper has no statement list to splice into either: the loop header hosts
-      // the extraction as a sibling declarator and the discarded wrapper rides the same sink
-      // the plain for-init route uses, flattened out of its array. a MULTI-element wrapper
-      // stays the conservative native bail - its siblings still bind
-      if (!wrapped && declinedWrapperTakesDefault({
-        metaPath,
-        kind,
-        entry,
-        hintName,
-        prop,
-        pattern,
-        chain,
-        sentinel,
-        hostPatternPath,
-        symbolProp,
-      }, {
-        registerForInitWrapJob,
+      if (declinedWrapperTakesDefault({ metaPath, kind, entry, hintName, prop, pattern, chain, sentinel, hostPatternPath, symbolProp }, {
         injectPureImport,
         markRewrite,
         skippedNodes,
@@ -2249,251 +1938,6 @@ export default function createAstDestructureEmitter({
           metaPath, meta, withinNode: arrayWrapperDeclarator(hostPatternPath),
         }),
       })) return;
-      if (wrapped) {
-        const chainKeys = hopChainKeys(chain);
-        // the leaf's default rides the value builder, where the canon drops it (dead text: the pure
-        // is always defined), so the source prop goes through whole
-        const valueProp = prop;
-        // an INSTANCE claim resolves its receiver through the canonical NESTED walk - the
-        // wrapper pairing proved the element, and a chain reads through the literal to the
-        // value that actually dispatches (`[{ y: { flat: m } }] = [{ y: arr }]` ->
-        // `_flatMaybeArray(arr)`); the pairing-proven single read is the literal route
-        // ... and where the wrapper's own pattern is consumed WHOLE, an SE-free single read qualifies
-        // too: no residual survives to read it again, so the dispatch is the single read the source
-        // performs (`const [{ y: { at } }] = [{ y: nb.y }]` fires the `y` getter once)
-        const plainDeep = kind === 'instance' && chain.length
-          ? resolveNestedReceiverNode(metaPath, { adapter })
-            ?? (!wrapped.wrapperRest && pattern.properties?.length === 1
-              ? resolveNestedReceiverNode(metaPath, { allowSeFreeSingleRead: true, adapter }) : null)
-          : null;
-        // ... and an EFFECT-bearing slot answers through the shared canon where the residual DIES:
-        // the wrapper's sole prop is consumed whole, so nothing survives to read the slot again and
-        // the dispatch performs the init's one read itself (`[{ y: { at: a } }] = [{ y: eff() }]`)
-        // the residual DIES only where this claim's leaf is the wrapper's ONLY binding - a rest, an
-        // SE key or a sibling prop all keep a reader of the slot alive, and spelling the slot beside
-        // them is a SECOND evaluation (`[{ y: { at: a }, zz }] = [{ y: eff(), zz: 1 }]` ran `eff` twice)
-        const wrapperResidualDies = wrapped.single && !wrapped.wrapperRest
-          && patternBindingCount(prop.value) === patternBindingCount(hostPatternPath.node)
-          && !computedKeyHasSideEffects(prop);
-        // ... and a sole consume whose wrapper DIES - the slots beside it holes, binding nothing -
-        // reads an EFFECTFUL element once too, inside its own dispatch: the drain rescues only the
-        // neighbours then, since the dispatch spells the element itself, read LIVE off the slot
-        // (`[, { at }] = [eff(), mk()]` -> `(eff(), _at(mk()))`, the flat sole consume's own shape)
-        const wrapperNode = hostPatternPath.parentPath?.node;
-        const wrapperHolesBeside = !wrapped.wrapperRest && wrapperNode === wrapped.declarator?.id
-          && wrapperNode.elements.every(item => item === null || item === hostPatternPath.node)
-          && patternBindingCount(prop.value) === patternBindingCount(hostPatternPath.node)
-          && !computedKeyHasSideEffects(prop);
-        const carriedSlot = kind === 'instance' && chain.length && !plainDeep
-          ? carriedInitReceiverNode({ path: metaPath, initNode: wrapped.element, adapter }) : null;
-        // ... and a DYING wrapper's element answers AS WRITTEN, prefix included: the dispatch is its one
-        // reader, so a receiver performing none of that prefix would drop it (`[(n++, { m: g() })]`)
-        const carriedDeep = wrapperResidualDies && kind === 'instance' && chain.length && !plainDeep
-          ? carriedInitReceiverNode({ path: metaPath, initNode: wrapped.elementNode ?? wrapped.element, adapter }) : null;
-        const resolvedDeep = plainDeep ?? carriedDeep;
-        // SEVERAL claims off ONE element read it once each, and an element that is not
-        // re-referenceable (a selection, a member whose getter would re-fire) cannot serve
-        // that twice: it memoizes into a leading `_ref` the extractions share - the same
-        // shared channel the plain declarator route uses, wired to the wrapper's element
-        // an element that cannot be spelled twice - a selection, or one whose evaluation is
-        // OBSERVABLE - memoizes into a leading ref the extractions read, exactly what the flat
-        // whole-init memo does one level up. sound only where the memo keeps source order:
-        // every element ahead of this slot must be pure (`precedingPure`)
-        // a REST sibling re-reads the element in the residual, which is exactly what the memo
-        // gives one identity to - both legs memoize there now
-        // ... and a NESTED receiver under a wrapper whose NEIGHBOUR still binds memoizes too: the
-        // extraction lands after the residual there, so spelling the read inline would run it after
-        // the neighbour's own effect - the memo hoists it back to the slot the source reads it in
-        // ... and a level whose other slots are HOLES has no second reader at all: the residual dies
-        // with them, so the dispatch spells the element itself and needs no ref - unless a slot BEHIND
-        // the claim carries an effect, which keeps that level alive to run it
-        const wrapperInit = peelTransparentExpr(wrapped.declarator?.init);
-        const wrapperTrailingEffect = wrapperInit?.type === 'ArrayExpression'
-          && wrapperInit.elements.slice(wrapperNode?.elements?.indexOf(hostPatternPath.node) + 1 || 0)
-            .some(item => mayHaveSideEffects(item));
-        // A surviving key or wrapper shares its constant container with the extraction,
-        // using the flat channel's memo policy rather than duplicating the literal.
-        const literalMemoNode = resolvedDeep ?? wrapped.element;
-        const constantMemo = isConstantLiteralReceiver(literalMemoNode) && planSideEffectKeyStrategy({
-          polyfillKind: kind, receiverNode: literalMemoNode, initIsPure: true,
-          soleBindingInDeclaration: wrapperHolesBeside && !wrapperTrailingEffect
-            && chain.every(row => !computedKeyHasSideEffects(row.hopProp)),
-          propKeyIsPure: !computedKeyHasSideEffects(prop),
-        })?.memoizeReceiver;
-        const nestedSlotMemo = (resolvedDeep && constantMemo
-          ? elementMemoFor(resolvedDeep, wrapped.declarator, { inSlot: !wrapped.precedingPure, metaPath }) : null)
-          ?? (resolvedDeep && kind === 'instance' && !wrapped.single
-          && (!wrapperHolesBeside || wrapperTrailingEffect)
-          && !isReReferenceableReceiver(resolvedDeep)
-          && (wrapped.precedingPure || !wrapperHolesBeside)
-          ? elementMemoFor(resolvedDeep, wrapped.declarator, { inSlot: !wrapped.precedingPure, metaPath }) : null)
-          // ... and a SURVIVING residual memoizes that slot instead of spelling it: the residual and
-          // the dispatch are two readers of one read, and the memo is what gives them one - the slot
-          // swaps to the ref in place, exactly as the non-single route above does
-          ?? (carriedSlot && !wrapperResidualDies
-            && !isReReferenceableReceiver(carriedSlot)
-            && (wrapped.precedingPure || !wrapperHolesBeside)
-            ? elementMemoFor(carriedSlot, wrapped.declarator, { inSlot: !wrapped.precedingPure, metaPath }) : null);
-        const deepReceiver = resolvedDeep ?? (nestedSlotMemo ? nestedSlotMemo.ident : null);
-        // the memo is about the RECEIVER, so a DEFAULTED leaf takes it on the same terms - its guard
-        // wraps the dispatch and reads the same ref (`const [{ at: m = nul }] = [arr.flat()]`)
-        const memoLeafOk = prop.value.type === 'Identifier'
-          || (prop.value.type === 'AssignmentPattern' && prop.value.left?.type === 'Identifier');
-        const sharedElementMemo = nestedSlotMemo ?? (!deepReceiver && kind === 'instance' && chain.length === 0
-          && memoLeafOk && (wrapped.precedingPure || !wrapperHolesBeside)
-          // the residual OUTLIVES the claim here whatever the prop count: the wrapper keeps its
-          // element slot, so the dispatch beside it is a SECOND evaluation - which is why a SOLE
-          // prop memoizes too, giving both readers the one read the source performs
-          // (`const [{ at: m }] = [eff()]` ran `eff` twice, once per reader)
-          // a REST element keeps the residual whatever this prop takes, and that residual reads
-          // the element again - a re-run selection could take the other branch by then
-          // ... and an EFFECT-bearing element earns one on its own, since the residual re-evaluates
-          // it. the drain keeps every declarator written BEFORE this one ahead of the memo, so what
-          // the hoist could reorder is a LATER one carrying effects of its own - that element would
-          // be read before this declarator's own key (`const [{ at }] = [p1()], [{ keys }] = [p2()]`
-          // read both elements before either key)
-          // ... and a NEIGHBOUR element keeps the residual just the same, and that residual coerces
-          // this element a second time - so a sole prop beside one memoizes too (`[{ at }, z] =
-          // [box.inner, 1]` fired the getter twice where the babel twin reads it once)
-          && (pattern.properties.length > 1 || wrapped.wrapperRest || !wrapped.single
-            || (mayHaveSideEffects(wrapped.element) && (() => {
-              const decls = wrapped.declarationPath?.node?.declarations ?? [];
-              const at = decls.indexOf(wrapped.declarator);
-              return at === -1 || decls.slice(at + 1).every(item => !mayHaveSideEffects(item.init));
-            })()))
-          && (!isReReferenceableReceiver(wrapped.element) || constantMemo)
-          // ... and a RE-READABLE built-in surface needs no memo whatever keeps the residual: the dispatch
-          // reads it inline and the residual re-reads it for free (`[{}] = [_globalThis.Array.prototype,
-          // ...t]; _at(_globalThis.Array.prototype)`); only an effectful KEY memoizes it, its sentinel
-          // residual and the dispatch sharing one read - the core's own memo rule
-          && ((prop.computed && computedKeyHasSideEffects(prop))
-            || !isReReadableSurfaceNav(wrapped.element, name => !!injectorState?.getBindingInfo?.(name),
-              { ctx: { scope: metaPath.scope, adapter, path: metaPath } }))
-          // the memo holds the element AS WRITTEN: a TS cast on it is the receiver's own spelling, and
-          // memoizing the peeled view dropped it where the other leg keeps it (`_ref = arr.flat() as any`)
-          ? elementMemoFor(wrapped.writtenElement ?? wrapped.element,
-            wrapped.declarator ?? wrapped.assignment ?? null,
-            { inSlot: !wrapped.precedingPure, metaPath }) : null);
-        // the dispatch SPELLS the element the source wrote (its TS cast kept - the flat canon);
-        // the classifiers above read the peeled view
-        // a kept WRITE in the slot dispatches on what it STORES: the wrapper lift re-emits the write
-        // as its own statement ahead of the extraction and leaves that value in the slot, so the
-        // receiver here is the value and the write is not lost
-        const writtenSlotValue = kind === 'instance' && chain.length
-          && peelTransparentExpr(wrapped.element)?.type === 'AssignmentExpression'
-          ? peelChainRootValue(wrapped.element) : null;
-        const declReceiver = sharedElementMemo?.ident ?? deepReceiver ?? writtenSlotValue
-          ?? (wrapped.writtenElement && !mayHaveSideEffects(wrapped.writtenElement, { scope: metaPath.scope, adapter, path: metaPath })
-            ? wrapped.writtenElement : wrapped.element);
-        // ... and only in a declaration of its OWN: a sibling declarator's memo hoists ahead of the whole
-        // declaration, and an element spelled inside an extraction would then evaluate after it
-        // (`[{ at: a1 }] = [rows()], [{ at: a2 }] = [second()]` ran `second` first)
-        const effectfulSoleElement = kind === 'instance' && chain.length === 0 && wrapperHolesBeside
-          && !sharedElementMemo && prop.value.type === 'Identifier'
-          && mayHaveSideEffects(wrapped.element, { scope: metaPath.scope, adapter, path: metaPath })
-          && wrapped.declarationPath?.node?.declarations?.length === 1;
-        const liveSoleElement = effectfulSoleElement
-          ? () => peelTransparentExpr(wrapped.declarator.init)?.elements?.[wrapperNode.elements.indexOf(hostPatternPath.node)]
-            ?? wrapped.element
-          : null;
-        // what the claim's dispatch READS, live: the carried slot re-resolved (a claim inside it renders by
-        // replacing its node), a proven single read the dispatch performs itself (a getter slot fires once
-        // there), or the effectful sole element. a drop rescue of this init owes none of them again
-        const dispatchReadLive = carriedDeep
-          ? () => carriedInitReceiverNode({ path: metaPath, initNode: wrapped.elementNode ?? wrapped.element, adapter })
-          : plainDeep ? () => plainDeep : liveSoleElement;
-        // ... and a TYPED outer hop composes off the paired ELEMENT: the wrapper's own init is
-        // the array AROUND the receiver, so the element is what the outer key reads off
-        const elementTyped = typedHopFor({
-          chain, kind, entry, metaPath, receiverPath: { node: wrapped.element, scope: metaPath.scope },
-        });
-        const elementTypedHop = elementTyped.pure
-          ? { pure: elementTyped.pure, defaultHost: elementTyped.defaultHost } : null;
-        const value = buildValue({
-          kind,
-          entry,
-          hintName,
-          receiverNode: declReceiver,
-          prop: valueProp,
-          nested: !deepReceiver && chain.length > 0, chainKeys, metaPath,
-          // a CARRIED slot is read LIVE: a claim inside it renders by REPLACING its node, and the
-          // copy taken here predates that rewrite (`[{ k: { at } }] = [{ k: eff().slice() }]` shipped
-          // the source `.slice()` and lost its own polyfill)
-          liveReceiver: carriedDeep
-            ? () => carriedInitReceiverNode({ path: metaPath, initNode: wrapped.elementNode ?? wrapped.element, adapter })
-            : liveSoleElement,
-          typedHop: elementTypedHop,
-          // ... and a TYPED user nav under the wrapper qualifies on the walk's own terms: it
-          // pairs the single element and reads the hops off it (`[{ y: { flat: m } }] = [nb]`)
-          typedNavChain: typedNavChainFor({ kind, entry, chain, metaPath }),
-          // ... a POSSIBLE-GLOBAL identifier stays off the literal route: the barePure /
-          // proxy machinery owns its substitution (`globalThis` -> `_globalThis`)
-          // ... and ONLY where the receiver node ANSWERS the claim: the route spells that node
-          // verbatim, so a hop the walk did not consume would silently vanish from the dispatch
-          // (`[{ z: { w: { flat: m } } }] = [nb]` dispatched on `nb`, binding `nb.flat`)
-          literalRoute: kind === 'instance' && (!!deepReceiver || chain.length === 0) && (!!carriedDeep
-            || !!sharedElementMemo || effectfulSoleElement
-            // a SOLE consuming prop reads the element exactly once - inside its own dispatch -
-            // so an effect-FREE element may be spelled there whatever its shape (`[arr?.inner]`
-            // is one read either way, which is what native performs)
-            // ... but the literal route spells THE ELEMENT as the dispatch receiver, so it serves
-            // only a claim the element itself answers: a NESTED one dispatches on the surface its
-            // own hops name, and a possible-global element owes the substitution above
-            // (`[{ Array: { prototype: { flat: m } } }] = [globalThis]` dispatched on the raw
-            // `globalThis` - the wrong surface, and a bare global on a target that lacks it)
-            || (patternBindingCount(prop.value) === patternBindingCount(hostPatternPath.node)
-              && !mayHaveSideEffects(wrapped.element)
-              && !(peelTransparentExpr(declReceiver)?.type === 'Identifier'
-                && POSSIBLE_GLOBAL_OBJECTS.has(peelTransparentExpr(declReceiver).name)))
-            || isConstantLiteralReceiver(peelTransparentExpr(declReceiver))
-            || (isReReferenceableReceiver(declReceiver)
-              && !(peelTransparentExpr(declReceiver)?.type === 'Identifier'
-                && POSSIBLE_GLOBAL_OBJECTS.has(peelTransparentExpr(declReceiver).name)))
-            // an SE-free diverging SELECTION consumed by the SOLE binding reads once inside
-            // the dispatch (`[{ at }] = [c ? a : b]` -> `_at(c ? a : b)` - babel's canon);
-            // a multi-prop selection needs the memo channel and stays declined
-            || (pattern.properties.length === 1 && prop.value.type === 'Identifier'
-              && divergingSelection(declReceiver, { adapter, injectorState })
-              && !mayHaveSideEffects(declReceiver))),
-        });
-        if (!value) return;
-        // the extracted alias registers with the injector so calls off it keep their
-        // known return type (`const entries = _Object$entries; entries(x).at(0)` narrows)
-        if (kind !== 'instance') {
-          injectorState?.registerBodyExtractAlias?.(propLocalName(prop), entry,
-            metaPath.scope?.getBinding?.(propLocalName(prop)));
-        }
-        recordJob({
-          hostPath: wrapped.exported ? wrapped.declarationPath.parentPath : wrapped.declarationPath,
-          job: {
-            prop,
-            pattern,
-            chain,
-            sentinel: true,
-            declarator: wrapped.declarator,
-            local: propLocalName(prop), value, host: 'array-decl', exported: wrapped.exported,
-            kind,
-            // the extraction lands AFTER the residual: an effect-bearing neighbour element runs
-            // inside the array literal, and native reads the property only once every element
-            // has evaluated
-            extractAfterResidual: wrapped.neighbourEffect,
-            // a CARRIED slot re-resolves at DRAIN: a claim INSIDE it renders by REPLACING its node,
-            // so the copy taken here predates the rewrite and would ship the source read
-            carriedReceiverLive: dispatchReadLive,
-            memoRecv: sharedElementMemo,
-            bodylessWrap: wrapped.host?.bodyless === true,
-            bindingTarget: propBindingTarget(prop), metaPath,
-            initProbePlan: planDiscardedInitProbe(wrapped.declarator.init, metaPath, { adapter, resolvePure }),
-            initProbeNavStart: discardedInitProbeNavStart(wrapped.declarator.init),
-            sealedProbePlan: planSealedNavProbe(wrapped.declarator.init, metaPath,
-              { adapter, resolvePure, keepLive: skippedNodes.keepLive }),
-          },
-        });
-        return;
-      }
-      // ... and where NO literal pairs the element, nothing spells it at all - the slot takes a
-      // minted binding instead, which is the one route a positional segment has
-      if (!wrapped && registerPositionalElementJob({ metaPath, prop, kind, entry, hintName })) return;
       // ... and an element DEFAULT bearing a receiver (`[{ from } = Array]`) names the arm the slot
       // leaves open: the shared plan reads the slot first - it mirrors the default where the slot
       // proves `undefined` or stays open, and closes the arm where the slot proves a value - and the
@@ -3100,62 +2544,11 @@ export default function createAstDestructureEmitter({
     // a REST in the leaf travels with it: the twin keeps the leaf's own pattern, so the rest gathers
     // off the memo and the claim's key stays there as a sentinel, still excluding itself
     const declaratorPath = walk.declarator;
-    // an array WRAPPER pairs the pattern with an ELEMENT of a literal, and the flat twin lives
-    // there: the element takes the nav and the pattern takes the leaf. the core owns what moves -
-    // the hop read lands where the literal builds - and the declaration itself STAYS, since it is
-    // what holds that literal. this leg keeps the type it resolved before the rewrite; the babel
-    // twin re-detects and stashes it, which is what keeps the two shipping one import
-    // the walk hands back the OUTERMOST literal it descended, and the host owns whether that is its
-    // own init - asked THROUGH the wrappers the source spelled, since one leg's parser keeps a paren
-    // node the other drops and the identity would answer differently about the same program
-    const wrapperNode = walk.wrapper
-      && unwrapRuntimeExpr(declaratorPath?.node?.init) === walk.wrapperRoot ? walk.wrapper : null;
-    // the core answers WHERE the twin goes under a wrapper: ahead of the literal, or trailing the
-    // residual where an effect stands between (`[{ y: { at, findLast } }, zn] = [nb, eff()]`)
-    const navPlacement = wrapperNode ? wrapperElementNavPlacement(walk) : null;
-    // ... and either spelling REPLACES the host pattern with the leaf, so the host may hold nothing
-    // but the hop: a sibling beside it binds a value that replacement drops, and the emitted code
-    // then reads a name nothing declares. the flat spelling asks it of the declarator's own
-    // pattern, the wrapped one of the ELEMENT that pairs with the literal
-    // ... unless the host stands in a STATEMENT LIST: there the hop LEAVES its level and the twin
-    // stands as a declaration of its own beside the host (`{ of: { name, foo }, junk } = Array` ->
-    // `const { junk } = Array; const _ref = _Array$of; ...`) - the level keeps reading the root for
-    // its siblings, on the terms `hopSplitPlan` sets
-    const siblingLevel = !wrapperNode && walk.climbed.slice(1).some(level => level.pattern.properties.length > 1);
-    if (wrapperNode
-      ? !navPlacement || walk.hostPattern?.node?.properties?.length !== 1
-      : (declaratorPath?.node?.id ?? declaratorPath?.node?.left)?.type !== 'ObjectPattern'
-        || ((declaratorPath.node.id ?? declaratorPath.node.left).properties.length !== 1 && !siblingLevel)) return false;
-    // ... and an ASSIGNMENT statement has the same twin, spelled as the flat assignment channel spells it
-    // (`({ y: { at, flat } } = box)` -> `const _ref = box.y; at = _at(_ref); flat = _flat(_ref);`): a
-    // statement nothing reads, in a statement list, with no wrapper, split or slot fold, a plain binding per leaf
     const assignStatement = declaratorPath.node.type === 'AssignmentExpression' ? assignmentTwinStatement(declaratorPath) : null;
-    if (assignStatement === false || (assignStatement && (wrapperNode || siblingLevel || walk.slotDefault
-      || !plainTwinLeaf(walk.leafPattern.node)))) return false;
-    const declarationPath = assignStatement ?? declaratorPath.parentPath;
-    if (!assignStatement && (declarationPath?.node?.type !== 'VariableDeclaration'
-      || declarationPath.parentPath?.node?.type === 'ExportNamedDeclaration')) return false;
-    // a SIBLING declarator keeps the claim out: the pair splits the declaration, and a sibling that
-    // another route rewrites is drained from the node this split already took apart - the two
-    // rewrites then land on different trees and the memo loses its statement. the loop head is the
-    // exception below, where the pair joins the declarators instead of splitting them
-    // the slot the declaration stands in decides the PLACEMENT, and it is the same three the
-    // positional route spells: a LOOP HEAD hosts declarators rather than statements (they evaluate
-    // in order, so the memo binds before the claims read it), an unbraced control slot gets braced
-    // around the pair, and anything else splices into its statement list. a declaration with
-    // SIBLING declarators splits there, which is what the babel twin's own rewrite leaves behind
-    const forInit = declarationPath.parentPath?.node?.type === 'ForStatement'
-      && declarationPath.parentPath.node.init === declarationPath.node;
-    const bodylessWrap = !forInit && !statementListOf(declarationPath.parentPath?.node);
-    if (bodylessWrap && !isBodylessStatementSlot(declarationPath.parentPath?.node, declarationPath.node)) return false;
-    if (siblingLevel && (forInit || bodylessWrap)) return false;
-    // A wrapped pair stands beside the declaration and needs an end slot. An unwrapped
-    // middle declarator keeps its memo, claims and residual at that same slot during drain.
-    const declarators = declarationPath.node.declarations ?? [];
-    const index = declarators.indexOf(declaratorPath.node);
-    if (wrapperNode && !forInit && index !== 0 && index !== declarators.length - 1) return false;
-    // ... and a SPLIT pair stands behind the declaration on the other leg, so its host is the LAST declarator
-    if (siblingLevel && index !== declarators.length - 1) return false;
+    const hostPlan = planNestedLeafHost(walk, assignStatement);
+    if (!hostPlan) return false;
+    const { declaration: declarationPath, wrapper: wrapperNode, navPlacement, siblingLevel, forInit, bodyless: bodylessWrap } = hostPlan;
+    if (assignStatement && (wrapperNode || siblingLevel || walk.slotDefault || !plainTwinLeaf(walk.leafPattern.node))) return false;
     const binding = adapter.getBinding(metaPath.scope, walk.root.name, metaPath);
     const bound = !!binding;
     const ref = resolveNestedReceiverBase({
@@ -3337,183 +2730,15 @@ export default function createAstDestructureEmitter({
     return names;
   }
 
-  // the POSITIONAL element slot (the babel twin's `extractPositionalElementSlot`): where an ARRAY
-  // pattern element holds the claim, no member read stands for that element - the pattern PULLS
-  // from an iterator - so the slot takes a minted binding, the declaration keeps its iteration and
-  // its init, and the claim reads that binding in the statement after
-  function registerPositionalElementJob({ metaPath, prop, kind, entry, hintName }) {
-    if (kind !== 'instance' || !propBindingIdentifier(prop.value)) return false;
-    const positional = resolvePositionalElementSlot(metaPath, adapter);
-    if (!positional) return false;
-    // the slot is an array ELEMENT, or - where a REST sibling keeps the hop in the pattern - the
-    // hop PROPERTY's own value: the rename writes into whichever holds it, and everything after
-    // (the minted name, the pair, its placement) is the same route
-    const hopPropNode = positional.hopProp?.node ?? null;
-    const arrayPattern = hopPropNode ? null : positional.slot.parentPath?.node;
-    if (!hopPropNode && (arrayPattern?.elements?.indexOf(positional.slot.node) ?? -1) === -1) return false;
-    // the host declaration, and a statement list to put the extraction into: a bodyless slot
-    // holds one statement and this route has two
-    // an ASSIGNMENT host carries no declaration for the pair: the minted name takes a hoisted `var`,
-    // the statement keeps its own iteration, and the claim's binding is written right after it -
-    // the babel twin's own shape on this host
-    if (positional.assignment) {
-      const statementPath = positional.statement;
-      if (!statementPath?.node || !statementListOf(statementPath.parentPath?.node)) return false;
-      const assignRef = injector.generateDeclaredRef(metaPath);
-      recordJob({
-        hostPath: statementPath,
-        job: {
-          prop,
-          pattern: null,
-          chain: [],
-          kind,
-          host: 'positional-assign',
-          local: propLocalName(prop),
-          metaPath,
-          arrayPattern,
-          arrayLevels: positional.arrayLevels,
-          hopPropNode,
-          slotNode: positional.slot.node,
-          refName: assignRef,
-          value: callExpression(identifier(injectPureImport(entry, hintName)),
-            [positional.keys.reduce(memberFromKeyName, identifier(assignRef))]),
-        },
-      });
-      return true;
-    }
-    const declaratorPath = positional.declarator;
-    const declarationPath = declaratorPath?.parentPath;
-    if (declarationPath?.node?.type !== 'VariableDeclaration') return false;
-    const exported = declarationPath.parentPath?.node?.type === 'ExportNamedDeclaration';
-    const hostPath = exported ? declarationPath.parentPath : declarationPath;
-    // an unbraced control slot holds ONE statement and this route emits two - the drain braces it,
-    // the same wrap the array-decl kind takes there. any other slot without a statement list (a
-    // loop head) has nowhere to put the extraction at all
-    // ... and a LOOP HEAD hosts declarators, not statements: the extraction joins the head right
-    // after the renamed one, where the binding it reads is already in scope
-    const forInit = hostPath.parentPath?.node?.type === 'ForStatement'
-      && hostPath.parentPath.node.init === hostPath.node;
-    const bodylessWrap = !forInit && !statementListOf(hostPath.parentPath?.node);
-    if (bodylessWrap && !isBodylessStatementSlot(hostPath.parentPath?.node, hostPath.node)) return false;
-    // an EXPORTED host must not export the minted name, so its wrapper comes off either way: the
-    // extraction carries the export the source wrote, and any SIBLING names the declaration bound
-    // keep theirs through a specifier list. a MULTI-declarator export stays out - the wrapper there
-    // covers declarators this route does not touch
-    if (exported && declarationPath.node.declarations.length !== 1) return false;
-    const exportedSiblings = exported
-      ? collectPatternNames(declarationPath.node.declarations[0]?.id).filter(name => name !== propLocalName(prop))
-      : [];
-    const refName = mintRefName();
-    const value = callExpression(identifier(injectPureImport(entry, hintName)),
-      [positional.keys.reduce(memberFromKeyName, identifier(refName))]);
-    recordJob({
-      hostPath,
-      job: {
-        prop,
-        pattern: null,
-        chain: [],
-        kind,
-        host: 'positional-element',
-        local: propLocalName(prop),
-        metaPath,
-        arrayPattern,
-        arrayLevels: positional.arrayLevels,
-        hopPropNode,
-        slotNode: positional.slot.node,
-        // the CLAIM's own level and the hops above it: where a hop stands between the element and
-        // the claim, the residual is rooted at the memo of that read rather than re-reading it
-        claimPatternNode: metaPath.parentPath?.node ?? null,
-        hopKeys: positional.keys,
-        // ... and each OUTER level binds its own slots: what it names before the hop is read before
-        // it, what it names after is read after the inner level
-        levels: positional.levels ?? [],
-        refName,
-        value,
-        exported,
-        exportedSiblings,
-        bodylessWrap,
-        forInit,
-        declarationNode: declarationPath.node,
-        // the DECLARATOR by identity: a flatten sibling in the same declaration splits it, and the
-        // statement this job was recorded against is gone by drain time - the declarator is not
-        declaratorNode: declaratorPath.node,
-      },
-    });
-    return true;
-  }
-
   // the ownership answer is the core's `typedNavClaimChain`; this leg only adds what its own
   // registration knows - the hop chain it walked, every level of it spellable as a member (the climb
   // refuses a computed hop that folds to no static name, so a standing chain needs no second test)
-  function typedNavChainFor({ kind, entry, chain, metaPath, rootMemoized = false, allowSurfaceBase = false }) {
+  function typedNavChainFor({ kind, entry, chain, metaPath, allowSurfaceBase = false }) {
     if (kind !== 'instance' || !chain.length) return null;
     // the SURFACE opt-in belongs to the instance dispatch alone: the SYMBOL claim's own shape over
     // such a hop is the anchored re-key (`{ [_Symbol$iterator]: a } = _Map`), which both legs print,
     // and granting it a chain here retires the very refusal that keeps the key in the residual
-    return typedNavClaimChain(metaPath,
-      { adapter, rootMemoized, allowSurfaceBase: allowSurfaceBase && entry !== 'get-iterator-method' });
-  }
-
-  // the for-init array-wrap registration, extracted for its size - see the arrayHost branch
-  function registerForInitWrapJob({
-    metaPath,
-    kind,
-    entry,
-    hintName,
-    prop,
-    pattern,
-    chain,
-    sentinel,
-    hostPatternPath,
-    symbolProp,
-  }) {
-    const wrap = resolveArrayWrappedReceiver(hostPatternPath,
-      kind === 'instance' || symbolProp ? null : { scope: metaPath.scope, adapter, path: metaPath },
-      { adapter, allowForInit: true, readsReceiver: kind === 'instance' || symbolProp });
-    if (!wrap?.host?.forInit || prop.value.type !== 'Identifier') return false;
-    const capturePlan = kind === 'instance'
-      ? planArrayWrapperCapture({ pattern: wrap.declarator.id, init: wrap.declarator.init }) : null;
-    let capture = forInitCaptures.get(wrap.declarator);
-    if (capturePlan && !capture) {
-      capture = renderArrayWrapperCapture(capturePlan, { mintRef: mintRefName });
-      forInitCaptures.set(wrap.declarator, capture);
-    }
-    const capturedElement = capture?.elements.find(element => element.pattern === hostPatternPath.node);
-    if (!wrap.single && !capturedElement) return false;
-    // a REST-kept prop renames to `_unused` and the residual re-reads its init in place, so
-    // only a receiverless STATIC qualifies - an instance extraction would read it a second
-    // time (a multi-declarator head extracts too: babel plants the sibling ahead of the
-    // jobbed declarator)
-    if (sentinel && kind === 'instance') return false;
-    // a kept WRITE in the element stores the receiver the nav reads: the store rides the header as
-    // the drain's storing sink (ahead of the extractions, or inside a sole dispatch), and the
-    // dispatch reads what it stored (`[kw = (eff(), globalThis)]` -> `_at((kw = ..., _globalThis.Array.prototype))`)
-    const stored = kind === 'instance' && peelTransparentExpr(wrap.element)?.type === 'AssignmentExpression'
-      && isPureNavReceiver(peelChainRootValue(wrap.element), navGuardCtx(metaPath))
-      ? peelChainRootValue(wrap.element) : null;
-    const value = buildValue({
-      kind,
-      entry,
-      hintName,
-      receiverNode: capturedElement ? identifier(capturedElement.ref) : stored ?? wrap.element,
-      prop,
-      nested: chain.length > 0, chainKeys: hopChainKeys(chain), metaPath,
-      typedNavChain: typedNavChainFor({ kind, entry, chain, metaPath, rootMemoized: !!capturedElement }),
-    });
-    if (!value) return false;
-    registerExtractAliases({ metaPath, kind, entry, hintName, prop,
-      declaration: wrap.declarationPath.node, declarationPath: wrap.declarationPath });
-    recordJob({
-      hostPath: wrap.declarationPath,
-      job: {
-        prop, pattern, chain, sentinel, declarator: wrap.declarator, local: propLocalName(prop), value,
-        host: 'for-init', metaPath, arrayWrapSink: true, sinkKeep: mayHaveSideEffects(wrap.declarator.init),
-        readsReceiver: kind === 'instance' || symbolProp,
-        arrayWrapPattern: hostPatternPath.node,
-        arrayWrapCapture: capturedElement ? capture : null,
-      },
-    });
-    return true;
+    return typedNavClaimChain(metaPath, { adapter, allowSurfaceBase: allowSurfaceBase && entry !== 'get-iterator-method' });
   }
 
   // the bodyless-slot registration, extracted for its size - see drainBodylessDeclaration

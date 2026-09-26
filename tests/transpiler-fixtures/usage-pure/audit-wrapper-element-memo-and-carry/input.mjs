@@ -13,25 +13,22 @@ const [{ at: viaWrapOpaqueDefault = null }] = [arr.flat()];
 const [{ at: viaWrapAheadOfPure }] = [arr.flat()], viaWrapPureTail = 1;
 const [{ at: viaKeptResidual, length: viaKeptLength }] = [hb.y], viaKeptTail = 1;
 const [{ at: viaSharedMemo, ...viaSharedRest }] = [hb.y.slice()];
-// a wrapper element the PEEL reduces to a sequence TAIL: the claim consumes the level whole and the
-// dispatch carries the sequence as written, prefix included - one evaluation, in source order
+// A wrapper element with a sequence prefix evaluates that prefix once before its method read.
 let viaPeeledTail;
 ([{ at: viaPeeledTail }] = [(out = 2, arr.flat())]);
-// a DECLARATION host reads its receiver once whatever keeps the DECLARATION alive: a consumed
-// declarator splits off beside its siblings, and a sole array WRAPPER takes the element whole
+// A declaration reads each receiver once. An array wrapper captures its element before reading
+// the nested property, while a neighbouring declarator keeps its own position.
 const { y: { at: viaDeclSibling } } = { y: hb.y }, viaDeclSiblingZ = 1;
 const [{ y: { at: viaWrapSole } }] = [{ y: hb.y }];
-// ... and a wrapper whose NEIGHBOUR still binds keeps the wrapper while THIS element goes empty: the
-// read hoists into the memo the source reads it in, so the neighbour's own effect still runs after it
+// The complete array initializer runs before either captured element is destructured.
 const [{ y: { at: viaWrapNeighbour } }, viaWrapNeighbourZ] = [{ y: hb.y }, hb.y];
-// ... and where this claim's leaf is the wrapper's ONLY binding the residual dies whole and the
-// dispatch performs the element's one read itself
+// A sole nested binding reads through the captured element; rest and computed keys retain
+// their own native pattern work.
 const [{ y: { at: viaWrapCarried } }] = [{ y: arr.flat() }];
 const [{ y: { at: viaWrapCarriedRest, ...viaWrapCarriedRestOther } }] = [{ y: arr.flat() }];
 const [{ y: { at: viaWrapCarriedSib }, wz: viaWrapCarriedSibZ }] = [{ y: arr.flat(), wz: 1 }];
 const [{ y: { [(out = 3, 'at')]: viaWrapCarriedKey } }] = [{ y: arr.flat() }];
-// ... and a NEIGHBOUR element bearing effects of its own is no obstacle to that memo: the receiver
-// answers for ITS element alone, and the neighbour evaluates where the source evaluates it
+// An effectful neighbouring element finishes before the first captured property read.
 const [{ y: { at: viaWrapCarriedNeighbour } }, viaWrapCarriedNeighbourZ] = [{ y: arr.flat() }, arr.flat()];
 export { viaWrapOpaque, viaWrapOpaqueDefault, viaWrapAheadOfPure, viaWrapPureTail, out };
 export { viaKeptResidual, viaKeptLength, viaKeptTail, viaSharedMemo, viaSharedRest, viaPeeledTail };

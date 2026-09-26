@@ -1,17 +1,13 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Set from "@core-js/pure/actual/set";
-// A user default import whose source merely CONTAINS the `core-js` substring is NOT a
-// plugin-injected pure reference - it stays a stable in-scope value, so a per-branch synth
-// receiver (`cond ? Array : Set`, which has no body-extract fallback) must still mirror the
-// sibling shorthand polyfill into the synth literal rather than dropping it
+// The import path does not prove its value is a safe mirror key.
+// The declaration retains that key and guards the named static on its selected receiver.
 import KEY from 'a-core-js-helper';
 export function pick(cond) {
-  const {
-    [KEY]: own,
-    from
-  } = cond ? {
-    [KEY]: Array[KEY],
-    from: _Array$from
-  } : _Set;
+  const _ref = cond ? Array : _Set,
+    {
+      [KEY]: own
+    } = _ref,
+    from = null == _ref ? _ref[""] : _ref === Array ? _Array$from : _ref["from"];
   return [own, from];
 }

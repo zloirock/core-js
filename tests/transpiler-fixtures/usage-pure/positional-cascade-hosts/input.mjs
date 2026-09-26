@@ -1,6 +1,5 @@
-// Several positional claims in one array pattern: a later slot's rename frees the earlier slots
-// (they declined while the later slot still read as a pattern), on every host and through every
-// array level, and the extractions keep the source order. Both legs cascade the same way.
+// Positional captures retain nested array slots and read their claims in source order.
+// Each declarator completes before the next one evaluates, across the supported host forms.
 const seen = [];
 const mk = () => ({ get y() { seen.push('y'); return [7, 8]; } });
 const rows = [[1, 2], [3, 4], [5, 6], [7, 8], [9, 10], [11, 12]];

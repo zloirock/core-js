@@ -1,13 +1,11 @@
-// the hop normalization REPLACES the host pattern with the leaf, so the host may hold nothing but
-// the hop: a sibling beside it binds a value that replacement drops, and the emitted code then
-// reads a name nothing declares. under an array WRAPPER the host is the ELEMENT that pairs with
-// the literal, and the rule is the same one the flat spelling already asked of its declarator
+// Native captures preserve the bindings beside a nested hop.
+// A shared receiver is read once before its leaf properties; unsupported hosts stay native.
 const nested = { lead: 5, y: Object.assign([1, [2]], { extra: 7 }), top: 4 };
-// NEGATIVE: siblings on BOTH sides of the hop - the shape keeps its own destructure
+// Siblings on both sides keep their reads around the nested hop.
 const [{ lead, y: { flat, extra }, top }] = [nested];
-// NEGATIVE: a sibling only AFTER the hop
+// A following sibling retains its native read after the captured nested properties.
 const [{ y: { flat: flatA, extra: extraA }, top: topA }] = [nested];
-// NEGATIVE: a sibling only BEFORE it
+// A preceding sibling reads before the nested hop.
 const [{ lead: leadB, y: { flat: flatB, extra: extraB } }] = [nested];
 // ... and the SOLE-hop host still normalizes: the element takes the nav, the pattern the leaf
 const [{ y: { flat: flatSole, extra: extraSole } }] = [nested];

@@ -3,21 +3,17 @@ import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Object$keys from "@core-js/pure/actual/object/keys";
-// a wrapper slot the pattern DISCARDS still evaluates, and what it runs happens before the element
-// the claim reads: that effect lifts ahead of the declaration, in source order, and the slot it
-// leaves reads as the elision the pattern already had. the claims then serve as they do without a
-// neighbour - a surface read, a memo of the element, a sentinel residual beside a live binding
+// Discarded wrapper slots still evaluate in source order before the property reads.
+// Their effects remain in the captured array or lift with a fully consumed wrapper.
 const log = [];
 const rows = [[1, 2]];
-_pushMaybeArray(log).call(log, 'n');
-_pushMaybeArray(log).call(log, 'e');
-const viaSurface = _atMaybeArray(_globalThis.Array.prototype);
-_pushMaybeArray(log).call(log, 'm');
-const _ref = _flatMaybeArray(rows).call(rows);
-const viaMemo = _atMaybeArray(_ref);
-const [, {
+const [, _ref] = [_pushMaybeArray(log).call(log, 'n'), (_pushMaybeArray(log).call(log, 'e'), _globalThis)];
+const viaSurface = _atMaybeArray(_ref.Array.prototype);
+const [, _ref2] = [_pushMaybeArray(log).call(log, 'm'), _flatMaybeArray(rows).call(rows)];
+const viaMemo = _atMaybeArray(_ref2);
+const {
   length: memoLength
-}] = [, _ref];
+} = _ref2;
 const [, {
   Array: {
     prototype: {

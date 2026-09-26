@@ -50,21 +50,24 @@ function mark(t, v) {
   }]];
 }
 {
-  const [, {
-    from: f
-  }] = [...[0], pick ? {
+  const [, _ref] = [...[0], pick ? {
     from: _Array$from
   } : userObj];
+  const {
+    from: f
+  } = _ref;
 }
 {
   const [[x]] = [...[[[1]]]];
   _atMaybeArray(x).call(x, 0);
 }
 {
-  const at = _atMaybeArray([1, 2]);
+  const [[_ref2]] = [[[1, 2]]];
+  const at = _atMaybeArray(_ref2);
 }
 {
-  const at = _atMaybeArray([1, 2]);
+  const [[_ref3]] = [[[1, 2]]];
+  const at = _atMaybeArray(_ref3);
 }
 {
   const [[{
@@ -108,23 +111,23 @@ function mark(t, v) {
   }] = [...[, Object]];
 }
 {
-  const [_ref] = [...[, [1, 2]]];
-  const at = _at(_ref);
+  const [_ref4] = [...[, [1, 2]]];
+  const at = _at(_ref4);
 }
 {
-  const [_ref2] = [...[, [1]]];
-  const at = _at(_ref2);
+  const [_ref5] = [...[, [1]]];
+  const at = _at(_ref5);
 }
 {
-  eff();
+  const [_ref6] = [[1, 2], eff()];
+  const at = _atMaybeArray(_ref6);
+}
+{
   const at = _atMaybeArray([1, 2]);
 }
 {
-  const at = _atMaybeArray([1, 2]);
-}
-{
-  eff();
-  const at = _atMaybeArray([1]);
+  const [_ref7] = [[1], eff()];
+  const at = _atMaybeArray(_ref7);
 }
 {
   const a = _atMaybeArray([1]);
@@ -195,10 +198,10 @@ function mark(t, v) {
   } : userObj]];
 }
 {
-  var _ref3;
+  var _ref8;
   const box = [1];
   const [, ...r] = [...[0, box]];
-  _pushMaybeArray(_ref3 = r[0]).call(_ref3, 2);
+  _pushMaybeArray(_ref8 = r[0]).call(_ref8, 2);
   _atMaybeArray(box).call(box, 0);
 }
 {
@@ -208,25 +211,25 @@ function mark(t, v) {
   _atMaybeArray(box).call(box, 0);
 }
 {
-  var _ref4, _ref5;
+  var _ref9, _ref10;
   const box = [[1]];
   const [, ...r] = [...[0, box]];
-  _pushMaybeArray(_ref4 = r[0]).call(_ref4, 's');
-  _at(_ref5 = box[0]).call(_ref5, 0);
+  _pushMaybeArray(_ref9 = r[0]).call(_ref9, 's');
+  _at(_ref10 = box[0]).call(_ref10, 0);
 }
 {
-  var _ref6;
+  var _ref11;
   const box = [[1]];
   const [a] = [...[box]];
   _pushMaybeArray(a).call(a, 's');
-  _at(_ref6 = box[0]).call(_ref6, 0);
+  _at(_ref11 = box[0]).call(_ref11, 0);
 }
 {
-  var _ref7;
+  var _ref12;
   const o = {
     a: [...[[1]]]
   };
-  _atMaybeArray(_ref7 = o.a[0]).call(_ref7, 0);
+  _atMaybeArray(_ref12 = o.a[0]).call(_ref12, 0);
 }
 {
   const v = _Object$freeze(...[Array]);

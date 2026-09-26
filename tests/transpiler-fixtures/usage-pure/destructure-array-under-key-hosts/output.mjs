@@ -20,12 +20,15 @@ const {
   }]
 };
 use(viaAlias(1.5));
-const viaSibling = _Math$sign;
 const {
-  k: [{
-    sign: _unused
-  }, beside]
+  k: _ref
 } = held;
+const [_ref2, _ref3] = _ref;
+const {
+  sign: _unused
+} = _ref2;
+const viaSibling = _Math$sign;
+const beside = _ref3;
 use(viaSibling(-1), beside);
 let viaAssign;
 ({

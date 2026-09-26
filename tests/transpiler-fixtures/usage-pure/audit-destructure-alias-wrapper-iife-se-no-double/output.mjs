@@ -7,4 +7,7 @@ const wrapper = [(() => {
   calls++;
   return Array;
 })()];
+const [{
+  from: _unused
+}] = wrapper;
 const from = _Array$from;

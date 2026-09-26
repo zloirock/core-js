@@ -143,6 +143,8 @@ function build(node) {
       return convertLiteral(node);
     case 'ExpressionStatement':
       return { type: 'ExpressionStatement', expression: convert(node.expression) };
+    case 'BlockStatement':
+      return { type: 'BlockStatement', body: node.body.map(statement => convert(statement)), directives: [] };
     case 'CallExpression':
       if (node.optional) throw new TypeError('[estree-to-babel] optional call outside a ChainExpression');
       return {

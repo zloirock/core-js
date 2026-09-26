@@ -3175,7 +3175,7 @@ export function isCallShape(node) {
 // the spellings the invocation canon pairs DIRECTLY: a call, or a tagged template - its tag the
 // callee, its expressions the arguments. a value reader reaches `new` and `await` through
 // `realmYieldingCallView`, which proves the callee constructible and the awaited value no thenable
-export function isPairedCallShape(node) {
+function isPairedCallShape(node) {
   return isCallShape(node) || node?.type === 'TaggedTemplateExpression';
 }
 
@@ -4298,10 +4298,9 @@ export function resolveSynthKeys({ node, scope, adapter, path }) {
   return { lookupKey, slotKey: slotKey ?? (node.computed && typeof lookupKey === 'string' ? `[${ JSON.stringify(lookupKey) }]` : null) };
 }
 
-// the slot a HOP prop names for a walk that will CONSUME it: the spelling the source wrote, plus the
-// scope-aware fold of a bound key (`{ [K]: ... }` with `const K = 'Array'`) where the caller can hand
-// over a scope. a key that EVALUATES something answers null however it folds - consuming the prop
-// drops the key node, and the effect would go with it
+// Resolve a hop's slot from its structural spelling or a scope-aware key fold.
+// Effects belong to the retained key node, not this lookup result: a caller consuming
+// an effectful hop must retain that node or preserve its effects.
 export function consumableHopSlotName(prop, keyCtx = null) {
   // ... a key with an EFFECT still names its slot: the level it stands on survives every render
   // (`hostLevelSurvives` - the key runs once where the source wrote it, the leaves below retire to

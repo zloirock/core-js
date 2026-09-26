@@ -69,6 +69,10 @@ function imports(code) {
 // the effect-bearing sequence around a nav, the same inside a store, and the seal shapes whose
 // decisions were already dialect-aware (they stay in the list as the negative half of the gate)
 const CASES = [
+  [
+    'parenthesized array receiver with ordered reads and a default',
+    'export function read(receiver, fallback) { const [{ other, at = fallback() }] = ([receiver]); return [at, other]; }',
+  ],
   // the minifier-sequence split reads the statement through the paren the kept dialect adds around
   // the whole sequence and around each operand: the products, their order and the demoted string
   // head are one program on both dialects (a string operand PARENTHESIZED by the source is the
