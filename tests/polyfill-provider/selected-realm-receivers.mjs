@@ -5,7 +5,7 @@ import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/d
 import { resolveObjectName } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import { handleMemberExpressionNode, planGuardedStaticNarrow } from '../../packages/core-js-polyfill-provider/detect-usage/members.js';
 import { resolve } from '../../packages/core-js-polyfill-provider/index.js';
-import { ownEmittedNavClaim, ownEmittedPatternClaim } from '../../packages/core-js-polyfill-provider/detect-usage/own-output.js';
+import { ownEmittedNavClaim, ownEmittedPatternClaim, ownOutputTests } from '../../packages/core-js-polyfill-provider/detect-usage/own-output.js';
 import { adapters, createChecker } from './harness.mjs';
 
 const { check, finish } = createChecker('selected-realm-receivers');
@@ -125,6 +125,42 @@ for (const parser of adapters) for (const [name, test, fallback, expected] of [
     }), expected);
   }
 }
+// A pending pure binding admits this pass's guard even when the source verdict is cached
+// negative: the guard is requeued before its import declaration necessarily exists.
+for (const parser of adapters) {
+  const program = parser.parseAndScope('const result = held === Array ? _Array$from : held["from"];');
+  const path = parser.pickPath(program, 'MemberExpression');
+  const pureImports = new Map();
+  const tests = ownOutputTests({ pkg: '@core-js/pure', pureImports, isOwnPassPureBinding: name => pureImports.values().some(value => value === name) });
+  check(`${ parser.name }: raw program has no own output`, ownEmittedNavClaim(path.node, path, tests), false);
+  pureImports.set('actual/array/from', '_Array$from');
+  check(`${ parser.name }: current pass guard keeps its raw arm`, ownEmittedNavClaim(path.node, path, tests), true);
+}
+
+// A pending import does not make unrelated receivers into prior output. Count subtree
+// reads, with an actual prior import as the positive control for the full census.
+for (const parser of adapters) for (const prior of [false, true]) {
+  const prefix = prior ? "import old from '@core-js/pure/actual/map';" : '';
+  const program = parser.parseAndScope(`${ prefix } const result = value.at;`);
+  const path = parser.pickPath(program, 'MemberExpression');
+  const receiver = path.node.object;
+  let reads = 0;
+  Object.defineProperty(path.node, 'object', {
+    configurable: true,
+    get() {
+      reads++;
+      return receiver;
+    },
+  });
+  const tests = ownOutputTests({
+    pkg: '@core-js/pure',
+    pureImports: new Map([['actual/array/at', '_at']]),
+    isOwnPassPureBinding: name => name === '_at',
+  });
+  check(`${ parser.name }: pending import/prior ${ prior }: live claim`, ownEmittedNavClaim(path.node, path, tests), false);
+  check(`${ parser.name }: pending import/prior ${ prior }: receiver census`, reads > 0, prior);
+}
+
 // A member read keyed by a prior pass's `symbol/iterator` import is a lowered pattern key, so the
 // nav census lets it through to the iterator handler; every other minted key - another well-known
 // symbol, or the same key on a PATTERN prop - stays this plugin's own output

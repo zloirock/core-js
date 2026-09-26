@@ -12014,6 +12014,27 @@ const MIRROR_STEP_HOP_ROWS = [
     names: 'gb, rest', read: '[gb]', kept: true },
 ];
 function * generateMirrorSlotCanon() {
+  for (const [host, source] of [
+    ['declaration', 'const { at, [key]: other } = receiver; const result = [at, other];'],
+    ['parameter', 'const result = (function ({ at, [key]: other } = receiver) { return [at, other]; })();'],
+    ['object-default', 'const result = (function ({ value: { at, [key]: other } = receiver } = {}) { return [at, other]; })();'],
+    ['array-default', 'const result = (function ([{ at, [key]: other } = receiver] = []) { return [at, other]; })();'],
+    ['repeated-name', 'const result = (function ({ at, at: other } = receiver) { return [at, other]; })();'],
+    ['repeated-literal', 'const result = (function ({ at, ["at"]: other } = receiver) { return [at, other]; })();'],
+  ]) {
+    const body = `let reads = 0, coercions = 0; const receiver = [];
+      Object.defineProperty(receiver, 'at', { get() { return ++reads; } });
+      const key = { toString() { coercions++; return 'at'; } };
+      ${ source } return [result, reads, coercions];`;
+    yield { ...snippet(`mirror-slot-canon/independent-reads/${ host }`, `(() => { ${ body } })()`), strip: true };
+  }
+  for (const order of ['at, [key]: alias', '[key]: alias, at']) for (const key of ['at', 'length']) {
+    const body = `function read(key) { return (function ({ ${ order } } = [7]) { return typeof at; })(); }
+      return read(${ JSON.stringify(key) });`;
+    // Unknown parameter keys keep this pattern native; the accepted missing-polyfill boundary
+    // is asserted explicitly in e2e rather than compared with native availability after stripping.
+    yield { ...snippet(`mirror-slot-canon/dynamic-collision/${ order }/${ key }`, `(() => { ${ body } })()`), strip: false };
+  }
   for (const row of MIRROR_SLOT_CANON_ROWS) {
     yield { ...snippet(`mirror-slot-canon/${ row.id }`, `(() => { ${ row.body } })()`), strip: true };
   }
@@ -12026,6 +12047,1012 @@ function * generateMirrorSlotCanon() {
         : 'realm.every((value, index) => value === anchor[index])' }]; })()`;
     yield { ...snippet(`mirror-slot-canon/${ row.id }`, body, { rig: true }), strip: !row.kept };
   }
+}
+
+// Array captures preserve the source element before neighbour effects, and interleave
+// native siblings with each independent read and live default. Each host owns the
+// extraction before its next declarator or loop body can execute.
+function * generateArrayPropertyOrder() {
+  for (const pattern of ['at = fallback(), other', 'other, at = fallback()', 'other, at']) {
+    for (const [host, body] of [
+      ['declaration', `const [{ ${ pattern } }] = [receiver]; return [at, other];`],
+      ['parenthesized', `const [{ ${ pattern } }] = ([receiver]); return [at, other];`],
+      ['siblings', `const before = log.push('before'), [{ ${ pattern } }] = [receiver], after = log.push('after'); return [before, at, other, after];`],
+      ['for-init', `for (const [{ ${ pattern } }] = [receiver];;) return [at, other];`],
+      ['bodyless', `if (receiver) var [{ ${ pattern } }] = [receiver]; return [at, other];`],
+    ]) {
+      const expr = `(() => {
+        const source = { get at() { log.push('at'); return undefined; }, get other() { log.push('other'); return 2; } };
+        function fallback() { log.push('default'); return 1; }
+        function read(receiver) { ${ body } }
+        return [read(source), log];
+      })()`;
+      yield { ...snippet(`array-property-order/${ host }/${ pattern }`, expr), strip: true };
+    }
+  }
+  for (const [name, body] of [
+    [
+      'receiver-replaced',
+      `const source = { get other() { log.push('other'); return 2; }, get at() { log.push('at'); return 1; } };
+      function read(receiver) {
+        const [{ other, at }, tail] = [receiver, (log.push('tail'), receiver = { at: 9, other: 8 })];
+        return [at, other, tail.at];
+      } return [read(source), log];`,
+    ],
+    [
+      'default-name',
+      `function read(receiver) {
+        const [{ other, at = () => 'abc'.at(-1) }] = [receiver]; return [other, at.name, at()];
+      } return read({ other: 7 });`,
+    ],
+    [
+      'abrupt-default',
+      `const source = { get at() { log.push('at'); }, get other() { log.push('other'); return 2; } };
+      function fail() { log.push('default'); throw 'failure'; }
+      function read(receiver) { const [{ at = fail(), other }] = [receiver]; return [at, other]; }
+      try { read(source); } catch (error) { return [error, log]; }`,
+    ],
+    [
+      'independent-reads',
+      `let count = 0; const source = { get at() { return ++count; }, other: 7 };
+      function read(receiver) { const [{ at: first, other, at: second }] = [receiver]; return [first, other, second]; }
+      return [read(source), count];`,
+    ],
+    [
+      'nested-independent-reads',
+      `let count = 0; const source = {
+        get y() { log.push('receiver'); return {
+          get at() { log.push('at'); return ++count; }, get other() { log.push('other'); return 3; }
+        }; }
+      };
+      function read(box) { const [{ y: { at: first, at: second, other } }] = [box]; return [first, second, other]; }
+      return [read(source), log];`,
+    ],
+    [
+      'nested-builtin',
+      `function read(box) {
+        const [{ y: { at, includes } }] = [box]; return [at.call(box.y, -1), includes.call(box.y, 2)];
+      } return read({ y: [1, 2] });`,
+    ],
+    [
+      'nested-trailing-binding',
+      `function read() {
+        const box = { get y() { log.push('receiver'); return { get at() { log.push('at'); return tail; } }; } };
+        const [{ y: { at } }, tail] = [box, (log.push('tail'), 7)]; return at;
+      }
+      try { return [read(), log]; } catch (error) { return [error.name, log]; }`,
+    ],
+    [
+      'nested-replaced-root',
+      `function read() {
+        let box = { y: { at: 1 } };
+        const [{ y: { at } }, tail] = [box, (box = { y: { at: 9 } })]; return [at, tail.y.at];
+      } return read();`,
+    ],
+    [
+      'nested-claim-ownership',
+      `const source = {
+        get w() { log.push('w'); return { get values() { log.push('values'); return 1; } }; },
+        get y() { log.push('y'); return { get at() { log.push('at'); return 2; } }; }
+      };
+      function read(box) {
+        const [{ w: { values }, y: { at } }] = [box, log.push('effect')]; return [values, at];
+      } return [read(source), log];`,
+    ],
+    [
+      'nested-independent-spread',
+      `const source = {
+        get w() { log.push('w'); return { get values() { log.push('values'); return 1; } }; },
+        get y() { log.push('y'); return { get at() { log.push('at'); return 2; } }; }
+      };
+      const tail = { *[Symbol.iterator]() { log.push('spread'); yield 7; } };
+      const [{ w: { values }, y: { at } }] = [source, ...tail];
+      return [[values, at], log];`,
+    ],
+    [
+      'nested-multi-declarator-effect',
+      `const source = {
+        get w() { log.push('w'); return { get values() { log.push('values'); return 1; } }; },
+        get y() { log.push('y'); return { get at() { log.push('at'); return 2; } }; }
+      };
+      function read(receiver) {
+        const before = log.push('before'), [{ w: { values }, y: { at } }] =
+          [receiver, log.push('effect')], after = log.push('after');
+        return [before, values, at, after];
+      } return [read(source), log];`,
+    ],
+    [
+      'nested-literal-neighbour',
+      `const list = [5, 9];
+      const [{ y: { at }, wz }, tail] = [{
+        get y() { log.push('y'); return list; },
+        get wz() { log.push('wz'); return 3; }
+      }, (log.push('tail'), 4)];
+      return [[at.call(list, -1), wz, tail], log];`,
+    ],
+    [
+      'nested-compact-followed-by-binding',
+      `const source = {
+        get w() { log.push('w'); return { get values() { log.push('values'); return 1; } }; },
+        get y() { log.push('y'); return { get at() { log.push('at'); return 2; } }; }
+      };
+      const [{ w: { values }, y: { at } }, tail] = [source, log.push('effect')];
+      return [[values, at, tail], log];`,
+    ],
+    [
+      'nested-compact-after-binding',
+      `const source = {
+        get w() { log.push('w'); return { values: head }; },
+        get y() { log.push('y'); return { at: head + 1 }; }
+      };
+      const [head, { w: { values }, y: { at } }] = [4, source];
+      return [[head, values, at], log];`,
+    ],
+    [
+      'nested-literal-two-reads',
+      `const list = [5, 9];
+      const [{ w: { values }, y: { at } }] = [{
+        get w() { log.push('w'); return list; },
+        get y() { log.push('y'); return list; }
+      }];
+      return [[values.call(list).next().value, at.call(list, -1)], log];`,
+    ],
+    [
+      'nested-literal-static-sibling',
+      `const list = [5, 9];
+      const [{ w: { is }, y: { at } }] = [{ w: Object, y: list }];
+      return [is(2, 2), at.call(list, -1)];`,
+    ],
+    [
+      'nested-member-source',
+      `const list = [5, 9];
+      const holder = { get source() { log.push('source'); return {
+        get w() { log.push('w'); return list; },
+        get y() { log.push('y'); return list; }
+      }; } };
+      const [{ w: { values }, y: { at } }] = [holder.source];
+      return [[values.call(list).next().value, at.call(list, -1)], log];`,
+    ],
+    [
+      'nested-source-write',
+      `const replacement = { w: { values: 3 }, y: { at: 4 } };
+      let source = { w: { values: 1 }, y: { at: 2 } };
+      const [{ w: { values }, y: { at } }] = [source, source = replacement];
+      return [[values, at], log];`,
+    ],
+    [
+      'nested-assignment-source-write',
+      `const replacement = { w: { values: 3 }, y: { at: 4 } };
+      let source = { w: { values: 1 }, y: { at: 2 } }, values, at;
+      if (source) ([{ w: { values }, y: { at } }] = [source, source = replacement]);
+      return [[values, at], log];`,
+    ],
+    [
+      'nested-assignment-source-methods',
+      `const list = [5, 9], replacement = { w: [3], y: [4] };
+      let source = { w: list, y: list }, values, at;
+      if (source) ([{ w: { values }, y: { at } }] = [source, source = replacement]);
+      return [[values.call(list).next().value, at.call(list, -1)], log];`,
+    ],
+    [
+      'paired-statement-assignment',
+      `const receiver = { get at() { log.push('at'); return 7; } };
+      let at, tail; ([{ at }, tail] = [receiver, (log.push('rhs'), 9)]);
+      return [[at, tail], log];`,
+    ],
+    [
+      'paired-nested-assignment',
+      `const list = [5, 9]; let at;
+      ([{ y: { at } }] = [{ get y() { log.push('y'); return list; } }]);
+      return [at.call(list, -1), log];`,
+    ],
+    [
+      'paired-bodyless-assignment',
+      `const source = { get at() { log.push('at'); return 3; } };
+      let at; if (true) ([{ at }] = [source, log.push('rhs')]);
+      return [at, log];`,
+    ],
+    [
+      'paired-loop-assignment',
+      `let reads = 0;
+      const source = { get flat() { log.push('read'); return ++reads; } };
+      function read(receiver, rows) {
+        let flat = 0;
+        for (const row of rows) [{ flat }] = [(log.push(row), receiver)];
+        return flat;
+      }
+      const none = read(source, []), twice = read(source, ['first', 'second']), array = [[1], [2]];
+      return [[none, twice, read(array, ['array']).call(array)], log];`,
+    ],
+    [
+      'paired-assignment-result',
+      `const source = { at: 3 }; let at;
+      const result = ([{ at }] = [source]); return [at, result[0] === source];`,
+    ],
+    [
+      'paired-assignment-member-target',
+      `const source = { at: 3 }, target = {};
+      ([{ at: target.value }] = [source]); return target.value;`,
+    ],
+    [
+      'paired-assignment-custom-iterator',
+      `const source = { get at() { log.push('at'); return 7; } };
+      const original = Array.prototype[Symbol.iterator];
+      Array.prototype[Symbol.iterator] = function* () {
+        log.push('step-0'); yield this[0]; log.push('step-1'); yield this[1];
+      };
+      try { let at, tail; ([{ at }, tail] = [source, 3]); return [[at, tail], log]; }
+      finally { Array.prototype[Symbol.iterator] = original; }`,
+    ],
+    [
+      'paired-assignment-surface-nav',
+      `const list = [4, 9]; let flatMap;
+      ([{ Array: { prototype: { flatMap } } }] = [globalThis]);
+      return flatMap.call(list, value => [value, value]);`,
+    ],
+    [
+      'paired-declaration-surface-nav',
+      `const list = [4, 9];
+      const [{ Array: { prototype: { at } } }] = [globalThis, log.push('rhs')];
+      return [at.call(list, -1), log];`,
+    ],
+    [
+      'paired-surface-before-opaque-spread',
+      `const list = [4, 9];
+      const tail = { [Symbol.iterator]() { log.push('iterate'); return [1][Symbol.iterator](); } };
+      const [{ Array: { prototype: { at } } }] = [globalThis, ...tail];
+      return [at.call(list, -1), log];`,
+    ],
+    [
+      'paired-surface-after-discarded-effect',
+      `const list = [4, 9];
+      const [, { Array: { prototype: { at } } }] = [log.push('first'), (log.push('second'), globalThis)];
+      return [at.call(list, -1), log];`,
+    ],
+    [
+      'paired-nested-array-literal',
+      `const list = [4, 9];
+      const [[{ y: { at } }, tail]] = [[{ y: list }, (log.push('tail'), 3)]];
+      return [[at.call(list, -1), tail], log];`,
+    ],
+    [
+      'paired-nested-inline-spread',
+      `const list = [4, 9];
+      const [[{ y: { toSpliced } }]] = [...[[...[{ y: list }]]]];
+      return toSpliced.call(list, 1, 1, 7);`,
+    ],
+    ['paired-single-static', 'const [{ from }] = [Array]; return from([4, 9]);'],
+    [
+      'paired-single-static-alias',
+      `const source = [Array]; const alias = source;
+      const [{ from }] = alias; return from([4, 9]);`,
+    ],
+    [
+      'paired-single-static-alias-getter',
+      `const old = Object.getOwnPropertyDescriptor(Math, 'trunc');
+      Object.defineProperty(Math, 'trunc', { configurable: true, get() {
+        log.push('trunc'); return value => value | 0;
+      } });
+      try { const source = [Math]; const alias = source; const [{ trunc }] = alias;
+        return [trunc(2.8), log]; }
+      finally { if (old) Object.defineProperty(Math, 'trunc', old); else delete Math.trunc; }`,
+    ],
+    [
+      'paired-single-static-alias-written-slot',
+      `const source = [Array];
+      source[0] = { from: () => ['user'] };
+      const [{ from }] = source; return from();`,
+    ],
+    [
+      'paired-single-static-call',
+      `const make = value => (log.push('make'), [value]);
+      const [{ from }] = make(Array); return [from([4, 9]), log];`,
+    ],
+    [
+      'paired-single-static-nested-alias',
+      `const wrapper = [[Array]];
+      const [[{ from }]] = wrapper; return from([4, 9]);`,
+    ],
+    [
+      'paired-nested-static-alias',
+      `const wrapper = [globalThis];
+      const [{ Object: { fromEntries } }] = wrapper;
+      return fromEntries([['k', 4]]).k;`,
+    ],
+    [
+      'paired-static-iife-alias',
+      `let calls = 0;
+      const wrapper = [(() => { calls++; return Array; })()];
+      const [{ from }] = wrapper; return [from([4, 9]), calls];`,
+    ],
+    [
+      'paired-static-defaulted-alias',
+      `let calls = 0;
+      const held = (() => { calls++; return [Math]; })();
+      const [{ sign } = {}] = held; return [sign(-4), calls];`,
+    ],
+    [
+      'paired-nested-static-trailing-effect',
+      `const w3 = [globalThis];
+      const [[{ Object: { hasOwn } }]] = [w3, log.push('tail')];
+      return [hasOwn({ k: 4 }, 'k'), log];`,
+    ],
+    [
+      'paired-folded-key-before-pure-read',
+      `const tail = {
+        * [Symbol.iterator]() { log.push('spread'); yield 1; }
+      };
+      const [{ [(log.push('key'), 'at')]: at }] = [Array.prototype, ...tail];
+      return [at.call([4, 9], -1), log];`,
+    ],
+    [
+      'paired-nested-static-under-key',
+      `const wrapped = [{ k: [Object] }];
+      const [{ k: [{ is }] }] = wrapped; return is(1, 1);`,
+    ],
+    [
+      'paired-mixed-static-instance',
+      `const known = { w: Object, y: [4, 8] };
+      const [{ w: { is }, y: { at } }] = [known, log.push('rhs')];
+      return [is(1, 1), at.call(known.y, -1), log];`,
+    ],
+    [
+      'paired-mixed-instance-static',
+      `const known = { w: Object, y: [4, 8] };
+      const [{ y: { at }, w: { is } }] = [known, log.push('rhs')];
+      return [at.call(known.y, -1), is(1, 1), log];`,
+    ],
+    [
+      'paired-mixed-static-instance-getters',
+      `const list = [4, 8];
+      const known = { get w() { log.push('w'); return Object; }, get y() { log.push('y'); return list; } };
+      const [{ w: { is }, y: { at } }] = [known, log.push('rhs')];
+      return [is(1, 1), at.call(list, -1), log];`,
+    ],
+    [
+      'object-root-array-key-effect',
+      `const { [(log.push('key'), 'w')]: [{ at }] } = {
+        w: [(log.push('receiver'), [4, 8])]
+      }; return [at.call([4, 8], -1), log];`,
+    ],
+    [
+      'nested-array-key-effect',
+      `const [{ [(log.push('key'), 'w')]: { at } }] = [
+      { get w() { log.push('get'); return [4, 8]; } }, log.push('rhs')
+      ]; return [at.call([4, 8], -1), log];`,
+    ],
+    [
+      'nested-array-key-effect-assignment',
+      `let at;
+      ([{ [(log.push('key'), 'w')]: { at } }] = [
+        { get w() { log.push('get'); return [4, 8]; } }, log.push('rhs')
+      ]); return [at.call([4, 8], -1), log];`,
+    ],
+    [
+      'nested-array-key-effects-chain',
+      `const [{ [(log.push('outer'), 'w')]: {
+      [(log.push('inner'), 'y')]: { includes }
+      } }] = [{ w: { get y() { log.push('get'); return 'abc'; } } }];
+      return [includes.call('abc', 'b'), log];`,
+    ],
+    [
+      'nested-array-key-effect-static',
+      `const [{ [(log.push('key'), 'w')]: { is } }] = [
+      { w: Object }, log.push('rhs')
+      ]; return [is(1, 1), log];`,
+    ],
+    [
+      'nested-array-key-effect-null',
+      `try {
+      const [{ [(log.push('key'), 'w')]: { at } }] = [null]; return at;
+      } catch (error) { return [error.name, log]; }`,
+    ],
+    [
+      'nested-array-shared-hop',
+      `const first = { get at() { log.push('at'); return () => 4; },
+      get other() { log.push('other'); return 8; } };
+      const source = { get w() { log.push('w'); return first; }, y: 'abc' };
+      const [{ w: { at, other }, y: { includes } }] = [source, log.push('rhs')];
+      return [at(), other, includes.call('abc', 'b'), log];`,
+    ],
+    [
+      'nested-array-shared-key-effect',
+      `const source = { get w() { log.push('w'); return [4, 8]; }, y: 'abc' };
+      const [{ [(log.push('key'), 'w')]: { at, length }, y: { includes } }] = [source, log.push('rhs')];
+      return [at.call([4, 8], -1), length, includes.call('abc', 'b'), log];`,
+    ],
+    [
+      'nested-array-shared-statics',
+      `const source = { get w() { log.push('w'); return Object; }, y: [4, 8] };
+      const [{ w: { is, values }, y: { at } }] = [source, log.push('rhs')];
+      return [is(1, 1), values({ a: 3 }), at.call([4, 8], -1), log];`,
+    ],
+    [
+      'object-root-array-instance',
+      `const { w: [{ at }] } = { w: [[4, 8]] };
+      return at.call([4, 8], -1);`,
+    ],
+    [
+      'object-root-array-assignment',
+      `let at;
+      ({ [(log.push('key'), 'w')]: [{ at }] } = { w: [(log.push('rhs'), [4, 8])] });
+      return [at.call([4, 8], -1), log];`,
+    ],
+    [
+      'object-root-array-assignment-bodyless',
+      `let includes;
+      if (log.push('guard')) ({ w: [{ includes }] } = { w: ['abc'] });
+      return [includes.call('abc', 'b'), log];`,
+    ],
+    [
+      'object-root-array-nested-instance',
+      `const holder = { y: [4, 8] };
+      const { w: [{ y: { at } }] } = { w: [holder] };
+      return at.call(holder.y, -1);`,
+    ],
+    [
+      'paired-nested-static-under-key-iterator',
+      `const original = Array.prototype[Symbol.iterator];
+      Array.prototype[Symbol.iterator] = function* () {
+        log.push('iterate'); yield* original.call(this);
+      };
+      try {
+        const wrapped = [{ k: [Object] }];
+        const [{ k: [{ is }] }] = wrapped; return [is(1, 1), log];
+      } finally { Array.prototype[Symbol.iterator] = original; }`,
+    ],
+    // The mutation through a foreign parameter is outside the static census. The iterator
+    // still yields the stored slots, so native iterations and polyfilled reads must coexist.
+    [
+      'static-alias-external-iterator',
+      `const original = Array.prototype[Symbol.iterator];
+      const install = (target, key, value) => { target[key] = value; };
+      install(Array.prototype, Symbol.iterator, function* () { log.push('iterate'); yield* original.call(this); });
+      try { const wrapper = [globalThis]; const [{ Object: { fromEntries } }] = wrapper;
+        return [fromEntries({ * [Symbol.iterator]() { yield ['k', 4]; } }).k, log]; }
+      finally { install(Array.prototype, Symbol.iterator, original); }`,
+    ],
+    [
+      'static-iife-alias-external-iterator',
+      `const original = Array.prototype[Symbol.iterator];
+      const install = (target, key, value) => { target[key] = value; };
+      install(Array.prototype, Symbol.iterator, function* () { log.push('iterate'); yield* original.call(this); });
+      try { const wrapper = [(() => Array)()]; const [{ from }] = wrapper;
+        return [from([4, 9]).length, log]; }
+      finally { install(Array.prototype, Symbol.iterator, original); }`,
+    ],
+    [
+      'static-default-alias-external-iterator',
+      `const original = Array.prototype[Symbol.iterator];
+      const install = (target, key, value) => { target[key] = value; };
+      install(Array.prototype, Symbol.iterator, function* () { log.push('iterate'); yield* original.call(this); });
+      try { const held = [Math]; const [{ sign } = {}] = held; return [sign(-4), log]; }
+      finally { install(Array.prototype, Symbol.iterator, original); }`,
+    ],
+    [
+      'nested-static-trailing-external-iterator',
+      `const original = Array.prototype[Symbol.iterator];
+      const install = (target, key, value) => { target[key] = value; };
+      install(Array.prototype, Symbol.iterator, function* () { log.push('iterate'); yield* original.call(this); });
+      try { const w3 = [globalThis]; const [[{ Object: { hasOwn } }]] = [w3, log.push('tail')];
+        return [hasOwn({ k: 4 }, 'k'), log]; }
+      finally { install(Array.prototype, Symbol.iterator, original); }`,
+    ],
+    [
+      'static-default-call-external-iterator',
+      `const original = Array.prototype[Symbol.iterator];
+      const install = (target, key, value) => { target[key] = value; };
+      install(Array.prototype, Symbol.iterator, function* () { log.push('iterate'); yield* original.call(this); });
+      try { const make = () => { log.push('call'); return [Math, 0]; };
+        const [{ sign } = {}] = make(); return [sign(-4), log]; }
+      finally { install(Array.prototype, Symbol.iterator, original); }`,
+    ],
+    [
+      'static-default-optional-call-external-iterator',
+      `const original = Array.prototype[Symbol.iterator];
+      const install = (target, key, value) => { target[key] = value; };
+      install(Array.prototype, Symbol.iterator, function* () { log.push('iterate'); yield* original.call(this); });
+      try { const make = () => { log.push('call'); return [Math]; };
+        const [{ sign } = {}] = make?.(); return [sign(-4), log]; }
+      finally { install(Array.prototype, Symbol.iterator, original); }`,
+    ],
+    [
+      'paired-nested-static-under-key-getter',
+      `const old = Object.getOwnPropertyDescriptor(Object, 'is');
+      Object.defineProperty(Object, 'is', { configurable: true, get() {
+        log.push('is'); return (left, right) => left === right;
+      } });
+      try {
+        const wrapped = [{ k: [Object] }];
+        const [{ k: [{ is }] }] = wrapped; return [is(1, 1), log];
+      } finally { if (old) Object.defineProperty(Object, 'is', old); else delete Object.is; }`,
+    ],
+    [
+      'array-mirror-neighbour-declaration-true',
+      `const source = { get at() { log.push('at'); return () => 7; } };
+      const other = { get from() { log.push('from'); return () => [9]; } };
+      const [{ at }, { from }] = [source, (log.push('pick'), true) ? Array : other]; return [at(), from([4])[0], log];`,
+    ],
+    [
+      'array-mirror-neighbour-declaration-false',
+      `const source = { get at() { log.push('at'); return () => 7; } };
+      const other = { get from() { log.push('from'); return () => [9]; } };
+      const [{ at }, { from }] = [source, (log.push('pick'), false) ? Array : other]; return [at(), from([4])[0], log];`,
+    ],
+    [
+      'array-mirror-neighbour-assignment-true',
+      `const source = { get at() { log.push('at'); return () => 7; } };
+      const other = { get from() { log.push('from'); return () => [9]; } };
+      let at, from; ([{ at }, { from }] = [source, (log.push('pick'), true) ? Array : other]); return [at(), from([4])[0], log];`,
+    ],
+    [
+      'array-mirror-neighbour-assignment-false',
+      `const source = { get at() { log.push('at'); return () => 7; } };
+      const other = { get from() { log.push('from'); return () => [9]; } };
+      let at, from; ([{ at }, { from }] = [source, (log.push('pick'), false) ? Array : other]); return [at(), from([4])[0], log];`,
+    ],
+    [
+      'positional-static-before-instance-write',
+      `let keys = null, at;
+      const source = { get at() { log.push(typeof keys); return Array.prototype.at; } };
+      const rows = [Object, source]; ([{ keys }, { at }] = rows);
+      return [keys({ a: 1 }), at.call([4, 8], -1), log];`,
+    ],
+    [
+      'positional-static-before-native-assignment',
+      `let sign = null, other;
+      const source = { get other() { log.push(typeof sign); return 9; } };
+      const rows = [Math, source]; ([{ sign }, { other }] = rows);
+      return [sign(-4), other, log];`,
+    ],
+    [
+      'positional-static-before-native-declaration',
+      `const source = { get other() { log.push(typeof sign); return 9; } };
+      const rows = [Math, source]; const [{ sign }, { other }] = rows;
+      return [sign(-4), other, log];`,
+    ],
+    [
+      'positional-static-call-assignment',
+      `const make = () => { log.push('call'); return [Object, 7]; };
+      let keys, tail; ([{ keys }, tail] = make()); return [keys({ a: 1 }), tail, log];`,
+    ],
+    [
+      'positional-static-getter-before-tail-binding',
+      `const old = Object.getOwnPropertyDescriptor(Math, 'sign');
+      const install = (target, key, descriptor) => Object.defineProperty(target, key, descriptor);
+      let tail = 'old';
+      install(Math, 'sign', { configurable: true, get() { log.push(tail); return old && old.value; } });
+      try { const make = () => [Math, 7]; let sign; ([{ sign }, tail] = make());
+        return [sign(-4), tail, log]; }
+      finally { if (old) install(Math, 'sign', old); else delete Math.sign; }`,
+    ],
+    [
+      'positional-instance-getter-before-tail-binding',
+      `function read(build) {
+        let tail = 'old', at; const rows = build(() => tail);
+        ([{ at }, tail] = rows); return [at, tail];
+      } return [read(get => [{ get at() { log.push(get()); return 7; } }, 9]), log];`,
+    ],
+    [
+      'positional-instance-getter-before-rest-binding',
+      `function read(build) {
+        let tail = 'old', at; const rows = build(() => tail);
+        ([{ at }, ...tail] = rows); return [at, tail];
+      } return [read(get => [{ get at() { log.push(get()); return 7; } }, 9, 10]), log];`,
+    ],
+    [
+      'positional-instance-getter-before-tail-declaration',
+      `function read(build) {
+        const rows = build(() => { try { return tail; } catch (error) { return error.name; } });
+        const [{ at }, tail] = rows; return [at, tail];
+      } return [read(get => [{ get at() { log.push(get()); return 7; } }, 9]), log];`,
+    ],
+    [
+      'positional-static-optional-call',
+      `const make = () => { log.push('call'); return [Array]; };
+      const [{ of }] = make?.(); return [of(4)[0], log];`,
+    ],
+    [
+      'positional-static-optional-absent',
+      `const make = null; let of = 'unchanged';
+      try { ([{ of }] = make?.()); } catch (error) { log.push(error.name); }
+      return [of, log];`,
+    ],
+    [
+      'positional-static-missing-namespace',
+      `const wrapped = [globalThis];
+      const [{ Reflect: { ownKeys } }] = wrapped; return ownKeys({ a: 1 });`,
+    ],
+    [
+      'object-key-array-static-sibling',
+      `const held = { k: [Math] };
+      const { k: [{ sign }, tail] } = held; return [sign(-4), tail];`,
+    ],
+    [
+      'object-key-array-static-written',
+      `const held = { k: [Math] };
+      held.k[0] = { sign: () => 8 }; const { k: [{ sign }, tail] } = held; return [sign(-4), tail];`,
+    ],
+    [
+      'array-retained-static-rest-assignment',
+      `let of, rest, tail;
+      ([{ of, ...rest }, tail] = [Array, 7]); return [of(4), tail, 'of' in rest];`,
+    ],
+    [
+      'array-retained-realm-rest-assignment',
+      `let keys, rest, saved;
+      ([{ Object: { keys }, ...rest }] = [saved = (log.push('source'), globalThis)]);
+      return [keys({ a: 1 }), 'Object' in rest, saved === globalThis, log];`,
+    ],
+    [
+      'array-retained-rest-before-instance',
+      `let keys, rest, at;
+      const source = { get at() { log.push(typeof keys); return Array.prototype.at; } };
+      ([{ Object: { keys }, ...rest }, { at }] = [(log.push('source'), globalThis), source]);
+      return [keys({ a: 1 }), 'Object' in rest, at.call([4, 8], -1), log];`,
+    ],
+    [
+      'paired-nested-static-written-slot',
+      `const wrapped = [{ k: [Object] }];
+      wrapped[0].k[0] = { is: () => false };
+      const [{ k: [{ is }] }] = wrapped; return is(1, 1);`,
+    ],
+    [
+      'paired-single-static-getter',
+      `const old = Object.getOwnPropertyDescriptor(Math, 'trunc');
+      Object.defineProperty(Math, 'trunc', { configurable: true, get() {
+        log.push('trunc'); return value => value | 0;
+      } });
+      try { const [{ trunc }] = [Math]; return [trunc(2.8), log]; }
+      finally { if (old) Object.defineProperty(Math, 'trunc', old); else delete Math.trunc; }`,
+    ],
+    [
+      'nested-getter-rebind',
+      `const replacement = { w: { values: 3 }, y: { at: 4 } };
+      let source = { get w() { source = replacement; return { values: 1 }; }, y: { at: 2 } };
+      const [[{ w: { values }, y: { at } }]] = [[source]];
+      return [[values, at], log];`,
+    ],
+    [
+      'iterator-independent-reads',
+      `let count = 0; const source = {
+        get [Symbol.iterator]() { log.push('iterator'); const value = ++count; return () => value; },
+        get other() { log.push('other'); return 3; }, get at() { log.push('at'); return 4; }
+      };
+      function read(receiver) {
+        const [{ [Symbol.iterator]: first, other, at, [Symbol.iterator]: second }] = [receiver];
+        return [first(), other, at, second()];
+      } return [read(source), log];`,
+    ],
+    [
+      'iterator-alias',
+      `const key = Symbol.iterator;
+      function read(receiver) {
+        const [{ [key]: iterator, at }] = [receiver];
+        return [iterator.call(receiver).next().value, at.call(receiver, -1)];
+      } return [read([2, 5]), read('abc')];`,
+    ],
+    [
+      'receiver-getters',
+      `const source = {
+        get first() { log.push('first'); return { get at() { log.push('at'); return 1; } }; },
+        get second() { log.push('second'); return { get includes() { log.push('includes'); return 2; } }; },
+      };
+      function read(holder) { const [{ at }, { includes }] = [holder.first, holder.second]; return [at, includes]; }
+      return [read(source), log];`,
+    ],
+    [
+      'rebound-later-receiver',
+      `function read(first, second) {
+        let later = second;
+        const earlier = first(() => { later = { includes: 9 }; });
+        const [{ at }, { includes }] = [earlier, later]; return [at, includes];
+      } return read(replace => ({ get at() { replace(); return 1; } }), { includes: 2 });`,
+    ],
+    [
+      'rebound-shared-receiver',
+      `function read(make) {
+        let receiver = make(() => { receiver = { includes: 9 }; });
+        const [{ at, includes }] = [receiver]; return [at, includes];
+      } return read(replace => ({ get at() { replace(); return 1; }, includes: 2 }));`,
+    ],
+    [
+      'compact-memo-siblings',
+      `let count = 0;
+      const source = { get value() { log.push('receiver'); return {
+        get at() { log.push('at'); return ++count; }, get includes() { log.push('includes'); return ++count; },
+      }; } };
+      function read(holder) {
+        const before = log.push('before'), [{ at, includes }] = [holder.value], after = log.push('after');
+        return [before, at, includes, after];
+      } return [read(source), log];`,
+    ],
+    [
+      'positional-declarators',
+      `function read(first, second) {
+        const [{ at }] = first, [{ includes }] = second; return [at, includes];
+      }
+      return [read([{ get at() { log.push('at'); return 1; } }],
+        [{ get includes() { log.push('includes'); return 2; } }]), log];`,
+    ],
+    [
+      'positional-declarator-initializers',
+      `function read(rows) {
+        const before = log.push('before'), [{ at }] = rows, after = log.push('after'); return [before, at, after];
+      } return [read([{ get at() { log.push('at'); return 1; } }]), log];`,
+    ],
+    [
+      'positional-outer-native-reads',
+      `const source = {
+        get before() { log.push('before'); return 1; },
+        get y() { log.push('y'); return {
+          get other() { log.push('other'); return 3; }, get at() { log.push('at'); return 4; }
+        }; }, get after() { log.push('after'); return 2; }
+      };
+      function read(rows) { const [{ before, y: { other, at }, after }] = rows; return [before, other, at, after]; }
+      return [read([source]), log];`,
+    ],
+    [
+      'positional-nested-slots',
+      `function read(rows) {
+        const [[{ at }], , [{ includes }], ...tail] = rows; return [at, includes, tail];
+      }
+      return [read([[{ get at() { log.push('at'); return 1; } }], 7,
+        [{ get includes() { log.push('includes'); return 2; } }], 9]), log];`,
+    ],
+    [
+      'positional-independent-native-reads',
+      `let count = 0; const source = {
+        get at() { log.push('at'); return ++count; }, get other() { log.push('other'); return 3; },
+        get includes() { log.push('includes'); return 4; }
+      };
+      function read(rows) { const [{ at: first, other, at: second, includes }] = rows; return [first, other, second, includes]; }
+      return [read([source]), log];`,
+    ],
+    [
+      'positional-nested-native-reads',
+      `const source = { get y() { log.push('y'); return {
+        get other() { log.push('other'); return 3; }, get at() { log.push('at'); return 1; }
+      }; } };
+      function read(rows) { const [{ y: { other, at } }] = rows; return [other, at]; }
+      return [read([source]), log];`,
+    ],
+    [
+      'positional-assignment-writes',
+      `function read(make) {
+        let value, tail; const rows = make(() => value);
+        [[{ at: value }], , [{ includes: value }], ...tail] = rows; return [value, tail];
+      }
+      const result = read(current => [[{ get at() { log.push('at'); return 1; } }], 7,
+        [{ get includes() { log.push(['includes', current()]); return 2; } }], 9]);
+      return [result, log];`,
+    ],
+    [
+      'positional-assignment-static-sibling',
+      `const array = [2, 7], rows = [Object, array];
+      let keys, at; [{ keys }, { at }] = rows; return [keys({ x: 1 }), at.call(array, -1)];`,
+    ],
+    [
+      'positional-native-key-default-pattern',
+      `const key = { toString() { log.push('key'); return 'other'; } };
+      function read(rows) {
+        const [{ [key]: other = (log.push('other-default'), 3), nested: { value }, at,
+          includes = (log.push('includes-default'), 7) }] = rows;
+        return [other, value, at, includes];
+      }
+      const source = {
+        get other() { log.push('other'); },
+        get nested() { log.push('nested'); return { get value() { log.push('value'); return 4; } }; },
+        get at() { log.push('at'); return 1; }, get includes() { log.push('includes'); }
+      }; return [read([source]), log];`,
+    ],
+    [
+      'paired-binding-following',
+      `function read(make) {
+        const [{ at }, other] = [make(() => other), 2], after = 3; return [at, other, after];
+      }
+      const result = read(current => ({ get at() {
+        try { log.push(current()); } catch (error) { log.push(error.name); } return 1;
+      } })); return [result, log];`,
+    ],
+    [
+      'paired-binding-preceding',
+      `function read(make) {
+        const [other, { at }] = [2, make(() => other)], after = 3; return [at, other, after];
+      }
+      const result = read(current => ({ get at() {
+        try { log.push(current()); } catch (error) { log.push(error.name); } return 1;
+      } })); return [result, log];`,
+    ],
+    [
+      'paired-binding-both',
+      `function read(make) {
+        const [other, { at }, after] = [2, make(() => [other, after]), 3], tail = 4; return [at, other, after];
+      }
+      const result = read(current => ({ get at() {
+        try { log.push(current()); } catch (error) { log.push(error.name); } return 1;
+      } })); return [result, log];`,
+    ],
+    [
+      'paired-binding-rest-following',
+      `function read(make) {
+        const [{ at }, ...other] = [make(() => other), 2, 3], after = 4; return [at, other, after];
+      }
+      const result = read(current => ({ get at() {
+        try { log.push(current()); } catch (error) { log.push(error.name); } return 1;
+      } })); return [result, log];`,
+    ],
+    [
+      'paired-binding-rest-both',
+      `function read(make) {
+        const [other, { at }, ...after] = [2, make(() => [other, after]), 3, 4]; return [at, other, after];
+      }
+      const result = read(current => ({ get at() {
+        try { log.push(current()); } catch (error) { log.push(error.name); } return 1;
+      } })); return [result, log];`,
+    ],
+    [
+      'paired-binding-spread-rest',
+      `function read(make, values) {
+        const [before, { at }, ...rest] = [2, make(() => [before, rest]), ...values]; return [before, at, rest];
+      }
+      const values = { *[Symbol.iterator]() { log.push('next'); yield 4; log.push('done'); } };
+      const result = read(current => ({ get at() {
+        try { log.push(current()); } catch (error) { log.push(error.name); } return 1;
+      } }), values); return [result, log];`,
+    ],
+    [
+      'positional-declarators-abrupt',
+      `function read(first, second) {
+        const [{ at }] = first, [{ includes }] = second; return [at, includes];
+      }
+      try { read([{ get at() { log.push('throw'); throw 'failure'; } }],
+        [{ get includes() { log.push('includes'); return 2; } }]); } catch (error) { return [error, log]; }`,
+    ],
+    [
+      'independent-repeated-hop',
+      `let count = 0;
+      const source = { get w() { const value = ++count; log.push(value);
+        return { get at() { log.push('at' + value); return value; } }; } };
+      const [{ w: { at: first }, w: { at: second } }] = [source, log.push('tail')];
+      return [first, second, log];`,
+    ],
+    [
+      'for-init-nested-static-rest',
+      `function observe(read) {
+        try { log.push(typeof read()); } catch (error) { log.push(error.name); }
+      }
+      for (const before = log.push('before'), [{ Array: { of }, ...rest }] = [(observe(() => of), globalThis)],
+        after = log.push('after');;) return [of(before), Object.hasOwn(rest, 'Array'), after, log];`,
+    ],
+    [
+      'nested-static-rest',
+      `const [{ Object: { keys, ...rest } }] = [(log.push('init'), globalThis)];
+      const [{ Object: { entries = log.push('default'), ...remaining } }, tail] = [globalThis, 1];
+      return [keys({ a: tail }), entries({ b: 2 }), log,
+        Object.hasOwn(rest, 'keys'), Object.hasOwn(remaining, 'entries')];`,
+    ],
+    [
+      'static-rest-sentinels',
+      `const [{ 'from': from, ...rest }, tail] = [Array, 1];
+      const [{ [Symbol.iterator]: iterator, of, ...remaining }] = [Array];
+      return [from([tail]), of(2), typeof iterator, Object.hasOwn(rest, 'from'), Object.hasOwn(remaining, 'of')];`,
+    ],
+    [
+      'builtin',
+      `function read(receiver) {
+        const [{ other, at = () => 'fallback' }] = [receiver]; return [other, at.call(receiver, -1)];
+      } return read([4, 8]);`,
+    ],
+  ]) yield { ...snippet(`array-property-order/${ name }`, `(() => { ${ body } })()`), strip: true };
+  // A visible iterator replacement keeps the whole pattern native; no pure polyfill is promised.
+  for (const [name, body] of [
+    [
+      'computed-rest-native-declaration',
+      `const key = Symbol.iterator;
+      const old = Object.getOwnPropertyDescriptor(globalThis, key);
+      const install = (target, name, descriptor) => Object.defineProperty(target, name, descriptor);
+      try {
+        install(globalThis, key, { configurable: true, get() {
+          try { log.push(typeof from); } catch (error) { log.push(error.name); } return undefined;
+        } });
+        const [{ [Symbol.iterator]: iterator, Array: { from }, ...rest }] = [globalThis];
+        return [iterator, typeof from, typeof rest, log];
+      } finally { if (old) install(globalThis, key, old); else delete globalThis[key]; }`,
+    ],
+    [
+      'paired-nested-custom-iterator',
+      `const list = [4, 9];
+      const original = Array.prototype[Symbol.iterator];
+      Array.prototype[Symbol.iterator] = function* () {
+        log.push('iterate'); yield* original.call(this);
+      };
+      try {
+        const [[{ y: { at } }]] = [[{ y: list }]];
+        return [at.call(list, -1), log];
+      } finally { Array.prototype[Symbol.iterator] = original; }`,
+    ],
+    [
+      'object-root-array-dynamic-key',
+      `const key = 'w';
+      const { [key]: [{ at }] } = { w: [[4, 8]] };
+      return at.call([4, 8], -1);`,
+    ],
+    [
+      'prototype-iterator-selects-nested-static',
+      `const wrapped = [{ k: [Object] }];
+      const original = Array.prototype[Symbol.iterator];
+      Array.prototype[Symbol.iterator] = function* () {
+        log.push(this === wrapped ? 'outer' : 'inner');
+        if (this === wrapped) yield { k: [{ is: () => false }] };
+        else yield* original.call(this);
+      };
+      try { const [{ k: [{ is }] }] = wrapped; return [is(1, 1), log]; }
+      finally { Array.prototype[Symbol.iterator] = original; }`,
+    ],
+    [
+      'prototype-iterator-selects-object-root',
+      `const wrapped = [[1]];
+      const original = Array.prototype[Symbol.iterator];
+      Array.prototype[Symbol.iterator] = function* () {
+        if (this === wrapped) { log.push('selected'); yield { at: () => 'user' }; }
+        else yield* original.call(this);
+      };
+      try { const { w: [{ at }] } = { w: wrapped }; return [at(), log]; }
+      finally { Array.prototype[Symbol.iterator] = original; }`,
+    ],
+    [
+      'prototype-iterator-selects-assignment',
+      `const wrapped = [Object];
+      const original = Array.prototype[Symbol.iterator];
+      Array.prototype[Symbol.iterator] = function* () {
+        if (this === wrapped) { log.push('selected'); yield { is: () => false }; }
+        else yield* original.call(this);
+      };
+      try { let is; ([{ is }] = wrapped); return [is(1, 1), log]; }
+      finally { Array.prototype[Symbol.iterator] = original; }`,
+    ],
+    [
+      'object-root-array-written-slot',
+      `const source = { w: [[4, 8]] };
+      source.w[0] = { at: () => 'user' };
+      const { w: [{ at }] } = source; return at();`,
+    ],
+  ]) yield { ...snippet(`array-property-order/${ name }`, `(() => { ${ body } })()`), strip: false };
+  yield {
+    name: 'array-property-order/nested-array-key-effect-export',
+    strip: true,
+    code: [
+      ...PRELUDE,
+      `export const [{ [(log.push('key'), 'w')]: { at } }] = [{ w: [4, 8] }];
+      export const r = at.call([4, 8], -1);
+      export const effects = log;`,
+    ].join('\n'),
+  };
+  yield {
+    name: 'array-property-order/object-root-array-key-effect-export',
+    strip: true,
+    code: [
+      ...PRELUDE,
+      `export const { [(log.push('key'), 'w')]: [{ at }] } = { w: [[4, 8]] };
+      export const r = at.call([4, 8], -1);
+      export const effects = log;`,
+    ].join('\n'),
+  };
+  yield {
+    name: 'array-property-order/paired-nested-static-export-iterator',
+    strip: true,
+    code: [
+      ...PRELUDE,
+      `const wrapped = [{ k: [Object] }];
+      const inner = wrapped[0].k;
+      inner[Symbol.iterator] = function* () { log.push('inner'); yield Object; };
+      wrapped[Symbol.iterator] = function* () { log.push('outer'); yield { k: inner }; };
+      export const [{ k: [{ is }] }] = wrapped;
+      export const r = [is(1, 1), log];
+      export const effects = log;`,
+    ].join('\n'),
+  };
 }
 
 // A nested claim beside a LATER positional slot keeps its rename over an array the source holds:
@@ -12869,6 +13896,20 @@ const CAPTURED_SELECTION_ROWS = [
   },
 ];
 function * generateCapturedSelection() {
+  for (const selector of ['shim || Array', 'shim ?? Array', 'flag ? Array : shim']) {
+    for (const capture of [
+      'const host = ASSIGN;',
+      'let host; host = ASSIGN;',
+      'const host = (value => value)(ASSIGN);',
+      'function take() { return ASSIGN; } const host = take();',
+    ]) {
+      const assignment = `({ from, of = 9 } = (log.push("init"), ${ selector }))`;
+      const body = `function read(shim, flag) { let from, of; ${ capture.replace('ASSIGN', assignment) }
+        return [host === (${ selector }), typeof from, typeof of]; }
+        return [read(null, true), read({ from: 7 }, false)];`;
+      yield { ...snippet(`captured-selection/identity/${ selector }/${ capture }`, `(() => { ${ body } })()`), strip: true };
+    }
+  }
   for (const row of CAPTURED_SELECTION_ROWS) {
     yield { ...snippet(`captured-selection/${ row.id }`, `(() => { ${ row.body } })()`), strip: row.strip };
   }
@@ -13502,6 +14543,7 @@ export function * generate() {
   yield * generateInnerDefaultReceivers();
   yield * generateStaticHopPatternAnchor();
   yield * generateMirrorSlotCanon();
+  yield * generateArrayPropertyOrder();
   yield * generateBranchCompleteVar();
   yield * generateIteratorStepEffects();
   yield * generateHoistedBindingReads();

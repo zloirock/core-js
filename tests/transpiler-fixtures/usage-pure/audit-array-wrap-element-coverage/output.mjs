@@ -19,13 +19,12 @@ const at2 = _at(arr);
 const [{}, {}] = [x, arr];
 export { at2 };
 
-// NEGATIVE: a surviving binding keeps the wrapper - but the emptied element BEHIND it sheds, since
-// no position needs holding at the end and an array pattern whose last element binds nothing is a
-// shape the downstream destructuring lowering miscompiles, dropping the surviving binding with it
-const at3 = _at(arr);
+// The surviving binding reads before the following extraction. Its emptied trailing element
+// leaves the residual: downstream destructuring lowering can otherwise lose the binding.
 const [{
   other
 }] = [x, arr];
+const at3 = _at(arr);
 export { other, at3 };
 
 // a REST element keeps the wrapper whatever the claim takes, so the residual reads the element a

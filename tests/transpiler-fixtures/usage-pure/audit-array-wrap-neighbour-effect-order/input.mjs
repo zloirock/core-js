@@ -2,9 +2,8 @@
 const anchor = [1, 2];
 export { anchor };
 
-// NEGATIVE: an effect-bearing NEIGHBOUR element pins the order - native evaluates every element
-// of the array literal before reading a property off any of them, while an extraction hoisted
-// ahead of the declaration reads first. a receiver-reading claim therefore stays native
+// An effectful neighbour evaluates before the extracted property reads,
+// so both extractions follow the capture of the original elements.
 const [{ at, keys }, viaCall] = [arr, effect()];
 export { at, keys, viaCall };
 

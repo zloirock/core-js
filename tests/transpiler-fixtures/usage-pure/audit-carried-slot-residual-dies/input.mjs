@@ -4,8 +4,8 @@ const arr = [3, [1, 2]];
 const { y: { at: viaNestedCall } } = { y: arr.flat() };
 const { y: { at: viaTwoSlots } } = { z: 1, y: arr.flat() };
 if (1) var { y: { at: viaBodylessCarried } } = { y: arr.flat() };
-// the ASSIGNMENT host asks the same question of its own residual, which dies whole here - so the
-// same effect-bearing slot is served, wrapper included: nothing survives to read the init twice
+// An assignment reads the effect-bearing source once. The array-wrapped form captures its
+// element before the nested method read.
 let viaAssignCall, viaAssignWrap, viaAssignBodyless;
 ({ y: { at: viaAssignCall } } = { y: arr.flat() });
 ([{ y: { at: viaAssignWrap } }] = [{ y: arr.flat() }]);
@@ -17,12 +17,10 @@ let keptSibling, keptOther, keptKey, keptLen, twoEffects, twoEffectsZ;
 ({ y: { at: keptSibling }, o: keptOther } = { y: arr.flat(), o: 1 });
 ({ y: { at: keptKey, length: keptLen } } = { y: arr.flat() });
 ({ y: { at: twoEffects }, z: twoEffectsZ } = { y: arr.flat(), z: arr.flat() });
-// ... and an element that SPELLS A SEQUENCE keeps the whole sequence inside the dispatch: its prefix
-// runs where the source ran it, once, and nothing re-reads what the dispatch spells
+// A sequence in the source element runs its prefix once before the method read.
 let out, seqElement;
 ([{ at: seqElement }] = [(out = 1, arr).flat()]);
-// the assignment DISCARDED as a sequence element drops its residual by a route of its own, and it
-// owes the same pairing: the dispatch carries the init, so the element must not re-emit it
+// A discarded assignment inside a sequence keeps its own source read before the final value.
 let viaSeqElement, seqTail;
 seqTail = (({ y: { at: viaSeqElement } } = { y: arr.flat() }), 5);
 export { viaNestedCall, viaTwoSlots, viaBodylessCarried, out };

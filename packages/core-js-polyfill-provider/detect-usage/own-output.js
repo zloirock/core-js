@@ -47,7 +47,11 @@ export function ownOutputTests(injector) {
       // prior-pass pure binding or an adopted `_refN` declaration at the program root -
       // a file with neither answers every census false, so the funnels skip the family
       // wholesale (the scan runs once per file, not per claim)
-      programMayHoldOwnOutput(rootNode) {
+      programMayHoldOwnOutput(rootNode, includePendingImports = false) {
+        // Requeued guards can precede insertion of this pass's import declarations.
+        // Only their guard check needs pending imports; prior-output censuses keep
+        // the cached source verdict instead of running on every later member read.
+        if (includePendingImports && injector.pureImports?.size) return true;
         let may = shapeByProgram.get(rootNode);
         if (may === undefined) {
           may = false;
@@ -332,7 +336,7 @@ function navHoldsRenderedGuard(objectNode, path, tests) {
 // prior pass's output: its pending claims are spent, and a fresh claim over it would
 // UPGRADE a verdict the first pass settled (`(push, _globalThis)[key]?.tail` collapsed on
 // the second pass where the first deliberately kept the source `?.`)
-export function navHoldsMintedSeCall(objectNode, path, tests) {
+function navHoldsMintedSeCall(objectNode, path, tests) {
   const stack = [objectNode];
   while (stack.length) {
     const cur = unwrapRuntimeExpr(stack.pop());
@@ -679,7 +683,12 @@ export function ownEmittedLogicalPatch(path, tests) {
 // the member funnel: every nav-position census in one gate, ahead of both emitters' member
 // claim routes. `node` is the MemberExpression, `metaPath` its path
 export function ownEmittedNavClaim(node, metaPath, tests) {
-  if (tests.programMayHoldOwnOutput && !tests.programMayHoldOwnOutput(rootProgramOf(metaPath))) return false;
+  if (tests.programMayHoldOwnOutput) {
+    const root = rootProgramOf(metaPath);
+    if (!tests.programMayHoldOwnOutput(root)) {
+      return tests.programMayHoldOwnOutput(root, true) && guardedAliasAlternateRead(metaPath);
+    }
+  }
   return guardedAliasAlternateRead(metaPath)
     || computedKeyIsMintedImport(node, metaPath, tests, { readOfIteratorIsNotOurs: true })
     || adoptedRefReceiverClaim(node, metaPath, tests)

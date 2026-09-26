@@ -4,7 +4,7 @@ import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Object$create from "@core-js/pure/actual/object/create";
 import _Object$getOwnPropertyDescriptor from "@core-js/pure/actual/object/get-own-property-descriptor";
 import _Object$getOwnPropertyNames from "@core-js/pure/actual/object/get-own-property-names";
-var _ref, _ref2, _ref3, _ref4, _ref5, _unused2;
+var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _unused, _unused2;
 // Claimed statics retain their polyfills beside object rest.
 // Rest keeps its source and exclusions; instance slots remain native.
 const seen = [];
@@ -12,18 +12,16 @@ const eff = t => (_pushMaybeArray(seen).call(seen, t), t);
 const xs = [1];
 let kw;
 let ge, restD, gd, restZ, cr, gb, zn;
-var _unused;
-[{
+[_ref] = _ref2 = [kw = (eff('l'), _globalThis)], _ref3 = _ref, _ref4 = _ref3["Object"], ge = _Object$getOwnPropertyNames, _ref4, {
   Object: _unused,
   ...restD
-}] = [kw = (eff('l'), _globalThis)];
-ge = _Object$getOwnPropertyNames;
-[_ref] = _ref2 = [kw = (eff('m'), _globalThis), eff('n')], _ref3 = {
-  Object: _ref4
-} = _ref, _ref5 = _ref4, {} = _ref5, gd = _Object$getOwnPropertyDescriptor, {
+} = _ref3, _ref3, _ref2;
+[_ref5] = _ref6 = [kw = (eff('m'), _globalThis), eff('n')], _ref7 = {
+  Object: _ref8
+} = _ref5, _ref9 = _ref8, {} = _ref9, gd = _Object$getOwnPropertyDescriptor, {
   getOwnPropertyDescriptor: _unused2,
   ...restZ
-} = _ref5, _ref5, _ref3, _ref2;
+} = _ref9, _ref9, _ref7, _ref6;
 [{
   Object: {
     create: cr

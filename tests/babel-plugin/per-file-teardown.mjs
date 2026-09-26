@@ -8,9 +8,6 @@
 // The measurement needs `--expose-gc`, which the suite orchestrator does not carry, so the
 // module re-execs itself as a plain node child and reads back one JSON line. The child stays
 // zx-free on purpose - only the parent half reports through the shared checker.
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
-import { fileURLToPath } from 'node:url';
 import { parseAsync, transformFromAstAsync } from '@babel/core';
 import corejsPlugin from '../../packages/core-js-babel-plugin/index.js';
 
@@ -25,6 +22,12 @@ const RESTORED_CODE = `export function checkDirty(link) {
   link = stack.value;
   return link.sub;
 }`;
+// The array plan holds its original pattern, property occurrences and live default.
+// None may survive the transform through the provider's per-instance plan cache.
+const ARRAY_CODE = `export function read(receiver, fallback) {
+  const [{ at = fallback(), other }] = [receiver];
+  return [at, other];
+}`;
 // hoisted so babel reuses ONE plugin instance across files, as a real build does - an
 // instance that is itself garbage would hide the retention the check is looking for
 const OPTIONS = {
@@ -38,12 +41,13 @@ function noopPlugin() {
   return { name: 'noop', visitor: {} };
 }
 
-async function transformHoldingMarker(plugin, options, filename, restored = false) {
-  const source = restored ? RESTORED_CODE : CODE;
+async function transformHoldingMarker(plugin, options, filename, form) {
+  const source = form === 'restored' ? RESTORED_CODE : form === 'array' ? ARRAY_CODE : CODE;
   const ast = await parseAsync(source, { filename, configFile: false, babelrc: false });
-  const marker = restored ? ast.program.body[0].declaration.body.body[0].declarations[0].init
+  const marker = form === 'array' ? ast.program.body[0].declaration.body.body[0].declarations[0].id
+    : form === 'restored' ? ast.program.body[0].declaration.body.body[0].declarations[0].init
     : ast.program.body[1].expression.right;
-  const expectedType = restored ? 'ObjectExpression' : 'FunctionExpression';
+  const expectedType = form === 'array' ? 'ArrayPattern' : form === 'restored' ? 'ObjectExpression' : 'FunctionExpression';
   if (marker.type !== expectedType) throw new Error(`unexpected marker ${ marker.type }`);
   const ref = new WeakRef(marker);
   // `cloneInputAst: false` so the plugin walks the very nodes this WeakRef points at
@@ -64,16 +68,15 @@ async function collectable(make) {
 
 async function measure() {
   const results = {};
-  for (const restored of [false, true]) {
-    const prefix = restored ? 'restored' : 'written';
+  for (const prefix of ['written', 'restored', 'array']) {
     // harness gate: the same transform driven by a plugin that keeps nothing must collect.
     // if it does not, the environment cannot answer the question and the rest is noise
-    results[`${ prefix }/control`] = await collectable(() => transformHoldingMarker(noopPlugin, NOOP_OPTIONS, 'control.js', restored));
+    results[`${ prefix }/control`] = await collectable(() => transformHoldingMarker(noopPlugin, NOOP_OPTIONS, 'control.js', prefix));
     for (const [method, options] of Object.entries(OPTIONS)) {
       // two files through one instance: the first also proves the instance itself outlives a
       // collection, so a pass is teardown and not a dead plugin
-      results[`${ prefix }/${ method }/earlier`] = await collectable(() => transformHoldingMarker(corejsPlugin, options, 'earlier.js', restored));
-      results[`${ prefix }/${ method }/last`] = await collectable(() => transformHoldingMarker(corejsPlugin, options, 'last.js', restored));
+      results[`${ prefix }/${ method }/earlier`] = await collectable(() => transformHoldingMarker(corejsPlugin, options, 'earlier.js', prefix));
+      results[`${ prefix }/${ method }/last`] = await collectable(() => transformHoldingMarker(corejsPlugin, options, 'last.js', prefix));
     }
   }
   return results;
@@ -84,12 +87,13 @@ if (typeof globalThis.gc === 'function') {
 } else {
   const { createChecker } = await import('../polyfill-provider/harness.mjs');
   const { check, checkTruthy, finish } = createChecker('per-file-teardown');
-  const { stdout } = await promisify(execFile)(process.execPath, ['--expose-gc', fileURLToPath(import.meta.url)]);
+  const node = process.execPath.replaceAll('\\', '/');
+  const { stdout } = await $({ quiet: true, cwd: import.meta.dirname })`${ node } --expose-gc ./per-file-teardown.mjs`;
   const line = stdout.split('\n').find(row => row.startsWith(RESULT_PREFIX));
   checkTruthy('child measurement produced a result', !!line);
   if (line) {
     const results = JSON.parse(line.slice(RESULT_PREFIX.length));
-    for (const prefix of ['written', 'restored']) {
+    for (const prefix of ['written', 'restored', 'array']) {
       const control = results[`${ prefix }/control`];
       checkTruthy(`${ prefix } control: node from a state-free plugin is collectable`, control);
       // asserting the plugin's own rows against a broken environment would only add noise
