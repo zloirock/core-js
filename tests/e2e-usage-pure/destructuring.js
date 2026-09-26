@@ -3827,25 +3827,13 @@ QUnit.test('destructuring: a for-head sibling declarator keeps its side effect o
   assert.deepEqual(seen, [[1], 2, [1], 2], 'both head bindings stay usable across rounds');
 });
 
-// the VALUE of a destructuring assignment is its right side, so a receiver replaced by a synth mirror
-// literal changes what the capturing binding holds: the site stands down WHOLE instead, and the
-// binding then reads the receiver's own slot. the statement-position twin discards that value and
-// keeps mirroring - that is where the polyfill still lands.
-// the legs whose EMISSION runs on babel-lowered text see the same site as a plain alias-binding read
-// (`_ref = shim || Object, assign = _ref.assign`) and polyfill it through an identity dispatch, so
-// there the binding IS the pure export. both answers agree on any host that HAS the static, which is
-// every local leg for `Object.assign` - the karma floor is the only one that tells them apart
-
+// A captured assignment keeps its receiver while its selected static takes the polyfill.
 QUnit.test('destructuring: a captured assignment value stays the receiver', assert => {
   const shim = null;
   let assign;
   const host = { assign } = shim || Object;
   assert.same(host, Object, 'the captured value is the branch object, not a mirror literal');
-  // the binding is the captured receiver's OWN slot, so `undefined` where the engine lacks the
-  // static; comparing it against `Object.assign` unconditionally would put that slot against the
-  // pure module's export, and those agree only where the native exists
-  assert.same(assign, POST_LOWERED ? Object.assign : host.assign,
-    'the binding reads off the captured receiver, not a mirror');
+  assert.same(assign, Object.assign, 'the selected builtin supplies its polyfilled static');
   let statementAssign;
   // eslint-disable-next-line prefer-const -- a destructuring-assignment target cannot be `const`
   ({ assign: statementAssign } = shim || Object);
@@ -7276,9 +7264,11 @@ QUnit.test('Computed instance read survives a preceding static declarator rewrit
 });
 
 QUnit.test('Realm rest preserves a static sibling after a symbol claim', assert => {
+  const nativeFrom = Object.getOwnPropertyDescriptor(Array, 'from');
   const [{ [Symbol.iterator]: iterator, Array: { from }, ...rest }] = [globalThis];
   assert.same(iterator, undefined);
-  assert.same(from, Array.from);
+  // The native pattern may lack this static; a post pass sees and polyfills a plain member read.
+  assert.same(from, POST_LOWERED ? Array.from : nativeFrom && nativeFrom.value);
   assert.same('Array' in rest, false);
   assert.same(Symbol.iterator in rest, false);
 });
@@ -8841,4 +8831,77 @@ QUnit.test('destructuring: a static beside an instance member off a call reads t
   const { groupBy, name } = make();
   assert.same(typeof groupBy, 'function');
   assert.same(name, 'Map');
+});
+
+QUnit.test('destructuring: nested array reads retain the original source after a sibling write', assert => {
+  function read(source, replacement) {
+    const [{ w: { values }, y: { at } }] = [source, source = replacement];
+    return [values, at];
+  }
+  function assign(source, replacement) {
+    let values, at;
+    if (source) ([{ w: { values }, y: { at } }] = [source, source = replacement]);
+    return [values, at];
+  }
+  function readGetter(make, replacement) {
+    let source = make(() => { source = replacement; });
+    const [[{ w: { values }, y: { at } }]] = [[source]];
+    return [values, at];
+  }
+  const other = { w: { values: 3 }, y: { at: 4 } };
+  const original = { w: { values: 1 }, y: { at: 2 } };
+  assert.deepEqual(read(original, other), [1, 2], 'the later initializer cannot replace either receiver');
+  assert.deepEqual(assign(original, other), [1, 2], 'a bodyless assignment retains both reads');
+  assert.deepEqual(
+    readGetter(
+      replace => ({
+        get w() { replace(); return { values: 1 }; },
+        y: { at: 2 },
+      }),
+      other,
+    ),
+    [1, 2],
+    'a getter write does not retarget a later nested read',
+  );
+
+  withTemporaryProperty(Array.prototype, 'values', undefined, () => {
+    withTemporaryProperty(Array.prototype, 'at', undefined, () => {
+      const list = [5, 9];
+      const [assignedValues, assignedAt] = assign({ w: list, y: list }, other);
+      assert.same(assignedValues.call(list).next().value, 5, 'the assigned iterator method is polyfilled');
+      assert.same(assignedAt.call(list, -1), 9, 'the assigned indexed method is polyfilled');
+    });
+  });
+});
+
+QUnit.test('destructuring: a captured literal reads its nested method after array effects', assert => {
+  function read(list, events) {
+    const [{ y: { at }, wz }, tail] = [
+      {
+        get y() { events.push('y'); return list; },
+        get wz() { events.push('wz'); return 3; },
+      },
+      events.push('tail'),
+    ];
+    return [at.call(list, -1), wz, tail];
+  }
+  withTemporaryProperty(Array.prototype, 'at', undefined, () => {
+    const events = [];
+    assert.deepEqual(read([5, 9], events), [9, 3, 1], 'the captured receiver uses the polyfill');
+    assert.deepEqual(events, ['tail', 'y', 'wz'], 'source effects precede the ordered pattern reads');
+  });
+});
+
+QUnit.test('destructuring: a paired array assignment reads its captured method', assert => {
+  function read(list, events) {
+    let at, tail;
+    // eslint-disable-next-line prefer-const -- the test exercises a later destructuring assignment
+    ([{ at }, tail] = [list, events.push('rhs')]);
+    return [at.call(list, -1), tail];
+  }
+  withTemporaryProperty(Array.prototype, 'at', undefined, () => {
+    const events = [];
+    assert.deepEqual(read([5, 9], events), [9, 1], 'the assigned method is polyfilled');
+    assert.deepEqual(events, ['rhs'], 'the complete source evaluates before the method read');
+  });
 });

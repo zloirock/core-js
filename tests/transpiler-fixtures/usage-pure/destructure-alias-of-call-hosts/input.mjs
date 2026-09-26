@@ -1,4 +1,4 @@
-// a NAME bound to a call pairs as the call does under every host: the mirror reads the name as the
+// a NAME bound to a call pairs as the call does under every host: resolution reads the name as the
 // container the call yields and the wrapper walks follow the binding to it - a declarator, a for-of
 // head, a parameter default and an argument, an array wrapper. one static per row
 const built = () => ({ a: Math });

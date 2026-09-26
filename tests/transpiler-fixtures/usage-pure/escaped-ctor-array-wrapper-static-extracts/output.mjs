@@ -9,6 +9,11 @@ hand(_Promise);
 const list = [{
   P: _Promise
 }];
+const [{
+  P: {
+    race: _unused
+  }
+}] = list;
 const race = _Promise$race;
 const box = {
   P: _Promise

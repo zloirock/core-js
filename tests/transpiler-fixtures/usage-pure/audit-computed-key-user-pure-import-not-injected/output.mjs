@@ -1,17 +1,13 @@
 import _Array$of from "@core-js/pure/actual/array/of";
 import _Set from "@core-js/pure/actual/set";
-// The user's OWN deduped `@core-js/pure` import is a binding the user typed, NOT a reference the
-// plugin placed - so using it as a computed key must not bail the sibling synth. A name-based
-// identity check would over-bail here (the import shares the plugin's UID convention); node
-// provenance does not, so the shorthand `of` is still mirrored (`= { [_Array$from]: ..., of: ... }`)
+// A user pure import used as a key is not a proven property key.
+// Keep its read native and guard the named static on the selected constructor.
 import _Array$from from '@core-js/pure/actual/array/from';
 export function pick(cond) {
-  const {
-    [_Array$from]: own,
-    of
-  } = cond ? {
-    [_Array$from]: Array[_Array$from],
-    of: _Array$of
-  } : _Set;
+  const _ref = cond ? Array : _Set,
+    {
+      [_Array$from]: own
+    } = _ref,
+    of = null == _ref ? _ref[""] : _ref === Array ? _Array$of : _ref["of"];
   return [own, of([1])];
 }

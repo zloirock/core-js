@@ -7,7 +7,7 @@ import _flatMapMaybeArray from "@core-js/pure/actual/array/instance/flat-map";
 import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 import _globalThis from "@core-js/pure/actual/global-this";
 
-var _ref, _ref2, _ref3;
+var _ref, _ref2, _ref3, _ref4;
 declare const userNs: { Array: { prototype: number[] } };
 
 let dropped,
@@ -32,22 +32,25 @@ sibling = _atMaybeArray(_globalThis.Array.prototype);
 let rest;
 
 ({ Array: { prototype: { fill: other } }, ...rest } = _globalThis);
-wrapped = _flatMapMaybeArray(_globalThis.Array.prototype);
 
-// an ARRAY-wrapped element has no way to drop: pruning the leaf under it would leave `[{}]` behind
+// An array-wrapped element captures the source before the dispatched read.
+[_ref] = [_globalThis];
+
+wrapped = _flatMapMaybeArray(_ref.Array.prototype);
+
 // a COMPUTED key is the one part of the pattern the dispatch never re-spells, so the slot is what
 // runs it - the legs part on how far that surviving residual COLLAPSES its receiver, which is the
 // SE-key channel's own question, not this one's
 (
-	_ref = { Array: { prototype: _ref2 } } = _globalThis,
+	_ref2 = { Array: { prototype: _ref3 } } = _globalThis,
 	(
-		_ref3 = _ref2,
-		null == _ref3
-			? _ref3[""]
-			: (effect(), computed = _includesMaybeArray(_ref3)),
-		_ref3
+		_ref4 = _ref3,
+		null == _ref4
+			? _ref4[""]
+			: (effect(), computed = _includesMaybeArray(_ref4)),
+		_ref4
 	),
-	_ref
+	_ref2
 );
 
 export { dropped, kept, sibling, other, rest, wrapped, computed, z };
