@@ -1,7 +1,5 @@
-// a genuine USER-import computed key (`import X from "x"; { [X]: it, from }`) in a conditional receiver
-// is replayed losslessly as `[X]: receiver[X]` while the polyfillable sibling `from` still synthesizes
-// `_Array$from`. the gate bails only a bare global or a polyfill-rewritten (core-js-sourced) symbol
-// import, NOT a user import, so the sibling polyfill is not dropped
+// An imported key is not proven safe to mirror. The declaration retains its key read
+// and guards the named static against the selected constructor.
 import X from "x";
 const cond = Math.random() > 0.5;
 const { [X]: it, from } = cond ? Array : Set;

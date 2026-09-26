@@ -11,7 +11,12 @@ export const viaCtorLeafDeep = ((null == _globalThis.window ? void 0 : Array).of
 let viaCtorLeafCascade;
 viaCtorLeafCascade = ((null == _globalThis.window ? void 0 : Array).of, _Array$of);
 export { viaCtorLeafCascade };
-export const viaCtorLeafWrapped = ((null == _globalThis.window ? void 0 : Array).of, _Array$of);
+const [_ref] = [_globalThis.window?.Array],
+  {
+    of: _unused
+  } = _ref,
+  viaCtorLeafWrapped = _Array$of;
+export { viaCtorLeafWrapped };
 const heldCtorNav = _globalThis.window;
 export const viaCtorLeafAlias = ((null == heldCtorNav ? void 0 : Array).of, _Array$of);
 export const viaCtorLeafSealed = ((null == _globalThis.window ? void 0 : _self).Array, _Array$of);

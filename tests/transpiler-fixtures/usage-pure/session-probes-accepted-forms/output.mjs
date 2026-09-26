@@ -38,17 +38,18 @@ function mark(t, v) {
   return v;
 }
 {
-  for (const _ref2 of [[Object, [1]]]) {
-    let values = _Object$values;
-    let [{
+  for (const _ref3 of [[Object, [1]]]) {
+    let [_ref, _ref2] = _ref3;
+    let {
       values: _unused
-    }, _ref] = _ref2;
-    let at = _atMaybeArray(_ref);
+    } = _ref;
+    let values = _Object$values;
+    let at = _atMaybeArray(_ref2);
     [values, at];
   }
 }
 {
-  for (const _ref3 of [{
+  for (const _ref4 of [{
     w() {
       return Object;
     }
@@ -61,12 +62,12 @@ function mark(t, v) {
       w: {
         keys
       }
-    } = _ref3;
+    } = _ref4;
     keys;
   }
 }
 {
-  for (let [_ref4] = [r, eff()], _ref5 = _ref4, values = _values(_ref5.w), at = _at(_ref5.y);;) {
+  for (let [_ref5] = [r, eff()], _ref6 = _ref5, values = _values(_ref6.w), at = _at(_ref6.y);;) {
     [values, at];
     break;
   }
@@ -75,18 +76,18 @@ function mark(t, v) {
   const at = _atMaybeArray([1, 2]);
 }
 {
-  const _ref6 = [1];
-  const a = _atMaybeArray(_ref6);
-  const [{
-    [(eff('k'), 'w')]: _unused2
-  }] = [{
-    w: _ref6
+  const [_ref7] = [{
+    w: [1]
   }];
+  const _ref9 = _ref7;
+  const {
+    [(eff('k'), 'w')]: _ref8
+  } = null == _ref9 ? _ref9[""] : _ref9;
+  const a = _atMaybeArray(_ref8);
 }
 {
-  const _ref7 = [1, 2];
-  const [{}] = [_ref7, ...rest];
-  const at = _atMaybeArray(_ref7);
+  const [_ref10] = [[1, 2], ...rest];
+  const at = _atMaybeArray(_ref10);
 }
 {
   let zLead = 1,
@@ -95,39 +96,42 @@ function mark(t, v) {
   [zLead, values, at];
 }
 {
-  const [{}] = [r, eff('n')],
-    values = _values(r.w),
-    at = _at(r.y),
+  const [_ref11] = [r, eff('n')],
+    _ref12 = _ref11,
+    values = _values(_ref12.w),
+    at = _at(_ref12.y),
     zTail = 1;
   [values, at, zTail];
 }
 {
-  const [{}] = [r, eff('n')],
-    values = _values(r.w),
-    at = _at(r.y),
+  const [_ref13] = [r, eff('n')],
+    _ref14 = _ref13,
+    values = _values(_ref14.w),
+    at = _at(_ref14.y),
     zTail = eff('t');
   [values, at, zTail];
 }
 {
   const zLead = eff('lead'),
-    [{}] = [r, eff('n')],
-    values = _values(r.w),
-    at = _at(r.y);
+    [_ref15] = [r, eff('n')],
+    _ref16 = _ref15,
+    values = _values(_ref16.w),
+    at = _at(_ref16.y);
   [zLead, values, at];
 }
 {
   const {
-      prototype: _ref8
+      prototype: _ref17
     } = _globalThis.Array,
-    _ref9 = _ref8,
-    a = null == _ref9 ? _ref9[""] : (eff('k2'), _atMaybeArray(_ref9));
+    _ref18 = _ref17,
+    a = null == _ref18 ? _ref18[""] : (eff('k2'), _atMaybeArray(_ref18));
 }
 {
   const {
-      prototype: _ref10
+      prototype: _ref19
     } = _globalThis.Array,
-    _ref11 = _ref10,
-    a = null == _ref11 ? _ref11[""] : (eff('k2'), _atMaybeArray(_ref11));
+    _ref20 = _ref19,
+    a = null == _ref20 ? _ref20[""] : (eff('k2'), _atMaybeArray(_ref20));
   _pushMaybeArray(log).call(log, a.call([3], 0));
 }
 {
@@ -141,24 +145,24 @@ function mark(t, v) {
   } = _globalThis;
 }
 {
-  const _ref13 = {
+  const _ref22 = {
       w: 'x'
     },
     {
-      [(eff(), 'w')]: _ref12
-    } = null == _ref13 ? _ref13[""] : _ref13,
-    _ref14 = _ref12,
-    a = null == _ref14 ? _ref14[""] : _atMaybeString(_ref14);
+      [(eff(), 'w')]: _ref21
+    } = null == _ref22 ? _ref22[""] : _ref22,
+    _ref23 = _ref21,
+    a = null == _ref23 ? _ref23[""] : _atMaybeString(_ref23);
 }
 {
-  const _ref16 = {
+  const _ref25 = {
       w: 'str'
     },
     {
-      [(eff(), 'w')]: _ref15
-    } = null == _ref16 ? _ref16[""] : _ref16,
-    _ref17 = _ref15,
-    i3 = null == _ref17 ? _ref17[""] : _includesMaybeString(_ref17);
+      [(eff(), 'w')]: _ref24
+    } = null == _ref25 ? _ref25[""] : _ref25,
+    _ref26 = _ref24,
+    i3 = null == _ref26 ? _ref26[""] : _includesMaybeString(_ref26);
 }
 {
   const {
@@ -255,7 +259,7 @@ function mark(t, v) {
   };
 }
 {
-  const _ref18 = {
+  const _ref27 = {
     w: {
       values: _Object$values
     },
@@ -265,8 +269,8 @@ function mark(t, v) {
     w: {
       values
     }
-  } = _ref18;
-  const at = _atMaybeArray(_ref18.y);
+  } = _ref27;
+  const at = _atMaybeArray(_ref27.y);
   [values, at];
 }
 {

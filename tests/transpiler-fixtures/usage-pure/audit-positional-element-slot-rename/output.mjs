@@ -20,14 +20,15 @@ const withHops = function () {
   return flat;
 }();
 const neighbour = function () {
-  const [_ref3, other] = rows;
+  const [_ref3, _ref4] = rows;
   const at = _atMaybeArray(_ref3);
+  const other = _ref4;
   return [at, other];
 }();
 const afterSpread = function () {
   const xs = [[9]];
-  const [, _ref4] = [...xs, rows[0]];
-  const at = _at(_ref4);
+  const [, _ref5] = [...xs, rows[0]];
+  const at = _at(_ref5);
   return at;
 }();
 export { sole, withHops, neighbour, afterSpread };
