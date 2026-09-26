@@ -697,7 +697,7 @@ const base = {
   // that cause problems with objects in ES3 syntax, but since unicorn team
   // don't wanna add an option to allow it, manually disable this rule in such problem cases
   // https://github.com/sindresorhus/eslint-plugin-unicorn/issues/2796
-  'unicorn/no-immediate-mutation': ERROR,
+  'unicorn/no-immediate-mutation': [ERROR, { checkConditionals: false }],
   // disallow impossible comparisons against `.length` or `.size`
   'unicorn/no-impossible-length-comparison': ERROR,
   // disallow incorrect `querySelector()` and `querySelectorAll()` usage
@@ -785,8 +785,10 @@ const base = {
   'unicorn/no-unsafe-promise-all-settled-values': ERROR,
   // disallow reading `.value` from `Promise.allSettled()` results without a fulfilled status guard
   'unicorn/no-unsafe-property-key': ERROR,
-  // disallow ignoring the return value of selected array methods
-  'unicorn/no-unused-array-method-return': ERROR,
+  // disallow ignoring the return value of selected built-in methods
+  'unicorn/no-unused-builtin-method-return': ERROR,
+  // disallow discarding lazy iterator helpers
+  'unicorn/no-unused-iterator-helper': ERROR,
   // disallow unused object properties
   'unicorn/no-unused-properties': ERROR,
   // disallow unnecessary `Boolean()` casts in array predicate callbacks
@@ -904,7 +906,8 @@ const base = {
   // prefer reading a `JSON` file as a buffer
   'unicorn/prefer-json-parse-buffer': ERROR,
   // prefer using a logical operator over a ternary
-  'unicorn/prefer-logical-operator-over-ternary': ERROR,
+  // https://github.com/sindresorhus/eslint-plugin-unicorn/issues/3766
+  'unicorn/prefer-logical-operator-over-ternary': OFF,
   // prefer `new Map()` over `Object.fromEntries()` when using the result as a map
   'unicorn/prefer-map-from-entries': ERROR,
   // prefer `Math.min()` and `Math.max()` over ternaries for simple comparisons
@@ -2114,8 +2117,10 @@ const tests = {
   'unicorn/no-instanceof-builtins': OFF,
   // disallow referencing methods without calling them
   'unicorn/no-uncalled-method': OFF,
-  // disallow ignoring the return value of selected array methods
-  'unicorn/no-unused-array-method-return': OFF,
+  // disallow ignoring the return value of selected built-in methods
+  'unicorn/no-unused-builtin-method-return': OFF,
+  // disallow discarding lazy iterator helpers
+  'unicorn/no-unused-iterator-helper': OFF,
   // prefer `.at()` method for index access and `String#charAt()`
   'unicorn/prefer-at': OFF,
   // prefer `Error.isError()` when checking for errors
@@ -2518,8 +2523,10 @@ const markdown = {
   'sonarjs/no-reference-error': OFF,
   // disallow duplicate values in `Set` constructor array literals
   'unicorn/no-duplicate-set-values': OFF,
-  // disallow ignoring the return value of selected array methods
-  'unicorn/no-unused-array-method-return': OFF,
+  // disallow ignoring the return value of selected built-in methods
+  'unicorn/no-unused-builtin-method-return': OFF,
+  // disallow discarding lazy iterator helpers
+  'unicorn/no-unused-iterator-helper': OFF,
   // specify the maximum length of a line in your program
   '@stylistic/max-len': [ERROR, { ...base['@stylistic/max-len'][1], code: 200 }],
 };
