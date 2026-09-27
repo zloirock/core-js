@@ -26,6 +26,7 @@ import createPlugin, {
   formatParseErrorForWarn,
 } from '../../packages/core-js-unplugin/internals/plugin.js';
 import { sealedLayerAbove } from '../../packages/core-js-unplugin/internals/claim-guards.js';
+import { drainSequenceAssignments, probeCarriesWrite } from '../../packages/core-js-unplugin/internals/destructure-helpers.js';
 import SnapshotCache from '../../packages/core-js-unplugin/internals/snapshot-cache.js';
 import { printProgram } from '../../packages/core-js-unplugin/internals/print.js';
 import { collapseWhitespace } from './collapse-whitespace.mjs';
@@ -85,6 +86,47 @@ function check(label, actual, expected) {
 // structural equality for lists and plain records, through their JSON spelling
 function checkDeep(label, actual, expected) {
   check(label, JSON.stringify(actual), JSON.stringify(expected));
+}
+
+// Independent analyses must see nodes pruned by earlier or enclosing walks, while
+// keeping each walk's own skip marks. The same paths still carry the same bindings.
+for (const throws of [false, true]) {
+  const outer = [];
+  const inner = [];
+  const later = [];
+  const marker = new Error('visitor');
+  let caught = false;
+  let binding;
+  traverse(programOf('function hidden(value) { use(value); } after();'), {
+    $: { scope: true },
+    Program(p) {
+      const [fn] = p.get('body');
+      binding = fn.scope.getBinding('value');
+      fn.skip();
+      try {
+        p.traverse({
+          FunctionDeclaration(q) {
+            q.skip();
+            q.traverse({ Identifier(r, names) { names.push(r.node.name); } }, inner);
+            if (throws) throw marker;
+          },
+        });
+      } catch (error) {
+        caught = error === marker;
+      }
+      p.traverse({
+        Identifier(q, names) {
+          names.push(q.node.name);
+          if (q.node.name === 'value') check(`traversal/${ throws }/binding identity`, q.scope.getBinding('value'), binding);
+        },
+      }, later);
+    },
+    Identifier(p) { outer.push(p.node.name); },
+  });
+  check(`traversal/${ throws }/exception`, caught, throws);
+  checkDeep(`traversal/${ throws }/nested skip isolation`, inner, ['hidden', 'value', 'use', 'value']);
+  checkDeep(`traversal/${ throws }/later skip isolation`, later, ['hidden', 'value', 'use', 'value', 'after']);
+  checkDeep(`traversal/${ throws }/outer skip restored`, outer, ['after']);
 }
 
 // --- shouldTransform ---
@@ -4555,6 +4597,29 @@ for (const receiver of ['arr', '(arr)', '(arr as number[][][])']) {
   const output = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } }).transform(source, 'input.ts')?.code ?? source;
   check(`an optional call carries its cold result type: ${ receiver }`, output.includes('@core-js/pure/actual/array/instance/at'), true);
   check(`an optional call avoids generic result dispatch: ${ receiver }`, output.includes('@core-js/pure/actual/instance/at'), false);
+}
+
+{
+  const program = programOf('before(), ({ x } = source), after();');
+  const [statement] = program.body;
+  const host = unwrapNode(statement.expression.expressions[1]);
+  const write = exprOf('held = capture();');
+  check('probe recognizes a carried write', probeCarriesWrite(write, write), true);
+  check('probe rejects an unrelated write', probeCarriesWrite(host, write), false);
+  let rewrites = 0;
+  const jobs = [{ seqHostStatement: statement, host: 'assignment' }];
+  drainSequenceAssignments(new Map([[host, { hostPath: { node: host }, jobs }]]), {
+    program,
+    seqDrainedSlots: new WeakSet(),
+    markRewrite() { rewrites++; },
+    drainAssignment({ body }) {
+      body.splice(0, body.length, ...programOf('const held = capture(); use(held);').body);
+    },
+  });
+  check('sequence drain lifts the earlier effect before initialized declarations', program.body[0].expression.callee.name, 'before');
+  check('sequence drain keeps its initialized declaration after that effect', program.body[1].declarations[0].init.callee.name, 'capture');
+  check('sequence drain retains the later effect', program.body[2].expression.expressions.at(-1).callee.name, 'after');
+  check('sequence drain records its rewrite', rewrites, 1);
 }
 
 // the tally reads `counts` at the moment it runs, so it belongs AFTER the last section: standing
