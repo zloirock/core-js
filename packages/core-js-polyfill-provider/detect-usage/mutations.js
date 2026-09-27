@@ -31,6 +31,7 @@ import {
   canHoldBuiltIn,
   CENSUS_CONTAINER_TYPES,
   CLASS_NODE_TYPES,
+  CLASS_FIELD_TYPES,
   classStaticSlotMember,
   collectFileCensus,
   collectForXWriteMembers,
@@ -76,7 +77,6 @@ import {
   isMutatedStaticPair,
   isNonReferencePosition,
   isQuietLiteralOperand,
-  isThisRebinding,
   isTopLevelThisContext,
   isVarScopeBoundary,
   CENSUS_KEY_NAMES,
@@ -616,14 +616,14 @@ function extendChain(node, keys) {
   return { root: inner.root, keys: [...inner.keys, ...keys] };
 }
 
-function unrootedWriteKey({ root, keys }, scopes) {
+function unrootedWriteKey({ root, keys }, owner) {
   if (root?.type === 'Identifier' || !keys.length) return null;
   if (root?.type === 'ThisExpression' && keys[0] !== 'constructor') {
-    const at = scopes.findLastIndex(scope => isThisRebinding(scope));
-    const methodValue = at > 0 && scopes[at].type === 'FunctionExpression' && scopes[at - 1]?.value === scopes[at];
-    const owner = at === -1 ? null : scopes[methodValue ? at - 1 : at];
-    const method = owner?.type === 'ClassMethod' || owner?.type === 'ClassPrivateMethod' || owner?.type === 'MethodDefinition';
-    if (method && !owner.static) return null;
+    const member = owner?.type === 'ClassMethod'
+      || owner?.type === 'ClassPrivateMethod'
+      || owner?.type === 'MethodDefinition'
+      || CLASS_FIELD_TYPES.has(owner?.type);
+    if (member && !owner.static) return null;
   }
   const key = keys.at(-1);
   return key === null ? '*' : key;
@@ -2554,14 +2554,16 @@ export function escapedCtorReferencesReducer() {
   }
   // File a stored value under its named receiver. Unknown keys use the receiver's wildcard;
   // an unnamed receiver hands the value out immediately.
-  function fileSlotWrite(target, value, scopes, installedKey = undefined) {
+  function fileSlotWrite(target, value, frame, installedKey = undefined) {
     if (ignoredWriteValues.has(value)) return;
-    for (const chain of writeTargetChains(target)) fileChainWrite(chain, { value, scopes, installedKey });
+    for (const chain of writeTargetChains(target)) {
+      fileChainWrite(chain, { value, scopes: frame?.scopes ?? [], thisOwner: frame?.thisOwner, installedKey });
+    }
   }
-  function fileChainWrite({ root, keys: chainKeys }, { value, scopes, installedKey }) {
+  function fileChainWrite({ root, keys: chainKeys }, { value, scopes, thisOwner, installedKey }) {
     const keys = installedKey === undefined ? chainKeys : [...chainKeys, installedKey];
     if (root?.type !== 'Identifier') {
-      const key = installedKey !== undefined ? installedKey ?? '*' : unrootedWriteKey({ root, keys }, scopes);
+      const key = installedKey !== undefined ? installedKey ?? '*' : unrootedWriteKey({ root, keys }, thisOwner);
       if (key !== null) unrootedKeys.add(key);
       return escaped.add(value);
     }
@@ -2753,13 +2755,13 @@ export function escapedCtorReferencesReducer() {
       // write, it exposes the source only when the target or its containing object is handed out.
       if (type === 'ForOfStatement') for (const target of targets) {
         hasOpaqueIteration = true;
-        fileSlotWrite(target, { opaqueSource: node.right }, frame?.scopes ?? []);
+        fileSlotWrite(target, { opaqueSource: node.right }, frame);
       }
       // ... and a member a destructuring ASSIGNMENT stores into holds the slot of its right side the
       // pattern pairs it with
       if (type === 'AssignmentExpression' && isDestructurePattern(pattern)) {
         for (const [target, value] of patternMemberTargetPairs(pattern, unwrapRuntimeExpr(node.right))) {
-          fileSlotWrite(target, value, frame?.scopes ?? []);
+          fileSlotWrite(target, value, frame);
         }
       }
       for (const target of targets) {
@@ -3079,7 +3081,7 @@ export function escapedCtorReferencesReducer() {
           referenceScopes.set(id, frame?.scopes ?? []);
         });
         if (target?.type === 'MemberExpression' || target?.type === 'OptionalMemberExpression') {
-          fileSlotWrite(target, node.right, frame?.scopes ?? []);
+          fileSlotWrite(target, node.right, frame);
         } else recordPatternAlias(target, node.right, null, true);
         break;
       }
@@ -3101,8 +3103,8 @@ export function escapedCtorReferencesReducer() {
         break;
       case 'ThisExpression':
       case 'Super': {
-        const owner = frame?.scopes?.findLast(isThisRebinding);
-        if (owner) thisReaders.add(owner);
+        const owner = frame?.thisOwner;
+        if (owner) thisReaders.add(owner.type === 'MethodDefinition' ? owner.value : owner);
         break;
       }
       // a JSX ELEMENT hands its component to a renderer - a caller this file does not spell - exactly
@@ -3309,7 +3311,7 @@ export function escapedCtorReferencesReducer() {
         if (target?.type === 'Identifier' && (store.namespace !== 'Object' || unreadCallResults.has(node))) {
           installedTargetRefs.add(target);
         }
-        fileSlotWrite(targetNode, value, referenceScopes.get(node) ?? [], key);
+        fileSlotWrite(targetNode, value, { scopes: referenceScopes.get(node) }, key);
       }
       // ... and the RECEIVER an invoker hands its function (`f.call(t)`): `this` reaches whatever the
       // callee does with it, which no parameter pairing answers - an unresolved callee, or one that
@@ -4550,6 +4552,7 @@ export function mutationShapesReducer(packages = null) {
   // functions each declaring `r` never pool their records - one test's `f(r)` does not write the
   // other's container. a name no chain declares is a global, and no container of this file
   let currentScopes = [];
+  let currentThisOwner = null;
   // a slot write / escape record, stamped with the chain it was spelled in
   function recordSlotWrite(name, keys, value = null, scopes = currentScopes, write = null, escape = null) {
     rawSlotWrites.push([name, keys, value, scopes, write, escape]);
@@ -5001,7 +5004,7 @@ export function mutationShapesReducer(packages = null) {
 
   // ... and a write through a receiver no name spells (`UNROOTED_WRITE_KEYS`)
   function recordUnrootedWrite(chain) {
-    const key = unrootedWriteKey(chain, currentScopes);
+    const key = unrootedWriteKey(chain, currentThisOwner);
     if (key !== null) rawUnrootedKeys.add(key);
   }
 
@@ -5152,6 +5155,7 @@ export function mutationShapesReducer(packages = null) {
     programNode ??= node;
     markTopLevelThis = !!frame?.atThisTopLevel;
     currentScopes = frame?.scopes ?? [];
+    currentThisOwner = frame?.thisOwner ?? null;
     // Keep the frame above current even for a leaf, but skip its empty shape analysis.
     if (PRIMITIVE_LITERAL_TYPES.has(node.type)) return;
     declareOwnBindings(node);

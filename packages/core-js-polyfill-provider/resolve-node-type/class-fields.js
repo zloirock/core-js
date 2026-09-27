@@ -758,20 +758,19 @@ export function createClassFields({
   const { memberWriteFieldName, writePathContributedType } =
     createMemberWriteShape({ t, getKeyName, resolveNodeType });
 
-  // walk method bodies once and build a Map<fieldName, types[]> of every `this.<X> = Y`
+  // index key for "a dynamic computed `this[expr] = ...` write was seen in this surface"
+  const WILDCARD_THIS_WRITE = Symbol('wildcardThisWrite');
+
+  // walk method bodies and parameters once and build a Map<fieldName, types[]> of every `this.<X> = Y`
   // / `++this.<X>` write contained within. lets per-field candidate scans become O(1)
-  // lookups instead of O(N field) full method walks. caller passes the BODY container
-  // path (not the method path) so the traversal root is the body and adapters that visit
-  // roots don't fire the FunctionExpression / ClassMethod skip rule on the entry point.
+  // lookups instead of O(N field) full method walks. scan bodies and parameters separately
+  // so adapters that visit roots do not fire the function-skip rule on the method itself.
   // StaticBlock has `body: Statement[]` directly on the node and is traversed in-place.
   // `this`-receiver check peels Paren / TS_EXPR_WRAPPERS so `(this).x = Y` and
   // `(this as any).x = Y` resolve identically to bare `this.x = Y`. arrow expression-body
   // class fields (`class C { f = () => this.x = "y" }`) need explicit root-visit because
   // `path.traverse` only walks descendants - the body IS the AssignmentExpression and
   // would be skipped without the post-traverse root handle
-  // index key for "a dynamic computed `this[expr] = ...` write was seen in this surface"
-  const WILDCARD_THIS_WRITE = Symbol('wildcardThisWrite');
-
   function buildThisWritesIndex(methodPaths) {
     const index = new Map();
     function handle(p) {
@@ -805,18 +804,16 @@ export function createClassFields({
       if (leftType === 'ObjectPattern' || leftType === 'ArrayPattern') forEachPatternWriteMember(p.get('left'), handle);
       else handle(p);
     }
-    // skip ANY function-shaped sub-tree whose body rebinds `this`: FunctionDeclaration /
-    // Expression / ObjectMethod / class wrappers. nested ClassMethod / ClassPrivateMethod /
-    // MethodDefinition are reached only through their enclosing Class node, which is
-    // already in the skip set, so they don't need explicit entries (and adding babel-
-    // incompatible ESTree names like `MethodDefinition` crashes babel-traverse).
-    // Arrow functions inherit outer `this`, so they're NOT skipped
     // run the this-write scan over a sub-path: traverse descendants, then handle the root itself
     // (an expression-bodied arrow / a computed key that IS the assignment - neither visited by
     // `traverse`, which walks descendants only)
-    function scanForThisWrites(target) {
+    function scanForThisWrites(target, parameter = false) {
       if (!target?.node) return;
-      target.traverse(visitors);
+      const decorators = parameter && target.node.decorators;
+      target.traverse(decorators?.length ? {
+        ...visitors,
+        Decorator(p) { if (decorators.includes(p.node)) p.skip(); },
+      } : visitors);
       if (target.node.type === 'AssignmentExpression') handleAssignment(target);
       else if (target.node.type === 'UpdateExpression') handle(target);
     }
@@ -832,6 +829,12 @@ export function createClassFields({
       if (node.type === 'ClassDeclaration' || node.type === 'ClassExpression') return classDefinitionTimePaths(p);
       return [];
     }
+    // skip ANY function-shaped sub-tree whose body rebinds `this`: FunctionDeclaration /
+    // Expression / ObjectMethod / class wrappers. nested ClassMethod / ClassPrivateMethod /
+    // MethodDefinition are reached only through their enclosing Class node, which is
+    // already in the skip set, so they don't need explicit entries (and adding babel-
+    // incompatible ESTree names like `MethodDefinition` crashes babel-traverse).
+    // Arrow functions inherit outer `this`, so they're NOT skipped
     const visitors = {
       'FunctionDeclaration|FunctionExpression|ObjectMethod|ClassDeclaration|ClassExpression'(p) {
         p.skip();
@@ -855,6 +858,9 @@ export function createClassFields({
         for (const keyPath of outerThisKeyPaths(path)) scanForThisWrites(keyPath);
         continue;
       }
+      // Defaults and computed pattern keys run with the method's receiver too; only the
+      // parameter's own decorators evaluate with the outer receiver.
+      for (const param of path.node.params ? path.get('params') : []) scanForThisWrites(param, true);
       // function-like roots scan their body; a StaticBlock or a raw non-fn field
       // initializer value (no `.body` slot) scans as-is
       scanForThisWrites(path.node.type === 'StaticBlock' || !path.node.body ? path : path.get('body'));
