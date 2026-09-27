@@ -69,6 +69,16 @@ function imports(code) {
 // the effect-bearing sequence around a nav, the same inside a store, and the seal shapes whose
 // decisions were already dialect-aware (they stay in the list as the negative half of the gate)
 const CASES = [
+  ['ambient Flow instance under parentheses',
+    'declare class C { m(): string } export const r = (((new C()).m)()).at(0);', ['flow']],
+  ['ambient Flow generic rest in a rebuilt argument',
+    'declare class C { m<T = number[]>(...xs: T[]): T } const values = []; values.push(((new C()).m("abc")).at(0));', ['flow']],
+  ['ambient Flow optional callable',
+    'declare class C { m?: () => string } export const r = (new C()).m?.().at(0);', ['flow']],
+  ['ambient Flow inherited builtin',
+    'declare class B extends Array<string> {} declare class C extends B {} export const r = ((new C())).at(0);', ['flow']],
+  ['ambient Flow typeof under a function call',
+    'declare class C { static m(): string } function read(f: typeof C.m) { return ((f)()).at(0); }', ['flow']],
   [
     'parenthesized array receiver with ordered reads and a default',
     'export function read(receiver, fallback) { const [{ other, at = fallback() }] = ([receiver]); return [at, other]; }',

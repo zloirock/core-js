@@ -19,7 +19,8 @@
 //   resolveObjectMember(objectPath, name, callPath)
 //   applySubstToTypeRefArgs(typeRef, subst)
 import { $Object, MAX_DEPTH } from './base.js';
-import { internedTypeRef, isOpenKeywordAnnotation, isPrivateMemberNode } from './ast-shapes.js';
+import { internedTypeRef, isFunctionTypeNode, isOpenKeywordAnnotation, isPrivateMemberNode } from './ast-shapes.js';
+import { isAmbientClassNode } from './name-resolution.js';
 import { createClassMemberShape } from './class-member-shapes.js';
 import { cachedContainerPaths, classBodyMemberPaths, getTypeArgs, withTypeArgParams } from '../helpers/ast-patterns.js';
 
@@ -39,6 +40,7 @@ export function createClassObjectMember({
   resolveNodeType,
   resolveReturnType,
   foldOverloadReturns,
+  functionTypeParams,
   resolveTypeAnnotation,
   applySubst,
   applyAliasSubstDeep,
@@ -127,8 +129,10 @@ export function createClassObjectMember({
         if (!!member.node.static !== isStatic) continue;
         // reverse order, so the first field reached is the source-LAST one - the define that stands.
         // a prototype-routed read (instance `super.x`) never sees one: the field is an own property
-        // of the instance, so such a read falls through to the methods and accessors
-        if (isDataFieldMember(member.node)) {
+        // of the instance, so such a read falls through to the methods and accessors.
+        // Flow's explicit proto properties belong to that prototype surface too
+        if (isDataFieldMember(member.node) || (member.node.type === 'ObjectTypeProperty'
+          && !member.node.method && !member.node.proto && member.node.kind === 'init')) {
           if (viaPrototype) continue;
           return { member, subst: classSubst ?? null };
         }
@@ -360,11 +364,11 @@ export function createClassObjectMember({
   // models `abstract get x(): T` / `declare class { x(): T }` as a TSDeclareMethod with the
   // returnType ON the node; oxc/estree as a (TSAbstract)MethodDefinition whose `.value` is a
   // TSEmptyBodyFunctionExpression carrying the returnType. both expose the params / returnType /
-  // typeParameters resolveReturnType needs - unifying them keeps the two plugins in sync
+  // typeParameters resolveReturnType needs. Flow uses FunctionTypeAnnotation in the same value slot
   function bodylessReturnPath(member) {
     if (member.node.type === 'TSDeclareMethod' && member.node.returnType) return member;
     const { value } = member.node;
-    if (value?.type === 'TSEmptyBodyFunctionExpression' && value.returnType) return member.get('value');
+    if (value?.returnType && isBodylessMethodShape(member)) return member.get('value');
     return null;
   }
 
@@ -373,7 +377,9 @@ export function createClassObjectMember({
   // membership through `bodylessReturnPath` dropped it before arg-discrimination, and the
   // surviving annotated arm narrowed a call TS types as `any`
   function isBodylessMethodShape(member) {
-    return member.node.type === 'TSDeclareMethod' || member.node.value?.type === 'TSEmptyBodyFunctionExpression';
+    return member.node.type === 'TSDeclareMethod'
+      || member.node.value?.type === 'TSEmptyBodyFunctionExpression'
+      || member.node.value?.type === 'FunctionTypeAnnotation';
   }
 
   // a callable field's CALL return follows its DECLARED signature when annotated, not the init
@@ -384,7 +390,7 @@ export function createClassObjectMember({
   // annotation to read (caller falls back to inferring from the init body)
   function declaredCallableReturn(annotationNode, scope) {
     const fnType = annotationNode && unwrapTypeAnnotation(annotationNode);
-    if (fnType?.type !== 'TSFunctionType' && fnType?.type !== 'TSConstructorType') return undefined;
+    if (!isFunctionTypeNode(fnType) && fnType?.type !== 'TSConstructorType') return undefined;
     // babel stores the function-type return on `.typeAnnotation`, oxc/ESTree on `.returnType`
     const retAnno = fnType.typeAnnotation ?? fnType.returnType;
     const ret = retAnno && unwrapTypeAnnotation(retAnno);
@@ -404,7 +410,7 @@ export function createClassObjectMember({
   // overload set (single sig / accessor) so the caller resolves the single signature instead
   function resolveBodylessMethodOverloads({ member, callPath, classSubst }) {
     if (member.node.kind === 'get' || member.node.kind === 'set') return undefined;
-    const siblings = member.parentPath ? cachedContainerPaths(member.parentPath, 'body') : undefined;
+    const siblings = member.parentPath ? classBodyMemberPaths(member.parentPath.parentPath) : undefined;
     if (!Array.isArray(siblings) || siblings.length < 2) return undefined;
     const { key } = member.node;
     const name = member.node.computed
@@ -417,7 +423,7 @@ export function createClassObjectMember({
       .filter(m => !!m.node.static === isStatic
         && m.node.kind !== 'get' && m.node.kind !== 'set' && isBodylessMethodShape(m));
     if (overloads.length < 2) return undefined;
-    return foldOverloadReturns(overloads, m => m.node.params ?? m.node.value?.params, m => {
+    return foldOverloadReturns(overloads, m => functionTypeParams(m.node.value ?? m.node), m => {
       const declared = bodylessReturnPath(m);
       return declared ? resolveReturnType(declared, callPath, classSubst) : null;
     }, m => bodylessReturnPath(m)?.node.returnType, callPath);
@@ -466,8 +472,9 @@ export function createClassObjectMember({
       }
       if (isPropertyMember(member.node)) {
         // a function-valued FIELD narrows from its INITIALIZER, which any write replaces - so an
-        // unenumerable writer set unseats it too, not just an observed write
-        if (classCallableSlotReassigned(member)) return null;
+        // unenumerable writer set unseats it too, not just an observed write. An ambient
+        // field has only a signature, so the observed-write gate above is sufficient
+        if (!isAmbientClassNode(member.parentPath.parentPath.node) && classCallableSlotReassigned(member)) return null;
         // resolve the CALL return from the declared signature when annotated (folds a union return
         // across families); only an un-annotated field falls back to inferring from the init body
         if (member.node.typeAnnotation) {
@@ -496,6 +503,11 @@ export function createClassObjectMember({
         return null;
       }
       return markFieldOptional(resolveClassFieldType(member));
+    }
+    // Flow's value slot is a type even for callable properties; preserve optionality on reads.
+    if (member.node.type === 'ObjectTypeProperty' && member.node.kind === 'init') {
+      const resolved = resolveTypeAnnotation(classSubstInner(member.node.value, classSubst), member.scope);
+      return resolved && member.node.optional ? resolved.mark('mayBeNullish') : resolved;
     }
     // method: getter returns its return type, regular method returns Function
     if (methodFn) return member.node.kind === 'get' ? resolveReturnType(methodFn, undefined, classSubst) : new $Object('Function');
