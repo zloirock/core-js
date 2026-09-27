@@ -365,8 +365,7 @@ const CODEMIRROR_DIRECTORIES = ['@codemirror/state/dist', '@lezer/common/dist', 
 
 // bounds are per (mode, emitter), set at ~3x the measured wall time of a healthy run on the reference
 // machine, rounded UP to a whole second (re-derive the same way after intentional perf work)
-// CI runners can be several times slower than the reference machine, and a 1s bound leaves their healthy
-// runs no variance headroom, while a quadratic regression overshoots 1s on any machine just as surely.
+// Slow synthetics target ~0.3s in their fastest lane; the same rule sets every other lane's bound.
 // usage-pure REWRITES every detected use, so its budgets run higher than the injection-only usage-global ones.
 // `injections` is the vacuous-run floor - how many modules must inject. Single-source cases need their one;
 // multi-module ones cannot demand every module (a package always holds files with nothing to polyfill) but
@@ -392,11 +391,10 @@ const CASES = [
   { name: 'synthetic wide container patterns, 256 slots in 8 scopes', source: () => syntheticWideContainerPatterns(256, 8), bounds: {
     'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
   } },
-  { name: 'synthetic single-scope, 2000 reassigned names', source: () => syntheticSingleScope(2000), bounds: {
-    'usage-global': { babel: 4, unplugin: 3 }, 'usage-pure': { babel: 4, unplugin: 3 },
+  // Keep both Babel codegen paths covered independently of the calibrated source size.
+  { name: 'synthetic single-scope, 550 reassigned names, compact Babel', source: () => syntheticSingleScope(550), compact: true, bounds: {
+    'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 2 },
   } },
-  // under @babel/generator's 500kb styling-deopt threshold, so the NORMAL codegen path is
-  // gated too - the big twin above always runs the deoptimised one
   { name: 'synthetic single-scope, 640 reassigned names', source: () => syntheticSingleScope(640), bounds: {
     'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 1 },
   } },
@@ -406,23 +404,23 @@ const CASES = [
   { name: 'synthetic returned container writes, 3000 slots', source: () => syntheticReturnedContainerWrites(3000), bounds: {
     'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
   } },
-  { name: 'synthetic namesake writes, 4000 functions', source: () => syntheticNamesakeWrites(4000), bounds: {
-    'usage-global': { babel: 4, unplugin: 4 }, 'usage-pure': { babel: 6, unplugin: 5 },
+  { name: 'synthetic namesake writes, 750 functions', source: () => syntheticNamesakeWrites(750), bounds: {
+    'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 2 },
   } },
-  { name: 'synthetic namesake methods, 3000 classes', source: () => syntheticNamesakeMethods(3000), bounds: {
-    'usage-global': { babel: 3, unplugin: 2 }, 'usage-pure': { babel: 3, unplugin: 2 },
+  { name: 'synthetic namesake methods, 1300 classes', source: () => syntheticNamesakeMethods(1300), bounds: {
+    'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 2 },
   } },
-  { name: 'synthetic written slot reads, 2000 slots', source: () => syntheticWrittenSlotReads(2000), bounds: {
-    'usage-global': { babel: 3, unplugin: 2 }, 'usage-pure': { babel: 6, unplugin: 5 },
+  { name: 'synthetic written slot reads, 1000 slots', source: () => syntheticWrittenSlotReads(1000), bounds: {
+    'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 3, unplugin: 2 },
   } },
   { name: 'synthetic unknown-key writes, 2000 pending chains', source: () => syntheticUnknownKeyWrites(2000), bounds: {
     'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
   } },
-  { name: 'synthetic aliased slot writes, 2000 aliases', source: () => syntheticAliasedSlotWrites(2000), bounds: {
-    'usage-global': { babel: 4, unplugin: 4 }, 'usage-pure': { babel: 4, unplugin: 4 },
+  { name: 'synthetic aliased slot writes, 800 aliases', source: () => syntheticAliasedSlotWrites(800), bounds: {
+    'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
   } },
-  { name: 'synthetic factory patterns, 6000 calls', source: () => syntheticFactoryPatterns(6000), bounds: {
-    'usage-global': { babel: 4, unplugin: 3 }, 'usage-pure': { babel: 5, unplugin: 4 },
+  { name: 'synthetic factory patterns, 1900 calls', source: () => syntheticFactoryPatterns(1900), bounds: {
+    'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 1 },
   } },
   { name: 'synthetic shared return handouts, 4000 calls', source: () => syntheticSharedReturnHandouts(4000), bounds: {
     'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
@@ -430,20 +428,20 @@ const CASES = [
   { name: 'synthetic literal stores, 4000 calls', source: () => syntheticLiteralStores(4000), bounds: {
     'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 1 },
   } },
-  { name: 'synthetic shared-param calls, 40000 calls', source: () => syntheticSharedParamCalls(40000), bounds: {
-    'usage-global': { babel: 10, unplugin: 6 }, 'usage-pure': { babel: 10, unplugin: 6 },
+  { name: 'synthetic shared-param calls, 6500 calls', source: () => syntheticSharedParamCalls(6500), bounds: {
+    'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 2 },
   } },
-  { name: 'synthetic shared container names, 2000 functions', source: () => syntheticSharedContainerNames(2000), bounds: {
+  { name: 'synthetic shared container names, 1300 functions', source: () => syntheticSharedContainerNames(1300), bounds: {
     'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 3, unplugin: 2 },
   } },
   { name: 'synthetic namespace parameter, 1200 reads and callers', source: () => syntheticNamespaceParameterReads(1200), bounds: {
     'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
   } },
-  { name: 'synthetic call-dense top level, 12000 sites', source: () => syntheticCallDenseTopLevel(12000), bounds: {
-    'usage-global': { babel: 4, unplugin: 4 }, 'usage-pure': { babel: 6, unplugin: 5 },
+  { name: 'synthetic call-dense top level, 2700 sites', source: () => syntheticCallDenseTopLevel(2700), bounds: {
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 2 },
   } },
-  { name: 'synthetic directive-dense, 8000 opt-outs', source: () => syntheticDirectiveDense(8000), bounds: {
-    'usage-global': { babel: 3, unplugin: 2 }, 'usage-pure': { babel: 4, unplugin: 3 },
+  { name: 'synthetic directive-dense, 3600 opt-outs', source: () => syntheticDirectiveDense(3600), bounds: {
+    'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 3, unplugin: 2 },
   } },
   { name: 'synthetic lagged aliases, 1000 names', source: () => syntheticLaggedAliases(1000), bounds: {
     'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
@@ -457,8 +455,8 @@ const CASES = [
   { name: 'synthetic discriminant-dense, 1600 names', source: () => syntheticDiscriminantDense(1600), ts: true, bounds: {
     'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 2 },
   } },
-  { name: 'synthetic member-dense class, 2400 members', source: () => syntheticMemberDenseClass(2400), bounds: {
-    'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 3, unplugin: 3 },
+  { name: 'synthetic member-dense class, 1200 members', source: () => syntheticMemberDenseClass(1200), bounds: {
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 2 },
   } },
   // stays under the 500kb codegen-deopt threshold, so the normal babel print path is the one measured
   { name: 'synthetic var-destructured globals, 800 pairs', source: () => syntheticVarDestructuredGlobals(800), bounds: {
@@ -510,13 +508,14 @@ function emittedSources(code) {
 
 // One instance per lane, as in a bundler. Both emitters keep their option identity across
 // modules and samples, so the per-call cases exercise their cross-file caches too.
-function createTransform(emitter, mode, ts, phase = 'pre') {
+function createTransform(emitter, mode, ts, phase = 'pre', compact = 'auto') {
   const options = { method: mode, version: '4.0', targets: { ie: 11 } };
   const filename = ts ? 'input.ts' : 'input.mjs';
   if (emitter === 'babel') {
     const config = {
       plugins: [[babelPlugin, options]],
       filename,
+      compact,
       sourceType: 'module',
       parserOpts: ts ? { plugins: ['typescript'] } : undefined,
       configFile: false,
@@ -537,7 +536,7 @@ function createTransform(emitter, mode, ts, phase = 'pre') {
 
 let failed = 0;
 for (const { name, source, ts = false, injections = 1, entries = 0, bounds,
-  modes = MODES, emitters = ['babel', 'unplugin'], phase } of CASES) {
+  modes = MODES, emitters = ['babel', 'unplugin'], phase, compact } of CASES) {
   const input = await source();
   // single-source cases are just a one-module list; multi-module ones gate the per-call axis
   const modules = Array.isArray(input) ? input : [input];
@@ -545,7 +544,7 @@ for (const { name, source, ts = false, injections = 1, entries = 0, bounds,
   const size = bytes < 1024 ? `${ cyan(bytes) } B` : `${ cyan((bytes / 1024).toFixed(1)) } KiB`;
   for (const mode of modes) {
     for (const emitter of emitters) {
-      const transform = createTransform(emitter, mode, ts, phase);
+      const transform = createTransform(emitter, mode, ts, phase, compact);
       const samples = [];
       let injected = Infinity;
       let distinctEntries = Infinity;
