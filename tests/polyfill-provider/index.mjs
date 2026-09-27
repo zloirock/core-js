@@ -23,6 +23,8 @@ import './retained-return-paths.mjs';
 import './selected-realm-receivers.mjs';
 import './proxy-chain-complexity.mjs';
 import './member-context-paths.mjs';
+import './ast-input-context.mjs';
+import './ast-context-complexity.mjs';
 import './destructure-host-shape.mjs';
 import './nested-receiver-base.mjs';
 import './array-wrapper-drop.mjs';

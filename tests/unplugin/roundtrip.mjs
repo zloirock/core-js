@@ -9,7 +9,7 @@ import { parseSync } from 'oxc-parser';
 import { printProgram } from '../../packages/core-js-unplugin/internals/print.js';
 import { isLineBoundDisableDirective } from '../../packages/core-js-polyfill-provider/helpers/source-scan.js';
 import { inferTestId, loadBabelOptions } from './fixture-lang.mjs';
-import { strip } from './structural.mjs';
+import { commentSignature, strip } from './structural.mjs';
 import { liftSfcLangSuffix } from '../../packages/core-js-unplugin/internals/sfc-shapes.js';
 
 const { readdir, readFile, stat } = fs;
@@ -72,9 +72,9 @@ function checkFixture(directory, testId, rawSource) {
   if ((parsed.program.hashbang?.value ?? null) !== (reparsed.program.hashbang?.value ?? null)) {
     return fail(directory, 'hashbang lost or changed');
   }
-  const sourceComments = parsed.comments.map(c => `${ c.type }:${ c.value }`);
-  const printedComments = reparsed.comments.map(c => `${ c.type }:${ c.value }`);
-  if (sourceComments.join('\n') !== printedComments.join('\n')) {
+  const sourceComments = commentSignature(parsed.comments);
+  const printedComments = commentSignature(reparsed.comments);
+  if (JSON.stringify(sourceComments) !== JSON.stringify(printedComments)) {
     return fail(directory, `comments diverge: ${ sourceComments.length } in, ${ printedComments.length } out`);
   }
   for (let i = 0; i < parsed.comments.length; i++) {

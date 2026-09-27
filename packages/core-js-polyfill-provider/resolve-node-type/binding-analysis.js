@@ -822,8 +822,6 @@ export function createBindingAnalysis({
         if (methodInfo && methodReadLeaks(parent, refPath?.parentPath, methodInfo)) return 'leak';
         // only a holder whose members this module can enumerate has a declared set to compare
         // against; a class instance has no literal and its writes are the field fold's business
-        // only a holder whose members this module can enumerate has a declared set to compare
-        // against; a class instance has no literal and its writes are the field fold's business
         if (methodInfo?.declaredKeys
           && referenceInstallsUnreadBody(parent, refNode, refPath, methodInfo.declaredKeys)) return 'leak';
         if (prototypeInfo && memberReadKeyName(parent) === 'prototype'

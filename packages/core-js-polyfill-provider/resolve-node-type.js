@@ -117,19 +117,11 @@ const {
 
 const { hasOwn } = Object;
 
-// binding adapter shared with `walkStaticReceiverChain`. `getBindingPolyfillHint` is a
-// side-channel for the post-rewrite alias `_globalThis` -> `globalThis` mapping, kept off
-// the binding object so closure / alias trackers preserve WeakMap identity. covers both
-// pure-import bindings (`import _Array$from` -> entry `array/from` -> hint `Array`) and
-// alias-only bindings (`_globalThis` registered via `registerGlobalAlias`, no entry path).
-// string-literal helpers + `packages` mirror the detect-usage adapter surface so the same
-// `walkStaticReceiverChain` / `resolveKey` machinery reaches into ObjectExpression keys
-// from the resolver path (destructure-leaf -> proxy-global)
 // one parser attaches a scope only to the paths that OWN one, so a CHILD path handed to the resolver
 // (`assign.get('right')`, an expression inside a statement) carries none, and every scope-dependent
 // route below it silently resolves nothing - a member, a call return, a `new C()` all came back
 // unresolved where the other parser resolved them. a path's scope IS its nearest enclosing one, so
-// anchor it once at this single entry rather than teaching each route about the gap. paths that
+// anchor it here for resolver entries and followed bindings. paths that
 // already carry a scope (always, on the other parser) pass through untouched
 const scopeAnchoredPaths = new WeakMap();
 function anchorPathScope(path) {
@@ -144,6 +136,14 @@ function anchorPathScope(path) {
   return anchored;
 }
 
+// binding adapter shared with `walkStaticReceiverChain`. `getBindingPolyfillHint` is a
+// side-channel for the post-rewrite alias `_globalThis` -> `globalThis` mapping, kept off
+// the binding object so closure / alias trackers preserve WeakMap identity. covers both
+// pure-import bindings (`import _Array$from` -> entry `array/from` -> hint `Array`) and
+// alias-only bindings (`_globalThis` registered via `registerGlobalAlias`, no entry path).
+// string-literal helpers + `packages` mirror the detect-usage adapter surface so the same
+// `walkStaticReceiverChain` / `resolveKey` machinery reaches into ObjectExpression keys
+// from the resolver path (destructure-leaf -> proxy-global)
 function makeBabelBindingAdapter(getPolyfillBindingHint, babelNodeType, getScopeBinding, isMutatedStatic) {
   return {
     packages: null,
@@ -1328,6 +1328,8 @@ function createResolveNodeType(babelNodeType, t, {
   function resolvePath(path) {
     let depth = MAX_DEPTH;
     while (depth-- && t.isIdentifier(path.node)) {
+      // An initializer reached through a binding may carry only its parent's scope.
+      path = anchorPathScope(path);
       if (!path.scope) break;
       // route through the hook with the use-path: drops an over-hoisted namespace twin for a
       // use outside its block, and (estree side) drops the phantom declaration-violations the
@@ -1398,10 +1400,10 @@ function createResolveNodeType(babelNodeType, t, {
         path = elementPath;
         continue;
       }
-      if (isFunctionOrClassDeclaration(bindingPath.node)) return bindingPath;
+      if (isFunctionOrClassDeclaration(bindingPath.node)) return anchorPathScope(bindingPath);
       break;
     }
-    return path;
+    return anchorPathScope(path);
   }
 
   // the value a for-x HEAD binding holds, which no init can spell: what the loop ITERATES. a SOLE
