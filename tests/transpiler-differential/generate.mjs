@@ -14433,6 +14433,40 @@ function * generateOwnThisDefinitionSlots() {
   }
 }
 
+// Ambient classes have foreign implementations: hiding their bodies keeps the oracle from
+// recovering the builtin ancestor through runtime syntax instead of the declared heritage.
+function * generateAmbientNativeInheritance() {
+  for (const [name, parent] of [['array', 'Array<string>'], ['string', 'String']]) {
+    for (const inherited of [false, true]) {
+      for (const reflect of [false, true]) {
+        const declaration = inherited
+          ? `declare class AmbientParent extends ${ parent } {} declare class AmbientLeaf extends AmbientParent {}`
+          : `declare class AmbientLeaf extends ${ parent } {}`;
+        const receiver = reflect ? 'Reflect.construct(AmbientLeaf, ["abc"])' : 'new AmbientLeaf("abc")';
+        const base = name === 'array' ? 'Array' : 'String';
+        yield {
+          name: `ambient-native-inheritance:${ name }:${ inherited ? 'inherited' : 'direct' }:${ reflect ? 'reflect' : 'new' }`,
+          code: `${ declaration }
+            const effects = [];
+            const root: any = globalThis;
+            const previous = Object.getOwnPropertyDescriptor(root, "AmbientLeaf");
+            const implementation = Function("return class extends ${ base } {}")();
+            Object.defineProperty(root, "AmbientLeaf", { configurable: true, value: implementation });
+            let r;
+            try { r = ${ receiver }.at(0); }
+            finally {
+              if (previous) Object.defineProperty(root, "AmbientLeaf", previous);
+              else delete root.AmbientLeaf;
+            }
+            export { r, effects };`,
+          ts: true,
+          strip: true,
+        };
+      }
+    }
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateUnbackedSequenceHops();
@@ -14675,4 +14709,5 @@ export function * generate() {
   yield * generateForXMemberReads();
   yield * generateDefinitionTimeReceivers();
   yield * generateOwnThisDefinitionSlots();
+  yield * generateAmbientNativeInheritance();
 }

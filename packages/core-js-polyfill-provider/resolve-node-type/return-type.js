@@ -51,6 +51,7 @@ export function createReturnType({
   babelNodeType,
   unwrapTypeAnnotation,
   effectiveParam,
+  functionTypeParams,
   typeParamName,
   tupleElements,
   mappedTypeConstraint,
@@ -411,7 +412,7 @@ export function createReturnType({
           // hoists to top-level - `hasParamTypeRef` handles both shapes)
           {
             // babel@8 renamed the slot `parameters` -> `params`; oxc/babel@7 use `parameters`
-            const fnParams = node.params ?? node.parameters;
+            const fnParams = functionTypeParams(node);
             if (hasAnyParamTypeRef(fnParams, typeParamNames, depth + 1)) return true;
           }
           node = node.returnType ?? node.typeAnnotation;
@@ -485,7 +486,7 @@ export function createReturnType({
     const args = callArgumentPaths(callPath);
     // drop the leading `this` pseudo-param so param annotations align with the call args (this side
     // reads annotations only, no AST params path - the dropped list is enough)
-    const params = dropLeadingThisParam(fnPath.node.params);
+    const params = dropLeadingThisParam(functionTypeParams(fnPath.node));
     // phase-0 explicit type-args that were PRESENT but unresolvable: they bind opaque after
     // phase 1 unless the arg inference recovered a concrete type
     // phase 1: match param annotations against type parameter names

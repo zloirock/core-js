@@ -878,6 +878,7 @@ function createResolveNodeType(babelNodeType, t, {
     resolveKnownConstructor,
     resolveGlobalSurfaceKeyPath,
     resolveRuntimeExpression,
+    resolveSuperClassPath: (...args) => resolveSuperClassPath(...args),
     resolveKnownContainerType: (...args) => resolveKnownContainerType(...args),
     resolveTypeAnnotation: (...args) => resolveTypeAnnotation(...args),
     resolveComputedKeyName,
@@ -1084,6 +1085,7 @@ function createResolveNodeType(babelNodeType, t, {
   // `classSubstInner` / etc.) via closure; thunks for `substituteTypeParams` (forward-decl let)
   // and `resolveNodeType`
   const returnTypeCluster = createReturnType({
+    functionTypeParams: (...args) => functionTypeParams(...args),
     getScopeBinding,
     t,
     babelNodeType,
@@ -1777,6 +1779,7 @@ function createResolveNodeType(babelNodeType, t, {
     resolveNodeType,
     resolveReturnType,
     foldOverloadReturns,
+    functionTypeParams,
     resolveTypeAnnotation: (...args) => resolveTypeAnnotation(...args),
     applySubst,
     applyAliasSubstDeep,
