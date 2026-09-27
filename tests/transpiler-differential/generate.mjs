@@ -9556,6 +9556,20 @@ const TS_FAMILIES = {
     'arr!.flat!().at!(0)',
     '(arr as number[])!.flat()',
   ],
+  // Postfix assertions must preserve both an open optional chain and an explicit seal.
+  // The nullish twin observes short-circuiting; the live twin observes receiver and key order.
+  'ts-nonnull-chain-boundary': [
+    'root?.fn!().value', '(root?.fn)!().value',
+    'root?.fn!()[key()]', '(root?.fn)!()[key()]',
+    'root?.fn!?.().value', '(root?.fn)!?.().value',
+  ].flatMap(expression => [false, true].map(present => `(() => {
+    const effects: string[] = [];
+    const root: any = ${ present ? '{ get fn() { effects.push("get"); return function(this: unknown) { effects.push(this === root ? "this" : "other"); return { value: 7 }; }; } }' : 'null' };
+    function key() { effects.push("key"); return "value"; }
+    let value;
+    try { value = ${ expression }; } catch { value = "throw"; }
+    return [value, effects, [1, [2]].flat()];
+  })()`)),
   // polyfill in a TS destructure default (default + cast / non-null / type-arg)
   'ts-destructure-default': [
     '(() => { const [a = ([1, [2]] as number[][]).flat()] = []; return a; })()',

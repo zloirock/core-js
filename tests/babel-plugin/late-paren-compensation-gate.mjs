@@ -10,6 +10,7 @@
 // babel@7 (with BABEL_REQUIRE_FROM=../babel-plugin-v7) alike.
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
+import { runInNewContext } from 'node:vm';
 import { createChecker } from '../polyfill-provider/harness.mjs';
 
 const { BABEL_REQUIRE_FROM } = process.env;
@@ -116,6 +117,12 @@ async function plant(where, source, parserPlugins = []) {
   checkTruthy('a TS-wrapped optional-chain tag still owes parens, so the walk runs full', compensated);
 }
 
+for (const [source, pending] of [['(o?.f)!()', true], ['o?.f!()', false]]) {
+  const { compensated } = await plant('in-existing-statement',
+    `var a = [1, 2].flat();\nvar b = ${ source };`, ['typescript']);
+  checkTruthy(`a non-null assertion owes a late walk only for a sealed operand: ${ source }`, compensated === pending);
+}
+
 // What the late pass DOES with what it reaches. The fold half runs early, ahead of the lowerings
 // that misread the node - but an instantiation a later-ordered sibling inserts was never early, and
 // the paren restoration alone covers only the shapes the fold leaves behind. So the fold runs here
@@ -139,6 +146,9 @@ const SHAPES = [
   ['tagged-template host', 'var r = (t<string>)`x`;'],
   ['conditional test', 'var r = ((s = f)<string>) ? 1 : 2;'],
   ['optional call host', 'var r = (h.m<string>)?.(1);'],
+  ['sealed non-null call', 'var r = (o?.f)!();'],
+  ['sealed non-null member', 'var r = (o?.f)!.x;'],
+  ['nested sealed assertion', 'var r = (o?.f!)!();'],
 ];
 
 const { parse } = requireBabel('@babel/parser');
@@ -221,6 +231,33 @@ export const r = early();
   } catch { /* stays null: an unparsable reprint fails the check below with the same verdict */ }
   checkTruthy(`guarded narrow ${ name }: the swap keeps its instantiation association`,
     JSON.stringify(spine) === JSON.stringify(wants));
+}
+
+// A separate TS lowering observes the semantics of the generated text, rather than the
+// original tree. Exercise both parser dialects and every mode that forces a reprint.
+for (const method of ['entry-global', 'usage-global', 'usage-pure']) {
+  for (const createParenthesizedExpressions of [false, true]) {
+    for (const directive of ['', '// core-js-disable-file\n', '// core-js-disable-next-line\n', '// core-js-disable-line']) {
+      for (const [expression, throws] of [
+        ['o?.f!()', false], ['(o?.f)!()', true], ['(o?.f!)!()', true],
+        ['(o?.f)!?.()', false], ['(o?.f)!.x', true], ['(o?.f)?.x', false],
+      ]) {
+        const source = `const o: any = null; let result;
+${ directive.endsWith('\n') ? directive : '' }try { result = ${ expression }; } catch { result = "throw"; } ${ directive.endsWith('\n') ? '' : directive }`;
+        const { code } = await transformAsync(source, {
+          configFile: false, babelrc: false, filename: 'seal.ts',
+          parserOpts: { plugins: ['typescript'], createParenthesizedExpressions },
+          plugins: [['@core-js', { method, version: '4.0', targets: { ie: 11 } }]],
+        });
+        const lowered = await transformAsync(code, {
+          configFile: false, babelrc: false, filename: 'seal.ts',
+          plugins: [requireBabel('@babel/plugin-transform-typescript')],
+        });
+        checkTruthy(`non-null seal/${ method }/${ createParenthesizedExpressions }/${ directive.trim() }/${ expression }`,
+          runInNewContext(`${ lowered.code }\nresult`) === (throws ? 'throw' : undefined));
+      }
+    }
+  }
 }
 
 finish();
