@@ -21,7 +21,7 @@
 // `getSuperTypeArgs` comes from `helpers/ast-patterns.js` directly
 import { isAmbientClassNode } from './name-resolution.js';
 import { collectQualifiedSegments } from './ast-shapes.js';
-import { getHeritageTypeArgs } from '../helpers/ast-patterns.js';
+import { classSuperPath, getHeritageTypeArgs } from '../helpers/ast-patterns.js';
 
 // ESTree Property / babel ObjectProperty - both shapes wrap an object/class method's
 // function-value via the `.value` slot. unified set covers both parser dialects
@@ -119,7 +119,7 @@ export function createClassContext({
   // expressions, etc.) yield null segments so `findDeclPathBySegments` short-circuits
   function resolveExpressionToClassPath(exprPath) {
     const resolved = resolveRuntimeExpression(exprPath);
-    if (t.isClass(resolved.node)) return resolved;
+    if (t.isClass(resolved.node) || isClassLikeDeclaration(resolved.node)) return resolved;
     if (t.isIdentifier(resolved.node)) {
       const ambient = findAmbientDeclarationPath(resolved.node.name, resolved.scope, isAmbientClassNode);
       return AMBIENT_CLASS_DECL_TYPES.has(ambient?.node.type) ? ambient : null;
@@ -138,14 +138,14 @@ export function createClassContext({
   // `findClassMember` treats null parent as "no further inheritance" and falls through to
   // the resolver's generic dispatch
   function resolveSuperClassPath(classPath) {
-    const superClass = classPath.get('superClass');
+    const superClass = classSuperPath(classPath);
     return superClass.node ? resolveExpressionToClassPath(superClass) : null;
   }
 
   function resolveClassContext(objectPath) {
     const { node } = objectPath;
     // Foo.staticProp - object is the class itself
-    if (t.isClass(node)) return { classPath: objectPath, isStatic: true };
+    if (t.isClass(node) || isClassLikeDeclaration(node)) return { classPath: objectPath, isStatic: true };
     // new Foo().prop - object is a class instance (`Foo` is a runtime class, an ambient
     // `declare class`, or a qualified `NS.Foo` - all resolved by the shared class-path helper)
     if (t.isNewExpression(node)) {
