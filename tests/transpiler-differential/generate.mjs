@@ -14342,6 +14342,97 @@ function * generateLogicalDestructure() {
   }
 }
 
+// Loop targets shadow only the slots actually written, after iterable evaluation and under
+// the same receiver/key bindings. This source-level oracle also covers direct body shadows
+// independently of Babel's downstream block-scoping lowering.
+function * generateForXMemberReads() {
+  for (const operator of ['of', 'in']) {
+    const source = operator === 'of' ? '[0]' : '{ x: 0 }';
+    for (const [name, setup, target, body] of [
+      ['body-shadow', 'const o = [];', 'o.at', 'const o = "abc"; return o.at(-1);'],
+      ['block-shadow', 'const o = [];', 'o.at', '{ const o = "abc"; return o.at(-1); }'],
+      ['key-shadow', 'const o = [[], [3, 4]], key = 0;', 'o[key].at', 'const key = 1; return o[key].at(-1);'],
+      ['key-write', 'const o = [[], [3, 4]]; let key = 0;', 'o[key].at', 'key = 1; return o[key].at(-1);'],
+      ['key-property-write', 'const o = [[], [3, 4]], key = { value: 0 };', 'o[key.value].at', 'key.value = 1; return o[key.value].at(-1);'],
+      ['receiver-write', 'let o = [];', 'o.at', 'o = "abc"; return o.at(-1);'],
+      ['receiver-slot-write', 'const o = { value: [] };', 'o.value.at', 'o.value = "abc"; return o.value.at(-1);'],
+      ['key-coercion', 'const o = [[], [3, 4]]; let k = 0; const key = { toString() { return String(k); } };', 'o[key].at', 'k = 1; return o[key].at(-1);'],
+      ['receiver-getter', 'let n = 0; const o = { get value() { return n++ ? "abc" : []; } };', 'o.value.at', 'return [o.value.at(-1), n];'],
+      ['receiver-fresh-getter', 'const o = { get value() { return [3, 4]; } };', 'o.value.at', 'return o.value.at(-1);'],
+      ['captured-slot-write', 'const inner = { value: [] }; const o = { inner };', 'o.inner.value.at', 'inner.value = "abc"; return o.inner.value.at(-1);'],
+    ]) {
+      yield { ...snippet(`for-member-reads/${ operator }/${ name }`,
+        `(() => { ${ setup } for (${ target } ${ operator } ${ source }) { ${ body } } })()`), strip: true };
+    }
+    yield { ...snippet(`for-member-reads/${ operator }/iterable`,
+      `(() => { const o = [[3, 4]], out = []; for (o.at ${ operator } o.at(0)) out.push(o.at); return out; })()`), strip: true };
+  }
+  for (const [name, head, source] of [
+    ['key', '{ [o.at(0)]: o.at }', '[{ 3: 7 }]'],
+    ['default', '[o.at = o.at(-1)]', '[[]]'],
+  ]) {
+    yield { ...snippet(`for-member-reads/of/${ name }`,
+      `(() => { const o = [3, 4]; for (${ head } of ${ source }) return o.at; })()`), strip: true };
+  }
+  yield { ...snippet('for-member-reads/of/captured-getter-shadow',
+    '(() => { function read() { const inner = { value: [] }; for (box.inner.value.at of [0]) return box.inner.value.at(-1); }'
+    + ' const inner = { get value() { return [3, 4]; } }; const box = { inner }; return read(); })()'), strip: true };
+}
+
+// Definition-time keys read the enclosing caller's receiver.
+// Passing a constructor through an invoker therefore requires its static namespace.
+function * generateDefinitionTimeReceivers() {
+  for (const [name, value] of [
+    ['object-method', 'Object.keys({ [typeof this.groupBy]() {} })[0]'],
+    ['object-getter', 'Object.keys({ get [typeof this.groupBy]() {} })[0]'],
+    ['class-method', 'Object.getOwnPropertyNames(class { [typeof this.groupBy]() {} }.prototype).filter(k => k !== "constructor")[0]'],
+    ['class-field', 'Object.keys(new class { [typeof this.groupBy] = 1; })[0]'],
+  ]) {
+    for (const call of ['read.call(Map)', 'Reflect.apply(read, Map, [])']) {
+      yield { ...snippet(`definition-time-receiver/${ name }/${ call }`,
+        `(() => { function read() { return ${ value }; } return ${ call }; })()`), strip: true };
+    }
+  }
+}
+
+// A nested definition evaluates keys with the holder's receiver; its bodies own another one.
+function * generateOwnThisDefinitionSlots() {
+  for (const [name, body] of [
+    ['object-key', 'return { [sink(this)]() {} };'],
+    ['class-key', 'return class { [sink(this)]() {} };'],
+    ['field-key', 'return class { [sink(this)] = 1; };'],
+    ['static-key', 'return class { static [sink(this)] = 1; };'],
+    ['key-alias', 'return { [(() => { const self = this; return sink(self); })()]() {} };'],
+    ['key-local-alias', 'return { [(() => { const self = this; return self.rows.length; })()]() {} };'],
+    ...['[KEY]() {}', '[KEY] = 1;', 'static [KEY] = 1;'].flatMap(member => [
+      [`class-alias/${ member }`, `return class { ${ member.replace('KEY', '(() => { const self = this; return sink(self); })()') } };`],
+      [`class-local-alias/${ member }`, `return class { ${ member.replace('KEY', '(() => { const self = this; return self.rows.length; })()') } };`],
+    ]),
+    ['arrow', 'return (() => sink(this))();'],
+    ['foreign-field', 'return new class { hook = sink(this); };'],
+    ['foreign-static', 'return class { static { sink(this); } };'],
+    ['foreign-method', 'return { run() { sink(this); } }.run();'],
+  ]) {
+    for (const [owner, declaration] of [
+      ['object', `const h = { rows: [1, 2, 3], touch() { ${ body } } };`],
+      ['instance', `class C { rows = [1, 2, 3]; touch() { ${ body } } } const h = new C();`],
+      ['static', `class C { static rows = [1, 2, 3]; static touch() { ${ body } } } const h = C;`],
+    ]) {
+      yield { ...snippet(`own-this-definition/${ owner }/${ name }`,
+        '(() => { const sink = Function("value", "value.rows = \'abc\'; return \'key\';"); '
+        + `${ declaration } h.touch(); return h.rows.at(-1); })()`), strip: true };
+    }
+  }
+  for (const parameter of ['value = this.rows = "abc"', '{ [this.rows = "abc"]: value } = {}', '{ value = this.rows = "abc" } = {}']) {
+    for (const statics of [false, true]) {
+      const prefix = statics ? 'static ' : '';
+      yield { ...snippet(`own-this-definition/parameter/${ statics }/${ parameter }`,
+        `(() => { class C { ${ prefix }rows = [1, 2]; ${ prefix }touch(${ parameter }) { return value; } } `
+        + `const h = ${ statics ? 'C' : 'new C()' }; h.touch(); return h.rows.at(-1); })()`), strip: true };
+    }
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateUnbackedSequenceHops();
@@ -14581,4 +14672,7 @@ export function * generate() {
   yield * generateParameterStaticSources();
   yield * generateWrapperKeyEffects();
   yield * generateLogicalDestructure();
+  yield * generateForXMemberReads();
+  yield * generateDefinitionTimeReceivers();
+  yield * generateOwnThisDefinitionSlots();
 }

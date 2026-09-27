@@ -4,6 +4,7 @@ import {
   DESTRUCTURE_PATTERN_TYPES,
   dropLeadingThisParam,
   hasRange,
+  literalNodeValue,
   MAX_DEPTH,
   nodeRangeContains,
   PATTERN_WRAPPERS,
@@ -135,9 +136,17 @@ export function staticMemberFromEntrySegment(constructor, segment) {
 }
 
 // typed AST node predicate - excludes scalars, SourceLocation objects, and foreign markers
-// (Babel `extra`, parent back-refs, per-visitor caches stamped by sibling tools).
+// (Babel `extra`, parent back-refs, per-visitor caches stamped by sibling tools) and comments.
 // prefer over hardcoded SKIP-keys - new plugins can stamp arbitrary keys, a skip list rots
-export const isASTNode = v => v !== null && typeof v === 'object' && typeof v.type === 'string';
+export function isASTNode(value) {
+  if (value === null || typeof value !== 'object') return false;
+  const { type } = value;
+  return typeof type === 'string'
+    && type !== 'CommentBlock'
+    && type !== 'CommentLine'
+    && type !== 'Block'
+    && type !== 'Line';
+}
 
 // positional recursive walk over a raw AST subtree of EITHER dialect: `visit(node, parent)`
 // per position (a node shared by two parents is visited from each), optional `leave` after
@@ -147,7 +156,7 @@ export const isASTNode = v => v !== null && typeof v === 'object' && typeof v.ty
 // the per-node hot path allocates nothing
 export function walkAstNodes({ root, visit, leave = null, parent = null, depth = 0 }) {
   (function step(node, parentNode, level) {
-    if (!node || typeof node !== 'object' || typeof node.type !== 'string' || level >= 1024) return;
+    if (!isASTNode(node) || level >= 1024) return;
     if (visit(node, parentNode) === false) return;
     // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
     for (const key in node) {
@@ -1064,17 +1073,16 @@ export const FUNCTION_LIKE_NODE_TYPES = new Set([
 // pragmatic assumption shared by detection and the type resolver: top-level `this` IS the
 // global proxy regardless of sourceType - nobody reads properties off the ESM-undefined
 // `this` on purpose (such a chain is statically dead there), while script / CommonJS-shaped
-// code means the global. `this` inside a non-arrow function or a class body is rebound
+// code means the global. Bodies, defaults and field values bind their own receiver.
 export function isTopLevelThisContext(path) {
-  for (let current = path?.parentPath; current; current = current.parentPath) {
-    const type = current.node?.type;
-    if (type === 'ClassBody') return false;
-    if (type === 'Program') return true;
-    // a TS namespace / enum body compiles to an IIFE, so its `this` is the IIFE's, never the
-    // realm - the same boundary the census frame drops its top-level flag at, and the two are
-    // asked about the same `this`
-    if (type === 'TSModuleBlock' || type === 'TSModuleDeclaration' || type === 'TSEnumDeclaration') return false;
-    if (type !== 'ArrowFunctionExpression' && FUNCTION_LIKE_NODE_TYPES.has(type)) return false;
+  for (let child = path, current = path?.parentPath; current; child = current, current = current.parentPath) {
+    if (current.node?.type === 'Program') return true;
+    if (!isThisRebinding(current.node, child.node)) continue;
+    // Own keys are already excluded by the child-slot predicate. Only a parameter
+    // decorator can cross the remaining function boundary without binding its this.
+    if (current.node.params && current.node.body !== child.node
+      && useRegionFrames(path).definitionTimeFrames?.has(current.node)) continue;
+    return false;
   }
   return false;
 }
@@ -4235,12 +4243,13 @@ function patternContainerOwner(init, ctx) {
 // NAMES, asked of the declaration that owns it (`patternContainerOwner`) at `ctx`'s read position?
 // such a slot holds no one certain value, whatever reads it - pure declines a read that needs one,
 // global unions the written values in, typing reads no type off the literal. only a write that may
-// reach the capture counts; a later one cannot change the captured value
-export function containerSlotWritten(init, keys, ctx) {
+// reach the capture counts; a later one cannot change the captured value. `usageNode` overrides
+// that position for a consumer re-reading the slot rather than using its captured value.
+export function containerSlotWritten(init, keys, ctx, usageNode = init) {
   const adapter = ctx?.adapter;
   if (!adapter?.isWrittenContainerSlot) return false;
   const owner = patternContainerOwner(init, ctx);
-  return !!owner && adapter.isWrittenContainerSlot(owner.ownerName, keys, owner.ownerNode, ctx.path, init);
+  return !!owner && adapter.isWrittenContainerSlot(owner.ownerName, keys, owner.ownerNode, ctx.path, usageNode);
 }
 
 // ... at the slot a pattern binds `name` to - a declarator's and a pattern write's alike, `ctx` the
@@ -4254,17 +4263,27 @@ export function patternSlotWritten({ pattern, init, name, ctx }) {
 // the value a LITERAL holds at `keys` - object keys and array indices, through const aliases of the
 // literals on the way - as `{ node }`, or null where a level is no literal or spells no such slot. a
 // level that is a member read of ANOTHER container (`o.k = NS.inner`) holds what that container does
-// at the read's own path: `{ container, keys }` hands the walk over to it
-function literalValueAt(node, keys, ctx) {
+// at the read's own path: `{ container, keys }` hands the walk over to it. `ownData` requires
+// stored identity at the final use: even a pure getter can return a fresh object on every read,
+// and an alias captured inside a literal can have its own slot writes. Follow each alias in its
+// declaration scope; a same-named local at the use does not own that captured object.
+function literalValueAt(node, keys, ctx, ownData = false) {
   let cur = node;
   for (let at = 0; at < keys.length; at++) {
-    const level = followConstLiteralAlias(installedWriteValue(cur), ctx);
+    cur = installedWriteValue(cur);
+    if (ownData && containerSlotWritten(cur, keys.slice(at), ctx, ctx.path?.node)) return null;
+    const followed = ctx?.adapter && cur?.type === 'Identifier'
+      ? followConstIdentifierInit({ node: cur, readNode: cur, seen: ctx.seen, ctx }) : null;
+    const literal = followed?.node;
+    const level = literal?.type === 'ArrayExpression' || literal?.type === 'ObjectExpression' ? literal : cur;
+    if (followed && level === literal) ctx = followed.ctx;
     const through = isMemberAccessNode(level) ? memberChainKeys(level) : null;
     if (through?.root?.type === 'Identifier' && !through.keys.includes(null)) {
       return { container: through.root, keys: [...through.keys, ...keys.slice(at)] };
     }
-    cur = level?.type === 'ObjectExpression' ? objectLevelPairedProperty(level, keys[at])?.read
-      : arrayLiteralSlotValue(level, keys[at]);
+    const property = level?.type === 'ObjectExpression' ? objectLevelPairedProperty(level, keys[at]) : null;
+    if (ownData && property?.match.kind === 'get') return null;
+    cur = property?.read ?? arrayLiteralSlotValue(level, keys[at]);
     if (!cur) return null;
   }
   return { node: cur };
@@ -7573,11 +7592,12 @@ export function classOwnThisMethodInfo(classNode, statics) {
     if (key === null || key === undefined) unknownKey = true;
     else methodKeys.add(key);
   }
-  return methodKeys.size || unknownKey || accessors ? { methodKeys, unknownKey, accessors } : null;
+  return methodKeys.size || unknownKey || accessors
+    ? { methodKeys, unknownKey, accessors, mayIterate: false, unscannableBodies: false, declaredKeys: null } : null;
 }
 
-// merge per-class extraction infos (a base class and its descendants share the instance
-// narrow, so the union of their own-this members gates it). null-safe on both sides
+// Merge extraction infos without inventing a literal's declared-key set for a class.
+// A null set means its member writes belong to the class field fold, not the literal escape gate.
 export function mergeOwnThisMethodInfo(base, extra) {
   if (!base) return extra;
   if (!extra) return base;
@@ -7589,7 +7609,7 @@ export function mergeOwnThisMethodInfo(base, extra) {
     accessors: base.accessors || extra.accessors,
     mayIterate: !!base.mayIterate || !!extra.mayIterate,
     unscannableBodies: !!base.unscannableBodies || !!extra.unscannableBodies,
-    declaredKeys: new Set([...base.declaredKeys ?? [], ...extra.declaredKeys ?? []]),
+    declaredKeys: base.declaredKeys && extra.declaredKeys ? new Set([...base.declaredKeys, ...extra.declaredKeys]) : null,
   };
 }
 
@@ -7802,13 +7822,21 @@ export function createDeclaredNameIndex(names = null) {
   };
 }
 
-// `this` REbinding is a narrower boundary than scope rebinding: an arrow inherits the enclosing
-// `this`, so a `this` inside a top-level arrow is still the top-level one. mirrors the canon
-// `isTopLevelThisContext` walks, so a census frame and a path walk answer alike
-const THIS_REBINDING_TYPES = new Set([...SCOPE_REBINDING_TYPES].filter(type => type !== 'ArrowFunctionExpression'));
+// Does this child evaluate with a new `this`? Keys, heritage and decorators keep the outer
+// receiver; field values, method bodies and defaults do not. Both census and path walks ask this.
+export function isThisRebinding(node, child) {
+  return !!node && THIS_REBINDING_TYPES.has(node.type)
+    && (!CLASS_FIELD_TYPES.has(node.type) || node.value === child)
+    && !definitionTimeSlotOf(node, child);
+}
 
-export function isThisRebinding(node) {
-  return THIS_REBINDING_TYPES.has(node.type);
+// does this injection method read the census the usage lanes build? `entry-global` replaces an
+// entry import and mints no name of its own, so it consumes neither the name reservation the
+// census feeds nor the mutation / ctor-alias tables - only the resolvers and emitters it never
+// reaches read those. Both emitters ask this one question; each supplies its own reducer list,
+// with the format reducer included for every method
+export function methodReadsUsageCensus(method) {
+  return method !== 'entry-global';
 }
 
 // ONE full-file raw walk driving every per-file census reducer. each reducer keeps its own
@@ -7820,22 +7848,12 @@ export function isThisRebinding(node) {
 // shape gates) into a single pass. frames carry the structural parent type (transparent
 // wrappers forwarded) and the module-top-level flag - the contexts the orphan-ref
 // classifier distinguishes emit positions by
-// does this injection method read the census the usage lanes build? `entry-global` replaces an
-// entry import and mints no name of its own, so it consumes neither the name reservation the
-// census feeds nor the mutation / ctor-alias tables - only the resolvers and emitters it never
-// reaches read those. Both emitters ask this one question; each supplies its own reducer list,
-// with the format reducer included for every method
-export function methodReadsUsageCensus(method) {
-  return method !== 'entry-global';
-}
-
 export function collectFileCensus(programNode, reducers) {
   // `parentNode` is the IMMEDIATE structural parent (unlike `parentType`, which skips transparent
   // wrappers): a reducer that must tell a source-name position from a reference (an identifier that
   // is a property key / member key / label, per `isNonReferencePosition`) needs the exact parent node
-  // two parallel stacks: SIBLINGS share one frame object, so the walk allocates one frame
-  // per PARENT rather than one per node - the reducers' contract is unchanged, they never
-  // read a `node` off the frame
+  // Two parallel stacks: siblings share a frame, except slots that change the this context.
+  // Ordinary parents allocate one frame rather than one per child; reducers read no node from it.
   const nodeStack = [programNode];
   // `scopes`: the scope-opening nodes enclosing the node - var-scopes and lexical scopes alike -
   // outermost first, the chain a reducer resolves a NAME against (the Program itself stands in it,
@@ -7844,6 +7862,7 @@ export function collectFileCensus(programNode, reducers) {
     parentType: null,
     atTopLevel: true,
     atThisTopLevel: true,
+    thisOwner: null,
     parentNode: null,
     underTypeAnnotation: false,
     scopes: [],
@@ -7862,15 +7881,15 @@ export function collectFileCensus(programNode, reducers) {
     if (!isASTNode(node)) continue;
     for (const reducer of reducers) reducer.visit(node, frame);
     const atTopLevel = frame.atTopLevel && !isScopeRebinding(node);
-    // an arrow keeps the enclosing `this`, so it does not end the top-level-`this` region
-    const atThisTopLevel = frame.atThisTopLevel && !isThisRebinding(node);
     // sticky, same shape as `atTopLevel`: once inside an annotation the whole subtree is inside it.
     // the boundary is the WRAPPER node a `:` slot introduces - deliberately NARROWER than
     // `isTypeAnnotationNodeType` ("is this type-space at all"), which also covers union arms and
     // type ARGUMENTS. a type-alias RHS, an interface body and type arguments carry no wrapper
     const underTypeAnnotation = frame.underTypeAnnotation || isTypeAnnotationWrapper(node);
     const parentType = TRANSPARENT_EXPR_WRAPPER_TYPES.has(node.type) ? frame.parentType : node.type;
+    const rebindsThis = THIS_REBINDING_TYPES.has(node.type);
     let childFrame = null;
+    let receiverFrame = null;
     // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
     for (const key in node) {
       const value = node[key];
@@ -7878,13 +7897,29 @@ export function collectFileCensus(programNode, reducers) {
         childFrame ??= {
           parentType,
           atTopLevel,
-          atThisTopLevel,
+          atThisTopLevel: frame.atThisTopLevel,
+          thisOwner: frame.thisOwner,
           parentNode: node,
           underTypeAnnotation,
           scopes: isScopeRebinding(node) || isLexicalScopeOpener(node) ? [...frame.scopes, node] : frame.scopes,
         };
+        // Keep the owner, not just a top-level flag: escape and write censuses ask whose this it is.
+        const thisOwner = key === 'decorators' && frame.parameterThisOwner !== undefined
+          ? frame.parameterThisOwner
+          : rebindsThis && isThisRebinding(node, Array.isArray(value) ? value[0] : value)
+            ? node.type === 'FunctionExpression' && frame.parentNode?.type === 'MethodDefinition' ? frame.parentNode : node
+            : frame.thisOwner;
+        // A parameter's decorator runs outside its function, unlike its default value.
+        const parameterThisOwner = key === 'params' && FUNCTION_LIKE_NODE_TYPES.has(node.type)
+          ? frame.thisOwner : undefined;
         nodeStack.push(value);
-        frameStack.push(childFrame);
+        if (thisOwner === childFrame.thisOwner && parameterThisOwner === undefined) frameStack.push(childFrame);
+        else if (parameterThisOwner === undefined) {
+          if (!receiverFrame || receiverFrame.thisOwner !== thisOwner) {
+            receiverFrame = { ...childFrame, thisOwner, atThisTopLevel: thisOwner === null };
+          }
+          frameStack.push(receiverFrame);
+        } else frameStack.push({ ...childFrame, thisOwner, atThisTopLevel: thisOwner === null, parameterThisOwner });
       }
     }
   }
@@ -10503,27 +10538,37 @@ export const isTaggedTemplateQuasiPosition = (parent, node) => parent?.type === 
 // signature; dot (`obj.at`) and bracket (`obj['at']`) spellings of one static key produce one
 // signature; a dynamic computed key folds its own shape structurally; an unrepresentable slot
 // (call, template) yields null = "never matches", like the old structural compare's default
-function memberShapeSignature(node) {
+function memberShapeSignature(node, bindings = null, dynamicKey = false) {
   node = unwrapRuntimeExpr(node);
   if (!node) return null;
   if (node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression') {
-    const objSig = memberShapeSignature(node.object);
+    if (dynamicKey) {
+      const symbol = wksComputedKeyName(node);
+      if (knownBuiltInReturnTypes.staticProperties.Symbol[symbol]?.type !== 'symbol') return null;
+      bindings?.set('Symbol', 'global-symbol');
+      return `wks:${ symbol }`;
+    }
+    const objSig = memberShapeSignature(node.object, bindings);
     if (objSig === null) return null;
     const key = memberKeyName(node);
     // the static key is JSON-quoted: raw concatenation lets a key containing the delimiter
     // (`o['a.b']`) collide with a deeper nav (`o.a.b`) - quoting keeps signatures prefix-free
     if (key !== null) return `${ objSig }.${ JSON.stringify(key) }`;
-    const propSig = memberShapeSignature(node.property);
+    const propSig = memberShapeSignature(node.property, bindings, true);
     return propSig === null ? null : `${ objSig }[${ node.computed ? 'c' : 'p' }]${ propSig }`;
   }
-  if (node.type === 'Identifier') return `i:${ node.name }`;
+  if (node.type === 'Identifier') {
+    bindings?.set(node.name, dynamicKey || bindings.get(node.name) || false);
+    return `i:${ node.name }`;
+  }
   if (node.type === 'ThisExpression') return 't';
   // a bigint key: babel spells it BigIntLiteral (decimal-string value), estree keeps Literal
   // with a bigint value - one signature for both (JSON.stringify throws on a bigint, and the
   // adapters' different spellings otherwise split the same written slot across the emitters)
   if (node.type === 'BigIntLiteral') return `lb:${ node.value }`;
-  // babel StringLiteral/NumericLiteral vs ESTree Literal: both carry `.value`
-  if (node.type === 'StringLiteral' || node.type === 'NumericLiteral' || node.type === 'Literal') {
+  if (node.type === 'NullLiteral') return 'l:null';
+  // Babel primitive literals and ESTree Literal carry `.value`.
+  if (node.type === 'StringLiteral' || node.type === 'NumericLiteral' || node.type === 'BooleanLiteral' || node.type === 'Literal') {
     if (typeof node.value === 'bigint') return `lb:${ node.value }`;
     // an OBJECT value (an estree regex literal) has no faithful serialization - "never
     // matches", like the object-identity compare this signature replaced
@@ -10608,23 +10653,54 @@ function getForXWrites(forXNode) {
     collectForXWriteMembers(forXNode.left, nodes);
     // signatures snapshot the PRISTINE shapes: the first query comes from the head's own
     // write-position gate, before any emitter rewrite touches the pattern's children
-    writes = { nodes, sigs: nodes.map(memberShapeSignature) };
+    writes = { nodes, sigs: nodes.map(node => memberShapeSignature(node)) };
     FOR_X_WRITES_CACHE.set(forXNode, writes);
   }
   return writes;
 }
 
-// a shape signature matches by NAME, which cannot tell a receiver REBOUND inside a nested function
-// from the same free binding the for-x head writes through. the binding answers that, and only
-// where it has to: the question arises exactly when the walk crossed a function boundary
-function sameReceiverBinding({ node, path, forXPath, adapter }) {
+// A shape signature matches by name; lexical blocks, catch clauses and functions can shadow
+// that name. Query the head's own region, then prove the selected value stayed put.
+// Nested receivers need unchanged own data slots; getters can create a fresh value per read.
+function sameReceiverBinding({ node, path, forXPath, adapter, crossedFunction, bindings }) {
   const root = runtimeChainRoot(node);
-  if (root?.type !== 'Identifier') return false;
-  // the adapters hand back a normalized VIEW, rebuilt per call - identity lives on the binding's
-  // own declaration node. an unresolved side answers "unknown", which keeps the conservative bail
-  const readBinding = adapter.getBinding(path.scope, root.name, path);
-  const headBinding = readBinding && adapter.getBinding(forXPath.scope, root.name, forXPath);
-  return !!readBinding?.node && readBinding.node === headBinding?.node;
+  if (root?.type !== 'Identifier' && crossedFunction) return false;
+  // The adapters rebuild their views; identity lives on the declaration. Two unbound names
+  // refer to the same global. A `this` receiver cannot cross a function boundary this way.
+  const headPath = forXPath.get('left');
+  let keyValues;
+  for (const [name, dynamicKey] of bindings) {
+    const readBinding = adapter.getBinding(path.scope, name, path);
+    const headBinding = adapter.getBinding(headPath.scope, name, headPath);
+    if (readBinding?.node !== headBinding?.node) return false;
+    if (dynamicKey === 'global-symbol') {
+      if (readBinding || headBinding || isMutatedGlobalSlot(adapter, name)) return false;
+      continue;
+    }
+    // A reassigned name can select a different receiver or key under the same binding.
+    if (readBinding && isReassignedBeyondDeclarator(readBinding)) return false;
+    if (dynamicKey) {
+      const init = unwrapRuntimeExpr(identifierDeclaratorInit(readBinding));
+      const value = isNullLiteralNode(init) ? null : literalNodeValue(init);
+      // A const object can coerce to a different key on each read.
+      if (value === undefined || value !== null && typeof value === 'object') return false;
+      (keyValues ??= new Map()).set(name, String(value));
+    }
+  }
+  const ctx = { adapter, scope: path.scope, path };
+  if (mayHaveSideEffects(node.object, ctx)) return false;
+  // Pristine realm hops are one shared object, even without a local literal declaration.
+  if (proxySurfaceIdentifier(node.object, { ...ctx, throughRealmHop: key => isPristineProxyGlobal(adapter, key) })) return true;
+  const { keys } = memberChainKeys(node.object, member => {
+    const key = memberKeyName(member) ?? keyValues?.get(member.property?.name);
+    if (key !== null && key !== undefined) return key;
+    const value = isNullLiteralNode(member.property) ? null : literalNodeValue(member.property);
+    return value === undefined || value !== null && typeof value === 'object' ? null : String(value);
+  });
+  if (!keys.length) return true;
+  if (root?.type !== 'Identifier' || keys.includes(null)) return false;
+  // Text equality cannot prove that two getter/Proxy reads selected the same receiver.
+  return !!literalValueAt(root, keys, ctx, true)?.node;
 }
 
 // `for (obj.key of/in ...)` rebinds obj.key each iteration, aliasing the prototype method.
@@ -10637,25 +10713,33 @@ export function isForXWriteTarget(path, adapter = null) {
   // MemberExpression once the entry peel strips its ChainExpression
   if (node?.type !== 'MemberExpression' && node?.type !== 'OptionalMemberExpression') return false;
   let crossedFunction = false;
-  for (let current = memberContextPath(path.parentPath); current; current = memberContextPath(current.parentPath)) {
+  let contextChild;
+  let sig;
+  let bindings;
+  for (let child = memberContextPath(path), current = memberContextPath(child.parentPath);
+    current; child = current, current = memberContextPath(current.parentPath)) {
     const parent = current.node;
     if (!parent) break;
-    // function-like boundary: a nested function that REBINDS the receiver reads its own slot,
-    // not the one the enclosing `for-of/in` head writes per iteration - and the name-based shape
-    // match below cannot tell the two apart. so crossing is allowed, and the match beyond the
-    // boundary additionally has to prove the receiver is the SAME binding. without an adapter to
-    // ask, the conservative bail stands (the shape match alone would false-positive on a shadow)
-    if (FUNCTION_LIKE_NODE_TYPES.has(parent.type)) {
-      if (!adapter?.getBinding) return false;
-      crossedFunction = true;
-      continue;
-    }
     if (!isForXStatement(parent)) continue;
     const writes = getForXWrites(parent);
     if (writes.nodes.includes(node)) return true;
-    const sig = memberShapeSignature(node);
+    // The iterable and the head's keys/defaults are reads before the target is written.
+    if (child.node !== parent.body || !writes.nodes.length) continue;
+    if (sig === undefined) sig = memberShapeSignature(node, bindings = new Map());
     if (sig === null || !writes.sigs.includes(sig)) continue;
-    if (!crossedFunction || sameReceiverBinding({ node, path, forXPath: current, adapter })) return true;
+    // Most members match no loop write. Resolve receiver boundaries only after a
+    // match, advancing once across all candidate loops rather than rescanning.
+    contextChild ??= memberContextPath(path);
+    while (contextChild.node !== current.node) {
+      const boundary = memberContextPath(contextChild.parentPath);
+      if (isThisRebinding(boundary.node, contextChild.node)
+        && !useRegionFrames(path).definitionTimeFrames?.has(boundary.node)) {
+        if (!adapter?.getBinding) return false;
+        crossedFunction = true;
+      }
+      contextChild = boundary;
+    }
+    if (!adapter?.getBinding || sameReceiverBinding({ node, path, forXPath: current, adapter, crossedFunction, bindings })) return true;
   }
   return false;
 }
@@ -11748,6 +11832,17 @@ export const CLASS_FIELD_TYPES = new Set([
 // ... and the DATA fields among them: an auto-accessor defines its accessor pair beside the methods,
 // before any data field runs, so a data field spelling the same key replaces it
 export const CLASS_DATA_FIELD_TYPES = new Set(['ClassProperty', 'ClassPrivateProperty', 'PropertyDefinition']);
+
+// Candidate owners only: isThisRebinding still decides whether this particular edge
+// rebinds. A raw census classifies the parent once, not every child.
+const THIS_REBINDING_TYPES = new Set([
+  ...FUNCTION_LIKE_NODE_TYPES,
+  ...CLASS_FIELD_TYPES,
+  'StaticBlock',
+  'TSModuleBlock',
+  'TSModuleDeclaration',
+  'TSEnumDeclaration',
+].filter(type => type !== 'ArrowFunctionExpression'));
 
 // the INSTANCE-FIELD arm of the deferral predicate below, spelled over a parent/child NODE pair: a
 // walk that indexes ancestors by node holds no path and so cannot ask for a slot `key`. one home for

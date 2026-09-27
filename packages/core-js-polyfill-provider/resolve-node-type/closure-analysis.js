@@ -29,7 +29,8 @@ import {
   hasDeferredContextAncestor,
   KNOWN_GLOBAL_CONSTRUCTORS,
   classCarriesDecorators,
-  FUNCTION_LIKE_NODE_TYPES,
+  definitionTimeSlotOf,
+  isThisRebinding,
   isMemberAccessNode,
   mayIterateItself,
   isTSTypeOnlyIdentifierPath,
@@ -37,8 +38,8 @@ import {
   objectOwnThisMethodInfo,
   peelParenAndTSParentPath,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
-  peelParenAndTSSlotChild,
   aliasTargetName,
+  pathOfNode,
   positionDisposition,
   POSITION_CONSUMES,
   POSITION_FORWARDS,
@@ -228,22 +229,20 @@ export function createClosureAnalysis({
 
   // NODE-only pass over one method: the answer for almost every `this` is decided by its position
   // alone, and building a path for each of them costs more than the whole question is worth. returns
-  // 'escapes', 'local', or 'aliased' - the one case that does need paths, since resolving what a
-  // `const self = this` name goes on to do is binding analysis
+  // true on an escape, false on local reads, or the aliased `this` nodes that need binding
+  // analysis. The path pass consumes those exact nodes, sharing this ownership decision.
   function scanThisNodes(rootNode) {
-    let aliased = false;
+    let aliased;
     let escapes = false;
-    function visit(node, parent, grandparent) {
+    function visit(node, parent, grandparent, rootParameter = false) {
       if (escapes || !node) return;
       if (node.type === 'ThisExpression') {
         // the shim carries what a path would: the position one hop above `parent`
         if (positionDisposition(parent, node, { parentPath: { node: grandparent } }) === POSITION_CONSUMES) return;
-        if (parent?.type === 'VariableDeclarator' && aliasTargetName(parent)) aliased = true;
+        if (parent?.type === 'VariableDeclarator' && aliasTargetName(parent)) (aliased ??= new Set()).add(node);
         else escapes = true;
         return;
       }
-      // a nested non-arrow function re-binds `this` to its own call receiver
-      if (node !== rootNode && FUNCTION_LIKE_NODE_TYPES.has(node.type) && node.type !== 'ArrowFunctionExpression') return;
       // a transparent wrapper is not a POSITION: parens and TS casts hold the value without reading
       // it, so what sits above them is the real parent (`(this).at(0)` is a member receiver, not "a
       // value inside a paren"). counted as a level it answered the position question itself, every
@@ -253,10 +252,20 @@ export function createClosureAnalysis({
         walkAstChildren(node, child => visit(child, parent, grandparent));
         return;
       }
-      walkAstChildren(node, child => visit(child, node, parent));
+      walkAstChildren(node, (child, key) => {
+        // Parameter decorators belong to the enclosing receiver, unlike their defaults.
+        if (rootParameter && key === 'decorators') return;
+        if (node === rootNode && (node.params || node.type === 'StaticBlock')) {
+          if (definitionTimeSlotOf(node, child)) return;
+        } else if (isThisRebinding(node, child)) {
+          if (key === 'params') for (const decorator of child.decorators ?? []) visit(decorator, child, node);
+          return;
+        }
+        visit(child, node, parent, node === rootNode && key === 'params');
+      });
     }
     visit(rootNode, null, null);
-    return escapes ? 'escapes' : aliased ? 'aliased' : 'local';
+    return escapes || aliased || false;
   }
 
   // the scan is asked once per holder per surface, but a holder is reached from several consumers -
@@ -281,31 +290,18 @@ export function createClosureAnalysis({
       // the same receiver. a StaticBlock and a field initializer carry no params and are scanned as is
       const root = fnPath.node?.params ? fnPath : fnPath.get?.('value')?.node ? fnPath.get('value') : fnPath;
       const verdict = scanThisNodes(root.node);
-      if (verdict === 'escapes') return true;
-      if (verdict !== 'aliased') continue;
+      if (verdict === true) return true;
+      if (!verdict) continue;
       // the path pass, run only for a method the node pass reported as aliased: a `const self = this`
       // keeps the receiver in only while that name's own closure holds
-      let handedOut = false;
-      root.traverse({
-        'FunctionExpression|FunctionDeclaration|ObjectMethod|ClassMethod'(nested) {
-          // one parser visits the traversal root, the other does not, so identity decides
-          if (nested.node !== root.node) nested.skip();
-        },
-        ThisExpression(thisPath) {
-          if (handedOut) return;
-          const parentPath = peelParenAndTSParentPath(thisPath);
-          const parent = parentPath?.node;
-          // the parent's slot holds the outermost WRAPPER, not the bare `this` - the position
-          // question matches by identity, and asking with the inner node read every parenthesised
-          // `this` as handed out, which untyped the receiver and lost its claim
-          const slotChild = peelParenAndTSSlotChild(thisPath);
-          if (!parent || positionDisposition(parent, slotChild, parentPath) === POSITION_CONSUMES) return;
-          const declared = parent.type === 'VariableDeclarator' && aliasTargetName(parent);
-          if (declared && carrierBindingClosure(parentPath.scope, declared, thisPath, []) !== null) return;
-          handedOut = true;
-        },
-      });
-      if (handedOut) return true;
+      for (const node of verdict) {
+        // Span-based recovery reaches parameter decorators omitted by a host's visitor keys.
+        const thisPath = pathOfNode(root, node);
+        if (!thisPath) return true;
+        const parentPath = peelParenAndTSParentPath(thisPath);
+        const declared = aliasTargetName(parentPath.node);
+        if (carrierBindingClosure(parentPath.scope, declared, thisPath, []) === null) return true;
+      }
     }
     return false;
   }
@@ -827,7 +823,12 @@ export function createClosureAnalysis({
     }
     if (acquires) {
       info = mergeOwnThisMethodInfo(info, {
-        methodKeys: new Set(), unknownKey: false, accessors: false, unscannableBodies: true, declaredKeys: new Set(),
+        methodKeys: new Set(),
+        unknownKey: false,
+        accessors: false,
+        mayIterate: false,
+        unscannableBodies: true,
+        declaredKeys: null,
       });
     }
     return { info, handsThisOut };
