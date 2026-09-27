@@ -158,12 +158,6 @@ export function createTypeSubst({
     return { ...node, [returnSlot]: rt, ...paramsChanged && { [paramsSlot]: params } };
   }
 
-  // ESTree MethodDefinition wraps its function shape in .value (FunctionExpression). delegate
-  // through applyAliasSubstDeep so the FunctionExpression handler below substitutes returnType
-  // and params with proper alpha-rename. without this, `findTypeMember` returns the method
-  // unchanged for ESTree-parsed sources, and indexed-access / class-chain peels lose the
-  // outer type-param substitution by the time downstream functionTypeReturnAnnotation reads
-  // the slots
   // ESTree MethodDefinition wraps its function shape in `.value` (FunctionExpression). the slot
   // substitution is `substSlot`'s job - the FunctionExpression handler below then substitutes
   // returnType and params with proper alpha-rename. without this, `findTypeMember` returns the
@@ -453,8 +447,14 @@ export function createTypeSubst({
   function swapAliasToTSTypeQueryWithSubst(annotation, scope) {
     if (!annotation) return annotation;
     const aliased = followTypeAliasChain(annotation, scope);
-    if (aliased?.node?.type !== 'TSTypeQuery' || aliased.node === annotation) return annotation;
-    return aliased.subst ? applyAliasSubstDeep(aliased.node, aliased.subst) : aliased.node;
+    let query = aliased?.node;
+    // Flow stores the qualified reference and its type arguments under argument. Keep both
+    // before applying alias substitutions so typeof fn<T> retains the instantiated signature.
+    if (query?.type === 'TypeofTypeAnnotation' && query.argument?.type === 'GenericTypeAnnotation') {
+      query = { type: 'TSTypeQuery', exprName: query.argument.id, typeParameters: query.argument.typeParameters };
+    }
+    if (query?.type !== 'TSTypeQuery' || query === annotation) return annotation;
+    return aliased.subst ? applyAliasSubstDeep(query, aliased.subst) : query;
   }
 
   return {

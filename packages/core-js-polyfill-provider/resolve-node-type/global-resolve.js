@@ -27,7 +27,8 @@ import {
   definedBranchOfGuardConditional,
   isMutatedGlobalSlot,
   isTopLevelThisContext,
-  getSuperTypeArgs,
+  classSuperPath,
+  getHeritageTypeArgs,
   isAmbientBindingShape,
   patternLiteralKeyPath,
   peelArrayWrapBindingLayers,
@@ -47,6 +48,7 @@ export function createGlobalResolve({
   resolveKnownConstructor,
   resolveGlobalSurfaceKeyPath,
   resolveRuntimeExpression,
+  resolveSuperClassPath,
   resolveKnownContainerType,
   resolveTypeAnnotation,
   resolveComputedKeyName,
@@ -317,23 +319,23 @@ export function createGlobalResolve({
       // identity is the one slot that makes two boxes ONE type, so a base's stamp reads as `new Sub()`
       // agreeing with `Base` and with every SIBLING subclass, and hands a generic subclass the
       // non-generic base's identity where the family owes none at all
-      if (!current.node.superClass) return boxForDeclaration('Object', classPath.node);
-      const superPath = current.get('superClass');
+      const superPath = classSuperPath(current);
+      if (!superPath.node) return boxForDeclaration('Object', classPath.node);
       const name = resolveSuperGlobalName(superPath);
-      if (name) {
-        const base = resolveKnownConstructor(name);
+      const base = name && resolveKnownConstructor(name);
+      if (base) {
         // `class MyArr extends Array<string>` - the super's type argument is the element type
         // of the instance. resolve through same helper as `new Array<string>()` so the inner
         // flows into polyfill dispatch (`_atMaybeArray` over generic)
-        const args = getSuperTypeArgs(current.node);
+        const args = getHeritageTypeArgs(current.node);
         return args?.params
           ? resolveKnownContainerType({
             name, base, node: { typeParameters: args }, innerResolver: p => resolveTypeAnnotation(p, current.scope),
           })
           : base;
       }
-      current = resolveRuntimeExpression(superPath);
-      if (!t.isClass(current.node)) return null;
+      current = resolveSuperClassPath(current);
+      if (!current) return null;
     }
     return null;
   }
