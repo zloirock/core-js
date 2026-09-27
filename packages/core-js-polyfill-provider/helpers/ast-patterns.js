@@ -3150,9 +3150,11 @@ export function cachedContainerPaths(parentPath, key) {
 }
 
 // class body member PATHS through the container cache: the per-(body, name) position indexes
-// remove the rescans, this removes the per-query path re-materialization of the body list itself
+// remove the rescans, this removes the per-query path re-materialization of the body list itself.
+// Flow ambient classes carry signatures on ObjectTypeAnnotation.properties, with no runtime bodies
 export function classBodyMemberPaths(classPath) {
-  return cachedContainerPaths(classPath.get('body'), 'body');
+  const body = classPath.get('body');
+  return cachedContainerPaths(body, body.node.type === 'ObjectTypeAnnotation' ? 'properties' : 'body');
 }
 
 // the slot of `parent` in which `child` evaluates at DEFINITION time - in the enclosing scope,
@@ -11112,6 +11114,11 @@ export function getCallSiteTypeArgs(callNode) {
 // being restated per walker (which is how one walker ended up stopping at the first Flow hop)
 export const heritageClause = node => node?.extends?.[0];
 export const getHeritageTypeArgs = node => getSuperTypeArgs(node) ?? heritageClause(node)?.typeParameters;
+
+// the parent expression PATH for the same runtime / ambient heritage pair
+export function classSuperPath(classPath) {
+  return heritageClause(classPath.node) ? classPath.get('extends')[0].get('id') : classPath.get('superClass');
+}
 
 // `export const X = ...` / `export default function X() {}` bind `X` in the module scope
 // exactly like their un-exported form; callers that inspect top-level declarations get the

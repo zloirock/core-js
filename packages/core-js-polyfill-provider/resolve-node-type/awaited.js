@@ -355,7 +355,9 @@ export function createAwaited({
   // see `resolveBindingReturnInfo` for the same disambiguation. shared accessor keeps the
   // shape probe in one place; readers don't have to remember which slot applies where
   function functionTypeParams(node) {
-    return node?.parameters ?? node?.params ?? null;
+    const params = node?.parameters ?? node?.params ?? null;
+    // Flow keeps the rest parameter outside params; consumers read the common RestElement shape.
+    return params && node.rest ? [...params, { type: 'RestElement', typeAnnotation: node.rest.typeAnnotation }] : params;
   }
 
   // peel callback's first-arg annotation. cb node may be Identifier with typeAnnotation
