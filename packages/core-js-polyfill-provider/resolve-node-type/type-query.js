@@ -19,7 +19,7 @@
 import { STATEMENT_LIST_HOST_TYPES } from '../helpers/ast-patterns.js';
 import { $Object } from './base.js';
 import { collectQualifiedSegments } from './ast-shapes.js';
-import { isAmbientFunctionNode, isAmbientFunctionOrClassNode } from './name-resolution.js';
+import { isAmbientClassNode, isAmbientFunctionNode, isAmbientFunctionOrClassNode } from './name-resolution.js';
 
 // nearest ancestor holding `path` in a statement LIST - the unit an overload set lives in.
 // climbs past `export declare function` wrappers, which sit between the declaration and its list
@@ -123,7 +123,7 @@ export function createTypeQuery({
       if (type) return type;
     }
     if (!memberPath.length) return null;
-    // ambient `declare class K` has no runtime value binding on Babel (estree-toolkit binds it
+    // TS `declare class K` has no runtime value binding on Babel (estree-toolkit binds it
     // regardless), so `typeof K.static` anchors through the ambient-declaration index - otherwise
     // static-member resolution diverges across parsers. mirrors the annotation-family path in
     // `findTypeQueryFunctionType`, which already resolves an ambient class static via `findClassMember`
@@ -140,7 +140,7 @@ export function createTypeQuery({
     // not the narrowed value, and reassignment cannot change it)
     const constPath = constantBindingPath(objectName, scope);
     const initPath = t.isVariableDeclarator(constPath?.node) ? constPath.get('init')
-      : t.isClassDeclaration(constPath?.node) ? constPath : null;
+      : (t.isClassDeclaration(constPath?.node) || isAmbientClassNode(constPath?.node)) ? constPath : null;
     if (initPath?.node) {
       const resolved = t.isVariableDeclarator(constPath.node)
         ? resolveRuntimeExpression(initPath) : initPath;
@@ -269,14 +269,15 @@ export function createTypeQuery({
     // return-type slot intact. without this, the annotation fallback below finds no binding
     // annotation on the class and returns null, costing return-type narrowing for
     // `ReturnType<typeof X.method>`
-    if (t.isClassDeclaration(binding.node) && path.length === 1) {
+    if ((t.isClassDeclaration(binding.node) || isAmbientClassNode(binding.node)) && path.length === 1) {
       const found = findClassMember({ classPath: binding, name: path[0], isStatic: true });
       // an accessor is a VALUE read, not a callable: handing the getter node to the
       // function-type extractor would return its value type V where TS says
       // `ReturnType<typeof X.getter>` = `ReturnType<V>` - bail like the other
       // typeof-family member sites do on accessor kinds
       if (found?.member?.node && !isAccessorKind(found.member.node)) {
-        return { type: found.member.node, scope: binding.scope };
+        const member = found.member.node;
+        return { type: member.type === 'ObjectTypeProperty' ? member.value : member, scope: binding.scope };
       }
     }
     let annotation = unwrapTypeAnnotation(findBindingAnnotation(binding));
