@@ -61,7 +61,11 @@ import {
   mutationShapesReducer,
 } from '@core-js/polyfill-provider/detect-usage/mutations';
 import { isSymbolIteratorPatternProp } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
-import { planMinifierSequenceSplit, renderNestedKeyedPatternCapture } from '@core-js/polyfill-provider/destructure-host-shape';
+import {
+  minifierSequenceReducer,
+  planMinifierSequenceSplit,
+  renderNestedKeyedPatternCapture,
+} from '@core-js/polyfill-provider/destructure-host-shape';
 import { planInExpression } from '@core-js/polyfill-provider/helpers/in-expression';
 import {
   createClassHelpers,
@@ -176,8 +180,8 @@ import createSynthSwapEmitter from './internals/synth-swap-emitter.js';
 // statement's line, and the products share it by design (their spans are the entry gate's and the
 // opt-out's provenance). bytes differ between the first two passes, nothing else does: the import
 // set, the claims and the honoured opt-outs are the same on every pass
-function splitMinifierSequence(programPath, t) {
-  for (const { statements, host, key, statement, products } of planMinifierSequenceSplit(programPath.node, { embed: hostSlot })) {
+function splitMinifierSequence(programPath, t, census) {
+  for (const { statements, host, key, statement, products } of planMinifierSequenceSplit(programPath.node, { embed: hostSlot, census })) {
     const converted = products.map(product => estreeToBabel(product));
     // The operand is now a statement. Transfer its outer comments to that host so
     // replacing the operand later cannot discard a comment between sequence products.
@@ -2002,11 +2006,12 @@ export default function plugin(api, options) {
         // PRISTINE tree: every consumer either reads it at this same point, or (ctor-alias
         // gate, after the minifier split) is invariant to the split - the split only
         // re-parents existing expression nodes into their own statements. Entry-global collects
-        // only format facts; the remaining reducers belong to the usage lanes
+        // format and minifier-sequence facts; the remaining reducers belong to the usage lanes
         fileCensus = collectFileCensus(path.node, [
           moduleFormatReducer(moduleFormat => {
             format = resolveModuleFormat({ ...formatOptions, moduleFormat });
           }),
+          minifierSequenceReducer(),
           ...methodReadsUsageCensus(method) ? [
             memberKeyNamesReducer(),
             ctorAliasShapesReducer(),
@@ -2130,7 +2135,7 @@ export default function plugin(api, options) {
         // returned verbatim, not rewritten (entry-global needs it too - a `require('core-js/...')`
         // collapsed into a comma sequence - so the gate is `!skipFile`, not the narrower entry
         // exclusion below)
-        if (!skipFile) splitMinifierSequence(path, t);
+        if (!skipFile) splitMinifierSequence(path, t, fileCensus);
         // entry-global handles re-emit via detectEntries
         if (!skipFile && method !== 'entry-global') {
           const removed = new Set();

@@ -63,7 +63,7 @@ import {
   readFeedsOwnSlotWrite,
   resolveKey as sharedResolveKey,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
-import { planMinifierSequenceSplit } from '@core-js/polyfill-provider/destructure-host-shape';
+import { minifierSequenceReducer, planMinifierSequenceSplit } from '@core-js/polyfill-provider/destructure-host-shape';
 import { scanExistingCoreJSImports } from '@core-js/polyfill-provider/detect-usage/entries';
 import { nodeType, types } from './estree-compat.js';
 import { planEntries } from './detect-entry.js';
@@ -601,17 +601,6 @@ export default function createPlugin(options) {
     // emit, watchChange re-run) can still consume it - `take()` only after both checks pass
     if (pass === 'post') snapshots.take(id, environment);
 
-    // the minifier-sequence split as body surgery: the plan is the core's
-    // (`planMinifierSequenceSplit` - the shape, the products, their spans), the splice is this
-    // binding's. a statement-list member is replaced in place by identity; an un-braced
-    // control-flow slot is braced around its products. the products carry their operands' own
-    // spans, so the disable gate, the entry loc gate and the sourcemap see them where the author
-    // wrote them, and the reprint separates the statements itself - no text, no re-parse
-    for (const { statements, host, key, statement, products } of planMinifierSequenceSplit(ast)) {
-      if (statements) statements.splice(statements.indexOf(statement), 1, ...products);
-      else host[key] = { type: 'BlockStatement', body: products };
-    }
-
     // a binding pattern in a params list estree-toolkit never walks as a pattern - every
     // type-level signature TS has - aborts the crawl, so neutralize them before it runs.
     // deliberately UNCONDITIONAL: the pass is a plain walk over an AST the parser has just built
@@ -655,16 +644,17 @@ export default function createPlugin(options) {
     // the shared read canons consult the live `currentMutatedStatics` slot through the adapter;
     // a re-entrant inner transform must not see the outer file's set while collecting - null the
     // slot for exactly the collection window
-    // ONE raw walk collects format, name reservation and shape facts after the minifier split.
+    // ONE raw walk collects format, name reservation and shape facts before the minifier split.
     // The format reducer publishes FIRST, after collection: subsequent results and scoped walks
     // must see the resolved language goal before consulting the memoised strictness model.
-    // Entry-global collects only format facts; the remaining reducers belong to the usage lanes
+    // Entry-global collects format and minifier-sequence facts; the remaining reducers belong to the usage lanes
     const readsCensus = methodReadsUsageCensus(method);
     const fileCensus = collectFileCensus(ast, [
       moduleFormatReducer(moduleFormat => {
         format = resolveModuleFormat({ ...formatOptions, moduleFormat });
         ast.sourceType = format.sourceType;
       }),
+      minifierSequenceReducer(),
       ...readsCensus ? [
         bindingNamesReducer(),
         escapedCtorReferencesReducer(),
@@ -675,6 +665,12 @@ export default function createPlugin(options) {
         proxyWriteOriginsReducer(),
       ] : [],
     ]);
+    // Apply only the indexed positions, before any scoped walk. The census keeps the original
+    // operands; splitting only re-parents them. Product spans preserve directive and entry sites.
+    for (const { statements, host, key, statement, products } of planMinifierSequenceSplit(ast, { census: fileCensus })) {
+      if (statements) statements.splice(statements.indexOf(statement), 1, ...products);
+      else host[key] = { type: 'BlockStatement', body: products };
+    }
     const { importStyle } = format;
     // ONE scoped pre-pass walk carries both lanes: the mutation classification and the ctor-alias
     // sites registered further below. the alias lane rides along for BOTH usage methods, so the
