@@ -6,9 +6,9 @@ import {
   assignmentValueDiscarded,
   discardedSequenceElement,
   computedKeyHasSideEffects,
+  collectFileCensus,
   foldedPropertyKeyName,
   followConstLiteralAlias,
-  forEachStatementPosition,
   getMinifierSequenceExpressions,
   isPristineProxyGlobal,
   isQuietLiteralOperand,
@@ -1262,6 +1262,29 @@ export function renderRetainedObjectCapture(plan, {
 }
 
 // --- the minifier-sequence split ---
+// Collect only matching statement positions during the existing file census. Keep the source
+// nodes and operands intact: directives and the other reducers still read the pristine tree.
+// Read the host's declared slots: statement-shaped sidecars are not list members.
+// The plan consumes this index without walking unrelated subtrees a second time.
+export function minifierSequenceReducer() {
+  const minifierSequences = [];
+  return {
+    visit(host) {
+      const statements = statementListOf(host);
+      if (statements) for (const statement of statements) {
+        const expressions = getMinifierSequenceExpressions(statement);
+        if (expressions) minifierSequences.push({ statements, statement, expressions });
+      }
+      for (const key of SINGLE_STATEMENT_SLOTS.get(host.type) ?? []) {
+        const statement = host[key];
+        const expressions = getMinifierSequenceExpressions(statement);
+        if (expressions) minifierSequences.push({ host, key, statement, expressions });
+      }
+    },
+    result: () => ({ minifierSequences }),
+  };
+}
+
 // `(prefixExpr, ..., ({pat} = R), ...);` collapses a destructure assignment into ANY slot of a
 // statement-position SequenceExpression (a minified tail, comma-joined statements, nested
 // sequences), a shape the destructure gates peel past only Paren+TS and so silently bail on. the
@@ -1281,9 +1304,9 @@ export function renderRetainedObjectCapture(plan, {
 // identity where the tree already is canonical ESTree. the surgery is the binding's: babel
 // converts the products and inherits the replaced statement's attached comments, unplugin
 // splices as is. the entries hold nodes, so a binding applies them by identity and reads a
-// statement's index at apply time
-export function planMinifierSequenceSplit(root, { embed = node => node } = {}) {
-  const plan = [];
+// statement's index at apply time. Bindings supply their census; standalone callers collect it here.
+export function planMinifierSequenceSplit(root, { embed = node => node, census = null } = {}) {
+  const { minifierSequences } = census ?? collectFileCensus(root, [minifierSequenceReducer()]);
   // one operand's products: every operand that is not a quiet literal (`isQuietLiteralOperand` -
   // the minifier's `0`, a string that must not become a directive), in order
   function operandProducts(operand) {
@@ -1296,21 +1319,7 @@ export function planMinifierSequenceSplit(root, { embed = node => node } = {}) {
     product.loc = operand.loc;
     return [product];
   }
-  function statementProducts(statement) {
-    const expressions = getMinifierSequenceExpressions(statement);
-    return expressions ? expressions.flatMap(operandProducts) : null;
-  }
-  forEachStatementPosition(root, {
-    onList(statements) {
-      for (const statement of statements) {
-        const products = statementProducts(statement);
-        if (products) plan.push({ statements, statement, products });
-      }
-    },
-    onUnbracedSlot(host, key) {
-      const products = statementProducts(host[key]);
-      if (products) plan.push({ host, key, statement: host[key], products });
-    },
-  });
-  return plan;
+  return minifierSequences.map(({ expressions, ...position }) => ({
+    ...position, products: expressions.flatMap(operandProducts),
+  }));
 }
