@@ -1,4 +1,18 @@
 import { visitorKeys } from 'estree-toolkit/dist-es/definitions';
+import { NodePath } from 'estree-toolkit/dist-es/nodepath';
+
+// A path sub-traversal shares scopes and paths, but owns its skip marks. Otherwise a
+// pruned class in the this-write scan disappears from the later binding census too.
+// Restore the enclosing walk's marks even when a visitor throws.
+const traversePath = NodePath.prototype.traverse;
+NodePath.prototype.traverse = function (visitors, state) {
+  this.ctx.newSkipPathStack();
+  try {
+    return traversePath.call(this, visitors, state);
+  } finally {
+    this.ctx.restorePrevSkipPathStack();
+  }
+};
 
 // every node oxc hangs `decorators` on that estree-toolkit DEFINES. a type it does not define
 // (`AccessorProperty`, `TSParameterProperty`, the `TSAbstract*` members) needs no entry - the
