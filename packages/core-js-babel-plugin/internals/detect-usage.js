@@ -717,35 +717,34 @@ function restoreInstantiationParens(path) {
   path.get('expression').replaceWith({ type: 'ParenthesizedExpression', expression: inner });
 }
 
-// the tag shapes that owe their source parens back, asked by the restoration below and by the pass
+// the chain shapes that owe their source parens back, asked by the restoration below and by the pass
 // that counts pending work - one spelling, so the count cannot drift from what the restoration does
-const OPTIONAL_CHAIN_TAG_TYPES = new Set([
+const OPTIONAL_CHAIN_PAREN_TYPES = new Set([
   'OptionalMemberExpression',
   'OptionalCallExpression',
   'ChainExpression',
 ]);
 
-// does this TAG owe the seal a reprint drops? the chain may sit under TS wrappers the reprint
-// keeps (`(a?.b.tag!)`x``) - those peel on the way to the chain, while a paren that survived as
-// a NODE still seals and needs no second layer. ONE head for the pending counter and the
-// restoration itself - a counter spelling of its own left the late pass ungated on the
-// wrapped forms, and the raw print there is not parseable at all
-function tagOwesRestoredParens(tag) {
-  let core = tag;
+// a tag always seals its optional chain; a non-null assertion seals only a parenthesized
+// operand. The generator drops both seals, including ones under further TS wrappers.
+// A real paren node already preserves the boundary. Counting and restoration share this test.
+function chainHostOwesRestoredParens(node) {
+  let core = node.type === 'TaggedTemplateExpression' ? node.tag : node.expression;
+  if (node.type === 'TSNonNullExpression' && !core.extra?.parenthesized) return false;
   while (CHAIN_HOP_WRAPPER_TYPES.has(core.type)) core = core.expression;
-  return core.type !== 'ParenthesizedExpression' && OPTIONAL_CHAIN_TAG_TYPES.has(core.type);
+  return core.type !== 'ParenthesizedExpression' && OPTIONAL_CHAIN_PAREN_TYPES.has(core.type);
 }
 
 // the same @babel/generator drop for a TAGGED template's tag: `(a?.b.tag)`x`` reprints as
 // `a?.b.tag`x``, which is not parseable at all - a tagged template may not sit on an optional
 // chain, and the source parens are what ended that chain. reproduces on a plain parse/print
 // round-trip with no plugin, so restore the paren node wherever this plugin forces the reprint.
-// a tag whose chain core is optional can only have come from parenthesized source (the bare
-// form does not parse), so the restoration is unconditional past its own predicate
-function restoreOptionalTagParens(path) {
-  const { tag } = path.node;
-  if (tagOwesRestoredParens(tag)) {
-    path.get('tag').replaceWith({ type: 'ParenthesizedExpression', expression: tag });
+// A sealed non-null operand has the same loss: `(a?.b)!()` becomes `a?.b!()`, letting
+// the chain swallow a required call. Both hosts use the same late restoration.
+function restoreOptionalChainParens(path) {
+  if (chainHostOwesRestoredParens(path.node)) {
+    const key = path.node.type === 'TaggedTemplateExpression' ? 'tag' : 'expression';
+    path.get(key).replaceWith({ type: 'ParenthesizedExpression', expression: path.node[key] });
   }
 }
 
@@ -775,7 +774,7 @@ function compensationPass(programPath, originalBodyNodes, visitor) {
 // optional chains, and what a sibling adds at top level the gated descent still reaches.
 // an instantiation that survived the fold counts whether or not the restoration will act on it: the
 // exact test IS the restoration, and asking it twice costs more than the walk it would save on a
-// shape this rare
+// shape this rare. A non-null assertion counts only when its operand owes a source seal
 export function foldInstantiationsPass(programPath, originalBodyNodes = null) {
   let parensPending = false;
   // fresh visitor literal per call: babel's traverse explodes the object in place
@@ -783,8 +782,8 @@ export function foldInstantiationsPass(programPath, originalBodyNodes = null) {
     TSInstantiationExpression(path) {
       if (!foldInstantiationIntoTypeArgumentHost(path)) parensPending = true;
     },
-    TaggedTemplateExpression(path) {
-      if (tagOwesRestoredParens(path.node.tag)) parensPending = true;
+    'TaggedTemplateExpression|TSNonNullExpression'(path) {
+      if (chainHostOwesRestoredParens(path.node)) parensPending = true;
     },
   });
   return parensPending;
@@ -794,11 +793,11 @@ export function foldInstantiationsPass(programPath, originalBodyNodes = null) {
 // opposite sides of every downstream lowering: the fold REMOVES a node those lowerings misread,
 // these parens ADD one they cannot walk. `post()` is also the only hook that runs after EVERY
 // sibling's `Program:exit`, so a shape a later-ordered sibling inserted is compensated here or
-// nowhere. re-running is inert - a restored tag is no longer an optional chain
+// nowhere. re-running is inert - a restored host already carries its paren node
 export function restoreParenCompensations(programPath, originalBodyNodes = null) {
   compensationPass(programPath, originalBodyNodes, {
     TSInstantiationExpression: restoreInstantiationParens,
-    TaggedTemplateExpression: restoreOptionalTagParens,
+    'TaggedTemplateExpression|TSNonNullExpression': restoreOptionalChainParens,
   });
 }
 

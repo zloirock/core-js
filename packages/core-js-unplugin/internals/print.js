@@ -1,41 +1,30 @@
 import { print } from 'esrap';
-import ts, { EXPRESSIONS_PRECEDENCE } from 'esrap/languages/ts';
+import ts from 'esrap/languages/ts';
 import tsx from 'esrap/languages/tsx';
 import { stripQueryHash } from '@core-js/polyfill-provider/helpers/path-normalize';
 import { buildOffsetToLoc } from '@core-js/polyfill-provider/helpers/source-scan';
 import { TRANSPARENT_EXPR_WRAPPER_TYPES } from '@core-js/polyfill-provider/helpers/ast-patterns';
 
-// TS postfix `!` binds at member/call level - `x?.a!.b` CONTINUES the optional chain -
-// but the upstream table ranks it below MemberExpression, so a member over a non-null
-// gets wrapped and `(x?.a!).b` TERMINATES the chain: a nullish root then throws instead
-// of short-circuiting. one-row patch on the shared table (tsx rides the same one)
-EXPRESSIONS_PRECEDENCE.TSNonNullExpression = EXPRESSIONS_PRECEDENCE.MemberExpression;
-
 // the esrap printer adapter: oxc-parser hands out offsets, esrap attaches comments and
 // emits sourcemap segments by `loc` - this module synthesizes the locs and owns the
-// esrap-facing quirks (hashbang, EOF flush strictness, map field contract). the caller
+// esrap-facing quirks (hashbang, map field contract). the caller
 // passes BOM-free source - the plugin strips the BOM before parsing, and the output stays
 // BOM-free (babel alignment; `sourcesContent` alone keeps the original bytes)
 
 // the parse keeps `preserveParens` for detection, but the PRINT normalizes parens to the
 // minimal structural set, exactly like the babel leg: esrap re-derives every required paren
-// from precedence, and a kept `ParenthesizedExpression` would get wrapped a second time by
-// that same machinery - each reprint then grows a layer (`((0, require))(...)`) and
-// idempotency dies. the parens esrap cannot re-derive are the ones that KEEP semantics away -
-// the three hosts named below, a paren-wrapped string at statement position the first: it is NOT
+// from precedence. redundant source parens are formatting, not part of the emitted tree.
+// the parens esrap cannot re-derive are the ones that KEEP semantics away -
+// the hosts named below, a paren-wrapped string at statement position the first: it is NOT
 // a directive, so one layer stays or the reprint would promote it into the directive prologue
 function peelParens(child, parent, commentBetween) {
   if (!child || child.type !== 'ParenthesizedExpression') return child;
   let inner = child.expression;
   while (inner.type === 'ParenthesizedExpression') inner = inner.expression;
-  // three hosts where the paren IS the grammar and esrap cannot re-derive it: a paren-wrapped
-  // string at statement position is NOT a directive, a decorator admits only a
-  // LeftHandSideExpression bare (`@(<Map />)` reparses as garbage without its parens), and a
-  // comment between `throw` / `yield` and the operand they forbid a line terminator before
-  // flushes onto the keyword's line and pushes the operand under it - `throw // note` is
-  // `throw;` (esrap guards `return` this way itself, not these two) - keep exactly one layer
-  if (parent?.type === 'Decorator'
-    || (parent?.type === 'ExpressionStatement' && inner.type === 'Literal' && typeof inner.value === 'string')) {
+  // keep a string statement out of the directive prologue. a comment before a `throw` /
+  // `yield` operand also needs one layer: flushing it after the keyword would introduce
+  // a forbidden line terminator (esrap guards `return` itself, not these two)
+  if (parent?.type === 'ExpressionStatement' && inner.type === 'Literal' && typeof inner.value === 'string') {
     child.expression = inner;
     return child;
   }
@@ -52,23 +41,12 @@ function parenthesize(expression) {
   return { type: 'ParenthesizedExpression', expression, loc: expression.loc };
 }
 
-// esrap 2.3.5 gaps, measured by the roundtrip gate over the fixture corpus; every override
+// esrap 2.4.0 gaps, measured by the roundtrip gate over the fixture corpus; every override
 // carries its reproducing shape and dies as upstream catches up
 function withCorpusGapOverrides(language) {
-  const baseImport = language.ImportDeclaration;
-  // `import type {} from 'x'` prints as the VALUE import `import 'x'` - a type-only entry
-  // erases at runtime while the value spelling is a live side-effect entry
-  language.ImportDeclaration = (node, context) => {
-    if (node.importKind === 'type' && node.specifiers?.length === 0) {
-      context.write('import type {} from ');
-      context.visit(node.source);
-      context.write(';');
-    } else baseImport(node, context);
-  };
   // a concise arrow body whose LEFT EDGE is an object literal needs parens: bare, that `{`
-  // opens a BLOCK body and `() => ({ a: 1 } || x)` re-parses as a labelled statement. esrap
-  // wraps only when the object IS the whole body, and the synth mirror plants literals at
-  // exactly that edge inside a larger expression
+  // opens a BLOCK body. esrap handles a direct object operand, but misses nested left edges
+  // such as `() => ({ a: 1 } || x || y)`
   function startsWithObjectLiteral(node) {
     for (let cur = node; cur && typeof cur.type === 'string';) {
       switch (cur.type) {
@@ -92,14 +70,11 @@ function withCorpusGapOverrides(language) {
       || !startsWithObjectLiteral(node.body)) return baseArrow(node, context);
     baseArrow({ ...node, body: parenthesize(node.body) }, context);
   };
-  // `(M.g as any)<any>` prints as `M.g as any<any>` - no precedence row for the
-  // instantiation base; a synthetic paren node restores the grouping. upstream 2.3.7 groups a
-  // logical / ternary / await base on its own, but the paren NODE this writes is what the
-  // structural gate compares, so every non-bare base keeps taking it
-  const BARE_INSTANTIATION_BASES = new Set(['Identifier', 'MemberExpression', 'CallExpression', 'ThisExpression', 'Super']);
+  // esrap handles casts and lower-precedence bases, but adjacent instantiations still
+  // fuse into invalid `f<T><U>` without a boundary around the inner instantiation
   const baseInstantiation = language.TSInstantiationExpression;
   language.TSInstantiationExpression = (node, context) => {
-    if (BARE_INSTANTIATION_BASES.has(node.expression.type)) return baseInstantiation(node, context);
+    if (node.expression.type !== 'TSInstantiationExpression') return baseInstantiation(node, context);
     baseInstantiation({ ...node, expression: parenthesize(node.expression) }, context);
   };
   // esrap prints a destructuring pattern's annotation but never its `?` (a declare-signature
@@ -116,31 +91,24 @@ function withCorpusGapOverrides(language) {
       if (typeAnnotation) context.visit(typeAnnotation);
     };
   }
-  // `` `${string}_sfx` `` drops every quasi - only the substitutions survive
-  language.TSTemplateLiteralType = (node, context) => {
-    context.write(`\`${ node.quasis[0].value.raw }`);
-    for (let i = 0; i < node.types.length; i++) {
-      context.write('${');
-      context.visit(node.types[i]);
-      context.write(`}${ node.quasis[i + 1].value.raw }`);
-    }
-    context.write('`');
+  // oxc gives the inner parameter an empty decorators array. esrap prefers that array
+  // over the parameter property's own decorators and drops them; omit only the empty slot
+  const baseParameterProperty = language.TSParameterProperty;
+  language.TSParameterProperty = (node, context) => {
+    if (!node.decorators?.length || node.parameter.decorators?.length) return baseParameterProperty(node, context);
+    baseParameterProperty({ ...node, parameter: { ...node.parameter, decorators: undefined } }, context);
   };
-  // oxc spells the import source `source` where the handler expects ts-eslint's `argument`
-  const baseImportType = language.TSImportType;
-  language.TSImportType = (node, context) => baseImportType({ ...node, argument: node.source }, context);
-  // oxc hangs a method's type parameters on its VALUE function; the class-method printers
-  // read them off the method node itself (the ts-eslint shape). the clone keeps the tree
-  // unmutated - the roundtrip gate compares it against a reparse
-  for (const methodType of ['MethodDefinition', 'TSAbstractMethodDefinition']) {
-    const baseMethod = language[methodType];
-    language[methodType] = (node, context) => {
-      if (!node.typeParameters && node.value?.typeParameters) {
-        return baseMethod({ ...node, typeParameters: node.value.typeParameters }, context);
+  // esrap shares the rest visitor with spread syntax and omits parameter decorators.
+  const baseRest = language.RestElement;
+  language.RestElement = (node, context) => {
+    if (node.decorators?.length) {
+      for (const decorator of node.decorators) {
+        context.visit(decorator);
+        context.write(' ');
       }
-      baseMethod(node, context);
-    };
-  }
+    }
+    baseRest(node, context);
+  };
   const baseProperty = language.Property;
   language.Property = (node, context) => {
     // esrap collapses `x: x` to shorthand on NAME equality alone, ignoring the parsed
@@ -158,28 +126,10 @@ function withCorpusGapOverrides(language) {
     }
     return baseProperty(node, context);
   };
-  // a ChainExpression under postfix `!` is SEALED and only parens spell that boundary:
-  // `(a?.b)!.c` printed bare re-parses as one continuous chain and short-circuits past
-  // the assertion. the member/call printers know this about chains; the non-null one does not
-  const baseNonNull = language.TSNonNullExpression;
-  language.TSNonNullExpression = (node, context) => {
-    if (node.expression.type !== 'ChainExpression') return baseNonNull(node, context);
-    baseNonNull({ ...node, expression: parenthesize(node.expression) }, context);
-  };
-  // a bare cast is not a valid assignment TARGET in the real TS grammar - `w as any = [1]`
-  // fails on tsc/babel even though oxc admits it; restore the parens the peel removed.
-  // destructure property targets, for-x heads and `w! =` are all legal bare (measured)
-  const WRAPPED_ASSIGN_TARGETS = new Set(['TSAsExpression', 'TSSatisfiesExpression', 'TSTypeAssertion']);
-  const baseAssignment = language.AssignmentExpression;
-  language.AssignmentExpression = (node, context) => {
-    if (!WRAPPED_ASSIGN_TARGETS.has(node.left.type)) return baseAssignment(node, context);
-    baseAssignment({ ...node, left: parenthesize(node.left) }, context);
-  };
   // the one paren layer the peel keeps around a commented `throw` / `yield` operand opens its
   // operand on a fresh line, the way the author wrote it: esrap flushes the comment right after
   // the `(` otherwise, and a line-bound directive that leaves its own line is what the roundtrip
-  // gate holds against. every other kept layer (the decorator, the string statement) has no
-  // comment inside and prints inline
+  // gate holds against. the kept string-statement layer has no comment inside and prints inline
   const baseParenthesized = language.ParenthesizedExpression;
   language.ParenthesizedExpression = (node, context) => {
     if (!node.commentInside) return baseParenthesized(node, context);
@@ -191,29 +141,6 @@ function withCorpusGapOverrides(language) {
     context.newline();
     context.write(')');
   };
-  // an update over a compound operand prints unwrapped - `Map as any++` does not reparse
-  const baseUpdate = language.UpdateExpression;
-  language.UpdateExpression = (node, context) => {
-    if ((EXPRESSIONS_PRECEDENCE[node.argument.type] ?? 0) >= EXPRESSIONS_PRECEDENCE.UpdateExpression) return baseUpdate(node, context);
-    baseUpdate({ ...node, argument: parenthesize(node.argument) }, context);
-  };
-  // parameter decorators (`constructor(@inject(...) foo: string)`) are dropped - no param
-  // printer consults `node.decorators`. the prelude wrapper composes over the annotation
-  // wrapper above, and the length check keeps every non-param position (oxc hangs an empty
-  // `decorators` array on each of these node types) on the base path
-  for (const paramType of ['Identifier', 'AssignmentPattern', 'ArrayPattern', 'ObjectPattern', 'RestElement', 'TSParameterProperty']) {
-    const baseParam = language[paramType];
-    if (!baseParam) continue;
-    language[paramType] = (node, context) => {
-      if (node.decorators?.length) {
-        for (const decorator of node.decorators) {
-          context.visit(decorator);
-          context.write(' ');
-        }
-      }
-      baseParam(node, context);
-    };
-  }
   return language;
 }
 
@@ -284,20 +211,9 @@ function synthesizeLocs(program, comments, source) {
       walk(node[key], anchor);
     }
   })(program, null);
-  // esrap flushes a trailing comment inline only while it ends strictly BEFORE the
-  // enclosing body's end - with no line terminator at EOF the last comment ends exactly
-  // AT `Program.loc.end` and gets moved onto its own line, off the statement a
-  // `core-js-disable-line` directive covers. the loc is synthetic and Program's end is
-  // only ever read as that flush boundary, so widen it by one column
-  if (program.loc && source.length && locate(source.length).column !== 0) {
-    program.loc.end.column += 1;
-  }
-  // esrap 2.3.6 gap: writing a MULTI-LINE block comment ends the line itself, and a follower on
-  // the closing line (`*/ foo();`) then takes the same-line pad at the head of the next line
-  // (`*/\n foo();`) - a spelling the re-parse drops, so the print was not a fixed point. the print
-  // copy of such a comment closes one line early: esrap takes its newline branch, which its own
-  // write already satisfied, and the follower opens the line clean. the copy is esrap's alone -
-  // the directive gates read the parsed comments
+  // a multiline JSDoc cast followed on its closing line still accumulates a newline
+  // inside the generated parens. ending the print-only comment loc one line earlier
+  // makes the comment flush take its newline branch before opening the cast
   function printLoc(comment) {
     const loc = { start: locate(comment.start), end: locate(comment.end) };
     if (comment.type === 'Block' && comment.value.includes('\n') && followsOnLine(source, comment.end)) loc.end.line -= 1;
@@ -385,7 +301,7 @@ export function printProgram({ program, comments, source, id, jsx = false, inclu
     }
   })(program);
 
-  const language = withCorpusGapOverrides((jsx ? tsx : ts)({ comments: printComments, boundaryTokens: true }));
+  const language = withCorpusGapOverrides((jsx ? tsx : ts)({ comments: printComments }));
   // explicitly ANCHORED leading comments (node -> texts): emitted verbatim ahead of the
   // node's own print, bypassing the loc heuristics entirely - the deterministic channel
   // for a directive that must reach the NEXT pass on its own line whatever a sibling's
@@ -414,14 +330,6 @@ export function printProgram({ program, comments, source, id, jsx = false, inclu
   });
   let { code } = printed;
   const { map } = printed;
-  // esrap pads a flushed comment with a trailing space meant for a following statement;
-  // with no statement after it the pad lands at EOF - INSIDE a line comment's token, so
-  // every reprint would grow the comment's value by one space. final-line horizontal
-  // trivia is never part of any other token - trim it (a scan, not `[ \t]+$`: that spelling
-  // is the classic polynomial-backtracking regexp)
-  let trimmedEnd = code.length;
-  while (trimmedEnd > 0 && (code[trimmedEnd - 1] === ' ' || code[trimmedEnd - 1] === '\t')) trimmedEnd--;
-  if (trimmedEnd !== code.length) code = code.slice(0, trimmedEnd);
   // esrap has no Hashbang handler; re-emit it and shift the map one generated line down
   // (a leading `;` in the mappings string is exactly one empty line)
   if (program.hashbang) {

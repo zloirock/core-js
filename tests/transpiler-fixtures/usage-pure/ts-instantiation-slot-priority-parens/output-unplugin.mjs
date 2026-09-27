@@ -29,18 +29,18 @@ const viaAssertion = (_Array$of<any>)(1);
 const viaBare = (_Array$of<any>)(1);
 const viaMember = (_Map$groupBy<any>)([], g);
 const viaNonNull = (_Promise$try<any>)(g);
-const viaSequence = (((q++, _Array$from))<any>)([1]);
+const viaSequence = ((q++, _Array$from)<any>)([1]);
 
 // the rest of the domain: shapes already binding tighter than the type-argument list stay bare,
 // and `satisfies` is the fusing cast the lines above do not spell
-const viaBigInt = ((1n)<any>)(1);
+const viaBigInt = (1n<any>)(1);
 
-const viaBoolean = ((true)<any>)(1);
-const viaNull = ((null)<any>)(1);
-const viaRegExp = ((/re/)<any>)(1);
-const viaTemplate = ((`t`)<any>)(1);
-const viaImport = ((import('m'))<any>)(1);
-const viaMetaProperty = ((import.meta)<any>)(1);
+const viaBoolean = (true<any>)(1);
+const viaNull = (null<any>)(1);
+const viaRegExp = (/re/<any>)(1);
+const viaTemplate = (`t`<any>)(1);
+const viaImport = (import('m')<any>)(1);
+const viaMetaProperty = (import.meta<any>)(1);
 const viaNestedInstantiation = ((_Array$of<number>)<any>)(1);
 const viaSatisfies = (_Array$from<any>)([1]);
 
