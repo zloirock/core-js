@@ -12068,33 +12068,6 @@ function sequenceSlotsNeedSplit(seq, depth) {
   return false;
 }
 
-// invoke the handlers for every statement POSITION rooted at `rootNode`, in one structural
-// recursion: `onList` for each Statement-list slot, `onUnbracedSlot(hostNode, slotKey)` for each
-// single-statement control-flow body. the two partition the positions - a braced body is a list
-// host and never reaches `onUnbracedSlot` - so a caller wanting both never walks the tree twice.
-// the `isASTNode` filter stays safe against plugin-stamped sidecar keys without a hand-curated
-// skip list; `SwitchCase` holds its list at `consequent`, so that slot name is special-cased
-export function forEachStatementPosition(rootNode, { onList, onUnbracedSlot } = {}) {
-  function visitPositions(node) {
-    if (!isASTNode(node)) {
-      if (Array.isArray(node)) for (const item of node) visitPositions(item);
-      return;
-    }
-    if (onList) {
-      if (STATEMENT_LIST_HOST_TYPES.has(node.type) && Array.isArray(node.body)) onList(node.body);
-      if (node.type === 'SwitchCase' && Array.isArray(node.consequent)) onList(node.consequent);
-    }
-    if (onUnbracedSlot) {
-      for (const key of SINGLE_STATEMENT_SLOTS.get(node.type) ?? []) {
-        const slot = node[key];
-        if (isASTNode(slot) && !STATEMENT_LIST_HOST_TYPES.has(slot.type)) onUnbracedSlot(node, key);
-      }
-    }
-    walkAstChildren(node, visitPositions);
-  }
-  visitPositions(rootNode);
-}
-
 // what a POSITION does to a value that lands in it. the escape analyses used to answer this with a
 // case list each, drifting apart position by position; this is the single enumeration they both ask.
 // four outcomes, and every syntactic position has exactly one:

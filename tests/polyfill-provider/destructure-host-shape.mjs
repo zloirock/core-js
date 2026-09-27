@@ -7,6 +7,7 @@ import {
   isBodylessStatementSlot,
   isForInitDeclaration,
   isLoopStatement,
+  minifierSequenceReducer,
   peelLabeledStatements,
   planArrayWrapperCapture,
   planMinifierSequenceSplit,
@@ -18,7 +19,7 @@ import {
   renderRetainedObjectCapture,
 } from '../../packages/core-js-polyfill-provider/destructure-host-shape.js';
 import { createChecker } from './harness.mjs';
-import { hasObjectRestAncestor, isCapturedKeyedPattern } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import { collectFileCensus, hasObjectRestAncestor, isCapturedKeyedPattern, SINGLE_STATEMENT_SLOTS } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { buildDestructuringInitMeta, destructureKeyReadPlan, resolveNestedReceiverChain } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
 import { resolvePolyfillableStaticProp } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
 import { hostSlot, identifier, renderInstanceDefaultGuard } from '../../packages/core-js-polyfill-provider/render.js';
@@ -955,6 +956,116 @@ runBoth('planMinifierSequenceSplit/slot inside an operand', 'const src = [1];\n(
 runBoth('planMinifierSequenceSplit/no shape, no entry', 'const src = [1];\n({ at } = src);\n(a(), b());\n', (adapter, prog, lbl) => {
   check(lbl, planMinifierSequenceSplit(prog.node).length, 0);
 });
+
+// A census-backed plan must read only indexed operands, even in a file with no match.
+// Keeping inert patterns and unrelated require calls split is part of the existing output contract.
+for (const [source, count] of [
+  ['function unrelated() { return [1, 2, 3]; } (a(), b());', 0],
+  ['(a(), ({ custom: value } = source));', 1],
+  ['(a(), ({ Map: M } = globalThis));', 1],
+  ['(a(), ({ from } = Array));', 1],
+  ['(a(), ([{ at }] = source));', 1],
+  ['(a(), ({ [key()]: value = fallback() } = source));', 1],
+  ['(a(), ({ ...rest } = source));', 1],
+  ['(a(), require("unrelated"));', 1],
+  ['(a(), (0, \\u0072equire)("core-js"));', 1],
+  ['(a(), ({ custom } = source), () => { if (c) (b(), ({ Map: M } = globalThis)); });', 2],
+  ['const f = () => (a(), ({ at } = source));', 0],
+  ['const value = (a(), require("core-js"));', 0],
+]) runBoth('minifier census indexed operands', source, (adapter, prog, lbl) => {
+  const before = JSON.stringify(prog.node);
+  const census = collectFileCensus(prog.node, [minifierSequenceReducer()]);
+  check(`${ lbl }: matching statements`, census.minifierSequences.length, count);
+  check(`${ lbl }: collection leaves the source intact`, JSON.stringify(prog.node), before);
+  const { body } = prog.node;
+  let reads = 0;
+  Object.defineProperty(prog.node, 'body', { configurable: true, get() {
+    reads++;
+    return body;
+  } });
+  const plan = planMinifierSequenceSplit(prog.node, { census });
+  check(`${ lbl }: plan preserves the matches`, plan.length, count);
+  check(`${ lbl }: no second root walk`, reads, 0);
+  Object.defineProperty(prog.node, 'body', { configurable: true, writable: true, value: body });
+  check(`${ lbl }: planning leaves the source intact`, JSON.stringify(prog.node), before);
+});
+
+for (const host of [
+  'SPLIT',
+  '{ SPLIT }',
+  'if (c) SPLIT else SPLIT',
+  'while (c) SPLIT',
+  'do SPLIT while (c);',
+  'for (;;) SPLIT',
+  'for (const key in source) SPLIT',
+  'for (const value of source) SPLIT',
+  'label: SPLIT',
+  'switch (c) { case 1: SPLIT break; default: SPLIT }',
+  'try { SPLIT } catch (error) { SPLIT } finally { SPLIT }',
+  'class C { static { SPLIT } method() { SPLIT } }',
+  'namespace N { SPLIT }',
+  'const f = () => { SPLIT };',
+]) runBoth('minifier census statement positions', host.replaceAll('SPLIT', '(before(), ({ at } = source), after());'), (adapter, prog, lbl) => {
+  const census = collectFileCensus(prog.node, [minifierSequenceReducer()]);
+  const plan = planMinifierSequenceSplit(prog.node, { census });
+  check(`${ lbl }: every position planned`, plan.length, host.split('SPLIT').length - 1);
+  for (const entry of plan) {
+    check(`${ lbl }: source position retained`, entry.statements?.includes(entry.statement) ?? entry.host[entry.key] === entry.statement, true);
+    check(`${ lbl }: ordered products`, entry.products.length, 3);
+  }
+});
+
+// --- minifier census: the un-braced slot half ---
+// the un-braced half of the statement lattice: slots that hold ONE statement instead of a list.
+// a pass rewriting a statement into several has to brace these first, so the enumeration has to
+// name every such slot, skip the braced ones (they belong to the statement-list walk, and visiting
+// both would double-handle the same statement), and reach slots nested inside other statements
+
+function splitStatement(tag) {
+  return { type: 'ExpressionStatement', expression: {
+    type: 'SequenceExpression', expressions: [
+      { type: 'Identifier', name: tag },
+      { type: 'AssignmentExpression', operator: '=', left: { type: 'ObjectPattern', properties: [] }, right: identifier('source') },
+    ],
+  } };
+}
+function splitSlotsOf(root) {
+  const plan = planMinifierSequenceSplit(root);
+  for (const entry of plan) {
+    check('minifier census/excludes statement-shaped sidecars', entry.statements?.includes(entry.statement) ?? entry.host[entry.key] === entry.statement, true);
+  }
+  return plan.filter(entry => entry.host).map(({ host, key }) => `${ host.type }.${ key }`).sort().join(',');
+}
+
+// every declared host reports its slot when the slot holds a bare statement
+for (const [type, keys] of SINGLE_STATEMENT_SLOTS) {
+  const node = { type };
+  for (const key of keys) node[key] = splitStatement(key);
+  check(`minifier census/${ type } reports its slots`,
+    splitSlotsOf(node), keys.map(key => `${ type }.${ key }`).sort().join(','));
+}
+
+// a braced body is a statement-list host, so it belongs to the other walk and must NOT be reported
+check('minifier census/braced body skipped',
+  splitSlotsOf({ type: 'ForStatement', body: { type: 'BlockStatement', body: [splitStatement('a')] } }), '');
+
+// only one arm of an `if` braced - the bare arm still reports
+check('minifier census/mixed if arms',
+  splitSlotsOf({ type: 'IfStatement', consequent: { type: 'BlockStatement', body: [] }, alternate: splitStatement('b') }),
+  'IfStatement.alternate');
+
+// an absent slot (`if` with no else) reports nothing for it
+check('minifier census/absent alternate',
+  splitSlotsOf({ type: 'IfStatement', consequent: splitStatement('a'), alternate: null }), 'IfStatement.consequent');
+
+// slots nested inside another statement are reached - the walk recurses structurally
+check('minifier census/nested slot reached',
+  splitSlotsOf({ type: 'WhileStatement', body: { type: 'ForStatement', body: splitStatement('a') } }),
+  'ForStatement.body');
+
+// a node type outside the table never reports, whatever it holds at `body`
+check('minifier census/non-slot host ignored',
+  splitSlotsOf({ type: 'SwitchCase', consequent: [splitStatement('a')], body: splitStatement('b') }), '');
 
 for (const siblings of ['', ', tail']) runBoth('retained wrapper computed key shares one call result',
   `let method, tail; [{ [(key(), "at")]: method }${ siblings }] = [source(), 7];`, (parser, program, label) => {

@@ -2534,12 +2534,10 @@ function * generateOptionalForeignReceiver() {
     + ' return String(u?.at(0)); })()'), ts: true, strip: true };
 }
 
-// --- minifier-collapsed destructure in an UN-BRACED control-flow body ---
-// the split that un-collapses `(effect, ({m} = src))` walks statement LISTS, but an un-braced body
-// holds one statement in a slot instead, so the slot has to be braced before the products have
-// anywhere to go. both emitters bail the same way when that is missed, so the parity leg is blind -
-// the stripped realm is the oracle: an un-split row keeps the NATIVE member read, which is gone
-// there, while the split row holds the ponyfill. distinct host and method per row
+// --- minifier-collapsed destructure in statement positions ---
+// Single-statement bodies need bracing around the split products; list hosts already have room.
+// The native effect log checks operand order, and the stripped realm checks the extracted method.
+// Effects on both sides make a reversed product list observable even when the read itself is pure.
 function * generateUnbracedBodyMinifierSplit() {
   const rows = [
     ['for', 'at', 'for (let i = 0; i < 1; i++) (log.push("e"), ({ at: m } = src));'],
@@ -2547,9 +2545,14 @@ function * generateUnbracedBodyMinifierSplit() {
     ['if', 'flat', 'if (cond) (log.push("e"), ({ flat: m } = src));'],
     ['label', 'flatMap', 'lbl: (log.push("e"), ({ flatMap: m } = src));'],
     ['for-of', 'findLast', 'for (const k of [0]) (log.push("e"), ({ findLast: m } = src));'],
+    ['else', 'at', 'if (!cond) {} else (log.push("before"), ({ at: m } = src), log.push("after"));'],
+    ['do', 'at', 'let n = 0; do (log.push("before"), ({ at: m } = src), log.push("after")); while (n++ < 0);'],
+    ['for-in', 'at', 'for (const k in { x: 1 }) (log.push("before"), ({ at: m } = src), log.push("after"));'],
+    ['switch', 'at', 'switch (0) { default: (log.push("before"), ({ at: m } = src), log.push("after")); }'],
+    ['finally', 'at', 'try {} finally { (log.push("before"), ({ at: m } = src), log.push("after")); }'],
+    ['static', 'at', 'class C { static { (log.push("before"), ({ at: m } = src), log.push("after")); } }'],
   ];
-  // the fixpoint has to run THROUGH the brace: the inner sequence only becomes a free-standing
-  // statement after the outer one is braced and split, so this row needs a second pass to resolve
+  // The shared plan flattens nested operands before the binding braces the slot.
   rows.push(['for-nested', 'flatMap',
     'for (let i = 0; i < 1; i++) (log.push("e"), (log.push("i"), ({ flatMap: m } = src)));']);
   for (const [host, method, stmt] of rows) {
