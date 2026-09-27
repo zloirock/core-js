@@ -156,6 +156,44 @@ const CHANNELS = [
   ['nested class owns its own receiver',
     `const h = { rows: [1, 2], m() { class K { own() { sink(this); } } new K().own(); }, ${ READ } };\n`
     + 'h.m();\nexport const r = h.read();', 'local'],
+  ['nested object key hands OUR receiver out',
+    `const h = { rows: [1, 2], m() { const inner = { [sink(this)]() {} }; return inner; }, ${ READ } };\n`
+    + 'h.m();\nexport const r = h.read();', 'escapes'],
+  ['nested class key hands OUR receiver out',
+    `const h = { rows: [1, 2], m() { class K { [sink(this)]() {} } return K; }, ${ READ } };\n`
+    + 'h.m();\nexport const r = h.read();', 'escapes'],
+  ['nested class field key hands OUR receiver out',
+    `const h = { rows: [1, 2], m() { class K { [sink(this)] = 1; } return K; }, ${ READ } };\n`
+    + 'h.m();\nexport const r = h.read();', 'escapes'],
+  ['nested key aliases OUR receiver before handing it out',
+    `const h = { rows: [1, 2], m() { const inner = { [(() => { const self = this; sink(self); })()]() {} }; return inner; }, ${ READ } };\n`
+    + 'h.m();\nexport const r = h.read();', 'escapes'],
+  ['nested key keeps a local receiver alias',
+    `const h = { rows: [1, 2], m() { const inner = { [(() => { const self = this; return self.rows.length; })()]() {} }; return inner; }, ${ READ } };\n`
+    + 'h.m();\nexport const r = h.read();', 'local'],
+  ['static method class key aliases OUR receiver before handing it out',
+    'class C { static rows = [1, 2]; static m() { return class { [(() => { const self = this; return sink(self); })()] = 1; }; } }\n'
+    + 'C.m();\nexport const r = C.rows.at(0);', 'escapes'],
+  ['static method class key keeps a local receiver alias',
+    'class C { static rows = [1, 2]; static m() { return class { [(() => { const self = this; return self.rows.length; })()] = 1; }; } }\n'
+    + 'C.m();\nexport const r = C.rows.at(0);', 'local'],
+  ['nested field value owns its own receiver',
+    `const h = { rows: [1, 2], m() { class K { hook = sink(this); } return new K(); }, ${ READ } };\n`
+    + 'h.m();\nexport const r = h.read();', 'local'],
+  ['nested static block owns its own receiver',
+    `const h = { rows: [1, 2], m() { class K { static { sink(this); } } return K; }, ${ READ } };\n`
+    + 'h.m();\nexport const r = h.read();', 'local'],
+  ['own method key runs before the receiver exists',
+    `const h = { rows: [1, 2], [sink(this)]() {}, ${ READ } };\nexport const r = h.read();`, 'local'],
+  ['nested member decorator hands OUR receiver out',
+    `const h = { rows: [1, 2], m() { class K { @dec(this) f() {} } return K; }, ${ READ } };\n`
+    + 'h.m();\nexport const r = h.read();', 'escapes'],
+  ['class-valued initializer key hands OUR receiver out',
+    `class C { rows = [1, 2]; inner = class { [sink(this)]() {} }; ${ READ } }\n`
+    + 'const c = new C();\nexport const r = c.read();', 'escapes'],
+  ['class-valued initializer body owns its own receiver',
+    `class C { rows = [1, 2]; inner = class { m() { sink(this); } }; ${ READ } }\n`
+    + 'const c = new C();\nexport const r = c.read();', 'local'],
   ['nested arrow keeps OUR receiver',
     `const h = { rows: [1, 2], m() { const f = () => sink(this); f(); }, ${ READ } };\n`
     + 'h.m();\nexport const r = h.read();', 'escapes'],
@@ -166,6 +204,10 @@ const CHANNELS = [
   // a param default and a field initializer run with the same receiver as the body they belong to
   ['param default hands `this` out',
     `const h = { rows: [1, 2], m(a = sink(this)) { return a; }, ${ READ } };\nh.m();\nexport const r = h.read();`, 'escapes'],
+  ['param default writes a foreign field value',
+    `const h = { rows: [1, 2], m(a = this.rows = "text") { return a; }, ${ READ } };\nh.m();\nexport const r = h.read();`, 'escapes'],
+  ['param pattern key writes a foreign field value',
+    `const h = { rows: [1, 2], m({ [this.rows = "text"]: a } = {}) { return a; }, ${ READ } };\nh.m();\nexport const r = h.read();`, 'escapes'],
   ['field initializer hands `this` out',
     `class C { rows = [1, 2]; hook = sink(this); ${ READ } }\nconst c = new C();\nexport const r = c.read();`, 'escapes'],
   ['static member hands the constructor out',
