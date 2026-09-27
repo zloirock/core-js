@@ -29,7 +29,7 @@ import { sealedLayerAbove } from '../../packages/core-js-unplugin/internals/clai
 import SnapshotCache from '../../packages/core-js-unplugin/internals/snapshot-cache.js';
 import { printProgram } from '../../packages/core-js-unplugin/internals/print.js';
 import { collapseWhitespace } from './collapse-whitespace.mjs';
-import { commentSignature } from './structural.mjs';
+import { commentSignature, strip } from './structural.mjs';
 import {
   KNOWN_BUNDLERS,
   hasCoreJSImport,
@@ -3672,13 +3672,12 @@ function checkAstPrintQuirks() {
   // oxc admits the bare spelling, tsc/babel do not - the printed form must hold to the
   // strict grammar (the differential's ast print-through leg executes through babel)
   check('a cast assignment target keeps its parens', astPrint('(w as any) = [1];').code, '(w as any) = [1];');
-  // the workaround widening `Program.loc.end` - without it esrap's strictly-before flush
-  // moves the comment onto its own line, off the statement a disable-line directive covers
+  // EOF comments keep their statement association even without a final line terminator
   check('EOF trailing comment stays inline without a final newline',
     astPrint('console.log(1); // keep me').code, 'console.log(1); // keep me');
   check('CR-only line table keeps a trailing comment inline',
     astPrint('let a = 1;\rlet b = 2; // tail\r').code, 'let a = 1;\nlet b = 2; // tail');
-  // esrap's statement-pad space would land INSIDE the comment token and grow it per reprint
+  // padding must not become part of a line comment's value on each reprint
   check('a comment-only file does not accrete the pad space', astPrint('// alone').code, '// alone');
   check('the pad trim reaches a fixed point', astPrint(astPrint('// alone').code).code, '// alone');
   // an object concise method keeps its type parameters in every spelling - plain, generator and
@@ -3693,8 +3692,100 @@ function checkAstPrintQuirks() {
   check('hashbang is re-emitted', astPrint('#!/usr/bin/env node\nlet x = 1;').code, '#!/usr/bin/env node\nlet x = 1;');
   check('jsx prints under the tsx language',
     astPrint('const el = <div a={1}>hi</div>;', 'input.tsx').code, 'const el = <div a={1}>hi</div>;');
+  // Exercise upstream fixes and the remaining adapter gaps through both language visitors.
+  // Structure catches lost syntax; spelling also guards ES5 longhand and required grouping.
+  for (const [label, source, fragment, tsOnly = false] of [
+    ['empty type import', 'import type {} from "pkg";', 'import type {} from "pkg";'],
+    // eslint-disable-next-line no-template-curly-in-string -- TypeScript template literal source
+    ['template literal type', 'type T = `prefix_${string}_suffix`;', '`prefix_${string}_suffix`'],
+    ['import type source', 'type T = import("pkg").Foo<string>;', 'import("pkg").Foo<string>'],
+    ['generic method', 'class C { m<T>(x: T) { return x; } }', 'm<T'],
+    ['abstract generic method', 'abstract class C { abstract m<T>(x: T): T; }', 'abstract m<T'],
+    ['generic arrow', 'const f = <T,>(x: T) => x;', '(x: T) => x'],
+    ['continuous non-null chain', 'a?.b!.c;', 'a?.b!.c;'],
+    ['sealed non-null chain', '(a?.b)!.c;', '(a?.b)!.c;'],
+    ['sealed non-null call', '(a?.b)!();', '(a?.b)!();'],
+    ['instantiated cast', 'const f = (g as any)<string>;', '(g as any)<string>'],
+    ['instantiated satisfies', 'const f = (g satisfies any)<string>;', '(g satisfies any)<string>'],
+    ['instantiated assertion', 'const f = (<any>g)<string>;', '(<any>g)<string>', true],
+    ['nested instantiation', 'const f = (g<number>)<string>;', '(g<number>)<string>'],
+    ['cast update', '(x as number)++;', '(x as number)++;'],
+    ['satisfies assignment', '(x satisfies any) = y;', '(x satisfies any) = y;'],
+    ['array optional parameter', 'declare function f([x]?: number[]): void;', '[x]?: number[]'],
+    ['object optional parameter', 'declare function f({ x }?: { x: number }): void;', '{ x }?:'],
+    ['parameter decorator', 'class C { constructor(@dec x: any) {} }', 'constructor(@dec x: any)'],
+    ['default parameter decorator', 'class C { constructor(@dec x = 1) {} }', 'constructor(@dec x = 1)'],
+    ['rest parameter decorator', 'class C { constructor(@dec ...x: any[]) {} }', 'constructor(@dec ...x: any[])'],
+    ['array rest decorator', 'class C { constructor(@dec ...[x]: any[]) {} }', 'constructor(@dec ...[x]: any[])'],
+    ['object rest decorator', 'class C { constructor(@dec ...{ length }: any[]) {} }', 'constructor(@dec ...{ length }: any[])'],
+    ['rest method decorators', 'class C { m(@first @second ...x: any[]) {} }', 'm(@first @second ...x: any[])'],
+    ['static rest decorator', 'class C { static m<T>(@dec ...x: T[]) {} }', '(@dec ...x: T[])'],
+    ['parameter property decorator', 'class C { constructor(@dec private x: any) {} }', 'constructor(@dec private x: any)'],
+    ['default property decorator', 'class C { constructor(@first @second private x = 1) {} }', 'constructor(@first @second private x = 1)'],
+    ['compound decorator', '@(a || b) class C {}', '@(a || b)'],
+    ['sequence callee', '((0, f))();', '(0, f)();'],
+    ['nested object arrow', 'const f = () => ({} || a || b);', '() => ({} || a || b)'],
+    ['binary object arrow', 'const f = () => ({} + a);', '() => ({} + a)'],
+    ['longhand property', 'const o = { x: x };', '{ x: x }'],
+  ]) {
+    for (const file of tsOnly ? ['input.ts'] : ['input.ts', 'input.tsx']) {
+      const printed = astPrint(source, file).code;
+      const prefix = `print/${ label }/${ file }`;
+      // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
+      const original = parseSync(file, source);
+      // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
+      const reparsed = parseSync(file, printed);
+      check(`${ prefix }/source parses`, original.errors.length, 0);
+      check(`${ prefix }/output parses`, reparsed.errors.length, 0);
+      checkDeep(`${ prefix }/structure`, strip(reparsed.program), strip(original.program));
+      check(`${ prefix }/spelling`, printed.includes(fragment), true);
+      check(`${ prefix }/fixed point`, astPrint(printed, file).code, printed);
+    }
+  }
+  // The parameter-property shim only repairs an empty inner slot. A populated slot
+  // remains authoritative, and printing must preserve both source decorator arrays.
+  for (const file of ['input.ts', 'input.tsx']) {
+    const source = 'class C { constructor(@outer private x: any) {} }';
+    // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
+    const parsed = parseSync(file, source);
+    const [property] = parsed.program.body[0].body.body[0].value.params;
+    const outer = property.decorators;
+    const inner = [{ ...outer[0], expression: { ...outer[0].expression, name: 'inner' } }];
+    property.parameter.decorators = inner;
+    const printed = printProgram({ program: parsed.program, comments: parsed.comments, source, id: file, jsx: file.endsWith('.tsx') }).code;
+    check(`print/property-decorators/${ file }/inner wins`, printed.includes('constructor(@inner private x: any)'), true);
+    check(`print/property-decorators/${ file }/outer unchanged`, property.decorators, outer);
+    check(`print/property-decorators/${ file }/inner unchanged`, property.parameter.decorators, inner);
+  }
 }
 checkAstPrintQuirks();
+
+// Babel rejects legacy decorators on rest parameters, so the shared fixture runner
+// cannot carry this syntax. Drive every unplugin phase directly and force a reprint.
+function checkRestParameterDecorators() {
+  for (const method of ['entry-global', 'usage-global', 'usage-pure']) {
+    for (const phase of method === 'entry-global' ? ['pre'] : ['pre', 'post', 'pre+post']) {
+      for (const id of ['/rest.ts', '/rest.tsx']) {
+        const prefix = method === 'entry-global' ? 'import "core-js/es/array/flat";' : '[1, [2]].flat();';
+        const source = `${ prefix }\nclass C { constructor(@first @second ...args: any[]) {} }`;
+        const plugins = unplugin.raw({ method, phase, version: '4.0', targets: { ie: 11 } }, { framework: 'vite' });
+        let code = source;
+        let reprinted = false;
+        for (const plugin of plugins) {
+          const result = plugin.transform.call({ warn(message) { throw new Error(message); } }, code, id);
+          if (result) {
+            code = result.code;
+            reprinted = true;
+          }
+        }
+        check(`rest decorators/${ method }/${ phase }/${ id }/reprinted`, reprinted, true);
+        check(`rest decorators/${ method }/${ phase }/${ id }/preserved`,
+          code.includes('constructor(@first @second ...args: any[])'), true);
+      }
+    }
+  }
+}
+checkRestParameterDecorators();
 
 // --- ast-builders: the minted literal's spelling ---
 
