@@ -7,7 +7,7 @@ import { assertES5 } from '../../scripts/assert-es5.mjs';
 import { makeStrictWarn } from '../transpiler-integration/warning-policy.mjs';
 import { makeBabelPlugin } from './babel.mjs';
 import { pluginOpts } from './cells.mjs';
-import { HERE, isCoreJsModule, toPosix } from './paths.mjs';
+import { HERE, NODE_MODULES, isCoreJsModule, toPosix } from './paths.mjs';
 import { tsSources } from './ts-sources.mjs';
 import { join, relative } from 'node:path';
 
@@ -94,6 +94,43 @@ function injected({ injected: specifiers }, label) {
 
 const GATES = [noExternals, es5, payload, injected];
 
+// A polyfill decides whether it is needed by calling the native and seeing whether it throws, and
+// rollup DELETES that call: the callee is one of the globals it knows as pure, the result is thrown
+// away, and the try-statement deoptimization that exists for this does not reach a callback whose
+// helper is reached as a property - which `fails` is, once `commonjs()` has converted the module it
+// comes from. The flag then reads false, nothing is forced, and the engine keeps the method the
+// polyfill exists to replace. Seven detections go that way, `es.object.get-prototype-of` and the
+// typed-array wrappers among them, and no local tier sees it: only an engine whose native misbehaves
+// does, which here means IE11 on CI. So the bodies are kept instead, at a few percent of bundle size.
+// WHEN ROLLUP FIXES THIS, DROP THIS PLUGIN - `assertDetectionsStillNeedHelp` below fails the run to
+// say so, rather than leaving the workaround to outlive its reason.
+const keepCoreJsDetections = {
+  name: 'keep-core-js-detections',
+  transform: (code, id) => isCoreJsModule(id) ? { code, map: null, moduleSideEffects: 'no-treeshake' } : null,
+};
+
+// The reverse test for the plugin above: it asserts the DEFECT, so it goes red once rollup stops
+// emptying the detection, which is the moment the plugin has to go. One tiny build, no cell.
+export async function assertDetectionsStillNeedHelp() {
+  const input = join(NODE_MODULES, 'core-js', 'modules', 'es.object.get-prototype-of.js');
+  const bundle = await rollup({ input, plugins: [commonjs()], onwarn: strictWarn });
+  try {
+    const [chunk] = (await bundle.generate({ format: 'cjs' })).output;
+    const body = chunk.code.match(/FAILS_ON_PRIMITIVES = fails\(function \(\) \{(?<body>[^}]*)\}\)/)?.groups.body;
+    if (body === undefined) {
+      throw new Error('the detection probe found no `FAILS_ON_PRIMITIVES` in es.object.get-prototype-of - '
+        + 'the module was rewritten, so this check no longer measures what it claims');
+    }
+    if (body.trim()) {
+      throw new Error(`rollup now keeps \`${ body.trim() }\` inside the detection of es.object.get-prototype-of. `
+        + 'The `keep-core-js-detections` plugin in bundle.mjs was the workaround for it emptying that call - '
+        + 'drop the plugin and this check, and re-author the baselines.');
+    }
+  } finally {
+    await bundle.close();
+  }
+}
+
 // ONE provider per bundle: both would inject the union and the cell would describe neither. A graph may
 // hold CommonJS - ml-matrix's implementation is one such file behind an ESM wrapper, and echarts'
 // exercise reads the SVG with two such packages - and a provider writes a `require` into such a module
@@ -111,6 +148,7 @@ export async function buildCell(cell) {
       makeBabelPlugin(cell.isReference ? pluginOpts(cell) : null),
       ...cell.isReference ? [] : [unplugin.rollup(pluginOpts(cell))],
       ...record.plugins,
+      keepCoreJsDetections,
       nodeResolve(),
       commonjs(),
     ],
