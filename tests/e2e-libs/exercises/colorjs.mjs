@@ -26,17 +26,19 @@
 // which Babel cannot lower, and only the global version installs core-js's RegExp - the pure one
 // dies on such a pattern on IE11. The same rules out the sticky twin of this literal, remeda's.
 //
-// KNOWN RED on real IE11, in the `usage-pure` cells, and it is the form's own limit rather than a
-// defect anyone can fix here. `_wrapRegExp` builds its `groups` object inside the `exec` it installs,
-// and the only route to that `exec` is the dispatch `String.prototype.match` -> `Symbol.match` ->
-// `exec`, which ES5 does not have: IE11's `match` works off the internal pattern and never calls an
-// object's own `exec`. The global flavor patches the prototype and comes out whole - `es.string.match`
-// and `es.regexp.exec` are in its baseline for that reason - while the pure one may not patch
-// anything, so `params.groups` arrives empty and reading `.type` throws. That is the same class as
-// the `Object.prototype.toString` and `Error` shapes recorded in AGENTS.md: behaviour the code takes
-// from the ENGINE, not from a name the provider can rewrite. No local tier shows it either - node and
-// every local browser dispatch through `exec` - and the realm that does is one whose
-// `String.prototype.match` calls the ORIGINAL `exec` rather than the object's own, as ES5 does.
+// RED on real IE11 in the `usage-pure` cells, and declared so: `libraries.mjs` lists the method as
+// a browser diagnostic, so the browser leg reports it without gating. It is the form's own limit
+// rather than a defect anyone can fix here. `_wrapRegExp` builds its `groups` object inside the
+// `exec` it installs, and the only route to that `exec` is the dispatch `String.prototype.match` ->
+// `Symbol.match` -> `exec`, which ES5 does not have: IE11's `match` works off the internal pattern
+// and never calls an object's own `exec`. The global flavor patches the prototype and comes out
+// whole - `es.string.match` and `es.regexp.exec` are in its baseline for that reason - while the
+// pure one may not patch anything, so `params.groups` arrives empty and reading `.type` throws.
+// That is the same class as the `Object.prototype.toString` and `Error` shapes recorded in
+// AGENTS.md: behaviour the code takes from the ENGINE, not from a name the provider can rewrite. No
+// local tier shows it either - node and every local browser dispatch through `exec` - and the realm
+// that does is one whose `String.prototype.match` calls the ORIGINAL `exec` rather than the
+// object's own, as ES5 does.
 //
 // This exercise is also what surfaced the bundler problem `bundle.mjs` works around:
 // `ColorSpace.get('srgb')` walks `isInstance` in `src/util.js`, which hands a STRING to

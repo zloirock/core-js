@@ -23,9 +23,13 @@ announceBrowserRun(runnable.length);
 
 const failed = [];
 for (const cell of runnable) {
-  // `pre` is unplugin's known-incomplete phase; a babel-plugin cell has no phase axis, so it gates
-  const gating = cell.phase !== 'pre';
-  announceBrowserCell(cell.label, gating);
+  // decided once, in `cells.mjs`, and carried here by the manifest. A row without it is a manifest
+  // older than the field, and reading `undefined` as "not gating" would wave every cell through
+  if (typeof cell.gatesInBrowsers !== 'boolean') {
+    throw new Error(`${ cell.label }: the manifest has no \`gatesInBrowsers\` - rerun the runtime tier first`);
+  }
+  const gating = cell.gatesInBrowsers;
+  announceBrowserCell(cell);
   try {
     // `label` is the artifact directory too: `cells.mjs` joins a cell's segments on `/` once, and
     // karma matches its `files` through glob, where a backslash is an escape that matches nothing
@@ -39,7 +43,7 @@ for (const cell of runnable) {
   } catch {
     cell.karma = gating ? 'failed' : 'diagnostic-failed';
     if (gating) failed.push(cell.label);
-    reportBrowserCell(cell.label, gating);
+    reportBrowserCell(cell);
   }
 }
 
