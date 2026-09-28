@@ -5,10 +5,11 @@ import _self from "@core-js/pure/actual/self";
 export const viaRestDeclinedAnchor = _Math$trunc;
 // Claimed statics retain their polyfills beside object rest.
 // Rest keeps its source and exclusions; instance slots remain native.
-export const {
+const {
   Math: _unused,
   ...viaRestRest
 } = null == _globalThis.window ? void 0 : _self;
+export { viaRestRest };
 export const viaPartialProbed = _Number$isInteger;
 export const {
   customZ: viaPartialCustom

@@ -36,8 +36,8 @@ export function loop(flag, user) {
     from: _Array$from,
     map: Array.map
   } : user]) {
-    let map = _mapMaybeArray(_ref3);
-    let {
+    const map = _mapMaybeArray(_ref3);
+    const {
       from
     } = _ref3;
     return [from, map];
