@@ -33,35 +33,14 @@ function g() {
 const z1 = log();
 const _ref = KE.I;
 const s1 = _Iterator$from,
-  {
-    M: {
-      name: _unused
-    }
-  } = {
-    M: _ref
-  },
   nm1 = _nameMaybeFunction(_ref);
 if (c) var _ref2 = KE.P,
   s2 = _Promise$try,
-  nm2 = _nameMaybeFunction(_ref2),
-  {
-    M: {
-      name: _unused2
-    }
-  } = {
-    M: _ref2
-  };
+  nm2 = _nameMaybeFunction(_ref2);
 n++;
 const _ref3 = KE.I;
 const s3 = _Iterator$concat;
 const nm3 = _nameMaybeFunction(_ref3);
-const {
-  M: {
-    name: _unused3
-  }
-} = {
-  M: _ref3
-};
 const _ref4 = {
   A: {
     from: _Array$from
@@ -80,33 +59,12 @@ n++;
 const _ref6 = KE.P;
 export const s5 = _Promise$withResolvers;
 export const nm5 = _nameMaybeFunction(_ref6);
-export const {
-  M: {
-    name: _unused4
-  }
-} = {
-  M: _ref6
-};
 const _ref7 = KE.P;
 const nm8 = _nameMaybeFunction(_ref7);
 const s8 = _Promise$allSettled;
-const {
-  M: {
-    name: _unused5
-  }
-} = {
-  M: _ref7
-};
 const _ref8 = KE.P;
 let nm9 = _nameMaybeFunction(_ref8);
 let s9 = _Promise$any;
-let {
-  M: {
-    name: _unused6
-  }
-} = {
-  M: _ref8
-};
 const s6 = _at((n++, h.m));
 let s7, f7;
 const _ref9 = (n++, g());

@@ -71,7 +71,10 @@ export const b2 = (() => {
   function f({
     at,
     flat
-  } = Array.prototype) {
+  } = {
+    at: _atMaybeArray(Array.prototype),
+    flat: _flatMaybeArray(Array.prototype)
+  }) {
     return [at, flat];
   }
   return f().length;

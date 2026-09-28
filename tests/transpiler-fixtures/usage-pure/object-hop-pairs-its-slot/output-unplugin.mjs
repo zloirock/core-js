@@ -289,8 +289,8 @@ function forOfWrapped() {
 	const out = [];
 
 	for (const _ref8 of [[{ w: [1, 2] }]]) {
-		let [_ref7] = _ref8;
-		let viaWrappedHead = _atMaybeArray(_ref7.w);
+		const [_ref7] = _ref8;
+		const viaWrappedHead = _atMaybeArray(_ref7.w);
 
 		_pushMaybeArray(out).call(out, viaWrappedHead);
 	}
@@ -335,7 +335,7 @@ function viaBoundHopHeads(list) {
 	const out = [];
 
 	for (const _ref9 of list) {
-		let headAt = _at(_ref9.w);
+		const headAt = _at(_ref9.w);
 
 		_pushMaybeArray(out).call(out, headAt);
 	}

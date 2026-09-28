@@ -12,7 +12,7 @@ const seen = [];
 for (const _ref of [{
   y: [1]
 }]) {
-  let at = _atMaybeArray(_ref.y);
+  const at = _atMaybeArray(_ref.y);
   _pushMaybeArray(seen).call(seen, at);
 }
 for (const _ref2 of [{
@@ -20,13 +20,13 @@ for (const _ref2 of [{
 }, {
   y: 'ab'
 }]) {
-  let includes = _includes(_ref2.y);
+  const includes = _includes(_ref2.y);
   _pushMaybeArray(seen).call(seen, includes);
 }
 for (const _ref3 of [{
   x: 1
 }]) {
-  let map = _mapMaybeArray(_ref3.y);
+  const map = _mapMaybeArray(_ref3.y);
   _pushMaybeArray(seen).call(seen, map);
 }
 // ... and a GETTER names the slot through its return, the same reading a flat host gets: the leg
@@ -36,7 +36,7 @@ for (const _ref4 of [{
     return [1];
   }
 }]) {
-  let at = _atMaybeArray(_ref4.y);
+  const at = _atMaybeArray(_ref4.y);
   _pushMaybeArray(seen).call(seen, at);
 }
 export { seen };

@@ -65,8 +65,8 @@ for (const {
   absent: Array.absent
 })]) _pushMaybeArray(log).call(log, typeof from, typeof absent);
 for (const _ref of [make(7)]) {
-  let from = _Array$from;
-  let {
+  const from = _Array$from;
+  const {
     from: _unused,
     ...rest
   } = _ref;

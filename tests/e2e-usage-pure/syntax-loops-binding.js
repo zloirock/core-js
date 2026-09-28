@@ -5,6 +5,34 @@
 // polyfill on the live value (the narrowed helper must keep its generic fallback). Generic
 // "polyfill in a loop" tests are absent.
 
+// --- A body redeclaring a name the head binds or reads keeps the head in place ---
+
+/* eslint-disable no-shadow, no-unused-vars -- a body shadowing the head names is the form under test */
+QUnit.test('loop: a body that redeclares a head binding or a name the head reads', assert => {
+  const seen = [];
+  for (const { length, at } of [[1, 2]]) {
+    const at = 'body';
+    seen.push(length, at);
+  }
+  const key = 'length';
+  for (const { [key]: n, at } of [[1, 2]]) {
+    const key = 'body';
+    seen.push(n, key);
+  }
+  // the catch-parameter default reading a name its body redeclares is locked by the fixture pair
+  // only: the e2e pipeline lowers the parameter into the body, where the shadow captures the read
+  // a shadow in a nested block leaves the top of the body free, and the head still relocates
+  for (const { at } of [[1, 2]]) {
+    {
+      const at = 'inner';
+      seen.push(at);
+    }
+    seen.push(at.call([3, 4], -1));
+  }
+  assert.deepEqual(seen, [2, 'body', 2, 'body', 'inner', 4]);
+});
+/* eslint-enable no-shadow, no-unused-vars -- the rest of the module keeps both rules */
+
 // --- A head element built by a call reads THAT call's argument on its own pass ---
 
 QUnit.test('loop: relocated array slots retain a static beside an instance claim', assert => {

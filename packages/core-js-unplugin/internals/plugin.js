@@ -56,6 +56,7 @@ import { createUsageGlobalCallback } from '@core-js/polyfill-provider/plugin-opt
 import {
   attachMemberUnionExtras,
   enumerateFallbackDestructureBranches,
+  restoreIdleRelocations,
   restoreUnclaimedFlattens,
   staticContainerReceiverName,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
@@ -1228,6 +1229,7 @@ export default function createPlugin(options) {
           resolveStaticKey: (node, scope, path) => typeResolvers.resolveClaimableComputedKeyName(node, scope, path),
           resolveNodeType: typeResolvers.resolveNodeType,
           resolvePropertyObjectType: typeResolvers.resolvePropertyObjectType,
+          primeDestructureReceiverTypes: typeResolvers.primeDestructureReceiverTypes,
           resolvedType: typeResolvers.resolvedType,
           toHint: typeResolvers.toHint,
           isDisabled,
@@ -1311,6 +1313,8 @@ export default function createPlugin(options) {
           renameOnly: astRenameOnly,
           refOrder: astRefOrder,
         });
+        // a moved head no claim took up goes back, once the flush has placed its refs
+        restoreIdleRelocations(ast);
         // after the flush pruned what nothing reads: the report lists the emission, and the post
         // pass of a `pre+post` file lists pre's imports with it (the injector union it inherited)
         if (pass !== 'pre') outputDebug();

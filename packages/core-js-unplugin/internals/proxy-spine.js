@@ -56,7 +56,6 @@ import {
   isMutatedGlobalSlot,
   isPristineProxyGlobal,
   walkAstChildren,
-  walkPatternIdentifiers,
   mayHaveSideEffects,
   nestedSequenceValueSpelling,
   migratableClaimSe,
@@ -343,18 +342,7 @@ export default function createProxySpineChannel(ctx) {
     const { plan, split, restResidual, bindingName, hostKind, nested, capture, captureFirst, keepPatternLive, detach } = admitted;
     if (nested) {
       const declarationPath = nested.host.parentPath;
-      if (capture && declarationPath.parentPath?.node?.type === 'ExportNamedDeclaration') {
-        const names = [];
-        for (const declarator of declarationPath.node.declarations) walkPatternIdentifiers(declarator.id, id => names.push(id.name));
-        // The unwrapped declaration requeues every sibling, including earlier static claims.
-        for (const declarator of declarationPath.get('declarations')) destructureEmit.retireDeclaratorJobs(declarator);
-        declarationPath.parentPath.replaceWithMultiple([declarationPath.node, {
-          type: 'ExportNamedDeclaration', declaration: null, source: null,
-          specifiers: names.map(name => ({ type: 'ExportSpecifier', local: identifier(name), exported: identifier(name) })),
-        }]);
-        markRewrite();
-        return true;
-      }
+      if (capture && destructureEmit.unwrapExportedHost(declarationPath)) return true;
       if (!captureFirst
         && destructureEmit.renderNestedParamSynth({ metaPath, meta, fallbackOnBail: !!capture })) return true;
       if (!capture) return false;

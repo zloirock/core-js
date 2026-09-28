@@ -169,6 +169,7 @@ export function createBabelAdapter(options = {}) {
         return {
           node: memoDecl, kind: 'var', name, constantViolations: [], importSource: null, scope,
           polyfillHint: memoHint, aliasSymbolSource: null, aliasWrite: memoInfo?.aliasWrite ?? null,
+          mintedAlias: !!memoHint && memoInfo.minted === true,
           guardedAliasHint: !memoHint ? memoInfo?.hint ?? null : null,
         };
       }

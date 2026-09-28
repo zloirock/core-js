@@ -1,6 +1,5 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
-import _globalThis from "@core-js/pure/actual/global-this";
 import _at from "@core-js/pure/actual/instance/at";
 import _keys from "@core-js/pure/actual/instance/keys";
 import _values from "@core-js/pure/actual/instance/values";
@@ -152,7 +151,7 @@ function mark(t, v) {
   }, {
     [eff()]: Object
   }]) {
-    let {
+    const {
         w: _ref
       } = _ref2,
       keys = _ref === Object ? _Object$keys : _keys(_ref);
@@ -175,16 +174,13 @@ function mark(t, v) {
   }]) keys;
 }
 {
-  for (const _ref3 of [{
+  for (const {
+    w: {
+      keys
+    }
+  } of [{
     w: Array
-  }]) {
-    let {
-      w: {
-        keys
-      }
-    } = _ref3;
-    keys;
-  }
+  }]) keys;
 }
 {
   for (const {
@@ -209,7 +205,7 @@ function mark(t, v) {
   }, {
     v: Object
   }]) {
-    let {
+    const {
         w: _ref4
       } = _ref5,
       keys = _ref4 === Object ? _Object$keys : _keys(_ref4);
@@ -222,7 +218,7 @@ function mark(t, v) {
   }, {
     w: Array
   }]) {
-    let {
+    const {
         w: _ref6
       } = _ref7,
       keys = _ref6 === Object ? _Object$keys : _keys(_ref6);
@@ -270,7 +266,7 @@ function mark(t, v) {
     w: Object,
     ...more
   }]) {
-    let {
+    const {
         w: _ref8
       } = _ref9,
       keys = _ref8 === Object ? _Object$keys : _keys(_ref8);
@@ -323,16 +319,19 @@ function mark(t, v) {
   }]) keys;
 }
 {
-  for (const _ref13 of [{
-    w: _globalThis.Object
-  }]) {
-    let keys = _Object$keys;
-    keys;
-  }
+  for (const {
+    w: {
+      keys
+    }
+  } of [{
+    w: {
+      keys: _Object$keys
+    }
+  }]) keys;
 }
 {
   for (const _ref10 of rows) {
-    let keys = _keys(_ref10.w);
+    const keys = _keys(_ref10.w);
     keys;
   }
 }
@@ -342,8 +341,8 @@ function mark(t, v) {
   }, {
     w: Object
   }]) {
-    let keys = _Object$keys;
-    let {
+    const keys = _Object$keys;
+    const {
       w: _unused,
       ...rest
     } = _ref11;

@@ -56,18 +56,15 @@ for ({
 }]) eff(span);
 
 // ... and an element spelling a plain object declines the whole head
-for (const _ref of [{
+for ({
+  groupBy: {
+    name: via
+  }
+} of [{
   groupBy: {
     name: 'CUSTOM'
   }
-}]) {
-  ({
-    groupBy: {
-      name: via
-    }
-  } = _ref);
-  eff(via);
-}
+}]) eff(via);
 
 // The call runs once before the loop binds the nested static.
 function make() {
