@@ -1,6 +1,6 @@
 import { MinifyOptions } from '@core-js/builder/config.js';
 import { transform as swcTransform } from '@swc/core';
-import { buildCell } from './bundle.mjs';
+import { assertDetectionsStillNeedHelp, buildCell } from './bundle.mjs';
 import { groupByLibraryAndMethod } from './cells.mjs';
 import { errorReason } from './diagnostics.mjs';
 import { describeInput } from './input.mjs';
@@ -142,6 +142,9 @@ const cellsBuiltHere = IS_SHARD ? shardSlice(libraryMethodGroups).flat()
   : libraryMethodGroups.flat();
 
 const input = await describeInput();
+
+// once per run, in the parent: the workaround in `bundle.mjs` has to still have a reason
+if (!IS_SHARD) await assertDetectionsStillNeedHelp();
 
 if (!IS_SHARD) await manifest.prepare();
 await snapshots.ensureDirectory();
