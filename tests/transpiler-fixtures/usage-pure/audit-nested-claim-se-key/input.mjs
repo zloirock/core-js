@@ -8,9 +8,8 @@ const folded = (function () {
   const { inner: { [(log.push('key'), 'flat')]: m } } = box;
   return [typeof m, log.join()];
 })();
-// ... under a WRAPPER the twin lives in the literal's ELEMENT and the normalization reaches it, and
-// where an effect-bearing NEIGHBOUR element would reorder that read the twin TRAILS the residual
-// instead - either way the key runs off the memo, once, between the literal and the bind
+// ... under a WRAPPER the array plan captures the literal's element in order and reads the hop off
+// the capture - the key runs off that memo, once, between the literal and the bind
 const wrapped = (function () {
   const [{ inner: { [(log.push('wkey'), 'flat')]: m } }] = [box];
   return [typeof m, log.join()];
@@ -23,8 +22,8 @@ const defaulted = (function () {
   const { inner: { [(log.push('dkey'), 'flat')]: m } = spare } = box;
   return [typeof m, log.join()];
 })();
-// the TRAILING twin, spelled out: the literal builds whole (`n`), the emptied pattern coerces the
-// element, then the hop reads once and the key runs off that memo (`hop`, `ekey`)
+// ... and beside an effect-bearing NEIGHBOUR element the capture keeps the source order: the literal
+// builds whole (`n`), then the hop reads once and the key runs off that memo (`hop`, `ekey`)
 const wrappedBesideAnEffect = (function () {
   const [{ inner: { [(log.push('ekey'), 'flat')]: m } }, zn] = [box, log.push('n')];
   return [typeof m, zn, log.join()];

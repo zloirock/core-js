@@ -36,6 +36,7 @@ import {
   isDestructurePattern,
   isEffectfulKeyHop,
   isMemberAccessNode,
+  identifierReferencedInSubtree,
   isPropertyNode,
   isMirrorablePatternValue,
   isRestProperty,
@@ -53,6 +54,7 @@ import {
   patternRootKeyPathsFor,
   patternSlotTarget,
   soleChainToProp,
+  stmtRebindNames,
   peelNestedSequenceExpressions,
   peelZeroArgIifeReturn,
   peelToExpressionStatement,
@@ -66,6 +68,7 @@ import {
   spelledSlotName,
   statementListOf,
   walkPatternIdentifiers,
+  hostsExportList,
   unwrapCollectingSePrefixes,
   unwrapExpressionChain,
   unwrapRuntimeExpr,
@@ -76,6 +79,7 @@ import { cloneNode, memberFromKeyName, objectPattern } from '../render.js';
 import { nodeRangeContains } from '../resolve-node-type/base.js';
 import {
   classifyVariableDeclarationHost,
+  deadDefaultElementPattern,
   isBodylessStatementSlot,
   planArrayWrapperCapture,
   planNestedLeafHost,
@@ -107,8 +111,10 @@ import {
 } from './resolve.js';
 import {
   STATIC_WALK_DEPTH,
+  claimUnderSharedHopSlot,
   mirrorAcceptedKey,
   buildDestructuringInitMeta,
+  claimWriteOrderBound,
   destructureHostInitNode,
   destructurePropLeafMeta,
   firstPatternProp,
@@ -122,6 +128,7 @@ import {
   discardRescueNodesWithReads,
   observablePrefixElements,
   outerDestructureReceiver,
+  patternClaimOwesMirror,
   planArrayWrappedStaticExtract,
   patternComputedKeysSynthSafe,
   fallbackInitWhollyDiscardable,
@@ -537,6 +544,35 @@ export function leafCarriesOwnClaim({ leaf, receiver, resolvePure, keyCtx, folds
     placement === 'prototype' ? null : keyCtx.path);
 }
 
+// does a hop's pattern (its default's target included) hold a leaf with a claim of its own - by key
+// name, the question a leg walking its own output again asks of the pattern once the hop is extracted
+// (`const { name } = _at(arr)`)? neither leg extracts such a hop: the other leg would bind that leaf
+// raw off the result, and the funnel keeps the leaf native under an instance hop anyway
+export function hopPatternLeafClaims({ pattern, resolvePure, keyCtx }) {
+  return pattern?.type === 'ObjectPattern' && pattern.properties.some(leaf => !isRestProperty(leaf) && leafCarriesOwnClaim({
+    leaf, receiver: { object: undefined, placement: 'prototype' }, resolvePure, keyCtx,
+  }));
+}
+
+// ... and the flat twin's own limit: does the leaf pattern hold, beside the claim, a hop whose pattern
+// has leaves the claim funnel claims (`{ name, company: { name: companyName } }`)? the twin binds that
+// hop raw off its memo, and neither leg walks the twin again for it (one leg never re-walks), so both
+// leave the twin to the leaves' routes. asked of the funnel, not of key names: a leaf it keeps native
+// (under an instance hop, `{ at, flat: { name } }`) claims nothing, and the twin still serves `at`
+export function leafPatternHoldsClaimedHop({ leafPattern, claimProp, scope, adapter, resolvePure }) {
+  return leafPattern.get('properties').some(item => {
+    if (!isPropertyNode(item.node) || item.node === claimProp) return false;
+    const slot = item.get('value');
+    const hopPattern = slot.node?.type === 'AssignmentPattern' ? slot.get('left') : slot;
+    return hopPattern.node?.type === 'ObjectPattern' && hopPattern.get('properties').some(leaf => {
+      const { meta } = isPropertyNode(leaf.node) ? destructurePropLeafMeta({
+        prop: leaf.node, objectPattern: hopPattern, scope, path: hopPattern, adapter, resolvePure,
+      }) : {};
+      return !!meta && !!resolvePure(meta, hopPattern);
+    });
+  });
+}
+
 // structural check: outerProp is a Property with computed `[Symbol.iterator]` key. Symbol
 // shadow not tracked here - matches the detection layer's shadowing trust. true for
 // both extractable shape (`[Symbol.iterator]: ident`) and non-extractable shape
@@ -660,6 +696,13 @@ export function probedNavProbeKey(plan) {
 // Array plans apply immediately; declined hosts may change before the next claim.
 const planCache = createInstanceNodeCache();
 
+// A binding that rewrites a host's pattern in place - a nested leaf's flat twin, a hop split, a keyed
+// capture - retires the plan cached for the pattern it replaced; the next claim plans the host as it
+// now stands. A plan's own render keeps its entry: the host's later claims read what it rendered.
+export function forgetDestructurePlan(adapter, declarator) {
+  planCache.delete(adapter, declarator);
+}
+
 // does a pattern HOP name a ctor the targets may lack - one the pure flavor ships as its own entry
 // (`Map`, `Iterator`, `AggregateError`)? a sentinel or a raw residual read under such a hop reads the
 // native ctor off the realm, which is what the stripped realm lacks; the anchor asks the same question
@@ -730,6 +773,19 @@ function positionalDestructurePlan({ prop, pattern, slot, keys, levels = [], hos
   };
 }
 
+// Can this planned property render off its captured element? Its own extraction does; a declined
+// plain binding stays a native fragment there, re-detected as the flat twin.
+function readsOffCapturedElement(child) {
+  return child?.kind === 'consumed' || (child?.kind === 'verbatim' && !!propBindingIdentifier(child.prop.value));
+}
+
+// The array plan renders a declaration host's reads as declarators in the declarator's place when
+// the declaration binds other names too, or stands where no statement list can take statements of
+// their own (a loop head, an unbraced slot). `host` is the declaration or the export around it.
+function rendersInDeclaration(declaration, host) {
+  return declaration.node.declarations.length !== 1 || !statementListOf(host.parentPath?.node);
+}
+
 // One array property occurrence owns one independent instance/iterator read. Receiver
 // sharing belongs to the host; this record retains the target and its live default.
 // Wrapped statics use their existing proof and retain required exclusions. Instance
@@ -765,10 +821,14 @@ function arrayReadingPropPlan(propPath, {
     const pairedRoot = capturedRoot ? peelNestedSequenceExpressions(unwrapRuntimeExpr(receiver)).tail
       : unwrapRuntimeExpr(receiver);
     if (!walk?.wrapper || walk.slotDefault || walk.root !== pairedRoot) return { kind: 'verbatim', prop };
+    // a consumed prop leaves with only its leaf level's reads: a hop level between them with siblings
+    // would lose those siblings' bindings
+    const hopLevels = walk.climbed.slice(1, walk.climbed.findIndex(level => level.prop === prop) + 1);
+    if (hopLevels.some(level => level.pattern.properties.length !== 1)) return { kind: 'verbatim', prop };
     const effectful = walk.climbed.some(level => level.prop && computedKeyHasSideEffects(level.prop));
     const sharedLeaf = capturedRoot && leaf.parentPath.node.properties.length > 1;
     const keyedCapture = (effectful || sharedLeaf) && capturedRoot
-      && planNestedKeyedPatternCapture({ pattern: objectPattern([prop]), init: receiver, force: true });
+      && planNestedKeyedPatternCapture({ pattern: objectPattern([prop]), init: receiver, force: true, plansLeaf: true });
     if ((effectful || sharedLeaf) && (!keyedCapture || keyedCapture.leafPattern !== leaf.parentPath.node)) {
       return { kind: 'verbatim', prop };
     }
@@ -796,7 +856,11 @@ function arrayReadingPropPlan(propPath, {
     }
     const nativeStatic = hasStatic && capturedRoot && walk.climbed.every(level => !level.prop
       || !hopNamesMissingAbleCtor(level.prop, name => resolvePure({ kind: 'global', name })));
-    if (!extractions.length || (hasStatic && !nativeStatic)
+    // A leaf kept native for its effectful key is still served: the capture moves it onto the
+    // captured value, where the flat keyed-read route takes it in source order.
+    const keyedLeafServed = !!keyedCapture
+      && children.some(child => child?.kind === 'verbatim' && computedKeyHasSideEffects(child.prop));
+    if ((!extractions.length && !keyedLeafServed) || (hasStatic && !nativeStatic)
       || children.some(child => !child || child.kind === 'unhandled')) return { kind: 'verbatim', prop };
     return {
       kind: 'consumed',
@@ -849,7 +913,12 @@ function arrayReadingPropPlan(propPath, {
       adapter,
       kind: pure.kind,
     }) || (capturedStatic && pure.kind === 'static' && receiver);
-    if (!staticPlan) return { kind: 'unhandled', prop };
+    // A captured position no extraction can bind (an assignment slot) keeps the receiver
+    // mirror the per-claim route owes it; the host applies it before capturing that element.
+    if (!staticPlan) {
+      return capturedRoot && patternClaimOwesMirror(pure.kind, propPath)
+        ? { kind: 'verbatim', prop, mirror: { propPath, meta } } : { kind: 'unhandled', prop };
+    }
     return {
       kind: 'consumed',
       prop,
@@ -876,14 +945,53 @@ function arrayReadingPropPlan(propPath, {
   };
 }
 
+// A positional host's init and the array level its plan collects: the host pattern itself, or the
+// one a keyed chain above it reaches through its nested hops and their defaults. The capture keeps
+// those levels as written; the slot climb decides which of them may stand above a renamed position.
+// A claim beside a hop belongs to its own route: capturing it native would preempt that route for
+// whichever claim asks first, so such a chain declines, whoever asks.
+function positionalArrayRoot(path, { adapter, resolvePure }) {
+  const assignment = path.node.type === 'AssignmentExpression';
+  const init = assignment ? path.node.right : path.node.init;
+  if (!init || (!assignment && path.parentPath?.node?.type !== 'VariableDeclaration')) return null;
+  function claims(leaf) {
+    const { meta } = destructurePropLeafMeta({
+      prop: leaf.node, objectPattern: leaf.parentPath, scope: leaf.scope, path: leaf.get('key'), adapter, resolvePure,
+    });
+    return !!meta && !!resolvePure(meta, leaf);
+  }
+  const keyed = new Set();
+  let level = path.get(assignment ? 'left' : 'id');
+  if (level.node.type === 'ObjectPattern') {
+    const chain = planNestedKeyedPatternCapture({ pattern: level.node, init, allowArray: true });
+    if (chain?.leafPattern?.type !== 'ArrayPattern') return null;
+    for (const { pattern, prop, defaultValue } of chain.ancestors) {
+      keyed.add(pattern);
+      const siblings = level.get('properties').filter(item => item.node !== prop);
+      if (siblings.some(item => {
+        if (!isPropertyNode(item.node)) return false;
+        if (!isDestructurePattern(patternSlotTarget(item.node.value))) return claims(item);
+        const value = item.get('value');
+        return !!firstPatternProp(value.node.type === 'AssignmentPattern' ? value.get('left') : value, claims);
+      })) return null;
+      level = level.get('properties')[pattern.properties.indexOf(prop)].get('value');
+      if (defaultValue) {
+        keyed.add(defaultValue);
+        level = level.get('left');
+      }
+    }
+  }
+  return { init, level, keyed };
+}
+
 // Decide positional siblings on the original host, from the last slot backwards.
 // A planned capture releases earlier slots without mutating or requeueing the tree.
 // The selected slots then render in source order through the same native capture.
 function positionalArrayDestructurePlan({ path, adapter, resolvePure, isDisabledProp, isClaimedProp }) {
   const assignment = path.node.type === 'AssignmentExpression';
   const pattern = assignment ? path.node.left : path.node.id;
-  const init = assignment ? path.node.right : path.node.init;
-  if (!init || (!assignment && path.parentPath?.node?.type !== 'VariableDeclaration')) return null;
+  const { init, level: arrayRoot, keyed } = positionalArrayRoot(path, { adapter, resolvePure }) ?? {};
+  if (!arrayRoot) return null;
   const slots = [];
   const capturedSlots = new Set();
   const lastReadingSlots = new Map();
@@ -907,7 +1015,7 @@ function positionalArrayDestructurePlan({ path, adapter, resolvePure, isDisabled
       lastReadingSlots.set(level, last);
     }
   }
-  collectSlots(path.get(assignment ? 'left' : 'id'));
+  collectSlots(arrayRoot);
   const leafPlans = new Map();
   let placement = null;
   let statement = null;
@@ -949,7 +1057,7 @@ function positionalArrayDestructurePlan({ path, adapter, resolvePure, isDisabled
       resolveGlobalPolyfill: name => resolvePure({ kind: 'global', name }),
     });
     if (staticLeaf && positional.keys.length && !anchorPure) continue;
-    const paired = position.length === 1 && unwrapRuntimeExpr(init)?.type === 'ArrayExpression'
+    const paired = !keyed.size && position.length === 1 && unwrapRuntimeExpr(init)?.type === 'ArrayExpression'
       ? pairedArrayWrapInitElement(unwrapRuntimeExpr(init).elements, position[0]) : null;
     const plan = positionalDestructurePlan({
       prop: propPath.node,
@@ -1028,7 +1136,12 @@ function positionalArrayDestructurePlan({ path, adapter, resolvePure, isDisabled
       inDeclaration,
       inlineExport,
       splitDeclaration: hasFollowing && !placement.isExport && !placement.isForInit && !placement.isBodyless,
-      capture: { pattern, init, elements: elements.map(element => ({ pattern: element.node, index: element.index, path: element.path })) },
+      capture: {
+        pattern,
+        init,
+        elements: elements.map(element => ({ pattern: element.node, index: element.index, path: element.path })),
+        keyed,
+      },
       exportFrom: null,
       exportedSiblings,
     },
@@ -1103,16 +1216,20 @@ function pairedArrayDestructurePlan({ path, adapter, resolvePure, isDisabledProp
       restPattern: captureFor.pattern,
       adapter,
       injectorState,
+      ctx: { scope: path.scope, adapter, path },
     })
       ?? planArrayWrapperCapture({ pattern, init: sourceInit, nestedOnly: !placement.isForInit });
     return capture ? { pattern, extractions: [], array: { capture } } : null;
   }
   // The outer object key selects the array before its iterator selects the method receiver.
-  // Keep both native selections in the ordered capture; only the final method read is pure.
+  // Keep both native selections in the ordered capture; only the element's method reads are pure.
   if (pattern?.type === 'ObjectPattern' && pattern.properties.length === 1) {
     const [outer] = pattern.properties;
     const inner = outer.value;
-    const element = inner?.elements?.[0];
+    // the selected array's ONE object element, wherever it stands: its neighbours are plain
+    // bindings the ordered capture keeps native in their own positions
+    const at = inner?.type === 'ArrayPattern' ? inner.elements.findIndex(item => item?.type === 'ObjectPattern') : -1;
+    const element = inner?.elements?.[at];
     const sourceRoot = unwrapRuntimeExpr(sourceInit);
     const source = followConstLiteralAlias(sourceRoot, { scope: path.scope, adapter, path });
     const [outerPath] = path.get(assignment ? 'left' : 'id').get('properties');
@@ -1126,21 +1243,21 @@ function pairedArrayDestructurePlan({ path, adapter, resolvePure, isDisabledProp
     const statement = assignment && peelToExpressionStatement(path)?.exprStmt;
     const bodyless = statement && isBodylessStatementSlot(statement.parentPath?.node, statement.node);
     const placement = assignment ? statement && (bodyless || statementListOf(statement.parentPath?.node))
-      : declaration?.node?.type === 'VariableDeclaration' && declaration.node.declarations.length === 1
-        && statementListOf(host.parentPath?.node);
-    if (inner?.type === 'ArrayPattern' && inner.elements.slice(1).every(item => !item || item.type === 'Identifier')
-      && element?.type === 'ObjectPattern' && element.properties.length === 1
-      && !element.properties[0].computed && key !== null && placement
+      : declaration?.node?.type === 'VariableDeclaration';
+    const inDeclaration = !assignment && placement && rendersInDeclaration(declaration, host);
+    if (inner?.type === 'ArrayPattern' && inner.elements.every((item, index) => index === at || !item || item.type === 'Identifier')
+      && element?.type === 'ObjectPattern' && element.properties.length
+      && !element.properties.some(isRestProperty) && key !== null && placement
       && (source?.type === 'Identifier' || source?.type === 'ObjectExpression'
         && source.properties.length === 1 && paired && paired.match.value === paired.read
         && array?.type === 'ArrayExpression')) {
-      const [elementPath] = outerPath.get('value').get('elements');
-      const receiver = array ? pairedArrayWrapInitElement(array.elements, 0)
+      const elementPath = outerPath.get('value').get('elements')[at];
+      const receiver = array ? pairedArrayWrapInitElement(array.elements, at)
         : outerDestructureReceiver(elementPath, path.scope, adapter);
       const objectCapture = planNestedKeyedPatternCapture({ pattern, init: sourceInit, force: true, allowArray: true });
       const capture = objectCapture?.leafPattern === inner
         && planArrayWrapperCapture({ pattern: inner, init: array ?? sourceInit, force: true });
-      const child = capture && receiver && arrayReadingPropPlan(elementPath.get('properties')[0], {
+      const children = capture && receiver ? elementPath.get('properties').map(prop => arrayReadingPropPlan(prop, {
         adapter,
         resolvePure,
         isDisabledProp,
@@ -1148,20 +1265,21 @@ function pairedArrayDestructurePlan({ path, adapter, resolvePure, isDisabledProp
         receiver,
         capturedRoot: true,
         capturedStatic: true,
-      });
-      if (child?.kind === 'consumed') {
-        if (child.extractions.some(read => read.kind === 'static')) child.nativeStatic = true;
+      })) : [];
+      if (children.some(child => child?.kind === 'consumed') && children.every(readsOffCapturedElement)) {
+        for (const child of children) if (child.extractions?.some(read => read.kind === 'static')) child.nativeStatic = true;
         return {
           pattern,
-          extractions: child.extractions,
+          extractions: children.flatMap(child => child.extractions ?? []),
           array: {
             objectCapture,
             capture,
             assignment,
             bodyless,
+            inDeclaration,
             statement: statement?.node,
             elements: capture.elements.map(item => item.pattern === element
-              ? { kind: 'rebuilt', node: element, sourceNode: element, index: 0, children: [child] }
+              ? { kind: 'rebuilt', node: element, sourceNode: element, index: at, children }
               : { kind: 'verbatim', node: item.pattern, sourceNode: item.pattern, index: item.index }),
             // An effectful outer key adds its ordered native fragment before the array capture.
             exportFrom: computedKeyHasSideEffects(outer) ? 3 : 2,
@@ -1170,11 +1288,23 @@ function pairedArrayDestructurePlan({ path, adapter, resolvePure, isDisabledProp
       }
     }
   }
-  if (pattern?.type !== 'ArrayPattern') return null;
+  if (pattern?.type !== 'ArrayPattern') {
+    return pattern?.type === 'ObjectPattern'
+      ? positionalArrayDestructurePlan({ path, adapter, resolvePure, isDisabledProp, isClaimedProp }) : null;
+  }
   const sourceLiteral = unwrapRuntimeExpr(sourceInit);
   const expandedElements = arrayLiteralIterableElements(sourceInit);
   const sourceElements = expandedElements ?? (sourceLiteral?.type === 'ArrayExpression' ? sourceLiteral.elements : null);
-  const singleton = pattern.elements.length === 1 && pattern.elements[0];
+  const planCtx = { scope: path.scope, adapter, path };
+  // the path an element plans through: its own, or its default's left where the paired value
+  // rules the default out - that element reads the value exactly as its flat twin does
+  function plannedElementPath(slotPath, index) {
+    return deadDefaultElementPattern(slotPath.node, pairedArrayWrapInitElement(sourceElements, index), planCtx)
+      ? slotPath.get('left') : slotPath;
+  }
+  const singletonPath = pattern.elements.length === 1
+    ? plannedElementPath(path.get(assignment ? 'left' : 'id').get('elements')[0], 0) : null;
+  const singleton = !!singletonPath && singletonPath.node;
   const nestedSingleton = singleton?.type === 'ArrayPattern' && singleton.elements.length === 1
     ? singleton.elements[0] : singleton;
   // A folded but effectful key remains a native read before its pure binding.
@@ -1186,8 +1316,8 @@ function pairedArrayDestructurePlan({ path, adapter, resolvePure, isDisabledProp
     const receiver = pairedArrayWrapInitElement(sourceElements, 0);
     const capture = receiver && declaration?.node?.type === 'VariableDeclaration'
       && declaration.node.declarations.length === 1 && statementListOf(host.parentPath?.node)
-      && planArrayWrapperCapture({ pattern, init: sourceInit, force: true, trailingSpread: true });
-    const child = capture && arrayReadingPropPlan(path.get('id').get('elements')[0].get('properties')[0], {
+      && planArrayWrapperCapture({ pattern, init: sourceInit, force: true, trailingSpread: true, ctx: planCtx });
+    const child = capture && arrayReadingPropPlan(singletonPath.get('properties')[0], {
       adapter,
       resolvePure,
       isDisabledProp,
@@ -1376,6 +1506,34 @@ function pairedArrayDestructurePlan({ path, adapter, resolvePure, isDisabledProp
       }
     }
   }
+  // One object position inside inner array levels reads off its captured element. Declarations
+  // and statement assignments share the capture; `host` carries only their placement fields.
+  function nestedArrayElementPlan(capture, host) {
+    const nested = capture?.elements.filter(element => element.pattern.type === 'ObjectPattern');
+    if (nested?.length !== 1 || nested[0].path.length < 2
+      || capture.elements.some(element => element !== nested[0] && element.pattern.type !== 'Identifier')) return null;
+    let receiver = sourceInit;
+    for (const index of nested[0].path) receiver = arrayLiteralIterableElements(receiver)?.[index];
+    if (!receiver) return null;
+    let objectPath = path.get(assignment ? 'left' : 'id');
+    for (const index of nested[0].path) objectPath = objectPath.get('elements')[index];
+    const children = objectPath.get('properties').map(child => arrayReadingPropPlan(child, {
+      adapter,
+      resolvePure,
+      isDisabledProp,
+      isClaimedProp,
+      receiver,
+      capturedRoot: true,
+    }));
+    const extractions = children.flatMap(child => child?.extractions ?? []);
+    if (!extractions.length || extractions.some(read => read.kind !== 'instance')
+      || children.some(child => !readsOffCapturedElement(child))) return null;
+    const elements = capture.elements.map(element => element === nested[0]
+      ? { kind: 'rebuilt', node: element.pattern, sourceNode: element.pattern, index: element.index, children }
+      : { kind: 'verbatim', node: element.pattern, sourceNode: element.pattern, index: element.index });
+    const mirrors = children.flatMap(child => child.mirror ?? []);
+    return { pattern, extractions, array: { capture, elements, ...host, exportFrom: 1, mirrors } };
+  }
   if (!sourceElements) return positionalArrayDestructurePlan({ path, adapter, resolvePure, isDisabledProp, isClaimedProp });
   if (assignment || pattern.elements.some(element => element?.type === 'ObjectPattern'
     && element.properties.some(isRestProperty) && element.properties.some(prop => prop.value?.type === 'ObjectPattern'))) {
@@ -1385,15 +1543,15 @@ function pairedArrayDestructurePlan({ path, adapter, resolvePure, isDisabledProp
     const bodyless = statement && isBodylessStatementSlot(statement.parentPath?.node, statement.node);
     const declaration = !assignment && path.parentPath;
     const host = declaration?.parentPath?.node?.type === 'ExportNamedDeclaration' ? declaration.parentPath : declaration;
-    const inDeclaration = !assignment && (declaration.node.declarations.length !== 1 || !statementListOf(host.parentPath?.node));
+    const inDeclaration = !assignment && rendersInDeclaration(declaration, host);
     const capture = (assignment ? statement && !memberTarget && (bodyless || statementListOf(statement.parentPath?.node))
       : declaration?.node?.type === 'VariableDeclaration')
-      && planArrayWrapperCapture({ pattern, init: sourceInit, force: true });
-    if (capture && pattern.elements.every(element => !element || element.type === 'Identifier'
-      || element.type === 'ObjectPattern')) {
+      && planArrayWrapperCapture({ pattern, init: sourceInit, force: true, ctx: planCtx });
+    const elementPaths = path.get(assignment ? 'left' : 'id').get('elements').map(plannedElementPath);
+    if (capture && elementPaths.every(({ node }) => !node || node.type === 'Identifier' || node.type === 'ObjectPattern')) {
       const elements = [];
       const extractions = [];
-      for (const [index, elementPath] of path.get(assignment ? 'left' : 'id').get('elements').entries()) {
+      for (const [index, elementPath] of elementPaths.entries()) {
         const element = elementPath.node;
         const receiver = element?.type === 'ObjectPattern' && pairedArrayWrapInitElement(sourceElements, index);
         // Rest keeps its established constructor source and exclusion proof. Compose
@@ -1437,9 +1595,7 @@ function pairedArrayDestructurePlan({ path, adapter, resolvePure, isDisabledProp
           receiver,
           capturedRoot: true,
         })) : null;
-        if (element?.type === 'ObjectPattern' && (!children
-          || children.some(child => child?.kind !== 'consumed'
-            && !(child?.kind === 'verbatim' && propBindingIdentifier(child.prop.value))))) break;
+        if (element?.type === 'ObjectPattern' && !children?.every(readsOffCapturedElement)) break;
         if (children?.some(child => child.extractions?.some(read => read.kind !== 'instance'))) break;
         extractions.push(...children?.flatMap(child => child.extractions ?? []) ?? []);
         elements.push(children?.some(child => child.kind === 'consumed')
@@ -1454,6 +1610,9 @@ function pairedArrayDestructurePlan({ path, adapter, resolvePure, isDisabledProp
         array: { capture, elements, assignment, bodyless, statement: statement?.node, inDeclaration, exportFrom: 1, mirrors },
       };
     }
+    const nestedPlan = assignment && capture && pattern.elements.some(element => element?.type === 'ArrayPattern')
+      && nestedArrayElementPlan(capture, { assignment, bodyless, statement: statement?.node, inDeclaration });
+    if (nestedPlan) return nestedPlan;
     if (assignment) return expandedElements ? null
       : positionalArrayDestructurePlan({ path, adapter, resolvePure, isDisabledProp, isClaimedProp });
   }
@@ -1461,7 +1620,7 @@ function pairedArrayDestructurePlan({ path, adapter, resolvePure, isDisabledProp
   const declaration = path.parentPath;
   if (declaration?.node?.type !== 'VariableDeclaration') return null;
   const host = declaration.parentPath?.node?.type === 'ExportNamedDeclaration' ? declaration.parentPath : declaration;
-  const inDeclaration = declaration.node.declarations.length !== 1 || !statementListOf(host.parentPath?.node);
+  const inDeclaration = rendersInDeclaration(declaration, host);
   if (!inDeclaration && pattern.elements.length === 1 && pattern.elements[0]?.type === 'ObjectPattern'
     && pattern.elements[0].properties.length === 1 && !pattern.elements[0].properties[0].computed
     && sourceLiteral?.elements?.length === 1
@@ -1492,43 +1651,17 @@ function pairedArrayDestructurePlan({ path, adapter, resolvePure, isDisabledProp
     }
   }
   if (!inDeclaration && pattern.elements.some(element => element?.type === 'ArrayPattern')) {
-    const capture = planArrayWrapperCapture({ pattern, init: sourceInit, force: true });
-    const nested = capture?.elements.filter(element => element.pattern.type === 'ObjectPattern');
-    if (nested?.length === 1 && nested[0].path.length > 1
-      && capture.elements.every(element => element === nested[0] || element.pattern.type === 'Identifier')) {
-      let receiver = sourceInit;
-      for (const index of nested[0].path) receiver = arrayLiteralIterableElements(receiver)?.[index];
-      if (receiver) {
-        const elementPath = path.get('id').get('elements')[nested[0].path[0]];
-        let objectPath = elementPath;
-        for (const index of nested[0].path.slice(1)) objectPath = objectPath.get('elements')[index];
-        const children = objectPath.get('properties').map(child => arrayReadingPropPlan(child, {
-          adapter,
-          resolvePure,
-          isDisabledProp,
-          isClaimedProp,
-          receiver,
-          capturedRoot: true,
-        }));
-        const extractions = children.flatMap(child => child?.extractions ?? []);
-        if (extractions.length && extractions.every(read => read.kind === 'instance')
-          && children.every(child => child?.kind === 'consumed'
-            || (child?.kind === 'verbatim' && propBindingIdentifier(child.prop.value)))) {
-          const elements = capture.elements.map(element => element === nested[0]
-            ? { kind: 'rebuilt', node: element.pattern, sourceNode: element.pattern, index: element.index, children }
-            : { kind: 'verbatim', node: element.pattern, sourceNode: element.pattern, index: element.index });
-          return { pattern, extractions, array: { capture, elements, inDeclaration, exportFrom: 1 } };
-        }
-      }
-    }
+    const nestedPlan = nestedArrayElementPlan(planArrayWrapperCapture({ pattern, init: sourceInit, force: true }), { inDeclaration });
+    if (nestedPlan) return nestedPlan;
   }
   const elements = [];
   const extractions = [];
   const emptied = new Set();
-  for (const sourcePath of path.get('id').get('elements')) {
+  for (const slotPath of path.get('id').get('elements')) {
+    const index = elements.length;
+    const sourcePath = plannedElementPath(slotPath, index);
     let elementPath = sourcePath;
     let element = elementPath.node;
-    const index = elements.length;
     if (element?.type !== 'ObjectPattern') {
       if (element && element.type !== 'Identifier' && element.type !== 'RestElement') return expandedElements ? null
         : positionalArrayDestructurePlan({ path, adapter, resolvePure, isDisabledProp, isClaimedProp });
@@ -1562,9 +1695,10 @@ function pairedArrayDestructurePlan({ path, adapter, resolvePure, isDisabledProp
         rest: first.parentPath.node.properties.some(isRestProperty),
       })?.extractions?.[0]?.kind === 'static';
       const walk = typedNavClaimShape(first, { allowLeafSiblings: true, adapter, allowSurfaceBase: staticLeaf, rootMemoized: staticLeaf });
+      // the element's residual keeps only the leaf level, so every level above it must be sole
       const shape = walk && !walk.slotDefault && walk.hostPattern?.node === element
         && walk.climbed.every(level => !level.prop?.computed)
-        && (!staticLeaf || walk.climbed.slice(1).every(level => level.pattern.properties.length === 1));
+        && walk.climbed.slice(1).every(level => level.pattern.properties.length === 1);
       if (staticLeaf && shape) {
         // Receiver-less statics keep their original hop and rest exclusions. The
         // instance nav placement would remove that hop or re-read its receiver.
@@ -1572,34 +1706,60 @@ function pairedArrayDestructurePlan({ path, adapter, resolvePure, isDisabledProp
           && hopNamesMissingAbleCtor(level.prop, name => resolvePure({ kind: 'global', name })))) return null;
         staticLevels = walk.climbed.slice(0, -1).map((level, at) => ({ prop: level.prop, pattern: walk.climbed[at + 1].pattern }));
       } else {
-        const hostPlan = shape ? planNestedLeafHost(walk) : null;
+        const hostPlan = shape ? planNestedLeafHost(walk, null, { pairing: true }) : null;
         if (!hostPlan?.navPlacement) {
           // The original element can carry its own receiver computation. Keep its
-          // iteration and every RHS effect before reading the captured object.
-          const captured = elements.every(item => item.kind === 'verbatim') && planArrayWrapperCapture({
+          // iteration and every RHS effect before reading the captured object; the
+          // capture then plans every element off its own position.
+          const captured = planArrayWrapperCapture({
             pattern,
             init: sourceInit,
             force: true,
             trailingSpread: !inDeclaration && !!sourceLiteral?.elements?.some(item => item?.type === 'SpreadElement'),
           });
-          const capturedChildren = captured && elementPath.get('properties').map(child => arrayReadingPropPlan(child, {
+          const capturedChildren = captured ? elementPath.get('properties').map(child => arrayReadingPropPlan(child, {
             adapter,
             resolvePure,
             isDisabledProp,
             isClaimedProp,
             receiver,
             capturedRoot: true,
-          }));
+          })) : null;
           const capturedReads = capturedChildren?.flatMap(child => child?.extractions ?? []);
           if (captured && capturedChildren.every(child => child?.kind === 'consumed' || child?.kind === 'verbatim')
             && capturedReads.length && capturedReads.every(read => read.kind === 'instance' || read.kind === 'static')) {
-            const capturedElements = captured.elements.map(item => item.pattern === sourcePath.node
-              ? { kind: 'rebuilt', node: item.pattern, sourceNode: item.pattern, index: item.index, children: capturedChildren }
-              : { kind: 'verbatim', node: item.pattern, sourceNode: item.pattern, index: item.index });
+            // Other top-level elements are planned as the assignment capture plans them; an
+            // element holding a claim no read can take stays native.
+            const capturedElements = captured.elements.map(item => {
+              if (item.pattern === sourcePath.node) {
+                return { kind: 'rebuilt', node: item.pattern, sourceNode: item.pattern, index: item.index, children: capturedChildren };
+              }
+              const otherPath = item.path.length === 1 && item.pattern.type === 'ObjectPattern'
+                ? path.get('id').get('elements')[item.index] : null;
+              const otherReceiver = otherPath && pairedArrayWrapInitElement(sourceElements, item.index);
+              const children = otherReceiver ? otherPath.get('properties').map(child => arrayReadingPropPlan(child, {
+                adapter,
+                resolvePure,
+                isDisabledProp,
+                isClaimedProp,
+                receiver: otherReceiver,
+                capturedRoot: true,
+              })) : null;
+              const planned = !!children?.every(child => child?.kind === 'consumed' || child?.kind === 'verbatim');
+              if (planned) capturedReads.push(...children.flatMap(child => child.extractions ?? []));
+              return {
+                kind: planned && children.some(child => child.kind === 'consumed') ? 'rebuilt' : 'verbatim',
+                node: item.pattern,
+                sourceNode: item.pattern,
+                index: item.index,
+                children: planned ? children : undefined,
+              };
+            });
+            const mirrors = capturedElements.flatMap(item => item.children?.flatMap(child => child.mirror ?? []) ?? []);
             return {
               pattern,
               extractions: capturedReads,
-              array: { capture: captured, elements: capturedElements, inDeclaration, exportFrom: 1 },
+              array: { capture: captured, elements: capturedElements, inDeclaration, exportFrom: 1, mirrors },
             };
           }
           return expandedElements ? null : positionalArrayDestructurePlan({ path, adapter, resolvePure, isDisabledProp, isClaimedProp });
@@ -1848,9 +2008,12 @@ export function buildNestedDestructurePlan({
       };
     }
     // Native fragments may introduce private bindings anywhere in the emitted list.
-    // Export source names explicitly instead of assigning visibility by statement index.
+    // Export source names explicitly instead of assigning visibility by statement index;
+    // an export no list may replace (a TS namespace body) keeps the host native.
+    const exportPath = arrayPath.parentPath?.parentPath;
     if (plan?.array.capture && !plan.array.inDeclaration && !plan.array.positional
-      && arrayPath.parentPath?.parentPath?.node?.type === 'ExportNamedDeclaration') {
+      && exportPath?.node?.type === 'ExportNamedDeclaration') {
+      if (!hostsExportList(exportPath.parentPath?.node)) return null;
       plan.array.exportFrom = null;
       plan.array.exportedSiblings = [];
       walkPatternIdentifiers(plan.pattern, id => plan.array.exportedSiblings.push(id.name));
@@ -1866,8 +2029,14 @@ export function buildNestedDestructurePlan({
   // them - the dispatch gate checks the leaf node's line). without this, the plan resolves
   // a disabled SIBLING leaf the dispatch gate never visited and the directive is silently
   // bypassed
+  // ... and so does a leaf under a hop slot another reader shares, or one the write-order gate keeps
+  // native: the claim funnel keeps it native, and the plan, which consumes statics its dispatch never
+  // asked for, asks the funnel's own verdicts
   function leafDisabled(prop) {
-    return !!isDisabledProp?.(prop);
+    if (isDisabledProp?.(prop)) return true;
+    return adapter?.method === 'usage-pure' && !!declarator?.id
+      && (claimUnderSharedHopSlot({ top: declarator.id, receivers: [declarator.init], prop, scope, adapter, path })
+        || claimWriteOrderBound({ prop, top: declarator.id, path, adapter, resolvePure }));
   }
 
   // inner prop (static method on the nested global): `{ Array: { from } }` - `from` on `Array`. accepts
@@ -2661,12 +2830,21 @@ function headLevelSlot(receiver, step, ctx) {
 // Does a nested claim need relocation beyond what the receiver mirror can serve?
 // A static paired with every pristine receiver stays in the mirror, including supported
 // pattern-valued statics. Rest or an unproven receiver leaves a binding claim to relocation.
-function nestedClaimBeyondMirror(node, receivers, { scope, adapter, path, resolvePure, nestedOnly = false }) {
+// A claim under a hop slot another reader shares stays native (`claimUnderSharedHopSlot`) and needs no host.
+function nestedClaimBeyondMirror(node, receivers, {
+  scope,
+  adapter,
+  path,
+  resolvePure,
+  nestedOnly = false,
+  sharedTop = node,
+  sharedReceivers = receivers,
+}) {
   const pattern = patternSlotTarget(node);
   if (pattern?.type === 'ArrayPattern') {
     return (pattern.elements ?? []).some((element, index) => element && element.type !== 'RestElement'
       && nestedClaimBeyondMirror(element, receivers.map(receiver => slotOrInnerDefault(element,
-        headLevelSlot(receiver, { index }, { scope, adapter, path }))), { scope, adapter, path, resolvePure }));
+        headLevelSlot(receiver, { index }, { scope, adapter, path }))), { scope, adapter, path, resolvePure, sharedTop, sharedReceivers }));
   }
   if (pattern?.type !== 'ObjectPattern') return false;
   return (pattern.properties ?? []).some(prop => {
@@ -2675,21 +2853,24 @@ function nestedClaimBeyondMirror(node, receivers, { scope, adapter, path, resolv
     const value = patternSlotTarget(prop.value);
     if (key !== null && value?.type === 'Identifier') {
       if (nestedOnly) return false;
+      if (claimUnderSharedHopSlot({ top: sharedTop, receivers: sharedReceivers, prop, scope, adapter, path })) return false;
+      // A monkey-patched static has no meta: it claims nothing here and its read stays native.
+      const metas = receivers.map(receiver => buildDestructuringInitMeta({ initNode: receiver, key, scope, adapter, path }));
       const claims = resolvePure({ kind: 'property', object: null, key, placement: null })
-        || receivers.some(receiver => {
+        || receivers.some((receiver, at) => {
           const candidates = [];
           const object = walkStaticReceiverChain({ receiverNode: receiver, walkPath: [], scope, adapter, path, unionSink: candidates });
-          return resolvePure(buildDestructuringInitMeta({ initNode: receiver, key, scope, adapter, path }))
+          return (metas[at] && resolvePure(metas[at]))
             || [object, ...candidates].some(name => name && resolvePure({ kind: 'property', object: name, key, placement: 'static' }));
         });
       if (!claims) return false;
-      return pattern.properties.some(isRestProperty) || !receivers.length || !receivers.every(receiver => {
-        const element = unwrapRuntimeExpr(receiver);
-        if (element?.type !== 'Identifier' || adapter?.hasBinding?.(scope, element.name, path)) return false;
-        const meta = buildDestructuringInitMeta({ initNode: element, key, scope, adapter, path });
-        return meta?.object === element.name
-          && !!resolvePolyfillableStaticProp({ prop, receiverName: meta.object, resolvePure, keyName: key });
-      });
+      // Each receiver names the leaf's constructor through the init-meta canon the flat head asks too
+      // (`globalThis.Array`, `(e(), Array)`, a selection). A call's value still relocates: its mirror
+      // would respell the callee's return or argument.
+      return pattern.properties.some(isRestProperty) || !receivers.length
+        || receivers.some((receiver, at) => invocationNode(peelNestedSequenceExpressions(unwrapRuntimeExpr(receiver)).tail)
+          || metas[at]?.placement !== 'static' || !metas[at].object
+          || !resolvePolyfillableStaticProp({ prop, receiverName: metas[at].object, resolvePure, keyName: key }));
     }
     // A pattern reading a static's own members is served by that static's mirror. Descending
     // the built-in as though it were a literal loses its value and needlessly relocates the head.
@@ -2701,14 +2882,36 @@ function nestedClaimBeyondMirror(node, receivers, { scope, adapter, path, resolv
       })) return false;
     const below = key === null ? [] : receivers.map(receiver => slotOrInnerDefault(prop.value,
       headLevelSlot(receiver, { key }, { scope, adapter, path })));
-    return nestedClaimBeyondMirror(prop.value, below, { scope, adapter, path, resolvePure });
+    return nestedClaimBeyondMirror(prop.value, below, { scope, adapter, path, resolvePure, sharedTop, sharedReceivers });
   });
 }
 
 export function planCatchClauseExtraction({
-  paramNode, bodyNode, scope, adapter, path, resolvePure, walkNode,
-  objectHint = null, iterableNode = null, mirrorHosts = false, assignment = false,
+  paramNode,
+  bodyNode,
+  scope,
+  adapter,
+  path,
+  resolvePure,
+  walkNode,
+  objectHint = null,
+  iterableNode = null,
+  mirrorHosts = false,
+  assignment = false,
 }) {
+  // The relocated pattern lands at the top of the body block, among that block's own lexical
+  // names: one the pattern binds or reads there would redeclare it or resolve to it instead.
+  // A labelled function declaration is lexical to the block too.
+  const bodyNames = new Set();
+  for (let stmt of bodyNode?.type === 'BlockStatement' ? bodyNode.body : []) {
+    while (stmt?.type === 'LabeledStatement') stmt = stmt.body;
+    for (const name of stmtRebindNames(stmt, [])) bodyNames.add(name);
+  }
+  if (bodyNames.size) {
+    let binds = false;
+    walkPatternIdentifiers(paramNode, id => { binds ||= bodyNames.has(id.name); });
+    if (binds || identifierReferencedInSubtree(paramNode, bodyNames)) return null;
+  }
   // an ARRAY param relocates for a claim under any of its elements: they bind by ITERATION, so the
   // per-prop questions below (which key is resolvable, which rewrite is observable) have no subject
   // here - what the relocation buys is a DECLARATION HOST, and the element rename takes it from

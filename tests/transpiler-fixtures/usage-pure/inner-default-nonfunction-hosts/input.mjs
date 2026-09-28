@@ -1,11 +1,13 @@
 // An inner default on a NON-function host - an assignment, a catch parameter, an object key, a
 // declarator's array wrapper - takes the per-key fallback chain a parameter's does. Where the
-// mirror declines (a non-identifier key, a repeated HOP key, a rest beside the leaves) every static
-// leaf keeps the inline default, the nested one included; a key repeated over LEAVES does not
-// decline it - one slot is one property, and the literal replaces the default whole; a pattern spelling only nested leaves
-// mirrors the default from them; and a member target beside the leaves (an assignment-only shape)
-// rides the mirror like any slot once its ROOT proves writable, so the flat leaf keeps no inline
-// default there. Both legs print the same shapes.
+// mirror declines (a non-identifier key, a repeated HOP key, a rest beside the leaves) a static leaf,
+// the nested one included, keeps the inline default only where the host proves the slot the default
+// pairs undefined, so the default IS the value; a CATCH parameter pairs an unknown thrown value, and
+// its leaves stay native. A key repeated over LEAVES does not decline the mirror - one slot is one
+// property, and the literal replaces the default whole; a pattern spelling only nested leaves mirrors
+// the default from them; and a member target beside the leaves (an assignment-only shape) rides the
+// mirror like any slot once its ROOT proves writable, so the flat leaf keeps no inline default there.
+// Both legs print the same shapes.
 const getKey = () => 'Map';
 const box = {};
 let S, M, alias, of, rest, race, d;

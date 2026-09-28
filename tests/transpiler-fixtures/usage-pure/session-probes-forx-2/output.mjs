@@ -86,14 +86,13 @@ function mark(t, v) {
   } of [id(Array)]) _pushMaybeArray(log).call(log, from);
 }
 {
-  for (const _ref of [{
+  for (const _ref2 of [{
     w: [[1]]
   }]) {
-    let {
-      w: [{
-        at
-      }]
-    } = _ref;
+    const {
+      w: [_ref]
+    } = _ref2;
+    const at = _atMaybeArray(_ref);
     at;
   }
 }
@@ -124,18 +123,15 @@ function mark(t, v) {
   }]) is;
 }
 {
-  for (const _ref2 of [{
+  for (const {
+    w: [{
+      is
+    }]
+  } of [{
     w: [Object]
   }, {
     w: [userObj]
-  }]) {
-    let {
-      w: [{
-        is
-      }]
-    } = _ref2;
-    is;
-  }
+  }]) is;
 }
 {
   for (const {
@@ -149,18 +145,15 @@ function mark(t, v) {
   }]) is;
 }
 {
-  for (const _ref3 of [{
+  for (const {
+    w: [{
+      is
+    }]
+  } of [{
     w: [c ? {
       is: _Object$is
     } : userObj]
-  }]) {
-    let {
-      w: [{
-        is
-      }]
-    } = _ref3;
-    is;
-  }
+  }]) is;
 }
 {
   for (const {
@@ -203,7 +196,7 @@ function mark(t, v) {
   }, {
     w: 's'
   }]) {
-    let at = _at(_ref4.w);
+    const at = _at(_ref4.w);
     at;
   }
 }
@@ -213,7 +206,7 @@ function mark(t, v) {
   }, {
     w: [1]
   }]) {
-    let at = _atMaybeArray(_ref5.w);
+    const at = _atMaybeArray(_ref5.w);
     at;
   }
 }
@@ -223,7 +216,7 @@ function mark(t, v) {
   }, {
     w: [2]
   }]) {
-    let at = _atMaybeArray(_ref6.w);
+    const at = _atMaybeArray(_ref6.w);
     at;
   }
 }
@@ -231,13 +224,13 @@ function mark(t, v) {
   for (const _ref7 of [{
     w: [1]
   }]) {
-    let at = _atMaybeArray(_ref7.w);
+    const at = _atMaybeArray(_ref7.w);
     at;
   }
 }
 {
   for (const _ref8 in obj) {
-    let m = _at(_ref8.w);
+    const m = _at(_ref8.w);
     use(m);
   }
 }
@@ -284,27 +277,24 @@ function mark(t, v) {
 }
 {
   for (const _ref10 in obj) {
-    let entries = _entries(_ref10.w);
+    const entries = _entries(_ref10.w);
     entries;
   }
 }
 {
-  for (const _ref11 of [{
+  for (const {
+    w: {
+      entries
+    }
+  } of [{
     w: _Map
-  }]) {
-    let {
-      w: {
-        entries
-      }
-    } = _ref11;
-    entries;
-  }
+  }]) entries;
 }
 {
   for (const _ref13 of [{
     w: Object
   }, _globalThis]) {
-    let {
+    const {
         w: _ref12
       } = _ref13,
       entries = _ref12 === Object ? _Object$entries : _entries(_ref12);
@@ -332,7 +322,7 @@ function mark(t, v) {
   }, {
     w: userObj
   }]) {
-    let {
+    const {
         w: _ref14
       } = _ref15,
       entries = _ref14 === Object ? _Object$entries : _entries(_ref14);
@@ -371,8 +361,8 @@ function mark(t, v) {
     w: Object,
     at: 2
   }]) {
-    let entries = _Object$entries;
-    let {
+    const entries = _Object$entries;
+    const {
       at
     } = _ref16;
     [entries, at];
@@ -383,8 +373,8 @@ function mark(t, v) {
     w: Object,
     at: 1
   }]) {
-    let entries = _Object$entries;
-    let {
+    const entries = _Object$entries;
+    const {
       at
     } = _ref17;
     [entries, at];
@@ -395,8 +385,8 @@ function mark(t, v) {
     w: Object,
     y: [1]
   }]) {
-    let entries = _Object$entries;
-    let at = _atMaybeArray(_ref18.y);
+    const entries = _Object$entries;
+    const at = _atMaybeArray(_ref18.y);
     [entries, at];
   }
 }
@@ -430,7 +420,7 @@ function mark(t, v) {
   for (const _ref19 of [{
     w: arr
   }]) {
-    let flat = _flatMaybeArray(_ref19.w);
+    const flat = _flatMaybeArray(_ref19.w);
     flat;
   }
 }
@@ -466,7 +456,7 @@ function mark(t, v) {
   }, {
     w: 1
   }]) {
-    let {
+    const {
         w: _ref20
       } = _ref21,
       is = _ref20 === Object ? _Object$is : _ref20.is;
