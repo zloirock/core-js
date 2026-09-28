@@ -1,0 +1,17 @@
++core-js/modules/es.math.acosh
++core-js/modules/es.math.atanh
++core-js/modules/es.math.clz32
++core-js/modules/es.math.cosh
++core-js/modules/es.math.expm1
++core-js/modules/es.math.f16round
++core-js/modules/es.math.fround
++core-js/modules/es.math.hypot
++core-js/modules/es.math.imul
++core-js/modules/es.math.log1p
++core-js/modules/es.math.sum-precise
++core-js/modules/es.math.tanh
++core-js/modules/es.math.to-string-tag
++core-js/modules/es.math.trunc
++core-js/modules/es.regexp.escape
++core-js/modules/es.regexp.flags
++core-js/modules/es.string.search
