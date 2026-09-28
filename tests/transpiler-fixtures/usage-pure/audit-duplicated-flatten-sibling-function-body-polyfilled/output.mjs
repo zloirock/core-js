@@ -12,12 +12,5 @@ const {
       from: _Array$from
     }
   },
-  {
-    y: {
-      at: _unused
-    }
-  } = {
-    y: [() => _Map]
-  },
   m = _atMaybeArray([() => _Map]);
 export const r = [from, m];

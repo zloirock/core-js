@@ -20,15 +20,15 @@ const out = [];
 for (const _ref4 of [{
   w: e('a')
 }]) {
-  let viaSole = _Object$entries;
+  const viaSole = _Object$entries;
   _pushMaybeArray(out).call(out, viaSole);
 }
 for (const _ref of [{
   w: e('a'),
   at: e('b')
 }]) {
-  let viaSibling = _Object$entries;
-  let {
+  const viaSibling = _Object$entries;
+  const {
     at
   } = _ref;
   _pushMaybeArray(out).call(out, viaSibling, at);
@@ -38,7 +38,7 @@ for (const _ref5 of [{
 }, {
   w: e('b')
 }]) {
-  let viaTwoSameCalls = _Object$is;
+  const viaTwoSameCalls = _Object$is;
   _pushMaybeArray(out).call(out, viaTwoSameCalls);
 }
 for (const _ref3 of [{
@@ -46,7 +46,7 @@ for (const _ref3 of [{
 }, {
   w: g('b')
 }]) {
-  let {
+  const {
       w: _ref2
     } = _ref3,
     viaDifferentCallees = _ref2 === Object ? _Object$is : _ref2.is;

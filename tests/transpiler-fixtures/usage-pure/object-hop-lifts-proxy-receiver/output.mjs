@@ -47,7 +47,8 @@ const {
 const [{
   at: noClaimInWrapper
 }] = [_globalThis];
-const wrapperIterator = _getIteratorMethod(_globalThis); // ... and an ASSIGNMENT host carries the same claim through its overwrite: no declaration hosts a
+const wrapperIterator = _getIteratorMethod(_globalThis);
+// ... and an ASSIGNMENT host carries the same claim through its overwrite: no declaration hosts a
 // `const` there, so the pattern assigns natively and the ponyfill re-binds the local right after
 let assigned;
 assigned = _getIteratorMethod(_globalThis);

@@ -40,14 +40,6 @@ f2 = _flatMapMaybeArray(_ref2);
 const _ref3 = arr;
 const a3 = _withMaybeArray(_ref3);
 const f3 = _findLastMaybeArray(_ref3);
-const {
-  w: {
-    with: _unused,
-    findLast: _unused2
-  }
-} = {
-  w: _ref3
-};
 let list = [1, 2];
 _Object$defineProperty(list, _Symbol$iterator, {
   get() {

@@ -11,6 +11,8 @@ import { entryToGlobalHint, resolve as resolveBuiltInMeta } from '../index.js';
 import {
   argumentOverridesSlot,
   ALWAYS_TRUTHY_OBJECT_NODES,
+  computedKeyHasSideEffects,
+  isIdentifierPropValue,
   aliasDeclScope,
   aliasReadGuardedAgainstNullish,
   aliasSpanDominatesUse,
@@ -1547,8 +1549,10 @@ function resolveGuardedBindingToGlobal({ name, scope, adapter, seen, path, usage
     // undefined). unknown positions bail - pure resolves on proof. a hoisted-var alias declarator
     // must additionally DOMINATE the use (`if (c) { var { Map: M } = globalThis } M.groupBy`
     // binds everywhere but assigns on one path)
+    // a MINTED alias is written by the render that emits its reads, ahead of them: its init-less
+    // declarator can sit in an outer scope and still be written first
     const hintFlowSound = assignmentAliasHintSoundAtRead({ binding, adapter, readNode: usageNode ?? path?.node })
-      && (adapter.method !== 'usage-pure' || binding.aliasWrite || !binding.node
+      && (adapter.method !== 'usage-pure' || binding.aliasWrite || !binding.node || binding.mintedAlias
         || initializerReachesRead({ adapter, binding, declaratorNode: binding.node, usagePath: path, usageNode }));
     if (hintFlowSound) return hint;
   }
@@ -2299,6 +2303,14 @@ export function memberTargetTakesExtraction(valueNode, { scope = null, adapter =
   }
   if (root?.type !== 'Identifier' || !adapter.hasBinding(scope, root.name, path)) return null;
   return resolveObjectName({ objectNode: root, scope, adapter, path }) === null ? target : null;
+}
+
+// the slot a static claim's own DEFAULT may fill where no mirror or extraction spells it: a binding,
+// or a member target the extraction canon admits. an effectful key keeps its slot in place, and a
+// default beside it would split the key from the write it leads
+export function staticSlotTakesDefault(propNode, ctx) {
+  return isIdentifierPropValue(propNode?.value)
+    || (!computedKeyHasSideEffects(propNode) && !!memberTargetTakesExtraction(propNode?.value, ctx));
 }
 
 // A ternary's arms naming one receiver can share its extraction. A consumer keeping the
