@@ -13117,6 +13117,54 @@ function * generateHoistedBindingReads() {
   }
 }
 
+// ... and a read INSIDE its own initializer, the far end of that: the binding holds nothing there, and
+// every walk following it to its value - the extracted name's alias judgment, the callee its pattern
+// slot pairs, the absent-ability of a held `?.` read - comes back to that very binding. Each has to
+// stop there, with the source's own throw or value. A pattern binds through every init spelling - a
+// factory returning a call of the binding reaches it through usage-global's returned-call chain, an
+// awaited one through the await proof; a plain binding only claims through the held `?.` read. The
+// mutual rows close the loop over two names. The binding sits in a function body the `try` calls:
+// inside the `try` block itself a `var` or an assignment host takes another route and never reaches
+// the walks.
+const SELF_BINDING_PATTERN_HOSTS = [
+  ['const', init => `const { at } = ${ init };`],
+  ['var', init => `var { at } = ${ init };`],
+  ['assign', init => `let at; ({ at } = ${ init });`],
+];
+const SELF_BINDING_INITS = [
+  { id: 'read', src: 'at' },
+  { id: 'call', src: 'at()' },
+  { id: 'new', src: 'new at()' },
+  { id: 'optional', src: 'at?.at' },
+  { id: 'factory', src: 'make()', prelude: 'function make() { return at(); }' },
+  { id: 'await', src: 'await at()', awaits: true },
+  { id: 'await-factory', src: 'await make()', prelude: 'async function make() { return at(); }', awaits: true },
+];
+const SELF_BINDING_ROWS = [
+  ...SELF_BINDING_PATTERN_HOSTS.flatMap(([host, bind]) => SELF_BINDING_INITS.map(({ id, src, prelude = '', awaits = false }) => ({
+    id: `${ host }-pattern/${ id }`, bind: `${ prelude } ${ bind(src) }`, awaits,
+  }))),
+  { id: 'const-plain/optional', bind: 'const at = at?.at;' },
+  { id: 'assign-plain/optional', bind: 'let at; at = at?.at;' },
+  { id: 'mutual/read', bind: 'const { at: a } = b, { at: b } = a; const at = a;' },
+  { id: 'mutual/call', bind: 'const { at: a } = b(), { at: b } = a(); const at = a;' },
+  { id: 'mutual/optional', bind: 'const a = b?.at, b = a?.at; const at = a;' },
+  // a Symbol.X alias whose nested shadow reads itself: the alias's record serves the shadow's scope too
+  { id: 'symbol-shadow/read', bind: 'const { iterator } = Symbol; { const { iterator } = iterator; } const at = iterator;' },
+  { id: 'symbol-shadow/call', bind: 'const { iterator } = Symbol; { const { iterator } = iterator(); } const at = iterator;' },
+  { id: 'symbol-shadow/optional', bind: 'const { iterator } = Symbol; { const iterator = iterator?.x; } const at = iterator;' },
+];
+function * generateSelfBindingReads() {
+  for (const { id, bind, awaits = false } of SELF_BINDING_ROWS) {
+    const [async, wait] = awaits ? ['async ', 'await '] : ['', ''];
+    yield {
+      ...snippet(`self-binding-read/${ id }`, `${ wait }(${ async }() => { ${ async }function read() { ${ bind } return typeof at; }`
+        + ` try { return ${ wait }read(); } catch (error) { return error.name; } })()`),
+      strip: false,
+    };
+  }
+}
+
 // An inner default on a NON-function host - a declarator's array wrapper, an assignment, a catch
 // parameter, a for-of head, an object key - takes the per-key fallback chain: the
 // mirror where the pattern spells, the inline default on every static leaf, flat or nested, where the
@@ -14831,6 +14879,7 @@ export function * generate() {
   yield * generateBranchCompleteVar();
   yield * generateIteratorStepEffects();
   yield * generateHoistedBindingReads();
+  yield * generateSelfBindingReads();
   yield * generateInnerDefaultHostFallbacks();
   yield * generateResidualCtorStatics();
   yield * generateSelectingInnerDefaults();
