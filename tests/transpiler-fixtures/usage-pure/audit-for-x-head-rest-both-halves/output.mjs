@@ -11,11 +11,8 @@ for (var _ref of [Array]) {
   } = _ref;
   _pushMaybeArray(seen).call(seen, typeof from, 'from' in staticRest);
 }
-for (var _ref2 of [[1, 2]]) {
-  var {
-    at,
-    ...instanceRest
-  } = _ref2;
-  _pushMaybeArray(seen).call(seen, typeof at, 'at' in instanceRest);
-}
+for (var {
+  at,
+  ...instanceRest
+} of [[1, 2]]) _pushMaybeArray(seen).call(seen, typeof at, 'at' in instanceRest);
 export { seen };

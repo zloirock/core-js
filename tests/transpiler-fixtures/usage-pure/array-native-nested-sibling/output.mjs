@@ -1,5 +1,4 @@
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
-import _at from "@core-js/pure/actual/instance/at";
 import _includesMaybeString from "@core-js/pure/actual/string/instance/includes";
 // A native nested pattern stays before the typed method read of its sibling.
 const events = [];
@@ -21,10 +20,11 @@ const receiver = {
   y: 'abc'
 };
 const [_ref] = [receiver, _pushMaybeArray(events).call(events, 'rhs')];
-const _ref2 = _ref.w;
-const at = _at(_ref2);
 const {
-  other
-} = _ref2;
+  w: {
+    at,
+    other
+  }
+} = _ref;
 const includes = _includesMaybeString(_ref.y);
 export { at, other, includes, events };

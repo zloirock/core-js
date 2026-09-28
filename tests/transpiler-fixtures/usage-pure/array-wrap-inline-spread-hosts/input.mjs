@@ -12,8 +12,9 @@ const [, { y: { findLastIndex: viaHoleBefore } }] = [...[, nb]];
 const [, { y: { keys: viaEffectBefore } }] = [...[eff(), nb]];
 export { viaAssign, viaTwoSlotsA, viaTwoSlotsB, viaTwoDeclsA, viaTwoDeclsB, viaDouble, viaHoleBefore, viaEffectBefore };
 
-// NEGATIVES: an object level a LATER spread may override pairs no key, so the level below it stays
-// as written; an IIFE parameter's nested leaf mirrors only into a LITERAL receiver - `nb.y` is a
+// an object level a LATER spread may override pairs no key, so the pairing stops above it and the
+// element renames positionally, reading whatever the spread left in that slot.
+// NEGATIVE: an IIFE parameter's nested leaf mirrors only into a LITERAL receiver - `nb.y` is a
 // member read the mirror cannot spell, and the flattened argument prints the same on both legs
 // (the file injects elsewhere)
 const { k: [{ y: { values: viaLaterSpread } }] } = { k: [...[nb]], ...more };

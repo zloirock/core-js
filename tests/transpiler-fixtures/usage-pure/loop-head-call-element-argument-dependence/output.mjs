@@ -18,7 +18,7 @@ for (const _ref2 of [{
 }, {
   w: pick(custom)
 }]) {
-  let {
+  const {
       w: _ref
     } = _ref2,
     from = _ref === Array ? _Array$from : _ref.from;
@@ -29,6 +29,6 @@ for (const _ref3 of [{
 }, {
   w: constant('b')
 }]) {
-  let of = _Array$of;
+  const of = _Array$of;
   use(of(8));
 }
