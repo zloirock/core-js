@@ -45,7 +45,6 @@ import {
   usableAliasInfo,
   isMemberAccessNode,
   POSSIBLE_GLOBAL_OBJECTS,
-  walkPatternIdentifiers,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   ownEmittedLogicalPatch,
@@ -103,6 +102,7 @@ import {
   destructureHostInitNode,
   enumerateFallbackDestructureBranches,
   renameSplitPropsToSentinels,
+  restoreIdleRelocations,
   restoreUnclaimedFlattens,
   staticContainerReceiverName,
   provenRealmCallName,
@@ -240,7 +240,13 @@ export default function plugin(api, options) {
     isWrittenContainerSlot: (...args) => adapter.isWrittenContainerSlot(...args),
   });
   const {
-    resolveClaimableComputedKeyName, resolvePropertyObjectType, forgetDestructureReceiverTypes, resolveNodeType, resolvedType, toHint,
+    resolveClaimableComputedKeyName,
+    resolvePropertyObjectType,
+    forgetDestructureReceiverTypes,
+    primeDestructureReceiverTypes,
+    resolveNodeType,
+    resolvedType,
+    toHint,
   } = typeResolvers;
 
   const { resolver, createDebugOutput, importStyle: importStyleOption } = createPolyfillResolver(options, {
@@ -1004,17 +1010,7 @@ export default function plugin(api, options) {
         const { plan, split, restResidual, bindingName, hostKind, nested, capture, captureFirst, keepPatternLive, detach } = admitted;
         if (nested) {
           const declaration = nested.host.parentPath;
-          if (capture && declaration.parentPath?.isExportNamedDeclaration()) {
-            const names = [];
-            for (const declarator of declaration.node.declarations) {
-              if (!destructureEmit.isMemoDeclarator(declarator)) walkPatternIdentifiers(declarator.id, id => names.push(id.name));
-            }
-            declaration.parentPath.replaceWithMultiple([
-              declaration.node,
-              t.exportNamedDeclaration(null, names.map(name => t.exportSpecifier(t.identifier(name), t.identifier(name)))),
-            ]);
-            return true;
-          }
+          if (capture && destructureEmit.unwrapExportedHost(declaration)) return true;
           if (!captureFirst
             && destructureEmit.renderNestedParamSynth({ prop, meta, fallbackOnBail: !!capture })) return true;
           if (!capture) return false;
@@ -2083,6 +2079,7 @@ export default function plugin(api, options) {
           isEntryAvailable,
           resolvePropertyObjectType,
           forgetDestructureReceiverTypes,
+          primeDestructureReceiverTypes,
           resolveNodeType,
           toHint,
           skippedNodes,
@@ -2388,6 +2385,7 @@ export default function plugin(api, options) {
         destructureEmit.flushForInitCarries();
         // the sentinel `var`s a discarded-element render owes, asked of the finished tree
         destructureEmit.flushDiscardedElementSentinels();
+        destructureEmit.unexportSentinelDeclarations(path);
         // AFTER the split canon: a host that renders its declarator late (the retained `for`
         // header) has planted its SE clones by now, and BEFORE the flush so the walk's own
         // imports still make this batch
@@ -2547,6 +2545,7 @@ export default function plugin(api, options) {
         destructureEmit.flushForInitCarries();
         // the sentinel `var`s a discarded-element render owes, asked of the finished tree
         destructureEmit.flushDiscardedElementSentinels();
+        destructureEmit.unexportSentinelDeclarations(path);
         destructureEmit.joinBodylessVarBlocks(path);
         rewalkRetainedForInits();
         postSweepIntroduced(path);
@@ -2558,6 +2557,8 @@ export default function plugin(api, options) {
         synthSwap?.apply(path);
         injector?.flush();
         finalizeInjector();
+        // a moved head no claim took up goes back, once the flush has placed its refs
+        restoreIdleRelocations(path.node);
         // a file that injected nothing prints as written: the wrapper splices are undone
         if (injector && !injector.pureImports.size && !injector.globalImports.size) restoreUnclaimedFlattens(path.node);
         // outputDebug() + closure-captured state cleanup deferred to postHook so the

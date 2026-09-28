@@ -3,7 +3,7 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 // A relocated head keeps its scope and the extracted static's result type.
 for (const _ref of [Array]) {
   var _ref3;
-  let _ref2 = _ref,
+  const _ref2 = _ref,
     make = _Array$from,
     {
       from: _unused,

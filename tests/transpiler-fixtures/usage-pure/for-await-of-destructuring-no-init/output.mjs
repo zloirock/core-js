@@ -3,7 +3,7 @@ import _includes from "@core-js/pure/actual/instance/includes";
 // claim off it is the dispatcher, and the relocated declaration is where it binds
 async function f() {
   for await (const _ref of asyncIter) {
-    let includes = _includes(_ref);
+    const includes = _includes(_ref);
     includes("x");
   }
 }

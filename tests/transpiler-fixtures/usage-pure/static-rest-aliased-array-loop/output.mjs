@@ -3,7 +3,7 @@ import _Array$from from "@core-js/pure/actual/array/from";
 const source = [Array];
 let result;
 for (const _ref2 of [source]) {
-  let [_ref] = _ref2,
+  const [_ref] = _ref2,
     _ref3 = _ref,
     from = _Array$from,
     {

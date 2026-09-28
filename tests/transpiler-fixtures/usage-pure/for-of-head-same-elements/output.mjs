@@ -149,8 +149,8 @@ for (const _ref of [{
   w: Object,
   at: 1
 }]) {
-  let viaDualBesideData = _Object$entries;
-  let {
+  const viaDualBesideData = _Object$entries;
+  const {
     at: viaDataBeside
   } = _ref;
   [viaDualBesideData, viaDataBeside];
@@ -159,8 +159,8 @@ for (const _ref2 of [{
   w: Object,
   y: [1]
 }]) {
-  let viaDualBesideInstance = _Object$values;
-  let viaInstanceBeside = _atMaybeArray(_ref2.y);
+  const viaDualBesideInstance = _Object$values;
+  const viaInstanceBeside = _atMaybeArray(_ref2.y);
   [viaDualBesideInstance, viaInstanceBeside];
 }
 for (const viaWritten of [{
@@ -189,24 +189,21 @@ for (const {
 // Different values, keys, spreads and holes refuse a single-receiver mirror; a GETTER element reads
 // through its own body, whose one returned leaf the mirror rewrites in place (the getter still runs).
 // Enumerable static candidates may still receive a guard; unknown receivers stay native.
-for (const _ref3 of [{
+for (const {
+  w: [{
+    freeze: viaOtherValue
+  }]
+} of [{
   w: [Object]
 }, {
   w: [userObj]
-}]) {
-  let {
-    w: [{
-      freeze: viaOtherValue
-    }]
-  } = _ref3;
-  viaOtherValue;
-}
+}]) viaOtherValue;
 for (const _ref5 of [{
   w: Object
 }, {
   v: Object
 }]) {
-  let {
+  const {
       w: _ref4
     } = _ref5,
     viaOtherKey = _ref4 === Object ? _Object$seal : _ref4.seal;
@@ -248,18 +245,15 @@ for (const _ref7 of [{
   w: Object,
   ...more
 }]) {
-  let {
+  const {
       w: _ref6
     } = _ref7,
     viaSpread = _ref6 === Object ? _Object$fromEntries : _ref6.fromEntries;
   viaSpread;
 }
-for (const _ref8 of [[Object], [, Object]]) {
-  let [{
-    getOwnPropertyNames: viaHole
-  }] = _ref8;
-  viaHole;
-}
+for (const [{
+  getOwnPropertyNames: viaHole
+}] of [[Object], [, Object]]) viaHole;
 // ... and a pattern written further down the body reads the loop variable as a binding of its
 // element: the static walk reads a for-of head's sole element as the init the head never had
 for (const viaLater of [{
