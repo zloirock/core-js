@@ -944,6 +944,25 @@ check('disableDirectiveKind/plain comment', disableDirectiveKind(' plain note'),
 check('isNextLineDisableDirective/line spelling is not', isNextLineDisableDirective(' core-js-disable-line'), false);
 check('isNextLineDisableDirective/JSDoc continuation', isNextLineDisableDirective('*\n * core-js-disable-next-line\n '), true);
 
+// Every line terminator still starts a directive; indentation keeps the full whitespace alphabet.
+for (const newline of ['\n', '\r', '\r\n', '\u2028', '\u2029']) {
+  for (const kind of ['file', 'line', 'next-line']) {
+    const prefix = `*${ newline }\t *\v\f\u00A0\uFEFF `;
+    check(`disableDirectiveKind/continuation ${ JSON.stringify(newline) }/${ kind }`,
+      disableDirectiveKind(`${ prefix }core-js-disable-${ kind } -- reason`), kind);
+    check(`disableDirectiveKind/invalid suffix ${ JSON.stringify(newline) }/${ kind }`,
+      disableDirectiveKind(`${ prefix }core-js-disable-${ kind }-extra`), null);
+  }
+}
+{
+  // A long directive-free JSDoc must not rescan the remaining blank lines from each line start.
+  const prefix = ' *\n'.repeat(20000);
+  check('disableDirectiveKind/long blank JSDoc miss', disableDirectiveKind(`${ prefix } * ordinary comment`), null);
+  check('disableDirectiveKind/long blank JSDoc hit', disableDirectiveKind(`${ prefix } * core-js-disable-file`), 'file');
+  check('disableDirectiveKind/first directive wins',
+    disableDirectiveKind(`${ prefix } * core-js-disable-line\n * core-js-disable-file`), 'line');
+}
+
 // --- disableDirectiveAnchors ---
 
 // babel-shaped locs: `at` stamps a node with its line span, `read` builds a one-read statement
