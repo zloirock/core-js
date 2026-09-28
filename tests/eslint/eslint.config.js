@@ -741,6 +741,8 @@ const base = {
   'unicorn/no-object-methods-with-collections': ERROR,
   // disallow optional chaining on undeclared variables
   'unicorn/no-optional-chaining-on-undeclared-variable': ERROR,
+  // prefer `Iterator.zip()` over parallel-array indexing
+  'unicorn/prefer-iterator-zip': ERROR,
   // disallow comparisons made redundant by an equality check in the same logical AND
   'unicorn/no-redundant-comparison': ERROR,
   // disallow passing single-element arrays to `Promise` methods
@@ -825,6 +827,8 @@ const base = {
   'unicorn/no-useless-recursion': ERROR,
   // disallow redundant re-exports
   'unicorn/no-useless-re-export': ERROR,
+  // disallow unnecessary `Set` construction around `Set` methods
+  'unicorn/no-useless-set-construction': ERROR,
   // disallow useless spread
   'unicorn/no-useless-spread': ERROR,
   // disallow useless `case` in `switch` statements
@@ -1841,6 +1845,8 @@ const forbidES2025BuiltIns = {
   'es/no-set-prototype-issupersetof': ERROR,
   'es/no-set-prototype-symmetricdifference': ERROR,
   'es/no-set-prototype-union': ERROR,
+  // prefer iterator helpers over temporary arrays from iterators
+  'unicorn/prefer-iterator-helpers': OFF,
   // prefer `Iterator#toArray()` over temporary arrays from iterator spreads
   'unicorn/prefer-iterator-to-array': OFF,
   // prefer `Promise.try()` over promise-wrapping boilerplate
@@ -1888,6 +1894,8 @@ const forbidES2026BuiltIns = {
 const forbidES2027BuiltIns = {
   'es/no-iterator-zip': ERROR,
   'es/no-iterator-zipkeyed': ERROR,
+  // prefer `Iterator.zip()` over parallel-array indexing
+  'unicorn/prefer-iterator-zip': OFF,
 };
 
 const forbidES2016IntlBuiltIns = {
@@ -2046,11 +2054,32 @@ const nodePackages = {
   // disallow unsupported ECMAScript built-ins on the specified version
   'node/no-unsupported-features/node-builtins': [ERROR, { version: PACKAGES_NODE_VERSIONS, allowExperimental: false }],
   ...disable(forbidModernBuiltIns),
-  ...forbidES2024BuiltIns,
-  'es/no-regexp-v-flag': OFF,
-  'es/no-string-prototype-iswellformed': OFF,
-  'es/no-string-prototype-towellformed': OFF,
   ...forbidES2025BuiltIns,
+  'es/no-iterator': OFF,
+  'es/no-iterator-prototype-drop': OFF,
+  'es/no-iterator-prototype-every': OFF,
+  'es/no-iterator-prototype-filter': OFF,
+  'es/no-iterator-prototype-find': OFF,
+  'es/no-iterator-prototype-flatmap': OFF,
+  'es/no-iterator-prototype-foreach': OFF,
+  'es/no-iterator-prototype-map': OFF,
+  'es/no-iterator-prototype-reduce': OFF,
+  'es/no-iterator-prototype-some': OFF,
+  'es/no-iterator-prototype-take': OFF,
+  'es/no-iterator-prototype-toarray': OFF,
+  'es/no-set-prototype-difference': OFF,
+  'es/no-set-prototype-intersection': OFF,
+  'es/no-set-prototype-isdisjointfrom': OFF,
+  'es/no-set-prototype-issubsetof': OFF,
+  'es/no-set-prototype-issupersetof': OFF,
+  'es/no-set-prototype-symmetricdifference': OFF,
+  'es/no-set-prototype-union': OFF,
+  // prefer iterator helpers over temporary arrays from iterators
+  'unicorn/prefer-iterator-helpers': ERROR,
+  // prefer `Iterator#toArray()` over temporary arrays from iterator spreads
+  'unicorn/prefer-iterator-to-array': ERROR,
+  // prefer `Set` methods for `Set` operations
+  'unicorn/prefer-set-methods': ERROR,
   ...forbidES2026BuiltIns,
   ...forbidES2027BuiltIns,
   ...forbidES2025IntlBuiltIns,
@@ -2728,7 +2757,7 @@ export default [
   },
   {
     files: [
-      'packages/core-js-@(babel-plugin|builder|compat)/**',
+      'packages/core-js-@(babel-plugin|builder|compat|polyfill-provider|unplugin)/**',
     ],
     rules: nodePackages,
   },
