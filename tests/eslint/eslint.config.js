@@ -905,6 +905,8 @@ const base = {
   'unicorn/prefer-iterator-to-array': ERROR,
   // prefer moving `.toArray()` to the end of iterator helper chains
   'unicorn/prefer-iterator-to-array-at-end': ERROR,
+  // prefer JSON imports over reading and parsing JSON files
+  'unicorn/prefer-json-import': ERROR,
   // prefer reading a `JSON` file as a buffer
   'unicorn/prefer-json-parse-buffer': ERROR,
   // prefer using a logical operator over a ternary
@@ -1066,8 +1068,6 @@ const base = {
   'sonarjs/no-literal-call': ERROR,
   // array-mutating methods should not be used misleadingly
   'sonarjs/no-misleading-array-reverse': ERROR,
-  // assignments should not be redundant
-  'sonarjs/no-redundant-assignments': ERROR,
   // boolean literals should not be redundant
   'sonarjs/no-redundant-boolean': ERROR,
   // jump statements should not be redundant
@@ -1847,6 +1847,8 @@ const forbidES2025BuiltIns = {
   'unicorn/prefer-iterator-helpers': OFF,
   // prefer `Iterator#toArray()` over temporary arrays from iterator spreads
   'unicorn/prefer-iterator-to-array': OFF,
+  // prefer JSON imports over reading and parsing JSON files
+  'unicorn/prefer-json-import': OFF,
   // prefer `Promise.try()` over promise-wrapping boilerplate
   'unicorn/prefer-promise-try': OFF,
   // prefer `RegExp.escape()` for escaping strings to use in regular expressions
@@ -2093,6 +2095,8 @@ const nodePackages = {
   ...forbidSomeES2025Syntax,
   'es/no-import-attributes': OFF,
   'es/no-json-modules': OFF,
+  // prefer JSON imports over reading and parsing JSON files
+  'unicorn/prefer-json-import': ERROR,
 };
 
 const nodeDev = {
