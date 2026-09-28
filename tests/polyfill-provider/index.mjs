@@ -27,6 +27,7 @@ import './member-context-paths.mjs';
 import './ast-input-context.mjs';
 import './ast-context-complexity.mjs';
 import './destructure-host-shape.mjs';
+import './destructure-write-order.mjs';
 import './nested-receiver-base.mjs';
 import './array-wrapper-drop.mjs';
 import './existing-imports.mjs';

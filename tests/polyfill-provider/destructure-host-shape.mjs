@@ -79,9 +79,28 @@ for (const [source, expected] of [
   check(`${ label } source walk`, !!walk, true);
   if (!walk) return;
   const original = JSON.stringify(walk.declarator.node);
-  const plan = planNestedLeafHost(walk);
+  const plan = planNestedLeafHost(walk, null, { pairing: true });
   checkDeep(`${ label } placement`, plan ? [plan.navPlacement, plan.siblingLevel, plan.forInit, plan.bodyless] : null, expected);
+  // the flat twin never takes a pairing: that element is the array plan's, whatever it answered
+  if (walk.wrapper) check(`${ label } twin declines the pairing`, planNestedLeafHost(walk), null);
   check(`${ label } source unchanged`, JSON.stringify(walk.declarator.node), original);
+});
+
+// a pairing under an ASSIGNMENT host is still a pairing: the twin must not take it for a plain
+// object host, which would discard the literal's other elements and their effects
+for (const source of [
+  '({ w: [x, { y: { at, other } }] } = { w: [effect(), box] });',
+  '({ w: [{ y: { at, other } }] } = { w: [box] });',
+]) runBoth('nested leaf placement under an assignment', `let x, at, other; const box = source; ${ source }`, (parser, program, label) => {
+  const prop = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property', path => path.node.key?.name === 'at');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)();
+  const walk = resolveNestedReceiverChain(prop, { soleSlots: true, allowLeafSiblings: true, allowSlotDefault: true, siblingLevels: true, adapter, allowAssignmentHost: true });
+  check(`${ label } source walk pairs`, !!walk?.wrapper, true);
+  if (!walk) return;
+  let statement = walk.declarator.parentPath;
+  while (statement.node.type === 'ParenthesizedExpression') statement = statement.parentPath;
+  check(`${ label } statement host`, statement.node.type, 'ExpressionStatement');
+  check(`${ label } twin declines`, planNestedLeafHost(walk, statement), null);
 });
 
 for (const [name, pure, global] of [

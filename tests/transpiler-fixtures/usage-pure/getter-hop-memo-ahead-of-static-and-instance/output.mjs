@@ -22,54 +22,19 @@ class KE {
 const _ref = KE.I;
 const fromConst = _Iterator$from;
 const constName = _nameMaybeFunction(_ref);
-const {
-  M: {
-    name: _unused
-  }
-} = {
-  M: _ref
-};
 const _ref2 = KE.I;
 let concatLet = _Iterator$concat;
 let letName = _nameMaybeFunction(_ref2);
-let {
-  M: {
-    name: _unused2
-  }
-} = {
-  M: _ref2
-};
 const _ref3 = KE.I;
 var zipVar = _Iterator$zip;
 var varName = _nameMaybeFunction(_ref3);
-var {
-  M: {
-    name: _unused3
-  }
-} = {
-  M: _ref3
-};
 const _ref4 = KE.I;
 export const zipKeyedExport = _Iterator$zipKeyed;
 export const exportName = _nameMaybeFunction(_ref4);
-export const {
-  M: {
-    name: _unused4
-  }
-} = {
-  M: _ref4
-};
 const run = () => {
   const _ref5 = KE.A;
   const ofArrow = _Array$of;
   const arrowName = _nameMaybeFunction(_ref5);
-  const {
-    M: {
-      name: _unused5
-    }
-  } = {
-    M: _ref5
-  };
   return [ofArrow, arrowName];
 };
 use(fromConst, constName, concatLet, letName, varName, zipVar, run);

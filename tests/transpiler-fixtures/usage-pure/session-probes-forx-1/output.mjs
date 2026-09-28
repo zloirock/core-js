@@ -86,7 +86,7 @@ function mark(t, v) {
 {
   const k = 'w';
   for (const _ref in obj) {
-    let m = _at(_ref.w);
+    const m = _at(_ref.w);
     use(m);
   }
 }
@@ -101,12 +101,9 @@ function mark(t, v) {
   } of rows) is;
 }
 {
-  for (const _ref2 of [[[1]], [[1]]]) {
-    let [[{
-      at
-    }]] = _ref2;
-    at;
-  }
+  for (const [[{
+    at
+  }]] of [[[1]], [[1]]]) at;
 }
 {
   for (const [[{
@@ -117,8 +114,8 @@ function mark(t, v) {
 }
 {
   for (const _ref4 of [[[1]]]) {
-    let [_ref3] = _ref4;
-    let at = _atMaybeArray(_ref3);
+    const [_ref3] = _ref4;
+    const at = _atMaybeArray(_ref3);
     at;
   }
 }
@@ -139,12 +136,9 @@ function mark(t, v) {
   }]]) entries;
 }
 {
-  for (const _ref5 of [[Object], [, Object]]) {
-    let [{
-      hasOwn
-    }] = _ref5;
-    hasOwn;
-  }
+  for (const [{
+    hasOwn
+  }] of [[Object], [, Object]]) hasOwn;
 }
 {
   for (const [{
@@ -189,8 +183,8 @@ function mark(t, v) {
 }
 {
   for (const _ref7 of [[Object], [userObj]]) {
-    let [_ref6] = _ref7;
-    let values = _values(_ref6);
+    const [_ref6] = _ref7;
+    const values = _values(_ref6);
     values;
   }
 }
@@ -203,10 +197,10 @@ function mark(t, v) {
 }
 {
   for (const _ref9 of [[r]]) {
-    let [_ref8] = _ref9;
-    let _ref10 = _ref8.w;
-    let values = _values(_ref10);
-    let at = _at(_ref8.y);
+    const [_ref8] = _ref9;
+    const _ref10 = _ref8.w;
+    const values = _values(_ref10);
+    const at = _at(_ref8.y);
     [values, at];
   }
 }
@@ -355,7 +349,7 @@ function mark(t, v) {
   for (const _ref14 of [_globalThis, {
     Array
   }]) {
-    let {
+    const {
         Array: _ref13
       } = _ref14,
       from = _ref13 === Array ? _Array$from : _ref13.from;

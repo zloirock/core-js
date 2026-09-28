@@ -4,6 +4,6 @@ import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 // has no declaration to extract into, so the relocation gives it one and the lookup lands there;
 // the optional call on the resolved binding stays as the source wrote it
 for (const _ref of [obj1, obj2]) {
-  let it = _getIteratorMethod(_ref);
+  const it = _getIteratorMethod(_ref);
   it?.();
 }

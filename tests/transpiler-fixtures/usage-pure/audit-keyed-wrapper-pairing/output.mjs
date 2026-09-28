@@ -27,24 +27,21 @@ const flatClaim = function () {
   const flat = _flatMaybeArray(_ref4);
   return flat;
 }();
-// NEGATIVE: a NEIGHBOUR key that carries an effect pins the order - native builds the whole literal
-// before it destructures, so a read moved to the pairing would step over that effect
+// a NEIGHBOUR key that carries an effect pins the order - native builds the whole literal before it
+// destructures, so the pairing stays off and the element renames positionally after that effect
 const log = [];
 const besideAnEffect = function () {
-  const _ref5 = {
-      pair: [nb],
-      zn: _pushMaybeArray(log).call(log, 'n')
-    },
-    {
-      pair: [{
-        y: {
-          flat
-        }
-      }]
-    } = _ref5,
-    {
-      zn
-    } = _ref5;
+  const _ref6 = {
+    pair: [nb],
+    zn: _pushMaybeArray(log).call(log, 'n')
+  };
+  const {
+    pair: [_ref5]
+  } = _ref6;
+  const flat = _flatMaybeArray(_ref5.y);
+  const {
+    zn
+  } = _ref6;
   return [typeof flat, zn];
 }();
 export { nested, flatClaim, besideAnEffect };

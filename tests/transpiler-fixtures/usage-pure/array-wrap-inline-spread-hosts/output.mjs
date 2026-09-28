@@ -8,6 +8,7 @@ import _withMaybeArray from "@core-js/pure/actual/array/instance/with";
 import _at from "@core-js/pure/actual/instance/at";
 import _includes from "@core-js/pure/actual/instance/includes";
 import _keys from "@core-js/pure/actual/instance/keys";
+import _values from "@core-js/pure/actual/instance/values";
 var _ref;
 // the inline-array spread flattens once per HOST, from the root pattern down every paired level -
 // under an object hop, a second wrapper, a sibling slot - on every host kind the pattern may live
@@ -16,8 +17,8 @@ let viaAssign;
 [_ref] = [nb];
 viaAssign = _at(_ref.y);
 for (const _ref3 of [[...[nb]]]) {
-  let [_ref2] = _ref3;
-  let viaForOf = _flatMaybeArray(_ref2.y);
+  const [_ref2] = _ref3;
+  const viaForOf = _flatMaybeArray(_ref2.y);
   viaForOf;
 }
 try {
@@ -39,20 +40,18 @@ const [, _ref7] = [eff(), nb];
 const viaEffectBefore = _keys(_ref7.y);
 export { viaAssign, viaTwoSlotsA, viaTwoSlotsB, viaTwoDeclsA, viaTwoDeclsB, viaDouble, viaHoleBefore, viaEffectBefore };
 
-// NEGATIVES: an object level a LATER spread may override pairs no key, so the level below it stays
-// as written; an IIFE parameter's nested leaf mirrors only into a LITERAL receiver - `nb.y` is a
+// an object level a LATER spread may override pairs no key, so the pairing stops above it and the
+// element renames positionally, reading whatever the spread left in that slot.
+// NEGATIVE: an IIFE parameter's nested leaf mirrors only into a LITERAL receiver - `nb.y` is a
 // member read the mirror cannot spell, and the flattened argument prints the same on both legs
 // (the file injects elsewhere)
 const {
-  k: [{
-    y: {
-      values: viaLaterSpread
-    }
-  }]
+  k: [_ref8]
 } = {
   k: [...[nb]],
   ...more
 };
+const viaLaterSpread = _values(_ref8.y);
 class K {
   f = (([{
     y: {

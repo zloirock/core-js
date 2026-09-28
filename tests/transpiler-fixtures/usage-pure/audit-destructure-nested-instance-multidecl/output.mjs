@@ -5,11 +5,4 @@ import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 // the planner once bailed this shape (and emitters diverged: babel polyfilled, unplugin left it native)
 const arr = [1, [2]];
 const z = 1,
-  {
-    y: {
-      flat: _unused
-    }
-  } = {
-    y: arr
-  },
   m = _flatMaybeArray(arr);

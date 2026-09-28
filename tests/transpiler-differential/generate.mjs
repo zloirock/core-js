@@ -588,7 +588,7 @@ const D_HOSTS = [
     build: p => `(() => { const [${ p.lhs }] = [${ p.recv }, ...[log.push("s")]]; return ${ p.observe }; })()` },
   // an array-wrapped pattern SHARING its declaration: a memo of the element hoisted ahead of the
   // whole declaration would run the element read before an EFFECT the leading declarator performs,
-  // and the trailing twin is the control where nothing precedes. the second wrapped declarator makes
+  // and the trailing-sibling row is the control where nothing precedes. the second wrapped declarator makes
   // each residual verdict answer for its own slot instead of the declaration's first
   { id: 'array-wrap-effect-leading-sibling', strip: true,
     build: p => `(() => { const zLead = log.push("lead"), [${ p.lhs }] = [${ p.recv }]; return [zLead, ${ p.observe }]; })()` },
@@ -13122,18 +13122,20 @@ function * generateHoistedBindingReads() {
 // mirror where the pattern spells, the inline default on every static leaf, flat or nested, where the
 // mirror declines (a computed, duplicate or non-identifier key, a rest or a member target beside the
 // leaves), and a pattern spelling only nested leaves mirrors from them. The function hosts are the
-// controls, but never gain leaf defaults when their mirror declines. A member target is assignment-only.
+// controls, but never gain leaf defaults when their mirror declines, and neither does a catch
+// parameter: nothing proves its thrown slot absent, and a present element without the key would
+// take the leaf default. A member target is assignment-only.
 const INNER_DEFAULT_HOST_LEAVES = [
   { id: 'ckey', pattern: 'Set: S, [getKey()]: y, Array: { of }', read: '[typeof S, of(7)[0]]', strip: false },
   { id: 'nonid', pattern: 'Set: S, "with-dash": d, Array: { of }', read: '[typeof S, of(7)[0], typeof d]', strip: true,
-    nativeHosts: ['param-expr', 'param-stmt'] },
+    nativeHosts: ['param-expr', 'param-stmt', 'catch'] },
   { id: 'dup', pattern: 'Map: M, ["Map"]: alias, Array: { of }', read: '[typeof M, of(7)[0]]', strip: false },
   { id: 'rest', pattern: 'Set: S, Array: { of }, ...rest', read: '[typeof S, of(7)[0], typeof rest]', strip: false },
   { id: 'nested-only', pattern: 'Array: { of }', read: '[of(7)[0]]', strip: true },
   { id: 'nested-only-nonid', pattern: 'Array: { of }, "with-dash": d', read: '[of(7)[0], typeof d]', strip: true,
-    nativeHosts: ['param-expr', 'param-stmt'] },
+    nativeHosts: ['param-expr', 'param-stmt', 'catch'] },
   { id: 'nested-two', pattern: 'Array: { of }, "with-dash": d, Promise: { race }', read: '[of(7)[0], typeof d, typeof race]', strip: true,
-    nativeHosts: ['param-expr', 'param-stmt'] },
+    nativeHosts: ['param-expr', 'param-stmt', 'catch'] },
   { id: 'member', pattern: 'Set: S, Array: { of: box.of }', read: '[typeof S, typeof box.of]', strip: false, hosts: ['assign'] },
   { id: 'member-nested', pattern: 'Set: S, Array: { of }, Promise: { race: box.race }', read: '[typeof S, of(7)[0], typeof box.race]', strip: false, hosts: ['assign'] },
 ];
@@ -14470,6 +14472,146 @@ function * generateAmbientNativeInheritance() {
   }
 }
 
+// --- Destructure matrix ---
+// a two-key destructure of Array statics or prototype methods across the host x receiver x key
+// spelling x nesting x TS wrapper product: block, loop, parameter, assignment and export hosts over
+// receivers spelled plain, through the realm, behind an effect, as a literal and as a navigation
+// pattern. every cell also runs stripped unless `destructureMatrixStripDeclined` declines it
+const DM_RECEIVERS = {
+  ctor: { receiver: 'Array', keys: ['of', 'from'] },
+  realmNav: { receiver: 'globalThis.Array', keys: ['of', 'from'] },
+  seqCtor: { receiver: "(log.push('r'), Array)", keys: ['of', 'from'] },
+  proto: { receiver: 'Array.prototype', keys: ['at', 'flat'] },
+  literal: { receiver: '[1, [2]]', keys: ['at', 'flat'] },
+  navProto: { receiver: 'Array', keys: ['at', 'flat'], nav: pattern => `{ prototype: ${ pattern } }` },
+  navRealm: { receiver: 'globalThis', keys: ['of', 'from'], nav: pattern => `{ Array: ${ pattern } }` },
+  navRealmProto: { receiver: 'globalThis', keys: ['at', 'flat'], nav: pattern => `{ Array: { prototype: ${ pattern } } }` },
+};
+const DM_SPELLINGS = {
+  plain: (k1, k2) => `{ ${ k1 }: a, ${ k2 }: b }`,
+  seFirst: (k1, k2) => `{ [(log.push('k'), '${ k1 }')]: a, ${ k2 }: b }`,
+  seSecond: (k1, k2) => `{ ${ k1 }: a, [(log.push('k'), '${ k2 }')]: b }`,
+  seMiddle: (k1, k2) => `{ ${ k1 }: a, [(log.push('k'), '${ k2 }')]: b, length: c }`,
+  twoSe: (k1, k2) => `{ [(log.push('k1'), '${ k1 }')]: a, [(log.push('k2'), '${ k2 }')]: b }`,
+  boundKey: (k1, k2) => `{ [K1]: a, ${ k2 }: b }`,
+  defaulted: (k1, k2) => `{ ${ k1 }: a = 1, ${ k2 }: b }`,
+};
+// the pattern wrapper and the init wrapper of each nesting
+const DM_NESTINGS = {
+  flat: [pattern => pattern, init => init],
+  obj1: [pattern => `{ w: ${ pattern } }`, init => `{ w: ${ init } }`],
+  obj2: [pattern => `{ w: { v: ${ pattern } } }`, init => `{ w: { v: ${ init } } }`],
+  arrInObj: [pattern => `{ w: [${ pattern }] }`, init => `{ w: [${ init }] }`],
+  objInArr: [pattern => `[{ w: ${ pattern } }]`, init => `[{ w: ${ init } }]`],
+  arr2: [pattern => `[[${ pattern }]]`, init => `[[${ init }]]`],
+};
+const DM_WRAPPERS = {
+  none: receiver => receiver,
+  as: receiver => `(${ receiver } as any)`,
+  nonNull: receiver => `${ receiver }!`,
+  satisfies: receiver => `(${ receiver } satisfies unknown)`,
+  angle: receiver => `(<any>${ receiver })`,
+};
+const DM_RETURN = 'return [typeof a, typeof b, log.join()];';
+const DM_HOSTS = {
+  const: (lhs, init) => `const ${ lhs } = ${ init }; ${ DM_RETURN }`,
+  let: (lhs, init) => `let ${ lhs } = ${ init }; ${ DM_RETURN }`,
+  var: (lhs, init) => `var ${ lhs } = ${ init }; ${ DM_RETURN }`,
+  assign: (lhs, init) => `let a, b, c; (${ lhs } = ${ init }); ${ DM_RETURN }`,
+  assignValue: (lhs, init) => `let a, b, c; const z = (${ lhs } = ${ init }); void z; ${ DM_RETURN }`,
+  assignBodyless: (lhs, init) => `let a, b, c; if (log.length >= 0) (${ lhs } = ${ init }); ${ DM_RETURN }`,
+  assignSeq: (lhs, init) => `let a, b, c; const zd = ((${ lhs } = ${ init }), 7); void zd; ${ DM_RETURN }`,
+  wrapMulti: (lhs, init) => `let a, b, c, zn; ([${ lhs }, zn] = [${ init }, 7]); ${ DM_RETURN }`,
+  wrapSoleDecl: (lhs, init) => `const [${ lhs }] = [${ init }]; ${ DM_RETURN }`,
+  wrapMultiDecl: (lhs, init) => `const [${ lhs }, zn] = [${ init }, 7]; void zn; ${ DM_RETURN }`,
+  forOfConst: (lhs, init) => `for (const ${ lhs } of [${ init }]) { ${ DM_RETURN } }`,
+  forOfAssign: (lhs, init) => `let a, b, c; for (${ lhs } of [${ init }]) break; ${ DM_RETURN }`,
+  paramDefault: (lhs, init) => `function g(${ lhs } = ${ init }) { ${ DM_RETURN } } return g();`,
+  paramArg: (lhs, init) => `function g(${ lhs }) { ${ DM_RETURN } } return g(${ init });`,
+  arrowDefault: (lhs, init) => `const g = (${ lhs } = ${ init }) => { ${ DM_RETURN } }; return g();`,
+};
+// module-level hosts bind the pattern at the top level and export the observable directly
+const DM_EXPORT_RETURN = 'export const r = [typeof a, typeof b, log.join()];';
+const DM_EXPORT_HOSTS = {
+  exportConst: (lhs, init) => `export const ${ lhs } = ${ init };\n${ DM_EXPORT_RETURN }`,
+  exportLet: (lhs, init) => `export let ${ lhs } = ${ init };\n${ DM_EXPORT_RETURN }`,
+  exportVar: (lhs, init) => `export var ${ lhs } = ${ init };\n${ DM_EXPORT_RETURN }`,
+  exportMulti: (lhs, init) => `export const x0 = 1, ${ lhs } = ${ init }, y0 = 2;\n${ DM_EXPORT_RETURN }`,
+};
+// receivers whose keys are prototype methods; key spellings without an effect - an effectful key takes the
+// relocating route, which serves array levels the plain routes decline
+const DM_INSTANCE_RECEIVERS = new Set(['proto', 'literal', 'navProto', 'navRealmProto']);
+const DM_PLAIN_KEYS = new Set(['plain', 'defaulted', 'boundKey']);
+const DM_ARRAY_NESTINGS = new Set(['arrInObj', 'objInArr', 'arr2']);
+// whether a cell skips the stripped realm, where both emitters leave it native; it keeps the full-realm,
+// import and print-through checks. the first two clauses are canon boundaries; every other one is an open
+// loss under its TASKS row and leaves with the fix - one leg serving a cell alone is a divergence, not a fix
+function destructureMatrixStripDeclined({ hostId, receiverId, spellingId, nestingId, wrapperId }) {
+  const instance = DM_INSTANCE_RECEIVERS.has(receiverId);
+  // a call argument never reaches the callee's pattern: a constructor argument is replaced by its pure
+  // constructor where it stands, a prototype has no pure stand-in
+  if (hostId === 'paramArg') return instance;
+  // B3 G2 / G3: a parameter default navigated to a prototype (`({ prototype: { at } } = Array) => {}`)
+  // has no route, and a new one is not worth it for a shape no code spells
+  if (hostId === 'paramDefault' || hostId === 'arrowDefault') return receiverId === 'navProto' || receiverId === 'navRealmProto';
+  const plainKeys = DM_PLAIN_KEYS.has(spellingId);
+  // FC-590: the plain route of unplugin keeps `globalThis!` under an object hop, which throws in a realm without it
+  if (wrapperId === 'nonNull' && receiverId === 'navRealmProto' && nestingId === 'obj1' && plainKeys
+    && (hostId in DM_EXPORT_HOSTS || ['const', 'let', 'var'].includes(hostId))) return true;
+  // FC-588: every other loss sits behind an array level
+  if (!DM_ARRAY_NESTINGS.has(nestingId)) return false;
+  // (a) an assignment whose value is read, over a constructor or the realm
+  if (hostId === 'assignValue' && !instance) return nestingId !== 'arr2' || plainKeys || receiverId === 'navRealm';
+  if (!instance) return false;
+  // (b) an instance claim of an assignment
+  if (['assignValue', 'assignSeq', 'forOfAssign'].includes(hostId)) return nestingId === 'arrInObj' || plainKeys;
+  // (c) a pattern its host wraps in an array, under `{ w: [...] }`
+  if (hostId === 'wrapMulti') return nestingId === 'arrInObj';
+  if (hostId === 'wrapSoleDecl' || hostId === 'wrapMultiDecl') return nestingId === 'arrInObj' && (plainKeys || spellingId === 'twoSe');
+  // (d) a declarator between others, through two array levels
+  if (hostId === 'exportMulti' && nestingId === 'arr2' && plainKeys) return true;
+  // (e) two effectful keys under `{ w: [...] }`
+  return spellingId === 'twoSe' && nestingId === 'arrInObj' && (receiverId === 'proto' || receiverId === 'literal' || hostId === 'forOfConst');
+}
+// FC-589: the emitters disagree on the import set of a for-of head navigated to a prototype - babel reads the
+// element as the realm or the constructor, unplugin dispatches generically - so these cells wait for the fix
+function destructureMatrixImportsDiverge({ hostId, receiverId, spellingId, nestingId }) {
+  if (hostId !== 'forOfConst' && hostId !== 'forOfAssign') return false;
+  if (receiverId === 'navRealmProto' && nestingId === 'flat') return true;
+  return (receiverId === 'navProto' || receiverId === 'navRealmProto') && (nestingId === 'obj1' || nestingId === 'obj2')
+    && DM_PLAIN_KEYS.has(spellingId);
+}
+function destructureMatrixCell({ hostId, host, receiverId, receiver, keys, nav, spellingId, nestingId, wrapperId }) {
+  const [wrapPattern, wrapInit] = DM_NESTINGS[nestingId];
+  const id = `${ hostId }/${ receiverId }/${ spellingId }/${ nestingId }/${ wrapperId }`;
+  const lhs = wrapPattern(nav(DM_SPELLINGS[spellingId](keys[0], keys[1])));
+  const body = host(lhs, wrapInit(DM_WRAPPERS[wrapperId](receiver)));
+  const boundKey = `const K1 = '${ keys[0] }';`;
+  const name = `destructure-matrix/${ id }`;
+  const cell = hostId in DM_EXPORT_HOSTS
+    ? { name, code: [...PRELUDE, boundKey, body, 'export const effects = log;'].join('\n') }
+    : snippet(name, `(() => { ${ boundKey } try { ${ body } } catch (error) { return ['THREW', error?.constructor?.name, log.join()]; } })()`);
+  // FC-570: usage-global injects nothing for a flat parameter pattern, so its stripped realm loses the methods
+  const fullEnv = hostId === 'paramArg' && (receiverId === 'proto' || receiverId === 'literal') && nestingId === 'flat';
+  const strip = !destructureMatrixStripDeclined({ hostId, receiverId, spellingId, nestingId, wrapperId });
+  return { ...cell, ts: wrapperId !== 'none', strip, ...fullEnv ? { fullEnv } : {} };
+}
+// the TS axis branches on the receiver node only, so it rides a reduced product
+const DM_SHAPES = Object.keys(DM_SPELLINGS).flatMap(spellingId => Object.keys(DM_NESTINGS).flatMap(nestingId => Object.keys(DM_WRAPPERS)
+  .filter(wrapperId => wrapperId === 'none' || ['flat', 'obj1'].includes(nestingId) && ['plain', 'seFirst', 'seSecond'].includes(spellingId))
+  .map(wrapperId => ({ spellingId, nestingId, wrapperId }))));
+function * generateDestructureMatrix() {
+  for (const [hostId, host] of Object.entries({ ...DM_HOSTS, ...DM_EXPORT_HOSTS })) {
+    for (const [receiverId, { receiver, keys, nav = pattern => pattern }] of Object.entries(DM_RECEIVERS)) {
+      for (const shape of DM_SHAPES) {
+        if (!destructureMatrixImportsDiverge({ hostId, receiverId, ...shape })) {
+          yield destructureMatrixCell({ hostId, host, receiverId, receiver, keys, nav, ...shape });
+        }
+      }
+    }
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateUnbackedSequenceHops();
@@ -14713,4 +14855,5 @@ export function * generate() {
   yield * generateDefinitionTimeReceivers();
   yield * generateOwnThisDefinitionSlots();
   yield * generateAmbientNativeInheritance();
+  yield * generateDestructureMatrix();
 }

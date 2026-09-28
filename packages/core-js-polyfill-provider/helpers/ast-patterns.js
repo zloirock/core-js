@@ -1854,6 +1854,18 @@ export const SINGLE_STATEMENT_SLOTS = new Map([
   ['WithStatement', ['body']],
 ]);
 
+// is `host` the single-statement slot of `parent`? composed on the canonical slot table, which
+// already carries the two-slot IfStatement (`consequent` / `alternate`); the concise-body arrow is
+// the one host outside it (its slot holds an EXPRESSION, so the statement table has no entry).
+// NOTE the answer is "this IS the slot", NOT "this slot needs braces": a BRACED body occupies the
+// same slot and answers true - callers that emit multiple statements must test the host's own type.
+// callers pass raw nodes - works uniformly across babel paths and estree-toolkit paths
+export function isBodylessStatementSlot(parent, host) {
+  if (!parent) return false;
+  if (parent.type === 'ArrowFunctionExpression') return parent.body === host;
+  return (SINGLE_STATEMENT_SLOTS.get(parent.type) ?? []).some(slot => parent[slot] === host);
+}
+
 // does `node` stand in a STATEMENT position under `parent` - a member of its statement list or its
 // un-braced body - as opposed to a slot a statement-shaped node can also fill (a loop head's
 // declaration, an export's declaration)? by identity, for a caller that holds the node and its
@@ -1976,6 +1988,20 @@ export function enclosingParameterListOwner(usePath) {
     return p.node.params?.includes(child.node) ? p : null;
   }
   return null;
+}
+
+// does this node run in an activation that owns no var slot - a parameter list, or an INSTANCE field
+// initializer? a ref declared for it lands in the enclosing scope and is shared by every call or
+// construction, so a re-entrant one (a getter calling back in mid-destructure) overwrites the ref
+// the outer activation still reads
+export function runsWithoutOwnVarSlot(path) {
+  for (let child = path, p = path?.parentPath; p?.node; child = p, p = p.parentPath) {
+    if (isDeferredContextStep(p.node, child)) {
+      return !FUNCTION_LIKE_NODE_TYPES.has(p.node.type) || !!p.node.params?.includes(child.node);
+    }
+    if (isVarScopeBoundary(p.node.type) && !FUNCTION_LIKE_NODE_TYPES.has(p.node.type)) return false;
+  }
+  return false;
 }
 
 // the nodes proven to sit in no definition-time slot ANYWHERE above them. the climb runs per
@@ -2625,6 +2651,19 @@ export function findFunctionScopeVarInPath(path, name) {
   return !!findSloppyBlockFunctionInPath(path, name);
 }
 
+// names a block-scoped statement re-binds: `let`/`const` declarator, class / function decl -
+// through an `export` wrapper too (`namespace N { export let X }`, `export class X {}` bind
+// exactly like their bare forms)
+export function stmtRebindNames(stmt, out) {
+  const decl = unwrapExportedDeclaration(stmt);
+  if (decl?.type === 'VariableDeclaration' && decl.kind !== 'var') {
+    for (const d of decl.declarations) walkPatternIdentifiers(d.id, id => out.push(id.name));
+  } else if ((decl?.type === 'ClassDeclaration' || decl?.type === 'FunctionDeclaration') && decl.id?.name) {
+    out.push(decl.id.name);
+  }
+  return out;
+}
+
 // reassignment sites for a function-scoped `var`, recovering the `constantViolations` set babel's
 // native binding records but estree-toolkit's misses for a nested-block-hoisted var (so the shared
 // resolver's reassignment guard fires identically on both). resolve the owner that hoists the var
@@ -2666,18 +2705,6 @@ export function buildScopeReassignmentIndex(ownerNode, sloppy = false) {
   function pop(names) { for (const name of names) shadowDepth.set(name, shadowDepth.get(name) - 1); }
   function patternNames(patternNode, out) {
     walkPatternIdentifiers(patternNode, id => out.push(id.name));
-    return out;
-  }
-  // names a block-scoped statement re-binds: `let`/`const` declarator, class / function decl -
-  // through an `export` wrapper too (`namespace N { export let X }`, `export class X {}` bind
-  // exactly like their bare forms)
-  function stmtRebindNames(stmt, out) {
-    const decl = unwrapExportedDeclaration(stmt);
-    if (decl?.type === 'VariableDeclaration' && decl.kind !== 'var') {
-      for (const d of decl.declarations) patternNames(d.id, out);
-    } else if ((decl?.type === 'ClassDeclaration' || decl?.type === 'FunctionDeclaration') && decl.id?.name) {
-      out.push(decl.id.name);
-    }
     return out;
   }
   // names a nested BLOCK / catch / for-head re-binds block-scoped - writes inside target the
@@ -8147,6 +8174,7 @@ export function createInstanceNodeCache() {
     get(adapter, node) { return forAdapter(adapter).get(node); },
     has(adapter, node) { return forAdapter(adapter).has(node); },
     set(adapter, node, value) { forAdapter(adapter).set(node, value); },
+    delete(adapter, node) { forAdapter(adapter).delete(node); },
   };
 }
 
@@ -9155,6 +9183,12 @@ export function objectPatternPropNeedsReceiverRewrite(prop) {
     && prop.value?.type === 'AssignmentPattern';
 }
 
+// does a relocated host bind its default-guard refs as block `let`s of its own? a relocated `const`
+// head keeps its kind, and its refs take the hoisted `var` every `const` declaration takes
+export function relocatedHostFoldsGuardRefs(declaratorPath) {
+  return declaratorPath?.parentPath?.node?.kind !== 'const' && !!relocatedHostPattern(declaratorPath);
+}
+
 // a catch pattern AFTER relocation: the emitters move it off the clause into `let <pattern> = _ref;`
 // at the head of the block, and a re-parse (unplugin's post pass, a sibling's output, or plain user
 // code written that way) sees an ordinary declarator. its bindings are still block-scoped to that
@@ -9472,6 +9506,111 @@ export function patternHasRestReadBeforeNestedBinding(pattern, adapter) {
   }
   restReadBeforeNestedBinding.set(adapter, node, result);
   return result;
+}
+
+// The slots of one destructuring pattern in evaluation order: each with the property that holds it,
+// the target it writes (none for a level that only nests another) - a binding by its name, a member
+// by its root binding and key path, where a key nothing folds or a root that is no binding may be any
+// other - the object depth it stands at, whether a positional level stands above it, what it
+// evaluates before the write (a computed key without an effect, a default, a member target's own
+// parts) and whether it BREAKS the pattern into ordered pieces: an effectful key or default, or a
+// member target, is written in its own slot.
+function indexPatternSlots(top) {
+  const slots = [];
+  function walk(node, prop, levels, depth, positional, reads, breaks) {
+    const level = levels.at(-1) ?? null;
+    let slot = node;
+    if (slot?.type === 'AssignmentPattern') {
+      reads.push(slot.right);
+      breaks ||= mayHaveSideEffects(slot.right);
+      slot = slot.left;
+    }
+    slot = unwrapRuntimeExpr(slot);
+    if (slot?.type === 'Identifier' || isMemberAccessNode(slot)) {
+      let target = { name: slot.name };
+      if (slot.type !== 'Identifier') {
+        reads.push(slot);
+        const { root, keys } = memberChainKeys(slot, staticMemberKeyName);
+        target = { root: root?.type === 'Identifier' ? root.name : null, path: keys };
+      }
+      slots.push({ prop, level, levels, target, depth, positional, reads, breaks: breaks || slot.type !== 'Identifier' });
+      return;
+    }
+    if (reads.length || breaks) slots.push({ prop, level, levels, target: null, depth, positional, reads, breaks });
+    if (slot?.type === 'ObjectPattern') {
+      for (const item of slot.properties) {
+        if (isRestProperty(item)) walk(item.argument, item, [...levels, slot], depth + 1, positional, [], false);
+        else {
+          const effectfulKey = computedKeyHasSideEffects(item);
+          walk(item.value, item, [...levels, slot], depth + 1, positional, item.computed && !effectfulKey ? [item.key] : [], effectfulKey);
+        }
+      }
+    } else if (slot?.type === 'ArrayPattern') {
+      for (const element of slot.elements) {
+        walk(element?.type === 'RestElement' ? element.argument : element, element, [...levels, slot], depth, true, [], false);
+      }
+    }
+  }
+  walk(top, null, [], 0, false, [], false);
+  return slots;
+}
+
+// Extraction writes a claim apart from the residual. On a flat level of a statement or a declaration
+// the claims go ahead of the writes the residual keeps, piece by piece between the slots that break
+// the pattern (`indexPatternSlots`), so an EARLIER slot of the claim's piece that writes its target
+// (a claim on the same level aside: it is written in turn), rebinds a member target's root or reads
+// the target would see that order reversed. A nested claim on an assignment may instead be overwritten
+// behind the statement - which route takes it depends on the receiver - so any other slot counts there.
+// A nested claim's statics also join the capture of its hop ahead of the slots before it on its level,
+// positional levels included, so an earlier read counts across a break there; a declaration defers a
+// read inside a closure past every write. A consumed or bodyless assignment (`segmented`) writes slot
+// by slot, and an ordered capture (`isCaptured`) writes the claim's level in source order after the
+// levels above it. A claim whose own default or computed key reads the target of a LATER slot is
+// bound on every host: extracted, that part runs after the write the source still had ahead of it.
+// Returns the properties whose claim keeps its native read in pure mode.
+export function orderBoundPatternProps({ top, assignmentTarget, segmented = false, isClaim = null, isCaptured = null }) {
+  const bound = new Set();
+  if (segmented) return bound;
+  const slots = indexPatternSlots(top);
+  slots.forEach((own, at) => {
+    if (!own.target) return;
+    const holder = own.prop?.type === 'AssignmentPattern' ? own.prop : own.prop?.value;
+    const ownParts = [...own.prop?.computed ? [own.prop.key] : [], ...holder?.type === 'AssignmentPattern' ? [holder.right] : []];
+    if (ownParts.some(expression => (assignmentTarget || !FUNCTION_LIKE_NODE_TYPES.has(expression.type))
+      && slots.slice(at + 1).some(slot => !!slot.target?.name && identifierReferencedInSubtree(expression, slot.target.name)))) {
+      bound.add(own.prop);
+      return;
+    }
+    const { name = null, root = null, path = null } = own.target;
+    const behind = !own.positional && assignmentTarget && own.depth > 1;
+    let from = at;
+    while (from > 0 && !slots[from - 1].breaks) from--;
+    function reads(expression) {
+      return (assignmentTarget || !FUNCTION_LIKE_NODE_TYPES.has(expression.type))
+        && ((name ?? root) === null || identifierReferencedInSubtree(expression, name ?? root));
+    }
+    function conflict(slot) {
+      return !!slot.target && (root !== null && slot.target.name === root
+        || (name !== null || slot.target.name !== undefined ? slot.target.name === name
+          : (slot.target.root === null || root === null || slot.target.root === root)
+            && (slot.target.path.length !== path.length
+              || path.every((key, i) => key === null || slot.target.path[i] === null || key === slot.target.path[i]))));
+    }
+    const others = slots.filter((slot, index) => index !== at && (!slot.positional || slot.level === own.level));
+    const routed = others.some(slot => {
+      const index = slots.indexOf(slot);
+      const inPiece = !own.positional && (behind || (!own.breaks && index >= from && index < at));
+      if ((inPiece || (own.depth > 1 && index < at)) && slot.reads.some(reads)) return true;
+      if (!inPiece || !conflict(slot)) return false;
+      return behind || slot.level !== own.level || !isClaim?.(slot.prop) || (root !== null && slot.target.name === root);
+    });
+    // under an ordered capture only a LATER slot outside the claim's level sees the order reversed;
+    // the capture is asked only where the two answers differ
+    const captured = own.depth > 1 && others.some(slot => slots.indexOf(slot) > at && !slot.levels.includes(own.level)
+      && (slot.reads.some(reads) || conflict(slot)));
+    if (routed === captured ? routed : isCaptured?.(own.prop) ? captured : routed) bound.add(own.prop);
+  });
+  return bound;
 }
 
 // side-effecting COMPUTED key of a destructure prop (`[(eff(), 'from')]`, `[(eff(), 'fr') + 'om']`).
@@ -12548,6 +12687,36 @@ export function patternBindsOnlySentinels(pattern, isSentinel) {
   let sentinelsOnly = true;
   walkPatternIdentifiers(pattern, id => { sentinelsOnly &&= isSentinel(id); });
   return sentinelsOnly;
+}
+
+// an export LIST is module syntax: only a Program body hosts one, and an export standing in a TS
+// namespace body stays a declaration there - an unwrap into a plain declaration plus a list declines
+export function hostsExportList(parentNode) {
+  return parentNode?.type === 'Program';
+}
+
+// an exported declaration whose residual binds a minted sentinel would hand that private name out:
+// the declaration leaves its export, and the names the source bound are exported by a list. An
+// export LIST an unwrap wrote names it the same way: there the sentinel leaves the list, and
+// `specifiers` holds the list's own remaining nodes. null where nothing exports a sentinel;
+// `isSentinel` as `patternBindsOnlySentinels` takes it
+export function exportedSentinelSplit(statement, isSentinel) {
+  if (statement?.type !== 'ExportNamedDeclaration' || statement.source) return null;
+  const { declaration } = statement;
+  if (!declaration) {
+    const specifiers = statement.specifiers.filter(item => item.local?.type !== 'Identifier' || !isSentinel(item.local));
+    return specifiers.length === statement.specifiers.length ? null : { declaration: null, publicNames: [], specifiers };
+  }
+  if (declaration.type !== 'VariableDeclaration') return null;
+  const publicNames = [];
+  let bindsSentinel = false;
+  for (const declarator of declaration.declarations) {
+    walkPatternIdentifiers(declarator.id, id => {
+      if (isSentinel(id)) bindsSentinel = true;
+      else publicNames.push(id.name);
+    });
+  }
+  return bindsSentinel ? { declaration, publicNames, specifiers: null } : null;
 }
 
 // an object property whose value the consume emptied binds nothing, yet reading it fires the hop's

@@ -12,6 +12,8 @@ import {
   isConstantLiteralReceiver,
   isReReferenceableAcrossReads,
   isReReferenceableReceiver,
+  leafTakesSlotDefault,
+  namedDefaultReceiver,
   nestedSlotMemoPlan,
   paramDefaultInstanceSynthAllowed,
   patternHopKeysToHost,
@@ -63,6 +65,7 @@ import {
   observableSequenceElements,
   patternBindingCount,
   patternHasSeveralSeKeys,
+  pathOfNode,
   patternLevelKeepsEffectfulHop,
   peelNestedSequenceExpressions,
   peelParenAndTSParentPath,
@@ -379,7 +382,9 @@ export function drainBodylessAssignment({ hostNode, jobs }, {
   // drain derives its own: the walk rewrites the claims INSIDE the prefix in place, and the nodes the
   // job recorded are the pre-rewrite originals (lifting those printed a native `log.push` where the
   // statement host prints the polyfilled one)
-  const [{ seqPrefix, assignment: bodylessAssign }] = jobs;
+  // ... and a host the retained CAPTURE rendered stands in the slot as that capture: the residual it
+  // owes is the live statement, not the pattern the capture replaced (the statement host's handoff)
+  const [{ seqPrefix, assignment: bodylessAssign, receiverHolder }] = jobs;
   const peeledRight = peelTransparentExpr(bodylessAssign.right);
   // does anything the jobs did not claim survive in the pattern? asked BEFORE the consume mutates
   // it: a bail below must leave the slot as the source wrote it, extractions and all
@@ -435,7 +440,7 @@ export function drainBodylessAssignment({ hostNode, jobs }, {
   // residual leads there; a rest exclusion owes nothing and follows the extraction
   if (sentinelKept) {
     if (seqPrefix?.length || mayHaveSideEffects(bodylessAssign.right)) return;
-    const residual = expressionStatement(bodylessAssign);
+    const residual = receiverHolder ? hostNode : expressionStatement(bodylessAssign);
     const seKeyFirst = jobs.some(job => job.sentinel && job.prop.computed && computedKeyHasSideEffects(job.prop));
     // the sentinel `var` LEADS the block whatever the order below: it declares, it does not run, and
     // that is where the other leg plants it
@@ -475,7 +480,7 @@ export function drainBodylessAssignment({ hostNode, jobs }, {
     }
     const flat = paired.filter(entry => !entry.job.chain?.length).map(entry => entry.statement);
     const nested = paired.filter(entry => entry.job.chain?.length).map(entry => entry.statement);
-    const residual = expressionStatement(bodylessAssign);
+    const residual = receiverHolder ? hostNode : expressionStatement(bodylessAssign);
     const body = anchored
       ? [...prefixStatements, residual, ...flat, ...nested]
       : [...prefixStatements, ...flat, residual, ...nested];
@@ -749,14 +754,6 @@ export function hopChainKeys(chain) {
   return chain.toReversed().map(level => level.foldedKey ?? level.hopProp.key.name ?? level.hopProp.key.value);
 }
 
-// does an inner default NAME a receiver (`= Array`, `= globalThis.X`)? such a default fires under
-// exactly the condition the outer slot leaves open, and the climb rewinds to it wherever the outer
-// chain cannot prove that slot; a literal one (`= {}`, `= [1, 2]`) names nothing to rewind to
-export function namedDefaultReceiver(node) {
-  const core = unwrapRuntimeExpr(node);
-  return core?.type === 'Identifier' || core?.type === 'MemberExpression';
-}
-
 export function climbPatternChain(patternPath, keyCtx = null) {
   let hostPatternPath = patternPath;
   const chain = [];
@@ -807,6 +804,13 @@ export function climbPatternChain(patternPath, keyCtx = null) {
 // pattern takes its declarator (or assignment) with it; the extracted declarations land
 // ahead of the residual in source prop order
 
+// does the climbed chain step through a NAMED inner default? the climb goes through one only where the
+// outer chain names the receiver, so the default is dead and the pair the descent reaches is what the
+// leaf reads (`{ k: { from } = Array } = { k: Array }`)
+export function chainThroughNamedDefaults(chain) {
+  return chain.some(level => level.hopProp.value?.type === 'AssignmentPattern' && namedDefaultReceiver(level.hopProp.value.right));
+}
+
 // the literal-route receiver resolution shared state: the strict walk first, the SE-free
 // single-read relaxation second - direct when the residual dies with the extraction, else
 // through the `_ref` memo (the memo is the single source read - getter fires once)
@@ -818,11 +822,7 @@ export function planLiteralRoute({ metaPath, prop, sentinel, chain, declarator, 
   let literalReceiver = null;
   let relaxedReceiver = false;
   let carriedLive = null;
-  // the descent steps through a NAMED inner default the climb walked past: the climb goes through
-  // such a default only where the outer chain names the receiver, so the default is dead and the
-  // pair the descent reaches is what the leaf reads (`{ k: { from } = Array } = { k: Array }`)
-  const throughNamedDefaults = chain.some(level => level.hopProp.value?.type === 'AssignmentPattern'
-    && namedDefaultReceiver(level.hopProp.value.right));
+  const throughNamedDefaults = chainThroughNamedDefaults(chain);
   if (!pureNav && chain.length > 0) {
     literalReceiver = resolveNestedReceiverNode(metaPath, { adapter, throughNamedDefaults }) ?? null;
     if (!literalReceiver) {
@@ -1660,8 +1660,8 @@ export function hasRestSibling(pattern) {
 // the level keeps every read native (the object-rest boundary, provider AGENTS.md), and except where
 // `branchNode` names a selection one of whose values is a USER object, whose own `undefined` the
 // swap would bind over; the gate below states that licence and where it is asked from
-export function swapInlineDefaults({ leafPattern, ctorName, metaPath, branchNode, insertOnUndefaulted = false },
-  { resolvePure, markSubtreeSkipped, skippedNodes, injectPureImport, markRewrite }) {
+export function swapInlineDefaults({ leafPattern, ctorName, metaPath, branchNode },
+  { resolvePure, markSubtreeSkipped, skippedNodes, injectPureImport, markRewrite, adapter = null }) {
   if (hasRestSiblingExcept(leafPattern.properties, null)) return;
   // the licence EVERY swap here needs, asked of the shared branch walk the other leg's mirror plan
   // bails on: every value the declined selection can yield is a REALM surface. ONE user-object
@@ -1673,17 +1673,19 @@ export function swapInlineDefaults({ leafPattern, ctorName, metaPath, branchNode
   // plan bails the whole mirror on the same walk, so the swap it leaves behind may not outlive it
   if (!destructureValueBranchesAllProxy(branchNode)) return;
   for (const leafProp of leafPattern.properties) {
-    if (leafProp.type !== 'Property' || leafProp.computed) continue;
+    if (leafProp.type !== 'Property') continue;
     // a MEMBER target keeps the raw canon - its default is the user's, and the ponyfill never
     // lands in the user's object (the flat route's own answer, and the babel leg's)
     if (!propBindingIdentifier(leafProp.value)) continue;
+    // ... and the host the leaf reads through has to admit a slot default at all (the shared rule)
+    const leafPath = pathOfNode(metaPath, leafProp);
+    if (!leafPath || !leafTakesSlotDefault(leafPath, adapter)) continue;
     const defaulted = leafProp.value?.type === 'AssignmentPattern';
-    // an UNDEFAULTED identifier leaf takes the sound default too, but ONLY on the
-    // `&&`-declined shapes (proxy-only value - babel INSERTS `of = _Array$of` there);
-    // a ternary / `||` decline carries a USER branch, and an inserted default would fire
-    // on that branch's legitimate undefined
-    if (!defaulted && !(insertOnUndefaulted && leafProp.value?.type === 'Identifier')) continue;
-    const keyName = leafProp.key?.name ?? leafProp.key?.value;
+    // an UNDEFAULTED identifier leaf takes the sound default too: the licence above leaves no user
+    // branch whose legitimate `undefined` an inserted default could fire on
+    if (!defaulted && leafProp.value?.type !== 'Identifier') continue;
+    // a computed key folds through the shared key canon, as the other leg's fallback reads it
+    const keyName = resolveSynthKeys({ node: leafProp, scope: leafPath.scope, adapter, path: leafPath }).lookupKey;
     if (typeof keyName !== 'string') continue;
     const pure = resolvePure({ kind: 'property', object: ctorName, key: keyName, placement: 'static' }, metaPath);
     if (!pure || pure.kind === 'instance') continue;
@@ -1710,7 +1712,7 @@ export function applyInlineDefault({ prop, entry, hintName, injectPureImport, ma
   if (prop.value.type === 'AssignmentPattern') {
     markSubtreeSkipped(skippedNodes, prop.value.right);
     prop.value.right = identifier(id);
-  } else if (prop.value.type === 'Identifier') {
+  } else if (prop.value.type === 'Identifier' || isMemberAccessNode(prop.value)) {
     const left = prop.value;
     prop.value = { type: 'AssignmentPattern', left, right: identifier(id) };
     prop.shorthand = false;
@@ -1850,22 +1852,21 @@ export function discardedSinkSlot(init, { metaPath, sinkDrop, sinkPlan, planMemo
   return memoArgPlan ? buildMemoArg({ memoReceiver: init, memoArgPlan }) : init;
 }
 
-// an INSTANCE leaf under object hops of a parameter pattern (`({ w: { at: m } } = { w: [1, 2] })`, the
-// IIFE-argument twin): the slot the hops pair with is the receiver, and the mirror lands IN that
-// slot - the flat parameter's instance synth one level down, through the same ledger
+// an INSTANCE leaf under hops whose host pattern is a DEFAULT's left - a parameter's, a property's or
+// an element's (`({ w: { at: m } } = { w: [1, 2] })`, `{ A: { B: { at } } = { B: [1, 2] } }`) - or an
+// IIFE parameter: the slot the hops pair with is the receiver, and the mirror lands IN that slot -
+// the flat default's instance synth one level down, through the same ledger
 // ... never over a slot THIS pass minted (`of: _Array$of` inside a rendered mirror): the static
 // mirror hands the leaf below it the ponyfill VALUE, and a second mirror there would dispatch on it
-export function registerHopInstanceSynthSlot({ metaPath, hostParent, kind, entry, hintName },
+export function registerHopInstanceSynthSlot({ metaPath, kind, entry, hintName },
   { adapter, resolvePure, synthLedger, instanceSynthCtx, injectorState }) {
   if (kind !== 'instance' || !propBindingIdentifier(metaPath.node.value)) return false;
   const innerPattern = metaPath.parentPath;
+  // the shared climb admits the host: a default's left or an IIFE parameter, an array wrapper on
+  // the way being one of its hops
   const climbed = patternHopKeysToHost(innerPattern, adapter);
-  // the climb has to land on the pattern the host destructures directly - a default's left, an
-  // IIFE parameter (an array wrapper on the way is one of its hops, and the emitter may hand the
-  // wrapper itself as the host)
-  const host = hostParent.node.type === 'ArrayPattern' ? hostParent.parentPath : hostParent;
-  if (!climbed || !(host.node.type === 'AssignmentPattern' ? host.node.left === climbed.hostPattern.node
-    : host.node.params?.includes(climbed.hostPattern.node))) return false;
+  if (!climbed) return false;
+  const { host } = climbed;
   const basePath = host.node.type === 'AssignmentPattern' ? host.get('right')
     : iifeArgumentPathFor(host, climbed.hostPattern.node, detectIifeArgReceiver(host, climbed.hostPattern.node));
   const slotPath = basePath ? descendReceiverPathByKeys(basePath, climbed.hops) : null;
@@ -2199,9 +2200,9 @@ export function splitMultiDeclaratorHost({ program, declarator, declaration, bod
 // A declined wrapper retains its nested mirror or the existing inline default.
 export function declinedWrapperTakesDefault(args, ctx) {
   if (args.chain.length && ctx.nestedSynth?.()) return true;
-  const { kind, entry, hintName, prop, chain, hostPatternPath } = args;
-  if (!chain.length || kind === 'instance' || prop.value.type !== 'Identifier'
-    || !arrayWrapperInDeclarator(hostPatternPath)) return false;
+  const { metaPath, kind, entry, hintName, prop, chain, hostPatternPath, adapter } = args;
+  if (!chain.length || kind === 'instance' || !arrayWrapperInDeclarator(hostPatternPath)
+    || !leafTakesSlotDefault(metaPath, adapter)) return false;
   applyInlineDefault({ prop, entry, hintName, ...ctx });
   return true;
 }
@@ -2384,13 +2385,17 @@ function arrayWrapperInDeclarator(patternPath) {
 }
 
 // the statement a job's host lives in NOW: the one it was recorded against, or - once another drain
-// rewrote the declaration around its own declarator - whichever statement (export wrapper included)
-// holds the job's declarator. `declaration` is that statement's VariableDeclaration, or null
+// rewrote the declaration around its own declarator, or moved that declarator out of it - whichever
+// statement (export wrapper included) holds the job's declarator. `declaration` is that statement's
+// VariableDeclaration, or null
 export function liveHostStatement(body, hostNode, declaratorNode) {
+  function holds(statement) {
+    return (statement?.type === 'ExportNamedDeclaration' ? statement.declaration : statement)?.declarations?.includes(declaratorNode);
+  }
   let at = body.indexOf(hostNode);
-  if (at === -1 && declaratorNode) {
-    at = body.findIndex(statement => (statement.type === 'ExportNamedDeclaration'
-      ? statement.declaration : statement)?.declarations?.includes(declaratorNode));
+  if (declaratorNode?.type === 'VariableDeclarator' && (at === -1 || !holds(body[at]))) {
+    const moved = body.findIndex(holds);
+    if (moved !== -1 || at === -1) at = moved;
   }
   if (at === -1) return null;
   const statement = body[at];
