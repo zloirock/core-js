@@ -18,6 +18,7 @@ import './kept-container-slot-values.mjs';
 import './guarded-container-receiver-candidates.mjs';
 import './guarded-alias-receiver-candidates.mjs';
 import './destructure-guarded-tdz.mjs';
+import './self-referential-bindings.mjs';
 import './guarded-destructure-receiver-patterns.mjs';
 import './retained-getter-locals.mjs';
 import './retained-return-paths.mjs';
