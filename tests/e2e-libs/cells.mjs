@@ -34,6 +34,9 @@ export function cell({ lib, method, provider, phase }) {
     group: `${ lib.name }/${ method }`,
     // no phase axis, so its set is the REFERENCE the unplugin phases are deltas from
     isReference: provider === 'babel-plugin',
+    // unplugin's `pre` is red on some libraries by design, and a library may declare a method it
+    // cannot pass in the browsers (`libraries.mjs`); either is reported there without gating
+    gatesInBrowsers: phase !== 'pre' && !lib.browserDiagnostic.includes(method),
   };
 }
 

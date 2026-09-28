@@ -98,7 +98,8 @@ async function getSnapshotState(cell, injected, delta, origins) {
 }
 
 function cellIdentity(cell) {
-  return { lib: cell.lib.name, provider: cell.provider, method: cell.method, phase: cell.phase, label: cell.label };
+  return { lib: cell.lib.name, provider: cell.provider, method: cell.method, phase: cell.phase, label: cell.label,
+    gatesInBrowsers: cell.gatesInBrowsers };
 }
 
 function kb(bytes) {
