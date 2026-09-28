@@ -16,7 +16,7 @@ for (const _ref2 of [{
 }, {
   w: second()
 }]) {
-  let {
+  const {
       w: _ref
     } = _ref2,
     from = _ref === Array ? _Array$from : _ref.from;

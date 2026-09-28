@@ -552,6 +552,7 @@ export function createEstreeAdapter(options = {}) {
               importSource: minted.source,
               importKind: 'value',
               polyfillHint: minted.hint.replaceAll('$', '.'),
+              mintedAlias: minted.minted === true,
             };
           }
           return null;

@@ -89,7 +89,7 @@ for (const _ref of [{
 }, {
   w: e('b')
 }]) {
-  let viaParenCallee = _Object$getOwnPropertyNames;
+  const viaParenCallee = _Object$getOwnPropertyNames;
   _pushMaybeArray(out).call(out, viaParenCallee);
 }
 export { out, n };

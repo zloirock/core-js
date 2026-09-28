@@ -11,8 +11,8 @@ const flatClaim = (function () {
   const { pair: [{ flat }] } = { pair: [nb.y] };
   return flat;
 })();
-// NEGATIVE: a NEIGHBOUR key that carries an effect pins the order - native builds the whole literal
-// before it destructures, so a read moved to the pairing would step over that effect
+// a NEIGHBOUR key that carries an effect pins the order - native builds the whole literal before it
+// destructures, so the pairing stays off and the element renames positionally after that effect
 const log = [];
 const besideAnEffect = (function () {
   const { pair: [{ y: { flat } }], zn } = { pair: [nb], zn: log.push('n') };

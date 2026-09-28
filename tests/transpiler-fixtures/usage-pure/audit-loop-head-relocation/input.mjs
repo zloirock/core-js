@@ -1,9 +1,8 @@
 // a LOOP HEAD binds per iteration and has no declaration a claim could extract into, so the head
 // takes a minted name and the pattern moves to the body's first statement - the catch param's own
 // relocation, one host over. the HEAD keeps the kind the source wrote - that is what makes the
-// binding per-iteration - while the relocated declaration takes `let` where that kind was `const`,
-// since a claim's own default guard folds its test ref in as an initializer-less declarator, which
-// `const` cannot carry. a bodyless body is braced around the pair
+// binding per-iteration - and so does the relocated declaration: a `const` binding the body writes
+// throws as the source's does. a bodyless body is braced around the pair
 const rows = [[1, [2]], [3]];
 const bodyless = (function () {
   let seen;
@@ -17,9 +16,9 @@ const typed = (function () {
   for (let { at } of [[1, 2]]) seen = at;
   return seen;
 })();
-// ... and a claim carrying its OWN default is what makes the kind matter: the guard's test ref folds
-// into the relocated declaration, so a `const` head that kept its kind would emit an initializer-less
-// `const` declarator - which does not parse
+// ... and a claim carrying its OWN default: `const` cannot carry the guard's test ref as an
+// initializer-less declarator, so under a relocated `const` it takes the hoisted `var` every
+// `const` declaration's guard takes
 const defaulted = (function () {
   let seen;
   for (const { at = fb } of [[1, 2]]) seen = at;

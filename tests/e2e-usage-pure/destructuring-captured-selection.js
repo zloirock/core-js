@@ -76,3 +76,31 @@ QUnit.test('destructuring: selecting declarations retain unknown keys between st
   assert.deepEqual(read(source, 'from'), [1, 2, 17]);
   assert.same(reads, 2);
 });
+
+// a nested pattern moved onto a keyed capture reads what the capture holds: a selection's falsy left
+// or a slot present beside an inner default is not the constructor the claim names
+QUnit.test('destructuring: a keyed capture keeps the value its selection or slot yielded', assert => {
+  function selected(cnd) {
+    const log = [];
+    const { Array: { [(log.push('k'), 'of')]: a, from: b } } = cnd && { Array };
+    return [typeof a, typeof b, log];
+  }
+  function wrapped(cnd) {
+    const log = [];
+    const [{ Array: { [(log.push('k'), 'of')]: a, from: b } }] = [cnd && { Array }];
+    return [typeof a, typeof b, log];
+  }
+  function slot() {
+    const log = [];
+    const holder = { y: { of: 1, from: 2 } };
+    const { y: { [(log.push('k'), 'of')]: a, from: b } = Array } = holder;
+    return [a, b, log];
+  }
+  for (const read of [selected, wrapped]) {
+    assert.throws(() => read(false), TypeError);
+    assert.throws(() => read(0), TypeError);
+    assert.throws(() => read(null), TypeError);
+    assert.deepEqual(read(true)[2], ['k']);
+  }
+  assert.deepEqual(slot(), [1, 2, ['k']]);
+});

@@ -5,15 +5,12 @@ import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 // `undefined` where the source answers its own default. the pattern stays native there, and the
 // relocation that would have hosted it stands down with it; the undefaulted twin below is served
 const seen = [];
-for (const _ref of [[{}]]) {
-  let [{
-    at: viaDefault = fb
-  }] = _ref;
-  _pushMaybeArray(seen).call(seen, viaDefault === fb);
-}
+for (const [{
+  at: viaDefault = fb
+}] of [[{}]]) _pushMaybeArray(seen).call(seen, viaDefault === fb);
 for (const _ref3 of [[[1, 2]]]) {
-  let [_ref2] = _ref3;
-  let viaPlain = _atMaybeArray(_ref2);
+  const [_ref2] = _ref3;
+  const viaPlain = _atMaybeArray(_ref2);
   _pushMaybeArray(seen).call(seen, typeof viaPlain);
 }
 export { seen };
