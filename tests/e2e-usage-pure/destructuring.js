@@ -2438,6 +2438,23 @@ QUnit.test('destructuring: multi-decl extraction keeps sibling slot order', asse
   assert.same(a + b, 3);
 });
 
+// the split around an extracted static keeps the plain sibling's binding answerable: its own
+// claims resolve through it after the declaration is rewritten
+QUnit.test('destructuring: a plain sibling of an extracted static keeps its claims', assert => {
+  function last(csv) {
+    // eslint-disable-next-line @stylistic/one-var-declaration-per-line -- the multi-declarator host IS the case under test
+    const parts = csv.split(','), { keys } = Object;
+    return [parts.at(-1), keys({ a: 1 })];
+  }
+  function flatten(list) {
+    // eslint-disable-next-line @stylistic/one-var-declaration-per-line -- the multi-declarator host IS the case under test
+    const copy = list, { from } = Array;
+    return [copy.flat(), from('ab')];
+  }
+  assert.deepEqual(last('x,y'), ['y', ['a']]);
+  assert.deepEqual(flatten([1, [2]]), [[1, 2], ['a', 'b']]);
+});
+
 // a for-init receiver side effect evaluates BEFORE the extracted bindings, exactly once
 QUnit.test('destructuring: for-init receiver SE runs first and once', assert => {
   const log = [];
@@ -4481,9 +4498,9 @@ QUnit.test('destructuring: a side-effect key keeps its place', assert => {
   assert.same(log.join(','), 'hop,key', 'and the key ran once, after the hop read');
 });
 
-// the flat twin of a nested claim lives in the literal's ELEMENT under an array wrapper, so the
-// normalization writes the nav there - the hop is still read once, and the claim still resolves
-// against the receiver's own type rather than degrading to the generic dispatcher
+// under an array wrapper the shared array plan reads a nested claim's hop INTO the literal's
+// ELEMENT - the hop is still read once, and the claim still resolves against the receiver's own
+// type rather than degrading to the generic dispatcher
 QUnit.test('destructuring: a wrapper element takes the flattened nav', assert => {
   const box = { reads: 0 };
   Object.defineProperty(box, 'y', {
@@ -4926,10 +4943,10 @@ QUnit.test('destructuring: rest above a hop preserves native reads and exclusion
   assert.same(secondRest.keep, 1, 'whose rest gathers off that element');
 });
 
-// under a wrapper the flatten writes the hop read INTO the element, which moves it to where the
+// under a wrapper the array plan reads the hop INTO the element, which moves it to where the
 // literal builds - so where an effect stands between (a neighbour element, a declarator ahead), the
-// twin trails the residual instead and the read keeps the place the source gave it
-QUnit.test('destructuring: a wrapper twin trails what runs before its read', assert => {
+// plan captures every position first and the read keeps the place the source gave it
+QUnit.test('destructuring: a wrapper read waits for what runs before it', assert => {
   const log = [];
   const holder = {
     keep: 1,
@@ -8246,6 +8263,9 @@ QUnit.test('destructuring: an inner default on a non-function host keeps the per
   assert.same(typeof S, 'function');
   assert.deepEqual(of(7), [7]);
   assert.same(d, undefined);
+  // a catch parameter pairs its default with a thrown value nothing proves undefined, so the leaf
+  // keeps the native read - the realm's own `Array.of`, absent on a stripped realm - and a thrown
+  // present slot never reaches the default
   let caughtOf;
   try {
     throw [];
@@ -8253,7 +8273,14 @@ QUnit.test('destructuring: an inner default on a non-function host keeps the per
     caughtOf = inner;
     assert.same(d2, undefined);
   }
-  assert.deepEqual(caughtOf(8), [8]);
+  assert.same(caughtOf, Reflect.get(Reflect.get(globalThis, 'Array'), ['o', 'f'].join('')));
+  let presentOf;
+  try {
+    throw [{ Array: {} }];
+  } catch ([{ Array: { of: inner } } = globalThis]) {
+    presentOf = inner;
+  }
+  assert.same(presentOf, undefined);
   const { k: { Array: { of: keyed } } = globalThis } = {};
   assert.deepEqual(keyed(9), [9]);
   const { k: { Set: S3, Array: { of: keyed3 }, 'with-dash': d3 } = globalThis } = {};
@@ -8367,25 +8394,41 @@ QUnit.test('destructuring: a member target takes the static ponyfill unless its 
 
 // ... and inside a FUNCTION body the same hosts have no caller analysis to prove the slot absent:
 // the receiver's own element, present at the call, keeps binding its own value - a body-top hoist
-// of the polyfill (the parameter route's shape) would override it. the absent element takes the
-// default, and the polyfill, as everywhere
+// of the polyfill (the parameter route's shape) would override it. an unknown slot mirrors only
+// its default, and the `'with-dash'` key cannot be mirrored, so the absent element keeps the native
+// reads as well; a present element without the key reads `undefined`, which a leaf slot default
+// would have overridden
 QUnit.test('destructuring: an inner default on a non-function host inside a function keeps the present element', assert => {
   function viaDeclarator(arr) {
     const [{ Set: S, 'with-dash': d, Array: { of } } = globalThis] = arr;
-    return [typeof S, of(1).length, d];
+    return [typeof S, of, d];
   }
   function viaCatch(v) {
     try {
       throw v;
     } catch ([{ Set: S, 'with-dash': d, Array: { of } } = globalThis]) {
-      return [typeof S, of(1).length, d];
+      return [typeof S, of, d];
     }
   }
-  const own = [{ Set: 'X', Array: { of: x => [x, 'own'] } }];
-  assert.deepEqual(viaDeclarator(own), ['string', 2, undefined]);
-  assert.deepEqual(viaDeclarator([]), ['function', 1, undefined]);
-  assert.deepEqual(viaCatch(own), ['string', 2, undefined]);
-  assert.deepEqual(viaCatch([]), ['function', 1, undefined]);
+  function ownOf(x) { return [x, 'own']; }
+  const own = [{ Set: 'X', Array: { of: ownOf } }];
+  // a computed key keeps the realm read out of reach of the transform
+  const ofKey = ['o', 'f'].join('');
+  const native = [
+    typeof Reflect.get(globalThis, 'Set'),
+    Reflect.get(Reflect.get(globalThis, 'Array'), ofKey),
+    undefined,
+  ];
+  assert.deepEqual(viaDeclarator(own), ['string', ownOf, undefined]);
+  assert.deepEqual(viaDeclarator([{ Array: {} }]), ['undefined', undefined, undefined]);
+  assert.deepEqual(viaCatch(own), ['string', ownOf, undefined]);
+  // the absent element takes the default: a leg that serves it (the post pass guards the lowered
+  // member read) hands back a working `of`, the others keep the realm's own
+  for (const [typeS, absentOf, absentD] of [viaDeclarator([]), viaCatch([])]) {
+    assert.same(typeS, native[0]);
+    assert.same(absentD, undefined);
+    if (absentOf !== native[1]) assert.deepEqual(absentOf(1), [1]);
+  }
 });
 
 // An unsupported key declines the parameter mirror. Supplied values remain intact;
@@ -8904,4 +8947,27 @@ QUnit.test('destructuring: a paired array assignment reads its captured method',
     assert.deepEqual(read([5, 9], events), [9, 1], 'the assigned method is polyfilled');
     assert.deepEqual(events, ['rhs'], 'the complete source evaluates before the method read');
   });
+});
+
+QUnit.test('destructuring: a nested declaration over a loop element binds each name once', assert => {
+  // an early visit plans the declarator, then a sibling claim rewrites it into its flat twin in place
+  const seen = [];
+  for (const entry of [{ type: Array }]) {
+    const { type: { name, from } } = entry;
+    seen.push(typeof name, from('ab').length);
+  }
+  for (const { type: { name, of } } of [{ type: Array }]) seen.push(typeof name, of(1, 2).length);
+  assert.deepEqual(seen, ['string', 2, 'string', 2]);
+});
+
+QUnit.test('destructuring: writes to one target keep their source order', assert => {
+  // the answers hold whether a claim extracts or keeps its native read, so every realm checks the order
+  let last;
+  ({ w: { from: last, length: last } } = { w: Array });
+  assert.same(last, 1, 'a nested claim is not written behind a later sibling write');
+  ({ from: last, length: last } = Array);
+  assert.same(last, 1, 'a flat claim ahead of a later write');
+  // eslint-disable-next-line no-var -- a hoisted binding the default reads before the pattern writes it
+  var { 0: early = typeof hoisted, at: hoisted } = [];
+  assert.same(early, 'undefined', 'a default reads the binding before its claim writes it');
 });

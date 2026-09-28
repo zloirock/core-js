@@ -2754,6 +2754,28 @@ function createResolveNodeType(babelNodeType, t, {
     } });
   }
 
+  // the host patterns whose leaves already answered, asked once per pattern
+  const primedPatterns = new WeakSet();
+
+  // ask every leaf of the pattern `prop` sits in for its receiver type while the pattern still reads
+  // as the source wrote it: the emitters' routes rewrite it, and a leaf re-dispatched after that
+  // reads the answer kept above instead of a tree the source never wrote. both bindings ask at the
+  // same points of their dispatch, so a rewrite cannot leave one leg narrower than the other
+  function primeDestructureReceiverTypes(prop) {
+    let host = prop?.parentPath;
+    while (host?.node && host.node.type !== 'VariableDeclarator' && host.node.type !== 'AssignmentExpression') {
+      host = host.parentPath;
+    }
+    const pattern = host?.node ? host.get(host.node.type === 'VariableDeclarator' ? 'id' : 'left') : null;
+    if (!pattern?.node || primedPatterns.has(pattern.node)) return;
+    primedPatterns.add(pattern.node);
+    // the dialect's own property type: each parser visits only the name it spells
+    pattern.traverse({ [prop.node.type](leaf) {
+      const valueType = leaf.node.value?.type;
+      if (valueType !== 'ObjectPattern' && valueType !== 'ArrayPattern') resolvePropertyObjectType(leaf);
+    } });
+  }
+
   // no answer at all, as against an answer of NOTHING: the slot walk that finds no literal to
   // descend leaves the question to the routes below, while one that reads a cross-family pair
   // answers the typeless verdict on purpose
@@ -3210,6 +3232,7 @@ function createResolveNodeType(babelNodeType, t, {
     resolveNodeType,
     resolvePropertyObjectType,
     forgetDestructureReceiverTypes,
+    primeDestructureReceiverTypes,
     resolvePropertyUnionHints,
     resolvedType,
     toHint,

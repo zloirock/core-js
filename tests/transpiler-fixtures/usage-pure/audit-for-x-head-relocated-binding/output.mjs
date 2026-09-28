@@ -11,47 +11,40 @@ const nested = [{
   y: rows
 }];
 const seen = [];
-for (const _ref of [rows]) {
-  let {
-    at,
-    ...rest
-  } = _ref;
+for (const {
+  at,
+  ...rest
+} of [rows]) {
   _pushMaybeArray(seen).call(seen, typeof at, 'at' in rest, rest.at(0));
 }
 // the same head one level in, where the claim travels with a renamed array element
-for (const _ref2 of [nested]) {
-  let [{
-    y: {
-      at,
-      ...rest
-    }
-  }] = _ref2;
+for (const [{
+  y: {
+    at,
+    ...rest
+  }
+}] of [nested]) {
   _pushMaybeArray(seen).call(seen, typeof at, 'at' in rest, rest.at(0));
 }
 // a bodyless head: the extraction has to build the block it puts the residual in
-for (const _ref3 of [rows]) {
-  let {
-    at,
-    ...rest
-  } = _ref3;
-  _pushMaybeArray(seen).call(seen, typeof at, 'at' in rest);
-}
-for (const _ref4 in {
+for (const {
+  at,
+  ...rest
+} of [rows]) _pushMaybeArray(seen).call(seen, typeof at, 'at' in rest);
+for (const {
+  at,
+  ...rest
+} in {
   a: 1
 }) {
-  let {
-    at,
-    ...rest
-  } = _ref4;
   _pushMaybeArray(seen).call(seen, typeof at, 'at' in rest);
 }
 // for-await reaches the head through its own statement type
 async function drain(source) {
-  for await (const _ref5 of source) {
-    let {
-      at,
-      ...rest
-    } = _ref5;
+  for await (const {
+    at,
+    ...rest
+  } of source) {
     _pushMaybeArray(seen).call(seen, typeof at, 'at' in rest, rest.extra);
   }
 }
@@ -87,8 +80,8 @@ for (const _ref6 of [{
   keep: 5
 }]) {
   const _ref7 = _ref6.y;
-  let viaSibling = _atMaybeArray(_ref7);
-  let {
+  const viaSibling = _atMaybeArray(_ref7);
+  const {
     keep
   } = _ref7;
   _pushMaybeArray(seen).call(seen, typeof viaSibling, keep);

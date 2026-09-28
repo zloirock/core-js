@@ -738,8 +738,13 @@ export default function createAstUsagePureCallback({
     // surface with the guard, and stopping here dropped the INSTANCE half of it outright
     // (`for (const e of [Array]) { const { name } = e; }`, which the babel twin dispatches)
     if (meta.guardedAliasHint && node.type === 'MemberExpression' && meta.placement !== 'prototype') return;
-    // Normalize the selected realm before any capture or mirror replaces its live arm.
-    if (node.type === 'Property') destructureEmit.collapseRealmSelectingHost(metaPath);
+    // Normalize the selected realm before any capture or mirror replaces its live arm. The claim was
+    // detected on the selection, but it now reads the one proxy receiver left: the other leg collapses
+    // before it detects, so its meta carries no fallback, and the routes below must ask as it does
+    if (node.type === 'Property' && destructureEmit.collapseRealmSelectingHost(metaPath) && meta.fromFallback) {
+      meta = { ...meta };
+      delete meta.fromFallback;
+    }
     // Prior-pass claims were retired above. Ask the mirror ahead of the routes below: a pattern-valued
     // claim on that host has no statement slot to extract into, so the iterated ELEMENT is the only
     // place a rewrite can land. the per-branch dispatch inside the staged bail and the consume gate

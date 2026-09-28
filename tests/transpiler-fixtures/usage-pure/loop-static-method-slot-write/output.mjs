@@ -4,11 +4,10 @@ const source = [Array];
 source[0] = {
   from: () => 'abc'
 };
-for (const _ref of [source]) {
+for (const [{
+  from,
+  ...rest
+}] of [source]) {
   var _ref2;
-  let [{
-    from,
-    ...rest
-  }] = _ref;
   consume(_at(_ref2 = from()).call(_ref2, -1), rest);
 }

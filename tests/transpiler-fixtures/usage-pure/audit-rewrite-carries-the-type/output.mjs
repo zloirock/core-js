@@ -28,7 +28,7 @@ const loopHead = function () {
   const rows = ['ab'];
   let seen;
   for (const _ref2 of rows) {
-    let at = _atMaybeString(_ref2);
+    const at = _atMaybeString(_ref2);
     seen = at;
   }
   return seen;

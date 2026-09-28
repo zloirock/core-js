@@ -581,17 +581,34 @@ for (const source of [
 for (const source of [
   'const { [key]: [{ at }] } = { w: [[1]] };',
   'const { absent: [{ at }] } = { w: [[1]] };',
-  'const { w: [{ at }] } = source;',
   'const { w: [{ at }], other } = { w: [[1]], other: 2 };',
-  'const { w: [{ at }] } = { w: [[1]], ...other };',
   'const { w: [{ at } = {}] } = { w: [[1]] };',
   'const { w: [{ at }, ...rest] } = { w: [[1]] };',
+  // a claim beside the hop belongs to its own route, whichever claim asks first
+  'const { keys, w: [{ at }] } = source;',
 ]) runBoth('array plan/object key capture boundary', source, (parser, program, label) => {
   const arrayPath = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.type === 'ObjectPattern');
   const original = JSON.stringify(arrayPath.node);
   const adapter = parser.name === 'babel' ? createBabelAdapter() : createEstreeAdapter();
   const plan = buildNestedDestructurePlan({ arrayPath, adapter, resolvePure: () => ({ kind: 'instance', entry: 'actual/array/instance/at', hintName: 'at' }) });
   check(`${ label } no speculative capture`, plan, null);
+  check(`${ label } original host untouched`, JSON.stringify(arrayPath.node), original);
+});
+
+// A key the literal cannot pair (an opaque source, a spread that may override it) keeps the keyed
+// level native and renames only the element, as the flat twin's positional plan does.
+for (const source of [
+  'const { w: [{ at }] } = source;',
+  'const { w: [{ at }] } = { w: [[1]], ...other };',
+]) runBoth('array plan/object key positional rename', source, (parser, program, label) => {
+  const arrayPath = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.type === 'ObjectPattern');
+  const original = JSON.stringify(arrayPath.node);
+  const adapter = parser.name === 'babel' ? createBabelAdapter() : createEstreeAdapter();
+  const plan = buildNestedDestructurePlan({ arrayPath, adapter, resolvePure: () => ({ kind: 'instance', entry: 'actual/array/instance/at', hintName: 'at' }) });
+  check(`${ label } positional plan`, plan?.array.positional, true);
+  check(`${ label } keeps the keyed level`, plan?.array.capture.keyed.has(arrayPath.node.id), true);
+  checkDeep(`${ label } renames the element only`, plan?.array.capture.elements.map(item => item.pattern), [arrayPath.node.id.properties[0].value.elements[0]]);
+  checkDeep(`${ label } claims one method read`, plan?.extractions.map(read => read.localName), ['at']);
   check(`${ label } original host untouched`, JSON.stringify(arrayPath.node), original);
 });
 
@@ -1434,6 +1451,35 @@ for (const assignment of [false, true]) runBoth(`loop/outside read assignment=${
     check(lbl, !!plan, assignment);
   });
 
+// the moved head lands at the top of the body block: a lexical name that block declares and the
+// pattern binds or reads keeps the head where it is; a nested block's names do not count
+for (const [source, relocates] of [
+  ['for (const { at } of list) { use(at); }', true],
+  ['for (const { at, flat } of list) { const flat = 1; use(at, flat); }', false],
+  ['for (const { at } of list) { class at {} use(at); }', false],
+  ['for (const { at } of list) { function at() {} use(at); }', false],
+  ['for (const { [key]: m, at } of list) { let key = 1; use(m, at); }', false],
+  ['for (const { at = fallback } of list) { let fallback = 1; use(at); }', false],
+  ['for (const { at } of list) { { let at = 1; use(at); } use(at); }', true],
+]) runBoth(`loop/a body lexical beside the moved head ${ source }`, source, (adapter, prog, lbl) => {
+  const loop = adapter.pickPath(prog, 'ForOfStatement');
+  const plan = planCatchClauseExtraction({
+    paramNode: loop.node.left.declarations[0].id,
+    bodyNode: loop.node.body,
+    scope: loop.scope,
+    path: loop,
+    adapter: {
+      isStringLiteral: () => false,
+      getStringValue: node => node.value,
+      hasBinding: (scope, name) => !!scope.getBinding(name),
+      getBinding: (scope, name) => scope.getBinding(name),
+    },
+    resolvePure: catchResolvePure,
+    walkNode: (root, visit) => walkAstNodes({ root, visit }),
+  });
+  check(lbl, !!plan, relocates);
+});
+
 function catchResolvePure(meta) {
   return meta.kind === 'property' && meta.key === 'at'
     ? { entry: 'actual/instance/at', hintName: 'at', kind: 'instance' } : null;
@@ -1462,6 +1508,10 @@ function planCatch(adapter, prog) {
     },
   });
 }
+
+runBoth('catch/a default reading a body lexical stays', 'try { f(); } catch ({ at = fallback }) { let fallback = 1; use(at); }', (adapter, prog, lbl) => {
+  check(lbl, planCatch(adapter, prog), null);
+});
 
 runBoth('catch/a read resolvable prop relocates', 'try { f(); } catch ({ at }) { use(at); }', (adapter, prog, lbl) => {
   const plan = planCatch(adapter, prog);

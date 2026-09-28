@@ -788,6 +788,11 @@ export default class ImportInjectorState {
   isOwnPassGeneratedName(name) {
     return this.#ownPassGeneratedNames.has(name);
   }
+
+  // a sentinel THIS pass minted: an adopted one may be a name the user spelled and exports
+  isOwnPassUnusedName(name) {
+    return this.#ownPassGeneratedNames.has(name) && this.#unusedSentinelNames.has(name);
+  }
 }
 
 function refSlotName(prefix, i) {

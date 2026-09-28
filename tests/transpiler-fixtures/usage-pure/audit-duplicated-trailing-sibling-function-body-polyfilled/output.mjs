@@ -8,27 +8,10 @@ import _Map from "@core-js/pure/actual/map/constructor";
 // clone must be re-traversed so those substitute (babel once left it raw here, unlike its single-
 // declarator path; the node-walk did too). distinct multi-type instance methods per line.
 const z = 1,
-  {
-    y: {
-      at: _unused
-    }
-  } = {
-    y: [() => _Map]
-  },
   a = _atMaybeArray([() => _Map]);
 const w = 2,
-  {
-    v: {
-      includes: _unused2
-    }
-  } = {
-    v: [() => {
-      var _ref;
-      return _flatMaybeArray(_ref = [1, 2]).call(_ref);
-    }]
-  },
   b = _includesMaybeArray([() => {
-    var _ref2;
-    return _flatMaybeArray(_ref2 = [1, 2]).call(_ref2);
+    var _ref;
+    return _flatMaybeArray(_ref = [1, 2]).call(_ref);
   }]);
 export const r = [z, w, a, b];

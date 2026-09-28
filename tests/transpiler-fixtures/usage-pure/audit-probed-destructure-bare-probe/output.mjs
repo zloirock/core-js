@@ -8,12 +8,11 @@ export const {
   customThing: viaBareProbeCustom
 } = _globalThis.window;
 export const viaBareProbeRestPoly = _Array$of;
-export const {
+const {
   Array: _unused,
   ...viaBareProbeRest
 } = _globalThis.window;
-
-// the value that IS the environment probe: a bare one-hop init (`= globalThis.window`), its
+export { viaBareProbeRest }; // the value that IS the environment probe: a bare one-hop init (`= globalThis.window`), its
 // sealed twin, an agreeing-proxy ternary collapse and an alias HOLDING the probe all consume
 // a value that is absent exactly off-env - the probe reads the first key off the guard whose
 // test operand doubles as the alternate. resolvable roots keep their collapse, and the deep
