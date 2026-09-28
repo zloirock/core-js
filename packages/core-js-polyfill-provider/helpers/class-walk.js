@@ -47,10 +47,12 @@ import {
   memberKeyName,
   walkAstNodes,
 } from './ast-patterns.js';
-// the proxy-global recogniser lives with the value canon it narrows ():
+// the proxy-global recogniser lives with the value canon it narrows:
 // asking "does this binding hold a proxy global" is asking the canon what the binding holds and
-// keeping the proxy names - the copy that used to answer it here resolved fewer init spellings
-import { globalProxyMemberName, isProxyGlobalIdentifierNode } from '../detect-usage/resolve.js';
+// keeping the proxy names - the copy that used to answer it here resolved fewer init spellings.
+// the Symbol.X alias walk below looks its bindings up through that canon's in-flight guard: the
+// adapters run it from inside their own `getBinding`
+import { globalProxyMemberName, isProxyGlobalIdentifierNode, withBindingLookupGuard } from '../detect-usage/resolve.js';
 
 // peel parens / TS wrappers AND SequenceExpression tail (`(se(), X)` -> `X` at runtime)
 // to a fixpoint; covers mixed-wrapper cases like `((se(), X) as any)`. exported so the unplugin
@@ -730,15 +732,6 @@ function aliasInitResolvesToSymbol(node, scope, adapter, injector, seen, followD
   return globalProxyMemberName({ node: peeled, scope, adapter, path: null }) === 'Symbol';
 }
 
-// follow a user alias binding to Symbol and re-resolve through this same conservative predicate.
-// two binding shapes: a SIMPLE alias (`const S = Symbol` / `= globalThis.self.Symbol`) recurses on
-// its init; a DESTRUCTURED alias (`const { self: { Symbol: S } } = globalThis`) resolves the pattern's
-// literal key-path off the proxy-global init. re-resolving preserves the shadow guard (`const S = Array`
-// lands on Array -> stays native). cycle-guarded by declaration node (const-alias cycles), reassignment bails.
-// `followDestructured` gates the destructured shape: babel's member-injection resolves a destructured
-// constructor alias ONLY when the CONSUMING destructure is defaulted (the default drives an in-place
-// inline); a non-defaulted consumer leaves it native, so the estree side follows only under the same
-// condition (a simple const-alias, which babel's hint propagation crosses regardless, is unconditional)
 // re-anchor a key ctx at the binding's declarator: an alias hop READS its source there, so
 // the flow gates riding ctx.path (hint span-dominance, key dominance / reaching-value) must
 // judge that position, not the outer use the ctx was built at
@@ -746,8 +739,20 @@ function hopAnchoredCtx(keyCtx, binding) {
   return keyCtx && binding.path ? { ...keyCtx, path: binding.path } : keyCtx;
 }
 
+// follow a user alias binding to Symbol and re-resolve through this same conservative predicate.
+// two binding shapes: a SIMPLE alias (`const S = Symbol` / `= globalThis.self.Symbol`) recurses on
+// its init; a DESTRUCTURED alias (`const { self: { Symbol: S } } = globalThis`) resolves the pattern's
+// literal key-path off the proxy-global init. re-resolving preserves the shadow guard (`const S = Array`
+// lands on Array -> stays native). cycle-guarded by declaration node (const-alias cycles) and by the
+// in-flight lookup guard, reassignment bails.
+// `followDestructured` gates the destructured shape: babel's member-injection resolves a destructured
+// constructor alias ONLY when the CONSUMING destructure is defaulted (the default drives an in-place
+// inline); a non-defaulted consumer leaves it native, so the estree side follows only under the same
+// condition (a simple const-alias, which babel's hint propagation crosses regardless, is unconditional)
 function userAliasBindingResolvesToSymbol(node, scope, adapter, injector, seen, followDestructured, keyCtx = null) {
-  const binding = adapter?.getBinding?.(scope, node.name, keyCtx?.path ?? null);
+  // the adapters run this walk from inside their own `getBinding`, so a self-referential init
+  // (`const { at } = at`) re-enters it through this lookup before `seen` is ever consulted
+  const binding = withBindingLookupGuard(scope, node.name, () => adapter?.getBinding?.(scope, node.name, keyCtx?.path ?? null));
   // an assignment-form ctor alias (`let S; ({ Symbol: S } = globalThis)`) carries an init-less
   // declarator, but the adapter's hint machinery already verified its write shape AND that the
   // write span dominates the read anchored at `keyCtx.path` - the surfaced hint IS the

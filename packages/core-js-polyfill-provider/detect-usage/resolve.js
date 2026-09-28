@@ -823,7 +823,6 @@ export function claimReceiverEvaluationMayThrow(receiverObj, resolvePure, aliasC
 // hides the same navigation; the POSSIBLE gate keeps non-proxy resolutions - a follow that
 // lands on a plain local - out of the refusal); false for resolvable navs and other values
 export function undefinableProxyRootValue(value, resolvePure, aliasCtx = null) {
-  const seen = new Set();
   while (true) {
     // the stored VALUE owns this answer: a terminal probe can be absent, a plain middle
     // hop collapses with its backed leaf, and only a source optional can short-circuit it.
@@ -846,7 +845,7 @@ export function undefinableProxyRootValue(value, resolvePure, aliasCtx = null) {
     // ternary with a void/undefined arm): the held value can be undefined on the guard branch
     if (value?.type === 'ConditionalExpression'
       && (isUndefinedNode(value.consequent) || isUndefinedNode(value.alternate))) return true;
-    if (!aliasCtx || value?.type !== 'Identifier' || seen.has(value.name)) return false;
+    if (!aliasCtx || value?.type !== 'Identifier') return false;
     const aliasName = proxyGlobalRootName({ node: value, ...aliasCtx });
     if (aliasName && POSSIBLE_GLOBAL_OBJECTS.has(aliasName)
       && !resolvePure({ kind: 'global', name: aliasName })) return true;
@@ -855,7 +854,6 @@ export function undefinableProxyRootValue(value, resolvePure, aliasCtx = null) {
     // keep walking. the prefix walks see through the binding to the always-defined global, but
     // the VALUE read at runtime is the nav's - eating the alias guard ran the branch where
     // native short-circuits
-    seen.add(value.name);
     const step = aliasHeldValueStep(value, aliasCtx);
     if (!step) return false;
     ({ value, aliasCtx } = step);
@@ -989,23 +987,22 @@ export function probeRenderedReceiver(objectNode, { scope, adapter, path }) {
 // counts - the wider hop-based answer belongs to the alias's own `?.`, not to its value
 function aliasHeldValueCanBeUndefined(object, resolvePure, aliasCtx) {
   if (!aliasCtx) return false;
-  const seen = new Set();
   let cur = object;
   let ctx = aliasCtx;
-  while (cur?.type === 'Identifier' && !seen.has(cur.name)) {
-    seen.add(cur.name);
+  while (cur?.type === 'Identifier') {
     const step = aliasHeldValueStep(cur, ctx);
     if (!step) return false;
     ({ value: cur, aliasCtx: ctx } = step);
   }
-  return cur !== object && cur?.type !== 'Identifier'
-    && proxyReceiverValueCanBeUndefined(cur, resolvePure, ctx);
+  return cur !== object && proxyReceiverValueCanBeUndefined(cur, resolvePure, ctx);
 }
 
 // one alias-follow step shared by the undefinability walks: the declarator init or the
 // binding's single `=` write, transparently unwrapped, plus the scope the held value's own
 // identifiers resolve in (same per-hop advance as the key/global alias walks). null for an
-// opaque binding - a param, multiple writes, no init
+// opaque binding - a param, multiple writes, no init - and for a value the walk already entered:
+// one defined through its own binding (`const v = v?.at`, `let v; v = v?.at`) comes back here
+// through a fresh `proxyReceiverValueCanBeUndefined` walk, so the entered values ride on the ctx
 function aliasHeldValueStep(node, aliasCtx) {
   const binding = aliasCtx.adapter?.getBinding?.(aliasCtx.scope, node.name, aliasCtx.path);
   // pattern-gated: a destructure declarator binds the name to a SLOT, not the init it follows
@@ -1015,10 +1012,10 @@ function aliasHeldValueStep(node, aliasCtx) {
     if (write?.type === 'AssignmentExpression' && write.operator === '='
       && write.left?.type === 'Identifier' && write.left.name === node.name) held = write.right;
   }
-  if (!held) return null;
+  if (!held || aliasCtx.enteredValues?.has(held)) return null;
   return {
     value: unwrapTransparentSeq(held),
-    aliasCtx: binding?.scope && binding.scope !== aliasCtx.scope ? { ...aliasCtx, scope: binding.scope } : aliasCtx,
+    aliasCtx: { ...aliasCtx, scope: binding.scope ?? aliasCtx.scope, enteredValues: new Set(aliasCtx.enteredValues).add(held) },
   };
 }
 
@@ -1276,29 +1273,32 @@ export function requireBoundProxyGlobalName({ node, scope, adapter, path }) {
   return required ? globalProxyNameFromImportSource(required, adapter.packages) : null;
 }
 
-// BOTH cycle guards below answer with the shared narrow: on a cycle nothing is resolvable through
-// the binding, so the node NAME is all that is left - a self-referential PROXY name (`var self =
-// self`) stays a proxy, matching the node-only natural-global rewrite that already turns it into
-// `_self` so the hop collapse fires consistently in both emitters (unplugin has no AST re-visit to
-// recover it otherwise); a non-proxy self-cycle (`var Map = Map`) stays false
-
-// names whose binding lookup is IN FLIGHT, per scope. the adapter's own alias pre-pass re-enters
-// this resolver from inside `getBinding` (`isPolyfillAliasBinding` -> `declaratorInitResolvesForName`
-// -> `aliasInitResolvesToGlobal` -> `isProxyGlobalIdentifierNode`) and carries no `seen` across that
-// boundary, so the binding-keyed guard below - which only sees bindings `getBinding` already
-// RETURNED - never fires on that route: a self-referential alias init recursed until the stack blew.
-// keyed by scope + NAME because the binding is exactly what the in-flight lookup has yet to produce.
-// a WeakMap keyed by the scope object keeps concurrent transforms apart and leaks nothing; entry and
-// exit are synchronous around the one adapter call, so a released name is free to resolve again
+// the names whose binding question is in flight, per owner object - `withBindingLookupGuard`'s registry;
+// a question with no owner (a lookup the adapter answers from the path alone) files under one shared key
 const inFlightBindingLookups = new WeakMap();
+const OWNERLESS = {};
 
-function withBindingLookupGuard(scope, name, lookup) {
-  let names = inFlightBindingLookups.get(scope);
-  if (!names) inFlightBindingLookups.set(scope, names = new Set());
+// run `question` about `name` under `owner` unless the same question is already IN FLIGHT, which then
+// answers undefined: no binding, no slot value. the owner is the scope a name is looked up in, or the
+// declarator whose slot a pattern-bound callee pairs. both are re-entered from walks that carry no
+// `seen` across the boundary - the adapters' alias pre-passes run the value walks from inside
+// `getBinding` (the ctor alias one: `isPolyfillAliasBinding` -> `declaratorInitResolvesForName` ->
+// `aliasInitResolvesToGlobal` -> `isProxyGlobalIdentifierNode`; the Symbol.X alias one:
+// `isSymbolDestructureAliasBinding` -> `userAliasBindingResolvesToSymbol`), and a slot pairing
+// evaluates its init through callee proofs that start their own - so a walk's own guard never fires
+// there, and a self-referential init (`var Map = Map`, `const { at } = at`, `const { at } = at()`)
+// recursed until the stack blew. keyed by NAME within the owner because what the name holds is
+// exactly what the in-flight question has yet to produce. a WeakMap keyed by the owner object keeps
+// concurrent transforms apart and leaks nothing; entry and exit are synchronous around the one
+// question, so a released name is free again
+export function withBindingLookupGuard(owner, name, question) {
+  const key = owner ?? OWNERLESS;
+  let names = inFlightBindingLookups.get(key);
+  if (!names) inFlightBindingLookups.set(key, names = new Set());
   if (names.has(name)) return undefined;
   names.add(name);
   try {
-    return lookup();
+    return question();
   } finally {
     names.delete(name);
   }
@@ -1307,7 +1307,13 @@ function withBindingLookupGuard(scope, name, lookup) {
 // direct proxy-global (`globalThis`) or plugin-managed alias (`_globalThis` via polyfillHint).
 // scope+adapter optional. shadow check (`function f(globalThis) {}`) bails unless polyfillHint
 // is set. `path` anchors TS-runtime shadow detection (`enum globalThis {}`).
-// const aliases (`const g = globalThis`) pass through via init-peel
+// const aliases (`const g = globalThis`) pass through via init-peel. BOTH cycle guards below - the
+// refused in-flight lookup and the binding-keyed `seen` - answer with the shared narrow: on a cycle
+// nothing is resolvable through the binding, so the node NAME is all that is left - a
+// self-referential PROXY name (`var self = self`) stays a proxy, matching the node-only natural-global
+// rewrite that already turns it into `_self` so the hop collapse fires consistently in both emitters
+// (unplugin has no AST re-visit to recover it otherwise); a non-proxy self-cycle (`var Map = Map`)
+// stays false
 export function proxyGlobalRootName({ node, scope, adapter, path, seen, binding = null, usageNode = null, readNode = null }) {
   if (node?.type !== 'Identifier') return null;
   // the identifier being classified IS the read: anchor the order proofs (the trusted write's span
@@ -3006,7 +3012,10 @@ export function resolveInlineCalleeFunction(hop, {
 // the callee a PATTERN-bound name holds (`const { make } = o`): the one value the pairer names for its
 // slot, with the scope that value resolves in, or else the method the literal spells there. `open`
 // where the file wrote the slot before the capture - it then holds no one certain function - and
-// `declined` where the declarator has not run by the read
+// `declined` where the declarator has not run by the read. the pairing evaluates the init, and a call
+// there naming the binding itself (`const { at } = at()`, `= await make()` returning `at()`) comes
+// back to this very slot through callee proofs that start cycle sets of their own: guarded like a
+// binding lookup, the slot re-entered while its pairing runs holds no callee
 function patternBoundCallee({ binding, name, hop, scope, readPath, readNode, initAvailable }) {
   const declarator = bindingDeclaratorNode(binding);
   if (!declarator?.init) return null;
@@ -3014,7 +3023,8 @@ function patternBoundCallee({ binding, name, hop, scope, readPath, readNode, ini
   if (patternSlotWritten({
     pattern: declarator.id, init: declarator.init, name, ctx: { ...ctx, path: bindingDeclarationPath(binding) ?? readPath },
   })) return { open: true };
-  const paired = certainPairedSlotValue({ pattern: declarator.id, init: declarator.init, name, ctx });
+  const paired = withBindingLookupGuard(declarator, name,
+    () => certainPairedSlotValue({ pattern: declarator.id, init: declarator.init, name, ctx }));
   if (paired) {
     return initAvailable({ declaratorNode: declarator, usagePath: readPath, usageNode: readNode, kind: binding.kind })
       ? { callee: unwrapTransparentSeq(paired.node), scope: paired.scope } : { declined: true };
