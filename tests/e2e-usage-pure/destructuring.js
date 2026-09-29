@@ -3162,14 +3162,10 @@ QUnit.test('destructuring: extraction from a conditional ctor alias stays raw', 
   assert.same(viaParam(false), 'CALLER');
 });
 
-// a tagged-template tag is a this-carrying invocation: the ctor guard's raw branch must bind
-// the alias exactly like a call callee. `Promise.all` requires a constructor `this` - an
-// unbound raw branch would throw TypeError where native tag invocation resolves. on a
-// stripped realm the global is absent and BOTH native and transformed code throw reading
-// `.all` off undefined - the bind oracle fires on the live-global legs
+// A taken realm assignment selects the pure constructor, including in a stripped realm.
+// Tagged calls keep their receiver; an untaken assignment still leaves the alias undefined.
 QUnit.test('destructuring: tagged-template tag on a guarded alias static binds the receiver', assert => {
-  // probe the runtime global through the SAME maybe-alias channel viaTag reads (a certain
-  // alias would flatten to the always-defined pure binding and misreport a stripped realm)
+  // Probe the same conditional assignment that supplies the tag's receiver.
   function grab(c) {
     let G;
     // eslint-disable-next-line @stylistic/no-extra-parens -- the ternary-wrapped WRITE arms the guard
@@ -3194,24 +3190,17 @@ QUnit.test('destructuring: tagged-template tag on a guarded alias static binds t
   }
   // the untaken path stays native-faithful: reading `.all` off undefined throws
   assert.throws(() => viaTag(false), TypeError);
-  // a sequence-detached tag drops `this` natively - the raw branch must stay unbound,
-  // preserving the constructor-`this` TypeError an erroneous bind would swallow (with the
-  // global stripped the read itself throws the same TypeError, so the assert holds anywhere)
+  // The selected pure static is already bound, so detaching it still creates a capability.
   function viaDetachedTag(c) {
     let Q;
     // eslint-disable-next-line @stylistic/no-extra-parens -- the ternary-wrapped WRITE arms the guard
     (c ? ({ Promise: Q } = globalThis) : 0);
     return (0, Q.withResolvers)`x`;
   }
-  if (typeof E2E_POST_LOWERED === 'undefined') {
-    assert.throws(() => viaDetachedTag(true), TypeError);
-  } else {
-    // The post pass also polyfills the preceding assignment, selecting the pure static.
-    const result = viaDetachedTag(true);
-    assert.same(typeof result.promise.then, 'function');
-    assert.same(typeof result.resolve, 'function');
-    assert.same(typeof result.reject, 'function');
-  }
+  const result = viaDetachedTag(true);
+  assert.same(typeof result.promise.then, 'function');
+  assert.same(typeof result.resolve, 'function');
+  assert.same(typeof result.reject, 'function');
 });
 
 // an UNCLAIMED destructure (no polyfillable prop) over a proxy-hop receiver collapses the hop

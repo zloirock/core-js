@@ -463,7 +463,7 @@ const CASES = [
     'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
   } },
   ...[64, 128].map(depth => ({ name: `synthetic proxy depth ${ depth }, 120 reads`, source: () => syntheticDeepProxyReads(depth, 120), bounds: {
-    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 3 },
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
   } })),
   { name: 'synthetic parameter body and callers, 400 each', source: () => syntheticParameterBodyCalls(400), bounds: {
     'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 1 },

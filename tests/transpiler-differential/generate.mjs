@@ -15030,6 +15030,69 @@ function * generateFieldUnionReceivers() {
   }
 }
 
+// A captured realm assignment keeps its result while binding a polyfilled constructor.
+// Each reader sees the retained alias; skipped branches must not bind it at all.
+function * generateConstructorAliasCaptures() {
+  for (const [host, expression] of [
+    ['and', 'flag && ({ Map: C } = globalThis)'],
+    ['or', '!flag || ({ Map: C } = globalThis)'],
+    ['nullish', '(flag ? null : 0) ?? ({ Map: C } = globalThis)'],
+    ['ternary', 'flag ? ({ Map: C } = globalThis) : null'],
+  ]) {
+    for (const [reader, observation] of [
+      ['presence', "return [realm === globalThis, 'groupBy' in C];"],
+      ['default', "const { groupBy: method = 'fallback' } = C; return [realm === globalThis, typeof method];"],
+      ['parameter', 'function take({ groupBy: method } = C) { return typeof method; } return [realm === globalThis, take()];'],
+    ]) {
+      const body = `const ownStatic = Map.groupBy;
+        function read(flag) { let C; const realm = ${ expression }; if (!flag) return C; ${ observation } }
+        return [read(true), read(false)];`;
+      yield { ...snippet(`constructor-alias-captures/${ host }/${ reader }`, `(() => { ${ body } })()`), strip: true };
+    }
+  }
+}
+
+// A captured pattern can select a user receiver, and later writes can replace its constructor.
+// Computed keys and RHS effects expose duplicated evaluation in either capture path.
+function * generateConstructorAliasWrites() {
+  for (const [shape, capture] of [
+    ['plain', '({ Map: C } = globalThis)'],
+    ['effects', "({ [(log.push('key'), 'Map')]: C } = (log.push('rhs'), globalThis))"],
+    ['selected', '({ Map: C } = flag ? own : globalThis)'],
+  ]) {
+    for (const [writer, statement] of [['kept', ''], ['overwritten', 'C = { groupBy: 9 };']]) {
+      for (const [reader, observation] of [
+        ['member', 'typeof C.groupBy'],
+        ['optional', 'typeof C?.groupBy'],
+        ['pattern', '(() => { const { groupBy } = C; return typeof groupBy; })()'],
+      ]) {
+        const body = `const log = [];
+          function read(flag) { let C; const own = { Map: { groupBy: 9 } };
+            const source = ${ capture }; ${ statement }
+            return [source === (flag && "${ shape }" === "selected" ? own : globalThis), ${ observation }]; }
+          return [read(true), read(false), log];`;
+        yield { ...snippet(`constructor-alias-writes/${ shape }/${ writer }/${ reader }`, `(() => { ${ body } })()`), strip: true };
+      }
+    }
+  }
+}
+
+// An unreadable RHS arm cannot prove that every value of an initialized alias is the realm.
+function * generateOpenRealmPatternWrites() {
+  for (const [shape, target, source, wrap] of [
+    ['object', '{ value: realm }', '{ value: globalThis }', value => `{ value: ${ value } }`],
+    ['array', '[realm]', '[globalThis]', value => `[${ value }]`],
+  ]) {
+    for (const [name, value] of [['user', '{ Array: { from: () => [9] } }'], ['null', 'null'], ['undefined', 'undefined']]) {
+      const body = `function read(flag, factory) { let realm = globalThis;
+          (${ target } = flag ? ${ source } : factory());
+          return [realm === globalThis, realm?.Array.from([7])[0]]; }
+        const factory = () => (${ wrap(value) }); return [read(true, factory), read(false, factory)];`;
+      yield { ...snippet(`open-realm-pattern-writes/${ shape }/${ name }`, `(() => { ${ body } })()`), strip: true };
+    }
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateUnbackedSequenceHops();
@@ -15285,4 +15348,7 @@ export function * generate() {
   yield * generateNestedMemberRest();
   yield * generateCarrierValueWrites();
   yield * generateFieldUnionReceivers();
+  yield * generateConstructorAliasCaptures();
+  yield * generateConstructorAliasWrites();
+  yield * generateOpenRealmPatternWrites();
 }
