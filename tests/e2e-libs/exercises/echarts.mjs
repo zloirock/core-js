@@ -125,7 +125,7 @@ function elementsOf(svg) {
 function transformOf(element, kind) {
   const value = element.attrs.transform;
   if (typeof value !== 'string' || value.indexOf(`${ kind }(`) !== 0) return null;
-  return value.slice(kind.length + 1, -1).trim().split(/[\s,]+/).map(Number);
+  return value.slice(kind.length + 1, -1).trim().split(/[\s,]+/).map(part => +part);
 }
 
 // the `<path>` elements of one series, found by the indices echarts stamps on them in its
@@ -147,7 +147,7 @@ const NOTHING = { left: NaN, right: NaN, top: NaN, bottom: NaN };
 function boxOf(d) {
   try {
     const bounds = new SVGPathData(d).toAbs().getBounds();
-    if (![bounds.minX, bounds.maxX, bounds.minY, bounds.maxY].every(Number.isFinite)) return NOTHING;
+    if ([bounds.minX, bounds.maxX, bounds.minY, bounds.maxY].some(value => !isFinite(value))) return NOTHING;
     return { left: bounds.minX, right: bounds.maxX, top: bounds.minY, bottom: bounds.maxY };
   } catch {
     return NOTHING;
@@ -172,7 +172,7 @@ function near(a, b, tolerance) {
 function textsOf(elements) {
   return elements.filter(element => element.tag === 'text').map(element => {
     const parts = transformOf(element, 'translate');
-    return { text: element.text, at: parts && parts.length === 2 ? parts : null };
+    return { text: element.text, point: parts && parts.length === 2 ? parts : null };
   });
 }
 
@@ -183,8 +183,8 @@ function textsOf(elements) {
 // the axis is drawn by a different part of the library than the series.
 function valueAxis(texts) {
   const ticks = texts
-    .filter(entry => entry.at && /^-?\d+(?:\.\d+)?$/.test(entry.text))
-    .map(entry => ({ value: Number(entry.text), y: entry.at[1] }))
+    .filter(entry => entry.point && /^-?\d+(?:\.\d+)?$/.test(entry.text))
+    .map(entry => ({ value: Number(entry.text), y: entry.point[1] }))
     .sort((a, b) => a.value - b.value);
   if (ticks.length < 2) return null;
   const [low] = ticks;
@@ -250,7 +250,7 @@ export function run() {
   const labels = texts.map(entry => entry.text);
   check('axis: every category is labelled',
     CATEGORIES.every(category => labels.indexOf(category) !== -1), true);
-  const ticks = labels.map(Number).filter(value => !isNaN(value));
+  const ticks = labels.map(label => +label).filter(value => !isNaN(value));
   check('axis: the ticks cover the largest datum',
     Math.max.apply(null, ticks) >= Math.max.apply(null, VALUES), true);
   const axis = valueAxis(texts);

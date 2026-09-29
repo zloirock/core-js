@@ -3,16 +3,17 @@
 // pagination, grouping with aggregation and column sizing, verified by what the table hands back.
 // Every expected order and total below is DEFINED by the data set, not observed from a run.
 //
-// Its reason is the SURFACE axis: it reaches polyfills from its own frames that no library before it
-// in the corpus did. Measured on the babel-plugin cells against the union of the six reference
-// baselines before it: `usage-global` adds `Object.is` and `queueMicrotask`, and `usage-pure` adds
-// six entries - `flatMap`, string `includes`, `Reflect.ownKeys`, `Number.MAX_SAFE_INTEGER`,
-// `Object.is` and `queueMicrotask`. The checks below are laid out so that each of them EXECUTES
-// rather than only being injected: `flatMap` flattens the column groups, `includes` is how a
-// dotted accessor key is recognised, `MAX_SAFE_INTEGER` is the upper bound a column size is clamped
-// to, and `queueMicrotask` is how the store binding defers the page reset a filter change causes.
-// `Object.is` and `Reflect.ownKeys` need no check of their own: every `set*` call below goes through
-// the table's structural state comparison, which starts with the one and walks keys with the other.
+// Its reason is the SURFACE axis: it reaches polyfills from its own frames that no library before
+// it in the corpus did. Measured on the babel-plugin cells against the union of the six reference
+// baselines before it: `usage-pure` adds six entries - `flatMap`, string `includes`,
+// `Reflect.ownKeys`, `Number.MAX_SAFE_INTEGER`, `Object.is` and `queueMicrotask` - and
+// `usage-global` the last four of them. The checks below are laid out so that each of them EXECUTES
+// rather than only being injected: `flatMap` flattens the column groups, `includes` is how a dotted
+// accessor key is recognised, `MAX_SAFE_INTEGER` is the upper bound a column size is clamped to,
+// and `queueMicrotask` is how the store binding defers the page reset a filter change causes.
+// `Object.is` and `Reflect.ownKeys` need no check of their own: every `set*` call below goes
+// through the table's structural state comparison, which starts with the one and walks keys with
+// the other.
 //
 // `queueMicrotask` is why `run()` ends asynchronously. The reset is scheduled, not applied, so the
 // check reads the page index twice - synchronously, where it must still be the old page, and after a

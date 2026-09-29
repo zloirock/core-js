@@ -57,15 +57,8 @@ core-js/modules/es.map.get-or-insert-computed
 core-js/modules/es.map.species
 core-js/modules/es.number.constructor
 core-js/modules/es.number.epsilon
-core-js/modules/es.number.is-finite
-core-js/modules/es.number.is-integer
 core-js/modules/es.number.is-nan
-core-js/modules/es.number.is-safe-integer
-core-js/modules/es.number.max-safe-integer
-core-js/modules/es.number.min-safe-integer
-core-js/modules/es.number.parse-float
 core-js/modules/es.number.parse-int
-core-js/modules/es.number.to-exponential
 core-js/modules/es.number.to-fixed
 core-js/modules/es.object.assign
 core-js/modules/es.object.get-own-property-descriptor
@@ -102,7 +95,6 @@ core-js/modules/es.set.species
 core-js/modules/es.set.symmetric-difference
 core-js/modules/es.set.union
 core-js/modules/es.string.anchor
-core-js/modules/es.string.at
 core-js/modules/es.string.ends-with
 core-js/modules/es.string.fixed
 core-js/modules/es.string.from-code-point
