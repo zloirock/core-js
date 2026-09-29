@@ -3760,9 +3760,11 @@ export default function createDestructureEmitter({
     // ... and a TYPED user nav the extraction OWNS - every level dies with the claim, the host
     // included, so the dispatch is the nav's one read, in the source's own order (`({ y: { at } } =
     // src)` -> `at = _atMaybeArray(src.y)`), the declaration host's answer for the same shape
-    const typedUserNav = !staticReceiver && !!typedChain && !!resolvedReceiver && consumedAssignmentSlotDropsHost(prop);
-    const receiverNode = staticReceiver ?? (resolvedReceiver
-      && (carriedReceiver || typedUserNav || isReReferenceableReceiver(resolvedReceiver)
+    const typedUserNav = !staticReceiver && typedBase && !typedBase.pure
+      && !typedChain.slotDefault && consumedAssignmentSlotDropsHost(prop)
+      ? estreeToBabel(typedBase.path.reduce(memberFromKeyName, hostSlot(t.cloneNode(typedChain.rootSpelling)))) : null;
+    const receiverNode = staticReceiver ?? typedUserNav ?? (resolvedReceiver
+      && (carriedReceiver || isReReferenceableReceiver(resolvedReceiver)
         || isReReadableSurfaceNav(resolvedReceiver, name => !!injector?.getBindingInfo?.(name), { ...OPTIONAL_HOPS, ctx: propCtx })
         || (consumedAssignmentSlotDropsNav(prop, isOwnPureAlias, propCtx) && isInstanceSurfaceNav(resolvedReceiver, surfaceOptions)))
       ? resolvedReceiver : null);
@@ -3796,7 +3798,9 @@ export default function createDestructureEmitter({
         insertSeqElementOverwrite({
           seqElement,
           overwriteAssign,
-          dropsResidual: prunesSlot && pruneOverwrittenSlotInElement({ prop, seqElement, carriesInit: !!carriedReceiver }),
+          dropsResidual: prunesSlot && pruneOverwrittenSlotInElement({
+            prop, seqElement, carriesInit: !!carriedReceiver || !!typedUserNav,
+          }),
         });
         return true;
       }
@@ -3805,12 +3809,12 @@ export default function createDestructureEmitter({
       // and removing the raw statement after would drop the block the wrap just built, and the slot
       // holds one statement either way - which is the shape the other leg prints
       const assignPath = prop.findParent(item => item.isAssignmentExpression());
-      // ... only for a receiver that owes NOTHING: an effect lifted off a bodyless slot is queued
-      // against the list holding the CONTROL statement, so it would run unconditionally where the
-      // source runs it only when the branch is taken. one with effects takes the block below, whose
-      // lift lands inside it
+      // The dispatch must own the initializer or the initializer must owe no effects. Otherwise
+      // lifting effects off this bodyless slot would run them outside the source's branch; the
+      // block below keeps that lift inside the branch.
       if (prunesSlot && consumedAssignmentSlotDropsHost(prop) && !nestedOverwriteLastInsert.has(rawStatement.node)
-        && (carriedReceiver || !mayHaveSideEffects(assignPath.node.right, { scope: assignPath.scope, adapter, path: assignPath }))
+        && (carriedReceiver || typedUserNav
+          || !mayHaveSideEffects(assignPath.node.right, { scope: assignPath.scope, adapter, path: assignPath }))
         && isBodylessStatementSlot(rawStatement.parentPath?.node, rawStatement.node)) {
         rawStatement.replaceWith(overwriteStmt);
         return true;
@@ -3822,10 +3826,10 @@ export default function createDestructureEmitter({
       const statement = blockWrappedHostStatement(assignPath);
       const prevInsert = nestedOverwriteLastInsert.get(statement.node);
       nestedOverwriteLastInsert.set(statement.node, (prevInsert ?? statement).insertAfter(overwriteStmt)[0]);
-      if (prunesSlot) pruneOverwrittenSlot({ prop, statement, carriesInit: !!carriedReceiver });
+      if (prunesSlot) pruneOverwrittenSlot({ prop, statement, carriesInit: !!carriedReceiver || !!typedUserNav });
       return true;
     }
-    // nothing spelled the receiver (a CALL right, a nav the canon cannot re-read): the overwrite
+    // nothing safely spelled the receiver (a call with surviving readers, an unrepeatable nav): the overwrite
     // emitted nothing, and saying so lets the caller ask the positional route - which needs no
     // spelling, and which the other leg takes here (`[{ at: a }, { at: b }] = f()`)
     return false;

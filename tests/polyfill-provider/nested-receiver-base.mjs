@@ -117,8 +117,11 @@ runBoth('chain/built-in nav root unfolds', 'const { inner: { [Symbol.iterator]: 
 runBoth('chain/built-in surface nav declines', 'const { prototype: { [Symbol.iterator]: it } } = globalThis.Array;', (adapter, prog, lbl) => {
   check(lbl, resolveNestedReceiverChain(pickSymbolLeaf(adapter, prog), { soleSlots: true }), null);
 });
-runBoth('chain/optional member root declines', 'const { inner: { [Symbol.iterator]: it } } = holder?.p;', (adapter, prog, lbl) => {
-  check(lbl, resolveNestedReceiverChain(pickSymbolLeaf(adapter, prog), { soleSlots: true }), null);
+// An optional USER member remains opaque, with the short-circuit sealed inside its sole read.
+runBoth('chain/optional member root keeps its spelling', 'const { inner: { [Symbol.iterator]: it } } = holder?.p;', (adapter, prog, lbl) => {
+  const chain = resolveNestedReceiverChain(pickSymbolLeaf(adapter, prog), { soleSlots: true });
+  check(`${ lbl } optional root`, chain?.root?.optional, true);
+  checkDeep(`${ lbl } keys`, chain?.keys, ['inner']);
 });
 
 // an assignment host is outside the walk's contract

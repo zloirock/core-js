@@ -10,6 +10,7 @@ import './flow-class-members.mjs';
 import './class-flow-order.mjs';
 import './container-navigation-opaque-values.mjs';
 import './container-alias-alternatives.mjs';
+import './literal-carrier-closure.mjs';
 import './container-wrapper-captures.mjs';
 import './container-slot-owner-boundaries.mjs';
 import './census-alias-writes.mjs';
