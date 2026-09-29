@@ -1002,6 +1002,206 @@ function * generateAnchorKeySpelling() {
   }
 }
 
+// --- Realm-key inner default (a key naming no built-in is an unknown realm slot) ---
+// `{ K: { groupBy } = Map } = globalThis` reads the realm's own slot `K`, and the realm carries a
+// built-in only under a KNOWN name: any other key, capitalised or not, may be empty, so its inner
+// default is a live arm. `absent` reads a key nothing carries - the default runs and its static has
+// to be the polyfill; `present` installs the user's object first - its member has to win over the
+// default's static. the KEY axis is what the plans branch on: a capitalised name looks like a
+// constructor to the placement convention, a lowercase one does not, and a known constructor is the
+// control whose default is dead. the spelling, leaf, receiver and host axes each take another route
+const RKD_KEYS = [
+  { id: 'capitalised', name: 'UserSlotKey' },
+  { id: 'lowercase', name: 'userSlotKey' },
+];
+const RKD_SPELLINGS = [
+  { id: 'plain', lhs: name => name, setup: () => '' },
+  { id: 'computed', lhs: () => '[slotKey]', setup: name => `const slotKey = ${ JSON.stringify(name) };` },
+];
+const RKD_LEAVES = [
+  { id: 'static', key: 'groupBy', fallback: 'Map', observe: 'String(groupBy([1, 2, 3], x => x % 2).get(1))' },
+  { id: 'instance', key: 'at', fallback: '[1, 2]', observe: 'String(at.call([5, 6], 1))' },
+];
+const RKD_RECEIVERS = [
+  { id: 'bare', src: 'globalThis', wrap: pat => pat },
+  { id: 'alias', src: 'g', setup: 'const g = globalThis;', wrap: pat => pat },
+  { id: 'self-hop', src: 'globalThis', wrap: pat => `{ self: ${ pat } }`, rig: true },
+];
+const RKD_HOSTS = [
+  { id: 'decl', build: (pat, recv) => `const ${ pat } = ${ recv };` },
+  { id: 'assign', build: (pat, recv, k) => `let ${ k }; (${ pat } = ${ recv });` },
+  { id: 'for-of', build: (pat, recv) => `for (const ${ pat } of [${ recv }]) {`, close: '}' },
+  { id: 'array-wrap', build: (pat, recv) => `const [${ pat }] = [${ recv }];` },
+];
+function * generateRealmKeyInnerDefault() {
+  for (const recv of RKD_RECEIVERS) {
+    for (const host of RKD_HOSTS) {
+      function read(pat, key, body) {
+        return `${ host.build(recv.wrap(pat), recv.src, key) } ${ body } ${ host.close ?? '' }`;
+      }
+      for (const leaf of RKD_LEAVES) {
+        for (const key of RKD_KEYS) {
+          for (const spelling of RKD_SPELLINGS) {
+            const pat = `{ ${ spelling.lhs(key.name) }: { ${ leaf.key } } = ${ leaf.fallback } }`;
+            const setup = `${ recv.setup ?? '' } ${ spelling.setup(key.name) }`;
+            const cell = `${ key.id }/${ spelling.id }/${ leaf.id }/${ recv.id }/${ host.id }`;
+            const absent = `(() => { ${ setup } ${ read(pat, leaf.key, `return ${ leaf.observe };`) } })()`;
+            yield { ...snippet(`realm-key-inner-default/absent/${ cell }`, absent, { rig: recv.rig }), strip: true };
+            const slot = `globalThis[${ JSON.stringify(key.name) }]`;
+            const present = `(() => { ${ setup } ${ slot } = { ${ leaf.key }: "own" };`
+              + ` try { ${ read(pat, leaf.key, `return ${ leaf.key };`) } } finally { delete ${ slot }; } })()`;
+            yield { ...snippet(`realm-key-inner-default/present/${ cell }`, present, { rig: recv.rig }), strip: false };
+          }
+        }
+      }
+      // a default that answers differently from the constructor shows a wrongly live arm
+      const known = `(() => { ${ recv.setup ?? '' } ${ read('{ Map: { groupBy } = { groupBy: () => "dead" } }', 'groupBy',
+        'return String(groupBy([1, 2, 3], x => x % 2).get(1));') } })()`;
+      yield { ...snippet(`realm-key-inner-default/known/${ recv.id }/${ host.id }`, known, { rig: recv.rig }), strip: true };
+    }
+  }
+}
+
+// --- User key off the realm (a name match whatever its case, hops or host) ---
+// `{ K: { at } } = globalThis` reads the realm's own slot `K`: unless `K` names a KNOWN built-in, the
+// slot holds whatever the environment put there, so the leaf is a name match both legs keep native -
+// a capitalised key as much as a lowercase one, past pristine proxy hops, through an alias, and on a
+// loop head the relocation moved into the body. the user's object is installed first, so the leaf
+// must read it. the known constructor is the control whose claim stays; its for-of head is left
+// out, where the legs part on typed versus generic dispatch of the element's `at` - the head
+// relocation's own gap
+const UKR_KEYS = [
+  { id: 'capitalised', name: 'UserRealmKey' },
+  { id: 'lowercase', name: 'userRealmKey' },
+];
+const UKR_RECEIVERS = [
+  { id: 'bare', src: 'globalThis', wrap: pat => pat },
+  { id: 'alias', src: 'g', setup: 'const g = globalThis;', wrap: pat => pat },
+  { id: 'self-hop', src: 'globalThis', wrap: pat => `{ self: ${ pat } }`, rig: true },
+  { id: 'self-root', src: 'self', wrap: pat => pat, rig: true },
+];
+function * generateUserKeyOffRealm() {
+  for (const recv of UKR_RECEIVERS) {
+    for (const host of RKD_HOSTS) {
+      function read(pat, body) {
+        return `${ recv.setup ?? '' } ${ host.build(recv.wrap(pat), recv.src, 'at') } ${ body } ${ host.close ?? '' }`;
+      }
+      for (const key of UKR_KEYS) {
+        const slot = `globalThis[${ JSON.stringify(key.name) }]`;
+        const present = `(() => { ${ slot } = { at: "own" }; try { ${ read(`{ ${ key.name }: { at } }`, 'return at;') } }`
+          + ` finally { delete ${ slot }; } })()`;
+        yield { ...snippet(`user-key-off-realm/${ key.id }/${ recv.id }/${ host.id }`, present, { rig: recv.rig }), strip: true };
+      }
+      if (host.id === 'for-of') continue;
+      const known = `(() => { ${ read('{ Array: { prototype: { at } } }', 'return typeof at;') } })()`;
+      yield { ...snippet(`user-key-off-realm/known/${ recv.id }/${ host.id }`, known, { rig: recv.rig }), strip: true };
+    }
+  }
+}
+
+// --- Capitalised key off a user object (the object's own key, whatever it spells) ---
+// `{ K: { at } } = box` reads the user's own slot `K`, so the leaf resolves through the object's type
+// exactly as the lowercase spelling does: a capital letter - or a key spelled like a built-in - names no
+// surface off the user's own object. the stripped leg is the oracle: a leg that read the key as a
+// built-in namespace kept the leaf native, which that realm no longer carries. the lowercase key is
+// the twin every other row must match
+const CUK_KEYS = ['UserData', 'Object', 'userData'];
+const CUK_ROOTS = [
+  { id: 'object', setup: value => `const box = ${ value };` },
+  { id: 'alias', setup: value => `const inner = ${ value }; const box = inner;` },
+];
+const CUK_LEAVES = [
+  { id: 'array', value: '[5, 6]', observe: 'String(at.call([7, 8], -1))' },
+  { id: 'string', value: '"xy"', observe: 'at.call("zw", -1)' },
+];
+function * generateCapitalisedUserKey() {
+  for (const key of CUK_KEYS) {
+    for (const root of CUK_ROOTS) {
+      for (const host of RKD_HOSTS) {
+        for (const leaf of CUK_LEAVES) {
+          const read = host.build(`{ ${ key }: { at } }`, 'box', 'at');
+          const code = `(() => { ${ root.setup(`{ ${ key }: ${ leaf.value } }`) } ${ read } return ${ leaf.observe }; ${ host.close ?? '' } })()`;
+          yield { ...snippet(`capitalised-user-key/${ key }/${ root.id }/${ host.id }/${ leaf.id }`, code), strip: true };
+        }
+      }
+    }
+  }
+}
+
+// --- Capitalised prototype hop off a user object (the object's own nav, not a surface) ---
+// `({ K: { prototype: { slice } }, size } = registry)` reads the user's `K` getter, then `size`: a leg
+// that took `registry.K.prototype` for a built-in instance surface re-spelled it after the residual and
+// ran the getters out of order - the log is the oracle, in every realm, and `slice` keeps the kept
+// native read defined there. a `this` a function binds is the user's object too: the stripped legs
+// catch a leg that left the capitalised leaf native. the lowercase key is the twin
+const CPH_KEYS = ['Model', 'Object', 'model'];
+const CPH_ROWS = [
+  { id: 'assign-sibling', body: key => `let sliced, size; ({ ${ key }: { prototype: { slice: sliced } }, size } = registry);`
+    + ' return [log.join(), sliced.call([1, 2, 3], 1).join(), size].join("|");' },
+  { id: 'assign-default-sibling', body: key => `let sliced, size; ({ ${ key }: { prototype: { slice: sliced = null } }, size } = registry);`
+    + ' return [log.join(), sliced.call([1, 2, 3], 1).join(), size].join("|");' },
+  { id: 'method-this', body: key => `const service = { ${ key }: [5, 6], read() { const { ${ key }: { at } } = this; return at; } };`
+    + ' return String(service.read().call([7, 8], -1));' },
+  { id: 'method-this-member', body: key => `const service = { ${ key }: { prototype: [5, 6] }, read() { const { prototype: { at } } = this.${ key }; return at; } };`
+    + ' return String(service.read().call([7, 8], -1));' },
+  { id: 'static-block-this', body: key => `class Service { static ${ key } = [5, 6]; static read; static { const { ${ key }: { at } } = this; Service.read = at; } }`
+    + ' return String(Service.read.call([7, 8], -1));' },
+  { id: 'field-init-this', body: key => `class Service { ${ key } = [5, 6]; read = (() => { const { ${ key }: { at } } = this; return at; })(); }`
+    + ' return String(new Service().read.call([7, 8], -1));' },
+];
+function * generateCapitalisedPrototypeHop() {
+  for (const key of CPH_KEYS) {
+    for (const row of CPH_ROWS) {
+      const code = `(() => { const log = []; const registry = { get ${ key }() { log.push("${ key }"); return { prototype: [1, 2] }; },`
+        + ` get size() { log.push("size"); return 1; } }; ${ row.body(key) } })()`;
+      yield { ...snippet(`capitalised-prototype-hop/${ key }/${ row.id }`, code), strip: true };
+    }
+  }
+}
+
+// --- Literal slot memoized for its leaves (the namespace memo and the user's object) ---
+// `{ w: { prototype: { at, flat } } } = { w: (0, Array) }` memoizes the slot for the leaves that
+// navigate on from it: the memo holds the namespace, and every leaf reads the surface off it - the
+// stripped legs catch a later leaf left native. over the user's own object the leaves keep their
+// native reads, so its getter runs once, as in the source: the log is the oracle there, in the full
+// realm alone - a native leaf is what the stripped realm no longer carries
+const SMN_ROWS = [
+  { id: 'ctor', init: '(0, Array)', pattern: '{ prototype: { at: a, flat: b } }', strip: true },
+  { id: 'realm', init: '(0, globalThis)', pattern: '{ Array: { prototype: { at: a, flat: b } } }', strip: true },
+  { id: 'user-getter', init: '(0, src)', pattern: '{ Model: { prototype: { at: a, flat: b } } }', strip: false },
+  { id: 'user-getter-lower', init: '(0, src)', pattern: '{ model: { prototype: { at: a, flat: b } } }', strip: false },
+];
+function * generateSlotMemoNamespace() {
+  for (const row of SMN_ROWS) {
+    const code = '(() => { const log = []; const src = { get Model() { log.push("Model"); return { prototype: [1, [2]] }; },'
+      + ' get model() { log.push("model"); return { prototype: [1, [2]] }; } };'
+      + ` const { w: ${ row.pattern } } = { w: ${ row.init } };`
+      + ' return [String(a.call([7, 8], -1)), String(b.call([1, [2]]).length), log.join()].join("|"); })()';
+    yield { ...snippet(`slot-memo-namespace/${ row.id }`, code), strip: row.strip };
+  }
+}
+
+// --- Static destructured off a user subclass (the static its base owes) ---
+// `{ groupBy } = MyMap` over `class MyMap extends Map {}` reads the static the subclass INHERITS, as
+// the member read `MyMap.groupBy` does, so the base owes its statics on every host that pairs the
+// pattern with the class: usage-global imports the static, usage-pure extends the namespace entry
+// rather than the bare constructor. the stripped legs are the oracle - the static is gone there
+// otherwise. a static the subclass declares itself shadows the base and is the control
+const SIS_CLASSES = [
+  { id: 'inherits', body: '' },
+  { id: 'own', body: 'static groupBy() { return new Map([[1, [9]]]); }' },
+];
+function * generateSubclassInheritedStatic() {
+  for (const cls of SIS_CLASSES) {
+    for (const host of RKD_HOSTS) {
+      const read = host.build('{ groupBy }', 'MyMap', 'groupBy');
+      const code = `(() => { class MyMap extends Map { ${ cls.body } } ${ read }`
+        + ` return String(groupBy([1, 2, 3], x => x % 2).get(1)); ${ host.close ?? '' } })()`;
+      yield { ...snippet(`subclass-inherited-static/${ cls.id }/${ host.id }`, code), strip: true };
+    }
+  }
+}
+
 // --- Several surviving ctor hops on ONE line (the anchor's N-hop split) ---
 // a CONSUMED sibling is what drives the split, and every hop left behind must land re-anchored on
 // its OWN constructor (`({ customY } = _Iterator)`), in the order the source wrote its hop and
@@ -14905,4 +15105,10 @@ export function * generate() {
   yield * generateOwnThisDefinitionSlots();
   yield * generateAmbientNativeInheritance();
   yield * generateDestructureMatrix();
+  yield * generateRealmKeyInnerDefault();
+  yield * generateUserKeyOffRealm();
+  yield * generateCapitalisedUserKey();
+  yield * generateSubclassInheritedStatic();
+  yield * generateCapitalisedPrototypeHop();
+  yield * generateSlotMemoNamespace();
 }

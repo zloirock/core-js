@@ -1021,13 +1021,20 @@ function aliasHeldValueStep(node, aliasCtx) {
 
 // callers pass either a receiver identifier or a FOLDED property key, and a key folds to any
 // string at all - `Symbol.iterator`, `'App-Key'`, `` `A.b` ``. an answer here licenses the name
-// to be SPELLED as a member tail (the ctor-key anchor plan), so the capitalisation convention
-// must be paired with the identifier-validity canon: without it babel aborts the build on
-// `t.identifier`, and unplugin splices unparsable text or silently reads a different property
+// to be SPELLED as a member tail, so the capitalisation convention must be paired with the
+// identifier-validity canon: without it babel aborts the build on `t.identifier`, and unplugin
+// splices unparsable text or silently reads a different property
 export function isStaticPlacement(name) {
   if (POSSIBLE_GLOBAL_OBJECTS.has(name)) return 'static';
   if (name[0] >= 'A' && name[0] <= 'Z' && isValidIdentifierName(name)) return 'static';
   return null;
+}
+
+// ... and a KEY read off the realm names a built-in only where the realm is known to carry one:
+// the convention says nothing about a slot the realm may leave empty, so a user global
+// (`{ Deno: { env } = {} } = globalThis`) stays an unknown slot whose default is live
+export function isKnownStaticGlobal(name) {
+  return isKnownGlobalName(name) && !!isStaticPlacement(name);
 }
 
 // capitalised-identifier probe for polyfillHint values like `Symbol`/`Map`/`Promise`
@@ -3245,7 +3252,7 @@ function awaitedValueNoThenable(call, ctx) {
     objectNode: value, scope: followed.ctx.scope, adapter: ctx.adapter, path: ctx.path,
   });
   if (POSSIBLE_GLOBAL_OBJECTS.has(name)) return true;
-  return !!name && isKnownGlobalName(name) && !!isStaticPlacement(name)
+  return !!name && isKnownStaticGlobal(name)
     && !!inlineCallReturnExpression({ ...hop, awaited: false }, { allowUninitializedCallee: true })
     && !prototypeChainMayLend('then', ctx, ['Function']) && !ctx.adapter?.isMutatedStaticSlot?.(name, 'then');
 }
