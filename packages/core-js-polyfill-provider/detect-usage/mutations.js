@@ -4752,19 +4752,25 @@ export function mutationShapesReducer(packages = null) {
       if (!value) continue;
       if (target?.type === 'Identifier') recordEscapedContainers([value]);
       else if (isDestructurePattern(target)) {
+        // the plain read of a nested pattern over a binding records its keys like the flat one does
+        // (`[{ groupBy }] = [MyMap]` reads the static a subclass inherits)
+        recordPatternMemberReads(target, value);
         recordPatternLiteralReHomes(target, unwrapRuntimeExpr(value));
       }
     }
   }
 
-  // Destructuring an array mutator detaches it just as a member read does. Record its source as
-  // repositioned; a key that cannot be folded keeps the same conservative verdict.
-  function recordPatternDetachedRepositioners(patternNode, sourceNode) {
+  // A destructured key is read off its source just as a member read reads it: the key is recorded
+  // the same way (`{ from } = MyArray` reads the static a subclass inherits), and an array mutator
+  // taken off the source detaches it, which marks the source repositioned. a key that cannot be
+  // folded keeps the same conservative verdict on both counts
+  function recordPatternMemberReads(patternNode, sourceNode) {
     const source = unwrapRuntimeExpr(sourceNode);
     if (patternNode?.type !== 'ObjectPattern' || source?.type !== 'Identifier') return;
     for (const prop of patternNode.properties) {
       if (prop.type !== 'ObjectProperty' && prop.type !== 'Property') continue;
       const key = foldedPropertyKeyName(prop);
+      recordMemberRead(source.name, key);
       // an unfoldable computed key detaches an UNKNOWN member - admit the possibility, like the
       // member-read guard does; a numeric key is a plain slot read and detaches nothing
       const detaches = key !== null ? ARRAY_REPOSITIONING_METHODS.has(key)
@@ -5026,11 +5032,14 @@ export function mutationShapesReducer(packages = null) {
     }
   }
 
-  // the parameters a function literal defaults (`defaultedParams`), paired by the gate once the walk is over
+  // the parameters a function literal defaults (`defaultedParams`), paired by the gate once the walk is
+  // over; a pattern defaulted to a binding reads its keys off it whenever a call omits the argument
   function recordDefaultedParams(node) {
     if (!FUNCTION_LIKE_NODE_TYPES.has(node.type)) return;
     for (const param of dropLeadingThisParam(node.params ?? [])) {
-      if (param.type === 'AssignmentPattern') defaultedParams.push(param);
+      if (param.type !== 'AssignmentPattern') continue;
+      defaultedParams.push(param);
+      recordPatternMemberReads(param.left, param.right);
     }
   }
 
@@ -5052,10 +5061,10 @@ export function mutationShapesReducer(packages = null) {
       return;
     }
     if (isDestructurePattern(left)) {
-      // an assignment pattern detaches a repositioner exactly like its declaration twin -
-      // `({ reverse } = box)` and `var { reverse } = box` take the same method off the same
-      // container, so both arms owe the same record
-      recordPatternDetachedRepositioners(left, right);
+      // an assignment pattern reads its keys exactly like its declaration twin - `({ reverse } =
+      // box)` and `var { reverse } = box` take the same member off the same source, so both arms
+      // owe the same record
+      recordPatternMemberReads(left, right);
       const paired = rightIsTheValue ? patternMemberTargetPairs(left, unwrapRuntimeExpr(right)) : [];
       gatherPatternMemberTargets(left, member => {
         const stored = paired.filter(([target]) => target === member);
@@ -5110,7 +5119,7 @@ export function mutationShapesReducer(packages = null) {
     // then declined the very literal `const { from } = W.w` resolves through
     if (head.id.type !== 'Identifier') {
       for (const element of elements) {
-        recordPatternDetachedRepositioners(head.id, element);
+        recordPatternMemberReads(head.id, element);
         recordValueSource(head.id, element, head, node.left.kind);
       }
     } else if (elements.length === 1) recordValueSource(head.id, elements[0], head, node.left.kind);
@@ -5130,7 +5139,7 @@ export function mutationShapesReducer(packages = null) {
   function recordDeclarator(node, frame) {
     const { kind = null } = frame?.parentNode ?? {};
     walkPatternIdentifiers(node.id, id => declare(id.name, declarationScopeIn(kind, currentScopes)));
-    recordPatternDetachedRepositioners(node.id, node.init);
+    recordPatternMemberReads(node.id, node.init);
     recordValueSource(node.id, node.init, node, kind);
   }
 

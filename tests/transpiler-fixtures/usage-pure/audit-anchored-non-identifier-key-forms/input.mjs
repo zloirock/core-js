@@ -1,12 +1,12 @@
-// a single-property pattern takes the ctor-key ANCHOR route only when its key can be spelled as a
-// bare member tail. a computed key folds to an arbitrary string, so a capitalised NON-identifier
+// a single-property pattern takes the ctor-key ANCHOR route only when its key names a known
+// built-in. a computed key folds to an arbitrary string, so a capitalised NON-identifier
 // ('Symbol.iterator', 'App-Key', `A.b`) has to stay a residual read - splicing it after a dot
 // aborts the build on one emitter and reads a different property on the other
 const { [Symbol.iterator]: { name: iterName } } = globalThis;
 const { 'App-Key': { assign } } = globalThis;
 const { [`A.b`]: { flat } } = globalThis.window?.self;
-// identifier-valid capitalised keys still anchor - `$` and the Unicode continue classes are
-// identifier characters, so the gate is validity, not an ASCII word test
+// an identifier-valid capitalised key (`$` and the Unicode continue classes are identifier
+// characters) names no built-in either: a user global is an unknown realm slot and stays nested
 const { A$b: { from } } = globalThis;
 const { Abé: { token } } = globalThis;
 const { Map: { groupBy } } = globalThis;

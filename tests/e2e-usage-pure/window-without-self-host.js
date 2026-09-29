@@ -24,3 +24,16 @@ export function withRealmSlot(name, value, read) {
     delete globalThis[name];
   }
 }
+
+// ... and a realm with a `self` of its own, for a read that navigates it as written: Node has none,
+// a browser does, so it is built only where missing - here too, so the file reading it stays free of
+// a `self` write and of any handout that names the slot
+export function withRealmSelf(read) {
+  const built = globalThis.self === undefined;
+  if (built) globalThis.self = globalThis;
+  try {
+    return read();
+  } finally {
+    if (built) delete globalThis.self;
+  }
+}

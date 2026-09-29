@@ -149,6 +149,7 @@ import {
   writeIsInOppositeBranch,
   wksComputedKeyName,
   isUndefinedNode,
+  isTopLevelThisContext,
   receiverSlotRead,
   unwrapTransparentSeq,
 } from '../helpers/ast-patterns.js';
@@ -177,6 +178,7 @@ import {
   inlineCallHasObservableEffects,
   inlineCallProxyGlobalRoot,
   isCallShape,
+  isKnownStaticGlobal,
   isStaticPlacement,
   memberTargetTakesExtraction,
   moduleDefaultSource,
@@ -2144,7 +2146,12 @@ export function isSeFreeMemberReceiver(node) {
 // `globalThis.navigator`); such a caller has only the MEMO route `isSeFreeMemberReceiver` names
 // `allowOptionalHops` answers the same question about a nav the source wrote with `?.`: the hop
 // short-circuits the WHOLE chain, so both a residual and a re-spelling read the same value - what
-// the flag must never do is let a caller dispatch on a nav it did not otherwise accept
+// the flag must never do is let a caller dispatch on a nav it did not otherwise accept.
+// a caller holding a real ROOT brings its `ctx` (and its leg's `isOwnAlias`), and then the root is
+// asked too: the hop names say what a surface LOOKS like, and a capitalised key off the user's own
+// object is that object's key (`{ Data: { at } } = box`), a user nav its own type resolves - so is
+// one off the `this` a function binds (`const { Data: { at } } = this` in a method). without a ctx
+// the answer is the hops' alone, for a caller asking about a pattern's hop names
 export function isBuiltInSurfaceNav(node, options = undefined) {
   let cur = node;
   let hops = 0;
@@ -2158,53 +2165,59 @@ export function isBuiltInSurfaceNav(node, options = undefined) {
     hops++;
     cur = cur.object;
   }
-  return hops > 0 && (cur?.type === 'Identifier' || cur?.type === 'ThisExpression');
+  if (!hops) return false;
+  if (cur?.type === 'ThisExpression') return !options?.ctx || isTopLevelThisContext(options.ctx.path);
+  return cur?.type === 'Identifier' && (!options?.ctx
+    || builtInNamespaceRoot(cur, { isOwnAlias: options.isOwnAlias, ctx: options.ctx }) !== null);
+}
+
+// the global a nav's ROOT names where it is the built-in namespace itself, else null: the alias this
+// plugin minted in place (`globalThis` -> `_globalThis`) - the INJECTOR is what knows it, and that is
+// per-leg state, so the caller brings the lookup - a known global the source spells, or a binding
+// proven to hold one. `true` stands for a minted alias whose global the canon cannot name
+function builtInNamespaceRoot(root, { isOwnAlias = null, ctx = null, ownAliasRoot = false } = {}) {
+  if (root?.type !== 'Identifier') return null;
+  const adapter = ctx?.adapter;
+  if (isOwnAlias?.(root.name)) return (adapter ? resolveObjectName({ objectNode: root, ...ctx }) : null) || true;
+  if (ownAliasRoot) return null;
+  if (!adapter?.hasBinding?.(ctx.scope, root.name, ctx.path)) return isKnownGlobalName(root.name) ? root.name : null;
+  // a BOUND root holds the namespace by its value whatever it is called (a user alias of the realm,
+  // a relocated loop head's minted name) - but only a binding nothing writes again: a write between
+  // the source's read and the re-read (a computed key's effect, a closure) leaves another object there
+  if (isReassignedBeyondDeclarator(adapter.getBinding?.(ctx.scope, root.name, ctx.path) ?? {})) return null;
+  const name = resolveObjectName({ objectNode: root, ...ctx });
+  return isKnownGlobalName(name ?? '') ? name : null;
 }
 
 // ... and the SECOND-READ form of the same question: a nav re-spelled BESIDE a surviving residual
-// must be rooted in the built-in namespace itself - a plugin-minted alias (`_globalThis`), a known
-// global name or a binding proven to hold one - and read slots the file never writes. a capitalised
+// must be rooted in the built-in namespace itself and read slots the file never writes. a capitalised
 // hop off a USER object is a user key, and re-reading it fires that object's getter twice
 // (`({ Array: { prototype: { flat: m } } } = src)` fired `src`'s `Array` getter twice where the
 // source reads it once); a user global and a replaced or redefined realm slot are the same getter.
 // `opts.ownAliasRoot` admits the minted alias alone: a caller copying the nav verbatim cannot carry
 // the substitution a raw root owes
 export function isReReadableSurfaceNav(node, isOwnAlias = null, opts = undefined) {
-  if (!isBuiltInSurfaceNav(node, opts)) return false;
+  if (!isBuiltInSurfaceNav(node, { allowOptionalHops: opts?.allowOptionalHops })) return false;
   const keys = [];
   let cur = node;
   while (cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression') {
     keys.unshift(cur.property.name);
     cur = cur.object;
   }
-  if (cur?.type !== 'Identifier') return false;
   const ctx = opts?.ctx;
   const adapter = ctx?.adapter;
-  let rootName;
-  // the alias this plugin minted in place (`globalThis` -> `_globalThis`) is the built-in namespace
-  // under another name; the INJECTOR is what knows it, and that is per-leg state, so the caller
-  // brings the lookup and the rule stays here. the census below still needs the global it stands for
-  if (isOwnAlias?.(cur.name)) {
-    rootName = adapter ? resolveObjectName({ objectNode: cur, ...ctx }) : null;
-    if (!rootName) return true;
-  } else if (opts?.ownAliasRoot) {
-    return false;
-  } else if (!adapter?.hasBinding?.(ctx.scope, cur.name, ctx.path)) {
-    if (!isKnownGlobalName(cur.name)) return false;
-    rootName = cur.name;
-  } else {
-    // a BOUND root holds the namespace by its value whatever it is called (a user alias of the realm,
-    // a relocated loop head's minted name) - but only a binding nothing writes again: a write between
-    // the source's read and the re-read (a computed key's effect, a closure) leaves another object there
-    if (isReassignedBeyondDeclarator(adapter.getBinding?.(ctx.scope, cur.name, ctx.path) ?? {})) return false;
-    rootName = resolveObjectName({ objectNode: cur, ...ctx });
-    if (!isKnownGlobalName(rootName ?? '')) return false;
-  }
+  const rootName = builtInNamespaceRoot(cur, { isOwnAlias, ctx, ownAliasRoot: opts?.ownAliasRoot });
+  if (rootName === null) return false;
+  // the census below needs the global a minted alias stands for, and one the canon cannot name has
+  // no slot to ask about
+  if (rootName === true) return true;
   // a slot the file writes on the way (`globalThis.Array = shim`, a `defineProperty` getter) holds
-  // whatever the user put there, and the census is what knows it
+  // whatever the user put there, and the census is what knows it. a key read off the realm names a
+  // built-in only under a known name: any other capitalised slot is a user global, the getter above
   let object = rootName;
   for (const key of keys) {
     if (adapter?.isMutatedStatic?.(object, key)) return false;
+    if (POSSIBLE_GLOBAL_OBJECTS.has(object) && !isKnownStaticGlobal(key)) return false;
     object = POSSIBLE_GLOBAL_OBJECTS.has(object) ? key : `${ object }.${ key }`;
   }
   return true;
@@ -2301,7 +2314,9 @@ function slotHopsDropNav(propPath, isOwnAlias, ctx) {
 
 // the one question every route that SPELLS a nested nav beside the source's own reads asks: may it read
 // that nav again? either nothing else reads it - the claim's slot takes every hop of an instance
-// surface nav with it - or a second read cannot disturb it. a receiver that is no such nav (a literal
+// surface nav with it, a surface its ROOT names too: off the user's own object the residual's reads
+// run ahead of the dispatch, out of the order a getter there observes (`({ Data: { prototype: { at
+// } }, o } = src)`) - or a second read cannot disturb it. a receiver that is no such nav (a literal
 // slot the residual still evaluates) has only the second answer. `isOwnAlias` is the caller's lookup
 // of the aliases it minted. a SYMBOL leaf (`symbolLeaf`) dispatches on whatever object the nav reaches,
 // prototype or not, and its dispatch performs the read its key names however the key spells the
@@ -2311,7 +2326,7 @@ export function dispatchMayReadNav(leafPath, nav, {
 } = {}) {
   const ctx = { scope: leafPath.scope, adapter, path: leafPath };
   return (symbolLeaf ? leafPath?.parentPath?.node?.type === 'ObjectPattern' && slotHopsDropNav(leafPath, isOwnAlias, ctx)
-    : isInstanceSurfaceNav(nav, { allowOptionalHops }) && consumedAssignmentSlotDropsNav(leafPath, isOwnAlias, ctx))
+    : isInstanceSurfaceNav(nav, { allowOptionalHops, ctx, isOwnAlias }) && consumedAssignmentSlotDropsNav(leafPath, isOwnAlias, ctx))
     || isReReadableSurfaceNav(nav, isOwnAlias, { ctx, allowOptionalHops });
 }
 
@@ -2394,8 +2409,11 @@ export function instanceHopDispatch({ ctorName, key, resolvePure }) {
 // more run of hops: it unfolds onto its own identifier root (`{ of: { name } } = globalThis.Array`
 // walks as `{ Array: { of: { name } } } = globalThis`), unless the whole nav still names a built-in
 // surface (`globalThis.Array.prototype`), which is the flatten's shape and stays with it. a literal
-// is the pairing walk's, which reads through it to the element - null here
-function unfoldNestedRoot(root, keys) {
+// is the pairing walk's, which reads through it to the element - null here. which chain enters the
+// namespace is asked of its ROOT too where the caller brings a `ctx`: a capitalised key off the
+// user's own object (`(log.push(1), src).Data`, `wrap.Box.Data`) is that object's key
+function unfoldNestedRoot(root, keys, ctx = null) {
+  const surfaceOptions = ctx ? { ctx } : undefined;
   // a SEQUENCE root is the init spelled whole, prefix included; its tail says what it names - a user
   // value only: the realm and the built-in surfaces keep their own prefix channels
   // ... a NAME or a CALL: a member or `this` tail is a pure nav the carried-prefix channels spell
@@ -2405,12 +2423,12 @@ function unfoldNestedRoot(root, keys) {
     const userValue = tail?.type === 'Identifier'
       ? !POSSIBLE_GLOBAL_OBJECTS.has(tail.name) && !isKnownGlobalName(tail.name)
       : tail?.type === 'CallExpression' || tail?.type === 'NewExpression';
-    return userValue && !isBuiltInSurfaceNav(keys.reduce(memberFromKeyName, tail)) ? { root, keys } : null;
+    return userValue && !isBuiltInSurfaceNav(keys.reduce(memberFromKeyName, tail), surfaceOptions) ? { root, keys } : null;
   }
   if (root.type === 'CallExpression' || root.type === 'NewExpression' || root.type === 'ThisExpression') return { root, keys };
   if (root.type !== 'MemberExpression' || root.optional) return null;
-  if (!isBuiltInSurfaceNav(root)) return { root, keys };
-  if (isBuiltInSurfaceNav(keys.reduce(memberFromKeyName, root))) return null;
+  if (!isBuiltInSurfaceNav(root, surfaceOptions)) return { root, keys };
+  if (isBuiltInSurfaceNav(keys.reduce(memberFromKeyName, root), surfaceOptions)) return null;
   const navKeys = [];
   let cur = root;
   while (cur?.type === 'MemberExpression' && !cur.computed && !cur.optional && cur.property?.type === 'Identifier') {
@@ -2583,7 +2601,7 @@ export function resolveNestedReceiverChain(leafPath, {
         const builtInNav = isReReadableSurfaceNav(root, null, { ctx: { scope: leafPath.scope, adapter, path: leafPath } });
         if ((siblingLevelKept && !builtInNav) || !soleSlots
           || (pattern.node.properties.length !== 1 && !rootMemoized && !builtInNav)) return null;
-        unfolded = unfoldNestedRoot(root, keys);
+        unfolded = unfoldNestedRoot(root, keys, adapter ? { scope: leafPath.scope, adapter, path: leafPath } : null);
         if (!unfolded) return null;
       }
       // the RAW init travels too: a caller that SPELLS this receiver keeps whatever the source
@@ -2796,12 +2814,17 @@ export function typedNavClaimShape(leafPath, {
   // a USER key off the GLOBAL OBJECT itself names nothing this plugin models: the slot is whatever
   // the environment installed there, so the leaf is a name match both legs keep native (`{ y: { at } }
   // = globalThis`), not a claim resolved through a receiver's type. a first hop INTO the built-in
-  // namespace (`globalThis.Array.of`) is the anchored machinery's shape and keeps its own answer. the
-  // source spelling and the alias this plugin minted for it (`_globalThis`, hinted on its binding)
-  // are the same root; a user binding that merely shares the name holds the user's value
-  if (root?.type === 'Identifier' && keys.length && !isBuiltInSurfaceNav(memberFromKeyName(root, keys[0]))) {
-    const binding = adapter?.getBinding?.(leafPath.scope, root.name, leafPath);
-    if (isPristineProxyGlobal(adapter, binding ? binding.polyfillHint : root.name)) return null;
+  // namespace (`globalThis.Array.of`) is the anchored machinery's shape and keeps its own answer.
+  // WHICH root is the realm is the proxy canon's question, not the spelling's: the alias this plugin
+  // minted, a user alias, an import of the realm entry and a loop head over the realm all hold it,
+  // and a pass that reads its own output back sees those where the first saw the source spelling -
+  // a user binding that merely shares the name holds the user's value. pristine proxy hops reach the
+  // same realm (`{ self: { y: { at } } }`), so the key asked is the first past them, and only a KNOWN
+  // built-in there enters the namespace - a capital letter proves nothing
+  if (root?.type === 'Identifier' && keys.length) {
+    const realmKey = keys.find(key => !isPristineProxyGlobal(adapter, key));
+    if (realmKey !== undefined && !isKnownStaticGlobal(realmKey)
+      && proxyGlobalRootName({ node: root, scope: leafPath.scope, adapter, path: leafPath })) return null;
   }
   const climbed = walk.climbed ?? [];
   for (let index = 1; index < climbed.length; index++) {
@@ -2813,8 +2836,10 @@ export function typedNavClaimShape(leafPath, {
   // onto that surface's own pure binding and the claim rides the anchor. `allowSurfaceBase` is how a
   // claim the anchor cannot serve asks past it - an INSTANCE leaf reads THROUGH the surface, so the
   // anchor re-homes the residual and leaves the leaf raw unless the dispatch takes it
-  // (`({ Promise: { name } } = globalThis)` -> `name = _nameMaybeFunction(_Promise)`)
-  if (!allowSurfaceBase && isBuiltInSurfaceNav(keys.reduce((base, key) => memberFromKeyName(base, key), root))) return null;
+  // (`({ Promise: { name } } = globalThis)` -> `name = _nameMaybeFunction(_Promise)`). the root is
+  // asked with the hops: off the user's own object the chain is a user nav whatever its keys spell
+  if (!allowSurfaceBase && isBuiltInSurfaceNav(keys.reduce((base, key) => memberFromKeyName(base, key), root),
+    adapter ? { ctx: { scope: leafPath.scope, adapter, path: leafPath } } : undefined)) return null;
   return walk;
 }
 
@@ -3284,12 +3309,14 @@ function hostKeepsSiblingBinding(leafPath) {
 
 // what a nested INSTANCE claim dispatches on where no literal holds its slot: the nested walk spells
 // the remaining hops as member reads, and what that nav LANDS on picks the channel - a built-in
-// SURFACE dispatches as itself, and a nav ending on a polyfillable STATIC of the constructor its
+// SURFACE dispatches as itself (one its root names: a capitalised key off the user's own object is
+// that object's nav), and a nav ending on a polyfillable STATIC of the constructor its
 // object names dispatches on that static's ponyfill. asking is the caller's promise that its render
 // reads the nav ONCE; the trailing-static arm carries a promise of its own (`allowTrailingStatic`) -
-// a leaf sibling keeps a residual that would re-read the static raw. the nav itself comes back
+// a leaf sibling keeps a residual that would re-read the static raw. `isOwnAlias` is the caller's
+// lookup of the names it minted for the namespace, a rewritten tree's root. the nav itself comes back
 // whatever the verdict: a caller that finds no dispatch here still asks what it navigated
-export function resolveNestedNavDispatch(leafPath, { adapter, resolvePure, allowTrailingStatic = false }) {
+export function resolveNestedNavDispatch(leafPath, { adapter, resolvePure, allowTrailingStatic = false, isOwnAlias = null }) {
   // the dispatch READS the nav instead of the host's own init, so what that init spells stops being
   // read at all. an ARRAY wrapper survives that: its own machinery lifts the elements the pattern
   // does not bind. an OBJECT literal has no such channel here, so a property VALUE carrying an
@@ -3299,8 +3326,8 @@ export function resolveNestedNavDispatch(leafPath, { adapter, resolvePure, allow
   // shallow twin prints (`{ w: { at: m }, z } = { w: Array.prototype, z: (hit(), 1) }`)
   const hostInit = destructureHostInitNode(leafPath);
   const keepsSibling = hostKeepsSiblingBinding(leafPath);
-  if (hostInit?.type === 'ObjectExpression' && !keepsSibling
-    && objectLiteralHoldsObservable(hostInit, null, { scope: leafPath.scope, adapter, path: leafPath })) {
+  const ctx = { scope: leafPath.scope, adapter, path: leafPath };
+  if (hostInit?.type === 'ObjectExpression' && !keepsSibling && objectLiteralHoldsObservable(hostInit, null, ctx)) {
     return { nav: null, dispatch: null };
   }
   // ... and with that residual alive, a prefix a LITERAL's slot wears (`w: (hit(), globalThis)`) runs
@@ -3313,9 +3340,9 @@ export function resolveNestedNavDispatch(leafPath, { adapter, resolvePure, allow
   // the nav node verbatim would print the raw name the source wrote
   // a `?.` that cannot short-circuit is dead text on the surface nav (`globalThis?.globalThis.Array
   // .prototype`): the same value canon the pairing asked, so the dispatch reads through those hops
-  const allowOptionalHops = receiverCarriesLiveOptional(nav) && !navValueCanShortCircuit(
-    nav, ({ name }) => resolveBuiltIn({ kind: 'global', name }), { scope: leafPath.scope, adapter, path: leafPath });
-  if (isInstanceSurfaceNav(nav, { allowOptionalHops })) {
+  const allowOptionalHops = receiverCarriesLiveOptional(nav)
+    && !navValueCanShortCircuit(nav, ({ name }) => resolveBuiltIn({ kind: 'global', name }), ctx);
+  if (isInstanceSurfaceNav(nav, { allowOptionalHops, ctx, isOwnAlias })) {
     const navKeys = [];
     let cur = nav;
     function hopIsPlain(hop) {
@@ -3331,7 +3358,7 @@ export function resolveNestedNavDispatch(leafPath, { adapter, resolvePure, allow
   }
   if (!allowTrailingStatic || nav?.type !== 'MemberExpression' || nav.computed
     || nav.property?.type !== 'Identifier') return { nav, dispatch: null };
-  const ctorName = resolveObjectName({ objectNode: nav.object, scope: leafPath.scope, adapter, path: leafPath });
+  const ctorName = resolveObjectName({ objectNode: nav.object, ...ctx });
   const pure = ctorName && isStaticPlacement(ctorName) && !POSSIBLE_GLOBAL_OBJECTS.has(ctorName)
     && !adapter.isMutatedStatic?.(ctorName, nav.property.name)
     ? staticHopPure({ ctorName, key: nav.property.name, resolvePure }) : null;
@@ -3379,15 +3406,16 @@ export function nestedSlotMemoPlan(leafPath, { adapter = null } = {}) {
   }
   if (!slotValues.has(cur)) return null;
   // ... only a nav INTO a built-in surface: a user object's hop (`{ w: { y: { at } } } = { w: box }`)
-  // would be read by the residual a second time, and both legs keep that claim native
-  if (navKeys.length && !isInstanceSurfaceNav(carried)) return null;
+  // would be read by the residual a second time, and both legs keep that claim native - a capitalised
+  // one too, the slot's value naming no surface (`{ w: { Y: { prototype: { at } } } }`)
+  const slotCtx = { scope: leafPath.scope, adapter, path: leafPath };
+  if (navKeys.length && !isInstanceSurfaceNav(carried, { ctx: slotCtx })) return null;
   // a slot the level CAN spell twice needs no memo, whatever the leaf navigates from it (`{ w:
   // globalThis }` under `{ w: { Array: { prototype: { map } } } }` reads the surface off the slot);
   // a re-readable built-in surface (`Array.prototype`) spells twice for free, and a literal that
   // BEARS a class keeps its evaluation where the source wrote it - both legs leave those as they are.
   // a leaf whose KEY runs an effect keeps its slot in the residual, and the surface then memoizes
   // anyway: that kept read and the dispatch share it, the side-effect key plan's own rule
-  const slotCtx = { scope: leafPath.scope, adapter, path: leafPath };
   if (isReReferenceableAcrossReads(slot.node, slotCtx) || literalHoldsClass(slot.node)
     || (!computedKeyHasSideEffects(leafPath.node)
       && isReReadableSurfaceNav(unwrapRuntimeExpr(slot.node), null, { ctx: slotCtx }))) return null;
@@ -4212,7 +4240,7 @@ function writtenStaticOwnerName(value, writePath, adapter) {
   if (names.has(value)) return names.get(value);
   let name = unwrapTransparentSeq(value)?.type === 'Identifier'
     ? resolveObjectName({ objectNode: value, scope: writePath.scope, adapter, path: writePath, usageNode: value }) : null;
-  if (!name || !isKnownGlobalName(name) || !isStaticPlacement(name) || POSSIBLE_GLOBAL_OBJECTS.has(name)) name = null;
+  if (!name || !isKnownStaticGlobal(name) || POSSIBLE_GLOBAL_OBJECTS.has(name)) name = null;
   names.set(value, name);
   return name;
 }
@@ -4551,8 +4579,16 @@ function walkStaticReceiverLeaf({ hop, walk }) {
   // a bare global name answers itself; a minted hop never reaches this terminal - the
   // hop recognizer (`pluginRewrittenHopName`) resolves it earlier in the walk
   // ... and a slot spelled `undefined` (`{ k: undefined }`) names no receiver: the global of that
-  // name is not one, and what a leaf reads there is its inner default, which answers on its own
-  if (current?.type === 'Identifier') return isUndefinedNode(current) ? null : current.name;
+  // name is not one, and what a leaf reads there is its inner default, which answers on its own.
+  // an UNBOUND name reads a realm slot, which only a known built-in proves present: a user global
+  // (`{ k: userUndef }`) may hold `undefined`, so it names no receiver either and the inner default
+  // stays live. a minted alias names its built-in through the object canon
+  if (current?.type === 'Identifier') {
+    if (isUndefinedNode(current)) return null;
+    if (!adapter?.hasBinding || adapter.hasBinding(currentScope, current.name, path)) return current.name;
+    const named = resolveObjectName({ objectNode: current, scope: currentScope, adapter, path, usageNode: readNode });
+    return isKnownStaticGlobal(named ?? '') ? current.name : null;
+  }
   // a CALL names its return's constructor through the name channel (`{ w: e('a') }` holds Object),
   // in every spelling the call view admits - a tagged template, a constructible `new`, an `await` -
   // and where that channel stops, through the call arm the terminal descends a call with; a caller
@@ -4618,7 +4654,7 @@ function walkStaticReceiverTerminal({ hop, walk }) {
   // the dereference loop above never ran and the alias reaches here verbatim - adapter+scope
   // let the shared root recogniser recover its source name (no binding to read the hint off of).
   // mirror `resolveNestedDestructureReceiver`'s short-circuit: the REMAINING hops must all be
-  // proxy-globals with a recognised static-placement leaf (a CONSTRUCTOR key: `const ns =
+  // proxy-globals with a leaf naming a known built-in (a CONSTRUCTOR key: `const ns =
   // {root: globalThis}; const {root: {self: {Array: A}}} = ns`). without this, such chains bail
   // at the rewritten alias and the constructor polyfill is missed silently. deeper static-METHOD
   // shapes (`{root: {Array: {from}}}`) fail the all-proxy-hops condition here by design - they
@@ -4627,7 +4663,7 @@ function walkStaticReceiverTerminal({ hop, walk }) {
   // so the chain no longer names the pristine built-in
   if (proxyGlobalRootName({ node: current, adapter, scope: currentScope, path, usageNode: readNode })
       && walkPath.slice(0, -1).every(k => isPristineProxyGlobal(adapter, k))
-      && isStaticPlacement(walkPath.at(-1))
+      && isKnownStaticGlobal(walkPath.at(-1))
       && !isMutatedGlobalSlot(adapter, walkPath.at(-1))) {
     return walkPath.at(-1);
   }
@@ -4643,7 +4679,7 @@ function walkStaticReceiverTerminal({ hop, walk }) {
     // a static OF it: the same lift the bare-name arm above takes, for the nav spelling of the same
     // receiver (`{ w: { Array: { from } } } = { w: globalThis.globalThis }`). without it the leaf
     // answered the realm, no module matched, and only the leg that re-visits its own collapse claimed
-    if (named && POSSIBLE_GLOBAL_OBJECTS.has(named) && isStaticPlacement(walkPath[0])
+    if (named && POSSIBLE_GLOBAL_OBJECTS.has(named) && isKnownStaticGlobal(walkPath[0])
       && !isMutatedGlobalSlot(adapter, walkPath[0])) return walkPath[0];
     if (named) return named;
     // ... and a nav the name channel cannot follow folds into the walk (an alias of a wrapper slot:
@@ -5281,7 +5317,7 @@ function arrayWrapReceiverFromHost({ parent: host, indices }, adapter, unionSink
     const resolved = resolveObjectName({
       objectNode: leaf, scope: descended.ctx.scope, adapter, path: host, usageNode: descended.readNode ?? host.node,
     });
-    return resolved && isStaticPlacement(resolved) ? resolved : null;
+    return resolved && isKnownStaticGlobal(resolved) ? resolved : null;
   }
   return null;
 }
@@ -7304,13 +7340,12 @@ function computeNestedDestructureReceiver(outerProp, adapter, unionSink = null, 
       }
       if (receiver && POSSIBLE_GLOBAL_OBJECTS.has(receiver)
           && walkKeys.slice(0, -1).every(k => isPristineProxyGlobal(adapter, k))) {
-        // leaf must be a recognised constructor name (`isStaticPlacement` whitelists the
-        // capitalised globals dispatch consults). without this gate, `const {window: {foo}}
-        // = globalThis` would return `'foo'` to downstream `resolveBuiltIn` which then
-        // bails on the unknown name - cleaner to bail here than push noise downstream.
+        // the leaf names a receiver only where the realm is known to carry a built-in under it:
+        // any other key (`{ window: { foo } }`, a user global `{ A: { groupBy } = Map }`) is an
+        // unknown slot, which leaves an inner default live - the fallback below reads it.
         // a mutated leaf slot holds the user's replacement - not the pristine ctor
         const leaf = walkKeys.at(-1);
-        return isStaticPlacement(leaf) && !isMutatedGlobalSlot(adapter, leaf) ? leaf : null;
+        return isKnownStaticGlobal(leaf) && !isMutatedGlobalSlot(adapter, leaf) ? leaf : null;
       }
       // Anchor the read in the actual receiver slot: its value is captured before any pattern
       // defaults can reassign that binding. The host alone loses this evaluation-order proof.
