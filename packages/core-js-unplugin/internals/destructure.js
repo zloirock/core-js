@@ -3670,8 +3670,9 @@ export default function createAstDestructureEmitter({
       // ... and a TYPED user nav the extraction OWNS - every level dies with the claim, the host
       // included, so the dispatch is the nav's one read, in the source's own order (`({ y: { at } } =
       // src)` -> `at = _atMaybeArray(src.y)`), the declaration host's answer for the same shape
-      // the nav is spelled at drain off the base's NAME, the scope-aware copy this arm needs
-      const typedUserNav = !typedStatic && typedBase && !typedBase.pure && typeof typedBase.name === 'string'
+      // A computed root has no binding name; the chain carries its source spelling for the same
+      // sole-read extraction, just as it does on a declaration host.
+      const typedUserNav = !typedStatic && typedBase && !typedBase.pure
         && !typedChain.slotDefault && consumedAssignmentSlotDropsHost(metaPath) ? typedBase : null;
       // ... and a nav off a name this plugin minted for a built-in surface (a capture's ref) is the
       // re-readable surface the shared rule admits: it carries no substitution the drain could miss
@@ -3697,7 +3698,7 @@ export default function createAstDestructureEmitter({
           // the raw slot goes with the dispatch that re-spells it - the shared canon answers which
           // slots may leave, and the drain removes the prop and drops an emptied host
           prunesSlot: prunes,
-          carriesInit: !!carriedReceiver,
+          carriesInit: !!carriedReceiver || !!typedUserNav,
           prop, pattern, chain, sentinel, assignment: hostParent.node,
           value: () => {
             // a CARRIED receiver re-resolves at drain: a claim inside it renders by REPLACING its
@@ -3712,7 +3713,8 @@ export default function createAstDestructureEmitter({
               : bareProxyGlobalPure(peelTransparentExpr(spelled), metaPath, { adapter, resolveGlobalPolyfill });
             const pureBase = typedStatic ?? typedSurface;
             const root = pureBase ? identifier(injectPureImport(pureBase.pure.entry, pureBase.pure.hintName))
-                : typedUserNav ? identifier(typedUserNav.name)
+                : typedUserNav ? typeof typedUserNav.name === 'string' ? identifier(typedUserNav.name)
+                    : duplicateReceiver(typedChain.rootSpelling, injector)
                 : barePure ? identifier(injectPureImport(barePure.entry, barePure.hintName))
                 : duplicateReceiver(spelled, injector);
             const receiver = typedUserNav ? typedUserNav.path.reduce(memberFromKeyName, root)
