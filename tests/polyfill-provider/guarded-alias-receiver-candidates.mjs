@@ -16,6 +16,7 @@ const rows = [
   ['declaration scope', 'if (flag) { var realm = globalThis; } const held = realm; function inspect(realm) { observe(held); }', ['globalThis']],
   ['shadowed source', 'if (flag) { var realm = globalThis; } function inspect(realm) { const held = realm; observe(held); }', []],
   ['conditional constructor', 'if (flag) { var source = Map; } const held = source; observe(held);', ['Map']],
+  ['selected pattern receiver', 'let held; const own = { Map: {} }; const result = ({ Map: held } = flag ? own : globalThis); observe(held);', ['Map']],
   ['alias cycle', 'var realm = held; var held = realm; observe(held);', []],
   ['destructure is not its container', 'const { realm: held } = globalThis; observe(held);', []],
   ['overwritten initializer', 'let held = globalThis; held = source; observe(held);', []],
@@ -93,7 +94,7 @@ for (const parser of adapters) for (const method of ['usage-global', 'usage-pure
     checked++;
   }
 }
-check('all rows were checked', checked, 224);
+check('all rows were checked', checked, 228);
 for (const parser of adapters) for (const [name, source, key, expected] of [
   ['conditional native constructor', 'if (flag) { var held = globalThis; } held.Array.of(7);', 'of', 'Array'],
   ['conditional native namespace', 'if (flag) { var held = globalThis; } held.Object.keys(value);', 'keys', 'Object'],
