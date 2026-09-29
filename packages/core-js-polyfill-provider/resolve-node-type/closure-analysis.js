@@ -45,6 +45,7 @@ import {
   POSITION_FORWARDS,
   POSITION_INSPECTS,
   propertyKeyName,
+  propertyInstallsPrototype,
   unwrapExpressionChain,
   unwrapRuntimeExpr,
   walkAstChildren,
@@ -62,6 +63,7 @@ import { walkStaticReceiverChain } from '../detect-usage/destructure.js';
 export function createClosureAnalysis({
   resolveStaticCalleePair,
   callArgumentEscapes,
+  memberUseIsDirectCall,
   ownerMethodFns,
   staticOwnerMethodFns,
   getScopeBinding,
@@ -89,11 +91,6 @@ export function createClosureAnalysis({
   // cached per ObjectExpression node: a single literal can have many distinct field reads but the
   // closure is field-agnostic
   let objectAliasClosureCache = new WeakMap();
-  // the object's value reaches `parent` unchanged through a value-preserving position - the object
-  // escapes iff the node now CARRYING its value does, so return that carrier's path to re-test one
-  // level up. covers structural carriers (array element, object-property value, spread) and pure
-  // forwarders (conditional branch, logical operand, sequence tail); paren / TS wrappers are already
-  // peeled by `peelParenAndTSParentPath`. null when this position is not value-preserving
   // the carrier (with the object inside) is bound to a NAME - via a declarator (`const x = [...]`) or a
   // `=` assignment (`x = [...]`). the object escapes iff that binding LEAKS: reuse the bound-path leak
   // analysis, where a member-read (`x[0]` / `x.f`) is trivial/local but `return x` / `f(x)` / `export
@@ -103,10 +100,16 @@ export function createClosureAnalysis({
   // `fieldPath` (non-empty) is the anon's nesting path inside the bound carrier (`[{index}]` array slot /
   // `[{key}]` object field), so the leak analysis can leak only the anon's OWN slot (`a[i]` / `o.wrap`) when
   // held, not every member read of the binding. null/empty -> the binding's own generic leak analysis
-  function carrierBindingClosure(scope, name, anchorPath, fieldPath) {
-    return computeAliasClosureFromBinding({
+  // Only an exhausted slot path binds the object itself. Retain those aliases for field-write
+  // collection; carrier names must not be mistaken for aliases of the object they contain.
+  function carrierBindingClosure(scope, name, anchorPath, fieldPath, receiverClosure = null) {
+    const closure = computeAliasClosureFromBinding({
       rootBinding: getScopeBinding(scope, name, anchorPath), rootName: name, anchorPath, fieldPath,
     });
+    if (closure && !fieldPath.length && receiverClosure) {
+      for (const [binding, alias] of closure) receiverClosure.set(binding, alias);
+    }
+    return closure;
   }
   // loop-variable Identifier name of a `for (... of iterable)` head: `for (const x of ...)` (single
   // Identifier declarator) or `for (x of ...)` (bare Identifier). null for a destructure / member target
@@ -133,13 +136,13 @@ export function createClosureAnalysis({
   // A target deeper than the anon's path holds a field, not the anon. Only own-this methods can
   // expose the owner through such a read; patternBindsAnonMethod checks those before the target walk.
   // A non-pattern LHS shape cannot be enumerated and keeps the conservative escape verdict.
-  function destructureVarTargetLeaks({ pattern, scope, anchorPath, fieldPath }) {
+  function destructureVarTargetLeaks({ pattern, scope, anchorPath, fieldPath, receiverClosure }) {
     if (!isDestructurePattern(pattern)) return true;
     if (patternBindsAnonMethod({ pattern, fieldPath, methodInfo: objectOwnThisMethodInfo(anchorPath?.node) })) return true;
     let leaks = false;
     walkPatternIdentifiers(pattern, (id, depth) => {
       if (!leaks && depth <= fieldPath.length) {
-        leaks = carrierBindingClosure(scope, id.name, anchorPath, fieldPath.slice(depth)) === null;
+        leaks = carrierBindingClosure(scope, id.name, anchorPath, fieldPath.slice(depth), receiverClosure) === null;
       }
     });
     return leaks;
@@ -312,6 +315,7 @@ export function createClosureAnalysis({
   // so a computed key or a conditional's test never reaches this. an array adds a wildcard slot, an
   // object property its static key, and the value-forwarders add nothing. null means the flow stops
   // being trackable: a property outside an object literal, or a slot no name can be matched against
+  // Paren / TS wrappers are peeled by the caller; a spread is a terminal, not a carrier.
   function enterCarrier(parent, parentPath, valueNode, fieldPath) {
     if (positionDisposition(parent, valueNode, parentPath) !== POSITION_FORWARDS) return null;
     switch (parent.type) {
@@ -321,6 +325,7 @@ export function createClosureAnalysis({
       case 'ObjectProperty':
       case 'Property': {
         if (parentPath.parentPath?.node?.type !== 'ObjectExpression') return null;
+        if (propertyInstallsPrototype(parent)) return null;
         const key = parent.computed ? null : getKeyName(parent.key);
         if (key === null || key === undefined) return null;
         fieldPath.unshift({ key: String(key) });
@@ -353,9 +358,7 @@ export function createClosureAnalysis({
     const [step] = fieldPath;
     const key = parent.computed ? null : getKeyName(parent.property);
     if (!parent.computed && (step.index || key === null || key === undefined || String(key) !== step.key)) {
-      const use = peelParenAndTSParentPath(parentPath)?.node;
-      return { escapes: (use?.type === 'CallExpression' || use?.type === 'OptionalCallExpression')
-        && unwrapRuntimeExpr(use.callee) === parent };
+      return { escapes: memberUseIsDirectCall(parentPath) };
     }
     fieldPath.shift();
     return { resume: parentPath };
@@ -364,10 +367,11 @@ export function createClosureAnalysis({
   // the TARGET a position binds the value to, and whether that target keeps it reachable. three target
   // shapes, one answer each: a NAME carries the value on under its own closure, a member STORE puts it
   // on a holder whose own reachability decides, and a PATTERN spreads it across the bindings it
-  // matches. `closure` comes back only for a name - it is what the caller keeps tracking through
-  function bindingTargetClosure(target, targetPath, scope, objectPath, fieldPath) {
+  // matches. `closure` comes back only for a name; receiverClosure also collects the exact-object
+  // aliases found inside patterns, whose field writes must remain visible to the caller.
+  function bindingTargetClosure(target, targetPath, scope, objectPath, fieldPath, receiverClosure) {
     if (target?.type === 'Identifier') {
-      const closure = carrierBindingClosure(scope, target.name, objectPath, fieldPath);
+      const closure = carrierBindingClosure(scope, target.name, objectPath, fieldPath, receiverClosure);
       return { leaks: closure === null, closure };
     }
     if (isMemberAccessNode(target)) {
@@ -375,18 +379,20 @@ export function createClosureAnalysis({
     }
     return {
       leaks: (targetPath ? destructureHasMemberTarget(targetPath) : false)
-        || destructureVarTargetLeaks({ pattern: target, scope, anchorPath: objectPath, fieldPath }),
+        || destructureVarTargetLeaks({ pattern: target, scope, anchorPath: objectPath, fieldPath, receiverClosure }),
     };
   }
 
-  function anonymousObjectClosure(objectPath) {
-    let valuePath = objectPath;
+  // Follow a literal or one of its references through value carriers. Keep the literal as the
+  // method-analysis anchor and compose its existing field path when a carrier is itself stored.
+  // Exact-object bindings join receiverClosure; a carrier's own bindings do not alias its contents.
+  function anonymousObjectClosure(objectPath, valuePath = objectPath, carriedFields = null, receiverClosure = new Map()) {
     // the anon's nesting path inside the eventual carrier binding (outermost-first): an array adds a wildcard
     // slot, an object property adds its static key, value-forwarders (conditional / logical / sequence) add
     // nothing. a computed key / spread makes the slot untrackable - ANY read of the carrier could then
     // extract the anon and hand it out, so escape conservatively (over-narrow throws in foreign runtimes;
     // under-narrow only degrades to the generic polyfill)
-    const fieldPath = [];
+    const fieldPath = carriedFields ? [...carriedFields] : [];
     // a carrier NAME found mid-walk is only the answer once the walk ends locally: `return (x = {...})`
     // binds to `x` AND hands the assignment's value out, so the climb has to finish first
     let pendingCarrier = null;
@@ -394,7 +400,7 @@ export function createClosureAnalysis({
     // climb has passed through a carrier NAME, the object is reachable as that name and writes through
     // it must still fold. an empty closure would claim there are no external writers at all
     function local() {
-      return pendingCarrier ?? EMPTY_CLOSURE;
+      return receiverClosure.size ? receiverClosure : pendingCarrier ?? EMPTY_CLOSURE;
     }
     for (;;) {
       const parentPath = peelParenAndTSParentPath(valuePath);
@@ -404,11 +410,11 @@ export function createClosureAnalysis({
       // decided at the OUTERMOST carrier, not the immediate parent, so climb and re-test
       // a spread is TERMINAL, not a container to enter: it copies the anon's own enumerable props out
       // (field values and method shorthands alike) or iterates it, and the walk cannot follow what the
-      // consumer does with them. only an ARRAY spread keeps everything local, and only while the anon
-      // cannot iterate itself - with no iterator the spread throws and extracts nothing
+      // consumer does with them. only spreading the object ITSELF into an array can stay local:
+      // with no iterator the spread throws and extracts nothing. A carrier can iterate its contents.
       if (parent.type === 'SpreadElement') {
         return parentPath.parentPath?.node?.type === 'ArrayExpression'
-          && !mayIterateItself(objectPath.node) ? local() : null;
+          && !fieldPath.length && !mayIterateItself(objectPath.node) ? local() : null;
       }
       const carrier = enterCarrier(parent, parentPath, valuePath.node, fieldPath);
       if (carrier) {
@@ -437,8 +443,9 @@ export function createClosureAnalysis({
         // target binding leaks against the anon's remainder path inside the value it received
         case 'VariableDeclarator': {
           if (unwrapRuntimeExpr(parent.init) !== valuePath.node) return local();
-          const target = bindingTargetClosure(parent.id, parentPath.get('id'), parentPath.scope, objectPath, fieldPath);
-          return target.leaks ? null : target.closure ?? local();
+          const target = bindingTargetClosure(parent.id, parentPath.get('id'), parentPath.scope, objectPath, fieldPath, receiverClosure);
+          pendingCarrier ??= target.closure ?? null;
+          return target.leaks ? null : local();
         }
         // `x = <carrier>` (locally rebinds x) / `obj.f = <carrier>` (member store) AND forwards the value.
         // a logical-assign (`x ||= ...` / `obj.f ??= ...`) stores the RHS by reference too - same routing;
@@ -451,7 +458,7 @@ export function createClosureAnalysis({
         case 'AssignmentExpression': {
           if (!VALUE_FLOW_ASSIGN_OPS.has(parent.operator) || unwrapRuntimeExpr(parent.right) !== valuePath.node) return local();
           const target = bindingTargetClosure(unwrapRuntimeExpr(parent.left), parentPath.get('left'),
-            parentPath.scope, objectPath, fieldPath);
+            parentPath.scope, objectPath, fieldPath, receiverClosure);
           if (target.leaks) return null;
           pendingCarrier ??= target.closure ?? null;
           valuePath = parentPath;
@@ -469,7 +476,9 @@ export function createClosureAnalysis({
           // loop throws before the body runs, so the head consumes it exactly like a `for...in` head
           if (!fieldPath.length && !mayIterateItself(objectPath.node)) return local();
           const loopVar = forOfLoopVarName(parent.left);
-          return loopVar ? carrierBindingClosure(parentPath.scope, loopVar, objectPath, fieldPath.slice(1)) : null;
+          const closure = loopVar && carrierBindingClosure(parentPath.scope, loopVar, objectPath, fieldPath.slice(1), receiverClosure);
+          pendingCarrier ??= closure || null;
+          return closure ? local() : null;
         }
         // the object is a DEFAULT value (`function f(o = {...})` param default / `const { x = {...} } = src`
         // destructure default). it binds to the default's TARGET, so a held read of the nested anon's slot
@@ -482,8 +491,10 @@ export function createClosureAnalysis({
         case 'AssignmentPattern': {
           if (unwrapRuntimeExpr(parent.right) !== valuePath.node) return local();
           if (parent.left?.type !== 'Identifier') return null;
-          const target = bindingTargetClosure(parent.left, parentPath.get('left'), parentPath.scope, objectPath, fieldPath);
-          return target.leaks ? null : target.closure;
+          const target = bindingTargetClosure(parent.left, parentPath.get('left'),
+            parentPath.scope, objectPath, fieldPath, receiverClosure);
+          pendingCarrier ??= target.closure ?? null;
+          return target.leaks ? null : local();
         }
         // every position this walk has no mechanics of its own for is answered by the shared
         // enumeration - the same one the named-holder classifier asks. FORWARDS never reaches here
@@ -493,6 +504,10 @@ export function createClosureAnalysis({
         default: {
           const disposition = positionDisposition(parent, valuePath.node, parentPath);
           if (disposition !== POSITION_INSPECTS) return disposition === POSITION_CONSUMES ? local() : null;
+          // A non-mutating call can still expose values INSIDE its argument (Object.assign,
+          // Object.values, or a dispatched array method). Its direct-argument proof does not
+          // cover the nested object's slots, so only the object itself can use that proof.
+          if (fieldPath.length) return null;
           return callArgumentEscapes({
             callNode: parent,
             argNode: parent.arguments.find(arg => unwrapRuntimeExpr(arg) === valuePath.node),
@@ -1206,6 +1221,7 @@ export function createClosureAnalysis({
   }
 
   return {
+    anonymousObjectClosure,
     computeObjectAliasClosure,
     isReceiverInClosure,
     isReceiverPrototypeInClosure,
