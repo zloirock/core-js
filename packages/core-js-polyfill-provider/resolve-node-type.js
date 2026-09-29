@@ -1585,6 +1585,7 @@ function createResolveNodeType(babelNodeType, t, {
     // build, after factory init completes. visitor keys across contributions are DISJOINT
     // (Identifier / NewExpression here vs class / assignment / update / for-x there)
     extraProgramCensusCollectors: () => [closureAnalysisCluster.moduleFieldCensusCollector()],
+    forwardedObjectClosure: (...args) => closureAnalysisCluster.anonymousObjectClosure(...args),
   });
   const {
     buildProgramIndex,
@@ -1598,6 +1599,7 @@ function createResolveNodeType(babelNodeType, t, {
     callArgumentEscapes,
     classBindingRefClassifier,
     computeAliasClosureFromBinding,
+    memberUseIsDirectCall,
     methodReadLeaks,
     resolveStaticCalleePair,
   } = bindingAnalysisCluster;
@@ -1691,6 +1693,7 @@ function createResolveNodeType(babelNodeType, t, {
     classBindingRefClassifier,
     buildProgramIndex,
     programCensus,
+    memberUseIsDirectCall,
     methodReadLeaks,
     resolveNodeType,
   });

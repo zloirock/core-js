@@ -9074,3 +9074,135 @@ QUnit.test('destructuring: writes to one target keep their source order', assert
   var { 0: early = typeof hoisted, at: hoisted } = [];
   assert.same(early, 'undefined', 'a default reads the binding before its claim writes it');
 });
+
+QUnit.test('destructuring: nested member assignment reads each getter once', assert => {
+  const events = [];
+  const wrap = { get box() {
+    events.push('box');
+    return { get data() {
+      events.push('data');
+      return [4, 7];
+    } };
+  } };
+  let at = null;
+  ({ data: { at } } = wrap.box);
+  assert.deepEqual(events, ['box', 'data']);
+  assert.same(at.call([4, 7], -1), 7);
+
+  const text = { get Box() {
+    events.push('Box');
+    return { Inner: { get Text() {
+      events.push('Text');
+      return 'abc';
+    } } };
+  } };
+  let includes = null;
+  ({ Inner: { Text: { includes } } } = text.Box);
+  assert.deepEqual(events, ['box', 'data', 'Box', 'Text']);
+  assert.true(includes.call('abc', 'b'));
+});
+
+QUnit.test('destructuring: local literal carriers preserve instance dispatch', assert => {
+  const box = { data: [4, 7] };
+  const wrap = { inner: box };
+  const { at } = box.data;
+  const { data: { includes } } = wrap.inner;
+  assert.same(at.call(box.data, -1), 7);
+  assert.true(includes.call(wrap.inner.data, 4));
+
+  wrap.inner.data = 'abc';
+  const { at: writtenAt } = box.data;
+  assert.same(writtenAt.call(box.data, -1), 'c');
+});
+
+QUnit.test('destructuring: nested rest copies fields without aliasing their slots', assert => {
+  const wrap = { box: { data: [10, 20] } };
+  const { ...copy } = wrap.box;
+  copy.data = '1020';
+  assert.false(wrap.box.data.includes('02'));
+  assert.true(copy.data.includes('02'));
+
+  const text = { box: { data: '1020' } };
+  let assigned;
+  // eslint-disable-next-line prefer-const -- assignment form under test
+  ({ ...assigned } = text.box);
+  assigned.data = [10, 20];
+  assert.true(text.box.data.includes('02'));
+  assert.false(assigned.data.includes('02'));
+});
+
+QUnit.test('destructuring: rest preserves nested aliases and rebinds copied methods', assert => {
+  const wrap = { box: { data: [10, 20] } };
+  const { ...copy } = wrap;
+  copy.box.data = '1020';
+  assert.true(wrap.box.data.includes('02'));
+
+  const methods = { box: { data: [10, 20], read() { return this.data.includes('02'); } } };
+  const { ...rebound } = methods.box;
+  rebound.data = '1020';
+  assert.false(methods.box.read());
+  assert.true(rebound.read());
+});
+
+QUnit.test('destructuring: writes through copied carrier values remain visible', assert => {
+  const spreadBox = { data: [10, 20] };
+  // eslint-disable-next-line sonarjs/no-unused-collection, unicorn/no-useless-spread -- Both literals pin the carrier-spread path.
+  const [spreadAlias] = [...[spreadBox]];
+  spreadAlias.data = '1020';
+  assert.true(spreadBox.data.includes('02'));
+
+  const assignedBox = { data: [10, 20] };
+  const { box: assignedAlias } = Object.assign({}, { box: assignedBox });
+  assignedAlias.data = '1020';
+  assert.true(assignedBox.data.includes('02'));
+
+  const patternBox = { data: '1020' };
+  const { box: patternAlias } = { box: patternBox };
+  patternAlias.data = [10, 20];
+  assert.false(patternBox.data.includes('02'));
+
+  const mappedBox = { data: [10, 20] };
+  const [mappedAlias] = [mappedBox].map(value => value);
+  mappedAlias.data = '1020';
+  assert.true(mappedBox.data.includes('02'));
+
+  const optionalBox = { data: [10, 20] };
+  // eslint-disable-next-line no-unsafe-optional-chaining -- The array is present; retain the optional-call rewrite path.
+  const [optionalAlias] = [optionalBox]?.map(value => value);
+  optionalAlias.data = '1020';
+  assert.true(optionalBox.data.includes('02'));
+});
+
+QUnit.test('destructuring: computed roots keep one read and seal optional navigation', assert => {
+  const log = [];
+  const box = { get data() {
+    log.push('data');
+    return [4, 7];
+  } };
+  function getBox() {
+    log.push('call');
+    return box;
+  }
+  function Box() {
+    log.push('new');
+    return box;
+  }
+  const wrap = { get box() {
+    log.push('box');
+    return box;
+  } };
+  let at;
+  ({ data: { at } } = getBox());
+  assert.same(at.call([4, 7], -1), 7);
+  ({ data: { at } } = new Box());
+  assert.same(at.call([4, 7], -1), 7);
+  // eslint-disable-next-line no-unsafe-optional-chaining -- The present root must retain its optional spelling.
+  ({ data: { at } } = wrap?.box);
+  assert.same(at.call([4, 7], -1), 7);
+  // eslint-disable-next-line no-constant-condition, sonarjs/no-gratuitous-expressions -- An untaken branch must not read the root.
+  if (false) ({ data: { at } } = getBox());
+  assert.deepEqual(log, ['call', 'data', 'new', 'data', 'box', 'data']);
+  const absent = null;
+  // eslint-disable-next-line no-unsafe-optional-chaining -- The pattern must throw after the root short-circuits.
+  assert.throws(() => { ({ data: { at } } = absent?.box); }, TypeError);
+});
