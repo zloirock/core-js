@@ -77,6 +77,7 @@ import {
   discardRescueNodes,
   findProxyGlobal,
   inlineCallReturnExpression,
+  isKnownStaticGlobal,
   isStaticPlacement,
   navValueCanShortCircuit,
   peelChainRootValue,
@@ -1844,21 +1845,20 @@ export default function createAstDestructureEmitter({
         if (!destructureRightIsReceiver(defaultPath.node.right)) return false;
         // ... nor one the host's pairing proves dead: the leaf reads the pair (`{ k: { at } = mk() } = { k: [1] }`)
         if (nearestInnerDefaultDead(patternPath, adapter)) return false;
-        // ... and a resolvable OUTER chain leaves its default dead: the receiver proves the hop
-        // (`{ Set: { union } = Set } = globalThis` flattens), an opaque host does not
         let host = defaultPath.parentPath;
         while (host?.node && host.node.type !== 'VariableDeclarator' && host.node.type !== 'AssignmentExpression'
           && host.node.type !== 'CatchClause' && host.node.type !== 'ForOfStatement'
           && host.node.type !== 'ForInStatement') host = host.parentPath;
-        // ... and so does a chain the canonical nested walk names the constructor through without
-        // the default: a LITERAL pairing the hop (`{ k: { from } = Array } = { k: Array }` flattens
-        // off the paired `Array` - the babel shape), or the element a for-x HEAD spells the same on
-        // every pass - a head declarator holds no init of its own for the reads below to ask
+        // ... and a resolvable OUTER chain leaves its default dead: the canonical nested walk names the
+        // constructor through the hop without the default - a realm key naming a built-in (`{ Set:
+        // { union } = Set } = globalThis` flattens), a LITERAL pairing the hop (`{ k: { from } = Array }
+        // = { k: Array }` flattens off the paired `Array` - the babel shape), or the element a for-x HEAD
+        // spells the same on every pass. a realm key naming no built-in is an unknown slot, whose
+        // default stays live; a head declarator holds no init of its own for the reads below to ask
         if (defaultPath.parentPath?.node?.type === 'Property'
           && resolveNestedDestructureReceiver(defaultPath.parentPath, adapter, null, { innerDefault: false })) return false;
         const hostInit = host?.node?.init ?? host?.node?.right ?? null;
         if (!hostInit) return true;
-        if (findProxyGlobal(hostInit, { scope: metaPath.scope, adapter, path: metaPath })) return false;
         // ... and a claim whose SHAPE a typed nav reaches keeps the hop without any deadness proof:
         // that route reads the nav once and folds BOTH arms through the canonical guard, where
         // mirroring the default alone polyfills the arm that may never run and leaves the live
@@ -2346,7 +2346,8 @@ export default function createAstDestructureEmitter({
       const storedTail = kind === 'instance' && chain.length > 0 && prop.value.type === 'Identifier'
         && peelTransparentExpr(declarator.init)?.type === 'AssignmentExpression'
         && isPureNavReceiver(peelChainRootValue(declarator.init), navGuardCtx(metaPath))
-        && isInstanceSurfaceNav(hopChainKeys(chain).reduce(memberFromKeyName, peelChainRootValue(declarator.init)))
+        && isInstanceSurfaceNav(hopChainKeys(chain).reduce(memberFromKeyName, peelChainRootValue(declarator.init)),
+          { ctx: navGuardCtx(metaPath).aliasCtx, isOwnAlias: isOwnPureAlias })
         ? peelChainRootValue(declarator.init) : null;
       if ((kind !== 'instance' && flatLeaf && !prop.computed) || storedTail) {
         const forInitValue = buildValue({
@@ -2416,7 +2417,8 @@ export default function createAstDestructureEmitter({
       && (prop.value.type === 'Identifier' || defaultedIdent) && entry !== 'get-iterator-method'
       && patternBindingCount(declarator.id) !== patternBindingCount(prop.value)
       && isPureNavReceiver(seqNavRoot, navGuardCtx(metaPath))
-      && isInstanceSurfaceNav(hopChainKeys(chain).reduce(memberFromKeyName, seqNavRoot))) {
+      && isInstanceSurfaceNav(hopChainKeys(chain).reduce(memberFromKeyName, seqNavRoot),
+        { ctx: navGuardCtx(metaPath).aliasCtx, isOwnAlias: isOwnPureAlias })) {
       recordJob({
         hostPath: exported ? declarationPath.parentPath : declarationPath,
         job: {
@@ -3769,7 +3771,7 @@ export default function createAstDestructureEmitter({
       const [hop] = host.left.properties;
       const hopKeyName = hop?.type === 'Property' && !hop.computed
         ? hop.key?.name ?? (typeof hop.key?.value === 'string' ? hop.key.value : null) : null;
-      if (typeof hopKeyName !== 'string' || !isStaticPlacement(hopKeyName)
+      if (typeof hopKeyName !== 'string' || !isKnownStaticGlobal(hopKeyName)
         || hop.value?.type !== 'ObjectPattern' || hop.value.properties.length !== 1) return;
       const [staticProp] = hop.value.properties;
       if (staticProp?.type !== 'Property' || staticProp.computed
@@ -3942,11 +3944,13 @@ export default function createAstDestructureEmitter({
         // the guard that keeps the source's default, so what is left to refuse is a receiver whose
         // SURFACE is unknown - a PROXY-GLOBAL one, bare or navigated, resolves to the polyfilled
         // surface and its claim binds the ponyfill where the source's default would have hidden it,
-        // and so do hops that NAME a built-in instance surface (`{ prototype: { at: a = 1 } } = Array`)
-        // and a hop the receiver's TYPE dispatches (the composition guards both defaults)
+        // and so do hops that NAME a built-in instance surface (`{ prototype: { at: a = 1 } } = Array`;
+        // a capitalised key off the user's own object names none) and a hop the receiver's TYPE
+        // dispatches (the composition guards both defaults)
         && kind === 'instance' && !bareProxyGlobalRhs && !typedHopPure
         && !resolveProxyNavReceiver(bareProxyRecvNode, guardCtx)
-        && !isInstanceSurfaceNav(chainKeys.reduce(memberFromKeyName, bareProxyRecvNode)))) {
+        && !isInstanceSurfaceNav(chainKeys.reduce(memberFromKeyName, bareProxyRecvNode),
+          { ctx: guardCtx.aliasCtx, isOwnAlias: isOwnPureAlias }))) {
       return;
     }
     const keepSentinelBinding = sentinel && !restSentinelOnly && prop.value.type === 'Identifier'
@@ -4124,12 +4128,12 @@ export default function createAstDestructureEmitter({
       return effectful && value?.type === 'Identifier' && isPristineProxyGlobal(adapter, value.name);
     },
     noteMutatedCtorHopHost: declarator => hopHosts.set(declarator, { forceMutatedHop: true }),
-    // a CTOR hop nothing extracted from re-anchors on its own member READ (`{ A$b: { from } }
-    // = globalThis` -> `{ from } = _globalThis.A$b`) - only where the key qualifies as a
-    // CONSTRUCTOR name the anchor may spell (the shared ctor-key-anchor gate): a lowercase
-    // `constructor` names no global slot, and a non-identifier key has no member form
+    // a CTOR hop nothing extracted from re-anchors on its own member READ (`{ Proxy: { revocable } }
+    // = globalThis` -> `{ revocable } = _globalThis.Proxy`) - only where the key names a built-in
+    // the realm is known to carry (the shared ctor-key-anchor gate): a user global is an unknown
+    // slot (`{ Deno: { env } = {} }` keeps its default), and a lowercase `constructor` names none
     noteUntouchedCtorHopHost(declarator, keyName, assignHost = false, metaPath = null) {
-      if (!hopHosts.has(declarator) && isStaticPlacement(keyName)) {
+      if (!hopHosts.has(declarator) && isKnownStaticGlobal(keyName)) {
         // the key the WALK resolved travels with the note: a computed spelling bound to a
         // constant (`{ [hopKey]: { viaKey } }`) names no literal the re-anchor could read
         hopHosts.set(declarator, { untouched: true, wholeDeclarator: true, assignHost, hopKeyName: keyName, metaPath });

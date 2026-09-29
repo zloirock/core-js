@@ -42,8 +42,7 @@ const opaqueHopTyped = function () {
       };
     }
   };
-  const [_ref] = [box];
-  const at = _atMaybeString(_ref.Array.prototype);
+  const at = _atMaybeString(box.Array.prototype);
   return at;
 }();
 export { proxyRoot, opaqueHopOwnName, opaqueHopTyped };

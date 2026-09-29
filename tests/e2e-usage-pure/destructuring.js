@@ -741,9 +741,9 @@ QUnit.test('destructuring: proxy-global single property under a non-identifier k
     const dotKey = 'A.b';
     const { [dotKey]: { token: dotted } } = globalThis;
     assert.same(dotted, 'dotted', 'a computed key folded from a binding is not a member tail');
-    // the identifier-valid neighbour keeps taking the anchored route
+    // the identifier-valid neighbour names no built-in either: a user global reads its own slot
     const { A$b: { token: dollar } } = globalThis;
-    assert.same(dollar, 'dollar', 'a `$` identifier key still anchors');
+    assert.same(dollar, 'dollar', 'a `$` identifier key reads its own property');
   } finally {
     delete globalThis['App-Key'];
     delete globalThis['A.b'];
@@ -1392,6 +1392,109 @@ QUnit.test('destructuring: nested instance in a destructuring-assignment polyfil
   // eslint-disable-next-line prefer-const -- testing assignment destructuring
   ({ y: { flat: m } } = { y: arr });
   assert.deepEqual(m.call(arr), [1, 2]);
+});
+
+// a CAPITALISED key off the user's own object is that object's key, not a built-in surface: the nested
+// leaf resolves through the object's own type as the lowercase spelling does - one host per test, so no
+// host's failure hides another's
+QUnit.test('destructuring: nested instance under a capitalised user key polyfills in a declaration', assert => {
+  const arr = [1, [2]];
+  const box = { Data: arr };
+  const { Data: { flat: m } } = box;
+  assert.deepEqual(m.call(arr), [1, 2]);
+});
+
+QUnit.test('destructuring: nested instance under a capitalised user key polyfills in an assignment', assert => {
+  const arr = [1, [2]];
+  const box = { Data: arr };
+  let m;
+  // eslint-disable-next-line prefer-const -- testing assignment destructuring
+  ({ Data: { flat: m } } = box);
+  assert.deepEqual(m.call(arr), [1, 2]);
+});
+
+QUnit.test('destructuring: nested instance under a capitalised user key polyfills in a for-of head', assert => {
+  const box = { Text: 'ab' };
+  for (const { Text: { at } } of [box]) assert.same(at.call('xy', -1), 'y');
+});
+
+QUnit.test('destructuring: nested instance under a user key named like a built-in polyfills', assert => {
+  const arr = [1, [2]];
+  const box = { Object: arr };
+  const { Object: { flat: m } } = box;
+  assert.deepEqual(m.call(arr), [1, 2]);
+});
+
+QUnit.test('destructuring: nested instance under two capitalised user keys polyfills', assert => {
+  const arr = [1, [2]];
+  const box = { Inner: { List: arr } };
+  const { Inner: { List: { flat: m } } } = box;
+  assert.deepEqual(m.call(arr), [1, 2]);
+});
+
+QUnit.test('destructuring: nested instance under a capitalised user key behind an effect polyfills', assert => {
+  const arr = [1, [2]];
+  const box = { Data: arr };
+  const log = [];
+  const { Data: { flat: m } } = (log.push('init'), box);
+  assert.deepEqual(log, ['init']);
+  assert.deepEqual(m.call(arr), [1, 2]);
+});
+
+QUnit.test('destructuring: nested instance under a capitalised user key of a member init polyfills', assert => {
+  const arr = [1, [2]];
+  const wrap = { Box: { Data: arr } };
+  const { Data: { flat: m } } = wrap.Box;
+  assert.deepEqual(m.call(arr), [1, 2]);
+});
+
+// ... nor does a capitalised hop down to its `prototype` name a built-in instance surface: the claim
+// beside a kept sibling stays the source's own read, so the object's getters run in the source's order
+function capitalisedRegistry(log) {
+  return {
+    get Model() {
+      log.push('Model');
+      return { prototype: [1, 2] };
+    },
+    get size() {
+      log.push('size');
+      return 1;
+    },
+  };
+}
+
+QUnit.test('destructuring: a capitalised prototype hop beside a sibling keeps the getter order', assert => {
+  const log = [];
+  const registry = capitalisedRegistry(log);
+  let sliced, size;
+  // eslint-disable-next-line prefer-const -- testing assignment destructuring
+  ({ Model: { prototype: { slice: sliced } }, size } = registry);
+  assert.deepEqual(log, ['Model', 'size']);
+  assert.deepEqual([sliced.call([1, 2, 3], 1), size], [[2, 3], 1]);
+});
+
+QUnit.test('destructuring: a defaulted leaf under a capitalised prototype hop keeps the getter order', assert => {
+  const log = [];
+  const registry = capitalisedRegistry(log);
+  let sliced, count;
+  // eslint-disable-next-line prefer-const -- testing assignment destructuring
+  ({ Model: { prototype: { slice: sliced = null } }, size: count } = registry);
+  assert.deepEqual(log, ['Model', 'size']);
+  assert.deepEqual([sliced.call([1, 2, 3], 1), count], [[2, 3], 1]);
+});
+
+// a `this` a function binds is the user's object too: a capitalised key off it resolves through the
+// object's own type
+QUnit.test('destructuring: nested instance under a capitalised key off a method this polyfills', assert => {
+  const arr = [1, [2]];
+  const service = {
+    Items: arr,
+    read() {
+      const { Items: { flat: m } } = this;
+      return m;
+    },
+  };
+  assert.deepEqual(service.read().call(arr), [1, 2]);
 });
 
 // a destructuring-assignment with a top-level sibling binding alongside the nested instance: the sibling

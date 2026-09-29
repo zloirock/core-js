@@ -97,6 +97,7 @@ import {
   computedKeyWellKnownSymbolName,
   consumableHopSlotName,
   guaranteedRealmObjectName,
+  isKnownStaticGlobal,
   isStaticPlacement,
   navValueCanShortCircuit,
   peelRealmLogicalDefault,
@@ -733,7 +734,8 @@ function positionalDestructurePlan({ prop, pattern, slot, keys, levels = [], hos
     if (!statementListOf(host.statement?.parentPath?.node)) return null;
     placement = { assignment: true };
   } else if (host) {
-    // A namespace hop names a method, but only an instance surface can supply its receiver.
+    // A namespace hop names a method, but only an instance surface can supply its receiver. Its hop
+    // names answer alone: an identifier element roots the nav here only as a realm capture the caller proved.
     const slotIndex = host.slot.parentPath?.node?.elements?.indexOf(host.slot.node) ?? -1;
     const init = unwrapRuntimeExpr(host.declarator?.node?.init);
     const paired = slotIndex >= 0 && init?.type === 'ArrayExpression'
@@ -1071,7 +1073,8 @@ function positionalArrayDestructurePlan({ path, adapter, resolvePure, isDisabled
     if (!plan) continue;
     // Ordinary declarations retain their paired surface spelling. A loop header
     // already uses the positional reference to keep the spread and read together.
-    if (!plan.positional.placement.isForInit && ((surface && isInstanceSurfaceNav(surface))
+    if (!plan.positional.placement.isForInit && ((surface
+      && isInstanceSurfaceNav(surface, { ctx: { scope: propPath.scope, adapter, path: propPath } }))
       || (paired && isReReadableSurfaceNav(
         unwrapRuntimeExpr(paired),
         name => !!adapter.getBinding(propPath.scope, name, propPath)?.polyfillHint,
@@ -2527,7 +2530,7 @@ export function buildNestedDestructurePlan({
       // K's statics, and a residual re-anchors to the CONSTRUCTOR binding instead of reading
       // the native key off the proxy root (patch-visible for mutated statics, defined on
       // missing-global targets). qualification mirrors the retired normalize pre-passes:
-      // exactly one Property, static non-proxy constructor key, non-empty (default-peeled)
+      // exactly one Property, a non-proxy key naming a known built-in, non-empty (default-peeled)
       // inner ObjectPattern, effect-free init, no array wrapper. the anchored plan exists
       // even with ZERO extractions - the re-anchored residual is the point (a slot-mutated
       // ctor's patch lands on the routed binding). an SE-bearing init keeps the nested
@@ -2543,15 +2546,16 @@ export function buildNestedDestructurePlan({
       // ctor pair (`globalThis.Map = Shim` anywhere in the file) keeps the residual on the RAW
       // member read - a user-installed replacement must win there, so `anchorPure` stays null and
       // the renders emit `<proxyBinding>.<K>` instead of the ctor binding. extractions stay
-      // leaf-gated (a mutated LEAF already planned verbatim upstream). null when the key is not a
-      // static non-proxy constructor, the inner is not a non-empty ObjectPattern, an opt-out
+      // leaf-gated (a mutated LEAF already planned verbatim upstream). null when the key names no
+      // known non-proxy built-in (a capitalised user global is an unknown slot whose default stays
+      // live), the inner is not a non-empty ObjectPattern, an opt-out
       // covers the hop or a leaf under it, a residual leaf's write would land the ponyfill in the
       // realm, or the MIRROR can spell that leaf with the member's own ponyfill
       function planCtorKeyAnchor(hostPattern) {
         const prop = hostPattern.properties.length === 1 && isPropertyNode(hostPattern.properties[0])
           ? hostPattern.properties[0] : null;
         const key = prop ? propKeyNameScoped(prop) : null;
-        const inner = key && !POSSIBLE_GLOBAL_OBJECTS.has(key) && isStaticPlacement(key)
+        const inner = key && !POSSIBLE_GLOBAL_OBJECTS.has(key) && isKnownStaticGlobal(key)
           ? patternSlotTarget(prop.value) : null;
         if (inner?.type !== 'ObjectPattern' || !inner.properties.length) return null;
         const restPure = inner.properties.some(isRestProperty) && hasConstructorEntry(key) && resolveGlobalPolyfill(key);

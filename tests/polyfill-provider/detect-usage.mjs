@@ -21,6 +21,7 @@ import {
   chainReadsThroughSeal,
   descendToChainRoot,
   foldableRealmHop,
+  isKnownStaticGlobal,
   isStaticPlacement,
   inlineCallHasObservableEffects,
   keySideEffectsOnly,
@@ -526,6 +527,20 @@ check('isStaticPlacement/empty string key', isStaticPlacement(''), null);
 check('isStaticPlacement/dollar in ident', isStaticPlacement('A$b'), 'static');
 check('isStaticPlacement/digits in ident', isStaticPlacement('A1'), 'static');
 check('isStaticPlacement/unicode continue', isStaticPlacement('Abé'), 'static');
+
+// --- isKnownStaticGlobal ---
+
+// a KEY read off the realm names a built-in only under a name the realm is known to carry: the
+// capitalisation convention above admits any user global, whose slot may be empty
+check('isKnownStaticGlobal/constructor', isKnownStaticGlobal('Map'), true);
+check('isKnownStaticGlobal/namespace', isKnownStaticGlobal('Math'), true);
+check('isKnownStaticGlobal/proxy global', isKnownStaticGlobal('self'), true);
+check('isKnownStaticGlobal/capitalised user global', isKnownStaticGlobal('Deno'), false);
+check('isKnownStaticGlobal/identifier-valid user key', isKnownStaticGlobal('A$b'), false);
+check('isKnownStaticGlobal/lowercase user key', isKnownStaticGlobal('userSlot'), false);
+// a known lowercase global function is no static receiver: the placement half still decides
+check('isKnownStaticGlobal/lowercase global function', isKnownStaticGlobal('parseInt'), false);
+check('isKnownStaticGlobal/non-identifier key', isKnownStaticGlobal('App-Key'), false);
 
 // --- resolveSymbolIteratorEntry ---
 
