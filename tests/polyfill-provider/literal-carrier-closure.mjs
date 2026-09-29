@@ -11,6 +11,9 @@ function checkType(label, type, expected) {
 
 const carriers = [
   ['control', '', true],
+  ['conditional alias read', 'const alias = flag ? box : {}; alias.data.length;', true],
+  ['conditional alias write', 'const alias = flag ? box : {}; alias.data = REPLACEMENT;', false],
+  ['conditional alias escape', 'const alias = flag ? box : {}; sink(alias);', false],
   ['object slot', 'const wrap = { inner: box };', true],
   ['array slot', 'const wrap = [box];', true],
   ['nested literal', 'const wrap = { outer: { inner: box } };', true],

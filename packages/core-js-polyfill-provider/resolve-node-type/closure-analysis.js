@@ -61,6 +61,8 @@ import { walkStaticReceiverChain } from '../detect-usage/destructure.js';
 
 // eslint-disable-next-line max-statements -- factory of the escape / closure analysis
 export function createClosureAnalysis({
+  resolveComputedKeyName,
+  installedMethodWriteReceiver,
   resolveStaticCalleePair,
   callArgumentEscapes,
   memberUseIsDirectCall,
@@ -78,7 +80,6 @@ export function createClosureAnalysis({
   buildProgramIndex,
   programCensus,
   methodReadLeaks,
-  resolveNodeType,
 }) {
   // an anonymous object (no binding name) normally gets an EMPTY closure - a sound zero-external-write
   // scan (init + this-writes only), since there is no name through which external writes can target it.
@@ -90,7 +91,7 @@ export function createClosureAnalysis({
   // delegate to the generic closure builder (which may itself return null on leak / reassignment).
   // cached per ObjectExpression node: a single literal can have many distinct field reads but the
   // closure is field-agnostic
-  let objectAliasClosureCache = new WeakMap();
+  let objectAliasClosureCache = [new WeakMap(), new WeakMap()];
   // the carrier (with the object inside) is bound to a NAME - via a declarator (`const x = [...]`) or a
   // `=` assignment (`x = [...]`). the object escapes iff that binding LEAKS: reuse the bound-path leak
   // analysis, where a member-read (`x[0]` / `x.f`) is trivial/local but `return x` / `f(x)` / `export
@@ -102,9 +103,13 @@ export function createClosureAnalysis({
   // held, not every member read of the binding. null/empty -> the binding's own generic leak analysis
   // Only an exhausted slot path binds the object itself. Retain those aliases for field-write
   // collection; carrier names must not be mistaken for aliases of the object they contain.
-  function carrierBindingClosure(scope, name, anchorPath, fieldPath, receiverClosure = null) {
+  function carrierBindingClosure(scope, name, anchorPath, fieldPath, receiverClosure = null, valueRead = false) {
     const closure = computeAliasClosureFromBinding({
-      rootBinding: getScopeBinding(scope, name, anchorPath), rootName: name, anchorPath, fieldPath,
+      rootBinding: getScopeBinding(scope, name, anchorPath),
+      rootName: name,
+      anchorPath,
+      fieldPath,
+      valueRead,
     });
     if (closure && !fieldPath.length && receiverClosure) {
       for (const [binding, alias] of closure) receiverClosure.set(binding, alias);
@@ -136,15 +141,18 @@ export function createClosureAnalysis({
   // A target deeper than the anon's path holds a field, not the anon. Only own-this methods can
   // expose the owner through such a read; patternBindsAnonMethod checks those before the target walk.
   // A non-pattern LHS shape cannot be enumerated and keeps the conservative escape verdict.
-  function destructureVarTargetLeaks({ pattern, scope, anchorPath, fieldPath, receiverClosure }) {
+  function destructureVarTargetLeaks({ pattern, scope, anchorPath, fieldPath, receiverClosure, valueRead }) {
     if (!isDestructurePattern(pattern)) return true;
-    if (patternBindsAnonMethod({ pattern, fieldPath, methodInfo: objectOwnThisMethodInfo(anchorPath?.node) })) return true;
+    if (!valueRead && patternBindsAnonMethod({ pattern, fieldPath, methodInfo: objectOwnThisMethodInfo(anchorPath?.node) })) return true;
     let leaks = false;
-    walkPatternIdentifiers(pattern, (id, depth) => {
-      if (!leaks && depth <= fieldPath.length) {
-        leaks = carrierBindingClosure(scope, id.name, anchorPath, fieldPath.slice(depth), receiverClosure) === null;
-      }
-    });
+    walkPatternIdentifiers(
+      pattern,
+      (id, depth) => {
+        if (!leaks && depth <= fieldPath.length) {
+          leaks = carrierBindingClosure(scope, id.name, anchorPath, fieldPath.slice(depth), receiverClosure, valueRead) === null;
+        }
+      },
+    );
     return leaks;
   }
   // can the pattern BIND one of the anon's own-this methods? a key match at the anon's own level
@@ -208,7 +216,7 @@ export function createClosureAnalysis({
   // local binding to prove module-local: `this` is the surrounding instance (could be exposed), a call
   // result is an outside-held object - so an uncertain holder escapes (bail generic), not stays local
   const LOCAL_VAR_KINDS = new Set(['const', 'let', 'var']);
-  function memberStoreEscapes({ member, scope, anchorPath, fieldPath }) {
+  function memberStoreEscapes({ member, scope, anchorPath, fieldPath, valueRead }) {
     const steps = [];
     let cur = member;
     while (cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression') {
@@ -220,7 +228,7 @@ export function createClosureAnalysis({
     if (cur?.type !== 'Identifier') return true;
     const binding = getScopeBinding(scope, cur.name);
     if (!binding || !LOCAL_VAR_KINDS.has(binding.kind)) return true;
-    return carrierBindingClosure(scope, cur.name, anchorPath, [...steps, ...fieldPath]) === null;
+    return carrierBindingClosure(scope, cur.name, anchorPath, [...steps, ...fieldPath], null, valueRead) === null;
   }
 
   // does an own method hand `this` ITSELF out? the field scan collects `this.<field> = ...` writes -
@@ -349,11 +357,11 @@ export function createClosureAnalysis({
   // (`[{...}].map(sink)`). once the path is exhausted the read hits the ANON's own member: an
   // own-this method read is sound only as a direct call, while a plain data-field read stays local -
   // the field VALUE leaves, not the anon
-  function readThroughMember(parent, parentPath, valuePath, objectPath, fieldPath) {
+  function readThroughMember(parent, parentPath, valuePath, objectPath, fieldPath, valueRead) {
     if (unwrapRuntimeExpr(parent.object) !== valuePath.node) return {};
     if (!fieldPath.length) {
       const methodInfo = objectOwnThisMethodInfo(objectPath.node);
-      return { escapes: !!methodInfo && methodReadLeaks(parent, parentPath, methodInfo) };
+      return { escapes: !!methodInfo && methodReadLeaks(parent, parentPath, methodInfo, valueRead) };
     }
     const [step] = fieldPath;
     const key = parent.computed ? null : getKeyName(parent.property);
@@ -369,24 +377,30 @@ export function createClosureAnalysis({
   // on a holder whose own reachability decides, and a PATTERN spreads it across the bindings it
   // matches. `closure` comes back only for a name; receiverClosure also collects the exact-object
   // aliases found inside patterns, whose field writes must remain visible to the caller.
-  function bindingTargetClosure(target, targetPath, scope, objectPath, fieldPath, receiverClosure) {
+  function bindingTargetClosure(target, targetPath, scope, objectPath, fieldPath, receiverClosure, valueRead) {
     if (target?.type === 'Identifier') {
-      const closure = carrierBindingClosure(scope, target.name, objectPath, fieldPath, receiverClosure);
+      const closure = carrierBindingClosure(scope, target.name, objectPath, fieldPath, receiverClosure, valueRead);
       return { leaks: closure === null, closure };
     }
     if (isMemberAccessNode(target)) {
-      return { leaks: memberStoreEscapes({ member: target, scope, anchorPath: objectPath, fieldPath }) };
+      return { leaks: memberStoreEscapes({ member: target, scope, anchorPath: objectPath, fieldPath, valueRead }) };
     }
     return {
       leaks: (targetPath ? destructureHasMemberTarget(targetPath) : false)
-        || destructureVarTargetLeaks({ pattern: target, scope, anchorPath: objectPath, fieldPath, receiverClosure }),
+        || destructureVarTargetLeaks({ pattern: target, scope, anchorPath: objectPath, fieldPath, receiverClosure, valueRead }),
     };
   }
 
   // Follow a literal or one of its references through value carriers. Keep the literal as the
   // method-analysis anchor and compose its existing field path when a carrier is itself stored.
   // Exact-object bindings join receiverClosure; a carrier's own bindings do not alias its contents.
-  function anonymousObjectClosure(objectPath, valuePath = objectPath, carriedFields = null, receiverClosure = new Map()) {
+  function anonymousObjectClosure(
+    objectPath,
+    valuePath = objectPath,
+    carriedFields = null,
+    receiverClosure = new Map(),
+    valueRead = false,
+  ) {
     // the anon's nesting path inside the eventual carrier binding (outermost-first): an array adds a wildcard
     // slot, an object property adds its static key, value-forwarders (conditional / logical / sequence) add
     // nothing. a computed key / spread makes the slot untrackable - ANY read of the carrier could then
@@ -430,7 +444,7 @@ export function createClosureAnalysis({
         // function - while a plain data-field read stays local (the field VALUE escapes, not the anon)
         case 'MemberExpression':
         case 'OptionalMemberExpression': {
-          const read = readThroughMember(parent, parentPath, valuePath, objectPath, fieldPath);
+          const read = readThroughMember(parent, parentPath, valuePath, objectPath, fieldPath, valueRead);
           if (read.resume) {
             valuePath = read.resume;
             continue;
@@ -443,7 +457,15 @@ export function createClosureAnalysis({
         // target binding leaks against the anon's remainder path inside the value it received
         case 'VariableDeclarator': {
           if (unwrapRuntimeExpr(parent.init) !== valuePath.node) return local();
-          const target = bindingTargetClosure(parent.id, parentPath.get('id'), parentPath.scope, objectPath, fieldPath, receiverClosure);
+          const target = bindingTargetClosure(
+            parent.id,
+            parentPath.get('id'),
+            parentPath.scope,
+            objectPath,
+            fieldPath,
+            receiverClosure,
+            valueRead,
+          );
           pendingCarrier ??= target.closure ?? null;
           return target.leaks ? null : local();
         }
@@ -457,8 +479,15 @@ export function createClosureAnalysis({
         // escapes iff its binding leaks against the anon's remainder path inside the value it received
         case 'AssignmentExpression': {
           if (!VALUE_FLOW_ASSIGN_OPS.has(parent.operator) || unwrapRuntimeExpr(parent.right) !== valuePath.node) return local();
-          const target = bindingTargetClosure(unwrapRuntimeExpr(parent.left), parentPath.get('left'),
-            parentPath.scope, objectPath, fieldPath, receiverClosure);
+          const target = bindingTargetClosure(
+            unwrapRuntimeExpr(parent.left),
+            parentPath.get('left'),
+            parentPath.scope,
+            objectPath,
+            fieldPath,
+            receiverClosure,
+            valueRead,
+          );
           if (target.leaks) return null;
           pendingCarrier ??= target.closure ?? null;
           valuePath = parentPath;
@@ -476,7 +505,8 @@ export function createClosureAnalysis({
           // loop throws before the body runs, so the head consumes it exactly like a `for...in` head
           if (!fieldPath.length && !mayIterateItself(objectPath.node)) return local();
           const loopVar = forOfLoopVarName(parent.left);
-          const closure = loopVar && carrierBindingClosure(parentPath.scope, loopVar, objectPath, fieldPath.slice(1), receiverClosure);
+          const closure = loopVar
+            && carrierBindingClosure(parentPath.scope, loopVar, objectPath, fieldPath.slice(1), receiverClosure, valueRead);
           pendingCarrier ??= closure || null;
           return closure ? local() : null;
         }
@@ -491,8 +521,15 @@ export function createClosureAnalysis({
         case 'AssignmentPattern': {
           if (unwrapRuntimeExpr(parent.right) !== valuePath.node) return local();
           if (parent.left?.type !== 'Identifier') return null;
-          const target = bindingTargetClosure(parent.left, parentPath.get('left'),
-            parentPath.scope, objectPath, fieldPath, receiverClosure);
+          const target = bindingTargetClosure(
+            parent.left,
+            parentPath.get('left'),
+            parentPath.scope,
+            objectPath,
+            fieldPath,
+            receiverClosure,
+            valueRead,
+          );
           pendingCarrier ??= target.closure ?? null;
           return target.leaks ? null : local();
         }
@@ -518,20 +555,27 @@ export function createClosureAnalysis({
       }
     }
   }
-  function computeObjectAliasClosure(objectPath) {
-    return memoize(objectAliasClosureCache, objectPath.node, () => {
-      if (holderShapeInfo({ paths: [objectPath], anchorPath: objectPath }).handsThisOut) return null;
-      const rootName = objectBindingName(objectPath);
-      if (rootName) {
-        return computeAliasClosureFromBinding({
-          rootBinding: getScopeBinding(objectPath.scope, rootName, objectPath), rootName, anchorPath: objectPath,
-        });
-      }
-      // an anon that flows into a NAME keeps that name's closure: writes through it (`x.field = Y`,
-      // a for-of loop variable) fold into the field union only while the name is tracked. an anon that
-      // never reaches a name has nothing to track and gets the empty closure
-      return anonymousObjectClosure(objectPath);
-    });
+  function computeObjectAliasClosure(objectPath, valueRead = false) {
+    return memoize(
+      objectAliasClosureCache[+valueRead],
+      objectPath.node,
+      () => {
+        if (holderShapeInfo({ paths: [objectPath], anchorPath: objectPath }).handsThisOut) return null;
+        const rootName = objectBindingName(objectPath);
+        if (rootName) {
+          return computeAliasClosureFromBinding({
+            rootBinding: getScopeBinding(objectPath.scope, rootName, objectPath),
+            rootName,
+            anchorPath: objectPath,
+            valueRead,
+          });
+        }
+        // an anon that flows into a NAME keeps that name's closure: writes through it (`x.field = Y`,
+        // a for-of loop variable) fold into the field union only while the name is tracked. an anon that
+        // never reaches a name has nothing to track and gets the empty closure
+        return anonymousObjectClosure(objectPath, objectPath, null, new Map(), valueRead);
+      },
+    );
   }
 
   // does the write's receiver Identifier resolve (via scope-binding identity) to a binding
@@ -849,7 +893,7 @@ export function createClosureAnalysis({
     return { info, handsThisOut };
   }
 
-  function collectClassInstanceClosure(classPath, programPath) {
+  function collectClassInstanceClosure(classPath, programPath, valueRead) {
     const desc = collectClassDescendantPaths(classPath, programPath);
     if (!desc) return null;
     const { newExprByName } = buildProgramIndex(programPath);
@@ -882,7 +926,7 @@ export function createClosureAnalysis({
         // `const m = new C().read` extracts an own-this method straight off the construction -
         // the held function's `this` rebinds at its later invocation, so the narrow premise dies
         if (methodInfo && entry.isMemberRecv && isMemberAccessNode(entry.wrapperPath.parentPath?.node)
-          && methodReadLeaks(entry.wrapperPath.parentPath.node, entry.wrapperPath.parentPath, methodInfo)) return null;
+          && methodReadLeaks(entry.wrapperPath.parentPath.node, entry.wrapperPath.parentPath, methodInfo, valueRead)) return null;
         const source = resolveInstanceBindingName(entry);
         // `bail: true` signals an unsafe shape (mixed-source assignment-init, paren-wrapped
         // declarator with non-Identifier id) that would silently let untracked values into
@@ -893,7 +937,11 @@ export function createClosureAnalysis({
         const binding = getScopeBinding(source.scope, source.name);
         if (!binding) return null;
         const sub = computeAliasClosureFromBinding({
-          rootBinding: binding, rootName: source.name, anchorPath: source.anchorPath, methodInfo,
+          rootBinding: binding,
+          rootName: source.name,
+          anchorPath: source.anchorPath,
+          methodInfo,
+          valueRead,
         });
         if (sub === null) return null;
         for (const [b, k] of sub) closure.set(b, k);
@@ -906,10 +954,13 @@ export function createClosureAnalysis({
   // collection. cache by class node identity. distinguish `null` (cached as "leaked") from
   // `undefined` (not yet computed) via `cache.has`. reset alongside other module-scoped
   // caches in the cache-reset hook
-  let classInstanceClosureCache = new WeakMap();
-  function getClassInstanceClosure(classPath, programPath) {
-    return memoize(classInstanceClosureCache, classPath.node,
-      () => collectClassInstanceClosure(classPath, programPath));
+  let classInstanceClosureCache = [new WeakMap(), new WeakMap()];
+  function getClassInstanceClosure(classPath, programPath, valueRead = false) {
+    return memoize(
+      classInstanceClosureCache[+valueRead],
+      classPath.node,
+      () => collectClassInstanceClosure(classPath, programPath, valueRead),
+    );
   }
 
   // the resolvable ANCESTOR classes of this one, nearest first. each hop's `extends` name belongs to
@@ -948,45 +999,51 @@ export function createClosureAnalysis({
   // skips narrow emission - mirrors instance closure semantics. a minimal `{className: binding}`
   // fallback would silently retain the narrow even when an unenumerable channel could have
   // mutated the field at runtime
-  let classBindingClosureCache = new WeakMap();
-  function getClassBindingClosure(classPath, anchorPath) {
-    return memoize(classBindingClosureCache, classPath.node, () => {
-      const className = classBindingName(classPath);
-      const binding = className ? getScopeBinding(classPath.scope, className, classPath) : null;
-      if (!binding) return null;
-      const hierarchy = [classPath, ...classAncestorPaths(classPath)];
-      // a STATIC member's `this` is the constructor: handing it out opens the same unmonitored
-      // write channel on the static surface that an instance method opens on the instance
-      const staticShape = holderShapeInfo({ paths: hierarchy, statics: true, anchorPath: classPath });
-      if (staticShape.handsThisOut) return null;
-      // a HELD `super.<staticMethod>` read in an own STATIC member extracts an ancestor's static with
-      // a rebindable `this` and no ancestor-binding reference to classify - scan directly. the set it
-      // matches against is the ANCESTORS' alone, so it asks the shape of the chain WITHOUT this class
-      // the ancestors are the hierarchy minus this class - `hierarchy` is built as
-      // `[classPath, ...ancestors]` one line above, so slicing it re-asks nothing
-      const ancestorStatics = holderShapeInfo({
-        paths: hierarchy.slice(1), statics: true, anchorPath: classPath,
-      }).info;
-      if (ancestorStatics && classBodyHoldsSuperMethod(classPath.node, { staticInfo: ancestorStatics })) {
-        return null;
-      }
-      // the `<Class>.prototype` hop exposes the class's OWN instance methods AND the inherited ones
-      // (`D.prototype.read` resolves through the prototype chain to the base's method), so the
-      // prototype gate unions the super chain's instance sets - and the same acquisition fact the
-      // instance side reads, since a decorated or unread-base class owns members nobody scanned on
-      // BOTH surfaces
-      const prototypeShape = holderShapeInfo({ paths: hierarchy, anchorPath: classPath });
-      return computeAliasClosureFromBinding({
-        rootBinding: binding, rootName: className, anchorPath, classifier: classBindingRefClassifier,
-        // static own-this methods extracted off the class value (`const m = C.make`) rebind `this`
-        // away from the constructor at their later invocation - gate like the object-literal flavor.
-        // INHERITED statics extract through the subclass binding just the same (`Sub.read` reaches
-        // Base.read), so the ancestors' static sets merge in - own-statics-only left a subclass
-        // with no own statics ungated (methodInfo null -> no method-aware classifier)
-        methodInfo: staticShape.info,
-        prototypeMethodInfo: prototypeShape.info,
-      });
-    });
+  let classBindingClosureCache = [new WeakMap(), new WeakMap()];
+  function getClassBindingClosure(classPath, anchorPath, valueRead = false) {
+    return memoize(
+      classBindingClosureCache[+valueRead],
+      classPath.node,
+      () => {
+        const className = classBindingName(classPath);
+        const binding = className ? getScopeBinding(classPath.scope, className, classPath) : null;
+        if (!binding) return null;
+        const hierarchy = [classPath, ...classAncestorPaths(classPath)];
+        // a STATIC member's `this` is the constructor: handing it out opens the same unmonitored
+        // write channel on the static surface that an instance method opens on the instance
+        const staticShape = holderShapeInfo({ paths: hierarchy, statics: true, anchorPath: classPath });
+        if (staticShape.handsThisOut) return null;
+        // a HELD `super.<staticMethod>` read in an own STATIC member extracts an ancestor's static with
+        // a rebindable `this` and no ancestor-binding reference to classify - scan directly. the set it
+        // matches against is the ANCESTORS' alone, so it asks the shape of the chain WITHOUT this class
+        // the ancestors are the hierarchy minus this class - `hierarchy` is built as
+        // `[classPath, ...ancestors]` one line above, so slicing it re-asks nothing
+        const ancestorStatics = holderShapeInfo({ paths: hierarchy.slice(1), statics: true, anchorPath: classPath }).info;
+        if (ancestorStatics && classBodyHoldsSuperMethod(classPath.node, { staticInfo: ancestorStatics })) {
+          return null;
+        }
+        // the `<Class>.prototype` hop exposes the class's OWN instance methods AND the inherited ones
+        // (`D.prototype.read` resolves through the prototype chain to the base's method), so the
+        // prototype gate unions the super chain's instance sets - and the same acquisition fact the
+        // instance side reads, since a decorated or unread-base class owns members nobody scanned on
+        // BOTH surfaces
+        const prototypeShape = holderShapeInfo({ paths: hierarchy, anchorPath: classPath });
+        return computeAliasClosureFromBinding({
+          rootBinding: binding,
+          rootName: className,
+          anchorPath,
+          classifier: classBindingRefClassifier,
+          // static own-this methods extracted off the class value (`const m = C.make`) rebind `this`
+          // away from the constructor at their later invocation - gate like the object-literal flavor.
+          // INHERITED statics extract through the subclass binding just the same (`Sub.read` reaches
+          // Base.read), so the ancestors' static sets merge in - own-statics-only left a subclass
+          // with no own statics ungated (methodInfo null -> no method-aware classifier)
+          methodInfo: staticShape.info,
+          prototypeMethodInfo: prototypeShape.info,
+          valueRead,
+        });
+      },
+    );
   }
   // the class-hierarchy indexes are keyed by a bare NAME, so a same-named class in another scope
   // drops its own entries into our bucket. given a reference TO a class (an `extends` clause, a
@@ -1093,21 +1150,22 @@ export function createClosureAnalysis({
 
   // shared shape predicates for `<expr>.<field> = ...` / `<expr>.<field>++` writes -
   // see `./class-member-shapes.js` for the unified implementation. instantiated here so
-  // `t` / `getKeyName` / `resolveNodeType` dispatch stays inside the cluster's closure
-  const { memberWriteFieldName, writePathContributedType } =
-    createMemberWriteShape({ t, getKeyName, resolveNodeType });
+  // `t` / `getKeyName` dispatch stays inside the cluster's closure
+  const { memberWriteFieldName, writePathContributedValue } =
+    createMemberWriteShape({ t, getKeyName, resolveComputedKeyName });
 
-  // generic write-folder over pre-filtered `<expr>.<field> = Y`. `this.<field>` is handled
-  // by the per-owner this-writes index, so peeled-`this` receivers skip here to avoid
-  // double-counting. predicate decides whether the receiver belongs to the field's monitored
+  // generic write-folder over pre-filtered `<expr>.<field> = Y`. Own-body `this` writes are handled
+  // by the per-owner index; a scanned installed body's `this` maps to its installation receiver.
+  // predicate decides whether the receiver belongs to the field's monitored
   // set (closure-membership for instance / static flows)
   function pushIfWriteMatches(writePath, predicate, out) {
-    const objPath = memberWriteReceiverPath(writePath);
+    let objPath = memberWriteReceiverPath(writePath);
     if (!objPath?.node) return;
     const peeled = unwrapRuntimeExpr(objPath.node);
-    if (t.isThisExpression(peeled)) return;
+    if (t.isThisExpression(peeled)) objPath = installedMethodWriteReceiver(writePath);
+    if (!objPath?.node) return;
     if (!predicate(objPath)) return;
-    out.push(writePathContributedType(writePath));
+    out.push(writePathContributedValue(writePath));
   }
 
   // precomputed per-module index for the module-wide flow scan. naive approach does two full
@@ -1124,13 +1182,16 @@ export function createClosureAnalysis({
     // (`({ k: o.field } = src)`) or a for-of/for-in head (`for (o.field of iter)`). these
     // rebind `o.field` to a destructuring-source / iteration value of indeterminate type, but
     // the member never appears as an AssignmentExpression `.left`, so the bare-member visitors
-    // miss them. push the member PATH itself - `writePathContributedType` returns `unknown` for
+    // miss them. push the member PATH itself - `writePathContributedValue` retains an opaque null for
     // a non-`=` write, widening the field flow (the sound direction for an opaque write)
     function indexPatternWriteMembers(leftPath) {
-      forEachPatternWriteMember(leftPath, mp => {
-        const name = memberWriteFieldName(mp.node);
-        if (name) pushMultimap(writesByField, name, mp);
-      });
+      forEachPatternWriteMember(
+        leftPath,
+        mp => {
+          const name = memberWriteFieldName(mp.node, mp.scope);
+          if (name) pushMultimap(writesByField, name, mp);
+        },
+      );
     }
     return {
       finish: () => ({ writesByField, subclassesBySuper }),
@@ -1155,10 +1216,10 @@ export function createClosureAnalysis({
           }
         },
         // index ALL `<expr>.<fieldName> <op>= ...` and `<expr>.<fieldName>++` / `--` writes
-        // regardless of operator. `pushIfWriteMatches` distinguishes pure `=` (push RHS Type)
-        // from compound / Update (push `unknown`) at consume time via `writePathContributedType`
+        // regardless of operator. `pushIfWriteMatches` distinguishes pure `=` (push RHS path)
+        // from compound / Update (push an opaque null) at consume time via `writePathContributedValue`
         AssignmentExpression(p) {
-          const name = memberWriteFieldName(p.node.left);
+          const name = memberWriteFieldName(p.node.left, p.scope);
           if (name) {
             pushMultimap(writesByField, name, p);
             return;
@@ -1169,7 +1230,7 @@ export function createClosureAnalysis({
           if (leftType === 'ObjectPattern' || leftType === 'ArrayPattern') indexPatternWriteMembers(p.get('left'));
         },
         UpdateExpression(p) {
-          const name = memberWriteFieldName(p.node.argument);
+          const name = memberWriteFieldName(p.node.argument, p.scope);
           if (name) pushMultimap(writesByField, name, p);
         },
         // `Object.assign(target, { k: v })` writes `target.k` without a member expression anywhere,
@@ -1208,12 +1269,12 @@ export function createClosureAnalysis({
   }
 
   function reset() {
-    objectAliasClosureCache = new WeakMap();
+    objectAliasClosureCache = [new WeakMap(), new WeakMap()];
     ownThisEscapesCache = new WeakMap();
     closureTemporalBoundCache = new WeakMap();
     classInstanceTemporalBoundCache = new WeakMap();
-    classInstanceClosureCache = new WeakMap();
-    classBindingClosureCache = new WeakMap();
+    classInstanceClosureCache = [new WeakMap(), new WeakMap()];
+    classBindingClosureCache = [new WeakMap(), new WeakMap()];
     classConstructorNamesCache = new WeakMap();
     classDescendantPathsCache = new WeakMap();
     classAncestorPathsCache = new WeakMap();
@@ -1221,6 +1282,7 @@ export function createClosureAnalysis({
   }
 
   return {
+    scanThisNodes,
     anonymousObjectClosure,
     computeObjectAliasClosure,
     isReceiverInClosure,

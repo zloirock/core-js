@@ -14955,6 +14955,81 @@ function * generateDestructureMatrix() {
   }
 }
 
+// Field flow must keep every receiver family through writes and nested extraction.
+// Substring search distinguishes string dispatch from array element search in stripped realms.
+function * generateFieldUnionReceivers() {
+  for (const flag of [false, true]) yield {
+    name: `field-union/assigned-default/${ flag }`,
+    code: `const box = { data: ${ flag } ? [10, 20] : undefined }; let data = Math; ({ data = '1020' } = box); `
+      + "function read() { return data.includes('02'); } export const r = read();",
+    strip: true,
+  };
+  for (const [owner, setup] of [
+    ['object', 'const box = { data: [10, 20], change() {} };'],
+    ['data-only', 'const box = { data: [10, 20] };'],
+    ['instance', 'class Box { data = [10, 20]; change() {} } const box = new Box();'],
+    ['static', 'class Box { static data = [10, 20]; static change() {} } const box = Box;'],
+  ]) for (const slot of ['change', 'added']) for (const [wrapper, target] of [
+    ['plain', `box.${ slot }`],
+    ['non-null', `box.${ slot }!`],
+    ['assertion', `(box.${ slot } as any)`],
+  ]) for (const [writer, value] of [
+    ['known', 'function () { this.data = "1020"; }'],
+    ['escaping', 'function () { change(this); }'],
+    ['alias', 'fn'],
+    ['returned', 'make()'],
+  ]) for (const invocation of owner === 'static' ? ['direct', 'constructor'] : ['direct']) {
+    const init = invocation === 'constructor' ? setup.replace('class Box {', `class Box { constructor() { new.target.${ slot }(); }`) : setup;
+    const call = invocation === 'constructor' ? 'new Box()' : `box.${ slot }()`;
+    yield {
+      name: `field-union/replaced-method/${ owner }/${ slot }/${ wrapper }/${ writer }/${ invocation }`,
+      code: 'function change(value) { value.data = "1020"; } function fn() { change(this); } function make() { return fn; } '
+        + `${ init } ${ target } = ${ value }; ${ call }; export const r = box.data.includes("02");`,
+      ts: wrapper !== 'plain',
+      strip: true,
+    };
+  }
+  for (const [family, value, replacement] of [['array', '[10, 20]', '"1020"'], ['string', '"1020"', '[10, 20]']]) {
+    for (const [host, setup, receiver] of [
+      ['object', `const box = { data: ${ value } }; box.data = ${ replacement };`, 'box.data'],
+      ['initializer', `const box = { data: flag ? ${ value } : ${ replacement } };`, 'box.data'],
+      ['rhs', `const box = { data: null }; box.data = flag ? ${ value } : ${ replacement };`, 'box.data'],
+      ['class', `class Box { data = ${ value }; } const box = new Box(); box.data = ${ replacement };`, 'box.data'],
+      ['static', `class Box { static data = ${ value }; static { this.data = ${ replacement }; } }`, 'Box.data'],
+      ['object-method', `const box = { data() {} }; box.data = ${ replacement };`, 'box.data'],
+      ['class-method', `class Box { data() {} } const box = new Box(); box.data = ${ replacement };`, 'box.data'],
+      ['static-method', `class Box { static data() {} } const box = Box; box.data = ${ replacement };`, 'box.data'],
+      ['function-value', `const box = { data: () => 1 }; box.data = ${ replacement };`, 'box.data'],
+      ['function-object', `const box = { data: function () {} }; box.data = ${ replacement };`, 'box.data'],
+      ['function-instance', `class Box { data = function () {}; } const box = new Box(); box.data = ${ replacement };`, 'box.data'],
+      ['function-static', `class Box { static data = function () {}; } const box = Box; box.data = ${ replacement };`, 'box.data'],
+    ]) {
+      const writes = host.endsWith('method') ? [
+        ['direct', setup],
+        ['conditional', setup.replace(`box.data = ${ replacement };`, `const alias = flag ? {} : box; alias.data = ${ replacement };`)],
+        ['dynamic', setup.replace(`box.data = ${ replacement };`, `const key = 'data'; box[key] = ${ replacement };`)],
+        ['installed-body', setup.replace(`box.data = ${ replacement };`, `box.change = function () { this.data = ${ replacement }; }; box.change();`)],
+      ] : [['direct', setup]];
+      for (const [writer, writtenSetup] of writes) {
+        for (const read of ['member', 'flat', 'nested', 'binding', 'assignment']) {
+          const owner = host === 'static' ? 'Box' : 'box';
+          const extraction = read === 'flat' ? `const { includes } = ${ receiver };`
+            : read === 'nested' ? `const { data: { includes } } = ${ owner };`
+            : read === 'binding' ? `const { data } = ${ owner };`
+              : read === 'assignment' ? `let data = Math; ({ data } = ${ owner });` : '';
+          const call = read === 'member' ? `${ receiver }.includes("02")`
+            : read === 'binding' || read === 'assignment' ? 'data.includes("02")' : `includes.call(${ receiver }, "02")`;
+          yield {
+            name: `field-union/${ family }/${ host }/${ writer }/${ read }`,
+            code: `const flag = false; ${ writtenSetup } ${ extraction } export const r = ${ call };`,
+            strip: true,
+          };
+        }
+      }
+    }
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateUnbackedSequenceHops();
@@ -15209,4 +15284,5 @@ export function * generate() {
   yield * generateNestedMemberInstance();
   yield * generateNestedMemberRest();
   yield * generateCarrierValueWrites();
+  yield * generateFieldUnionReceivers();
 }

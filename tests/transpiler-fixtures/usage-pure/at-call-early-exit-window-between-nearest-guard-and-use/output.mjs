@@ -1,6 +1,6 @@
+import _keysMaybeArray from "@core-js/pure/actual/array/instance/keys";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _includes from "@core-js/pure/actual/instance/includes";
-import _keys from "@core-js/pure/actual/instance/keys";
 import _atMaybeString from "@core-js/pure/actual/string/instance/at";
 // the window a reassignment can occupy between the NEAREST preceding early-exit guard and the use.
 // a write hosted in a neighbouring guard's own exiting branch escapes the collector's floor, so only
@@ -16,7 +16,7 @@ export function inside(raw: string | number[], other: unknown) {
     return null;
   }
   _globalThis.a = _includes(raw).call(raw, 'a');
-  return _keys(raw).call(raw);
+  return _keysMaybeArray(raw).call(raw);
 }
 export function before(raw: string | number[]) {
   raw = decode(raw);
