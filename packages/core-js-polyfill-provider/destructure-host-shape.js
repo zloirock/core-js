@@ -1064,7 +1064,10 @@ function planRetainedObjectCaptureShape({
     && pattern.properties.includes(prop)
     && (consumed || rest || symbolPattern || computedKeyHasSideEffects(prop) || keyOrderSplit);
   if (kind !== 'instance' && !symbolPattern && !retainedStatic && !nestedSibling && !narrow) return null;
+  // A consumed global assignment must still yield the realm while its binding receives the
+  // polyfilled constructor. Discarded writes keep their existing direct extraction.
   if (!provenCtorName && !symbolPattern && !nestedSibling && adapter
+    && (kind !== 'global' || !assignment || assignmentValueDiscarded(hostPath))
     && allProxySelectingInit(init, { adapter, injectorState })) return null;
   const siblingStatics = siblingStaticEntries();
   // Rest gathers the original receiver with the same exclusions. Only pristine statics
