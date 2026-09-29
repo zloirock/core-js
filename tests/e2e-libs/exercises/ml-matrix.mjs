@@ -3,10 +3,10 @@
 // arithmetic - rounded where engines may differ in the last bit - not observed from a run.
 //
 // Its reason is the SURFACE axis. Measured on the babel-plugin cells against the union of the eight
-// reference baselines before it, `usage-global` adds twelve entries and `usage-pure` thirteen. Eleven
-// are `Math` functions the corpus had never reached, each called from the library's own frame by the
-// element-wise method of the same name - `cbrt()` over a matrix calls `Math.cbrt` per entry - and each
-// check below drives one. `Symbol.for` runs at module load, keying the inspect hook; the pure
+// reference baselines before it, `usage-global` and `usage-pure` add thirteen entries each. Eleven
+// are `Math` functions the corpus had never reached, each called from the library's own frame by
+// the element-wise method of the same name - `cbrt()` over a matrix calls `Math.cbrt` per entry -
+// and each check below drives one. `Symbol.for` runs at module load, keying the inspect hook;
 // `toExponential` sits in the inspect formatter, which nothing here calls.
 //
 // It is also the corpus' CommonJS: `ml-matrix` resolves to an ESM wrapper over `matrix.js`, where every
