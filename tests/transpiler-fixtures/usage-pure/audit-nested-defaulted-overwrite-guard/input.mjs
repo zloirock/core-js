@@ -18,9 +18,9 @@ let c;
 // a USER key hop the extraction OWNS is re-spelled where the source reads it: `recvF.codes` is read
 // once, by the dispatch alone, once the consumed slot drops the host - the declaration host's answer
 ({ codes: { findIndex: n = null } } = recvF);
-// ... but a CAPITALISED hop off a user object reaching a real INSTANCE surface takes the overwrite
-// once its slot drops the nav: `userNs.Array.prototype` is then read exactly where the source reads
-// it, once - the double read the re-read gate forbids needs a residual that survives beside it
+// ... and so does a CAPITALISED hop off a user object: `userNs.Array.prototype` is that object's
+// typed nav, not the realm's surface, read once where the source reads it - the double read the
+// re-read gate forbids needs a residual that survives beside it
 declare const userNs: { Array: { prototype: number[] } };
 let fromUserNs;
 ({ Array: { prototype: { flat: fromUserNs } } } = userNs);

@@ -614,11 +614,19 @@ export default function createDestructureEmitter({
   // extraction reading the ref lands after it, like one reading past an effectful array neighbour
   const inSlotMemoRefs = new WeakSet();
   // the refs the slot memos declared: a surface nav spelled off one (`_ref.Array.prototype`) is a pure
-  // read of a local binding, re-readable for free - by a later leaf of the same slot as well
-  const slotMemoRefNames = new Set();
+  // read of a local binding, re-readable for free - by a later leaf of the same slot as well. each maps
+  // to whether the ref holds the NAMESPACE itself: the plan memoizes a slot a leaf navigates on from
+  // only where that nav is a built-in surface, and a later leaf then reads the surface off the ref
+  const slotMemoRefNames = new Map();
   // the aliases this leg minted for a global (`_globalThis`): the re-read question's per-leg lookup
   function isOwnPureAlias(name) {
     return !!injector?.getBindingInfo?.(name);
+  }
+  // ... and every name this leg minted for the namespace, the slot memos holding it included: the
+  // nested nav dispatch walks the tree this leg rewrote, where a later leaf of a memoized slot meets
+  // the memo in the place the source spelled the namespace
+  function isOwnNamespaceRef(name) {
+    return isOwnPureAlias(name) || slotMemoRefNames.get(name) === true;
   }
   // is this node a member chain rooted at one of those refs?
   function navOffSlotRef(node) {
@@ -666,7 +674,7 @@ export default function createDestructureEmitter({
     let ref = slotMemoRefs.get(node);
     if (!ref) {
       ref = injector.generateDeclaredRef(scope);
-      slotMemoRefNames.add(ref.name);
+      slotMemoRefNames.set(ref.name, false);
       owner[key] = t.assignmentExpression('=', t.cloneNode(ref), node);
       slotMemoRefs.set(owner[key], ref);
     }
@@ -1232,8 +1240,10 @@ export default function createDestructureEmitter({
     // on a polyfillable STATIC memoizes that static's ponyfill (`{ of: { name, foo } } = Array`)
     if (!base || (base.pure && !base.static)) return false;
     // a built-in root: an unbound name, a base the ladder resolved, or the collapsed proxy hop this
-    // leg already spelled into the init (`_globalThis.Array`)
-    const builtInRoot = !bound || !!(base.pure || base.static) || isBuiltInSurfaceNav(unwrapRuntimeExpr(declarator.node.init));
+    // leg already spelled into the init (`_globalThis.Array`) - its root asked too, as a capitalised
+    // key off the user's own object only looks like one (`wrap.Box`)
+    const builtInRoot = !bound || !!(base.pure || base.static) || isBuiltInSurfaceNav(unwrapRuntimeExpr(declarator.node.init),
+      { ctx: { scope: prop.scope, adapter, path: prop }, isOwnAlias: isOwnPureAlias });
     const split = siblingLevel ? hopSplitPlan(walk, { builtInRoot }) : null;
     if (siblingLevel && !split) return false;
     // every route below rewrites the host in place: it keeps its node but no longer spells the pattern
@@ -3589,7 +3599,8 @@ export default function createDestructureEmitter({
     // the extraction reads a built-in SURFACE, not the slot: a slot the memo channel reads keeps
     // the leaf's own sentinel inside the hop, the shape the other leg prints for that read
     const sentinelHostId = hostDeclarator?.node?.id;
-    if (sentinelHostId?.type === 'ObjectPattern' && objectNode && isBuiltInSurfaceNav(objectNode)) {
+    if (sentinelHostId?.type === 'ObjectPattern' && objectNode
+      && isBuiltInSurfaceNav(objectNode, { ctx: { scope: prop.scope, adapter, path: prop }, isOwnAlias: isOwnPureAlias })) {
       pruneEmptiedHopProps(sentinelHostId, { mint: generateUnusedId, isSentinel: isUnusedName });
     }
     return true;
@@ -3708,17 +3719,23 @@ export default function createDestructureEmitter({
       restSibling: hasRestSiblingExcept(prop.parent.properties, prop.node),
     });
     if (seKeyOverMember) return false;
+    // every surface question below asks the ROOT with the hops: a capitalised key off the user's own
+    // object only looks like a built-in surface
+    const propCtx = { scope: prop.scope, adapter, path: prop };
+    const surfaceOptions = { ...OPTIONAL_HOPS, ctx: propCtx, isOwnAlias: isOwnPureAlias };
     // ... and a nav into the BUILT-IN namespace must NAME the instance surface it dispatches on: a
     // leaf off the object the hops merely REACH is a name match (`[{ Array: { keys: k } }] =
     // [globalThis]`), which every other host of both legs keeps native - the shared rule the nested
-    // render asks. a receiver that is not such a nav resolved through its own TYPE and keeps its claim
-    if (resolvedReceiver && isBuiltInSurfaceNav(resolvedReceiver, OPTIONAL_HOPS)
-      && !isInstanceSurfaceNav(resolvedReceiver, OPTIONAL_HOPS)) {
+    // render asks. a receiver that is not such a nav resolved through its own TYPE and keeps its claim,
+    // and so does one off the user's own object, whatever its keys spell
+    if (resolvedReceiver && isBuiltInSurfaceNav(resolvedReceiver, surfaceOptions)
+      && !isInstanceSurfaceNav(resolvedReceiver, surfaceOptions)) {
       return false;
     }
-    // ... and a slot that takes the NAV with it leaves the dispatch as the only reader, so the root the
-    // re-read gate insists on has nothing left to protect: an instance surface off a USER namespace
-    // (`userNs.Array.prototype`) is read exactly once, where the source reads it
+    // ... and a slot that takes the NAV with it leaves the dispatch as the only reader of a surface its
+    // root names, so the re-read gate has nothing left to protect. a USER namespace
+    // (`userNs.Array.prototype`) is the user's nav: a sibling the residual keeps would read ahead of the
+    // dispatch, so it dispatches only where the typed arm below owns every level, the host included
     // a POSITIONAL segment inside the resolved nav is spelled by the canon as a COMPUTED literal
     // (`x[0]`), which is an estree node the babel tree cannot host - and reading a property is not
     // what the pattern does there anyway (it pulls from an iterator). the positional slot has its
@@ -3746,10 +3763,8 @@ export default function createDestructureEmitter({
     const typedUserNav = !staticReceiver && !!typedChain && !!resolvedReceiver && consumedAssignmentSlotDropsHost(prop);
     const receiverNode = staticReceiver ?? (resolvedReceiver
       && (carriedReceiver || typedUserNav || isReReferenceableReceiver(resolvedReceiver)
-        || isReReadableSurfaceNav(resolvedReceiver, name => !!injector?.getBindingInfo?.(name),
-          { ...OPTIONAL_HOPS, ctx: { scope: prop.scope, adapter, path: prop } })
-        || (consumedAssignmentSlotDropsNav(prop, isOwnPureAlias, { scope: prop.scope, adapter, path: prop })
-          && isInstanceSurfaceNav(resolvedReceiver, OPTIONAL_HOPS)))
+        || isReReadableSurfaceNav(resolvedReceiver, name => !!injector?.getBindingInfo?.(name), { ...OPTIONAL_HOPS, ctx: propCtx })
+        || (consumedAssignmentSlotDropsNav(prop, isOwnPureAlias, propCtx) && isInstanceSurfaceNav(resolvedReceiver, surfaceOptions)))
       ? resolvedReceiver : null);
     const bindingId = propBindingIdentifier(prop.node.value);
     // the overwrite re-spells the receiver nav the residual reads, so the raw slot has no reader
@@ -3994,6 +4009,9 @@ export default function createDestructureEmitter({
         ));
       }
     }
+    // every surface question below asks the ROOT with the hops: a capitalised key off the user's own
+    // object only looks like a built-in surface
+    const surfaceOptions = { ctx: { scope: prop.scope, adapter, path: prop }, isOwnAlias: isOwnPureAlias };
     // ... and a chain that NAVIGATES INTO a built-in surface spells that surface as its receiver
     // (`{ Array: { prototype: { flat: m } } } = globalThis` -> `_flatMaybeArray(_globalThis.Array
     // .prototype)`, the hop already folded into the init by the proxy flatten): the extraction
@@ -4009,6 +4027,7 @@ export default function createDestructureEmitter({
       const { nav: navReceiver, dispatch: navDispatch } = resolveNestedNavDispatch(prop, {
         adapter,
         resolvePure,
+        isOwnAlias: isOwnNamespaceRef,
         allowTrailingStatic: entry !== SYMBOL_ITERATOR_PURE_RESULT.entry
           && bindingCount === patternBindingCount(prop.node.value),
       });
@@ -4024,8 +4043,9 @@ export default function createDestructureEmitter({
       // `src.y`, the read the source performs. spelled through the same chain/base pair the symbol
       // claim above uses - it admits only identifier keys off an identifier root, so a positional
       // segment declines here instead of minting a member the binding dialect cannot print - and
-      // asked for SOLE slots, because a user nav re-read by a residual is a second getter call
-      else if (!navReceiver || !isBuiltInSurfaceNav(navReceiver)) {
+      // asked for SOLE slots, because a user nav re-read by a residual is a second getter call. a
+      // capitalised key off the user's own object enters no namespace either (`{ Data: { at } } = box`)
+      else if (!navReceiver || !isBuiltInSurfaceNav(navReceiver, surfaceOptions)) {
         let typedChain = typedNavClaimChain(prop, { adapter });
         // a nested leaf off a COMPUTED root beside a host sibling: the sibling keeps its own read
         // of the root, which only a memo affords - the whole init memoizes into a `_ref` (the shape
@@ -4035,7 +4055,7 @@ export default function createDestructureEmitter({
         // Treating it as an opaque root first would replace that route with a whole-init memo.
         const prefixedSurface = !typedChain
           && resolveNestedReceiverNode(prop, { allowNavSegments: true, allowSePeeledFragment: true, adapter });
-        if (!typedChain && !isInstanceSurfaceNav(prefixedSurface) && computedRootMemoChain(prop, adapter)) {
+        if (!typedChain && !isInstanceSurfaceNav(prefixedSurface, surfaceOptions) && computedRootMemoChain(prop, adapter)) {
           const hostDeclarator = prop.findParent(item => item.isVariableDeclarator());
           const hostDeclaration = hostDeclarator?.parentPath;
           if (hostDeclarator?.node?.init && hostDeclaration?.isVariableDeclaration()
@@ -4124,7 +4144,7 @@ export default function createDestructureEmitter({
         // declarator that performs effects of its own: `const zLead = eff("lead"), [{...}] =
         // [(eff("e"), globalThis)]` runs `lead` first, and hoisting `e` past it swapped them
         // (caught by the differential's effect log, not by any import set)
-        if (isInstanceSurfaceNav(overPrefix)) {
+        if (isInstanceSurfaceNav(overPrefix, surfaceOptions)) {
           // an EXPORTED host lifts around its export wrapper, as a loop head lifts around the loop
           const liftHost = isForInit || declaration.parentPath?.isExportNamedDeclaration()
             ? declaration.parentPath : declaration;
@@ -4232,7 +4252,7 @@ export default function createDestructureEmitter({
     // and the header has that (`for (const m = _m(_g.Array.prototype); ...)`, the other leg's
     // spelling) - the dead residual kept there re-read that surface a second time for nothing. a
     // LITERAL receiver keeps its residual on both legs, which is the standing negative
-    if (isForInit && isInstanceSurfaceNav(objectNode)
+    if (isForInit && isInstanceSurfaceNav(objectNode, surfaceOptions)
       && originalBindingCount(prop) === patternBindingCount(prop.node.value)) slotDropsAlone = true;
     const typedNavOwnsRead = typedNavReceiver
       && originalBindingCount(prop) === patternBindingCount(prop.node.value);
@@ -4951,7 +4971,7 @@ export default function createDestructureEmitter({
       let written;
       if (plan.hoist) {
         const ref = generateLocalRef(path.scope);
-        slotMemoRefNames.add(ref.name);
+        slotMemoRefNames.set(ref.name, false);
         written = t.cloneNode(ref);
         plan.prop.value = t.cloneNode(ref);
         plantSlotMemo({ declarationPath, declaratorPath, ref, value: plan.node });
@@ -4959,7 +4979,9 @@ export default function createDestructureEmitter({
         written = writeSlotMemo({ owner: plan.prop, key: 'value', node: plan.node, scope: path.scope, typeOfReceiver });
       }
       // the segments the leaf navigates on from the slot spell off the ref (`_ref.Array.prototype`) - a
-      // pure read of a local ref, re-readable for free like the built-in surface it names
+      // pure read of a local ref, re-readable for free like the built-in surface it names, so the ref
+      // then stands for the namespace itself
+      if (plan.navKeys.length) slotMemoRefNames.set(written.name, true);
       written = plan.navKeys.reduce((acc, key) => t.memberExpression(acc, t.identifier(key)), written);
       if (typeOfReceiver) resolvedType.set(written, typeOfReceiver);
       if (!plan.hoist) inSlotMemoRefs.add(written);
