@@ -63,12 +63,13 @@ function objectToTypeHint(object) {
   return object === null || object === undefined ? null : String(object).toLowerCase();
 }
 
-// `crossTypeBackstop` is set only on the usage-pure path: a type-specific Maybe HELPER throws when
-// forwarded a foreign runtime type, so refuse it when the hint-set is broader than the match.
+// `crossTypeBackstop` is set only on the usage-pure path: a broad guard can admit another
+// polyfillable family, so its unmatched alternatives require the generic dispatcher. An exact
+// value union already enumerated its families; an unmatched arm needs no variant of this member.
 // usage-global emits no such helper (just side-effect imports - a foreign receiver throws natively
 // regardless), so it keeps the precise single-variant injection and never sets the flag
 function resolveHint(desc, meta, crossTypeBackstop = false) {
-  const { placement, object, excludedHints, includedHints, receiverHint } = meta;
+  const { placement, object, excludedHints, includedHints, receiverHint, exactHints } = meta;
   const hint = objectToTypeHint(object);
 
   if (placement === 'prototype' && TYPE_HINTS.has(hint)) return lookupByTypeHint(desc, hint, true);
@@ -113,8 +114,8 @@ function resolveHint(desc, meta, crossTypeBackstop = false) {
     // Date/Map/Set; `typeof x !== 'string'` keeps every non-string. the runtime receiver could be one
     // of them, and the array-specific Maybe (`_atMaybeArray`) forwards to a native method the foreign
     // type lacks -> ie:11 TypeError. when the hint-set is broader than the matched variant, prefer the
-    // type-aware `common` dispatcher. concrete (non-typeof) receivers return early above and are unaffected
-    const broader = crossTypeBackstop && (includedHints ? hasHintNotIn(includedHints, desc)
+    // type-aware `common` dispatcher. Exact value unions and concrete receivers already name every family.
+    const broader = crossTypeBackstop && !exactHints && (includedHints ? hasHintNotIn(includedHints, desc)
       : excludedHints ? admitsHintNotIn(excludedHints, desc) : false);
     if (broader && hasOwn(desc, 'common')) return desc.common;
     return first;
@@ -208,7 +209,7 @@ export function createPolyfillResolver(options, {
       // method. shares `resolvePropertyObjectType`'s input domain (member-like AND
       // destructure property), and is more precise than guard hints, so consulted first
       const unionHints = resolvePropertyUnionHints(path);
-      if (unionHints) return { ...meta, receiverHint: undefined, includedHints: unionHints, excludedHints: undefined };
+      if (unionHints) return { ...meta, receiverHint: undefined, includedHints: unionHints, excludedHints: undefined, exactHints: true };
       if (isMemberLike(path)) {
         const hints = resolveGuardHints(path.get('object'));
         // `receiverHint: undefined` placed between meta and hints so guard-emitted hint can override

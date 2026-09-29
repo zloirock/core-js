@@ -1,13 +1,12 @@
 // Class / object field-flow type inference. mutable fields can't be typed from their init
 // alone (`#x = null` + later `this.#x = arr()` would mis-narrow to nullable). this cluster
-// gathers every type that could flow into a field via:
+// gathers every value that could flow into a field via:
 //   1. init expression                                (always)
 //   2. `this.<field> = Y` writes inside own methods   (instance / static)
 //   3. subclass `this.<field>` writes                  (instance / static)
 //   4. module-wide `<receiver>.<field> = Y` writes     (when receiver matches the closure)
-// folds the candidate set via `commonType` skipping nullable/never. null result signals
-// "writer set not enumerable" (exported binding, leak, anonymous-class anchor) - caller
-// treats as no inference.
+// folds the candidate set via `commonType` skipping nullable/never. Mixed families keep
+// their dispatch hints separately; an unenumerable writer set keeps both answers unknown.
 //
 // Public surface:
 //   resolveClassFieldType(member)              - cached folded type for `class.field`
@@ -39,6 +38,9 @@ import {
   peelSkippableWrapperPath,
   unwrapRuntimeExpr,
   ownThisMemberKeyName,
+  prototypeValueMayDispatch,
+  valueMayBeCallable,
+  peelTransparentExprAncestorPath,
   walkAstChildren,
 } from '../helpers/ast-patterns.js';
 import { isPrivateMemberNode, moduleStatements } from './ast-shapes.js';
@@ -46,6 +48,7 @@ import { isLoopStatement } from '../destructure-host-shape.js';
 import { nodeRangeContains } from './base.js';
 
 export function createClassFields({
+  resolveComputedKeyName,
   t,
   getKeyName,
   literalKeyValue,
@@ -56,6 +59,8 @@ export function createClassFields({
   findObjectMember,
   resolveObjectMember,
   resolveNodeType,
+  mergeArmHints,
+  scanThisNodes,
   getModuleFieldIndex,
   pushIfWriteMatches,
   classBindingName,
@@ -85,7 +90,8 @@ export function createClassFields({
   // shared resolve-fold-cache shape for class-field and object-field flow scans. caches
   // by prop-node identity, seeds a `null` sentinel before invoking `candidatesFn` so
   // cross-referencing writes (`this.a = this.b; this.b = this.a`) bail to unknown instead
-  // of recursing forever, then folds the candidate list to a single union type.
+  // of recursing forever. Cache both the common Type and, when it cannot represent the union,
+  // its dispatch families. Both queries share one writer census; no candidate list is retained.
   // delete-on-throw mirrors `resolveNodeType`'s `resolveCache` convention: if
   // `candidatesFn()` throws (e.g. transient cycle in walker), drop the sentinel so a
   // future query may retry instead of seeing stale `null`
@@ -95,7 +101,8 @@ export function createClassFields({
     let result;
     try {
       const candidates = candidatesFn();
-      result = candidates ? foldNonNullableCommon(candidates) : null;
+      const type = candidates ? foldNonNullableCommon(candidates) : null;
+      result = { type, hints: !type && candidates ? mergeArmHints(candidates, 0) : null };
     } catch (error) {
       cache.delete(propNode);
       throw error;
@@ -110,17 +117,22 @@ export function createClassFields({
   // private (`#x`) is scope-closed; public / auto-accessor are externally writable, so we also
   // fold subclass `this.<field>` writes and module-wide `<expr>.<field> = Y` whose receiver
   // looks like `new ClassName(...)`. anonymous class expressions bail to unknown
-  let classFieldTypeCache = new WeakMap();
-  function resolveClassFieldType(member) {
+  let classFieldTypeCache = [new WeakMap(), new WeakMap()];
+  function resolveClassFieldType(member, unionHints = false, valueRead = false) {
     const fieldName = getKeyName(member.node.key);
     if (!fieldName) return null;
-    return resolveFieldFlow(member.node, classFieldTypeCache, () => collectClassFieldCandidates(member, fieldName));
+    const flow = resolveFieldFlow(
+      member.node,
+      classFieldTypeCache[+valueRead],
+      () => collectClassFieldCandidates(member, fieldName, valueRead),
+    );
+    return flow?.[unionHints ? 'hints' : 'type'] ?? null;
   }
 
   // shared shape of class-field and object-field flow scans. phases:
   //   1. earlyBail (anonymous binding, exported binding) -> null candidates, no inference
-  //   2. initPath value type -> seed candidate; an init present but UNRESOLVABLE bails the whole
-  //      scan, since the slot holds that value until something overwrites it
+  //   2. initPath -> seed candidate, including an unresolved initializer: the folds must account
+  //      for that value as well as every later write, never silently drop it
   //   3. internalThisScan (own methods of class / object) -> `this.<field> = ...` writes
   //   4. programGate (leak detection: instances escaping via fn-arg / return / spread) -> bail.
   //      a private field is scope-closed (can't escape), so its gate never bails
@@ -132,15 +144,7 @@ export function createClassFields({
   function collectFieldCandidates(opts) {
     if (opts.earlyBail?.()) return null;
     const candidates = [];
-    if (opts.initPath?.node) {
-      const initType = resolveNodeType(opts.initPath);
-      // an init this layer cannot resolve is still a value the slot HOLDS, from construction until
-      // something overwrites it. dropping it folds the writes alone and answers with a family the
-      // field demonstrably is not yet - the same unsound narrow a dropped wildcard produces, so it
-      // takes the same "writer set not enumerable" exit
-      if (!initType) return null;
-      candidates.push(initType);
-    }
+    if (opts.initPath?.node) candidates.push(opts.initPath);
     // a false verdict means the surface holds a write the scan cannot attribute to a field -
     // the writer set is not enumerable, which is the same "no inference" signal as an early bail
     if (opts.internalThisScan && opts.internalThisScan(candidates) === false) return null;
@@ -221,13 +225,13 @@ export function createClassFields({
   // dispatch to static-vs-instance pipeline. static fields are mutated via the class
   // binding (`C.x = Y`); instance fields are mutated via instance bindings (`<inst>.x = Y`)
   // including subclass instances. private fields fold only their in-class-body writes (scope-closed)
-  function collectClassFieldCandidates(member, fieldName) {
+  function collectClassFieldCandidates(member, fieldName, valueRead = false) {
     const classPath = member.parentPath.parentPath;
     const isPrivate = isPrivateMemberNode(member.node);
     if (!isPrivate && !classBindingName(classPath)) return null;
     return member.node.static
-      ? collectStaticFieldCandidates({ member, fieldName, classPath, isPrivate })
-      : collectInstanceFieldCandidates({ member, fieldName, classPath, isPrivate });
+      ? collectStaticFieldCandidates({ member, fieldName, classPath, isPrivate, valueRead })
+      : collectInstanceFieldCandidates({ member, fieldName, classPath, isPrivate, valueRead });
   }
 
   // class binding escapes externally when its closure (relaxed classifier: trivial for
@@ -243,8 +247,8 @@ export function createClassFields({
   // replace a method, which affects instance reads downstream. broader than
   // `isClassExported` (binding-name-only) - the export-name check stays as a cheap
   // earlyBail short-circuit; this is the comprehensive fallback
-  function classBindingEscapes(classPath, program) {
-    return getClassBindingClosure(classPath, program) === null;
+  function classBindingEscapes(classPath, program, valueRead) {
+    return getClassBindingClosure(classPath, program, valueRead) === null;
   }
 
   // is a `this` inside an instance member PROVABLY an instance of the lexical class? both closures
@@ -262,8 +266,8 @@ export function createClassFields({
   // binding escapes (an external subclass could exist) or descendants aren't enumerable. null
   // is the shared "subclasses not safely knowable" signal for the static-shadow check and the
   // instance-field external-write gate
-  function closedDescendants(classPath, program) {
-    if (classBindingEscapes(classPath, program)) return null;
+  function closedDescendants(classPath, program, valueRead) {
+    if (classBindingEscapes(classPath, program, valueRead)) return null;
     return collectClassDescendantPaths(classPath, program);
   }
 
@@ -428,27 +432,27 @@ export function createClassFields({
   // `const Alias = ClassName` aliases. without this split, static external writes through
   // class binding (`C.x = Y`) would fail the instance predicate and stay unsound, emitting
   // narrow polyfills that break at runtime when the field has been mutated to a different type
-  function collectStaticFieldCandidates({ member, fieldName, classPath, isPrivate }) {
+  function collectStaticFieldCandidates({ member, fieldName, classPath, isPrivate, valueRead }) {
     let closure = null;
     let descendant = null;
     const descendantClosures = [];
     return collectFieldCandidates({
       earlyBail: () => !isPrivate && isClassExported(classPath),
-      initPath: member.get('value'),
+      initPath: isMethodMember(member.node) ? methodFnPath(member) : member.get('value'),
       internalThisScan: candidates => appendThisWritesFor(getStaticMethodThisWrites(classPath), fieldName, candidates),
       anchor: classPath,
       programGate: program => {
         if (isPrivate) return false;
-        closure = getClassBindingClosure(classPath, program);
+        closure = getClassBindingClosure(classPath, program, valueRead);
         if (closure === null) return true;
         // a descendant inherits the static slot: `Sub.<field> = Y` and subclass static
         // `this.<field> = Y` mutate it just like a base write. mirror the instance path -
         // when the subclass universe is not enumerable, bail (an unknown subclass could write)
-        descendant = closedDescendants(classPath, program);
+        descendant = closedDescendants(classPath, program, valueRead);
         if (!descendant) return true;
         for (const sub of descendant.paths) {
           if (sub === classPath) continue;
-          const subClosure = getClassBindingClosure(sub, program);
+          const subClosure = getClassBindingClosure(sub, program, valueRead);
           if (subClosure === null) return true;
           descendantClosures.push(subClosure);
         }
@@ -496,19 +500,19 @@ export function createClassFields({
   // class-binding-escape gate fires BEFORE instance closure build: any escape channel
   // means external `C.prototype.<field>` install can affect instance reads (see
   // `classBindingEscapes` doc for the channel list)
-  function collectInstanceFieldCandidates({ member, fieldName, classPath, isPrivate }) {
+  function collectInstanceFieldCandidates({ member, fieldName, classPath, isPrivate, valueRead }) {
     let closure = null;
     let descendant = null;
     return collectFieldCandidates({
       earlyBail: () => !isPrivate && isClassExported(classPath),
-      initPath: member.get('value'),
+      initPath: isMethodMember(member.node) ? methodFnPath(member) : member.get('value'),
       internalThisScan: candidates => appendThisWritesFor(getInstanceMethodThisWrites(classPath), fieldName, candidates),
       anchor: classPath,
       programGate: program => {
         if (isPrivate) return false;
-        descendant = closedDescendants(classPath, program);
+        descendant = closedDescendants(classPath, program, valueRead);
         if (!descendant) return true;
-        closure = getClassInstanceClosure(classPath, program);
+        closure = getClassInstanceClosure(classPath, program, valueRead);
         return closure === null;
       },
       programWritesPush: (program, candidates) => {
@@ -562,17 +566,17 @@ export function createClassFields({
   // returns the folded RHS-union type for a regular data property, threading flow scans
   // through both inside-method `this.<name> = ...` writes and module-wide
   // `<binding>.<name> = ...` external writes (when the literal has a stable binding name).
-  // method/getter/function-valued properties defer to `resolveObjectMember` for their existing
-  // call/return semantics. anonymous (no binding name) objects: still scan inside-method
+  // Calls and accessors defer to `resolveObjectMember`; regular method values join the
+  // field fold with function-valued data slots. Anonymous (no binding name) objects: still scan inside-method
   // writes - external write set is just empty, not unknown. exported objects bail entirely.
   // missing prop (`fieldName` not declared in the literal): no init, but inside-method
   // `this.<field>` writes AND external `<binding>.<field>` writes both contribute - sentinel
   // keys the cache by (objectExpression, fieldName) so distinct missing fields on the same
   // literal don't share a slot
-  let objectFieldTypeCache = new WeakMap();
+  let objectFieldTypeCache = [new WeakMap(), new WeakMap()];
   let objectFnPropWriteCache = new WeakMap();
   let objectFieldMissingSentinels = new WeakMap();
-  function resolveObjectFieldFlow(objectPath, fieldName, callPath) {
+  function resolveObjectFieldFlow(objectPath, fieldName, callPath, unionHints = false, valueRead = false) {
     const prop = findObjectMember(objectPath, fieldName);
     if (prop) {
       // a callable slot is reassignable like any data prop, whatever its DECLARATION shape:
@@ -580,18 +584,19 @@ export function createClassFields({
       // `{ m: () => {} }` can. an observed write (or an unknown writer set) means the runtime
       // value may come from a foreign family, so the declared call/return narrowing must go -
       // otherwise dispatch picks a type-specific helper and throws on the replacement's value
-      // the guard applies to CALL-RETURN narrowing only: reading the slot itself still yields a
-      // Function value (that is what the member IS, whoever wrote it), while the declared
-      // return type is what a foreign replacement invalidates
-      if (t.isObjectMethod?.(prop.node)) {
-        return callPath && callableSlotReassigned(objectPath, prop.node, fieldName)
-          ? null : resolveObjectMember(objectPath, fieldName, callPath);
+      // Accessors keep their return semantics. A regular method's slot can also hold a
+      // non-function replacement, so unknown writers invalidate its Function proof too.
+      if (t.isObjectMethod?.(prop.node) && (callPath || prop.node.kind === 'get' || prop.node.kind === 'set')) {
+        if (unionHints) return null;
+        const reassigned = callPath && callableSlotReassigned(objectPath, prop.node, fieldName);
+        return reassigned ? null : resolveObjectMember(objectPath, fieldName, callPath);
       }
       // function-valued property, including TS-cast / paren wrapped (`fn: (() => 'x') as () => string`):
       // peel runtime wrappers before the function check so resolveObjectMember owns the call /
       // return semantics. without the peel the flow-fold path mis-treats the cast-wrapped function
       // as a plain data field and loses the call return type
-      if (t.isObjectProperty?.(prop.node) && t.isFunction?.(unwrapRuntimeExpr(prop.node.value))) {
+      if (callPath && t.isObjectProperty?.(prop.node) && t.isFunction?.(unwrapRuntimeExpr(prop.node.value))) {
+        if (unionHints) return null;
         // a function-valued DATA prop is reassignable like any data prop: any observed write
         // to the slot (`o.fn = () => 'x'`) invalidates the init function's call/return
         // narrowing - the runtime value may be a foreign-family function - so bail to the
@@ -602,34 +607,46 @@ export function createClassFields({
       }
     }
     const cacheKey = prop ? prop.node : missingFieldSentinel(objectPath.node, fieldName);
-    return resolveFieldFlow(cacheKey, objectFieldTypeCache,
-      () => collectObjectFieldCandidates(objectPath, prop, fieldName));
+    const flow = resolveFieldFlow(
+      cacheKey,
+      objectFieldTypeCache[+valueRead],
+      () => collectObjectFieldCandidates(objectPath, prop, fieldName, valueRead),
+    );
+    return flow?.[unionHints ? 'hints' : 'type'] ?? null;
   }
 
   // class-side twin of `callableSlotReassigned`: EVERY callable class member is a writable slot,
   // whatever its declaration shape - `this.m = ...` replaces a method shorthand exactly like a
   // function-valued field, so an observed write (or an unknown writer set) invalidates the
-  // declared call/return narrowing either way. two DIFFERENT answers matter to callers, so the
+  // declared call/return narrowing either way. Value reads require a closed writer set too,
+  // but holding a method alone does not open that set. Two DIFFERENT answers matter to calls, so the
   // verdict is ternary: 'written' means a write into this very slot was seen, 'unknown' means the
   // writer set is not enumerable (leaked instance - an external `inst.m = ...` cannot be ruled
   // out). a FIELD loses its narrow on either, because the narrowing comes from an initializer any
   // write replaces; a METHOD body physically exists, so only an observed write unseats it
   let classFnFieldWriteCache = new WeakMap();
   function classCallableSlotReassigned(member) {
-    return memoize(classFnFieldWriteCache, member.node, () => {
-      const fieldName = getKeyName(member.node.key);
-      if (!fieldName) return 'unknown';
-      const candidates = collectClassFieldCandidates(member, fieldName);
-      // parsers disagree on whether a METHOD carries its function on the member node (estree nests
-      // it under `.value`, babel puts the body on the member itself), so the slot's own declared
-      // value is normalised out of the count rather than assumed present
-      const declared = isPropertyMember(member.node) || member.get('value')?.node ? 1 : 0;
-      if (candidates) return candidates.length > declared ? 'written' : false;
-      // the full scan bails whole when the writer set is unenumerable, which would swallow the
-      // writes it had already seen. those writes stay observable no matter who else can reach the
-      // slot, so re-ask for them alone before reporting mere ignorance
-      return slotWriteSeen(member, fieldName) ? 'written' : 'unknown';
-    });
+    return memoize(
+      classFnFieldWriteCache,
+      member.node,
+      () => {
+        const fieldName = getKeyName(member.node.key);
+        if (!fieldName) return 'unknown';
+        const candidates = collectClassFieldCandidates(member, fieldName, false);
+        // parsers disagree on whether a METHOD carries its function on the member node (estree nests
+        // it under `.value`, babel puts the body on the member itself), so the slot's own declared
+        // value is normalised out of the count rather than assumed present
+        const declared = isMethodMember(member.node) ? !!methodFnPath(member)?.node : !!member.get('value')?.node;
+        // A signature's value slot (Flow ambient methods) is not a runtime initializer.
+        // Preserve the callable guard's fallback when that slot has no resolvable value.
+        const init = member.get('value');
+        if (candidates && (!init?.node || resolveNodeType(init))) return candidates.length > declared ? 'written' : false;
+        // the full scan bails whole when the writer set is unenumerable, which would swallow the
+        // writes it had already seen. those writes stay observable no matter who else can reach the
+        // slot, so re-ask for them alone before reporting mere ignorance
+        return slotWriteSeen(member, fieldName) ? 'written' : 'unknown';
+      },
+    );
   }
 
   // which class does a module-level `<expr>.<slot> = ...` write reach, on the plane the slot lives
@@ -648,7 +665,7 @@ export function createClassFields({
     return null;
   }
 
-  // is there an observable write into this slot anywhere? the rescue question for a bailed scan,
+  // Is there an observable write into this class slot? The rescue for a bailed scan,
   // so it enumerates the same surfaces the full collector does - own body AND every enumerable
   // subclass (an inherited slot is written by `this.<slot> = ...` in a descendant too), plus every
   // module write whose RECEIVER reaches this slot ON ITS OWN PLANE - the class itself for a static
@@ -656,8 +673,7 @@ export function createClassFields({
   // rather than name-matched because an alias (`const D = C; D.m = ...`) makes the class-binding
   // closure unenumerable - exactly the case that bailed the full scan, so its name set is known to
   // be incomplete. asks the shared module write index directly rather than the candidate folder:
-  // the question is whether a write EXISTS, and the folder drops writes whose value type does not
-  // resolve
+  // the question is whether a write EXISTS, even when the full writer set is not enumerable
   function slotWriteSeen(member, fieldName) {
     const classPath = member.parentPath.parentPath;
     const program = findProgramPath(classPath);
@@ -680,17 +696,18 @@ export function createClassFields({
     return false;
   }
 
-  // is this callable slot observably reassigned OR owned by an unknown writer set? shared by every
-  // callable DECLARATION shape on an object literal - method shorthand and function-valued data prop
-  // alike. boolean, unlike the class-side twin: an object literal has no leaked-instance channel, so
-  // the seen-write vs unknown-set split its callers would weigh never arises here - both mean the
-  // narrowing must go. memoized per member node: repeated `o.fn()` queries must not re-walk the module
+  // Object-side callable write guard. Calls require a closed receiver and an unchanged slot;
+  // value reads use the field fact instead and can enumerate replacement values.
   function callableSlotReassigned(objectPath, memberNode, fieldName) {
-    return memoize(objectFnPropWriteCache, memberNode, () => {
-      // prop=null reuses the missing-field collector shape: writes only, no init
-      const writes = collectObjectFieldCandidates(objectPath, null, fieldName);
-      return !writes || writes.length > 0;
-    });
+    return memoize(
+      objectFnPropWriteCache,
+      memberNode,
+      () => {
+        // prop=null reuses the missing-field collector shape: writes only, no init
+        const writes = collectObjectFieldCandidates(objectPath, null, fieldName);
+        return !writes || writes.length > 0;
+      },
+    );
   }
 
   // per-(objectExpression, fieldName) sentinel for the missing-prop cache slot. interned so
@@ -703,20 +720,19 @@ export function createClassFields({
     return sentinel;
   }
 
-  // gather every type that could flow into `fieldName` on `objectPath` via the unified
+  // gather every value that could flow into `fieldName` on `objectPath` via the unified
   // candidate collector. null signals "unknown writer set" (exported binding, anonymous
   // literal with an unsupported leak shape, or aliasing through unenumerable channels) -
   // caller treats as no inference. unlike class-side, object-literal aliasing is enumerated
   // through scope references, so trace-through-alias writes are folded into the union too.
   // closure builder's post-build check also catches the export case, so a null closure
   // subsumes both the export early-bail AND in-walk leak detection.
-  // `prop` null = missing-field case: init / this-scan hooks skipped, only external writes
-  // contribute
-  function collectObjectFieldCandidates(objectPath, prop, fieldName) {
-    const closure = computeObjectAliasClosure(objectPath);
+  // `prop` null = missing-field case: no initializer; both own-this and external writes contribute
+  function collectObjectFieldCandidates(objectPath, prop, fieldName, valueRead = false) {
+    const closure = computeObjectAliasClosure(objectPath, valueRead);
     if (!closure) return null;
     return collectFieldCandidates({
-      initPath: prop && t.isObjectProperty?.(prop.node) ? prop.get('value') : null,
+      initPath: prop && (t.isObjectMethod?.(prop.node) ? methodFnPath(prop) : prop.get('value')),
       // run the inside-method `this.<field> = ...` scan even when the field is NOT a declared
       // own property: a method (`{ poison(){ this.data = "s" }, read(){ this.data.at(0) } }`)
       // can write a field that never appears as an own property, and that write must join the
@@ -733,13 +749,15 @@ export function createClassFields({
   }
 
   // commonType-fold skipping nullable/never; collapse to null once union-incompatible so the
-  // polyfill dispatch routes to the safe generic variant. a skipped nullish candidate is an
+  // caller asks the separate dispatch-family projection. a skipped nullish candidate is an
   // observed nullish WRITE - the field may hold it at runtime - so the fold survivor is
   // marked for the logical truthy-fold gate; a `never` candidate carries no runtime value
-  function foldNonNullableCommon(types) {
+  function foldNonNullableCommon(values) {
     let result = null;
     let droppedNullish = false;
-    for (const cand of types) {
+    for (const value of values) {
+      const cand = value?.node ? resolveNodeType(value) : null;
+      if (!cand) return null;
       if (isNullableOrNever(cand)) {
         droppedNullish ||= cand.type !== 'never';
         continue;
@@ -752,16 +770,55 @@ export function createClassFields({
 
   // shared shape predicates for `<expr>.<field> = ...` / `<expr>.<field>++` writes -
   // see `./class-member-shapes.js`. `memberWriteFieldName` accepts literal-string / -number
-  // computed keys (`o['items']`, `o[0]`) via `getKeyName`; truly dynamic computed keys
-  // (variable / call / template-with-expr) -> null. `writePathContributedType` returns
-  // RHS resolution for `=`; operator-coerced compound / update -> `unknown` sentinel
-  const { memberWriteFieldName, writePathContributedType } =
-    createMemberWriteShape({ t, getKeyName, resolveNodeType });
+  // computed keys (`o['items']`, `o[0]`) via `getKeyName`, and scoped constants through the
+  // shared key resolver; unresolved keys stay null. `writePathContributedValue` retains
+  // the RHS path for `=` and an opaque null contribution for compound / update writes.
+  const { memberWriteFieldName, writePathContributedValue } =
+    createMemberWriteShape({ t, getKeyName, resolveComputedKeyName });
 
   // index key for "a dynamic computed `this[expr] = ...` write was seen in this surface"
   const WILDCARD_THIS_WRITE = Symbol('wildcardThisWrite');
 
-  // walk method bodies and parameters once and build a Map<fieldName, types[]> of every `this.<X> = Y`
+  // An inline installed body can join the existing this-write index when it neither exposes
+  // its receiver nor installs further dispatchable bodies. Unknown keys or values keep the
+  // holder open. Reuse both body scans and cache the verdict across all field queries.
+  let scannedMethodInstallCache = new WeakMap();
+  function scannedMethodInstall(assignPath) {
+    if (assignPath?.node?.type !== 'AssignmentExpression' || assignPath.node.operator !== '=') return null;
+    const fn = peelSkippableWrapperPath(assignPath.get('right'));
+    if (!t.isFunctionExpression(fn?.node)) return null;
+    const target = memberWriteTargetPath(assignPath);
+    if (!t.isMemberExpression(target?.node)) return null;
+    const key = memberWriteFieldName(target.node, target.scope);
+    if (!key || key === '__proto__' || key === 'prototype') return null;
+    return memoize(
+      scannedMethodInstallCache,
+      assignPath.node,
+      () => {
+        if (scanThisNodes(fn.node)) return null;
+        const writes = buildThisWritesIndex([fn]);
+        if (writes.has(WILDCARD_THIS_WRITE)) return null;
+        for (const [name, values] of writes) {
+          const mayInstall = name === '__proto__' || name === 'prototype' ? prototypeValueMayDispatch : valueMayBeCallable;
+          if (values.some(value => !value?.node || mayInstall(unwrapRuntimeExpr(value.node), true))) return null;
+        }
+        return target.get('object');
+      },
+    );
+  }
+
+  // A this-write in an installed function belongs to the receiver of the installation.
+  // Arrows inherit that receiver; a nested class or ordinary function ends the lookup.
+  function installedMethodWriteReceiver(writePath) {
+    for (let path = writePath.parentPath; path; path = path.parentPath) {
+      if (t.isClass(path.node)) return null;
+      if (!t.isFunction(path.node) || t.isArrowFunctionExpression(path.node)) continue;
+      return scannedMethodInstall(peelTransparentExprAncestorPath(path).parentPath);
+    }
+    return null;
+  }
+
+  // walk method bodies and parameters once and build a Map<fieldName, (valuePath | null)[]> of every `this.<X> = Y`
   // / `++this.<X>` write contained within. lets per-field candidate scans become O(1)
   // lookups instead of O(N field) full method walks. scan bodies and parameters separately
   // so adapters that visit roots do not fire the function-skip rule on the method itself.
@@ -781,7 +838,7 @@ export function createClassFields({
       // into the base's flow union, else subclass writes through super silently drop
       const recvType = unwrapRuntimeExpr(target?.object)?.type;
       if (recvType !== 'ThisExpression' && recvType !== 'Super') return;
-      const fieldName = memberWriteFieldName(target);
+      const fieldName = memberWriteFieldName(target, p.scope);
       // a DYNAMIC computed write (`this[k] = v`) names no fixed slot - it can land on ANY field,
       // so no per-field narrow survives it. record it once as a wildcard the per-field lookup
       // consults; dropping it (the previous behaviour) left every field narrowed to its
@@ -790,9 +847,9 @@ export function createClassFields({
         if (target?.computed) index.set(WILDCARD_THIS_WRITE, true);
         return;
       }
-      let types = index.get(fieldName);
-      if (!types) index.set(fieldName, types = []);
-      types.push(writePathContributedType(p));
+      let values = index.get(fieldName);
+      if (!values) index.set(fieldName, values = []);
+      values.push(writePathContributedValue(p));
     }
     // a destructuring-assignment LHS (`({ v: this.x } = src)`) or for-of/for-in head
     // (`for (this.x of it)`) writes `this.x` to an opaque destructure / iteration value, but the
@@ -885,15 +942,15 @@ export function createClassFields({
     return memoize(staticMethodThisWritesCache, classPath.node, () => buildThisWritesIndex(staticOwnerMethodFns(classPath)));
   }
 
-  // append cached this-writes types for `fieldName` from `index` to `out`. nullish entry
+  // append cached this-write contributions for `fieldName` from `index` to `out`. nullish entry
   // means "no this-write to this field name in the indexed method set" - no-op
   function appendThisWritesFor(index, fieldName, out) {
     // a wildcard write poisons every field of the indexed surface: the scan can no longer
     // enumerate what flows into this slot, which is exactly the "unknown writer set" signal
     if (index.get(WILDCARD_THIS_WRITE)) return false;
-    const types = index.get(fieldName);
-    if (!types) return true;
-    for (const type of types) out.push(type);
+    const values = index.get(fieldName);
+    if (!values) return true;
+    for (const value of values) out.push(value);
     return true;
   }
 
@@ -995,9 +1052,10 @@ export function createClassFields({
   }
 
   function reset() {
-    classFieldTypeCache = new WeakMap();
+    scannedMethodInstallCache = new WeakMap();
+    classFieldTypeCache = [new WeakMap(), new WeakMap()];
     classFnFieldWriteCache = new WeakMap();
-    objectFieldTypeCache = new WeakMap();
+    objectFieldTypeCache = [new WeakMap(), new WeakMap()];
     objectFnPropWriteCache = new WeakMap();
     objectFieldMissingSentinels = new WeakMap();
     instanceMethodThisWritesCache = new WeakMap();
@@ -1005,6 +1063,8 @@ export function createClassFields({
   }
 
   return {
+    scannedMethodInstall,
+    installedMethodWriteReceiver,
     resolveClassFieldType,
     classCallableSlotReassigned,
     callableSlotReassigned,

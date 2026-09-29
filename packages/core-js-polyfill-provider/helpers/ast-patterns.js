@@ -7424,6 +7424,20 @@ export function prototypeValueMayDispatch(node, undefinedShadowed = false) {
   return !!node.regex || typeof node.value === 'object';
 }
 
+// A normal member store installs a body only if its value can be called. Object, array and
+// regexp literals are non-callable even though they can supply members as prototypes.
+// Canonical value arms retain alternatives while discarding wrappers and sequence prefixes.
+export function valueMayBeCallable(node, undefinedShadowed = false) {
+  return flattenBranchingValueNodes([node]).some(value => {
+    const { type } = value;
+    return type !== 'ObjectExpression'
+      && type !== 'ArrayExpression'
+      && type !== 'RegExpLiteral'
+      && !(type === 'Literal' && value.regex)
+      && prototypeValueMayDispatch(value, undefinedShadowed);
+  });
+}
+
 // is THIS property the one that installs a prototype? only a plain, non-computed, non-shorthand
 // `__proto__` data property does - a method, an accessor or a computed key of the same name creates
 // an ordinary own property instead. one rule, read both per-literal and per-property
@@ -7450,7 +7464,7 @@ export function objectLiteralPrototypeValue(node, undefinedShadowed = false) {
 
 // climb a reference to the node its consumer sees: transparent wrappers plus sequence-VALUE
 // positions (a sequence evaluates to its last expression, so the reference is what a surrounding
-// write or call receives). shared by the prototype-install channels below
+// write or call receives). Shared by alias classification and prototype-install channels.
 export function prototypeWriteHostPath(ref) {
   let cur = peelTransparentExprAncestorPath(ref);
   while (cur?.parentPath?.node?.type === 'SequenceExpression'

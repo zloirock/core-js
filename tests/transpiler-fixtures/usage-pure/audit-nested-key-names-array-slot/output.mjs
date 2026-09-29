@@ -737,7 +737,7 @@ const conditionalSlotWrite = function (flag) {
   const {
       k: _ref14
     } = maybe,
-    entries = _ref14 === Object ? _Object$entries : _entries(_ref14);
+    entries = _ref14 === Object ? _Object$entries : _ref14.entries;
   return entries;
 }(1);
 // a container arriving AS A PARAMETER is unknown - no static name, only the dispatcher
@@ -899,7 +899,7 @@ const escapedThroughPromiseResolve = function () {
   const {
       k: _ref17
     } = awaitedBox,
-    entries = _ref17 === Object ? _Object$entries : _entries(_ref17);
+    entries = _ref17 === Object ? _Object$entries : _ref17.entries;
   return entries;
 }();
 const repositionedByOptionalCall = function () {

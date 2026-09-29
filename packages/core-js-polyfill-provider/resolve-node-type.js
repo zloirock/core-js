@@ -1,6 +1,7 @@
 import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
 import { entryToGlobalHint } from './index.js';
 import {
+  peelSkippableWrapperPath,
   allProxySelectingInit,
   cachedContainerPaths,
   containerSlotWritten,
@@ -1573,6 +1574,8 @@ function createResolveNodeType(babelNodeType, t, {
   // factory function decls (hoisted) + a known-static registry
   const bindingAnalysisCluster = createBindingAnalysis({
     getScopeBinding,
+    resolveComputedKeyName,
+    scannedMethodInstall: (...args) => classFieldsCluster.scannedMethodInstall(...args),
     t,
     memoize,
     findProgramPath,
@@ -1676,6 +1679,8 @@ function createResolveNodeType(babelNodeType, t, {
   // outputs. service deps from `binding-analysis` are already destructured; the rest are
   // factory function decls (hoisted) or pure imports
   const closureAnalysisCluster = createClosureAnalysis({
+    resolveComputedKeyName,
+    installedMethodWriteReceiver: (...args) => classFieldsCluster.installedMethodWriteReceiver(...args),
     resolveStaticCalleePair,
     // forward-decl thunks: the own-`this` scan reuses the class-fields method enumerators, and that
     // cluster is instantiated after this one
@@ -1695,7 +1700,6 @@ function createResolveNodeType(babelNodeType, t, {
     programCensus,
     memberUseIsDirectCall,
     methodReadLeaks,
-    resolveNodeType,
   });
   const {
     computeObjectAliasClosure,
@@ -1720,6 +1724,8 @@ function createResolveNodeType(babelNodeType, t, {
   // write-RHS types). all other deps are factory function decls (hoisted) or upstream
   // cluster outputs (closure-analysis just above)
   const classFieldsCluster = createClassFields({
+    resolveComputedKeyName,
+    scanThisNodes: closureAnalysisCluster.scanThisNodes,
     t,
     getKeyName,
     literalKeyValue,
@@ -1730,6 +1736,7 @@ function createResolveNodeType(babelNodeType, t, {
     findObjectMember: (...args) => findObjectMember(...args),
     resolveObjectMember: (...args) => resolveObjectMember(...args),
     resolveNodeType,
+    mergeArmHints,
     getModuleFieldIndex,
     pushIfWriteMatches,
     classBindingName,
@@ -1955,6 +1962,7 @@ function createResolveNodeType(babelNodeType, t, {
     violationToAssignment: (...args) => callResolutionCluster.violationToAssignment(...args),
     babelNodeType,
     resolveNodeType,
+    mergeArmHints,
     resolveRuntimeExpression,
     resolveInnerType,
     commonType,
@@ -2013,7 +2021,7 @@ function createResolveNodeType(babelNodeType, t, {
     resolveDestructuredMember,
     collectPatternKeyPath,
     resolveBindingType,
-    reachableValuePaths,
+    reachableValueUnionHints,
   } = patternBindingsCluster;
 
   // type-query <-> call-return form a small dep cycle (typeQuery's `resolveReturnTypeFromTypeQuery`
@@ -2965,15 +2973,15 @@ function createResolveNodeType(babelNodeType, t, {
   //
   // input domain mirrors `resolvePropertyObjectType`: a member-like path (`x.includes`)
   // derives off the object slot, a destructure ObjectProperty (`const { includes } = x`)
-  // off the pattern annotation / direct init. nested patterns and for-of stay null
-  // (conservative full set)
+  // off the pattern annotation / direct init or the same nested field/index lookup.
+  // Unenumerable receivers stay null (the conservative full set).
   const UNION_HINTS_MAX_DEPTH = 8;
   function resolvePropertyUnionHints(path) {
     // anchored like `resolveNodeType` - a public scope-reading entry (see resolvePropertyObjectType)
     path = anchorPathScope(path);
     let hints = null;
     if (isMemberLike(path)) {
-      hints = unionReceiverHints(resolveRuntimeExpression(path.get('object')), 0);
+      hints = unionReceiverHints(path.get('object'), 0);
     } else if (t.isObjectProperty(path.node)) {
       const objectPattern = path.parentPath;
       if (!t.isObjectPattern(objectPattern?.node)) return null;
@@ -2983,21 +2991,27 @@ function createResolveNodeType(babelNodeType, t, {
       } else {
         const initPath = getPatternInit(objectPattern.parentPath);
         if (initPath?.node) hints = unionReceiverHints(resolveRuntimeExpression(initPath), 0);
-        else hints = nestedElementUnionHints(objectPattern, path);
+        else hints = nestedReceiverUnionHints(objectPattern, path);
       }
     }
     return hints?.size ? hints : null;
   }
 
-  // ... and a NESTED pattern one index into an array its host destructures (`{ 0: { values } } = rows`,
-  // `[{ values }] = rows`) reads the element the member spelling `rows[0]` reads, so the element union
-  // answers it the same way
-  function nestedElementUnionHints(objectPattern, anchorPath) {
+  // A nested pattern reads the same fields and array slots as the corresponding member chain.
+  // Reuse its mutation gates, then the element-union fallback for reordered array literals.
+  function nestedReceiverUnionHints(objectPattern, anchorPath) {
     const keyPath = collectPatternKeyPath(objectPattern);
     let ancestor = objectPattern.parentPath;
-    while (ancestor && PATTERN_WRAPPERS.has(babelNodeType(ancestor.node))) ancestor = ancestor.parentPath;
-    const initPath = keyPath?.length === 1 ? getPatternInit(ancestor) : null;
-    const index = initPath?.node ? canonicalArrayIndex(keyPath[0]) : null;
+    while (ancestor && PATTERN_WRAPPERS.has(babelNodeType(ancestor.node))) {
+      // A default at any containing slot adds another receiver arm.
+      if (ancestor.node.type === 'AssignmentPattern') return null;
+      ancestor = ancestor.parentPath;
+    }
+    const initPath = keyPath?.length ? getPatternInit(ancestor) : null;
+    if (!initPath?.node) return null;
+    const fields = resolveObjectMemberPath(resolveRuntimeExpression(initPath), keyPath, initPath, true);
+    if (fields) return fields;
+    const index = keyPath.length === 1 ? canonicalArrayIndex(keyPath[0]) : null;
     const arms = index === null ? null : literalElementUnionPaths(initPath, index, anchorPath);
     return arms ? mergeArmHints(arms, 0) : null;
   }
@@ -3019,6 +3033,12 @@ function createResolveNodeType(babelNodeType, t, {
 
   function unionReceiverHints(path, depth) {
     if (depth > UNION_HINTS_MAX_DEPTH || !path?.node) return null;
+    path = peelSkippableWrapperPath(path);
+    // A mutable binding owns the pairing of pattern writes. Following it before that pairing
+    // can mistake the whole RHS container for the field assigned to the receiver.
+    if (!t.isIdentifier(path.node) || !getScopeBinding(path.scope, path.node.name, path)?.constantViolations?.length) {
+      path = resolveRuntimeExpression(path);
+    }
     const { type } = path.node;
     if (type === 'LogicalExpression') return mergeArmHints([path.get('left'), path.get('right')], depth);
     if (type === 'ConditionalExpression') return mergeArmHints([path.get('consequent'), path.get('alternate')], depth);
@@ -3052,13 +3072,16 @@ function createResolveNodeType(babelNodeType, t, {
     if (!isMemberLike(path)) return null;
     const key = resolveMemberPropertyName(path);
     const index = key === null || key === undefined ? null : canonicalArrayIndex(key);
-    if (index === null && key !== null && key !== undefined) return null;
+    if (key !== null && key !== undefined) {
+      const fields = memberResolveCluster.resolveMemberOfObjectPath(path.get('object'), key, null, true);
+      if (fields || index === null) return fields;
+    }
     const arms = literalElementUnionPaths(path.get('object'), index, path);
     return arms ? mergeArmHints(arms, depth) : null;
   }
 
-  // the binding must be a declarator that binds the name DIRECTLY: a param / for-x / catch value is
-  // an open set, and a pattern-bound leaf holds a property extraction rather than the init itself.
+  // A pattern-bound leaf asks the shared field extraction, not the whole initializer. A direct
+  // binding enumerates its own writes; a param / for-x / catch value is an open set.
   // a function-scoped `var` is excluded outright: one parser hoists it natively and the other
   // block-scopes it, so its write set is RECOVERED on one side and native on the other - the two
   // emitters would then enumerate different values and inject different sets for the same source
@@ -3066,6 +3089,9 @@ function createResolveNodeType(babelNodeType, t, {
     const binding = getScopeBinding(path.scope, path.node.name, path);
     const declaratorPath = binding?.path;
     const declarator = declaratorPath?.node;
+    if (declarator?.type === 'VariableDeclarator' && isDestructurePattern(declarator.id)) {
+      return resolveBindingType(path, true);
+    }
     if (!declarator || declarator.type !== 'VariableDeclarator'
       || declarator.id?.type !== 'Identifier' || declarator.id.name !== path.node.name
       || binding.kind === 'var') return null;
@@ -3076,14 +3102,15 @@ function createResolveNodeType(babelNodeType, t, {
         ? literalElementUnionPaths(loop.get('right'), null, path) : null;
       return elements?.length ? mergeArmHints(elements, depth) : null;
     }
-    const arms = reachableValuePaths(binding, declaratorPath, path.node.name, path);
-    return arms?.length ? mergeArmHints(arms, depth) : null;
+    return reachableValueUnionHints(binding, declaratorPath, path.node.name, path, depth);
   }
 
   function mergeArmHints(arms, depth) {
     const merged = new Set();
     for (const arm of arms) {
-      const armPath = resolveRuntimeExpression(arm);
+      if (!arm?.node) return null;
+      const peeled = peelSkippableWrapperPath(arm);
+      const armPath = t.isIdentifier(peeled.node) ? peeled : resolveRuntimeExpression(peeled);
       const type = resolveNodeType(armPath);
       if (type) {
         if (isNullableOrNever(type)) continue;

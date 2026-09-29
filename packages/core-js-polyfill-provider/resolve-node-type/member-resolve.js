@@ -808,7 +808,7 @@ export function createMemberResolve({
   // namespace, a typed member, a structural predicate narrow. the member expression asks it for
   // its object; the nested destructure walk asks it for the container a pattern hop reads off, so
   // `const { data: { at } } = c` answers what `const { at } = c.data` and `c.data.at` answer
-  function resolveMemberOfObjectPath(originalObjectPath, name, callPath) {
+  function resolveMemberOfObjectPath(originalObjectPath, name, callPath, unionHints = false) {
     const objectPath = resolveRuntimeExpression(originalObjectPath);
     // `this.X` inside an object-method (possibly through arrow nesting): resolve `this`
     // to the parent ObjectExpression and route through the flow-aware field resolver.
@@ -818,7 +818,7 @@ export function createMemberResolve({
     if (t.isThisExpression(objectPath.node)) {
       const objAnchor = resolveThisObject(originalObjectPath);
       if (objAnchor) {
-        const result = resolveObjectFieldFlow(objAnchor, name, callPath);
+        const result = resolveObjectFieldFlow(objAnchor, name, callPath, unionHints);
         if (result) return result;
       }
     }
@@ -836,8 +836,8 @@ export function createMemberResolve({
         : isGetterFreshLiteral(spine.node) && arrayElementsMayBeRetyped(originalObjectPath, originalObjectPath));
     if (spine && !heldFresh) {
       // resolveObjectFieldFlow is the flow-aware superset of resolveObjectMember: it delegates
-      // method / getter / function-valued props to resolveObjectMember, but for a plain data
-      // property it folds the init type with every reachable reassignment (`o.data = "s"`) and
+      // calls and getters to resolveObjectMember. Value reads, including method slots,
+      // fold the initializer with every reachable reassignment (`o.data = "s"`) and
       // inside-method `this.data = ...` write, and also covers the missing-property external-write
       // case. routing it FIRST (instead of resolveObjectMember, which returns the init type and
       // is blind to later reassignments) keeps the narrow sound; a null result means an unknown /
@@ -847,9 +847,10 @@ export function createMemberResolve({
       // a slot of a call-fresh literal naming a callee PARAMETER holds the argument the call passed
       const argument = callFreshLiterals.has(spine.node)
         ? freshLiteralSlotArgument(spine.node, walkObjectLiteralPropertyPath(spine, name)?.node) : null;
-      if (argument?.node) return resolveNodeType(argument);
-      const flowResult = resolveObjectFieldFlow(spine, name, callPath)
-        ?? (isGetterFreshLiteral(spine.node) || callFreshLiterals.has(spine.node) ? resolveObjectMember(spine, name, callPath) : null);
+      if (argument?.node) return unionHints ? null : resolveNodeType(argument);
+      const flowResult = resolveObjectFieldFlow(spine, name, callPath, unionHints, !callPath)
+        ?? (!unionHints && (isGetterFreshLiteral(spine.node) || callFreshLiterals.has(spine.node))
+          ? resolveObjectMember(spine, name, callPath) : null);
       if (flowResult) return flowResult;
     }
     const ctx = resolveClassContext(objectPath);
@@ -857,11 +858,19 @@ export function createMemberResolve({
       // `viaThis` marks a `this`-rooted static read: the runtime receiver can be a subclass,
       // so a static-field narrow must verify no subclass shadow is reachable
       const result = resolveClassMember({
-        classPath: ctx.classPath, name, isStatic: ctx.isStatic, callPath, viaPrototype: ctx.viaPrototype,
+        classPath: ctx.classPath,
+        name,
+        isStatic: ctx.isStatic,
+        callPath,
+        viaPrototype: ctx.viaPrototype,
         viaThis: t.isThisExpression(objectPath.node),
+        unionHints,
       });
       if (result) return result;
     }
+    // Hint queries project the same runtime field flow, including its escape/shadow gates.
+    // Annotation unions are handled by the caller; the remaining routes return single Types.
+    if (unionHints) return null;
     // ambient `declare class X { static make() }` - X reference has no scope binding in babel
     // so `resolveClassContext(objectPath)` misses. fall back to ambient-decl lookup keyed by
     // identifier name; reuses the same class-member resolution path so method-level type-arg

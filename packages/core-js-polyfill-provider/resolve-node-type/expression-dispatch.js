@@ -348,6 +348,9 @@ export function createExpressionDispatch({
       case 'FunctionExpression':
       case 'ArrowFunctionExpression':
       case 'FunctionDeclaration':
+      case 'ObjectMethod':
+      case 'ClassMethod':
+      case 'ClassPrivateMethod':
       case 'ClassExpression':
       case 'ClassDeclaration':
         return new $Object('Function');
