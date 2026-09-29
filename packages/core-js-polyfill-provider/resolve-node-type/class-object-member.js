@@ -205,14 +205,15 @@ export function createClassObjectMember({
     return isStatic ? staticFieldShadowable(classPath, name, foundNode !== null) : instanceMemberShadowable(classPath, name);
   }
 
-  function resolveClassMember({ classPath, name, isStatic, callPath, receiverArgs, viaThis, viaPrototype }) {
+  function resolveClassMember({ classPath, name, isStatic, callPath, receiverArgs, viaThis, viaPrototype, unionHints = false }) {
     const classSubst = buildSubstMap(classPath.node.typeParameters?.params, receiverArgs, classPath.scope);
     const found = findClassMember({ classPath, name, isStatic, classSubst, viaPrototype });
     // hoisted above the found / fall-through dispatch so the shadow bail also guards the
     // merged-interface instance and merged-namespace static paths below - a via-`this` narrow
     // off a merged declaration is just as unsound under a subclass override as off the class body
     if (viaThisShadowBail({ classPath, name, isStatic, viaThis, foundNode: found?.member.node ?? null })) return null;
-    if (found) return resolveClassMemberNode(found.member, callPath, found.subst);
+    if (found) return resolveClassMemberNode(found.member, callPath, found.subst, unionHints, !viaThis && !callPath);
+    if (unionHints) return null;
     if (!classPath.node.id?.name) return null;
     // static lookup miss: try TS declaration-merging fallback. when `namespace Foo { export
     // function bar(): T {} }` merges with `class Foo {}`, `Foo.bar` is a runtime callable
@@ -252,9 +253,6 @@ export function createClassObjectMember({
   // and other VariableDeclaration shapes don't match the leaf at all - not common in real
   // TS code for class-namespace merging.
   //
-  // walks the parent-class chain (visited-set guards cycles) so `class Child extends Base`
-  // sees `Base`'s merged namespace exports as inherited statics. mirrors `findClassMember`'s
-  // super-walk semantics for class body
   // ONE host's merged-namespace export, without any notion of a class: the segments an export is
   // declared under, the overload fold when the set is ambiguous, the single declaration otherwise.
   // `undefined` means "no export of that name HERE", which is what lets the class loop below keep
@@ -291,6 +289,9 @@ export function createClassObjectMember({
     return NAMESPACE_FN_PATH_TYPES.has(found.node.type) ? resolveReturnType(found, callPath, null) : null;
   }
 
+  // walks the parent-class chain (visited-set guards cycles) so `class Child extends Base`
+  // sees `Base`'s merged namespace exports as inherited statics. mirrors `findClassMember`'s
+  // super-walk semantics for class body
   function resolveMergedNamespaceStatic({ classPath, name, callPath, depth = 0, visited }) {
     while (true) {
       if (!callPath || depth > MAX_DEPTH) return null;
@@ -429,8 +430,10 @@ export function createClassObjectMember({
     }, m => bodylessReturnPath(m)?.node.returnType, callPath);
   }
 
-  function resolveClassMemberNode(member, callPath, classSubst) {
+  function resolveClassMemberNode(member, callPath, classSubst, unionHints = false, valueRead = false) {
+    if (unionHints && callPath) return null;
     const methodFn = isMethodMember(member.node) ? methodFnPath(member) : null;
+    if (unionHints && !isPropertyMember(member.node) && !methodFn) return null;
     // bodyless method (ambient `declare class` / `abstract`) - no body, only the return-type
     // annotation. babel models it as TSDeclareMethod with returnType ON the node; oxc/estree as a
     // (TSAbstract)MethodDefinition whose `.value` is a TSEmptyBodyFunctionExpression carrying the
@@ -491,25 +494,30 @@ export function createClassObjectMember({
     // for the logical truthy-fold gate - mirror of findTypeMember's optional wrapper
     if (isPropertyMember(member.node)) {
       function markFieldOptional(resolved) {
-        return resolved && member.node.optional ? resolved.mark('mayBeNullish') : resolved;
+        return resolved && member.node.optional && !unionHints ? resolved.mark('mayBeNullish') : resolved;
       }
       if (member.node.typeAnnotation) {
         const inner = classSubstInner(member.node.typeAnnotation, classSubst);
         const resolved = resolveTypeAnnotation(inner, member.scope);
-        if (resolved) return markFieldOptional(resolved);
+        if (resolved) return unionHints ? null : markFieldOptional(resolved);
         // open keyword annotation (`any` / `unknown` / `object` / Flow mixed) lets the
         // RHS-write flow scan still pin a concrete runtime type
-        if (isOpenKeywordAnnotation(unwrapTypeAnnotation(inner))) return markFieldOptional(resolveClassFieldType(member));
+        if (isOpenKeywordAnnotation(unwrapTypeAnnotation(inner))) {
+          return markFieldOptional(resolveClassFieldType(member, unionHints, valueRead));
+        }
         return null;
       }
-      return markFieldOptional(resolveClassFieldType(member));
+      return markFieldOptional(resolveClassFieldType(member, unionHints, valueRead));
     }
     // Flow's value slot is a type even for callable properties; preserve optionality on reads.
     if (member.node.type === 'ObjectTypeProperty' && member.node.kind === 'init') {
       const resolved = resolveTypeAnnotation(classSubstInner(member.node.value, classSubst), member.scope);
       return resolved && member.node.optional ? resolved.mark('mayBeNullish') : resolved;
     }
-    // method: getter returns its return type, regular method returns Function
+    // A written regular method is a data slot too: its replacement need not be callable.
+    // Accessors keep their return semantics; regular methods fold their Function value with writes.
+    if (methodFn && member.node.kind !== 'get' && member.node.kind !== 'set') return resolveClassFieldType(member, unionHints, valueRead);
+    if (unionHints) return null;
     if (methodFn) return member.node.kind === 'get' ? resolveReturnType(methodFn, undefined, classSubst) : new $Object('Function');
     // bodyless method (no body): a getter's property access still yields its declared return type -
     // only a non-getter declared method evaluates to a Function value

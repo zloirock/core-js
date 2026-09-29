@@ -1,10 +1,7 @@
-import "core-js/modules/es.object.to-string";
 import "core-js/modules/es.array.at";
 import "core-js/modules/es.array.includes";
-import "core-js/modules/es.iterator.constructor";
 import "core-js/modules/es.string.at";
 import "core-js/modules/es.string.includes";
-import "core-js/modules/esnext.iterator.includes";
 // usage-global twin: a field retyped by an own method (called directly or through an
 // extracted value) widens the read, so BOTH families inject per row
 const swapped = {
