@@ -1,8 +1,8 @@
 // Module-level binding analysis for closure / mutation tracking. classifies every
 // reference of a class / object / instance binding into trivial (member-access receiver,
 // destructure source, non-mutating call arg, type-position) vs alias (`const aliasName =
-// existingBinding`) vs leak (any other escape). closure builder walks alias chains until
-// every reachable name resolves to a trivial / alias use - leaks return null which the
+// existingBinding`) vs carrier (a literal slot) vs leak (any other escape). closure builder walks
+// alias chains and carriers until every reachable use is closed - leaks return null which the
 // caller propagates as "can't safely narrow this binding".
 //
 // Public surface:
@@ -21,7 +21,7 @@
 //   isReflectConstructCallee(callee, scope)  - non-shadowed Reflect.construct recognizer
 //   isKnownNonMutatingCallSite               - SpreadElement-aware non-mutating arg check
 //   collectBindingReferences                 - babel referencePaths or estree-toolkit walk
-//   defaultAliasRefClassifier                - trivial / alias / leak classifier
+//   defaultAliasRefClassifier                - trivial / alias / carrier / leak classifier
 //   classBindingRefClassifier                - relaxed for `new C`, `extends C`, etc.
 //   isTypePositionParent(parentType)         - TS / Flow type-position recognizer
 //   computeAliasClosureFromBinding           - the main closure walker
@@ -29,7 +29,7 @@
 // Service object passes factory helpers (`memoize`, `findProgramPath`, `getDeclaratorBindingName`,
 // `staticPairFromPolyfillEntry`, `lookupNested`, `KNOWN_STATIC_METHOD_RETURN_TYPES`) and the
 // Babel/ESTree type adapter `t`. Module-level state (`exportedNamesCache`) ships with `reset()`.
-import { PRIMITIVES } from './base.js';
+import { MAX_DEPTH, PRIMITIVES } from './base.js';
 import {
   POSSIBLE_GLOBAL_OBJECTS,
   TS_EXPR_WRAPPERS,
@@ -51,6 +51,7 @@ import {
   ownThisMethodKeyMatches,
   peelTransparentExprAncestorPath,
   aliasTargetName,
+  nodeSpan,
   positionDisposition,
   POSITION_CONSUMES,
   POSITION_FORWARDS,
@@ -75,7 +76,11 @@ export function createBindingAnalysis({
   // thunk (late-binding: sibling clusters instantiate after this one) returning the visitor
   // bundles the shared program census runs alongside this cluster's own collectors
   extraProgramCensusCollectors = null,
+  // Late-bound carrier walk shared with anonymous literals; only object closures use it.
+  forwardedObjectClosure,
 }) {
+  let forwardingRefs = null;
+
   // every module-level export name as a Set: covers `export const X`, `export class X`,
   // `export function X`, `export default class X`, `export default function X`,
   // `export const {a, b: {c}, d = 1, ...rest} = src` destructured forms, `export default <Ident>`
@@ -439,6 +444,9 @@ export function createBindingAnalysis({
   // the shared per-program index. null result signals "couldn't enumerate" - no program path, or a
   // set neither tracker holds whole
   function collectBindingReferences(binding, anchorPath) {
+    // A plugin-minted binding can still have an empty or partial reference list before the
+    // host rebuilds scope. Its missing source span cannot prove that a carried object is local.
+    if (!nodeSpan(binding.path?.node)) return null;
     // an Annex-B hoisted block `function` is reachable outside the block both trackers scope it to,
     // and neither records those uses here - the set they hold is a subset, so the answer is
     // "not enumerable" rather than the shorter list
@@ -540,6 +548,7 @@ export function createBindingAnalysis({
   //   'trivial' - reference is a member-access receiver (`<name>.X` / `<name>?.X` / `<name>[expr]`)
   //               or any other shape that doesn't escape the binding's value
   //   'alias'   - `const <newName> = <ref>` declarator; closure absorbs `newName` and recurses
+  //   'carrier' - a literal slot whose subsequent uses need the field-path closure walk
   //   'leak'    - everything else; opens an unmonitored mutation channel
   // default classifier is used by object-literal and class-instance closures (binding holds an
   // object-shape value). class-binding closure swaps in `classBindingRefClassifier` which also
@@ -568,11 +577,8 @@ export function createBindingAnalysis({
     // a nested PATTERN reads properties off it like the direct form, including a sole-key object
     // wrapper (`const { w: { x } } = { w: o }`); a bare name would bind the value itself
     if (wrapperDestructureReadsSlot(parent, refNode, refPath)) return 'trivial';
-    // the shared position enumeration: a value this reference names is evaluated here and nothing
-    // downstream can reach it - a `for...in` head among them, since it only enumerates keys. this walk
-    // cannot follow a FORWARDS into a container, so anything but CONSUMES falls through to the rules
-    // below and, failing those, to the leak default
-    if (positionDisposition(parent, refNode, refPath?.parentPath) === POSITION_CONSUMES) return 'trivial';
+    const disposition = positionDisposition(parent, refNode, refPath?.parentPath);
+    if (disposition === POSITION_CONSUMES) return 'trivial';
     // a `for...of` head is deliberately NOT in that list: it invokes `o[Symbol.iterator]()`, and an
     // own iterator is free to yield `this`. with no own iterator to invoke the loop throws before it
     // binds anything, so the holder stays local here and the method-aware wrapper draws the line
@@ -591,6 +597,10 @@ export function createBindingAnalysis({
         return 'trivial';
       }
     }
+    // Literal slots carry the value on. The closure walker follows that carrier with the same
+    // slot-path analysis as an inline literal, retaining its write and method-extraction gates.
+    if (disposition === POSITION_FORWARDS && (parent?.type === 'ArrayExpression'
+      || parent?.type === 'ObjectProperty' || parent?.type === 'Property')) return 'carrier';
     // pass-through to a known-built-in static at a non-mutating arg slot doesn't escape:
     // `JSON.stringify(obj)`, `Object.keys(obj)`, `Object.assign(target, obj)`, `f(...obj)`,
     // `[...obj]`, `{...obj}` - all routed through the helper which unwraps SpreadElement
@@ -690,11 +700,12 @@ export function createBindingAnalysis({
   // `memberPath` is the member's path; wrappers above it peel like `classifyClosureRef`'s call check
   function memberUseIsDirectCall(memberPath) {
     const outer = peelTransparentExprAncestorPath(memberPath);
-    const ctx = outer?.parentPath?.node;
-    // the callee slot may hold the wrapper (`(o.read as any)()`) - unwrap DOWN to the member for
-    // the identity check; a reference-preserving paren / cast callee keeps `this` = the receiver
+    const ctx = outer?.parent ?? outer?.parentPath?.node;
+    // A retained source path still names its callee slot after Babel replaces that callee with
+    // a dispatcher or its parent with an optional-call guard. Node identity alone would turn
+    // the original call into a harmless held read.
     return (ctx?.type === 'CallExpression' || ctx?.type === 'OptionalCallExpression')
-      && unwrapRuntimeExpr(ctx.callee) === memberPath?.node;
+      && (outer.key === 'callee' || unwrapRuntimeExpr(ctx.callee) === memberPath?.node);
   }
   // does a member READ off the tracked object hand out an own-this method? a resolvable key leaks
   // when it names a method and the read is neither a direct call nor discarded; a dynamic key could
@@ -870,24 +881,24 @@ export function createBindingAnalysis({
     if (next?.type === 'UnaryExpression' && next.operator === 'void') return false;
     return true;
   }
-  // classifier for a NESTED anon: `fieldPath` is its slot path inside the carrier binding (`[{index}]` array
-  // slot / `[{key}]` object field, outermost-first). the anon stays local ONLY when its OWN slot read
-  // (`a[i]` / `o.wrap` / `a[i][j]` / `o.a.b`) is DEREFERENCED to a member / call (`a[i].m()` / `o.wrap.read()`);
-  // a HELD slot read (`sink(a[i])` / `sink(o.wrap)`) aliases it out. a reference that does NOT follow the slot
-  // path could still expose the whole carrier - iteration, spread, a destructure, a method call on the
-  // binding; a structural read / a DIFFERENT field doesn't reach the anon, so the shared default decides
   // does a DESTRUCTURING read of the carrier reach the anon ITSELF? the pattern is walked along the
   // slot path: the level that BINDS A NAME there hands the anon out (`const { wrap } = o` - then
   // `wrap.f = ...` writes the very slot a narrow would rest on), while a level that descends further
   // reads THROUGH it and binds a FIELD's value, which no write can route back to the slot. an
-  // untrackable key or a rest at or above that level could name it either way, so those stay a reach
-  function destructureReachesAnon(pattern, fieldPath, level = 0) {
+  // untrackable key or a rest ABOVE that level could name it either way, so those stay a reach
+  function destructureReachesAnon(pattern, fieldPath, methodInfo = null, level = 0) {
     while (pattern?.type === 'ParenthesizedExpression' || pattern?.type === 'AssignmentPattern') {
       pattern = pattern.type === 'ParenthesizedExpression' ? pattern.expression : pattern.left;
     }
     if (!pattern) return false;
-    // at the anon's own level a nested pattern reads through it; anything else binds it
-    if (level === fieldPath.length) return pattern.type !== 'ObjectPattern' && pattern.type !== 'ArrayPattern';
+    // At the object's own level, data keys and rest only copy its field values, not the object.
+    // Unknown keys, iteration and own-this method extraction still lose the closed receiver.
+    if (level === fieldPath.length) {
+      if (pattern.type !== 'ObjectPattern') return true;
+      return pattern.properties.some(item => item.type !== 'RestElement' && item.type !== 'SpreadElement'
+        && (propertyKeyName(item) === null || propertyKeyName(item) === undefined))
+        || !!methodInfo && patternBindsMethodKey(pattern, methodInfo);
+    }
     const step = fieldPath[level];
     if (pattern.type === 'ObjectPattern') {
       return (pattern.properties ?? []).some(item => {
@@ -897,23 +908,30 @@ export function createBindingAnalysis({
         // an ARRAY slot is read by its index key, which a pattern spells as a string - compare
         // conservatively there rather than by identity
         if (!step.index && key !== step.key) return false;
-        return destructureReachesAnon(item.value, fieldPath, level + 1);
+        return destructureReachesAnon(item.value, fieldPath, methodInfo, level + 1);
       });
     }
     if (pattern.type === 'ArrayPattern') {
       return (pattern.elements ?? []).some(item => item
         && (item.type === 'RestElement' || item.type === 'SpreadElement'
-          || destructureReachesAnon(item, fieldPath, level + 1)));
+          || destructureReachesAnon(item, fieldPath, methodInfo, level + 1)));
     }
     // a bare name or a member target ABOVE the anon's level takes the whole carrier with it
     return true;
   }
 
+  // classifier for a NESTED anon: `fieldPath` is its slot path inside the carrier binding (`[{index}]` array
+  // slot / `[{key}]` object field, outermost-first). a read through its OWN slot (`a[i]` / `o.wrap`)
+  // stays local when the continuation only reads data fields, by member access or a pattern;
+  // a HELD slot read (`sink(a[i])` / `sink(o.wrap)`) aliases it out. a reference that does NOT follow the slot
+  // path could still expose the whole carrier - iteration, spread, a destructure, a method call on the
+  // binding; a structural read / a DIFFERENT field doesn't reach the anon, so the shared default decides
   function makeNestedAnonAliasRefClassifier(fieldPath, methodInfo) {
     return function (parent, refNode, refPath) {
       let access = refPath;
       let matched = true;
-      for (const step of fieldPath) {
+      for (let index = 0; index < fieldPath.length; index++) {
+        const step = fieldPath[index];
         // paren / TS wrappers between steps (`(o.a as any).b` - both parsers; `(o.a).b` - oxc keeps the
         // paren) are runtime-transparent: peel so the interposed cast doesn't drop the slot match and
         // fall a held read through to the default's trivial member-receiver verdict
@@ -925,6 +943,10 @@ export function createBindingAnalysis({
         const stepOk = isMemberRefReceiver(member, outer?.node) && (member.computed
           || (!step.index && member.property?.type === 'Identifier' && member.property.name === step.key));
         if (!stepOk) {
+          // A pattern may continue the navigation after any member prefix (`o.a` followed by
+          // `{ b: { data } }`), just as it may consume the whole path from the carrier's name.
+          const pattern = destructuringPatternOver(member, outer?.node);
+          if (pattern) return destructureReachesAnon(pattern, fieldPath.slice(index), methodInfo) ? 'leak' : 'trivial';
           matched = false;
           break;
         }
@@ -937,6 +959,8 @@ export function createBindingAnalysis({
         // overwrite) doesn't READ the slot - the stored value's own escape is analyzed at its source.
         // compound / logical assigns also produce the slot's value, so they stay on the held-read verdict
         if (use?.type === 'AssignmentExpression' && use.operator === '=' && use.left === outer?.node) return 'trivial';
+        const pattern = destructuringPatternOver(use, outer?.node);
+        if (pattern) return destructureReachesAnon(pattern, [], methodInfo) ? 'leak' : 'trivial';
         if (!isMemberRefReceiver(use, outer?.node)) return 'leak';
         // the continuation member reads a member of the ANON itself: a held own-this method read
         // hands out a this-rebindable function - same gate as the named-object classifier
@@ -955,15 +979,7 @@ export function createBindingAnalysis({
       }
       if (isForXStatement(parent) && parent.right === refNode) return 'leak';
       if (parent?.type === 'SpreadElement') return 'leak';
-      const hostPattern = destructuringPatternOver(parent, refNode);
-      if (hostPattern && destructureReachesAnon(hostPattern, fieldPath)) return 'leak';
-      if (isMemberRefReceiver(parent, refNode)) {
-        const memberOuter = peelTransparentExprAncestorPath(refPath?.parentPath);
-        const use = memberOuter?.parentPath?.node;
-        if ((use?.type === 'CallExpression' || use?.type === 'OptionalCallExpression') && use.callee === memberOuter?.node) {
-          return 'leak';
-        }
-      }
+      if (isMemberRefReceiver(parent, refNode) && memberUseIsDirectCall(refPath?.parentPath)) return 'leak';
       // the WHOLE carrier passed to a function (`Object.values(o)` / `Object.assign(t, o)` / `sink(o)`) may
       // hand the nested anon - or its values - out. this overrides the default's non-MUTATING trivials
       // (`Object.values` / `Object.entries` / `Object.assign`-source EXPOSE values without mutating), at the
@@ -1045,6 +1061,22 @@ export function createBindingAnalysis({
         }
         const kind = classifier(parent, refNode, refContext);
         if (kind === 'trivial') continue;
+        if (kind === 'carrier' && anchorPath?.node?.type === 'ObjectExpression' && forwardedObjectClosure) {
+          if (fieldPath?.length >= MAX_DEPTH) return null;
+          // A cycle or a diamond can revisit one reference under different slot paths. A verdict
+          // for one path proves nothing about the other; widening bounds the walk by references
+          // instead of enumerating every path through the carrier graph.
+          const outermost = forwardingRefs === null;
+          forwardingRefs ??= new WeakSet();
+          if (forwardingRefs.has(refNode)) return null;
+          forwardingRefs.add(refNode);
+          try {
+            if (!forwardedObjectClosure(anchorPath, refContext, fieldPath, closure)) return null;
+          } finally {
+            if (outermost) forwardingRefs = null;
+          }
+          continue;
+        }
         if (kind === 'alias') {
           if (parent.type === 'AssignmentExpression') {
             const host = peelTransparentExprAncestorPath(refContext.parentPath);
@@ -1101,6 +1133,7 @@ export function createBindingAnalysis({
     callArgumentEscapes,
     classBindingRefClassifier,
     computeAliasClosureFromBinding,
+    memberUseIsDirectCall,
     methodReadLeaks,
     reset,
   };
