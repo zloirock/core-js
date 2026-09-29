@@ -52,7 +52,12 @@ import {
 // keeping the proxy names - the copy that used to answer it here resolved fewer init spellings.
 // the Symbol.X alias walk below looks its bindings up through that canon's in-flight guard: the
 // adapters run it from inside their own `getBinding`
-import { globalProxyMemberName, isProxyGlobalIdentifierNode, withBindingLookupGuard } from '../detect-usage/resolve.js';
+import {
+  globalProxyMemberName,
+  isKnownStaticGlobal,
+  isProxyGlobalIdentifierNode,
+  withBindingLookupGuard,
+} from '../detect-usage/resolve.js';
 
 // peel parens / TS wrappers AND SequenceExpression tail (`(se(), X)` -> `X` at runtime)
 // to a fixpoint; covers mixed-wrapper cases like `((se(), X) as any)`. exported so the unplugin
@@ -978,7 +983,12 @@ export function isClassifiableReceiverArg(node, scope, adapter) {
     if (!scope || !adapter) return false;
     return adapter.hasBinding(scope, 'undefined');
   }
-  if (POSSIBLE_GLOBAL_OBJECTS.has(node.name) || (node.name[0] >= 'A' && node.name[0] <= 'Z')) return true;
+  if (POSSIBLE_GLOBAL_OBJECTS.has(node.name)) return true;
+  // ... and a capitalised name is classifiable as a BINDING the class walk reads; unbound, it reads a
+  // realm slot, which only a known built-in proves present - a user global may hold `undefined`
+  if (node.name[0] >= 'A' && node.name[0] <= 'Z') {
+    return !scope || !adapter || adapter.hasBinding(scope, node.name) || isKnownStaticGlobal(node.name);
+  }
   return !!(scope && adapter) && isProxyGlobalIdentifierNode({ node, scope, adapter });
 }
 

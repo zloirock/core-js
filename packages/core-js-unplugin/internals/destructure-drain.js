@@ -44,7 +44,7 @@ import {
   proxyGlobalMemberCtorPureSwap,
   proxyGlobalRootName,
   resolveObjectName,
-  isStaticPlacement,
+  isKnownStaticGlobal,
   isCallShape,
   computedKeyIsWellKnownSymbol,
   resolveKey,
@@ -492,10 +492,12 @@ export default function createDestructureDrains(ctx) {
         // leaving no residual to call the same getter a second time. so a leaf off the object the
         // hops merely REACH stays native for want of a chain (`{ Array: { keys: k } } = globalThis`
         // -> `_keys(_globalThis.Array)`, a name match), and a USER nav dispatches on the read the
-        // source performs (`{ y: { at } } = src` -> `_at(src.y)`). the SYMBOL leaf keeps its own rule
-        // above: its receiver IS the hop surface, prototype or not
+        // source performs (`{ y: { at } } = src` -> `_at(src.y)`) - a capitalised key off it too, its
+        // root naming no surface (`{ Data: { prototype: { at } } } = src`). the SYMBOL leaf keeps its
+        // own rule above: its receiver IS the hop surface, prototype or not
         const navSpelling = namelessRoot ? null : chainKeys.reduce(memberFromKeyName, receiver);
-        if (navSpelling && entry !== 'get-iterator-method' && !isInstanceSurfaceNav(navSpelling)
+        const surfaceOptions = { ctx: { scope: metaPath.scope, adapter, path: metaPath }, isOwnAlias: isOwnPureAlias };
+        if (navSpelling && entry !== 'get-iterator-method' && !isInstanceSurfaceNav(navSpelling, surfaceOptions)
           && !typedNavChain) return null;
         // ... and a USER ALIAS of the realm is the realm, not a user object: the alias canon names it
         // through the init peel (`const g = globalThis`), and without that the dispatch kept the
@@ -544,11 +546,13 @@ export default function createDestructureDrains(ctx) {
         // the leaf reads THROUGH the surface, which the anchored residual re-homing onto it never
         // does, so without this the claim shipped native beside the anchor (`{ Promise: { name } } =
         // globalThis` bound `_Promise.name`, undefined on a floor without it, where the other leg
-        // dispatches `_nameMaybeFunction(_Promise)`). a USER object whose capitalised key merely
-        // LOOKS like that surface resolves no pure base and keeps the source's own read
-        // (`{ Object: { keys } } = src`), which is the other leg's answer there too
-        if (navSpelling && entry !== 'get-iterator-method' && !ref.pure
-          && !isInstanceSurfaceNav(navSpelling) && isBuiltInSurfaceNav(navSpelling)) return null;
+        // dispatches `_nameMaybeFunction(_Promise)`). the root is asked with the hops: a capitalised
+        // key off the user's own object merely LOOKS like that surface (`{ Object: { keys } } = src`),
+        // and it dispatches through its own type, as on the other leg
+        if (navSpelling && entry !== 'get-iterator-method' && !ref.pure && !isInstanceSurfaceNav(navSpelling, surfaceOptions)
+          && isBuiltInSurfaceNav(navSpelling, surfaceOptions)) {
+          return null;
+        }
         return guarded(() => {
           let base = namelessRoot ? duplicateReceiver(liveReceiver?.() ?? receiverSpelling, injector)
             : ref.pure ? identifier(injectPureImport(ref.pure.entry, ref.pure.hintName)) : identifier(ref.name);
@@ -2869,7 +2873,7 @@ export default function createDestructureDrains(ctx) {
   // ... `claimsRide`: the ASSIGNMENT host renders every leaf claim it consumed off the extraction
   // (the overwrite channel), so a claiming leaf rides the re-anchor there
   function soleStaticHopBelow(hopPattern, ctorName, metaPath, claimsRide = false) {
-    if (hopPattern.properties.length !== 1 || !isStaticPlacement(ctorName)) return null;
+    if (hopPattern.properties.length !== 1 || !isKnownStaticGlobal(ctorName)) return null;
     const [staticProp] = hopPattern.properties;
     if (staticProp.type !== 'Property' || staticProp.value?.type !== 'ObjectPattern') return null;
     const key = staticProp.computed
@@ -2957,6 +2961,10 @@ export default function createDestructureDrains(ctx) {
         changed = true;
         continue;
       }
+      // ... and a ctor hop re-anchors only where its key names a built-in the realm is known to
+      // carry (the shared ctor-key-anchor gate): a user global is an unknown slot, where the hop's
+      // default fires (`{ self: { A: { groupBy } = Map } }` keeps `= Map`)
+      if (!isKnownStaticGlobal(keyName)) return changed;
       // a MUTATED slot holds the user's shim: no static behind it resolves, so the residual
       // re-anchors on the hop's own member READ (`{ groupBy } = _globalThis.Map`) - it
       // flattens whether or not the extraction consumed anything inside
