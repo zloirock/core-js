@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { METHODS } from './cells.mjs';
 import { HERE } from './paths.mjs';
 
-const NAMES = ['rxjs', 'codemirror', 'three', 'htmlparser2', 'echarts', 'planck', 'tanstack-table', 'es-toolkit', 'ml-matrix', 'colorjs'];
+const NAMES = ['rxjs', 'codemirror', 'three', 'htmlparser2', 'echarts', 'planck', 'tanstack-table', 'es-toolkit', 'ml-matrix', 'colorjs', 'd3-scale'];
 
 const PLAIN_SEGMENT = /^[\w\-.]+$/;
 for (const name of NAMES) {
