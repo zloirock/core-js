@@ -2426,8 +2426,10 @@ function unfoldNestedRoot(root, keys, ctx = null) {
     return userValue && !isBuiltInSurfaceNav(keys.reduce(memberFromKeyName, tail), surfaceOptions) ? { root, keys } : null;
   }
   if (root.type === 'CallExpression' || root.type === 'NewExpression' || root.type === 'ThisExpression') return { root, keys };
-  if (root.type !== 'MemberExpression' || root.optional) return null;
+  // An optional user root remains whole: the following pattern read seals its short-circuit.
+  if (!isMemberAccessNode(root)) return null;
   if (!isBuiltInSurfaceNav(root, surfaceOptions)) return { root, keys };
+  if (root.optional) return null;
   if (isBuiltInSurfaceNav(keys.reduce(memberFromKeyName, root), surfaceOptions)) return null;
   const navKeys = [];
   let cur = root;

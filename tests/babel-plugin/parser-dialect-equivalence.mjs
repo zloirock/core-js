@@ -69,6 +69,12 @@ function imports(code) {
 // the effect-bearing sequence around a nav, the same inside a store, and the seal shapes whose
 // decisions were already dialect-aware (they stay in the list as the negative half of the gate)
 const CASES = [
+  ['nested assignment off a parenthesized call',
+    'const getBox = () => ({ data: [1, 2] }); let at; ({ data: { at } } = (getBox()));'],
+  ['optional carrier method followed by an alias write',
+    'const box = { data: [1, 2] }; const [alias] = ([box])?.map(x => x); alias.data = "xy"; export const r = box.data.includes("x");'],
+  ['nested optional member extraction',
+    'const wrap = { box: { data: [1, 2] } }; let at; ({ data: { at } } = (wrap?.box));'],
   ['ambient Flow instance under parentheses',
     'declare class C { m(): string } export const r = (((new C()).m)()).at(0);', ['flow']],
   ['ambient Flow generic rest in a rebuilt argument',

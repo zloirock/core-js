@@ -1181,6 +1181,101 @@ function * generateSlotMemoNamespace() {
   }
 }
 
+// Member-root extraction owns one evaluation, whether the host declares or assigns a binding.
+// The getter's log and the stripped instance method independently detect duplicate and missing reads.
+function * generateNestedMemberInstance() {
+  for (const [family, value] of [['array', '[4, 7]'], ['string', '"abc"']]) {
+    for (const depth of [1, 2]) {
+      const pattern = depth === 1 ? '{ data: { at } }' : '{ Inner: { data: { at } } }';
+      const data = `{ get data() { log.push("data"); return ${ value }; } }`;
+      const box = depth === 1 ? data : `{ Inner: ${ data } }`;
+      for (const [source, spelling] of [['member', 'wrap.box'], ['paren', '(wrap.box)'],
+        ['computed', 'wrap["box"]'], ['call', 'getBox()'], ['new', 'new Box()'], ['optional', 'wrap?.box']]) {
+        for (const host of ['declaration', 'assignment', 'bodyless', 'untaken', 'sequence', 'value-sequence']) {
+          const assign = `(${ pattern } = ${ spelling })`;
+          const read = host === 'declaration' ? `const ${ pattern } = ${ spelling };`
+            : host === 'bodyless' || host === 'untaken' ? `let at; if (${ host === 'bodyless' }) ${ assign };`
+            : host === 'sequence' ? `let at; (${ assign }, log.push("done"));`
+            : host === 'value-sequence' ? `let at; const observed = (${ assign }, log.push("done"));`
+            : `let at; ${ assign };`;
+          yield {
+            name: `nested-member-instance/${ family }/${ depth }/${ source }/${ host }`,
+            code: `const log = []; const wrap = { get box() { log.push("box"); return ${ box }; } };
+              function getBox() { log.push("call"); return ${ box }; }
+              function Box() { log.push("new"); return ${ box }; }
+              ${ read } export const r = ${ host === 'untaken' ? 'typeof at' : `at.call(${ value }, -1)` }; export const effects = log;`,
+            strip: true,
+          };
+        }
+      }
+    }
+  }
+}
+
+// Rest copies field values at the object's own level but preserves references above it.
+// String includes searches a substring, unlike Array includes, so a wrong narrow is observable.
+function * generateNestedMemberRest() {
+  for (const [family, value, replacement] of [['array', '[10, 20]', '"1020"'], ['string', '"1020"', '[10, 20]']]) {
+    for (const boundary of ['own', 'carrier', 'method']) {
+      const source = boundary === 'carrier' ? 'wrap' : 'wrap.box';
+      const member = boundary === 'method' ? ', read() { return this.data.includes("02"); }' : '';
+      const write = boundary === 'carrier' ? 'copy.box.data' : 'copy.data';
+      const result = boundary === 'method' ? '[wrap.box.read(), copy.read()]' : 'wrap.box.data.includes("02")';
+      for (const host of ['declaration', 'assignment']) {
+        const read = host === 'declaration' ? `const { ...copy } = ${ source };` : `let copy; ({ ...copy } = ${ source });`;
+        yield {
+          name: `nested-member-rest/${ family }/${ boundary }/${ host }`,
+          code: `const wrap = { box: { data: ${ value }${ member } } };
+            ${ read } ${ write } = ${ replacement }; export const r = ${ result };`,
+          strip: true,
+        };
+      }
+    }
+  }
+}
+
+// Container operations may expose the held object even when they do not mutate the container.
+// A copied alias writes a different receiver family; stripped dispatch must follow that write.
+function * generateCarrierValueWrites() {
+  const carriers = [
+    ['spread', 'const [alias] = [...[box]];'],
+    ['nested-spread', 'const [{ inner: alias }] = [...[{ inner: box }]];'],
+    ['assign', 'const { box: alias } = Object.assign({}, { box });'],
+    ['values', 'const [alias] = Object.values({ box });'],
+    ['map', 'const [alias] = [box].map(value => value);'],
+    ['optional-map', 'const [alias] = [box]?.map(value => value);'],
+    ['named-map', 'const carrier = [box]; const [alias] = carrier.map(value => value);'],
+    ['object-pattern', 'const { box: alias } = { box };'],
+    ['array-pattern', 'const [alias] = [box];'],
+    ['pattern-assignment', 'let alias; ({ box: alias } = { box });'],
+    ['member', 'const alias = ({ box }).box;'],
+    ['loop', 'let alias; for (const item of [box]) alias = item;'],
+    ['carrier-noise', 'const carrier = { box }; carrier.data = null; const { box: alias } = { box };'],
+    ['entries', 'const [[key, alias]] = Object.entries({ box });'],
+    ['call-spread', 'const alias = ((value) => value)(...[box]);'],
+    ['object-spread', 'const { box: alias } = { ...{ box } };'],
+    ['carrier-rest', 'const { ...copy } = { box }; const alias = copy.box;'],
+    ['named-object', 'const carrier = { box }; const alias = carrier.box;'],
+    ['named-array', 'const carrier = [box]; const [alias] = carrier;'],
+    ['nested-pattern', 'const [{ inner: alias }] = [{ inner: box }];'],
+    ['array-assignment', 'let alias; [alias] = [box];'],
+    ['filter', 'const [alias] = [box].filter(() => true);'],
+    ['flat', 'const [alias] = [[box]].flat();'],
+    ['slice', 'const [alias] = [box].slice();'],
+    ['to-sorted', 'const [alias] = [box].toSorted();'],
+  ];
+  for (const [family, value, replacement] of [['array', '[10, 20]', '"1020"'], ['string', '"1020"', '[10, 20]']]) {
+    for (const [host, carrier] of carriers) {
+      yield {
+        name: `carrier-value-writes/${ family }/${ host }`,
+        code: `const box = { data: ${ value } }; ${ carrier }
+          alias.data = ${ replacement }; export const r = box.data.includes("02");`,
+        strip: true,
+      };
+    }
+  }
+}
+
 // --- Static destructured off a user subclass (the static its base owes) ---
 // `{ groupBy } = MyMap` over `class MyMap extends Map {}` reads the static the subclass INHERITS, as
 // the member read `MyMap.groupBy` does, so the base owes its statics on every host that pairs the
@@ -15111,4 +15206,7 @@ export function * generate() {
   yield * generateSubclassInheritedStatic();
   yield * generateCapitalisedPrototypeHop();
   yield * generateSlotMemoNamespace();
+  yield * generateNestedMemberInstance();
+  yield * generateNestedMemberRest();
+  yield * generateCarrierValueWrites();
 }
