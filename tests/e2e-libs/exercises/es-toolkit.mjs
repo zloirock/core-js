@@ -4,16 +4,16 @@
 // DEFINED by the input, not observed from a run.
 //
 // Its reason is the SURFACE axis. Measured on the babel-plugin cells against the union of the seven
-// reference baselines before it, `usage-global` adds eleven entries and `usage-pure` thirteen. The
-// checks assert ten of the pure ones, and each is driven by the one function that makes its call:
-// `pad` pads with `padStart` and then `padEnd`, `trimStart` and `trimEnd` without a character set are
-// the built-ins themselves, `isLength` is `Number.isSafeInteger`, `isWeakSet` an `instanceof
-// WeakSet`, `deepFreeze` freezes with `Object.freeze` and skips with `Object.isFrozen`, `clone` asks
-// every error whether it is an `AggregateError`, and `cloneDeep` hands an error to `structuredClone`.
-// A `Map`'s `entries` is driven but not asserted - `isEqual` reaches it only after reading the tag,
-// which a pure `Map` does not carry on the floor. The last two, `Promise.race` and
-// `Symbol.toStringTag`, are injected from `withTimeout` and the compat `isPlainObject`, which the
-// main entry brings into the graph and nothing here calls.
+// reference baselines before it, `usage-global` adds thirteen entries and `usage-pure` twelve. The
+// checks assert nine of the pure ones, and each is driven by the one function that makes its call:
+// `pad` pads with `padStart` and then `padEnd`, `trimEnd` without a character set is the built-in
+// itself, `isLength` is `Number.isSafeInteger`, `isWeakSet` an `instanceof WeakSet`, `deepFreeze`
+// freezes with `Object.freeze` and skips with `Object.isFrozen`, `clone` asks every error whether
+// it is an `AggregateError`, and `cloneDeep` hands an error to `structuredClone`. A `Map`'s
+// `entries` is driven but not asserted - `isEqual` reaches it only after reading the tag, which a
+// pure `Map` does not carry on the floor. The last two, `Promise.race` and `Symbol.toStringTag`,
+// are injected from `withTimeout` and the compat `isPlainObject`, which the main entry brings into
+// the graph and nothing here calls.
 //
 // Nothing here may import `withTimeout`, `timeout`, `delay` or anything else that pulls in the
 // library's `TimeoutError` or `AbortError`. Both extend `DOMException` while their module bodies run,
