@@ -822,6 +822,9 @@ function collectHeldReceivers({
 }) {
   const opaqueFamilies = new WeakMap();
   const receiverFamilies = new WeakMap();
+  // Guarded pattern aliases need their synthesized realm reads named without stamping the
+  // borrowed source span. Ordinary resolved aliases keep the existing named-static plan.
+  const syntheticReceiverFamilies = new WeakMap();
   const returnReads = new WeakMap();
   const retainedReads = new WeakMap();
   const ambiguousReads = new WeakMap();
@@ -829,14 +832,19 @@ function collectHeldReceivers({
   // Candidate queries share the escape walk without publishing escape or position facts.
   // Iteration keys are provenance records; receiver keys are source callees. Calls to one
   // callee share its return graph, so neither that graph nor its completeness is scanned per use.
-  function familiesFrom(value, callee = null, receiverOnly = false, key = callee ?? value) {
-    const memo = receiverOnly ? receiverFamilies : opaqueFamilies;
+  function familiesFrom(value, callee = null, receiverOnly = false, key = callee ?? value, syntheticNames = false) {
+    const memo = receiverOnly ? syntheticNames ? syntheticReceiverFamilies : receiverFamilies : opaqueFamilies;
     let facts = memo.get(key);
     if (!facts) {
       facts = { names: new Set(), callees: new Set() };
       memo.set(key, facts);
       stampEscapesFrom(programNode, value.opaqueSource ?? value, {
-        ...facts, stamps: new Set(), containers: new Set(), receiverOnly: !!callee || receiverOnly, strictMembers: receiverOnly,
+        ...facts,
+        stamps: new Set(),
+        containers: new Set(),
+        receiverOnly: !!callee || receiverOnly,
+        strictMembers: receiverOnly,
+        syntheticNames,
         state: { names: new Set(), roots: new Map(), slots: new Map() },
       });
       // Every forwarding call must be attributable, not just the outer single-return body.
@@ -949,7 +957,7 @@ function collectHeldReceivers({
     for (const value of known) {
       // a bare name IS the one it spells; any other value is asked what it may stand for
       const leaf = unwrapRuntimeExpr(value);
-      for (const name of leaf?.type === 'Identifier' ? [leaf.name] : familiesFrom(value, null, true).names) {
+      for (const name of leaf?.type === 'Identifier' ? [leaf.name] : familiesFrom(value, null, true, value, reassigned).names) {
         if (hasConstructorEntry(name) && hasOwnStaticDefinition(name, readKey)) heldInSlot.add(name);
       }
     }
@@ -1099,8 +1107,11 @@ function collectHeldReceivers({
         }
       }
       if (opaqueOnly) continue;
-      chainRootValues(aliasInit, root, reached, heldState.roots);
-      if ([...reached].every(name => !guardedAliases.has(name))) continue;
+      const sources = chainRootValues(aliasInit, root, reached, heldState.roots);
+      // A read before its alias initializer can require the same realm guard as a conditional
+      // write, including a closure declared before a hoisted var receives the realm.
+      if ([...reached].every(name => !guardedAliases.has(name))
+        && sources.every(value => !provablyPrecedes(root, value))) continue;
     }
     if (slot) heldInSlot.add(escapeStampedName(slot));
     else kept.add(receiver);
@@ -2832,7 +2843,8 @@ export function escapedCtorReferencesReducer() {
       case 'VariableDeclarator':
       case 'AssignmentExpression':
         recordPatternReceivers(type === 'VariableDeclarator' ? node.id : node.left,
-          unwrapRuntimeExpr(type === 'VariableDeclarator' ? node.init : node.right), true);
+          unwrapRuntimeExpr(type === 'VariableDeclarator' ? node.init : node.right), true, false,
+          type === 'AssignmentExpression' && frame?.parentType !== 'ExpressionStatement');
         break;
       // ... and a for-of head destructures each element of the literal it iterates
       case 'ForOfStatement': {
@@ -2913,7 +2925,7 @@ export function escapedCtorReferencesReducer() {
   // from (`{ g: { groupBy } } = K` reads `groupBy` off `K.g`). `guardsIdentity`: the host renders a
   // slot with no default of its own behind an identity guard on the receiver - a declarator and an
   // assignment do, a for-of head and a parameter default do not
-  function recordPatternReceivers(pattern, source, guardsIdentity = false, keepsCallRead = false) {
+  function recordPatternReceivers(pattern, source, guardsIdentity = false, keepsCallRead = false, keepsSelectedReceiver = false) {
     if (source?.type === 'Identifier' && isDestructurePattern(pattern) && patternNamesEverySlot(pattern)) {
       memberObjects.add(source);
     } else if ((isDestructurePattern(pattern) || pattern?.type === 'Identifier') && isMemberAccessNode(source)
@@ -2936,9 +2948,16 @@ export function escapedCtorReferencesReducer() {
       return !rested && patternEdgeSide(pattern, slot) !== null;
     }
     const opaqueKeys = [];
-    for (const slot of patternReceiverSlotNodes(pattern, source, null, {
-      includeNestedReceivers: true, includeBindings: true, preservesBody: true, readsThrough: true, slotReceivers: levels, opaqueKeys,
-    })) {
+    const slots = patternReceiverSlotNodes(pattern, source, null, {
+      includeNestedReceivers: true,
+      includeBindings: true,
+      preservesBody: true,
+      readsThrough: true,
+      keepsSelectedReceiver,
+      slotReceivers: levels,
+      opaqueKeys,
+    });
+    for (const slot of slots) {
       memberReceivers.push([
         levels.get(slot) ?? source,
         null,

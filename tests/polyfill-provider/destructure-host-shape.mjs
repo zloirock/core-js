@@ -1129,4 +1129,34 @@ for (const [capture, expected] of [
   }
 });
 
+for (const [source, expected] of [
+  ['const host = ({ Map: C } = globalThis);', true],
+  ['flag && ({ Map: C } = globalThis);', true],
+  ['flag ? ({ Map: C } = globalThis) : 0;', true],
+  ['({ Map: C } = globalThis);', false],
+  ['if (flag) ({ Map: C } = globalThis);', false],
+]) runBoth('captured realm global extraction', `let C; ${ source }`, (parser, program, label) => {
+  const host = parser.pickPath(program, 'AssignmentExpression');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const pure = { kind: 'global', entry: 'map', hintName: 'Map' };
+  const plan = planRetainedObjectCapture({
+    pattern: host.node.left,
+    init: host.node.right,
+    assignment: true,
+    prop: host.node.left.properties[0],
+    hostPath: host,
+    adapter,
+    kind: 'global',
+    entry: 'map',
+    resolvePure: meta => meta.object === 'globalThis' && meta.key === 'Map' ? pure : null,
+    resolveStaticProp: resolvePolyfillableStaticProp,
+  });
+  check(`${ label } admits a consumed assignment`, !!plan, expected);
+  if (expected) {
+    check(`${ label } retains the realm source`, plan.init, host.node.right);
+    check(`${ label } extracts the constructor value`, plan.primaryPure, pure);
+    check(`${ label } uses a value import`, plan.retainedStatic, true);
+  }
+});
+
 finish();

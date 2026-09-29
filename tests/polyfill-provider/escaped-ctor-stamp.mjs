@@ -1542,6 +1542,13 @@ const NAME_ROWS = [
     realm: [],
     heldInSlot: ['Map'],
   },
+  ...[
+    ['conditional pattern alias in presence test', "let M; if (flag) ({ Map: M } = globalThis); 'groupBy' in M;", 'Map'],
+    ['conditional pattern alias in parameter default', 'let P; if (flag) ({ Promise: P } = globalThis); function f({ try: t } = P) { return t; }', 'Promise'],
+    ['conditional pattern alias with leaf default', 'let S; if (flag) ({ Symbol: S } = globalThis); const { iterator: value = null } = S;', 'Symbol'],
+    ['captured selecting assignment with an intrinsic sibling', 'let name, groupBy; const value = ({ name, groupBy } = globalThis.zz || Map);', 'Map'],
+    ['realm read in an earlier closure', 'function f() { return g.Promise.resolve(1); } var g = globalThis; f();', 'Promise'],
+  ].map(([name, code, held]) => ({ name, code, heldInSlot: [held], withContainerCensus: true })),
   {
     name: 'a guarded realm result carries the constructor read by its outer member',
     code: 'function f(c) { if (c) { var g = globalThis; } g.Promise.allSettled([]); }',
@@ -1558,6 +1565,12 @@ const NAME_ROWS = [
     name: 'the constructor obligation follows a later alias of a guarded realm',
     code: 'function f() { try { var g = globalThis; } finally {} const held = g; held.Promise.allSettled([]); }',
     heldInSlot: ['Promise'],
+    withContainerCensus: true,
+  },
+  {
+    name: 'an unconditional pattern alias keeps its named static narrow',
+    code: 'const { Map: M } = globalThis; const { groupBy } = M;',
+    homeOnly: ['Map'],
     withContainerCensus: true,
   },
   {
@@ -1733,6 +1746,17 @@ const NAME_ROWS = [
     code: 'function pick(label, value) { value = replacement; return value; } hand(pick(1, Map));',
     homeOnly: ['Map'], withContainerCensus: true,
   },
+  // One synthesized source is queried both as an ordinary slot and through a guarded alias.
+  // The first query must not suppress synthetic names needed by the other cache domain.
+  ...[
+    ['slot first', 'const box = { x: flag ? M : Math }; "groupBy" in box.x; let C = M; if (flag) C = Math; "groupBy" in C;'],
+    ['alias first', 'let C = M; if (flag) C = Math; "groupBy" in C; const box = { x: flag ? M : Math }; "groupBy" in box.x;'],
+  ].map(([order, reads]) => ({
+    name: `synthetic receiver cache domains: ${ order }`,
+    code: `const { Map: M } = globalThis; ${ reads }`,
+    heldInSlot: ['Map'],
+    withContainerCensus: true,
+  })),
   {
     name: 'duplicate sloppy parameters do not prove which argument is returned',
     code: 'function pick(value, value) { return value; } const ctor = pick(Map, replacement); use(ctor.groupBy);',
