@@ -14,10 +14,10 @@ import "core-js/modules/es.map.get-or-insert-computed";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
 import "core-js/modules/web.self";
-// the ctor-key anchor route is a usage-pure rewrite, so tightening its key gate to identifier-valid
-// names must leave this method's decision alone: every key shape below - folded well-known symbol,
-// dashed and dotted strings, `$` and Unicode identifiers, a real constructor - still contributes its
-// own detection, and the source is not rewritten at all
+// the ctor-key anchor route is a usage-pure rewrite, so its key gate - a known built-in, never a
+// key that merely looks like one - leaves this method's decision alone: every key shape below -
+// folded well-known symbol, dashed and dotted strings, `$` and Unicode identifiers, a real
+// constructor - contributes its own detection, and the source is not rewritten at all
 const {
   [Symbol.iterator]: {
     name: iterName
