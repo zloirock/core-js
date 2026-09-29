@@ -1,3 +1,4 @@
+import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 import _at from "@core-js/pure/actual/instance/at";
 // the other side of the same boundary: when the receiver type is NOT decided, pure still has to
@@ -11,4 +12,4 @@ unresolvable == null ? void 0 : _at(unresolvable).call(unresolvable, 0);
 declare const matching: number[] | string[];
 matching == null ? void 0 : _includesMaybeArray(matching).call(matching, 1);
 declare const partial: number[] | Date;
-partial == null ? void 0 : _at(partial).call(partial, 0);
+partial == null ? void 0 : _atMaybeArray(partial).call(partial, 0);

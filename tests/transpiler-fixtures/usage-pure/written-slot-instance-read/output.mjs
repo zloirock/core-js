@@ -1,6 +1,6 @@
+import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
-import _at from "@core-js/pure/actual/instance/at";
-import _includes from "@core-js/pure/actual/instance/includes";
+import _includesMaybeString from "@core-js/pure/actual/string/instance/includes";
 // an instance method read off a slot the file wrote serves the written value: the literal's value is
 // no certain receiver, so usage-global injects the instance polyfill and pure dispatches it - a
 // declared pattern, a nested one and a pattern write alike
@@ -11,7 +11,7 @@ box.a = [1, 2];
 const {
   a: list
 } = box;
-export const last = _at(list).call(list, -1);
+export const last = _atMaybeArray(list).call(list, -1);
 const deep = {
   k: {
     m: Math
@@ -32,4 +32,4 @@ let text = Math;
 ({
   c: text
 } = chars);
-export const has = _includes(text).call(text, 'b');
+export const has = _includesMaybeString(text).call(text, 'b');
