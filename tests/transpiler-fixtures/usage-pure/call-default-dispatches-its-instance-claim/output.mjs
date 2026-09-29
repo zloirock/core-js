@@ -18,13 +18,8 @@ const {
   }
 } = {};
 function h2(o) {
-  const {
-    A: {
-      flat
-    } = {
-      flat: _flatMaybeArray(fa())
-    }
-  } = o;
+  var _ref;
+  const flat = _flatMaybeArray((_ref = o.A) === void 0 ? fa() : _ref);
   return flat;
 }
 function h3(o) {
