@@ -16,7 +16,14 @@
 // (resolveBindingType, type-query, plus various back-reference paths). `resolveNodeType`
 // is late-bound via thunk since the cluster recurses into the main resolver.
 import {
-  $Object, $Primitive, PATTERN_WRAPPERS, argIndexForParam, canonicalArrayIndex, dropLeadingThisParam,
+  $Object,
+  $Primitive,
+  PATTERN_WRAPPERS,
+  TYPE_HINTS,
+  argIndexForParam,
+  canonicalArrayIndex,
+  dropLeadingThisParam,
+  toHint,
 } from './base.js';
 import {
   collectQualifiedSegments,
@@ -34,6 +41,7 @@ import {
   argumentOverridesSlot,
   effectiveArgsLength,
   patternSlotTarget,
+  patternHasAnyDefault,
   positionalElementPath,
   resolveCallArgument,
   resolveCallArgumentCoords,
@@ -146,6 +154,7 @@ export function createPatternBindings({
   violationToAssignment,
   babelNodeType,
   resolveNodeType,
+  mergeArmHints,
   resolveRuntimeExpression,
   resolveInnerType,
   commonType,
@@ -688,7 +697,7 @@ export function createPatternBindings({
   // read has to ask the same flow-aware resolver a member read of that slot asks. an inline literal
   // (a for-of element, a call argument) has no binding for a writer to go through, and there the
   // init type is the whole truth. the rule lives HERE, once, so no caller can spell it differently
-  function resolveObjectMemberPath(objPath, keyPath, sourcePath = null) {
+  function resolveObjectMemberPath(objPath, keyPath, sourcePath = null, unionHints = false) {
     // ... and a binding reached MID-WALK counts the same: an array WRAPPER hands the pattern an
     // element (`[{ y: { at } }] = [box]`), and the slot below that element is as reachable to a
     // writer as one below a binding named at the top. tracked as the walk descends, or the wrapper
@@ -709,7 +718,7 @@ export function createPatternBindings({
         && unwrapRuntimeExpr(getScopeBinding(holder.scope, holder.node.name, holder)?.path?.node?.init) === objPath.node;
     }
     while (true) {
-      if (keyPath.length === 0) return resolveNodeType(objPath);
+      if (keyPath.length === 0) return unionHints ? null : resolveNodeType(objPath);
       const [step] = keyPath;
       const rest = keyPath.slice(1);
       if (holder && !ownFinalField(step, rest) && pathSlotWritten(holder, [...holderKeys, step])) return null;
@@ -717,7 +726,7 @@ export function createPatternBindings({
         // -1 = rest element. with no further keys the binding IS the rest Array; a remaining
         // key-path (`const [...{ length }] = a`) reads off that Array, but resolving it precisely
         // needs the source element type - bail so the member doesn't mis-resolve as the Array
-        if (step < 0) return rest.length ? null : new $Object('Array');
+        if (step < 0) return rest.length || unionHints ? null : new $Object('Array');
         // no literal to walk: the container is a VALUE - a call result, an inner-typed binding - and
         // the step reads its element exactly as the index spelling `f()[0]` does, off the resolved
         // type. a value's element has no path of its own, so the steps left descend the TYPE: an
@@ -725,6 +734,7 @@ export function createPatternBindings({
         // there - the member spelling's own answer for a field of a value. answering null here left
         // a positional leaf over a call on the generic dispatcher where its index spelling was typed
         if (!t.isArrayExpression(objPath.node)) {
+          if (unionHints) return null;
           let type = typedIndexElement(rawPath, rawPath);
           for (const [at, next] of rest.entries()) {
             if (!type || typeof next !== 'number') return null;
@@ -758,7 +768,7 @@ export function createPatternBindings({
       // member canon answers for both. a hop PAST such a container has no path to descend and stays
       // unresolved, which is the member spelling's own answer for its second hop
       if (!t.isObjectExpression(objPath.node)) {
-        return rest.length || !rawPath?.node ? null : resolveMemberOfObjectPath(rawPath, step, null);
+        return rest.length || !rawPath?.node ? null : resolveMemberOfObjectPath(rawPath, step, null, unionHints);
       }
       // the FINAL slot read asks the flow-aware resolver, exactly as a member read of the same slot
       // does (`{ y: { at } } = box` reads what `box.y` reads): it folds every reachable write and
@@ -768,8 +778,8 @@ export function createPatternBindings({
       // ... and a literal a GETTER builds fresh per read is read off ITSELF: the writer fold has no
       // earlier caller to account for, which is the same answer the member spelling gives
       if (!rest.length) {
-        return flowAware && !isGetterFreshLiteral(objPath.node)
-          ? resolveObjectFieldFlow(objPath, step)
+        return unionHints || (flowAware && !isGetterFreshLiteral(objPath.node))
+          ? resolveObjectFieldFlow(objPath, step, null, unionHints, true)
           : resolveObjectMember(objPath, step);
       }
       // the canonical stepper owns which slots are walkable - a plain value, and a getter through
@@ -1217,13 +1227,17 @@ export function createPatternBindings({
     return null;
   }
 
-  function resolveBindingType(path) {
+  function resolveBindingType(path, unionHints = false) {
     if (!t.isIdentifier(path.node)) return null;
     const binding = getScopeBinding(path.scope, path.node.name, path);
     if (!binding) return null;
     const { name } = path.node;
     const bindingPath = liveBindingPath(binding, name);
     const { node } = bindingPath;
+    // Hint projection is for stable pattern extractions; ordinary bindings enumerate their
+    // reachable values in the caller. Keep the same reassignment gate as the Type query below.
+    if (unionHints && (binding.kind === 'var' || node.type !== 'VariableDeclarator'
+      || !node.init || !isDestructurePattern(node.id))) return null;
     // a dominating var-redecl whose slot for `name` is an array-rest SLICE has no RHS node
     // the redecl path machinery could hand back - its slice TYPE resolves here instead,
     // before the reassignment gate below treats the redecl as an invalidating write
@@ -1243,6 +1257,13 @@ export function createPatternBindings({
     const pattern = bindingDestructuringPattern(node);
     if (pattern) {
       if (structuralNarrowInvalidated(binding, path, sameRestFamilyRebind(bindingPath, name))) return null;
+      if (unionHints) {
+        // Defaults add receiver arms of their own. A field-only proof cannot discard them.
+        if (pattern.typeAnnotation || patternHasAnyDefault(pattern)) return null;
+        const keyPath = findPatternKeyPath(pattern, name, bindingPath.scope);
+        const init = bindingPath.get('init');
+        return keyPath ? resolveObjectMemberPath(resolveRuntimeExpression(init), keyPath, init, true) : null;
+      }
       const slot = pattern.type === 'ObjectPattern'
         ? resolveObjectBinding(pattern, name, bindingPath)
         : resolveArrayBinding(pattern, name, bindingPath);
@@ -1301,10 +1322,10 @@ export function createPatternBindings({
 
   // the value an assignment writes into the binding named `name`: a compound operator's own result,
   // the paired slot of a destructuring LHS, or the plain RHS
-  function assignedValueType(assignPath, name) {
+  function assignedValueType(assignPath, name, unionHints = false, depth = 0) {
     // `+=` / `-=` / ... - the assignment node's own type captures the result
     if (assignPath.node.type === 'AssignmentExpression' && assignPath.node.operator !== '=') {
-      return resolveNodeType(assignPath);
+      return unionHints ? mergeArmHints([assignPath], depth) : resolveNodeType(assignPath);
     }
     const left = assignLeft(assignPath.node);
     const rightKey = assignRightKey(assignPath.node);
@@ -1312,17 +1333,26 @@ export function createPatternBindings({
     // dispatch by pattern kind, then resolve via the shared runtime-or-annotation fallback
     // (keeps ArrayPattern and ObjectPattern reassign-narrowing symmetric)
     const keyPath = findPatternKeyPath(left, name, assignPath.scope);
-    if (keyPath) return resolveDestructuredMember(assignPath.get(rightKey), keyPath);
+    if (keyPath) {
+      if (!unionHints) return resolveDestructuredMember(assignPath.get(rightKey), keyPath);
+      if (patternHasAnyDefault(left)) return null;
+      const right = assignPath.get(rightKey);
+      const type = resolveDestructuredMember(right, keyPath);
+      if (type) {
+        if (isNullableOrNever(type)) return new Set();
+        const hint = toHint(type);
+        return hint ? new Set(TYPE_HINTS.has(hint) ? [hint] : []) : null;
+      }
+      return resolveObjectMemberPath(resolveRuntimeExpression(right), keyPath, right, true);
+    }
     // an undecomposable pattern slot is an unknown value, not the whole RHS
     if (isDestructurePattern(left)) return null;
-    return resolveNodeType(assignPath.get(rightKey));
+    return unionHints ? mergeArmHints([assignPath.get(rightKey)], depth) : resolveNodeType(assignPath.get(rightKey));
   }
 
-  // every value that can reach a read of `binding`, as two views of ONE enumeration: `types` is the
-  // per-arm resolved type (the whole set is null-free only when every arm resolved), `paths` is the
-  // per-arm value PATH for consumers that re-resolve arms themselves - null once an arm has no single
-  // value node to point at. null overall when an arm cannot be read at all
-  function reachableValueArms(binding, bindingPath, name, usagePath) {
+  // Every value that can reach a binding read, projected to Types or dispatch families by one
+  // enumeration. A pattern assignment contributes its paired field, never its whole RHS.
+  function reachableValueArms(binding, bindingPath, name, usagePath, unionHints = false, depth = 0) {
     // a `var name = X` REDECLARATION is deliberately kept OUT of the violation list (the type layer
     // resolves redecl flow through its own positional machinery), so an enumeration built off that
     // list alone silently misses a whole value. the canonical scan reads the AST rather than either
@@ -1330,12 +1360,10 @@ export function createPatternBindings({
     if (varInitStaleByRedecl(binding, usagePath, name)) return null;
     const initPath = bindingPath.get('init');
     const types = [];
-    let paths = [];
     // a NULLISH arm dispatches nothing - a member access on it throws natively and no polyfill
     // changes that - so it neither narrows nor widens the set
     if (!isNullishInit(initPath.node, bindingPath.scope, bindingPath)) {
-      types.push(resolveNodeType(initPath));
-      paths.push(initPath);
+      types.push(unionHints ? mergeArmHints([initPath], depth) : resolveNodeType(initPath));
     }
     for (const violation of binding.constantViolations ?? []) {
       // a RECOVERED extra is node-shaped: it carries no parent chain to decompose, and its presence
@@ -1349,27 +1377,23 @@ export function createPatternBindings({
       // the same anchoring the resolver entry applies - an unanchored write path answers "no shadow"
       const anchored = anchorPathScope(assignPath);
       if (plain && isNullishInit(valuePath.node, anchored.scope, anchored)) continue;
-      types.push(assignedValueType(assignPath, name));
-      // a compound operator's result and a destructuring slot are computed, not written from a
-      // single node - the path view cannot describe them. `null` is the DECLINED sentinel of that
-      // view and the loop runs on for the type view, so a later plain write writes through the
-      // guard rather than into the sentinel
-      if (plain && !PATTERN_WRAPPERS.has(assignLeft(assignPath.node)?.type)) paths?.push(valuePath);
-      else paths = null;
+      types.push(assignedValueType(assignPath, name, unionHints, depth));
     }
-    return { types, paths };
+    return types;
   }
 
-  // the reachable-value arms as PATHS, for the hint-set channel: it re-resolves each arm itself
-  // (an arm may be a nested union of its own), so it needs the nodes rather than folded types
-  function reachableValuePaths(binding, bindingPath, name, usagePath) {
-    return reachableValueArms(binding, bindingPath, name, usagePath)?.paths ?? null;
+  // The same reachable values projected to dispatch families. Pattern assignments read their
+  // paired fields through the field-flow resolver, just as declaration patterns do.
+  function reachableValueUnionHints(binding, bindingPath, name, usagePath, depth) {
+    const arms = reachableValueArms(binding, bindingPath, name, usagePath, true, depth);
+    if (!arms?.length || arms.some(arm => !arm)) return null;
+    return new Set(arms.flatMap(arm => [...arm]));
   }
 
   // union of the declarator init and every write value, for a read that runs deferred: each write
   // can land before a later invocation, so all of them reach the read whatever their source position
   function deferredReadUnionType(binding, bindingPath, name, usagePath) {
-    const arms = reachableValueArms(binding, bindingPath, name, usagePath)?.types;
+    const arms = reachableValueArms(binding, bindingPath, name, usagePath);
     if (!arms?.length) return null;
     // the CANONICAL union fold, not a bare reduce over `commonType`: an unresolvable arm bails the
     // whole set (an open set is exactly the unknown the caller had before), a dropped nullish arm
@@ -1430,7 +1454,7 @@ export function createPatternBindings({
   return {
     defaultParamNeverOverridden,
     parameterCallSites,
-    reachableValuePaths,
+    reachableValueUnionHints,
     findArrayPatternKeyPath,
     findDestructuredKeyPath,
     findForLoopParent,

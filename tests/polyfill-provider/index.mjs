@@ -8,6 +8,7 @@ import './harness-contracts.mjs';
 import './resolve-node-type.mjs';
 import './flow-class-members.mjs';
 import './class-flow-order.mjs';
+import './field-union-hints.mjs';
 import './container-navigation-opaque-values.mjs';
 import './container-alias-alternatives.mjs';
 import './literal-carrier-closure.mjs';

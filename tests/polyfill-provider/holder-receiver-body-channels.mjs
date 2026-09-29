@@ -26,6 +26,24 @@ const { check, finish } = createChecker('holder-receiver-body-channels');
 const READ = 'read() { return this.rows.at(0); }';
 
 const CHANNELS = [
+  ['unread body installed through an alias', 'const h = { rows: [1, 2] }; const alias = h; alias.change = fn; h.change(); export const r = h.rows.at(0);', 'escapes'],
+  ['uncalled unread body does not run on a field read', 'const h = { rows: [1, 2] }; h.change = fn; export const r = h.rows.at(0);', 'local'],
+  ['replacement of a declared method by an unread value', 'const h = { rows: [1, 2], change() {} }; h.change = fn; h.change(); export const r = h.rows.at(0);', 'escapes'],
+  [
+    'installed scalar writer with a concrete receiver',
+    'class C { static rows = [1, 2]; }\nC.change = function () { this.count = 1; };\nC.change();\nexport const r = C.rows.at(0);',
+    'local',
+  ],
+  [
+    'installed writer handing its receiver out',
+    'class C { static rows = [1, 2]; }\nC.change = function () { sink(this); };\nC.change();\nexport const r = C.rows.at(0);',
+    'escapes',
+  ],
+  [
+    'installed writer installing an unread body',
+    'class C { static rows = [1, 2]; }\nC.change = function () { this.extra = foreign; };\nC.change();\nC.extra();\nexport const r = C.rows.at(0);',
+    'escapes',
+  ],
   // (1) receiver of a member call - the body may be written here, copied in, or inherited
   ['own method hands `this` out',
     `const h = { rows: [1, 2], leak() { sink(this); }, ${ READ } };\nh.leak();\nexport const r = h.read();`, 'escapes'],
