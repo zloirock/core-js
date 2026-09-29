@@ -1,4 +1,4 @@
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
 import _Promise from "@core-js/pure/actual/promise/constructor";
 // `key in alias` reflection over a REFUSED ctor alias stays a LIVE check (the fold canon
 // applies only to trusted resolutions); an unresolvable key stays live for any alias

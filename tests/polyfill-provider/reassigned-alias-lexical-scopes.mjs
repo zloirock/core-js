@@ -92,4 +92,24 @@ for (const adapter of adapters) {
 }
 check('all rows were checked', checked, adapters.length * rows.length * 3);
 check('the suite keeps its coverage floor', checked >= 84, true);
+
+// Generated writes can lack source positions. Two such records cannot be ordered textually.
+for (const parser of adapters) {
+  for (const missing of [[], [0], [1], [0, 1]]) {
+    const program = parser.parseAndScope('let holder; holder = first; holder = second; observe(holder);');
+    const writes = parser.collectPaths(program, 'AssignmentExpression');
+    for (const index of missing) delete writes[index].node.start;
+    const usagePath = parser.pickPath(program, 'CallExpression');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const binding = adapter.getBinding(usagePath.scope, 'holder', usagePath);
+    const value = reachingReassignmentValueNode({ binding, usagePath });
+    check(`${ parser.name }: missing positions ${ missing }`, value?.name ?? null, missing.length ? null : 'second');
+  }
+  const program = parser.parseAndScope('let holder; holder = source; observe(holder);');
+  delete parser.pickPath(program, 'AssignmentExpression').node.start;
+  const usagePath = parser.pickPath(program, 'CallExpression');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const binding = adapter.getBinding(usagePath.scope, 'holder', usagePath);
+  check(`${ parser.name }: one generated write needs no ordering`, reachingReassignmentValueNode({ binding, usagePath })?.name, 'source');
+}
 finish();
