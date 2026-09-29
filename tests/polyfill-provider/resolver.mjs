@@ -540,4 +540,28 @@ for (const [hint, expected] of [['set', false], ['array', false], ['number', fal
     resolver.resolveUsage({ kind: 'property', placement: 'prototype', key: 'toString' }, typedMemberPath), null);
 }
 
+// Finite value unions select only relevant families. Broad guard sets still need the
+// generic dispatcher when their unmatched alternatives can carry another native family.
+for (const [hints, expectedPure, expectedGlobal] of [
+  [['array', 'function'], 'array/instance/includes', ['array/instance/includes']],
+  [['string', 'function'], 'string/instance/includes', ['string/instance/includes']],
+  [['array', 'string'], 'instance/includes', ['array/instance/includes', 'string/instance/includes']],
+]) {
+  const env = makeTypedEnv(null, null);
+  env.typeResolvers.resolvePropertyUnionHints = () => new Set(hints);
+  const meta = { kind: 'property', key: 'includes' };
+  const { resolver: global } = createPolyfillResolver(typedOptions, env);
+  const { resolver: pure } = createPolyfillResolver({ ...typedOptions, method: 'usage-pure' }, env);
+  check(`finite includes union/${ hints }/global`, JSON.stringify(global.resolveUsage(meta, typedMemberPath)?.sort()), JSON.stringify(expectedGlobal));
+  check(`finite includes union/${ hints }/pure`, pure.resolvePure(meta, typedMemberPath)?.entry, expectedPure);
+}
+for (const excluded of [false, true]) {
+  const env = makeTypedEnv(null, null);
+  env.astPredicates.isMemberLike = () => true;
+  env.typeResolvers.resolveGuardHints = () => excluded
+    ? { excludedHints: new Set(['string']) } : { includedHints: new Set(['array', 'object', 'date']) };
+  const { resolver } = createPolyfillResolver({ ...typedOptions, method: 'usage-pure' }, env);
+  check(`broad guard/${ excluded }/pure`, resolver.resolvePure({ kind: 'property', key: 'at' }, typedMemberPath)?.entry, 'instance/at');
+}
+
 finish();

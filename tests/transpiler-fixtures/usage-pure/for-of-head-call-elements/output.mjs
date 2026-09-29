@@ -1,5 +1,4 @@
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
-import _entries from "@core-js/pure/actual/instance/entries";
 import _Object$entries from "@core-js/pure/actual/object/entries";
 import _Object$is from "@core-js/pure/actual/object/is";
 import _Object$keys from "@core-js/pure/actual/object/keys";
@@ -70,7 +69,7 @@ for (const item of [{
   w: Object
 }]) {
   item.w = Array;
-  const viaWrittenSlot = _entries(item.w);
+  const viaWrittenSlot = item.w.entries;
   _pushMaybeArray(out).call(out, viaWrittenSlot);
 }
 export { out, n };

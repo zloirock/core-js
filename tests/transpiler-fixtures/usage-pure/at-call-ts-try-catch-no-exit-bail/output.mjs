@@ -1,4 +1,4 @@
-import _at from "@core-js/pure/actual/instance/at";
+import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 function example(x: number | string[]) {
   if (typeof x === 'number') {
     try {
@@ -8,5 +8,5 @@ function example(x: number | string[]) {
       logFailure();
     }
   }
-  _at(x).call(x, -1);
+  _atMaybeArray(x).call(x, -1);
 }
