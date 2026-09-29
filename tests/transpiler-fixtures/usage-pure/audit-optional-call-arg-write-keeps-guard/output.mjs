@@ -1,20 +1,17 @@
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Map from "@core-js/pure/actual/map/constructor";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
+var _ref, _ref2;
 // an alias-write in an OPTIONAL call's argument short-circuits with a nullish receiver -
 // the write may never run, so the member fold keeps the runtime guard instead of folding
 // unconditionally (folding un-throws the native TypeError of the undefined alias)
 let M;
 declare const host: any;
-host?.doThing({
-  Map: M
-} = _globalThis);
+host?.doThing((_ref = _globalThis, M = _Map, _ref));
 export const viaOptionalArg = typeof (M === _Map ? _Map$groupBy : M.groupBy);
 let M2;
 declare const a: any;
-a?.b.c({
-  Map: M2
-} = _globalThis);
+a?.b.c((_ref2 = _globalThis, M2 = _Map, _ref2));
 export const viaDeeperChain = typeof (M2 === _Map ? _Map$groupBy : M2.groupBy);
 
 // an unconditional sequence-position write still folds

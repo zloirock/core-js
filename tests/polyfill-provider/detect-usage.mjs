@@ -1364,6 +1364,7 @@ for (const [source, expected] of [
   ['const f = () => ({ a: Array }); let A; ({ a: A } = f()); A.from;', ['Array']],
   ['const f = () => [Array]; let A; [A] = f(); A.from;', ['Array']],
   ['const f = x => ({ a: x }); let A; ({ a: A } = f(Map)); A.from;', ['Map']],
+  ['const f = () => ({ a: Array }); const g = () => ({ a: Map }); let A; ({ a: A } = flag ? f() : g()); A.from;', ['Array', 'Map']],
   // ... and a CHAIN (a callee returning another call) unions on through to the literal, and an
   // OPTIONAL call pairs like a plain one on both parsers - the union reads through the chain marker
   ['const f = () => ({ a: Array }); const g = () => f(); const { a: A } = g(); A.from;', ['Array']],
@@ -1428,6 +1429,14 @@ for (const [source, names, complete] of [
   ['let O = Object; if (c) [O] = [Map, ...xs]; O.entries;', ['Map'], true],
   ['let O = Object; if (c) ({ "0": O } = [Map, ...xs]); O.entries;', ['Map'], true],
   ['let O = Object; if (c) O = d ? Map : Object; O.entries;', ['Map', 'Object'], true],
+  ['let O; ({ K: O } = c ? { K: Map } : { K: Object }); O.entries;', ['Map', 'Object'], true],
+  ['let O; [O] = c ? [Map] : [Object]; O.entries;', ['Map', 'Object'], true],
+  ['let O; [O] = c ? [Map] : unknown(); O.entries;', ['Map'], false],
+  ['let O; ({ K: O } = c ? { K: Map } : unknown()); O.entries;', ['Map'], false],
+  ['let O; ({ K: O } = c ? { K: Map } : {}); O.entries;', ['Map'], false],
+  ['let O; [, O] = c ? [...xs, Map] : [0, Object]; O.entries;', ['Map', 'Object'], false],
+  ['let O; ({ K: O } = c ? (x = { K: Map }) : { K: Object }); O.entries;', ['Map', 'Object'], true],
+  ['let O; ({ nested: { K: O } } = c ? { nested: { K: Map } } : { nested: { K: Object } }); O.entries;', ['Map', 'Object'], true],
 ]) runBoth(`reassignmentValueEnumeration/completeness ${ source }`, source, (adapter, prog, lbl) => {
   checkDeep(lbl, enumerate(adapter, prog, 'O'), { names, complete });
 });

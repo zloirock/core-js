@@ -4561,6 +4561,9 @@ export function reachingReassignmentValueNode({
     const [first] = values;
     if (first && values.every(value => writeValuesAgree(value, first))) return first;
   }
+  // Multiple writes need comparable positions. A generated write without one cannot win
+  // a textual ordering proof over a later user write merely by appearing first in the list.
+  if (before.length > 1 && before.some(node => typeof node.start !== 'number')) return null;
   // SAME-SCOPE: every before-use write is a plain `name = <expr>` in the read's own var-scope. the
   // textually-last one overwrites every earlier write - it is the reaching definition only if it ALWAYS
   // runs (unconditional: no guards); a conditional last write leaves the value ambiguous
@@ -5112,6 +5115,7 @@ function pairerSources(rhs, ctx) {
 // `includeBindings` includes every named slot, so an opaque receiver's static reads are counted
 // even when no particular local binding is queried. `slotReceivers` maps each reported slot to the
 // receiver its level reads it off.
+// `keepsSelectedReceiver` reports reads from a selection retained by a value-consuming host.
 // `restSources` collects the source values of object-rest levels during the same pairing walk, and
 // `restValues` each rest level of either kind with the source it copies from (`restCopiedValues`).
 // `opaqueKeys` collects each COMPUTED key the pairing cannot name with the value its level reads the
@@ -5159,7 +5163,8 @@ export function patternReceiverSlotNodes(pattern, rhs, name, ctx) {
     // ... the same sources `patternSlotValues` pairs against: the container slot, the receiver read
     // and the slot's own default. the first two are exclusive by construction - a paired value means
     // an object / array literal rhs, which is never receiver-shaped
-    const received = isReceiverShapedNode(rhs) || (ctx?.readsThrough && invocationNode(rhs)) ? receiverSlotRead(rhs, key) : null;
+    const received = isReceiverShapedNode(rhs) || (ctx?.readsThrough && invocationNode(rhs))
+      || (ctx?.keepsSelectedReceiver && getFallbackBranchSlots(rhs)) ? receiverSlotRead(rhs, key) : null;
     if (isDestructurePattern(slot)) {
       if (received && ctx?.includeNestedReceivers) {
         out.push(prop);
@@ -5592,13 +5597,19 @@ function reassignmentValueNodesAt(node, ownerNode, bindingName, ctx, varScopeNod
   }
   function paired(target, value, name) {
     if (!name) return { nodes: [], open: false };
-    // ... a slot the file WROTE holds the written values beside the literal's, and reads as open
-    const read = { pattern: target, init: value, name, ctx };
-    return {
-      nodes: [...patternSlotValues(target, value, name, ctx), ...writtenPatternSlotValues(read)],
-      open: patternSlotSpreadShifted(target, value, name, ctx) || patternSlotWritten(read),
-      callSites: patternCallSites(target, [value]),
-    };
+    // Select the receiver before pairing its slots; pairing the selection itself loses its arms.
+    const sources = flattenBranchingValueNodes([value]);
+    const nodes = [];
+    let open = false;
+    for (const init of sources) {
+      const read = { pattern: target, init, name, ctx };
+      // A written slot keeps its recorded values beside the literal's, but the set stays open.
+      const values = [...patternSlotValues(target, init, name, ctx), ...writtenPatternSlotValues(read)];
+      nodes.push(...values);
+      // One readable arm cannot make an unreadable sibling complete.
+      if (!values.length || patternSlotSpreadShifted(target, init, name, ctx) || patternSlotWritten(read)) open = true;
+    }
+    return { nodes, open, callSites: patternCallSites(target, sources) };
   }
   function iterated(forX, name) {
     const head = forX ? forXHeadValueNodes(forX, name, ctx) : null;

@@ -1,5 +1,6 @@
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
+import _Iterator from "@core-js/pure/actual/iterator/constructor";
 import _Iterator$from from "@core-js/pure/actual/iterator/from";
 import _JSON$rawJSON from "@core-js/pure/actual/json/raw-json";
 import _Map from "@core-js/pure/actual/map/constructor";
@@ -9,6 +10,7 @@ import _Promise$allSettled from "@core-js/pure/actual/promise/all-settled";
 import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Symbol from "@core-js/pure/actual/symbol/constructor";
 import _Symbol$for from "@core-js/pure/actual/symbol/for";
+var _ref, _ref2, _ref3, _ref4;
 // an assignment-form alias write inside an optional chain is conditional exactly when an
 // optional hop sits AT or BELOW the slot's host - only then may the write never run. a hop
 // strictly RIGHT of the slot cuts after the write already evaluated, so the registration
@@ -22,27 +24,19 @@ a[{
 export const viaKeyBeforeOptional = _Array$of(1, 2);
 
 // call argument of a NON-optional call, cut after - static narrow
-f({
-  Iterator: IW
-} = _globalThis)?.next;
+f((_ref = _globalThis, IW = _Iterator, _ref))?.next;
 export const viaArgBeforeOptional = _Iterator$from(src);
 
 // argument of an OPTIONAL call may never evaluate - guarded
-host?.doThing({
-  Map: MW
-} = _globalThis);
+host?.doThing((_ref2 = _globalThis, MW = _Map, _ref2));
 export const viaOptionalCallArg = (MW === _Map ? _Map$groupBy : MW.groupBy.bind(MW))(items, tag);
 
 // computed key under an optional member may never evaluate - guarded
-a?.[{
-  Promise: PW
-} = _globalThis];
+a?.[_ref3 = _globalThis, PW = _Promise, _ref3];
 export const viaOptionalMemberKey = (PW === _Promise ? _Promise$allSettled : PW.allSettled.bind(PW))(list);
 
 // deep chain: the call is plain but an optional hop sits below its callee - guarded
-a?.b.c({
-  Symbol: SW
-} = _globalThis);
+a?.b.c((_ref4 = _globalThis, SW = _Symbol, _ref4));
 export const viaOptionalSpineArg = (SW === _Symbol ? _Symbol$for : SW.for.bind(SW))(wellKnownKey);
 
 // an optional hop in the HOST's spine guards the key even through deeper composition - guarded
