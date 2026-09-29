@@ -7427,7 +7427,7 @@ export function prototypeValueMayDispatch(node, undefinedShadowed = false) {
 // is THIS property the one that installs a prototype? only a plain, non-computed, non-shorthand
 // `__proto__` data property does - a method, an accessor or a computed key of the same name creates
 // an ordinary own property instead. one rule, read both per-literal and per-property
-function propertyInstallsPrototype(prop, undefinedShadowed = false) {
+export function propertyInstallsPrototype(prop, undefinedShadowed = false) {
   if (prop?.type !== 'Property' && prop?.type !== 'ObjectProperty') return false;
   if (prop.computed || prop.shorthand || prop.method || (prop.kind && prop.kind !== 'init')) return false;
   if (propertyKeyName(prop) !== '__proto__') return false;
