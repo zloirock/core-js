@@ -11286,14 +11286,13 @@ runBoth('union hints: a nested destructure stays conservative (null)',
   });
 
 // a constructor or namespace the realm holds is a function or a plain object, never an instance of
-// its own family; the realm object itself stays untyped, and a destructured NAME is a binding, whose
-// written values the realm spelling of its literal does not speak for
+// its own family; the realm object itself stays untyped. A destructured field keeps both its
+// namespace initializer and its array write, rather than taking the initializer alone.
 for (const [label, source, expected] of [
   ['constructor arms', 'function f(c) { (c ? Map : Set).at(0); }', 'function'],
   ['a namespace arm', 'function f(c) { (c ? Math : Object).at(0); }', 'function,object'],
   ['the realm object', 'function f(c) { (c ? globalThis : []).at(0); }', null],
-  ['a written slot read through a destructured name',
-    'const box = { a: Math }; box.a = [1, 2]; const { a: list } = box; list.at(0);', null],
+  ['a written slot read through a destructured name', 'const box = { a: Math }; box.a = [1, 2]; const { a: list } = box; list.at(0);', 'array,object'],
 ]) {
   runBoth(`union hints: ${ label }`, source, (adapter, prog, lbl) => {
     const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');

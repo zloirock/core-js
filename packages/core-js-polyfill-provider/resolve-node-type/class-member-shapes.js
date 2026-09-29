@@ -3,14 +3,13 @@
 // definition eliminates comment / style drift across them.
 //
 // Top-level `memberWriteTargetPath` is closure-free (operates on a NodePath's `.node.type` +
-// `.get(...)`); the two factories carry adapter (`t`) and key/type resolvers required by
+// `.get(...)`); the two factories carry adapter (`t`) and key resolvers required by
 // shape-aware variants.
-import { $Primitive } from './base.js';
 import { peelSkippableWrapperPath, unwrapRuntimeExpr, singleQuasiString } from '../helpers/ast-patterns.js';
 
 // shape unification of `<expr>.<field> = ...` / `<expr>.<field>++` writes: AssignmentExpression
 // target on `.left`, UpdateExpression target on `.argument`. callers ask "is this a member-
-// target write, what's the field name, what's the RHS type?" without re-implementing the
+// target write, what's the field name, what's the RHS value?" without re-implementing the
 // AST shape switch. parser-agnostic - reads `.node.type` strings and uses path navigation.
 // a bare MemberExpression IS its own target: destructure-pattern / for-x heads index member
 // write paths directly (no enclosing assignment node), so the path stands in for the target
@@ -65,40 +64,33 @@ export function createClassMemberShape({ t }) {
 
 // member-write semantics: extract the field name from a write-target MemberExpression
 // (computed literal-string / literal-number keys resolve via `getKeyName`, truly dynamic
-// keys -> null), and report the resolved type contributed by a write. pure `=` with
-// resolvable RHS contributes the RHS type; compound / update operators push `unknown`
+// keys -> null without a scope; a scoped query also folds constant keys), and report the
+// value path contributed by a write. Plain `=` contributes
+// its RHS path; compound / update operators contribute an opaque null marker
 // (operator-coerced type depends on BOTH operands, not statically precise)
-export function createMemberWriteShape({ t, getKeyName, resolveNodeType }) {
-  function memberWriteFieldName(targetNode) {
+export function createMemberWriteShape({ t, getKeyName, resolveComputedKeyName }) {
+  function memberWriteFieldName(targetNode, scope) {
     // peel transparent wrappers (TS `!`/`as`/`satisfies`, parens) so a wrapped write target
     // (`this.field! = s`, `(this.field) = s`) is still recognized as a member write - without the
     // peel the field name is lost, the write is dropped from the field's type index, and the field
     // keeps a stale narrow that emits a type-specific Maybe helper throwing on the new value (ie:11)
     const target = unwrapRuntimeExpr(targetNode);
     if (!t.isMemberExpression(target)) return null;
-    // a computed key names a field only by its STATIC value: a string / number literal (`this['f']` /
-    // `this[0]`, via getKeyName) or a single-quasi template (`this[`f`]`, via singleQuasiString). a
-    // dynamic computed key names the field by a RUNTIME value - `this[k]` by the variable's value (not
-    // its name), `this[f()]` by the call result - so it must not be attributed to any name -> null,
-    // honouring this function's contract and matching the computed-key resolution used elsewhere
+    // A computed key names a field by its value, never by an identifier's spelling.
+    // Scoped queries use the canonical constant-key resolver; context-free queries
+    // accept only literal keys and single-quasi templates.
     if (target.computed) {
+      if (scope) return resolveComputedKeyName(target.property, scope);
       if (t.isIdentifier(target.property)) return null;
       return singleQuasiString(target.property) ?? getKeyName(target.property);
     }
     return getKeyName(target.property);
   }
-  // TOTAL: every write contributes a type. an opaque RHS yields the `unknown` sentinel rather than
-  // null, so a caller must never gate on the result - a guard there reads as "this write might not
-  // count", which is exactly the dropped-write bug the sentinel exists to prevent
-  function writePathContributedType(writePath) {
-    if (writePath.node.type === 'AssignmentExpression' && writePath.node.operator === '=') {
-      // an opaque RHS (resolveNodeType -> null) must WIDEN the field to unknown, not be dropped:
-      // consumers gate on a truthy contribution, so a null silently keeps the field narrowed to its
-      // other (e.g. array) writes and emits a type-specific Maybe helper that throws on a foreign
-      // runtime value (ie:11). same `unknown` sentinel the compound / update branch already uses
-      return resolveNodeType(writePath.get('right')) ?? new $Primitive('unknown');
-    }
-    return new $Primitive('unknown');
+  // Every write contributes, including null: dropping an opaque contribution would unsoundly
+  // narrow the field to its other writes. Keep RHS paths so mixed-family alternatives survive.
+  function writePathContributedValue(writePath) {
+    return writePath.node.type === 'AssignmentExpression' && writePath.node.operator === '='
+      ? writePath.get('right') : null;
   }
-  return { memberWriteFieldName, writePathContributedType };
+  return { memberWriteFieldName, writePathContributedValue };
 }

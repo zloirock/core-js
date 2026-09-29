@@ -5,7 +5,6 @@ import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _at from "@core-js/pure/actual/instance/at";
-import _keys from "@core-js/pure/actual/instance/keys";
 import _values from "@core-js/pure/actual/instance/values";
 import _Object$keys from "@core-js/pure/actual/object/keys";
 import _self from "@core-js/pure/actual/self";
@@ -88,14 +87,17 @@ function mark(t, v) {
 }
 {
   const {
-      w: _ref
-    } = {
-      w: c ? Object : userObj
-    },
-    f = _ref === Object ? _Object$keys : _keys(_ref);
+    w: {
+      keys: f
+    }
+  } = {
+    w: c ? {
+      keys: _Object$keys
+    } : userObj
+  };
 }
 {
-  var _ref2;
+  var _ref;
   const {
     x: {
       [(effectful(), 'from')]: f2
@@ -105,7 +107,7 @@ function mark(t, v) {
       from: _Array$from
     }
   };
-  const doubled = _flatMaybeArray(_ref2 = [1, [2]]).call(_ref2);
+  const doubled = _flatMaybeArray(_ref = [1, [2]]).call(_ref);
 }
 {
   const at = _at(r.y);
@@ -149,25 +151,25 @@ function mark(t, v) {
   } = eff();
 }
 {
-  const _ref3 = [1, 2],
+  const _ref2 = [1, 2],
+    s = null == _ref2 ? _ref2[""] : (k(), _atMaybeArray(_ref2)),
+    {
+      z
+    } = _ref2;
+}
+{
+  const _ref3 = arr,
     s = null == _ref3 ? _ref3[""] : (k(), _atMaybeArray(_ref3)),
     {
       z
     } = _ref3;
 }
 {
-  const _ref4 = arr,
-    s = null == _ref4 ? _ref4[""] : (k(), _atMaybeArray(_ref4)),
+  const _ref4 = c ? a1 : a2,
+    s = null == _ref4 ? _ref4[""] : (k(), _at(_ref4)),
     {
       z
     } = _ref4;
-}
-{
-  const _ref5 = c ? a1 : a2,
-    s = null == _ref5 ? _ref5[""] : (k(), _at(_ref5)),
-    {
-      z
-    } = _ref5;
 }
 {
   const {
@@ -183,11 +185,11 @@ function mark(t, v) {
   } = eff();
 }
 {
-  const _ref6 = holder.p,
-    s = null == _ref6 ? _ref6[""] : (k(), _at(_ref6)),
+  const _ref5 = holder.p,
+    s = null == _ref5 ? _ref5[""] : (k(), _at(_ref5)),
     {
       z
-    } = _ref6;
+    } = _ref5;
 }
 {
   const {
@@ -256,9 +258,9 @@ function mark(t, v) {
   };
 }
 {
-  const _ref7 = r;
-  const values = _values(_ref7.w);
-  const at = _at(_ref7.y);
+  const _ref6 = r;
+  const values = _values(_ref6.w);
+  const at = _at(_ref6.y);
 }
 {
   if (c) var {
@@ -302,29 +304,29 @@ function mark(t, v) {
   }] = [...rest, Array];
 }
 {
-  var _ref8, _ref10, _ref9;
+  var _ref7, _ref9, _ref8;
   let a;
-  [_ref8] = [{
+  [_ref7] = [{
     w: src
   }];
-  _ref9 = _ref8;
+  _ref8 = _ref7;
   ({
-    [(eff('k'), 'w')]: _ref10
-  } = null == _ref9 ? _ref9[""] : _ref9);
-  a = _at(_ref10);
+    [(eff('k'), 'w')]: _ref9
+  } = null == _ref8 ? _ref8[""] : _ref8);
+  a = _at(_ref9);
 }
 {
-  var _ref11;
+  var _ref10;
   let a;
-  [_ref11] = [(_pushMaybeArray(log).call(log, 'c'), arr)];
-  a = _atMaybeArray(_ref11);
+  [_ref10] = [(_pushMaybeArray(log).call(log, 'c'), arr)];
+  a = _atMaybeArray(_ref10);
   use(a);
 }
 {
-  var _ref12, _ref13;
+  var _ref11, _ref12;
   let e, k;
-  [_ref12, _ref13] = [(g(), f()), 1];
-  e = _at(_ref12);
-  k = _ref13;
+  [_ref11, _ref12] = [(g(), f()), 1];
+  e = _at(_ref11);
+  k = _ref12;
   use(e, k);
 }

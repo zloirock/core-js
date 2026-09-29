@@ -1,7 +1,7 @@
 import _at from "@core-js/pure/actual/instance/at";
 let x = 'hello';
 function mutate() {
-  x = 42;
+  x = [42];
 }
 function f() {
   if (typeof x === 'string') {
