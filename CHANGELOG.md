@@ -1,5 +1,10 @@
 # Changelog
 ### Unreleased
+- [`Iterator` includes proposal](https://github.com/tc39/proposal-iterator-includes):
+  - Built-in:
+    - `Iterator.prototype.includes`
+  - Moved to stable ES, [September 2026 TC39 meeting](https://github.com/tc39/proposals/commit/3c1e9eed79faced589802cd3d1a6c9110747d540)
+  - Added `es.` namespace module, `/es/` and `/stable/` namespace entries
 - [`Iterator` join proposal](https://github.com/tc39/proposal-iterator-join):
   - Built-in:
     - `Iterator.prototype.join`

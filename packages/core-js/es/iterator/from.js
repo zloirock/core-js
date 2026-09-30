@@ -10,6 +10,7 @@ require('../../modules/es.iterator.find');
 require('../../modules/es.iterator.flat-map');
 require('../../modules/es.iterator.for-each');
 require('../../modules/es.iterator.from');
+require('../../modules/es.iterator.includes');
 require('../../modules/es.iterator.join');
 require('../../modules/es.iterator.map');
 require('../../modules/es.iterator.reduce');

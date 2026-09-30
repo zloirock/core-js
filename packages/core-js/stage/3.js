@@ -3,7 +3,6 @@ var parent = require('./4');
 
 require('../proposals/await-dictionary');
 require('../proposals/decorator-metadata-v2');
-require('../proposals/iterator-includes');
 require('../proposals/joint-iteration');
 // TODO: Obsolete versions, remove from `core-js@4`
 require('../proposals/array-grouping-stage-3');

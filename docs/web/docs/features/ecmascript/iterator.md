@@ -1,6 +1,6 @@
 # ECMAScript: Iterator
 ## Modules 
-[`es.iterator.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.constructor.js), [`es.iterator.concat`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.concat.js), [`es.iterator.dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.dispose.js), [`es.iterator.drop`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.drop.js), [`es.iterator.every`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.every.js), [`es.iterator.filter`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.filter.js), [`es.iterator.find`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.find.js), [`es.iterator.flat-map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.flat-map.js), [`es.iterator.for-each`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.for-each.js), [`es.iterator.from`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.from.js), [`es.iterator.join`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.join.js), [`es.iterator.map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.map.js), [`es.iterator.reduce`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.reduce.js), [`es.iterator.some`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.some.js), [`es.iterator.take`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.take.js), [`es.iterator.to-array`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.to-array.js), [`es.iterator.zip`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.zip.js), [`es.iterator.zip-keyed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.zip-keyed.js)
+[`es.iterator.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.constructor.js), [`es.iterator.concat`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.concat.js), [`es.iterator.dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.dispose.js), [`es.iterator.drop`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.drop.js), [`es.iterator.every`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.every.js), [`es.iterator.filter`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.filter.js), [`es.iterator.find`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.find.js), [`es.iterator.flat-map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.flat-map.js), [`es.iterator.for-each`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.for-each.js), [`es.iterator.from`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.from.js), [`es.iterator.includes`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.includes.js), [`es.iterator.join`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.join.js), [`es.iterator.map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.map.js), [`es.iterator.reduce`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.reduce.js), [`es.iterator.some`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.some.js), [`es.iterator.take`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.take.js), [`es.iterator.to-array`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.to-array.js), [`es.iterator.zip`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.zip.js), [`es.iterator.zip-keyed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.zip-keyed.js)
 
 ## Built-ins signatures
 ```ts
@@ -27,6 +27,7 @@ class Iterator {
   find(callbackfn: (value: any, counter: uint) => boolean)): any;
   flatMap(callbackfn: (value: any, counter: uint) => Iterable<any> | Iterator<any>): Iterator<any>;
   forEach(callbackfn: (value: any, counter: uint) => void): void;
+  includes(searchElement: any, skippedElements?: number): boolean;
   join(separator?: string): string;
   map(callbackfn: (value: any, counter: uint) => any): Iterator<any>;
   reduce(callbackfn: (memo: any, value: any, counter: uint) => any, initialValue: any): any;
@@ -50,6 +51,7 @@ core-js(-pure)/es|stable|actual|full/iterator/find
 core-js(-pure)/es|stable|actual|full/iterator/flat-map
 core-js(-pure)/es|stable|actual|full/iterator/for-each
 core-js(-pure)/es|stable|actual|full/iterator/from
+core-js(-pure)/es|stable|actual|full/iterator/includes
 core-js(-pure)/es|stable|actual|full/iterator/join
 core-js(-pure)/es|stable|actual|full/iterator/map
 core-js(-pure)/es|stable|actual|full/iterator/reduce
@@ -99,6 +101,12 @@ Iterator.zipKeyed({
   { a: undefined, b: 6, c: 10 },
 ];
  */
+
+[1, 2, 3].values().includes(2);     // => true
+[1, 2, 3].values().includes(4);     // => false
+[NaN].values().includes(NaN);       // => true
+[1, 2, 3].values().includes(3, 2);  // => true
+[1, 2, 3].values().includes(1, 1);  // => false
 
 /* eslint-disable unicorn/require-array-join-separator -- example */
 [1, 2, 3].values().join();     // => '1,2,3'

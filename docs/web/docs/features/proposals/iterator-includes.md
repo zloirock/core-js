@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-iterator-includes)
 
 ## Modules
-[`esnext.iterator.includes`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.includes.js)
+[`es.iterator.includes`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.includes.js)
 
 ## Built-ins signatures
 ```ts
@@ -15,7 +15,7 @@ class Iterator {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/iterator-includes
-core-js(-pure)/actual|full/iterator/includes
+core-js(-pure)/es|stable|actual|full/iterator/includes
 ```
 
 ## Examples

@@ -782,6 +782,11 @@ export const data = {
     // Because of a bug in wrapper validation https://bugs.webkit.org/show_bug.cgi?id=288714
     safari: '26.0', // 18.4',
   },
+  'es.iterator.includes': {
+    bun: '1.4.0',
+    chrome: '154',
+    firefox: '154',
+  },
   'es.iterator.join': {
     bun: '1.4.0',
     chrome: '153',
@@ -2649,11 +2654,8 @@ export const data = {
   'esnext.iterator.for-each': null,
   // TODO: Remove from `core-js@4`
   'esnext.iterator.from': null,
-  'esnext.iterator.includes': {
-    bun: '1.4.0',
-    chrome: '154',
-    firefox: '154',
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.iterator.includes': null,
   'esnext.iterator.indexed': {
   },
   // TODO: Remove from `core-js@4`
@@ -3288,6 +3290,7 @@ export const renamed = new Map([
   ['esnext.iterator.flat-map', 'es.iterator.flat-map'],
   ['esnext.iterator.for-each', 'es.iterator.for-each'],
   ['esnext.iterator.from', 'es.iterator.from'],
+  ['esnext.iterator.includes', 'es.iterator.includes'],
   ['esnext.iterator.join', 'es.iterator.join'],
   ['esnext.iterator.map', 'es.iterator.map'],
   ['esnext.iterator.reduce', 'es.iterator.reduce'],
