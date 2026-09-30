@@ -76,12 +76,9 @@ export default class ImportInjector extends ImportInjectorState {
   // deliberately SKIPS per-callback state (the destructure ledger, pending synth swaps) -
   // those track in-flight rewrites that applied in pre and whose result is already in the
   // source post re-parses. re-instating them in post would double-apply
-  // the registries may carry PRE-RENAME spellings here: the flush's canonical renumber
-  // renames tree nodes without rebuilding this state, and that is collision-safe by
-  // construction - a renamed-to slot is always a previously-allocated spelling, so it
-  // already sits in `usedNames`, and no post consumer reads the stale members (declaredRefNames
-  // and flushedRefs only suppress re-declaration of names post would re-mint, which the
-  // rehydrated suffix state already prevents)
+  // flush canonicalizes the generated-name registries with the tree. In particular,
+  // post resolves minted global aliases by their printed names, so stale allocation
+  // spellings would transfer a constructor hint to a different receiver.
   snapshot() {
     return {
       globals: new Set(this.globalImports),
@@ -282,6 +279,8 @@ export function flushIntoProgram({ injector, program, refNames = [], renameOnly 
     aliveByPrefix,
     isTaken: name => referenceNames.has(name) || injector.reservedNames.has(name),
   });
+  injector.dropMintedAliases([...mintedRefNames].filter(name => !refCounts.get(name)));
+  injector.canonicalizeGeneratedNames(renameMap);
   for (const node of refNodes) {
     const to = renameMap.get(node.name);
     if (to) node.name = to;
