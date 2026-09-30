@@ -12,7 +12,12 @@ import {
   wksComputedKeyName,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { computedKeyWellKnownSymbolName } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
-import { buildNestedParamSynthPlan, buildPatternRenderPlan, patternComputedKeysSynthSafe } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
+import {
+  buildNestedParamSynthPlan,
+  buildPatternRenderPlan,
+  patternComputedKeysSynthSafe,
+  renderSynthTree,
+} from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
 import { synthEntryKey } from '../../packages/core-js-polyfill-provider/render.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
@@ -135,6 +140,28 @@ runBoth('fold/concat spelling declines', "const { ['Symbol.' + 'iterator']: x } 
 });
 
 // --- synthEntryKey: which keys are CARRIED and which are respelled ---
+
+// Resolved names are literal property names, never the synth map's bracket-slot notation.
+for (const [name, type, computed] of [
+  ['Array', 'Identifier', false],
+  ['with-dash', 'Literal', false],
+  ['[key]', 'Literal', false],
+  ['', 'Literal', false],
+  ['__proto__', 'Literal', true],
+]) {
+  const spelled = synthEntryKey({ lookupKey: name }, { resolvedSpelling: true });
+  checkDeep(`spelling/resolved ${ name }`, [spelled.key.type, spelled.key.name ?? spelled.key.value, spelled.computed], [type, name, computed]);
+}
+
+// Quoted and identifier keys share the ordinary mirror's data-property vocabulary.
+for (const name of ['nativeSlot', 'with-dash', '[key]', '', '__proto__']) {
+  const tree = renderSynthTree({ kind: 'object', entries: [
+    { key: 'polyfill', child: { kind: 'polyfill', entry: 'array/of', hintName: '_of' } },
+    { key: name, child: { kind: 'passthrough', bailed: true } },
+  ] }, { injectImport: (entry, hintName) => hintName, receiverName: 'source', receiverIsProxy: false });
+  checkDeep(`mirror/data slots ${ name }`, tree.properties.map(property => property.kind), ['init', 'init']);
+  check(`mirror/native read ${ name }`, tree.properties[1].value.type, 'MemberExpression');
+}
 
 // a carried key is the caller's OWN node: the descriptor says so, and the caller has to clone
 // before embedding - one node in two tree positions aliases every later mutation across both

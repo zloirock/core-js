@@ -107,6 +107,7 @@ export function objectPattern(properties) {
   return { type: 'ObjectPattern', properties };
 }
 
+// A data property in a rendered object or pattern.
 export function objectProperty(key, value, { computed = false } = {}) {
   return { type: 'Property', kind: 'init', method: false, shorthand: false, computed, key, value };
 }
@@ -208,7 +209,10 @@ function hostSlotNode(node) {
 export function synthEntryKey({ keyNode, dedupKey, slotKey, lookupKey, computedKey = false }, { resolvedSpelling = false } = {}) {
   // the nested mirror spells the RESOLVED name (`{ Array: { from: _X } }`); the flat
   // literal keeps the source spelling (`['from']: _X` / `[k]: _X`), both the babel shapes
-  if (resolvedSpelling) return { key: identifier(lookupKey), computed: false };
+  if (resolvedSpelling) {
+    const key = isValidIdentifierName(lookupKey) && lookupKey !== '__proto__' ? identifier(lookupKey) : literal(lookupKey);
+    return { key, computed: synthKeyMustBeComputed(key) };
+  }
   if (keyNode) {
     // a NUMERIC source key respells as its string form in the synth literal (`0:` -> `"0":`,
     // the passthrough reading `Object["0"]`) - both dialects spell such a key their own way
@@ -273,16 +277,6 @@ export function memberFromKeyName(object, keyName, options = {}) {
   if (isValidIdentifierName(keyName)) return memberExpression(object, identifier(keyName), options);
   const key = /^(?:0|[1-9]\d*)$/.test(keyName) ? Number(keyName) : keyName;
   return memberExpression(object, literal(key), { ...options, computed: true });
-}
-
-// one property of a synthesized literal, keyed by the SLOT NOTATION the synth families use:
-// a `[k]` bracket slot replays the binding computed, a plain identifier name reads as itself,
-// anything else (a dashed / numeric / dotted name) spells its string
-export function synthProperty(key, value) {
-  const bracket = /^\[(?<name>[$a-z_][\w$]*)\]$/i.exec(key);
-  if (bracket) return objectProperty(identifier(bracket.groups.name), value, { computed: true });
-  if (/^[$a-z_][\w$]*$/i.test(key)) return objectProperty(identifier(key), value);
-  return objectProperty(literal(key), value);
 }
 
 // the SLOT READ off a receiver base: a key the literal spelled as a STRING reads back computed

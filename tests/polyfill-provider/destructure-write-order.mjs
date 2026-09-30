@@ -1,7 +1,7 @@
 // Cross-parser tests for the destructure write-order decision, the slot a declined mirror leaves to a
 // static's own default, and the plan cache a binding retires when it rewrites a host in place.
 import { orderBoundPatternProps } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
-import { claimWriteOrderBound } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
+import { claimWriteOrderBound, leafTakesSlotDefault, mirrorAcceptedKey } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
 import { buildNestedDestructurePlan, forgetDestructurePlan } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
 import { staticSlotTakesDefault } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
@@ -107,7 +107,7 @@ for (const [source, key] of [
   check(label, claimWriteOrderBound({ prop: prop.node, objectPattern: prop.parentPath, adapter: adapterFor(parser), resolvePure: () => null }), false);
 });
 
-// the slot a declined mirror leaves to a static's own default
+// Target admissibility alone does not authorize a polyfill fallback after a declined mirror.
 for (const [source, key, expected] of [
   ['({ from: a } = Array);', 'from', true],
   ['({ from: a = 1 } = Array);', 'from', true],
@@ -119,6 +119,35 @@ for (const [source, key, expected] of [
   const prop = parser.pickPath(program, propType(parser), item => (key === null ? item.node.computed : keyName(item.node) === key)
     && item.parentPath.parentPath?.node?.type === 'AssignmentExpression');
   check(label, staticSlotTakesDefault(prop.node, { scope: prop.scope, adapter: adapterFor(parser), path: prop }), expected);
+});
+
+// A level default supplies its receiver, not proof that the receiver's own properties are absent.
+for (const source of [
+  "let S, d, of; [{ Set: S, 'with-dash': d, Array: { of } } = globalThis] = [];",
+  'let S, of, rest; [{ Set: S, Array: { of }, ...rest } = globalThis] = [];',
+  "let d, of, race; [{ Array: { of }, 'with-dash': d, Promise: { race } } = globalThis] = [];",
+  "const [{ Set: S, 'with-dash': d, Array: { of } } = globalThis] = [];",
+  "const { w: { of, 'with-dash': d } = Array } = {};",
+  "function read({ w: { of, 'with-dash': d } = Array }) {}",
+]) runBoth(`declined inner default keeps native leaves: ${ source }`, source, (parser, program, label) => {
+  const prop = parser.pickPath(program, propType(parser), item => keyName(item.node) === 'of');
+  check(label, leafTakesSlotDefault(prop, adapterFor(parser)), false);
+});
+
+// A resolved string is an object key even when it needs quotes; rest and unknown keys are different.
+for (const [field, expected] of [
+  ["'with-dash': value", 'with-dash'],
+  ["'[key]': value", '[key]'],
+  ["'': value", ''],
+  ["['with-dash']: value", 'with-dash'],
+  ['__proto__: value', '__proto__'],
+  ['[unknown]: value', null],
+  ['...rest', null],
+]) runBoth(`mirror key/${ field }`, `const { ${ field } } = source;`, (parser, program, label) => {
+  const pattern = parser.pickPath(program, 'ObjectPattern');
+  check(label, mirrorAcceptedKey({
+    prop: pattern.node.properties[0], scope: pattern.scope, adapter: adapterFor(parser), path: pattern, seenKeys: new Map(),
+  }), expected);
 });
 
 // a host rewritten in place plans afresh once the binding retires the plan made for its old pattern
