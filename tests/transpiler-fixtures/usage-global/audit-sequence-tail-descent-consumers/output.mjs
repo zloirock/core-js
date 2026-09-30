@@ -38,6 +38,7 @@ import "core-js/modules/es.array.values";
 import "core-js/modules/es.array.with";
 import "core-js/modules/es.global-this";
 import "core-js/modules/es.iterator.constructor";
+import "core-js/modules/es.iterator.chunks";
 import "core-js/modules/es.iterator.dispose";
 import "core-js/modules/es.iterator.drop";
 import "core-js/modules/es.iterator.every";
@@ -45,17 +46,16 @@ import "core-js/modules/es.iterator.filter";
 import "core-js/modules/es.iterator.find";
 import "core-js/modules/es.iterator.flat-map";
 import "core-js/modules/es.iterator.for-each";
+import "core-js/modules/es.iterator.includes";
+import "core-js/modules/es.iterator.join";
 import "core-js/modules/es.iterator.map";
 import "core-js/modules/es.iterator.reduce";
 import "core-js/modules/es.iterator.some";
 import "core-js/modules/es.iterator.take";
 import "core-js/modules/es.iterator.to-array";
+import "core-js/modules/es.iterator.windows";
 import "core-js/modules/es.string.at";
 import "core-js/modules/es.string.iterator";
-import "core-js/modules/esnext.iterator.chunks";
-import "core-js/modules/esnext.iterator.includes";
-import "core-js/modules/esnext.iterator.join";
-import "core-js/modules/esnext.iterator.windows";
 import "core-js/modules/web.dom-collections.iterator";
 // One comma-sequence descent serves every consumer that reaches a value through a sequence tail, so
 // this locks that descent where it is observable: an extends target, a member chain root, a computed

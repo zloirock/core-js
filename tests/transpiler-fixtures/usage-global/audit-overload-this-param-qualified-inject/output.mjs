@@ -3,8 +3,8 @@ import "core-js/modules/es.array.at";
 import "core-js/modules/es.array.find-last";
 import "core-js/modules/es.array.includes";
 import "core-js/modules/es.iterator.constructor";
+import "core-js/modules/es.iterator.includes";
 import "core-js/modules/es.string.includes";
-import "core-js/modules/esnext.iterator.includes";
 // usage-global twin: this-param overloads and qualified `typeof NS.fn` arg-discriminate to
 // the precise family; a rest-armed divergent set injects both families (widen)
 declare function g(this: Window, x: string): number[];

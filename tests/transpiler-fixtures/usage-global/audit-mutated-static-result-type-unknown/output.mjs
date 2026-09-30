@@ -6,10 +6,10 @@ import "core-js/modules/es.array.includes";
 import "core-js/modules/es.array.species";
 import "core-js/modules/es.array.unscopables.flat-map";
 import "core-js/modules/es.iterator.constructor";
+import "core-js/modules/es.iterator.includes";
 import "core-js/modules/es.string.at";
 import "core-js/modules/es.string.includes";
 import "core-js/modules/es.string.iterator";
-import "core-js/modules/esnext.iterator.includes";
 // a monkey-patched static no longer returns what its declaration says, so its RESULT type is unknown
 // - in the global flavor too, where nothing is substituted but a narrow taken off the declaration
 // still drops the polyfill the replacement actually needs. both the constructed-object channel and

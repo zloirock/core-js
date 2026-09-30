@@ -17,6 +17,7 @@ import "core-js/modules/es.array.includes";
 import "core-js/modules/es.array.of";
 import "core-js/modules/es.global-this";
 import "core-js/modules/es.iterator.constructor";
+import "core-js/modules/es.iterator.includes";
 import "core-js/modules/es.map.constructor";
 import "core-js/modules/es.map.species";
 import "core-js/modules/es.map.group-by";
@@ -29,7 +30,6 @@ import "core-js/modules/es.string.at";
 import "core-js/modules/es.string.includes";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/es.string.raw";
-import "core-js/modules/esnext.iterator.includes";
 import "core-js/modules/web.dom-collections.iterator";
 import "core-js/modules/web.self";
 // a realm key that names no built-in is an unknown slot, capitalised or not: where the realm leaves

@@ -12,9 +12,9 @@ import "core-js/modules/es.array.unscopables.flat";
 import "core-js/modules/es.array.unscopables.flat-map";
 import "core-js/modules/es.iterator.constructor";
 import "core-js/modules/es.iterator.flat-map";
+import "core-js/modules/es.iterator.includes";
 import "core-js/modules/es.string.at";
 import "core-js/modules/es.string.includes";
-import "core-js/modules/esnext.iterator.includes";
 import "core-js/modules/web.dom-collections.iterator";
 // a sole instance claim over a sequence init READS its receiver in its own dispatch, so the prefix
 // rides inside that argument on either host - a binding, a getter, two prefixes, a nested sequence,

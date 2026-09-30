@@ -5,8 +5,8 @@ import "core-js/modules/es.object.get-own-property-symbols";
 import "core-js/modules/es.object.to-string";
 import "core-js/modules/es.array.includes";
 import "core-js/modules/es.iterator.constructor";
+import "core-js/modules/es.iterator.includes";
 import "core-js/modules/es.string.includes";
-import "core-js/modules/esnext.iterator.includes";
 // A copied method can run with the rest copy as this and a different field type.
 const wrap = {
   box: {

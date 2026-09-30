@@ -3,8 +3,8 @@ import "core-js/modules/es.array.fill";
 import "core-js/modules/es.array.includes";
 import "core-js/modules/es.array.with";
 import "core-js/modules/es.iterator.constructor";
+import "core-js/modules/es.iterator.includes";
 import "core-js/modules/es.string.includes";
-import "core-js/modules/esnext.iterator.includes";
 // a -next-line inside a pattern, an object literal or a class body covers every member on the
 // line below it, and the reprint lays members one per line: each covered member is led by its
 // own directive in the output, so a second pass over it rewrites none of them. the member on the

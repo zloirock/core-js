@@ -2,9 +2,9 @@ import "core-js/modules/es.object.to-string";
 import "core-js/modules/es.array.at";
 import "core-js/modules/es.array.includes";
 import "core-js/modules/es.iterator.constructor";
+import "core-js/modules/es.iterator.includes";
 import "core-js/modules/es.string.at";
 import "core-js/modules/es.string.includes";
-import "core-js/modules/esnext.iterator.includes";
 // a class instantiated with a type-arg the resolver cannot type must treat the
 // type-param-returning method as GENERIC, consistently with the interface twin and the
 // directly-annotated receiver: the method body's stub return must not clobber the declared
