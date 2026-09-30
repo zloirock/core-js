@@ -839,6 +839,9 @@ GLOBAL.tests = {
     Iterator.from({ 'return': null })['return']();
     return true;
   },
+  'es.iterator.join': function () {
+    return Iterator.prototype.join;
+  },
   'es.iterator.map': [
     iteratorHelperThrowsErrorOnInvalidIterator('map', function () { /* empty */ }),
     checkIteratorClosingOnEarlyError('map', TypeError)
@@ -1979,9 +1982,6 @@ GLOBAL.tests = {
   },
   'esnext.iterator.includes': function () {
     return Iterator.prototype.includes;
-  },
-  'esnext.iterator.join': function () {
-    return Iterator.prototype.join;
   },
   'esnext.iterator.range': function () {
     return Iterator.range;

@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-iterator-join)
 
 ## Modules
-[`esnext.iterator.join`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.join.js)
+[`es.iterator.join`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.join.js)
 
 ## Built-ins signatures
 ```ts
@@ -15,7 +15,7 @@ class Iterator {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/iterator-join
-core-js(-pure)/actual|full/iterator/join
+core-js(-pure)/es|stable|actual|full/iterator/join
 ```
 
 ## Examples

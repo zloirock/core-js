@@ -782,6 +782,11 @@ export const data = {
     // Because of a bug in wrapper validation https://bugs.webkit.org/show_bug.cgi?id=288714
     safari: '26.0', // 18.4',
   },
+  'es.iterator.join': {
+    bun: '1.4.0',
+    chrome: '153',
+    firefox: '154',
+  },
   'es.iterator.map': {
     // with changes related to the new iteration closing approach on early error
     // https://github.com/tc39/ecma262/pull/3467
@@ -2651,11 +2656,8 @@ export const data = {
   },
   'esnext.iterator.indexed': {
   },
-  'esnext.iterator.join': {
-    bun: '1.4.0',
-    chrome: '153',
-    firefox: '154',
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.iterator.join': null,
   // TODO: Remove from `core-js@4`
   'esnext.iterator.map': null,
   'esnext.iterator.range': {
@@ -3286,6 +3288,7 @@ export const renamed = new Map([
   ['esnext.iterator.flat-map', 'es.iterator.flat-map'],
   ['esnext.iterator.for-each', 'es.iterator.for-each'],
   ['esnext.iterator.from', 'es.iterator.from'],
+  ['esnext.iterator.join', 'es.iterator.join'],
   ['esnext.iterator.map', 'es.iterator.map'],
   ['esnext.iterator.reduce', 'es.iterator.reduce'],
   ['esnext.iterator.some', 'es.iterator.some'],

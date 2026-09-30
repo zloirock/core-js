@@ -355,6 +355,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'iterator/flat-map') == 'function');
     ok(typeof load(NS, 'iterator/for-each') == 'function');
     ok(typeof load(NS, 'iterator/from') == 'function');
+    ok(load(NS, 'iterator/join')([1, 2].values()) === '1,2');
     ok(typeof load(NS, 'iterator/map') == 'function');
     ok(typeof load(NS, 'iterator/reduce') == 'function');
     ok(typeof load(NS, 'iterator/some') == 'function');
@@ -724,7 +725,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'function/metadata') === null);
     ok(typeof load(NS, 'iterator/chunks') == 'function');
     ok(load(NS, 'iterator/includes')([1, 2].values(), 2) === true);
-    ok(load(NS, 'iterator/join')([1, 2].values()) === '1,2');
     ok(typeof load(NS, 'iterator/to-async') == 'function');
     ok(typeof load(NS, 'iterator/windows') == 'function');
     ok(load(NS, 'promise/all-keyed')({}) instanceof Promise);
