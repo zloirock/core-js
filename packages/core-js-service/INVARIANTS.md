@@ -107,16 +107,22 @@ trap below is named, and the suite names its assertions after them.
   is how many modules a string ends up with: that is compat data, and it would go red on somebody
   else's commit
 - **user-agents-2** - and the rules that hold for a whole family, which survive a corpus refresh:
-  every iPhone/iPad string resolves to `ios`, a `chrome` answer is never above the `Chrome/` token
-  the string carries, and the second candidate is never attached to a browser that never ran Chromium
+  every iPhone/iPad string resolves to `ios` or to the baseline and never to another engine, an
+  `ios` answer is never above an OS token WebKit did not freeze, a `chrome` answer is never above
+  the `Chrome/` token the string carries, and the second candidate is never attached to a browser that never ran Chromium
 - **resolver-6** - the ENGINE outranks what the browser calls itself, wherever the string carries
   both. `Trident/` is Internet Explorer's engine and nothing else carries it, so `MSIE 7.0` beside
   `Trident/7.0` is IE 11 in compatibility view - a document mode, not an older JavaScript - and a
   browser calling itself Sleipnir on `Trident/6.0` is IE 10. On iOS the two signals are `Version/`
-  and the OS token, and either can be the stale one: Apple froze the OS token at 18.7 with iOS 26,
-  so `Version/` runs far above it, while an app that writes its own version there - Apple News -
-  puts it far below. The higher of the two is the answer, and the OS token is read HERE rather than
-  taken from the parser, which knows only the underscored form
+  and the OS token, and on iOS the OS IS the WebKit, so the OS token is the answer - unless it is
+  one of the values WebKit writes in place of the OS since iOS 26 (`18_6`, `18_6_2`, `18_7`). Only
+  then is it a lower bound, which `Version/` raises; and only Safari's own `Version/` counts, the
+  one straight after `(KHTML, like Gecko)`, because an app that assembles its own string writes one
+  of its own anywhere - Apple News far below the OS, Edge after its own token, Yandex a
+  `Version/26.5` at the end. `Version/` is never the answer over an OS token it contradicts for a
+  second reason too: before iOS 7 it was Safari's version, not the OS's - `Version/4.0` on iOS
+  3.1.2 - and the compat rows are the OS. The OS token is read HERE rather than taken from the
+  parser, which knows only the underscored form
 - **resolver-7** - a name with no version behind it is not an answer, it is a name the parser read
   out of something else. `Razer Edge 5G` and `motorola edge 30 pro` are devices, and every parser
   that looks for the word answers Microsoft Edge with no version; `Iphone12 pro max` is an Android
@@ -134,7 +140,10 @@ trap below is named, and the suite names its assertions after them.
   token it came from. Apple froze the iOS token at 18_7 with iOS 26 and Chromium zeroes its own
   minor (`Chrome/143.0.0.0`), so both read low, and the matcher's nearest-threshold-below turns
   that into extra bytes rather than a missing module. The rule is about the SOURCE, not the
-  number: a hard-coded "no `Version/` means iOS 18" would break an in-app WebView on a real iOS 15
+  number: a hard-coded "no `Version/` means iOS 18" would break an in-app WebView on a real iOS 15.
+  And a token reads low only where the ENGINE wrote it - a string an app assembles itself carries
+  whatever the app wrote, higher included, which is why resolver-6 trusts neither iOS signal
+  outright
 - **resolver-3** - an engine that does not put a minor version in its UA has no minor thresholds in
   the compat data either. Chromium writes `Chrome/143.0.0.0` and Firefox freezes its minor, so a
   threshold at `143.0.1` would be one this service can never resolve exactly. It holds today for
@@ -142,7 +151,9 @@ trap below is named, and the suite names its assertions after them.
   it stops holding the visitor is placed one threshold low, which is extra bytes
 - **resolver-4** - an engine whose UA carries no authoritative version token does not get one
   invented. The case that matters is the in-app WKWebView, which carries no `Version/` at all;
-  a version built upwards there hands a thin bundle to what may be an old engine
+  a version built upwards there hands a thin bundle to what may be an old engine. Firefox on iOS
+  is the case with no token left: from 147 on it writes `18_7` as a literal on every device down to
+  iOS 15, so its OS token is not a lower bound, and the answer is the baseline
 - **resolver-5** - on iOS the engine is WebKit whatever the browser calls itself. Both parsers
   answer `Chrome 140` to a `CriOS/` string, and handing that to compat as real Chrome builds a
   bundle far thinner than WebKit needs. Chrome on iPhone is 2.84% of world traffic

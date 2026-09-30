@@ -29,9 +29,19 @@ for (const row of corpus) {
   const target = resolve({ 'user-agent': userAgent });
 
   // on iOS every browser is WKWebView, whatever it calls itself - and a Mac string is a Mac string,
-  // even when an iPad sent it
+  // even when an iPad sent it. The baseline is an answer there too, for a string with no version
+  // left in it; another engine is not
   if (/\((?:iPad|iPhone|iPod)/.test(userAgent)) {
-    strictEqual(target?.engine, 'ios', `user-agents-2 #1: ${ row.browser }`);
+    ok(target === null || target.engine === 'ios', `user-agents-2 #1: ${ row.browser } answered ${ target?.engine }`);
+  }
+
+  // an OS token WebKit did not freeze is the OS itself, and on iOS the OS is the WebKit - so no
+  // `ios` answer is ever above it, whatever `Version/` beside it claims
+  const system = /(?:CPU OS|\biOS|iPhone OS)[ /](?<version>\d+(?:[._]\d+)*)/.exec(userAgent)?.groups.version
+    .replaceAll('_', '.');
+
+  if (target?.engine === 'ios' && system !== undefined && !['18.6', '18.6.2', '18.7'].includes(system)) {
+    ok(compare(target.version, '<=', system), `user-agents-2 #7: ${ row.browser } answered ${ target.version } over ${ system }`);
   }
 
   // a Chromium under any name is never answered with more than the Chromium it says it runs

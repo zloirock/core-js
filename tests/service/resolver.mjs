@@ -28,6 +28,30 @@ strictEqual(resolveUA(IOS_SAFARI), 'ios 26.1', 'resolver-5 #2');
 // version lives in `Version/` alone. both cases above come out of this one rule: on a current device
 // the token itself reads 18.7, on an old one it tells the truth
 strictEqual(resolveUA(IOS_SAFARI.replace('Version/26.1 ', '')), 'ios 18.7', 'resolver-2 #1');
+// and neither signal is taken on trust, because a string an app assembles itself is whatever the app
+// wrote. `Version/` is WebKit's only where Safari writes it, straight after `(KHTML, like Gecko)` -
+// a browser that writes one of its own puts it elsewhere. Without that, Edge's `Version/18.0` would
+// be read as the WebKit of an iOS 17 device
+strictEqual(resolveUA('Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 '
+  + '(KHTML, like Gecko) EdgiOS/150.0.3179.54 Version/18.0 Mobile/15E148 Safari/604.1'), 'ios 17.5', 'resolver-2 #2');
+strictEqual(resolveUA('Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 '
+  + '(KHTML, like Gecko) Mobile/15E148 YaBrowser/26.6.2.732.10 Safari/604.1 SA/3 Version/26.5'), 'ios 18.7', 'resolver-2 #3');
+// and the OS token is a lower bound only where it is one of the values WebKit writes in place of the
+// OS - `18_6`, `18_6_2`, `18_7`. Any other value is the OS itself, and on iOS the OS is the WebKit:
+// a Safari-shaped `Version/` above it was not written by that WebKit
+strictEqual(resolveUA(IOS_SAFARI.replace('18_7', '18_7_8').replace('26.1', '26.0')), 'ios 18.7.8', 'resolver-2 #4');
+strictEqual(resolveUA(IOS_SAFARI.replace('18_7', '18_6')), 'ios 26.1', 'resolver-2 #5');
+strictEqual(resolveUA(IOS_SAFARI.replace('18_7', '18_6_2')), 'ios 26.1', 'resolver-2 #6');
+// Firefox writes `18_7` as a literal from 147 on, on every device down to iOS 15 - there the token
+// is not a lower bound, it is not a signal at all, and the string carries nothing else
+const IOS_FIREFOX = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 '
+  + '(KHTML, like Gecko) FxiOS/147.0 Mobile/15E148 Safari/604.1';
+
+strictEqual(resolveUA(IOS_FIREFOX), null, 'resolver-4 #3');
+strictEqual(resolveUA(IOS_FIREFOX.replace('iPhone; CPU iPhone OS', 'iPad; CPU OS')), null, 'resolver-4 #4');
+// before 147 it wrote the device's own version, which is the OS and so the WebKit
+strictEqual(resolveUA(IOS_FIREFOX.replace('18_7', '16_7_10').replace('147.0', '146.1')), 'ios 16.7.10', 'resolver-4 #5');
+
 // an in-app WKWebView carries no `Version/` at all. the OS token is all there is, and building a
 // version up from it would hand a thin bundle to what may be an old engine
 strictEqual(resolveUA(IOS_IN_APP), 'ios 13.3.1', 'resolver-4 #1');

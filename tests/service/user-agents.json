@@ -119,8 +119,9 @@
     "browser": "iPhone Firefox (FxiOS)",
     "source": "user-agents@2.1.177",
     "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) FxiOS/155.0 Mobile/15E148 Safari/604.1",
-    "engine": "ios",
-    "version": "18.7"
+    "engine": null,
+    "version": null,
+    "note": "from 147 on Firefox writes `18_7` as a literal on every device down to iOS 15 - `defaultMobileUserAgent` in firefox-ios `BrowserKit/Sources/Shared/UserAgent.swift` - so the token is not a lower bound, and nothing else in the string carries a version"
   },
   {
     "browser": "iPhone Edge (EdgiOS)",
@@ -128,7 +129,7 @@
     "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 26_6_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) EdgiOS/152.0.4191.65 Version/26.0 Mobile/15E148 Safari/604.1",
     "engine": "ios",
     "version": "26.6.1",
-    "note": "EdgiOS DOES carry `Version/`, and it is WebKit's, not Edge's own version"
+    "note": "the `Version/26.0` here is not WebKit's: it follows Edge's own token, where Safari never writes one, and reads below the OS token beside it - which, not being a frozen value, is the OS itself"
   },
   {
     "browser": "Amazon Silk",
@@ -398,5 +399,21 @@
     "engine": "ios",
     "version": "18.5",
     "note": "one string for the path <ios>, which stands for 1 in the corpora"
+  },
+  {
+    "browser": "Safari-shaped string on iOS 18.7.8 claiming `Version/26.0`",
+    "source": "matomo device-detector fixtures",
+    "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7_8 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1",
+    "engine": "ios",
+    "version": "18.7.8",
+    "note": "WebKit froze the OS token at `18_7` with no patch, so `18_7_8` is a device that runs 18.7.8 - and on iOS the OS is the WebKit. A `Version/` above it was not written by that WebKit"
+  },
+  {
+    "browser": "Yandex Browser on iOS",
+    "source": "matomo device-detector fixtures",
+    "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 YaBrowser/26.6.2.732.10 YaApp_iOS/2606.2 YaApp_iOS_Browser/2606.2 Safari/604.1 SA/3 Version/26.5",
+    "engine": "ios",
+    "version": "18.7",
+    "note": "the browser writes its own `Version/` at the end of the string, where Safari never puts it - so only the frozen OS token is left, as a lower bound"
   }
 ]

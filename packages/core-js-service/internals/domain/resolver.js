@@ -23,8 +23,19 @@ const ON_ANDROID = new Map([
   ['opera', 'opera-android'],
 ]);
 
-// the token that carries the live version of an iOS browser, whatever the browser is
+// the token that carries the live version of Safari
 const VERSION_TOKEN = /\bVersion\/(?<version>\d+(?:\.\d+)*)/;
+// and the same token on iOS, where it is WebKit's only in the place Safari writes it - straight after
+// `(KHTML, like Gecko)`. An app that assembles its own string writes one of its own elsewhere - Edge
+// after its own token, Yandex at the very end - and what it says there is no fact about WebKit
+const IOS_VERSION_TOKEN = /\)\s*Version\/(?<version>\d+(?:\.\d+)*)/;
+// what WebKit has written in place of the OS version since iOS 26. Only these read low; any other
+// value is the OS itself, and on iOS the OS is the WebKit
+const FROZEN_IOS_VERSIONS = new Set(['18.6', '18.6.2', '18.7']);
+// from 147 on Firefox writes `18_7` as a literal on every device down to iOS 15 - its
+// `defaultMobileUserAgent` - so the token is not even a lower bound there
+const FIREFOX_IOS_TOKEN = /\bFxiOS\/(?<version>\d+)/;
+const FIREFOX_IOS_LITERAL_SINCE = 147;
 // the OS token, read here rather than taken from the parser, which knows only the underscored form -
 // `CPU iPhone OS 13.3.1` with dots is a real string and it loses the version entirely. The word `OS`
 // is required: a device that calls itself `Iphone12 pro max` is an Android phone with a name, and
@@ -54,6 +65,17 @@ function higher(one, other) {
   if (one === undefined || !/^\d/.test(one)) return other ?? '';
   if (other === undefined || !/^\d/.test(other)) return one;
   return compareVersions(one, other) >= 0 ? one : other;
+}
+
+// the WebKit of an iOS string. The OS token is the answer unless WebKit froze it, and then only a lower
+// bound, which Safari's own `Version/` can raise: Apple News writes its own version into `Version/`
+// and puts it far below the OS, a frozen `18_7` puts the OS far below Safari
+function iosVersion(userAgent, parsedVersion) {
+  const system = IOS_VERSION.exec(userAgent)?.groups.version.replaceAll('_', '.') ?? parsedVersion;
+
+  if (/^\d/.test(system) && !FROZEN_IOS_VERSIONS.has(system)) return system;
+
+  return higher(IOS_VERSION_TOKEN.exec(userAgent)?.groups.version, system);
 }
 
 // the other row the same visitor could be on. Where the string leaves two open, both travel and the
@@ -104,12 +126,12 @@ export default function createResolver({ parseUserAgent }) {
     // `Chrome 140` to a `CriOS/` string, and handing that to compat as real Chrome builds a bundle
     // far thinner than WebKit needs
     if (system === 'ios') {
-      // two signals, and either one can be the stale one. Apple froze the OS token at 18_7 with
-      // iOS 26, so `Version/` runs far above it; and an app that writes its OWN version into
-      // `Version/` - Apple News does - puts it far below. WebKit is at least the higher of the two,
-      // and an in-app WKWebView, which carries no `Version/` at all, is left with the OS token
-      const onIOS = toTarget('ios', higher(VERSION_TOKEN.exec(userAgent)?.groups.version,
-        IOS_VERSION.exec(userAgent)?.groups.version.replaceAll('_', '.') ?? parsed.os.version));
+      // a Firefox whose OS token is a literal carries no version at all - and it is iOS, so there is
+      // nothing further down for it but the name, which is Gecko's
+      if (Number(FIREFOX_IOS_TOKEN.exec(userAgent)?.groups.version) >= FIREFOX_IOS_LITERAL_SINCE) return null;
+
+      // an in-app WKWebView, which carries no `Version/` at all, is left with the OS token
+      const onIOS = toTarget('ios', iosVersion(userAgent, parsed.os.version));
 
       // neither signal, so the string did not say iOS in a way anything can act on - a name like
       // `Iphone12 pro max` is what a parser read it out of, and it is an Android phone
