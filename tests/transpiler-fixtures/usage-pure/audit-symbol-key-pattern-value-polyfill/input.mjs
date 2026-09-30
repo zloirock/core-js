@@ -1,5 +1,5 @@
-// Claimed statics retain their polyfills beside object rest.
-// Rest keeps its source and exclusions; instance slots remain native.
+// Well-known-symbol patterns read the selected iterator method and retain nested defaults.
+// Computed sibling keys and effectful receivers keep their order beside static and instance claims.
 const obj = {};
 const { Array: { from }, [Symbol.iterator]: { next = [1].at(0) } } = obj;
 // prop-level default: the helper result is guarded (a memoized `=== void 0` test), so a genuinely

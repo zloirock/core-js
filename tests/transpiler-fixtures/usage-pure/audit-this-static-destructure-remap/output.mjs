@@ -5,8 +5,8 @@ import _Map from "@core-js/pure/actual/map/constructor";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Promise$try from "@core-js/pure/actual/promise/try";
-// Claimed statics retain their polyfills beside object rest.
-// Rest keeps its source and exclusions; instance slots remain native.
+// Destructured this receivers in class static contexts follow the nearest built-in superclass.
+// Defaults, assignments and rest retain their host semantics and caller-supplied values.
 class Basic extends Array {
   static m() {
     const from = _Array$from;

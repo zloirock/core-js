@@ -1,5 +1,5 @@
-// Claimed statics retain their polyfills beside object rest.
-// Rest keeps its source and exclusions; instance slots remain native.
+// A receiver prefix runs before nested static and instance extractions.
+// Multiple leaves, sibling declarators and rest retain their source evaluation order.
 const { Array: { prototype: { toReversed: sole } } } = (effect(), globalThis);
 const { Array: { from: soleStatic } } = (effect(), globalThis);
 const { Array: { prototype: { with: twoA, entries: twoB } } } = (effect(), globalThis);
