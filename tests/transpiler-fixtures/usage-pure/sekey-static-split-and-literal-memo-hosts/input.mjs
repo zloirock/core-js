@@ -1,5 +1,5 @@
-// Claimed statics retain their polyfills beside object rest.
-// Rest keeps its source and exclusions; instance slots remain native.
+// Computed keys retain their effects across exports, declarator lists and control-flow hosts.
+// Static extractions and instance dispatches preserve receiver evaluation and sibling read order.
 let k = 0;
 function pre() {}
 function eff() {}

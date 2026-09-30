@@ -2462,10 +2462,10 @@ function reassignedAliasValues({ binding, name, scope, declScope, adapter, path,
 // ... and each such value is READ where the write evaluates it: every reader of the union keeps that
 // read (an identity guard's candidate, a global import), so the init-order gates ask it as one
 // (`initializerReachesRead`) - the view every reader that keeps its read resolves through
-const WRITE_VALUE_ADAPTERS = new WeakMap();
+const READ_KEEPING_ADAPTERS = new WeakMap();
 export function readKeepingAdapter(adapter) {
-  let view = WRITE_VALUE_ADAPTERS.get(adapter);
-  if (!view) WRITE_VALUE_ADAPTERS.set(adapter, view = { ...adapter, keepsReads: true });
+  let view = READ_KEEPING_ADAPTERS.get(adapter);
+  if (!view) READ_KEEPING_ADAPTERS.set(adapter, view = { ...adapter, keepsReads: true });
   return view;
 }
 
