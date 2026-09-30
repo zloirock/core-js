@@ -12,10 +12,10 @@ import "core-js/modules/es.array.unscopables.flat";
 import "core-js/modules/es.iterator.constructor";
 import "core-js/modules/es.iterator.filter";
 import "core-js/modules/es.iterator.find";
+import "core-js/modules/es.iterator.includes";
 import "core-js/modules/es.iterator.map";
 import "core-js/modules/es.string.at";
 import "core-js/modules/es.string.includes";
-import "core-js/modules/esnext.iterator.includes";
 // A binding whose one value reads `?.` off the binding itself (`const value = value?.at`) holds no
 // value the analysis can see, so each method is injected for every receiver family it could name and
 // the source stays as written. Declaration kinds, a single later write, a loop body and a mutual pair.

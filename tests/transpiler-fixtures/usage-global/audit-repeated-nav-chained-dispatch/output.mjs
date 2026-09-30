@@ -5,9 +5,9 @@ import "core-js/modules/es.array.slice";
 import "core-js/modules/es.array.species";
 import "core-js/modules/es.global-this";
 import "core-js/modules/es.iterator.constructor";
+import "core-js/modules/es.iterator.includes";
 import "core-js/modules/es.string.at";
 import "core-js/modules/es.string.includes";
-import "core-js/modules/esnext.iterator.includes";
 import "core-js/modules/web.self";
 // a dispatch CHAINED over another one memoizes the inner result, so the receiver text that holds
 // the navs lives in the OUTER emission rather than in the inner transform. an inner rewrite whose

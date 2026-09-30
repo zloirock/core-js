@@ -13,9 +13,9 @@ import "core-js/modules/es.array.unscopables.flat";
 import "core-js/modules/es.array.unscopables.flat-map";
 import "core-js/modules/es.iterator.constructor";
 import "core-js/modules/es.iterator.flat-map";
+import "core-js/modules/es.iterator.includes";
 import "core-js/modules/es.string.at";
 import "core-js/modules/es.string.includes";
-import "core-js/modules/esnext.iterator.includes";
 import "core-js/modules/web.dom-collections.iterator";
 // the global twin of the memo-slot look-alike: nothing is memoized here and the source keeps its
 // text, so the whole decision is the import set - which makes it the control for the pure side,

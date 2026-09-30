@@ -6,10 +6,10 @@ import "core-js/modules/es.array.iterator";
 import "core-js/modules/es.array.from";
 import "core-js/modules/es.array.includes";
 import "core-js/modules/es.iterator.constructor";
+import "core-js/modules/es.iterator.includes";
 import "core-js/modules/es.string.at";
 import "core-js/modules/es.string.includes";
 import "core-js/modules/es.string.iterator";
-import "core-js/modules/esnext.iterator.includes";
 import "core-js/modules/web.dom-collections.iterator";
 // a spread AFTER the slot the predicate names leaves that slot where it stands, so the assertion
 // still binds `val` and narrows it to string; a spread at or before the slot may have filled it and

@@ -6,8 +6,8 @@ import "core-js/modules/es.array.sort";
 import "core-js/modules/es.array.to-sorted";
 import "core-js/modules/es.array.with";
 import "core-js/modules/es.iterator.constructor";
+import "core-js/modules/es.iterator.includes";
 import "core-js/modules/es.string.includes";
-import "core-js/modules/esnext.iterator.includes";
 // usage-global twin: no text rewriting happens here, so the lock is the import set alone -
 // every disabled method maps to a module no enabled row injects, and each trailing statement
 // after a disabled region injects its own unique module

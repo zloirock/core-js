@@ -12,13 +12,13 @@ import "core-js/modules/es.array.to-spliced";
 import "core-js/modules/es.array.unscopables.flat";
 import "core-js/modules/es.global-this";
 import "core-js/modules/es.iterator.constructor";
+import "core-js/modules/es.iterator.includes";
 import "core-js/modules/es.map.constructor";
 import "core-js/modules/es.map.species";
 import "core-js/modules/es.map.get-or-insert";
 import "core-js/modules/es.map.get-or-insert-computed";
 import "core-js/modules/es.string.includes";
 import "core-js/modules/es.string.iterator";
-import "core-js/modules/esnext.iterator.includes";
 import "core-js/modules/web.dom-collections.iterator";
 // global flavor of the lagged-alias recovery shapes: a redecl-with-init narrows the union
 // to the redecl value's variant while the alias keeps its own candidates in the union

@@ -11,10 +11,10 @@ import "core-js/modules/es.array.includes";
 import "core-js/modules/es.array.slice";
 import "core-js/modules/es.array.species";
 import "core-js/modules/es.iterator.constructor";
+import "core-js/modules/es.iterator.includes";
 import "core-js/modules/es.string.at";
 import "core-js/modules/es.string.includes";
 import "core-js/modules/es.string.iterator";
-import "core-js/modules/esnext.iterator.includes";
 import "core-js/modules/web.dom-collections.iterator";
 // an anon object's `this.<field>` flow must NOT narrow once the anon can be held by external
 // code: a destructuring TARGET whose binding leaks receives the anon (declarator and assignment

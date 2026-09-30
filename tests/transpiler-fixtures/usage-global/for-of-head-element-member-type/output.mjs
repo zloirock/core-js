@@ -8,9 +8,9 @@ import "core-js/modules/es.array.entries";
 import "core-js/modules/es.array.from";
 import "core-js/modules/es.array.includes";
 import "core-js/modules/es.iterator.constructor";
+import "core-js/modules/es.iterator.includes";
 import "core-js/modules/es.string.includes";
 import "core-js/modules/es.string.iterator";
-import "core-js/modules/esnext.iterator.includes";
 import "core-js/modules/web.dom-collections.iterator";
 import "core-js/modules/web.dom-collections.entries";
 // a for-x HEAD binds an ELEMENT of what the loop iterates, which no init can spell. A literal whose
