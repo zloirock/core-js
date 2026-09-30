@@ -34,6 +34,8 @@ OVERWRITE=1 npm run test-babel-plugin
 
 It rewrites only the fixtures that actually changed and prints each one, so the report of a sweep is the diff itself. Each leg writes only what it owns - the default one the baseline, the others their siblings - so regenerate with babel first, or the siblings record a divergence from a stale baseline.
 
+An explicit `OVERWRITE` run succeeds after regeneration and reports changed and unchanged fixtures separately from comparisons, so a full composite can continue through all three legs. Run the composite without `OVERWRITE` afterwards to verify the regenerated expectations.
+
 ## Rules
 
 - A fixture diff shows what the emitter prints, not that the result works. The primary evidence for a fix is a runtime fail-before / pass-after in `tests/e2e-usage-pure/`; the fixture locks it afterwards. The exception is an observable that is runtime-dead - text copied into a body nothing ever invokes - which only a fixture can lock: an e2e or differential leg for it passes vacuously
