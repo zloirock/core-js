@@ -107,7 +107,11 @@ jobs:
           path: D:\ms-playwright
           key: playwright-windows-2022-${{ steps.playwright.outputs.version }}
       - run: npm run prepare-monorepo
+      # the runner has four vCPUs, and the default takes half of `os.cpus()`, which leaves two of
+      # them idle while the runtime tier builds - its cells are CPU-bound, one build per process
       - run: npm run test-e2e-libs
+        env:
+          E2E_LIBS_SHARDS: 4
       # the per-cell pages are the node pre-flight's table, re-runnable in a browser, and
       # manifest.json carries what the browsers made of each cell - the IE11 verdict among them is
       # the one only this job produces. A cell that died before its page was written has neither,
