@@ -5,8 +5,8 @@ import "core-js/modules/es.promise.finally";
 import "core-js/modules/es.array.at";
 import "core-js/modules/es.array.includes";
 import "core-js/modules/es.iterator.constructor";
+import "core-js/modules/es.iterator.includes";
 import "core-js/modules/es.string.includes";
-import "core-js/modules/esnext.iterator.includes";
 // parenthesized type slots outside the mapped family: utility-type args, index-signature
 // key types, discriminant literals, alias-chain bodies, callback and callable annotations -
 // each dispatch peels so both parsers agree

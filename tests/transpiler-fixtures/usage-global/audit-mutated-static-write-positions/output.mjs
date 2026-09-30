@@ -9,6 +9,7 @@ import "core-js/modules/es.array.species";
 import "core-js/modules/es.array.unscopables.flat-map";
 import "core-js/modules/es.iterator.constructor";
 import "core-js/modules/es.iterator.flat-map";
+import "core-js/modules/es.iterator.includes";
 import "core-js/modules/es.map.constructor";
 import "core-js/modules/es.map.species";
 import "core-js/modules/es.map.group-by";
@@ -17,7 +18,6 @@ import "core-js/modules/es.map.get-or-insert-computed";
 import "core-js/modules/es.string.at";
 import "core-js/modules/es.string.includes";
 import "core-js/modules/es.string.iterator";
-import "core-js/modules/esnext.iterator.includes";
 import "core-js/modules/web.dom-collections.iterator";
 // the write POSITIONS a patch can hide in, at the pipeline level: the model is per-FILE, so a write
 // the analysis cannot order against the use - a compound / logical-assign operator, a dead branch, a

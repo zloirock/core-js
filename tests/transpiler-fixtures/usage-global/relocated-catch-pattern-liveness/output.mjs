@@ -6,9 +6,9 @@ import "core-js/modules/es.array.includes";
 import "core-js/modules/es.array.species";
 import "core-js/modules/es.array.unscopables.flat";
 import "core-js/modules/es.iterator.constructor";
+import "core-js/modules/es.iterator.includes";
 import "core-js/modules/es.string.at";
 import "core-js/modules/es.string.includes";
-import "core-js/modules/esnext.iterator.includes";
 // a catch pattern the emitters MOVE off the clause reaches a re-parse as an ordinary declarator -
 // written that way by a sibling, by an earlier tool in the pipeline, or by hand. its bindings stay
 // block-scoped to that catch, so the same per-prop liveness rule applies: unread stays a native

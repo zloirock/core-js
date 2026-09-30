@@ -21,10 +21,10 @@ import "core-js/modules/es.iterator.constructor";
 import "core-js/modules/es.iterator.filter";
 import "core-js/modules/es.iterator.find";
 import "core-js/modules/es.iterator.flat-map";
+import "core-js/modules/es.iterator.includes";
 import "core-js/modules/es.iterator.map";
 import "core-js/modules/es.string.at";
 import "core-js/modules/es.string.includes";
-import "core-js/modules/esnext.iterator.includes";
 import "core-js/modules/web.dom-collections.iterator";
 // A pattern whose init calls its own binding (`const { at } = at()`) invokes it before it holds
 // anything. Proving that callee pairs the binding's slot from the very same call, so the proof stops

@@ -9,8 +9,8 @@ import "core-js/modules/es.array.keys";
 import "core-js/modules/es.array.values";
 import "core-js/modules/es.iterator.constructor";
 import "core-js/modules/es.iterator.find";
+import "core-js/modules/es.iterator.includes";
 import "core-js/modules/es.string.includes";
-import "core-js/modules/esnext.iterator.includes";
 // a call is not one syntactic shape. `.call` drops the receiver slot, `.apply` spreads an inline
 // array, a `bind` invoked on the spot prepends what it captured and `Reflect.apply` puts the
 // function in the first slot - each is an invocation whose arguments land in the parameters, so a

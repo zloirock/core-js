@@ -2,9 +2,9 @@ import "core-js/modules/es.object.to-string";
 import "core-js/modules/es.array.at";
 import "core-js/modules/es.array.includes";
 import "core-js/modules/es.iterator.constructor";
+import "core-js/modules/es.iterator.includes";
 import "core-js/modules/es.string.at";
 import "core-js/modules/es.string.includes";
-import "core-js/modules/esnext.iterator.includes";
 // a write whose target is spelled through a TS wrapper - `a! = v`, `(b as any) = v` - is one both
 // scope trackers skip, so the canonical write scan is its only recorder: once recorded, the binding
 // no longer holds the array it was declared with, and the read takes the generic dispatch instead

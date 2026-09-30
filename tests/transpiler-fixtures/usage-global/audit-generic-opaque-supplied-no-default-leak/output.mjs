@@ -2,9 +2,9 @@ import "core-js/modules/es.object.to-string";
 import "core-js/modules/es.array.at";
 import "core-js/modules/es.array.includes";
 import "core-js/modules/es.iterator.constructor";
+import "core-js/modules/es.iterator.includes";
 import "core-js/modules/es.string.at";
 import "core-js/modules/es.string.includes";
-import "core-js/modules/esnext.iterator.includes";
 // a type-param SUPPLIED at the call site but OPAQUE (an unresolvable explicit type-arg, or
 // a present arg the resolver can't type) must NOT fall back to its declared default: the
 // default would emit a type-specific Maybe on a foreign runtime receiver (a throw on

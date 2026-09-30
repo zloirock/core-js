@@ -7,9 +7,9 @@ import "core-js/modules/es.array.at";
 import "core-js/modules/es.array.from";
 import "core-js/modules/es.array.includes";
 import "core-js/modules/es.iterator.constructor";
+import "core-js/modules/es.iterator.includes";
 import "core-js/modules/es.string.includes";
 import "core-js/modules/es.string.iterator";
-import "core-js/modules/esnext.iterator.includes";
 import "core-js/modules/web.dom-collections.iterator";
 // a for-of head writes a hoisted `var` without an assignment node, so the write map has to reach it
 // through its own visitor key. both sides of that channel live here, one method each, so the import

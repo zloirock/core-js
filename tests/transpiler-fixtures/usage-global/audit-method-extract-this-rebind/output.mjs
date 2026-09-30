@@ -6,10 +6,10 @@ import "core-js/modules/es.object.to-string";
 import "core-js/modules/es.array.at";
 import "core-js/modules/es.array.includes";
 import "core-js/modules/es.iterator.constructor";
+import "core-js/modules/es.iterator.includes";
 import "core-js/modules/es.json.stringify";
 import "core-js/modules/es.string.at";
 import "core-js/modules/es.string.includes";
-import "core-js/modules/esnext.iterator.includes";
 // a HELD read of an own-this method (var / destructure extraction, `.call` chain, object-spread
 // copy, class-instance / static / prototype extraction) hands out a function whose `this` rebinds
 // at a later invocation - the this-field narrow must bail to the generic helper. a DIRECT call, a
