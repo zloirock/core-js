@@ -3,9 +3,9 @@ import "core-js/modules/es.array.at";
 import "core-js/modules/es.array.includes";
 import "core-js/modules/es.global-this";
 import "core-js/modules/es.iterator.constructor";
+import "core-js/modules/es.iterator.includes";
 import "core-js/modules/es.string.at";
 import "core-js/modules/es.string.includes";
-import "core-js/modules/esnext.iterator.includes";
 import "core-js/modules/web.self";
 // ECMA evaluates a member call's RECEIVER before its computed key, and a member get runs user code
 // whenever the property is an accessor - so "the receiver has no syntactic side effects" is not a

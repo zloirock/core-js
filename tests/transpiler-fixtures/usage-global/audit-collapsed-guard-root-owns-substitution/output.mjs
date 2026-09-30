@@ -5,6 +5,7 @@ import "<CWD>/packages/core-js/modules/es.array.includes.js";
 import "<CWD>/packages/core-js/modules/es.function.name.js";
 import "<CWD>/packages/core-js/modules/es.global-this.js";
 import "<CWD>/packages/core-js/modules/es.iterator.constructor.js";
+import "<CWD>/packages/core-js/modules/es.iterator.includes.js";
 import "<CWD>/packages/core-js/modules/es.map.constructor.js";
 import "<CWD>/packages/core-js/modules/es.map.species.js";
 import "<CWD>/packages/core-js/modules/es.map.get-or-insert.js";
@@ -13,7 +14,6 @@ import "<CWD>/packages/core-js/modules/es.number.max-safe-integer.js";
 import "<CWD>/packages/core-js/modules/es.number.to-fixed.js";
 import "<CWD>/packages/core-js/modules/es.string.includes.js";
 import "<CWD>/packages/core-js/modules/es.string.iterator.js";
-import "<CWD>/packages/core-js/modules/esnext.iterator.includes.js";
 import "<CWD>/packages/core-js/modules/web.dom-collections.iterator.js";
 import "<CWD>/packages/core-js/modules/web.self.js";
 // the proxy root stays visitable only while the emitted text still carries it RAW. every render
