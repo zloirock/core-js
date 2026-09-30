@@ -11,8 +11,8 @@ import _Object$keys from "@core-js/pure/actual/object/keys";
 import _Object$values from "@core-js/pure/actual/object/values";
 import _atMaybeString from "@core-js/pure/actual/string/instance/at";
 import _includesMaybeString from "@core-js/pure/actual/string/instance/includes";
-// Claimed statics retain their polyfills beside object rest.
-// Rest keeps its source and exclusions; instance slots remain native.
+// Array wrappers, loop heads and nested object slots retain their selected receivers.
+// Supported static and instance claims receive polyfills beside sibling reads, keys and defaults.
 let pick = 1;
 const c = 1;
 const userObj = {};

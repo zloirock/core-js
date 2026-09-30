@@ -1,5 +1,5 @@
-// Claimed statics retain their polyfills beside object rest.
-// Rest keeps its source and exclusions; instance slots remain native.
+// String-spelled realm keys expose static leaves beside ordinary siblings and rest.
+// Independent instance calls preserve user binding names and parenthesized receiver identity.
 const { "Array": { from } } = globalThis;
 export const r1 = from([1]);
 const { "Object": { keys }, other } = globalThis;

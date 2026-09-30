@@ -392,10 +392,13 @@ QUnit.test('params: instance param-default literal receiver keeps value semantic
   assert.same(fn().call([1, 2], 3), false);
 });
 
-QUnit.test('params: instance multi-key member receiver stays native (double-read protection)', assert => {
+QUnit.test('params: instance multi-key built-in default is polyfilled and supplied properties win', assert => {
   function fn({ at, flat } = Array.prototype) {
     return [at, flat];
   }
+  const [at, flat] = fn();
+  assert.same(at.call([1, 2], -1), 2);
+  assert.deepEqual(flat.call([1, [2]]), [1, 2]);
   const viaCaller = fn({ at: 'A', flat: 'F' });
   assert.deepEqual(viaCaller, ['A', 'F']);
 });
