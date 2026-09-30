@@ -7,7 +7,8 @@ const pkgs = await glob([
 ]);
 
 async function checkPackage(path) {
-  const { name = 'root', dependencies, devDependencies } = await fs.readJson(path);
+  const pkg = await fs.readJson(path);
+  const { name = 'root', dependencies, devDependencies } = pkg;
   const exceptions = config[name];
 
   if (exceptions === 'exclude' || (!dependencies && !devDependencies)) return;
@@ -40,13 +41,22 @@ async function checkPackage(path) {
     --exclude ${ exclude.join(',') } \
     --minor ${ minor.join(',') } \
     --patch ${ patch.join(',') } \
-    ${ process.env.UDEPS ? '--update' : [] } \
   `;
 
   const results = JSON.parse(stdout)?.results?.npm;
   const obsolete = { ...results?.dependencies, ...results?.devDependencies };
 
   if (Object.keys(obsolete).length) {
+    if (process.env.UDEPS) {
+      // updates also checks workspaces; apply only this manifest's results.
+      for (const type of ['dependencies', 'devDependencies']) {
+        for (const [key, { new: version }] of Object.entries(results?.[type] ?? {})) {
+          pkg[type][key] = version;
+        }
+      }
+      await fs.writeJson(path, pkg, { spaces: 2 });
+    }
+
     echo(chalk.cyan(`${ name }:`));
     console.table(obsolete);
   }

@@ -711,7 +711,8 @@ const base = {
   // prefer reading a `JSON` file as a buffer
   'unicorn/prefer-json-parse-buffer': ERROR,
   // prefer using a logical operator over a ternary
-  'unicorn/prefer-logical-operator-over-ternary': ERROR,
+  // https://github.com/sindresorhus/eslint-plugin-unicorn/issues/3766
+  'unicorn/prefer-logical-operator-over-ternary': OFF,
   // prefer `Math.min()` and `Math.max()` over ternaries for simple comparisons
   'unicorn/prefer-math-min-max': ERROR,
   // prefer modern `Math` APIs over legacy patterns
