@@ -59,11 +59,13 @@ let rw3 = {
 if (Math.random() > 0.5) rw3 = {
   c: _Promise
 };
-const _ref = rw3.c;
-const viaLiveInit = _entries(_ref);
-const {
-  try: viaConditionalWrite
-} = _ref; // NEGATIVE: a reassignment AFTER the read cannot change what the read saw - only the init's
+const _ref = rw3.c,
+  {
+    try: viaConditionalWrite
+  } = _ref,
+  viaLiveInit = null == _ref ? _ref[""] : _entries(_ref);
+
+// NEGATIVE: a reassignment AFTER the read cannot change what the read saw - only the init's
 // candidate injects, the written value's statics do not
 let rw4 = {
   a: Object

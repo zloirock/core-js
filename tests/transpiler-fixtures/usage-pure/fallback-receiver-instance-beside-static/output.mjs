@@ -35,24 +35,20 @@ const {
   try: t
 } = _ref2;
 const _ref3 = _globalThis.yy || {
-  from: _Iterator$from,
-  name: _nameMaybeFunction(_Iterator)
-};
-const nm3 = _nameMaybeFunction(_ref3);
-const {
-  from: f
-} = _ref3;
+    from: _Iterator$from,
+    name: _nameMaybeFunction(_Iterator)
+  },
+  f = _ref3 === _Iterator ? _Iterator$from : _ref3.from,
+  nm3 = _nameMaybeFunction(_ref3);
 const _ref4 = _globalThis.xx || Object;
 const nm4 = _nameMaybeFunction(_ref4);
 const e4 = _ref4 === Object ? _Object$entries : _entries(_ref4);
 const _ref5 = _globalThis.ww || {
-  from: _Array$from,
-  name: _nameMaybeFunction(Array),
-  of: _Array$of
-};
-const nm5 = _nameMaybeFunction(_ref5);
-const {
-  from: a5,
-  of: b5
-} = _ref5;
+    from: _Array$from,
+    name: _nameMaybeFunction(Array),
+    of: _Array$of
+  },
+  a5 = _ref5 === Array ? _Array$from : _ref5.from,
+  nm5 = _nameMaybeFunction(_ref5),
+  b5 = _ref5 === Array ? _Array$of : _ref5.of;
 use(nm, s, nm2, t, f, nm3, nm4, e4, a5, nm5, b5);
