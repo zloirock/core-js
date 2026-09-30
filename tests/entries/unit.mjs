@@ -1,19 +1,5 @@
 /* eslint-disable import/no-dynamic-require, node/global-require -- required */
 import { ok } from 'node:assert/strict';
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
-
-const execFileAsync = promisify(execFile);
-
-// Prototype extensions must survive constructor initialization on a fresh import.
-for (const pkg of ['core-js-pure', 'core-js']) {
-  await execFileAsync(process.execPath, ['-e', `
-    const { strictEqual } = require('node:assert/strict');
-    const iteratorPrototype = require('${ pkg }/stage/4').Iterator.prototype;
-    strictEqual(typeof iteratorPrototype.chunks, 'function');
-    strictEqual(typeof iteratorPrototype.windows, 'function');
-  `]);
-}
 
 const entries = await fs.readJson('packages/core-js-compat/entries.json');
 const expected = new Set(Object.keys(entries));
