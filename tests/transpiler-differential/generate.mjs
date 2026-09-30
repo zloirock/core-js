@@ -15102,6 +15102,81 @@ function * generateQuotedMirrorSiblingReads() {
   }
 }
 
+// Mixed guarded/static, native and instance reads retain property order on every host.
+// The unknown instance receiver also crosses a key that a later route may leave native.
+function * generateMixedDestructureClaimOrder() {
+  const patterns = [
+    'name: nm, groupBy: method, at: other',
+    'name: nm, at: other, groupBy: method',
+    'groupBy: method, name: nm, at: other',
+    'groupBy: method, at: other, name: nm',
+    'at: other, name: nm, groupBy: method',
+    'at: other, groupBy: method, name: nm',
+  ];
+  for (const [index, pattern] of patterns.entries()) for (const supplied of [false, true]) {
+    const setup = `const log = []; let M = Map; if (${ supplied }) M = {
+      get name() { log.push('name'); return 'user'; },
+      get groupBy() { log.push('groupBy'); return 7; },
+      get at() { log.push('at'); return 8; }
+    };`;
+    const observe = '[typeof nm, typeof method, other]';
+    for (const host of ['declaration', 'export', 'for-init', 'assignment']) {
+      const bind = host === 'assignment' ? `let nm, method, other; ({ ${ pattern } } = M);`
+        : host === 'for-init' ? `let result; for (const { ${ pattern } } = M; !result;) { result = ${ observe }; }`
+        : `${ host === 'export' ? 'export ' : '' }const { ${ pattern } } = M;`;
+      yield {
+        name: `mixed-destructure-claim-order/${ index }/${ supplied }/${ host }`,
+        code: `${ setup }\n${ bind }\nexport const r = ${ host === 'for-init' ? 'result' : observe };\nexport const effects = log;`,
+        strip: true,
+      };
+    }
+  }
+}
+
+// Parenthesized nested sequences carry every prefix before the prototype method is read.
+function * generateNestedPrototypeSequencePrefix() {
+  for (const depth of [1, 2, 3]) for (const host of ['declaration', 'for-init', 'assignment', 'bodyless']) {
+    let init = 'Array';
+    for (let index = depth; index > 0; index--) init = `(log.push(${ index }), ${ init })`;
+    const bind = host === 'assignment' ? `let method; ({ prototype: { at: method } } = ${ init });`
+      : host === 'for-init' ? `let result; for (const { prototype: { at: method } } = ${ init }; !result;) { result = method.call([1, 2], -1); }`
+      : host === 'bodyless' ? `if (true) var { prototype: { at: method } } = ${ init };`
+      : `const { prototype: { at: method } } = ${ init };`;
+    yield {
+      name: `nested-prototype-sequence-prefix/${ depth }/${ host }`,
+      code: `const log = []; ${ bind }\nexport const r = ${ host === 'for-init' ? 'result' : 'method.call([1, 2], -1)' };\nexport const effects = log;`,
+      strip: true,
+    };
+  }
+}
+
+// A selected constructor arm is mirrored before the instance read is emitted.
+// The user arm still reads getters in source order, including a relocated loop binding.
+function * generateSelectedDestructureReadOrder() {
+  for (const pattern of ['from, at', 'at, from']) for (const selected of ['conditional', 'logical']) {
+    for (const supplied of [false, true]) for (const host of ['declaration', 'assignment', 'for-of']) {
+      const init = selected === 'conditional' ? 'useConstructor ? Array : user' : '(useConstructor && Array) || user';
+      const bind = host === 'assignment' ? `let from, at; ({ ${ pattern } } = ${ init });`
+        : host === 'for-of' ? `for (const { ${ pattern } } of [${ init }]) return [typeof from, typeof at];`
+        : `const { ${ pattern } } = ${ init };`;
+      yield {
+        name: `selected-destructure-read-order/${ pattern }/${ selected }/${ supplied }/${ host }`,
+        code: `const log = []; const user = {
+          get from() { log.push('from'); return 7; },
+          get at() { log.push('at'); return 8; }
+        };
+        export function read(useConstructor, user) {
+          ${ bind }
+          ${ host === 'for-of' ? '' : 'return [typeof from, typeof at];' }
+        }
+        export const r = read(${ !supplied }, user);
+        export const effects = log;`,
+        strip: true,
+      };
+    }
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateUnbackedSequenceHops();
@@ -15361,4 +15436,7 @@ export function * generate() {
   yield * generateConstructorAliasWrites();
   yield * generateOpenRealmPatternWrites();
   yield * generateQuotedMirrorSiblingReads();
+  yield * generateMixedDestructureClaimOrder();
+  yield * generateNestedPrototypeSequencePrefix();
+  yield * generateSelectedDestructureReadOrder();
 }

@@ -66,4 +66,27 @@ for (const parser of adapters) for (const [statement, expected] of [
   checked++;
 }
 check('all rows were checked', checked, 36);
+for (const parser of adapters) for (const [keys, consumed, expected] of [
+  ['name: nm, groupBy: method, at: other', ['name'], 'before'],
+  ['at: other, groupBy: method, name: nm', ['name'], 'after'],
+  ['name: nm, at: other, groupBy: method, last', ['name'], null],
+  ['name: nm, groupBy: method, at: other', [], null],
+  ['name: nm, groupBy: method, ...rest', ['name'], null],
+]) {
+  const program = parser.parseAndScope(`const { ${ keys } } = source;`);
+  const prop = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property',
+    path => path.node.key.name === 'groupBy');
+  const input = {
+    propNode: prop.node, patternNode: prop.parentPath.node, hostNode: prop.parentPath.parentPath.node,
+    hostInStatement: false, path: prop, meta: { key: 'groupBy', guardedAliasHint: 'Map', guardOnly: true },
+    resolvePure: meta => meta.kind === 'property' && meta.object === 'Map' && meta.key === 'groupBy'
+      ? { kind: 'static', entry: 'map/group-by', hintName: 'groupBy' } : null,
+  };
+  const plan = planGuardedDestructureNarrow({ ...input, isConsumedProp: item => consumed.includes(item.key?.name) });
+  check(`${ parser.name }: pending siblings: ${ keys }`, plan?.detach ?? null, expected);
+  // A binding that already removed these exact properties must receive the same verdict.
+  const remaining = { ...input.patternNode, properties: input.patternNode.properties.filter(item => !consumed.includes(item.key?.name)) };
+  const removed = planGuardedDestructureNarrow({ ...input, patternNode: remaining });
+  check(`${ parser.name }: pending and removed agree: ${ keys }`, plan?.detach ?? null, removed?.detach ?? null);
+}
 finish();
