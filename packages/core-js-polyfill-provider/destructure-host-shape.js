@@ -977,11 +977,10 @@ function planRetainedObjectCaptureShape({
   // observable where either operation of a crossed pair runs code - a member target's setter, a
   // nested pattern's reads, a default or a key that runs, an instance read a user function's or
   // object's own accessor may answer - and only the ordered capture keeps every key in its slot.
-  // A sibling CLAIM is no residual key: its own route extracts it in order beside this one, except
-  // an instance claim whose target runs code, which takes this capture over what is left. Nor is a
-  // prop an earlier route takes out of the level (`isConsumedProp`), a hop its split twin moves included
-  // (asked of the HOST's own pattern only: a nested or element level recursing here carries the host's
-  // init, not the value that level reads)
+  // A potential sibling claim may still decline its route. Where this read can run user code,
+  // the capture keeps every crossed key in its slot. Already consumed keys are excluded, including
+  // a hop its split twin moves (`isConsumedProp`, asked of the HOST's own pattern only: a nested or
+  // element level recursing here carries the host's init, not the value that level reads)
   const keyOrderSplit = !!hostPath && !!adapter && !rest && pattern.properties.includes(prop)
     && pattern === (assignment ? hostPath.node?.left : hostPath.node?.id) && extractionCrossesResidualKeys();
   function extractionCrossesResidualKeys() {
@@ -995,13 +994,13 @@ function planRetainedObjectCaptureShape({
       const runs = destructureKeyRunsCode(item);
       if (!runs && !claimRuns) return false;
       const siblingKind = siblingClaimKind(item);
-      return runs ? siblingKind !== 'static' : !siblingKind;
+      return claimRuns || (runs ? siblingKind !== 'static' : !siblingKind);
     });
   }
   function claimReadRunsCode() {
     if (kind !== 'instance' || isStaticPlacement(initCtorName() ?? '')) return false;
     const type = resolveNodeType?.(hostPath.get?.(assignment ? 'right' : 'init'));
-    return type?.constructor === 'Function' || type?.constructor === 'Object';
+    return !type?.constructor || type.constructor === 'Function' || type.constructor === 'Object';
   }
   function siblingClaimKind(item) {
     if (!isPropertyNode(item) || !resolvePure) return null;
