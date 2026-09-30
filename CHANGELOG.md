@@ -10,6 +10,7 @@
   - [`Iterator.prototype.{ chunks, windows }`](https://github.com/tc39/proposal-iterator-chunking) marked as shipped in Bun 1.4.0
   - [`Iterator.prototype.join`](https://github.com/tc39/proposal-iterator-join) marked as shipped in Bun 1.4.0
   - [Updated Electron 45 and added 46](https://releases.electronjs.org/) compat data mapping
+  - Added Samsung Browser 31 compat data mapping
   - Added Opera for Android [101](https://forums.opera.com/topic/89420/opera-for-android-101) and [102](https://forums.opera.com/topic/89629/opera-for-android-102) compat data mapping
 
 ### [3.50.0 - 2026.08.05](https://github.com/zloirock/core-js/releases/tag/v3.50.0)
