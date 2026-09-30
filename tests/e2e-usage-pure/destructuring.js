@@ -8343,11 +8343,9 @@ QUnit.test('destructuring: a wrapper literal with a computed element is captured
   assert.deepEqual([tail, z, count, events], ['t', 2, 4, ['t', 'y', 'z']]);
 });
 
-// an inner default on a NON-function host - an assignment, a catch parameter, an object key - takes
-// the same per-key fallback a parameter's does where the mirror declines (a non-identifier key
-// beside the leaves): every static leaf, flat or nested, reads the polyfill, and a pattern spelling
-// only nested leaves mirrors the default from them
-QUnit.test('destructuring: an inner default on a non-function host keeps the per-key fallback for every leaf', assert => {
+// An inner default mirrors its receiver whole beside a quoted key, on assignments, catches
+// and object-key hosts. A supplied receiver retains its own values.
+QUnit.test('destructuring: an inner default on a non-function host mirrors its receiver', assert => {
   /* eslint-disable prefer-const -- the ASSIGNMENT host is the shape under test */
   let S, of, d;
   [{ Set: S, 'with-dash': d, Array: { of } } = globalThis] = [];
@@ -8355,9 +8353,7 @@ QUnit.test('destructuring: an inner default on a non-function host keeps the per
   assert.same(typeof S, 'function');
   assert.deepEqual(of(7), [7]);
   assert.same(d, undefined);
-  // a catch parameter pairs its default with a thrown value nothing proves undefined, so the leaf
-  // keeps the native read - the realm's own `Array.of`, absent on a stripped realm - and a thrown
-  // present slot never reaches the default
+  // An unknown thrown value leaves the default live; a present slot never reaches its mirror.
   let caughtOf;
   try {
     throw [];
@@ -8365,7 +8361,7 @@ QUnit.test('destructuring: an inner default on a non-function host keeps the per
     caughtOf = inner;
     assert.same(d2, undefined);
   }
-  assert.same(caughtOf, Reflect.get(Reflect.get(globalThis, 'Array'), ['o', 'f'].join('')));
+  assert.deepEqual(caughtOf(8), [8]);
   let presentOf;
   try {
     throw [{ Array: {} }];
@@ -8523,22 +8519,22 @@ QUnit.test('destructuring: an inner default on a non-function host inside a func
   }
 });
 
-// An unsupported key declines the parameter mirror. Supplied values remain intact;
-// a default-only block can extract its flat constructor while nested leaves stay native.
-// Post can also guard lowered member reads, after the parameter pattern is gone.
+// A quoted key is mirrorable. Supplied values remain intact, and omitted or undefined arguments
+// take the mirrored default. Standalone post sees only the lowered member reads.
 QUnit.test('destructuring: a defaulted parameter of an immediately invoked function keeps the argument the call passes', assert => {
   function customOf(x) { return [x, 'own']; }
   const defaultCtor = typeof E2E_DETECT_LOWERED === 'undefined' ? Set : nativeSet;
+  const defaultOf = typeof E2E_DETECT_LOWERED === 'undefined' ? Array.of : nativeArrayOf;
   assert.deepEqual((({ Set: S, 'with-dash': d, Array: { of } } = globalThis) => {
     return [S, of, d];
   })({ Set: 'X', Array: { of: customOf } }), ['X', customOf, undefined]);
   assert.deepEqual((({ Set: S, 'with-dash': d, Array: { of } } = globalThis) => {
     return [S, of, d];
-  })(), [defaultCtor, nativeArrayOf, undefined]);
-  // An explicit undefined argument also takes the retained native default.
+  })(), [defaultCtor, defaultOf, undefined]);
+  // An explicit undefined argument takes the same default.
   assert.deepEqual((({ Set: S, 'with-dash': d, Array: { of } } = globalThis) => {
     return [S, of, d];
-  })(undefined), [defaultCtor, nativeArrayOf, undefined]);
+  })(undefined), [defaultCtor, defaultOf, undefined]);
   const own = { Set: 'X', Array: { of: customOf } };
   assert.same((({ Array: { of } } = globalThis) => {
     return of(1).length;
@@ -8548,7 +8544,7 @@ QUnit.test('destructuring: a defaulted parameter of an immediately invoked funct
   })({ k: own }), ['X', customOf, undefined]);
   assert.deepEqual((({ k: { Set: S, 'with-dash': d, Array: { of } } = globalThis }) => {
     return [S, of, d];
-  })({}), [Set, POST_LOWERED ? Array.of : nativeArrayOf, undefined]);
+  })({}), [Set, Array.of, undefined]);
 });
 
 // a CAPTURE yields its right-hand side, so the selection under it is what the pattern reads. with an

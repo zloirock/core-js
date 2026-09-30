@@ -1,13 +1,6 @@
-// An inner default on a NON-function host - an assignment, a catch parameter, an object key, a
-// declarator's array wrapper - takes the per-key fallback chain a parameter's does. Where the
-// mirror declines (a non-identifier key, a repeated HOP key, a rest beside the leaves) a static leaf,
-// the nested one included, keeps the inline default only where the host proves the slot the default
-// pairs undefined, so the default IS the value; a CATCH parameter pairs an unknown thrown value, and
-// its leaves stay native. A key repeated over LEAVES does not decline the mirror - one slot is one
-// property, and the literal replaces the default whole; a pattern spelling only nested leaves mirrors
-// the default from them; and a member target beside the leaves (an assignment-only shape) rides the
-// mirror like any slot once its ROOT proves writable, so the flat leaf keeps no inline default there.
-// Both legs print the same shapes.
+// Inner defaults replace their receiver whole where a mirror can carry its keys.
+// Quoted keys retain native reads; declined rest and unknown supplied receivers stay native.
+// Member targets and repeated flat keys retain the same mirror as ordinary bindings.
 const getKey = () => 'Map';
 const box = {};
 let S, M, alias, of, rest, race, d;
@@ -33,20 +26,14 @@ export const keyed = (() => {
   return [KS, y, kof, only];
 })();
 
-// ... and a value-SELECTING inner default fills the default's arms, a member target taking the
-// ponyfill in its own slot beside the sibling leaf. A selection every arm of which is the REALM names ONE object, so the
-// literal replaces it whole - left standing, the probe selects natively wherever the host HAS
-// `window`, and the polyfill the fallback arm carries attaches nowhere. The slot a literal cannot
-// spell anchors on the operand the selection yields through, never on the probe's unbacked name
+// Realm selections mirror the chosen default. Foreign fallback values remain native.
+// Unbacked probes retain their own selection behavior.
 export const selecting = (() => {
   let gb;
   ({ k: { Map: { groupBy: gb }, Promise: { race: box.race } } = globalThis.window ?? globalThis } = {});
   const { k: { Map: { groupBy: gb2 }, Promise: { customZ: z } } = globalThis.window ?? globalThis } = {};
   const [{ Map: { groupBy: gb3 } } = globalThis.window ?? globalThis] = [];
-  // ... a host slot no pairing reads through (a spread) still hands the pattern its default, and a
-  // BARE backed left reaches the same literal by the other road - its right is dead rather than
-  // realm-equal. A fallback the plan may not speak for is the negative: the selection stays whole
-  // and native, so neither arm is polyfilled
+  // A spread leaves its paired slot unknown; a foreign fallback stays native.
   const extra = {};
   let gb4, gb5, gb6;
   ({ k: { Map: { groupBy: gb4 } } = globalThis.window ?? globalThis } = { ...extra });
@@ -54,7 +41,6 @@ export const selecting = (() => {
   ({ k: { Map: { groupBy: gb6 } } = globalThis.window ?? extra } = {});
   return [gb, gb2, z, gb3, gb4, gb5, gb6, box];
 })();
-
 export const wrapped = (() => {
   const [{ Set: WS, 'with-dash': wd, Array: { of: wof } } = globalThis] = [];
   const [{ Array: { of: wonly } } = globalThis] = [];
