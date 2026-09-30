@@ -5,6 +5,7 @@ require('../../modules/es.object.to-string');
 require('../../modules/es.reflect.own-keys');
 require('../../modules/es.string.iterator');
 require('../../modules/es.iterator.constructor');
+require('../../modules/es.iterator.chunks');
 require('../../modules/es.iterator.concat');
 require('../../modules/es.iterator.dispose');
 require('../../modules/es.iterator.drop');
@@ -21,6 +22,7 @@ require('../../modules/es.iterator.reduce');
 require('../../modules/es.iterator.some');
 require('../../modules/es.iterator.take');
 require('../../modules/es.iterator.to-array');
+require('../../modules/es.iterator.windows');
 require('../../modules/es.iterator.zip');
 require('../../modules/es.iterator.zip-keyed');
 

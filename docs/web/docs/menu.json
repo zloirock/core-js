@@ -150,6 +150,10 @@
                 "url": "{docs-version}/docs/features/proposals/iterator-sequencing"
               },
               {
+                "title": "Iterator chunking",
+                "url": "{docs-version}/docs/features/proposals/iterator-chunking"
+              },
+              {
                 "title": "Iterator includes",
                 "url": "{docs-version}/docs/features/proposals/iterator-includes"
               },
@@ -265,10 +269,6 @@
               {
                 "title": "Await dictionary",
                 "url": "{docs-version}/docs/features/proposals/await-dictionary"
-              },
-              {
-                "title": "Iterator chunking",
-                "url": "{docs-version}/docs/features/proposals/iterator-chunking"
               }
             ]
           },

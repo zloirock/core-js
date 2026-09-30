@@ -798,6 +798,9 @@ GLOBAL.tests = {
         && Iterator.prototype === Object.getPrototypeOf(Object.getPrototypeOf([].values()));
     }
   },
+  'es.iterator.chunks': function () {
+    return Iterator.prototype.chunks;
+  },
   'es.iterator.concat': function () {
     return Iterator.concat;
   },
@@ -871,6 +874,9 @@ GLOBAL.tests = {
   ],
   'es.iterator.to-array': function () {
     return Iterator.prototype.toArray;
+  },
+  'es.iterator.windows': function () {
+    return Iterator.prototype.windows;
   },
   'es.iterator.zip': function () {
     return Iterator.zip;
@@ -1980,17 +1986,11 @@ GLOBAL.tests = {
   'esnext.function.metadata': function () {
     return Function.prototype[Symbol.metadata] === null;
   },
-  'esnext.iterator.chunks': function () {
-    return Iterator.prototype.chunks;
-  },
   'esnext.iterator.range': function () {
     return Iterator.range;
   },
   'esnext.iterator.to-async': function () {
     return Iterator.prototype.toAsync;
-  },
-  'esnext.iterator.windows': function () {
-    return Iterator.prototype.windows;
   },
   'esnext.map.delete-all': function () {
     return Map.prototype.deleteAll;

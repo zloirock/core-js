@@ -1,7 +1,7 @@
 import { STRICT } from '../helpers/constants.js';
 import { createIterator } from '../helpers/helpers.js';
 
-import Iterator from 'core-js-pure/full/iterator/index';
+import Iterator from 'core-js-pure/es/iterator';
 import from from 'core-js-pure/es/array/from';
 
 QUnit.test('Iterator#chunks', assert => {

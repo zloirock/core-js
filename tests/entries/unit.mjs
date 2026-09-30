@@ -1,5 +1,19 @@
 /* eslint-disable import/no-dynamic-require, node/global-require -- required */
 import { ok } from 'node:assert/strict';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+
+const execFileAsync = promisify(execFile);
+
+// Prototype extensions must survive constructor initialization on a fresh import.
+for (const pkg of ['core-js-pure', 'core-js']) {
+  await execFileAsync(process.execPath, ['-e', `
+    const { strictEqual } = require('node:assert/strict');
+    const iteratorPrototype = require('${ pkg }/stage/4').Iterator.prototype;
+    strictEqual(typeof iteratorPrototype.chunks, 'function');
+    strictEqual(typeof iteratorPrototype.windows, 'function');
+  `]);
+}
 
 const entries = await fs.readJson('packages/core-js-compat/entries.json');
 const expected = new Set(Object.keys(entries));
@@ -347,6 +361,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok('next' in load(NS, 'get-iterator')([]));
     ok('Map' in load(NS));
     ok(typeof load(NS, 'iterator') == 'function');
+    ok(typeof load(NS, 'iterator/chunks') == 'function');
     ok(load(NS, 'iterator/concat')([2]).next().value === 2);
     ok(typeof load(NS, 'iterator/drop') == 'function');
     ok(typeof load(NS, 'iterator/every') == 'function');
@@ -362,6 +377,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'iterator/some') == 'function');
     ok(typeof load(NS, 'iterator/take') == 'function');
     ok(typeof load(NS, 'iterator/to-array') == 'function');
+    ok(typeof load(NS, 'iterator/windows') == 'function');
     const iteratorZip = load(NS, 'iterator/zip');
     ok([...iteratorZip([[1], [2]])][0][1] === 2);
     const iteratorZipKeyed = load(NS, 'iterator/zip-keyed');
@@ -724,9 +740,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'async-iterator/take') == 'function');
     ok(typeof load(NS, 'async-iterator/to-array') == 'function');
     ok(load(NS, 'function/metadata') === null);
-    ok(typeof load(NS, 'iterator/chunks') == 'function');
     ok(typeof load(NS, 'iterator/to-async') == 'function');
-    ok(typeof load(NS, 'iterator/windows') == 'function');
     ok(load(NS, 'promise/all-keyed')({}) instanceof Promise);
     ok(load(NS, 'promise/all-settled-keyed')({}) instanceof Promise);
     ok(load(NS, 'symbol/metadata'));

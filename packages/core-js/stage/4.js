@@ -13,6 +13,7 @@ require('../proposals/float16');
 require('../proposals/global-this');
 require('../proposals/is-error');
 require('../proposals/iterator-helpers-stage-3-2');
+require('../proposals/iterator-chunking-v2');
 require('../proposals/iterator-includes');
 require('../proposals/iterator-join');
 require('../proposals/iterator-sequencing');

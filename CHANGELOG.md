@@ -1,5 +1,11 @@
 # Changelog
 ### Unreleased
+- [`Iterator` chunking proposal](https://github.com/tc39/proposal-iterator-chunking):
+  - Built-ins:
+    - `Iterator.prototype.chunks`
+    - `Iterator.prototype.windows`
+  - Moved to stable ES, [September 2026 TC39 meeting](https://github.com/tc39/proposals/commit/ee92ecf4754feca09a333fcf615b75422bf2c0f9)
+  - Added `es.` namespace modules, `/es/` and `/stable/` namespace entries
 - [`Iterator` includes proposal](https://github.com/tc39/proposal-iterator-includes):
   - Built-in:
     - `Iterator.prototype.includes`

@@ -700,6 +700,10 @@ export const data = {
     firefox: '131',
     safari: '18.4',
   },
+  'es.iterator.chunks': {
+    bun: '1.4.0',
+    firefox: '154',
+  },
   'es.iterator.concat': {
     bun: '1.3.7',
     chrome: '146',
@@ -839,6 +843,10 @@ export const data = {
     deno: '1.38.1',
     firefox: '131',
     safari: '18.4',
+  },
+  'es.iterator.windows': {
+    bun: '1.4.0',
+    firefox: '154',
   },
   'es.iterator.zip': {
     bun: '1.4.0',
@@ -2632,10 +2640,8 @@ export const data = {
   // TODO: Remove from `core-js@4`
   'esnext.iterator.as-indexed-pairs': {
   },
-  'esnext.iterator.chunks': {
-    bun: '1.4.0',
-    firefox: '154',
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.iterator.chunks': null,
   // TODO: Remove from `core-js@4`
   'esnext.iterator.concat': null,
   // TODO: Remove from `core-js@4`
@@ -2676,10 +2682,8 @@ export const data = {
   'esnext.iterator.to-array': null,
   'esnext.iterator.to-async': {
   },
-  'esnext.iterator.windows': {
-    bun: '1.4.0',
-    firefox: '154',
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.iterator.windows': null,
   // TODO: Remove from `core-js@4`
   'esnext.iterator.zip': null,
   // TODO: Remove from `core-js@4`
@@ -3281,6 +3285,7 @@ export const renamed = new Map([
   ['esnext.error.is-error', 'es.error.is-error'],
   ['esnext.global-this', 'es.global-this'],
   ['esnext.iterator.constructor', 'es.iterator.constructor'],
+  ['esnext.iterator.chunks', 'es.iterator.chunks'],
   ['esnext.iterator.concat', 'es.iterator.concat'],
   ['esnext.iterator.dispose', 'es.iterator.dispose'],
   ['esnext.iterator.drop', 'es.iterator.drop'],
@@ -3297,6 +3302,7 @@ export const renamed = new Map([
   ['esnext.iterator.some', 'es.iterator.some'],
   ['esnext.iterator.take', 'es.iterator.take'],
   ['esnext.iterator.to-array', 'es.iterator.to-array'],
+  ['esnext.iterator.windows', 'es.iterator.windows'],
   ['esnext.iterator.zip', 'es.iterator.zip'],
   ['esnext.iterator.zip-keyed', 'es.iterator.zip-keyed'],
   ['esnext.json.is-raw-json', 'es.json.is-raw-json'],
