@@ -23,7 +23,7 @@ const { _: args } = argv;
 const UTF8 = { encoding: 'utf8' };
 const fixturesDir = path.resolve('../transpiler-fixtures');
 
-const counts = { passed: 0, failed: 0, skipped: 0 };
+const counts = { passed: 0, failed: 0, skipped: 0, rewritten: 0, regenerated: 0 };
 
 // OVERWRITE sweeps run over thousands of untouched fixtures - write (and report) only what
 // actually changes so the regen deltas are the whole output. returns whether it changed
@@ -265,7 +265,8 @@ async function runErrorFixture(directory, pluginOptions, errorFile) {
     try {
       sidecar = normalize(captureTransform(source, pluginOptions, 'input.ts').code);
     } catch { /* fall through to the drop */ }
-    await writeIfChanged(directory, unpluginOutputFile, sidecar);
+    if (await writeIfChanged(directory, unpluginOutputFile, sidecar)) counts.rewritten++;
+    else counts.regenerated++;
     return;
   }
   if (await pathExists(unpluginOutputFile)) {
@@ -308,6 +309,7 @@ function unpluginVariantPath(file) {
 }
 
 async function checkSideChannels(directory, channels) {
+  let rewritten = false;
   // each channel is `[file, content, normalizeExpected]`; the third element (default identity) is
   // applied to the EXPECTED baseline read so it gets the same normalization the actual `content`
   // already went through - the debug slot passes `collapseDriftingTargets`, keeping both comparison
@@ -321,7 +323,7 @@ async function checkSideChannels(directory, channels) {
       const variant = unpluginVariantPath(file);
       const baseContent = await pathExists(file) ? normalizeExpected(normalize(await readFile(file, UTF8))) : null;
       const desired = content !== null && baseContent !== null && content !== baseContent ? content : null;
-      await writeIfChanged(directory, variant, desired);
+      rewritten = await writeIfChanged(directory, variant, desired) || rewritten;
       continue;
     }
     // prefer a `<stem>-unplugin.<ext>` sidecar when unplugin's channel output legitimately
@@ -344,7 +346,7 @@ async function checkSideChannels(directory, channels) {
     fail(directory, `${ basename(expectedFile) } mismatch: ${ content.split('\n').at(-1) || '(empty)' }`);
     return false;
   }
-  return true;
+  return { rewritten };
 }
 
 // shared pass/fail+firstDiff pattern. all three compare-helpers below normalize their
@@ -372,7 +374,7 @@ async function compareStrict(directory, actual, directFile) {
 // (environment-dependent targets resolution, the `require` dialect on SFC virtuals) and is
 // byte-held via `compareStrict`; OVERWRITE regenerates the sidecar set from scratch: one is
 // written exactly where the structural (or lane's import-set) compare against babel differs
-async function compareMainOutput({ directory, actual, babelOutput, babelOptions, parseId, abstained, hasUnpluginOutput, unpluginOutputFile }) {
+async function compareMainOutput({ directory, actual, babelOutput, babelOptions, parseId, abstained, hasUnpluginOutput, unpluginOutputFile, rewritten }) {
   const looseLane = abstained || BASELINE_GENERATOR_DEFECTS.has(basename(directory))
     || (babelOptions.plugins ?? []).some(plugin => !(Array.isArray(plugin) && plugin[0] === '@core-js'));
   let agrees;
@@ -394,7 +396,9 @@ async function compareMainOutput({ directory, actual, babelOutput, babelOptions,
     }
   }
   if (OVERWRITE) {
-    await writeIfChanged(directory, unpluginOutputFile, agrees ? null : actual);
+    const changed = await writeIfChanged(directory, unpluginOutputFile, agrees ? null : actual);
+    if (changed || rewritten) counts.rewritten++;
+    else counts.regenerated++;
     return;
   }
   if (agrees) {
@@ -456,15 +460,17 @@ async function runFixture(directory) {
 
     const debugContent = collapseDriftingTargets(logs.length ? normalize(logs.join('\n')) : null);
     const warningsContent = warns.length ? normalize(warns.join('\n')) : null;
-    if (!await checkSideChannels(directory, [
+    const sideChannels = await checkSideChannels(directory, [
       [join(directory, 'debug.txt'), debugContent, collapseDriftingTargets],
       [join(directory, 'warnings.txt'), warningsContent],
-    ])) return;
+    ]);
+    if (!sideChannels) return;
     if (!checkSourceMapContent(directory, map, testId, source, pluginOptions.method)) return;
     if (!checkOutputParses(directory, code, testId)) return;
     await compareMainOutput({
       directory, actual, babelOutput, babelOptions, parseId: liftSfcLangSuffix(testId), abstained,
       hasUnpluginOutput, unpluginOutputFile,
+      rewritten: sideChannels.rewritten,
     });
   } catch (error) {
     fail(directory, error.message);
@@ -493,7 +499,11 @@ if (FIXTURE_SHARD) {
   } else {
     for (const dir of fixtures) await runFixture(dir);
   }
-  const { passed, failed, skipped } = counts;
+  const { passed, failed, skipped, rewritten, regenerated } = counts;
+  if (OVERWRITE) {
+    echo(`\nRegenerated: ${ cyan(rewritten + regenerated) }, Rewritten: ${ yellow(rewritten) }, Unchanged: ${ cyan(regenerated) }`);
+    echo(yellow('Re-run without OVERWRITE to verify the regenerated fixtures'));
+  }
   echo(`\nPassed: ${ green(passed) }, Failed: ${ failed ? red(failed) : green(failed) }, Skipped: ${ yellow(skipped) }`);
   // the denominator, enforced: every collected fixture must have left through exactly one counter.
   // the equality is what says the summary describes the whole COLLECTED corpus, and a subtree run
@@ -503,7 +513,7 @@ if (FIXTURE_SHARD) {
     .sort((a, b) => b[1] - a[1])
     .map(([key, count]) => `${ key.slice(5) }: ${ count }`);
   if (reasons.length) echo(`Skipped by reason - ${ reasons.join(', ') }`);
-  const accounted = passed + failed + skipped;
+  const accounted = passed + failed + skipped + rewritten + regenerated;
   if (accounted !== fixtures.length) {
     throw new Error(`corpus not accounted for: ${ accounted } of ${ fixtures.length } fixtures reached a counter`);
   }
@@ -514,7 +524,7 @@ if (FIXTURE_SHARD) {
   // deliberate narrowing and carries no floor
   const COMPARED_FLOOR = 8000;
   const compared = passed + failed;
-  if (!subtree && compared < COMPARED_FLOOR) {
+  if (!OVERWRITE && !subtree && compared < COMPARED_FLOOR) {
     throw new Error(`fixture corpus collapsed: ${ compared } fixtures compared, under the floor of ${ COMPARED_FLOOR }`);
   }
   if (failed) throw new Error('Some tests have failed');
