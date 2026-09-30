@@ -65,8 +65,8 @@ export const b1 = (() => {
   }
   return typeof f();
 })();
-// negative: a second slot would read the receiver twice; a sole slot over a CALL receiver spells
-// the call once, inside the mirror
+// A re-readable built-in surface serves several default slots; a sole slot over a call receiver
+// evaluates the call once inside the mirror. Supplied arguments keep their own properties.
 export const b2 = (() => {
   function f({
     at,
