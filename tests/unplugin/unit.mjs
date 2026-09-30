@@ -26,7 +26,7 @@ import createPlugin, {
   formatParseErrorForWarn,
 } from '../../packages/core-js-unplugin/internals/plugin.js';
 import { sealedLayerAbove } from '../../packages/core-js-unplugin/internals/claim-guards.js';
-import { drainSequenceAssignments, probeCarriesWrite } from '../../packages/core-js-unplugin/internals/destructure-helpers.js';
+import { drainSequenceAssignments, liveTailOf, probeCarriesWrite } from '../../packages/core-js-unplugin/internals/destructure-helpers.js';
 import SnapshotCache from '../../packages/core-js-unplugin/internals/snapshot-cache.js';
 import { printProgram } from '../../packages/core-js-unplugin/internals/print.js';
 import { collapseWhitespace } from './collapse-whitespace.mjs';
@@ -52,6 +52,16 @@ function programOf(src, sourceType = 'module') {
 const { cyan, green, red } = chalk;
 
 const counts = { passed: 0, failed: 0 };
+
+// Registration keeps source nodes, while rendering replaces claims. A nested
+// sequence must read its current receiver after those replacements.
+const [{ expression: sourceTail }] = programOf('raw;').body;
+const [{ declarations }] = programOf('var x = (first(), (second(), pure));').body;
+const [liveReceiver] = declarations;
+const recordedPrefix = [mintLiteral(1), mintLiteral(2)];
+check('live nested receiver/rewritten tail', liveTailOf(liveReceiver, recordedPrefix, sourceTail).name, 'pure');
+check('live nested receiver/changed prefix shape', liveTailOf(liveReceiver, [mintLiteral(1)], sourceTail), sourceTail);
+check('live nested receiver/non-sequence', liveTailOf({ init: sourceTail }, recordedPrefix, sourceTail), sourceTail);
 
 // A structural AST comparison cannot see any of these changes; the separate comment
 // channel must reject them, including a duplicate lost without changing the set of texts.
@@ -1886,20 +1896,20 @@ async function checkAstFlushContracts() {
     flushIntoProgram({ injector, program: parsed.program, ...opts });
     return parsed.program.body.map(node => node.source?.value ? `${ node.type }:${ node.source.value }` : node.type).join('|');
   }
-  const injector = {
-    importStyle: 'import', pkg: '@core-js/pure', absoluteImports: false,
-    globalImports: new Set(['es.array.flat']), pureImports: new Map([['actual/self', '_self']]),
-    existingPureImports: new Set(),
-  };
+  const injector = new ImportInjector({ importStyle: 'import', pkg: '@core-js/pure', absoluteImports: false });
+  injector.globalImports.add('es.array.flat');
+  injector.pureImports.set('actual/self', '_self');
   const shape = flushOver("'use strict';\nuse(_self);\n", injector);
   check('flush lands imports AFTER the directive prologue',
     shape.startsWith('ExpressionStatement|ImportDeclaration'), true);
   check('flush spells the global module path off the pkg',
     shape.includes('@core-js/pure/modules/es.array.flat'), true);
-  const requireInjector = { ...injector, importStyle: 'require', globalImports: new Set(['es.array.at']) };
+  const requireInjector = new ImportInjector({ importStyle: 'require', pkg: '@core-js/pure', absoluteImports: false });
+  requireInjector.globalImports.add('es.array.at');
+  requireInjector.pureImports.set('actual/self', '_self');
   const requireShape = flushOver('use(_self);\n', requireInjector);
   check('flush spells require() in the require style', requireShape.split('|', 1)[0], 'ExpressionStatement');
-  const memoInjector = { ...injector, globalImports: new Set(), pureImports: new Map(), reservedNames: new Set() };
+  const memoInjector = new ImportInjector({ importStyle: 'import', pkg: '@core-js/pure', absoluteImports: false });
   for (const [source, expected] of [
     ['_ref = Array;', ''],
     ['_ref = read();', 'VariableDeclaration|ExpressionStatement'],
@@ -1909,6 +1919,24 @@ async function checkAstFlushContracts() {
     ['foreign = Array;', 'ExpressionStatement'],
   ]) check(`flush prunes only an unread inert memo: ${ source }`,
     flushOver(source, memoInjector, { refNames: [{ name: '_ref', registrationIndex: 0 }] }), expected);
+
+  const aliasInjector = new ImportInjector({ importStyle: 'import', pkg: '@core-js/pure', absoluteImports: false });
+  const refs = Array.from({ length: 3 }, () => aliasInjector.generateLocalRef());
+  aliasInjector.registerGlobalAlias(refs[0], 'Iterator', { trusted: true, minted: true });
+  aliasInjector.registerGlobalAlias(refs[1], 'Map', { trusted: true, minted: true });
+  aliasInjector.registerGlobalAlias(refs[2], 'Set', { trusted: true, minted: true });
+  flushOver(`const ${ refs[1] } = Map; use(${ refs[1] }); const ${ refs[0] } = Iterator; use(${ refs[0] });`,
+    aliasInjector, { refOrder: refs });
+  const snapshot = aliasInjector.snapshot();
+  checkDeep('flush moves minted aliases through a swap of printed names',
+    [...snapshot.globalAliases].map(([name, alias]) => [name, alias.hint]).sort(),
+    [['_ref', 'Map'], ['_ref2', 'Iterator']]);
+  check('flush drops a minted alias whose receiver was omitted', snapshot.globalAliases.has(refs[2]), false);
+  const inherited = new ImportInjector({
+    importStyle: 'import', pkg: '@core-js/pure', absoluteImports: false, inherit: snapshot,
+  });
+  checkDeep('post inherits the canonical minted alias names',
+    refs.map(name => inherited.getBindingInfo(name)?.hint ?? null), ['Map', 'Iterator', null]);
 }
 await checkAstFlushContracts();
 
