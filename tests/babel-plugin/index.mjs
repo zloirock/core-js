@@ -94,8 +94,8 @@ let skipped = 0;
 // a run that CREATES a baseline verifies nothing about it - counted apart so the reconciliation
 // below can see it, and so a green line can never mean "compared" when it meant "written"
 let created = 0;
-// an OVERWRITE run writes expectations instead of comparing them, so like a creating run it proves
-// nothing about the fixtures it touched - counted apart, and it may not leave a green exit
+// OVERWRITE is an explicit regeneration command, not a verification run. Changed and unchanged
+// fixtures are counted apart from comparisons so a successful regeneration never claims a pass.
 let rewritten = 0;
 let regenerated = 0;
 
@@ -166,6 +166,7 @@ async function overwriteVariant(directory, slots) {
     else await writeFile(file, desired, UTF8);
   }
   if (changed) echo`${ cyan(label(directory)) } ${ matchesBaseline ? green('baseline') : yellow('variant rewritten') }`;
+  return changed;
 }
 
 async function runFixture(directory) {
@@ -212,13 +213,15 @@ async function runFixture(directory) {
   // `touch <stem>.<variant>.<ext>` placeholder step and never clobbers the v8 baseline
   if (OVERWRITE) {
     if (BABEL_VARIANT) {
-      regenerated++;
-      return overwriteVariant(directory, [
+      const changed = await overwriteVariant(directory, [
         [EXPECTED_SLOTS.errorFile, error ? actual : null],
         [EXPECTED_SLOTS.outputFile, error ? null : actual],
         [EXPECTED_SLOTS.debugFile, debugOutput],
         [EXPECTED_SLOTS.warningsFile, warningsOutput],
       ]);
+      if (changed) rewritten++;
+      else regenerated++;
+      return;
     }
     // touch (and report) only what actually changes - the regen deltas ARE the output
     let changed = await pathExists(staleFile);
@@ -316,11 +319,10 @@ if (FIXTURE_SHARD) {
   // deliberate narrowing and carries no floor
   const COMPARED_FLOOR = 8000;
   const compared = passed + failed;
-  if (!subtree && compared < COMPARED_FLOOR) {
+  if (!OVERWRITE && !subtree && compared < COMPARED_FLOOR) {
     throw new Error(`fixture corpus collapsed: ${ compared } fixtures compared, under the floor of ${ COMPARED_FLOOR }`);
   }
   if (created) throw new Error(`${ created } baseline(s) created - a creating run compares nothing, re-run to verify them`);
-  if (rewritten) throw new Error(`${ rewritten } baseline(s) rewritten - an OVERWRITE run compares nothing, re-run to verify them`);
   if (failed) throw new Error('Some tests have failed');
 }
 
@@ -330,6 +332,11 @@ function logSummary() {
   if (BABEL_REQUIRE_FROM) {
     const { version } = requireBabel('@babel/core/package.json');
     echo(`\nBabel: ${ cyan(version) }`);
+  }
+  if (OVERWRITE) {
+    echo(`\nRegenerated: ${ cyan(rewritten + regenerated) }, Rewritten: ${ yellow(rewritten) }, Unchanged: ${ cyan(regenerated) }, Skipped: ${ yellow(skipped) }, Failed: ${ failed ? red(failed) : green(failed) }`);
+    echo(yellow('Re-run without OVERWRITE to verify the regenerated fixtures'));
+    return;
   }
   const passedLabel = green(passed);
   const failedLabel = failed ? red(failed) : green(failed);
