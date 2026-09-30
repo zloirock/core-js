@@ -1,5 +1,5 @@
-// Claimed statics retain their polyfills beside object rest.
-// Rest keeps its source and exclusions; instance slots remain native.
+// Computed hop keys run in source order before the static or instance leaves they select.
+// The selected slot is captured where needed; sibling reads, defaults and rest stay ordered.
 const order = [];
 const eff = tag => (order.push(tag), tag);
 const { [(eff('static'), 'Array')]: { from: viaStatic } } = globalThis;
