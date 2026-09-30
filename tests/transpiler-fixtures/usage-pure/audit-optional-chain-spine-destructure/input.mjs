@@ -1,5 +1,5 @@
-// Claimed statics retain their polyfills beside object rest.
-// Rest keeps its source and exclusions; instance slots remain native.
+// Destructuring follows optional realm hops, including computed keys and stored receivers.
+// Supported static and instance leaves receive polyfills while key effects and rest exclusions survive.
 let c = 0;
 const { Symbol: { iterator } } = globalThis?.[(c++, 'self')];
 export const r1 = [typeof iterator, c];

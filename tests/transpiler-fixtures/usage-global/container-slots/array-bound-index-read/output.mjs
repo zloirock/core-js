@@ -1,0 +1,40 @@
+import "core-js/modules/es.object.assign";
+import "core-js/modules/es.object.define-getter";
+import "core-js/modules/es.object.define-setter";
+import "core-js/modules/es.object.entries";
+import "core-js/modules/es.object.freeze";
+import "core-js/modules/es.object.from-entries";
+import "core-js/modules/es.object.get-own-property-descriptor";
+import "core-js/modules/es.object.get-own-property-descriptors";
+import "core-js/modules/es.object.get-own-property-names";
+import "core-js/modules/es.object.get-own-property-symbols";
+import "core-js/modules/es.object.get-prototype-of";
+import "core-js/modules/es.object.group-by";
+import "core-js/modules/es.object.has-own";
+import "core-js/modules/es.object.is";
+import "core-js/modules/es.object.is-extensible";
+import "core-js/modules/es.object.is-frozen";
+import "core-js/modules/es.object.is-sealed";
+import "core-js/modules/es.object.keys";
+import "core-js/modules/es.object.lookup-getter";
+import "core-js/modules/es.object.lookup-setter";
+import "core-js/modules/es.object.prevent-extensions";
+import "core-js/modules/es.object.seal";
+import "core-js/modules/es.object.to-string";
+import "core-js/modules/es.object.values";
+import "core-js/modules/es.array.iterator";
+import "core-js/modules/es.string.iterator";
+import "core-js/modules/web.dom-collections.iterator";
+// A const-bound numeric index read accompanies a later nested read of the same constructor slot.
+const varIndexOverBail = function () {
+  const idxBox = [Object];
+  const idx = 0;
+  const picked = idxBox[idx];
+  const {
+    0: {
+      keys
+    }
+  } = idxBox;
+  return [picked, keys];
+}();
+export { varIndexOverBail };

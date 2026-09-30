@@ -6,8 +6,8 @@ import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Object$entries from "@core-js/pure/actual/object/entries";
 import _Object$keys from "@core-js/pure/actual/object/keys";
 var _ref2;
-// Claimed statics retain their polyfills beside object rest.
-// Rest keeps its source and exclusions; instance slots remain native.
+// String-spelled realm keys expose static leaves beside ordinary siblings and rest.
+// Independent instance calls preserve user binding names and parenthesized receiver identity.
 const {
   "Array": {
     from

@@ -7,8 +7,8 @@ import _Set from "@core-js/pure/actual/set/constructor";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 import _Symbol$toPrimitive from "@core-js/pure/actual/symbol/to-primitive";
 var _ref2, _ref3;
-// Claimed statics retain their polyfills beside object rest.
-// Rest keeps its source and exclusions; instance slots remain native.
+// Well-known-symbol patterns read the selected iterator method and retain nested defaults.
+// Computed sibling keys and effectful receivers keep their order beside static and instance claims.
 const obj = {};
 const _ref = obj,
   {

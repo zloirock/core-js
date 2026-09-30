@@ -1,5 +1,5 @@
-// Claimed statics retain their polyfills beside object rest.
-// Rest keeps its source and exclusions; instance slots remain native.
+// Bodyless assignments preserve conditional receiver evaluation and ordered property reads.
+// Static and instance claims receive polyfills while sibling reads, rest and receiver stores survive.
 const log = [];
 let from, rest, keyed, other, nested, sibling, kw, prefixed;
 if (log.length >= 0) ({ from, ...rest } = Array);
