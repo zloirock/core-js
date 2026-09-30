@@ -4,8 +4,8 @@ import "core-js/modules/es.string.pad-start";
 import "core-js/modules/es.array.at";
 import "core-js/modules/es.array.includes";
 import "core-js/modules/es.iterator.constructor";
+import "core-js/modules/es.iterator.includes";
 import "core-js/modules/es.string.includes";
-import "core-js/modules/esnext.iterator.includes";
 // an overload set is chosen by the arguments wherever it is declared: a namespace MERGED onto a
 // class answers a static call like any other set instead of handing back its first declaration,
 // and a written callable slot stands the whole set down - the replacement's value is described by

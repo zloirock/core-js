@@ -9,11 +9,11 @@ import "core-js/modules/es.array.includes";
 import "core-js/modules/es.array.map";
 import "core-js/modules/es.array.species";
 import "core-js/modules/es.iterator.constructor";
+import "core-js/modules/es.iterator.includes";
 import "core-js/modules/es.iterator.map";
 import "core-js/modules/es.string.at";
 import "core-js/modules/es.string.includes";
 import "core-js/modules/es.string.iterator";
-import "core-js/modules/esnext.iterator.includes";
 import "core-js/modules/web.dom-collections.iterator";
 // Every selected receiver keeps its own instance methods beside the constructor arm.
 // Unknown arrays and strings both remain possible when no caller type is known.

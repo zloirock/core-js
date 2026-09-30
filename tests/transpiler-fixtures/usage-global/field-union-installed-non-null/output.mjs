@@ -1,8 +1,8 @@
 import "core-js/modules/es.object.to-string";
 import "core-js/modules/es.array.includes";
 import "core-js/modules/es.iterator.constructor";
+import "core-js/modules/es.iterator.includes";
 import "core-js/modules/es.string.includes";
-import "core-js/modules/esnext.iterator.includes";
 // A transparent write-target wrapper cannot hide an escaping replacement body.
 // Dynamic writes intentionally exceed the initializer types; the wrappers erase at runtime.
 function change(value) {

@@ -15,9 +15,9 @@ import "core-js/modules/es.array.values";
 import "core-js/modules/es.iterator.constructor";
 import "core-js/modules/es.iterator.find";
 import "core-js/modules/es.iterator.flat-map";
+import "core-js/modules/es.iterator.includes";
 import "core-js/modules/es.string.at";
 import "core-js/modules/es.string.includes";
-import "core-js/modules/esnext.iterator.includes";
 import "core-js/modules/web.dom-collections.iterator";
 import "core-js/modules/web.dom-collections.values";
 // A computed instance slot stays between retained siblings and their defaults.

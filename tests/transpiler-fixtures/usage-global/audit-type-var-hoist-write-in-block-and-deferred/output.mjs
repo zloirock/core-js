@@ -1,9 +1,9 @@
 import "core-js/modules/es.object.to-string";
 import "core-js/modules/es.array.includes";
 import "core-js/modules/es.iterator.constructor";
+import "core-js/modules/es.iterator.includes";
 import "core-js/modules/es.string.at";
 import "core-js/modules/es.string.includes";
-import "core-js/modules/esnext.iterator.includes";
 // where the write SITS decides whether it can be trusted: a write next to the declarator is ordered
 // before the use, so the type follows it to a string. a write inside a deferred callback runs at an
 // unknown time - possibly after the use - so the positional "last write" cannot be trusted and
