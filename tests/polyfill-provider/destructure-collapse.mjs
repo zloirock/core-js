@@ -6,7 +6,12 @@ import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internal
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { planMemoReadTarget } from '../../packages/core-js-polyfill-provider/detect-usage/members.js';
 import { buildNestedDestructurePlan, planCatchClauseExtraction } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
-import { destructurePropLeafMeta, residualInitRunsEffects, resolvePositionalElementSlot } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
+import {
+  destructurePropLeafMeta,
+  leafTakesSlotDefault,
+  residualInitRunsEffects,
+  resolvePositionalElementSlot,
+} from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
 import { sentinelAlreadyProcessed } from '../../packages/core-js-polyfill-provider/detect-usage/own-output.js';
 import { HOST_SLOT, hostSlot, renderProxyReceiverPlan } from '../../packages/core-js-polyfill-provider/render.js';
 import { planArrayWrapperCapture } from '../../packages/core-js-polyfill-provider/destructure-host-shape.js';
@@ -1712,5 +1717,39 @@ for (const [name, source, expected] of [
     check(lbl, patternFullyConsumed(id, prop => claimed.has(prop)), expected);
   });
 }
+
+for (const [source, nested, sentinel, expected] of [
+  ['const { Array: { from } } = (stored = flag && globalThis);', true, false, true],
+  ['const { Array: { from } } = flag ? (stored = globalThis) : globalThis;', true, false, true],
+  ['const { Array: { from } } = flag ? globalThis : globalThis;', true, false, false],
+  ['const { [(effect(), "from")]: from } = flag && Array;', false, true, false],
+  ['const { from } = flag && Array;', false, true, false],
+  ['const { Array: { from } } = flag ? globalThis : { Array: { from: undefined } };', true, false, false],
+  ['function f({ from } = Array) {}', false, false, false],
+]) runBoth(`leaf-default route/${ source }`, source, (parser, program, label) => {
+  const adapter = parser.name === 'babel' ? createBabelAdapter() : createEstreeAdapter();
+  const leaf = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property',
+    path => path.node.value?.type === 'Identifier');
+  const [host] = parser.collectPaths(program, 'VariableDeclarator');
+  const route = { host: { declarator: host?.node }, pattern: leaf.parentPath.node,
+    chain: nested ? [{}] : [], sentinel, kind: 'static' };
+  check(`${ label }/static`, leafTakesSlotDefault(leaf, adapter, route), expected);
+  check(`${ label }/instance`, leafTakesSlotDefault(leaf, adapter, { ...route, kind: 'instance' }), false);
+  check(`${ label }/question leaves the source intact`, leaf.node.value.type, 'Identifier');
+});
+
+// A loop binding reads one receiver per iteration. Its leaf default uses that
+// receiver's slot and does not require a selecting declarator initializer.
+runBoth('leaf-default route/loop receiver', 'for (const { Array: { from } } of realms) {}', (parser, program, label) => {
+  const adapter = parser.name === 'babel' ? createBabelAdapter() : createEstreeAdapter();
+  const leaf = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property',
+    path => path.node.key.name === 'from');
+  const host = parser.pickPath(program, 'VariableDeclarator');
+  const head = parser.pickPath(program, 'ForOfStatement');
+  const route = { host: { declarator: host.node, head }, pattern: leaf.parentPath.node,
+    chain: [{}], sentinel: false, kind: 'static' };
+  check(`${ label }/static`, leafTakesSlotDefault(leaf, adapter, route), true);
+  check(`${ label }/instance`, leafTakesSlotDefault(leaf, adapter, { ...route, kind: 'instance' }), false);
+});
 
 finish();
