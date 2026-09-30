@@ -10,8 +10,8 @@ import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
 import _self from "@core-js/pure/actual/self";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 var _ref;
-// Claimed statics retain their polyfills beside object rest.
-// Rest keeps its source and exclusions; instance slots remain native.
+// Destructuring follows optional realm hops, including computed keys and stored receivers.
+// Supported static and instance leaves receive polyfills while key effects and rest exclusions survive.
 let c = 0;
 const {
   Symbol: {
