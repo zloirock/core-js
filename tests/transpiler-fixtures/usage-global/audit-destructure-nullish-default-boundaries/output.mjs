@@ -13,10 +13,10 @@ import "core-js/modules/es.array.species";
 import "core-js/modules/es.array.unscopables.flat-map";
 import "core-js/modules/es.iterator.constructor";
 import "core-js/modules/es.iterator.flat-map";
+import "core-js/modules/es.iterator.includes";
 import "core-js/modules/es.string.at";
 import "core-js/modules/es.string.includes";
 import "core-js/modules/es.string.iterator";
-import "core-js/modules/esnext.iterator.includes";
 import "core-js/modules/web.dom-collections.iterator";
 import "core-js/modules/web.dom-collections.entries";
 // a slot DEFAULT that is nullish tells nothing about the runtime value: the member the pattern reads

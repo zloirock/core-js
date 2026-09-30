@@ -10,10 +10,10 @@ import "core-js/modules/es.array.map";
 import "core-js/modules/es.array.push";
 import "core-js/modules/es.array.species";
 import "core-js/modules/es.iterator.constructor";
+import "core-js/modules/es.iterator.includes";
 import "core-js/modules/es.iterator.map";
 import "core-js/modules/es.string.includes";
 import "core-js/modules/es.string.iterator";
-import "core-js/modules/esnext.iterator.includes";
 import "core-js/modules/web.dom-collections.iterator";
 // a nested leaf in a for-x head reads a SLOT of the element, not the element: where the iterable is
 // a literal of object literals the walk descends that slot per element and folds. answering the
