@@ -110,11 +110,16 @@ trap below is named, and the suite names its assertions after them.
   every iPhone/iPad string resolves to `ios` or to the baseline and never to another engine, an
   `ios` answer is never above an OS the string states - a token WebKit did not freeze, or the OS an
   app reports beside it - a `chrome` answer is never above the `Chrome/` token the string carries,
-  and the second candidate is never attached to a browser that never ran Chromium
+  and the second candidate is never attached to a browser that never ran Chromium, and a Goanna
+  string is never answered as the Firefox it claims to be compatible with
 - **resolver-6** - the ENGINE outranks what the browser calls itself, wherever the string carries
   both. `Trident/` is Internet Explorer's engine and nothing else carries it, so `MSIE 7.0` beside
   `Trident/7.0` is IE 11 in compatibility view - a document mode, not an older JavaScript - and a
-  browser calling itself Sleipnir on `Trident/6.0` is IE 10. On iOS the OS IS the WebKit, so an OS
+  browser calling itself Sleipnir on `Trident/6.0` is IE 10. `Goanna/` is an engine too - forked
+  from the Gecko of Firefox 52 and backported to since - with no row in the compat data, so the
+  `Firefox/68.9` beside it is a compatibility claim and the answer is the baseline: read as Firefox,
+  it hands a thin bundle to Mypal on Windows XP. The Chromium token is the engine's under any
+  spelling it ships in, and LG ships `Chr0me/` on its televisions. On iOS the OS IS the WebKit, so an OS
   the string states outright is the answer: the OS token, unless it is one of the values WebKit
   writes in place of the OS since iOS 26 (`18_6`, `18_6_2`, `18_7`), or the OS an app read from the
   system and wrote beside it - Facebook's `FBSV/18.7.3`, Instagram's `(iPhone13,2; iOS 26_6_1; ...`

@@ -431,5 +431,21 @@
     "engine": "ios",
     "version": "18.7.3",
     "note": "the OS token reads `18_7` on a device that runs 18.7.3 - `FBSV/` carries the OS as the app read it"
+  },
+  {
+    "browser": "LG webOS TV browser",
+    "source": "matomo device-detector fixtures",
+    "userAgent": "Mozilla/5.0 (Web0S; Linux/SmartTV) AppleWebKit/537.36 (KHTML, like Gecko) Chr0me/87.0.4280.88 Safari/537.36 LG Browser/8.00.00(LGE; 0V50500; 04.41.33; 0x00000001; DTV_C22P); webOS.TV-2022; LG NetCast.TV-2013 Compatible (LGE, 0V50500, wireless)",
+    "engine": "chrome",
+    "version": "87.0.4280.88",
+    "note": "LG spells the Chromium token `Chr0me/` - 115 strings in the Matomo fixtures, every one of them on the baseline while the token went unread"
+  },
+  {
+    "browser": "Mypal on Goanna",
+    "source": "matomo device-detector fixtures",
+    "userAgent": "Mozilla/5.0 (Windows NT 6.2; Win64; x64; rv:68.9) Gecko/20100101 Goanna/4.5 Firefox/68.9 Mypal/28.9.0",
+    "engine": null,
+    "version": null,
+    "note": "Goanna forked from the Gecko of Firefox 52; `Firefox/68.9` is a compatibility claim, and the compat data has no row for the engine itself"
   }
 ]

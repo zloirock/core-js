@@ -112,6 +112,28 @@ strictEqual(resolveUA('Mozilla/5.0 (Linux; Android 14; SM-A155F Build/UP1A) Appl
 'chrome-android 139.0.7258.158', 'resolver #10');
 strictEqual(resolveUA('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) '
   + 'Chrome/128.0.0.0 YaBrowser/24.10.0 Safari/537.36'), 'chrome 128.0.0.0', 'resolver #11');
+// LG spells the token `Chr0me/` on its televisions, and it is the Chromium the set runs all the same
+const LG_WEBOS = 'Mozilla/5.0 (Web0S; Linux/SmartTV) AppleWebKit/537.36 (KHTML, like Gecko) Chr0me/87.0.4280.88 '
+  + 'Safari/537.36 LG Browser/8.00.00(LGE; 0V50500; 04.41.33; 0x00000001; DTV_C22P); webOS.TV-2022; '
+  + 'LG NetCast.TV-2013 Compatible (LGE, 0V50500, wireless)';
+
+strictEqual(resolveUA(LG_WEBOS), 'chrome 87.0.4280.88', 'resolver #12');
+strictEqual(resolveUA(LG_WEBOS.replace('Chr0me/87.0.4280.88', 'QtWebEngine/5.2.1 Chr0me/38.0.2125.122')),
+  'chrome 38.0.2125.122', 'resolver #13');
+// and only that spelling: a token that merely ends in the word is not the engine's
+strictEqual(resolveUA(LG_WEBOS.replace('Chr0me/', 'XChr0me/')), null, 'resolver #14');
+
+// Goanna is an engine of its own - forked from the Gecko of Firefox 52 and backported to since -
+// and the compat data has no row for it. The `Firefox/68.9` beside it is a compatibility claim, and
+// read as Firefox it hands a thin bundle to an engine that is not that Firefox - Mypal is what
+// Windows XP runs today
+const GOANNA = 'Mozilla/5.0 (Windows NT 6.2; Win64; x64; rv:68.9) Gecko/20100101 Goanna/4.5 Firefox/68.9 Mypal/28.9.0';
+
+strictEqual(resolveUA(GOANNA), null, 'resolver-6 #10');
+strictEqual(resolveUA('Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:60.9) Gecko/20100101 Goanna/4.4 Firefox/60.9 '
+  + 'Basilisk/20190912'), null, 'resolver-6 #11');
+// and a Firefox is still a Firefox: the rule is the token, not the `rv:` or the name
+strictEqual(resolveUA(GOANNA.replace(' Goanna/4.5', '').replace(' Mypal/28.9.0', '')), 'firefox 68.9', 'resolver-6 #12');
 
 // every failure to identify leads to the baseline, never past it. a confident wrong answer costs a
 // missing module; "I do not know" costs a few kilobytes

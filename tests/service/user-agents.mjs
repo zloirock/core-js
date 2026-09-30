@@ -5,7 +5,7 @@ import { compare } from '@core-js/compat/helpers';
 import corpus from './user-agents.json' with { type: 'json' };
 
 const resolve = createResolver({ parseUserAgent });
-const CHROMIUM_TOKEN = /\bChrome\/(?<version>\d+(?:\.\d+)*)/;
+const CHROMIUM_TOKEN = /\bChr[0o]me\/(?<version>\d+(?:\.\d+)*)/;
 
 // real strings, kept as a fixture rather than fetched: what each of them resolves to is a fact about
 // this code and about bowser, and a change in either has to show up HERE and not in production. the
@@ -75,6 +75,9 @@ for (const row of corpus) {
     ok(CHROMIUM_TOKEN.test(userAgent), `user-agents-2 #3: ${ row.browser }`);
     ok(!/\bEdge\/\d/.test(userAgent), `user-agents-2 #4: ${ row.browser } is EdgeHTML, which never ran Chromium`);
   }
+
+  // a Goanna string is never answered as the Firefox it claims to be compatible with
+  if (/\bGoanna\/\d/.test(userAgent)) ok(!target?.engine.startsWith('firefox'), `user-agents-2 #8: ${ row.browser }`);
 
   // and a MAC string always carries it, because nothing in the string tells a Mac from an iPad -
   // while a console that reports Safari is a console, and the row for iPhones says nothing about it

@@ -50,8 +50,13 @@ const IOS_VERSION = /(?:CPU OS|\biOS|iPhone OS)[ /](?<version>\d+(?:[._]\d+)*)/;
 // that: bowser answers "Samsung Internet 4.0", a decade-old engine, for a current Quest
 const QUEST_TOKEN = /\bOculusBrowser\/(?<version>\d+(?:\.\d+)*)/;
 // a Chromium build under a name of its own - a derivative, or an in-app WebView. the token is the
-// engine's own version, so it is worth more than the name we failed to recognize
-const CHROMIUM_TOKEN = /\bChrome\/(?<version>\d+(?:\.\d+)*)/;
+// engine's own version, so it is worth more than the name we failed to recognize. LG spells it
+// `Chr0me/` on its televisions, and it is the Chromium the set runs all the same
+const CHROMIUM_TOKEN = /\bChr[0o]me\/(?<version>\d+(?:\.\d+)*)/;
+// Goanna is an engine of its own - forked from the Gecko of Firefox 52 and backported to since - and
+// the compat data has no row for it. The `Firefox/68.9` beside it is a compatibility claim: read as
+// Firefox, it hands a thin bundle to an engine that is not that Firefox
+const GOANNA_TOKEN = /\bGoanna\/\d/;
 // Trident is the rendering engine of Internet Explorer and of nothing else - no Chromium, Gecko or
 // WebKit string carries the token. `MSIE 7.0` beside `Trident/7.0` is IE 11 in COMPATIBILITY VIEW:
 // the claim is a document mode, the engine is the newer one, and the JavaScript is the newer one too
@@ -126,7 +131,7 @@ export default function createResolver({ parseUserAgent }) {
 
     const parsed = parseUserAgent(userAgent);
 
-    if (parsed === null) return null;
+    if (parsed === null || GOANNA_TOKEN.test(userAgent)) return null;
 
     const browser = parsed.browser.name?.toLowerCase() ?? null;
     const system = parsed.os.name?.toLowerCase() ?? null;
