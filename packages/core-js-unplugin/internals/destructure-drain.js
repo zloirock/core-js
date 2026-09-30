@@ -29,8 +29,6 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
   bodylessSlotReplacement,
-  capturedRealmCtorPure,
-  renderNestedKeyedPatternCapture,
 } from '@core-js/polyfill-provider/destructure-host-shape';
 import { hostLevelSurvives, planCatchClauseExtraction } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
 import {
@@ -220,6 +218,7 @@ function splitHopOutOfHost({ job, kept, statements, body, at }) {
 export default function createDestructureDrains(ctx) {
   const {
     adapter,
+    capturedSiblingHosts,
     hopHosts,
     injectPureImport,
     injector,
@@ -352,7 +351,7 @@ export default function createDestructureDrains(ctx) {
       // a lifted SE prefix leaves the TAIL as the nav (the prefix runs as its own statement) -
       // unless this dispatch CARRIES the init, which means no residual survives to run it
       if (!carriesInit && receiver?.type === 'SequenceExpression') {
-        receiver = peelTransparentExpr(receiver.expressions.at(-1));
+        receiver = peelNestedSequenceExpressions(receiver).tail;
       }
       // the receiver as a dispatch spells it: the LIVE node where the route offers one (a claim
       // INSIDE the receiver renders by REPLACING its node, and a copy taken before that carries
@@ -1206,50 +1205,19 @@ export default function createDestructureDrains(ctx) {
       const exported = exportBody?.find(node => node.type === 'ExportNamedDeclaration'
         && node.declaration?.declarations?.includes(job.declarator));
       if (exported) declaration = exported.declaration;
-      let captureIndex = 0;
-      // the capture binds the CONSTRUCTOR's ponyfill where its single key reads the pristine realm:
-      // the realm has nothing to hand over on an engine without that constructor, and the guard
-      // below would turn the miss into a throw - the shared question answers which captures qualify
-      const capturePlan = job.nestedKeyCapture ? { ...job.nestedKeyCapture, init: job.declarator.init } : null;
-      const anchoredCtor = capturedRealmCtorPure({
-        capture: capturePlan,
-        scope: (job.metaPath ?? job.declarationPath)?.scope,
-        adapter,
-        path: job.metaPath ?? job.declarationPath ?? null,
-        resolveGlobalPolyfill,
-      });
-      const capture = capturePlan ? renderNestedKeyedPatternCapture(capturePlan, {
-        mintRef: () => captureIndex++ ? mintRefName() : job.captureName,
-        injectImport: injectPureImport,
-        anchorPure: anchoredCtor,
-      }) : null;
-      // The final leaf is emitted below; every preceding source hop belongs before it.
-      if (capture) reanchorSoleCtorHopResidual(capture.capture, { metaPath: job.metaPath, wholeDeclarator: true });
-      const captureDeclarations = capture ? [capture.capture, ...capture.elements.slice(0, -1).map(element => element.declarator)] : [];
       const receiverRef = job.receiverName ?? mintRefName();
       const liveKeys = destructureKeyReadPlan({
-        node: job.prop, parentPath: { node: job.nestedKeyCapture?.leafPattern ?? job.declarator.id },
+        node: job.prop, parentPath: { node: job.declarator.id },
       })?.keys ?? [];
       const rendered = renderKeyedDestructureRead({
-        receiverName: receiverRef, receiver: capture ? identifier(job.captureName) : job.declarator.init,
+        receiverName: receiverRef, receiver: job.declarator.init,
         binding: propBindingTarget(job.prop), keys: liveKeys.map(key => cloneNode(key)),
         read: job.value(receiverRef),
         storeReceiver: job.keyReadPlan.exported,
-        proven: !capture && !!job.proven,
+        proven: !!job.proven,
       });
-      let slot = declaration.declarations.indexOf(job.declarator);
-      if (capture && job.keyReadPlan.exported) {
-        const before = declaration.declarations.splice(0, slot);
-        const after = declaration.declarations.splice(1);
-        const prefix = before.length
-          ? [{ ...exported, declaration: variableDeclaration(declaration.kind, before) }] : [];
-        exportBody.splice(exportBody.indexOf(exported), 0, ...prefix, variableDeclaration(declaration.kind, captureDeclarations));
-        exportBody.splice(exportBody.indexOf(exported) + 1, 0,
-          ...after.map(item => ({ ...exported, declaration: variableDeclaration(declaration.kind, [item]) })));
-        slot = 0;
-      }
-      declaration.declarations.splice(slot, 1,
-        ...capture && !job.keyReadPlan.exported ? captureDeclarations : [], ...rendered);
+      const slot = declaration.declarations.indexOf(job.declarator);
+      declaration.declarations.splice(slot, 1, ...rendered);
     }
   }
 
@@ -1337,7 +1305,7 @@ export default function createDestructureDrains(ctx) {
       // an ASSIGNMENT host holds the same shape under different field names - the re-anchor
       // reads a view of it and the result writes back
       if (!options.assignHost) {
-        if (reanchorSoleCtorHopResidual(host, options) && !jobHostSiblings.has(host)) {
+        if (reanchorSoleCtorHopResidual(host, options) && !jobHostSiblings.has(host) && !capturedSiblingHosts.has(host)) {
           splitMultiDeclaratorHost({ program, declarator: host, markRewrite });
         }
         continue;
@@ -2132,7 +2100,8 @@ export default function createDestructureDrains(ctx) {
           declarations.push(declarator, ...extracted);
         } else {
           carryForInitPrefixIntoFirst(declarator, declJobs, extracted, patternFrame(declJobs[0].metaPath));
-          declarations.push(...extracted, declarator);
+          declarations.push(...extracted.filter((item, index) => declJobs[index].guardDetach !== 'after'), declarator,
+            ...extracted.filter((item, index) => declJobs[index].guardDetach === 'after'));
         }
         continue;
       }
@@ -2160,7 +2129,7 @@ export default function createDestructureDrains(ctx) {
       // the discarded init respells bare - a TS wrapper around it has nothing left to
       // assert (`(se(), _globalThis) as any` -> `(se(), _globalThis)`, babel's peel)
       if (declJobs.some(job => job.chain?.length)) {
-        pushChainedSinkSlot({ declarator, extracted, declarations });
+        pushChainedSinkSlot({ declarator, extracted, declarations, declJobs });
       } else {
         const slot = discardedSinkSlot(peelTransparentExpr(declarator.init),
           {
@@ -2483,18 +2452,15 @@ export default function createDestructureDrains(ctx) {
     else body.splice(at, 1, ...varDecl, body[at], ...overwrites);
   }
 
-  // the NESTED flatten's discarded init in a loop header: its sink keeps a declarator slot, riding
-  // AFTER the extractions as `_unused` (that route's accepted reorder) - except a kept WRITE, which
-  // is not a discardable effect but a STORE the source performs BEFORE the pattern binds. a STORING
-  // init rides the SOLE extraction's own value - inside the dispatch argument where the claim reads
-  // one, ahead of the pure it binds otherwise - so the write runs before the binding and the header
-  // keeps ONE declarator (`for (const m = _m((kw = _g, _g.Array.prototype));`, `for (const g = (kw =
-  // (eff(), _g), _groupBy);`)
-  function pushChainedSinkSlot({ declarator, extracted, declarations }) {
+  // A fully consumed nested loop initializer carries its write, or its sequence prefix,
+  // in the sole extraction's dispatch. Other hosts retain a sink before their extractions.
+  function pushChainedSinkSlot({ declarator, extracted, declarations, declJobs }) {
     const sinkValue = peelTransparentExpr(declarator.init);
-    const carrySink = sinkStoresBinding(sinkValue) && extracted.length === 1;
-    if (carrySink) {
-      extracted[0].init = carryInitPrefix(extracted[0].init, [sinkValue]);
+    const prefix = sinkStoresBinding(sinkValue) ? [sinkValue]
+      : declJobs.length === 1 && declJobs[0].carriesPrefix
+        ? observablePrefixElements(peelNestedSequenceExpressions(sinkValue).prefix, patternFrame(declJobs[0].metaPath)) : [];
+    if (prefix.length && extracted.length === 1) {
+      extracted[0].init = carryInitPrefix(extracted[0].init, prefix);
       declarations.push(...extracted);
       return;
     }
@@ -2703,7 +2669,7 @@ export default function createDestructureDrains(ctx) {
       // receiver-less static or symbol leaf binds its pure directly). deciding it per JOB ran the
       // prefix once per claim - measured as a doubled effect log on a mixed instance+static pattern
       const jobsHere = orderDeclaratorJobs(jobsByDeclarator.get(declarator) ?? []);
-      const initPrefix = carriedInitPrefix(declarator, declJobsHere);
+      const initPrefix = carriedInitPrefix(declarator, declJobsHere, patternFrame(declJobsHere[0]?.metaPath));
       // carried only into a SOLE extraction: several readers of one init cannot each hold the
       // prefix, so it lifts ahead of them all (the shape the babel leg prints there too)
       const carryIntoFirst = initPrefix.length > 0 && jobsHere.length === 1 && !!jobsHere[0]?.carriesPrefix;
@@ -2776,13 +2742,24 @@ export default function createDestructureDrains(ctx) {
           continue;
         }
         const residual = exportWrap(variableDeclaration(hostNode.kind, [declarator]), exported);
+        // A guard detached from the remaining pattern keeps its declarator beside that
+        // residual. Earlier queued instance writes retain their separate source slots.
+        for (const [index, job] of jobsHere.entries()) {
+          if (!job.guardDetach) continue;
+          const extracted = extractedHere[index];
+          const joined = exported ? residual.declaration : residual;
+          const guard = exported ? extracted.declaration : extracted;
+          joined.declarations.splice(job.guardDetach === 'before' ? 0 : joined.declarations.length, 0, ...guard.declarations);
+          extractedHere[index] = null;
+        }
+        const standalone = extractedHere.filter(Boolean);
         // only an ANCHORED residual re-homes: a raw one stays where the extraction left it
         // ... and a residual that WRITES a slot memo stands ahead of the extraction reading it, as does
         // one whose init RUNS code that could read a binding the extraction writes
         if ((residualFirst && anchored) || declJobsHere.some(job => job.extractAfterResidual)
           || (declJobsHere.length && residualRuns(declarator))) {
-          statements.push(...survivingPrefix, residual, ...extractedHere);
-        } else statements.push(...survivingPrefix, ...extractedHere, residual);
+          statements.push(...survivingPrefix, residual, ...standalone);
+        } else statements.push(...survivingPrefix, ...standalone, residual);
       } else {
         statements.push(
           ...initPrefix.length && !carryIntoFirst
@@ -3029,12 +3006,13 @@ export default function createDestructureDrains(ctx) {
     // (a SOLE hop keeps its own re-anchor - that shape is the sole-ctor-hop residual's)
     if (jobs.length > 1 && jobs.every(job => job.prop?.value?.type === 'ObjectPattern')) return;
     // babel's cascade order: FLAT extractions run before the residual, NESTED-hop
-    // extractions after it; a SE-keyed sentinel keeps the residual FIRST (its key effect
-    // must precede the lookup). the seKey view reads the prop's key before any rename
+    // extractions after it; a detached guard keeps its side of the residual. A SE-keyed sentinel
+    // keeps the residual FIRST (its key effect must precede the lookup). The seKey view reads the
+    // prop's key before any rename.
     // the demotion is asked PER JOB: a rest-forced hop follows the residual, but a FLAT
     // sibling beside it keeps its place ahead (its own slot read owes the hop nothing)
     function demotedBehindResidual(job) {
-      return !!job.chain?.length
+      return job.guardDetach === 'after' || !!job.chain?.length
         || (job.sentinel && job.prop.computed && computedKeyHasSideEffects(job.prop));
     }
     const seKeyResidualFirst = jobs.some(job => job.sentinel
@@ -3288,8 +3266,8 @@ export default function createDestructureDrains(ctx) {
   // source read again with its own polyfill lost (`(arr.flat(), globalThis)`)
   function livePrefixOf(declarator, seqPrefix) {
     const liveInit = peelTransparentExpr(declarator.init);
-    return liveInit?.type === 'SequenceExpression' && liveInit.expressions.length === seqPrefix.length + 1
-      ? liveInit.expressions.slice(0, -1) : seqPrefix;
+    const { prefix } = peelNestedSequenceExpressions(liveInit);
+    return liveInit?.type === 'SequenceExpression' && prefix.length === seqPrefix.length ? prefix : seqPrefix;
   }
 
   // a bodyless `var` destructure hosts its extractions in the slot: a block of `var local = pure;`

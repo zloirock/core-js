@@ -459,7 +459,15 @@ export function planMemoReadTarget(memoReceiver, { aliasCtx, resolvePure }) {
 // Nested hosts can capture their receiver for the same guard; an instance fallback takes that
 // capture before a static-only mirror.
 export function planGuardedDestructureNarrow({
-  propNode, patternNode, hostNode, hostInStatement, meta, path, resolvePure, adapter = null,
+  propNode,
+  patternNode,
+  hostNode,
+  hostInStatement,
+  meta,
+  path,
+  resolvePure,
+  adapter = null,
+  isConsumedProp = null,
 }) {
   if (patternNode?.type !== 'ObjectPattern' || !patternNode.properties.length) return null;
   if (propNode?.computed || (propNode?.shorthand && propNode.value?.type !== 'Identifier')) return null;
@@ -526,7 +534,10 @@ export function planGuardedDestructureNarrow({
   // it too rather than declining. a rest also forces the SPLIT: the sole-prop render replaces the
   // whole host, which would take the rest with it
   const restResidual = !nested && patternNode.properties.some(item => item.type === 'RestElement');
-  const splitProps = patternNode.properties.filter(item => item.type !== 'RestElement');
+  const remainingProps = !nested && isConsumedProp
+    ? patternNode.properties.filter(item => item === propNode || !isConsumedProp(item))
+    : patternNode.properties;
+  const splitProps = remainingProps.filter(item => item.type !== 'RestElement');
   const split = (nested && !captureCandidate) || (splitProps.length === 1 && !restResidual) ? null : splitProps.map(item => {
     if (item.computed || item.value?.type !== 'Identifier') return null;
     const key = item.key?.name ?? item.key?.value ?? null;
@@ -539,7 +550,7 @@ export function planGuardedDestructureNarrow({
   });
   let detach = null;
   if (split && split.some(item => !item)) {
-    detach = patternEdgeSide(patternNode, propNode);
+    detach = patternEdgeSide({ properties: remainingProps }, propNode);
     if (!detach || nested || restResidual || binding.type !== 'Identifier' || (!isDeclarator && !hostInStatement)
       || unwrapRuntimeExpr(receiverNode)?.type !== 'Identifier') return null;
   }
@@ -567,6 +578,7 @@ export function planGuardedDestructureNarrow({
   return {
     plan,
     detach,
+    hasConsumedProps: remainingProps.length !== patternNode.properties.length,
     nested,
     capture: captureCandidate?.leaf === propNode ? captureCandidate : null,
     captureFirst: captureCandidate?.leaf === propNode && plan.instanceFallback?.kind === 'instance',
