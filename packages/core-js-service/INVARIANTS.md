@@ -119,7 +119,12 @@ trap below is named, and the suite names its assertions after them.
   from the Gecko of Firefox 52 and backported to since - with no row in the compat data, so the
   `Firefox/68.9` beside it is a compatibility claim and the answer is the baseline: read as Firefox,
   it hands a thin bundle to Mypal on Windows XP. The Chromium token is the engine's under any
-  spelling it ships in, and LG ships `Chr0me/` on its televisions. On iOS the OS IS the WebKit, so an OS
+  spelling it ships in, and LG ships `Chr0me/` on its televisions. Gecko's is `rv:`, and for a name
+  nothing knows it is the answer on the Firefox row - Mullvad Browser, Wolvic, SeaMonkey - but only
+  beside a `Gecko/` token Gecko could have written, a real build date or its own version: a string
+  carrying `rv:12.3) Gecko/2000000000` was rewritten, and it sits on a Gecko 1.8. Before Firefox 4
+  the engine was numbered apart from the browser, `rv:1.9` for Firefox 3, which reads low and costs
+  bytes only. On iOS the OS IS the WebKit, so an OS
   the string states outright is the answer: the OS token, unless it is one of the values WebKit
   writes in place of the OS since iOS 26 (`18_6`, `18_6_2`, `18_7`), or the OS an app read from the
   system and wrote beside it - Facebook's `FBSV/18.7.3`, Instagram's `(iPhone13,2; iOS 26_6_1; ...`

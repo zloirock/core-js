@@ -132,6 +132,22 @@ const GOANNA = 'Mozilla/5.0 (Windows NT 6.2; Win64; x64; rv:68.9) Gecko/20100101
 strictEqual(resolveUA(GOANNA), null, 'resolver-6 #10');
 strictEqual(resolveUA('Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:60.9) Gecko/20100101 Goanna/4.4 Firefox/60.9 '
   + 'Basilisk/20190912'), null, 'resolver-6 #11');
+// a Gecko browser under a name nothing knows still carries the engine's own version in `rv:`, the
+// way a Chromium carries its token - and on Android the row is the mobile one
+strictEqual(resolveUA('Mozilla/5.0 (X11; Linux x86_64; rv:115.0) Gecko/20100101 MullvadBrowser/115.8.0'),
+  'firefox 115.0', 'resolver-6 #13');
+strictEqual(resolveUA('Mozilla/5.0 (Android 10; Mobile VR; rv:105.0) Gecko/105.0 Wolvic/1.2'),
+  'firefox-android 105.0', 'resolver-6 #14');
+strictEqual(resolveUA('Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:60.0) Gecko/20100101 Firefox/60.0 SeaMonkey/2.53.9'),
+  'firefox 60.0', 'resolver-6 #15');
+// but only beside a `Gecko/` token Gecko could have written - its build date or its version.
+// `Gecko/2000000000` is neither, and the `rv:12.3` in front of it sits on an Iceape 1.1.5, a Gecko
+// 1.8 - the string was rewritten, and nothing in it says which engine is underneath
+strictEqual(resolveUA('Mozilla/5.0 (X11; Linux i686; en; rv:12.3) Gecko/2000000000 Iceape/1.1.5 '
+  + '(Ubuntu-1.1.5-1ubuntu0.7.10)'), null, 'resolver-6 #16');
+// and the `like Gecko` of Internet Explorer 11 is no Gecko token at all
+strictEqual(resolveUA('Mozilla/5.0 (Windows NT 10.0; Trident/7.0; rv:11.0) like Gecko'), 'ie 11.0', 'resolver-6 #17');
+
 // and a Firefox is still a Firefox: the rule is the token, not the `rv:` or the name
 strictEqual(resolveUA(GOANNA.replace(' Goanna/4.5', '').replace(' Mypal/28.9.0', '')), 'firefox 68.9', 'resolver-6 #12');
 

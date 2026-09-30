@@ -57,6 +57,11 @@ const CHROMIUM_TOKEN = /\bChr[0o]me\/(?<version>\d+(?:\.\d+)*)/;
 // the compat data has no row for it. The `Firefox/68.9` beside it is a compatibility claim: read as
 // Firefox, it hands a thin bundle to an engine that is not that Firefox
 const GOANNA_TOKEN = /\bGoanna\/\d/;
+// Gecko's own version, `rv:` at the end of the system part - trusted only beside a `Gecko/` token
+// Gecko could have written: its version on mobile, a real build date on desktop. A string that
+// carries `rv:12.3) Gecko/2000000000` was rewritten, and says nothing about the engine underneath
+const GECKO_TOKEN = /\brv:(?<version>\d+(?:\.\d+)*)(?:[a-z]\w*)?\) Gecko\/(?<build>\d+(?:\.\d+)*)/;
+const GECKO_BUILD_DATE = /^(?:19|20)\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])(?:\d{2})?$/;
 // Trident is the rendering engine of Internet Explorer and of nothing else - no Chromium, Gecko or
 // WebKit string carries the token. `MSIE 7.0` beside `Trident/7.0` is IE 11 in COMPATIBILITY VIEW:
 // the claim is a document mode, the engine is the newer one, and the JavaScript is the newer one too
@@ -115,6 +120,12 @@ function fromTokens(userAgent, system, onChromium) {
   const chromium = CHROMIUM_TOKEN.exec(userAgent)?.groups.version;
 
   if (chromium !== undefined) return toTarget(onChromium, chromium);
+
+  const gecko = GECKO_TOKEN.exec(userAgent)?.groups;
+
+  if (gecko !== undefined && (gecko.build.includes('.') || GECKO_BUILD_DATE.test(gecko.build))) {
+    return toTarget(system === 'android' ? 'firefox-android' : 'firefox', gecko.version);
+  }
   if (system !== 'macos' || !/\bSafari\/\d/.test(userAgent)) return null;
 
   return toTarget('safari', VERSION_TOKEN.exec(userAgent)?.groups.version ?? '');

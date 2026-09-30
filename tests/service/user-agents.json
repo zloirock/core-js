@@ -447,5 +447,29 @@
     "engine": null,
     "version": null,
     "note": "Goanna forked from the Gecko of Firefox 52; `Firefox/68.9` is a compatibility claim, and the compat data has no row for the engine itself"
+  },
+  {
+    "browser": "Mullvad Browser",
+    "source": "matomo device-detector fixtures",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64; rv:115.0) Gecko/20100101 MullvadBrowser/115.8.0",
+    "engine": "firefox",
+    "version": "115.0",
+    "note": "no `Firefox/` token and a name nothing knows - `rv:` beside a `Gecko/` build date is the engine's own version"
+  },
+  {
+    "browser": "Wolvic on Android",
+    "source": "matomo device-detector fixtures",
+    "userAgent": "Mozilla/5.0 (Android 10; Mobile VR; rv:105.0) Gecko/105.0 Wolvic/1.2",
+    "engine": "firefox-android",
+    "version": "105.0",
+    "note": "the mobile form: `Gecko/` carries the version rather than a build date"
+  },
+  {
+    "browser": "Iceape behind a rewritten Gecko token",
+    "source": "yauaa analyzer/src/main/resources/UserAgents/Ubuntu-Tests.yaml",
+    "userAgent": "Mozilla/5.0 (X11; Linux i686; en; rv:12.3) Gecko/2000000000 Iceape/1.1.5 (Ubuntu-1.1.5-1ubuntu0.7.10)",
+    "engine": null,
+    "version": null,
+    "note": "`Gecko/2000000000` is neither a build date nor a version, and Iceape 1.1.5 is a Gecko 1.8 - the `rv:12.3` in front of it was written by whatever rewrote the string"
   }
 ]
