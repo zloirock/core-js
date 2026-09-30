@@ -35,7 +35,11 @@ export const nonIdentifierKey = (({
   Array: {
     isArray
   }
-} = _globalThis) => [WeakSet, dashed, isArray])();
+} = {
+  WeakSet: _WeakSet,
+  "with-dash": _globalThis["with-dash"],
+  Array: _globalThis.Array
+}) => [WeakSet, dashed, isArray])();
 export const mirrorable = (({
   Promise,
   Array: {

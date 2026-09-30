@@ -213,7 +213,7 @@ import {
   objectPattern as renderObjectPattern,
   objectProperty,
   sequenceExpression,
-  synthProperty,
+  synthEntryKey,
 } from '../render.js';
 import {
   entryToGlobalHint, hasConstructorEntry, hasOwnStaticDefinition, hasStaticDefinitionKey, resolve as resolveBuiltIn,
@@ -3607,10 +3607,9 @@ export function assignmentLeafReadsPositionally(leafPath, adapter = null) {
 
 // may a static leaf its mirror declined keep a slot default (`{ K: v = _pony }`)? a slot default is no
 // extraction, so it binds only a slot `staticSlotTakesDefault` admits (a plain binding, a member target
-// the extraction canon takes), and where the rule owns the host: under an inner default
-// the leaf reads through (`[{ of } = Array]`) only where that default NAMES the receiver and the slot it
-// pairs is PROVEN undefined, so the default is the value - a present or unknown slot hands the leaf a
-// value of its own; under a selection only where every value it yields is the realm, since a user
+// the extraction canon takes), and where the rule owns the host. An inner default supplies a receiver,
+// never proof that the receiver's properties are absent: its declined mirror keeps native leaves.
+// Under a selection only where every value it yields is the realm, since a user
 // branch's own `undefined` is its answer; under an assignment never through an array level, and under a
 // CAPTURED one only through keyed hops, since no mirror may replace its receiver. any other host is left
 // to its own route. a parameter never takes one: a caller's own undefined property must stay undefined
@@ -3619,11 +3618,7 @@ export function leafTakesSlotDefault(leafPath, adapter = null) {
     || isFunctionParamDestructureParent(leafPath.parentPath)) return false;
   const walked = destructureHostThroughWrappers(leafPath.parentPath, adapter);
   const host = walked?.host;
-  if (host?.node?.type === 'AssignmentPattern' && isNestedDestructureDefault(host)) {
-    if (!namedDefaultReceiver(host.node.right)) return false;
-    const arms = nearestInnerDefaultArms(leafPath.parentPath, adapter);
-    return !!arms?.size && [...arms].every(verdict => verdict === 'born');
-  }
+  if (host?.node?.type === 'AssignmentPattern' && isNestedDestructureDefault(host)) return false;
   const value = walked?.indices.length ? null : destructureHostInitNode(leafPath);
   if (getFallbackBranchSlots(value) && !destructureValueBranchesAllProxy(value)) return false;
   if (host?.node?.type !== 'AssignmentExpression') return true;
@@ -5370,27 +5365,24 @@ function selfHostAllowed(cur, leafPatternPath) {
     || (cur.node?.type === 'ObjectPattern' && objectPatternHasNestedValue(cur.node));
 }
 
-// the one property-level question the mirror asks: can it spell this key statically and as a bare
-// identifier? a REST element and any non-Property shape have no key at all; a computed
+// the one property-level question the mirror asks: can it spell this key statically as a property?
+// a REST element and any non-Property shape have no key at all; a computed
 // key resolves to its VALUE (`const k = 'from'` / `(eff(), 'from')` -> 'from') and the synth literal
 // carries that resolved STATIC name, which the pattern's own computed key then reads - the effect
 // stays in the UNTOUCHED LHS and runs exactly once, so a side-effecting key is accepted while a
-// runtime-unresolvable one is not. a non-identifier key (`'with-dash'`) would make babel throw and
-// unplugin emit non-reparsing text, and a key folded from the REAL Symbol has no static string slot
-// the literal could carry
+// runtime-unresolvable one is not. Quoted names keep their literal spelling, and a key folded from
+// the REAL Symbol has no static string slot the literal could carry
 export function mirrorAcceptedKey({ prop, scope, adapter, path, seenKeys }) {
   if (prop.type !== 'Property' && prop.type !== 'ObjectProperty') return null;
   const key = prop.computed
     ? sharedResolveKey({ node: prop.key, computed: true, scope, adapter, bailOnSideEffectKey: false, keepsKeyNode: true })
     : prop.key?.name ?? prop.key?.value;
   if (typeof key !== 'string') return null;
-  if (!isValidIdentifierName(key)) return null;
   if (prop.computed && symbolSourcedFoldedKey({ key, keyNode: prop.key, scope, adapter, path })) return null;
-  // a key the pattern names TWICE is ONE slot - both readers read one value, so the literal carries
-  // a single property for it and the repeat asks for none of its own. What a repeat may not do is
-  // carry a SUBTREE: two patterns under one key would need the literal to MERGE them, and a literal
-  // beside a pattern hands the plain reader the synthesized object where the source hands it the
-  // real value. Declining the whole level over a repeat cost the polyfill outright where the
+  // a key the pattern names TWICE is ONE slot, so the literal carries one property for both readers.
+  // A repeat may not carry a SUBTREE: two patterns under one key would need merging, and a literal
+  // beside a pattern hands the plain reader the synthesized object instead of the real value.
+  // Declining the whole level over a repeat cost the polyfill outright where the
   // fallback has no statement slot to extract into - a for-x head relocates the pattern as written
   const carriesSubtree = isDestructurePattern(patternSlotTarget(prop.value));
   if (seenKeys.has(key) && (carriesSubtree || seenKeys.get(key))) return null;
@@ -6574,8 +6566,12 @@ export function renderSynthTree(tree, ctx, keyPath = []) {
   if (tree.kind === 'array') {
     return arrayExpression(tree.elements.map((child, index) => child ? renderSynthTree(child, ctx, [...keyPath, String(index)]) : null));
   }
+  // Quoted names change only the key spelling; every mirror level uses the same data slots.
   return objectExpression(tree.entries.map(({ key, child, symbolKey, readPure }) => {
-    if (!symbolKey) return synthProperty(key, renderSynthTree(child, ctx, [...keyPath, key]));
+    if (!symbolKey) {
+      const spelled = synthEntryKey({ lookupKey: key }, { resolvedSpelling: true });
+      return objectProperty(spelled.key, renderSynthTree(child, ctx, [...keyPath, key]), { computed: spelled.computed });
+    }
     const keyName = ctx.injectImport(symbolKey.entry, symbolKey.hintName);
     const receiver = renderSynthTree(child, ctx, keyPath);
     const value = readPure ? callExpression(identifier(ctx.injectImport(readPure.entry, readPure.hintName)), [receiver])
