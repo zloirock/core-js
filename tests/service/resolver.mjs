@@ -43,12 +43,13 @@ strictEqual(resolveUA(IOS_SAFARI.replace('18_7', '18_7_8').replace('26.1', '26.0
 strictEqual(resolveUA(IOS_SAFARI.replace('18_7', '18_6')), 'ios 26.1', 'resolver-2 #5');
 strictEqual(resolveUA(IOS_SAFARI.replace('18_7', '18_6_2')), 'ios 26.1', 'resolver-2 #6');
 // Firefox writes `18_7` as a literal from 147 on, on every device down to iOS 15 - there the token
-// is not a lower bound, it is not a signal at all, and the string carries nothing else
+// is not a lower bound, it is not a signal at all. What is left is the iOS the app installs on: 15.0
+// for 147 (`IPHONEOS_DEPLOYMENT_TARGET` of its `Client` target), and it only ever rises
 const IOS_FIREFOX = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 '
   + '(KHTML, like Gecko) FxiOS/147.0 Mobile/15E148 Safari/604.1';
 
-strictEqual(resolveUA(IOS_FIREFOX), null, 'resolver-4 #3');
-strictEqual(resolveUA(IOS_FIREFOX.replace('iPhone; CPU iPhone OS', 'iPad; CPU OS')), null, 'resolver-4 #4');
+strictEqual(resolveUA(IOS_FIREFOX), 'ios 15.0', 'resolver-4 #3');
+strictEqual(resolveUA(IOS_FIREFOX.replace('iPhone; CPU iPhone OS', 'iPad; CPU OS')), 'ios 15.0', 'resolver-4 #4');
 // before 147 it wrote the device's own version, which is the OS and so the WebKit
 strictEqual(resolveUA(IOS_FIREFOX.replace('18_7', '16_7_10').replace('147.0', '146.1')), 'ios 16.7.10', 'resolver-4 #5');
 
@@ -150,6 +151,21 @@ strictEqual(resolveUA('Mozilla/5.0 (Windows NT 10.0; Trident/7.0; rv:11.0) like 
 
 // and a Firefox is still a Firefox: the rule is the token, not the `rv:` or the name
 strictEqual(resolveUA(GOANNA.replace(' Goanna/4.5', '').replace(' Mypal/28.9.0', '')), 'firefox 68.9', 'resolver-6 #12');
+
+// a Mac string with no `Version/` - a WKWebView in a Mac app, or an iPad app, whose WKWebView sends
+// the Mac string by default - still carries the WebKit build, and `605.1.15` is the one WebKit froze
+// the token at from Safari 11.1 and iOS 11.3 on: 11.0.2 was `604.4.7`. That is a lower bound, and
+// the iPad row travels with it as for any Mac string
+const MAC_WEBVIEW = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)';
+
+deepStrictEqual(resolve({ 'user-agent': MAC_WEBVIEW }),
+  { engine: 'safari', version: '11.1', alternate: { engine: 'ios', version: '11.1' } }, 'resolver-8 #1');
+strictEqual(resolveUA(`${ MAC_WEBVIEW } MailMaster/4.17.24.1344`), 'safari 11.1', 'resolver-8 #2');
+// a `Version/` Safari wrote is still the answer, and one an app wrote below the floor is not
+strictEqual(resolveUA(`${ MAC_WEBVIEW } Version/26.2 Safari/605.1.15`), 'safari 26.2', 'resolver-8 #3');
+strictEqual(resolveUA(`${ MAC_WEBVIEW } Version/2.0 Safari/605.1.15`), 'safari 11.1', 'resolver-8 #4');
+// an older build says nothing of the kind, and a build is not a Safari version to be read as one
+strictEqual(resolveUA(MAC_WEBVIEW.replace('605.1.15', '604.4.7')), null, 'resolver-8 #5');
 
 // every failure to identify leads to the baseline, never past it. a confident wrong answer costs a
 // missing module; "I do not know" costs a few kilobytes

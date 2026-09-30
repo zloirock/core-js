@@ -119,9 +119,9 @@
     "browser": "iPhone Firefox (FxiOS)",
     "source": "user-agents@2.1.177",
     "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) FxiOS/155.0 Mobile/15E148 Safari/604.1",
-    "engine": null,
-    "version": null,
-    "note": "from 147 on Firefox writes `18_7` as a literal on every device down to iOS 15 - `defaultMobileUserAgent` in firefox-ios `BrowserKit/Sources/Shared/UserAgent.swift` - so the token is not a lower bound, and nothing else in the string carries a version"
+    "engine": "ios",
+    "version": "15.0",
+    "note": "from 147 on Firefox writes `18_7` as a literal on every device - `defaultMobileUserAgent` in firefox-ios `BrowserKit/Sources/Shared/UserAgent.swift` - so the token is not a lower bound; what is left is the iOS the app installs on, 15.0 (`IPHONEOS_DEPLOYMENT_TARGET` of its `Client` target)"
   },
   {
     "browser": "iPhone Edge (EdgiOS)",
@@ -471,5 +471,13 @@
     "engine": null,
     "version": null,
     "note": "`Gecko/2000000000` is neither a build date nor a version, and Iceape 1.1.5 is a Gecko 1.8 - the `rv:12.3` in front of it was written by whatever rewrote the string"
+  },
+  {
+    "browser": "WKWebView on a Mac, or in an iPad app",
+    "source": "user-agents@2.1.199",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)",
+    "engine": "safari",
+    "version": "11.1",
+    "note": "no `Version/` and no name - the WebKit build `605.1.15` is the one Apple froze the token at from Safari 11.1 and iOS 11.3 on, so it is a lower bound, and the iPad row travels with it"
   }
 ]

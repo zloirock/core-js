@@ -144,8 +144,12 @@ trap below is named, and the suite names its assertions after them.
 - **resolver-8** - on a Mac, a name nothing knows is still WebKit. Apple allows no other engine
   there, Chromium writes no `Version/` token, and so `Version/` beside `Safari/` is Safari's own
   version whatever the browser calls itself - a DuckDuckGo or an Orion would otherwise fall to the
-  baseline over a name. The token patterns are anchored on words for the same reason: `KaiOS/1.0`
-  ends in `iOS/1.0`, and a Gecko phone read as iOS would be answered with a WebKit version
+  baseline over a name. And the WebKit build is a floor under it: `AppleWebKit/605.1.15` is the
+  build Apple froze the token at from Safari 11.1 and iOS 11.3 on - 11.0.2 was `604.4.7` - so a
+  Mac string carrying it is at least Safari 11.1, with no `Version/` at all (a WKWebView in a Mac
+  app, or in an iPad app, which sends the Mac string) and with one an app wrote below that. The
+  token patterns are anchored on words for the same reason: `KaiOS/1.0` ends in `iOS/1.0`, and a
+  Gecko phone read as iOS would be answered with a WebKit version
 - **resolver-1** - every failure to identify the visitor leads to the baseline, never past it.
   There is no "probably Chrome 90" branch: a confident wrong answer costs a missing module and a
   broken page, while "I do not know" costs a few kilobytes
@@ -166,7 +170,9 @@ trap below is named, and the suite names its assertions after them.
   invented. The case that matters is the in-app WKWebView, which carries no `Version/` at all;
   a version built upwards there hands a thin bundle to what may be an old engine. Firefox on iOS
   is the case with no token left: from 147 on it writes `18_7` as a literal on every device down to
-  iOS 15, so its OS token is not a lower bound, and the answer is the baseline
+  iOS 15, so its OS token is not a lower bound. What bounds it instead is the iOS the app installs
+  on - 15.0, the `IPHONEOS_DEPLOYMENT_TARGET` of the `Client` target in 147 - which is not a version
+  built up from the string but a fact about every device that can run the app, and it only rises
 - **resolver-5** - on iOS the engine is WebKit whatever the browser calls itself. Both parsers
   answer `Chrome 140` to a `CriOS/` string, and handing that to compat as real Chrome builds a
   bundle far thinner than WebKit needs. Chrome on iPhone is 2.84% of world traffic

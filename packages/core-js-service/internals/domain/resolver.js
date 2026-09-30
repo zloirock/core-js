@@ -37,9 +37,17 @@ const FROZEN_IOS_VERSIONS = new Set(['18.6', '18.6.2', '18.7']);
 // model: `iOS` inside an app's own name - `GNews iOS/5.104` - is a version of that app
 const REPORTED_IOS_VERSION = /\bFBSV\/(?<facebook>\d+(?:\.\d+)*)|\((?:iPad|iPhone)\d+,\d+; iOS (?<model>\d+(?:_\d+)*);/;
 // from 147 on Firefox writes `18_7` as a literal on every device down to iOS 15 - its
-// `defaultMobileUserAgent` - so the token is not even a lower bound there
+// `defaultMobileUserAgent` - so the token is not even a lower bound there. What is left is the iOS the
+// app installs on: 15.0 for 147, the `IPHONEOS_DEPLOYMENT_TARGET` of its `Client` target, which only
+// ever rises
 const FIREFOX_IOS_TOKEN = /\bFxiOS\/(?<version>\d+)/;
 const FIREFOX_IOS_LITERAL_SINCE = 147;
+const FIREFOX_IOS_FLOOR = '15.0';
+// the WebKit build Apple froze the token at, first shipped in Safari 11.1 and iOS 11.3 - Safari 11.0.2
+// was `604.4.7`. A Mac string that carries it is at least that Safari, whatever `Version/` says or
+// whether it says anything: a WKWebView in a Mac app, or in an iPad app, writes none
+const FROZEN_WEBKIT = /\bAppleWebKit\/605\.1\.15\b/;
+const FROZEN_WEBKIT_SINCE = '11.1';
 // the OS token, read here rather than taken from the parser, which knows only the underscored form -
 // `CPU iPhone OS 13.3.1` with dots is a real string and it loses the version entirely. The word `OS`
 // is required: a device that calls itself `Iphone12 pro max` is an Android phone with a name, and
@@ -115,6 +123,11 @@ function chromiumUnder(target, userAgent, onChromium) {
   return chromium === undefined ? null : toTarget(onChromium, chromium);
 }
 
+// the Safari of a Mac string: the version it names, never below the WebKit build the string carries
+function onMac(userAgent, version) {
+  return toTarget('safari', higher(version, FROZEN_WEBKIT.test(userAgent) ? FROZEN_WEBKIT_SINCE : undefined));
+}
+
 // what a string says about its engine when the name says nothing usable
 function fromTokens(userAgent, system, onChromium) {
   const chromium = CHROMIUM_TOKEN.exec(userAgent)?.groups.version;
@@ -126,9 +139,9 @@ function fromTokens(userAgent, system, onChromium) {
   if (gecko !== undefined && (gecko.build.includes('.') || GECKO_BUILD_DATE.test(gecko.build))) {
     return toTarget(system === 'android' ? 'firefox-android' : 'firefox', gecko.version);
   }
-  if (system !== 'macos' || !/\bSafari\/\d/.test(userAgent)) return null;
+  if (system !== 'macos') return null;
 
-  return toTarget('safari', VERSION_TOKEN.exec(userAgent)?.groups.version ?? '');
+  return onMac(userAgent, /\bSafari\/\d/.test(userAgent) ? VERSION_TOKEN.exec(userAgent)?.groups.version : undefined);
 }
 
 export default function createResolver({ parseUserAgent }) {
@@ -151,9 +164,10 @@ export default function createResolver({ parseUserAgent }) {
     // `Chrome 140` to a `CriOS/` string, and handing that to compat as real Chrome builds a bundle
     // far thinner than WebKit needs
     if (system === 'ios') {
-      // a Firefox whose OS token is a literal carries no version at all - and it is iOS, so there is
-      // nothing further down for it but the name, which is Gecko's
-      if (Number(FIREFOX_IOS_TOKEN.exec(userAgent)?.groups.version) >= FIREFOX_IOS_LITERAL_SINCE) return null;
+      // a Firefox whose OS token is a literal carries no version - only the iOS the app installs on
+      if (Number(FIREFOX_IOS_TOKEN.exec(userAgent)?.groups.version) >= FIREFOX_IOS_LITERAL_SINCE) {
+        return toTarget('ios', FIREFOX_IOS_FLOOR);
+      }
 
       // an in-app WKWebView, which carries no `Version/` at all, is left with the OS token
       const onIOS = toTarget('ios', iosVersion(userAgent, parsed.os.version));
@@ -192,7 +206,9 @@ export default function createResolver({ parseUserAgent }) {
     // the desktop site. Nothing in it says which, and nothing can: Safari sends no client hints. The
     // WebKit is the same version either way, so `ios` is the other row the visitor could be on
     if (identified.engine === 'safari' && system === 'macos') {
-      return alsoOn(identified, toTarget('ios', identified.version));
+      const safari = onMac(userAgent, identified.version);
+
+      return alsoOn(safari, toTarget('ios', safari.version));
     }
 
     return alsoOn(identified, chromiumUnder(identified, userAgent, onChromium));
