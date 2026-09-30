@@ -7,6 +7,7 @@
 import { matchEntrySubpath } from './entries.js';
 import {
   CENSUS_CONTAINER_TYPES,
+  allProxySelectingInit,
   argumentOverridesSlot,
   isMemberAccessNode,
   runtimeChainRoot,
@@ -65,6 +66,7 @@ import {
   isReassignedBeyondDeclarator,
   isReceiverShapedNode,
   isReplayableSynthKey,
+  isSynthSimpleObjectPattern,
   isMirrorablePatternValue,
   isPropertyNode,
   patternFullyConsumed,
@@ -100,6 +102,7 @@ import {
   peelFallbackBranchInner,
   peelFallbackReceiver,
   peelNestedSequenceExpressions,
+  peelTransparentExpr,
   peelParenAndTSParentPath,
   peelProxyGlobalObject,
   peelSequenceTail,
@@ -110,6 +113,7 @@ import {
   POSSIBLE_GLOBAL_OBJECTS,
   PRIMITIVE_LITERAL_TYPES,
   propBindingIdentifier,
+  proxySurfaceIdentifier,
   pureImportEntryOf,
   pureImportSourceEntry,
   reachingContainerValueNode,
@@ -3613,7 +3617,21 @@ export function assignmentLeafReadsPositionally(leafPath, adapter = null) {
 // branch's own `undefined` is its answer; under an assignment never through an array level, and under a
 // CAPTURED one only through keyed hops, since no mirror may replace its receiver. any other host is left
 // to its own route. a parameter never takes one: a caller's own undefined property must stay undefined
-export function leafTakesSlotDefault(leafPath, adapter = null) {
+// A queued declaration route also supplies its host/selection facts; instance claims never take a default.
+export function leafTakesSlotDefault(leafPath, adapter = null, route = null) {
+  if (route?.kind === 'instance') return false;
+  if (route?.host && !route.host.head) {
+    const { host, pattern, chain, sentinel, injectorState } = route;
+    const prop = leafPath.node;
+    const init = peelTransparentExpr(host.declarator?.init);
+    const ctx = { adapter, injectorState };
+    const selected = chain.length > 0 && prop.value?.type !== 'ObjectPattern'
+      ? ((init?.type === 'AssignmentExpression' || !isSynthSimpleObjectPattern(pattern))
+        && andSelectedProxyInit(init, ctx)) || selectionHoldsChainWrites(init, ctx)
+      : chain.length === 0 && sentinel && prop.value?.type === 'Identifier'
+        && prop.computed && computedKeyHasSideEffects(prop) && init?.operator === '&&';
+    if (!selected) return false;
+  }
   if (!staticSlotTakesDefault(leafPath.node, { scope: leafPath.scope, adapter, path: leafPath })
     || isFunctionParamDestructureParent(leafPath.parentPath)) return false;
   const walked = destructureHostThroughWrappers(leafPath.parentPath, adapter);
@@ -3623,6 +3641,39 @@ export function leafTakesSlotDefault(leafPath, adapter = null) {
   if (getFallbackBranchSlots(value) && !destructureValueBranchesAllProxy(value)) return false;
   if (host?.node?.type !== 'AssignmentExpression') return true;
   return !walked.indices.length && (assignmentValueDiscarded(host) || !!walked.hops?.length);
+}
+
+// an ALL-PROXY selection whose branches are chain ASSIGNMENTS: the writes must survive the
+// destructure, so nothing may extract off it - the leaf takes the sound inline default instead
+function selectionHoldsChainWrites(node, ctx) {
+  const inner = peelTransparentExpr(node);
+  if (inner?.type !== 'ConditionalExpression' && inner?.type !== 'LogicalExpression') return false;
+  if (!allProxySelectingInit(inner, ctx)) return false;
+  const stack = [inner];
+  while (stack.length) {
+    const branch = peelTransparentExpr(stack.pop());
+    if (branch?.type === 'ConditionalExpression') {
+      stack.push(branch.consequent, branch.alternate);
+      continue;
+    }
+    if (branch?.type === 'LogicalExpression') {
+      stack.push(branch.left, branch.right);
+      continue;
+    }
+    if (branch?.type === 'AssignmentExpression') return true;
+  }
+  return false;
+}
+
+// a `&&` receiver yields its RIGHT operand on every path a destructure can survive (a falsy
+// left throws), so the leaf's slot is the proxy surface's own - the sound inline default
+function andSelectedProxyInit(node, { adapter, injectorState }) {
+  // a chain assignment is transparent to the verdict: what the destructure reads is the
+  // value it stores (`w = m && globalThis`)
+  let inner = peelTransparentExpr(node);
+  while (inner?.type === 'AssignmentExpression' && inner.operator === '=') inner = peelTransparentExpr(inner.right);
+  return inner?.type === 'LogicalExpression' && inner.operator === '&&'
+    && !!proxySurfaceIdentifier(inner.right, { adapter, injectorState });
 }
 
 // the pattern a guarded SPLIT consumed, turned into the residual its REST still needs: every key a
@@ -7782,6 +7833,7 @@ export function destructureKeyRunsCode(item) {
 // properties over sole hops captures the same way.
 // `prop`, the claim, picks its own copy of a REPEATED hop key: both copies read one slot, so the
 // other stays a sibling read of it. Distinct hops keep the routes that pair each key with its slot.
+// A claim kind admits only its own leaf: instance or effectful static. Anchored iterator slots keep their raw key read.
 export function planNestedKeyedPatternCapture({
   pattern,
   init,
@@ -7793,8 +7845,13 @@ export function planNestedKeyedPatternCapture({
   retainsResult = false,
   sharedLeaf = false,
   prop: claim = null,
+  kind = null,
+  entry = null,
+  anchored = false,
 }) {
-  if (!init) return null;
+  if (!init || (kind !== null && (kind !== 'instance'
+    && !(kind === 'static' && computedKeyHasSideEffects(claim))))
+    || (entry === 'get-iterator-method' && anchored)) return null;
   const ancestors = [];
   let inner = pattern;
   if (force && sourceAncestors?.length) {
@@ -7839,6 +7896,7 @@ export function planNestedKeyedPatternCapture({
       && [...ancestors.flatMap(level => level.pattern.properties), ...inner.properties]
         .every(prop => !computedKeyHasSideEffects(prop))
       && !(leafKeyRuns && inner.properties.some(prop => destructureKeyRunsCode(prop))))) return null;
+  if (kind !== null && !inner.properties.includes(claim)) return null;
   return { pattern, init, ancestors, leafPattern: inner, leaf, rest };
 }
 

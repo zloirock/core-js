@@ -1,6 +1,6 @@
-// a static read off a CONDITIONALLY reassigned name in the MIDDLE of a pattern gets no identity guard
-// (the render guards a sole slot or a pattern end only): the census holds the constructor's namespace
-// for it instead, in a declaration and an assignment, while a pattern end keeps its guard
+// A conditionally reassigned receiver keeps native siblings in property order.
+// Capturing an instance sibling permits the middle static to use its identity guard;
+// the constructor namespace supplies any static the pattern still reads natively.
 let M = Map;
 if (n) M = { groupBy: 7, name: 'x' };
 const { a1, groupBy: s1, name: nm1 } = M;

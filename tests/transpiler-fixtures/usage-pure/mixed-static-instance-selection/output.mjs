@@ -6,13 +6,11 @@ import _includes from "@core-js/pure/actual/instance/includes";
 // Unknown arrays and strings both remain possible when no caller type is known.
 export function flat(flag, user) {
   const _ref = flag ? {
-    from: _Array$from,
-    at: Array.at
-  } : user;
-  const at = _at(_ref);
-  const {
-    from
-  } = _ref;
+      from: _Array$from,
+      at: Array.at
+    } : user,
+    from = _ref === Array ? _Array$from : _ref.from,
+    at = null == _ref ? _ref[""] : _at(_ref);
   return [from, at];
 }
 export function nested(flag, user) {
@@ -36,10 +34,9 @@ export function loop(flag, user) {
     from: _Array$from,
     map: Array.map
   } : user]) {
-    const map = _mapMaybeArray(_ref3);
-    const {
-      from
-    } = _ref3;
+    const _ref4 = _ref3,
+      from = _ref4 === Array ? _Array$from : _ref4.from,
+      map = null == _ref4 ? _ref4[""] : _mapMaybeArray(_ref4);
     return [from, map];
   }
 }

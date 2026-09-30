@@ -333,6 +333,7 @@ export default function createProxySpineChannel(ctx) {
       patternNode: pattern,
       hostNode: hostPath?.node,
       hostInStatement: stmtUp?.node?.type === 'ExpressionStatement',
+      isConsumedProp: item => destructureEmit.queuedJobsFor(hostPath)?.jobs.some(job => job.prop === item && !job.sentinel),
       meta,
       path: metaPath,
       resolvePure,
@@ -375,6 +376,27 @@ export default function createProxySpineChannel(ctx) {
     }
     const host = hostPath.node;
     const chain = guardChainNode(plan, memberExpression(identifier(plan.recvIdent.name), identifier(meta.key)));
+    if (admitted.hasConsumedProps) {
+      // Earlier extractions still occupy their source slots. Drain this guard beside them
+      // in property order instead of inserting it ahead of the pending writes.
+      const declarationPath = hostKind === 'declarator' ? hostPath.parentPath : stmtUp;
+      const exported = declarationPath.parentPath?.node?.type === 'ExportNamedDeclaration';
+      const pending = destructureEmit.queuedJobsFor(hostPath).jobs.find(job => (job.declarator ?? job.assignment) === host);
+      if (!pending) return false;
+      markSubtreeSkipped(skippedNodes, prop);
+      markSubtreeSkipped(skippedNodes, chain);
+      destructureEmit.recordJob({
+        hostPath: exported ? declarationPath.parentPath : declarationPath,
+        job: {
+          prop, pattern, chain: [], ...hostKind === 'declarator' ? { declarator: host } : { assignment: host }, local: bindingName,
+          guardDetach: detach,
+          metaPath, exported, host: pending.host,
+          value: () => chain,
+        },
+      });
+      markRewrite();
+      return true;
+    }
     if (detach) {
       const list = hostKind === 'declarator' ? hostPath.parentPath.node.declarations : stmtUp?.parentPath?.node?.[stmtUp.listKey];
       const anchorNode = hostKind === 'declarator' ? host : stmtUp?.node;
@@ -386,7 +408,10 @@ export default function createProxySpineChannel(ctx) {
       const placed = hostKind === 'declarator'
         ? { type: 'VariableDeclarator', id: identifier(bindingName), init: chain }
         : { type: 'ExpressionStatement', expression: assignmentExpression('=', identifier(bindingName), chain) };
-      list.splice(list.indexOf(anchorNode) + (detach === 'after' ? 1 : 0), 0, placed);
+      // A later capture replaces this host through its path; insertion must update that path's index.
+      const anchorPath = hostKind === 'declarator' ? hostPath : stmtUp;
+      if (detach === 'after') anchorPath.insertAfter([placed]);
+      else anchorPath.insertBefore([placed]);
       return true;
     }
     markRewrite();
