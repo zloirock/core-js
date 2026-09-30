@@ -3,8 +3,8 @@ import "core-js/modules/es.array.at";
 import "core-js/modules/es.array.includes";
 import "core-js/modules/es.array.keys";
 import "core-js/modules/es.iterator.constructor";
+import "core-js/modules/es.iterator.includes";
 import "core-js/modules/es.string.includes";
-import "core-js/modules/esnext.iterator.includes";
 import "core-js/modules/web.dom-collections.keys";
 // `this` inside an object-literal method is that literal, so a member whose name collides with a
 // built-in instance method reads the literal's OWN data property - a plain object never carries the

@@ -2,9 +2,9 @@ import "core-js/modules/es.object.to-string";
 import "core-js/modules/es.array.at";
 import "core-js/modules/es.array.includes";
 import "core-js/modules/es.iterator.constructor";
+import "core-js/modules/es.iterator.includes";
 import "core-js/modules/es.string.at";
 import "core-js/modules/es.string.includes";
-import "core-js/modules/esnext.iterator.includes";
 // a constraint is skipped for a SUPPLIED param exactly like a default (established rule
 // extended to deep references); class METHOD type-params follow the same discipline; a
 // class-LEVEL generic keeps legitimate omitted-arg defaults and resolvable instantiations

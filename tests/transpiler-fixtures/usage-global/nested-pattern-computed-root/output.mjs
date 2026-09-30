@@ -7,9 +7,9 @@ import "core-js/modules/es.array.to-reversed";
 import "core-js/modules/es.array.to-sorted";
 import "core-js/modules/es.array.with";
 import "core-js/modules/es.iterator.constructor";
+import "core-js/modules/es.iterator.includes";
 import "core-js/modules/es.string.at";
 import "core-js/modules/es.string.includes";
-import "core-js/modules/esnext.iterator.includes";
 // a nested pattern whose init the source COMPUTES - a call, a `new`, a member off a user object -
 // extracts through the root read once, exactly where the source reads it: the declarator dies whole
 // with the claim, so the dispatch's `mk().data` is the source's one evaluation. a slot default folds

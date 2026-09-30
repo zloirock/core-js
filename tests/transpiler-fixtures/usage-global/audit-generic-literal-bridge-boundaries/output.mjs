@@ -2,9 +2,9 @@ import "core-js/modules/es.object.to-string";
 import "core-js/modules/es.array.at";
 import "core-js/modules/es.array.includes";
 import "core-js/modules/es.iterator.constructor";
+import "core-js/modules/es.iterator.includes";
 import "core-js/modules/es.string.at";
 import "core-js/modules/es.string.includes";
-import "core-js/modules/esnext.iterator.includes";
 // literal-arg annotation bridge boundaries: only trivially-typed literals bridge (objects
 // and functions stay opaque - generic); a template with expressions is still a string and
 // OVERRIDES a mismatched default; an explicit type-arg wins over the bridge; an array

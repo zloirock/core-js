@@ -9,9 +9,9 @@ import "core-js/modules/es.array.species";
 import "core-js/modules/es.array.unscopables.flat-map";
 import "core-js/modules/es.iterator.constructor";
 import "core-js/modules/es.iterator.flat-map";
+import "core-js/modules/es.iterator.includes";
 import "core-js/modules/es.string.at";
 import "core-js/modules/es.string.includes";
-import "core-js/modules/esnext.iterator.includes";
 import "core-js/modules/web.dom-collections.iterator";
 import "core-js/modules/web.dom-collections.entries";
 // a `typeof` annotation may name the very binding it annotates, directly or round a pair, and the

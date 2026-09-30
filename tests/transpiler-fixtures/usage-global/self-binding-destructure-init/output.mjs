@@ -12,10 +12,10 @@ import "core-js/modules/es.array.unscopables.flat";
 import "core-js/modules/es.iterator.constructor";
 import "core-js/modules/es.iterator.filter";
 import "core-js/modules/es.iterator.find";
+import "core-js/modules/es.iterator.includes";
 import "core-js/modules/es.iterator.map";
 import "core-js/modules/es.string.at";
 import "core-js/modules/es.string.includes";
-import "core-js/modules/esnext.iterator.includes";
 // A pattern whose init reads its own binding holds nothing yet: the read is in its TDZ or sees the
 // hoisted `undefined`. Each destructured method is still a claim of its own, injected for every
 // receiver family it could name, and the source stays as written with its throw. Declaration kinds,

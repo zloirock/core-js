@@ -8,10 +8,10 @@ import "core-js/modules/es.iterator.constructor";
 import "core-js/modules/es.iterator.drop";
 import "core-js/modules/es.iterator.find";
 import "core-js/modules/es.iterator.flat-map";
+import "core-js/modules/es.iterator.includes";
 import "core-js/modules/es.iterator.some";
 import "core-js/modules/es.string.at";
 import "core-js/modules/es.string.includes";
-import "core-js/modules/esnext.iterator.includes";
 import "core-js/modules/web.dom-collections.iterator";
 // one method per row, each polyfilled for SEVERAL families (array + string, array + iterator), so a
 // row's injection is attributable to that row alone and a wrong family shows as its own module. the

@@ -2,8 +2,8 @@ import "core-js/modules/es.object.to-string";
 import "core-js/modules/es.array.at";
 import "core-js/modules/es.array.includes";
 import "core-js/modules/es.iterator.constructor";
+import "core-js/modules/es.iterator.includes";
 import "core-js/modules/es.string.includes";
-import "core-js/modules/esnext.iterator.includes";
 // parenthesized type slots are a semantic no-op that one parser strips and the other
 // keeps: every mapped-type / infer dispatch must peel before matching, else the paren
 // side loses the narrow (or, for the keyof capture guard, wrongly ADMITS a cross-param
