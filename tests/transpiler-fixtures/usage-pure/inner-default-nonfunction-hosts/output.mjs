@@ -5,26 +5,25 @@ import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Promise$race from "@core-js/pure/actual/promise/race";
 import _Set from "@core-js/pure/actual/set";
-// An inner default on a NON-function host - an assignment, a catch parameter, an object key, a
-// declarator's array wrapper - takes the per-key fallback chain a parameter's does. Where the
-// mirror declines (a non-identifier key, a repeated HOP key, a rest beside the leaves) a static leaf,
-// the nested one included, keeps the inline default only where the host proves the slot the default
-// pairs undefined, so the default IS the value; a CATCH parameter pairs an unknown thrown value, and
-// its leaves stay native. A key repeated over LEAVES does not decline the mirror - one slot is one
-// property, and the literal replaces the default whole; a pattern spelling only nested leaves mirrors
-// the default from them; and a member target beside the leaves (an assignment-only shape) rides the
-// mirror like any slot once its ROOT proves writable, so the flat leaf keeps no inline default there.
-// Both legs print the same shapes.
+// Inner defaults replace their receiver whole where a mirror can carry its keys.
+// Quoted keys retain native reads; declined rest and unknown supplied receivers stay native.
+// Member targets and repeated flat keys retain the same mirror as ordinary bindings.
 const getKey = () => 'Map';
 const box = {};
 let S, M, alias, of, rest, race, d;
 [{
-  Set: S = _Set,
+  Set: S,
   'with-dash': d,
   Array: {
-    of = _Array$of
+    of
   }
-} = _globalThis] = [];
+} = {
+  Set: _Set,
+  "with-dash": _globalThis["with-dash"],
+  Array: {
+    of: _Array$of
+  }
+}] = [];
 [{
   Map: M,
   ['Map']: alias,
@@ -38,9 +37,9 @@ let S, M, alias, of, rest, race, d;
   }
 }] = [];
 [{
-  Set: S = _Set,
+  Set: S,
   Array: {
-    of = _Array$of
+    of
   },
   ...rest
 } = _globalThis] = [];
@@ -55,13 +54,21 @@ let S, M, alias, of, rest, race, d;
 }] = [];
 [{
   Array: {
-    of = _Array$of
+    of
   },
   'with-dash': d,
   Promise: {
-    race = _Promise$race
+    race
   }
-} = _globalThis] = [];
+} = {
+  Array: {
+    of: _Array$of
+  },
+  "with-dash": _globalThis["with-dash"],
+  Promise: {
+    race: _Promise$race
+  }
+}] = [];
 [{
   Set: S,
   Array: {
@@ -82,7 +89,13 @@ export const caught = (() => {
     Array: {
       of: cof
     }
-  } = _globalThis]) {
+  } = {
+    Set: _Set,
+    "with-dash": _globalThis["with-dash"],
+    Array: {
+      of: _Array$of
+    }
+  }]) {
     return [CS, cd, cof];
   }
 })();
@@ -116,11 +129,8 @@ export const keyed = (() => {
   return [KS, y, kof, only];
 })();
 
-// ... and a value-SELECTING inner default fills the default's arms, a member target taking the
-// ponyfill in its own slot beside the sibling leaf. A selection every arm of which is the REALM names ONE object, so the
-// literal replaces it whole - left standing, the probe selects natively wherever the host HAS
-// `window`, and the polyfill the fallback arm carries attaches nowhere. The slot a literal cannot
-// spell anchors on the operand the selection yields through, never on the probe's unbacked name
+// Realm selections mirror the chosen default. Foreign fallback values remain native.
+// Unbacked probes retain their own selection behavior.
 export const selecting = (() => {
   let gb;
   ({
@@ -164,10 +174,7 @@ export const selecting = (() => {
       groupBy: _Map$groupBy
     }
   }] = [];
-  // ... a host slot no pairing reads through (a spread) still hands the pattern its default, and a
-  // BARE backed left reaches the same literal by the other road - its right is dead rather than
-  // realm-equal. A fallback the plan may not speak for is the negative: the selection stays whole
-  // and native, so neither arm is polyfilled
+  // A spread leaves its paired slot unknown; a foreign fallback stays native.
   const extra = {};
   let gb4, gb5, gb6;
   ({
@@ -209,12 +216,18 @@ export const selecting = (() => {
 })();
 export const wrapped = (() => {
   const [{
-    Set: WS = _Set,
+    Set: WS,
     'with-dash': wd,
     Array: {
-      of: wof = _Array$of
+      of: wof
     }
-  } = _globalThis] = [];
+  } = {
+    Set: _Set,
+    "with-dash": _globalThis["with-dash"],
+    Array: {
+      of: _Array$of
+    }
+  }] = [];
   const [{
     Array: {
       of: wonly
