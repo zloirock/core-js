@@ -102,6 +102,9 @@ check('objectPattern + native rest', print(variableDeclaration('const', [restDec
   'const {\n  "from": unused,\n  ...rest\n} = source;');
 check('objectProperty/computed becomes ObjectProperty',
   estreeToBabel(objectProperty(identifier('k'), identifier('v'), { computed: true })).type, 'ObjectProperty');
+const quotedProperty = objectProperty(literal('with-dash'), memberExpression(identifier('source'), literal('with-dash'), { computed: true }));
+check('objectProperty/quoted key keeps a data slot', print(objectExpression([quotedProperty])), '{\n  "with-dash": source["with-dash"]\n}');
+check('objectProperty/quoted key becomes ObjectProperty', estreeToBabel(quotedProperty).type, 'ObjectProperty');
 check('bareImport', print(bareImport('core-js/modules/es.array.flat')), 'import "core-js/modules/es.array.flat";');
 check('defaultImport', print(defaultImport('_at', '@core-js/pure/actual/array/at')),
   'import _at from "@core-js/pure/actual/array/at";');
@@ -185,6 +188,10 @@ check('chain/seal boundary types', estreeToBabel(sealed).type, 'MemberExpression
 checkTruthy('totality/unknown type throws', caught({ type: 'AwaitExpression' })?.includes('outside the canonical vocabulary'));
 checkTruthy('totality/function shapes stay outside the vocabulary',
   caught({ type: 'ArrowFunctionExpression', params: [], body: identifier('value') })?.includes('outside the canonical vocabulary'));
+checkTruthy('totality/function expressions stay outside the vocabulary',
+  caught({ type: 'FunctionExpression', id: null, params: [], body: blockStatement([]) })?.includes('outside the canonical vocabulary'));
+checkTruthy('totality/return statements stay outside the vocabulary',
+  caught({ type: 'ReturnStatement', argument: identifier('value') })?.includes('outside the canonical vocabulary'));
 checkTruthy('totality/optional member outside chain throws',
   caught(memberExpression(identifier('a'), identifier('b'), { optional: true }))?.includes('outside a ChainExpression'));
 checkTruthy('totality/optional call outside chain throws',
