@@ -9,6 +9,7 @@ import "core-js/modules/es.array.fill";
 import "core-js/modules/es.array.includes";
 import "core-js/modules/es.array.with";
 import "core-js/modules/es.iterator.constructor";
+import "core-js/modules/es.iterator.includes";
 import "core-js/modules/es.map.constructor";
 import "core-js/modules/es.map.species";
 import "core-js/modules/es.map.get-or-insert";
@@ -19,7 +20,6 @@ import "core-js/modules/es.weak-map.constructor";
 import "core-js/modules/es.weak-map.get-or-insert";
 import "core-js/modules/es.weak-map.get-or-insert-computed";
 import "core-js/modules/esnext.function.metadata";
-import "core-js/modules/esnext.iterator.includes";
 import "core-js/modules/esnext.symbol.metadata";
 import "core-js/modules/web.dom-collections.iterator";
 // the TypeScript member forms anchor like the plain ones: a modifier, a legacy decorator and a

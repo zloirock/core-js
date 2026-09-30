@@ -2,9 +2,9 @@ import "core-js/modules/es.object.to-string";
 import "core-js/modules/es.array.at";
 import "core-js/modules/es.array.includes";
 import "core-js/modules/es.iterator.constructor";
+import "core-js/modules/es.iterator.includes";
 import "core-js/modules/es.string.at";
 import "core-js/modules/es.string.includes";
-import "core-js/modules/esnext.iterator.includes";
 // substitution boundaries around opaque markers: a resolvable sibling keeps precision next
 // to a marked one; a PARTIAL explicit list marks only the supplied slot; a default-only
 // call still binds its defaults; per-call maps stay isolated; a cyclic function-level

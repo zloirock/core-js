@@ -2,8 +2,8 @@ import "core-js/modules/es.object.to-string";
 import "core-js/modules/es.array.at";
 import "core-js/modules/es.array.includes";
 import "core-js/modules/es.iterator.constructor";
+import "core-js/modules/es.iterator.includes";
 import "core-js/modules/es.string.includes";
-import "core-js/modules/esnext.iterator.includes";
 // a for-in head writes a hoisted `var` without an assignment node, through a visitor key of its own -
 // it regresses independently of for-of. both sides of the channel, a method each
 declare const unionSrc: string[] | string;
