@@ -13460,25 +13460,18 @@ function * generateSelfBindingReads() {
   }
 }
 
-// An inner default on a NON-function host - a declarator's array wrapper, an assignment, a catch
-// parameter, a for-of head, an object key - takes the per-key fallback chain: the
-// mirror where the pattern spells, the inline default on every static leaf, flat or nested, where the
-// mirror declines (a computed, duplicate or non-identifier key, a rest or a member target beside the
-// leaves), and a pattern spelling only nested leaves mirrors from them. The function hosts are the
-// controls, but never gain leaf defaults when their mirror declines, and neither does a catch
-// parameter: nothing proves its thrown slot absent, and a present element without the key would
-// take the leaf default. A member target is assignment-only.
+// Inner defaults mirror their receiver whole where the pattern's keys permit it.
+// A declined mirror never gains polyfill leaf defaults; ordinary extraction rules decide the
+// remaining claims. Unknown supplied receivers retain their own values, and rest/unknown-key
+// controls keep native leaves where no extraction applies. A member target is assignment-only.
 const INNER_DEFAULT_HOST_LEAVES = [
   { id: 'ckey', pattern: 'Set: S, [getKey()]: y, Array: { of }', read: '[typeof S, of(7)[0]]', strip: false },
-  { id: 'nonid', pattern: 'Set: S, "with-dash": d, Array: { of }', read: '[typeof S, of(7)[0], typeof d]', strip: true,
-    nativeHosts: ['param-expr', 'param-stmt', 'catch'] },
+  { id: 'nonid', pattern: 'Set: S, "with-dash": d, Array: { of }', read: '[typeof S, of(7)[0], typeof d]', strip: true },
   { id: 'dup', pattern: 'Map: M, ["Map"]: alias, Array: { of }', read: '[typeof M, of(7)[0]]', strip: false },
   { id: 'rest', pattern: 'Set: S, Array: { of }, ...rest', read: '[typeof S, of(7)[0], typeof rest]', strip: false },
   { id: 'nested-only', pattern: 'Array: { of }', read: '[of(7)[0]]', strip: true },
-  { id: 'nested-only-nonid', pattern: 'Array: { of }, "with-dash": d', read: '[of(7)[0], typeof d]', strip: true,
-    nativeHosts: ['param-expr', 'param-stmt', 'catch'] },
-  { id: 'nested-two', pattern: 'Array: { of }, "with-dash": d, Promise: { race }', read: '[of(7)[0], typeof d, typeof race]', strip: true,
-    nativeHosts: ['param-expr', 'param-stmt', 'catch'] },
+  { id: 'nested-only-nonid', pattern: 'Array: { of }, "with-dash": d', read: '[of(7)[0], typeof d]', strip: true },
+  { id: 'nested-two', pattern: 'Array: { of }, "with-dash": d, Promise: { race }', read: '[of(7)[0], typeof d, typeof race]', strip: true },
   { id: 'member', pattern: 'Set: S, Array: { of: box.of }', read: '[typeof S, typeof box.of]', strip: false, hosts: ['assign'] },
   { id: 'member-nested', pattern: 'Set: S, Array: { of }, Promise: { race: box.race }', read: '[typeof S, of(7)[0], typeof box.race]', strip: false, hosts: ['assign'] },
 ];
@@ -13506,14 +13499,14 @@ function * generateInnerDefaultHostFallbacks() {
       if (leaf.hosts && !leaf.hosts.includes(host)) continue;
       const body = `const getKey = () => "Map"; const box = {}; ${ wrap(leaf.pattern).replace('READ', leaf.read) }`;
       yield { ...snippet(`inner-default-host-fallback/${ host }/${ leaf.id }`, `(() => { ${ body } })()`),
-        strip: leaf.strip && !leaf.nativeHosts?.includes(host) };
+        strip: leaf.strip };
     }
   }
   const leaf = { pattern: 'Set: S, "with-dash": d, Array: { of }', read: '[typeof S, of(1).length]' };
   for (const [host, wrap] of Object.entries(INNER_DEFAULT_IN_FUNCTION_HOSTS)) {
     const fn = wrap(leaf.pattern).replace('READ', leaf.read);
     yield { ...snippet(`inner-default-host-fallback/in-function/${ host }`,
-      `(() => { ${ fn } return [f([{ Set: 'X', Array: { of: x => [x, 'own'] } }]), f([])]; })()`), strip: false };
+      `(() => { ${ fn } return [f([{ Set: 'X', Array: { of: x => [x, 'own'] } }]), f([])]; })()`), strip: true };
   }
   // A supplied argument retains its own values. Only an omitted/undefined slot can permit
   // body extraction; nested leaves that cannot be mirrored remain native.
@@ -15093,6 +15086,22 @@ function * generateOpenRealmPatternWrites() {
   }
 }
 
+// Effectful sibling reads await the common receiver-mirror order/repetition fix.
+// Quoted keys use the same data slots as identifier keys; keep each pending host enumerable.
+function * generateQuotedMirrorSiblingReads() {
+  const skipHosts = new Set(['decl', 'assign', 'catch', 'forof', 'objkey', 'param-expr', 'param-stmt']);
+  for (const [host, wrap] of Object.entries(INNER_DEFAULT_FALLBACK_HOSTS)) {
+    if (skipHosts.has(host)) continue;
+    const pattern = 'Array: { of }, [(log.push("key"), "with-dash")]: d, fc587Sibling: y, fc587Sibling: alias';
+    const body = wrap(pattern).replace('READ', '[of(7)[0], y, alias]');
+    const expr = '(() => { let reads = 0; const previous = Object.getOwnPropertyDescriptor(globalThis, "fc587Sibling");'
+      + ' restoreProperty(globalThis, "fc587Sibling", { configurable: true, get() { log.push(++reads); return reads; } });'
+      + ` try { ${ body } } finally { restoreProperty(globalThis, "fc587Sibling", previous); } })()`;
+    const row = snippet(`quoted-mirror-sibling-read/${ host }`, expr);
+    yield { ...row, code: `${ RESTORE_IMPORT }\n${ row.code }`, strip: true };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateUnbackedSequenceHops();
@@ -15351,4 +15360,5 @@ export function * generate() {
   yield * generateConstructorAliasCaptures();
   yield * generateConstructorAliasWrites();
   yield * generateOpenRealmPatternWrites();
+  yield * generateQuotedMirrorSiblingReads();
 }
