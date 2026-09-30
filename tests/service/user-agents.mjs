@@ -35,13 +35,17 @@ for (const row of corpus) {
     ok(target === null || target.engine === 'ios', `user-agents-2 #1: ${ row.browser } answered ${ target?.engine }`);
   }
 
-  // an OS token WebKit did not freeze is the OS itself, and on iOS the OS is the WebKit - so no
-  // `ios` answer is ever above it, whatever `Version/` beside it claims
+  // an OS token WebKit did not freeze is the OS itself, and so is the OS an app reports beside it -
+  // and on iOS the OS is the WebKit, so no `ios` answer is ever above either, whatever `Version/`
+  // beside them claims
   const system = /(?:CPU OS|\biOS|iPhone OS)[ /](?<version>\d+(?:[._]\d+)*)/.exec(userAgent)?.groups.version
     .replaceAll('_', '.');
+  const reported = /\bFBSV\/(?<version>\d+(?:\.\d+)*)/.exec(userAgent)?.groups.version
+    ?? /\((?:iPad|iPhone)\d+,\d+; iOS (?<version>\d+(?:_\d+)*);/.exec(userAgent)?.groups.version.replaceAll('_', '.');
+  const stated = [['18.6', '18.6.2', '18.7'].includes(system) ? undefined : system, reported];
 
-  if (target?.engine === 'ios' && system !== undefined && !['18.6', '18.6.2', '18.7'].includes(system)) {
-    ok(compare(target.version, '<=', system), `user-agents-2 #7: ${ row.browser } answered ${ target.version } over ${ system }`);
+  for (const version of stated) if (target?.engine === 'ios' && version !== undefined) {
+    ok(compare(target.version, '<=', version), `user-agents-2 #7: ${ row.browser } answered ${ target.version } over ${ version }`);
   }
 
   // a Chromium under any name is never answered with more than the Chromium it says it runs

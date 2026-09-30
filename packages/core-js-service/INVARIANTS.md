@@ -108,21 +108,24 @@ trap below is named, and the suite names its assertions after them.
   else's commit
 - **user-agents-2** - and the rules that hold for a whole family, which survive a corpus refresh:
   every iPhone/iPad string resolves to `ios` or to the baseline and never to another engine, an
-  `ios` answer is never above an OS token WebKit did not freeze, a `chrome` answer is never above
-  the `Chrome/` token the string carries, and the second candidate is never attached to a browser that never ran Chromium
+  `ios` answer is never above an OS the string states - a token WebKit did not freeze, or the OS an
+  app reports beside it - a `chrome` answer is never above the `Chrome/` token the string carries,
+  and the second candidate is never attached to a browser that never ran Chromium
 - **resolver-6** - the ENGINE outranks what the browser calls itself, wherever the string carries
   both. `Trident/` is Internet Explorer's engine and nothing else carries it, so `MSIE 7.0` beside
   `Trident/7.0` is IE 11 in compatibility view - a document mode, not an older JavaScript - and a
-  browser calling itself Sleipnir on `Trident/6.0` is IE 10. On iOS the two signals are `Version/`
-  and the OS token, and on iOS the OS IS the WebKit, so the OS token is the answer - unless it is
-  one of the values WebKit writes in place of the OS since iOS 26 (`18_6`, `18_6_2`, `18_7`). Only
-  then is it a lower bound, which `Version/` raises; and only Safari's own `Version/` counts, the
-  one straight after `(KHTML, like Gecko)`, because an app that assembles its own string writes one
-  of its own anywhere - Apple News far below the OS, Edge after its own token, Yandex a
-  `Version/26.5` at the end. `Version/` is never the answer over an OS token it contradicts for a
-  second reason too: before iOS 7 it was Safari's version, not the OS's - `Version/4.0` on iOS
-  3.1.2 - and the compat rows are the OS. The OS token is read HERE rather than taken from the
-  parser, which knows only the underscored form
+  browser calling itself Sleipnir on `Trident/6.0` is IE 10. On iOS the OS IS the WebKit, so an OS
+  the string states outright is the answer: the OS token, unless it is one of the values WebKit
+  writes in place of the OS since iOS 26 (`18_6`, `18_6_2`, `18_7`), or the OS an app read from the
+  system and wrote beside it - Facebook's `FBSV/18.7.3`, Instagram's `(iPhone13,2; iOS 26_6_1; ...`
+  behind a device model. Where the string states two, the lower one is the answer, the only one
+  that cannot be above the truth. With neither, the frozen token is a lower bound, which `Version/`
+  raises - and only Safari's own `Version/`, the one straight after `(KHTML, like Gecko)`, because an
+  app that assembles its own string writes one of its own anywhere: Apple News far below the OS,
+  Edge after its own token, Yandex a `Version/26.5` at the end. `Version/` is never the answer over
+  a stated OS for a second reason too: before iOS 7 it was Safari's version, not the OS's -
+  `Version/4.0` on iOS 3.1.2 - and the compat rows are the OS. The OS token is read HERE rather than
+  taken from the parser, which knows only the underscored form
 - **resolver-7** - a name with no version behind it is not an answer, it is a name the parser read
   out of something else. `Razer Edge 5G` and `motorola edge 30 pro` are devices, and every parser
   that looks for the word answers Microsoft Edge with no version; `Iphone12 pro max` is an Android

@@ -32,6 +32,10 @@ const IOS_VERSION_TOKEN = /\)\s*Version\/(?<version>\d+(?:\.\d+)*)/;
 // what WebKit has written in place of the OS version since iOS 26. Only these read low; any other
 // value is the OS itself, and on iOS the OS is the WebKit
 const FROZEN_IOS_VERSIONS = new Set(['18.6', '18.6.2', '18.7']);
+// the OS as an app read it from the system and wrote it beside the frozen token - Facebook as
+// `FBSV/18.7.3`, Instagram as `(iPhone13,2; iOS 26_6_1; ...`. The segment has to sit behind a device
+// model: `iOS` inside an app's own name - `GNews iOS/5.104` - is a version of that app
+const REPORTED_IOS_VERSION = /\bFBSV\/(?<facebook>\d+(?:\.\d+)*)|\((?:iPad|iPhone)\d+,\d+; iOS (?<model>\d+(?:_\d+)*);/;
 // from 147 on Firefox writes `18_7` as a literal on every device down to iOS 15 - its
 // `defaultMobileUserAgent` - so the token is not even a lower bound there
 const FIREFOX_IOS_TOKEN = /\bFxiOS\/(?<version>\d+)/;
@@ -67,15 +71,20 @@ function higher(one, other) {
   return compareVersions(one, other) >= 0 ? one : other;
 }
 
-// the WebKit of an iOS string. The OS token is the answer unless WebKit froze it, and then only a lower
-// bound, which Safari's own `Version/` can raise: Apple News writes its own version into `Version/`
-// and puts it far below the OS, a frozen `18_7` puts the OS far below Safari
+// the WebKit of an iOS string. An OS the string states outright is the answer - the OS token unless
+// WebKit froze it, or the OS an app reports beside it - and where it states two, the lower one, the
+// only one that cannot be above the truth. Otherwise the frozen token is a lower bound, which
+// Safari's own `Version/` can raise: Apple News writes its own version into `Version/` and puts it
+// far below the OS, a frozen `18_7` puts the OS far below Safari
 function iosVersion(userAgent, parsedVersion) {
   const system = IOS_VERSION.exec(userAgent)?.groups.version.replaceAll('_', '.') ?? parsedVersion;
+  const own = /^\d/.test(system) && !FROZEN_IOS_VERSIONS.has(system) ? system : undefined;
+  const { facebook, model } = REPORTED_IOS_VERSION.exec(userAgent)?.groups ?? {};
+  const reported = facebook ?? model?.replaceAll('_', '.');
 
-  if (/^\d/.test(system) && !FROZEN_IOS_VERSIONS.has(system)) return system;
+  if (own !== undefined && reported !== undefined) return compareVersions(own, reported) <= 0 ? own : reported;
 
-  return higher(IOS_VERSION_TOKEN.exec(userAgent)?.groups.version, system);
+  return own ?? reported ?? higher(IOS_VERSION_TOKEN.exec(userAgent)?.groups.version, system);
 }
 
 // the other row the same visitor could be on. Where the string leaves two open, both travel and the

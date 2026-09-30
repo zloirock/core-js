@@ -52,6 +52,28 @@ strictEqual(resolveUA(IOS_FIREFOX.replace('iPhone; CPU iPhone OS', 'iPad; CPU OS
 // before 147 it wrote the device's own version, which is the OS and so the WebKit
 strictEqual(resolveUA(IOS_FIREFOX.replace('18_7', '16_7_10').replace('147.0', '146.1')), 'ios 16.7.10', 'resolver-4 #5');
 
+// an app that assembles its own string may report the OS it read from the system beside the frozen
+// token - and that is the OS itself, so the lower bound is not the answer there
+const IOS_INSTAGRAM = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) '
+  + 'Mobile/23G83 Instagram 423.1.0.30.69 (iPhone13,2; iOS 26_6_1; en_GB; en-GB; scale=3.00; 1170x2532; IABMV/1; '
+  + '924167814) Safari/604.1';
+const IOS_FACEBOOK = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) '
+  + 'Mobile/22H217 Safari/604.1 [FBAN/FBIOS;FBAV/555.0.0.36.63;FBBV/923840166;FBDV/iPhone11,8;FBMD/iPhone;FBSN/iOS;'
+  + 'FBSV/18.7.3;FBSS/2;FBID/phone;FBLC/en_GB;FBOP/5;FBRV/944867043;IABMV/1];FBNV/1';
+
+strictEqual(resolveUA(IOS_INSTAGRAM), 'ios 26.6.1', 'resolver-6 #3');
+strictEqual(resolveUA(IOS_FACEBOOK), 'ios 18.7.3', 'resolver-6 #4');
+// the same segment on an iPad, whose model the app writes the same way
+strictEqual(resolveUA(IOS_INSTAGRAM.replace('iPhone; CPU iPhone OS', 'iPad; CPU OS').replace('iPhone13,2', 'iPad13,4')),
+  'ios 26.6.1', 'resolver-6 #5');
+// and a report is an upper bound as much as an answer: where the string says two things about the
+// OS, the lower one is the answer, because only the lower one cannot be above the truth
+strictEqual(resolveUA(IOS_SAFARI.replace('Safari/604.1', 'Safari/604.1 [FBAN/FBIOS;FBSV/18.7.3]')), 'ios 18.7.3', 'resolver-6 #6');
+strictEqual(resolveUA(IOS_FACEBOOK.replace('18_7', '17_5')), 'ios 17.5', 'resolver-6 #7');
+strictEqual(resolveUA(IOS_FACEBOOK.replace('18_7', '26_1').replace('18.7.3', '26.0.1')), 'ios 26.0.1', 'resolver-6 #8');
+// `iOS` inside a name of an app's own is not that segment: it has to sit behind a device model
+strictEqual(resolveUA(IOS_IN_APP.replace('WKWebView/1', 'GNews iOS/5.104')), 'ios 13.3.1', 'resolver-6 #9');
+
 // an in-app WKWebView carries no `Version/` at all. the OS token is all there is, and building a
 // version up from it would hand a thin bundle to what may be an old engine
 strictEqual(resolveUA(IOS_IN_APP), 'ios 13.3.1', 'resolver-4 #1');

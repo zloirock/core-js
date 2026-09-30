@@ -415,5 +415,21 @@
     "engine": "ios",
     "version": "18.7",
     "note": "the browser writes its own `Version/` at the end of the string, where Safari never puts it - so only the frozen OS token is left, as a lower bound"
+  },
+  {
+    "browser": "Instagram in-app on iOS 26, frozen OS token",
+    "source": "whatmyuseragent.com apps/mobile-app-instagram/423",
+    "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/23G83 Instagram 423.1.0.30.69 (iPhone13,2; iOS 26_6_1; en_GB; en-GB; scale=3.00; 1170x2532; IABMV/1; 924167814) Safari/604.1",
+    "engine": "ios",
+    "version": "26.6.1",
+    "note": "no `Version/`, and the OS token is the frozen `18_7` - the app writes the OS it read from the system into its own segment, behind the device model"
+  },
+  {
+    "browser": "Facebook in-app on iOS 18.7.3",
+    "source": "whatmyuseragent.com apps/mobile-app-facebook/555",
+    "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/22H217 Safari/604.1 [FBAN/FBIOS;FBAV/555.0.0.36.63;FBBV/923840166;FBDV/iPhone11,8;FBMD/iPhone;FBSN/iOS;FBSV/18.7.3;FBSS/2;FBID/phone;FBLC/en_GB;FBOP/5;FBRV/944867043;IABMV/1];FBNV/1",
+    "engine": "ios",
+    "version": "18.7.3",
+    "note": "the OS token reads `18_7` on a device that runs 18.7.3 - `FBSV/` carries the OS as the app read it"
   }
 ]
