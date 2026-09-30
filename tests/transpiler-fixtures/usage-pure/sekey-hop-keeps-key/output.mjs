@@ -15,8 +15,8 @@ import _Object$groupBy from "@core-js/pure/actual/object/group-by";
 import _Object$hasOwn from "@core-js/pure/actual/object/has-own";
 import _Object$keys from "@core-js/pure/actual/object/keys";
 import _Object$values from "@core-js/pure/actual/object/values";
-// Claimed statics retain their polyfills beside object rest.
-// Rest keeps its source and exclusions; instance slots remain native.
+// Computed hop keys run in source order before the static or instance leaves they select.
+// The selected slot is captured where needed; sibling reads, defaults and rest stay ordered.
 const order = [];
 const eff = tag => (_pushMaybeArray(order).call(order, tag), tag);
 const {

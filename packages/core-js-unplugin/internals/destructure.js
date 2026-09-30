@@ -459,9 +459,9 @@ export default function createAstDestructureEmitter({
 
   // one slot of the simple synth literal; the drain renders the whole pattern at once
   function registerSimpleSynthSlot({ metaPath, pattern, hostParent, kind, entry, hintName }) {
-    // an INSTANCE slot renders `{ key: helper(receiver) }`, so the receiver is spelled once
-    // per consuming slot: only a param DEFAULT whose value CONSTRUCTS (a literal) or is a
-    // bare binding can carry it - every other receiver would re-run its read
+    // An instance slot renders `{ key: helper(receiver) }`, repeating the receiver per slot.
+    // Stable bindings, literals and re-readable built-in surfaces can serve several slots;
+    // an observable invocation or member read can serve only one.
     // the SYMBOL-ITERATOR triple is not a plain instance slot - its own routes own the
     // pattern, and a literal here would swap the receiver out from under them
     if (kind === 'instance') {
@@ -473,10 +473,7 @@ export default function createAstDestructureEmitter({
       const instanceReceiver = hostParent?.node?.type === 'AssignmentPattern'
         ? peelTransparentExpr(hostParent.node.right)
         : peelTransparentExpr(detectIifeArgReceiver(hostParent, pattern));
-      // WHICH receivers a slot may spell is the core's question - the shape rules (re-referenceable
-      // root, single-prop for a member read, no raw global riding inside) live in one gate, asked by
-      // both legs. a local re-eval test here let a SELECTING receiver through where babel declined
-      // and the comment above already said it should not
+      // The shared gate owns receiver safety, key replay and navigation ownership in both legs.
       // ... and the slot must BIND: a nested pattern value (`{ [S]: { keys } }`) destructures
       // the dispatch result, which the flat literal has no slot for - that shape belongs to
       // the nested routes, where both legs keep it native

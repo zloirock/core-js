@@ -14,8 +14,8 @@ export const a4 = (() => { if (cond) var { [(log.push('k'), 'flat')]: m, other }
 export const a5 = (() => { if (cond) var { at } = Array.prototype; return typeof at; })();
 // an instance synth slot may spell an OBSERVABLE receiver once - a sole-prop pattern does
 export const b1 = (() => { function f({ at } = Array.prototype) { return at; } return typeof f(); })();
-// negative: a second slot would read the receiver twice; a sole slot over a CALL receiver spells
-// the call once, inside the mirror
+// A re-readable built-in surface serves several default slots; a sole slot over a call receiver
+// evaluates the call once inside the mirror. Supplied arguments keep their own properties.
 export const b2 = (() => { function f({ at, flat } = Array.prototype) { return [at, flat]; } return f().length; })();
 export const b3 = (() => { function f({ at } = getArr()) { return at; } return typeof f(); })();
 // a receiver-bearing default ONE LEVEL IN belongs to the default, not to the outer host - the

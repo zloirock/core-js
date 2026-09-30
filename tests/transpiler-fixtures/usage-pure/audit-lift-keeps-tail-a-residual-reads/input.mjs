@@ -1,5 +1,5 @@
-// Claimed statics retain their polyfills beside object rest.
-// Rest keeps its source and exclusions; instance slots remain native.
+// Sequence-wrapped exports extract static and instance leaves from their selected receivers.
+// A surviving rest pattern keeps its receiver and excludes the extracted static key.
 const arr = [1];
 export const { of, name } = (0, Array);
 export const { at } = (0, arr);

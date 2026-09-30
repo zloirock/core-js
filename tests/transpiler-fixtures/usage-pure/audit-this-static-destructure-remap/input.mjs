@@ -1,5 +1,5 @@
-// Claimed statics retain their polyfills beside object rest.
-// Rest keeps its source and exclusions; instance slots remain native.
+// Destructured this receivers in class static contexts follow the nearest built-in superclass.
+// Defaults, assignments and rest retain their host semantics and caller-supplied values.
 class Basic extends Array {
   static m() { const { from } = this; return from; }
 }

@@ -2,8 +2,8 @@ import _Array$from from "@core-js/pure/actual/array/from";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
-// Claimed statics retain their polyfills beside object rest.
-// Rest keeps its source and exclusions; instance slots remain native.
+// Sequence-wrapped exports extract static and instance leaves from their selected receivers.
+// A surviving rest pattern keeps its receiver and excludes the extracted static key.
 const arr = [1];
 export const of = _Array$of;
 export const name = _nameMaybeFunction(Array);

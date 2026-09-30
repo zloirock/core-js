@@ -6,8 +6,8 @@ import _valuesMaybeArray from "@core-js/pure/actual/array/instance/values";
 import _withMaybeArray from "@core-js/pure/actual/array/instance/with";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
-// Claimed statics retain their polyfills beside object rest.
-// Rest keeps its source and exclusions; instance slots remain native.
+// A receiver prefix runs before nested static and instance extractions.
+// Multiple leaves, sibling declarators and rest retain their source evaluation order.
 const sole = _toReversedMaybeArray((effect(), _globalThis.Array.prototype));
 const {
   Array: {

@@ -1,7 +1,7 @@
 import _Array$of from "@core-js/pure/actual/array/of";
 import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
-// Claimed statics retain their polyfills beside object rest.
-// Rest keeps its source and exclusions; instance slots remain native.
+// A destructured static method supplies the receiver of its nested function properties.
+// The name slot uses a function helper; sibling reads and rest share that selected method.
 const c = 1;
 function eff() {}
 const {
