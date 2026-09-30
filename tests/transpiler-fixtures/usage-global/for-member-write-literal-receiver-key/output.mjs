@@ -7,10 +7,10 @@ import "core-js/modules/es.array.at";
 import "core-js/modules/es.array.from";
 import "core-js/modules/es.array.includes";
 import "core-js/modules/es.iterator.constructor";
+import "core-js/modules/es.iterator.includes";
 import "core-js/modules/es.string.at";
 import "core-js/modules/es.string.includes";
 import "core-js/modules/es.string.iterator";
-import "core-js/modules/esnext.iterator.includes";
 import "core-js/modules/web.dom-collections.iterator";
 // Literal receiver keys identify the same written slot in either parser.
 // Body reads must retain the functions assigned by the loop, including through a dispatcher.

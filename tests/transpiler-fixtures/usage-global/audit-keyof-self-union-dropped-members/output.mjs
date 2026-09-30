@@ -2,9 +2,9 @@ import "core-js/modules/es.object.to-string";
 import "core-js/modules/es.array.at";
 import "core-js/modules/es.array.includes";
 import "core-js/modules/es.iterator.constructor";
+import "core-js/modules/es.iterator.includes";
 import "core-js/modules/es.string.at";
 import "core-js/modules/es.string.includes";
-import "core-js/modules/esnext.iterator.includes";
 // `T[keyof T]` folds every member's VALUE type: a (non-getter) method folds as Function (its
 // value, not its return - the single-key `T['method']` mirror), so a method mixed with a
 // concrete container BAILS the union to generic instead of narrowing to the survivor; an

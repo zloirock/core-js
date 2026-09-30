@@ -14,6 +14,7 @@ import "core-js/modules/es.array.species";
 import "core-js/modules/es.array.unscopables.flat";
 import "core-js/modules/es.global-this";
 import "core-js/modules/es.iterator.constructor";
+import "core-js/modules/es.iterator.chunks";
 import "core-js/modules/es.iterator.dispose";
 import "core-js/modules/es.iterator.drop";
 import "core-js/modules/es.iterator.every";
@@ -22,16 +23,15 @@ import "core-js/modules/es.iterator.find";
 import "core-js/modules/es.iterator.flat-map";
 import "core-js/modules/es.iterator.for-each";
 import "core-js/modules/es.iterator.from";
+import "core-js/modules/es.iterator.includes";
+import "core-js/modules/es.iterator.join";
 import "core-js/modules/es.iterator.map";
 import "core-js/modules/es.iterator.reduce";
 import "core-js/modules/es.iterator.some";
 import "core-js/modules/es.iterator.take";
 import "core-js/modules/es.iterator.to-array";
+import "core-js/modules/es.iterator.windows";
 import "core-js/modules/es.string.iterator";
-import "core-js/modules/esnext.iterator.chunks";
-import "core-js/modules/esnext.iterator.includes";
-import "core-js/modules/esnext.iterator.join";
-import "core-js/modules/esnext.iterator.windows";
 import "core-js/modules/web.dom-collections.iterator";
 // a getter read (`K.g`) in a sequence prefix of a realm SELECTION arm, or in a literal SLOT the
 // destructure discards, is work the source does: it runs once where the source ran it, and a read
