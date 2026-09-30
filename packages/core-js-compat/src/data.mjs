@@ -2653,7 +2653,7 @@ export const data = {
   },
   'esnext.iterator.join': {
     bun: '1.4.0',
-    chrome: '154',
+    chrome: '153',
     firefox: '154',
   },
   // TODO: Remove from `core-js@4`
