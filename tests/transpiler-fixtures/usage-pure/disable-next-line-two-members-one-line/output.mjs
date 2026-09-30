@@ -1,17 +1,20 @@
 import _fillMaybeArray from "@core-js/pure/actual/array/instance/fill";
 import _withMaybeArray from "@core-js/pure/actual/array/instance/with";
 import _includes from "@core-js/pure/actual/instance/includes";
-const includes = _includes(arr);
 // a -next-line inside a pattern, an object literal or a class body covers every member on the
 // line below it, and the reprint lays members one per line: each covered member is led by its
 // own directive in the output, so a second pass over it rewrites none of them. the member on the
 // following line stays live and is the row proving the directive did not widen
-const {
-  // core-js-disable-next-line
-  at,
-  // core-js-disable-next-line
-  flat
-} = arr;
+const _ref = arr,
+  {
+    // core-js-disable-next-line
+    at
+  } = _ref,
+  {
+    // core-js-disable-next-line
+    flat
+  } = _ref,
+  includes = null == _ref ? _ref[""] : _includes(_ref);
 use(at, flat, includes);
 const o = {
   // core-js-disable-next-line

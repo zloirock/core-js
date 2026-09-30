@@ -868,7 +868,7 @@ export default function createDestructureEmitter({
 
   // Non-parameter fallback: fill an absent leaf while retaining the receiver read.
   // Replace an existing default's RHS rather than nesting AssignmentPattern nodes.
-  function emitParamInlineDefault(prop, id) {
+  function emitLeafSlotDefault(prop, id) {
     if (t.isAssignmentPattern(prop.node.value)) {
       prop.get('value').get('right').replaceWith(t.cloneNode(id));
       return;
@@ -979,8 +979,8 @@ export default function createDestructureEmitter({
       // removes the key text and drops the prefix effects.
       const keyHasSideEffect = computedKeyHasSideEffects(prop.node);
       if (!keyHasSideEffect && tryBodyExtractFromParamDestructure(prop, entry, hintName)) return;
-      if (!leafTakesSlotDefault(prop, adapter)) return;
-      emitParamInlineDefault(prop, injectPureImport(entry, hintName));
+      if (!leafTakesSlotDefault(prop, adapter, { kind })) return;
+      emitLeafSlotDefault(prop, injectPureImport(entry, hintName));
       // parity with sibling destructure handlers - replaceWith schedules re-traversal
       // and the next visitor entry must short-circuit on the already-rewritten prop.
       // also mark the new `{p = _polyfill}` AssignmentPattern slot so Identifier visitors
@@ -3214,6 +3214,7 @@ export default function createDestructureEmitter({
     const plan = arrayPlan ?? planNestedKeyedPatternCapture(input);
     if (!plan) return false;
     primeDestructureReceiverTypes(prop);
+    if (unwrapExportedHost(declaration)) return true;
     const render = arrayPlan ? renderArrayWrapperCapture : renderNestedKeyedPatternCapture;
     const rendered = render(plan, {
       mintRef: () => generateLocalRef(prop.scope).name,
@@ -4126,10 +4127,11 @@ export default function createDestructureEmitter({
         const seqInit = unwrapRuntimeExpr(declarator?.init);
         // the EXPRESSIONS this init performs before it yields the receiver: a sequence's leading ones,
         // and a kept WRITE (whole - it is both the effect and the store of what the nav then reads)
+        const seqParts = seqInit?.type === 'SequenceExpression' ? peelNestedSequenceExpressions(seqInit) : null;
         const prefixExprs = seqInit?.type === 'AssignmentExpression' && seqInit.operator === '=' ? [seqInit]
-          : seqInit?.type === 'SequenceExpression'
-            ? unwrapRuntimeExpr(seqInit.expressions.at(-1))?.type === 'AssignmentExpression'
-              ? seqInit.expressions : seqInit.expressions.slice(0, -1)
+          : seqParts
+            ? unwrapRuntimeExpr(seqParts.tail)?.type === 'AssignmentExpression'
+              ? [...seqParts.prefix, seqParts.tail] : seqParts.prefix
             : null;
         const overPrefix = prefixExprs
           ? resolveNestedReceiverNode(prop, { allowNavSegments: true, allowSePeeledFragment: true, adapter }) : null;
@@ -4157,9 +4159,9 @@ export default function createDestructureEmitter({
           // write, so the slot keeps the stored tail alone - keeping the whole right side would run
           // that prefix a second time wherever the slot is still read
           function seqTailValue() {
-            const stored = seqInit.type === 'AssignmentExpression' ? seqInit.right
-              : prefixExprs.length === seqInit.expressions.length ? seqInit.expressions.at(-1).right : null;
-            return stored ? peelReceiverSequenceTail(stored) : seqInit.expressions.at(-1);
+            const tail = seqParts?.tail ?? seqInit;
+            const stored = tail.type === 'AssignmentExpression' ? tail.right : null;
+            return stored ? peelReceiverSequenceTail(stored) : tail;
           }
           // a FOR-HEAD carries it like any other SOLE reader: its header holds the dispatch, the
           // prefix inside that argument runs before the read, and that is the order the source has -

@@ -1159,4 +1159,64 @@ for (const [source, expected] of [
   }
 });
 
+for (const [source, kind, expected] of [
+  ['const { [(effect(), "data")]: { at } } = source;', 'instance', true],
+  ['const { data: { [(effect(), "at")]: at } } = source;', 'instance', true],
+  ['const { before, [(effect(), "data")]: { at, flat }, after } = source;', 'instance', true],
+  ['const { data: { at, ...rest } } = source;', 'instance', true],
+  ['const { data: { at } } = source;', 'instance', false],
+  ['const { [(effect(), "data")]: { from } } = source;', 'static', false],
+  ['const { data: { [(effect(), "from")]: from } } = source;', 'static', true],
+  ['const { data: { [(effect(), "Map")]: Map } } = source;', 'global', false],
+]) runBoth(`nested capture claim admission/${ source }`, source, (parser, program, label) => {
+  const host = parser.pickPath(program, 'VariableDeclarator');
+  const prop = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property',
+    path => ['at', 'from', 'Map'].includes(path.node.value?.name));
+  const capture = planNestedKeyedPatternCapture({
+    pattern: host.node.id, init: host.node.init, prop: prop.node, kind,
+  });
+  check(`${ label }/${ kind }`, !!capture, expected);
+  if (capture) check(`${ label }/capture serves its own leaf`, capture.leafPattern.properties.includes(prop.node), true);
+});
+
+runBoth('nested capture declines an ancestor claim',
+  'const { [(effect(), "data")]: { at } } = source;', (parser, program, label) => {
+    const host = parser.pickPath(program, 'VariableDeclarator');
+    check(label, planNestedKeyedPatternCapture({
+      pattern: host.node.id, init: host.node.init, prop: host.node.id.properties[0], kind: 'instance',
+    }), null);
+  });
+
+for (const anchored of [false, true]) runBoth(`nested symbol capture/${ anchored }`,
+  'const { Set: { [(effect(), Symbol.iterator)]: iterator } } = globalThis;', (parser, program, label) => {
+    const host = parser.pickPath(program, 'VariableDeclarator');
+    const prop = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property',
+      path => path.node.value?.name === 'iterator');
+    check(label, !!planNestedKeyedPatternCapture({
+      pattern: host.node.id, init: host.node.init, prop: prop.node, kind: 'instance',
+      entry: 'get-iterator-method', anchored,
+    }), !anchored);
+  });
+
+for (const [constructor, expected] of [[null, true], ['Function', true], ['Object', true], ['Array', false], ['String', false]]) {
+  runBoth('instance capture keeps preceding keys on an open receiver', 'const src = source; const { other, name: value } = src;', (parser, program, label) => {
+    const host = parser.pickPath(program, 'VariableDeclarator', path => path.node.id.type === 'ObjectPattern');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const pure = { kind: 'instance', entry: 'function/instance/name', hintName: 'name' };
+    const plan = planRetainedObjectCapture({
+      pattern: host.node.id,
+      init: host.node.init,
+      prop: host.node.id.properties[1],
+      hostPath: host,
+      adapter,
+      kind: 'instance',
+      entry: pure.entry,
+      resolveNodeType: () => constructor ? { constructor } : null,
+      resolvePure: meta => meta.key === 'name' ? pure : null,
+    });
+    check(`${ label }/${ constructor ?? 'unknown' }: preceding native key`, !!plan, expected);
+    if (plan) check(`${ label }: source pattern retained`, plan.pattern, host.node.id);
+  });
+}
+
 finish();

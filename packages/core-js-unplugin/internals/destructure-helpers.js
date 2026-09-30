@@ -56,7 +56,6 @@ import {
   isMutatedGlobalSlot,
   isNonReferencePosition,
   isPristineProxyGlobal,
-  isSynthSimpleObjectPattern,
   isValidIdentifierName,
   mayHaveSideEffects,
   memberKeyName,
@@ -327,8 +326,8 @@ export function liftedPrefixStatements(prefix, ctx = null) {
 // copy, so a residual bound off it ships the RAW receiver the collapse had already substituted
 export function liveTailOf(declarator, seqPrefix, initTail) {
   const liveInit = peelTransparentExpr(declarator.init);
-  return liveInit?.type === 'SequenceExpression' && liveInit.expressions.length === seqPrefix.length + 1
-    ? liveInit.expressions.at(-1) : initTail;
+  const { prefix, tail } = peelNestedSequenceExpressions(liveInit);
+  return liveInit?.type === 'SequenceExpression' && prefix.length === seqPrefix.length ? tail : initTail;
 }
 
 // a for-init hosts no statement of its own, so the prefix of a SURVIVING residual's receiver rides
@@ -634,11 +633,11 @@ export function isPureNavReceiver(node, guardCtx = null, opts = null) {
   return root?.type === 'Identifier' || root?.type === 'ThisExpression';
 }
 
-// the for-init variant keeps a side-effecting init alive in the `_unused` dummy, so only
-// the SEQUENCE TAIL has to be the provable nav
+// The host carries a sequence's effects before its receiver, so only the final
+// value has to be the provable nav, including through nested sequences.
 export function isPureNavAfterSePrefix(node, guardCtx = null, opts = null) {
   node = peelTransparentExpr(node);
-  if (node?.type === 'SequenceExpression') node = node.expressions.at(-1);
+  if (node?.type === 'SequenceExpression') node = peelNestedSequenceExpressions(node).tail;
   return isPureNavReceiver(node, guardCtx, opts);
 }
 
@@ -1772,62 +1771,6 @@ export function residualPrecedesExtractions(declarator, declJobs, sourceProps, {
   });
 }
 
-// does the leaf take the sound INLINE DEFAULT instead of an extraction? two load-bearing
-// selections say so. a `&&` receiver: its falsy left must still throw, so nothing may extract
-// off it - and only where the per-branch MIRROR could not take the shape (it owns every pattern
-// it can render, and a chain-assigned receiver is one it has no slot for), or where the branches
-// carry writes the extraction would drop. a FLAT prop whose computed KEY carries an effect over
-// the same `&&`: the residual stays to run the key, and an extraction beside it would need a
-// second read of a slot the selection does not prove
-export function takesInlineDefault({ host, prop, pattern, chain, kind, sentinel, adapter, injectorState }) {
-  if (kind === 'instance') return false;
-  // a for-x HEAD has no other render: it hosts no statement, and the binding it declares is
-  // rebound each iteration, so the slot's own default is where the polyfill goes
-  if (host.head) return true;
-  const init = peelTransparentExpr(host.declarator?.init);
-  if (chain.length > 0 && prop.value?.type !== 'ObjectPattern') {
-    return (init?.type === 'AssignmentExpression'
-        || !isSynthSimpleObjectPattern(pattern))
-      && andSelectedProxyInit(init, { adapter, injectorState })
-      || selectionHoldsChainWrites(init, { adapter, injectorState });
-  }
-  return chain.length === 0 && sentinel && prop.value?.type === 'Identifier'
-    && prop.computed && computedKeyHasSideEffects(prop) && init?.operator === '&&';
-}
-
-// an ALL-PROXY selection whose branches are chain ASSIGNMENTS: the writes must survive the
-// destructure, so nothing may extract off it - the leaf takes the sound inline default instead
-function selectionHoldsChainWrites(node, ctx) {
-  const inner = peelTransparentExpr(node);
-  if (inner?.type !== 'ConditionalExpression' && inner?.type !== 'LogicalExpression') return false;
-  if (!allProxySelectingInit(inner, ctx)) return false;
-  const stack = [inner];
-  while (stack.length) {
-    const branch = peelTransparentExpr(stack.pop());
-    if (branch?.type === 'ConditionalExpression') {
-      stack.push(branch.consequent, branch.alternate);
-      continue;
-    }
-    if (branch?.type === 'LogicalExpression') {
-      stack.push(branch.left, branch.right);
-      continue;
-    }
-    if (branch?.type === 'AssignmentExpression') return true;
-  }
-  return false;
-}
-
-// a `&&` receiver yields its RIGHT operand on every path a destructure can survive (a falsy
-// left throws), so the leaf's slot is the proxy surface's own - the sound inline default
-function andSelectedProxyInit(node, { adapter, injectorState }) {
-  // a chain assignment is transparent to the verdict: what the destructure reads is the
-  // value it stores (`w = m && globalThis`)
-  let inner = peelTransparentExpr(node);
-  while (inner?.type === 'AssignmentExpression' && inner.operator === '=') inner = peelTransparentExpr(inner.right);
-  return inner?.type === 'LogicalExpression' && inner.operator === '&&'
-    && !!proxySurfaceIdentifier(inner.right, { adapter, injectorState });
-}
-
 // the SINK slot for a discarded for-init receiver: the pattern consumed the value whole, so only
 // what the source OBSERVABLY does survives. a MULTI-hop receiver cannot sink verbatim - its raw
 // intermediate hop reads undefined off-browser - so its harvested effects sink alone
@@ -2002,15 +1945,16 @@ export function liftableInitPrefix(initNode) {
   const init = peelTransparentExpr(initNode);
   if (init?.type === 'AssignmentExpression') return { prefix: [init], tail: peelChainRootValue(init) };
   if (init?.type !== 'SequenceExpression') return null;
-  const storesTail = peelTransparentExpr(init.expressions.at(-1))?.type === 'AssignmentExpression';
-  return { prefix: storesTail ? init.expressions : init.expressions.slice(0, -1), tail: peelChainRootValue(init) };
+  const { prefix, tail } = peelNestedSequenceExpressions(init);
+  const storesTail = peelTransparentExpr(tail)?.type === 'AssignmentExpression';
+  return { prefix: storesTail ? [...prefix, tail] : prefix, tail: peelChainRootValue(init) };
 }
 
 // the EXPRESSIONS an SE-carrying init performs before it yields the receiver - the lift shape's
-// prefix, asked only where a claim carries it
-export function carriedInitPrefix(declarator, declJobs) {
+// prefix, asked only where a claim carries it. The binding supplies its effect-trimming context.
+export function carriedInitPrefix(declarator, declJobs, ctx) {
   if (declJobs.every(job => !job.seCarried)) return [];
-  return liftableInitPrefix(declarator.init)?.prefix ?? [];
+  return observablePrefixElements(liftableInitPrefix(declarator.init)?.prefix ?? [], ctx);
 }
 
 // the prefix travels WITH the extraction's value: inside the dispatch ARGUMENT where the claim has

@@ -13,10 +13,11 @@ try {
 try {
   risky();
 } catch (_ref) {
-  let at = _at(_ref);
-  let {
-    Object: O
-  } = _ref;
+  let _ref2 = _ref,
+    {
+      Object: O
+    } = _ref2,
+    at = null == _ref2 ? _ref2[""] : _at(_ref2);
   at(-1);
   O.groupBy([], v => v);
 }

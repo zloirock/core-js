@@ -206,7 +206,6 @@ import {
   staticallySelectedLeft,
   swapInlineDefaults,
   synthPlanFullyCovered,
-  takesInlineDefault,
   warnConditionalFallbackUntouched,
 } from './destructure-helpers.js';
 import { sentinelAlreadyProcessed } from '@core-js/polyfill-provider/detect-usage/own-output';
@@ -334,6 +333,7 @@ export default function createAstDestructureEmitter({
   // so handing it across at creation time is safe
   const drains = createDestructureDrains({
     adapter,
+    capturedSiblingHosts,
     hopHosts,
     injectPureImport,
     injector,
@@ -1387,9 +1387,6 @@ export default function createAstDestructureEmitter({
   function capturePatternForExtraction({ metaPath, meta, kind, entry, hintName }) {
     if (!entry && !meta.fromFallback) return false;
     const restHost = destructurePatternHostPath(metaPath);
-    // Its selected branch already supplies each leaf; capture must not replace it again.
-    if (restHost && branchMirrorPatterns.has(restHost.node.type === 'AssignmentExpression'
-      ? restHost.node.left : restHost.node.id)) return false;
     const assignment = restHost?.node?.type === 'AssignmentExpression';
 
     const restPlan = (restHost?.node?.type === 'VariableDeclarator' || assignment) && planRetainedObjectCapture({
@@ -1600,11 +1597,15 @@ export default function createAstDestructureEmitter({
       markRewrite();
       return;
     }
-    const nestedRest = (kind === 'instance' || (kind === 'static' && computedKeyHasSideEffects(metaPath.node)))
-      && restHost?.node?.type === 'VariableDeclarator'
-      && planNestedKeyedPatternCapture({ pattern: restHost.node.id, init: restHost.node.init, prop: metaPath.node });
-    if (nestedRest && (nestedRest.rest || nestedRest.leafPattern.properties.length > 1
-      || nestedRest.ancestors.some(level => level.pattern.properties.length > 1))) {
+    const nestedRest = restHost?.node?.type === 'VariableDeclarator'
+      && planNestedKeyedPatternCapture({
+        pattern: restHost.node.id, init: restHost.node.init, prop: metaPath.node, kind, entry,
+        anchored: entry === 'get-iterator-method' && !!buildNestedDestructurePlan({
+          declarator: restHost.node, scope: metaPath.scope, adapter, path: metaPath,
+          resolvePure: value => resolvePure(value, metaPath), resolveGlobalPolyfill, isDisabledProp: isDisabled,
+        })?.anchor,
+      });
+    if (nestedRest) {
       if (unwrapExportedHost(restHost.parentPath)) return;
       const rendered = renderNestedKeyedPatternCapture(nestedRest, { mintRef: mintRefName });
       const leafAlias = capturedLeafCtorAlias({
@@ -1617,6 +1618,8 @@ export default function createAstDestructureEmitter({
       });
       if (leafAlias) injectorState.registerGlobalAlias(leafAlias.ref, leafAlias.ctorName, { trusted: true, minted: true });
       retireDeclaratorJobs(restHost);
+      capturedSiblingHosts.add(rendered.capture);
+      for (const element of rendered.elements) capturedSiblingHosts.add(element.declarator);
       const [capture] = restHost.replaceWithMultiple([rendered.capture, ...rendered.elements.map(element => element.declarator)]);
       registerDeclaratorBindings(capture);
       markRewrite();
@@ -1765,43 +1768,12 @@ export default function createAstDestructureEmitter({
     // an SE computed key takes the same rename, its effect replaying in the residual
     // ... and so does a prop whose LITERAL outlives it: the pairing walk keeps that literal alive, and
     // a slot that simply left would take with it the key the surviving husk still reads
-    const keyedHost = kind === 'instance' || (kind === 'static' && computedKeyHasSideEffects(prop))
-      ? destructurePatternHostPath(metaPath) : null;
-    const anchoredSymbol = symbolProp && keyedHost?.node?.type === 'VariableDeclarator'
-      && buildNestedDestructurePlan({
-        declarator: keyedHost.node, scope: metaPath.scope, adapter, path: metaPath,
-        resolvePure: value => resolvePure(value, metaPath), resolveGlobalPolyfill, isDisabledProp: isDisabled,
-      })?.anchor;
     // a MEMBER SLOT is admitted only where the claim is a STATIC and the target's root proves
     // writable: an INSTANCE claim has its own route, and the gate is what keeps a PROTOTYPE member
     // (`Set.union`) from being written into the slot as though it were a static
     const memberSlot = kind === 'static'
       && !!memberTargetTakesExtraction(prop.value, { scope: metaPath.scope, adapter, path: metaPath });
     if (!isPlainConsumableProp(prop, { symbolProp, ctorPattern, patternLeft, memberSlot })) return;
-    const nestedKeyCapture = !anchoredSymbol && keyedHost?.node?.type === 'VariableDeclarator'
-      ? planNestedKeyedPatternCapture({ pattern: keyedHost.node.id, init: keyedHost.node.init }) : null;
-    if (nestedKeyCapture?.leafPattern === pattern) {
-      const captureName = mintRefName();
-      const exported = keyedHost.parentPath?.parentPath?.node?.type === 'ExportNamedDeclaration';
-      const receiverName = exported ? injector.generateDeclaredRef(metaPath) : null;
-      const value = buildValue({
-        kind, entry, hintName, receiverNode: identifier(captureName), prop, metaPath, literalRoute: true,
-      });
-      if (!value) return;
-      recordJob({ hostPath: keyedHost.parentPath,
-        job: {
-          host: 'key-read', declarator: keyedHost.node, prop, value, receiverName,
-          // Outer keys stay in the capture. Ask the ordinary key plan about the moved leaf
-          // alone, so its effect-prefix spelling is the same as a source-written direct leaf.
-          keyReadPlan: {
-            keys: destructureKeyReadPlan({ node: prop, parentPath: { node: pattern } })?.keys ?? [],
-            exported, sole: true,
-          },
-          nestedKeyCapture, captureName, declarationPath: keyedHost.parentPath,
-        } });
-      markRewrite();
-      return;
-    }
     const keyReadPlan = kind === 'instance' || (kind === 'static' && computedKeyHasSideEffects(prop))
       ? destructureKeyReadPlan(metaPath) : null;
     // an SE-keyed static asks the shared plan before any route here, on every host, as the other leg
@@ -2827,8 +2799,9 @@ export default function createAstDestructureEmitter({
     // receiver and must be quiet (`(eff('a'), globalThis)` -> `eff('a'); var from = ...`)
     let seqPrefix = null;
     if (initValue?.type === 'SequenceExpression') {
-      seqPrefix = initValue.expressions.slice(0, -1);
-      initValue = peelTransparentExpr(initValue.expressions.at(-1));
+      const { prefix, tail } = peelNestedSequenceExpressions(initValue);
+      seqPrefix = prefix;
+      initValue = tail;
     }
     // ... and a kept WRITE is a prefix of its own: the lifted statement STORES the value the nav then
     // reads, so the write survives and the receiver is what it stored (`if (c) var { Array: {
@@ -3007,8 +2980,7 @@ export default function createAstDestructureEmitter({
     // the array - read afresh on every pass. asked here because this leg's other mirror hooks sit
     // on the param and array-wrapper routes, which a head reaches neither of
     if (host.head && renderNestedParamSynth({ metaPath, meta })) return;
-    if (takesInlineDefault({ host, prop, pattern, chain, kind, sentinel, adapter, injectorState })) {
-      if (!leafTakesSlotDefault(metaPath, adapter)) return;
+    if (leafTakesSlotDefault(metaPath, adapter, { host, pattern, chain, kind, sentinel, injectorState })) {
       return applyInlineDefault({
         prop,
         entry,
@@ -4096,6 +4068,8 @@ export default function createAstDestructureEmitter({
     renderNestedParamSynth,
     tryPatternMirror,
     retireDeclaratorJobs,
+    queuedJobsFor,
+    recordJob,
     unwrapExportedHost,
     drain,
     sentinelAlreadyProcessed({ metaPath, meta }) {
