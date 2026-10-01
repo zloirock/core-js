@@ -1,5 +1,6 @@
 name: ci
 
+# every job skips a pull request from a branch of this repository: the push to that branch already runs it
 on: [push, pull_request]
 
 permissions:
@@ -7,6 +8,7 @@ permissions:
 
 jobs:
   lint:
+    if: &not-duplicate github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -22,6 +24,7 @@ jobs:
       - run: npx run-s lint-raw
 
   type-definitions:
+    if: *not-duplicate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -33,6 +36,7 @@ jobs:
       - run: npx run-s build-types types-coverage test-type-definitions-all
 
   karma:
+    if: *not-duplicate
     runs-on: windows-2022
     env:
       PLAYWRIGHT_BROWSERS_PATH: D:\ms-playwright
@@ -57,6 +61,7 @@ jobs:
       - run: npx run-s bundle-package test-unit-karma
 
   e2e-usage-pure-karma:
+    if: *not-duplicate
     runs-on: windows-2022
     env:
       PLAYWRIGHT_BROWSERS_PATH: D:\ms-playwright
@@ -81,6 +86,7 @@ jobs:
       - run: npm run test-e2e-usage-pure-karma
 
   bun:
+    if: *not-duplicate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -95,6 +101,7 @@ jobs:
       - run: npx run-s bundle-package test-unit-bun
 
   promises:
+    if: *not-duplicate
     strategy:
       matrix:
         node:
@@ -113,6 +120,7 @@ jobs:
       - run: npm run test-promises
 
   tests:
+    if: *not-duplicate
     strategy:
       matrix:
         os:
@@ -135,6 +143,7 @@ jobs:
       - run: npx run-s bundle-package test-unit-node test-entries test-compat-data test-compat-tools test-builder
 
   transpiling:
+    if: *not-duplicate
     strategy:
       matrix:
         os:
@@ -160,6 +169,7 @@ jobs:
       - run: npm run test-transpiling
 
   transpiler-perf:
+    if: *not-duplicate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
