@@ -242,6 +242,7 @@ export default function plugin(api, options) {
   const {
     resolveClaimableComputedKeyName,
     resolvePropertyObjectType,
+    resolveForOfResolvedElement,
     forgetDestructureReceiverTypes,
     primeDestructureReceiverTypes,
     resolveNodeType,
@@ -2080,6 +2081,7 @@ export default function plugin(api, options) {
           resolvePropertyObjectType,
           forgetDestructureReceiverTypes,
           primeDestructureReceiverTypes,
+          resolveForOfResolvedElement,
           resolveNodeType,
           toHint,
           skippedNodes,

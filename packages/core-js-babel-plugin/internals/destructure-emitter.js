@@ -532,6 +532,7 @@ export default function createDestructureEmitter({
   isDisabled,
   isEntryNeeded = null,
   resolvePropertyObjectType,
+  resolveForOfResolvedElement,
   forgetDestructureReceiverTypes = null,
   primeDestructureReceiverTypes,
   resolveNodeType = null,
@@ -4755,7 +4756,9 @@ export default function createDestructureEmitter({
     if (declarator.init || !declarator.id || declarator.id.type === 'Identifier') return;
     const patternPath = assignment ? left : left.get('declarations')[0].get('id');
     const typeProbe = firstPatternProp(patternPath);
-    const elementType = typeProbe ? resolvePropertyObjectType(typeProbe) : null;
+    if (typeProbe) primeDestructureReceiverTypes(typeProbe);
+    const elementType = path.node.type === 'ForOfStatement' ? resolveForOfResolvedElement(path)
+      : typeProbe ? resolvePropertyObjectType(typeProbe) : null;
     const plan = planCatchClauseExtraction({
       paramNode: declarator.id,
       bodyNode: path.node.body,
@@ -4822,12 +4825,6 @@ export default function createDestructureEmitter({
 
   // ---------- per-prop AST emission (strategy-dispatched) ----------
 
-  // plant `<ref> = <value>` for a memoized receiver, ahead of the host but never ahead of what the
-  // source evaluates first: a declarator host takes a SIBLING DECLARATOR at its own source slot,
-  // because a declaration-level insertBefore hoists the memo above earlier declarators and reorders
-  // their side effects. the post-traverse split renders such a memo as its own `const`.
-  // an EXPORTED host must not export the internal temp: a first-declarator memo (nothing to reorder
-  // past) becomes a bare statement before the export instead
   // the elements a sequence evaluates BEFORE this one: discarded values, so each becomes a statement
   // ahead of the host, in source order. the element itself stays where it is, and a memo planted for
   // it then lands behind those effects rather than in front of them
@@ -4858,6 +4855,12 @@ export default function createDestructureEmitter({
     return nodes;
   }
 
+  // plant `<ref> = <value>` for a memoized receiver, ahead of the host but never ahead of what the
+  // source evaluates first: a declarator host takes a SIBLING DECLARATOR at its own source slot,
+  // because a declaration-level insertBefore hoists the memo above earlier declarators and reorders
+  // their side effects. the post-traverse split renders such a memo as its own `const`.
+  // an EXPORTED host must not export the internal temp: a first-declarator memo (nothing to reorder
+  // past) becomes a bare statement before the export instead
   // `pureMemo`: the value is a static's ponyfill binding, carrying no effect - it stands right at the
   // host, behind whatever the host emitted before it, where the source read the hop
   function plantReceiverMemo({ host, declarationPath, ref, value, pureMemo = false }) {
