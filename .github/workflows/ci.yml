@@ -1,5 +1,6 @@
 name: ci
 
+# every job skips a pull request from a branch of this repository: the push to that branch already runs it
 on: [push, pull_request]
 
 permissions:
@@ -7,6 +8,7 @@ permissions:
 
 jobs:
   lint:
+    if: &not-duplicate github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -22,6 +24,7 @@ jobs:
       - run: npx run-s lint-raw
 
   karma:
+    if: *not-duplicate
     runs-on: windows-2022
     env:
       PLAYWRIGHT_BROWSERS_PATH: D:\ms-playwright
@@ -39,6 +42,7 @@ jobs:
       - run: npx run-s bundle test-unit-karma
 
   bun:
+    if: *not-duplicate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -53,6 +57,7 @@ jobs:
       - run: npx run-s bundle test-unit-bun
 
   promises-and-observables:
+    if: *not-duplicate
     strategy:
       matrix:
         node:
@@ -73,6 +78,7 @@ jobs:
       - run: npx run-s test-promises test-observables
 
   tests:
+    if: *not-duplicate
     strategy:
       matrix:
         os:
