@@ -45,6 +45,12 @@ const carriers = [
   ['pattern assignment alias', 'let alias; ({ box: alias } = { box }); alias.data = REPLACEMENT;', false],
   ['inline member alias', 'const alias = ({ box }).box; alias.data = REPLACEMENT;', false],
   ['for-of alias', 'for (const alias of [box]) alias.data = REPLACEMENT;', false],
+  ['for-of destructure read', 'for (const { data } of [box]) data.at(0);', true],
+  ['for-of nested destructure read', 'for (const { data: { at } } of [box]) {}', true],
+  ['for-of assignment read', 'let data; for ({ data } of [box]) data.length;', true],
+  ['for-of destructure rebind', 'for (let { data } of [box]) data = REPLACEMENT;', true],
+  ['for-of captured value write keeps the owner slot', 'for (const { data } of [box]) data.extra = 1;', true],
+  ['for-of captured value escape keeps the owner slot', 'for (const { data } of [box]) sink(data);', true],
   ['cycle', 'const wrap = { inner: box }; box.wrap = wrap;', false],
   ['recursive carrier', 'const wrap = { inner: box }; const list = [wrap]; wrap.list = list;', false],
 ];
