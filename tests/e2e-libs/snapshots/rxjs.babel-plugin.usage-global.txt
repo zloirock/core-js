@@ -20,6 +20,7 @@ core-js/modules/es.async-iterator.async-dispose
 core-js/modules/es.date.to-json
 core-js/modules/es.error.cause
 core-js/modules/es.function.name
+core-js/modules/es.iterator.chunks
 core-js/modules/es.iterator.constructor
 core-js/modules/es.iterator.dispose
 core-js/modules/es.iterator.drop
@@ -28,11 +29,14 @@ core-js/modules/es.iterator.filter
 core-js/modules/es.iterator.find
 core-js/modules/es.iterator.flat-map
 core-js/modules/es.iterator.for-each
+core-js/modules/es.iterator.includes
+core-js/modules/es.iterator.join
 core-js/modules/es.iterator.map
 core-js/modules/es.iterator.reduce
 core-js/modules/es.iterator.some
 core-js/modules/es.iterator.take
 core-js/modules/es.iterator.to-array
+core-js/modules/es.iterator.windows
 core-js/modules/es.map.constructor
 core-js/modules/es.map.get-or-insert
 core-js/modules/es.map.get-or-insert-computed
@@ -91,11 +95,7 @@ core-js/modules/esnext.async-iterator.reduce
 core-js/modules/esnext.async-iterator.some
 core-js/modules/esnext.async-iterator.take
 core-js/modules/esnext.async-iterator.to-array
-core-js/modules/esnext.iterator.chunks
-core-js/modules/esnext.iterator.includes
-core-js/modules/esnext.iterator.join
 core-js/modules/esnext.iterator.to-async
-core-js/modules/esnext.iterator.windows
 core-js/modules/web.dom-collections.for-each
 core-js/modules/web.dom-collections.iterator
 core-js/modules/web.dom-collections.keys

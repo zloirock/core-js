@@ -33,6 +33,8 @@ core-js/modules/es.iterator.filter
 core-js/modules/es.iterator.find
 core-js/modules/es.iterator.flat-map
 core-js/modules/es.iterator.for-each
+core-js/modules/es.iterator.includes
+core-js/modules/es.iterator.join
 core-js/modules/es.iterator.map
 core-js/modules/es.iterator.some
 core-js/modules/es.json.stringify
@@ -107,8 +109,6 @@ core-js/modules/esnext.async-iterator.find
 core-js/modules/esnext.async-iterator.flat-map
 core-js/modules/esnext.async-iterator.map
 core-js/modules/esnext.async-iterator.some
-core-js/modules/esnext.iterator.includes
-core-js/modules/esnext.iterator.join
 core-js/modules/web.dom-collections.entries
 core-js/modules/web.dom-collections.for-each
 core-js/modules/web.dom-collections.iterator
