@@ -4,10 +4,10 @@ import _Array$of from "@core-js/pure/actual/array/of";
 export function read(source, key) {
   var _ref2;
   const _ref = source || Array,
-    from = _ref === Array ? _Array$from : _ref["from"],
+    from = _ref === Array ? _Array$from : _ref.from,
     {
       [key]: other
     } = _ref,
-    of = (_ref2 = _ref === Array ? _Array$of : _ref["of"]) === void 0 ? 17 : _ref2;
+    of = (_ref2 = _ref === Array ? _Array$of : _ref.of) === void 0 ? 17 : _ref2;
   return [from, other, of];
 }

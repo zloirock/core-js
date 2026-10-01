@@ -7,12 +7,11 @@ A = {
 };
 function read(A) {
   const [_ref] = source,
-    _ref2 = _ref,
     from = _Array$from,
     {
       from: _unused,
       ...rest
-    } = _ref2;
+    } = _ref;
   return from([1]);
 }
 export const result = read(A);

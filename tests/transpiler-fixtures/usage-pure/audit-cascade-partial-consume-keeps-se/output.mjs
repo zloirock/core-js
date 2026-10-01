@@ -7,7 +7,7 @@ var _ref, _ref2, _unused;
 let effectRan = false,
   rest;
 let from;
-_ref = (effectRan = true, _self), _ref2 = _ref["Array"], from = _Array$from, _ref2, {
+_ref = (effectRan = true, _self), _ref2 = _ref.Array, from = _Array$from, _ref2, {
   Array: _unused,
   ...rest
 } = _ref, _ref;

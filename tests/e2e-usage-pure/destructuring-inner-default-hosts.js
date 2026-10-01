@@ -134,6 +134,42 @@ QUnit.test('inner default: an explicit undefined receiver takes the mirrored def
 });
 
 // Pending the common receiver-mirror read-order fix, shared with identifier keys.
+QUnit.skip('inner default: a symbol-label getter follows its effectful key', assert => {
+  const events = [];
+  const row = [0, 1, 2];
+  Object.defineProperty(row, '[@@iterator]', {
+    get() {
+      events.push('tag');
+      return 7;
+    },
+  });
+  // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- the row owns this test property
+  function read({ [Symbol.iterator]: iter, [(events.push('key'), '[@@iterator]')]: tag, at } = row) {
+    return [tag, at.call(row, -1), iter.call(row).next().value];
+  }
+  assert.deepEqual(read(), [7, 2, 0]);
+  assert.deepEqual(events, ['key', 'tag']);
+});
+
+QUnit.skip('inner default: an aliased symbol-label getter follows its effectful key', assert => {
+  const events = [];
+  const row = [0, 1, 2];
+  const { iterator: symbolKey } = Symbol;
+  Object.defineProperty(row, '[@@iterator]', {
+    get() {
+      events.push('tag');
+      return 7;
+    },
+  });
+  // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- the row owns this test property
+  function read({ [symbolKey]: iter, [(events.push('key'), '[@@iterator]')]: tag, at } = row) {
+    return [tag, at.call(row, -1), iter.call(row).next().value];
+  }
+  assert.deepEqual(read(), [7, 2, 0]);
+  assert.deepEqual(events, ['key', 'tag']);
+});
+
+// Pending the common receiver-mirror read-order fix, shared with identifier keys.
 QUnit.skip('inner default: quoted passthrough getters run after their key and preceding write', assert => {
   let Ctor = 0;
   let dash;

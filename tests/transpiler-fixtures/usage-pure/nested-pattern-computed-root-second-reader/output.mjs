@@ -4,9 +4,11 @@ import _keys from "@core-js/pure/actual/instance/keys";
 // An array wrapper captures its element before the nested read. A sequence-prefixed receiver
 // carries its prefix into the one read the claim performs; extra receiver evaluations must not be
 // introduced.
-const _ref = mk().data;
-const withLeafSibling = _at(_ref);
-const leafSibling = _keys(_ref);
+const {
+    data: _ref
+  } = mk(),
+  withLeafSibling = _at(_ref),
+  leafSibling = _keys(_ref);
 const _ref2 = mk();
 const {
   other: plainSibling
