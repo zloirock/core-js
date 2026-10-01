@@ -5,7 +5,7 @@ export function read(shim) {
   let resolve;
   function capture() {
     var _ref;
-    return _ref = shim || _Promise, resolve = _ref === _Promise ? _Promise$resolve : _ref["resolve"], _ref;
+    return _ref = shim || _Promise, resolve = _ref === _Promise ? _Promise$resolve : _ref.resolve, _ref;
   }
   return [capture(), resolve];
 }

@@ -42,14 +42,14 @@ export const t2 = (() => {
   return from([3]);
 })();
 export const t3 = (() => {
-  var _ref2, _ref, _ref3, _unused;
+  var _ref2, _ref, _unused;
   let of, rest;
   _ref = {
     Array: _ref2
-  } = cond && _globalThis, _ref3 = _ref2, {} = _ref3, of = _Array$of, {
+  } = cond && _globalThis, {} = _ref2, of = _Array$of, {
     of: _unused,
     ...rest
-  } = _ref3, _ref3, _ref;
+  } = _ref2, _ref2, _ref;
   return [of(1), rest];
 })();
 export const t4 = (() => {

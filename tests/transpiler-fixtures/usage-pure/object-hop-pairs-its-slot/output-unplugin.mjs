@@ -467,11 +467,12 @@ function slotMemoSiblingDecl(eff) {
 	const { a } = _ref24;
 	const sibInSlot = _at(_ref24.w);
 	const sibQ2 = 3;
-	const _ref25 = { b: eff(), w: eff() };
-	const { b } = _ref25;
-	const _ref26 = _ref25.w;
-	const twinAt = _at(_ref26);
-	const twinFlat = _flatMaybeArray(_ref26);
+
+	const _ref25 = { b: eff(), w: eff() },
+		{ b } = _ref25,
+		{ w: _ref26 } = _ref25,
+		twinAt = _at(_ref26),
+		twinFlat = _flatMaybeArray(_ref26);
 
 	return [sibHoist, z, sibQ, sibInSlot, a, sibQ2, twinAt, twinFlat, b];
 }
@@ -659,11 +660,12 @@ function navBelowMemoSlot(hit) {
 	const _ref51 = { w: (hit(), _globalThis), y: 2 };
 	const navHoist = _atMaybeArray(_ref51.w.Array.prototype);
 	const { y: ny } = _ref51;
-	const _ref52 = { x: (hit(), 3), w: (hit(), _globalThis) };
-	const _ref53 = _ref52.w.Array.prototype;
-	const navTwinAt = _atMaybeArray(_ref53);
-	const navTwinFlat = _flatMaybeArray(_ref53);
-	const { x: nx } = _ref52;
+
+	const _ref53 = { x: (hit(), 3), w: (hit(), _globalThis) },
+		{ w: { Array: { prototype: _ref52 } } } = _ref53,
+		navTwinAt = _atMaybeArray(_ref52),
+		navTwinFlat = _flatMaybeArray(_ref52),
+		{ x: nx } = _ref53;
 
 	let navAssign,
 		na,

@@ -30,8 +30,7 @@ const [[{
 }]]]];
 const viaInstance = _atMaybeArray([1]);
 const [_ref] = [...[c ? Object : userObj]],
-  _ref2 = _ref,
-  viaSelecting = null == _ref2 ? _ref2[""] : _ref2 === Object ? _Object$entries : _entries(_ref2);
+  viaSelecting = _ref === Object ? _Object$entries : _entries(_ref);
 // ... and through the transparent wrappers a source may spell around the spread array
 const [{
   groupBy: viaParens
@@ -56,8 +55,8 @@ export { viaSole, viaShifted, viaNested, viaInstance, viaSelecting, viaParens, v
 
 // Nested literal spreads still pair exactly; binding spreads remain unknown.
 // A hole spreads as `undefined` and supplies no static claim.
-const [_ref3] = [...wrapped];
-const viaAlias = _keys(_ref3);
+const [_ref2] = [...wrapped];
+const viaAlias = _keys(_ref2);
 const [{
   values: viaDoubleSpread
 }] = [...[...[{
@@ -66,6 +65,6 @@ const [{
 const [{
   assign: viaHole
 }] = [...[, Object]];
-const [_ref4] = [...[, [1]]];
-const viaHoleInstance = _at(_ref4);
+const [_ref3] = [...[, [1]]];
+const viaHoleInstance = _at(_ref3);
 export { viaAlias, viaDoubleSpread, viaHole, viaHoleInstance };

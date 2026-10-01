@@ -58,31 +58,31 @@ function mark(t, v) {
   use(e);
 }
 {
-  var _ref5, _ref4, _ref6;
+  var _ref5, _ref4;
   let f17;
   _ref4 = {
     w: [1]
   }, {
     [(eff('k'), 'w')]: _ref5
-  } = null == _ref4 ? _ref4[""] : _ref4, _ref6 = _ref5, f17 = _atMaybeArray(_ref6), _ref6, _ref4;
+  } = null == _ref4 ? _ref4[""] : _ref4, f17 = _atMaybeArray(_ref5), _ref5, _ref4;
 }
 {
-  var _ref7;
+  var _ref6;
   let f3;
   ({
-    w: _ref7
+    w: _ref6
   } = {
     w: Array,
     ...o
-  }), f3 = _ref7 === Array ? _Array$from : _ref7.from;
+  }), f3 = _ref6 === Array ? _Array$from : _ref6.from;
 }
 {
-  var _ref8, _ref9, _unused;
+  var _ref7, _ref8, _unused;
   let f4;
-  _ref8 = _globalThis, _ref9 = _ref8["Array"], f4 = _Array$from, _ref9, {
+  _ref7 = _globalThis, _ref8 = _ref7.Array, f4 = _Array$from, _ref8, {
     Array: _unused,
     ...r4
-  } = _ref8, _ref8;
+  } = _ref7, _ref7;
 }
 {
   let f9;
@@ -117,12 +117,12 @@ function mark(t, v) {
   } : userObj];
 }
 {
-  var _ref10, _ref11, _unused2;
+  var _ref9, _ref10, _unused2;
   let from, rest;
-  _ref10 = _globalThis, _ref11 = _ref10["Array"], from = _Array$from, _ref11, {
+  _ref9 = _globalThis, _ref10 = _ref9.Array, from = _Array$from, _ref10, {
     Array: _unused2,
     ...rest
-  } = _ref10, _ref10;
+  } = _ref9, _ref9;
   use(from, rest);
 }
 {
@@ -200,21 +200,21 @@ function mark(t, v) {
   use(m, z);
 }
 {
-  var _ref12;
+  var _ref11;
   let m;
-  [_ref12] = [{
+  [_ref11] = [{
     w: (mark(), arr)
   }];
-  m = _atMaybeArray(_ref12.w);
+  m = _atMaybeArray(_ref11.w);
   use(m);
 }
 {
-  var _ref13;
+  var _ref12;
   let m;
-  [_ref13] = [{
+  [_ref12] = [{
     w: (_at(x).call(x, 0), arr)
   }];
-  m = _atMaybeArray(_ref13.w);
+  m = _atMaybeArray(_ref12.w);
   use(m);
 }
 {
@@ -237,31 +237,31 @@ function mark(t, v) {
   use(m);
 }
 {
+  var _ref13;
+  let out, e;
+  [_ref13] = [(out = 1, _flatMaybeArray(arr).call(arr))];
+  e = _atMaybeArray(_ref13);
+  use(e, out);
+}
+{
   var _ref14;
   let out, e;
-  [_ref14] = [(out = 1, _flatMaybeArray(arr).call(arr))];
+  [_ref14] = [(out = 1, arr)];
   e = _atMaybeArray(_ref14);
   use(e, out);
 }
 {
   var _ref15;
   let out, e;
-  [_ref15] = [(out = 1, arr)];
+  [_ref15] = [(out = 1, _flatMaybeArray(arr).call(arr))];
   e = _atMaybeArray(_ref15);
   use(e, out);
 }
 {
   var _ref16;
   let out, e;
-  [_ref16] = [(out = 1, _flatMaybeArray(arr).call(arr))];
-  e = _atMaybeArray(_ref16);
-  use(e, out);
-}
-{
-  var _ref17;
-  let out, e;
-  [_ref17] = [(out = 1, f())];
-  e = _at(_ref17);
+  [_ref16] = [(out = 1, f())];
+  e = _at(_ref16);
   use(e, out);
 }
 {
@@ -289,21 +289,21 @@ function mark(t, v) {
   });
 }
 {
-  let _ref18 = eff();
+  let _ref17 = eff();
+  let values = _values(_ref17.w);
+  let at = _at(_ref17.y);
+  [values, at];
+}
+{
+  let _ref18 = r ?? {};
   let values = _values(_ref18.w);
   let at = _at(_ref18.y);
   [values, at];
 }
 {
-  let _ref19 = r ?? {};
+  let _ref19 = r;
   let values = _values(_ref19.w);
   let at = _at(_ref19.y);
-  [values, at];
-}
-{
-  let _ref20 = r;
-  let values = _values(_ref20.w);
-  let at = _at(_ref20.y);
   [values, at];
 }
 {
@@ -316,14 +316,14 @@ function mark(t, v) {
   at;
 }
 {
-  var _ref21;
+  var _ref20;
   o[eff(), 'data'] = 'str';
-  const r2 = _at(_ref21 = o.data).call(_ref21, 0);
+  const r2 = _at(_ref20 = o.data).call(_ref20, 0);
 }
 {
-  var _ref22;
+  var _ref21;
   o[eff(), 'data'] = 'str';
-  const r2 = _at(_ref22 = o[eff(), 'data']).call(_ref22, 0);
+  const r2 = _at(_ref21 = o[eff(), 'data']).call(_ref21, 0);
 }
 {
   try {
@@ -347,19 +347,19 @@ function mark(t, v) {
 {
   try {
     throw 0;
-  } catch (_ref23) {
-    let entries = _entries(_ref23.w);
+  } catch (_ref22) {
+    let entries = _entries(_ref22.w);
     entries;
   }
 }
 {
   try {
     throw [r];
-  } catch (_ref24) {
-    let [_ref25] = _ref24;
-    let _ref26 = _ref25.w;
-    let values = _values(_ref26);
-    let at = _at(_ref25.y);
+  } catch (_ref23) {
+    let [_ref24] = _ref23;
+    let _ref25 = _ref24.w;
+    let values = _values(_ref25);
+    let at = _at(_ref24.y);
     [values, at];
   }
 }

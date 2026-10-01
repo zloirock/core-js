@@ -658,9 +658,8 @@ export default function createDestructureEmitter({
     } else plantReceiverMemo({ host: declaratorPath, declarationPath, ref, value });
     noteSlotMemoHost(declarationPath, declaratorPath.node);
   }
-  // the hosts a slot memo split, by the declarator it memoized for: where that declarator still binds
-  // when the split runs, the memo declarator alone stands apart and every other declarator keeps
-  // the join - residual, extractions, trailing siblings in one declaration
+  // Receiver captures keep their residual, extractions and trailing siblings joined while the
+  // captured declarator still binds. A separately planted slot memo alone stands apart.
   const slotMemoHosts = new WeakMap();
   function noteSlotMemoHost(declarationPath, declaratorNode) {
     if (isForInitDeclaration(declarationPath.parentPath?.node, declarationPath.node)) return;
@@ -3198,9 +3197,11 @@ export default function createDestructureEmitter({
       const nodes = rendered.declarations.map(node => estreeToBabel(node));
       for (const name of Object.keys(t.getBindingIdentifiers(declarator.node.id))) declarator.scope.removeBinding(name);
       declarator.get('id').replaceWith(nodes[0].id);
+      declarator.get('init').replaceWith(nodes[0].init);
       forgetDestructurePlan(adapter, declarator.node);
       const paths = [declarator, ...declarator.insertAfter(nodes.slice(1))];
       for (const path of paths) path.scope.registerBinding(declaration.node.kind, path);
+      if (restPlan.capture || restPlan.arrayCapture) noteSlotMemoHost(declaration, declarator.node);
       joinHopStaticsIntoCapture(declaration, declarator);
       return true;
     }

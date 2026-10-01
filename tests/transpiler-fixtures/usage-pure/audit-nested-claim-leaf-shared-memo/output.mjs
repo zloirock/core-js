@@ -8,24 +8,30 @@ const box = {
   keep: 3
 };
 const twoClaims = function () {
-  const _ref = box.y;
-  const at = _atMaybeArray(_ref);
-  const flat = _flatMaybeArray(_ref);
+  const {
+      y: _ref
+    } = box,
+    at = _atMaybeArray(_ref),
+    flat = _flatMaybeArray(_ref);
   return [at, flat];
 }();
 const claimAndSymbol = function () {
-  const _ref2 = box.y;
-  const at = _atMaybeArray(_ref2);
-  const it = _getIteratorMethod(_ref2);
+  const {
+      y: _ref2
+    } = box,
+    at = _atMaybeArray(_ref2),
+    it = _getIteratorMethod(_ref2);
   return [at, it];
 }();
 const computedSibling = function () {
   const k = 'other';
-  const _ref3 = box.y;
-  const at = _atMaybeArray(_ref3);
   const {
-    [k]: dyn
-  } = _ref3;
+      y: _ref3
+    } = box,
+    at = _atMaybeArray(_ref3),
+    {
+      [k]: dyn
+    } = _ref3;
   return [at, dyn];
 }();
 const restSibling = function () {

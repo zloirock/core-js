@@ -8,6 +8,6 @@ export function pick(cond) {
     {
       [KEY]: own
     } = _ref,
-    from = null == _ref ? _ref[""] : _ref === Array ? _Array$from : _ref["from"];
+    from = _ref === Array ? _Array$from : _ref.from;
   return [own, from];
 }

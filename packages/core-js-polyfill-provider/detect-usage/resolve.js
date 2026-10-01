@@ -1093,7 +1093,7 @@ function enterIdentifierBindingFollow(hop) {
 }
 
 // Resolve a binding to its Symbol.X key through registered/imported provenance, or,
-// with a usage context, a retained destructure from a full Symbol index. Markers:
+// with a usage context, a retained destructure from the global or a full Symbol index. Markers:
 // `polyfillHint` (in-place AST mutation leaves this on the binding) and `importSource`
 // (real `import X from '.../symbol/iterator'` that the plugin emitted). an entry for a `Symbol.X`
 // static exports that static as its default - only default bindings count as Symbol.X refs, and
@@ -1116,7 +1116,7 @@ export function bindingSymbolKey(binding, packages = null, ctx = null) {
   // the TS require-import, the bare-CJS require declarator the require import style leaves behind
   const importedKey = symbolKeyFromSource(boundModuleDefaultSource(binding), packages);
   if (importedKey || !ctx) return importedKey;
-  // A full Symbol index keeps its static reads instead of extracting another import.
+  // A retained global or full Symbol index supplies its static key before alias registration.
   // The retained destructure still supplies a protocol key to later instance dispatch.
   const declarator = bindingDeclaratorNode(binding);
   if (declarator?.id?.type !== 'ObjectPattern' || !declarator.init
@@ -1128,7 +1128,13 @@ export function bindingSymbolKey(binding, packages = null, ctx = null) {
     || ctx.adapter.isMutatedStatic?.('Symbol', keys[0])) return null;
   const source = moduleDefaultSource({ node: declarator.init, adapter: ctx.adapter,
     scope: aliasDeclScope(binding, ctx.scope), path: binding.declarationPath ?? binding.path ?? ctx.path });
-  if (!source || (!CORE_JS_SOURCE_PREFIX.test(source) && !importSourceMatchesUserPackage(source, packages))) return null;
+  if (!source) return asSymbolRef({
+    node: declarator.init,
+    adapter: ctx.adapter,
+    scope: aliasDeclScope(binding, ctx.scope),
+    path: binding.declarationPath ?? binding.path ?? ctx.path,
+  }) ? `Symbol.${ keys[0] }` : null;
+  if (!CORE_JS_SOURCE_PREFIX.test(source) && !importSourceMatchesUserPackage(source, packages)) return null;
   const entry = pureImportSourceEntry(source)?.replace(/\/index(?:\.js)?$|\.js$/u, '');
   return entry === 'symbol' ? `Symbol.${ keys[0] }` : null;
 }

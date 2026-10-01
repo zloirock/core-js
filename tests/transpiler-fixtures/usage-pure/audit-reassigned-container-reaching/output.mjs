@@ -63,7 +63,7 @@ const _ref = rw3.c,
   {
     try: viaConditionalWrite
   } = _ref,
-  viaLiveInit = null == _ref ? _ref[""] : _entries(_ref);
+  viaLiveInit = _entries(_ref);
 
 // NEGATIVE: a reassignment AFTER the read cannot change what the read saw - only the init's
 // candidate injects, the written value's statics do not

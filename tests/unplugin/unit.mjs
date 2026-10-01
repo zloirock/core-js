@@ -3302,10 +3302,19 @@ function checkTypedOuterInnerDefault() {
   check('typed-outer inner default/both steps import', importCount('const { at: { name } = {} } = src;'), 2);
   // a sibling prop keeps its residual beside the extraction
   const withSibling = transformed('const { at: { name } = {}, other } = src;');
+  const siblingDecls = programOf(withSibling).body.flatMap(node => node.type === 'VariableDeclaration' ? node.declarations : []);
+  const captures = siblingDecls.filter(node => node.init?.type === 'Identifier' && node.init.name === 'src');
+  const [capture] = captures;
+  const leaf = siblingDecls.find(node => node.id.name === 'name');
+  const residual = siblingDecls.find(node => node.id.type === 'ObjectPattern' && node.id.properties[0]?.key.name === 'other');
   check('typed-outer inner default/multi-prop keeps the residual',
-    withSibling.includes('const _ref = src;') && withSibling.includes('const { other } = _ref;'), true);
+    captures.length === 1 && residual?.init.name === capture.id.name
+      && siblingDecls.indexOf(capture) < siblingDecls.indexOf(leaf) && siblingDecls.indexOf(leaf) < siblingDecls.indexOf(residual), true);
+  const guarded = unwrapNode(leaf.init.arguments[0]);
+  const dispatch = unwrapNode(guarded.test.left).right;
   check('typed-outer inner default/captured source keeps its array type',
-    /_nameMaybeFunction\(null == _ref\s*\? _ref\[""\]\s*: \(_ref2 = _atMaybeArray\(_ref\)\) === void 0 \? \{\} : _ref2\)/.test(withSibling), true);
+    leaf.init.callee.name === '_nameMaybeFunction' && guarded.type === 'ConditionalExpression' && guarded.test.operator === '==='
+      && dispatch?.callee?.name === '_atMaybeArray' && dispatch.arguments[0].name === capture.id.name, true);
   // the receiver-bearing default folds through the SAME guard (the climb's carriesReceiver
   // answers false on the typed outer, so the hop stays and the composition owns the claim)
   check('typed-outer inner default/receiver default folds into the guard',

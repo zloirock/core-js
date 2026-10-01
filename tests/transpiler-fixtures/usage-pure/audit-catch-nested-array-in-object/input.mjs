@@ -1,6 +1,6 @@
-// Catch's object destructure contains a nested array destructure. Outer extraction pulls
-// from `_ref`; the nested array pattern should transpile to its own destructuring
-// on `inner`, and the instance method `at` should polyfill for `inner[0]`.
+// The nested array pattern reads the already captured catch receiver.
+// Its native read rejects null before the later instance dispatch, so that dispatch
+// needs neither another receiver capture nor another null probe.
 try {
   throw { inner: [{}], flat: "x" };
 } catch ({ inner: [first], flat }) {
