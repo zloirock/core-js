@@ -4,9 +4,8 @@ const [_ref] = [{
   a: record("init"),
   y: [1, [2]]
 }, record("rhs")];
-const _ref2 = _ref;
 const {
   a
-} = _ref2;
-const flat = _flatMaybeArray(_ref2.y);
+} = _ref;
+const flat = _flatMaybeArray(_ref.y);
 export { a, flat };

@@ -4,7 +4,6 @@ import _Array$of from "@core-js/pure/actual/array/of";
 import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Object$keys from "@core-js/pure/actual/object/keys";
-var _ref6;
 // Nested leaves retain unrelated siblings at every enclosing level.
 // User-object getters and defaults keep their source order; pristine built-in reads
 // follow the built-in-read contract across declarations and control-flow hosts.
@@ -198,45 +197,53 @@ const {
   },
   junk: Array.junk
 };
-const _ref = box;
-const _ref2 = _ref.y;
-const userFirst = _atMaybeArray(_ref2);
-const {
-  other: o1
-} = _ref2;
-const {
-  junk: j10
-} = _ref;
-const _ref3 = box;
-const {
-  junk: j11
-} = _ref3;
-const _ref4 = _ref3.y;
-const userLast = _atMaybeArray(_ref4);
-const {
-  other: o2
-} = _ref4;
-const _ref5 = box;
-const {
-  junk: j12
-} = _ref5;
-const _ref7 = (_ref6 = _ref5.y) === void 0 ? [] : _ref6;
-const userDefault = _atMaybeArray(_ref7);
-const {
-  other: o3
-} = _ref7;
-const _ref8 = box;
-const {
-  junk: j13
-} = _ref8;
-const _ref9 = _ref8.y;
-const userMiddle = _atMaybeArray(_ref9);
-const {
-  other: o4
-} = _ref9;
-const {
-  more: m2
-} = _ref8;
+const _ref2 = box,
+  {
+    y: _ref
+  } = _ref2,
+  userFirst = _atMaybeArray(_ref),
+  {
+    other: o1
+  } = _ref,
+  {
+    junk: j10
+  } = _ref2;
+const _ref3 = box,
+  {
+    junk: j11
+  } = _ref3,
+  {
+    y: _ref4
+  } = _ref3,
+  userLast = _atMaybeArray(_ref4),
+  {
+    other: o2
+  } = _ref4;
+const _ref5 = box,
+  {
+    junk: j12
+  } = _ref5,
+  {
+    y: _ref6 = []
+  } = _ref5,
+  userDefault = _atMaybeArray(_ref6),
+  {
+    other: o3
+  } = _ref6;
+const _ref7 = box,
+  {
+    junk: j13
+  } = _ref7,
+  {
+    y: _ref8
+  } = _ref7,
+  userMiddle = _atMaybeArray(_ref8),
+  {
+    other: o4
+  } = _ref8,
+  {
+    more: m2
+  } = _ref7;
 const {
   y: {
     z: {
@@ -299,11 +306,11 @@ const {
   },
   junk: _globalThis.junk
 };
-const _ref10 = box;
-const soleUserBesideJunk = _atMaybeArray(_ref10.y);
+const _ref9 = box;
+const soleUserBesideJunk = _atMaybeArray(_ref9.y);
 const {
   junk: j25
-} = _ref10;
+} = _ref9;
 const {
   junk: j15,
   of: {

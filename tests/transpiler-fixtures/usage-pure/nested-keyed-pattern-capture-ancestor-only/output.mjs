@@ -6,7 +6,6 @@ export function ancestor(make, outer) {
     {
       [(outer(), 'w')]: _ref
     } = null == _ref2 ? _ref2[""] : _ref2,
-    _ref3 = _ref,
-    method = null == _ref3 ? _ref3[""] : _at(_ref3);
+    method = _at(_ref);
   return method;
 }

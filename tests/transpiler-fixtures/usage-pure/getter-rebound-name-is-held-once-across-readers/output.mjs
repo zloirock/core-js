@@ -37,9 +37,13 @@ let a2, f2;
 const _ref2 = (eff(), arr);
 a2 = _includes(_ref2);
 f2 = _flatMapMaybeArray(_ref2);
-const _ref3 = arr;
-const a3 = _withMaybeArray(_ref3);
-const f3 = _findLastMaybeArray(_ref3);
+const {
+    w: _ref3
+  } = {
+    w: arr
+  },
+  a3 = _withMaybeArray(_ref3),
+  f3 = _findLastMaybeArray(_ref3);
 let list = [1, 2];
 _Object$defineProperty(list, _Symbol$iterator, {
   get() {

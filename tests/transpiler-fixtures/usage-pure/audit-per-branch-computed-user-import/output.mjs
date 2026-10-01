@@ -8,5 +8,5 @@ const _ref = cond ? Array : _Set,
   {
     [X]: it
   } = _ref,
-  from = null == _ref ? _ref[""] : _ref === Array ? _Array$from : _ref["from"];
+  from = _ref === Array ? _Array$from : _ref.from;
 [from([1]), it];

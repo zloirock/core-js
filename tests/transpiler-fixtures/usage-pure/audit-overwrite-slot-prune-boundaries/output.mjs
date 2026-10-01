@@ -4,7 +4,7 @@ import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _flatMapMaybeArray from "@core-js/pure/actual/array/instance/flat-map";
 import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 import _globalThis from "@core-js/pure/actual/global-this";
-var _ref, _ref2, _ref3, _ref4;
+var _ref, _ref2, _ref3;
 // Object-rest keeps named slots at that level and reads through it native in usage-pure.
 // Independent reads and key/default expressions still receive their own polyfills.
 declare const userNs: {
@@ -40,5 +40,5 @@ let rest;
 wrapped = _flatMapMaybeArray(_ref.Array.prototype);
 _ref2 = {
   prototype: _ref3
-} = _globalThis.Array, _ref4 = _ref3, null == _ref4 ? _ref4[""] : (effect(), computed = _includesMaybeArray(_ref4)), _ref4, _ref2;
+} = _globalThis.Array, null == _ref3 ? _ref3[""] : (effect(), computed = _includesMaybeArray(_ref3)), _ref3, _ref2;
 export { dropped, kept, sibling, other, rest, wrapped, computed, z };

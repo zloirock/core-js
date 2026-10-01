@@ -8,13 +8,12 @@ for (const _ref of [[1, 2], [3, 4]]) {
 }
 consume(at);
 const target = {};
-outer: for (const _ref3 of [[5, 6]]) {
-  var _ref2;
-  _ref2 = _ref3, target.method = _atMaybeArray(_ref2), _ref2;
+outer: for (const _ref2 of [[5, 6]]) {
+  target.method = _atMaybeArray(_ref2), _ref2;
   consume(target.method);
   continue outer;
 }
-for (const _ref4 of unknownRows) {
-  at = _at(_ref4);
+for (const _ref3 of unknownRows) {
+  at = _at(_ref3);
   consume(at);
 }

@@ -2,7 +2,7 @@ import _Array$fromAsync from "@core-js/pure/actual/array/from-async";
 import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
 import _Iterator from "@core-js/pure/actual/iterator/constructor";
 import _Iterator$from from "@core-js/pure/actual/iterator/from";
-var _ref, _ref2, _ref3, _ref4;
+var _ref, _ref2, _ref3;
 // an extraction beside a SURVIVING residual keeps the source's key order: a member target's setter,
 // a user getter the residual reads and a binding written before them all observe it - the ordered
 // capture holds every key in its slot where a crossed operation runs code
@@ -36,13 +36,13 @@ const ob = {
     log(v);
   }
 };
-_ref = effIterator(), ob.a = _Iterator$from, _ref2 = _ref, ob.b = _nameMaybeFunction(_ref2), _ref2, _ref;
+_ref = effIterator(), ob.a = _Iterator$from, ob.b = _nameMaybeFunction(_ref), _ref, _ref;
 let s0, nm;
-_ref3 = user(), {
+_ref2 = user(), {
   groupBy: s0
-} = _ref3, nm = _nameMaybeFunction(_ref3), _ref3;
+} = _ref2, nm = _nameMaybeFunction(_ref2), _ref2;
 let x;
-_ref4 = effArray(), x = _Array$fromAsync, {
+_ref3 = effArray(), x = _Array$fromAsync, {
   isArray: ob.f
-} = _ref4, _ref4;
+} = _ref3, _ref3;
 use(s0, nm, x);

@@ -3,6 +3,6 @@ import _Array$of from "@core-js/pure/actual/array/of";
 export function read(shim) {
   var _ref;
   let of, host;
-  host = (_ref = shim ?? Array, of = _ref === Array ? _Array$of : _ref["of"], _ref);
+  host = (_ref = shim ?? Array, of = _ref === Array ? _Array$of : _ref.of, _ref);
   return [host, of];
 }

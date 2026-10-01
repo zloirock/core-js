@@ -18,5 +18,4 @@ const _ref = {
   {
     y: _ref2
   } = _ref,
-  _ref3 = _ref2,
-  m = null == _ref3 ? _ref3[""] : (after(), _flatMaybeArray(_ref3));
+  m = null == _ref2 ? _ref2[""] : (after(), _flatMaybeArray(_ref2));

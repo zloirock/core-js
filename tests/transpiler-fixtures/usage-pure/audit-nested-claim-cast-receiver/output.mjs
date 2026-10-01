@@ -14,11 +14,13 @@ const box = {
   y: [1, 2]
 };
 const widened = function () {
-  const _ref = (box as any).y;
-  const at = _atMaybeArray(_ref);
   const {
-    other
-  } = _ref;
+      y: _ref
+    } = box as any,
+    at = _atMaybeArray(_ref),
+    {
+      other
+    } = _ref;
   return [at, other];
 }();
 const declared = function () {
