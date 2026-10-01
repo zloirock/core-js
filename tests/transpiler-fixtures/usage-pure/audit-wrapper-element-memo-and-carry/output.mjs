@@ -79,14 +79,13 @@ const [_ref13] = [{
   {
     y: _ref14
   } = _ref13,
-  _ref15 = _ref14,
-  viaWrapCarriedKey = null == _ref15 ? _ref15[""] : (out = 3, _atMaybeArray(_ref15));
+  viaWrapCarriedKey = null == _ref14 ? _ref14[""] : (out = 3, _atMaybeArray(_ref14));
 // An effectful neighbouring element finishes before the first captured property read.
-const [_ref16, _ref17] = [{
+const [_ref15, _ref16] = [{
   y: _flatMaybeArray(arr).call(arr)
 }, _flatMaybeArray(arr).call(arr)];
-const viaWrapCarriedNeighbour = _atMaybeArray(_ref16.y);
-const viaWrapCarriedNeighbourZ = _ref17;
+const viaWrapCarriedNeighbour = _atMaybeArray(_ref15.y);
+const viaWrapCarriedNeighbourZ = _ref16;
 export { viaWrapOpaque, viaWrapOpaqueDefault, viaWrapAheadOfPure, viaWrapPureTail, out };
 export { viaKeptResidual, viaKeptLength, viaKeptTail, viaSharedMemo, viaSharedRest, viaPeeledTail };
 export { viaDeclSibling, viaDeclSiblingZ, viaWrapSole, viaWrapNeighbour, viaWrapNeighbourZ };

@@ -6,7 +6,6 @@ const lead = before(),
   {
     [(outer(), 'w')]: _ref
   } = null == _ref2 ? _ref2[""] : _ref2,
-  _ref3 = _ref,
-  method = null == _ref3 ? _ref3[""] : (leaf(), _at(_ref3)),
+  method = null == _ref ? _ref[""] : (leaf(), _at(_ref)),
   tail = after();
 export { lead, method, tail };

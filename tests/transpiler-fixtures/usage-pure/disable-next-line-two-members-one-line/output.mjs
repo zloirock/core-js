@@ -14,7 +14,7 @@ const _ref = arr,
     // core-js-disable-next-line
     flat
   } = _ref,
-  includes = null == _ref ? _ref[""] : _includes(_ref);
+  includes = _includes(_ref);
 use(at, flat, includes);
 const o = {
   // core-js-disable-next-line

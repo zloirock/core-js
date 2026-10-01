@@ -6,8 +6,7 @@ function read(source, key) {
     {
       [(key(), 'data')]: _ref
     } = null == _ref2 ? _ref2[""] : _ref2,
-    _ref3 = _ref,
-    at = null == _ref3 ? _ref3[""] : _at(_ref3);
+    at = _at(_ref);
   return at;
 }
 function readSiblings(source, key) {

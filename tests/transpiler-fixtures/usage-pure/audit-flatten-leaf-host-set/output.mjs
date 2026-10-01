@@ -9,43 +9,53 @@ const box = {
 function effect() {
   return 1;
 }
-export const {
-  y: {
-    at: exported,
+const {
+    y: _ref
+  } = box,
+  exported = _atMaybeArray(_ref),
+  {
     other: exportedOther
-  }
-} = box;
+  } = _ref;
+export { exported, exportedOther };
 const bodyless = function () {
-  if (box) var _ref = box.y,
-    at = _atMaybeArray(_ref),
+  if (box) var {
+      y: _ref2
+    } = box,
+    at = _atMaybeArray(_ref2),
     {
       other
-    } = _ref;
+    } = _ref2;
   return [at, other];
 }();
 const loopHead = function () {
-  for (var _ref2 = box.y, at = _atMaybeArray(_ref2), {
+  for (var {
+      y: _ref3
+    } = box, at = _atMaybeArray(_ref3), {
       other
-    } = _ref2, i = 0; i < 1; i++);
+    } = _ref3, i = 0; i < 1; i++);
   return [at, other];
 }();
 const sharedDeclaration = function () {
-  var z = 1;
-  const _ref3 = box.y;
-  var at = _atMaybeArray(_ref3);
-  var {
-    other
-  } = _ref3;
+  var z = 1,
+    {
+      y: _ref4
+    } = box,
+    at = _atMaybeArray(_ref4),
+    {
+      other
+    } = _ref4;
   return [z, at, other];
 }();
 const middleDeclarator = function () {
-  var z = 1;
-  const _ref4 = box.y;
-  var at = _atMaybeArray(_ref4);
-  var {
-    other
-  } = _ref4;
-  var zTail = 2;
+  var z = 1,
+    {
+      y: _ref5
+    } = box,
+    at = _atMaybeArray(_ref5),
+    {
+      other
+    } = _ref5,
+    zTail = 2;
   return [z, at, other, zTail];
 }();
 export { bodyless, loopHead, sharedDeclaration, middleDeclarator };

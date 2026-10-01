@@ -7,19 +7,25 @@ const W = {
   w: Array,
   k: 1
 };
-let _ref = W;
+let _ref = W,
+  {
+    k
+  } = _ref,
+  {
+    w: _ref2
+  } = _ref,
+  splitName = _nameMaybeFunction(_ref2),
+  splitFrom = _Array$from;
+let q = 1,
+  {
+    w: _ref3
+  } = W,
+  lastName = _nameMaybeFunction(_ref3),
+  lastFrom = _Array$from;
 let {
-  k
-} = _ref;
-const _ref2 = _ref.w;
-let splitName = _nameMaybeFunction(_ref2);
-let splitFrom = _Array$from;
-let q = 1;
-const _ref3 = W.w;
-let lastName = _nameMaybeFunction(_ref3);
-let lastFrom = _Array$from;
-const _ref4 = W.w;
-let firstName = _nameMaybeFunction(_ref4);
-let firstFrom = _Array$from;
-let q2 = 2;
+    w: _ref4
+  } = W,
+  firstName = _nameMaybeFunction(_ref4),
+  firstFrom = _Array$from,
+  q2 = 2;
 export { k, splitName, splitFrom, q, lastName, lastFrom, firstName, firstFrom, q2 };

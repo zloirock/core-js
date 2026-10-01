@@ -23,19 +23,18 @@ try {
 try {
   risky();
 } catch (_ref3) {
-  let _ref4 = _ref3,
-    f = null == _ref4 ? _ref4[""] : (e2(), _flatMaybeArray(_ref4)),
+  let f = null == _ref3 ? _ref3[""] : (e2(), _flatMaybeArray(_ref3)),
     {
       message
-    } = _ref4;
+    } = _ref3;
   console.log(typeof f, message);
 }
 try {
   risky();
-} catch (_ref5) {
-  var _ref7;
-  let _ref6 = _ref5,
-    i = null == _ref6 ? _ref6[""] : (e3(), (_ref7 = _includes(_ref6)) === void 0 ? dflt() : _ref7);
+} catch (_ref4) {
+  var _ref6;
+  let _ref5 = _ref4,
+    i = null == _ref5 ? _ref5[""] : (e3(), (_ref6 = _includes(_ref5)) === void 0 ? dflt() : _ref6);
   console.log(typeof i);
 }
 try {
@@ -49,20 +48,19 @@ try {
 // A concatenated constant key retains its effect just like a sequence key.
 try {
   risky();
-} catch (_ref8) {
-  let _ref9 = _ref8,
-    r = null == _ref9 ? _ref9[""] : ((e5(), 'toRevers') + 'ed', _toReversedMaybeArray(_ref9));
+} catch (_ref7) {
+  let _ref8 = _ref7,
+    r = null == _ref8 ? _ref8[""] : ((e5(), 'toRevers') + 'ed', _toReversedMaybeArray(_ref8));
   console.log(typeof r);
 }
 // In a multi-property catch pattern, the first default runs before the second key.
 try {
   risky();
-} catch (_ref10) {
-  var _ref12;
-  let _ref11 = _ref10,
-    ts = null == _ref11 ? _ref11[""] : (e6(), (_ref12 = _toSortedMaybeArray(_ref11)) === void 0 ? dflt2() : _ref12),
-    _ref13 = _ref11,
-    tsp = null == _ref13 ? _ref13[""] : (e7(), _toSplicedMaybeArray(_ref13));
+} catch (_ref9) {
+  var _ref10;
+  let ts = null == _ref9 ? _ref9[""] : (e6(), (_ref10 = _toSortedMaybeArray(_ref9)) === void 0 ? dflt2() : _ref10),
+    _ref11 = _ref9,
+    tsp = null == _ref11 ? _ref11[""] : (e7(), _toSplicedMaybeArray(_ref11));
   console.log(typeof ts, typeof tsp);
 }
 try {
@@ -77,36 +75,34 @@ try {
 // Two defaulted properties retain key, read, default order independently.
 try {
   risky();
-} catch (_ref14) {
-  var _ref16, _ref18;
-  let _ref15 = _ref14,
-    fli = null == _ref15 ? _ref15[""] : (e9(), (_ref16 = _findLastIndexMaybeArray(_ref15)) === void 0 ? dflt4() : _ref16),
-    _ref17 = _ref15,
-    w10 = null == _ref17 ? _ref17[""] : (e10(), (_ref18 = _withMaybeArray(_ref17)) === void 0 ? dflt5() : _ref18);
+} catch (_ref12) {
+  var _ref13, _ref15;
+  let fli = null == _ref12 ? _ref12[""] : (e9(), (_ref13 = _findLastIndexMaybeArray(_ref12)) === void 0 ? dflt4() : _ref13),
+    _ref14 = _ref12,
+    w10 = null == _ref14 ? _ref14[""] : (e10(), (_ref15 = _withMaybeArray(_ref14)) === void 0 ? dflt5() : _ref15);
   console.log(fli, w10);
 }
 
 // A plain key also keeps its default lazy when the selected instance value is undefined.
 try {
   risky();
-} catch (_ref19) {
-  let _ref20,
-    en = (_ref20 = _entries(_ref19)) === void 0 ? dflt6() : _ref20;
+} catch (_ref16) {
+  let _ref17,
+    en = (_ref17 = _entries(_ref16)) === void 0 ? dflt6() : _ref17;
   console.log(en);
 }
 
 // An ordinary sibling read stays between the preceding default and the following key.
 try {
   risky();
-} catch (_ref21) {
-  var _ref23;
-  let _ref22 = _ref21,
-    ks = null == _ref22 ? _ref22[""] : (e11(), (_ref23 = _keys(_ref22)) === void 0 ? dflt7() : _ref23),
+} catch (_ref18) {
+  var _ref19;
+  let ks = null == _ref18 ? _ref18[""] : (e11(), (_ref19 = _keys(_ref18)) === void 0 ? dflt7() : _ref19),
     {
       message
-    } = _ref22,
-    _ref24 = _ref22,
-    fi = null == _ref24 ? _ref24[""] : (e12(), _fillMaybeArray(_ref24));
+    } = _ref18,
+    _ref20 = _ref18,
+    fi = null == _ref20 ? _ref20[""] : (e12(), _fillMaybeArray(_ref20));
   console.log(ks, message, fi);
 }
 
@@ -114,8 +110,8 @@ try {
 // resolves the function-name binding from that value.
 try {
   risky();
-} catch (_ref25) {
-  let name = _nameMaybeFunction(_getIteratorMethod(_ref25));
+} catch (_ref21) {
+  let name = _nameMaybeFunction(_getIteratorMethod(_ref21));
   console.log(name);
 }
 try {

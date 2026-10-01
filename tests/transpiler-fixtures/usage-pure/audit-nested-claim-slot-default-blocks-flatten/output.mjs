@@ -10,12 +10,13 @@ function raise() {
   return [3];
 }
 const defaultedSlot = function () {
-  var _ref;
-  const _ref2 = (_ref = box.y) === void 0 ? raise() : _ref;
-  const at = _atMaybeArray(_ref2);
   const {
-    other
-  } = _ref2;
+      y: _ref = raise()
+    } = box,
+    at = _atMaybeArray(_ref),
+    {
+      other
+    } = _ref;
   return [at, other];
 }();
 export { defaultedSlot };

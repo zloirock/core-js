@@ -12,18 +12,17 @@ import _Object$keys from "@core-js/pure/actual/object/keys";
 import _Promise from "@core-js/pure/actual/promise";
 import _Set from "@core-js/pure/actual/set/constructor";
 
-var _ref, _ref2, _ref3, _ref4, _unused;
+var _ref, _ref2, _ref3, _unused;
 let aP, rP, oP;
 
-for (const _ref7 = (
+for (const _ref6 = (
 		(
 			_ref = { Array: _ref2 } = _globalThis,
 			(
-				_ref3 = _ref2,
-				{} = _ref3,
+				{} = _ref2,
 				aP = _Array$fromAsync,
-				{ fromAsync: _unused, ...rP } = _ref3,
-				_ref3
+				{ fromAsync: _unused, ...rP } = _ref2,
+				_ref2
 			),
 			_ref
 		),
@@ -32,10 +31,10 @@ for (const _ref7 = (
 	isSealed = _Object$isSealed; !oP; ) oP = isSealed;
 
 const recvA = getObj();
-const gA = (_ref4 = _getIteratorMethod(recvA)) === void 0 ? null : _ref4;
+const gA = (_ref3 = _getIteratorMethod(recvA)) === void 0 ? null : _ref3;
 let aQ, rQ, oQ;
 
-for (const _ref8 = (
+for (const _ref7 = (
 		{ Promise: { allSettled: aQ, ...rQ } } = { Promise: _Promise },
 		Object
 	),
@@ -43,16 +42,16 @@ for (const _ref8 = (
 
 // the same pair inside a FUNCTION: push order, no family grouping
 export function inFn() {
-	var _ref5, _ref6;
+	var _ref4, _ref5;
 	const recvB = getObj();
-	const gB = (_ref5 = _getIteratorMethod(recvB)) === void 0 ? null : _ref5;
+	const gB = (_ref4 = _getIteratorMethod(recvB)) === void 0 ? null : _ref4;
 	let aR, rR, oR;
 
-	for (const _ref9 = ({ Map: { groupBy: aR, ...rR } } = { Map: _Map }, Object),
+	for (const _ref8 = ({ Map: { groupBy: aR, ...rR } } = { Map: _Map }, Object),
 		getPrototypeOf = _Object$getPrototypeOf; !oR; ) oR = getPrototypeOf;
 
 	const recvC = getObj();
-	const gC = (_ref6 = _getIteratorMethod(recvC)) === void 0 ? null : _ref6;
+	const gC = (_ref5 = _getIteratorMethod(recvC)) === void 0 ? null : _ref5;
 
 	return [gB, aR, rR, oR, gC];
 }

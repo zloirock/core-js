@@ -6,19 +6,18 @@ import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 // no probe of the constructor - even where the head is relocated and its declarator re-spelled
 const on = [1].length > 0;
 for (const _ref of [Array]) {
-  const _ref2 = _ref,
-    from = _Array$from,
+  const from = _Array$from,
     {
       from: _unused,
       ...rest
-    } = _ref2;
+    } = _ref;
   console.log(from([1]), rest.of, 'isArray' in rest);
 }
-for (const _ref3 of [on ? _Map : _Map]) {
+for (const _ref2 of [on ? _Map : _Map]) {
   const groupBy = _Map$groupBy;
   const {
     groupBy: _unused2,
     ...others
-  } = _ref3;
+  } = _ref2;
   console.log(groupBy, others.groupBy);
 }

@@ -38,7 +38,7 @@ const {
   {
     indexOf
   } = _ref2,
-  fl = null == _ref2 ? _ref2[""] : (k++, _flatMaybeArray(_ref2));
+  fl = (k++, _flatMaybeArray(_ref2));
 var {
     Object: {
       entries: f4

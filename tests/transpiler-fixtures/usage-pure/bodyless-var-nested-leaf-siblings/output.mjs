@@ -8,17 +8,25 @@ const box = {
   y: [1, [2]]
 };
 if (box) var q = 1,
-  _ref = box.y,
+  {
+    y: _ref
+  } = box,
   afterSibling = _atMaybeArray(_ref),
   afterSiblingFlat = _flatMaybeArray(_ref);
 if (box) var staticFirst = _Array$from,
-  _ref2 = box.y,
+  {
+    y: _ref2
+  } = box,
   afterStatic = _atMaybeArray(_ref2),
   afterStaticFlat = _flatMaybeArray(_ref2);
-if (box) var _ref3 = box.y,
+if (box) var {
+    y: _ref3
+  } = box,
   one = _atMaybeArray(_ref3),
   oneFlat = _flatMaybeArray(_ref3),
-  _ref4 = box.y,
+  {
+    y: _ref4
+  } = box,
   two = _atMaybeArray(_ref4),
   twoFlat = _flatMaybeArray(_ref4);
 export { q, afterSibling, afterSiblingFlat, staticFirst, afterStatic, afterStaticFlat, one, oneFlat, two, twoFlat };

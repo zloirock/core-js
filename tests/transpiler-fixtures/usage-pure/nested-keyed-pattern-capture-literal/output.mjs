@@ -8,7 +8,6 @@ export function literal(receiver, outer, leaf) {
     {
       [(outer(), 'w')]: _ref
     } = null == _ref2 ? _ref2[""] : _ref2,
-    _ref3 = _ref,
-    method = null == _ref3 ? _ref3[""] : (leaf(), _includes(_ref3));
+    method = null == _ref ? _ref[""] : (leaf(), _includes(_ref));
   return method;
 }

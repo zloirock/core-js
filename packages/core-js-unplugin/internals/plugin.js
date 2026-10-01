@@ -1220,7 +1220,7 @@ export default function createPlugin(options) {
           // at its binding id - babel numbers the receiver memo at the point of the second read,
           // between the guards of the two properties that need it (`collectInjectorCensus`)
           mintRefName() {
-            const name = injector.uniqueName('_ref');
+            const name = injector.generateLocalRef();
             astRefOrder.push(name);
             return name;
           },
