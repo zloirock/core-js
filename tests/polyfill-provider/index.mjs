@@ -6,6 +6,7 @@
 import { fileURLToPath } from 'node:url';
 import './harness-contracts.mjs';
 import './resolve-node-type.mjs';
+import './positional-element-types.mjs';
 import './flow-class-members.mjs';
 import './class-flow-order.mjs';
 import './field-union-hints.mjs';

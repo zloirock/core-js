@@ -116,16 +116,6 @@ export function createClosureAnalysis({
     }
     return closure;
   }
-  // loop-variable Identifier name of a `for (... of iterable)` head: `for (const x of ...)` (single
-  // Identifier declarator) or `for (x of ...)` (bare Identifier). null for a destructure / member target
-  // (`for (const { a } of ...)` / `for (o.f of ...)`) - not a single leak-analyzable binding
-  function forOfLoopVarName(left) {
-    if (left?.type === 'VariableDeclaration') {
-      const id = left.declarations?.length === 1 ? left.declarations[0].id : null;
-      return id?.type === 'Identifier' ? id.name : null;
-    }
-    return left?.type === 'Identifier' ? left.name : null;
-  }
   // a destructuring LHS (`{ x: obj.f }` / `[obj.f]`) with a MEMBER target slot: the destructure stores a
   // matched value into that member - a member store with an uncertain holder. shared `forEachPatternWriteMember`
   // enumerates the member targets the bare-Identifier checks miss (same surface the module-field index uses)
@@ -496,7 +486,7 @@ export function createClosureAnalysis({
         // `for (const x of [{...}]) {}` / `for (x of [{...}])`: the iterated array's ELEMENTS bind to the
         // loop variable each round, so the object escapes iff that binding leaks (`sink(x)`). a for-IN
         // iterates KEYS (strings), never the elements, so it never exposes the object (stays the `default`
-        // local). a non-Identifier loop target (destructure / member) can't be leak-analyzed -> escape.
+        // local). Destructures follow their targets through the same closure as declarations.
         // the iteration consumes the leading array slot, so the loop var carries the anon's path WITHIN the
         // element (`for (o of [{ wrap: {...} }]) sink(o.wrap)` -> the element's `wrap` slot is held)
         case 'ForOfStatement': {
@@ -504,11 +494,12 @@ export function createClosureAnalysis({
           // the object ITSELF as the iteration source binds nothing: with no iterator of its own the
           // loop throws before the body runs, so the head consumes it exactly like a `for...in` head
           if (!fieldPath.length && !mayIterateItself(objectPath.node)) return local();
-          const loopVar = forOfLoopVarName(parent.left);
-          const closure = loopVar
-            && carrierBindingClosure(parentPath.scope, loopVar, objectPath, fieldPath.slice(1), receiverClosure, valueRead);
-          pendingCarrier ??= closure || null;
-          return closure ? local() : null;
+          const left = parentPath.get('left');
+          const targetPath = parent.left?.type === 'VariableDeclaration' ? left.get('declarations')[0].get('id') : left;
+          const target = bindingTargetClosure(targetPath.node, targetPath, parentPath.scope,
+            objectPath, fieldPath.slice(1), receiverClosure, valueRead);
+          pendingCarrier ??= target.closure ?? null;
+          return target.leaks ? null : local();
         }
         // the object is a DEFAULT value (`function f(o = {...})` param default / `const { x = {...} } = src`
         // destructure default). it binds to the default's TARGET, so a held read of the nested anon's slot

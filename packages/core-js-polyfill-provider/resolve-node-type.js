@@ -35,6 +35,8 @@ import {
   varInitStaleByRedecl,
   wrapScopeBindingLookup,
   isBareUndefinedIdentifier,
+  noReassignmentReachesUsage,
+  patternSlotHasDefault,
   peelTSParenthesized,
   walkAstNodes,
 } from './helpers/ast-patterns.js';
@@ -1367,7 +1369,11 @@ function createResolveNodeType(babelNodeType, t, {
       // declared union. uses `findPrecedingBlockAssignment` (relative to use site) rather
       // than `findLastStraightLineAssignment` (relative to var-scope) so assignments nested
       // in conditional blocks still apply when the use site shares the same block
-      if (binding.constantViolations?.length) {
+      const { path: bindingPath } = binding;
+      const initPath = followableVarInit(bindingPath);
+      const violations = binding.constantViolations?.length
+        ? binding.constantViolations.filter(v => !isOwnBindingWrite(v, bindingPath)) : null;
+      if (violations?.length) {
         const lastAssign = findPrecedingBlockAssignment(binding, path);
         if (lastAssign?.node?.type === 'AssignmentExpression' && lastAssign.node.operator === '=') {
           const { left } = lastAssign.node;
@@ -1390,15 +1396,34 @@ function createResolveNodeType(babelNodeType, t, {
           }
           break;
         }
+        if (initPath && noReassignmentReachesUsage({
+          reassignmentNodes: violations.map(v => v.node), usagePath: path,
+          bindingScopeNode: binding.scope?.block ?? binding.scope?.path?.node,
+          bindingAnchor: { decl: binding.path.node, kind: binding.kind },
+        })) {
+          path = initPath;
+          continue;
+        }
         break;
       }
-      const { path: bindingPath } = binding;
-      const initPath = followableVarInit(bindingPath);
       if (initPath) {
         path = initPath;
         continue;
       }
-      const elementPath = forXHeadElementPath(bindingPath);
+      if (bindingPath.node.init && bindingPath.node.id?.type === 'ArrayPattern'
+        && !patternSlotHasDefault(bindingPath.node.id, path.node.name)) {
+        // Only positional captures carry a whole value. Field extractions keep the field-flow
+        // fold, which can include writes and live defaults absent from the literal initializer.
+        const keys = findPatternKeyPath(bindingPath.node.id, path.node.name, bindingPath.scope);
+        const captured = keys?.every(key => typeof key === 'number' && key >= 0)
+          && followKeyPathInRhs(bindingPath.get('init'), keys);
+        if (captured?.node) {
+          path = captured;
+          continue;
+        }
+      }
+      // A relocated head's source binding must not follow the generated identifier that replaced it.
+      const elementPath = bindingPath.node.id?.name === path.node.name && forXHeadElementPath(bindingPath);
       if (elementPath) {
         path = elementPath;
         continue;
@@ -1421,22 +1446,24 @@ function createResolveNodeType(babelNodeType, t, {
       || isDestructurePattern(bindingPath.node.id)) return null;
     const elements = forOfHeadElements(bindingPath, { sameCallee: true });
     if (!elements?.length) return null;
-    // ... and only where that element is a VALUE the source spells inline. An element that NAMES a
-    // binding is one the walk reaches through the binding's own declaration anyway, and standing on
-    // the name here instead re-anchors every read below it at the loop - which is a different
-    // question, since a slot under a binding is reachable to a writer where one under an inline
-    // literal is not, and the answer flipped a claim to native (`of [pair]`)
-    if (unwrapRuntimeExpr(elements[0])?.type === 'Identifier') return null;
+    // Local containers keep their binding-aware slot flow. A proven global constructor or realm
+    // has the same surface at the element read and at each loop-body use.
     const loop = forXHeadLoopPath(bindingPath);
     const literal = unwrapRuntimeExpr(loop?.node?.right);
     const literalPath = literal ? walkPathToNode(loop.get('right'), literal) : null;
     if (!literalPath) return null;
+    const first = positionalElementPath(literalPath, 0);
+    if (unwrapRuntimeExpr(elements[0])?.type === 'Identifier') {
+      const globalName = first && resolveGlobalName(anchorPathScope(first));
+      if (!globalName || (!POSSIBLE_GLOBAL_OBJECTS.has(globalName) && !resolveKnownConstructor(globalName))) return null;
+      return first;
+    }
     // ... and a LONGER literal answers only where its own COMMON TYPE resolves. The shared primitive's
     // agreement is about the claims below a SLOT, not about the value a walk standing ON the binding
     // reads - `['a', 42]` reads the same to every static below and is still two values - so the type
     // ladder answers that half itself, with the same question it answers for any array literal
     if (elements.length > 1 && !resolveArrayLiteralCommonType(literalPath)) return null;
-    return literalPath.get('elements')?.[0] ?? null;
+    return first;
   }
 
   // returns the init path to follow for `const X = init` style bindings, or null when:
@@ -2014,6 +2041,7 @@ function createResolveNodeType(babelNodeType, t, {
     resolveArrayLiteralCommonType,
     findBindingAnnotation,
     bindingDestructuringPattern,
+    isOwnBindingWrite,
     resolveAnnotatedMember,
     resolveAnnotatedMemberPath,
     resolveForOfResolvedElement,
@@ -2457,6 +2485,13 @@ function createResolveNodeType(babelNodeType, t, {
   // --- Entry / public API ---
   let resolveCache = new WeakMap();
 
+  // Pre-mutation Type cache for plugin-side rewrites: Babel mutates the AST in-place, so
+  // when a sibling rewrite later re-resolves a node whose CallExpression callee was swapped
+  // (`arr.concat(x)` -> `_concatMaybeArray(arr).call(arr, x)`), the new shape isn't recognized
+  // by `resolveNodeTypeExpression`. Emitters stash the resolved Type here BEFORE mutation;
+  // resolveNodeTypeExpression hits this WeakMap first. WeakMap (vs node-attached property)
+  // avoids polluting AST nodes - sibling plugins iterate `node` own-properties / clone via
+  // `Object.assign`-style merges; an opaque side-channel won't leak into their pipelines.
   // {get,set} bundle around `resolvedTypeCache` - closure indirection so per-file `reset()`
   // re-binding propagates to consumers (direct WeakMap export would leave stale refs). declared
   // ahead of every closing use so the binding can never be read before its initializer runs
@@ -2515,17 +2550,10 @@ function createResolveNodeType(babelNodeType, t, {
     resolveGeneratorTypeParam,
   });
   const { resolveNodeTypeExpression, installedPrototypeFamilies } = expressionDispatchCluster;
-  // pre-mutation Type cache for plugin-side rewrites: babel mutates the AST in-place, so
-  // when a sibling rewrite later re-resolves a node whose CallExpression callee was swapped
-  // (`arr.concat(x)` -> `_concatMaybeArray(arr).call(arr, x)`), the new shape isn't recognized
-  // by `resolveNodeTypeExpression`. emitters stash the resolved Type here BEFORE mutation;
-  // resolveNodeTypeExpression hits this WeakMap first. WeakMap (vs node-attached property)
-  // avoids polluting AST nodes - sibling plugins iterate `node` own-properties / clone via
-  // `Object.assign`-style merges; an opaque side-channel won't leak into their pipelines
-  // rebuild per-file to bound memory and drop retained entries from previous parses
+  // Rebuild per-file to bound memory and drop retained entries from previous parses
   // (WeakMap is GC-safe, but rebuilding makes the memory footprint deterministic).
   //
-  // INVARIANT: all caches below MUST be node-keyed (WeakMap, NodePath identity). cross-
+  // INVARIANT: all per-file caches MUST be node-keyed (WeakMap, NodePath identity). cross-
   // program-state retention only matters when a Node identity is reused across parses,
   // which Babel's parser doesn't do (fresh AST per file). reset() runs at parser-level
   // entry (per-file). adding a NEW cache here means: (a) declare let-binding above, (b)
@@ -2774,7 +2802,8 @@ function createResolveNodeType(babelNodeType, t, {
   // same points of their dispatch, so a rewrite cannot leave one leg narrower than the other
   function primeDestructureReceiverTypes(prop) {
     let host = prop?.parentPath;
-    while (host?.node && host.node.type !== 'VariableDeclarator' && host.node.type !== 'AssignmentExpression') {
+    while (host?.node && host.node.type !== 'VariableDeclarator' && host.node.type !== 'AssignmentExpression'
+      && host.node.type !== 'ForOfStatement' && host.node.type !== 'ForInStatement') {
       host = host.parentPath;
     }
     const pattern = host?.node ? host.get(host.node.type === 'VariableDeclarator' ? 'id' : 'left') : null;
@@ -2797,68 +2826,36 @@ function createResolveNodeType(babelNodeType, t, {
   // LITERAL that slot is a path this walk can descend - the same read a declarator host performs.
   // where every element provably LACKS the hop, the pattern's own default is what runs, and its
   // type is the answer; an annotated iterable has no path to walk and keeps the element type.
-  // only a literal-OBJECT element is a path this walk may descend: anything else (a binding, a
-  // call) is a value other routes own, and resolving it HERE answers their question out of turn
+  // Literal slots use their value paths; a builtin prototype uses the shared surface walk.
   function forOfElementSlotType(forOfPath, keyPath, slotDefault) {
     if (!keyPath?.length) return NO_SLOT_ANSWER;
     const iterated = resolveRuntimeExpression(forOfPath.get('right'));
     const elements = iterated?.node?.type === 'ArrayExpression'
-      ? cachedContainerPaths(iterated, 'elements').filter(item => item?.node) : [];
+      ? cachedContainerPaths(iterated, 'elements') : [];
     const values = elements.map(element => resolveRuntimeExpression(element));
     // the head may destructure an ARRAY wrapper first (`for (const [{ y }] of [[{ y: [5] }]])`): a numeric
     // step descends the element literal the way the object step descends a property
     const literalElements = values.length !== 0 && values.every(value => typeof keyPath[0] === 'number'
       ? t.isArrayExpression(value?.node) : t.isObjectExpression(value?.node));
     if (slotDefault?.node && literalElements && typeof keyPath[0] !== 'number'
+      && elements.every(element => !pathSlotWritten(element, keyPath))
       && values.every(value => !findObjectMember(value, keyPath[0]))) {
       return resolveNodeType(slotDefault);
     }
-    if (!literalElements) return NO_SLOT_ANSWER;
+    if (!literalElements) {
+      return values.length ? foldUnionTypes(elements, element => pathSlotWritten(element, keyPath) ? null
+        : resolveGlobalSurfaceKeyPath(element, keyPath)) : NO_SLOT_ANSWER;
+    }
     // ... and where the hop STANDS, the leaf reads that SLOT of each element, not the element:
     // answering the element type handed a nested claim the plain-object answer, which resolves to
     // no polyfill at all and cost usage-global the module the read needs. a CROSS-FAMILY pair folds
     // to nothing, and nothing is the honest answer - both families have to reach the leaf then
-    let folded = null;
-    for (const value of values) {
-      // the slot is reached the way an EXPRESSION read reaches it - hop by hop, each resolved to
-      // what it HOLDS (a binding's value, a call's return). the member spelling of the same read
-      // answers that way, and a nested claim must not answer less than its own flat twin
-      let slotPath = value;
-      for (const [step, key] of keyPath.entries()) {
-        if (typeof key === 'number') {
-          const element = t.isArrayExpression(slotPath?.node) && key >= 0 ? positionalElementPath(slotPath, key) : null;
-          if (!element) {
-            slotPath = null;
-            break;
-          }
-          slotPath = step === keyPath.length - 1 ? element : resolveRuntimeExpression(element);
-          continue;
-        }
-        const member = t.isObjectExpression(slotPath?.node) ? findObjectMember(slotPath, key) : null;
-        if (!member?.node) {
-          slotPath = null;
-          break;
-        }
-        // the LAST hop is typed AS WRITTEN: a binding names a value the type channel follows on its
-        // own (a call's target, a later write), and peeling it to the runtime expression asks the
-        // narrower question - the flat twin of this read asks the wide one. the hops before it are
-        // peeled, since only a literal can be descended
-        // ... and a GETTER names its value through the RETURN, the reading the member spine takes
-        // one hop up: without it the head of a loop answered nothing where its flat twin answers
-        const next = member.node.kind === 'get' ? getterReturnPath(member)
-          : t.isObjectMethod(member.node) ? member : member.get('value');
-        if (!next?.node) {
-          slotPath = null;
-          break;
-        }
-        slotPath = step === keyPath.length - 1 ? next : resolveRuntimeExpression(next);
-      }
-      const slot = slotPath ? t.isObjectMethod(slotPath.node)
-        ? resolveObjectMember(slotPath.parentPath, keyPath.at(-1)) : resolveNodeType(slotPath) : null;
-      if (!slot) return null;
-      folded = folded ? commonType(folded, slot) : slot;
-    }
-    return folded;
+    return foldUnionTypes(elements, element => {
+      // Keep the source binding as the field-flow anchor: a resolved literal alone loses
+      // writes made through that name. Numeric slots and getter returns share the member walk.
+      const slot = resolveObjectMemberPath(resolveRuntimeExpression(element), keyPath, element);
+      return slot ?? (pathSlotWritten(element, keyPath) ? null : resolveGlobalSurfaceKeyPath(element, keyPath));
+    });
   }
 
   // does the literal the init spells leave the slot a pattern level's DEFAULT pairs provably undefined
@@ -3261,6 +3258,7 @@ function createResolveNodeType(babelNodeType, t, {
     resolveGuardHints,
     resolveNodeType,
     resolvePropertyObjectType,
+    resolveForOfResolvedElement,
     forgetDestructureReceiverTypes,
     primeDestructureReceiverTypes,
     resolvePropertyUnionHints,
