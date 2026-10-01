@@ -145,22 +145,23 @@ for (const [{
 // still extracts: the relocated pattern reads the iterated literal's element, not the minted name
 // (a pattern the source wrote that way reads the same), and a primitive slot differing per pass
 // carries no claim
-for (const _ref of [{
-  w: Object,
+for (const {
+  w: {
+    entries: viaDualBesideData
+  },
+  at: viaDataBeside
+} of [{
+  w: {
+    entries: _Object$entries
+  },
   at: 1
-}]) {
-  const viaDualBesideData = _Object$entries;
-  const {
-    at: viaDataBeside
-  } = _ref;
-  [viaDualBesideData, viaDataBeside];
-}
-for (const _ref2 of [{
+}]) [viaDualBesideData, viaDataBeside];
+for (const _ref of [{
   w: Object,
   y: [1]
 }]) {
   const viaDualBesideInstance = _Object$values;
-  const viaInstanceBeside = _atMaybeArray(_ref2.y);
+  const viaInstanceBeside = _atMaybeArray(_ref.y);
   [viaDualBesideInstance, viaInstanceBeside];
 }
 for (const viaWritten of [{
@@ -198,15 +199,15 @@ for (const {
 }, {
   w: [userObj]
 }]) viaOtherValue;
-for (const _ref5 of [{
+for (const _ref4 of [{
   w: Object
 }, {
   v: Object
 }]) {
   const {
-      w: _ref4
-    } = _ref5,
-    viaOtherKey = _ref4 === Object ? _Object$seal : _ref4.seal;
+      w: _ref3
+    } = _ref4,
+    viaOtherKey = _ref3 === Object ? _Object$seal : _ref3.seal;
   viaOtherKey;
 }
 for (const {
@@ -239,16 +240,16 @@ for (const {
   },
   z: 2
 }]) viaExtraSlot;
-for (const _ref7 of [{
+for (const _ref6 of [{
   w: Object
 }, {
   w: Object,
   ...more
 }]) {
   const {
-      w: _ref6
-    } = _ref7,
-    viaSpread = _ref6 === Object ? _Object$fromEntries : _ref6.fromEntries;
+      w: _ref5
+    } = _ref6,
+    viaSpread = _ref5 === Object ? _Object$fromEntries : _ref5.fromEntries;
   viaSpread;
 }
 for (const [{
@@ -266,9 +267,9 @@ for (const viaLater of [{
 
 // an emptied SOLE host with a pure init leaves on both legs, the wrapper husk included; a neighbour
 // element that runs lifts as a statement ahead, in source order (the `push` claims are carriers)
-let _ref9 = rec;
-let viaEmptiedObject = _entries(_ref9.w);
-let viaEmptiedObjectAt = _at(_ref9.y);
+let _ref8 = rec;
+let viaEmptiedObject = _entries(_ref8.w);
+let viaEmptiedObjectAt = _at(_ref8.y);
 [viaEmptiedObject, viaEmptiedObjectAt];
 const viaEmptiedWrap = _values(rec.w);
 const viaEmptiedWrapAt = _at(rec.y);
@@ -286,13 +287,13 @@ const known = {
   w: Object,
   y: [1]
 };
-const [_ref10] = [known, _pushMaybeArray(log).call(log, 's')];
+const [_ref9] = [known, _pushMaybeArray(log).call(log, 's')];
 const {
   w: {
     is: _unused
   }
-} = _ref10;
+} = _ref9;
 const viaEmptiedStatic = _Object$is;
-const viaEmptiedStaticAt = _atMaybeArray(_ref10.y);
+const viaEmptiedStaticAt = _atMaybeArray(_ref9.y);
 [viaEmptiedStatic, viaEmptiedStaticAt];
 export { viaEmptiedObject, viaEmptiedWrap, viaEmptiedEffect, viaEmptiedLead, viaEmptiedStatic };

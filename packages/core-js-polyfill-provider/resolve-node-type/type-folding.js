@@ -374,7 +374,7 @@ export function createTypeFolding({
     return !!node && NULLABLE_NEVER_ANNOTATIONS.has(node.type);
   }
 
-  // unified fold: resolve each member, classify via `classify(resolved)`:
+  // cluster-private unified fold: resolve each member, classify via `classify(resolved)`:
   //   FOLD (2) - contribute to commonType
   //   SKIP (1) - skip member, track as fallback for all-skipped case
   //   BAIL (0) - abort, return null
@@ -463,9 +463,6 @@ export function createTypeFolding({
     return isTypeObject(inner) && !isNullableOrNever(inner) ? inner : null;
   }
 
-  // cluster-private: `foldTypes` (generic fold engine; only `foldUnionTypes` /
-  // `foldIntersectionTypes` / `resolveTupleInner` invoke it); the tuple member peels it reads
-  // (`isTupleRestElement` / `unwrapTupleMember`) are the shared ast-patterns canon
   // fold the per-arm answers of a union whose arms are ALTERNATIVES OF ONE VALUE - a callee that
   // is one of several signatures, and so on. nullish arms drop out; an arm nothing can resolve
   // sinks the whole answer; the survivors must converge, because the value could be any of them
