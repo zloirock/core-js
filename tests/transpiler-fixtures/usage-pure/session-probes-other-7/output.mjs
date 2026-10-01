@@ -161,17 +161,16 @@ function mark(t, v) {
     {
       p: _ref2
     } = _ref,
-    _ref3 = _ref2,
-    m2 = null == _ref3 ? _ref3[""] : (eff.push('key'), _flatMaybeArray(_ref3)),
+    m2 = null == _ref2 ? _ref2[""] : (eff.push('key'), _flatMaybeArray(_ref2)),
     {
       other2
-    } = _ref3;
+    } = _ref2;
   use(qq, m2, other2);
 }
 {
   const {
       root: {
-        Array: _ref4
+        Array: _ref3
       }
     } = {
       root: {
@@ -179,25 +178,25 @@ function mark(t, v) {
         ...more
       }
     },
-    f = _ref4 === Array ? _Array$from : _ref4.from;
+    f = _ref3 === Array ? _Array$from : _ref3.from;
 }
 {
   const {
-    w: _ref5
+    w: _ref4
   } = {
     w: [[1]]
   };
-  const [_ref6] = _ref5;
-  const at = _atMaybeArray(_ref6);
+  const [_ref5] = _ref4;
+  const at = _atMaybeArray(_ref5);
 }
 {
   const {
-    w: _ref7
+    w: _ref6
   } = {
     w: [[1, 2]]
   };
-  const [_ref8] = _ref7;
-  const m = _atMaybeArray(_ref8);
+  const [_ref7] = _ref6;
+  const m = _atMaybeArray(_ref7);
   use(m);
 }
 {
@@ -274,8 +273,19 @@ function mark(t, v) {
   use(m, rest);
 }
 {
-  const _ref9 = {
+  const _ref8 = {
     z: 1,
+    w: tick('w', _globalThis)
+  };
+  const m = _at(_ref8.w.Array.prototype);
+  const {
+    z
+  } = _ref8;
+  use(m, z);
+}
+{
+  const _ref9 = {
+    z: tick('z', 1),
     w: tick('w', _globalThis)
   };
   const m = _at(_ref9.w.Array.prototype);
@@ -286,24 +296,13 @@ function mark(t, v) {
 }
 {
   const _ref10 = {
-    z: tick('z', 1),
-    w: tick('w', _globalThis)
-  };
-  const m = _at(_ref10.w.Array.prototype);
-  const {
-    z
-  } = _ref10;
-  use(m, z);
-}
-{
-  const _ref11 = {
     w: _globalThis,
     z: 5
   };
-  const besideSibling = _mapMaybeArray(_ref11.w.Array.prototype);
+  const besideSibling = _mapMaybeArray(_ref10.w.Array.prototype);
   const {
     z
-  } = _ref11;
+  } = _ref10;
   use(besideSibling, z);
 }
 {

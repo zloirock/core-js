@@ -14,5 +14,5 @@ const method = M === _Map ? _Map$groupBy : M.groupBy,
   {
     at: other
   } = _ref,
-  nm = null == _ref ? _ref[""] : _nameMaybeFunction(_ref);
+  nm = _nameMaybeFunction(_ref);
 use(method, other, nm);

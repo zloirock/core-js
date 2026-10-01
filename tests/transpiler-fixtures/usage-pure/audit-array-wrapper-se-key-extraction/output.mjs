@@ -16,6 +16,5 @@ const {
   } = {
     y: arr
   },
-  _ref2 = _ref,
-  at = null == _ref2 ? _ref2[""] : ((c2++, 'a') + 't', _atMaybeArray(_ref2));
+  at = null == _ref ? _ref[""] : ((c2++, 'a') + 't', _atMaybeArray(_ref));
 export const r = [from, at, other, c1, c2];

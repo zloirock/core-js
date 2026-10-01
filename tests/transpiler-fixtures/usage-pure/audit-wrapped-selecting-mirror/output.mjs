@@ -67,8 +67,7 @@ const {
     w: [c ? Object : userObj]
   },
   [_ref3] = _ref2,
-  _ref4 = _ref3,
-  viaKeyedArray = null == _ref4 ? _ref4[""] : _ref4 === Object ? _Object$values : _values(_ref4);
+  viaKeyedArray = _ref3 === Object ? _Object$values : _values(_ref3);
 const [{
   w: {
     sign: viaArrayKeyed
@@ -115,12 +114,12 @@ const [{
 }] = [...[c ? {
   hasOwn: _Object$hasOwn
 } : userObj]];
-const [, _ref5] = [...[0], c ? {
+const [, _ref4] = [...[0], c ? {
   getOwnPropertyNames: _Object$getOwnPropertyNames
 } : userObj];
 const {
   getOwnPropertyNames: viaSpreadAhead
-} = _ref5;
+} = _ref4;
 const {
   w: {
     is: viaSpreadLevel

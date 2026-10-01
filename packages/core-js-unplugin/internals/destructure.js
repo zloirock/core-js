@@ -92,6 +92,7 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 
 import {
+  assignmentValueDiscarded,
   computedKeyHasSideEffects,
   forOfHeadIterableElements,
   getFallbackBranchSlots,
@@ -1418,10 +1419,17 @@ export default function createAstDestructureEmitter({
       primeDestructureReceiverTypes?.(metaPath);
       if (unwrapExportedHost(restHost.parentPath)) return true;
       const declaration = restHost.parentPath;
+      const pendingJobs = queuedJobsFor(restHost)?.jobs ?? [];
+      // Earlier queued reads can declare this same receiver in their original statement slot.
+      const deferredReceiver = restPlan.claimedProps?.size && assignmentValueDiscarded(restHost)
+        && pendingJobs.some(job => job.readsReceiver) && pendingJobs.every(job => !job.bodyless);
       const rendered = renderRetainedObjectCapture(restPlan, {
         mintRef: mintRefName,
         mintDeclaredRef: () => injector.generateDeclaredRef(metaPath),
-        injectImport: injectPureImport, entry, hintName,
+        mintReceiverRef: deferredReceiver ? mintRefName : undefined,
+        injectImport: injectPureImport,
+        entry,
+        hintName,
         mintUnused: declared => declared ? injector.declareUnusedRef(metaPath) : mintUnusedName(),
         claimProperties: properties => { for (const item of properties) skippedNodes.add(item); },
         noteStaticAlias: (name, aliasEntry) => injectorState.registerBodyExtractAlias(name, aliasEntry, metaPath.scope.getBinding(name)),
@@ -1437,17 +1445,23 @@ export default function createAstDestructureEmitter({
         retireHostPrefixLift(restHost);
         const holder = rendered.expression.expressions?.[0];
         if (restPlan.claimedProps?.size && holder?.type === 'AssignmentExpression' && holder.right === restPlan.init) {
-          for (const job of queuedJobsFor(restHost)?.jobs ?? []) job.receiverHolder = holder;
+          for (const job of pendingJobs) {
+            job.receiverHolder = holder;
+            if (deferredReceiver) job.receiverExpression = rendered.expression;
+          }
         }
         restHost.replaceWith(rendered.expression);
       } else {
         const sourceType = resolveNodeType(restHost.get('init'));
-        if (sourceType) resolvedType?.set(rendered.declarations[0].id, sourceType);
-        // Another pattern in this declaration still owns a drain. Keep the captured
-        // group together until that sibling places its own memo and extractions.
-        if (declaration.node.declarations.some(node => node !== restHost.node
+        if (sourceType && rendered.refName && rendered.declarations[0].id.name === rendered.refName) {
+          resolvedType?.set(rendered.declarations[0].id, sourceType);
+        }
+        // A shared capture owns its complete ordered group. Other sibling patterns also keep
+        // the inserted tail together until their drains place their memos and extractions.
+        const captured = !!(restPlan.capture || capturedSiblingHosts.has(restHost.node));
+        if (captured || declaration.node.declarations.some(node => node !== restHost.node
           && (node.id.type === 'ArrayPattern' || node.id.type === 'ObjectPattern'))) {
-          for (const node of rendered.declarations.slice(1)) capturedSiblingHosts.add(node);
+          for (const node of rendered.declarations.slice(captured ? 0 : 1)) capturedSiblingHosts.add(node);
         }
         // A queued flatten restructures the declarator the capture replaces; the leaf's claim is
         // re-detected on the declarator that holds it now and queues its flatten there.

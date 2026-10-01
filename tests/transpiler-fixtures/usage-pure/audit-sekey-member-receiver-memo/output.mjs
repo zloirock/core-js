@@ -45,9 +45,8 @@ const _ref5 = {
   {
     p: _ref6
   } = _ref5,
-  _ref7 = _ref6,
-  m2 = null == _ref7 ? _ref7[""] : (_pushMaybeArray(eff).call(eff, 'key'), _flatMaybeArray(_ref7)),
+  m2 = null == _ref6 ? _ref6[""] : (_pushMaybeArray(eff).call(eff, 'key'), _flatMaybeArray(_ref6)),
   {
     other2
-  } = _ref7;
+  } = _ref6;
 export const r5 = [typeof m2, typeof other2, qq, _joinMaybeArray(eff).call(eff, ',')];

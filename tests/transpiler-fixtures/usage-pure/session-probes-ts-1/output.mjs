@@ -245,18 +245,16 @@ function mark(t, v) {
     {
       [(eff('k'), 'w' as string)]: _ref8
     } = null == _ref9 ? _ref9[""] : _ref9,
-    _ref10 = _ref8,
-    a = null == _ref10 ? _ref10[""] : _at(_ref10);
+    a = _at(_ref8);
 }
 {
-  const _ref12 = {
+  const _ref11 = {
       w: src
     } as any,
     {
-      [(eff('k'), 'w')]: _ref11
-    } = null == _ref12 ? _ref12[""] : _ref12,
-    _ref13 = _ref11,
-    a = null == _ref13 ? _ref13[""] : _at(_ref13);
+      [(eff('k'), 'w')]: _ref10
+    } = null == _ref11 ? _ref11[""] : _ref11,
+    a = _at(_ref10);
 }
 {
   const at = _atMaybeArray([1, 2]);
@@ -269,14 +267,14 @@ function mark(t, v) {
   use(m, z);
 }
 {
-  const _ref14 = {
+  const _ref12 = {
     w: [1, 2] as any,
     z: 1
   };
-  const m = _atMaybeArray(_ref14.w);
+  const m = _atMaybeArray(_ref12.w);
   const {
     z
-  } = _ref14;
+  } = _ref12;
   use(m, z);
 }
 {

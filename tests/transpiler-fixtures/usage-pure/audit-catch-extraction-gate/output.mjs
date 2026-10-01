@@ -74,10 +74,12 @@ try {
 try {
   f9();
 } catch (_ref5) {
-  const _ref6 = _ref5.data;
-  let a2 = _at(_ref6);
   let {
-    length
-  } = _ref6;
+      data: _ref6
+    } = _ref5,
+    a2 = _at(_ref6),
+    {
+      length
+    } = _ref6;
   use(a2, length);
 }

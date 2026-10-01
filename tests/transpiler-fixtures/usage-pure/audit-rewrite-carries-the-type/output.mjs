@@ -10,11 +10,13 @@ const flattenMemo = function () {
   const nb = {
     y: [1, 2]
   };
-  const _ref = nb.y;
-  const at = _atMaybeArray(_ref);
   const {
-    other
-  } = _ref;
+      y: _ref
+    } = nb,
+    at = _atMaybeArray(_ref),
+    {
+      other
+    } = _ref;
   return [at, other];
 }();
 const wrapperElement = function () {
@@ -46,15 +48,16 @@ const catchParam = function () {
   }
 }();
 const crossFamilyFold = function () {
-  var _ref4;
   const nb = {
     y: [1, 2]
   };
-  const _ref5 = (_ref4 = nb.y) === void 0 ? 'ab' : _ref4;
-  const at = _at(_ref5);
   const {
-    other
-  } = _ref5;
+      y: _ref4 = 'ab'
+    } = nb,
+    at = _at(_ref4),
+    {
+      other
+    } = _ref4;
   return [at, other];
 }();
 export { flattenMemo, wrapperElement, loopHead, catchParam, crossFamilyFold };

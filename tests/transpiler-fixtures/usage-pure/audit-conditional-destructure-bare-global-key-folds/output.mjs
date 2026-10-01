@@ -6,7 +6,7 @@ import _Set from "@core-js/pure/actual/set/constructor";
 // against the selected constructor, and the key retains its global polyfill.
 const cond = true;
 const _ref = cond ? Array : _Iterator,
-  from = null == _ref ? _ref[""] : _ref === Array ? _Array$from : _ref === _Iterator ? _Iterator$from : _ref["from"],
+  from = _ref === Array ? _Array$from : _ref === _Iterator ? _Iterator$from : _ref.from,
   {
     [_Set]: ctor
   } = _ref;

@@ -6871,7 +6871,10 @@ export function synthPropDedupKey(prop, { scope, path, adapter }) {
   // ... a key named by SCOPE alone (no structural slot: a bound identity call) collapses onto the slot
   // its resolved name spells, as a folded string spelling of that name does; a bound-identifier key
   // keeps its own `[k]` slot beside the plain spelling, the literal carrying both
-  return synthSlotName(prop) ?? (synthSwapPropKey(prop) === null && typeof lookupKey === 'string' ? lookupKey : slotKey);
+  const name = synthSlotName(prop) ?? (synthSwapPropKey(prop) === null && typeof lookupKey === 'string' ? lookupKey : null);
+  // Quote names in the map's reserved namespaces; quote-prefixed names must escape too,
+  // so a user's quoted string cannot collide with the encoding of a bracket-prefixed name.
+  return name === null ? slotKey : name[0] === '[' || name[0] === '"' ? JSON.stringify(name) : name;
 }
 
 // the pattern's synth render plan, computed once per pending: one entry per distinct
@@ -7829,8 +7832,8 @@ export function destructureKeyRunsCode(item) {
 // an extraction behind its residual would overtake.
 // `retainsResult`: the host's value is read, so a chain of sole hops captures even without a key
 // effect; a hop level with siblings stays with the host's own capture, which keeps their claims.
-// `sharedLeaf`: the host has no statement for the flat twin, so a leaf level of several
-// properties over sole hops captures the same way.
+// `sharedLeaf`: a leaf level of several properties over sole hops shares one receiver,
+// retaining declaration reads in order or fitting a host without a statement for the flat twin.
 // `prop`, the claim, picks its own copy of a REPEATED hop key: both copies read one slot, so the
 // other stays a sibling read of it. Distinct hops keep the routes that pair each key with its slot.
 // A claim kind admits only its own leaf: instance or effectful static. Anchored iterator slots keep their raw key read.
@@ -7902,28 +7905,46 @@ export function planNestedKeyedPatternCapture({
 
 // The ordered capture a nested claim takes (`planRetainedObjectCapture` renders it), or null: a static
 // claim under a rest in its leaf level, or on a discarded assignment wherever a leaf-level item runs
-// code and no leaf-level item is claimed yet (`isClaimedProp`); an instance claim of an assignment
-// wherever the chain splits. It writes the leaf level in source order, after every level above it.
+// code and no leaf-level item is claimed yet (`isClaimedProp`); an instance claim where the chain
+// splits. It writes the leaf level in source order, after every level above it.
 // An instance capture over sole hops also takes a host whose value is read, and a leaf level of
-// several properties where the host holds no statement for the flat twin (a discarded sequence
-// element, a bodyless slot) - unless the host runs without a var slot of its own
+// several properties in a declaration or where the host holds no statement for the flat twin
+// (a discarded sequence element, a bodyless slot) - unless it runs without its own var slot.
 export function orderedClaimCapture({
-  pattern, init, prop, kind, entry = null, assignment, meta = null, hostPath = null, isClaimedProp = null,
+  pattern,
+  init,
+  prop,
+  kind,
+  entry = null,
+  assignment,
+  meta = null,
+  hostPath = null,
+  isClaimedProp = null,
+  adapter = null,
 }) {
   if (!prop || !pattern?.properties || pattern.properties.includes(prop)) return null;
   if (kind === 'static' ? !(assignment || hasConstructorEntry(meta?.object)) || !meta?.object || meta.guardedAliasHint
-    : !assignment || kind !== 'instance' || entry === 'get-iterator-method') return null;
+    : kind !== 'instance' || entry === 'get-iterator-method'
+      || (!assignment && hostPath?.node?.type !== 'VariableDeclarator')) return null;
   if (kind === 'static') {
     const discarded = assignment && !!hostPath && assignmentValueDiscarded(hostPath);
     const capture = planNestedKeyedPatternCapture({ pattern, init, leafKeyRuns: discarded });
     if (!capture?.leafPattern.properties.includes(prop)) return null;
     return capture.rest || (discarded && capture.leafPattern.properties.every(item => !isClaimedProp?.(item))) ? capture : null;
   }
-  const retainsResult = !!hostPath && !assignmentValueDiscarded(hostPath);
+  const retainsResult = assignment && !!hostPath && !assignmentValueDiscarded(hostPath);
   const statement = hostPath ? peelToExpressionStatement(hostPath)?.exprStmt : null;
-  const sharedLeaf = !!hostPath && (retainsResult || discardedSequenceElement(hostPath)
+  const sharedLeaf = !!hostPath && (!assignment || retainsResult || discardedSequenceElement(hostPath)
     || !!statement && isBodylessStatementSlot(statement.parentPath?.node, statement.node)) && !runsWithoutOwnVarSlot(hostPath);
   const capture = planNestedKeyedPatternCapture({ pattern, init, prop, retainsResult, sharedLeaf });
+  // Several leaves under an iterator slot keep the symbol plan's native result pattern.
+  if (!assignment && capture && (capture.leafPattern.properties.some(item => isClaimedProp?.(item))
+    || capture.leafPattern.properties.length > 1 && capture.ancestors.some(level => level.prop.computed && computedKeyWellKnownSymbolName({
+      keyNode: level.prop.key,
+      scope: hostPath?.scope,
+      path: hostPath,
+      adapter,
+    }) === 'iterator'))) return null;
   return capture?.leafPattern.properties.includes(prop) ? capture : null;
 }
 
@@ -8008,6 +8029,7 @@ export function claimWriteOrderBound({
         assignment,
         meta: claim.meta,
         hostPath: host,
+        adapter,
       });
     },
   });
