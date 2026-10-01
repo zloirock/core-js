@@ -30,12 +30,14 @@ const receiverDefault = function () {
 // answers `it.method` verbatim off a surface that is not the polyfilled one, so it may be undefined
 // and the source's default has to fire
 const claimDefault = function () {
-  var _ref3;
-  const _ref4 = src.y;
-  const at = (_ref3 = _atMaybeArray(_ref4)) === void 0 ? null : _ref3;
+  var _ref4;
   const {
-    other
-  } = _ref4;
+      y: _ref3
+    } = src,
+    at = (_ref4 = _atMaybeArray(_ref3)) === void 0 ? null : _ref4,
+    {
+      other
+    } = _ref3;
   return [at, other];
 }();
 export { callDefault, receiverDefault, claimDefault };

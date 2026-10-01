@@ -13,20 +13,22 @@ const src = {
 };
 const spare = [3];
 const siblings = function () {
-  var _ref;
-  const _ref2 = (_ref = src.y) === void 0 ? spare : _ref;
-  const at = _atMaybeArray(_ref2);
-  const flat = _flatMaybeArray(_ref2);
+  const {
+      y: _ref = spare
+    } = src,
+    at = _atMaybeArray(_ref),
+    flat = _flatMaybeArray(_ref);
   return [typeof at, typeof flat];
 }();
 // ... a plain sibling rides the same memo - it reads the fold, not the receiver a second time
 const withPlainSibling = function () {
-  var _ref3;
-  const _ref4 = (_ref3 = src.y) === void 0 ? spare : _ref3;
-  const at = _atMaybeArray(_ref4);
   const {
-    other
-  } = _ref4;
+      y: _ref2 = spare
+    } = src,
+    at = _atMaybeArray(_ref2),
+    {
+      other
+    } = _ref2;
   return [typeof at, other];
 }();
 // ... and the fold is what makes an EFFECTFUL default expressible at all: the call runs only where
@@ -37,10 +39,13 @@ function raise() {
   return [3];
 }
 const effectfulDefault = function () {
-  var _ref5;
-  const _ref6 = (_ref5 = src.a.b) === void 0 ? raise() : _ref5;
-  const at = _atMaybeArray(_ref6);
-  const flat = _flatMaybeArray(_ref6);
+  const {
+      a: {
+        b: _ref3 = raise()
+      }
+    } = src,
+    at = _atMaybeArray(_ref3),
+    flat = _flatMaybeArray(_ref3);
   return [typeof at, typeof flat, calls];
 }();
 export { siblings, withPlainSibling, effectfulDefault };

@@ -71,23 +71,22 @@ const _ref7 = {
   {
     y: _ref6
   } = _ref7,
-  _ref8 = _ref6,
-  v6 = null == _ref8 ? _ref8[""] : (k6++, _valuesMaybeArray(_ref8)),
+  v6 = null == _ref6 ? _ref6[""] : (k6++, _valuesMaybeArray(_ref6)),
   {
     z6
   } = _ref7;
 export const r6 = [typeof v6, k6, z6];
 // A sole property also captures its RHS before the key effect and reads the method once.
 let k7 = 0;
-var _ref9 = _Promise.prototype ? [9] : [],
-  ks7 = null == _ref9 ? _ref9[""] : (k7++, _keysMaybeArray(_ref9));
+var _ref8 = _Promise.prototype ? [9] : [],
+  ks7 = null == _ref8 ? _ref8[""] : (k7++, _keysMaybeArray(_ref8));
 export const r7 = [typeof ks7, k7];
 // A for-init declaration captures its receiver before the key and later declarators.
 let k8 = 0,
   out8 = '';
-for (var _ref10 = 1 ? [6] : [], e8 = null == _ref10 ? _ref10[""] : (k8++, _entriesMaybeArray(_ref10)), {
+for (var _ref9 = 1 ? [6] : [], e8 = null == _ref9 ? _ref9[""] : (k8++, _entriesMaybeArray(_ref9)), {
     other8
-  } = _ref10, i8 = 0; i8 < 1; i8++) out8 = typeof e8;
+  } = _ref9, i8 = 0; i8 < 1; i8++) out8 = typeof e8;
 export const r8 = [out8, k8];
 // An opaque initializer is captured where the source evaluates it, so each buried effect
 // runs once before the key and property reads.
@@ -97,28 +96,28 @@ function mk9() {
   calls9++;
   return [9];
 }
-var _ref11 = mk9(),
-  a9 = null == _ref11 ? _ref11[""] : (k9++, _atMaybeArray(_ref11)),
+var _ref10 = mk9(),
+  a9 = null == _ref10 ? _ref10[""] : (k9++, _atMaybeArray(_ref10)),
   {
     other9
-  } = _ref11;
+  } = _ref10;
 export const r9 = [typeof a9, k9, calls9];
 // SE-bearing ternary (an effectful branch value)
 let k10 = 0;
-var _ref12 = k10 >= 0 ? _Array$of([1]) : [],
-  f10 = null == _ref12 ? _ref12[""] : (k10++, _flatMaybeArray(_ref12)),
+var _ref11 = k10 >= 0 ? _Array$of([1]) : [],
+  f10 = null == _ref11 ? _ref11[""] : (k10++, _flatMaybeArray(_ref11)),
   {
     other10
-  } = _ref12;
+  } = _ref11;
 export const r10 = [typeof f10, k10];
 // A sequence initializer retains its effectful prefix and selected receiver together.
 let k11 = 0,
   s11 = 0;
-var _ref13 = (s11++, s11 > 0 ? _Array$of(2) : []),
-  inc11 = null == _ref13 ? _ref13[""] : (k11++, _includesMaybeArray(_ref13)),
+var _ref12 = (s11++, s11 > 0 ? _Array$of(2) : []),
+  inc11 = null == _ref12 ? _ref12[""] : (k11++, _includesMaybeArray(_ref12)),
   {
     other11
-  } = _ref13;
+  } = _ref12;
 export const r11 = [typeof inc11, k11, s11];
 // effectful computed-member receiver (getter + key effect each fire once)
 let g12 = 0;
@@ -128,11 +127,11 @@ const holder12 = {
     return [3];
   }
 };
-var _ref14 = holder12[g12++, 'p'],
-  fl12 = null == _ref14 ? _ref14[""] : (g12++, _findLastMaybeArray(_ref14)),
+var _ref13 = holder12[g12++, 'p'],
+  fl12 = null == _ref13 ? _ref13[""] : (g12++, _findLastMaybeArray(_ref13)),
   {
     other12
-  } = _ref14;
+  } = _ref13;
 export const r12 = [typeof fl12, g12];
 let k13 = 0;
 function mk13() {
@@ -150,45 +149,45 @@ const holder14 = {
     return [4];
   }
 };
-var _ref15 = holder14?.get14?.(),
-  f14 = null == _ref15 ? _ref15[""] : (k14++, _flatMaybeArray(_ref15)),
+var _ref14 = holder14?.get14?.(),
+  f14 = null == _ref14 ? _ref14[""] : (k14++, _flatMaybeArray(_ref14)),
   {
     other14
-  } = _ref15;
+  } = _ref14;
 export const r14 = [typeof f14, k14];
 // Proxy navigation collapses inside the captured receiver before its instance read.
 let k15 = 0;
-var _ref16 = _self.Array.prototype,
-  a15 = null == _ref16 ? _ref16[""] : (k15++, _atMaybeArray(_ref16)),
+var _ref15 = _self.Array.prototype,
+  a15 = null == _ref15 ? _ref15[""] : (k15++, _atMaybeArray(_ref15)),
   {
     other15
-  } = _ref16;
+  } = _ref15;
 export const r15 = [typeof a15, k15];
 // An effectful sequence prefix stays with the captured navigation receiver and runs once.
 let k16 = 0,
   s16 = 0;
-var _ref17 = (s16++, _self.Array.prototype),
-  f16 = null == _ref17 ? _ref17[""] : (k16++, _flatMaybeArray(_ref17)),
+var _ref16 = (s16++, _self.Array.prototype),
+  f16 = null == _ref16 ? _ref16[""] : (k16++, _flatMaybeArray(_ref16)),
   {
     other16
-  } = _ref17;
+  } = _ref16;
 export const r16 = [typeof f16, k16, s16];
 // An exported pattern exposes only its source bindings; generated receiver names stay private.
 let k17 = 0;
-var _ref18 = holder17.p,
-  _u17 = null == _ref18 ? _ref18[""] : (k17++, _toSortedMaybeArray(_ref18)),
+var _ref17 = holder17.p,
+  _u17 = null == _ref17 ? _ref17[""] : (k17++, _toSortedMaybeArray(_ref17)),
   {
     other17
-  } = _ref18;
+  } = _ref17;
 export { _u17, other17 };
 export const r17 = [typeof _u17, typeof other17, k17];
 // A multi-declarator export preserves binding order and exposes only the source names.
 let k18 = 0;
-var _ref19 = holder18.p,
-  _u18 = null == _ref19 ? _ref19[""] : (k18++, _values(_ref19)),
+var _ref18 = holder18.p,
+  _u18 = null == _ref18 ? _ref18[""] : (k18++, _values(_ref18)),
   {
     other18
-  } = _ref19,
+  } = _ref18,
   z18 = 1;
 export { _u18, other18, z18 };
 export const r18 = [typeof _u18, typeof other18, z18, k18];
@@ -196,10 +195,10 @@ export const r18 = [typeof _u18, typeof other18, z18, k18];
 // exporting the generated receiver name.
 let k19 = 0;
 var z19 = 1,
-  _ref20 = holder19.p,
-  _u19 = null == _ref20 ? _ref20[""] : (k19++, _keys(_ref20)),
+  _ref19 = holder19.p,
+  _u19 = null == _ref19 ? _ref19[""] : (k19++, _keys(_ref19)),
   {
     other19
-  } = _ref20;
+  } = _ref19;
 export { z19, _u19, other19 };
 export const r19 = [z19, typeof other19, k19];

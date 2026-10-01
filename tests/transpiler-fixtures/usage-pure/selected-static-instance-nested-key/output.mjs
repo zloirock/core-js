@@ -13,8 +13,7 @@ const _ref = {
   {
     w: _ref2
   } = _ref,
-  _ref3 = _ref2,
-  entries = null == _ref3 ? _ref3[""] : (effect(), _ref3 === Object ? _Object$entries : _entries(_ref3)),
+  entries = null == _ref2 ? _ref2[""] : (effect(), _ref2 === Object ? _Object$entries : _entries(_ref2)),
   {
     after
   } = _ref;

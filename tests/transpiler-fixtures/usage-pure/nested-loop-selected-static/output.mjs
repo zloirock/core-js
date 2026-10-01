@@ -20,13 +20,12 @@ export function readBeside(flag, user) {
     } : user],
     v: [1, 2]
   }]) {
-    const _ref2 = _ref;
     const {
       w: [{
         is
       }]
-    } = _ref2;
-    const at = _atMaybeArray(_ref2.v);
+    } = _ref;
+    const at = _atMaybeArray(_ref.v);
     return [is, at];
   }
 }

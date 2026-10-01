@@ -41,7 +41,9 @@ const wrappedAfterAnEffect = function () {
 // declaration. The bodyless variable declaration remains a separate native boundary.
 const wrappedInLoopHead = function () {
   let out;
-  for (const [_ref7, _ref8] = [box, effect()], _ref9 = _ref7.y, at = _atMaybeArray(_ref9), {
+  for (const [_ref7, _ref8] = [box, effect()], {
+      y: _ref9
+    } = _ref7, at = _atMaybeArray(_ref9), {
       other
     } = _ref9, zn = _ref8; !out;) out = [at, other, zn];
   return out;

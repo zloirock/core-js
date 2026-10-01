@@ -17,103 +17,101 @@ let a, b, c, d, e, f, g, h;
 try {
   throw source;
 } catch (_ref) {
-  let _ref3 = _ref;
   let _ref2;
-  let m = (_ref2 = _findIndexMaybeArray(_ref3.codes)) === void 0 ? {
+  let m = (_ref2 = _findIndexMaybeArray(_ref.codes)) === void 0 ? {
     "m": () => -1
   }["m"] : _ref2;
   let {
     other
-  } = _ref3;
+  } = _ref;
   a = [m, other];
 }
 try {
   throw source;
-} catch (_ref4) {
-  let _ref6 = _ref4;
-  let _ref5;
-  let m = (_ref5 = _findIndexMaybeArray(_ref6.codes)) === void 0 ? 1 : _ref5;
+} catch (_ref3) {
+  let _ref4;
+  let m = (_ref4 = _findIndexMaybeArray(_ref3.codes)) === void 0 ? 1 : _ref4;
   let {
     other
-  } = _ref6;
+  } = _ref3;
   b = [m, other];
 }
 try {
   throw source;
-} catch (_ref7) {
-  let _ref8 = _ref7;
+} catch (_ref5) {
   let {
     other
-  } = _ref8;
-  let _ref9;
-  let m = (_ref9 = _findIndexMaybeArray(_ref8.codes)) === void 0 ? {
+  } = _ref5;
+  let _ref6;
+  let m = (_ref6 = _findIndexMaybeArray(_ref5.codes)) === void 0 ? {
     "m": () => -1
-  }["m"] : _ref9;
+  }["m"] : _ref6;
   c = [m, other];
 }
 try {
   throw source;
-} catch (_ref10) {
-  let _ref12 = _ref10;
-  let _ref11;
-  let m = (_ref11 = _findIndexMaybeArray(_ref12.codes)) === void 0 ? {
+} catch (_ref7) {
+  let _ref8;
+  let m = (_ref8 = _findIndexMaybeArray(_ref7.codes)) === void 0 ? {
     "m": () => -1
-  }["m"] : _ref11;
+  }["m"] : _ref8;
   let {
     other: {
       x
     }
-  } = _ref12;
+  } = _ref7;
   d = [m, x];
 }
 try {
   throw source;
-} catch (_ref13) {
-  let _ref15 = _ref13;
-  let _ref14;
-  let m = (_ref14 = _findIndexMaybeArray(_ref15.codes)) === void 0 ? {
+} catch (_ref9) {
+  let _ref10;
+  let m = (_ref10 = _findIndexMaybeArray(_ref9.codes)) === void 0 ? {
     "m": () => -1
-  }["m"] : _ref14;
-  let _ref16;
-  let t = (_ref16 = _toFixedMaybeNumber(_ref15.other)) === void 0 ? {
+  }["m"] : _ref10;
+  let _ref11;
+  let t = (_ref11 = _toFixedMaybeNumber(_ref9.other)) === void 0 ? {
     "t": () => 0
-  }["t"] : _ref16;
+  }["t"] : _ref11;
   e = [m, t];
 }
 try {
   throw source;
-} catch (_ref17) {
-  var _ref19;
-  let _ref20 = _ref17;
-  let _ref18;
-  let m = (_ref18 = _findIndexMaybeArray((_ref19 = _ref20.codes) === void 0 ? {} : _ref19)) === void 0 ? {
+} catch (_ref12) {
+  var _ref14;
+  let _ref13;
+  let m = (_ref13 = _findIndexMaybeArray((_ref14 = _ref12.codes) === void 0 ? {} : _ref14)) === void 0 ? {
     "m": () => -1
-  }["m"] : _ref18;
+  }["m"] : _ref13;
   let {
     other
-  } = _ref20;
+  } = _ref12;
   f = [m, other];
 }
 try {
   throw source;
-} catch (_ref21) {
-  const _ref23 = _ref21.codes;
-  let _ref22;
-  let m = (_ref22 = _findIndexMaybeArray(_ref23)) === void 0 ? {
-    "m": () => -1
-  }["m"] : _ref22;
-  let k = _keys(_ref23);
+} catch (_ref15) {
+  var _ref17;
+  let {
+      codes: _ref16
+    } = _ref15,
+    m = (_ref17 = _findIndexMaybeArray(_ref16)) === void 0 ? {
+      "m": () => -1
+    }["m"] : _ref17,
+    k = _keys(_ref16);
   g = [m, k];
 }
 try {
   throw source;
-} catch (_ref24) {
-  const _ref26 = _ref24.codes;
-  let _ref25;
-  let m = (_ref25 = _findIndexMaybeArray(_ref26)) === void 0 ? {
-    "m": class {}
-  }["m"] : _ref25;
-  let k = _keys(_ref26);
+} catch (_ref18) {
+  var _ref20;
+  let {
+      codes: _ref19
+    } = _ref18,
+    m = (_ref20 = _findIndexMaybeArray(_ref19)) === void 0 ? {
+      "m": class {}
+    }["m"] : _ref20,
+    k = _keys(_ref19);
   h = [m, k];
 }
 export { a, b, c, d, e, f, g, h };

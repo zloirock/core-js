@@ -94,7 +94,7 @@ var _ref16 = [1],
   {
     [(k++, 'of')]: o7
   } = _ref16,
-  a7 = null == _ref16 ? _ref16[""] : (k++, _atMaybeArray(_ref16)),
+  a7 = (k++, _atMaybeArray(_ref16)),
   {
     m7b
   } = _ref16;

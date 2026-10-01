@@ -6,9 +6,8 @@ const {
   } = {
     x: Array
   },
-  _ref2 = _ref,
   f = (effectful(), _Array$from),
   {
     "from": _unused,
     ...rest
-  } = _ref2;
+  } = _ref;
