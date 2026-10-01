@@ -9,7 +9,7 @@ Runners, harnesses and fixture tooling are Node `^22.18.0 || >=24.11.0`, mostly 
 | Directory | Command | Covers |
 |---|---|---|
 | `unit-global/`, `unit-pure/` | `npm run test-unit-node`, `test-unit-karma`, `test-unit-bun`, `test-unit-deno` | QUnit tests, one file per polyfill module |
-| `unit-node/`, `karma/`, `unit-bun/`, `unit-deno/`, `unit-browser/` | the runners above | environments the unit bundles run in: Node, browsers via Karma and Playwright, Bun, Deno, and static HTML pages for manual runs. `karma/` holds the browser stack every browser leg in the repo shares - the config, the Playwright launcher, the retry policy and the install behind them - and one runner per suite beside them |
+| `unit-node/`, `karma/`, `unit-bun/`, `unit-deno/`, `unit-browser/` | the runners above | environments the unit bundles run in: Node, browsers via Karma and Playwright, Bun, Deno, and static HTML pages for manual runs. `karma/` holds the browser stack every browser leg in the repo shares - the config, the Playwright launcher, the retry policy and the install behind them - and one runner per suite beside them, with a configuration of its own built on the shared one where a suite needs it |
 | `saucelabs/` | `npm run test-saucelabs -- <URL of a branch directory> [commit]`, `test-saucelabs-runner` | the `unit-browser` pages in the Sauce Labs browsers that CI lacks, run by the Pages workflow after the deploy; the runner's own tests run without a session |
 | `e2e-usage-pure/` | `npm run test-e2e-usage-pure`, `test-e2e-usage-pure-karma` | runtime behavior of polyfilled code after transformation |
 | `transpiler-fixtures/` | the two plugin runners below | shared input/output fixtures for both emitters |
