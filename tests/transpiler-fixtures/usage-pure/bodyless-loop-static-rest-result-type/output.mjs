@@ -2,12 +2,11 @@ import _Array$from from "@core-js/pure/actual/array/from";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 // A relocated head keeps its scope and the extracted static's result type.
 for (const _ref of [Array]) {
-  var _ref3;
-  const _ref2 = _ref,
-    make = _Array$from,
+  var _ref2;
+  const make = _Array$from,
     {
       from: _unused,
       ...rest
-    } = _ref2;
-  use(_atMaybeArray(_ref3 = make([1, 2])).call(_ref3, -1), rest);
+    } = _ref;
+  use(_atMaybeArray(_ref2 = make([1, 2])).call(_ref2, -1), rest);
 }

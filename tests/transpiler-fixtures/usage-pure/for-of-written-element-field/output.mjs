@@ -6,9 +6,11 @@ const row = {
   w: [0, 2]
 };
 row.w = '02';
-for (const _ref of [row]) {
-  const _ref2 = _ref.w;
-  const at = _at(_ref2);
-  const includes = _includes(_ref2);
+for (const _ref2 of [row]) {
+  const {
+      w: _ref
+    } = _ref2,
+    at = _at(_ref),
+    includes = _includes(_ref);
   use(at.call('02', -1), includes.call('02', '02'));
 }

@@ -46,13 +46,15 @@ const m2 = _flatMaybeArray(_ref2.prototype);
 const {
   foo: r2
 } = _ref2;
-const _ref3 = KE.A;
-const _ref4 = _ref3.prototype;
-const m3 = _withMaybeArray(_ref4);
-const f3 = _toSortedMaybeArray(_ref4);
-const {
-  bar: a3
-} = _ref3;
+const _ref4 = KE.A,
+  {
+    prototype: _ref3
+  } = _ref4,
+  m3 = _withMaybeArray(_ref3),
+  f3 = _toSortedMaybeArray(_ref3),
+  {
+    bar: a3
+  } = _ref4;
 const _ref5 = OE.A;
 const m4 = _findLastMaybeArray(_ref5.prototype);
 const a4 = _Array$fromAsync;

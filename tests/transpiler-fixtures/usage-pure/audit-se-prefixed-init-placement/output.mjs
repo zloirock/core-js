@@ -18,9 +18,11 @@ const {
     from: _Array$from
   }
 });
-effect();
-const twoA = _withMaybeArray(_globalThis.Array.prototype);
-const twoB = _entriesMaybeArray(_globalThis.Array.prototype);
+const {
+    prototype: _ref
+  } = (effect(), _globalThis.Array),
+  twoA = _withMaybeArray(_ref),
+  twoB = _entriesMaybeArray(_ref);
 const {
   Array: {
     prototype: {

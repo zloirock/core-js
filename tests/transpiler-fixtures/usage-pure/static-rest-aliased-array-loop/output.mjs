@@ -4,12 +4,11 @@ const source = [Array];
 let result;
 for (const _ref2 of [source]) {
   const [_ref] = _ref2,
-    _ref3 = _ref,
     from = _Array$from,
     {
       from: _unused,
       ...rest
-    } = _ref3;
+    } = _ref;
   result = from([1]);
 }
 export { result };

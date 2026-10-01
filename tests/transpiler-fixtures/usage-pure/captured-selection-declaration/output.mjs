@@ -4,6 +4,6 @@ import _Array$from from "@core-js/pure/actual/array/from";
 export function read(shim) {
   var _ref;
   let from;
-  const host = (_ref = shim || Array, from = _ref === Array ? _Array$from : _ref["from"], _ref);
+  const host = (_ref = shim || Array, from = _ref === Array ? _Array$from : _ref.from, _ref);
   return [host, from];
 }

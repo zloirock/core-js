@@ -12,31 +12,39 @@ const deep = {
   }
 };
 const leafSiblings = function () {
-  const _ref = box.y;
-  const at = _atMaybeArray(_ref);
   const {
-    other
-  } = _ref;
+      y: _ref
+    } = box,
+    at = _atMaybeArray(_ref),
+    {
+      other
+    } = _ref;
   return [at, other];
 }();
 const hostSibling = function () {
-  const _ref2 = box;
-  const _ref3 = _ref2.y;
-  const at = _atMaybeArray(_ref3);
-  const {
-    other
-  } = _ref3;
-  const {
-    keep
-  } = _ref2;
+  const _ref3 = box,
+    {
+      y: _ref2
+    } = _ref3,
+    at = _atMaybeArray(_ref2),
+    {
+      other
+    } = _ref2,
+    {
+      keep
+    } = _ref3;
   return [at, other, keep];
 }();
 const twoHops = function () {
-  const _ref4 = deep.a.b;
-  const at = _atMaybeArray(_ref4);
   const {
-    other
-  } = _ref4;
+      a: {
+        b: _ref4
+      }
+    } = deep,
+    at = _atMaybeArray(_ref4),
+    {
+      other
+    } = _ref4;
   return [at, other];
 }();
 export { leafSiblings, hostSibling, twoHops };

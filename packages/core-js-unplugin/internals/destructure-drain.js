@@ -1293,7 +1293,10 @@ export default function createDestructureDrains(ctx) {
     }
     // Keep shared declaration nodes alive until every sibling's queued job has drained.
     for (const [declaration, body] of pendingSplits) {
-      splitMultiDeclaratorHost({ declaration, body, markRewrite });
+      // An emitted binding keeps its capture group; a pending pattern still needs the ordinary split.
+      if (declaration.declarations.every(node => !capturedSiblingHosts.has(node) || node.id.type !== 'Identifier')) {
+        splitMultiDeclaratorHost({ declaration, body, markRewrite });
+      }
     }
     pendingSplits.clear();
     const jobHostSiblings = jobHostSiblingDeclarators(ledger);
@@ -3045,8 +3048,9 @@ export default function createDestructureDrains(ctx) {
     const probeLead = discardedRead ? null : renderDiscardedInitProbe(jobs, probeRenderCtx);
     // the receiver read by an extraction AND by the surviving residual memoizes once - the
     // verdict needs the residual as it survives, so the values re-render onto the ref here
-    const memoRef = assignmentMemoRef(assignment, jobs, mintRefName, { adapter, injectorState });
     const holder = jobs[0].receiverHolder;
+    const [{ receiverExpression }] = jobs;
+    const memoRef = receiverExpression ? holder.left.name : assignmentMemoRef(assignment, jobs, mintRefName, { adapter, injectorState });
     const memoDecl = memoRef ? [variableDeclaration('const',
       [variableDeclarator(identifier(memoRef), holder?.right ?? assignment.right)])] : [];
     if (memoRef) {
@@ -3054,7 +3058,10 @@ export default function createDestructureDrains(ctx) {
         [...flatExtracted, ...nestedExtracted][index].expression.right = job.value(memoRef);
       }
       assignment.right = identifier(memoRef);
-      if (holder) holder.right = identifier(memoRef);
+      if (receiverExpression) {
+        // Its capture moved to the leading declaration; this discarded host owes only its writes.
+        replaceNodeInTree(body[at], receiverExpression, sequenceExpression(receiverExpression.expressions.slice(1, -1)));
+      } else if (holder) holder.right = identifier(memoRef);
     }
     // an INNER-rest hop re-anchors: the outer hop drops, the inner pattern reads the hop
     // nav directly (`({ Object: { k: _unused, ...inner } } = g)` ->

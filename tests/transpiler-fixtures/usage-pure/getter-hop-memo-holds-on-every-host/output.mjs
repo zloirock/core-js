@@ -59,12 +59,20 @@ n++;
 const _ref6 = KE.P;
 export const s5 = _Promise$withResolvers;
 export const nm5 = _nameMaybeFunction(_ref6);
-const _ref7 = KE.P;
-const nm8 = _nameMaybeFunction(_ref7);
-const s8 = _Promise$allSettled;
-const _ref8 = KE.P;
-let nm9 = _nameMaybeFunction(_ref8);
-let s9 = _Promise$any;
+const {
+    M: _ref7
+  } = {
+    M: KE.P
+  },
+  nm8 = _nameMaybeFunction(_ref7),
+  s8 = _Promise$allSettled;
+let {
+    M: _ref8
+  } = {
+    M: KE.P
+  },
+  nm9 = _nameMaybeFunction(_ref8),
+  s9 = _Promise$any;
 const s6 = _at((n++, h.m));
 let s7, f7;
 const _ref9 = (n++, g());

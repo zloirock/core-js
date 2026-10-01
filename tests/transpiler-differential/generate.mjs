@@ -15167,6 +15167,124 @@ function * generateSelectedDestructureReadOrder() {
   }
 }
 
+// A saved element keeps its value, while a repeated activation may capture another family.
+// Whole-string includes differs from array includes even when at returns the same last character.
+function * generatePositionalCaptureActivations() {
+  for (const kind of ['let', 'var']) for (const [family, init, replacement] of [
+    ['array', '[0, 2]', '"02"'],
+    ['string', '"02"', '[0, 2]'],
+  ]) for (const frame of ['same', 'closure', 'loop', 'reentry']) {
+    const read = '[saved.at(-1), saved.includes("02")]';
+    const body = frame === 'loop'
+      ? `${ kind } value = ${ init }; const out = []; for (let i = 0; i < 2; i++) {
+          const [saved] = [value]; out.push(${ read }); value = ${ replacement };
+        } return out;`
+      : frame === 'reentry'
+        ? `${ kind } value = ${ init }; function read() {
+            const [saved] = [value]; value = ${ replacement }; return ${ read };
+          } return [read(), read()];`
+        : `${ kind } value = ${ init }; const [saved] = [value]; value = ${ replacement };
+          return ${ frame === 'closure' ? `(() => ${ read })()` : read };`;
+    yield { ...snippet(`positional-capture-activations/${ kind }/${ family }/${ frame }`, `(() => { ${ body } })()`), strip: true };
+  }
+}
+
+// An element reached through a named holder observes field writes, unlike an inline initializer.
+// Creating a previously absent field also invalidates the pattern's initializer-only default proof.
+function * generateForOfWrittenElementFields() {
+  for (const [writer, setup] of [
+    ['direct', 'const row = { w: [0, 2] }; row.w = "02";'],
+    ['alias', 'const row = { w: [0, 2] }; const alias = row; alias.w = "02";'],
+    ['created', 'const row = {}; row.w = "02";'],
+  ]) for (const host of ['declaration', 'assignment']) {
+    const pattern = '{ w: { at, includes } = [0, 2] }';
+    const head = host === 'declaration' ? `const ${ pattern }` : pattern;
+    const body = `${ setup } const out = []; ${ host === 'assignment' ? 'let at, includes;' : '' }
+      for (${ head } of [row]) out.push(at.call("02", -1), includes.call("02", "02"));
+      return out;`;
+    // Assignment default mirrors retain the supplied slot; the global stripped leg observes
+    // its receiver-family injection. Declaration hosts also extract that arm in pure mode.
+    yield { ...snippet(`for-of-written-element-fields/${ writer }/${ host }`, `(() => { ${ body } })()`), strip: host === 'declaration' };
+  }
+}
+
+// Every retained host keeps its original receiver while a getter rebinds the source alias.
+// Recursive entry captures a different object without changing the outer activation's reads.
+function * generateRetainedReceiverReentry() {
+  const hosts = {
+    declaration: init => `const { other, at } = ${ init }; return [other, at()];`,
+    assignment: init => `let other, at; ({ other, at } = ${ init }); return [other, at()];`,
+    catch: init => `try { throw ${ init }; } catch ({ other, at }) { return [other, at()]; }`,
+    array: init => `const [{ other, at }] = [${ init }]; return [other, at()];`,
+    nested: init => `const { row: { other, at } } = { row: ${ init } }; return [other, at()];`,
+    'nested-leading': init => `const { row: { at, other } } = { row: ${ init } }; return [other, at()];`,
+    'nested-alias': init => `const box = { row: ${ init } }; const { row: { other, at } } = box; return [other, at()];`,
+    'nested-alias-leading': init => `const box = { row: ${ init } }; const { row: { at, other } } = box; return [other, at()];`,
+    bodyless: init => `if (true) var { other, at } = ${ init }; return [other, at()];`,
+  };
+  for (const [host, bind] of Object.entries(hosts)) for (const wrapped of [false, true]) {
+    for (const reentry of [false, true]) {
+      const init = wrapped ? '(log.push(label + ":receiver"), source)' : 'source';
+      yield {
+        name: `retained-receiver-reentry/${ host }/${ wrapped }/${ reentry }`,
+        code: `const log = []; function make(label) {
+          return {
+            get other() { log.push(label + ':other'); this.onRead(); return label; },
+            get at() { log.push(label + ':at'); return () => label; }
+          };
+        } export function read(label, input) {
+          let source = input;
+          input.onRead = () => {
+            if (${ reentry } && label === 'outer') read('inner', make('inner'));
+            source = { at: () => 'replacement' };
+          }; ${ bind(init) }
+        } export const r = read('outer', make('outer')); export const effects = log;`,
+        strip: true,
+      };
+    }
+  }
+  // String spellings resembling a symbol label still require the nested instance polyfill.
+  for (const [spelling, prefix, key] of [
+    ['computed', '', '["[@@iterator]"]'],
+    ['plain', '', '"[@@iterator]"'],
+    ['alias', 'const key = "[@@iterator]";', '[key]'],
+  ]) for (const [family, receiver] of [['array', '[0, 1, 2]'], ['string', '"012"']]) {
+    yield {
+      name: `retained-receiver-reentry/string-key/${ spelling }/${ family }`,
+      code: `const log = []; export function read(input, row) {
+        ${ prefix } const { ${ key }: { other, at } } = input;
+        return [other, at.call(row, -1)];
+      } const row = ${ receiver };
+      export const r = read({ get '[@@iterator]'() { log.push('row'); return row; } }, row);
+      export const effects = log;`,
+      strip: true,
+    };
+  }
+  // A default mirror reads a symbol slot and a same-looking string slot independently.
+  // Effectful default keys share the pending receiver-mirror order gap; their native
+  // assertions remain in the two symbol-label skips in destructuring-inner-default-hosts.
+  const skipHosts = new Set(['direct/effect', 'alias/effect']);
+  for (const [symbol, prefix, key] of [
+    ['direct', '', '[Symbol.iterator]'],
+    ['alias', 'const { iterator: symbolKey } = Symbol;', '[symbolKey]'],
+  ]) for (const [spelling, stringKey] of [
+    ['plain', '"[@@iterator]"'],
+    ['computed', '["[@@iterator]"]'],
+    ['effect', '[(log.push("key"), "[@@iterator]")]'],
+  ]) {
+    if (skipHosts.has(`${ symbol }/${ spelling }`)) continue;
+    yield {
+      name: `retained-receiver-reentry/distinct-symbol-string/${ symbol }/${ spelling }`,
+      code: `const log = []; const row = [0, 1, 2]; ${ prefix }
+        Object.defineProperty(row, '[@@iterator]', { get() { log.push('tag'); return 7; } });
+        function read({ ${ key }: iter, ${ stringKey }: tag, at } = row) {
+          return [tag, at.call(row, -1), iter.call(row).next().value];
+        } export const r = read(); export const effects = log;`,
+      strip: true,
+    };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateUnbackedSequenceHops();
@@ -15431,45 +15549,5 @@ export function * generate() {
   yield * generateSelectedDestructureReadOrder();
   yield * generatePositionalCaptureActivations();
   yield * generateForOfWrittenElementFields();
-}
-
-// A saved element keeps its value, while a repeated activation may capture another family.
-// Whole-string includes differs from array includes even when at returns the same last character.
-function * generatePositionalCaptureActivations() {
-  for (const kind of ['let', 'var']) for (const [family, init, replacement] of [
-    ['array', '[0, 2]', '"02"'],
-    ['string', '"02"', '[0, 2]'],
-  ]) for (const frame of ['same', 'closure', 'loop', 'reentry']) {
-    const read = '[saved.at(-1), saved.includes("02")]';
-    const body = frame === 'loop'
-      ? `${ kind } value = ${ init }; const out = []; for (let i = 0; i < 2; i++) {
-          const [saved] = [value]; out.push(${ read }); value = ${ replacement };
-        } return out;`
-      : frame === 'reentry'
-        ? `${ kind } value = ${ init }; function read() {
-            const [saved] = [value]; value = ${ replacement }; return ${ read };
-          } return [read(), read()];`
-        : `${ kind } value = ${ init }; const [saved] = [value]; value = ${ replacement };
-          return ${ frame === 'closure' ? `(() => ${ read })()` : read };`;
-    yield { ...snippet(`positional-capture-activations/${ kind }/${ family }/${ frame }`, `(() => { ${ body } })()`), strip: true };
-  }
-}
-
-// An element reached through a named holder observes field writes, unlike an inline initializer.
-// Creating a previously absent field also invalidates the pattern's initializer-only default proof.
-function * generateForOfWrittenElementFields() {
-  for (const [writer, setup] of [
-    ['direct', 'const row = { w: [0, 2] }; row.w = "02";'],
-    ['alias', 'const row = { w: [0, 2] }; const alias = row; alias.w = "02";'],
-    ['created', 'const row = {}; row.w = "02";'],
-  ]) for (const host of ['declaration', 'assignment']) {
-    const pattern = '{ w: { at, includes } = [0, 2] }';
-    const head = host === 'declaration' ? `const ${ pattern }` : pattern;
-    const body = `${ setup } const out = []; ${ host === 'assignment' ? 'let at, includes;' : '' }
-      for (${ head } of [row]) out.push(at.call("02", -1), includes.call("02", "02"));
-      return out;`;
-    // Assignment default mirrors retain the supplied slot; the global stripped leg observes
-    // its receiver-family injection. Declaration hosts also extract that arm in pure mode.
-    yield { ...snippet(`for-of-written-element-fields/${ writer }/${ host }`, `(() => { ${ body } })()`), strip: host === 'declaration' };
-  }
+  yield * generateRetainedReceiverReentry();
 }

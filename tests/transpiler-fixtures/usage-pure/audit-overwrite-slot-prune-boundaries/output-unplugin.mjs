@@ -7,7 +7,7 @@ import _flatMapMaybeArray from "@core-js/pure/actual/array/instance/flat-map";
 import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 import _globalThis from "@core-js/pure/actual/global-this";
 
-var _ref, _ref2, _ref3, _ref4;
+var _ref, _ref2, _ref3;
 declare const userNs: { Array: { prototype: number[] } };
 
 let dropped,
@@ -44,11 +44,10 @@ wrapped = _flatMapMaybeArray(_ref.Array.prototype);
 (
 	_ref2 = { Array: { prototype: _ref3 } } = _globalThis,
 	(
-		_ref4 = _ref3,
-		null == _ref4
-			? _ref4[""]
-			: (effect(), computed = _includesMaybeArray(_ref4)),
-		_ref4
+		null == _ref3
+			? _ref3[""]
+			: (effect(), computed = _includesMaybeArray(_ref3)),
+		_ref3
 	),
 	_ref2
 );

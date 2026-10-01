@@ -11,7 +11,7 @@ function read(flag) {
       groupBy: 9
     }
   };
-  const source = (_ref = flag ? own : _globalThis, C = _ref === _globalThis ? _Map : _ref["Map"], _ref);
+  const source = (_ref = flag ? own : _globalThis, C = _ref === _globalThis ? _Map : _ref.Map, _ref);
   return [source === (flag ? own : _globalThis), typeof (C === _Map ? _Map$groupBy : C.groupBy)];
 }
 export const result = [read(true), read(false)];

@@ -10,44 +10,48 @@ const nested = {
   top: 4
 };
 // Siblings on both sides keep their reads around the nested hop.
-const [_ref] = [nested];
-const _ref2 = _ref;
+const [_ref] = [nested],
+  {
+    lead
+  } = _ref,
+  {
+    y: _ref2
+  } = _ref,
+  flat = _flatMaybeArray(_ref2),
+  {
+    extra
+  } = _ref2,
+  {
+    top
+  } = _ref;
+// A following sibling retains its native read after the captured nested properties.
+const [_ref3] = [nested];
 const {
-  lead
-} = _ref2;
-const _ref3 = _ref2.y;
-const flat = _flatMaybeArray(_ref3);
-const {
-  extra
+  y: _ref4
 } = _ref3;
-const {
-  top
-} = _ref2; // A following sibling retains its native read after the captured nested properties.
-const [_ref4] = [nested];
-const {
-  y: _ref5
-} = _ref4;
-const flatA = _flatMaybeArray(_ref5);
+const flatA = _flatMaybeArray(_ref4);
 const {
   extra: extraA
-} = _ref5;
+} = _ref4;
 const {
   top: topA
-} = _ref4;
+} = _ref3;
 // A preceding sibling reads before the nested hop.
-const [_ref6] = [nested];
-const _ref7 = _ref6;
-const {
-  lead: leadB
-} = _ref7;
-const _ref8 = _ref7.y;
-const flatB = _flatMaybeArray(_ref8);
-const {
-  extra: extraB
-} = _ref8; // ... and the SOLE-hop host still normalizes: the element takes the nav, the pattern the leaf
-const _ref9 = nested.y;
-const flatSole = _flatMaybeArray(_ref9);
+const [_ref5] = [nested],
+  {
+    lead: leadB
+  } = _ref5,
+  {
+    y: _ref6
+  } = _ref5,
+  flatB = _flatMaybeArray(_ref6),
+  {
+    extra: extraB
+  } = _ref6;
+// ... and the SOLE-hop host still normalizes: the element takes the nav, the pattern the leaf
+const _ref7 = nested.y;
+const flatSole = _flatMaybeArray(_ref7);
 const [{
   extra: extraSole
-}] = [_ref9];
+}] = [_ref7];
 export { lead, flat, extra, top, flatA, extraA, topA, leadB, flatB, extraB, flatSole, extraSole };

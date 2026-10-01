@@ -26,8 +26,7 @@ const _ref2 = _globalThis,
   {
     prototype: _ref3
   } = _ref,
-  _ref4 = _ref3,
-  values = null == _ref4 ? _ref4[""] : _valuesMaybeArray(_ref4);
+  values = _valuesMaybeArray(_ref3);
 const {
   [(eff(2), 'Array')]: {
     of
