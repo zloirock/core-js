@@ -136,28 +136,20 @@ export function reportRuntimeTally({ redSnapshots, failed, cells, ok }) {
 }
 
 export function announceBrowserRun(pages) {
-  echo(green(`\n${ cyan(pages) } page(s), one bundle each. ${ cyan('post') }, ${ cyan('pre+post') }`
-    + ` and ${ cyan('entry-global') } gate the job; unplugin's ${ cyan('pre') } is a per-library diagnostic -`));
+  echo(green(`\n${ cyan(pages) } page(s) in one karma session, each in an iframe of its own, after two isolation controls.`
+    + ` ${ cyan('post') }, ${ cyan('pre+post') } and ${ cyan('entry-global') } gate the job; unplugin's ${ cyan('pre') } is a per-library diagnostic -`));
   echo(green('it runs before Babel, so it can miss Babel-helper polyfills, and a red one is the signal we want.'));
   echo(green(`A library may also declare a method it cannot pass here (${ cyan('libraries.mjs') }); its cells are reported without gating.`));
   echo(green(`Per-cell counts print as ${ cyan('"[e2e-libs] <lib>/<provider>/<method>[/<phase>]: N/N checks passed"') }.`));
 }
 
-// which diagnostic a non-gating cell is: unplugin's `pre`, or a method the library declared it
-// cannot pass in the browsers (`libraries.mjs`, reason in the exercise header)
-function browserDiagnosticKind(cell) {
-  return cell.phase === 'pre' ? 'pre diagnostic' : 'declared browser diagnostic';
-}
-
-export function announceBrowserCell(cell) {
-  echo(green(`\n-- ${ cyan(cell.label) }${ cell.gatesInBrowsers ? '' : yellow(` [${ browserDiagnosticKind(cell) }, not gating]`) } --`));
-}
-
-// karma has printed the failure itself; what this adds is a line the matrix-wide tally traces back to
-export function reportBrowserCell(cell) {
-  if (cell.gatesInBrowsers) echo(red(`  FAIL ${ cyan(cell.label) } in the browsers`));
-  else if (cell.phase === 'pre') echo(yellow(`  ${ preDiagnostic(`${ cyan(cell.label) } is red`) }`));
-  else echo(yellow(`  declared browser diagnostic ${ cyan(cell.label) } is red - why it was declared is in its exercise header; not gating`));
+// karma has printed the failure itself; what this adds is a line the matrix-wide tally traces back to,
+// and which browsers it was red in - one session runs them all, so its exit code cannot say
+export function reportBrowserCell(cell, browsers) {
+  const where = `in ${ browsers.join(', ') }`;
+  if (cell.gatesInBrowsers) echo(red(`  FAIL ${ cyan(cell.label) } ${ where }`));
+  else if (cell.phase === 'pre') echo(yellow(`  ${ preDiagnostic(`${ cyan(cell.label) } is red ${ where }`) }`));
+  else echo(yellow(`  declared browser diagnostic ${ cyan(cell.label) } is red ${ where } - why it was declared is in its exercise header; not gating`));
 }
 
 export function reportBrowserTally({ failed, pages }) {

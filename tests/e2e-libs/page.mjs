@@ -1,6 +1,6 @@
-// The artifact page of a cell, and the per-cell data both page programs read. The programs themselves
-// are hand-written ES5 under `harness/` - real files, so eslint reads them - and the two rules that
-// bind them are in `AGENTS.md`, next to what puts them under eslint at all.
+// The artifact page of a cell, its frame for the browser leg, and the per-cell data both read. The
+// programs are hand-written ES5 under `harness/` - real files, so eslint reads them - and the two
+// rules that bind them are in `AGENTS.md`, next to what puts them under eslint at all.
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { ARTIFACTS, HERE } from './paths.mjs';
@@ -14,7 +14,7 @@ const PAGE = {
   fail: 'red',
 };
 
-const RUN_TIMEOUT_MS = 20_000;
+export const RUN_TIMEOUT_MS = 20_000;
 
 // `expected` is the pre-flight's label SEQUENCE, not its count: a branch that stopped executing and
 // another that started cancel out in a count.
@@ -68,7 +68,25 @@ function html(cell, checks, bannerProgram) {
 `;
 }
 
-// three files describing ONE build, written together and only on the success path - which is why a
+// The browser leg's page of a cell: its bundle alone in a realm of its own, which the driver
+// (`harness/qunit.js`) loads into an iframe and reads the verdict of. `trap.js` comes first, so a
+// bundle that throws while it loads is reported by what it threw. The harness is reached RELATIVELY -
+// up through the cell's segments to `artifacts/`, then one more - because karma serves a file outside
+// its basePath under a path that differs by platform.
+function frameHtml(segments) {
+  const harness = `${ '../'.repeat(segments.length + 1) }harness`;
+  return `<!doctype html>
+<html><head><meta charset="utf-8"></head><body>
+  <script src="${ harness }/trap.js"></script>
+  <script src="bundle.js"></script>
+  <script src="cell.js"></script>
+  <script src="${ harness }/shared.js"></script>
+  <script src="${ harness }/frame.js"></script>
+</body></html>
+`;
+}
+
+// four files describing ONE build, written together and only on the success path - which is why a
 // run clears what it is about to rebuild before it starts
 export async function writeCell(cell, code, checks) {
   const dir = join(ARTIFACTS, ...cell.segments);
@@ -76,4 +94,5 @@ export async function writeCell(cell, code, checks) {
   await writeFile(join(dir, 'bundle.js'), code);
   await writeFile(join(dir, 'cell.js'), cellScript(cell.label, checks.map(check => check.label)));
   await writeFile(join(dir, 'index.html'), html(cell, checks, BANNER));
+  await writeFile(join(dir, 'frame.html'), frameHtml(cell.segments));
 }

@@ -2820,10 +2820,10 @@ export default [
     },
   },
   {
-    // the two page programs of tests/e2e-libs and the helper they share: hand-written ES5, loaded
+    // the page programs of tests/e2e-libs and the helper they share: hand-written ES5, loaded
     // into a browser by a `<script>`, and nothing at run time checks either property. `es5` alone as
     // the built-in set, so `no-undef` answers for a name the floor does not have as well as for one
-    // nothing declares - the suite's own globals are the three below
+    // nothing declares - the suite's own globals are the two below
     files: [
       'tests/e2e-libs/harness/*.js',
     ],
