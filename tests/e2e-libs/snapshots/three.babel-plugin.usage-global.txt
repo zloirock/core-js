@@ -57,6 +57,7 @@ core-js/modules/es.iterator.constructor
 core-js/modules/es.iterator.filter
 core-js/modules/es.iterator.find
 core-js/modules/es.iterator.for-each
+core-js/modules/es.iterator.includes
 core-js/modules/es.iterator.map
 core-js/modules/es.iterator.to-array
 core-js/modules/es.json.stringify
@@ -185,7 +186,6 @@ core-js/modules/esnext.async-iterator.map
 core-js/modules/esnext.async-iterator.to-array
 core-js/modules/esnext.data-view.get-uint8-clamped
 core-js/modules/esnext.data-view.set-uint8-clamped
-core-js/modules/esnext.iterator.includes
 core-js/modules/esnext.number.clamp
 core-js/modules/web.dom-collections.for-each
 core-js/modules/web.dom-collections.iterator
