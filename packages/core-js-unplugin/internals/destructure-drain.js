@@ -234,6 +234,8 @@ export default function createDestructureDrains(ctx) {
     program,
     resolveGlobalPolyfill,
     resolvePropertyObjectType,
+    primeDestructureReceiverTypes,
+    resolveForOfResolvedElement,
     resolveProxyNavReceiver,
     resolveProxyNavStatic,
     resolvePure,
@@ -3440,7 +3442,9 @@ export default function createDestructureDrains(ctx) {
     if (declarator.init || !declarator.id || declarator.id.type === 'Identifier') return;
     const idPath = assignment ? path.get('left') : path.get('left').get('declarations')[0].get('id');
     const typeProbe = firstPatternProp(idPath);
-    const elementType = typeProbe ? resolvePropertyObjectType?.(typeProbe) ?? null : null;
+    if (typeProbe) primeDestructureReceiverTypes?.(typeProbe);
+    const elementType = path.node.type === 'ForOfStatement' ? resolveForOfResolvedElement?.(path) ?? null
+      : typeProbe ? resolvePropertyObjectType?.(typeProbe) ?? null : null;
     const plan = planCatchClauseExtraction({
       paramNode: declarator.id,
       bodyNode: body,

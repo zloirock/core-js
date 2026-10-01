@@ -1,13 +1,13 @@
 import _Array$from from "@core-js/pure/actual/array/from";
+import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
-import _at from "@core-js/pure/actual/instance/at";
 // a static beside a nested instance leaf over a loop-head binding: the leaf's flatten takes the
 // nested level, so the static extracts flat beside it on both legs - the pair renders once, never a
 // second copy beside a capture (a duplicate declaration and a dangling ref)
 const out = [];
 for (const R of [Array]) {
   const _ref = R.prototype;
-  const at = _at(_ref);
+  const at = _atMaybeArray(_ref);
   const {
     length
   } = _ref;

@@ -69,6 +69,14 @@ function imports(code) {
 // the effect-bearing sequence around a nav, the same inside a store, and the seal shapes whose
 // decisions were already dialect-aware (they stay in the list as the negative half of the gate)
 const CASES = [
+  ['positional capture before a later name rebind',
+    'let value = [0, 2]; const [saved] = ([((value))]); value = "02"; export const r = saved.includes("02");'],
+  ['constructor element with two prototype leaves',
+    'for (const C of [((Array))]) { const { prototype: { at, includes } } = (C); use(at, includes); }'],
+  ['nested constructor surface under a parenthesized element',
+    'for (const { w: { prototype: { at, includes } } } of [(({ w: ((Array)) }))]) use(at, includes);'],
+  ['typed constructor element with two prototype leaves',
+    'for (const { prototype: { at, includes } } of [(Array as ArrayConstructor)]) use(at, includes);', ['typescript']],
   ['nested assignment off a parenthesized call',
     'const getBox = () => ({ data: [1, 2] }); let at; ({ data: { at } } = (getBox()));'],
   ['optional carrier method followed by an alias write',
