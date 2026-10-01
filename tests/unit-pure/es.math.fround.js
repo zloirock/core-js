@@ -1,6 +1,6 @@
 import { createConversionChecker } from '../helpers/helpers.js';
 
-import fround from 'core-js-pure/es/math/fround';
+import fround from '@core-js/pure/es/math/fround';
 
 const { MAX_VALUE, MIN_VALUE } = Number;
 

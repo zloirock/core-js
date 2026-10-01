@@ -1,0 +1,7 @@
+// HKT splice through two alias hops: Wrap2 forwards G/Y to Wrap, then Wrap splices G=Boxed.
+// each hop accumulates subst, the splice fires on the final inner ref where G is bound
+type Boxed<T> = { val: T };
+type Wrap<F, X> = F<X>;
+type Wrap2<G, Y> = Wrap<G, Y>;
+declare const x: Wrap2<Boxed, string[]>;
+x.val.at(0);

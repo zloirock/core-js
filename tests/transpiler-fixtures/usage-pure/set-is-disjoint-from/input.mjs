@@ -1,0 +1,1 @@
+setA.isDisjointFrom(setB);

@@ -1,0 +1,7 @@
+// Arrow body with a `'use strict'` directive AND a side-effecting `calls++` before
+// `return Promise`: `factory().resolve(1)` keeps the directive, runs the increment, and
+// the static `.resolve` is replaced through a SequenceExpression so all side effects fire.
+let calls = 0;
+const factory = () => { 'use strict'; calls++; return Promise; };
+const out = factory().resolve(1);
+export { calls, out };

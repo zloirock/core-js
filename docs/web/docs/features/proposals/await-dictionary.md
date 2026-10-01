@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-await-dictionary)
 
 ## Modules
-[`esnext.promise.all-keyed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.promise.all-keyed.js), [`esnext.promise.all-settled-keyed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.promise.all-settled-keyed.js)
+[`esnext.promise.all-keyed`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/esnext.promise.all-keyed.js), [`esnext.promise.all-settled-keyed`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/esnext.promise.all-settled-keyed.js)
 
 ## Built-ins signatures
 ```ts
@@ -24,6 +24,9 @@ core-js/proposals/await-dictionary
 core-js(-pure)/actual|full/promise/all-keyed
 core-js(-pure)/actual|full/promise/all-settled-keyed
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/await-dictionary`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/await-dictionary.d.ts)
 
 ## Examples
 ```js

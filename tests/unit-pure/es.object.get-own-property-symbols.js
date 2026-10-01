@@ -1,7 +1,7 @@
-import create from 'core-js-pure/es/object/create';
-import getOwnPropertyNames from 'core-js-pure/es/object/get-own-property-names';
-import getOwnPropertySymbols from 'core-js-pure/es/object/get-own-property-symbols';
-import Symbol from 'core-js-pure/es/symbol';
+import create from '@core-js/pure/es/object/create';
+import getOwnPropertyNames from '@core-js/pure/es/object/get-own-property-names';
+import getOwnPropertySymbols from '@core-js/pure/es/object/get-own-property-symbols';
+import Symbol from '@core-js/pure/es/symbol';
 
 QUnit.test('Object.getOwnPropertySymbols', assert => {
   assert.isFunction(getOwnPropertySymbols);

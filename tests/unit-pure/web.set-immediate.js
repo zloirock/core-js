@@ -1,7 +1,7 @@
 import { timeLimitedPromise } from '../helpers/helpers.js';
 
-import setImmediate from 'core-js-pure/stable/set-immediate';
-import clearImmediate from 'core-js-pure/stable/clear-immediate';
+import setImmediate from '@core-js/pure/stable/set-immediate';
+import clearImmediate from '@core-js/pure/stable/clear-immediate';
 
 QUnit.test('setImmediate / clearImmediate', assert => {
   assert.isFunction(setImmediate, 'setImmediate is function');

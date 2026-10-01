@@ -1,3 +1,4 @@
+// @types: proposals/relative-indexing-method
 'use strict';
 var $ = require('../internals/export');
 var toObject = require('../internals/to-object');
@@ -14,7 +15,7 @@ $({ target: 'Array', proto: true }, {
     var relativeIndex = toIntegerOrInfinity(index);
     var k = relativeIndex >= 0 ? relativeIndex : len + relativeIndex;
     return (k < 0 || k >= len) ? undefined : O[k];
-  }
+  },
 });
 
 addToUnscopables('at');

@@ -1,3 +1,4 @@
+// @types: proposals/math-sum
 'use strict';
 // based on Shewchuk's algorithm for exactly floating point addition
 // adapted from https://github.com/tc39/proposal-math-sum/blob/3513d58323a1ae25560e8700aa5294500c6c9287/polyfill/polyfill.mjs
@@ -40,6 +41,7 @@ $({ target: 'Math', stat: true }, {
     var count = 0;
     var state = MINUS_ZERO;
 
+    // @dependency: es.array.iterator
     iterate(items, function (n) {
       if (++count > MAX_SAFE_INTEGER) throw new $RangeError('Maximum allowed index exceeded');
       if (typeof n != 'number') throw new $TypeError('Value is not a number');
@@ -147,5 +149,5 @@ $({ target: 'Math', stat: true }, {
     }
 
     return hi;
-  }
+  },
 });

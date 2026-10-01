@@ -6,5 +6,5 @@ var $ = require('../internals/export');
 $({ target: 'Reflect', stat: true }, {
   has: function has(target, propertyKey) {
     return propertyKey in target;
-  }
+  },
 });

@@ -1,0 +1,4 @@
+let from;
+({
+  from
+} = Array);

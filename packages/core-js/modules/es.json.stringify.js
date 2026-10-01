@@ -1,18 +1,16 @@
 'use strict';
 var $ = require('../internals/export');
 var getBuiltIn = require('../internals/get-built-in');
+var getBuiltInStaticMethod = require('../internals/get-built-in-static-method');
 var call = require('../internals/function-call');
 var uncurryThis = require('../internals/function-uncurry-this');
 var fails = require('../internals/fails');
-var isArray = require('../internals/is-array');
 var isCallable = require('../internals/is-callable');
 var isObject = require('../internals/is-object');
-var create = require('../internals/object-create');
 var isRawJSON = require('../internals/is-raw-json');
 var isSymbol = require('../internals/is-symbol');
 var classof = require('../internals/classof-raw');
 var thisNumberValue = require('../internals/this-number-value');
-var includes = require('../internals/array-includes').includes;
 var hasOwn = require('../internals/has-own-property');
 var toString = require('../internals/to-string');
 var parseJSONString = require('../internals/parse-json-string');
@@ -22,16 +20,19 @@ var NATIVE_RAW_JSON = require('../internals/native-raw-json');
 
 var $String = String;
 var $TypeError = TypeError;
-var $stringify = getBuiltIn('JSON', 'stringify');
+var create = Object.create;
+var isArray = Array.isArray;
+var $stringify = JSON.stringify;
 var $BigInt = getBuiltIn('BigInt');
 var stringValueOf = uncurryThis(''.valueOf);
 var booleanValueOf = uncurryThis(true.valueOf);
 var bigIntValueOf = $BigInt && uncurryThis($BigInt.prototype.valueOf);
 var exec = uncurryThis(/./.exec);
-var charAt = uncurryThis(''.charAt);
 var charCodeAt = uncurryThis(''.charCodeAt);
 var replace = uncurryThis(''.replace);
 var slice = uncurryThis(''.slice);
+// eslint-disable-next-line es/no-array-prototype-indexof -- safe
+var indexOf = uncurryThis([].indexOf);
 var push = uncurryThis([].push);
 var pop = uncurryThis([].pop);
 var numberToString = uncurryThis(1.1.toString);
@@ -66,7 +67,7 @@ var ILL_FORMED_UNICODE = fails(function () {
     || $stringify('\uDEAD') !== '"\\udead"';
 });
 
-var isRawJSONValue = NATIVE_RAW_JSON ? getBuiltIn('JSON', 'isRawJSON') : isRawJSON;
+var isRawJSONValue = NATIVE_RAW_JSON ? getBuiltInStaticMethod('JSON', 'isRawJSON') : isRawJSON;
 
 var stringifyWithProperSymbolsConversion = WRONG_SYMBOLS_CONVERSION ? function (it, replacer, space) {
   return $stringify(it, function (key, value) {
@@ -76,8 +77,8 @@ var stringifyWithProperSymbolsConversion = WRONG_SYMBOLS_CONVERSION ? function (
 } : $stringify;
 
 var fixIllFormedJSON = function (match, offset, string) {
-  var prev = charAt(string, offset - 1);
-  var next = charAt(string, offset + 1);
+  var prev = string[offset - 1];
+  var next = string[offset + 1];
   if (
     (exec(leadingSurrogates, match) && !exec(trailingSurrogates, next)) ||
     (exec(trailingSurrogates, match) && !exec(leadingSurrogates, prev))
@@ -149,7 +150,7 @@ var createElementHolder = function (holder, key) {
         var elementToJSON = element.toJSON;
         if (isCallable(elementToJSON)) element = call(elementToJSON, element, key);
       } return element;
-    }
+    },
   };
 };
 
@@ -177,7 +178,8 @@ var createOrderedObject = function (value, propertyList, keyPrefix) {
 // `JSON.stringify` method
 // https://tc39.es/ecma262/#sec-json.stringify
 // https://github.com/tc39/proposal-json-parse-with-source
-if ($stringify) $({ target: 'JSON', stat: true, arity: 3, forced: WRONG_SYMBOLS_CONVERSION || ILL_FORMED_UNICODE || !NATIVE_RAW_JSON }, {
+// @dependency: es.date.to-json
+$({ target: 'JSON', stat: true, arity: 3, forced: WRONG_SYMBOLS_CONVERSION || ILL_FORMED_UNICODE || !NATIVE_RAW_JSON }, {
   stringify: function stringify(text, replacer, space) {
     var replacerFunction = isCallable(replacer) ? replacer : undefined;
     var propertyList = replacerFunction ? undefined : getPropertyList(replacer);
@@ -202,7 +204,7 @@ if ($stringify) $({ target: 'JSON', stat: true, arity: 3, forced: WRONG_SYMBOLS_
         if (root) root = false;
         // the innermost reordered object already contains only keys of the property list and arrays are not
         // affected by it, the rest of objects (like objects with a fake `Symbol.toStringTag`) are filtered here
-        else if (this !== currentOrdered && !isArray(this) && !includes(propertyList, key)) return;
+        else if (this !== currentOrdered && !isArray(this) && !~indexOf(propertyList, key)) return;
       } else if (replacerFunction) value = call(replacerFunction, this, key, value);
 
       if (isRawJSONValue(value)) {
@@ -213,7 +215,7 @@ if ($stringify) $({ target: 'JSON', stat: true, arity: 3, forced: WRONG_SYMBOLS_
 
       if (propertyList && isSerializedAsObject(value)) {
         // reordered objects are new each time, so cycles should be detected before the engine does it
-        if (includes(openObjects, value)) throw new $TypeError('Converting circular structure to JSON');
+        if (~indexOf(openObjects, value)) throw new $TypeError('Converting circular structure to JSON');
         var ordered = createOrderedObject(value, propertyList, keyPrefix);
         push(openObjects, value);
         push(parentOrdered, currentOrdered);
@@ -235,17 +237,17 @@ if ($stringify) $({ target: 'JSON', stat: true, arity: 3, forced: WRONG_SYMBOLS_
     var length = json.length;
 
     for (var i = 0; i < length; i++) {
-      var chr = charAt(json, i);
-      if (chr === '"') {
+      var char = json[i];
+      if (char === '"') {
         var end = parseJSONString(json, ++i).end - 1;
         var string = slice(json, i, end);
         if (slice(string, 0, RAW_MARK_LENGTH) === RAW_MARK) result += rawStrings[slice(string, RAW_MARK_LENGTH)];
         else if (slice(string, 0, KEY_MARK_LENGTH) === KEY_MARK) result += '"' + slice(string, KEY_MARK_LENGTH) + '"';
         else result += '"' + string + '"';
         i = end;
-      } else result += chr;
+      } else result += char;
     }
 
     return result;
-  }
+  },
 });

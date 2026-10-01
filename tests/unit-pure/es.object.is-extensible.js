@@ -1,4 +1,4 @@
-import isExtensible from 'core-js-pure/es/object/is-extensible';
+import isExtensible from '@core-js/pure/es/object/is-extensible';
 
 QUnit.test('Object.isExtensible', assert => {
   assert.isFunction(isExtensible);

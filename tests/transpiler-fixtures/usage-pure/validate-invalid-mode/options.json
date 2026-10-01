@@ -1,0 +1,15 @@
+{
+  "plugins": [
+    [
+      "@core-js",
+      {
+        "method": "usage-pure",
+        "version": "4.0",
+        "mode": "invalid",
+        "targets": {
+          "ie": 11
+        }
+      }
+    ]
+  ]
+}

@@ -1,10 +1,10 @@
+// @types: proposals/iterator-helpers
 'use strict';
 var $ = require('../internals/export');
 var call = require('../internals/function-call');
 var iterate = require('../internals/iterate');
 var aCallable = require('../internals/a-callable');
 var anObject = require('../internals/an-object');
-var getIteratorDirect = require('../internals/get-iterator-direct');
 var iteratorClose = require('../internals/iterator-close');
 var iteratorHelperWithoutClosingOnEarlyError = require('../internals/iterator-helper-without-closing-on-early-error');
 
@@ -12,6 +12,7 @@ var forEachWithoutClosingOnEarlyError = iteratorHelperWithoutClosingOnEarlyError
 
 // `Iterator.prototype.forEach` method
 // https://tc39.es/ecma262/#sec-iterator.prototype.foreach
+// @dependency: es.iterator.constructor
 $({ target: 'Iterator', proto: true, real: true, forced: forEachWithoutClosingOnEarlyError }, {
   forEach: function forEach(fn) {
     anObject(this);
@@ -23,10 +24,9 @@ $({ target: 'Iterator', proto: true, real: true, forced: forEachWithoutClosingOn
 
     if (forEachWithoutClosingOnEarlyError) return call(forEachWithoutClosingOnEarlyError, this, fn);
 
-    var record = getIteratorDirect(this);
     var counter = 0;
-    iterate(record, function (value) {
+    iterate(this, function (value) {
       fn(value, counter++);
-    }, { IS_RECORD: true });
-  }
+    }, { IS_ITERATOR: true });
+  },
 });

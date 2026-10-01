@@ -1,0 +1,1 @@
+"str".matchAll(/pattern/g);

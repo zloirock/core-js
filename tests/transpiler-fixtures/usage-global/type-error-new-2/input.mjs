@@ -1,0 +1,1 @@
+new TypeError(msg, opts);

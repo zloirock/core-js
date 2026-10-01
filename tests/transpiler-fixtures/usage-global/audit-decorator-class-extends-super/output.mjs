@@ -1,0 +1,62 @@
+import "core-js/modules/es.symbol.constructor";
+import "core-js/modules/es.symbol.description";
+import "core-js/modules/es.symbol.for";
+import "core-js/modules/es.object.assign";
+import "core-js/modules/es.object.get-own-property-symbols";
+import "core-js/modules/es.object.to-string";
+import "core-js/modules/es.promise.constructor";
+import "core-js/modules/es.promise.catch";
+import "core-js/modules/es.promise.finally";
+import "core-js/modules/es.promise.resolve";
+import "core-js/modules/es.array.iterator";
+import "core-js/modules/es.array.from-async";
+import "core-js/modules/es.array.at";
+import "core-js/modules/es.array.concat";
+import "core-js/modules/es.array.copy-within";
+import "core-js/modules/es.array.entries";
+import "core-js/modules/es.array.fill";
+import "core-js/modules/es.array.filter";
+import "core-js/modules/es.array.find";
+import "core-js/modules/es.array.find-index";
+import "core-js/modules/es.array.find-last";
+import "core-js/modules/es.array.find-last-index";
+import "core-js/modules/es.array.flat";
+import "core-js/modules/es.array.flat-map";
+import "core-js/modules/es.array.from";
+import "core-js/modules/es.array.includes";
+import "core-js/modules/es.array.join";
+import "core-js/modules/es.array.keys";
+import "core-js/modules/es.array.map";
+import "core-js/modules/es.array.of";
+import "core-js/modules/es.array.push";
+import "core-js/modules/es.array.slice";
+import "core-js/modules/es.array.sort";
+import "core-js/modules/es.array.species";
+import "core-js/modules/es.array.splice";
+import "core-js/modules/es.array.to-reversed";
+import "core-js/modules/es.array.to-sorted";
+import "core-js/modules/es.array.to-spliced";
+import "core-js/modules/es.array.unscopables.flat";
+import "core-js/modules/es.array.unscopables.flat-map";
+import "core-js/modules/es.array.values";
+import "core-js/modules/es.array.with";
+import "core-js/modules/es.map.constructor";
+import "core-js/modules/es.map.species";
+import "core-js/modules/es.map.get-or-insert";
+import "core-js/modules/es.map.get-or-insert-computed";
+import "core-js/modules/es.string.iterator";
+import "core-js/modules/es.weak-map.constructor";
+import "core-js/modules/es.weak-map.get-or-insert";
+import "core-js/modules/es.weak-map.get-or-insert-computed";
+import "core-js/modules/esnext.function.metadata";
+import "core-js/modules/esnext.symbol.metadata";
+import "core-js/modules/web.dom-collections.iterator";
+// a decorated class extending `Array` with a static `super.from(...)` call: the decorator makes the
+// heritage a proxy-global read, so the whole `Array` family lands whatever the static method spells.
+// dropping the `super` call leaves the same set; dropping the decorator instead leaves none at all
+@decorator
+class A extends Array {
+  static f(x) {
+    return super.from(x);
+  }
+}

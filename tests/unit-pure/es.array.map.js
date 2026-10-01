@@ -1,7 +1,5 @@
-import { STRICT } from '../helpers/constants.js';
-
-import Symbol from 'core-js-pure/es/symbol';
-import map from 'core-js-pure/es/array/map';
+import Symbol from '@core-js/pure/es/symbol';
+import map from '@core-js/pure/es/array/map';
 
 QUnit.test('Array#map', assert => {
   assert.isFunction(map);
@@ -19,10 +17,10 @@ QUnit.test('Array#map', assert => {
   assert.deepEqual(map([1, 2, 3], function () {
     return +this;
   }, 2), [2, 2, 2]);
-  if (STRICT) {
-    assert.throws(() => map(null, () => { /* empty */ }), TypeError);
-    assert.throws(() => map(undefined, () => { /* empty */ }), TypeError);
-  }
+
+  assert.throws(() => map(null, () => { /* empty */ }), TypeError);
+  assert.throws(() => map(undefined, () => { /* empty */ }), TypeError);
+
   array = [];
   // eslint-disable-next-line object-shorthand -- constructor
   array.constructor = { [Symbol.species]: function () {

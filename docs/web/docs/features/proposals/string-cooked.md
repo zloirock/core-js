@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-string-cooked)
 
 ## Module
-[`esnext.string.cooked`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.cooked.js)
+[`esnext.string.cooked`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/esnext.string.cooked.js)
 
 ## Built-ins signatures
 ```ts
@@ -17,6 +17,9 @@ class String {
 core-js/proposals/string-cooked
 core-js(-pure)/full/string/cooked
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/string-cooked`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/string-cooked.d.ts)
 
 ## Example
 ```js

@@ -1,4 +1,4 @@
-import sub from 'core-js-pure/es/string/sub';
+import sub from '@core-js/pure/es/string/sub';
 
 QUnit.test('String#sub', assert => {
   assert.isFunction(sub);

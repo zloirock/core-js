@@ -1,8 +1,6 @@
-import { PROTO } from '../helpers/constants.js';
+import setPrototypeOf from '@core-js/pure/es/reflect/set-prototype-of';
 
-import setPrototypeOf from 'core-js-pure/es/reflect/set-prototype-of';
-
-if (PROTO) QUnit.test('Reflect.setPrototypeOf', assert => {
+QUnit.test('Reflect.setPrototypeOf', assert => {
   assert.isFunction(setPrototypeOf);
   assert.arity(setPrototypeOf, 2);
   if ('name' in setPrototypeOf) {

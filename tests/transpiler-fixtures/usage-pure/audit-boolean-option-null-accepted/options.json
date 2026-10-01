@@ -1,0 +1,17 @@
+{
+  "plugins": [
+    [
+      "@core-js",
+      {
+        "method": "usage-pure",
+        "version": "4.0",
+        "absoluteImports": null,
+        "debug": null,
+        "ignoreBrowserslistConfig": null,
+        "targets": {
+          "ie": 11
+        }
+      }
+    ]
+  ]
+}

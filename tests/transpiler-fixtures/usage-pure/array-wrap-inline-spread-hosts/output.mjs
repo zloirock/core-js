@@ -1,0 +1,62 @@
+import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
+import _findLastIndexMaybeArray from "@core-js/pure/actual/array/instance/find-last-index";
+import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
+import _flatMapMaybeArray from "@core-js/pure/actual/array/instance/flat-map";
+import _toSortedMaybeArray from "@core-js/pure/actual/array/instance/to-sorted";
+import _toSplicedMaybeArray from "@core-js/pure/actual/array/instance/to-spliced";
+import _withMaybeArray from "@core-js/pure/actual/array/instance/with";
+import _at from "@core-js/pure/actual/instance/at";
+import _includes from "@core-js/pure/actual/instance/includes";
+import _keys from "@core-js/pure/actual/instance/keys";
+import _values from "@core-js/pure/actual/instance/values";
+var _ref;
+// the inline-array spread flattens once per HOST, from the root pattern down every paired level -
+// under an object hop, a second wrapper, a sibling slot - on every host kind the pattern may live
+// in. one method per row, so a row's extraction is attributable to its own host shape
+let viaAssign;
+[_ref] = [nb];
+viaAssign = _at(_ref.y);
+for (const _ref3 of [[...[nb]]]) {
+  const [_ref2] = _ref3;
+  const viaForOf = _flatMaybeArray(_ref2.y);
+  viaForOf;
+}
+try {
+  throw [...[nb]];
+} catch (_ref4) {
+  let [_ref5] = _ref4;
+  let viaCatch = _findLastMaybeArray(_ref5.y);
+  viaCatch;
+}
+const viaTwoSlotsA = _toSortedMaybeArray(nb.y);
+const viaTwoSlotsB = _withMaybeArray(arr);
+const [{}, {}] = [nb, arr];
+const viaTwoDeclsA = _includes(nb.y);
+const viaTwoDeclsB = _flatMapMaybeArray(arr);
+const [[_ref6]] = [[nb]];
+const viaDouble = _toSplicedMaybeArray(_ref6.y);
+const viaHoleBefore = _findLastIndexMaybeArray(nb.y);
+const [, _ref7] = [eff(), nb];
+const viaEffectBefore = _keys(_ref7.y);
+export { viaAssign, viaTwoSlotsA, viaTwoSlotsB, viaTwoDeclsA, viaTwoDeclsB, viaDouble, viaHoleBefore, viaEffectBefore };
+
+// an object level a LATER spread may override pairs no key, so the pairing stops above it and the
+// element renames positionally, reading whatever the spread left in that slot.
+// NEGATIVE: an IIFE parameter's nested leaf mirrors only into a LITERAL receiver - `nb.y` is a
+// member read the mirror cannot spell, and the flattened argument prints the same on both legs
+// (the file injects elsewhere)
+const {
+  k: [_ref8]
+} = {
+  k: [...[nb]],
+  ...more
+};
+const viaLaterSpread = _values(_ref8.y);
+class K {
+  f = (([{
+    y: {
+      toReversed: viaClassField
+    }
+  }]) => viaClassField)([nb]);
+}
+export { viaLaterSpread, K };

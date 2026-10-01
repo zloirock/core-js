@@ -1,16 +1,16 @@
 'use strict';
 var getBuiltIn = require('../internals/get-built-in');
+var getBuiltInStaticMethod = require('../internals/get-built-in-static-method');
 var hasOwn = require('../internals/has-own-property');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var isPrototypeOf = require('../internals/object-is-prototype-of');
-var setPrototypeOf = require('../internals/object-set-prototype-of');
+var setPrototypeOf = require('../internals/object-set-prototype-of-simple');
 var copyConstructorProperties = require('../internals/copy-constructor-properties');
 var proxyAccessor = require('../internals/proxy-accessor');
 var inheritIfRequired = require('../internals/inherit-if-required');
 var normalizeStringArgument = require('../internals/normalize-string-argument');
 var installErrorCause = require('../internals/install-error-cause');
 var installErrorStack = require('../internals/error-stack-install');
-var DESCRIPTORS = require('../internals/descriptors');
 var IS_PURE = require('../internals/is-pure');
 
 module.exports = function (FULL_NAME, wrapper, FORCED, IS_AGGREGATE_ERROR) {
@@ -18,7 +18,7 @@ module.exports = function (FULL_NAME, wrapper, FORCED, IS_AGGREGATE_ERROR) {
   var OPTIONS_POSITION = IS_AGGREGATE_ERROR ? 2 : 1;
   var path = FULL_NAME.split('.');
   var ERROR_NAME = path[path.length - 1];
-  var OriginalError = getBuiltIn.apply(null, path);
+  var OriginalError = path.length > 1 ? getBuiltInStaticMethod(path[0], path[1]) : getBuiltIn(path[0]);
 
   if (!OriginalError) return;
 
@@ -36,7 +36,7 @@ module.exports = function (FULL_NAME, wrapper, FORCED, IS_AGGREGATE_ERROR) {
     var result = IS_AGGREGATE_ERROR ? new OriginalError(a) : new OriginalError();
     if (message !== undefined) createNonEnumerableProperty(result, 'message', message);
     installErrorStack(result, WrappedError, result.stack, 2);
-    if (this && isPrototypeOf(OriginalErrorPrototype, this)) inheritIfRequired(result, this, WrappedError);
+    if (this && isPrototypeOf(OriginalErrorPrototype, this)) inheritIfRequired(result, this, OriginalErrorPrototype);
     if (arguments.length > OPTIONS_POSITION) installErrorCause(result, arguments[OPTIONS_POSITION]);
     return result;
   });
@@ -44,9 +44,8 @@ module.exports = function (FULL_NAME, wrapper, FORCED, IS_AGGREGATE_ERROR) {
   WrappedError.prototype = OriginalErrorPrototype;
 
   if (ERROR_NAME !== 'Error') {
-    if (setPrototypeOf) setPrototypeOf(WrappedError, BaseError);
-    else copyConstructorProperties(WrappedError, BaseError, { name: true });
-  } else if (DESCRIPTORS && STACK_TRACE_LIMIT in OriginalError) {
+    setPrototypeOf(WrappedError, BaseError);
+  } else if (STACK_TRACE_LIMIT in OriginalError) {
     proxyAccessor(WrappedError, OriginalError, STACK_TRACE_LIMIT);
     proxyAccessor(WrappedError, OriginalError, 'prepareStackTrace');
   }

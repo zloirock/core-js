@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-iterator-chunking)
 
 ## Modules 
-[`es.iterator.chunks`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.chunks.js), [`es.iterator.windows`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.windows.js)
+[`es.iterator.chunks`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.chunks.js), [`es.iterator.windows`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.iterator.windows.js)
 
 ## Built-ins signatures
 ```ts
@@ -19,6 +19,9 @@ core-js/proposals/iterator-chunking-v2
 core-js(-pure)/es|stable|actual|full/iterator/chunks
 core-js(-pure)/es|stable|actual|full/iterator/windows
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/iterator-chunking`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/iterator-chunking.d.ts)
 
 ## Examples
 ```js

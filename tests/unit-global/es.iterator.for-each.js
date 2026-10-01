@@ -1,5 +1,4 @@
 import { createIterator } from '../helpers/helpers.js';
-import { STRICT, STRICT_THIS } from '../helpers/constants.js';
 
 QUnit.test('Iterator#forEach', assert => {
   const { forEach } = Iterator.prototype;
@@ -17,16 +16,14 @@ QUnit.test('Iterator#forEach', assert => {
   assert.arrayEqual(array, [1, 2, 3], 'basic functionality');
 
   forEach.call(createIterator([1]), function (arg, counter) {
-    assert.same(this, STRICT_THIS, 'this');
+    assert.same(this, undefined, 'this');
     assert.same(arguments.length, 2, 'arguments length');
     assert.same(arg, 1, 'argument');
     assert.same(counter, 0, 'counter');
   });
 
-  if (STRICT) {
-    assert.throws(() => forEach.call(undefined, () => { /* empty */ }), TypeError);
-    assert.throws(() => forEach.call(null, () => { /* empty */ }), TypeError);
-  }
+  assert.throws(() => forEach.call(undefined, () => { /* empty */ }), TypeError);
+  assert.throws(() => forEach.call(null, () => { /* empty */ }), TypeError);
 
   assert.throws(() => forEach.call({}, () => { /* empty */ }), TypeError);
   assert.throws(() => forEach.call([], () => { /* empty */ }), TypeError);
@@ -35,4 +32,17 @@ QUnit.test('Iterator#forEach', assert => {
   const it = createIterator([1], { return() { this.closed = true; } });
   assert.throws(() => forEach.call(it, {}), TypeError);
   assert.true(it.closed, 'forEach closes iterator on validation error');
+
+  // .return() called when callback throws during iteration
+  {
+    let returnCount = 0;
+    const it2 = createIterator([1, 2, 3], {
+      return() {
+        returnCount++;
+        return { done: true, value: undefined };
+      },
+    });
+    assert.throws(() => forEach.call(it2, () => { throw new Error('test'); }), Error);
+    assert.same(returnCount, 1, '.return() called when callback throws');
+  }
 });

@@ -1,9 +1,8 @@
-import { STRICT } from '../helpers/constants.js';
-
-import at from 'core-js-pure/es/array/at';
+import at from '@core-js/pure/es/array/at';
 
 QUnit.test('Array#at', assert => {
   assert.isFunction(at);
+
   assert.same(at([1, 2, 3], 0), 1);
   assert.same(at([1, 2, 3], 1), 2);
   assert.same(at([1, 2, 3], 2), 3);
@@ -20,8 +19,7 @@ QUnit.test('Array#at', assert => {
   assert.same(at([1, 2, 3], -0), 1);
   assert.same(at(Array(1), 0), undefined);
   assert.same(at({ 0: 1, length: 1 }, 0), 1);
-  if (STRICT) {
-    assert.throws(() => at(null, 0), TypeError);
-    assert.throws(() => at(undefined, 0), TypeError);
-  }
+
+  assert.throws(() => at(null, 0), TypeError);
+  assert.throws(() => at(undefined, 0), TypeError);
 });

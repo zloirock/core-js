@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 QUnit.test('Array#find', assert => {
   const { find } = Array.prototype;
   assert.isFunction(find);
@@ -18,10 +16,10 @@ QUnit.test('Array#find', assert => {
   }, context);
   assert.same([1, 3, NaN, 42, {}].find(it => it === 42), 42);
   assert.same([1, 3, NaN, 42, {}].find(it => it === 43), undefined);
-  if (STRICT) {
-    assert.throws(() => find.call(null, 0), TypeError);
-    assert.throws(() => find.call(undefined, 0), TypeError);
-  }
+
+  assert.throws(() => find.call(null, 0), TypeError);
+  assert.throws(() => find.call(undefined, 0), TypeError);
+
   assert.notThrows(() => find.call({
     length: -1,
     0: 1,

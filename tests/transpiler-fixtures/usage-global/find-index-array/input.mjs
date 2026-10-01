@@ -1,0 +1,1 @@
+arr.findIndex(fn);
