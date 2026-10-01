@@ -16,6 +16,7 @@ core-js/modules/es.date.to-primitive
 core-js/modules/es.function.name
 core-js/modules/es.iterator.constructor
 core-js/modules/es.iterator.every
+core-js/modules/es.iterator.includes
 core-js/modules/es.json.stringify
 core-js/modules/es.json.to-string-tag
 core-js/modules/es.math.acosh
@@ -126,6 +127,5 @@ core-js/modules/es.weak-map.get-or-insert-computed
 core-js/modules/es.weak-set.constructor
 core-js/modules/esnext.async-iterator.constructor
 core-js/modules/esnext.async-iterator.every
-core-js/modules/esnext.iterator.includes
 core-js/modules/web.dom-collections.entries
 core-js/modules/web.dom-collections.iterator
