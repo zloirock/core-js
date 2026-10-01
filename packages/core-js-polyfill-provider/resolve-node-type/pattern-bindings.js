@@ -1117,11 +1117,6 @@ export function createPatternBindings({
     return sites !== null && sites.every(({ pairing, callPath, argIndex }) => !invocationOverridesSlot(pairing, argIndex, callPath.scope));
   }
 
-  // resolve a binding's type via the most precise source available: rest-param ->
-  // destructure -> annotation -> for-of element -> straight-line assignment -> const init.
-  // single Identifier path; never recurses through the resolver entry-point on the binding
-  // itself (callers use this as the leaf of an `Identifier` resolution chain). returns null
-  // for any non-Identifier path or unresolvable binding shape
   // the binding's OWN declaration / loop-head iteration write is not a reassignment: babel
   // canonicalizes a for-x head as the ForX statement (an ANCESTOR of the head declarator),
   // estree records the declared pattern identifier itself (a DESCENDANT of it) - both
@@ -1227,6 +1222,11 @@ export function createPatternBindings({
     return null;
   }
 
+  // resolve a binding's type via the most precise source available: rest-param ->
+  // destructure -> annotation -> for-of element -> straight-line assignment -> const init.
+  // single Identifier path; never recurses through the resolver entry-point on the binding
+  // itself (callers use this as the leaf of an `Identifier` resolution chain). returns null
+  // for any non-Identifier path or unresolvable binding shape
   function resolveBindingType(path, unionHints = false) {
     if (!t.isIdentifier(path.node)) return null;
     const binding = getScopeBinding(path.scope, path.node.name, path);
@@ -1463,6 +1463,7 @@ export function createPatternBindings({
     annotationAtKeyPath,
     findBindingAnnotation,
     bindingDestructuringPattern,
+    isOwnBindingWrite,
     resolveAnnotatedMember,
     resolveAnnotatedMemberPath,
     resolveForOfResolvedElement,

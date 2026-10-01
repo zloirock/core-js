@@ -1230,6 +1230,7 @@ export default function createPlugin(options) {
           resolveNodeType: typeResolvers.resolveNodeType,
           resolvePropertyObjectType: typeResolvers.resolvePropertyObjectType,
           primeDestructureReceiverTypes: typeResolvers.primeDestructureReceiverTypes,
+          resolveForOfResolvedElement: typeResolvers.resolveForOfResolvedElement,
           resolvedType: typeResolvers.resolvedType,
           toHint: typeResolvers.toHint,
           isDisabled,

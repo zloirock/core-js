@@ -14909,14 +14909,6 @@ function destructureMatrixStripDeclined({ hostId, receiverId, spellingId, nestin
   // (e) two effectful keys under `{ w: [...] }`
   return spellingId === 'twoSe' && nestingId === 'arrInObj' && (receiverId === 'proto' || receiverId === 'literal' || hostId === 'forOfConst');
 }
-// FC-589: the emitters disagree on the import set of a for-of head navigated to a prototype - babel reads the
-// element as the realm or the constructor, unplugin dispatches generically - so these cells wait for the fix
-function destructureMatrixImportsDiverge({ hostId, receiverId, spellingId, nestingId }) {
-  if (hostId !== 'forOfConst' && hostId !== 'forOfAssign') return false;
-  if (receiverId === 'navRealmProto' && nestingId === 'flat') return true;
-  return (receiverId === 'navProto' || receiverId === 'navRealmProto') && (nestingId === 'obj1' || nestingId === 'obj2')
-    && DM_PLAIN_KEYS.has(spellingId);
-}
 function destructureMatrixCell({ hostId, host, receiverId, receiver, keys, nav, spellingId, nestingId, wrapperId }) {
   const [wrapPattern, wrapInit] = DM_NESTINGS[nestingId];
   const id = `${ hostId }/${ receiverId }/${ spellingId }/${ nestingId }/${ wrapperId }`;
@@ -14940,9 +14932,7 @@ function * generateDestructureMatrix() {
   for (const [hostId, host] of Object.entries({ ...DM_HOSTS, ...DM_EXPORT_HOSTS })) {
     for (const [receiverId, { receiver, keys, nav = pattern => pattern }] of Object.entries(DM_RECEIVERS)) {
       for (const shape of DM_SHAPES) {
-        if (!destructureMatrixImportsDiverge({ hostId, receiverId, ...shape })) {
-          yield destructureMatrixCell({ hostId, host, receiverId, receiver, keys, nav, ...shape });
-        }
+        yield destructureMatrixCell({ hostId, host, receiverId, receiver, keys, nav, ...shape });
       }
     }
   }
@@ -15439,4 +15429,47 @@ export function * generate() {
   yield * generateMixedDestructureClaimOrder();
   yield * generateNestedPrototypeSequencePrefix();
   yield * generateSelectedDestructureReadOrder();
+  yield * generatePositionalCaptureActivations();
+  yield * generateForOfWrittenElementFields();
+}
+
+// A saved element keeps its value, while a repeated activation may capture another family.
+// Whole-string includes differs from array includes even when at returns the same last character.
+function * generatePositionalCaptureActivations() {
+  for (const kind of ['let', 'var']) for (const [family, init, replacement] of [
+    ['array', '[0, 2]', '"02"'],
+    ['string', '"02"', '[0, 2]'],
+  ]) for (const frame of ['same', 'closure', 'loop', 'reentry']) {
+    const read = '[saved.at(-1), saved.includes("02")]';
+    const body = frame === 'loop'
+      ? `${ kind } value = ${ init }; const out = []; for (let i = 0; i < 2; i++) {
+          const [saved] = [value]; out.push(${ read }); value = ${ replacement };
+        } return out;`
+      : frame === 'reentry'
+        ? `${ kind } value = ${ init }; function read() {
+            const [saved] = [value]; value = ${ replacement }; return ${ read };
+          } return [read(), read()];`
+        : `${ kind } value = ${ init }; const [saved] = [value]; value = ${ replacement };
+          return ${ frame === 'closure' ? `(() => ${ read })()` : read };`;
+    yield { ...snippet(`positional-capture-activations/${ kind }/${ family }/${ frame }`, `(() => { ${ body } })()`), strip: true };
+  }
+}
+
+// An element reached through a named holder observes field writes, unlike an inline initializer.
+// Creating a previously absent field also invalidates the pattern's initializer-only default proof.
+function * generateForOfWrittenElementFields() {
+  for (const [writer, setup] of [
+    ['direct', 'const row = { w: [0, 2] }; row.w = "02";'],
+    ['alias', 'const row = { w: [0, 2] }; const alias = row; alias.w = "02";'],
+    ['created', 'const row = {}; row.w = "02";'],
+  ]) for (const host of ['declaration', 'assignment']) {
+    const pattern = '{ w: { at, includes } = [0, 2] }';
+    const head = host === 'declaration' ? `const ${ pattern }` : pattern;
+    const body = `${ setup } const out = []; ${ host === 'assignment' ? 'let at, includes;' : '' }
+      for (${ head } of [row]) out.push(at.call("02", -1), includes.call("02", "02"));
+      return out;`;
+    // Assignment default mirrors retain the supplied slot; the global stripped leg observes
+    // its receiver-family injection. Declaration hosts also extract that arm in pure mode.
+    yield { ...snippet(`for-of-written-element-fields/${ writer }/${ host }`, `(() => { ${ body } })()`), strip: host === 'declaration' };
+  }
 }

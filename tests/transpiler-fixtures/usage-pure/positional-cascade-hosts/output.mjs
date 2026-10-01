@@ -1,7 +1,6 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
-import _includes from "@core-js/pure/actual/instance/includes";
 var _ref7, _ref8, _ref9;
 // Positional captures retain nested array slots and read their claims in source order.
 // Each declarator completes before the next one evaluates, across the supported host forms.
@@ -50,7 +49,7 @@ let r7;
 for (const _ref21 of [rows]) {
   const [_ref19, _ref20] = _ref21;
   const a7 = _atMaybeArray(_ref19);
-  const b7 = _includes(_ref20);
+  const b7 = _includesMaybeArray(_ref20);
   r7 = [a7, b7];
 }
 let r8;
