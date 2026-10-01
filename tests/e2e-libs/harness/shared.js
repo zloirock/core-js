@@ -1,5 +1,6 @@
 'use strict';
-// What both page programs answer the same way. Loaded before either and read through `window`, so a
+// What the artifact page and the browser leg answer the same way - loaded ahead of the program on
+// the artifact page, in the driver's page and in every cell's frame, and read through `window`, so a
 // missing file is a name error at the call rather than a silent `undefined`. They are one instrument
 // and carry the same guards, which is what these four are: a guard written twice drifts once.
 (function () {

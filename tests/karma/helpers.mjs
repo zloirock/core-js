@@ -22,8 +22,10 @@ const TEST_FAILURE = /\(\d+ FAILED\)|TOTAL: \d+ FAILED/;
 $.quote = it => `'${ it }'`;
 
 // runs one bundle set, repeating it while the browsers rather than the tests are what failed: a red
-// karma job is a real failure, and a slow green one says in its retry lines what it cost
-export async function start(files) {
+// karma job is a real failure, and a slow green one says in its retry lines what it cost. `config`
+// names a configuration of a suite's own, next to `karma.conf.js`, which it builds on, and `env` what
+// it reads from the environment
+export async function start(files, { config, env } = {}) {
   const target = files.map(file => `../../${ file }.js`).join(',');
 
   for (let attempt = 1; ; attempt++) {
@@ -36,7 +38,7 @@ export async function start(files) {
       await $({ nothrow: true, quiet: true })`taskkill /F /IM iexplore.exe`;
     }
 
-    const { exitCode, signal, stdout, stderr } = await $({ nothrow: true })`karma start -f=${ target }`;
+    const { exitCode, signal, stdout, stderr } = await $({ nothrow: true, env: { ...process.env, ...env } })`karma start ${ config ?? [] } -f=${ target }`;
 
     if (exitCode === 0) return;
 
