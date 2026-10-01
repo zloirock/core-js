@@ -17,19 +17,18 @@ const _ref3 = {
   {
     y: _ref2
   } = _ref3,
-  _ref4 = _ref2,
-  flat = null == _ref4 ? _ref4[""] : (k2(), _flatMaybeArray(_ref4)),
+  flat = null == _ref2 ? _ref2[""] : (k2(), _flatMaybeArray(_ref2)),
   {
     q
   } = _ref3;
-const _ref5 = {
+const _ref4 = {
   z: (se3(), arr3),
   w: 1
 };
-const inc = _includes(_ref5.z);
+const inc = _includes(_ref4.z);
 const {
   w
-} = _ref5; // assignment-overwrite reads the receiver AFTER the residual ran the prefix in place: the
+} = _ref4; // assignment-overwrite reads the receiver AFTER the residual ran the prefix in place: the
 // polyfill overwrite survives
 let m;
 ({

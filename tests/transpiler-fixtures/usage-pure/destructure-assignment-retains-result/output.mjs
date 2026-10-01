@@ -25,5 +25,5 @@ const foreign = {
   of: undefined,
   from: undefined
 };
-const custom = (_ref7 = consume() ? foreign : Array, of = _ref7 === Array ? _Array$of : _ref7["of"], from = _ref7 === Array ? _Array$from : _ref7["from"], _ref7);
+const custom = (_ref7 = consume() ? foreign : Array, of = _ref7 === Array ? _Array$of : _ref7.of, from = _ref7 === Array ? _Array$from : _ref7.from, _ref7);
 consume(custom, of, from, branch);

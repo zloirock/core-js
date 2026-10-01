@@ -4,6 +4,7 @@ import _Iterator$from from "@core-js/pure/actual/iterator/from";
 import _Map from "@core-js/pure/actual/map";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Promise from "@core-js/pure/actual/promise";
+import _Promise$try from "@core-js/pure/actual/promise/try";
 var _ref2;
 // A conditionally reassigned receiver keeps native siblings in property order.
 // Capturing an instance sibling permits the middle static to use its identity guard;
@@ -18,15 +19,13 @@ const _ref = M,
     a1
   } = _ref,
   s1 = _ref === _Map ? _Map$groupBy : _ref.groupBy,
-  nm1 = null == _ref ? _ref[""] : _nameMaybeFunction(_ref);
+  nm1 = _nameMaybeFunction(_ref);
 let P = _Promise;
 if (n) P = {};
 let a2, t2, nm2;
 _ref2 = P, {
   a2
-} = _ref2, {
-  try: t2
-} = _ref2, nm2 = _nameMaybeFunction(_ref2), _ref2;
+} = _ref2, t2 = _ref2 === _Promise ? _Promise$try : _ref2.try, nm2 = _nameMaybeFunction(_ref2), _ref2;
 let I = _Iterator;
 if (n) I = {};
 const nm3 = _nameMaybeFunction(I);

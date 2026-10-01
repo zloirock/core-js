@@ -35,8 +35,7 @@ const _ref2 = _globalThis,
   {
     prototype: _ref3
   } = _ref,
-  _ref4 = _ref3,
-  viaNav = null == _ref4 ? _ref4[""] : _valuesMaybeArray(_ref4);
+  viaNav = _valuesMaybeArray(_ref3);
 const {
   [(eff('literal'), 'w')]: {
     of: viaLiteral
@@ -46,23 +45,21 @@ const {
     of: _Array$of
   }
 };
-const _ref6 = {
+const _ref5 = {
     w: src
   },
   {
-    [(eff('alias'), 'w')]: _ref5
-  } = null == _ref6 ? _ref6[""] : _ref6,
-  _ref7 = _ref5,
-  viaAliasSlot = null == _ref7 ? _ref7[""] : _at(_ref7);
+    [(eff('alias'), 'w')]: _ref4
+  } = null == _ref5 ? _ref5[""] : _ref5,
+  viaAliasSlot = _at(_ref4);
 // An instance leaf uses the captured selected slot, so the hop and method are not reread.
-const _ref9 = {
+const _ref7 = {
     w: [1]
   },
   {
-    [(eff('memo'), 'w')]: _ref8
-  } = null == _ref9 ? _ref9[""] : _ref9,
-  _ref10 = _ref8,
-  viaLiteralSlot = null == _ref10 ? _ref10[""] : _includesMaybeArray(_ref10);
+    [(eff('memo'), 'w')]: _ref6
+  } = null == _ref7 ? _ref7[""] : _ref7,
+  viaLiteralSlot = _includesMaybeArray(_ref6);
 const {
   [(eff('sibling'), 'Object')]: {
     entries: viaSibling
@@ -146,22 +143,20 @@ const {
     assign: _Object$assign
   }
 };
-const _ref12 = _globalThis,
+const _ref9 = _globalThis,
   {
-    [(eff('symbol'), 'Array')]: _ref11
-  } = null == _ref12 ? _ref12[""] : _ref12,
-  _ref13 = _ref11,
-  viaSymbol = null == _ref13 ? _ref13[""] : _getIteratorMethod(_ref13);
+    [(eff('symbol'), 'Array')]: _ref8
+  } = null == _ref9 ? _ref9[""] : _ref9,
+  viaSymbol = _getIteratorMethod(_ref8);
 export { order, viaStatic, viaNav, viaLiteral, viaAliasSlot, viaLiteralSlot, viaSibling, z, viaPairA, viaPairB, viaRest, rest, viaAssign, viaParam, viaProxyHop, viaDeep, viaDefault, viaSymbol };
 
 // An effectful receiver slot is evaluated once before its hop key; the selected instance
 // method is then read once from that captured slot.
-const _ref15 = {
+const _ref11 = {
     w: make()
   },
   {
-    [(eff('call'), 'w')]: _ref14
-  } = null == _ref15 ? _ref15[""] : _ref15,
-  _ref16 = _ref14,
-  viaEffectfulSlot = null == _ref16 ? _ref16[""] : _at(_ref16);
+    [(eff('call'), 'w')]: _ref10
+  } = null == _ref11 ? _ref11[""] : _ref11,
+  viaEffectfulSlot = _at(_ref10);
 export { viaEffectfulSlot };

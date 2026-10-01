@@ -32,35 +32,46 @@ const O = {
     return 0;
   }
 };
-K.g;
-const m1 = _atMaybeArray(_globalThis.Array.prototype);
-const f1 = _flatMaybeArray(_globalThis.Array.prototype);
+const {
+    prototype: _ref
+  } = (K.g, _globalThis.Array),
+  m1 = _atMaybeArray(_ref),
+  f1 = _flatMaybeArray(_ref);
 const m2 = _copyWithinMaybeArray((K.g, _globalThis.Array.prototype));
 const m3 = _findLastMaybeArray((K.g, Array.prototype));
-K.g;
-const m4 = _findMaybeArray(Array.prototype);
-const f4 = _findIndexMaybeArray(Array.prototype);
-O.g;
-const m5 = _flatMapMaybeArray(_globalThis.Array.prototype);
-const f5 = _withMaybeArray(_globalThis.Array.prototype);
+const {
+    prototype: _ref2
+  } = (K.g, Array),
+  m4 = _findMaybeArray(_ref2),
+  f4 = _findIndexMaybeArray(_ref2);
+const {
+    prototype: _ref3
+  } = (O.g, _globalThis.Array),
+  m5 = _flatMapMaybeArray(_ref3),
+  f5 = _withMaybeArray(_ref3);
 let m6, f6;
 K.g;
 m6 = _toReversedMaybeArray(_globalThis.Array.prototype);
 f6 = _toSortedMaybeArray(_globalThis.Array.prototype);
 const m7 = _toSplicedMaybeArray((K.g, Array.prototype));
-const [_ref] = [(K.g, _globalThis)];
+const [_ref4] = [(K.g, _globalThis)];
 const {
   Array: {
-    prototype: _ref2
+    prototype: _ref5
   }
-} = _ref;
-const m8 = _findLastIndexMaybeArray(_ref2);
-const f8 = _includesMaybeArray(_ref2);
-const [_ref3, _ref4] = [(K.g, _globalThis), 1];
-const m9 = _sortMaybeArray(_ref3.Array.prototype);
-const z9 = _ref4;
-for (const _unused = (K.g, _globalThis), m10 = _entriesMaybeArray(_globalThis.Array.prototype), f10 = _keysMaybeArray(_globalThis.Array.prototype);;) break;
-K.g;
-export const m11 = _valuesMaybeArray(_globalThis.Array.prototype);
-export const f11 = _fillMaybeArray(_globalThis.Array.prototype);
+} = _ref4;
+const m8 = _findLastIndexMaybeArray(_ref5);
+const f8 = _includesMaybeArray(_ref5);
+const [_ref6, _ref7] = [(K.g, _globalThis), 1];
+const m9 = _sortMaybeArray(_ref6.Array.prototype);
+const z9 = _ref7;
+for (const {
+    prototype: _ref8
+  } = (K.g, _globalThis.Array), m10 = _entriesMaybeArray(_ref8), f10 = _keysMaybeArray(_ref8);;) break;
+const {
+    prototype: _ref9
+  } = (K.g, _globalThis.Array),
+  m11 = _valuesMaybeArray(_ref9),
+  f11 = _fillMaybeArray(_ref9);
+export { m11, f11 };
 use(m1, f1, m2, m3, m4, f4, m5, f5, m6, f6, m7, m8, f8, m9, z9, m11, f11);

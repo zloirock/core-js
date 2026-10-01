@@ -6,7 +6,7 @@ import _flatMapMaybeArray from "@core-js/pure/actual/array/instance/flat-map";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
-var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8;
+var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7;
 // An assignment under an array wrapper reads the paired element once. A flat method claim
 // needs no object hop, while an optional hop still short-circuits as the source wrote it.
 const log = [];
@@ -39,9 +39,9 @@ let markedName;
   }
 }] = [_globalThis];
 // A computed key runs before its method read; the captured receiver also serves the sibling.
-[_ref6] = _ref7 = [Array.prototype], _ref8 = _ref6, null == _ref8 ? _ref8[""] : (_pushMaybeArray(log).call(log, "k"), keyed = _flatMapMaybeArray(_ref8)), {
+[_ref6] = _ref7 = [Array.prototype], null == _ref6 ? _ref6[""] : (_pushMaybeArray(log).call(log, "k"), keyed = _flatMapMaybeArray(_ref6)), {
   other
-} = _ref8, _ref8, _ref7;
+} = _ref6, _ref6, _ref7;
 // ... and a FLAT static under a multi wrapper is claimed like the instance one above it: the
 // OVERWRITE channel owns the shape, so the destructure stays whole for the sibling that still binds
 // and the ponyfill is written after it. Left to the cascade rebuild - which never descends a

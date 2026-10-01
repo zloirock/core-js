@@ -10,23 +10,22 @@ export function flat(flag, user) {
       at: Array.at
     } : user,
     from = _ref === Array ? _Array$from : _ref.from,
-    at = null == _ref ? _ref[""] : _at(_ref);
+    at = _at(_ref);
   return [from, at];
 }
 export function nested(flag, user) {
-  const _ref2 = flag ? {
-    from: _Array$from,
-    includes: Array.includes
-  } : user;
-  const includes = _includes(_ref2);
   const {
-    w: {
-      from,
-      includes: _unused
-    }
-  } = {
-    w: _ref2
-  };
+      w: _ref2
+    } = {
+      w: flag ? {
+        from: _Array$from,
+        includes: Array.includes
+      } : user
+    },
+    {
+      from
+    } = _ref2,
+    includes = _includes(_ref2);
   return [from, includes];
 }
 export function loop(flag, user) {
@@ -34,9 +33,10 @@ export function loop(flag, user) {
     from: _Array$from,
     map: Array.map
   } : user]) {
-    const _ref4 = _ref3,
-      from = _ref4 === Array ? _Array$from : _ref4.from,
-      map = null == _ref4 ? _ref4[""] : _mapMaybeArray(_ref4);
+    const {
+        from
+      } = _ref3,
+      map = _mapMaybeArray(_ref3);
     return [from, map];
   }
 }

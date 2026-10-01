@@ -13,13 +13,11 @@ export function read(unknown) {
 		return Array;
 	}
 
-	for (const _ref of [make()]) {
-		var _ref2;
-		const _ref3 = _ref;
+	for (const _ref2 of [make()]) {
 		const from = _Array$fromAsync;
-		const _ref4 = (_ref2 = _ref3.prototype) === void 0 ? unknown : _ref2;
-		const at = _at(_ref4);
-		const { length } = _ref4;
+		const { prototype: _ref = unknown } = _ref2;
+		const at = _at(_ref);
+		const { length } = _ref;
 
 		use(from, at, length);
 	}

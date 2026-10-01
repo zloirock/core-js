@@ -19,7 +19,7 @@ import _Object$values from "@core-js/pure/actual/object/values";
 import _Promise from "@core-js/pure/actual/promise";
 import _Set from "@core-js/pure/actual/set";
 import _Symbol$asyncIterator from "@core-js/pure/actual/symbol/async-iterator";
-var _ref, _ref2, _ref3, _ref4, _unused;
+var _ref, _ref2, _ref3, _unused;
 // a deferred-SE destructure host (a `({ hop: { leaf } } = root)` assignment buried in a consumed
 // init's sequence prefix) must re-anchor exactly like the plain statement form even though no
 // leaf resolves: each emitter re-enters the anchored-plan trigger on its own re-traversal.
@@ -61,7 +61,7 @@ export const entries = _Object$entries;
 // a FOR-INIT consumed prefix re-embeds into the sink AND folds: the host rebuilds before
 // the sink captures it, so the re-anchored read lands inside the re-embedded slot
 let customV, out;
-for (const _ref5 = ({
+for (const _ref4 = ({
     customV
   } = _Map, Object), keys = _Object$keys; !out;) out = keys;
 export { out };
@@ -84,7 +84,7 @@ let avx, fvx;
 export const getOwnPropertySymbols = _Object$getOwnPropertySymbols;
 export { avx, fvx };
 let avy, fvy, oy;
-for (const _ref6 = ({
+for (const _ref5 = ({
     Array: {
       [_Symbol$asyncIterator]: avy,
       of: fvy
@@ -112,12 +112,12 @@ let fRe, rRe;
 export const crD = _Object$create;
 export { fRe, rRe };
 let fRf, rRf, oRf;
-for (const _ref7 = (_ref = {
+for (const _ref6 = (_ref = {
     Array: _ref2
-  } = _globalThis, _ref3 = _ref2, {} = _ref3, fRf = _Array$fromAsync, {
+  } = _globalThis, {} = _ref2, fRf = _Array$fromAsync, {
     fromAsync: _unused,
     ...rRf
-  } = _ref3, _ref3, _ref, Object), isSealed = _Object$isSealed; !oRf;) oRf = isSealed;
+  } = _ref2, _ref2, _ref, Object), isSealed = _Object$isSealed; !oRf;) oRf = isSealed;
 // an anchor-less full consume with an SE-bearing init: the prefix stays verbatim ahead of
 // the alias assign (by parts, no anchor read involved)
 let mS2;
@@ -151,5 +151,5 @@ export const assign = _Object$assign;
 // a LATER `var _ref;` hoist (minted by the guarded default below) must not displace the
 // lifted statements queued ABOVE - the drain re-anchors, keeping each lift under its `let`
 const plainRecv = getObj();
-const guarded = (_ref4 = _getIteratorMethod(plainRecv)) === void 0 ? null : _ref4;
+const guarded = (_ref3 = _getIteratorMethod(plainRecv)) === void 0 ? null : _ref3;
 guarded;

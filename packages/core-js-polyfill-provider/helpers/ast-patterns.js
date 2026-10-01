@@ -10430,10 +10430,11 @@ export function plainSynthKeyName(key) {
   return staticStringKey(key);
 }
 
-// stable per-receiver polyfill-map key for a synth-swap property: distinguishes a computed key from a
+// source-form slot for a synth-swap property: distinguishes a computed key from a
 // plain key so the two can't collide in `{ k: v, [k]: w }`. a computed Identifier keys by its variable
 // name (`[k]`); a computed string / template literal keys by its QUOTED static value (`["from"]`) so it
-// can't collide with a same-named computed Identifier. shared so babel-plugin and unplugin key identically
+// can't collide with a same-named computed Identifier. The scoped dedup key also escapes ordinary
+// property names resembling these slot labels. Shared so both bindings describe source forms identically.
 export function synthSwapPropKey(prop) {
   if (!prop.computed) return plainSynthKeyName(prop.key);
   if (prop.key.type === 'Identifier') return `[${ prop.key.name }]`;

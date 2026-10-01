@@ -8,6 +8,6 @@ export function pick(cond) {
     {
       [_Array$from]: own
     } = _ref,
-    of = null == _ref ? _ref[""] : _ref === Array ? _Array$of : _ref["of"];
+    of = _ref === Array ? _Array$of : _ref.of;
   return [own, of([1])];
 }

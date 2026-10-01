@@ -123,8 +123,7 @@ function mark(t, v) {
     {
       prototype: _ref3
     } = _ref,
-    _ref4 = _ref3,
-    f2 = null == _ref4 ? _ref4[""] : _valuesMaybeArray(_ref4);
+    f2 = _valuesMaybeArray(_ref3);
 }
 {
   const order = [];
@@ -146,11 +145,11 @@ function mark(t, v) {
     _pushMaybeArray(order).call(order, t);
     return t;
   }
-  const _ref5 = [1, 2],
-    a = null == _ref5 ? _ref5[""] : (eff('k'), _atMaybeArray(_ref5)),
+  const _ref4 = [1, 2],
+    a = null == _ref4 ? _ref4[""] : (eff('k'), _atMaybeArray(_ref4)),
     {
       z
-    } = _ref5;
+    } = _ref4;
 }
 {
   const q = _Object$hasOwn;

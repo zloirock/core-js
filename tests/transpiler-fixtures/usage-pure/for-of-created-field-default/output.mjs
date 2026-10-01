@@ -5,9 +5,10 @@ import _includes from "@core-js/pure/actual/instance/includes";
 const row = {};
 row.w = '02';
 for (const _ref2 of [row]) {
-  var _ref;
-  const _ref3 = (_ref = _ref2.w) === void 0 ? [0, 2] : _ref;
-  const at = _at(_ref3);
-  const includes = _includes(_ref3);
+  const {
+      w: _ref = [0, 2]
+    } = _ref2,
+    at = _at(_ref),
+    includes = _includes(_ref);
   use(at.call('02', -1), includes.call('02', '02'));
 }

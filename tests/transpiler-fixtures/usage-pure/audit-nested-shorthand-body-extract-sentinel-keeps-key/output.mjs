@@ -4,13 +4,16 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 function key() {
   return 'k';
 }
-const _ref = {
-  m: [1],
-  k: 2
-};
-const at = _atMaybeArray(_ref.m);
-const {
-  [key()]: picked
-} = _ref;
+const _ref2 = {
+    m: [1],
+    k: 2
+  },
+  {
+    m: _ref
+  } = _ref2,
+  at = _atMaybeArray(_ref),
+  {
+    [key()]: picked
+  } = _ref2;
 at();
 export const out = picked;

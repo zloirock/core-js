@@ -6,7 +6,6 @@ export function opaque(make, outer, leaf) {
     {
       [(outer(), 'w')]: _ref
     } = null == _ref2 ? _ref2[""] : _ref2,
-    _ref3 = _ref,
-    method = null == _ref3 ? _ref3[""] : (leaf(), _at(_ref3));
+    method = null == _ref ? _ref[""] : (leaf(), _at(_ref));
   return method;
 }

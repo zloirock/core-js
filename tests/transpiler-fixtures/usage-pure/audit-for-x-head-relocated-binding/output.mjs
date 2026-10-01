@@ -75,15 +75,17 @@ for (const {
 }
 // a nested leaf beside a SIBLING relocates too: what it buys is the declaration host, and the
 // sibling rides along in the residual reading the same memo
-for (const _ref6 of [{
+for (const _ref7 of [{
   y: rows,
   keep: 5
 }]) {
-  const _ref7 = _ref6.y;
-  const viaSibling = _atMaybeArray(_ref7);
   const {
-    keep
-  } = _ref7;
+      y: _ref6
+    } = _ref7,
+    viaSibling = _atMaybeArray(_ref6),
+    {
+      keep
+    } = _ref6;
   _pushMaybeArray(seen).call(seen, typeof viaSibling, keep);
 }
 export { seen, drain };
