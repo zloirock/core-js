@@ -8,8 +8,7 @@ for ({
 } of items) {
   noop(obj.flat);
 }
-for (const _ref2 of rows) {
-  var _ref;
-  _ref = _ref2, obj.includes = _includes(_ref), _ref;
+for (const _ref of rows) {
+  obj.includes = _includes(_ref), _ref;
   noop(obj.includes);
 }

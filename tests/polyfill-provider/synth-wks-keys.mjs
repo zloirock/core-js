@@ -12,6 +12,7 @@ import {
   wksComputedKeyName,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { computedKeyWellKnownSymbolName } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
+import { SYMBOL_STATIC_KEYS } from '../../packages/core-js-polyfill-provider/detect-usage/globals.js';
 import {
   buildNestedParamSynthPlan,
   buildPatternRenderPlan,
@@ -250,6 +251,38 @@ runBoth('plan/wks slot notation', 'const { [Symbol.iterator]: it, at } = o;', (a
   check(`${ lbl } respelled`, plan?.[0]?.wksSpelling, 'iterator');
   check(`${ lbl } carries no source key`, plan?.[0]?.keyNode, null);
 });
+
+for (const [prefix, entries] of [
+  ['', '[Symbol.iterator]: symbol, "[@@iterator]": own'],
+  ['', '[Symbol.iterator]: symbol, ["[@@iterator]"]: own'],
+  ['const symbolKey = Symbol.iterator;', '[symbolKey]: symbol, ["[@@iterator]"]: own'],
+  ['const key = "from";', '[key]: variable, "[key]": own'],
+]) runBoth('plan/symbol and binding labels cannot collide with string properties',
+  `${ prefix } const { ${ entries } } = o;`, (adapter, prog, lbl) => {
+    const plan = planOf(adapter, prog);
+    check(`${ lbl }: separate property reads/${ entries }`, plan?.length, 2);
+    check(`${ lbl }: separate map keys/${ entries }`, new Set(plan?.map(entry => entry.dedupKey)).size, 2);
+  });
+
+for (const computed of [false, true]) {
+  const names = ['[@@iterator]', '[key]', '["from"]', '"[@@iterator]"', '"[key]"'];
+  const entries = names.map((name, index) => `${ computed ? `[${ JSON.stringify(name) }]` : JSON.stringify(name) }: own${ index }`).join(', ');
+  runBoth('plan/escaped property labels remain distinct and keep their runtime spelling',
+    `const key = "from"; const { [Symbol.iterator]: symbol, [key]: variable, ${ entries } } = o;`, (adapter, prog, lbl) => {
+      const plan = planOf(adapter, prog);
+      check(`${ lbl }: all string and symbolic slots/${ computed }`, plan?.length, names.length + 2);
+      check(`${ lbl }: unique map keys/${ computed }`, new Set(plan?.map(entry => entry.dedupKey)).size, names.length + 2);
+      checkDeep(`${ lbl }: runtime property names/${ computed }`, plan?.slice(2).map(entry => entry.lookupKey), names);
+    });
+}
+
+for (const name of SYMBOL_STATIC_KEYS) runBoth('plan/every Symbol static remains distinct from its string label',
+  `const { [Symbol.${ name }]: symbol, ${ JSON.stringify(`[@@${ name }]`) }: own } = o;`, (adapter, prog, lbl) => {
+    const plan = planOf(adapter, prog);
+    check(`${ lbl }: distinct properties/${ name }`, plan?.length, 2);
+    check(`${ lbl }: Symbol slot/${ name }`, plan?.[0]?.wks, name);
+    check(`${ lbl }: actual string/${ name }`, plan?.[1]?.wks, null);
+  });
 
 // an effect-bearing computed key carries no source spelling either - the literal holds the
 // resolved name and the effect stays on the pattern

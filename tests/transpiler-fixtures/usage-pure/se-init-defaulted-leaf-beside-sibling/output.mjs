@@ -4,7 +4,7 @@ import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _self from "@core-js/pure/actual/self";
-var _ref;
+var _ref2;
 // A defaulted instance leaf beside a static keeps its dispatch and live fallback.
 // Receiver effects run once before either binding; anonymous defaults keep their inferred names.
 let eff = 0;
@@ -23,11 +23,13 @@ const {
     of: _Array$of
   }
 });
-eff++;
-const f2 = (_ref = _flatMaybeArray(_globalThis.Array.prototype)) === void 0 ? {
-  "f2": () => 1
-}["f2"] : _ref;
-const a2 = _atMaybeArray(_globalThis.Array.prototype);
+const {
+    prototype: _ref
+  } = (eff++, _globalThis.Array),
+  f2 = (_ref2 = _flatMaybeArray(_ref)) === void 0 ? {
+    "f2": () => 1
+  }["f2"] : _ref2,
+  a2 = _atMaybeArray(_ref);
 const {
   Array: {
     prototype: {
@@ -78,14 +80,14 @@ let f5, o5;
 }));
 // ... and off a USER receiver of unknown type, where the default is live and its name observable
 function pick(user) {
-  var _ref2;
-  const _ref3 = (eff++, user);
-  const m6 = (_ref2 = _findIndexMaybeArray(_ref3.codes)) === void 0 ? {
+  var _ref3;
+  const _ref4 = (eff++, user);
+  const m6 = (_ref3 = _findIndexMaybeArray(_ref4.codes)) === void 0 ? {
     "m6": () => 1
-  }["m6"] : _ref2;
+  }["m6"] : _ref3;
   const {
     other: o6
-  } = _ref3;
+  } = _ref4;
   return [m6, o6];
 }
 export { eff, f1, o1, f2, a2, f3, o3, f4, a4, o4, f5, o5, pick };
