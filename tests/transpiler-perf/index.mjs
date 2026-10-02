@@ -198,6 +198,14 @@ function syntheticSharedParamWrites(installers) {
   return parts.join('\n');
 }
 
+// One wide reader called repeatedly: its parameter shape is a property of the callee,
+// not of each invocation. The field read keeps an injection floor in every lane.
+function syntheticLocalArgumentReader(size) {
+  const params = ['o', ...Array.from({ length: size }, (unused, i) => `p${ i }`)];
+  return `function pick(${ params.join(', ') }) { return o.rows; }
+    const box = { rows: [8, 9] }; ${ 'void pick(box);\n'.repeat(size) } box.rows.at(-1);`;
+}
+
 // Reassigning a local alias must not scan writes to every namesake in unrelated functions.
 function syntheticNamesakeWrites(functions) {
   const parts = [];
@@ -283,6 +291,13 @@ function syntheticSharedReturnHandouts(calls) {
   return ['const kept = []; function keep(value) { kept.push(value); }',
     'function interop(object) { return object && object.__esModule ? object : { default: object }; }',
     syntheticLines(calls, i => `const m${ i } = interop({ default: Map }); keep(m${ i }.default);`)].join('\n');
+}
+
+// Parameterless writers share one return fold; an opaque candidate rejects the whole call set.
+function syntheticWrittenFunctionReturns(count, opaque = false) {
+  return ['const box = {};', syntheticLines(count, i => `box.fn = () => [${ i }];`),
+    opaque ? 'box.fn = foreign;' : '',
+    syntheticLines(count, i => `box.fn().at(${ i });`)].join('\n');
 }
 
 // Every reference to one object-literal binding types through its single initializer: walking the
@@ -400,6 +415,15 @@ const CASES = [
   } },
   { name: 'synthetic shared-param writes, 1200 installers', source: () => syntheticSharedParamWrites(1200), bounds: {
     'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
+  } },
+  { name: 'synthetic local reader, 1600 parameters and calls', source: () => syntheticLocalArgumentReader(1600), bounds: {
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
+  } },
+  { name: 'synthetic written function returns, 1000 writes and calls', source: () => syntheticWrittenFunctionReturns(1000), bounds: {
+    'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 2 },
+  } },
+  { name: 'synthetic opaque function returns, 1000 writes and calls', source: () => syntheticWrittenFunctionReturns(1000, true), bounds: {
+    'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 2 },
   } },
   { name: 'synthetic returned container writes, 3000 slots', source: () => syntheticReturnedContainerWrites(3000), bounds: {
     'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },

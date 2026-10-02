@@ -15,10 +15,11 @@
 //   resolveClassMember({ classPath, name, isStatic, callPath, receiverArgs })
 //   methodFnPath(memberPath)
 //   classSubstInner(annotation, subst)
+//   memberKeyMatches(key, computed, name, keyPath)
 //   findObjectMember(objectPath, name)
 //   resolveObjectMember(objectPath, name, callPath)
 //   applySubstToTypeRefArgs(typeRef, subst)
-import { $Object, MAX_DEPTH } from './base.js';
+import { $Object, $Primitive, MAX_DEPTH } from './base.js';
 import { internedTypeRef, isFunctionTypeNode, isOpenKeywordAnnotation, isPrivateMemberNode } from './ast-shapes.js';
 import { isAmbientClassNode } from './name-resolution.js';
 import { createClassMemberShape } from './class-member-shapes.js';
@@ -31,6 +32,7 @@ export function createClassObjectMember({
   keyMatchesName,
   literalKeyValue,
   singleQuasiString,
+  resolveComputedKeyName,
   buildSubstMap,
   unwrapTypeAnnotation,
   typesEqual,
@@ -54,14 +56,14 @@ export function createClassObjectMember({
   findOverloadsForName,
   classCallableSlotReassigned,
 }) {
-  // computed key matches only when statically resolvable to a string (`['foo']` literal,
-  // `[`foo`]` single-quasi, `[42]` numeric). binding-Identifier computed (`[sym]` over
-  // `const sym = Symbol()`) is disjoint from same-named string key per ECMA-262 13.2.5.5,
-  // so `{ items: 'a', [items]: 'b' }` does NOT shadow `items: 'a'`
-  function memberKeyMatches(key, computed, name) {
-    return computed
-      ? (literalKeyValue(key) ?? singleQuasiString(key)) === name
-      : keyMatchesName(key, name);
+  // Class keys use literal spellings; object slots also resolve scoped constants.
+  // Unknown computed keys do not displace explicitly named slots in the type model.
+  function memberKeyMatches(key, computed, name, keyPath = null) {
+    if (!computed) return keyMatchesName(key, name);
+    const resolved = keyPath
+      ? resolveComputedKeyName(key, keyPath.scope, undefined, false)
+      : literalKeyValue(key) ?? singleQuasiString(key);
+    return resolved === name;
   }
   // class BODY node -> (name -> the positions of the members whose key matches it). one member
   // resolution asks `memberKeyMatches` against the same body array three times over - the read
@@ -586,28 +588,32 @@ export function createClassObjectMember({
     return null;
   }
 
+  // Find the final read descriptor: a paired getter, a data/method member or the setter
+  // itself when its slot reads undefined. Spreads leave the read unknown.
   function findObjectMember(objectPath, name) {
     const properties = cachedContainerPaths(objectPath, 'properties');
     for (let i = properties.length - 1; i >= 0; i--) {
       const prop = properties[i];
       if (t.isSpreadElement(prop.node)) return null;
-      if (!memberKeyMatches(prop.node.key, prop.node.computed, name)) continue;
+      const matches = memberKeyMatches(prop.node.key, prop.node.computed, name, prop.node.computed ? prop.get('key') : null);
+      if (!matches) continue;
       // the LAST declaration for `name` decides its nature (later object-literal members override).
       // a setter as that last declaration makes the key an ACCESSOR: reading it yields the paired
       // getter's value, or `undefined` when setter-only - either way the earlier data property is
       // shadowed and must NOT be returned (stale). search for a getter of the same key behind the
-      // setter; return it if present, else bail (setter-only -> undefined, generic helper)
+      // setter; return it if present, else keep the setter as proof of undefined
       if (prop.node.kind === 'set') {
         for (let j = i - 1; j >= 0; j--) {
           const earlier = properties[j];
           if (t.isSpreadElement(earlier.node)) return null;
-          if (!memberKeyMatches(earlier.node.key, earlier.node.computed, name)) continue;
+          const paired = memberKeyMatches(earlier.node.key, earlier.node.computed, name, earlier.node.computed ? earlier.get('key') : null);
+          if (!paired || earlier.node.kind === 'set') continue;
           // the nearest earlier definition decides: a getter pairs with the setter and supplies the
           // read value, while a DATA definition resets the slot to a data descriptor - which the
           // later setter then turns into a setter-only accessor, so any getter behind it is dead
-          return earlier.node.kind === 'get' ? earlier : null;
+          return earlier.node.kind === 'get' ? earlier : prop;
         }
-        return null;
+        return prop;
       }
       return prop;
     }
@@ -616,7 +622,7 @@ export function createClassObjectMember({
 
   function resolveObjectMember(objectPath, name, callPath) {
     const prop = findObjectMember(objectPath, name);
-    if (!prop) return null;
+    if (!prop || callPath && prop.node.kind === 'set') return null;
     // method call: obj.foo()
     const propFn = t.isObjectMethod(prop.node) ? methodFnPath(prop) : null;
     if (callPath) {
@@ -630,6 +636,7 @@ export function createClassObjectMember({
       return null;
     }
     // property access: obj.foo
+    if (prop.node.kind === 'set') return new $Primitive('undefined');
     if (t.isObjectProperty(prop.node)) return resolveNodeType(prop.get('value'));
     // method: getter returns its return type, regular method returns Function
     if (propFn) return prop.node.kind === 'get' ? resolveReturnType(propFn) : new $Object('Function');
@@ -639,7 +646,7 @@ export function createClassObjectMember({
   // cluster-private (consumed only by other cluster functions, never reach the factory surface):
   // `resolveClassMemberNode` / `resolveMethodOrGetterCallReturn` / `resolveBodyReturnValue` /
   // `resolveMemberFromMembers` / `isDataFieldMember` / `isMethodMember` / `isPropertyMember` /
-  // `memberKeyMatches` / `hasOwnAccessor` / `viaThisShadowBail` / `resolveMergedNamespaceStatic` /
+  // `hasOwnAccessor` / `viaThisShadowBail` / `resolveMergedNamespaceStatic` /
   // `bodylessReturnPath` / `isBodylessMethodShape` / `declaredCallableReturn` /
   // `resolveBodylessMethodOverloads`
   return {
@@ -648,6 +655,7 @@ export function createClassObjectMember({
     resolveClassMember,
     methodFnPath,
     classSubstInner,
+    memberKeyMatches,
     findObjectMember,
     resolveObjectMember,
     applySubstToTypeRefArgs,

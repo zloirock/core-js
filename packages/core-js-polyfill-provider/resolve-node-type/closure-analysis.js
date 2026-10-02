@@ -32,6 +32,8 @@ import {
   definitionTimeSlotOf,
   isThisRebinding,
   isMemberAccessNode,
+  isDeleteTarget,
+  isMemberWriteHost,
   mayIterateItself,
   isTSTypeOnlyIdentifierPath,
   mergeOwnThisMethodInfo,
@@ -52,6 +54,7 @@ import {
   walkPatternIdentifiers,
   isDestructurePattern,
   aliasDeclScope,
+  throwCatchHandler,
 } from '../helpers/ast-patterns.js';
 import {
   globalProxyMemberName,
@@ -426,6 +429,15 @@ export function createClosureAnalysis({
         continue;
       }
       switch (parent.type) {
+        case 'ThrowStatement': {
+          const handler = throwCatchHandler(parentPath);
+          const target = handler?.node.param
+            ? bindingTargetClosure(handler.node.param, handler.get('param'), handler.scope,
+              objectPath, fieldPath, receiverClosure, valueRead)
+            : { leaks: !handler };
+          pendingCarrier ??= target.closure ?? null;
+          return target.leaks ? null : local();
+        }
         // a member read on the tracked value: while slot steps remain it consumes the leading one
         // (`[{...}][0]` extracts through the inline carrier - the read RESULT carries the anon on, and
         // the next loop round decides held vs dereferenced); a dotted mismatch on an object-key step
@@ -504,14 +516,13 @@ export function createClosureAnalysis({
         // the object is a DEFAULT value (`function f(o = {...})` param default / `const { x = {...} } = src`
         // destructure default). it binds to the default's TARGET, so a held read of the nested anon's slot
         // (`sink(o.wrap)`) still aliases it out while a dereference keeps it local - the same field-path
-        // leak as a bound carrier. a non-Identifier target (nested pattern) can't be leak-analyzed.
+        // leak as a bound carrier. Patterns use the same target proof as declarations and writes.
         // this is the ONE position where the two walks legitimately part: an object written inline here
         // is reachable ONLY through the holder, which this walk analyzes, while a NAMED object keeps its
         // own binding too and the holder is an extra channel over it - so the named side reports the
         // default-value reference as an escaping read instead
         case 'AssignmentPattern': {
           if (unwrapRuntimeExpr(parent.right) !== valuePath.node) return local();
-          if (parent.left?.type !== 'Identifier') return null;
           const target = bindingTargetClosure(
             parent.left,
             parentPath.get('left'),
@@ -540,7 +551,8 @@ export function createClosureAnalysis({
             callNode: parent,
             argNode: parent.arguments.find(arg => unwrapRuntimeExpr(arg) === valuePath.node),
             argPath: valuePath,
-            hasOwnThisMethods: !!objectOwnThisMethodInfo(objectPath.node),
+            methodInfo: objectOwnThisMethodInfo(objectPath.node),
+            valueRead,
           }) ? null : local();
         }
       }
@@ -635,9 +647,7 @@ export function createClosureAnalysis({
       if (hasDeferredContextAncestor(p)) return { kind: 'extraction' };
       return { kind: 'call', end: ctx.end };
     }
-    if (ctx?.type === 'AssignmentExpression' && ctx.operator === '='
-      && unwrapRuntimeExpr(ctx.left) === memberNode) return { kind: 'write' };
-    if (ctx?.type === 'UpdateExpression' && unwrapRuntimeExpr(ctx.argument) === memberNode) return { kind: 'write' };
+    if (isMemberWriteHost(memberPath)) return { kind: 'write' };
     return { kind: 'extraction' };
   }
 
@@ -1206,7 +1216,8 @@ export function createClosureAnalysis({
             pushMultimap(subclassesBySuper, name, p);
           }
         },
-        // index ALL `<expr>.<fieldName> <op>= ...` and `<expr>.<fieldName>++` / `--` writes
+        // index ALL assignments, updates and deletions of member slots. Deletion can reveal
+        // an inherited value of a different family, so it contributes an opaque null too.
         // regardless of operator. `pushIfWriteMatches` distinguishes pure `=` (push RHS path)
         // from compound / Update (push an opaque null) at consume time via `writePathContributedValue`
         AssignmentExpression(p) {
@@ -1221,6 +1232,11 @@ export function createClosureAnalysis({
           if (leftType === 'ObjectPattern' || leftType === 'ArrayPattern') indexPatternWriteMembers(p.get('left'));
         },
         UpdateExpression(p) {
+          const name = memberWriteFieldName(p.node.argument, p.scope);
+          if (name) pushMultimap(writesByField, name, p);
+        },
+        UnaryExpression(p) {
+          if (!isDeleteTarget(p.node)) return;
           const name = memberWriteFieldName(p.node.argument, p.scope);
           if (name) pushMultimap(writesByField, name, p);
         },

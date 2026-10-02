@@ -210,6 +210,29 @@ for (const parser of adapters) {
   checkDeep(`${ parser.name }/object schema`, Object.keys(object).sort(), Object.keys(merged).sort());
   check(`${ parser.name }/class has no literal keys`, merged.declaredKeys, null);
   checkDeep(`${ parser.name }/merged methods`, [...merged.methodKeys].sort(), ['a', 'b']);
+
+  // Runtime descriptor order owns the getter boundary; duplicate definitions deliberately
+  // exercise JavaScript forms TypeScript rejects. Unknown keys retain explicitly named getters in the type model.
+  for (const [name, properties, expected] of [
+    ['getter', 'get value() { return []; }', ['value']],
+    ['paired setter', 'get value() { return []; }, set value(v) {}', ['value']],
+    ['getter after data', 'value: 0, get value() { return []; }', ['value']],
+    ['data reset', 'get value() { return []; }, value: 0', []],
+    ['method reset', 'get value() { return []; }, value() {}', []],
+    ['setter only', 'set value(v) {}', []],
+    ['setter after reset', 'get value() { return []; }, value: 0, set value(v) {}', []],
+    ['getter after spread', '...other, get value() { return []; }', ['value']],
+    ['spread after getter', 'get value() { return []; }, ...other', []],
+    ['getter after unknown key', '[key]: 0, get value() { return []; }', ['value']],
+    ['unknown key after getter', 'get value() { return []; }, [key]: 0', ['value']],
+    ['unknown setter after getter', 'get value() { return []; }, set [key](v) {}', ['value']],
+    ['computed getter', 'get ["value"]() { return []; }', ['value']],
+  ]) {
+    const tree = parser.parseAndScope(`const o = { ${ properties } };`);
+    const info = objectOwnThisMethodInfo(parser.pickPath(tree, 'ObjectExpression').node);
+    checkDeep(`${ parser.name }/${ name }/final getters`, [...info.getterKeys ?? []], expected);
+  }
+  check(`${ parser.name }/merged class has no literal getters`, merged.getterKeys, null);
 }
 
 finish();

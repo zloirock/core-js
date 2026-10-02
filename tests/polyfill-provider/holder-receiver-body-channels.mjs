@@ -29,6 +29,19 @@ const CHANNELS = [
   ['unread body installed through an alias', 'const h = { rows: [1, 2] }; const alias = h; alias.change = fn; h.change(); export const r = h.rows.at(0);', 'escapes'],
   ['uncalled unread body does not run on a field read', 'const h = { rows: [1, 2] }; h.change = fn; export const r = h.rows.at(0);', 'local'],
   ['replacement of a declared method by an unread value', 'const h = { rows: [1, 2], change() {} }; h.change = fn; h.change(); export const r = h.rows.at(0);', 'escapes'],
+  ['installed inline arrow has no receiver body', 'const h = { rows: [1, 2] }; h.change = () => 1; h.change(); export const r = h.rows.at(0);', 'local'],
+  ['replacement method by a closed arrow', 'const h = { rows: [1, 2], change() {} }; h.change = () => 1; h.change(); export const r = h.rows.at(0);', 'local'],
+  [
+    'replacement method by a scanned receiver body',
+    'const h = { rows: [1, 2], change() {} }; h.change = function () { this.count = 1; }; h.change(); export const r = h.rows.at(0);',
+    'local',
+  ],
+  ['installed arrow hands its captured holder out', 'const h = { rows: [1, 2] }; h.change = () => sink(h); h.change(); export const r = h.rows.at(0);', 'escapes'],
+  [
+    'replacement arrow writes a captured slot',
+    'const h = { rows: [1, 2], change() {} }; h.change = () => { h.rows = "ab"; }; h.change(); export const r = h.rows.at(0);',
+    'escapes',
+  ],
   [
     'installed scalar writer with a concrete receiver',
     'class C { static rows = [1, 2]; }\nC.change = function () { this.count = 1; };\nC.change();\nexport const r = C.rows.at(0);',
@@ -104,6 +117,15 @@ const CHANNELS = [
   ['own getter hands `this` out',
     `const h = { rows: [1, 2], get peek() { sink(this); return 1; }, ${ READ } };\n`
     + 'sink(h.peek);\nexport const r = h.read();', 'escapes'],
+  ['write through a getter result keeps its owner local',
+    `const h = { rows: [1, 2], get peek() { return [3, 4]; }, ${ READ } };\n`
+    + 'const wrap = { h }; wrap.h.peek.at = 0;\nexport const r = h.read();', 'local'],
+  ['getter result can be the owner itself',
+    `const h = { rows: [1, 2], get peek() { return this; }, ${ READ } };\n`
+    + 'const wrap = { h }; wrap.h.peek.rows = "pq";\nexport const r = h.read();', 'escapes'],
+  ['getter result write still invokes a leaking body',
+    `const h = { rows: [1, 2], get peek() { sink(this); return [3, 4]; }, ${ READ } };\n`
+    + 'const wrap = { h }; wrap.h.peek.at = 0;\nexport const r = h.read();', 'escapes'],
   // (4) coercion invokes the object's own conversion members
   ['own `toString` hands `this` out, invoked by coercion',
     `const h = { rows: [1, 2], toString() { sink(this); return "x"; }, ${ READ } };\n`
@@ -201,8 +223,11 @@ const CHANNELS = [
   ['nested static block owns its own receiver',
     `const h = { rows: [1, 2], m() { class K { static { sink(this); } } return K; }, ${ READ } };\n`
     + 'h.m();\nexport const r = h.read();', 'local'],
-  ['own method key runs before the receiver exists',
+  // The key's this is outside the receiver; an unresolved key retains the named rows type.
+  ['own method key runs before the receiver exists and retains named data',
     `const h = { rows: [1, 2], [sink(this)]() {}, ${ READ } };\nexport const r = h.read();`, 'local'],
+  ['known own method key runs before the receiver exists',
+    `const h = { rows: [1, 2], [(sink(this), "m")]() {}, ${ READ } };\nexport const r = h.read();`, 'local'],
   ['nested member decorator hands OUR receiver out',
     `const h = { rows: [1, 2], m() { class K { @dec(this) f() {} } return K; }, ${ READ } };\n`
     + 'h.m();\nexport const r = h.read();', 'escapes'],
