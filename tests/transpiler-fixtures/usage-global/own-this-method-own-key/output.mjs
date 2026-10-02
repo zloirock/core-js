@@ -1,5 +1,6 @@
 import "core-js/modules/es.array.at";
-// This definition uses another receiver, so the rows remain an array.
+// The key runs before the receiver exists and cannot expose that receiver.
+// Its unresolved value leaves the explicitly named rows type intact.
 const holder = {
   rows: [],
   [sink(this)]() {}
