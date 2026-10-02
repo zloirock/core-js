@@ -30,9 +30,11 @@
 // `staticPairFromPolyfillEntry`, `lookupNested`, `KNOWN_STATIC_METHOD_RETURN_TYPES`) and the
 // Babel/ESTree type adapter `t`. Module-level state (`exportedNamesCache`) ships with `reset()`.
 import { MAX_DEPTH, PRIMITIVES } from './base.js';
+import { resolveInlineCalleeFunction } from '../detect-usage/resolve.js';
 import {
   POSSIBLE_GLOBAL_OBJECTS,
   TS_EXPR_WRAPPERS,
+  calleeParameterMemberRead,
   annexBHoistOutrunsBinding,
   isBindingDeclarationPath,
   isForXStatement,
@@ -56,6 +58,7 @@ import {
   POSITION_CONSUMES,
   POSITION_FORWARDS,
   propertyKeyName,
+  resolveCallArgument,
   valueMayBeCallable,
   unwrapRuntimeExpr,
   walkPatternIdentifiers,
@@ -66,6 +69,9 @@ import {
 export function createBindingAnalysis({
   getScopeBinding,
   resolveComputedKeyName,
+  resolveRuntimeExpression,
+  bindingAdapter,
+  walkObjectLiteralPropertyPath,
   scannedMethodInstall,
   t,
   memoize,
@@ -82,6 +88,8 @@ export function createBindingAnalysis({
   forwardedObjectClosure,
 }) {
   let forwardingRefs = null;
+  let localCallMemberReadCache = new WeakMap();
+  let parameterMemberReadCache = new WeakMap();
 
   // every module-level export name as a Set: covers `export const X`, `export class X`,
   // `export function X`, `export default class X`, `export default function X`,
@@ -309,12 +317,31 @@ export function createBindingAnalysis({
     if (argIndex === -1) return false;
     for (let i = 0; i < argIndex; i++) if (parent.arguments[i]?.type === 'SpreadElement') return false;
     const entry = resolveKnownStaticEntry(parent.callee, refPath);
-    if (entry === null) return false;
+    if (entry === null) return !!localCallMemberRead(parent, refNode, refPath);
     const mutates = entry.mutatesArgument;
     if (!Array.isArray(mutates)) return true;
     return refNode.type === 'SpreadElement'
       ? mutates.every(idx => idx < argIndex)
       : !mutates.includes(argIndex);
+  }
+
+  // Pair a local reader's parameter with THIS invocation's argument. Callee resolution shares
+  // the alias, reassignment and invoker canon; cache it once per call, not once per argument use.
+  function localCallMemberRead(callNode, argNode, argPath) {
+    if (callNode?.type !== 'CallExpression' && callNode?.type !== 'OptionalCallExpression') return null;
+    if (!argNode || argNode.type === 'SpreadElement') return null;
+    const read = memoize(localCallMemberReadCache, callNode, () => {
+      // A member callee can ask this closure again while resolving its owner.
+      localCallMemberReadCache.set(callNode, null);
+      const callee = resolveInlineCalleeFunction({
+        node: callNode,
+        ctx: { scope: argPath?.scope, path: peelTransparentExprAncestorPath(argPath)?.parentPath, adapter: bindingAdapter },
+        seen: new Set(),
+      }, { allowIdentityParam: true, rejectConditional: true, allowAsync: false });
+      const returned = callee && memoize(parameterMemberReadCache, callee.node, () => calleeParameterMemberRead(callee.node));
+      return returned && { member: returned.member, argument: resolveCallArgument(callee.args, returned.paramIndex) };
+    });
+    return read?.argument && unwrapRuntimeExpr(read.argument) === unwrapRuntimeExpr(argNode) ? read.member : null;
   }
 
   // `let c; c = new C();` as ExpressionStatement-direct AssignmentExpression: assignment is the
@@ -429,6 +456,20 @@ export function createBindingAnalysis({
         const binding = getScopeBinding(p.scope, p.node.name, p);
         if (binding) pushByKey(identifierByBinding, binding, p);
       }
+      // ESTree keeps source references under `references`, but misses some TS wrappers.
+      // Merge the census additions by source position, keeping the native path where an
+      // emitter replaced its parent. A cloned receiver passed to our helper is still the
+      // original member read, rather than a new handout to an unknown call.
+      for (const [binding, indexed] of identifierByBinding) {
+        if (!Array.isArray(binding.references)) continue;
+        const references = new Map();
+        for (const ref of binding.references) references.set(nodeSpan(ref.node)?.start ?? ref.node, ref);
+        for (const ref of indexed) {
+          const key = nodeSpan(ref.node)?.start ?? ref.node;
+          if (!references.has(key)) references.set(key, ref);
+        }
+        identifierByBinding.set(binding, references.values().toArray());
+      }
       return { identifierByBinding, newExprByName };
     });
   }
@@ -492,13 +533,16 @@ export function createBindingAnalysis({
 
   // does handing a value to this call at this argument slot EXPOSE it? the single decision both walks
   // ask - the named-holder classifier and the anonymous-object one - so an object written inline at the
-  // argument reads exactly like one bound to a name first. three layers: a value carrying own-`this`
-  // methods additionally needs the slot listed as method-safe (anything else may extract a method and
-  // rebind its `this`), the callee must not mutate that slot, and a callee whose result retains the
-  // value must not have that result held (the result aliases the value back out)
-  function callArgumentEscapes({ callNode, argNode, argPath, hasOwnThisMethods }) {
+  // argument reads exactly like one bound to a name first. Three layers: own-`this` methods need a
+  // method-safe slot or a proven read that cannot extract one, the callee must not mutate that slot,
+  // and a callee whose result retains the value must not have that result held
+  // (the result aliases the value back out).
+  function callArgumentEscapes({ callNode, argNode, argPath, methodInfo = null, valueRead = false }) {
     if (referenceInstallsUnreadBody(callNode, argNode, argPath, null)) return true;
-    if (hasOwnThisMethods && !methodSafeCallArgSlot(callNode, argNode, argPath?.scope)) return true;
+    if (methodInfo && !methodSafeCallArgSlot(callNode, argNode, argPath?.scope)) {
+      const read = localCallMemberRead(callNode, argNode, argPath);
+      if (!read || methodReadLeaks(read, null, methodInfo, valueRead)) return true;
+    }
     if (!isKnownNonMutatingCallSite(callNode, argNode, argPath)) return true;
     return heldResultRetainsArgument(callNode, argNode, argPath);
   }
@@ -582,6 +626,7 @@ export function createBindingAnalysis({
     if (wrapperDestructureReadsSlot(parent, refNode, refPath)) return 'trivial';
     const disposition = positionDisposition(parent, refNode, refPath?.parentPath);
     if (disposition === POSITION_CONSUMES) return 'trivial';
+    if (disposition === POSITION_FORWARDS && parent?.type === 'ThrowStatement') return 'carrier';
     // a `for...of` head is deliberately NOT in that list: it invokes `o[Symbol.iterator]()`, and an
     // own iterator is free to yield `this`. with no own iterator to invoke the loop throws before it
     // binds anything, so the holder stays local here and the method-aware wrapper draws the line
@@ -683,7 +728,12 @@ export function createBindingAnalysis({
 
   function classBindingRefClassifier(parent, refNode, refPath) {
     const base = defaultAliasRefClassifier(parent, refNode, refPath);
-    if (base !== 'leak') return base;
+    if (base !== 'leak') {
+      // An empty prototype still exposes its constructor; a superclass exposes inherited statics.
+      const read = localCallMemberRead(parent, refNode, refPath);
+      const key = read && memberReadKeyName(read);
+      return key === 'prototype' || key === '__proto__' ? 'leak' : base;
+    }
     if (parent?.type === 'NewExpression' && parent.callee === refNode) return 'trivial';
     if ((parent?.type === 'ClassDeclaration' || parent?.type === 'ClassExpression')
       && parent.superClass === refNode) return 'trivial';
@@ -739,6 +789,8 @@ export function createBindingAnalysis({
   // name ANY method, so it applies whenever the object has one (or hides one behind an untrackable
   // key). a DISCARDED read (`c[k];` statement / `void c[k]`) cannot hold the function - no rebind
   function methodReadLeaks(memberNode, memberPath, methodInfo, valueRead = false) {
+    // A proven installation writes the slot without extracting its previous method.
+    if (isMemberWriteHost(memberPath) && scannedMethodInstall(peelTransparentExprAncestorPath(memberPath)?.parentPath)) return false;
     const key = memberReadKeyName(memberNode);
     // a key this module never wrote may still name a body it copied in through a spread. such a body
     // runs with our receiver as `this`, so unlike an own method it is NOT made safe by being called
@@ -879,6 +931,13 @@ export function createBindingAnalysis({
         if (prototypeInfo && memberReadKeyName(parent) === 'prototype'
           && prototypeReadLeaks(refPath?.parentPath, prototypeInfo)) return 'leak';
       }
+      // A safe method read still needs its base classifier's class-prototype boundary.
+      if (methodInfo && (parent?.type === 'CallExpression' || parent?.type === 'NewExpression'
+        || parent?.type === 'OptionalCallExpression') && parent.arguments?.includes(refNode)) {
+        return callArgumentEscapes({
+          callNode: parent, argNode: refNode, argPath: refPath, methodInfo, valueRead,
+        }) ? 'leak' : base(parent, refNode, refPath);
+      }
       if (!methodInfo) return base(parent, refNode, refPath);
       const wrappedPattern = wrapperDestructureReadsSlot(parent, refNode, refPath);
       if (wrappedPattern) return !valueRead && patternBindsMethodKey(wrappedPattern, methodInfo) ? 'leak' : 'trivial';
@@ -891,14 +950,6 @@ export function createBindingAnalysis({
       // it enumerates keys and never calls into the holder
       if (methodInfo.mayIterate && invokesOwnIterator(parent, refNode, refPath)) return 'leak';
       if (!valueRead && patternBindsMethodKey(destructuringPatternOver(parent, refNode), methodInfo)) return 'leak';
-      // the walker hands `refNode` as the OUTERMOST wrapper, so a cast-wrapped argument
-      // (`Object.setPrototypeOf(x, o as any)`) IS the argument node - compare by identity
-      if ((parent?.type === 'CallExpression' || parent?.type === 'NewExpression'
-        || parent?.type === 'OptionalCallExpression') && parent.arguments?.includes(refNode)) {
-        return callArgumentEscapes({
-          callNode: parent, argNode: refNode, argPath: refPath, hasOwnThisMethods: true,
-        }) ? 'leak' : 'trivial';
-      }
       return base(parent, refNode, refPath);
     };
   }
@@ -967,7 +1018,10 @@ export function createBindingAnalysis({
   // a HELD slot read (`sink(a[i])` / `sink(o.wrap)`) aliases it out. a reference that does NOT follow the slot
   // path could still expose the whole carrier - iteration, spread, a destructure, a method call on the
   // binding; a structural read / a DIFFERENT field doesn't reach the anon, so the shared default decides
-  function makeNestedAnonAliasRefClassifier(fieldPath, methodInfo, valueRead) {
+  function makeNestedAnonAliasRefClassifier(fieldPath, methodInfo, valueRead, anchorPath) {
+    // Data steps and shapes stay unchanged during this closure walk; share them across refs.
+    let getterStepCache;
+    let getterDataCache;
     return function (parent, refNode, refPath) {
       let access = refPath;
       let matched = true;
@@ -1008,15 +1062,33 @@ export function createBindingAnalysis({
         if (methodInfo && methodReadLeaks(use, outer.parentPath, methodInfo, valueRead)) return 'leak';
         // a WRITE through the matched slot (`o.a.data = 5` / `o.a.data++` / `delete o.a.data` / a deeper
         // chain ending in a write) mutates the anon from OUTSIDE its this-scan - the zero-external-write
-        // premise of the local narrow breaks, so bail; read-only dereferences stay local
-        let memberPath = outer.parentPath;
-        for (;;) {
-          if (isMemberWriteHost(memberPath)) return 'leak';
-          const memberOuter = peelTransparentExprAncestorPath(memberPath);
-          if (!isMemberRefReceiver(memberOuter?.parentPath?.node, memberOuter?.node)) break;
-          memberPath = memberOuter.parentPath;
+        // premise breaks. Calls end that chain; a proven getter read is an implicit call too.
+        let writePath = outer.parentPath;
+        while (!isMemberWriteHost(writePath)) {
+          const memberOuter = peelTransparentExprAncestorPath(writePath);
+          if (!isMemberRefReceiver(memberOuter?.parentPath?.node, memberOuter?.node)) return 'trivial';
+          writePath = memberOuter.parentPath;
         }
-        return 'trivial';
+        // Only written chains need the getter proof. Walk their data slots up to the write;
+        // a write to the getter slot itself never crosses its invocation boundary.
+        let readPath = outer.parentPath;
+        let receiverPath = anchorPath;
+        let receiverInfo = methodInfo;
+        while (readPath !== writePath) {
+          const member = readPath.node;
+          const key = member.computed ? resolveComputedKeyName(member.property, readPath.scope) : memberReadKeyName(member);
+          if (receiverInfo?.getterKeys?.has(key)) return 'trivial';
+          const step = receiverPath && memoize(
+            memoize(getterStepCache ??= new WeakMap(), receiverPath.node, () => new Map()), key, () => {
+              const path = walkObjectLiteralPropertyPath(receiverPath, key, getterDataCache ??= new WeakMap());
+              return { path, info: path && objectOwnThisMethodInfo(resolveRuntimeExpression(path).node) };
+            },
+          );
+          receiverPath = step?.path;
+          receiverInfo = step?.info;
+          readPath = peelTransparentExprAncestorPath(readPath).parentPath;
+        }
+        return 'leak';
       }
       if (isForXStatement(parent) && parent.right === refNode) return 'leak';
       if (parent?.type === 'SpreadElement') return 'leak';
@@ -1078,7 +1150,7 @@ export function createBindingAnalysis({
     if (valueRead && ownThisInfo?.unscannableBodies && !ownThisInfo.declaredKeys) return null;
     // a nested anon (`const a = [{...}]` / `const o = { f: {...} }`) is held by a slot of the binding, so a
     // held read of THAT slot aliases it out even though the binding stays local - swap in the path classifier
-    if (fieldPath?.length) classifier = makeNestedAnonAliasRefClassifier(fieldPath, ownThisInfo, valueRead);
+    if (fieldPath?.length) classifier = makeNestedAnonAliasRefClassifier(fieldPath, ownThisInfo, valueRead, anchorPath);
     else if (ownThisInfo || prototypeMethodInfo || valueRead) {
       classifier = makeMethodAwareRefClassifier(classifier, { methodInfo: ownThisInfo, prototypeInfo: prototypeMethodInfo, valueRead });
     }
@@ -1152,6 +1224,8 @@ export function createBindingAnalysis({
   }
 
   function reset() {
+    localCallMemberReadCache = new WeakMap();
+    parameterMemberReadCache = new WeakMap();
     exportedNamesCache = new WeakMap();
     programCensusCache = new WeakMap();
     programIndexCache = new WeakMap();

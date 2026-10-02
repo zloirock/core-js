@@ -250,6 +250,8 @@ const TypePrototype = {
   // is genuinely both. `null` is the marker's original meaning, an opaque union: one arm too
   // wide to name, or more members than the cap keeps
   literals: null,
+  // A pristine inherited slot exists even when the literal has no own declaration for it.
+  inheritedPresent: false,
   // capital `Object` (the boxed-top type): every non-nullish candidate is assignable to it
   // (TS: `string extends Object` is true), unlike the lowercase `object` keyword and
   // structural literal shapes, which reject primitives. member dispatch stays generic

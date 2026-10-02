@@ -64,6 +64,7 @@ import {
   IMPORT_SPECIFIER_TYPES,
   inlineCallYieldedContainer,
   invocationNode,
+  calleeParameterMemberRead,
   calleeYieldedContainer,
   callPairing,
   installedWriteValue,
@@ -80,6 +81,7 @@ import {
   isTopLevelThisContext,
   isVarScopeBoundary,
   CENSUS_KEY_NAMES,
+  CENSUS_ENUM_RECEIVERS,
   CENSUS_STATIC_RECEIVERS,
   isAmbientBindingShape,
   jsxIdentifierReferencesBinding,
@@ -88,6 +90,7 @@ import {
   LOCAL_MEMBER_CALLEES,
   memberChainKeys,
   memberKeyName,
+  memberReadKeyName,
   mayHaveSideEffects,
   MUTATED_MEMBERS_UNKNOWN,
   MUTATED_STATIC_PINNED,
@@ -769,15 +772,18 @@ const NO_CHAIN_SLOT = { expanded: true, outside: true, values: [] };
 
 // does a write this file spells land on the slot a member chain of a BOUND name reads, or on a
 // slot above it - or under one of its keys through a receiver no name spells?
-function censusSlotWritten(programNode, aliasInit, member) {
+function censusSlotWritten(programNode, aliasInit, member, preserveOwn = false) {
   const { root, keys } = memberChainKeys(member);
   const unrooted = UNROOTED_WRITE_KEYS.get(programNode);
   if (unrooted?.size && keys.some(key => unrooted.has(key ?? '*') || unrooted.has('*'))) return true;
   if (root?.type !== 'Identifier' || keys.includes(null)) return false;
   const written = WRITTEN_SLOT_VALUES.get(programNode);
   const names = aliasWriteNames(written, aliasBindingKey(aliasInit, root.name, aliasReferenceScopes(aliasInit, root)), root.name);
-  return keys.map((key, at) => JSON.stringify(keys.slice(0, at + 1)))
-    .some(path => names.some(name => writtenSlotValues(written, name, path).length > 0));
+  if (preserveOwn && names.some(name => writtenSlotValues(written, name, '["*"]').length)) return true;
+  return keys.map((key, at) => JSON.stringify(keys.slice(0, at + 1))).some((path, at) => names.some(name => {
+    const values = writtenSlotValues(written, name, path);
+    return values.length > 0 && (!preserveOwn || at < keys.length - 1 || values.some(value => !value));
+  }));
 }
 
 // the global a read off the REALM names: a proven realm reference to a known global (`Map`), or a
@@ -2136,6 +2142,9 @@ export function escapedCtorReferencesReducer() {
   // The declarations and reference scopes distinguish the realm's value from a local binding.
   // Alias and callee resolution also read these scopes, so ordinary local names must be recorded.
   const declarations = createDeclaredNameIndex();
+  // An empty ordinary declaration holds undefined only while no other declaration or write
+  // supplies a value. Reuse the scope lattice; catch/parameter/iteration bindings stay opaque.
+  const uninitializedDeclarations = createDeclaredNameIndex();
   // ... and the half of them whose VALUES this census cannot enumerate. a parameter holds whatever
   // the CALLER passed, a catch parameter whatever was thrown, an import local whatever the other
   // module exports, a for-x head binding whatever the iteration yielded: the alias graph cannot
@@ -2999,6 +3008,7 @@ export function escapedCtorReferencesReducer() {
     CTOR_ALIAS_INITS.set(node, aliasInit);
     CENSUS_STATIC_RECEIVERS.delete(node);
     CENSUS_KEY_NAMES.set(node, censusKeyNames);
+    CENSUS_ENUM_RECEIVERS.set(node, member => enumMemberKey(member, true));
     RECORDED_MUTATION_ROOTS.delete(node);
     ALIAS_SCOPE_FACTS.set(aliasInit, {
       declarations,
@@ -3158,6 +3168,7 @@ export function escapedCtorReferencesReducer() {
       case 'VariableDeclarator':
         {
           const bindsIn = declarationScopesOf(node, frame).enclosing;
+          if (!node.init && node.id?.type === 'Identifier') uninitializedDeclarations.record(node, frame);
           if (isGuardedAliasingWrite({
             node,
             kind: frame?.parentNode?.kind,
@@ -3166,6 +3177,13 @@ export function escapedCtorReferencesReducer() {
           if (isDestructurePattern(node.id)) stampCtorStaticReadThroughSlot(node.id, node.init);
           recordPatternAlias(node.id, node.init, bindsIn);
         }
+        break;
+      case 'UpdateExpression':
+        if (node.argument.type === 'Identifier') guardedAliases.add(node.argument.name);
+        else fileSlotWrite(node.argument, null, frame);
+        break;
+      case 'UnaryExpression':
+        if (node.operator === 'delete') fileSlotWrite(node.argument, null, frame);
         break;
       // a for-of HEAD binds against the ELEMENT the iterated literal spells: its
       // declarator carries no init, so the declarator case above records nothing for it, and an
@@ -3201,7 +3219,10 @@ export function escapedCtorReferencesReducer() {
       // (`class NS { static Base = Map }` then `NS.Base`) - the same slot the container census
       // indexes, and the only container shape no declarator init records
 
-      case 'ThrowStatement': escaped.add(node.argument); break;
+      case 'ThrowStatement':
+        if (frame.throwHandler) recordPatternAlias(frame.throwHandler.param, node.argument, frame.throwHandler);
+        else escaped.add(node.argument);
+        break;
       // a yield hands the value to the iterator's consumer
       case 'YieldExpression': escaped.add(node.argument); break;
       // a PLAIN-IDENTIFIER default (`function f(M = Ctor)`) is one more value the binding it names
@@ -3470,7 +3491,12 @@ export function escapedCtorReferencesReducer() {
       case 'Identifier': {
         if (value.name === 'undefined' && classifyRealmReference(value) === 'proven') return [undefined];
         const held = aliasedValues(aliasInit, value, seen);
-        return held.length === 1 && held[0] === value ? null : joinKeyValues(held, seen, null);
+        if (held.length !== 1 || held[0] !== value) return joinKeyValues(held, seen, null);
+        const scopes = aliasReferenceScopes(aliasInit, value) ?? [];
+        const owner = uninitializedDeclarations.resolve(value.name, scopes);
+        return owner !== undefined && declarations.resolve(value.name, scopes) === owner
+          && bindingCounts.get(value.name)?.get(owner) === 1 && !guardedAliases.has(value.name)
+          && !unaccountableDeclarations.declares(value.name, scopes) ? [undefined] : null;
       }
     }
     if (isRealmWellKnownSymbol(value)) return [WELL_KNOWN_SYMBOL_KEY];
@@ -3488,22 +3514,30 @@ export function escapedCtorReferencesReducer() {
     const values = slot.length === 1 && slot[0] !== container ? censusKeyValues(slot[0], seen) : null;
     return values?.some(held => hasConstructorStaticKey(String(held))) ? null : values;
   }
-  // the string or number literal a member of an enum this file declares is initialized with, where
-  // that enum is the nearest binding of the name, no write reaches the member and the file hands the
-  // enum on nowhere (whatever receives it may patch the member) - the one enum value the claims' key
-  // canon folds too, so both name the same key or neither does
-  function enumMemberKey(member) {
+  // One enum declaration proof serves key values and own receivers. Value reads reject every
+  // slot write; a receiver proof permits ordinary value replacements but rejects removal.
+  // Qualified receivers retain the same raw mutation gates and delegate declaration lookup.
+  function enumMemberKey(member, receiverOnly = false) {
     const object = isMemberAccessNode(member) ? unwrapRuntimeExpr(member.object) : null;
-    const name = object?.type === 'Identifier' ? staticMemberKeyName(member) : null;
+    if (receiverOnly && !enumBlocks.size) return false;
+    const name = object && (receiverOnly || object.type === 'Identifier') ? staticMemberKeyName(member) : null;
+    const root = receiverOnly && object ? memberChainKeys(member).root : null;
+    if (receiverOnly && (name === null || root?.type !== 'Identifier' || guardedAliases.has(root.name)
+      || readsBare.has(root.name) || censusSlotWritten(programNode, aliasInit, member, true))) return false;
+    if (receiverOnly && isMemberAccessNode(object)) return null;
+    if (object?.type !== 'Identifier') return receiverOnly ? false : null;
     const blocks = name === null ? null : enumBlocks.get(object.name);
-    if (!blocks || readsBare.has(object.name) || censusSlotWritten(programNode, aliasInit, member)) return null;
+    if (!blocks || readsBare.has(object.name) || guardedAliases.has(object.name)
+      || !receiverOnly && censusSlotWritten(programNode, aliasInit, member)) return receiverOnly ? false : null;
     const owner = declarations.resolve(object.name, aliasReferenceScopes(aliasInit, object) ?? []);
     for (const { node, scope } of blocks) {
-      const initializer = scope === owner ? unwrapRuntimeExpr(findEnumMember(node, name)?.initializer) : null;
+      const declared = scope === owner ? findEnumMember(node, name) : null;
+      if (receiverOnly && declared) return true;
+      const initializer = unwrapRuntimeExpr(declared?.initializer);
       if (!['StringLiteral', 'NumericLiteral', 'Literal'].includes(initializer?.type)) continue;
       if (typeof initializer.value == 'string' || typeof initializer.value == 'number') return initializer.value;
     }
-    return null;
+    return receiverOnly ? false : null;
   }
   // the values of several key spellings: their union, or - where a `combine` joins them in order (a
   // concat, a template) - every combination, as long as their count stays one the folds can list
@@ -4285,7 +4319,7 @@ function publishPlainAliases(aliasValues, recordEscaped, qualify, containers) {
   const grouped = new Map();
   for (const [name, values] of aliasValues) {
     for (const item of values) {
-      const key = qualify(name, item.scopes);
+      const key = qualify(name, item.bindingScopes ?? item.scopes);
       if (!key) continue;
       let entries = grouped.get(key);
       if (!entries) grouped.set(key, entries = []);
@@ -5285,7 +5319,25 @@ export function mutationShapesReducer(packages = null) {
         }
         break;
 
-      case 'ThrowStatement':
+      case 'ThrowStatement': {
+        const handler = frame.throwHandler;
+        if (!handler) recordEscapedContainers([node.argument]);
+        else walkPatternIdentifiers(handler.param, id => {
+          const paths = patternRootKeyPathsFor(handler.param, id.name);
+          const target = plainAliasTarget(unwrapRuntimeExpr(node.argument));
+          if (!paths || !target) {
+            recordEscapedContainers([node.argument]);
+            return;
+          }
+          let values = aliasValues.get(id.name);
+          if (!values) aliasValues.set(id.name, values = []);
+          for (const keys of paths) values.push({
+            rawValue: node.argument, target: { root: target.root, keys: [...target.keys, ...keys.map(String)] },
+            scopes: currentScopes, bindingScopes: [...currentScopes, handler],
+          });
+        });
+        break;
+      }
       case 'ReturnStatement':
       case 'YieldExpression':
       case 'ArrowFunctionExpression':
@@ -6324,6 +6376,8 @@ export function createDetectionAdapter({
   parameterCallSites = null,
 }, buildHostMembers) {
   const callWriteSummaries = new WeakMap();
+  const callReadSummaries = new WeakMap();
+  const readSlotMembers = new WeakMap();
   // an aliased write's definiteness for one slot, per var-scope owner of the reads that ask
   // (`definiteWrites`)
   const definiteAliasedWrites = new WeakMap();
@@ -6389,7 +6443,8 @@ export function createDetectionAdapter({
               bindingScopeNode: binding.scope?.block ?? binding.scope?.path?.node,
               bindingAnchor: bindingLoopAnchor(binding),
             });
-            // A pattern hands its leaves to the body, not the container above them.
+            // A pattern or a local property reader hands its leaves to the body,
+            // not the container above them.
             // Reads no deeper than a named leaf retain their container identity; deeper
             // reads, rest-only captures and arguments-object access keep the escape.
             const selected = prefix === key && escapes?.length && escapes.every(escape => {
@@ -6398,7 +6453,16 @@ export function createDetectionAdapter({
               const pairing = censusCallPairing(escape.call);
               const at = pairing?.argsUnknown ? -1 : pairing?.args?.indexOf(escape.argument) ?? -1;
               const pattern = at < 0 ? null : patternSlotTarget(dropLeadingThisParam(callee.params)[at]);
-              if (!isDestructurePattern(pattern)) return false;
+              if (!isDestructurePattern(pattern)) {
+                if (keyPath.length !== 1) return false;
+                if (!callReadSummaries.has(callee)) callReadSummaries.set(callee, calleeParameterMemberRead(callee));
+                const read = callReadSummaries.get(callee);
+                const source = installedWriteValue(ownerNode?.init);
+                if (read?.paramIndex !== at || memberReadKeyName(read.member) !== keyPath[0]
+                  || source?.type !== 'ObjectExpression') return false;
+                const member = objectLiteralSlotMember(source, keyPath[0], null, readSlotMembers);
+                return !!member && member.kind !== 'get' && member.kind !== 'set';
+              }
               let reads = false;
               walkPatternIdentifiers(pattern, id => {
                 reads ||= patternRootKeyPathsFor(pattern, id.name, null)?.some(

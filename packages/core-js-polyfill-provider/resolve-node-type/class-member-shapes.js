@@ -5,10 +5,10 @@
 // Top-level `memberWriteTargetPath` is closure-free (operates on a NodePath's `.node.type` +
 // `.get(...)`); the two factories carry adapter (`t`) and key resolvers required by
 // shape-aware variants.
-import { peelSkippableWrapperPath, unwrapRuntimeExpr, singleQuasiString } from '../helpers/ast-patterns.js';
+import { isDeleteTarget, peelSkippableWrapperPath, unwrapRuntimeExpr, singleQuasiString } from '../helpers/ast-patterns.js';
 
 // shape unification of `<expr>.<field> = ...` / `<expr>.<field>++` writes: AssignmentExpression
-// target on `.left`, UpdateExpression target on `.argument`. callers ask "is this a member-
+// target on `.left`, update/delete target on `.argument`. callers ask "is this a member-
 // target write, what's the field name, what's the RHS value?" without re-implementing the
 // AST shape switch. parser-agnostic - reads `.node.type` strings and uses path navigation.
 // a bare MemberExpression IS its own target: destructure-pattern / for-x heads index member
@@ -19,7 +19,7 @@ export function memberWriteTargetPath(writePath) {
   // (`this.field! = Y`, `(this.field) = Y`) resolves to the member - callers read `.object` /
   // `memberWriteFieldName` off the result, which a TSNonNull/paren wrapper would strand (the
   // write then drops from the field's flow union, leaving a stale narrow that throws on ie:11)
-  if (type === 'UpdateExpression') return peelSkippableWrapperPath(writePath.get('argument'));
+  if (type === 'UpdateExpression' || isDeleteTarget(writePath.node)) return peelSkippableWrapperPath(writePath.get('argument'));
   if (type === 'MemberExpression') return writePath;
   return peelSkippableWrapperPath(writePath.get('left'));
 }
@@ -66,7 +66,7 @@ export function createClassMemberShape({ t }) {
 // (computed literal-string / literal-number keys resolve via `getKeyName`, truly dynamic
 // keys -> null without a scope; a scoped query also folds constant keys), and report the
 // value path contributed by a write. Plain `=` contributes
-// its RHS path; compound / update operators contribute an opaque null marker
+// its RHS path; compound / update / delete operators contribute an opaque null marker
 // (operator-coerced type depends on BOTH operands, not statically precise)
 export function createMemberWriteShape({ t, getKeyName, resolveComputedKeyName }) {
   function memberWriteFieldName(targetNode, scope) {

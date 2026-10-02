@@ -50,6 +50,7 @@ import {
   installedWriteValue,
   invocationNode,
   isAliasProxyRoot,
+  isAmbientBindingShape,
   isChainAssignment,
   isDestructurePattern,
   isDirectiveStatement,
@@ -122,6 +123,7 @@ import {
   unwrapParens,
   forOfIterableElements,
   forOfHeadIterableElements,
+  forXHeadLoopPath,
   isForXStatement,
   unwrapExpressionChain,
   unwrapRuntimeExpr,
@@ -4143,14 +4145,25 @@ function isNumericLiteralKeyNode(node) {
   return node.type === 'NumericLiteral' || (node.type === 'Literal' && typeof node.value === 'number');
 }
 
-// a computed MEMBER key - `E.A` off a TS enum - named by the TYPE layer's own key-name resolver,
+// Keys left after literal/alias following: global injection names an unwritten local undefined;
+// pure keeps its computed step because this key names no supported constructor static. A computed
+// MEMBER key - `E.A` off a TS enum - is named by the TYPE layer's own key-name resolver,
 // which already owns that fold (its shadowing gate, its merged-enum-block walk). asked as a
 // callback rather than re-derived here: one name must not have two resolvers, and detection had
 // none of its own, so `[3, 4][E.A](0)` stayed raw while every other spelling of that key claimed.
 // the key resolver's other arms keep their method-aware gates - this fills only the shape they
 // never answered
-function memberKeyThroughTypeLayer(node, computed, scope, path, resolveStaticKey) {
-  if (!computed || !resolveStaticKey) return null;
+function resolveUnfollowedKey(node, computed, scope, adapter, path, resolveStaticKey) {
+  if (!computed) return null;
+  if (node?.type === 'Identifier' && adapter.method === 'usage-global') {
+    const binding = adapter.getBinding?.(scope, node.name, path);
+    const declaration = bindingDeclaratorNode(binding);
+    return declaration?.type === 'VariableDeclarator' && declaration.id?.type === 'Identifier'
+      && !declaration.init && !declaration.declare && !binding.constantViolations?.length
+      && !forXHeadLoopPath(bindingDeclarationPath(binding))
+      && !isAmbientBindingShape(declaration, bindingDeclarationPath(binding)?.parentPath?.node) ? 'undefined' : null;
+  }
+  if (!resolveStaticKey) return null;
   if (node?.type !== 'MemberExpression' && node?.type !== 'OptionalMemberExpression') return null;
   const named = resolveStaticKey(node, scope, path);
   if (typeof named !== 'string' || !named) return null;
@@ -4288,7 +4301,7 @@ export function resolveKey({ node, computed, scope, adapter, seen, path, depth =
       });
       if (name && !name.startsWith('Symbol.')) return `Symbol.${ name }`;
     }
-    return memberKeyThroughTypeLayer(node, computed, scope, path, resolveStaticKey);
+    return resolveUnfollowedKey(node, computed, scope, adapter, path, resolveStaticKey);
   }
 }
 

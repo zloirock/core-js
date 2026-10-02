@@ -6,10 +6,12 @@
 import { fileURLToPath } from 'node:url';
 import './harness-contracts.mjs';
 import './resolve-node-type.mjs';
+import './receiver-type-precision.mjs';
 import './positional-element-types.mjs';
 import './flow-class-members.mjs';
 import './class-flow-order.mjs';
 import './field-union-hints.mjs';
+import './written-function-calls.mjs';
 import './container-navigation-opaque-values.mjs';
 import './container-alias-alternatives.mjs';
 import './literal-carrier-closure.mjs';

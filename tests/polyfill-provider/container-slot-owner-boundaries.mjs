@@ -270,4 +270,47 @@ for (const parser of adapters) for (const [name, source, slot, expected] of [
     check(`${ parser.name }: ${ name }`, adapter.isWrittenContainerSlot('w', slot, declarator.node), expected);
   }
 }
+// A local reader may expose the slot value, but it cannot replace the own data slot.
+// Keep method calls, getters, deferred work and body writes on the mutation path.
+for (const parser of adapters) for (const [name, body, source, keyPath, expected] of [
+  ['named reader', 'function reader(t) { return t.k; }', 'const box = { k: Object }; reader(box);', ['k'], false],
+  ['computed reader', 'function reader(t) { return t["k"]; }', 'const box = { k: Object }; reader(box);', ['k'], false],
+  ['aliased reader', 'function read(t) { return t.k; } const reader = read;', 'const box = { k: Object }; reader(box);', ['k'], false],
+  ['invoker reader', 'function reader(t) { return t.k; }', 'const box = { k: Object }; reader.call(null, box);', ['k'], false],
+  ['wrapped reader', 'function reader(t) { return (t.k); }', 'const box = { k: Object }; (0, reader)(box);', ['k'], false],
+  ['reader result is retained', 'function reader(t) { return t.k; }', 'const box = { k: Object }; const value = reader(box); use(value);', ['k'], false],
+  ['reader exposes descendants', 'function reader(t) { return t.k; }', 'const box = { k: { value: Object } }; use(reader(box));', ['k', 'value'], true],
+  ['body writer', 'function reader(t) { t.k = {}; return t.k; }', 'const box = { k: Object }; reader(box);', ['k'], true],
+  ['receiver method', 'function reader(t) { return t.k(); }', 'const box = { k() { this.value = {}; }, value: Object }; reader(box);', ['value'], true],
+  ['getter read', 'function reader(t) { return t.k; }', 'const box = { get k() { this.value = {}; return Object; }, value: Object }; reader(box);', ['value'], true],
+  [
+    'getter replaces itself',
+    'function reader(t) { return t.k; }',
+    'const box = { get k() { Object.defineProperty(this, "k", { value: {} }); return Object; } }; reader(box);',
+    ['k'],
+    true,
+  ],
+  ['async reader', 'async function reader(t) { return t.k; }', 'const box = { k: Object }; reader(box);', ['k'], true],
+  ['generator reader', 'function* reader(t) { return t.k; }', 'const box = { k: Object }; reader(box);', ['k'], true],
+  ['opaque reader', '', 'const box = { k: Object }; reader(box);', ['k'], true],
+  ['rebound reader', 'let reader = t => t.k; reader = foreign;', 'const box = { k: Object }; reader(box);', ['k'], true],
+  ['unpaired argument', 'function reader(t) { return t.k; }', 'const box = { k: Object }; reader(...foreign, box);', ['k'], true],
+]) {
+  for (const reducers of [
+    () => [mutationShapesReducer(), escapedCtorReferencesReducer()],
+    () => [escapedCtorReferencesReducer(), mutationShapesReducer()],
+  ]) {
+    const program = parser.parseAndScope(`${ body } ${ source } box.k.entries;`);
+    const census = collectFileCensus(program.node, reducers());
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
+      method: 'usage-pure',
+      getWrittenContainerSlots: () => census.writtenContainerSlots,
+      getContainerSlotIndex: () => census.containerSlotIndex,
+    });
+    const declaration = parser.pickPath(program, 'VariableDeclarator', path => path.node.id.name === 'box');
+    const read = parser.pickPath(program, 'MemberExpression', path => path.node.property.name === 'entries');
+    check(`${ parser.name }: ${ name }`,
+      adapter.isWrittenContainerSlot('box', keyPath, declaration.node, read, read.node), expected);
+  }
+}
 finish();

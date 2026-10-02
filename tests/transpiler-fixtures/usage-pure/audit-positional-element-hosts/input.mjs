@@ -1,5 +1,5 @@
 // Positional captures keep native evaluation order across loop headers, control bodies, catches and exports.
-// Sibling rewrites retain their own claims and internal temporaries.
+// A locally caught throw keeps the read-only array receiver precise; sibling claims remain independent.
 const rows = [[1, [2]], [3]];
 const bodyless = (function () {
   if (rows.length) var [{ at }] = rows;

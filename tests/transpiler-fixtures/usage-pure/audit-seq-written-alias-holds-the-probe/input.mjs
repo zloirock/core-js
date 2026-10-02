@@ -1,7 +1,5 @@
-// an alias WRITTEN in the sequence that reads it holds what the write stored, so the probe read off
-// it is the same environment probe its bare twin performs, and the store keeps the guard. asked by
-// the binding's init alone the alias answered "unproven" and the probe was called always-defined,
-// which folded the store to the ponyfill on one emitter only
+// An alias written inside the receiver sequence retains the environment probe and its store.
+// The unwritten computed key holds undefined, so the constructor needs no static namespace.
 let alias;
 let stored;
 let key;
