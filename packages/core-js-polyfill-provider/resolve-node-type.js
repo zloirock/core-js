@@ -376,12 +376,18 @@ function createResolveNodeType(babelNodeType, t, {
     // `T[keyof T]`, downstream via resolveTypeAnnotation -> resolveKeyofSelfValueUnion
     const literalKeys = indexNodes.map(node => indexedAccessKey(node));
     if (literalKeys.every(k => k !== null)) {
-      let argPath = returnTypeCluster.getTypeParamArgPath(typeParamMap, rootName);
-      for (let i = 0; i < literalKeys.length - 1; i++) {
-        if (!argPath) break;
-        argPath = walkObjectLiteralPropertyPath(argPath, literalKeys[i]);
-      }
-      const propType = argPath && resolveObjectLiteralProperty(argPath, literalKeys.at(-1));
+      const argPath = returnTypeCluster.getTypeParamArgPath(typeParamMap, rootName);
+      const literal = argPath && resolveRuntimeExpression(argPath);
+      // Array slots retain their positional lookup; object slots share the member writer proof.
+      let propType;
+      if (literal && t.isArrayExpression(literal.node)) {
+        let cursor = literal;
+        for (const key of literalKeys.slice(0, -1)) cursor &&= walkObjectLiteralPropertyPath(cursor, key);
+        cursor &&= resolveRuntimeExpression(cursor);
+        const key = literalKeys.at(-1);
+        const element = cursor && t.isArrayExpression(cursor.node) && walkObjectLiteralPropertyPath(cursor, key);
+        propType = element ? resolveNodeType(element) : cursor && t.isObjectExpression(cursor.node) && resolveObjectMember(cursor, key);
+      } else if (literal && t.isObjectExpression(literal.node)) propType = resolveObjectMemberPath(literal, literalKeys, argPath);
       if (propType) return propType;
     }
     // single-step constraint fallback: `<T extends {k: number[]}>(o: T): T['k']` with no
@@ -397,28 +403,31 @@ function createResolveNodeType(babelNodeType, t, {
     return null;
   }
 
-  // a getter / setter and a method shorthand both normalise to `ObjectMethod` via babelNodeType, but
-  // a getter contributes its RETURN type (not a Function value): resolve the getter function's
-  // declared / inferred return. babel models the getter as the ObjectMethod node, oxc as a Property
-  // whose `.value` is the FunctionExpression - that pick is `methodFnPath`, the same canon every
-  // other member-body consumer in the factory uses
-  function resolveObjectGetterReturn(prop) {
-    return resolveReturnType(methodFnPath(prop));
-  }
-
   // backward iteration so the LAST assignment wins (`{a: 1, a: 2}` returns 2) and any
   // SpreadElement encountered before the match could have injected `key` -> bail.
   // forward iteration with `return-on-first-match` would be double-wrong: it would return an
   // early match for `{a: 1, ...spread}` (spread might override) AND bail for `{...spread, a: 1}`
   // (the LATER literal wins even after the spread). returns null when no key matches, when
   // a spread sits before the latest match, or when the matched value is a leaf method
-  // shorthand (`onMethod` returns the leaf decision so callers split method/value semantics)
-  function findObjectLiteralKey(propsPath, key, onMethod) {
-    for (let i = propsPath.length - 1; i >= 0; i--) {
+  // shorthand (`onMethod` returns the leaf decision so callers split method/value semantics).
+  // An identity-only caller can share a data-slot cursor within its immutable closure walk;
+  // cache methods as null and each visited key once, so distinct keys also cost one list scan.
+  function findObjectLiteralKey(propsPath, key, onMethod, ownDataCache = null) {
+    const data = ownDataCache && memoize(ownDataCache, propsPath, () => ({ at: propsPath.length, keys: new Map() }));
+    if (data?.keys.has(key)) return data.keys.get(key)?.get('value') ?? null;
+    for (let i = (data?.at ?? propsPath.length) - 1; i >= 0; i--) {
       const prop = propsPath[i];
       const { node } = prop;
-      if (node.type === 'SpreadElement') return null;
-      if (node.computed || getKeyName(node.key) !== key) continue;
+      if (data) data.at = i;
+      if (node.type === 'SpreadElement') {
+        if (data) data.at = 0;
+        return null;
+      }
+      const name = node.computed ? resolveComputedKeyName(node.key, prop.scope, undefined, false) : getKeyName(node.key);
+      // Only a resolved key participates in explicit-slot precedence.
+      if (data && name !== null && !data.keys.has(name)) data.keys.set(name, babelNodeType(node) === 'ObjectMethod' ? null : prop);
+      if (name !== key) continue;
+      if (data) return data.keys.get(key)?.get('value') ?? null;
       if (babelNodeType(node) === 'ObjectMethod') {
         // a setter as the LAST decl for `key` makes it an accessor: a paired getter behind it
         // supplies the read value (resolved by onMethod); a plain data property behind it is
@@ -428,7 +437,9 @@ function createResolveNodeType(babelNodeType, t, {
           for (let j = i - 1; j >= 0; j--) {
             const earlier = propsPath[j];
             if (earlier.node.type === 'SpreadElement') return null;
-            if (earlier.node.computed || getKeyName(earlier.node.key) !== key) continue;
+            const matches = memberKeyMatches(earlier.node.key, earlier.node.computed, key, earlier.get('key'));
+            if (!matches) continue;
+            if (earlier.node.kind === 'set') continue;
             // nearest earlier definition decides - see the `findObjectMember` twin
             return earlier.node.kind === 'get' ? onMethod(earlier) : null;
           }
@@ -441,31 +452,21 @@ function createResolveNodeType(babelNodeType, t, {
     return null;
   }
 
-  // the ARRAY half of a literal-container read, shared by the two entries below exactly as
-  // `findObjectLiteralKey` already shares the object half: `T[N]` where T is bound to a concrete
-  // tuple/array LITERAL at the call-site (`first<T extends [unknown, unknown]>(t: T): T[0]` called
-  // with `[['x'], 1]`). the three guards - non-canonical index, a spread at/before the slot, a
-  // sparse hole - are the reason it is one function: held by hand in two copies they drift, and
-  // without the branch the generic substitution falls back to T's constraint and yields `unknown`
-  function arrayLiteralElementPath(argPath, key) {
-    const index = canonicalArrayIndex(key);
-    return index === null ? null : positionalElementPath(argPath, index);
-  }
-
-  // walk into an ObjectExpression / ArrayExpression argPath one key deep, returning the
-  // INNER Path (suitable for chaining further hops). complementary to
-  // `resolveObjectLiteralProperty` which returns a leaf Type Object - this returns the
-  // intermediate path so chained indexed access (`T[k1][k2]`) can step through nested
-  // literal shapes. method shorthand and SpreadElement bail (no walkable path)
-  function walkObjectLiteralPropertyPath(argPath, key) {
+  // Walk into an object/array literal one key deep, returning the intermediate Path.
+  // Final value reads use resolveObjectMemberPath with its writer and escape checks.
+  // Method shorthand and spread bail: neither supplies a walkable value path.
+  // `ownDataCache` excludes getter evaluation and shares a data cursor for identity-only walks.
+  // Its caller owns the cache lifetime; semantic walks retain the uncached getter-return route.
+  function walkObjectLiteralPropertyPath(argPath, key, ownDataCache = null) {
     if (argPath?.node) argPath = resolveRuntimeExpression(argPath);
-    if (argPath?.node?.type === 'ArrayExpression') return arrayLiteralElementPath(argPath, key);
+    if (argPath?.node?.type === 'ArrayExpression') {
+      const index = canonicalArrayIndex(key);
+      return index === null ? null : positionalElementPath(argPath, index);
+    }
     if (argPath?.node?.type !== 'ObjectExpression') return null;
-    // a plain ObjectMethod is a leaf (a Function value with no walkable inner shape), but a GETTER
-    // names its value through the RETURN - which the resolver already trusts one hop up
-    // (`resolveObjectGetterReturn`), so a spine reading THROUGH the slot reads the same expression
+    // A getter names the value path through its single returned expression.
     return findObjectLiteralKey(cachedContainerPaths(argPath, 'properties'), key,
-      prop => prop.node.kind === 'get' ? getterReturnPath(prop) : null);
+      prop => prop.node.kind === 'get' ? getterReturnPath(prop) : null, ownDataCache);
   }
 
   // a literal written INLINE as a getter's return argument is built fresh on every read, so no
@@ -494,30 +495,6 @@ function createResolveNodeType(babelNodeType, t, {
     return getterFreshLiterals.has(node);
   }
 
-  // ObjectExpression { key: value, ... } -> value's type for the literal key.
-  // Spread bails (unknown key coverage); method shorthand resolves to Function
-  function resolveObjectLiteralProperty(argPath, key) {
-    // peel ParenthesizedExpression / TS expression wrappers (`as const`, `satisfies T`,
-    // `<T>x` casts). oxc preserves parens around call-args (`fn(({k: [1]} as const))`)
-    // while babel strips them - without this peel, oxc-parsed sources fall to constraint
-    // fallback and lose precision (parser-divergence asymmetry between plugins)
-    if (argPath?.node) argPath = resolveRuntimeExpression(argPath);
-    if (argPath?.node?.type === 'ArrayExpression') {
-      const elementPath = arrayLiteralElementPath(argPath, key);
-      return elementPath ? resolveNodeType(elementPath) : null;
-    }
-    if (argPath?.node?.type !== 'ObjectExpression') return null;
-    // method shorthand (`{ foo() {...} }`) resolves to a Function value; an accessor `{ get k() {...} }`
-    // (which babelNodeType also reports as ObjectMethod on BOTH parsers) resolves to the getter's
-    // return type. onMethod returns the resolved Type for these; a plain key returns its value path
-    const valuePath = findObjectLiteralKey(cachedContainerPaths(argPath, 'properties'), key,
-      prop => prop.node.kind === 'get' ? resolveObjectGetterReturn(prop) : new $Object('Function'));
-    if (valuePath === null) return null;
-    // onMethod yields a resolved Type ($Object / $Primitive both carry a boolean `primitive`); a
-    // plain-key hit yields a NodePath to resolve
-    return typeof valuePath.primitive === 'boolean' ? valuePath : resolveNodeType(valuePath);
-  }
-
   // [key] where key is a string/number literal, a const binding (chain) to one, or an
   // enum member access (`obj[Enum.A]` - enum members carry static literals at known slots).
   // `literalValue` is the LEAF extractor: the key domain coerces every literal to its string
@@ -540,7 +517,7 @@ function createResolveNodeType(babelNodeType, t, {
     return memberResolveCluster.enumSlotExternallyWritten(path, [objectName], memberName) ? null : name;
   }
 
-  function resolveComputedKeyName(key, scope, literalValue = literalKeyValue) {
+  function resolveComputedKeyName(key, scope, literalValue = literalKeyValue, enumDeclarations = true) {
     // follow const-binding chains by looping instead of recursing - the Identifier branch
     // re-drives the whole resolution on the binding's init at an incremented depth
     let depth = 0;
@@ -575,6 +552,15 @@ function createResolveNodeType(babelNodeType, t, {
       const quasi = singleQuasiString(key);
       if (quasi !== null) return quasi;
       if (!scope) return null;
+      // A local, unwritten function returning a literal proves the key even with effects.
+      // Inspect only its retained body; an opaque return still leaves explicit slots intact.
+      if (key?.type === 'CallExpression' && key.callee?.type === 'Identifier') {
+        const binding = getScopeBinding(scope, key.callee.name);
+        const fn = binding && !binding.constantViolations?.length && binding.path?.node;
+        const ret = fn?.type === 'FunctionDeclaration' && !fn.async && !fn.generator
+          && singleReturnBodyExpression(fn.body);
+        if (ret) return literalValue(ret) ?? singleQuasiString(ret);
+      }
       if (key?.type === 'Identifier') {
         // route through the hook (not raw `scope.getBinding`) so an over-hoisted namespace twin
         // does not surface here for a use outside its block; no use-path at this site, so the
@@ -599,7 +585,8 @@ function createResolveNodeType(babelNodeType, t, {
       // not scope.getBinding - estree-toolkit adapter doesn't register enum bindings the
       // same way babel does; type-declaration walker works uniformly for both
       const memberName = getMemberProperty(key);
-      if (memberName !== null && key.object?.type === 'Identifier') {
+      // Runtime object keys cannot rely on an enum declaration: its member may have been replaced.
+      if (enumDeclarations && memberName !== null && key.object?.type === 'Identifier') {
         const objectName = key.object.name;
         // a lexically-nearer value binding of the same name (const / let / var / param, reassigned or
         // not) shadows the enum - read enum member values only when the enum is the nearest value
@@ -1110,14 +1097,18 @@ function createResolveNodeType(babelNodeType, t, {
     safeInnerType,
     elementContainerType,
     commonType,
+    foldUnionTypes,
+    mergeArmHints,
+    annotationUnionHints: (annotation, scope) => isUnionType(annotation) ? annotationUnionHints(annotation, scope) : null,
     // `findPatternKeyPath` is a hoisted function DECLARATION of this factory - already bound here,
     // so it passes by value. its two neighbours are pattern-bindings cluster exports assigned
     // later, so those keep the thunk (a direct read would capture undefined)
     findPatternKeyPath,
     resolveDestructuredMember: (...args) => resolveDestructuredMember(...args),
     resolveObjectMemberPath: (...args) => resolveObjectMemberPath(...args),
+    walkObjectLiteralPropertyPath,
   });
-  const { resolveReturnType, resolveBodyReturnType, collectReturnPaths } = returnTypeCluster;
+  const { resolveReturnType, resolveReturnUnionHints, resolveBodyReturnType, collectReturnPaths } = returnTypeCluster;
 
   // awaited cluster: AST-level + Type-object Awaited peel + `await` expression resolver.
   // the two walkers cross-reference (AST `peelAwaitedCommonSteps` <-> Type
@@ -1602,6 +1593,9 @@ function createResolveNodeType(babelNodeType, t, {
   const bindingAnalysisCluster = createBindingAnalysis({
     getScopeBinding,
     resolveComputedKeyName,
+    resolveRuntimeExpression,
+    bindingAdapter: slotCensusAdapter,
+    walkObjectLiteralPropertyPath,
     scannedMethodInstall: (...args) => classFieldsCluster.scannedMethodInstall(...args),
     t,
     memoize,
@@ -1667,7 +1661,7 @@ function createResolveNodeType(babelNodeType, t, {
     return current;
   }
 
-  // generic memoize over a `WeakMap` cache. uses `has` to distinguish "not yet computed"
+  // generic memoize over a `Map` / `WeakMap` cache. uses `has` to distinguish "not yet computed"
   // from "computed as null/undefined" - some caches store null sentinels (closures bailed
   // on leak, descendants bailed on anonymous, etc.). centralizes the get/has/set boilerplate
   function memoize(cache, key, compute) {
@@ -1751,7 +1745,10 @@ function createResolveNodeType(babelNodeType, t, {
   // write-RHS types). all other deps are factory function decls (hoisted) or upstream
   // cluster outputs (closure-analysis just above)
   const classFieldsCluster = createClassFields({
+    anchorPathScope,
     resolveComputedKeyName,
+    isMutatedStatic,
+    objectDispatchesForeignPrototype: (...args) => expressionDispatchCluster.objectDispatchesForeignPrototype(...args),
     scanThisNodes: closureAnalysisCluster.scanThisNodes,
     t,
     getKeyName,
@@ -1763,6 +1760,9 @@ function createResolveNodeType(babelNodeType, t, {
     findObjectMember: (...args) => findObjectMember(...args),
     resolveObjectMember: (...args) => resolveObjectMember(...args),
     resolveNodeType,
+    resolveReturnType,
+    resolveReturnUnionHints,
+    foldUnionTypes,
     mergeArmHints,
     getModuleFieldIndex,
     pushIfWriteMatches,
@@ -1807,6 +1807,7 @@ function createResolveNodeType(babelNodeType, t, {
     keyMatchesName,
     literalKeyValue,
     singleQuasiString,
+    resolveComputedKeyName,
     buildSubstMap,
     unwrapTypeAnnotation,
     typesEqual,
@@ -1838,6 +1839,7 @@ function createResolveNodeType(babelNodeType, t, {
     resolveObjectMember,
   } = classObjectMemberCluster);
   const {
+    memberKeyMatches,
     namespaceExportReturn,
     resolveClassMember,
     applySubstToTypeRefArgs,
@@ -2348,6 +2350,8 @@ function createResolveNodeType(babelNodeType, t, {
     findAllEnumDeclarations,
     resolveEnumMemberType,
     resolveEnumType,
+    enumIsNearestValue,
+    bindingDeclaratorPath,
     resolveNodeType,
     // assigned by the awaited cluster above - passed by value, like the binding-analysis twin
     functionTypeParams,
@@ -2485,7 +2489,7 @@ function createResolveNodeType(babelNodeType, t, {
   // --- Entry / public API ---
   let resolveCache = new WeakMap();
 
-  // Pre-mutation Type cache for plugin-side rewrites: Babel mutates the AST in-place, so
+  // Pre-mutation Type cache for plugin-side rewrites: emitters mutate the AST, so
   // when a sibling rewrite later re-resolves a node whose CallExpression callee was swapped
   // (`arr.concat(x)` -> `_concatMaybeArray(arr).call(arr, x)`), the new shape isn't recognized
   // by `resolveNodeTypeExpression`. Emitters stash the resolved Type here BEFORE mutation;
@@ -2512,6 +2516,7 @@ function createResolveNodeType(babelNodeType, t, {
     getScopeBinding,
     collectBindingReferences,
     resolveStaticCalleePair: bindingAnalysisCluster.resolveStaticCalleePair,
+    namespaceFromPolyfillBinding,
     babelNodeType,
     KNOWN_GLOBAL_METHOD_RETURN_TYPES,
     getCachedType: resolvedType.get,
@@ -2691,7 +2696,16 @@ function createResolveNodeType(babelNodeType, t, {
         const value = member.node.kind === 'get' ? getterReturnPath(member) : member.get('value');
         if (!value?.node) return null;
         receiver = resolveRuntimeExpression(value);
-      } else break;
+      } else {
+        const context = resolveClassContext(receiver);
+        if (!context?.isStatic || typeof step !== 'string') break;
+        const found = findClassMember({ classPath: context.classPath, name: step, isStatic: true });
+        if (!found || classFieldsCluster.classCallableSlotReassigned(found.member, false)) return null;
+        const { member } = found;
+        const value = member.node.kind === 'get' ? getterReturnPath(member) : member.get('value');
+        if (!value?.node || member.node.kind === 'set') return null;
+        receiver = resolveRuntimeExpression(value);
+      }
       keys = keys.slice(1);
     }
     return { receiver, keys };
@@ -2839,7 +2853,7 @@ function createResolveNodeType(babelNodeType, t, {
       ? t.isArrayExpression(value?.node) : t.isObjectExpression(value?.node));
     if (slotDefault?.node && literalElements && typeof keyPath[0] !== 'number'
       && elements.every(element => !pathSlotWritten(element, keyPath))
-      && values.every(value => !findObjectMember(value, keyPath[0]))) {
+      && values.every(value => slotDefaultFiresCertainly(value, keyPath, slotDefault.parentPath))) {
       return resolveNodeType(slotDefault);
     }
     if (!literalElements) {
@@ -2854,6 +2868,7 @@ function createResolveNodeType(babelNodeType, t, {
       // Keep the source binding as the field-flow anchor: a resolved literal alone loses
       // writes made through that name. Numeric slots and getter returns share the member walk.
       const slot = resolveObjectMemberPath(resolveRuntimeExpression(element), keyPath, element);
+      if (slotDefault?.node && slot?.primitive && slot.type === 'undefined') return resolveNodeType(slotDefault);
       return slot ?? (pathSlotWritten(element, keyPath) ? null : resolveGlobalSurfaceKeyPath(element, keyPath));
     });
   }
@@ -2875,7 +2890,13 @@ function createResolveNodeType(babelNodeType, t, {
   }
 
   function resolvePropertyObjectTypeUncached(path, verdict = {}) {
-    if (isMemberLike(path)) return resolveNodeType(path.get('object'));
+    if (isMemberLike(path)) {
+      // A declared enum's own value slot is not an instance-method lookup. Keep visiting
+      // computed-key expressions; only the proven enum member suppresses dispatch.
+      const type = resolveNodeType(path.get('object'));
+      if (type?.primitive !== false && memberResolveCluster.resolveEnumMemberAccess(path, true)) return new $Object('Object');
+      return type;
+    }
     // `key in obj` presence probe: the receiver whose prototype answers is the RIGHT operand
     // (the instance-probe meta and its union extras dispatch with the BinaryExpression path).
     // a resolved type narrows the method-keyed variants the same way a member read does -
@@ -2896,9 +2917,13 @@ function createResolveNodeType(babelNodeType, t, {
     // the two fold, and a cross-family pair collapses to the typeless answer both arms can take
     const slotDefault = parent?.node?.type === 'AssignmentPattern' && parent.node.left === objectPattern.node
       ? parent.get('right') : null;
+    if (slotDefault?.node && t.isFunction(parent.parentPath?.node)
+      && patternBindingsCluster.defaultParamNeverOverridden(parent)) return resolveNodeType(slotDefault);
     function foldDefault(type) {
       if (!slotDefault?.node) return type;
+      if (type?.inheritedPresent) return type;
       const defaultType = resolveNodeType(slotDefault);
+      if (type?.primitive && type.type === 'undefined') return defaultType;
       return type && defaultType ? commonType(type, defaultType) : null;
     }
     // direct parent owns the init - resolve the whole RHS
@@ -3059,6 +3084,12 @@ function createResolveNodeType(babelNodeType, t, {
     const globalHint = POSSIBLE_GLOBAL_OBJECTS.has(realmName) ? null
       : staticReceiverHint('static', realmName) ?? staticReceiverHint('static', polyfillHintGlobalName(path));
     if (globalHint) return new Set([globalHint]);
+    if (type === 'CallExpression' || type === 'OptionalCallExpression') {
+      const callee = peelSkippableWrapperPath(path.get('callee'));
+      const key = isMemberLike(callee) ? resolveMemberPropertyName(callee) : null;
+      return key === null || key === undefined ? null
+        : memberResolveCluster.resolveMemberOfObjectPath(callee.get('object'), key, path, true);
+    }
     // a mutable binding's reachable VALUES form a union exactly as an annotation's arms do - fold
     // the declarator init with every write the resolver could enumerate. reached only after the
     // single-Type resolution already failed, so a narrow the positional analysis DID prove is
@@ -3102,13 +3133,13 @@ function createResolveNodeType(babelNodeType, t, {
     return reachableValueUnionHints(binding, declaratorPath, path.node.name, path, depth);
   }
 
-  function mergeArmHints(arms, depth) {
+  function mergeArmHints(arms, depth, resolve = resolveNodeType, resolveHints = unionReceiverHints) {
     const merged = new Set();
     for (const arm of arms) {
       if (!arm?.node) return null;
       const peeled = peelSkippableWrapperPath(arm);
       const armPath = t.isIdentifier(peeled.node) ? peeled : resolveRuntimeExpression(peeled);
-      const type = resolveNodeType(armPath);
+      const type = resolve(armPath);
       if (type) {
         if (isNullableOrNever(type)) continue;
         const hint = toHint(type);
@@ -3116,7 +3147,7 @@ function createResolveNodeType(babelNodeType, t, {
         if (TYPE_HINTS.has(hint)) merged.add(hint);
         continue;
       }
-      const inner = unionReceiverHints(armPath, depth + 1);
+      const inner = resolveHints(armPath, depth + 1);
       if (!inner) return null;
       for (const hint of inner) merged.add(hint);
     }

@@ -8,6 +8,7 @@ import "core-js/modules/es.array.from";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
 // A captured object keeps its declaration scope despite a same-named local at the read.
+// The head writes to the first returned array; the body reads a fresh array from the getter.
 function read() {
   const inner = {
     value: []

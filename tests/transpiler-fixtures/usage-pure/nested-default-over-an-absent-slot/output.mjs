@@ -4,7 +4,8 @@ import _findMaybeArray from "@core-js/pure/actual/array/instance/find";
 import _mapMaybeArray from "@core-js/pure/actual/array/instance/map";
 // a nested pattern level's default is the receiver alone where the init's literal provably leaves the
 // slot undefined - an absent key, a slot past an array's end, a `void` one - so only the default's
-// family is owed; a slot something may still supply - a value, an inherited key, a spread - keeps both
+// family is owed. A pristine inherited function keeps its inner default dead; an unknown value or
+// a spread can still supply either family.
 function list() {
   return [1, 2];
 }

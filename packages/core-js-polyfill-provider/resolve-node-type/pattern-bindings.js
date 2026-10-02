@@ -51,6 +51,7 @@ import {
   anyWriteOutrunsUse,
   writeIsInOppositeBranch,
   peelTransparentExprAncestorPath,
+  peelTransparentWrapperPath,
   positionDisposition,
   POSITION_CONSUMES,
   walkPatternIdentifiers,
@@ -702,7 +703,8 @@ export function createPatternBindings({
     // element (`[{ y: { at } }] = [box]`), and the slot below that element is as reachable to a
     // writer as one below a binding named at the top. tracked as the walk descends, or the wrapper
     // spelling keeps the init's narrow where every other spelling of the same read folds the write
-    let flowAware = sourcePath?.node?.type === 'Identifier';
+    const sourceBindingPath = peelTransparentWrapperPath(sourcePath);
+    let flowAware = sourceBindingPath?.node?.type === 'Identifier';
     // the UNRESOLVED path the current container was reached through - what a member read of it
     // would stand on, for the step that has no literal to walk
     let rawPath = sourcePath ?? objPath;
@@ -710,7 +712,7 @@ export function createPatternBindings({
     // file wrote through that binding (`pathSlotWritten`) reads no value off the literal - an
     // element, a hop, and a final key of a literal the binding does not declare itself (a call's),
     // whose writes the flow-aware field read cannot see
-    let holder = flowAware ? sourcePath : null;
+    let holder = flowAware ? sourceBindingPath : null;
     let holderKeys = [];
     // is this the final key of the literal the holder DECLARES? that one is the flow-aware field read's to fold
     function ownFinalField(step, rest) {
@@ -747,8 +749,9 @@ export function createPatternBindings({
         // top-level extraction semantics
         const elementPath = positionalElementPath(objPath, step);
         if (!elementPath) return null;
-        flowAware ||= elementPath.node.type === 'Identifier';
-        [holder, holderKeys] = elementPath.node.type === 'Identifier' ? [elementPath, []] : [holder, [...holderKeys, step]];
+        const elementSource = peelTransparentWrapperPath(elementPath);
+        flowAware ||= elementSource.node.type === 'Identifier';
+        [holder, holderKeys] = elementSource.node.type === 'Identifier' ? [elementSource, []] : [holder, [...holderKeys, step]];
         rawPath = elementPath;
         objPath = resolveRuntimeExpression(elementPath);
         keyPath = rest;
@@ -780,14 +783,15 @@ export function createPatternBindings({
       if (!rest.length) {
         return unionHints || (flowAware && !isGetterFreshLiteral(objPath.node))
           ? resolveObjectFieldFlow(objPath, step, null, unionHints, true)
-          : resolveObjectMember(objPath, step);
+          : resolveObjectMember(objPath, step) ?? resolveObjectFieldFlow(objPath, step, null, false, true);
       }
       // the canonical stepper owns which slots are walkable - a plain value, and a getter through
       // its inline return; a hand-rolled `.value` read here answered null for every getter hop
       const valuePath = walkObjectLiteralPropertyPath(objPath, step);
       if (!valuePath?.node) return null;
-      flowAware ||= valuePath.node.type === 'Identifier';
-      [holder, holderKeys] = valuePath.node.type === 'Identifier' ? [valuePath, []] : [holder, [...holderKeys, step]];
+      const valueSource = peelTransparentWrapperPath(valuePath);
+      flowAware ||= valueSource.node.type === 'Identifier';
+      [holder, holderKeys] = valueSource.node.type === 'Identifier' ? [valueSource, []] : [holder, [...holderKeys, step]];
       rawPath = valuePath;
       objPath = resolveRuntimeExpression(valuePath);
       keyPath = rest;
@@ -798,9 +802,12 @@ export function createPatternBindings({
   // a BINDING source asks the flow-aware slot read for the same reason the nested pattern walk
   // does: `const { y } = box; y.at(0)` reads the slot `box.y.at(0)` reads, and a writer or a
   // holder of `box` unseats the narrow for both spellings or for neither
-  function resolveDestructuredMember(exprPath, keyPath) {
-    const runtimeResult = resolveObjectMemberPath(resolveRuntimeExpression(exprPath), keyPath, exprPath);
+  // Family queries use those same runtime slots; the scalar annotation fallback belongs
+  // to the Type projection.
+  function resolveDestructuredMember(exprPath, keyPath, unionHints = false) {
+    const runtimeResult = resolveObjectMemberPath(resolveRuntimeExpression(exprPath), keyPath, exprPath, unionHints);
     if (runtimeResult) return runtimeResult;
+    if (unionHints) return null;
     const info = findExpressionAnnotation(exprPath);
     if (info) return resolveAnnotatedMemberPath(info.annotation, keyPath, info.scope);
     return null;
