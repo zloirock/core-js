@@ -8,6 +8,30 @@ import { adapters, createChecker } from './harness.mjs';
 const { check, checkTruthy, finish } = createChecker('ast-context-complexity');
 
 for (const parser of adapters) {
+  // Repeated calls of one wide reader must inspect its parameter shape once, not per call.
+  for (const size of [32, 128]) {
+    const params = ['o', ...Array.from({ length: size }, (unused, i) => `p${ i }`)];
+    const calls = 'void pick(box);\n'.repeat(size);
+    const program = parser.parseAndScope(`function pick(${ params.join(', ') }) { return o.rows; }
+      const box = { rows: [8, 9] }; ${ calls } const result = box.rows;`);
+    const fn = parser.pickPath(program, 'FunctionDeclaration', p => p.node.id.name === 'pick').node;
+    const result = parser.pickPath(program, 'VariableDeclarator', p => p.node.id?.name === 'result').get('init');
+    const descriptors = fn.params.map(param => Object.getOwnPropertyDescriptor(param, 'type'));
+    let reads = 0;
+    fn.params.forEach((param, index) => Object.defineProperty(param, 'type', {
+      configurable: true,
+      enumerable: descriptors[index].enumerable,
+      get() { reads++; return descriptors[index].value; },
+    }));
+    try {
+      const resolver = parser.makeResolver();
+      check(`${ parser.name }/local reader/${ size }/field type`, resolver.resolveNodeType(result)?.constructor, 'Array');
+      checkTruthy(`${ parser.name }/local reader/${ size }/bounded parameter scans`, reads > 0 && reads <= 40 * (size + 1), `${ reads } parameter reads`);
+    } finally {
+      fn.params.forEach((param, index) => Object.defineProperty(param, 'type', descriptors[index]));
+    }
+  }
+
   for (const depth of [16, 64]) {
     for (const [name, source] of [
       ['function body', 'function local() { this.x; }'],
@@ -75,6 +99,53 @@ for (const parser of adapters) {
     } });
     check(`${ parser.name }/${ name }/not a loop write`, isForXWriteTarget(path), false);
     check(`${ parser.name }/${ name }/no irrelevant slot reads`, reads, 0);
+  }
+
+  // Descendant data paths and getter descriptors are shared by written refs in one closure.
+  // Count property-slot reads after parsing; scans per reference or distinct data key are quadratic.
+  // The extra-property writes are valid runtime JS, even though TS rejects the array's unknown key.
+  for (const size of [32, 128]) {
+    const fields = Array.from({ length: size }, (unused, i) => `p${ i }: 0`).join(', ');
+    const writes = Array.from({ length: size }, () => 'box.wrap.inner.value.extra = 0;').join('\n');
+    const branches = Array.from({ length: size }, (unused, i) => `p${ i }: { get value() { return [3, 4]; } }`).join(', ');
+    const computedBranches = Array.from({ length: size }, (unused, i) => `["p${ i }"]: { get value() { return [3, 4]; } }`).join(', ');
+    const branchWrites = Array.from({ length: size }, (unused, i) => `box.inner.p${ i }.value.extra = 0;`).join('\n');
+    const reverseWrites = Array.from({ length: size }, (unused, i) => `box.inner.p${ size - i - 1 }.value.extra = 0;`).join('\n');
+    for (const [shape, source, statements, resultSource] of [
+      ['getter', `const inner = { get value() { return [3, 4]; }, ${ fields } }; const box = { wrap: { inner } };`, writes, 'box.wrap.inner.value'],
+      ['carrier', `const inner = { get value() { return [3, 4]; } }; const box = { wrap: { inner, ${ fields } } };`, writes, 'box.wrap.inner.value'],
+      ['distinct keys', `const inner = { ${ branches }, marker: 0 }; const box = { inner };`, branchWrites, 'box.inner.p0.value'],
+      ['computed keys', `const inner = { rows: [3, 4], ${ computedBranches } }; const box = { inner };`, branchWrites, 'inner.rows'],
+      ['reverse keys', `const inner = { ${ branches }, marker: 0 }; const box = { inner };`, reverseWrites, 'box.inner.p0.value'],
+    ]) {
+      const program = parser.parseAndScope(`${ source } ${ statements } const result = ${ resultSource };`);
+      const literal = parser.pickPath(program, 'ObjectExpression', p => p.node.properties.length === size + 1).node;
+      const descriptors = literal.properties.map(prop => ['kind', 'key'].map(key => Object.getOwnPropertyDescriptor(prop, key)));
+      let reads = 0;
+      literal.properties.forEach((prop, index) => {
+        for (const [slot, key] of ['kind', 'key'].entries()) {
+          const value = prop[key];
+          Object.defineProperty(prop, key, {
+            configurable: true,
+            enumerable: descriptors[index][slot]?.enumerable ?? false,
+            get() { reads++; return value; },
+          });
+        }
+      });
+      try {
+        const result = parser.pickPath(program, 'VariableDeclarator', p => p.node.id?.name === 'result');
+        reads = 0;
+        check(`${ parser.name }/${ shape }/${ size }/getter result`, parser.makeResolver().resolveNodeType(result.get('init'))?.constructor, 'Array');
+        checkTruthy(`${ parser.name }/${ shape }/${ size }/bounded scans`, reads > 0 && reads <= 64 * (size + 1), `${ reads } property-slot reads`);
+      } finally {
+        literal.properties.forEach((prop, index) => {
+          for (const [slot, key] of ['kind', 'key'].entries()) {
+            if (descriptors[index][slot]) Object.defineProperty(prop, key, descriptors[index][slot]);
+            else delete prop[key];
+          }
+        });
+      }
+    }
   }
 }
 

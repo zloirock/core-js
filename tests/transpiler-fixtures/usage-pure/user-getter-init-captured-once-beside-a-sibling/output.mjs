@@ -1,5 +1,6 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$fromAsync from "@core-js/pure/actual/array/from-async";
+import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _flatMapMaybeArray from "@core-js/pure/actual/array/instance/flat-map";
@@ -7,17 +8,14 @@ import _toReversedMaybeArray from "@core-js/pure/actual/array/instance/to-revers
 import _toSortedMaybeArray from "@core-js/pure/actual/array/instance/to-sorted";
 import _withMaybeArray from "@core-js/pure/actual/array/instance/with";
 import _Array$of from "@core-js/pure/actual/array/of";
-import _at from "@core-js/pure/actual/instance/at";
 import _Iterator from "@core-js/pure/actual/iterator";
 import _Iterator$concat from "@core-js/pure/actual/iterator/concat";
 import _Iterator$from from "@core-js/pure/actual/iterator/from";
 import _Promise from "@core-js/pure/actual/promise";
 import _Promise$try from "@core-js/pure/actual/promise/try";
 var _ref6;
-// a user GETTER typed to a constructor (`KE.A`, `OE.A`) under a nested instance claim beside a
-// sibling is read ONCE: one capture serves the nested claim and the sibling alike - beside a static,
-// a residual, two nested claims, exported, beside a sibling declarator, in an assignment and with the
-// static written first; `Array` itself needs none
+// Nested claims beside constructor statics retain one evaluation of each user getter receiver.
+// A proven class getter narrows its prototype to Array; unresolved sibling routes stay conservative.
 class KE {
   static get A() {
     log();
@@ -39,7 +37,7 @@ const OE = {
   }
 };
 const _ref = KE.A;
-const m1 = _at(_ref.prototype);
+const m1 = _atMaybeArray(_ref.prototype);
 const a1 = _Array$from;
 const _ref2 = KE.A;
 const m2 = _flatMaybeArray(_ref2.prototype);

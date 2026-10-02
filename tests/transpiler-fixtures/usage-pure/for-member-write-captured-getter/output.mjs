@@ -1,5 +1,6 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 // A captured object keeps its declaration scope despite a same-named local at the read.
+// The head writes to the first returned array; the body reads a fresh array from the getter.
 function read() {
   const inner = {
     value: []

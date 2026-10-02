@@ -69,6 +69,13 @@ function imports(code) {
 // the effect-bearing sequence around a nav, the same inside a store, and the seal shapes whose
 // decisions were already dialect-aware (they stay in the list as the negative half of the gate)
 const CASES = [
+  ['local reader through parenthesized callee and argument',
+    'function pick<T extends { rows: unknown }>(o: T): T["rows"] { return o.rows; } const box = { rows: [8, 9] }; use(((pick))(((box))).at(-1));', ['typescript']],
+  ['local reader after a wrapped argument write',
+    'function pick<T extends { rows: unknown }>(o: T): T["rows"] { return o.rows; } '
+      + 'const box: any = { rows: [8, 9] }; box.rows = "ab"; use(pick(((box as typeof box))).at(-1));', ['typescript']],
+  ['local reader after a wrapped argument handout',
+    'function pick<T extends { rows: unknown }>(o: T): T["rows"] { return o.rows; } const box = { rows: [8, 9] }; mutate(box); use(pick(((box!))).at(-1));', ['typescript']],
   ['positional capture before a later name rebind',
     'let value = [0, 2]; const [saved] = ([((value))]); value = "02"; export const r = saved.includes("02");'],
   ['constructor element with two prototype leaves',

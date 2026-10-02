@@ -16,8 +16,15 @@
 // WeakMap (vs node-attached property) keeps the side-channel opaque to AST-cloning libs.
 import { $Object, $Primitive } from './base.js';
 import {
-  NO_PROTOTYPE_VALUE, cachedContainerPaths, installedPrototypeValueAt, isTaggedTemplateQuasiPosition,
-  objectLiteralPrototypeValue, peelTransparentExprAncestorPath, prototypeValueMayDispatch, prototypeWriteHostPath,
+  NO_PROTOTYPE_VALUE,
+  cachedContainerPaths,
+  installedPrototypeValueAt,
+  isTaggedTemplateQuasiPosition,
+  objectLiteralPrototypeValue,
+  peelSkippableWrapperPath,
+  peelTransparentExprAncestorPath,
+  prototypeValueMayDispatch,
+  prototypeWriteHostPath,
 } from '../helpers/ast-patterns.js';
 import { unaryOperatorResultKind } from './value-ops.js';
 
@@ -29,6 +36,7 @@ export function createExpressionDispatch({
   getScopeBinding,
   collectBindingReferences,
   resolveStaticCalleePair,
+  namespaceFromPolyfillBinding,
   babelNodeType,
   KNOWN_GLOBAL_METHOD_RETURN_TYPES,
   getCachedType,
@@ -110,7 +118,12 @@ export function createExpressionDispatch({
   function resolveCallExpressionType(path) {
     // resolvedTypeCache short-circuit handled at the top of resolveNodeTypeExpression
     const callee = path.get('callee');
-    const name = resolveGlobalName(callee);
+    const value = peelSkippableWrapperPath(callee);
+    // Only a whole-constructor entry proves the call identity; a static helper shares its
+    // owner's hint but can return a different family (Object.keys returns an array).
+    const name = t.isIdentifier(value.node)
+      && namespaceFromPolyfillBinding(value.node.name, { node: value.node, ctx: { scope: value.scope, path: value } })
+      || resolveGlobalName(callee);
     if (name) {
       // known constructor called without `new`: String(), Array(), etc.
       const known = resolveConstructorCallType(name, path);
@@ -460,6 +473,7 @@ export function createExpressionDispatch({
 
   return {
     installedPrototypeFamilies,
+    objectDispatchesForeignPrototype,
     resolveNodeTypeExpression,
     reset() {
       prototypeInstalls = new WeakMap();

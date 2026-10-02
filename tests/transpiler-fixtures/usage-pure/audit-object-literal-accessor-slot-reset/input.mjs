@@ -1,6 +1,6 @@
 // an object literal defines its keys in source order on ONE object, so a data definition resets the
 // slot to a data descriptor and a trailing setter then leaves it setter-only: reading yields
-// undefined and the getter behind the data property is dead, so nothing may be narrowed from it.
+// undefined and the getter behind the data property is dead. The undefined read stays native.
 // the second row is the boundary - a getter/setter PAIR with no data between still reads through
 // the getter. both rows use a method carrying an array AND a string variant, so "type-agnostic
 // entry" and "array-specific entry" are visible as different helpers
