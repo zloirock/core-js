@@ -16,7 +16,7 @@ export const plainOptThenGet = arr.at(0).at?.(0).at;
 // a spliced hop keeps the receiver type the chain carried: the middle read resolves the SAME
 // narrowed helper it resolves without the `?.`, instead of degrading to the generic one
 export const optPlainThenCall = arr.at?.(0).at(0).at(0);
-// NEGATIVE: a non-polyfillable call under the same tail keeps the native method-get
+// A non-polyfillable call keeps its own callee; its known array result narrows the tail.
 export const nonPolyCallThenGet = box.pick?.(0).at;
 // NEGATIVE: a call tail is the shape the combine owns, and it is unaffected
 export const optCallThenCall = arr.at?.(0).at(0);
