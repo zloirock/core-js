@@ -4,10 +4,8 @@ import "core-js/modules/es.array.includes";
 import "core-js/modules/es.array.species";
 import "core-js/modules/es.array.unscopables.flat";
 import "core-js/modules/es.global-this";
-import "core-js/modules/es.string.at";
-// a USER class's capitalised static getter (`KE.A`) is no built-in surface: a nested pattern through
-// it reads the getter once, where the source reads it, and its claims read the memo that value lands
-// in rather than re-reading the getter to spell a surface nav; the built-in twin keeps its polyfills
+// A user class getter is evaluated once where a nested pattern reads its constructor prototype.
+// Its proven array prototype selects the array helpers. The built-in sibling keeps its own claims.
 class KE {
   static get A() {
     log();

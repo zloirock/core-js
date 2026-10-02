@@ -109,6 +109,30 @@ QUnit.test('container arguments: a later write preserves a captured Object stati
   assert.deepEqual(writtenAlias.values({ a: 1 }), [1]);
 });
 
+QUnit.test('container arguments: a local property reader preserves an own constructor slot', assert => {
+  function onlyReads(t) { return t.k; }
+  const box = { k: Object };
+  onlyReads(box);
+  const { k: { entries } } = box;
+  assert.deepEqual(entries({ a: 1 }), [['a', 1]]);
+});
+
+QUnit.test('container arguments: a local writer keeps its replacement method', assert => {
+  const effects = [];
+  function writes(t) {
+    t.k = { entries() {
+      effects.push('custom');
+      return [['written', 9]];
+    } };
+    return t.k;
+  }
+  const box = { k: Object };
+  writes(box);
+  const { k: { entries } } = box;
+  assert.deepEqual(entries({ a: 1 }), [['written', 9]]);
+  assert.deepEqual(effects, ['custom']);
+});
+
 /* eslint-disable no-var, no-redeclare, no-lone-blocks, block-scoped-var -- exercise one hoisted binding across sibling blocks */
 QUnit.test('container arguments: a var sibling write follows the earlier static read', assert => {
   let captured;

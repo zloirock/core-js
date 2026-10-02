@@ -178,4 +178,60 @@ for (const [index, pair] of STATICS.entries()) {
   check(`${ pair } (no own-\`this\` holder, slot 0, result held)`, retention.get(index), expected);
 }
 
+// A local parameter reader has the same boundary for named and inline holders. Reading a
+// data field preserves the holder; returning a method or introducing another body channel does not.
+for (const [label, declaration, call, expected] of [
+  ['declaration', 'function pick(o) { return o.rows0; }', 'pick(ARG)', 'local'],
+  ['directive', 'function pick(o) { "use strict"; return o.rows0; }', 'pick(ARG)', 'local'],
+  ['arrow', 'const pick = o => o.rows0;', 'pick(ARG)', 'local'],
+  ['alias', 'const read = o => o.rows0; const pick = read;', 'pick(ARG)', 'local'],
+  ['slot one', 'function pick(unused, o) { return o.rows0; }', 'pick(other, ARG)', 'local'],
+  ['optional', 'const pick = o => o?.rows0;', 'pick?.((ARG))', 'local'],
+  ['invoker', 'function pick(o) { return o.rows0; }', 'pick.call(null, ARG)', 'local'],
+  ['write', 'function pick(o) { o.rows0 = "ab"; return o.rows0; }', 'pick(ARG)', 'escapes'],
+  ['delete', 'function pick(o) { delete o.rows0; return o.rows0; }', 'pick(ARG)', 'escapes'],
+  ['alias write', 'function pick(o) { const alias = o; alias.rows0 = "ab"; return o.rows0; }', 'pick(ARG)', 'escapes'],
+  ['handout', 'function pick(o) { mutate(o); return o.rows0; }', 'pick(ARG)', 'escapes'],
+  ['arguments', 'function pick(o) { arguments[0].rows0 = "ab"; return o.rows0; }', 'pick(ARG)', 'escapes'],
+  ['parameter default', 'function pick(o, second = mutate(o)) { return o.rows0; }', 'pick(ARG)', 'escapes'],
+  ['held method', 'function pick(o) { return o.read; }', 'sink(pick(ARG))', 'escapes'],
+  ['returned argument', 'function pick(o) { return o; }', 'sink(pick(ARG))', 'escapes'],
+  ['callback', 'function pick(o) { return () => o.rows0; }', 'sink(pick(ARG))', 'escapes'],
+  ['unknown key', 'function pick(o) { return o[key]; }', 'sink(pick(ARG))', 'escapes'],
+  ['replaced callee', 'function pick(o) { return o.rows0; } pick = external;', 'pick(ARG)', 'escapes'],
+  ['async', 'async function pick(o) { return o.rows0; }', 'pick(ARG)', 'escapes'],
+  ['generator', 'function* pick(o) { return o.rows0; }', 'pick(ARG)', 'escapes'],
+  ['construction', 'function pick(o) { return o.rows0; }', 'new pick(ARG)', 'escapes'],
+]) for (const inline of [false, true]) {
+  const literal = literalFor(0);
+  const declarationOfHolder = inline ? '' : `const holder = ${ literal };`;
+  const source = `${ declaration }\nexport function probe0() {
+    ${ declarationOfHolder } ${ call.replace('ARG', inline ? literal : 'holder') };
+  }`;
+  const observed = await verdicts(source);
+  check(`${ label }/${ inline ? 'inline' : 'named' }`, observed.get(0), expected);
+}
+
+// A class prototype exposes its constructor even without methods; a superclass exposes statics.
+// Method summaries and aliases must not bypass the class binding's separate escape boundary.
+for (const key of ['prototype', '__proto__']) for (const [label, methods] of [
+  ['no methods', ''],
+  ['instance method', 'data = 0; read() { return this.data; }'],
+  ['static method', 'static data = 0; static read() { return this.data; }'],
+]) for (const alias of [false, true]) {
+  const source = `function pick(o) { return o.${ key }; }
+    export function probe0() {
+      ${ key === '__proto__' ? 'class Base { static rows0 = [1, 2]; }' : '' }
+      class Holder ${ key === '__proto__' ? 'extends Base' : '' } {
+        ${ key === 'prototype' ? 'static rows0 = [1, 2];' : '' } ${ methods }
+      }
+      ${ alias ? 'const Alias = Holder;' : '' }
+      const held = pick(${ alias ? 'Alias' : 'Holder' });
+      held.${ key === 'prototype' ? 'constructor.' : '' }rows0 = "ab";
+      return Holder.rows0.at(0);
+    }`;
+  const observed = await verdicts(source);
+  check(`class ${ key }/${ label }/${ alias ? 'alias' : 'direct' }`, observed.get(0), 'escapes');
+}
+
 finish();

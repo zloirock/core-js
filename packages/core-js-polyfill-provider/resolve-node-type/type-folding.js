@@ -402,15 +402,24 @@ export function createTypeFolding({
   // a dropped `never` arm carries no runtime value and does not mark
   function foldUnionTypes(types, resolve) {
     let droppedNullish = false;
+    let nullishType;
+    let mixedNullish = false;
     const result = foldTypes(types, resolve, r => {
       if (!r) return 0;
       if (isNullableOrNever(r)) {
-        if (r.type !== 'never') droppedNullish = true;
+        if (r.type !== 'never') {
+          droppedNullish = true;
+          mixedNullish ||= nullishType !== undefined && nullishType.type !== r.type;
+          nullishType ??= r;
+        }
         return 1;
       }
       return 2;
     });
-    return droppedNullish && result && !isNullableOrNever(result) ? result.mark('mayBeNullish') : result;
+    // An all-nullish union still has distinct values: defaults act on undefined alone.
+    // A leading never has no runtime value and cannot replace that nullable fallback.
+    const folded = result?.type === 'never' && nullishType ? nullishType : result;
+    return droppedNullish && folded && (mixedNullish || !isNullableOrNever(folded)) ? folded.mark('mayBeNullish') : folded;
   }
 
   // a "weak" intersection constituent carries no useful instance-method narrow: null / unresolvable,
