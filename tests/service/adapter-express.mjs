@@ -107,7 +107,7 @@ try {
   // and the header the insertion made INCOMPLETE: the address in the tag was chosen by the
   // `User-Agent`, so the page stopped being one document for every visitor. `compression` adds its
   // own field on the way out - we are outside it - and both have to be there
-  strictEqual(page.headers.get('vary'), 'user-agent, Accept-Encoding', 'adapter-2 #3');
+  strictEqual(page.headers.get('vary'), 'user-agent, accept-encoding', 'adapter-2 #3');
 
   // registered after `compression`, we saw the body first - and the response still reaches the
   // client compressed
@@ -118,7 +118,7 @@ try {
   const varied = await site.get('/varied', { 'user-agent': CHROME });
 
   ok(srcOf(await varied.text()) !== null, 'adapter-2 #4');
-  strictEqual(varied.headers.get('vary'), 'User-Agent, Accept-Encoding', 'adapter-2 #5');
+  strictEqual(varied.headers.get('vary'), 'user-agent, accept-encoding', 'adapter-2 #5');
 
   // nothing was inserted into a response with no body, so nothing of ours is said about it either
   const nothing = await site.get('/empty', { 'user-agent': CHROME });
@@ -246,6 +246,9 @@ try {
   const src = srcOf(await page.text());
 
   ok(src.startsWith('/app/'), `adapter-5 #1: the tag says ${ src }`);
+  // with no `compression` in front of it the page still names `Accept-Encoding`: the address in the
+  // tag can be chosen by it, and Firefox on iOS sends one string from iOS 15 and from iOS 26 alike
+  strictEqual(page.headers.get('vary'), 'user-agent, accept-encoding', 'adapter-2 #16');
 
   const bundle = await mounted.get(src, { 'user-agent': CHROME });
 

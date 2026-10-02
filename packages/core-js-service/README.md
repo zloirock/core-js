@@ -91,6 +91,17 @@ app.use(polyfillService({ scope, route: '/app/__core-js' }));
 Use one or the other. With both, the prefix ends up in the address twice - `/app/app/__core-js/...`,
 which works but is nobody's intention.
 
+## Behind a proxy or a CDN
+
+The bundle a page links to is chosen from two request headers: `User-Agent` and, for Firefox on
+iOS, `Accept-Encoding`. The page says so in `Vary: User-Agent, Accept-Encoding`, so a cache in front
+of the application has to key HTML on both. A cache that ignores `Vary` serves one visitor's
+bundle to every visitor.
+
+A proxy that rewrites `Accept-Encoding` on the way in is safe when it removes codings and unsafe
+when it adds them. The service reads `zstd` as a sign of iOS 26.2 or later, so a proxy that adds
+`zstd` for a client that never asked for it gets an older iPhone a bundle that is too thin.
+
 ## What it does at startup
 
 Installing the middleware starts two things. The **plan** - which engine versions collapse into

@@ -1,4 +1,5 @@
 import { HEADER_LIMIT } from '../../config.js';
+import parseAcceptEncoding from './accept-encoding.js';
 import { compareVersions, toTarget } from './target.js';
 
 // what the UA parser calls a browser, in the vocabulary of the compat data. anything not named
@@ -43,6 +44,13 @@ const REPORTED_IOS_VERSION = /\bFBSV\/(?<facebook>\d+(?:\.\d+)*)|\((?:iPad|iPhon
 const FIREFOX_IOS_TOKEN = /\bFxiOS\/(?<version>\d+)/;
 const FIREFOX_IOS_LITERAL_SINCE = 147;
 const FIREFOX_IOS_FLOOR = '15.0';
+// `zstd` in `Accept-Encoding` is written by the network stack the WebKit runs on, from iOS 26.3 on
+// (BCD) - checked on devices: none on 26.1, sent on 26.5, 26.6 and 27.0, by Safari and by the
+// WKWebView of Firefox alike. 26.3 is the official version; 26.2 is an ASSUMPTION - the one version
+// between the two device checks nobody has looked at, taken as the floor so that a 26.2 which does
+// send it is not read high. TODO: check 26.2 and 26.3 on a device, and raise this to 26.3 once 26.2
+// shows no `zstd`
+const ZSTD_IOS_SINCE = '26.2';
 // the WebKit build Apple froze the token at, first shipped in Safari 11.1 and iOS 11.3 - Safari 11.0.2
 // was `604.4.7`. A Mac string that carries it is at least that Safari, whatever `Version/` says or
 // whether it says anything: a WKWebView in a Mac app, or in an iPad app, writes none
@@ -123,6 +131,12 @@ function chromiumUnder(target, userAgent, onChromium) {
   return chromium === undefined ? null : toTarget(onChromium, chromium);
 }
 
+// whether the client asked for `zstd` - parsed, not searched, so `zstd;q=0` refuses it, and a header
+// past the bound is not read at all
+function asksForZstd(header) {
+  return typeof header == 'string' && header.length <= HEADER_LIMIT && parseAcceptEncoding(header).quality.get('zstd') > 0;
+}
+
 // the Safari of a Mac string: the version it names, never below the WebKit build the string carries
 function onMac(userAgent, version) {
   return toTarget('safari', higher(version, FROZEN_WEBKIT.test(userAgent) ? FROZEN_WEBKIT_SINCE : undefined));
@@ -164,9 +178,10 @@ export default function createResolver({ parseUserAgent }) {
     // `Chrome 140` to a `CriOS/` string, and handing that to compat as real Chrome builds a bundle
     // far thinner than WebKit needs
     if (system === 'ios') {
-      // a Firefox whose OS token is a literal carries no version - only the iOS the app installs on
+      // a Firefox whose OS token is a literal carries no version - only the iOS the app installs on,
+      // and what the network stack under it asks for
       if (Number(FIREFOX_IOS_TOKEN.exec(userAgent)?.groups.version) >= FIREFOX_IOS_LITERAL_SINCE) {
-        return toTarget('ios', FIREFOX_IOS_FLOOR);
+        return toTarget('ios', asksForZstd(headers['accept-encoding']) ? ZSTD_IOS_SINCE : FIREFOX_IOS_FLOOR);
       }
 
       // an in-app WKWebView, which carries no `Version/` at all, is left with the OS token

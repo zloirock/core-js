@@ -97,8 +97,10 @@ function intercept(request, response, base, { chooseBundle, scriptTag, urlOf, wa
     // the headers the insertion made wrong, and only when it happened. `Content-Length` cannot be
     // recomputed - we hold the beginning, not the response - and Express computed the `ETag` BEFORE
     // the edit, so a client would revalidate into an address that is no longer theirs. And the
-    // address in the tag is chosen by the `User-Agent`, so the page stopped being the same document
-    // for every visitor: a shared cache that is not told hands one visitor's bundle to all of them
+    // address in the tag is chosen by the `User-Agent` and the `Accept-Encoding`, so the page stopped
+    // being the same document for every visitor: a shared cache that is not told hands one visitor's
+    // bundle to all of them. The second is ours to name even where `compression` names it too:
+    // Firefox on iOS sends one string from iOS 15 and from iOS 26, and only the other field tells them apart
     if (patched !== beginning) {
       // unless the headers are already on their way, which `res.writeHead` does before the body is
       // written. Then none of the three can be repaired, and a `Content-Length` that no longer
@@ -113,6 +115,7 @@ function intercept(request, response, base, { chooseBundle, scriptTag, urlOf, wa
       response.removeHeader('content-length');
       response.removeHeader('etag');
       varyBy(response, 'user-agent');
+      varyBy(response, 'accept-encoding');
     }
 
     original.write.call(response, Buffer.from(patched, 'latin1'));

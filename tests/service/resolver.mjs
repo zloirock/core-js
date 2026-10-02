@@ -52,6 +52,27 @@ strictEqual(resolveUA(IOS_FIREFOX), 'ios 15.0', 'resolver-4 #3');
 strictEqual(resolveUA(IOS_FIREFOX.replace('iPhone; CPU iPhone OS', 'iPad; CPU OS')), 'ios 15.0', 'resolver-4 #4');
 // before 147 it wrote the device's own version, which is the OS and so the WebKit
 strictEqual(resolveUA(IOS_FIREFOX.replace('18_7', '16_7_10').replace('147.0', '146.1')), 'ios 16.7.10', 'resolver-4 #5');
+// the network stack the WebKit runs on says more than the string does: `zstd` in `Accept-Encoding`
+// is sent from iOS 26.3 on (BCD), checked on devices - 26.1 has none, 26.5, 26.6 and 27.0 send it,
+// Firefox's WKWebView too. Officially 26.3; 26.2 is an assumption until a device shows whether it
+// sends one, so the floor is 26.2 and not 26.3
+function resolveWith(userAgent, acceptEncoding) {
+  const target = resolve({ 'user-agent': userAgent, 'accept-encoding': acceptEncoding });
+  return target && `${ target.engine } ${ target.version }`;
+}
+
+strictEqual(resolveWith(IOS_FIREFOX, 'gzip, deflate, br, zstd'), 'ios 26.2', 'resolver-4 #6');
+// parsed, not searched: `zstd;q=0` refuses it, `*` names nothing, and a header past the bound is
+// not read at all
+strictEqual(resolveWith(IOS_FIREFOX, 'gzip, deflate, br, zstd;q=0'), 'ios 15.0', 'resolver-4 #7');
+strictEqual(resolveWith(IOS_FIREFOX, '*'), 'ios 15.0', 'resolver-4 #8');
+strictEqual(resolveWith(IOS_FIREFOX, 'gzip, deflate, br'), 'ios 15.0', 'resolver-4 #9');
+strictEqual(resolveWith(IOS_FIREFOX, `zstd, ${ 'x'.repeat(2000) }`), 'ios 15.0', 'resolver-4 #10');
+// and it only lifts the floor of Firefox: a string that carries a version keeps it, and an in-app
+// WebView on the frozen token waits for the same check on a device
+strictEqual(resolveWith(IOS_FIREFOX.replace('18_7', '16_7_10').replace('147.0', '146.1'), 'gzip, deflate, br, zstd'),
+  'ios 16.7.10', 'resolver-4 #11');
+strictEqual(resolveWith(IOS_SAFARI.replace('Version/26.1 ', ''), 'gzip, deflate, br, zstd'), 'ios 18.7', 'resolver-4 #12');
 
 // an app that assembles its own string may report the OS it read from the system beside the frozen
 // token - and that is the OS itself, so the lower bound is not the answer there

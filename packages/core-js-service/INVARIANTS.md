@@ -172,7 +172,16 @@ trap below is named, and the suite names its assertions after them.
   is the case with no token left: from 147 on it writes `18_7` as a literal on every device down to
   iOS 15, so its OS token is not a lower bound. What bounds it instead is the iOS the app installs
   on - 15.0, the `IPHONEOS_DEPLOYMENT_TARGET` of the `Client` target in 147 - which is not a version
-  built up from the string but a fact about every device that can run the app, and it only rises
+  built up from the string but a fact about every device that can run the app, and it only rises.
+  And what the network stack under it asks for: `zstd` in `Accept-Encoding` is sent from iOS 26.3
+  on (BCD), checked on devices - none on 26.1, sent on 26.5, 26.6 and 27.0, by Safari and by the
+  WKWebView of Firefox alike - so it lifts the floor to 26.2. That number is an ASSUMPTION, not a
+  fact: officially it is 26.3, and 26.2 is the one version between the two device checks nobody has
+  looked at, taken so that a 26.2 which does send it is not read high. Still to be checked on a
+  device - and raised to 26.3 once 26.2 shows no `zstd`. It
+  lifts nothing else: an in-app WKWebView on the frozen token waits for the same check on a device.
+  The trap is upstream: a proxy that ADDS `zstd` for a client that never asked for it makes this read high, and nothing
+  here can see that; one that strips it costs bytes only
 - **resolver-5** - on iOS the engine is WebKit whatever the browser calls itself. Both parsers
   answer `Chrome 140` to a `CriOS/` string, and handing that to compat as real Chrome builds a
   bundle far thinner than WebKit needs. Chrome on iPhone is 2.84% of world traffic
@@ -324,11 +333,14 @@ Delivery: everything that knows about the protocol. Only `adapter/express` knows
   never otherwise. `Content-Length` no longer matches and cannot be recomputed - only the beginning
   of the response is held - and Express computes the `ETag` from the body BEFORE the edit, so a
   client would revalidate into a 304 and keep an address of a bundle that is no longer theirs. The
-  third one is `Vary`: the address in the tag is chosen by the `User-Agent`, so the page is no
-  longer one document for every visitor, and a shared cache that is not told hands the first
+  third one is `Vary`: the address in the tag is chosen by the `User-Agent` - and for Firefox on
+  iOS by the `Accept-Encoding`, its one string being sent from iOS 15 and iOS 26 alike - so the
+  page is no longer one document for every visitor, and a shared cache that is not told hands the first
   visitor's bundle to all of them - a browser at the far end of the floor then gets a bundle built
-  for a browser that needs none of it. The field is APPENDED: `compression` puts `Accept-Encoding`
-  there on the way out, an application that does its own device detection may already name
+  for a browser that needs none of it. Both fields are ours to name, `Accept-Encoding` too: a page
+  `compression` leaves alone - below its threshold, or with no `compression` at all - would
+  otherwise not name it. The field is APPENDED: `compression` puts `Accept-Encoding` there on the
+  way out, an application that does its own device detection may already name
   `User-Agent`, and `*` covers everything a cache cannot see.
   When the headers cannot be repaired the tag is not inserted at all. `res.writeHead` puts them on
   the wire before the body is written, and from there a `Content-Length` that no longer matches
