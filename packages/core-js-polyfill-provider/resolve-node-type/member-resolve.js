@@ -26,7 +26,7 @@
 //
 // `findExpressionAnnotation` / `substituteTypeParams` / `applySubst` / `applyAliasSubstDeep` /
 // `functionTypeReturnAnnotation` thunk through forward-decl `let` bindings
-import { MAX_DEPTH, $Primitive, dropLeadingThisParam, nodePathInScope } from './base.js';
+import { MAX_DEPTH, $Object, $Primitive, dropLeadingThisParam, nodePathInScope } from './base.js';
 import {
   collectQualifiedSegments,
   isMethodShapeMember,
@@ -50,6 +50,9 @@ import {
   provablyPrecedes,
   reassignmentDominatesUsage,
   staticMemberKeyName,
+  ESCAPED_CONTAINER_NAMES,
+  CENSUS_ENUM_RECEIVERS,
+  rootProgramOf,
 } from '../helpers/ast-patterns.js';
 import { memberWriteTargetPath } from './class-member-shapes.js';
 
@@ -106,6 +109,8 @@ export function createMemberResolve({
   findAmbientClassPath,
   resolveArrayLiteralElement,
   findAllEnumDeclarations,
+  enumIsNearestValue,
+  bindingDeclaratorPath,
   getModuleFieldIndex,
   namespaceExportReturn,
   findNamespacedValueAnnotation,
@@ -1155,13 +1160,17 @@ export function createMemberResolve({
   //     (forward `E['A']` / index by user expr) bails - those resolve through other paths.
   // namespace-qualified receiver: `findAllEnumDeclarations` accepts segment-array form to walk
   // through TSModuleDeclaration anchors so `namespace N { export enum E {...} }` resolves
-  function resolveEnumMemberAccess(path) {
+  function resolveEnumMemberAccess(path, receiverOnly = false) {
+    const receiverProof = receiverOnly ? CENSUS_ENUM_RECEIVERS.get(rootProgramOf(path))?.(path.node) : undefined;
+    if (receiverProof !== undefined && receiverProof !== null) return receiverProof ? new $Object('Object') : null;
     const segments = collectMemberSegments(path.node.object);
     if (!segments) return null;
     // findAllEnumDeclarations accepts both string and segment array. TS merges multiple `enum E {}`
     // blocks, so a member may live in any block - search them all (a single-block enum yields one)
     const enumDecls = findAllEnumDeclarations(segments, path.scope);
     if (!enumDecls.length) return null;
+    if (!enumIsNearestValue(segments, path.scope, bindingDeclaratorPath(segments[0], path.scope))) return null;
+    if (receiverOnly && ESCAPED_CONTAINER_NAMES.get(rootProgramOf(path))?.has(segments[0])) return null;
     // `E.A` (Identifier) / `E['A']` (computed StringLiteral / ESTree Literal) / `` E[`A`] `` / a
     // SE-bearing key `E[(c++, 'A')]` - all look up the same member (staticMemberKeyName folds the SE
     // tail); numeric / dynamic keys fall through to the reverse-map fallback below
@@ -1175,7 +1184,10 @@ export function createMemberResolve({
     // per-program write index the fold asks, and DECLINE instead of folding: over-reporting a write
     // only degrades the read to generic, the safe direction in both methods
     if (memberName !== null) {
-      return enumSlotExternallyWritten(path, segments, memberName)
+      if (receiverOnly && receiverProof === null) {
+        return resolveEnumMemberType(enumDecls, memberName) ? new $Object('Object') : null;
+      }
+      return pathSlotWritten(path.get('object'), [memberName]) || enumSlotExternallyWritten(path, segments, memberName)
         ? null : resolveEnumMemberType(enumDecls, memberName);
     }
     // `E[E.A]` numeric reverse-map: numeric enum + numeric-typed computed key -> string

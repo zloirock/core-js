@@ -1,5 +1,4 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-import _at from "@core-js/pure/actual/instance/at";
 var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _ref10, _ref11, _ref12, _ref13;
 // a polyfillable GET reading off a chain that already carries a polyfillable CALL. the method-get in
 // the guard test is itself a claim (`_atMaybeArray(arr)`, not a raw `arr.at`), and the tail reads off
@@ -21,7 +20,7 @@ export const plainOptThenGet = null == (_ref6 = _atMaybeArray(_ref7 = _atMaybeAr
 // a spliced hop keeps the receiver type the chain carried: the middle read resolves the SAME
 // narrowed helper it resolves without the `?.`, instead of degrading to the generic one
 export const optPlainThenCall = null == (_ref8 = _atMaybeArray(arr)) ? void 0 : _atMaybeArray(_ref9 = _atMaybeArray(_ref10 = _ref8.call(arr, 0)).call(_ref10, 0)).call(_ref9, 0);
-// NEGATIVE: a non-polyfillable call under the same tail keeps the native method-get
-export const nonPolyCallThenGet = null == (_ref11 = box.pick) ? void 0 : _at(_ref11.call(box, 0));
+// A non-polyfillable call keeps its own callee; its known array result narrows the tail.
+export const nonPolyCallThenGet = null == (_ref11 = box.pick) ? void 0 : _atMaybeArray(_ref11.call(box, 0));
 // NEGATIVE: a call tail is the shape the combine owns, and it is unaffected
 export const optCallThenCall = null == (_ref12 = _atMaybeArray(arr)) ? void 0 : _atMaybeArray(_ref13 = _ref12.call(arr, 0)).call(_ref13, 0);

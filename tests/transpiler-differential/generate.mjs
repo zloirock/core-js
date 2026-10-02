@@ -15285,6 +15285,460 @@ function * generateRetainedReceiverReentry() {
   }
 }
 
+// Deletion contributes an unknown value: an inherited string must not keep the removed array's family.
+function * generateDeletedFieldReceivers() {
+  const bodies = {
+    direct: 'const box = { __proto__: { data: "pq" }, data: [8, 9] }; delete box.data; const r = (box.data).at(-1);',
+    alias: 'const box = { __proto__: { data: "pq" }, data: [8, 9] }; const alias = box; delete alias.data; const r = (box.data).at(-1);',
+    caught: 'const box = { __proto__: { data: "pq" }, data: [8, 9] }; try { throw box; } catch (e) { delete e.data; } const r = (box.data).at(-1);',
+    'caught-destructure': 'const box = { __proto__: { data: "pq" }, data: [8, 9] }; try { throw { box }; } catch ({ box: e }) { delete e.data; } const r = (box.data).at(-1);',
+    'object-method': 'const box = { __proto__: { data: "pq" }, data: [8, 9], remove() { delete this.data; } }; box.remove(); const r = (box.data).at(-1);',
+    'class-instance': `class Base { get data() { return "pq";
+      } } class Box extends Base { data = [8, 9]; remove() { delete this.data; } } const box = new Box(); box.remove(); const r = (box.data).at(-1);`,
+    'class-static': `class Base { static data = "pq";
+      } class Box extends Base { static data = [8, 9]; static remove() { delete this.data; } } Box.remove(); const r = (Box.data).at(-1);`,
+    'static-block': 'class Base { static data = "pq"; } class Box extends Base { static data = [8, 9]; static { delete this.data; } } const r = (Box.data).at(-1);',
+    'arrow-root': `class Base { static data = "pq";
+      } class Box extends Base { static data = [8, 9]; static remove = () => delete this.data; } Box.remove(); const r = (Box.data).at(-1);`,
+    'computed-key': 'const box = { __proto__: { data: "pq" }, data: [8, 9] }; const key = "data"; delete box[(log.push("delete"), key)]; const r = (box.data).at(-1);',
+    'opaque-key': 'const box = { __proto__: { data: "pq" }, data: [8, 9] }; function key() { log.push("delete"); return "data"; } delete box[key()]; const r = (box.data).at(-1);',
+  };
+  for (const [name, body] of Object.entries(bodies)) yield {
+    name: `deleted-field-receivers/${ name }`,
+    code: `const log = []; ${ body } export { r }; export const effects = log;`,
+    strip: true,
+  };
+}
+
+// Getter slot writes and setter-only slots change the value read, including nested default effects.
+// Writes beyond a getter preserve its calls, returned family and effects.
+function * generateAccessorSlotReceivers() {
+  const bodies = {
+    'getter-direct-delete': 'const box = { __proto__: { data: "pq" }, get data() { log.push("get"); return [8, 9]; } }; delete box.data; const r = box.data.includes("pq");',
+    'getter-alias-delete': 'const box = { __proto__: { data: "pq" }, get data() { return [8, 9]; } }; const alias = box; delete alias.data; const r = box.data.includes("pq");',
+    'getter-catch-delete': `const box = { __proto__: { data: "pq" }, get data() { return [8, 9];
+      } };
+      try { throw box;
+      } catch (e) { delete e.data;
+      } const r = box.data.includes("pq");`,
+    'getter-catch-pattern-delete': `const box = { __proto__: { data: "pq" }, get data() { return [8, 9];
+      } };
+      try { throw { box };
+      } catch ({ box: e }) { delete e.data;
+      } const r = box.data.includes("pq");`,
+    'getter-this-delete': `const box = { __proto__: { data: "pq" }, get data() { return [8, 9];
+      }, remove() { delete this.data;
+      } };
+      box.remove();
+      const r = box.data.includes("pq");`,
+    'getter-defined-value': 'const box = { get data() { return [8, 9]; } }; Object.defineProperty(box, "data", { value: "pq" }); const r = box.data.includes("pq");',
+    'getter-reflect-value': 'const box = { get data() { return [8, 9]; } }; Reflect.defineProperty(box, "data", { value: "pq" }); const r = box.data.includes("pq");',
+    'getter-read-only': 'const box = { get data() { log.push("get"); return [8, 9]; } }; const r = box.data.includes(9);',
+    'setter-only-default': 'const box = { set toString(value) {} }; const { toString: { includes } = (log.push("default"), [8,9]) } = box; const r = includes.call([8,9],9);',
+    'setter-reset-default': `const box = { toString: [8,9], set toString(value) {} };
+      const { toString: { includes } = (log.push("default"), [8,9]) } = box;
+      const r = includes.call([8,9],9);`,
+    'getter-data-setter-default': `const box = { get toString() { return [8,9];
+      }, toString: [1], set toString(value) {} };
+      const { toString: { includes } = (log.push("default"), [8,9]) } = box;
+      const r = includes.call([8,9],9);`,
+    'computed-setter-default': `const key = "toString";
+      const box = { set [key](value) {} };
+      const { toString: { includes } = (log.push("default"), [8,9]) } = box;
+      const r = includes.call([8,9],9);`,
+    'computed-method-replaces-data': `function key(value) { log.push("key"); return "rows"; }
+      const box = { rows: [8,9], [key(this)]() {}, read() { return this.rows.at(0); } };
+      let r;
+      try { r = box.read(); } catch { r = "threw"; }`,
+    'computed-data-overrides-array': `function key(value) { log.push("key"); return "rows"; }
+      const box = { rows: [8,9], [key(this)]: "ab", read() { return this.rows.at(-1); } };
+      const r = box.read();`,
+    'indexed-computed-data': `function pick<T extends { rows: unknown }>(o: T): T["rows"] { return o.rows; }
+      function key() { log.push("key"); return "rows"; }
+      const r = pick({ rows: [8,9], [key()]: "ab" }).at(-1);`,
+    'indexed-computed-getter': `function pick<T extends { rows: unknown }>(o: T): T["rows"] { return o.rows; }
+      function key() { log.push("key"); return "rows"; }
+      const r = pick({ rows: [8,9], get [key()]() { log.push("get"); return "ab"; } }).at(-1);`,
+    'indexed-nested-computed-data': `function pick<T extends { inner: { rows: unknown } }>(o: T): T["inner"]["rows"] { return o.inner.rows; }
+      function key() { log.push("key"); return "inner"; }
+      const r = pick({ inner: { rows: [8,9] }, [key()]: { rows: "ab" } }).at(-1);`,
+    'indexed-symbol-key': `function pick<T extends { rows: unknown }>(o: T): T["rows"] { return o.rows; }
+      const key = Symbol(); const r = pick({ rows: [8,9], [key]: "ab" }).at(-1);`,
+    'computed-getter-default-prefix': `const key = "wrap"; let r;
+      for (const { wrap: { data: { includes } = [8,9] } } of [{
+        get [key]() { log.push("get"); return { set data(v) {} }; }, set wrap(v) {},
+      }]) r = includes.call([8,9],9);`,
+    'named-data-unknown-sibling': `function read(key) {
+      const box = { rows: [8,9], [key]: 0 }; return box.rows.at(-1);
+      } const r = read("meta");`,
+    'named-getter-unknown-sibling': `function read(key) {
+      const box = { get rows() { log.push("get"); return [8,9]; }, [key]: 0 };
+      return box.rows.at(-1);
+      } const r = read("meta");`,
+    'named-paired-getter-unknown-sibling': `function read(key) {
+      const box = { get rows() { log.push("get"); return [8,9]; }, set rows(v) {}, [key]: 0 };
+      return box.rows.at(-1);
+      } const r = read("meta");`,
+    'indexed-named-write': `function pick<T extends { rows: unknown }>(o: T): T["rows"] { return o.rows; }
+      const box: any = { rows: [8,9] }; box.rows = "ab"; const r = pick(box).at(-1);`,
+    'indexed-named-handout': `function pick<T extends { rows: unknown }>(o: T): T["rows"] { return o.rows; }
+      function mutate(o) { log.push("mutate"); o.rows = "ab"; }
+      const box = { rows: [8,9] }; mutate(box); const r = pick(box).at(-1);`,
+    'paired-getter-setter': `const box = { get toString() { log.push("get");
+      return [8,9];
+      }, set toString(value) {} };
+      const { toString: { includes } = (log.push("default"), [1]) } = box;
+      const r = includes.call([8,9],9);`,
+    'getter-installs-prototype': `const box = { get setup() { Object.setPrototypeOf(this, { toString: "pq" });
+      return 0;
+      } };
+      void box.setup;
+      const r = box.toString.includes("pq");`,
+    'method-installs-prototype': 'const box = { setup() { Object.setPrototypeOf(this, { toString: "pq" }); } }; box.setup(); const r = box.toString.includes("pq");',
+  };
+  for (const [carrier, setup, receiver] of [
+    ['object', 'const box = { inner };', 'box.inner'],
+    ['nested', 'const box = { wrap: { inner } };', 'box.wrap.inner'],
+  ]) {
+    for (const [write, statement] of [
+      ['assignment', `${ receiver }.value.at = 0;`],
+      ['delete', `delete ${ receiver }.value.at;`],
+      ['for-of', `for (${ receiver }.value.at of [0]) {}`],
+      ['pattern', `[${ receiver }.value.at] = [0];`],
+    ]) bodies[`getter-result-${ carrier }-${ write }`] = `
+      const inner = { get value() { log.push("get"); return [8, 9]; } };
+      ${ setup } ${ statement } const r = ${ receiver }.value.at(-1);`;
+    bodies[`getter-result-${ carrier }-body-delete`] = `
+      const inner = { __proto__: { value: "pq" }, get value() { log.push("get"); delete this.value; return [8, 9]; } };
+      ${ setup } ${ receiver }.value.at = 0; const r = ${ receiver }.value.at(-1);`;
+    bodies[`getter-result-${ carrier }-slot-delete`] = `
+      const inner = { __proto__: { value: "pq" }, get value() { log.push("get"); return [8, 9]; } };
+      ${ setup } delete ${ receiver }.value; const r = ${ receiver }.value.at(-1);`;
+    bodies[`getter-result-${ carrier }-shared-array`] = `
+      const rows = [8, 9]; const inner = { get value() { log.push("get"); return rows; } };
+      ${ setup } ${ receiver }.value.extra = 0; const r = ${ receiver }.value.at(-1);`;
+    bodies[`getter-result-${ carrier }-mixed-family`] = `
+      let reads = 0; const inner = { get value() { log.push("get"); return reads++ ? "pq" : [8, 9]; } };
+      ${ setup } ${ receiver }.value.at = 0; const r = ${ receiver }.value.at(-1);`;
+  }
+  for (const [name, body] of Object.entries(bodies)) yield {
+    name: `accessor-slot-receivers/${ name }`,
+    code: `const log = []; ${ body } export { r }; export const effects = log;`,
+    ts: name.startsWith('indexed-'),
+    strip: true,
+  };
+}
+
+// Reading an inherited function must not cache Function as the result of calling it.
+// Rebuilt argument and destructure contexts ask the same question on cloned paths.
+function * generateInheritedCallCache() {
+  const expr = 'this.toString().at(-1)';
+  for (const [name, body] of Object.entries({
+    'plain-receiver': 'const result = {}.toString().at(-1); return result;',
+    direct: `return ${ expr };`,
+    argument: `const out = []; out.push(${ expr }); return out[0];`,
+    destructure: `const { value } = { value: ${ expr } }; return value;`,
+  })) yield {
+    name: `inherited-call-cache/${ name }`,
+    code: `const box = { run() { void this.toString.at; ${ body } } };
+      export const r = box.run(); export const effects = [];`,
+    strip: true,
+  };
+}
+
+// Precision proofs preserve own enum slots, prototype families, defaults and local catch aliases.
+// Array/string replacements distinguish an unsafe narrow from a conservative fallback.
+function * generateReceiverTypePrecision() {
+  const bodies = {
+    'inherited-function': `let defaults = 0;
+      const { toString: { at } = (defaults++, [1, 2]) } = {};
+      return [typeof at, defaults, [3, 4].at(-1)];`,
+    'own-inherited-override': `const { toString: { at } } = { toString: 'ab' };
+      return at.call('ab', -1);`,
+    'class-getter': `class Box { static get C() { log.push('get'); return Array; } }
+      const { C: { prototype: { at } } } = Box; return at.call([3, 4], -1);`,
+    'class-field': `class Box { static C = String; }
+      return Box.C.prototype.at.call('ab', -1);`,
+    'class-field-written': `class Box { static C = Array; } Box.C = String;
+      return Box.C.prototype.at.call('ab', -1);`,
+    'closed-parameter': `function f({ at } = [[1, 2]][0]) { return at.call([3, 4], -1); }
+      return [f(), f(void 0)];`,
+    'supplied-parameter': `function f({ at } = [1, 2]) { return at; }
+      const own = () => 9; return [f({ at: own })(), f({ at: undefined }), [1, 2].at(-1)];`,
+    'local-catch': `const rows = [[1, 2]];
+      try { throw rows; } catch (e) { log.push(e.length); }
+      const [{ at }] = rows; return at.call([3, 4], -1);`,
+    'catch-destructured-write': `const box = { data: [1, 2] };
+      try { throw { box }; } catch ({ box: e }) { e.data = 'ab'; }
+      return box.data.at(-1);`,
+    'catch-escape': `function change(e) { log.push('change'); e.data = 'ab'; }
+      const box = { data: [1, 2] }; try { throw box; } catch (e) { change(e); }
+      return box.data.at(-1);`,
+    'outer-catch': `const box = { data: [1, 2] };
+      try { try { throw box; } catch (e) { throw e; } } catch {}
+      return box.data.at(-1);`,
+    'uninitialized-key': 'let key; return [Array[key], [1, 2].at(-1)];',
+  };
+  for (const [name, body] of Object.entries(bodies)) yield {
+    name: `receiver-type-precision/${ name }`,
+    code: `const log = []; export const r = (() => { ${ body } })(); export const effects = log;`,
+    strip: true,
+  };
+  yield {
+    name: 'receiver-type-precision/enum-own-key',
+    code: `const log = []; enum E { at = 'at' }
+      const box = { [(log.push('key'), E.at)]: 7 };
+      export const r = [E.at, box.at, [1, 2].at(-1)]; export const effects = log;`,
+    ts: true,
+    strip: true,
+  };
+  for (const [name, body] of Object.entries({
+    'written-own-member': `E.at = (() => { log.push('own'); return 9; });
+      return [E.at(), [1, 2].at(-1)];`,
+    'reassigned-receiver': 'E = "ab"; return E.at(-1);',
+    'deleted-own-member': 'delete E.at; E.__proto__ = Array.prototype; return E.at(-1);',
+  })) yield {
+    name: `receiver-type-precision/enum/${ name }`,
+    code: `const log = []; enum E { at = 'at' }
+      export const r = (() => { ${ body } })(); export const effects = log;`,
+    ts: true,
+    strip: true,
+  };
+  for (const operation of ['read', 'delete']) yield {
+    name: `receiver-type-precision/uninitialized-guarded-tail/${ operation }`,
+    code: `${ RIG_IMPORT }
+      const log = []; export const r = withRiggedAliases(() => {
+        let key; let caught = false;
+        try { ${ operation === 'delete' ? 'delete ' : '' }globalThis.window?.self?.Promise[key].userSlot; }
+        catch { log.push('caught'); caught = true; }
+        return [caught, [1, 2].at(-1)];
+      }); export const effects = log;`,
+    strip: true,
+  };
+}
+
+// Local property readers keep their arguments confined; writes and handouts keep the family open.
+// Wrapper spellings must preserve the writer proof, rather than re-reading the literal initializer.
+function * generateLocalArgumentReaders() {
+  const declarations = {
+    declaration: 'function pick<T extends { rows: unknown }>(o: T): T["rows"] { return o.rows; }',
+    arrow: 'const pick = <T extends { rows: unknown }>(o: T): T["rows"] => o.rows;',
+    alias: 'const read = <T extends { rows: unknown }>(o: T): T["rows"] => o.rows; const pick = read;',
+  };
+  for (const [name, declaration] of Object.entries(declarations)) {
+    for (const [family, value] of [['array', '[8, 9]'], ['string', '"ab"']]) {
+      yield {
+        name: `local-argument-reader/${ name }/${ family }`,
+        code: `${ declaration } const box = { rows: ${ value } } as const;
+          export const r = pick((box as typeof box)).at(-1);`,
+        ts: true,
+        strip: true,
+      };
+    }
+  }
+  for (const [name, body] of [
+    ['write', 'o.rows = "ab"; return o.rows;'],
+    ['alias-write', 'const alias = o; alias.rows = "ab"; return o.rows;'],
+    ['handout', 'mutate(o); return o.rows;'],
+  ]) yield {
+    name: `local-argument-reader/${ name }`,
+    code: `const log = [];
+      function mutate(o) { log.push("mutate"); o.rows = "ab"; }
+      function pick<T extends { rows: unknown }>(o: T): T["rows"] { ${ body } }
+      const box = { rows: [8, 9] }; export const r = pick(box).at(-1); export const effects = log;`,
+    ts: true,
+    strip: true,
+  };
+  for (const argument of ['box as typeof box', 'box!', '(box)']) yield {
+    name: `local-argument-reader/wrapped-writer/${ argument }`,
+    code: `${ declarations.declaration } const box: any = { rows: [8, 9] };
+      box.rows = "ab"; export const r = pick(${ argument }).at(-1);`,
+    ts: true,
+    strip: true,
+  };
+  yield {
+    name: 'local-argument-reader/getter',
+    code: `${ declarations.declaration } const log = [];
+      const box = { get rows() { log.push("get"); return "ab"; } };
+      export const r = pick(box).at(-1); export const effects = log;`,
+    ts: true,
+    strip: true,
+  };
+  yield {
+    name: 'local-argument-reader/method-extraction',
+    code: `function pick(o) { return o.read; }
+      const box = { rows: [8, 9], read() { return this.rows.at(-1); } };
+      const read = pick(box); export const r = read.call({ rows: "ab" });`,
+    strip: true,
+  };
+  yield {
+    name: 'local-argument-reader/directive',
+    code: `function pick<T extends { rows: unknown }>(o: T): T["rows"] { "use strict"; return o.rows; }
+      const box = { rows: [8, 9] }; export const r = pick(box).at(-1);`,
+    ts: true,
+    strip: true,
+  };
+  yield {
+    name: 'local-argument-reader/class-value-reader',
+    code: `class Box { static rows = [8, 9]; data = 0; read() { return this.data; } }
+      Object.values(Box); export const r = Box.rows.at(-1);`,
+    strip: true,
+  };
+  yield {
+    name: 'local-argument-reader/class-prototype-handout',
+    code: `function pick(o) { return o.prototype; }
+      class Box { data = [8, 9]; read() { return this.data.at(-1); } }
+      const held = pick(Box); export const r = held.read.call({ data: "ab" });`,
+    strip: true,
+  };
+  for (const key of ['prototype', '__proto__']) yield {
+    name: `local-argument-reader/class-prototype-write/${ key }`,
+    code: `function pick(o) { return o.${ key }; }
+      ${ key === '__proto__' ? 'class Base { static rows = [8, 9]; }' : '' }
+      class Box ${ key === '__proto__' ? 'extends Base' : '' } {
+        ${ key === 'prototype' ? 'static rows = [8, 9];' : '' }
+      }
+      const held: any = pick(Box);
+      held.${ key === 'prototype' ? 'constructor.' : '' }rows = "ab";
+      export const r = Box.rows.at(-1);`,
+    ts: true,
+    strip: true,
+  };
+}
+
+// A written binding remains the source after a transparent wrapper inside a literal carrier.
+function * generateWrappedBindingCarriers() {
+  for (const [wrapper, argument] of [
+    ['cast', 'box as typeof box'],
+    ['non-null', 'box!'],
+    ['satisfies', 'box satisfies { rows: any }'],
+  ]) for (const [carrier, pattern] of [
+    ['array', `const [{ rows }] = [(${ argument })];`],
+    ['object', `const { slot: { rows } } = { slot: (${ argument }) };`],
+  ]) for (const written of [false, true]) yield {
+    name: `wrapped-binding-carrier/${ carrier }/${ wrapper }/${ written ? 'written' : 'pristine' }`,
+    code: `const box: any = { rows: ["ab", "cd"] };
+      ${ written ? 'box.rows = "ab";' : '' }
+      ${ pattern }
+      export const r = rows.includes(${ written ? '"ab"' : '"b,c"' });`,
+    ts: true,
+    strip: true,
+  };
+}
+
+// Writer values and call returns are different facts; invocation arguments can change families.
+function * generateWrittenFunctionCalls() {
+  const setups = {
+    missing: 'const box = {}; box.fn = value => value;',
+    replacement: 'const box = { fn: value => value }; box.fn = value => value;',
+    method: 'const box = { fn(value) { return value; } }; box.fn = value => value;',
+    alias: 'function identity(value) { return value; } const box = {}; const alias = box; alias.fn = identity;',
+  };
+  for (const [name, setup] of Object.entries(setups)) for (const reverse of [false, true]) yield {
+    name: `written-function-call/${ name }/${ reverse }`,
+    code: `${ setup }
+      export const r = [${ reverse ? 'box.fn("abcd").includes("bc"), box.fn([8, 9]).at(-1)' : 'box.fn([8, 9]).at(-1), box.fn("abcd").includes("bc")' }];`,
+    strip: true,
+  };
+  for (const [name, setup] of Object.entries({
+    divergent: 'const box = { fn: () => [1] }; box.fn = () => "abcd";',
+    'receiver-install': `function make() { this.fn = () => "abcd"; return [1]; }
+      const box = {}; box.fn = make; box.fn();`,
+    handout: `function change(receiver) { receiver.fn = () => "abcd"; }
+      function make() { change(this); return [1]; }
+      const box = {}; box.fn = make; box.fn();`,
+  })) yield {
+    name: `written-function-call/${ name }`,
+    code: `${ setup } export const r = box.fn().includes("bc");`,
+    strip: true,
+  };
+  for (const [name, params, value] of [
+    ['direct', 'value = [8, 9]', 'value'],
+    ['pattern', '{ rows } = { rows: [8, 9] }', 'rows'],
+  ]) yield {
+    name: `written-function-call/default/${ name }`,
+    code: `const log = []; const box = {}; box.fn = (${ params }) => ${ value };
+      export const r = [box.fn(undefined).at(-1), box.fn(void log.push("arg")).includes(9)];
+      export const effects = log;`,
+    strip: true,
+  };
+  for (const [name, fallback, supplied, read] of [
+    ['array', '[8, 9]', '"abcd"', 'at(-1)'],
+    ['string', '"abcd"', '[8, 9]', 'includes("bc")'],
+  ]) yield {
+    name: `written-function-call/default/nullable-${ name }`,
+    code: `const choose = () => true; const box = {}; box.fn = (value = ${ fallback }) => value;
+      const arg = choose() ? undefined : ${ supplied }; export const r = box.fn(arg).${ read };`,
+    strip: true,
+  };
+  for (const union of ['null | undefined', 'undefined | null']) yield {
+    name: `written-function-call/default/typed-${ union }`,
+    code: `const box: { fn?: (value?: number[] | null) => number[] | null } = {};
+      box.fn = (value: number[] | null = [8, 9]) => value;
+      const arg: ${ union } = undefined; export const r = box.fn(arg)?.at(-1);`,
+    ts: true,
+    strip: true,
+  };
+  for (const union of ['null | undefined', 'undefined | null']) yield {
+    name: `written-function-call/default/typed-${ union }/null`,
+    code: `const choose = () => true; const box: { fn?: (value?: number[] | null) => number[] | null } = {};
+      box.fn = (value: number[] | null = [8, 9]) => value;
+      const arg: ${ union } = choose() ? null : undefined; export const r = (box.fn(arg) ?? "abcd").at(-1);`,
+    ts: true,
+    strip: true,
+  };
+}
+
+// Property readers preserve the stored constructor; body writes and receiver calls do not.
+function * generateContainerSlotReaders() {
+  for (const [name, body, holder, call] of [
+    ['named', 'function reader(t) { return t.k; }', '{ k: Object }', 'reader(box)'],
+    ['computed', 'function reader(t) { return t["k"]; }', '{ k: Object }', 'reader(box)'],
+    ['alias', 'function read(t) { return t.k; } const reader = read;', '{ k: Object }', 'reader(box)'],
+    ['invoker', 'function reader(t) { return t.k; }', '{ k: Object }', 'reader.call(null, box)'],
+    ['writer', 'function reader(t) { t.k = { entries() { log.push("custom"); return [["written", 9]]; } }; return t.k; }',
+      '{ k: Object }', 'reader(box)'],
+    ['method', 'function reader(t) { return t.change(); }',
+      '{ k: Object, change() { this.k = { entries() { log.push("custom"); return [["written", 9]]; } }; } }', 'reader(box)'],
+  ]) yield {
+    name: `container-slot-reader/${ name }`,
+    code: `const log = []; ${ body } const box = ${ holder }; ${ call };
+      const { k: { entries } } = box; export const r = entries({ a: 1 }); export const effects = log;`,
+    strip: true,
+  };
+}
+
+// Known return alternatives keep their own families through the written call slot.
+function * generateWrittenFunctionCallUnions() {
+  for (const flag of [false, true]) for (const [name, setup] of [
+    ['array-default', 'const box = {}; box.fn = (value = [8, 9]) => value; const arg = choose() ? undefined : "abcd";'],
+    ['string-default', 'const box = {}; box.fn = (value = "abcd") => value; const arg = choose() ? undefined : [8, 9];'],
+    ['expression', 'const box = {}; box.fn = () => choose() ? [8, 9] : "abcd";'],
+    ['block', 'const box = { fn() { if (choose()) return [8, 9]; return "abcd"; } };'],
+  ]) {
+    const resultIsArray = name === 'string-default' ? !flag : flag;
+    yield {
+      name: `written-function-call-union/${ name }/${ flag }`,
+      code: `const log = []; const choose = () => { log.push("choose"); return ${ flag }; }; ${ setup }
+        export const r = box.fn(${ name.endsWith('default') ? 'arg' : '' }).includes(${ resultIsArray ? '9' : '"bc"' });
+        export const effects = log;`,
+      strip: true,
+    };
+  }
+}
+
+// Object-pattern returns project the field captured by the default or a fresh argument.
+function * generateWrittenPatternReturnUnions() {
+  for (const flag of [false, true]) for (const shape of ['default', 'undefined', 'argument']) yield {
+    name: `written-pattern-return-union/${ shape }/${ flag }`,
+    code: `const log = []; const choose = () => { log.push("choose"); return ${ flag }; };
+      const box = {}; box.fn = ({ rows } = { rows: choose() ? ["a"] : "ab" }) => rows;
+      export const r = box.fn(${ shape === 'argument' ? '{ rows: choose() ? ["a"] : "ab" }' : shape === 'undefined' ? 'undefined' : '' }).includes("a");
+      export const effects = log;`,
+    strip: true,
+  };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateUnbackedSequenceHops();
@@ -15550,4 +16004,14 @@ export function * generate() {
   yield * generatePositionalCaptureActivations();
   yield * generateForOfWrittenElementFields();
   yield * generateRetainedReceiverReentry();
+  yield * generateReceiverTypePrecision();
+  yield * generateDeletedFieldReceivers();
+  yield * generateInheritedCallCache();
+  yield * generateAccessorSlotReceivers();
+  yield * generateLocalArgumentReaders();
+  yield * generateWrappedBindingCarriers();
+  yield * generateWrittenFunctionCalls();
+  yield * generateContainerSlotReaders();
+  yield * generateWrittenFunctionCallUnions();
+  yield * generateWrittenPatternReturnUnions();
 }

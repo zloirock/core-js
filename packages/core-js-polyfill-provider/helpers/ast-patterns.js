@@ -46,6 +46,10 @@ export const CENSUS_STATIC_RECEIVERS = new WeakMap();
 // one key evaluator, asked by the usage-global union where the detection walk names no key of its own
 export const CENSUS_KEY_NAMES = new WeakMap();
 
+// Program -> enum own-receiver proof. Ordinary writes retain own presence; deletion, root
+// reassignment and handout do not. Null delegates a qualified enum to the scoped declaration owner.
+export const CENSUS_ENUM_RECEIVERS = new WeakMap();
+
 // The escape census's position half, keyed by PROGRAM node -> `start:end` keys of CONSTRUCTOR references
 // whose value escapes. a position survives every clone and region rebuild (babel's cloneNode keeps
 // source positions), where node identity does not
@@ -4111,9 +4115,8 @@ export function patternSlotHasDefault(pattern, name) {
   })(pattern, false);
 }
 
-// the keys an ordinary object inherits in some engine the polyfills target: the standard
-// `Object.prototype` members and the legacy ones older engines still ship
-const OBJECT_PROTOTYPE_KEYS = new Set([
+// Function-valued slots guaranteed on a pristine object before any Annex B polyfill installation.
+export const OBJECT_PROTOTYPE_FUNCTION_KEYS = new Set([
   'constructor',
   'hasOwnProperty',
   'isPrototypeOf',
@@ -4121,6 +4124,10 @@ const OBJECT_PROTOTYPE_KEYS = new Set([
   'toLocaleString',
   'toString',
   'valueOf',
+]);
+// Other inherited keys: Annex B members and non-standard legacy extensions.
+const OBJECT_PROTOTYPE_KEYS = new Set([
+  ...OBJECT_PROTOTYPE_FUNCTION_KEYS,
   '__defineGetter__',
   '__defineSetter__',
   '__lookupGetter__',
@@ -5349,6 +5356,22 @@ export function resolvedCallYieldedContainer(call, calleeOf, unwrap = expr => ex
   if (literal?.type === 'ObjectExpression' || literal?.type === 'ArrayExpression') return { literal, slots: [], call };
   const next = invocationNode(literal);
   return next ? resolvedCallYieldedContainer(next, calleeOf, unwrap, seen.add(callee)) : null;
+}
+
+// A synchronous reader returning one named property of a plain parameter. The body and
+// parameter list contain no other work: writes, aliases, handouts and deferred reads need
+// their own flow proof. This describes the read, not whether that property exposes a method.
+export function calleeParameterMemberRead(callee) {
+  const params = slotParams(callee);
+  if (!params) return null;
+  const { body } = callee;
+  if (body?.type === 'BlockStatement'
+    && body.body.some(stmt => stmt.type !== 'ReturnStatement' && !isDirectiveStatement(stmt))) return null;
+  const member = unwrapRuntimeExpr(singleReturnBodyExpression(body));
+  if (!isMemberAccessNode(member) || memberReadKeyName(member) === null) return null;
+  const receiver = unwrapRuntimeExpr(member.object);
+  const paramIndex = receiver?.type === 'Identifier' ? params.findLastIndex(param => param.name === receiver.name) : -1;
+  return paramIndex < 0 ? null : { member, paramIndex };
 }
 
 // the identifier parameters a parameter-filled slot pairs against, or null for a function the
@@ -7451,12 +7474,14 @@ export function valueMayBeCallable(node, undefinedShadowed = false) {
 
 // is THIS property the one that installs a prototype? only a plain, non-computed, non-shorthand
 // `__proto__` data property does - a method, an accessor or a computed key of the same name creates
-// an ordinary own property instead. one rule, read both per-literal and per-property
-export function propertyInstallsPrototype(prop, undefinedShadowed = false) {
+// an ordinary own property instead. Null suppresses inheritance without lending dispatch;
+// callers checking inherited presence include that install too.
+export function propertyInstallsPrototype(prop, undefinedShadowed = false, includeNullPrototype = false) {
   if (prop?.type !== 'Property' && prop?.type !== 'ObjectProperty') return false;
   if (prop.computed || prop.shorthand || prop.method || (prop.kind && prop.kind !== 'init')) return false;
   if (propertyKeyName(prop) !== '__proto__') return false;
-  return prototypeValueMayDispatch(prop.value, undefinedShadowed);
+  return includeNullPrototype && isNullLiteralNode(unwrapRuntimeExpr(prop.value))
+    || prototypeValueMayDispatch(prop.value, undefinedShadowed);
 }
 
 // does an object literal install a custom prototype through a `__proto__:` DATA property? such an
@@ -7561,13 +7586,15 @@ export function classCarriesDecorators(classNode) {
 // out a this-rebindable function and breaks the this-field narrow premise. arrows are excluded
 // (lexical `this` - extraction cannot rebind). getters / setters cannot be read out as
 // functions by a plain member read (the read INVOKES them), but value-exposing calls
-// (descriptor extraction) still reach them - they only raise the `accessors` flag.
+// (descriptor extraction) still reach them. `getterKeys` names proven final getter slots;
+// their reads separate writes to a returned value from writes to this receiver.
 // `unknownKey` marks a method behind a dynamic / numeric key: any held or dynamic read could
 // extract it, so key-precise gates degrade to conservative. null when the literal has no
 // own-this function members at all - the common data-only case stays zero-cost
 export function objectOwnThisMethodInfo(objectNode) {
   if (objectNode?.type !== 'ObjectExpression') return null;
   const methodKeys = new Set();
+  let getterKeys = null;
   let unknownKey = false;
   let accessors = false;
   // the literal ends up owning members it never wrote in three ways, and every consumer of this
@@ -7586,6 +7613,7 @@ export function objectOwnThisMethodInfo(objectNode) {
       unscannableBodies = true;
       mayIterate = true;
       declaredKeys = new Set();
+      getterKeys?.clear();
       continue;
     }
     if (prop.computed) mayIterate = true;
@@ -7599,6 +7627,12 @@ export function objectOwnThisMethodInfo(objectNode) {
     }
     const key = ownThisMemberKeyName(prop);
     if (key !== null && key !== undefined) declaredKeys.add(key);
+    // Explicit keys decide descriptor precedence. A setter keeps its paired getter,
+    // while a known data definition resets it; unknown keys leave named slots intact.
+    if (key !== null && key !== undefined) {
+      if (prop.kind === 'get') (getterKeys ??= new Set()).add(key);
+      else if (prop.kind !== 'set') getterKeys?.delete(key);
+    }
     // `undefinedShadowed` is read conservatively: a summary carries no scope, and mis-reading an
     // install as absent is the unsafe direction
     if (propertyInstallsPrototype(prop, true)) {
@@ -7612,7 +7646,7 @@ export function objectOwnThisMethodInfo(objectNode) {
   // `mayIterate` alone is enough to return a summary: a literal with a computed key and no methods
   // at all can still hand itself to whatever iterates it
   return methodKeys.size || unknownKey || accessors || unscannableBodies || mayIterate
-    ? { methodKeys, unknownKey, accessors, mayIterate, unscannableBodies, declaredKeys } : null;
+    ? { methodKeys, getterKeys, unknownKey, accessors, mayIterate, unscannableBodies, declaredKeys } : null;
 }
 
 // class twin of `objectOwnThisMethodInfo`: `statics` picks the static side (`this` = the
@@ -7647,11 +7681,12 @@ export function classOwnThisMethodInfo(classNode, statics) {
     else methodKeys.add(key);
   }
   return methodKeys.size || unknownKey || accessors
-    ? { methodKeys, unknownKey, accessors, mayIterate: false, unscannableBodies: false, declaredKeys: null } : null;
+    ? { methodKeys, getterKeys: null, unknownKey, accessors, mayIterate: false, unscannableBodies: false, declaredKeys: null } : null;
 }
 
 // Merge extraction infos without inventing a literal's declared-key set for a class.
 // A null set means its member writes belong to the class field fold, not the literal escape gate.
+// A merged summary has no single literal descriptor; only a literal summary proves getter slots.
 export function mergeOwnThisMethodInfo(base, extra) {
   if (!base) return extra;
   if (!extra) return base;
@@ -7659,6 +7694,7 @@ export function mergeOwnThisMethodInfo(base, extra) {
   for (const key of extra.methodKeys) methodKeys.add(key);
   return {
     methodKeys,
+    getterKeys: null,
     unknownKey: base.unknownKey || extra.unknownKey,
     accessors: base.accessors || extra.accessors,
     mayIterate: !!base.mayIterate || !!extra.mayIterate,
@@ -7920,6 +7956,7 @@ export function collectFileCensus(programNode, reducers) {
     parentNode: null,
     underTypeAnnotation: false,
     scopes: [],
+    throwHandler: null,
   }];
   while (nodeStack.length) {
     const node = nodeStack.pop();
@@ -7956,6 +7993,7 @@ export function collectFileCensus(programNode, reducers) {
           parentNode: node,
           underTypeAnnotation,
           scopes: isScopeRebinding(node) || isLexicalScopeOpener(node) ? [...frame.scopes, node] : frame.scopes,
+          throwHandler: frame.throwHandler,
         };
         // Keep the owner, not just a top-level flag: escape and write censuses ask whose this it is.
         const thisOwner = key === 'decorators' && frame.parameterThisOwner !== undefined
@@ -7967,7 +8005,12 @@ export function collectFileCensus(programNode, reducers) {
         const parameterThisOwner = key === 'params' && FUNCTION_LIKE_NODE_TYPES.has(node.type)
           ? frame.thisOwner : undefined;
         nodeStack.push(value);
-        if (thisOwner === childFrame.thisOwner && parameterThisOwner === undefined) frameStack.push(childFrame);
+        const handlerStep = node.type === 'TryStatement' || frame.throwHandler
+          ? throwHandlerAtStep(node, { node: value, key }) : undefined;
+        const throwHandler = handlerStep === undefined ? frame.throwHandler : handlerStep;
+        if (throwHandler !== childFrame.throwHandler) {
+          frameStack.push({ ...childFrame, thisOwner, atThisTopLevel: thisOwner === null, parameterThisOwner, throwHandler });
+        } else if (thisOwner === childFrame.thisOwner && parameterThisOwner === undefined) frameStack.push(childFrame);
         else if (parameterThisOwner === undefined) {
           if (!receiverFrame || receiverFrame.thisOwner !== thisOwner) {
             receiverFrame = { ...childFrame, thisOwner, atThisTopLevel: thisOwner === null };
@@ -12052,6 +12095,23 @@ export function readStepIsDeferred(p, child) {
   return !call || invocationArgumentWrites(call.node);
 }
 
+// One exception-region edge: undefined inherits the outer handler, null opens a deferred
+// execution, and a try body with a catch sends its throws to that handler.
+function throwHandlerAtStep(node, child) {
+  if (node?.type === 'TryStatement' && node.block === child.node && node.handler) return node.handler;
+  return isDeferredContextStep(node, child) ? null : undefined;
+}
+
+// The catch reached by a throw in this execution. Throws in a catch/finally bypass that
+// try's handler; a nested function or instance initializer owns a different execution.
+export function throwCatchHandler(path) {
+  for (let up = path?.parentPath, child = path; up?.node; child = up, up = up.parentPath) {
+    const handler = throwHandlerAtStep(up.node, child);
+    if (handler !== undefined) return handler ? up.get('handler') : null;
+  }
+  return null;
+}
+
 // can a write that is textually AFTER a read still reach it? true when the read sits in a DEFERRED
 // context below `stopNode` - a closure re-invoked later, or a non-static class-field initializer that
 // runs at construction. bounded at the binding's own scope, so a read in the SAME activation as the
@@ -12262,6 +12322,10 @@ export function positionDisposition(parent, node, parentNodePath) {
     return unwrapRuntimeExpr(slot) === node;
   }
   switch (parent?.type) {
+    case 'ThrowStatement': {
+      const handler = throwCatchHandler(parentNodePath);
+      return handler ? handler.node.param ? POSITION_FORWARDS : POSITION_CONSUMES : POSITION_HANDS_OUT;
+    }
     // evaluated and dropped: a statement, a `for (;;)` head slot, an update that stores a NUMBER back
     case 'ExpressionStatement':
     case 'ForStatement':

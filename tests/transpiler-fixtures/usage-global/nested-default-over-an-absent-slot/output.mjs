@@ -14,12 +14,12 @@ import "core-js/modules/es.array.species";
 import "core-js/modules/es.iterator.constructor";
 import "core-js/modules/es.iterator.every";
 import "core-js/modules/es.iterator.find";
-import "core-js/modules/es.iterator.some";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
 // a nested pattern level's default is the receiver alone where the init's literal provably leaves the
 // slot undefined - an absent key, a slot past an array's end, a `void` one - so only the default's
-// family is owed; a slot something may still supply - a value, an inherited key, a spread - keeps both
+// family is owed. A pristine inherited function keeps its inner default dead; an unknown value or
+// a spread can still supply either family.
 function list() {
   return [1, 2];
 }

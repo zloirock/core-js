@@ -589,11 +589,11 @@ runBoth('static subclass getter shadows a base static field',
 
 // object literals define their keys in source order on ONE object, so a data definition resets the
 // slot and the trailing setter leaves it setter-only - the earlier getter is dead and the read is
-// undecided, while a getter/setter PAIR still reads through the getter
+// undefined, while a getter/setter PAIR still reads through the getter
 runBoth('data property between a getter and a setter kills the getter read',
   'const o = { get x() { return [1]; }, x: 5, set x(v) {} }; const t = o.x;', (adapter, prog, lbl) => {
     const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
-    check(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), null);
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: true, kind: 'undefined' });
   });
 
 runBoth('getter paired with a trailing setter still supplies the read',
@@ -3648,13 +3648,13 @@ runBoth('destructure default with duplicate key last-undefined takes the default
   });
 
 // duplicate key whose LAST property is a setter: the slot reads undefined, so last-wins must land on
-// the setter and stay undecided (the fold keeps the generic dispatch) - a find-first scan took the
+// the setter and take the array default - a find-first scan took the
 // leading data string and wrongly narrowed it to the string `at` helper
-runBoth('destructure default with data-then-setter duplicate key folds to null',
+runBoth('destructure default with data-then-setter duplicate key takes the array default',
   "const { a = [] } = { a: 'str', set a(v) {} }; a.at(0);",
   (adapter, prog, lbl) => {
     const at = adapter.pickPath(prog, 'CallExpression', p => p.node.callee?.property?.name === 'at');
-    check(lbl, adapter.makeResolver().resolveNodeType(at.get('callee').get('object')), null);
+    checkType(lbl, adapter.makeResolver().resolveNodeType(at.get('callee').get('object')), { primitive: false, ctor: 'Array' });
   });
 
 // duplicate key whose LAST property is a getter returning an array: last-wins lands on the getter and
@@ -3718,7 +3718,7 @@ for (const [label, source, expected, opts] of [
   ['a key under a literal level', 'function fa() { return [1]; } const { B: { A: { at } = fa() } } = { B: {} };', 'Array'],
   ['a void slot', 'function fa() { return [1]; } const { A: { at } = fa() } = { A: void 0 };', 'Array'],
   ['a slot holding a value', 'function fa() { return [1]; } const { A: { at } = fa() } = { A: s };', null],
-  ['an inherited key', 'function fa() { return [1]; } const { toString: { at } = fa() } = {};', null],
+  ['an inherited key', 'function fa() { return [1]; } const { toString: { at } = fa() } = {};', 'Function'],
   ['a key the file writes onto the prototype', 'function fa() { return [1]; } const { A: { at } = fa() } = {};', null,
     { isMutatedStatic: (object, key) => object === 'Object.prototype' && key === 'A' }],
   ['a spread', 'function fa() { return [1]; } const { A: { at } = fa() } = { ...o };', null],

@@ -38,13 +38,10 @@ import "core-js/modules/es.iterator.some";
 import "core-js/modules/es.iterator.take";
 import "core-js/modules/es.iterator.to-array";
 import "core-js/modules/es.iterator.windows";
-import "core-js/modules/es.string.at";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
-// a user GETTER typed to a constructor (`KE.A`, `OE.A`) under a nested instance claim beside a
-// sibling is read ONCE: one capture serves the nested claim and the sibling alike - beside a static,
-// a residual, two nested claims, exported, beside a sibling declarator, in an assignment and with the
-// static written first; `Array` itself needs none
+// Nested claims beside constructor statics retain one evaluation of each user getter receiver.
+// A proven class getter narrows its prototype to Array; unresolved sibling routes stay conservative.
 class KE {
   static get A() {
     log();

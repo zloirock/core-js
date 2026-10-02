@@ -59,7 +59,9 @@ export const POSITIONS = [
   // binding as well, so the holder is an extra channel over it and the named walk reports the
   // default-value reference as the escaping read it is
   ['param-default-consumed', 'function f(p = @) { return typeof p; }\nsink(f);', { named: 'escapes', inline: 'local' }],
-  ['param-default-pattern-target', 'function f({ a } = @) { return typeof a; }\nsink(f);', 'escapes'],
+  ['param-default-pattern-target', 'function f({ a } = @) { return typeof a; }\nsink(f);', { named: 'escapes', inline: 'local' }],
+  ['param-default-method-target', 'function f({ read } = @) { return read; }\nsink(f);', 'escapes'],
+  ['param-default-rest-target', 'function f({ ...copy } = @) { return copy; }\nsink(f);', 'escapes'],
   ['jsx-attribute', 'const el = <Tag prop={@} />;\nsink(el);', 'escapes'],
   ['jsx-child', 'const el = <Tag>{@}</Tag>;\nsink(el);', 'escapes'],
   ['jsx-spread-child', 'const el = <Tag>{...@}</Tag>;\nsink(el);', 'escapes'],

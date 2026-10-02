@@ -7,6 +7,7 @@
 //
 // Public surface:
 //   resolveReturnType(fnPath, callPath, classSubst)  - main entry
+//   resolveReturnUnionHints(fnPath, callPath)        - reachable return families when no Type fits
 //   resolveBodyReturnType(fnPath, callPath)          - body-return fold (used by awaited
 //                                                       cluster's `resolveAwaitedFromCallBody`)
 //   collectReturnPaths(blockPath)                    - the `return` statements a body-fold walks
@@ -41,7 +42,9 @@ import {
   isDestructurePattern,
   patternSlotTarget,
   positionalPathAt,
+  peelSkippableWrapperPath,
   peelTSParenthesized,
+  propertyInstallsPrototype,
 } from '../helpers/ast-patterns.js';
 import { nodeAlwaysExits } from './exit-analysis.js';
 
@@ -67,9 +70,13 @@ export function createReturnType({
   isNullableOrNever,
   elementContainerType,
   commonType,
+  foldUnionTypes,
+  mergeArmHints,
+  annotationUnionHints,
   findPatternKeyPath,
   resolveDestructuredMember,
   resolveObjectMemberPath,
+  walkObjectLiteralPropertyPath,
 }) {
   // sidecar map (typeParamMap -> paramName -> arg NodePath) so indexed-access resolution
   // can inspect the actual call arg - the declared constraint is usually broader.
@@ -97,8 +104,9 @@ export function createReturnType({
 
   // direct named param (`function f(x)` / `function f(x: T = 0)`): return the call
   // arg at this position (the positional read, an inline-array spread expanded), the default's
-  // type when no arg was passed, or null when neither source applies
-  function resolveDirectParam(param, i, args, fnPath) {
+  // type when no arg or a proven undefined was passed. A nullish-capable argument also
+  // admits the default; fold both before choosing a return family.
+  function resolveDirectParam(param, i, args, fnPath, unionHints = false, depth = 0) {
     // dual index: align `args` on the this-dropped `argIndex`, keep the raw `i` for the AST params
     // path (the AssignmentPattern default lookup below)
     const argIndex = argIndexForParam(fnPath.node.params, i);
@@ -106,9 +114,25 @@ export function createReturnType({
     if (length === null) return null;
     if (argIndex < length) {
       const arg = positionalPathAt(args, argIndex);
-      return arg ? resolveCallArgType(arg) : null;
+      const type = arg ? resolveCallArgType(arg) : null;
+      if (unionHints) {
+        if (!arg) return null;
+        const arms = [arg];
+        if (param.type === 'AssignmentPattern' && (!type || type.mayBeNullish || type.type === 'undefined')) {
+          arms.push(fnPath.get('params')[i].get('right'));
+        }
+        return mergeArmHints(arms, depth);
+      }
+      if (param.type === 'AssignmentPattern' && type?.mayBeNullish) {
+        const fallback = resolveNodeType(fnPath.get('params')[i].get('right'));
+        return fallback ? foldUnionTypes([type, fallback], value => value) : null;
+      }
+      if (param.type !== 'AssignmentPattern' || type?.type !== 'undefined') return type;
     }
-    if (param.type === 'AssignmentPattern') return resolveNodeType(fnPath.get('params')[i].get('right'));
+    if (param.type === 'AssignmentPattern') {
+      const fallback = fnPath.get('params')[i].get('right');
+      return unionHints ? mergeArmHints([fallback], depth) : resolveNodeType(fallback);
+    }
     return null;
   }
 
@@ -116,9 +140,9 @@ export function createReturnType({
   // owns the path lookup so the "name not in pattern" case stays in the loop).
   // spread arg would require double-unwrap through the spread iterable's first
   // element - conservative bail. when no call arg is passed, an outer
-  // AssignmentPattern default (`function f({a} = {a: [1,2,3]})` called as `f()`)
+  // AssignmentPattern default (`function f({a} = {a: [1,2,3]})` called as `f()` or `f(undefined)`)
   // is the fallback
-  function resolvePatternParam(param, keyPath, i, args, fnPath) {
+  function resolvePatternParam(param, keyPath, i, args, fnPath, unionHints = false) {
     // dual index, like resolveDirectParam: `argIndex` aligns the call args past a leading `this`, raw
     // `i` keeps the AST `params` path on the real slot
     const argIndex = argIndexForParam(fnPath.node.params, i);
@@ -126,10 +150,25 @@ export function createReturnType({
     if (length === null) return null;
     if (argIndex < length) {
       const arg = positionalPathAt(args, argIndex);
-      return arg ? resolveDestructuredMember(arg, keyPath) : null;
+      if (param.type !== 'AssignmentPattern' || !arg || resolveCallArgType(arg)?.type !== 'undefined') {
+        // A plain one-field pattern captures a fresh data slot before the callee body
+        // can mutate its argument. No sibling getter, key/default work or prototype install
+        // can replace that slot on this shape; other arguments keep the closure proof.
+        const pattern = patternSlotTarget(param);
+        const literal = arg && peelSkippableWrapperPath(arg);
+        const property = pattern?.type === 'ObjectPattern' && pattern.properties.length === 1
+          ? pattern.properties[0] : null;
+        if (unionHints && keyPath.length === 1 && property && !property.computed && property.value?.type === 'Identifier'
+          && t.isObjectExpression(literal?.node) && literal.node.properties.length === 1
+          && t.isObjectProperty(literal.node.properties[0]) && !propertyInstallsPrototype(literal.node.properties[0])) {
+          const value = walkObjectLiteralPropertyPath(literal, keyPath[0]);
+          return value ? mergeArmHints([value], 0) : null;
+        }
+        return arg ? resolveDestructuredMember(arg, keyPath, unionHints) : null;
+      }
     }
     if (param.type === 'AssignmentPattern') {
-      return resolveObjectMemberPath(fnPath.get('params')[i].get('right'), keyPath);
+      return resolveObjectMemberPath(fnPath.get('params')[i].get('right'), keyPath, null, unionHints);
     }
     return null;
   }
@@ -170,12 +209,16 @@ export function createReturnType({
   // takes the binding-to-param record rather than the binding: the caller has to run the scan
   // anyway to decide whether the override lane applies, and the scan walks every ObjectPattern /
   // ArrayPattern param through `findPatternKeyPath` once per collected return of the body
-  function resolveParamType({ index, param, keyPath }, fnPath, callPath) {
-    if (param.type === 'RestElement') return new $Object('Array');
+  function resolveParamType({ index, param, keyPath }, fnPath, callPath, unionHints = false, depth = 0) {
+    if (param.type === 'RestElement') return unionHints ? new Set(['array']) : new $Object('Array');
     const args = callArgumentPaths(callPath);
     return keyPath
-      ? resolvePatternParam(param, keyPath, index, args, fnPath)
-      : resolveDirectParam(param, index, args, fnPath);
+      ? unionHints
+        ? mergeArmHints([fnPath], depth,
+          () => resolvePatternParam(param, keyPath, index, args, fnPath),
+          () => resolvePatternParam(param, keyPath, index, args, fnPath, true))
+        : resolvePatternParam(param, keyPath, index, args, fnPath)
+      : resolveDirectParam(param, index, args, fnPath, unionHints, depth);
   }
 
   // a positional call arg overrides the binding's param DEFAULT (`f(x = D) { return x } f(arg)`):
@@ -192,7 +235,7 @@ export function createReturnType({
   }
 
   // resolve expression type within a function body, with fallback to call-site parameter inference
-  function resolveBodyExpr(path, fnPath, callPath) {
+  function resolveBodyExpr(path, fnPath, callPath, unionHints = false, depth = 0) {
     const resolved = callPath ? resolvePath(path) : null;
     const refBinding = resolved && t.isIdentifier(resolved.node)
       ? getScopeBinding(resolved.scope, resolved.node.name, resolved) : null;
@@ -205,11 +248,24 @@ export function createReturnType({
     // still wins there. when the override's type can't be determined (e.g. a spread arg of unknown
     // length supplies this slot) we BAIL rather than fall through to the default, which is unsound
     if (found && paramHasOverridingArg(found, fnPath, callPath)) {
-      return resolveParamType(found, fnPath, callPath);
+      return resolveParamType(found, fnPath, callPath, unionHints, depth);
     }
-    const type = resolveNodeType(path);
+    const type = unionHints ? mergeArmHints([path], depth) : resolveNodeType(path);
     if (type) return type;
-    return found ? resolveParamType(found, fnPath, callPath) : null;
+    return found ? resolveParamType(found, fnPath, callPath, unionHints, depth) : null;
+  }
+
+  // Project the same return expressions and call-site parameter pairing to dispatch families.
+  // An opaque signature or return keeps the whole set unknown; nullable returns dispatch nothing.
+  function resolveReturnUnionHints(fnPath, callPath, depth = 0) {
+    const annotation = unwrapTypeAnnotation(fnPath.node.returnType);
+    if (annotation) return annotationUnionHints(annotation, fnPath.scope);
+    const body = fnPath.get('body');
+    if (!body.node || fnPath.node.declare || fnPath.node.async || fnPath.node.generator) return null;
+    if (!t.isBlockStatement(body.node)) return resolveBodyExpr(body, fnPath, callPath, true, depth);
+    const returns = collectReturnPaths(body).map(path => path.get('argument')).filter(path => path.node);
+    return mergeArmHints(returns, depth, () => null,
+      (path, nextDepth) => resolveBodyExpr(path, fnPath, callPath, true, nextDepth));
   }
 
   // collect return statement paths from a block body, skipping nested functions
@@ -677,6 +733,7 @@ export function createReturnType({
 
   return {
     resolveReturnType,
+    resolveReturnUnionHints,
     resolveBodyReturnType,
     collectReturnPaths,
     getTypeParamArgPath,
