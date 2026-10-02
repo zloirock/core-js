@@ -1,8 +1,5 @@
-// a receiver that SPLITS off its own memo, over a navigation the kept-nav plan already collapses
-// to a ponyfill under one probe: the memo must compose with that probe rather than test its own
-// result again. left to mint a ref, the split spells a SECOND guard over the guard render builds
-// (`null == (null == g.window ? void 0 : _self) ? void 0 : ...`) and drags the collapsed root's
-// import back in
+// A receiver split composes with the existing environment probe without adding a second guard.
+// The unwritten computed key retains the constructor alone; the named static remains independent.
 let out;
 let k;
 out = (() => globalThis)().window?.self?.Promise.race.zzz.name;
