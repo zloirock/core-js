@@ -86,6 +86,7 @@ jobs:
       - run: npm run test-e2e-usage-pure-karma
 
   e2e-libs:
+    if: *not-duplicate
     runs-on: windows-2022
     env:
       PLAYWRIGHT_BROWSERS_PATH: D:\ms-playwright
